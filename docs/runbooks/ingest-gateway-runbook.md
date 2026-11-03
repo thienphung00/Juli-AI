@@ -69,6 +69,16 @@ admits only the row with that hash. Proof: `tests/integration/test_ingest_two_te
 CORS: none needed. The extension's service worker calls the API with a host
 permission for `https://api.app-juli.com/*`, which Chrome exempts from CORS.
 
+### File vs Connector on the same key (P90 D-5)
+
+Rank is `vendor < extension (Connector) < file < api`. A file post replaces a Connector row on the
+same (shop, dataset, day, item, stream, segment, order type); a later Connector post never
+replaces a file row. Rows written before D-5 (file = extension = 2) are ranked by their `source`
+column, so no data migration is needed. Each metric post logs one `ingest_source_conflicts` line
+(counts only: `kept_existing`, `replaced_existing`, `same_rank`, `differing`) when it meets rows of
+the other source. The Ads section's own datasets (`ads_campaign_daily`, `ads_campaign_period`,
+`ads_keyword_period`) refuse `order_type: confirmed` (`ads_order_type_confirmed`, D-2).
+
 ## Juli Connector (Chrome extension)
 
 Build: `pnpm --filter @juli/connector build` → `apps/connector/dist/` (load

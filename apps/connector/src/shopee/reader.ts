@@ -10,6 +10,8 @@ import {
   ADS_MAX_ROWS_PER_DAY,
   ADS_PAGE_LIMIT_DEFAULT,
   PRODUCT_MAX_PAGES,
+  TRAFFIC_MAX_CONSECUTIVE_ERRORS,
+  TRAFFIC_MAX_REQUESTS_PER_JOB,
   READER_POLL_MS,
   READER_TEMPLATE_WAIT_MS,
   type ReaderId,
@@ -36,6 +38,8 @@ export interface ReaderJob {
   id: ReaderId;
   /** Ads: the finished GMT+7 days to read, one request set per day. */
   days?: string[];
+  /** item_traffic: the item ids to read for each day. */
+  itemIds?: string[];
 }
 
 export interface ReaderResponse {
@@ -49,6 +53,8 @@ export interface ReaderResponse {
   capturedAt: number;
   page?: number;
   day?: string;
+  /** item_traffic: the item the request was for. */
+  itemId?: string;
   source: "replay" | "page";
   /** Ads: the request asked for paid (not placed) orders. */
   usePaidGmv?: boolean;
@@ -95,6 +101,10 @@ export interface ReaderEnv {
   fetch: (request: ReaderRequest) => Promise<FetchedReaderResponse>;
   /** A CAPTCHA overlay / verification page is showing in this tab. */
   captchaVisible?: () => boolean;
+  /** Seller Centre's "enter your Shopee password" re-confirmation modal is showing (never typed into). */
+  passwordModalVisible?: () => boolean;
+  /** Request headers the page sent on its own /api/mydata calls (a template for endpoints it never called). */
+  mydataHeaders?: () => Record<string, string> | undefined;
   /** The tab's current path (a client-side redirect to a login or verification page). */
   pathname?: () => string;
 }
@@ -237,6 +247,11 @@ export const isProduct = (o: Record<string, unknown>) =>
 export const isAdsEntry = (o: Record<string, unknown>) => isRecord(o.campaign) || isRecord(o.report);
 export const isVoucher = (o: Record<string, unknown>) => "voucher_id" in o;
 
+/** The /datacenter re-confirmation modal's text (any dialog text is passed in). */
+export function isPasswordPrompt(text: string): boolean {
+  return /vui lòng nhập mật khẩu shopee/i.test(text);
+}
+
 /** `path` blocked by a login / verification page (client-side redirect or whole-tab redirect). */
 export function blockedPath(pathname: string): "login" | "captcha" | null {
   if (/\/(verify|captcha|anti[-_]?bot|security[-_]?check)/i.test(pathname)) return "captcha";
@@ -264,7 +279,9 @@ async function send(
   request: ReaderRequest,
   collected: ReaderResponse[],
   extra: Partial<ReaderResponse> = {},
+  tolerateError = false,
 ): Promise<ReaderResponse> {
+  if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_login", collected, "password_modal"));
   const wall = env.captchaVisible?.() ? "captcha" : blockedPath(env.pathname?.() ?? "");
   if (wall) throw new Stop(fail(wall === "captcha" ? "blocked_captcha" : "blocked_login", collected, "page"));
   await env.pacer.beforeRequest();
@@ -294,6 +311,7 @@ async function send(
   const verdict = classify(status, body);
   if (verdict === "captcha") throw new Stop(fail("blocked_captcha", collected, `http_${status}`));
   if (verdict === "login") throw new Stop(fail("blocked_login", collected, `http_${status}`));
+  if (verdict === "error" && tolerateError) return result;
   if (verdict === "error") throw new Stop(fail("error", collected, `${request.endpoint}:http_${status}`));
   return result;
 }
@@ -398,6 +416,69 @@ async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse
   }
 }
 
+/** Only the four source blocks of a traffic-details answer are kept (the funnel / pie data are not read). */
+export function trimTrafficBody(body: unknown): unknown {
+  if (!isRecord(body)) return body;
+  const result = isRecord(body.result) ? body.result : isRecord(body.data) ? body.data : null;
+  if (!result) return body;
+  const kept: Record<string, unknown> = {};
+  for (const key of ["product_card", "live", "video", "affiliate"]) {
+    if (key in result) kept[key] = result[key];
+  }
+  return { code: body.code, result: kept };
+}
+
+/** A finished GMT+7 day as the mydata `period=day` picker sends it (end = next midnight). */
+export function trafficDayBounds(day: string): { start_time: number; end_time: number } {
+  const start = gmt7DateStart(day);
+  return { start_time: start, end_time: start + 86_400 };
+}
+
+async function readItemTraffic(env: ReaderEnv, days: string[], itemIds: string[], collected: ReaderResponse[]): Promise<void> {
+  // The re-confirmation modal means the page will never load its data: stop at once.
+  const modal = () => env.passwordModalVisible?.() === true;
+  const ready = await env.waitFor(() => modal() || env.hasSession(), READER_TEMPLATE_WAIT_MS);
+  if (modal()) throw new Stop(fail("blocked_login", collected, "password_modal"));
+  if (!ready) throw new Stop(fail("needs_data_page", collected, "traffic_details"));
+  // The page's own details call (if it made one) is the template; else its other mydata headers.
+  await env.waitFor(() => env.template("traffic_details") !== undefined, 8_000);
+  const learned = env.template("traffic_details");
+  const template: Template = {
+    query: learned?.query ?? {},
+    headers: learned?.headers ?? env.mydataHeaders?.(),
+  };
+  let requests = 0;
+  let errorsInARow = 0;
+  for (const day of days) {
+    const bounds = trafficDayBounds(day);
+    for (const itemId of itemIds) {
+      if (requests >= TRAFFIC_MAX_REQUESTS_PER_JOB) return;
+      requests += 1;
+      const request = buildReaderRequest(
+        env.origin,
+        "traffic_details",
+        template,
+        {
+          query: {
+            start_time: String(bounds.start_time),
+            end_time: String(bounds.end_time),
+            period: "day",
+            order_type: "confirmed",
+            item_id: itemId,
+          },
+        },
+        env.session(),
+      );
+      const response = await send(env, request, collected, { day, itemId }, true);
+      response.body = trimTrafficBody(response.body);
+      errorsInARow = classify(response.status, response.body) === "ok" ? 0 : errorsInARow + 1;
+      if (errorsInARow >= TRAFFIC_MAX_CONSECUTIVE_ERRORS) {
+        throw new Stop(fail("error", collected, `traffic_details:http_${response.status}`));
+      }
+    }
+  }
+}
+
 async function readVouchers(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
   await waitForPage(env, ["voucher_list"], collected);
   const template = env.template("voucher_list") as Template;
@@ -441,6 +522,9 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
     switch (job.id) {
       case "products":
         await readProducts(env, collected);
+        break;
+      case "item_traffic":
+        await readItemTraffic(env, job.days ?? [], job.itemIds ?? [], collected);
         break;
       case "ads":
         await readAds(env, job.days ?? [], collected);

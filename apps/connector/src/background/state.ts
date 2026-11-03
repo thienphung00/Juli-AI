@@ -59,10 +59,14 @@ export interface Backfill {
   inFlight?: { day: string; at: number };
 }
 
-/** One page the scheduler opens: its reader, and (ads) the finished days to read there. */
+/**
+ * One page the scheduler opens: its reader, and (ads, item_traffic) the finished days to read
+ * there; item_traffic also carries the item ids to read (filled in when its turn comes).
+ */
 export interface PlannedJob {
   id: ReaderId;
   days?: string[];
+  itemIds?: string[];
 }
 
 /** One scheduled run: the pages in order, one open tab at a time (persisted: the worker may restart). */
@@ -90,6 +94,10 @@ export interface ReaderSchedule {
   blocked?: { at: string; reason: ReaderBlockReason; page: ReaderId; until: number };
   /** Ads days already read (trimmed to the last 14), so a missed day is retried but a read one is not. */
   adsDone: string[];
+  /** Item-traffic days read for every item (trimmed to the last 14). */
+  trafficDone?: string[];
+  /** Active, visible item ids of the shop, from the last product-list read. */
+  itemIds?: string[];
 }
 
 export interface State {

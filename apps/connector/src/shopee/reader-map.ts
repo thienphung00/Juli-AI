@@ -242,6 +242,140 @@ export function mapProductList(responses: ReaderResponse[], capturedAt: number):
   };
 }
 
+// -- per-product traffic sources -------------------------------------------------------------
+
+const STATUS_NORMAL = new Set(["1", "normal", "active", "live"]);
+
+/**
+ * Item ids worth a traffic read: not unlisted, and a normal status (when none of the statuses
+ * looks normal the unlisted filter alone applies, so an unknown status code reads more, not less).
+ */
+export function activeItemIds(responses: ReaderResponse[]): string[] {
+  const unlistedOut: { id: string; normal: boolean }[] = [];
+  const seen = new Set<string>();
+  for (const response of dataResponses(responses, "product_list")) {
+    const found = findList(payloadOf(response.body), isProduct);
+    for (const item of found?.list ?? []) {
+      const id = digits(item.id ?? item.item_id);
+      if (id === undefined || seen.has(id)) continue;
+      seen.add(id);
+      const tags = isRecord(item.tag) ? item.tag : {};
+      if (flag(tags.unlist) === true) continue;
+      const status = tag(item.status);
+      unlistedOut.push({ id, normal: status === undefined || STATUS_NORMAL.has(String(status).toLowerCase()) });
+    }
+  }
+  const normal = unlistedOut.filter((item) => item.normal);
+  return (normal.length > 0 ? normal : unlistedOut).map((item) => item.id);
+}
+
+const TRAFFIC_L1 = ["product_card", "live", "video", "affiliate"] as const;
+const TRAFFIC_L2 = new Set([
+  "search",
+  "recommendation",
+  "my_purchase",
+  "shopping_cart",
+  "shop",
+  "promotion",
+  "others",
+]);
+const TRAFFIC_METRICS = [
+  "sales",
+  "orders",
+  "units",
+  "buyers",
+  "product_impressions",
+  "unique_product_impressions",
+  "product_clicks",
+  "unique_product_clicks",
+] as const;
+
+/** One source row's numbers (ratios and pct_diff are dropped); undefined when it carries none. */
+function trafficMetrics(source: unknown): Row | undefined {
+  if (!isRecord(source)) return undefined;
+  const row: Row = {};
+  for (const key of TRAFFIC_METRICS) put(row, key, nonNeg(source[key]));
+  return Object.keys(row).length > 0 ? row : undefined;
+}
+
+const allZero = (metrics: Row) => Object.values(metrics).every((v) => v === 0);
+
+/** `psd_label_search` → `search` (the label as the contract names it); undefined when not a source label. */
+function l2Of(source: unknown): string | undefined {
+  if (typeof source !== "string") return undefined;
+  const name = source.startsWith("psd_label_") ? source.slice("psd_label_".length) : source;
+  return TRAFFIC_L2.has(name) ? name : undefined;
+}
+
+/**
+ * traffic/details answers (one per item per day) → one `item_traffic_sources` post per day:
+ * a row per (item, l1 stream, l2 source or "total"), numbers only. Level-2 labels the contract
+ * does not name are skipped. All-zero rows of the live / video / affiliate streams are not sent
+ * (the product-card rows always are); the answer is aggregate numbers per product, no buyer data.
+ */
+export function mapItemTraffic(responses: ReaderResponse[]): Mapped[] {
+  const days = [
+    ...new Set(responses.filter((r) => r.endpoint === "traffic_details").map((r) => r.day).filter((d): d is string => typeof d === "string")),
+  ].sort();
+  const posts: Mapped[] = [];
+  for (const day of days) {
+    const issues = { unexpected: [] as string[], missing: [] as string[] };
+    const rows: Row[] = [];
+    const seen = new Set<string>();
+    for (const response of dataResponses(responses.filter((r) => r.day === day), "traffic_details")) {
+      const itemId = digits(response.itemId);
+      if (itemId === undefined || seen.has(itemId)) continue;
+      seen.add(itemId);
+      const result = isRecord(response.body) && isRecord(response.body.result) ? response.body.result : null;
+      const card = result && isRecord(result.product_card) ? result.product_card : null;
+      if (!card || !isRecord(card.total)) {
+        if (!issues.missing.includes("result.product_card.total")) issues.missing.push("result.product_card.total");
+        continue;
+      }
+      for (const l1 of TRAFFIC_L1) {
+        const block = result?.[l1];
+        if (!isRecord(block)) continue;
+        const sources: [string, unknown][] = [["total", block.total]];
+        if (Array.isArray(block.breakdown)) {
+          for (const entry of block.breakdown) {
+            const l2 = isRecord(entry) ? l2Of(entry.source) : undefined;
+            if (l2 !== undefined) sources.push([l2, entry]);
+          }
+        }
+        const done = new Set<string>();
+        for (const [l2, source] of sources) {
+          const metrics = trafficMetrics(source);
+          if (!metrics || done.has(l2) || (l1 !== "product_card" && allZero(metrics))) continue;
+          done.add(l2);
+          rows.push({ date: day, item_id: itemId, l1, l2, ...metrics });
+        }
+      }
+    }
+    const drift = driftOf(issues.unexpected, issues.missing);
+    posts.push({
+      dataset: "item_traffic_sources",
+      endpoint: "product/traffic/details",
+      date: day,
+      orderType: "confirmed",
+      granularity: "day",
+      rows: drift ? [] : rows,
+      drift,
+    });
+  }
+  return posts;
+}
+
+/** The days of an item_traffic job for which EVERY item was read (a day cut short is read again). */
+export function completedTrafficDays(job: ReaderJob, responses: ReaderResponse[]): string[] {
+  const ids = job.itemIds ?? [];
+  return (job.days ?? []).filter((day) => {
+    const ok = new Set(
+      dataResponses(responses.filter((r) => r.day === day), "traffic_details").map((r) => r.itemId),
+    );
+    return ids.length > 0 && ids.every((id) => ok.has(id));
+  });
+}
+
 // -- ads -----------------------------------------------------------------------------------
 
 const AD_COUNTS = [
@@ -518,6 +652,8 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
       const { catalog, snapshot } = mapProductList(responses, capturedAt);
       return [catalog, snapshot];
     }
+    case "item_traffic":
+      return mapItemTraffic(responses);
     case "ads":
       return mapAdsDaily(responses);
     case "vouchers":

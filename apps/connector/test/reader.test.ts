@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   blockedPath,
+  isPasswordPrompt,
   buildReaderRequest,
   classify,
   dayBounds,
@@ -14,6 +15,8 @@ import {
   type Template,
   totalOf,
 } from "../src/shopee/reader";
+import { TRAFFIC_MAX_REQUESTS_PER_JOB } from "../src/config";
+import { gmt7DateStart } from "../src/shopee/time";
 import { Pacer } from "../src/shopee/runner";
 import type { ReaderEndpoint } from "../src/shopee/endpoints";
 import adsHome from "./fixtures/readers/ads_homepage.json";
@@ -24,6 +27,7 @@ import healthList from "./fixtures/readers/health_metric_list.json";
 import healthOverview from "./fixtures/readers/health_overview.json";
 import products1 from "./fixtures/readers/product_list.json";
 import products2 from "./fixtures/readers/product_list_page2.json";
+import trafficDetails from "./fixtures/readers/traffic_details.json";
 import vouchers from "./fixtures/readers/voucher_list.json";
 
 const SC = "https://banhang.shopee.vn";
@@ -322,5 +326,92 @@ describe("stops", () => {
       expect(outcome.status).toBe("error");
       expect(h.sent).toHaveLength(1);
     }
+  });
+});
+
+describe("item_traffic", () => {
+  const job = { id: "item_traffic" as const, days: ["2026-11-02", "2026-11-01"], itemIds: ["11", "12"] };
+  const ok = () => ({ body: trafficDetails });
+
+  it("one paced GET per item per day: period=day, order_type=confirmed, item_id, end = next midnight", async () => {
+    const h = harness({ traffic_details: { query: { period: "yesterday", extra: "x" }, headers: { "x-h": "1" } } }, ok);
+    const outcome = await runReaderJob(job, h.env);
+    expect(outcome.status).toBe("done");
+    expect(h.sent).toHaveLength(4);
+    const urls = h.sent.map((r) => new URL(r.url));
+    expect(urls[0]!.pathname).toBe("/api/mydata/v1/product/traffic/details/");
+    expect(Object.fromEntries(urls[0]!.searchParams)).toMatchObject({
+      period: "day",
+      order_type: "confirmed",
+      item_id: "11",
+      extra: "x",
+      start_time: String(gmt7DateStart("2026-11-02")),
+      end_time: String(gmt7DateStart("2026-11-02") + 86_400),
+    });
+    expect(urls.map((u) => u.searchParams.get("item_id"))).toEqual(["11", "12", "11", "12"]);
+    expect(h.sent[0]!.headers).toEqual({ "x-h": "1" });
+    expect(outcome.responses.map((r) => [r.day, r.itemId])).toEqual([
+      ["2026-11-02", "11"],
+      ["2026-11-02", "12"],
+      ["2026-11-01", "11"],
+      ["2026-11-01", "12"],
+    ]);
+    // only the four source blocks are kept, and every request after the first waited >= 2 s
+    expect(Object.keys((outcome.responses[0]!.body as { result: object }).result)).toEqual(["product_card", "live", "video", "affiliate"]);
+    expect(h.sleeps.filter((ms) => ms >= 2_000).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("falls back to the page's other mydata headers when it never called traffic/details", async () => {
+    const h = harness({}, ok, {});
+    h.env.mydataHeaders = () => ({ "x-mydata": "1" });
+    await runReaderJob({ ...job, days: ["2026-11-02"], itemIds: ["11"] }, h.env);
+    expect(h.sent[0]!.headers).toEqual({ "x-mydata": "1" });
+  });
+
+  it("the password re-confirmation modal stops with blocked_login before any request", async () => {
+    const h = harness({}, ok, { session: false });
+    h.env.passwordModalVisible = () => true;
+    const outcome = await runReaderJob(job, h.env);
+    expect(outcome).toMatchObject({ status: "blocked_login", detail: "password_modal" });
+    expect(h.sent).toEqual([]);
+  });
+
+  it("a modal that appears mid-job stops it after the requests already made", async () => {
+    const h = harness({}, ok);
+    let n = 0;
+    h.env.passwordModalVisible = () => h.sent.length >= 2 && ++n > 0;
+    const outcome = await runReaderJob(job, h.env);
+    expect(outcome.status).toBe("blocked_login");
+    expect(h.sent).toHaveLength(2);
+  });
+
+  it("one failing item does not stop the job; five in a row do; a CAPTCHA/login answer stops at once", async () => {
+    const some = harness({}, (_r, i) => (i === 1 ? { status: 500, body: {} } : ok()));
+    const done = await runReaderJob(job, some.env);
+    expect(done.status).toBe("done");
+    expect(done.responses.filter((r) => r.status === 500)).toHaveLength(1);
+
+    const all = harness({}, () => ({ status: 500, body: {} }));
+    const many = await runReaderJob({ ...job, itemIds: ["1", "2", "3", "4", "5", "6"] }, all.env);
+    expect(many.status).toBe("error");
+    expect(all.sent).toHaveLength(5);
+
+    const login = harness({}, () => ({ status: 401, body: {} }));
+    expect((await runReaderJob(job, login.env)).status).toBe("blocked_login");
+    const captcha = harness({}, () => ({ status: 403, body: { error: 90309999 } }));
+    expect((await runReaderJob(job, captcha.env)).status).toBe("blocked_captcha");
+  });
+
+  it("is capped at TRAFFIC_MAX_REQUESTS_PER_JOB requests", async () => {
+    const ids = Array.from({ length: 150 }, (_, i) => String(1000 + i));
+    const h = harness({}, ok);
+    const outcome = await runReaderJob({ id: "item_traffic", days: ["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30", "2026-10-29"], itemIds: ids }, h.env);
+    expect(outcome.status).toBe("done");
+    expect(h.sent).toHaveLength(TRAFFIC_MAX_REQUESTS_PER_JOB);
+  });
+
+  it("isPasswordPrompt matches the modal text only", () => {
+    expect(isPasswordPrompt("Vui lòng nhập mật khẩu Shopee của bạn để tiếp tục")).toBe(true);
+    expect(isPasswordPrompt("Trang tổng quan")).toBe(false);
   });
 });

@@ -23,7 +23,11 @@ import {
   type ReaderDataset,
   readerActive,
   schedulerActive,
+  TRAFFIC_CATCHUP_DAYS,
+  TRAFFIC_JOB_TIMEOUT_MS,
+  TRAFFIC_MAX_ITEMS,
 } from "../config";
+import { activeItemIds, completedTrafficDays } from "../shopee/reader-map";
 import { READER_PAGES } from "../shopee/endpoints";
 import { blockedPath, type ReaderJob, type ReaderResponse } from "../shopee/reader";
 import { gmt7Date, lastFinishedDays } from "../shopee/time";
@@ -44,6 +48,7 @@ export const READER_WATCHDOG_ALARM = "juli-reader-watch";
 /** A run older than this is a crash leftover and is dropped. */
 const RUN_MAX_AGE_MS = 3 * 3_600_000;
 const ADS_DONE_KEPT = 14;
+const TRAFFIC_DONE_KEPT = 14;
 
 export interface SchedulerTabs {
   /** Open `url` in a background (inactive) tab; the tab id, or undefined when it could not open. */
@@ -81,6 +86,7 @@ export function planJobs(args: {
   nowMs: number;
   stopped: ReadonlySet<Dataset>;
   adsDone: readonly string[];
+  trafficDone?: readonly string[];
   held?: ReadonlySet<ReaderDataset>;
 }): PlannedJob[] {
   const held = args.held ?? HELD_DATASETS;
@@ -93,11 +99,23 @@ export function planJobs(args: {
     if (id === "ads") {
       const days = lastFinishedDays(args.nowMs, 1 + ADS_CATCHUP_DAYS).filter((day) => !args.adsDone.includes(day));
       if (days.length > 0) jobs.push({ id, days });
+    } else if (id === "item_traffic") {
+      // The item ids are filled in when the job's turn comes (the product list is read first).
+      const days = lastFinishedDays(args.nowMs, 1 + TRAFFIC_CATCHUP_DAYS).filter(
+        (day) => !(args.trafficDone ?? []).includes(day),
+      );
+      if (days.length > 0) jobs.push({ id, days });
     } else {
       jobs.push({ id });
     }
   }
   return jobs;
+}
+
+/** The ids of a fresh product-list read; the previous ids are kept when the read found none. */
+function ids(responses: ReaderResponse[], previous: string[] | undefined): string[] | undefined {
+  const fresh = activeItemIds(responses);
+  return fresh.length > 0 ? fresh : previous;
 }
 
 export class ReaderScheduler {
@@ -117,7 +135,7 @@ export class ReaderScheduler {
 
   private async load(): Promise<{ state: State; sched: ReaderSchedule }> {
     const state = await loadState(this.deps.storage);
-    return { state, sched: state.readers ?? { adsDone: [] } };
+    return { state, sched: state.readers ?? { adsDone: [], trafficDone: [] } };
   }
 
   private save(sched: ReaderSchedule): Promise<void> {
@@ -164,6 +182,7 @@ export class ReaderScheduler {
         nowMs: now,
         stopped: stoppedFor(state, this.deps.version),
         adsDone: sched.adsDone,
+        trafficDone: sched.trafficDone,
       });
       if (jobs.length === 0) {
         await this.save({ ...sched, lastRunDay: today });
@@ -183,7 +202,8 @@ export class ReaderScheduler {
     const now = this.deps.now();
     const current = run.current;
     if (current) {
-      if (now - current.openedAt > READER_JOB_TIMEOUT_MS) return this.finishJob(sched, run, "timeout");
+      const limit = run.jobs[run.index]?.id === "item_traffic" ? TRAFFIC_JOB_TIMEOUT_MS : READER_JOB_TIMEOUT_MS;
+      if (now - current.openedAt > limit) return this.finishJob(sched, run, "timeout");
       if (current.sentAt === undefined && now - current.openedAt > READER_LOAD_GRACE_MS) {
         const info = await this.deps.tabs.inspect(current.tabId);
         if (!info.open) return this.finishJob(sched, run, "closed", false);
@@ -201,8 +221,18 @@ export class ReaderScheduler {
   }
 
   private async startNext(sched: ReaderSchedule, run: ReaderRun): Promise<string> {
-    const job = run.jobs[run.index];
+    let job = run.jobs[run.index];
     if (!job) return this.finishRun(sched, run);
+    if (job.id === "item_traffic") {
+      // The ids come from the last product-list read; with none there is nothing to open.
+      const itemIds = (sched.itemIds ?? []).slice(0, TRAFFIC_MAX_ITEMS);
+      if (itemIds.length === 0) {
+        const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_items" }, index: run.index + 1 };
+        return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
+      }
+      job = { ...job, itemIds };
+      run = { ...run, jobs: run.jobs.map((j, i) => (i === run.index ? (job as PlannedJob) : j)) };
+    }
     const tabId = await this.deps.tabs.open(`${this.deps.origin}${READER_PAGES[job.id].path}`);
     if (tabId === undefined) return this.finishJob(sched, run, "open_failed", false);
     const next = { ...run, current: { tabId, openedAt: this.deps.now() } };
@@ -283,7 +313,10 @@ export class ReaderScheduler {
         return true;
       }
       try {
-        await this.deps.tabs.send(tabId, { type: "reader-job", job: { id: job.id, ...(job.days ? { days: job.days } : {}) } });
+        await this.deps.tabs.send(tabId, {
+          type: "reader-job",
+          job: { id: job.id, ...(job.days ? { days: job.days } : {}), ...(job.itemIds ? { itemIds: job.itemIds } : {}) },
+        });
       } catch {
         return true; // the content script is not listening yet: the next tab-ready / watchdog retries
       }
@@ -314,12 +347,18 @@ export class ReaderScheduler {
         return true;
       }
       const responses = Array.isArray(message.responses) ? (message.responses as ReaderResponse[]) : [];
-      const posted = await this.deps.sink.postReader({ id: job.id, days: job.days }, responses);
+      const readerJob: ReaderJob = { id: job.id, days: job.days, ...(job.itemIds ? { itemIds: job.itemIds } : {}) };
+      const posted = await this.deps.sink.postReader(readerJob, responses);
       const summary = Object.entries(posted)
         .map(([key, outcome]) => `${key}=${outcome}`)
         .join(",");
       const adsDone = job.id === "ads" ? [...sched.adsDone, ...(job.days ?? [])].slice(-ADS_DONE_KEPT) : sched.adsDone;
-      await this.finishJob({ ...sched, adsDone }, run, summary ? `done:${summary}` : "done");
+      const itemIds = job.id === "products" ? ids(responses, sched.itemIds) : sched.itemIds;
+      const trafficDone =
+        job.id === "item_traffic"
+          ? [...(sched.trafficDone ?? []), ...completedTrafficDays(readerJob, responses)].slice(-TRAFFIC_DONE_KEPT)
+          : sched.trafficDone;
+      await this.finishJob({ ...sched, adsDone, itemIds, trafficDone }, run, summary ? `done:${summary}` : "done");
       return true;
     });
   }

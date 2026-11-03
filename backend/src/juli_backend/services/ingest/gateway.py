@@ -19,7 +19,8 @@ One call = one POST of one dataset for one shop. In order:
    ``platform_product_flags`` or ``platform_promotions`` -- or, for the P90 step 2 datasets, the
    tables of ``writers.py`` (order lines, ad change log, shop health, item snapshots) -- a row
    of the metric tables is only replaced by a source of the same or higher rank
-   (vendor < extension = file < api), and every row records the ``mapper_version`` that produced it;
+   (vendor < extension < file < api; P90 D-5), and every row records the ``mapper_version``
+   that produced it;
 5. ``ingest_dataset_status`` records the last ingest; one ``ingest_accepted``
    log line is the audit record.
 
@@ -37,7 +38,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any, TypeVar
 
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import (
@@ -76,6 +77,7 @@ from juli_backend.services.ingest.mapping import (
     effective_order_type,
     normalize_rows,
 )
+from juli_backend.services.ingest.precedence import count_source_conflicts, log_source_conflicts
 from juli_backend.services.ingest.schemas import (
     DatasetRow,
     IngestBody,
@@ -149,6 +151,10 @@ _PROMOTION_KEY_COLUMNS = (
 )
 
 
+#: Datasets that are the Ads section's own reports: placed (or paid) orders, never confirmed.
+ADS_ONLY_DATASETS = frozenset({"ads_campaign_daily", "ads_campaign_period", "ads_keyword_period"})
+
+
 class IngestRejected(Exception):
     def __init__(self, code: str, errors: list[dict[str, Any]] | None = None, status: int = 422):
         super().__init__(code)
@@ -210,6 +216,10 @@ def validate_rows(spec: DatasetSpec, body: IngestBody, now: datetime) -> list[Da
         raise IngestRejected("order_type_required")
     if not spec.has_order_type and body.order_type is not None:
         raise IngestRejected("order_type_not_allowed")
+    if spec.name in ADS_ONLY_DATASETS and body.order_type == "confirmed":
+        # D-2: the ads reports count placed (or paid) orders; a "confirmed" label would let
+        # their figures into confirmed totals.
+        raise IngestRejected("ads_order_type_confirmed")
     captured = body.captured_at.astimezone(UTC).replace(tzinfo=None)
     if captured > now + CLOCK_SKEW:
         raise IngestRejected("captured_at_in_future")
@@ -306,13 +316,22 @@ async def _store_raw(
     return existing, True
 
 
+def _stored_rank(table: Any) -> Any:
+    """The rank a stored row counts at: its ``source`` decides (``effective_rank``), so a row
+    written before D-5 (file = extension = 2) is still outranked by a file post."""
+    return case(
+        *[(table.c.source == source, rank) for source, rank in SOURCE_RANK.items()],
+        else_=table.c.source_rank,
+    )
+
+
 async def _upsert(
     session: AsyncSession,
     model: Any,
     key_columns: tuple[str, ...],
     values: list[dict[str, Any]],
 ) -> None:
-    """Insert, or replace a row of the same or lower ``source_rank`` on the same key."""
+    """Insert, or replace a row of the same or lower rank on the same key (file > extension)."""
     if not values:
         return
     insert = _insert(session)
@@ -328,13 +347,27 @@ async def _upsert(
             stmt.on_conflict_do_update(
                 index_elements=list(key_columns),
                 set_=updated,
-                where=table.c.source_rank <= stmt.excluded.source_rank,
+                where=_stored_rank(table) <= stmt.excluded.source_rank,
             )
         )
 
 
 async def _upsert_metrics(session: AsyncSession, values: list[dict[str, Any]]) -> None:
-    await _upsert(session, PlatformDailyMetric, _KEY_COLUMNS, values)
+    await _upsert_ranked(session, PlatformDailyMetric, _KEY_COLUMNS, values)
+
+
+async def _upsert_ranked(
+    session: AsyncSession,
+    model: Any,
+    key_columns: tuple[str, ...],
+    values: list[dict[str, Any]],
+) -> None:
+    """``_upsert`` for the metric tables, after counting the keys another source already holds
+    (P90 D-5: a file outranks the Connector; the counts go to one log line)."""
+    if values:
+        found = await count_source_conflicts(session, model, key_columns, values)
+        log_source_conflicts(values[0]["shop_id"], values[0]["dataset"], values[0]["source"], found)
+    await _upsert(session, model, key_columns, values)
 
 
 async def _upsert_items(session: AsyncSession, values: list[dict[str, Any]]) -> None:
@@ -371,7 +404,7 @@ async def _upsert_items(session: AsyncSession, values: list[dict[str, Any]]) -> 
             stmt.on_conflict_do_update(
                 index_elements=list(_ITEM_KEY_COLUMNS),
                 set_=updated,
-                where=table.c.source_rank <= stmt.excluded.source_rank,
+                where=_stored_rank(table) <= stmt.excluded.source_rank,
             )
         )
 
@@ -571,7 +604,7 @@ async def _write(
     if spec.writes == WRITE_DAILY:
         await _upsert_metrics(session, _metric_values(spec, rows, body, order_type, provenance))
     elif spec.writes == WRITE_PERIOD:
-        await _upsert(
+        await _upsert_ranked(
             session,
             PlatformPeriodMetric,
             _PERIOD_KEY_COLUMNS,

@@ -66,6 +66,7 @@ from pydantic import BaseModel
 from juli_backend.models.ingest import ORDER_TYPE_NONE, SEGMENT_ALL, SHOP_LEVEL_ITEM
 from juli_backend.models.platform_data import ITEM_LEVEL_VARIATION
 from juli_backend.services.ingest.schemas import (
+    ITEM_TRAFFIC_L2,
     MAX_ADS_PERIOD_DAYS,
     MAX_PERIOD_DAYS,
     SHOPEE_L2_SOURCES,
@@ -86,6 +87,7 @@ from juli_backend.services.ingest.schemas import (
     ShopeeItemCatalogRow,
     ShopeeItemPerformanceRow,
     ShopeeItemSnapshotRow,
+    ShopeeItemTrafficSourceRow,
     ShopeeOrderLineRow,
     ShopeeProductFlagRow,
     ShopeeProductOverviewRow,
@@ -241,6 +243,8 @@ _KEY_FIELDS = frozenset(
         "campaign_name",
         "ordinal",
         "date",
+        "l1",
+        "l2",
         "source",
         "sub_source",
         "item_id",
@@ -344,6 +348,31 @@ def _source_row(row: _SourceRow) -> NormalizedRow:
             if row.sub_source is not None
             else SEGMENT_ALL
         ),
+        kpis=kpis,
+        extra=extra,
+    )
+
+
+#: ``item_traffic_sources`` level-1 stream → (Juli stream, Seller Centre's L1 label).
+_TRAFFIC_L1_STREAMS: dict[str, str] = {
+    "product_card": STREAM_PRODUCT_CARD,
+    "live": STREAM_SELLER_LIVE,
+    "video": STREAM_SELLER_VIDEO,
+    "affiliate": STREAM_AFFILIATE,
+}
+
+
+def _item_traffic_source(row: ShopeeItemTrafficSourceRow) -> NormalizedRow:
+    """One item x day x L1 x L2: the same stream / segment frame as ``item_by_source`` (segment
+    ``all`` is the L1 total). ``impressions`` is the product impressions on every stream."""
+    kpis, extra = _split(row, _SOURCE_KPIS)
+    stream = _TRAFFIC_L1_STREAMS[row.l1]
+    return NormalizedRow(
+        day=row.date,
+        stream=stream,
+        item_id=row.item_id,
+        platform_source=f"psd_label_{row.l1}",
+        segment=ITEM_TRAFFIC_L2[row.l2],
         kpis=kpis,
         extra=extra,
     )
@@ -514,6 +543,11 @@ def _ads_keyword(row: ShopeeAdsKeywordPeriodRow) -> NormalizedRow:
     )
 
 
+def campaign_segment(campaign_id: str) -> str:
+    """The ``segment`` of an ``ads_campaign_daily`` row: a short hash of the campaign id."""
+    return _short_hash("c", campaign_id)
+
+
 def _ads_campaign_daily(row: ShopeeAdsCampaignDailyRow) -> NormalizedRow:
     """One campaign x one finished day: a Juli ``ads`` overlay row. ``segment`` is a short hash
     of the platform's campaign id, ``platform_source`` the campaign title. The shop-level
@@ -522,7 +556,7 @@ def _ads_campaign_daily(row: ShopeeAdsCampaignDailyRow) -> NormalizedRow:
     if row.campaign_id is None:
         source, segment = "ads_roas_target", SEGMENT_ALL
     else:
-        source, segment = (row.campaign_name or "")[:64] or None, _short_hash("c", row.campaign_id)
+        source, segment = (row.campaign_name or "")[:64] or None, campaign_segment(row.campaign_id)
     return NormalizedRow(
         day=row.date,
         stream=STREAM_ADS,
@@ -774,6 +808,14 @@ DATASETS: dict[tuple[str, str], DatasetSpec] = {
         _ads_campaign_daily,
         True,
         "Per finished day, per ad campaign (Quảng cáo › Tổng quan), plus the day's ROAS target.",
+    ),
+    ("shopee", "item_traffic_sources"): DatasetSpec(
+        "shopee",
+        "item_traffic_sources",
+        ShopeeItemTrafficSourceRow,
+        _item_traffic_source,
+        True,
+        "Per finished day, per item x L1 stream x L2 source (product detail › Lưu lượng truy cập).",
     ),
     ("shopee", "voucher_settings"): DatasetSpec(
         "shopee",
