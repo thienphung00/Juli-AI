@@ -63,7 +63,12 @@ from juli_backend.models.platform_data import (
     PlatformPromotion,
 )
 from juli_backend.models.pseudonym_keys import ShopPseudonymKey
-from juli_backend.models.run_changes import RunRevertQuestion, RunWriteValue, ShopRule
+from juli_backend.models.run_changes import (
+    RunRevertQuestion,
+    RunWriteValue,
+    ShopRule,
+    ShopRuleVersion,
+)
 from juli_backend.models.shop_diagnosis import (
     ShopDailyProduct,
     ShopDailyStream,
@@ -76,6 +81,13 @@ from juli_backend.models.shop_proposals import (
     ShopProposalApproval,
     ShopProposalExecution,
     ShopProposalResult,
+)
+from juli_backend.models.shopee_profit import (
+    AdCampaignPurpose,
+    PlatformFeeFormula,
+    PlatformItemSnapshot,
+    ProductImageAsset,
+    ShopeeOrderLine,
 )
 from juli_backend.models.subscriptions import ShopSubscriptionPeriod
 from juli_backend.models.trial_signups import TrialSignup
@@ -146,4 +158,10 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopProposalResult,
     MarketKeywordMetric,
     ShopKeywordSeed,
+    ShopRuleVersion,
+    PlatformItemSnapshot,
+    ProductImageAsset,
+    ShopeeOrderLine,
+    PlatformFeeFormula,
+    AdCampaignPurpose,
 )

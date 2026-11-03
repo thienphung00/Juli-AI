@@ -138,6 +138,14 @@ TABLE_CLASSIFICATION_MAP = {
     # ADR-119 (migration 111): which keyword combinations came from which of the shop's
     # items (the decomposed titles); Ops reads and writes them under the shop's scope.
     ("public", "shop_keyword_seeds"): "tenant_direct",
+    # ADR-120 (migration 112): Shopee profit and history -- item snapshots (append-only),
+    # the private copy of each image version, PII-free order lines (hashed order ref),
+    # append-only rule versions and ad-campaign purposes.
+    ("public", "platform_item_snapshots"): "tenant_direct",
+    ("public", "product_image_assets"): "tenant_direct",
+    ("public", "shopee_order_lines"): "tenant_direct",
+    ("public", "shop_rule_versions"): "tenant_direct",
+    ("public", "ad_campaign_purposes"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",
@@ -166,6 +174,9 @@ TABLE_CLASSIFICATION_MAP = {
     # Fast track P20 (D28.3, migration 086): system-wide Ops settings (the OpenAI
     # system cap). No shop data: RLS on, juli_ops writes, juli_app may only read.
     ("public", "ops_system_settings"): "non_tenant",
+    # ADR-120 (migration 112): the platform's public fee policy per category, versioned.
+    # No shop data: RLS on, juli_ops writes, juli_app may only read (same shape).
+    ("public", "platform_fee_formulas"): "non_tenant",
     # Fast track P16 (D25), migration 083: the Juli Ops console. Reached only
     # through the ``juli_ops`` role on the /v1/ops path; never a tenant read.
     ("public", "ops_staff"): "ops_only",

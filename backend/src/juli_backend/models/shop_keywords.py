@@ -34,6 +34,12 @@ PATTERNS: tuple[str, ...] = (
 )
 
 
+#: A keyword's role for the item it is scoped to (ADR-120): core (max 5 per item, enforced by
+#: the service -- a CHECK cannot count rows), secondary, brand, or excluded. NULL = legacy
+#: rows written before roles existed.
+ROLES: tuple[str, ...] = ("chinh", "phu", "thuong_hieu", "loai_tru")
+
+
 def _in(values: tuple[str, ...]) -> str:
     return ", ".join(f"'{v}'" for v in values)
 
@@ -46,6 +52,9 @@ class ShopKeywordSeed(Base):
         UniqueConstraint("shop_id", "platform", "keyword", name="uq_shop_keyword_seeds_key"),
         CheckConstraint(f"platform IN ({_in(PLATFORMS)})", name="ck_shop_keyword_seeds_platform"),
         CheckConstraint(f"pattern IN ({_in(PATTERNS)})", name="ck_shop_keyword_seeds_pattern"),
+        CheckConstraint(
+            f"role IS NULL OR role IN ({_in(ROLES)})", name="ck_shop_keyword_seeds_role"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -54,6 +63,9 @@ class ShopKeywordSeed(Base):
     keyword: Mapped[str] = mapped_column(String(200))
     pattern: Mapped[str] = mapped_column(String(32))
     item_ids: Mapped[list[str]] = mapped_column(JSONBType, default=list)
+    role: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: The platform item id the role applies to; NULL = the keyword's role for the whole shop.
+    item_scope: Mapped[str | None] = mapped_column(String(64), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     created_by: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
