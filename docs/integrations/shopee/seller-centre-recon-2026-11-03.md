@@ -61,3 +61,15 @@
 5. export trigger for orders + affiliate (path D)
 Rules: never click upsell/apply buttons (ads page shows "Áp dụng cho tất cả" modal); read-only GETs or the page's own POST queries;
 pace requests; stop on CAPTCHA/login.
+
+## Per-product traffic sources — /datacenter/product/performance/details?id=<item>&tab=traffic (checked 03/11, owner unlocked the page)
+- GET /api/mydata/v1/product/traffic/details/?start_time&end_time&period&order_type&item_id
+  result: overview{total_sales, product_card, live, video, affiliate (+ _ratio, _pct_diff)},
+  product_card{total, breakdown[]}, live{total, breakdown[]}, video{…}, affiliate{total, breakdown[]}, pie_chart_data, funnel
+  product_card.breakdown[].source ∈ psd_label_search, psd_label_recommendation, psd_label_my_purchase,
+    psd_label_shopping_cart, psd_label_shop (= Cửa hàng / Trang shop), psd_label_promotion, psd_label_others
+  each row: sales, orders, units, buyers, product_impressions, unique_product_impressions, product_clicks,
+    unique_product_clicks, ctr, product_clicks_to_orders_rate, sales_per_order, *_ratio, *_pct_diff
+  → per-product Trang shop and the other Thẻ sản phẩm children ARE available (one call per product per period).
+- The same page also loads /api/mydata/v1/product/performance/key-metrics/overview/ and /v2/product/performance/trend/ (per item).
+- Opening /datacenter/* asked for the account password in a fresh tab; the agent never enters it (owner does).

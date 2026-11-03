@@ -97,8 +97,8 @@ same product shows the same numbers on every screen; no buyer data in any respon
 - **D-4 approved:** new key `the_san_pham_khac` for "Thẻ sản phẩm ngoài Trang shop" (existing `the_san_pham`
   keeps its meaning); GMV = `Tổng doanh số (VND)`.
 - **D-5 approved:** file outranks connector for the same day; connector fills uncovered days; differences logged.
-- **D-1 open:** the owner notes per-product traffic can come from the shop page and from item listings. The
-  monthly product export (`Theo sản phẩm` sheets) has only the four L1 blocks; whether Seller Centre's
-  "Lưu lượng truy cập sản phẩm" page / `product/traffic/item-list` accepts a sub-source (Cửa hàng, Tìm kiếm,
-  Đề xuất) per product is unverified — the page asked for the account password on 03/11 and the agent
-  stopped. Check live (owner enters the password), then decide.
+- **D-1 resolved (owner was right):** Seller Centre's product detail page returns, per product, the Thẻ sản
+  phẩm breakdown incl. `psd_label_shop` (Cửa hàng = Trang shop), Tìm kiếm, Đề xuất, Giỏ hàng, Đơn mua, Khuyến
+  mãi, Khác (`/api/mydata/v1/product/traffic/details/`, recon doc). Products get all five flows. Source: a new
+  connector reader (one call per product per finished day, paced) — the monthly export stays 4 flows and is
+  used only where the connector has no day. Closes G-06 (moved to Step 5).
