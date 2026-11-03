@@ -27,7 +27,10 @@ same Shared Compute job — no second Partner fetch cycle.
 from __future__ import annotations
 
 import logging
+import os
+from collections.abc import Callable
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +42,42 @@ from juli_backend.services.scoring.pipeline import run_daily_scoring_for_shop
 from juli_backend.services.scoring.types import DailyScoringResult
 
 logger = logging.getLogger(__name__)
+
+#: P88: the continuous trigger scores a shop at most once per this window. Each pass reads
+#: the shop's rolling-window orders, items and 60 product days; webhooks and the staggered
+#: reconcile fired it ~57x/day. The daily poll pass and a seller's manual refresh call
+#: ``run_daily_scoring_for_shop`` directly and are not gated.
+SCORING_MIN_INTERVAL_SECONDS = 3600
+
+ClaimFn = Callable[[str], bool]
+
+
+def scoring_gate_key(shop_id: str) -> str:
+    return f"cdp:scoring-gate:{shop_id}"
+
+
+_redis_client: Any = None
+_redis_url: str = ""
+
+
+def _default_claim() -> ClaimFn | None:
+    """``SET NX EX`` on the shop's gate key; ``None`` without Redis (the stage then runs)."""
+    global _redis_client, _redis_url
+    url = os.getenv("REDIS_URL", "").strip()
+    if not url:
+        return None
+    if _redis_client is None or _redis_url != url:
+        import redis
+
+        _redis_client = redis.from_url(url)
+        _redis_url = url
+    client = _redis_client
+
+    def claim(shop_id: str) -> bool:
+        key = scoring_gate_key(shop_id)
+        return bool(client.set(key, "1", nx=True, ex=SCORING_MIN_INTERVAL_SECONDS))
+
+    return claim
 
 
 async def decision_rules_scoring_stage(
@@ -137,3 +176,31 @@ async def decision_rules_scoring_stage(
     )
 
     return result
+
+
+async def hourly_scoring_stage(
+    session: AsyncSession,
+    job: SharedComputeJob,
+    *,
+    claim: ClaimFn | None = None,
+) -> DailyScoringResult | None:
+    """:func:`decision_rules_scoring_stage`, at most once per shop per hour (P88).
+
+    The production continuous-trigger seam. A skipped pass returns ``None``; the next
+    trigger after the window scores from the then-current silver rows. A Redis failure
+    fails open (scores), so a broken cache never freezes the cards.
+    """
+    key = str(job.shop_id)
+    try:
+        claim_fn = claim or _default_claim()
+        claimed = True if claim_fn is None else claim_fn(key)
+    except Exception:
+        logger.warning("decision_rules_scoring_gate_failed", extra={"shop_id": key}, exc_info=True)
+        claimed = True
+    if not claimed:
+        logger.info(
+            "decision_rules_scoring_stage_throttled",
+            extra={"shop_id": key, "enqueue_reason": job.enqueue_reason},
+        )
+        return None
+    return await decision_rules_scoring_stage(session, job)

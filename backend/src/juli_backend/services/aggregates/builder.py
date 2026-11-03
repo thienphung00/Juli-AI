@@ -6,18 +6,21 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 
 from juli_backend.database.exceptions import NotFound
-from juli_backend.models.models import AnalyticsPerformanceInterval, Shop
+from juli_backend.models.models import (
+    AnalyticsPerformanceInterval,
+    Order,
+    OrderItem,
+    Return,
+    Shop,
+)
 from juli_backend.repositories.repos import (
     InventoryRepo,
-    OrderItemsRepo,
-    OrdersRepo,
     ProductsRepo,
-    ReturnsRepo,
     TikTokSyncStateRepo,
 )
 from juli_backend.services.aggregates.computed_kpis import ROLLING_WINDOW_DAYS, compute_all_kpis
@@ -78,6 +81,92 @@ async def _rolling_window_intervals(
     return list((await session.execute(stmt)).scalars().all())
 
 
+#: The order columns ``compute_all_kpis`` reads, all of them inside the rolling window
+#: (P88): the whole order history, every column, was ~5.8k rows on every scoring run.
+_ORDER_KPI_COLUMNS = (
+    Order.status,
+    Order.buyer_id,
+    Order.total_amount,
+    Order.payment_time,
+    Order.ship_time,
+    Order.tiktok_created_at,
+    Order.is_seller_fault,
+    Order.created_at,
+)
+_ORDER_ITEM_KPI_COLUMNS = (OrderItem.tiktok_product_id, OrderItem.quantity, OrderItem.created_at)
+_RETURN_KPI_COLUMNS = (Return.created_at, Return.update_time)
+
+
+def _window_bounds(anchor: datetime) -> tuple[datetime, datetime]:
+    """``[anchor - ROLLING_WINDOW_DAYS, anchor]`` as the naive UTC the columns store."""
+    last = anchor.astimezone(UTC).replace(tzinfo=None)
+    return last - timedelta(days=ROLLING_WINDOW_DAYS), last
+
+
+async def _rolling_window_orders(
+    session: AsyncSession, shop_id: uuid.UUID, anchor: datetime, limit: int
+) -> list[Order]:
+    """Orders whose reference time (payment, else TikTok create, else row create -- the
+    ``_order_reference_time`` order) falls in the KPI window, KPI columns only (P88)."""
+    first, last = _window_bounds(anchor)
+    reference = func.coalesce(Order.payment_time, Order.tiktok_created_at, Order.created_at)
+    stmt = (
+        select(Order)
+        .options(load_only(*_ORDER_KPI_COLUMNS))
+        .where(Order.shop_id == shop_id, reference >= first, reference <= last)
+        .order_by(Order.created_at.desc())
+        .limit(limit)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def _rolling_window_order_items(
+    session: AsyncSession, shop_id: uuid.UUID, anchor: datetime, limit: int
+) -> list[OrderItem]:
+    first, last = _window_bounds(anchor)
+    stmt = (
+        select(OrderItem)
+        .options(load_only(*_ORDER_ITEM_KPI_COLUMNS))
+        .where(
+            OrderItem.shop_id == shop_id,
+            OrderItem.created_at >= first,
+            OrderItem.created_at <= last,
+        )
+        .order_by(OrderItem.created_at.desc())
+        .limit(limit)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def _rolling_window_returns(
+    session: AsyncSession, shop_id: uuid.UUID, anchor: datetime, limit: int
+) -> list[Return]:
+    first, last = _window_bounds(anchor)
+    stmt = (
+        select(Return)
+        .options(load_only(*_RETURN_KPI_COLUMNS))
+        .where(Return.shop_id == shop_id, Return.created_at >= first, Return.created_at <= last)
+        .order_by(Return.created_at.desc())
+        .limit(limit)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def _history_totals(session: AsyncSession, shop_id: uuid.UUID) -> tuple[int, Decimal, int]:
+    """(orders, sum of order totals, returns) over the whole history, summed in SQL (P88)."""
+    orders = (
+        await session.execute(
+            select(func.count(), func.coalesce(func.sum(Order.total_amount), 0)).where(
+                Order.shop_id == shop_id
+            )
+        )
+    ).one()
+    returns = await session.scalar(
+        select(func.count()).select_from(Return).where(Return.shop_id == shop_id)
+    )
+    return int(orders[0]), Decimal(str(orders[1])), int(returns or 0)
+
+
 def _shop_age_days(created_at: datetime | None) -> int:
     if created_at is None:
         return 0
@@ -107,22 +196,22 @@ async def build_feature_aggregates(
     if shop is None:
         raise NotFound(f"Shop {shop_id} not found")
 
-    orders = await OrdersRepo(session).list(shop_id, limit=list_limit)
-    products = await ProductsRepo(session).list(shop_id, limit=list_limit)
-    returns = await ReturnsRepo(session).list(shop_id, limit=list_limit)
-    order_items = await OrderItemsRepo(session).list(shop_id, limit=list_limit)
-    inventory_items = await InventoryRepo(session).list(shop_id, limit=list_limit)
     # compute_all_kpis reads a naive anchor as UTC; so does the window.
     kpi_anchor = anchor if anchor.tzinfo else anchor.replace(tzinfo=UTC)
+    # P88: every KPI below reads only the rolling window; the history-wide figures are
+    # counted and summed in SQL instead of shipping every order row out of Postgres.
+    order_count, total_order_value, return_count = await _history_totals(session, shop_id)
+    orders = await _rolling_window_orders(session, shop_id, kpi_anchor, list_limit)
+    products = await ProductsRepo(session).list(shop_id, limit=list_limit)
+    returns = await _rolling_window_returns(session, shop_id, kpi_anchor, list_limit)
+    order_items = await _rolling_window_order_items(session, shop_id, kpi_anchor, list_limit)
+    inventory_items = await InventoryRepo(session).list(shop_id, limit=list_limit)
     analytics_intervals = await _rolling_window_intervals(session, shop_id, kpi_anchor, list_limit)
     sync_state = await TikTokSyncStateRepo(session).load(shop_id)
     promotion_activity_present = _promotion_activity_partition_present(sync_state)
 
-    order_count = len(orders)
     product_count = len(products)
-    return_count = len(returns)
 
-    total_order_value = sum((o.total_amount for o in orders), Decimal("0"))
     total_product_revenue = sum((p.revenue for p in products), Decimal("0"))
     total_units_sold = sum((p.units_sold for p in products), 0)
 

@@ -80,11 +80,13 @@ async def run_quick_scan_task(
 
 
 @celery_app.task(name=QUICK_SCAN_TASK)
-def shop_quick_scan(shop_id: str, force: bool = False) -> None:
+def shop_quick_scan(shop_id: str, force: bool = False, reissue: bool = False) -> None:
     """The quick scan for one shop (priority queue).
 
     ``force`` (operator only, P64 D73.3): re-run for the sandbox shop even when its scan
     is ``done`` / ``skipped`` or full cards exist; ignored for any other shop.
+    ``reissue`` (P87, with ``force``): also issue a new card for a (product, lever) whose
+    card already wrote to TikTok; sandbox shop only, ignored for any other shop.
     """
     app_key = os.getenv("TIKTOK_APP_KEY", "").strip()
     app_secret = os.getenv("TIKTOK_APP_SECRET", "").strip()
@@ -111,7 +113,7 @@ def shop_quick_scan(shop_id: str, force: bool = False) -> None:
             app_secret=app_secret,
             lock=RedisShopIngestLock(client),
             rate_limiter=shared_rate_limiter(client),
-            scan_kwargs={"force": True} if force else None,
+            scan_kwargs=({"force": True, "reissue": bool(reissue)} if force else None),
         )
 
     try:

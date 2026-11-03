@@ -30,3 +30,23 @@ export function shortProductName(name: string | null | undefined, maxChars = MAX
   text = text.replace(TRAILING_JUNK, "");
   return cut ? `${text}…` : text;
 }
+
+/** A blank or "Unknown" name is a placeholder, never shown to a seller (P71). Mirrors the backend. */
+export function isPlaceholderName(name: string | null | undefined): boolean {
+  const text = (name ?? "").trim();
+  return text === "" || text.toLowerCase() === "unknown";
+}
+
+/**
+ * The subject a run's heading names: the product's short name; when the product row is
+ * unnamed (a promotion or create run bound to a status-webhook product, P87), the card's
+ * seller SKU, else the card's title. Never "Unknown".
+ */
+export function runSubjectName(
+  productName: string | null | undefined,
+  card: { readonly sku: string | null; readonly title: string } | null,
+): string {
+  if (!isPlaceholderName(productName)) return shortProductName(productName);
+  if (card?.sku) return `SKU ${card.sku}`;
+  return card?.title && !isPlaceholderName(card.title) ? card.title : "";
+}
