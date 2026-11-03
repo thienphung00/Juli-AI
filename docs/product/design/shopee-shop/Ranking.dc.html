@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Xếp hạng chỉ số</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1280px; box-sizing: border-box; padding: 28px 32px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 16px">
+
+<header style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 13px">
+<a href="{{backHref}}" style="font-weight: 600; text-decoration: none; min-height: 40px; display: inline-flex; align-items: center">‹ {{backLabel}}</a>
+<span style="color: #6b6b76">/</span>
+<span style="color: #4a4a55">Xếp hạng</span>
+</div>
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">XẾP HẠNG</div>
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h1 style="margin: 0; font-size: 28px; font-weight: 700">{{title}}</h1>
+<span style="font-size: 12px; font-weight: 600; color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 999px; padding: 4px 10px">30 ngày · so với 30 ngày trước</span>
+<button type="button" onClick="{{toggleInfo}}" aria-label="Cách tính" aria-expanded="{{info}}" style="font: inherit; font-size: 13px; font-weight: 700; color: #b0386a; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 999px; width: 32px; height: 32px; cursor: pointer">i</button>
+<span style="margin-left: auto; font-size: 12px; color: #5f5f6b">Cập nhật 03/11 07:30 · nguồn Seller Centre</span>
+</div>
+<sc-if value="{{info}}" hint-placeholder-val="{{ false }}">
+<div style="max-width: 760px; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 12px; padding: 12px 14px; font-size: 13px; color: #4a4a55">Số trung bình mỗi ngày. Mỗi dòng ghi số ₫/ngày mà thay đổi của chỉ số đó kéo GMV lên hoặc xuống. Các dòng và các dòng “Còn lại” cộng lại đúng bằng số của ô vừa bấm. Độ tin cậy “Rõ” khi có từ 100 đơn trong kỳ.</div>
+</sc-if>
+</header>
+
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border: 1px dashed #e3d6dc; border-radius: 12px; padding: 6px 10px; font-size: 12px; color: #5f5f6b">
+<span style="font-weight: 600">Xem trạng thái (chỉ để duyệt artboard):</span>
+<sc-for list="{{scenes}}" as="s" hint-placeholder-count="6">
+<button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="font: inherit; font-size: 12px; font-weight: 600; border-radius: 999px; min-height: 32px; padding: 0 12px; cursor: pointer; {{s.style}}">{{s.label}}</button>
+</sc-for>
+</div>
+
+<div style="display: flex; align-items: stretch; gap: 16px">
+<div style="flex: 0 0 300px; background: #fff7fa; border: 2px solid #c2306d; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; font-weight: 600; color: #b0386a">{{ctx.label}}</span>
+<span style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 22px; font-weight: 700">{{ctx.value}}</span><span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 6px; {{ctx.chipStyle}}">{{ctx.chip}}</span></span>
+<span style="font-size: 13px; font-weight: 600; {{ctx.impactStyle}}">{{ctx.impact}}</span>
+<span style="font-size: 12px; color: #4a4a55">Các dòng bên dưới cộng lại đúng bằng số này.</span>
+</div>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 10px">
+<div role="tablist" aria-label="Chỉ số" style="display: inline-flex; align-self: flex-start; gap: 4px; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 999px; padding: 4px">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
+<button type="button" role="tab" onClick="{{k.pick}}" aria-selected="{{k.on}}" style="font: inherit; font-size: 13px; font-weight: 600; border: 0; border-radius: 999px; min-height: 36px; padding: 0 14px; cursor: pointer; {{k.style}}">{{k.label}}</button>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+<sc-for list="{{srcs}}" as="s" hint-placeholder-count="7">
+<sc-if value="{{s.gap}}" hint-placeholder-val="{{ false }}"><span style="width: 1px; height: 24px; background: #e3d6dc; margin: 0 4px"></span><span style="font-size: 11px; color: #5f5f6b">{{s.gapLabel}}</span></sc-if>
+<button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 36px; padding: 0 14px; cursor: pointer; {{s.style}}">{{s.label}}</button>
+</sc-for>
+</div>
+<sc-if value="{{hasSub}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 8px">
+<span style="font-size: 11px; color: #5f5f6b">Tự nhiên gồm</span>
+<sc-for list="{{subs}}" as="s" hint-placeholder-count="4">
+<button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="font: inherit; font-size: 12px; font-weight: 600; border-radius: 999px; min-height: 32px; padding: 0 12px; cursor: pointer; {{s.style}}">{{s.label}}</button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+
+<sc-if value="{{back}}" hint-placeholder-val="{{ false }}">
+<div role="status" style="display: flex; align-items: center; gap: 12px; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 8px 8px 8px 14px; font-size: 14px">
+<span><b style="color: #b0386a">Vừa quay về từ thẻ</b> · {{back.card}} · dòng được đánh dấu bên dưới, tự tắt sau 3 giây</span>
+<a href="QuyetDinh.dc.html" style="margin-left: auto; font-weight: 600; text-decoration: none; min-height: 40px; padding: 0 12px; display: inline-flex; align-items: center">Về thẻ ›</a>
+</div>
+</sc-if>
+
+<sc-if value="{{hasNote}}" hint-placeholder-val="{{ false }}">
+<div style="background: #faf7f8; border: 1px dashed #a1a1aa; border-radius: 12px; padding: 10px 14px; font-size: 13px; color: #4a4a55">{{note}}</div>
+</sc-if>
+
+<sc-if value="{{empty}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px dashed #e3d6dc; border-radius: 16px; padding: 28px 20px; font-size: 14px; color: #4a4a55">
+<b>{{emptyTitle}}</b><br>Cùng bố cục với các bảng khác. Artboard chỉ vẽ sáu cặp mẫu: CTR × Tất cả, CTOR × Voucher, GMV × Quảng cáo, Lượt xem × Tìm kiếm, GMV × Liên kết và các cặp theo sản phẩm.
+</section>
+</sc-if>
+
+<sc-if value="{{hasTable}}" hint-placeholder-val="{{ true }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 14px 20px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+<h2 style="margin: 0; font-size: 16px; font-weight: 700">{{tableTitle}}</h2>
+<div style="display: flex; align-items: center; gap: 12px">
+<span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #5f5f6b">Xếp theo
+<span style="display: inline-flex; gap: 2px; background: #faf7f8; border: 1px solid #ece3e7; border-radius: 10px; padding: 3px">
+<sc-for list="{{xeps}}" as="x" hint-placeholder-count="6">
+<button type="button" onClick="{{x.pick}}" aria-pressed="{{x.on}}" style="font: inherit; font-size: 12px; font-weight: 600; border: 0; border-radius: 8px; min-height: 36px; padding: 0 10px; cursor: pointer; {{x.style}}">{{x.label}}</button>
+</sc-for>
+</span></span>
+<div style="display: inline-flex; gap: 4px; background: #faf7f8; border: 1px solid #ece3e7; border-radius: 10px; padding: 3px">
+<sc-for list="{{dirs}}" as="x" hint-placeholder-count="2">
+<button type="button" onClick="{{x.pick}}" aria-pressed="{{x.on}}" style="font: inherit; font-size: 13px; font-weight: 600; border: 0; border-radius: 8px; min-height: 36px; padding: 0 12px; cursor: pointer; {{x.style}}">{{x.label}}</button>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: {{cols}}; gap: 12px; padding: 0 12px; font-size: 12px; color: #5f5f6b">
+<span>{{rowKind}}</span><span>{{hK}}</span><span>{{hQ}}</span><span>{{hP}}</span><span>{{hX}}</span><span>Tin cậy</span><span></span>
+</div>
+
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+<div style="border-radius: 12px; {{r.boxStyle}}">
+<div style="display: grid; grid-template-columns: {{cols}}; gap: 12px; align-items: center; padding: 8px 12px">
+<button type="button" onClick="{{r.toggle}}" aria-expanded="{{r.open}}" style="font: inherit; text-align: left; background: transparent; border: 0; padding: 0; min-height: 44px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #1a1a1f">
+<span style="font-size: 12px; color: #5f5f6b; width: 10px">{{r.caret}}</span>
+<span style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 8px; background: #fdeef4; color: #b0386a; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">{{r.ini}}</span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap"><span style="font-size: 14px; font-weight: 600; line-height: 1.25">{{r.name}}</span><sc-if value="{{r.hasBadge}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 600; color: #4a4a55; background: #f3edf0; border-radius: 6px; padding: 1px 6px">{{r.badge}}</span></sc-if><sc-if value="{{r.isFocus}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 700; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 1px 6px">Vừa xem ở thẻ</span></sc-if></span>
+<span style="font-size: 12px; {{r.subStyle}}">{{r.sub}}</span>
+</span>
+</button>
+<span style="font-size: 14px">{{r.pl}}</span>
+<span style="font-size: 13px; color: #4a4a55">{{r.qt}}</span>
+<span style="display: flex; align-items: center; gap: 8px">
+<span style="flex: 1; height: 6px; background: #f3edf0; border-radius: 999px; display: flex"><span style="height: 6px; border-radius: 999px; {{r.barStyle}}"></span></span>
+<b style="font-size: 14px; min-width: 96px; text-align: right; {{r.primStyle}}">{{r.prim}}</b>
+</span>
+<span style="font-size: 13px; color: #4a4a55">{{r.xv}}</span>
+<span style="justify-self: start; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 8px; {{r.confStyle}}">{{r.conf}}</span>
+<span style="justify-self: end">
+<sc-if value="{{r.hasRec}}" hint-placeholder-val="{{ true }}"><a href="{{r.recHref}}" style="font-size: 12px; font-weight: 700; text-decoration: none; background: #fdeef4; border-radius: 8px; padding: 6px 8px; display: inline-block; line-height: 1.25">→ {{r.recWin}}<br><span style="font-weight: 500; color: #4a4a55">{{r.recT}}</span></a></sc-if>
+<sc-if value="{{r.noRec}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; color: #6b6b76">Chưa có đề xuất</span></sc-if>
+</span>
+</div>
+<sc-if value="{{r.open}}" hint-placeholder-val="{{ false }}">
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 0 12px 12px 32px">
+<sc-for list="{{r.facts}}" as="f" hint-placeholder-count="3">
+<div style="background: #faf7f8; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #5f5f6b">{{f.k}}</span><span style="font-size: 14px; font-weight: 600">{{f.v}}</span></div>
+</sc-for>
+<a href="{{r.openHref}}" style="background: #fdeef4; border-radius: 10px; padding: 10px 12px; text-decoration: none; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #4a4a55">{{r.openSub}}</span><b style="font-size: 14px">{{r.openLabel}} ›</b></a>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{noRows}}" hint-placeholder-val="{{ false }}"><div style="border: 1px dashed #e3d6dc; border-radius: 12px; padding: 14px; font-size: 14px; color: #4a4a55">Không có dòng nào theo hướng này. Đổi hướng để xem các dòng còn lại.</div></sc-if>
+
+<sc-if value="{{hasOther}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; justify-content: space-between; border: 1px dashed #e3d6dc; border-radius: 12px; padding: 0 12px; min-height: 44px; align-items: center; font-size: 14px; color: #4a4a55"><span>{{other.label}}</span><b style="color: #1a1a1f">{{other.value}}</b></div>
+</sc-if>
+
+<div style="border: 1px dashed #e3d6dc; border-radius: 12px">
+<button type="button" onClick="{{toggleRest}}" aria-expanded="{{restOpen}}" style="font: inherit; width: 100%; background: transparent; border: 0; min-height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; color: #4a4a55; font-size: 14px">
+<span style="font-size: 12px; width: 12px">{{restCaret}}</span><span>Còn lại · 3 dòng</span><b style="margin-left: auto; color: #1a1a1f">{{restSum}}</b>
+</button>
+<sc-if value="{{restOpen}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; padding: 0 12px 8px 32px; font-size: 13px; color: #4a4a55">
+<sc-for list="{{rest}}" as="x" hint-placeholder-count="3">
+<div style="display: flex; justify-content: space-between; min-height: 32px; align-items: center; border-top: 1px solid #f6f0f3"><span>{{x.k}}</span><b style="color: #1a1a1f">{{x.v}}</b></div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div style="display: flex; justify-content: space-between; padding: 0 12px; font-size: 14px"><span style="color: #5f5f6b">Tổng · bằng số của ô {{totalFor}}</span><b>{{total}}</b></div>
+</section>
+</sc-if>
+
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Số liệu là ví dụ minh hoạ (shop gia dụng giả lập). Bấm “→ đề xuất” mở thẻ ở Quyết định; thẻ có “Xem phân tích ›” quay về đúng dòng này.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1500}}'>
+/* ===== MODEL (số minh hoạ — shop gia dụng giả lập) ===== */
+const fmt = (n, d = 0) => { const s = Math.abs(n).toFixed(d); let [i, f] = s.split('.'); i = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); return (n < 0 && Number(s) !== 0 ? '−' : '') + i + (f ? ',' + f : ''); };
+const vnd = (n) => fmt(Math.round(n)) + 'đ';
+const sv = (n) => (Math.round(n) >= 0 ? '+' : '−') + fmt(Math.abs(Math.round(n))) + 'đ';
+const pc = (x, d = 2) => fmt(x * 100, d) + '%';
+const chipOf = (a, b) => { if (!a) return { t: '—', up: null }; const r = b / a - 1; if (Math.abs(r) < 0.0005) return { t: '0,0%', up: null }; return { t: (r > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(r) * 100, 1) + '%', up: r > 0, r }; };
+const chipPt = (a, b) => { const d = (b - a) * 100; if (Math.abs(d) < 0.05) return { t: '0,0 điểm', up: null }; return { t: (d > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(d), 1) + ' điểm', up: d > 0, r: d }; };
+const CHIP_UP = 'color: #146c2e; background: #e3f5e8';
+const CHIP_DOWN = 'color: #a3222f; background: #fdecec';
+const CHIP_FLAT = 'color: #5f5f6b; background: #f3edf0';
+const chipStyle = (c, invert) => c.up === null ? CHIP_FLAT : ((c.up !== !!invert) ? CHIP_UP : CHIP_DOWN);
+const TARGET = 0.10; // biên mục tiêu của shop (Cài đặt › Thông số shop)
+
+const split = (total, w) => { const s = w.reduce((a, b) => a + b, 0); return w.map((x) => total * x / s); };
+
+// cur / pri: v = lượt xem, ctr, ctor, aov (đ), bien (biên cuối), disc (% giảm trung bình), spend (chi QC + voucher + KM)
+const P = [
+  { id: 'GL-001', name: 'Găng tay cao su đa dụng', ini: 'GT', cur: { v: 412000, ctr: 0.031, ctor: 0.062, aov: 74000, bien: 0.214, disc: 0.08, spend: 6100000 }, pri: { v: 390000, ctr: 0.0305, ctor: 0.064, aov: 72500, bien: 0.220, disc: 0.07, spend: 5200000 }, ad: { vs: 0.07, roas: 5.6 }, rec: { t: 'Combo 2 đôi', w: 1800000 } },
+  { id: 'NR-002', name: 'Nước rửa chén 750ml', ini: 'NR', cur: { v: 655000, ctr: 0.024, ctor: 0.051, aov: 96000, bien: 0.098, disc: 0.14, spend: 14800000 }, pri: { v: 610000, ctr: 0.0245, ctor: 0.053, aov: 95000, bien: 0.124, disc: 0.10, spend: 9900000 }, ad: { vs: 0.17, roas: 4.6 }, rec: { t: 'Giảm voucher 15k → 10k', w: 1500000 } },
+  { id: 'XM-003', name: 'Xơ mướp rửa chén (5 miếng)', ini: 'XM', cur: { v: 268000, ctr: 0.036, ctor: 0.039, aov: 42000, bien: 0.240, disc: 0.05, spend: 2400000 }, pri: { v: 259000, ctr: 0.0355, ctor: 0.053, aov: 41000, bien: 0.251, disc: 0.05, spend: 2200000 }, ad: { vs: 0.05, roas: 6.2 }, rec: { t: 'Đổi mô tả', w: 2100000 }, tw: { cur: { de_xuat: { om: 0.55 } } } },
+  { id: 'TU-004', name: 'Túi đựng thực phẩm zip (50 túi)', ini: 'TU', cur: { v: 190000, ctr: 0.029, ctor: 0.048, aov: 118000, bien: 0.062, disc: 0.17, spend: 9600000 }, pri: { v: 170000, ctr: 0.027, ctor: 0.047, aov: 109000, bien: 0.115, disc: 0.11, spend: 5100000 }, ad: { vs: 0.12, roas: 3.9 }, rec: { t: 'Nâng giá sàn vận hành', w: 3300000 } },
+  { id: 'GN-005', name: 'Giấy bạc nhôm 5m', ini: 'GB', cur: { v: 224000, ctr: 0.022, ctor: 0.056, aov: 88000, bien: 0.153, disc: 0.06, spend: 7700000 }, pri: { v: 231000, ctr: 0.023, ctor: 0.055, aov: 87000, bien: 0.160, disc: 0.06, spend: 7000000 }, ad: { vs: 0.11, roas: 5.0 }, rec: { t: 'Thêm 3 từ khoá vào tiêu đề', w: 1100000 } },
+  { id: 'REST', rest: true, name: 'Còn lại · 4 sản phẩm', ini: '+4', cur: { v: 380000, ctr: 0.020, ctor: 0.045, aov: 69000, bien: 0.140, disc: 0.07, spend: 3100000 }, pri: { v: 360000, ctr: 0.0205, ctor: 0.045, aov: 68000, bien: 0.145, disc: 0.07, spend: 3000000 }, ad: { vs: 0.03, roas: 5.0 } }
+];
+const SRC_T = [
+  { k: 'search', name: 'Tìm kiếm', vs: 0.38, cm: 1.15, om: 1.05, am: 1.0, bd: 0.01 },
+  { k: 'de_xuat', name: 'Đề xuất', vs: 0.34, cm: 0.80, om: 0.85, am: 0.95, bd: -0.01 },
+  { k: 'shop', name: 'Trang shop', vs: 0.12, cm: 1.30, om: 1.40, am: 1.10, bd: 0.04 },
+  { k: 'kol', name: 'Liên kết (KOL)', vs: 0.10, cm: 1.10, om: 1.15, am: 1.05, bd: -0.06 },
+  { k: 'flash', name: 'Flash Sale', vs: 0.06, cm: 1.60, om: 1.00, am: 0.85, bd: -0.09 }
+];
+const SRC_P = [
+  { k: 'none', name: 'Không ưu đãi', os: 0.46, am: 1.0, bd: 0.07, disc: 0 },
+  { k: 'voucher', name: 'Voucher', os: 0.30, am: 0.92, bd: -0.02, disc: 0.09 },
+  { k: 'promo', name: 'Khuyến mãi (gồm Flash Sale)', os: 0.18, am: 0.88, bd: -0.06, disc: 0.21 },
+  { k: 'combo', name: 'Combo / Mua kèm', os: 0.06, am: 1.35, bd: 0.03, disc: 0.10 }
+];
+const AD = { cm: 1.35, om: 0.85, am: 0.98, bd: -0.09 };
+
+function base(p, w) { const c = p[w]; const clicks = c.v * c.ctr; const orders = clicks * c.ctor; const gmv = orders * c.aov; return { v: c.v, clicks, orders, gmv, aov: c.aov, ctr: c.ctr, ctor: c.ctor, bien: c.bien, profit: gmv * c.bien, disc: c.disc, spend: c.spend }; }
+function bySrc(p, w) { // lưu lượng: các nguồn cộng lại đúng bằng tổng
+  const b = base(p, w); const tw = (p.tw && p.tw[w]) || {};
+  const f = (s, key) => (tw[s.k] && tw[s.k][key] != null ? tw[s.k][key] : s[key]);
+  const PV = { search: 1.02, de_xuat: 1.06, shop: 0.92, kol: 0.78, flash: 1.15 }, PC = { search: 0.97, de_xuat: 1.03, shop: 1.04, kol: 0.95, flash: 1.06 };
+  const views = split(b.v, SRC_T.map((s) => s.vs * (w === 'pri' ? PV[s.k] : 1)));
+  const clicks = split(b.clicks, SRC_T.map((s, i) => views[i] * f(s, 'cm') * (w === 'pri' ? PC[s.k] : 1)));
+  const orders = split(b.orders, SRC_T.map((s, i) => clicks[i] * f(s, 'om')));
+  const gmv = split(b.gmv, SRC_T.map((s, i) => orders[i] * f(s, 'am')));
+  const raw = SRC_T.map((s) => b.bien + s.bd); const shift = (b.profit - gmv.reduce((a, g, i) => a + g * raw[i], 0)) / b.gmv;
+  return SRC_T.map((s, i) => ({ k: s.k, name: s.name, v: views[i], clicks: clicks[i], orders: orders[i], gmv: gmv[i], aov: gmv[i] / orders[i], ctr: clicks[i] / views[i], ctor: orders[i] / clicks[i], bien: raw[i] + shift, profit: gmv[i] * (raw[i] + shift) }));
+}
+function byPrice(p, w) { // ưu đãi: cộng lại đúng bằng tổng
+  const b = base(p, w);
+  const orders = split(b.orders, SRC_P.map((s) => s.os));
+  const gmv = split(b.gmv, SRC_P.map((s, i) => orders[i] * s.am));
+  const raw = SRC_P.map((s) => b.bien + s.bd); const shift = (b.profit - gmv.reduce((a, g, i) => a + g * raw[i], 0)) / b.gmv;
+  return SRC_P.map((s, i) => ({ k: s.k, name: s.name, orders: orders[i], gmv: gmv[i], aov: gmv[i] / orders[i], bien: raw[i] + shift, profit: gmv[i] * (raw[i] + shift), disc: s.disc, v: null, ctr: null, ctor: null }));
+}
+function adOf(p, w) { const b = base(p, w); const v = b.v * p.ad.vs; const clicks = v * b.ctr * AD.cm; const orders = clicks * b.ctor * AD.om; const gmv = orders * b.aov * AD.am; const spend = gmv / (p.ad.roas * (w === 'pri' ? 1.08 : 1)); return { name: 'Quảng cáo (trong đó)', v, clicks, orders, gmv, aov: gmv / orders, ctr: clicks / v, ctor: orders / clicks, bien: b.bien + AD.bd, profit: gmv * (b.bien + AD.bd), spend, roas: gmv / spend }; }
+function sum(list) { const t = { v: 0, clicks: 0, orders: 0, gmv: 0, profit: 0, spend: 0, list: 0 }; list.forEach((x) => { t.v += x.v || 0; t.clicks += x.clicks || 0; t.orders += x.orders || 0; t.gmv += x.gmv || 0; t.profit += x.profit || 0; t.spend += x.spend || 0; t.list += x.gmv / (1 - (x.disc || 0)); }); t.ctr = t.clicks / t.v; t.ctor = t.orders / t.clicks; t.aov = t.gmv / t.orders; t.bien = t.profit / t.gmv; t.disc = 1 - t.gmv / t.list; return t; }
+const baseAll = (w) => P.map((p) => base(p, w));
+const SHOP = { cur: sum(baseAll('cur')), pri: sum(baseAll('pri')) };
+const srcShop = (w, kind) => { // gộp từng nguồn của mọi sản phẩm
+  const lists = P.map((p) => (kind === 'p' ? byPrice(p, w) : bySrc(p, w)));
+  return lists[0].map((s, i) => { const t = sum(lists.map((l) => ({ ...l[i], disc: 0 }))); t.name = s.name; t.k = s.k; return t; });
+};
+const adShop = (w) => { const t = sum(P.map((p) => ({ ...adOf(p, w), disc: 0 }))); t.roas = t.gmv / t.spend; return t; };
+/* ===== END MODEL ===== */
+
+/* ===== RANK ENGINE (xếp hạng: dòng + dòng đóng cộng lại đúng bằng ô) ===== */
+const KPIS = [['gmv', 'GMV'], ['views', 'Lượt xem'], ['ctr', 'CTR'], ['ctor', 'CTOR'], ['aov', 'AOV'], ['bien', 'Biên cuối']];
+const KNAME = { gmv: 'GMV', views: 'Lượt xem', ctr: 'CTR', ctor: 'CTOR', aov: 'AOV', bien: 'Biên cuối' };
+const SRCS = [['all', 'Tất cả', 'g'], ['nat', 'Tự nhiên', 'g'], ['kol', 'Liên kết', 'g'], ['ads', 'Quảng cáo (trong đó)', 'ad'], ['voucher', 'Voucher', 'p'], ['promo', 'Khuyến mãi', 'p'], ['combo', 'Combo', 'p']];
+const SUBS = [['all', 'Tất cả tự nhiên'], ['search', 'Tìm kiếm'], ['de_xuat', 'Đề xuất'], ['shop', 'Trang shop']];
+const SNAME = { all: 'Tất cả', nat: 'Tự nhiên', kol: 'Liên kết', ads: 'Quảng cáo', voucher: 'Voucher', promo: 'Khuyến mãi', combo: 'Combo', search: 'Tìm kiếm', de_xuat: 'Đề xuất', shop: 'Trang shop' };
+const KFMT = { gmv: (x) => vnd(x), views: (x) => fmt(x), ctr: (x) => pc(x), ctor: (x) => pc(x), aov: (x) => vnd(x), bien: (x) => pc(x, 1) };
+const QLAB = { gmv: 'Đơn hàng', views: 'Lượt bấm', ctr: 'Lượt bấm', ctor: 'Đơn hàng', aov: 'Đơn hàng', bien: 'Đơn hàng' };
+const KGET = { gmv: (s) => s.gmv, views: (s) => s.v, ctr: (s) => s.ctr, ctor: (s) => s.ctor, aov: (s) => s.aov, bien: (s) => s.bien };
+const QGET = { gmv: (s) => s.orders, views: (s) => s.clicks, ctr: (s) => s.clicks, ctor: (s) => s.orders, aov: (s) => s.orders, bien: (s) => s.orders };
+const streamOf = (p, w, src) => { if (src === 'all') return base(p, w); const l = bySrc(p, w); if (src === 'nat') return sum(l.slice(0, 3).map((x) => ({ ...x, disc: 0 }))); return l[{ search: 0, de_xuat: 1, shop: 2 }[src]]; };
+const impactOf = (kpi, a, b) => { const dG = b.gmv - a.gmv; if (kpi === 'gmv') return dG / 30; if (kpi === 'bien') return b.gmv * (b.bien - a.bien) / 30; const L = Math.log(b.gmv / a.gmv); if (!L) return 0; return dG * Math.log(KGET[kpi](b) / KGET[kpi](a)) / L / 30; };
+function buildProducts(kpi, src) {
+  const SA = sum(P.map((p) => ({ ...streamOf(p, 'pri', src), disc: 0 }))), SB = sum(P.map((p) => ({ ...streamOf(p, 'cur', src), disc: 0 })));
+  const cell = impactOf(kpi, SA, SB);
+  const mk = (p) => { const a = streamOf(p, 'pri', src), b = streamOf(p, 'cur', src); const g = impactOf(kpi, a, b); return { id: p.id, name: p.name, ini: p.ini, kind: 'product', prior: KGET[kpi](a), last: KGET[kpi](b), qp: QGET[kpi](a), ql: QGET[kpi](b), gmv: g, profit: kpi === 'bien' ? g : g * b.bien, conf: b.orders >= 100 ? 'Rõ' : 'Tham khảo', x: { bien: b.bien, orders: b.orders, aov: b.aov, disc: p.cur.disc }, rec: p.rec || null }; };
+  const rows = P.filter((p) => !p.rest).map(mk); const r = mk(P.find((p) => p.rest));
+  const few = { label: '3 sản phẩm ít đơn', gmv: r.gmv * 0.7, profit: r.profit * 0.7 }, others = { label: 'Các sản phẩm khác', gmv: r.gmv * 0.3, profit: r.profit * 0.3 };
+  const rs = rows.reduce((t, x) => t + x.gmv, 0) + r.gmv; const rp = rows.reduce((t, x) => t + x.profit, 0) + r.profit;
+  const mix = { label: 'Thay đổi cơ cấu sản phẩm', gmv: cell - rs, profit: (kpi === 'bien' ? cell : cell * SB.bien) - rp };
+  return { rowKind: 'Sản phẩm', rows, closing: [few, others, mix], cell, ctx: { prior: KGET[kpi](SA), last: KGET[kpi](SB) }, note: null };
+}
+// ---- bộ dữ liệu vẽ tay (không phải sản phẩm) ----
+function closeBy(rows, cell, labels, ratio, k) { const res = cell - rows.reduce((t, x) => t + x.gmv, 0); const pr = (k || 0.3) * res; return labels.map((l, i) => ({ label: l, gmv: Math.round(res * ratio[i]), profit: Math.round(pr * ratio[i]) })); }
+const H = {
+  search: () => { const rows = [
+    { id: 'k1', name: 'găng tay cao su', sub: 'Chính · GL-001 · hạng 7 → 4', kind: 'kw', prior: 31800, last: 44200, qp: 31800, ql: 44200, gmv: 62000, profit: 13200, conf: 'Rõ', x: { bien: 0.214, orders: 118, aov: 74000, disc: 0.08 }, rec: { t: 'Giữ từ khoá trong tiêu đề', w: 900000 } },
+    { id: 'k2', name: 'nước rửa chén 750ml', sub: 'Chính · NR-002 · hạng 6 → 4', kind: 'kw', prior: 52400, last: 63100, qp: 52400, ql: 63100, gmv: 48000, profit: 4700, conf: 'Rõ', x: { bien: 0.098, orders: 143, aov: 96000, disc: 0.14 }, rec: null },
+    { id: 'k3', name: 'giấy bạc nướng thịt', sub: 'Phụ · GN-005 · hạng 12 → 8', kind: 'kw', prior: 14100, last: 17900, qp: 14100, ql: 17900, gmv: 21000, profit: 3200, conf: 'Tham khảo', x: { bien: 0.153, orders: 41, aov: 88000, disc: 0.06 }, rec: { t: 'Thêm vào tiêu đề', w: 1100000 } },
+    { id: 'k4', name: 'xơ mướp rửa chén', sub: 'Chính · XM-003 · hạng 5 → 11', kind: 'kw', prior: 41200, last: 28600, qp: 41200, ql: 28600, gmv: -29500, profit: -7100, conf: 'Rõ', x: { bien: 0.24, orders: 63, aov: 42000, disc: 0.05 }, rec: { t: 'Đổi tiêu đề (đưa từ khoá lên đầu)', w: 1200000 } },
+    { id: 'k5', name: 'túi zip đựng thực phẩm', sub: 'Chính · TU-004 · hạng 9 → 14', kind: 'kw', prior: 22700, last: 17300, qp: 22700, ql: 17300, gmv: -18000, profit: -1100, conf: 'Tham khảo', x: { bien: 0.062, orders: 31, aov: 118000, disc: 0.17 }, rec: null } ];
+    const c = srcShop('cur', 't')[0], p0 = srcShop('pri', 't')[0]; const cell = impactOf('views', p0, c);
+    return { rowKind: 'Từ khoá', rows, cell, closing: closeBy(rows, cell, ['12 từ khoá ít lượt', 'Các từ khoá khác', 'Thay đổi cơ cấu từ khoá'], [0.45, 0.4, 0.15], 0.2), ctx: { prior: p0.v, last: c.v }, note: 'Từ khoá do chủ shop thu thập (ADR-119). Hạng là vị trí của shop khi tìm từ khoá đó.' }; },
+  kol: () => { const rows = [
+    { id: 'o1', name: 'Minh Anh Review Nhà Bếp', sub: 'KOL · hoa hồng 8% · 3 sản phẩm', kind: 'kol', prior: 62, last: 131, qp: 62, ql: 131, gmv: 142000, profit: 9800, conf: 'Rõ', x: { bien: 0.071, orders: 131, aov: 83000, disc: 0.08 }, rec: { t: 'Thử hoa hồng 10% cho combo', w: 2400000 } },
+    { id: 'o2', name: 'Bếp nhà Hoa', sub: 'KOL · hoa hồng 6% · 2 sản phẩm', kind: 'kol', prior: 48, last: 82, qp: 48, ql: 82, gmv: 71000, profit: 8300, conf: 'Rõ', x: { bien: 0.102, orders: 82, aov: 79000, disc: 0.06 }, rec: null },
+    { id: 'o3', name: 'Mẹ Bắp mách mẹ', sub: 'KOL · hoa hồng 8% · 1 sản phẩm', kind: 'kol', prior: 30, last: 55, qp: 30, ql: 55, gmv: 38000, profit: 2100, conf: 'Tham khảo', x: { bien: 0.044, orders: 55, aov: 91000, disc: 0.1 }, rec: { t: 'Hạ hoa hồng về 6%', w: 700000 } },
+    { id: 'o4', name: 'Chị Lan dọn nhà', sub: 'KOL · hoa hồng 5% · 2 sản phẩm', kind: 'kol', prior: 44, last: 29, qp: 44, ql: 29, gmv: -21000, profit: -2400, conf: 'Tham khảo', x: { bien: 0.118, orders: 29, aov: 70000, disc: 0.05 }, rec: null },
+    { id: 'o5', name: 'Kênh Tiện Ích 24h', sub: 'KOL · hoa hồng 7% · 2 sản phẩm', kind: 'kol', prior: 21, last: 25, qp: 21, ql: 25, gmv: 17000, profit: 1500, conf: 'Tham khảo', x: { bien: 0.09, orders: 25, aov: 66000, disc: 0.07 }, rec: null } ];
+    const c = srcShop('cur', 't')[3], p0 = srcShop('pri', 't')[3]; const cell = impactOf('gmv', p0, c);
+    return { rowKind: 'KOL', rows, cell, closing: closeBy(rows, cell, ['4 KOL ít đơn', 'KOL đã dừng trong kỳ', 'Thay đổi cơ cấu'], [0.5, 0.5, 0], 0.1), ctx: { prior: p0.gmv, last: c.gmv }, note: 'Số lượng là đơn có link của KOL trong kỳ.' }; },
+  ads: () => { const rows = [
+    { id: 'a1', name: 'Nước rửa chén · chuyển đổi', sub: 'ROAS 5,1 → 4,6 · hoà vốn 5,4', judge: 'bad', purpose: 'chuyen_doi', kind: 'campaign', prior: 5.1, last: 4.6, qp: 4200000, ql: 5100000, gmv: 38000, profit: -6400, conf: 'Rõ', x: { bien: 0.012, orders: 118, aov: 96000, disc: 0.14 }, rec: { t: 'Hạ ngân sách 20%', w: 1100000 } },
+    { id: 'a2', name: 'Túi zip · chuyển đổi', sub: 'ROAS 4,4 → 3,9 · hoà vốn 5,4', judge: 'bad', purpose: 'chuyen_doi', kind: 'campaign', prior: 4.4, last: 3.9, qp: 1900000, ql: 2700000, gmv: 21000, profit: -9800, conf: 'Rõ', x: { bien: -0.03, orders: 58, aov: 118000, disc: 0.17 }, rec: { t: 'Tạm dừng, nâng giá sàn', w: 2600000 } },
+    { id: 'a3', name: 'Găng tay · hiển thị', sub: 'Chi phí / 1.000 lượt xem 14.200đ → 15.600đ · CTR 1,9% → 1,8%', judge: 'warn', purpose: 'hien_thi', kind: 'campaign', prior: 14200, last: 15600, qp: 1300000, ql: 1450000, gmv: 9000, profit: 1200, conf: 'Tham khảo', x: { bien: 0.1, orders: 24, aov: 74000, disc: 0.08 }, rec: null },
+    { id: 'a4', name: 'Trang shop · lượt vào shop', sub: 'Chi phí / lượt vào shop 520đ → 470đ', judge: 'good', purpose: 'luot_vao_shop', kind: 'campaign', prior: 520, last: 470, qp: 600000, ql: 640000, gmv: 4500, profit: 900, conf: 'Tham khảo', x: { bien: 0.11, orders: 12, aov: 80000, disc: 0.07 }, rec: null },
+    { id: 'a5', name: 'Xơ mướp 5 miếng · ra mắt', sub: 'Trần 60.000đ/ngày · kết thúc 15/11 · còn 12 ngày', judge: 'good', purpose: 'ra_mat', kind: 'campaign', prior: 0, last: 60000, qp: 0, ql: 720000, gmv: 2800, profit: 300, conf: 'Tham khảo', x: { bien: 0.12, orders: 9, aov: 42000, disc: 0.05 }, rec: null },
+    { id: 'a6', name: 'Giấy bạc · hiển thị', sub: 'Chi phí / 1.000 lượt xem 12.900đ → 16.800đ', judge: 'bad', purpose: 'hien_thi', kind: 'campaign', prior: 12900, last: 16800, qp: 1100000, ql: 1500000, gmv: -14000, profit: -3900, conf: 'Rõ', x: { bien: 0.06, orders: 20, aov: 88000, disc: 0.06 }, rec: { t: 'Đổi từ khoá QC', w: 800000 } } ];
+    const a = adShop('cur'), b = adShop('pri'); const cell = (a.gmv - b.gmv) / 30;
+    return { rowKind: 'Chiến dịch', rows, cell, closing: closeBy(rows, cell, ['3 chiến dịch ít đơn', 'Chiến dịch đã dừng trong kỳ', 'Thay đổi cơ cấu'], [0.33, 0.67, 0], 0.15), ctx: { prior: b.gmv, last: a.gmv }, note: 'Quảng cáo là phần “trong đó”: các đơn này đã nằm trong Tìm kiếm và Đề xuất, không cộng thêm vào tổng GMV của shop.' }; },
+  voucher: () => { const rows = [
+    { id: 'v1', name: 'Giảm 15.000đ · đơn từ 99.000đ', sub: 'Nước rửa chén, Túi zip · 410 → 338 đơn dùng', kind: 'voucher', prior: 0.056, last: 0.047, qp: 410, ql: 338, gmv: -52000, profit: -21000, conf: 'Rõ', x: { bien: 0.062, orders: 338, aov: 104000, disc: 0.15 }, rec: { t: 'Đổi sang 10.000đ', w: 1500000 } },
+    { id: 'v2', name: 'Giảm 5% · đơn từ 150.000đ', sub: 'Cả shop · 190 → 171 đơn dùng', kind: 'voucher', prior: 0.052, last: 0.049, qp: 190, ql: 171, gmv: -21000, profit: -6500, conf: 'Rõ', x: { bien: 0.081, orders: 171, aov: 168000, disc: 0.05 }, rec: null },
+    { id: 'v3', name: 'Giảm 10.000đ · đơn từ 49.000đ', sub: 'Xơ mướp, Găng tay · 220 → 236 đơn dùng', kind: 'voucher', prior: 0.044, last: 0.045, qp: 220, ql: 236, gmv: 4000, profit: 900, conf: 'Rõ', x: { bien: 0.17, orders: 236, aov: 58000, disc: 0.12 }, rec: null },
+    { id: 'v4', name: 'Voucher theo dõi shop 3.000đ', sub: 'Cả shop · 95 → 93 đơn dùng', kind: 'voucher', prior: 0.068, last: 0.067, qp: 95, ql: 93, gmv: -3000, profit: -400, conf: 'Tham khảo', x: { bien: 0.14, orders: 93, aov: 72000, disc: 0.04 }, rec: null },
+    { id: 'v5', name: 'Voucher riêng cho KOL Minh Anh', sub: '3 sản phẩm · 58 → 97 đơn dùng', kind: 'voucher', prior: 0.071, last: 0.079, qp: 58, ql: 97, gmv: 9000, profit: 1100, conf: 'Tham khảo', x: { bien: 0.07, orders: 97, aov: 83000, disc: 0.1 }, rec: null } ];
+    const cell = -96000;
+    return { rowKind: 'Voucher', rows, cell, closing: closeBy(rows, cell, ['2 voucher ít đơn', 'Voucher đã hết hạn trong kỳ', 'Thay đổi cơ cấu đơn'], [0.25, 0.35, 0.4], 0.25), ctx: { prior: 0.0535, last: 0.0486 }, note: 'CTOR tính trên lượt bấm vào các sản phẩm đang có voucher đó.' }; }
+};
+function buildRanking(kpi, src, sub) {
+  let key = src === 'nat' && sub === 'search' ? 'search' : src;
+  let d = null;
+  if (key === 'search' && kpi === 'views') d = H.search();
+  else if (key === 'kol' && kpi === 'gmv') d = H.kol();
+  else if (key === 'ads' && kpi === 'gmv') d = H.ads();
+  else if (key === 'voucher' && kpi === 'ctor') d = H.voucher();
+  else if (['all', 'nat', 'de_xuat', 'shop'].indexOf(src === 'nat' ? (sub === 'all' ? 'nat' : sub) : src) >= 0 && key !== 'search') d = buildProducts(kpi, src === 'nat' ? (sub === 'all' ? 'nat' : sub) : src);
+  if (!d) return null;
+  d.kpi = kpi; d.total = d.rows.reduce((t, x) => t + x.gmv, 0) + d.closing.reduce((t, x) => t + x.gmv, 0); d.totalP = d.rows.reduce((t, x) => t + x.profit, 0) + d.closing.reduce((t, x) => t + x.profit, 0);
+  return d;
+}
+/* ===== END RANK ENGINE ===== */
+
+const hashParams = () => { const o = {}; try { location.hash.replace(/^#/, '').split('&').forEach((kv) => { const [k, v] = kv.split('='); if (k) o[k] = v; }); } catch (e) {} return o; };
+const SCENES = [
+  ['ctr_all', 'CTR × Tất cả', { kpi: 'ctr', src: 'all', sub: 'all', xep: 'gmv', dir: 'a', focus: null }],
+  ['ctor_voucher', 'CTOR × Voucher', { kpi: 'ctor', src: 'voucher', sub: 'all', xep: 'gmv', dir: 'a', focus: null }],
+  ['gmv_ads', 'GMV × Quảng cáo', { kpi: 'gmv', src: 'ads', sub: 'all', xep: 'gmv', dir: 'b', focus: null }],
+  ['views_search', 'Lượt xem × Tìm kiếm', { kpi: 'views', src: 'nat', sub: 'search', xep: 'gmv', dir: 'b', focus: null }],
+  ['gmv_kol', 'GMV × Liên kết', { kpi: 'gmv', src: 'kol', sub: 'all', xep: 'gmv', dir: 'b', focus: null }],
+  ['back', 'Quay lại từ thẻ', { kpi: 'ctor', src: 'all', sub: 'all', xep: 'gmv', dir: 'a', focus: 'XM-003' }]
+];
+const KW_RANK = { k1: '7 → 4', k2: '6 → 4', k3: '12 → 8', k4: '5 → 11', k5: '9 → 14' };
+const KOL_COM = { o1: '8%', o2: '6%', o3: '8%', o4: '5%', o5: '7%' };
+const PUR = { chuyen_doi: 'Chuyển đổi', hien_thi: 'Hiển thị', luot_vao_shop: 'Lượt vào shop', ra_mat: 'Ra mắt' };
+const XEPS = [['gmv', '₫ GMV/ngày'], ['profit', '₫ lợi nhuận/ngày'], ['bien', 'Biên cuối'], ['orders', 'Số đơn'], ['aov', 'AOV'], ['disc', '% giảm giá']];
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+const h = hashParams(); const sc = SCENES.find((s) => s[0] === h.scene);
+const init = sc ? sc[2] : { kpi: h.kpi || 'ctr', src: h.src || 'all', sub: 'all', xep: 'gmv', dir: 'a', focus: h.focus || null };
+this.state = Object.assign({ open: {}, restOpen: true, info: false, from: h.from || null }, init);
+}
+renderVals() {
+const st = this.state; const d = buildRanking(st.kpi, st.src, st.sub);
+const srcName = st.src === 'nat' && st.sub !== 'all' ? SNAME[st.sub] : SNAME[st.src];
+const kpiN = KNAME[st.kpi];
+const base0 = {
+  scenes: SCENES.map(([k, label, o]) => ({ label, on: st.kpi === o.kpi && st.src === o.src && st.sub === o.sub && (st.focus || null) === o.focus, style: (st.kpi === o.kpi && st.src === o.src && st.sub === o.sub && (st.focus || null) === o.focus) ? 'color: #ffffff; background: #5f5f6b; border: 1px solid #5f5f6b' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState(Object.assign({ open: {} }, o)) })),
+  kpis: KPIS.map(([k, label]) => ({ label, on: st.kpi === k, style: st.kpi === k ? 'color: #ffffff; background: #b0386a' : 'color: #4a4a55; background: transparent', pick: () => this.setState({ kpi: k, open: {}, focus: null }) })),
+  srcs: SRCS.map(([k, label, grp], i) => { const on = st.src === k; const gap = i > 0 && SRCS[i - 1][2] !== grp; const gl = grp === 'p' ? 'Ưu đãi' : (grp === 'ad' ? 'Phủ lên' : ''); return { label, on, gap, gapLabel: gl, style: on ? 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a' : (grp === 'ad' ? 'color: #4a4a55; background: #ffffff; border: 1px dashed #a1a1aa' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc'), pick: () => this.setState({ src: k, sub: 'all', open: {}, focus: null }) }; }),
+  hasSub: st.src === 'nat', subs: SUBS.map(([k, label]) => ({ label, on: st.sub === k, style: st.sub === k ? 'color: #1a1a1f; background: #ffffff; border: 2px solid #b0386a' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState({ sub: k, open: {}, focus: null }) })),
+  backHref: st.from ? 'SanPham.dc.html' : 'TongQuan.dc.html', backLabel: st.from ? 'Sản phẩm' : 'Tổng quan',
+  info: st.info, toggleInfo: () => this.setState({ info: !st.info }),
+  title: 'Xếp hạng ' + kpiN + ' · ' + srcName
+};
+if (!d) return Object.assign(base0, { ctx: { label: kpiN + ' · ' + srcName, value: '—', chip: '', chipStyle: CHIP_FLAT, impact: '', impactStyle: '' }, back: false, hasNote: false, note: '', empty: true, emptyTitle: 'Bảng ' + kpiN + ' × ' + srcName + ' chưa vẽ trong artboard này.', hasTable: false });
+const xs = st.xep, money = xs === 'gmv' || xs === 'profit';
+const prim = (r) => (xs === 'profit' ? r.profit : r.gmv); const other = (r) => (xs === 'profit' ? r.gmv : r.profit);
+let list = d.rows.slice(); let hidden = null;
+if (money) { const neg = st.dir === 'a'; const keep = list.filter((r) => (neg ? prim(r) < 0 : prim(r) >= 0)); const rest = list.filter((r) => (neg ? prim(r) >= 0 : prim(r) < 0)); list = keep.sort((a, b) => (neg ? prim(a) - prim(b) : prim(b) - prim(a))); if (rest.length) hidden = { label: 'Các dòng kéo ' + (neg ? 'lên' : 'xuống') + ' · ' + rest.length + ' dòng', value: sv(rest.reduce((t, r) => t + prim(r), 0)) + '/ngày' }; }
+else { const dirm = st.dir === 'a' ? 1 : -1; list = list.sort((a, b) => dirm * ((a.x[xs] == null ? 1e18 : a.x[xs]) - (b.x[xs] == null ? 1e18 : b.x[xs]))); }
+const mx = Math.max.apply(null, d.rows.map((r) => Math.abs(prim(r))).concat([1]));
+const XF = { bien: (v) => pc(v, 1), orders: (v) => fmt(v) + ' đơn', aov: (v) => vnd(v), disc: (v) => pc(v, 1) };
+const fmtRow = (r) => {
+  if (r.kind === 'campaign') { const f = { chuyen_doi: (x) => fmt(x, 1) + ' ROAS', hien_thi: (x) => vnd(x) + '/1.000', luot_vao_shop: (x) => vnd(x) + '/lượt', ra_mat: (x) => 'trần ' + vnd(x) }[r.purpose]; return { pl: r.purpose === 'ra_mat' ? 'Trần ' + vnd(r.last) + '/ngày' : f(r.prior) + ' → ' + f(r.last), qt: vnd(r.qp) + ' → ' + vnd(r.ql) }; }
+  if (r.kind === 'kw') return { pl: fmt(r.prior) + ' → ' + fmt(r.last), qt: KW_RANK[r.id] };
+  if (r.kind === 'kol') return { pl: fmt(r.prior) + ' → ' + fmt(r.last) + ' đơn', qt: KOL_COM[r.id] };
+  if (r.kind === 'voucher') return { pl: pc(r.prior) + ' → ' + pc(r.last), qt: fmt(r.qp) + ' → ' + fmt(r.ql) };
+  const f = KFMT[st.kpi]; return { pl: f(r.prior) + ' → ' + f(r.last), qt: fmt(r.qp) + ' → ' + fmt(r.ql) };
+};
+const HDR = { 'Sản phẩm': [KNAME[st.kpi] + ' · trước → nay', QLAB[st.kpi] + ' · trước → nay'], 'Từ khoá': ['Lượt xem · trước → nay', 'Hạng tìm kiếm'], KOL: ['Đơn có link · trước → nay', 'Hoa hồng'], 'Chiến dịch': ['Chỉ số đánh giá · trước → nay', 'Chi phí · trước → nay'], Voucher: ['CTOR · trước → nay', 'Đơn dùng voucher'] };
+const rows = list.map((r) => {
+  const open = !!st.open[r.id]; const f = fmtRow(r); const focus = st.focus === r.id; const p = prim(r);
+  const bw = Math.round(Math.abs(p) / mx * 100);
+  const judge = { bad: 'color: #a3222f', warn: 'color: #8a4b00', good: 'color: #146c2e' }[r.judge] || 'color: #5f5f6b';
+  const sourceNote = r.kind === 'product' ? 'Mở trong Sản phẩm' : null;
+  return { id: r.id, ini: r.kind === 'product' ? r.ini : { kw: 'Tk', kol: 'KOL', campaign: 'QC', voucher: 'VC' }[r.kind], name: r.name, sub: r.sub || r.id, subStyle: r.judge ? judge + '; font-weight: 600' : 'color: #5f5f6b', hasBadge: !!r.purpose, badge: r.purpose ? PUR[r.purpose] : '', isFocus: focus,
+    open, caret: open ? '▾' : '▸', pl: f.pl, qt: f.qt, prim: sv(p) + '/ngày', primStyle: p < 0 ? 'color: #a3222f' : 'color: #146c2e', barStyle: 'width: ' + bw + '%; background: ' + (p < 0 ? '#e5484d' : '#16a34a'),
+    xv: money ? (xs === 'gmv' ? sv(r.profit) + '/ngày' : sv(r.gmv) + '/ngày') : XF[xs](r.x[xs]), conf: r.conf, confStyle: r.conf === 'Rõ' ? 'color: #146c2e; background: #e3f5e8' : 'color: #8a4b00; background: #fff4e0',
+    hasRec: !!r.rec, noRec: !r.rec, recHref: 'QuyetDinh.dc.html#from=ranking&row=' + r.id, recWin: r.rec ? vnd(r.rec.w) + '/tháng' : '', recT: r.rec ? r.rec.t : '',
+    boxStyle: focus ? 'border: 2px solid #c2306d; background: #fff7fa; box-shadow: 0 0 0 4px #fdeef4' : (open ? 'border: 1px solid #f8b9d3; background: #fff7fa' : 'border: 1px solid #f1e6eb; background: #ffffff'),
+    facts: [['Biên cuối', pc(r.x.bien, 1)], ['Đơn trong kỳ', fmt(r.x.orders)], ['AOV · % giảm', vnd(r.x.aov) + ' · ' + pc(r.x.disc, 1)]],
+    openLabel: r.kind === 'product' ? 'Mở sản phẩm' : (r.kind === 'kw' ? 'Mở tab Từ khoá' : 'Mở trong Sản phẩm'), openSub: 'KPI ' + kpiN + ' và nguồn ' + srcName + ' đã chọn sẵn', openHref: 'SanPham.dc.html#id=' + r.id + '&kpi=' + st.kpi + '&src=' + st.src + '&from=ranking',
+    toggle: () => this.setState({ open: Object.assign({}, st.open, { [r.id]: !open }) }) };
+});
+const restSum = d.closing.reduce((t, c) => t + (xs === 'profit' ? c.profit : c.gmv), 0);
+const ctxImpact = st.kpi === 'bien' ? 'Lợi nhuận ' + sv(d.cell) + '/ngày' : sv(d.cell) + '/ngày';
+const chip = st.kpi === 'bien' ? chipPt(d.ctx.prior, d.ctx.last) : chipOf(d.ctx.prior, d.ctx.last);
+const back = st.focus ? { card: st.focus === 'XM-003' ? 'Đổi mô tả · Xơ mướp rửa chén' : st.focus } : false;
+return Object.assign(base0, {
+  ctx: { label: kpiN + ' · ' + srcName, value: KFMT[st.kpi](d.ctx.last), chip: chip.t, chipStyle: chip.up === null ? CHIP_FLAT : (chip.up ? CHIP_UP : CHIP_DOWN), impact: ctxImpact, impactStyle: d.cell < 0 ? 'color: #a3222f' : 'color: #146c2e' },
+  back, hasNote: !!d.note, note: d.note || '', empty: false, emptyTitle: '', hasTable: true,
+  tableTitle: rows.length + ' ' + d.rowKind.toLowerCase() + (money ? (st.dir === 'a' ? ' kéo ' + kpiN + ' xuống' : ' kéo ' + kpiN + ' lên') : ' · sắp theo ' + XEPS.find((x) => x[0] === xs)[1]),
+  xeps: XEPS.map(([k, label]) => ({ label, on: xs === k, style: xs === k ? 'color: #1a1a1f; background: #ffffff; box-shadow: 0 1px 2px rgba(20,20,30,0.08)' : 'color: #5f5f6b; background: transparent', pick: () => this.setState({ xep: k, dir: (k === 'gmv' || k === 'profit') ? 'a' : (k === 'bien' ? 'a' : 'b') }) })),
+  dirs: (money ? [['a', 'Kéo xuống'], ['b', 'Kéo lên']] : [['a', 'Thấp → cao'], ['b', 'Cao → thấp']]).map(([k, label]) => ({ label, on: st.dir === k, style: st.dir === k ? 'color: #1a1a1f; background: #ffffff; box-shadow: 0 1px 2px rgba(20,20,30,0.08)' : 'color: #5f5f6b; background: transparent', pick: () => this.setState({ dir: k }) })),
+  cols: 'minmax(0, 2.7fr) minmax(0, 1.5fr) minmax(0, 1.3fr) minmax(0, 1.9fr) minmax(0, 1.1fr) 82px 168px',
+  rowKind: d.rowKind, hK: HDR[d.rowKind][0], hQ: HDR[d.rowKind][1], hP: xs === 'profit' ? '₫ lợi nhuận/ngày' : '₫ GMV/ngày', hX: money ? (xs === 'gmv' ? '₫ lợi nhuận/ngày' : '₫ GMV/ngày') : XEPS.find((x) => x[0] === xs)[1],
+  rows, noRows: rows.length === 0, hasOther: !!hidden, other: hidden || { label: '', value: '' },
+  restOpen: st.restOpen, restCaret: st.restOpen ? '▾' : '▸', toggleRest: () => this.setState({ restOpen: !st.restOpen }),
+  rest: d.closing.map((c) => ({ k: c.label, v: sv(xs === 'profit' ? c.profit : c.gmv) + '/ngày' })), restSum: sv(restSum) + '/ngày',
+  totalFor: kpiN + ' · ' + srcName, total: sv(xs === 'profit' ? d.totalP : d.total) + '/ngày'
+});
+}
+}
+</script>
+</body>
+</html>
