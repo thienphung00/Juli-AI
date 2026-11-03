@@ -102,3 +102,27 @@ A card always carries: metric key, flow/lever, product id, change_kind, the ₫ 
   labelled "trên X % doanh thu có giá vốn". Shop profit in đồng is shown only at 100 % coverage.
 - **Chi for the daily cap** = ads + voucher + khuyến mãi + combo + commission (same chi as ②).
 - **Packaging** is per order line (one pack per product line), set per SKU.
+
+## 10. Checked against Shopee documents and ORY's exports (2026-11-03)
+Sources: Học viện Shopee articles 2150 (Phí Xử Lý Giao Dịch, 24-04-2026), 2139 (Phí Cố Định non-Mall,
+14-05-2026), 25223 (Phí Hạ Tầng, 12-06-2025); ads.shopee.vn/learn/faq/119/634 (Theo dõi hiệu quả chiến dịch).
+- **Phí cố định** (non-Mall): % by category (VAT incl.), **per item**, base = giá sản phẩm trước Shopee trợ giá
+  − khuyến mãi người bán đã áp dụng. Rate table: PDF "Shopee non-Mall_Phi Co Dinh tu 23.05.2026" (M5).
+- **Phí xử lý giao dịch**: 6 % (non-Mall from 01/05/2026), **per order**, base = giá sản phẩm trước Shopee
+  trợ giá + **phí vận chuyển người mua trả** − khuyến mãi người bán − khuyến mãi ngân hàng.
+- **Phí hạ tầng**: **3.000đ per order** (orders created from 01/07/2025).
+- **Phí dịch vụ** (Voucher Xtra / Freeship Xtra): only when enrolled; % per item with a cap.
+- All three are charged only on delivered orders ("Đã giao") or refunds accepted as "Hoàn tiền ngay"
+  (except "Chưa nhận được hàng"). Profit uses delivered orders; confirmed-but-cancelled orders carry no fee
+  and no profit. The income export (M2) is the actual and wins over the formula.
+- **Voucher cost** = seller-borne discount × orders that used it: ORY's voucher exports reconcile exactly
+  (e.g. a 5.000đ voucher × 74 confirmed orders = 370.000đ "Chi phí"). So extra spend on a card = extra
+  voucher cost + the discount on predicted extra orders (as implemented). "Voucher Thông Minh" created by
+  Shopee from the ads service also carries a seller "Chi phí" and counts as voucher spend.
+- **Ad spend per product**: Chiến dịch Nhóm per-product rows sum exactly to the campaign (cost, revenue,
+  direct revenue, clicks), so product ad spend is taken from Shopee, not allocated by us.
+- **Ad revenue**: Shopee "Doanh số" counts the advertised product AND other products bought within 7 days of
+  the click; "Doanh số trực tiếp" counts only the advertised product. Product break-even checks use
+  **ROAS trực tiếp**; shop-level ads use broad ROAS.
+- **Not covered by any Shopee document** (our accounting rule, kept): for a partially costed product, its ad
+  spend counts in proportion to its covered share of buyer_paid (§9).
