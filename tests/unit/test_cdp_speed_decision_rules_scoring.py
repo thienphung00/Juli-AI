@@ -267,7 +267,9 @@ class TestWiringIntoTheContinuousTriggerSeam:
         job = _make_job(shop_with_synced_data, idempotency_key="job-714-b2-wiring")
         await material_worker._default_shared_compute(session, job)
 
-        assert captured.get("scoring_stage") is decision_rules_scoring_stage
+        from juli_backend.services.cdp_speed.decision_rules_scoring import hourly_scoring_stage
+
+        assert captured.get("scoring_stage") is hourly_scoring_stage
 
     @pytest.mark.asyncio
     async def test_orchestrator_dispatches_real_scoring_stage_end_to_end(
