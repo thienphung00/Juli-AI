@@ -135,6 +135,8 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shop_proposal_approvals"): "tenant_direct",
     ("public", "shop_proposal_executions"): "tenant_direct",
     ("public", "shop_proposal_results"): "tenant_direct",
+    ("public", "shopee_sim_prior_runs"): "tenant_direct",
+    ("public", "shopee_reco_calibrations"): "tenant_direct",
     # ADR-119 (migration 111): which keyword combinations came from which of the shop's
     # items (the decomposed titles); Ops reads and writes them under the shop's scope.
     ("public", "shop_keyword_seeds"): "tenant_direct",
