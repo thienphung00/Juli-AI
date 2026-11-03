@@ -618,6 +618,121 @@ class ShopeePromotionPeriodRow(PeriodRowBase):
         return (self.promo_type,)
 
 
+# -- connector readers (reco connector wave, ADR-120 d.14) -------------------------------
+
+#: A platform enum that Seller Centre sends as a number or as a short label.
+Tag = Annotated[str, StringConstraints(max_length=64)] | int
+_Digits = Annotated[str, StringConstraints(pattern=r"^[0-9]{1,32}$")]
+_MaybeDigits = Annotated[str, StringConstraints(pattern=r"^[0-9]{0,32}$")]
+Percent = Annotated[Decimal, Field(ge=0, le=100, allow_inf_nan=False)]
+
+
+class ShopeeItemCatalogRow(PeriodRowBase):
+    """``shopee.item_catalog``: one item or variation as the Seller Centre product list
+    names it (``variation_id`` empty = the item). Lands in ``platform_items`` only: names,
+    SKU and status of the newest post; the prices and stock are ``item_snapshot``'s."""
+
+    item_id: ItemId
+    variation_id: _MaybeDigits = ""
+    item_name: Annotated[str, StringConstraints(max_length=500)] | None = None
+    variation_name: Annotated[str, StringConstraints(max_length=255)] | None = None
+    seller_sku: Annotated[str, StringConstraints(max_length=100)] | None = None
+    status: Annotated[str, StringConstraints(max_length=64)] | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.item_id, self.variation_id)
+
+
+class ShopeeAdsCampaignDailyRow(RowBase):
+    """``shopee.ads_campaign_daily`` (the name ADR-117 §3 reserved): one finished GMT+7 day of
+    one ad campaign, from ``/api/pas/v1/homepage/query/`` called for that single day.
+
+    Platform names are kept (``impression``, ``broad_gmv``, ``atc`` ...). ``broad_*`` is the
+    attribution to every product of the shop, ``direct_*`` to the clicked product only; the
+    order type of the post says whether Shopee counted placed or paid orders
+    (``use_paid_gmv``). ``campaign_id`` None = the shop-level ROAS-target row that
+    ``/api/pas/v1/report/get_time_graph/`` gives for the day (``roi_target``)."""
+
+    campaign_id: _Digits | None = None
+    campaign_name: Annotated[str, StringConstraints(min_length=1, max_length=255)] | None = None
+    ad_type: Tag | None = None
+    ad_subtype: Tag | None = None
+    state: Tag | None = None
+    daily_budget: Money | None = None
+    total_budget: Money | None = None
+    #: The campaign's own ROAS target setting (custom-ROAS campaigns).
+    roi_two_target: Ratio | None = None
+    impression: Count | None = None
+    click: Count | None = None
+    ctr: Ratio | None = None
+    cost: Money | None = None
+    cpc: Money | None = None
+    cpm: Money | None = None
+    broad_gmv: Money | None = None
+    broad_order: Count | None = None
+    broad_roi: Ratio | None = None
+    broad_cir: Ratio | None = None
+    direct_gmv: Money | None = None
+    direct_order: Count | None = None
+    direct_roi: Ratio | None = None
+    direct_cir: Ratio | None = None
+    product_impression: Count | None = None
+    product_click: Count | None = None
+    product_ctr: Ratio | None = None
+    avg_rank: Ratio | None = None
+    sov: Ratio | None = None
+    reach: Count | None = None
+    page_views: Count | None = None
+    unique_visitors: Count | None = None
+    checkout: Count | None = None
+    atc: Count | None = None
+    voucher_amount: Money | None = None
+    voucher_sales: Money | None = None
+    #: Shop-level row only: the ROAS target in force that day, and whether it is Shopee's
+    #: cold-start default.
+    roi_target: Ratio | None = None
+    roi_target_cold_start: bool | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.date, self.campaign_id)
+
+
+class ShopeeVoucherSettingRow(PeriodRowBase):
+    """``shopee.voucher_settings``: one shop voucher's settings and live usage on the day
+    the connector read ``/api/marketing/v3/voucher/list/`` (the post's one-day period).
+    Results (sales, orders) stay in the ``voucher_*.xlsx`` export. Lands in
+    ``platform_promotions`` as ``promo_type = voucher``; ``voucher_code`` is kept in the raw
+    copy only (a string in ``extra`` is dropped, D16)."""
+
+    voucher_id: _Digits
+    program_name: Annotated[str, StringConstraints(min_length=1, max_length=255)]
+    voucher_code: Annotated[str, StringConstraints(max_length=64)] | None = None
+    starts_at: datetime
+    ends_at: datetime | None = None
+    status: Annotated[str, StringConstraints(max_length=64)] | None = None
+    #: VND off (a fixed-amount voucher).
+    discount_amount: Money | None = None
+    #: Percent off, 0..100 (a percentage voucher).
+    discount_percent: Percent | None = None
+    max_value: Money | None = None
+    #: Minimum basket spend.
+    min_spend: Money | None = None
+    usage_limit: Count | None = None
+    current_usage: Count | None = None
+    distributed_count: Count | None = None
+    usage_limit_per_user: Count | None = None
+    use_type: int | None = None
+    reward_type: int | None = None
+    purpose: int | None = None
+    is_seller_absorbed: bool | None = None
+    #: How many items the voucher is limited to (0 = no item list: the whole shop).
+    item_count: Count | None = None
+    item_scope: Annotated[str, StringConstraints(max_length=16)] | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.voucher_id,)
+
+
 class Period(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

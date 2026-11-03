@@ -41,6 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import (
     DRIFT_DRIFT,
+    ORDER_TYPE_NONE,
     SOURCE_CONFIDENCE,
     SOURCE_RANK,
     IngestDatasetStatus,
@@ -61,6 +62,7 @@ from juli_backend.services.ingest.mapping import (
     SHOPEE_PROMO_TYPES,
     WRITE_DAILY,
     WRITE_FLAGS,
+    WRITE_ITEMS,
     WRITE_PERIOD,
     WRITE_PROMOTIONS,
     DatasetSpec,
@@ -73,9 +75,11 @@ from juli_backend.services.ingest.schemas import (
     IngestBody,
     RowBase,
     ShopeeItemBySourcePeriodRow,
+    ShopeeItemCatalogRow,
     ShopeeProductFlagRow,
     ShopeeProductPeriodRow,
     ShopeePromotionRow,
+    ShopeeVoucherSettingRow,
 )
 from juli_backend.services.privacy.payload_allowlist import allowlist_payload, ingest_endpoint
 
@@ -438,6 +442,14 @@ def _item_values(
         elif isinstance(row, ShopeeItemBySourcePeriodRow):
             variation, name, sku, status = ITEM_LEVEL_VARIATION, None, None, row.item_status
             item_name = row.item_name
+        elif isinstance(row, ShopeeItemCatalogRow):
+            variation, name, sku, status = (
+                row.variation_id,
+                row.variation_name,
+                row.seller_sku,
+                row.status,
+            )
+            item_name = row.item_name
         else:
             continue
         items[(row.item_id, variation)] = {
@@ -463,6 +475,66 @@ def _promotion_extra(row: ShopeePromotionRow) -> dict[str, Any]:
     return extra
 
 
+def _voucher_extra(row: ShopeeVoucherSettingRow) -> dict[str, Any]:
+    """The voucher's numbers and flags (D16: no string reaches ``extra``; the code stays in
+    the raw copy)."""
+    extra: dict[str, Any] = {"voucher_id": int(row.voucher_id)}
+    for name in (
+        "discount_amount",
+        "discount_percent",
+        "max_value",
+        "min_spend",
+        "usage_limit",
+        "current_usage",
+        "distributed_count",
+        "usage_limit_per_user",
+        "item_count",
+    ):
+        value = getattr(row, name)
+        if value is not None:
+            extra[name] = float(value) if value != value.to_integral_value() else int(value)
+    for name in ("use_type", "reward_type", "purpose", "is_seller_absorbed"):
+        value = getattr(row, name)
+        if value is not None:
+            extra[name] = value
+    return extra
+
+
+def _voucher_values(
+    rows: list[ShopeeVoucherSettingRow], body: IngestBody, provenance: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """``platform_promotions`` rows for voucher settings. Twins (same name and start) get an
+    ``ordinal`` by voucher id, so the key is stable between snapshots."""
+    ordinals: dict[tuple[str, datetime], int] = {}
+    values = []
+    for row in sorted(rows, key=lambda r: int(r.voucher_id)):
+        starts_at = row.starts_at.replace(tzinfo=None)
+        twin = (row.program_name, starts_at)
+        ordinal = ordinals.get(twin, 0)
+        ordinals[twin] = ordinal + 1
+        values.append(
+            {
+                "id": uuid.uuid4(),
+                **provenance,
+                "promo_type": SHOPEE_PROMO_TYPES["Voucher"],
+                "program_name": row.program_name,
+                "starts_at": starts_at,
+                "ends_at": row.ends_at.replace(tzinfo=None) if row.ends_at else None,
+                "ordinal": ordinal,
+                "period_start": body.period.start,
+                "period_end": body.period.end,
+                "status": row.status,
+                "order_type": ORDER_TYPE_NONE,
+                "gmv": None,
+                "orders": None,
+                "units": None,
+                "buyers": None,
+                "extra": _voucher_extra(row),
+            }
+        )
+    return values
+
+
 async def _write(
     session: AsyncSession,
     spec: DatasetSpec,
@@ -480,6 +552,8 @@ async def _write(
             _PERIOD_KEY_COLUMNS,
             _metric_values(spec, rows, body, order_type, provenance),
         )
+        await _upsert_items(session, _item_values(rows, body, provenance))
+    elif spec.writes == WRITE_ITEMS:
         await _upsert_items(session, _item_values(rows, body, provenance))
     elif spec.writes == WRITE_FLAGS:
         flags = [
@@ -519,6 +593,9 @@ async def _write(
             for row in rows
             if isinstance(row, ShopeePromotionRow)
         ]
+        promotions += _voucher_values(
+            [row for row in rows if isinstance(row, ShopeeVoucherSettingRow)], body, provenance
+        )
         await _upsert(session, PlatformPromotion, _PROMOTION_KEY_COLUMNS, promotions)
     else:
         raise ValueError(f"unknown write target {spec.writes}")

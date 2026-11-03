@@ -39,6 +39,13 @@ tell a mapping change from a data change):
   ``platform_source`` = its handle); ``promotion_period`` is a promotion type's total (stream
   ``promo``). Order-line affiliate rows and the ad change log need tables of their own and are
   parsed but not accepted yet (``reserved.py``).
+- reco connector wave (the Juli Connector reads more Seller Centre pages itself, ADR-120 d.14):
+  ``ads_campaign_daily`` is one finished day per campaign (stream ``ads``, an overlay; the
+  campaign is ``segment`` = hash of its id, ``platform_source`` = its title; the shop-level
+  ROAS-target row of the day has segment ``all``); ``voucher_settings`` lands in
+  ``platform_promotions`` (``promo_type`` ``voucher``, one-day snapshot period);
+  ``item_catalog`` lands in ``platform_items`` only. ``item_snapshot`` and
+  ``shop_health_daily`` wait for their tables (migration 112): ``reserved.py``.
 """
 
 from __future__ import annotations
@@ -60,6 +67,7 @@ from juli_backend.services.ingest.schemas import (
     SHOPEE_L2_SOURCES,
     SHOPEE_PROMO_TYPES,
     DatasetRow,
+    ShopeeAdsCampaignDailyRow,
     ShopeeAdsCampaignPeriodRow,
     ShopeeAdsKeywordPeriodRow,
     ShopeeAffiliateBillPeriodRow,
@@ -69,6 +77,7 @@ from juli_backend.services.ingest.schemas import (
     ShopeeAffiliateProductPeriodRow,
     ShopeeItemBySourcePeriodRow,
     ShopeeItemBySourceRow,
+    ShopeeItemCatalogRow,
     ShopeeItemPerformanceRow,
     ShopeeProductFlagRow,
     ShopeeProductOverviewRow,
@@ -80,6 +89,7 @@ from juli_backend.services.ingest.schemas import (
     ShopeeShopTrafficRow,
     ShopeeTrafficOverviewPeriodRow,
     ShopeeTrafficOverviewRow,
+    ShopeeVoucherSettingRow,
 )
 
 #: The version of this module's field meanings (ADR-117 §1). Bump it whenever a field
@@ -206,6 +216,14 @@ _ADS_CAMPAIGN_KPIS: dict[str, str] = {
     "units_sold": "units",
     "sales": "gmv",
     "add_to_cart": "add_to_cart",
+}
+_ADS_DAILY_KPIS: dict[str, str] = {
+    "impression": "impressions",
+    "click": "clicks",
+    "ctr": "ctr",
+    "broad_order": "orders",
+    "broad_gmv": "gmv",
+    "atc": "add_to_cart",
 }
 #: Row fields that are part of the key or the item's identity, not metrics.
 _KEY_FIELDS = frozenset(
@@ -486,6 +504,25 @@ def _ads_keyword(row: ShopeeAdsKeywordPeriodRow) -> NormalizedRow:
     )
 
 
+def _ads_campaign_daily(row: ShopeeAdsCampaignDailyRow) -> NormalizedRow:
+    """One campaign x one finished day: a Juli ``ads`` overlay row. ``segment`` is a short hash
+    of the platform's campaign id, ``platform_source`` the campaign title. The shop-level
+    ROAS-target row (no campaign id) keeps segment ``all``."""
+    kpis, extra = _split(row, _ADS_DAILY_KPIS)
+    if row.campaign_id is None:
+        source, segment = "ads_roas_target", SEGMENT_ALL
+    else:
+        source, segment = (row.campaign_name or "")[:64] or None, _short_hash("c", row.campaign_id)
+    return NormalizedRow(
+        day=row.date,
+        stream=STREAM_ADS,
+        platform_source=source,
+        segment=segment,
+        kpis=kpis,
+        extra=extra,
+    )
+
+
 def _promotion_period(row: ShopeePromotionPeriodRow) -> NormalizedRow:
     kpis, extra = _split(row, _PROMOTION_KPIS)
     return NormalizedRow(
@@ -508,6 +545,7 @@ WRITE_DAILY = "daily"  # platform_daily_metrics
 WRITE_PERIOD = "period"  # platform_period_metrics (+ platform_items for item rows)
 WRITE_FLAGS = "flags"  # platform_product_flags
 WRITE_PROMOTIONS = "promotions"  # platform_promotions
+WRITE_ITEMS = "items"  # platform_items only
 
 
 @dataclass(frozen=True)
@@ -703,6 +741,34 @@ DATASETS: dict[tuple[str, str], DatasetSpec] = {
         "Per period, the items Seller Centre flagged (parentskudetail flag sheets).",
         GRANULARITY_PERIOD,
         WRITE_FLAGS,
+    ),
+    ("shopee", "ads_campaign_daily"): DatasetSpec(
+        "shopee",
+        "ads_campaign_daily",
+        ShopeeAdsCampaignDailyRow,
+        _ads_campaign_daily,
+        True,
+        "Per finished day, per ad campaign (Quảng cáo › Tổng quan), plus the day's ROAS target.",
+    ),
+    ("shopee", "voucher_settings"): DatasetSpec(
+        "shopee",
+        "voucher_settings",
+        ShopeeVoucherSettingRow,
+        _not_metrics,
+        False,
+        "Snapshot of each shop voucher's settings and usage (Voucher của shop › Danh sách).",
+        GRANULARITY_PERIOD,
+        WRITE_PROMOTIONS,
+    ),
+    ("shopee", "item_catalog"): DatasetSpec(
+        "shopee",
+        "item_catalog",
+        ShopeeItemCatalogRow,
+        _not_metrics,
+        False,
+        "Snapshot of the shop's items and variations: name, SKU, status (Sản phẩm › Tất cả).",
+        GRANULARITY_PERIOD,
+        WRITE_ITEMS,
     ),
     ("shopee", "promotions"): DatasetSpec(
         "shopee",

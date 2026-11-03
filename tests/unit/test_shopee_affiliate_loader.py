@@ -767,15 +767,21 @@ def test_a_reserved_body_with_a_buyer_field_fails_its_own_validation():
 
 
 def test_reserved_names_are_not_gateway_datasets():
-    assert set(RESERVED_DATASETS) == {"affiliate_order_lines", "ads_change_log"}
+    assert set(RESERVED_DATASETS) == {
+        "affiliate_order_lines",
+        "ads_change_log",
+        "item_snapshot",
+        "shop_health_daily",
+    }
     for name in RESERVED_DATASETS:
         assert dataset_spec("shopee", name) is None
 
 
 @pytest.mark.xfail(
     strict=True,
-    reason="TODO migration 112 (shopee_order_lines) / ad change log table: register the "
-    "dataset specs in mapping.DATASETS, then delete this test and the reserved names",
+    reason="TODO migration 112 (shopee_order_lines, platform_item_snapshots) / ad change log / "
+    "shop-health tables: register the dataset specs in mapping.DATASETS, then delete this test "
+    "and the reserved names",
 )
 @pytest.mark.parametrize("name", sorted(RESERVED_DATASETS))
 def test_gateway_accepts_the_reserved_datasets_once_their_tables_exist(name):
