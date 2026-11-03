@@ -3,7 +3,14 @@
 // make; the page hook sends them from the seller's open Seller Centre tab, with
 // the session params it has seen the page use, at ≤ 1 request / 2 s.
 
-import { DATASETS, ITEM_READERS_ACTIVE, MAX_REQUEST_JITTER_MS, MIN_REQUEST_GAP_MS, type Dataset } from "../config";
+import {
+  DATASETS,
+  ITEM_READERS_ACTIVE,
+  MAX_REQUEST_JITTER_MS,
+  MIN_REQUEST_GAP_MS,
+  type Dataset,
+  type MydataDataset,
+} from "../config";
 import { ENDPOINTS } from "./endpoints";
 import { L1_SOURCES } from "./map";
 import { compactDate, gmt7DateStart, yesterdayRange } from "./time";
@@ -11,7 +18,7 @@ import { compactDate, gmt7DateStart, yesterdayRange } from "./time";
 const DAY = 86_400;
 
 export interface PlannedRequest {
-  dataset: Dataset;
+  dataset: MydataDataset;
   path: string;
   /** Query params (without the session params the hook adds). */
   params: Record<string, string>;
@@ -26,7 +33,7 @@ const ITEM_PAGE_SIZE = "10";
 type Range = { start_time: string; end_time: string; period: string };
 
 /** Item pages for one range: only while the item readers are active (D31.6). */
-function itemRequests(range: Range, wanted: (dataset: Dataset) => boolean): PlannedRequest[] {
+function itemRequests(range: Range, wanted: (dataset: MydataDataset) => boolean): PlannedRequest[] {
   const plan: PlannedRequest[] = [];
   if (wanted("item_performance")) {
     for (let page = 1; page <= ITEM_PAGES; page += 1) {
@@ -80,7 +87,7 @@ export function buildSyncPlan(
     period: "yesterday",
   };
   const plan: PlannedRequest[] = [];
-  const wanted = (dataset: Dataset) => DATASETS.includes(dataset) && !stopped.has(dataset);
+  const wanted = (dataset: MydataDataset) => DATASETS.includes(dataset) && !stopped.has(dataset);
 
   if (wanted("traffic_overview")) {
     plan.push({
@@ -99,7 +106,7 @@ export function buildSyncPlan(
 }
 
 /** The datasets the backfill asks for (item datasets only while their readers are active). */
-export function backfillDatasets(itemReadersActive: boolean = ITEM_READERS_ACTIVE): Dataset[] {
+export function backfillDatasets(itemReadersActive: boolean = ITEM_READERS_ACTIVE): MydataDataset[] {
   return DATASETS.filter(
     (dataset) => itemReadersActive || (dataset !== "item_performance" && dataset !== "item_by_source"),
   );
@@ -125,7 +132,7 @@ export function buildBackfillDayPlan(
     ? { start_time: String(start), end_time: String(start + DAY - 1), period: "yesterday" }
     : { start_time: String(start), end_time: String(start + DAY), period: "day" };
   const datasets = backfillDatasets(itemReadersActive);
-  const wanted = (dataset: Dataset) => datasets.includes(dataset) && !skip.has(dataset);
+  const wanted = (dataset: MydataDataset) => datasets.includes(dataset) && !skip.has(dataset);
   const plan: PlannedRequest[] = [];
   if (wanted("traffic_overview")) {
     plan.push({

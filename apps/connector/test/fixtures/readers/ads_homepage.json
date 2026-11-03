@@ -1,0 +1,42 @@
+{
+ "code": 0,
+ "msg": "ok",
+ "data": {
+  "entry_list": [
+   {
+    "title": "Chiến dịch mẫu 1",
+    "image": "vn-sample-ad-1",
+    "type": "product",
+    "subtype": "gmv_max",
+    "state": "ongoing",
+    "campaign": {
+     "campaign_id": 7001,
+     "daily_budget": 200000,
+     "total_budget": 0,
+     "start_time": 1790000000,
+     "end_time": 0,
+     "roi_two_target": 5.5
+    },
+    "report": {
+     "impression": 1000, "click": 40, "ctr": 0.04, "cost": 50000, "cpc": 1250, "cpm": 50000,
+     "broad_gmv": 400000, "broad_order": 4, "broad_roi": 8, "broad_cir": 0.125,
+     "direct_gmv": 300000, "direct_order": 3, "direct_roi": 6, "direct_cir": 0.1667,
+     "product_impression": 900, "product_click": 35, "product_ctr": 0.0389,
+     "avg_rank": 2.5, "sov": 0.31, "reach": 800, "page_views": 60, "unique_visitors": 50,
+     "checkout": 6, "atc": 9, "voucher_amount": 1000, "voucher_sales": 20000,
+     "new_metric_x": 7
+    },
+    "ratio": { "impression": 0.1, "click": -0.2 }
+   },
+   {
+    "title": "Chiến dịch mẫu 2",
+    "type": "shop",
+    "subtype": "shop_ads",
+    "state": "paused",
+    "campaign": { "campaign_id": "7002", "daily_budget": 100000, "total_budget": 0, "roi_two_target": 0 },
+    "report": { "impression": 10, "click": 0, "ctr": 0, "cost": 0, "broad_gmv": 0, "broad_order": 0, "atc": 0 }
+   }
+  ],
+  "total": 2
+ }
+}

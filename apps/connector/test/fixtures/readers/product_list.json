@@ -1,0 +1,77 @@
+{
+ "code": 0,
+ "message": "success",
+ "data": {
+  "products": [
+   {
+    "id": 1001,
+    "name": "Sản phẩm mẫu A",
+    "status": 1,
+    "cover_image": "vn-sample-cover-a",
+    "parent_sku": "SKU-A",
+    "create_time": 1777600000,
+    "modify_time": 1790000000,
+    "price_detail": {
+     "price_min": 100000,
+     "price_max": 150000,
+     "selling_price_min": 90000,
+     "selling_price_max": 135000,
+     "has_discount": true,
+     "max_discount_percentage": 10,
+     "max_discount": 15000
+    },
+    "stock_detail": {
+     "total_available_stock": 30,
+     "total_seller_stock": 25,
+     "total_shopee_stock": 5,
+     "low_stock_status": 0,
+     "advanced_stock": { "sellable_stock": 25, "in_transit_stock": 5 }
+    },
+    "promotion": { "wholesale": false, "has_bundle_deal": true },
+    "statistics": { "view_count": 400, "liked_count": 12, "sold_count": 33 },
+    "tag": { "has_discount": true, "has_bundle_deal": true, "has_add_on_deal": false, "has_ams_commission": true, "unlist": false },
+    "boost_info": { "boost_active": false },
+    "model_list": [
+     {
+      "id": 5001,
+      "name": "Hồng",
+      "sku": "A-HONG",
+      "tier_index": [0],
+      "is_default": true,
+      "image": "vn-sample-model-a1",
+      "statistics": { "sold_count": 20 },
+      "price_detail": { "origin_price": 100000, "promotion_price": 90000 },
+      "stock_detail": { "total_available_stock": 10, "advanced_stock": { "sellable_stock": 8, "in_transit_stock": 2 } }
+     },
+     {
+      "id": 5002,
+      "name": "Xanh",
+      "sku": "A-XANH",
+      "tier_index": [1],
+      "is_default": false,
+      "image": "vn-sample-model-a2",
+      "statistics": { "sold_count": 13 },
+      "price_detail": { "origin_price": 150000, "promotion_price": 135000 },
+      "stock_detail": { "total_available_stock": 20, "advanced_stock": { "sellable_stock": 17, "in_transit_stock": 3 } }
+     }
+    ]
+   },
+   {
+    "id": 1002,
+    "name": "Sản phẩm mẫu B",
+    "status": 1,
+    "cover_image": "vn-sample-cover-b",
+    "parent_sku": "SKU-B",
+    "create_time": 1777700000,
+    "modify_time": 1790100000,
+    "price_detail": { "price_min": 50000, "price_max": 50000, "selling_price_min": 50000, "selling_price_max": 50000, "has_discount": false, "max_discount_percentage": 0, "max_discount": 0 },
+    "stock_detail": { "total_available_stock": 0, "total_seller_stock": 0, "total_shopee_stock": 0, "low_stock_status": 2, "advanced_stock": { "sellable_stock": 0, "in_transit_stock": 0 } },
+    "promotion": { "wholesale": false, "has_bundle_deal": false },
+    "statistics": { "view_count": 10, "liked_count": 0, "sold_count": 1 },
+    "tag": { "has_discount": false, "has_bundle_deal": false, "has_add_on_deal": false, "has_ams_commission": false, "unlist": true },
+    "model_list": []
+   }
+  ],
+  "page_info": { "page_number": 1, "page_size": 2, "total": 3 }
+ }
+}

@@ -1,0 +1,9 @@
+{
+ "code": 0,
+ "data": {
+  "metric_configs": [
+   { "metric_id": 11, "metric_name": "Tỷ lệ phản hồi chat" },
+   { "metric_id": 12, "metric_name": "Đánh giá sao" }
+  ]
+ }
+}

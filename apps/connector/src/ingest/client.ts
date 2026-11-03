@@ -17,7 +17,7 @@ export interface IngestBody {
   source: "extension";
   source_version: string;
   captured_at: string;
-  period: { start: string; end: string; granularity: "day" };
+  period: { start: string; end: string; granularity: "day" | "period" };
   order_type: string | null;
   platform_shop_id?: string;
   rows: Record<string, unknown>[];
@@ -40,7 +40,7 @@ export function ingestBody(mapped: Mapped, version: string, capturedAt: number, 
     source: "extension",
     source_version: version,
     captured_at: new Date(capturedAt).toISOString(),
-    period: { start: mapped.date, end: mapped.date, granularity: "day" },
+    period: { start: mapped.date, end: mapped.date, granularity: mapped.granularity ?? "day" },
     order_type: mapped.orderType,
     rows: mapped.rows,
   };

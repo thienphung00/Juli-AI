@@ -1,0 +1,9 @@
+{
+ "code": 0,
+ "data": {
+  "item_campaign_list": [
+   { "item_id": 1001, "campaigns": [ { "type": 1 }, { "type": 3 } ] },
+   { "item_id": 1002, "campaigns": [] }
+  ]
+ }
+}

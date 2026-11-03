@@ -2,7 +2,7 @@
 // Juli password or session), per-dataset stops after drift, the last sync, and a
 // small retry queue of posts that failed on the network.
 
-import type { Dataset } from "../config";
+import type { Dataset, ReaderId } from "../config";
 import type { IngestBody, TokenInfo } from "../ingest/client";
 
 export interface Stop {
@@ -59,6 +59,39 @@ export interface Backfill {
   inFlight?: { day: string; at: number };
 }
 
+/** One page the scheduler opens: its reader, and (ads) the finished days to read there. */
+export interface PlannedJob {
+  id: ReaderId;
+  days?: string[];
+}
+
+/** One scheduled run: the pages in order, one open tab at a time (persisted: the worker may restart). */
+export interface ReaderRun {
+  /** The GMT+7 day the run belongs to (one run per day). */
+  day: string;
+  startedAt: number;
+  jobs: PlannedJob[];
+  index: number;
+  current?: { tabId: number; openedAt: number; sentAt?: number };
+  /** No page is opened before this time (ms since epoch): the gap between pages. */
+  nextAt?: number;
+  /** Per page id: how it ended. */
+  outcomes: Record<string, string>;
+}
+
+export type ReaderBlockReason = "captcha" | "login";
+
+/** The tab-opening schedule's bookkeeping. */
+export interface ReaderSchedule {
+  lastRunDay?: string;
+  lastRun?: { day: string; at: string; outcomes: Record<string, string>; blocked?: ReaderBlockReason };
+  run?: ReaderRun;
+  /** A CAPTCHA / login wall stopped the readers: nothing is opened before `until` (ms since epoch). */
+  blocked?: { at: string; reason: ReaderBlockReason; page: ReaderId; until: number };
+  /** Ads days already read (trimmed to the last 14), so a missed day is retried but a read one is not. */
+  adsDone: string[];
+}
+
 export interface State {
   token?: TokenInfo;
   stopped: Partial<Record<Dataset, Stop>>;
@@ -70,6 +103,7 @@ export interface State {
   backfill?: Backfill;
   /** Juli answered 403 consent_required: nothing is sent until the seller retries or pairs again. */
   consentBlocked?: { at: string };
+  readers?: ReaderSchedule;
 }
 
 export const MAX_QUEUE = 20;
@@ -90,6 +124,7 @@ export async function loadState(storage: Storage): Promise<State> {
     "lastError",
     "backfill",
     "consentBlocked",
+    "readers",
   ])) as Partial<State>;
   return {
     token: raw.token,
@@ -101,6 +136,7 @@ export async function loadState(storage: Storage): Promise<State> {
     lastError: raw.lastError,
     backfill: raw.backfill,
     consentBlocked: raw.consentBlocked,
+    readers: raw.readers,
   };
 }
 

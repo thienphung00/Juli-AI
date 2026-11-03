@@ -42,6 +42,7 @@ declare namespace chrome {
       info: { when?: number; delayInMinutes?: number; periodInMinutes?: number },
     ): Promise<void>;
     function get(name: string): Promise<Alarm | undefined>;
+    function clear(name: string): Promise<boolean>;
     const onAlarm: { addListener(callback: (alarm: Alarm) => void): void };
   }
 
@@ -52,5 +53,9 @@ declare namespace chrome {
     }
     function query(info: { url?: string | string[] }): Promise<Tab[]>;
     function sendMessage(tabId: number, message: unknown): Promise<unknown>;
+    function create(info: { url: string; active?: boolean }): Promise<Tab>;
+    function remove(tabId: number): Promise<void>;
+    function get(tabId: number): Promise<Tab>;
+    const onRemoved: { addListener(callback: (tabId: number) => void): void };
   }
 }

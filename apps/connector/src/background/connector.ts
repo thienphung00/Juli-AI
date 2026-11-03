@@ -7,9 +7,14 @@ import {
   BACKFILL_IN_FLIGHT_TIMEOUT_MS,
   BACKFILL_MAX_DAY_ATTEMPTS,
   type Dataset,
+  HELD_DATASETS,
+  MAX_ROWS_PER_POST,
+  type ReaderDataset,
 } from "../config";
 import { GatewayClient, GatewayError, ingestBody, type TokenInfo } from "../ingest/client";
-import { type Captured, mapCaptured } from "../shopee/map";
+import { type Captured, mapCaptured, type Mapped } from "../shopee/map";
+import { mapReaderJob } from "../shopee/reader-map";
+import type { ReaderJob, ReaderResponse } from "../shopee/reader";
 import { isDataAnswer, type RequestResult } from "../shopee/runner";
 import { buildBackfillDayPlan, buildSyncPlan } from "../shopee/sync";
 import { lastFinishedDays, yesterdayRange } from "../shopee/time";
@@ -36,9 +41,13 @@ export interface Deps {
   tabs: Tabs;
   version: string;
   now: () => number;
+  /** True while another Seller Centre reader (the scheduler's run) is using the pace budget. */
+  busy?: () => Promise<boolean>;
 }
 
 export type CaptureOutcome =
+  /** The gateway does not accept this dataset yet (config HELD_DATASETS): mapped, not sent. */
+  | "held"
   | "ignored"
   | "unpaired"
   | "stopped"
@@ -120,10 +129,19 @@ export class Connector {
   async handleCapture(captured: Captured): Promise<CaptureOutcome> {
     const mapped = mapCaptured(captured);
     if (mapped === null) return "ignored";
+    return this.submit(mapped, captured.capturedAt);
+  }
+
+  /**
+   * Post one mapped response: drift is reported and that dataset stopped; rows go to the
+   * gateway in chunks of at most MAX_ROWS_PER_POST (a failed chunk is queued for a retry).
+   */
+  async submit(mapped: Mapped, capturedAt: number): Promise<CaptureOutcome> {
     const state = await this.state();
     if (!state.token) return "unpaired";
     if (state.consentBlocked) return "refused";
     const { version } = this.deps;
+    if (HELD_DATASETS.has(mapped.dataset as ReaderDataset)) return "held";
     if (stoppedFor(state, version).has(mapped.dataset)) return "stopped";
     const token = state.token.token;
 
@@ -143,7 +161,22 @@ export class Connector {
     }
     if (mapped.rows.length === 0) return "ignored";
 
-    const body = ingestBody(mapped, version, captured.capturedAt);
+    let outcome: CaptureOutcome = "posted";
+    for (let start = 0; start < mapped.rows.length; start += MAX_ROWS_PER_POST) {
+      const chunk = { ...mapped, rows: mapped.rows.slice(start, start + MAX_ROWS_PER_POST) };
+      const result = await this.postChunk(chunk, capturedAt, token);
+      if (result !== "posted") {
+        outcome = result;
+        if (result === "unpaired" || result === "refused" || result === "stopped") break;
+      }
+    }
+    return outcome;
+  }
+
+  private async postChunk(mapped: Mapped, capturedAt: number, token: string): Promise<CaptureOutcome> {
+    const { version } = this.deps;
+    const state = await this.state();
+    const body = ingestBody(mapped, version, capturedAt);
     try {
       const result = (await this.deps.client.post(token, mapped.dataset, body)) as {
         rows?: number;
@@ -180,6 +213,20 @@ export class Connector {
       });
       return "queued";
     }
+  }
+
+  /**
+   * A reader job's responses (from the page hook) → mapped → posted. Returns how each dataset
+   * ended, e.g. `{ item_catalog: "posted", item_snapshot: "held" }`.
+   */
+  async postReader(job: ReaderJob, responses: ReaderResponse[]): Promise<Record<string, CaptureOutcome>> {
+    const capturedAt = responses.reduce((latest, r) => Math.max(latest, r.capturedAt), 0) || this.deps.now();
+    const outcomes: Record<string, CaptureOutcome> = {};
+    for (const mapped of mapReaderJob(job, responses, capturedAt)) {
+      const key = job.id === "ads" ? `${mapped.dataset}:${mapped.date}` : mapped.dataset;
+      outcomes[key] = await this.submit(mapped, capturedAt);
+    }
+    return outcomes;
   }
 
   /** Retry queued posts (oldest first); a post that keeps failing is dropped after 5 tries. */
@@ -225,6 +272,11 @@ export class Connector {
     if (state.consentBlocked) return "consent_required";
     const day = yesterdayRange(this.deps.now()).date;
     if (state.lastSync?.day === day && state.lastSync.status === "done") return "already_synced";
+    if (await this.deps.busy?.()) {
+      // A scheduled reader run holds the Seller Centre pace budget: try again when a tab reports ready.
+      await saveState(this.deps.storage, { pendingSync: true });
+      return "busy";
+    }
     const tabs = await this.deps.tabs.sellerCentreTabs();
     const tab = tabs[0];
     if (tab === undefined) {
@@ -253,6 +305,12 @@ export class Connector {
   async tabReady(): Promise<string> {
     const state = await this.state();
     return state.pendingSync ? this.dailySync() : "idle";
+  }
+
+  /** A backfill day is out at a Seller Centre tab: a scheduled run waits for it. */
+  async backfillInFlight(): Promise<boolean> {
+    const { backfill } = await this.state();
+    return !!backfill?.inFlight && this.deps.now() - backfill.inFlight.at < BACKFILL_IN_FLIGHT_TIMEOUT_MS;
   }
 
   async serverStatus(): Promise<unknown> {
@@ -379,6 +437,7 @@ export class Connector {
     const now = this.deps.now();
     if (backfill.inFlight && now - backfill.inFlight.at < BACKFILL_IN_FLIGHT_TIMEOUT_MS) return "in_flight";
     if (backfill.needsDataPage) return "needs_data_page";
+    if (await this.deps.busy?.()) return "busy";
     if ((backfill.notBefore ?? 0) > now) {
       await saveState(this.deps.storage, { backfill });
       return "waiting";

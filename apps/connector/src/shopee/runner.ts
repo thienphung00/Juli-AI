@@ -2,7 +2,7 @@
 // injected fetch / sleep / clock): one plan at a time, and every request ≥ 2 s +
 // jitter after the previous one, whichever plan it belonged to.
 
-import type { Dataset } from "../config";
+import type { MydataDataset } from "../config";
 import { waitBefore } from "./sync";
 
 export interface PacerDeps {
@@ -39,7 +39,7 @@ export interface FetchedResponse {
 
 /** One backfill request's outcome, as the service worker needs it. */
 export interface RequestResult {
-  dataset: Dataset;
+  dataset: MydataDataset;
   /** The request URL without the session params. */
   url: string;
   /** HTTP status; 0 = network failure. */
@@ -50,7 +50,7 @@ export interface RequestResult {
 }
 
 export interface DayRequest {
-  dataset: Dataset;
+  dataset: MydataDataset;
   /** The URL actually sent (with session params). */
   url: string;
   /** The same URL without session params (what is reported back). */

@@ -34,10 +34,112 @@ export const BACKFILL_MAX_DAY_ATTEMPTS = 3;
  */
 export const ITEM_READERS_ACTIVE = false;
 
-export type Dataset = "traffic_overview" | "item_by_source" | "item_performance" | "shop_traffic";
-export const DATASETS: readonly Dataset[] = [
+/** The four `/api/mydata` datasets the page's own responses feed (passive capture + daily sync). */
+export type MydataDataset = "traffic_overview" | "item_by_source" | "item_performance" | "shop_traffic";
+export const DATASETS: readonly MydataDataset[] = [
   "traffic_overview",
   "item_by_source",
   "item_performance",
   "shop_traffic",
 ];
+
+/** Datasets the page readers post (ADR-120 d.14); the gateway's names, see services/ingest. */
+export type ReaderDataset =
+  | "item_catalog"
+  | "item_snapshot"
+  | "ads_campaign_daily"
+  | "voucher_settings"
+  | "shop_health_daily";
+export type Dataset = MydataDataset | ReaderDataset;
+
+// -- page readers + tab-opening scheduler (ADR-120 d.14) -----------------------------------
+//
+// Each reader reads one Seller Centre report page's own endpoints (read-only; the seller's
+// own session) and posts mapped rows. Like ITEM_READERS_ACTIVE, a reader is a feature flag
+// here, and it is ON only for the pilot shops below: `readerActive(id, shopId)`.
+
+export type ReaderId = "products" | "ads" | "vouchers" | "health";
+export const READER_IDS: readonly ReaderId[] = ["products", "vouchers", "ads", "health"];
+
+/** Master flag per reader (a build-time switch). */
+export const READERS_ACTIVE: Record<ReaderId, boolean> = {
+  products: true,
+  ads: true,
+  vouchers: true,
+  health: true,
+};
+
+/** The scheduler that OPENS the report pages itself (a background tab per page, once a day). */
+export const SCHEDULER_ACTIVE = true;
+
+/**
+ * Juli shop ids the readers and the scheduler run for. "*" = every paired shop: this build is
+ * the Unlisted pilot build (STORE_LISTING.md), so every shop that can pair is a pilot shop.
+ * Replace "*" with explicit ids before the extension is listed publicly; an empty list turns
+ * every reader off.
+ */
+export const PILOT_SHOP_IDS: readonly string[] = ["*"];
+
+export function readerActive(id: ReaderId, shopId: string | undefined): boolean {
+  if (!READERS_ACTIVE[id] || !shopId) return false;
+  return PILOT_SHOP_IDS.includes("*") || PILOT_SHOP_IDS.includes(shopId);
+}
+
+export function schedulerActive(shopId: string | undefined): boolean {
+  return SCHEDULER_ACTIVE && !!shopId && (PILOT_SHOP_IDS.includes("*") || PILOT_SHOP_IDS.includes(shopId));
+}
+
+/** The datasets each reader produces. */
+export const READER_DATASETS: Record<ReaderId, readonly ReaderDataset[]> = {
+  products: ["item_catalog", "item_snapshot"],
+  vouchers: ["voucher_settings"],
+  ads: ["ads_campaign_daily"],
+  health: ["shop_health_daily"],
+};
+
+/**
+ * Datasets the gateway does not accept yet (services/ingest/reserved.py: their tables wait for
+ * migration 112): the readers still map them, but nothing is posted and a page that only
+ * feeds held datasets is not opened. Remove a name here when the backend registers its spec.
+ */
+export const HELD_DATASETS: ReadonlySet<ReaderDataset> = new Set<ReaderDataset>([
+  "item_snapshot",
+  "shop_health_daily",
+]);
+
+/** The scheduler's pace: one page (tab) at a time, a gap between pages, a cap on waiting. */
+export const READER_RUN_PERIOD_MINUTES = 24 * 60;
+export const READER_RUN_START_MIN_MINUTES = 20;
+export const READER_RUN_START_JITTER_MINUTES = 100;
+export const READER_WATCHDOG_ALARM_MINUTES = 1;
+export const READER_PAGE_GAP_MS = 20_000;
+export const READER_PAGE_GAP_JITTER_MS = 25_000;
+/** A page that has not answered after this long is closed and counted as a timeout. */
+export const READER_JOB_TIMEOUT_MS = 4 * 60_000;
+/** A tab that has not reported its content script ready after this long is inspected. */
+export const READER_LOAD_GRACE_MS = 25_000;
+/** How long the page hook waits for the page's own first call (session, request template). */
+export const READER_TEMPLATE_WAIT_MS = 40_000;
+export const READER_POLL_MS = 500;
+/** Cool-downs after a stop: a CAPTCHA is left alone for days; a login wall is retried sooner. */
+export const READER_BLOCK_CAPTCHA_MS = 72 * 3_600_000;
+export const READER_BLOCK_LOGIN_MS = 6 * 3_600_000;
+/** Ads: yesterday plus up to this many earlier finished days not read yet (one day per call). */
+export const ADS_CATCHUP_DAYS = 3;
+export const ADS_MAX_ROWS_PER_DAY = 300;
+export const ADS_PAGE_LIMIT_DEFAULT = 20;
+export const PRODUCT_MAX_PAGES = 40;
+export const VOUCHER_MAX_ROWS = 600;
+export const VOUCHER_PAGE_LIMIT_DEFAULT = 20;
+/** Rows per ingest post (the gateway takes 2 000 rows and ~1 MB). */
+export const MAX_ROWS_PER_POST = 400;
+
+/**
+ * UNVERIFIED (recon recorded response SHAPES only): Seller Centre money may arrive in VND or in
+ * VND x 100 000. A reader divides by these; the plausibility ceilings below turn a wrong
+ * scale into drift (dataset stopped, nothing posted) instead of a silently wrong number.
+ * Confirm on the first live run against a price / budget the page shows.
+ */
+export const MONEY_DIVISOR = { products: 1, ads: 1, vouchers: 1 } as const;
+export const MAX_PLAUSIBLE_PRICE_VND = 500_000_000;
+export const MAX_PLAUSIBLE_AD_VND = 5_000_000_000;
