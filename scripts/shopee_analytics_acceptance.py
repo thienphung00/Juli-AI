@@ -19,7 +19,7 @@ from decimal import Decimal
 from urllib.parse import urlparse
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from juli_backend.core.config.runtime import async_database_url
 from juli_backend.database.tenant_context import with_shop_scope
@@ -41,7 +41,9 @@ def check(name: str, ok: bool, detail: str) -> None:
         FAILS.append(name)
 
 
-async def ads_group_sums(session, shop_id, expected_total) -> None:  # noqa: ANN001
+async def ads_group_sums(
+    session: AsyncSession, shop_id: uuid.UUID, expected_total: Decimal | None
+) -> None:
     """Per report window, per campaign with product rows: Σ product spend vs the campaign row."""
     rows = (
         (
@@ -91,7 +93,7 @@ async def ads_group_sums(session, shop_id, expected_total) -> None:  # noqa: ANN
         )
 
 
-async def vouchers(session, shop_id, ctx) -> None:  # noqa: ANN001
+async def vouchers(session: AsyncSession, shop_id: uuid.UUID, ctx: loaders.ShopContext) -> None:
     """Every voucher month Nov 2025 - Oct 2026: seller cost = value x confirmed orders.
 
     The value is read from the voucher's own name ("Ory 5k"); a voucher the ads service made

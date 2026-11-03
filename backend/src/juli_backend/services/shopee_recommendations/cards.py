@@ -139,7 +139,7 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
     mag = magnitude_of(cand, ev0.before, ev0.after)
     if mag is None:
         mag = cand.extra.get("magnitude_pct")
-    lift = predict_lift(s, cand, env, mag, sim_variant=variant_hints(cand))  # type: ignore[arg-type]
+    lift = predict_lift(s, cand, env, mag, sim_variant=variant_hints(cand))
     rng = extra_orders_range(lift, ev0.profit)
     ev: Evaluation = ev0
     if rng is not None and s.family in ("voucher", "promotion", "sale"):

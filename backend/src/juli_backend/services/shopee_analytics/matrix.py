@@ -170,7 +170,8 @@ def build_matrix(
                 sum((g for g, _ in view.data.product_flows.totals.values()), ZERO)
             ),
             "gmv_shop": num(view.shop_gmv),
-            "note": "Σ GMV sản phẩm khớp Doanh số shop khi file sản phẩm đúng kỳ; phần lệch hiện ở dòng Chênh lệch nguồn.",  # noqa: E501
+            "note": "Σ GMV sản phẩm khớp Doanh số shop khi file sản phẩm đúng kỳ; phần lệch hiện "
+            "ở dòng Chênh lệch nguồn.",
         },
     }
 

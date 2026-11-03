@@ -21,7 +21,6 @@ from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.card_events.verification import pending_changes
 from juli_backend.services.shopee_recommendations import learning, store
 from tests.integration.test_ingest_two_tenant import juli_app_session
-from tests.integration.test_shopee_orders_db import shopee_tenants  # noqa: F401 (fixture)
 from tests.integration.two_tenant import RUNTIME_ROLE
 from tests.support.postgres import requires_postgres
 
@@ -118,7 +117,7 @@ async def _save(session, shop_id, card=None, **kw):
     )
 
 
-async def test_a_card_is_three_rows_under_one_id_and_private_to_its_shop(shopee_tenants):  # noqa: F811
+async def test_a_card_is_three_rows_under_one_id_and_private_to_its_shop(shopee_tenants):
     a, b = shopee_tenants
     async with juli_app_session() as session:
         async with with_shop_scope(session, a.shop_id):
@@ -147,7 +146,7 @@ async def test_a_card_is_three_rows_under_one_id_and_private_to_its_shop(shopee_
                 await session.commit()
 
 
-async def test_the_decision_cycle_and_the_executed_change_on_postgres(shopee_tenants):  # noqa: F811
+async def test_the_decision_cycle_and_the_executed_change_on_postgres(shopee_tenants):
     a, _ = shopee_tenants
     async with juli_app_session() as session:
         async with with_shop_scope(session, a.shop_id):
@@ -197,7 +196,7 @@ async def test_the_decision_cycle_and_the_executed_change_on_postgres(shopee_ten
                 )
 
 
-async def test_dismiss_reason_is_required_by_the_event_check_and_stored(shopee_tenants):  # noqa: F811
+async def test_dismiss_reason_is_required_by_the_event_check_and_stored(shopee_tenants):
     a, _ = shopee_tenants
     async with juli_app_session() as session:
         async with with_shop_scope(session, a.shop_id):
@@ -229,7 +228,7 @@ async def test_dismiss_reason_is_required_by_the_event_check_and_stored(shopee_t
             )
 
 
-async def test_stale_marking_on_postgres(shopee_tenants):  # noqa: F811
+async def test_stale_marking_on_postgres(shopee_tenants):
     a, _ = shopee_tenants
     async with juli_app_session() as session:
         async with with_shop_scope(session, a.shop_id):
@@ -264,7 +263,7 @@ def _doc(run="run-pg"):
     }
 
 
-async def test_sim_runs_and_calibration_are_tenant_private(shopee_tenants):  # noqa: F811
+async def test_sim_runs_and_calibration_are_tenant_private(shopee_tenants):
     a, b = shopee_tenants
     async with juli_app_session() as session:
         async with with_shop_scope(session, a.shop_id):
@@ -296,7 +295,8 @@ async def test_sim_runs_and_calibration_are_tenant_private(shopee_tenants):  # n
             n = (
                 await session.execute(
                     text(
-                        "SELECT count(*) FROM public.shopee_sim_prior_runs WHERE status = 'superseded'"  # noqa: E501
+                        "SELECT count(*) FROM public.shopee_sim_prior_runs "
+                        "WHERE status = 'superseded'"
                     )
                 )
             ).scalar()

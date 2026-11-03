@@ -133,7 +133,7 @@ class SimPriors:
 
     @classmethod
     def from_stored(cls, header: Mapping[str, Any], stored: Sequence[Sequence[Any]]) -> SimPriors:
-        rows = [SimRow(*r) for r in stored]  # type: ignore[arg-type]
+        rows = [SimRow(**dict(zip(STORED, r, strict=True))) for r in stored]
         return cls(
             header["run_id"],
             header.get("shop_alias", ""),

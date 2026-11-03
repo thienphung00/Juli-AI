@@ -97,7 +97,7 @@ async def mark_stale_for(
                     "stale_reason": reason,
                     "stale_at": (now or datetime.now(UTC).replace(tzinfo=None)).isoformat(),
                 }
-            )  # noqa: DTZ003
+            )
             card_row.metadata_json = json.dumps(meta)
             n += 1
         elif hit:

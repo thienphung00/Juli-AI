@@ -1075,21 +1075,18 @@ async def load_flow_series(
         streams=[*STREAM_TO_SOURCE],
         order_types=[CONFIRMED],
     )
-    card: dict[date, list[float]] = {}
-    shop_page: dict[date, list[float]] = {}
-    out: dict[str, dict[date, tuple[float, float, float, float]]] = {
-        "live": {},
-        "video": {},
-        "lien_ket": {},
-    }
+    Day = tuple[float, float, float, float]
+    card: dict[date, Day] = {}
+    shop_page: dict[date, Day] = {}
+    out: dict[str, dict[date, Day]] = {"live": {}, "video": {}, "lien_ket": {}}
 
-    def tup(r: Any) -> list[float]:
-        return [
+    def tup(r: Any) -> Day:
+        return (
             float(_z(r.impressions)),
             float(_z(r.clicks)),
             float(_z(r.orders)),
             float(_z(r.gmv)),
-        ]
+        )
 
     for r in rows:
         if r.segment == "all" and r.stream == "product_card":
@@ -1097,14 +1094,19 @@ async def load_flow_series(
         elif r.segment == TRANG_SHOP_SEGMENT and r.stream == "product_card":
             shop_page[r.day] = tup(r)
         elif r.segment == "all" and r.stream == "seller_live":
-            out["live"][r.day] = tuple(tup(r))  # type: ignore[assignment]
+            out["live"][r.day] = tup(r)
         elif r.segment == "all" and r.stream == "seller_video":
-            out["video"][r.day] = tuple(tup(r))  # type: ignore[assignment]
+            out["video"][r.day] = tup(r)
         elif r.segment == "all" and r.stream == "affiliate":
-            out["lien_ket"][r.day] = tuple(tup(r))  # type: ignore[assignment]
-    out["trang_shop"] = {d: tuple(v) for d, v in shop_page.items()}  # type: ignore[misc]
-    out["the_san_pham_khac"] = {
-        d: tuple(a - b for a, b in zip(v, shop_page.get(d, [0.0] * 4), strict=True))  # type: ignore[misc]
-        for d, v in card.items()
-    }
+            out["lien_ket"][r.day] = tup(r)
+    out["trang_shop"] = dict(shop_page)
+    zero: Day = (0.0, 0.0, 0.0, 0.0)
+    for d, v in card.items():
+        sp = shop_page.get(d, zero)
+        out.setdefault("the_san_pham_khac", {})[d] = (
+            v[0] - sp[0],
+            v[1] - sp[1],
+            v[2] - sp[2],
+            v[3] - sp[3],
+        )
     return {k: v for k, v in out.items() if v}

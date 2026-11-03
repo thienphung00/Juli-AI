@@ -30,6 +30,7 @@ from juli_backend.services.shopee_profit.shop_profit import ProductProfit
 from juli_backend.services.shopee_recommendations.listing import Listing
 
 if TYPE_CHECKING:
+    from juli_backend.services.shopee_analytics.rules_view import ProfitRules
     from juli_backend.services.shopee_recommendations.learning import (
         AcceptanceStats,
         CalibrationState,
@@ -90,7 +91,7 @@ class RecoEnv:
         return f"{self.as_of.year:04d}-{self.as_of.month:02d}"
 
     @property
-    def rules(self):  # noqa: ANN201 - ProfitRules for the card window's month (Step 4)
+    def rules(self) -> ProfitRules:  # the card window's month (Step 4)
         return self.ctx.rules.for_month(self.month)
 
     @property

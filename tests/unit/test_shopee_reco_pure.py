@@ -709,7 +709,7 @@ def test_the_sheet_changes_feed_the_read_back_contract():
         shop_id=None,
         card_id=None,
         execution_ref="x",
-        change_kind=change["change_kind"],  # type: ignore[arg-type]
+        change_kind=change["change_kind"],
         target=change["target"],
         expected=change["expected"],
         executed_at=now,

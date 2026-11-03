@@ -17,7 +17,6 @@ from juli_backend.services import ingest as svc
 from juli_backend.services.card_events.verification import VERIFY_WINDOW, verify_shop
 from juli_backend.services.ingest.readers import load_ad_spend, load_voucher_join
 from tests.integration.test_ingest_two_tenant import juli_app_session
-from tests.integration.test_shopee_orders_db import shopee_tenants  # noqa: F401 (fixture)
 from tests.support.postgres import requires_postgres
 
 pytestmark = [requires_postgres]
@@ -70,7 +69,7 @@ GMV = (
 
 
 async def test_a_file_post_replaces_a_connector_row_and_a_connector_post_never_replaces_a_file(
-    shopee_tenants,  # noqa: F811
+    shopee_tenants,
 ):
     a, b = shopee_tenants
     kw = {"order_type": "confirmed"}
@@ -89,7 +88,7 @@ async def test_a_file_post_replaces_a_connector_row_and_a_connector_post_never_r
     assert await _query(a.shop_id, GMV) == [(1000, "file")]
 
 
-async def test_a_row_stored_at_the_old_equal_rank_is_still_outranked_by_a_file(shopee_tenants):  # noqa: F811
+async def test_a_row_stored_at_the_old_equal_rank_is_still_outranked_by_a_file(shopee_tenants):
     _, b = shopee_tenants
     kw = {"order_type": "confirmed"}
     day = "2026-10-02"
@@ -114,7 +113,7 @@ async def test_a_row_stored_at_the_old_equal_rank_is_still_outranked_by_a_file(s
     assert got == [(500, "file")]
 
 
-async def test_item_traffic_sources_lands_through_the_runtime_role(shopee_tenants):  # noqa: F811
+async def test_item_traffic_sources_lands_through_the_runtime_role(shopee_tenants):
     a, b = shopee_tenants
     rows = [
         {"date": "2026-10-03", "item_id": "1001", "l1": "product_card", "l2": "total", "sales": 10},
@@ -141,7 +140,7 @@ def _ad_day(campaign_id, name, day, cost):
     return {"date": day, "campaign_id": campaign_id, "campaign_name": name, "cost": cost}
 
 
-async def test_ad_spend_takes_the_connector_days_and_csv_for_the_rest(shopee_tenants):  # noqa: F811
+async def test_ad_spend_takes_the_connector_days_and_csv_for_the_rest(shopee_tenants):
     a, _ = shopee_tenants
     # CSV window Oct 10-12, one group campaign with two product rows
     window = {"start": "2026-10-10", "end": "2026-10-12", "granularity": "period"}
@@ -173,7 +172,7 @@ async def test_ad_spend_takes_the_connector_days_and_csv_for_the_rest(shopee_ten
 
 
 async def test_the_voucher_export_joins_the_connector_settings_by_name_and_date(
-    shopee_tenants,  # noqa: F811
+    shopee_tenants,
 ):
     a, _ = shopee_tenants
     export = {
@@ -218,7 +217,7 @@ async def test_the_voucher_export_joins_the_connector_settings_by_name_and_date(
 # -- read-back verification as the runtime role ---------------------------------------------
 
 
-async def test_a_saved_price_is_verified_and_an_unseen_budget_is_flagged(shopee_tenants):  # noqa: F811
+async def test_a_saved_price_is_verified_and_an_unseen_budget_is_flagged(shopee_tenants):
     _, b = shopee_tenants
     shop_id = b.shop_id
     executed_at = datetime(2026, 11, 1, 2, 0, tzinfo=UTC)
@@ -305,7 +304,7 @@ async def test_a_saved_price_is_verified_and_an_unseen_budget_is_flagged(shopee_
 # -- migration 114 -----------------------------------------------------------------------
 
 
-def test_zz_migration_114_up_and_down(owner_engine, shopee_tenants):  # noqa: F811
+def test_zz_migration_114_up_and_down(owner_engine, shopee_tenants):
     """Last in the module: the CHECK takes the new names at head, refuses them after a downgrade
     to 113 and takes them again after ``upgrade head``."""
     import os

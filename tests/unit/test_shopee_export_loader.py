@@ -1079,12 +1079,15 @@ def test_g23_the_flash_sale_metrics_file_owns_the_days_it_covers(tmp_path):
 def test_g23_the_result_does_not_depend_on_file_order(tmp_path):
     _flash_pair(tmp_path)
     forward = parse.parse_folder(tmp_path)
-    keyed = lambda p: sorted(  # noqa: E731
-        (post.body["order_type"], r["date"], r["promo_type"], r.get("sales"))
-        for post in p.posts
-        if post.dataset == "promotion_daily"
-        for r in post.body["rows"]
-    )
+
+    def keyed(p):
+        return sorted(
+            (post.body["order_type"], r["date"], r["promo_type"], r.get("sales"))
+            for post in p.posts
+            if post.dataset == "promotion_daily"
+            for r in post.body["rows"]
+        )
+
     # Reverse the post order the way a different file sort would.
     backward = parse.Parsed(posts=list(reversed(forward.posts)))
     parse._one_flash_sale_owner(backward)

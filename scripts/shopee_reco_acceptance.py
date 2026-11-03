@@ -107,7 +107,8 @@ async def section_cards(session, shop_id, as_of, mega: tuple[datetime, datetime]
     )
     out = report.json()
     print(
-        f"     window to {out['as_of']}; generated {out['generated']}; persisted {out['persisted']}; refused {sum(out['refusals'].values())}"  # noqa: E501
+        f"     window to {out['as_of']}; generated {out['generated']}; persisted "
+        f"{out['persisted']}; refused {sum(out['refusals'].values())}"
     )
     for family, n in sorted(out["by_family"].items()):
         print(f"     family {family:<10} {n}")
@@ -122,7 +123,8 @@ async def section_cards(session, shop_id, as_of, mega: tuple[datetime, datetime]
     print("     top 5 (ref = hash of the product id):")
     for t in out["top"]:
         print(
-            f"       #{t['position']} {t['ref']} {t['family']}/{t['kind']} score {t['score']} dGMV P25/tháng {money(t['dgmv_p25'])} plan {t['plan']}"  # noqa: E501
+            f"       #{t['position']} {t['ref']} {t['family']}/{t['kind']} score {t['score']} dGMV "
+            f"P25/tháng {money(t['dgmv_p25'])} plan {t['plan']}"
         )
     check(
         "every persisted card is a draft with a frozen proposed event",
@@ -162,7 +164,8 @@ async def section_mega(session, shop_id, as_of, window: tuple[datetime, datetime
     before = len(children)
     children, removed = fit_children(env, children, mw, cap)
     print(
-        f"     children picked {before}; dropped to fit the floors and the cap: {dict(Counter(r['reason'] for r in removed))}"  # noqa: E501
+        f"     children picked {before}; dropped to fit the floors and the cap: "
+        f"{dict(Counter(r['reason'] for r in removed))}"
     )
     card = build_mega_card(env, children, mw, now=now, budget_cap_per_day=cap)
     if card is None:
@@ -171,13 +174,15 @@ async def section_mega(session, shop_id, as_of, window: tuple[datetime, datetime
         return
     c = card["certain"]
     print(
-        f"     window {mw.start:%d/%m %H:%M} -> {mw.end:%d/%m %H:%M} ({mw.days} ngày); children {len(card['children'])}: "  # noqa: E501
+        f"     window {mw.start:%d/%m %H:%M} -> {mw.end:%d/%m %H:%M} ({mw.days} ngày); children "
+        f"{len(card['children'])}: "
         f"{dict(Counter(ch['family'] for ch in card['children']))}"
     )
     print(f"     products locked for the window: {len(card['locked_items'])}")
     sp = c["spend"]
     print(
-        f"     chi/ngày: baseline {money(sp['baseline_chi_per_day'])} -> window {money(sp['mega_chi_per_day'])}; "  # noqa: E501
+        f"     chi/ngày: baseline {money(sp['baseline_chi_per_day'])} -> window "
+        f"{money(sp['mega_chi_per_day'])}; "
         f"one cap {money(sp['cap_per_day'])}; over budget: {sp['over_budget']}"
     )
     print(
@@ -202,12 +207,12 @@ async def section_mega(session, shop_id, as_of, window: tuple[datetime, datetime
         len(card["schedule"]) == mw.days
         and card["inputs"]["budget_cap_per_day"] == (None if cap is None else float(cap))
         or True,
-        f"{len(card['schedule'])} schedule day(s), {len(card['execution_sheet']['steps'])} sheet steps",  # noqa: E501
+        f"{len(card['schedule'])} schedule day(s), {len(card['execution_sheet']['steps'])} sheet "
+        f"steps",
     )
-    print(
-        f"     predicted (one bundle lift): dGMV P25/P50/P90 per window "
-        f"{[money(card['predicted']['money_per_month']['total'][q]['dgmv']) for q in ('p25', 'p50', 'p90')]}"  # noqa: E501
-    )
+    total = card["predicted"]["money_per_month"]["total"]
+    dgmv = [money(total[q]["dgmv"]) for q in ("p25", "p50", "p90")]
+    print(f"     predicted (one bundle lift): dGMV P25/P50/P90 per window {dgmv}")
     print(f"     plan: {card['measurement_plan']['label']}")
 
 
@@ -221,14 +226,16 @@ async def section_backfill(session, shop_id) -> None:
         print("     no candidate event found")
     for kind, row in sorted(out.items()):
         print(
-            f"     {kind:<22} candidates {row['candidates']:>3}  usable {row['usable']:>3}  in range {row['in_range']:>3}  "  # noqa: E501
+            f"     {kind:<22} candidates {row['candidates']:>3}  usable {row['usable']:>3}  in "
+            f"range {row['in_range']:>3}  "
             f"coverage {row['coverage']}  skipped {row['skipped']}"
         )
     states = await store.load_calibrations(session, shop_id)
     print(f"     calibration rows written: {len(states)}")
     for (kind, metric), st in sorted(states.items()):
         print(
-            f"       {kind:<22} {metric:<8} n {st.n_results} ratio {None if st.pooled_ratio is None else round(st.pooled_ratio, 3)} "  # noqa: E501
+            f"       {kind:<22} {metric:<8} n {st.n_results} ratio "
+            f"{None if st.pooled_ratio is None else round(st.pooled_ratio, 3)} "
             f"range x{round(st.range_scale, 2)} from {dict(st.sources)}"
         )
 
@@ -275,7 +282,7 @@ async def section_worked(session) -> None:
     print("== contract 7 worked example through the API what-if")
     # the test builders number users from 1 in every process: step past the earlier runs' users
     import itertools
-    import random
+    import secrets
 
     from juli_backend.services.shopee_recommendations.model import Candidate
     from tests.support import builders
@@ -283,7 +290,7 @@ async def section_worked(session) -> None:
     from tests.support.shopee_worked import AS_OF as WAS_OF
     from tests.support.shopee_worked import ITEM, seed_worked_example
 
-    builders._sequence = itertools.count(random.randint(10**5, 9 * 10**6))  # noqa: S311
+    builders._sequence = itertools.count(10**5 + secrets.randbelow(9 * 10**6 - 10**5))
     seeded = await seed_worked_example(session)
     await session.commit()
     env = await load_env(session, seeded.shop_id, as_of=WAS_OF)
@@ -327,7 +334,8 @@ async def main_async(args: argparse.Namespace) -> int:
             async with with_shop_scope(session, args.shop_id):
                 if args.seed_targets:
                     print(
-                        f"== targets for the run (local database): added {await seed_targets(session, args.shop_id, as_of, args.seed_targets)}"  # noqa: E501
+                        f"== targets for the run (local database): added "
+                        f"{await seed_targets(session, args.shop_id, as_of, args.seed_targets)}"
                     )
                 await section_cards(session, args.shop_id, as_of, mega)
                 await session.commit()

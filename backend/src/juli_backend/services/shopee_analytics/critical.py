@@ -467,7 +467,8 @@ def build_critical(
         notes.append(
             {
                 "code": "margin_target_missing",
-                "message": "Chưa đặt mục tiêu biên (Cài đặt › Mục tiêu): chưa có mục biên dưới mục tiêu.",  # noqa: E501
+                "message": "Chưa đặt mục tiêu biên (Cài đặt › Mục tiêu): chưa có mục biên dưới "
+                "mục tiêu.",
             }
         )
     if any(it["assumed_cost"] for it in items):
@@ -481,7 +482,8 @@ def build_critical(
             sum((Decimal(str(it["at_stake_per_day"] or 0)) for it in items), ZERO)
         ),
         "notes": notes,
-        "ranking_rule": "Xếp theo ₫ mỗi ngày đang bị ảnh hưởng nếu chỉ số về mức tham chiếu của nó.",  # noqa: E501
+        "ranking_rule": "Xếp theo ₫ mỗi ngày đang bị ảnh hưởng nếu chỉ số về mức tham chiếu của "
+        "nó.",
     }
 
 

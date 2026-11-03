@@ -499,7 +499,8 @@ def build_product_page(
         "cost_and_floor": {
             "skus": sku_waterfall(now, ctx, product_id),
             "coverage_label": ASSUMED_COST_LABEL,
-            "floor_note": "Giá sàn tuyệt đối = (giá vốn + đóng gói + phí cố định/đơn) ÷ (1 − phí sàn %); "  # noqa: E501
+            "floor_note": "Giá sàn tuyệt đối = (giá vốn + đóng gói + phí cố định/đơn) ÷ (1 − phí "
+            "sàn %); "
             "giá sàn vận hành trừ thêm QC %, hoa hồng % và biên mục tiêu %.",
         },
         "keywords": keyword_block(seeds, market, header["title"], now, product_id),

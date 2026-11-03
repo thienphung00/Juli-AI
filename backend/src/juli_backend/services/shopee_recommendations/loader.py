@@ -34,7 +34,7 @@ def _d(value: Any) -> Decimal | None:
         return None
     try:
         return Decimal(str(value))
-    except Exception:  # noqa: BLE001 - an unreadable setting is "not known"
+    except (ArithmeticError, ValueError):  # an unreadable setting is "not known"
         return None
 
 

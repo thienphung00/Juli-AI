@@ -20,7 +20,8 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import column, delete, select, text, update
+from sqlalchemy import table as sa_table
 from sqlalchemy.exc import DBAPIError
 
 from juli_backend.database.tenant_context import with_shop_scope
@@ -139,7 +140,7 @@ def test_a_shop_sees_and_writes_only_its_own_rows(owner_engine, two_tenants, tab
         _insert(conn, table, b.shop_id, f"{table}-b")
     with owner_engine.connect() as conn:
         _scope(conn, a.shop_id)
-        shops = set(conn.execute(text(f"SELECT shop_id FROM public.{table}")).scalars())  # noqa: S608
+        shops = set(conn.execute(_shop_ids(table)).scalars())
         assert shops == {a.shop_id}
         _insert(conn, table, a.shop_id, f"{table}-a2")
         with pytest.raises(DBAPIError):
@@ -153,11 +154,12 @@ def test_the_new_tables_refuse_update_and_delete(owner_engine, two_tenants, tabl
     a, _ = two_tenants
     with owner_engine.begin() as conn:
         _insert(conn, table, a.shop_id, f"{table}-append-only")
-    for statement in (f"UPDATE public.{table} SET source = 'x'", f"DELETE FROM public.{table}"):  # noqa: S608
+    target = sa_table(table, column("source"), schema="public")
+    for statement in (update(target).values(source="x"), delete(target)):
         with owner_engine.connect() as conn:
             _scope(conn, a.shop_id)
             with pytest.raises(DBAPIError):
-                conn.execute(text(statement))
+                conn.execute(statement)
             conn.rollback()
             conn.execute(text("RESET ROLE"))
 
@@ -182,24 +184,9 @@ def test_the_purge_sweep_finds_the_new_tables(owner_engine):
 # ===================================================================== the gateway as juli_app
 
 
-@pytest.fixture(scope="module")
-def shopee_tenants(owner_engine, two_tenants):
-    with owner_engine.begin() as conn:
-        for tenant in two_tenants:
-            conn.execute(
-                text("UPDATE public.shops SET platform = 'shopee' WHERE id = :id"),
-                {"id": str(tenant.shop_id)},
-            )
-            conn.execute(
-                text(
-                    "INSERT INTO public.data_use_consents (id, shop_id, scope, method, "
-                    " terms_version, evidence_ref, granted_by, granted_at) "
-                    "VALUES (:id, :shop, 'service', 'contract_paper', 'v1', 'contract.pdf', "
-                    " 'client', now())"
-                ),
-                {"id": str(uuid.uuid4()), "shop": str(tenant.shop_id)},
-            )
-    return two_tenants
+def _shop_ids(table: str):
+    """``SELECT shop_id FROM public.<table>`` for a table named by the test's own constants."""
+    return select(column("shop_id")).select_from(sa_table(table, schema="public"))
 
 
 def _line(ref: str, **over) -> dict:
@@ -251,10 +238,10 @@ async def _post(shop_id: uuid.UUID, dataset: str, body: dict) -> None:
         await session.commit()
 
 
-async def _scalar(shop_id: uuid.UUID, sql: str):
+async def _scalar(shop_id: uuid.UUID, sql):
     async with juli_app_session() as session:
         async with with_shop_scope(session, shop_id):
-            return (await session.execute(text(sql))).all()
+            return (await session.execute(text(sql) if isinstance(sql, str) else sql)).all()
 
 
 async def test_the_gateway_writes_the_p90_datasets_as_the_runtime_role(shopee_tenants):
@@ -352,7 +339,7 @@ async def test_the_gateway_writes_the_p90_datasets_as_the_runtime_role(shopee_te
     # Shop B sees none of it, and its own order is its own.
     await _post(b.shop_id, "order_lines", _body([_line(REF_B)]))
     for table in (LINES, "ads_change_log", "platform_item_snapshots", "shop_health_daily"):
-        rows = await _scalar(b.shop_id, f"SELECT shop_id FROM public.{table}")  # noqa: S608
+        rows = await _scalar(b.shop_id, _shop_ids(table))
         assert {r.shop_id for r in rows} <= {b.shop_id}, table
     assert not await _scalar(
         b.shop_id, "SELECT 1 FROM public.ads_change_log WHERE campaign_id = '555000111'"

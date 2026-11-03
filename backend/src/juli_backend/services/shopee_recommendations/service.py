@@ -120,11 +120,12 @@ def gaps_of(env: RecoEnv) -> Gaps:
     view = env.view
     t = env.rules
     margin = view.profit.margin_pct
+    targets: dict[str, float | None] = {}
+    for k in ("gmv_month", "orders_month", "aov_month", "margin_pct"):
+        value = t.target(k)
+        targets[k] = None if value is None else float(value)
     return month_gaps(
-        targets={
-            k: (None if t.target(k) is None else float(t.target(k)))
-            for k in ("gmv_month", "orders_month", "aov_month", "margin_pct")
-        },  # type: ignore[arg-type]
+        targets=targets,
         gmv_30d=float(env.shop_gmv_30d),
         orders_30d=float(env.shop_orders_30d),
         margin_pct=None if margin is None else float(margin),
@@ -1031,7 +1032,8 @@ async def learning_overview(session: AsyncSession, shop_id: uuid.UUID) -> dict[s
         "calibration": learning.coverage_report(states),
         "acceptance": acceptance.json(),
         "sim": None if sim is None else sim.summary(),
-        "note": "Chấp nhận / bỏ qua chỉ đổi giá trị mặc định và thứ tự xếp hạng, không phải bằng chứng hiệu quả.",  # noqa: E501
+        "note": "Chấp nhận / bỏ qua chỉ đổi giá trị mặc định và thứ tự xếp hạng, không phải bằng "
+        "chứng hiệu quả.",
     }
 
 

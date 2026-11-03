@@ -51,7 +51,7 @@ def _number(value: Any) -> Decimal | None:
         return _number(value.get("value"))
     try:
         return Decimal(str(value))
-    except Exception:  # noqa: BLE001 - an unreadable value is "not set"
+    except (ArithmeticError, ValueError):  # an unreadable value is "not set"
         return None
 
 

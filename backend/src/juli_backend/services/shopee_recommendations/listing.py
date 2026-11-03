@@ -24,7 +24,7 @@ cards already refuse (``content_cards.guardrails``): the proposal passes the sam
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -221,7 +221,7 @@ class TitleProposal:
         }
 
 
-def _joined(parts: Sequence[str]) -> str:
+def _joined(parts: Iterable[str]) -> str:
     return " ".join(p for p in parts if p)
 
 

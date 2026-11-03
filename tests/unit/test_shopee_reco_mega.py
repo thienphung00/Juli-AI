@@ -94,7 +94,8 @@ async def test_the_stacked_discount_is_counted_once_and_adds_up_by_lever(env):
     levers = {r["lever"]: r for r in c["by_lever"]}
     assert sum(r["discount"] for r in c["by_lever"]) == pytest.approx(c["total_discount"], abs=2)
     assert levers["khuyen_mai"]["lines"] > 0  # the promo price dominates the voucher by precedence
-    # by hand: promo discount on every 1001 line, plus the voucher on orders reaching 50.000 afterwards  # noqa: E501
+    # by hand: promo discount on every 1001 line, plus the voucher on orders reaching
+    # 50.000 afterwards
     scale = D(1) / D(env.window_days)
     new = {s: (env.list_price(s) * D("0.85") // 100) * 100 for s in env.skus_of("1001")}
     orders: dict[str, D] = {}

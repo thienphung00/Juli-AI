@@ -14,6 +14,7 @@ tie-break only).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -131,7 +132,7 @@ def predict_lift(
     env: RecoEnv | None,
     magnitude: float | None,
     *,
-    sim_variant: str | None = None,
+    sim_variant: Sequence[str] | str | None = None,
 ) -> Lift:
     bucket = gap_bucket(cand.gap_pct)
     lo, hi = prior_range(spec, magnitude, bucket)

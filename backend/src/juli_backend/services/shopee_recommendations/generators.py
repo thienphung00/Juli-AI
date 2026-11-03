@@ -120,7 +120,8 @@ def gen_product_discount(env: RecoEnv, crit: dict[str, Any] | None, item: str) -
             item,
             {"discount_pct": d},
             crit,
-            f"CTOR của sản phẩm thấp: giảm {d}% so với giá niêm yết (hiện {now}%), trong giới hạn giá sàn.",  # noqa: E501
+            f"CTOR của sản phẩm thấp: giảm {d}% so với giá niêm yết (hiện {now}%), trong giới hạn "
+            f"giá sàn.",
             "ctor",
         )
         ev = evaluate(env, cand)
@@ -454,7 +455,8 @@ def gen_ads_for_roas(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> li
                     None,
                     {"roas_target": new_target},
                     crit,
-                    f"ROAS trực tiếp {roas:.2f} dưới điểm hoà vốn {be:.2f}: nâng ROAS mục tiêu lên {new_target}.",  # noqa: E501
+                    f"ROAS trực tiếp {roas:.2f} dưới điểm hoà vốn {be:.2f}: nâng ROAS mục tiêu "
+                    f"lên {new_target}.",
                     "roas",
                     campaign_key=key,
                     extra={"magnitude_pct": 10.0} if before is None else {},
@@ -516,9 +518,8 @@ def gen_ads_budget(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> list
             None,
             {"daily_budget": new},
             crit,
-            f"Lượt xem thấp và ROAS trực tiếp trên hoà vốn: tăng ngân sách ngày lên {new:,}đ.".replace(  # noqa: E501
-                ",", "."
-            ),
+            f"Lượt xem thấp và ROAS trực tiếp trên hoà vốn: tăng ngân sách ngày lên "
+            f"{new:,}đ.".replace(",", "."),
             "views",
             campaign_key=key,
         )

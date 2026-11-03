@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal as D
+from typing import Any
 
 import pytest
 
@@ -52,7 +53,7 @@ AD_POOL = AdsPool(sku_ad_cost=D(36800), sku_ad_revenue=D(200000))
 
 
 def line(oid: str, *, ad: bool = False, **kw: object) -> OrderLine:
-    base: dict[str, object] = {
+    base: dict[str, Any] = {
         "order_id": oid,
         "sku": "S1",
         "product_id": "P1",
@@ -63,7 +64,7 @@ def line(oid: str, *, ad: bool = False, **kw: object) -> OrderLine:
         "ad_attributed": ad,
     }
     base.update(kw)
-    return OrderLine(**base)  # type: ignore[arg-type]
+    return OrderLine(**base)
 
 
 # ------------------------------------------------------------------- floor

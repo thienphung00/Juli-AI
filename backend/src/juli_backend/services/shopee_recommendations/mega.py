@@ -369,7 +369,8 @@ def evaluate_mega(
         "spend": cap_days,
         "skus": sku_rows,
         "dprofit_same_volume": num(dprofit_certain),
-        "no_double_counting": "Đơn được tính lại một lần với mọi thay đổi chồng lên nhau; mỗi dòng đơn một đòn bẩy giá (combo > khuyến mãi > voucher).",  # noqa: E501
+        "no_double_counting": "Đơn được tính lại một lần với mọi thay đổi chồng lên nhau; mỗi "
+        "dòng đơn một đòn bẩy giá (combo > khuyến mãi > voucher).",
         "other_children": other_json,
     }
     return {
@@ -533,8 +534,10 @@ def build_mega_card(
         "family_label": FAMILY_LABELS["mega_sale"],
         "change_kind": "mega_sale",
         "title": title
-        or f"Mega sale {window.start:%d/%m} — {len(children)} thay đổi, một ngân sách, một lần duyệt",  # noqa: E501
-        "reason": "Các thay đổi được xếp chung một lịch, một trần chi, tính trên cùng các đơn (không cộng trùng).",  # noqa: E501
+        or f"Mega sale {window.start:%d/%m} — {len(children)} thay đổi, "
+        "một ngân sách, một lần duyệt",
+        "reason": "Các thay đổi được xếp chung một lịch, một trần chi, tính trên cùng các đơn "
+        "(không cộng trùng).",
         "platform": "shopee",
         "model_version": config.MODEL_VERSION,
         "generated_at": now.isoformat(),

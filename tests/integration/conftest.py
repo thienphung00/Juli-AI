@@ -7,6 +7,7 @@ import uuid
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from juli_backend.database.database import Base
@@ -237,3 +238,23 @@ def two_tenants(owner_engine):
         seed_tenant(owner_engine, label="tenant-a"),
         seed_tenant(owner_engine, label="tenant-b"),
     )
+
+
+@pytest.fixture(scope="module")
+def shopee_tenants(owner_engine, two_tenants):
+    with owner_engine.begin() as conn:
+        for tenant in two_tenants:
+            conn.execute(
+                text("UPDATE public.shops SET platform = 'shopee' WHERE id = :id"),
+                {"id": str(tenant.shop_id)},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO public.data_use_consents (id, shop_id, scope, method, "
+                    " terms_version, evidence_ref, granted_by, granted_at) "
+                    "VALUES (:id, :shop, 'service', 'contract_paper', 'v1', 'contract.pdf', "
+                    " 'client', now())"
+                ),
+                {"id": str(uuid.uuid4()), "shop": str(tenant.shop_id)},
+            )
+    return two_tenants
