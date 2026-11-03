@@ -20,7 +20,7 @@ No client data: values are synthetic.
 from __future__ import annotations
 
 import zipfile
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -304,6 +304,7 @@ def test_twin_promotion_programs_get_ordinals(tmp_path):
                 ["Ngày", "Loại khuyến mãi", "Bán hàng (đặt hàng) (VND)"],
                 ["01-10-2026", "Tất cả", "837.540"],
                 ["01-10-2026", "Mua Kèm Deal Sốc", "0"],
+                ["02-10-2026", "Tất cả", "900.000"],
             ],
             "Danh sách hiệu suất": [
                 PROMO_HEADER,
@@ -334,7 +335,11 @@ def test_twin_promotion_programs_get_ordinals(tmp_path):
     assert [(r["ordinal"], r["sales"]) for r in programs.body["rows"]] == [(0, 880000), (1, 99000)]
     assert programs.body["rows"][0]["starts_at"] == "2026-06-15T10:30:00"
     (chart,) = _by(parsed.posts, "promotion_daily", "placed")
-    assert [r["promo_type"] for r in chart.body["rows"]] == ["Tất cả", "Mua Kèm Deal Sốc"]
+    assert [r["promo_type"] for r in chart.body["rows"]] == [
+        "Tất cả",
+        "Mua Kèm Deal Sốc",
+        "Tất cả",
+    ]
 
 
 def test_a_long_daily_file_is_cut_into_months(tmp_path):
@@ -706,3 +711,380 @@ def test_buyer_level_and_unlisted_reports_are_never_opened(tmp_path):
     parsed = parse.parse_folder(tmp_path)
     assert parsed.posts == []
     assert len(parsed.skipped_files) == 4
+
+
+# -- productoverview and traffic_overview (shop visits) ----------------------------------
+
+OVERVIEW_HEADER = [
+    "Ngày",
+    "Lượt truy cập sản phẩm",
+    "Tỷ lệ thoát Trang sản phẩm",
+    "Người mua đã đặt hàng",
+    "Doanh số (Đơn đã đặt) (VND)",
+    "Tỷ lệ chuyển đổi (Đơn đã đặt)",
+    "Người mua có đơn đã xác nhận",
+    "Doanh số (Đơn đã xác nhận) (VND)",
+    "Tỷ lệ chuyển đổi (Đơn đã xác nhận)",
+]
+
+
+def test_product_overview_posts_each_order_type_from_one_row(tmp_path):
+    _write_xlsx(
+        tmp_path / "productoverview20261001-20261002.xlsx",
+        {
+            "overview": [
+                OVERVIEW_HEADER,
+                ["01-10-2026", "200", "40,00%", "5", "900.000", "2,50%", "4", "700.000", "2,00%"],
+                ["02-10-2026", "-", "-", "-", "-", "-", "-", "-", "-"],
+                ["03-10-2026", "100", "10,00%", "1", "50.000", "1,00%", "-", "-", "-"],
+            ]
+        },
+    )
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    (placed,) = _by(parsed.posts, "product_overview", "placed")
+    (confirmed,) = _by(parsed.posts, "product_overview", "confirmed")
+    assert placed.body["period"]["granularity"] == "day"
+    first = placed.body["rows"][0]
+    assert first == {
+        "date": "2026-10-01",
+        "product_visitors": 200,
+        "bounce_rate": 0.4,
+        "buyers": 5,
+        "sales": 900000,
+        "conversion_rate": 0.025,
+    }
+    # The same row's confirmed columns land on the confirmed post only.
+    assert confirmed.body["rows"][0]["sales"] == 700000
+    assert confirmed.body["rows"][0]["buyers"] == 4
+    # An empty day keeps its row (the date alone); a missing column is not posted.
+    assert placed.body["rows"][1] == {"date": "2026-10-02"}
+    assert "sales" not in confirmed.body["rows"][2]
+
+
+def test_a_product_overview_rate_above_one_is_not_posted_but_the_counts_stay(tmp_path):
+    _write_xlsx(
+        tmp_path / "productoverview20261001-20261002.xlsx",
+        {
+            "overview": [
+                OVERVIEW_HEADER,
+                ["01-10-2026", "2", "50,00%", "3", "900.000", "150,00%", "3", "900.000", "1,00%"],
+                ["02-10-2026", "2", "50,00%", "1", "100.000", "50,00%", "1", "100.000", "1,00%"],
+            ]
+        },
+    )
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)  # would be refused with the rate in
+    (placed,) = _by(parsed.posts, "product_overview", "placed")
+    assert "conversion_rate" not in placed.body["rows"][0]
+    assert placed.body["rows"][0]["buyers"] == 3
+    assert placed.body["rows"][1]["conversion_rate"] == 0.5
+    note = "product_overview.conversion_rate above 1 not posted"
+    assert [n for n in parsed.notes if n.endswith(note)] != []
+
+
+TRAFFIC_HEADER = ["Ngày", "Lượt truy cập", "Tỉ lệ thoát trang", "Người theo dõi mới"]
+
+
+def test_shop_traffic_reads_every_device_sheet(tmp_path):
+    _write_xlsx(
+        tmp_path / "traffic_overview_20261001_20261002.xlsx",
+        {
+            "Tất cả": [
+                TRAFFIC_HEADER,
+                ["01-10-2026", "300", "55,50%", "-3"],
+                ["02-10-2026", "250", "-", "2"],
+            ],
+            "Máy tính": [TRAFFIC_HEADER, ["01-10-2026", "20", "10,00%", "0"]],
+            "Ứng dụng": [TRAFFIC_HEADER, ["01-10-2026", "280", "58,00%", "-3"]],
+        },
+    )
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    (post,) = _by(parsed.posts, "shop_traffic")
+    assert post.body.get("order_type") is None
+    rows = {(r["date"], r["device"]): r for r in post.body["rows"]}
+    assert set(rows) == {
+        ("2026-10-01", "all"),
+        ("2026-10-02", "all"),
+        ("2026-10-01", "pc"),
+        ("2026-10-01", "app"),
+    }
+    assert rows[("2026-10-01", "all")] == {
+        "date": "2026-10-01",
+        "device": "all",
+        "visitors": 300,
+        "bounce_rate": 0.555,
+        "new_followers": -3,  # net: more unfollows than follows
+    }
+    assert "bounce_rate" not in rows[("2026-10-02", "all")]
+
+
+def test_a_shop_traffic_sheet_that_is_not_a_device_stops_the_load(tmp_path):
+    _write_xlsx(
+        tmp_path / "traffic_overview_20261001_20261002.xlsx",
+        {"Khác": [TRAFFIC_HEADER, ["01-10-2026", "1", "1,00%", "0"]]},
+    )
+    with pytest.raises(parse.UnknownColumn):
+        parse.parse_folder(tmp_path)
+
+
+# -- G-01: a derived rate above 1 must not refuse the post -------------------------------
+
+CONVERSION_HEADER = [*SHOP_HEADER, "Tỷ lệ chuyển đổi đơn hàng"]
+
+
+def test_g01_conversion_rate_above_one_is_dropped_and_the_counts_are_untouched(tmp_path):
+    # A tiny day: more orders than visitors, so Shopee's own ratio is 300 %.
+    _write_xlsx(
+        tmp_path / "synthetic.shopee-shop-stats.20261001-20261002.xlsx",
+        {
+            "Đơn Đã Thanh Toán": [
+                CONVERSION_HEADER,
+                ["01-10-2026-02-10-2026", "900.000", "7", "5", "140,00%"],
+                [],
+                CONVERSION_HEADER,
+                ["01-10-2026", "600.000", "3", "1", "300,00%"],
+                ["02-10-2026", "300.000", "4", "50", "8,00%"],
+            ]
+        },
+    )
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)  # the gateway's own models: no refusal
+    (post,) = _by(parsed.posts, "shop_overview", "paid")
+    assert post.body["rows"] == [
+        {"date": "2026-10-01", "sales": 600000, "orders": 3, "visitors": 1},
+        {"date": "2026-10-02", "sales": 300000, "orders": 4, "visitors": 50},
+    ]
+
+
+def test_g01_the_loader_reports_no_refusal(tmp_path):
+    _write_xlsx(
+        tmp_path / "synthetic.shopee-shop-stats.20261001-20261001.xlsx",
+        {"Đơn đã xác nhận": [CONVERSION_HEADER, ["01-10-2026", "5.000", "2", "1", "200,00%"]]},
+    )
+    parsed = parse.parse_folder(tmp_path)
+    assert load_shopee_exports.validate(parsed, datetime.now(UTC).replace(tzinfo=None)) == []
+
+
+# -- G-02: a monthly roll-up is not a run of days ----------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("days", "span", "kind"),
+    [
+        ([], None, "day"),
+        ([date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 3)], None, "day"),
+        ([date(2026, 1, d) for d in (1, 2, 5)], (date(2026, 1, 1), date(2026, 1, 31)), "day"),
+        # One row per month, each the 1st: a roll-up, whatever its length.
+        ([date(2026, 1, 1), date(2026, 2, 1), date(2026, 3, 1)], None, "month"),
+        ([date(2026, 11, 1), date(2026, 12, 1), date(2027, 1, 1)], None, "month"),
+        # Day-level evidence beats a long window: Jan 28 -> Feb 1 is a gap, not a month.
+        (
+            [date(2026, 1, 27), date(2026, 1, 28), date(2026, 2, 1), date(2026, 2, 2)],
+            (date(2026, 1, 1), date(2026, 3, 31)),
+            "day",
+        ),
+        # Cannot tell: a single 1st with a window longer than a day, a skipped month, or
+        # scattered days over a long window.
+        ([date(2026, 1, 1)], (date(2026, 1, 1), date(2026, 1, 31)), "ambiguous"),
+        ([date(2026, 1, 1)], None, "ambiguous"),
+        ([date(2026, 1, 1), date(2026, 3, 1)], None, "ambiguous"),
+        (
+            [date(2026, 1, 4), date(2026, 2, 9)],
+            (date(2026, 1, 1), date(2026, 3, 31)),
+            "ambiguous",
+        ),
+        # A single day that is not the 1st can only be a day; so can a one-day file.
+        ([date(2026, 1, 9)], None, "day"),
+        ([date(2026, 1, 1)], (date(2026, 1, 1), date(2026, 1, 1)), "day"),
+    ],
+)
+def test_g02_granularity_is_read_from_the_rows(days, span, kind):
+    assert parse.granularity(days, span) == kind
+
+
+MONTH_ROWS = [
+    ["01-01-2026", "300.000", "30", "100"],
+    ["01-02-2026", "200.000", "20", "80"],
+    ["01-03-2026", "100.000", "10", "40"],
+]
+
+
+def _monthly_workbook(folder: Path) -> Path:
+    # Jan-Mar 2026 and a file that ends on the 15th: the last month is partial.
+    sheet = [SHOP_HEADER, ["01-01-2026-15-03-2026", "600.000", "60", "220"], [], SHOP_HEADER]
+    return _write_xlsx(
+        folder / "synthetic.shopee-shop-stats.20260101-20260315.xlsx",
+        {
+            "Đơn hàng đã đặt": [*sheet, *MONTH_ROWS],
+            "Đơn đã xác nhận": [*sheet, *MONTH_ROWS],
+        },
+    )
+
+
+def test_g02_monthly_rows_become_one_period_post_per_month_never_day_rows(tmp_path):
+    _monthly_workbook(tmp_path)
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    assert _by(parsed.posts, "shop_overview", "placed") == []
+    assert _by(parsed.posts, "shop_overview", "confirmed") == []
+    months = _by(parsed.posts, "shop_overview_period", "confirmed")
+    assert [(p.body["period"]["start"], p.body["period"]["end"]) for p in months] == [
+        ("2026-01-01", "2026-01-31"),
+        ("2026-02-01", "2026-02-28"),
+        ("2026-03-01", "2026-03-15"),  # cut at the file's last day
+    ]
+    assert {p.body["period"]["granularity"] for p in months} == {"period"}
+    assert [p.body["rows"] for p in months][0] == [{"sales": 300000, "orders": 30, "visitors": 100}]
+    assert len(_by(parsed.posts, "shop_overview_period", "placed")) == 3
+    assert sum(c for n, c in parsed.notes.items() if "monthly roll-up, 3 months" in n) == 2
+
+
+def test_g02_a_daily_file_next_to_a_monthly_one_is_unchanged(tmp_path):
+    _monthly_workbook(tmp_path)
+    _shop_stats(tmp_path)
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    (daily,) = _by(parsed.posts, "shop_overview", "confirmed")
+    assert [r["date"] for r in daily.body["rows"]] == ["2026-10-01", "2026-10-02"]
+
+
+def test_g02_an_unclear_sheet_is_skipped_with_a_reason_never_guessed(tmp_path):
+    scattered = [SHOP_HEADER, ["04-01-2026", "1", "1", "1"], ["09-02-2026", "1", "1", "1"]]
+    name = "synthetic.shopee-shop-stats.20260101-20260331.xlsx"
+    _write_xlsx(tmp_path / name, {"Đơn đã xác nhận": scattered})
+    parsed = parse.parse_folder(tmp_path)
+    assert parsed.posts == []
+    assert "granularity cannot be told" in parsed.skipped_reasons[name]
+    assert any("granularity cannot be told" in note for note in parsed.notes)
+    assert "granularity cannot be told" in load_shopee_exports.summary(parsed)
+
+
+def test_g02_a_monthly_traffic_sheet_goes_to_the_period_dataset(tmp_path):
+    header = ["Nguồn lưu lượng", "Doanh số (VND)", "Lượt nhấp vào sản phẩm"]
+    sheet = [
+        ["Thẻ sản phẩm"],
+        header,
+        ["Thẻ sản phẩm", "900.000", "90"],
+        ["01-01-2026", "500.000", "50"],
+        ["01-02-2026", "400.000", "40"],
+    ]
+    _write_xlsx(
+        tmp_path / "synthetic.shopee-shop-stats.20260101-20260228.xlsx",
+        {"(đơn đã xác nhận)Theo nguồn...": sheet},
+    )
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    assert _by(parsed.posts, "traffic_overview", "confirmed") == []
+    months = _by(parsed.posts, "traffic_overview_period", "confirmed")
+    periods = [(p.body["period"]["start"], p.body["period"]["end"]) for p in months]
+    assert periods == [("2026-01-01", "2026-01-31"), ("2026-02-01", "2026-02-28")]
+    assert months[0].body["rows"] == [
+        {"source": "psd_label_product_card", "sales": 500000, "product_clicks": 50}
+    ]
+
+
+@pytest.mark.parametrize("kind", ["productoverview", "traffic"])
+def test_g02_monthly_rows_in_a_dataset_without_a_period_twin_are_skipped(tmp_path, kind):
+    if kind == "productoverview":
+        name = "productoverview20260101-20260228.xlsx"
+        _write_xlsx(
+            tmp_path / name,
+            {
+                "overview": [
+                    OVERVIEW_HEADER,
+                    ["01-01-2026", "1", "1,00%", "1", "1", "1,00%", "1", "1", "1,00%"],
+                    ["01-02-2026", "1", "1,00%", "1", "1", "1,00%", "1", "1", "1,00%"],
+                ]
+            },
+        )
+    else:
+        name = "traffic_overview_20260101_20260228.xlsx"
+        _write_xlsx(
+            tmp_path / name,
+            {
+                "Tất cả": [
+                    TRAFFIC_HEADER,
+                    ["01-01-2026", "1", "1,00%", "0"],
+                    ["01-02-2026", "1", "1,00%", "0"],
+                ]
+            },
+        )
+    parsed = parse.parse_folder(tmp_path)
+    assert parsed.posts == []
+    assert "monthly roll-up" in parsed.skipped_reasons[name]
+
+
+# -- G-23: Flash Sale day rows from two files on one key ---------------------------------
+
+CHART_HEADER = ["Ngày", "Loại khuyến mãi", "Bán hàng (đặt hàng) (VND)", "Đơn đặt hàng (đặt hàng)"]
+FLASH_DAY_HEADER = ["Thời Gian", "Bán hàng (đặt hàng)(₫)", "Đơn đặt hàng (đặt hàng)"]
+
+
+def _flash_pair(folder: Path) -> None:
+    # discount says 100 / 1 and 200 / 2 for Oct 1-2 plus Oct 3; the metrics file covers Oct 1-2
+    # with its own figures. Oct 3 only the discount file has.
+    _write_xlsx(
+        folder / "discount_20261001-20261003.xlsx",
+        {
+            "Biểu đồ": [
+                CHART_HEADER,
+                ["01-10-2026", "Flash Sale", "100", "1"],
+                ["02-10-2026", "Flash Sale", "200", "2"],
+                ["03-10-2026", "Flash Sale", "300", "3"],
+                ["01-10-2026", "Voucher", "50", "1"],
+            ]
+        },
+    )
+    _write_xlsx(
+        folder / "In_Shop_Flash_Sale_Metrics_01102026-02102026.xlsx",
+        {
+            "Chỉ Số": [
+                FLASH_DAY_HEADER,
+                ["01-10-2026", "111", "11"],
+                ["02-10-2026", "222", "22"],
+            ]
+        },
+    )
+
+
+def test_g23_the_flash_sale_metrics_file_owns_the_days_it_covers(tmp_path):
+    _flash_pair(tmp_path)
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    flash = {}
+    for post in _by(parsed.posts, "promotion_daily", "placed"):
+        for row in post.body["rows"]:
+            if row["promo_type"] == "Flash Sale":
+                assert row["date"] not in flash, "one source per key"
+                flash[row["date"]] = (post.file, row["sales"])
+    assert flash == {
+        "2026-10-01": ("In_Shop_Flash_Sale_Metrics_01102026-02102026.xlsx", 111),
+        "2026-10-02": ("In_Shop_Flash_Sale_Metrics_01102026-02102026.xlsx", 222),
+        "2026-10-03": ("discount_20261001-20261003.xlsx", 300),  # only the discount file
+    }
+    # The discount file's other promotion types are untouched.
+    discount_types = [
+        r["promo_type"]
+        for p in _by(parsed.posts, "promotion_daily", "placed")
+        if p.file.startswith("discount")
+        for r in p.body["rows"]
+    ]
+    assert sorted(discount_types) == ["Flash Sale", "Voucher"]
+    assert any("2 Flash Sale day rows dropped" in note for note in parsed.notes)
+
+
+def test_g23_the_result_does_not_depend_on_file_order(tmp_path):
+    _flash_pair(tmp_path)
+    forward = parse.parse_folder(tmp_path)
+    keyed = lambda p: sorted(  # noqa: E731
+        (post.body["order_type"], r["date"], r["promo_type"], r.get("sales"))
+        for post in p.posts
+        if post.dataset == "promotion_daily"
+        for r in post.body["rows"]
+    )
+    # Reverse the post order the way a different file sort would.
+    backward = parse.Parsed(posts=list(reversed(forward.posts)))
+    parse._one_flash_sale_owner(backward)
+    assert keyed(forward) == keyed(backward)
