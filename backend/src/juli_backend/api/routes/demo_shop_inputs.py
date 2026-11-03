@@ -33,6 +33,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
@@ -78,6 +79,14 @@ def decode_file(file_b64: str) -> bytes:
 
 def _detail(code: str, message: str) -> dict[str, str]:
     return {"code": code, "message": message}
+
+
+def _concurrent() -> HTTPException:
+    """Two writers took the same version number (the unique key refused the second)."""
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=_detail("concurrent_change", "Có người vừa đổi thông số này. Tải lại rồi thử lại."),
+    )
 
 
 def _diff_json(d: shop_inputs.FieldDiff) -> dict[str, Any]:
@@ -235,6 +244,9 @@ async def run_apply(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=_detail("invalid_reason", str(exc)),
         ) from None
+    except IntegrityError:
+        await session.rollback()
+        raise _concurrent() from None
 
 
 def apply_json(result: shop_inputs.ApplyResult) -> dict[str, Any]:
@@ -290,6 +302,9 @@ async def run_restore(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=_detail("not_restorable", str(exc))
         ) from None
+    except IntegrityError:
+        await session.rollback()
+        raise _concurrent() from None
     item_id, _ = shop_inputs.split_scope(body.scope_ref)
     affected = await shop_inputs.affected_recommendations(session, shop_id, item_ids=[item_id])
     now = datetime.now(UTC)
