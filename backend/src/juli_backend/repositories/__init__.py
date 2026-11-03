@@ -25,6 +25,8 @@ contract applied to one aggregate:
 ``ingestion_state``         per-shop bootstrap phase, latency stamps, cursors
 ``shop_diagnosis``          stored ADR-108 shop diagnosis reports and ADR-109
                             metric rankings
+``shopee_analytics``        read-only Shopee queries for the shop screens' read APIs
+                            (order lines, daily / period metrics, items, rules ...)
 ==========================  =====================================================
 
 ``repos.py`` re-exports everything for callers written before the split.
@@ -72,6 +74,19 @@ from juli_backend.repositories.shop_diagnosis import (
     ShopDiagnosisReportsRepo,
     ShopMetricRankingsRepo,
 )
+from juli_backend.repositories.shopee_analytics import (
+    AdCampaignPurposesReadRepo,
+    MarketKeywordMetricsReadRepo,
+    PlatformDailyMetricsRepo,
+    PlatformFeeFormulasReadRepo,
+    PlatformItemSnapshotsRepo,
+    PlatformItemsRepo,
+    PlatformPeriodMetricsRepo,
+    PlatformPromotionsRepo,
+    ShopeeOrderLinesRepo,
+    ShopKeywordSeedsReadRepo,
+    ShopRulesReadRepo,
+)
 from juli_backend.repositories.tiktok_credentials import TikTokCredentialRepo, TikTokSyncStateRepo
 from juli_backend.repositories.workflow import (
     ToolExecutionsRepo,
@@ -81,6 +96,17 @@ from juli_backend.repositories.workflow import (
 )
 
 __all__ = [
+    "AdCampaignPurposesReadRepo",
+    "MarketKeywordMetricsReadRepo",
+    "PlatformDailyMetricsRepo",
+    "PlatformFeeFormulasReadRepo",
+    "PlatformItemSnapshotsRepo",
+    "PlatformItemsRepo",
+    "PlatformPeriodMetricsRepo",
+    "PlatformPromotionsRepo",
+    "ShopKeywordSeedsReadRepo",
+    "ShopRulesReadRepo",
+    "ShopeeOrderLinesRepo",
     "ActionCardsRepo",
     "AlertConfigsRepo",
     "AlertHistoryRepo",
