@@ -797,7 +797,7 @@ def generate(env: RecoEnv, critical: dict[str, Any]) -> list[Candidate]:
         add(gen_ads_add_product(env, None, item))
         add(gen_affiliate_target(env, None, item))
     # the listing audit needs no critical metric: a missing / late core keyword is its own cause
-    for item in ranked_items[: config.LISTING_OPPORTUNITY_PRODUCTS]:
+    for item in env.listing_item_ids()[: config.LISTING_OPPORTUNITY_PRODUCTS]:
         add(gen_title(env, None, item))
         add(gen_keyword(env, None, item))
     return list(out.values())

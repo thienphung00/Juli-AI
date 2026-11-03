@@ -115,6 +115,17 @@ class RecoEnv:
             gmv[ln.product_id] += ln.order_value
         return [i for i, _ in sorted(gmv.items(), key=lambda kv: (-kv[1], kv[0]))]
 
+    def listing_item_ids(self) -> list[str]:
+        """Products the listing audit may look at: every product with confirmed GMV in the
+        window, from the order lines or from Shopee's own product totals (a product with views
+        but few order lines is exactly the one a better title helps), by GMV descending."""
+        gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
+        for ln, _ in self.view.pairs:
+            gmv[ln.product_id] += ln.order_value
+        for item, (total, _orders) in self.view.data.product_flows.totals.items():
+            gmv[item] = max(gmv[item], total)
+        return [i for i, _ in sorted(gmv.items(), key=lambda kv: (-kv[1], kv[0]))]
+
     def stock(self, item_id: str) -> int | None:
         info = self.ctx.catalog.items.get(item_id)
         return None if info is None else info.stock

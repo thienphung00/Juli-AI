@@ -24,6 +24,14 @@ Routes: `api/routes/demo_shopee_analytics.py` (seller scope, `/v1/demo/shopee/*`
 `api/routes/ops_shopee_analytics.py` (Ops viewer, `/v1/ops/shops/{id}/shopee/analytics/*`).
 Repositories: `repositories/shopee_analytics.py`.
 
+Beyond the screens' numbers: `matrix` rows carry numbers 1 and 2 against the previous period and
+the Thẻ sản phẩm children (only when `item_traffic_sources` day rows exist); the product page
+carries `header.versions` (snapshot changes), `daily` (GMV / orders / views / clicks by day),
+`ads.campaigns` and `freshness`; the overview carries `freshness` (newest stored day per dataset).
+`critical` adds a product-level Lượt xem (search) item against the shop median when the per-source
+day rows exist. Card references are attached by the routes (`services/shopee_recommendations/refs`),
+never here.
+
 ## Rules (from the contract; each has a test)
 
 - Order basis: confirmed = has a payment time (14). GMV, orders and AOV use every confirmed line;

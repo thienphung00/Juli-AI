@@ -170,6 +170,6 @@ async def load_env(
     env.acceptance = await store.load_acceptance(session, shop_id)
     env.sim = await store.load_sim(session, shop_id)
     env.banned_terms = tuple(await shop_rules.banned_terms(session, shop_id))
-    sources = await loaders.load_listing_sources(session, shop_id, env.item_ids())
+    sources = await loaders.load_listing_sources(session, shop_id, env.listing_item_ids())
     env.listings = {item: listing_from(src, env) for item, src in sources.items()}
     return env
