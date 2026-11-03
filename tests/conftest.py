@@ -228,6 +228,8 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # `card_events` and `upgrade head` restores it, after its two-tenant
         # RLS / append-only / backfill tests (which also seed tenants).
         "test_card_events_db.py",
+        # ADR-120: downgrades 112 -> 111 and back, after its two-tenant RLS tests.
+        "test_shopee_profit_db.py",
         # D76 / ADR-116: downgrades 103 -> 102 and back.
         "test_data_use_consents_db.py",
         # D76 / ADR-116 §4: downgrades 104 -> 103 and back, and runs the

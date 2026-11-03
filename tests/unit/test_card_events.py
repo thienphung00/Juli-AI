@@ -70,7 +70,9 @@ def _migration_module():
 
 def test_migration_vocabulary_matches_the_model():
     mig = _migration_module()
-    assert mig.EVENT_TYPES == EVENT_TYPES
+    # Migration 112 (ADR-120) widened the CHECK with ``whatif_adjusted``; 095 stays as written.
+    assert (*mig.EVENT_TYPES, "whatif_adjusted") == EVENT_TYPES
+    assert "whatif_adjusted" not in SINGLE_PER_CARD_EVENT_TYPES
     assert mig.SINGLE_PER_CARD == SINGLE_PER_CARD_EVENT_TYPES
     assert mig.CARDLESS == CARDLESS_EVENT_TYPES == ("seller_change", "shadow")
     assert mig.ACTORS == ACTORS == ("seller", "juli", "tiktok", "system")

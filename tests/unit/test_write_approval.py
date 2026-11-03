@@ -692,7 +692,9 @@ def test_migration_106_fits_alembic_and_the_deferred_tail_moved_onto_it():
     later = (MIGRATIONS / "versions/107_ops_pooled_consent.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
     # ADR-117's 108 then went on top of 107; ADR-118's 109 went on 108 and took the tail.
-    assert 'down_revision: str | None = "111_shopee_keywords"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "112_shopee_profit_and_history"' in BACKFILL.read_text(
+        "utf-8"
+    )
     assert mig.DEFAULT_PLATFORM == WRITE_PLATFORM_TIKTOK
 
 
