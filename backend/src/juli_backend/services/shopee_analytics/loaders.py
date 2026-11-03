@@ -53,6 +53,12 @@ from juli_backend.services.shopee_analytics.rules_view import (
     read_rules,
 )
 from juli_backend.services.shopee_analytics.windows import PeriodChoice, Window, choose_periods
+from juli_backend.services.shopee_profit.ads_sources import (
+    AdDay,
+    AdSpendResult,
+    AdWindow,
+    resolve_ad_spend,
+)
 from juli_backend.services.shopee_profit.fees import FeeSchedule
 from juli_backend.services.shopee_profit.flows import FlowRow, FlowSource
 from juli_backend.services.shopee_profit.money import ZERO
@@ -629,6 +635,64 @@ async def load_ads_reports(session: AsyncSession, shop_id: uuid.UUID, window: Wi
     return AdsReports(camp_rows, kw_rows, camp_choice, kw_choice)
 
 
+async def load_resolved_ad_spend(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window
+) -> AdSpendResult:
+    """Ad spend by the Step 6 rule (``shopee_profit.ads_sources.resolve_ad_spend``: Connector days
+    first, CSV windows for the rest, newer window wins an overlap).
+
+    Same inputs as ``ingest.readers.load_ad_spend`` with one difference: a group campaign's own
+    total row is dropped from a window that also has its per-product rows (the total is their
+    sum, so keeping both counts the campaign twice).
+    """
+    daily = await PlatformDailyMetricsRepo(session).window(
+        shop_id,
+        datasets=["ads_campaign_daily"],
+        start=window.start,
+        end=window.end,
+        streams=["ads"],
+    )
+    covered = {r.day for r in daily}
+    days = [
+        AdDay(
+            campaign=r.platform_source or "",
+            day=r.day,
+            spend=_z((r.extra or {}).get("cost")),
+            gmv=r.gmv,
+            orders=r.orders,
+            order_basis=r.order_type,
+        )
+        for r in daily
+        if r.segment != "all"
+    ]
+    rows = [
+        p
+        for p in await PlatformPeriodMetricsRepo(session).overlapping(
+            shop_id,
+            datasets=["ads_campaign_period"],
+            start=window.start,
+            end=window.end,
+            order_types=[PLACED],
+        )
+    ]
+    with_products = {(p.segment, _period_key(p)) for p in rows if p.item_id}
+    windows = [
+        AdWindow(
+            campaign=p.platform_source or "",
+            start=p.period_start,
+            end=p.period_end,
+            spend=_z((p.extra or {}).get("ads_expense")),
+            item_id=p.item_id or None,
+            gmv=p.gmv,
+            orders=p.orders,
+            order_basis=p.order_type,
+        )
+        for p in rows
+        if p.item_id or (p.segment, _period_key(p)) not in with_products
+    ]
+    return resolve_ad_spend(days, windows, window.start, window.end, covered_days=covered)
+
+
 @dataclass
 class VoucherRow:
     name: str
@@ -886,7 +950,7 @@ async def load_flow_series(
     session: AsyncSession, shop_id: uuid.UUID, end: date, days: int = 400
 ) -> dict[str, dict[date, tuple[float, float, float, float]]]:
     """Daily (impressions, clicks, orders, gmv) per shop flow up to ``end``, confirmed orders:
-    ``the_san_pham`` is Thẻ sản phẩm minus its Trang shop child (contract 2)."""
+    ``the_san_pham_khac`` is Thẻ sản phẩm minus its Trang shop child (contract 2)."""
     from datetime import timedelta
 
     start = end - timedelta(days=days - 1)
@@ -926,7 +990,7 @@ async def load_flow_series(
         elif r.segment == "all" and r.stream == "affiliate":
             out["lien_ket"][r.day] = tuple(tup(r))  # type: ignore[assignment]
     out["trang_shop"] = {d: tuple(v) for d, v in shop_page.items()}  # type: ignore[misc]
-    out["the_san_pham"] = {
+    out["the_san_pham_khac"] = {
         d: tuple(a - b for a, b in zip(v, shop_page.get(d, [0.0] * 4), strict=True))  # type: ignore[misc]
         for d, v in card.items()
     }

@@ -8,7 +8,7 @@ order floors, at most 10 rows, 1 % fold share) and the same confidence labels.
 
 Parameters
 - ``kind``: ``products`` | ``campaigns`` | ``kols`` | ``vouchers`` | ``keywords``.
-- ``source``: ``all`` | a traffic flow (``the_san_pham`` ``trang_shop`` ``live`` ``video``
+- ``source``: ``all`` | a traffic flow (``the_san_pham_khac`` ``trang_shop`` ``live`` ``video``
   ``lien_ket``) with an optional Thẻ sản phẩm child ``sub`` | ``ads`` (placed-order overlay) | a
   price lever (``none`` ``voucher`` ``promo`` ``combo``). Which kinds support which source is in
   :data:`SUPPORTED`; an unsupported combination answers ``supported: false`` with the reason.
@@ -499,8 +499,8 @@ def build_ranking(
         return refuse("unknown_source", f"source phải là một trong {list(SOURCES)}")
     if xep_theo not in XEP_THEO:
         return refuse("unknown_xep_theo", f"xep_theo phải là một trong {list(XEP_THEO)}")
-    if sub is not None and (source != "the_san_pham" or sub not in CARD_CHILDREN):
-        return refuse("unknown_sub", f"sub chỉ dùng với the_san_pham: {list(CARD_CHILDREN)}")
+    if sub is not None and (source != "the_san_pham_khac" or sub not in CARD_CHILDREN):
+        return refuse("unknown_sub", f"sub chỉ dùng với the_san_pham_khac: {list(CARD_CHILDREN)}")
     if source not in SUPPORTED[kind]:
         return refuse("source_not_supported", f"{kind} không tách được theo nguồn {source}")
     if xep_theo not in RANKABLE[kind]:

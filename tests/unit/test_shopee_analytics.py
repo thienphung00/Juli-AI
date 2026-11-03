@@ -104,9 +104,16 @@ async def test_the_shop_totals_are_shopees_daily_rows_when_every_day_is_there(se
 async def test_five_flows_and_the_residual_row_add_up_to_the_shop_gmv(session, seeded):
     flows = (await _overview(session, seeded))["flows"]
     keys = [r["key"] for r in flows["rows"]]
-    assert keys == ["the_san_pham", "trang_shop", "live", "video", "lien_ket", "chenh_lech_nguon"]
+    assert keys == [
+        "the_san_pham_khac",
+        "trang_shop",
+        "live",
+        "video",
+        "lien_ket",
+        "chenh_lech_nguon",
+    ]
     by = {r["key"]: r for r in flows["rows"]}
-    assert by["the_san_pham"]["gmv"] == 7 * 170_000  # Thẻ sản phẩm minus its Trang shop child
+    assert by["the_san_pham_khac"]["gmv"] == 7 * 170_000  # Thẻ sản phẩm minus its Trang shop child
     assert by["trang_shop"]["gmv"] == 7 * 30_000
     assert by["chenh_lech_nguon"]["gmv"] == 7 * 5_000 and by["chenh_lech_nguon"]["is_residual"]
     assert sum(r["gmv"] for r in flows["rows"]) == flows["total_gmv"] == 7 * 275_000
@@ -217,7 +224,7 @@ async def test_ads_are_labelled_placed_and_product_spend_plus_unattributed_is_th
     assert ads["basis"] == {"key": "placed", "label": "đơn đã đặt"}
     assert "không cộng vào tổng đơn đã xác nhận" in ads["note"]
     spend = body["profit"]["ad_spend"]
-    assert spend["total"] == 7 * 30_000 == ads["spend"]
+    assert spend["total"] == 100_000 == ads["spend"]  # the CSV report answers: no Connector day
     assert spend["by_product"] + spend["unattributed"] == pytest.approx(spend["total"], abs=1)
     assert spend["consistent"] is True
 
@@ -230,7 +237,7 @@ async def test_nhóm_product_spend_sums_to_the_campaign_in_the_allocation(sessio
     assert set(camp.products) == {"1001", "1002", "1003"}
     # the report window IS the window here: nothing is prorated, the daily total is the scale
     assert view.ads.exact_window is True
-    assert view.ads.total_spend == Decimal(7 * 30_000)
+    assert view.ads.total_spend == Decimal(100_000)  # group total row not counted twice
 
 
 async def test_ads_never_enter_the_flow_rows(session, seeded):
@@ -282,8 +289,8 @@ async def test_matrix_rows_carry_flows_levers_and_a_labelled_ads_overlay(session
     assert gloves["name"].startswith("Găng tay") and gloves["gmv"] == 700_000
     assert gloves["gmv_basis"] == "shopee_product_period"
     assert gloves["ads"]["basis"]["label"] == "đơn đã đặt"
-    # the report window is the window and the daily total (210.000) is the scale: 60/100 of it
-    assert gloves["ads"]["spend"] == pytest.approx(0.6 * 7 * 30_000)
+    # the report window is the window and the report is the spend: 60.000 of 100.000
+    assert gloves["ads"]["spend"] == pytest.approx(60_000)
     assert gloves["ads"]["roas_direct"] == pytest.approx(4 * 60_000 / 60_000)
     assert [lv["key"] for lv in gloves["levers"]] == [
         "combo",

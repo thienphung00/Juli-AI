@@ -161,7 +161,7 @@ def _flows_block(view: PeriodView, prev: PeriodView) -> dict[str, Any]:
             Decimal(str(row["gmv"])) if row["gmv"] is not None else None,
             before.gmv if before else None,
         )
-    card_total = next((r for r in table.rows if r.key == Flow.THE_SAN_PHAM.value), None)
+    card_total = next((r for r in table.rows if r.key == Flow.THE_SAN_PHAM_KHAC.value), None)
     kids = view.data.traffic.children
     children = [
         {
@@ -306,7 +306,16 @@ def _vouchers_block(view: PeriodView, ctx: ShopContext) -> dict[str, Any]:
             }
         )
     total_cost = sum((v.cost for v in view.data.vouchers.rows), ZERO)
+    join = view.data.voucher_join
     return {
+        "settings_join": None
+        if join is None
+        else {
+            "matched": len(join.matched),
+            "unmatched_exports": len(join.unmatched_exports),
+            "unmatched_settings": len(join.unmatched_settings),
+            "ambiguous": join.ambiguous,
+        },
         "basis": view.data.vouchers.choice.json(),
         "rows": rows,
         "total_cost": num(total_cost),

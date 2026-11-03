@@ -12,6 +12,7 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.services.ingest import readers
 from juli_backend.services.shopee_analytics import loaders
 from juli_backend.services.shopee_analytics.compute import PeriodData, PeriodView, compute_view
 from juli_backend.services.shopee_analytics.loaders import ShopContext
@@ -30,6 +31,8 @@ async def load_period_data(session: AsyncSession, shop_id: uuid.UUID, window: Wi
         vouchers=await loaders.load_vouchers(session, shop_id, window),
         promotions=await loaders.load_promotions(session, shop_id, window),
         affiliate=await loaders.load_affiliate(session, shop_id, window),
+        ad_spend=await loaders.load_resolved_ad_spend(session, shop_id, window),
+        voucher_join=await readers.load_voucher_join(session, shop_id),
     )
 
 

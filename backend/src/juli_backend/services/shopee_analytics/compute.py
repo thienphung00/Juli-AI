@@ -38,6 +38,7 @@ from juli_backend.services.shopee_analytics.loaders import (
     VouchersLoad,
 )
 from juli_backend.services.shopee_analytics.windows import Window
+from juli_backend.services.shopee_profit.ads_sources import AdSpendResult
 from juli_backend.services.shopee_profit.flows import (
     FlowRow,
     FlowSource,
@@ -53,6 +54,7 @@ from juli_backend.services.shopee_profit.shop_profit import (
     shop_profit,
 )
 from juli_backend.services.shopee_profit.sources import SourceMatrix, build_source_matrix
+from juli_backend.services.shopee_profit.vouchers import VoucherJoin
 
 SHOP_KEY = "__shop__"
 
@@ -69,6 +71,8 @@ class PeriodData:
     vouchers: VouchersLoad
     promotions: PromotionsLoad
     affiliate: AffiliateLoad
+    ad_spend: AdSpendResult | None = None  # services/shopee_profit/ads_sources (Step 6)
+    voucher_join: VoucherJoin | None = None
 
 
 @dataclass
@@ -113,9 +117,17 @@ def _row_factor(window: Window, period: tuple[date, date]) -> Decimal:
     return Decimal(window.overlap_days(*period)) / Decimal(days)
 
 
-def allocate_ads(window: Window, daily: AdsDaily, reports: AdsReports) -> AdsAllocation:
+def allocate_ads(
+    window: Window,
+    daily: AdsDaily,
+    reports: AdsReports,
+    resolved: AdSpendResult | None = None,
+) -> AdsAllocation:
     rows: list[AdsRow] = reports.campaign_rows
-    daily_total = daily.spend if daily.complete else None
+    if resolved is not None and resolved.total > 0:
+        daily_total = resolved.total  # Connector days first, CSV windows for the rest
+    else:
+        daily_total = daily.spend if daily.complete else None
     by_campaign: dict[str, list[AdsRow]] = defaultdict(list)
     for r in rows:
         by_campaign[r.key].append(r)
@@ -158,7 +170,7 @@ def allocate_ads(window: Window, daily: AdsDaily, reports: AdsReports) -> AdsAll
             only = CampaignAlloc(
                 "daily",
                 "Tổng chi quảng cáo (theo ngày)",
-                daily.spend,
+                daily_total,
                 daily.gmv,
                 ZERO,
                 daily.orders,
@@ -168,7 +180,7 @@ def allocate_ads(window: Window, daily: AdsDaily, reports: AdsReports) -> AdsAll
                 {},
             )
             return AdsAllocation(
-                daily.spend,
+                daily_total,
                 {},
                 {},
                 [only],
@@ -198,11 +210,16 @@ def allocate_ads(window: Window, daily: AdsDaily, reports: AdsReports) -> AdsAll
     if daily_total is not None and prorated_total > 0:
         k = daily_total / prorated_total
         basis = "daily_scaled"
+        source = (
+            "chi phí đã chốt (Connector theo ngày, ngày còn lại theo báo cáo CSV)"
+            if resolved is not None and resolved.total > 0
+            else "chi phí quảng cáo theo ngày"
+        )
         label = (
-            "Báo cáo chiến dịch (đơn đã đặt) đúng kỳ, tổng khớp chi phí quảng cáo theo ngày."
+            f"Báo cáo chiến dịch (đơn đã đặt) đúng kỳ, tổng khớp {source}."
             if exact
             else "Báo cáo chiến dịch (đơn đã đặt) chia theo số ngày trùng và tỷ trọng; "
-            "tổng khớp chi phí quảng cáo theo ngày."
+            f"tổng khớp {source}."
         )
     else:
         k = Decimal(1)
@@ -236,6 +253,16 @@ def allocate_ads(window: Window, daily: AdsDaily, reports: AdsReports) -> AdsAll
             product_spend[r.item_id] += r.spend * f
             product_gmv[r.item_id] += r.gmv * f
             product_direct[r.item_id] += r.direct_gmv * f
+    if resolved is not None and resolved.products:
+        # per-product spend only from the per-product CSV rows (Step 6); the rest is unattributed
+        for item, wanted in resolved.products.items():
+            have = product_spend.get(item, ZERO)
+            ratio = wanted / have if have > 0 else ZERO
+            product_gmv[item] = product_gmv.get(item, ZERO) * ratio
+            product_direct[item] = product_direct.get(item, ZERO) * ratio
+            product_spend[item] = wanted
+        for item in [i for i in product_spend if i not in resolved.products]:
+            del product_spend[item]
     figures = {
         i: AdsFigures(product_spend[i], product_gmv[i], product_direct[i]) for i in product_spend
     }
@@ -314,7 +341,7 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
     item_ids = sorted({sl.product_id for sl in lines} | set(data.product_flows.totals))
     fees = build_fee_context(item_ids, ctx.catalog, ctx.db_schedules(item_ids))
     pairs = profit_pairs(lines, costs, fees)
-    ads = allocate_ads(data.window, data.ads_daily, data.ads_reports)
+    ads = allocate_ads(data.window, data.ads_daily, data.ads_reports, data.ad_spend)
     profit = shop_profit(
         pairs,
         campaigns=ads.ad_campaigns(),
