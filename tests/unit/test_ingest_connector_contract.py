@@ -163,22 +163,19 @@ async def test_the_ads_daily_post_lands_as_ads_overlay_rows(session):
         ("shop_health_daily", "shop_health_daily.body.json"),
     ],
 )
-async def test_the_reserved_readers_posts_fit_their_models_but_the_gateway_refuses(
+async def test_the_snapshot_and_health_readers_posts_are_accepted_by_the_gateway(
     session, dataset, name
 ):
-    from juli_backend.services.ingest.reserved import validate_reserved
-
-    validate_reserved(dataset, _body(name))
+    # Formerly "reserved, the gateway refuses" (migration 113 gave them tables).
     _, shop = await make_tenant(session, platform="shopee", tiktok_shop_id=None)
     await grant_service_consent(session, shop.id)
-    with pytest.raises(svc.IngestRejected) as err:
-        await svc.ingest(
-            session,
-            shop_id=shop.id,
-            platform="shopee",
-            dataset=dataset,
-            body=_body(name),
-            token_id=None,
-            now=READ_AT,
-        )
-    assert err.value.status == 404
+    result = await svc.ingest(
+        session,
+        shop_id=shop.id,
+        platform="shopee",
+        dataset=dataset,
+        body=_body(name),
+        token_id=None,
+        now=READ_AT,
+    )
+    assert result.rows > 0 and result.duplicate is False

@@ -78,7 +78,7 @@ export function TableWrap({ children, label }: { readonly children: ReactNode; r
   );
 }
 
-type ShopeeTab = "san-pham" | "quang-cao" | "tu-khoa";
+type ShopeeTab = "san-pham" | "quang-cao" | "tu-khoa" | "don-hang";
 
 export function PageTitle({ shopId, title, active }: { readonly shopId: string; readonly title: string; readonly active: ShopeeTab }) {
   const tab = (key: ShopeeTab, label: string) =>
@@ -103,6 +103,7 @@ export function PageTitle({ shopId, title, active }: { readonly shopId: string; 
         {tab("san-pham", "Sản phẩm + luồng")}
         {tab("quang-cao", "Quảng cáo + khuyến mãi")}
         {tab("tu-khoa", "Từ khóa")}
+        {tab("don-hang", "Đơn hàng")}
       </nav>
     </div>
   );

@@ -4,9 +4,8 @@
 - ``ads_campaign_daily`` -> ``platform_daily_metrics`` (stream ``ads``, one row per campaign
   and finished day, plus the day's shop-level ROAS-target row);
 - ``voucher_settings`` -> ``platform_promotions`` (``promo_type`` voucher, twins by voucher id);
-- ``item_snapshot`` and ``shop_health_daily`` are RESERVED until their tables exist
-  (migration 112, branch ``fasttrack/reco-schema-112``): the models accept the bodies, the
-  gateway answers 404.
+- ``item_snapshot`` -> ``platform_item_snapshots`` (a row only when a tracked field changed);
+  ``shop_health_daily`` -> ``shop_health_daily`` (append-only; migration 113).
 
 Every value is synthetic.
 """
@@ -19,14 +18,13 @@ from typing import Any
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import select
 
 from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.models.platform_data import PlatformItem, PlatformPromotion
+from juli_backend.models.shopee_profit import PlatformItemSnapshot, ShopHealthDaily
 from juli_backend.services.ingest.gateway import IngestRejected, validate_rows
 from juli_backend.services.ingest.mapping import DATASETS, dataset_spec, normalize_rows
 from juli_backend.services.ingest.rate_limit import InMemoryRateGate, set_ingest_rate_gate
-from juli_backend.services.ingest.reserved import RESERVED_DATASETS, validate_reserved
 from juli_backend.services.ingest.schemas import IngestBody
 from juli_backend.services.privacy.payload_allowlist import (
     FORBIDDEN_FRAGMENT_EXCEPTIONS,
@@ -296,7 +294,7 @@ def test_the_new_models_have_no_buyer_field_and_pass_the_allowlist_rules():
         DATASETS[("shopee", n)].row_model
         for n in ("ads_campaign_daily", "voucher_settings", "item_catalog")
     ]
-    models += [RESERVED_DATASETS[n].row_model for n in ("item_snapshot", "shop_health_daily")]
+    models += [DATASETS[("shopee", n)].row_model for n in ("item_snapshot", "shop_health_daily")]
     for model in models:
         for field in model.model_fields:
             if field in FORBIDDEN_FRAGMENT_EXCEPTIONS:
@@ -312,7 +310,7 @@ def test_the_raw_copy_of_a_voucher_post_keeps_listed_fields_only():
     assert kept["rows"][0]["extra"] == {"n": 1}
 
 
-# -- reserved: item_snapshot, shop_health_daily -------------------------------------------
+# -- item_snapshot, shop_health_daily (migration 113) --------------------------------------
 
 
 def _snapshot_rows() -> list[dict[str, Any]]:
@@ -332,28 +330,15 @@ def _snapshot_rows() -> list[dict[str, Any]]:
             "in_transit_stock": 5,
             "view_count": 400,
             "sold_count": 12,
+            "liked_count": 7,
             "promo_has_discount": True,
         },
         {"item_id": "1001", "model_id": "5001", "origin_price": 100000, "promotion_price": 90000},
     ]
 
 
-def test_item_snapshot_is_reserved_and_validated_by_its_own_model():
-    body = IngestBody.model_validate(_post(_snapshot_rows(), "2026-10-29", "period"))
-    validate_reserved("item_snapshot", body)
-    assert dataset_spec("shopee", "item_snapshot") is None
-    dup = IngestBody.model_validate(_post([_snapshot_rows()[0]] * 2, "2026-10-29", "period"))
-    with pytest.raises(ValueError, match="duplicate"):
-        validate_reserved("item_snapshot", dup)
-    bad = IngestBody.model_validate(
-        _post([{"item_id": "1", "discount_percent": 140}], "2026-10-29", "period")
-    )
-    with pytest.raises(ValidationError):
-        validate_reserved("item_snapshot", bad)
-
-
-def test_shop_health_daily_is_reserved_and_validated_by_its_own_model():
-    rows = [
+def _health_rows() -> list[dict[str, Any]]:
+    return [
         {
             "date": "2026-10-29",
             "failed_metric_count": 1,
@@ -373,26 +358,105 @@ def test_shop_health_daily_is_reserved_and_validated_by_its_own_model():
             "metric_tag": "service",
         },
     ]
-    validate_reserved(
-        "shop_health_daily", IngestBody.model_validate(_post(rows, "2026-10-29", "day"))
+
+
+def test_item_snapshot_is_a_gateway_dataset_that_validates_its_rows():
+    spec = dataset_spec("shopee", "item_snapshot")
+    assert spec is not None
+    body = IngestBody.model_validate(_post(_snapshot_rows(), "2026-10-29", "period"))
+    assert len(validate_rows(spec, body, NOW)) == 2
+    dup = IngestBody.model_validate(_post([_snapshot_rows()[0]] * 2, "2026-10-29", "period"))
+    with pytest.raises(IngestRejected, match="invalid_rows"):
+        validate_rows(spec, dup, NOW)
+    bad = IngestBody.model_validate(
+        _post([{"item_id": "1", "discount_percent": 140}], "2026-10-29", "period")
     )
-    assert dataset_spec("shopee", "shop_health_daily") is None
+    with pytest.raises(IngestRejected, match="invalid_rows"):
+        validate_rows(spec, bad, NOW)
+
+
+def test_shop_health_daily_is_a_gateway_dataset_that_refuses_a_buyer_field():
+    spec = dataset_spec("shopee", "shop_health_daily")
+    assert spec is not None
+    body = IngestBody.model_validate(_post(_health_rows(), "2026-10-29", "day"))
+    assert len(validate_rows(spec, body, NOW)) == 2
     with pytest.raises(ValidationError):
-        validate_reserved(
-            "shop_health_daily",
-            IngestBody.model_validate(
-                _post([{**rows[1], "buyer_phone": "0"}], "2026-10-29", "day")
-            ),
-        )
+        spec.row_model.model_validate({**_health_rows()[1], "buyer_phone": "0"})
 
 
-async def test_the_gateway_answers_404_for_the_reserved_readers(session):
+async def test_an_item_snapshot_is_written_only_when_a_tracked_field_changed(session):
     shop = await _shop(session)
-    for name, rows, granularity in (
-        ("item_snapshot", _snapshot_rows(), "period"),
-        ("shop_health_daily", [{"date": "2026-10-29", "metric_id": "1"}], "day"),
-    ):
-        with pytest.raises(IngestRejected) as err:
-            await _ingest(session, shop, name, _post(rows, "2026-10-29", granularity))
-        assert (err.value.code, err.value.status) == ("unknown_dataset", 404)
-    assert (await session.execute(select(PlatformItem))).first() is None
+    await _ingest(session, shop, "item_snapshot", _post(_snapshot_rows(), "2026-10-29", "period"))
+    first = await _rows(session, PlatformItemSnapshot, shop)
+    assert {(s.item_id, s.variation_id) for s in first} == {("1001", ""), ("1001", "5001")}
+    item = next(s for s in first if s.variation_id == "")
+    assert (item.list_price, item.current_price, item.stock, item.sold_total, item.likes) == (
+        Decimal("150000"),
+        Decimal("90000"),
+        30,
+        12,
+        7,
+    )
+    assert item.promo_label == "-10%" and item.image_urls == ["img-item"]
+    model_row = next(s for s in first if s.variation_id == "5001")
+    assert (model_row.list_price, model_row.current_price) == (Decimal("100000"), Decimal("90000"))
+
+    # A later read with nothing changed (only a view count moved, which is not tracked).
+    unchanged = _snapshot_rows()
+    unchanged[0]["view_count"] = 999
+    await _ingest(
+        session,
+        shop,
+        "item_snapshot",
+        _post(unchanged, "2026-10-30", "period", captured_at="2026-10-30T09:45:00+07:00"),
+    )
+    assert len(await _rows(session, PlatformItemSnapshot, shop)) == 2
+
+    # Stock changed on the item row only: one new snapshot, for that item.
+    changed = _snapshot_rows()
+    changed[0]["total_available_stock"] = 29
+    await _ingest(
+        session,
+        shop,
+        "item_snapshot",
+        _post(changed, "2026-10-30", "period", captured_at="2026-10-30T09:55:00+07:00"),
+    )
+    after = await _rows(session, PlatformItemSnapshot, shop)
+    assert len(after) == 3
+    assert sorted(s.stock for s in after if s.variation_id == "" and s.stock is not None) == [
+        29,
+        30,
+    ]
+
+
+async def test_shop_health_is_appended_per_capture_and_a_repeat_adds_nothing(session):
+    shop = await _shop(session)
+    body = _post(_health_rows(), "2026-10-29", "day")
+    await _ingest(session, shop, "shop_health_daily", body)
+    stored = await _rows(session, ShopHealthDaily, shop)
+    assert {s.metric_id for s in stored} == {"", "11"}
+    metric = next(s for s in stored if s.metric_id == "11")
+    assert (metric.value, metric.target, metric.passed, metric.compare_result) == (
+        Decimal("92"),
+        Decimal("90"),
+        True,
+        "1",
+    )
+    overview = next(s for s in stored if s.metric_id == "")
+    assert (overview.failed_metric_count, overview.penalty_point) == (1, 0)
+    # The same body again is a duplicate (content hash): nothing is written twice.
+    await _ingest(session, shop, "shop_health_daily", body)
+    assert len(await _rows(session, ShopHealthDaily, shop)) == 2
+    # An identical re-read at a later time is a duplicate too (the content hash ignores the
+    # capture time); a CHANGED reading of the same day is a new row, never an edit.
+    later = _health_rows()
+    later[0]["penalty_point"] = 1
+    await _ingest(
+        session,
+        shop,
+        "shop_health_daily",
+        _post(later, "2026-10-29", "day", captured_at="2026-10-30T09:58:00+07:00"),
+    )
+    stored = await _rows(session, ShopHealthDaily, shop)
+    assert len(stored) == 4
+    assert sorted(s.penalty_point for s in stored if s.metric_id == "") == [0, 1]

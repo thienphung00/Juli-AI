@@ -1,7 +1,7 @@
 """DATA step for P61-F: mark agent runs that wrote to the SANDBOX as ``write_mode='simulated'``
 
 Revision ID: 101_write_mode_backfill
-Revises: 112_shopee_profit_and_history
+Revises: 113_shopee_orders_and_logs
 Create Date: 2026-10-21
 
 DECISIONS D71.2 (owner, 2026-10-21); DEBT P61-B "No backfill of ``workflow_runs.write_mode``".
@@ -54,10 +54,10 @@ the column, and the previous code ignores it.
 
 How it is operated
 ------------------
-Same procedure as 074: serving release at ``112_shopee_profit_and_history`` (P68
+Same procedure as 074: serving release at ``113_shopee_orders_and_logs`` (P68
 re-parented this step onto ``102_shops_tiktok_numeric_id``, the D76 PRs onto 103, 104,
 105, 106 and 107, ADR-117 onto 108, ADR-118 onto 109, the Ops platform
-labels onto 110, ADR-119 onto 111, ADR-120 onto 112; it was ``100_sandbox_collision_xshop``); take the
+labels onto 110, ADR-119 onto 111, ADR-120 onto 112, P90 step 2 onto 113; it was ``100_sandbox_collision_xshop``); take the
 backup (``infra/scripts/safe-alembic-upgrade.sh`` does); copy this file (and, if
 running 074 too, that one) into the serving release's ``versions/`` and leave it
 there; ``alembic upgrade head``; land a follow-up moving it from ``deferred/`` into
@@ -70,7 +70,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "101_write_mode_backfill"
-down_revision: str | None = "112_shopee_profit_and_history"
+down_revision: str | None = "113_shopee_orders_and_logs"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -7,8 +7,9 @@ Seller Centre files; every value is invented). Checks:
   own validation (and lands in the period table, SQLite);
 - the three affiliate dashboard exports that carry no period are not loaded without a window;
 - ``ads_keyword`` rows with no keyword ("-" / the automatic-ad label) are kept;
-- order lines and the ad change log are RESERVED: never in ``parsed.posts``, validated by
-  their own models, and the raw order id appears nowhere (keyed hash only);
+- affiliate order lines and the ad change log are posts of the gateway datasets
+  ``affiliate_order_lines`` and ``ads_change_log`` (P90 step 2), validated by their own models;
+  the raw order id appears nowhere (keyed hash only);
 - buyer-looking columns are dropped unread and never reach any post;
 - file names with spaces, ``+``, timestamps and browser copy suffixes are recognised.
 """
@@ -25,7 +26,6 @@ import pytest
 from juli_backend.models.platform_data import PlatformPeriodMetric
 from juli_backend.services.ingest.gateway import validate_rows
 from juli_backend.services.ingest.mapping import DATASETS, dataset_spec, normalize_rows
-from juli_backend.services.ingest.reserved import RESERVED_DATASETS, validate_reserved
 from juli_backend.services.ingest.schemas import IngestBody
 from scripts import load_shopee_exports
 from scripts.shopee_exports import parse
@@ -487,14 +487,13 @@ def _log(tmp_path: Path, name: str, with_item: bool) -> Path:
     )
 
 
-def test_the_ad_change_log_is_reserved_not_posted(tmp_path):
+def test_the_ad_change_log_is_posted_as_its_own_dataset(tmp_path):
     _log(tmp_path, "ops_log_group_555000111_04_10-02_11.csv", with_item=False)
     _log(tmp_path, "ops_log_hae_555000111_04_10-02_11.csv", with_item=True)
     parsed = parse.parse_folder(tmp_path)
-    assert parsed.posts == []
-    assert {p.dataset for p in parsed.reserved} == {"ads_change_log"}
+    assert {p.dataset for p in parsed.posts} == {"ads_change_log"}
     _validates(parsed)
-    group = [p for p in parsed.reserved if p.file.startswith("ops_log_group")]
+    group = [p for p in parsed.posts if p.file.startswith("ops_log_group")]
     assert [p.body["period"]["start"] for p in group] == ["2026-10-05", "2026-11-01"]
     october = group[0].body["rows"]
     assert [r["actor_kind"] for r in october] == ["system", "system", "user"]
@@ -502,7 +501,7 @@ def test_the_ad_change_log_is_reserved_not_posted(tmp_path):
     assert (october[2]["budget_from"], october[2]["budget_to"]) == (100000, 150000)
     assert group[1].body["rows"][0]["products_to"] == 12
     assert all("item_id" not in r for r in october)
-    product_log = next(p for p in parsed.reserved if p.file.startswith("ops_log_hae"))
+    product_log = next(p for p in parsed.posts if p.file.startswith("ops_log_hae"))
     assert product_log.body["rows"][0]["item_id"] == "1001"
 
 
@@ -665,12 +664,11 @@ def _conversions(tmp_path: Path, name: str = "SellerConversionReport_20261102213
     )
 
 
-def test_order_lines_are_reserved_with_a_keyed_order_ref_and_no_raw_id(tmp_path):
+def test_affiliate_order_lines_carry_a_keyed_order_ref_and_no_raw_id(tmp_path):
     _conversions(tmp_path)
     parsed = parse.parse_folder(tmp_path, order_ref_key=KEY)
-    assert parsed.posts == []
     _validates(parsed)
-    posts = parsed.reserved
+    posts = parsed.posts
     assert [p.dataset for p in posts] == ["affiliate_order_lines"] * 2  # October, November
     first = posts[0].body["rows"]
     assert first[0]["order_ref"] == parse.order_ref(CANARY_ORDER, KEY)
@@ -719,9 +717,9 @@ def test_buyer_looking_columns_never_reach_any_post(tmp_path):
     parsed = parse.parse_folder(
         tmp_path, window=(date(2026, 10, 1), date(2026, 10, 31)), order_ref_key=KEY
     )
-    assert parsed.reserved and parsed.posts
+    assert parsed.posts
     everything = (
-        json.dumps([p.body for p in [*parsed.posts, *parsed.reserved]], ensure_ascii=False)
+        json.dumps([p.body for p in parsed.posts], ensure_ascii=False)
         + load_shopee_exports.summary(parsed)
         + json.dumps(dict(parsed.notes), ensure_ascii=False)
     )
@@ -732,8 +730,9 @@ def test_buyer_looking_columns_never_reach_any_post(tmp_path):
         == 3
     )
     # The models have no field a buyer's name could be sent in.
-    for dataset in RESERVED_DATASETS.values():
-        assert not {"buyer", "buyer_name", "phone", "address"} & set(dataset.row_model.model_fields)
+    for name in P90_STEP2_DATASETS:
+        model = DATASETS[("shopee", name)].row_model
+        assert not {"buyer", "buyer_name", "phone", "address"} & set(model.model_fields)
 
 
 def test_an_unknown_order_report_column_stops_the_load(tmp_path):
@@ -763,28 +762,23 @@ def test_a_reserved_body_with_a_buyer_field_fails_its_own_validation():
         "rows": [row],
     }
     with pytest.raises(ValueError, match="buyer_name"):
-        validate_reserved("affiliate_order_lines", IngestBody.model_validate(body))
+        spec = dataset_spec("shopee", "affiliate_order_lines")
+        assert spec is not None
+        spec.row_model.model_validate(IngestBody.model_validate(body).rows[0])
 
 
-def test_reserved_names_are_not_gateway_datasets():
-    assert set(RESERVED_DATASETS) == {
-        "affiliate_order_lines",
-        "ads_change_log",
-        "item_snapshot",
-        "shop_health_daily",
-    }
-    for name in RESERVED_DATASETS:
-        assert dataset_spec("shopee", name) is None
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="TODO migration 112 (shopee_order_lines, platform_item_snapshots) / ad change log / "
-    "shop-health tables: register the dataset specs in mapping.DATASETS, then delete this test "
-    "and the reserved names",
+P90_STEP2_DATASETS = (
+    "order_lines",
+    "affiliate_order_lines",
+    "ads_change_log",
+    "item_snapshot",
+    "shop_health_daily",
 )
-@pytest.mark.parametrize("name", sorted(RESERVED_DATASETS))
-def test_gateway_accepts_the_reserved_datasets_once_their_tables_exist(name):
+
+
+@pytest.mark.parametrize("name", P90_STEP2_DATASETS)
+def test_the_gateway_accepts_the_p90_step2_datasets(name):
+    # Formerly "reserved" (a strict xfail reminder): migration 113 gave them tables.
     assert dataset_spec("shopee", name) is not None
 
 
@@ -795,7 +789,10 @@ def test_a_dry_run_sends_nothing_and_prints_counts_only(tmp_path, capsys):
     code = load_shopee_exports.main([str(tmp_path), "--dry-run"])
     out = capsys.readouterr().out
     assert code == 0
-    assert "reserved" in out and "affiliate_order_lines" in out and "ads_keyword_period" in out
+    assert (
+        "affiliate_order_lines" in out and "ads_change_log" in out and "ads_keyword_period" in out
+    )
+    assert "reserved" not in out
     for text in (CANARY_ORDER, "creator_handle", "nước rửa chén", "Chiến dịch A"):
         assert text not in out
 

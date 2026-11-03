@@ -36,6 +36,8 @@ import type {
   ShopProposalRow,
   KeywordMetricsUploaded,
   KeywordSeedsGenerated,
+  OrderLinesUploaded,
+  OrderRefKeyResponse,
   ShopeeKeywordBoard,
 } from "./types";
 
@@ -266,6 +268,12 @@ export const opsApi = {
   /** The owner's weekly shopeeanalytics.com upload, one record per JSONL line (Vận hành; public data, no shop). */
   uploadKeywordMetrics: (records: unknown[], o?: OpsRequestOptions) =>
     opsRequest<KeywordMetricsUploaded>("/market/keyword-metrics", { method: "POST", body: { records } }, o),
+  /** P90 step 2, Đơn hàng: the shop's order_ref key for ONE upload (Vận hành; `no-store`, audited without the key). */
+  orderRefKey: (shopId: string, o?: OpsRequestOptions) =>
+    opsRequest<OrderRefKeyResponse>(`${shopPath(shopId)}/shopee/orders/ref-key`, {}, o),
+  /** PII-free order lines, at most 1 000 per call (Vận hành; audited `orders_upload` with counts only). */
+  uploadOrderLines: (shopId: string, lines: readonly unknown[], o?: OpsRequestOptions) =>
+    opsRequest<OrderLinesUploaded>(`${shopPath(shopId)}/shopee/orders/upload`, { method: "POST", body: { lines } }, o),
 };
 
 export type OpsApi = typeof opsApi;

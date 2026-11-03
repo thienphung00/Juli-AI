@@ -960,3 +960,17 @@ export interface KeywordMetricsUploaded {
   readonly by_status: Partial<Record<"ok" | "blocked" | "no_match", number>>;
   readonly collected_on: string[];
 }
+
+/** P90 step 2, Đơn hàng: the shop's `order_ref` key for ONE upload (`no-store`, audited, short-lived). */
+export interface OrderRefKeyResponse {
+  readonly order_ref_key: string;
+  readonly algorithm: string;
+  readonly key_version: number;
+  readonly expires_at: string;
+}
+
+/** What the upload route answers: counts only. */
+export interface OrderLinesUploaded {
+  readonly lines: number;
+  readonly duplicate: boolean;
+}

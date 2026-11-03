@@ -17,10 +17,13 @@ applies to ``--bootstrap-local-shop``, which creates a local shop + ``service`` 
 for development only.
 
 The affiliate exports ProductPerformance / Open Campaign Analytics / AMSAffiliatePerformance
-carry no period: pass ``--window 2026-10-01:2026-10-31`` or they are not loaded. Affiliate order
-lines (SellerConversionReport) and the ad change log (ops_log_*) are parsed and validated but
-RESERVED: no table yet, so they are counted separately and never sent. Order ids are hashed with
-``JULI_ORDER_REF_KEY`` (random per run when unset).
+carry no period: pass ``--window 2026-10-01:2026-10-31`` or they are not loaded. The order export
+(Order.all.*.xlsx) is read through ``scripts/shopee_exports/orders.py`` (the buyer's columns are
+never decoded) and posted FIRST as ``order_lines``; affiliate order lines (SellerConversionReport)
+then mark the matching lines. Order ids are hashed with the shop's key when
+``JULI_ORDER_REF_MASTER_KEY`` and ``--shop-id`` are set (the key the Ops upload page is handed, so
+the browser and this loader agree on an order), else with ``JULI_ORDER_REF_KEY``, else a random
+run-local key.
 
 The summary prints counts per dataset, never values.
 """
@@ -56,18 +59,9 @@ def validate(parsed: Parsed, now: datetime) -> list[str]:
     """Each post checked by the gateway's own validator (no database)."""
     from juli_backend.services.ingest.gateway import IngestRejected, validate_rows
     from juli_backend.services.ingest.mapping import dataset_spec
-    from juli_backend.services.ingest.reserved import RESERVED_DATASETS, validate_reserved
     from juli_backend.services.ingest.schemas import IngestBody
 
     problems: list[str] = []
-    for post in parsed.reserved:
-        # Reserved names are validated against their own models and never sent.
-        try:
-            validate_reserved(post.dataset, IngestBody.model_validate(post.body))
-        except (ValidationError, ValueError, KeyError) as exc:
-            problems.append(f"{post.file} {post.dataset} (reserved): {str(exc)[:200]}")
-        if post.dataset not in RESERVED_DATASETS:
-            problems.append(f"{post.file}: {post.dataset} is not a reserved dataset")
     for post in parsed.posts:
         spec = dataset_spec("shopee", post.dataset)
         if spec is None:
@@ -89,19 +83,23 @@ def summary(parsed: Parsed) -> str:
         rows[post.dataset] += len(post.body["rows"])
     lines = [f"{'dataset':<26}{'posts':>7}{'rows':>9}"]
     lines += [f"{name:<26}{posts[name]:>7}{rows[name]:>9}" for name in sorted(posts)]
-    if parsed.reserved:
-        held: Counter[str] = Counter(post.dataset for post in parsed.reserved)
-        held_rows: Counter[str] = Counter()
-        for post in parsed.reserved:
-            held_rows[post.dataset] += len(post.body["rows"])
-        lines.append("reserved (parsed and validated, NOT sent: no table yet):")
-        lines += [f"{name:<26}{held[name]:>7}{held_rows[name]:>9}" for name in sorted(held)]
     if parsed.skipped_reasons:
         lines.append(f"files not loaded ({len(parsed.skipped_reasons)}):")
         lines += [f"  {name}: {why}" for name, why in sorted(parsed.skipped_reasons.items())]
     for note, count in sorted(parsed.notes.items()):
         lines.append(f"note: {note} x{count}")
     return "\n".join(lines)
+
+
+def _shop_order_ref_key(shop_id: uuid.UUID | None) -> bytes | None:
+    """The shop's ``order_ref`` key when ``JULI_ORDER_REF_MASTER_KEY`` and ``--shop-id`` are both
+    given: the same key the Ops upload page is handed, so the CLI and the browser agree on an
+    order. None otherwise (``JULI_ORDER_REF_KEY`` or a run-local random key, as before)."""
+    from juli_backend.services.ingest import order_ref
+
+    if shop_id is None or not os.environ.get(order_ref.ENV_MASTER, "").strip():
+        return None
+    return order_ref.shop_key(order_ref.master_key(), shop_id)
 
 
 def _require_local(url: str, allow_remote: bool) -> None:
@@ -275,10 +273,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--allow-remote-database", action="store_true")
     args = parser.parse_args(argv)
 
-    parsed = parse_folder(args.folder, window=args.window)
+    parsed = parse_folder(
+        args.folder, window=args.window, order_ref_key=_shop_order_ref_key(args.shop_id)
+    )
     if args.only:
         parsed.posts = [post for post in parsed.posts if post.dataset in args.only]
-        parsed.reserved = [post for post in parsed.reserved if post.dataset in args.only]
     print(summary(parsed))
     problems = validate(parsed, datetime.now(UTC).replace(tzinfo=None))
     if problems:
@@ -286,8 +285,7 @@ def main(argv: list[str] | None = None) -> int:
         for problem in problems[:20]:
             print(f"  {problem}", file=sys.stderr)
         return 1
-    held = f" (+ {len(parsed.reserved)} reserved, not sent)" if parsed.reserved else ""
-    print(f"all {len(parsed.posts)} posts validate{held}")
+    print(f"all {len(parsed.posts)} posts validate")
     if args.dry_run:
         return 0
 

@@ -115,6 +115,10 @@ export function auditWhat(entry: AuditEntry): string {
       return `${after.enabled === false ? "Bỏ" : "Giữ"} từ khóa ${String(after.keyword ?? "")}`;
     case "keyword_metrics_upload":
       return `Tải lên kết quả tra từ khóa · ${num(after.records) ?? 0} lượt tra`;
+    case "order_ref_key_issue":
+      return "Cấp khóa băm mã đơn hàng cho một lần tải lên";
+    case "orders_upload":
+      return `Tải lên đơn hàng · ${num(after.lines) ?? 0} dòng${after.duplicate === true ? " (đã có sẵn)" : ""}`;
     case "shop_disconnect":
       return `Huỷ kết nối · lý do: ${String(after.reason ?? "")}`;
     case "invite_create":

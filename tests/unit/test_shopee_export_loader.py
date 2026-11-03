@@ -10,7 +10,8 @@ headers, Vietnamese number formats) and checks the posts:
 - parentskudetail: one post per order type, variations, the flag sheets;
 - discount: twin programs get ordinals 0 and 1;
 - an unknown header stops the load; files the loader does not know (buyer-data exports
-  among them) are never opened;
+  among them) are never opened (the order export is the one buyer-bearing file with a parser:
+  ``orders.py`` reads it by header allowlist, tested in ``test_shopee_orders_parser.py``);
 - every post passes the gateway's own validation; a database host other than localhost is
   refused.
 
@@ -204,12 +205,12 @@ def test_an_unknown_header_stops_the_load(tmp_path):
 
 
 def test_files_the_loader_does_not_know_are_never_opened(tmp_path):
-    (tmp_path / "Order.all.20261001_20261028.xlsx").write_bytes(b"not a workbook")
+    (tmp_path / "Orders_202611.csv").write_bytes(b"not a workbook")
     (tmp_path / "sales_composition_20261001-20261028.xlsx").write_bytes(b"not a workbook")
     parsed = parse.parse_folder(tmp_path)
     assert parsed.posts == []
     assert sorted(parsed.skipped_files) == [
-        "Order.all.20261001_20261028.xlsx",
+        "Orders_202611.csv",
         "sales_composition_20261001-20261028.xlsx",
     ]
 
@@ -702,7 +703,7 @@ def test_an_ads_report_with_an_unknown_header_stops_the_load(tmp_path):
 
 def test_buyer_level_and_unlisted_reports_are_never_opened(tmp_path):
     for name in (
-        "Order.all.20261001_20261031.xlsx",
+        "Orders_202611.csv",
         "Quản lý đánh giá_202611.xlsx",
         "ValidationBill.csv",
         "Dữ+liệu+Dịch+vụ+Hiển+thị+Sản+Phẩm-160675212-02_08_2026-02_11_2026.csv",

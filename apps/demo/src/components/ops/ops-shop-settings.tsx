@@ -316,6 +316,11 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
                   Từ khóa ›
                 </Link>
               ) : null}
+              {platform === "shopee" ? (
+                <Link href={`/ops/shops/${shopId}/shopee/don-hang`} style={{ fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
+                  Đơn hàng ›
+                </Link>
+              ) : null}
               <Link href={`/ops/shops/${shopId}/chu-ky`} style={{ fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
                 Chu kỳ ›
               </Link>

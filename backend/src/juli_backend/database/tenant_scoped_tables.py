@@ -146,6 +146,10 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shopee_order_lines"): "tenant_direct",
     ("public", "shop_rule_versions"): "tenant_direct",
     ("public", "ad_campaign_purposes"): "tenant_direct",
+    # P90 step 2 (migration 113): account-health readings and the ad change log, both
+    # append-only (SELECT / INSERT for juli_app).
+    ("public", "shop_health_daily"): "tenant_direct",
+    ("public", "ads_change_log"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",

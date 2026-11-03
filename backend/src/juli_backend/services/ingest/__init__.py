@@ -3,6 +3,9 @@
 - ``schemas`` -- the request body and one strict row model per dataset.
 - ``mapping`` -- pure: platform rows → Juli streams / KPIs (Shopee L1 sources).
 - ``gateway`` -- validate, store raw (dedup), upsert ``platform_daily_metrics``.
+- ``writers`` -- the P90 step 2 datasets with tables of their own (order lines, ad change log,
+  shop health, item snapshots).
+- ``order_ref`` -- the per-shop key behind ``order_ref`` (the keyed hash that replaces an order id).
 - ``pairing`` -- pairing codes, scoped ingest tokens (hashed, rotating, revocable).
 - ``status`` -- last ingest per dataset and the extension's drift reports.
 - ``rate_limit`` -- per-shop / per-client fixed windows.

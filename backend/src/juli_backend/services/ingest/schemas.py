@@ -806,3 +806,208 @@ class PairRequest(BaseModel):
     platform: Literal["shopee", "tiktok"] = "shopee"
     platform_shop_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,32}$")] | None = None
     client_label: Annotated[str, StringConstraints(max_length=120)] | None = None
+
+
+# -- order lines, ad change log, item snapshots, shop health (P90 step 2, migration 113) --
+
+Text64 = Annotated[str, StringConstraints(max_length=64)]
+Text120 = Annotated[str, StringConstraints(max_length=120)]
+
+
+ORDER_STATUSES: tuple[str, ...] = (
+    "delivered",
+    "cancelled",
+    "in_transit",
+    "refunded_accepted",
+    "refunded_not_received",
+)
+OrderStatusName = Literal[
+    "delivered", "cancelled", "in_transit", "refunded_accepted", "refunded_not_received"
+]
+PROMO_KIND_NAMES = Literal["none", "voucher", "discount", "flash_sale", "bundle", "add_on"]
+
+
+class ShopeeOrderLineRow(PeriodRowBase):
+    """``order_lines``: one line of an order export (Đơn hàng › Xuất), PII-stripped before it
+    reaches here. There is no field for a buyer, a recipient, an address, a phone, a tracking
+    id, a comment or a note, and the raw order id never arrives: ``order_ref`` is a keyed hash.
+
+    Money is VND. ``status`` is the contract-10 ``OrderStatus`` value. Order-level amounts
+    (shop voucher, Shopee voucher, combo, buyer shipping, bank promotion, actual fees) are
+    already SPLIT across the order's lines by line value (``Σ`` of the lines is the order's
+    amount); fees are None when the export left them unfilled (never 0). The item is known
+    by SKU (the export has no numeric item id); ``item_id`` is filled by the gateway from
+    ``platform_items.seller_sku`` when the catalogue knows the SKU."""
+
+    order_ref: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
+    #: Place of the line in its order after a canonical sort (stable across downloads).
+    line_no: Annotated[int, Field(ge=0, le=999)] = 0
+    ordered_at: datetime
+    status: OrderStatusName
+    sku: Text120 | None = None
+    variation_sku: Text120 | None = None
+    qty: Count
+    returned_qty: Count = Decimal(0)
+    original_price: Money
+    deal_price: Money
+    #: Seller-funded promotion on the line (original - deal) x qty, and Shopee-funded.
+    seller_subsidy: Money = Decimal(0)
+    shopee_subsidy: Money = Decimal(0)
+    shop_voucher_share: Money = Decimal(0)
+    #: Shopee-funded voucher and Shopee combo discount (not a seller cost).
+    platform_voucher_share: Money = Decimal(0)
+    #: The shop's own combo (Combo khuyến mãi / Mua kèm) discount.
+    bundle_discount: Money = Decimal(0)
+    promo_kind: PROMO_KIND_NAMES = "none"
+    buyer_shipping_fee: Money | None = None
+    bank_promo: Money | None = None
+    fee_fixed: Money | None = None
+    fee_service: Money | None = None
+    fee_payment: Money | None = None
+    completed_at: datetime | None = None
+    paid_at: datetime | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.order_ref, self.line_no)
+
+
+class ShopeeAffiliateOrderLineRow(PeriodRowBase):
+    """``affiliate_order_lines``: one affiliate-attributed order line. It marks the matching
+    ``shopee_order_lines`` row (``affiliate`` true, ``commission`` from ``cost``) and never
+    creates one: the order export owns the line."""
+
+    #: Keyed hash of the order id (HMAC-SHA256, 32 hex): the same function the browser-side
+    #: order strip uses, so the two lanes agree on an order.
+    order_ref: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
+    #: Place among lines sharing order, item and model in one export.
+    line_no: Annotated[int, Field(ge=0, le=999)] = 0
+    affiliate: bool = True
+    item_id: ItemId
+    model_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{0,32}$")] = ""
+    price: Money | None = None
+    qty: Count | None = None
+    order_value: Money | None = None
+    refund_amount: Money | None = None
+    order_status: Text64 | None = None
+    #: False when the platform's fraud check did not say "valid".
+    valid: bool | None = None
+    ordered_at: datetime
+    completed_at: datetime | None = None
+    conversion_at: datetime | None = None
+    campaign_type: Text64 | None = None
+    campaign_partner: Text120 | None = None
+    commission_code: Text64 | None = None
+    #: The creator's public account handle (not a buyer); the display name is not read.
+    affiliate_account: Text120 | None = None
+    mcn: Text120 | None = None
+    order_kind: Text64 | None = None
+    channel: Text64 | None = None
+    xtra_product_commission: Money | None = None
+    xtra_product_commission_kols: Money | None = None
+    xtra_product_commission_kols_rate: Rate | None = None
+    xtra_product_commission_mcn: Money | None = None
+    xtra_product_commission_mcn_rate: Rate | None = None
+    xtra_order_commission: Money | None = None
+    xtra_order_commission_kols: Money | None = None
+    xtra_order_commission_mcn: Money | None = None
+    cost: Money | None = None
+    deduction_status: Text64 | None = None
+    deduction_method: Text64 | None = None
+    deducted_at: datetime | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.order_ref, self.item_id, self.model_id, self.line_no)
+
+
+class ShopeeAdsChangeLogRow(PeriodRowBase):
+    """``ads_change_log``: one line of an ad campaign's change history (``ops_log_*.csv``).
+    Times are Seller Centre's wall clock (GMT+7)."""
+
+    campaign_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,32}$")]
+    item_id: ItemId | None = None
+    occurred_at: datetime
+    #: ``system`` = Shopee's own optimiser; ``user`` = a person or sub-account of the shop.
+    actor_kind: Annotated[str, StringConstraints(pattern=r"^(system|user)$")]
+    actor: Text120 | None = None
+    surface: Text64 | None = None
+    event_type: Annotated[str, StringConstraints(min_length=1, max_length=120)]
+    detail: Annotated[str, StringConstraints(max_length=500)] | None = None
+    #: Parsed from "Ngân sách hàng ngày: ₫a -> ₫b".
+    budget_from: Money | None = None
+    budget_to: Money | None = None
+    #: Parsed from "Thay đổi số lượng sản phẩm …: a -> b".
+    products_from: Count | None = None
+    products_to: Count | None = None
+    ordinal: Annotated[int, Field(ge=0, le=999)] = 0
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.campaign_id, self.occurred_at, self.event_type, self.ordinal)
+
+
+class ShopeeItemSnapshotRow(PeriodRowBase):
+    """``item_snapshot``: one item (``model_id`` empty) or one of its models on the day the
+    Connector read the Seller Centre product list. Item rows carry the item's price range,
+    stock totals, counts and tags; model rows carry the model's own price and stock.
+    Money in VND; ``discount_percent`` 0..100; times are timezone-aware."""
+
+    item_id: ItemId
+    model_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{0,32}$")] = ""
+    #: Cover image (item row) or the model's image: Seller Centre's image id / URL.
+    image: Annotated[str, StringConstraints(max_length=300)] | None = None
+    create_time: datetime | None = None
+    modify_time: datetime | None = None
+    price_min: Money | None = None
+    price_max: Money | None = None
+    selling_price_min: Money | None = None
+    selling_price_max: Money | None = None
+    origin_price: Money | None = None
+    promotion_price: Money | None = None
+    has_discount: bool | None = None
+    discount_percent: Percent | None = None
+    max_discount: Money | None = None
+    total_available_stock: Count | None = None
+    total_seller_stock: Count | None = None
+    total_shopee_stock: Count | None = None
+    sellable_stock: Count | None = None
+    in_transit_stock: Count | None = None
+    low_stock_status: Tag | None = None
+    view_count: Count | None = None
+    liked_count: Count | None = None
+    sold_count: Count | None = None
+    promo_has_discount: bool | None = None
+    promo_has_bundle_deal: bool | None = None
+    promo_has_add_on_deal: bool | None = None
+    promo_has_ams_commission: bool | None = None
+    promo_wholesale: bool | None = None
+    unlisted: bool | None = None
+    #: Active campaigns the item is in (``get_campaign_info_by_item_list``), when read.
+    campaign_count: Count | None = None
+    tier_index: Annotated[str, StringConstraints(max_length=32)] | None = None
+    is_default: bool | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.item_id, self.model_id)
+
+
+class ShopeeShopHealthDailyRow(RowBase):
+    """``shop_health_daily``: one Seller Centre account-health metric on one day
+    (``/api/accounthealth/v1/sc/shops/metric_list`` + ``metric/configs``); ``metric_id`` None
+    is the day's overview row (failed-metric count, penalty points, rating)."""
+
+    metric_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,32}$")] | None = None
+    #: The metric's title from ``metric/configs``.
+    label: Annotated[str, StringConstraints(max_length=255)] | None = None
+    display_value: Annotated[str, StringConstraints(max_length=64)] | None = None
+    value: SignedCount | None = None
+    target_display: Annotated[str, StringConstraints(max_length=64)] | None = None
+    target: SignedCount | None = None
+    compare_result: Tag | None = None
+    #: Derived from ``compare_result`` when it says so unambiguously; None otherwise.
+    passed: bool | None = None
+    metric_tag: Tag | None = None
+    failed_metric_count: Count | None = None
+    penalty_point: Count | None = None
+    performance_rating: Tag | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.date, self.metric_id)

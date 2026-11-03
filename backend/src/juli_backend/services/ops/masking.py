@@ -40,7 +40,9 @@ def mask_text(value: str) -> str:
 
 #: Keys whose values are identifiers / links Juli minted, never personal data,
 #: and must reach the client byte for byte.
-UNMASKED_KEYS = frozenset({"accept_url", "id", "shop_id", "run_id", "tiktok_shop_id", "token"})
+UNMASKED_KEYS = frozenset(
+    {"accept_url", "id", "shop_id", "run_id", "tiktok_shop_id", "token", "order_ref_key"}
+)
 
 
 def mask_pii(value: Any, *, key: str | None = None) -> Any:
