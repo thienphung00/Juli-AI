@@ -17,10 +17,13 @@ describe("readersLabel", () => {
 
 describe("feature flags", () => {
   it("the pilot build turns the readers on for any paired shop, and never without a shop", () => {
-    expect(PILOT_SHOP_IDS).toContain("*");
-    expect(readerActive("ads", "s1")).toBe(true);
+    const pilot = PILOT_SHOP_IDS[0];
+    expect(PILOT_SHOP_IDS).not.toContain("*");
+    expect(readerActive("ads", pilot)).toBe(true);
+    expect(readerActive("ads", "another-shop")).toBe(false);
     expect(readerActive("ads", undefined)).toBe(false);
-    expect(schedulerActive("s1")).toBe(true);
+    expect(schedulerActive(pilot)).toBe(true);
+    expect(schedulerActive("another-shop")).toBe(false);
     expect(schedulerActive(undefined)).toBe(false);
   });
 });
