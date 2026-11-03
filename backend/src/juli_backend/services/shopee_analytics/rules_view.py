@@ -125,3 +125,24 @@ def rules_summary(rules: ProfitRules) -> Mapping[str, Any]:
         "packaging_count": len(rules.packaging_by_key),
         "targets": {k: (float(v) if v is not None else None) for k, v in rules.targets.items()},
     }
+
+
+def with_sku_aliases(rules: ProfitRules, scope_to_sku: Mapping[str, str]) -> ProfitRules:
+    """The seller import keys per-SKU rules by ``item_id`` or ``item_id:variation_id``; order lines
+    carry the seller SKU text. Add each imported value under its seller SKU too (an explicit
+    seller-SKU key wins)."""
+
+    def alias(values: dict[str, Decimal]) -> dict[str, Decimal]:
+        out = dict(values)
+        for scope, value in values.items():
+            sku = scope_to_sku.get(scope)
+            if sku and sku not in out:
+                out[sku] = value
+        return out
+
+    return replace(
+        rules,
+        sku_cost=alias(rules.sku_cost),
+        packaging_by_key=alias(rules.packaging_by_key),
+        max_discount_pct=alias(rules.max_discount_pct),
+    )

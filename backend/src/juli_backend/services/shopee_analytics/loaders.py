@@ -51,6 +51,7 @@ from juli_backend.services.shopee_analytics.rules_view import (
     ProfitRules,
     RuleRow,
     read_rules,
+    with_sku_aliases,
 )
 from juli_backend.services.shopee_analytics.windows import PeriodChoice, Window, choose_periods
 from juli_backend.services.shopee_profit.ads_sources import (
@@ -165,6 +166,12 @@ async def load_context(session: AsyncSession, shop_id: uuid.UUID) -> ShopContext
     )
     rule_rows = await ShopRulesReadRepo(session).current(shop_id, RULE_KEYS_READ)
     rules = read_rules(RuleRow(r.rule_key, r.scope_ref, r.value) for r in rule_rows)
+    scope_to_sku = {
+        (f"{i.item_id}:{i.variation_id}" if i.variation_id else i.item_id): i.seller_sku
+        for i in items
+        if i.seller_sku
+    }
+    rules = with_sku_aliases(rules, scope_to_sku)
     formulas = await PlatformFeeFormulasReadRepo(session).for_platform()
     formula_rows = [
         fee_table.FormulaRow(

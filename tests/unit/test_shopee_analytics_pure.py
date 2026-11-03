@@ -433,3 +433,27 @@ def test_monthly_targets_from_the_seller_import_override_shop_wide_ones_for_thei
     assert november.target("daily_marketing_cap") == 160_000
     assert rules.for_month("2026-12").target("gmv_month") == 20_000_000
     assert rules.for_month("2026-12").target("daily_marketing_cap") is None
+
+
+def test_imported_per_sku_rules_are_found_under_the_order_lines_seller_sku():
+    from juli_backend.services.shopee_analytics.rules_view import with_sku_aliases
+
+    rules = read_rules(
+        [
+            RuleRow("sku_cost", "26107129526:251347806793", 30_000),
+            RuleRow("sku_cost", "24008937848", 65_000),
+            RuleRow("sku_cost", "G500001", 40_000),  # an explicit seller-SKU key wins
+            RuleRow("packaging_cost", "26107129526:251347806793", 2_000),
+        ]
+    )
+    aliased = with_sku_aliases(
+        rules,
+        {
+            "26107129526:251347806793": "G500001",
+            "24008937848": "TD01",
+        },
+    )
+    assert aliased.sku_cost["G500001"] == 40_000
+    assert aliased.sku_cost["TD01"] == 65_000
+    assert aliased.packaging_by_key["G500001"] == 2_000
+    assert aliased.sku_cost["26107129526:251347806793"] == 30_000
