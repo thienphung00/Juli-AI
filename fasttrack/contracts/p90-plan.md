@@ -90,3 +90,15 @@ same product shows the same numbers on every screen; no buyer data in any respon
   report does NOT reconcile with the ValidationBill month on the files held (the report covers a partial
   window; the bill's `Hoa hồng hằng tháng` also needs its number format confirmed). Open: download one
   full-month conversion report for a settled month and re-check before choosing the column.
+
+## Owner answers (2026-11-03)
+- **D-2/D-3 approved:** ads labelled "đơn đã đặt", never mixed into confirmed totals; "trong đó" at shop and
+  product level, not per flow.
+- **D-4 approved:** new key `the_san_pham_khac` for "Thẻ sản phẩm ngoài Trang shop" (existing `the_san_pham`
+  keeps its meaning); GMV = `Tổng doanh số (VND)`.
+- **D-5 approved:** file outranks connector for the same day; connector fills uncovered days; differences logged.
+- **D-1 open:** the owner notes per-product traffic can come from the shop page and from item listings. The
+  monthly product export (`Theo sản phẩm` sheets) has only the four L1 blocks; whether Seller Centre's
+  "Lưu lượng truy cập sản phẩm" page / `product/traffic/item-list` accepts a sub-source (Cửa hàng, Tìm kiếm,
+  Đề xuất) per product is unverified — the page asked for the account password on 03/11 and the agent
+  stopped. Check live (owner enters the password), then decide.
