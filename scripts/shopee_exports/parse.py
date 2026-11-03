@@ -1,9 +1,9 @@
 """Seller Centre export files → ingest gateway posts (ADR-117 §1-§3).
 
 Pure: a folder of exports in, a list of :class:`Post` out, nothing sent. Only the
-export kinds below are read; any other file (in particular the ``Đơn hàng`` and
-``Quản lý đánh giá`` exports, which carry buyer data, HĐDV 5.1) is listed as skipped
-and never opened.
+export kinds below are read; any other file (in particular the ``Quản lý đánh giá``
+export, which carries buyer data, HĐDV 5.1) is listed as skipped and never opened. The
+``Đơn hàng`` order export is opened ONLY by ``orders.py``, which never decodes a buyer column.
 
 - ``*.shopee-shop-stats.<from>-<to>.xlsx``:
   ``Đơn hàng đã đặt`` / ``Đơn đã xác nhận`` / ``Đơn Đã Thanh Toán`` → ``shop_overview``;
@@ -34,9 +34,11 @@ and never opened.
 - ``ads_keyword_<range>.csv`` → ``ads_keyword_period`` (a row with no keyword keeps the campaign).
 - ``In_Shop_Flash_Sale_Metrics_<range>.xlsx``: ``Chỉ Số`` day rows → ``promotion_daily``
   (type ``Flash Sale``), ``Tổng quan`` → ``promotion_period``.
-- RESERVED (parsed, validated, never sent; ``reserved.py``): ``SellerConversionReport_<ts>.csv``
-  → ``affiliate_order_lines`` (the order id is replaced by a keyed hash before anything leaves
-  the parser; buyer-looking columns are dropped unread); ``ops_log_*.csv`` → ``ads_change_log``.
+- ``Order.all.<from>_<to>.xlsx`` (the order export) → ``order_lines`` through ``orders.py``: an
+  allowlist by header, the buyer's columns never decoded, the order id replaced by a keyed hash.
+- ``SellerConversionReport_<ts>.csv`` → ``affiliate_order_lines`` (the order id is replaced by a
+  keyed hash before anything leaves the parser; buyer-looking columns are dropped unread);
+  ``ops_log_*.csv`` → ``ads_change_log``.
 
 A header the parser does not know raises :class:`UnknownColumn` (Seller Centre changed
 the export: fix the table here, never guess). Numbers are Vietnamese-formatted text
@@ -94,9 +96,6 @@ class Post:
 @dataclass
 class Parsed:
     posts: list[Post] = field(default_factory=list)
-    #: Bodies for datasets the gateway does not accept yet (``reserved.RESERVED_DATASETS``):
-    #: parsed and validated, never sent.
-    reserved: list[Post] = field(default_factory=list)
     #: The period of the affiliate dashboard exports that do not state one (``--window``).
     window: tuple[date, date] | None = None
     #: HMAC key of ``order_ref``; None = a random per-run key (refs are then run-local).
@@ -1767,7 +1766,7 @@ def parse_affiliate_bill(path: Path, parsed: Parsed) -> None:
         )
 
 
-# -- affiliate order lines (RESERVED: shopee_order_lines, migration 112) -----------------
+# -- affiliate order lines (marks order lines, migration 113) ------------------------------
 
 #: Order-report headers → row field. ``None`` = read for the key / filter only or dropped.
 CONVERSION_COLUMNS: dict[str, str | None] = {
@@ -1786,7 +1785,9 @@ CONVERSION_COLUMNS: dict[str, str | None] = {
     "Mã khuyến mãi": None,
     "Giá(₫)": "price",
     "Số lượng": "qty",
-    "Tên đối tác": "partner_name",
+    # The creator's display name is a person's name: read nowhere (the allowlist refuses a
+    # "name" key), the account handle below identifies the creator.
+    "Tên đối tác": None,
     "Tài khoản Tiếp thị liên kết": "affiliate_account",
     "MCN được liên kết": "mcn",
     "Mã hoa hồng": "commission_code",
@@ -1832,7 +1833,7 @@ _CONVERSION_NUMBERS = {
     "xtra_order_commission_mcn",
     "cost",
 }
-_CONVERSION_TEXT_WIDTH = {"campaign_partner": 120, "partner_name": 120, "affiliate_account": 120}
+_CONVERSION_TEXT_WIDTH = {"campaign_partner": 120, "affiliate_account": 120}
 #: Header words of a buyer-level column. Such a column is dropped unread (counted in the
 #: notes, never its values); any OTHER unknown header stops the load like everywhere else.
 _BUYER_HEADER = re.compile(
@@ -1915,7 +1916,7 @@ def parse_seller_conversions(path: Path, parsed: Parsed) -> None:
         days = sorted(date.fromisoformat(r["ordered_at"][:10]) for r in rows)
         for offset in range(0, len(rows), MAX_ORDER_LINE_ROWS):
             chunk = rows[offset : offset + MAX_ORDER_LINE_ROWS]
-            parsed.reserved.append(
+            parsed.posts.append(
                 Post(
                     "affiliate_order_lines",
                     _body(chunk, days[0], days[-1], "period", None, captured),
@@ -1924,7 +1925,7 @@ def parse_seller_conversions(path: Path, parsed: Parsed) -> None:
             )
 
 
-# -- ads change log (RESERVED: no table yet) ---------------------------------------------
+# -- ads change log (ads_change_log, migration 113) --------------------------------------
 
 _LOG_TIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
 _LOG_BUDGET = re.compile(r"Ngân sách hàng ngày:\s*₫?\s*([\d.,]+)\s*->\s*₫?\s*([\d.,]+)")
@@ -1982,9 +1983,19 @@ def parse_ops_log(path: Path, parsed: Parsed) -> None:
     captured = _captured_at(path)
     for _, rows in sorted(by_month.items()):
         days = sorted(date.fromisoformat(r["occurred_at"][:10]) for r in rows)
-        parsed.reserved.append(
+        parsed.posts.append(
             Post("ads_change_log", _body(rows, days[0], days[-1], "period", None, captured), file)
         )
+
+
+# -- order export --------------------------------------------------------------------------
+
+
+def parse_order_export(path: Path, parsed: Parsed) -> None:
+    """The order export; all the work (and the PII rules) is in ``orders.py``."""
+    from scripts.shopee_exports.orders import parse_order_export as run
+
+    run(path, parsed)
 
 
 # -- in-shop flash sale metrics ----------------------------------------------------------
@@ -2090,6 +2101,7 @@ PARSERS: tuple[tuple[re.Pattern[str], Any], ...] = (
         parse_seller_conversions,
     ),
     (re.compile(r"^ops_log_[^/]+\.csv$", re.I), parse_ops_log),
+    (re.compile(rf"^Order\.all\.\d{{8}}_\d{{8}}{_COPY}\.xlsx$"), parse_order_export),
     (
         re.compile(rf"^In_Shop_Flash_Sale_Metrics_\d{{8}}-\d{{8}}{_COPY}\.xlsx$", re.I),
         parse_flash_sale_metrics,
@@ -2158,4 +2170,6 @@ def parse_folder(
             continue
         parser(path, parsed)
     _one_flash_sale_owner(parsed)
+    # Order lines first: the affiliate lane only marks lines the order export already wrote.
+    parsed.posts.sort(key=lambda post: post.dataset != "order_lines")
     return parsed
