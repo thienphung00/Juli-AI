@@ -51,7 +51,7 @@
   → path D: trigger "Xuất", collect the file from the export history, strip PII in the browser. Not clicked during recon.
 
 ## Finance
-- Sidebar has no Tài chính › Doanh thu for this sub-account → fees (M2) still blocked; Hạnh must grant the finance section.
+- Sidebar has no Tài chính › Doanh thu for this sub-account → fees (M2) still blocked; the client's manager must grant the finance section.
 
 ## Connector plan from this recon
 1. product list reader (get_product_list, paged; + campaign_info_by_item_list) → platform_items + platform_item_snapshots + images

@@ -363,7 +363,7 @@ const tiles = [
 tiles[5].style = sc.bien < TARGET ? 'background: #fdecec; border: 1px solid #e5484d' : 'background: #ffffff; border: 1px solid #ece3e7';
 tiles[5].flag = sc.bien < TARGET ? 'Dưới mục tiêu' : '';
 tiles[5].chipStyle = CHIP_DOWN;
-// 5 con số của Huyền
+// 5 con số chính
 const dG = sc.gmv - sp.gmv, dS = sc.spend - sp.spend; const eff = dS ? dG / dS : 0;
 const adCap = 250000; const adSpendDay = adShop('cur').spend / 30;
 const discCh = chipPt(sp.disc, sc.disc), ordCh = chipOf(sp.orders, sc.orders), aovCh = chipOf(sp.aov, sc.aov);
