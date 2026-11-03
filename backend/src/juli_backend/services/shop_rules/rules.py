@@ -48,6 +48,19 @@ Fast track D24.21 (5), the content runs' voice (``content_cards.driver``):
   characters. Content drafts must not contain them, and neither may a listing
   title / description Juli writes (``listing_edits``).
 
+P90 step 4 (Cài đặt › Thông số shop, ADR-120 d.12): what the seller imports from the
+template, keyed per SKU (scope ``item_id`` or ``item_id:variation_id``, see
+``services/shop_inputs.sku_scope``) or per month (scope ``YYYY-MM``) --
+
+- ``packaging_cost`` (scope: SKU) -- VND per order line, ≥ 0.
+- ``stock`` (scope: SKU) -- units, integer ≥ 0.
+- ``restock_date`` (scope: SKU) -- ISO date ``YYYY-MM-DD``.
+- ``product_group`` (scope: SKU) -- ``thuong_hieu`` | ``phan_phoi``.
+- ``item_status`` (scope: SKU) -- ``ban`` | ``tam_dung`` | ``ngung`` | ``xa_hang``.
+- ``monthly_gmv_target`` / ``monthly_orders_target`` / ``monthly_aov_target`` /
+  ``monthly_margin_target`` / ``daily_marketing_cap`` (scope: month) -- the month's
+  targets and the daily marketing cap.
+
 The P14-F keys are read by nothing yet but the ranking layer's typed accessor
 (``economics.shop_economics``).
 
@@ -64,10 +77,11 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -97,6 +111,42 @@ LIVE_SCHEDULE = "live_schedule"
 CONTENT_TONE = "content_tone"
 BANNED_TERMS = "banned_terms"
 
+# P90 step 4: the seller import's SKU and monthly keys.
+PACKAGING = "packaging_cost"
+STOCK = "stock"
+RESTOCK_DATE = "restock_date"
+PRODUCT_GROUP = "product_group"
+ITEM_STATUS = "item_status"
+MONTHLY_GMV = "monthly_gmv_target"
+MONTHLY_ORDERS = "monthly_orders_target"
+MONTHLY_AOV = "monthly_aov_target"
+MONTHLY_MARGIN_PCT = "monthly_margin_target"
+MONTHLY_MARKETING_CAP = "daily_marketing_cap"
+
+PRODUCT_GROUPS: tuple[str, ...] = ("thuong_hieu", "phan_phoi")
+ITEM_STATUSES: tuple[str, ...] = ("ban", "tam_dung", "ngung", "xa_hang")
+#: Per-SKU keys the import writes (``sku_cost`` and ``max_discount_pct`` are the older ones).
+SKU_INPUT_RULE_KEYS: tuple[str, ...] = (
+    SKU_COST,
+    PACKAGING,
+    MAX_DISCOUNT_PCT,
+    STOCK,
+    RESTOCK_DATE,
+    PRODUCT_GROUP,
+    ITEM_STATUS,
+)
+#: Per-month keys the import writes, in the template's column order.
+MONTHLY_RULE_KEYS: tuple[str, ...] = (
+    MONTHLY_GMV,
+    MONTHLY_ORDERS,
+    MONTHLY_AOV,
+    MONTHLY_MARGIN_PCT,
+    MONTHLY_MARKETING_CAP,
+)
+MONTH_SCOPE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+MAX_VND_VALUE = 10_000_000_000_000
+MAX_STOCK = 10_000_000
+
 #: The P14-F keys, in the editor's order.
 OFF_API_RULE_KEYS: tuple[str, ...] = (
     SKU_COST,
@@ -121,13 +171,32 @@ RULE_KEYS: tuple[str, ...] = (
     CONTENT_TONE,
     BANNED_TERMS,
     *OFF_API_RULE_KEYS,
+    PACKAGING,
+    STOCK,
+    RESTOCK_DATE,
+    PRODUCT_GROUP,
+    ITEM_STATUS,
+    *MONTHLY_RULE_KEYS,
 )
 
 #: P14-F shop-wide keys; each is a ``ShopRules`` attribute of the same name.
 _SHOP_WIDE_OFF_API: frozenset[str] = frozenset(set(OFF_API_RULE_KEYS) - {SKU_COST})
 
 #: Rules keyed by a subject (metric / product / SKU); the rest are shop-wide.
-SCOPED_RULES: frozenset[str] = frozenset({STABILITY_BAND, PRODUCT_COST, MAX_DISCOUNT_PCT, SKU_COST})
+SCOPED_RULES: frozenset[str] = frozenset(
+    {
+        STABILITY_BAND,
+        PRODUCT_COST,
+        MAX_DISCOUNT_PCT,
+        SKU_COST,
+        PACKAGING,
+        STOCK,
+        RESTOCK_DATE,
+        PRODUCT_GROUP,
+        ITEM_STATUS,
+        *MONTHLY_RULE_KEYS,
+    }
+)
 
 WEEKDAYS: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 MAX_LIVE_SLOTS = 14
@@ -232,6 +301,10 @@ def validate_rule(rule_key: str, scope_ref: str, value: Any) -> tuple[str, Any]:
     elif scope_ref:
         raise RuleValidationError(f"{rule_key}: a shop-wide rule takes no scope_ref")
 
+    if rule_key in _SELLER_INPUT_VALIDATORS:
+        if rule_key in MONTHLY_RULE_KEYS and not MONTH_SCOPE.match(scope_ref):
+            raise RuleValidationError(f"{rule_key}: scope_ref is a month, YYYY-MM")
+        return scope_ref, _SELLER_INPUT_VALIDATORS[rule_key](value)
     if rule_key == STABILITY_BAND:
         if scope_ref not in BAND_METRICS:
             raise RuleValidationError(
@@ -393,6 +466,53 @@ _OFF_API_VALIDATORS: Mapping[str, Any] = {
     TARGET_ROAS: _target_roas,
     GMV_MAX_DAILY_BUDGET: _daily_budget,
     LIVE_SCHEDULE: _live_schedule,
+}
+
+
+def _non_negative(value: Any, *, rule: str, ceiling: int = MAX_VND_VALUE) -> int | float:
+    number = _number(value, rule=rule)
+    if not Decimal(0) <= number <= Decimal(ceiling):
+        raise RuleValidationError(f"{rule}: value must be between 0 and {ceiling}")
+    return _json_number(number)
+
+
+def _count(value: Any, *, rule: str, ceiling: int) -> int:
+    number = _number(value, rule=rule)
+    if number != number.to_integral_value() or not Decimal(0) <= number <= Decimal(ceiling):
+        raise RuleValidationError(f"{rule}: value must be a whole number between 0 and {ceiling}")
+    return int(number)
+
+
+def _iso_date(value: Any) -> str:
+    try:
+        parsed = date.fromisoformat(value) if isinstance(value, str) else None
+    except ValueError:
+        parsed = None
+    if parsed is None or parsed.isoformat() != value:
+        raise RuleValidationError(f"{RESTOCK_DATE}: value must be a date, YYYY-MM-DD")
+    return parsed.isoformat()
+
+
+def _choice(value: Any, *, rule: str, allowed: tuple[str, ...]) -> str:
+    if not isinstance(value, str) or value not in allowed:
+        raise RuleValidationError(f"{rule}: value must be one of {list(allowed)}")
+    return value
+
+
+#: P90 step 4 validators (``sku_cost`` and ``max_discount_pct`` keep their rules above).
+_SELLER_INPUT_VALIDATORS: Mapping[str, Any] = {
+    PACKAGING: lambda v: _non_negative(v, rule=PACKAGING),
+    STOCK: lambda v: _count(v, rule=STOCK, ceiling=MAX_STOCK),
+    RESTOCK_DATE: _iso_date,
+    PRODUCT_GROUP: lambda v: _choice(v, rule=PRODUCT_GROUP, allowed=PRODUCT_GROUPS),
+    ITEM_STATUS: lambda v: _choice(v, rule=ITEM_STATUS, allowed=ITEM_STATUSES),
+    MONTHLY_GMV: lambda v: _non_negative(v, rule=MONTHLY_GMV),
+    MONTHLY_ORDERS: lambda v: _count(v, rule=MONTHLY_ORDERS, ceiling=MAX_STOCK),
+    MONTHLY_AOV: lambda v: _non_negative(v, rule=MONTHLY_AOV),
+    MONTHLY_MARGIN_PCT: lambda v: _pct(
+        v, rule=MONTHLY_MARGIN_PCT, low_open=False, high=100, high_open=True
+    ),
+    MONTHLY_MARKETING_CAP: lambda v: _non_negative(v, rule=MONTHLY_MARKETING_CAP),
 }
 
 
