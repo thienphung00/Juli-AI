@@ -18,11 +18,12 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <div style="width: 1280px; box-sizing: border-box; padding: 28px 32px 40px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 16px">
 
 <header style="display: flex; align-items: center; gap: 12px">
-<a href="#" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">‹ Tất cả sản phẩm</a>
+<a href="{{backHref}}" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">‹ {{backLabel}}</a>
 <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">SẢN PHẨM</div>
 <span style="margin-left: auto; font-size: 12px; font-weight: 600; color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 999px; padding: 4px 10px">Shopee · Shop mẫu gia dụng</span>
 </header>
 
+<sc-if value="{{isFull}}" hint-placeholder-val="{{ true }}">
 <section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 20px; display: grid; grid-template-columns: 264px minmax(0, 1fr); gap: 24px">
 
 <div style="display: flex; flex-direction: column; gap: 10px">
@@ -60,7 +61,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <span style="display: inline-flex; align-items: center; gap: 4px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #fdeef4; border: 1px solid #f8b9d3"></span>Từ khoá chính</span>
 <span style="display: inline-flex; align-items: center; gap: 4px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #f3edf0; border: 1px solid #e3d6dc"></span>Phụ</span>
 <span style="display: inline-flex; align-items: center; gap: 4px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #fff4e0; border: 1px solid #f59e0b"></span>Nằm ngoài 100 ký tự</span>
-<a href="CardWhatIf.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Đổi tiêu đề ›</a>
+<a href="{{titleCardHref}}" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Đổi tiêu đề ›</a>
 </div>
 </div>
 
@@ -77,8 +78,8 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap; border-top: 1px solid #f1e6eb; padding-top: 4px">
 <a href="#" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; padding-right: 14px">Mở trên Shopee ↗</a>
 <a href="#" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; padding-right: 14px">Mở trong Seller Centre ↗</a>
-<a href="CardWhatIf.dc.html" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; padding-right: 14px">Xem 3 đề xuất ›</a>
-<a href="#" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Phân tích sản phẩm này ›</a>
+<a href="{{topCardHref}}" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; padding-right: 14px">Xem {{cardCount}} đề xuất ›</a>
+<a href="Ranking.dc.html#kpi=gmv&src=all&focus=BEP-S5&from=san-pham" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Phân tích sản phẩm này ›</a>
 </div>
 </div>
 </section>
@@ -140,8 +141,16 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <div style="font-size: 12px; color: #5f5f6b">Cập nhật: giá, tồn 03/11 06:10 (Seller Centre) · giá vốn thông số v3 02/11 · đơn báo cáo đơn 03/11 · tổng đơn 30 ngày = {{varTotal}}</div>
 </section>
 
+</sc-if>
+<sc-if value="{{notFull}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap"><h1 style="margin: 0; font-size: 22px; font-weight: 700">{{prodName}}</h1><span style="font-size: 12px; font-weight: 600; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">{{prodId}}</span><span style="font-size: 12px; font-weight: 600; color: #8a4b00; background: #fff4e0; border-radius: 999px; padding: 4px 10px">{{covNote}}</span></div>
+<div style="font-size: 13px; color: #4a4a55">Trang đầy đủ (ảnh, tiêu đề, phiên bản, từ khoá, giá sàn) chỉ vẽ cho Bộ vệ sinh bếp 5 món (BEP-S5). Các khối bên dưới dùng cùng bộ số với Tổng quan và Xếp hạng.</div>
+<div style="display: flex; gap: 14px; flex-wrap: wrap"><a href="{{topCardHref}}" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem {{cardCount}} đề xuất ›</a><a href="TongQuan.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Về Tổng quan ›</a></div>
+</section>
+</sc-if>
 <section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 14px 20px; display: flex; flex-direction: column; gap: 12px">
-<div style="display: flex; align-items: baseline; gap: 12px"><h2 style="margin: 0; font-size: 16px; font-weight: 700">5 con số</h2><span style="font-size: 13px; color: #5f5f6b">30 ngày · so với 30 ngày trước · VND và %</span></div>
+<div style="display: flex; align-items: baseline; gap: 12px"><h2 style="margin: 0; font-size: 16px; font-weight: 700">5 con số chính</h2><span style="font-size: 13px; color: #5f5f6b">30 ngày · so với 30 ngày trước · cùng định nghĩa với Tổng quan và thẻ</span></div>
 <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px">
 <sc-for list="{{kpis}}" as="m" hint-placeholder-count="5">
 <div style="border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; background: #ffffff; border: 1px solid #ece3e7">
@@ -154,6 +163,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <div style="font-size: 12px; color: #5f5f6b">Cập nhật: báo cáo hiệu suất sản phẩm đến 02/11 · biên lợi nhuận: sau giá vốn, đóng gói, phí sàn, quảng cáo, voucher và khuyến mãi, hoa hồng liên kết</div>
 </section>
 
+<sc-if value="{{hasBanner}}" hint-placeholder-val="{{ false }}"><div role="status" style="display: flex; align-items: center; gap: 12px; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 8px 14px; font-size: 13px"><b style="color: #b0386a">{{fromBanner}}</b><a href="{{backHref}}" style="margin-left: auto; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">‹ Về Xếp hạng</a></div></sc-if>
 <div role="tablist" aria-label="Sản phẩm" style="display: inline-flex; align-self: flex-start; gap: 4px; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 999px; padding: 4px">
 <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="font: inherit; font-size: 14px; font-weight: 600; border: 0; border-radius: 999px; min-height: 40px; padding: 0 18px; cursor: pointer; {{t.style}}">{{t.label}}</button></sc-for>
 </div>
@@ -169,7 +179,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </div>
 <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px">
 <sc-for list="{{chain}}" as="c" hint-placeholder-count="6">
-<div style="border: 1px solid #ece3e7; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px">
+<div style="border: 1px solid #ece3e7; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; {{c.boxStyle}}">
 <span style="font-size: 12px; font-weight: 600; color: #b0386a">{{c.label}}</span>
 <span style="font-size: 18px; font-weight: 700">{{c.value}}</span>
 <span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 6px; align-self: flex-start; {{c.deltaStyle}}">{{c.delta}}</span>
@@ -199,7 +209,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <sc-for list="{{markers}}" as="m" hint-placeholder-count="3">
 <div style="display: grid; grid-template-columns: 70px minmax(0, 1.6fr) minmax(0, 2fr) minmax(0, 1.6fr) 120px; gap: 12px; align-items: center; border: 1px solid #f1e6eb; border-radius: 12px; padding: 0 12px; min-height: 48px; font-size: 13px">
 <b>◆ {{m.d}}</b><span style="font-weight: 600">{{m.t}}</span><span style="color: #4a4a55">{{m.t7}}</span><span style="color: #4a4a55">{{m.fin}}</span>
-<a href="CardWhatIf.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; justify-content: flex-end">{{m.card}} ›</a>
+<a href="{{voucherCardHref}}" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; justify-content: flex-end">{{m.card}} ›</a>
 </div>
 </sc-for>
 </div>
@@ -211,22 +221,23 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
 <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
 <h2 style="margin: 0; font-size: 18px; font-weight: 700">Nguồn của sản phẩm này</h2>
-<span style="font-size: 13px; color: #5f5f6b">30 ngày · {{totalO}} đơn · mỗi bảng cộng đúng 100%</span>
-<button type="button" aria-pressed="{{adOn}}" onClick="{{toggleAd}}" style="margin-left: auto; font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; {{adBtnStyle}}">{{adBtnLabel}}</button>
+<span style="font-size: 13px; color: #5f5f6b">30 ngày · {{totalO}} đơn · {{tpCaption}}</span>
+<button type="button" aria-pressed="{{kidsOn}}" onClick="{{toggleKids}}" style="margin-left: auto; font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; {{kidsStyle}}">{{kidsLabel}}</button>
+<button type="button" aria-pressed="{{adOn}}" onClick="{{toggleAd}}" style=" font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; {{adBtnStyle}}">{{adBtnLabel}}</button>
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 8px">
 <h3 style="margin: 0; font-size: 16px; font-weight: 700">Luồng khách vào</h3>
 <div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 60px minmax(0, 1.6fr) minmax(0, 1fr) 90px minmax(0, 1.8fr); gap: 12px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Nguồn</span><span>Đơn</span><span>Tỉ lệ đơn</span><span>GMV</span><span>Biên</span><span>→ đề xuất</span></div>
 <sc-for list="{{traffic}}" as="r" hint-placeholder-count="5">
-<div style="border: 1px solid #f1e6eb; border-radius: 12px; display: flex; flex-direction: column">
+<div style="border: 1px solid #f1e6eb; border-radius: 12px; display: flex; flex-direction: column; {{r.boxStyle}}">
 <div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 60px minmax(0, 1.6fr) minmax(0, 1fr) 90px minmax(0, 1.8fr); gap: 12px; align-items: center; padding: 6px 12px; min-height: 48px; font-size: 14px">
 <span style="display: flex; align-items: center; gap: 8px"><b>{{r.k}}</b><span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 6px; {{r.grpStyle}}">{{r.grp}}</span></span>
 <b>{{r.o}}</b>
 <span style="display: flex; align-items: center; gap: 8px"><span style="flex: 1; height: 6px; background: #f3edf0; border-radius: 999px; display: flex"><span style="height: 6px; border-radius: 999px; background: #71717a; width: {{r.w}}%"></span></span><b style="min-width: 48px; text-align: right">{{r.pct}}</b></span>
 <span>{{r.gmv}}</span>
 <span style="font-weight: 600; {{r.marStyle}}">{{r.mar}}</span>
-<span>{{r.card}}</span>
+<a href="{{r.cardHref}}" style="font-size: 13px; font-weight: 600; text-decoration: none">{{r.card}}</a>
 </div>
 <sc-if value="{{r.hasAd}}" hint-placeholder-val="{{ false }}"><div style="display: flex; align-items: center; gap: 8px; margin: 0 12px 8px 32px; padding: 6px 10px; background: #fff7fa; border: 1px dashed #f8b9d3; border-radius: 10px; font-size: 13px"><b style="color: #b0386a">trong đó Quảng cáo</b><span>{{r.adO}} đơn · {{r.adPct}} đơn của nguồn này</span><span style="color: #5f5f6b">Không cộng thêm vào tổng</span></div></sc-if>
 </div>
@@ -238,15 +249,16 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <h3 style="margin: 0; font-size: 16px; font-weight: 700">Mức ưu đãi trên mỗi dòng đơn</h3>
 <div style="display: grid; grid-template-columns: minmax(0, 1.8fr) 60px minmax(0, 1.6fr) minmax(0, 1fr) 90px minmax(0, 1.8fr); gap: 12px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Loại ưu đãi</span><span>Đơn</span><span>Tỉ lệ đơn</span><span>GMV</span><span>Biên</span><span>→ đề xuất</span></div>
 <sc-for list="{{levers}}" as="r" hint-placeholder-count="4">
-<div style="display: grid; grid-template-columns: minmax(0, 1.8fr) 60px minmax(0, 1.6fr) minmax(0, 1fr) 90px minmax(0, 1.8fr); gap: 12px; align-items: center; border: 1px solid #f1e6eb; border-radius: 12px; padding: 6px 12px; min-height: 48px; font-size: 14px">
+<div style="display: grid; grid-template-columns: minmax(0, 1.8fr) 60px minmax(0, 1.6fr) minmax(0, 1fr) 90px minmax(0, 1.8fr); gap: 12px; align-items: center; border: 1px solid #f1e6eb; border-radius: 12px; padding: 6px 12px; min-height: 48px; font-size: 14px; {{r.boxStyle}}">
 <b>{{r.k}}</b><b>{{r.o}}</b>
 <span style="display: flex; align-items: center; gap: 8px"><span style="flex: 1; height: 6px; background: #f3edf0; border-radius: 999px; display: flex"><span style="height: 6px; border-radius: 999px; background: #71717a; width: {{r.w}}%"></span></span><b style="min-width: 48px; text-align: right">{{r.pct}}</b></span>
-<span>{{r.gmv}}</span><span style="font-weight: 600; {{r.marStyle}}">{{r.mar}}</span><span>{{r.card}}</span>
+<span>{{r.gmv}}</span><span style="font-weight: 600; {{r.marStyle}}">{{r.mar}}</span><a href="{{r.cardHref}}" style="font-size: 13px; font-weight: 600; text-decoration: none">{{r.card}}</a>
 </div>
 </sc-for>
 <div style="display: flex; justify-content: space-between; padding: 0 12px; font-size: 14px"><span style="color: #5f5f6b">Tổng · bằng số đơn của sản phẩm</span><b>{{totalO}} đơn · 100,0% · {{totalG}} · {{totalM}}</b></div>
 </div>
 
+<sc-if value="{{hasCross}}" hint-placeholder-val="{{ true }}">
 <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #f1e6eb; padding-top: 14px">
 <h3 style="margin: 0; font-size: 16px; font-weight: 700">Nguồn × ưu đãi · số đơn</h3>
 <div style="display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)) 80px; gap: 8px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span></span><sc-for list="{{crossHead}}" as="h" hint-placeholder-count="4"><span>{{h}}</span></sc-for><span>Cộng</span></div>
@@ -259,17 +271,18 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </sc-for>
 <div style="display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)) 80px; gap: 8px; padding: 0 12px; min-height: 40px; align-items: center; border-top: 1px solid #ece3e7; font-size: 14px"><b>Cộng</b><sc-for list="{{crossSums}}" as="c" hint-placeholder-count="4"><b>{{c}}</b></sc-for><b>{{totalO}}</b></div>
 </div>
+</sc-if>
 
 <sc-if value="{{adOn}}" hint-placeholder-val="{{ true }}">
 <div style="display: flex; flex-direction: column; gap: 8px; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 14px 16px">
-<div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap"><h3 style="margin: 0; font-size: 16px; font-weight: 700">Quảng cáo · lớp phủ</h3><span style="font-size: 13px; color: #4a4a55">{{adTotalO}} đơn ({{adPctO}}) nằm trong Tìm kiếm và Đề xuất · chi {{adTotalSpend}} · mỗi chiến dịch được chấm theo mục đích</span></div>
+<div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap"><h3 style="margin: 0; font-size: 16px; font-weight: 700">Quảng cáo · lớp phủ</h3><span style="font-size: 13px; color: #4a4a55">{{adTotalO}} đơn ({{adPctO}}) nằm trong các luồng (chủ yếu Thẻ sản phẩm) · chi {{adTotalSpend}} · mỗi chiến dịch được chấm theo mục đích</span></div>
 <sc-for list="{{ads}}" as="a" hint-placeholder-count="4">
 <div style="display: grid; grid-template-columns: minmax(0, 2fr) 130px 100px 60px minmax(0, 2.2fr) 80px; gap: 12px; align-items: center; background: #ffffff; border: 1px solid #f1e6eb; border-radius: 10px; padding: 0 12px; min-height: 48px; font-size: 13px">
 <b>{{a.n}}</b>
 <span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 8px; justify-self: start; {{a.pStyle}}">{{a.pl}}</span>
 <span>{{a.spend}}</span><span>{{a.o}} đơn</span>
 <span style="display: flex; align-items: center; gap: 6px"><span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 6px; {{a.okStyle}}">{{a.ok}}</span>{{a.judge}}</span>
-<a href="CardWhatIf.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; justify-content: flex-end">Thẻ ›</a>
+<a href="{{a.href}}" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; justify-content: flex-end">Thẻ ›</a>
 </div>
 </sc-for>
 <div style="font-size: 12px; color: #5f5f6b">Hiển thị: chấm theo chi phí/1.000 lượt xem và CTR · Lượt vào shop: theo chi phí/lượt vào · Chuyển đổi: ROAS so với hoà vốn · Ra mắt: ngân sách có trần và ngày kết thúc</div>
@@ -295,7 +308,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
 <div style="background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #b0386a">Phủ trong tiêu đề</span><span style="font-size: 22px; font-weight: 700">{{cov.all}}</span><span style="font-size: 12px; color: #5f5f6b">Tổng lượt tìm của từ khoá chính và phụ có trong tiêu đề</span></div>
 <div style="background: #faf7f8; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #b0386a">Trong 100 ký tự đầu</span><span style="font-size: 22px; font-weight: 700">{{cov.vis}}</span><span style="font-size: 12px; color: #5f5f6b">Phần tìm kiếm thực sự hiện</span></div>
-<div style="background: #faf7f8; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #b0386a">Chưa có trong tiêu đề</span><span style="font-size: 16px; font-weight: 700">{{cov.missing}}</span><a href="CardWhatIf.dc.html" style="font-size: 13px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem thẻ tiêu đề ›</a></div>
+<div style="background: #faf7f8; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #b0386a">Chưa có trong tiêu đề</span><span style="font-size: 16px; font-weight: 700">{{cov.missing}}</span><a href="{{titleCardHref}}" style="font-size: 13px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem thẻ tiêu đề ›</a></div>
 </div>
 
 <div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 2.3fr) minmax(0, 1fr) 100px; gap: 10px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Từ khoá</span><span>Lượt tìm/tháng</span><span>Độ khó</span><span>CPC</span><span>Vị trí trong tiêu đề</span><span>Hạng của ta</span><span>Giá: TB thị trường · ta · sàn</span><span>Thẻ liên quan</span><span></span></div>
@@ -308,7 +321,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <span style="font-weight: 600; {{r.posStyle}}">{{r.pos}}</span>
 <span style="font-weight: 600">{{r.rank}}</span>
 <span style="display: flex; flex-direction: column; gap: 4px">{{r.price}}<span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 6px; align-self: flex-start; {{r.priceStyle}}">{{r.priceNote}}</span></span>
-<span style="display: flex; flex-direction: column; gap: 2px"><sc-for list="{{r.cards}}" as="c" hint-placeholder-count="2"><a href="CardWhatIf.dc.html" style="font-size: 13px; font-weight: 600; text-decoration: none; min-height: 24px; display: inline-flex; align-items: center">{{c}} ›</a></sc-for>{{r.noCards}}</span>
+<span style="display: flex; flex-direction: column; gap: 2px"><sc-for list="{{r.cards}}" as="c" hint-placeholder-count="2"><a href="{{c.href}}" style="font-size: 13px; font-weight: 600; text-decoration: none; min-height: 24px; display: inline-flex; align-items: center">{{c.t}} ›</a></sc-for>{{r.noCards}}</span>
 <button type="button" onClick="{{r.act}}" disabled="{{r.actOff}}" style="font: inherit; font-size: 12px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 8px; cursor: pointer">{{r.actLabel}}</button>
 </div>
 </sc-for>
@@ -336,7 +349,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <b style="font-size: 16px; color: #8a4b00">Chưa có giá vốn cho {{sel.id}}</b>
 <span style="font-size: 14px; max-width: 640px">Không có giá vốn, Juli chưa tính được biên lợi nhuận và giá sàn của phiên bản này. Thẻ giảm giá và voucher cho {{sel.id}} đang tạm dừng.</span>
 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
-<a href="CaiDatImport.dc.html" style="font-weight: 600; text-decoration: none; color: #ffffff; background: #c2306d; border-radius: 10px; min-height: 44px; padding: 0 18px; display: inline-flex; align-items: center">Nhập giá vốn ở Cài đặt ›</a>
+<a href="CaiDatImport.dc.html#step=tai&sku=BEP-S3&from=san-pham" style="font-weight: 600; text-decoration: none; color: #ffffff; background: #c2306d; border-radius: 10px; min-height: 44px; padding: 0 18px; display: inline-flex; align-items: center">Nhập giá vốn ở Cài đặt ›</a>
 <span style="font-size: 13px; color: #4a4a55">Cài đặt › Thông số shop · tải mẫu .xlsx đã điền sẵn SKU</span>
 </div>
 </div>
@@ -418,6 +431,380 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":3200}}'>
+
+/* data */
+/* ===== SHARED DATASET v1 · identical in every artboard (one source, copied into each file) ===== */
+const DS = (() => {
+const fmt = (n, d = 0) => { const s = Math.abs(n).toFixed(d); let [i, f] = s.split('.'); i = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); return (n < 0 && Number(s) !== 0 ? '−' : '') + i + (f ? ',' + f : ''); };
+const vnd = (n) => fmt(Math.round(n)) + 'đ';
+const sv = (n) => (Math.round(n) >= 0 ? '+' : '−') + fmt(Math.abs(Math.round(n))) + 'đ';
+const pc = (x, d = 2) => fmt(x * 100, d) + '%';
+const TARGET = 0.10, FEE = 0.15, ADRATE = 0.184, CAP_MAX = 0.10;
+const TARGETS = { month: 'T11/2026', gmv: 260000000, orders: 3100, aov: 83900, bien: 0.10, adCapDay: 0 };
+const AD_CAP_DAY = 1200000; TARGETS.adCapDay = AD_CAP_DAY;
+const ALLOWED = { views: ['title', 'keyword', 'ads_budget', 'affiliate_commission'], ctr: ['cover_image', 'title', 'price_display'], ctor: ['product_discount', 'min_spend_voucher', 'review_voucher', 'price'], aov: ['bundle_deal', 'add_on', 'min_spend_voucher', 'variation_set'], bien: ['price', 'voucher_cap', 'ads_roas_target', 'ads_pause'], roas: ['ads_roas_target', 'ads_pause', 'ads_purpose'], lien_ket: ['affiliate_commission', 'affiliate_target_campaign'] };
+const split = (total, w) => { const s = w.reduce((a, b) => a + b, 0); return w.map((x) => total * x / s); };
+const round1 = (x) => Math.round(x * 1e6) / 1e6;
+/* ---- luồng (contract §2) ---- */
+const FLOWS = [
+  { k: 'the_san_pham', name: 'Thẻ sản phẩm (ngoài Trang shop)', short: 'Thẻ sản phẩm', vs: 0.56, cm: 1.0, om: 1.0, am: 1.0, bd: 0.0, adv: 0.10 },
+  { k: 'trang_shop', name: 'Trang shop', short: 'Trang shop', vs: 0.12, cm: 1.30, om: 1.40, am: 1.10, bd: 0.04, adv: 0.08 },
+  { k: 'live', name: 'Live', short: 'Live', vs: 0.06, cm: 1.50, om: 1.10, am: 0.90, bd: -0.02, adv: 0.02 },
+  { k: 'video', name: 'Video', short: 'Video', vs: 0.14, cm: 0.75, om: 0.80, am: 0.95, bd: 0.01, adv: 0.03 },
+  { k: 'lien_ket', name: 'Tiếp thị liên kết (Affiliate)', short: 'Tiếp thị liên kết', vs: 0.12, cm: 1.10, om: 1.15, am: 1.05, bd: -0.06, adv: 0 }
+];
+const KIDS = [
+  { k: 'search', name: 'Tìm kiếm', vs: 0.42, cm: 1.15, om: 1.05, am: 1.0, bd: 0.01 },
+  { k: 'de_xuat', name: 'Đề xuất', vs: 0.34, cm: 0.80, om: 0.85, am: 0.95, bd: -0.01 },
+  { k: 'gio_hang', name: 'Giỏ hàng', vs: 0.05, cm: 1.60, om: 1.50, am: 1.10, bd: 0.03 },
+  { k: 'don_mua', name: 'Đơn mua', vs: 0.04, cm: 1.40, om: 1.30, am: 1.05, bd: 0.02 },
+  { k: 'khuyen_mai', name: 'Khuyến mãi (gồm Flash Sale)', vs: 0.11, cm: 1.50, om: 1.0, am: 0.85, bd: -0.09 },
+  { k: 'khac', name: 'Khác', vs: 0.04, cm: 0.90, om: 0.80, am: 0.90, bd: -0.02 }
+];
+const LEVERS = [
+  { k: 'none', name: 'Không ưu đãi', am: 1.0, bd: 0.07 },
+  { k: 'voucher', name: 'Voucher', am: 0.92, bd: -0.02 },
+  { k: 'promo', name: 'Khuyến mãi (gồm giá Flash Sale)', am: 0.88, bd: -0.06 },
+  { k: 'combo', name: 'Combo / Mua kèm', am: 1.35, bd: 0.03 }
+];
+const RV = 0.15, RP = 0.20, RC = 0.10;
+const AD = { cm: 1.35, om: 0.85, am: 0.98, bd: -0.09 };
+const PV = { the_san_pham: 1.04, trang_shop: 0.92, live: 0.95, video: 1.10, lien_ket: 0.78 }, PC = { the_san_pham: 1.0, trang_shop: 1.04, live: 1.02, video: 0.97, lien_ket: 0.95 };
+/* ---- SKU của sản phẩm vẽ đầy đủ (BEP-S5) ---- */
+const SHOP = { fee: FEE, ad: ADRATE, aff: 0, target: TARGET, cap: CAP_MAX, voucher: 10000, voucherMin: 200000, voucherBudgetMonth: 500000 };
+const SKUS = [
+  { id: 'BEP-S5-CB', name: 'Bộ 5 món · Cơ bản', list: 200000, promo: null, stock: 214, restock: null, cogs: 100000, pack: 3000, fixed: 0, img: 0, lever: 'voucher', baskets: [{ P: 200000, n: 24 }, { P: 360000, n: 6 }], comboDisc: 0 },
+  { id: 'BEP-S5-L', name: 'Bộ 5 món · Găng size L', list: 185000, promo: null, stock: 96, restock: null, cogs: 96000, pack: 3000, fixed: 0, img: 1, lever: 'none', baskets: [{ P: 185000, n: 20 }], comboDisc: 0 },
+  { id: 'BEP-S3', name: 'Bộ 3 món · Găng, xơ mướp, nước rửa', list: 129000, promo: 119000, stock: 9, restock: '08/11', cogs: null, pack: null, fixed: 0, img: 2, lever: 'promo', baskets: [{ P: 119000, n: 12 }], comboDisc: 0 },
+  { id: 'BEP-S5-QT', name: 'Bộ 5 món · Hộp quà', list: 249000, promo: null, stock: 0, restock: '12/11', cogs: 128000, pack: 6000, fixed: 0, img: 3, lever: 'combo', baskets: [{ P: 249000, n: 4 }], comboDisc: 12000 }
+];
+SKUS.forEach((s) => { s.orders = s.baskets.reduce((a, b) => a + b.n, 0); });
+const CB_ALPHA = 0.3;
+function econ(s) {
+  if (s.cogs == null) return null;
+  const sell = s.promo || s.list;
+  const v = sell >= SHOP.voucherMin ? SHOP.voucher : 0;
+  const pay = sell - v;
+  const fee = Math.round(SHOP.fee * pay);
+  const cost = s.cogs + s.pack + s.fixed;
+  const org = pay - fee - cost;
+  const ads = Math.round(SHOP.ad * sell);
+  const adm = org - ads;
+  const abs = Math.round(cost / (1 - SHOP.fee));
+  const op = Math.round(cost / (1 - SHOP.fee - SHOP.ad - SHOP.aff - SHOP.target));
+  const maxd = Math.min(SHOP.cap, 1 - op / s.list);
+  return { sell, v, pay, fee, cost, org, orgP: org / pay * 100, ads, adm, admP: adm / pay * 100, abs, op, maxd: maxd * 100, maxdV: Math.floor(s.list * maxd / 1000) * 1000 };
+}
+/* dòng đơn của BEP-S5 (30 ngày): GMV, giá niêm yết, voucher, combo, lợi nhuận trên doanh thu có giá vốn */
+const BEP_AD_SPEND = 600000, BEP_AD_SPEND_PRI = 560000;
+function bepLines() {
+  let gmv = 0, list = 0, vc = 0, cb = 0, km = 0, orders = 0; const per = [];
+  SKUS.forEach((s) => {
+    let g = 0, l = 0, v = 0, c = 0, k = 0, bp = 0, org = 0, o = 0;
+    s.baskets.forEach((b) => {
+      const sell = b.P; const vv = sell >= SHOP.voucherMin ? SHOP.voucher : 0; const pay = sell - vv - s.comboDisc;
+      g += b.n * sell; l += b.n * (s.promo ? s.list : sell); v += b.n * vv; c += b.n * s.comboDisc; k += b.n * (s.promo ? s.list - s.promo : 0); bp += b.n * pay; o += b.n;
+      if (s.cogs != null) { const cost = s.id === 'BEP-S5-CB' ? b.P * 0.515 : s.cogs + s.pack + s.fixed; org += b.n * (pay - SHOP.fee * pay - cost); }
+    });
+    per.push({ id: s.id, g, l, v, c, k, bp, org, o, cov: s.cogs != null }); gmv += g; list += l; vc += v; cb += c; km += k; orders += o;
+  });
+  const cbAd = CB_ALPHA * ADRATE * per[0].g; const rest = BEP_AD_SPEND - cbAd; const others = per.slice(1); const og = others.reduce((a, x) => a + x.g, 0);
+  let profit = 0, covBp = 0;
+  per.forEach((x, i) => { if (!x.cov) return; const ad = i === 0 ? cbAd : rest * x.g / og; profit += x.org - ad; covBp += x.bp; x.ad = ad; x.profit = x.org - ad; });
+  return { gmv, list, vc, cb, km, orders, bp: gmv - vc - cb, profit, covBp, per };
+}
+const BEP = bepLines();
+/* ---- sản phẩm ---- */
+const P = [
+  { id: 'GL-001', name: 'Găng tay cao su đa dụng', ini: 'GT', e: 0.006, aff: 0.08, ad: { vs: 0.07, roas: 5.6 }, be: 4.8, kind: 'hien_thi',
+    main: { list: 74000, cogs: 36000, pack: 2500, fixed: 1000 },
+    cur: { v: 412000, ctr: 0.031, ctor: 0.062, aov: 74000, bien: 0.214, km: 0.02, vc: 0.05, cb: 0.01 }, pri: { v: 390000, ctr: 0.0305, ctor: 0.064, aov: 72500, bien: 0.220, km: 0.02, vc: 0.04, cb: 0.01 } },
+  { id: 'NR-002', name: 'Nước rửa chén 750ml', ini: 'NR', e: 0.010, aff: 0.08, ad: { vs: 0.17, roas: 4.6 }, be: 5.4, kind: 'chuyen_doi',
+    main: { list: 106000, cogs: 50000, pack: 3000, fixed: 1230, voucherNow: 15000, voucherPri: 7000 },
+    cur: { v: 655000, ctr: 0.024, ctor: 0.051, aov: 96000, bien: 0.098, km: 0.05, vc: 0.08, cb: 0.01 }, pri: { v: 610000, ctr: 0.0245, ctor: 0.053, aov: 95000, bien: 0.124, km: 0.04, vc: 0.05, cb: 0.01 } },
+  { id: 'XM-003', name: 'Xơ mướp rửa chén (5 miếng)', ini: 'XM', e: 0.008, aff: 0.08, ad: { vs: 0.05, roas: 6.2 }, be: 5.0, kind: 'ra_mat',
+    main: { list: 44000, cogs: 18000, pack: 1500, fixed: 1000 },
+    cur: { v: 268000, ctr: 0.036, ctor: 0.039, aov: 42000, bien: 0.240, km: 0.03, vc: 0.02, cb: 0 }, pri: { v: 259000, ctr: 0.0355, ctor: 0.053, aov: 41000, bien: 0.251, km: 0.03, vc: 0.02, cb: 0 },
+    tw: { cur: { de_xuat: { om: 0.55 } } } },
+  { id: 'TU-004', name: 'Túi đựng thực phẩm zip (50 túi)', ini: 'TU', e: 0.012, aff: 0.08, ad: { vs: 0.12, roas: 3.9 }, be: 5.4, kind: 'chuyen_doi',
+    main: { list: 129000, cogs: 62000, pack: 3000, fixed: 1230 },
+    cur: { v: 190000, ctr: 0.029, ctor: 0.048, aov: 118000, bien: 0.062, km: 0.08, vc: 0.08, cb: 0.01 }, pri: { v: 170000, ctr: 0.027, ctor: 0.047, aov: 109000, bien: 0.115, km: 0.05, vc: 0.05, cb: 0.01 } },
+  { id: 'GN-005', name: 'Giấy bạc nhôm 5m', ini: 'GB', e: 0.007, aff: 0.08, ad: { vs: 0.11, roas: 5.0 }, be: 4.5, kind: 'hien_thi',
+    main: { list: 92000, cogs: 46000, pack: 2500, fixed: 1000 },
+    cur: { v: 224000, ctr: 0.022, ctor: 0.056, aov: 88000, bien: 0.153, km: 0.03, vc: 0.03, cb: 0 }, pri: { v: 231000, ctr: 0.023, ctor: 0.055, aov: 87000, bien: 0.160, km: 0.03, vc: 0.03, cb: 0 } },
+  { id: 'BEP-S5', name: 'Bộ vệ sinh bếp 5 món', ini: 'BV', e: 0.0, aff: 0, ad: { vs: 0.45, roas: 0, fixedSpend: { cur: BEP_AD_SPEND, pri: BEP_AD_SPEND_PRI } }, be: 3.0, kind: 'chuyen_doi', mid: '24681357902', ordW: [32, 8, 4, 10, 12],
+    main: { list: 200000, cogs: 100000, pack: 3000, fixed: 0 },
+    cur: { v: 15000, clicks: 660, orders: 66, gmv: BEP.gmv, bien: BEP.profit / BEP.covBp, lines: BEP }, pri: { v: 13700, clicks: 575, orders: 54, gmv: 11340000, bien: 0.2465, km: 0.01, vc: 0.03, cb: 0.004, cov: 0.9 } },
+  { id: 'REST', rest: true, name: 'Còn lại · 4 sản phẩm', ini: '+4', e: 0.007, aff: 0.08, ad: { vs: 0.03, roas: 5.0 }, be: 5.0,
+    cur: { v: 380000, ctr: 0.020, ctor: 0.045, aov: 69000, bien: 0.140, km: 0.03, vc: 0.03, cb: 0.01 }, pri: { v: 360000, ctr: 0.0205, ctor: 0.045, aov: 68000, bien: 0.145, km: 0.03, vc: 0.03, cb: 0.01 } }
+];
+const CROSS_BEP = [[10, 15, 5, 2], [3, 3, 2, 0], [1, 2, 1, 0], [4, 4, 2, 0], [2, 6, 2, 2]];
+const pById = (id) => P.find((p) => p.id === id);
+/* ---- tách một luồng thành các phần cộng đúng bằng tổng ---- */
+function splitStreams(defs, T, adjV, adjC, extra, ordW) {
+  const views = split(T.v, defs.map((s) => s.vs * (adjV ? adjV(s) : 1)));
+  const f = (s, key) => (extra && extra[s.k] && extra[s.k][key] != null ? extra[s.k][key] : s[key]);
+  const clicks = split(T.clicks, defs.map((s, i) => views[i] * f(s, 'cm') * (adjC ? adjC(s) : 1)));
+  const orders = ordW ? split(T.orders, ordW) : split(T.orders, defs.map((s, i) => clicks[i] * f(s, 'om')));
+  const gmv = split(T.gmv, defs.map((s, i) => orders[i] * f(s, 'am')));
+  const bpR = T.bp / T.gmv, cov = T.covBp / T.bp; const covBp = gmv.map((g) => g * bpR * cov);
+  const raw = defs.map((s) => T.bien + s.bd); const shift = (T.profit - covBp.reduce((a, c, i) => a + c * raw[i], 0)) / covBp.reduce((a, c) => a + c, 0);
+  return defs.map((s, i) => ({ k: s.k, name: s.name, short: s.short || s.name, v: views[i], clicks: clicks[i], orders: orders[i], gmv: gmv[i], aov: gmv[i] / orders[i], ctr: clicks[i] / views[i], ctor: orders[i] / clicks[i], bp: gmv[i] * bpR, covBp: covBp[i], bien: raw[i] + shift, profit: covBp[i] * (raw[i] + shift), disc: T.disc, discAmt: gmv[i] * T.discAmt / T.gmv }));
+}
+/* ---- cửa sổ sản phẩm ---- */
+const winCache = {};
+function win(p, w) {
+  const key = p.id + w; if (winCache[key]) return winCache[key];
+  const c = p[w]; let clicks, orders, gmv, v = c.v;
+  if (c.clicks != null) { clicks = c.clicks; orders = c.orders; gmv = c.gmv; } else { clicks = v * c.ctr; orders = clicks * c.ctor; gmv = orders * c.aov; }
+  const aovv = gmv / orders;
+  let lv, vcA, kmA, cbA, covR = c.cov != null ? c.cov : 1;
+  if (c.lines) { const L = c.lines; vcA = L.vc; kmA = L.km; cbA = L.cb; covR = L.covBp / L.bp; const ix = LEVERS.map((l) => SKUS.findIndex((s) => s.lever === l.k)); lv = { orders: ix.map((i) => L.per[i].o), gmv: ix.map((i) => L.per[i].g) }; }
+  else {
+    vcA = c.vc * gmv; kmA = c.km * gmv; cbA = c.cb * gmv;
+    const sh = [0, vcA / RV, kmA / RP, cbA / RC]; sh[0] = Math.max(gmv * 0.05, gmv - sh[1] - sh[2] - sh[3]);
+    const ow = LEVERS.map((l, i) => sh[i] / l.am); const lo = split(orders, ow); lv = { orders: lo, gmv: split(gmv, lo.map((o, i) => o * LEVERS[i].am)) };
+  }
+  const list = gmv + kmA, bp = gmv - vcA - cbA, covBp = bp * covR;
+  const profit = c.lines ? c.lines.profit : c.bien * covBp; const bien = profit / covBp;
+  const o = { id: p.id, w, v, clicks, orders, gmv, aov: aovv, ctr: clicks / v, ctor: orders / clicks, list, km: kmA, vc: vcA, cb: cbA, bp, covBp, profit, bien, disc: (kmA + vcA + cbA) / list, discAmt: kmA + vcA + cbA, lv, e: p.e };
+  winCache[key] = o; return o;
+}
+function flowsOf(p, w) {
+  const key = 'F' + p.id + w; if (winCache[key]) return winCache[key];
+  const b = win(p, w); const e = p.e; const T = { v: b.v, clicks: b.clicks, orders: b.orders * (1 + e), gmv: b.gmv * (1 + e), bp: b.bp * (1 + e), covBp: b.covBp * (1 + e), profit: b.profit * (1 + e), bien: b.bien, disc: b.disc, discAmt: b.discAmt * (1 + e) };
+  const r = splitStreams(FLOWS, T, w === 'pri' ? (s) => PV[s.k] : null, w === 'pri' ? (s) => PC[s.k] : null, null, (w === 'cur' && p.ordW) ? p.ordW : null);
+  winCache[key] = r; return r;
+}
+function kidsOf(p, w) {
+  const key = 'K' + p.id + w; if (winCache[key]) return winCache[key];
+  const fl = flowsOf(p, w)[0]; const T = Object.assign({}, fl, { disc: fl.disc, discAmt: fl.discAmt });
+  const r = splitStreams(KIDS, T, null, null, p.tw && p.tw[w] ? p.tw[w] : null); winCache[key] = r; return r;
+}
+function leversOf(p, w) {
+  const b = win(p, w); const lo = b.lv.orders, lg = b.lv.gmv;
+  const raw = LEVERS.map((l) => b.bien + l.bd); const covR = b.covBp / b.bp; const cb = lg.map((g) => g * (b.bp / b.gmv) * covR);
+  const shift = (b.profit - cb.reduce((a, c, i) => a + c * raw[i], 0)) / cb.reduce((a, c) => a + c, 0);
+  const amt = [0, b.vc, b.km, b.cb];
+  return LEVERS.map((l, i) => ({ k: l.k, name: l.name, orders: lo[i], gmv: lg[i], aov: lg[i] / lo[i], bp: lg[i] * (b.bp / b.gmv), covBp: cb[i], bien: raw[i] + shift, profit: cb[i] * (raw[i] + shift), discAmt: amt[i], disc: lg[i] ? amt[i] / (lg[i] + (i === 2 ? b.km : 0)) : 0, v: null, clicks: null, ctr: null, ctor: null }));
+}
+function adFlows(p, w) {
+  const key = 'A' + p.id + w; if (winCache[key]) return winCache[key];
+  const b = win(p, w); const fl = flowsOf(p, w);
+  const rows = fl.map((f, i) => { const fd = FLOWS[i]; const v = f.v * fd.adv * (p.ad.vs / 0.1); const clicks = v * f.ctr * AD.cm; const orders = clicks * f.ctor * AD.om; const gmv = orders * f.aov * AD.am; return { k: f.k, v, clicks, orders, gmv }; });
+  const tg = rows.reduce((a, r) => a + r.gmv, 0);
+  const spend = p.ad.fixedSpend ? p.ad.fixedSpend[w] : tg / (p.ad.roas * (w === 'pri' ? 1.08 : 1));
+  const out = rows.map((r) => ({ k: r.k, name: 'Quảng cáo (trong đó)', v: r.v, clicks: r.clicks, orders: r.orders, gmv: r.gmv, aov: r.orders ? r.gmv / r.orders : 0, ctr: r.v ? r.clicks / r.v : 0, ctor: r.clicks ? r.orders / r.clicks : 0, bien: b.bien + AD.bd, bp: r.gmv * (b.bp / b.gmv), covBp: r.gmv * (b.bp / b.gmv) * (b.covBp / b.bp), profit: r.gmv * (b.bp / b.gmv) * (b.covBp / b.bp) * (b.bien + AD.bd), spend: spend * r.gmv / tg }));
+  winCache[key] = out; return out;
+}
+function adOf(p, w) {
+  const a = adFlows(p, w); const t = { name: 'Quảng cáo (trong đó)', v: 0, clicks: 0, orders: 0, gmv: 0, profit: 0, spend: 0 };
+  a.forEach((r) => { t.v += r.v; t.clicks += r.clicks; t.orders += r.orders; t.gmv += r.gmv; t.profit += r.profit; t.spend += r.spend; });
+  const b = win(p, w); t.ctr = t.clicks / t.v; t.ctor = t.orders / t.clicks; t.aov = t.gmv / t.orders; t.bien = b.bien + AD.bd; t.roas = t.gmv / t.spend; return t;
+}
+function fullWin(p, w) { // cửa sổ có chi phí
+  const b = win(p, w); const ad = adOf(p, w); const lk = flowsOf(p, w)[4];
+  return Object.assign({}, b, { adSpend: ad.spend, aff: p.aff * lk.gmv, chi: ad.spend + b.discAmt + p.aff * lk.gmv });
+}
+function sumW(list) {
+  const t = { v: 0, clicks: 0, orders: 0, gmv: 0, list: 0, km: 0, vc: 0, cb: 0, bp: 0, covBp: 0, profit: 0, adSpend: 0, aff: 0, chi: 0, discAmt: 0 };
+  list.forEach((x) => Object.keys(t).forEach((k) => { t[k] += x[k] || 0; }));
+  t.ctr = t.clicks / t.v; t.ctor = t.orders / t.clicks; t.aov = t.gmv / t.orders; t.disc = t.discAmt / t.list; t.bien = t.profit / t.covBp; return t;
+}
+/* ---- chi phí cấp shop (contract §4) ---- */
+const UNATTR = { cur: 640000, pri: 600000 }, OTHER = { cur: 300000, pri: 250000 };
+const FW = { cur: P.map((p) => fullWin(p, 'cur')), pri: P.map((p) => fullWin(p, 'pri')) };
+function shopWin(w) { // lợi nhuận shop = Σ lợi nhuận sản phẩm − QC không gắn sản phẩm − chi marketing khác
+  const t = sumW(FW[w]); const prodProfit = t.profit; const profit = prodProfit - UNATTR[w] - OTHER[w];
+  const o = Object.assign({}, t, { prodProfit, unattr: UNATTR[w], other: OTHER[w], profit, adSpend: t.adSpend + UNATTR[w], chi: t.chi + UNATTR[w] });
+  o.bien = profit / t.covBp; o.cov = t.covBp / t.bp; o.prodAdSpend = t.adSpend; return o;
+}
+const SHOPW = { cur: shopWin('cur'), pri: shopWin('pri') };
+function flowSum(w, which) { // which: flows | kids | levers | ads → cộng mọi sản phẩm
+  const lists = P.map((p) => (which === 'flows' ? flowsOf(p, w) : which === 'kids' ? kidsOf(p, w) : which === 'levers' ? leversOf(p, w) : adFlows(p, w)));
+  return lists[0].map((s, i) => { const t = { k: s.k, name: s.name, short: s.short, v: 0, clicks: 0, orders: 0, gmv: 0, bp: 0, covBp: 0, profit: 0, discAmt: 0, spend: 0 }; lists.forEach((l) => Object.keys(t).forEach((k) => { if (typeof t[k] === 'number') t[k] += l[i][k] || 0; })); if (t.v) { t.ctr = t.clicks / t.v; t.ctor = t.orders / t.clicks; } else { t.v = null; t.ctr = null; t.ctor = null; } t.aov = t.gmv / t.orders; t.bien = t.profit / (t.covBp || t.bp); return t; });
+}
+/* ---- 5 con số chính: một định nghĩa, một bộ nhãn (contract §5) ---- */
+const LABELS = ['① % giảm giá', '② Doanh thu thêm / chi thêm', '③ Biên lợi nhuận cuối', '④ Số đơn', '⑤ AOV'];
+const CAP_LABEL = 'Chi marketing / ngày vs trần';
+const chipOf = (a, b) => { if (!a) return { t: '—', up: null, r: 0 }; const r = b / a - 1; if (Math.abs(r) < 0.0005) return { t: '0,0%', up: null, r }; return { t: (r > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(r) * 100, 1) + '%', up: r > 0, r }; };
+const chipPt = (a, b) => { const d = (b - a) * 100; if (Math.abs(d) < 0.05) return { t: '0,0 điểm', up: null, r: d }; return { t: (d > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(d), 1) + ' điểm', up: d > 0, r: d }; };
+function fiveOf(a, b) {
+  const dG = b.gmv - a.gmv, dC = b.chi - a.chi; const eff = dC > 0 ? dG / dC : null;
+  const cov = b.covBp / b.bp, full = cov > 0.9999; const dc = chipPt(a.disc, b.disc), oc = chipOf(a.orders, b.orders), ac = chipOf(a.gmv / a.orders, b.gmv / b.orders);
+  const bien = b.profit / b.covBp, bienA = a.profit / a.covBp, bc = chipPt(bienA, bien);
+  return [
+    { key: 'disc', label: LABELS[0], val: pc(b.disc, 1), before: pc(a.disc, 1), chip: dc.t, dAbs: sv(b.discAmt - a.discAmt), tone: dc.r > 0.05 ? 'down' : (dc.r < -0.05 ? 'up' : 'flat'), sub1: '= ' + vnd(b.discAmt) + ' tiền giảm', sub2: 'trên ' + vnd(b.list) + ' giá niêm yết', raw: b.disc },
+    { key: 'eff', label: LABELS[1], val: eff == null ? 'giảm chi' : fmt(eff, 2) + 'đ / 1đ chi', before: '—', chip: eff == null ? 'Giảm chi ' + vnd(-dC) : fmt(eff * 100, 0) + '%', dAbs: sv(dG), tone: eff == null ? 'up' : (eff < 1 ? 'down' : 'up'), sub1: 'ΔGMV ' + sv(dG) + ' ÷ Δchi ' + sv(dC), sub2: eff == null ? 'Chi giảm hoặc không đổi' : (eff < 1 ? 'Chi thêm nhiều hơn thu thêm' : 'Thu thêm nhiều hơn chi thêm'), raw: eff },
+    { key: 'bien', label: LABELS[2], val: pc(bien, 1), before: pc(bienA, 1), chip: bc.t, dAbs: full ? sv(b.profit - a.profit) : '—', tone: bien < TARGET ? 'down' : (bc.up === false ? 'down' : (bc.up ? 'up' : 'flat')), sub1: full ? '= ' + vnd(b.profit) + ' lợi nhuận' : 'trên ' + pc(cov, 1) + ' doanh thu có giá vốn', sub2: 'Mục tiêu ' + pc(TARGET, 0) + ': ' + (bien >= TARGET ? 'đạt' : 'chưa đạt'), raw: bien },
+    { key: 'orders', label: LABELS[3], val: fmt(b.orders) + ' đơn', before: fmt(a.orders) + ' đơn', chip: oc.t, dAbs: (b.orders - a.orders >= 0 ? '+' : '−') + fmt(Math.abs(b.orders - a.orders)) + ' đơn', tone: oc.up === false ? 'down' : (oc.up ? 'up' : 'flat'), sub1: '= ' + vnd(b.gmv) + ' GMV', sub2: 'đơn đã xác nhận', raw: b.orders },
+    { key: 'aov', label: LABELS[4], val: vnd(b.gmv / b.orders), before: vnd(a.gmv / a.orders), chip: ac.t, dAbs: sv(b.gmv / b.orders - a.gmv / a.orders), tone: ac.up === false ? 'down' : (ac.up ? 'up' : 'flat'), sub1: '= GMV ÷ số đơn', sub2: pc(b.gmv / b.orders / (b.list / b.orders), 1) + ' giá niêm yết', raw: b.gmv / b.orders }
+  ];
+}
+function capOf(b, days) { const day = b.chi / days; return { day, cap: AD_CAP_DAY, use: day / AD_CAP_DAY, left: AD_CAP_DAY - day }; }
+/* ---- sàn giá (contract §6) ---- */
+function floorOf(m) { const cost = m.cogs + m.pack + m.fixed; return { cost, abs: Math.round(cost / (1 - FEE)), op: Math.round(cost / (1 - FEE - ADRATE - SHOP.aff - TARGET)) }; }
+/* ---- voucher what-if (contract §7 + §9) ---- */
+const CB = { rate: 0.515, alpha: CB_ALPHA, u: 1.0, A: { type: 'd', v: 10000, pct: 0, max: 0, s: 200000, qty: 100 }, budgetMonth: 500000, q30: [{ P: 200000, n: 24 }, { P: 360000, n: 6 }] };
+const discOf = (P, i) => (i.type === 'd' ? i.v : Math.min(Math.round(i.pct * P), i.max));
+const costOf = (P, cogsAdd) => CB.rate * P + (cogsAdd || 0) * P / 200000;
+const opOf = (P, cogsAdd) => Math.round(costOf(P, cogsAdd) / (1 - FEE - ADRATE - TARGET));
+function vEval(inp, baskets, cogsAdd) {
+  const days = inp.days || 30; const bs = baskets.map((b) => ({ P: b.P, n: b.n }));
+  const Qq = bs.filter((b) => b.P >= inp.s).reduce((a, b) => a + b.n, 0);
+  const used = Math.min(Math.round(Qq * CB.u), inp.qty); const phi = Qq ? used / Qq : 0;
+  let N = 0, gmv = 0, vc = 0, cost = 0;
+  bs.forEach((b) => { N += b.n; gmv += b.n * b.P; cost += b.n * costOf(b.P, cogsAdd); if (b.P >= inp.s) vc += phi * b.n * discOf(b.P, inp); });
+  const bp = gmv - vc, fee = FEE * bp, adc = CB.alpha * ADRATE * gmv, profit = bp - fee - cost - adc;
+  return { N, gmv, list: gmv, km: 0, cb: 0, vc, discAmt: vc, bp, covBp: bp, fee, cost, adSpend: adc, aff: 0, chi: vc + adc, profit, bien: profit / bp, aov: gmv / N, disc: vc / gmv, orders: N, Qq, used, phi, days };
+}
+const scaleB = (days) => CB.q30.map((b) => ({ P: b.P, n: Math.round(b.n * days / 30) }));
+function repOf(inp, cogsAdd) { // đơn đại diện = giỏ thấp nhất đủ điều kiện
+  const b = scaleB(30).concat([]).filter((x) => x.P >= inp.s)[0]; if (!b) return null;
+  const P = b.P, d = discOf(P, inp), pay = P - d, fee = Math.round(FEE * pay), cost = costOf(P, cogsAdd), org = pay - fee - cost, ad = Math.round(ADRATE * P), op = opOf(P, cogsAdd), abs = Math.round(cost / (1 - FEE));
+  return { P, d, pay, fee, cost, org, orgP: org / pay * 100, ad, adm: org - ad, admP: (org - ad) / pay * 100, op, abs, maxdV: Math.floor(Math.min(CAP_MAX * P, P - op) / 1000) * 1000 };
+}
+function vCard(inp, cogsAdd) {
+  const days = inp.days; const base = scaleB(days); const A = vEval(Object.assign({}, CB.A, { days }), base, cogsAdd), X = vEval(inp, base, cogsAdd);
+  const rep = repOf(inp, cogsAdd); const repA = repOf(CB.A, cogsAdd);
+  const quals = base.filter((b) => b.P >= inp.s);
+  const breach = quals.some((b) => b.P - discOf(b.P, inp) < opOf(b.P, cogsAdd));
+  const maxdV = quals.length ? Math.min.apply(null, quals.map((b) => Math.floor(Math.min(CAP_MAX * b.P, b.P - opOf(b.P, cogsAdd)) / 1000) * 1000)) : repA.maxdV;
+  const dCost = X.vc - A.vc; const need = (rep && dCost > 0) ? Math.ceil(dCost / rep.org) : 0;
+  const saveMax = (dCost < 0 && repA) ? Math.floor(-dCost / repA.org) : 0;
+  const perDay = X.vc / days, budgetDay = CB.budgetMonth / 30, maxCost = inp.qty * (rep ? rep.d : discOf(inp.s, inp));
+  // dự kiến (khoảng): giỏ thấp nhất bị mất / chuyển lên ngưỡng
+  const dV = ((rep ? rep.d : 0) - 10000) / 1000; const k = days / 30;
+  const lostQ = base.filter((b) => b.P >= 200000 && b.P < inp.s).reduce((a, b) => a + b.n, 0);
+  const f = 1 + Math.max(inp.s - 200000, 0) / 100000;
+  const lo = { lost: Math.round(lostQ * 0.12) + (dV < 0 ? Math.round(-dV * 0.4 * k) : 0), gain: 0, up: inp.s > 200000 ? Math.round(4 / f * k) : 0 };
+  const hi = { lost: Math.round(lostQ * 0.03), gain: Math.round(Math.max(dV, 0) * 0.3 * k), up: inp.s > 200000 ? Math.round(8 / f * k) : 0 };
+  const scen = (sc) => { const bs = base.map((b) => ({ P: b.P, n: b.n })); const low = bs[0]; low.n = Math.max(0, low.n - sc.lost - sc.up + sc.gain); if (sc.up && inp.s > 200000) { const hit = bs.find((b) => b.P === inp.s); if (hit) hit.n += sc.up; else bs.push({ P: inp.s, n: sc.up }); } return vEval(inp, bs, cogsAdd); };
+  const eLo = scen(lo), eHi = scen(hi);
+  return { A, X, rep, repA, breach, maxdV, dCost, need, saveMax, perDay, budgetDay, overBudget: perDay > budgetDay, maxCost, eLo, eHi, lostQ, Qq: X.Qq, used: X.used, u: CB.u, days };
+}
+const V_DEFAULT = { type: 'd', v: 15000, pct: 0.1, max: 18000, s: 299000, qty: 50, per: 2, days: 30 };
+const CARDS = [
+  { id: 'c_bep_voucher', kind: 'min_spend_voucher', metric: 'aov', flow: 'voucher', flowType: 'lever', product: 'BEP-S5', sku: 'BEP-S5-CB', title: 'Voucher shop: nâng đơn tối thiểu lên 299.000đ', rank: { kpi: 'aov', src: 'voucher', focus: 'BEP-S5' }, atStake: 0, why: 'Voucher A đang giảm cho 24/30 đơn chỉ mua 1 bộ 200.000đ, chỉ 6 đơn vượt 299.000đ. AOV của bộ 5 món thấp hơn trung vị shop.' },
+  { id: 'c_bep_title', kind: 'title', metric: 'views', flow: 'search', flowType: 'kid', product: 'BEP-S5', title: 'Đổi tiêu đề: đưa “set rửa chén” và “combo dọn bếp” vào 100 ký tự đầu', rank: { kpi: 'views', src: 'the_san_pham', sub: 'search', focus: 'k6' }, atStake: 1800000, why: 'Hai từ khoá chính chưa nằm trong 100 ký tự hiển thị; hạng “set rửa chén” tụt 11 → 14.' },
+  { id: 'c_bep_cover', kind: 'cover_image', metric: 'ctr', flow: 'de_xuat', flowType: 'kid', product: 'BEP-S5', title: 'Ảnh bìa mới cho nguồn Đề xuất', rank: { kpi: 'ctr', src: 'the_san_pham', sub: 'de_xuat', focus: 'BEP-S5' }, atStake: 900000, why: 'CTR từ Đề xuất thấp hơn các nguồn khác của sản phẩm.' },
+  { id: 'c_bep_ads', kind: 'ads_budget', metric: 'views', flow: 'ads', flowType: 'ads', product: 'BEP-S5', title: 'Chiến dịch hiển thị: giảm chi phí / 1.000 lượt xem', rank: { kpi: 'gmv', src: 'ads', focus: 'a7' }, atStake: 600000, why: 'Chi phí / 1.000 lượt xem của chiến dịch hiển thị cao hơn kỳ trước.' },
+  { id: 'c_gl_bundle', kind: 'bundle_deal', metric: 'aov', flow: 'lien_ket', flowType: 'flow', product: 'GL-001', title: 'Combo 2 đôi găng cho đơn từ link', rank: { kpi: 'aov', src: 'lien_ket', focus: 'GL-001' }, atStake: 1800000, why: 'Đơn qua link liên kết chủ yếu mua 1 đôi; chưa có combo cho đơn từ link.' },
+  { id: 'c_nr_vcap', kind: 'voucher_cap', metric: 'bien', flow: 'voucher', flowType: 'lever', product: 'NR-002', title: 'Giảm voucher 15.000đ xuống 10.000đ', rank: { kpi: 'bien', src: 'voucher', focus: 'v1' }, atStake: 1500000, why: 'Voucher 15k kéo giá khách trả xuống dưới giá sàn vận hành.' },
+  { id: 'c_xm_disc', kind: 'product_discount', metric: 'ctor', flow: 'de_xuat', flowType: 'kid', product: 'XM-003', title: 'Khuyến mãi xơ mướp 5% → 8%, giữ trên giá sàn', rank: { kpi: 'ctor', src: 'the_san_pham', sub: 'de_xuat', focus: 'XM-003' }, atStake: 1200000, why: 'Khách bấm vào từ Đề xuất nhưng ít chốt đơn: CTOR từ Đề xuất giảm mạnh.' },
+  { id: 'c_xm_title', kind: 'title', metric: 'views', flow: 'search', flowType: 'kid', product: 'XM-003', title: 'Đổi tiêu đề, đưa từ khoá lên đầu', rank: { kpi: 'views', src: 'the_san_pham', sub: 'search', focus: 'k4' }, atStake: 900000, why: 'Hạng từ khoá "xơ mướp rửa chén" tụt từ 5 xuống 11.' },
+  { id: 'c_tu_price', kind: 'price', metric: 'bien', flow: 'promo', flowType: 'lever', product: 'TU-004', title: 'Nâng giá bán lên trên giá sàn vận hành', rank: { kpi: 'bien', src: 'all', focus: 'TU-004' }, atStake: 3300000, why: 'Giảm giá tăng, biên cuối dưới mục tiêu 10%.' },
+  { id: 'c_gn_kw', kind: 'keyword', metric: 'views', flow: 'search', flowType: 'kid', product: 'GN-005', title: 'Thêm 3 từ khoá chính vào tiêu đề', rank: { kpi: 'views', src: 'the_san_pham', sub: 'search', focus: 'k3' }, atStake: 1100000, why: 'Hạng từ khoá tăng nhưng 3 từ khoá chính chưa có trong tiêu đề.' },
+  { id: 'c_gl_title', kind: 'title', metric: 'views', flow: 'search', flowType: 'kid', product: 'GL-001', title: 'Giữ từ khoá "găng tay cao su" trong tiêu đề', rank: { kpi: 'views', src: 'the_san_pham', sub: 'search', focus: 'k1' }, atStake: 900000, why: 'Từ khoá đang lên hạng, giữ trong 100 ký tự đầu của tiêu đề.' },
+  { id: 'c_nr_ads', kind: 'ads_roas_target', metric: 'roas', flow: 'ads', flowType: 'ads', product: 'NR-002', title: 'Nâng ROAS mục tiêu chiến dịch chuyển đổi', rank: { kpi: 'gmv', src: 'ads', focus: 'a1' }, atStake: 1100000, why: 'ROAS dưới điểm hoà vốn.' },
+  { id: 'c_tu_pause', kind: 'ads_pause', metric: 'roas', flow: 'ads', flowType: 'ads', product: 'TU-004', title: 'Tạm dừng chiến dịch chuyển đổi, nâng giá sàn', rank: { kpi: 'gmv', src: 'ads', focus: 'a2' }, atStake: 2600000, why: 'ROAS dưới điểm hoà vốn và biên cuối dưới mục tiêu.' },
+  { id: 'c_gn_adb', kind: 'ads_budget', metric: 'views', flow: 'ads', flowType: 'ads', product: 'GN-005', title: 'Đổi ngân sách chiến dịch hiển thị', rank: { kpi: 'gmv', src: 'ads', focus: 'a6' }, atStake: 800000, why: 'Chi phí / 1.000 lượt xem tăng.' },
+  { id: 'c_kol_o1', kind: 'affiliate_commission', metric: 'lien_ket', flow: 'lien_ket', flowType: 'flow', product: 'BEP-S5', title: 'Thử hoa hồng 10% cho combo', rank: { kpi: 'gmv', src: 'lien_ket', focus: 'o1' }, atStake: 2400000, why: 'KOL Minh Anh tăng gấp đôi đơn; hoa hồng đang 8%.' },
+  { id: 'c_kol_o3', kind: 'affiliate_commission', metric: 'lien_ket', flow: 'lien_ket', flowType: 'flow', product: 'GL-001', title: 'Hạ hoa hồng KOL về 6%', rank: { kpi: 'gmv', src: 'lien_ket', focus: 'o3' }, atStake: 700000, why: 'Biên đơn qua KOL thấp hơn mục tiêu.' }
+];
+const cardById = (id) => CARDS.find((c) => c.id === id);
+(function () { const r = vCard(V_DEFAULT, 0); cardById('c_bep_voucher').atStake = Math.round(r.X.profit - r.A.profit); })();
+const cardsOfProduct = (id) => CARDS.filter((c) => c.product === id).sort((a, b) => b.atStake - a.atStake);
+
+/* nếu BEP-S3 có giá vốn (thông số 72.000đ + đóng gói 3.000đ): doanh thu có giá vốn = 100 % → hiện lợi nhuận bằng đồng */
+function shopWinFull(w) {
+  const base = SHOPW[w]; const S3 = BEP.per[2]; const oth = BEP.per.slice(1); const og = oth.reduce((a, x) => a + x.g, 0); const adS3 = (BEP_AD_SPEND - CB_ALPHA * ADRATE * BEP.per[0].g) * S3.g / og;
+  const k = w === 'cur' ? 1 : win(pById('BEP-S5'), 'pri').gmv / win(pById('BEP-S5'), 'cur').gmv;
+  const add = k * (S3.bp * (1 - FEE) - 75000 * S3.o - adS3);
+  const o = Object.assign({}, base); o.prodProfit = base.prodProfit + add; o.profit = base.profit + add; o.covBp = o.bp; o.cov = 1; o.bien = o.profit / o.covBp; return o;
+}
+/* ---- xếp hạng: dòng + dòng đóng cộng lại đúng bằng ô ---- */
+const KPIS = [['gmv', 'GMV'], ['views', 'Lượt xem'], ['ctr', 'CTR'], ['ctor', 'CTOR'], ['aov', 'AOV'], ['bien', 'Biên cuối'], ['disc', '% giảm giá'], ['orders', 'Số đơn']];
+const KNAME = { gmv: 'GMV', views: 'Lượt xem', ctr: 'CTR', ctor: 'CTOR', aov: 'AOV', bien: 'Biên cuối', disc: '% giảm giá', orders: 'Số đơn' };
+const SRCS = [['all', 'Tất cả', 'g'], ['the_san_pham', 'Thẻ sản phẩm', 'g'], ['trang_shop', 'Trang shop', 'g'], ['live', 'Live', 'g'], ['video', 'Video', 'g'], ['lien_ket', 'Tiếp thị liên kết', 'g'], ['ads', 'Quảng cáo (trong đó)', 'ad'], ['none', 'Không ưu đãi', 'p'], ['voucher', 'Voucher', 'p'], ['promo', 'Khuyến mãi', 'p'], ['combo', 'Combo', 'p']];
+const SUBS = [['all', 'Cả Thẻ sản phẩm']].concat(KIDS.map((k) => [k.k, k.name]));
+const SNAME = { all: 'Tất cả', the_san_pham: 'Thẻ sản phẩm', trang_shop: 'Trang shop', live: 'Live', video: 'Video', lien_ket: 'Tiếp thị liên kết', ads: 'Quảng cáo', none: 'Không ưu đãi', voucher: 'Voucher', promo: 'Khuyến mãi', combo: 'Combo' };
+KIDS.forEach((k) => { SNAME[k.k] = k.name; });
+const KFMT = { gmv: (x) => vnd(x), views: (x) => fmt(x), ctr: (x) => pc(x), ctor: (x) => pc(x), aov: (x) => vnd(x), bien: (x) => pc(x, 1), disc: (x) => pc(x, 1), orders: (x) => fmt(x) + ' đơn' };
+const QLAB = { gmv: 'Đơn hàng', views: 'Lượt bấm', ctr: 'Lượt bấm', ctor: 'Đơn hàng', aov: 'Đơn hàng', bien: 'Đơn hàng', disc: 'Đơn hàng', orders: 'Lượt bấm' };
+const KGET = { gmv: (s) => s.gmv, views: (s) => s.v, ctr: (s) => s.ctr, ctor: (s) => s.ctor, aov: (s) => s.aov, bien: (s) => s.bien, disc: (s) => s.disc, orders: (s) => s.orders };
+const QGET = { gmv: (s) => s.orders, views: (s) => s.clicks, ctr: (s) => s.clicks, ctor: (s) => s.orders, aov: (s) => s.orders, bien: (s) => s.orders, disc: (s) => s.orders, orders: (s) => s.clicks };
+const lvIdx = { none: 0, voucher: 1, promo: 2, combo: 3 };
+const FLOWK = FLOWS.map((f) => f.k);
+function streamOf(p, w, src, sub) {
+  const b = win(p, w);
+  if (src === 'all') return Object.assign({}, b, { gmv: b.gmv });
+  if (FLOWK.indexOf(src) >= 0) { const f = flowsOf(p, w)[FLOWK.indexOf(src)]; if (src === 'the_san_pham' && sub && sub !== 'all') return kidsOf(p, w).find((k) => k.k === sub); return f; }
+  if (src === 'ads') { const a = adOf(p, w); return Object.assign({}, a, { disc: b.disc, covBp: a.gmv * b.bp / b.gmv }); }
+  const l = leversOf(p, w)[lvIdx[src]]; return l;
+}
+const hasKpi = (s, kpi) => KGET[kpi](s) != null && !Number.isNaN(KGET[kpi](s));
+function sumS(list) { const t = { v: 0, clicks: 0, orders: 0, gmv: 0, profit: 0, covBp: 0, discAmt: 0, bp: 0 }; list.forEach((x) => Object.keys(t).forEach((k) => { t[k] += x[k] || 0; })); t.ctr = t.clicks / t.v; t.ctor = t.orders / t.clicks; t.aov = t.gmv / t.orders; t.bien = t.profit / (t.covBp || t.bp); t.disc = t.discAmt / (t.gmv + 0); return t; }
+const impactOf = (kpi, a, b) => { const dG = b.gmv - a.gmv; if (kpi === 'gmv') return dG / 30; if (kpi === 'bien') return (b.covBp || b.bp) * (b.bien - a.bien) / 30; if (kpi === 'disc') return -(b.discAmt - a.discAmt) / 30; const L = Math.log(b.gmv / a.gmv); if (!L) return 0; return dG * Math.log(KGET[kpi](b) / KGET[kpi](a)) / L / 30; };
+function buildProducts(kpi, src, sub) {
+  if (['none', 'voucher', 'promo', 'combo'].indexOf(src) >= 0 && ['views', 'ctr', 'ctor'].indexOf(kpi) >= 0) return null;
+  const SA = sumS(P.map((p) => streamOf(p, 'pri', src, sub))), SB = sumS(P.map((p) => streamOf(p, 'cur', src, sub)));
+  const cell = impactOf(kpi, SA, SB);
+  const mk = (p) => { const a = streamOf(p, 'pri', src, sub), b = streamOf(p, 'cur', src, sub); const g = impactOf(kpi, a, b); const pb = win(p, 'cur'); const cs = cardsOfProduct(p.id)[0]; return { id: p.id, name: p.name, ini: p.ini, kind: 'product', prior: KGET[kpi](a), last: KGET[kpi](b), qp: QGET[kpi](a), ql: QGET[kpi](b), gmv: g, profit: kpi === 'bien' ? g : g * b.bien, conf: b.orders >= 100 ? 'Rõ' : 'Tham khảo', x: { bien: b.bien, orders: b.orders, aov: b.aov, disc: pb.disc }, rec: cs || null }; };
+  const rows = P.filter((p) => !p.rest).map(mk); const r = mk(P.find((p) => p.rest));
+  const few = { label: '3 sản phẩm ít đơn', gmv: r.gmv * 0.7, profit: r.profit * 0.7 }, others = { label: 'Các sản phẩm khác', gmv: r.gmv * 0.3, profit: r.profit * 0.3 };
+  const rs = rows.reduce((t, x) => t + x.gmv, 0) + r.gmv; const rp = rows.reduce((t, x) => t + x.profit, 0) + r.profit;
+  const mix = { label: 'Thay đổi cơ cấu sản phẩm', gmv: cell - rs, profit: (kpi === 'bien' ? cell : cell * SB.bien) - rp };
+  return { rowKind: 'Sản phẩm', rows, closing: [few, others, mix], cell, ctx: { prior: KGET[kpi](SA), last: KGET[kpi](SB) }, note: null };
+}
+function closeBy(rows, cell, labels, ratio, k) { const res = cell - rows.reduce((t, x) => t + x.gmv, 0); const pr = (k || 0.3) * res; return labels.map((l, i) => ({ label: l, gmv: Math.round(res * ratio[i]), profit: Math.round(pr * ratio[i]) })); }
+const prodX = (id) => { const p = pById(id), b = win(p, 'cur'); return { bien: b.bien, aov: b.aov, disc: b.disc }; };
+const HT = {
+  search: () => { const mkr = (id, name, sub, prior, last, gmv, profit, conf, orders, card) => ({ id, name, sub, kind: 'kw', prior, last, qp: prior, ql: last, gmv, profit, conf, x: Object.assign({ orders }, prodX(card.p)), rec: card.c ? cardById(card.c) : null, card: card.c });
+    const rows = [
+      mkr('k1', 'găng tay cao su', 'Chính · GL-001 · hạng 7 → 4', 31800, 44200, 62000, 13200, 'Rõ', 118, { p: 'GL-001', c: 'c_gl_title' }),
+      mkr('k2', 'nước rửa chén 750ml', 'Chính · NR-002 · hạng 6 → 4', 52400, 63100, 48000, 4700, 'Rõ', 143, { p: 'NR-002', c: null }),
+      mkr('k3', 'giấy bạc nướng thịt', 'Phụ · GN-005 · hạng 8 → 12', 19800, 17900, -17000, -2100, 'Tham khảo', 41, { p: 'GN-005', c: 'c_gn_kw' }),
+      mkr('k4', 'xơ mướp rửa chén', 'Chính · XM-003 · hạng 5 → 11', 41200, 28600, -29500, -7100, 'Rõ', 63, { p: 'XM-003', c: 'c_xm_title' }),
+      mkr('k6', 'set rửa chén', 'Chính · BEP-S5 · hạng 11 → 14', 5200, 4600, -9000, -1300, 'Tham khảo', 22, { p: 'BEP-S5', c: 'c_bep_title' }),
+      mkr('k5', 'túi zip đựng thực phẩm', 'Chính · TU-004 · hạng 9 → 14', 22700, 17300, -18000, -1100, 'Tham khảo', 31, { p: 'TU-004', c: null })];
+    const c = flowSum('cur', 'kids')[0], p0 = flowSum('pri', 'kids')[0]; const cell = impactOf('views', p0, c);
+    return { rowKind: 'Từ khoá', rows, cell, closing: closeBy(rows, cell, ['12 từ khoá ít lượt', 'Các từ khoá khác', 'Thay đổi cơ cấu từ khoá'], [0.45, 0.4, 0.15], 0.2), ctx: { prior: p0.v, last: c.v }, note: 'Từ khoá do chủ shop thu thập (ADR-119). Hạng là vị trí của shop khi tìm từ khoá đó.' }; },
+  kol: () => { const rows = [
+    { id: 'o1', name: 'Minh Anh Review Nhà Bếp', sub: 'KOL · hoa hồng 8% · 3 sản phẩm', kind: 'kol', prior: 62, last: 131, qp: 62, ql: 131, gmv: 142000, profit: 9800, conf: 'Rõ', x: { bien: 0.071, orders: 131, aov: 83000, disc: 0.08 }, rec: cardById('c_kol_o1') },
+    { id: 'o2', name: 'Bếp nhà Hoa', sub: 'KOL · hoa hồng 6% · 2 sản phẩm', kind: 'kol', prior: 48, last: 82, qp: 48, ql: 82, gmv: 71000, profit: 8300, conf: 'Rõ', x: { bien: 0.102, orders: 82, aov: 79000, disc: 0.06 }, rec: null },
+    { id: 'o3', name: 'Mẹ Bắp mách mẹ', sub: 'KOL · hoa hồng 8% · 1 sản phẩm', kind: 'kol', prior: 30, last: 55, qp: 30, ql: 55, gmv: 38000, profit: 2100, conf: 'Tham khảo', x: { bien: 0.044, orders: 55, aov: 91000, disc: 0.1 }, rec: cardById('c_kol_o3') },
+    { id: 'o4', name: 'Chị Lan dọn nhà', sub: 'KOL · hoa hồng 5% · 2 sản phẩm', kind: 'kol', prior: 44, last: 29, qp: 44, ql: 29, gmv: -21000, profit: -2400, conf: 'Tham khảo', x: { bien: 0.118, orders: 29, aov: 70000, disc: 0.05 }, rec: null },
+    { id: 'o5', name: 'Kênh Tiện Ích 24h', sub: 'KOL · hoa hồng 7% · 2 sản phẩm', kind: 'kol', prior: 21, last: 25, qp: 21, ql: 25, gmv: 17000, profit: 1500, conf: 'Tham khảo', x: { bien: 0.09, orders: 25, aov: 66000, disc: 0.07 }, rec: null } ];
+    const c = flowSum('cur', 'flows')[4], p0 = flowSum('pri', 'flows')[4]; const cell = impactOf('gmv', p0, c);
+    return { rowKind: 'KOL', rows, cell, closing: closeBy(rows, cell, ['4 KOL ít đơn', 'KOL đã dừng trong kỳ', 'Thay đổi cơ cấu'], [0.5, 0.5, 0], 0.1), ctx: { prior: p0.gmv, last: c.gmv }, note: 'Số lượng là đơn có link của KOL trong kỳ. Tiếp thị liên kết gồm cả Affiliate Live và Video.' }; },
+  ads: () => { const PUR_JUDGE = { chuyen_doi: 'roas', hien_thi: 'cpm', ra_mat: 'cap' };
+    const mkc = (id, pid, label, purpose, card, share, vshare) => { const p = pById(pid); const sh = share || 1; const vsh = vshare || sh; const sc2 = (o) => Object.assign({}, o, { v: o.v * vsh, clicks: o.clicks * vsh, orders: o.orders * sh, gmv: o.gmv * sh, spend: o.spend * sh }); const a = sc2(adOf(p, 'cur')), b = sc2(adOf(p, 'pri')); const x = prodX(pid); const st = a.spend, sp = b.spend;
+      let prior, last, sub, judge;
+      if (purpose === 'chuyen_doi') { prior = b.roas; last = a.roas; judge = last < p.be ? 'bad' : 'good'; sub = 'ROAS ' + fmt(prior, 1) + ' → ' + fmt(last, 1) + ' · hoà vốn ' + fmt(p.be, 1); }
+      else if (purpose === 'hien_thi') { prior = sp / b.v * 1000; last = st / a.v * 1000; judge = last > prior * 1.1 ? 'bad' : 'warn'; sub = 'Chi phí / 1.000 lượt xem ' + vnd(prior) + ' → ' + vnd(last) + ' · CTR ' + pc(b.ctr, 1) + ' → ' + pc(a.ctr, 1); }
+      else { prior = 0; last = st / 30; judge = 'good'; sub = 'Trần ' + vnd(last) + '/ngày · kết thúc 15/11 · còn 12 ngày'; }
+      const g = (a.gmv - b.gmv) / 30; return { id, name: label, sub, judge, purpose, kind: 'campaign', prior, last, qp: sp, ql: st, gmv: g, profit: g * (x.bien + AD.bd), conf: a.orders >= 100 ? 'Rõ' : 'Tham khảo', x: Object.assign({ orders: a.orders }, x), rec: card ? cardById(card) : null }; };
+    const shopAd = { id: 'a4', name: 'Trang shop · lượt vào shop', sub: 'Không gắn sản phẩm · chi phí / lượt vào shop 520đ → 470đ', judge: 'good', purpose: 'luot_vao_shop', kind: 'campaign', prior: 520, last: 470, qp: UNATTR.pri, ql: UNATTR.cur, gmv: 4500, profit: 900, conf: 'Tham khảo', x: { bien: 0.11, orders: 12, aov: 80000, disc: 0.07 }, rec: null };
+    const rows = [mkc('a1', 'NR-002', 'Nước rửa chén · chuyển đổi', 'chuyen_doi', 'c_nr_ads'), mkc('a2', 'TU-004', 'Túi zip · chuyển đổi', 'chuyen_doi', 'c_tu_pause'), mkc('a3', 'GL-001', 'Găng tay · hiển thị', 'hien_thi', null), shopAd, mkc('a5', 'XM-003', 'Xơ mướp 5 miếng · ra mắt', 'ra_mat', null), mkc('a6', 'GN-005', 'Giấy bạc · hiển thị', 'hien_thi', 'c_gn_adb'), mkc('a7', 'BEP-S5', 'Bộ vệ sinh bếp · hiển thị', 'hien_thi', 'c_bep_ads', 130 / 600, 0.8)];
+    const a = flowSum('cur', 'ads'), b = flowSum('pri', 'ads'); const cell = (a.reduce((t, x) => t + x.gmv, 0) - b.reduce((t, x) => t + x.gmv, 0)) / 30;
+    return { rowKind: 'Chiến dịch', rows, cell, closing: closeBy(rows, cell, ['3 chiến dịch ít đơn', 'Chiến dịch đã dừng trong kỳ', 'Thay đổi cơ cấu'], [0.33, 0.67, 0], 0.15), ctx: { prior: b.reduce((t, x) => t + x.gmv, 0), last: a.reduce((t, x) => t + x.gmv, 0) }, note: 'Quảng cáo là phần “trong đó”: các đơn này đã nằm trong các luồng (chủ yếu Thẻ sản phẩm và Trang shop), không cộng thêm vào GMV của shop. Chiến dịch Lượt vào shop không gắn sản phẩm nào.' }; },
+  voucher: (kpi) => { const bien = kpi === 'bien'; const rows = [
+    { id: 'v1', name: 'Giảm 15.000đ · đơn từ 99.000đ', sub: 'Nước rửa chén, Túi zip · 410 → 338 đơn dùng', kind: 'voucher', prior: bien ? 0.091 : 0.056, last: bien ? 0.062 : 0.047, qp: 410, ql: 338, gmv: bien ? -58000 : -52000, profit: bien ? -58000 : -21000, conf: 'Rõ', x: { bien: 0.062, orders: 338, aov: 104000, disc: 0.15 }, rec: cardById('c_nr_vcap') },
+    { id: 'v2', name: 'Giảm 5% · đơn từ 150.000đ', sub: 'Cả shop · 190 → 171 đơn dùng', kind: 'voucher', prior: bien ? 0.088 : 0.052, last: bien ? 0.081 : 0.049, qp: 190, ql: 171, gmv: bien ? -9000 : -21000, profit: bien ? -9000 : -6500, conf: 'Rõ', x: { bien: 0.081, orders: 171, aov: 168000, disc: 0.05 }, rec: null },
+    { id: 'v3', name: 'Giảm 10.000đ · đơn từ 49.000đ', sub: 'Xơ mướp, Găng tay · 220 → 236 đơn dùng', kind: 'voucher', prior: bien ? 0.168 : 0.044, last: bien ? 0.17 : 0.045, qp: 220, ql: 236, gmv: bien ? 1000 : 4000, profit: bien ? 1000 : 900, conf: 'Rõ', x: { bien: 0.17, orders: 236, aov: 58000, disc: 0.12 }, rec: null },
+    { id: 'v4', name: 'Voucher theo dõi shop 3.000đ', sub: 'Cả shop · 95 → 93 đơn dùng', kind: 'voucher', prior: bien ? 0.141 : 0.068, last: bien ? 0.14 : 0.067, qp: 95, ql: 93, gmv: bien ? -400 : -3000, profit: bien ? -400 : -400, conf: 'Tham khảo', x: { bien: 0.14, orders: 93, aov: 72000, disc: 0.04 }, rec: null },
+    { id: 'v5', name: 'Voucher riêng cho KOL Minh Anh', sub: '3 sản phẩm · 58 → 97 đơn dùng', kind: 'voucher', prior: bien ? 0.075 : 0.071, last: bien ? 0.07 : 0.079, qp: 58, ql: 97, gmv: bien ? -3000 : 9000, profit: bien ? -3000 : 1100, conf: 'Tham khảo', x: { bien: 0.07, orders: 97, aov: 83000, disc: 0.1 }, rec: null } ];
+    const cell = bien ? -66000 : -96000;
+    return { rowKind: 'Voucher', rows, cell, closing: closeBy(rows, cell, ['2 voucher ít đơn', 'Voucher đã hết hạn trong kỳ', 'Thay đổi cơ cấu đơn'], [0.25, 0.35, 0.4], 0.25), ctx: { prior: bien ? 0.0884 : 0.0535, last: bien ? 0.0781 : 0.0486 }, note: bien ? 'Biên cuối tính trên doanh thu khách trả của các đơn dùng voucher đó.' : 'CTOR tính trên lượt bấm vào các sản phẩm đang có voucher đó.' }; }
+};
+function buildRanking(kpi, src, sub) {
+  let d = null;
+  if (src === 'the_san_pham' && sub === 'search' && kpi === 'views') d = HT.search();
+  else if (src === 'lien_ket' && kpi === 'gmv') d = HT.kol();
+  else if (src === 'ads' && kpi === 'gmv') d = HT.ads();
+  else if (src === 'voucher' && (kpi === 'ctor' || kpi === 'bien')) d = HT.voucher(kpi);
+  else d = buildProducts(kpi, src, sub || 'all');
+  if (!d) return null;
+  d.kpi = kpi; d.total = d.rows.reduce((t, x) => t + x.gmv, 0) + d.closing.reduce((t, x) => t + x.gmv, 0); d.totalP = d.rows.reduce((t, x) => t + x.profit, 0) + d.closing.reduce((t, x) => t + x.profit, 0);
+  return d;
+}
+const rankRow = (kpi, src, sub, id) => { const d = buildRanking(kpi, src, sub); return d ? d.rows.find((r) => r.id === id) || null : null; };
+const MATRIX = []; // chỗ để verify đọc
+return { fmt, vnd, sv, pc, chipOf, chipPt, TARGET, FEE, ADRATE, TARGETS, AD_CAP_DAY, ALLOWED, split, FLOWS, KIDS, LEVERS, SHOP, SKUS, econ, BEP, CB, CROSS_BEP, P, pById, win, flowsOf, kidsOf, leversOf, adFlows, adOf, fullWin, sumW, FW, SHOPW, shopWinFull, flowSum, UNATTR, OTHER, LABELS, CAP_LABEL, fiveOf, capOf, floorOf, vEval, vCard, repOf, discOf, opOf, V_DEFAULT, CARDS, cardById, cardsOfProduct, KPIS, KNAME, SRCS, SUBS, SNAME, KFMT, QLAB, KGET, QGET, streamOf, impactOf, buildRanking, rankRow, HT, prodX, FLOWK };
+})();
+/* ===== END SHARED DATASET ===== */
+
 class Component extends DCLogic {
 _d() {
 // ── shared synthetic data (same in SanPham + SanPhamMobile). Illustrative, not any real shop. ──
@@ -444,33 +831,12 @@ const chipPk = 'color: #b0386a; background: #fdeef4';
 const pillOn = 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a';
 const pillOff = 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc';
 
-const SHOP = { fee: 0.15, ad: 0.184, aff: 0, target: 0.10, cap: 0.10, voucher: 10000, voucherMin: 200000 };
-const SKUS = [
-  { id: 'BEP-S5-CB', name: 'Bộ 5 món · Cơ bản', list: 200000, promo: null, stock: 214, restock: null, orders: 44, cogs: 100000, pack: 3000, fixed: 0, img: 0 },
-  { id: 'BEP-S5-L', name: 'Bộ 5 món · Găng size L', list: 205000, promo: null, stock: 96, restock: null, orders: 20, cogs: 102000, pack: 3000, fixed: 0, img: 1 },
-  { id: 'BEP-S3', name: 'Bộ 3 món · Găng, xơ mướp, nước rửa', list: 129000, promo: 119000, stock: 9, restock: '08/11', orders: 12, cogs: null, pack: null, fixed: 0, img: 2 },
-  { id: 'BEP-S5-QT', name: 'Bộ 5 món · Hộp quà', list: 249000, promo: null, stock: 0, restock: '12/11', orders: 4, cogs: 128000, pack: 6000, fixed: 0, img: 3 }
-];
-function econ(s) {
-  if (s.cogs == null) return null;
-  const sell = s.promo || s.list;
-  const v = sell >= SHOP.voucherMin ? SHOP.voucher : 0;
-  const pay = sell - v;
-  const fee = Math.round(SHOP.fee * pay);
-  const cost = s.cogs + s.pack + s.fixed;
-  const org = pay - fee - cost;
-  const ads = Math.round(SHOP.ad * sell);
-  const adm = org - ads;
-  const abs = Math.round(cost / (1 - SHOP.fee));
-  const op = Math.round(cost / (1 - SHOP.fee - SHOP.ad - SHOP.aff - SHOP.target));
-  const maxd = Math.min(SHOP.cap, 1 - op / s.list);
-  return { sell, v, pay, fee, cost, org, orgP: org / pay * 100, ads, adm, admP: adm / pay * 100, abs, op, maxd: maxd * 100, maxdV: Math.floor(s.list * maxd / 1000) * 1000 };
-}
+const SHOP = DS.SHOP, SKUS = DS.SKUS, econ = DS.econ;
 const TITLE = 'Bộ vệ sinh bếp 5 món set rửa chén: găng tay rửa chén, xơ mướp, nước rửa chén, túi zip, giấy bạc - combo dọn bếp';
 const KEYS = [
-  { k: 'bộ vệ sinh bếp', role: 'chinh', vol: 3200, tr: '▲ 12%', up: true, diff: 42, cpc: 980, rank: 9, med: 185000, cards: [['Thẻ tiêu đề', 'Tiêu đề'], ['Thẻ giá', 'Giá']] },
-  { k: 'set rửa chén', role: 'chinh', vol: 5600, tr: '▲ 5%', up: true, diff: 55, cpc: 1100, rank: 14, med: 172000, cards: [['Thẻ quảng cáo', 'Quảng cáo']] },
-  { k: 'combo dọn bếp', role: 'chinh', vol: 2100, tr: '► 0%', up: null, diff: 31, cpc: 760, rank: 27, med: 192000, cards: [['Thẻ tiêu đề', 'Tiêu đề']] },
+  { k: 'bộ vệ sinh bếp', role: 'chinh', vol: 3200, tr: '▲ 12%', up: true, diff: 42, cpc: 980, rank: 9, med: 185000, cards: ['c_bep_title'] },
+  { k: 'set rửa chén', role: 'chinh', vol: 5600, tr: '▲ 5%', up: true, diff: 55, cpc: 1100, rank: 14, med: 172000, cards: ['c_bep_ads'] },
+  { k: 'combo dọn bếp', role: 'chinh', vol: 2100, tr: '► 0%', up: null, diff: 31, cpc: 760, rank: 27, med: 192000, cards: ['c_bep_title'] },
   { k: 'dụng cụ nhà bếp', role: 'chinh', vol: 9800, tr: '▼ 3%', up: false, diff: 71, cpc: 1320, rank: 58, med: 96000, cards: [] },
   { k: 'đồ dùng nhà bếp tiện ích', role: 'chinh', vol: 1400, tr: '▲ 18%', up: true, diff: 24, cpc: 640, rank: 41, med: 158000, cards: [] },
   { k: 'găng tay rửa chén', role: 'phu', vol: 18400, tr: '▲ 8%', up: true, diff: 78, cpc: 1250, rank: 112, med: 38000, cards: [] },
@@ -481,36 +847,24 @@ const KEYS = [
   { k: 'sỉ', role: 'loaitru', vol: 0, tr: '', up: null, diff: 0, cpc: 0, rank: 0, med: 0, cards: [] },
   { k: 'hàng cũ', role: 'loaitru', vol: 0, tr: '', up: null, diff: 0, cpc: 0, rank: 0, med: 0, cards: [] }
 ];
-const SRC_TRAFFIC = [
-  { k: 'Tìm kiếm', grp: 'Tự nhiên', o: 28, aov: 190000, p: 1436400, ad: 12, card: 'Tiêu đề · +1,8 tr/tháng' },
-  { k: 'Đề xuất', grp: 'Tự nhiên', o: 16, aov: 178000, p: 712000, ad: 6, card: 'Ảnh bìa · +0,9 tr/tháng' },
-  { k: 'Trang shop', grp: 'Tự nhiên', o: 8, aov: 205000, p: 508400, ad: 0, card: null },
-  { k: 'Liên kết (KOL)', grp: 'Liên kết', o: 12, aov: 165000, p: 396000, ad: 0, card: 'Hoa hồng · tiết kiệm 0,2 tr' },
-  { k: 'Trang Flash Sale', grp: 'Flash Sale', o: 16, aov: 152000, p: 408600, ad: 0, card: null }
-];
-const SRC_LEVER = [
-  { k: 'Không ưu đãi', o: 16, g: 3200000, p: 1072000, card: null },
-  { k: 'Voucher', o: 30, g: 5700000, p: 1539000, card: 'Voucher 10k → 15k ≥299k · +0,18 tr' },
-  { k: 'Khuyến mãi (gồm giá Flash Sale)', o: 28, g: 4000000, p: 560000, card: 'Giảm giá · giữ trên giá sàn' },
-  { k: 'Combo / Mua kèm', o: 6, g: 1320000, p: 290400, card: null }
-];
-const CROSS = [[7, 11, 8, 2], [4, 8, 3, 1], [2, 3, 2, 1], [3, 4, 3, 2], [0, 4, 12, 0]];
-const ADS = [
-  { n: 'Tự động · Bộ vệ sinh bếp', purpose: 'chuyen_doi', pl: 'Chuyển đổi', spend: 330000, o: 11, judge: 'ROAS 6,0 so với hoà vốn 3,0', ok: true },
-  { n: 'Hiển thị · Danh mục gia dụng', purpose: 'hien_thi', pl: 'Hiển thị', spend: 130000, o: 3, judge: '38.000đ/1.000 lượt xem · CTR 1,9%', ok: true },
-  { n: 'Vào shop · Mùa sale', purpose: 'luot_vao_shop', pl: 'Lượt vào shop', spend: 90000, o: 2, judge: '1.020 lượt vào · 88đ/lượt', ok: null },
-  { n: 'Ra mắt · Hộp quà', purpose: 'ra_mat', pl: 'Ra mắt', spend: 50000, o: 2, judge: 'Chi 50.000 / trần 300.000đ · hết 15/11', ok: null }
-];
-const PERIODS = {
-  '7': { label: '7 ngày', views: ['3.610', '▲ 4,1%', true], ctr: ['4,4%', '▼ 0,1 pt', false], ctor: ['12,4%', '▲ 0,8 pt', true], aov: ['171.200đ', '▼ 3,7%', false], gmv: ['3.424.000đ', '▲ 6,2%', true], mar: ['24,9%', '▲ 0,6 pt', true] },
-  '30': { label: '30 ngày', views: ['14.800', '▲ 9,2%', true], ctr: ['4,6%', '▲ 0,3 pt', true], ctor: ['11,7%', '▲ 1,0 pt', true], aov: ['177.750đ', '▼ 2,0%', false], gmv: ['14.220.000đ', '▲ 12,7%', true], mar: ['24,3%', '▲ 1,5 pt', true] },
-  '90': { label: '90 ngày', views: ['41.200', '▲ 15,4%', true], ctr: ['4,3%', '▲ 0,2 pt', true], ctor: ['10,9%', '▲ 0,4 pt', true], aov: ['182.400đ', '▼ 0,8%', false], gmv: ['35.203.200đ', '▲ 18,9%', true], mar: ['22,6%', '▲ 0,9 pt', true] }
-};
-const SERIES = {
-  gmv: { label: 'GMV/ngày', unit: 'k đ', v: [310, 420, 380, 450, 520, 440, 390, 410, 560, 520, 480, 530, 610, 500, 470, 540, 600, 570, 430, 410, 480, 520, 640, 590, 560, 480, 450, 520, 560, 610] },
-  views: { label: 'Lượt xem/ngày', unit: '', v: [410, 470, 440, 480, 530, 500, 450, 460, 560, 540, 520, 540, 580, 520, 500, 530, 570, 550, 470, 460, 510, 530, 600, 570, 540, 500, 480, 520, 540, 560] },
-  mar: { label: 'Biên lợi nhuận', unit: '%', v: [21, 22, 22, 23, 23, 22, 21, 22, 24, 24, 23, 24, 25, 24, 22, 22, 23, 23, 24, 24, 24, 25, 25, 26, 25, 25, 24, 25, 25, 26] }
-};
+
+const prod = DS.pById(this.pid); const cur = DS.win(prod, 'cur'), pri = DS.win(prod, 'pri');
+const { chipOf: cOf, chipPt: cPt, fmt: fm } = DS;
+const ch1 = (a, b) => { const c = cOf(a, b); return [c.t, c.up !== false]; };
+const ch2 = (a, b) => { const c = cPt(a, b); return [c.t.replace('điểm', 'pt'), c.up !== false]; };
+const mkP = (label, c, p) => { const g = (w) => w.v * w.ctr * w.ctor * w.aov; const gm = g(c), gp = g(p); return { label, views: [fm(c.v), ...ch1(p.v, c.v)], ctr: [DS.pc(c.ctr), ...ch2(p.ctr, c.ctr)], ctor: [DS.pc(c.ctor), ...ch2(p.ctor, c.ctor)], aov: [vnd(c.aov), ...ch1(p.aov, c.aov)], gmv: [vnd(gm), ...ch1(gp, gm)], mar: [DS.pc(c.bien, 1), ...ch2(p.bien, c.bien)] }; };
+const per = (d, fv, fc, fo, fa, fb, dv, dc, dO, da, db) => { const c = { v: cur.v * d / 30 * fv, ctr: cur.ctr * fc, ctor: cur.ctor * fo, aov: cur.aov * fa, bien: cur.bien + fb }; const p = { v: c.v / (1 + dv), ctr: c.ctr / (1 + dc), ctor: c.ctor / (1 + dO), aov: c.aov / (1 + da), bien: c.bien - db }; return [c, p]; };
+const [c7, p7] = per(7, 1.02, 0.99, 1.05, 0.97, 0.006, 0.041, -0.02, 0.06, -0.037, 0.006), [c90, p90] = per(90, 0.96, 0.98, 0.93, 1.03, -0.015, 0.154, 0.04, 0.035, -0.008, -0.009);
+const PERIODS = { '7': mkP('7 ngày', c7, p7), '30': mkP('30 ngày', cur, pri), '90': mkP('90 ngày', c90, p90) };
+const SH_G = [310, 420, 380, 450, 520, 440, 390, 410, 560, 520, 480, 530, 610, 500, 470, 540, 600, 570, 430, 410, 480, 520, 640, 590, 560, 480, 450, 520, 560, 610];
+const SH_V = [410, 470, 440, 480, 530, 500, 450, 460, 560, 540, 520, 540, 580, 520, 500, 530, 570, 550, 470, 460, 510, 530, 600, 570, 540, 500, 480, 520, 540, 560];
+const SH_M = [21, 22, 22, 23, 23, 22, 21, 22, 24, 24, 23, 24, 25, 24, 22, 22, 23, 23, 24, 24, 24, 25, 25, 26, 25, 25, 24, 25, 25, 26];
+const nz = (a, tot) => { const s = a.reduce((x, y) => x + y, 0); return a.map((x) => x / s * tot); };
+const mm = SH_M.reduce((x, y) => x + y, 0) / SH_M.length;
+const SERIES = { gmv: { label: 'GMV/ngày', unit: 'k đ', v: nz(SH_G, cur.gmv / 1000) }, views: { label: 'Lượt xem/ngày', unit: '', v: nz(SH_V, cur.v) }, mar: { label: 'Biên lợi nhuận', unit: '%', v: SH_M.map((x) => x * cur.bien * 100 / mm) } };
+const SNOTE = { gmv: 'Trung bình ' + fm(cur.gmv / 30 / 1000, 0) + 'k ₫/ngày', views: 'Trung bình ' + fm(cur.v / 30, 0) + ' lượt xem/ngày', mar: 'Trung bình ' + DS.pc(cur.bien, 1) };
+const TOTAL_O = cur.orders, TOTAL_G = cur.gmv, TOTAL_P = cur.profit, SKU_O = SKUS.reduce((a, s) => a + s.orders, 0);
+
 const MARKERS = [
   { i: 7, d: '12/10', t: 'Đổi tiêu đề', card: 'Thẻ tiêu đề', t7: 'T+7: CTOR +0,8 pt · trong khoảng', fin: 'Ngày 14: đạt 82% kỳ vọng' },
   { i: 14, d: '19/10', t: 'Voucher 10k ≥200k', card: 'Thẻ voucher', t7: 'T+7: đơn +3 · biên −0,6 pt', fin: 'Ngày 14: chưa đủ ngày' },
@@ -528,11 +882,6 @@ const TIMELINE = [
   { d: '05/10 11:00', type: 'doi', ico: '≠', t: 'Phát hiện đổi giá niêm yết BEP-S3', s: 'Seller Centre · Juli Connector', chip: ['Ngoài đề xuất', chipWn], diff: 'price' },
   { d: '30/09 10:12', type: 'tham_so', ico: '▣', t: 'Thông số shop v2 áp dụng (tồn kho, ngày nhập lại)', s: 'Quản lý shop · lý do: kiểm kho cuối tháng · tệp thong-so-0930.xlsx', chip: ['Phiên bản v2', chipNe] }
 ];
-// ── product-level numbers derived from the lines above ──
-const TOTAL_O = SRC_TRAFFIC.reduce((a, r) => a + r.o, 0);
-const TOTAL_G = SRC_TRAFFIC.reduce((a, r) => a + r.o * r.aov, 0);
-const TOTAL_P = SRC_TRAFFIC.reduce((a, r) => a + r.p, 0);
-const SKU_O = SKUS.reduce((a, s) => a + s.orders, 0);
 // ADR-107 reason lists, labels as in apps/demo lib/quyet-dinh/reasons.ts (Decline / Revert artboards)
 const REJECT_REASONS = [
   { code: 'brand_mismatch', label: 'Thay đổi không hợp thương hiệu hoặc giọng văn' },
@@ -551,14 +900,17 @@ const REVERT_REASONS = [
   { code: 'other', label: 'Khác' }
 ];
 
-return { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, SRC_TRAFFIC, SRC_LEVER, CROSS, ADS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS };
+return { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS, prod, pw: cur, pq: pri, SNOTE };
 }
 constructor(props) {
 super(props);
-this.state = { tab: 'hs', period: '30', series: 'gmv', imgVer: 2, copied: false, sel: 0, adOn: false, roles: {}, limitMsg: false, filter: 'all' };
+const h = (() => { const o = {}; try { location.hash.replace(/^#/, '').split('&').forEach((kv) => { const [k, v] = kv.split('='); if (k) o[k] = decodeURIComponent(v || ''); }); } catch (e) {} return o; })();
+this.pid = DS.pById(h.id) && !DS.pById(h.id).rest ? h.id : 'BEP-S5'; this.src = h.src === 'the_san_pham' && h.sub ? 'the_san_pham' : (h.src || null); this.kpi = h.kpi || null; this.hfrom = h.from || null; this.hrow = h.row || null; this.hsub = h.sub || null;
+const tab = ['hs', 'ng', 'kw', 'cp', 'ls'].indexOf(h.tab) >= 0 && (this.pid === 'BEP-S5' || ['hs', 'ng'].indexOf(h.tab) >= 0) ? h.tab : 'hs';
+this.state = { tab, period: '30', series: 'gmv', imgVer: 2, copied: false, sel: 0, adOn: true, roles: {}, limitMsg: false, filter: 'all', kids: !!h.sub };
 }
 renderVals() {
-const { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, SRC_TRAFFIC, SRC_LEVER, CROSS, ADS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS } = this._d();
+const { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS, prod, pw, pq, SNOTE } = this._d();
 const st = this.state;
 const roleOf = (k) => st.roles[k.k] || k.role;
 // ── image placeholder (token-coloured blocks) ──
@@ -619,38 +971,48 @@ const varRows = SKUS.map((s, i) => {
     pick: () => this.setState({ sel: i })
   };
 });
-const gmvPrev = 12.7;
-const kpis = [
-  { label: '① % giảm giá', value: '5,5%', delta: '▲ 1,3 pt', deltaStyle: chipNe, sub: '820.000đ giảm giá, voucher trên 15.040.000đ giá niêm yết' },
-  { label: '② Doanh thu / 1đ chi thêm', value: '10,0 đ', delta: '▲ 0,9', deltaStyle: chipUp, sub: 'chi 1.420.000đ: voucher 300k · khuyến mãi 520k · QC 600k' },
-  { label: '③ Biên lợi nhuận cuối', value: pc(TOTAL_P / TOTAL_G * 100), delta: '▲ 1,5 pt', deltaStyle: chipUp, sub: vnd(TOTAL_P) + ' sau mọi chi phí' },
-  { label: '④ Số đơn', value: String(TOTAL_O), delta: '▲ ' + pc(gmvPrev), deltaStyle: chipUp, sub: '2,7 đơn/ngày · 71 đơn kỳ trước' },
-  { label: '⑤ AOV', value: vnd(TOTAL_G / TOTAL_O), delta: '▼ 2,0%', deltaStyle: chipDn, sub: 'GMV ' + vnd(TOTAL_G) + ' ÷ ' + TOTAL_O + ' đơn' }
-];
-const tabDefs = [['hs', 'Hiệu suất'], ['ng', 'Nguồn'], ['kw', 'Từ khoá'], ['cp', 'Chi phí & giá sàn'], ['ls', 'Lịch sử']];
+const fm = DS.fmt;
+const f5 = DS.fiveOf(DS.fullWin(prod, 'pri'), DS.fullWin(prod, 'cur'));
+const kpis = f5.map((r) => ({ label: r.label, value: r.val, delta: r.chip, deltaStyle: r.tone === 'down' ? chipDn : (r.tone === 'up' ? chipUp : chipNe), sub: r.sub1 + ' · ' + r.sub2 }));
+const covP = pw.covBp / pw.bp;
+const tabDefsAll = [['hs', 'Hiệu suất'], ['ng', 'Nguồn'], ['kw', 'Từ khoá'], ['cp', 'Chi phí & giá sàn'], ['ls', 'Lịch sử']];
+const tabDefs = this.pid === 'BEP-S5' ? tabDefsAll : tabDefsAll.filter((t) => ['hs', 'ng'].indexOf(t[0]) >= 0);
 // ── Hiệu suất ──
 const P = PERIODS[st.period];
-const chain = [['Lượt xem', 'views'], ['CTR', 'ctr'], ['CTOR', 'ctor'], ['AOV', 'aov'], ['GMV', 'gmv'], ['Biên lợi nhuận', 'mar']].map(([label, k]) => ({ label, value: P[k][0], delta: P[k][1], deltaStyle: P[k][2] ? chipUp : chipDn }));
+const chain = [['Lượt xem', 'views'], ['CTR', 'ctr'], ['CTOR', 'ctor'], ['AOV', 'aov'], ['GMV', 'gmv'], ['Biên lợi nhuận', 'mar']].map(([label, k]) => ({ label, value: P[k][0], delta: P[k][1], deltaStyle: P[k][2] ? chipUp : chipDn, boxStyle: (this.kpi === k || (this.kpi === 'bien' && k === 'mar')) ? 'border: 2px solid #c2306d; background: #fff7fa' : '' }));
 const S = SERIES[st.series]; const maxV = Math.max.apply(null, S.v);
 const bars = S.v.map((v, i) => {
   const m = MARKERS.find((x) => x.i === i);
   return { style: 'height: ' + Math.round(v / maxV * 100) + '%; background: #71717a', mark: m ? '◆' : '' };
 });
-const seriesNote = { gmv: 'Trung bình 474k ₫/ngày', views: 'Trung bình 493 lượt xem/ngày', mar: 'Trung bình 24%' }[st.series];
+const seriesNote = SNOTE[st.series];
 // ── Nguồn ──
 const mClr = (x) => x >= 20 ? 'color: #146c2e' : (x >= 10 ? 'color: #1a1a1f' : 'color: #a3222f');
-const grpStyle = { 'Tự nhiên': chipUp, 'Liên kết': chipIn, 'Flash Sale': chipWn };
-const traffic = SRC_TRAFFIC.map((r) => {
-  const g = r.o * r.aov; const adShow = st.adOn && r.ad > 0;
-  return { k: r.k, grp: r.grp, grpStyle: grpStyle[r.grp], o: String(r.o), w: Math.round(r.o / TOTAL_O * 100 * 2), pct: pc(r.o / TOTAL_O * 100), gmv: vnd(g), mar: pc(r.p / g * 100), marStyle: mClr(r.p / g * 100), card: r.card || '—', hasAd: adShow, adO: String(r.ad), adPct: pc(r.ad / r.o * 100) };
+const FLS = DS.flowsOf(prod, 'cur'), KDS = DS.kidsOf(prod, 'cur'), LVS = DS.leversOf(prod, 'cur'), ADF = DS.adFlows(prod, 'cur');
+const pcards = DS.cardsOfProduct(prod.id);
+const cardFor = (key, kidFlow) => pcards.find((c) => c.flow === key || (kidFlow && c.flowType === 'kid'));
+const cardTxt = (c) => c ? { card: c.title + ' · ' + vndS(c.atStake).replace(/^\+/, '+') + '/tháng', cardHref: 'CardWhatIf.dc.html#card=' + c.id + '&from=san-pham' } : { card: '—', cardHref: '#' };
+const hiKey = this.hsub || this.src || null;
+const mkRow = (name, grp, grpStyle, o, g, bien, c, adx, key, indent) => Object.assign({ k: (indent ? '↳ ' : '') + name, grp, grpStyle, o: fm(o, 0), w: Math.round(Math.abs(o) / TOTAL_O * 200), pct: pc(o / TOTAL_O * 100), gmv: vnd(g), mar: pc(bien * 100), marStyle: mClr(bien * 100), hasAd: !!adx && st.adOn && adx.orders > 0.5, adO: adx ? fm(adx.orders, 0) : '0', adPct: adx && o ? pc(adx.orders / o * 100) : '—', boxStyle: (hiKey && key === hiKey) ? 'border: 2px solid #c2306d; background: #fff7fa' : '' }, cardTxt(c));
+const traffic = [];
+FLS.forEach((f, i) => {
+  traffic.push(mkRow(DS.FLOWS[i].name, 'Luồng', chipIn, f.orders, f.gmv, f.bien, cardFor(f.k, false), ADF[i], f.k, false));
+  if (f.k === 'the_san_pham' && st.kids) KDS.forEach((k) => traffic.push(mkRow(k.name, 'Nguồn con', chipNe, k.orders, k.gmv, k.bien, pcards.find((c) => c.flow === k.k), null, k.k, true)));
 });
-const levers = SRC_LEVER.map((r) => ({ k: r.k, o: String(r.o), w: Math.round(r.o / TOTAL_O * 100 * 2), pct: pc(r.o / TOTAL_O * 100), gmv: vnd(r.g), mar: pc(r.p / r.g * 100), marStyle: mClr(r.p / r.g * 100), card: r.card || '—' }));
-const adSpend = ADS.reduce((a, r) => a + r.spend, 0); const adO = ADS.reduce((a, r) => a + r.o, 0);
+const dOrd = pw.orders - FLS.reduce((t, f) => t + f.orders, 0), dGmv = pw.gmv - FLS.reduce((t, f) => t + f.gmv, 0);
+if (Math.abs(dOrd) > 0.01) traffic.push(Object.assign(mkRow('Chênh lệch nguồn', 'Loại trùng', chipWn, dOrd, dGmv, pw.bien, null, null, 'diff', false), { mar: '—', marStyle: 'color: #5f5f6b' }));
+const mNote = covP < 0.9999 ? ' trên ' + pc(covP * 100, 0) + ' DT có giá vốn' : '';
+const levers = LVS.map((r) => { const c = r.k === 'voucher' ? cardFor('voucher') : (r.k === 'promo' ? null : cardFor(r.k)); const t = cardTxt(c); if (!c && r.k === 'promo' && prod.id === 'BEP-S5') { t.card = 'Cần giá vốn BEP-S3 trước ›'; t.cardHref = 'CaiDatImport.dc.html#step=tai&sku=BEP-S3&from=san-pham'; } return Object.assign({ k: r.name, o: fm(r.orders, 0), w: Math.round(r.orders / TOTAL_O * 200), pct: pc(r.orders / TOTAL_O * 100), gmv: vnd(r.gmv), mar: pc(r.bien * 100), marStyle: mClr(r.bien * 100), boxStyle: (hiKey && r.k === hiKey) ? 'border: 2px solid #c2306d; background: #fff7fa' : '' }, t); });
+const adSpend = pw.id ? DS.adOf(prod, 'cur').spend : 0; const adAgg = DS.adOf(prod, 'cur'); const adO = adAgg.orders;
 const pStyle = { chuyen_doi: chipPk, hien_thi: chipIn, luot_vao_shop: chipNe, ra_mat: chipWn };
-const ads = ADS.map((a) => ({ n: a.n, pl: a.pl, pStyle: pStyle[a.purpose], spend: vnd(a.spend), o: String(a.o), judge: a.judge, ok: a.ok === true ? 'Tốt' : 'Theo dõi', okStyle: a.ok === true ? chipUp : chipNe }));
+const PURL = { chuyen_doi: 'Chuyển đổi', hien_thi: 'Hiển thị', ra_mat: 'Ra mắt' };
+const SPL = prod.id === 'BEP-S5' ? [['Tự động · Bộ vệ sinh bếp', 'chuyen_doi', 0.6333, 0.6333], ['Hiển thị · Danh mục gia dụng', 'hien_thi', 130 / 600, 0.8], ['Ra mắt · Hộp quà', 'ra_mat', 0.15, 0.1]] : [[prod.name + ' · ' + PURL[prod.kind || 'chuyen_doi'], prod.kind || 'chuyen_doi', 1, 1]];
+const adsCamp = SPL.map(([n, pur, sh, vsh]) => { const spend = adAgg.spend * sh, orders = adAgg.orders * sh; let judge, ok = true; if (pur === 'chuyen_doi') { const roas = adAgg.gmv * sh / spend; judge = 'ROAS ' + fm(roas, 1) + ' so với hoà vốn ' + fm(prod.be, 1); ok = roas >= prod.be; } else if (pur === 'hien_thi') { judge = vnd(spend / (adAgg.v * vsh) * 1000) + '/1.000 lượt xem · CTR ' + DS.pc(adAgg.ctr, 1); } else { judge = 'Chi ' + vnd(spend) + ' / trần 300.000đ · hết 15/11'; ok = null; } return { n, pl: PURL[pur], pStyle: pStyle[pur], spend: vnd(spend), o: fm(orders, 0), judge, ok: ok === true ? 'Tốt' : (ok === false ? 'Dưới hoà vốn' : 'Theo dõi'), okStyle: ok === true ? chipUp : (ok === false ? chipDn : chipNe), href: (DS.cardsOfProduct(prod.id).find((c) => c.flowType === 'ads') ? 'CardWhatIf.dc.html#card=' + DS.cardsOfProduct(prod.id).find((c) => c.flowType === 'ads').id + '&from=san-pham' : '#') }; });
+const ads = adsCamp;
+const hasCross = prod.id === 'BEP-S5';
 const crossMax = 12;
-const cross = CROSS.map((row, ri) => ({ k: SRC_TRAFFIC[ri].k, sum: String(row.reduce((a, b) => a + b, 0)), cells: row.map((v) => ({ v: String(v), style: v === 0 ? 'color: #6b6b76' : 'font-weight: 600; background: ' + (v >= 8 ? '#fdeef4' : '#faf7f8') })) }));
-const crossSums = [0, 1, 2, 3].map((c) => String(CROSS.reduce((a, r) => a + r[c], 0)));
+const cross = hasCross ? DS.CROSS_BEP.map((row, ri) => ({ k: DS.FLOWS[ri].short, sum: String(row.reduce((a, b) => a + b, 0)), cells: row.map((v) => ({ v: String(v), style: v === 0 ? 'color: #6b6b76' : 'font-weight: 600; background: ' + (v >= 8 ? '#fdeef4' : '#faf7f8') })) })) : [];
+const crossSums = hasCross ? [0, 1, 2, 3].map((c) => String(DS.CROSS_BEP.reduce((a, r) => a + r[c], 0))) : [];
 // ── Từ khoá ──
 const core = KEYS.filter((k) => roleOf(k) === 'chinh').length;
 const volAll = KEYS.filter((k) => ['chinh', 'phu'].includes(roleOf(k))).reduce((a, k) => a + k.vol, 0);
@@ -682,7 +1044,7 @@ const kwRows = KEYS.filter((k) => roleOf(k) !== 'loaitru').map((k) => {
   return {
     k: k.k, roleLabel: roleLabel[r], roleStyle: roleStyle[r], vol: num(k.vol), tr: k.tr, trStyle: k.up === true ? 'color: #146c2e' : (k.up === false ? 'color: #a3222f' : 'color: #5f5f6b'),
     diff: diffLbl, diffStyle, cpc: vnd(k.cpc), pos, posStyle, rank: k.rank === 0 ? 'Ngoài top 200' : '#' + k.rank,
-    price, priceNote, priceStyle, cards: k.cards.map((c) => c[0]), noCards: k.cards.length ? '' : '—', act, actLabel, actOff,
+    price, priceNote, priceStyle, cards: k.cards.map((id) => ({ t: DS.cardById(id).title, href: 'CardWhatIf.dc.html#card=' + id + '&from=san-pham' })), noCards: k.cards.length ? '' : '—', act, actLabel, actOff,
     box: r === 'chinh' ? 'background: #fff7fa; border-color: #f8b9d3' : 'background: #ffffff'
   };
 });
@@ -723,11 +1085,18 @@ const events = TIMELINE.filter((e) => st.filter === 'all' || e.type === st.filte
   diffTitle: e.diff === 'title', diffImg: e.diff === 'img', diffPrice: e.diff === 'price'
 }));
 return {
+  isFull: this.pid === 'BEP-S5', notFull: this.pid !== 'BEP-S5', prodName: prod.name, prodId: prod.id, covNote: covP < 0.9999 ? 'Biên trên ' + pc(covP * 100, 1) + ' doanh thu có giá vốn (BEP-S3 chưa có giá vốn)' : 'Biên trên 100% doanh thu có giá vốn',
+  backHref: this.hfrom === 'ranking' ? 'Ranking.dc.html#kpi=' + (this.kpi || 'gmv') + '&src=' + (this.src || 'all') + (this.hsub ? '&sub=' + this.hsub : '') + '&focus=' + (this.hrow || prod.id) : (this.hfrom === 'tong-quan' ? 'TongQuan.dc.html' : (this.hfrom === 'card' ? 'CardWhatIf.dc.html' : 'TongQuan.dc.html')),
+  backLabel: this.hfrom === 'ranking' ? 'Xếp hạng' : (this.hfrom === 'card' ? 'Thẻ đề xuất' : 'Tổng quan'),
+  cardCount: String(DS.cardsOfProduct(prod.id).length), topCardHref: DS.cardsOfProduct(prod.id)[0] ? 'CardWhatIf.dc.html#card=' + DS.cardsOfProduct(prod.id)[0].id + '&from=san-pham' : 'CardWhatIf.dc.html', voucherCardHref: 'CardWhatIf.dc.html#card=c_bep_voucher&from=san-pham', titleCardHref: 'CardWhatIf.dc.html#card=c_bep_title&from=san-pham',
+  hasBanner: this.hfrom === 'ranking' && !!this.kpi, fromBanner: 'Mở từ Xếp hạng · ' + (DS.KNAME[this.kpi] || '') + ' × ' + (DS.SNAME[this.hsub || this.src] || this.src || 'Tất cả') + (this.hrow ? ' · dòng ' + this.hrow : ''),
+  kidsOn: st.kids, toggleKids: () => this.setState({ kids: !st.kids }), kidsLabel: st.kids ? 'Gộp sáu nguồn con' : 'Mở sáu nguồn con của Thẻ sản phẩm', kidsStyle: st.kids ? 'color: #ffffff; background: #5f5f6b; border: 1px solid #5f5f6b' : 'color: #5f5f6b; background: #ffffff; border: 1px solid #e3d6dc',
+  tpCaption: 'Năm luồng cộng lại bằng số đơn của sản phẩm' + (traffic.some((r) => r.grp === 'Loại trùng') ? ' cùng dòng “Chênh lệch nguồn”' : ''), kpiHi: this.kpi || '',
   img: { bgStyle: im.bg, shapes, verLabel: im.verLabel, verNote: im.verNote }, thumbs,
   imgPrev: () => this.setState({ imgVer: Math.max(0, st.imgVer - 1) }), imgNext: () => this.setState({ imgVer: Math.min(2, st.imgVer + 1) }),
   imgPrevOff: st.imgVer === 0, imgNextOff: st.imgVer === 2,
   titleSegs: segs.map((x) => ({ t: x.t, style: segStyle(x) })), titleLen: TITLE.length, titlePct: Math.round(TITLE.length / 120 * 100),
-  pid: '24681357902', copyLabel: st.copied ? 'Đã sao chép ✓' : 'Sao chép', copy: () => this.setState({ copied: !st.copied }),
+  pid: prod.mid || prod.id, copyLabel: st.copied ? 'Đã sao chép ✓' : 'Sao chép', copy: () => this.setState({ copied: !st.copied }),
   price, stockRows, varRows, varTotal: SKU_O + ' đơn', kpis,
   tabs: tabDefs.map(([id, label]) => ({ label, on: st.tab === id, style: st.tab === id ? 'color: #ffffff; background: #b0386a' : 'color: #4a4a55; background: transparent', pick: () => this.setState({ tab: id }) })),
   isHs: st.tab === 'hs', isNg: st.tab === 'ng', isKw: st.tab === 'kw', isCp: st.tab === 'cp', isLs: st.tab === 'ls',
@@ -735,11 +1104,11 @@ return {
   chain,
   seriesTabs: Object.keys(SERIES).map((k) => ({ label: SERIES[k].label, on: st.series === k, style: st.series === k ? 'color: #1a1a1f; background: #ffffff; box-shadow: 0 1px 2px rgba(20,20,30,0.08)' : 'color: #5f5f6b; background: transparent', pick: () => this.setState({ series: k }) })),
   seriesNote, bars, markers: MARKERS.map((m) => ({ d: m.d, t: m.t, t7: m.t7, fin: m.fin, card: m.card })),
-  totalO: String(TOTAL_O), totalG: vnd(TOTAL_G), totalM: pc(TOTAL_P / TOTAL_G * 100) + ' biên',
+  totalO: fm(TOTAL_O, 0), totalG: vnd(TOTAL_G), totalM: pc(pw.bien * 100) + ' biên' + mNote,
   adOn: st.adOn, toggleAd: () => this.setState({ adOn: !st.adOn }), adBtnLabel: st.adOn ? 'Ẩn lớp Quảng cáo' : 'Hiện lớp Quảng cáo (trong đó)',
   adBtnStyle: st.adOn ? 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a' : 'color: #b0386a; background: #ffffff; border: 1px solid #f3cfdf',
   traffic, levers, crossHead: ['Không ưu đãi', 'Voucher', 'Khuyến mãi', 'Combo'], cross, crossSums,
-  ads, adTotalO: String(adO), adPctO: pc(adO / TOTAL_O * 100), adTotalSpend: vnd(adSpend),
+  ads, adTotalO: fm(adO, 0), adPctO: pc(adO / TOTAL_O * 100), adTotalSpend: vnd(adAgg.spend), hasCross,
   coreCount: core, limitChipStyle: core >= 5 ? chipWn : chipUp, addOff: false,
   limitMsg: st.limitMsg || false, addCore: () => this.setState({ limitMsg: core >= 5 }),
   cov: { all: pc(volIn / volAll * 100), vis: pc(volVis / volAll * 100), missing: missing.length ? missing.join(' · ') : 'Không có' },

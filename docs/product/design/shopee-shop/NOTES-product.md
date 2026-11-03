@@ -15,12 +15,12 @@ The data in the file is computed with the shop formula, not typed per state.
 |---|---|---|---|
 | `SanPham.dc.html` (1280) | Product page: cover + gallery with "‹ N phiên bản ảnh" stepper, title with char count /120 and key-list highlighting (chính / phụ / ngoài 100 ký tự), Mã SP + copy, SKU, category, status, group, Ưu tiên, links; Giá / Tồn kho / Uy tín blocks each with a freshness line (stock shows "Cũ 3 ngày"); variation table; 5-number strip; sub-tabs | Sản phẩm › [product] | Image version 1–3; copy done; select variation (drives Chi phí tab); tabs below |
 | ↳ Hiệu suất | KPI chain by period (7 / 30 / 90 ngày), daily chart (GMV / lượt xem / biên) with ◆ markers of executed cards and their T+7 / ngày 14 result | tab | period, series |
-| ↳ Nguồn | Traffic table (Tự nhiên: Tìm kiếm / Đề xuất / Trang shop; Liên kết; Flash Sale page) and price-lever table, each = 100 %; source × lever cross-table with row and column sums; "Quảng cáo (trong đó)" overlay with purpose badges (Chuyển đổi, Hiển thị, Lượt vào shop, Ra mắt) judged by their own metric; "→ đề xuất" chip per row | tab | overlay off / on |
+| ↳ Nguồn | Traffic table on the five flows (Thẻ sản phẩm ngoài Trang shop, Trang shop, Live, Video, Tiếp thị liên kết; Thẻ sản phẩm opens into six children) and price-lever table, each = 100 %; source × lever cross-table with row and column sums; "Quảng cáo (trong đó)" overlay with purpose badges (Chuyển đổi, Hiển thị, Lượt vào shop, Ra mắt) judged by their own metric; "→ đề xuất" chip per row | tab | overlay off / on |
 | ↳ Từ khoá | Key list: max 5 Chính + Phụ / Thương hiệu / Loại trừ; volume + trend, difficulty, CPC, position in title, our rank, market median vs ours vs floor, coverage %, links to title / ad / price cards; limit state "Đã đủ 5 từ khoá chính" | tab | 5/5 (limit), Hạ xuống Phụ → 4/5 and "Nâng lên Chính" unlocks; "+ Thêm từ khoá chính" at 5/5 shows the limit message |
 | ↳ Chi phí & giá sàn | Per-order waterfall (niêm yết → voucher → khách trả → phí sàn → giá vốn → đóng gói → quảng cáo → hoa hồng → lợi nhuận) for tự nhiên and từ QC; absolute and operating floor with formulas, giảm tối đa, price gauge, verdict | tab | 4 variations; BEP-S3 = "Chưa có giá vốn" empty state pointing to Cài đặt |
 | ↳ Lịch sử | Append-only timeline: card events, whatif_adjusted, detected changes (title text diff, image before→after, price before→after), input versions | tab | filter Tất cả / Thẻ / Thay đổi phát hiện / Thông số |
 | `SanPhamMobile.dc.html` (390) | Header + Giá on top, 5 số / Tồn kho / Uy tín / Phiên bản collapsed, scrolling sub-tab bar, condensed tabs | Sản phẩm, mobile | block open/closed, same tab states |
-| `CardWhatIf.dc.html` (920) | Voucher card with what-if: options A / B / C, value + min-spend sliders, lượt dùng, floor check, ad-order margin warning, spend cap, break-even, "Chắc chắn" vs "Dự kiến" 5 numbers (VND and %), Lý do + "Xem phân tích ›", Phê duyệt / Yêu cầu chỉnh / Từ chối (ADR-107 reasons dialog) | Quyết định › Đề xuất (and Đo lường) | Mặc định A → C · Kéo về B (ad orders 9,4 % warning) · Chạm giá sàn 25k (red, approve locked, "Đặt về mức tối đa") · Đã phê duyệt (whatif_adjusted note if changed) · Kết quả ngày 7 · Chốt 28 ngày (good / bad example, Giữ C / Hoàn tác về A with revert reasons) · sliders are live in the first three |
+| `CardWhatIf.dc.html` (920) | Voucher card with what-if: options A / B / C and every contract §7 input (giá trị in đ or % with a max, đơn tối thiểu, số lượng voucher, giới hạn mỗi người, số ngày) with Q, u and the used count shown; every number recomputes from the inputs (used = min(Q × u, số lượng)); floor check, ad-order margin warning, spend cap, break-even, "Chắc chắn" vs "Dự kiến" 5 numbers (VND and %), Lý do + "Xem phân tích ›", Phê duyệt / Yêu cầu chỉnh / Từ chối (ADR-107 reasons dialog) | Quyết định › Đề xuất (and Đo lường) | Mặc định A → C · Kéo về B (ad orders 9,4 % warning) · Chạm giá sàn 25k (red, approve locked, "Đặt về mức tối đa") · Đã phê duyệt (whatif_adjusted note if changed) · Kết quả ngày 7 · Chốt 28 ngày (good / bad example, Giữ C / Hoàn tác về A with revert reasons) · sliders are live in the first three |
 | `CaiDatImport.dc.html` (1040) | Download pre-filled template, upload, validation (unknown SKU, giá vốn ≥ giá, giá vốn trống, ngoài khoảng), diff cũ → mới with consequences, apply with required reason → v4, version list per SKU with Khôi phục (new version copying the old one), banner "N đề xuất sẽ được tính lại", Mục tiêu sheet | Cài đặt › Thông số shop | 6 tabs: Mẫu và tải lên · Kiểm tra · So sánh · Áp dụng (before / after) · Phiên bản (confirm, restored) · Mục tiêu (warning row) |
 
 Demo-only affordances (not product): the scenario pills in CardWhatIf, "Kết quả tốt / xấu", the file picker button.
@@ -29,8 +29,7 @@ Demo-only affordances (not product): the scenario pills in CardWhatIf, "Kết qu
 
 `TongQuan*.dc.html`, `Ranking*.dc.html`, `PhanTich*.dc.html` and `README.md` are written on the other branch;
 filenames are not known here, so links are by role:
-- Card "Xem phân tích ›" should land on Nguồn of this page (cell Voucher, SKU BEP-S5-CB) or on the Ranking row; in the
-  artboard it links to `SanPham.dc.html`.
+- Card "Xem phân tích ›" opens the Ranking for the card's metric × source with the row highlighted (contract §8); "Mở sản phẩm ›" opens `SanPham.dc.html#id=<product>&tab=ng`.
 - Ranking rows' "→ đề xuất" chip leads to `CardWhatIf.dc.html`; the Nguồn rows here use the same chip.
 - Missing giá vốn → `CaiDatImport.dc.html`.
 
@@ -40,9 +39,8 @@ filenames are not known here, so links are by role:
    `--chart-neutral`, diamonds are ink. Say if the pink of PtProduct should win.
 2. Approve is locked below the operating floor, with a one-tap "Đặt về mức tối đa". No override path drawn.
 3. Dòng lỗi in an import do not block the valid rows (shown as "Tiếp tục với 38 dòng hợp lệ").
-4. "% giảm giá" and "Doanh thu / 1đ chi thêm" on the 5-number strip: definitions used are
-   (voucher + giảm giá) ÷ giá niêm yết, and GMV ÷ (voucher + khuyến mãi + quảng cáo chi).
-5. What-if "Chắc chắn" assumes buyers behave as in the last 30 orders; ad orders = 30 % of orders for the margin.
+4. The 5-number strip uses the contract §5 definitions (one function shared with Tổng quan and the card); ② = ΔGMV ÷ Δchi.
+5. What-if "Chắc chắn" assumes buyers behave as in the last 30 orders (Q, u = 100 % shown); ad orders = 30 % of orders for the margin. ② appears only in "Dự kiến"; "Chắc chắn" shows the break-even extra orders. Giới hạn mỗi người is an input that cannot be checked from the data and changes no number (contract §9).
 6. Keyword limits: 5 Chính hard cap; Thương hiệu and Loại trừ do not count.
 7. Names: approver shown as "Quản lý shop"; no real client names or data.
 
