@@ -25,6 +25,7 @@ from juli_backend.services.shopee_recommendations.service import (
     mark_executed,
     publish,
     recompute,
+    seller_view,
     sim_summary,
     withdraw,
 )
@@ -64,6 +65,7 @@ __all__ = [
     "run_learning",
     "save_card",
     "save_sim",
+    "seller_view",
     "sim_summary",
     "withdraw",
 ]

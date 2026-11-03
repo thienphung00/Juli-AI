@@ -380,6 +380,38 @@ def _summary(
     }
 
 
+#: Internals a seller never sees (ADR-121 d.1: "ranges and results, never the model or method").
+_SELLER_HIDDEN_TOP = (
+    "model_version",
+    "rank_inputs",
+    "candidate_extra",
+    "gap_pct",
+    "generated_at",
+    "rank",
+)
+_SELLER_HIDDEN_LIFT = ("factor", "source", "range_scale", "gap_bucket", "sim")
+
+
+def seller_view(card: dict[str, Any]) -> dict[str, Any]:
+    """The card as the client's manager sees it: certain, predicted range ("dự kiến"), five
+    numbers, floor, plan label and execution sheet -- without the model version, calibration
+    source / factor, simulation run or ranking internals."""
+    out = {k: v for k, v in card.items() if k not in _SELLER_HIDDEN_TOP}
+    pred = dict(out.get("predicted") or {})
+    pred.pop("model_version", None)
+    pred.pop("sim", None)
+    lift = dict(pred.get("lift") or {})
+    for k in _SELLER_HIDDEN_LIFT:
+        lift.pop(k, None)
+    pred["lift"] = lift
+    out["predicted"] = pred
+    plan = dict(out.get("measurement_plan") or {})
+    for k in ("mde_14", "mde_28", "mde_at_plan", "mde_max", "alpha", "power", "baseline_days"):
+        plan.pop(k, None)
+    out["measurement_plan"] = plan
+    return out
+
+
 XEP_THEO = ("diem", "gmv_per_day", "profit_per_day", "bien", "orders", "aov")
 
 
@@ -425,7 +457,10 @@ async def list_cards(
         if status and p.status != status:
             continue
         meta = await store.card_meta(session, shop_id, p.id)
-        out.append((_summary(p, card, meta), card))
+        summary = _summary(p, card, meta)
+        if audience == "seller":
+            summary["rank"] = {"position": (card.get("rank") or {}).get("position")}
+        out.append((summary, card))
     out.sort(key=lambda t: (_xep_key(t[1], xep_theo), t[0]["id"]))
     summaries = [s for s, _ in out]
     groups: dict[str, int] = Counter(s["family"] for s in summaries)
@@ -466,7 +501,7 @@ async def card_detail(
     ).all()
     out = {
         **_summary(p, card, meta),
-        "card": card,
+        "card": seller_view(card) if audience == "seller" else card,
         "journey": [
             {"event": e.event_type, "at": e.occurred_at.isoformat(), "reason_code": e.reason_code}
             for e in events
@@ -891,6 +926,7 @@ async def sim_summary(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, An
 
 __all__ = [
     "learning_overview",
+    "seller_view",
     "sim_summary",
     "KINDS",
     "ACTOR_JULI",

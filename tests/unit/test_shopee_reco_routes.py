@@ -183,6 +183,21 @@ async def test_the_detail_has_certain_predicted_five_numbers_floor_plan_and_shee
     assert card["execution_sheet"]["changes"][0]["change_kind"] == "voucher"
     assert [e["event"] for e in body["journey"]] == ["proposed"]
     text = json.dumps(body)
+    # ADR-121 d.1: ranges and results, never the model or method
+    for hidden in (
+        "model_version",
+        "shopee-reco-v1",
+        "gate_weight",
+        "run_id",
+        "range_scale",
+        "gap_bucket",
+        "rank_inputs",
+        "candidate_extra",
+        "mde_14",
+        "factor",
+    ):
+        assert hidden not in text, hidden
+    assert card["predicted"]["lift"]["lift"]["p10"] <= card["predicted"]["lift"]["lift"]["p90"]
     for banned in ('"order_ref"', '"buyer', "recipient", '"phone', '"address'):
         assert banned not in text
     for ref in seeded.order_refs:
@@ -201,7 +216,7 @@ async def test_whatif_recomputes_the_whole_card_and_records_the_adjustment(sessi
     assert (
         new["five_numbers"]["discount"]["vnd_after"] > base["five_numbers"]["discount"]["vnd_after"]
     )
-    assert new["id"] == base["id"]
+    assert new["id"] == base["id"] and "model_version" not in json.dumps(new)
     (adj,) = await _events(session, seeded.shop_id, ids[0], "whatif_adjusted")
     assert (
         adj.payload["inputs"] == {"discount_pct": 18}

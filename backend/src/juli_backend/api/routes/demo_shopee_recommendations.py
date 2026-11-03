@@ -99,7 +99,7 @@ async def recommendation_whatif(
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None
-    return {"card": card}
+    return {"card": reco.seller_view(card)}
 
 
 @router.post("/{card_id}/approve")
