@@ -41,6 +41,7 @@ from juli_backend.api.routes.ops_proposals import router as ops_proposals_router
 from juli_backend.api.routes.ops_shopee_dashboards import router as ops_shopee_dashboards_router
 from juli_backend.api.routes.ops_shopee_keywords import router as ops_shopee_keywords_router
 from juli_backend.api.routes.ops_shopee_kpi import router as ops_shopee_kpi_router
+from juli_backend.api.routes.ops_shopee_orders import router as ops_shopee_orders_router
 from juli_backend.api.routes.ops_trial_signups import router as ops_trial_signups_router
 from juli_backend.api.routes.orders import router as orders_router
 from juli_backend.api.routes.outcomes import router as outcomes_router
@@ -104,6 +105,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_shopee_kpi_router)
     v1_router.include_router(ops_shopee_dashboards_router)
     v1_router.include_router(ops_shopee_keywords_router)
+    v1_router.include_router(ops_shopee_orders_router)
     v1_router.include_router(shop_invites_router)
     # Fast track P24 (D31.3 / D31.4): the ingest gateway and Juli Connector pairing.
     v1_router.include_router(ingest_router)
