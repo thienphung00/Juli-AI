@@ -33,7 +33,9 @@ change_kind    observation                                  fields
 title          ``platform_items.name`` (item_catalog)       ``title``
 price          ``platform_item_snapshots``                  ``current_price``, ``list_price``
 stock          ``platform_item_snapshots``                  ``stock``
-images         ``platform_item_snapshots``                  ``image_urls`` (cover only today)
+images         ``platform_item_snapshots``                  ``image_urls`` (cover only today),
+                                                            or ``{"changed_from": [<cover URL>]}``
+                                                            when the new image is not known yet
 daily_budget   ``ads_campaign_daily`` (campaign row)        ``daily_budget``
 roas_target    ``ads_campaign_daily`` (campaign row, or     ``roas_target``
                the shop-level ``roi_target`` row)
@@ -43,6 +45,10 @@ voucher        ``voucher_settings`` (``platform_promotions``) ``discount_amount`
                                                             ``usage_limit``, ``starts_at``,
                                                             ``ends_at``
 =============  ===========================================  ================================
+
+An ``expected`` value ``{"changed_from": [url, ...]}`` (listing cards that ask for a new cover:
+the new URL does not exist when the card is made) matches an observed ``image_urls`` whose
+cover (the first URL) is present and differs from the first URL given.
 
 Reads only the shop's own rows (the caller holds its scope); never calls Seller Centre.
 """
@@ -132,8 +138,23 @@ def _text(value: Any) -> str:
     return " ".join(unicodedata.normalize("NFKC", str(value)).split())
 
 
+CHANGED_FROM = "changed_from"
+
+
+def _is_change(expected: Any) -> bool:
+    return isinstance(expected, Mapping) and set(expected) == {CHANGED_FROM}
+
+
 def same_value(expected: Any, observed: Any) -> bool:
-    """Numbers by value, text by NFKC with single spaces, lists item by item."""
+    """Numbers by value, text by NFKC with single spaces, lists item by item. An expected
+    ``{"changed_from": [url, ...]}`` means "the cover is no longer the first URL given"."""
+    if _is_change(expected):
+        before = expected[CHANGED_FROM]
+        if not isinstance(observed, list | tuple) or not observed:
+            return False
+        if not isinstance(before, list | tuple) or not before:
+            return True
+        return not same_value(before[0], observed[0])
     if expected is None or observed is None:
         return expected is None and observed is None
     if isinstance(expected, list | tuple):

@@ -72,6 +72,23 @@ STOCK_SHARE_CAP = 0.5
 #: Product has at least this many confirmed orders in the history window to get a card.
 MIN_PRODUCT_ORDERS = 3
 
+# -- listing family (title / keyword / cover_image / price_display) ---------------------------
+#: Shopee's product-name limit; a proposed title never exceeds it.
+MAX_TITLE_CHARS = 120
+#: Characters of a title the search result shows (the product page counts keywords against it).
+TITLE_VISIBLE_CHARS = 100
+#: At most this many "Chính" keywords per product (ADR-120 d.11).
+MAX_CORE_KEYWORDS = 5
+#: A "Phụ" keyword is promoted over the weakest "Chính" one only when its monthly search
+#: volume is at least this many times higher, and at least ``KEYWORD_MIN_VOLUME`` (ADR-119 s.5).
+KEYWORD_SWAP_FACTOR = 1.5
+KEYWORD_MIN_VOLUME = 100
+#: A product must have at least this many days of Thẻ sản phẩm impressions to judge a CTR lever.
+LISTING_MIN_IMPRESSIONS = 100
+#: The title / keyword audit runs on this many of the shop's best-selling products even when no
+#: critical metric asks for it.
+LISTING_OPPORTUNITY_PRODUCTS = 10
+
 # -- acceptance statistics --------------------------------------------------------------------
 ACCEPTANCE_PRIOR = (1.0, 2.0)  # (accepted + a) / (shown + b)
 

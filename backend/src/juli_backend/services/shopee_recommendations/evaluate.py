@@ -1190,6 +1190,109 @@ def _flow_gmv(env: RecoEnv, item: str, flow_key: str) -> Decimal:
     return sum((r.gmv for r in table.rows if r.key == flow_key), ZERO)
 
 
+# ---------------------------------------------------------------------------- listing
+
+
+def listing_base(env: RecoEnv, item: str, kind: str) -> tuple[Decimal, str]:
+    """GMV per day the lever can move, and which GMV it is: a title / keyword moves search
+    views (the Thẻ sản phẩm "search" child when the daily per-source rows exist), a cover or
+    price display moves the click rate on the product card (Thẻ sản phẩm outside Trang shop).
+    No flow data for the product = 0: nothing is predicted from a base that is not known."""
+    window = Decimal(env.window_days)
+    if kind in ("title", "keyword"):
+        kids = env.view.data.product_flows.children.get(item)
+        search = None if not kids else kids.get("search")
+        if search is not None and search.views:
+            return search.gmv / window, "gmv_tim_kiem"
+    return _flow_gmv(env, item, "the_san_pham_khac") / window, "gmv_the_san_pham"
+
+
+def _listing_before_after(
+    kind: str, cand: Candidate, inputs: Mapping[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    x = cand.extra
+    if kind == "title":
+        old, new = x["current_title"], str(inputs["title"])
+        return {"title": old, "chars": len(old)}, {"title": new, "chars": len(new)}
+    if kind == "keyword":
+        promote, demote = inputs["promote"], inputs.get("demote")
+        before = list(x["core_before"])
+        after = [k for k in before if k != demote] + ([promote] if promote not in before else [])
+        return {"core": before}, {"core": after, "promote": promote, "demote": demote}
+    return (
+        {"cover_url": x.get("cover_url"), "text": x.get("before_text")},
+        {"text": x.get("after_text"), "line": x.get("line")},
+    )
+
+
+def eval_listing(
+    env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
+) -> Evaluation:
+    """Title / keyword / cover / price display: a traffic lever, so no certain layer (the card
+    says so); the predicted range comes from the lift model on views (title, keyword) or CTR
+    (cover, price display), over the GMV the lever can reach."""
+    from juli_backend.services.shopee_recommendations import listing as lst
+
+    item = cand.item
+    if item is None or item not in env.listings:
+        return _refuse("no_listing")
+    kind = cand.kind
+    certain: dict[str, Any] = {
+        "kind": "listing",
+        "traffic_lever": True,
+        "note": "Đổi hiển thị chỉ tác động lượt xem / tỉ lệ bấm nên không có phần chắc chắn về "
+        "doanh thu hay lợi nhuận; chỉ có phần dự kiến.",
+    }
+    notes: list[str] = []
+    if kind == "title":
+        new_title = str(inputs.get("title") or "").strip()
+        if not new_title or len(new_title) > config.MAX_TITLE_CHARS:
+            return _refuse("title_length")
+        if not lst.is_clean(new_title, env.banned_terms):
+            return _refuse("banned_term")
+        core = cand.extra.get("core", [])
+        certain["audit_before"] = lst.audit_title(cand.extra["current_title"], core).json()
+        certain["audit_after"] = lst.audit_title(new_title, core).json()
+        certain["banned_terms_in_title"] = 0
+        notes += cand.extra.get("notes", [])
+        inputs = {**inputs, "title": new_title}
+    elif kind == "keyword":
+        if inputs.get("promote") is None:
+            return _refuse("no_keyword")
+        certain["core_slots"] = {
+            "used": len(cand.extra["core_before"]),
+            "max": config.MAX_CORE_KEYWORDS,
+        }
+    before, after = _listing_before_after(kind, cand, inputs)
+    gmv_day, base_label = listing_base(env, item, kind)
+    pp = env.product(item)
+    ppg = safe_div(pp.contribution, pp.buyer_paid_covered) if pp else None
+    n_orders = _scope_orders(env, [item])
+    gmv_item = sum((ln.order_value for ln, _ in env.view.pairs if ln.product_id == item), ZERO)
+    window = Decimal(env.window_days)
+    profit = ProfitModel(
+        effect_days=config.DAYS_PER_MONTH,
+        base_gmv_per_day=gmv_day,
+        base_orders_per_day=Decimal(n_orders) / window,
+        aov=safe_div(gmv_item, Decimal(n_orders)) if n_orders else None,
+        profit_per_gmv=ppg,
+        base_label=base_label,
+    )
+    if gmv_day <= 0:
+        notes.append("Chưa có lưu lượng theo nguồn của sản phẩm này: chưa dự kiến được.")
+    return Evaluation(
+        certain=certain,
+        five=None,
+        breaches=[],
+        profit=profit,
+        before=before,
+        after=after,
+        target={"item_id": item},
+        spend_check=_spend_check(env, ZERO),
+        notes=notes,
+    )
+
+
 # ------------------------------------------------------------------------------ entry
 
 _EVALUATORS = {
@@ -1200,6 +1303,7 @@ _EVALUATORS = {
     "add_on": eval_add_on,
     "gift": eval_gift,
     "affiliate": eval_affiliate,
+    "listing": eval_listing,
 }
 
 
@@ -1213,6 +1317,8 @@ def evaluator_key(kind: str) -> str:
         return "ads"
     if s.family == "affiliate":
         return "affiliate"
+    if s.family == "listing":
+        return "listing"
     return {"add_on": "add_on", "gift": "gift"}.get(kind, "bundle")
 
 

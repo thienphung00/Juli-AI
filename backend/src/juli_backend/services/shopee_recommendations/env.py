@@ -27,6 +27,7 @@ from juli_backend.services.shopee_profit.floor import FloorInputs, FloorResult, 
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import OrderLine, SkuCost
 from juli_backend.services.shopee_profit.shop_profit import ProductProfit
+from juli_backend.services.shopee_recommendations.listing import Listing
 
 if TYPE_CHECKING:
     from juli_backend.services.shopee_recommendations.learning import (
@@ -77,6 +78,10 @@ class RecoEnv:
     calibration: Mapping[tuple[str, str], CalibrationState] = field(default_factory=dict)
     acceptance: AcceptanceStats | None = None
     sim: SimPriors | None = None
+    #: product id -> the listing as stored (newest snapshot + keyword key list + market numbers)
+    listings: dict[str, Listing] = field(default_factory=dict)
+    #: the seller's "Từ không được dùng" (Quy tắc); the listing proposals never contain one
+    banned_terms: tuple[str, ...] = ()
     _floor_cache: dict[str, dict[str, FloorResult]] = field(default_factory=dict, repr=False)
 
     # ------------------------------------------------------------------ rules / targets

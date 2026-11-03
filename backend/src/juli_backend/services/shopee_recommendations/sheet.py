@@ -79,6 +79,23 @@ def _changes(
                 "expected": expected,
             }
         ]
+    if kind == "title":
+        return [
+            {
+                "change_kind": "title",
+                "target": {"item_id": target.get("item_id")},
+                "expected": {"title": after["title"]},
+            }
+        ]
+    if vk == "images":
+        # the new image is not known beforehand: the read-back looks for the cover URL to change
+        return [
+            {
+                "change_kind": "images",
+                "target": {"item_id": target.get("item_id")},
+                "expected": {"image_urls": {"changed_from": [before.get("cover_url")]}},
+            }
+        ]
     if vk == "price":
         out = []
         for row in after.get("skus", []):
@@ -98,6 +115,26 @@ def _changes(
             "expected": dict(after),
         }
     ]
+
+
+def _listing_steps(
+    kind: str, before: dict[str, Any], after: dict[str, Any]
+) -> list[dict[str, Any]]:
+    if kind == "title":
+        return [_step(1, "Tên sản phẩm", before.get("title"), after.get("title"), "ký tự")]
+    if kind == "keyword":
+        steps = [
+            _step(1, "Thêm vào từ khoá Chính", None, after.get("promote")),
+        ]
+        if after.get("demote"):
+            steps.append(_step(2, "Chuyển xuống từ khoá Phụ", after.get("demote"), None))
+        return steps
+    cover = _step(1, "Ảnh bìa (ảnh đầu tiên)", before.get("text"), after.get("text"))
+    if kind == "price_display":
+        cover["copy"] = after.get("line")
+    else:
+        cover["copy"] = None
+    return [cover]
 
 
 def build_sheet(
@@ -140,6 +177,9 @@ def build_sheet(
         for k, v in after.items():
             n += 1
             steps.append(_step(n, k, before.get(k), v, None))
+    elif s.family == "listing":
+        steps = _listing_steps(kind, before, after)
+        n = len(steps)
     elif s.family == "affiliate":
         n += 1
         steps.append(
@@ -196,6 +236,8 @@ def build_sheet(
         "readback": {
             "kinds": sorted({c["change_kind"] for c in changes}),
             "deadline_hours": 48,
-            "note": "Connector đọc lại ở lần chạy kế tiếp; không thấy trong 48 giờ sẽ báo cho Ops.",
+            "note": "Thay đổi này nằm trong bộ từ khoá của Juli nên không có bước đọc lại tự động."
+            if kind == "keyword"
+            else "Connector đọc lại ở lần chạy kế tiếp; không thấy trong 48 giờ sẽ báo cho Ops.",
         },
     }

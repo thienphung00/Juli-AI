@@ -953,6 +953,55 @@ async def load_keyword_market(session: AsyncSession, keywords: list[str]) -> dic
     return {m.keyword: m for m in await MarketKeywordMetricsReadRepo(session).latest(keywords)}
 
 
+@dataclass
+class ListingSource:
+    """What the listing audits read about one product: its newest snapshot (title, images,
+    prices), the keyword seeds that carry a role for it and their market numbers."""
+
+    item_id: str
+    header: ItemHeader | None = None
+    seeds: list[KeywordSeed] = field(default_factory=list)
+    market: dict[str, Any] = field(default_factory=dict)
+
+
+async def load_listing_sources(
+    session: AsyncSession, shop_id: uuid.UUID, item_ids: list[str]
+) -> dict[str, ListingSource]:
+    """One read per table for many products (the recommendation generators audit them all)."""
+    out = {i: ListingSource(i) for i in item_ids}
+    if not out:
+        return out
+    for row in await PlatformItemSnapshotsRepo(session).latest_per_item(shop_id, list(out)):
+        if row.variation_id != "":
+            continue
+        out[row.item_id].header = ItemHeader(
+            item_id=row.item_id,
+            title=row.title,
+            image_urls=list(row.image_urls or []),
+            list_price=row.list_price,
+            current_price=row.current_price,
+            promo_label=row.promo_label,
+            stock=row.stock,
+            category_path=tuple(row.category_path or ()),
+            status=row.status,
+            captured_at=row.captured_at,
+        )
+    for seed in await ShopKeywordSeedsReadRepo(session).roled(shop_id):
+        for item_id in out:
+            if seed.item_scope == item_id or (
+                seed.item_scope is None and item_id in (seed.item_ids or [])
+            ):
+                out[item_id].seeds.append(
+                    KeywordSeed(seed.keyword, seed.role or "", seed.pattern, seed.item_scope)
+                )
+    market = await load_keyword_market(
+        session, sorted({k.keyword for src in out.values() for k in src.seeds})
+    )
+    for src in out.values():
+        src.market = {k.keyword: market[k.keyword] for k in src.seeds if k.keyword in market}
+    return out
+
+
 async def load_flow_series(
     session: AsyncSession, shop_id: uuid.UUID, end: date, days: int = 400
 ) -> dict[str, dict[date, tuple[float, float, float, float]]]:

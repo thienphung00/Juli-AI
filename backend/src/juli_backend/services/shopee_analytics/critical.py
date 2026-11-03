@@ -351,6 +351,57 @@ def _median_items(view: PeriodView) -> tuple[list[dict[str, Any]], list[dict[str
     return crit, ok
 
 
+#: A product is "low on search views" below this share of the shop's median per-product search
+#: views per day (views are skewed: half the catalogue is always below the median).
+LOW_VIEWS_SHARE = Decimal("0.5")
+
+
+def _search_views_items(view: PeriodView) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Lượt xem (search): a product's Thẻ sản phẩm "search" impressions per day against the
+    median of the shop's products. Needs the per-source daily rows (``item_traffic_sources``);
+    without them there is no item, never a guess. The đồng at stake is the missing views at the
+    shop's own search CTR x CTOR x AOV."""
+    crit: list[dict[str, Any]] = []
+    ok: list[dict[str, Any]] = []
+    kids = view.data.product_flows.children
+    stats = {pid: k["search"] for pid, k in kids.items() if k.get("search") and k["search"].views}
+    if len(stats) < MIN_PRODUCTS_FOR_MEDIAN:
+        return crit, ok
+    days = Decimal(view.window.days)
+    views = sum((a.views or ZERO for a in stats.values()), ZERO)
+    clicks = sum((a.clicks or ZERO for a in stats.values()), ZERO)
+    orders = sum((a.orders for a in stats.values()), ZERO)
+    gmv = sum((a.gmv for a in stats.values()), ZERO)
+    ctr, ctor, aov = safe_div(clicks, views), safe_div(orders, clicks), safe_div(gmv, orders)
+    if not (ctr and ctor and aov):
+        return crit, ok
+    per_day = {pid: (a.views or ZERO) / days for pid, a in stats.items()}
+    median = Decimal(str(statistics.median(float(v) for v in per_day.values())))
+    for pid, now in per_day.items():
+        lost = (median - now) * ctr * ctor * aov
+        item = _item(
+            id=f"product:{pid}:views:median",
+            kind="below_shop_median",
+            level="product",
+            kpi="views",
+            stage="views",
+            current=now,
+            reference={
+                "type": "shop_median",
+                "label": "trung vị lượt xem từ tìm kiếm của các sản phẩm",
+                "value": float(median),
+            },
+            at_stake_per_day=max(lost, ZERO),
+            product_id=pid,
+            name=view.names.get(pid),
+            flow="the_san_pham_khac",
+            src="the_san_pham_khac",
+        )
+        item["ranking_link"]["sub"] = "search"
+        (crit if now < median * LOW_VIEWS_SHARE and lost > 0 else ok).append(item)
+    return crit, ok
+
+
 def _target_items(view: PeriodView, ctx: ShopContext) -> list[dict[str, Any]]:
     """The shop's monthly GMV / orders pace against the seller's targets."""
     out: list[dict[str, Any]] = []
@@ -399,6 +450,8 @@ def build_critical(
 ) -> dict[str, Any]:
     flow_crit, flow_ok, notes = _flow_items(now, series)
     med_crit, med_ok = _median_items(now)
+    views_crit, views_ok = _search_views_items(now)
+    med_crit, med_ok = [*med_crit, *views_crit], [*med_ok, *views_ok]
     items = [
         *flow_crit,
         *_margin_items(now, ctx),

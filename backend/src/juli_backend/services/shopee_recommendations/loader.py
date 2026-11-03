@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformDailyMetricsRepo, PlatformPromotionsRepo
+from juli_backend.services import shop_rules
 from juli_backend.services.shopee_analytics import loaders, service
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_recommendations import config, store
@@ -23,6 +24,7 @@ from juli_backend.services.shopee_recommendations.env import (
     RecoEnv,
     VoucherSetting,
 )
+from juli_backend.services.shopee_recommendations.listing import Keyword, Listing
 
 ADS_DAILY = "ads_campaign_daily"
 
@@ -113,6 +115,37 @@ def usage_rate_of(env_view: Any) -> Decimal | None:
     return sum(rates, Decimal(0)) / len(rates)
 
 
+def listing_from(src: loaders.ListingSource, env: RecoEnv) -> Listing:
+    """The audited listing of one product: the snapshot's title / cover / price (the catalogue
+    and the newest order line stand in when there is no snapshot) and its keyword key list."""
+    head = src.header
+    title = (head.title if head and head.title else None) or env.ctx.catalog.name(src.item_id)
+    price = head.current_price if head and head.current_price else None
+    if price is None:
+        prices = [p for sku in env.skus_of(src.item_id) if (p := env.current_price(sku))]
+        price = min(prices) if prices else None
+    images = list(head.image_urls) if head else []
+    keywords = []
+    for seed in src.seeds:
+        m = src.market.get(seed.keyword)
+        keywords.append(
+            Keyword(
+                seed.keyword,
+                seed.role,
+                None if m is None or m.volume is None else int(m.volume),
+                None if m is None or m.difficulty is None else float(m.difficulty),
+            )
+        )
+    return Listing(
+        item_id=src.item_id,
+        title=title,
+        cover_url=images[0] if images else None,
+        image_count=len(images),
+        price=price,
+        keywords=tuple(sorted(keywords, key=lambda k: (k.role, k.keyword))),
+    )
+
+
 async def load_env(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -136,4 +169,7 @@ async def load_env(
     env.calibration = await store.load_calibrations(session, shop_id)
     env.acceptance = await store.load_acceptance(session, shop_id)
     env.sim = await store.load_sim(session, shop_id)
+    env.banned_terms = tuple(await shop_rules.banned_terms(session, shop_id))
+    sources = await loaders.load_listing_sources(session, shop_id, env.item_ids())
+    env.listings = {item: listing_from(src, env) for item, src in sources.items()}
     return env

@@ -106,6 +106,20 @@ def _slider_rows(env: RecoEnv, cand: Candidate) -> list[dict[str, Any]]:
     return rows
 
 
+def _text_fields(cand: Candidate) -> list[dict[str, Any]]:
+    """Free-text inputs a person may edit before approving (only the proposed title)."""
+    if cand.kind != "title":
+        return []
+    return [
+        {
+            "key": "title",
+            "label": "Tên sản phẩm mới",
+            "max_chars": config.MAX_TITLE_CHARS,
+            "default": cand.inputs.get("title"),
+        }
+    ]
+
+
 def _in_stock(env: RecoEnv, cand: Candidate) -> bool | None:
     if not cand.items:
         return True
@@ -166,6 +180,7 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
             "critical_kpi": (cand.critical or {}).get("kpi"),
             "flow": (cand.critical or {}).get("flow"),
             "at_stake_per_day": (cand.critical or {}).get("at_stake_per_day"),
+            "at_stake_per_month": (cand.critical or {}).get("at_stake_per_month"),
         },
         "wiring": {
             "critical_metric": cand.wiring_key,
@@ -187,7 +202,7 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
         "candidate_extra": dict(cand.extra),
         "wiring_key": cand.wiring_key,
         "gap_pct": cand.gap_pct,
-        "whatif": {"sliders": _slider_rows(env, cand)},
+        "whatif": {"sliders": _slider_rows(env, cand), "text_fields": _text_fields(cand)},
         "certain": {**ev.certain, "label": "Chắc chắn"},
         "five_numbers": ev.five,
         "floor": {

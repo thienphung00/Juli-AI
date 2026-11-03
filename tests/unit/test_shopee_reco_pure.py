@@ -52,6 +52,7 @@ def test_every_kind_belongs_to_a_family_and_maps_to_a_proposal_and_read_back_kin
         "sale",
         "combo",
         "affiliate",
+        "listing",
         "mega_sale",
     }
     for key, s in KINDS.items():
