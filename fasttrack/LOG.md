@@ -3593,3 +3593,14 @@ reconcile --write` re-derived the no-assert corpus figure.
   (the title itself is aliased structurally); the operator adds it to `REVIEWER_MASK_TERMS`.
 - Seller surfaces and TikTok writes: untouched (the mask runs only for reviewer sessions).
 - Tests: `tests/unit/test_p86_reviewer_brand_scrub.py`.
+
+## 2026-11-03 — agent (Claude Opus) — P89: English partner reviewer guide on demo.app-juli.com
+
+- Owner 2026-11-03: publish the English reviewer guide (was the private artifact
+  Wed4bDTUrrQpoHSkX4kawP) to production. Static page `apps/demo/public/reviewer-guide.html`,
+  served at `https://demo.app-juli.com/reviewer-guide` (rewrite in `next.config.ts`); same text as
+  the artifact, made standalone (`lang="en"`, `<meta name="robots" noindex>`); the site-wide
+  `X-Robots-Tag: noindex, nofollow` applies. No credentials in the page (the reviewer email and
+  password stay in the application form).
+- Tests: `src/__tests__/reviewer-guide-page.test.ts` (rewrite, standalone noindex page, 8 steps,
+  sign-in link, no credentials); noindex test unchanged. Local `next dev`: 200, text/html, noindex.

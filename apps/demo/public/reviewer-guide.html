@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Juli Reviewer Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>*,*::before,*::after{box-sizing:border-box}body{margin:0}img{max-width:100%}</style>
+<style>
+/* Layout: one reading column; a sticky step index on wide screens; three parts as numbered sequences (the order is real). */
+:root {
+  --bg: #ffffff;
+  --surface: #fef5f6;
+  --fg: #0a0a0a;
+  --muted: #5c5c66;
+  --line: #f3cbd5;
+  --accent: #b0386a;
+  --accent-strong: #e85a94;
+  --read: #1d4ed8;
+  --read-tint: #eef4ff;
+  --write: #b0386a;
+  --write-tint: #fef0f5;
+  --check: #15803d;
+  --check-tint: #ecfdf3;
+  --font-body: "Be Vietnam Pro", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141113; --surface: #1f1a1d; --fg: #f4eef1; --muted: #b3a9ae; --line: #3a2b32;
+    --accent: #f59ac0; --accent-strong: #f86ba5;
+    --read: #93b4ff; --read-tint: #172036; --write: #f59ac0; --write-tint: #2a1820; --check: #6fd394; --check-tint: #13281b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141113; --surface: #1f1a1d; --fg: #f4eef1; --muted: #b3a9ae; --line: #3a2b32;
+  --accent: #f59ac0; --accent-strong: #f86ba5;
+  --read: #93b4ff; --read-tint: #172036; --write: #f59ac0; --write-tint: #2a1820; --check: #6fd394; --check-tint: #13281b;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 48px 72px; display: flex; flex-direction: column; gap: 48px; }
+header { display: flex; flex-direction: column; gap: 14px; max-width: 68ch; }
+.brand { font-weight: 700; font-size: 20px; letter-spacing: -0.02em; }
+.brand span { color: var(--accent-strong); }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 0; font-size: clamp(30px, 5vw, 44px); line-height: 1.15; letter-spacing: -0.02em; text-wrap: balance; }
+h2 { margin: 0; font-size: 24px; line-height: 1.3; text-wrap: balance; }
+h3 { margin: 0; font-size: 17px; line-height: 1.4; }
+p { margin: 0; }
+.lede { font-size: 18px; color: var(--muted); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.fact { background: var(--surface); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fact b { font-size: 15px; }
+.fact span { font-size: 14px; color: var(--muted); }
+code, .mono { font-family: var(--font-mono); font-size: 0.9em; overflow-wrap: anywhere; }
+.signin { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; align-items: start; }
+.signin ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
+.url { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; }
+.url code { flex: 1 1 220px; min-width: 0; }
+button.copy { font: inherit; font-size: 14px; font-weight: 600; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+button.copy:focus-visible, a:focus-visible { outline: 3px solid var(--accent-strong); outline-offset: 2px; }
+.parts { display: flex; flex-direction: column; gap: 40px; }
+.part { display: flex; flex-direction: column; gap: 16px; }
+.part-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.chip { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; padding: 4px 10px; border-radius: 999px; }
+.chip.read { background: var(--read-tint); color: var(--read); }
+.chip.write { background: var(--write-tint); color: var(--write); }
+.chip.check { background: var(--check-tint); color: var(--check); }
+.part-note { color: var(--muted); max-width: 68ch; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.step { border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 4px 14px; align-content: start; }
+.num { grid-row: span 3; width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--line); color: var(--accent); font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+.step p { font-size: 15px; color: var(--muted); }
+.where { font-size: 13px; font-weight: 600; color: var(--accent); }
+.proof { font-size: 14px; color: var(--fg); }
+.truth { width: 100%; border-collapse: collapse; font-size: 15px; }
+.table-box { overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; }
+.truth th, .truth td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.truth tr:last-child td { border-bottom: 0; }
+.truth th { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface); }
+.faq { display: flex; flex-direction: column; gap: 18px; max-width: 72ch; }
+.faq div { display: flex; flex-direction: column; gap: 4px; }
+.faq p { color: var(--muted); }
+footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 20px; }
+section { display: flex; flex-direction: column; gap: 18px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Juli<span>.</span></div>
+    <div class="eyebrow">Partner reviewer guide · Shopee Open Platform</div>
+    <h1>See Juli's live TikTok Shop integration in about ten minutes</h1>
+    <p class="lede">Juli is an analytics and operations copilot for TikTok Shop sellers in Vietnam. Your trial account opens two connected shops: a real seller's shop you can read, and a TikTok Shop sandbox shop where Juli writes real changes through the TikTok Shop Open API.</p>
+  </header>
+
+  <div class="facts">
+    <div class="fact"><b>Real shop · read-only</b><span>Live orders, GMV, traffic and product data from the TikTok Shop Open API. Shop name, product names and ids are hidden for the seller's privacy. Approving a change here is simulated.</span></div>
+    <div class="fact"><b>Sandbox shop · real writes</b><span>A TikTok Shop development shop. Products, promotions and listing edits you approve are written to TikTok and confirmed with TikTok's own ids.</span></div>
+    <div class="fact"><b>In-app guide</b><span>After you sign in, a "Reviewer guide" panel lists these same 8 steps and ticks each one as you complete it. Collapse it with × and reopen it from the pill.</span></div>
+  </div>
+
+  <section aria-labelledby="signin">
+    <h2 id="signin">Sign in</h2>
+    <div class="signin">
+      <ol>
+        <li>Open the partner sign-in page below.</li>
+        <li>Use the reviewer email and password from the application form.</li>
+        <li>You land on <b>Trang chủ</b> (Home) for the real shop, with the guide open on the right.</li>
+      </ol>
+      <div class="url">
+        <code id="signin-url">https://demo.app-juli.com/auth/email#doi-tac</code>
+        <button type="button" class="copy" id="copy-url" data-target="signin-url">Copy</button>
+      </div>
+    </div>
+    <p class="part-note">The app's interface is in Vietnamese. Button and tab names below are quoted exactly as they appear on screen, with an English gloss.</p>
+  </section>
+
+  <div class="parts">
+    <section class="part" aria-labelledby="p1">
+      <div class="part-head"><span class="chip read">READ</span><h2 id="p1">Part 1 · A real seller's shop</h2></div>
+      <p class="part-note">Everything here is read from TikTok Shop for an authorized seller. Nothing you do changes their shop.</p>
+      <ol class="steps">
+        <li class="step"><span class="num">1</span><h3>Trang chủ (Home): live GMV and orders</h3><p>30-day GMV, orders and AOV, broken down by traffic source: product card, shop tab, video, LIVE and affiliates.</p><span class="where">Left menu › Trang chủ</span></li>
+        <li class="step"><span class="num">2</span><h3>Phân tích (Analysis): where GMV is lost</h3><p>Each source splits into impressions, CTR, conversion and AOV, then by product. Open "Khuyến mãi" to see flash sales and discounts per product.</p><span class="where">Left menu › Phân tích</span></li>
+        <li class="step"><span class="num">3</span><h3>Quyết định (Decisions): approve a recommendation</h3><p>Each card names the product, the metric to move and the expected GMV. Press "Duyệt" (Approve) to see the steps Juli would take. On this shop the run is simulated.</p><span class="where">Quyết định › Đề xuất (Recommendations)</span></li>
+      </ol>
+    </section>
+
+    <section class="part" aria-labelledby="p2">
+      <div class="part-head"><span class="chip write">WRITE</span><h2 id="p2">Part 2 · The TikTok sandbox shop</h2></div>
+      <p class="part-note">This shop is a TikTok Shop development shop connected to Juli by OAuth. What you approve and confirm here is written to TikTok.</p>
+      <ol class="steps" start="4">
+        <li class="step"><span class="num">4</span><h3>Switch to the sandbox shop</h3><p>Open the shop menu (top left) and choose "Chuyển sang Shop sandbox TikTok · ghi thật" (switch to the sandbox, real writes).</p><span class="where">Shop menu</span></li>
+        <li class="step"><span class="num">5</span><h3>Sync from TikTok</h3><p>On the "Kết nối TikTok Shop" (connection) card, press "Đồng bộ ngay" (Sync now). Orders and products refresh from TikTok within a minute, and the sync time updates.</p><span class="where">Trang chủ › Kết nối TikTok Shop</span></li>
+        <li class="step"><span class="num">6</span><h3>Approve a change, then confirm it</h3><p>Pick a card: create a product, create a promotion, or improve a listing. Juli checks TikTok's rules, shows the exact change, and writes it only after you press the confirm button. The finished step shows TikTok's product or promotion id.</p><span class="where">Quyết định › Duyệt › Xác nhận (Confirm)</span></li>
+      </ol>
+    </section>
+
+    <section class="part" aria-labelledby="p3">
+      <div class="part-head"><span class="chip check">CHECK</span><h2 id="p3">Part 3 · Measure and undo</h2></div>
+      <ol class="steps" start="7">
+        <li class="step"><span class="num">7</span><h3>Đo lường (Measure): what TikTok confirmed</h3><p>Each write is listed with TikTok's id and confirmation time. For listing edits you also see TikTok's own quality check of the new text.</p><span class="where">Quyết định › Đo lường</span></li>
+        <li class="step"><span class="num">8</span><h3>Hoàn tác (Undo): restore it on TikTok</h3><p>Juli reads the product from TikTok first, checks whether anyone edited it outside Juli, then restores the previous value after you confirm.</p><span class="where">Đo lường › Hoàn tác</span></li>
+      </ol>
+    </section>
+  </div>
+
+  <section aria-labelledby="truth">
+    <h2 id="truth">What is real, what is simulated</h2>
+    <div class="table-box">
+      <table class="truth">
+        <thead><tr><th scope="col">Action</th><th scope="col">Real shop</th><th scope="col">Sandbox shop</th></tr></thead>
+        <tbody>
+          <tr><td>Read orders, products, GMV, traffic</td><td>Live from TikTok Shop Open API</td><td>Live from TikTok Shop Open API</td></tr>
+          <tr><td>Sync now ("Đồng bộ ngay")</td><td>Not available (read-only)</td><td>Pulls from TikTok</td></tr>
+          <tr><td>Approve and confirm a change</td><td>Simulated, no write</td><td>Written to TikTok</td></tr>
+          <tr><td>Undo ("Hoàn tác")</td><td>Not available</td><td>Written to TikTok</td></tr>
+          <tr><td>Names and ids shown</td><td>Hidden ("Shop TikTok (ẩn danh)", "Sản phẩm 123")</td><td>Shown as TikTok returns them</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="faq">
+    <h2 id="faq">Good to know</h2>
+    <div class="faq">
+      <div><h3>The sandbox shows little traffic.</h3><p>TikTok sandbox shops have no real shoppers, so views, CTR, video and LIVE stay empty there. Orders come from TikTok's sandbox test-order tool. Traffic analysis is best seen on the real shop.</p></div>
+      <div><h3>A run is waiting for me.</h3><p>Juli never writes without a confirmation. A proposal stays open for 4 hours on "Đang thực hiện" (In progress); press "Không thực hiện" (Don't apply) to cancel it.</p></div>
+      <div><h3>The account expires.</h3><p>The reviewer account is valid for 30 days from issue. The expiry date is shown in the banner under the shop name.</p></div>
+    </div>
+  </section>
+
+  <footer>Juli · Công ty TNHH Công Nghệ Juli AI · Product page: <a href="https://app-juli.com/san-pham">app-juli.com/san-pham</a></footer>
+</div>
+
+<script>
+document.getElementById('copy-url').addEventListener('click', function (event) {
+  var button = event.currentTarget;
+  var target = document.getElementById(button.dataset.target);
+  var text = target.textContent;
+  function selectIt() {
+    var range = document.createRange();
+    range.selectNodeContents(target);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    button.textContent = 'Selected';
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { button.textContent = 'Copied'; }, selectIt);
+  } else {
+    selectIt();
+  }
+});
+</script>
+</body>
+</html>
