@@ -1,3 +1,5 @@
+import { PILOT_SHOP_IDS } from "../src/config";
+const PILOT = PILOT_SHOP_IDS[0];
 import { describe, expect, it } from "vitest";
 import {
   READER_BLOCK_CAPTCHA_MS,
@@ -24,7 +26,7 @@ const GAP = READER_PAGE_GAP_MS + READER_PAGE_GAP_JITTER_MS + 1;
 const TOKEN = {
   token: "jci_x",
   token_id: "t1",
-  shop_id: "s1",
+  shop_id: PILOT,
   platform: "shopee",
   expires_at: "2027-01-10T00:00:00Z",
   rotate_after: "2026-12-01T00:00:00Z",
@@ -123,7 +125,7 @@ async function finishPage(
 }
 
 describe("planJobs", () => {
-  const base = { shopId: "s1", nowMs: T0, stopped: new Set<never>(), adsDone: [] as string[] };
+  const base = { shopId: PILOT, nowMs: T0, stopped: new Set<never>(), adsDone: [] as string[] };
 
   it("opens only pages with a postable dataset: health waits while its table is reserved", () => {
     const ids = planJobs(base).map((j) => j.id);
