@@ -25,7 +25,6 @@ from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
     PromoKind,
     SkuCost,
-    TrafficSource,
     line_profit,
     profit_lines,
 )
@@ -417,18 +416,31 @@ def test_five_numbers_before_after_and_cap() -> None:
     fn = five_numbers(snapshot_from(b, D(0)), snapshot_from(a, D(400000)), spend_cap=D(500000))
     assert fn.discount.vnd_before == 0 and fn.discount.pct_after == D("10.0")
     assert fn.extra_revenue == D(12 * 180000 - 10 * 200000)
-    assert fn.extra_spend == D(400000)
-    assert fn.extra_revenue_per_extra_spend == D(160000) / D(400000)
+    # chi = ads 400.000 + promo (12 x 20.000 off list) = 640.000; before chi = 0 (contract 5.2)
+    assert fn.extra_spend == D(640000)
+    assert fn.extra_revenue_per_extra_spend == D(160000) / D(640000)
+    assert fn.chi_status == "per_vnd" and fn.below_one is True
     assert fn.margin.pct_before == D("33.5")  # 67.000 / 200.000
     assert fn.orders == (10, 12, D("20.0"))
     assert fn.aov.vnd_before == D(200000) and fn.aov.vnd_after == D(180000)
     assert fn.aov_change_pct == D("-10.0")
-    assert fn.spend_cap is not None
+    assert fn.spend_cap is not None  # chi per day 640.000 against a 500.000 cap
     assert (fn.spend_cap.remaining, fn.spend_cap.used_pct, fn.spend_cap.over_cap) == (
-        D(100000),
-        D("80.0"),
-        False,
+        D(-140000),
+        D("128.0"),
+        True,
     )
+
+
+def test_five_numbers_giam_chi_when_chi_does_not_rise() -> None:
+    cost = {"S1": COST}
+    b = profit_lines(
+        [line(f"b{i}", deal_price=D(180000)) for i in range(10)], cost, schedule=SCHEDULE
+    )
+    a = profit_lines([line(f"a{i}") for i in range(10)], cost, schedule=SCHEDULE)
+    fn = five_numbers(snapshot_from(b, D(0)), snapshot_from(a, D(0)))
+    assert fn.extra_spend == D(-200000) and fn.chi_status == "giam_chi"
+    assert fn.extra_revenue_per_extra_spend is None and fn.below_one is False
 
 
 def test_five_numbers_unknown_profit_is_none_not_zero() -> None:
@@ -436,40 +448,22 @@ def test_five_numbers_unknown_profit_is_none_not_zero() -> None:
     fn = five_numbers(snapshot_from(p, D(0)), snapshot_from(p, D(0)))
     assert fn.margin.vnd_after is None and fn.margin.pct_after is None
     assert fn.extra_revenue_per_extra_spend is None and fn.spend_cap is None
+    assert fn.chi_status == "undefined"
 
 
 # ----------------------------------------------------------------- sources
 
 
 def mixed_lines() -> list[OrderLine]:
-    src = TrafficSource
     return [
-        line("1", traffic_source=src.SEARCH),
-        line("2", traffic_source=src.SEARCH, ad=True, shop_voucher_share=D(10000)),
-        line(
-            "3", traffic_source=src.RECOMMEND, promo_kind=PromoKind.FLASH_SALE, deal_price=D(150000)
-        ),
-        line(
-            "4",
-            traffic_source=src.AFFILIATE,
-            bundle_discount=D(5000),
-            affiliate=True,
-            commission=D(8000),
-        ),
-        line("5", traffic_source=src.SHOP_PAGE, ad=True),
-        OrderLine("6", "S2", "P2", DAY, 2, D(50000), D(45000), traffic_source=src.SEARCH),
-        OrderLine("6", "S1", "P1", DAY, 1, D(200000), D(200000), traffic_source=src.SEARCH),
-        OrderLine(
-            "6",
-            "S1",
-            "P1",
-            DAY,
-            1,
-            D(200000),
-            D(200000),
-            shop_voucher_share=D(1),
-            traffic_source=src.SEARCH,
-        ),
+        line("1"),
+        line("2", ad=True, shop_voucher_share=D(10000)),
+        line("3", promo_kind=PromoKind.FLASH_SALE, deal_price=D(150000)),
+        line("4", bundle_discount=D(5000), affiliate=True, commission=D(8000)),
+        line("5", ad=True),
+        OrderLine("6", "S2", "P2", DAY, 2, D(50000), D(45000)),
+        OrderLine("6", "S1", "P1", DAY, 1, D(200000), D(200000)),
+        OrderLine("6", "S1", "P1", DAY, 1, D(200000), D(200000), shop_voucher_share=D(1)),
     ]
 
 
@@ -478,21 +472,18 @@ def mixed_pairs() -> list:
     return profit_lines(mixed_lines(), costs, schedule=SCHEDULE, ads_pools={"S1": AD_POOL})
 
 
-def test_sources_dimensions_sum_to_totals() -> None:
+def test_sources_lever_sums_to_totals() -> None:
     m = build_source_matrix(mixed_pairs())
     assert_additive(m)
-    assert (
-        sum(c.orders for c in m.traffic.values()) == sum(c.orders for c in m.totals.values()) == 7
-    )
+    assert sum(c.orders for c in m.lever.values()) == sum(c.orders for c in m.totals.values()) == 7
     assert sum(c.gmv for c in m.lever.values()) == sum(c.gmv for c in m.totals.values())
     p1 = m.totals["P1"]
     assert p1.orders == 6  # order 6 merges its two P1 lines into one pair
-    assert m.traffic[("P1", "search")].orders == 3
-    assert m.lever[("P1", "promotion")].orders == 1  # flash sale price
-    assert m.lever[("P1", "bundle")].orders == 1
+    assert m.lever[("P1", "khuyen_mai")].orders == 1  # flash sale price
+    assert m.lever[("P1", "combo")].orders == 1
     assert m.lever[("P1", "voucher")].orders == 2  # order 2 and order 6 (merged voucher)
-    assert m.lever[("P1", "none")].orders == 2
-    # ads overlay: orders 2 and 5, inside their traffic cells, never added on top
+    assert m.lever[("P1", "khong_uu_dai")].orders == 2
+    # ads overlay: orders 2 and 5, inside their lever cells, never added on top
     assert m.ads["P1"].orders == 2
     # unknown cost -> excluded from profit, counted
     assert m.totals["P2"].orders_missing_profit == 1 and m.totals["P2"].profit == 0
@@ -501,23 +492,21 @@ def test_sources_dimensions_sum_to_totals() -> None:
 
 def test_sources_cell_margin_and_aov() -> None:
     m = build_source_matrix(mixed_pairs())
-    cell = m.traffic[("P1", "recommend")]
+    cell = m.lever[("P1", "khuyen_mai")]
     assert cell.orders == 1 and cell.gmv == D(150000) and cell.aov == D(150000)
     assert cell.profit == D(150000 - 22500 - 103000) and cell.margin_pct == D("16.3")
+    assert cell.contribution == cell.profit  # no line ad split on this order
 
 
 def test_additivity_check_raises_on_a_corrupt_matrix() -> None:
     m = build_source_matrix(mixed_pairs())
-    bad = SourceMatrix(
-        {**m.traffic, ("P1", "search"): CellStats(orders=99)}, m.lever, m.ads, m.totals
-    )
+    bad = SourceMatrix({**m.lever, ("P1", "voucher"): CellStats(orders=99)}, m.ads, m.totals)
     with pytest.raises(AdditivityError):
         assert_additive(bad)
 
 
 @pytest.mark.parametrize("n", [0, 1, 7, 40])
 def test_additivity_property_over_generated_lines(n: int) -> None:
-    sources = list(TrafficSource)
     kinds = list(PromoKind)
     gen: list[OrderLine] = []
     for i in range(n):
@@ -534,17 +523,15 @@ def test_additivity_property_over_generated_lines(n: int) -> None:
                 bundle_discount=D(500 * (i % 4 == 0)),
                 promo_kind=kinds[i % len(kinds)],
                 ad_attributed=i % 3 == 0,
-                traffic_source=sources[(i // 2) % len(sources)],
             )
         )
     costs = {f"S{k}": SkuCost(f"S{k}", None if k == 2 else D(50000), D(2000)) for k in range(3)}
     pools = {f"S{k}": AdsPool(D(10000), D(1000000)) for k in range(3)}
     m = build_source_matrix(profit_lines(gen, costs, schedule=SCHEDULE, ads_pools=pools))
     grand = sum((c.gmv for c in m.totals.values()), D(0))
-    assert sum((c.gmv for c in m.traffic.values()), D(0)) == grand
     assert sum((c.gmv for c in m.lever.values()), D(0)) == grand
-    assert sum(c.orders for c in m.traffic.values()) == sum(c.orders for c in m.lever.values())
-    assert sum((c.profit for c in m.traffic.values()), D(0)) == sum(
-        (c.profit for c in m.lever.values()), D(0)
+    assert sum(c.orders for c in m.lever.values()) == sum(c.orders for c in m.totals.values())
+    assert sum((c.profit for c in m.lever.values()), D(0)) == sum(
+        (c.profit for c in m.totals.values()), D(0)
     )
     assert all(m.ads[p].orders <= m.totals[p].orders for p in m.ads)
