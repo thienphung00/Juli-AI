@@ -126,3 +126,17 @@ Sources: Học viện Shopee articles 2150 (Phí Xử Lý Giao Dịch, 24-04-202
   **ROAS trực tiếp**; shop-level ads use broad ROAS.
 - **Not covered by any Shopee document** (our accounting rule, kept): for a partially costed product, its ad
   spend counts in proportion to its covered share of buyer_paid (§9).
+
+### 10a. Fixed-fee rates for ORY's categories (non-Mall, from 23/05/2026, VAT incl.)
+Source: "Shopee non-Mall_ Phi Co Dinh tu 23.05.2026.pdf" (attachment of article 2139, 47 pages).
+| Category (L1 › L2 › L3) | Rate | ORY products | Category source |
+|---|---|---|---|
+| Nhà cửa & Đời sống › Dụng cụ nhà bếp › Tạp dề & găng tay nấu nướng | 15,00 % | Găng tay STAHAUS, Găng TPE | affiliate conversion report |
+| Nhà cửa & Đời sống › Dụng cụ chăm sóc nhà cửa › Túi nilon & túi rác | 10,00 % | Túi Bio STAHAUS | affiliate conversion report |
+| Nhà cửa & Đời sống › Dụng cụ chăm sóc nhà cửa › Phụ kiện giặt là | 10,50 % | Hae | affiliate conversion report |
+| … › Dụng cụ chăm sóc nhà cửa › Chất tẩy rửa | 10,50 % | nước rửa chén (likely) | to confirm from product category |
+| … › Dụng cụ chăm sóc nhà cửa › Miếng bọt biển, miếng chà vệ sinh | 10,00 % | xơ mướp (likely) | to confirm |
+| … › Dụng cụ nhà bếp › Giấy bạc / Màng bọc thực phẩm | 16,00 % | màng nhôm (likely) | to confirm |
+Per order on top: phí xử lý giao dịch 6 % (incl. buyer shipping) + phí hạ tầng 3.000đ.
+Example: a 200.000đ glove order with no shipping paid by the buyer → 15 % + 6 % = 42.000đ + 3.000đ = 45.000đ
+(22,5 %), versus the 15 % placeholder in the worked example.
