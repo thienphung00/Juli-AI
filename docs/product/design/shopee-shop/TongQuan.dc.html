@@ -382,12 +382,13 @@ const P = [
   { id: 'GN-005', name: 'Giấy bạc nhôm 5m', ini: 'GB', e: 0.007, aff: 0.08, ad: { vs: 0.11, roas: 5.0 }, be: 4.5, kind: 'hien_thi',
     main: { list: 92000, cogs: 46000, pack: 2500, fixed: 1000 },
     cur: { v: 224000, ctr: 0.022, ctor: 0.056, aov: 88000, bien: 0.153, km: 0.03, vc: 0.03, cb: 0 }, pri: { v: 231000, ctr: 0.023, ctor: 0.055, aov: 87000, bien: 0.160, km: 0.03, vc: 0.03, cb: 0 } },
-  { id: 'BEP-S5', name: 'Bộ vệ sinh bếp 5 món', ini: 'BV', e: 0.0, aff: 0, ad: { vs: 0.10, roas: 0, fixedSpend: { cur: BEP_AD_SPEND, pri: BEP_AD_SPEND_PRI } }, be: 3.0, kind: 'chuyen_doi', mid: '24681357902', ordW: [32, 8, 4, 10, 12],
+  { id: 'BEP-S5', name: 'Bộ vệ sinh bếp 5 món', ini: 'BV', e: 0.0, aff: 0, ad: { vs: 0.45, roas: 0, fixedSpend: { cur: BEP_AD_SPEND, pri: BEP_AD_SPEND_PRI } }, be: 3.0, kind: 'chuyen_doi', mid: '24681357902', ordW: [32, 8, 4, 10, 12],
     main: { list: 200000, cogs: 100000, pack: 3000, fixed: 0 },
     cur: { v: 15000, clicks: 660, orders: 66, gmv: BEP.gmv, bien: BEP.profit / BEP.covBp, lines: BEP }, pri: { v: 13700, clicks: 575, orders: 54, gmv: 11340000, bien: 0.2465, km: 0.01, vc: 0.03, cb: 0.004, cov: 0.9 } },
   { id: 'REST', rest: true, name: 'Còn lại · 4 sản phẩm', ini: '+4', e: 0.007, aff: 0.08, ad: { vs: 0.03, roas: 5.0 }, be: 5.0,
     cur: { v: 380000, ctr: 0.020, ctor: 0.045, aov: 69000, bien: 0.140, km: 0.03, vc: 0.03, cb: 0.01 }, pri: { v: 360000, ctr: 0.0205, ctor: 0.045, aov: 68000, bien: 0.145, km: 0.03, vc: 0.03, cb: 0.01 } }
 ];
+const CROSS_BEP = [[10, 15, 5, 2], [3, 3, 2, 0], [1, 2, 1, 0], [4, 4, 2, 0], [2, 6, 2, 2]];
 const pById = (id) => P.find((p) => p.id === id);
 /* ---- tách một luồng thành các phần cộng đúng bằng tổng ---- */
 function splitStreams(defs, T, adjV, adjC, extra, ordW) {
@@ -408,7 +409,7 @@ function win(p, w) {
   if (c.clicks != null) { clicks = c.clicks; orders = c.orders; gmv = c.gmv; } else { clicks = v * c.ctr; orders = clicks * c.ctor; gmv = orders * c.aov; }
   const aovv = gmv / orders;
   let lv, vcA, kmA, cbA, covR = c.cov != null ? c.cov : 1;
-  if (c.lines) { const L = c.lines; vcA = L.vc; kmA = L.km; cbA = L.cb; covR = L.covBp / L.bp; lv = { orders: SKUS.map((s) => s.baskets.reduce((a, b) => a + b.n, 0)), gmv: L.per.map((x) => x.g) }; }
+  if (c.lines) { const L = c.lines; vcA = L.vc; kmA = L.km; cbA = L.cb; covR = L.covBp / L.bp; const ix = LEVERS.map((l) => SKUS.findIndex((s) => s.lever === l.k)); lv = { orders: ix.map((i) => L.per[i].o), gmv: ix.map((i) => L.per[i].g) }; }
   else {
     vcA = c.vc * gmv; kmA = c.km * gmv; cbA = c.cb * gmv;
     const sh = [0, vcA / RV, kmA / RP, cbA / RC]; sh[0] = Math.max(gmv * 0.05, gmv - sh[1] - sh[2] - sh[3]);
@@ -496,20 +497,21 @@ function floorOf(m) { const cost = m.cogs + m.pack + m.fixed; return { cost, abs
 /* ---- voucher what-if (contract §7 + §9) ---- */
 const CB = { rate: 0.515, alpha: CB_ALPHA, u: 1.0, A: { type: 'd', v: 10000, pct: 0, max: 0, s: 200000, qty: 100 }, budgetMonth: 500000, q30: [{ P: 200000, n: 24 }, { P: 360000, n: 6 }] };
 const discOf = (P, i) => (i.type === 'd' ? i.v : Math.min(Math.round(i.pct * P), i.max));
-const opOf = (P, cogsAdd) => Math.round((CB.rate * P + (cogsAdd || 0)) / (1 - FEE - ADRATE - TARGET));
+const costOf = (P, cogsAdd) => CB.rate * P + (cogsAdd || 0) * P / 200000;
+const opOf = (P, cogsAdd) => Math.round(costOf(P, cogsAdd) / (1 - FEE - ADRATE - TARGET));
 function vEval(inp, baskets, cogsAdd) {
   const days = inp.days || 30; const bs = baskets.map((b) => ({ P: b.P, n: b.n }));
   const Qq = bs.filter((b) => b.P >= inp.s).reduce((a, b) => a + b.n, 0);
   const used = Math.min(Math.round(Qq * CB.u), inp.qty); const phi = Qq ? used / Qq : 0;
   let N = 0, gmv = 0, vc = 0, cost = 0;
-  bs.forEach((b) => { N += b.n; gmv += b.n * b.P; cost += b.n * (CB.rate * b.P + (cogsAdd || 0)); if (b.P >= inp.s) vc += phi * b.n * discOf(b.P, inp); });
+  bs.forEach((b) => { N += b.n; gmv += b.n * b.P; cost += b.n * costOf(b.P, cogsAdd); if (b.P >= inp.s) vc += phi * b.n * discOf(b.P, inp); });
   const bp = gmv - vc, fee = FEE * bp, adc = CB.alpha * ADRATE * gmv, profit = bp - fee - cost - adc;
   return { N, gmv, list: gmv, km: 0, cb: 0, vc, discAmt: vc, bp, covBp: bp, fee, cost, adSpend: adc, aff: 0, chi: vc + adc, profit, bien: profit / bp, aov: gmv / N, disc: vc / gmv, orders: N, Qq, used, phi, days };
 }
 const scaleB = (days) => CB.q30.map((b) => ({ P: b.P, n: Math.round(b.n * days / 30) }));
 function repOf(inp, cogsAdd) { // đơn đại diện = giỏ thấp nhất đủ điều kiện
   const b = scaleB(30).concat([]).filter((x) => x.P >= inp.s)[0]; if (!b) return null;
-  const P = b.P, d = discOf(P, inp), pay = P - d, fee = Math.round(FEE * pay), cost = CB.rate * P + (cogsAdd || 0), org = pay - fee - cost, ad = Math.round(ADRATE * P), op = opOf(P, cogsAdd), abs = Math.round(cost / (1 - FEE));
+  const P = b.P, d = discOf(P, inp), pay = P - d, fee = Math.round(FEE * pay), cost = costOf(P, cogsAdd), org = pay - fee - cost, ad = Math.round(ADRATE * P), op = opOf(P, cogsAdd), abs = Math.round(cost / (1 - FEE));
   return { P, d, pay, fee, cost, org, orgP: org / pay * 100, ad, adm: org - ad, admP: (org - ad) / pay * 100, op, abs, maxdV: Math.floor(Math.min(CAP_MAX * P, P - op) / 1000) * 1000 };
 }
 function vCard(inp, cogsAdd) {
@@ -534,6 +536,9 @@ function vCard(inp, cogsAdd) {
 const V_DEFAULT = { type: 'd', v: 15000, pct: 0.1, max: 18000, s: 299000, qty: 50, per: 2, days: 30 };
 const CARDS = [
   { id: 'c_bep_voucher', kind: 'min_spend_voucher', metric: 'aov', flow: 'voucher', flowType: 'lever', product: 'BEP-S5', sku: 'BEP-S5-CB', title: 'Voucher shop: nâng đơn tối thiểu lên 299.000đ', rank: { kpi: 'aov', src: 'voucher', focus: 'BEP-S5' }, atStake: 0, why: 'Voucher A đang giảm cho 24/30 đơn chỉ mua 1 bộ 200.000đ, chỉ 6 đơn vượt 299.000đ. AOV của bộ 5 món thấp hơn trung vị shop.' },
+  { id: 'c_bep_title', kind: 'title', metric: 'views', flow: 'search', flowType: 'kid', product: 'BEP-S5', title: 'Đổi tiêu đề: đưa “set rửa chén” và “combo dọn bếp” vào 100 ký tự đầu', rank: { kpi: 'views', src: 'the_san_pham', sub: 'search', focus: 'k6' }, atStake: 1800000, why: 'Hai từ khoá chính chưa nằm trong 100 ký tự hiển thị; hạng “set rửa chén” tụt 11 → 14.' },
+  { id: 'c_bep_cover', kind: 'cover_image', metric: 'ctr', flow: 'de_xuat', flowType: 'kid', product: 'BEP-S5', title: 'Ảnh bìa mới cho nguồn Đề xuất', rank: { kpi: 'ctr', src: 'the_san_pham', sub: 'de_xuat', focus: 'BEP-S5' }, atStake: 900000, why: 'CTR từ Đề xuất thấp hơn các nguồn khác của sản phẩm.' },
+  { id: 'c_bep_ads', kind: 'ads_budget', metric: 'views', flow: 'ads', flowType: 'ads', product: 'BEP-S5', title: 'Chiến dịch hiển thị: giảm chi phí / 1.000 lượt xem', rank: { kpi: 'gmv', src: 'ads', focus: 'a7' }, atStake: 600000, why: 'Chi phí / 1.000 lượt xem của chiến dịch hiển thị cao hơn kỳ trước.' },
   { id: 'c_gl_bundle', kind: 'bundle_deal', metric: 'aov', flow: 'lien_ket', flowType: 'flow', product: 'GL-001', title: 'Combo 2 đôi găng cho đơn từ link', rank: { kpi: 'aov', src: 'lien_ket', focus: 'GL-001' }, atStake: 1800000, why: 'Đơn qua link liên kết chủ yếu mua 1 đôi; chưa có combo cho đơn từ link.' },
   { id: 'c_nr_vcap', kind: 'voucher_cap', metric: 'bien', flow: 'voucher', flowType: 'lever', product: 'NR-002', title: 'Giảm voucher 15.000đ xuống 10.000đ', rank: { kpi: 'bien', src: 'voucher', focus: 'v1' }, atStake: 1500000, why: 'Voucher 15k kéo giá khách trả xuống dưới giá sàn vận hành.' },
   { id: 'c_xm_disc', kind: 'product_discount', metric: 'ctor', flow: 'de_xuat', flowType: 'kid', product: 'XM-003', title: 'Khuyến mãi xơ mướp 5% → 8%, giữ trên giá sàn', rank: { kpi: 'ctor', src: 'the_san_pham', sub: 'de_xuat', focus: 'XM-003' }, atStake: 1200000, why: 'Khách bấm vào từ Đề xuất nhưng ít chốt đơn: CTOR từ Đề xuất giảm mạnh.' },
@@ -599,8 +604,9 @@ const HT = {
     const rows = [
       mkr('k1', 'găng tay cao su', 'Chính · GL-001 · hạng 7 → 4', 31800, 44200, 62000, 13200, 'Rõ', 118, { p: 'GL-001', c: 'c_gl_title' }),
       mkr('k2', 'nước rửa chén 750ml', 'Chính · NR-002 · hạng 6 → 4', 52400, 63100, 48000, 4700, 'Rõ', 143, { p: 'NR-002', c: null }),
-      mkr('k3', 'giấy bạc nướng thịt', 'Phụ · GN-005 · hạng 12 → 8', 14100, 17900, 21000, 3200, 'Tham khảo', 41, { p: 'GN-005', c: 'c_gn_kw' }),
+      mkr('k3', 'giấy bạc nướng thịt', 'Phụ · GN-005 · hạng 8 → 12', 19800, 17900, -17000, -2100, 'Tham khảo', 41, { p: 'GN-005', c: 'c_gn_kw' }),
       mkr('k4', 'xơ mướp rửa chén', 'Chính · XM-003 · hạng 5 → 11', 41200, 28600, -29500, -7100, 'Rõ', 63, { p: 'XM-003', c: 'c_xm_title' }),
+      mkr('k6', 'set rửa chén', 'Chính · BEP-S5 · hạng 11 → 14', 5200, 4600, -9000, -1300, 'Tham khảo', 22, { p: 'BEP-S5', c: 'c_bep_title' }),
       mkr('k5', 'túi zip đựng thực phẩm', 'Chính · TU-004 · hạng 9 → 14', 22700, 17300, -18000, -1100, 'Tham khảo', 31, { p: 'TU-004', c: null })];
     const c = flowSum('cur', 'kids')[0], p0 = flowSum('pri', 'kids')[0]; const cell = impactOf('views', p0, c);
     return { rowKind: 'Từ khoá', rows, cell, closing: closeBy(rows, cell, ['12 từ khoá ít lượt', 'Các từ khoá khác', 'Thay đổi cơ cấu từ khoá'], [0.45, 0.4, 0.15], 0.2), ctx: { prior: p0.v, last: c.v }, note: 'Từ khoá do chủ shop thu thập (ADR-119). Hạng là vị trí của shop khi tìm từ khoá đó.' }; },
@@ -613,14 +619,14 @@ const HT = {
     const c = flowSum('cur', 'flows')[4], p0 = flowSum('pri', 'flows')[4]; const cell = impactOf('gmv', p0, c);
     return { rowKind: 'KOL', rows, cell, closing: closeBy(rows, cell, ['4 KOL ít đơn', 'KOL đã dừng trong kỳ', 'Thay đổi cơ cấu'], [0.5, 0.5, 0], 0.1), ctx: { prior: p0.gmv, last: c.gmv }, note: 'Số lượng là đơn có link của KOL trong kỳ. Tiếp thị liên kết gồm cả Affiliate Live và Video.' }; },
   ads: () => { const PUR_JUDGE = { chuyen_doi: 'roas', hien_thi: 'cpm', ra_mat: 'cap' };
-    const mkc = (id, pid, label, purpose, card) => { const p = pById(pid), a = adOf(p, 'cur'), b = adOf(p, 'pri'); const x = prodX(pid); const st = a.spend, sp = b.spend;
+    const mkc = (id, pid, label, purpose, card, share, vshare) => { const p = pById(pid); const sh = share || 1; const vsh = vshare || sh; const sc2 = (o) => Object.assign({}, o, { v: o.v * vsh, clicks: o.clicks * vsh, orders: o.orders * sh, gmv: o.gmv * sh, spend: o.spend * sh }); const a = sc2(adOf(p, 'cur')), b = sc2(adOf(p, 'pri')); const x = prodX(pid); const st = a.spend, sp = b.spend;
       let prior, last, sub, judge;
       if (purpose === 'chuyen_doi') { prior = b.roas; last = a.roas; judge = last < p.be ? 'bad' : 'good'; sub = 'ROAS ' + fmt(prior, 1) + ' → ' + fmt(last, 1) + ' · hoà vốn ' + fmt(p.be, 1); }
       else if (purpose === 'hien_thi') { prior = sp / b.v * 1000; last = st / a.v * 1000; judge = last > prior * 1.1 ? 'bad' : 'warn'; sub = 'Chi phí / 1.000 lượt xem ' + vnd(prior) + ' → ' + vnd(last) + ' · CTR ' + pc(b.ctr, 1) + ' → ' + pc(a.ctr, 1); }
       else { prior = 0; last = st / 30; judge = 'good'; sub = 'Trần ' + vnd(last) + '/ngày · kết thúc 15/11 · còn 12 ngày'; }
       const g = (a.gmv - b.gmv) / 30; return { id, name: label, sub, judge, purpose, kind: 'campaign', prior, last, qp: sp, ql: st, gmv: g, profit: g * (x.bien + AD.bd), conf: a.orders >= 100 ? 'Rõ' : 'Tham khảo', x: Object.assign({ orders: a.orders }, x), rec: card ? cardById(card) : null }; };
     const shopAd = { id: 'a4', name: 'Trang shop · lượt vào shop', sub: 'Không gắn sản phẩm · chi phí / lượt vào shop 520đ → 470đ', judge: 'good', purpose: 'luot_vao_shop', kind: 'campaign', prior: 520, last: 470, qp: UNATTR.pri, ql: UNATTR.cur, gmv: 4500, profit: 900, conf: 'Tham khảo', x: { bien: 0.11, orders: 12, aov: 80000, disc: 0.07 }, rec: null };
-    const rows = [mkc('a1', 'NR-002', 'Nước rửa chén · chuyển đổi', 'chuyen_doi', 'c_nr_ads'), mkc('a2', 'TU-004', 'Túi zip · chuyển đổi', 'chuyen_doi', 'c_tu_pause'), mkc('a3', 'GL-001', 'Găng tay · hiển thị', 'hien_thi', null), shopAd, mkc('a5', 'XM-003', 'Xơ mướp 5 miếng · ra mắt', 'ra_mat', null), mkc('a6', 'GN-005', 'Giấy bạc · hiển thị', 'hien_thi', 'c_gn_adb')];
+    const rows = [mkc('a1', 'NR-002', 'Nước rửa chén · chuyển đổi', 'chuyen_doi', 'c_nr_ads'), mkc('a2', 'TU-004', 'Túi zip · chuyển đổi', 'chuyen_doi', 'c_tu_pause'), mkc('a3', 'GL-001', 'Găng tay · hiển thị', 'hien_thi', null), shopAd, mkc('a5', 'XM-003', 'Xơ mướp 5 miếng · ra mắt', 'ra_mat', null), mkc('a6', 'GN-005', 'Giấy bạc · hiển thị', 'hien_thi', 'c_gn_adb'), mkc('a7', 'BEP-S5', 'Bộ vệ sinh bếp · hiển thị', 'hien_thi', 'c_bep_ads', 130 / 600, 0.8)];
     const a = flowSum('cur', 'ads'), b = flowSum('pri', 'ads'); const cell = (a.reduce((t, x) => t + x.gmv, 0) - b.reduce((t, x) => t + x.gmv, 0)) / 30;
     return { rowKind: 'Chiến dịch', rows, cell, closing: closeBy(rows, cell, ['3 chiến dịch ít đơn', 'Chiến dịch đã dừng trong kỳ', 'Thay đổi cơ cấu'], [0.33, 0.67, 0], 0.15), ctx: { prior: b.reduce((t, x) => t + x.gmv, 0), last: a.reduce((t, x) => t + x.gmv, 0) }, note: 'Quảng cáo là phần “trong đó”: các đơn này đã nằm trong các luồng (chủ yếu Thẻ sản phẩm và Trang shop), không cộng thêm vào GMV của shop. Chiến dịch Lượt vào shop không gắn sản phẩm nào.' }; },
   voucher: (kpi) => { const bien = kpi === 'bien'; const rows = [
@@ -645,7 +651,7 @@ function buildRanking(kpi, src, sub) {
 }
 const rankRow = (kpi, src, sub, id) => { const d = buildRanking(kpi, src, sub); return d ? d.rows.find((r) => r.id === id) || null : null; };
 const MATRIX = []; // chỗ để verify đọc
-return { fmt, vnd, sv, pc, chipOf, chipPt, TARGET, FEE, ADRATE, TARGETS, AD_CAP_DAY, ALLOWED, split, FLOWS, KIDS, LEVERS, SHOP, SKUS, econ, BEP, CB, P, pById, win, flowsOf, kidsOf, leversOf, adFlows, adOf, fullWin, sumW, FW, SHOPW, shopWinFull, flowSum, UNATTR, OTHER, LABELS, CAP_LABEL, fiveOf, capOf, floorOf, vEval, vCard, repOf, discOf, opOf, V_DEFAULT, CARDS, cardById, cardsOfProduct, KPIS, KNAME, SRCS, SUBS, SNAME, KFMT, QLAB, KGET, QGET, streamOf, impactOf, buildRanking, rankRow, HT, prodX, FLOWK };
+return { fmt, vnd, sv, pc, chipOf, chipPt, TARGET, FEE, ADRATE, TARGETS, AD_CAP_DAY, ALLOWED, split, FLOWS, KIDS, LEVERS, SHOP, SKUS, econ, BEP, CB, CROSS_BEP, P, pById, win, flowsOf, kidsOf, leversOf, adFlows, adOf, fullWin, sumW, FW, SHOPW, shopWinFull, flowSum, UNATTR, OTHER, LABELS, CAP_LABEL, fiveOf, capOf, floorOf, vEval, vCard, repOf, discOf, opOf, V_DEFAULT, CARDS, cardById, cardsOfProduct, KPIS, KNAME, SRCS, SUBS, SNAME, KFMT, QLAB, KGET, QGET, streamOf, impactOf, buildRanking, rankRow, HT, prodX, FLOWK };
 })();
 /* ===== END SHARED DATASET ===== */
 
