@@ -2,7 +2,7 @@
 
 import type { CardView } from "../../lib/quyet-dinh/card-model";
 import type { QdRun } from "../../lib/quyet-dinh/p10-types";
-import { shortProductName } from "../../lib/quyet-dinh/product-name";
+import { runSubjectName } from "../../lib/quyet-dinh/product-name";
 import { isTerminalRun, listChip, type Chip } from "../../lib/quyet-dinh/run-model";
 import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import { RUN_LEDGER_EMPTY_STATE } from "../../lib/run-ledger/copy";
@@ -100,7 +100,7 @@ export function RunQueue({
                     className={card?.sku ? "qv-queue__name" : "qv-queue__sku"}
                     title={card?.fullTitle ?? run.product_name}
                   >
-                    {card?.title ?? shortProductName(run.product_name)}
+                    {card?.title ?? runSubjectName(run.product_name, card)}
                   </span>
                 </span>
                 <span className={`qv-chip qv-tone--${chip.tone}`}>{chip.label}</span>

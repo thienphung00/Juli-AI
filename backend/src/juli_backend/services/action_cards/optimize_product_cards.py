@@ -799,8 +799,15 @@ async def emit_optimize_product_cards(
     *,
     computed_at: datetime,
     emission_config: DecisionEmissionConfig,
+    reissue: bool = False,
 ) -> list[Any]:
     """One card per proposal through the ADR-087 ladder, then withdraw stale drafts.
+
+    ``reissue`` (P87, the operator's forced SANDBOX quick scan only): a (product, lever)
+    whose newest card was already written to TikTok (or dismissed) gets a NEW chained
+    revision at once -- ``decision_cooldown``, ``basis_unchanged`` and
+    ``active_card_exists`` are bypassed for it. The old card keeps its row and its
+    measurement history; the new revision's ``supersedes_card_id`` points at it.
 
     Ladder per product: no chain → revision 1 (adopting a live unscoped
     pre-#1703 row once); a withdrawn row, an unsurfaced draft, or a live card
@@ -823,7 +830,7 @@ async def emit_optimize_product_cards(
             continue
         subject, latest = await chain_for(session, shop_id, product, LEVER_CODES[proposal.lever])
         kept.add(subject.subject_id)
-        cooled = _cooled_down(cooldowns, product, proposal)
+        cooled = None if reissue else _cooled_down(cooldowns, product, proposal)
         if cooled is not None:
             decision = persist.CardEmission(
                 workflow_key=OPTIMIZE_PRODUCT_WORKFLOW_KEY,
@@ -947,6 +954,14 @@ async def emit_optimize_product_cards(
             )
             decisions.append(decision)
             continue
+        elif reissue and await _reissuable(session, latest):
+            # P87: written (or dismissed) -- a new revision follows below.
+            logger.info(
+                "optimize_product_card_reissue shop_id=%s superseded_card_id=%s",
+                shop_id,
+                latest.id,
+                extra={"shop_id": str(shop_id), "card_id": str(latest.id)},
+            )
         elif latest.status != decision_reasons.DISMISSED_CARD_STATUS and (
             basis_unchanged(stored_basis(latest), basis)
             or await _still_stands(
@@ -1233,6 +1248,18 @@ async def live_metrics_by_product(
         if ref is not None and metric is not None:
             out[ref][card.id] = metric
     return dict(out)
+
+
+async def _reissuable(session: AsyncSession, card: ActionCard) -> bool:
+    """P87: a card whose run already wrote to TikTok (``executed_at``, an executed status, or
+    a completed run's confirmed write -- ``run_writes``), or that the seller dismissed."""
+    if card.status == decision_reasons.DISMISSED_CARD_STATUS or card.executed_at is not None:
+        return True
+    if card.status == "executed":
+        return True
+    if card.status != "approved":
+        return False
+    return await confirmed_write_at(session, card) is not None
 
 
 async def _still_stands(
