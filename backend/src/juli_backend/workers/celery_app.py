@@ -211,6 +211,15 @@ celery_app.conf.update(
             "task": "juli_backend.privacy_account_purge",
             "schedule": crontab(hour=21, minute=13),
         },
+        # ADR-117 step 3: the Shopee KPI job for every Shopee shop with a current
+        # contract, skipped per shop when its inputs are unchanged (data arrives
+        # weekly). 18:29 UTC = 01:29 UTC+7, ahead of the night's other batches;
+        # minute 29 is not a multiple of 5 and none of the slots above, and no
+        # other daily beat holds 18:xx. Default queue.
+        "shopee-kpi-daily": {
+            "task": "juli_backend.shopee_kpi_daily",
+            "schedule": crontab(hour=18, minute=29),
+        },
     },
 )
 
