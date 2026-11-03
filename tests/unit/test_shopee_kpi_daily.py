@@ -34,13 +34,24 @@ class _Session:
 @pytest.fixture
 def stubs(monkeypatch: pytest.MonkeyPatch):
     state = SimpleNamespace(
-        log=[], unchanged=set(), raises={}, ran=[], shops=list(SHOPS), now_seen=set()
+        log=[],
+        quiet=set(),
+        unchanged=set(),
+        checked=[],
+        raises={},
+        ran=[],
+        shops=list(SHOPS),
+        now_seen=set(),
     )
 
     async def ids(_session):
         return state.shops
 
+    async def landed(_session, shop_id):
+        return shop_id not in state.quiet
+
     async def unchanged(_session, shop_id):
+        state.checked.append(shop_id)
         exc = state.raises.get(("check", shop_id))
         if exc:
             raise exc
@@ -54,6 +65,7 @@ def stubs(monkeypatch: pytest.MonkeyPatch):
         state.ran.append(shop_id)
 
     monkeypatch.setattr(shopee_kpi_daily, "contract_shop_ids", ids)
+    monkeypatch.setattr(shopee_kpi_daily, "landed_since_last_run", landed)
     monkeypatch.setattr(shopee_kpi_daily, "inputs_unchanged", unchanged)
     monkeypatch.setattr(shopee_kpi_daily.job, "run_shop_kpi", run)
     state.factory = lambda: _Session(state.log)
@@ -95,7 +107,7 @@ async def test_each_changed_shop_runs_and_commits(stubs):
     summary = await shopee_kpi_daily.run_daily_kpi(stubs.factory)
     assert stubs.ran == SHOPS
     assert stubs.log.count("commit") == len(SHOPS)
-    assert summary == shopee_kpi_daily.DailyKpiSummary(4, 4, 0, 0, 0)
+    assert summary == shopee_kpi_daily.DailyKpiSummary(4, 4, 0, 0, 0, 0)
 
 
 async def test_unchanged_shop_is_skipped_without_running(stubs):
@@ -104,6 +116,14 @@ async def test_unchanged_shop_is_skipped_without_running(stubs):
     assert stubs.ran == [SHOPS[0], SHOPS[3]]
     assert summary.skipped_unchanged == 2
     assert summary.ran == 2
+
+
+async def test_a_shop_where_nothing_landed_is_skipped_before_reading_its_inputs(stubs):
+    stubs.quiet = {SHOPS[0], SHOPS[3]}
+    summary = await shopee_kpi_daily.run_daily_kpi(stubs.factory)
+    assert stubs.checked == [SHOPS[1], SHOPS[2]]
+    assert stubs.ran == [SHOPS[1], SHOPS[2]]
+    assert (summary.skipped_nothing_landed, summary.skipped_unchanged) == (2, 0)
 
 
 async def test_one_shop_failing_never_aborts_the_others(stubs):

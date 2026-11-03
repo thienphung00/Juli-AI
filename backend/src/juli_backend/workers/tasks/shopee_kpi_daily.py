@@ -34,6 +34,7 @@ def shopee_kpi_daily() -> dict[str, int]:
     return {
         "scanned": summary.scanned,
         "ran": summary.ran,
+        "skipped_nothing_landed": summary.skipped_nothing_landed,
         "skipped_unchanged": summary.skipped_unchanged,
         "refused": summary.refused,
         "failed": summary.failed,

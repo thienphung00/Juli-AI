@@ -3,9 +3,18 @@
 Every day, for each Shopee shop with a current KPI contract (newest version not
 ``superseded``), run :func:`~juli_backend.services.shopee_kpi.run_shop_kpi` and store
 its ``kpi_forecasts`` -- unless nothing changed. Seller exports arrive weekly, so on
-most days the inputs hash to the same ``inputs_sha256`` as the shop's newest stored
-run and a new run would only duplicate its rows: that shop is skipped
-(:func:`inputs_unchanged`).
+most days nothing changed and a new run would only duplicate its rows: that shop is
+skipped. Two checks, cheapest first:
+
+- :func:`landed_since_last_run` -- one ``max()`` per input table against the newest
+  stored run's ``run_at``: has an ingest (``platform_daily_metrics.updated_at``, bumped
+  by every upsert) or an Ops edit (contract, targets, adjustments, base lever plan)
+  landed since? No -> skip without reading the series. This keeps the daily read to a
+  few index lookups (Supabase egress). ``kpi_exclusions`` has no timestamp and no writer
+  yet; a writer must touch ``kpi_contracts.updated_at`` or the beat will not see it.
+- :func:`inputs_unchanged` -- only when something landed: load the inputs and compare
+  ``inputs_sha256`` with the newest stored run (a re-upload of identical rows bumps
+  ``updated_at`` but changes nothing).
 
 A module of its own at ``services/`` depth 2 so the worker task reaches it without a
 deep import into ``services.shopee_kpi``; the job module is untouched.
@@ -25,10 +34,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.kpi_contracts import CONTRACT_SUPERSEDED, KpiContract, KpiForecast
+from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.models.ingest import PlatformDailyMetric
+from juli_backend.models.kpi_contracts import (
+    CONTRACT_SUPERSEDED,
+    KpiAdjustment,
+    KpiContract,
+    KpiForecast,
+    KpiTarget,
+    LeverPlan,
+)
 from juli_backend.services.ops import ops_role
 from juli_backend.services.ops.overview import list_shops
 from juli_backend.services.shopee_kpi import job
@@ -55,6 +73,7 @@ class DailyKpiSummary:
 
     scanned: int
     ran: int
+    skipped_nothing_landed: int
     skipped_unchanged: int
     refused: int
     failed: int
@@ -76,6 +95,60 @@ async def contract_shop_ids(session: AsyncSession) -> list[uuid.UUID]:
             .all()
         )
     return sorted(shopee.intersection(with_contract), key=str)
+
+
+async def landed_since_last_run(session: AsyncSession, shop_id: uuid.UUID) -> bool:
+    """True when an input row was written after the shop's newest stored base run for its
+    current contract, or when there is no such run. Index lookups only, no series read.
+
+    Raises :class:`job.NoKpiContract` (a refusal); the caller counts it.
+    """
+    contract = await job.current_contract(session, shop_id)
+    async with ops_role(session):
+        last_run = (
+            await session.execute(
+                select(func.max(KpiForecast.run_at)).where(
+                    KpiForecast.shop_id == shop_id,
+                    KpiForecast.contract_id == contract.id,
+                    KpiForecast.scenario_id.is_(None),
+                )
+            )
+        ).scalar_one()
+        if last_run is None:
+            return True
+        versions = select(KpiContract.id).where(
+            KpiContract.shop_id == shop_id, KpiContract.contract_ref == contract.contract_ref
+        )
+        ops_marks = [
+            select(func.max(KpiContract.updated_at)).where(KpiContract.id == contract.id),
+            select(func.max(KpiTarget.created_at)).where(KpiTarget.contract_id == contract.id),
+            select(func.max(KpiAdjustment.created_at)).where(
+                KpiAdjustment.contract_id.in_(versions)
+            ),
+            select(func.max(LeverPlan.updated_at)).where(
+                LeverPlan.shop_id == shop_id, LeverPlan.scenario_id.is_(None)
+            ),
+        ]
+        marks = [(await session.execute(q)).scalar_one() for q in ops_marks]
+    m = PlatformDailyMetric
+    sources = job.FLOW_SOURCES.values()
+    async with with_shop_scope(session, shop_id):
+        marks.append(
+            (
+                await session.execute(
+                    select(func.max(m.updated_at)).where(
+                        m.shop_id == shop_id,
+                        m.platform == job.PLATFORM,
+                        m.order_type == job.ORDER_TYPE,
+                        m.item_id == job.SHOP_LEVEL_ITEM,
+                        m.dataset.in_({s.dataset for s in sources}),
+                        m.stream.in_({s.stream for s in sources}),
+                        m.segment.in_({s.segment for s in sources}),
+                    )
+                )
+            ).scalar_one()
+        )
+    return any(mark is not None and mark > last_run for mark in marks)
 
 
 async def inputs_unchanged(session: AsyncSession, shop_id: uuid.UUID) -> bool:
@@ -110,10 +183,13 @@ async def run_daily_kpi(
     async with session_factory() as session:
         shop_ids = await contract_shop_ids(session)
 
-    ran = skipped = refused = failed = 0
+    ran = nothing_landed = skipped = refused = failed = 0
     for shop_id in shop_ids:
         try:
             async with session_factory() as session:
+                if not await landed_since_last_run(session, shop_id):
+                    nothing_landed += 1
+                    continue
                 if await inputs_unchanged(session, shop_id):
                     skipped += 1
                     continue
@@ -135,13 +211,19 @@ async def run_daily_kpi(
             )
 
     summary = DailyKpiSummary(
-        scanned=len(shop_ids), ran=ran, skipped_unchanged=skipped, refused=refused, failed=failed
+        scanned=len(shop_ids),
+        ran=ran,
+        skipped_nothing_landed=nothing_landed,
+        skipped_unchanged=skipped,
+        refused=refused,
+        failed=failed,
     )
     logger.info(
         "shopee_kpi_daily_complete",
         extra={
             "scanned": summary.scanned,
             "ran": summary.ran,
+            "skipped_nothing_landed": summary.skipped_nothing_landed,
             "skipped_unchanged": summary.skipped_unchanged,
             "refused": summary.refused,
             "failed": summary.failed,

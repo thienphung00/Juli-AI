@@ -49,6 +49,9 @@ async def test_daily_run_stores_once_then_skips_until_the_data_changes():
         settled = await _stored_rows(session, shop_id)
         await shopee_kpi_daily.run_daily_kpi(app_session)
         assert await _stored_rows(session, shop_id) == settled
+        # Settled: the cheap check alone skips it, without reading the series.
+        assert not await shopee_kpi_daily.landed_since_last_run(session, shop_id)
+        await session.commit()
 
         # A new day of data changes the inputs: the shop runs again.
         from juli_backend.database.tenant_context import with_shop_scope
@@ -68,6 +71,8 @@ async def test_daily_run_stores_once_then_skips_until_the_data_changes():
                 )
             )
             await session.flush()
+        await session.commit()
+        assert await shopee_kpi_daily.landed_since_last_run(session, shop_id)
         await session.commit()
         await shopee_kpi_daily.run_daily_kpi(app_session, now=_now())
         assert await _stored_rows(session, shop_id) > settled
