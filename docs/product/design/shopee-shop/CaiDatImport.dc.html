@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Cài đặt · Thông số shop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1040px; box-sizing: border-box; padding: 28px 32px 40px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 16px">
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">CÀI ĐẶT · THÔNG SỐ SHOP</div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 700">Giá vốn, tồn kho và mục tiêu</h1>
+<div style="font-size: 14px; color: #4a4a55; max-width: 760px">Juli không đoán giá vốn của bạn. Tải mẫu đã điền sẵn SKU, điền số, tải lên. Mỗi lần áp dụng là một phiên bản, khôi phục được.</div>
+</div>
+
+<div role="tablist" aria-label="Các bước" style="display: flex; gap: 6px; flex-wrap: wrap">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="6"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; {{t.style}}">{{t.label}}</button></sc-for>
+</div>
+
+<sc-if value="{{recalc}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: center; gap: 12px; background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 10px 14px; font-size: 14px"><b style="color: #1d4f91">{{recalcN}} đề xuất sẽ được tính lại</b><span style="color: #4a4a55">{{recalcWhy}}</span></div>
+</sc-if>
+
+<sc-if value="{{isTai}}" hint-placeholder-val="{{ true }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<div style="background: #faf7f8; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<b style="font-size: 16px">1. Tải mẫu đã điền sẵn</b>
+<span style="font-size: 14px; color: #4a4a55">42 dòng SKU của 12 sản phẩm, lấy từ Seller Centre ngày 03/11. Giá vốn bạn đã nhập được điền lại, ô còn thiếu để trống.</span>
+<button type="button" onClick="{{download}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer; align-self: flex-start">{{downloadLabel}}</button>
+<span style="font-size: 12px; color: #5f5f6b">Tệp .xlsx · 2 trang tính: SKU và Mục tiêu</span>
+</div>
+<div style="background: #faf7f8; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<b style="font-size: 16px">2. Tải tệp đã điền lên</b>
+<sc-if value="{{noFile}}" hint-placeholder-val="{{ true }}"><div style="border: 2px dashed #e3d6dc; border-radius: 12px; min-height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: #ffffff"><span style="font-size: 14px; color: #4a4a55">Kéo tệp .xlsx vào đây</span><button type="button" onClick="{{pickFile}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Chọn tệp</button></div></sc-if>
+<sc-if value="{{hasFile}}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; gap: 8px; background: #ffffff; border: 1px solid #ece3e7; border-radius: 12px; padding: 12px 14px"><b style="font-size: 14px">thong-so-1103.xlsx</b><span style="font-size: 12px; color: #5f5f6b">48 KB · trang SKU 42 dòng · trang Mục tiêu 3 dòng · đã đọc xong</span><button type="button" onClick="{{goCheck}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer; align-self: flex-start">Kiểm tra tệp ›</button></div></sc-if>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<b style="font-size: 14px">Trang SKU · 10 cột</b>
+<div style="display: flex; gap: 6px; flex-wrap: wrap"><sc-for list="{{cols}}" as="c" hint-placeholder-count="10"><span style="font-size: 12px; font-weight: 600; border-radius: 8px; padding: 4px 8px; {{c.style}}">{{c.label}}</span></sc-for></div>
+<div style="font-size: 12px; color: #5f5f6b">Cột đậm là bắt buộc. Cột trống giữ nguyên giá trị cũ. Không có tên, số điện thoại hay địa chỉ khách trong tệp.</div>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{isKiem}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<div style="background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 600; color: #146c2e">Hợp lệ</span><b style="font-size: 24px">{{okN}} dòng</b><span style="font-size: 12px; color: #5f5f6b">sẵn sàng so sánh</span></div>
+<div style="background: #fdecec; border: 1px solid #f5c2c5; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 600; color: #a3222f">Bị từ chối</span><b style="font-size: 24px">{{badN}} dòng</b><span style="font-size: 12px; color: #5f5f6b">không ghi vào Juli</span></div>
+<div style="background: #faf7f8; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 600; color: #5f5f6b">Trang Mục tiêu</span><b style="font-size: 24px">3 dòng</b><span style="font-size: 12px; color: #5f5f6b">1 cảnh báo, xem tab Mục tiêu</span></div>
+</div>
+<div style="display: grid; grid-template-columns: 56px minmax(0, 1.3fr) minmax(0, 1.3fr) minmax(0, 1.2fr) minmax(0, 2.4fr) 120px; gap: 10px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Dòng</span><span>SKU</span><span>Cột</span><span>Giá trị</span><span>Vì sao bị từ chối</span><span>Loại</span></div>
+<sc-for list="{{bad}}" as="r" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 56px minmax(0, 1.3fr) minmax(0, 1.3fr) minmax(0, 1.2fr) minmax(0, 2.4fr) 120px; gap: 10px; align-items: center; border: 1px solid #f5c2c5; background: #fffafa; border-radius: 12px; padding: 8px 12px; min-height: 52px; font-size: 13px">
+<b>{{r.row}}</b><span style="font-size: 11px; font-weight: 600; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 2px 6px; justify-self: start">{{r.sku}}</span><span>{{r.col}}</span><b>{{r.val}}</b><span>{{r.why}}</span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 8px; justify-self: start; {{r.kindStyle}}">{{r.kind}}</span>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+<button type="button" onClick="{{goDiff}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Tiếp tục với {{okN}} dòng hợp lệ ›</button>
+<button type="button" onClick="{{backTai}}" style="font: inherit; font-size: 14px; font-weight: 600; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Sửa tệp và tải lại</button>
+<span style="font-size: 12px; color: #6b6b76">Dòng lỗi không chặn dòng đúng. Dòng lỗi giữ nguyên giá trị cũ.</span>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{isDiff}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: baseline; gap: 12px"><h2 style="margin: 0; font-size: 18px; font-weight: 700">So sánh cũ → mới</h2><span style="font-size: 13px; color: #5f5f6b">{{diffN}} thay đổi ở {{diffSku}} SKU · {{sameN}} dòng không đổi</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.2fr); gap: 10px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>SKU</span><span>Trường</span><span>Cũ</span><span>Mới</span><span>Hệ quả</span></div>
+<sc-for list="{{diff}}" as="r" hint-placeholder-count="10">
+<div style="display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.2fr); gap: 10px; align-items: center; border: 1px solid #f1e6eb; border-radius: 12px; padding: 6px 12px; min-height: 48px; font-size: 13px">
+<span style="font-size: 11px; font-weight: 600; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 2px 6px; justify-self: start">{{r.sku}}</span>
+<span>{{r.field}}</span><span style="color: #6b6b76; text-decoration: line-through">{{r.old}}</span><b>{{r.neu}}</b><span style="color: #4a4a55">{{r.eff}}</span>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 10px">
+<button type="button" onClick="{{goApply}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Tiếp tục áp dụng ›</button>
+<span style="font-size: 12px; color: #6b6b76">Chưa có gì thay đổi cho đến khi bạn bấm Áp dụng.</span>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{isApply}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+<sc-if value="{{notApplied}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Áp dụng thành phiên bản v4</h2>
+<div style="font-size: 14px; color: #4a4a55">{{diffN}} thay đổi ở {{diffSku}} SKU từ thong-so-1103.xlsx. Bắt buộc ghi lý do, để sau này biết vì sao giá sàn đổi.</div>
+<div style="display: flex; gap: 6px; flex-wrap: wrap"><sc-for list="{{reasonChips}}" as="c" hint-placeholder-count="4"><button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 44px; padding: 0 14px; cursor: pointer; {{c.style}}">{{c.label}}</button></sc-for></div>
+<div style="font-size: 13px; color: #4a4a55; background: #faf7f8; border-radius: 10px; padding: 8px 12px">Lý do ghi lại: <b>{{reasonText}}</b></div>
+<div style="display: flex; align-items: center; gap: 10px">
+<button type="button" onClick="{{apply}}" disabled="{{applyOff}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 20px; cursor: pointer">Áp dụng v4</button>
+<button type="button" onClick="{{backDiff}}" style="font: inherit; font-size: 14px; font-weight: 600; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Quay lại so sánh</button>
+<span style="font-size: 12px; color: #6b6b76">{{applyHint}}</span>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{isApplied}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 4px; background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 14px 16px"><b style="font-size: 16px">Đã áp dụng v4</b><span style="font-size: 14px; color: #4a4a55">Quản lý shop · 03/11/2026 21:30 · lý do: {{reasonText}} · tệp thong-so-1103.xlsx</span></div>
+<div style="display: flex; align-items: center; gap: 12px; background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 12px 14px"><span style="width: 18px; height: 18px; border-radius: 999px; border: 3px solid #c9defa; border-top-color: #1d4f91; display: inline-block"></span><span style="font-size: 14px">Đang tính lại giá sàn, biên lợi nhuận và 7 đề xuất. Thường xong trong vài phút. Thẻ cũ không đổi cho đến khi có thẻ mới.</span></div>
+<div style="display: flex; gap: 10px"><button type="button" onClick="{{goVer}}" style="font: inherit; font-size: 14px; font-weight: 600; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Xem các phiên bản ›</button><a href="CardWhatIf.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem đề xuất ›</a></div>
+</div>
+</sc-if>
+</section>
+</sc-if>
+
+<sc-if value="{{isVer}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap"><h2 style="margin: 0; font-size: 18px; font-weight: 700">Phiên bản theo SKU</h2>
+<div style="display: flex; gap: 6px; flex-wrap: wrap"><sc-for list="{{skuPills}}" as="p" hint-placeholder-count="4"><button type="button" aria-pressed="{{p.on}}" onClick="{{p.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 44px; padding: 0 14px; cursor: pointer; {{p.style}}">{{p.label}}</button></sc-for></div></div>
+<div style="display: grid; grid-template-columns: 60px minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.6fr) 120px; gap: 10px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Bản</span><span>Khi nào · ai</span><span>Tệp</span><span>Lý do</span><span>Giá trị</span><span></span></div>
+<sc-for list="{{versions}}" as="v" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 60px minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.6fr) 120px; gap: 10px; align-items: center; border-radius: 12px; padding: 8px 12px; min-height: 56px; font-size: 13px; {{v.style}}">
+<b>{{v.id}}</b><span>{{v.when}}<br><span style="color: #5f5f6b">{{v.who}}</span></span><span style="color: #4a4a55">{{v.file}}</span><span>{{v.reason}}</span><span>{{v.vals}}</span>
+<span style="justify-self: end">
+<sc-if value="{{v.current}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; color: #146c2e; background: #e3f5e8">Hiện hành</span></sc-if>
+<sc-if value="{{v.canRestore}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{v.ask}}" style="font: inherit; font-size: 13px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 12px; cursor: pointer">Khôi phục</button></sc-if>
+</span>
+</div>
+</sc-for>
+<sc-if value="{{confirm}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 8px; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 14px 16px">
+<b style="font-size: 15px">Khôi phục {{confirmId}} cho {{curSku}}?</b>
+<span style="font-size: 14px; color: #4a4a55">Juli tạo bản mới sao chép {{confirmId}}, không xoá bản nào. Giá sàn và biên của {{curSku}} tính lại, và {{confirmN}} đề xuất liên quan được tính lại.</span>
+<div style="display: flex; gap: 10px"><button type="button" onClick="{{doRestore}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Khôi phục</button><button type="button" onClick="{{cancelRestore}}" style="font: inherit; font-size: 14px; font-weight: 600; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Huỷ</button></div>
+</div>
+</sc-if>
+<sc-if value="{{restoredMsg}}" hint-placeholder-val="{{ false }}"><div style="background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 12px 14px; font-size: 14px">{{restoredMsg}}</div></sc-if>
+</section>
+</sc-if>
+
+<sc-if value="{{isMt}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: baseline; gap: 12px"><h2 style="margin: 0; font-size: 18px; font-weight: 700">Mục tiêu</h2><span style="font-size: 13px; color: #5f5f6b">Trang Mục tiêu của tệp · mỗi tháng một dòng · hiện hành → mới</span></div>
+<div style="display: grid; grid-template-columns: 90px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 10px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Tháng</span><span>GMV</span><span>Đơn</span><span>AOV</span><span>Biên mục tiêu</span><span>Trần ngân sách QC/ngày</span></div>
+<sc-for list="{{goals}}" as="g" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; border: 1px solid #f1e6eb; border-radius: 12px; {{g.box}}">
+<div style="display: grid; grid-template-columns: 90px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 10px; align-items: center; padding: 8px 12px; min-height: 56px; font-size: 13px">
+<b>{{g.m}}</b>
+<sc-for list="{{g.cells}}" as="c" hint-placeholder-count="5"><span style="display: flex; flex-direction: column; gap: 2px"><b style="font-size: 14px">{{c.neu}}</b><span style="font-size: 12px; {{c.oldStyle}}">{{c.old}}</span></span></sc-for>
+</div>
+<sc-if value="{{g.note}}" hint-placeholder-val="{{ false }}"><div style="margin: 0 12px 8px; font-size: 12px; font-weight: 600; border-radius: 8px; padding: 6px 10px; {{g.noteStyle}}">{{g.note}}</div></sc-if>
+</div>
+</sc-for>
+<div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #5f5f6b"><span>Biên mục tiêu đưa vào giá sàn vận hành: (giá vốn + đóng gói) ÷ (1 − phí sàn − QC − hoa hồng − biên mục tiêu).</span><span>Kiểm tra chéo: GMV ≈ đơn × AOV, lệch quá 5% thì cảnh báo, không chặn.</span></div>
+<div style="display: flex; align-items: center; gap: 10px"><button type="button" onClick="{{goApplyMt}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Áp dụng cùng tệp ›</button><span style="font-size: 12px; color: #6b6b76">Mục tiêu và SKU cùng một phiên bản, cùng một lý do.</span></div>
+</section>
+</sc-if>
+
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Số trong bản vẽ là ví dụ minh hoạ. Quản lý shop duyệt, đội Juli thực hiện, người theo dõi chỉ xem.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":1500}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { step: 'tai', downloaded: false, file: false, reasonIdx: null, applied: false, verSku: 0, confirmId: null, restored: null, added: {} };
+}
+_d() {
+// ── shared synthetic data (same in SanPham + SanPhamMobile). Illustrative, not any real shop. ──
+const vnd = (n) => String(Math.round(Math.abs(n))).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
+const vndS = (n) => (n < 0 ? '−' : n > 0 ? '+' : '') + vnd(n);
+const num = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const pc = (x, d) => (x).toFixed(d === undefined ? 1 : d).replace('.', ',') + '%';
+const tr = (n) => (n / 1000000).toFixed(1).replace('.', ',') + ' tr';
+const C = {
+  ink: '#1a1a1f', ink2: '#4a4a55', mut: '#5f5f6b', mut2: '#6b6b76',
+  pinkText: '#b0386a', primary: '#c2306d',
+  upTxt: '#146c2e', upBg: '#e3f5e8', upBar: '#1f8a3d',
+  dnTxt: '#a3222f', dnBg: '#fdecec',
+  wnTxt: '#8a4b00', wnBg: '#fff4e0',
+  inTxt: '#1d4f91', inBg: '#e6f0fd',
+  neutralBg: '#f0eef0', chart: '#71717a'
+};
+const chipUp = 'color: #146c2e; background: #e3f5e8';
+const chipDn = 'color: #a3222f; background: #fdecec';
+const chipWn = 'color: #8a4b00; background: #fff4e0';
+const chipIn = 'color: #1d4f91; background: #e6f0fd';
+const chipNe = 'color: #4a4a55; background: #f0eef0';
+const chipPk = 'color: #b0386a; background: #fdeef4';
+const pillOn = 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a';
+const pillOff = 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc';
+
+const SHOP = { fee: 0.15, ad: 0.184, aff: 0, target: 0.10, cap: 0.10, voucher: 10000, voucherMin: 200000 };
+const SKUS = [
+  { id: 'BEP-S5-CB', name: 'Bộ 5 món · Cơ bản', list: 200000, promo: null, stock: 214, restock: null, orders: 44, cogs: 100000, pack: 3000, fixed: 0, img: 0 },
+  { id: 'BEP-S5-L', name: 'Bộ 5 món · Găng size L', list: 205000, promo: null, stock: 96, restock: null, orders: 20, cogs: 102000, pack: 3000, fixed: 0, img: 1 },
+  { id: 'BEP-S3', name: 'Bộ 3 món · Găng, xơ mướp, nước rửa', list: 129000, promo: 119000, stock: 9, restock: '08/11', orders: 12, cogs: null, pack: null, fixed: 0, img: 2 },
+  { id: 'BEP-S5-QT', name: 'Bộ 5 món · Hộp quà', list: 249000, promo: null, stock: 0, restock: '12/11', orders: 4, cogs: 128000, pack: 6000, fixed: 0, img: 3 }
+];
+function econ(s) {
+  if (s.cogs == null) return null;
+  const sell = s.promo || s.list;
+  const v = sell >= SHOP.voucherMin ? SHOP.voucher : 0;
+  const pay = sell - v;
+  const fee = Math.round(SHOP.fee * pay);
+  const cost = s.cogs + s.pack + s.fixed;
+  const org = pay - fee - cost;
+  const ads = Math.round(SHOP.ad * sell);
+  const adm = org - ads;
+  const abs = Math.round(cost / (1 - SHOP.fee));
+  const op = Math.round(cost / (1 - SHOP.fee - SHOP.ad - SHOP.aff - SHOP.target));
+  const maxd = Math.min(SHOP.cap, 1 - op / s.list);
+  return { sell, v, pay, fee, cost, org, orgP: org / pay * 100, ads, adm, admP: adm / pay * 100, abs, op, maxd: maxd * 100, maxdV: Math.floor(s.list * maxd / 1000) * 1000 };
+}
+const TITLE = 'Bộ vệ sinh bếp 5 món set rửa chén: găng tay rửa chén, xơ mướp, nước rửa chén, túi zip, giấy bạc - combo dọn bếp';
+const KEYS = [
+  { k: 'bộ vệ sinh bếp', role: 'chinh', vol: 3200, tr: '▲ 12%', up: true, diff: 42, cpc: 980, rank: 9, med: 185000, cards: [['Thẻ tiêu đề', 'Tiêu đề'], ['Thẻ giá', 'Giá']] },
+  { k: 'set rửa chén', role: 'chinh', vol: 5600, tr: '▲ 5%', up: true, diff: 55, cpc: 1100, rank: 14, med: 172000, cards: [['Thẻ quảng cáo', 'Quảng cáo']] },
+  { k: 'combo dọn bếp', role: 'chinh', vol: 2100, tr: '► 0%', up: null, diff: 31, cpc: 760, rank: 27, med: 192000, cards: [['Thẻ tiêu đề', 'Tiêu đề']] },
+  { k: 'dụng cụ nhà bếp', role: 'chinh', vol: 9800, tr: '▼ 3%', up: false, diff: 71, cpc: 1320, rank: 58, med: 96000, cards: [] },
+  { k: 'đồ dùng nhà bếp tiện ích', role: 'chinh', vol: 1400, tr: '▲ 18%', up: true, diff: 24, cpc: 640, rank: 41, med: 158000, cards: [] },
+  { k: 'găng tay rửa chén', role: 'phu', vol: 18400, tr: '▲ 8%', up: true, diff: 78, cpc: 1250, rank: 112, med: 38000, cards: [] },
+  { k: 'xơ mướp', role: 'phu', vol: 6900, tr: '▲ 2%', up: true, diff: 48, cpc: 520, rank: 66, med: 21000, cards: [] },
+  { k: 'túi zip', role: 'phu', vol: 11200, tr: '► 0%', up: null, diff: 63, cpc: 890, rank: 140, med: 34000, cards: [] },
+  { k: 'giấy bạc nướng', role: 'phu', vol: 2700, tr: '▲ 4%', up: true, diff: 36, cpc: 700, rank: 0, med: 45000, cards: [] },
+  { k: 'tên shop mẫu', role: 'thuonghieu', vol: 420, tr: '▲ 22%', up: true, diff: 8, cpc: 300, rank: 1, med: 0, cards: [] },
+  { k: 'sỉ', role: 'loaitru', vol: 0, tr: '', up: null, diff: 0, cpc: 0, rank: 0, med: 0, cards: [] },
+  { k: 'hàng cũ', role: 'loaitru', vol: 0, tr: '', up: null, diff: 0, cpc: 0, rank: 0, med: 0, cards: [] }
+];
+const SRC_TRAFFIC = [
+  { k: 'Tìm kiếm', grp: 'Tự nhiên', o: 28, aov: 190000, p: 1436400, ad: 12, card: 'Tiêu đề · +1,8 tr/tháng' },
+  { k: 'Đề xuất', grp: 'Tự nhiên', o: 16, aov: 178000, p: 712000, ad: 6, card: 'Ảnh bìa · +0,9 tr/tháng' },
+  { k: 'Trang shop', grp: 'Tự nhiên', o: 8, aov: 205000, p: 508400, ad: 0, card: null },
+  { k: 'Liên kết (KOL)', grp: 'Liên kết', o: 12, aov: 165000, p: 396000, ad: 0, card: 'Hoa hồng · tiết kiệm 0,2 tr' },
+  { k: 'Trang Flash Sale', grp: 'Flash Sale', o: 16, aov: 152000, p: 408600, ad: 0, card: null }
+];
+const SRC_LEVER = [
+  { k: 'Không ưu đãi', o: 16, g: 3200000, p: 1072000, card: null },
+  { k: 'Voucher', o: 30, g: 5700000, p: 1539000, card: 'Voucher 10k → 15k ≥299k · +0,18 tr' },
+  { k: 'Khuyến mãi (gồm giá Flash Sale)', o: 28, g: 4000000, p: 560000, card: 'Giảm giá · giữ trên giá sàn' },
+  { k: 'Combo / Mua kèm', o: 6, g: 1320000, p: 290400, card: null }
+];
+const CROSS = [[7, 11, 8, 2], [4, 8, 3, 1], [2, 3, 2, 1], [3, 4, 3, 2], [0, 4, 12, 0]];
+const ADS = [
+  { n: 'Tự động · Bộ vệ sinh bếp', purpose: 'chuyen_doi', pl: 'Chuyển đổi', spend: 330000, o: 11, judge: 'ROAS 6,0 so với hoà vốn 3,0', ok: true },
+  { n: 'Hiển thị · Danh mục gia dụng', purpose: 'hien_thi', pl: 'Hiển thị', spend: 130000, o: 3, judge: '38.000đ/1.000 lượt xem · CTR 1,9%', ok: true },
+  { n: 'Vào shop · Mùa sale', purpose: 'luot_vao_shop', pl: 'Lượt vào shop', spend: 90000, o: 2, judge: '1.020 lượt vào · 88đ/lượt', ok: null },
+  { n: 'Ra mắt · Hộp quà', purpose: 'ra_mat', pl: 'Ra mắt', spend: 50000, o: 2, judge: 'Chi 50.000 / trần 300.000đ · hết 15/11', ok: null }
+];
+const PERIODS = {
+  '7': { label: '7 ngày', views: ['3.610', '▲ 4,1%', true], ctr: ['4,4%', '▼ 0,1 pt', false], ctor: ['12,4%', '▲ 0,8 pt', true], aov: ['171.200đ', '▼ 3,7%', false], gmv: ['3.424.000đ', '▲ 6,2%', true], mar: ['24,9%', '▲ 0,6 pt', true] },
+  '30': { label: '30 ngày', views: ['14.800', '▲ 9,2%', true], ctr: ['4,6%', '▲ 0,3 pt', true], ctor: ['11,7%', '▲ 1,0 pt', true], aov: ['177.750đ', '▼ 2,0%', false], gmv: ['14.220.000đ', '▲ 12,7%', true], mar: ['24,3%', '▲ 1,5 pt', true] },
+  '90': { label: '90 ngày', views: ['41.200', '▲ 15,4%', true], ctr: ['4,3%', '▲ 0,2 pt', true], ctor: ['10,9%', '▲ 0,4 pt', true], aov: ['182.400đ', '▼ 0,8%', false], gmv: ['35.203.200đ', '▲ 18,9%', true], mar: ['22,6%', '▲ 0,9 pt', true] }
+};
+const SERIES = {
+  gmv: { label: 'GMV/ngày', unit: 'k đ', v: [310, 420, 380, 450, 520, 440, 390, 410, 560, 520, 480, 530, 610, 500, 470, 540, 600, 570, 430, 410, 480, 520, 640, 590, 560, 480, 450, 520, 560, 610] },
+  views: { label: 'Lượt xem/ngày', unit: '', v: [410, 470, 440, 480, 530, 500, 450, 460, 560, 540, 520, 540, 580, 520, 500, 530, 570, 550, 470, 460, 510, 530, 600, 570, 540, 500, 480, 520, 540, 560] },
+  mar: { label: 'Biên lợi nhuận', unit: '%', v: [21, 22, 22, 23, 23, 22, 21, 22, 24, 24, 23, 24, 25, 24, 22, 22, 23, 23, 24, 24, 24, 25, 25, 26, 25, 25, 24, 25, 25, 26] }
+};
+const MARKERS = [
+  { i: 7, d: '12/10', t: 'Đổi tiêu đề', card: 'Thẻ tiêu đề', t7: 'T+7: CTOR +0,8 pt · trong khoảng', fin: 'Ngày 14: đạt 82% kỳ vọng' },
+  { i: 14, d: '19/10', t: 'Voucher 10k ≥200k', card: 'Thẻ voucher', t7: 'T+7: đơn +3 · biên −0,6 pt', fin: 'Ngày 14: chưa đủ ngày' },
+  { i: 21, d: '26/10', t: 'Ảnh bìa mới', card: 'Thẻ ảnh bìa', t7: 'T+7: CTR +0,3 pt', fin: 'Ngày 14: chưa đủ ngày' }
+];
+const TIMELINE = [
+  { d: '03/11 06:10', type: 'the', ico: '◆', t: 'Thẻ voucher: đề xuất C (15k ≥299k) hiển thị', s: 'Chờ duyệt · nội dung đã đóng băng lúc 06:10', chip: ['Chờ duyệt', chipWn] },
+  { d: '02/11 18:20', type: 'tham_so', ico: '▣', t: 'Thông số shop v3 áp dụng (giá vốn BEP-S5-CB 98.000 → 100.000đ)', s: 'Quản lý shop · lý do: giá nhập tháng 11 · tệp thong-so-1102.xlsx', chip: ['Phiên bản v3', chipNe] },
+  { d: '26/10 14:05', type: 'doi', ico: '≠', t: 'Phát hiện đổi ảnh bìa', s: 'Phiên bản ảnh 2 → 3 · Seller Centre', chip: ['Đã thực hiện', chipUp], diff: 'img' },
+  { d: '26/10 10:30', type: 'the', ico: '◆', t: 'Thẻ ảnh bìa: đã thực hiện (Juli đăng sau khi bạn xác nhận)', s: 'Phê duyệt 25/10 · lý do không áp dụng', chip: ['T+7 xong', chipIn] },
+  { d: '26/10 09:00', type: 'the', ico: '◆', t: 'Thẻ tiêu đề: kết quả ngày 14', s: 'Đạt 82% kỳ vọng · CTOR 11,1% → 11,7%', chip: ['Đã chốt', chipUp] },
+  { d: '19/10 07:40', type: 'the', ico: '◆', t: 'Thẻ voucher A (10k ≥200k): đã thực hiện', s: 'Phê duyệt 18/10 · Juli đặt trên Seller Centre', chip: ['T+7 xong', chipUp] },
+  { d: '17/10 08:15', type: 'the', ico: '◆', t: 'whatif_adjusted · thẻ voucher: bạn đổi giá trị 15.000 → 10.000đ, đơn tối thiểu 299.000 → 200.000đ', s: 'Kết quả hiển thị lúc đổi: giữ trên giá sàn vận hành · biên đơn QC 11,4%', chip: ['Đã điều chỉnh', chipPk] },
+  { d: '12/10 13:50', type: 'doi', ico: '≠', t: 'Phát hiện đổi tiêu đề', s: 'Seller Centre · 98 → 111 ký tự', chip: ['Đã thực hiện', chipUp], diff: 'title' },
+  { d: '05/10 11:00', type: 'doi', ico: '≠', t: 'Phát hiện đổi giá niêm yết BEP-S3', s: 'Seller Centre · Juli Connector', chip: ['Ngoài đề xuất', chipWn], diff: 'price' },
+  { d: '30/09 10:12', type: 'tham_so', ico: '▣', t: 'Thông số shop v2 áp dụng (tồn kho, ngày nhập lại)', s: 'Quản lý shop · lý do: kiểm kho cuối tháng · tệp thong-so-0930.xlsx', chip: ['Phiên bản v2', chipNe] }
+];
+// ── product-level numbers derived from the lines above ──
+const TOTAL_O = SRC_TRAFFIC.reduce((a, r) => a + r.o, 0);
+const TOTAL_G = SRC_TRAFFIC.reduce((a, r) => a + r.o * r.aov, 0);
+const TOTAL_P = SRC_TRAFFIC.reduce((a, r) => a + r.p, 0);
+const SKU_O = SKUS.reduce((a, s) => a + s.orders, 0);
+// ADR-107 reason lists, labels as in apps/demo lib/quyet-dinh/reasons.ts (Decline / Revert artboards)
+const REJECT_REASONS = [
+  { code: 'brand_mismatch', label: 'Thay đổi không hợp thương hiệu hoặc giọng văn' },
+  { code: 'not_convincing', label: 'Lý do hoặc số liệu chưa thuyết phục' },
+  { code: 'editing_myself', label: 'Tôi đang tự sửa sản phẩm này' },
+  { code: 'discontinued', label: 'Sản phẩm sắp ngừng bán hoặc hết hàng' },
+  { code: 'other_campaign', label: 'Đang chạy chiến dịch khác cho sản phẩm này' },
+  { code: 'other', label: 'Khác' }
+];
+const REVERT_REASONS = [
+  { code: 'metrics_dropped', label: 'Doanh số hoặc chỉ số giảm' },
+  { code: 'bad_feedback', label: 'Khách phản hồi không tốt' },
+  { code: 'wrong_info', label: 'Nội dung sai thông tin sản phẩm' },
+  { code: 'off_brand', label: 'Không hợp giọng thương hiệu' },
+  { code: 'tiktok_warning', label: 'TikTok cảnh báo sản phẩm' },
+  { code: 'other', label: 'Khác' }
+];
+
+return { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, SRC_TRAFFIC, SRC_LEVER, CROSS, ADS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS };
+}
+renderVals() {
+const { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, SRC_TRAFFIC, SRC_LEVER, CROSS, ADS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS } = this._d();
+const st = this.state;
+const REASONS = ['Giá nhập tháng 11', 'Kiểm kho cuối tháng', 'Sửa sai nhập liệu', 'Khác'];
+const FLD = [['item_id', 1], ['variation_id', 1], ['SKU', 1], ['giá vốn', 1], ['đóng gói', 0], ['giảm tối đa (%)', 0], ['tồn kho', 0], ['ngày nhập lại', 0], ['nhóm', 0], ['trạng thái', 0]];
+const BAD = [
+  { row: '9', sku: 'BEP-S5-XX', col: 'SKU', val: 'BEP-S5-XX', why: 'Không có SKU này trong shop. Kiểm tra lỗi gõ hoặc SKU đã xoá.', kind: 'SKU lạ', kindStyle: chipWn },
+  { row: '17', sku: 'BEP-S3-SET', col: 'giá vốn', val: '130.000đ', why: 'Giá vốn ≥ giá bán 119.000đ. Biên sẽ âm.', kind: 'Giá vốn ≥ giá', kindStyle: chipDn },
+  { row: '23', sku: 'BEP-NR-01', col: 'giá vốn', val: '(trống)', why: 'Cột giá vốn bắt buộc, chưa có giá trị cũ để giữ.', kind: 'Giá vốn trống', kindStyle: chipNe },
+  { row: '31', sku: 'BEP-XM-02', col: 'giảm tối đa', val: '140%', why: 'Giảm tối đa phải từ 0 đến 100%.', kind: 'Ngoài khoảng', kindStyle: chipDn }
+];
+// diff: compute consequences with the shop's formula
+const fl = (cogs, pack, list) => { const cost = cogs + pack; const op = Math.round(cost / (1 - SHOP.fee - SHOP.ad - SHOP.aff - SHOP.target)); return { abs: Math.round(cost / (1 - SHOP.fee)), op, maxd: Math.min(SHOP.cap, 1 - op / list) * 100 }; };
+const o1 = fl(100000, 3000, 200000), n1 = fl(104000, 3000, 200000);
+const o2 = fl(102000, 3000, 205000), n2 = fl(104500, 3000, 205000);
+const n3 = fl(72000, 3000, 129000);
+const DIFF = [
+  { sku: 'BEP-S5-CB', field: 'Giá vốn', old: '100.000đ', neu: '104.000đ', eff: 'Giá sàn vận hành ' + vnd(o1.op) + ' → ' + vnd(n1.op) },
+  { sku: 'BEP-S5-CB', field: 'Giảm tối đa (tính ra)', old: pc(o1.maxd), neu: pc(n1.maxd), eff: 'Voucher 15.000đ vượt mức mới ' + vnd(Math.floor(200000 * n1.maxd / 100 / 1000) * 1000) + ', thẻ voucher tính lại' },
+  { sku: 'BEP-S5-CB', field: 'Tồn kho', old: '214', neu: '260', eff: 'Bán hết sau khoảng 177 ngày' },
+  { sku: 'BEP-S5-L', field: 'Giá vốn', old: '102.000đ', neu: '104.500đ', eff: 'Giá sàn vận hành ' + vnd(o2.op) + ' → ' + vnd(n2.op) },
+  { sku: 'BEP-S3', field: 'Giá vốn', old: '(chưa có)', neu: '72.000đ', eff: 'Tính được biên ' + pc((119000 - 0.15 * 119000 - 75000) / 119000 * 100) + ' và giá sàn ' + vnd(n3.op) + '. Thẻ giảm giá bỏ tạm dừng' },
+  { sku: 'BEP-S3', field: 'Đóng gói', old: '(chưa có)', neu: '3.000đ', eff: 'Gộp vào giá sàn trên' },
+  { sku: 'BEP-S3', field: 'Ngày nhập lại', old: '08/11', neu: '10/11', eff: 'Tồn 9 còn khoảng 23 ngày, nhắc nhập trước 10/11' },
+  { sku: 'BEP-S5-QT', field: 'Tồn kho', old: '0', neu: '40', eff: 'Hết hàng → còn hàng, đề xuất ra mắt Hộp quà tiếp tục' },
+  { sku: 'BEP-S5-QT', field: 'Trạng thái', old: 'Hết hàng', neu: 'Đang bán', eff: 'Quảng cáo Ra mắt có thể chạy lại' }
+];
+const diffSkus = Array.from(new Set(DIFF.map((d) => d.sku)));
+const stepDefs = [['tai', '1 · Mẫu và tải lên'], ['kiem', '2 · Kiểm tra'], ['diff', '3 · So sánh'], ['apply', '4 · Áp dụng'], ['ver', 'Phiên bản'], ['mt', 'Mục tiêu']];
+const tabs = stepDefs.map(([id, label]) => ({ label, on: st.step === id, style: st.step === id ? pillOn : pillOff, pick: () => this.setState({ step: id, confirmId: null }) }));
+const needFile = ['kiem', 'diff', 'apply'].includes(st.step) && !st.file;
+// versions
+const mkV = (id, when, who, file, reason, vals, extra) => ({ id, when, who, file, reason, vals, ...(extra || {}) });
+const BASEV = [
+  [mkV('v1', '15/09/2026 09:40', 'Quản lý shop', 'thong-so-0915.xlsx', 'Nhập lần đầu', 'Giá vốn 95.000đ · tồn 240'), mkV('v2', '30/09/2026 10:12', 'Quản lý shop', 'thong-so-0930.xlsx', 'Kiểm kho cuối tháng', 'Giá vốn 98.000đ · tồn 214'), mkV('v3', '02/11/2026 18:20', 'Quản lý shop', 'thong-so-1102.xlsx', 'Giá nhập tháng 11', 'Giá vốn 100.000đ · tồn 214')],
+  [mkV('v1', '15/09/2026 09:40', 'Quản lý shop', 'thong-so-0915.xlsx', 'Nhập lần đầu', 'Giá vốn 99.000đ'), mkV('v2', '02/11/2026 18:20', 'Quản lý shop', 'thong-so-1102.xlsx', 'Giá nhập tháng 11', 'Giá vốn 102.000đ')],
+  [mkV('v1', '15/09/2026 09:40', 'Quản lý shop', 'thong-so-0915.xlsx', 'Nhập lần đầu', 'Giá vốn (chưa có) · tồn 20')],
+  [mkV('v1', '15/09/2026 09:40', 'Quản lý shop', 'thong-so-0915.xlsx', 'Nhập lần đầu', 'Giá vốn 128.000đ · tồn 12'), mkV('v2', '30/09/2026 10:12', 'Quản lý shop', 'thong-so-0930.xlsx', 'Kiểm kho cuối tháng', 'Giá vốn 128.000đ · tồn 0')]
+];
+const SKU_IDS = ['BEP-S5-CB', 'BEP-S5-L', 'BEP-S3', 'BEP-S5-QT'];
+const NEWV = [
+  mkV('v4', '03/11/2026 21:30', 'Quản lý shop', 'thong-so-1103.xlsx', '', 'Giá vốn 104.000đ · tồn 260'), mkV('v3', '03/11/2026 21:30', 'Quản lý shop', 'thong-so-1103.xlsx', '', 'Giá vốn 104.500đ'),
+  mkV('v2', '03/11/2026 21:30', 'Quản lý shop', 'thong-so-1103.xlsx', '', 'Giá vốn 72.000đ · đóng gói 3.000đ'), mkV('v3', '03/11/2026 21:30', 'Quản lý shop', 'thong-so-1103.xlsx', '', 'Tồn 40 · Đang bán')
+];
+const reasonText = st.reasonIdx == null ? '(chưa chọn)' : REASONS[st.reasonIdx];
+let versions = BASEV[st.verSku].map((v) => ({ ...v }));
+if (st.applied) { const nv = { ...NEWV[st.verSku], reason: reasonText }; versions.push(nv); }
+(st.added[st.verSku] || []).forEach((a) => versions.push({ ...a }));
+const curId = versions[versions.length - 1].id;
+const verRows = versions.slice().reverse().map((v, i) => {
+  const cur = i === 0;
+  return { id: v.id, when: v.when, who: v.who, file: v.file, reason: v.reason, vals: v.vals, current: cur, canRestore: !cur && st.confirmId == null, style: cur ? 'background: #f1faf3; border: 1px solid #c7e8d0' : 'background: #ffffff; border: 1px solid #f1e6eb', ask: () => this.setState({ confirmId: v.id }) };
+});
+const nextNum = (arr) => 'v' + (arr.length + 1);
+const goals = [
+  { m: 'T11/2026', box: 'background: #ffffff', cells: [['180.000.000đ', '180.000.000đ'], ['920', '920'], ['196.000đ', '196.000đ'], ['10,0%', '10,0%'], ['1.200.000đ', '1.200.000đ']], note: 'GMV ÷ đơn = 195.652đ, lệch 0,2% so với AOV. Không đổi.', noteStyle: chipNe },
+  { m: 'T12/2026', box: 'background: #fff7fa; border-color: #f8b9d3', cells: [['240.000.000đ', '200.000.000đ'], ['1.150', '960'], ['208.000đ', '196.000đ'], ['12,0%', '10,0%'], ['1.800.000đ', '1.200.000đ']], note: 'Biên mục tiêu 10% → 12%: giá sàn vận hành BEP-S5-CB sẽ thành ' + vnd(Math.round(103000 / (1 - SHOP.fee - SHOP.ad - 0.12))) + ' từ 01/12, 9 đề xuất giá tính lại khi đó.', noteStyle: chipIn },
+  { m: 'T01/2027', box: 'background: #fffafa; border-color: #f5c2c5', cells: [['150.000.000đ', '(chưa có)'], ['900', '(chưa có)'], ['230.000đ', '(chưa có)'], ['10,0%', '(chưa có)'], ['1.200.000đ', '(chưa có)']], note: 'Cảnh báo: GMV ÷ đơn = 166.667đ, lệch 27,5% so với AOV 230.000đ. Kiểm tra lại một trong ba số. Vẫn lưu được.', noteStyle: chipWn }
+].map((g) => ({ ...g, cells: g.cells.map(([n, o]) => ({ neu: n, old: n === o ? 'không đổi' : (o === '(chưa có)' ? 'dòng mới' : o), oldStyle: (n === o || o === '(chưa có)') ? 'color: #6b6b76' : 'color: #6b6b76; text-decoration: line-through' })) }));
+const nChange = DIFF.length;
+const rec = { tai: [false, 0, ''], kiem: [false, 0, ''], diff: [true, 7, 'Giá vốn, giảm tối đa, tồn kho hoặc trạng thái đổi ở 4 SKU: thẻ voucher, giảm giá, quảng cáo Ra mắt và nhắc nhập hàng.'], apply: [!st.applied, 7, 'Chỉ các thẻ của 4 SKU này tính lại, thẻ khác giữ nguyên.'], ver: [st.confirmId != null, 3, 'Chỉ các thẻ của SKU này tính lại.'], mt: [true, 9, 'Mục tiêu T12 có hiệu lực từ 01/12. Thẻ giá của cả shop tính lại khi đó.'] }[st.step];
+return {
+  tabs, recalc: rec[0], recalcN: String(st.step === 'ver' ? 3 : rec[1]), recalcWhy: rec[2],
+  isTai: st.step === 'tai' , isKiem: st.step === 'kiem', isDiff: st.step === 'diff', isApply: st.step === 'apply', isVer: st.step === 'ver', isMt: st.step === 'mt',
+  download: () => this.setState({ downloaded: !st.downloaded }), downloadLabel: st.downloaded ? 'Đã tải thong-so-mau-1103.xlsx ✓' : 'Tải mẫu .xlsx',
+  noFile: !st.file, hasFile: st.file, pickFile: () => this.setState({ file: true }), goCheck: () => this.setState({ step: 'kiem' }),
+  cols: FLD.map(([label, req]) => ({ label: label + (req ? ' *' : ''), style: req ? 'color: #b0386a; background: #fdeef4' : 'color: #4a4a55; background: #f0eef0' })),
+  okN: 38, badN: 4, bad: BAD, goDiff: () => this.setState({ step: 'diff', file: true }), backTai: () => this.setState({ step: 'tai', file: false }),
+  diff: DIFF.map((d) => ({ ...d })), diffN: nChange, diffSku: diffSkus.length, sameN: 38 - 6, goApply: () => this.setState({ step: 'apply' }), backDiff: () => this.setState({ step: 'diff' }),
+  notApplied: !st.applied, isApplied: st.applied,
+  reasonChips: REASONS.map((r, i) => ({ label: r, on: st.reasonIdx === i, style: st.reasonIdx === i ? pillOn : pillOff, pick: () => this.setState({ reasonIdx: i }) })),
+  reasonText, applyOff: st.reasonIdx == null, applyHint: st.reasonIdx == null ? 'Chọn một lý do để áp dụng.' : '',
+  apply: () => this.setState({ applied: true }), goVer: () => this.setState({ step: 'ver' }),
+  skuPills: SKU_IDS.map((s, i) => ({ label: s, on: st.verSku === i, style: st.verSku === i ? pillOn : pillOff, pick: () => this.setState({ verSku: i, confirmId: null, restored: null }) })),
+  versions: verRows, confirm: st.confirmId != null, confirmId: st.confirmId || '', curSku: SKU_IDS[st.verSku], confirmN: 3,
+  doRestore: () => {
+    const src = versions.find((v) => v.id === st.confirmId); const id = nextNum(versions);
+    const add = { id, when: '03/11/2026 21:45', who: 'Quản lý shop', file: 'khôi phục ' + src.id, reason: 'Khôi phục từ ' + src.id, vals: src.vals };
+    this.setState({ added: { ...st.added, [st.verSku]: [...(st.added[st.verSku] || []), add] }, confirmId: null, restored: 'Đã tạo ' + id + ' sao chép ' + src.id + '. Đang tính lại 3 đề xuất. ' + src.id + ' vẫn còn trong danh sách.' });
+  },
+  cancelRestore: () => this.setState({ confirmId: null }), restoredMsg: st.restored || '',
+  goals, goApplyMt: () => this.setState({ step: 'apply' })
+};
+}
+}
+</script>
+</body>
+</html>
