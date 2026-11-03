@@ -9,17 +9,41 @@ shop's own rows. Synthetic rows only; no downgrade.
 
 from __future__ import annotations
 
+import os
+from contextlib import asynccontextmanager
 from datetime import timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from juli_backend.models.kpi_contracts import KpiForecast
 from juli_backend.services import shopee_kpi_daily
 from juli_backend.services.ops import ops_role
 from tests.integration.test_shopee_kpi_db import START, _metric, _now, _seed, app_session
+from tests.integration.two_tenant import RUNTIME_ROLE
 from tests.support.postgres import requires_postgres
 
 pytestmark = [requires_postgres]
+
+
+@asynccontextmanager
+async def ict_session():
+    """``app_session`` on a database clock seven hours ahead of UTC (a laptop's Postgres)."""
+    from juli_backend.core.config.runtime import async_database_url
+
+    engine = create_async_engine(async_database_url(os.environ["DATABASE_URL"]))
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SET TIME ZONE 'Asia/Ho_Chi_Minh'"))
+            await conn.execute(text(f"SET ROLE {RUNTIME_ROLE}"))
+            await conn.commit()
+            session = AsyncSession(bind=conn, expire_on_commit=False)
+            try:
+                yield session
+            finally:
+                await session.close()
+    finally:
+        await engine.dispose()
 
 
 async def _stored_rows(session, shop_id) -> int:
@@ -76,3 +100,15 @@ async def test_daily_run_stores_once_then_skips_until_the_data_changes():
         await session.commit()
         await shopee_kpi_daily.run_daily_kpi(app_session, now=_now())
         assert await _stored_rows(session, shop_id) > settled
+
+
+async def test_a_non_utc_database_clock_does_not_read_ops_rows_as_newer_than_the_run():
+    async with ict_session() as session:
+        shop_id = await _seed(session)
+        await session.commit()
+        # The first run writes kpi_targets (server now(), +07 here); settle once.
+        await shopee_kpi_daily.run_daily_kpi(ict_session)
+        await shopee_kpi_daily.run_daily_kpi(ict_session)
+        landed = await shopee_kpi_daily.landed_since_last_run(session, shop_id)
+        await session.commit()
+    assert landed is False
