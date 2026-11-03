@@ -18,6 +18,8 @@ audited in ``ops_audit_log``.
   from the seller route, never from here.
 - ``POST .../proposals/{pid}/executions`` -- the change was made on the shop.
 - ``POST .../proposals/{pid}/executions/{eid}/verify`` -- the new state was read back.
+- ``POST .../proposals/{pid}/measure`` -- "Tính lại": measure an executed proposal now
+  (the daily beat does it for every shop; the list carries the results).
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, _shop, operator, viewer
 from juli_backend.database import Shop, get_session
 from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.models.shop_proposals import STATUS_EXECUTED
 from juli_backend.services import shop_proposals
 from juli_backend.services.ops import audit
 
@@ -46,6 +49,7 @@ ACTION_PROPOSAL_WITHDRAW = "proposal_withdraw"
 ACTION_PROPOSAL_APPROVAL = "proposal_approval_record"
 ACTION_PROPOSAL_EXECUTION = "proposal_execution_record"
 ACTION_PROPOSAL_VERIFY = "proposal_execution_verify"
+ACTION_PROPOSAL_MEASURE = "proposal_measure"
 
 
 class ProposalWrite(BaseModel):
@@ -310,3 +314,34 @@ async def ops_verify_execution(
         }
 
     return await _step(session, ctx, shop_id, proposal_id, ACTION_PROPOSAL_VERIFY, step)
+
+
+@router.post("/shops/{shop_id}/proposals/{proposal_id}/measure")
+async def ops_measure_proposal(
+    shop_id: uuid.UUID,
+    proposal_id: uuid.UUID,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Recompute one executed proposal's result now, ignoring the beat's skip check."""
+    await _shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id):
+            proposal = await shop_proposals.get(session, shop_id, proposal_id)
+        if proposal.status != STATUS_EXECUTED:
+            raise shop_proposals.ProposalError(
+                shop_proposals.ERROR_BAD_STATE, 409, "only an executed proposal is measured"
+            )
+        counts = await shop_proposals.measure_shop_proposals(
+            session, shop_id, now=_now(), proposal_id=proposal_id, force=True
+        )
+        after = {
+            "proposal_id": str(proposal_id),
+            "written": counts.written,
+            "measured": counts.measured,
+        }
+        await _audited(session, ctx, shop_id, ACTION_PROPOSAL_MEASURE, after)
+    except shop_proposals.ProposalError as exc:
+        await session.rollback()
+        raise _refused(exc) from None
+    return after

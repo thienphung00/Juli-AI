@@ -439,3 +439,270 @@ def test_any_other_error_still_stops_the_load(monkeypatch):
     with pytest.raises(SystemExit, match="HTTP 403"):
         load_shopee_exports.send_http([post], "https://x.test", "jci_x", sleep=slept.append)
     assert slept == []
+
+
+# -- flash sale, voucher, ads reports (D81.7) ---------------------------------------------
+
+FLASH_HEADER = [
+    "Khung giờ",
+    "Lượt Nhắc Nhở",
+    "Lượt xem sản phẩm",
+    "Lượt nhấp vào sản phẩm",
+    "Tỷ lệ click vào sản phẩm (CTR)",
+    "Bán hàng (đặt hàng)(₫)",
+    "Bán hàng (Đơn đặt hàng được xác nhận)(₫)",
+    "Đơn đặt hàng (đặt hàng)",
+    "Đơn đặt hàng (Đơn đặt hàng được xác nhận)",
+]
+VOUCHER_HEADER = [
+    "Tên mã giảm giá",
+    "Mã giảm giá",
+    "Khung Thời Gian",
+    "Trạng thái",
+    "Người tạo",
+    "Loại Voucher",
+    "Loại ưu đãi",
+    "Nhận",
+    "Đơn đặt hàng (đặt hàng)",
+    "Đơn đặt hàng (Đơn đặt hàng được xác nhận)",
+    "Tỷ lệ sử dụng (đặt hàng)",
+    "Bán hàng (đặt hàng) (VND)",
+    "Bán hàng (Đơn đặt hàng được xác nhận) (VND)",
+    "Chi phí (đặt hàng) (VND)",
+]
+
+
+def test_flash_sale_slots_become_promotions_per_month(tmp_path):
+    slots = [
+        ["12:00-14:00 04-09-2026", "3", "900", "40", "4,44%", "500.000", "450.000", "5", "4"],
+        ["23:00-01:00 05-09-2026  +1", "0", "10", "20", "200,00%", "0", "0", "0", "0"],
+        ["23:00-01:00 05-09-2026  +1", "1", "5", "1", "20,00%", "9.000", "9.000", "1", "1"],
+        ["09:00-10:00 02-10-2026", "-", "-", "-", "-", "-", "-", "-", "-"],
+    ]
+    _write_xlsx(
+        tmp_path / "flash_sale_performance_list_30102026.xlsx",
+        {"Danh sách hiệu suất": [FLASH_HEADER, *slots]},
+    )
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    months = _by(parsed.posts, "promotions", "confirmed")
+    assert [(p.body["period"]["start"], p.body["period"]["end"]) for p in months] == [
+        ("2026-09-01", "2026-09-30"),
+        ("2026-10-01", "2026-10-30"),
+    ]
+    first, overnight, twin = months[0].body["rows"]
+    assert first["promo_type"] == "Flash Sale"
+    assert first["program_name"] == "Flash Sale 12:00-14:00"
+    assert first["sales"] == 450000
+    assert first["extra"] == {"reminders": 3, "product_views": 900, "product_clicks": 40}
+    # "+1" = ends the next day; the CTR above 100 % is not posted (the counts give it).
+    assert overnight["ends_at"] == "2026-09-06T01:00:00"
+    assert "ctr" not in overnight
+    assert (overnight["ordinal"], twin["ordinal"]) == (0, 1)
+
+
+def test_vouchers_become_promotions_without_the_code(tmp_path):
+    seller = [
+        "Giảm 5 phần trăm",
+        "CODE12345",
+        "01-10-2026 - 15-10-2026",
+        "Đang diễn ra",
+        "Người bán đã tạo",
+        "Voucher Cửa Hàng",
+        "Khuyến Mãi",
+        "30",
+        "4",
+        "3",
+        "13,33%",
+        "400.000",
+        "300.000",
+        "20.000",
+    ]
+    shopee = [
+        "Voucher do Shopee tạo",
+        "SHOPEE999",
+        "-",
+        "-",
+        "Shopee đã tạo",
+        "Voucher Ưu Đãi Follower",
+        "Khuyến Mãi",
+        "5",
+        "1",
+        "1",
+        "20,00%",
+        "1.000",
+        "1.000",
+        "0",
+    ]
+    _write_xlsx(
+        tmp_path / "voucher_20261001-20261029.xlsx",
+        {
+            "Tổng quan": [["Khung thời gian"], ["01-10-2026 - 29-10-2026"]],
+            "Danh sách hiệu suất": [VOUCHER_HEADER, seller, shopee],
+        },
+    )
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    (placed,) = _by(parsed.posts, "promotions", "placed")
+    (confirmed,) = _by(parsed.posts, "promotions", "confirmed")
+    mine, theirs = placed.body["rows"]
+    assert placed.body["period"] == {
+        "start": "2026-10-01",
+        "end": "2026-10-29",
+        "granularity": "period",
+    }
+    assert (mine["promo_type"], mine["status"]) == ("Voucher", "Đang diễn ra")
+    assert (mine["starts_at"], mine["ends_at"]) == ("2026-10-01T00:00:00", "2026-10-15T23:59:00")
+    assert mine["sales"] == 400000
+    assert confirmed.body["rows"][0]["sales"] == 300000
+    assert mine["extra"] == {
+        "claims": 30,
+        "usage_rate": pytest.approx(0.1333),
+        "voucher_cost": 20000,
+        "created_by_shopee": False,
+    }
+    # No run dates in the export: the period's first day, flagged.
+    assert (theirs["starts_at"], theirs["ends_at"]) == ("2026-10-01T00:00:00", None)
+    assert theirs["extra"]["run_dates_unknown"] is True
+    assert theirs["extra"]["created_by_shopee"] is True
+    assert theirs["status"] is None
+    assert "CODE12345" not in str(placed.body) and "SHOPEE999" not in str(placed.body)
+    assert parsed.notes[
+        "voucher_20261001-20261029.xlsx: sheet not loaded (daily / summary): Tổng quan"
+    ]
+
+
+def _write_csv(path: Path, lines: list[list[str]]) -> Path:
+    path.write_text(
+        "\n".join(",".join(f'"{cell}"' for cell in line) for line in lines) + "\n",
+        encoding="utf-8-sig",
+    )
+    return path
+
+
+ADS_META = [
+    ["Báo cáo Dịch vụ Hiển thị trả theo CPC - Shopee Việt Nam"],
+    ["Tên đăng nhập", "synthetic_user"],
+    ["Tên gian hàng", "Synthetic Shop"],
+    ["Mã Người bán", "1"],
+    ["Thời gian tạo báo cáo", "01/11/2026 10:00"],
+    ["Khoảng thời gian", "01/08/2026 - 31/10/2026"],
+    [],
+]
+ADS_HEADER_ROW = [
+    "Thứ tự",
+    "Tên Dịch vụ Hiển thị",
+    "Trạng thái",
+    "Mã sản phẩm",
+    "Phương thức đấu thầu",
+    "Ngày bắt đầu",
+    "Số lượt xem",
+    "Số lượt click",
+    "Tỷ Lệ Click",
+    "Lượt chuyển đổi",
+    "Lượt chuyển đổi trực tiếp",
+    "Sản phẩm đã bán",
+    "Doanh số",
+    "Chi phí",
+    "ROAS",
+    "ACOS",
+]
+
+
+def test_cpc_ads_report_is_one_period_post_never_cut_into_days(tmp_path):
+    shop_level = ["1", "Quảng cáo A", "Đang diễn ra", "-", "GMV Max", "01/08/2026 00:00:00"]
+    shop_level += ["10000", "250", "2.50%", "12", "10", "15", "1200000", "300000", "4.00", "0.25"]
+    product = ["2", "Quảng cáo B", "Đã dừng", "1234567890", "ROAS", "01/08/2026 00:00:00"]
+    product += ["500", "5", "1.00%", "-", "-", "-", "-", "10000", "-", "-"]
+    _write_csv(
+        tmp_path / "ads_general_20260801-20261031.csv",
+        [*ADS_META, ADS_HEADER_ROW, shop_level, product],
+    )
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    (post,) = parsed.posts
+    assert post.dataset == "ads_campaign_period"
+    assert post.body["period"] == {
+        "start": "2026-08-01",
+        "end": "2026-10-31",
+        "granularity": "period",
+    }
+    assert post.body["order_type"] == "placed"
+    first, second = post.body["rows"]
+    assert first == {
+        "campaign_name": "Quảng cáo A",
+        "running": True,
+        "ads_impressions": 10000,
+        "ad_clicks": 250,
+        "ctr": 0.025,
+        "conversions": 12,
+        "direct_conversions": 10,
+        "units_sold": 15,
+        "sales": 1200000,
+        "ads_expense": 300000,
+        "ads_roas": 4,
+        "acos": 0.25,
+    }
+    assert second["item_id"] == "1234567890"
+    assert second["running"] is False
+    assert "sales" not in second
+
+
+def test_group_campaign_report_posts_product_rows_not_the_campaign_total(tmp_path):
+    meta = [["Ad Group - Chiến Dịch Nhóm - 1 Report - Shopee Việt Nam"], *ADS_META[1:]]
+    header = [
+        "Thứ tự",
+        "Chiến dịch / Tên sản phẩm",
+        "Mã sản phẩm",
+        "Trạng thái chiến dịch",
+        "Số lượt xem",
+        "Số lượt click",
+        "Doanh số",
+        "Chi phí",
+    ]
+    _write_csv(
+        tmp_path / "Dữ+liệu-Chiến+Dịch+Nhóm-188757809-01_08_2026-31_10_2026.csv",
+        [
+            *meta,
+            header,
+            ["1", "Nhóm X", "-", "Đang diễn ra", "300", "30", "900", "90"],
+            ["1.1", "Sản phẩm một", "1001", "-", "100", "10", "300", "30"],
+            ["1.2", "Sản phẩm hai", "1002", "-", "200", "20", "600", "60"],
+            ["2", "Nhóm rỗng", "-", "Tạm dừng", "7", "1", "-", "5"],
+        ],
+    )
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    (post,) = parsed.posts
+    rows = post.body["rows"]
+    assert [(r["campaign_name"], r.get("item_id"), r["ads_impressions"]) for r in rows] == [
+        ("Nhóm X", "1001", 100),
+        ("Nhóm X", "1002", 200),
+        ("Nhóm rỗng", None, 7),
+    ]
+    assert rows[0]["running"] is True and rows[2]["running"] is False
+    assert sum(r["ads_impressions"] for r in rows if r["campaign_name"] == "Nhóm X") == 300
+
+
+def test_an_ads_report_with_an_unknown_header_stops_the_load(tmp_path):
+    row = ["1", "A", "-", "-", "-", "-", "1", "1", "1%", "-", "-", "-", "-", "1", "-", "-", "x"]
+    _write_csv(
+        tmp_path / "ads_general_20260801-20261031.csv",
+        [*ADS_META, [*ADS_HEADER_ROW, "Cột lạ"], row],
+    )
+    with pytest.raises(parse.UnknownColumn) as stopped:
+        parse.parse_folder(tmp_path)
+    assert "Cột lạ" in str(stopped.value)
+
+
+def test_buyer_level_and_unlisted_reports_are_never_opened(tmp_path):
+    for name in (
+        "SellerConversionReport_202611022133.csv",
+        "ValidationBill202611022134.csv",
+        "ads_keyword_20260829-20261031.csv",
+        "AMSAffiliatePerformance_202611022133.csv",
+    ):
+        (tmp_path / name).write_bytes(b"\xff\xfe not a csv a parser could read")
+    parsed = parse.parse_folder(tmp_path)
+    assert parsed.posts == []
+    assert len(parsed.skipped_files) == 4

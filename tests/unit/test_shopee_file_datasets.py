@@ -366,3 +366,81 @@ async def test_a_repeated_file_post_changes_nothing(session):
     again = await _ingest(session, shop, "product_period", body)
     assert (first.duplicate, again.duplicate) == (False, True)
     assert again.raw_payload_id == first.raw_payload_id
+
+
+# -- ads campaigns (a three-month period dataset) --------------------------------------------
+
+QUARTER = {"start": "2026-08-01", "end": "2026-10-28", "granularity": "period"}
+
+
+def _ad(name: str = "Quảng cáo A", **over: Any) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "campaign_name": name,
+        "running": True,
+        "ads_impressions": 10000,
+        "ad_clicks": 250,
+        "ctr": 0.025,
+        "conversions": 12,
+        "units_sold": 15,
+        "sales": 1200000,
+        "ads_expense": 300000,
+        "ads_roas": 4,
+    }
+    row.update(over)
+    return row
+
+
+async def test_ad_campaign_totals_land_in_the_period_table_as_ads_overlay_rows(session):
+    shop = await _shop(session)
+    rows = [_ad(), _ad("Quảng cáo B", item_id="1001"), _ad("Quảng cáo A", item_id="1001")]
+    body = _body(rows, period=QUARTER, order_type="placed")
+    await _ingest(session, shop, "ads_campaign_period", body)
+    stored = await _rows(session, PlatformPeriodMetric, shop)
+    assert len(stored) == 3
+    assert {(m.stream, m.order_type, m.period_start, m.period_end) for m in stored} == {
+        ("ads", "placed", date(2026, 8, 1), date(2026, 10, 28))
+    }
+    assert len({(m.item_id, m.segment) for m in stored}) == 3
+    shop_level = next(m for m in stored if m.item_id == "" and m.platform_source == "Quảng cáo A")
+    assert (shop_level.impressions, shop_level.clicks, shop_level.orders) == (10000, 250, 12)
+    assert (shop_level.gmv, shop_level.units) == (Decimal("1200000"), Decimal("15"))
+    assert shop_level.extra == {"ads_expense": 300000, "ads_roas": 4, "running": True}
+    assert await _rows(session, PlatformDailyMetric, shop) == []
+
+
+async def test_two_windows_of_the_same_campaign_do_not_collide(session):
+    shop = await _shop(session)
+    overlap = {"start": "2026-09-01", "end": "2026-10-29", "granularity": "period"}
+    for window in (QUARTER, overlap):
+        body = _body([_ad()], period=window, order_type="placed")
+        await _ingest(session, shop, "ads_campaign_period", body)
+    assert len(await _rows(session, PlatformPeriodMetric, shop)) == 2
+
+
+async def test_a_repeated_ads_file_post_is_a_duplicate(session):
+    shop = await _shop(session)
+    body = _body([_ad()], period=QUARTER, order_type="placed")
+    first = await _ingest(session, shop, "ads_campaign_period", body)
+    again = await _ingest(session, shop, "ads_campaign_period", body)
+    assert (first.duplicate, again.duplicate) == (False, True)
+
+
+async def test_only_the_ads_dataset_may_exceed_a_month(session):
+    shop = await _shop(session)
+    with pytest.raises(svc.IngestRejected) as refused:
+        await _ingest(session, shop, "promotions", _body([_program()], period=QUARTER))
+    assert refused.value.code == "period_too_long"
+    too_long = {"start": "2026-06-01", "end": "2026-10-28", "granularity": "period"}
+    with pytest.raises(ValueError, match="longer than"):
+        svc.IngestBody.model_validate(_body([_ad()], period=too_long, order_type="placed"))
+
+
+async def test_flash_sale_and_voucher_programs_are_promotion_rows(session):
+    shop = await _shop(session)
+    rows = [
+        _program(promo_type="Flash Sale", program_name="Flash Sale 12:00-14:00"),
+        _program(promo_type="Voucher", program_name="Giảm 5 phần trăm", ends_at=None),
+    ]
+    await _ingest(session, shop, "promotions", _body(rows, period=OCTOBER))
+    stored = await _rows(session, PlatformPromotion, shop)
+    assert {p.promo_type for p in stored} == {"flash_sale", "voucher"}

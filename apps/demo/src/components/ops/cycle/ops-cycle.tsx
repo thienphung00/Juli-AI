@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 import { opsApi, type OpsApi } from "../../../lib/ops/api";
-import { fmtDate, fmtWhen } from "../../../lib/ops/format";
+import { fmtDate, fmtInt, fmtPct, fmtWhen } from "../../../lib/ops/format";
 import type {
   ApprovalChannel,
   ApprovalDecision,
   ExecutorRole,
   OpsMe,
   ProposalKind,
+  ProposalResult,
   ProposalSubject,
   ShopProposalRow,
 } from "../../../lib/ops/types";
@@ -20,8 +21,9 @@ import { C, OpsHeader, OpsPage, card } from "../ops-shell";
  * "Chu kỳ" (ADR-118): the manual Analyze → Recommend → Execute → Measure loop of a
  * contract-client shop. Staff write each proposal, record the client's decision (email or
  * document, with a pointer to the evidence) and the representative's execution on Shopee.
- * Viewers read only. The list route does not serve measured results yet; a "measured"
- * proposal shows a note instead.
+ * Viewers read only. An executed proposal shows how its item did in the 7 days after the
+ * change against its own last 28 days (D81): verdict, before / after per metric and the last
+ * day of data used; operators can recompute it ("Tính lại"). Ops only, no seller view.
  */
 
 const BUTTON: CSSProperties = {
@@ -74,6 +76,9 @@ export const KIND_LABELS: Readonly<Record<ProposalKind, string>> = {
 const SUBJECT_LABELS: Readonly<Record<ProposalSubject, string>> = { item: "Sản phẩm", shop: "Shop", campaign: "Chiến dịch" };
 const DECISION_LABELS: Readonly<Record<ApprovalDecision, string>> = { approved: "Duyệt", rejected: "Từ chối", changes_requested: "Cần sửa" };
 const CHANNEL_LABELS: Readonly<Record<string, string>> = { email: "Email", document: "Tài liệu", in_app: "Trong app" };
+const VERDICT_LABELS: Readonly<Record<string, string>> = { dat: "Đạt", khong_dat: "Không đạt", chua_ket_luan: "Chưa kết luận" };
+const VERDICT_COLOR: Readonly<Record<string, string>> = { dat: C.green, khong_dat: C.red };
+const METRIC_LABELS: Readonly<Record<string, string>> = { impressions: "Lượt xem", clicks: "Lượt nhấp", ctr: "CTR" };
 const ROLE_LABELS: Readonly<Record<string, string>> = {
   client_representative: "Đại diện khách hàng",
   juli_operator: "Nhân viên Juli",
@@ -81,13 +86,41 @@ const ROLE_LABELS: Readonly<Record<string, string>> = {
 };
 
 type CycleApi = Partial<
-  Pick<OpsApi, "proposals" | "createProposal" | "sendProposal" | "withdrawProposal" | "recordApproval" | "recordExecution">
+  Pick<OpsApi, "proposals" | "createProposal" | "sendProposal" | "withdrawProposal" | "recordApproval" | "recordExecution" | "measureProposal">
 >;
 
 function changeText(value: Record<string, unknown>): string {
   if (typeof value.text === "string") return value.text;
   const entries = Object.entries(value);
   return entries.length === 0 ? "—" : entries.map(([k, v]) => `${k}: ${String(v)}`).join(" · ");
+}
+
+function metricValue(metric: string, value: number | null): string {
+  if (value === null) return "—";
+  return metric === "ctr" ? fmtPct(value) : `${fmtInt(value)} /ngày`;
+}
+
+/** D81: the targeted metric's verdict decides; the others are shown for context. */
+function ResultsBlock({ results }: { readonly results: readonly ProposalResult[] }) {
+  const decided = results.find((r) => r.verdict !== "chua_ket_luan");
+  const verdict = decided?.verdict ?? "chua_ket_luan";
+  const through = results.map((r) => r.data_through).filter((d): d is string => d !== null).sort().at(-1);
+  return (
+    <section aria-label="Kết quả" data-testid="results" style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 8 }}>
+      <p style={{ margin: 0, fontSize: 13 }}>
+        Kết quả:{" "}
+        <strong data-testid="verdict" style={{ color: VERDICT_COLOR[verdict] ?? C.muted }}>
+          {VERDICT_LABELS[verdict] ?? verdict}
+        </strong>
+        {through ? ` · dữ liệu đến ${fmtDate(through)}` : ""}
+      </p>
+      {results.map((r) => (
+        <p data-testid={`result-${r.metric}`} key={r.metric} style={{ margin: 0, fontSize: 13, color: C.body }}>
+          {METRIC_LABELS[r.metric] ?? r.metric}: {metricValue(r.metric, r.comparison)} → <strong>{metricValue(r.metric, r.value)}</strong>
+        </p>
+      ))}
+    </section>
+  );
 }
 
 /** `datetime-local` value ("2026-11-02T09:30") as an ISO instant. */
@@ -345,6 +378,14 @@ function ProposalCard({
         </button>,
       );
     }
+    if (p.status === "executed" && api.measureProposal) {
+      const measure = api.measureProposal;
+      buttons.push(
+        <button disabled={busy} key="measure" onClick={() => void act(() => measure(shopId, p.id))} style={SECONDARY} type="button">
+          Tính lại
+        </button>,
+      );
+    }
     if (withdrawable && api.withdrawProposal) {
       const withdraw = api.withdrawProposal;
       buttons.push(
@@ -386,7 +427,11 @@ function ProposalCard({
           {x.verified_at ? ` · đã đối chiếu ${fmtWhen(x.verified_at)}` : ""}
         </p>
       ))}
-      {p.status === "measured" ? <p style={{ margin: 0, fontSize: 13, color: C.muted }}>Đã có kết quả đo; xem trong báo cáo KPI.</p> : null}
+      {p.results && p.results.length > 0 ? (
+        <ResultsBlock results={p.results} />
+      ) : p.status === "executed" ? (
+        <p style={{ margin: 0, fontSize: 13, color: C.muted }}>Chưa có số liệu sau thay đổi.</p>
+      ) : null}
       {error ? (
         <p role="alert" style={{ margin: 0, color: C.red, fontSize: 13 }}>
           {error}

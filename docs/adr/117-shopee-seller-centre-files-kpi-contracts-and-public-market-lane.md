@@ -119,6 +119,14 @@ no `date` of its own.
   lists `program_name` and `variation_name` as listing text).
 - **Ads by campaign (G11)**: the dataset name `ads_campaign_daily` is reserved; its row shape is
   fixed when the first campaign export (or the Ads API) is seen, not guessed now.
+  *Amendment (D81.7, 2026-11-03).* The first campaign exports (`ads_general`, `ads_group`, the
+  group-campaign report) are not daily: each totals a window of about three months per campaign
+  × product. They load as the **period** dataset `ads_campaign_period` (stream `ads`, order
+  type `placed`, campaign = `segment` hash + `platform_source` name, cost and ROAS in `extra`),
+  the only period dataset allowed beyond 31 days (`DatasetSpec.max_period_days`, ceiling 100).
+  Windows of different exports overlap, so readers never add two of its periods. A daily ads
+  dataset waits for a daily export or the Ads API. Flash-sale slots and vouchers load into
+  `platform_promotions` as `promo_type` `flash_sale` / `voucher` (no schema change).
 
 All four are `tenant_direct` (RLS on `shop_id`, `juli_app` SELECT / INSERT / UPDATE) and are
 written by the gateway path only, like `platform_daily_metrics`.

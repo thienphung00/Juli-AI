@@ -691,6 +691,27 @@ export interface ProposalExecution {
   readonly verified_how: string | null;
 }
 
+/** D81: one metric of a measured proposal against the item's own history (Ops only). */
+export type ProposalMetric = "impressions" | "clicks" | "ctr";
+export type ResultVerdict = "dat" | "khong_dat" | "chua_ket_luan";
+
+export interface ProposalResult {
+  readonly metric: ProposalMetric | string;
+  readonly verdict: ResultVerdict | string;
+  /** The post week's value (daily average; CTR as a fraction). */
+  readonly value: number | null;
+  /** The 28-day baseline's value. */
+  readonly comparison: number | null;
+  /** value / (max of the last 8 weekly values) - 1. */
+  readonly band: number | null;
+  readonly pre_from: string | null;
+  readonly pre_to: string | null;
+  readonly post_from: string | null;
+  readonly post_to: string | null;
+  readonly data_through: string | null;
+  readonly computed_at: string | null;
+}
+
 export interface ShopProposalRow {
   readonly id: string;
   readonly revision: number;
@@ -710,6 +731,8 @@ export interface ShopProposalRow {
   readonly created_at: string | null;
   readonly approvals: readonly ProposalApproval[];
   readonly executions: readonly ProposalExecution[];
+  /** Newest result per metric; empty before the first measurement. */
+  readonly results?: readonly ProposalResult[];
 }
 
 export interface ProposalCreate {
@@ -868,4 +891,72 @@ export interface ShopeeQuery {
   readonly orderType?: ShopeeOrderType;
   readonly periodFrom?: string;
   readonly periodTo?: string;
+}
+
+/** ADR-119: Shopee keywords ("Từ khóa", `/v1/ops/shops/{id}/shopee/keywords`). */
+export type KeywordPattern =
+  | "brand_type"
+  | "brand_function"
+  | "brand_material"
+  | "type_function_material"
+  | "type_function"
+  | "type_material"
+  | "function_material"
+  | "function_size"
+  | "type_size"
+  | "common_phrase";
+
+/** đã tra / không khớp / bị chặn / chưa tra -- "chưa tra" is never a volume of 0. */
+export type KeywordCoverage = "da_tra" | "khong_khop" | "bi_chan" | "chua_tra";
+
+export interface KeywordNumbers {
+  readonly volume: number | null;
+  readonly cpc_min: number | null;
+  readonly cpc_max: number | null;
+  readonly difficulty: number | null;
+  readonly competition: number | null;
+  readonly opportunity: number | null;
+}
+
+export interface ShopeeKeyword {
+  readonly id: string;
+  readonly keyword: string;
+  readonly pattern: KeywordPattern;
+  readonly enabled: boolean;
+  readonly coverage: KeywordCoverage;
+  readonly products: { readonly item_id: string; readonly name: string | null }[];
+  readonly latest: (KeywordNumbers & { readonly collected_on: string }) | null;
+  readonly history: { readonly collected_on: string; readonly volume: number | null }[];
+  readonly related: (KeywordNumbers & { readonly keyword: string })[];
+}
+
+export interface ShopeeKeywordBoard {
+  readonly min_volume: number;
+  readonly collection_dates: string[];
+  readonly coverage: Record<KeywordCoverage, number>;
+  readonly to_look_up: string[];
+  readonly keywords: ShopeeKeyword[];
+  readonly products: {
+    readonly item_id: string;
+    readonly name: string;
+    readonly keywords: number;
+    readonly best_volume: number | null;
+    readonly status: "co_tu_khoa" | "de_xuat_tieu_de" | "chua_du_du_lieu";
+  }[];
+}
+
+export interface KeywordSeedsGenerated {
+  readonly titles: number;
+  readonly candidates: number;
+  readonly created: number;
+  readonly updated: number;
+  readonly brand_given: boolean;
+}
+
+export interface KeywordMetricsUploaded {
+  readonly records: number;
+  readonly rows_written: number;
+  readonly rows_kept: number;
+  readonly by_status: Partial<Record<"ok" | "blocked" | "no_match", number>>;
+  readonly collected_on: string[];
 }

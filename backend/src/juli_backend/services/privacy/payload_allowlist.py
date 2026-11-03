@@ -123,9 +123,10 @@ FORBIDDEN_KEY_FRAGMENTS: tuple[str, ...] = (
     "user_id",
 )
 #: Allowed despite a fragment match: product / platform data, not the buyer. The
-#: variation and promotion program names are the seller's own listing text (ADR-117 §3).
+#: variation, promotion program and ad campaign names are the seller's own listing text
+#: (ADR-117 §3).
 FORBIDDEN_FRAGMENT_EXCEPTIONS: frozenset[str] = frozenset(
-    {"item_name", "variation_name", "program_name"}
+    {"item_name", "variation_name", "program_name", "campaign_name"}
 )
 
 _AMOUNT: Spec = {

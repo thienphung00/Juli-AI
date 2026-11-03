@@ -65,7 +65,7 @@ def test_migration_109_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # Migration 110 (Ops shop platform) went on 109 and took the deferred tail.
     later = (MIGRATIONS / "versions/110_ops_shop_platform.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "110_ops_shop_platform"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "111_shopee_keywords"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_109_and_its_upgrade_only_adds():
@@ -92,10 +92,18 @@ def test_migration_vocabularies_match_the_models():
         "EXECUTOR_ROLES",
         "EXECUTION_CHANNELS",
         "VERIFIED_HOW",
-        "METHODS",
         "VERDICTS",
     ):
         assert getattr(mig, name) == getattr(models, name), name
+    # 111 widened the method CHECK (D81.1): 109's values plus ``self_baseline``.
+    spec = importlib.util.spec_from_file_location(
+        "mig111", MIGRATION.with_name("111_shopee_keywords.py")
+    )
+    assert spec is not None and spec.loader is not None
+    widened = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(widened)
+    assert widened.METHODS_109 == mig.METHODS
+    assert widened.METHODS == models.METHODS
 
 
 @pytest.mark.parametrize("model", MODELS, ids=lambda m: m.__tablename__)

@@ -254,7 +254,8 @@ def test_body_model_refuses_unknown_keys_long_periods_and_bad_versions():
         svc.IngestBody.model_validate(_body([], extra_key=1))
     with pytest.raises(ValueError):
         svc.IngestBody.model_validate(
-            _body([], period={"start": "2026-08-01", "end": "2026-10-11", "granularity": "day"})
+            # Past the 100-day ceiling; a shorter limit (31 days) is the dataset's own.
+            _body([], period={"start": "2026-06-01", "end": "2026-10-11", "granularity": "day"})
         )
     with pytest.raises(ValueError):
         svc.IngestBody.model_validate(_body([], source_version="0.1 beta"))

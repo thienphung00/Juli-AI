@@ -39,7 +39,10 @@ def test_migration_110_fits_alembic_and_the_deferred_tail_moved_onto_it():
     mig = _module()
     assert mig.revision == "110_ops_shop_platform" and len(mig.revision) <= 32
     assert mig.down_revision == "109_shop_proposals"
-    assert f'down_revision: str | None = "{mig.revision}"' in BACKFILL.read_text("utf-8")
+    # ADR-119's 111 (Shopee keywords) went on 110 and took the deferred tail.
+    later = (MIGRATIONS / "versions/111_shopee_keywords.py").read_text("utf-8")
+    assert f'down_revision: str | None = "{mig.revision}"' in later
+    assert 'down_revision: str | None = "111_shopee_keywords"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_110():

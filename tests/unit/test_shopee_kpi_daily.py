@@ -163,3 +163,21 @@ async def test_failure_log_carries_type_only(stubs, caplog: pytest.LogCaptureFix
     assert "secret-metric-1234" not in caplog.text
     failed = [r for r in caplog.records if r.message == "shopee_kpi_daily_shop_failed"]
     assert [r.error_type for r in failed] == ["RuntimeError"]
+
+
+async def test_proposal_measurement_runs_even_when_the_kpi_run_fails(monkeypatch):
+    from juli_backend.services.shop_proposals.measurement import FleetSummary, MeasureCounts
+    from juli_backend.workers.tasks import shopee_kpi_daily as task
+
+    async def kpi_fails(_factory):
+        raise RuntimeError("row values")
+
+    async def measured(_factory):
+        return FleetSummary(shops=2, failed=0, counts=MeasureCounts(written=3, measured=1))
+
+    monkeypatch.setattr(task.daily, "run_daily_kpi", kpi_fails)
+    monkeypatch.setattr(task, "measure_all", measured)
+
+    out = await task._run(lambda: None)
+
+    assert out == {"proposals_written": 3, "proposals_measured": 1, "proposal_shops_failed": 0}

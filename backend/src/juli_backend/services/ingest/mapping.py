@@ -27,11 +27,17 @@ tell a mapping change from a data change):
   stream (a client export's ad orders differ between its placed and confirmed sheets), so they carry
   the post's ``order_type``; only the Ads section's own reports count placed orders;
 - period datasets (``granularity: "period"``) land in ``platform_period_metrics``;
-  ``product_flags`` and ``promotions`` have tables of their own.
+  ``product_flags`` and ``promotions`` have tables of their own;
+- ``ads_campaign_period`` (the CPC / group-campaign reports) is the one period dataset longer
+  than a month: its windows are about three months and overlap between exports, so a reader
+  never adds two of its periods together. Rows are stream ``ads`` (an overlay), the campaign
+  is ``segment`` (hash) + ``platform_source`` (name), and the ad's cost and ROAS are in
+  ``extra`` (``ads_expense``, ``ads_roas``) like the shop-stats ads rows.
 """
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
@@ -43,9 +49,12 @@ from pydantic import BaseModel
 from juli_backend.models.ingest import ORDER_TYPE_NONE, SEGMENT_ALL, SHOP_LEVEL_ITEM
 from juli_backend.models.platform_data import ITEM_LEVEL_VARIATION
 from juli_backend.services.ingest.schemas import (
+    MAX_ADS_PERIOD_DAYS,
+    MAX_PERIOD_DAYS,
     SHOPEE_L2_SOURCES,
     SHOPEE_PROMO_TYPES,
     DatasetRow,
+    ShopeeAdsCampaignPeriodRow,
     ShopeeItemBySourcePeriodRow,
     ShopeeItemBySourceRow,
     ShopeeItemPerformanceRow,
@@ -176,9 +185,20 @@ _PRODUCT_PERIOD_KPIS: dict[str, str] = {
     "atc_visitors": "add_to_cart",
     "bounce_rate": "bounce_rate",
 }
+_ADS_CAMPAIGN_KPIS: dict[str, str] = {
+    "ads_impressions": "impressions",
+    "ad_clicks": "clicks",
+    "ctr": "ctr",
+    "conversions": "orders",
+    "units_sold": "units",
+    "sales": "gmv",
+    "add_to_cart": "add_to_cart",
+}
 #: Row fields that are part of the key or the item's identity, not metrics.
 _KEY_FIELDS = frozenset(
     {
+        "campaign_name",
+        "ordinal",
         "date",
         "source",
         "sub_source",
@@ -318,6 +338,23 @@ def _product_period(row: ShopeeProductPeriodRow) -> NormalizedRow:
     )
 
 
+def _ads_campaign(row: ShopeeAdsCampaignPeriodRow) -> NormalizedRow:
+    """One campaign x product total: a Juli ``ads`` overlay row. The platform has no campaign
+    id, so ``segment`` is a short hash of the name (and twin place) and ``platform_source``
+    holds the name itself, cut to its column."""
+    kpis, extra = _split(row, _ADS_CAMPAIGN_KPIS)
+    digest = hashlib.sha1(f"{row.campaign_name}|{row.ordinal}".encode(), usedforsecurity=False)
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_ADS,
+        item_id=row.item_id or SHOP_LEVEL_ITEM,
+        platform_source=row.campaign_name[:64],
+        segment=f"c{digest.hexdigest()[:12]}",
+        kpis=kpis,
+        extra=extra,
+    )
+
+
 def _not_metrics(row: Any) -> NormalizedRow:
     raise TypeError(f"{type(row).__name__} has its own table, not a metrics row")
 
@@ -342,6 +379,8 @@ class DatasetSpec:
     description: str
     granularity: str = GRANULARITY_DAY
     writes: str = WRITE_DAILY
+    #: The longest period one post may cover (days); ``schemas.Period`` holds the ceiling.
+    max_period_days: int = MAX_PERIOD_DAYS
 
 
 DATASETS: dict[tuple[str, str], DatasetSpec] = {
@@ -430,6 +469,17 @@ DATASETS: dict[tuple[str, str], DatasetSpec] = {
         "Per period, per item / variation, 40 metrics (parentskudetail › Sản Phẩm Hiệu Quả Tốt).",
         GRANULARITY_PERIOD,
         WRITE_PERIOD,
+    ),
+    ("shopee", "ads_campaign_period"): DatasetSpec(
+        "shopee",
+        "ads_campaign_period",
+        ShopeeAdsCampaignPeriodRow,
+        _ads_campaign,
+        True,
+        "Per report window (up to 100 days), per ad campaign x product (CPC / group campaign).",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+        MAX_ADS_PERIOD_DAYS,
     ),
     ("shopee", "product_flags"): DatasetSpec(
         "shopee",

@@ -86,6 +86,8 @@ PROMO_LABELS = {
     "discount": "Khuyến mãi",
     "bundle": "Combo khuyến mãi",
     "add_on_deal": "Mua kèm deal sốc",
+    "flash_sale": "Flash Sale",
+    "voucher": "Voucher",
 }
 FLAG_LABELS = {
     "new_product": "Sản phẩm mới",

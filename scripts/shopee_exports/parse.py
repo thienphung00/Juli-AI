@@ -16,6 +16,13 @@ and never opened.
 - ``productoverview<from>-<to>.xlsx``: ``overview`` → ``product_overview``.
 - ``traffic_overview_<from>_<to>.xlsx``: ``Tất cả`` / ``Máy tính`` / ``Ứng dụng`` →
   ``shop_traffic``.
+- ``voucher_<from>-<to>.xlsx``: ``Danh sách hiệu suất`` → ``promotions`` (type ``Voucher``;
+  the voucher code is not read). ``flash_sale_performance_list_<ddmmyyyy>.xlsx``: one row per
+  time slot → ``promotions`` (type ``Flash Sale``), posted per calendar month.
+- ``ads_general_*.csv`` / ``ads_group_*.csv`` / ``Dữ liệu-Chiến Dịch Nhóm-*.csv`` (CPC and
+  group-campaign reports, a window of about three months, one row per campaign x product) →
+  ``ads_campaign_period``: a PERIOD dataset, never cut into days. A group report's campaign
+  row is the sum of its product rows, so only the product rows are posted.
 
 A header the parser does not know raises :class:`UnknownColumn` (Seller Centre changed
 the export: fix the table here, never guess). Numbers are Vietnamese-formatted text
@@ -24,7 +31,9 @@ the export: fix the table here, never guess). Numbers are Vietnamese-formatted t
 
 from __future__ import annotations
 
+import csv
 import re
+import unicodedata
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -38,6 +47,8 @@ from scripts.shopee_exports.xlsx import Rows, read_workbook
 SOURCE_VERSION = "seller-centre-xlsx-1"
 MAX_ROWS = 2_000
 MAX_PERIOD_DAYS = 31
+#: The ad reports' window (``schemas.MAX_ADS_PERIOD_DAYS``).
+MAX_ADS_PERIOD_DAYS = 100
 PLATFORM_TZ = timedelta(hours=7)
 
 _DAY = re.compile(r"^(\d{2})-(\d{2})-(\d{4})$")
@@ -424,11 +435,12 @@ def _period_post(
     order_type: str | None,
     captured_at: str,
     file: str,
+    max_days: int = MAX_PERIOD_DAYS,
 ) -> list[Post]:
     if not rows:
         return []
-    if (end - start).days + 1 > MAX_PERIOD_DAYS:
-        raise ValueError(f"{file}: a {dataset} period longer than {MAX_PERIOD_DAYS} days")
+    if (end - start).days + 1 > max_days:
+        raise ValueError(f"{file}: a {dataset} period longer than {max_days} days")
     return [
         Post(
             dataset,
@@ -800,6 +812,348 @@ def parse_shop_traffic(path: Path, parsed: Parsed) -> None:
     )
 
 
+# -- voucher, flash sale -----------------------------------------------------------------
+
+_SLOT = re.compile(r"^(\d{2}):(\d{2})-(\d{2}):(\d{2}) (\d{2})-(\d{2})-(\d{4})(?:\s+\+(\d+))?$")
+_DAY_RANGE = re.compile(r"^(\d{2})-(\d{2})-(\d{4})\s*-\s*(\d{2})-(\d{2})-(\d{4})$")
+_FLASH_FILE_DAY = re.compile(r"_(\d{2})(\d{2})(\d{4})\.xlsx$")
+
+#: Both lists use the discount export's ``(đặt hàng)`` / ``(Đơn đặt hàng được xác nhận)``
+#: headers, with the ₫ sign and no space before the unit; the non-sales extras are numbers
+#: kept in the row's ``extra``.
+FLASH_LIST: dict[str, Column] = {
+    "Lượt Nhắc Nhở": ("extra.reminders", None),
+    "Lượt xem sản phẩm": ("extra.product_views", None),
+    "Lượt nhấp vào sản phẩm": ("extra.product_clicks", None),
+    # Shopee's CTR per slot can exceed 100 % (clicks past views): derive it from the counts.
+    "Tỷ lệ click vào sản phẩm (CTR)": (None, None),
+    "Bán hàng (đặt hàng)(₫)": ("sales", PLACED),
+    "Bán hàng (Đơn đặt hàng được xác nhận)(₫)": ("sales", CONFIRMED),
+    "Đơn đặt hàng (đặt hàng)": ("orders", PLACED),
+    "Đơn đặt hàng (Đơn đặt hàng được xác nhận)": ("orders", CONFIRMED),
+    "Đơn vị được bán (đặt hàng)": ("units", PLACED),
+    "Đơn vị được bán (đơn đặt hàng được xác nhận)": ("units", CONFIRMED),
+    "Người mua (đặt hàng)": ("buyers", PLACED),
+    "Người mua (Đơn đặt hàng được xác nhận)": ("buyers", CONFIRMED),
+    "Bán hàng cho mỗi người mua (đặt hàng)(₫)": ("sales_per_buyer", PLACED),
+    "Bán hàng cho mỗi người mua (đơn đặt hàng được xác nhận)(₫)": ("sales_per_buyer", CONFIRMED),
+}
+VOUCHER_LIST: dict[str, Column] = {
+    "Nhận": ("extra.claims", None),
+    "Tỉ lệ nhận": ("extra.claim_rate", None),
+    "Số người xem cửa sổ thông báo (pop-up)": ("extra.popup_viewers", None),
+    "Người theo dõi mới": ("extra.new_followers", None),
+    "Đóng góp của Follower": ("extra.follower_contribution", None),
+    "Tỷ lệ sử dụng (đặt hàng)": ("extra.usage_rate", PLACED),
+    "Tỷ lệ sử dụng (Đơn đặt hàng được xác nhận)": ("extra.usage_rate", CONFIRMED),
+    "Chi phí (đặt hàng) (VND)": ("extra.voucher_cost", PLACED),
+    "Chi phí (Đơn đặt hàng được xác nhận) (VND)": ("extra.voucher_cost", CONFIRMED),
+    "Bán hàng (đặt hàng) (VND)": ("sales", PLACED),
+    "Bán hàng (Đơn đặt hàng được xác nhận) (VND)": ("sales", CONFIRMED),
+    "Đơn đặt hàng (đặt hàng)": ("orders", PLACED),
+    "Đơn đặt hàng (Đơn đặt hàng được xác nhận)": ("orders", CONFIRMED),
+    "Đơn vị được bán (đặt hàng)": ("units", PLACED),
+    "Đơn vị được bán (đơn đặt hàng được xác nhận)": ("units", CONFIRMED),
+    "Người mua (đặt hàng)": ("buyers", PLACED),
+    "Người mua (Đơn đặt hàng được xác nhận)": ("buyers", CONFIRMED),
+    "Bán hàng cho mỗi người mua (đặt hàng) (VND)": ("sales_per_buyer", PLACED),
+    "Bán hàng cho mỗi người mua (đơn đặt hàng được xác nhận) (VND)": (
+        "sales_per_buyer",
+        CONFIRMED,
+    ),
+}
+#: Voucher list identity columns. The code (``Mã giảm giá``) is not read; creator, type and
+#: benefit are text the contract has no field for.
+_VOUCHER_IDENTITY = (
+    "Tên mã giảm giá",
+    "Mã giảm giá",
+    "Khung Thời Gian",
+    "Trạng thái",
+    "Người tạo",
+    "Loại Voucher",
+    "Loại ưu đãi",
+)
+
+
+def _program_columns(
+    header: list[str | None], table: dict[str, Column], identity: tuple[str, ...]
+) -> list[Column | None]:
+    return _columns([None if (c or "").strip() in identity else c for c in header], table)
+
+
+def _day_start_end(text: str) -> tuple[str, str] | None:
+    """``DD-MM-YYYY - DD-MM-YYYY`` → (first day 00:00, last day 23:59); ``-`` → None."""
+    match = _DAY_RANGE.match(text.strip())
+    if match is None:
+        return None
+    d1, m1, y1, d2, m2, y2 = (int(part) for part in match.groups())
+    return datetime(y1, m1, d1).isoformat(), datetime(y2, m2, d2, 23, 59).isoformat()
+
+
+def parse_voucher(path: Path, parsed: Parsed) -> None:
+    start, end = _file_period(path)
+    captured = _captured_at(path)
+    file = path.name
+    sheets = read_workbook(path)
+    for name in sheets:
+        if name != "Danh sách hiệu suất":
+            parsed.notes[f"{file}: sheet not loaded (daily / summary): {name}"] += 1
+    programs = sheets.get("Danh sách hiệu suất", [])
+    if not programs:
+        return
+    header = [str(c or "").strip() for c in programs[0]]
+    columns = _program_columns(programs[0], VOUCHER_LIST, _VOUCHER_IDENTITY)
+    for order_type in (PLACED, CONFIRMED):
+        seen: Counter[tuple[str, str]] = Counter()
+        rows: list[dict[str, Any]] = []
+        for r in programs[1:]:
+            if _blank(r):
+                continue
+            cell = dict(zip(header, r, strict=False))
+            program = str(cell.get("Tên mã giảm giá") or "").strip()
+            if not program:
+                parsed.notes[f"{file}: voucher row without a name"] += 1
+                continue
+            run = _day_start_end(str(cell.get("Khung Thời Gian") or ""))
+            starts_at, ends_at = (
+                run if run else (datetime(start.year, start.month, start.day).isoformat(), None)
+            )
+            twin = (program, starts_at)
+            values = _values(r, columns, order_type)
+            extra = dict(values.pop("extra", {}))
+            extra["created_by_shopee"] = str(cell.get("Người tạo") or "").startswith("Shopee")
+            if run is None:
+                extra["run_dates_unknown"] = True
+            status = str(cell.get("Trạng thái") or "").strip()
+            rows.append(
+                {
+                    "program_name": program[:255],
+                    "promo_type": "Voucher",
+                    "starts_at": starts_at,
+                    "ends_at": ends_at,
+                    "ordinal": seen[twin],
+                    "status": status[:64] if status not in ("", "-") else None,
+                    **values,
+                    "extra": extra,
+                }
+            )
+            seen[twin] += 1
+        parsed.posts += _period_post(
+            "promotions", rows, start, end, order_type=order_type, captured_at=captured, file=file
+        )
+
+
+def parse_flash_sale(path: Path, parsed: Parsed) -> None:
+    """The flash-sale slot list. Its figures are per slot, so each month's slots are posted
+    as that month (first day .. the export's day), the span the dashboards read."""
+    captured = _captured_at(path)
+    file = path.name
+    stamp = _FLASH_FILE_DAY.search(path.name)
+    if stamp is None:
+        raise ValueError(f"no ddmmyyyy export day in {file}")
+    exported = date(int(stamp.group(3)), int(stamp.group(2)), int(stamp.group(1)))
+    programs = read_workbook(path).get("Danh sách hiệu suất", [])
+    if not programs:
+        return
+    columns = _program_columns(programs[0], FLASH_LIST, ("Khung giờ",))
+    by_month: dict[date, list[tuple[dict[str, Any], list[str | None]]]] = {}
+    seen: Counter[tuple[str, str]] = Counter()
+    for r in programs[1:]:
+        if _blank(r):
+            continue
+        match = _SLOT.match(str(r[0]).strip())
+        if match is None:
+            raise ValueError(f"{file}: not a flash sale time slot")
+        h1, m1, h2, m2, dd, mm, yyyy = (int(part) for part in match.groups()[:7])
+        days_over = int(match.group(8) or 0)
+        first = datetime(yyyy, mm, dd, h1, m1)
+        last = datetime(yyyy, mm, dd, h2, m2) + timedelta(days=days_over)
+        twin = ("Flash Sale", first.isoformat())
+        slot = {
+            "program_name": f"Flash Sale {h1:02d}:{m1:02d}-{h2:02d}:{m2:02d}",
+            "promo_type": "Flash Sale",
+            "starts_at": first.isoformat(),
+            "ends_at": last.isoformat(),
+            "ordinal": seen[twin],
+        }
+        seen[twin] += 1
+        by_month.setdefault(date(yyyy, mm, 1), []).append((slot, r))
+    for order_type in (PLACED, CONFIRMED):
+        for month, slots in sorted(by_month.items()):
+            month_end = (month + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            rows = [{**slot, **_values(r, columns, order_type)} for slot, r in slots]
+            parsed.posts += _period_post(
+                "promotions",
+                rows,
+                month,
+                min(month_end, exported),
+                order_type=order_type,
+                captured_at=captured,
+                file=file,
+            )
+
+
+# -- ads reports (CSV) -------------------------------------------------------------------
+
+#: CPC / group-campaign report header → ``ShopeeAdsCampaignPeriodRow`` field. ``None`` = read
+#: but not posted: listing text or dates (the campaign's own start / end, bid method) and the
+#: keyword / position breakdown that only the per-product reports carry.
+ADS_COLUMNS: dict[str, str | None] = {
+    "Thứ tự": None,
+    "Tên Dịch vụ Hiển thị": None,
+    "Chiến dịch / Tên sản phẩm": None,
+    "Mã sản phẩm": None,
+    "Trạng thái": None,
+    "Trạng thái chiến dịch": None,
+    "Loại Dịch vụ Hiển thị": None,
+    "Nội dung Dịch vụ Hiển thị": None,
+    "Phương thức đấu thầu": None,
+    "Vị trí": None,
+    "Ngày bắt đầu": None,
+    "Ngày kết thúc": None,
+    "Số lượt xem": "ads_impressions",
+    "Số lượt click": "ad_clicks",
+    "Tỷ Lệ Click": "ctr",
+    "Thêm vào giỏ hàng": "add_to_cart",
+    "Add to Cart": "add_to_cart",
+    "Tỷ lệ Thêm vào giỏ hàng": "add_to_cart_rate",
+    "Add to Cart Rate": "add_to_cart_rate",
+    "Lượt chuyển đổi": "conversions",
+    "Lượt chuyển đổi trực tiếp": "direct_conversions",
+    "Tỷ lệ chuyển đổi": "conversion_rate",
+    "Tỷ lệ chuyển đổi trực tiếp": "direct_conversion_rate",
+    "Chi phí cho mỗi lượt chuyển đổi": "cost_per_conversion",
+    "Chi phí cho mỗi lượt chuyển đổi trực tiếp": "direct_cost_per_conversion",
+    "Sản phẩm đã bán": "units_sold",
+    "Sản phẩm đã bán trực tiếp": "direct_units_sold",
+    "Doanh số": "sales",
+    "Doanh số trực tiếp": "direct_sales",
+    "Chi phí": "ads_expense",
+    "ROAS": "ads_roas",
+    "ROAS trực tiếp": "direct_roas",
+    "ACOS": "acos",
+    "ACOS trực tiếp": "direct_acos",
+    "Lượt xem Sản phẩm": "product_views",
+    "Lượt clicks Sản phẩm": "product_clicks",
+    "Tỷ lệ Click Sản phẩm": "product_ctr",
+    "Voucher Amount": "voucher_amount",
+    "Vouchered Sales": "voucher_sales",
+}
+_ADS_WINDOW = re.compile(r"^(\d{2})/(\d{2})/(\d{4})\s*-\s*(\d{2})/(\d{2})/(\d{4})$")
+
+
+def csv_number(text: str | None) -> int | float | None:
+    """A report cell as a JSON number. The CSV reports use plain ``1234.56`` and ``4.25%``
+    (a dot is a decimal point here, unlike the xlsx exports); ``-`` / empty → None."""
+    raw = (text or "").strip()
+    if raw in ("", "-"):
+        return None
+    percent = raw.endswith("%")
+    try:
+        value = Decimal(raw[:-1].strip() if percent else raw)
+    except InvalidOperation:
+        raise ValueError(f"not a number: {text!r}") from None
+    if percent:
+        value = value / 100
+    return int(value) if value == value.to_integral_value() else float(value)
+
+
+def _read_ads(path: Path) -> tuple[list[list[str]], int, date, date]:
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        rows = [[unicodedata.normalize("NFC", cell) for cell in row] for row in csv.reader(handle)]
+    window = next(
+        (
+            _ADS_WINDOW.match(r[1].strip())
+            for r in rows[:12]
+            if len(r) == 2 and r[0] == "Khoảng thời gian"
+        ),
+        None,
+    )
+    header = next((i for i, r in enumerate(rows) if r and r[0] == "Thứ tự"), None)
+    if window is None or header is None:
+        raise UnknownColumn(f"{path.name}: no window or header row")
+    d1, m1, y1, d2, m2, y2 = (int(part) for part in window.groups())
+    return rows, header, date(y1, m1, d1), date(y2, m2, d2)
+
+
+def parse_ads(path: Path, parsed: Parsed) -> None:
+    rows, header_at, start, end = _read_ads(path)
+    file = path.name
+    # Composed letters: the CSV exports use decomposed Vietnamese in some headers.
+    header = [unicodedata.normalize("NFC", h).strip() for h in rows[header_at]]
+    for name in header:
+        if name not in ADS_COLUMNS:
+            raise UnknownColumn(name)
+    group = "Chiến dịch / Tên sản phẩm" in header
+    seen: Counter[tuple[str, str | None]] = Counter()
+    out: list[dict[str, Any]] = []
+    campaign: str | None = None
+    running: bool | None = None
+    # A group campaign's own row, kept until a product row follows (else it is posted itself).
+    pending: tuple[str, None, bool | None, dict[str, str]] | None = None
+
+    def emit(name: str, item_id: str | None, run: bool | None, cells: dict[str, str]) -> None:
+        values = {
+            key: value
+            for column, key in ADS_COLUMNS.items()
+            if key and (value := csv_number(cells.get(column))) is not None
+        }
+        if not values:
+            parsed.notes[f"{file}: ad row with no values"] += 1
+            return
+        row: dict[str, Any] = {"campaign_name": name[:255], **values}
+        if item_id:
+            row["item_id"] = item_id
+        if run is not None:
+            row["running"] = run
+        if seen[(name, item_id)]:
+            row["ordinal"] = seen[(name, item_id)]
+        seen[(name, item_id)] += 1
+        out.append(row)
+
+    for raw in rows[header_at + 1 :]:
+        if not any(raw):
+            continue
+        cells = dict(zip(header, raw, strict=False))
+        item_id = _id(cells.get("Mã sản phẩm"))
+        if group:
+            name = (cells.get("Chiến dịch / Tên sản phẩm") or "").strip()
+            if not item_id:  # the campaign's own total row
+                if pending is not None:
+                    emit(*pending)
+                campaign = name
+                status = (
+                    cells.get("Trạng thái chiến dịch") or cells.get("Trạng thái") or ""
+                ).strip()
+                running = status == "Đang diễn ra" if status not in ("", "-") else None
+                pending = (campaign, None, running, cells)
+                continue
+            if campaign is None:
+                raise ValueError(f"{file}: a product row before any campaign row")
+            pending = None
+            emit(campaign, item_id if item_id.isdigit() else None, running, cells)
+        else:
+            name = (cells.get("Tên Dịch vụ Hiển thị") or "").strip()
+            if not name:
+                parsed.notes[f"{file}: ad row without a name"] += 1
+                continue
+            status = (cells.get("Trạng thái") or "").strip()
+            run = status == "Đang diễn ra" if status not in ("", "-") else None
+            emit(name, item_id if item_id.isdigit() else None, run, cells)
+    if pending is not None:
+        emit(*pending)
+    parsed.posts += _period_post(
+        "ads_campaign_period",
+        out,
+        start,
+        end,
+        order_type=PLACED,
+        captured_at=_captured_at(path),
+        file=file,
+        max_days=MAX_ADS_PERIOD_DAYS,
+    )
+
+
 # -- folder ------------------------------------------------------------------------------
 
 #: File name pattern → parser. Nothing else in the folder is opened.
@@ -809,6 +1163,10 @@ PARSERS: tuple[tuple[re.Pattern[str], Any], ...] = (
     (re.compile(r"^discount_\d{8}-\d{8}\.xlsx$"), parse_discount),
     (re.compile(r"^productoverview\d{8}-\d{8}\.xlsx$"), parse_product_overview),
     (re.compile(r"^traffic_overview_\d{8}_\d{8}\.xlsx$"), parse_shop_traffic),
+    (re.compile(r"^voucher_\d{8}-\d{8}\.xlsx$"), parse_voucher),
+    (re.compile(r"^flash_sale_performance_list_\d{8}\.xlsx$"), parse_flash_sale),
+    (re.compile(r"^ads_(general|group)_\d{8}-\d{8}\.csv$"), parse_ads),
+    (re.compile(r"^Dữ\+liệu-Chiến\+Dịch\+Nhóm-\d+-[\d_-]+\.csv$"), parse_ads),
 )
 
 
@@ -817,7 +1175,9 @@ def parse_folder(folder: Path) -> Parsed:
     for path in sorted(folder.iterdir()):
         if not path.is_file():
             continue
-        parser = next((fn for pattern, fn in PARSERS if pattern.search(path.name)), None)
+        # macOS may hand back decomposed Vietnamese letters; the patterns are composed.
+        name = unicodedata.normalize("NFC", path.name)
+        parser = next((fn for pattern, fn in PARSERS if pattern.search(name)), None)
         if parser is None:
             parsed.skipped_files.append(path.name)
             continue

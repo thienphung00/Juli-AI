@@ -1,5 +1,5 @@
 """The manual cycle (ADR-118): proposals an operator writes, the client approves and a
-person executes; results come from ``platform_daily_metrics``.
+person executes; results come from ``platform_daily_metrics`` (:mod:`.measurement`).
 
 ``api/routes/ops_proposals.py`` is the Ops skin over this package; the seller's in-app
 approval is a later route over the same functions.
@@ -25,17 +25,27 @@ from juli_backend.services.shop_proposals.cycle import (
     verify_execution,
     withdraw,
 )
+from juli_backend.services.shop_proposals.measurement import (
+    FleetSummary,
+    MeasureCounts,
+    measure_all,
+    measure_shop_proposals,
+)
 
 __all__ = [
     "ERROR_BAD_STATE",
     "ERROR_INVALID",
     "ERROR_NOT_FOUND",
     "ERROR_UNKNOWN_ITEM",
+    "FleetSummary",
+    "MeasureCounts",
     "ProposalDraft",
     "ProposalError",
     "create",
     "get",
     "list_cycle",
+    "measure_all",
+    "measure_shop_proposals",
     "record_approval",
     "record_execution",
     "revise",

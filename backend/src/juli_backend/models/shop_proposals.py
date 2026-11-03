@@ -88,7 +88,11 @@ EXECUTOR_ROLES: tuple[str, ...] = ("client_representative", "juli_operator", EXE
 EXECUTION_CHANNELS: tuple[str, ...] = ("ops", CHANNEL_IN_APP, "api")
 VERIFIED_HOW: tuple[str, ...] = ("export_readback", "sub_account_read", "api")
 
-METHODS: tuple[str, ...] = ("pre_post_vs_untested", "contract_kpi")
+#: ``pre_post_vs_untested`` is the migration-109 pre/post method, kept for rows written
+#: before D81.1; since then an item is measured against its own history
+#: (``self_baseline``, migration 111).
+METHOD_SELF_BASELINE = "self_baseline"
+METHODS: tuple[str, ...] = ("pre_post_vs_untested", "contract_kpi", METHOD_SELF_BASELINE)
 VERDICTS: tuple[str, ...] = ("dat", "khong_dat", "chua_ket_luan")
 
 
@@ -245,6 +249,8 @@ class ShopProposalResult(Base):
     post_to: Mapped[date | None] = mapped_column(Date, nullable=True)
     value: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
     comparison: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
+    #: ``self_baseline_v1``: ``value`` / (max of the last 8 weekly values) - 1, clamped to
+    #: ±999; the weekly max / median themselves are in ``detail``.
     band: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
     verdict: Mapped[str] = mapped_column(String(16))
     data_through: Mapped[date | None] = mapped_column(Date, nullable=True)

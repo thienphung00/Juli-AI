@@ -343,6 +343,23 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "execution.verified_at = verified_at",
         "the export read-back verifies an execution once (column grant on verified_*)",
     ),
+    # -- ADR-119 (migration 111): the shop's keyword seeds -------------------
+    MutationSite(
+        "public",
+        "shop_keyword_seeds",
+        "UPDATE",
+        "backend/src/juli_backend/services/shop_keywords/seeds.py",
+        "seed.pattern = candidate.pattern",
+        "re-generating from the titles refreshes a stored combination's pattern and items",
+    ),
+    MutationSite(
+        "public",
+        "shop_keyword_seeds",
+        "UPDATE",
+        "backend/src/juli_backend/services/shop_keywords/seeds.py",
+        "seed.enabled = enabled",
+        "the operator keeps or drops one combination",
+    ),
 )
 
 #: Scan hits that are provably NOT database writes. Each is pinned to its
