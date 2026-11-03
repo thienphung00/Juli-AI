@@ -697,10 +697,10 @@ def test_an_ads_report_with_an_unknown_header_stops_the_load(tmp_path):
 
 def test_buyer_level_and_unlisted_reports_are_never_opened(tmp_path):
     for name in (
-        "SellerConversionReport_202611022133.csv",
-        "ValidationBill202611022134.csv",
-        "ads_keyword_20260829-20261031.csv",
-        "AMSAffiliatePerformance_202611022133.csv",
+        "Order.all.20261001_20261031.xlsx",
+        "Quản lý đánh giá_202611.xlsx",
+        "ValidationBill.csv",
+        "Dữ+liệu+Dịch+vụ+Hiển+thị+Sản+Phẩm-160675212-02_08_2026-02_11_2026.csv",
     ):
         (tmp_path / name).write_bytes(b"\xff\xfe not a csv a parser could read")
     parsed = parse.parse_folder(tmp_path)

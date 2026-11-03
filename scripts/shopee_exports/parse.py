@@ -24,6 +24,20 @@ and never opened.
   ``ads_campaign_period``: a PERIOD dataset, never cut into days. A group report's campaign
   row is the sum of its product rows, so only the product rows are posted.
 
+- ``affiliate_product_<YYYYMM>.csv`` / ``ProductPerformance_<ts>.csv`` →
+  ``affiliate_product_period``;
+  ``Open Campaign Analytics_<ts>.csv`` → ``affiliate_open_campaign_period``;
+  ``AMSAffiliatePerformance_<ts>.csv`` → ``affiliate_partner_period``;
+  ``target_campaign_<ts>.csv`` → ``affiliate_campaign_terms``;
+  ``ValidationBill<ts>.csv`` → ``affiliate_bill_period``. The last three exports of the
+  dashboard carry no period: pass one (``Parsed.window``, ``--window``) or they are not loaded.
+- ``ads_keyword_<range>.csv`` → ``ads_keyword_period`` (a row with no keyword keeps the campaign).
+- ``In_Shop_Flash_Sale_Metrics_<range>.xlsx``: ``Chỉ Số`` day rows → ``promotion_daily``
+  (type ``Flash Sale``), ``Tổng quan`` → ``promotion_period``.
+- RESERVED (parsed, validated, never sent; ``reserved.py``): ``SellerConversionReport_<ts>.csv``
+  → ``affiliate_order_lines`` (the order id is replaced by a keyed hash before anything leaves
+  the parser; buyer-looking columns are dropped unread); ``ops_log_*.csv`` → ``ads_change_log``.
+
 A header the parser does not know raises :class:`UnknownColumn` (Seller Centre changed
 the export: fix the table here, never guess). Numbers are Vietnamese-formatted text
 ("12.345.678", "123.456,70", "4,25%"); ``-`` is no value.
@@ -32,6 +46,9 @@ the export: fix the table here, never guess). Numbers are Vietnamese-formatted t
 from __future__ import annotations
 
 import csv
+import hashlib
+import hmac
+import os
 import re
 import unicodedata
 from collections import Counter
@@ -77,6 +94,13 @@ class Post:
 @dataclass
 class Parsed:
     posts: list[Post] = field(default_factory=list)
+    #: Bodies for datasets the gateway does not accept yet (``reserved.RESERVED_DATASETS``):
+    #: parsed and validated, never sent.
+    reserved: list[Post] = field(default_factory=list)
+    #: The period of the affiliate dashboard exports that do not state one (``--window``).
+    window: tuple[date, date] | None = None
+    #: HMAC key of ``order_ref``; None = a random per-run key (refs are then run-local).
+    order_ref_key: bytes | None = None
     skipped_files: list[str] = field(default_factory=list)
     #: (file, reason) for rows / cards deliberately not loaded.
     notes: Counter[str] = field(default_factory=Counter)
@@ -1009,6 +1033,8 @@ ADS_COLUMNS: dict[str, str | None] = {
     "Nội dung Dịch vụ Hiển thị": None,
     "Phương thức đấu thầu": None,
     "Vị trí": None,
+    "Từ khóa / Vị trí": None,
+    "Loại từ khóa": None,
     "Ngày bắt đầu": None,
     "Ngày kết thúc": None,
     "Số lượt xem": "ads_impressions",
@@ -1076,6 +1102,14 @@ def _read_ads(path: Path) -> tuple[list[list[str]], int, date, date]:
     return rows, header, date(y1, m1, d1), date(y2, m2, d2)
 
 
+def _ads_values(cells: dict[str, str]) -> dict[str, Any]:
+    return {
+        key: value
+        for column, key in ADS_COLUMNS.items()
+        if key and (value := csv_number(cells.get(column))) is not None
+    }
+
+
 def parse_ads(path: Path, parsed: Parsed) -> None:
     rows, header_at, start, end = _read_ads(path)
     file = path.name
@@ -1093,11 +1127,7 @@ def parse_ads(path: Path, parsed: Parsed) -> None:
     pending: tuple[str, None, bool | None, dict[str, str]] | None = None
 
     def emit(name: str, item_id: str | None, run: bool | None, cells: dict[str, str]) -> None:
-        values = {
-            key: value
-            for column, key in ADS_COLUMNS.items()
-            if key and (value := csv_number(cells.get(column))) is not None
-        }
+        values = _ads_values(cells)
         if not values:
             parsed.notes[f"{file}: ad row with no values"] += 1
             return
@@ -1154,7 +1184,656 @@ def parse_ads(path: Path, parsed: Parsed) -> None:
     )
 
 
+# -- ads keyword report ------------------------------------------------------------------
+
+#: What the keyword column says when the campaign bids automatically (no phrase).
+_AUTO_KEYWORD = "quảng cáo tự động"
+
+
+def parse_ads_keyword(path: Path, parsed: Parsed) -> None:
+    """``ads_keyword_<range>.csv``: the CPC report with a keyword and a keyword type per row.
+    A row whose keyword is ``-`` (a campaign-level row, or ORY's "automatic ad" rows whose
+    type is ``-``) has no keyword: it is posted with ``keyword`` absent."""
+    rows, header_at, start, end = _read_ads(path)
+    file = path.name
+    header = [unicodedata.normalize("NFC", h).strip() for h in rows[header_at]]
+    for name in header:
+        if name not in ADS_COLUMNS:
+            raise UnknownColumn(name)
+    seen: Counter[tuple[str, str | None, str | None, str | None]] = Counter()
+    out: list[dict[str, Any]] = []
+    for raw in rows[header_at + 1 :]:
+        if not any(raw):
+            continue
+        cells = dict(zip(header, raw, strict=False))
+        name = (cells.get("Tên Dịch vụ Hiển thị") or "").strip()
+        if not name:
+            parsed.notes[f"{file}: ad row without a name"] += 1
+            continue
+        values = _ads_values(cells)
+        if not values:
+            parsed.notes[f"{file}: ad row with no values"] += 1
+            continue
+        item_id = _id(cells.get("Mã sản phẩm"))
+        keyword = _id(cells.get("Từ khóa / Vị trí")) or None
+        auto = None
+        if keyword is not None and keyword.casefold() == _AUTO_KEYWORD:
+            keyword, auto = None, True
+        keyword_type = _id(cells.get("Loại từ khóa")) or None
+        status = (cells.get("Trạng thái") or "").strip()
+        row: dict[str, Any] = {"campaign_name": name[:255], **values}
+        if item_id.isdigit():
+            row["item_id"] = item_id
+        if status not in ("", "-"):
+            row["running"] = status == "Đang diễn ra"
+        if keyword is not None:
+            row["keyword"] = keyword[:255]
+        if keyword_type is not None:
+            row["keyword_type"] = keyword_type[:64]
+        if auto is not None:
+            row["auto_placement"] = auto
+        twin = (name, row.get("item_id"), row.get("keyword"), row.get("keyword_type"))
+        if seen[twin]:
+            row["ordinal"] = seen[twin]
+        seen[twin] += 1
+        out.append(row)
+    parsed.posts += _period_post(
+        "ads_keyword_period",
+        out,
+        start,
+        end,
+        order_type=PLACED,
+        captured_at=_captured_at(path),
+        file=file,
+        max_days=MAX_ADS_PERIOD_DAYS,
+    )
+
+
+# -- affiliate dashboard exports (CSV) ---------------------------------------------------
+
+_MONTH_FILE = re.compile(r"_(\d{4})(\d{2})(?:[ _+]?\(\d+\))?\.csv$")
+
+
+def _cnum(text: str | None) -> int | float | None:
+    """A CSV cell: plain ``1234.56`` / ``4.25%``, or a Vietnamese ``12,00%`` when it has a comma."""
+    raw = (text or "").strip()
+    return number(raw) if "," in raw else csv_number(raw)
+
+
+def _read_csv(path: Path) -> list[list[str]]:
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        return [
+            [unicodedata.normalize("NFC", c).strip() for c in row] for row in csv.reader(handle)
+        ]
+
+
+def _table(
+    rows: list[list[str]], first_column: str, file: str
+) -> tuple[list[str], list[list[str]]]:
+    """(header, data rows) of the first row whose first cell is ``first_column``."""
+    at = next((i for i, r in enumerate(rows) if r and r[0] == first_column), None)
+    if at is None:
+        raise UnknownColumn(f"{file}: no {first_column!r} header row")
+    return rows[at], [r for r in rows[at + 1 :] if any(r)]
+
+
+def _mapped(
+    header: list[str], row: list[str], table: dict[str, str | None], file: str
+) -> dict[str, Any]:
+    """``{field: number}`` of a row by a header → field table (None = read, not posted)."""
+    for name in header:
+        if name not in table:
+            raise UnknownColumn(f"{file}: {name}")
+    out: dict[str, Any] = {}
+    for name, cell in zip(header, row, strict=False):
+        key = table[name]
+        if key and (value := _cnum(cell)) is not None:
+            out[key] = value
+    return out
+
+
+def _month_of_file(path: Path) -> tuple[date, date]:
+    """``affiliate_product_YYYYMM.csv`` → (first day, last day, clipped to the export's day)."""
+    match = _MONTH_FILE.search(path.name)
+    if match is None:
+        raise ValueError(f"no YYYYMM month in {path.name}")
+    first = date(int(match.group(1)), int(match.group(2)), 1)
+    last = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    exported = (datetime.fromtimestamp(path.stat().st_mtime, UTC) + PLATFORM_TZ).date()
+    return first, max(first, min(last, exported))
+
+
+AFFILIATE_PRODUCT_COLUMNS: dict[str, str | None] = {
+    "Item id": None,
+    "Item Name": None,
+    "Mã sản phẩm": None,
+    "Tên sản phẩm": None,
+    "Price(₫)": "price",
+    "Giá(₫)": "price",
+    "Sales(₫)": "sales",
+    "Doanh thu(₫)": "sales",
+    "Item Sold": "units",
+    "Sản phẩm đã bán": "units",
+    "Orders": "orders",
+    "Số đơn hàng": "orders",
+    "Clicks": "clicks",
+    # ProductPerformance's header "Hoa hồng ước tính" (no ₫) holds the click count: it equals
+    # affiliate_product's Clicks for the same product, and the commission has its own "(₫)" column.
+    "Hoa hồng ước tính": "clicks",
+    "Est.Commission(₫)": "est_commission",
+    "Hoa hồng ước tính(₫)": "est_commission",
+    "ROI": "roi",
+    "Total Buyers": "buyers",
+    "Tất cả người mua": "buyers",
+    "New Buyers": "new_buyers",
+    "Người mua mới": "new_buyers",
+}
+OPEN_CAMPAIGN_COLUMNS: dict[str, str | None] = {
+    "Tên Sản phẩm": None,
+    "Mã Sản phẩm": None,
+    "KOLs": "kols",
+    "Doanh thu(₫)": "sales",
+    "Sản phẩm đã bán": "units",
+    "Hoa hồng ước tính(₫)": "est_commission",
+}
+AFFILIATE_PARTNER_COLUMNS: dict[str, str | None] = {
+    "Affiliate ID": None,
+    "Affiliate Name": None,
+    "Affiliate Username": None,
+    "Sales(₫)": "sales",
+    "Item Sold": "units",
+    "Orders": "orders",
+    "Clicks": "clicks",
+    "Est.Commission(₫)": "est_commission",
+    "ROI": "roi",
+    "Total Buyers": "buyers",
+    "New Buyers": "new_buyers",
+}
+BILL_COLUMNS: dict[str, str | None] = {
+    "Mã đối soát": None,
+    "Tháng đối soát": None,
+    "Hoa hồng hằng tháng(₫)": "commission",
+    "Số tiền thuế(₫)": "tax",
+    "Chi phí hàng tháng(₫)": "cost",
+    "Trạng thái khấu trừ": None,
+    "Tổng khấu trừ(₫)": "total_deduction",
+    "Số dư ví của chương trình Tăng đơn cùng KOL bị cấn trừ(₫)": "wallet_offset",
+    "Tổng số tiền chờ xử lý(₫)": "pending_amount",
+}
+
+
+def _need_window(path: Path, parsed: Parsed) -> tuple[date, date] | None:
+    if parsed.window is None:
+        parsed.notes[f"{path.name}: no period in the export; pass --window FROM:TO"] += 1
+    return parsed.window
+
+
+def _product_rows(
+    path: Path, table: dict[str, str | None], id_column: str, parsed: Parsed
+) -> list[dict[str, Any]]:
+    header, data = _table(_read_csv(path), id_column, path.name)
+    rows: list[dict[str, Any]] = []
+    for raw in data:
+        item_id = raw[0].strip()
+        if not item_id.isdigit():
+            parsed.notes[f"{path.name}: row without a numeric product id"] += 1
+            continue
+        rows.append({"item_id": item_id, **_mapped(header, raw, table, path.name)})
+    return rows
+
+
+def parse_affiliate_product(path: Path, parsed: Parsed) -> None:
+    """``affiliate_product_YYYYMM.csv`` (the month) and ``ProductPerformance_<ts>.csv`` (no
+    period in the file: ``parsed.window``)."""
+    if _MONTH_FILE.search(path.name):
+        window: tuple[date, date] | None = _month_of_file(path)
+    else:
+        window = _need_window(path, parsed)
+    if window is None:
+        return
+    id_column = "Item id" if _read_csv(path)[0][:1] == ["Item id"] else "Mã sản phẩm"
+    rows = _product_rows(path, AFFILIATE_PRODUCT_COLUMNS, id_column, parsed)
+    parsed.posts += _period_post(
+        "affiliate_product_period",
+        rows,
+        *window,
+        order_type=None,
+        captured_at=_captured_at(path),
+        file=path.name,
+    )
+
+
+def parse_open_campaign(path: Path, parsed: Parsed) -> None:
+    window = _need_window(path, parsed)
+    if window is None:
+        return
+    # This export lists the product name first and the id second.
+    header, data = _table(_read_csv(path), "Tên Sản phẩm", path.name)
+    rows: list[dict[str, Any]] = []
+    for raw in data:
+        item_id = raw[header.index("Mã Sản phẩm")] if "Mã Sản phẩm" in header else ""
+        if not item_id.isdigit():
+            parsed.notes[f"{path.name}: row without a numeric product id"] += 1
+            continue
+        rows.append({"item_id": item_id, **_mapped(header, raw, OPEN_CAMPAIGN_COLUMNS, path.name)})
+    parsed.posts += _period_post(
+        "affiliate_open_campaign_period",
+        rows,
+        *window,
+        order_type=None,
+        captured_at=_captured_at(path),
+        file=path.name,
+    )
+
+
+def parse_affiliate_partners(path: Path, parsed: Parsed) -> None:
+    window = _need_window(path, parsed)
+    if window is None:
+        return
+    header, data = _table(_read_csv(path), "Affiliate ID", path.name)
+    rows: list[dict[str, Any]] = []
+    for raw in data:
+        cell = dict(zip(header, raw, strict=False))
+        affiliate_id = cell.get("Affiliate ID", "")
+        if not affiliate_id.isdigit():
+            parsed.notes[f"{path.name}: row without a numeric affiliate id"] += 1
+            continue
+        account = (cell.get("Affiliate Username") or cell.get("Affiliate Name") or "").strip()
+        row: dict[str, Any] = {"affiliate_id": affiliate_id}
+        if account not in ("", "-"):
+            row["account"] = account[:120]
+        rows.append({**row, **_mapped(header, raw, AFFILIATE_PARTNER_COLUMNS, path.name)})
+    parsed.posts += _period_post(
+        "affiliate_partner_period",
+        rows,
+        *window,
+        order_type=None,
+        captured_at=_captured_at(path),
+        file=path.name,
+    )
+
+
+_CAMPAIGN_RUN = re.compile(r"^(\d{4})/(\d{2})/(\d{2}) \d{2}:\d{2}\s*-\s*(.+)$")
+_CAMPAIGN_RUN_END = re.compile(r"^(\d{4})/(\d{2})/(\d{2}) \d{2}:\d{2}$")
+_KOL_TARGET = re.compile(r"\[(\d+)\]\s*$")
+CAMPAIGN_COLUMNS = (
+    "Tên chiến dịch",
+    "ID của chiến dịch",
+    "Thời gian chạy",
+    "Trạng thái",
+    "ID sản phẩm",
+    "Tên sản phẩm",
+    "Tỉ lệ hoa hồng",
+    "Tên tài khoản KOL",
+)
+
+
+def parse_campaign_terms(path: Path, parsed: Parsed) -> None:
+    """``target_campaign_<ts>.csv``: commission terms as they stood on the export day (the
+    ``Date`` line), one row per campaign x product."""
+    all_rows = _read_csv(path)
+    labels = {r[0]: r[1] for r in all_rows if len(r) == 2}
+    try:
+        exported = date.fromisoformat(labels["Date"])
+    except (KeyError, ValueError):
+        raise UnknownColumn(f"{path.name}: no Date line") from None
+    header, data = _table(all_rows, "Tên chiến dịch", path.name)
+    for name in header:
+        if name not in CAMPAIGN_COLUMNS:
+            raise UnknownColumn(f"{path.name}: {name}")
+    seen: Counter[tuple[str, str]] = Counter()
+    rows: list[dict[str, Any]] = []
+    for raw in data:
+        cell = dict(zip(header, raw, strict=False))
+        campaign_id, item_id = cell.get("ID của chiến dịch", ""), cell.get("ID sản phẩm", "")
+        name = cell.get("Tên chiến dịch", "")
+        if not (campaign_id.isdigit() and item_id.isdigit() and name):
+            parsed.notes[f"{path.name}: campaign row without ids"] += 1
+            continue
+        row: dict[str, Any] = {
+            "campaign_id": campaign_id,
+            "campaign_name": name[:255],
+            "item_id": item_id,
+        }
+        rate = _cnum(cell.get("Tỉ lệ hoa hồng"))
+        if rate is not None:
+            row["commission_rate"] = rate
+        status = cell.get("Trạng thái", "").lower()
+        if status:
+            row["running"] = status == "ongoing"
+        run = _CAMPAIGN_RUN.match(cell.get("Thời gian chạy", ""))
+        if run:
+            row["starts_on"] = date(int(run[1]), int(run[2]), int(run[3])).isoformat()
+            end = _CAMPAIGN_RUN_END.match(run[4].strip())
+            if end:
+                row["ends_on"] = date(int(end[1]), int(end[2]), int(end[3])).isoformat()
+        target = _KOL_TARGET.search(cell.get("Tên tài khoản KOL", ""))
+        if target:
+            row["targeted_kols"] = int(target[1])
+        twin = (campaign_id, item_id)
+        if seen[twin]:
+            row["ordinal"] = seen[twin]
+        seen[twin] += 1
+        rows.append(row)
+    parsed.posts += _period_post(
+        "affiliate_campaign_terms",
+        rows,
+        exported,
+        exported,
+        order_type=None,
+        captured_at=_captured_at(path),
+        file=path.name,
+    )
+
+
+def parse_affiliate_bill(path: Path, parsed: Parsed) -> None:
+    """``ValidationBill<ts>.csv``: one row per settlement month; each month is its own post."""
+    header, data = _table(_read_csv(path), "Mã đối soát", path.name)
+    exported = (datetime.fromtimestamp(path.stat().st_mtime, UTC) + PLATFORM_TZ).date()
+    by_month: dict[date, list[dict[str, Any]]] = {}
+    for raw in data:
+        cell = dict(zip(header, raw, strict=False))
+        code = "".join(ch for ch in cell.get("Mã đối soát", "") if ch.isalnum())
+        month = re.match(r"^(\d{4})-(\d{2})$", cell.get("Tháng đối soát", ""))
+        if not code or month is None:
+            parsed.notes[f"{path.name}: bill row without a code or month"] += 1
+            continue
+        row: dict[str, Any] = {
+            "bill_code": code[:64],
+            **_mapped(header, raw, BILL_COLUMNS, path.name),
+        }
+        deduction = cell.get("Trạng thái khấu trừ", "")
+        if deduction:
+            row["deduction_completed"] = deduction.lower() == "completed"
+        by_month.setdefault(date(int(month[1]), int(month[2]), 1), []).append(row)
+    for first, rows in sorted(by_month.items()):
+        last = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+        parsed.posts += _period_post(
+            "affiliate_bill_period",
+            rows,
+            first,
+            max(first, min(last, exported)),
+            order_type=None,
+            captured_at=_captured_at(path),
+            file=path.name,
+        )
+
+
+# -- affiliate order lines (RESERVED: shopee_order_lines, migration 112) -----------------
+
+#: Order-report headers → row field. ``None`` = read for the key / filter only or dropped.
+CONVERSION_COLUMNS: dict[str, str | None] = {
+    "Mã đơn hàng": "__order_id__",
+    "Trạng thái đơn hàng": "order_status",
+    "Trạng thái gian lận": "valid",
+    "Thời gian đặt hàng": "ordered_at",
+    "Thời gian đơn hàng hoàn thành": "completed_at",
+    "Thời gian chuyển đổi hoàn tất": "conversion_at",
+    "Mã sản phẩm": "item_id",
+    "Tên sản phẩm": None,
+    "Model id": "model_id",
+    "L1 Ngành hàng toàn cầu": None,
+    "L2 Ngành hàng toàn cầu": None,
+    "L3 Ngành hàng toàn cầu": None,
+    "Mã khuyến mãi": None,
+    "Giá(₫)": "price",
+    "Số lượng": "qty",
+    "Tên đối tác": "partner_name",
+    "Tài khoản Tiếp thị liên kết": "affiliate_account",
+    "MCN được liên kết": "mcn",
+    "Mã hoa hồng": "commission_code",
+    "Đối tác chiến dịch": "campaign_partner",
+    "Loại chiến dịch": "campaign_type",
+    "Giá trị đặt hàng(₫)": "order_value",
+    "Số tiền hoàn(₫)": "refund_amount",
+    "Loại đơn hàng": "order_kind",
+    "Hoa hồng Xtra trên sản phẩm(₫)": "xtra_product_commission",
+    "Hoa hồng Xtra trên sản phẩm mà Tổng số KOL quảng bá sản phẩm nhận được(₫)": (
+        "xtra_product_commission_kols"
+    ),
+    "Tỷ lệ hoa hồng Xtra trên sản phẩm mà Tổng số KOL quảng bá sản phẩm nhận được": (
+        "xtra_product_commission_kols_rate"
+    ),
+    "Hoa hồng Xtra trên sản phẩm mà MCN nhận được(₫)": "xtra_product_commission_mcn",
+    "Tỷ lệ hoa hồng Xtra trên sản phẩm mà MCN nhận được": "xtra_product_commission_mcn_rate",
+    "Hoa hồng Xtra trên đơn hàng(₫)": "xtra_order_commission",
+    "Hoa hồng Xtra trên đơn hàng mà Tổng số KOL quảng bá sản phẩm nhận được(₫)": (
+        "xtra_order_commission_kols"
+    ),
+    "Hoa hồng Xtra trên đơn hàng mà MCN nhận được(₫)": "xtra_order_commission_mcn",
+    "Ghi chú sản phẩm": None,
+    "Kênh": "channel",
+    "Chi phí(₫)": "cost",
+    "Trạng thái khấu trừ": "deduction_status",
+    "Phương pháp khấu trừ": "deduction_method",
+    "Thời gian khấu trừ": "deducted_at",
+}
+_CONVERSION_TIMES = {"ordered_at", "completed_at", "conversion_at", "deducted_at"}
+_CONVERSION_NUMBERS = {
+    "price",
+    "qty",
+    "order_value",
+    "refund_amount",
+    "xtra_product_commission",
+    "xtra_product_commission_kols",
+    "xtra_product_commission_kols_rate",
+    "xtra_product_commission_mcn",
+    "xtra_product_commission_mcn_rate",
+    "xtra_order_commission",
+    "xtra_order_commission_kols",
+    "xtra_order_commission_mcn",
+    "cost",
+}
+_CONVERSION_TEXT_WIDTH = {"campaign_partner": 120, "partner_name": 120, "affiliate_account": 120}
+#: Header words of a buyer-level column. Such a column is dropped unread (counted in the
+#: notes, never its values); any OTHER unknown header stops the load like everywhere else.
+_BUYER_HEADER = re.compile(
+    r"người mua|khách hàng|người nhận|điện thoại|địa chỉ|\bemail\b|\bbuyer\b|\bphone\b|"
+    r"\baddress\b|\brecipient\b|\bcustomer\b|username người",
+    re.IGNORECASE,
+)
+_ORDER_TIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+MAX_ORDER_LINE_ROWS = 1_000
+
+
+def order_ref(order_id: str, key: bytes) -> str:
+    """The keyed hash that stands for an order everywhere after the parser: HMAC-SHA256 of
+    the trimmed, upper-cased order id, first 32 hex characters. The same key and function in
+    the browser-side order strip make an order agree across the two lanes."""
+    message = f"shopee-order|{order_id.strip().upper()}".encode()
+    return hmac.new(key, message, hashlib.sha256).hexdigest()[:32]
+
+
+def _order_ref_key(parsed: Parsed) -> bytes:
+    if parsed.order_ref_key is None:
+        env = os.environ.get("JULI_ORDER_REF_KEY", "").strip()
+        if env:
+            parsed.order_ref_key = env.encode()
+        else:
+            parsed.order_ref_key = os.urandom(32)
+            parsed.notes["order_ref key not set (JULI_ORDER_REF_KEY): refs are run-local"] += 1
+    return parsed.order_ref_key
+
+
+def parse_seller_conversions(path: Path, parsed: Parsed) -> None:
+    key = _order_ref_key(parsed)
+    file = path.name
+    header, data = _table(_read_csv(path), "Mã đơn hàng", file)
+    plan: list[str | None] = []
+    for name in header:
+        if name in CONVERSION_COLUMNS:
+            plan.append(CONVERSION_COLUMNS[name])
+        elif _BUYER_HEADER.search(name):
+            parsed.notes[f"{file}: buyer-level column dropped unread"] += 1
+            plan.append(None)
+        else:
+            raise UnknownColumn(f"{file}: {name}")
+    seen: Counter[tuple[str, str, str]] = Counter()
+    by_month: dict[date, list[dict[str, Any]]] = {}
+    for raw in data:
+        out: dict[str, Any] = {}
+        order_id = ""
+        for field_name, cell in zip(plan, raw, strict=False):
+            if field_name is None or cell in ("", "-"):
+                continue
+            if field_name == "__order_id__":
+                order_id = cell
+            elif field_name in _CONVERSION_TIMES:
+                if _ORDER_TIME.match(cell):
+                    out[field_name] = cell.replace(" ", "T")
+            elif field_name in _CONVERSION_NUMBERS:
+                out[field_name] = _cnum(cell)
+            elif field_name == "valid":
+                out["valid"] = cell == "Hợp lệ"
+            elif field_name == "item_id":
+                out["item_id"] = cell
+            elif field_name == "model_id":
+                out["model_id"] = cell if cell.isdigit() else ""
+            else:
+                out[field_name] = cell[: _CONVERSION_TEXT_WIDTH.get(field_name, 64)]
+        if not order_id or "ordered_at" not in out or not str(out.get("item_id", "")).isdigit():
+            parsed.notes[f"{file}: order line without an order id, time or product"] += 1
+            continue
+        ref = order_ref(order_id, key)
+        twin = (ref, out["item_id"], out.get("model_id", ""))
+        out["line_no"] = seen[twin]
+        seen[twin] += 1
+        out["order_ref"] = ref
+        out["affiliate"] = True
+        ordered = date.fromisoformat(out["ordered_at"][:10])
+        by_month.setdefault(ordered.replace(day=1), []).append(out)
+    captured = _captured_at(path)
+    for _, rows in sorted(by_month.items()):
+        days = sorted(date.fromisoformat(r["ordered_at"][:10]) for r in rows)
+        for offset in range(0, len(rows), MAX_ORDER_LINE_ROWS):
+            chunk = rows[offset : offset + MAX_ORDER_LINE_ROWS]
+            parsed.reserved.append(
+                Post(
+                    "affiliate_order_lines",
+                    _body(chunk, days[0], days[-1], "period", None, captured),
+                    file,
+                )
+            )
+
+
+# -- ads change log (RESERVED: no table yet) ---------------------------------------------
+
+_LOG_TIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+_LOG_BUDGET = re.compile(r"Ngân sách hàng ngày:\s*₫?\s*([\d.,]+)\s*->\s*₫?\s*([\d.,]+)")
+_LOG_PRODUCTS = re.compile(r"số lượng sản phẩm[^:]*:+\s*(\d+)\s*->\s*(\d+)", re.IGNORECASE)
+LOG_COLUMNS = ("Thời gian cập nhật", "Người thao tác", "Nền tảng", "Loại sự kiện", "Chi tiết")
+
+
+def parse_ops_log(path: Path, parsed: Parsed) -> None:
+    """``ops_log_*.csv``: an ad campaign's change history. The campaign id (and the product
+    id of a product-level log) are in the preamble."""
+    file = path.name
+    all_rows = _read_csv(path)
+    labels = {r[0]: r[1] for r in all_rows if len(r) == 2}
+    campaign_id = labels.get("ID chiến dịch", "")
+    if not campaign_id.isdigit():
+        raise UnknownColumn(f"{file}: no campaign id line")
+    item_id = labels.get("Mã sản phẩm", "")
+    header, data = _table(all_rows, "Thời gian cập nhật", file)
+    for name in header:
+        if name not in LOG_COLUMNS:
+            raise UnknownColumn(f"{file}: {name}")
+    seen: Counter[tuple[str, str]] = Counter()
+    by_month: dict[date, list[dict[str, Any]]] = {}
+    for raw in data:
+        cell = dict(zip(header, raw, strict=False))
+        when, event = cell.get("Thời gian cập nhật", ""), cell.get("Loại sự kiện", "")
+        if not _LOG_TIME.match(when) or not event:
+            parsed.notes[f"{file}: log line without a time or event"] += 1
+            continue
+        actor = cell.get("Người thao tác", "")
+        row: dict[str, Any] = {
+            "campaign_id": campaign_id,
+            "occurred_at": when.replace(" ", "T"),
+            "actor_kind": "system" if actor.casefold().startswith("hệ thống") else "user",
+            "event_type": event[:120],
+        }
+        if item_id.isdigit():
+            row["item_id"] = item_id
+        if actor:
+            row["actor"] = actor[:120]
+        if cell.get("Nền tảng"):
+            row["surface"] = cell["Nền tảng"][:64]
+        detail = cell.get("Chi tiết", "")
+        if detail:
+            row["detail"] = detail[:500]
+            if (m := _LOG_BUDGET.search(detail)) is not None:
+                row["budget_from"], row["budget_to"] = number(m[1]), number(m[2])
+            if (m := _LOG_PRODUCTS.search(detail)) is not None:
+                row["products_from"], row["products_to"] = int(m[1]), int(m[2])
+        twin = (when, event)
+        if seen[twin]:
+            row["ordinal"] = seen[twin]
+        seen[twin] += 1
+        by_month.setdefault(date.fromisoformat(when[:10]).replace(day=1), []).append(row)
+    captured = _captured_at(path)
+    for _, rows in sorted(by_month.items()):
+        days = sorted(date.fromisoformat(r["occurred_at"][:10]) for r in rows)
+        parsed.reserved.append(
+            Post("ads_change_log", _body(rows, days[0], days[-1], "period", None, captured), file)
+        )
+
+
+# -- in-shop flash sale metrics ----------------------------------------------------------
+
+FLASH_METRIC_SHEETS = ("Tổng quan", "Chỉ Số")
+
+
+def parse_flash_sale_metrics(path: Path, parsed: Parsed) -> None:
+    """``In_Shop_Flash_Sale_Metrics_<range>.xlsx``: ``Chỉ Số`` is one row per day (→
+    ``promotion_daily``, type ``Flash Sale``); ``Tổng quan`` the period total (→
+    ``promotion_period``)."""
+    captured = _captured_at(path)
+    file = path.name
+    sheets = read_workbook(path)
+    for name in sheets:
+        if name not in FLASH_METRIC_SHEETS:
+            parsed.notes[f"{file}: sheet not loaded: {name}"] += 1
+    daily = sheets.get("Chỉ Số", [])
+    if daily:
+        columns = _columns([None, *daily[0][1:]], FLASH_LIST)
+        for order_type in (PLACED, CONFIRMED):
+            rows = [
+                {
+                    "date": day(str(r[0])).isoformat(),
+                    "promo_type": "Flash Sale",
+                    **_values(r, columns, order_type),
+                }
+                for r in daily[1:]
+                if not _blank(r) and _is_day(r[0])
+            ]
+            parsed.posts += _daily_posts(
+                "promotion_daily", rows, order_type=order_type, captured_at=captured, file=file
+            )
+    total = sheets.get("Tổng quan", [])
+    if total:
+        columns = _columns([None, *total[0][1:]], FLASH_LIST)
+        for r in total[1:]:
+            window = _DAY_RANGE.match(str(r[0]).strip()) if r and r[0] else None
+            if window is None:
+                continue
+            d1, m1, y1, d2, m2, y2 = (int(part) for part in window.groups())
+            for order_type in (PLACED, CONFIRMED):
+                parsed.posts += _period_post(
+                    "promotion_period",
+                    [{"promo_type": "Flash Sale", **_values(r, columns, order_type)}],
+                    date(y1, m1, d1),
+                    date(y2, m2, d2),
+                    order_type=order_type,
+                    captured_at=captured,
+                    file=file,
+                )
+
+
 # -- folder ------------------------------------------------------------------------------
+
+_SEP = r"[_ +]"
+_COPY = r"(?:[ _+]?\(\d+\))?"
 
 #: File name pattern → parser. Nothing else in the folder is opened.
 PARSERS: tuple[tuple[re.Pattern[str], Any], ...] = (
@@ -1167,11 +1846,42 @@ PARSERS: tuple[tuple[re.Pattern[str], Any], ...] = (
     (re.compile(r"^flash_sale_performance_list_\d{8}\.xlsx$"), parse_flash_sale),
     (re.compile(r"^ads_(general|group)_\d{8}-\d{8}\.csv$"), parse_ads),
     (re.compile(r"^Dữ\+liệu-Chiến\+Dịch\+Nhóm-\d+-[\d_-]+\.csv$"), parse_ads),
+    # Browsers add spaces for '+' and " (1)" for a repeated download: _SEP / _COPY allow both.
+    (re.compile(rf"^ads_keyword_\d{{8}}-\d{{8}}{_COPY}\.csv$", re.I), parse_ads_keyword),
+    (re.compile(rf"^affiliate_product_\d{{6}}{_COPY}\.csv$", re.I), parse_affiliate_product),
+    (
+        re.compile(rf"^ProductPerformance{_SEP}?\d{{8,14}}{_COPY}\.csv$", re.I),
+        parse_affiliate_product,
+    ),
+    (
+        re.compile(rf"^Open[ +]Campaign[ +]Analytics{_SEP}?\d{{8,14}}{_COPY}\.csv$", re.I),
+        parse_open_campaign,
+    ),
+    (
+        re.compile(rf"^AMSAffiliatePerformance{_SEP}?\d{{8,14}}{_COPY}\.csv$", re.I),
+        parse_affiliate_partners,
+    ),
+    (re.compile(rf"^target_campaign{_SEP}?\d{{8,14}}{_COPY}\.csv$", re.I), parse_campaign_terms),
+    (re.compile(rf"^ValidationBill{_SEP}?\d{{8,14}}{_COPY}\.csv$", re.I), parse_affiliate_bill),
+    (
+        re.compile(rf"^SellerConversionReport{_SEP}?\d{{8,14}}{_COPY}\.csv$", re.I),
+        parse_seller_conversions,
+    ),
+    (re.compile(r"^ops_log_[^/]+\.csv$", re.I), parse_ops_log),
+    (
+        re.compile(rf"^In_Shop_Flash_Sale_Metrics_\d{{8}}-\d{{8}}{_COPY}\.xlsx$", re.I),
+        parse_flash_sale_metrics,
+    ),
 )
 
 
-def parse_folder(folder: Path) -> Parsed:
-    parsed = Parsed()
+def parse_folder(
+    folder: Path,
+    *,
+    window: tuple[date, date] | None = None,
+    order_ref_key: bytes | None = None,
+) -> Parsed:
+    parsed = Parsed(window=window, order_ref_key=order_ref_key)
     for path in sorted(folder.iterdir()):
         if not path.is_file():
             continue

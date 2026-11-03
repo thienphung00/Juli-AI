@@ -16,6 +16,12 @@ non-public rows exist only in a local database (ADR-117 §6, C13 / D8). The same
 applies to ``--bootstrap-local-shop``, which creates a local shop + ``service`` consent row
 for development only.
 
+The affiliate exports ProductPerformance / Open Campaign Analytics / AMSAffiliatePerformance
+carry no period: pass ``--window 2026-10-01:2026-10-31`` or they are not loaded. Affiliate order
+lines (SellerConversionReport) and the ad change log (ops_log_*) are parsed and validated but
+RESERVED: no table yet, so they are counted separately and never sent. Order ids are hashed with
+``JULI_ORDER_REF_KEY`` (random per run when unset).
+
 The summary prints counts per dataset, never values.
 """
 
@@ -32,7 +38,7 @@ import urllib.request
 import uuid
 from collections import Counter
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -50,9 +56,18 @@ def validate(parsed: Parsed, now: datetime) -> list[str]:
     """Each post checked by the gateway's own validator (no database)."""
     from juli_backend.services.ingest.gateway import IngestRejected, validate_rows
     from juli_backend.services.ingest.mapping import dataset_spec
+    from juli_backend.services.ingest.reserved import RESERVED_DATASETS, validate_reserved
     from juli_backend.services.ingest.schemas import IngestBody
 
     problems: list[str] = []
+    for post in parsed.reserved:
+        # Reserved names are validated against their own models and never sent.
+        try:
+            validate_reserved(post.dataset, IngestBody.model_validate(post.body))
+        except (ValidationError, ValueError, KeyError) as exc:
+            problems.append(f"{post.file} {post.dataset} (reserved): {str(exc)[:200]}")
+        if post.dataset not in RESERVED_DATASETS:
+            problems.append(f"{post.file}: {post.dataset} is not a reserved dataset")
     for post in parsed.posts:
         spec = dataset_spec("shopee", post.dataset)
         if spec is None:
@@ -74,6 +89,13 @@ def summary(parsed: Parsed) -> str:
         rows[post.dataset] += len(post.body["rows"])
     lines = [f"{'dataset':<26}{'posts':>7}{'rows':>9}"]
     lines += [f"{name:<26}{posts[name]:>7}{rows[name]:>9}" for name in sorted(posts)]
+    if parsed.reserved:
+        held: Counter[str] = Counter(post.dataset for post in parsed.reserved)
+        held_rows: Counter[str] = Counter()
+        for post in parsed.reserved:
+            held_rows[post.dataset] += len(post.body["rows"])
+        lines.append("reserved (parsed and validated, NOT sent: no table yet):")
+        lines += [f"{name:<26}{held[name]:>7}{held_rows[name]:>9}" for name in sorted(held)]
     if parsed.skipped_files:
         lines.append(f"files not loaded ({len(parsed.skipped_files)}):")
         lines += [f"  {name}" for name in parsed.skipped_files]
@@ -221,6 +243,16 @@ async def bootstrap_local_shop(database_url: str, shop_name: str) -> uuid.UUID:
         await engine.dispose()
 
 
+def _window(text: str) -> tuple[date, date]:
+    try:
+        start, end = (date.fromisoformat(part) for part in text.split(":"))
+    except ValueError:
+        raise argparse.ArgumentTypeError("expected YYYY-MM-DD:YYYY-MM-DD") from None
+    if end < start:
+        raise argparse.ArgumentTypeError("the window ends before it starts")
+    return start, end
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -228,6 +260,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("folder", type=Path, help="the exports folder (raw/)")
     parser.add_argument("--dry-run", action="store_true", help="parse and validate only")
     parser.add_argument("--only", action="append", default=[], help="load only these datasets")
+    parser.add_argument(
+        "--window",
+        type=_window,
+        metavar="FROM:TO",
+        help="YYYY-MM-DD:YYYY-MM-DD period of the affiliate exports that state none "
+        "(ProductPerformance, Open Campaign Analytics, AMSAffiliatePerformance)",
+    )
     parser.add_argument("--api-url")
     parser.add_argument("--token-env", default="JULI_INGEST_TOKEN")
     parser.add_argument("--database-url")
@@ -236,9 +275,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--allow-remote-database", action="store_true")
     args = parser.parse_args(argv)
 
-    parsed = parse_folder(args.folder)
+    parsed = parse_folder(args.folder, window=args.window)
     if args.only:
         parsed.posts = [post for post in parsed.posts if post.dataset in args.only]
+        parsed.reserved = [post for post in parsed.reserved if post.dataset in args.only]
     print(summary(parsed))
     problems = validate(parsed, datetime.now(UTC).replace(tzinfo=None))
     if problems:
@@ -246,7 +286,8 @@ def main(argv: list[str] | None = None) -> int:
         for problem in problems[:20]:
             print(f"  {problem}", file=sys.stderr)
         return 1
-    print(f"all {len(parsed.posts)} posts validate")
+    held = f" (+ {len(parsed.reserved)} reserved, not sent)" if parsed.reserved else ""
+    print(f"all {len(parsed.posts)} posts validate{held}")
     if args.dry_run:
         return 0
 
