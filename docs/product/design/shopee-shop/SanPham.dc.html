@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sản phẩm · Bộ vệ sinh bếp 5 món</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1280px; box-sizing: border-box; padding: 28px 32px 40px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 16px">
+
+<header style="display: flex; align-items: center; gap: 12px">
+<a href="#" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">‹ Tất cả sản phẩm</a>
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">SẢN PHẨM</div>
+<span style="margin-left: auto; font-size: 12px; font-weight: 600; color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 999px; padding: 4px 10px">Shopee · Shop mẫu gia dụng</span>
+</header>
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 20px; display: grid; grid-template-columns: 264px minmax(0, 1fr); gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="position: relative; width: 264px; height: 264px; border-radius: 16px; overflow: hidden; {{img.bgStyle}}">
+<sc-for list="{{img.shapes}}" as="h" hint-placeholder-count="4"><div style="position: absolute; {{h.style}}"></div></sc-for>
+<span style="position: absolute; left: 10px; bottom: 10px; font-size: 11px; font-weight: 600; color: #4a4a55; background: #ffffff; border-radius: 6px; padding: 2px 6px">Ảnh minh hoạ</span>
+</div>
+<div style="display: flex; gap: 6px">
+<sc-for list="{{thumbs}}" as="t" hint-placeholder-count="5"><div style="width: 44px; height: 44px; border-radius: 8px; {{t.style}}"></div></sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 6px; background: #faf7f8; border-radius: 10px; padding: 4px">
+<button type="button" onClick="{{imgPrev}}" disabled="{{imgPrevOff}}" aria-label="Phiên bản ảnh cũ hơn" style="font: inherit; font-size: 16px; font-weight: 700; color: #b0386a; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 8px; width: 44px; min-height: 44px; cursor: pointer">‹</button>
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center">
+<span style="font-size: 13px; font-weight: 700">{{img.verLabel}}</span>
+<span style="font-size: 11px; color: #5f5f6b">{{img.verNote}}</span>
+</div>
+<button type="button" onClick="{{imgNext}}" disabled="{{imgNextOff}}" aria-label="Phiên bản ảnh mới hơn" style="font: inherit; font-size: 16px; font-weight: 700; color: #b0386a; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 8px; width: 44px; min-height: 44px; cursor: pointer">›</button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; color: #146c2e; background: #e3f5e8">● Đang bán</span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; color: #b0386a; background: #fdeef4">Nhóm · Thương hiệu shop</span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; color: #8a4b00; background: #fff4e0">★ Ưu tiên cao</span>
+<span style="font-size: 12px; color: #5f5f6b">Ưu tiên do quản lý shop đặt trong Thông số shop</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 20px; font-weight: 700; line-height: 1.45; white-space: pre-wrap"><sc-for list="{{titleSegs}}" as="g" hint-placeholder-count="8"><span style="{{g.style}}">{{g.t}}</span></sc-for></h1>
+<div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: #5f5f6b; flex-wrap: wrap">
+<b style="color: #1a1a1f">{{titleLen}}/120 ký tự</b>
+<span style="width: 120px; height: 6px; background: #f3edf0; border-radius: 999px; display: flex"><span style="width: {{titlePct}}%; height: 6px; border-radius: 999px; background: #71717a"></span></span>
+<span>Tìm kiếm chỉ hiện khoảng 100 ký tự đầu</span>
+<span style="display: inline-flex; align-items: center; gap: 4px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #fdeef4; border: 1px solid #f8b9d3"></span>Từ khoá chính</span>
+<span style="display: inline-flex; align-items: center; gap: 4px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #f3edf0; border: 1px solid #e3d6dc"></span>Phụ</span>
+<span style="display: inline-flex; align-items: center; gap: 4px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #fff4e0; border: 1px solid #f59e0b"></span>Nằm ngoài 100 ký tự</span>
+<a href="CardWhatIf.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Đổi tiêu đề ›</a>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 130px minmax(0, 1fr) 130px minmax(0, 1fr); row-gap: 8px; column-gap: 12px; font-size: 14px; align-items: center">
+<span style="color: #5f5f6b">Mã SP</span>
+<span style="display: flex; align-items: center; gap: 8px"><b>{{pid}}</b>
+<button type="button" onClick="{{copy}}" style="font: inherit; font-size: 12px; font-weight: 600; color: #b0386a; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 8px; min-height: 32px; padding: 0 10px; cursor: pointer">{{copyLabel}}</button></span>
+<span style="color: #5f5f6b">SKU</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="font-size: 12px; font-weight: 600; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">BEP-S5-CB</span><span style="font-size: 13px; color: #5f5f6b">+ 3 phiên bản</span></span>
+<span style="color: #5f5f6b">Danh mục</span>
+<span style="grid-column: span 3">Nhà Cửa &amp; Đời Sống <span style="color: #5f5f6b">›</span> Dụng Cụ Nhà Bếp <span style="color: #5f5f6b">›</span> Bộ Dụng Cụ Vệ Sinh Bếp</span>
+</div>
+
+<div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap; border-top: 1px solid #f1e6eb; padding-top: 4px">
+<a href="#" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; padding-right: 14px">Mở trên Shopee ↗</a>
+<a href="#" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; padding-right: 14px">Mở trong Seller Centre ↗</a>
+<a href="CardWhatIf.dc.html" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; padding-right: 14px">Xem 3 đề xuất ›</a>
+<a href="#" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Phân tích sản phẩm này ›</a>
+</div>
+</div>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; justify-content: space-between"><h2 style="margin: 0; font-size: 16px; font-weight: 700">Giá</h2><span style="font-size: 12px; color: #5f5f6b">Bộ 5 món · Cơ bản</span></div>
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="font-size: 24px; font-weight: 700">{{price.list}}</span><span style="font-size: 13px; color: #5f5f6b">niêm yết</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px; font-size: 13px"><span>Đang bán <b>{{price.sell}}</b> · khách trả <b>{{price.pay}}</b> sau voucher</span><span style="color: #5f5f6b">Chương trình đang chạy: Voucher shop 10.000đ cho đơn ≥200.000đ, đến 30/11</span></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<div style="background: #faf7f8; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #5f5f6b">Giá sàn tuyệt đối</span><b style="font-size: 14px">{{price.abs}}</b></div>
+<div style="background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 600; color: #b0386a">Giá sàn vận hành</span><b style="font-size: 14px">{{price.op}}</b></div>
+<div style="background: #faf7f8; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #5f5f6b">Giảm tối đa</span><b style="font-size: 14px">{{price.maxd}} · {{price.maxdV}}</b></div>
+<div style="background: #faf7f8; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #5f5f6b">Giá TB thị trường</span><b style="font-size: 14px">185.000đ</b></div>
+</div>
+<div style="font-size: 12px; color: #5f5f6b; border-top: 1px solid #f1e6eb; padding-top: 8px">Cập nhật 03/11/2026 06:10 · nguồn: Seller Centre qua Juli Connector · giá sàn: thông số v3</div>
+</section>
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; justify-content: space-between"><h2 style="margin: 0; font-size: 16px; font-weight: 700">Tồn kho</h2><span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 8px; color: #8a4b00; background: #fff4e0">1 phiên bản sắp hết</span></div>
+<div style="display: flex; flex-direction: column">
+<sc-for list="{{stockRows}}" as="r" hint-placeholder-count="4"><div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 56px minmax(0, 1.3fr); gap: 8px; align-items: center; min-height: 40px; border-top: 1px solid #f6f0f3; font-size: 13px"><span style="font-weight: 600">{{r.name}}</span><b style="text-align: right">{{r.stock}}</b><span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 6px; justify-self: start; {{r.style}}">{{r.note}}</span></div></sc-for>
+</div>
+<div style="font-size: 12px; color: #5f5f6b; border-top: 1px solid #f1e6eb; padding-top: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap">
+<span>Cập nhật 31/10/2026 · nguồn: tệp thông số v3 (tồn kho do bạn nhập)</span>
+<span style="font-size: 11px; font-weight: 600; color: #8a4b00; background: #fff4e0; border-radius: 999px; padding: 2px 8px">Cũ 3 ngày</span>
+</div>
+</section>
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; justify-content: space-between"><h2 style="margin: 0; font-size: 16px; font-weight: 700">Uy tín</h2><span style="font-size: 12px; color: #5f5f6b">Toàn sản phẩm</span></div>
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 24px; font-weight: 700">4,8</span><span style="font-size: 13px; color: #5f5f6b">/ 5 · 1.236 đánh giá</span></div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<div style="background: #faf7f8; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #5f5f6b">Đã bán</span><b style="font-size: 14px">3.420</b></div>
+<div style="background: #faf7f8; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #5f5f6b">Lượt thích</span><b style="font-size: 14px">892</b></div>
+<div style="background: #faf7f8; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #5f5f6b">Ngày tạo</span><b style="font-size: 14px">14/03/2025</b></div>
+</div>
+<div style="font-size: 13px; color: #4a4a55">Đánh giá 1–2 sao: 2,1% (30 ngày qua, 2 đánh giá).</div>
+<div style="font-size: 12px; color: #5f5f6b; border-top: 1px solid #f1e6eb; padding-top: 8px">Cập nhật 03/11/2026 06:10 · nguồn: Seller Centre qua Juli Connector</div>
+</section>
+</div>
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 12px"><h2 style="margin: 0; font-size: 16px; font-weight: 700">Phiên bản sản phẩm</h2><span style="font-size: 13px; color: #5f5f6b">4 phiên bản · bấm một dòng để xem chi phí ở tab Chi phí &amp; giá sàn</span></div>
+<div style="display: grid; grid-template-columns: 52px minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr) 70px 80px minmax(0, 1.3fr) minmax(0, 1.5fr); gap: 12px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span></span><span>Tên · SKU</span><span>Giá niêm yết</span><span>Giá khuyến mãi</span><span>Tồn</span><span>Đơn 30 ngày</span><span>Biên/đơn (tự nhiên)</span><span>Giá sàn vận hành · tuyệt đối</span></div>
+<sc-for list="{{varRows}}" as="v" hint-placeholder-count="4">
+<button type="button" onClick="{{v.pick}}" aria-pressed="{{v.on}}" style="font: inherit; text-align: left; color: #1a1a1f; border-radius: 12px; padding: 8px 12px; min-height: 56px; cursor: pointer; display: grid; grid-template-columns: 52px minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr) 70px 80px minmax(0, 1.3fr) minmax(0, 1.5fr); gap: 12px; align-items: center; font-size: 14px; {{v.style}}">
+<span style="width: 44px; height: 44px; border-radius: 8px; {{v.imgStyle}}"></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><b>{{v.name}}</b><span style="font-size: 11px; font-weight: 600; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 2px 6px; align-self: flex-start">{{v.sku}}</span></span>
+<span>{{v.list}}</span>
+<span style="{{v.promoStyle}}">{{v.promo}}</span>
+<span style="font-weight: 600; {{v.stockStyle}}">{{v.stock}}</span>
+<span>{{v.orders}}</span>
+<span style="display: flex; flex-direction: column; gap: 2px">{{v.margin}}<span style="font-size: 12px; color: #5f5f6b">{{v.marginP}}</span></span>
+<span style="display: flex; flex-direction: column; gap: 2px">{{v.floor}}<span style="font-size: 12px; color: #5f5f6b">{{v.floorAbs}}</span></span>
+</button>
+</sc-for>
+<div style="font-size: 12px; color: #5f5f6b">Cập nhật: giá, tồn 03/11 06:10 (Seller Centre) · giá vốn thông số v3 02/11 · đơn báo cáo đơn 03/11 · tổng đơn 30 ngày = {{varTotal}}</div>
+</section>
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 14px 20px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: baseline; gap: 12px"><h2 style="margin: 0; font-size: 16px; font-weight: 700">5 con số</h2><span style="font-size: 13px; color: #5f5f6b">30 ngày · so với 30 ngày trước · VND và %</span></div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{kpis}}" as="m" hint-placeholder-count="5">
+<div style="border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; background: #ffffff; border: 1px solid #ece3e7">
+<span style="font-size: 12px; font-weight: 600; color: #b0386a">{{m.label}}</span>
+<span style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap"><span style="font-size: 22px; font-weight: 700">{{m.value}}</span><span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 6px; {{m.deltaStyle}}">{{m.delta}}</span></span>
+<span style="font-size: 12px; color: #5f5f6b">{{m.sub}}</span>
+</div>
+</sc-for>
+</div>
+<div style="font-size: 12px; color: #5f5f6b">Cập nhật: báo cáo hiệu suất sản phẩm đến 02/11 · biên lợi nhuận: sau giá vốn, đóng gói, phí sàn, quảng cáo, voucher và khuyến mãi, hoa hồng liên kết</div>
+</section>
+
+<div role="tablist" aria-label="Sản phẩm" style="display: inline-flex; align-self: flex-start; gap: 4px; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 999px; padding: 4px">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="5"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="font: inherit; font-size: 14px; font-weight: 600; border: 0; border-radius: 999px; min-height: 40px; padding: 0 18px; cursor: pointer; {{t.style}}">{{t.label}}</button></sc-for>
+</div>
+
+<sc-if value="{{isHs}}" hint-placeholder-val="{{ true }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Hiệu suất</h2>
+<div style="display: inline-flex; gap: 4px; background: #faf7f8; border: 1px solid #ece3e7; border-radius: 10px; padding: 3px">
+<sc-for list="{{periods}}" as="p" hint-placeholder-count="3"><button type="button" aria-pressed="{{p.on}}" onClick="{{p.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border: 0; border-radius: 8px; min-height: 36px; padding: 0 12px; cursor: pointer; {{p.style}}">{{p.label}}</button></sc-for>
+</div>
+<span style="font-size: 12px; color: #5f5f6b">Chuỗi chỉ số: Lượt xem → CTR → CTOR → AOV → GMV → Biên lợi nhuận</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px">
+<sc-for list="{{chain}}" as="c" hint-placeholder-count="6">
+<div style="border: 1px solid #ece3e7; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 12px; font-weight: 600; color: #b0386a">{{c.label}}</span>
+<span style="font-size: 18px; font-weight: 700">{{c.value}}</span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 6px; align-self: flex-start; {{c.deltaStyle}}">{{c.delta}}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #f1e6eb; padding-top: 14px">
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+<h3 style="margin: 0; font-size: 16px; font-weight: 700">Theo ngày · 30 ngày gần nhất</h3>
+<div style="display: inline-flex; gap: 4px; background: #faf7f8; border: 1px solid #ece3e7; border-radius: 10px; padding: 3px">
+<sc-for list="{{seriesTabs}}" as="s" hint-placeholder-count="3"><button type="button" aria-pressed="{{s.on}}" onClick="{{s.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border: 0; border-radius: 8px; min-height: 36px; padding: 0 12px; cursor: pointer; {{s.style}}">{{s.label}}</button></sc-for>
+</div>
+<span style="font-size: 12px; color: #5f5f6b">{{seriesNote}}</span>
+</div>
+<div style="display: flex; align-items: flex-end; gap: 3px; height: 150px; border-bottom: 1px solid #ece3e7; padding: 0 2px">
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="30"><span style="flex: 1; border-radius: 3px 3px 0 0; {{b.style}}"></span></sc-for>
+</div>
+<div style="display: flex; gap: 3px; height: 22px; padding: 0 2px">
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="30"><span style="flex: 1; display: flex; justify-content: center; font-size: 12px; color: #1a1a1f">{{b.mark}}</span></sc-for>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 12px; color: #5f5f6b"><span>05/10</span><span>19/10</span><span>03/11</span></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 600; color: #5f5f6b">◆ Thẻ đã thực hiện trong 30 ngày</div>
+<sc-for list="{{markers}}" as="m" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 70px minmax(0, 1.6fr) minmax(0, 2fr) minmax(0, 1.6fr) 120px; gap: 12px; align-items: center; border: 1px solid #f1e6eb; border-radius: 12px; padding: 0 12px; min-height: 48px; font-size: 13px">
+<b>◆ {{m.d}}</b><span style="font-weight: 600">{{m.t}}</span><span style="color: #4a4a55">{{m.t7}}</span><span style="color: #4a4a55">{{m.fin}}</span>
+<a href="CardWhatIf.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; justify-content: flex-end">{{m.card}} ›</a>
+</div>
+</sc-for>
+</div>
+<div style="font-size: 12px; color: #5f5f6b">Cập nhật: báo cáo hiệu suất sản phẩm đến 02/11/2026 · chốt ngày 14 và 28 theo từng thẻ</div>
+</section>
+</sc-if>
+
+<sc-if value="{{isNg}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Nguồn của sản phẩm này</h2>
+<span style="font-size: 13px; color: #5f5f6b">30 ngày · {{totalO}} đơn · mỗi bảng cộng đúng 100%</span>
+<button type="button" aria-pressed="{{adOn}}" onClick="{{toggleAd}}" style="margin-left: auto; font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; {{adBtnStyle}}">{{adBtnLabel}}</button>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 16px; font-weight: 700">Luồng khách vào</h3>
+<div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 60px minmax(0, 1.6fr) minmax(0, 1fr) 90px minmax(0, 1.8fr); gap: 12px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Nguồn</span><span>Đơn</span><span>Tỉ lệ đơn</span><span>GMV</span><span>Biên</span><span>→ đề xuất</span></div>
+<sc-for list="{{traffic}}" as="r" hint-placeholder-count="5">
+<div style="border: 1px solid #f1e6eb; border-radius: 12px; display: flex; flex-direction: column">
+<div style="display: grid; grid-template-columns: minmax(0, 1.6fr) 60px minmax(0, 1.6fr) minmax(0, 1fr) 90px minmax(0, 1.8fr); gap: 12px; align-items: center; padding: 6px 12px; min-height: 48px; font-size: 14px">
+<span style="display: flex; align-items: center; gap: 8px"><b>{{r.k}}</b><span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 6px; {{r.grpStyle}}">{{r.grp}}</span></span>
+<b>{{r.o}}</b>
+<span style="display: flex; align-items: center; gap: 8px"><span style="flex: 1; height: 6px; background: #f3edf0; border-radius: 999px; display: flex"><span style="height: 6px; border-radius: 999px; background: #71717a; width: {{r.w}}%"></span></span><b style="min-width: 48px; text-align: right">{{r.pct}}</b></span>
+<span>{{r.gmv}}</span>
+<span style="font-weight: 600; {{r.marStyle}}">{{r.mar}}</span>
+<span>{{r.card}}</span>
+</div>
+<sc-if value="{{r.hasAd}}" hint-placeholder-val="{{ false }}"><div style="display: flex; align-items: center; gap: 8px; margin: 0 12px 8px 32px; padding: 6px 10px; background: #fff7fa; border: 1px dashed #f8b9d3; border-radius: 10px; font-size: 13px"><b style="color: #b0386a">trong đó Quảng cáo</b><span>{{r.adO}} đơn · {{r.adPct}} đơn của nguồn này</span><span style="color: #5f5f6b">Không cộng thêm vào tổng</span></div></sc-if>
+</div>
+</sc-for>
+<div style="display: flex; justify-content: space-between; padding: 0 12px; font-size: 14px"><span style="color: #5f5f6b">Tổng · bằng số đơn của sản phẩm</span><b>{{totalO}} đơn · 100,0% · {{totalG}} · {{totalM}}</b></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #f1e6eb; padding-top: 14px">
+<h3 style="margin: 0; font-size: 16px; font-weight: 700">Mức ưu đãi trên mỗi dòng đơn</h3>
+<div style="display: grid; grid-template-columns: minmax(0, 1.8fr) 60px minmax(0, 1.6fr) minmax(0, 1fr) 90px minmax(0, 1.8fr); gap: 12px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Loại ưu đãi</span><span>Đơn</span><span>Tỉ lệ đơn</span><span>GMV</span><span>Biên</span><span>→ đề xuất</span></div>
+<sc-for list="{{levers}}" as="r" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: minmax(0, 1.8fr) 60px minmax(0, 1.6fr) minmax(0, 1fr) 90px minmax(0, 1.8fr); gap: 12px; align-items: center; border: 1px solid #f1e6eb; border-radius: 12px; padding: 6px 12px; min-height: 48px; font-size: 14px">
+<b>{{r.k}}</b><b>{{r.o}}</b>
+<span style="display: flex; align-items: center; gap: 8px"><span style="flex: 1; height: 6px; background: #f3edf0; border-radius: 999px; display: flex"><span style="height: 6px; border-radius: 999px; background: #71717a; width: {{r.w}}%"></span></span><b style="min-width: 48px; text-align: right">{{r.pct}}</b></span>
+<span>{{r.gmv}}</span><span style="font-weight: 600; {{r.marStyle}}">{{r.mar}}</span><span>{{r.card}}</span>
+</div>
+</sc-for>
+<div style="display: flex; justify-content: space-between; padding: 0 12px; font-size: 14px"><span style="color: #5f5f6b">Tổng · bằng số đơn của sản phẩm</span><b>{{totalO}} đơn · 100,0% · {{totalG}} · {{totalM}}</b></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #f1e6eb; padding-top: 14px">
+<h3 style="margin: 0; font-size: 16px; font-weight: 700">Nguồn × ưu đãi · số đơn</h3>
+<div style="display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)) 80px; gap: 8px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span></span><sc-for list="{{crossHead}}" as="h" hint-placeholder-count="4"><span>{{h}}</span></sc-for><span>Cộng</span></div>
+<sc-for list="{{cross}}" as="r" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)) 80px; gap: 8px; align-items: center; padding: 0 12px; min-height: 40px; border-top: 1px solid #f6f0f3; font-size: 14px">
+<b>{{r.k}}</b>
+<sc-for list="{{r.cells}}" as="c" hint-placeholder-count="4"><span style="border-radius: 8px; padding: 4px 8px; {{c.style}}">{{c.v}}</span></sc-for>
+<b>{{r.sum}}</b>
+</div>
+</sc-for>
+<div style="display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)) 80px; gap: 8px; padding: 0 12px; min-height: 40px; align-items: center; border-top: 1px solid #ece3e7; font-size: 14px"><b>Cộng</b><sc-for list="{{crossSums}}" as="c" hint-placeholder-count="4"><b>{{c}}</b></sc-for><b>{{totalO}}</b></div>
+</div>
+
+<sc-if value="{{adOn}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 8px; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 14px 16px">
+<div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap"><h3 style="margin: 0; font-size: 16px; font-weight: 700">Quảng cáo · lớp phủ</h3><span style="font-size: 13px; color: #4a4a55">{{adTotalO}} đơn ({{adPctO}}) nằm trong Tìm kiếm và Đề xuất · chi {{adTotalSpend}} · mỗi chiến dịch được chấm theo mục đích</span></div>
+<sc-for list="{{ads}}" as="a" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) 130px 100px 60px minmax(0, 2.2fr) 80px; gap: 12px; align-items: center; background: #ffffff; border: 1px solid #f1e6eb; border-radius: 10px; padding: 0 12px; min-height: 48px; font-size: 13px">
+<b>{{a.n}}</b>
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 8px; justify-self: start; {{a.pStyle}}">{{a.pl}}</span>
+<span>{{a.spend}}</span><span>{{a.o}} đơn</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 6px; {{a.okStyle}}">{{a.ok}}</span>{{a.judge}}</span>
+<a href="CardWhatIf.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; justify-content: flex-end">Thẻ ›</a>
+</div>
+</sc-for>
+<div style="font-size: 12px; color: #5f5f6b">Hiển thị: chấm theo chi phí/1.000 lượt xem và CTR · Lượt vào shop: theo chi phí/lượt vào · Chuyển đổi: ROAS so với hoà vốn · Ra mắt: ngân sách có trần và ngày kết thúc</div>
+</div>
+</sc-if>
+<div style="font-size: 12px; color: #5f5f6b">Cập nhật: báo cáo đơn và báo cáo quảng cáo đến 02/11/2026 · nguồn: Seller Centre qua Juli Connector · đơn đã bỏ tên, số điện thoại, địa chỉ khách</div>
+</section>
+</sc-if>
+
+<sc-if value="{{isKw}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Từ khoá</h2>
+<span style="font-size: 13px; color: #5f5f6b">Danh sách từ khoá của sản phẩm · tối đa 5 từ khoá chính</span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{limitChipStyle}}">{{coreCount}}/5 chính</span>
+<button type="button" onClick="{{addCore}}" disabled="{{addOff}}" style="margin-left: auto; font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">+ Thêm từ khoá chính</button>
+</div>
+
+<sc-if value="{{limitMsg}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: center; gap: 10px; background: #fff4e0; border: 1px solid #f59e0b; border-radius: 12px; padding: 10px 14px; font-size: 14px"><b style="color: #8a4b00">Đã đủ 5 từ khoá chính.</b><span>Muốn thêm từ khoá chính mới, hãy hạ một từ khoá chính xuống Phụ ở cột bên phải. Từ khoá phụ không giới hạn.</span></div>
+</sc-if>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<div style="background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #b0386a">Phủ trong tiêu đề</span><span style="font-size: 22px; font-weight: 700">{{cov.all}}</span><span style="font-size: 12px; color: #5f5f6b">Tổng lượt tìm của từ khoá chính và phụ có trong tiêu đề</span></div>
+<div style="background: #faf7f8; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #b0386a">Trong 100 ký tự đầu</span><span style="font-size: 22px; font-weight: 700">{{cov.vis}}</span><span style="font-size: 12px; color: #5f5f6b">Phần tìm kiếm thực sự hiện</span></div>
+<div style="background: #faf7f8; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #b0386a">Chưa có trong tiêu đề</span><span style="font-size: 16px; font-weight: 700">{{cov.missing}}</span><a href="CardWhatIf.dc.html" style="font-size: 13px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem thẻ tiêu đề ›</a></div>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 2.3fr) minmax(0, 1fr) 100px; gap: 10px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Từ khoá</span><span>Lượt tìm/tháng</span><span>Độ khó</span><span>CPC</span><span>Vị trí trong tiêu đề</span><span>Hạng của ta</span><span>Giá: TB thị trường · ta · sàn</span><span>Thẻ liên quan</span><span></span></div>
+<sc-for list="{{kwRows}}" as="r" hint-placeholder-count="9">
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 2.3fr) minmax(0, 1fr) 100px; gap: 10px; align-items: center; border: 1px solid #f1e6eb; border-radius: 12px; padding: 6px 12px; min-height: 56px; font-size: 13px; {{r.box}}">
+<span style="display: flex; flex-direction: column; gap: 3px"><b style="font-size: 14px">{{r.k}}</b><span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 6px; align-self: flex-start; {{r.roleStyle}}">{{r.roleLabel}}</span></span>
+<span style="display: flex; flex-direction: column; gap: 2px"><b>{{r.vol}}</b><span style="font-size: 12px; font-weight: 600; {{r.trStyle}}">{{r.tr}}</span></span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 6px; justify-self: start; {{r.diffStyle}}">{{r.diff}}</span>
+<span>{{r.cpc}}</span>
+<span style="font-weight: 600; {{r.posStyle}}">{{r.pos}}</span>
+<span style="font-weight: 600">{{r.rank}}</span>
+<span style="display: flex; flex-direction: column; gap: 4px">{{r.price}}<span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 6px; align-self: flex-start; {{r.priceStyle}}">{{r.priceNote}}</span></span>
+<span style="display: flex; flex-direction: column; gap: 2px"><sc-for list="{{r.cards}}" as="c" hint-placeholder-count="2"><a href="CardWhatIf.dc.html" style="font-size: 13px; font-weight: 600; text-decoration: none; min-height: 24px; display: inline-flex; align-items: center">{{c}} ›</a></sc-for>{{r.noCards}}</span>
+<button type="button" onClick="{{r.act}}" disabled="{{r.actOff}}" style="font: inherit; font-size: 12px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 8px; cursor: pointer">{{r.actLabel}}</button>
+</div>
+</sc-for>
+
+<div style="display: flex; flex-direction: column; gap: 6px; background: #faf7f8; border-radius: 12px; padding: 12px 14px">
+<div style="font-size: 12px; font-weight: 600; color: #5f5f6b">Loại trừ · không dùng trong tiêu đề và quảng cáo</div>
+<div style="display: flex; gap: 6px; flex-wrap: wrap"><sc-for list="{{excl}}" as="e" hint-placeholder-count="2"><span style="font-size: 13px; font-weight: 600; color: #a3222f; background: #fdecec; border-radius: 6px; padding: 3px 8px">− {{e}}</span></sc-for></div>
+</div>
+<div style="font-size: 12px; color: #5f5f6b">Cập nhật: lượt tìm, độ khó, CPC do chủ shop thu thập ngày 01/11/2026 · vị trí và hạng của ta: Juli Connector 03/11 · giá TB thị trường: trung vị 20 kết quả đầu</div>
+</section>
+</sc-if>
+
+<sc-if value="{{isCp}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Chi phí và giá sàn</h2>
+<span style="font-size: 13px; color: #5f5f6b">Mỗi đơn · chọn phiên bản</span>
+<div style="display: inline-flex; gap: 4px; flex-wrap: wrap">
+<sc-for list="{{skuPills}}" as="p" hint-placeholder-count="4"><button type="button" aria-pressed="{{p.on}}" onClick="{{p.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; {{p.style}}">{{p.label}}</button></sc-for>
+</div>
+</div>
+
+<sc-if value="{{noCost}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px; background: #fff4e0; border: 1px solid #f59e0b; border-radius: 12px; padding: 18px 20px">
+<b style="font-size: 16px; color: #8a4b00">Chưa có giá vốn cho {{sel.id}}</b>
+<span style="font-size: 14px; max-width: 640px">Không có giá vốn, Juli chưa tính được biên lợi nhuận và giá sàn của phiên bản này. Thẻ giảm giá và voucher cho {{sel.id}} đang tạm dừng.</span>
+<div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
+<a href="CaiDatImport.dc.html" style="font-weight: 600; text-decoration: none; color: #ffffff; background: #c2306d; border-radius: 10px; min-height: 44px; padding: 0 18px; display: inline-flex; align-items: center">Nhập giá vốn ở Cài đặt ›</a>
+<span style="font-size: 13px; color: #4a4a55">Cài đặt › Thông số shop · tải mẫu .xlsx đã điền sẵn SKU</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{hasCost}}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 16px; font-weight: 700">Một đơn {{sel.name}}</h3>
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) 100px 100px; gap: 10px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Khoản</span><span></span><span style="text-align: right">Đơn tự nhiên</span><span style="text-align: right">Đơn từ QC</span></div>
+<sc-for list="{{wf}}" as="w" hint-placeholder-count="10">
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) 100px 100px; gap: 10px; align-items: center; min-height: 40px; padding: 0 12px; border-radius: 10px; font-size: 14px; {{w.style}}">
+<span style="{{w.labelStyle}}">{{w.label}}</span>
+<span style="display: flex"><span style="height: 6px; border-radius: 999px; {{w.barStyle}}"></span></span>
+<b style="text-align: right; {{w.vStyle}}">{{w.v}}</b>
+<b style="text-align: right; {{w.v2Style}}">{{w.v2}}</b>
+</div>
+</sc-for>
+<div style="font-size: 12px; color: #5f5f6b">Phí sàn tính trên số tiền khách trả. Quảng cáo tính {{adPct}} giá bán ở đơn từ quảng cáo. Phí cố định/đơn: 0đ. Hoa hồng liên kết: 0% cho phiên bản này.</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<h3 style="margin: 0; font-size: 16px; font-weight: 700">Giá sàn</h3>
+<div style="background: #faf7f8; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #5f5f6b">Giá sàn tuyệt đối · không lỗ</span><b style="font-size: 20px">{{sel.abs}}</b><span style="font-size: 12px; color: #5f5f6b">(giá vốn + đóng gói + phí cố định) ÷ (1 − phí sàn 15%)</span></div>
+<div style="background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #b0386a">Giá sàn vận hành · còn đạt biên mục tiêu</span><b style="font-size: 20px">{{sel.op}}</b><span style="font-size: 12px; color: #5f5f6b">cùng tử số ÷ (1 − 15% − QC 18,4% − hoa hồng 0% − biên mục tiêu 10%)</span></div>
+<div style="background: #faf7f8; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 600; color: #5f5f6b">Giảm tối đa</span><b style="font-size: 20px">{{sel.maxd}} · {{sel.maxdV}}</b><span style="font-size: 12px; color: #5f5f6b">1 − giá sàn vận hành ÷ giá niêm yết, lấy nhỏ hơn trần 10% bạn đặt</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="position: relative; height: 34px">
+<span style="position: absolute; left: 0; right: 0; top: 14px; height: 6px; background: #f3edf0; border-radius: 999px"></span>
+<span style="position: absolute; top: 14px; height: 6px; border-radius: 999px; background: #fdecec; left: {{g.absL}}%; width: {{g.opW}}%"></span>
+<span style="position: absolute; top: 14px; height: 6px; border-radius: 999px; background: #e3f5e8; left: {{g.opL}}%; width: {{g.okW}}%"></span>
+<span style="position: absolute; top: 8px; width: 2px; height: 18px; background: #a3222f; left: {{g.absL}}%"></span>
+<span style="position: absolute; top: 8px; width: 2px; height: 18px; background: #8a4b00; left: {{g.opL}}%"></span>
+<span style="position: absolute; top: 8px; width: 2px; height: 18px; background: #146c2e; left: {{g.payL}}%"></span>
+<span style="position: absolute; top: 8px; width: 2px; height: 18px; background: #1a1a1f; left: {{g.listL}}%"></span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: #4a4a55">
+<span style="color: #a3222f">▎ tuyệt đối</span><span style="color: #8a4b00">▎ vận hành</span><span style="color: #146c2e">▎ khách trả {{sel.pay}}</span><span>▎ niêm yết {{sel.list}}</span>
+</div>
+</div>
+<div style="font-size: 13px; font-weight: 600; border-radius: 10px; padding: 8px 12px; {{g.verdictStyle}}">{{g.verdict}}</div>
+</div>
+</div>
+</sc-if>
+<div style="font-size: 12px; color: #5f5f6b">Cập nhật: giá vốn, đóng gói thông số v3 ngày 02/11/2026 · phí sàn và quảng cáo từ báo cáo Seller Centre 03/11 · biên mục tiêu từ Mục tiêu tháng 11</div>
+</section>
+</sc-if>
+
+<sc-if value="{{isLs}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Lịch sử</h2>
+<span style="font-size: 13px; color: #5f5f6b">Chỉ thêm, không sửa · mới nhất ở trên</span>
+<div style="display: inline-flex; gap: 4px; background: #faf7f8; border: 1px solid #ece3e7; border-radius: 10px; padding: 3px">
+<sc-for list="{{filters}}" as="f" hint-placeholder-count="4"><button type="button" aria-pressed="{{f.on}}" onClick="{{f.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border: 0; border-radius: 8px; min-height: 36px; padding: 0 12px; cursor: pointer; {{f.style}}">{{f.label}}</button></sc-for>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{events}}" as="e" hint-placeholder-count="8">
+<div style="display: grid; grid-template-columns: 110px 28px minmax(0, 1fr) 130px; gap: 12px; align-items: flex-start; border: 1px solid #f1e6eb; border-radius: 12px; padding: 10px 12px">
+<span style="font-size: 13px; font-weight: 600; color: #5f5f6b">{{e.d}}</span>
+<span style="width: 24px; height: 24px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; {{e.icoStyle}}">{{e.ico}}</span>
+<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+<b style="font-size: 14px">{{e.t}}</b>
+<span style="font-size: 13px; color: #4a4a55">{{e.s}}</span>
+<sc-if value="{{e.diffTitle}}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; gap: 4px; background: #faf7f8; border-radius: 10px; padding: 8px 12px; font-size: 13px"><span style="color: #6b6b76; text-decoration: line-through">Bộ vệ sinh bếp 5 món set rửa chén: găng tay rửa chén, xơ mướp, nước rửa chén, túi zip - combo dọn bếp (98 ký tự)</span><span style="font-weight: 600">Bộ vệ sinh bếp 5 món set rửa chén: găng tay rửa chén, xơ mướp, nước rửa chén, túi zip, giấy bạc - combo dọn bếp (111 ký tự)</span></div></sc-if>
+<sc-if value="{{e.diffImg}}" hint-placeholder-val="{{ false }}"><div style="display: flex; align-items: center; gap: 10px; background: #faf7f8; border-radius: 10px; padding: 8px 12px; font-size: 13px"><span style="width: 44px; height: 44px; border-radius: 8px; background: #f3edf0; border: 1px solid #e3d6dc"></span><span>→</span><span style="width: 44px; height: 44px; border-radius: 8px; background: #fdeef4; border: 1px solid #f8b9d3"></span><span style="color: #4a4a55">Phiên bản ảnh 2 → 3 · nền sáng hơn, thêm cụm 5 món</span></div></sc-if>
+<sc-if value="{{e.diffPrice}}" hint-placeholder-val="{{ false }}"><div style="display: flex; align-items: center; gap: 10px; background: #faf7f8; border-radius: 10px; padding: 8px 12px; font-size: 13px"><span style="color: #6b6b76; text-decoration: line-through">139.000đ</span><span>→</span><b>129.000đ</b><span style="color: #4a4a55">niêm yết BEP-S3 · −7,2% · giá sàn chưa tính được (thiếu giá vốn)</span></div></sc-if>
+</div>
+<span style="justify-self: end; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{e.chipStyle}}">{{e.chip}}</span>
+</div>
+</sc-for>
+</div>
+<div style="font-size: 12px; color: #5f5f6b">Thẻ: card_events (đề xuất → hiển thị → duyệt → thực hiện → T+7 → ngày 14/28 → hoàn tác) · thay đổi phát hiện: so sánh hai lần đọc Seller Centre · thông số: các phiên bản tệp đã áp dụng</div>
+</section>
+</sc-if>
+
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Số liệu là ví dụ minh hoạ của một shop gia dụng giả định. Ảnh là khối màu giữ chỗ.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":3200}}'>
+class Component extends DCLogic {
+_d() {
+// ── shared synthetic data (same in SanPham + SanPhamMobile). Illustrative, not any real shop. ──
+const vnd = (n) => String(Math.round(Math.abs(n))).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
+const vndS = (n) => (n < 0 ? '−' : n > 0 ? '+' : '') + vnd(n);
+const num = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const pc = (x, d) => (x).toFixed(d === undefined ? 1 : d).replace('.', ',') + '%';
+const tr = (n) => (n / 1000000).toFixed(1).replace('.', ',') + ' tr';
+const C = {
+  ink: '#1a1a1f', ink2: '#4a4a55', mut: '#5f5f6b', mut2: '#6b6b76',
+  pinkText: '#b0386a', primary: '#c2306d',
+  upTxt: '#146c2e', upBg: '#e3f5e8', upBar: '#1f8a3d',
+  dnTxt: '#a3222f', dnBg: '#fdecec',
+  wnTxt: '#8a4b00', wnBg: '#fff4e0',
+  inTxt: '#1d4f91', inBg: '#e6f0fd',
+  neutralBg: '#f0eef0', chart: '#71717a'
+};
+const chipUp = 'color: #146c2e; background: #e3f5e8';
+const chipDn = 'color: #a3222f; background: #fdecec';
+const chipWn = 'color: #8a4b00; background: #fff4e0';
+const chipIn = 'color: #1d4f91; background: #e6f0fd';
+const chipNe = 'color: #4a4a55; background: #f0eef0';
+const chipPk = 'color: #b0386a; background: #fdeef4';
+const pillOn = 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a';
+const pillOff = 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc';
+
+const SHOP = { fee: 0.15, ad: 0.184, aff: 0, target: 0.10, cap: 0.10, voucher: 10000, voucherMin: 200000 };
+const SKUS = [
+  { id: 'BEP-S5-CB', name: 'Bộ 5 món · Cơ bản', list: 200000, promo: null, stock: 214, restock: null, orders: 44, cogs: 100000, pack: 3000, fixed: 0, img: 0 },
+  { id: 'BEP-S5-L', name: 'Bộ 5 món · Găng size L', list: 205000, promo: null, stock: 96, restock: null, orders: 20, cogs: 102000, pack: 3000, fixed: 0, img: 1 },
+  { id: 'BEP-S3', name: 'Bộ 3 món · Găng, xơ mướp, nước rửa', list: 129000, promo: 119000, stock: 9, restock: '08/11', orders: 12, cogs: null, pack: null, fixed: 0, img: 2 },
+  { id: 'BEP-S5-QT', name: 'Bộ 5 món · Hộp quà', list: 249000, promo: null, stock: 0, restock: '12/11', orders: 4, cogs: 128000, pack: 6000, fixed: 0, img: 3 }
+];
+function econ(s) {
+  if (s.cogs == null) return null;
+  const sell = s.promo || s.list;
+  const v = sell >= SHOP.voucherMin ? SHOP.voucher : 0;
+  const pay = sell - v;
+  const fee = Math.round(SHOP.fee * pay);
+  const cost = s.cogs + s.pack + s.fixed;
+  const org = pay - fee - cost;
+  const ads = Math.round(SHOP.ad * sell);
+  const adm = org - ads;
+  const abs = Math.round(cost / (1 - SHOP.fee));
+  const op = Math.round(cost / (1 - SHOP.fee - SHOP.ad - SHOP.aff - SHOP.target));
+  const maxd = Math.min(SHOP.cap, 1 - op / s.list);
+  return { sell, v, pay, fee, cost, org, orgP: org / pay * 100, ads, adm, admP: adm / pay * 100, abs, op, maxd: maxd * 100, maxdV: Math.floor(s.list * maxd / 1000) * 1000 };
+}
+const TITLE = 'Bộ vệ sinh bếp 5 món set rửa chén: găng tay rửa chén, xơ mướp, nước rửa chén, túi zip, giấy bạc - combo dọn bếp';
+const KEYS = [
+  { k: 'bộ vệ sinh bếp', role: 'chinh', vol: 3200, tr: '▲ 12%', up: true, diff: 42, cpc: 980, rank: 9, med: 185000, cards: [['Thẻ tiêu đề', 'Tiêu đề'], ['Thẻ giá', 'Giá']] },
+  { k: 'set rửa chén', role: 'chinh', vol: 5600, tr: '▲ 5%', up: true, diff: 55, cpc: 1100, rank: 14, med: 172000, cards: [['Thẻ quảng cáo', 'Quảng cáo']] },
+  { k: 'combo dọn bếp', role: 'chinh', vol: 2100, tr: '► 0%', up: null, diff: 31, cpc: 760, rank: 27, med: 192000, cards: [['Thẻ tiêu đề', 'Tiêu đề']] },
+  { k: 'dụng cụ nhà bếp', role: 'chinh', vol: 9800, tr: '▼ 3%', up: false, diff: 71, cpc: 1320, rank: 58, med: 96000, cards: [] },
+  { k: 'đồ dùng nhà bếp tiện ích', role: 'chinh', vol: 1400, tr: '▲ 18%', up: true, diff: 24, cpc: 640, rank: 41, med: 158000, cards: [] },
+  { k: 'găng tay rửa chén', role: 'phu', vol: 18400, tr: '▲ 8%', up: true, diff: 78, cpc: 1250, rank: 112, med: 38000, cards: [] },
+  { k: 'xơ mướp', role: 'phu', vol: 6900, tr: '▲ 2%', up: true, diff: 48, cpc: 520, rank: 66, med: 21000, cards: [] },
+  { k: 'túi zip', role: 'phu', vol: 11200, tr: '► 0%', up: null, diff: 63, cpc: 890, rank: 140, med: 34000, cards: [] },
+  { k: 'giấy bạc nướng', role: 'phu', vol: 2700, tr: '▲ 4%', up: true, diff: 36, cpc: 700, rank: 0, med: 45000, cards: [] },
+  { k: 'tên shop mẫu', role: 'thuonghieu', vol: 420, tr: '▲ 22%', up: true, diff: 8, cpc: 300, rank: 1, med: 0, cards: [] },
+  { k: 'sỉ', role: 'loaitru', vol: 0, tr: '', up: null, diff: 0, cpc: 0, rank: 0, med: 0, cards: [] },
+  { k: 'hàng cũ', role: 'loaitru', vol: 0, tr: '', up: null, diff: 0, cpc: 0, rank: 0, med: 0, cards: [] }
+];
+const SRC_TRAFFIC = [
+  { k: 'Tìm kiếm', grp: 'Tự nhiên', o: 28, aov: 190000, p: 1436400, ad: 12, card: 'Tiêu đề · +1,8 tr/tháng' },
+  { k: 'Đề xuất', grp: 'Tự nhiên', o: 16, aov: 178000, p: 712000, ad: 6, card: 'Ảnh bìa · +0,9 tr/tháng' },
+  { k: 'Trang shop', grp: 'Tự nhiên', o: 8, aov: 205000, p: 508400, ad: 0, card: null },
+  { k: 'Liên kết (KOL)', grp: 'Liên kết', o: 12, aov: 165000, p: 396000, ad: 0, card: 'Hoa hồng · tiết kiệm 0,2 tr' },
+  { k: 'Trang Flash Sale', grp: 'Flash Sale', o: 16, aov: 152000, p: 408600, ad: 0, card: null }
+];
+const SRC_LEVER = [
+  { k: 'Không ưu đãi', o: 16, g: 3200000, p: 1072000, card: null },
+  { k: 'Voucher', o: 30, g: 5700000, p: 1539000, card: 'Voucher 10k → 15k ≥299k · +0,18 tr' },
+  { k: 'Khuyến mãi (gồm giá Flash Sale)', o: 28, g: 4000000, p: 560000, card: 'Giảm giá · giữ trên giá sàn' },
+  { k: 'Combo / Mua kèm', o: 6, g: 1320000, p: 290400, card: null }
+];
+const CROSS = [[7, 11, 8, 2], [4, 8, 3, 1], [2, 3, 2, 1], [3, 4, 3, 2], [0, 4, 12, 0]];
+const ADS = [
+  { n: 'Tự động · Bộ vệ sinh bếp', purpose: 'chuyen_doi', pl: 'Chuyển đổi', spend: 330000, o: 11, judge: 'ROAS 6,0 so với hoà vốn 3,0', ok: true },
+  { n: 'Hiển thị · Danh mục gia dụng', purpose: 'hien_thi', pl: 'Hiển thị', spend: 130000, o: 3, judge: '38.000đ/1.000 lượt xem · CTR 1,9%', ok: true },
+  { n: 'Vào shop · Mùa sale', purpose: 'luot_vao_shop', pl: 'Lượt vào shop', spend: 90000, o: 2, judge: '1.020 lượt vào · 88đ/lượt', ok: null },
+  { n: 'Ra mắt · Hộp quà', purpose: 'ra_mat', pl: 'Ra mắt', spend: 50000, o: 2, judge: 'Chi 50.000 / trần 300.000đ · hết 15/11', ok: null }
+];
+const PERIODS = {
+  '7': { label: '7 ngày', views: ['3.610', '▲ 4,1%', true], ctr: ['4,4%', '▼ 0,1 pt', false], ctor: ['12,4%', '▲ 0,8 pt', true], aov: ['171.200đ', '▼ 3,7%', false], gmv: ['3.424.000đ', '▲ 6,2%', true], mar: ['24,9%', '▲ 0,6 pt', true] },
+  '30': { label: '30 ngày', views: ['14.800', '▲ 9,2%', true], ctr: ['4,6%', '▲ 0,3 pt', true], ctor: ['11,7%', '▲ 1,0 pt', true], aov: ['177.750đ', '▼ 2,0%', false], gmv: ['14.220.000đ', '▲ 12,7%', true], mar: ['24,3%', '▲ 1,5 pt', true] },
+  '90': { label: '90 ngày', views: ['41.200', '▲ 15,4%', true], ctr: ['4,3%', '▲ 0,2 pt', true], ctor: ['10,9%', '▲ 0,4 pt', true], aov: ['182.400đ', '▼ 0,8%', false], gmv: ['35.203.200đ', '▲ 18,9%', true], mar: ['22,6%', '▲ 0,9 pt', true] }
+};
+const SERIES = {
+  gmv: { label: 'GMV/ngày', unit: 'k đ', v: [310, 420, 380, 450, 520, 440, 390, 410, 560, 520, 480, 530, 610, 500, 470, 540, 600, 570, 430, 410, 480, 520, 640, 590, 560, 480, 450, 520, 560, 610] },
+  views: { label: 'Lượt xem/ngày', unit: '', v: [410, 470, 440, 480, 530, 500, 450, 460, 560, 540, 520, 540, 580, 520, 500, 530, 570, 550, 470, 460, 510, 530, 600, 570, 540, 500, 480, 520, 540, 560] },
+  mar: { label: 'Biên lợi nhuận', unit: '%', v: [21, 22, 22, 23, 23, 22, 21, 22, 24, 24, 23, 24, 25, 24, 22, 22, 23, 23, 24, 24, 24, 25, 25, 26, 25, 25, 24, 25, 25, 26] }
+};
+const MARKERS = [
+  { i: 7, d: '12/10', t: 'Đổi tiêu đề', card: 'Thẻ tiêu đề', t7: 'T+7: CTOR +0,8 pt · trong khoảng', fin: 'Ngày 14: đạt 82% kỳ vọng' },
+  { i: 14, d: '19/10', t: 'Voucher 10k ≥200k', card: 'Thẻ voucher', t7: 'T+7: đơn +3 · biên −0,6 pt', fin: 'Ngày 14: chưa đủ ngày' },
+  { i: 21, d: '26/10', t: 'Ảnh bìa mới', card: 'Thẻ ảnh bìa', t7: 'T+7: CTR +0,3 pt', fin: 'Ngày 14: chưa đủ ngày' }
+];
+const TIMELINE = [
+  { d: '03/11 06:10', type: 'the', ico: '◆', t: 'Thẻ voucher: đề xuất C (15k ≥299k) hiển thị', s: 'Chờ duyệt · nội dung đã đóng băng lúc 06:10', chip: ['Chờ duyệt', chipWn] },
+  { d: '02/11 18:20', type: 'tham_so', ico: '▣', t: 'Thông số shop v3 áp dụng (giá vốn BEP-S5-CB 98.000 → 100.000đ)', s: 'Quản lý shop · lý do: giá nhập tháng 11 · tệp thong-so-1102.xlsx', chip: ['Phiên bản v3', chipNe] },
+  { d: '26/10 14:05', type: 'doi', ico: '≠', t: 'Phát hiện đổi ảnh bìa', s: 'Phiên bản ảnh 2 → 3 · Seller Centre', chip: ['Đã thực hiện', chipUp], diff: 'img' },
+  { d: '26/10 10:30', type: 'the', ico: '◆', t: 'Thẻ ảnh bìa: đã thực hiện (Juli đăng sau khi bạn xác nhận)', s: 'Phê duyệt 25/10 · lý do không áp dụng', chip: ['T+7 xong', chipIn] },
+  { d: '26/10 09:00', type: 'the', ico: '◆', t: 'Thẻ tiêu đề: kết quả ngày 14', s: 'Đạt 82% kỳ vọng · CTOR 11,1% → 11,7%', chip: ['Đã chốt', chipUp] },
+  { d: '19/10 07:40', type: 'the', ico: '◆', t: 'Thẻ voucher A (10k ≥200k): đã thực hiện', s: 'Phê duyệt 18/10 · Juli đặt trên Seller Centre', chip: ['T+7 xong', chipUp] },
+  { d: '17/10 08:15', type: 'the', ico: '◆', t: 'whatif_adjusted · thẻ voucher: bạn đổi giá trị 15.000 → 10.000đ, đơn tối thiểu 299.000 → 200.000đ', s: 'Kết quả hiển thị lúc đổi: giữ trên giá sàn vận hành · biên đơn QC 11,4%', chip: ['Đã điều chỉnh', chipPk] },
+  { d: '12/10 13:50', type: 'doi', ico: '≠', t: 'Phát hiện đổi tiêu đề', s: 'Seller Centre · 98 → 111 ký tự', chip: ['Đã thực hiện', chipUp], diff: 'title' },
+  { d: '05/10 11:00', type: 'doi', ico: '≠', t: 'Phát hiện đổi giá niêm yết BEP-S3', s: 'Seller Centre · Juli Connector', chip: ['Ngoài đề xuất', chipWn], diff: 'price' },
+  { d: '30/09 10:12', type: 'tham_so', ico: '▣', t: 'Thông số shop v2 áp dụng (tồn kho, ngày nhập lại)', s: 'Quản lý shop · lý do: kiểm kho cuối tháng · tệp thong-so-0930.xlsx', chip: ['Phiên bản v2', chipNe] }
+];
+// ── product-level numbers derived from the lines above ──
+const TOTAL_O = SRC_TRAFFIC.reduce((a, r) => a + r.o, 0);
+const TOTAL_G = SRC_TRAFFIC.reduce((a, r) => a + r.o * r.aov, 0);
+const TOTAL_P = SRC_TRAFFIC.reduce((a, r) => a + r.p, 0);
+const SKU_O = SKUS.reduce((a, s) => a + s.orders, 0);
+// ADR-107 reason lists, labels as in apps/demo lib/quyet-dinh/reasons.ts (Decline / Revert artboards)
+const REJECT_REASONS = [
+  { code: 'brand_mismatch', label: 'Thay đổi không hợp thương hiệu hoặc giọng văn' },
+  { code: 'not_convincing', label: 'Lý do hoặc số liệu chưa thuyết phục' },
+  { code: 'editing_myself', label: 'Tôi đang tự sửa sản phẩm này' },
+  { code: 'discontinued', label: 'Sản phẩm sắp ngừng bán hoặc hết hàng' },
+  { code: 'other_campaign', label: 'Đang chạy chiến dịch khác cho sản phẩm này' },
+  { code: 'other', label: 'Khác' }
+];
+const REVERT_REASONS = [
+  { code: 'metrics_dropped', label: 'Doanh số hoặc chỉ số giảm' },
+  { code: 'bad_feedback', label: 'Khách phản hồi không tốt' },
+  { code: 'wrong_info', label: 'Nội dung sai thông tin sản phẩm' },
+  { code: 'off_brand', label: 'Không hợp giọng thương hiệu' },
+  { code: 'tiktok_warning', label: 'TikTok cảnh báo sản phẩm' },
+  { code: 'other', label: 'Khác' }
+];
+
+return { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, SRC_TRAFFIC, SRC_LEVER, CROSS, ADS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS };
+}
+constructor(props) {
+super(props);
+this.state = { tab: 'hs', period: '30', series: 'gmv', imgVer: 2, copied: false, sel: 0, adOn: false, roles: {}, limitMsg: false, filter: 'all' };
+}
+renderVals() {
+const { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, SRC_TRAFFIC, SRC_LEVER, CROSS, ADS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS } = this._d();
+const st = this.state;
+const roleOf = (k) => st.roles[k.k] || k.role;
+// ── image placeholder (token-coloured blocks) ──
+const IMGS = [
+  { bg: 'background: #f3edf0', a: '#e3d6dc', b: '#ece3e7', verLabel: 'Phiên bản 1/3', verNote: 'Ảnh gốc · 14/03/2025' },
+  { bg: 'background: #fdeef4', a: '#f8b9d3', b: '#e7a9c3', verLabel: 'Phiên bản 2/3', verNote: 'Đổi 02/08/2026' },
+  { bg: 'background: #fff7fa', a: '#e7a9c3', b: '#c2306d', verLabel: 'Phiên bản 3/3 · hiện tại', verNote: 'Đổi 26/10/2026 · thẻ ảnh bìa' }
+];
+const im = IMGS[st.imgVer];
+const shapes = [
+  { style: 'left: 36px; top: 150px; width: 70px; height: 84px; border-radius: 14px; background: ' + im.a },
+  { style: 'left: 116px; top: 70px; width: 48px; height: 150px; border-radius: 24px 24px 10px 10px; background: ' + im.b },
+  { style: 'left: 174px; top: 130px; width: 60px; height: 100px; border-radius: 10px; background: ' + im.a },
+  { style: 'left: 60px; top: 40px; width: 38px; height: 38px; border-radius: 999px; background: ' + im.b }
+];
+const thumbs = [0, 1, 2, 3, 4].map((i) => ({ style: 'background: ' + (i === 0 ? '#fdeef4' : '#f3edf0') + '; border: ' + (i === 0 ? '2px solid #b0386a' : '1px solid #e3d6dc') }));
+// ── title with key-list highlighting ──
+const low = TITLE.toLowerCase();
+const mark = new Array(TITLE.length).fill(0);
+KEYS.forEach((k) => {
+  const r = roleOf(k); if (r === 'loaitru' || r === 'thuonghieu') return;
+  let from = 0, idx;
+  while ((idx = low.indexOf(k.k, from)) >= 0) { for (let i = idx; i < idx + k.k.length; i++) mark[i] = Math.max(mark[i], r === 'chinh' ? 2 : 1); from = idx + k.k.length; }
+});
+const segs = []; let cur = null;
+for (let i = 0; i < TITLE.length; i++) {
+  const key = mark[i] + ':' + (i >= 100 ? 1 : 0);
+  if (!cur || cur.key !== key) { cur = { key, t: '', m: mark[i], cut: i >= 100 }; segs.push(cur); }
+  cur.t += TITLE[i];
+}
+const segStyle = (g) => {
+  if (g.cut) return g.m ? 'background: #fff4e0; color: #8a4b00; font-weight: 700; border-radius: 4px' : 'color: #6b6b76';
+  if (g.m === 2) return 'background: #fdeef4; color: #b0386a; font-weight: 700; border-radius: 4px';
+  if (g.m === 1) return 'background: #f3edf0; color: #1a1a1f; border-radius: 4px';
+  return '';
+};
+// ── blocks ──
+const e0 = econ(SKUS[0]);
+const price = { list: vnd(SKUS[0].list), sell: vnd(e0.sell), pay: vnd(e0.pay), abs: vnd(e0.abs), op: vnd(e0.op), maxd: pc(e0.maxd), maxdV: vnd(e0.maxdV) };
+const stockRows = SKUS.map((s) => {
+  const perDay = s.orders / 30; const days = perDay > 0 ? Math.round(s.stock / perDay) : 0;
+  let note = 'còn ' + days + ' ngày bán', style = chipNe;
+  if (s.stock === 0) { note = 'Hết hàng · nhập lại ' + s.restock; style = chipDn; }
+  else if (days < 30) { note = 'còn ' + days + ' ngày · nhập lại ' + s.restock; style = chipWn; }
+  return { name: s.name, stock: num(s.stock), note, style };
+});
+const varRows = SKUS.map((s, i) => {
+  const e = econ(s); const on = st.sel === i;
+  return {
+    name: s.name, sku: s.id, list: vnd(s.list), promo: s.promo ? vnd(s.promo) : '—',
+    promoStyle: s.promo ? 'font-weight: 600; color: #b0386a' : 'color: #5f5f6b',
+    stock: s.stock === 0 ? 'Hết' : num(s.stock), stockStyle: s.stock === 0 ? 'color: #a3222f' : (s.stock < 20 ? 'color: #8a4b00' : ''),
+    orders: String(s.orders),
+    margin: e ? vnd(e.org) : 'Chưa có giá vốn', marginP: e ? pc(e.orgP) : '',
+    floor: e ? vnd(e.op) : '—', floorAbs: e ? vnd(e.abs) : 'Nhập giá vốn ở Cài đặt',
+    imgStyle: 'background: ' + ['#fdeef4', '#f3edf0', '#e6f0fd', '#fff4e0'][i] + '; border: 1px solid #e3d6dc',
+    on, style: on ? 'background: #fff7fa; border: 2px solid #c2306d' : 'background: #ffffff; border: 1px solid #f1e6eb',
+    pick: () => this.setState({ sel: i })
+  };
+});
+const gmvPrev = 12.7;
+const kpis = [
+  { label: '① % giảm giá', value: '5,5%', delta: '▲ 1,3 pt', deltaStyle: chipNe, sub: '820.000đ giảm giá, voucher trên 15.040.000đ giá niêm yết' },
+  { label: '② Doanh thu / 1đ chi thêm', value: '10,0 đ', delta: '▲ 0,9', deltaStyle: chipUp, sub: 'chi 1.420.000đ: voucher 300k · khuyến mãi 520k · QC 600k' },
+  { label: '③ Biên lợi nhuận cuối', value: pc(TOTAL_P / TOTAL_G * 100), delta: '▲ 1,5 pt', deltaStyle: chipUp, sub: vnd(TOTAL_P) + ' sau mọi chi phí' },
+  { label: '④ Số đơn', value: String(TOTAL_O), delta: '▲ ' + pc(gmvPrev), deltaStyle: chipUp, sub: '2,7 đơn/ngày · 71 đơn kỳ trước' },
+  { label: '⑤ AOV', value: vnd(TOTAL_G / TOTAL_O), delta: '▼ 2,0%', deltaStyle: chipDn, sub: 'GMV ' + vnd(TOTAL_G) + ' ÷ ' + TOTAL_O + ' đơn' }
+];
+const tabDefs = [['hs', 'Hiệu suất'], ['ng', 'Nguồn'], ['kw', 'Từ khoá'], ['cp', 'Chi phí & giá sàn'], ['ls', 'Lịch sử']];
+// ── Hiệu suất ──
+const P = PERIODS[st.period];
+const chain = [['Lượt xem', 'views'], ['CTR', 'ctr'], ['CTOR', 'ctor'], ['AOV', 'aov'], ['GMV', 'gmv'], ['Biên lợi nhuận', 'mar']].map(([label, k]) => ({ label, value: P[k][0], delta: P[k][1], deltaStyle: P[k][2] ? chipUp : chipDn }));
+const S = SERIES[st.series]; const maxV = Math.max.apply(null, S.v);
+const bars = S.v.map((v, i) => {
+  const m = MARKERS.find((x) => x.i === i);
+  return { style: 'height: ' + Math.round(v / maxV * 100) + '%; background: #71717a', mark: m ? '◆' : '' };
+});
+const seriesNote = { gmv: 'Trung bình 474k ₫/ngày', views: 'Trung bình 493 lượt xem/ngày', mar: 'Trung bình 24%' }[st.series];
+// ── Nguồn ──
+const mClr = (x) => x >= 20 ? 'color: #146c2e' : (x >= 10 ? 'color: #1a1a1f' : 'color: #a3222f');
+const grpStyle = { 'Tự nhiên': chipUp, 'Liên kết': chipIn, 'Flash Sale': chipWn };
+const traffic = SRC_TRAFFIC.map((r) => {
+  const g = r.o * r.aov; const adShow = st.adOn && r.ad > 0;
+  return { k: r.k, grp: r.grp, grpStyle: grpStyle[r.grp], o: String(r.o), w: Math.round(r.o / TOTAL_O * 100 * 2), pct: pc(r.o / TOTAL_O * 100), gmv: vnd(g), mar: pc(r.p / g * 100), marStyle: mClr(r.p / g * 100), card: r.card || '—', hasAd: adShow, adO: String(r.ad), adPct: pc(r.ad / r.o * 100) };
+});
+const levers = SRC_LEVER.map((r) => ({ k: r.k, o: String(r.o), w: Math.round(r.o / TOTAL_O * 100 * 2), pct: pc(r.o / TOTAL_O * 100), gmv: vnd(r.g), mar: pc(r.p / r.g * 100), marStyle: mClr(r.p / r.g * 100), card: r.card || '—' }));
+const adSpend = ADS.reduce((a, r) => a + r.spend, 0); const adO = ADS.reduce((a, r) => a + r.o, 0);
+const pStyle = { chuyen_doi: chipPk, hien_thi: chipIn, luot_vao_shop: chipNe, ra_mat: chipWn };
+const ads = ADS.map((a) => ({ n: a.n, pl: a.pl, pStyle: pStyle[a.purpose], spend: vnd(a.spend), o: String(a.o), judge: a.judge, ok: a.ok === true ? 'Tốt' : 'Theo dõi', okStyle: a.ok === true ? chipUp : chipNe }));
+const crossMax = 12;
+const cross = CROSS.map((row, ri) => ({ k: SRC_TRAFFIC[ri].k, sum: String(row.reduce((a, b) => a + b, 0)), cells: row.map((v) => ({ v: String(v), style: v === 0 ? 'color: #6b6b76' : 'font-weight: 600; background: ' + (v >= 8 ? '#fdeef4' : '#faf7f8') })) }));
+const crossSums = [0, 1, 2, 3].map((c) => String(CROSS.reduce((a, r) => a + r[c], 0)));
+// ── Từ khoá ──
+const core = KEYS.filter((k) => roleOf(k) === 'chinh').length;
+const volAll = KEYS.filter((k) => ['chinh', 'phu'].includes(roleOf(k))).reduce((a, k) => a + k.vol, 0);
+const inT = (k) => low.indexOf(k.k);
+const volIn = KEYS.filter((k) => ['chinh', 'phu'].includes(roleOf(k)) && inT(k) >= 0).reduce((a, k) => a + k.vol, 0);
+const volVis = KEYS.filter((k) => ['chinh', 'phu'].includes(roleOf(k)) && inT(k) >= 0 && inT(k) + k.k.length <= 100).reduce((a, k) => a + k.vol, 0);
+const missing = KEYS.filter((k) => ['chinh', 'phu'].includes(roleOf(k)) && inT(k) < 0).map((k) => k.k);
+const roleLabel = { chinh: 'Chính', phu: 'Phụ', thuonghieu: 'Thương hiệu', loaitru: 'Loại trừ' };
+const roleStyle = { chinh: chipPk, phu: chipNe, thuonghieu: chipIn, loaitru: chipDn };
+const kwRows = KEYS.filter((k) => roleOf(k) !== 'loaitru').map((k) => {
+  const r = roleOf(k); const p = inT(k);
+  let pos = 'Chưa có', posStyle = 'color: #a3222f';
+  if (p >= 0) { pos = 'Ký tự ' + (p + 1); posStyle = (p + k.k.length <= 100) ? 'color: #146c2e' : 'color: #8a4b00'; if (p + k.k.length > 100) pos += ' · ngoài 100'; }
+  if (r === 'thuonghieu') { pos = 'Không cần'; posStyle = 'color: #5f5f6b'; }
+  const diffLbl = k.diff < 35 ? 'Dễ · ' + k.diff : (k.diff <= 60 ? 'Vừa · ' + k.diff : 'Khó · ' + k.diff);
+  const diffStyle = k.diff < 35 ? chipUp : (k.diff <= 60 ? chipWn : chipDn);
+  let price = '—', priceNote = 'Không áp dụng', priceStyle = chipNe;
+  if (k.med) {
+    price = 'TB ' + vnd(k.med) + ' · ta ' + vnd(SKUS[0].list) + ' · sàn ' + vnd(e0.op);
+    if (e0.op > k.med) { priceNote = 'Sàn cao hơn TB: khó cạnh tranh giá'; priceStyle = chipDn; }
+    else if (SKUS[0].list > k.med * 1.05) { priceNote = 'Ta cao hơn TB ' + pc((SKUS[0].list / k.med - 1) * 100, 0); priceStyle = chipWn; }
+    else { priceNote = 'Giá ta ngang hoặc thấp hơn TB'; priceStyle = chipUp; }
+  }
+  const full = core >= 5;
+  let act, actLabel, actOff = false;
+  if (r === 'chinh') { actLabel = 'Hạ xuống Phụ'; act = () => this.setState({ roles: { ...st.roles, [k.k]: 'phu' }, limitMsg: false }); }
+  else if (r === 'phu') { actLabel = full ? 'Nâng lên Chính' : 'Nâng lên Chính'; actOff = full; act = () => this.setState({ roles: { ...st.roles, [k.k]: 'chinh' } }); }
+  else { actLabel = '—'; actOff = true; act = () => {}; }
+  return {
+    k: k.k, roleLabel: roleLabel[r], roleStyle: roleStyle[r], vol: num(k.vol), tr: k.tr, trStyle: k.up === true ? 'color: #146c2e' : (k.up === false ? 'color: #a3222f' : 'color: #5f5f6b'),
+    diff: diffLbl, diffStyle, cpc: vnd(k.cpc), pos, posStyle, rank: k.rank === 0 ? 'Ngoài top 200' : '#' + k.rank,
+    price, priceNote, priceStyle, cards: k.cards.map((c) => c[0]), noCards: k.cards.length ? '' : '—', act, actLabel, actOff,
+    box: r === 'chinh' ? 'background: #fff7fa; border-color: #f8b9d3' : 'background: #ffffff'
+  };
+});
+// ── Chi phí & giá sàn ──
+const sk = SKUS[st.sel]; const es = econ(sk);
+const sel = { id: sk.id, name: sk.name, abs: es ? vnd(es.abs) : '', op: es ? vnd(es.op) : '', maxd: es ? pc(es.maxd) : '', maxdV: es ? vnd(es.maxdV) : '', pay: es ? vnd(es.pay) : '', list: vnd(sk.list) };
+let wf = [], g = { absL: 0, opL: 0, opW: 0, okW: 0, payL: 0, listL: 0, verdict: '', verdictStyle: '' };
+if (es) {
+  const W = es.pay; const mk = (label, a, b, o) => {
+    o = o || {};
+    const bar = (v) => 'width: ' + Math.max(2, Math.round(Math.abs(v) / sk.list * 100)) + '%; background: ' + (o.bar || '#71717a');
+    return { label, v: a, v2: b === undefined ? a : b, barStyle: bar(o.n || 0), style: o.row || '', labelStyle: o.lab || '', vStyle: o.vs || '', v2Style: o.vs2 || o.vs || '' };
+  };
+  const sell = es.sell; const v = es.v;
+  wf = [
+    { ...mk('Giá niêm yết', vnd(sk.list), vnd(sk.list), { n: sk.list, bar: '#71717a', lab: 'font-weight: 700' }) },
+    { ...mk('− Voucher shop 10.000đ (≥200.000đ)', '−' + vnd(v), '−' + vnd(v), { n: v, bar: '#8a4b00', vs: 'color: #8a4b00' }) },
+    { ...mk('= Khách trả', vnd(es.pay), vnd(es.pay), { n: es.pay, bar: '#71717a', row: 'background: #faf7f8', lab: 'font-weight: 700' }) },
+    { ...mk('− Phí sàn 15%', '−' + vnd(es.fee), '−' + vnd(es.fee), { n: es.fee, bar: '#a3222f', vs: 'color: #a3222f' }) },
+    { ...mk('− Giá vốn', '−' + vnd(sk.cogs), '−' + vnd(sk.cogs), { n: sk.cogs, bar: '#a3222f', vs: 'color: #a3222f' }) },
+    { ...mk('− Đóng gói', '−' + vnd(sk.pack), '−' + vnd(sk.pack), { n: sk.pack, bar: '#a3222f', vs: 'color: #a3222f' }) },
+    { ...mk('− Quảng cáo 18,4%', '0đ', '−' + vnd(es.ads), { n: es.ads, bar: '#a3222f', vs: 'color: #5f5f6b', vs2: 'color: #a3222f' }) },
+    { ...mk('− Hoa hồng liên kết 0%', '0đ', '0đ', { n: 0, vs: 'color: #5f5f6b' }) },
+    { ...mk('= Lợi nhuận mỗi đơn', vnd(es.org), vnd(es.adm), { n: Math.max(es.adm, 0), bar: '#1f8a3d', row: 'background: #e3f5e8', lab: 'font-weight: 700', vs: 'color: #146c2e', vs2: 'color: #146c2e' }) },
+    { ...mk('Biên lợi nhuận', pc(es.orgP), pc(es.admP), { n: 0, vs: 'color: #146c2e', vs2: es.admP >= 10 ? 'color: #146c2e' : 'color: #a3222f', lab: 'color: #5f5f6b' }) }
+  ];
+  const lo = 100000, hi = sk.list * 1.05; const pctOf = (x) => Math.max(0, Math.min(100, (x - lo) / (hi - lo) * 100));
+  g = { absL: pctOf(es.abs), opL: pctOf(es.op), opW: pctOf(es.op) - pctOf(es.abs), okW: 100 - pctOf(es.op), payL: pctOf(es.pay), listL: pctOf(sk.list), verdict: 'Khách trả ' + vnd(es.pay) + ' cao hơn giá sàn vận hành ' + vnd(es.op - 0) + ' ' + vnd(es.pay - es.op) + ': an toàn', verdictStyle: chipUp };
+  g.verdict = 'Khách trả ' + vnd(es.pay) + ' cao hơn giá sàn vận hành ' + vnd(es.pay - es.op) + ' · còn đạt biên mục tiêu';
+  if (es.pay < es.op) { g.verdict = 'Khách trả thấp hơn giá sàn vận hành ' + vnd(es.op - es.pay); g.verdictStyle = chipDn; }
+}
+const skuPills = SKUS.map((s, i) => ({ label: s.id + (s.cogs == null ? ' · thiếu giá vốn' : ''), on: st.sel === i, style: st.sel === i ? pillOn : pillOff, pick: () => this.setState({ sel: i }) }));
+// ── Lịch sử ──
+const flt = [['all', 'Tất cả'], ['the', 'Thẻ'], ['doi', 'Thay đổi phát hiện'], ['tham_so', 'Thông số']];
+const icoStyle = { the: chipPk, doi: chipWn, tham_so: chipNe };
+const events = TIMELINE.filter((e) => st.filter === 'all' || e.type === st.filter).map((e) => ({
+  d: e.d, ico: e.ico, icoStyle: icoStyle[e.type], t: e.t, s: e.s, chip: e.chip[0], chipStyle: e.chip[1],
+  diffTitle: e.diff === 'title', diffImg: e.diff === 'img', diffPrice: e.diff === 'price'
+}));
+return {
+  img: { bgStyle: im.bg, shapes, verLabel: im.verLabel, verNote: im.verNote }, thumbs,
+  imgPrev: () => this.setState({ imgVer: Math.max(0, st.imgVer - 1) }), imgNext: () => this.setState({ imgVer: Math.min(2, st.imgVer + 1) }),
+  imgPrevOff: st.imgVer === 0, imgNextOff: st.imgVer === 2,
+  titleSegs: segs.map((x) => ({ t: x.t, style: segStyle(x) })), titleLen: TITLE.length, titlePct: Math.round(TITLE.length / 120 * 100),
+  pid: '24681357902', copyLabel: st.copied ? 'Đã sao chép ✓' : 'Sao chép', copy: () => this.setState({ copied: !st.copied }),
+  price, stockRows, varRows, varTotal: SKU_O + ' đơn', kpis,
+  tabs: tabDefs.map(([id, label]) => ({ label, on: st.tab === id, style: st.tab === id ? 'color: #ffffff; background: #b0386a' : 'color: #4a4a55; background: transparent', pick: () => this.setState({ tab: id }) })),
+  isHs: st.tab === 'hs', isNg: st.tab === 'ng', isKw: st.tab === 'kw', isCp: st.tab === 'cp', isLs: st.tab === 'ls',
+  periods: Object.keys(PERIODS).map((k) => ({ label: PERIODS[k].label, on: st.period === k, style: st.period === k ? 'color: #1a1a1f; background: #ffffff; box-shadow: 0 1px 2px rgba(20,20,30,0.08)' : 'color: #5f5f6b; background: transparent', pick: () => this.setState({ period: k }) })),
+  chain,
+  seriesTabs: Object.keys(SERIES).map((k) => ({ label: SERIES[k].label, on: st.series === k, style: st.series === k ? 'color: #1a1a1f; background: #ffffff; box-shadow: 0 1px 2px rgba(20,20,30,0.08)' : 'color: #5f5f6b; background: transparent', pick: () => this.setState({ series: k }) })),
+  seriesNote, bars, markers: MARKERS.map((m) => ({ d: m.d, t: m.t, t7: m.t7, fin: m.fin, card: m.card })),
+  totalO: String(TOTAL_O), totalG: vnd(TOTAL_G), totalM: pc(TOTAL_P / TOTAL_G * 100) + ' biên',
+  adOn: st.adOn, toggleAd: () => this.setState({ adOn: !st.adOn }), adBtnLabel: st.adOn ? 'Ẩn lớp Quảng cáo' : 'Hiện lớp Quảng cáo (trong đó)',
+  adBtnStyle: st.adOn ? 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a' : 'color: #b0386a; background: #ffffff; border: 1px solid #f3cfdf',
+  traffic, levers, crossHead: ['Không ưu đãi', 'Voucher', 'Khuyến mãi', 'Combo'], cross, crossSums,
+  ads, adTotalO: String(adO), adPctO: pc(adO / TOTAL_O * 100), adTotalSpend: vnd(adSpend),
+  coreCount: core, limitChipStyle: core >= 5 ? chipWn : chipUp, addOff: false,
+  limitMsg: st.limitMsg || false, addCore: () => this.setState({ limitMsg: core >= 5 }),
+  cov: { all: pc(volIn / volAll * 100), vis: pc(volVis / volAll * 100), missing: missing.length ? missing.join(' · ') : 'Không có' },
+  kwRows, excl: KEYS.filter((k) => roleOf(k) === 'loaitru').map((k) => k.k),
+  skuPills, noCost: !es, hasCost: !!es, sel, wf, g, adPct: '18,4%',
+  filters: flt.map(([id, label]) => ({ label, on: st.filter === id, style: st.filter === id ? 'color: #1a1a1f; background: #ffffff; box-shadow: 0 1px 2px rgba(20,20,30,0.08)' : 'color: #5f5f6b; background: transparent', pick: () => this.setState({ filter: id }) })),
+  events
+};
+}
+}
+</script>
+</body>
+</html>

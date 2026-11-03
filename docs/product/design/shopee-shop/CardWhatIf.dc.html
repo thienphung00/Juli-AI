@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Thẻ đề xuất · Voucher what-if</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="position: relative; width: 920px; box-sizing: border-box; padding: 24px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 14px">
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">QUYẾT ĐỊNH · ĐỀ XUẤT · VOUCHER</div>
+<h1 style="margin: 0; font-size: 24px; font-weight: 700">Thẻ voucher với phép thử "nếu đổi"</h1>
+</div>
+
+<div role="tablist" aria-label="Trường hợp" style="display: flex; gap: 6px; flex-wrap: wrap">
+<sc-for list="{{scenes}}" as="t" hint-placeholder-count="6"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; {{t.style}}">{{t.label}}</button></sc-for>
+</div>
+
+<article style="box-sizing: border-box; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 1px 2px rgba(20,20,30,0.04)">
+
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">SKU · BEP-S5-CB</span>
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Bộ vệ sinh bếp 5 món · Cơ bản</h2>
+</div>
+<div style="font-size: 13px; color: #5f5f6b">Voucher shop · cập nhật 03/11/2026 · đang chạy A: 10.000đ cho đơn ≥200.000đ</div>
+</div>
+<span style="flex-shrink: 0; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 5px 10px; {{statusStyle}}">{{statusLabel}}</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 600; color: #5f5f6b">Phương án</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+<sc-for list="{{options}}" as="o" hint-placeholder-count="3">
+<button type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}" disabled="{{locked}}" style="font: inherit; text-align: left; border-radius: 12px; padding: 10px 12px; min-height: 64px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; {{o.style}}">
+<span style="display: flex; align-items: center; gap: 6px"><b style="font-size: 15px; color: #1a1a1f">{{o.name}}</b><span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 6px; {{o.tagStyle}}">{{o.tag}}</span></span>
+<span style="font-size: 13px; color: #1a1a1f">{{o.desc}}</span>
+</button>
+</sc-for>
+</div>
+<sc-if value="{{isCustom}}" hint-placeholder-val="{{ false }}"><div style="font-size: 12px; color: #5f5f6b">Bạn đang xem giá trị tuỳ chỉnh: <b style="color: #1a1a1f">{{curDesc}}</b>. Juli giữ lại lần chỉnh này trong Lịch sử (whatif_adjusted).</div></sc-if>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; background: #faf7f8; border-radius: 12px; padding: 14px 16px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="v" style="font-size: 12px; font-weight: 600; color: #5f5f6b">Giá trị voucher</label>
+<b style="font-size: 20px">{{vLabel}}</b>
+<input id="v" type="range" min="5000" max="30000" step="1000" value="{{v}}" onInput="{{setV}}" disabled="{{locked}}" aria-label="Giá trị voucher" style="width: 100%; min-height: 32px; accent-color: #b0386a">
+<div style="display: flex; justify-content: space-between; font-size: 11px; color: #5f5f6b"><span>5.000đ</span><span>giảm tối đa {{maxdLabel}}</span><span>30.000đ</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="s" style="font-size: 12px; font-weight: 600; color: #5f5f6b">Đơn tối thiểu</label>
+<b style="font-size: 20px">{{sLabel}}</b>
+<input id="s" type="range" min="150000" max="400000" step="1000" value="{{s}}" onInput="{{setS}}" disabled="{{locked}}" aria-label="Đơn tối thiểu" style="width: 100%; min-height: 32px; accent-color: #b0386a">
+<div style="display: flex; justify-content: space-between; font-size: 11px; color: #5f5f6b"><span>150.000đ</span><span>giỏ 200k · 360k</span><span>400.000đ</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; font-weight: 600; color: #5f5f6b">Số lượt dùng tối đa</span>
+<span style="display: flex; align-items: center; gap: 8px">
+<button type="button" onClick="{{capDown}}" disabled="{{locked}}" aria-label="Giảm lượt dùng" style="font: inherit; font-size: 18px; font-weight: 700; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; width: 44px; min-height: 44px; cursor: pointer">−</button>
+<b style="font-size: 20px; min-width: 40px; text-align: center">{{cap}}</b>
+<button type="button" onClick="{{capUp}}" disabled="{{locked}}" aria-label="Tăng lượt dùng" style="font: inherit; font-size: 18px; font-weight: 700; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; width: 44px; min-height: 44px; cursor: pointer">+</button>
+</span>
+<div style="font-size: 11px; color: #5f5f6b">30 ngày qua có 30 đơn dùng voucher</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<div style="display: flex; gap: 10px; border-radius: 12px; padding: 10px 12px; font-size: 13px; {{floorBox}}"><b style="flex-shrink: 0">{{floorIcon}}</b><span>{{floorText}}</span></div>
+<div style="display: flex; gap: 10px; border-radius: 12px; padding: 10px 12px; font-size: 13px; {{adBox}}"><b style="flex-shrink: 0">{{adIcon}}</b><span>{{adText}}</span></div>
+<div style="display: flex; gap: 10px; border-radius: 12px; padding: 10px 12px; font-size: 13px; {{capBox}}"><b style="flex-shrink: 0">{{capIcon}}</b><span>{{capText}}</span></div>
+<div style="display: flex; gap: 10px; border-radius: 12px; padding: 10px 12px; font-size: 13px; background: #faf7f8"><b style="flex-shrink: 0">⇄</b><span>{{beText}}</span></div>
+</div>
+
+<sc-if value="{{floorBreached}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 12px; font-size: 13px; color: #4a4a55"><span>Phê duyệt đang khoá vì thấp hơn giá sàn vận hành.</span>
+<button type="button" onClick="{{toMax}}" style="font: inherit; font-size: 13px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 14px; cursor: pointer">Đặt về mức tối đa {{maxdLabel}}</button></div>
+</sc-if>
+
+<sc-if value="{{showNums}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, 0.9fr); gap: 10px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>5 con số · 30 ngày</span><span>Hiện tại (A)</span><span>Sau thay đổi</span><span>Thay đổi (₫)</span><span>(%)</span></div>
+<div style="display: flex; align-items: center; gap: 8px; background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 10px; padding: 6px 12px; font-size: 13px"><b style="color: #146c2e">Chắc chắn</b><span style="color: #4a4a55">tính lại từ 30 đơn thật, giả định khách mua như cũ</span></div>
+<sc-for list="{{sure}}" as="r" hint-placeholder-count="5"><div style="display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, 0.9fr); gap: 10px; align-items: center; min-height: 44px; padding: 0 12px; border-bottom: 1px solid #f6f0f3; font-size: 14px"><span style="font-weight: 600">{{r.k}}</span><span>{{r.before}}</span><b>{{r.after}}</b><span style="font-weight: 600; {{r.dStyle}}">{{r.dv}}</span><span style="font-weight: 600; {{r.dStyle}}">{{r.dp}}</span></div></sc-for>
+<div style="display: flex; align-items: center; gap: 8px; background: #eef6ff; border: 1px solid #c9defa; border-radius: 10px; padding: 6px 12px; font-size: 13px; margin-top: 6px"><b style="color: #1d4f91">Dự kiến</b><span style="color: #4a4a55">khoảng có thể xảy ra khi khách đổi hành vi, không phải cam kết</span></div>
+<sc-for list="{{exp}}" as="r" hint-placeholder-count="4"><div style="display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, 0.9fr); gap: 10px; align-items: center; min-height: 44px; padding: 0 12px; border-bottom: 1px solid #f6f0f3; font-size: 14px"><span style="font-weight: 600">{{r.k}}</span><span>{{r.before}}</span><b>{{r.after}}</b><span style="font-weight: 600; {{r.dStyle}}">{{r.dv}}</span><span style="font-weight: 600; {{r.dStyle}}">{{r.dp}}</span></div></sc-for>
+<div style="font-size: 12px; color: #6b6b76">Giá vốn, đóng gói, phí sàn 15%, quảng cáo 18,4% trên đơn quảng cáo (30% số đơn), biên mục tiêu 10%. Số trong bản vẽ là ví dụ minh hoạ.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isT7}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 12px 14px; font-size: 14px"><b>Ngày 7 · trong khoảng dự kiến.</b> <span style="color: #4a4a55">Voucher C chạy từ 04/11 đến 11/11. Chưa chốt: còn 7 ngày nữa.</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1.6fr) minmax(0, 1.3fr) 120px; gap: 10px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Chỉ số</span><span>Trước (A)</span><span>Dự kiến</span><span>Thực tế ngày 7</span><span>Đánh giá</span></div>
+<sc-for list="{{t7}}" as="r" hint-placeholder-count="5"><div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1.6fr) minmax(0, 1.3fr) 120px; gap: 10px; align-items: center; min-height: 44px; padding: 0 12px; border-bottom: 1px solid #f6f0f3; font-size: 14px"><span style="font-weight: 600">{{r.k}}</span><span>{{r.before}}</span><span>{{r.exp}}</span><b>{{r.act}}</b><span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 8px; justify-self: start; {{r.style}}">{{r.verdict}}</span></div></sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{isFinal}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5f5f6b"><span>Ví dụ kết quả ngày 28:</span>
+<sc-for list="{{finalSw}}" as="c" hint-placeholder-count="2"><button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="font: inherit; font-size: 12px; font-weight: 600; border-radius: 8px; min-height: 32px; padding: 0 10px; cursor: pointer; {{c.style}}">{{c.label}}</button></sc-for></div>
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1.6fr) minmax(0, 1.3fr) 120px; gap: 10px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span>Chỉ số</span><span>Trước (A)</span><span>Dự kiến</span><span>Thực tế 28 ngày</span><span>Đánh giá</span></div>
+<sc-for list="{{fin}}" as="r" hint-placeholder-count="5"><div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1.6fr) minmax(0, 1.3fr) 120px; gap: 10px; align-items: center; min-height: 44px; padding: 0 12px; border-bottom: 1px solid #f6f0f3; font-size: 14px"><span style="font-weight: 600">{{r.k}}</span><span>{{r.before}}</span><span>{{r.exp}}</span><b>{{r.act}}</b><span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 8px; justify-self: start; {{r.style}}">{{r.verdict}}</span></div></sc-for>
+<div style="display: flex; flex-direction: column; gap: 6px; border-radius: 12px; padding: 14px 16px; font-size: 14px; {{sugBox}}"><div style="font-weight: 700">{{sugTitle}}</div><div style="color: #4a4a55">{{sugBody}}</div></div>
+</div>
+</sc-if>
+
+<dl style="margin: 0; display: grid; grid-template-columns: 120px minmax(0, 1fr); row-gap: 8px; column-gap: 12px; font-size: 14px; border-top: 1px solid #f1e6eb; padding-top: 12px">
+<dt style="color: #5f5f6b">Lý do</dt>
+<dd style="margin: 0">Voucher A đang giảm cho 24/30 đơn chỉ mua 1 bộ 200.000đ, chỉ 6 đơn vượt 299.000đ. AOV của bộ 5 món thấp hơn trung vị shop. <a href="SanPham.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem phân tích ›</a> <span style="font-size: 12px; color: #5f5f6b">(Nguồn · Voucher · BEP-S5-CB)</span></dd>
+<dt style="color: #5f5f6b">Thay đổi đề xuất</dt>
+<dd style="margin: 0; display: flex; gap: 6px; flex-wrap: wrap"><span style="font-size: 13px; font-weight: 600; background: #f5f0f2; border-radius: 6px; padding: 3px 8px">Voucher shop</span><span style="font-size: 13px; font-weight: 600; background: #f5f0f2; border-radius: 6px; padding: 3px 8px">Đơn tối thiểu</span><span style="font-size: 13px; color: #5f5f6b">Juli đặt trên Seller Centre sau khi bạn xác nhận</span></dd>
+</dl>
+
+<sc-if value="{{isApproved}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 6px; background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 12px 14px; font-size: 14px"><span>Đã tạo lượt chạy. Đội Juli đặt voucher {{curDesc}} trên Seller Centre, bạn xác nhận lần cuối trước khi áp dụng.</span><span style="font-size: 12px; color: #4a4a55">{{adjustNote}}</span><a href="#" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem tiến độ ›</a></div>
+</sc-if>
+<sc-if value="{{requested}}" hint-placeholder-val="{{ false }}"><div style="background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 12px 14px; font-size: 14px">Đã gửi yêu cầu chỉnh với các giá trị bạn đang xem ({{curDesc}}). Đội Juli tính lại và gửi thẻ mới trong 1 ngày làm việc.</div></sc-if>
+<sc-if value="{{declined}}" hint-placeholder-val="{{ false }}"><div style="background: #f5f5f7; border-radius: 12px; padding: 12px 14px; font-size: 14px; color: #4a4a55">Đã từ chối. Lý do: {{reasonLabel}}. Juli không đổi gì trên sản phẩm này.</div></sc-if>
+
+<sc-if value="{{showActions}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 6px; border-top: 1px solid #f1e6eb; flex-wrap: wrap">
+<button type="button" onClick="{{approve}}" disabled="{{approveOff}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 20px; cursor: pointer">Phê duyệt {{curShort}}</button>
+<button type="button" onClick="{{request}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 2px solid #c2306d; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Yêu cầu chỉnh</button>
+<button type="button" onClick="{{openDecline}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Từ chối</button>
+<span style="font-size: 12px; color: #6b6b76">{{approveHint}}</span>
+</div>
+</sc-if>
+<sc-if value="{{showFinalActions}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 6px; border-top: 1px solid #f1e6eb">
+<button type="button" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: {{keepBg}}; border: 0; border-radius: 10px; min-height: 44px; padding: 0 20px; cursor: pointer">Giữ C</button>
+<button type="button" onClick="{{openRevert}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 2px solid {{revertBorder}}; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Hoàn tác về A</button>
+<span style="font-size: 12px; color: #6b6b76">Hoàn tác tạo lượt chạy mới đặt lại voucher A, cũng qua bước xác nhận.</span>
+</div>
+</sc-if>
+</article>
+
+<sc-if value="{{dialog}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; background: rgba(26,26,31,0.42); display: flex; align-items: flex-start; justify-content: center; padding-top: 140px">
+<div role="dialog" aria-modal="true" aria-labelledby="dq" style="box-sizing: border-box; width: 540px; background: #ffffff; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 48px rgba(20,20,30,0.25)">
+<h3 id="dq" style="margin: 0; font-size: 19px; font-weight: 700">{{dTitle}}</h3>
+<p style="margin: 0; font-size: 14px; color: #4a4a55">{{dBody}}</p>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{reasons}}" as="r" hint-placeholder-count="6"><button type="button" role="radio" aria-checked="{{r.on}}" onClick="{{r.pick}}" style="font: inherit; text-align: left; font-size: 14px; border-radius: 10px; min-height: 44px; padding: 0 12px; cursor: pointer; {{r.style}}">{{r.label}}</button></sc-for>
+</div>
+<div style="font-size: 12px; color: #6b6b76">Ghi chú tuỳ chọn, tối đa 300 ký tự. Bắt buộc chọn một lý do.</div>
+<div style="display: flex; justify-content: flex-end; gap: 10px">
+<button type="button" onClick="{{closeDialog}}" style="font: inherit; font-size: 14px; font-weight: 600; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Quay lại</button>
+<button type="button" onClick="{{confirmDialog}}" disabled="{{confirmOff}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">{{dConfirm}}</button>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":920,"height":1700}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { scene: 'default', v: 15000, s: 299000, cap: 30, dialog: null, reason: null, requested: false, declined: false, finalBad: false };
+}
+_d() {
+// ── shared synthetic data (same in SanPham + SanPhamMobile). Illustrative, not any real shop. ──
+const vnd = (n) => String(Math.round(Math.abs(n))).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
+const vndS = (n) => (n < 0 ? '−' : n > 0 ? '+' : '') + vnd(n);
+const num = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const pc = (x, d) => (x).toFixed(d === undefined ? 1 : d).replace('.', ',') + '%';
+const tr = (n) => (n / 1000000).toFixed(1).replace('.', ',') + ' tr';
+const C = {
+  ink: '#1a1a1f', ink2: '#4a4a55', mut: '#5f5f6b', mut2: '#6b6b76',
+  pinkText: '#b0386a', primary: '#c2306d',
+  upTxt: '#146c2e', upBg: '#e3f5e8', upBar: '#1f8a3d',
+  dnTxt: '#a3222f', dnBg: '#fdecec',
+  wnTxt: '#8a4b00', wnBg: '#fff4e0',
+  inTxt: '#1d4f91', inBg: '#e6f0fd',
+  neutralBg: '#f0eef0', chart: '#71717a'
+};
+const chipUp = 'color: #146c2e; background: #e3f5e8';
+const chipDn = 'color: #a3222f; background: #fdecec';
+const chipWn = 'color: #8a4b00; background: #fff4e0';
+const chipIn = 'color: #1d4f91; background: #e6f0fd';
+const chipNe = 'color: #4a4a55; background: #f0eef0';
+const chipPk = 'color: #b0386a; background: #fdeef4';
+const pillOn = 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a';
+const pillOff = 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc';
+
+const SHOP = { fee: 0.15, ad: 0.184, aff: 0, target: 0.10, cap: 0.10, voucher: 10000, voucherMin: 200000 };
+const SKUS = [
+  { id: 'BEP-S5-CB', name: 'Bộ 5 món · Cơ bản', list: 200000, promo: null, stock: 214, restock: null, orders: 44, cogs: 100000, pack: 3000, fixed: 0, img: 0 },
+  { id: 'BEP-S5-L', name: 'Bộ 5 món · Găng size L', list: 205000, promo: null, stock: 96, restock: null, orders: 20, cogs: 102000, pack: 3000, fixed: 0, img: 1 },
+  { id: 'BEP-S3', name: 'Bộ 3 món · Găng, xơ mướp, nước rửa', list: 129000, promo: 119000, stock: 9, restock: '08/11', orders: 12, cogs: null, pack: null, fixed: 0, img: 2 },
+  { id: 'BEP-S5-QT', name: 'Bộ 5 món · Hộp quà', list: 249000, promo: null, stock: 0, restock: '12/11', orders: 4, cogs: 128000, pack: 6000, fixed: 0, img: 3 }
+];
+function econ(s) {
+  if (s.cogs == null) return null;
+  const sell = s.promo || s.list;
+  const v = sell >= SHOP.voucherMin ? SHOP.voucher : 0;
+  const pay = sell - v;
+  const fee = Math.round(SHOP.fee * pay);
+  const cost = s.cogs + s.pack + s.fixed;
+  const org = pay - fee - cost;
+  const ads = Math.round(SHOP.ad * sell);
+  const adm = org - ads;
+  const abs = Math.round(cost / (1 - SHOP.fee));
+  const op = Math.round(cost / (1 - SHOP.fee - SHOP.ad - SHOP.aff - SHOP.target));
+  const maxd = Math.min(SHOP.cap, 1 - op / s.list);
+  return { sell, v, pay, fee, cost, org, orgP: org / pay * 100, ads, adm, admP: adm / pay * 100, abs, op, maxd: maxd * 100, maxdV: Math.floor(s.list * maxd / 1000) * 1000 };
+}
+const TITLE = 'Bộ vệ sinh bếp 5 món set rửa chén: găng tay rửa chén, xơ mướp, nước rửa chén, túi zip, giấy bạc - combo dọn bếp';
+const KEYS = [
+  { k: 'bộ vệ sinh bếp', role: 'chinh', vol: 3200, tr: '▲ 12%', up: true, diff: 42, cpc: 980, rank: 9, med: 185000, cards: [['Thẻ tiêu đề', 'Tiêu đề'], ['Thẻ giá', 'Giá']] },
+  { k: 'set rửa chén', role: 'chinh', vol: 5600, tr: '▲ 5%', up: true, diff: 55, cpc: 1100, rank: 14, med: 172000, cards: [['Thẻ quảng cáo', 'Quảng cáo']] },
+  { k: 'combo dọn bếp', role: 'chinh', vol: 2100, tr: '► 0%', up: null, diff: 31, cpc: 760, rank: 27, med: 192000, cards: [['Thẻ tiêu đề', 'Tiêu đề']] },
+  { k: 'dụng cụ nhà bếp', role: 'chinh', vol: 9800, tr: '▼ 3%', up: false, diff: 71, cpc: 1320, rank: 58, med: 96000, cards: [] },
+  { k: 'đồ dùng nhà bếp tiện ích', role: 'chinh', vol: 1400, tr: '▲ 18%', up: true, diff: 24, cpc: 640, rank: 41, med: 158000, cards: [] },
+  { k: 'găng tay rửa chén', role: 'phu', vol: 18400, tr: '▲ 8%', up: true, diff: 78, cpc: 1250, rank: 112, med: 38000, cards: [] },
+  { k: 'xơ mướp', role: 'phu', vol: 6900, tr: '▲ 2%', up: true, diff: 48, cpc: 520, rank: 66, med: 21000, cards: [] },
+  { k: 'túi zip', role: 'phu', vol: 11200, tr: '► 0%', up: null, diff: 63, cpc: 890, rank: 140, med: 34000, cards: [] },
+  { k: 'giấy bạc nướng', role: 'phu', vol: 2700, tr: '▲ 4%', up: true, diff: 36, cpc: 700, rank: 0, med: 45000, cards: [] },
+  { k: 'tên shop mẫu', role: 'thuonghieu', vol: 420, tr: '▲ 22%', up: true, diff: 8, cpc: 300, rank: 1, med: 0, cards: [] },
+  { k: 'sỉ', role: 'loaitru', vol: 0, tr: '', up: null, diff: 0, cpc: 0, rank: 0, med: 0, cards: [] },
+  { k: 'hàng cũ', role: 'loaitru', vol: 0, tr: '', up: null, diff: 0, cpc: 0, rank: 0, med: 0, cards: [] }
+];
+const SRC_TRAFFIC = [
+  { k: 'Tìm kiếm', grp: 'Tự nhiên', o: 28, aov: 190000, p: 1436400, ad: 12, card: 'Tiêu đề · +1,8 tr/tháng' },
+  { k: 'Đề xuất', grp: 'Tự nhiên', o: 16, aov: 178000, p: 712000, ad: 6, card: 'Ảnh bìa · +0,9 tr/tháng' },
+  { k: 'Trang shop', grp: 'Tự nhiên', o: 8, aov: 205000, p: 508400, ad: 0, card: null },
+  { k: 'Liên kết (KOL)', grp: 'Liên kết', o: 12, aov: 165000, p: 396000, ad: 0, card: 'Hoa hồng · tiết kiệm 0,2 tr' },
+  { k: 'Trang Flash Sale', grp: 'Flash Sale', o: 16, aov: 152000, p: 408600, ad: 0, card: null }
+];
+const SRC_LEVER = [
+  { k: 'Không ưu đãi', o: 16, g: 3200000, p: 1072000, card: null },
+  { k: 'Voucher', o: 30, g: 5700000, p: 1539000, card: 'Voucher 10k → 15k ≥299k · +0,18 tr' },
+  { k: 'Khuyến mãi (gồm giá Flash Sale)', o: 28, g: 4000000, p: 560000, card: 'Giảm giá · giữ trên giá sàn' },
+  { k: 'Combo / Mua kèm', o: 6, g: 1320000, p: 290400, card: null }
+];
+const CROSS = [[7, 11, 8, 2], [4, 8, 3, 1], [2, 3, 2, 1], [3, 4, 3, 2], [0, 4, 12, 0]];
+const ADS = [
+  { n: 'Tự động · Bộ vệ sinh bếp', purpose: 'chuyen_doi', pl: 'Chuyển đổi', spend: 330000, o: 11, judge: 'ROAS 6,0 so với hoà vốn 3,0', ok: true },
+  { n: 'Hiển thị · Danh mục gia dụng', purpose: 'hien_thi', pl: 'Hiển thị', spend: 130000, o: 3, judge: '38.000đ/1.000 lượt xem · CTR 1,9%', ok: true },
+  { n: 'Vào shop · Mùa sale', purpose: 'luot_vao_shop', pl: 'Lượt vào shop', spend: 90000, o: 2, judge: '1.020 lượt vào · 88đ/lượt', ok: null },
+  { n: 'Ra mắt · Hộp quà', purpose: 'ra_mat', pl: 'Ra mắt', spend: 50000, o: 2, judge: 'Chi 50.000 / trần 300.000đ · hết 15/11', ok: null }
+];
+const PERIODS = {
+  '7': { label: '7 ngày', views: ['3.610', '▲ 4,1%', true], ctr: ['4,4%', '▼ 0,1 pt', false], ctor: ['12,4%', '▲ 0,8 pt', true], aov: ['171.200đ', '▼ 3,7%', false], gmv: ['3.424.000đ', '▲ 6,2%', true], mar: ['24,9%', '▲ 0,6 pt', true] },
+  '30': { label: '30 ngày', views: ['14.800', '▲ 9,2%', true], ctr: ['4,6%', '▲ 0,3 pt', true], ctor: ['11,7%', '▲ 1,0 pt', true], aov: ['177.750đ', '▼ 2,0%', false], gmv: ['14.220.000đ', '▲ 12,7%', true], mar: ['24,3%', '▲ 1,5 pt', true] },
+  '90': { label: '90 ngày', views: ['41.200', '▲ 15,4%', true], ctr: ['4,3%', '▲ 0,2 pt', true], ctor: ['10,9%', '▲ 0,4 pt', true], aov: ['182.400đ', '▼ 0,8%', false], gmv: ['35.203.200đ', '▲ 18,9%', true], mar: ['22,6%', '▲ 0,9 pt', true] }
+};
+const SERIES = {
+  gmv: { label: 'GMV/ngày', unit: 'k đ', v: [310, 420, 380, 450, 520, 440, 390, 410, 560, 520, 480, 530, 610, 500, 470, 540, 600, 570, 430, 410, 480, 520, 640, 590, 560, 480, 450, 520, 560, 610] },
+  views: { label: 'Lượt xem/ngày', unit: '', v: [410, 470, 440, 480, 530, 500, 450, 460, 560, 540, 520, 540, 580, 520, 500, 530, 570, 550, 470, 460, 510, 530, 600, 570, 540, 500, 480, 520, 540, 560] },
+  mar: { label: 'Biên lợi nhuận', unit: '%', v: [21, 22, 22, 23, 23, 22, 21, 22, 24, 24, 23, 24, 25, 24, 22, 22, 23, 23, 24, 24, 24, 25, 25, 26, 25, 25, 24, 25, 25, 26] }
+};
+const MARKERS = [
+  { i: 7, d: '12/10', t: 'Đổi tiêu đề', card: 'Thẻ tiêu đề', t7: 'T+7: CTOR +0,8 pt · trong khoảng', fin: 'Ngày 14: đạt 82% kỳ vọng' },
+  { i: 14, d: '19/10', t: 'Voucher 10k ≥200k', card: 'Thẻ voucher', t7: 'T+7: đơn +3 · biên −0,6 pt', fin: 'Ngày 14: chưa đủ ngày' },
+  { i: 21, d: '26/10', t: 'Ảnh bìa mới', card: 'Thẻ ảnh bìa', t7: 'T+7: CTR +0,3 pt', fin: 'Ngày 14: chưa đủ ngày' }
+];
+const TIMELINE = [
+  { d: '03/11 06:10', type: 'the', ico: '◆', t: 'Thẻ voucher: đề xuất C (15k ≥299k) hiển thị', s: 'Chờ duyệt · nội dung đã đóng băng lúc 06:10', chip: ['Chờ duyệt', chipWn] },
+  { d: '02/11 18:20', type: 'tham_so', ico: '▣', t: 'Thông số shop v3 áp dụng (giá vốn BEP-S5-CB 98.000 → 100.000đ)', s: 'Quản lý shop · lý do: giá nhập tháng 11 · tệp thong-so-1102.xlsx', chip: ['Phiên bản v3', chipNe] },
+  { d: '26/10 14:05', type: 'doi', ico: '≠', t: 'Phát hiện đổi ảnh bìa', s: 'Phiên bản ảnh 2 → 3 · Seller Centre', chip: ['Đã thực hiện', chipUp], diff: 'img' },
+  { d: '26/10 10:30', type: 'the', ico: '◆', t: 'Thẻ ảnh bìa: đã thực hiện (Juli đăng sau khi bạn xác nhận)', s: 'Phê duyệt 25/10 · lý do không áp dụng', chip: ['T+7 xong', chipIn] },
+  { d: '26/10 09:00', type: 'the', ico: '◆', t: 'Thẻ tiêu đề: kết quả ngày 14', s: 'Đạt 82% kỳ vọng · CTOR 11,1% → 11,7%', chip: ['Đã chốt', chipUp] },
+  { d: '19/10 07:40', type: 'the', ico: '◆', t: 'Thẻ voucher A (10k ≥200k): đã thực hiện', s: 'Phê duyệt 18/10 · Juli đặt trên Seller Centre', chip: ['T+7 xong', chipUp] },
+  { d: '17/10 08:15', type: 'the', ico: '◆', t: 'whatif_adjusted · thẻ voucher: bạn đổi giá trị 15.000 → 10.000đ, đơn tối thiểu 299.000 → 200.000đ', s: 'Kết quả hiển thị lúc đổi: giữ trên giá sàn vận hành · biên đơn QC 11,4%', chip: ['Đã điều chỉnh', chipPk] },
+  { d: '12/10 13:50', type: 'doi', ico: '≠', t: 'Phát hiện đổi tiêu đề', s: 'Seller Centre · 98 → 111 ký tự', chip: ['Đã thực hiện', chipUp], diff: 'title' },
+  { d: '05/10 11:00', type: 'doi', ico: '≠', t: 'Phát hiện đổi giá niêm yết BEP-S3', s: 'Seller Centre · Juli Connector', chip: ['Ngoài đề xuất', chipWn], diff: 'price' },
+  { d: '30/09 10:12', type: 'tham_so', ico: '▣', t: 'Thông số shop v2 áp dụng (tồn kho, ngày nhập lại)', s: 'Quản lý shop · lý do: kiểm kho cuối tháng · tệp thong-so-0930.xlsx', chip: ['Phiên bản v2', chipNe] }
+];
+// ── product-level numbers derived from the lines above ──
+const TOTAL_O = SRC_TRAFFIC.reduce((a, r) => a + r.o, 0);
+const TOTAL_G = SRC_TRAFFIC.reduce((a, r) => a + r.o * r.aov, 0);
+const TOTAL_P = SRC_TRAFFIC.reduce((a, r) => a + r.p, 0);
+const SKU_O = SKUS.reduce((a, s) => a + s.orders, 0);
+// ADR-107 reason lists, labels as in apps/demo lib/quyet-dinh/reasons.ts (Decline / Revert artboards)
+const REJECT_REASONS = [
+  { code: 'brand_mismatch', label: 'Thay đổi không hợp thương hiệu hoặc giọng văn' },
+  { code: 'not_convincing', label: 'Lý do hoặc số liệu chưa thuyết phục' },
+  { code: 'editing_myself', label: 'Tôi đang tự sửa sản phẩm này' },
+  { code: 'discontinued', label: 'Sản phẩm sắp ngừng bán hoặc hết hàng' },
+  { code: 'other_campaign', label: 'Đang chạy chiến dịch khác cho sản phẩm này' },
+  { code: 'other', label: 'Khác' }
+];
+const REVERT_REASONS = [
+  { code: 'metrics_dropped', label: 'Doanh số hoặc chỉ số giảm' },
+  { code: 'bad_feedback', label: 'Khách phản hồi không tốt' },
+  { code: 'wrong_info', label: 'Nội dung sai thông tin sản phẩm' },
+  { code: 'off_brand', label: 'Không hợp giọng thương hiệu' },
+  { code: 'tiktok_warning', label: 'TikTok cảnh báo sản phẩm' },
+  { code: 'other', label: 'Khác' }
+];
+
+return { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, SRC_TRAFFIC, SRC_LEVER, CROSS, ADS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS };
+}
+renderVals() {
+const { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, SRC_TRAFFIC, SRC_LEVER, CROSS, ADS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS } = this._d();
+const st = this.state;
+const BASK = [{ P: 200000, n: 24 }, { P: 360000, n: 6 }]; const ALPHA = 0.3; const N = 30;
+const calc = (v, s) => {
+  let vc = 0, rev = 0, list = 0, profit = 0;
+  BASK.forEach((b) => { const q = b.P >= s; const pay = b.P - (q ? v : 0); const org = pay - SHOP.fee * pay - 0.515 * b.P; const ad = SHOP.ad * b.P; vc += q ? b.n * v : 0; rev += b.n * pay; list += b.n * b.P; profit += b.n * (org - ALPHA * ad); });
+  const qb = BASK.find((b) => b.P >= s);
+  let q = null;
+  if (qb) { const pay = qb.P - v; const org = pay - SHOP.fee * pay - 0.515 * qb.P; const ad = SHOP.ad * qb.P; const op = 0.515 * qb.P / (1 - SHOP.fee - SHOP.ad - SHOP.aff - SHOP.target); q = { P: qb.P, pay, org, orgP: org / pay * 100, adm: org - ad, admP: (org - ad) / pay * 100, op, maxdV: Math.floor(Math.min(SHOP.cap * qb.P, qb.P - op) / 1000) * 1000, uses: BASK.filter((b) => b.P >= s).reduce((a, b) => a + b.n, 0) }; }
+  return { vc, rev, list, profit, aov: rev / N, margin: profit / rev * 100, disc: vc / list * 100, q };
+};
+const A = calc(10000, 200000); const X = calc(st.v, st.s);
+const lostQ = BASK.filter((b) => b.P >= 200000 && b.P < st.s).reduce((a, b) => a + b.n, 0);
+const dV = (st.v - 10000) / 1000;
+const ordLo = N - Math.round(lostQ * 0.12) - (dV < 0 ? Math.round(-dV * 0.4) : 0);
+const ordHi = N - Math.round(lostQ * 0.03) + Math.round(Math.max(dV, 0) * 0.3);
+const f = 1 + Math.max(st.s - 200000, 0) / 100000; const upLo = st.s > 200000 ? Math.round(4 / f) : 0; const upHi = st.s > 200000 ? Math.round(8 / f) : 0;
+const upRev = Math.max(st.s - 200000, 0) - st.v; const perLostRev = 200000; const perLostProfit = 55960; const perUpProfit = 0.2798 * Math.max(st.s - 200000, 0) - 0.85 * st.v;
+const lostLo = N - ordLo, lostHi = N - ordHi;
+const scen = (up, lost) => { const rev = X.rev + up * upRev - lost * perLostRev; const pr = X.profit + up * perUpProfit - lost * perLostProfit; return { rev, pr, m: pr / rev * 100, aov: rev / (N - lost), ord: N - lost }; };
+const eLo = scen(upLo, lostLo), eHi = scen(upHi, lostHi);
+const dSign = (n) => n < 0 ? '−' : (n > 0 ? '+' : '');
+const dpc = (n, base, d) => dSign(n) + pc(Math.abs(n / base * 100), d === undefined ? 1 : d);
+const dpt = (a, b) => dSign(b - a) + pc(Math.abs(b - a)).replace('%', ' pt');
+const goodC = 'color: #146c2e', badC = 'color: #a3222f', neu = 'color: #5f5f6b';
+const colr = (n, inv) => Math.abs(n) < 1e-9 ? neu : ((n > 0) !== !!inv ? goodC : badC);
+const same = st.v === 10000 && st.s === 200000;
+const sure = [
+  { k: '① % giảm giá', before: pc(A.disc), after: pc(X.disc), dv: dSign(X.vc - A.vc) + vnd(X.vc - A.vc) + '/tháng', dp: dpt(A.disc, X.disc), dStyle: colr(X.vc - A.vc, true) },
+  { k: '② Chi voucher (chi thêm)', before: vnd(A.vc), after: vnd(X.vc), dv: dSign(X.vc - A.vc) + vnd(X.vc - A.vc), dp: A.vc ? dpc(X.vc - A.vc, A.vc) : '—', dStyle: colr(X.vc - A.vc, true) },
+  { k: '③ Biên lợi nhuận cuối', before: pc(A.margin), after: pc(X.margin), dv: dSign(X.profit - A.profit) + vnd(X.profit - A.profit), dp: dpt(A.margin, X.margin), dStyle: colr(X.profit - A.profit) },
+  { k: '④ Số đơn', before: String(N), after: String(N), dv: '0 đơn', dp: '0,0%', dStyle: neu },
+  { k: '⑤ AOV (khách trả)', before: vnd(A.aov), after: vnd(X.aov), dv: dSign(X.aov - A.aov) + vnd(X.aov - A.aov), dp: dpc(X.aov - A.aov, A.aov), dStyle: colr(X.aov - A.aov) }
+];
+const rng = (a, b, fn) => fn(Math.min(a, b)) + ' – ' + fn(Math.max(a, b));
+const ex = [
+  { k: '② Doanh thu tăng thêm', before: vnd(A.rev), after: rng(eLo.rev, eHi.rev, vnd), dv: rng(eLo.rev - A.rev, eHi.rev - A.rev, (n) => dSign(n) + vnd(n)), dp: rng(eLo.rev - A.rev, eHi.rev - A.rev, (n) => dpc(n, A.rev, 0)), dStyle: colr(((eLo.rev + eHi.rev) / 2) - A.rev) },
+  { k: '③ Biên lợi nhuận cuối', before: pc(A.margin), after: rng(eLo.m, eHi.m, pc), dv: rng(eLo.pr - A.profit, eHi.pr - A.profit, (n) => dSign(n) + vnd(n)), dp: rng(eLo.m - A.margin, eHi.m - A.margin, (n) => dSign(n) + pc(Math.abs(n)).replace('%', ' pt')), dStyle: colr(((eLo.pr + eHi.pr) / 2) - A.profit) },
+  { k: '④ Số đơn', before: String(N), after: ordLo + ' – ' + ordHi, dv: rng(ordLo - N, ordHi - N, (n) => dSign(n) + Math.abs(n) + ' đơn'), dp: rng((ordLo - N) / N * 100, (ordHi - N) / N * 100, (n) => dSign(n) + pc(Math.abs(n), 0)), dStyle: colr(ordLo - N + ordHi - N) },
+  { k: '⑤ AOV (khách trả)', before: vnd(A.aov), after: rng(eLo.aov, eHi.aov, vnd), dv: rng(eLo.aov - A.aov, eHi.aov - A.aov, (n) => dSign(n) + vnd(n)), dp: rng((eLo.aov - A.aov) / A.aov * 100, (eHi.aov - A.aov) / A.aov * 100, (n) => dSign(n) + pc(Math.abs(n), 0)), dStyle: colr(((eLo.aov + eHi.aov) / 2) - A.aov) }
+];
+// ── checks ──
+const q = X.q; const noQ = !q;
+const breach = q ? st.v > q.maxdV : false;
+const belowOp = q ? q.pay < q.op : false;
+let floorBox = chipUp, floorIcon = '✓', floorText = '';
+if (noQ) { floorText = 'Không giỏ nào đủ điều kiện ở mức tối thiểu này. Voucher sẽ không được dùng.'; floorBox = chipNe; floorIcon = '–'; }
+else if (breach) { floorBox = chipDn; floorIcon = '✕'; floorText = 'Chạm giá sàn: khách trả ' + vnd(q.pay) + (belowOp ? ' thấp hơn giá sàn vận hành ' + vnd(Math.round(q.op)) + ' (thiếu ' + vnd(Math.round(q.op - q.pay)) + ')' : '') + '. Giảm tối đa ' + vnd(q.maxdV) + '. Giá sàn tuyệt đối ' + vnd(121176) + (q.pay < 121176 ? ': đang lỗ.' : ': chưa lỗ.'); }
+else { floorText = 'Trên giá sàn: khách trả ' + vnd(q.pay) + ' ≥ giá sàn vận hành ' + vnd(Math.round(q.op)) + ' (tuyệt đối ' + vnd(121176) + '). Giảm tối đa ' + vnd(q.maxdV) + '.'; }
+let adBox = chipUp, adIcon = '✓', adText = 'Không có giỏ đủ điều kiện để kiểm tra.';
+if (q) { const below = q.admP < SHOP.target * 100; adBox = below ? chipWn : chipUp; adIcon = below ? '!' : '✓'; adText = (below ? 'Đơn từ quảng cáo còn biên ' + pc(q.admP) + ' (' + vnd(q.adm) + '/đơn), thấp hơn mục tiêu 10%. ' : 'Đơn từ quảng cáo giữ biên ' + pc(q.admP) + ' (' + vnd(q.adm) + '/đơn), đạt mục tiêu 10%. ') + 'Đơn tự nhiên: ' + vnd(q.org) + ' · ' + pc(q.orgP) + '.'; }
+const capMax = st.cap * st.v; const limit = 500000;
+const capOver = capMax > limit;
+const capBox = capOver ? chipDn : chipUp; const capIcon = capOver ? '✕' : '✓';
+const capText = 'Trần chi: ' + st.cap + ' lượt × ' + vnd(st.v) + ' = ' + vnd(capMax) + '/tháng, ' + (capOver ? 'vượt trần voucher ' + vnd(limit) + ' bạn đặt.' : 'trong trần voucher ' + vnd(limit) + ' bạn đặt.') + ' Dự kiến dùng ' + (q ? q.uses : 0) + ' lượt = ' + vnd(X.vc) + '.';
+let beText = 'Không đổi so với A.';
+const dCost = X.vc - A.vc;
+if (q && dCost > 0) { const need = Math.ceil(dCost / q.org); beText = 'Hoà vốn: chi thêm ' + vnd(dCost) + ' cần ≥ ' + need + ' đơn thêm (' + vnd(dCost) + ' ÷ ' + vnd(Math.round(q.org)) + ' biên đơn tự nhiên, làm tròn lên).'; }
+else if (dCost < 0) { const a0 = calc(10000, 200000).q; const mx = Math.floor(-dCost / a0.org); beText = 'Tiết kiệm ' + vnd(-dCost) + '/tháng. Vẫn có lời nếu mất tối đa ' + mx + ' đơn (' + vnd(-dCost) + ' ÷ ' + vnd(Math.round(a0.org)) + ' biên đơn A).'; }
+// ── options ──
+const OPTS = [['A', 10000, 200000, 'Hiện tại'], ['B', 15000, 200000, ''], ['C', 15000, 299000, 'Juli đề xuất']];
+const optDesc = (v, s) => vnd(v).replace('.000đ', 'k') + ' ≥ ' + vnd(s).replace('.000đ', 'k');
+const locked = ['approved', 't7', 'final'].includes(st.scene);
+const matchIdx = OPTS.findIndex((o) => o[1] === st.v && o[2] === st.s);
+const options = OPTS.map((o, i) => {
+  const on = matchIdx === i;
+  return { name: 'Phương án ' + o[0], desc: 'Voucher ' + vnd(o[1]).replace('.000đ', 'k') + ' cho đơn ≥ ' + vnd(o[2]).replace('.000đ', 'k'), tag: o[3] || 'So sánh', tagStyle: o[0] === 'C' ? chipPk : chipNe, on,
+    style: on ? 'background: #fff7fa; border: 2px solid #c2306d' : 'background: #ffffff; border: 1px solid #ece3e7', pick: () => this.setState({ v: o[1], s: o[2], scene: ['default', 'b', 'floor'].includes(st.scene) ? (i === 1 ? 'b' : 'default') : st.scene }) };
+});
+const curDesc = vnd(st.v) + ' cho đơn ≥ ' + vnd(st.s);
+const curShort = matchIdx >= 0 ? OPTS[matchIdx][0] : 'giá trị tuỳ chỉnh';
+const isApproved = st.scene === 'approved';
+const SCN = [['default', 'Mặc định A → C'], ['b', 'Kéo về B'], ['floor', 'Chạm giá sàn 25k'], ['approved', 'Đã phê duyệt'], ['t7', 'Kết quả ngày 7'], ['final', 'Chốt 28 ngày']];
+const setScene = (id) => { const o = { scene: id, dialog: null, reason: null, requested: false, declined: false }; if (id === 'default') { o.v = 15000; o.s = 299000; } if (id === 'b') { o.v = 15000; o.s = 200000; } if (id === 'floor') { o.v = 25000; o.s = 200000; } if (['approved', 't7', 'final'].includes(id)) { o.v = 15000; o.s = 299000; } this.setState(o); };
+const scenes = SCN.map(([id, label]) => ({ label, on: st.scene === id, style: st.scene === id ? pillOn : pillOff, pick: () => setScene(id) }));
+const status = { default: ['Chờ duyệt', chipWn], b: ['Chờ duyệt · đang chỉnh', chipWn], floor: ['Chờ duyệt · không thể duyệt', chipDn], approved: ['Đang thực hiện', chipIn], t7: ['Đang đo · ngày 7', chipIn], final: ['Chốt ngày 28', chipUp] }[st.scene];
+const reasonsList = st.dialog === 'revert' ? REVERT_REASONS : REJECT_REASONS;
+const dlg = { decline: ['Từ chối thẻ này?', 'Thẻ rời khỏi Đề xuất. Juli không đổi voucher nào.', 'Từ chối'], revert: ['Hoàn tác về voucher A?', 'Chọn một lý do. Juli tạo lượt chạy mới đặt lại 10.000đ cho đơn ≥200.000đ.', 'Hoàn tác'] }[st.dialog || 'decline'];
+const T7 = [
+  { k: '① % giảm giá', before: '4,3%', exp: '1,3%', act: '1,4%', verdict: 'Trong khoảng', style: chipUp },
+  { k: '② Chi voucher', before: vnd(300000), exp: vnd(90000), act: vnd(30000) + ' (7 ngày)', verdict: 'Đúng hướng', style: chipUp },
+  { k: '③ Biên lợi nhuận cuối', before: '25,4%', exp: '26,0% – 28,0%', act: '26,9%', verdict: 'Trong khoảng', style: chipUp },
+  { k: '④ Số đơn (7 ngày)', before: '7', exp: '6 – 8', act: '7', verdict: 'Ổn định', style: chipNe },
+  { k: '⑤ AOV (khách trả)', before: vnd(222000), exp: '226.000đ – 241.000đ', act: vnd(231000), verdict: 'Đang tăng', style: chipUp }
+];
+const FIN_OK = [
+  { k: '① % giảm giá', before: '4,3%', exp: '1,3%', act: '1,3%', verdict: 'Đạt', style: chipUp },
+  { k: '② Chi voucher', before: vnd(300000), exp: vnd(90000), act: vnd(105000), verdict: 'Đạt', style: chipUp },
+  { k: '③ Biên lợi nhuận cuối', before: '25,4%', exp: '26,0% – 28,0%', act: '27,3%', verdict: 'Đạt', style: chipUp },
+  { k: '④ Số đơn', before: '30', exp: '27 – 31', act: '29', verdict: 'Trong khoảng', style: chipNe },
+  { k: '⑤ AOV (khách trả)', before: vnd(222000), exp: '226.000đ – 241.000đ', act: vnd(236000), verdict: 'Đạt', style: chipUp }
+];
+const FIN_BAD = [
+  { k: '① % giảm giá', before: '4,3%', exp: '1,3%', act: '1,3%', verdict: 'Đạt', style: chipUp },
+  { k: '② Chi voucher', before: vnd(300000), exp: vnd(90000), act: vnd(90000), verdict: 'Đạt', style: chipUp },
+  { k: '③ Biên lợi nhuận cuối', before: '25,4%', exp: '26,0% – 28,0%', act: '24,1%', verdict: 'Không đạt', style: chipDn },
+  { k: '④ Số đơn', before: '30', exp: '27 – 31', act: '22', verdict: 'Ngoài khoảng', style: chipDn },
+  { k: '⑤ AOV (khách trả)', before: vnd(222000), exp: '226.000đ – 241.000đ', act: vnd(228000), verdict: 'Gần đạt', style: chipWn }
+];
+const bad = st.finalBad;
+const sw = (a) => a ? 'color: #ffffff; background: #4a4a55; border: 1px solid #4a4a55' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc';
+const adjusted = !(st.v === 15000 && st.s === 299000);
+return {
+  scenes, statusLabel: status[0], statusStyle: status[1], options, isCustom: matchIdx < 0, curDesc, curShort, locked,
+  vLabel: vnd(st.v), sLabel: vnd(st.s), v: st.v, s: st.s, cap: st.cap, maxdLabel: q ? vnd(q.maxdV) : '18.000đ',
+  setV: (e) => this.setState({ v: Number(e.target.value) }), setS: (e) => this.setState({ s: Number(e.target.value) }),
+  capDown: () => this.setState({ cap: Math.max(10, st.cap - 5) }), capUp: () => this.setState({ cap: Math.min(60, st.cap + 5) }),
+  floorBox, floorIcon, floorText, adBox, adIcon, adText, capBox, capIcon, capText, beText,
+  floorBreached: breach && !locked, toMax: () => this.setState({ v: q ? q.maxdV : 18000 }),
+  showNums: !['t7', 'final'].includes(st.scene), sure, exp: ex,
+  isT7: st.scene === 't7', t7: T7, isFinal: st.scene === 'final', fin: bad ? FIN_BAD : FIN_OK,
+  finalSw: [{ label: 'Kết quả tốt', on: !bad, style: sw(!bad), pick: () => this.setState({ finalBad: false }) }, { label: 'Kết quả xấu', on: bad, style: sw(bad), pick: () => this.setState({ finalBad: true }) }],
+  sugBox: bad ? 'background: #fff4e0; border: 1px solid #f59e0b' : 'background: #f1faf3; border: 1px solid #c7e8d0',
+  sugTitle: bad ? 'Juli gợi ý hoàn tác về A' : 'Juli gợi ý giữ C',
+  sugBody: bad ? 'Biên giảm xuống 24,1%, thấp hơn trước, và đơn rơi 22 so với 30. Mất 8 đơn vượt mức hoà vốn 3 đơn. Quyết định vẫn là của bạn.' : 'Lợi nhuận +' + vnd(190000).replace('đ', 'đ') + '/tháng so với A, đơn 29 trong khoảng dự kiến, đạt 106% kỳ vọng. Kết quả này điều chỉnh các đề xuất voucher tiếp theo.',
+  keepBg: bad ? '#6b6b76' : '#c2306d', revertBorder: bad ? '#c2306d' : '#e3d6dc',
+  showFinalActions: st.scene === 'final', openRevert: () => this.setState({ dialog: 'revert', reason: null }),
+  isApproved, adjustNote: adjusted ? 'Bạn đã đổi so với đề xuất: ghi lại whatif_adjusted (giá trị từ 15.000đ ≥299.000đ sang ' + optDesc(st.v, st.s) + ').' : 'Giữ đúng phương án Juli đề xuất.',
+  requested: st.requested && !locked, declined: st.declined, reasonLabel: st.reason ? reasonsList.find((r) => r.code === st.reason).label : '',
+  showActions: !locked && !st.declined && !st.requested,
+  approve: () => this.setState({ scene: 'approved', v: st.v, s: st.s }), approveOff: breach, approveHint: breach ? 'Giảm giá phải ≤ ' + (q ? vnd(q.maxdV) : '') + ' để duyệt.' : (matchIdx === 2 ? '' : 'Duyệt giá trị bạn đang xem. Juli ghi lại thay đổi của bạn.'),
+  request: () => this.setState({ requested: true }), openDecline: () => this.setState({ dialog: 'decline', reason: null }),
+  dialog: !!st.dialog, dTitle: dlg[0], dBody: dlg[1], dConfirm: dlg[2],
+  reasons: reasonsList.map((r) => ({ label: r.label, on: st.reason === r.code, style: st.reason === r.code ? 'background: #fff7fa; border: 2px solid #c2306d' : 'background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState({ reason: r.code }) })),
+  closeDialog: () => this.setState({ dialog: null, reason: null }), confirmOff: !st.reason,
+  confirmDialog: () => { if (st.dialog === 'decline') this.setState({ declined: true, dialog: null }); else this.setState({ dialog: null, scene: 'default', v: 10000, s: 200000, reason: null }); }
+};
+}
+}
+</script>
+</body>
+</html>
