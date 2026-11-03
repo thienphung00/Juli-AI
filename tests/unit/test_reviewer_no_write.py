@@ -289,6 +289,7 @@ async def test_every_route_as_reviewer_writes_nothing(
         "execution_id": str(uuid.uuid4()),
         "approval_id": str(uuid.uuid4()),
         "proposal_id": str(uuid.uuid4()),
+        "seed_id": str(uuid.uuid4()),
         "order_id": "576000000000000001",
         "creator_id": str(uuid.uuid4()),
         "scenario_id": str(uuid.uuid4()),

@@ -94,6 +94,8 @@ def test_every_ops_table_is_classified_and_rls_enabled(owner_engine):
             "lever_plans",
             "market_keyword_snapshots",
             "market_listing_snapshots",
+            # ADR-119 (migration 111): shopeeanalytics keyword metrics, public lane
+            "market_keyword_metrics",
         ]
     )
     with owner_engine.connect() as conn:

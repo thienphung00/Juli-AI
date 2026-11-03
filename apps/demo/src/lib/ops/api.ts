@@ -34,6 +34,9 @@ import type {
   ExecutionCreate,
   ProposalCreate,
   ShopProposalRow,
+  KeywordMetricsUploaded,
+  KeywordSeedsGenerated,
+  ShopeeKeywordBoard,
 } from "./types";
 
 /**
@@ -248,6 +251,18 @@ export const opsApi = {
   /** Quảng cáo + khuyến mãi: the promotion programme timeline. */
   shopeePromotions: (shopId: string, q: ShopeeQuery = {}, o?: OpsRequestOptions) =>
     opsRequest<ShopeePromotions>(`${shopPath(shopId)}/shopee/promotions${shopeeQuery(q)}`, {}, o),
+  /** ADR-119, Từ khóa: keyword combinations, metrics, coverage and title candidates (Xem+). */
+  shopeeKeywords: (shopId: string, minVolume?: number, o?: OpsRequestOptions) =>
+    opsRequest<ShopeeKeywordBoard>(`${shopPath(shopId)}/shopee/keywords${minVolume !== undefined ? `?min_volume=${minVolume}` : ""}`, {}, o),
+  /** "Tạo từ khóa từ tiêu đề" (Vận hành); audited `keyword_seeds_generate`. */
+  generateKeywordSeeds: (shopId: string, brand: string | null, o?: OpsRequestOptions) =>
+    opsRequest<KeywordSeedsGenerated>(`${shopPath(shopId)}/shopee/keywords/seeds/generate`, { method: "POST", body: { brand } }, o),
+  /** Keep or drop one combination (Vận hành); audited `keyword_seed_toggle`. */
+  setKeywordSeed: (shopId: string, seedId: string, enabled: boolean, o?: OpsRequestOptions) =>
+    opsRequest<{ seed: { id: string; keyword: string; enabled: boolean } }>(`${shopPath(shopId)}/shopee/keywords/seeds/${encodeURIComponent(seedId)}`, { method: "PUT", body: { enabled } }, o),
+  /** The owner's weekly shopeeanalytics.com upload, one record per JSONL line (Vận hành; public data, no shop). */
+  uploadKeywordMetrics: (records: unknown[], o?: OpsRequestOptions) =>
+    opsRequest<KeywordMetricsUploaded>("/market/keyword-metrics", { method: "POST", body: { records } }, o),
 };
 
 export type OpsApi = typeof opsApi;

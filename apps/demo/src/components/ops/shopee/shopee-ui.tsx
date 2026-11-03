@@ -78,8 +78,10 @@ export function TableWrap({ children, label }: { readonly children: ReactNode; r
   );
 }
 
-export function PageTitle({ shopId, title, active }: { readonly shopId: string; readonly title: string; readonly active: "san-pham" | "quang-cao" }) {
-  const tab = (key: "san-pham" | "quang-cao", label: string) =>
+type ShopeeTab = "san-pham" | "quang-cao" | "tu-khoa";
+
+export function PageTitle({ shopId, title, active }: { readonly shopId: string; readonly title: string; readonly active: ShopeeTab }) {
+  const tab = (key: ShopeeTab, label: string) =>
     active === key ? (
       <span aria-current="page" key={key} style={{ fontWeight: 700, borderBottom: `2px solid ${C.pinkStrong}`, padding: "4px 2px" }}>
         {label}
@@ -100,6 +102,7 @@ export function PageTitle({ shopId, title, active }: { readonly shopId: string; 
       <nav aria-label="Dashboard Shopee" style={{ display: "flex", gap: 18, fontSize: 14 }}>
         {tab("san-pham", "Sản phẩm + luồng")}
         {tab("quang-cao", "Quảng cáo + khuyến mãi")}
+        {tab("tu-khoa", "Từ khóa")}
       </nav>
     </div>
   );

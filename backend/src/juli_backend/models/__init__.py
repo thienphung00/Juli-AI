@@ -35,7 +35,11 @@ from juli_backend.models.lever_flows import (
     RunMeasurementFinal,
 )
 from juli_backend.models.llm_call_log import LLMCallLog
-from juli_backend.models.market import MarketKeywordSnapshot, MarketListingSnapshot
+from juli_backend.models.market import (
+    MarketKeywordMetric,
+    MarketKeywordSnapshot,
+    MarketListingSnapshot,
+)
 from juli_backend.models.models import *  # noqa: F403
 from juli_backend.models.ops import (
     OpsAuditLog,
@@ -66,6 +70,7 @@ from juli_backend.models.shop_diagnosis import (
     ShopDiagnosisReport,
     ShopMetricRanking,
 )
+from juli_backend.models.shop_keywords import ShopKeywordSeed
 from juli_backend.models.shop_proposals import (
     ShopProposal,
     ShopProposalApproval,
@@ -139,4 +144,6 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopProposalApproval,
     ShopProposalExecution,
     ShopProposalResult,
+    MarketKeywordMetric,
+    ShopKeywordSeed,
 )
