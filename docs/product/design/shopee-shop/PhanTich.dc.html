@@ -47,7 +47,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 
 <div style="display: flex; align-items: center; gap: 16px; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 10px 14px">
 <span style="font-size: 14px"><b style="color: #b0386a">✦ Juli gợi ý</b> · Tổng ₫ có nguy cơ: <b style="color: #a3222f">{{sumDay}}/ngày</b> ({{sumMonth}}/tháng)</span>
-<a href="CardWhatIf.dc.html" style="margin-left: auto; font-weight: 600; text-decoration: none; color: #ffffff; background: #c2306d; border-radius: 10px; min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center">Xem {{cardCount}} đề xuất ›</a>
+<a href="CardWhatIf.dc.html#card={{firstCard}}&from=phan-tich" style="margin-left: auto; font-weight: 600; text-decoration: none; color: #ffffff; background: #c2306d; border-radius: 10px; min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center">Xem {{cardCount}} đề xuất ›</a>
 </div>
 
 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
@@ -134,94 +134,411 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1300}}'>
-/* ===== MODEL (số minh hoạ — shop gia dụng giả lập) ===== */
+/* ===== SHARED DATASET v1 · identical in every artboard (one source, copied into each file) ===== */
+const DS = (() => {
 const fmt = (n, d = 0) => { const s = Math.abs(n).toFixed(d); let [i, f] = s.split('.'); i = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); return (n < 0 && Number(s) !== 0 ? '−' : '') + i + (f ? ',' + f : ''); };
 const vnd = (n) => fmt(Math.round(n)) + 'đ';
 const sv = (n) => (Math.round(n) >= 0 ? '+' : '−') + fmt(Math.abs(Math.round(n))) + 'đ';
 const pc = (x, d = 2) => fmt(x * 100, d) + '%';
-const chipOf = (a, b) => { if (!a) return { t: '—', up: null }; const r = b / a - 1; if (Math.abs(r) < 0.0005) return { t: '0,0%', up: null }; return { t: (r > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(r) * 100, 1) + '%', up: r > 0, r }; };
-const chipPt = (a, b) => { const d = (b - a) * 100; if (Math.abs(d) < 0.05) return { t: '0,0 điểm', up: null }; return { t: (d > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(d), 1) + ' điểm', up: d > 0, r: d }; };
+const TARGET = 0.10, FEE = 0.15, ADRATE = 0.184, CAP_MAX = 0.10;
+const TARGETS = { month: 'T11/2026', gmv: 260000000, orders: 3100, aov: 83900, bien: 0.10, adCapDay: 0 };
+const AD_CAP_DAY = 1200000; TARGETS.adCapDay = AD_CAP_DAY;
+const ALLOWED = { views: ['title', 'keyword', 'ads_budget', 'affiliate_commission'], ctr: ['cover_image', 'title', 'price_display'], ctor: ['product_discount', 'min_spend_voucher', 'review_voucher', 'price'], aov: ['bundle_deal', 'add_on', 'min_spend_voucher', 'variation_set'], bien: ['price', 'voucher_cap', 'ads_roas_target', 'ads_pause'], roas: ['ads_roas_target', 'ads_pause', 'ads_purpose'], lien_ket: ['affiliate_commission', 'affiliate_target_campaign'] };
+const split = (total, w) => { const s = w.reduce((a, b) => a + b, 0); return w.map((x) => total * x / s); };
+const round1 = (x) => Math.round(x * 1e6) / 1e6;
+/* ---- luồng (contract §2) ---- */
+const FLOWS = [
+  { k: 'the_san_pham', name: 'Thẻ sản phẩm (ngoài Trang shop)', short: 'Thẻ sản phẩm', vs: 0.56, cm: 1.0, om: 1.0, am: 1.0, bd: 0.0, adv: 0.10 },
+  { k: 'trang_shop', name: 'Trang shop', short: 'Trang shop', vs: 0.12, cm: 1.30, om: 1.40, am: 1.10, bd: 0.04, adv: 0.08 },
+  { k: 'live', name: 'Live', short: 'Live', vs: 0.06, cm: 1.50, om: 1.10, am: 0.90, bd: -0.02, adv: 0.02 },
+  { k: 'video', name: 'Video', short: 'Video', vs: 0.14, cm: 0.75, om: 0.80, am: 0.95, bd: 0.01, adv: 0.03 },
+  { k: 'lien_ket', name: 'Tiếp thị liên kết (Affiliate)', short: 'Tiếp thị liên kết', vs: 0.12, cm: 1.10, om: 1.15, am: 1.05, bd: -0.06, adv: 0 }
+];
+const KIDS = [
+  { k: 'search', name: 'Tìm kiếm', vs: 0.42, cm: 1.15, om: 1.05, am: 1.0, bd: 0.01 },
+  { k: 'de_xuat', name: 'Đề xuất', vs: 0.34, cm: 0.80, om: 0.85, am: 0.95, bd: -0.01 },
+  { k: 'gio_hang', name: 'Giỏ hàng', vs: 0.05, cm: 1.60, om: 1.50, am: 1.10, bd: 0.03 },
+  { k: 'don_mua', name: 'Đơn mua', vs: 0.04, cm: 1.40, om: 1.30, am: 1.05, bd: 0.02 },
+  { k: 'khuyen_mai', name: 'Khuyến mãi (gồm Flash Sale)', vs: 0.11, cm: 1.50, om: 1.0, am: 0.85, bd: -0.09 },
+  { k: 'khac', name: 'Khác', vs: 0.04, cm: 0.90, om: 0.80, am: 0.90, bd: -0.02 }
+];
+const LEVERS = [
+  { k: 'none', name: 'Không ưu đãi', am: 1.0, bd: 0.07 },
+  { k: 'voucher', name: 'Voucher', am: 0.92, bd: -0.02 },
+  { k: 'promo', name: 'Khuyến mãi (gồm giá Flash Sale)', am: 0.88, bd: -0.06 },
+  { k: 'combo', name: 'Combo / Mua kèm', am: 1.35, bd: 0.03 }
+];
+const RV = 0.15, RP = 0.20, RC = 0.10;
+const AD = { cm: 1.35, om: 0.85, am: 0.98, bd: -0.09 };
+const PV = { the_san_pham: 1.04, trang_shop: 0.92, live: 0.95, video: 1.10, lien_ket: 0.78 }, PC = { the_san_pham: 1.0, trang_shop: 1.04, live: 1.02, video: 0.97, lien_ket: 0.95 };
+/* ---- SKU của sản phẩm vẽ đầy đủ (BEP-S5) ---- */
+const SHOP = { fee: FEE, ad: ADRATE, aff: 0, target: TARGET, cap: CAP_MAX, voucher: 10000, voucherMin: 200000, voucherBudgetMonth: 500000 };
+const SKUS = [
+  { id: 'BEP-S5-CB', name: 'Bộ 5 món · Cơ bản', list: 200000, promo: null, stock: 214, restock: null, cogs: 100000, pack: 3000, fixed: 0, img: 0, lever: 'voucher', baskets: [{ P: 200000, n: 24 }, { P: 360000, n: 6 }], comboDisc: 0 },
+  { id: 'BEP-S5-L', name: 'Bộ 5 món · Găng size L', list: 185000, promo: null, stock: 96, restock: null, cogs: 96000, pack: 3000, fixed: 0, img: 1, lever: 'none', baskets: [{ P: 185000, n: 20 }], comboDisc: 0 },
+  { id: 'BEP-S3', name: 'Bộ 3 món · Găng, xơ mướp, nước rửa', list: 129000, promo: 119000, stock: 9, restock: '08/11', cogs: null, pack: null, fixed: 0, img: 2, lever: 'promo', baskets: [{ P: 119000, n: 12 }], comboDisc: 0 },
+  { id: 'BEP-S5-QT', name: 'Bộ 5 món · Hộp quà', list: 249000, promo: null, stock: 0, restock: '12/11', cogs: 128000, pack: 6000, fixed: 0, img: 3, lever: 'combo', baskets: [{ P: 249000, n: 4 }], comboDisc: 12000 }
+];
+SKUS.forEach((s) => { s.orders = s.baskets.reduce((a, b) => a + b.n, 0); });
+const CB_ALPHA = 0.3;
+function econ(s) {
+  if (s.cogs == null) return null;
+  const sell = s.promo || s.list;
+  const v = sell >= SHOP.voucherMin ? SHOP.voucher : 0;
+  const pay = sell - v;
+  const fee = Math.round(SHOP.fee * pay);
+  const cost = s.cogs + s.pack + s.fixed;
+  const org = pay - fee - cost;
+  const ads = Math.round(SHOP.ad * sell);
+  const adm = org - ads;
+  const abs = Math.round(cost / (1 - SHOP.fee));
+  const op = Math.round(cost / (1 - SHOP.fee - SHOP.ad - SHOP.aff - SHOP.target));
+  const maxd = Math.min(SHOP.cap, 1 - op / s.list);
+  return { sell, v, pay, fee, cost, org, orgP: org / pay * 100, ads, adm, admP: adm / pay * 100, abs, op, maxd: maxd * 100, maxdV: Math.floor(s.list * maxd / 1000) * 1000 };
+}
+/* dòng đơn của BEP-S5 (30 ngày): GMV, giá niêm yết, voucher, combo, lợi nhuận trên doanh thu có giá vốn */
+const BEP_AD_SPEND = 600000, BEP_AD_SPEND_PRI = 560000;
+function bepLines() {
+  let gmv = 0, list = 0, vc = 0, cb = 0, km = 0, orders = 0; const per = [];
+  SKUS.forEach((s) => {
+    let g = 0, l = 0, v = 0, c = 0, k = 0, bp = 0, org = 0, o = 0;
+    s.baskets.forEach((b) => {
+      const sell = b.P; const vv = sell >= SHOP.voucherMin ? SHOP.voucher : 0; const pay = sell - vv - s.comboDisc;
+      g += b.n * sell; l += b.n * (s.promo ? s.list : sell); v += b.n * vv; c += b.n * s.comboDisc; k += b.n * (s.promo ? s.list - s.promo : 0); bp += b.n * pay; o += b.n;
+      if (s.cogs != null) { const cost = s.id === 'BEP-S5-CB' ? b.P * 0.515 : s.cogs + s.pack + s.fixed; org += b.n * (pay - SHOP.fee * pay - cost); }
+    });
+    per.push({ id: s.id, g, l, v, c, k, bp, org, o, cov: s.cogs != null }); gmv += g; list += l; vc += v; cb += c; km += k; orders += o;
+  });
+  const cbAd = CB_ALPHA * ADRATE * per[0].g; const rest = BEP_AD_SPEND - cbAd; const others = per.slice(1); const og = others.reduce((a, x) => a + x.g, 0);
+  let profit = 0, covBp = 0;
+  per.forEach((x, i) => { if (!x.cov) return; const ad = i === 0 ? cbAd : rest * x.g / og; profit += x.org - ad; covBp += x.bp; x.ad = ad; x.profit = x.org - ad; });
+  return { gmv, list, vc, cb, km, orders, bp: gmv - vc - cb, profit, covBp, per };
+}
+const BEP = bepLines();
+/* ---- sản phẩm ---- */
+const P = [
+  { id: 'GL-001', name: 'Găng tay cao su đa dụng', ini: 'GT', e: 0.006, aff: 0.08, ad: { vs: 0.07, roas: 5.6 }, be: 4.8, kind: 'hien_thi',
+    main: { list: 74000, cogs: 36000, pack: 2500, fixed: 1000 },
+    cur: { v: 412000, ctr: 0.031, ctor: 0.062, aov: 74000, bien: 0.214, km: 0.02, vc: 0.05, cb: 0.01 }, pri: { v: 390000, ctr: 0.0305, ctor: 0.064, aov: 72500, bien: 0.220, km: 0.02, vc: 0.04, cb: 0.01 } },
+  { id: 'NR-002', name: 'Nước rửa chén 750ml', ini: 'NR', e: 0.010, aff: 0.08, ad: { vs: 0.17, roas: 4.6 }, be: 5.4, kind: 'chuyen_doi',
+    main: { list: 106000, cogs: 50000, pack: 3000, fixed: 1230, voucherNow: 15000, voucherPri: 7000 },
+    cur: { v: 655000, ctr: 0.024, ctor: 0.051, aov: 96000, bien: 0.098, km: 0.05, vc: 0.08, cb: 0.01 }, pri: { v: 610000, ctr: 0.0245, ctor: 0.053, aov: 95000, bien: 0.124, km: 0.04, vc: 0.05, cb: 0.01 } },
+  { id: 'XM-003', name: 'Xơ mướp rửa chén (5 miếng)', ini: 'XM', e: 0.008, aff: 0.08, ad: { vs: 0.05, roas: 6.2 }, be: 5.0, kind: 'ra_mat',
+    main: { list: 44000, cogs: 18000, pack: 1500, fixed: 1000 },
+    cur: { v: 268000, ctr: 0.036, ctor: 0.039, aov: 42000, bien: 0.240, km: 0.03, vc: 0.02, cb: 0 }, pri: { v: 259000, ctr: 0.0355, ctor: 0.053, aov: 41000, bien: 0.251, km: 0.03, vc: 0.02, cb: 0 },
+    tw: { cur: { de_xuat: { om: 0.55 } } } },
+  { id: 'TU-004', name: 'Túi đựng thực phẩm zip (50 túi)', ini: 'TU', e: 0.012, aff: 0.08, ad: { vs: 0.12, roas: 3.9 }, be: 5.4, kind: 'chuyen_doi',
+    main: { list: 129000, cogs: 62000, pack: 3000, fixed: 1230 },
+    cur: { v: 190000, ctr: 0.029, ctor: 0.048, aov: 118000, bien: 0.062, km: 0.08, vc: 0.08, cb: 0.01 }, pri: { v: 170000, ctr: 0.027, ctor: 0.047, aov: 109000, bien: 0.115, km: 0.05, vc: 0.05, cb: 0.01 } },
+  { id: 'GN-005', name: 'Giấy bạc nhôm 5m', ini: 'GB', e: 0.007, aff: 0.08, ad: { vs: 0.11, roas: 5.0 }, be: 4.5, kind: 'hien_thi',
+    main: { list: 92000, cogs: 46000, pack: 2500, fixed: 1000 },
+    cur: { v: 224000, ctr: 0.022, ctor: 0.056, aov: 88000, bien: 0.153, km: 0.03, vc: 0.03, cb: 0 }, pri: { v: 231000, ctr: 0.023, ctor: 0.055, aov: 87000, bien: 0.160, km: 0.03, vc: 0.03, cb: 0 } },
+  { id: 'BEP-S5', name: 'Bộ vệ sinh bếp 5 món', ini: 'BV', e: 0.0, aff: 0, ad: { vs: 0.10, roas: 0, fixedSpend: { cur: BEP_AD_SPEND, pri: BEP_AD_SPEND_PRI } }, be: 3.0, kind: 'chuyen_doi', mid: '24681357902', ordW: [32, 8, 4, 10, 12],
+    main: { list: 200000, cogs: 100000, pack: 3000, fixed: 0 },
+    cur: { v: 15000, clicks: 660, orders: 66, gmv: BEP.gmv, bien: BEP.profit / BEP.covBp, lines: BEP }, pri: { v: 13700, clicks: 575, orders: 54, gmv: 11340000, bien: 0.2465, km: 0.01, vc: 0.03, cb: 0.004, cov: 0.9 } },
+  { id: 'REST', rest: true, name: 'Còn lại · 4 sản phẩm', ini: '+4', e: 0.007, aff: 0.08, ad: { vs: 0.03, roas: 5.0 }, be: 5.0,
+    cur: { v: 380000, ctr: 0.020, ctor: 0.045, aov: 69000, bien: 0.140, km: 0.03, vc: 0.03, cb: 0.01 }, pri: { v: 360000, ctr: 0.0205, ctor: 0.045, aov: 68000, bien: 0.145, km: 0.03, vc: 0.03, cb: 0.01 } }
+];
+const pById = (id) => P.find((p) => p.id === id);
+/* ---- tách một luồng thành các phần cộng đúng bằng tổng ---- */
+function splitStreams(defs, T, adjV, adjC, extra, ordW) {
+  const views = split(T.v, defs.map((s) => s.vs * (adjV ? adjV(s) : 1)));
+  const f = (s, key) => (extra && extra[s.k] && extra[s.k][key] != null ? extra[s.k][key] : s[key]);
+  const clicks = split(T.clicks, defs.map((s, i) => views[i] * f(s, 'cm') * (adjC ? adjC(s) : 1)));
+  const orders = ordW ? split(T.orders, ordW) : split(T.orders, defs.map((s, i) => clicks[i] * f(s, 'om')));
+  const gmv = split(T.gmv, defs.map((s, i) => orders[i] * f(s, 'am')));
+  const bpR = T.bp / T.gmv, cov = T.covBp / T.bp; const covBp = gmv.map((g) => g * bpR * cov);
+  const raw = defs.map((s) => T.bien + s.bd); const shift = (T.profit - covBp.reduce((a, c, i) => a + c * raw[i], 0)) / covBp.reduce((a, c) => a + c, 0);
+  return defs.map((s, i) => ({ k: s.k, name: s.name, short: s.short || s.name, v: views[i], clicks: clicks[i], orders: orders[i], gmv: gmv[i], aov: gmv[i] / orders[i], ctr: clicks[i] / views[i], ctor: orders[i] / clicks[i], bp: gmv[i] * bpR, covBp: covBp[i], bien: raw[i] + shift, profit: covBp[i] * (raw[i] + shift), disc: T.disc, discAmt: gmv[i] * T.discAmt / T.gmv }));
+}
+/* ---- cửa sổ sản phẩm ---- */
+const winCache = {};
+function win(p, w) {
+  const key = p.id + w; if (winCache[key]) return winCache[key];
+  const c = p[w]; let clicks, orders, gmv, v = c.v;
+  if (c.clicks != null) { clicks = c.clicks; orders = c.orders; gmv = c.gmv; } else { clicks = v * c.ctr; orders = clicks * c.ctor; gmv = orders * c.aov; }
+  const aovv = gmv / orders;
+  let lv, vcA, kmA, cbA, covR = c.cov != null ? c.cov : 1;
+  if (c.lines) { const L = c.lines; vcA = L.vc; kmA = L.km; cbA = L.cb; covR = L.covBp / L.bp; lv = { orders: SKUS.map((s) => s.baskets.reduce((a, b) => a + b.n, 0)), gmv: L.per.map((x) => x.g) }; }
+  else {
+    vcA = c.vc * gmv; kmA = c.km * gmv; cbA = c.cb * gmv;
+    const sh = [0, vcA / RV, kmA / RP, cbA / RC]; sh[0] = Math.max(gmv * 0.05, gmv - sh[1] - sh[2] - sh[3]);
+    const ow = LEVERS.map((l, i) => sh[i] / l.am); const lo = split(orders, ow); lv = { orders: lo, gmv: split(gmv, lo.map((o, i) => o * LEVERS[i].am)) };
+  }
+  const list = gmv + kmA, bp = gmv - vcA - cbA, covBp = bp * covR;
+  const profit = c.lines ? c.lines.profit : c.bien * covBp; const bien = profit / covBp;
+  const o = { id: p.id, w, v, clicks, orders, gmv, aov: aovv, ctr: clicks / v, ctor: orders / clicks, list, km: kmA, vc: vcA, cb: cbA, bp, covBp, profit, bien, disc: (kmA + vcA + cbA) / list, discAmt: kmA + vcA + cbA, lv, e: p.e };
+  winCache[key] = o; return o;
+}
+function flowsOf(p, w) {
+  const key = 'F' + p.id + w; if (winCache[key]) return winCache[key];
+  const b = win(p, w); const e = p.e; const T = { v: b.v, clicks: b.clicks, orders: b.orders * (1 + e), gmv: b.gmv * (1 + e), bp: b.bp * (1 + e), covBp: b.covBp * (1 + e), profit: b.profit * (1 + e), bien: b.bien, disc: b.disc, discAmt: b.discAmt * (1 + e) };
+  const r = splitStreams(FLOWS, T, w === 'pri' ? (s) => PV[s.k] : null, w === 'pri' ? (s) => PC[s.k] : null, null, (w === 'cur' && p.ordW) ? p.ordW : null);
+  winCache[key] = r; return r;
+}
+function kidsOf(p, w) {
+  const key = 'K' + p.id + w; if (winCache[key]) return winCache[key];
+  const fl = flowsOf(p, w)[0]; const T = Object.assign({}, fl, { disc: fl.disc, discAmt: fl.discAmt });
+  const r = splitStreams(KIDS, T, null, null, p.tw && p.tw[w] ? p.tw[w] : null); winCache[key] = r; return r;
+}
+function leversOf(p, w) {
+  const b = win(p, w); const lo = b.lv.orders, lg = b.lv.gmv;
+  const raw = LEVERS.map((l) => b.bien + l.bd); const covR = b.covBp / b.bp; const cb = lg.map((g) => g * (b.bp / b.gmv) * covR);
+  const shift = (b.profit - cb.reduce((a, c, i) => a + c * raw[i], 0)) / cb.reduce((a, c) => a + c, 0);
+  const amt = [0, b.vc, b.km, b.cb];
+  return LEVERS.map((l, i) => ({ k: l.k, name: l.name, orders: lo[i], gmv: lg[i], aov: lg[i] / lo[i], bp: lg[i] * (b.bp / b.gmv), covBp: cb[i], bien: raw[i] + shift, profit: cb[i] * (raw[i] + shift), discAmt: amt[i], disc: lg[i] ? amt[i] / (lg[i] + (i === 2 ? b.km : 0)) : 0, v: null, clicks: null, ctr: null, ctor: null }));
+}
+function adFlows(p, w) {
+  const key = 'A' + p.id + w; if (winCache[key]) return winCache[key];
+  const b = win(p, w); const fl = flowsOf(p, w);
+  const rows = fl.map((f, i) => { const fd = FLOWS[i]; const v = f.v * fd.adv * (p.ad.vs / 0.1); const clicks = v * f.ctr * AD.cm; const orders = clicks * f.ctor * AD.om; const gmv = orders * f.aov * AD.am; return { k: f.k, v, clicks, orders, gmv }; });
+  const tg = rows.reduce((a, r) => a + r.gmv, 0);
+  const spend = p.ad.fixedSpend ? p.ad.fixedSpend[w] : tg / (p.ad.roas * (w === 'pri' ? 1.08 : 1));
+  const out = rows.map((r) => ({ k: r.k, name: 'Quảng cáo (trong đó)', v: r.v, clicks: r.clicks, orders: r.orders, gmv: r.gmv, aov: r.orders ? r.gmv / r.orders : 0, ctr: r.v ? r.clicks / r.v : 0, ctor: r.clicks ? r.orders / r.clicks : 0, bien: b.bien + AD.bd, bp: r.gmv * (b.bp / b.gmv), covBp: r.gmv * (b.bp / b.gmv) * (b.covBp / b.bp), profit: r.gmv * (b.bp / b.gmv) * (b.covBp / b.bp) * (b.bien + AD.bd), spend: spend * r.gmv / tg }));
+  winCache[key] = out; return out;
+}
+function adOf(p, w) {
+  const a = adFlows(p, w); const t = { name: 'Quảng cáo (trong đó)', v: 0, clicks: 0, orders: 0, gmv: 0, profit: 0, spend: 0 };
+  a.forEach((r) => { t.v += r.v; t.clicks += r.clicks; t.orders += r.orders; t.gmv += r.gmv; t.profit += r.profit; t.spend += r.spend; });
+  const b = win(p, w); t.ctr = t.clicks / t.v; t.ctor = t.orders / t.clicks; t.aov = t.gmv / t.orders; t.bien = b.bien + AD.bd; t.roas = t.gmv / t.spend; return t;
+}
+function fullWin(p, w) { // cửa sổ có chi phí
+  const b = win(p, w); const ad = adOf(p, w); const lk = flowsOf(p, w)[4];
+  return Object.assign({}, b, { adSpend: ad.spend, aff: p.aff * lk.gmv, chi: ad.spend + b.discAmt + p.aff * lk.gmv });
+}
+function sumW(list) {
+  const t = { v: 0, clicks: 0, orders: 0, gmv: 0, list: 0, km: 0, vc: 0, cb: 0, bp: 0, covBp: 0, profit: 0, adSpend: 0, aff: 0, chi: 0, discAmt: 0 };
+  list.forEach((x) => Object.keys(t).forEach((k) => { t[k] += x[k] || 0; }));
+  t.ctr = t.clicks / t.v; t.ctor = t.orders / t.clicks; t.aov = t.gmv / t.orders; t.disc = t.discAmt / t.list; t.bien = t.profit / t.covBp; return t;
+}
+/* ---- chi phí cấp shop (contract §4) ---- */
+const UNATTR = { cur: 640000, pri: 600000 }, OTHER = { cur: 300000, pri: 250000 };
+const FW = { cur: P.map((p) => fullWin(p, 'cur')), pri: P.map((p) => fullWin(p, 'pri')) };
+function shopWin(w) { // lợi nhuận shop = Σ lợi nhuận sản phẩm − QC không gắn sản phẩm − chi marketing khác
+  const t = sumW(FW[w]); const prodProfit = t.profit; const profit = prodProfit - UNATTR[w] - OTHER[w];
+  const o = Object.assign({}, t, { prodProfit, unattr: UNATTR[w], other: OTHER[w], profit, adSpend: t.adSpend + UNATTR[w], chi: t.chi + UNATTR[w] });
+  o.bien = profit / t.covBp; o.cov = t.covBp / t.bp; o.prodAdSpend = t.adSpend; return o;
+}
+const SHOPW = { cur: shopWin('cur'), pri: shopWin('pri') };
+function flowSum(w, which) { // which: flows | kids | levers | ads → cộng mọi sản phẩm
+  const lists = P.map((p) => (which === 'flows' ? flowsOf(p, w) : which === 'kids' ? kidsOf(p, w) : which === 'levers' ? leversOf(p, w) : adFlows(p, w)));
+  return lists[0].map((s, i) => { const t = { k: s.k, name: s.name, short: s.short, v: 0, clicks: 0, orders: 0, gmv: 0, bp: 0, covBp: 0, profit: 0, discAmt: 0, spend: 0 }; lists.forEach((l) => Object.keys(t).forEach((k) => { if (typeof t[k] === 'number') t[k] += l[i][k] || 0; })); if (t.v) { t.ctr = t.clicks / t.v; t.ctor = t.orders / t.clicks; } else { t.v = null; t.ctr = null; t.ctor = null; } t.aov = t.gmv / t.orders; t.bien = t.profit / (t.covBp || t.bp); return t; });
+}
+/* ---- 5 con số chính: một định nghĩa, một bộ nhãn (contract §5) ---- */
+const LABELS = ['① % giảm giá', '② Doanh thu thêm / chi thêm', '③ Biên lợi nhuận cuối', '④ Số đơn', '⑤ AOV'];
+const CAP_LABEL = 'Chi marketing / ngày vs trần';
+const chipOf = (a, b) => { if (!a) return { t: '—', up: null, r: 0 }; const r = b / a - 1; if (Math.abs(r) < 0.0005) return { t: '0,0%', up: null, r }; return { t: (r > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(r) * 100, 1) + '%', up: r > 0, r }; };
+const chipPt = (a, b) => { const d = (b - a) * 100; if (Math.abs(d) < 0.05) return { t: '0,0 điểm', up: null, r: d }; return { t: (d > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(d), 1) + ' điểm', up: d > 0, r: d }; };
+function fiveOf(a, b) {
+  const dG = b.gmv - a.gmv, dC = b.chi - a.chi; const eff = dC > 0 ? dG / dC : null;
+  const cov = b.covBp / b.bp, full = cov > 0.9999; const dc = chipPt(a.disc, b.disc), oc = chipOf(a.orders, b.orders), ac = chipOf(a.gmv / a.orders, b.gmv / b.orders);
+  const bien = b.profit / b.covBp, bienA = a.profit / a.covBp, bc = chipPt(bienA, bien);
+  return [
+    { key: 'disc', label: LABELS[0], val: pc(b.disc, 1), before: pc(a.disc, 1), chip: dc.t, dAbs: sv(b.discAmt - a.discAmt), tone: dc.r > 0.05 ? 'down' : (dc.r < -0.05 ? 'up' : 'flat'), sub1: '= ' + vnd(b.discAmt) + ' tiền giảm', sub2: 'trên ' + vnd(b.list) + ' giá niêm yết', raw: b.disc },
+    { key: 'eff', label: LABELS[1], val: eff == null ? 'giảm chi' : fmt(eff, 2) + 'đ / 1đ chi', before: '—', chip: eff == null ? 'Giảm chi ' + vnd(-dC) : fmt(eff * 100, 0) + '%', dAbs: sv(dG), tone: eff == null ? 'up' : (eff < 1 ? 'down' : 'up'), sub1: 'ΔGMV ' + sv(dG) + ' ÷ Δchi ' + sv(dC), sub2: eff == null ? 'Chi giảm hoặc không đổi' : (eff < 1 ? 'Chi thêm nhiều hơn thu thêm' : 'Thu thêm nhiều hơn chi thêm'), raw: eff },
+    { key: 'bien', label: LABELS[2], val: pc(bien, 1), before: pc(bienA, 1), chip: bc.t, dAbs: full ? sv(b.profit - a.profit) : '—', tone: bien < TARGET ? 'down' : (bc.up === false ? 'down' : (bc.up ? 'up' : 'flat')), sub1: full ? '= ' + vnd(b.profit) + ' lợi nhuận' : 'trên ' + pc(cov, 1) + ' doanh thu có giá vốn', sub2: 'Mục tiêu ' + pc(TARGET, 0) + ': ' + (bien >= TARGET ? 'đạt' : 'chưa đạt'), raw: bien },
+    { key: 'orders', label: LABELS[3], val: fmt(b.orders) + ' đơn', before: fmt(a.orders) + ' đơn', chip: oc.t, dAbs: (b.orders - a.orders >= 0 ? '+' : '−') + fmt(Math.abs(b.orders - a.orders)) + ' đơn', tone: oc.up === false ? 'down' : (oc.up ? 'up' : 'flat'), sub1: '= ' + vnd(b.gmv) + ' GMV', sub2: 'đơn đã xác nhận', raw: b.orders },
+    { key: 'aov', label: LABELS[4], val: vnd(b.gmv / b.orders), before: vnd(a.gmv / a.orders), chip: ac.t, dAbs: sv(b.gmv / b.orders - a.gmv / a.orders), tone: ac.up === false ? 'down' : (ac.up ? 'up' : 'flat'), sub1: '= GMV ÷ số đơn', sub2: pc(b.gmv / b.orders / (b.list / b.orders), 1) + ' giá niêm yết', raw: b.gmv / b.orders }
+  ];
+}
+function capOf(b, days) { const day = b.chi / days; return { day, cap: AD_CAP_DAY, use: day / AD_CAP_DAY, left: AD_CAP_DAY - day }; }
+/* ---- sàn giá (contract §6) ---- */
+function floorOf(m) { const cost = m.cogs + m.pack + m.fixed; return { cost, abs: Math.round(cost / (1 - FEE)), op: Math.round(cost / (1 - FEE - ADRATE - SHOP.aff - TARGET)) }; }
+/* ---- voucher what-if (contract §7 + §9) ---- */
+const CB = { rate: 0.515, alpha: CB_ALPHA, u: 1.0, A: { type: 'd', v: 10000, pct: 0, max: 0, s: 200000, qty: 100 }, budgetMonth: 500000, q30: [{ P: 200000, n: 24 }, { P: 360000, n: 6 }] };
+const discOf = (P, i) => (i.type === 'd' ? i.v : Math.min(Math.round(i.pct * P), i.max));
+const opOf = (P, cogsAdd) => Math.round((CB.rate * P + (cogsAdd || 0)) / (1 - FEE - ADRATE - TARGET));
+function vEval(inp, baskets, cogsAdd) {
+  const days = inp.days || 30; const bs = baskets.map((b) => ({ P: b.P, n: b.n }));
+  const Qq = bs.filter((b) => b.P >= inp.s).reduce((a, b) => a + b.n, 0);
+  const used = Math.min(Math.round(Qq * CB.u), inp.qty); const phi = Qq ? used / Qq : 0;
+  let N = 0, gmv = 0, vc = 0, cost = 0;
+  bs.forEach((b) => { N += b.n; gmv += b.n * b.P; cost += b.n * (CB.rate * b.P + (cogsAdd || 0)); if (b.P >= inp.s) vc += phi * b.n * discOf(b.P, inp); });
+  const bp = gmv - vc, fee = FEE * bp, adc = CB.alpha * ADRATE * gmv, profit = bp - fee - cost - adc;
+  return { N, gmv, list: gmv, km: 0, cb: 0, vc, discAmt: vc, bp, covBp: bp, fee, cost, adSpend: adc, aff: 0, chi: vc + adc, profit, bien: profit / bp, aov: gmv / N, disc: vc / gmv, orders: N, Qq, used, phi, days };
+}
+const scaleB = (days) => CB.q30.map((b) => ({ P: b.P, n: Math.round(b.n * days / 30) }));
+function repOf(inp, cogsAdd) { // đơn đại diện = giỏ thấp nhất đủ điều kiện
+  const b = scaleB(30).concat([]).filter((x) => x.P >= inp.s)[0]; if (!b) return null;
+  const P = b.P, d = discOf(P, inp), pay = P - d, fee = Math.round(FEE * pay), cost = CB.rate * P + (cogsAdd || 0), org = pay - fee - cost, ad = Math.round(ADRATE * P), op = opOf(P, cogsAdd), abs = Math.round(cost / (1 - FEE));
+  return { P, d, pay, fee, cost, org, orgP: org / pay * 100, ad, adm: org - ad, admP: (org - ad) / pay * 100, op, abs, maxdV: Math.floor(Math.min(CAP_MAX * P, P - op) / 1000) * 1000 };
+}
+function vCard(inp, cogsAdd) {
+  const days = inp.days; const base = scaleB(days); const A = vEval(Object.assign({}, CB.A, { days }), base, cogsAdd), X = vEval(inp, base, cogsAdd);
+  const rep = repOf(inp, cogsAdd); const repA = repOf(CB.A, cogsAdd);
+  const quals = base.filter((b) => b.P >= inp.s);
+  const breach = quals.some((b) => b.P - discOf(b.P, inp) < opOf(b.P, cogsAdd));
+  const maxdV = quals.length ? Math.min.apply(null, quals.map((b) => Math.floor(Math.min(CAP_MAX * b.P, b.P - opOf(b.P, cogsAdd)) / 1000) * 1000)) : repA.maxdV;
+  const dCost = X.vc - A.vc; const need = (rep && dCost > 0) ? Math.ceil(dCost / rep.org) : 0;
+  const saveMax = (dCost < 0 && repA) ? Math.floor(-dCost / repA.org) : 0;
+  const perDay = X.vc / days, budgetDay = CB.budgetMonth / 30, maxCost = inp.qty * (rep ? rep.d : discOf(inp.s, inp));
+  // dự kiến (khoảng): giỏ thấp nhất bị mất / chuyển lên ngưỡng
+  const dV = ((rep ? rep.d : 0) - 10000) / 1000; const k = days / 30;
+  const lostQ = base.filter((b) => b.P >= 200000 && b.P < inp.s).reduce((a, b) => a + b.n, 0);
+  const f = 1 + Math.max(inp.s - 200000, 0) / 100000;
+  const lo = { lost: Math.round(lostQ * 0.12) + (dV < 0 ? Math.round(-dV * 0.4 * k) : 0), gain: 0, up: inp.s > 200000 ? Math.round(4 / f * k) : 0 };
+  const hi = { lost: Math.round(lostQ * 0.03), gain: Math.round(Math.max(dV, 0) * 0.3 * k), up: inp.s > 200000 ? Math.round(8 / f * k) : 0 };
+  const scen = (sc) => { const bs = base.map((b) => ({ P: b.P, n: b.n })); const low = bs[0]; low.n = Math.max(0, low.n - sc.lost - sc.up + sc.gain); if (sc.up && inp.s > 200000) { const hit = bs.find((b) => b.P === inp.s); if (hit) hit.n += sc.up; else bs.push({ P: inp.s, n: sc.up }); } return vEval(inp, bs, cogsAdd); };
+  const eLo = scen(lo), eHi = scen(hi);
+  return { A, X, rep, repA, breach, maxdV, dCost, need, saveMax, perDay, budgetDay, overBudget: perDay > budgetDay, maxCost, eLo, eHi, lostQ, Qq: X.Qq, used: X.used, u: CB.u, days };
+}
+const V_DEFAULT = { type: 'd', v: 15000, pct: 0.1, max: 18000, s: 299000, qty: 50, per: 2, days: 30 };
+const CARDS = [
+  { id: 'c_bep_voucher', kind: 'min_spend_voucher', metric: 'aov', flow: 'voucher', flowType: 'lever', product: 'BEP-S5', sku: 'BEP-S5-CB', title: 'Voucher shop: nâng đơn tối thiểu lên 299.000đ', rank: { kpi: 'aov', src: 'voucher', focus: 'BEP-S5' }, atStake: 0, why: 'Voucher A đang giảm cho 24/30 đơn chỉ mua 1 bộ 200.000đ, chỉ 6 đơn vượt 299.000đ. AOV của bộ 5 món thấp hơn trung vị shop.' },
+  { id: 'c_gl_bundle', kind: 'bundle_deal', metric: 'aov', flow: 'lien_ket', flowType: 'flow', product: 'GL-001', title: 'Combo 2 đôi găng cho đơn từ link', rank: { kpi: 'aov', src: 'lien_ket', focus: 'GL-001' }, atStake: 1800000, why: 'Đơn qua link liên kết chủ yếu mua 1 đôi; chưa có combo cho đơn từ link.' },
+  { id: 'c_nr_vcap', kind: 'voucher_cap', metric: 'bien', flow: 'voucher', flowType: 'lever', product: 'NR-002', title: 'Giảm voucher 15.000đ xuống 10.000đ', rank: { kpi: 'bien', src: 'voucher', focus: 'v1' }, atStake: 1500000, why: 'Voucher 15k kéo giá khách trả xuống dưới giá sàn vận hành.' },
+  { id: 'c_xm_disc', kind: 'product_discount', metric: 'ctor', flow: 'de_xuat', flowType: 'kid', product: 'XM-003', title: 'Khuyến mãi xơ mướp 5% → 8%, giữ trên giá sàn', rank: { kpi: 'ctor', src: 'the_san_pham', sub: 'de_xuat', focus: 'XM-003' }, atStake: 1200000, why: 'Khách bấm vào từ Đề xuất nhưng ít chốt đơn: CTOR từ Đề xuất giảm mạnh.' },
+  { id: 'c_xm_title', kind: 'title', metric: 'views', flow: 'search', flowType: 'kid', product: 'XM-003', title: 'Đổi tiêu đề, đưa từ khoá lên đầu', rank: { kpi: 'views', src: 'the_san_pham', sub: 'search', focus: 'k4' }, atStake: 900000, why: 'Hạng từ khoá "xơ mướp rửa chén" tụt từ 5 xuống 11.' },
+  { id: 'c_tu_price', kind: 'price', metric: 'bien', flow: 'promo', flowType: 'lever', product: 'TU-004', title: 'Nâng giá bán lên trên giá sàn vận hành', rank: { kpi: 'bien', src: 'all', focus: 'TU-004' }, atStake: 3300000, why: 'Giảm giá tăng, biên cuối dưới mục tiêu 10%.' },
+  { id: 'c_gn_kw', kind: 'keyword', metric: 'views', flow: 'search', flowType: 'kid', product: 'GN-005', title: 'Thêm 3 từ khoá chính vào tiêu đề', rank: { kpi: 'views', src: 'the_san_pham', sub: 'search', focus: 'k3' }, atStake: 1100000, why: 'Hạng từ khoá tăng nhưng 3 từ khoá chính chưa có trong tiêu đề.' },
+  { id: 'c_gl_title', kind: 'title', metric: 'views', flow: 'search', flowType: 'kid', product: 'GL-001', title: 'Giữ từ khoá "găng tay cao su" trong tiêu đề', rank: { kpi: 'views', src: 'the_san_pham', sub: 'search', focus: 'k1' }, atStake: 900000, why: 'Từ khoá đang lên hạng, giữ trong 100 ký tự đầu của tiêu đề.' },
+  { id: 'c_nr_ads', kind: 'ads_roas_target', metric: 'roas', flow: 'ads', flowType: 'ads', product: 'NR-002', title: 'Nâng ROAS mục tiêu chiến dịch chuyển đổi', rank: { kpi: 'gmv', src: 'ads', focus: 'a1' }, atStake: 1100000, why: 'ROAS dưới điểm hoà vốn.' },
+  { id: 'c_tu_pause', kind: 'ads_pause', metric: 'roas', flow: 'ads', flowType: 'ads', product: 'TU-004', title: 'Tạm dừng chiến dịch chuyển đổi, nâng giá sàn', rank: { kpi: 'gmv', src: 'ads', focus: 'a2' }, atStake: 2600000, why: 'ROAS dưới điểm hoà vốn và biên cuối dưới mục tiêu.' },
+  { id: 'c_gn_adb', kind: 'ads_budget', metric: 'views', flow: 'ads', flowType: 'ads', product: 'GN-005', title: 'Đổi ngân sách chiến dịch hiển thị', rank: { kpi: 'gmv', src: 'ads', focus: 'a6' }, atStake: 800000, why: 'Chi phí / 1.000 lượt xem tăng.' },
+  { id: 'c_kol_o1', kind: 'affiliate_commission', metric: 'lien_ket', flow: 'lien_ket', flowType: 'flow', product: 'BEP-S5', title: 'Thử hoa hồng 10% cho combo', rank: { kpi: 'gmv', src: 'lien_ket', focus: 'o1' }, atStake: 2400000, why: 'KOL Minh Anh tăng gấp đôi đơn; hoa hồng đang 8%.' },
+  { id: 'c_kol_o3', kind: 'affiliate_commission', metric: 'lien_ket', flow: 'lien_ket', flowType: 'flow', product: 'GL-001', title: 'Hạ hoa hồng KOL về 6%', rank: { kpi: 'gmv', src: 'lien_ket', focus: 'o3' }, atStake: 700000, why: 'Biên đơn qua KOL thấp hơn mục tiêu.' }
+];
+const cardById = (id) => CARDS.find((c) => c.id === id);
+(function () { const r = vCard(V_DEFAULT, 0); cardById('c_bep_voucher').atStake = Math.round(r.X.profit - r.A.profit); })();
+const cardsOfProduct = (id) => CARDS.filter((c) => c.product === id).sort((a, b) => b.atStake - a.atStake);
+
+/* nếu BEP-S3 có giá vốn (thông số 72.000đ + đóng gói 3.000đ): doanh thu có giá vốn = 100 % → hiện lợi nhuận bằng đồng */
+function shopWinFull(w) {
+  const base = SHOPW[w]; const S3 = BEP.per[2]; const oth = BEP.per.slice(1); const og = oth.reduce((a, x) => a + x.g, 0); const adS3 = (BEP_AD_SPEND - CB_ALPHA * ADRATE * BEP.per[0].g) * S3.g / og;
+  const k = w === 'cur' ? 1 : win(pById('BEP-S5'), 'pri').gmv / win(pById('BEP-S5'), 'cur').gmv;
+  const add = k * (S3.bp * (1 - FEE) - 75000 * S3.o - adS3);
+  const o = Object.assign({}, base); o.prodProfit = base.prodProfit + add; o.profit = base.profit + add; o.covBp = o.bp; o.cov = 1; o.bien = o.profit / o.covBp; return o;
+}
+/* ---- xếp hạng: dòng + dòng đóng cộng lại đúng bằng ô ---- */
+const KPIS = [['gmv', 'GMV'], ['views', 'Lượt xem'], ['ctr', 'CTR'], ['ctor', 'CTOR'], ['aov', 'AOV'], ['bien', 'Biên cuối'], ['disc', '% giảm giá'], ['orders', 'Số đơn']];
+const KNAME = { gmv: 'GMV', views: 'Lượt xem', ctr: 'CTR', ctor: 'CTOR', aov: 'AOV', bien: 'Biên cuối', disc: '% giảm giá', orders: 'Số đơn' };
+const SRCS = [['all', 'Tất cả', 'g'], ['the_san_pham', 'Thẻ sản phẩm', 'g'], ['trang_shop', 'Trang shop', 'g'], ['live', 'Live', 'g'], ['video', 'Video', 'g'], ['lien_ket', 'Tiếp thị liên kết', 'g'], ['ads', 'Quảng cáo (trong đó)', 'ad'], ['none', 'Không ưu đãi', 'p'], ['voucher', 'Voucher', 'p'], ['promo', 'Khuyến mãi', 'p'], ['combo', 'Combo', 'p']];
+const SUBS = [['all', 'Cả Thẻ sản phẩm']].concat(KIDS.map((k) => [k.k, k.name]));
+const SNAME = { all: 'Tất cả', the_san_pham: 'Thẻ sản phẩm', trang_shop: 'Trang shop', live: 'Live', video: 'Video', lien_ket: 'Tiếp thị liên kết', ads: 'Quảng cáo', none: 'Không ưu đãi', voucher: 'Voucher', promo: 'Khuyến mãi', combo: 'Combo' };
+KIDS.forEach((k) => { SNAME[k.k] = k.name; });
+const KFMT = { gmv: (x) => vnd(x), views: (x) => fmt(x), ctr: (x) => pc(x), ctor: (x) => pc(x), aov: (x) => vnd(x), bien: (x) => pc(x, 1), disc: (x) => pc(x, 1), orders: (x) => fmt(x) + ' đơn' };
+const QLAB = { gmv: 'Đơn hàng', views: 'Lượt bấm', ctr: 'Lượt bấm', ctor: 'Đơn hàng', aov: 'Đơn hàng', bien: 'Đơn hàng', disc: 'Đơn hàng', orders: 'Lượt bấm' };
+const KGET = { gmv: (s) => s.gmv, views: (s) => s.v, ctr: (s) => s.ctr, ctor: (s) => s.ctor, aov: (s) => s.aov, bien: (s) => s.bien, disc: (s) => s.disc, orders: (s) => s.orders };
+const QGET = { gmv: (s) => s.orders, views: (s) => s.clicks, ctr: (s) => s.clicks, ctor: (s) => s.orders, aov: (s) => s.orders, bien: (s) => s.orders, disc: (s) => s.orders, orders: (s) => s.clicks };
+const lvIdx = { none: 0, voucher: 1, promo: 2, combo: 3 };
+const FLOWK = FLOWS.map((f) => f.k);
+function streamOf(p, w, src, sub) {
+  const b = win(p, w);
+  if (src === 'all') return Object.assign({}, b, { gmv: b.gmv });
+  if (FLOWK.indexOf(src) >= 0) { const f = flowsOf(p, w)[FLOWK.indexOf(src)]; if (src === 'the_san_pham' && sub && sub !== 'all') return kidsOf(p, w).find((k) => k.k === sub); return f; }
+  if (src === 'ads') { const a = adOf(p, w); return Object.assign({}, a, { disc: b.disc, covBp: a.gmv * b.bp / b.gmv }); }
+  const l = leversOf(p, w)[lvIdx[src]]; return l;
+}
+const hasKpi = (s, kpi) => KGET[kpi](s) != null && !Number.isNaN(KGET[kpi](s));
+function sumS(list) { const t = { v: 0, clicks: 0, orders: 0, gmv: 0, profit: 0, covBp: 0, discAmt: 0, bp: 0 }; list.forEach((x) => Object.keys(t).forEach((k) => { t[k] += x[k] || 0; })); t.ctr = t.clicks / t.v; t.ctor = t.orders / t.clicks; t.aov = t.gmv / t.orders; t.bien = t.profit / (t.covBp || t.bp); t.disc = t.discAmt / (t.gmv + 0); return t; }
+const impactOf = (kpi, a, b) => { const dG = b.gmv - a.gmv; if (kpi === 'gmv') return dG / 30; if (kpi === 'bien') return (b.covBp || b.bp) * (b.bien - a.bien) / 30; if (kpi === 'disc') return -(b.discAmt - a.discAmt) / 30; const L = Math.log(b.gmv / a.gmv); if (!L) return 0; return dG * Math.log(KGET[kpi](b) / KGET[kpi](a)) / L / 30; };
+function buildProducts(kpi, src, sub) {
+  if (['none', 'voucher', 'promo', 'combo'].indexOf(src) >= 0 && ['views', 'ctr', 'ctor'].indexOf(kpi) >= 0) return null;
+  const SA = sumS(P.map((p) => streamOf(p, 'pri', src, sub))), SB = sumS(P.map((p) => streamOf(p, 'cur', src, sub)));
+  const cell = impactOf(kpi, SA, SB);
+  const mk = (p) => { const a = streamOf(p, 'pri', src, sub), b = streamOf(p, 'cur', src, sub); const g = impactOf(kpi, a, b); const pb = win(p, 'cur'); const cs = cardsOfProduct(p.id)[0]; return { id: p.id, name: p.name, ini: p.ini, kind: 'product', prior: KGET[kpi](a), last: KGET[kpi](b), qp: QGET[kpi](a), ql: QGET[kpi](b), gmv: g, profit: kpi === 'bien' ? g : g * b.bien, conf: b.orders >= 100 ? 'Rõ' : 'Tham khảo', x: { bien: b.bien, orders: b.orders, aov: b.aov, disc: pb.disc }, rec: cs || null }; };
+  const rows = P.filter((p) => !p.rest).map(mk); const r = mk(P.find((p) => p.rest));
+  const few = { label: '3 sản phẩm ít đơn', gmv: r.gmv * 0.7, profit: r.profit * 0.7 }, others = { label: 'Các sản phẩm khác', gmv: r.gmv * 0.3, profit: r.profit * 0.3 };
+  const rs = rows.reduce((t, x) => t + x.gmv, 0) + r.gmv; const rp = rows.reduce((t, x) => t + x.profit, 0) + r.profit;
+  const mix = { label: 'Thay đổi cơ cấu sản phẩm', gmv: cell - rs, profit: (kpi === 'bien' ? cell : cell * SB.bien) - rp };
+  return { rowKind: 'Sản phẩm', rows, closing: [few, others, mix], cell, ctx: { prior: KGET[kpi](SA), last: KGET[kpi](SB) }, note: null };
+}
+function closeBy(rows, cell, labels, ratio, k) { const res = cell - rows.reduce((t, x) => t + x.gmv, 0); const pr = (k || 0.3) * res; return labels.map((l, i) => ({ label: l, gmv: Math.round(res * ratio[i]), profit: Math.round(pr * ratio[i]) })); }
+const prodX = (id) => { const p = pById(id), b = win(p, 'cur'); return { bien: b.bien, aov: b.aov, disc: b.disc }; };
+const HT = {
+  search: () => { const mkr = (id, name, sub, prior, last, gmv, profit, conf, orders, card) => ({ id, name, sub, kind: 'kw', prior, last, qp: prior, ql: last, gmv, profit, conf, x: Object.assign({ orders }, prodX(card.p)), rec: card.c ? cardById(card.c) : null, card: card.c });
+    const rows = [
+      mkr('k1', 'găng tay cao su', 'Chính · GL-001 · hạng 7 → 4', 31800, 44200, 62000, 13200, 'Rõ', 118, { p: 'GL-001', c: 'c_gl_title' }),
+      mkr('k2', 'nước rửa chén 750ml', 'Chính · NR-002 · hạng 6 → 4', 52400, 63100, 48000, 4700, 'Rõ', 143, { p: 'NR-002', c: null }),
+      mkr('k3', 'giấy bạc nướng thịt', 'Phụ · GN-005 · hạng 8 → 12', 19800, 17900, -17000, -2100, 'Tham khảo', 41, { p: 'GN-005', c: 'c_gn_kw' }),
+      mkr('k4', 'xơ mướp rửa chén', 'Chính · XM-003 · hạng 5 → 11', 41200, 28600, -29500, -7100, 'Rõ', 63, { p: 'XM-003', c: 'c_xm_title' }),
+      mkr('k5', 'túi zip đựng thực phẩm', 'Chính · TU-004 · hạng 9 → 14', 22700, 17300, -18000, -1100, 'Tham khảo', 31, { p: 'TU-004', c: null })];
+    const c = flowSum('cur', 'kids')[0], p0 = flowSum('pri', 'kids')[0]; const cell = impactOf('views', p0, c);
+    return { rowKind: 'Từ khoá', rows, cell, closing: closeBy(rows, cell, ['12 từ khoá ít lượt', 'Các từ khoá khác', 'Thay đổi cơ cấu từ khoá'], [0.45, 0.4, 0.15], 0.2), ctx: { prior: p0.v, last: c.v }, note: 'Từ khoá do chủ shop thu thập (ADR-119). Hạng là vị trí của shop khi tìm từ khoá đó.' }; },
+  kol: () => { const rows = [
+    { id: 'o1', name: 'Minh Anh Review Nhà Bếp', sub: 'KOL · hoa hồng 8% · 3 sản phẩm', kind: 'kol', prior: 62, last: 131, qp: 62, ql: 131, gmv: 142000, profit: 9800, conf: 'Rõ', x: { bien: 0.071, orders: 131, aov: 83000, disc: 0.08 }, rec: cardById('c_kol_o1') },
+    { id: 'o2', name: 'Bếp nhà Hoa', sub: 'KOL · hoa hồng 6% · 2 sản phẩm', kind: 'kol', prior: 48, last: 82, qp: 48, ql: 82, gmv: 71000, profit: 8300, conf: 'Rõ', x: { bien: 0.102, orders: 82, aov: 79000, disc: 0.06 }, rec: null },
+    { id: 'o3', name: 'Mẹ Bắp mách mẹ', sub: 'KOL · hoa hồng 8% · 1 sản phẩm', kind: 'kol', prior: 30, last: 55, qp: 30, ql: 55, gmv: 38000, profit: 2100, conf: 'Tham khảo', x: { bien: 0.044, orders: 55, aov: 91000, disc: 0.1 }, rec: cardById('c_kol_o3') },
+    { id: 'o4', name: 'Chị Lan dọn nhà', sub: 'KOL · hoa hồng 5% · 2 sản phẩm', kind: 'kol', prior: 44, last: 29, qp: 44, ql: 29, gmv: -21000, profit: -2400, conf: 'Tham khảo', x: { bien: 0.118, orders: 29, aov: 70000, disc: 0.05 }, rec: null },
+    { id: 'o5', name: 'Kênh Tiện Ích 24h', sub: 'KOL · hoa hồng 7% · 2 sản phẩm', kind: 'kol', prior: 21, last: 25, qp: 21, ql: 25, gmv: 17000, profit: 1500, conf: 'Tham khảo', x: { bien: 0.09, orders: 25, aov: 66000, disc: 0.07 }, rec: null } ];
+    const c = flowSum('cur', 'flows')[4], p0 = flowSum('pri', 'flows')[4]; const cell = impactOf('gmv', p0, c);
+    return { rowKind: 'KOL', rows, cell, closing: closeBy(rows, cell, ['4 KOL ít đơn', 'KOL đã dừng trong kỳ', 'Thay đổi cơ cấu'], [0.5, 0.5, 0], 0.1), ctx: { prior: p0.gmv, last: c.gmv }, note: 'Số lượng là đơn có link của KOL trong kỳ. Tiếp thị liên kết gồm cả Affiliate Live và Video.' }; },
+  ads: () => { const PUR_JUDGE = { chuyen_doi: 'roas', hien_thi: 'cpm', ra_mat: 'cap' };
+    const mkc = (id, pid, label, purpose, card) => { const p = pById(pid), a = adOf(p, 'cur'), b = adOf(p, 'pri'); const x = prodX(pid); const st = a.spend, sp = b.spend;
+      let prior, last, sub, judge;
+      if (purpose === 'chuyen_doi') { prior = b.roas; last = a.roas; judge = last < p.be ? 'bad' : 'good'; sub = 'ROAS ' + fmt(prior, 1) + ' → ' + fmt(last, 1) + ' · hoà vốn ' + fmt(p.be, 1); }
+      else if (purpose === 'hien_thi') { prior = sp / b.v * 1000; last = st / a.v * 1000; judge = last > prior * 1.1 ? 'bad' : 'warn'; sub = 'Chi phí / 1.000 lượt xem ' + vnd(prior) + ' → ' + vnd(last) + ' · CTR ' + pc(b.ctr, 1) + ' → ' + pc(a.ctr, 1); }
+      else { prior = 0; last = st / 30; judge = 'good'; sub = 'Trần ' + vnd(last) + '/ngày · kết thúc 15/11 · còn 12 ngày'; }
+      const g = (a.gmv - b.gmv) / 30; return { id, name: label, sub, judge, purpose, kind: 'campaign', prior, last, qp: sp, ql: st, gmv: g, profit: g * (x.bien + AD.bd), conf: a.orders >= 100 ? 'Rõ' : 'Tham khảo', x: Object.assign({ orders: a.orders }, x), rec: card ? cardById(card) : null }; };
+    const shopAd = { id: 'a4', name: 'Trang shop · lượt vào shop', sub: 'Không gắn sản phẩm · chi phí / lượt vào shop 520đ → 470đ', judge: 'good', purpose: 'luot_vao_shop', kind: 'campaign', prior: 520, last: 470, qp: UNATTR.pri, ql: UNATTR.cur, gmv: 4500, profit: 900, conf: 'Tham khảo', x: { bien: 0.11, orders: 12, aov: 80000, disc: 0.07 }, rec: null };
+    const rows = [mkc('a1', 'NR-002', 'Nước rửa chén · chuyển đổi', 'chuyen_doi', 'c_nr_ads'), mkc('a2', 'TU-004', 'Túi zip · chuyển đổi', 'chuyen_doi', 'c_tu_pause'), mkc('a3', 'GL-001', 'Găng tay · hiển thị', 'hien_thi', null), shopAd, mkc('a5', 'XM-003', 'Xơ mướp 5 miếng · ra mắt', 'ra_mat', null), mkc('a6', 'GN-005', 'Giấy bạc · hiển thị', 'hien_thi', 'c_gn_adb')];
+    const a = flowSum('cur', 'ads'), b = flowSum('pri', 'ads'); const cell = (a.reduce((t, x) => t + x.gmv, 0) - b.reduce((t, x) => t + x.gmv, 0)) / 30;
+    return { rowKind: 'Chiến dịch', rows, cell, closing: closeBy(rows, cell, ['3 chiến dịch ít đơn', 'Chiến dịch đã dừng trong kỳ', 'Thay đổi cơ cấu'], [0.33, 0.67, 0], 0.15), ctx: { prior: b.reduce((t, x) => t + x.gmv, 0), last: a.reduce((t, x) => t + x.gmv, 0) }, note: 'Quảng cáo là phần “trong đó”: các đơn này đã nằm trong các luồng (chủ yếu Thẻ sản phẩm và Trang shop), không cộng thêm vào GMV của shop. Chiến dịch Lượt vào shop không gắn sản phẩm nào.' }; },
+  voucher: (kpi) => { const bien = kpi === 'bien'; const rows = [
+    { id: 'v1', name: 'Giảm 15.000đ · đơn từ 99.000đ', sub: 'Nước rửa chén, Túi zip · 410 → 338 đơn dùng', kind: 'voucher', prior: bien ? 0.091 : 0.056, last: bien ? 0.062 : 0.047, qp: 410, ql: 338, gmv: bien ? -58000 : -52000, profit: bien ? -58000 : -21000, conf: 'Rõ', x: { bien: 0.062, orders: 338, aov: 104000, disc: 0.15 }, rec: cardById('c_nr_vcap') },
+    { id: 'v2', name: 'Giảm 5% · đơn từ 150.000đ', sub: 'Cả shop · 190 → 171 đơn dùng', kind: 'voucher', prior: bien ? 0.088 : 0.052, last: bien ? 0.081 : 0.049, qp: 190, ql: 171, gmv: bien ? -9000 : -21000, profit: bien ? -9000 : -6500, conf: 'Rõ', x: { bien: 0.081, orders: 171, aov: 168000, disc: 0.05 }, rec: null },
+    { id: 'v3', name: 'Giảm 10.000đ · đơn từ 49.000đ', sub: 'Xơ mướp, Găng tay · 220 → 236 đơn dùng', kind: 'voucher', prior: bien ? 0.168 : 0.044, last: bien ? 0.17 : 0.045, qp: 220, ql: 236, gmv: bien ? 1000 : 4000, profit: bien ? 1000 : 900, conf: 'Rõ', x: { bien: 0.17, orders: 236, aov: 58000, disc: 0.12 }, rec: null },
+    { id: 'v4', name: 'Voucher theo dõi shop 3.000đ', sub: 'Cả shop · 95 → 93 đơn dùng', kind: 'voucher', prior: bien ? 0.141 : 0.068, last: bien ? 0.14 : 0.067, qp: 95, ql: 93, gmv: bien ? -400 : -3000, profit: bien ? -400 : -400, conf: 'Tham khảo', x: { bien: 0.14, orders: 93, aov: 72000, disc: 0.04 }, rec: null },
+    { id: 'v5', name: 'Voucher riêng cho KOL Minh Anh', sub: '3 sản phẩm · 58 → 97 đơn dùng', kind: 'voucher', prior: bien ? 0.075 : 0.071, last: bien ? 0.07 : 0.079, qp: 58, ql: 97, gmv: bien ? -3000 : 9000, profit: bien ? -3000 : 1100, conf: 'Tham khảo', x: { bien: 0.07, orders: 97, aov: 83000, disc: 0.1 }, rec: null } ];
+    const cell = bien ? -66000 : -96000;
+    return { rowKind: 'Voucher', rows, cell, closing: closeBy(rows, cell, ['2 voucher ít đơn', 'Voucher đã hết hạn trong kỳ', 'Thay đổi cơ cấu đơn'], [0.25, 0.35, 0.4], 0.25), ctx: { prior: bien ? 0.0884 : 0.0535, last: bien ? 0.0781 : 0.0486 }, note: bien ? 'Biên cuối tính trên doanh thu khách trả của các đơn dùng voucher đó.' : 'CTOR tính trên lượt bấm vào các sản phẩm đang có voucher đó.' }; }
+};
+function buildRanking(kpi, src, sub) {
+  let d = null;
+  if (src === 'the_san_pham' && sub === 'search' && kpi === 'views') d = HT.search();
+  else if (src === 'lien_ket' && kpi === 'gmv') d = HT.kol();
+  else if (src === 'ads' && kpi === 'gmv') d = HT.ads();
+  else if (src === 'voucher' && (kpi === 'ctor' || kpi === 'bien')) d = HT.voucher(kpi);
+  else d = buildProducts(kpi, src, sub || 'all');
+  if (!d) return null;
+  d.kpi = kpi; d.total = d.rows.reduce((t, x) => t + x.gmv, 0) + d.closing.reduce((t, x) => t + x.gmv, 0); d.totalP = d.rows.reduce((t, x) => t + x.profit, 0) + d.closing.reduce((t, x) => t + x.profit, 0);
+  return d;
+}
+const rankRow = (kpi, src, sub, id) => { const d = buildRanking(kpi, src, sub); return d ? d.rows.find((r) => r.id === id) || null : null; };
+const MATRIX = []; // chỗ để verify đọc
+return { fmt, vnd, sv, pc, chipOf, chipPt, TARGET, FEE, ADRATE, TARGETS, AD_CAP_DAY, ALLOWED, split, FLOWS, KIDS, LEVERS, SHOP, SKUS, econ, BEP, CB, P, pById, win, flowsOf, kidsOf, leversOf, adFlows, adOf, fullWin, sumW, FW, SHOPW, shopWinFull, flowSum, UNATTR, OTHER, LABELS, CAP_LABEL, fiveOf, capOf, floorOf, vEval, vCard, repOf, discOf, opOf, V_DEFAULT, CARDS, cardById, cardsOfProduct, KPIS, KNAME, SRCS, SUBS, SNAME, KFMT, QLAB, KGET, QGET, streamOf, impactOf, buildRanking, rankRow, HT, prodX, FLOWK };
+})();
+/* ===== END SHARED DATASET ===== */
+
+/* ===== PT COMPONENT ===== */
+const { fmt, vnd, sv, pc, TARGET, P, pById, win, flowSum, adOf, rankRow, cardById, floorOf, CARDS } = DS;
 const CHIP_UP = 'color: #146c2e; background: #e3f5e8';
 const CHIP_DOWN = 'color: #a3222f; background: #fdecec';
-const CHIP_FLAT = 'color: #5f5f6b; background: #f3edf0';
-const chipStyle = (c, invert) => c.up === null ? CHIP_FLAT : ((c.up !== !!invert) ? CHIP_UP : CHIP_DOWN);
-const TARGET = 0.10; // biên mục tiêu của shop (Cài đặt › Thông số shop)
-
-const split = (total, w) => { const s = w.reduce((a, b) => a + b, 0); return w.map((x) => total * x / s); };
-
-// cur / pri: v = lượt xem, ctr, ctor, aov (đ), bien (biên cuối), disc (% giảm trung bình), spend (chi QC + voucher + KM)
-const P = [
-  { id: 'GL-001', name: 'Găng tay cao su đa dụng', ini: 'GT', cur: { v: 412000, ctr: 0.031, ctor: 0.062, aov: 74000, bien: 0.214, disc: 0.08, spend: 6100000 }, pri: { v: 390000, ctr: 0.0305, ctor: 0.064, aov: 72500, bien: 0.220, disc: 0.07, spend: 5200000 }, ad: { vs: 0.07, roas: 5.6 }, rec: { t: 'Combo 2 đôi', w: 1800000 } },
-  { id: 'NR-002', name: 'Nước rửa chén 750ml', ini: 'NR', cur: { v: 655000, ctr: 0.024, ctor: 0.051, aov: 96000, bien: 0.098, disc: 0.14, spend: 14800000 }, pri: { v: 610000, ctr: 0.0245, ctor: 0.053, aov: 95000, bien: 0.124, disc: 0.10, spend: 9900000 }, ad: { vs: 0.17, roas: 4.6 }, rec: { t: 'Giảm voucher 15k → 10k', w: 1500000 } },
-  { id: 'XM-003', name: 'Xơ mướp rửa chén (5 miếng)', ini: 'XM', cur: { v: 268000, ctr: 0.036, ctor: 0.039, aov: 42000, bien: 0.240, disc: 0.05, spend: 2400000 }, pri: { v: 259000, ctr: 0.0355, ctor: 0.053, aov: 41000, bien: 0.251, disc: 0.05, spend: 2200000 }, ad: { vs: 0.05, roas: 6.2 }, rec: { t: 'Đổi mô tả', w: 2100000 }, tw: { cur: { de_xuat: { om: 0.55 } } } },
-  { id: 'TU-004', name: 'Túi đựng thực phẩm zip (50 túi)', ini: 'TU', cur: { v: 190000, ctr: 0.029, ctor: 0.048, aov: 118000, bien: 0.062, disc: 0.17, spend: 9600000 }, pri: { v: 170000, ctr: 0.027, ctor: 0.047, aov: 109000, bien: 0.115, disc: 0.11, spend: 5100000 }, ad: { vs: 0.12, roas: 3.9 }, rec: { t: 'Nâng giá sàn vận hành', w: 3300000 } },
-  { id: 'GN-005', name: 'Giấy bạc nhôm 5m', ini: 'GB', cur: { v: 224000, ctr: 0.022, ctor: 0.056, aov: 88000, bien: 0.153, disc: 0.06, spend: 7700000 }, pri: { v: 231000, ctr: 0.023, ctor: 0.055, aov: 87000, bien: 0.160, disc: 0.06, spend: 7000000 }, ad: { vs: 0.11, roas: 5.0 }, rec: { t: 'Thêm 3 từ khoá vào tiêu đề', w: 1100000 } },
-  { id: 'REST', rest: true, name: 'Còn lại · 4 sản phẩm', ini: '+4', cur: { v: 380000, ctr: 0.020, ctor: 0.045, aov: 69000, bien: 0.140, disc: 0.07, spend: 3100000 }, pri: { v: 360000, ctr: 0.0205, ctor: 0.045, aov: 68000, bien: 0.145, disc: 0.07, spend: 3000000 }, ad: { vs: 0.03, roas: 5.0 } }
-];
-const SRC_T = [
-  { k: 'search', name: 'Tìm kiếm', vs: 0.38, cm: 1.15, om: 1.05, am: 1.0, bd: 0.01 },
-  { k: 'de_xuat', name: 'Đề xuất', vs: 0.34, cm: 0.80, om: 0.85, am: 0.95, bd: -0.01 },
-  { k: 'shop', name: 'Trang shop', vs: 0.12, cm: 1.30, om: 1.40, am: 1.10, bd: 0.04 },
-  { k: 'kol', name: 'Liên kết (KOL)', vs: 0.10, cm: 1.10, om: 1.15, am: 1.05, bd: -0.06 },
-  { k: 'flash', name: 'Flash Sale', vs: 0.06, cm: 1.60, om: 1.00, am: 0.85, bd: -0.09 }
-];
-const SRC_P = [
-  { k: 'none', name: 'Không ưu đãi', os: 0.46, am: 1.0, bd: 0.07, disc: 0 },
-  { k: 'voucher', name: 'Voucher', os: 0.30, am: 0.92, bd: -0.02, disc: 0.09 },
-  { k: 'promo', name: 'Khuyến mãi (gồm Flash Sale)', os: 0.18, am: 0.88, bd: -0.06, disc: 0.21 },
-  { k: 'combo', name: 'Combo / Mua kèm', os: 0.06, am: 1.35, bd: 0.03, disc: 0.10 }
-];
-const AD = { cm: 1.35, om: 0.85, am: 0.98, bd: -0.09 };
-
-function base(p, w) { const c = p[w]; const clicks = c.v * c.ctr; const orders = clicks * c.ctor; const gmv = orders * c.aov; return { v: c.v, clicks, orders, gmv, aov: c.aov, ctr: c.ctr, ctor: c.ctor, bien: c.bien, profit: gmv * c.bien, disc: c.disc, spend: c.spend }; }
-function bySrc(p, w) { // lưu lượng: các nguồn cộng lại đúng bằng tổng
-  const b = base(p, w); const tw = (p.tw && p.tw[w]) || {};
-  const f = (s, key) => (tw[s.k] && tw[s.k][key] != null ? tw[s.k][key] : s[key]);
-  const PV = { search: 1.02, de_xuat: 1.06, shop: 0.92, kol: 0.78, flash: 1.15 }, PC = { search: 0.97, de_xuat: 1.03, shop: 1.04, kol: 0.95, flash: 1.06 };
-  const views = split(b.v, SRC_T.map((s) => s.vs * (w === 'pri' ? PV[s.k] : 1)));
-  const clicks = split(b.clicks, SRC_T.map((s, i) => views[i] * f(s, 'cm') * (w === 'pri' ? PC[s.k] : 1)));
-  const orders = split(b.orders, SRC_T.map((s, i) => clicks[i] * f(s, 'om')));
-  const gmv = split(b.gmv, SRC_T.map((s, i) => orders[i] * f(s, 'am')));
-  const raw = SRC_T.map((s) => b.bien + s.bd); const shift = (b.profit - gmv.reduce((a, g, i) => a + g * raw[i], 0)) / b.gmv;
-  return SRC_T.map((s, i) => ({ k: s.k, name: s.name, v: views[i], clicks: clicks[i], orders: orders[i], gmv: gmv[i], aov: gmv[i] / orders[i], ctr: clicks[i] / views[i], ctor: orders[i] / clicks[i], bien: raw[i] + shift, profit: gmv[i] * (raw[i] + shift) }));
-}
-function byPrice(p, w) { // ưu đãi: cộng lại đúng bằng tổng
-  const b = base(p, w);
-  const orders = split(b.orders, SRC_P.map((s) => s.os));
-  const gmv = split(b.gmv, SRC_P.map((s, i) => orders[i] * s.am));
-  const raw = SRC_P.map((s) => b.bien + s.bd); const shift = (b.profit - gmv.reduce((a, g, i) => a + g * raw[i], 0)) / b.gmv;
-  return SRC_P.map((s, i) => ({ k: s.k, name: s.name, orders: orders[i], gmv: gmv[i], aov: gmv[i] / orders[i], bien: raw[i] + shift, profit: gmv[i] * (raw[i] + shift), disc: s.disc, v: null, ctr: null, ctor: null }));
-}
-function adOf(p, w) { const b = base(p, w); const v = b.v * p.ad.vs; const clicks = v * b.ctr * AD.cm; const orders = clicks * b.ctor * AD.om; const gmv = orders * b.aov * AD.am; const spend = gmv / (p.ad.roas * (w === 'pri' ? 1.08 : 1)); return { name: 'Quảng cáo (trong đó)', v, clicks, orders, gmv, aov: gmv / orders, ctr: clicks / v, ctor: orders / clicks, bien: b.bien + AD.bd, profit: gmv * (b.bien + AD.bd), spend, roas: gmv / spend }; }
-function sum(list) { const t = { v: 0, clicks: 0, orders: 0, gmv: 0, profit: 0, spend: 0, list: 0 }; list.forEach((x) => { t.v += x.v || 0; t.clicks += x.clicks || 0; t.orders += x.orders || 0; t.gmv += x.gmv || 0; t.profit += x.profit || 0; t.spend += x.spend || 0; t.list += x.gmv / (1 - (x.disc || 0)); }); t.ctr = t.clicks / t.v; t.ctor = t.orders / t.clicks; t.aov = t.gmv / t.orders; t.bien = t.profit / t.gmv; t.disc = 1 - t.gmv / t.list; return t; }
-const baseAll = (w) => P.map((p) => base(p, w));
-const SHOP = { cur: sum(baseAll('cur')), pri: sum(baseAll('pri')) };
-const srcShop = (w, kind) => { // gộp từng nguồn của mọi sản phẩm
-  const lists = P.map((p) => (kind === 'p' ? byPrice(p, w) : bySrc(p, w)));
-  return lists[0].map((s, i) => { const t = sum(lists.map((l) => ({ ...l[i], disc: 0 }))); t.name = s.name; t.k = s.k; return t; });
-};
-const adShop = (w) => { const t = sum(P.map((p) => ({ ...adOf(p, w), disc: 0 }))); t.roas = t.gmv / t.spend; return t; };
-/* ===== END MODEL ===== */
-
 const hashScene = () => { try { const m = /scene=(\w+)/.exec(location.hash); return m ? m[1] : null; } catch (e) { return null; } };
 const SC = { default: { okOpen: false, f: 'all' }, ok: { okOpen: true, f: 'all' }, bien: { okOpen: false, f: 'bien' } };
 const ST = ['Lượt xem', 'CTR', 'CTOR', 'AOV', 'Biên'];
-// min/max: thang hiển thị; lo/hi: dải bình thường; ref: vạch (mục tiêu / sàn / hoà vốn / trung vị)
-const ITEMS = [
-  { id: 'i1', ini: 'XM', name: 'Xơ mướp rửa chén (5 miếng)', src: 'Đề xuất', kpi: 'CTOR', k: 'ctor', fmtv: (x) => pc(x), value: 0.0219, prior: 0.0427, min: 0.015, max: 0.065, lo: 0.036, hi: 0.049, ref: null, refText: 'Dải bình thường 3,60%–4,90% (từ luồng 8 tuần)', devText: (v) => 'Thấp hơn dải ' + fmt((0.036 - v) * 100, 2) + ' điểm', stage: 2, cause: 'Khách bấm vào nhưng ít chốt đơn: CTOR từ Đề xuất giảm gần một nửa; mô tả chưa nêu số miếng và kích thước.', day: -96000, card: true, rank: 'kpi=ctor&src=nat&focus=XM-003' },
-  { id: 'i2', ini: 'NR', name: 'Nước rửa chén 750ml', src: 'Voucher 15k', kpi: 'Giá sau voucher', k: 'bien', fmtv: (x) => vnd(x), value: 91000, prior: 99000, min: 80000, max: 110000, lo: null, hi: null, ref: 93500, refLabel: 'giá sàn vận hành', refText: 'Giá sàn vận hành 93.500đ', devText: (v) => 'Thấp hơn giá sàn ' + vnd(93500 - v), stage: 4, cause: 'Voucher 15k trên đơn từ 99k kéo giá bán xuống dưới giá sàn vận hành; phí sàn và quảng cáo vẫn tính đủ.', day: -58000, card: true, rank: 'kpi=ctor&src=voucher&focus=v1' },
-  { id: 'i3', ini: 'TU', name: 'Túi đựng thực phẩm zip (50 túi)', src: 'Tất cả', kpi: 'Biên cuối', k: 'bien', fmtv: (x) => pc(x, 1), value: 0.062, prior: 0.115, min: 0, max: 0.25, lo: null, hi: null, ref: 0.10, refText: 'Mục tiêu biên 10% (Cài đặt › Thông số shop)', devText: (v) => 'Thấp hơn mục tiêu ' + fmt((0.10 - v) * 100, 1) + ' điểm', stage: 4, cause: 'Giảm giá tăng từ 11% lên 17% và quảng cáo chuyển đổi có ROAS 3,9, dưới điểm hoà vốn 5,4.', day: -40000, card: true, rank: 'kpi=bien&src=all&focus=TU-004' },
-  { id: 'i4', ini: 'NR', name: 'Nước rửa chén 750ml', src: 'Quảng cáo (chuyển đổi)', kpi: 'ROAS', k: 'ads', fmtv: (x) => fmt(x, 1), value: 4.6, prior: 5.1, min: 3, max: 7, lo: null, hi: null, ref: 5.4, refText: 'Điểm hoà vốn ROAS 5,4', devText: (v) => 'Thấp hơn hoà vốn ' + fmt(5.4 - v, 1), stage: 4, cause: 'Chi phí quảng cáo tăng nhanh hơn doanh thu từ quảng cáo; đơn quảng cáo nằm trong Tìm kiếm và Đề xuất.', day: -25000, card: true, rank: 'kpi=gmv&src=ads&focus=a1' },
-  { id: 'i5', ini: 'GB', name: 'Giấy bạc nhôm 5m', src: 'Tìm kiếm', kpi: 'Lượt xem', k: 'views', fmtv: (x) => fmt(x), value: 31200, prior: 35400, min: 25000, max: 42000, lo: 33000, hi: 37500, ref: null, refText: 'Dải bình thường 33.000–37.500 lượt', devText: (v) => 'Thấp hơn dải ' + fmt(33000 - v) + ' lượt', stage: 0, cause: 'Hạng từ khoá “giấy bạc nướng thịt” tăng, nhưng 3 từ khoá chính chưa có trong tiêu đề.', day: -17000, card: true, rank: 'kpi=views&src=nat&focus=k3' },
-  { id: 'i6', ini: 'GT', name: 'Găng tay cao su đa dụng', src: 'Liên kết (KOL)', kpi: 'AOV', k: 'aov', fmtv: (x) => vnd(x), value: 66000, prior: 71000, min: 55000, max: 95000, lo: null, hi: null, ref: 80797, refText: 'Trung vị shop 80.797đ', devText: (v) => 'Thấp hơn trung vị ' + vnd(80797 - v), stage: 3, cause: 'Đơn qua KOL chủ yếu mua 1 đôi; chưa có combo cho đơn từ link.', day: -9000, card: false, rank: 'kpi=aov&src=kol&focus=o1' }
-];
-const OKS = [
-  { ini: 'ALL', name: 'Cả shop', src: 'Tất cả', kpi: 'Lượt xem 29/10–01/11', value: '+38%', min: 0, max: 60, lo: 15, hi: 55, v: 38, note: 'Tăng quanh ngày sale 11/11 báo trước; nằm trong dải ngày sale (+15% đến +55%).' },
-  { ini: 'ALL', name: 'Cả shop', src: 'Flash Sale', kpi: 'CTR', value: '3,94%', min: 2, max: 5, lo: 3.2, hi: 4.4, v: 3.94, note: 'Trong dải của Flash Sale; không so với các nguồn khác.' },
-  { ini: 'GT', name: 'Găng tay cao su đa dụng', src: 'Tất cả', kpi: 'CTR', value: '3,10%', min: 2, max: 4, lo: 2.8, hi: 3.4, v: 3.1, note: 'Biến động nhỏ so với dải 8 tuần.' },
-  { ini: 'GB', name: 'Giấy bạc nhôm 5m', src: 'Tất cả', kpi: 'AOV', value: '88.000đ', min: 70, max: 105, lo: 82, hi: 94, v: 88, note: 'Ổn định.' },
-  { ini: 'NR', name: 'Nước rửa chén 750ml', src: 'Trang shop', kpi: 'CTOR', value: '6,80%', min: 4, max: 9, lo: 5.8, hi: 7.6, v: 6.8, note: 'Ổn định.' }
-];
+const med = (a) => { const s = a.slice().sort((x, y) => x - y); const n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
+const SHOP_MED_AOV = med(P.filter((p) => !p.rest).map((p) => win(p, 'cur').aov));
+function buildItems() {
+  const span = (v, extra) => { const a = [v].concat(extra).filter((x) => x != null); const mn = Math.min.apply(null, a), mx = Math.max.apply(null, a); const pad = (mx - mn) * 0.25 || mx * 0.1; return { min: Math.max(0, mn - pad), max: mx + pad }; };
+  const it = [];
+  let r = rankRow('ctor', 'the_san_pham', 'de_xuat', 'XM-003'); const lo = r.prior * 0.84, hi = r.prior * 1.15;
+  it.push(Object.assign({ id: 'i1', ini: 'XM', name: r.name, src: 'Đề xuất', kpi: 'CTOR', k: 'ctor', fmtv: (x) => pc(x), value: r.last, prior: r.prior, lo, hi, ref: null, refText: 'Dải bình thường ' + pc(lo) + '–' + pc(hi) + ' (từ luồng 8 tuần)', devText: (v) => 'Thấp hơn dải ' + fmt((lo - v) * 100, 2) + ' điểm', stage: 2, cause: 'Khách bấm vào nhưng ít chốt đơn: CTOR từ Đề xuất giảm ' + fmt((1 - r.last / r.prior) * 100, 0) + '% so với kỳ trước.', day: r.gmv, card: 'c_xm_disc', rank: 'kpi=ctor&src=the_san_pham&sub=de_xuat&focus=XM-003' }, span(r.last, [lo, hi])));
+  const nr = pById('NR-002'); const fl = floorOf(nr.main); const payN = nr.main.list - nr.main.voucherNow, payP = nr.main.list - nr.main.voucherPri; r = rankRow('bien', 'voucher', 'all', 'v1');
+  it.push(Object.assign({ id: 'i2', ini: 'NR', name: nr.name, src: 'Voucher ' + fmt(nr.main.voucherNow / 1000) + 'k', kpi: 'Giá sau voucher', k: 'bien', fmtv: (x) => vnd(x), value: payN, prior: payP, lo: null, hi: null, ref: fl.op, refText: 'Giá sàn vận hành ' + vnd(fl.op) + ' (tuyệt đối ' + vnd(fl.abs) + ')', devText: (v) => 'Thấp hơn giá sàn ' + vnd(fl.op - v), stage: 4, cause: 'Voucher ' + vnd(nr.main.voucherNow) + ' trên giá ' + vnd(nr.main.list) + ' kéo giá khách trả xuống dưới giá sàn vận hành; phí sàn và quảng cáo vẫn tính đủ.', day: r.gmv, card: 'c_nr_vcap', rank: 'kpi=bien&src=voucher&focus=v1' }, span(payN, [fl.op, payP])));
+  r = rankRow('bien', 'all', null, 'TU-004');
+  it.push(Object.assign({ id: 'i3', ini: 'TU', name: r.name, src: 'Tất cả', kpi: 'Biên cuối', k: 'bien', fmtv: (x) => pc(x, 1), value: r.last, prior: r.prior, lo: null, hi: null, ref: TARGET, refText: 'Mục tiêu biên ' + pc(TARGET, 0) + ' (Cài đặt › Thông số shop)', devText: (v) => 'Thấp hơn mục tiêu ' + fmt((TARGET - v) * 100, 1) + ' điểm', stage: 4, cause: 'Giảm giá tăng từ ' + pc(win(pById('TU-004'), 'pri').disc, 0) + ' lên ' + pc(win(pById('TU-004'), 'cur').disc, 0) + ' và quảng cáo chuyển đổi có ROAS ' + fmt(adOf(pById('TU-004'), 'cur').roas, 1) + ', dưới điểm hoà vốn ' + fmt(pById('TU-004').be, 1) + '.', day: r.gmv, card: 'c_tu_price', rank: 'kpi=bien&src=all&focus=TU-004' }, span(r.last, [r.prior, TARGET])));
+  r = rankRow('gmv', 'ads', null, 'a1'); const be = pById('NR-002').be;
+  it.push(Object.assign({ id: 'i4', ini: 'NR', name: pById('NR-002').name, src: 'Quảng cáo (chuyển đổi)', kpi: 'ROAS', k: 'ads', fmtv: (x) => fmt(x, 1), value: r.last, prior: r.prior, lo: null, hi: null, ref: be, refText: 'Điểm hoà vốn ROAS ' + fmt(be, 1), devText: (v) => 'Thấp hơn hoà vốn ' + fmt(be - v, 1), stage: 4, cause: 'Chi phí quảng cáo tăng nhanh hơn doanh thu từ quảng cáo; đơn quảng cáo nằm trong các luồng, không cộng thêm.', day: r.gmv, card: 'c_nr_ads', rank: 'kpi=gmv&src=ads&focus=a1' }, span(r.last, [r.prior, be])));
+  r = rankRow('views', 'the_san_pham', 'search', 'k3'); const lo5 = r.prior * 0.93, hi5 = r.prior * 1.06;
+  it.push(Object.assign({ id: 'i5', ini: 'GB', name: pById('GN-005').name, src: 'Tìm kiếm · “' + r.name + '”', kpi: 'Lượt xem', k: 'views', fmtv: (x) => fmt(x), value: r.last, prior: r.prior, lo5, hi5, ref: null, refText: 'Dải bình thường ' + fmt(lo5) + '–' + fmt(hi5) + ' lượt', devText: (v) => 'Thấp hơn dải ' + fmt(lo5 - v) + ' lượt', stage: 0, cause: 'Hạng từ khoá “' + r.name + '” tụt từ 8 xuống 12 vì 3 từ khoá chính chưa có trong tiêu đề.', day: r.gmv, card: 'c_gn_kw', rank: 'kpi=views&src=the_san_pham&sub=search&focus=k3' }, span(r.last, [lo5, hi5, r.prior])));
+  r = rankRow('aov', 'lien_ket', null, 'GL-001');
+  it.push(Object.assign({ id: 'i6', ini: 'GT', name: r.name, src: 'Tiếp thị liên kết', kpi: 'AOV', k: 'aov', fmtv: (x) => vnd(x), value: r.last, prior: r.prior, lo: null, hi: null, ref: SHOP_MED_AOV, refText: 'Trung vị shop ' + vnd(SHOP_MED_AOV), devText: (v) => 'Thấp hơn trung vị ' + vnd(SHOP_MED_AOV - v), stage: 3, cause: 'Đơn qua link chủ yếu mua 1 đôi; chưa có combo cho đơn từ link.', day: r.gmv, card: 'c_gl_bundle', rank: 'kpi=aov&src=lien_ket&focus=GL-001' }, span(r.last, [r.prior, SHOP_MED_AOV])));
+  return it.filter((x) => x.day < 0);
+}
+const ITEMS = buildItems();
+function buildOks() {
+  const mk = (ini, name, src, kpi, value, fmtv, v, note) => ({ ini, name, src, kpi, value: fmtv(value), min: value * 0.8, max: value * 1.2, lo: value * 0.94, hi: value * 1.07, v: value, note });
+  const gl = win(pById('GL-001'), 'cur'), gn = win(pById('GN-005'), 'cur'), nrs = DS.flowsOf(pById('NR-002'), 'cur')[1], kids = flowSum('cur', 'kids')[4];
+  return [
+    { ini: 'ALL', name: 'Cả shop', src: 'Tất cả', kpi: 'Lượt xem 29/10–01/11', value: '+38%', min: 0, max: 60, lo: 15, hi: 55, v: 38, note: 'Tăng quanh ngày sale 11/11 báo trước; nằm trong dải ngày sale (+15% đến +55%).' },
+    Object.assign(mk('ALL', 'Cả shop', 'Khuyến mãi (Flash Sale)', 'CTR', kids.ctr, (x) => pc(x), kids.ctr), { note: 'Trong dải của Flash Sale; không so với các nguồn khác.' }),
+    Object.assign(mk('GT', 'Găng tay cao su đa dụng', 'Tất cả', 'CTR', gl.ctr, (x) => pc(x), gl.ctr), { note: 'Biến động nhỏ so với dải 8 tuần.' }),
+    Object.assign(mk('GB', 'Giấy bạc nhôm 5m', 'Tất cả', 'AOV', gn.aov, (x) => vnd(x), gn.aov), { note: 'Ổn định.' }),
+    Object.assign(mk('NR', 'Nước rửa chén 750ml', 'Trang shop', 'CTOR', nrs.ctor, (x) => pc(x), nrs.ctor), { note: 'Ổn định.' })
+  ];
+}
+const OKS = buildOks();
 class Component extends DCLogic {
 constructor(props) { super(props); const k = hashScene() || 'default'; const o = SC[k] || SC.default; this.state = { scene: k, okOpen: o.okOpen, f: o.f, info: false }; }
 renderVals() {
@@ -235,10 +552,11 @@ const items = shown.map((it, i) => {
   const dotLeft = Math.max(2, Math.min(98, pos(it.value, it)));
   const bandStyle = it.lo != null ? 'left: ' + pos(it.lo, it).toFixed(1) + '%; width: ' + (pos(it.hi, it) - pos(it.lo, it)).toFixed(1) + '%' : 'display: none';
   const refStyle = it.ref != null ? 'left: ' + pos(it.ref, it).toFixed(1) + '%' : 'display: none';
+  const card = cardById(it.card);
   return { id: it.id, rank: String(i + 1), ini: it.ini, name: it.name, src: it.src, kpi: it.kpi, value: it.fmtv(it.value), valStyle: 'color: #a3222f', chip: (it.value < it.prior ? '▼ ' : '▲ ') + fmt(Math.abs(it.value / it.prior - 1) * 100, 1) + '% so với kỳ trước', chipStyle: it.value < it.prior ? CHIP_DOWN : CHIP_UP,
     bandStyle, refStyle, dotStyle: 'left: ' + dotLeft.toFixed(1) + '%; background: #e5484d', dev: it.devText(it.value), devStyle: 'color: #a3222f', refText: it.refText,
     stages: ST.map((s, j) => ({ label: s, style: j === it.stage ? 'color: #a3222f; background: #fdecec; border: 1px solid #e5484d' : 'color: #5f5f6b; background: #f3edf0' })),
-    cause: it.cause, day: sv(it.day), month: sv(it.day * 30), hasCard: it.card, noCard: !it.card, cardHref: 'CardWhatIf.dc.html#from=phan-tich&row=' + it.id, rankHref: 'Ranking.dc.html#' + it.rank,
+    cause: it.cause, day: sv(it.day), month: sv(it.day * 30), hasCard: !!card, noCard: !card, cardHref: 'CardWhatIf.dc.html#card=' + it.card + '&from=phan-tich&row=' + it.id, cardKind: card ? card.kind : '', rankHref: 'Ranking.dc.html#' + it.rank + '&from=phan-tich&card=' + it.card,
     boxStyle: it.id === 'i1' ? 'background: #fff7fa; border-color: #f8b9d3' : 'background: #ffffff' };
 });
 const sumDay = shown.reduce((t, it) => t + it.day, 0);
@@ -247,7 +565,7 @@ return {
   count: String(all.length), info: st.info, toggleInfo: () => this.setState({ info: !st.info }),
   scenes: [['default', 'Mặc định'], ['ok', 'Mở “Trong dải bình thường”'], ['bien', 'Lọc Biên và giá sàn']].map(([k, label]) => ({ label, on: st.scene === k, style: st.scene === k ? 'color: #ffffff; background: #5f5f6b; border: 1px solid #5f5f6b' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState({ scene: k, okOpen: SC[k].okOpen, f: SC[k].f }) })),
   filters: FIL.map(([k, label]) => ({ label, on: st.f === k, style: st.f === k ? 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState({ f: k }) })),
-  sumDay: sv(sumDay), sumMonth: sv(sumDay * 30), cardCount: String(all.filter((i) => i.card).length),
+  sumDay: sv(sumDay), sumMonth: sv(sumDay * 30), cardCount: String(shown.filter((i) => i.card).length), firstCard: shown.length ? shown[0].card : 'c_bep_voucher',
   cols: 'minmax(0, 2.3fr) minmax(0, 1.2fr) minmax(0, 2fr) minmax(0, 2.4fr) 150px',
   items, noItems: items.length === 0, okCount: String(OKS.length + 4), okOpen: st.okOpen, okLabel: st.okOpen ? 'Thu gọn' : 'Xem thêm', toggleOk: () => this.setState({ okOpen: !st.okOpen }), ok
 };
