@@ -363,6 +363,9 @@ _SHARED_STATE_MODULES = frozenset(
         # runs the payload clean-up as the owner over the whole webhook_raw_events
         # archive (it has no shop column), asserting its counts.
         "test_nda_buyer_data_db.py",
+        # Reason 2 again: P90 step 4 seeds two Shopee tenants and writes rule versions as
+        # juli_app (the versioned import: history + projection in one transaction).
+        "test_shop_inputs_db.py",
     }
 )
 

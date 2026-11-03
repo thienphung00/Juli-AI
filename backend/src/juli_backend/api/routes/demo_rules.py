@@ -38,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
-from juli_backend.services import lever_flows, shop_rules
+from juli_backend.services import lever_flows, shop_inputs, shop_rules
 
 logger = logging.getLogger(__name__)
 
@@ -168,17 +168,16 @@ async def put_shop_rule(
     session: AsyncSession = Depends(get_session),
 ) -> RuleWriteResponse:
     try:
-        row = await shop_rules.set_rule(
+        row = await shop_inputs.write_rule(
             session,
             shop.id,
             rule_key=rule_key,
             scope_ref=body.scope_ref,
             value=body.value,
-            set_by=body.set_by,
-            set_by_user_id=user.id,
+            actor=shop_inputs.Actor(set_by=body.set_by, user_id=user.id),
         )
         await session.commit()
-    except shop_rules.RuleValidationError as exc:
+    except (shop_rules.RuleValidationError, shop_inputs.VersionError) as exc:
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)

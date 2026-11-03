@@ -957,19 +957,18 @@ async def ops_put_rule(
     The rule row and its audit row are written in ONE transaction: a failure
     between them rolls both back, so no rule change is ever left unaudited.
     """
-    from juli_backend.services import shop_rules
+    from juli_backend.services import shop_inputs, shop_rules
 
     shop = await _view_shop(session, shop_id)
     before = await _rule_snapshot(session, shop_id, rule_key, body.scope_ref)
     try:
-        row = await shop_rules.set_rule(
+        row = await shop_inputs.write_rule(
             session,
             shop.id,
             rule_key=rule_key,
             scope_ref=body.scope_ref,
             value=body.value,
-            set_by="team",
-            set_by_user_id=ctx.user.id,
+            actor=shop_inputs.Actor(set_by="team", user_id=ctx.user.id),
         )
         await audit.record(
             session,

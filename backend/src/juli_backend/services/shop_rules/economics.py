@@ -39,6 +39,25 @@ class LiveSlot:
     end: time
 
 
+#: Owner rule (p90-metrics §13): a SKU with no imported cost is costed at one third of its
+#: list price, labelled assumed -- the default gross-margin rule at 66,7 %.
+ASSUMED_COST_SHARE = Decimal(1) / Decimal(3)
+
+
+@dataclass(frozen=True)
+class CostEstimate:
+    """A unit cost and where it came from; ``assumed`` is true for the two fallbacks."""
+
+    cost: Decimal
+    #: ``sku`` | ``product`` (imported), ``default_margin_rule`` (the shop's margin),
+    #: ``assumed_one_third`` (the owner's rule).
+    source: str
+
+    @property
+    def assumed(self) -> bool:
+        return self.source in ("default_margin_rule", "assumed_one_third")
+
+
 @dataclass(frozen=True)
 class ShopEconomics:
     product_cost: Mapping[str, Decimal] = field(default_factory=dict)
@@ -65,6 +84,24 @@ class ShopEconomics:
         if unit_price is not None and self.default_gross_margin_pct is not None:
             return unit_price * (1 - self.default_gross_margin_pct / _HUNDRED)
         return None
+
+    def unit_cost_labelled(
+        self, *, sku_id: str | None, product_id: str | None, unit_price: Decimal | None
+    ) -> CostEstimate | None:
+        """:meth:`unit_cost` with the owner's 1/3 fallback and the source named.
+
+        ``None`` only when there is neither a cost nor a price to take a third of.
+        """
+        if sku_id and sku_id in self.sku_cost:
+            return CostEstimate(self.sku_cost[sku_id], "sku")
+        if product_id and product_id in self.product_cost:
+            return CostEstimate(self.product_cost[product_id], "product")
+        if unit_price is None or unit_price <= 0:
+            return None
+        if self.default_gross_margin_pct is not None:
+            cost = unit_price * (1 - self.default_gross_margin_pct / _HUNDRED)
+            return CostEstimate(cost, "default_margin_rule")
+        return CostEstimate(unit_price / 3, "assumed_one_third")
 
     def gross_margin(
         self, *, sku_id: str | None, product_id: str | None, unit_price: Decimal
