@@ -1797,7 +1797,7 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
 
 - **D82** — Shopee shop view from broad to precise for ORY (owner, 2026-11-03, grill after the
   ORY meeting of 03/11). Full record: [ADR-120](../docs/adr/120-shopee-precise-shop-view-profit-floor-and-sources.md).
-  1. ORY data may live on the hosted backend (sub-processor approved); C13 / D8 lifted for ORY only.
+  1. ORY data may live on the hosted backend (sub-processor approved, no re-verification needed); C13 / D8 lifted for ORY only.
   2. Nav: Tổng quan / Phân tích / Sản phẩm (+ sub-tabs) / Quyết định; Cài đặt in the avatar menu.
   3. Tổng quan = GMV tree × sources (traffic; price lever; ads as overlay) × products.
   4. The ORY executive's five numbers (% giảm giá, doanh thu thêm / chi thêm, biên cuối, số đơn,
