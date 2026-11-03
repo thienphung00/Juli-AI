@@ -154,3 +154,18 @@ Model use and learning loop: as described to the owner 2026-11-03 (flow baseline
 lift model ported to Shopee = predicted range; calibration per change_kind from frozen predictions vs
 ADR-077 readings; coverage scored; acceptance stats from approve/dismiss/whatif_adjusted; ORY learns from
 ORY only — no pooling, ADR-116 / Shopee ToS §6.2(c)).
+
+## 12. Recommendation card families (owner, 2026-11-03)
+Every card belongs to one family; §8 maps critical metrics to families and change kinds.
+| Family | Change kinds (examples) | Certain layer computes |
+|---|---|---|
+| `ads` | budget, ROAS target, purpose, pause/resume, keyword bid, add/remove product from a group campaign | spend/day, ROAS vs break-even (direct), profit after ads |
+| `promotion` | product discount (Khuyến mãi), price change | discount %, buyer_paid vs floor, margin |
+| `voucher` | value (đ or %), max, min spend, quantity, per-user limit, days | §7 |
+| `sale` | Flash Sale slot (shop), Shopee programme registration (Rẻ Vô Địch, campaign day) | slot price vs floor, units cap, cost |
+| `combo` | Combo khuyến mãi tiers, Mua kèm deal sốc, gift with purchase, set size | AOV, units/order, margin per bundle vs floor |
+| `affiliate` | open-campaign commission %, targeted campaign (KOLs, rate, products) | commission cost per order, margin after commission |
+| `mega_sale` | a **composite** for a campaign window (e.g. 11/11): a set of child changes from the families above with one schedule (day-by-day on/off times), one budget cap and one approval | Σ child certain layers on the same orders without double counting (one order gets one price lever, §3), total spend/day vs cap, floor check per SKU across all stacked discounts |
+- A `mega_sale` is approved as one card (children listed, editable before approval) and **measured as one bundle**
+  (ADR-121 d.4 stacked changes); its children are not credited separately.
+- A product inside an active `mega_sale` window is locked from other cards for that window.
