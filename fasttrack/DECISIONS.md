@@ -1809,3 +1809,12 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   9. Seller inputs imported from a template, versioned and restorable.
   10. Connector may open Seller Centre report pages itself on a schedule (read-only, own session,
       stop on CAPTCHA); allowed-pages list updated. No third-party Shopee tools.
+
+- **D83** — Models and the buyer simulation in the Shopee recommendation loop (owner, 2026-11-03).
+  Full record: [ADR-121](../docs/adr/121-shopee-models-simulation-and-learning-loop.md).
+  1. Ranking = gap to the month's targets (furthest-behind KPI weighted) at P25, filtered to Δprofit ≥ 0,
+     no SKU below its floor, spend within cap; no targets → ΔGMV P25 (contract §11).
+  2. Every proposal freezes its predictions; finished cards calibrate the lift model per change_kind and
+     score coverage; approvals / dismissals only feed acceptance statistics.
+  3. juli-sim-pilot is a prior and pre-screen, gated per change_kind; stays local; exports priors/v1.
+  4. ORY Seller Centre data may calibrate the simulation and ORY's own forecasts; never pooled.
