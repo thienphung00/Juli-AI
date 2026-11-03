@@ -171,7 +171,7 @@ Every card belongs to one family; §8 maps critical metrics to families and chan
 - A product inside an active `mega_sale` window is locked from other cards for that window.
 
 ## 13. Cost fallback and fees without the income export (owner, 2026-11-03)
-- **Step 3 (income export) is skipped for now.** Fees always use the §10 formula (fixed fee by category from the
+- **Step 3 (income export) is skipped for now.** Actual fees per order come from the order export (Phí cố định, Phí Dịch Vụ, Phí xử lý giao dịch; fields A19); the §10 formula is the fallback (fixed fee by category from the
   23/05/2026 table, 6 % transaction incl. buyer shipping, 3.000đ/order); actual fees replace them if an income
   export is ever loaded.
 - **Giá vốn fallback = 1/3 of the SKU's list price** when no imported cost exists. Every number that uses it is

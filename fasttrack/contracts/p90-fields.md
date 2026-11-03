@@ -662,3 +662,43 @@ Table has columns: `order_ref`, `line_no`, `ordered_at`, `status`, `item_id`, `v
 | fee rate by category (`FeeComponent.rate` for `phi_co_dinh`) | `platform_fee_formulas` (reference table, empty: no seed) | fee PDF (A19) + item category | table EXISTS; seed and category join NOT WRITTEN |
 | `AdsPool`, `AdsFigures`, `AdCampaign` | none (ads live in `platform_period_metrics` / `platform_daily_metrics`) | A13 / B7 | see `coverage.md` §4 |
 | ad purpose per campaign | `ad_campaign_purposes` (seller / team set; `campaign_key` String(128) vs the hashed `segment` of the ads rows: join convention undecided) | seller input | table EXISTS; UI/feeder out of scope |
+
+## A19 (captured 2026-11-03). Order export `Order.all.<YYYYMMDD>_<YYYYMMDD>.xlsx` (Đơn hàng › Xuất), sheet `orders`, 62 columns
+One row per order line. Header names only were read; the file lives in a 0700 folder outside every repo.
+| # | Header | Handling | Feeds |
+|---|---|---|---|
+| 1 | Mã đơn hàng | **keyed hash → order_ref** (same key as the affiliate lane); raw never leaves the browser | join |
+| 2 | Mã Kiện Hàng | dropped (identifier) | — |
+| 3 | Ngày đặt hàng | ordered_at | §1, windows |
+| 4 | Trạng Thái Đơn Hàng | → OrderStatus | §4 delivered-only |
+| 5 | Sản Phẩm Bán Chạy | dropped | — |
+| 6 | Lý do hủy | kept as a category code only if from a fixed list, else dropped | cancellations |
+| 7 | Nhận xét từ Người mua | **dropped (buyer free text)** | — |
+| 8 | Mã vận đơn | **dropped (tracking id)** | — |
+| 9–10 | Đơn Vị Vận Chuyển, Phương thức giao hàng | kept (carrier/method) | ops |
+| 11 | Loại đơn hàng | kept | order type |
+| 12–14 | Ngày giao hàng dự kiến, Ngày gửi hàng, Thời gian giao hàng | kept (dates) | delivered status |
+| 15 | Trạng thái Trả hàng/Hoàn tiền | → OrderStatus (refund) | §4 |
+| 16–21 | SKU sản phẩm, Tên sản phẩm, Cân nặng, Tổng cân nặng, SKU phân loại hàng, Tên phân loại hàng | SKUs kept; names dropped (join by SKU / item) | item join |
+| 22 | Giá gốc | original_price | §5 ① list GMV |
+| 23–25 | Người bán trợ giá, Được Shopee trợ giá, Tổng số tiền được người bán trợ giá | seller promo (khuyến mãi) / Shopee subsidy (not a seller cost) | §3, §4 |
+| 26 | Giá ưu đãi | deal_price | §1 GMV |
+| 27–28 | Số lượng, Số lượng sản phẩm được hoàn trả | qty, returned qty | §4 |
+| 29, 46 | Tổng số tiền Người mua thanh toán (both) | buyer total (check) | reconciliation |
+| 30 | Tổng giá trị đơn hàng (VND) | order value | §1 |
+| 31 | Mã giảm giá của Shop | shop voucher amount → shop_voucher_share (split by line value) | §3 voucher, §7 |
+| 32, 37 | Hoàn Xu, Shopee Xu được hoàn | Shopee coins (not a seller cost) | — |
+| 33 | Mã giảm giá của Shopee | platform voucher (not a seller cost) | — |
+| 34–36 | Chỉ tiêu Combo Khuyến Mãi, Giảm giá từ combo Shopee, Giảm giá từ Combo của Shop | combo lever + seller combo discount | §3 combo |
+| 38 | Số tiền được giảm khi thanh toán bằng thẻ Ghi nợ | bank_promo | §10 fee base |
+| 39–40, 42 | Trade-in Discount / Bonus / Bonus by Seller | kept as extra (seller part = cost) | §4 |
+| 41, 43, 44, 45 | Phí vận chuyển (dự kiến), **Phí vận chuyển mà người mua trả**, Phí vận chuyển tài trợ bởi Shopee, Phí vận chuyển trả hàng | buyer_shipping_fee = col 43; return shipping = cost | §10 fee base, §4 |
+| 47–48 | Thời gian hoàn thành đơn hàng, Thời gian đơn hàng được thanh toán | completed_at, paid_at | delivered-only |
+| 49 | Phương thức thanh toán | kept (COD etc.) | fee check |
+| **50–52** | **Phí cố định, Phí Dịch Vụ, Phí xử lý giao dịch** | **actual fees per order → fee_fixed, fee_service, fee_payment** | **§4 actual fees (formula only as fallback)** |
+| 53 | Tiền ký quỹ | payout/escrow | reconciliation |
+| 54–60 | Người Mua, Tên Người nhận, Số điện thoại, Tỉnh/Thành phố, TP/Quận/Huyện, Quận, Địa chỉ nhận hàng | **dropped in the browser, never read** (buyer PII) | — |
+| 61 | Quốc gia | dropped | — |
+| 62 | Ghi chú | **dropped (free text)** | — |
+Consequence: actual fixed / service / transaction fees per order come from the order export — the skipped income
+export (§13) is not needed for fees; the phí hạ tầng 3.000đ is checked as (sum of fee columns vs formula).
