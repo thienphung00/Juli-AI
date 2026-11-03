@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.tenant_context import with_shop_scope
@@ -55,6 +55,10 @@ from juli_backend.services.shopee_kpi.rules import ContractTermsError
 logger = logging.getLogger(__name__)
 
 SHOPEE = "shopee"
+
+#: The database clock's distance from UTC (``localtimestamp`` is what a naive
+#: ``server_default now()`` column stores).
+_SERVER_CLOCK_OFFSET = text("SELECT localtimestamp - (now() AT TIME ZONE 'UTC')")
 
 #: Refusals the job raises by design: counted, not failures.
 REFUSALS = (
@@ -129,7 +133,15 @@ async def landed_since_last_run(session: AsyncSession, shop_id: uuid.UUID) -> bo
                 LeverPlan.shop_id == shop_id, LeverPlan.scenario_id.is_(None)
             ),
         ]
-        marks = [(await session.execute(q)).scalar_one() for q in ops_marks]
+        # Those four are ``server_default now()`` into naive columns: the database's own
+        # timezone. ``run_at`` and ``platform_daily_metrics.updated_at`` are naive UTC
+        # from Python. Shift the server marks onto UTC so a non-UTC Postgres does not read
+        # them as hours ahead (zero on production's UTC database).
+        offset = (await session.execute(_SERVER_CLOCK_OFFSET)).scalar_one()
+        marks = [
+            mark - offset if mark is not None else None
+            for mark in [(await session.execute(q)).scalar_one() for q in ops_marks]
+        ]
     m = PlatformDailyMetric
     sources = job.FLOW_SOURCES.values()
     async with with_shop_scope(session, shop_id):
