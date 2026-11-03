@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 
 import type { CardView } from "../../lib/quyet-dinh/card-model";
-import { shortProductName } from "../../lib/quyet-dinh/product-name";
+import { runSubjectName } from "../../lib/quyet-dinh/product-name";
 import { consentRows, editableFields, photoUrls, proposedText } from "../../lib/quyet-dinh/consent-model";
 import { dateText, validityText } from "../../lib/quyet-dinh/p10-format";
 import type { PhotoCheck, QdRun, SellerInstructions } from "../../lib/quyet-dinh/p10-types";
@@ -71,12 +71,12 @@ export interface RunPanelProps {
 
 function titleOf(kind: RunKind, run: QdRun, card: CardView | null): string {
   const sku = card?.sku ? `${card.sku} · ` : "";
-  const name = card?.title ?? shortProductName(run.product_name);
+  const name = card?.title ?? runSubjectName(run.product_name, card);
   if (kind === "revert") return `Hoàn tác · ${sku}${name}`;
   // P66 (C6): verb + the subject product, never a pre-labelled card title
   // ("Tạo sản phẩm · từ Tạo sản phẩm mới từ «…»").
-  if (kind === "create") return `Tạo sản phẩm · ${shortProductName(run.product_name)}`;
-  if (kind === "promotion") return `Tạo khuyến mãi · ${shortProductName(run.product_name)}`;
+  if (kind === "create") return `Tạo sản phẩm · ${runSubjectName(run.product_name, card)}`;
+  if (kind === "promotion") return `Tạo khuyến mãi · ${runSubjectName(run.product_name, card)}`;
   if (kind === "manual") return `${sku}${name}${card?.leverLabel ? ` · ${card.leverLabel}` : ""}`;
   return `Lượt chạy · ${sku}${name}`;
 }

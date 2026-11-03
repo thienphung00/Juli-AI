@@ -392,12 +392,17 @@ async def run_quick_scan(
     now: datetime | None = None,
     config: StageDiagnosisConfig | None = None,
     force: bool = False,
+    reissue: bool = False,
 ) -> QuickScanResult:
     """Read, select and write the shop's quick cards. Never raises; see the module doc.
 
     ``force`` (operator, P64 D73.3) re-runs the scan for the SANDBOX shop only (its own
     ``sandbox_write`` credential): it ignores an earlier ``done`` / ``skipped`` and the
     existing full cards. For any other shop it is ignored.
+
+    ``reissue`` (P87, with ``force``) also lets a (product, lever) whose card already
+    WROTE to TikTok get a new card (``emit_optimize_product_cards(reissue=True)``);
+    honoured for the sandbox shop only, ignored (and logged) for any other shop.
     """
     result = QuickScanResult(shop_id=shop_id)
     if not enabled():
@@ -417,6 +422,12 @@ async def run_quick_scan(
                 _assert_read_credential(credential, shop_id)
                 forced = is_own_shop_sandbox_read(
                     credential.capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+                )
+            reissued = reissue and forced
+            if reissue and not forced:
+                logger.info(
+                    f"shop_quick_scan_reissue_ignored shop_id={shop_id} force={force}",
+                    extra={"shop_id": str(shop_id)},
                 )
             if not forced and state.quick_scan_status in (QUICK_SCAN_DONE, QUICK_SCAN_SKIPPED):
                 result.skipped_reason = "already_ran"
@@ -486,6 +497,7 @@ async def run_quick_scan(
             config=config or StageDiagnosisConfig(),
             sandbox=sandbox,
             forced=forced,
+            reissue=reissued,
         )
     except Exception as exc:
         result.status = QUICK_SCAN_FAILED
@@ -567,6 +579,7 @@ async def _scan_and_write(
     config: StageDiagnosisConfig,
     sandbox: bool = False,
     forced: bool = False,
+    reissue: bool = False,
 ) -> None:
     from juli_backend.services.shop_diagnosis_daily.pacing import (
         RateLimitedResources,
@@ -598,6 +611,7 @@ async def _scan_and_write(
             end_lt=end_lt,
             config=config,
             forced=forced,
+            reissue=reissue,
         )
 
     if sandbox and not fetched.asked:
@@ -668,6 +682,7 @@ async def _scan_and_write(
         quick_block=quick_scan_block(moment),
         computed_at=moment,
         forced=forced,
+        reissue=reissue,
     )
     if sandbox and forced and not result.shown:
         # P67 (D75 Q1): every analytics card's chain is taken -- the orders' cards next.
@@ -688,6 +703,7 @@ async def _emit_quick_cards(
     quick_block: dict[str, Any],
     computed_at: datetime,
     forced: bool = False,
+    reissue: bool = False,
 ) -> None:
     """Write the chosen quick cards through the full pipeline's ladder and the budget."""
     from juli_backend.core.config import decision_emission_config
@@ -732,6 +748,7 @@ async def _emit_quick_cards(
                 op_plan,
                 computed_at=computed_at,
                 emission_config=emission_config,
+                reissue=reissue,
             )
             # Fast track P60-1a: the quick-scan cards' `proposed` rows (never raises).
             from juli_backend.services import card_events
@@ -744,9 +761,12 @@ async def _emit_quick_cards(
             )
             present = [p for p in ranked if p.product_id in products]
             for proposal, decision in zip(present, decisions, strict=False):
+                key = f"{proposal.product_id}/{LEVER_CODES[proposal.lever]}"
                 if decision.suppressed_reason is not None:
-                    key = f"{proposal.product_id}/{LEVER_CODES[proposal.lever]}"
                     result.reasons[key] = decision.suppressed_reason
+                elif reissue and decision.supersedes_card_id is not None:
+                    # P87: the done line names every product whose written card was reissued.
+                    result.reasons[key] = "reissued"
             written = [
                 d.card for d in decisions if d.suppressed_reason is None and d.card is not None
             ]
@@ -789,6 +809,7 @@ async def _orders_scan_and_write(
     end_lt: date,
     config: StageDiagnosisConfig,
     forced: bool = False,
+    reissue: bool = False,
 ) -> None:
     """P64 (D73.3): the sandbox's quick cards from its paid orders (``quick_scan_orders``)."""
     from juli_backend.services.onboarding.quick_scan_orders import (
@@ -882,6 +903,7 @@ async def _orders_scan_and_write(
         quick_block=orders_quick_block(moment),
         computed_at=moment,
         forced=forced,
+        reissue=reissue,
     )
     if not forced or result.shown:
         return
@@ -912,6 +934,7 @@ async def _orders_scan_and_write(
         quick_block=orders_quick_block(moment),
         computed_at=moment,
         forced=forced,
+        reissue=reissue,
     )
 
 
