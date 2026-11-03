@@ -1,0 +1,76 @@
+{
+ "source": "extension",
+ "source_version": "0.3.0",
+ "captured_at": "2026-11-03T03:00:00.000Z",
+ "period": {
+  "start": "2026-11-02",
+  "end": "2026-11-02",
+  "granularity": "day"
+ },
+ "order_type": "placed",
+ "rows": [
+  {
+   "date": "2026-11-02",
+   "campaign_id": "7001",
+   "campaign_name": "Chiến dịch mẫu 1",
+   "ad_type": "product",
+   "ad_subtype": "gmv_max",
+   "state": "ongoing",
+   "daily_budget": 200000,
+   "total_budget": 0,
+   "roi_two_target": 5.5,
+   "impression": 1000,
+   "click": 40,
+   "product_impression": 900,
+   "product_click": 35,
+   "reach": 800,
+   "page_views": 60,
+   "unique_visitors": 50,
+   "checkout": 6,
+   "atc": 9,
+   "broad_order": 4,
+   "direct_order": 3,
+   "ctr": 0.04,
+   "broad_roi": 8,
+   "broad_cir": 0.125,
+   "direct_roi": 6,
+   "direct_cir": 0.1667,
+   "product_ctr": 0.0389,
+   "avg_rank": 2.5,
+   "sov": 0.31,
+   "cost": 50000,
+   "cpc": 1250,
+   "cpm": 50000,
+   "broad_gmv": 400000,
+   "direct_gmv": 300000,
+   "voucher_amount": 1000,
+   "voucher_sales": 20000,
+   "extra": {
+    "new_metric_x": 7
+   }
+  },
+  {
+   "date": "2026-11-02",
+   "campaign_id": "7002",
+   "campaign_name": "Chiến dịch mẫu 2",
+   "ad_type": "shop",
+   "ad_subtype": "shop_ads",
+   "state": "paused",
+   "daily_budget": 100000,
+   "total_budget": 0,
+   "roi_two_target": 0,
+   "impression": 10,
+   "click": 0,
+   "atc": 0,
+   "broad_order": 0,
+   "ctr": 0,
+   "cost": 0,
+   "broad_gmv": 0
+  },
+  {
+   "date": "2026-11-02",
+   "roi_target": 6,
+   "roi_target_cold_start": false
+  }
+ ]
+}

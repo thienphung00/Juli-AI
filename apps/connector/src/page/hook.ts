@@ -2,13 +2,29 @@
 // document_start). It wraps fetch / XMLHttpRequest to read the page's OWN
 // responses from the four /api/mydata endpoints the connector maps, and hands
 // them to the content script with window.postMessage (target origin pinned to
-// Seller Centre). It reads nothing else: no cookies, no request bodies, no other
-// URLs. The session params Seller Centre adds (SPC_CDS, SPC_CDS_VER) stay in this
-// page's memory; they are used only to re-issue the same GETs during the daily
+// Seller Centre). The session params Seller Centre adds (SPC_CDS, SPC_CDS_VER) stay in this
+// page's memory; they are used only to re-issue the same requests during the daily
 // sync and are never sent to Juli.
+//
+// Page readers (ADR-120 d.14): for the eight report endpoints in READER_ENDPOINTS it also
+// remembers how the PAGE called them (query, JSON request body, request headers) so a
+// scheduled job can replay the page's own read-only query for one day / page number. Those
+// templates, and the headers in them, stay in this page's memory like the session params;
+// only the responses to the job's requests are handed to the content script. It reads no
+// cookies, no other URLs, and sends nothing but those queries: it never clicks, applies or
+// saves anything.
 
 import { CHANNEL, SELLER_CENTRE_ORIGIN } from "../config";
-import { SESSION_PARAMS, WATCHED_PATHS } from "../shopee/endpoints";
+import { READER_ENDPOINTS, type ReaderEndpoint, readerEndpointOf, SESSION_PARAMS, WATCHED_PATHS } from "../shopee/endpoints";
+import {
+  blockedPath,
+  pollingWaitFor,
+  type ReaderEnv,
+  type ReaderJob,
+  type ReaderRequest,
+  runReaderJob,
+  type Template as ReaderTemplate,
+} from "../shopee/reader";
 import { Pacer, runDay, type DayRequest } from "../shopee/runner";
 import { type PlannedRequest, requestUrl } from "../shopee/sync";
 import { gmt7Date } from "../shopee/time";
@@ -63,13 +79,91 @@ function emit(url: URL, body: unknown): void {
   );
 }
 
+// -- page reader templates ----------------------------------------------------------------
+
+const readerTemplates = new Map<ReaderEndpoint, ReaderTemplate>();
+
+function headersToRecord(headers: HeadersInit | undefined): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  const out: Record<string, string> = {};
+  if (headers instanceof Headers) headers.forEach((value, key) => (out[key] = value));
+  else if (Array.isArray(headers)) for (const [key, value] of headers) out[key] = value;
+  else Object.assign(out, headers);
+  return out;
+}
+
+function parseJson(text: unknown): unknown {
+  if (typeof text !== "string") return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Remember how the page called a report endpoint (and the session params it carried). */
+function learn(
+  endpoint: ReaderEndpoint,
+  url: URL,
+  body: unknown,
+  headers: Record<string, string> | undefined,
+): void {
+  const query: Record<string, string> = {};
+  url.searchParams.forEach((value, key) => {
+    if ((SESSION_PARAMS as readonly string[]).includes(key)) session[key] = value;
+    else query[key] = value;
+  });
+  const previous = readerTemplates.get(endpoint);
+  readerTemplates.set(endpoint, {
+    query,
+    ...(body !== undefined ? { body } : {}),
+    ...(headers ? { headers } : {}),
+    ...(previous?.lastResponse !== undefined ? { lastResponse: previous.lastResponse } : {}),
+  });
+}
+
+function keepResponse(endpoint: ReaderEndpoint, body: unknown): void {
+  // Only the campaign query's own answer is kept (its request is not replayed).
+  if (endpoint !== "campaign_info") return;
+  const template = readerTemplates.get(endpoint);
+  if (template) template.lastResponse = body;
+}
+
+function readerTarget(rawUrl: string, method: string): { endpoint: ReaderEndpoint; url: URL } | null {
+  try {
+    const url = new URL(rawUrl, location.href);
+    if (url.origin !== SELLER_CENTRE_ORIGIN) return null;
+    const endpoint = readerEndpointOf(method, url.pathname);
+    return endpoint ? { endpoint, url } : null;
+  } catch {
+    return null;
+  }
+}
+
 // -- fetch ----------------------------------------------------------------------------
 
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const response = await originalFetch(input, init);
   const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
   const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  const reader = readerTarget(raw, method);
+  if (reader) {
+    // Before the call, so a page request that fails still teaches the template.
+    learn(
+      reader.endpoint,
+      reader.url,
+      parseJson(init?.body),
+      headersToRecord(init?.headers ?? (input instanceof Request ? input.headers : undefined)),
+    );
+  }
+  const response = await originalFetch(input, init);
+  if (reader && response.ok) {
+    response
+      .clone()
+      .json()
+      .then((body: unknown) => keepResponse(reader.endpoint, body))
+      .catch(() => undefined);
+  }
   const url = method === "GET" ? watched(raw) : null;
   if (url && response.ok) {
     remember(url);
@@ -85,8 +179,23 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
 // -- XMLHttpRequest -------------------------------------------------------------------
 
 const xhrUrls = new WeakMap<XMLHttpRequest, URL>();
+const xhrReaders = new WeakMap<
+  XMLHttpRequest,
+  { endpoint: ReaderEndpoint; url: URL; headers: Record<string, string> }
+>();
 const originalOpen = XMLHttpRequest.prototype.open;
 const originalSend = XMLHttpRequest.prototype.send;
+const originalSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+
+XMLHttpRequest.prototype.setRequestHeader = function setRequestHeader(
+  this: XMLHttpRequest,
+  name: string,
+  value: string,
+): void {
+  const reader = xhrReaders.get(this);
+  if (reader) reader.headers[name] = value;
+  originalSetHeader.call(this, name, value);
+};
 
 XMLHttpRequest.prototype.open = function open(
   this: XMLHttpRequest,
@@ -96,6 +205,8 @@ XMLHttpRequest.prototype.open = function open(
 ): void {
   const target = method.toUpperCase() === "GET" ? watched(String(url)) : null;
   if (target) xhrUrls.set(this, target);
+  const reader = readerTarget(String(url), method);
+  if (reader) xhrReaders.set(this, { ...reader, headers: {} });
   (originalOpen as (...args: unknown[]) => void).call(this, method, url, ...rest);
 };
 
@@ -103,6 +214,23 @@ XMLHttpRequest.prototype.send = function send(
   this: XMLHttpRequest,
   body?: Document | XMLHttpRequestBodyInit | null,
 ): void {
+  const reader = xhrReaders.get(this);
+  if (reader) {
+    learn(reader.endpoint, reader.url, parseJson(body), reader.headers);
+    this.addEventListener("load", () => {
+      if (this.status < 200 || this.status >= 300) return;
+      try {
+        keepResponse(
+          reader.endpoint,
+          this.responseType === "json"
+            ? this.response
+            : JSON.parse(typeof this.response === "string" ? this.response : this.responseText),
+        );
+      } catch {
+        // not JSON
+      }
+    });
+  }
   const url = xhrUrls.get(this);
   if (url) {
     this.addEventListener("load", () => {
@@ -183,9 +311,49 @@ async function runBackfillDay(day: string, plan: PlannedRequest[]): Promise<void
   replyBackfill(day, "done", results);
 }
 
+// -- page readers, one job from the service worker -----------------------------------------
+
+function captchaVisible(): boolean {
+  return !!document.querySelector("iframe[src*='captcha' i], [id*='captcha' i], [class*='captcha' i]");
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function runReader(job: ReaderJob): Promise<void> {
+  const env: ReaderEnv = {
+    origin: SELLER_CENTRE_ORIGIN,
+    pacer,
+    now: () => Date.now(),
+    session: () => ({ ...session }),
+    hasSession,
+    template: (endpoint) => readerTemplates.get(endpoint),
+    waitFor: pollingWaitFor(sleep, () => Date.now()),
+    // The unwrapped fetch: the answer goes to the service worker with the job's result.
+    fetch: (request: ReaderRequest) =>
+      originalFetch(request.url, {
+        method: request.method,
+        headers: request.headers,
+        ...(request.body !== undefined ? { body: request.body } : {}),
+        credentials: "include",
+      }),
+    captchaVisible,
+    pathname: () => location.pathname,
+  };
+  const outcome = await runReaderJob(job, env);
+  window.postMessage(
+    { channel: CHANNEL, kind: "reader-result", job: job.id, status: outcome.status, responses: outcome.responses },
+    SELLER_CENTRE_ORIGIN,
+  );
+}
+
 window.addEventListener("message", (event: MessageEvent) => {
   if (event.source !== window || event.origin !== SELLER_CENTRE_ORIGIN) return;
-  const data = event.data as { channel?: string; kind?: string; plan?: unknown; day?: unknown };
+  const data = event.data as { channel?: string; kind?: string; plan?: unknown; day?: unknown; job?: unknown };
+  if (data?.channel === CHANNEL && data.kind === "reader-job" && isReaderJob(data.job)) {
+    const job = data.job;
+    void pacer.serial(() => runReader(job));
+    return;
+  }
   if (data?.channel !== CHANNEL || !Array.isArray(data.plan)) return;
   const plan = data.plan as PlannedRequest[];
   if (data.kind === "sync") void pacer.serial(() => runPlan(plan));
@@ -194,3 +362,14 @@ window.addEventListener("message", (event: MessageEvent) => {
     void pacer.serial(() => runBackfillDay(day, plan));
   }
 });
+
+function isReaderJob(value: unknown): value is ReaderJob {
+  const job = value as { id?: unknown; days?: unknown } | null;
+  return (
+    typeof job === "object" &&
+    job !== null &&
+    typeof job.id === "string" &&
+    ["products", "ads", "vouchers", "health"].includes(job.id) &&
+    (job.days === undefined || (Array.isArray(job.days) && job.days.every((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))))
+  );
+}

@@ -1,0 +1,52 @@
+{
+ "code": 0,
+ "msg": "success",
+ "data": {
+  "voucher_list": [
+   {
+    "voucher_id": 9001,
+    "name": "Giảm 15k đơn từ 200k",
+    "voucher_code": "ABC15",
+    "start_time": 1790000000,
+    "end_time": 1792600000,
+    "value": 15000,
+    "discount": 0,
+    "max_value": 0,
+    "min_price": 200000,
+    "usage_limit": 100,
+    "current_usage": 12,
+    "distributed_count": 40,
+    "fe_status": "ongoing",
+    "status": 1,
+    "use_type": 1,
+    "rule": {
+     "items": [],
+     "reward_type": 1,
+     "purpose": 0,
+     "choose_users": 0,
+     "usage_limit_per_user": 1,
+     "is_seller_absorbed": true,
+     "display_from": 1790000000
+    }
+   },
+   {
+    "voucher_id": 9002,
+    "name": "Giảm 10% tối đa 30k",
+    "voucher_code": "DEF10",
+    "start_time": 1790000000,
+    "end_time": 1792600000,
+    "value": 0,
+    "discount": 10,
+    "max_value": 30000,
+    "min_price": 100000,
+    "usage_limit": 50,
+    "current_usage": 0,
+    "distributed_count": 0,
+    "fe_status": "upcoming",
+    "use_type": 2,
+    "rule": { "items": [ { "item_id": 1001 }, { "item_id": 1002 } ], "reward_type": 2, "usage_limit_per_user": 2, "is_seller_absorbed": false }
+   }
+  ],
+  "total": 2
+ }
+}

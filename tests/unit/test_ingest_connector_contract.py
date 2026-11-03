@@ -93,3 +93,92 @@ async def test_overview_lands_on_the_juli_streams_with_kpis(session):
     )
     assert card.extra["sales_ratio"] == 0.2
     assert by_stream["ads"].extra["ads_expense"] == 50000
+
+
+# -- the page readers (ADR-120 d.14) ----------------------------------------------------
+
+READ_AT = datetime(2026, 11, 3, 5, 0)
+
+
+@pytest.mark.parametrize(
+    ("dataset", "name", "rows"),
+    [
+        ("item_catalog", "item_catalog.body.json", 5),
+        ("ads_campaign_daily", "ads_campaign_daily.body.json", 3),
+        ("voucher_settings", "voucher_settings.body.json", 2),
+    ],
+)
+async def test_the_page_readers_posts_are_accepted(session, dataset, name, rows):
+    _, shop = await make_tenant(session, platform="shopee", tiktok_shop_id=None)
+    await grant_service_consent(session, shop.id)
+    result = await svc.ingest(
+        session,
+        shop_id=shop.id,
+        platform="shopee",
+        dataset=dataset,
+        body=_body(name),
+        token_id=None,
+        now=READ_AT,
+    )
+    assert result.rows == rows
+
+
+async def test_the_ads_daily_post_lands_as_ads_overlay_rows(session):
+    _, shop = await make_tenant(session, platform="shopee", tiktok_shop_id=None)
+    await grant_service_consent(session, shop.id)
+    await svc.ingest(
+        session,
+        shop_id=shop.id,
+        platform="shopee",
+        dataset="ads_campaign_daily",
+        body=_body("ads_campaign_daily.body.json"),
+        token_id=None,
+        now=READ_AT,
+    )
+    stored = (
+        (
+            await session.execute(
+                select(PlatformDailyMetric).where(PlatformDailyMetric.shop_id == shop.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert {m.stream for m in stored} == {"ads"}
+    assert {m.order_type for m in stored} == {"placed"}
+    main = next(m for m in stored if m.platform_source == "Chiến dịch mẫu 1")
+    assert (main.impressions, main.clicks, main.orders, main.gmv) == (
+        Decimal("1000"),
+        Decimal("40"),
+        Decimal("4"),
+        Decimal("400000"),
+    )
+    assert main.extra["cost"] == 50000
+
+
+@pytest.mark.parametrize(
+    ("dataset", "name"),
+    [
+        ("item_snapshot", "item_snapshot.body.json"),
+        ("shop_health_daily", "shop_health_daily.body.json"),
+    ],
+)
+async def test_the_reserved_readers_posts_fit_their_models_but_the_gateway_refuses(
+    session, dataset, name
+):
+    from juli_backend.services.ingest.reserved import validate_reserved
+
+    validate_reserved(dataset, _body(name))
+    _, shop = await make_tenant(session, platform="shopee", tiktok_shop_id=None)
+    await grant_service_consent(session, shop.id)
+    with pytest.raises(svc.IngestRejected) as err:
+        await svc.ingest(
+            session,
+            shop_id=shop.id,
+            platform="shopee",
+            dataset=dataset,
+            body=_body(name),
+            token_id=None,
+            now=READ_AT,
+        )
+    assert err.value.status == 404

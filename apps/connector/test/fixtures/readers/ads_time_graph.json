@@ -1,0 +1,11 @@
+{
+ "code": 0,
+ "msg": "ok",
+ "data": {
+  "report_by_time": [
+   { "timestamp": 1790000000, "impression": 100, "roi_target_setting": { "value": 5, "is_cold_start": true }, "target_broad_roi_setting": { "value": 0 } },
+   { "timestamp": 1790003600, "impression": 120, "roi_target_setting": { "value": 6, "is_cold_start": false }, "target_broad_roi_setting": { "value": 0 } },
+   { "timestamp": 1790007200, "impression": 90, "roi_target_setting": null }
+  ]
+ }
+}

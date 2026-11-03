@@ -1,0 +1,8 @@
+{
+ "code": 0,
+ "data": [
+  { "metric_id": 11, "display_value": "92,5%", "target_value": "≥ 90%", "compare_result": 1, "metric_tag": 3 },
+  { "metric_id": 12, "display_value": "3.4", "target_value": 4, "compare_result": "not_met", "metric_tag": "service" },
+  { "metric_id": 13, "display_value": "-", "target_value": null, "compare_result": null }
+ ]
+}

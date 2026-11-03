@@ -7,7 +7,7 @@
 // lists); those mappers are provisional until the second recon (D31.6) and check
 // only that each item has an id.
 
-import type { Dataset } from "../config";
+import type { Dataset, MydataDataset } from "../config";
 import { ENDPOINTS } from "./endpoints";
 import { singleDay } from "./time";
 
@@ -34,6 +34,8 @@ export interface Mapped {
   orderType: OrderType | null;
   rows: Row[];
   drift: Drift | null;
+  /** The post's period shape: one GMT+7 day (default), or a one-day snapshot (`period`). */
+  granularity?: "day" | "period";
 }
 
 export const L1_SOURCES = [
@@ -409,8 +411,8 @@ export function mapShopTraffic(result: unknown, date: string): { rows: Row[]; dr
 }
 
 /** The dataset a Seller Centre URL feeds, or null. */
-export function datasetOf(url: URL): Dataset | null {
-  for (const [dataset, path] of Object.entries(ENDPOINTS) as [Dataset, string][]) {
+export function datasetOf(url: URL): MydataDataset | null {
+  for (const [dataset, path] of Object.entries(ENDPOINTS) as [MydataDataset, string][]) {
     if (url.pathname === path) return dataset;
   }
   return null;

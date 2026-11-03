@@ -1,0 +1,23 @@
+{
+ "code": 0,
+ "message": "success",
+ "data": {
+  "products": [
+   {
+    "id": 1003,
+    "name": "Sản phẩm mẫu C",
+    "status": 1,
+    "cover_image": "vn-sample-cover-c",
+    "parent_sku": "SKU-C",
+    "create_time": 1777800000,
+    "modify_time": 1790200000,
+    "price_detail": { "price_min": 70000, "price_max": 70000, "selling_price_min": 70000, "selling_price_max": 70000, "has_discount": false, "max_discount_percentage": 0, "max_discount": 0 },
+    "stock_detail": { "total_available_stock": 7, "advanced_stock": { "sellable_stock": 7, "in_transit_stock": 0 } },
+    "statistics": { "view_count": 5, "liked_count": 1, "sold_count": 0 },
+    "tag": { "unlist": false },
+    "model_list": []
+   }
+  ],
+  "page_info": { "page_number": 2, "page_size": 2, "total": 3 }
+ }
+}

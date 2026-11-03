@@ -1,0 +1,43 @@
+{
+ "source": "extension",
+ "source_version": "0.3.0",
+ "captured_at": "2026-11-03T03:00:00.000Z",
+ "period": {
+  "start": "2026-11-03",
+  "end": "2026-11-03",
+  "granularity": "period"
+ },
+ "order_type": null,
+ "rows": [
+  {
+   "item_id": "1001",
+   "item_name": "Sản phẩm mẫu A",
+   "seller_sku": "SKU-A",
+   "status": "1"
+  },
+  {
+   "item_id": "1001",
+   "variation_id": "5001",
+   "variation_name": "Hồng",
+   "seller_sku": "A-HONG"
+  },
+  {
+   "item_id": "1001",
+   "variation_id": "5002",
+   "variation_name": "Xanh",
+   "seller_sku": "A-XANH"
+  },
+  {
+   "item_id": "1002",
+   "item_name": "Sản phẩm mẫu B",
+   "seller_sku": "SKU-B",
+   "status": "1"
+  },
+  {
+   "item_id": "1003",
+   "item_name": "Sản phẩm mẫu C",
+   "seller_sku": "SKU-C",
+   "status": "1"
+  }
+ ]
+}

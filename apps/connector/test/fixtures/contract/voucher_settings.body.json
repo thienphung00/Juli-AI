@@ -1,0 +1,53 @@
+{
+ "source": "extension",
+ "source_version": "0.3.0",
+ "captured_at": "2026-11-03T03:00:00.000Z",
+ "period": {
+  "start": "2026-11-03",
+  "end": "2026-11-03",
+  "granularity": "period"
+ },
+ "order_type": null,
+ "rows": [
+  {
+   "voucher_id": "9001",
+   "program_name": "Giảm 15k đơn từ 200k",
+   "starts_at": "2026-09-21T21:13:20",
+   "voucher_code": "ABC15",
+   "ends_at": "2026-10-21T23:26:40",
+   "status": "ongoing",
+   "discount_amount": 15000,
+   "min_spend": 200000,
+   "usage_limit": 100,
+   "current_usage": 12,
+   "distributed_count": 40,
+   "usage_limit_per_user": 1,
+   "use_type": 1,
+   "reward_type": 1,
+   "purpose": 0,
+   "is_seller_absorbed": true,
+   "item_count": 0,
+   "item_scope": "shop"
+  },
+  {
+   "voucher_id": "9002",
+   "program_name": "Giảm 10% tối đa 30k",
+   "starts_at": "2026-09-21T21:13:20",
+   "voucher_code": "DEF10",
+   "ends_at": "2026-10-21T23:26:40",
+   "status": "upcoming",
+   "discount_percent": 10,
+   "max_value": 30000,
+   "min_spend": 100000,
+   "usage_limit": 50,
+   "current_usage": 0,
+   "distributed_count": 0,
+   "usage_limit_per_user": 2,
+   "use_type": 2,
+   "reward_type": 2,
+   "is_seller_absorbed": false,
+   "item_count": 2,
+   "item_scope": "items"
+  }
+ ]
+}

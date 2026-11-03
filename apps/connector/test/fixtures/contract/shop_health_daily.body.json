@@ -1,0 +1,47 @@
+{
+ "source": "extension",
+ "source_version": "0.3.0",
+ "captured_at": "2026-11-03T03:00:00.000Z",
+ "period": {
+  "start": "2026-11-03",
+  "end": "2026-11-03",
+  "granularity": "day"
+ },
+ "order_type": null,
+ "rows": [
+  {
+   "date": "2026-11-03",
+   "failed_metric_count": 1,
+   "penalty_point": 0,
+   "performance_rating": 2
+  },
+  {
+   "date": "2026-11-03",
+   "metric_id": "11",
+   "label": "Tỷ lệ phản hồi chat",
+   "display_value": "92,5%",
+   "value": 92.5,
+   "target_display": "≥ 90%",
+   "target": 90,
+   "compare_result": 1,
+   "metric_tag": 3
+  },
+  {
+   "date": "2026-11-03",
+   "metric_id": "12",
+   "label": "Đánh giá sao",
+   "display_value": "3.4",
+   "value": 3.4,
+   "target_display": "4",
+   "target": 4,
+   "compare_result": "not_met",
+   "passed": false,
+   "metric_tag": "service"
+  },
+  {
+   "date": "2026-11-03",
+   "metric_id": "13",
+   "display_value": "-"
+  }
+ ]
+}
