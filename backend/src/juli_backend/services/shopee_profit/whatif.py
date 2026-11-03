@@ -511,21 +511,41 @@ def price_change_whatif(
     costs: Mapping[str, SkuCost],
     *,
     sku: str,
-    new_deal_price: Decimal,
+    new_deal_price: Decimal | None = None,
     schedule: FeeSchedule | None = None,
     ads_pools: Mapping[str, AdsPool] | None = None,
     affiliate_rate: Decimal | None = None,
     floors: Mapping[str, FloorResult] | None = None,
     predicted_extra_orders: PredictedRange | None = None,
+    price_factor: Decimal | None = None,
+    ceiling: bool = False,
 ) -> PriceChangeWhatIf:
     """Re-price one SKU's historical lines at the same volume.
+
+    Three ways to say the new price (exactly one): ``new_deal_price`` sets every line to it
+    (``ceiling=True``: lines already cheaper keep their price -- a discount cap), and
+    ``price_factor`` scales each line's own deal price (a 5 % rise on lines sold at different
+    prices is x 1,05 on each, not one price for all).
 
     Break-even extra orders = ceil(profit lost on the existing orders / new profit per order);
     0 when the new price earns at least as much, ``None`` + reason when new profit/order <= 0.
     Vouchers and bundle discounts stay as they were (absolute amounts).
     """
+    if (new_deal_price is None) == (price_factor is None):
+        raise ValueError("exactly one of new_deal_price / price_factor")
+    if price_factor is not None and price_factor <= 0:
+        raise ValueError("price_factor must be positive")
+
+    def reprice(ln: OrderLine) -> OrderLine:
+        if price_factor is not None:
+            return replace(ln, deal_price=to_dong(ln.deal_price * price_factor))
+        assert new_deal_price is not None
+        return replace(
+            ln, deal_price=min(ln.deal_price, new_deal_price) if ceiling else new_deal_price
+        )
+
     mine = [ln for ln in lines if ln.sku == sku]
-    repriced = [replace(ln, deal_price=new_deal_price) for ln in mine]
+    repriced = [reprice(ln) for ln in mine]
     kw = {"schedule": schedule, "ads_pools": ads_pools, "affiliate_rate": affiliate_rate}
     # whole orders go through the waterfall so per-order fixed fees are split correctly
     swap = {id(ln): new for ln, new in zip(mine, repriced, strict=True)}
