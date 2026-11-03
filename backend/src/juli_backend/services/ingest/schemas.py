@@ -493,6 +493,131 @@ class ShopeeAdsCampaignPeriodRow(PeriodRowBase):
         return (self.campaign_name, self.item_id, self.ordinal)
 
 
+# -- affiliate, ad keyword and promotion-total period rows (reco loader wave) ------------
+
+
+class _AffiliateMetrics(PeriodRowBase):
+    """What the affiliate dashboard exports share: ``Est.Commission(₫)`` and ``ROI`` are the
+    program's own estimate (a ratio that may exceed 1), not an invoice."""
+
+    sales: Money | None = None
+    units: Count | None = None
+    orders: Count | None = None
+    clicks: Count | None = None
+    buyers: Count | None = None
+    new_buyers: Count | None = None
+    est_commission: Money | None = None
+    roi: Ratio | None = None
+
+
+class ShopeeAffiliateProductPeriodRow(_AffiliateMetrics):
+    """``shopee.affiliate_product_period``: one product's affiliate results over the period
+    (``affiliate_product_YYYYMM.csv``, ``ProductPerformance_<ts>.csv``)."""
+
+    item_id: ItemId
+    price: Money | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.item_id,)
+
+
+class ShopeeAffiliateOpenCampaignPeriodRow(PeriodRowBase):
+    """``shopee.affiliate_open_campaign_period``: one product in the Open Campaign
+    (``Open Campaign Analytics_<ts>.csv``): how many KOLs sold it, revenue, units, commission."""
+
+    item_id: ItemId
+    kols: Count | None = None
+    sales: Money | None = None
+    units: Count | None = None
+    est_commission: Money | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.item_id,)
+
+
+class ShopeeAffiliatePartnerPeriodRow(_AffiliateMetrics):
+    """``shopee.affiliate_partner_period``: one affiliate (KOL) over the period
+    (``AMSAffiliatePerformance_<ts>.csv``). ``account`` is the creator's public handle."""
+
+    affiliate_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,32}$")]
+    account: Annotated[str, StringConstraints(max_length=120)] | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.affiliate_id,)
+
+
+class ShopeeAffiliateCampaignTermsRow(PeriodRowBase):
+    """``shopee.affiliate_campaign_terms``: a commission-rate row of ``target_campaign_<ts>.csv``
+    (campaign x product), as it stood on the export day. A terms snapshot, not a result."""
+
+    campaign_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,32}$")]
+    campaign_name: Annotated[str, StringConstraints(min_length=1, max_length=255)]
+    item_id: ItemId
+    commission_rate: Rate | None = None
+    running: bool | None = None
+    starts_on: date | None = None
+    #: None = "No limit".
+    ends_on: date | None = None
+    #: The ``KOL cụ thể[N]`` count: how many specific KOLs the campaign targets.
+    targeted_kols: Count | None = None
+    ordinal: Annotated[int, Field(ge=0, le=999)] = 0
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.campaign_id, self.item_id, self.ordinal)
+
+
+class ShopeeAffiliateBillPeriodRow(PeriodRowBase):
+    """``shopee.affiliate_bill_period``: one month's affiliate settlement
+    (``ValidationBill<ts>.csv``)."""
+
+    bill_code: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    commission: Money | None = None
+    tax: Money | None = None
+    cost: Money | None = None
+    total_deduction: Money | None = None
+    wallet_offset: Money | None = None
+    pending_amount: Money | None = None
+    deduction_completed: bool | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.bill_code,)
+
+
+class ShopeeAdsKeywordPeriodRow(ShopeeAdsCampaignPeriodRow):
+    """``shopee.ads_keyword_period``: ``ads_keyword_<range>.csv``, one campaign x product x
+    keyword over the window. ``keyword`` is None for a campaign-level or automatic-placement
+    row (the ORY report lists ``-`` as the type and an "automatic ad" label as the keyword)."""
+
+    keyword: Annotated[str, StringConstraints(min_length=1, max_length=255)] | None = None
+    keyword_type: Annotated[str, StringConstraints(max_length=64)] | None = None
+    #: True when the report's keyword column said "automatic ad" instead of a phrase.
+    auto_placement: bool | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.campaign_name, self.item_id, self.keyword, self.keyword_type, self.ordinal)
+
+
+class ShopeePromotionPeriodRow(PeriodRowBase):
+    """``shopee.promotion_period``: a promotion type's total over the period
+    (``In_Shop_Flash_Sale_Metrics`` › ``Tổng quan``). Not a sum of ``promotions`` rows."""
+
+    promo_type: Annotated[str, StringConstraints(max_length=64)]
+    sales: Money | None = None
+    orders: Count | None = None
+    buyers: Count | None = None
+    sales_per_buyer: Money | None = None
+
+    @field_validator("promo_type")
+    @classmethod
+    def _known_promo_type(cls, value: str) -> str:
+        if value not in SHOPEE_PROMO_TYPES:
+            raise ValueError("unknown promo_type")
+        return value
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.promo_type,)
+
+
 class Period(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

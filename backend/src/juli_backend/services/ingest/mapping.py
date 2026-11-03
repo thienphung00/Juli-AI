@@ -33,6 +33,12 @@ tell a mapping change from a data change):
   never adds two of its periods together. Rows are stream ``ads`` (an overlay), the campaign
   is ``segment`` (hash) + ``platform_source`` (name), and the ad's cost and ROAS are in
   ``extra`` (``ads_expense``, ``ads_roas``) like the shop-stats ads rows.
+- reco loader wave: ``ads_keyword_period`` (campaign x product x keyword, same shape as
+  ``ads_campaign_period``); ``affiliate_*`` datasets are stream ``affiliate`` period rows with
+  order type ``none`` (the program's own estimates; a KOL is ``segment`` = hash of its id,
+  ``platform_source`` = its handle); ``promotion_period`` is a promotion type's total (stream
+  ``promo``). Order-line affiliate rows and the ad change log need tables of their own and are
+  parsed but not accepted yet (``reserved.py``).
 """
 
 from __future__ import annotations
@@ -55,6 +61,12 @@ from juli_backend.services.ingest.schemas import (
     SHOPEE_PROMO_TYPES,
     DatasetRow,
     ShopeeAdsCampaignPeriodRow,
+    ShopeeAdsKeywordPeriodRow,
+    ShopeeAffiliateBillPeriodRow,
+    ShopeeAffiliateCampaignTermsRow,
+    ShopeeAffiliateOpenCampaignPeriodRow,
+    ShopeeAffiliatePartnerPeriodRow,
+    ShopeeAffiliateProductPeriodRow,
     ShopeeItemBySourcePeriodRow,
     ShopeeItemBySourceRow,
     ShopeeItemPerformanceRow,
@@ -62,6 +74,7 @@ from juli_backend.services.ingest.schemas import (
     ShopeeProductOverviewRow,
     ShopeeProductPeriodRow,
     ShopeePromotionDailyRow,
+    ShopeePromotionPeriodRow,
     ShopeePromotionRow,
     ShopeeShopOverviewRow,
     ShopeeShopTrafficRow,
@@ -212,8 +225,25 @@ _KEY_FIELDS = frozenset(
         "variation_status",
         "seller_sku",
         "extra",
+        # reco loader wave: identity / text fields of the affiliate and keyword rows
+        "affiliate_id",
+        "account",
+        "bill_code",
+        "campaign_id",
+        "starts_on",
+        "ends_on",
+        "keyword",
+        "keyword_type",
     }
 )
+_AFFILIATE_KPIS: dict[str, str] = {
+    "sales": "gmv",
+    "units": "units",
+    "orders": "orders",
+    "clicks": "clicks",
+    "buyers": "buyers",
+}
+_OPEN_CAMPAIGN_KPIS: dict[str, str] = {"sales": "gmv", "units": "units"}
 #: Period rows describe the item in ``platform_items``; its name is not copied to ``extra``.
 _ITEM_TABLE_ROWS = (ShopeeItemBySourcePeriodRow, ShopeeProductPeriodRow)
 
@@ -355,6 +385,118 @@ def _ads_campaign(row: ShopeeAdsCampaignPeriodRow) -> NormalizedRow:
     )
 
 
+def _short_hash(prefix: str, *parts: object) -> str:
+    """``prefix`` + 12 hex of the parts (13 characters: fits the 16-character ``segment``)."""
+    digest = hashlib.sha1("|".join(str(p) for p in parts).encode(), usedforsecurity=False)
+    return f"{prefix}{digest.hexdigest()[:12]}"
+
+
+def _ymd(value: date | None) -> int | None:
+    return None if value is None else value.year * 10000 + value.month * 100 + value.day
+
+
+def _affiliate_product(row: ShopeeAffiliateProductPeriodRow) -> NormalizedRow:
+    """A product's affiliate totals: stream ``affiliate``, the product is ``item_id``. Not
+    the shop-stats ``traffic_overview_period`` affiliate row (a source split by placed /
+    confirmed orders): this is the affiliate program's own estimate, order type ``none``."""
+    kpis, extra = _split(row, _AFFILIATE_KPIS)
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_AFFILIATE,
+        item_id=row.item_id,
+        platform_source="affiliate_product",
+        kpis=kpis,
+        extra=extra,
+    )
+
+
+def _affiliate_open_campaign(row: ShopeeAffiliateOpenCampaignPeriodRow) -> NormalizedRow:
+    kpis, extra = _split(row, _OPEN_CAMPAIGN_KPIS)
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_AFFILIATE,
+        item_id=row.item_id,
+        platform_source="open_campaign",
+        kpis=kpis,
+        extra=extra,
+    )
+
+
+def _affiliate_partner(row: ShopeeAffiliatePartnerPeriodRow) -> NormalizedRow:
+    """One KOL: ``segment`` is a hash of the platform's affiliate id, ``platform_source`` the
+    public handle (so a reader can show it; the id itself is not stored)."""
+    kpis, extra = _split(row, _AFFILIATE_KPIS)
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_AFFILIATE,
+        platform_source=(row.account or "")[:64] or None,
+        segment=_short_hash("a", row.affiliate_id),
+        kpis=kpis,
+        extra=extra,
+    )
+
+
+def _affiliate_terms(row: ShopeeAffiliateCampaignTermsRow) -> NormalizedRow:
+    """Commission terms (campaign x product): no KPI column fits, all numbers are in
+    ``extra`` (the campaign id as a number, run dates as ``YYYYMMDD`` numbers: D16 drops
+    strings). ``segment`` hashes the campaign id (and twin place)."""
+    _, extra = _split(row, {})
+    extra["campaign_id"] = int(row.campaign_id)
+    extra["starts_ymd"] = _ymd(row.starts_on)
+    extra["ends_ymd"] = _ymd(row.ends_on)
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_AFFILIATE,
+        item_id=row.item_id,
+        platform_source=row.campaign_name[:64],
+        segment=_short_hash("t", row.campaign_id, row.ordinal),
+        extra=extra,
+    )
+
+
+def _affiliate_bill(row: ShopeeAffiliateBillPeriodRow) -> NormalizedRow:
+    _, extra = _split(row, {})
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_AFFILIATE,
+        platform_source="validation_bill",
+        segment=_short_hash("b", row.bill_code),
+        extra=extra,
+    )
+
+
+def _ads_keyword(row: ShopeeAdsKeywordPeriodRow) -> NormalizedRow:
+    """A campaign x product x keyword total: an ``ads`` overlay row like
+    ``ads_campaign_period``. ``platform_source`` packs ``campaign › keyword`` (cut to its
+    64 characters; D16 forbids strings in ``extra``); ``segment`` hashes the full key. A row
+    with no keyword keeps the campaign name alone."""
+    kpis, extra = _split(row, _ADS_CAMPAIGN_KPIS)
+    if row.keyword:
+        source = f"{row.campaign_name[:30]} › {row.keyword[:30]}"
+    else:
+        source = row.campaign_name[:64]
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_ADS,
+        item_id=row.item_id or SHOP_LEVEL_ITEM,
+        platform_source=source,
+        segment=_short_hash("k", row.campaign_name, row.keyword, row.keyword_type, row.ordinal),
+        kpis=kpis,
+        extra=extra,
+    )
+
+
+def _promotion_period(row: ShopeePromotionPeriodRow) -> NormalizedRow:
+    kpis, extra = _split(row, _PROMOTION_KPIS)
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_PROMO,
+        segment=SHOPEE_PROMO_TYPES[row.promo_type],
+        kpis=kpis,
+        extra=extra,
+    )
+
+
 def _not_metrics(row: Any) -> NormalizedRow:
     raise TypeError(f"{type(row).__name__} has its own table, not a metrics row")
 
@@ -480,6 +622,77 @@ DATASETS: dict[tuple[str, str], DatasetSpec] = {
         GRANULARITY_PERIOD,
         WRITE_PERIOD,
         MAX_ADS_PERIOD_DAYS,
+    ),
+    ("shopee", "ads_keyword_period"): DatasetSpec(
+        "shopee",
+        "ads_keyword_period",
+        ShopeeAdsKeywordPeriodRow,
+        _ads_keyword,
+        True,
+        "Per report window (up to 100 days), per ad campaign x product x keyword (CPC keyword).",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+        MAX_ADS_PERIOD_DAYS,
+    ),
+    ("shopee", "affiliate_product_period"): DatasetSpec(
+        "shopee",
+        "affiliate_product_period",
+        ShopeeAffiliateProductPeriodRow,
+        _affiliate_product,
+        False,
+        "Per period, per product: affiliate sales, units, orders, clicks, est. commission, ROI.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+    ),
+    ("shopee", "affiliate_open_campaign_period"): DatasetSpec(
+        "shopee",
+        "affiliate_open_campaign_period",
+        ShopeeAffiliateOpenCampaignPeriodRow,
+        _affiliate_open_campaign,
+        False,
+        "Per period, per product in the Open Campaign: KOLs, sales, units, est. commission.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+    ),
+    ("shopee", "affiliate_partner_period"): DatasetSpec(
+        "shopee",
+        "affiliate_partner_period",
+        ShopeeAffiliatePartnerPeriodRow,
+        _affiliate_partner,
+        False,
+        "Per period, per affiliate (KOL): sales, orders, clicks, buyers, est. commission, ROI.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+    ),
+    ("shopee", "affiliate_campaign_terms"): DatasetSpec(
+        "shopee",
+        "affiliate_campaign_terms",
+        ShopeeAffiliateCampaignTermsRow,
+        _affiliate_terms,
+        False,
+        "Per export day, per affiliate campaign x product: commission rate, run dates, status.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+    ),
+    ("shopee", "affiliate_bill_period"): DatasetSpec(
+        "shopee",
+        "affiliate_bill_period",
+        ShopeeAffiliateBillPeriodRow,
+        _affiliate_bill,
+        False,
+        "Per month, the affiliate settlement bill: commission, tax, cost, deductions.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+    ),
+    ("shopee", "promotion_period"): DatasetSpec(
+        "shopee",
+        "promotion_period",
+        ShopeePromotionPeriodRow,
+        _promotion_period,
+        True,
+        "Per period, per promotion type total (In-shop Flash Sale metrics › Tổng quan).",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
     ),
     ("shopee", "product_flags"): DatasetSpec(
         "shopee",
