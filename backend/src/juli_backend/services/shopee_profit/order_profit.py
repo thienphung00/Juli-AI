@@ -1,25 +1,33 @@
 """Order line + SKU cost -> profit waterfall.
 
-list -> promo discount -> shop voucher -> bundle discount -> buyer pays -> platform fees
--> COGS -> packaging -> ads allocation -> affiliate commission -> profit.
+list -> promo discount -> shop voucher -> combo (bundle) discount -> buyer pays -> platform
+fees -> COGS -> packaging -> affiliate commission = CONTRIBUTION (before ads) -> line ad split
+= profit (display).
 
 Rules:
 - ``buyer_paid`` = deal_price*qty - shop_voucher_share - bundle_discount.
 - Fees: the line's actual fees when Shopee reported them, else the formula valid on the
-  order date (``fee_source`` says which).
+  order date (``fee_source`` says which). Per-order FIXED fees are charged once per order:
+  :func:`profit_lines` splits them over the order's lines by ``order_value``.
+- ``contribution`` = buyer_paid - fees - COGS - packaging - commission. It is the source of
+  truth for profit (product profit = sum of contribution - the product's ad spend from the ads
+  report, see :mod:`.shop_profit`).
 - COGS is per unit (x qty); packaging is per order line.
-- Ads allocation (only for ``ad_attributed`` lines): the SKU's ad cost x (line ad revenue /
+- Line ad split (DISPLAY AID, only for ``ad_attributed`` lines; never the source of product
+  or shop profit): the SKU's ad cost x (line ad revenue /
   SKU ad revenue). Ad revenue of a line is its LIST value (``list_value``), so a voucher
   change never moves the ad cost of an order. No pool -> ``missing``, never zero.
 - Commission: affiliate lines use the reported ``commission``, else ``affiliate_rate`` x
   buyer_paid; neither -> ``missing``.
-- Missing input never becomes 0: ``profit``/``margin`` are ``None`` and ``missing`` lists why.
+- Missing input never becomes 0: ``contribution``/``profit``/``margin`` are ``None`` and
+  ``missing`` lists why.
 - ``margin_rate`` = profit / buyer_paid.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
@@ -33,15 +41,6 @@ class PromoKind(StrEnum):
     NONE = "none"
     PROMOTION = "promotion"
     FLASH_SALE = "flash_sale"
-
-
-class TrafficSource(StrEnum):
-    SEARCH = "search"
-    RECOMMEND = "recommend"
-    SHOP_PAGE = "shop_page"
-    AFFILIATE = "affiliate"
-    FLASH_SALE_PAGE = "flash_sale_page"
-    UNKNOWN = "unknown"
 
 
 @dataclass(frozen=True)
@@ -60,7 +59,7 @@ class OrderLine:
     affiliate: bool = False
     commission: Decimal | None = None
     actual_fees: Decimal | None = None
-    traffic_source: TrafficSource = TrafficSource.UNKNOWN
+    buyer_key: str | None = None  # opaque hashed buyer id (never PII); per-user voucher limits
 
     def __post_init__(self) -> None:
         if self.qty <= 0:
@@ -108,7 +107,8 @@ class ProfitBreakdown:
     packaging: Decimal | None
     ads: Decimal | None
     commission: Decimal | None
-    profit: Decimal | None
+    contribution: Decimal | None  # before ads
+    profit: Decimal | None  # contribution - line ad split (display aid)
     margin_rate: Decimal | None
     missing: tuple[str, ...] = field(default=())
 
@@ -131,7 +131,10 @@ def line_profit(
     schedule: FeeSchedule | None = None,
     ads_pool: AdsPool | None = None,
     affiliate_rate: Decimal | None = None,
+    fixed_fees: Mapping[str, Decimal] | None = None,
 ) -> ProfitBreakdown:
+    """One line's waterfall. ``fixed_fees`` = the line's share of the order's fixed fees
+    (:meth:`FeeFormula.split_fixed`); omitted, the line is treated as the whole order."""
     missing: list[str] = []
 
     fees: tuple[tuple[str, Decimal], ...] | None = None
@@ -144,7 +147,7 @@ def line_profit(
         if formula is None:
             missing.append("fee_formula")
         else:
-            result = formula.fee(line)
+            result = formula.fee(line, fixed_fees)
             fees, fees_total, fee_source = result.components, result.total, "formula"
 
     cogs = cost.cogs * line.qty if cost and cost.cogs is not None else None
@@ -170,12 +173,15 @@ def line_profit(
             commission = None
             missing.append("commission")
 
+    contribution: Decimal | None = None
+    if not [m for m in missing if m != "ads_allocation"]:
+        assert fees_total is not None and cogs is not None and packaging is not None
+        assert commission is not None
+        contribution = line.buyer_paid - fees_total - cogs - packaging - commission
     profit: Decimal | None = None
     margin: Decimal | None = None
-    if not missing:
-        assert fees_total is not None and cogs is not None and packaging is not None
-        assert ads is not None and commission is not None
-        profit = line.buyer_paid - fees_total - cogs - packaging - ads - commission
+    if contribution is not None and ads is not None:
+        profit = contribution - ads
         margin = safe_div(profit, line.buyer_paid)
 
     return ProfitBreakdown(
@@ -191,6 +197,7 @@ def line_profit(
         packaging=packaging,
         ads=ads,
         commission=commission,
+        contribution=contribution,
         profit=profit,
         margin_rate=margin,
         missing=tuple(missing),
@@ -198,15 +205,31 @@ def line_profit(
 
 
 def profit_lines(
-    lines: list[OrderLine],
+    lines: Sequence[OrderLine],
     costs: Mapping[str, SkuCost],
     *,
     schedule: FeeSchedule | None = None,
     ads_pools: Mapping[str, AdsPool] | None = None,
     affiliate_rate: Decimal | None = None,
 ) -> list[tuple[OrderLine, ProfitBreakdown]]:
-    """Waterfall for every line, looking cost and ads pool up by SKU."""
+    """Waterfall for every line (input order kept), looking cost and ads pool up by SKU.
+
+    Fixed per-order fees are charged once per order and split over the order's formula-fee
+    lines by ``order_value``; pass whole orders (all their lines), not a subset.
+    """
     pools = ads_pools or {}
+    by_order: dict[str, list[int]] = defaultdict(list)
+    for i, ln in enumerate(lines):
+        if ln.actual_fees is None:
+            by_order[ln.order_id].append(i)
+    fixed: dict[int, Mapping[str, Decimal]] = {}
+    if schedule is not None:
+        for idxs in by_order.values():
+            formula = schedule.formula_on(lines[idxs[0]].order_date)
+            if formula is None:
+                continue
+            shares = formula.split_fixed([lines[i].order_value for i in idxs])
+            fixed.update(zip(idxs, shares, strict=True))
     return [
         (
             ln,
@@ -216,7 +239,8 @@ def profit_lines(
                 schedule=schedule,
                 ads_pool=pools.get(ln.sku),
                 affiliate_rate=affiliate_rate,
+                fixed_fees=fixed.get(i),
             ),
         )
-        for ln in lines
+        for i, ln in enumerate(lines)
     ]

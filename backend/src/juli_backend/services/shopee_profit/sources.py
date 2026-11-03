@@ -1,20 +1,24 @@
-"""Product x source matrix from order lines (profit already computed per line).
+"""Product x price-lever matrix from order lines (profit already computed per line).
 
-Two dimensions, each summing EXACTLY to the totals (checked in code -> ``AdditivityError``):
-- traffic: the line's ``traffic_source`` (search / recommend / shop_page / affiliate /
-  flash_sale_page / unknown);
-- price lever: exactly one per line by precedence bundle > promotion (incl. flash sale price)
-  > voucher > none.
+Traffic flows are NOT here: they come from aggregates (:mod:`.flows`), because order lines
+carry no traffic source. This module keeps the one dimension that order lines do define,
+the price lever (contract section 3), each line exactly one, summing EXACTLY to the totals
+(checked in code -> ``AdditivityError``):
 
-Ads are an OVERLAY: ``ads`` counts ad-attributed lines inside whatever traffic/lever they
-belong to and is never added to either dimension.
+``combo`` (Combo khuyen mai / Mua kem deal soc) > ``khuyen_mai`` (discount programme incl.
+Flash Sale price) > ``voucher`` (shop voucher) > ``khong_uu_dai``. Shopee-funded vouchers are
+not a seller cost and not a lever.
+
+Ads are an OVERLAY: ``ads`` counts ad-attributed lines inside whatever lever they belong to
+and is never added to the dimension.
 
 Counting: lines of the same product within one order are merged first, so ``orders`` counts
 (order, product) pairs -- an order with two products counts once under each (the product
 view), and totals are over those pairs. GMV = ``order_value`` (deal price x qty, before
-voucher). ``profit`` sums known line profits; ``orders_missing_profit`` counts pairs with an
-unknown cost, which are excluded from profit and margin (margin = profit / buyer-paid of the
-known pairs).
+voucher). ``contribution`` sums known contributions (before ads); ``profit`` is contribution
+less the DISPLAY line-level ad split. Pairs with an unknown cost are excluded from both and
+from ``buyer_paid_known`` and counted in ``orders_missing_profit``; margin = profit /
+buyer_paid of the known pairs (never extrapolated).
 """
 
 from __future__ import annotations
@@ -34,10 +38,10 @@ from juli_backend.services.shopee_profit.order_profit import (
 
 
 class PriceLever(StrEnum):
-    BUNDLE = "bundle"
-    PROMOTION = "promotion"
+    COMBO = "combo"
+    KHUYEN_MAI = "khuyen_mai"
     VOUCHER = "voucher"
-    NONE = "none"
+    KHONG_UU_DAI = "khong_uu_dai"
 
 
 class AdditivityError(AssertionError):
@@ -50,6 +54,8 @@ class CellStats:
     gmv: Decimal = ZERO
     buyer_paid_known: Decimal = ZERO
     profit: Decimal = ZERO
+    contribution: Decimal = ZERO
+    buyer_paid: Decimal = ZERO
     orders_missing_profit: int = 0
 
     @property
@@ -66,17 +72,18 @@ class CellStats:
 
     def plus(self, other: CellStats) -> CellStats:
         return CellStats(
-            self.orders + other.orders,
-            self.gmv + other.gmv,
-            self.buyer_paid_known + other.buyer_paid_known,
-            self.profit + other.profit,
-            self.orders_missing_profit + other.orders_missing_profit,
+            orders=self.orders + other.orders,
+            gmv=self.gmv + other.gmv,
+            buyer_paid_known=self.buyer_paid_known + other.buyer_paid_known,
+            profit=self.profit + other.profit,
+            contribution=self.contribution + other.contribution,
+            buyer_paid=self.buyer_paid + other.buyer_paid,
+            orders_missing_profit=self.orders_missing_profit + other.orders_missing_profit,
         )
 
 
 @dataclass(frozen=True)
 class SourceMatrix:
-    traffic: dict[tuple[str, str], CellStats]  # (product_id, traffic source)
     lever: dict[tuple[str, str], CellStats]  # (product_id, price lever)
     ads: dict[str, CellStats]  # product_id -> ad-attributed overlay
     totals: dict[str, CellStats]  # product_id -> everything
@@ -84,10 +91,10 @@ class SourceMatrix:
 
 def price_lever(promo_kinds: Iterable[PromoKind], voucher: Decimal, bundle: Decimal) -> PriceLever:
     if bundle > 0:
-        return PriceLever.BUNDLE
+        return PriceLever.COMBO
     if any(k is not PromoKind.NONE for k in promo_kinds):
-        return PriceLever.PROMOTION
-    return PriceLever.VOUCHER if voucher > 0 else PriceLever.NONE
+        return PriceLever.KHUYEN_MAI
+    return PriceLever.VOUCHER if voucher > 0 else PriceLever.KHONG_UU_DAI
 
 
 def _cell(pairs: list[tuple[OrderLine, ProfitBreakdown]]) -> CellStats:
@@ -95,8 +102,10 @@ def _cell(pairs: list[tuple[OrderLine, ProfitBreakdown]]) -> CellStats:
     return CellStats(
         orders=1,
         gmv=sum((ln.order_value for ln, _ in pairs), ZERO),
+        buyer_paid=sum((pb.buyer_paid for _, pb in pairs), ZERO),
         buyer_paid_known=sum((pb.buyer_paid for _, pb in pairs), ZERO) if known else ZERO,
         profit=sum((pb.profit or ZERO for _, pb in pairs), ZERO) if known else ZERO,
+        contribution=sum((pb.contribution or ZERO for _, pb in pairs), ZERO) if known else ZERO,
         orders_missing_profit=0 if known else 1,
     )
 
@@ -106,26 +115,23 @@ def build_source_matrix(pairs: Iterable[tuple[OrderLine, ProfitBreakdown]]) -> S
     for ln, pb in pairs:
         groups[(ln.order_id, ln.product_id)].append((ln, pb))
 
-    traffic: dict[tuple[str, str], CellStats] = {}
     lever: dict[tuple[str, str], CellStats] = {}
     ads: dict[str, CellStats] = {}
     totals: dict[str, CellStats] = {}
     empty = CellStats()
     for (_, product), grp in groups.items():
         cell = _cell(grp)
-        src = grp[0][0].traffic_source.value
         lev = price_lever(
             (ln.promo_kind for ln, _ in grp),
             sum((ln.shop_voucher_share for ln, _ in grp), ZERO),
             sum((ln.bundle_discount for ln, _ in grp), ZERO),
         ).value
-        traffic[(product, src)] = traffic.get((product, src), empty).plus(cell)
         lever[(product, lev)] = lever.get((product, lev), empty).plus(cell)
         totals[product] = totals.get(product, empty).plus(cell)
         if any(ln.ad_attributed for ln, _ in grp):
             ads[product] = ads.get(product, empty).plus(cell)
 
-    matrix = SourceMatrix(traffic, lever, ads, totals)
+    matrix = SourceMatrix(lever, ads, totals)
     assert_additive(matrix)
     return matrix
 
@@ -139,14 +145,14 @@ def _sum(cells: Iterable[CellStats]) -> CellStats:
 
 def assert_additive(matrix: SourceMatrix) -> None:
     """Both dimensions must equal the totals per product and overall (raises, never strips)."""
-    for name, dim in (("traffic", matrix.traffic), ("lever", matrix.lever)):
+    for name, dim in (("lever", matrix.lever),):
         per_product: dict[str, CellStats] = {}
         for (product, _), cell in dim.items():
             per_product[product] = per_product.get(product, CellStats()).plus(cell)
         if per_product != matrix.totals:
             raise AdditivityError(f"{name} dimension does not sum to the totals")
-    if _sum(matrix.traffic.values()) != _sum(matrix.totals.values()):
-        raise AdditivityError("traffic dimension does not sum to the grand total")
+    if _sum(matrix.lever.values()) != _sum(matrix.totals.values()):
+        raise AdditivityError("lever dimension does not sum to the grand total")
     for product, cell in matrix.ads.items():
         total = matrix.totals.get(product, CellStats())
         if cell.orders > total.orders:
