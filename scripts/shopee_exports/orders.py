@@ -34,7 +34,7 @@ import unicodedata
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from decimal import ROUND_FLOOR, Decimal
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -253,7 +253,10 @@ def money(text: str | None, column: str) -> Decimal | None:
     cell = text.strip()
     if not _NUMBER.match(cell):
         raise OrderLayoutError(f"column {column!r}: a cell is not a plain number")
-    return Decimal(cell)
+    value = Decimal(cell)
+    if value.as_tuple().exponent < -2 and value != value.quantize(CENT):
+        raise OrderLayoutError(f"column {column!r}: a cell has more than two decimals")
+    return value
 
 
 def stamp(text: str | None, column: str) -> datetime | None:
@@ -266,23 +269,31 @@ def stamp(text: str | None, column: str) -> datetime | None:
     return datetime.fromisoformat(f"{day}T{hour}:{minute}:{second or '00'}")
 
 
+def _cents(value: Decimal) -> int:
+    scaled = value * 100
+    if scaled != scaled.to_integral_value():
+        raise OrderLayoutError("an amount has more than two decimals")
+    return int(scaled)
+
+
 def split_by_weight(total: Decimal, weights: list[Decimal]) -> list[Decimal]:
     """``total`` cut into cents proportional to ``weights`` (equal when all are zero); the
-    pieces add up to ``total`` exactly (largest remainder)."""
+    pieces add up to ``total`` exactly. Integer arithmetic only (largest remainder, ties to the
+    earlier line), so the browser module can reproduce it digit for digit."""
     count = len(weights)
     if count == 0:
         raise ValueError("no lines to split over")
-    cents = int((total / CENT).to_integral_value())
-    weight_sum = sum(weights)
-    if weight_sum <= 0:
-        weights, weight_sum = [Decimal(1)] * count, Decimal(count)
-    exact = [Decimal(cents) * w / weight_sum for w in weights]
-    floors = [int(e.to_integral_value(rounding=ROUND_FLOOR)) for e in exact]
-    left = cents - sum(floors)
-    order = sorted(range(count), key=lambda i: (exact[i] - floors[i], -i), reverse=True)
-    for i in order[:left]:
-        floors[i] += 1
-    return [Decimal(c) * CENT for c in floors]
+    cents = _cents(total)
+    shares = [_cents(w) for w in weights]
+    if sum(shares) <= 0:
+        shares = [1] * count
+    weight_sum = sum(shares)
+    parts = [divmod(cents * share, weight_sum) for share in shares]
+    pieces = [quotient for quotient, _ in parts]
+    left = cents - sum(pieces)
+    for i in sorted(range(count), key=lambda i: (-parts[i][1], i))[:left]:
+        pieces[i] += 1
+    return [Decimal(piece) * CENT for piece in pieces]
 
 
 def _choose(header: list[str]) -> set[int]:

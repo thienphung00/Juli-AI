@@ -764,3 +764,187 @@ def test_the_cli_hashes_with_the_shops_key_when_the_master_and_shop_id_are_given
     assert load_shopee_exports._shop_order_ref_key(None) is None
     monkeypatch.delenv(order_ref.ENV_MASTER)
     assert load_shopee_exports._shop_order_ref_key(shop) is None
+
+
+# --- parity with the browser module ---------------------------------------------------------
+#
+# The Ops upload page parses the same export in TypeScript (apps/demo/src/lib/ops/orders). Both
+# parsers are pinned to ONE golden: two synthetic workbooks (inline strings; shared strings with
+# poisoned buyer cells) and the rows / summaries this parser produces from them. The TypeScript
+# test (`parse-orders.test.ts`) must produce the same JSON. Regenerate after an intended change
+# with ``UPDATE_PARITY_FIXTURE=1 pytest tests/unit/test_shopee_orders_parser.py``.
+
+PARITY_DIR = Path(__file__).resolve().parents[2] / "apps/demo/src/lib/ops/orders/__fixtures__"
+PARITY_KEY = b"parity-fixture-key"
+
+
+def _parity_lines() -> list[dict[str, str]]:
+    three = {
+        "Tổng giá trị đơn hàng (VND)": "321000.00",
+        "Mã giảm giá của Shop": "1000.00",
+        "Mã giảm giá của Shopee": "7000.01",
+        "Số tiền được giảm khi thanh toán bằng thẻ Ghi nợ": "100.00",
+        "Phí vận chuyển mà người mua trả": "10000.00",
+        "Phí cố định": "20000.05",
+        "Phí Dịch Vụ": "0.00",
+        "Phí xử lý giao dịch": "19260.00",
+    }
+    return [
+        # three lines, odd cents to split, order-level amounts repeated on each line
+        _line(
+            "P-0001",
+            **{**three, "SKU sản phẩm": "SKU-C", "Giá ưu đãi": "33333.00", "Số lượng": "1"},
+        ),
+        _line(
+            "P-0001",
+            **{**three, "SKU sản phẩm": "SKU-A", "Giá ưu đãi": "90000.00", "Số lượng": "2"},
+        ),
+        _line(
+            "P-0001",
+            **{**three, "SKU sản phẩm": "SKU-B", "Giá ưu đãi": "50000.00", "Số lượng": "2"},
+        ),
+        # cancelled, fees on the sheet but the order carries no profit
+        _line(
+            "P-0002",
+            **{
+                "Trạng Thái Đơn Hàng": "Đã hủy",
+                "Phí cố định": "4000.00",
+                "Thời gian hoàn thành đơn hàng": "",
+                "Thời gian giao hàng": "",
+            },
+        ),
+        # delivered after the buyer confirmed, fee block unsettled (all zero)
+        _line(
+            "P-0003",
+            **{
+                "Trạng Thái Đơn Hàng": "Người mua xác nhận đã nhận được hàng, tuy nhiên Người mua "
+                "vẫn có thể gửi yêu cầu Trả hàng/Hoàn tiền tới ngày 2026-11-07.",
+                "Thời gian hoàn thành đơn hàng": "",
+            },
+        ),
+        # refund accepted after delivery
+        _line(
+            "P-0004",
+            **{
+                "Trạng thái Trả hàng/Hoàn tiền": "Đã Chấp Thuận Yêu Cầu",
+                "Số lượng sản phẩm được hoàn trả": "1",
+                "Phí cố định": "3000.00",
+                "Phí xử lý giao dịch": "1500.00",
+            },
+        ),
+        # refund accepted, never delivered
+        _line(
+            "P-0005",
+            **{
+                "Trạng thái Trả hàng/Hoàn tiền": "Đã Chấp Thuận Yêu Cầu",
+                "Thời gian giao hàng": "-",
+                "Thời gian hoàn thành đơn hàng": "-",
+                "Phí cố định": "3000.00",
+            },
+        ),
+        # in transit, not paid yet
+        _line(
+            "P-0006",
+            **{
+                "Trạng Thái Đơn Hàng": "Đang giao",
+                "Thời gian giao hàng": "",
+                "Thời gian hoàn thành đơn hàng": "",
+                "Thời gian đơn hàng được thanh toán": "-",
+                "Ngày đặt hàng": "2026-10-31 23:59",
+            },
+        ),
+        # the shop's own combo makes it a bundle; a voucher-only and a no-promotion order
+        _line("P-0007", **{"Giảm giá từ Combo của Shop": "5000.00", "Phí cố định": "100.00"}),
+        _line(
+            "P-0008",
+            **{
+                "Mã giảm giá của Shop": "2000.00",
+                "Giá gốc": "90000.00",
+                "Tổng số tiền được người bán trợ giá": "0.00",
+                "Ngày đặt hàng": "2026-11-01 00:05",
+            },
+        ),
+        _line(
+            "P-0009",
+            **{
+                "Giá gốc": "90000.00",
+                "Tổng số tiền được người bán trợ giá": "0.00",
+                "Được Shopee trợ giá": "1500.50",
+                "SKU phân loại hàng": "",
+            },
+        ),
+    ]
+
+
+def _golden(export: orders.OrderExport) -> dict:
+    rows = sorted(export.rows, key=lambda r: (r["ordered_at"], r["order_ref"], r["line_no"]))
+    return {
+        "key_utf8": PARITY_KEY.decode(),
+        "rows": rows,
+        "orders": {
+            ref: {
+                "status": o.status,
+                "lines": o.lines,
+                "ordered_at": o.ordered_at.isoformat(timespec="seconds"),
+                "order_value": float(o.order_value),
+                "buyer_total": float(o.buyer_total),
+                "gmv": float(o.gmv),
+                "shop_voucher": float(o.shop_voucher),
+                "platform_voucher": float(o.platform_voucher),
+                "paid": o.paid,
+                "fees_filled": o.fees_filled,
+            }
+            for ref, o in sorted(export.orders.items())
+        },
+        "raw_status_counts": dict(sorted(export.raw_status_counts.items())),
+        "value_columns_read": sorted(export.value_columns_read),
+        "ignored_headers": sorted(export.ignored_headers),
+    }
+
+
+def test_the_browser_parity_fixture_matches_this_parser():
+    import os
+
+    lines = _parity_lines()
+    plain = PARITY_DIR / "orders-synthetic.xlsx"
+    poisoned = PARITY_DIR / "orders-poisoned.xlsx"
+    if os.environ.get("UPDATE_PARITY_FIXTURE") == "1":
+        PARITY_DIR.mkdir(parents=True, exist_ok=True)
+        _write_orders(plain, lines)
+        _write_orders(poisoned, lines, shared=True, poison_buyer_cells=True)
+        (PARITY_DIR / "orders-synthetic.expected.json").write_text(
+            json.dumps(
+                _golden(orders.read_order_export(plain, PARITY_KEY)), indent=2, sort_keys=True
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    golden = json.loads((PARITY_DIR / "orders-synthetic.expected.json").read_text("utf-8"))
+    for workbook in (plain, poisoned):
+        export = orders.read_order_export(workbook, PARITY_KEY)
+        assert json.loads(json.dumps(_golden(export), sort_keys=True)) == golden, workbook.name
+    # The fixture covers every status and every promotion kind the mapping produces.
+    statuses = {row["status"] for row in golden["rows"]}
+    assert statuses == {
+        "delivered",
+        "cancelled",
+        "in_transit",
+        "refunded_accepted",
+        "refunded_not_received",
+    }
+    assert {row["promo_kind"] for row in golden["rows"]} == {
+        "discount",
+        "bundle",
+        "voucher",
+        "none",
+    }
+    # The odd cents split adds up on the three-line order.
+    ref = parse.order_ref("P-0001", PARITY_KEY)
+    three = [r for r in golden["rows"] if r["order_ref"] == ref]
+    assert len(three) == 3
+    assert round(sum(r["fee_fixed"] for r in three), 2) == 20000.05
+    assert round(sum(r["platform_voucher_share"] for r in three), 2) == 7000.01
+    # No canary, raw order id or buyer value is in the golden.
+    dumped = json.dumps(golden, ensure_ascii=False)
+    for canary in (*CANARIES, "P-0001", "P-0002"):
+        assert canary not in dumped
