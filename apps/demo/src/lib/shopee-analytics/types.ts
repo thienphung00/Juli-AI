@@ -302,6 +302,8 @@ export interface MatrixProduct {
 
 export interface CardRef {
   readonly id: string;
+  /** ads · promotion · voucher · sale · combo · affiliate · mega_sale. */
+  readonly family?: string;
   readonly title?: string;
   readonly at_stake_per_month?: N;
 }

@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { resolveTab } from "../lib/quyet-dinh/copy";
+import { useShopPlatformResolved } from "../lib/shopee-analytics/platform";
+import { useShopReportOptional } from "../lib/shop-report/shop-report-context";
 import { readActiveShop, type ActiveShop } from "../lib/shop-session";
 import { readAuthSession, type AuthSession } from "../lib/supabase-auth";
 import type { OnboardingStatus } from "../lib/onboarding/api-client";
@@ -13,6 +15,7 @@ import { ShopOnboardingStrip } from "./onboarding/onboarding-strip";
 import { resolveMeasureTab } from "./quyet-dinh/quyet-dinh-view";
 import { SampleQuyetDinh } from "./quyet-dinh/sample-quyet-dinh";
 import { SignedInQuyetDinh } from "./quyet-dinh/signed-in-quyet-dinh";
+import { SellerShopeeDecisions } from "./shopee-decisions/hosts";
 
 /**
  * The /decisions session split (issue #1909, ADR-094). A stored real
@@ -51,6 +54,10 @@ export function DecisionsPageClient() {
     [router, base],
   );
   const params = pending && pending.base === base ? new URLSearchParams(pending.href.split("?")[1] ?? "") : searchParams;
+  // A Shopee shop gets the Shopee card screens (ADR-120); the marketplace is asked of the shell's
+  // report state (`shops/me` → `platform`, else the Shopee probe). Without the shell: TikTok.
+  const report = useShopReportOptional();
+  const platform = useShopPlatformResolved(report?.state ?? null);
   const [session, setSession] = useState<AuthSession | null | undefined>(
     undefined,
   );
@@ -96,6 +103,21 @@ export function DecisionsPageClient() {
         <NoShopSampleStrip />
         <SampleQuyetDinh key={resetEpoch} onNavigate={onNavigate} query={query} />
       </>
+    );
+  }
+
+  if (session && shop && platform === null) {
+    return <p className="demo-kicker">Đang tải đề xuất…</p>;
+  }
+
+  if (session && shop && platform === "shopee") {
+    return (
+      <SellerShopeeDecisions
+        onNavigate={onNavigate}
+        params={params}
+        shop={shop}
+        token={session.accessToken}
+      />
     );
   }
 

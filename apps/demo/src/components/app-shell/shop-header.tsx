@@ -18,6 +18,7 @@ import {
   EMAIL_SIGN_IN_UNAVAILABLE_COPY,
   GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
 } from "../../lib/supabase-auth";
+import { PLATFORM_LABEL, type ShopPlatform } from "../../lib/shop-platform";
 import { vnClock } from "../../lib/vn-format";
 
 /**
@@ -41,8 +42,12 @@ export function shopInitials(name: string): string {
 }
 
 /** "TikTok Shop · ngành · N SKU", each part only when known. */
-export function shopSubline(details: { industry?: string | null; skuCount?: number | null }): string {
-  const parts = ["TikTok Shop"];
+export function shopSubline(details: {
+  industry?: string | null;
+  skuCount?: number | null;
+  platform?: ShopPlatform | null;
+}): string {
+  const parts: string[] = [PLATFORM_LABEL[details.platform ?? "tiktok"]];
   if (details.industry) parts.push(details.industry);
   if (typeof details.skuCount === "number" && details.skuCount > 0) {
     parts.push(`${details.skuCount.toLocaleString("vi-VN")} SKU`);
@@ -67,6 +72,8 @@ export interface ShopHeaderProps {
    */
   readonly reviewerShops?: readonly ReviewerShopOption[];
   readonly onSwitchShop?: (shop: ReviewerShopOption) => void;
+  /** The acting shop's marketplace ("Shopee" in the sub-line); TikTok when omitted. */
+  readonly platform?: ShopPlatform;
 }
 
 function shopNameOf(state: ShopReportState): string | null {
@@ -95,6 +102,7 @@ export function ShopHeader({
   reviewer = false,
   reviewerShops = [],
   onSwitchShop,
+  platform = "tiktok",
 }: ShopHeaderProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
@@ -151,7 +159,7 @@ export function ShopHeader({
             {name ?? <span className="text-muted">Đang tải…</span>}
             {sample ? <span className="badge badge-pink">{DEMO_MODE_REPLAY_LABEL}</span> : null}
           </p>
-          <p className="shop-header__sub">{shopSubline({})}</p>
+          <p className="shop-header__sub">{shopSubline({ platform })}</p>
         </div>
         <div className="shop-menu" hidden={!open} id={menuId}>
           <ul className="shop-menu__list">

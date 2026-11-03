@@ -159,6 +159,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
           onSignOut={handleSignOut}
           onSwitchShop={handleSwitchShop}
           reviewer={reviewer !== null}
+          platform={platform}
           reviewerShops={reviewer?.shops ?? []}
           state={state}
         />

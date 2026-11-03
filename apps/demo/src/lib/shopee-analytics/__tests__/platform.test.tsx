@@ -11,10 +11,20 @@ function respond(status: number, body: unknown): typeof fetch {
 beforeEach(() => resetShopPlatformCache());
 
 describe("which marketplace the acting shop is on", () => {
-  it("a shop the Shopee API answers is Shopee", async () => {
+  it("shops/me carrying a platform decides, with no probe", async () => {
     const f = respond(200, { platform: "shopee" });
+    expect(await probeShopPlatform("t", "s0", f)).toBe("shopee");
+    const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][];
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![0]).toBe("/v1/shops/me");
+    expect(calls[0]![1].headers).toMatchObject({ Authorization: "Bearer t", "X-Shop-Id": "s0" });
+    expect(await probeShopPlatform("t", "s0b", respond(200, { platform: "tiktok" }))).toBe("tiktok");
+  });
+
+  it("a shop the Shopee API answers is Shopee (shops/me without platform falls back to the probe)", async () => {
+    const f = vi.fn(async (url: string) => (url === "/v1/shops/me" ? new Response(JSON.stringify({ id: "s1" }), { status: 200 }) : new Response("{}", { status: 200 }))) as unknown as typeof fetch;
     expect(await probeShopPlatform("t", "s1", f)).toBe("shopee");
-    const [url, init] = (f as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
+    const [url, init] = (f as unknown as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit];
     expect(url).toBe("/v1/demo/shopee/overview?period=30d");
     expect(init.headers).toMatchObject({ Authorization: "Bearer t", "X-Shop-Id": "s1" });
   });
@@ -33,7 +43,7 @@ describe("which marketplace the acting shop is on", () => {
   });
 
   it("remembers the answer per shop", async () => {
-    const f = respond(200, {});
+    const f = respond(200, { platform: "shopee" });
     await probeShopPlatform("t", "s5", f);
     await probeShopPlatform("t", "s5", f);
     expect((f as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
