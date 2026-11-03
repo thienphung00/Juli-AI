@@ -11,6 +11,7 @@ import { ReviewerProvider, clearReviewerSignIn, useReviewer } from "../lib/revie
 import { resetReviewerSample } from "../lib/reviewer/sample-store";
 import { clearActiveShop, storeActiveShop } from "../lib/shop-session";
 import { storeReviewerRecord, type ReviewerShopOption } from "../lib/reviewer/session";
+import { useShopPlatform } from "../lib/shopee-analytics/platform";
 import { ShopReportProvider, useShopReport } from "../lib/shop-report/shop-report-context";
 import { buildGoogleAuthorizeUrl, clearAuthSession } from "../lib/supabase-auth";
 import { AppNavigation } from "./app-shell/app-navigation";
@@ -68,6 +69,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { feedback, resetMockState } = useDemoState();
   const { state } = useShopReport();
+  const platform = useShopPlatform(state);
   const reviewer = useReviewer();
   const entry = useLandingEntry();
   const markGuide = useGuideMark();
@@ -149,7 +151,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
 
   return (
     <div className="app-shell">
-      <AppNavigation activePath={pathname} />
+      <AppNavigation activePath={pathname} platform={platform} />
       <div className="app-shell__main">
         <ShopHeader
           googleHref={googleHref}

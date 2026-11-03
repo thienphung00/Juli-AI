@@ -1,10 +1,11 @@
 import Link from "next/link";
 
 import {
-  APP_DESTINATIONS,
   JULI_LOCKED_HINT,
-  isDestinationActive,
+  destinationsFor,
+  isDestinationOn,
   type AppDestinationIcon,
+  type NavPlatform,
 } from "../../lib/app-navigation";
 
 /**
@@ -22,6 +23,8 @@ const ICON_PATHS: Record<AppDestinationIcon, string> = {
   home: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
   decisions: "m4 7 2 2 4-4M4 17l2 2 4-4M13 7h7M13 17h7",
   analytics: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  overview: "M4 5h7v7H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 14h7v5H4z",
+  products: "M3 7.5 12 3l9 4.5v9L12 21l-9-4.5zM3 7.5l9 4.5 9-4.5M12 12v9",
   juli: "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6",
 };
 
@@ -58,7 +61,14 @@ export function LockIcon() {
   );
 }
 
-export function AppNavigation({ activePath }: { readonly activePath: string }) {
+export function AppNavigation({
+  activePath,
+  platform = "tiktok",
+}: {
+  readonly activePath: string;
+  /** Shopee shops get Tổng quan / Phân tích / Sản phẩm / Quyết định (ADR-120 d.2). */
+  readonly platform?: NavPlatform;
+}) {
   return (
     <div className="app-rail">
       <Link aria-label="Juli: Trang chủ" className="app-rail__wordmark" href="/">
@@ -66,7 +76,7 @@ export function AppNavigation({ activePath }: { readonly activePath: string }) {
       </Link>
       <nav aria-label="Điều hướng chính" className="app-nav">
       <ul className="app-nav__list">
-        {APP_DESTINATIONS.map((destination) => {
+        {destinationsFor(platform).map((destination) => {
           if (destination.locked || !destination.href) {
             return (
               <li key={destination.key}>
@@ -92,7 +102,7 @@ export function AppNavigation({ activePath }: { readonly activePath: string }) {
               </li>
             );
           }
-          const active = isDestinationActive(activePath, destination.href);
+          const active = isDestinationOn(activePath, destination);
           return (
             <li key={destination.key}>
               <Link

@@ -12,13 +12,18 @@
  * Anything else (TikTok deep links, /auth/…) is returned unchanged.
  */
 
-export type ViewAsTab = "home" | "decisions" | "analytics" | "rules";
+export type ViewAsTab = "home" | "decisions" | "analytics" | "rules" | "overview" | "products" | "ranking";
 
 const TAB_SLUG: Readonly<Record<ViewAsTab, string>> = {
   home: "trang-chu",
   decisions: "quyet-dinh",
   analytics: "phan-tich",
   rules: "quy-tac",
+  // Shopee shops (ADR-120 d.2): Tổng quan / Phân tích / Sản phẩm / Quyết định. `analytics` is the
+  // Phân tích of the shop's platform; Xếp hạng opens from Tổng quan and has no tab of its own.
+  overview: "tong-quan",
+  products: "san-pham",
+  ranking: "xep-hang",
 };
 
 const SLUG_TAB: Readonly<Record<string, ViewAsTab>> = Object.fromEntries(
