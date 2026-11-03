@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
     WRITE_MODE_SIMULATED,
+    ActionCard,
     Product,
     RunConfirmation,
     ToolExecution,
@@ -41,6 +42,7 @@ from juli_backend.services.agent_runs.listing_quality import (
     day0_reading,
     mark_stale,
 )
+from juli_backend.services.product_name import known_product_name
 
 STATUS_EVENT_TYPE = "workflow.status"
 
@@ -182,6 +184,29 @@ def _diagnosis_messages(dialect: str) -> ColumnElement[Any]:
     )
 
 
+#: The card titles ``create_promotion_card`` / ``create_product_card`` build around the
+#: subject's name; the subject is what follows.
+_CARD_TITLE_PREFIXES = ("Tạo khuyến mãi giảm giá cho ", "Tạo sản phẩm mới từ ")
+
+
+def _run_product_name(name: str | None, title: str | None, card_title: str | None) -> str:
+    """P87 (P71 restored): the run's subject name, never the "Unknown" placeholder.
+
+    The synced product name, else its title; when the product row is unnamed (a status
+    webhook created it, or it was stored as "Unknown"), the subject of the run's own card
+    (``SKU <code>`` for a promotion card), else the card title. Row data only -- no query.
+    """
+    known = known_product_name(name, title)
+    if known is not None:
+        return known
+    card = (card_title or "").strip()
+    for prefix in _CARD_TITLE_PREFIXES:
+        if card.startswith(prefix):
+            card = card[len(prefix) :].strip()
+            break
+    return known_product_name(card) or ""
+
+
 async def list_runs(
     session: AsyncSession, shop_id: uuid.UUID, *, limit: int, viewer: RunViewer | None = None
 ) -> list[RunListItem]:
@@ -223,11 +248,15 @@ async def list_runs(
             WorkflowRunRow.workflow_key,
             WorkflowRunRow.external_wait_reason,
             Product.name,
+            Product.title.label("product_title"),
             Product.tiktok_product_id,
+            ActionCard.title.label("card_title"),
             narration.label("narration"),
         )
         .where(WorkflowRunRow.shop_id == shop_id)
         .join(Product, WorkflowRunRow.product_id == Product.id)
+        # P87: the run's own card names the subject when its product row is unnamed.
+        .outerjoin(ActionCard, ActionCard.id == WorkflowRunRow.action_card_id)
     )
     if viewer is not None:
         approved = _approved_by(viewer.user_id)
@@ -258,13 +287,13 @@ async def list_runs(
             write_mode=row.write_mode,
             workflow_key=row.workflow_key,
             external_wait_reason=row.external_wait_reason,
-            product_name=row.name,
+            product_name=_run_product_name(row.name, row.product_title, row.card_title),
             product_tiktok_id=row.tiktok_product_id,
-            diagnosis_messages=row[14] if viewer is not None else None,
+            diagnosis_messages=row.diagnosis_messages if viewer is not None else None,
         )
         rows.append(run)
-        narrations[run.id] = _narration_of(row[12])
-        if viewer is not None and row[13]:
+        narrations[run.id] = _narration_of(row.narration)
+        if viewer is not None and row.started_by_viewer:
             mine.add(run.id)
     waiting = [run.id for run in rows if run.status == WAITING_APPROVAL_RUN_STATUS]
     decisions = await _pending_decisions(session, waiting)

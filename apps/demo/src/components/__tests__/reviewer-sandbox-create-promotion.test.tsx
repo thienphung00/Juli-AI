@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CardView } from "../../lib/quyet-dinh/card-model";
 import { consentRows } from "../../lib/quyet-dinh/consent-model";
 import type { QdRun } from "../../lib/quyet-dinh/p10-types";
+import { runSubjectName } from "../../lib/quyet-dinh/product-name";
 import { runChip, runKind } from "../../lib/quyet-dinh/run-model";
 import { buildRunTimeline } from "../../lib/quyet-dinh/timeline";
 import { RunPanel, type RunPanelProps } from "../quyet-dinh/run-panel";
@@ -167,6 +168,24 @@ describe("the promotion run", () => {
   it("shows the run header with the product", () => {
     render(sandbox(<RunPanel {...props(PAUSED, "consent", "waiting_approval")} />));
     expect(screen.getByText("Tạo khuyến mãi · Bình giữ nhiệt inox 750ml")).toBeInTheDocument();
+  });
+
+  it("never says Unknown in the header when the product row is unnamed (P87)", () => {
+    const base = props(PAUSED, "consent", "waiting_approval");
+    const unnamed = { ...base, run: { ...base.run, product_name: "Unknown" } };
+    const { unmount } = render(sandbox(<RunPanel {...unnamed} card={{ ...CARD, sku: "BN-500" } as CardView} />));
+    expect(screen.getByText("Tạo khuyến mãi · SKU BN-500")).toBeInTheDocument();
+    unmount();
+    render(sandbox(<RunPanel {...unnamed} />));
+    expect(screen.queryByText(/Unknown/)).toBeNull();
+    expect(screen.getByText(/Tạo khuyến mãi · Tạo khuyến mãi giảm giá cho/)).toBeInTheDocument();
+  });
+
+  it("names a run's subject: product name, else card SKU, else card title (P87)", () => {
+    expect(runSubjectName("Bình nước", null)).toBe("Bình nước");
+    expect(runSubjectName("Unknown", { sku: "BN-500", title: "t" })).toBe("SKU BN-500");
+    expect(runSubjectName("", { sku: null, title: "Tạo sản phẩm mới từ Nồi" })).toBe("Tạo sản phẩm mới từ Nồi");
+    expect(runSubjectName("unknown", null)).toBe("");
   });
 
   it("lets the sandbox reviewer edit the discount and end date, then confirm", async () => {

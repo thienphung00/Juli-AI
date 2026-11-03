@@ -3594,6 +3594,31 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Seller surfaces and TikTok writes: untouched (the mask runs only for reviewer sessions).
 - Tests: `tests/unit/test_p86_reviewer_brand_scrub.py`.
 
+## 2026-11-03 — agent (Claude Opus) — P87: sandbox re-issue of written cards; run header never "Unknown"
+
+- Re-issue: `shop_quick_scan(shop_id, force=True, reissue=True)` (new opt-in kwarg, default
+  False; backward compatible). Honoured only when `force` is honoured (own sandbox shop via
+  `is_own_shop_sandbox_read`); for any other shop it is ignored and logged
+  (`shop_quick_scan_reissue_ignored`). It reaches `emit_optimize_product_cards(reissue=True)`:
+  a (product, lever) whose newest card already WROTE to TikTok (`executed_at`, an executed
+  status, or an `approved` card with a completed run's confirmed write -- `run_writes`) or was
+  dismissed gets a NEW chained revision at once (`supersedes_card_id` = the old card). The
+  old card keeps its row and status, so its Day-7/14 measurement history is untouched.
+  `decision_cooldown`, `basis_unchanged` and `active_card_exists` are bypassed only for those
+  cards (other_metric_active still holds). Every reissued product is named in the scan's
+  `reasons` (`<tiktok id>/<lever>=reissued`) and so on the `shop_quick_scan_done` line.
+  Owner command: `celery ... call juli_backend.shop_quick_scan --args='["<sandbox id>"]'
+  --kwargs='{"force": true, "reissue": true}' --queue ingest_priority`.
+- Unknown header: root cause -- the run list's `product_name` is the bound `products` row's
+  `name`. A promotion / create run is bound to a product row a status webhook created before
+  P71 ("Unknown"), and P71 fixed only the card titles, not this field; the header
+  (`Tạo khuyến mãi · <run.product_name>`) printed it. Fix: `agent_runs/listing.py`
+  `_run_product_name` -- name, else title, else the subject of the run's OWN card (an outer
+  join to `action_cards.title` in the same statement; `SKU BN-500` for a promotion card),
+  never `state`, no extra query. Demo `runSubjectName` does the same from the card
+  (sku, else title) and treats "Unknown" / blank as a placeholder.
+- Tests: `tests/unit/test_p87_reissue_and_run_header.py`; demo
+  `reviewer-sandbox-create-promotion.test.tsx` (header + `runSubjectName`).
 ## 2026-11-03 — agent (Claude Opus) — P88: scoring pass reads the rolling window, at most hourly (egress)
 
 - Why: pg_stat_statements (reset 2026-11-02 05:51 UTC, ~24 h): five queries at 57 calls each --
