@@ -52,8 +52,10 @@ cards are "khó kết luận" under ADR-107 §7); ORY holds no `pooled_training`
    Stacked changes on one product in one window are measured as one bundle or excluded from calibration.
 5. **Bootstrapping ORY.** ORY's past changes — the Shopee ad change log (`ops_log_*.csv`) and 12 months
    of voucher history — are scored once as natural experiments to give the first ORY calibration.
-6. **No pooling.** ORY learns from ORY only plus public priors (ADR-116 client layer); ORY's results are
-   never used for other shops and vice versa. New model versions for a shop pass ADR-115 offline →
+6. **No pooled forecasts.** ORY's lift calibration and forecasts learn from ORY only plus public priors
+   (ADR-116 client layer); ORY's results never enter a forecast or lift model used for other shops, and
+   vice versa. Exception by ORY's own consent (01/11/2026): the shared buyer simulation may be calibrated
+   with ORY's Seller Centre product numbers (data set `ory_sc_sim_calibration`). New model versions for a shop pass ADR-115 offline →
    shadow → rollout → rollback; until then the rules path ranks live cards.
 7. **Buyer simulation — where it is used.**
    | Design part | Use | KPI |
@@ -72,8 +74,9 @@ cards are "khó kết luận" under ADR-107 §7); ORY holds no `pooled_training`
    product × change_kind × segment the predicted relative effect {med, lo90, hi90}, the knowledge-gradient
    value and the run id. An Ops import (audited) writes it to a run table; the prediction service reads it
    as a weighted prior. Paid LLM runs (`sim.py`) need the owner's explicit approval and cost estimate.
-9. **Consent scope.** ORY's Seller Centre numbers may calibrate the simulation **and ORY's own forecasts**
-   (client layer, `service` consent), never pooled models — data register updated 03/11/2026.
+9. **Consent scope.** ORY's Seller Centre numbers may calibrate the shared simulation (ORY, 01/11) **and ORY's
+   own forecasts** (client layer, `service` consent; owner 03/11, no re-verification), never a pooled forecast /
+   lift model — `juli-client-ops/clients/ory/compliance/data_register.md`, section 03/11/2026.
 10. **Order (after the P90 field spec is approved):** (1) port the funnel to Shopee (search / discovery
     contexts, Shopee card elements, ORY competitors per core keyword, ORY segment shares from
     `sales_composition`) and validate on ORY's frozen Sep–Oct months; (2) export format + Ops import;
