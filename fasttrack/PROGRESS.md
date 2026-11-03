@@ -460,6 +460,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | P81-G Onboarding chain + landing polish: connect-shop page, reading state, first-cards moment, trial entry; guide 1/3–3/3 on the first card, run panel, Đo lường; Trang chủ checklist states 1/5 → 4/5 → 5/5 (boards 11–15); cookie bottom bar; hero card | D79.2, D79.8, D79.11c | todo | agent (Fable) |
 | P81-H Recapture every landing figure after P81-D..G are merged | D79.8 | todo | agent |
 | Owner: deploy once, verify live at 1440 and 390 | D79.9e | todo | owner |
+| Handoff: after P81 merges, send the content-engine/Ops session the final Quyết định panel components and props (Shopee platform adapter plugs into them; Shopee seller screens wait for P81 — their brief: `juli-client-ops/handoff/SESSION_BRIEF_juli_ops_recommendation_pipeline.md`). Ops work (apps/demo/src/app/ops, migration 112+, D82+) proceeds in parallel and does not touch the shell/tokens | D79.9 | todo (2026-11-03) | lead |
 | Next slice (not P81): First Connect Score reveal + three insights (#1980–#1983) behind the P81 artboards | D79.2 | later | — |
 
 ## P2–P6
