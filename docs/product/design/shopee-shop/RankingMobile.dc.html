@@ -524,6 +524,7 @@ super(props);
 const h = hashParams(); const sc = SCENES.find((s) => s[0] === h.scene);
 const okKpi = KNAME[h.kpi] ? h.kpi : 'ctr'; const okSrc = SNAME[h.src] ? h.src : 'all';
 const init = sc ? sc[2] : { kpi: okKpi, src: okSrc, sub: h.sub || 'all', xep: 'gmv', dir: 'a', focus: h.focus || null, from: h.from || null, card: h.card || null };
+if (init.focus) { const d0 = buildRanking(init.kpi, init.src, init.sub); const r0 = d0 && d0.rows.find((r) => r.id === init.focus); if (r0) { init.xep = 'gmv'; init.dir = r0.gmv < 0 ? 'a' : 'b'; } }
 this.state = Object.assign({ open: {}, restOpen: true, info: false, hl: true }, init);
 if (init.focus) { try { setTimeout(() => this.setState({ hl: false }), 3000); } catch (e) {} }
 }
@@ -561,7 +562,7 @@ const rows = list.map((r) => {
   const open = !!st.open[r.id]; const f = fmtRow(r); const focus = st.focus === r.id && st.hl; const p = prim(r);
   const bw = Math.round(Math.abs(p) / mx * 100); const judge = { bad: 'color: #a3222f', warn: 'color: #8a4b00', good: 'color: #146c2e' }[r.judge] || 'color: #5f5f6b';
   const pid = r.kind === 'product' ? r.id : (PID[r.id] || null);
-  const tab = r.kind === 'kw' ? 'kw' : (r.kind === 'campaign' ? 'ng' : 'ng');
+  const tab = (r.kind === 'kw' && pid === 'BEP-S5') ? 'kw' : 'ng';
   const openHref = pid ? 'SanPham.dc.html#id=' + pid + '&tab=' + tab + '&kpi=' + st.kpi + '&src=' + st.src + (st.src === 'the_san_pham' && st.sub !== 'all' ? '&sub=' + st.sub : '') + '&row=' + r.id + '&from=ranking' : 'TongQuan.dc.html#scene=default';
   return { id: r.id, ini: r.kind === 'product' ? r.ini : { kw: 'Tk', kol: 'KOL', campaign: 'QC', voucher: 'VC' }[r.kind], name: r.name, sub: r.sub || r.id, subStyle: r.judge ? judge + '; font-weight: 600' : 'color: #5f5f6b', hasBadge: !!r.purpose, badge: r.purpose ? PUR[r.purpose] : '', isFocus: focus,
     open, caret: open ? '▾' : '▸', pl: f.pl, qt: f.qt, prim: sv(p) + '/ngày', primStyle: p < 0 ? 'color: #a3222f' : 'color: #146c2e', barStyle: 'width: ' + bw + '%; background: ' + (p < 0 ? '#e5484d' : '#16a34a'),
