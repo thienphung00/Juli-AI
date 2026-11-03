@@ -140,3 +140,17 @@ Source: "Shopee non-Mall_ Phi Co Dinh tu 23.05.2026.pdf" (attachment of article 
 Per order on top: phí xử lý giao dịch 6 % (incl. buyer shipping) + phí hạ tầng 3.000đ.
 Example: a 200.000đ glove order with no shipping paid by the buyer → 15 % + 6 % = 42.000đ + 3.000đ = 45.000đ
 (22,5 %), versus the 15 % placeholder in the worked example.
+
+## 11. Ranking rule (owner, 2026-11-03)
+Score = how much of the gap to the month's targets an action closes, weighted toward the target that is
+furthest behind: Σ_k w_k × min(ΔKPI_k(P25), gap_k) ÷ gap_k over k ∈ {GMV, đơn, AOV, biên}, with
+w_k ∝ gap_k ÷ target_k (only KPIs behind target; GMV gets the weight of the shop's north star when tied).
+ΔKPI uses the cautious end (P25) of the predicted range plus the certain layer.
+Eligibility (hard filters, before scoring): expected Δprofit ≥ 0 (P50), no SKU below its operating floor,
+spend within the daily cap, one change per product per measurement window, product in stock.
+No targets set → fall back to expected ΔGMV/tháng (P25) under the same filters.
+"Xếp theo" switch keeps ₫ GMV/ngày, ₫ lợi nhuận/ngày and the five numbers as alternatives.
+Model use and learning loop: as described to the owner 2026-11-03 (flow baseline = band + counterfactual;
+lift model ported to Shopee = predicted range; calibration per change_kind from frozen predictions vs
+ADR-077 readings; coverage scored; acceptance stats from approve/dismiss/whatif_adjusted; ORY learns from
+ORY only — no pooling, ADR-116 / Shopee ToS §6.2(c)).
