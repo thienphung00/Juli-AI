@@ -5,8 +5,9 @@ Mounted beside ``api/routes/ops.py`` under ``/v1/ops`` with the same auth depend
 
 The buyer's data never reaches this API. The page reads the order export in the browser, keeps
 only the allowlisted columns, replaces the order id by a keyed hash and posts the lines; the
-row model has no field for a name, a phone, an address, a comment or a tracking id and refuses
-an unknown one (422), so a client that forgot to strip fails loudly instead of storing it.
+row model has no field for a name, a contact number, an address, a comment or a tracking id
+and refuses an unknown one (422), so a client that forgot to strip fails loudly instead of
+storing it.
 
 - ``GET  /v1/ops/shops/{id}/shopee/orders/ref-key`` (Vận hành) -- the shop's ``order_ref`` key
   for ONE upload: ``Cache-Control: no-store``, a short ``expires_at``, audited

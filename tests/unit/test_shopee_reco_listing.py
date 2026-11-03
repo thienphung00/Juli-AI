@@ -122,8 +122,12 @@ def test_a_title_with_nothing_to_fix_gets_no_proposal():
 
 
 def test_proposals_are_deterministic():
-    args = ("Lumi nước rửa chén tinh dầu", ["bàn chải tre", "tinh dầu sả"])
-    assert lst.propose_title(*args) == lst.propose_title(*args)
+    title, core = "Lumi nước rửa chén tinh dầu", ["bàn chải tre", "tinh dầu sả"]
+    first = lst.propose_title(title, core)
+    second = lst.propose_title(title, list(core))
+    assert first is not None and second is not None
+    assert first.title == second.title and first.json() == second.json()
+    assert first.title.startswith("bàn chải tre")
 
 
 # =========================================================================== pure: keywords

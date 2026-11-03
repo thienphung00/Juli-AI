@@ -875,8 +875,9 @@ PROMO_KIND_NAMES = Literal["none", "voucher", "discount", "flash_sale", "bundle"
 
 class ShopeeOrderLineRow(PeriodRowBase):
     """``order_lines``: one line of an order export (Đơn hàng › Xuất), PII-stripped before it
-    reaches here. There is no field for a buyer, a recipient, an address, a phone, a tracking
-    id, a comment or a note, and the raw order id never arrives: ``order_ref`` is a keyed hash.
+    reaches here. There is no field for a buyer, a recipient, an address, a contact number,
+    a tracking id, a comment or a note, and the raw order id never arrives: ``order_ref`` is a
+    keyed hash.
 
     Money is VND. ``status`` is the contract-10 ``OrderStatus`` value. Order-level amounts
     (shop voucher, Shopee voucher, combo, buyer shipping, bank promotion, actual fees) are
