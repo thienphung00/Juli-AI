@@ -357,10 +357,14 @@ def voucher_whatif(
         raise ValueError("days must be positive")
     scale = Decimal(days) / Decimal(window)
 
-    kw = {"schedule": schedule, "ads_pools": ads_pools, "affiliate_rate": affiliate_rate}
+    def run(ls: Sequence[OrderLine]) -> list[tuple[OrderLine, ProfitBreakdown]]:
+        return profit_lines(
+            ls, costs, schedule=schedule, ads_pools=ads_pools, affiliate_rate=affiliate_rate
+        )
+
     base_plan = _plan(lines, baseline, scale, u)
     plan = _plan(lines, scenario, scale, u)
-    pairs = profit_lines(plan.lines, costs, **kw)  # type: ignore[arg-type]
+    pairs = run(plan.lines)
     rollup = _order_rollup(pairs, plan.qualifying)
     organic = [(p, c, b) for p, c, b, ad in rollup.values() if not ad]
     ads = [(p, c, b) for p, c, b, ad in rollup.values() if ad]
@@ -397,13 +401,9 @@ def voucher_whatif(
         below = ad_stats.margin_rate < target_margin_rate
 
     # five numbers: before = baseline voucher (or none), after = scenario, same orders
-    none_pairs = profit_lines(_apply_rule(lines, None)[0], costs, **kw)  # type: ignore[arg-type]
+    none_pairs = run(_apply_rule(lines, None)[0])
     none_groups = _groups(none_pairs)
-    base_groups = (
-        _groups(profit_lines(base_plan.lines, costs, **kw))  # type: ignore[arg-type]
-        if baseline is not None
-        else None
-    )
+    base_groups = _groups(run(base_plan.lines)) if baseline is not None else None
     scaled_ads, scaled_other = ad_spend * scale, other_costs * scale
     d = Decimal(days)
     snap_before = snapshot_from_orders(
@@ -546,12 +546,17 @@ def price_change_whatif(
 
     mine = [ln for ln in lines if ln.sku == sku]
     repriced = [reprice(ln) for ln in mine]
-    kw = {"schedule": schedule, "ads_pools": ads_pools, "affiliate_rate": affiliate_rate}
+
+    def run(ls: Sequence[OrderLine]) -> list[tuple[OrderLine, ProfitBreakdown]]:
+        return profit_lines(
+            ls, costs, schedule=schedule, ads_pools=ads_pools, affiliate_rate=affiliate_rate
+        )
+
     # whole orders go through the waterfall so per-order fixed fees are split correctly
     swap = {id(ln): new for ln, new in zip(mine, repriced, strict=True)}
     whole_after = [swap.get(id(ln), ln) for ln in lines]
-    before = [p for p in profit_lines(lines, costs, **kw) if p[0].sku == sku]  # type: ignore[arg-type]
-    after = [p for p in profit_lines(whole_after, costs, **kw) if p[0].sku == sku]  # type: ignore[arg-type]
+    before = [p for p in run(lines) if p[0].sku == sku]
+    after = [p for p in run(whole_after) if p[0].sku == sku]
 
     def per_order(pairs: list[tuple[OrderLine, ProfitBreakdown]]) -> Decimal | None:
         profits = [pb.profit for _, pb in pairs]

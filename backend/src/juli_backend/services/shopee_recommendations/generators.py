@@ -17,6 +17,7 @@ from typing import Any
 
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.shopee_recommendations import listing as lst
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.evaluate import (
     campaign_profile,
@@ -119,7 +120,8 @@ def gen_product_discount(env: RecoEnv, crit: dict[str, Any] | None, item: str) -
             item,
             {"discount_pct": d},
             crit,
-            f"CTOR của sản phẩm thấp: giảm {d}% so với giá niêm yết (hiện {now}%), trong giới hạn giá sàn.",  # noqa: E501
+            f"CTOR của sản phẩm thấp: giảm {d}% so với giá niêm yết (hiện {now}%), trong giới hạn "
+            f"giá sàn.",
             "ctor",
         )
         ev = evaluate(env, cand)
@@ -453,7 +455,8 @@ def gen_ads_for_roas(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> li
                     None,
                     {"roas_target": new_target},
                     crit,
-                    f"ROAS trực tiếp {roas:.2f} dưới điểm hoà vốn {be:.2f}: nâng ROAS mục tiêu lên {new_target}.",  # noqa: E501
+                    f"ROAS trực tiếp {roas:.2f} dưới điểm hoà vốn {be:.2f}: nâng ROAS mục tiêu "
+                    f"lên {new_target}.",
                     "roas",
                     campaign_key=key,
                     extra={"magnitude_pct": 10.0} if before is None else {},
@@ -515,9 +518,8 @@ def gen_ads_budget(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> list
             None,
             {"daily_budget": new},
             crit,
-            f"Lượt xem thấp và ROAS trực tiếp trên hoà vốn: tăng ngân sách ngày lên {new:,}đ.".replace(  # noqa: E501
-                ",", "."
-            ),
+            f"Lượt xem thấp và ROAS trực tiếp trên hoà vốn: tăng ngân sách ngày lên "
+            f"{new:,}đ.".replace(",", "."),
             "views",
             campaign_key=key,
         )
@@ -558,6 +560,159 @@ def gen_ads_add_product(env: RecoEnv, crit: dict[str, Any] | None, item: str) ->
     ]
 
 
+# ---------------------------------------------------------------------------- listing
+
+
+def _listing_wiring(crit: dict[str, Any] | None, default: str) -> str:
+    stage = ((crit or {}).get("cause") or {}).get("stage") or (crit or {}).get("kpi")
+    return stage if stage in ("views", "ctr") else default
+
+
+def _quote(items: Any) -> str:
+    return ", ".join(f"“{k}”" for k in items)
+
+
+def gen_title(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> list[Candidate]:
+    """Lượt xem / CTR low: the title lacks a core keyword, has it beyond the visible characters,
+    is over 120 characters or holds a banned term. A concrete new title from the product's own
+    words and core keywords (``listing.propose_title``), never over 120 characters."""
+    li = env.listings.get(item)
+    if li is None or not li.title:
+        return []
+    core = [k.keyword for k in li.core()]
+    prop = lst.propose_title(li.title, core, env.banned_terms)
+    if prop is None:
+        return []
+    b = prop.before
+    parts = []
+    if b.missing:
+        parts.append(f"thiếu từ khoá Chính {_quote(b.missing)}")
+    if b.late:
+        parts.append(f"từ khoá {_quote(b.late)} nằm sau {config.TITLE_VISIBLE_CHARS} ký tự đầu")
+    if b.too_long:
+        parts.append(f"tiêu đề dài {b.chars} ký tự (tối đa {config.MAX_TITLE_CHARS})")
+    if prop.banned_removed:
+        parts.append(f"có từ không được dùng {_quote(prop.banned_removed)}")
+    wiring = _listing_wiring(crit, "views")
+    lead = "Tỉ lệ bấm thấp" if wiring == "ctr" else "Lượt xem từ tìm kiếm có thể bị giới hạn"
+    notes = []
+    if prop.unplaced:
+        notes.append(
+            f"Chưa xếp được {_quote(prop.unplaced)} vào {config.TITLE_VISIBLE_CHARS} ký tự đầu."
+        )
+    cand = _mk(
+        "title",
+        item,
+        {"title": prop.title},
+        crit,
+        f"{lead}: {'; '.join(parts)}. Tiêu đề mới {len(prop.title)} ký tự.",
+        wiring,
+        extra={
+            "current_title": li.title,
+            "core": core,
+            "proposal": prop.json(),
+            "notes": notes,
+        },
+    )
+    if cand.gap_pct is None:
+        cand.gap_pct = min(100.0, 100.0 * b.issue_count / max(len(core), 1)) if core else 15.0
+    return [cand]
+
+
+def gen_keyword(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> list[Candidate]:
+    """Lượt xem low: a "Phụ" keyword with clearly more searches than the weakest "Chính" one
+    (or a free "Chính" slot): promote it, within the five-keyword limit."""
+    li = env.listings.get(item)
+    if li is None:
+        return []
+    prop = lst.propose_keywords(li, env.banned_terms)
+    if prop is None:
+        return []
+    cand = _mk(
+        "keyword",
+        item,
+        {
+            "promote": prop.promote.keyword,
+            "demote": None if prop.demote is None else prop.demote.keyword,
+        },
+        crit,
+        prop.reason,
+        _listing_wiring(crit, "views"),
+        extra={"core_before": list(prop.core_before), "proposal": prop.json()},
+    )
+    if cand.gap_pct is None:
+        cand.gap_pct = 40.0
+    return [cand]
+
+
+def _cover_text(li: lst.Listing, size: lst.UnitPrice | None) -> str:
+    head = li.core()[:1]
+    bits = ["sản phẩm chiếm phần lớn khung hình trên nền sáng, đơn giản"]
+    if head:
+        bits.append(f"nhìn là biết đây là “{head[0].keyword}”")
+    if size is not None:
+        bits.append(f"ghi rõ quy cách {size.size_text}")
+    return "Ảnh bìa mới: " + ", ".join(bits) + ". Giữ nguyên các ảnh còn lại."
+
+
+def gen_cover_image(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> list[Candidate]:
+    """CTR low: change the cover (the first image). Advisory: says what the new cover should
+    show; read back by the cover's URL changing in the next listing snapshot."""
+    li = env.listings.get(item)
+    if li is None or not li.cover_url or crit is None:
+        return []
+    size = lst.unit_price(li.title or "", li.price)
+    dev = crit.get("deviation_pct")
+    why = f" ({abs(dev):.0f} % so với mức tham chiếu)" if dev is not None else ""
+    return [
+        _mk(
+            "cover_image",
+            item,
+            {},
+            crit,
+            f"Tỉ lệ bấm (CTR) thấp{why}: đổi ảnh bìa để khách bấm vào nhiều hơn.",
+            _listing_wiring(crit, "ctr"),
+            extra={
+                "cover_url": li.cover_url,
+                "image_count": li.image_count,
+                "before_text": f"Ảnh bìa hiện tại (ảnh 1 trong {li.image_count}): {li.cover_url}",
+                "after_text": _cover_text(li, size),
+            },
+        )
+    ]
+
+
+def gen_price_display(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> list[Candidate]:
+    """CTR low and the title states a size: show the price per unit (per 100 ml / 100 g / piece)
+    on the cover. Advisory; read back like the cover (its URL changes)."""
+    li = env.listings.get(item)
+    if li is None or not li.cover_url or crit is None or li.price is None:
+        return []
+    size = lst.unit_price(li.title or "", li.price)
+    if size is None:
+        return []
+    line = size.line(li.price)
+    return [
+        _mk(
+            "price_display",
+            item,
+            {},
+            crit,
+            f"Tỉ lệ bấm (CTR) thấp: ghi đơn giá ({lst.vnd(size.per_price)} mỗi {size.per_label}) "
+            "lên ảnh bìa để khách so giá dễ hơn.",
+            _listing_wiring(crit, "ctr"),
+            extra={
+                "cover_url": li.cover_url,
+                "image_count": li.image_count,
+                "before_text": f"Giá bán hiện tại {lst.vnd(li.price)} cho {size.size_text}; "
+                "ảnh bìa chưa nêu đơn giá.",
+                "after_text": f"Ghi thêm lên ảnh bìa: “{line}”.",
+                "line": line,
+            },
+        )
+    ]
+
+
 # ------------------------------------------------------------------------- dispatcher
 
 #: kind -> (generator, needs a product)
@@ -581,6 +736,10 @@ GENERATORS: dict[str, tuple[Gen | Callable[..., list[Candidate]], bool]] = {
     "ads_remove_product": (gen_ads_for_roas, True),
     "ads_purpose": (gen_ads_for_roas, True),
     "ads_add_product": (gen_ads_add_product, True),
+    "title": (gen_title, True),
+    "keyword": (gen_keyword, True),
+    "cover_image": (gen_cover_image, True),
+    "price_display": (gen_price_display, True),
 }
 
 
@@ -637,4 +796,8 @@ def generate(env: RecoEnv, critical: dict[str, Any]) -> list[Candidate]:
         )
         add(gen_ads_add_product(env, None, item))
         add(gen_affiliate_target(env, None, item))
+    # the listing audit needs no critical metric: a missing / late core keyword is its own cause
+    for item in env.listing_item_ids()[: config.LISTING_OPPORTUNITY_PRODUCTS]:
+        add(gen_title(env, None, item))
+        add(gen_keyword(env, None, item))
     return list(out.values())

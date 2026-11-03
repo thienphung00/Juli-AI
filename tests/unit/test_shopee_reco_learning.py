@@ -224,7 +224,10 @@ async def test_a_plan_that_has_not_ended_or_was_khó_kết_luận_is_not_read(se
     user, shop, sid = await _series_shop(session, uplift=UPLIFT)
     cid, _ = await _executed_card(session, sid, user, planned_days=28)
     early = await reco.run_learning(session, sid, now=datetime(2026, 10, 20))
-    assert early.readings == 0 and early.skipped == {"plan_not_ended": 1}
+    assert early.readings == 0 and early.skipped == {}  # only the T+7 look is written
+    assert early.preliminary == 1
+    before_plan = await reco.run_learning(session, sid, now=datetime(2026, 10, 5))
+    assert before_plan.skipped == {"plan_not_ended": 1} and before_plan.preliminary == 0
     meta = await store.card_meta(session, sid, cid)
     assert meta["plan_days"] == 28
 
@@ -495,3 +498,48 @@ async def test_two_changes_on_one_product_in_one_window_are_one_bundle(session):
     assert {e.card_id for e in events} == {first, second} and all(
         e.payload["bundle"] for e in events
     )
+
+
+async def test_a_running_plan_gets_one_preliminary_reading_at_day_7_that_never_calibrates(session):
+    user, shop, sid = await _series_shop(session, uplift=UPLIFT)
+    cid, _ = await _executed_card(session, sid, user, planned_days=28)
+    for _ in range(2):  # idempotent
+        report = await reco.run_learning(session, sid, now=datetime(2026, 10, 12))
+        await session.commit()
+    assert report.readings == 0 and report.observations_total == 0
+    assert await store.load_calibrations(session, sid) == {}
+    (pre,) = (
+        await session.scalars(
+            select(CardEvent).where(
+                CardEvent.card_id == cid, CardEvent.event_type == "impact_preliminary"
+            )
+        )
+    ).all()
+    assert pre.payload["post_days"] == 7 and pre.payload["preliminary"] is True
+    assert pre.payload["impact_pct"] == pytest.approx(UPLIFT, abs=0.1)
+    assert {"confidence", "reason", "impact_pct"} <= set(pre.payload)
+    none_final = (
+        await session.scalars(
+            select(CardEvent).where(
+                CardEvent.card_id == cid, CardEvent.event_type == "impact_final"
+            )
+        )
+    ).all()
+    assert none_final == []
+    # the plan ends: the final reading follows with the same shape
+    done = await reco.run_learning(session, sid, now=NOW)
+    await session.commit()
+    assert done.readings == 1
+    (fin,) = (
+        await session.scalars(
+            select(CardEvent).where(
+                CardEvent.card_id == cid, CardEvent.event_type == "impact_final"
+            )
+        )
+    ).all()
+    assert set(pre.payload) == set(fin.payload) and fin.payload["post_days"] == 28
+    detail = await reco.card_detail(session, sid, cid, audience="seller")
+    rows = {j["event"]: j["payload"] for j in detail["journey"] if j["payload"]}
+    assert rows["impact_preliminary"]["post_days"] == 7
+    assert set(rows["impact_final"]) >= {"impact_pct", "confidence", "reason"}
+    assert "controls" not in rows["impact_final"] and "method" not in rows["impact_final"]

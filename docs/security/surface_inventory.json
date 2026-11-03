@@ -329,6 +329,150 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shop-inputs",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shop-inputs/apply",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shop-inputs/preview",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shop-inputs/restore",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shop-inputs/template",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shop-inputs/versions",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/critical",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/matrix",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/overview",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/products/{item_id}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/ranking",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/{card_id}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/{card_id}/approve",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/{card_id}/dismiss",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/{card_id}/executed",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/{card_id}/request-change",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/{card_id}/whatif",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/executions",
       "methods": [
         "POST"
@@ -601,6 +745,54 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/inputs",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/inputs/apply",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/inputs/preview",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/inputs/restore",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/inputs/template",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/inputs/versions",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/invites",
       "methods": [
         "GET"
@@ -817,6 +1009,46 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/critical",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/matrix",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/overview",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/products/{item_id}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/ranking",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/flows",
       "methods": [
         "GET"
@@ -849,6 +1081,22 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/orders/ref-key",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/orders/upload",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/products",
       "methods": [
         "GET"
@@ -860,6 +1108,110 @@
       "path": "/v1/ops/shops/{shop_id}/shopee/promotions",
       "methods": [
         "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/generate",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/learning",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/learning/backfill",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/learning/run",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/publish",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/rerun-stale",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/sim-priors",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/sim-priors",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/{card_id}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/{card_id}/executed",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/{card_id}/whatif",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/{card_id}/withdraw",
+      "methods": [
+        "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": false

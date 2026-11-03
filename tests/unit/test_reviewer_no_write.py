@@ -295,6 +295,8 @@ async def test_every_route_as_reviewer_writes_nothing(
         "scenario_id": str(uuid.uuid4()),
         "invite_id": str(uuid.uuid4()),
         "signup_id": str(uuid.uuid4()),
+        "card_id": str(uuid.uuid4()),  # P90: /v1/demo/shopee/recommendations/{card_id}
+        "item_id": "1001",  # P90: GET /v1/demo/shopee/products/{item_id}
         "group_id": str(uuid.uuid4()),  # P36: PATCH /v1/ops/shops/{shop_id}/groups/{group_id}
         "rest": "anything",
         "workflow_key": "optimize_product_2",

@@ -457,7 +457,8 @@ def rank(
         "adds_up": adds_up,
         "adds_up_note": None
         if additive
-        else "Đại lượng tỷ lệ (biên, AOV, % giảm giá, thu thêm / chi thêm) không cộng được; chỉ xếp theo thay đổi.",  # noqa: E501
+        else "Đại lượng tỷ lệ (biên, AOV, % giảm giá, thu thêm / chi thêm) không cộng được; "
+        "chỉ xếp theo thay đổi.",
         "row_count": len(items),
     }
 
@@ -508,7 +509,8 @@ def build_ranking(
     if source in FLOW_SOURCES and xep_theo in ("profit_per_day", "bien", "giam_gia", "thu_them"):
         return refuse(
             "not_split_by_flow",
-            "Lợi nhuận, biên, % giảm giá và thu thêm / chi thêm không tách được theo luồng lưu lượng "  # noqa: E501
+            "Lợi nhuận, biên, % giảm giá và thu thêm / chi thêm không tách được theo luồng lưu "
+            "lượng "
             "(đơn hàng không ghi nguồn lưu lượng).",
         )
     if source == "ads" and xep_theo not in ("gmv_per_day",):

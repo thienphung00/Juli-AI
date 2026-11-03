@@ -12,6 +12,7 @@ from juli_backend.services.shopee_analytics.critical import build_critical
 from juli_backend.services.shopee_analytics.matrix import build_matrix
 from juli_backend.services.shopee_analytics.overview import build_overview
 from juli_backend.services.shopee_analytics.product import build_product_page
+from juli_backend.services.shopee_analytics.queries import NoShopeeData, ProductNotFound
 from juli_backend.services.shopee_analytics.rankings import build_ranking
 from juli_backend.services.shopee_analytics.service import load_period_data, load_view, resolve
 from juli_backend.services.shopee_analytics.windows import (
@@ -24,7 +25,9 @@ from juli_backend.services.shopee_analytics.windows import (
 __all__ = [
     "PERIOD_KINDS",
     "InvalidWindow",
+    "NoShopeeData",
     "PeriodView",
+    "ProductNotFound",
     "Window",
     "build_critical",
     "build_matrix",

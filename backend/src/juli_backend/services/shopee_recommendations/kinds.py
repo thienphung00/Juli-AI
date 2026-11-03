@@ -19,6 +19,7 @@ FAMILIES: tuple[str, ...] = (
     "sale",
     "combo",
     "affiliate",
+    "listing",
     "mega_sale",
 )
 FAMILY_LABELS: dict[str, str] = {
@@ -28,6 +29,7 @@ FAMILY_LABELS: dict[str, str] = {
     "sale": "Flash Sale / chương trình Shopee",
     "combo": "Combo / mua kèm",
     "affiliate": "Tiếp thị liên kết",
+    "listing": "Tên, từ khoá, ảnh bìa",
     "mega_sale": "Chiến dịch lớn (mega sale)",
 }
 
@@ -87,6 +89,8 @@ _PRODUCT = Page("Sản phẩm › Tất cả sản phẩm", "/portal/product/lis
 _COMBO = Page("Marketing › Combo khuyến mãi", None, verified=False)
 _ADD_ON = Page("Marketing › Mua kèm deal sốc", None, verified=False)
 _PROGRAMME = Page("Marketing › Chương trình của Shopee", None, verified=False)
+#: Keyword roles are Juli's own key list (ADR-120 d.11), kept in Juli Ops, not in Seller Centre.
+_JULI_KEYWORDS = Page("Juli › Từ khoá của sản phẩm", None, verified=False)
 
 _S = Slider
 KINDS: dict[str, KindSpec] = {
@@ -341,6 +345,50 @@ KINDS: dict[str, KindSpec] = {
         prior=(0.02, 0.15),
         sliders=(_S("commission_pct", "Hoa hồng", "pct", 0, 50, 0.5),),
     ),
+    # ---- listing (traffic levers: no certain layer, a predicted range only)
+    "title": KindSpec(
+        "title",
+        "listing",
+        "Sửa tên sản phẩm",
+        "title",
+        "item",
+        "views",
+        _PRODUCT,
+        verify_kind="title",
+        prior=(0.03, 0.15),
+    ),
+    "keyword": KindSpec(
+        "keyword",
+        "listing",
+        "Đổi từ khoá Chính",
+        "other",
+        "item",
+        "views",
+        _JULI_KEYWORDS,
+        prior=(0.02, 0.10),
+    ),
+    "cover_image": KindSpec(
+        "cover_image",
+        "listing",
+        "Đổi ảnh bìa",
+        "images",
+        "item",
+        "ctr",
+        _PRODUCT,
+        verify_kind="images",
+        prior=(0.02, 0.12),
+    ),
+    "price_display": KindSpec(
+        "price_display",
+        "listing",
+        "Ghi đơn giá trên ảnh bìa",
+        "images",
+        "item",
+        "ctr",
+        _PRODUCT,
+        verify_kind="images",
+        prior=(0.01, 0.06),
+    ),
     # ---- mega sale (composite)
     "mega_sale": KindSpec(
         "mega_sale",
@@ -357,9 +405,9 @@ KINDS: dict[str, KindSpec] = {
 
 #: Contract section 8. Keyed by the critical metric (``services/shopee_analytics/critical.py``
 #: ``CHANGE_KINDS``); the generators emit only kinds the metric allows, and the card carries
-#: the key it came from. Listing kinds (title, keyword, cover_image, price_display,
-#: review_voucher...) belong to other workflows; they are named here so the wiring table is
-#: the whole of section 8, but only kinds in :data:`KINDS` are generated.
+#: the key it came from. Section 8 names every kind; the generators emit the ones in
+#: :data:`KINDS` (the listing family -- title, keyword, cover_image, price_display -- is
+#: wired to Lượt xem and CTR).
 WIRING: dict[str, tuple[str, ...]] = {
     "views": ("title", "keyword", "ads_budget", "affiliate_commission"),
     "ctr": ("cover_image", "title", "price_display"),

@@ -27,8 +27,10 @@ from juli_backend.services.shopee_profit.floor import FloorInputs, FloorResult, 
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import OrderLine, SkuCost
 from juli_backend.services.shopee_profit.shop_profit import ProductProfit
+from juli_backend.services.shopee_recommendations.listing import Listing
 
 if TYPE_CHECKING:
+    from juli_backend.services.shopee_analytics.rules_view import ProfitRules
     from juli_backend.services.shopee_recommendations.learning import (
         AcceptanceStats,
         CalibrationState,
@@ -77,6 +79,10 @@ class RecoEnv:
     calibration: Mapping[tuple[str, str], CalibrationState] = field(default_factory=dict)
     acceptance: AcceptanceStats | None = None
     sim: SimPriors | None = None
+    #: product id -> the listing as stored (newest snapshot + keyword key list + market numbers)
+    listings: dict[str, Listing] = field(default_factory=dict)
+    #: the seller's "Từ không được dùng" (Quy tắc); the listing proposals never contain one
+    banned_terms: tuple[str, ...] = ()
     _floor_cache: dict[str, dict[str, FloorResult]] = field(default_factory=dict, repr=False)
 
     # ------------------------------------------------------------------ rules / targets
@@ -85,7 +91,7 @@ class RecoEnv:
         return f"{self.as_of.year:04d}-{self.as_of.month:02d}"
 
     @property
-    def rules(self):  # noqa: ANN201 - ProfitRules for the card window's month (Step 4)
+    def rules(self) -> ProfitRules:  # the card window's month (Step 4)
         return self.ctx.rules.for_month(self.month)
 
     @property
@@ -107,6 +113,17 @@ class RecoEnv:
         gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
         for ln, _ in self.view.pairs:
             gmv[ln.product_id] += ln.order_value
+        return [i for i, _ in sorted(gmv.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+    def listing_item_ids(self) -> list[str]:
+        """Products the listing audit may look at: every product with confirmed GMV in the
+        window, from the order lines or from Shopee's own product totals (a product with views
+        but few order lines is exactly the one a better title helps), by GMV descending."""
+        gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
+        for ln, _ in self.view.pairs:
+            gmv[ln.product_id] += ln.order_value
+        for item, (total, _orders) in self.view.data.product_flows.totals.items():
+            gmv[item] = max(gmv[item], total)
         return [i for i, _ in sorted(gmv.items(), key=lambda kv: (-kv[1], kv[0]))]
 
     def stock(self, item_id: str) -> int | None:

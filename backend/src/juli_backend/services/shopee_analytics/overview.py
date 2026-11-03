@@ -88,7 +88,8 @@ def warnings(view: PeriodView) -> list[dict[str, str]]:
     if not d.lines.covers_window:
         add(
             "order_lines_partial",
-            "File đơn hàng chưa phủ hết kỳ: lợi nhuận, giảm giá và AOV chỉ tính trên các ngày có đơn.",  # noqa: E501
+            "File đơn hàng chưa phủ hết kỳ: lợi nhuận, giảm giá và AOV chỉ tính trên các ngày có "
+            "đơn.",
         )
     if d.totals.basis == "partial_daily":
         add("shop_totals_partial", "Doanh số shop chỉ có một phần số ngày trong kỳ.")
@@ -144,7 +145,8 @@ def _shop_chain(view: PeriodView) -> dict[str, Any]:
         "gmv": num(total.gmv),
         "identity_gmv": num(identity),
         "identity_ok": identity is None or abs(identity - total.gmv) < Decimal("0.01"),
-        "note": "Lượt xem cộng các luồng (Live / Video đếm phiên / video); CTR không so giữa các luồng.",  # noqa: E501
+        "note": "Lượt xem cộng các luồng (Live / Video đếm phiên / video); CTR không so giữa các "
+        "luồng.",
     }
 
 
@@ -184,7 +186,8 @@ def _flows_block(view: PeriodView, prev: PeriodView) -> dict[str, Any]:
                 "rows": children,
                 "gmv_sum": num(child_gmv),
                 "parent_gmv": num(card_total.gmv) if card_total else None,
-                "note": "Sáu nguồn con là chi tiết của Thẻ sản phẩm (cộng cả Trang shop); không cộng vào tổng.",  # noqa: E501
+                "note": "Sáu nguồn con là chi tiết của Thẻ sản phẩm (cộng cả Trang shop); không "
+                "cộng vào tổng.",
             },
             "chain": _shop_chain(view),
         }
@@ -382,7 +385,8 @@ def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dic
                 else None
             ),
             "aov_seller_centre": num(_aov_seller_centre(now)),
-            "aov_note": "AOV Seller Centre = (GMV − voucher shop) ÷ đơn đã xác nhận (§14); AOV chuỗi = GMV ÷ đơn.",  # noqa: E501
+            "aov_note": "AOV Seller Centre = (GMV − voucher shop) ÷ đơn đã xác nhận (§14); AOV "
+            "chuỗi = GMV ÷ đơn.",
             "line_gmv": num(now.line_gmv),
             "line_orders": now.line_orders,
         },

@@ -346,6 +346,124 @@ def header_block(
     }
 
 
+def versions_block(history: list[Any]) -> list[dict[str, Any]]:
+    """The listing's snapshot versions, newest first. A snapshot is written when something
+    changed, so each row says what changed against the version before it."""
+    ordered = sorted(history, key=lambda r: r.captured_at)
+    out: list[dict[str, Any]] = []
+    prev: Any = None
+    for r in ordered:
+        cover = (r.image_urls or [None])[0]
+        changes: list[str] = []
+        if prev is not None:
+            if r.title != prev.title:
+                changes.append("title")
+            if (r.list_price, r.current_price) != (prev.list_price, prev.current_price):
+                changes.append("price")
+            if list(r.image_urls or []) != list(prev.image_urls or []):
+                changes.append("images")
+            if ((r.image_urls or [None])[0]) != ((prev.image_urls or [None])[0]):
+                changes.append("cover")
+        out.append(
+            {
+                "captured_at": r.captured_at.isoformat() + "Z",
+                "title": r.title,
+                "title_chars": len(r.title) if r.title else None,
+                "list_price": num(r.list_price),
+                "current_price": num(r.current_price),
+                "cover_url": cover,
+                "image_count": len(r.image_urls or []),
+                "changes": changes,
+                "first": prev is None,
+            }
+        )
+        prev = r
+    out.reverse()
+    return out
+
+
+DAILY_NOTE_FULL = "Đơn đã xác nhận, mọi nguồn lưu lượng."
+DAILY_NOTE_PARTIAL = (
+    "Đơn đã xác nhận; lượt xem và lượt bấm chỉ có khi Connector đã đọc "
+    "lưu lượng theo ngày của sản phẩm."
+)
+
+
+def daily_block(view: PeriodView, product_id: str, rows: list[Any], source: str) -> dict[str, Any]:
+    """GMV, orders, views and clicks by day for the product over the selected window."""
+    days: list[dict[str, Any]] = []
+    if rows:
+        days = [
+            {
+                "day": d.day.isoformat(),
+                "gmv": num(d.gmv),
+                "orders": num(d.orders),
+                "views": num(d.views),
+                "clicks": num(d.clicks),
+            }
+            for d in rows
+        ]
+    else:  # no per-source day rows: the order lines give GMV and orders only
+        acc: dict[date, list[Decimal]] = defaultdict(lambda: [ZERO, ZERO])
+        seen: dict[date, set[str]] = defaultdict(set)
+        for ln, _ in _lines_of(view, product_id):
+            acc[ln.order_date][0] += ln.order_value
+            if ln.order_id not in seen[ln.order_date]:
+                seen[ln.order_date].add(ln.order_id)
+                acc[ln.order_date][1] += Decimal(1)
+        days = [
+            {
+                "day": d.isoformat(),
+                "gmv": num(v[0]),
+                "orders": num(v[1]),
+                "views": None,
+                "clicks": None,
+            }
+            for d, v in sorted(acc.items())
+        ]
+        source = "order_lines" if days else "none"
+    return {
+        "source": source,
+        "window": view.window.json(),
+        "days": days,
+        "note": DAILY_NOTE_FULL if source == "item_traffic_sources" else DAILY_NOTE_PARTIAL,
+    }
+
+
+def ads_campaigns_block(view: PeriodView, product_id: str) -> dict[str, Any]:
+    """The ad campaigns this product is in: its spend (allocated to the window, as the shop
+    totals are) and the report's placed-order figures prorated to the same share."""
+    reports = view.data.ads_reports.campaign_rows
+    rows: list[dict[str, Any]] = []
+    for c in view.ads.campaigns:
+        spend = c.products.get(product_id)
+        if spend is None:
+            continue
+        mine = [r for r in reports if r.key == c.key and r.item_id == product_id]
+        report_spend = sum((r.spend for r in mine), ZERO)
+        k = safe_div(spend, report_spend) if report_spend > 0 else None
+        gmv = sum((r.gmv for r in mine), ZERO)
+        direct = sum((r.direct_gmv for r in mine), ZERO)
+        orders = sum((r.orders for r in mine), ZERO)
+        rows.append(
+            {
+                "campaign_key": c.key,
+                "name": c.name,
+                "running": c.running,
+                "spend": num(spend),
+                "gmv_placed": num(gmv * k) if k is not None else None,
+                "direct_gmv_placed": num(direct * k) if k is not None else None,
+                "orders_placed": num(orders * k) if k is not None else None,
+                "roas_broad": ratio(safe_div(gmv, report_spend), 2) if report_spend > 0 else None,
+                "roas_direct": ratio(safe_div(direct, report_spend), 2)
+                if report_spend > 0
+                else None,
+            }
+        )
+    rows.sort(key=lambda r: -(r["spend"] or 0))
+    return {"campaigns": rows}
+
+
 def build_product_page(
     ctx: ShopContext,
     product_id: str,
@@ -355,10 +473,15 @@ def build_product_page(
     seeds: list[KeywordSeed],
     market: dict[str, Any],
     as_of: date,
+    *,
+    history: list[Any] | None = None,
+    daily: tuple[list[Any], str] | None = None,
+    freshness: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     now, before = views[selected]
     info = ctx.catalog.items.get(product_id)
     header = header_block(info, snap, now, product_id, as_of)
+    header["versions"] = versions_block(history or [])
     return {
         "platform": "shopee",
         "order_basis": {"key": "confirmed", "label": "Đơn đã xác nhận"},
@@ -370,11 +493,14 @@ def build_product_page(
         "header": header,
         "kpi_by_period": {key: kpi_block(n, b, product_id) for key, (n, b) in views.items()},
         "nguon": product_row(now, product_id),
-        "ads": ads_overlay(now, product_id),
+        "ads": {**ads_overlay(now, product_id), **ads_campaigns_block(now, product_id)},
+        "daily": daily_block(now, product_id, *(daily or ([], "none"))),
+        "freshness": freshness,
         "cost_and_floor": {
             "skus": sku_waterfall(now, ctx, product_id),
             "coverage_label": ASSUMED_COST_LABEL,
-            "floor_note": "Giá sàn tuyệt đối = (giá vốn + đóng gói + phí cố định/đơn) ÷ (1 − phí sàn %); "  # noqa: E501
+            "floor_note": "Giá sàn tuyệt đối = (giá vốn + đóng gói + phí cố định/đơn) ÷ (1 − phí "
+            "sàn %); "
             "giá sàn vận hành trừ thêm QC %, hoa hồng % và biên mục tiêu %.",
         },
         "keywords": keyword_block(seeds, market, header["title"], now, product_id),

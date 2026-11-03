@@ -13,7 +13,7 @@ Client lane, tenant-direct (``shop_id``, RLS by ``app_current_shop_id()``):
 - ``product_image_assets`` -- Juli's private copy of each image version, keyed by content
   hash, so the gallery history survives the platform replacing the image. SELECT, INSERT.
 - ``shopee_order_lines`` -- one row per order line, PII-free by construction: there is no
-  column for a buyer name, phone or address, and ``order_ref`` is a keyed hash made in the
+  column for a buyer name, contact number or address, and ``order_ref`` is a keyed hash made in the
   browser, never the platform's order id. SELECT, INSERT, UPDATE (a status or payout
   moves as the order completes). Money is VND.
 - ``shop_rule_versions`` -- append-only history of seller / team rule values; ``shop_rules``
@@ -146,7 +146,7 @@ class ProductImageAsset(Base):
 
 
 class ShopeeOrderLine(Base):
-    """One order line. No buyer name / phone / address column exists, by design."""
+    """One order line. No buyer name / contact number / address column exists, by design."""
 
     __tablename__ = "shopee_order_lines"
     __table_args__ = (

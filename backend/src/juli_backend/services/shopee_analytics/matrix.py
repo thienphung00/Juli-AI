@@ -12,8 +12,13 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num, pct, ratio
-from juli_backend.services.shopee_analytics.overview import LEVER_LABELS
-from juli_backend.services.shopee_analytics.shared import cell_json, flow_table_json
+from juli_backend.services.shopee_analytics.overview import CHILD_LABELS, LEVER_LABELS
+from juli_backend.services.shopee_analytics.shared import (
+    cell_json,
+    five_for,
+    five_json,
+    flow_table_json,
+)
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_profit.shop_profit import ProductProfit
 from juli_backend.services.shopee_profit.sources import PriceLever
@@ -37,6 +42,39 @@ def ads_overlay(
         "roas_direct": ratio(fig.roas_direct if fig else None, 2),
         "break_even_roas": ratio(pp.break_even_roas if pp else None, 2),
         "below_break_even": pp.ads_below_break_even if pp else None,
+    }
+
+
+def card_children(view: PeriodView, product_id: str) -> list[dict[str, Any]] | None:
+    """Thẻ sản phẩm split by where the card was seen (search, recommend, cart ...) for one
+    product; None when the daily per-source rows (``item_traffic_sources``) are not stored."""
+    kids = view.data.product_flows.children.get(product_id)
+    if not kids:
+        return None
+    rows = []
+    for key, agg in kids.items():
+        rows.append(
+            {
+                "key": key,
+                "label": CHILD_LABELS.get(key, key),
+                "views": None if agg.views is None else int(agg.views),
+                "clicks": None if agg.clicks is None else int(agg.clicks),
+                "orders": int(agg.orders),
+                "gmv": num(agg.gmv),
+            }
+        )
+    return rows
+
+
+def short_five(now: PeriodView, before: PeriodView, product_id: str) -> dict[str, Any]:
+    """The matrix's per-product numbers (1) % giảm giá and (2) thu thêm / chi thêm against the
+    previous period; withheld, not zero, when the previous period has no order lines."""
+    comparable = before.line_orders > 0 and before.data.lines.covers_window
+    full = five_json(five_for(now, before, None, product_id), comparable=comparable)
+    return {
+        "discount": full["discount"],
+        "extra_revenue_per_extra_spend": full["extra_revenue_per_extra_spend"],
+        "comparison": full["comparison"],
     }
 
 
@@ -84,6 +122,7 @@ def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
         },
         "levers": levers,
         "ads": ads_overlay(view, product_id, pp),
+        "card_children": card_children(view, product_id),
     }
 
 
@@ -100,7 +139,11 @@ def _sort_key(sort: str, row: dict[str, Any]) -> float:
 
 
 def build_matrix(
-    view: PeriodView, *, sort: str = "gmv", limit: int | None = None
+    view: PeriodView,
+    *,
+    sort: str = "gmv",
+    limit: int | None = None,
+    before: PeriodView | None = None,
 ) -> dict[str, Any]:
     ids = (
         set(view.matrix.totals) | set(view.data.product_flows.totals) | set(view.ads.product_spend)
@@ -111,6 +154,9 @@ def build_matrix(
     total = len(rows)
     if limit is not None:
         rows = rows[:limit]
+    if before is not None:
+        for r in rows:
+            r["five_numbers"] = short_five(view, before, r["product_id"])
     return {
         "platform": "shopee",
         "order_basis": {"key": "confirmed", "label": "Đơn đã xác nhận"},
@@ -124,7 +170,8 @@ def build_matrix(
                 sum((g for g, _ in view.data.product_flows.totals.values()), ZERO)
             ),
             "gmv_shop": num(view.shop_gmv),
-            "note": "Σ GMV sản phẩm khớp Doanh số shop khi file sản phẩm đúng kỳ; phần lệch hiện ở dòng Chênh lệch nguồn.",  # noqa: E501
+            "note": "Σ GMV sản phẩm khớp Doanh số shop khi file sản phẩm đúng kỳ; phần lệch hiện "
+            "ở dòng Chênh lệch nguồn.",
         },
     }
 

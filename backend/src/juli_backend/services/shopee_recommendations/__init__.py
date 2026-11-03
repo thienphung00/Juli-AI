@@ -15,6 +15,7 @@ from juli_backend.services.shopee_recommendations.measure import (
     run_learning,
 )
 from juli_backend.services.shopee_recommendations.mega import MegaWindow
+from juli_backend.services.shopee_recommendations.refs import attach_card_refs
 from juli_backend.services.shopee_recommendations.service import (
     card_detail,
     decide,
@@ -48,6 +49,7 @@ __all__ = [
     "SimImportError",
     "SimPriors",
     "apply_backfill",
+    "attach_card_refs",
     "backfill_natural",
     "card_detail",
     "decide",

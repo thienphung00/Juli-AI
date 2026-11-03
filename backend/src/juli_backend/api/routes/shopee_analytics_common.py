@@ -14,8 +14,7 @@ from typing import Annotated, Any
 
 from fastapi import HTTPException, Query, status
 
-from juli_backend.services.shopee_analytics import InvalidWindow
-from juli_backend.services.shopee_analytics.queries import NoShopeeData, ProductNotFound
+from juli_backend.services.shopee_analytics import InvalidWindow, NoShopeeData, ProductNotFound
 
 PeriodQ = Annotated[
     str, Query(pattern="^(7d|30d|90d|month|custom)$", description="7d | 30d | 90d | month | custom")

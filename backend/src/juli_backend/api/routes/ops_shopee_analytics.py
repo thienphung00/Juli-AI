@@ -36,6 +36,7 @@ from juli_backend.api.routes.shopee_analytics_common import (
 )
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.shopee_analytics import queries
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
@@ -82,13 +83,14 @@ async def ops_shopee_matrix(
     await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
-            return await queries.matrix(
+            body = await queries.matrix(
                 session,
                 shop_id,
                 sort=sort,
                 limit=limit,
                 **window_args(period, month, start, end, as_of),
             )
+            return await reco.attach_card_refs(session, shop_id, "matrix", body, audience="ops")
     except REFUSALS as exc:
         raise refusal(exc) from None
 
@@ -107,9 +109,10 @@ async def ops_shopee_critical(
     await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
-            return await queries.critical(
+            body = await queries.critical(
                 session, shop_id, **window_args(period, month, start, end, as_of)
             )
+            return await reco.attach_card_refs(session, shop_id, "critical", body, audience="ops")
     except REFUSALS as exc:
         raise refusal(exc) from None
 
@@ -134,7 +137,7 @@ async def ops_shopee_ranking(
     await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
-            return await queries.ranking(
+            body = await queries.ranking(
                 session,
                 shop_id,
                 kind=kind,
@@ -143,6 +146,7 @@ async def ops_shopee_ranking(
                 xep_theo=xep_theo,
                 **window_args(period, month, start, end, as_of),
             )
+            return await reco.attach_card_refs(session, shop_id, "ranking", body, audience="ops")
     except REFUSALS as exc:
         raise refusal(exc) from None
 
@@ -159,6 +163,7 @@ async def ops_shopee_product(
     await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
-            return await queries.product_page(session, shop_id, item_id, period=period, as_of=as_of)
+            body = await queries.product_page(session, shop_id, item_id, period=period, as_of=as_of)
+            return await reco.attach_card_refs(session, shop_id, "product", body, audience="ops")
     except REFUSALS as exc:
         raise refusal(exc) from None

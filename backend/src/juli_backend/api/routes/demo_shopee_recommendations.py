@@ -49,7 +49,8 @@ def _now() -> datetime:
 @router.get("")
 async def list_recommendations(
     family: Annotated[
-        str | None, Query(pattern="^(ads|promotion|voucher|sale|combo|affiliate|mega_sale)$")
+        str | None,
+        Query(pattern="^(ads|promotion|voucher|sale|combo|affiliate|listing|mega_sale)$"),
     ] = None,
     section: Annotated[str | None, Query(max_length=16)] = None,
     status: Annotated[str | None, Query(max_length=24)] = None,

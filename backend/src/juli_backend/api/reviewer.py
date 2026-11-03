@@ -45,7 +45,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -445,6 +445,11 @@ class ReviewerShopOption:
     writes_enabled: bool
     tiktok_shop_id: str | None
     is_active: bool
+    platform: Literal["tiktok", "shopee"] = "tiktok"
+
+
+def _platform(shop: Shop) -> Literal["tiktok", "shopee"]:
+    return "shopee" if shop.platform == "shopee" else "tiktok"
 
 
 def _shop_option(shop: Shop, pin: PinMode) -> ReviewerShopOption:
@@ -456,6 +461,7 @@ def _shop_option(shop: Shop, pin: PinMode) -> ReviewerShopOption:
             writes_enabled=False,
             tiktok_shop_id=None,
             is_active=bool(shop.is_active),
+            platform=_platform(shop),
         )
     return ReviewerShopOption(
         id=str(shop.id),
@@ -464,6 +470,7 @@ def _shop_option(shop: Shop, pin: PinMode) -> ReviewerShopOption:
         writes_enabled=pin.writes_enabled,
         tiktok_shop_id=shop.tiktok_shop_id,
         is_active=bool(shop.is_active),
+        platform=_platform(shop),
     )
 
 

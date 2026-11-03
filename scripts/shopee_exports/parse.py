@@ -273,7 +273,7 @@ def _guarded(parser: _Parser) -> _Parser:
 
     wrapped.__name__ = parser.__name__
     wrapped.__doc__ = parser.__doc__
-    return wrapped  # type: ignore[return-value]
+    return wrapped
 
 
 # -- column tables -----------------------------------------------------------------------

@@ -52,6 +52,7 @@ def test_every_kind_belongs_to_a_family_and_maps_to_a_proposal_and_read_back_kin
         "sale",
         "combo",
         "affiliate",
+        "listing",
         "mega_sale",
     }
     for key, s in KINDS.items():
@@ -708,7 +709,7 @@ def test_the_sheet_changes_feed_the_read_back_contract():
         shop_id=None,
         card_id=None,
         execution_ref="x",
-        change_kind=change["change_kind"],  # type: ignore[arg-type]
+        change_kind=change["change_kind"],
         target=change["target"],
         expected=change["expected"],
         executed_at=now,

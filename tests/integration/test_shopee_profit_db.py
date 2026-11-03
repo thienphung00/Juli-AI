@@ -23,7 +23,8 @@ import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import column, func, select, text, update
+from sqlalchemy import table as sa_table
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from tests.integration.two_tenant import RUNTIME_ROLE
@@ -135,7 +136,11 @@ def test_a_shop_sees_and_writes_only_its_own_rows(owner_engine, two_tenants, tab
         _insert(conn, table, b.shop_id, f"{table}-b")
     with owner_engine.connect() as conn:
         _scope(conn, a.shop_id)
-        shops = set(conn.execute(text(f"SELECT shop_id FROM public.{table}")).scalars())  # noqa: S608
+        shops = set(
+            conn.execute(
+                select(column("shop_id")).select_from(sa_table(table, schema="public"))
+            ).scalars()
+        )
         assert shops == {a.shop_id}
         _insert(conn, table, a.shop_id, f"{table}-a2")
         with pytest.raises(DBAPIError):
@@ -176,9 +181,10 @@ def test_fee_formulas_are_readable_by_the_app_role_and_never_writable(owner_engi
         )
     with owner_engine.connect() as conn:
         _scope(conn, a.shop_id)
-        assert conn.execute(text(f"SELECT count(*) FROM public.{FORMULAS}")).scalar() >= 1  # noqa: S608
+        formulas = sa_table(FORMULAS, column("source_note"), schema="public")
+        assert conn.execute(select(func.count()).select_from(formulas)).scalar() >= 1
         with pytest.raises(DBAPIError):
-            conn.execute(text(f"UPDATE public.{FORMULAS} SET source_note = 'x'"))  # noqa: S608
+            conn.execute(update(formulas).values(source_note="x"))
         conn.rollback()
         conn.execute(text("RESET ROLE"))
 

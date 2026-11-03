@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal as D
+from typing import Any
 
 import pytest
 
@@ -59,8 +60,8 @@ SCHEDULE = FeeSchedule(
 )
 
 
-def ol(oid: str, sku: str, product: str, qty: int, orig: int, deal: int, **kw: object) -> OrderLine:
-    return OrderLine(oid, sku, product, DAY, qty, D(orig), D(deal), **kw)  # type: ignore[arg-type]
+def ol(oid: str, sku: str, product: str, qty: int, orig: int, deal: int, **kw: Any) -> OrderLine:
+    return OrderLine(oid, sku, product, DAY, qty, D(orig), D(deal), **kw)
 
 
 # ------------------------------------------------------------ fixed fee once
@@ -318,14 +319,14 @@ def history(n: int = 40, deal: int = 250000) -> list[OrderLine]:
     ]
 
 
-def run(rule: VoucherRule, **kw: object):  # type: ignore[no-untyped-def]
-    base: dict[str, object] = {"schedule": SCHEDULE, "ad_spend": D(0)}
+def run(rule: VoucherRule, **kw: Any) -> Any:
+    base: dict[str, Any] = {"schedule": SCHEDULE, "ad_spend": D(0)}
     base.update(kw)
     return voucher_whatif(
         history(),
         {"S1": SkuCost("S1", D(100000), D(3000))},
         scenario=rule,
-        **base,  # type: ignore[arg-type]
+        **base,
     ).certain
 
 

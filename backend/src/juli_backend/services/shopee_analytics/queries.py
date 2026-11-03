@@ -15,6 +15,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.repositories import PlatformItemSnapshotsRepo
 from juli_backend.services.shopee_analytics import loaders, service
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.critical import build_critical
@@ -26,6 +27,22 @@ from juli_backend.services.shopee_analytics.rankings import build_ranking
 from juli_backend.services.shopee_analytics.windows import Window
 
 PRODUCT_PERIODS: tuple[str, ...] = ("7d", "30d", "90d")
+
+
+def freshness_json(latest: dict[str, Any], anchor: date) -> dict[str, Any]:
+    """Per dataset the newest stored day and how many days it trails ``anchor`` (the window end);
+    the screens decide when "old" begins."""
+    return {
+        "as_of": anchor.isoformat(),
+        "datasets": {
+            name: {
+                "kind": v["kind"],
+                "latest_day": v["latest_day"].isoformat(),
+                "age_days": (anchor - v["latest_day"]).days,
+            }
+            for name, v in sorted(latest.items())
+        },
+    }
 
 
 class NoShopeeData(LookupError):
@@ -73,6 +90,9 @@ async def overview(
     )
     body = build_overview(ctx, now, before)
     body["period"]["kind"] = period
+    body["freshness"] = freshness_json(
+        await loaders.load_freshness(session, shop_id), now.window.end
+    )
     return body
 
 
@@ -90,10 +110,10 @@ async def matrix(
 ) -> dict[str, Any]:
     if sort not in SORTS:
         raise ValueError(f"sort must be one of {list(SORTS)}")
-    _, now, _ = await _views(
+    _, now, before = await _views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    return build_matrix(now, sort=sort, limit=limit)
+    return build_matrix(now, sort=sort, limit=limit, before=before)
 
 
 async def critical(
@@ -164,6 +184,22 @@ async def product_page(
     if not known:
         raise ProductNotFound(item_id)
     snap = await loaders.load_item_header(session, shop_id, item_id)
+    history = await PlatformItemSnapshotsRepo(session).history(shop_id, item_id)
+    selected_window = views[period][0].window
+    daily = await loaders.load_product_daily(session, shop_id, item_id, selected_window)
+    freshness = freshness_json(await loaders.load_freshness(session, shop_id), anchor)
     seeds = await loaders.load_keyword_seeds(session, shop_id, item_id)
     market = await loaders.load_keyword_market(session, [s.keyword for s in seeds])
-    return build_product_page(ctx, item_id, views, period, snap, seeds, market, anchor)
+    return build_product_page(
+        ctx,
+        item_id,
+        views,
+        period,
+        snap,
+        seeds,
+        market,
+        anchor,
+        history=history,
+        daily=daily,
+        freshness=freshness,
+    )

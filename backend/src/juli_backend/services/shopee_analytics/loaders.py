@@ -953,6 +953,112 @@ async def load_keyword_market(session: AsyncSession, keywords: list[str]) -> dic
     return {m.keyword: m for m in await MarketKeywordMetricsReadRepo(session).latest(keywords)}
 
 
+async def load_freshness(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Any]:
+    """The newest day each stored dataset reaches, for the screens' "dữ liệu cũ" state. Day rows
+    give their ``day``, period rows their ``period_end``, order lines their last order day and
+    snapshots their last capture. Datasets the shop has no rows for are simply absent."""
+    daily = await PlatformDailyMetricsRepo(session).latest_days(shop_id)
+    periods = await PlatformPeriodMetricsRepo(session).latest_ends(shop_id)
+    bounds = await ShopeeOrderLinesRepo(session).day_bounds(shop_id)
+    snap = await PlatformItemSnapshotsRepo(session).latest_capture(shop_id)
+    out: dict[str, Any] = {
+        **{d: {"kind": "daily", "latest_day": day} for d, day in daily.items()},
+        **{d: {"kind": "period", "latest_day": end} for d, end in periods.items()},
+    }
+    if bounds is not None:
+        out["order_lines"] = {"kind": "orders", "latest_day": bounds[1]}
+    if snap is not None:
+        out["item_snapshots"] = {"kind": "snapshot", "latest_day": snap.date()}
+    return out
+
+
+@dataclass
+class ProductDay:
+    day: date
+    gmv: Decimal
+    orders: Decimal
+    views: Decimal | None = None
+    clicks: Decimal | None = None
+
+
+async def load_product_daily(
+    session: AsyncSession, shop_id: uuid.UUID, item_id: str, window: Window
+) -> tuple[list[ProductDay], str]:
+    """One product's GMV / orders / views / clicks per day in the window (confirmed orders,
+    all flows). Source: the Connector's ``item_traffic_sources`` day rows; without them the
+    order lines give GMV and orders only (views / clicks None). Returns (days, source)."""
+    rows = await PlatformDailyMetricsRepo(session).window(
+        shop_id,
+        datasets=ITEM_SOURCE_DAILY,
+        start=window.start,
+        end=window.end,
+        streams=[*STREAM_TO_SOURCE],
+        order_types=[CONFIRMED],
+        item_id=item_id,
+    )
+    by_day: dict[date, ProductDay] = {}
+    for r in rows:
+        if r.segment != "all":
+            continue
+        d = by_day.setdefault(r.day, ProductDay(r.day, ZERO, ZERO, ZERO, ZERO))
+        d.gmv += _z(r.gmv)
+        d.orders += _z(r.orders)
+        d.views = (d.views or ZERO) + _z(r.impressions)
+        d.clicks = (d.clicks or ZERO) + _z(r.clicks)
+    if by_day:
+        return [by_day[k] for k in sorted(by_day)], "item_traffic_sources"
+    return [], "none"
+
+
+@dataclass
+class ListingSource:
+    """What the listing audits read about one product: its newest snapshot (title, images,
+    prices), the keyword seeds that carry a role for it and their market numbers."""
+
+    item_id: str
+    header: ItemHeader | None = None
+    seeds: list[KeywordSeed] = field(default_factory=list)
+    market: dict[str, Any] = field(default_factory=dict)
+
+
+async def load_listing_sources(
+    session: AsyncSession, shop_id: uuid.UUID, item_ids: list[str]
+) -> dict[str, ListingSource]:
+    """One read per table for many products (the recommendation generators audit them all)."""
+    out = {i: ListingSource(i) for i in item_ids}
+    if not out:
+        return out
+    for row in await PlatformItemSnapshotsRepo(session).latest_per_item(shop_id, list(out)):
+        if row.variation_id != "":
+            continue
+        out[row.item_id].header = ItemHeader(
+            item_id=row.item_id,
+            title=row.title,
+            image_urls=list(row.image_urls or []),
+            list_price=row.list_price,
+            current_price=row.current_price,
+            promo_label=row.promo_label,
+            stock=row.stock,
+            category_path=tuple(row.category_path or ()),
+            status=row.status,
+            captured_at=row.captured_at,
+        )
+    for seed in await ShopKeywordSeedsReadRepo(session).roled(shop_id):
+        for item_id in out:
+            if seed.item_scope == item_id or (
+                seed.item_scope is None and item_id in (seed.item_ids or [])
+            ):
+                out[item_id].seeds.append(
+                    KeywordSeed(seed.keyword, seed.role or "", seed.pattern, seed.item_scope)
+                )
+    market = await load_keyword_market(
+        session, sorted({k.keyword for src in out.values() for k in src.seeds})
+    )
+    for src in out.values():
+        src.market = {k.keyword: market[k.keyword] for k in src.seeds if k.keyword in market}
+    return out
+
+
 async def load_flow_series(
     session: AsyncSession, shop_id: uuid.UUID, end: date, days: int = 400
 ) -> dict[str, dict[date, tuple[float, float, float, float]]]:
@@ -969,21 +1075,18 @@ async def load_flow_series(
         streams=[*STREAM_TO_SOURCE],
         order_types=[CONFIRMED],
     )
-    card: dict[date, list[float]] = {}
-    shop_page: dict[date, list[float]] = {}
-    out: dict[str, dict[date, tuple[float, float, float, float]]] = {
-        "live": {},
-        "video": {},
-        "lien_ket": {},
-    }
+    Day = tuple[float, float, float, float]
+    card: dict[date, Day] = {}
+    shop_page: dict[date, Day] = {}
+    out: dict[str, dict[date, Day]] = {"live": {}, "video": {}, "lien_ket": {}}
 
-    def tup(r: Any) -> list[float]:
-        return [
+    def tup(r: Any) -> Day:
+        return (
             float(_z(r.impressions)),
             float(_z(r.clicks)),
             float(_z(r.orders)),
             float(_z(r.gmv)),
-        ]
+        )
 
     for r in rows:
         if r.segment == "all" and r.stream == "product_card":
@@ -991,14 +1094,19 @@ async def load_flow_series(
         elif r.segment == TRANG_SHOP_SEGMENT and r.stream == "product_card":
             shop_page[r.day] = tup(r)
         elif r.segment == "all" and r.stream == "seller_live":
-            out["live"][r.day] = tuple(tup(r))  # type: ignore[assignment]
+            out["live"][r.day] = tup(r)
         elif r.segment == "all" and r.stream == "seller_video":
-            out["video"][r.day] = tuple(tup(r))  # type: ignore[assignment]
+            out["video"][r.day] = tup(r)
         elif r.segment == "all" and r.stream == "affiliate":
-            out["lien_ket"][r.day] = tuple(tup(r))  # type: ignore[assignment]
-    out["trang_shop"] = {d: tuple(v) for d, v in shop_page.items()}  # type: ignore[misc]
-    out["the_san_pham_khac"] = {
-        d: tuple(a - b for a, b in zip(v, shop_page.get(d, [0.0] * 4), strict=True))  # type: ignore[misc]
-        for d, v in card.items()
-    }
+            out["lien_ket"][r.day] = tup(r)
+    out["trang_shop"] = dict(shop_page)
+    zero: Day = (0.0, 0.0, 0.0, 0.0)
+    for d, v in card.items():
+        sp = shop_page.get(d, zero)
+        out.setdefault("the_san_pham_khac", {})[d] = (
+            v[0] - sp[0],
+            v[1] - sp[1],
+            v[2] - sp[2],
+            v[3] - sp[3],
+        )
     return {k: v for k, v in out.items() if v}

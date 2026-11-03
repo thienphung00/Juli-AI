@@ -22,10 +22,23 @@ a service package behind a thin route (`api/routes/demo_shopee_recommendations.p
 | `plan` | ADR-107 measurement plan: MDE (alpha 5 %, power 80 %) -> 14 / 28 days / "khó kết luận" |
 | `sheet` | execution sheet and the `change = {change_kind, target, expected}` the `executed` event carries (`card_events/verification.py`) |
 | `cards` | one card = the frozen proposal payload |
+| `listing` | the listing family's pure core: title audit (missing / late / > 120 chars), deterministic title rewrite from the shop's own words + core keywords, keyword promotion within five "Chính", unit price |
+| `refs` | `attach_card_refs`: `card {id, family, title, at_stake_per_month}` on the analytics payloads (seller: published cards; Ops: drafts too) |
 | `ranking` | contract 11: hard filters, gap-share score at P25, fallback dGMV/tháng, "đáng thử" slot |
 | `learning`, `impact`, `measure` | calibration, coverage, acceptance statistics; ADR-077 ratio-form DiD; readings at the plan end and the natural-experiment backfill |
 | `sim_priors` | the `juli-sim/priors/v1` loader (schema: `~/juli-sim-pilot/funnel/README.md`) |
 | `store`, `service`, `stale` | persistence, use cases, staleness |
+
+## Listing family (contract 8: Lượt xem / CTR)
+
+`title`, `keyword`, `cover_image`, `price_display` are traffic levers: no certain layer (the card
+says so), a predicted range from the lift model on views / CTR over the product's search or
+Thẻ sản phẩm GMV. A title never exceeds 120 characters and never holds a seller banned term or a
+generic claim pattern (`content_cards.guardrails.check_banned`). Read-back: `title` through
+`platform_items.name`; `cover_image` / `price_display` through the cover URL changing
+(`expected = {"image_urls": {"changed_from": [url]}}`, `card_events/verification`); `keyword`
+lives in Juli's own key list and has no read-back. A cover or price card needs the snapshot's
+cover URL; a keyword card needs the market volumes the owner uploads.
 
 ## Persistence (ADR-118 reused, migration 115 for the rest)
 
@@ -39,7 +52,7 @@ Status: `draft` (Ops) -> `sent` (Ops publishes) -> `approved` / `changes_request
 (the client in Demo) -> `executed` ("Đã làm") -> measured. Events: `proposed`, `whatif_adjusted`,
 `accepted` (carries the final inputs when the client moved them), `edited` (request a change),
 `dismissed` (ADR-107 reason), `expired` (7 days), `executed` (one per change in the sheet, with
-`change`), `impact_final`; `verified` / `mismatch` / `not_seen` come from the Connector read-back.
+`change`), `impact_preliminary` (T+7, never calibrates), `impact_final`; `verified` / `mismatch` / `not_seen` come from the Connector read-back.
 
 ## Rules
 

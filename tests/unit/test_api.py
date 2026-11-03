@@ -29,9 +29,7 @@ async def app(engine):
 
 @pytest_asyncio.fixture
 async def client(app):
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 
@@ -49,9 +47,7 @@ async def auth_client(app, authenticated_user):
 
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 
@@ -104,14 +100,27 @@ async def test_shop_scoping_header(auth_client, session, user_id):
     session.add(shop)
     await session.flush()
 
-    resp = await auth_client.get(
-        "/v1/shops/me", headers={"X-Shop-Id": str(shop.id)}
-    )
+    resp = await auth_client.get("/v1/shops/me", headers={"X-Shop-Id": str(shop.id)})
     assert resp.status_code == 200
     assert resp.json()["shop_name"] == "My Shop"
 
     fake_id = str(uuid.uuid4())
-    resp = await auth_client.get(
-        "/v1/shops/me", headers={"X-Shop-Id": fake_id}
-    )
+    resp = await auth_client.get("/v1/shops/me", headers={"X-Shop-Id": fake_id})
     assert resp.status_code == 403
+
+
+@pytest.mark.parametrize("platform", ["tiktok", "shopee"])
+async def test_shop_me_names_the_marketplace(session, platform):
+    """The app shell picks the TikTok or the Shopee navigation from ``platform``."""
+    from tests.support.api import authenticate, build_app, client_for
+    from tests.support.builders import make_shop, make_user
+
+    user = await make_user(session)
+    shop = await make_shop(session, user, platform=platform)
+    app = build_app(session)
+    authenticate(app, user=user, shop=shop)
+    async with client_for(app) as client:
+        me = await client.get("/v1/shops/me", headers={"X-Shop-Id": str(shop.id)})
+    app.dependency_overrides.clear()
+    assert me.status_code == 200
+    assert me.json()["platform"] == platform

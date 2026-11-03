@@ -33,6 +33,7 @@ from juli_backend.api.routes.shopee_analytics_common import (
     window_args,
 )
 from juli_backend.database import Shop, get_session
+from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.shopee_analytics import queries
 
 router = APIRouter(prefix="/demo/shopee", tags=["demo-shopee"])
@@ -82,13 +83,14 @@ async def shopee_matrix(
 ) -> dict[str, Any]:
     shop_id = _shopee(shop)
     try:
-        return await queries.matrix(
+        body = await queries.matrix(
             session,
             shop_id,
             sort=sort,
             limit=limit,
             **window_args(period, month, start, end, as_of),
         )
+        return await reco.attach_card_refs(session, shop_id, "matrix", body, audience="seller")
     except REFUSALS as exc:
         raise refusal(exc) from None
 
@@ -105,9 +107,10 @@ async def shopee_critical(
 ) -> dict[str, Any]:
     shop_id = _shopee(shop)
     try:
-        return await queries.critical(
+        body = await queries.critical(
             session, shop_id, **window_args(period, month, start, end, as_of)
         )
+        return await reco.attach_card_refs(session, shop_id, "critical", body, audience="seller")
     except REFUSALS as exc:
         raise refusal(exc) from None
 
@@ -130,7 +133,7 @@ async def shopee_ranking(
 ) -> dict[str, Any]:
     shop_id = _shopee(shop)
     try:
-        return await queries.ranking(
+        body = await queries.ranking(
             session,
             shop_id,
             kind=kind,
@@ -139,6 +142,7 @@ async def shopee_ranking(
             xep_theo=xep_theo,
             **window_args(period, month, start, end, as_of),
         )
+        return await reco.attach_card_refs(session, shop_id, "ranking", body, audience="seller")
     except REFUSALS as exc:
         raise refusal(exc) from None
 
@@ -153,6 +157,7 @@ async def shopee_product(
 ) -> dict[str, Any]:
     shop_id = _shopee(shop)
     try:
-        return await queries.product_page(session, shop_id, item_id, period=period, as_of=as_of)
+        body = await queries.product_page(session, shop_id, item_id, period=period, as_of=as_of)
+        return await reco.attach_card_refs(session, shop_id, "product", body, audience="seller")
     except REFUSALS as exc:
         raise refusal(exc) from None
