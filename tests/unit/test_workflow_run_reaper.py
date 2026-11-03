@@ -843,6 +843,8 @@ def test_beat_schedule_has_exactly_the_eight_expected_entries():
         "privacy-account-purge",
         # Fast track P62-B (D72.2): nightly processed_events (ETL ledger) retention.
         "processed-events-retention",
+        # ADR-117 step 3 (D81): the daily Shopee KPI run for contract shops.
+        "shopee-kpi-daily",
     }
 
 

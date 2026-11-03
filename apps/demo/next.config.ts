@@ -27,6 +27,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/analytics/:path+", destination: "/analytics", permanent: true }];
   },
+  // The English partner reviewer guide (Shopee ISV, P89): a static page in public/, linked
+  // from the application form. Noindex like every other path.
+  async rewrites() {
+    return [{ source: "/reviewer-guide", destination: "/reviewer-guide.html" }];
+  },
 };
 
 export default nextConfig;
