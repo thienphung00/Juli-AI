@@ -461,6 +461,8 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Rankings: Shopee streams + source param | — | todo | — |
 | Connector: product list, ads, voucher, discount, affiliate, income readers; export trigger; market module | — | todo (needs a logged-in Seller Centre for recon) | — |
 | UI build | — | blocked on design approval | — |
+| **Freeze (owner 2026-11-03):** no new implementation until the field-level extraction spec + test plan are approved | — | doing | orchestrator |
+| Release blocker: connector `PILOT_SHOP_IDS` must be ORY's Juli shop id only (owner), not "*", before 0.3.0 ships | — | blocked (ORY shop not yet in Ops) | — |
 
 ## P2–P6
 
