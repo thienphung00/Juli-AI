@@ -10,6 +10,7 @@ phỏng") only read what this job stores.
   P(pass), flow GMV. Pure.
 - :mod:`.flow_glm` -- quasi-binomial GLM per flow x rate, numpy only (no statsmodels /
   patsy in the backend). Pure.
+- :mod:`.exclusions` -- the contract's excluded days, for other readers of the daily metrics.
 - :mod:`.job` -- reads ``kpi_*`` / ``lever_plans`` (Ops role) and
   ``platform_daily_metrics`` (shop scope), writes ``kpi_forecasts`` (and a contract
   version's first ``kpi_targets``). ``api/routes/ops_shopee_kpi.py`` and
@@ -21,6 +22,7 @@ Everything here is internal: contract terms and forecasts are never shown to a s
 
 from __future__ import annotations
 
+from juli_backend.services.shopee_kpi.exclusions import contract_excluded_days
 from juli_backend.services.shopee_kpi.job import (
     FLOW_SOURCES,
     MeasureStartMissing,
@@ -44,5 +46,6 @@ __all__ = [
     "current_report",
     "forecast_json",
     "latest_forecasts",
+    "contract_excluded_days",
     "run_shop_kpi",
 ]

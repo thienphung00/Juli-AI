@@ -665,6 +665,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/proposals/{proposal_id}/measure",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/proposals/{proposal_id}/revise",
       "methods": [
         "POST"

@@ -691,6 +691,27 @@ export interface ProposalExecution {
   readonly verified_how: string | null;
 }
 
+/** D81: one metric of a measured proposal against the item's own history (Ops only). */
+export type ProposalMetric = "impressions" | "clicks" | "ctr";
+export type ResultVerdict = "dat" | "khong_dat" | "chua_ket_luan";
+
+export interface ProposalResult {
+  readonly metric: ProposalMetric | string;
+  readonly verdict: ResultVerdict | string;
+  /** The post week's value (daily average; CTR as a fraction). */
+  readonly value: number | null;
+  /** The 28-day baseline's value. */
+  readonly comparison: number | null;
+  /** value / (max of the last 8 weekly values) - 1. */
+  readonly band: number | null;
+  readonly pre_from: string | null;
+  readonly pre_to: string | null;
+  readonly post_from: string | null;
+  readonly post_to: string | null;
+  readonly data_through: string | null;
+  readonly computed_at: string | null;
+}
+
 export interface ShopProposalRow {
   readonly id: string;
   readonly revision: number;
@@ -710,6 +731,8 @@ export interface ShopProposalRow {
   readonly created_at: string | null;
   readonly approvals: readonly ProposalApproval[];
   readonly executions: readonly ProposalExecution[];
+  /** Newest result per metric; empty before the first measurement. */
+  readonly results?: readonly ProposalResult[];
 }
 
 export interface ProposalCreate {

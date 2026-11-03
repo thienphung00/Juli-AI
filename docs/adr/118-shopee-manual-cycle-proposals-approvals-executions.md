@@ -85,6 +85,34 @@ Phụ lục 01 KPIs at each milestone from `kpi_contracts` / `kpi_targets` / `kp
 step 3). The reader works on `platform_daily_metrics` only; `platform_period_metrics` is never summed by
 day. A window not yet covered by an export is `chua_ket_luan`, with `data_through` stating why.
 
+**Amendment 2026-11-03 (owner grill D81.1-D81.3), replacing the per-proposal method above**
+("against untested items in the same cycle" is dropped):
+
+- **D81.1** A changed item is measured against **its own** history, not against other items.
+- **D81.2** Day 0 is the verified `executed_at`. Baseline = the 28 days before it (day 0
+  excluded), post = the 7 days after; daily averages (CTR = Σclicks / Σimpressions). Sale days
+  (`kpi_contracts.params.exclusions`: `sale_days` ± `pad_days`, plus `kpi_exclusions`; the
+  Phụ lục 01 defaults when the shop has no contract) are dropped from both windows. On the
+  targeted metric (CTR for title / images, clicks otherwise; `change_after.target_metric`
+  overrides): `dat` when the post-week value is above the MAX of the item's last 8 weekly
+  values before the change, `khong_dat` when at or below their MEDIAN, else `chua_ket_luan`;
+  also `chua_ket_luan` when the baseline has under 30 clicks, fewer than 4 weekly values exist,
+  or the exports do not yet cover all 7 post days. Impressions, clicks and CTR rows are all
+  stored; only the targeted one decides. `band` holds `value / max-of-8 - 1` (clamped), the
+  weekly max / median / min and the reason for any `chua_ket_luan` are in `detail`;
+  `data_through` is the last day of data used; `job_version` is `self_baseline_v1`. The
+  `method` column keeps the migration-109 value `pre_post_vs_untested` (renaming it needs a
+  migration).
+- **D81.3** The daily Shopee beat runs the measurement after the KPI job for every executed,
+  verified proposal. The table is append-only: a new row is written only when `data_through`
+  advances past the newest stored row of that proposal + metric, and an item's rows are read
+  only after one `max(day)` over the shop's item exports shows `data_through` could advance.
+  A conclusive verdict on the targeted metric moves the proposal to `measured`;
+  `chua_ket_luan` leaves it `executed`. Ops sees verdict, before / after and the data-through
+  day on the Chu kỳ page, and an operator can press "Tính lại"
+  (`POST /v1/ops/shops/{id}/proposals/{pid}/measure`, audited `proposal_measure`). Results are
+  Ops-only; there is no seller view yet. The contract-KPI method is unchanged.
+
 ### 4. Consent and visibility
 
 Writes need the shop's `service` consent, granted when the owner connects the shop after accepting the

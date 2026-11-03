@@ -11,7 +11,7 @@ Status moves only forward:
   ``withdrawn`` or ``superseded`` (:func:`revise`);
 - ``changes_requested`` → ``superseded`` (:func:`revise`) or ``withdrawn``;
 - ``approved`` → ``executed`` (:func:`record_execution`) or ``withdrawn``;
-- ``executed`` → ``measured`` (the measurement job, later).
+- ``executed`` → ``measured`` (:mod:`.measurement`, once a verdict is conclusive).
 
 A sent proposal is never edited: :func:`revise` writes a new revision and supersedes the
 old one, so every approval points at the exact text the client saw.
@@ -48,6 +48,7 @@ from juli_backend.models.shop_proposals import (
     ShopProposal,
     ShopProposalApproval,
     ShopProposalExecution,
+    ShopProposalResult,
 )
 
 ERROR_NOT_FOUND = "proposal_not_found"
@@ -369,7 +370,41 @@ async def list_cycle(
     ids = [p.id for p in proposals]
     approvals: dict[uuid.UUID, list[ShopProposalApproval]] = {}
     executions: dict[uuid.UUID, list[ShopProposalExecution]] = {}
+    results: dict[uuid.UUID, dict[str, dict[str, Any]]] = {}
     if ids:
+        r = ShopProposalResult
+        # Newest row per metric wins (append-only table); Ops-only, a seller route omits it.
+        for res in await session.execute(
+            select(
+                r.proposal_id,
+                r.metric,
+                r.verdict,
+                r.value,
+                r.comparison,
+                r.band,
+                r.pre_from,
+                r.pre_to,
+                r.post_from,
+                r.post_to,
+                r.data_through,
+                r.computed_at,
+            )
+            .where(r.proposal_id.in_(ids))
+            .order_by(r.computed_at)
+        ):
+            results.setdefault(res.proposal_id, {})[res.metric] = {
+                "metric": res.metric,
+                "verdict": res.verdict,
+                "value": float(res.value) if res.value is not None else None,
+                "comparison": float(res.comparison) if res.comparison is not None else None,
+                "band": float(res.band) if res.band is not None else None,
+                "pre_from": _day(res.pre_from),
+                "pre_to": _day(res.pre_to),
+                "post_from": _day(res.post_from),
+                "post_to": _day(res.post_to),
+                "data_through": _day(res.data_through),
+                "computed_at": _iso(res.computed_at),
+            }
         for a in await session.scalars(
             select(ShopProposalApproval)
             .where(ShopProposalApproval.proposal_id.in_(ids))
@@ -390,6 +425,7 @@ async def list_cycle(
             "supersedes_id": str(p.supersedes_id) if p.supersedes_id else None,
             "sent_at": _iso(p.sent_at),
             "created_at": _iso(p.created_at),
+            "results": list(results.get(p.id, {}).values()),
             "approvals": [
                 {
                     "id": str(a.id),
@@ -416,6 +452,10 @@ async def list_cycle(
         }
         for p in proposals
     ]
+
+
+def _day(value: date | None) -> str | None:
+    return value.isoformat() if value is not None else None
 
 
 def _iso(value: datetime | None) -> str | None:

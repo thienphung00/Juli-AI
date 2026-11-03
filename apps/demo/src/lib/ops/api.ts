@@ -236,6 +236,9 @@ export const opsApi = {
   /** ADR-118: the change was made on Shopee. */
   recordExecution: (shopId: string, proposalId: string, body: ExecutionCreate, o?: OpsRequestOptions) =>
     opsRequest<{ proposal_id: string; status: string }>(`${shopPath(shopId)}/proposals/${encodeURIComponent(proposalId)}/executions`, { method: "POST", body }, o),
+  /** ADR-118 D81 "Tính lại" (Vận hành / Admin): measure one executed proposal now; audited `proposal_measure`. */
+  measureProposal: (shopId: string, proposalId: string, o?: OpsRequestOptions) =>
+    opsRequest<{ proposal_id: string; written: number; measured: number }>(`${shopPath(shopId)}/proposals/${encodeURIComponent(proposalId)}/measure`, { method: "POST" }, o),
   /** ADR-117 step 4, Sản phẩm + luồng: the funnel per product for one export period (Xem+; 409 for a non-Shopee shop). */
   shopeeProducts: (shopId: string, q: ShopeeQuery = {}, o?: OpsRequestOptions) =>
     opsRequest<ShopeeProducts>(`${shopPath(shopId)}/shopee/products${shopeeQuery(q, true)}`, {}, o),

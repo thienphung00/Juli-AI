@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { OpsMe, ShopProposalRow } from "../../../lib/ops/types";
+import type { OpsMe, ProposalResult, ShopProposalRow } from "../../../lib/ops/types";
 import { OpsCycle } from "../cycle/ops-cycle";
 
 /** ADR-118 "Chu kỳ": synthetic proposals only. */
@@ -29,6 +29,23 @@ function row(id: string, status: string, over: Partial<ShopProposalRow> = {}): S
     created_at: "2026-11-01T01:00:00Z",
     approvals: [],
     executions: [],
+    ...over,
+  };
+}
+
+function result(metric: string, verdict: string, over: Partial<ProposalResult> = {}): ProposalResult {
+  return {
+    metric,
+    verdict,
+    value: null,
+    comparison: null,
+    band: null,
+    pre_from: "2026-02-10",
+    pre_to: "2026-03-09",
+    post_from: "2026-03-11",
+    post_to: "2026-03-17",
+    data_through: "2026-03-17",
+    computed_at: "2026-03-18T02:00:00Z",
     ...over,
   };
 }
@@ -137,5 +154,60 @@ describe("Chu kỳ", () => {
     render(<OpsCycle api={api} me={VIEWER} shopId="s1" />);
     await screen.findByTestId("proposal-a");
     expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("shows the verdict, before and after values and the data-through day of a measured proposal", async () => {
+    const results = [
+      result("impressions", "chua_ket_luan", { comparison: 2000, value: 2100 }),
+      result("clicks", "chua_ket_luan", { comparison: 103, value: 120 }),
+      result("ctr", "dat", { comparison: 0.0515, value: 0.06 }),
+    ];
+    const proposals = vi.fn().mockResolvedValue({ proposals: [row("p1", "measured", { results })] });
+    render(<OpsCycle api={{ proposals }} me={OPERATOR} shopId="s1" />);
+    const card = await screen.findByTestId("proposal-p1");
+    expect(within(card).getByTestId("verdict")).toHaveTextContent("Đạt");
+    expect(within(card).getByTestId("results")).toHaveTextContent(/dữ liệu đến/);
+    expect(within(card).getByTestId("result-ctr")).toHaveTextContent("5,15 % → 6,00 %");
+    expect(within(card).getByTestId("result-clicks")).toHaveTextContent("103 /ngày → 120 /ngày");
+  });
+
+  it("shows a failed verdict and an inconclusive one as such", async () => {
+    const proposals = vi.fn().mockResolvedValue({
+      proposals: [
+        row("f", "measured", { results: [result("ctr", "khong_dat", { comparison: 0.05, value: 0.04 })] }),
+        row("o", "executed", { results: [result("clicks", "chua_ket_luan", { comparison: 100, value: 105, data_through: "2026-03-13" })] }),
+      ],
+    });
+    render(<OpsCycle api={{ proposals }} me={OPERATOR} shopId="s1" />);
+    expect(within(await screen.findByTestId("proposal-f")).getByTestId("verdict")).toHaveTextContent("Không đạt");
+    expect(within(screen.getByTestId("proposal-o")).getByTestId("verdict")).toHaveTextContent("Chưa kết luận");
+  });
+
+  it("says so when an executed proposal has no result yet", async () => {
+    const proposals = vi.fn().mockResolvedValue({ proposals: [row("p1", "executed")] });
+    render(<OpsCycle api={{ proposals }} me={OPERATOR} shopId="s1" />);
+    expect(await screen.findByText("Chưa có số liệu sau thay đổi.")).toBeInTheDocument();
+  });
+
+  it("lets an operator recompute an executed proposal and reloads", async () => {
+    const proposals = vi.fn().mockResolvedValue({ proposals: [row("p1", "executed")] });
+    const measureProposal = vi.fn().mockResolvedValue({ proposal_id: "p1", written: 3, measured: 0 });
+    render(<OpsCycle api={{ proposals, measureProposal }} me={OPERATOR} shopId="s1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Tính lại" }));
+    await waitFor(() => expect(measureProposal).toHaveBeenCalledWith("s1", "p1"));
+    await waitFor(() => expect(proposals).toHaveBeenCalledTimes(2));
+  });
+
+  it("offers no recompute to a viewer or on a proposal that is not executed", async () => {
+    const measureProposal = vi.fn();
+    const viewerApi = { proposals: vi.fn().mockResolvedValue({ proposals: [row("e", "executed")] }), measureProposal };
+    const { unmount } = render(<OpsCycle api={viewerApi} me={VIEWER} shopId="s1" />);
+    await screen.findByTestId("proposal-e");
+    expect(screen.queryByRole("button", { name: "Tính lại" })).toBeNull();
+    unmount();
+    const operatorApi = { proposals: vi.fn().mockResolvedValue({ proposals: [row("m", "measured")] }), measureProposal };
+    render(<OpsCycle api={operatorApi} me={OPERATOR} shopId="s1" />);
+    await screen.findByTestId("proposal-m");
+    expect(screen.queryByRole("button", { name: "Tính lại" })).toBeNull();
   });
 });

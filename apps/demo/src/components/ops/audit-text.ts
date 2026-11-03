@@ -105,6 +105,8 @@ export function auditWhat(entry: AuditEntry): string {
       return "Ghi việc đã thực hiện trên Shopee";
     case "proposal_execution_verify":
       return "Đối chiếu trạng thái sau khi thực hiện";
+    case "proposal_measure":
+      return "Tính lại kết quả đề xuất";
     case "shopee_kpi_run":
       return "Chạy tính KPI và dự báo Shopee";
     case "shop_disconnect":
