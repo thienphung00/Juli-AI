@@ -13,6 +13,7 @@ import { ConfirmDialog, DraftBar, Toast } from "./ops-confirm";
 import { OpsCardGroups } from "./ops-card-groups";
 import { OpsShopConsent } from "./ops-contract-shop";
 import { OpsRules } from "./ops-rules";
+import { OpsShopInputs } from "./ops-shop-inputs";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
 import { OpsSkeleton } from "./ops-skeleton";
 
@@ -481,6 +482,7 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
           ) : null}
           <OpsCardGroups canEdit={canEdit} create={api.createGroup} load={api.groups} platform={platform} setReason={api.setGroupReason} shopId={shopId} />
           <OpsRules canEdit={canEdit} platform={platform} shopName={shopName} shopId={shopId} />
+          <OpsShopInputs canEdit={canEdit} shopId={shopId} />
         </section>
         <aside style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={card}>
