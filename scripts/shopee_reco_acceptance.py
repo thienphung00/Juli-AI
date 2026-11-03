@@ -3,15 +3,16 @@
     python scripts/shopee_reco_acceptance.py --database-url postgresql://...@127.0.0.1/... \\
         --shop-id UUID [--as-of 2026-10-28] [--seed-targets 1.3] \\
         [--mega-start 2026-11-11T00:00:00 --mega-end 2026-11-12T00:00:00] \\
-        [--sim-file PATH/priors_v1.json] [--worked-example]
+        [--sim-file PATH/priors_v1.json] [--worked-example-database-url URL]
 
 The shop's Shopee files must be loaded first (``scripts/load_shopee_exports.py``). Local database
 only. Per section: cards per family / kind, how many each hard filter dropped, the top five by
 score (product ids are hashed, never printed), a ``mega_sale`` card for a window with its spend
 per day against the cap and the per-SKU floor checks, the natural-experiment backfill's
 coverage, the simulation gate per change_kind (and that gate 0 leaves every range unchanged),
-and, with ``--worked-example``, the contract 7 numbers through the API what-if on a synthetic
-shop. No order id, product name, SKU text or row value is printed.
+and, with ``--worked-example-database-url`` (an empty local database), the contract 7 numbers
+through the API what-if on a synthetic shop. No order id, product name, SKU text or row
+value is printed.
 """
 
 from __future__ import annotations
@@ -269,6 +270,8 @@ async def section_sim(session, shop_id, as_of, sim_file: Path | None) -> None:
 
 
 async def section_worked(session) -> None:
+    """Seeds a synthetic shop AND a platform-wide fee formula: run it on an EMPTY migrated
+    database (``--worked-example-database-url``), never on the one holding the client's data."""
     print("== contract 7 worked example through the API what-if")
     # the test builders number users from 1 in every process: step past the earlier runs' users
     import itertools
@@ -332,10 +335,15 @@ async def main_async(args: argparse.Namespace) -> int:
                     await section_mega(session, args.shop_id, as_of, mega)
                 await section_backfill(session, args.shop_id)
                 await section_sim(session, args.shop_id, as_of, args.sim_file)
-            if args.worked_example:
-                await section_worked(session)
     finally:
         await engine.dispose()
+    if args.worked_example_database_url:
+        worked = create_async_engine(async_database_url(args.worked_example_database_url))
+        try:
+            async with async_sessionmaker(worked, expire_on_commit=False)() as session:
+                await section_worked(session)
+        finally:
+            await worked.dispose()
     print("FAILED: " + ", ".join(FAILS) if FAILS else "all checks passed")
     return 1 if FAILS else 0
 
@@ -353,7 +361,10 @@ def main() -> int:
         "--seed-targets", type=float, help="add month targets = pace x FACTOR (local DB only)"
     )
     parser.add_argument("--sim-file", type=Path)
-    parser.add_argument("--worked-example", action="store_true")
+    parser.add_argument(
+        "--worked-example-database-url",
+        help="an EMPTY migrated local database: the contract 7 example through the API what-if",
+    )
     parser.add_argument("--allow-remote-database", action="store_true")
     args = parser.parse_args()
     host = urlparse(args.database_url).hostname
