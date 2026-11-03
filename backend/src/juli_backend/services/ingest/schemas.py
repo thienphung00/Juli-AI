@@ -44,6 +44,9 @@ from pydantic import (
 MAX_BODY_BYTES = 1_000_000
 MAX_ROWS = 2_000
 MAX_PERIOD_DAYS = 31
+#: Seller Centre's ad reports cover a three-month window; only ``ads_campaign_period``
+#: may exceed ``MAX_PERIOD_DAYS`` (its ``DatasetSpec.max_period_days``), up to this ceiling.
+MAX_ADS_PERIOD_DAYS = 100
 MAX_EXTRA_KEYS = 60
 MAX_EXTRA_STRING = 200
 
@@ -117,6 +120,8 @@ SHOPEE_PROMO_TYPES: dict[str, str] = {
     "Chương Trình Khuyến Mãi": "discount",
     "Combo Khuyến Mãi": "bundle",
     "Mua Kèm Deal Sốc": "add_on_deal",
+    "Flash Sale": "flash_sale",
+    "Voucher": "voucher",
 }
 
 
@@ -441,6 +446,53 @@ class ShopeePromotionRow(PeriodRowBase):
         return (self.promo_type, self.program_name, self.starts_at, self.ordinal)
 
 
+class ShopeeAdsCampaignPeriodRow(PeriodRowBase):
+    """``shopee.ads_campaign_period``: one ad campaign x product over the report's window
+    (``Báo cáo Dịch vụ Hiển thị trả theo CPC``, ``Chiến dịch nhóm``).
+
+    The export totals a window (about three months), not days, so it is a period row and is
+    never spread over days. ``item_id`` is None for a shop-level campaign (no product). The
+    campaign name is the seller's own listing text. Rates are fractions; ``acos`` and the
+    ROAS fields are ratios that may exceed 1. Counts and money are the ad's own attribution
+    (the report counts placed orders); ``direct_*`` is the same measure for the clicked
+    product only.
+    """
+
+    campaign_name: Annotated[str, StringConstraints(min_length=1, max_length=255)]
+    item_id: ItemId | None = None
+    #: Place among rows sharing campaign and product in one export.
+    ordinal: Annotated[int, Field(ge=0, le=999)] = 0
+    running: bool | None = None
+    ads_impressions: Count | None = None
+    ad_clicks: Count | None = None
+    ctr: Ratio | None = None
+    add_to_cart: Count | None = None
+    add_to_cart_rate: Ratio | None = None
+    conversions: Count | None = None
+    direct_conversions: Count | None = None
+    conversion_rate: Ratio | None = None
+    direct_conversion_rate: Ratio | None = None
+    cost_per_conversion: Money | None = None
+    direct_cost_per_conversion: Money | None = None
+    units_sold: Count | None = None
+    direct_units_sold: Count | None = None
+    sales: Money | None = None
+    direct_sales: Money | None = None
+    ads_expense: Money | None = None
+    ads_roas: Ratio | None = None
+    direct_roas: Ratio | None = None
+    acos: Ratio | None = None
+    direct_acos: Ratio | None = None
+    product_views: Count | None = None
+    product_clicks: Count | None = None
+    product_ctr: Ratio | None = None
+    voucher_amount: Money | None = None
+    voucher_sales: Money | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.campaign_name, self.item_id, self.ordinal)
+
+
 class Period(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -453,8 +505,9 @@ class Period(BaseModel):
     def _ordered(self) -> Period:
         if self.end < self.start:
             raise ValueError("period.end is before period.start")
-        if (self.end - self.start).days + 1 > MAX_PERIOD_DAYS:
-            raise ValueError(f"period is longer than {MAX_PERIOD_DAYS} days")
+        # The hard ceiling; a dataset's own, shorter limit is checked in ``validate_rows``.
+        if (self.end - self.start).days + 1 > MAX_ADS_PERIOD_DAYS:
+            raise ValueError(f"period is longer than {MAX_ADS_PERIOD_DAYS} days")
         return self
 
 
