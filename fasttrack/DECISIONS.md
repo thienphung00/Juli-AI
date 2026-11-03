@@ -1794,3 +1794,18 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
     as `workflow.status` with an optional `status_code`. Model text is kept in the conversation
     for audit (Juli Ops) and never emitted; a stored `assistant.text` of an older model-driven
     run renders nothing in the run panel.
+
+- **D82** — Shopee shop view from broad to precise for ORY (owner, 2026-11-03, grill after the
+  ORY meeting of 03/11). Full record: [ADR-120](../docs/adr/120-shopee-precise-shop-view-profit-floor-and-sources.md).
+  1. ORY data may live on the hosted backend (sub-processor approved); C13 / D8 lifted for ORY only.
+  2. Nav: Tổng quan / Phân tích / Sản phẩm (+ sub-tabs) / Quyết định; Cài đặt in the avatar menu.
+  3. Tổng quan = GMV tree × sources (traffic; price lever; ads as overlay) × products.
+  4. The ORY executive's five numbers (% giảm giá, doanh thu thêm / chi thêm, biên cuối, số đơn,
+     AOV) in VND and %, plus a spend cap, head every view and card.
+  5. Ranking kept and extended: source chip, "Xếp theo" switch, rows add up.
+  6. Red line = floor price per SKU (absolute / operating); max discount derived from it.
+  7. Ads carry a purpose (hien_thi / luot_vao_shop / chuyen_doi / ra_mat).
+  8. Key list: up to 5 core keywords per product.
+  9. Seller inputs imported from a template, versioned and restorable.
+  10. Connector may open Seller Centre report pages itself on a schedule (read-only, own session,
+      stop on CAPTCHA); allowed-pages list updated. No third-party Shopee tools.

@@ -446,6 +446,22 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | P68 follow-ups E12 (unscoped webhook side-effect paths) and E13 (webhook/poll dedupe key) | E12, E13 | todo | — |
 | Owner: deploy P68 | — | done: 0d64ca4a (migration 102), 2032d13f, f34827bd; E10 stopped the drained slot on all three | owner |
 
+## P90 — Shopee broad → precise for ORY (D82, ADR-120, 2026-11-03)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| ADR-120 + D82 | — | done | orchestrator |
+| Design: Tổng quan, ranking, Phân tích (`docs/product/design/shopee-shop/`) | owner approval | doing | design agent A |
+| Design: Sản phẩm, what-if card, Cài đặt import | owner approval | doing | design agent B |
+| Migration 112 (snapshots, images, order lines, fee formulas, rule versions, keyword roles, ad purposes, whatif_adjusted) | tests green | doing | schema agent |
+| Loader parsers: affiliate set, ads keyword, ad change log, Flash Sale metrics | tests + dry-run counts | doing | loader agent |
+| `services/shopee_profit/` (fees, order profit, floors, what-if, five numbers, sources) | worked example exact | doing | profit agent |
+| Importer (template, diff, versions, restore) | — | todo (after 112) | — |
+| Ops multi-file upload with PII strip | — | todo | — |
+| Rankings: Shopee streams + source param | — | todo | — |
+| Connector: product list, ads, voucher, discount, affiliate, income readers; export trigger; market module | — | todo (needs a logged-in Seller Centre for recon) | — |
+| UI build | — | blocked on design approval | — |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

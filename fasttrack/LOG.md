@@ -3656,3 +3656,11 @@ reconcile --write` re-derived the no-assert corpus figure.
   claims / skips / fails open). `test_feature_aggregates_contract.py` spies the new reads;
   wiring test expects `hourly_scoring_stage`. Related unit 133 + 80 passed; Postgres
   (throwaway, `JULI_TEST_DATABASE_DISPOSABLE=1`) material handoff + P62-B + P69: 11 passed.
+
+## 2026-11-03 — agent (Claude Opus) — P90: grill after the ORY meeting; ADR-120 / D82
+
+- Grilled the owner on the ORY Shopee pipeline using the 03/11 meeting transcript and ORY's export
+  headers. Wrote ADR-120 and D82. Started five parallel worktrees (fasttrack/reco-*): two design
+  agents, migration 112, loader parsers, `services/shopee_profit/`. Merges come back here.
+- Next: owner approves the artboards; importer and Ops upload after 112; connector recon needs a
+  logged-in Seller Centre tab.
