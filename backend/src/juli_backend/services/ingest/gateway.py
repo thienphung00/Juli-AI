@@ -191,6 +191,8 @@ def validate_rows(spec: DatasetSpec, body: IngestBody, now: datetime) -> list[Da
         raise IngestRejected("captured_at_in_future")
     if body.period.end > platform_today(now):
         raise IngestRejected("period_in_future")
+    if (body.period.end - body.period.start).days + 1 > spec.max_period_days:
+        raise IngestRejected("period_too_long")
     rows: list[DatasetRow] = []
     problems: list[dict[str, Any]] = []
     for index, raw in enumerate(body.rows):
