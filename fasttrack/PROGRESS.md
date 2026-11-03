@@ -467,6 +467,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Ops: ORY contract shop exists (created 02/11, consent on); connector pilot gate = d73a240b-… | Step 5 prereq | done (2026-11-04) | orchestrator |
 | Env: set JULI_ORDER_REF_MASTER_KEY in the backend before the first order upload (rotation = reload history) | Step 2 | todo (owner) | — |
 | Later (Step 7): Ops readers merge `shop_overview_period` months like `_merge_months` | — | todo | — |
+| Assisted execution: execution sheet, deep links, "Đã làm", read-back verify / mismatch / not_seen (Steps 5 + 9) | p90-plan § Assisted execution | todo | — |
 | Release blocker: connector `PILOT_SHOP_IDS` must be ORY's Juli shop id only (owner), not "*", before 0.3.0 ships | — | done (2026-11-04) | orchestrator |
 
 ## P2–P6

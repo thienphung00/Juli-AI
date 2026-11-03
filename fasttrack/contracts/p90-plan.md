@@ -102,3 +102,24 @@ same product shows the same numbers on every screen; no buyer data in any respon
   mãi, Khác (`/api/mydata/v1/product/traffic/details/`, recon doc). Products get all five flows. Source: a new
   connector reader (one call per product per finished day, paced) — the monthly export stays 4 flows and is
   used only where the connector has no day. Closes G-06 (moved to Step 5).
+
+## Assisted execution (owner, 2026-11-04) — how approved cards are carried out before the Open Platform API
+No automated writes to Seller Centre (private endpoints; ADR-116 D7: shop writes need the client's own click).
+Per approved card (any family, contract §12; a `mega_sale` lists its children in schedule order):
+1. **Execution sheet** generated from the frozen card: page to open, field, exact before → after (title text with
+   character count, ROAS target, budget, voucher settings, combo tiers, commission %, slot price…), and the time
+   window (e.g. 11/11 00:00 → 12/11 00:00).
+2. **"Mở trang để sửa"** in Ops / Demo opens the exact Seller Centre page (deep link per change kind); the new value is
+   shown with a copy button. Optional, per change kind, behind a flag: the Connector **fills the field without
+   saving** (never clicks Save / Áp dụng / Xác nhận).
+3. **A person clicks Shopee's own Save** (Thiên or the client's manager) and marks "Đã làm" in Ops → `executed`
+   event with who / when.
+4. **Read-back verification** by the Connector on its next run (product snapshot: title / price / images; ads daily:
+   budget / ROAS target via the time graph; voucher settings list) → `verified` event with the observed value and
+   time, or `mismatch` (value differs) / `not_seen` (no change seen within 48 h) flagged to Ops. Measurement
+   (ADR-107 plan, 14 / 28 days) starts at the verified time.
+5. **Revert** uses the same sheet in reverse (before value), verified the same way.
+Steps: execution sheet + deep links + "Đã làm" + verify/mismatch events → **Step 9** (card UI) and **Step 5**
+(read-back readers); field pre-fill → after Step 9, per change kind, owner approval per kind.
+Later: an `api` executor per change kind when an Open Platform app exists (ADR-117), lowest-risk fields first
+(title, description).
