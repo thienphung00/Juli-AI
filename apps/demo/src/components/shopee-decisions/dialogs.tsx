@@ -1,0 +1,119 @@
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
+
+import { REASON_NOTE_MAX } from "../../lib/quyet-dinh/reasons";
+
+/**
+ * The two sheets of a Shopee card: "Bỏ qua" with the ADR-107 decision-5 reasons (one quick choice,
+ * optional - no choice is recorded as `unspecified`) and "Yêu cầu chỉnh" (a note, required; the
+ * slider values being viewed travel with it). Same overlay look as the TikTok reason dialog.
+ */
+
+export const DISMISS_REASONS: readonly (readonly [string, string])[] = [
+  ["not_needed", "Sản phẩm này không cần thay đổi"],
+  ["wrong_analysis", "Phân tích/gợi ý sai"],
+  ["not_understood", "Không hiểu gợi ý (cần tìm hiểu thêm)"],
+  ["already_done", "Tôi đã làm việc này rồi"],
+  ["later", "Để sau"],
+];
+
+function useEscape(open: boolean, onCancel: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onCancel]);
+}
+
+export function DismissDialog({ open, busy, error, onCancel, onSubmit }: { readonly open: boolean; readonly busy: boolean; readonly error: string | null; readonly onCancel: () => void; readonly onSubmit: (choice: { readonly reasonCode: string | null; readonly note: string | null }) => void }) {
+  const id = useId();
+  const [picked, setPicked] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const first = useRef<HTMLInputElement | null>(null);
+  useEscape(open, onCancel);
+  useEffect(() => {
+    if (open) first.current?.focus();
+  }, [open]);
+  if (!open) return null;
+  return (
+    <div className="qv-overlay" data-testid="sd-dismiss-dialog">
+      <div aria-labelledby={`${id}-t`} aria-modal="true" className="qv-dialog" role="dialog">
+        <h3 className="qv-dialog__title" id={`${id}-t`}>
+          Bỏ qua thẻ này?
+        </h3>
+        <p className="qv-dialog__body">Thẻ rời khỏi Đề xuất. Juli không đổi gì trên shop của bạn.</p>
+        <fieldset className="qv-reasons">
+          <legend>
+            Vì sao? <span>(không bắt buộc)</span>
+          </legend>
+          {DISMISS_REASONS.map(([code, label], index) => (
+            <label className="qv-reason" key={code}>
+              <input checked={picked === code} name={`${id}-reason`} onChange={() => setPicked(code)} ref={index === 0 ? first : undefined} type="radio" value={code} />
+              <span>{label}</span>
+            </label>
+          ))}
+        </fieldset>
+        <label className="qv-dialog__note">
+          Ghi chú thêm (không bắt buộc)
+          <input maxLength={REASON_NOTE_MAX} onChange={(event) => setNote(event.target.value)} type="text" value={note} />
+        </label>
+        {error ? (
+          <p className="qv-inline-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="qv-dialog__actions">
+          <button className="qv-btn qv-btn--secondary" onClick={onCancel} type="button">
+            Quay lại
+          </button>
+          <button className="qv-btn qv-btn--primary" disabled={busy} onClick={() => onSubmit({ reasonCode: picked, note: note.trim() || null })} type="button">
+            Bỏ qua thẻ
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function RequestChangeDialog({ open, busy, error, viewing, onCancel, onSubmit }: { readonly open: boolean; readonly busy: boolean; readonly error: string | null; readonly viewing: string; readonly onCancel: () => void; readonly onSubmit: (note: string) => void }) {
+  const id = useId();
+  const [note, setNote] = useState("");
+  useEscape(open, onCancel);
+  if (!open) return null;
+  return (
+    <div className="qv-overlay" data-testid="sd-request-dialog">
+      <div aria-labelledby={`${id}-t`} aria-modal="true" className="qv-dialog" role="dialog">
+        <h3 className="qv-dialog__title" id={`${id}-t`}>
+          Yêu cầu chỉnh thẻ này
+        </h3>
+        <p className="qv-dialog__body">Đội Juli tính lại và gửi thẻ mới trong 1 ngày làm việc. Các giá trị bạn đang xem được gửi kèm.</p>
+        {viewing ? (
+          <p className="sd-viewing" data-testid="sd-request-viewing">
+            Giá trị đang xem: {viewing}
+          </p>
+        ) : null}
+        <label className="qv-dialog__note">
+          Bạn muốn chỉnh gì?
+          <textarea maxLength={1500} onChange={(event) => setNote(event.target.value)} rows={3} value={note} />
+        </label>
+        {error ? (
+          <p className="qv-inline-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="qv-dialog__actions">
+          <button className="qv-btn qv-btn--secondary" onClick={onCancel} type="button">
+            Quay lại
+          </button>
+          <button className="qv-btn qv-btn--primary" disabled={busy || note.trim() === ""} onClick={() => onSubmit(note.trim())} type="button">
+            Gửi yêu cầu
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

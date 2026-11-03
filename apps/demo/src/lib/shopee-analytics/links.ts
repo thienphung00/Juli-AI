@@ -117,9 +117,10 @@ export const sellerLinks: ShopeeLinks = createLinks({
     put(p, "row", row);
     return `/decisions?${p.toString()}`;
   },
-  // Cài đặt › Thông số shop (Step 4's import): bước tải, SKU preselected.
+  // Cài đặt › Thông số shop (Step 4's import, opens on its first step): `tab=thong-so-shop` is the
+  // one parameter /settings reads; `from` and `sku` say where the person came from.
   costImport: (sku, from) => {
-    const p = new URLSearchParams({ step: "tai", from });
+    const p = new URLSearchParams({ tab: "thong-so-shop", from });
     put(p, "sku", sku);
     return `/settings?${p.toString()}`;
   },
@@ -163,8 +164,12 @@ export function opsTabShopeeLinks(shopId: string): ShopeeLinks {
       query.forEach((v, k) => p.append(k, v));
       return `${base}?${p.toString()}`;
     },
-    // Cards live in Chu kỳ for staff.
-    card: () => `/ops/shops/${encodeURIComponent(shopId)}/chu-ky`,
+    // Cards live in the Ops "Đề xuất" tab of the shop.
+    card: (cardId, from, row) => {
+      const p = new URLSearchParams({ the: cardId, from });
+      put(p, "row", row);
+      return `/ops/shops/${encodeURIComponent(shopId)}/shopee/de-xuat?${p.toString()}`;
+    },
     costImport: () => `/ops/shops/${encodeURIComponent(shopId)}`,
   });
 }

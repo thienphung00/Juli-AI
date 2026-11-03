@@ -146,6 +146,11 @@ export function useShopReport(): ShopReportContextValue {
   return value;
 }
 
+/** Like {@link useShopReport}, `null` outside the provider (screens that also run without the shell). */
+export function useShopReportOptional(): ShopReportContextValue | null {
+  return useContext(ShopReportContext);
+}
+
 /** The envelope the header and Home show, whichever door the visitor used. */
 export function envelopeOf(state: ShopReportState): ShopAnalysisEnvelope | null {
   if (state.status === "ready") return state.envelope;

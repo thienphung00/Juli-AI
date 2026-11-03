@@ -25,6 +25,7 @@ import { REAL_QD_CLIENTS } from "../quyet-dinh/signed-in-quyet-dinh";
 import { SellerViewProvider } from "../seller-view-context";
 import { ShopeeHostProvider } from "../../lib/shopee-analytics/context";
 import { useOpsShopeeHost } from "../shopee-analytics/hosts";
+import { OpsViewAsShopeeDecisions } from "../shopee-decisions/hosts";
 import { ShopeeScreenSwitch } from "../shopee-analytics/shopee-screens";
 import type { ShopeeScreen } from "../../lib/shopee-analytics/params";
 import { C, FONT } from "./ops-shell";
@@ -297,7 +298,10 @@ export function OpsViewAs({
                   envelope === null ? <p role="status">Shop chưa có báo cáo.</p> : <OpsSkeleton variant="cards" rows={3} />
                 )
               ) : null}
-              {tab === "decisions" || tab === "rules" ? (
+              {isShopee && tab === "decisions" ? (
+                <OpsViewAsShopeeDecisions fetchImpl={baseFetch} params={qdParams} shopId={shopId} shopName={session?.shop.shop_name} />
+              ) : null}
+              {(tab === "decisions" && !isShopee) || tab === "rules" ? (
                 <QuyetDinhView clients={clients} key={tab} onNavigate={onNavigate} query={qdQuery} shop={{ id: shopId, name }} token={token} />
               ) : null}
             </div>
