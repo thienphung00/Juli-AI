@@ -117,6 +117,15 @@ class PlatformDailyMetricsRepo(ShopScopedRepo[PlatformDailyMetric]):
         ).with_only_columns(func.max(PlatformDailyMetric.day))
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
+    async def latest_days(self, shop_id: uuid.UUID) -> dict[str, date]:
+        """The newest ``day`` of every dataset the shop has day rows for."""
+        stmt = (
+            self._scoped(shop_id, PlatformDailyMetric.platform == PLATFORM_SHOPEE)
+            .with_only_columns(PlatformDailyMetric.dataset, func.max(PlatformDailyMetric.day))
+            .group_by(PlatformDailyMetric.dataset)
+        )
+        return {d: day for d, day in (await self._session.execute(stmt)).all() if day is not None}
+
 
 class PlatformPeriodMetricsRepo(ShopScopedRepo[PlatformPeriodMetric]):
     _model = PlatformPeriodMetric
@@ -146,6 +155,17 @@ class PlatformPeriodMetricsRepo(ShopScopedRepo[PlatformPeriodMetric]):
         if not any_item:
             stmt = stmt.where(PlatformPeriodMetric.item_id == (item_id or ""))
         return await self._all(stmt)
+
+    async def latest_ends(self, shop_id: uuid.UUID) -> dict[str, date]:
+        """The newest ``period_end`` of every dataset the shop has period rows for."""
+        stmt = (
+            self._scoped(shop_id, PlatformPeriodMetric.platform == PLATFORM_SHOPEE)
+            .with_only_columns(
+                PlatformPeriodMetric.dataset, func.max(PlatformPeriodMetric.period_end)
+            )
+            .group_by(PlatformPeriodMetric.dataset)
+        )
+        return {d: end for d, end in (await self._session.execute(stmt)).all() if end is not None}
 
 
 class PlatformItemsRepo(ShopScopedRepo[PlatformItem]):
@@ -181,6 +201,28 @@ class PlatformItemSnapshotsRepo(ShopScopedRepo[PlatformItemSnapshot]):
         if item_ids is not None:
             stmt = stmt.where(PlatformItemSnapshot.item_id.in_(list(item_ids)))
         return await self._all(stmt)
+
+    async def history(
+        self, shop_id: uuid.UUID, item_id: str, limit: int = 50
+    ) -> list[PlatformItemSnapshot]:
+        """The item's own snapshots (variation ``''``), newest first -- one per change."""
+        stmt = (
+            self._scoped(
+                shop_id,
+                PlatformItemSnapshot.platform == PLATFORM_SHOPEE,
+                PlatformItemSnapshot.item_id == item_id,
+                PlatformItemSnapshot.variation_id == "",
+            )
+            .order_by(PlatformItemSnapshot.captured_at.desc())
+            .limit(limit)
+        )
+        return await self._all(stmt)
+
+    async def latest_capture(self, shop_id: uuid.UUID) -> datetime | None:
+        stmt = self._scoped(
+            shop_id, PlatformItemSnapshot.platform == PLATFORM_SHOPEE
+        ).with_only_columns(func.max(PlatformItemSnapshot.captured_at))
+        return (await self._session.execute(stmt)).scalar_one_or_none()
 
 
 class PlatformPromotionsRepo(ShopScopedRepo[PlatformPromotion]):

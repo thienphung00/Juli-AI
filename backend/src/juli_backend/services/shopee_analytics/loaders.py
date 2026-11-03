@@ -953,6 +953,63 @@ async def load_keyword_market(session: AsyncSession, keywords: list[str]) -> dic
     return {m.keyword: m for m in await MarketKeywordMetricsReadRepo(session).latest(keywords)}
 
 
+async def load_freshness(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Any]:
+    """The newest day each stored dataset reaches, for the screens' "dữ liệu cũ" state. Day rows
+    give their ``day``, period rows their ``period_end``, order lines their last order day and
+    snapshots their last capture. Datasets the shop has no rows for are simply absent."""
+    daily = await PlatformDailyMetricsRepo(session).latest_days(shop_id)
+    periods = await PlatformPeriodMetricsRepo(session).latest_ends(shop_id)
+    bounds = await ShopeeOrderLinesRepo(session).day_bounds(shop_id)
+    snap = await PlatformItemSnapshotsRepo(session).latest_capture(shop_id)
+    out: dict[str, Any] = {
+        **{d: {"kind": "daily", "latest_day": day} for d, day in daily.items()},
+        **{d: {"kind": "period", "latest_day": end} for d, end in periods.items()},
+    }
+    if bounds is not None:
+        out["order_lines"] = {"kind": "orders", "latest_day": bounds[1]}
+    if snap is not None:
+        out["item_snapshots"] = {"kind": "snapshot", "latest_day": snap.date()}
+    return out
+
+
+@dataclass
+class ProductDay:
+    day: date
+    gmv: Decimal
+    orders: Decimal
+    views: Decimal | None = None
+    clicks: Decimal | None = None
+
+
+async def load_product_daily(
+    session: AsyncSession, shop_id: uuid.UUID, item_id: str, window: Window
+) -> tuple[list[ProductDay], str]:
+    """One product's GMV / orders / views / clicks per day in the window (confirmed orders,
+    all flows). Source: the Connector's ``item_traffic_sources`` day rows; without them the
+    order lines give GMV and orders only (views / clicks None). Returns (days, source)."""
+    rows = await PlatformDailyMetricsRepo(session).window(
+        shop_id,
+        datasets=ITEM_SOURCE_DAILY,
+        start=window.start,
+        end=window.end,
+        streams=[*STREAM_TO_SOURCE],
+        order_types=[CONFIRMED],
+        item_id=item_id,
+    )
+    by_day: dict[date, ProductDay] = {}
+    for r in rows:
+        if r.segment != "all":
+            continue
+        d = by_day.setdefault(r.day, ProductDay(r.day, ZERO, ZERO, ZERO, ZERO))
+        d.gmv += _z(r.gmv)
+        d.orders += _z(r.orders)
+        d.views = (d.views or ZERO) + _z(r.impressions)
+        d.clicks = (d.clicks or ZERO) + _z(r.clicks)
+    if by_day:
+        return [by_day[k] for k in sorted(by_day)], "item_traffic_sources"
+    return [], "none"
+
+
 @dataclass
 class ListingSource:
     """What the listing audits read about one product: its newest snapshot (title, images,
