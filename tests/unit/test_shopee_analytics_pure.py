@@ -417,3 +417,19 @@ def test_per_day_scaling_divides_by_each_windows_own_length():
     )
     assert out["cell"]["now"] == 100 and out["cell"]["before"] == 50 and out["cell"]["delta"] == 50
     assert out["adds_up"] is True
+
+
+def test_monthly_targets_from_the_seller_import_override_shop_wide_ones_for_their_month():
+    rules = read_rules(
+        [
+            RuleRow("monthly_gmv_target", "", 20_000_000),
+            RuleRow("monthly_gmv_target", "2026-11", 25_000_000),
+            RuleRow("daily_marketing_cap", "2026-11", 160_000),
+        ]
+    )
+    assert rules.target("gmv_month") == 20_000_000
+    november = rules.for_month("2026-11")
+    assert november.target("gmv_month") == 25_000_000
+    assert november.target("daily_marketing_cap") == 160_000
+    assert rules.for_month("2026-12").target("gmv_month") == 20_000_000
+    assert rules.for_month("2026-12").target("daily_marketing_cap") is None

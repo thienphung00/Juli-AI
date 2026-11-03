@@ -9,6 +9,7 @@ matching builder. Nothing is written. The caller runs inside the shop's scope.
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import date
 from typing import Any
 
@@ -51,6 +52,7 @@ async def _views(
     if window is None:
         raise NoShopeeData(str(shop_id))
     ctx = await loaders.load_context(session, shop_id)
+    ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
     now = await service.load_view(session, shop_id, ctx, window)
     before = await service.load_view(session, shop_id, ctx, window.previous())
     return ctx, now, before
@@ -145,6 +147,7 @@ async def product_page(
     if anchor is None:
         raise NoShopeeData(str(shop_id))
     ctx = await loaders.load_context(session, shop_id)
+    ctx = replace(ctx, rules=ctx.rules.for_month(f"{anchor:%Y-%m}"))
     views: dict[str, tuple[PeriodView, PeriodView]] = {}
     for key in PRODUCT_PERIODS:
         window = await service.resolve(session, shop_id, period=key, as_of=anchor)

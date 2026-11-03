@@ -9,8 +9,9 @@ missing target is ``None``, never a default.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
 
@@ -54,6 +55,9 @@ def _number(value: Any) -> Decimal | None:
         return None
 
 
+_MONTH = re.compile(r"\d{4}-\d{2}")
+
+
 @dataclass(frozen=True)
 class RuleRow:
     rule_key: str
@@ -69,14 +73,23 @@ class ProfitRules:
     max_discount_pct: dict[str, Decimal] = field(default_factory=dict)
     default_max_discount_pct: Decimal | None = None
     targets: dict[str, Decimal | None] = field(default_factory=dict)
+    #: month ("YYYY-MM") -> target name -> value, from the seller import's monthly targets (Step 4).
+    targets_by_month: dict[str, dict[str, Decimal]] = field(default_factory=dict)
 
     def target(self, name: str) -> Decimal | None:
         return self.targets.get(name)
+
+    def for_month(self, month: str) -> ProfitRules:
+        """These rules with the month's own targets over the shop-wide ones."""
+        merged = dict(self.targets)
+        merged.update(self.targets_by_month.get(month, {}))
+        return replace(self, targets=merged)
 
 
 def read_rules(rows: Iterable[RuleRow]) -> ProfitRules:
     rules = ProfitRules()
     shop_wide: dict[str, Decimal] = {}
+    monthly: dict[str, dict[str, Decimal]] = {}
     for row in rows:
         number = _number(row.value)
         if number is None:
@@ -94,8 +107,14 @@ def read_rules(rows: Iterable[RuleRow]) -> ProfitRules:
             rules.default_max_discount_pct = number
         elif not scope:
             shop_wide[row.rule_key] = number
+        elif _MONTH.fullmatch(scope):
+            monthly.setdefault(scope, {})[row.rule_key] = number
     for name, aliases in TARGET_ALIASES.items():
         rules.targets[name] = next((shop_wide[a] for a in aliases if a in shop_wide), None)
+        for month, keyed in monthly.items():
+            value = next((keyed[a] for a in aliases if a in keyed), None)
+            if value is not None:
+                rules.targets_by_month.setdefault(month, {})[name] = value
     return rules
 
 
