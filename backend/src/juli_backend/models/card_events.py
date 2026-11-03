@@ -57,6 +57,8 @@ EVENT_IMPACT_FINAL = "impact_final"
 EVENT_SELLER_CHANGE = "seller_change"
 EVENT_SHADOW = "shadow"
 EVENT_SUPERSEDED = "superseded"
+#: ADR-120 (migration 112): the seller moved a what-if input on a card. Many per card.
+EVENT_WHATIF_ADJUSTED = "whatif_adjusted"
 
 #: ADR-107 amendment §1, in the table's order.
 EVENT_TYPES: tuple[str, ...] = (
@@ -75,6 +77,7 @@ EVENT_TYPES: tuple[str, ...] = (
     EVENT_SELLER_CHANGE,
     EVENT_SHADOW,
     EVENT_SUPERSEDED,
+    EVENT_WHATIF_ADJUSTED,
 )
 
 #: Once per card, whatever the run: unique on (card_id, event_type).

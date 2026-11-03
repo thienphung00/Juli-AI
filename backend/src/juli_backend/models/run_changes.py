@@ -25,7 +25,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, CheckConstraint, ForeignKey, Index, String, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from juli_backend.orm_base import Base
@@ -108,6 +118,40 @@ class ShopRule(Base):
     set_by: Mapped[str] = mapped_column(String(10), nullable=False)
     set_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     set_at: Mapped[datetime] = mapped_column(nullable=False)
+
+
+class ShopRuleVersion(Base):
+    """One version of a shop rule value (ADR-120, migration 112). Append-only.
+
+    ``shop_rules`` stays the CURRENT projection the readers use; every change (a
+    spreadsheet import, a seller edit, a restore of an older version) also appends a
+    row here with who, why and the import file's hash. Restoring a version appends a
+    new version that copies the old value -- history is never rewritten.
+    """
+
+    __tablename__ = "shop_rule_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "shop_id", "rule_key", "scope_ref", "version", name="uq_shop_rule_versions_key"
+        ),
+        CheckConstraint("set_by IN ('team', 'seller')", name="ck_shop_rule_versions_set_by"),
+        CheckConstraint("version >= 1", name="ck_shop_rule_versions_version"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False, index=True)
+    rule_key: Mapped[str] = mapped_column(String(40), nullable=False)
+    #: As ``ShopRule.scope_ref``: an item / variation id, or ``""`` for the shop.
+    scope_ref: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    value: Mapped[Any] = mapped_column(JSON, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    set_by: Mapped[str] = mapped_column(String(10), nullable=False)
+    set_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    reason: Mapped[str | None] = mapped_column(Text)
+    #: SHA-256 of the uploaded spreadsheet this version came from, when it came from one.
+    import_file_hash: Mapped[str | None] = mapped_column(String(64))
+    valid_from: Mapped[datetime] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
 
 class RunRevertQuestion(Base):

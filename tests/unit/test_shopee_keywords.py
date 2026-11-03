@@ -75,7 +75,12 @@ def test_migration_111_fits_alembic_and_the_deferred_tail_moved_onto_it():
     mig = _module()
     assert mig.revision == "111_shopee_keywords" and len(mig.revision) <= 32
     assert mig.down_revision == "110_ops_shop_platform"
-    assert f'down_revision: str | None = "{mig.revision}"' in BACKFILL.read_text("utf-8")
+    # ADR-120's 112 (Shopee profit and history) went on 111 and took the deferred tail.
+    later = (MIGRATIONS / "versions/112_shopee_profit_and_history.py").read_text("utf-8")
+    assert f'down_revision: str | None = "{mig.revision}"' in later
+    assert 'down_revision: str | None = "112_shopee_profit_and_history"' in BACKFILL.read_text(
+        "utf-8"
+    )
 
 
 def test_the_additive_gate_accepts_migration_111_and_its_upgrade_only_adds():
@@ -108,7 +113,11 @@ def test_migration_vocabularies_match_the_models_and_the_decomposer():
 )
 def test_every_model_column_is_created_by_the_migration(model):
     source = MIGRATION.read_text("utf-8")
+    # ``role`` / ``item_scope`` came later, with migration 112 (ADR-120).
+    later = {"role", "item_scope"}
     for column in model.__table__.columns.keys():
+        if column in later:
+            continue
         assert f'sa.Column("{column}"' in source, f"{model.__tablename__}.{column}"
 
 
