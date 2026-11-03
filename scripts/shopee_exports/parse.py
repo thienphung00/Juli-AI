@@ -52,12 +52,12 @@ import os
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from scripts.shopee_exports.xlsx import Rows, read_workbook
 
@@ -102,6 +102,8 @@ class Parsed:
     #: HMAC key of ``order_ref``; None = a random per-run key (refs are then run-local).
     order_ref_key: bytes | None = None
     skipped_files: list[str] = field(default_factory=list)
+    #: file name -> why it is not loaded (no parser, or a granularity that cannot be told).
+    skipped_reasons: dict[str, str] = field(default_factory=dict)
     #: (file, reason) for rows / cards deliberately not loaded.
     notes: Counter[str] = field(default_factory=Counter)
 
@@ -166,6 +168,115 @@ def _captured_at(path: Path) -> str:
     return stamp.replace(tzinfo=None).isoformat(timespec="seconds") + "+07:00"
 
 
+# -- granularity (G-02) ------------------------------------------------------------------
+
+DAILY, MONTHLY, AMBIGUOUS = "day", "month", "ambiguous"
+
+
+def _next_month(first: date) -> date:
+    return (first.replace(day=1) + timedelta(days=32)).replace(day=1)
+
+
+def granularity(days: Iterable[date], span: tuple[date, date] | None = None) -> str:
+    """Whether a sheet's ``Ngày`` rows are consecutive days or one row per month.
+
+    Seller Centre lets the exporter pick the granularity; a "monthly" workbook still labels
+    each row with a ``DD-MM-YYYY`` date, the 1st of its month, so only the spacing tells.
+    ``span`` is the file name's period. Anything that is neither is ``AMBIGUOUS``: the
+    caller skips it and says so, it never guesses."""
+    rows = sorted(set(days))
+    if len(rows) <= 1:
+        if not rows or rows[0].day != 1:
+            return DAILY  # a month row is always the 1st
+        return DAILY if span is not None and span[0] == span[1] else AMBIGUOUS
+    if all(d.day == 1 for d in rows):
+        ok = all(_next_month(a) == b for a, b in zip(rows, rows[1:], strict=False))
+        return MONTHLY if ok else AMBIGUOUS
+    # Month rows sit 28+ days apart, so two rows one day apart are daily evidence. Without
+    # that, days with gaps are still days when the file covers at most a month.
+    if any((b - a).days == 1 for a, b in zip(rows, rows[1:], strict=False)):
+        return DAILY
+    if span is not None and (span[1] - span[0]).days + 1 <= MAX_PERIOD_DAYS:
+        return DAILY
+    return AMBIGUOUS
+
+
+def _month_period(first: date, span: tuple[date, date] | None) -> tuple[date, date]:
+    """The month a roll-up row stands for, cut at the file's last day (a partial last month)."""
+    end = _next_month(first) - timedelta(days=1)
+    return first, min(end, span[1]) if span is not None and span[1] >= first else end
+
+
+def _span(path: Path) -> tuple[date, date] | None:
+    try:
+        return _file_period(path)
+    except ValueError:
+        return None
+
+
+def _skip_ambiguous(parsed: Parsed, file: str, what: str, days: list[date]) -> None:
+    reason = f"{what}: granularity cannot be told from {len(set(days))} dated rows (not loaded)"
+    parsed.notes[f"{file}: {reason}"] += 1
+    parsed.skipped_reasons.setdefault(file, reason)
+
+
+def _daily_or_skip(
+    parsed: Parsed, file: str, what: str, days: list[date], span: tuple[date, date] | None
+) -> bool:
+    """True when the sheet's rows are consecutive days. A monthly or unclear sheet is skipped
+    with a note (only shop_overview and traffic_overview have a period dataset to route to)."""
+    kind = granularity(days, span)
+    if kind == DAILY:
+        return True
+    if kind == MONTHLY:
+        reason = f"{what}: monthly roll-up with no period dataset (not loaded)"
+        parsed.notes[f"{file}: {reason}"] += 1
+        parsed.skipped_reasons.setdefault(file, reason)
+    else:
+        _skip_ambiguous(parsed, file, what, days)
+    return False
+
+
+# -- rates above 1 -----------------------------------------------------------------------
+
+#: Fields the gateway holds as a fraction in [0, 1] (``schemas.Rate``).
+RATE_FIELDS = frozenset(
+    {
+        "conversion_rate",
+        "repeat_purchase_rate",
+        "bounce_rate",
+        "atc_rate",
+        "ctr",
+        "product_clicks_to_orders_rate",
+        "conversion",
+    }
+)
+_Parser = TypeVar("_Parser", bound=Callable[[Path, "Parsed"], None])
+
+
+def _drop_rates_above_one(parsed: Parsed, since: int) -> None:
+    """A derived rate can exceed 1 (orders past visitors, clicks past views) and the gateway
+    would refuse the whole post for it. The value is dropped from its row (readers recompute
+    it from the counts) and counted in a note; a count is never touched (G-01)."""
+    for post in parsed.posts[since:]:
+        for row in post.body["rows"]:
+            for name in RATE_FIELDS & row.keys():
+                if isinstance(row[name], int | float) and row[name] > 1:
+                    del row[name]
+                    parsed.notes[f"{post.file}: {post.dataset}.{name} above 1 not posted"] += 1
+
+
+def _guarded(parser: _Parser) -> _Parser:
+    def wrapped(path: Path, parsed: Parsed) -> None:
+        since = len(parsed.posts)
+        parser(path, parsed)
+        _drop_rates_above_one(parsed, since)
+
+    wrapped.__name__ = parser.__name__
+    wrapped.__doc__ = parser.__doc__
+    return wrapped  # type: ignore[return-value]
+
+
 # -- column tables -----------------------------------------------------------------------
 
 #: ``(field, order_type or None)``; None = the same for every order type. ``None`` as the
@@ -180,7 +291,10 @@ SHOP_OVERVIEW: dict[str, Column] = {
     "Doanh số trên mỗi đơn hàng": ("sales_per_order", None),
     "Lượt nhấp vào sản phẩm": ("product_clicks", None),
     "Số lượt truy cập": ("visitors", None),
-    "Tỷ lệ chuyển đổi đơn hàng": ("conversion_rate", None),
+    # Derived (orders / visitors) and above 1 on a tiny day, where orders exceed visitors:
+    # the gateway's rate guard would refuse the whole post (G-01). Not posted, like CTR;
+    # readers recompute it from ``orders`` and ``visitors``.
+    "Tỷ lệ chuyển đổi đơn hàng": (None, None),
     "Đơn đã hủy": ("cancelled_orders", None),
     "Doanh số đơn hủy": ("cancelled_sales", None),
     "Đơn đã hoàn trả / hoàn tiền": ("returned_orders", None),
@@ -506,7 +620,16 @@ def _sheet_order_type(name: str) -> str | None:
     return None
 
 
-def _shop_overview(sheet: Rows, order_type: str, captured_at: str, file: str) -> list[Post]:
+def _shop_overview(
+    sheet: Rows,
+    order_type: str,
+    captured_at: str,
+    file: str,
+    parsed: Parsed,
+    span: tuple[date, date] | None,
+) -> list[Post]:
+    """Day rows → ``shop_overview``; a monthly roll-up (one row per month, dated the 1st) →
+    one ``shop_overview_period`` post per month; an unclear sheet is skipped with a note."""
     rows: list[dict[str, Any]] = []
     columns: list[Column | None] | None = None
     for row in sheet:
@@ -518,6 +641,26 @@ def _shop_overview(sheet: Rows, order_type: str, captured_at: str, file: str) ->
         if columns is None or not _is_day(row[0]):
             continue  # the export's own period-total row
         rows.append({"date": day(str(row[0])).isoformat(), **_values(row, columns, None)})
+    days = [date.fromisoformat(r["date"]) for r in rows]
+    kind = granularity(days, span)
+    if kind == AMBIGUOUS:
+        _skip_ambiguous(parsed, file, "shop_overview", days)
+        return []
+    if kind == MONTHLY:
+        parsed.notes[f"{file}: monthly roll-up, {len(rows)} months as period rows"] += 1
+        posts: list[Post] = []
+        for r in rows:
+            start, end = _month_period(date.fromisoformat(r["date"]), span)
+            posts += _period_post(
+                "shop_overview_period",
+                [{k: v for k, v in r.items() if k != "date"}],
+                start,
+                end,
+                order_type=order_type,
+                captured_at=captured_at,
+                file=file,
+            )
+        return posts
     return _daily_posts(
         "shop_overview", rows, order_type=order_type, captured_at=captured_at, file=file
     )
@@ -600,17 +743,61 @@ def _items_by_source(sheet: Rows) -> list[dict[str, Any]]:
     return rows
 
 
+def _monthly_sources(
+    daily: list[dict[str, Any]],
+    span: tuple[date, date],
+    *,
+    order_type: str,
+    captured_at: str,
+    file: str,
+) -> list[Post]:
+    """A monthly roll-up's per-source rows → one ``traffic_overview_period`` post per month."""
+    posts: list[Post] = []
+    for first in sorted({date.fromisoformat(r["date"]) for r in daily}):
+        start, end = _month_period(first, span)
+        rows = [
+            {k: v for k, v in r.items() if k != "date"}
+            for r in daily
+            if r["date"] == first.isoformat()
+        ]
+        posts += _period_post(
+            "traffic_overview_period",
+            rows,
+            start,
+            end,
+            order_type=order_type,
+            captured_at=captured_at,
+            file=file,
+        )
+    return posts
+
+
+@_guarded
 def parse_shop_stats(path: Path, parsed: Parsed) -> None:
     start, end = _file_period(path)
     captured = _captured_at(path)
     file = path.name
     for name, sheet in read_workbook(path).items():
         if name in SHOP_OVERVIEW_SHEETS:
-            parsed.posts += _shop_overview(sheet, SHOP_OVERVIEW_SHEETS[name], captured, file)
+            parsed.posts += _shop_overview(
+                sheet, SHOP_OVERVIEW_SHEETS[name], captured, file, parsed, (start, end)
+            )
             continue
         order_type = _sheet_order_type(name)
         if name.startswith("(") and "Theo ngu" in name and order_type:
             daily, totals = _source_blocks(sheet, parsed, file)
+            days = [date.fromisoformat(r["date"]) for r in daily]
+            kind = granularity(days, (start, end))
+            if kind == AMBIGUOUS:
+                _skip_ambiguous(parsed, file, name, days)
+                continue
+            if kind == MONTHLY:
+                # The sheet's own total rows cover the whole file, which is not a month.
+                parsed.notes[f"{file}: monthly roll-up, {name} as period rows"] += 1
+                parsed.posts += _monthly_sources(
+                    daily, (start, end), order_type=order_type, captured_at=captured, file=file
+                )
+                continue
             parsed.posts += _daily_posts(
                 "traffic_overview", daily, order_type=order_type, captured_at=captured, file=file
             )
@@ -645,6 +832,7 @@ def _id(cell: str | None) -> str:
     return "" if text in ("", "-") else text
 
 
+@_guarded
 def parse_products(path: Path, parsed: Parsed) -> None:
     start, end = _file_period(path)
     captured = _captured_at(path)
@@ -736,6 +924,7 @@ def _run(text: str) -> tuple[str, str]:
     )
 
 
+@_guarded
 def parse_discount(path: Path, parsed: Parsed) -> None:
     start, end = _file_period(path)
     captured = _captured_at(path)
@@ -743,6 +932,8 @@ def parse_discount(path: Path, parsed: Parsed) -> None:
     sheets = read_workbook(path)
     chart = sheets.get("Biểu đồ", [])
     programs = sheets.get("Danh sách hiệu suất", [])
+    chart_days = [day(str(r[0])) for r in chart[1:] if not _blank(r) and _is_day(r[0])]
+    chart_daily = _daily_or_skip(parsed, file, "Biểu đồ", chart_days, (start, end))
     for order_type in (PLACED, CONFIRMED):
         if chart:
             columns = _promotion_columns(chart[0])
@@ -756,7 +947,11 @@ def parse_discount(path: Path, parsed: Parsed) -> None:
                 if not _blank(r) and _is_day(r[0])
             ]
             parsed.posts += _daily_posts(
-                "promotion_daily", rows, order_type=order_type, captured_at=captured, file=file
+                "promotion_daily",
+                rows if chart_daily else [],
+                order_type=order_type,
+                captured_at=captured,
+                file=file,
             )
         if programs:
             columns = _promotion_columns(programs[0])
@@ -813,9 +1008,14 @@ def _simple_daily(
     return rows
 
 
+@_guarded
 def parse_product_overview(path: Path, parsed: Parsed) -> None:
     captured = _captured_at(path)
     sheet = read_workbook(path).get("overview", [])
+    placed = _simple_daily(sheet, PRODUCT_OVERVIEW, PLACED, {})
+    days = [date.fromisoformat(r["date"]) for r in placed]
+    if not _daily_or_skip(parsed, path.name, "overview", days, _span(path)):
+        return
     for order_type in (PLACED, CONFIRMED):
         rows = _simple_daily(sheet, PRODUCT_OVERVIEW, order_type, {})
         parsed.posts += _daily_posts(
@@ -823,6 +1023,7 @@ def parse_product_overview(path: Path, parsed: Parsed) -> None:
         )
 
 
+@_guarded
 def parse_shop_traffic(path: Path, parsed: Parsed) -> None:
     captured = _captured_at(path)
     rows: list[dict[str, Any]] = []
@@ -831,6 +1032,10 @@ def parse_shop_traffic(path: Path, parsed: Parsed) -> None:
         if device is None:
             raise UnknownColumn(f"sheet {name}")
         rows += _simple_daily(sheet, SHOP_TRAFFIC, None, {"device": device})
+    # One workbook has one granularity: judged over every device sheet together.
+    days = [date.fromisoformat(r["date"]) for r in rows]
+    if not _daily_or_skip(parsed, path.name, "Tất cả / Máy tính / Ứng dụng", days, _span(path)):
+        return
     parsed.posts += _daily_posts(
         "shop_traffic", rows, order_type=None, captured_at=captured, file=path.name
     )
@@ -840,6 +1045,9 @@ def parse_shop_traffic(path: Path, parsed: Parsed) -> None:
 
 _SLOT = re.compile(r"^(\d{2}):(\d{2})-(\d{2}):(\d{2}) (\d{2})-(\d{2})-(\d{4})(?:\s+\+(\d+))?$")
 _DAY_RANGE = re.compile(r"^(\d{2})-(\d{2})-(\d{4})\s*-\s*(\d{2})-(\d{2})-(\d{4})$")
+_FLASH_METRICS_SPAN = re.compile(
+    r"_(\d{2})(\d{2})(\d{4})-(\d{2})(\d{2})(\d{4})(?:[ _+]?\(\d+\))?\.xlsx$"
+)
 _FLASH_FILE_DAY = re.compile(r"_(\d{2})(\d{2})(\d{4})\.xlsx$")
 
 #: Both lists use the discount export's ``(đặt hàng)`` / ``(Đơn đặt hàng được xác nhận)``
@@ -1784,6 +1992,19 @@ def parse_ops_log(path: Path, parsed: Parsed) -> None:
 FLASH_METRIC_SHEETS = ("Tổng quan", "Chỉ Số")
 
 
+def _flash_span(path: Path) -> tuple[date, date] | None:
+    """The ``DDMMYYYY-DDMMYYYY`` period in an ``In_Shop_Flash_Sale_Metrics`` file name."""
+    match = _FLASH_METRICS_SPAN.search(path.name)
+    if match is None:
+        return None
+    d1, m1, y1, d2, m2, y2 = (int(part) for part in match.groups())
+    try:
+        return date(y1, m1, d1), date(y2, m2, d2)
+    except ValueError:
+        return None
+
+
+@_guarded
 def parse_flash_sale_metrics(path: Path, parsed: Parsed) -> None:
     """``In_Shop_Flash_Sale_Metrics_<range>.xlsx``: ``Chỉ Số`` is one row per day (→
     ``promotion_daily``, type ``Flash Sale``); ``Tổng quan`` the period total (→
@@ -1795,7 +2016,8 @@ def parse_flash_sale_metrics(path: Path, parsed: Parsed) -> None:
         if name not in FLASH_METRIC_SHEETS:
             parsed.notes[f"{file}: sheet not loaded: {name}"] += 1
     daily = sheets.get("Chỉ Số", [])
-    if daily:
+    flash_days = [day(str(r[0])) for r in daily[1:] if not _blank(r) and _is_day(r[0])]
+    if daily and _daily_or_skip(parsed, file, "Chỉ Số", flash_days, _flash_span(path)):
         columns = _columns([None, *daily[0][1:]], FLASH_LIST)
         for order_type in (PLACED, CONFIRMED):
             rows = [
@@ -1875,6 +2097,48 @@ PARSERS: tuple[tuple[re.Pattern[str], Any], ...] = (
 )
 
 
+_FLASH_METRICS_FILE = re.compile(r"^In_Shop_Flash_Sale_Metrics_", re.I)
+FLASH_SALE = "Flash Sale"
+
+
+def _one_flash_sale_owner(parsed: Parsed) -> None:
+    """Flash Sale day rows come from two files on one gateway key (order type, day, type
+    ``Flash Sale``): ``discount_*`` ``Biểu đồ`` and ``In_Shop_Flash_Sale_Metrics_*`` ``Chỉ Số``.
+    The gateway keeps the last post at equal rank, so file order would decide silently (G-23).
+    The dedicated metrics file is the owner (it is the Flash Sale report itself and states the
+    day's own figures); a discount row is dropped only for a day the metrics file covers, so
+    the discount file still fills the days it does not. Every drop is counted in a note."""
+    owned = {
+        (post.body.get("order_type"), row["date"])
+        for post in parsed.posts
+        if post.dataset == "promotion_daily" and _FLASH_METRICS_FILE.match(post.file)
+        for row in post.body["rows"]
+        if row["promo_type"] == FLASH_SALE
+    }
+    if not owned:
+        return
+    kept: list[Post] = []
+    for post in parsed.posts:
+        if post.dataset == "promotion_daily" and not _FLASH_METRICS_FILE.match(post.file):
+            rows = [
+                row
+                for row in post.body["rows"]
+                if row["promo_type"] != FLASH_SALE
+                or (post.body.get("order_type"), row["date"]) not in owned
+            ]
+            dropped = len(post.body["rows"]) - len(rows)
+            if dropped:
+                parsed.notes[
+                    f"{post.file}: {dropped} Flash Sale day rows dropped, the "
+                    "In_Shop_Flash_Sale_Metrics file owns those days"
+                ] += 1
+                if not rows:
+                    continue
+                post.body["rows"] = rows
+        kept.append(post)
+    parsed.posts = kept
+
+
 def parse_folder(
     folder: Path,
     *,
@@ -1890,6 +2154,8 @@ def parse_folder(
         parser = next((fn for pattern, fn in PARSERS if pattern.search(name)), None)
         if parser is None:
             parsed.skipped_files.append(path.name)
+            parsed.skipped_reasons[path.name] = "no parser for this export (never opened)"
             continue
         parser(path, parsed)
+    _one_flash_sale_owner(parsed)
     return parsed

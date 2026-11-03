@@ -96,9 +96,9 @@ def summary(parsed: Parsed) -> str:
             held_rows[post.dataset] += len(post.body["rows"])
         lines.append("reserved (parsed and validated, NOT sent: no table yet):")
         lines += [f"{name:<26}{held[name]:>7}{held_rows[name]:>9}" for name in sorted(held)]
-    if parsed.skipped_files:
-        lines.append(f"files not loaded ({len(parsed.skipped_files)}):")
-        lines += [f"  {name}" for name in parsed.skipped_files]
+    if parsed.skipped_reasons:
+        lines.append(f"files not loaded ({len(parsed.skipped_reasons)}):")
+        lines += [f"  {name}: {why}" for name, why in sorted(parsed.skipped_reasons.items())]
     for note, count in sorted(parsed.notes.items()):
         lines.append(f"note: {note} x{count}")
     return "\n".join(lines)

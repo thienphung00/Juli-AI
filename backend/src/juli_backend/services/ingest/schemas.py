@@ -265,11 +265,8 @@ class ShopeeShopTrafficRow(RowBase):
         return (self.date, self.device)
 
 
-class ShopeeShopOverviewRow(RowBase):
-    """``shopee.shop_overview``: one day, whole shop (Phân tích bán hàng › Tổng quan).
-
-    One post per order type: the export has a sheet each for placed / confirmed / paid.
-    """
+class _ShopOverviewFields(BaseModel):
+    """The shop-level metric set of Phân tích bán hàng › Tổng quan (one order type per post)."""
 
     sales: Money | None = None
     sales_excl_shopee_subsidy: Money | None = None
@@ -277,6 +274,8 @@ class ShopeeShopOverviewRow(RowBase):
     sales_per_order: Money | None = None
     product_clicks: Count | None = None
     visitors: Count | None = None
+    #: Not posted by the file loader: orders / visitors can exceed 1 on a tiny day (G-01),
+    #: and readers recompute it from the counts. Kept for senders that do state it.
     conversion_rate: Rate | None = None
     cancelled_orders: Count | None = None
     cancelled_sales: Money | None = None
@@ -288,6 +287,21 @@ class ShopeeShopOverviewRow(RowBase):
     #: Net, like ``new_followers``: Seller Centre shows a small negative on some days.
     potential_buyers: SignedCount | None = None
     repeat_purchase_rate: Rate | None = None
+
+
+class ShopeeShopOverviewRow(RowBase, _ShopOverviewFields):
+    """``shopee.shop_overview``: one day, whole shop (Phân tích bán hàng › Tổng quan).
+
+    One post per order type: the export has a sheet each for placed / confirmed / paid.
+    """
+
+
+class ShopeeShopOverviewPeriodRow(PeriodRowBase, _ShopOverviewFields):
+    """``shopee.shop_overview_period``: the shop's totals over the body's period.
+
+    A shop-stats workbook exported with the monthly granularity has one row per month
+    (dated the 1st): each month is one post whose period is that month, never a day row.
+    """
 
 
 class ShopeeProductOverviewRow(RowBase):
