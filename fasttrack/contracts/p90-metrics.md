@@ -187,3 +187,8 @@ Every card belongs to one family; §8 maps critical metrics to families and chan
 - **Shopee changed the `Doanh số` definition in 2026** (ORY mapping note: no longer net of Shopee subsidy). For periods
   before 2026 the reconciliation target is Σ(deal × qty − shop voucher − Shopee voucher) (Nov 2025: within +2,0 %;
   the 2026 formula would be +18 %). The 2 % gate uses the formula for the period's definition.
+
+## 15. AOV in the five numbers (orchestrator, 2026-11-04, after Step 7)
+⑤ AOV = Σ(deal × qty − shop voucher) ÷ confirmed orders (§14, Seller Centre's own definition, matches the client's
+172.025đ). Payloads also carry `aov_gmv` = GMV ÷ orders for reference. JSON uses `net_revenue` for buyer_paid
+(the Ops masking layer blanks keys starting with "buyer").

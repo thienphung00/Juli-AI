@@ -27,6 +27,15 @@ number:
   SKU, status, price range and discount, stock per variation (sellable, in transit),
   view / like / sold counts, cover and variation images, created and modified times,
   and its promotion tags;
+- **Dữ liệu › Sản phẩm › Lưu lượng** (`/datacenter/product/traffic`) — for each of
+  the shop's active products and each finished day (yesterday and up to three
+  earlier days not read yet), the product traffic details Seller Centre loads:
+  sales, orders, units, buyers, product impressions and clicks (and their unique
+  counts), split by traffic source (search, recommendation, shop page, cart,
+  my purchases, promotion, other) for product cards, Live, Video and affiliate.
+  Aggregate numbers per product only, no buyer data. If Seller Centre shows its
+  "enter your Shopee password" box on this page, the extension stops and reads
+  nothing more that day; it never types into it;
 - **Marketing › Quảng cáo** (`/portal/marketing/pas/index`) — per campaign and per
   finished day: title, type, state, budgets, ROAS target and the report numbers
   (impressions, clicks, cost, sales and orders, ranks, voucher amounts), and the

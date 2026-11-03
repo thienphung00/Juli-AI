@@ -196,11 +196,17 @@ WHERE shop_id = :shop AND platform = 'shopee' AND dataset = 'traffic_overview_pe
   AND (segment = 'all' OR segment = 'shop_page')
 """
 _SHOP_MONTHLY = """
-SELECT date_trunc('month', day)::date AS month, sum(gmv), sum(orders)
+SELECT date_trunc('month', day)::date AS month, stream, segment, sum(gmv), sum(orders)
 FROM platform_daily_metrics
 WHERE shop_id = :shop AND platform = 'shopee' AND dataset = 'shop_overview'
   AND item_id = '' AND order_type = :ot AND day BETWEEN :a AND :b
-GROUP BY 1
+GROUP BY 1, 2, 3
+"""
+_SHOP_MONTHLY_PERIOD = """
+SELECT period_start, period_end, stream, segment, gmv, orders
+FROM platform_period_metrics
+WHERE shop_id = :shop AND platform = 'shopee' AND dataset = 'shop_overview_period'
+  AND item_id = '' AND order_type = :ot AND period_start >= :a AND period_end <= :b
 """
 
 
@@ -288,6 +294,27 @@ def _merge_months(
     return out
 
 
+async def shop_monthly(
+    session: AsyncSession, shop_id: uuid.UUID, order_type: str, a: date, b: date
+) -> list[dict[str, Any]]:
+    """Shop GMV / orders per month: day rows of ``shop_overview`` win, calendar-month rows of
+    ``shop_overview_period`` fill the months with none (the way flows merge traffic periods),
+    so a history that came as monthly roll-ups (Jan-Sep) shows."""
+    daily = await _rows(session, _SHOP_MONTHLY, shop=shop_id, ot=order_type, a=a, b=b)
+    period = await _rows(session, _SHOP_MONTHLY_PERIOD, shop=shop_id, ot=order_type, a=a, b=b)
+    merged = _merge_months(daily, period, 2)
+    return [
+        {
+            "month": month.isoformat(),
+            "gmv": cells[(stream, segment)][0],
+            "orders": cells[(stream, segment)][1],
+        }
+        for month, cells in sorted(merged.items())
+        for (stream, segment) in cells
+        if (stream, segment) == ("total", "all")
+    ]
+
+
 async def flows(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -316,16 +343,12 @@ async def flows(
                 "shop_page_gmv": cells.get(("product_card", "shop_page"), [None])[0],
             }
         )
-    shop_m = await _rows(session, _SHOP_MONTHLY, shop=shop_id, ot=order_type, a=h0, b=window.end)
     return {
         "range": window.json(),
         "order_type": order_type,
         **body,
         "monthly": monthly,
-        "shop_monthly": [
-            {"month": r[0].isoformat(), "gmv": _num(r[1]), "orders": _num(r[2])}
-            for r in sorted(shop_m, key=lambda r: r[0])
-        ],
+        "shop_monthly": await shop_monthly(session, shop_id, order_type, h0, window.end),
         "has_data": bool(rows),
     }
 
@@ -482,7 +505,6 @@ async def products(
                 "from": ps.isoformat(),
                 "to": pe.isoformat(),
             }
-    shop_m = await _rows(session, _SHOP_MONTHLY, shop=shop_id, ot=order_type, a=h0, b=chosen.end)
     return {
         **empty,
         "items_total": len(funnel_rows),
@@ -501,10 +523,7 @@ async def products(
             }
             for row in shown
         ],
-        "shop_monthly": [
-            {"month": r[0].isoformat(), "gmv": _num(r[1]), "orders": _num(r[2])}
-            for r in sorted(shop_m, key=lambda r: r[0])
-        ],
+        "shop_monthly": await shop_monthly(session, shop_id, order_type, h0, chosen.end),
         "has_data": True,
     }
 

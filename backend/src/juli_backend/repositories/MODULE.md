@@ -27,6 +27,7 @@ Import from the package root: `from juli_backend.repositories import OrdersRepo`
 | `backfill` | `AnalyticsBackfillPartitionsRepo`, `redact_secrets` |
 | `production_write` | `ProductionWriteAuthorizationsRepo` |
 | `shop_diagnosis` | `ShopDiagnosisReportsRepo` (stored ADR-108 reports, one per shop / end date / ranking), `ShopMetricRankingsRepo` (ADR-109 d.5 rankings, one per shop / end date / stream / metric) |
+| `shopee_analytics` | read-only Shopee queries behind `services/shopee_analytics` (P90 step 7): `ShopeeOrderLinesRepo`, `PlatformDailyMetricsRepo`, `PlatformPeriodMetricsRepo`, `PlatformItemsRepo`, `PlatformItemSnapshotsRepo`, `PlatformPromotionsRepo`, `ShopRulesReadRepo`, `ShopKeywordSeedsReadRepo`, `AdCampaignPurposesReadRepo`, `PlatformFeeFormulasReadRepo`, `MarketKeywordMetricsReadRepo`. No writes: the ingest gateway is the writer of these tables |
 
 ## Adding a repository
 

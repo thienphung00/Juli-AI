@@ -223,7 +223,7 @@ export class Connector {
     const capturedAt = responses.reduce((latest, r) => Math.max(latest, r.capturedAt), 0) || this.deps.now();
     const outcomes: Record<string, CaptureOutcome> = {};
     for (const mapped of mapReaderJob(job, responses, capturedAt)) {
-      const key = job.id === "ads" ? `${mapped.dataset}:${mapped.date}` : mapped.dataset;
+      const key = job.id === "ads" || job.id === "item_traffic" ? `${mapped.dataset}:${mapped.date}` : mapped.dataset;
       outcomes[key] = await this.submit(mapped, capturedAt);
     }
     return outcomes;

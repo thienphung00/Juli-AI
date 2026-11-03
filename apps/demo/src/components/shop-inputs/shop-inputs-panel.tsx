@@ -709,7 +709,7 @@ function GoalsView({
       <div style={{ ...row("1fr repeat(5, 1.2fr)"), color: COLOR.muted, fontWeight: 600, borderTop: 0 }}>
         <span>Tháng</span>
         {GOAL_FIELDS.map((f) => (
-          <span key={f.key}>{f.key === "monthly_marketing_cap" ? "Trần ngân sách QC/ngày" : f.label}</span>
+          <span key={f.key}>{f.key === "daily_marketing_cap" ? "Trần ngân sách QC/ngày" : f.label}</span>
         ))}
       </div>
       {months.size === 0 ? <p style={{ margin: "10px 0 0", fontSize: 14 }}>Chưa có mục tiêu tháng nào.</p> : null}

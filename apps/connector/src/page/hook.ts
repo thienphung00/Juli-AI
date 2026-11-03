@@ -6,7 +6,7 @@
 // page's memory; they are used only to re-issue the same requests during the daily
 // sync and are never sent to Juli.
 //
-// Page readers (ADR-120 d.14): for the eight report endpoints in READER_ENDPOINTS it also
+// Page readers (ADR-120 d.14): for the nine report endpoints in READER_ENDPOINTS it also
 // remembers how the PAGE called them (query, JSON request body, request headers) so a
 // scheduled job can replay the page's own read-only query for one day / page number. Those
 // templates, and the headers in them, stay in this page's memory like the session params;
@@ -19,6 +19,7 @@ import { READER_ENDPOINTS, type ReaderEndpoint, readerEndpointOf, SESSION_PARAMS
 import {
   blockedPath,
   pollingWaitFor,
+  isPasswordPrompt,
   type ReaderEnv,
   type ReaderJob,
   type ReaderRequest,
@@ -82,6 +83,8 @@ function emit(url: URL, body: unknown): void {
 // -- page reader templates ----------------------------------------------------------------
 
 const readerTemplates = new Map<ReaderEndpoint, ReaderTemplate>();
+/** Headers of the page's own /api/mydata calls (memory only): the template for traffic/details. */
+let mydataHeaders: Record<string, string> | undefined;
 
 function headersToRecord(headers: HeadersInit | undefined): Record<string, string> | undefined {
   if (!headers) return undefined;
@@ -156,6 +159,10 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
       headersToRecord(init?.headers ?? (input instanceof Request ? input.headers : undefined)),
     );
   }
+  if (watched(raw)) {
+    const seen = headersToRecord(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+    if (seen) mydataHeaders = seen;
+  }
   const response = await originalFetch(input, init);
   if (reader && response.ok) {
     response
@@ -179,6 +186,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
 // -- XMLHttpRequest -------------------------------------------------------------------
 
 const xhrUrls = new WeakMap<XMLHttpRequest, URL>();
+const xhrWatchedHeaders = new WeakMap<XMLHttpRequest, Record<string, string>>();
 const xhrReaders = new WeakMap<
   XMLHttpRequest,
   { endpoint: ReaderEndpoint; url: URL; headers: Record<string, string> }
@@ -194,6 +202,8 @@ XMLHttpRequest.prototype.setRequestHeader = function setRequestHeader(
 ): void {
   const reader = xhrReaders.get(this);
   if (reader) reader.headers[name] = value;
+  const watchedHeaders = xhrWatchedHeaders.get(this);
+  if (watchedHeaders) watchedHeaders[name] = value;
   originalSetHeader.call(this, name, value);
 };
 
@@ -204,7 +214,10 @@ XMLHttpRequest.prototype.open = function open(
   ...rest: unknown[]
 ): void {
   const target = method.toUpperCase() === "GET" ? watched(String(url)) : null;
-  if (target) xhrUrls.set(this, target);
+  if (target) {
+    xhrUrls.set(this, target);
+    xhrWatchedHeaders.set(this, {});
+  }
   const reader = readerTarget(String(url), method);
   if (reader) xhrReaders.set(this, { ...reader, headers: {} });
   (originalOpen as (...args: unknown[]) => void).call(this, method, url, ...rest);
@@ -233,6 +246,8 @@ XMLHttpRequest.prototype.send = function send(
   }
   const url = xhrUrls.get(this);
   if (url) {
+    const seen = xhrWatchedHeaders.get(this);
+    if (seen && Object.keys(seen).length > 0) mydataHeaders = seen;
     this.addEventListener("load", () => {
       if (this.status < 200 || this.status >= 300) return;
       remember(url);
@@ -313,6 +328,15 @@ async function runBackfillDay(day: string, plan: PlannedRequest[]): Promise<void
 
 // -- page readers, one job from the service worker -----------------------------------------
 
+/** Seller Centre's /datacenter password re-confirmation modal. Read only; never typed into. */
+function passwordModalVisible(): boolean {
+  const dialogs = document.querySelectorAll("[role='dialog'], [class*='modal' i]");
+  for (const node of dialogs) {
+    if (isPasswordPrompt((node as HTMLElement).innerText ?? "")) return true;
+  }
+  return isPasswordPrompt(document.body?.innerText ?? "");
+}
+
 function captchaVisible(): boolean {
   return !!document.querySelector("iframe[src*='captcha' i], [id*='captcha' i], [class*='captcha' i]");
 }
@@ -337,6 +361,8 @@ async function runReader(job: ReaderJob): Promise<void> {
         credentials: "include",
       }),
     captchaVisible,
+    passwordModalVisible,
+    mydataHeaders: () => mydataHeaders,
     pathname: () => location.pathname,
   };
   const outcome = await runReaderJob(job, env);
@@ -364,12 +390,14 @@ window.addEventListener("message", (event: MessageEvent) => {
 });
 
 function isReaderJob(value: unknown): value is ReaderJob {
-  const job = value as { id?: unknown; days?: unknown } | null;
+  const job = value as { id?: unknown; days?: unknown; itemIds?: unknown } | null;
   return (
     typeof job === "object" &&
     job !== null &&
     typeof job.id === "string" &&
-    ["products", "ads", "vouchers", "health"].includes(job.id) &&
+    ["products", "ads", "vouchers", "health", "item_traffic"].includes(job.id) &&
+    (job.itemIds === undefined ||
+      (Array.isArray(job.itemIds) && job.itemIds.every((id) => typeof id === "string" && /^\d{1,32}$/.test(id)))) &&
     (job.days === undefined || (Array.isArray(job.days) && job.days.every((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))))
   );
 }

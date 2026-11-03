@@ -30,9 +30,9 @@ append-only history.
 ## Scope refs
 
 SKU rules use `item_id` (an item without variations) or `item_id:variation_id`
-(`catalogue.sku_scope`); monthly rules use `YYYY-MM`. Keys: `sku_cost`, `packaging`,
+(`catalogue.sku_scope`); monthly rules use `YYYY-MM`. Keys: `sku_cost`, `packaging_cost`,
 `max_discount_pct`, `stock`, `restock_date`, `product_group`, `item_status` (per SKU);
-`monthly_gmv`, `monthly_orders`, `monthly_aov`, `monthly_margin_pct`, `monthly_marketing_cap`
+`monthly_gmv_target`, `monthly_orders_target`, `monthly_aov_target`, `monthly_margin_target`, `daily_marketing_cap`
 (per month). Validators live in `services/shop_rules/rules.py`.
 
 ## Routes

@@ -121,24 +121,24 @@ def test_dates_and_months_accept_the_forms_a_seller_types():
 
 def test_the_new_rule_keys_validate_their_values_and_scopes():
     ok = shop_rules.validate_rule
-    assert ok("packaging", "1001", "3000") == ("1001", 3000)
+    assert ok("packaging_cost", "1001", "3000") == ("1001", 3000)
     assert ok("stock", "1001:7", 40) == ("1001:7", 40)
     assert ok("restock_date", "1001", "2026-11-10") == ("1001", "2026-11-10")
     assert ok("product_group", "1001", "phan_phoi") == ("1001", "phan_phoi")
     assert ok("item_status", "1001", "xa_hang") == ("1001", "xa_hang")
-    assert ok("monthly_margin_pct", "2026-12", "12") == ("2026-12", 12)
+    assert ok("monthly_margin_target", "2026-12", "12") == ("2026-12", 12)
     bad = [
-        ("packaging", "1001", -1),
+        ("packaging_cost", "1001", -1),
         ("stock", "1001", 1.5),
         ("stock", "1001", -1),
         ("restock_date", "1001", "10/11/2026"),
         ("restock_date", "1001", "2026-02-31"),
         ("product_group", "1001", "khac"),
         ("item_status", "1001", "het_hang"),
-        ("monthly_gmv", "T12/2026", 1),
-        ("monthly_gmv", "", 1),
-        ("monthly_margin_pct", "2026-12", 100),
-        ("monthly_orders", "2026-12", 10.5),
+        ("monthly_gmv_target", "T12/2026", 1),
+        ("monthly_gmv_target", "", 1),
+        ("monthly_margin_target", "2026-12", 100),
+        ("monthly_orders_target", "2026-12", 10.5),
     ]
     for key, scope, value in bad:
         with pytest.raises(shop_rules.RuleValidationError):
@@ -154,7 +154,7 @@ async def test_a_write_appends_a_version_and_updates_the_projection_together(ses
         shop.id,
         [
             shop_inputs.RuleChange("sku_cost", "1001", 36000),
-            shop_inputs.RuleChange("packaging", "1001", 2500),
+            shop_inputs.RuleChange("packaging_cost", "1001", 2500),
         ],
         actor=SELLER,
         reason="Nhập lần đầu",
@@ -164,7 +164,7 @@ async def test_a_write_appends_a_version_and_updates_the_projection_together(ses
     await session.commit()
     assert len(rows) == 2
     versions = await _versions(session, shop)
-    assert {(v.rule_key, v.version) for v in versions} == {("sku_cost", 1), ("packaging", 1)}
+    assert {(v.rule_key, v.version) for v in versions} == {("sku_cost", 1), ("packaging_cost", 1)}
     for v in versions:
         assert (v.set_by, v.set_by_user_id) == ("seller", SELLER.user_id)
         assert (v.reason, v.import_file_hash) == ("Nhập lần đầu", "a" * 64)
@@ -285,7 +285,7 @@ async def test_a_sku_restore_puts_every_field_back_as_one_new_change_set(session
         [
             shop_inputs.RuleChange("sku_cost", scope, 104000),
             shop_inputs.RuleChange("stock", scope, 260),
-            shop_inputs.RuleChange("packaging", scope, 3000),
+            shop_inputs.RuleChange("packaging_cost", scope, 3000),
         ],
         actor=SELLER,
         reason="Giá nhập tháng 11",
@@ -297,7 +297,7 @@ async def test_a_sku_restore_puts_every_field_back_as_one_new_change_set(session
         ("v2", "Giá nhập tháng 11", True),
     ]
     assert history[0].state == {"sku_cost": 95000, "stock": 240}
-    assert history[1].state == {"sku_cost": 104000, "stock": 260, "packaging": 3000}
+    assert history[1].state == {"sku_cost": 104000, "stock": 260, "packaging_cost": 3000}
     written = await shop_inputs.restore_sku_version(
         session, shop.id, scope_ref=scope, number=1, actor=TEAM, now=T0.replace(minute=5)
     )
@@ -306,7 +306,7 @@ async def test_a_sku_restore_puts_every_field_back_as_one_new_change_set(session
     history = await shop_inputs.sku_history(session, shop.id, scope)
     assert [c.id for c in history] == ["v1", "v2", "v3"]
     assert history[2].reason == "Khôi phục từ v1" and history[2].current
-    assert history[2].state == {"sku_cost": 95000, "stock": 240, "packaging": 3000}
+    assert history[2].state == {"sku_cost": 95000, "stock": 240, "packaging_cost": 3000}
     with pytest.raises(shop_inputs.VersionError):
         await shop_inputs.restore_sku_version(
             session, shop.id, scope_ref=scope, number=3, actor=TEAM
@@ -339,13 +339,13 @@ async def test_the_template_is_prefilled_one_row_per_sku(session, shop):
         shop.id,
         [
             shop_inputs.RuleChange("sku_cost", "1001", 36000),
-            shop_inputs.RuleChange("packaging", "1001", 2500),
+            shop_inputs.RuleChange("packaging_cost", "1001", 2500),
             shop_inputs.RuleChange("max_discount_pct", "1001", 12.5),
             shop_inputs.RuleChange("restock_date", "1001", "2026-11-10"),
             shop_inputs.RuleChange("product_group", "1001", "thuong_hieu"),
             shop_inputs.RuleChange("item_status", "1001", "ban"),
-            shop_inputs.RuleChange("monthly_gmv", "2026-12", 320000000),
-            shop_inputs.RuleChange("monthly_margin_pct", "2026-12", 12),
+            shop_inputs.RuleChange("monthly_gmv_target", "2026-12", 320000000),
+            shop_inputs.RuleChange("monthly_margin_target", "2026-12", 12),
         ],
         actor=SELLER,
         reason="seed",
@@ -605,7 +605,7 @@ async def test_a_goal_whose_three_numbers_disagree_warns_but_is_saved(session, s
     assert preview.rejections == [] and len(preview.goal_diffs) == 3
     await shop_inputs.apply_import(session, shop.id, content, actor=SELLER, reason="mục tiêu")
     await session.commit()
-    assert len(await _versions(session, shop, "monthly_gmv", "2027-01")) == 1
+    assert len(await _versions(session, shop, "monthly_gmv_target", "2027-01")) == 1
 
 
 async def test_goal_rows_are_checked_individually(session, shop):

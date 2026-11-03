@@ -86,7 +86,9 @@ def test_migration_108_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # ADR-118 put `109_shop_proposals` on 108; the deferred tail moved onto 109.
     later = (MIGRATIONS / "versions/109_shop_proposals.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "113_shopee_orders_and_logs"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "114_card_verification_events"' in BACKFILL.read_text(
+        "utf-8"
+    )
 
 
 def test_the_additive_gate_accepts_migration_108():

@@ -145,6 +145,18 @@ async def _seed(session, shop_id):
             orders=50,
         )
     )
+    # Jan-Sep history that came as monthly roll-ups (P90 step 6): the shop-level month.
+    session.add(
+        _period(
+            shop_id,
+            "",
+            date(2026, 8, 1),
+            date(2026, 8, 31),
+            dataset="shop_overview_period",
+            gmv=9000,
+            orders=90,
+        )
+    )
     session.add(
         PlatformItem(
             shop_id=shop_id, item_id="111", variation_id="", name="Synthetic item", **_source()
@@ -250,6 +262,9 @@ async def test_dashboards_aggregate_under_rls_and_keep_children_out_of_totals():
     assert months["2026-10-01"]["streams"]["product_card"] == 6000
     assert months["2026-10-01"]["shop_page_gmv"] == 1800
     assert flows["shop_monthly"][-1] == {"month": "2026-10-01", "gmv": 7200, "orders": 72}
+    # the month with only a roll-up shows, and a month with day rows is not added to it
+    assert flows["shop_monthly"][0] == {"month": "2026-08-01", "gmv": 9000, "orders": 90}
+    assert [m["month"] for m in flows["shop_monthly"]] == ["2026-08-01", "2026-10-01"]
 
     # Ads: per type and total; auto bid is at ROAS 1.2 for 6 straight days -> alert.
     by_type = {t["ad_type"]: t for t in ads["by_type"]}

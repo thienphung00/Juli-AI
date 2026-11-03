@@ -99,24 +99,24 @@ def flow_rows() -> list[FlowRow]:
     ]
 
 
-def test_flows_split_the_san_pham_and_add_up_with_a_residual_row() -> None:
+def test_flows_split_the_san_pham_khac_and_add_up_with_a_residual_row() -> None:
     t = build_flow_tables(
         flow_rows(),
         shop_gmv=D(1310000),
         shop_orders=8,
         product_totals={"P1": (D(560000), 2)},
-        ads=[FlowAdsRow("P1", Flow.THE_SAN_PHAM, D(50000), D(360000), 1)],
+        ads=[FlowAdsRow("P1", Flow.THE_SAN_PHAM_KHAC, D(50000), D(360000), 1)],
     )
     shop = t.shop
     assert [r.key for r in shop.rows] == [
-        "the_san_pham",
+        "the_san_pham_khac",
         "trang_shop",
         "live",
         "video",
         "lien_ket",
         RESIDUAL_KEY,
     ]
-    tsp = shop.row("the_san_pham")
+    tsp = shop.row("the_san_pham_khac")
     assert tsp is not None
     # P1: 1000-300 / 100-40 / 2-1 / 560.000-200.000 ; P3 and P5 whole
     assert (tsp.views, tsp.clicks, tsp.orders, tsp.gmv) == (1200, 100, 3, D(640000))
@@ -141,7 +141,7 @@ def test_flow_ratios_and_exact_identity() -> None:
         if row.is_residual or row.views is None or row.clicks is None:
             continue
         assert row.gmv_by_identity() == row.gmv  # views x CTR x CTOR x AOV, exact
-    tsp = t.shop.row("the_san_pham")
+    tsp = t.shop.row("the_san_pham_khac")
     assert tsp is not None
     assert tsp.ctr == D(100) / D(1200) and tsp.ctor == D(3) / D(100)
     assert tsp.aov == D(640000) / D(3)

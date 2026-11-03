@@ -76,12 +76,23 @@ SOURCE_CONFIDENCE: dict[str, str] = {
 }
 #: A row is only overwritten by a source of the same or higher rank, so a
 #: vendor estimate never replaces what the seller's own Seller Centre showed.
+#: P90 D-5 (2026-11-03): a FILE export outranks the Connector for the same key -- the file has
+#: the L2 children and the confirmed basis, the Connector only fills days no file covers --
+#: so ``file`` sits above ``extension``. Rows stored before D-5 hold the old numbers
+#: (file = extension = 2); the gateway ranks an existing row by its ``source`` column
+#: (:func:`effective_rank`), so no data migration is needed.
 SOURCE_RANK: dict[str, int] = {
-    SOURCE_API: 3,
+    SOURCE_API: 4,
+    SOURCE_FILE: 3,
     SOURCE_EXTENSION: 2,
-    SOURCE_FILE: 2,
     SOURCE_VENDOR: 1,
 }
+
+
+def effective_rank(source: str, stored: int) -> int:
+    """The rank a stored row counts at: by its ``source`` today, by ``stored`` if unknown."""
+    return SOURCE_RANK.get(source, stored)
+
 
 ORDER_TYPE_NONE = "none"
 ORDER_TYPES: tuple[str, ...] = ("placed", "paid", "confirmed")

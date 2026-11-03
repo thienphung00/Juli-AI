@@ -52,14 +52,14 @@ P90 step 4 (Cài đặt › Thông số shop, ADR-120 d.12): what the seller imp
 template, keyed per SKU (scope ``item_id`` or ``item_id:variation_id``, see
 ``services/shop_inputs.sku_scope``) or per month (scope ``YYYY-MM``) --
 
-- ``packaging`` (scope: SKU) -- VND per order line, ≥ 0.
+- ``packaging_cost`` (scope: SKU) -- VND per order line, ≥ 0.
 - ``stock`` (scope: SKU) -- units, integer ≥ 0.
 - ``restock_date`` (scope: SKU) -- ISO date ``YYYY-MM-DD``.
 - ``product_group`` (scope: SKU) -- ``thuong_hieu`` | ``phan_phoi``.
 - ``item_status`` (scope: SKU) -- ``ban`` | ``tam_dung`` | ``ngung`` | ``xa_hang``.
-- ``monthly_gmv`` / ``monthly_orders`` / ``monthly_aov`` / ``monthly_margin_pct`` /
-  ``monthly_marketing_cap`` (scope: month) -- the month's targets and the daily
-  marketing cap.
+- ``monthly_gmv_target`` / ``monthly_orders_target`` / ``monthly_aov_target`` /
+  ``monthly_margin_target`` / ``daily_marketing_cap`` (scope: month) -- the month's
+  targets and the daily marketing cap.
 
 The P14-F keys are read by nothing yet but the ranking layer's typed accessor
 (``economics.shop_economics``).
@@ -112,16 +112,16 @@ CONTENT_TONE = "content_tone"
 BANNED_TERMS = "banned_terms"
 
 # P90 step 4: the seller import's SKU and monthly keys.
-PACKAGING = "packaging"
+PACKAGING = "packaging_cost"
 STOCK = "stock"
 RESTOCK_DATE = "restock_date"
 PRODUCT_GROUP = "product_group"
 ITEM_STATUS = "item_status"
-MONTHLY_GMV = "monthly_gmv"
-MONTHLY_ORDERS = "monthly_orders"
-MONTHLY_AOV = "monthly_aov"
-MONTHLY_MARGIN_PCT = "monthly_margin_pct"
-MONTHLY_MARKETING_CAP = "monthly_marketing_cap"
+MONTHLY_GMV = "monthly_gmv_target"
+MONTHLY_ORDERS = "monthly_orders_target"
+MONTHLY_AOV = "monthly_aov_target"
+MONTHLY_MARGIN_PCT = "monthly_margin_target"
+MONTHLY_MARKETING_CAP = "daily_marketing_cap"
 
 PRODUCT_GROUPS: tuple[str, ...] = ("thuong_hieu", "phan_phoi")
 ITEM_STATUSES: tuple[str, ...] = ("ban", "tam_dung", "ngung", "xa_hang")

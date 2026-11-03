@@ -47,6 +47,7 @@ export const DATASETS: readonly MydataDataset[] = [
 export type ReaderDataset =
   | "item_catalog"
   | "item_snapshot"
+  | "item_traffic_sources"
   | "ads_campaign_daily"
   | "voucher_settings"
   | "shop_health_daily";
@@ -58,12 +59,13 @@ export type Dataset = MydataDataset | ReaderDataset;
 // own session) and posts mapped rows. Like ITEM_READERS_ACTIVE, a reader is a feature flag
 // here, and it is ON only for the pilot shops below: `readerActive(id, shopId)`.
 
-export type ReaderId = "products" | "ads" | "vouchers" | "health";
-export const READER_IDS: readonly ReaderId[] = ["products", "vouchers", "ads", "health"];
+export type ReaderId = "products" | "item_traffic" | "ads" | "vouchers" | "health";
+export const READER_IDS: readonly ReaderId[] = ["products", "vouchers", "ads", "health", "item_traffic"];
 
 /** Master flag per reader (a build-time switch). */
 export const READERS_ACTIVE: Record<ReaderId, boolean> = {
   products: true,
+  item_traffic: true,
   ads: true,
   vouchers: true,
   health: true,
@@ -94,20 +96,18 @@ export function schedulerActive(shopId: string | undefined): boolean {
 /** The datasets each reader produces. */
 export const READER_DATASETS: Record<ReaderId, readonly ReaderDataset[]> = {
   products: ["item_catalog", "item_snapshot"],
+  item_traffic: ["item_traffic_sources"],
   vouchers: ["voucher_settings"],
   ads: ["ads_campaign_daily"],
   health: ["shop_health_daily"],
 };
 
 /**
- * Datasets the gateway does not accept yet (services/ingest/reserved.py: their tables wait for
- * migration 112): the readers still map them, but nothing is posted and a page that only
- * feeds held datasets is not opened. Remove a name here when the backend registers its spec.
+ * Datasets the gateway does not accept yet: the readers still map them, but nothing is posted
+ * and a page that only feeds held datasets is not opened. Empty since the backend registered
+ * item_snapshot and shop_health_daily (migration 112); add a name here to hold a dataset back.
  */
-export const HELD_DATASETS: ReadonlySet<ReaderDataset> = new Set<ReaderDataset>([
-  "item_snapshot",
-  "shop_health_daily",
-]);
+export const HELD_DATASETS: ReadonlySet<ReaderDataset> = new Set<ReaderDataset>();
 
 /** The scheduler's pace: one page (tab) at a time, a gap between pages, a cap on waiting. */
 export const READER_RUN_PERIOD_MINUTES = 24 * 60;
@@ -130,6 +130,17 @@ export const READER_BLOCK_LOGIN_MS = 6 * 3_600_000;
 export const ADS_CATCHUP_DAYS = 3;
 export const ADS_MAX_ROWS_PER_DAY = 300;
 export const ADS_PAGE_LIMIT_DEFAULT = 20;
+/**
+ * Per-product traffic sources (/datacenter/product/traffic): yesterday plus up to this many
+ * earlier finished days not read yet; one request per item per day, so a job is capped.
+ */
+export const TRAFFIC_CATCHUP_DAYS = 3;
+export const TRAFFIC_MAX_ITEMS = 300;
+export const TRAFFIC_MAX_REQUESTS_PER_JOB = 600;
+/** A traffic job makes hundreds of paced requests: it gets its own, longer, timeout. */
+export const TRAFFIC_JOB_TIMEOUT_MS = 45 * 60_000;
+/** Transient per-item errors tolerated in a row before the traffic job stops. */
+export const TRAFFIC_MAX_CONSECUTIVE_ERRORS = 5;
 export const PRODUCT_MAX_PAGES = 40;
 export const VOUCHER_MAX_ROWS = 600;
 export const VOUCHER_PAGE_LIMIT_DEFAULT = 20;

@@ -133,7 +133,7 @@ async def test_an_import_writes_history_and_projection_in_one_transaction(catalo
         "FROM public.shop_rule_versions ORDER BY rule_key",
     )
     assert [(v[0], v[1], v[2], v[3]) for v in versions] == [
-        ("packaging", "1001", "2500", 1),
+        ("packaging_cost", "1001", "2500", 1),
         ("sku_cost", "1001", "36000", 1),
         ("stock", "1001", "90", 1),
     ]
@@ -143,10 +143,10 @@ async def test_an_import_writes_history_and_projection_in_one_transaction(catalo
     projection = await _rows(
         a.shop_id,
         "SELECT rule_key, scope_ref, value::text FROM public.shop_rules "
-        "WHERE rule_key IN ('sku_cost', 'packaging', 'stock') ORDER BY rule_key",
+        "WHERE rule_key IN ('sku_cost', 'packaging_cost', 'stock') ORDER BY rule_key",
     )
     assert projection == [
-        ("packaging", "1001", "2500"), ("sku_cost", "1001", "36000"), ("stock", "1001", "90"),
+        ("packaging_cost", "1001", "2500"), ("sku_cost", "1001", "36000"), ("stock", "1001", "90"),
     ]  # fmt: skip
 
     # the other shop sees none of it, and its template stays unfilled

@@ -38,7 +38,7 @@ export function fmtValue(value: unknown, unit: InputUnit): string {
 /** Rule key -> label and unit, for the version table. */
 export const RULE_FIELDS: Readonly<Record<string, { label: string; unit: InputUnit }>> = {
   sku_cost: { label: "Giá vốn", unit: "vnd" },
-  packaging: { label: "Đóng gói", unit: "vnd" },
+  packaging_cost: { label: "Đóng gói", unit: "vnd" },
   max_discount_pct: { label: "Giảm tối đa", unit: "pct" },
   stock: { label: "Tồn", unit: "count" },
   restock_date: { label: "Nhập lại", unit: "date" },
@@ -54,11 +54,11 @@ export function fmtChanges(values: Readonly<Record<string, unknown>>): string {
 }
 
 export const GOAL_FIELDS: readonly { key: string; label: string; unit: InputUnit }[] = [
-  { key: "monthly_gmv", label: "GMV", unit: "vnd" },
-  { key: "monthly_orders", label: "Đơn", unit: "count" },
-  { key: "monthly_aov", label: "AOV", unit: "vnd" },
-  { key: "monthly_margin_pct", label: "Biên mục tiêu", unit: "pct" },
-  { key: "monthly_marketing_cap", label: "Trần chi marketing/ngày", unit: "vnd" },
+  { key: "monthly_gmv_target", label: "GMV", unit: "vnd" },
+  { key: "monthly_orders_target", label: "Đơn", unit: "count" },
+  { key: "monthly_aov_target", label: "AOV", unit: "vnd" },
+  { key: "monthly_margin_target", label: "Biên mục tiêu", unit: "pct" },
+  { key: "daily_marketing_cap", label: "Trần chi marketing/ngày", unit: "vnd" },
 ];
 
 /** `2026-12` -> `T12/2026`. */

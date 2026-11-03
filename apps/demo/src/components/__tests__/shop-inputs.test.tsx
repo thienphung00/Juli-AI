@@ -82,7 +82,7 @@ const PREVIEW: ImportPreview = {
     { scope_ref: "2002", item_id: "2002", variation_id: "", sku: "BEP-S3", field: "restock", label: "Ngày nhập lại", unit: "date", rule_key: "restock_date", old: "2026-11-08", new: "2026-11-10", effect: "" },
   ],
   goal_diffs: [
-    { scope_ref: "2026-12", item_id: "", variation_id: "", sku: "T12/2026", field: "monthly_margin_pct", label: "Biên mục tiêu (%)", unit: "pct", rule_key: "monthly_margin_pct", old: 10, new: 12, effect: "" },
+    { scope_ref: "2026-12", item_id: "", variation_id: "", sku: "T12/2026", field: "monthly_margin_target", label: "Biên mục tiêu (%)", unit: "pct", rule_key: "monthly_margin_target", old: 10, new: 12, effect: "" },
   ],
   warnings: [{ month: "2026-12", message: "GMV ÷ đơn = 88.889đ, lệch 6,0% so với AOV 83.900đ. Vẫn lưu được.", deviation: 0.06 }],
   affected: AFFECTED,
