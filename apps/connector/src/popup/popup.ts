@@ -1,8 +1,8 @@
 // The toolbar popup: enter the pairing code from Juli, see what was sent.
 // Labels follow the seller's on-screen vocabulary (D31.8).
 
-import type { Backfill } from "../background/state";
-import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "./labels";
+import type { Backfill, ReaderSchedule } from "../background/state";
+import { backfillLabel, CONSENT_REQUIRED_MESSAGE, readersLabel } from "./labels";
 
 interface DatasetStatus {
   dataset: string;
@@ -16,6 +16,11 @@ const LABELS: Record<string, string> = {
   item_by_source: "Sản phẩm theo nguồn",
   item_performance: "Hiệu quả sản phẩm",
   shop_traffic: "Truy cập shop",
+  item_catalog: "Danh sách sản phẩm",
+  item_snapshot: "Giá và tồn kho sản phẩm",
+  ads_campaign_daily: "Quảng cáo theo ngày",
+  voucher_settings: "Voucher của shop",
+  shop_health_daily: "Sức khỏe tài khoản",
 };
 
 function el<T extends HTMLElement>(id: string): T {
@@ -40,6 +45,7 @@ async function render(): Promise<void> {
     lastSync?: { day: string; status: string };
     backfill?: Backfill | null;
     consentBlocked?: { at: string } | null;
+    readers?: ReaderSchedule | null;
   }>({ type: "state" });
   const paired = !!state.token;
   el("pair-form").hidden = paired;
@@ -55,6 +61,9 @@ async function render(): Promise<void> {
   const backfill = backfillLabel(state.backfill);
   el("backfill").hidden = backfill === null;
   el("backfill").textContent = backfill ?? "";
+  const readers = readersLabel(state.readers);
+  el("readers").hidden = readers === null;
+  el("readers").textContent = readers ?? "";
   const list = el<HTMLUListElement>("datasets");
   list.replaceChildren();
   const status = await send<{ datasets?: DatasetStatus[] } | null>({ type: "server-status" });
