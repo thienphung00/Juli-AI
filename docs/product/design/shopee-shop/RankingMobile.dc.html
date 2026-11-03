@@ -60,7 +60,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <div role="status" style="display: flex; flex-direction: column; gap: 2px; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 8px 12px; font-size: 13px">
 <span><b style="color: #b0386a">Vừa quay về từ thẻ</b> · {{back.card}}</span>
 <span style="font-size: 12px; color: #4a4a55">Dòng được đánh dấu, tự tắt sau 3 giây.</span>
-<a href="QuyetDinh.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Về thẻ ›</a>
+<a href="CardWhatIf.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Về thẻ ›</a>
 </div>
 </sc-if>
 <sc-if value="{{hasNote}}" hint-placeholder-val="{{ false }}"><div style="background: #faf7f8; border: 1px dashed #a1a1aa; border-radius: 12px; padding: 8px 12px; font-size: 12px; color: #4a4a55">{{note}}</div></sc-if>
@@ -326,7 +326,7 @@ const rows = list.map((r) => {
   return { id: r.id, ini: r.kind === 'product' ? r.ini : { kw: 'Tk', kol: 'KOL', campaign: 'QC', voucher: 'VC' }[r.kind], name: r.name, sub: r.sub || r.id, subStyle: r.judge ? judge + '; font-weight: 600' : 'color: #5f5f6b', hasBadge: !!r.purpose, badge: r.purpose ? PUR[r.purpose] : '', isFocus: focus,
     open, caret: open ? '▾' : '▸', pl: f.pl, qt: f.qt, prim: sv(p) + '/ngày', primStyle: p < 0 ? 'color: #a3222f' : 'color: #146c2e', barStyle: 'width: ' + bw + '%; background: ' + (p < 0 ? '#e5484d' : '#16a34a'),
     xv: money ? (xs === 'gmv' ? sv(r.profit) + '/ngày' : sv(r.gmv) + '/ngày') : XF[xs](r.x[xs]), conf: r.conf, confStyle: r.conf === 'Rõ' ? 'color: #146c2e; background: #e3f5e8' : 'color: #8a4b00; background: #fff4e0',
-    hasRec: !!r.rec, noRec: !r.rec, recHref: 'QuyetDinh.dc.html#from=ranking&row=' + r.id, recWin: r.rec ? vnd(r.rec.w) + '/tháng' : '', recT: r.rec ? r.rec.t : '',
+    hasRec: !!r.rec, noRec: !r.rec, recHref: 'CardWhatIf.dc.html#from=ranking&row=' + r.id, recWin: r.rec ? vnd(r.rec.w) + '/tháng' : '', recT: r.rec ? r.rec.t : '',
     boxStyle: focus ? 'border: 2px solid #c2306d; background: #fff7fa; box-shadow: 0 0 0 4px #fdeef4' : (open ? 'border: 1px solid #f8b9d3; background: #fff7fa' : 'border: 1px solid #f1e6eb; background: #ffffff'),
     facts: [['Biên cuối', pc(r.x.bien, 1)], ['Đơn trong kỳ', fmt(r.x.orders)], ['AOV · % giảm', vnd(r.x.aov) + ' · ' + pc(r.x.disc, 1)]],
     openLabel: r.kind === 'product' ? 'Mở sản phẩm' : (r.kind === 'kw' ? 'Mở tab Từ khoá' : 'Mở trong Sản phẩm'), openSub: 'KPI ' + kpiN + ' và nguồn ' + srcName + ' đã chọn sẵn', openHref: 'SanPham.dc.html#id=' + r.id + '&kpi=' + st.kpi + '&src=' + st.src + '&from=ranking',

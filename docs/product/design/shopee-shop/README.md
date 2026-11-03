@@ -26,20 +26,20 @@ the "Kéo xuống / Kéo lên" views carry a line for the opposite-sign rows so 
 
 ```
 Tổng quan  KPI tile / tree node / matrix cell ──► Ranking.dc.html#kpi=<k>&src=<s>
-Tổng quan  "→ đề xuất" chip ───────────────────► Ranking (row focused) / QuyetDinh.dc.html (card)
+Tổng quan  "→ đề xuất" chip ───────────────────► Ranking (row focused) / CardWhatIf.dc.html (card)
 Phân tích  "Xem xếp hạng ›" ───────────────────► Ranking.dc.html#kpi=..&src=..&focus=<row>
-Phân tích  "Xem đề xuất ›" ────────────────────► QuyetDinh.dc.html (card)
+Phân tích  "Xem đề xuất ›" ────────────────────► CardWhatIf.dc.html (card)
 Ranking    row (open) "Mở sản phẩm ›" ─────────► SanPham.dc.html#id=<sku>&kpi=<k>&src=<s>&from=ranking
                                                  (Sản phẩm opens with KPI + source preselected)
 SanPham    "‹ Xếp hạng" back ──────────────────► Ranking.dc.html#...&focus=<sku>   (row highlighted 3 s)
-Ranking    row "→ đề xuất" chip ───────────────► QuyetDinh.dc.html#from=ranking&row=<id>  (the card)
+Ranking    row "→ đề xuất" chip ───────────────► CardWhatIf.dc.html#from=ranking&row=<id>  (the card)
 Card       "Xem phân tích ›" ──────────────────► Ranking.dc.html#kpi=..&src=..&focus=<row>
                                                  (row highlighted; banner "Vừa quay về từ thẻ" + "Về thẻ ›")
 Ranking    "‹ Tổng quan" (or "‹ Sản phẩm" when #from=ranking-origin is a product page)
 ```
 
-Files drawn by the parallel worktree and only linked from here: `SanPham.dc.html`, `QuyetDinh.dc.html`, and the
-card artboard (links use `QuyetDinh.dc.html#...` until the card file name is known; rename the hrefs if it is
+Files drawn by the parallel worktree and only linked from here: `SanPham.dc.html`, `CardWhatIf.dc.html`, and the
+card artboard (links use `CardWhatIf.dc.html#...` until the card file name is known; rename the hrefs if it is
 `Card*.dc.html`). `CaiDat` is not linked (target values come from Cài đặt › Thông số shop).
 
 ## Decisions made while drawing (please approve)

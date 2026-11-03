@@ -23,7 +23,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <a href="TongQuan.dc.html" role="tab" aria-selected="false" style="font-size: 14px; font-weight: 600; color: #4a4a55; text-decoration: none; border-radius: 999px; min-height: 40px; padding: 0 18px; display: inline-flex; align-items: center">Tổng quan</a>
 <button type="button" role="tab" aria-selected="true" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #b0386a; border: 0; border-radius: 999px; min-height: 40px; padding: 0 18px">Phân tích</button>
 <a href="SanPham.dc.html" role="tab" aria-selected="false" style="font-size: 14px; font-weight: 600; color: #4a4a55; text-decoration: none; border-radius: 999px; min-height: 40px; padding: 0 18px; display: inline-flex; align-items: center">Sản phẩm</a>
-<a href="QuyetDinh.dc.html" role="tab" aria-selected="false" style="font-size: 14px; font-weight: 600; color: #4a4a55; text-decoration: none; border-radius: 999px; min-height: 40px; padding: 0 18px; display: inline-flex; align-items: center">Quyết định</a>
+<a href="CardWhatIf.dc.html" role="tab" aria-selected="false" style="font-size: 14px; font-weight: 600; color: #4a4a55; text-decoration: none; border-radius: 999px; min-height: 40px; padding: 0 18px; display: inline-flex; align-items: center">Quyết định</a>
 </div>
 <span style="font-size: 12px; font-weight: 600; color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 999px; padding: 4px 10px">Cập nhật 03/11 07:30 · nguồn Seller Centre</span>
 </div>
@@ -47,7 +47,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 
 <div style="display: flex; align-items: center; gap: 16px; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 10px 14px">
 <span style="font-size: 14px"><b style="color: #b0386a">✦ Juli gợi ý</b> · Tổng ₫ có nguy cơ: <b style="color: #a3222f">{{sumDay}}/ngày</b> ({{sumMonth}}/tháng)</span>
-<a href="QuyetDinh.dc.html" style="margin-left: auto; font-weight: 600; text-decoration: none; color: #ffffff; background: #c2306d; border-radius: 10px; min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center">Xem {{cardCount}} đề xuất ›</a>
+<a href="CardWhatIf.dc.html" style="margin-left: auto; font-weight: 600; text-decoration: none; color: #ffffff; background: #c2306d; border-radius: 10px; min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center">Xem {{cardCount}} đề xuất ›</a>
 </div>
 
 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
@@ -238,7 +238,7 @@ const items = shown.map((it, i) => {
   return { id: it.id, rank: String(i + 1), ini: it.ini, name: it.name, src: it.src, kpi: it.kpi, value: it.fmtv(it.value), valStyle: 'color: #a3222f', chip: (it.value < it.prior ? '▼ ' : '▲ ') + fmt(Math.abs(it.value / it.prior - 1) * 100, 1) + '% so với kỳ trước', chipStyle: it.value < it.prior ? CHIP_DOWN : CHIP_UP,
     bandStyle, refStyle, dotStyle: 'left: ' + dotLeft.toFixed(1) + '%; background: #e5484d', dev: it.devText(it.value), devStyle: 'color: #a3222f', refText: it.refText,
     stages: ST.map((s, j) => ({ label: s, style: j === it.stage ? 'color: #a3222f; background: #fdecec; border: 1px solid #e5484d' : 'color: #5f5f6b; background: #f3edf0' })),
-    cause: it.cause, day: sv(it.day), month: sv(it.day * 30), hasCard: it.card, noCard: !it.card, cardHref: 'QuyetDinh.dc.html#from=phan-tich&row=' + it.id, rankHref: 'Ranking.dc.html#' + it.rank,
+    cause: it.cause, day: sv(it.day), month: sv(it.day * 30), hasCard: it.card, noCard: !it.card, cardHref: 'CardWhatIf.dc.html#from=phan-tich&row=' + it.id, rankHref: 'Ranking.dc.html#' + it.rank,
     boxStyle: it.id === 'i1' ? 'background: #fff7fa; border-color: #f8b9d3' : 'background: #ffffff' };
 });
 const sumDay = shown.reduce((t, it) => t + it.day, 0);
