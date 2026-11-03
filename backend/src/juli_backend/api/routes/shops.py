@@ -1,4 +1,5 @@
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -46,6 +47,9 @@ class ShopResponse(BaseModel):
     shop_name: str
     tiktok_shop_id: str | None
     is_active: bool
+    #: The marketplace this Juli shop is (``shops.platform``): the app shell picks the TikTok or
+    #: the Shopee navigation from it.
+    platform: Literal["tiktok", "shopee"] = "tiktok"
 
     model_config = {"from_attributes": True}
 
@@ -70,6 +74,7 @@ async def list_shops(
                 shop_name=option.name,
                 tiktok_shop_id=option.tiktok_shop_id,
                 is_active=option.is_active,
+                platform=option.platform,
             )
             for option in await reviewer_shop_options(session, reviewer)
         ]
