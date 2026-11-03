@@ -28,12 +28,10 @@ from juli_backend.models.models import (
 )
 from juli_backend.repositories.repos import (
     InventoryRepo,
-    OrderItemsRepo,
-    OrdersRepo,
     ProductsRepo,
-    ReturnsRepo,
     TikTokSyncStateRepo,
 )
+from juli_backend.services.aggregates import builder as builder_module
 from juli_backend.services.aggregates.builder import (
     SYNCED_DATA_SOURCES,
     build_feature_aggregates,
@@ -177,10 +175,7 @@ class TestSyncedPostgresSourcesOnly:
         calls: list[str] = []
 
         for repo_cls, table in (
-            (OrdersRepo, "orders"),
             (ProductsRepo, "products"),
-            (ReturnsRepo, "returns"),
-            (OrderItemsRepo, "order_items"),
             (InventoryRepo, "inventory_items"),
         ):
             original_list = repo_cls.list
@@ -193,6 +188,23 @@ class TestSyncedPostgresSourcesOnly:
                 return wrapped
 
             monkeypatch.setattr(repo_cls, "list", make_wrapped(original_list, table))
+
+        # P88: orders / returns / order lines are read inside the KPI window only.
+        for attr, table in (
+            ("_rolling_window_orders", "orders"),
+            ("_rolling_window_returns", "returns"),
+            ("_rolling_window_order_items", "order_items"),
+        ):
+            original_read = getattr(builder_module, attr)
+
+            def make_read(orig, tbl):
+                async def wrapped(session_arg, shop_id, anchor, limit):
+                    calls.append(tbl)
+                    return await orig(session_arg, shop_id, anchor, limit)
+
+                return wrapped
+
+            monkeypatch.setattr(builder_module, attr, make_read(original_read, table))
 
         lifecycle = ShopLifecycleContext(
             probation_status="graduated",
