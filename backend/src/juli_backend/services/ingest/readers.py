@@ -98,6 +98,11 @@ async def load_ad_spend(
         .scalars()
         .all()
     )
+    # A group campaign's own total row is the sum of its per-product rows in the same window:
+    # keep only the product rows there, or the campaign is counted twice.
+    with_products = {
+        (row.segment, row.period_start, row.period_end) for row in period_rows if row.item_id
+    }
     windows = [
         AdWindow(
             campaign=row.platform_source or "",
@@ -110,6 +115,7 @@ async def load_ad_spend(
             order_basis=row.order_type,
         )
         for row in period_rows
+        if row.item_id or (row.segment, row.period_start, row.period_end) not in with_products
     ]
     return resolve_ad_spend(days, windows, start, end, covered_days=covered)
 

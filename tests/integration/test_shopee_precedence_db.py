@@ -148,6 +148,8 @@ async def test_ad_spend_takes_the_connector_days_and_csv_for_the_rest(shopee_ten
     csv_rows = [
         {"campaign_name": "Nhóm A", "item_id": "1001", "ads_expense": 600, "sales": 1},
         {"campaign_name": "Nhóm A", "item_id": "1002", "ads_expense": 300, "sales": 1},
+        # the group campaign's own total row (= the sum of its product rows) must not add again
+        {"campaign_name": "Nhóm A", "ads_expense": 900, "sales": 2},
     ]
     csv = _body(csv_rows, source="file", day="2026-10-10", end="2026-10-12", granularity="period")
     csv["period"] = window
