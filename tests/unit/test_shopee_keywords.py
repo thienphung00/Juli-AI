@@ -86,6 +86,11 @@ def test_the_additive_gate_accepts_migration_111_and_its_upgrade_only_adds():
     assert [finding.render() for finding in result.findings] == []
     assert result.accepted is True
     body = MIGRATION.read_text("utf-8").split("def upgrade")[1].split("def downgrade")[0]
+    # The one drop is the method CHECK, recreated wider on the next line (D81.1).
+    widen = 'op.drop_constraint(RESULTS_METHOD_CHECK, RESULTS_TABLE, type_="check")'
+    assert body.count(widen) == 1
+    assert "op.create_check_constraint(RESULTS_METHOD_CHECK" in body
+    body = body.replace(widen, "")
     for verb in ("op.drop_", "op.alter_column", "UPDATE public", "DELETE FROM", "DROP "):
         assert verb not in body, verb
 

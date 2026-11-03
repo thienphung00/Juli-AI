@@ -100,9 +100,9 @@ day. A window not yet covered by an export is `chua_ket_luan`, with `data_throug
   or the exports do not yet cover all 7 post days. Impressions, clicks and CTR rows are all
   stored; only the targeted one decides. `band` holds `value / max-of-8 - 1` (clamped), the
   weekly max / median / min and the reason for any `chua_ket_luan` are in `detail`;
-  `data_through` is the last day of data used; `job_version` is `self_baseline_v1`. The
-  `method` column keeps the migration-109 value `pre_post_vs_untested` (renaming it needs a
-  migration).
+  `data_through` is the last day of data used; `job_version` is `self_baseline_v1`;
+  `method` is `self_baseline` (allowed by migration 111; `pre_post_vs_untested` stays valid
+  for older rows).
 - **D81.3** The daily Shopee beat runs the measurement after the KPI job for every executed,
   verified proposal. The table is append-only: a new row is written only when `data_through`
   advances past the newest stored row of that proposal + metric, and an item's rows are read

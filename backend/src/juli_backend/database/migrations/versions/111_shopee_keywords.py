@@ -21,8 +21,13 @@ from shopeeanalytics.com lookups the owner makes in their own browser and upload
   Offboarding removes them with every other ``shop_id`` table (094's purge). ``created_by``
   is a plain staff uuid, not a foreign key into an Ops-only table (as 109).
 
-EXPAND-ONLY AND REVERSIBLE. Tables, indexes, policies and grants; no data change.
-``downgrade`` drops them. The deferred write-mode backfill (and the phone cleanup under it)
+- ``shop_proposal_results.method`` also accepts ``self_baseline`` (ADR-118 D81.1: an item
+  measured against its own history, no longer against untested items). The old
+  ``pre_post_vs_untested`` stays allowed for rows already written.
+
+EXPAND-ONLY AND REVERSIBLE. Tables, indexes, policies, grants and one widened CHECK; no
+data change. ``downgrade`` drops the tables and restores the narrower CHECK as ``NOT
+VALID`` (rows written meanwhile keep their value). The deferred write-mode backfill (and the phone cleanup under it)
 is re-parented onto this revision so it stays the tail.
 """
 
@@ -43,12 +48,16 @@ APP_ROLE = "juli_app"
 OPS_ROLE = "juli_ops"
 METRICS_TABLE = "market_keyword_metrics"
 SEEDS_TABLE = "shop_keyword_seeds"
+RESULTS_TABLE = "shop_proposal_results"
+RESULTS_METHOD_CHECK = "ck_shop_proposal_results_method"
 
 #: Written out rather than imported from the models: a migration must not change when
 #: the model does. ``tests/unit/test_shopee_keywords.py`` pins them equal.
 PLATFORMS = ("tiktok", "shopee")
 SOURCES = ("shopeeanalytics",)
 STATUSES = ("ok", "blocked", "no_match")
+METHODS_109 = ("pre_post_vs_untested", "contract_kpi")
+METHODS = (*METHODS_109, "self_baseline")
 PATTERNS = (
     "brand_type",
     "brand_function",
@@ -187,9 +196,16 @@ def upgrade() -> None:
     _create_seeds()
     _secure_ops(METRICS_TABLE, UPSERT_VERBS)
     _secure_tenant(SEEDS_TABLE, UPSERT_VERBS)
+    op.drop_constraint(RESULTS_METHOD_CHECK, RESULTS_TABLE, type_="check")
+    op.create_check_constraint(RESULTS_METHOD_CHECK, RESULTS_TABLE, f"method IN ({_in(METHODS)})")
 
 
 def downgrade() -> None:
+    op.drop_constraint(RESULTS_METHOD_CHECK, RESULTS_TABLE, type_="check")
+    op.execute(
+        f"ALTER TABLE public.{RESULTS_TABLE} ADD CONSTRAINT {RESULTS_METHOD_CHECK} "
+        f"CHECK (method IN ({_in(METHODS_109)})) NOT VALID"
+    )  # nosec B608 - fixed module constants
     for table in (SEEDS_TABLE, METRICS_TABLE):
         op.execute(f"""
         DO $$

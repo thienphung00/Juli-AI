@@ -88,10 +88,11 @@ EXECUTOR_ROLES: tuple[str, ...] = ("client_representative", "juli_operator", EXE
 EXECUTION_CHANNELS: tuple[str, ...] = ("ops", CHANNEL_IN_APP, "api")
 VERIFIED_HOW: tuple[str, ...] = ("export_readback", "sub_account_read", "api")
 
-#: ``pre_post_vs_untested`` is the migration-109 name of the pre/post method. Since D81.1 an
-#: item is measured against its own history (``job_version`` ``self_baseline_v1``), not
-#: against untested items; renaming the value needs a migration.
-METHODS: tuple[str, ...] = ("pre_post_vs_untested", "contract_kpi")
+#: ``pre_post_vs_untested`` is the migration-109 pre/post method, kept for rows written
+#: before D81.1; since then an item is measured against its own history
+#: (``self_baseline``, migration 111).
+METHOD_SELF_BASELINE = "self_baseline"
+METHODS: tuple[str, ...] = ("pre_post_vs_untested", "contract_kpi", METHOD_SELF_BASELINE)
 VERDICTS: tuple[str, ...] = ("dat", "khong_dat", "chua_ket_luan")
 
 

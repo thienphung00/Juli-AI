@@ -92,10 +92,18 @@ def test_migration_vocabularies_match_the_models():
         "EXECUTOR_ROLES",
         "EXECUTION_CHANNELS",
         "VERIFIED_HOW",
-        "METHODS",
         "VERDICTS",
     ):
         assert getattr(mig, name) == getattr(models, name), name
+    # 111 widened the method CHECK (D81.1): 109's values plus ``self_baseline``.
+    spec = importlib.util.spec_from_file_location(
+        "mig111", MIGRATION.with_name("111_shopee_keywords.py")
+    )
+    assert spec is not None and spec.loader is not None
+    widened = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(widened)
+    assert widened.METHODS_109 == mig.METHODS
+    assert widened.METHODS == models.METHODS
 
 
 @pytest.mark.parametrize("model", MODELS, ids=lambda m: m.__tablename__)

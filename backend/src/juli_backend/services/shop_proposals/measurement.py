@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.models.shop_proposals import (
+    METHOD_SELF_BASELINE,
     STATUS_EXECUTED,
     STATUS_MEASURED,
     SUBJECT_ITEM,
@@ -53,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 PLATFORM = "shopee"
 #: The legacy name of the table's pre/post method; ``job_version`` tells the rule set.
-METHOD = "pre_post_vs_untested"
+METHOD = METHOD_SELF_BASELINE
 JOB_VERSION = "self_baseline_v1"
 DATASET = "item_performance"
 STREAM = "total"
