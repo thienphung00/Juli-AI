@@ -3664,3 +3664,16 @@ reconcile --write` re-derived the no-assert corpus figure.
   agents, migration 112, loader parsers, `services/shopee_profit/`. Merges come back here.
 - Next: owner approves the artboards; importer and Ops upload after 112; connector recon needs a
   logged-in Seller Centre tab.
+
+## 2026-11-04 — agent (Claude Opus) — P90: Steps 1–9 implemented via sub-agents; final integration green
+
+- Merged into fasttrack/ops-reco-pipeline: Step 1 loader fixes, Step 2 orders + browser PII strip + migration 113,
+  Step 4 seller import, Step 5 connector 0.3.1 (ORY-only gate), Steps 5/6 precedence + verification + migration 114,
+  Step 7 shopee_analytics, Step 8 shopee_recommendations + migration 115, Step 9a/9b/9c UI + backend gaps; upstream
+  9eba0442 + f2074bb5 merged. Sim port in ~/juli-sim-pilot (all gate weights 0).
+- Final verification: unit 9836 passed (+42 agent-events contract with node deps); integration 582 passed, 10 failed —
+  all 10 fail identically on base 731b1d20 (update-grant test also lists 3 P90 tables, decision pending); demo vitest
+  1683, next build OK, Playwright e2e/shopee 20/20; connector 146 + build 0.3.1; check.sh OK; gitleaks clean.
+- ORY end-to-end on a throwaway DB: 121 orders / AOV 172.025đ (01–28/10), flows add up (0 residual), ad group spend
+  reconciles within 1đ, vouchers reconcile every month, cards generated (13 → 6 persisted), 4 title cards ≤ 120 chars.
+- Next (owner): deploy per contracts/p90-deploy-checklist.md, set JULI_ORDER_REF_MASTER_KEY, then install connector.
