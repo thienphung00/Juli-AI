@@ -33,7 +33,7 @@ from juli_backend.services.shopee_profit.order_profit import OrderLine, ProfitBr
 class Snapshot:
     list_value: Decimal
     gmv: Decimal  # deal x qty, before the shop voucher
-    buyer_paid: Decimal
+    buyer_paid: Decimal  # profit base: delivered / accepted-refund lines only
     buyer_paid_covered: Decimal  # lines with every cost known
     orders: Decimal
     promo: Decimal  # khuyen mai discount
@@ -106,13 +106,15 @@ def snapshot_from_orders(
         for ln, pb in group:
             acc["list_value"] += w * pb.list_value
             acc["gmv"] += w * ln.order_value
-            acc["buyer_paid"] += w * pb.buyer_paid
             acc["promo"] += w * pb.promo_discount
             acc["voucher"] += w * pb.voucher
             acc["combo"] += w * pb.bundle
+            if pb.excluded_reason is not None:
+                continue  # confirmed GMV / discounts count; no fee, no profit, outside the base
+            acc["buyer_paid"] += w * pb.revenue
             acc["commission"] += w * (pb.commission or ZERO)
             if pb.contribution is not None:
-                acc["covered"] += w * pb.buyer_paid
+                acc["covered"] += w * pb.revenue
                 acc["contribution"] += w * pb.contribution
     return Snapshot(
         list_value=acc["list_value"],

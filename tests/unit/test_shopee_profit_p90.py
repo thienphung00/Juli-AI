@@ -16,6 +16,7 @@ from juli_backend.services.shopee_profit.fees import (
     FeeFormula,
     FeeKind,
     FeeSchedule,
+    shopee_vn_non_mall,
 )
 from juli_backend.services.shopee_profit.five_numbers import five_numbers, snapshot_from
 from juli_backend.services.shopee_profit.flows import (
@@ -29,12 +30,14 @@ from juli_backend.services.shopee_profit.flows import (
 )
 from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
+    OrderStatus,
     PromoKind,
     SkuCost,
     profit_lines,
 )
 from juli_backend.services.shopee_profit.shop_profit import (
     AdCampaign,
+    AdsFigures,
     pools_from_product_spend,
     reconcile_gmv,
     shop_profit,
@@ -431,3 +434,97 @@ def test_voucher_number_2_only_from_predicted_range() -> None:
     # dGMV = n x 250.000 ; dchi = extra voucher cost 200.000 + n x 10.000
     assert p.extra_revenue_per_extra_spend_low == D(2 * 250000) / D(200000 + 2 * 10000)
     assert p.extra_revenue_per_extra_spend_high == D(10 * 250000) / D(200000 + 10 * 10000)
+
+
+# ------------------------------------------------- contract 10: fees, status, ROAS
+
+
+def test_non_mall_formula_bases_once_per_order() -> None:
+    f = shopee_vn_non_mall(D("0.08"), date(2026, 5, 23))
+    assert [c.code for c in f.components] == [
+        "phi_co_dinh",
+        "phi_xu_ly_giao_dich",
+        "phi_ha_tang",
+    ]
+    sched = FeeSchedule((f,))
+    lines = [
+        ol("o", "S1", "P1", 1, 200000, 200000, buyer_shipping_fee=D(20000), bank_promo=D(5000)),
+        ol("o", "S2", "P2", 1, 100000, 100000),  # NULL shipping / bank promo -> 0
+    ]
+    costs = {"S1": SkuCost("S1", D(1), D(0)), "S2": SkuCost("S2", D(1), D(0))}
+    pairs = profit_lines(lines, costs, schedule=sched)
+    fees = [dict(pb.fees or ()) for _, pb in pairs]
+    # phi co dinh per item: 8 % x 200.000 / 100.000
+    assert (fees[0]["phi_co_dinh"], fees[1]["phi_co_dinh"]) == (D(16000), D(8000))
+    # transaction fee once per order: 6 % x (300.000 + 20.000 - 5.000) = 18.900, split 2:1
+    assert (fees[0]["phi_xu_ly_giao_dich"], fees[1]["phi_xu_ly_giao_dich"]) == (D(12600), D(6300))
+    # infrastructure 3.000 once per order
+    assert (fees[0]["phi_ha_tang"], fees[1]["phi_ha_tang"]) == (D(2000), D(1000))
+    assert sum(pb.fees_total or D(0) for _, pb in pairs) == D(24000 + 18900 + 3000)
+    # one line = its own order: 16.000 + 6 % x (200.000 + 15.000) + 3.000
+    solo = f.fee(lines[0])
+    assert solo.total == D(16000 + 12900 + 3000)
+    assert f.pct_rate_on_buyer_paid == D("0.14")
+
+
+def test_fixed_fee_base_is_after_seller_promotions() -> None:
+    f = shopee_vn_non_mall(D("0.10"), date(2026, 5, 23))
+    line = ol("o", "S1", "P1", 1, 200000, 180000, shop_voucher_share=D(10000))
+    assert line.item_after_seller_promo == D(170000)
+    assert dict(f.fee(line).components)["phi_co_dinh"] == D(17000)
+
+
+def test_order_status_fee_and_profit_rules() -> None:
+    S = OrderStatus
+    cost = {"S1": SkuCost("S1", D(100000), D(3000))}
+    lines = [
+        ol("d", "S1", "P1", 1, 200000, 200000),
+        ol("c", "S1", "P1", 1, 200000, 200000, status=S.CANCELLED),
+        ol("t", "S1", "P1", 1, 200000, 200000, status=S.IN_TRANSIT),
+        ol("n", "S1", "P1", 1, 200000, 200000, status=S.REFUNDED_NOT_RECEIVED),
+        ol("r", "S1", "P1", 1, 200000, 200000, status=S.REFUNDED_ACCEPTED, affiliate=True,
+           commission=D(5000)),
+    ]  # fmt: skip
+    pairs = profit_lines(lines, cost, schedule=SCHEDULE)
+    pb = {ln.order_id: b for ln, b in pairs}
+    # delivered: 200.000 - (30.000 + 1.650) - 103.000
+    assert pb["d"].contribution == D(65350)
+    # cancelled / undelivered / not received: no fee, no profit, outside the base
+    for k in ("c", "t", "n"):
+        assert pb[k].fees_total is None and pb[k].contribution is None
+        assert pb[k].excluded_reason == "no_fee_no_profit" and pb[k].profit is None
+    # accepted "Hoan tien ngay": fee kept, revenue 0, goods + packaging lost, no commission
+    assert pb["r"].fees_total == D(31650) and pb["r"].revenue == D(0)
+    assert pb["r"].contribution == D(-31650 - 103000)
+
+    sp = shop_profit(pairs, campaigns=[], product_ad_spend={})
+    # confirmed views keep every order's GMV ...
+    assert sp.orders == 5 and sp.gmv == D(1000000)
+    assert sp.products["P1"].gmv == D(1000000) and sp.products["P1"].excluded_orders == 3
+    # ... the profit base is delivered + accepted refund only: revenue 200.000 + 0
+    assert sp.buyer_paid == D(200000) and sp.buyer_paid_covered == D(200000)
+    assert sp.contribution == D(65350 - 134650) and sp.profit == D(-69300)
+    assert sp.cost_coverage_pct == D("100.0")
+    m = build_source_matrix(pairs)
+    assert_additive(m)
+    assert m.totals["P1"].orders == 5 and m.totals["P1"].orders_excluded == 3
+    assert m.totals["P1"].orders_missing_profit == 0
+    assert m.totals["P1"].gmv == D(1000000)
+    # the five numbers: GMV and orders are confirmed, the margin base is not
+    snap = snapshot_from(pairs, D(0))
+    assert snap.gmv == D(1000000) and snap.orders == 5 and snap.buyer_paid == D(200000)
+
+
+def test_roas_broad_and_direct_per_product_and_campaign() -> None:
+    pairs = profit_lines(shop_lines(), SHOP_COSTS, schedule=SCHEDULE)
+    ads = {"P1": AdsFigures(D(50000), gmv=D(400000), direct_gmv=D(150000))}
+    sp = shop_profit(pairs, campaigns=CAMPAIGNS, product_ad_spend=PRODUCT_ADS, product_ads=ads)
+    p1 = sp.products["P1"]
+    assert p1.roas_broad == D(8) and p1.roas_direct == D(3)
+    # break-even 560.000 / 167.250 = 3,35: the DIRECT roas (3,0) is below it, broad (8) is not
+    assert p1.break_even_roas == D(560000) / D(167250)
+    assert p1.ads_below_break_even is True
+    assert sp.products["P2"].roas_direct is None and sp.products["P2"].ads_below_break_even is None
+    c = AdCampaign("C", D(100), revenue=D(500), direct_revenue=D(200))
+    assert (c.roas_broad, c.roas_direct) == (D(5), D(2))
+    assert AdCampaign("Z", D(30), revenue=D(0)).roas_direct is None
