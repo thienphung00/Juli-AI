@@ -156,7 +156,10 @@ SHOP_OVERVIEW: dict[str, Column] = {
     "Doanh số trên mỗi đơn hàng": ("sales_per_order", None),
     "Lượt nhấp vào sản phẩm": ("product_clicks", None),
     "Số lượt truy cập": ("visitors", None),
-    "Tỷ lệ chuyển đổi đơn hàng": ("conversion_rate", None),
+    # Not posted, like SOURCE_METRICS' ratios: on a quiet day orders can outnumber
+    # visitors, the ratio exceeds 1 and the gateway's rate guard refuses the whole post.
+    # Readers compute it from ``orders`` / ``visitors``.
+    "Tỷ lệ chuyển đổi đơn hàng": (None, None),
     "Đơn đã hủy": ("cancelled_orders", None),
     "Doanh số đơn hủy": ("cancelled_sales", None),
     "Đơn đã hoàn trả / hoàn tiền": ("returned_orders", None),

@@ -706,3 +706,25 @@ def test_buyer_level_and_unlisted_reports_are_never_opened(tmp_path):
     parsed = parse.parse_folder(tmp_path)
     assert parsed.posts == []
     assert len(parsed.skipped_files) == 4
+
+
+def test_shopee_conversion_ratio_above_one_is_not_posted_and_the_post_still_validates(tmp_path):
+    header = [*SHOP_HEADER, "Tỷ lệ chuyển đổi đơn hàng"]
+    _write_xlsx(
+        tmp_path / "synthetic.shopee-shop-stats.20261001-20261002.xlsx",
+        {
+            "Đơn đã xác nhận": [
+                header,
+                ["01-10-2026-02-10-2026", "300.000", "3", "3", "100,00%"],
+                [],
+                header,
+                ["01-10-2026", "100.000", "1", "2", "50,00%"],
+                ["02-10-2026", "200.000", "2", "1", "200,00%"],  # orders > visitors
+            ],
+        },
+    )
+    parsed = parse.parse_folder(tmp_path)
+    _validates(parsed.posts)
+    (overview,) = _by(parsed.posts, "shop_overview", "confirmed")
+    assert [r["orders"] for r in overview.body["rows"]] == [1, 2]
+    assert all("conversion_rate" not in r for r in overview.body["rows"])
