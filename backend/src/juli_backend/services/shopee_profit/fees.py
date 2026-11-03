@@ -5,13 +5,17 @@ component uses (what the buyer paid / list price / order value) is configuration
 hard-coded: the owner confirms it per fee code from the Shopee fee schedule.
 
 Rules: each component rounds to whole đồng (half up); ``cap`` bounds a component's amount;
-a fixed component applies once per order line passed in (pass one line per order for
-single-item orders); the formula valid on an order date is the version with the latest
-``effective_from`` <= that date, and none -> ``None`` (never a guess).
+a fixed component is charged ONCE PER ORDER: ``FeeFormula.fee(line)`` alone treats the line as
+the whole order, and for multi-line orders :meth:`FeeFormula.split_fixed` divides each fixed
+amount across the order's lines by value (remainder on the last line, so the shares add up
+exactly) and the shares are passed to ``fee(line, fixed=...)``. The formula valid on an order
+date is the version with the latest ``effective_from`` <= that date, and none -> ``None``
+(never a guess).
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -86,9 +90,45 @@ class FeeFormula:
     effective_from: date
     components: tuple[FeeComponent, ...]
 
-    def fee(self, line: FeeBasis) -> FeeResult:
-        parts = tuple((c.code, c.amount_for(line)) for c in self.components)
+    def fee(self, line: FeeBasis, fixed: Mapping[str, Decimal] | None = None) -> FeeResult:
+        """Fee of one line. ``fixed`` = this line's share of each fixed component (see
+        :meth:`split_fixed`); omitted, the line is the whole order and pays them in full."""
+        parts = tuple(
+            (
+                c.code,
+                fixed[c.code]
+                if fixed is not None and c.kind is FeeKind.FIXED
+                else c.amount_for(line),
+            )
+            for c in self.components
+        )
         return FeeResult(parts, sum((a for _, a in parts), ZERO))
+
+    def split_fixed(self, weights: Sequence[Decimal]) -> list[dict[str, Decimal]]:
+        """Each fixed component charged once for the order, split over its lines by weight
+        (their value); whole đồng, remainder on the last line so shares sum to the charge."""
+        n = len(weights)
+        out: list[dict[str, Decimal]] = [{} for _ in range(n)]
+        if n == 0:
+            return out
+        total_w = sum((max(w, ZERO) for w in weights), ZERO)
+        for c in self.components:
+            if c.kind is not FeeKind.FIXED:
+                continue
+            charge = to_dong(
+                min(c.amount or ZERO, c.cap) if c.cap is not None else c.amount or ZERO
+            )
+            left = charge
+            for i, w in enumerate(weights):
+                if i == n - 1:
+                    share = left
+                elif total_w > 0:
+                    share = to_dong(charge * max(w, ZERO) / total_w)
+                else:
+                    share = to_dong(charge / n)
+                left -= share
+                out[i][c.code] = share
+        return out
 
     @property
     def pct_rate_on_buyer_paid(self) -> Decimal:

@@ -8,8 +8,10 @@ predicts: the ``predicted`` layer of a what-if only multiplies a range the calle
 - :mod:`.order_profit` -- order line + SKU cost -> profit waterfall.
 - :mod:`.floor` -- absolute / operating floor price, max discount.
 - :mod:`.whatif` -- voucher, price-change, ads-budget scenarios (``certain`` vs ``predicted``).
-- :mod:`.five_numbers` -- Huyền's five numbers for a before/after pair.
-- :mod:`.sources` -- product x source matrix, additive by construction.
+- :mod:`.five_numbers` -- the five numbers (contract section 5) for a before/after pair.
+- :mod:`.flows` -- five additive traffic flows from aggregates + residual row.
+- :mod:`.sources` -- product x price-lever matrix, additive by construction.
+- :mod:`.shop_profit` -- product profit, shop profit, cost coverage, GMV reconciliation.
 
 See ``MODULE.md``.
 """

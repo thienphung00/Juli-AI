@@ -30,8 +30,15 @@ from dataclasses import dataclass, replace
 from decimal import Decimal
 
 from juli_backend.services.shopee_profit.fees import FeeSchedule
+from juli_backend.services.shopee_profit.five_numbers import (
+    FiveNumbers,
+    OrderGroup,
+    SpendCap,
+    five_numbers,
+    snapshot_from_orders,
+)
 from juli_backend.services.shopee_profit.floor import FloorResult
-from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div, to_dong
+from juli_backend.services.shopee_profit.money import ONE, ZERO, pct_points, safe_div, to_dong
 from juli_backend.services.shopee_profit.order_profit import (
     AdsPool,
     OrderLine,
@@ -72,14 +79,24 @@ class FloorBreach:
 
 @dataclass(frozen=True)
 class VoucherRule:
+    """A shop voucher: value (``amount`` d, or ``pct`` of the order subtotal with
+    ``max_discount``), minimum spend, ``usage_limit`` (so luong voucher, None = unlimited) and
+    ``per_user_limit`` (uses per buyer; needs ``OrderLine.buyer_key`` to be enforced)."""
+
     min_spend: Decimal
     amount: Decimal | None = None
     pct: Decimal | None = None  # fraction of the order subtotal
     max_discount: Decimal | None = None
+    usage_limit: int | None = None
+    per_user_limit: int | None = None
 
     def __post_init__(self) -> None:
         if (self.amount is None) == (self.pct is None):
             raise ValueError("exactly one of amount / pct")
+        if self.usage_limit is not None and self.usage_limit < 0:
+            raise ValueError("usage_limit must be >= 0")
+        if self.per_user_limit is not None and self.per_user_limit < 1:
+            raise ValueError("per_user_limit must be >= 1")
 
     def discount_for(self, subtotal: Decimal) -> Decimal:
         if subtotal < self.min_spend or subtotal <= 0:
@@ -93,8 +110,9 @@ class VoucherRule:
 @dataclass(frozen=True)
 class OrderGroupStats:
     orders: int
-    profit_per_order: Decimal | None
-    margin_rate: Decimal | None
+    profit_per_order: Decimal | None  # after the display line-level ad split
+    margin_rate: Decimal | None  # profit / buyer_paid
+    contribution_per_order: Decimal | None = None  # before ads
 
     @property
     def margin_pct(self) -> Decimal | None:
@@ -103,13 +121,30 @@ class OrderGroupStats:
 
 @dataclass(frozen=True)
 class VoucherCertain:
+    # history window (orders as they happened)
     total_orders: int
     qualifying_orders: int
     qualifying_value: Decimal
     discount_pct_of_qualifying: Decimal | None
+    # usage model (contract 7): Q scaled to the voucher's days, u explicit, used = min(Q*u, limit)
+    days: int
+    window_days: int
+    usage_rate: Decimal
+    usage_rate_source: str  # "input" | "default_1"
+    usage_limit: int | None
+    per_user_limit: int | None
+    per_user_limit_enforced: bool
+    expected_qualifying_orders: Decimal  # Q
+    used_baseline: Decimal
+    used_scenario: Decimal
+    usage_capped: bool  # the usage limit (not u) bound the scenario
+    # cost over the voucher's days
     voucher_cost_baseline: Decimal
     voucher_cost_scenario: Decimal
     extra_cost: Decimal
+    voucher_spend_per_day: Decimal
+    voucher_spend_check: SpendCap | None
+    # per order
     organic: OrderGroupStats
     ad_attributed: OrderGroupStats
     ad_margin_below_target: bool | None
@@ -117,6 +152,7 @@ class VoucherCertain:
     floor_breaches: tuple[FloorBreach, ...]
     break_even_extra_orders: int | None
     break_even_reason: str | None
+    five_numbers: FiveNumbers
 
 
 @dataclass(frozen=True)
@@ -125,18 +161,43 @@ class VoucherWhatIf:
     predicted: PredictedNet | None
 
 
+@dataclass(frozen=True)
+class _Plan:
+    lines: list[OrderLine]
+    qualifying: set[str]
+    hist_cost: Decimal  # voucher total over the history window
+    expected_q: Decimal  # Q: qualifying orders scaled to the voucher's days
+    used: Decimal  # min(Q*u, usage_limit)
+    capped: bool
+
+    @property
+    def fraction(self) -> Decimal:
+        """Share of qualifying orders that carry the voucher (used / Q)."""
+        return self.used / self.expected_q if self.expected_q > 0 else ZERO
+
+
 def _apply_rule(
     lines: Sequence[OrderLine], rule: VoucherRule | None
 ) -> tuple[list[OrderLine], set[str], Decimal]:
     by_order: dict[str, list[OrderLine]] = defaultdict(list)
     for ln in lines:
         by_order[ln.order_id].append(ln)
+    subtotals = {oid: sum((ln.order_value for ln in g), ZERO) for oid, g in by_order.items()}
+    discounts = {oid: (rule.discount_for(subtotals[oid]) if rule else ZERO) for oid in by_order}
+    if rule is not None and rule.per_user_limit is not None:
+        seen: dict[str, int] = defaultdict(int)
+        for oid in sorted(by_order, key=lambda o: (by_order[o][0].order_date, o)):
+            key = by_order[oid][0].buyer_key
+            if key is None or discounts[oid] == 0:
+                continue
+            seen[key] += 1
+            if seen[key] > rule.per_user_limit:
+                discounts[oid] = ZERO
     out: list[OrderLine] = []
     qualifying: set[str] = set()
     total = ZERO
     for order_id, group in by_order.items():
-        subtotal = sum((ln.order_value for ln in group), ZERO)
-        discount = rule.discount_for(subtotal) if rule else ZERO
+        subtotal, discount = subtotals[order_id], discounts[order_id]
         if discount > 0:
             qualifying.add(order_id)
         total += discount
@@ -154,30 +215,47 @@ def _apply_rule(
     return out, qualifying, total
 
 
-def _stats(orders: list[tuple[Decimal | None, Decimal]]) -> OrderGroupStats:
-    known = [(p, b) for p, b in orders if p is not None]
+def _plan(
+    lines: Sequence[OrderLine],
+    rule: VoucherRule | None,
+    scale: Decimal,
+    usage_rate: Decimal,
+) -> _Plan:
+    new_lines, qualifying, total = _apply_rule(lines, rule)
+    q = Decimal(len(qualifying)) * scale
+    by_rate = q * usage_rate
+    limit = Decimal(rule.usage_limit) if rule and rule.usage_limit is not None else None
+    used = min(by_rate, limit) if limit is not None else by_rate
+    return _Plan(new_lines, qualifying, total, q, used, limit is not None and limit < by_rate)
+
+
+def _stats(orders: list[tuple[Decimal | None, Decimal | None, Decimal]]) -> OrderGroupStats:
+    """orders: (profit, contribution, buyer_paid) -- None = a cost is unknown."""
+    known = [(p, b) for p, _, b in orders if p is not None]
+    known_c = [c for _, c, _ in orders if c is not None]
+    c_per = sum(known_c, ZERO) / len(known_c) if known_c else None
     if not known:
-        return OrderGroupStats(len(orders), None, None)
+        return OrderGroupStats(len(orders), None, None, c_per)
     profit = sum((p for p, _ in known), ZERO)
     paid = sum((b for _, b in known), ZERO)
-    return OrderGroupStats(len(orders), profit / len(known), safe_div(profit, paid))
+    return OrderGroupStats(len(orders), profit / len(known), safe_div(profit, paid), c_per)
 
 
 def _order_rollup(
     pairs: Sequence[tuple[OrderLine, ProfitBreakdown]], only: set[str] | None
-) -> dict[str, tuple[Decimal | None, Decimal, bool]]:
-    """order_id -> (profit or None if any line unknown, buyer_paid, any ad-attributed)."""
+) -> dict[str, tuple[Decimal | None, Decimal | None, Decimal, bool]]:
+    """order_id -> (profit, contribution -- None if any line unknown, buyer_paid, any ad)."""
     acc: dict[str, list[tuple[OrderLine, ProfitBreakdown]]] = defaultdict(list)
     for ln, pb in pairs:
         if only is None or ln.order_id in only:
             acc[ln.order_id].append((ln, pb))
-    res: dict[str, tuple[Decimal | None, Decimal, bool]] = {}
+    res: dict[str, tuple[Decimal | None, Decimal | None, Decimal, bool]] = {}
     for oid, items in acc.items():
         profits = [pb.profit for _, pb in items]
-        known = all(p is not None for p in profits)
-        profit = sum((p for p in profits if p is not None), ZERO) if known else None
+        contribs = [pb.contribution for _, pb in items]
         res[oid] = (
-            profit,
+            None if any(p is None for p in profits) else sum((p or ZERO for p in profits), ZERO),
+            None if any(c is None for c in contribs) else sum((c or ZERO for c in contribs), ZERO),
             sum((pb.buyer_paid for _, pb in items), ZERO),
             any(ln.ad_attributed for ln, _ in items),
         )
@@ -217,6 +295,32 @@ def _predicted(
     )
 
 
+def _groups(pairs: Sequence[tuple[OrderLine, ProfitBreakdown]]) -> dict[str, OrderGroup]:
+    out: dict[str, list[tuple[OrderLine, ProfitBreakdown]]] = defaultdict(list)
+    for ln, pb in pairs:
+        out[ln.order_id].append((ln, pb))
+    return dict(out)
+
+
+def _mixed(
+    none_groups: Mapping[str, OrderGroup],
+    plan: _Plan | None,
+    plan_groups: Mapping[str, OrderGroup] | None,
+    scale: Decimal,
+) -> list[tuple[Decimal, OrderGroup]]:
+    """Expected orders in the voucher period: qualifying orders carry the voucher with
+    probability used/Q, otherwise they are voucher-free; every weight is scaled to the days."""
+    out: list[tuple[Decimal, OrderGroup]] = []
+    phi = plan.fraction if plan else ZERO
+    for oid, group in none_groups.items():
+        if plan is not None and plan_groups is not None and oid in plan.qualifying:
+            out.append((scale * phi, plan_groups[oid]))
+            out.append((scale * (ONE - phi), group))
+        else:
+            out.append((scale, group))
+    return out
+
+
 def voucher_whatif(
     lines: Sequence[OrderLine],
     costs: Mapping[str, SkuCost],
@@ -229,57 +333,137 @@ def voucher_whatif(
     floors: Mapping[str, FloorResult] | None = None,
     target_margin_rate: Decimal | None = None,
     predicted_extra_orders: PredictedRange | None = None,
+    usage_rate: Decimal | None = None,
+    voucher_days: int | None = None,
+    window_days: int | None = None,
+    ad_spend: Decimal = ZERO,
+    other_costs: Decimal = ZERO,
+    spend_cap_per_day: Decimal | None = None,
 ) -> VoucherWhatIf:
-    _, _, baseline_cost = _apply_rule(lines, baseline)
-    new_lines, qualifying, scenario_cost = _apply_rule(lines, scenario)
-    pairs = profit_lines(
-        new_lines, costs, schedule=schedule, ads_pools=ads_pools, affiliate_rate=affiliate_rate
-    )
-    rollup = _order_rollup(pairs, qualifying)
-    organic = [(p, b) for p, b, ad in rollup.values() if not ad]
-    ads = [(p, b) for p, b, ad in rollup.values() if ad]
+    """Contract 7. ``lines`` are the history window (whole orders). ``usage_rate`` is u, the
+    usage rate of the shop's comparable past vouchers (default 1, reported as ``default_1``);
+    ``voucher_days`` / ``window_days`` scale Q (default: no scaling; window = date span of the
+    lines). ``ad_spend`` / ``other_costs`` are the window's totals, scaled with the orders, and
+    identical before and after (the voucher does not change them)."""
+    u = Decimal(1) if usage_rate is None else usage_rate
+    if not ZERO <= u <= 1:
+        raise ValueError("usage_rate must be within [0, 1]")
+    if lines:
+        dates = [ln.order_date for ln in lines]
+        window = window_days or ((max(dates) - min(dates)).days + 1)
+    else:
+        window = window_days or 1
+    days = voucher_days or window
+    if window <= 0 or days <= 0:
+        raise ValueError("days must be positive")
+    scale = Decimal(days) / Decimal(window)
+
+    kw = {"schedule": schedule, "ads_pools": ads_pools, "affiliate_rate": affiliate_rate}
+    base_plan = _plan(lines, baseline, scale, u)
+    plan = _plan(lines, scenario, scale, u)
+    pairs = profit_lines(plan.lines, costs, **kw)  # type: ignore[arg-type]
+    rollup = _order_rollup(pairs, plan.qualifying)
+    organic = [(p, c, b) for p, c, b, ad in rollup.values() if not ad]
+    ads = [(p, c, b) for p, c, b, ad in rollup.values() if ad]
     organic_stats, ad_stats = _stats(organic), _stats(ads)
-    qualifying_value = sum((ln.order_value for ln in new_lines if ln.order_id in qualifying), ZERO)
-    extra = scenario_cost - baseline_cost
+    qualifying_value = sum(
+        (ln.order_value for ln in plan.lines if ln.order_id in plan.qualifying), ZERO
+    )
+
+    # cost over the voucher's days: used orders x average discount of a qualifying order
+    n_q = len(plan.qualifying)
+    cost_s = plan.hist_cost * scale * plan.fraction
+    cost_b = base_plan.hist_cost * scale * base_plan.fraction
+    extra = cost_s - cost_b
 
     basis = (
         organic_stats
-        if organic_stats.profit_per_order is not None
-        else _stats([(p, b) for p, b, _ in rollup.values()])
+        if organic_stats.contribution_per_order is not None
+        else _stats([(p, c, b) for p, c, b, _ in rollup.values()])
     )
-    ppo = basis.profit_per_order
+    cpo = basis.contribution_per_order
     be: int | None = None
     reason: str | None = None
     if extra <= 0:
         be, reason = 0, "no_extra_cost"
-    elif ppo is None:
+    elif cpo is None:
         reason = "profit_per_order_unknown"
-    elif ppo <= 0:
+    elif cpo <= 0:
         reason = "profit_per_order_non_positive"
     else:
-        be = math.ceil(extra / ppo)
+        be = math.ceil(extra / cpo)
 
     below: bool | None = None
     if target_margin_rate is not None and ad_stats.margin_rate is not None:
         below = ad_stats.margin_rate < target_margin_rate
 
+    # five numbers: before = baseline voucher (or none), after = scenario, same orders
+    none_pairs = profit_lines(_apply_rule(lines, None)[0], costs, **kw)  # type: ignore[arg-type]
+    none_groups = _groups(none_pairs)
+    base_groups = (
+        _groups(profit_lines(base_plan.lines, costs, **kw))  # type: ignore[arg-type]
+        if baseline is not None
+        else None
+    )
+    scaled_ads, scaled_other = ad_spend * scale, other_costs * scale
+    d = Decimal(days)
+    snap_before = snapshot_from_orders(
+        _mixed(none_groups, base_plan if baseline else None, base_groups, scale),
+        scaled_ads,
+        other_costs=scaled_other,
+        days=d,
+    )
+    snap_after = snapshot_from_orders(
+        _mixed(none_groups, plan, _groups(pairs), scale),
+        scaled_ads,
+        other_costs=scaled_other,
+        days=d,
+    )
+    five = five_numbers(snap_before, snap_after, spend_cap=spend_cap_per_day)
+
+    per_day = cost_s / d
+    check = None
+    if spend_cap_per_day is not None:
+        check = SpendCap(
+            per_day,
+            spend_cap_per_day,
+            spend_cap_per_day - per_day,
+            pct_points(safe_div(per_day, spend_cap_per_day)),
+            per_day > spend_cap_per_day,
+        )
+
     certain = VoucherCertain(
         total_orders=len({ln.order_id for ln in lines}),
-        qualifying_orders=len(qualifying),
+        qualifying_orders=n_q,
         qualifying_value=qualifying_value,
-        discount_pct_of_qualifying=pct_points(safe_div(scenario_cost, qualifying_value)),
-        voucher_cost_baseline=baseline_cost,
-        voucher_cost_scenario=scenario_cost,
+        discount_pct_of_qualifying=pct_points(safe_div(plan.hist_cost, qualifying_value)),
+        days=days,
+        window_days=window,
+        usage_rate=u,
+        usage_rate_source="default_1" if usage_rate is None else "input",
+        usage_limit=scenario.usage_limit,
+        per_user_limit=scenario.per_user_limit,
+        per_user_limit_enforced=scenario.per_user_limit is not None
+        and any(ln.buyer_key is not None for ln in lines),
+        expected_qualifying_orders=plan.expected_q,
+        used_baseline=base_plan.used,
+        used_scenario=plan.used,
+        usage_capped=plan.capped,
+        voucher_cost_baseline=cost_b,
+        voucher_cost_scenario=cost_s,
         extra_cost=extra,
+        voucher_spend_per_day=per_day,
+        voucher_spend_check=check,
         organic=organic_stats,
         ad_attributed=ad_stats,
         ad_margin_below_target=below,
-        orders_missing_cost=sum(1 for p, _, _ in rollup.values() if p is None),
-        floor_breaches=_breaches(pairs, qualifying, floors),
+        orders_missing_cost=sum(1 for _, c, _, _ in rollup.values() if c is None),
+        floor_breaches=_breaches(pairs, plan.qualifying, floors),
         break_even_extra_orders=be,
         break_even_reason=reason,
+        five_numbers=five,
     )
-    return VoucherWhatIf(certain, _predicted(ppo, extra, predicted_extra_orders))
+    return VoucherWhatIf(certain, _predicted(cpo, extra, predicted_extra_orders))
 
 
 # ---------------------------------------------------------------- price change
@@ -323,8 +507,11 @@ def price_change_whatif(
     mine = [ln for ln in lines if ln.sku == sku]
     repriced = [replace(ln, deal_price=new_deal_price) for ln in mine]
     kw = {"schedule": schedule, "ads_pools": ads_pools, "affiliate_rate": affiliate_rate}
-    before = profit_lines(mine, costs, **kw)  # type: ignore[arg-type]
-    after = profit_lines(repriced, costs, **kw)  # type: ignore[arg-type]
+    # whole orders go through the waterfall so per-order fixed fees are split correctly
+    swap = {id(ln): new for ln, new in zip(mine, repriced, strict=True)}
+    whole_after = [swap.get(id(ln), ln) for ln in lines]
+    before = [p for p in profit_lines(lines, costs, **kw) if p[0].sku == sku]  # type: ignore[arg-type]
+    after = [p for p in profit_lines(whole_after, costs, **kw) if p[0].sku == sku]  # type: ignore[arg-type]
 
     def per_order(pairs: list[tuple[OrderLine, ProfitBreakdown]]) -> Decimal | None:
         profits = [pb.profit for _, pb in pairs]
@@ -400,13 +587,17 @@ def ads_whatif(
     the observed profit-before-ads ratio.
     """
     ad_lines = [ln for ln in lines if ln.sku == sku and ln.ad_attributed]
-    pairs = profit_lines(
-        ad_lines,
-        costs,
-        schedule=schedule,
-        ads_pools={sku: pool},
-        affiliate_rate=affiliate_rate,
-    )
+    pairs = [
+        p
+        for p in profit_lines(
+            lines,
+            costs,
+            schedule=schedule,
+            ads_pools={sku: pool},
+            affiliate_rate=affiliate_rate,
+        )
+        if p[0].sku == sku and p[0].ad_attributed
+    ]
     revenue = sum((pb.buyer_paid for _, pb in pairs), ZERO)
     reason: str | None = None
     before_ads: Decimal | None = None
