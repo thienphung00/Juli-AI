@@ -34,6 +34,20 @@ no clock; `Decimal` VND; frozen dataclasses.
   ad-attributed, floor breaches, break-even, spend per day, and the five numbers),
   `price_change_whatif`, `ads_whatif` -> `{certain, predicted}`.
 
+## Contract 10 additions
+
+- `fees`: bases `item_after_seller_promo` (phí cố định, per item) and
+  `order_after_seller_promo_plus_shipping` (phí xử lý giao dịch, per order; needs optional
+  `OrderLine.buyer_shipping_fee` / `bank_promo`, NULL = 0, summed over the order's lines);
+  `shopee_vn_non_mall(fixed_fee_rate, effective_from)` = fixed % per item + 6 % per order +
+  3.000đ per order. Per-order components are computed once on the whole order and split by value.
+- `OrderLine.status` (`OrderStatus`, default delivered): cancelled / in transit / refund "not
+  received" -> no fee, no profit, outside buyer_paid and coverage (GMV and order counts stay);
+  accepted "Hoàn tiền ngay" keeps the fee (revenue 0, goods and packaging lost, no commission).
+- `shop_profit`: `AdsFigures(spend, gmv, direct_gmv)`; `ProductProfit.roas_broad` /
+  `roas_direct` / `ads_below_break_even` (break-even compared with ROAS trực tiếp);
+  `AdCampaign.roas_broad` / `roas_direct`.
+
 ## Rules (see each module docstring)
 
 - Rates are fractions, `*_pct` outputs are percent points (0.1). Fees/ads/floors round to

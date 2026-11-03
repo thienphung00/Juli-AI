@@ -246,7 +246,7 @@ def _order_rollup(
     """order_id -> (profit, contribution -- None if any line unknown, buyer_paid, any ad)."""
     acc: dict[str, list[tuple[OrderLine, ProfitBreakdown]]] = defaultdict(list)
     for ln, pb in pairs:
-        if only is None or ln.order_id in only:
+        if pb.excluded_reason is None and (only is None or ln.order_id in only):
             acc[ln.order_id].append((ln, pb))
     res: dict[str, tuple[Decimal | None, Decimal | None, Decimal, bool]] = {}
     for oid, items in acc.items():
@@ -255,7 +255,7 @@ def _order_rollup(
         res[oid] = (
             None if any(p is None for p in profits) else sum((p or ZERO for p in profits), ZERO),
             None if any(c is None for c in contribs) else sum((c or ZERO for c in contribs), ZERO),
-            sum((pb.buyer_paid for _, pb in items), ZERO),
+            sum((pb.revenue for _, pb in items), ZERO),
             any(ln.ad_attributed for ln, _ in items),
         )
     return res

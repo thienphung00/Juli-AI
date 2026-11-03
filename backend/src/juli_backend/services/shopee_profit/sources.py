@@ -57,6 +57,7 @@ class CellStats:
     contribution: Decimal = ZERO
     buyer_paid: Decimal = ZERO
     orders_missing_profit: int = 0
+    orders_excluded: int = 0  # cancelled / undelivered: GMV only, no fee, no profit
 
     @property
     def aov(self) -> Decimal | None:
@@ -79,6 +80,7 @@ class CellStats:
             contribution=self.contribution + other.contribution,
             buyer_paid=self.buyer_paid + other.buyer_paid,
             orders_missing_profit=self.orders_missing_profit + other.orders_missing_profit,
+            orders_excluded=self.orders_excluded + other.orders_excluded,
         )
 
 
@@ -98,15 +100,17 @@ def price_lever(promo_kinds: Iterable[PromoKind], voucher: Decimal, bundle: Deci
 
 
 def _cell(pairs: list[tuple[OrderLine, ProfitBreakdown]]) -> CellStats:
-    known = all(pb.profit is not None for _, pb in pairs)
+    elig = [(ln, pb) for ln, pb in pairs if pb.excluded_reason is None]
+    known = bool(elig) and all(pb.profit is not None for _, pb in elig)
     return CellStats(
         orders=1,
         gmv=sum((ln.order_value for ln, _ in pairs), ZERO),
         buyer_paid=sum((pb.buyer_paid for _, pb in pairs), ZERO),
-        buyer_paid_known=sum((pb.buyer_paid for _, pb in pairs), ZERO) if known else ZERO,
-        profit=sum((pb.profit or ZERO for _, pb in pairs), ZERO) if known else ZERO,
-        contribution=sum((pb.contribution or ZERO for _, pb in pairs), ZERO) if known else ZERO,
-        orders_missing_profit=0 if known else 1,
+        buyer_paid_known=sum((pb.revenue for _, pb in elig), ZERO) if known else ZERO,
+        profit=sum((pb.profit or ZERO for _, pb in elig), ZERO) if known else ZERO,
+        contribution=sum((pb.contribution or ZERO for _, pb in elig), ZERO) if known else ZERO,
+        orders_missing_profit=0 if known or not elig else 1,
+        orders_excluded=0 if elig else 1,
     )
 
 

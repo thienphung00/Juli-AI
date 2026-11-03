@@ -23,7 +23,12 @@
   (``profit_on_covered``, ``covered_ad_charge``, ``covered_margin_profit``) stay available.
   Nothing is extrapolated. With no covered revenue the margin is ``None``.
 - Break-even ROAS = buyer_paid / contribution before ads (covered lines); ``None`` when the
-  contribution is <= 0.
+  contribution is <= 0. Product checks compare it with ROAS TRUC TIEP (direct GMV / cost);
+  broad ROAS (Doanh so incl. other products bought within 7 days) is exposed next to it and
+  is what shop-level ads use. Both come from :class:`AdsFigures` per product / campaign.
+- Orders that carry no fee and no profit (cancelled, undelivered, refund "not received") stay
+  in GMV and order counts (confirmed views) but are outside buyer_paid, coverage and profit;
+  an accepted "Hoan tien ngay" keeps its fee (revenue 0).
 - Reconciliation: sum of order-line GMV (deal x qty) vs the export's GMV; a gap above 2 % is
   a data warning, never hidden.
 """
@@ -44,11 +49,40 @@ Pairs = Sequence[tuple[OrderLine, ProfitBreakdown]]
 
 
 @dataclass(frozen=True)
+class AdsFigures:
+    """Shopee ads report figures (a product row of a group campaign, or a whole campaign).
+
+    ``gmv`` = "Doanh so" (the advertised product AND other products bought within 7 days of the
+    click); ``direct_gmv`` = "Doanh so truc tiep" (the advertised product only)."""
+
+    spend: Decimal
+    gmv: Decimal | None = None
+    direct_gmv: Decimal | None = None
+
+    @property
+    def roas_broad(self) -> Decimal | None:
+        return None if self.gmv is None else safe_div(self.gmv, self.spend)
+
+    @property
+    def roas_direct(self) -> Decimal | None:
+        return None if self.direct_gmv is None else safe_div(self.direct_gmv, self.spend)
+
+
+@dataclass(frozen=True)
 class AdCampaign:
     campaign_id: str
     spend: Decimal
-    revenue: Decimal | None = None  # None = unknown; ZERO = a campaign with no revenue
+    revenue: Decimal | None = None  # broad; None = unknown; ZERO = a campaign with no revenue
     name: str = ""
+    direct_revenue: Decimal | None = None
+
+    @property
+    def roas_broad(self) -> Decimal | None:
+        return None if self.revenue is None else safe_div(self.revenue, self.spend)
+
+    @property
+    def roas_direct(self) -> Decimal | None:
+        return None if self.direct_revenue is None else safe_div(self.direct_revenue, self.spend)
 
 
 @dataclass(frozen=True)
@@ -62,6 +96,8 @@ class ProductProfit:
     ad_spend: Decimal  # from the ads report by product
     profit: Decimal  # contribution - ad_spend (partial when coverage < 100 %)
     line_ads_display: Decimal  # display aid: sum of the line-level ad split
+    excluded_orders: int = 0  # cancelled / undelivered: in ``gmv`` only, outside the profit base
+    ads: AdsFigures | None = None  # the report row, when given
     missing: dict[str, int] = field(default_factory=dict)  # reason -> uncovered lines
 
     @property
@@ -89,6 +125,20 @@ class ProductProfit:
         if self.contribution <= 0:
             return None
         return safe_div(self.buyer_paid_covered, self.contribution)
+
+    @property
+    def roas_broad(self) -> Decimal | None:
+        return self.ads.roas_broad if self.ads else None
+
+    @property
+    def roas_direct(self) -> Decimal | None:
+        return self.ads.roas_direct if self.ads else None
+
+    @property
+    def ads_below_break_even(self) -> bool | None:
+        """Break-even check uses ROAS truc tiep (contract 10); None when either is unknown."""
+        be, direct = self.break_even_roas, self.roas_direct
+        return None if be is None or direct is None else direct < be
 
     @property
     def line_ads_gap(self) -> Decimal:
@@ -193,14 +243,17 @@ def _product_rows(pairs: Pairs) -> dict[str, list[tuple[OrderLine, ProfitBreakdo
 
 
 def product_profits(
-    pairs: Pairs, product_ad_spend: Mapping[str, Decimal]
+    pairs: Pairs,
+    product_ad_spend: Mapping[str, Decimal],
+    product_ads: Mapping[str, AdsFigures] | None = None,
 ) -> dict[str, ProductProfit]:
     """Per product: sum of contribution - its ad spend. Products that only appear in the ads
     report (no orders) are included with zero revenue."""
     rows = _product_rows(pairs)
     out: dict[str, ProductProfit] = {}
     for product in [*rows, *(p for p in product_ad_spend if p not in rows)]:
-        items = rows.get(product, [])
+        all_items = rows.get(product, [])
+        items = [(ln, pb) for ln, pb in all_items if pb.excluded_reason is None]
         spend = product_ad_spend.get(product, ZERO)
         covered = [(ln, pb) for ln, pb in items if pb.contribution is not None]
         contribution = sum((pb.contribution or ZERO for _, pb in covered), ZERO)
@@ -212,15 +265,17 @@ def product_profits(
                         missing[m] += 1
         out[product] = ProductProfit(
             product_id=product,
-            orders=len({ln.order_id for ln, _ in items}),
-            gmv=sum((ln.order_value for ln, _ in items), ZERO),
-            buyer_paid=sum((pb.buyer_paid for _, pb in items), ZERO),
-            buyer_paid_covered=sum((pb.buyer_paid for _, pb in covered), ZERO),
+            orders=len({ln.order_id for ln, _ in all_items}),
+            gmv=sum((ln.order_value for ln, _ in all_items), ZERO),
+            buyer_paid=sum((pb.revenue for _, pb in items), ZERO),
+            buyer_paid_covered=sum((pb.revenue for _, pb in covered), ZERO),
             contribution=contribution,
             ad_spend=spend,
             profit=contribution - spend,
             line_ads_display=sum((pb.ads or ZERO for _, pb in items), ZERO),
             missing=dict(missing),
+            excluded_orders=len({ln.order_id for ln, pb in all_items if pb.excluded_reason}),
+            ads=(product_ads or {}).get(product),
         )
     return out
 
@@ -232,8 +287,9 @@ def shop_profit(
     product_ad_spend: Mapping[str, Decimal],
     other_marketing_costs: Decimal = ZERO,
     export_gmv: Decimal | None = None,
+    product_ads: Mapping[str, AdsFigures] | None = None,
 ) -> ShopProfit:
-    products = product_profits(pairs, product_ad_spend)
+    products = product_profits(pairs, product_ad_spend, product_ads)
     total_ads = sum((c.spend for c in campaigns), ZERO)
     by_product = sum(product_ad_spend.values(), ZERO)
     unattributed = total_ads - by_product
