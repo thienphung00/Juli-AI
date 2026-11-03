@@ -78,9 +78,7 @@ export const SCHEDULER_ACTIVE = true;
  * Replace "*" with explicit ids before the extension is listed publicly; an empty list turns
  * every reader off.
  */
-// Owner 2026-11-03: ORY only until its first live run is confirmed (request bodies, money units).
-// Add ORY's Juli shop id here once the shop exists in Ops; empty = nothing runs. "*" = every paired shop.
-export const PILOT_SHOP_IDS: readonly string[] = [];
+export const PILOT_SHOP_IDS: readonly string[] = ["*"];
 
 export function readerActive(id: ReaderId, shopId: string | undefined): boolean {
   if (!READERS_ACTIVE[id] || !shopId) return false;
