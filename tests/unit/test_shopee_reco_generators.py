@@ -4,7 +4,7 @@ SQLite; synthetic figures (``tests/support/shopee_reco``)."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal as D
 
 import pytest
@@ -449,3 +449,51 @@ async def test_whatif_predicted_range_equals_n_times_profit_per_order_minus_extr
     net = ev.certain["predicted_net"]
     assert net["net_profit_low"] == pytest.approx(float(2 * cpo - extra), abs=2)
     assert net["net_profit_high"] == pytest.approx(float(10 * cpo - extra), abs=2)
+
+
+async def test_a_price_cut_scales_the_lift_by_what_the_buyer_actually_saves(env):
+    """25 % off the list price, but the item already sells 10 % under it: only the extra
+    16,7 % of today's price moves orders (0,5 % to 2 % more orders per 1 %)."""
+    cand = Candidate("flash_sale", ("1001",), {"discount_pct": 25, "units": 60, "slot_days": 1})
+    lift = _card(env, cand)["predicted"]["lift"]["lift"]
+    saved = (90_000 - 75_000) / 90_000 * 100
+    assert lift["p10"] == pytest.approx(0.005 * saved, abs=1e-4)
+    assert lift["p90"] == pytest.approx(0.02 * saved, abs=1e-4)
+    # a price rise is the same range with the opposite sign
+    up = _card(env, Candidate("price", ("1001",), {"new_price_pct": 110}))["predicted"]["lift"][
+        "lift"
+    ]
+    assert up["p90"] < 0 and up["p10"] < up["p90"]
+
+
+async def test_a_price_rise_scales_each_line_by_the_same_factor_not_one_price_for_all(session):
+    """History sold one SKU at 100.000 and at 70.000 (a sale day). A 10 % rise is x 1,1 on each
+    line, so the 70.000 lines go to 77.000 -- not to one common price."""
+    from juli_backend.services.shopee_profit.fees import (
+        FeeComponent,
+        FeeFormula,
+        FeeKind,
+        FeeSchedule,
+    )
+    from juli_backend.services.shopee_profit.order_profit import OrderLine, SkuCost
+    from juli_backend.services.shopee_profit.whatif import price_change_whatif
+
+    free = FeeSchedule(
+        (FeeFormula(date(2026, 1, 1), (FeeComponent("commission", FeeKind.PCT, rate=D(0)),)),)
+    )
+
+    def line(i, deal):
+        return OrderLine(f"o{i}", "S", "P", date(2026, 10, 1), 1, D(100_000), D(deal))
+
+    lines = [line(1, 100_000), line(2, 70_000)]
+    costs = {"S": SkuCost("S", D(30_000), D(0))}
+    r = price_change_whatif(lines, costs, sku="S", price_factor=D("1.1"), schedule=free).certain
+    assert r.profit_delta_same_volume == D(10_000 + 7_000)  # no fee: the delta is the rise
+    capped = price_change_whatif(
+        lines, costs, sku="S", new_deal_price=D(80_000), ceiling=True, schedule=free
+    ).certain
+    assert capped.profit_delta_same_volume == D(-20_000)  # only the 100.000 line moves, to 80.000
+    with pytest.raises(ValueError):
+        price_change_whatif(lines, costs, sku="S")
+    with pytest.raises(ValueError):
+        price_change_whatif(lines, costs, sku="S", new_deal_price=D(1), price_factor=D(1))

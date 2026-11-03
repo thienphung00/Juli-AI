@@ -235,10 +235,12 @@ def magnitude_of(
     """Percent size of the change, for the scaled priors."""
     k = cand.kind
     inputs = cand.inputs
-    if k in ("product_discount", "flash_sale", "program_registration"):
-        return float(inputs.get("discount_pct", 0))
-    if k == "price":
-        return 100.0 - float(inputs.get("new_price_pct", 100))
+    if k in ("product_discount", "flash_sale", "program_registration", "price"):
+        # the buyer's price falls from what it is today: only that part moves orders
+        before_price, after_price = before.get("price"), after.get("price")
+        if before_price and after_price:
+            return (float(before_price) - float(after_price)) / float(before_price) * 100
+        return None
     if k == "ads_budget":
         b0 = before.get("daily_budget") or before.get("spend_per_day")
         b1 = inputs.get("daily_budget")

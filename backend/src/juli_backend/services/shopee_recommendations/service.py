@@ -298,6 +298,8 @@ async def generate_cards(
     ranked = {r.id: r for r in result.ordered}
     if report.mega is not None:
         report.mega["ranked"] = "mega" in ranked
+        dropped = next((d for d in result.dropped if d["id"] == "mega"), None)
+        report.mega["dropped_by"] = None if dropped is None else dropped["reasons"]
     cycle_name = cycle or f"{env.as_of:%Y-%m}"
     kept_all = result.ordered[:max_cards]
     for r in kept_all:

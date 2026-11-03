@@ -283,6 +283,10 @@ def evaluate_mega(
         for ln, pb in pairs:
             unit = pb.buyer_paid / ln.qty
             worst[ln.sku] = min(unit, worst.get(ln.sku, unit))
+    base_worst: dict[str, Decimal] = {}
+    for ln, pb in base_pairs:
+        unit = pb.buyer_paid / ln.qty
+        base_worst[ln.sku] = min(unit, base_worst.get(ln.sku, unit))
     breaches: list[dict[str, Any]] = []
     sku_rows: list[dict[str, Any]] = []
     item_of = {ln.sku: ln.product_id for ln in base_lines}
@@ -291,7 +295,13 @@ def evaluate_mega(
         floor = env.floors(item).get(sku)
         floor_px = env.floor_price(item, sku)
         changed = sku in price_by_sku or sku in tiers or bool(voucher_children)
-        below = floor_px is not None and unit < floor_px and changed
+        # a stack breaks a floor only if it takes the SKU lower than the history already was
+        below = (
+            floor_px is not None
+            and unit < floor_px
+            and changed
+            and unit < base_worst.get(sku, unit)
+        )
         if below and floor is not None:
             breaches.append(
                 {

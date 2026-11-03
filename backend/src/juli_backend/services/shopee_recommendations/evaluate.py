@@ -371,18 +371,26 @@ def eval_price(
             sku_range = PredictedRange(
                 predicted.low * share, predicted.high * share, predicted.source
             )
+        if cand.kind == "price":  # each line keeps its own price level: x factor
+            factor = D(inputs.get("new_price_pct", 100)) / 100
+            kw: dict[str, Any] = {"price_factor": factor}
+        else:  # a discount to a price: lines already cheaper keep theirs
+            kw = {"new_deal_price": new, "ceiling": True}
         results[sku] = price_change_whatif(
             lines,
             env.costs,
             sku=sku,
-            new_deal_price=new,
             schedule=schedule,
             floors=floors,
             predicted_extra_orders=sku_range,
+            **kw,
         )
         for ln in lines:
             if ln.sku == sku and ln.product_id == item:
-                repriced[id(ln)] = replace(ln, deal_price=new)
+                if cand.kind == "price":
+                    repriced[id(ln)] = replace(ln, deal_price=to_dong(ln.deal_price * factor))
+                else:
+                    repriced[id(ln)] = replace(ln, deal_price=min(ln.deal_price, new))
     if not results:
         return _refuse("no_price")
     after_lines = [repriced.get(id(ln), ln) for ln in lines]
@@ -456,7 +464,26 @@ def eval_price(
                 "floor_operating": num(fl.operating_floor) if fl else None,
             }
         )
-    breaches = [b for r in results.values() for b in breach_json(r.certain.floor_breaches)]
+    breaches = []
+    for sku, new in new_prices.items():
+        # forward-looking: the proposed price against the SKU's floor (lines the history sold
+        # below it for other reasons are not this change's doing)
+        fl = floors.get(sku)
+        floor_px = (
+            None
+            if fl is None
+            else (fl.operating_floor if fl.operating_floor is not None else fl.absolute_floor)
+        )
+        if floor_px is not None and new < floor_px:
+            breaches.append(
+                {
+                    "sku": sku,
+                    "kind": "operating" if fl and fl.operating_floor is not None else "absolute",
+                    "floor": num(floor_px),
+                    "min_unit_price": num(new),
+                    "lines": results[sku].certain.orders,
+                }
+            )
     certain = {
         "kind": "price",
         "skus": skus_json,
