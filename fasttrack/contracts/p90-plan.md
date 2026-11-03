@@ -31,7 +31,7 @@ never read; order id → keyed hash, same key as the affiliate lane); status →
 reproduces ORY's own totals from the export alone: 121 orders 01–28/10, AOV 172.025đ (± rounding); Σ
 order-line GMV vs shop-stats GMV within 2 %; affiliate order lines join to orders by the same hash.
 
-## Step 3 — fees
+## Step 3 — fees (SKIPPED by owner 2026-11-03: formula fees + 1/3 cost fallback, metrics §13)
 Income-export parser (actual fees win, §4); fee table seeded from the 23/05/2026 PDF (§10a) as
 `platform_fee_formulas` rows; item → category join (keep `L1/L2/L3 Ngành hàng toàn cầu` from the affiliate
 report; product category from the connector when available).
