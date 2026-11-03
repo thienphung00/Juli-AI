@@ -109,6 +109,12 @@ export function auditWhat(entry: AuditEntry): string {
       return "Tính lại kết quả đề xuất";
     case "shopee_kpi_run":
       return "Chạy tính KPI và dự báo Shopee";
+    case "keyword_seeds_generate":
+      return `Tạo từ khóa từ tiêu đề · ${num(after.created) ?? 0} mới, ${num(after.updated) ?? 0} cập nhật`;
+    case "keyword_seed_toggle":
+      return `${after.enabled === false ? "Bỏ" : "Giữ"} từ khóa ${String(after.keyword ?? "")}`;
+    case "keyword_metrics_upload":
+      return `Tải lên kết quả tra từ khóa · ${num(after.records) ?? 0} lượt tra`;
     case "shop_disconnect":
       return `Huỷ kết nối · lý do: ${String(after.reason ?? "")}`;
     case "invite_create":

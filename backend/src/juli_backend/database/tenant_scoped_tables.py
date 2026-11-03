@@ -135,6 +135,9 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shop_proposal_approvals"): "tenant_direct",
     ("public", "shop_proposal_executions"): "tenant_direct",
     ("public", "shop_proposal_results"): "tenant_direct",
+    # ADR-119 (migration 111): which keyword combinations came from which of the shop's
+    # items (the decomposed titles); Ops reads and writes them under the shop's scope.
+    ("public", "shop_keyword_seeds"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",
@@ -190,6 +193,9 @@ TABLE_CLASSIFICATION_MAP = {
     # ``shop_id``; Ops-only until a seller-facing reader exists.
     ("public", "market_listing_snapshots"): "ops_only",
     ("public", "market_keyword_snapshots"): "ops_only",
+    # ADR-119 (migration 111): shopeeanalytics.com keyword metrics the owner collects --
+    # public lane, no ``shop_id``; Ops-only.
+    ("public", "market_keyword_metrics"): "ops_only",
 }
 
 #: Metadata about via-parent relationships (child_table -> (parent_table, fk_col, pk_col))
