@@ -7,13 +7,14 @@ import { ingestBody } from "../src/ingest/client";
 import { mapCaptured } from "../src/shopee/map";
 import adsDailyBody from "./fixtures/contract/ads_campaign_daily.body.json";
 import itemCatalogBody from "./fixtures/contract/item_catalog.body.json";
+import itemTrafficBody from "./fixtures/contract/item_traffic_sources.body.json";
 import itemSnapshotBody from "./fixtures/contract/item_snapshot.body.json";
 import shopHealthBody from "./fixtures/contract/shop_health_daily.body.json";
 import shopTrafficBody from "./fixtures/contract/shop_traffic.body.json";
 import overviewBody from "./fixtures/contract/traffic_overview.body.json";
 import voucherBody from "./fixtures/contract/voucher_settings.body.json";
 import type { ReaderResponse } from "../src/shopee/reader";
-import { mapAdsDaily, mapProductList, mapShopHealth, mapVoucherList } from "../src/shopee/reader-map";
+import { mapAdsDaily, mapItemTraffic, mapProductList, mapShopHealth, mapVoucherList } from "../src/shopee/reader-map";
 import adsHome from "./fixtures/readers/ads_homepage.json";
 import adsGraph from "./fixtures/readers/ads_time_graph.json";
 import campaignInfo from "./fixtures/readers/campaign_info.json";
@@ -22,6 +23,7 @@ import healthList from "./fixtures/readers/health_metric_list.json";
 import healthOverview from "./fixtures/readers/health_overview.json";
 import products1 from "./fixtures/readers/product_list.json";
 import products2 from "./fixtures/readers/product_list_page2.json";
+import trafficDetails from "./fixtures/readers/traffic_details.json";
 import vouchers from "./fixtures/readers/voucher_list.json";
 import shopTraffic from "./fixtures/shop_traffic.json";
 import overview from "./fixtures/traffic_overview.json";
@@ -80,6 +82,10 @@ describe("extension ↔ gateway contract", () => {
         reply("ads_time_graph", adsGraph, { day: "2026-11-02" }),
       ]);
       expect(ingestBody(post!, "0.3.0", READ_AT)).toEqual(adsDailyBody);
+    });
+    it("item_traffic_sources", () => {
+      const [post] = mapItemTraffic([reply("traffic_details", trafficDetails, { day: "2026-11-02", itemId: "1001" })]);
+      expect(ingestBody(post!, "0.3.1", READ_AT)).toEqual(itemTrafficBody);
     });
     it("voucher_settings", () =>
       expect(ingestBody(mapVoucherList([reply("voucher_list", vouchers, { page: 1 })], READ_AT), "0.3.0", READ_AT)).toEqual(

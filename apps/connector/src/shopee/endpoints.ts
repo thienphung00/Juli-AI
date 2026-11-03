@@ -30,6 +30,7 @@ export const READER_ENDPOINTS = {
   ads_homepage: { method: "POST", path: "/api/pas/v1/homepage/query/" },
   ads_time_graph: { method: "POST", path: "/api/pas/v1/report/get_time_graph/" },
   voucher_list: { method: "GET", path: "/api/marketing/v3/voucher/list/" },
+  traffic_details: { method: "GET", path: "/api/mydata/v1/product/traffic/details/" },
   health_overview: { method: "GET", path: "/api/accounthealth/v1/sc/shops/overview" },
   health_metric_list: { method: "GET", path: "/api/accounthealth/v1/sc/shops/metric_list" },
   health_metric_configs: { method: "GET", path: "/api/accounthealth/v1/sc/metric/configs" },
@@ -51,6 +52,7 @@ export function readerEndpointOf(method: string, pathname: string): ReaderEndpoi
 /** The Seller Centre report pages the scheduler may open (read-only; one per reader). */
 export const READER_PAGES: Record<ReaderId, { path: string }> = {
   products: { path: "/portal/product/list/all" },
+  item_traffic: { path: "/datacenter/product/traffic" },
   vouchers: { path: "/portal/marketing/vouchers/list" },
   ads: { path: "/portal/marketing/pas/index" },
   health: { path: "/portal/accounthealth" },

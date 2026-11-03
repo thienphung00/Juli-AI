@@ -37,7 +37,7 @@ where Juli analyses it and suggests improvements.
 
 | Permission | Why |
 |---|---|
-| Host `https://banhang.shopee.vn/*` | Read the responses Seller Centre's own data pages load for the seller's shop (four `/api/mydata/...` endpoints), and repeat those same requests once a day while Seller Centre is open (plus, once after linking, one request set per day for the last 30 finished days). Once a day it also opens four report pages itself in a background tab (product list, ads, vouchers, account health), lets each page make its own read-only requests, repeats them for one day / page number, and closes the tab; it never clicks anything and stops on a login page or CAPTCHA. No other site is accessed. |
+| Host `https://banhang.shopee.vn/*` | Read the responses Seller Centre's own data pages load for the seller's shop (four `/api/mydata/...` endpoints), and repeat those same requests once a day while Seller Centre is open (plus, once after linking, one request set per day for the last 30 finished days). Once a day it also opens five report pages itself in a background tab (product list, ads, vouchers, account health, product traffic), lets each page make its own read-only requests, repeats them for one day / page number, and closes the tab; it never clicks anything and stops on a login page or CAPTCHA. No other site is accessed. |
 | Host `https://api.app-juli.com/*` | Send the numbers to the seller's Juli account and read sync status. |
 | `storage` | Keep the Juli access token (not a password), per-dataset sync status, the 30-day backfill progress and a small retry queue on this device. |
 | `alarms` | Schedule the once-a-day sync (with a random start) without a background page. |

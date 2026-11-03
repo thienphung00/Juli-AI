@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { ingestBody } from "../src/ingest/client";
 import type { ReaderResponse } from "../src/shopee/reader";
 import {
+  activeItemIds,
   campaignCounts,
+  completedTrafficDays,
   mapAdsDaily,
+  mapItemTraffic,
   mapProductList,
   mapReaderJob,
   mapShopHealth,
@@ -20,6 +23,7 @@ import healthList from "./fixtures/readers/health_metric_list.json";
 import healthOverview from "./fixtures/readers/health_overview.json";
 import products1 from "./fixtures/readers/product_list.json";
 import products2 from "./fixtures/readers/product_list_page2.json";
+import trafficDetails from "./fixtures/readers/traffic_details.json";
 import vouchers from "./fixtures/readers/voucher_list.json";
 
 // 2026-11-03 10:00 in GMT+7
@@ -352,5 +356,128 @@ describe("mapReaderJob", () => {
     ];
     const keys = new Set(all.flatMap((m) => m.rows.flatMap((r) => Object.keys(r))));
     for (const key of keys) expect(key).not.toMatch(/buyer|phone|address|email|recipient|user_id|nickname/i);
+  });
+});
+
+describe("item traffic sources (traffic/details)", () => {
+  const day = "2026-11-02";
+  const ok = (itemId: string, body: unknown = trafficDetails, d = day) =>
+    response("traffic_details", body, { day: d, itemId });
+
+  it("maps one post per day: a total + the seven product_card sources per item, numbers only", () => {
+    const [post] = mapItemTraffic([ok("1001")]);
+    expect(post).toMatchObject({
+      dataset: "item_traffic_sources",
+      date: day,
+      orderType: "confirmed",
+      granularity: "day",
+      drift: null,
+    });
+    const card = post!.rows.filter((r) => r.l1 === "product_card");
+    expect(card.map((r) => r.l2)).toEqual([
+      "total",
+      "search",
+      "recommendation",
+      "my_purchase",
+      "shopping_cart",
+      "shop",
+      "promotion",
+      "others",
+    ]);
+    expect(card[0]).toEqual({
+      date: day,
+      item_id: "1001",
+      l1: "product_card",
+      l2: "total",
+      sales: 1_000_000,
+      orders: 20,
+      units: 30,
+      buyers: 10,
+      product_impressions: 1000,
+      unique_product_impressions: 800,
+      product_clicks: 100,
+      unique_product_clicks: 90,
+    });
+    // ratios, pct_diff, ctr and the source label never leave the browser
+    for (const r of post!.rows) {
+      expect(Object.keys(r).every((k) => !/ratio|pct_diff|ctr|source|per_order|rate/.test(k))).toBe(true);
+    }
+  });
+
+  it("skips all-zero live / video / affiliate rows and level-2 labels the contract does not name", () => {
+    const [post] = mapItemTraffic([ok("1001")]);
+    expect(post!.rows.filter((r) => r.l1 === "live" || r.l1 === "affiliate")).toEqual([]);
+    expect(post!.rows.filter((r) => r.l1 === "video").map((r) => r.l2)).toEqual(["total", "recommendation"]);
+  });
+
+  it("splits days and items; an unread (error) answer is not mapped; a missing product_card is drift", () => {
+    const posts = mapItemTraffic([
+      ok("1001"),
+      ok("1002"),
+      ok("1001", trafficDetails, "2026-11-01"),
+      response("traffic_details", { code: 90309999 }, { day: "2026-10-31", itemId: "1001", status: 500 }),
+    ]);
+    expect(posts.map((p) => p.date)).toEqual(["2026-10-31", "2026-11-01", "2026-11-02"]);
+    expect(posts[0]!.rows).toEqual([]);
+    expect(new Set(posts[2]!.rows.map((r) => r.item_id))).toEqual(new Set(["1001", "1002"]));
+    const [bad] = mapItemTraffic([ok("1001", { code: 0, result: { live: {} } })]);
+    expect(bad!.drift).toEqual({ unexpected: [], missing: ["result.product_card.total"] });
+    expect(bad!.rows).toEqual([]);
+  });
+
+  it("goes through mapReaderJob and ingestBody as a day post (order_type confirmed)", () => {
+    const [post] = mapReaderJob({ id: "item_traffic", days: [day], itemIds: ["1001"] }, [ok("1001")], NOW);
+    const body = ingestBody(post!, "0.3.1", NOW);
+    expect(body).toMatchObject({ period: { start: day, end: day, granularity: "day" }, order_type: "confirmed" });
+  });
+
+  it("completedTrafficDays: a day counts as read only when every item answered", () => {
+    const job = { id: "item_traffic" as const, days: [day, "2026-11-01"], itemIds: ["1001", "1002"] };
+    expect(completedTrafficDays(job, [ok("1001"), ok("1002"), ok("1001", trafficDetails, "2026-11-01")])).toEqual([day]);
+    expect(completedTrafficDays(job, [])).toEqual([]);
+  });
+
+  it("activeItemIds: skips unlisted items, keeps normal ones (all of them if no status looks normal)", () => {
+    const list = (products: unknown[]) => response("product_list", { code: 0, data: { products } }, { page: 1 });
+    expect(
+      activeItemIds([
+        list([
+          { id: 1, status: 1, stock_detail: {} },
+          { id: 2, status: 1, stock_detail: {}, tag: { unlist: true } },
+          { id: 3, status: 7, stock_detail: {} },
+          { id: 4, stock_detail: {} },
+        ]),
+      ]),
+    ).toEqual(["1", "4"]);
+    expect(activeItemIds([list([{ id: 5, status: 9, stock_detail: {} }])])).toEqual(["5"]);
+  });
+});
+
+describe("assisted-execution read-back: the fields the backend verifies", () => {
+  it("item_snapshot carries cover + model image, list/selling price and stock; item_catalog the title", () => {
+    const { catalog, snapshot } = mapProductList([response("product_list", products1, { page: 1 })], NOW);
+    const item = snapshot.rows.find((r) => r.item_id === "1001" && r.model_id === undefined)!;
+    const model = snapshot.rows.find((r) => r.model_id === "5001")!;
+    expect(item).toHaveProperty("image");
+    expect(item).toHaveProperty("price_min");
+    expect(item).toHaveProperty("price_max");
+    expect(item).toHaveProperty("selling_price_min");
+    expect(item).toHaveProperty("selling_price_max");
+    expect(item).toHaveProperty("total_available_stock");
+    expect(model).toHaveProperty("image");
+    expect(model).toHaveProperty("origin_price");
+    expect(model).toHaveProperty("promotion_price");
+    expect(model).toHaveProperty("total_available_stock");
+    expect(catalog.rows[0]).toHaveProperty("item_name");
+  });
+
+  it("ads daily carries daily_budget and roi_two_target; vouchers carry value, min spend, usage limit, dates", () => {
+    const [ads] = mapAdsDaily([response("ads_homepage", adsHome, { day: "2026-11-02", usePaidGmv: false })]);
+    expect(ads!.rows.some((r) => "daily_budget" in r && "roi_two_target" in r)).toBe(true);
+    const voucher = mapVoucherList([response("voucher_list", vouchers, { page: 1 })], NOW);
+    const row = voucher.rows.find((r) => "min_spend" in r && "usage_limit" in r)!;
+    expect(row).toHaveProperty("starts_at");
+    expect(row).toHaveProperty("ends_at");
+    expect(row.discount_amount !== undefined || row.discount_percent !== undefined).toBe(true);
   });
 });

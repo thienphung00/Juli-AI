@@ -6,6 +6,7 @@ import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "..
 import type { ReaderResponse } from "../src/shopee/reader";
 import adsHome from "./fixtures/readers/ads_homepage.json";
 import products1 from "./fixtures/readers/product_list.json";
+import trafficDetails from "./fixtures/readers/traffic_details.json";
 import vouchers from "./fixtures/readers/voucher_list.json";
 
 const NOW = Date.UTC(2026, 10, 3, 3, 0, 0);
@@ -56,7 +57,7 @@ function setup(busy = false) {
       return undefined;
     },
   };
-  const connector = new Connector({ storage, client, tabs, version: "0.3.0", now: () => NOW, busy: async () => busy });
+  const connector = new Connector({ storage, client, tabs, version: "0.3.1", now: () => NOW, busy: async () => busy });
   return { storage, client, connector, sent };
 }
 
@@ -65,19 +66,34 @@ function response(endpoint: ReaderResponse["endpoint"], body: unknown, extra: Pa
 }
 
 describe("postReader", () => {
-  it("posts item_catalog (period, platform_items fields) and holds item_snapshot (table pending)", async () => {
+  it("posts item_catalog (period, platform_items fields) and item_snapshot (the backend accepts it)", async () => {
     const { client, connector } = setup();
     const outcomes = await connector.postReader({ id: "products" }, [response("product_list", products1, { page: 1 })]);
-    expect(outcomes).toEqual({ item_catalog: "posted", item_snapshot: "held" });
-    expect(client.posts.map((p) => p.dataset)).toEqual(["item_catalog"]);
+    expect(outcomes).toEqual({ item_catalog: "posted", item_snapshot: "posted" });
+    expect(client.posts.map((p) => p.dataset)).toEqual(["item_catalog", "item_snapshot"]);
     const body = client.posts[0]!.body;
     expect(body).toMatchObject({
       source: "extension",
-      source_version: "0.3.0",
+      source_version: "0.3.1",
       period: { start: "2026-11-03", end: "2026-11-03", granularity: "period" },
       order_type: null,
     });
     expect(body.rows).toHaveLength(4);
+  });
+
+  it("item_traffic: one post per finished day, order_type confirmed, granularity day", async () => {
+    const { client, connector } = setup();
+    const answer = (day: string) => response("traffic_details", trafficDetails, { day, itemId: "1001" });
+    const outcomes = await connector.postReader({ id: "item_traffic", days: ["2026-11-02", "2026-11-01"], itemIds: ["1001"] }, [
+      answer("2026-11-02"),
+      answer("2026-11-01"),
+    ]);
+    expect(outcomes).toEqual({ "item_traffic_sources:2026-11-01": "posted", "item_traffic_sources:2026-11-02": "posted" });
+    expect(client.posts.map((p) => p.dataset)).toEqual(["item_traffic_sources", "item_traffic_sources"]);
+    expect(client.posts[0]!.body).toMatchObject({
+      period: { start: "2026-11-01", end: "2026-11-01", granularity: "day" },
+      order_type: "confirmed",
+    });
   });
 
   it("ads: one post per finished day with the order type; vouchers: a one-day snapshot period", async () => {
@@ -105,7 +121,7 @@ describe("postReader", () => {
       },
     };
     await connector.postReader({ id: "products" }, [response("product_list", many, { page: 1 })]);
-    expect(client.posts.map((p) => p.body.rows.length)).toEqual([MAX_ROWS_PER_POST, 50]);
+    expect(client.posts.map((p) => p.body.rows.length)).toEqual([MAX_ROWS_PER_POST, 50, MAX_ROWS_PER_POST, 50]);
   });
 
   it("drift stops that dataset (reported, nothing posted); a later run is 'stopped'", async () => {
