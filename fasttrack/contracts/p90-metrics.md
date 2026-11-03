@@ -178,3 +178,12 @@ Every card belongs to one family; §8 maps critical metrics to families and chan
   marked "giá vốn giả định (1/3 giá)"; imported costs always win; the shop shows two coverages:
   "giá vốn thật" % and "giả định 1/3" % of buyer_paid. Supersedes §9's "shop profit in đồng only at 100 %
   coverage": profit in đồng is shown, labelled with the assumed share. Packaging fallback = 0 (labelled).
+
+## 14. Order basis and GMV reconciliation, proven on ORY's order exports (2026-11-03, Step 2)
+- Seller Centre's "Đơn đã xác nhận" = orders **with a payment time** ("Thời gian đơn hàng được thanh toán"), even if
+  later cancelled. On ORY October 01–28: 121 orders, AOV = Σ(deal × qty − shop voucher) ÷ orders = 172.025đ — equal to
+  the client's own figure; per day 28/28 match shop-stats. GMV gap vs `Tổng doanh số` (confirmed): +0,01 %.
+- Profit still uses delivered / refund-accepted orders only (§4); the confirmed basis is for GMV, orders and AOV.
+- **Shopee changed the `Doanh số` definition in 2026** (ORY mapping note: no longer net of Shopee subsidy). For periods
+  before 2026 the reconciliation target is Σ(deal × qty − shop voucher − Shopee voucher) (Nov 2025: within +2,0 %;
+  the 2026 formula would be +18 %). The 2 % gate uses the formula for the period's definition.

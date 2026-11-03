@@ -463,7 +463,9 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | UI build | — | blocked on design approval | — |
 | Freeze lifted: owner approved `contracts/p90-plan.md` (2026-11-03); Step 1 started | — | done | owner |
 | Step 1 — loader correctness on ORY's real files (G-01, G-02, G-23, parser tests) | p90-plan Step 1 | done (080f1038; dry-run 5/5 folders exit 0, 0 refusals; 455 passed) | step-1 agent |
-| Step 2 — order export parser + browser PII strip, migration 113, reserved datasets | p90-plan Step 2 | doing | step-2 agent |
+| Step 2 — order export parser + browser PII strip, migration 113, reserved datasets | p90-plan Step 2 | done (merge 94169394; Oct 121 orders / AOV 172.025đ reproduced, GMV gap +0,01 %, 0 buyer columns read; 959 passed) | step-2 agent |
+| Ops: create ORY contract shop, then connector pilot gate = its id | Step 5 prereq | blocked (owner signs in to Cloudflare Access) | — |
+| Env: set JULI_ORDER_REF_MASTER_KEY in the backend before the first order upload (rotation = reload history) | Step 2 | todo (owner) | — |
 | Later (Step 7): Ops readers merge `shop_overview_period` months like `_merge_months` | — | todo | — |
 | Release blocker: connector `PILOT_SHOP_IDS` must be ORY's Juli shop id only (owner), not "*", before 0.3.0 ships | — | blocked (ORY shop not yet in Ops) | — |
 
