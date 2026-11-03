@@ -466,6 +466,10 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Step 2 — order export parser + browser PII strip, migration 113, reserved datasets | p90-plan Step 2 | done (merge 94169394; Oct 121 orders / AOV 172.025đ reproduced, GMV gap +0,01 %, 0 buyer columns read; 959 passed) | step-2 agent |
 | Ops: ORY contract shop exists (created 02/11, consent on); connector pilot gate = d73a240b-… | Step 5 prereq | done (2026-11-04) | orchestrator |
 | Env: set JULI_ORDER_REF_MASTER_KEY in the backend before the first order upload (rotation = reload history) | Step 2 | todo (owner) | — |
+| Goal (owner 2026-11-04): implement Steps 4–9 via sub-agents, parallel where disjoint; one deploy at the end, install after | — | doing | orchestrator |
+| Wave 1: Step 4 import (reco-step4-import) · Step 5 connector (reco-step5-connector) · Steps 5/6 data + verify + 114 if needed (reco-step56-data) · Step 7 analytics (reco-step7-analytics) · sim port (~/juli-sim-pilot, local) | — | doing | agents |
+| Wave 2: Step 8 generators (families §12 incl. mega_sale), ranking §11, lift port, prediction freeze, calibration, sim priors import | — | todo | — |
+| Wave 3: Step 9 UI (Demo + Ops) + assisted execution UI | — | todo | — |
 | Later (Step 7): Ops readers merge `shop_overview_period` months like `_merge_months` | — | todo | — |
 | Assisted execution: execution sheet, deep links, "Đã làm", read-back verify / mismatch / not_seen (Steps 5 + 9) | p90-plan § Assisted execution | todo | — |
 | Release blocker: connector `PILOT_SHOP_IDS` must be ORY's Juli shop id only (owner), not "*", before 0.3.0 ships | — | done (2026-11-04) | orchestrator |
