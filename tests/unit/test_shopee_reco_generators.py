@@ -497,3 +497,43 @@ async def test_a_price_rise_scales_each_line_by_the_same_factor_not_one_price_fo
         price_change_whatif(lines, costs, sku="S")
     with pytest.raises(ValueError):
         price_change_whatif(lines, costs, sku="S", new_deal_price=D(1), price_factor=D(1))
+
+
+async def test_acceptance_moves_a_slider_default_but_never_past_a_floor(env):
+    from juli_backend.services.shopee_recommendations import learning, service
+
+    events = [
+        {
+            "event_type": "accepted",
+            "payload": {"change_kind": "min_spend_voucher", "final_vs_default": {"value": 1.2}},
+        }
+    ] * 3
+    env.acceptance = learning.acceptance_from_events(events)
+    cand = Candidate(
+        "min_spend_voucher",
+        ("1001",),
+        {"value": 3000, "min_spend": 100_000, "quantity": 50, "days": 14},
+    )
+    service.apply_acceptance_defaults(env, cand)
+    assert cand.inputs["value"] == 4000 and cand.extra["default_source"] == {"value": "acceptance"}
+    card = _card(env, cand)
+    assert {s["key"]: s["default_source"] for s in card["whatif"]["sliders"]}[
+        "value"
+    ] == "acceptance"
+    # a default moved into a floor breach is put back
+    deep = Candidate("product_discount", ("1001",), {"discount_pct": 40})
+    env.acceptance = learning.acceptance_from_events(
+        [
+            {
+                "event_type": "accepted",
+                "payload": {
+                    "change_kind": "product_discount",
+                    "final_vs_default": {"discount_pct": 1.3},
+                },
+            }
+        ]
+        * 3
+    )
+    before = dict(deep.inputs)
+    service.apply_acceptance_defaults(env, deep)
+    assert deep.inputs == before  # 52 % would breach: the generator's value stays
