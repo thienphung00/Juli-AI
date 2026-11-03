@@ -389,9 +389,7 @@ def _reject(
     out.append(Rejection(sheet, row, sku, column, value or "(trống)", reason, kind))
 
 
-def _parse_sku_field(  # noqa: PLR0911, PLR0912
-    key: str, text: str
-) -> tuple[Any, tuple[str, str] | None]:
+def _parse_sku_field(key: str, text: str) -> tuple[Any, tuple[str, str] | None]:
     """``(normalised value, None)`` or ``(None, (reason, kind))``."""
     try:
         if key in ("cost", "packaging"):
