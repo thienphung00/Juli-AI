@@ -89,3 +89,16 @@ người, thời gian. Every input change recomputes the whole card.
 | Liên kết share / commission | `affiliate_commission`, `affiliate_target_campaign` | Liên kết |
 A card always carries: metric key, flow/lever, product id, change_kind, the ₫ at stake; its
 "Xem phân tích ›" opens the ranking for that metric × source with the row highlighted.
+
+## 9. Clarifications after the first alignment (2026-11-03)
+- **No buyer key.** Order lines carry no buyer identifier, hashed or not (no-PII rule). The voucher
+  per-user limit is shown as an input but marked "không kiểm được từ dữ liệu" and never enforced in the
+  calculation. `OrderLine.buyer_key` must stay unset by every loader.
+- **② on a voucher card**: the certain layer has no volume change, so ② is shown only from the
+  predicted range ("dự kiến"); the certain layer shows the break-even extra orders instead. Never a red
+  "0 đ / 1đ" from the certain layer.
+- **Partial cost coverage**: margin = contribution of covered lines − (ad spend of covered products +
+  unattributed ad spend × covered share of buyer_paid) − other costs × covered share, ÷ covered buyer_paid;
+  labelled "trên X % doanh thu có giá vốn". Shop profit in đồng is shown only at 100 % coverage.
+- **Chi for the daily cap** = ads + voucher + khuyến mãi + combo + commission (same chi as ②).
+- **Packaging** is per order line (one pack per product line), set per SKU.
