@@ -60,7 +60,12 @@ async def test_a_manual_card_is_saved_private_and_runs_approve_then_done(shopee_
         async with with_shop_scope(session, a.shop_id):
             card_id = uuid.UUID(cid)
             ok = await reco.decide(
-                session, a.shop_id, card_id, decision="approve", user_id=a.user_id, now=NOW
+                session,
+                a.shop_id,
+                card_id,
+                decision="approve",
+                user_id=a.user_id,
+                now=NOW + timedelta(minutes=30),
             )
             assert ok["status"] == "approved"
             done = await reco.mark_executed(
