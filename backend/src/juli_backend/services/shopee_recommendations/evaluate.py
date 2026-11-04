@@ -1202,6 +1202,10 @@ def _flow_gmv(env: RecoEnv, item: str, flow_key: str) -> Decimal:
 # ---------------------------------------------------------------------------- listing
 
 
+#: p91 D-13 listing kinds whose inputs ``listing.check_planned`` validates.
+D13_KINDS = ("description_first_line", "variation_restructure", "listing_hide", "listing_relist")
+
+
 def listing_base(env: RecoEnv, item: str, kind: str) -> tuple[Decimal, str]:
     """GMV per day the lever can move, and which GMV it is: a title / keyword moves search
     views (the Thẻ sản phẩm "search" child when the daily per-source rows exist), a cover or
@@ -1228,6 +1232,23 @@ def _listing_before_after(
         before = list(x["core_before"])
         after = [k for k in before if k != demote] + ([promote] if promote not in before else [])
         return {"core": before}, {"core": after, "promote": promote, "demote": demote}
+    if kind == "description_first_line":
+        return {"first_line": x.get("current_first_line")}, {"first_line": inputs["first_line"]}
+    if kind == "variation_restructure":
+        return (
+            {"variations": list(x.get("current_variations") or [])},
+            {
+                "variations": list(inputs["variations"]),
+                "hide_items": [str(i) for i in inputs.get("hide_items") or []],
+            },
+        )
+    if kind == "listing_hide":
+        return {"status": "listed"}, {"status": "unlisted"}
+    if kind == "listing_relist":
+        after: dict[str, Any] = {"status": "listed"}
+        if inputs.get("stock") is not None:
+            after["stock"] = int(inputs["stock"])
+        return {"status": "unlisted", "stock": x.get("current_stock")}, after
     return (
         {"cover_url": x.get("cover_url"), "text": x.get("before_text")},
         {"text": x.get("after_text"), "line": x.get("line")},
@@ -1272,6 +1293,12 @@ def eval_listing(
             "used": len(cand.extra["core_before"]),
             "max": config.MAX_CORE_KEYWORDS,
         }
+    elif kind in D13_KINDS:
+        reason = lst.check_planned(kind, inputs, env.banned_terms)
+        if reason:
+            return _refuse(reason)
+        if spec(kind).target_metric == "none":
+            notes.append("Không ước tính: thay đổi này chưa có căn cứ để dự kiến lượt xem hay đơn.")
     before, after = _listing_before_after(kind, cand, inputs)
     gmv_day, base_label = listing_base(env, item, kind)
     pp = env.product(item)

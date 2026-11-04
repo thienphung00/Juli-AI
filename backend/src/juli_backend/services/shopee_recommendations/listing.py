@@ -476,3 +476,68 @@ def unit_price(title: str, price: Decimal | None) -> UnitPrice | None:
         raw = title[m.start() : m.end()] if len(title) == len(fold(title)) else m.group(0)
         return UnitPrice(raw.strip(), quantity, base, per, price / quantity * per_qty)
     return None
+
+
+# ------------------------------------------------------------------ planned changes (p91 D-13)
+
+#: Longest first line of a product description a card carries / the Connector fills.
+MAX_DESCRIPTION_LINE_CHARS = 500
+#: Most variations a restructure card lists, and the longest name / SKU of one.
+MAX_VARIATIONS = 50
+MAX_VARIATION_NAME_CHARS = 60
+MAX_VARIATION_SKU_CHARS = 100
+MAX_VARIATION_PRICE = 500_000_000
+MAX_VARIATION_STOCK = 1_000_000
+
+
+def check_variation(row: object) -> str | None:
+    """Why one target variation (``name``, ``price``, ``sku``, ``stock``) is unusable, or None."""
+    if not isinstance(row, dict):
+        return "not_a_row"
+    name = str(row.get("name") or "").strip()
+    if not name or len(name) > MAX_VARIATION_NAME_CHARS:
+        return "name"
+    price, stock, sku = row.get("price"), row.get("stock"), row.get("sku")
+    if isinstance(price, bool) or not isinstance(price, int | float) or not 0 < price:
+        return "price"
+    if price > MAX_VARIATION_PRICE:
+        return "price"
+    if stock is not None and (
+        isinstance(stock, bool)
+        or not isinstance(stock, int)
+        or not 0 <= stock <= MAX_VARIATION_STOCK
+    ):
+        return "stock"
+    if sku is not None and (not isinstance(sku, str) or len(sku) > MAX_VARIATION_SKU_CHARS):
+        return "sku"
+    return None
+
+
+def check_planned(kind: str, inputs: dict[str, object], banned_terms: Sequence[str]) -> str | None:
+    """Refusal code for the D-13 kinds' inputs (None = usable). Pure."""
+    if kind == "description_first_line":
+        line = str(inputs.get("first_line") or "").strip()
+        if not line:
+            return "description_empty"
+        if len(line) > MAX_DESCRIPTION_LINE_CHARS or "\n" in line:
+            return "description_too_long"
+        if not is_clean(line, banned_terms):
+            return "banned_term"
+    elif kind == "variation_restructure":
+        rows = inputs.get("variations")
+        if not isinstance(rows, list) or not 1 <= len(rows) <= MAX_VARIATIONS:
+            return "variations_invalid:count"
+        for n, row in enumerate(rows, 1):
+            why = check_variation(row)
+            if why:
+                return f"variations_invalid:row{n}:{why}"
+        names = [str(r["name"]).strip().casefold() for r in rows]
+        if len(set(names)) != len(names):
+            return "variations_invalid:duplicate"
+    elif kind == "listing_relist":
+        stock = inputs.get("stock")
+        if stock is not None and (
+            isinstance(stock, bool) or not isinstance(stock, int) or stock < 0
+        ):
+            return "stock_invalid"
+    return None

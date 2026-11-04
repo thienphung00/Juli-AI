@@ -45,6 +45,9 @@ class Page:
     label: str
     path: str | None  # ``/portal/...`` as recon-verified; None = not verified yet
     verified: bool = True
+    #: One item's own page, ``{item_id}`` filled in (p91 D-13). The shape is from the seller's
+    #: own address bar, not yet recon-verified: the sheet flags it and falls back to ``path``.
+    item_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +89,12 @@ _DISCOUNT = Page("Marketing › Chương trình giảm giá", "/portal/marketing
 _FLASH = Page("Marketing › Flash Sale của shop", "/portal/marketing/shop-flash-sale/list")
 _AFFILIATE = Page("Tiếp thị liên kết", "/portal/web-seller-affiliate/homepage")
 _PRODUCT = Page("Sản phẩm › Tất cả sản phẩm", "/portal/product/list/all")
+#: The product edit page (title, description, variations, status) -- p91 D-13.
+_EDIT = Page(
+    "Sản phẩm › Sửa sản phẩm",
+    "/portal/product/list/all",
+    item_path="/portal/product/{item_id}",
+)
 _COMBO = Page("Marketing › Combo khuyến mãi", None, verified=False)
 _ADD_ON = Page("Marketing › Mua kèm deal sốc", None, verified=False)
 _PROGRAMME = Page("Marketing › Chương trình của Shopee", None, verified=False)
@@ -353,7 +362,7 @@ KINDS: dict[str, KindSpec] = {
         "title",
         "item",
         "views",
-        _PRODUCT,
+        _EDIT,
         verify_kind="title",
         prior=(0.03, 0.15),
     ),
@@ -374,7 +383,7 @@ KINDS: dict[str, KindSpec] = {
         "images",
         "item",
         "ctr",
-        _PRODUCT,
+        _EDIT,
         verify_kind="images",
         prior=(0.02, 0.12),
     ),
@@ -388,6 +397,52 @@ KINDS: dict[str, KindSpec] = {
         _PRODUCT,
         verify_kind="images",
         prior=(0.01, 0.06),
+    ),
+    # ---- listing, p91 D-13 (planned by hand or imported): no certain layer; a predicted range
+    # only where a prior exists, otherwise "không ước tính"
+    "description_first_line": KindSpec(
+        "description_first_line",
+        "listing",
+        "Sửa dòng đầu mô tả",
+        "other",
+        "item",
+        "ctor",
+        _EDIT,
+        verify_kind="description_first_line",
+        prior=(0.0, 0.04),
+    ),
+    "variation_restructure": KindSpec(
+        "variation_restructure",
+        "listing",
+        "Gom lại phân loại",
+        "other",
+        "item",
+        "none",
+        _EDIT,
+        verify_kind="variations",
+        prior=(0, 0),
+    ),
+    "listing_hide": KindSpec(
+        "listing_hide",
+        "listing",
+        "Ẩn sản phẩm (không xoá)",
+        "other",
+        "item",
+        "none",
+        _EDIT,
+        verify_kind="listing_status",
+        prior=(0, 0),
+    ),
+    "listing_relist": KindSpec(
+        "listing_relist",
+        "listing",
+        "Đưa sản phẩm trở lại (nhập hàng)",
+        "other",
+        "item",
+        "none",
+        _EDIT,
+        verify_kind="listing_status",
+        prior=(0, 0),
     ),
     # ---- mega sale (composite)
     "mega_sale": KindSpec(
@@ -448,3 +503,15 @@ def allowed_for_metric(metric: str) -> tuple[str, ...]:
 
 def kinds_of(family: str) -> tuple[str, ...]:
     return tuple(k for k, s in KINDS.items() if s.family == family)
+
+
+#: Listing changes that are planned by hand and imported from a file (p91 D-13), in the order of
+#: the import sheet's "loại thay đổi" list. ``title`` and ``cover_image`` are older kinds.
+PLANNED_LISTING_KINDS: tuple[str, ...] = (
+    "title",
+    "description_first_line",
+    "cover_image",
+    "variation_restructure",
+    "listing_hide",
+    "listing_relist",
+)

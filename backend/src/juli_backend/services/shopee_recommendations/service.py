@@ -1219,6 +1219,7 @@ async def mark_executed(
     staff_id: uuid.UUID | None = None,
     voucher_id: str | None = None,
     evidence_ref: str | None = None,
+    payload_extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """ "Đã làm": a person saved the change in Seller Centre. Records the execution
     (ADR-118) and one `executed` event per change in the sheet, each carrying
@@ -1270,6 +1271,7 @@ async def mark_executed(
                 "execution_id": str(execution.id),
                 "executor_role": role,
                 "bundle": card.get("bundle", False),
+                **(payload_extra or {}),
             },
             family=card["family"],
             change_kind=card["change_kind"],

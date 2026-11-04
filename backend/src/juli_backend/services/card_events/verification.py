@@ -20,7 +20,8 @@ that execution (a later match is not recorded; a new execution gets a new refere
 
     payload["change"] = {
         "change_kind": "title" | "price" | "images" | "stock" | "daily_budget" | "roas_target"
-                       | "voucher",
+                       | "voucher" | "listing_status" | "variations"
+                       | "description_first_line",
         "target":   {"item_id", "variation_id"?} | {"campaign_id"?} | {"voucher_id"},
         "expected": {<field>: <after value>, ...},
     }
@@ -44,7 +45,20 @@ voucher        ``voucher_settings`` (``platform_promotions``) ``discount_amount`
                                                             ``min_spend``, ``max_value``,
                                                             ``usage_limit``, ``starts_at``,
                                                             ``ends_at``
+listing_status ``platform_item_snapshots`` (item row)       ``status`` (``listed`` /
+                                                            ``unlisted``)
+variations     ``platform_items`` (variation rows still     ``variations``: ``[{name, price,
+               listed) + their newest snapshot              sku, stock}]`` by name; an expected
+                                                            row names only the fields it fixes
+description_   ``platform_items.extra`` (a detail-page      ``first_line``
+first_line     reader, not built yet: see below)
 =============  ===========================================  ================================
+
+``description_first_line`` has no reader: the product-list endpoint the Connector reads carries
+no description. The observation code is here, but ``pending_changes`` skips the kind while
+``DESCRIPTION_READBACK_ACTIVE`` is False (the card says so and the person confirms by hand), so
+an unreadable field never raises a false "không thấy" for Ops. Switch it on once a Connector
+reader posts ``description_first_line`` into the item's ``extra``.
 
 An ``expected`` value ``{"changed_from": [url, ...]}`` (listing cards that ask for a new cover:
 the new URL does not exist when the card is made) matches an observed ``image_urls`` whose
@@ -95,7 +109,15 @@ CHANGE_KINDS = (
     "daily_budget",
     "roas_target",
     "voucher",
+    "listing_status",
+    "variations",
+    "description_first_line",
 )
+#: False until a Connector reader posts the description's first line (p91 D-13 recon).
+DESCRIPTION_READBACK_ACTIVE = False
+#: Executions an importer backdated carry ``payload.readback = False``: their history is the
+#: baseline, the Connector has nothing "after" to read.
+NO_READBACK_FLAG = "readback"
 VOUCHER_FIELDS = ("discount_amount", "discount_percent", "min_spend", "max_value", "usage_limit")
 
 
@@ -157,6 +179,11 @@ def same_value(expected: Any, observed: Any) -> bool:
         return not same_value(before[0], observed[0])
     if expected is None or observed is None:
         return expected is None and observed is None
+    if isinstance(expected, Mapping):
+        # an expected row names only the fields it fixes (variation: name, price, sku, stock)
+        return isinstance(observed, Mapping) and all(
+            k in observed and same_value(v, observed[k]) for k, v in expected.items()
+        )
     if isinstance(expected, list | tuple):
         return (
             isinstance(observed, list | tuple)
@@ -248,6 +275,47 @@ async def observations_for(session: AsyncSession, change: ExecutedChange) -> lis
             "images": lambda s: {"image_urls": list(s.image_urls or [])},
         }[kind]
         return [Observation(fields(s), _utc(s.captured_at)) for s in snaps]
+    if kind == "listing_status":
+        snaps = (
+            (
+                await session.execute(
+                    select(PlatformItemSnapshot).where(
+                        PlatformItemSnapshot.shop_id == shop_id,
+                        PlatformItemSnapshot.platform == PLATFORM,
+                        PlatformItemSnapshot.item_id == str(target["item_id"]),
+                        PlatformItemSnapshot.variation_id == "",
+                        PlatformItemSnapshot.captured_at > since,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [
+            Observation(
+                {"status": "unlisted" if s.status == "unlisted" else "listed"}, _utc(s.captured_at)
+            )
+            for s in snaps
+        ]
+    if kind == "variations":
+        return await _variation_observations(session, shop_id, str(target["item_id"]), since)
+    if kind == "description_first_line":
+        rows = (
+            await session.execute(
+                select(PlatformItem.extra, PlatformItem.captured_at).where(
+                    PlatformItem.shop_id == shop_id,
+                    PlatformItem.platform == PLATFORM,
+                    PlatformItem.item_id == str(target["item_id"]),
+                    PlatformItem.variation_id == "",
+                    PlatformItem.captured_at > since,
+                )
+            )
+        ).all()
+        return [
+            Observation({"first_line": extra["description_first_line"]}, _utc(at))
+            for extra, at in rows
+            if (extra or {}).get("description_first_line")
+        ]
     if kind in ("daily_budget", "roas_target"):
         campaign_id = target.get("campaign_id")
         segment = campaign_segment(str(campaign_id)) if campaign_id else "all"
@@ -304,6 +372,69 @@ async def observations_for(session: AsyncSession, change: ExecutedChange) -> lis
             out.append(Observation(seen, _utc(row.captured_at)))
         return out
     raise ValueError(f"unknown change_kind {kind!r}")
+
+
+async def _variation_observations(
+    session: AsyncSession, shop_id: uuid.UUID, item_id: str, since: datetime
+) -> list[Observation]:
+    """The item's variations as the newest catalogue read lists them: a variation that is no
+    longer in the product list stops being re-seen, so it is the rows seen as late as the
+    item's own row. Price / stock come from each one's newest snapshot."""
+    rows = (
+        (
+            await session.execute(
+                select(PlatformItem).where(
+                    PlatformItem.shop_id == shop_id,
+                    PlatformItem.platform == PLATFORM,
+                    PlatformItem.item_id == item_id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    seen = [r.last_seen_on for r in rows if r.last_seen_on is not None]
+    variations = [r for r in rows if r.variation_id != ""]
+    if not seen or not variations:
+        return []
+    item_row = next((r for r in rows if r.variation_id == ""), None)
+    newest = item_row.last_seen_on if item_row and item_row.last_seen_on is not None else max(seen)
+    taken = max(r.captured_at for r in rows)
+    if taken <= since:
+        return []
+    live = [r for r in variations if r.last_seen_on is not None and r.last_seen_on >= newest]
+    snaps = (
+        (
+            await session.execute(
+                select(PlatformItemSnapshot)
+                .where(
+                    PlatformItemSnapshot.shop_id == shop_id,
+                    PlatformItemSnapshot.platform == PLATFORM,
+                    PlatformItemSnapshot.item_id == item_id,
+                    PlatformItemSnapshot.variation_id != "",
+                )
+                .order_by(PlatformItemSnapshot.captured_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    latest: dict[str, PlatformItemSnapshot] = {}
+    for snap in snaps:
+        latest.setdefault(snap.variation_id, snap)
+    out = []
+    for r in live:
+        snap = latest.get(r.variation_id)
+        row: dict[str, Any] = {"name": r.variation_name or ""}
+        if r.seller_sku:
+            row["sku"] = r.seller_sku
+        if snap is not None and snap.list_price is not None:
+            row["price"] = snap.list_price
+        if snap is not None and snap.stock is not None:
+            row["stock"] = snap.stock
+        out.append(row)
+    out.sort(key=lambda v: str(v["name"]).casefold())
+    return [Observation({"variations": out}, _utc(taken))]
 
 
 # -- events (DB) ------------------------------------------------------------------------
@@ -380,6 +511,10 @@ async def pending_changes(
     for event in executed:
         spec = (event.payload or {}).get("change")
         if not isinstance(spec, dict) or spec.get("change_kind") not in CHANGE_KINDS:
+            continue
+        if (event.payload or {}).get(NO_READBACK_FLAG) is False:
+            continue
+        if spec["change_kind"] == "description_first_line" and not DESCRIPTION_READBACK_ACTIVE:
             continue
         ref = event.dedup_key
         if any(keys.verification(ref, name) in done for name in VERIFICATION_EVENTS):
