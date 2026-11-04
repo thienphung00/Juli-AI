@@ -201,6 +201,13 @@ Real files arrived (header names only recorded here; files stay outside the repo
   beside the page (no fill). Hide / relist: page opened only. Field location by visible label text, verified once by a
   read-only recon of the edit page with a logged-in Seller Centre; unknown layout → no fill, copy buttons only.
 
+## D-14 Operations decisions (owner 2026-11-04)
+- Connector fixes 0.3.2/0.3.3 go to fasttrack/optimize-product as their own PR (connector-only); D-13's connector
+  becomes 0.3.4.
+- Learning / calibration runs **daily, right after the daily Shopee KPI beat**, for the pilot shop(s) only (DB only,
+  idempotent); Ops can still trigger it by hand.
+- P91 ships as **one deploy** after D-12 + D-13 are merged and the full deploy gate passes.
+
 ## Waves
 1. Backend core (D-1, D-2, D-4, D-5) ‖ Backend manual + compare + combo (D-3) ‖ Design artboards (all of D-1..D-10).
    Parallel; file ownership below.
