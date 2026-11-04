@@ -158,6 +158,9 @@ TABLE_CLASSIFICATION_MAP = {
     # append-only (SELECT / INSERT for juli_app).
     ("public", "shop_health_daily"): "tenant_direct",
     ("public", "ads_change_log"): "tenant_direct",
+    # P91 D-12 (migration 117): what Shopee actually charged and paid per order (the income
+    # export), keyed by the same hashed order ref as the order lines.
+    ("public", "shopee_order_income"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",

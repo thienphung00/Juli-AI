@@ -478,11 +478,98 @@ def read_order_export(path: Path, key: bytes) -> OrderExport:
     return result
 
 
+#: The columns of the second pass (``read_variation_names``): the line's identity and the
+#: variation NAME, a product attribute ("Combo 3 hộp") that the main pass leaves undecoded.
+VARIATION_COLUMNS = (
+    "Mã đơn hàng",
+    "SKU sản phẩm",
+    "SKU phân loại hàng",
+    "Tên phân loại hàng",
+    "Giá gốc",
+    "Giá ưu đãi",
+    "Số lượng",
+)
+VARIATION_NAME_WIDTH = 120
+
+
+def _line_signature(
+    ref: str, sku: str | None, variation_sku: str | None, original: Decimal, deal: Decimal, qty: Any
+) -> tuple[Any, ...]:
+    return (ref, sku or None, variation_sku or None, Decimal(original), Decimal(deal), Decimal(qty))
+
+
+def read_variation_names(path: Path, key: bytes) -> dict[tuple[Any, ...], list[str]]:
+    """``(order_ref, sku, variation_sku, original price, deal price, qty)`` -> the variation
+    names of the lines of that signature, in file order (P91 D-12).
+
+    Combo variations share one SKU, so the name ("Combo 3 hộp") is what tells the packs apart.
+    It is read in a pass of its own, over these seven columns only (``VARIATION_COLUMNS``), so
+    the main pass - and the browser parser's parity with it - is unchanged. The name is a
+    product attribute, not buyer data; the order id is hashed as it is read."""
+    sheet = read_columns(
+        path,
+        SHEET,
+        lambda header: {
+            i for i, name in enumerate(normal(h) for h in header) if name in VARIATION_COLUMNS
+        },
+    )
+    names = [normal(h) for h in sheet.header]
+    column = {name: i for i, name in enumerate(names) if name in VARIATION_COLUMNS}
+    if "Tên phân loại hàng" not in column or "Mã đơn hàng" not in column:
+        return {}
+    found: dict[tuple[Any, ...], list[str]] = defaultdict(list)
+    for row in sheet.rows:
+        order_id = row.get(column["Mã đơn hàng"])
+        name = (row.get(column["Tên phân loại hàng"]) or "").strip()
+        if not order_id or not order_id.strip() or not name:
+            continue
+
+        def amount(title: str, row: dict[int, str | None] = row) -> Decimal:
+            idx = column.get(title)
+            return (money(row.get(idx), title) if idx is not None else None) or Decimal(0)
+
+        sku_idx, var_idx = column.get("SKU sản phẩm"), column.get("SKU phân loại hàng")
+        signature = _line_signature(
+            parse.order_ref(order_id, key),
+            (row.get(sku_idx) or "").strip()[:120] if sku_idx is not None else None,
+            (row.get(var_idx) or "").strip()[:120] if var_idx is not None else None,
+            amount("Giá gốc"),
+            amount("Giá ưu đãi"),
+            amount("Số lượng"),
+        )
+        found[signature].append(name[:VARIATION_NAME_WIDTH])
+    return dict(found)
+
+
+def add_variation_names(rows: list[dict[str, Any]], names: dict[tuple[Any, ...], list[str]]) -> int:
+    """Put ``variation_name`` on the posted rows whose signature has one; twins (same signature)
+    take the names in line order. Returns how many rows got a name."""
+    taken: Counter[tuple[Any, ...]] = Counter()
+    named = 0
+    for row in sorted(rows, key=lambda r: (r["order_ref"], r["line_no"])):
+        signature = _line_signature(
+            row["order_ref"],
+            row.get("sku"),
+            row.get("variation_sku"),
+            Decimal(str(row["original_price"])),
+            Decimal(str(row["deal_price"])),
+            row["qty"],
+        )
+        candidates = names.get(signature)
+        if not candidates:
+            continue
+        row["variation_name"] = candidates[min(taken[signature], len(candidates) - 1)]
+        taken[signature] += 1
+        named += 1
+    return named
+
+
 def parse_order_export(path: Path, parsed: parse.Parsed) -> None:
     """``Order.all.<from>_<to>.xlsx`` → ``order_lines`` posts, one per order month (≤ 1 000
     lines each)."""
     key = parse._order_ref_key(parsed)
     export = read_order_export(path, key)
+    named = add_variation_names(export.rows, read_variation_names(path, key))
     file = path.name
     by_month: dict[date, list[dict[str, Any]]] = defaultdict(list)
     for row in export.rows:
@@ -502,6 +589,7 @@ def parse_order_export(path: Path, parsed: parse.Parsed) -> None:
             )
     parsed.notes[f"{file}: order lines read"] += len(export.rows)
     parsed.notes[f"{file}: orders read"] += len(export.orders)
+    parsed.notes[f"{file}: order lines with a variation name"] += named
     parsed.notes[f"{file}: columns never read (buyer data, identifiers, free text, names)"] += len(
         export.ignored_headers
     )

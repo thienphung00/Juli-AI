@@ -2,7 +2,11 @@
 
 Cost rules (contract 13): ``sku_cost`` (scope = SKU or variation id, per unit), ``product_cost``
 (scope = item id, per unit), ``packaging_cost`` (scope = SKU or item id, per order line). The
-targets and the daily marketing cap are the Cài đặt › Mục tiêu keys; they are read by the names
+P91 D-12 adds ``pack_count`` (scope = variation: single items per sold unit), ``pack_components``
+(scope = listing without a SKU: component SKU x quantity), ``vat_rate`` (scope = SKU, percent)
+and the shop flags ``prices_include_vat`` / ``cost_includes_vat`` (true / false; absent = not
+stated).
+The targets and the daily marketing cap are the Cài đặt › Mục tiêu keys; they are read by the names
 below (the first present alias wins) and are simply absent until the seller sets them -- a
 missing target is ``None``, never a default.
 """
@@ -15,12 +19,19 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_profit.pack import Component, parse_components
+
 SKU_COST = "sku_cost"
 PRODUCT_COST = "product_cost"
 PACKAGING_COST = "packaging_cost"
 MIN_MARGIN_PCT = "min_margin_pct"
 MAX_DISCOUNT_PCT = "max_discount_pct"
 DEFAULT_MAX_DISCOUNT_PCT = "default_max_discount_pct"
+PACK_COUNT = "pack_count"
+PACK_COMPONENTS = "pack_components"
+VAT_RATE = "vat_rate"
+PRICES_INCLUDE_VAT = "prices_include_vat"
+COST_INCLUDES_VAT = "cost_includes_vat"
 
 TARGET_ALIASES: dict[str, tuple[str, ...]] = {
     "gmv_month": ("monthly_gmv_target", "target_gmv_month", "gmv_target_month"),
@@ -40,6 +51,11 @@ RULE_KEYS_READ: tuple[str, ...] = (
     PACKAGING_COST,
     MAX_DISCOUNT_PCT,
     DEFAULT_MAX_DISCOUNT_PCT,
+    PACK_COUNT,
+    PACK_COMPONENTS,
+    VAT_RATE,
+    PRICES_INCLUDE_VAT,
+    COST_INCLUDES_VAT,
     *(alias for aliases in TARGET_ALIASES.values() for alias in aliases),
 )
 
@@ -72,6 +88,15 @@ class ProfitRules:
     packaging_by_key: dict[str, Decimal] = field(default_factory=dict)
     max_discount_pct: dict[str, Decimal] = field(default_factory=dict)
     default_max_discount_pct: Decimal | None = None
+    #: scope (``item_id:variation_id`` or ``item_id``) -> single items per sold unit.
+    pack_count: dict[str, int] = field(default_factory=dict)
+    #: scope -> bill of materials of a listing with no SKU of its own.
+    pack_components: dict[str, tuple[Component, ...]] = field(default_factory=dict)
+    #: scope or seller SKU -> VAT rate as a fraction (0.08 for 8 %).
+    vat_rate: dict[str, Decimal] = field(default_factory=dict)
+    #: None = the seller has not said (profit is then shown before VAT).
+    prices_include_vat: bool | None = None
+    cost_includes_vat: bool | None = None
     targets: dict[str, Decimal | None] = field(default_factory=dict)
     #: month ("YYYY-MM") -> target name -> value, from the seller import's monthly targets (Step 4).
     targets_by_month: dict[str, dict[str, Decimal]] = field(default_factory=dict)
@@ -91,16 +116,30 @@ def read_rules(rows: Iterable[RuleRow]) -> ProfitRules:
     shop_wide: dict[str, Decimal] = {}
     monthly: dict[str, dict[str, Decimal]] = {}
     for row in rows:
+        scope = (row.scope_ref or "").strip()
+        if row.rule_key in (PRICES_INCLUDE_VAT, COST_INCLUDES_VAT) and not scope:
+            if isinstance(row.value, bool):
+                setattr(rules, row.rule_key, row.value)
+            continue
+        if row.rule_key == PACK_COMPONENTS and scope:
+            components = parse_components(row.value)
+            if components:
+                rules.pack_components[scope] = components
+            continue
         number = _number(row.value)
         if number is None:
             continue
-        scope = (row.scope_ref or "").strip()
         if row.rule_key == SKU_COST and scope:
             rules.sku_cost[scope] = number
         elif row.rule_key == PRODUCT_COST and scope:
             rules.product_cost[scope] = number
         elif row.rule_key == PACKAGING_COST and scope:
             rules.packaging_by_key[scope] = number
+        elif row.rule_key == PACK_COUNT and scope:
+            if number == number.to_integral_value() and number >= 1:
+                rules.pack_count[scope] = int(number)
+        elif row.rule_key == VAT_RATE and scope:
+            rules.vat_rate[scope] = number / 100
         elif row.rule_key == MAX_DISCOUNT_PCT and scope:
             rules.max_discount_pct[scope] = number
         elif row.rule_key == DEFAULT_MAX_DISCOUNT_PCT and not scope:
@@ -123,6 +162,11 @@ def rules_summary(rules: ProfitRules) -> Mapping[str, Any]:
         "sku_cost_count": len(rules.sku_cost),
         "product_cost_count": len(rules.product_cost),
         "packaging_count": len(rules.packaging_by_key),
+        "pack_count_count": len(rules.pack_count),
+        "bom_count": len(rules.pack_components),
+        "vat_rate_count": len(rules.vat_rate),
+        "prices_include_vat": rules.prices_include_vat,
+        "cost_includes_vat": rules.cost_includes_vat,
         "targets": {k: (float(v) if v is not None else None) for k, v in rules.targets.items()},
     }
 
@@ -145,4 +189,5 @@ def with_sku_aliases(rules: ProfitRules, scope_to_sku: Mapping[str, str]) -> Pro
         sku_cost=alias(rules.sku_cost),
         packaging_by_key=alias(rules.packaging_by_key),
         max_discount_pct=alias(rules.max_discount_pct),
+        vat_rate=alias(rules.vat_rate),
     )

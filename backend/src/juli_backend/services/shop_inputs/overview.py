@@ -19,9 +19,13 @@ from juli_backend.services.shop_inputs.catalogue import (
 from juli_backend.services.shop_inputs.fallback import (
     OWNER_DEFAULT_GROSS_MARGIN_PCT,
     cost_fallbacks,
+    costed_skus,
+    has_imported_cost,
 )
 from juli_backend.services.shop_inputs.importer import SUGGESTED_REASONS
 from juli_backend.services.shop_rules.rules import SKU_INPUT_RULE_KEYS
+from juli_backend.services.shopee_profit.pack import pack_count_from_name
+from juli_backend.services.shopee_profit.vat import vat_label
 
 MAX_FALLBACK_ROWS = 500
 
@@ -34,11 +38,8 @@ async def build_overview(session: AsyncSession, shop_id: uuid.UUID) -> dict[str,
     catalogue = await load_catalogue(session, shop_id)
     current = await load_current(session, shop_id)
     fallbacks = await cost_fallbacks(session, shop_id)
-    with_cost = sum(
-        1
-        for s in catalogue
-        if "sku_cost" in current.per_sku.get(s.scope, {}) or s.item_id in current.product_cost
-    )
+    costed = costed_skus(catalogue, current)
+    with_cost = sum(1 for s in catalogue if has_imported_cost(s, current, costed))
     sent = await kol_samples.load_samples(session, shop_id)
     by_scope = {c.scope: c for c in catalogue}
     samples = []
@@ -87,6 +88,24 @@ async def build_overview(session: AsyncSession, shop_id: uuid.UUID) -> dict[str,
                 }
                 for f in fallbacks[:MAX_FALLBACK_ROWS]
             ],
+        },
+        "packs": {
+            "set_by_seller": sum(1 for v in current.per_sku.values() if "pack_count" in v),
+            "from_name": sum(
+                1
+                for s in catalogue
+                if "pack_count" not in current.per_sku.get(s.scope, {})
+                and (pack_count_from_name(s.variation_name) or 1) > 1
+            ),
+            "bom_listings": sum(1 for v in current.per_sku.values() if "pack_components" in v),
+        },
+        "vat": {
+            "prices_include_vat": current.flags.get("prices_include_vat"),
+            "cost_includes_vat": current.flags.get("cost_includes_vat"),
+            "skus_with_rate": sum(1 for v in current.per_sku.values() if "vat_rate" in v),
+            "label": vat_label(
+                current.flags.get("prices_include_vat"), current.flags.get("cost_includes_vat")
+            )["label"],
         },
         "months": [
             {"month": month, "values": values} for month, values in sorted(current.monthly.items())

@@ -6,6 +6,14 @@ fees -> COGS -> packaging -> affiliate commission = CONTRIBUTION (before ads) ->
 
 Rules:
 - ``buyer_paid`` = deal_price*qty - shop_voucher_share - bundle_discount.
+- Income actuals (P91 D-12): a line with ``income`` (its share of the order's row in the income
+  export) is charged exactly that: its fees (``fee_source`` ``income``), the affiliate commission
+  Shopee took, and the costs the formula never sees - net shipping, return shipping, the coins the
+  seller bore, VAT / PIT Shopee withheld, a refund of a delivered line - less any lost-parcel
+  compensation. The income wins over ``actual_fees`` and over the formula.
+- VAT (P91 D-12): with ``vat`` (the shop's flags and the SKU's rate) revenue is ``buyer_paid`` less
+  the VAT inside it and cost is less the input VAT credited; ``vat_basis`` says whether the seller
+  has said so (``after_vat``) or the figure is before VAT.
 - Fees: the line's actual fees when Shopee reported them, else the formula valid on the
   order date (``fee_source`` says which). Per-order fees (fixed amounts and the transaction
   fee on the order base) are charged once per order: :func:`profit_lines` splits them over the
@@ -37,7 +45,14 @@ from decimal import Decimal
 from enum import StrEnum
 
 from juli_backend.services.shopee_profit.fees import FeeFormula, FeeSchedule
+from juli_backend.services.shopee_profit.income import LineIncome
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div, to_dong
+from juli_backend.services.shopee_profit.vat import (
+    BASIS_BEFORE,
+    VatTreatment,
+    input_vat_credit,
+    output_vat,
+)
 
 
 class OrderStatus(StrEnum):
@@ -87,6 +102,7 @@ class OrderLine:
     buyer_shipping_fee: Decimal | None = None  # shipping the buyer paid (order level; NULL = 0)
     bank_promo: Decimal | None = None  # bank promotion (order level; NULL = 0)
     status: OrderStatus = OrderStatus.DELIVERED
+    income: LineIncome | None = None  # this line's share of the order's income-export row
 
     def __post_init__(self) -> None:
         if self.qty <= 0:
@@ -153,15 +169,31 @@ class ProfitBreakdown:
     status: OrderStatus = OrderStatus.DELIVERED
     # "no_fee_no_profit": cancelled / in transit / not received -- outside the profit base
     excluded_reason: str | None = None
+    #: The costs only the income export states (net shipping ...), as (code, amount).
+    income_costs: tuple[tuple[str, Decimal], ...] | None = None
+    #: VAT inside ``buyer_paid`` taken out of revenue, and input VAT credited off the cost.
+    vat_output: Decimal = ZERO
+    vat_input_credit: Decimal = ZERO
+    #: ``before_vat`` until the seller says whether the prices carry VAT.
+    vat_basis: str = BASIS_BEFORE
 
     @property
     def margin_pct(self) -> Decimal | None:
         return pct_points(self.margin_rate)
 
     @property
+    def income_costs_total(self) -> Decimal | None:
+        if self.income_costs is None:
+            return None
+        return sum((amount for _, amount in self.income_costs), ZERO)
+
+    @property
     def revenue(self) -> Decimal:
-        """Money actually kept from the buyer: ``buyer_paid``, 0 for an accepted refund."""
-        return ZERO if self.status is OrderStatus.REFUNDED_ACCEPTED else self.buyer_paid
+        """Money actually kept from the buyer: ``buyer_paid`` less the VAT inside it, 0 for an
+        accepted refund."""
+        if self.status is OrderStatus.REFUNDED_ACCEPTED:
+            return ZERO
+        return self.buyer_paid - self.vat_output
 
 
 def allocate_ads(pool: AdsPool, line_ad_revenue: Decimal) -> Decimal | None:
@@ -179,6 +211,7 @@ def line_profit(
     ads_pool: AdsPool | None = None,
     affiliate_rate: Decimal | None = None,
     per_order_fees: Mapping[str, Decimal] | None = None,
+    vat: VatTreatment | None = None,
 ) -> ProfitBreakdown:
     """One line's waterfall. ``per_order_fees`` = the line's share of the order's per-order
     fees (:meth:`FeeFormula.split_per_order`); omitted, the line is treated as the whole order.
@@ -210,7 +243,10 @@ def line_profit(
     fees: tuple[tuple[str, Decimal], ...] | None = None
     fees_total: Decimal | None = None
     fee_source: str | None = None
-    if line.actual_fees is not None:
+    income = line.income
+    if income is not None:
+        fees, fees_total, fee_source = income.fees, income.fees_total, "income"
+    elif line.actual_fees is not None:
         fees, fees_total, fee_source = (("actual", line.actual_fees),), line.actual_fees, "actual"
     else:
         formula: FeeFormula | None = schedule.formula_on(line.order_date) if schedule else None
@@ -234,7 +270,9 @@ def line_profit(
             missing.append("ads_allocation")
 
     commission: Decimal | None = ZERO
-    if line.affiliate and not refunded:
+    if income is not None:
+        commission = income.commission
+    elif line.affiliate and not refunded:
         if line.commission is not None:
             commission = line.commission
         elif affiliate_rate is not None:
@@ -243,17 +281,25 @@ def line_profit(
             commission = None
             missing.append("commission")
 
+    income_costs = income.other_costs(with_refund=not refunded) if income is not None else None
+    vat_out = output_vat(line.buyer_paid, vat)
+    vat_credit = input_vat_credit(cogs, vat) if cogs is not None else ZERO
+    if vat_out is None or vat_credit is None:
+        missing.append("vat_rate")
+    vat_basis = vat.basis if vat is not None else BASIS_BEFORE
+
     contribution: Decimal | None = None
     if not [m for m in missing if m != "ads_allocation"]:
         assert fees_total is not None and cogs is not None and packaging is not None
-        assert commission is not None
-        revenue = ZERO if refunded else line.buyer_paid
-        contribution = revenue - fees_total - cogs - packaging - commission
+        assert commission is not None and vat_out is not None and vat_credit is not None
+        revenue = ZERO if refunded else line.buyer_paid - vat_out
+        other = sum((a for _, a in income_costs), ZERO) if income_costs is not None else ZERO
+        contribution = revenue - fees_total - (cogs - vat_credit) - packaging - commission - other
     profit: Decimal | None = None
     margin: Decimal | None = None
     if contribution is not None and ads is not None:
         profit = contribution - ads
-        margin = safe_div(profit, ZERO if refunded else line.buyer_paid)
+        margin = safe_div(profit, ZERO if refunded else line.buyer_paid - (vat_out or ZERO))
 
     return ProfitBreakdown(
         list_value=line.list_value,
@@ -273,6 +319,10 @@ def line_profit(
         margin_rate=margin,
         missing=tuple(missing),
         status=line.status,
+        income_costs=income_costs,
+        vat_output=vat_out or ZERO,
+        vat_input_credit=vat_credit or ZERO,
+        vat_basis=vat_basis,
     )
 
 

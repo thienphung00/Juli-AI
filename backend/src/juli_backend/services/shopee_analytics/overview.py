@@ -229,6 +229,8 @@ def _profit_block(view: PeriodView) -> dict[str, Any]:
         "net_revenue": num(p.buyer_paid),
         "orders": p.orders,
         "cost_coverage": cov.json(),
+        "income_coverage": view.income_coverage.json(),
+        "vat": view.vat,
         "assumed_cost_share_pct": pct(cov.pct(cov.assumed)),
         "assumed_cost_label": ASSUMED_COST_LABEL,
         "profit_is_partial": p.margin_is_partial,
@@ -255,7 +257,7 @@ def _profit_block(view: PeriodView) -> dict[str, Any]:
 
 
 def _fee_sources(view: PeriodView) -> dict[str, int]:
-    out = {"actual": 0, "formula": 0, "not_charged": 0}
+    out = {"income": 0, "actual": 0, "formula": 0, "not_charged": 0}
     for _, pb in view.pairs:
         out[pb.fee_source or "not_charged"] = out.get(pb.fee_source or "not_charged", 0) + 1
     return out

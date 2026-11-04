@@ -17,9 +17,11 @@ from juli_backend.services.shopee_analytics.engine import (
     CostCoverage,
     Costs,
     FeeContext,
+    IncomeCoverage,
     ShopLine,
     build_fee_context,
     cost_coverage,
+    income_coverage,
     profit_pairs,
     resolve_costs,
     to_shop_lines,
@@ -54,6 +56,7 @@ from juli_backend.services.shopee_profit.shop_profit import (
     shop_profit,
 )
 from juli_backend.services.shopee_profit.sources import SourceMatrix, build_source_matrix
+from juli_backend.services.shopee_profit.vat import vat_label
 from juli_backend.services.shopee_profit.vouchers import VoucherJoin
 
 SHOP_KEY = "__shop__"
@@ -291,6 +294,8 @@ class PeriodView:
     fees: FeeContext
     pairs: list[tuple[OrderLine, ProfitBreakdown]]
     coverage: CostCoverage
+    income_coverage: IncomeCoverage
+    vat: dict[str, object]
     ads: AdsAllocation
     profit: ShopProfit
     matrix: SourceMatrix
@@ -337,7 +342,7 @@ def shop_flow_rows(traffic: ShopTraffic) -> list[FlowRow]:
 
 
 def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
-    lines = to_shop_lines(data.lines.lines, ctx.catalog)
+    lines = to_shop_lines(data.lines.lines, ctx.catalog, ctx.rules, data.lines.income)
     costs = resolve_costs(lines, ctx.rules)
     item_ids = sorted({sl.product_id for sl in lines} | set(data.product_flows.totals))
     fees = build_fee_context(item_ids, ctx.catalog, ctx.db_schedules(item_ids))
@@ -393,6 +398,8 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
         fees=fees,
         pairs=pairs,
         coverage=cost_coverage(pairs, costs),
+        income_coverage=income_coverage(pairs),
+        vat=vat_label(ctx.rules.prices_include_vat, ctx.rules.cost_includes_vat),
         ads=ads,
         profit=profit,
         matrix=matrix,

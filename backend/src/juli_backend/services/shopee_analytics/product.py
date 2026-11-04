@@ -136,6 +136,9 @@ def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[d
                     "cogs_source": view.costs.cogs_source.get(sku),
                     "packaging": num(cost.packaging) if cost else None,
                     "packaging_source": view.costs.packaging_source.get(sku),
+                    "pack_count": view.costs.pack_count.get(sku, 1),
+                    "pack_source": view.costs.pack_source.get(sku),
+                    "bom": sku in view.costs.bom,
                     "label": ASSUMED_COST_LABEL
                     if view.costs.cogs_source.get(sku) != SRC_REAL
                     else None,

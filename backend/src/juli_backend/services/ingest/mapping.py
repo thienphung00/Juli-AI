@@ -50,6 +50,9 @@ tell a mapping change from a data change):
   land in ``shopee_order_lines`` (the second only marks lines the first created);
   ``ads_change_log`` and ``shop_health_daily`` are append-only logs; ``item_snapshot`` writes
   ``platform_item_snapshots`` only when a tracked field changed.
+- P91 D-12 (migration 119): ``order_income`` (the income export, Tài chính › Doanh thu) lands in
+  ``shopee_order_income``, one row per order keyed by the same hashed ``order_ref`` as the order
+  lines; the actual fees and payout, which win over the order export's fee columns.
 """
 
 from __future__ import annotations
@@ -89,6 +92,7 @@ from juli_backend.services.ingest.schemas import (
     ShopeeItemPerformanceRow,
     ShopeeItemSnapshotRow,
     ShopeeItemTrafficSourceRow,
+    ShopeeOrderIncomeRow,
     ShopeeOrderLineRow,
     ShopeeProductFlagRow,
     ShopeeProductOverviewRow,
@@ -593,6 +597,7 @@ WRITE_PROMOTIONS = "promotions"  # platform_promotions
 WRITE_ITEMS = "items"  # platform_items only
 WRITE_ORDER_LINES = "order_lines"  # shopee_order_lines (upsert)
 WRITE_AFFILIATE_LINES = "affiliate_lines"  # marks existing shopee_order_lines
+WRITE_ORDER_INCOME = "order_income"  # shopee_order_income (upsert by rank)
 WRITE_ADS_LOG = "ads_log"  # ads_change_log (append-only)
 WRITE_ITEM_SNAPSHOTS = "item_snapshots"  # platform_item_snapshots (insert on change)
 WRITE_SHOP_HEALTH = "shop_health"  # shop_health_daily (append-only)
@@ -857,6 +862,17 @@ DATASETS: dict[tuple[str, str], DatasetSpec] = {
         "Per order line (Đơn hàng › Xuất), PII stripped by the sender; order id is a keyed hash.",
         GRANULARITY_PERIOD,
         WRITE_ORDER_LINES,
+    ),
+    ("shopee", "order_income"): DatasetSpec(
+        "shopee",
+        "order_income",
+        ShopeeOrderIncomeRow,
+        _not_metrics,
+        False,
+        "Per order, the fees and payout Shopee actually applied (Tài chính › Doanh thu); the "
+        "order id is a keyed hash.",
+        GRANULARITY_PERIOD,
+        WRITE_ORDER_INCOME,
     ),
     ("shopee", "affiliate_order_lines"): DatasetSpec(
         "shopee",

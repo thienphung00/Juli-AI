@@ -14,7 +14,7 @@ the rule store checks).
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -27,6 +27,7 @@ from juli_backend.models.shopee_profit import PlatformItemSnapshot
 from juli_backend.services.shop_rules.rules import (
     ITEM_STATUS,
     MAX_DISCOUNT_PCT,
+    PACK_COUNT,
     PACKAGING,
     PRODUCT_COST,
     PRODUCT_GROUP,
@@ -34,6 +35,8 @@ from juli_backend.services.shop_rules.rules import (
     SKU_COST,
     SKU_INPUT_RULE_KEYS,
     STOCK,
+    VAT_FLAG_RULE_KEYS,
+    VAT_RATE,
 )
 
 PLATFORM = "shopee"
@@ -58,6 +61,8 @@ class CatalogueSku:
     name: str
     list_price: Decimal | None
     snapshot_stock: int | None
+    #: The variation's own name ("Combo 3 hộp"), empty for an item-level row.
+    variation_name: str = ""
 
     @property
     def scope(self) -> str:
@@ -102,8 +107,11 @@ async def load_catalogue(session: AsyncSession, shop_id: uuid.UUID) -> list[Cata
     for snap in snapshots:
         latest.setdefault((snap.item_id, snap.variation_id), snap)
 
+    variation_names: dict[tuple[str, str], str] = {}
     names: dict[tuple[str, str], tuple[str, str]] = {}
     for item in items:
+        if item.variation_id and item.variation_name:
+            variation_names[(item.item_id, item.variation_id)] = item.variation_name
         label = item.name or ""
         if item.variation_id and item.variation_name:
             label = f"{label} · {item.variation_name}" if label else item.variation_name
@@ -128,6 +136,7 @@ async def load_catalogue(session: AsyncSession, shop_id: uuid.UUID) -> list[Cata
                 name=label,
                 list_price=_price(found) if found else None,
                 snapshot_stock=found.stock if found else None,
+                variation_name=variation_names.get(key, ""),
             )
         )
     return out
@@ -142,6 +151,8 @@ FIELD_RULES: dict[str, str] = {
     "restock": RESTOCK_DATE,
     "group": PRODUCT_GROUP,
     "status": ITEM_STATUS,
+    "pack": PACK_COUNT,
+    "vat": VAT_RATE,
 }
 RULE_FIELDS: dict[str, str] = {rule: field for field, rule in FIELD_RULES.items()}
 
@@ -154,6 +165,8 @@ class CurrentInputs:
     per_sku: dict[str, dict[str, Any]]
     product_cost: dict[str, Any]
     monthly: dict[str, dict[str, Any]]
+    #: The shop-wide VAT flags the seller has stated (absent = not stated).
+    flags: dict[str, bool] = field(default_factory=dict)
 
 
 async def load_current(session: AsyncSession, shop_id: uuid.UUID) -> CurrentInputs:
@@ -164,7 +177,14 @@ async def load_current(session: AsyncSession, shop_id: uuid.UUID) -> CurrentInpu
             await session.execute(
                 select(ShopRule).where(
                     ShopRule.shop_id == shop_id,
-                    ShopRule.rule_key.in_([*SKU_INPUT_RULE_KEYS, PRODUCT_COST, *MONTHLY_RULE_KEYS]),
+                    ShopRule.rule_key.in_(
+                        [
+                            *SKU_INPUT_RULE_KEYS,
+                            PRODUCT_COST,
+                            *MONTHLY_RULE_KEYS,
+                            *VAT_FLAG_RULE_KEYS,
+                        ]
+                    ),
                 )
             )
         )
@@ -174,14 +194,18 @@ async def load_current(session: AsyncSession, shop_id: uuid.UUID) -> CurrentInpu
     per_sku: dict[str, dict[str, Any]] = {}
     product_cost: dict[str, Any] = {}
     monthly: dict[str, dict[str, Any]] = {}
+    flags: dict[str, bool] = {}
     for row in rows:
-        if row.rule_key == PRODUCT_COST:
+        if row.rule_key in VAT_FLAG_RULE_KEYS:
+            if isinstance(row.value, bool):
+                flags[row.rule_key] = row.value
+        elif row.rule_key == PRODUCT_COST:
             product_cost[row.scope_ref] = row.value
         elif row.rule_key in MONTHLY_RULE_KEYS:
             monthly.setdefault(row.scope_ref, {})[row.rule_key] = row.value
         else:
             per_sku.setdefault(row.scope_ref, {})[row.rule_key] = row.value
-    return CurrentInputs(per_sku=per_sku, product_cost=product_cost, monthly=monthly)
+    return CurrentInputs(per_sku=per_sku, product_cost=product_cost, monthly=monthly, flags=flags)
 
 
 def effective_stock(sku: CatalogueSku, current: dict[str, Any]) -> int | None:

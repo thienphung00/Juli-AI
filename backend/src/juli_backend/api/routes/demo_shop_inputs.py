@@ -149,7 +149,15 @@ def preview_json(
             "samples_changed": len(preview.sample_diffs),
             "goal_rows": preview.goal_rows,
             "goal_rows_rejected": preview.goal_rows_rejected,
-            "changes": len(preview.diffs) + len(preview.goal_diffs) + len(preview.sample_diffs),
+            "bom_rows": preview.bom_rows,
+            "bom_rows_rejected": preview.bom_rows_rejected,
+            "changes": (
+                len(preview.diffs)
+                + len(preview.goal_diffs)
+                + len(preview.sample_diffs)
+                + len(preview.bom_diffs)
+                + len(preview.shop_diffs)
+            ),
             "skus_changed": len(preview.changed_scopes),
             "months_changed": len(preview.changed_months),
         },
@@ -169,6 +177,8 @@ def preview_json(
         "diffs": [_diff_json(d) for d in preview.diffs],
         "goal_diffs": [_diff_json(d) for d in preview.goal_diffs],
         "sample_diffs": [_sample_diff_json(d) for d in preview.sample_diffs],
+        "bom_diffs": [_diff_json(d) for d in preview.bom_diffs],
+        "shop_diffs": [_diff_json(d) for d in preview.shop_diffs],
         "warnings": [
             {"month": w.month, "message": w.message, "deviation": w.deviation}
             for w in preview.warnings
@@ -282,6 +292,8 @@ def apply_json(result: shop_inputs.ApplyResult) -> dict[str, Any]:
             "skus_changed": result.skus_changed,
             "samples_changed": result.samples_changed,
             "months_changed": result.months_changed,
+            "boms_changed": result.boms_changed,
+            "flags_changed": result.flags_changed,
             "rejected": len(result.preview.rejections),
             "affected": _affected_json(result.affected),
         }
