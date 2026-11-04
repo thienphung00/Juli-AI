@@ -251,7 +251,7 @@ async def observations_for(session: AsyncSession, change: ExecutedChange) -> lis
     if kind in ("daily_budget", "roas_target"):
         campaign_id = target.get("campaign_id")
         segment = campaign_segment(str(campaign_id)) if campaign_id else "all"
-        rows = (
+        metric_rows = (
             (
                 await session.execute(
                     select(PlatformDailyMetric).where(
@@ -267,7 +267,7 @@ async def observations_for(session: AsyncSession, change: ExecutedChange) -> lis
             .all()
         )
         out = []
-        for row in rows:
+        for row in metric_rows:
             extra = row.extra or {}
             if kind == "daily_budget":
                 value = extra.get("daily_budget")
@@ -278,7 +278,7 @@ async def observations_for(session: AsyncSession, change: ExecutedChange) -> lis
                 out.append(Observation({key: value}, _utc(row.captured_at)))
         return out
     if kind == "voucher":
-        rows = (
+        promo_rows = (
             (
                 await session.execute(
                     select(PlatformPromotion).where(
@@ -293,15 +293,15 @@ async def observations_for(session: AsyncSession, change: ExecutedChange) -> lis
             .all()
         )
         out = []
-        for row in rows:
-            extra = row.extra or {}
+        for promo in promo_rows:
+            extra = promo.extra or {}
             if str(extra.get("voucher_id")) != str(target["voucher_id"]):
                 continue
             seen = _numbers(extra, VOUCHER_FIELDS)
-            seen["starts_at"] = row.starts_at.isoformat()
-            if row.ends_at is not None:
-                seen["ends_at"] = row.ends_at.isoformat()
-            out.append(Observation(seen, _utc(row.captured_at)))
+            seen["starts_at"] = promo.starts_at.isoformat()
+            if promo.ends_at is not None:
+                seen["ends_at"] = promo.ends_at.isoformat()
+            out.append(Observation(seen, _utc(promo.captured_at)))
         return out
     raise ValueError(f"unknown change_kind {kind!r}")
 
@@ -380,6 +380,8 @@ async def pending_changes(
     for event in executed:
         spec = (event.payload or {}).get("change")
         if not isinstance(spec, dict) or spec.get("change_kind") not in CHANGE_KINDS:
+            continue
+        if event.card_id is None:
             continue
         ref = event.dedup_key
         if any(keys.verification(ref, name) in done for name in VERIFICATION_EVENTS):

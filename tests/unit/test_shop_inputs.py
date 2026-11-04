@@ -7,7 +7,9 @@ Synthetic shops only.
 
 from __future__ import annotations
 
+import io
 import uuid
+import zipfile
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -78,6 +80,21 @@ def test_the_reader_refuses_what_is_not_a_workbook_or_is_too_large():
         xlsx_io.read_workbook(b"not a zip")
     with pytest.raises(xlsx_io.WorkbookUnreadable):
         xlsx_io.read_workbook(b"0" * (xlsx_io.MAX_FILE_BYTES + 1))
+
+
+def test_the_reader_refuses_a_workbook_part_that_declares_entities():
+    data = xlsx_io.write_workbook([xlsx_io.SheetSpec("SKU", [["a"]])])
+    bomb = (
+        b'<?xml version="1.0"?><!DOCTYPE lol [<!ENTITY a "aaaaaaaaaa">'
+        b'<!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">]><sst>&b;</sst>'
+    )
+    src, out = io.BytesIO(data), io.BytesIO()
+    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(out, "w") as zout:
+        for name in zin.namelist():
+            zout.writestr(name, zin.read(name))
+        zout.writestr("xl/sharedStrings.xml", bomb)
+    with pytest.raises(xlsx_io.WorkbookUnreadable):
+        xlsx_io.read_workbook(out.getvalue())
 
 
 @pytest.mark.parametrize(
