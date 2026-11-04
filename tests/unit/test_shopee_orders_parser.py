@@ -289,10 +289,9 @@ def test_no_canary_in_any_post_summary_note_or_error(tmp_path):
         assert canary not in everything
     assert [p.dataset for p in parsed.posts] == ["order_lines"]
     assert parsed.notes["Order.all.20261001_20261031.xlsx: order lines read"] == 2
-    # the variation name reaches the posted lines, in a pass of its own: the main pass still
-    # never decodes the column (the browser parser's parity fixture is unchanged)
+    # the variation name reaches the posted lines (a product attribute, read by both parsers)
     assert all(r["variation_name"] == VARIATION_NAME for r in parsed.posts[0].body["rows"])
-    assert "Tên phân loại hàng" not in orders.read_order_export(path, KEY).value_columns_read
+    assert "Tên phân loại hàng" in orders.read_order_export(path, KEY).value_columns_read
 
 
 def test_an_error_names_a_column_never_a_cell_value(tmp_path):
@@ -800,7 +799,13 @@ def _parity_lines() -> list[dict[str, str]]:
         # three lines, odd cents to split, order-level amounts repeated on each line
         _line(
             "P-0001",
-            **{**three, "SKU sản phẩm": "SKU-C", "Giá ưu đãi": "33333.00", "Số lượng": "1"},
+            **{
+                **three,
+                "SKU sản phẩm": "SKU-C",
+                "Giá ưu đãi": "33333.00",
+                "Số lượng": "1",
+                "Tên phân loại hàng": "Combo 10 hộp",
+            },
         ),
         _line(
             "P-0001",
@@ -808,7 +813,13 @@ def _parity_lines() -> list[dict[str, str]]:
         ),
         _line(
             "P-0001",
-            **{**three, "SKU sản phẩm": "SKU-B", "Giá ưu đãi": "50000.00", "Số lượng": "2"},
+            **{
+                **three,
+                "SKU sản phẩm": "SKU-B",
+                "Giá ưu đãi": "50000.00",
+                "Số lượng": "2",
+                "Tên phân loại hàng": "  Hộp 500g  ",
+            },
         ),
         # cancelled, fees on the sheet but the order carries no profit
         _line(
@@ -878,6 +889,7 @@ def _parity_lines() -> list[dict[str, str]]:
                 "Tổng số tiền được người bán trợ giá": "0.00",
                 "Được Shopee trợ giá": "1500.50",
                 "SKU phân loại hàng": "",
+                "Tên phân loại hàng": "",
             },
         ),
     ]

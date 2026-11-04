@@ -360,6 +360,98 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "seed.enabled = enabled",
         "the operator keeps or drops one combination",
     ),
+    # -- P90 / P91 (migrations 115-120): tenant-direct tables the Shopee recommendations write ----
+    MutationSite(
+        "public",
+        "shopee_order_lines",
+        "UPDATE",
+        "backend/src/juli_backend/services/ingest/writers.py",
+        "update(ShopeeOrderLine)",
+        "the affiliate report marks an order line's affiliate flag, KOL and commission; a later "
+        "order export refreshes it by upsert",
+    ),
+    MutationSite(
+        "public",
+        "shopee_order_income",
+        "UPDATE",
+        "backend/src/juli_backend/services/ingest/income.py",
+        "stmt.on_conflict_do_update(",
+        "a later income export of the same order replaces the row when it ranks the same or "
+        "higher (migration 119)",
+    ),
+    MutationSite(
+        "public",
+        "shopee_sim_prior_runs",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/store.py",
+        ".values(status=SIM_STATUS_SUPERSEDED)",
+        "importing a new simulation run supersedes the shop's older active one",
+    ),
+    MutationSite(
+        "public",
+        "shopee_reco_calibrations",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/store.py",
+        "row.computed_at = now",
+        "learning refreshes the shop's calibration per change kind and metric",
+    ),
+    MutationSite(
+        "public",
+        "shop_proposal_code_counters",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/codes.py",
+        ".values(last_seq=c.last_seq + 1, updated_at=now)",
+        "the next card code of a shop is allocated by bumping its counter",
+    ),
+    MutationSite(
+        "public",
+        "shop_reco_plan_counters",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/plan_codes.py",
+        ".values(last_seq=c.last_seq + 1, updated_at=now)",
+        "the next plan code of a shop is allocated by bumping its counter",
+    ),
+    MutationSite(
+        "public",
+        "shop_reco_plans",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/plans.py",
+        "plan.status = PLAN_EXECUTED",
+        "a plan becomes executed when its last card is",
+    ),
+    MutationSite(
+        "public",
+        "shop_reco_plan_cards",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/plans.py",
+        "row.removed_at = now",
+        "removing a card from the draft plan stamps it (the chosen version and what-if inputs "
+        "change in place too)",
+    ),
+    MutationSite(
+        "public",
+        "shop_reco_change_sets",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/measure.py",
+        "cs.status = change_sets.SET_DONE",
+        "the measurement closes a change set once its window has been read",
+    ),
+    MutationSite(
+        "public",
+        "planned_change_imports",
+        "UPDATE",
+        "backend/src/juli_backend/services/planned_changes/importer.py",
+        "record.summary = {",
+        "an applied import file records its per-row outcome after the rows are processed",
+    ),
+    MutationSite(
+        "public",
+        "planned_change_refs",
+        "UPDATE",
+        "backend/src/juli_backend/services/planned_changes/importer.py",
+        "ref_row.state = row.state()",
+        "a re-imported row updates the state of its external ref",
+    ),
 )
 
 #: Scan hits that are provably NOT database writes. Each is pinned to its

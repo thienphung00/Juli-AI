@@ -138,6 +138,10 @@ class SkuCost:
     sku: str
     cogs: Decimal | None  # per unit
     packaging: Decimal | None  # per order line
+    #: The shop's VAT flags and this cost key's SKU rate (P91 D-14): ``line_profit`` uses it when
+    #: the caller passes none, so the card what-ifs (versions, compare, plan totals), which look
+    #: costs up by key, take the same VAT out of revenue and cost as the shop profit does.
+    vat: VatTreatment | None = None
 
 
 @dataclass(frozen=True)
@@ -256,6 +260,8 @@ def line_profit(
             result = formula.fee(line, per_order_fees)
             fees, fees_total, fee_source = result.components, result.total, "formula"
 
+    if vat is None and cost is not None:
+        vat = cost.vat
     cogs = cost.cogs * line.qty if cost and cost.cogs is not None else None
     if cogs is None:
         missing.append("cogs")

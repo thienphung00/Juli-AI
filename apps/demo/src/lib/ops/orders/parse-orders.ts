@@ -44,6 +44,8 @@ export interface OrderLineRow {
   status: OrderStatusName;
   sku?: string;
   variation_sku?: string;
+  /** The export's "Tên phân loại hàng" (a variation's name, no buyer data), at most 120 characters. */
+  variation_name?: string;
   qty: number;
   returned_qty: number;
   original_price: number;
@@ -203,6 +205,7 @@ type Cells = Record<string, string | null | undefined>;
 interface Line {
   sku: string | null;
   variation_sku: string | null;
+  variation_name: string | null;
   qty: number;
   returned_qty: number;
   original: number;
@@ -280,6 +283,7 @@ export async function parseOrderExport(bytes: Uint8Array, key: CryptoKey): Promi
       return {
         sku: clip((c.sku ?? "").trim(), 120) || null,
         variation_sku: clip((c.variation_sku ?? "").trim(), 120) || null,
+        variation_name: clip((c.variation_name ?? "").trim(), 120) || null,
         qty,
         returned_qty: returned / 100,
         original,
@@ -339,6 +343,7 @@ export async function parseOrderExport(bytes: Uint8Array, key: CryptoKey): Promi
       };
       if (ln.sku) row.sku = ln.sku;
       if (ln.variation_sku) row.variation_sku = ln.variation_sku;
+      if (ln.variation_name) row.variation_name = ln.variation_name;
       if (completed !== null) row.completed_at = completed;
       if (paid !== null) row.paid_at = paid;
       if (feesFilled) {

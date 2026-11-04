@@ -64,6 +64,19 @@ LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 # (403 "error code: 1010") before the request reaches the gateway.
 USER_AGENT = "juli-shopee-export-loader/1.0"
 
+#: Outcome keys that start with this carry a gateway warning code (P91 D-14); the text is shown
+#: to Ops.
+WARNING_PREFIX = "warning: "
+WARNING_TEXT = {
+    "seller_support_shipping_nonzero": (
+        'WARNING (Ops): "Phí vận chuyển - Người bán hỗ trợ" has a non-zero value for the '
+        "first time in this shop's income export. It is stored for reference only and is "
+        "NOT subtracted from the profit. Ops: check what it is (a seller-funded shipping "
+        "subsidy?) and decide whether the net shipping cost needs it before anyone relies "
+        "on the shipping figure."
+    ),
+}
+
 
 def validate(parsed: Parsed, now: datetime) -> list[str]:
     """Each post checked by the gateway's own validator (no database)."""
@@ -240,6 +253,8 @@ def send_http(
                 sleep(seconds + 1)
                 continue
             outcome["duplicate" if result.get("duplicate") else "stored"] += 1
+            for code in result.get("warnings") or ():
+                outcome[f"{WARNING_PREFIX}{code}"] += 1
             break
     return outcome
 
@@ -276,6 +291,8 @@ async def send_direct(posts: list[Post], database_url: str, shop_id: uuid.UUID) 
                         f"{post.file} {post.dataset}: {exc.code} {exc.errors[:3]}"
                     ) from None
             outcome["duplicate" if result.duplicate else "stored"] += 1
+            for code in result.warnings:
+                outcome[f"{WARNING_PREFIX}{code}"] += 1
     finally:
         await engine.dispose()
     return outcome
@@ -394,6 +411,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         raise SystemExit("choose --dry-run, --api-url or --database-url")
     print(", ".join(f"{k}: {v}" for k, v in sorted(outcome.items())))
+    for key in sorted(outcome):
+        if key.startswith(WARNING_PREFIX):
+            code = key[len(WARNING_PREFIX) :]
+            print(WARNING_TEXT.get(code, f"WARNING (Ops): the gateway reported {code}"))
     return 0
 
 

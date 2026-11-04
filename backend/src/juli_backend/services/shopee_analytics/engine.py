@@ -323,7 +323,7 @@ def resolve_costs(lines: Sequence[ShopLine], rules: ProfitRules) -> Costs:
         pack_src = SRC_REAL
         if pack is None:
             pack, pack_src = ZERO, SRC_ASSUMED
-        costs.by_key[key] = SkuCost(key, cogs, pack)
+        costs.by_key[key] = SkuCost(key, cogs, pack, vat=sl.vat)
         costs.cogs_source[key] = cogs_src
         costs.packaging_source[key] = pack_src
         costs.pack_count[key] = sl.pack_count

@@ -35,6 +35,18 @@ describe("parity with the Python parser (one golden, two parsers)", () => {
   }
 });
 
+describe("the variation name (P91 D-14)", () => {
+  it("is posted trimmed with the line, and left off a line whose cell is blank", async () => {
+    const parsed = await parseOrderExport(PLAIN, await importKey());
+    const names = new Set(parsed.rows.map((row) => row.variation_name));
+    expect(names.has("Combo 3 hộp") && names.has("Combo 10 hộp") && names.has("Hộp 500g")).toBe(true);
+    const blank = parsed.rows.filter((row) => row.variation_name === undefined);
+    expect(blank).toHaveLength(1);
+    expect(parsed.valueColumnsRead).toContain("Tên phân loại hàng");
+    expect(BUYER_HEADERS.has("Tên phân loại hàng")).toBe(false);
+  });
+});
+
 describe("buyer data never leaves the reader", () => {
   it("is not vacuous: the fixture's buyer cells DO hold the canaries when every column is chosen", async () => {
     const sheet = await readColumns(PLAIN, "orders", (header) => header.map((_, i) => i));

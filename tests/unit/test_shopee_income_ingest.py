@@ -281,3 +281,36 @@ async def test_a_reload_without_the_name_keeps_the_stored_one(session):
     await _ingest(session, shop, "order_lines", later)
     (line,) = await _rows(session, ShopeeOrderLine, shop)
     assert line.variation_name == "Combo 3 hộp"
+
+
+# ----------------------------------------------- seller-support shipping (P91 D-14)
+
+
+def _support_post(tmp_path, amount: int):
+    orders = [order_row(A, **{"Giá sản phẩm": 200000, "Phí vận chuyển - Người bán hỗ trợ": amount})]
+    return _income_post(tmp_path, orders=orders, fees=[])
+
+
+async def test_seller_support_shipping_is_stored_for_reference_and_warns_the_first_time(
+    session, tmp_path
+):
+    shop = await _shop(session)
+    first = await _ingest(session, shop, "order_income", _support_post(tmp_path, 4000))
+    assert first.warnings == ("seller_support_shipping_nonzero",)
+    assert first.to_json()["warnings"] == ["seller_support_shipping_nonzero"]
+    (row,) = await _rows(session, ShopeeOrderIncome, shop)
+    assert row.ship_seller_support == Decimal(4000)
+    # reference only: it is not part of the shipping the seller bore
+    assert row.net_shipping_cost != Decimal(4000)
+
+
+async def test_the_warning_comes_once_per_shop_and_never_for_zero(session, tmp_path):
+    shop = await _shop(session)
+    zero = await _ingest(session, shop, "order_income", _support_post(tmp_path, 0))
+    assert zero.warnings == () and "warnings" not in zero.to_json()
+    (tmp_path / "x").mkdir()
+    (tmp_path / "y").mkdir()
+    first = await _ingest(session, shop, "order_income", _support_post(tmp_path / "x", 4000))
+    assert first.warnings == ("seller_support_shipping_nonzero",)
+    again = await _ingest(session, shop, "order_income", _support_post(tmp_path / "y", 6000))
+    assert again.warnings == ()

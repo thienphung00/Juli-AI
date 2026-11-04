@@ -7,16 +7,19 @@ later post does not state (NULL) never erases one already stored.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import SOURCE_RANK
 from juli_backend.models.shopee_profit import ShopeeOrderIncome
 from juli_backend.services.ingest.schemas import IngestBody, ShopeeOrderIncomeRow
+
+logger = logging.getLogger(__name__)
 
 CHUNK = 400
 KEY_COLUMNS = ("shop_id", "platform", "order_ref")
@@ -94,14 +97,51 @@ def income_values(
     return out
 
 
+#: Warning code returned to the sender (and logged) the first time a shop's income export carries
+#: a non-zero "Phí vận chuyển - Người bán hỗ trợ" (P91 D-14): the amount is stored for reference
+#: and is NOT subtracted from the profit, so Ops must look at it before anyone relies on the
+#: shipping figure.
+WARN_SELLER_SUPPORT_SHIPPING = "seller_support_shipping_nonzero"
+
+
+async def _seller_support_warning(
+    session: AsyncSession, rows: list[ShopeeOrderIncomeRow], provenance: dict[str, Any]
+) -> list[str]:
+    """``[WARN_SELLER_SUPPORT_SHIPPING]`` when these rows hold a non-zero seller-support shipping
+    value and the shop has never stored one before; else ``[]``."""
+    carrying = sum(1 for r in rows if r.ship_seller_support)
+    if not carrying:
+        return []
+    table = ShopeeOrderIncome.__table__
+    earlier = await session.scalar(
+        select(table.c.id)
+        .where(
+            table.c.shop_id == provenance["shop_id"],
+            table.c.platform == provenance["platform"],
+            table.c.ship_seller_support.is_not(None),
+            table.c.ship_seller_support != 0,
+        )
+        .limit(1)
+    )
+    if earlier is not None:
+        return []
+    logger.warning(
+        "income_seller_support_shipping_nonzero",
+        extra={"shop_id": str(provenance["shop_id"]), "orders": carrying},
+    )
+    return [WARN_SELLER_SUPPORT_SHIPPING]
+
+
 async def write_order_income(
     session: AsyncSession,
     rows: list[ShopeeOrderIncomeRow],
     body: IngestBody,
     provenance: dict[str, Any],
-) -> None:
+) -> list[str]:
+    """Upsert the rows; returns the warning codes for the sender (see ``WARN_*``)."""
     if not rows:
-        return
+        return []
+    warnings = await _seller_support_warning(session, rows, provenance)
     insert = _insert(session)
     table = ShopeeOrderIncome.__table__
     values = income_values(rows, provenance)
@@ -125,3 +165,4 @@ async def write_order_income(
                 where=_stored_rank(table) <= stmt.excluded.source_rank,
             )
         )
+    return warnings

@@ -6,7 +6,10 @@
     since the shop's newest one. Then ``services/shop_proposals.measure_all`` (ADR-118
     §3, D81.3): a result row for each executed proposal whose data moved forward. One
     session per shop; a failure is counted and logged and tomorrow's run tries again. The
-    measurement runs even when the KPI run failed -- the two read different rows.
+    measurement runs even when the KPI run failed -- the two read different rows. Last,
+    ``services/shopee_reco_learning_daily.run_daily_learning`` (P91 D-14): the recommendations'
+    learning / calibration for the pilot shops only, DB only and idempotent, so it always runs
+    right after the day's KPI and measurement; a failure there is counted and never fails the rest.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ import asyncio
 import logging
 
 from juli_backend.services import shopee_kpi_daily as daily
+from juli_backend.services import shopee_reco_learning_daily as learning_daily
 from juli_backend.services.shop_proposals import measure_all
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
@@ -56,6 +60,15 @@ async def _run(factory: daily.SessionFactory) -> dict[str, int]:
         )
     except Exception as exc:
         logger.error("shopee_proposal_measure_failed", extra={"error_type": type(exc).__name__})
+    try:
+        learned = await learning_daily.run_daily_learning(factory)
+        out.update(
+            learning_shops=learned.shops,
+            learning_failed=learned.failed,
+            learning_observations=learned.observations,
+        )
+    except Exception as exc:
+        logger.error("shopee_reco_learning_failed", extra={"error_type": type(exc).__name__})
     return out
 
 

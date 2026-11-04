@@ -74,7 +74,7 @@ async def _apply(session, shop, content, reason="nhập thử"):
 async def test_the_template_has_the_pack_and_vat_columns_and_the_two_new_sheets(session, shop):
     result = await shop_inputs.build_template(session, shop.id)
     sheets = xlsx_io.read_workbook(result.content)
-    assert list(sheets) == ["SKU", "Mục tiêu", "Thành phần combo", "VAT"]
+    assert list(sheets) == ["SKU", "Mục tiêu", "Mẫu KOL", "Thành phần combo", "VAT"]
     header = [h.rstrip(" *") for h in sheets["SKU"][0]]
     assert header[PACK] == "số món / phân loại" and header[VAT] == "VAT (%)"
     assert [h for h in sheets["Thành phần combo"][0]] == [

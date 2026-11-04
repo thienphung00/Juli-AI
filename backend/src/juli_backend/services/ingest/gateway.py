@@ -172,14 +172,19 @@ class IngestResult:
     duplicate: bool
     rows: int
     content_hash: str
+    #: Codes the sender (the Ops loader) must show to a person; empty for almost every post.
+    warnings: tuple[str, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "raw_payload_id": str(self.raw_payload_id),
             "duplicate": self.duplicate,
             "rows": self.rows,
             "content_hash": self.content_hash,
         }
+        if self.warnings:
+            out["warnings"] = list(self.warnings)
+        return out
 
 
 def platform_today(now: datetime) -> date:
@@ -603,7 +608,8 @@ async def _write(
     body: IngestBody,
     order_type: str,
     provenance: dict[str, Any],
-) -> None:
+) -> list[str]:
+    """Write the rows of one post; returns the warning codes for the sender (usually none)."""
     if spec.writes == WRITE_DAILY:
         await _upsert_metrics(session, _metric_values(spec, rows, body, order_type, provenance))
     elif spec.writes == WRITE_PERIOD:
@@ -661,7 +667,9 @@ async def _write(
     elif spec.writes == WRITE_ORDER_LINES:
         await write_order_lines(session, _typed(rows, ShopeeOrderLineRow), body, provenance)
     elif spec.writes == WRITE_ORDER_INCOME:
-        await write_order_income(session, _typed(rows, ShopeeOrderIncomeRow), body, provenance)
+        return await write_order_income(
+            session, _typed(rows, ShopeeOrderIncomeRow), body, provenance
+        )
     elif spec.writes == WRITE_AFFILIATE_LINES:
         match = await write_affiliate_lines(
             session, _typed(rows, ShopeeAffiliateOrderLineRow), body, provenance
@@ -683,6 +691,7 @@ async def _write(
         await write_shop_health(session, _typed(rows, ShopeeShopHealthDailyRow), body, provenance)
     else:
         raise ValueError(f"unknown write target {spec.writes}")
+    return []
 
 
 async def ingest(
@@ -733,6 +742,7 @@ async def ingest(
         token_id=token_id,
         now=now,
     )
+    warnings: list[str] = []
     if not duplicate:
         provenance: dict[str, Any] = {
             "shop_id": shop_id,
@@ -745,7 +755,7 @@ async def ingest(
             "captured_at": body.captured_at.astimezone(UTC).replace(tzinfo=None),
             "updated_at": now,
         }
-        await _write(session, spec, rows, body, order_type, provenance)
+        warnings = await _write(session, spec, rows, body, order_type, provenance)
     await _record_status(
         session,
         shop_id=shop_id,
@@ -774,5 +784,9 @@ async def ingest(
         },
     )
     return IngestResult(
-        raw_payload_id=raw_id, duplicate=duplicate, rows=len(rows), content_hash=hashed
+        raw_payload_id=raw_id,
+        duplicate=duplicate,
+        rows=len(rows),
+        content_hash=hashed,
+        warnings=tuple(warnings),
     )

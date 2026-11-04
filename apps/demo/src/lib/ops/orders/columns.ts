@@ -19,6 +19,8 @@ export const READ: Readonly<Record<string, readonly [string, Scope]>> = {
   "Trạng thái Trả hàng/Hoàn tiền": ["return_status", "line"],
   "SKU sản phẩm": ["sku", "line"],
   "SKU phân loại hàng": ["variation_sku", "line"],
+  // A product attribute ("Combo 3 hộp"), not buyer data: combo variations share one SKU.
+  "Tên phân loại hàng": ["variation_name", "line"],
   "Giá gốc": ["original_price", "line"],
   "Được Shopee trợ giá": ["shopee_subsidy", "line"],
   "Tổng số tiền được người bán trợ giá": ["seller_subsidy", "line"],
@@ -55,7 +57,6 @@ export const IGNORED: ReadonlySet<string> = new Set([
   "Tên sản phẩm",
   "Cân nặng sản phẩm",
   "Tổng cân nặng",
-  "Tên phân loại hàng",
   "Người bán trợ giá",
   "Tổng số tiền Người mua thanh toán",
   "Hoàn Xu",

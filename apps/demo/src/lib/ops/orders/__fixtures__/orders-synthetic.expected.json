@@ -29,7 +29,6 @@
     "Trade-in Bonus by Seller",
     "Trade-in Discount",
     "T\u00ean Ng\u01b0\u1eddi nh\u1eadn",
-    "T\u00ean ph\u00e2n lo\u1ea1i h\u00e0ng",
     "T\u00ean s\u1ea3n ph\u1ea9m",
     "T\u1ec9nh/Th\u00e0nh ph\u1ed1",
     "T\u1ed5ng c\u00e2n n\u1eb7ng",
@@ -178,6 +177,7 @@
       "shopee_subsidy": 0,
       "sku": "SKU-A",
       "status": "refunded_accepted",
+      "variation_name": "Combo 3 h\u1ed9p",
       "variation_sku": "SKU-A-1"
     },
     {
@@ -199,6 +199,7 @@
       "shopee_subsidy": 0,
       "sku": "SKU-A",
       "status": "delivered",
+      "variation_name": "Combo 3 h\u1ed9p",
       "variation_sku": "SKU-A-1"
     },
     {
@@ -224,6 +225,7 @@
       "shopee_subsidy": 0,
       "sku": "SKU-A",
       "status": "delivered",
+      "variation_name": "Combo 3 h\u1ed9p",
       "variation_sku": "SKU-A-1"
     },
     {
@@ -245,6 +247,7 @@
       "shopee_subsidy": 0,
       "sku": "SKU-A",
       "status": "cancelled",
+      "variation_name": "Combo 3 h\u1ed9p",
       "variation_sku": "SKU-A-1"
     },
     {
@@ -266,6 +269,7 @@
       "shopee_subsidy": 0,
       "sku": "SKU-A",
       "status": "refunded_not_received",
+      "variation_name": "Combo 3 h\u1ed9p",
       "variation_sku": "SKU-A-1"
     },
     {
@@ -291,6 +295,7 @@
       "shopee_subsidy": 0,
       "sku": "SKU-A",
       "status": "delivered",
+      "variation_name": "Combo 3 h\u1ed9p",
       "variation_sku": "SKU-A-1"
     },
     {
@@ -316,6 +321,7 @@
       "shopee_subsidy": 0,
       "sku": "SKU-B",
       "status": "delivered",
+      "variation_name": "H\u1ed9p 500g",
       "variation_sku": "SKU-A-1"
     },
     {
@@ -341,6 +347,7 @@
       "shopee_subsidy": 0,
       "sku": "SKU-C",
       "status": "delivered",
+      "variation_name": "Combo 10 h\u1ed9p",
       "variation_sku": "SKU-A-1"
     },
     {
@@ -382,6 +389,7 @@
       "shopee_subsidy": 0,
       "sku": "SKU-A",
       "status": "in_transit",
+      "variation_name": "Combo 3 h\u1ed9p",
       "variation_sku": "SKU-A-1"
     },
     {
@@ -404,6 +412,7 @@
       "shopee_subsidy": 0,
       "sku": "SKU-A",
       "status": "delivered",
+      "variation_name": "Combo 3 h\u1ed9p",
       "variation_sku": "SKU-A-1"
     }
   ],
@@ -430,6 +439,7 @@
     "Th\u1eddi gian \u0111\u01a1n h\u00e0ng \u0111\u01b0\u1ee3c thanh to\u00e1n",
     "Tr\u1ea1ng Th\u00e1i \u0110\u01a1n H\u00e0ng",
     "Tr\u1ea1ng th\u00e1i Tr\u1ea3 h\u00e0ng/Ho\u00e0n ti\u1ec1n",
+    "T\u00ean ph\u00e2n lo\u1ea1i h\u00e0ng",
     "T\u1ed5ng gi\u00e1 tr\u1ecb \u0111\u01a1n h\u00e0ng (VND)",
     "T\u1ed5ng s\u1ed1 ti\u1ec1n ng\u01b0\u1eddi mua thanh to\u00e1n",
     "T\u1ed5ng s\u1ed1 ti\u1ec1n \u0111\u01b0\u1ee3c ng\u01b0\u1eddi b\u00e1n tr\u1ee3 gi\u00e1",
