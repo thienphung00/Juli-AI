@@ -103,3 +103,19 @@ ship, P91 D-9 / D-11).
 2. Keyword table + LLM title / overlay / description drafts (B-4 tiêu đề, ảnh, mô tả).
 3. Web: builder per kind, variation picker + expand, compare table, Cài đặt exclusions, product-page expand.
 4. Integration + one deploy.
+
+## B-7 Artboard follow-ups (decided 2026-11-05, owner delegated "build and push together when finished")
+1. A listing without giá vốn can be built: profit and biên show "chưa tính" with a link to Thông số shop.
+2. Combo "cost of the change" = the discount given to buyers (per-combo discount × expected combos).
+3. Thông số shop file columns "loại trừ" (Có / Không) and "lý do"; stored keys `excluded`, `exclude_reason`;
+   same versioned old → new diff and audit as the other inputs.
+4. "Quà không bán" takes a typed unit cost and never touches Juli's stock figure.
+5. Break-even shown both as extra orders and as CTOR ("≥ 18 đơn, CTOR ≥ 2,71%").
+6. Ads daily-spend cap: per shop from Cài đặt › Mục tiêu (`ads_daily_cap`); per-campaign caps are not built.
+7. "Chọn" on a version with a floor breach opens the P91 warning dialog ("Vẫn tiếp tục"), never blocks.
+8. P91 `TuTaoPhuongAn*.dc.html` are kept as history; README marks P92 as current.
+Not drawn and built from the desktop artboards: mobile of the kinds panels, CaiDatLoaiTru and the SanPham
+variation expand (same content, stacked).
+
+The product-page hotfix (`fasttrack/p91-hotfix`: version shape, partial product-period GMV) ships in the same
+deploy as P92.
