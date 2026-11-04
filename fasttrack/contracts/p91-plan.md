@@ -145,6 +145,13 @@ is built (same rule as P90).
   "Mời KOL" card (no sample cost) for KOLs not yet sent samples. Both join plans (D-6); measured per KOL × product
   pair before vs after the send date (D-7).
 
+## D-11 KOL details (owner 2026-11-04)
+- "ROI Shopee" is the `ROI` value from Shopee's KOL export as-is (labelled "ROI Shopee (chỉ hoa hồng)"), never
+  recomputed; our "ROI (gồm mẫu)" sits beside it.
+- "Ít dữ liệu" = fewer than **10** orders for the KOL × product pair (the same threshold drives the shrinkage label
+  and the wide range on the card).
+- "Mời KOL" versions vary the **product** pitched (like "Gửi mẫu"); hoa hồng % is a what-if knob.
+
 ## Waves
 1. Backend core (D-1, D-2, D-4, D-5) ‖ Backend manual + compare + combo (D-3) ‖ Design artboards (all of D-1..D-10).
    Parallel; file ownership below.
