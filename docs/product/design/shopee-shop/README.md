@@ -125,3 +125,29 @@ Ops › Đề xuất       "+ Tạo phương án thủ công" ─► TuTaoPhuong
 - Excel export button is hidden. Mobile: Tự tạo / So sánh added; card versions and Quyết định stay desktop-only.
 - Plan codes `KH-2611-003`: on the plan panel, the confirm dialog, each card of a confirmed plan, and the Ops list (column **Mã kế hoạch**).
 - KOL details (D-11): "ROI Shopee (chỉ hoa hồng)" is the export's ROI as-is; "Ít dữ liệu" = fewer than 10 orders for the KOL × product pair (badge, legend, wide range on the card); "Mời KOL" versions vary the product, hoa hồng % is a knob.
+
+---
+
+# P92 — tự tạo phương án chính xác, so sánh theo chỉ số chính và lợi nhuận (artboards)
+
+Draft for owner approval, 2026-11-05 (spec: `fasttrack/contracts/p92-plan.md` B-1 … B-6; builds on P91 D-2 / D-3). Same conventions as above; nothing is built until the owner approves. Synthetic data ("Shop mẫu gia dụng"): the worked product is **Túi zip thực phẩm D** (Combo 3 / 5 / 10 hộp; 210 đơn, GMV 26.070.000đ, biên 13,8% in 30 ngày; phí sàn 15%, mục tiêu biên 10%), and the four compared versions are P1 voucher 5k/100k, P2 voucher 10k/100k, P3 combo, P4 quà tặng. All numbers are computed from one set of inputs, so the same version shows the same figure on every P92 screen. Expected figures are rounded to 1.000đ. Conversion is always **CTOR** (đơn ÷ lượt nhấp).
+
+| Artboard | What | States (`#scene=`) |
+|---|---|---|
+| `TuTaoPhuongAnP92.dc.html` (1280) | Builder entry, replaces the first step of `TuTaoPhuongAn`: **① product picker** over all active listings (24; name, item id, GMV 90 ngày, đơn 30 / 90 ngày, chip "thiếu giá vốn", chip "không bán 30 ngày qua", search, filters, sort by GMV 90 ngày, link to Cài đặt › Loại trừ sản phẩm); **② variation picker** (Combo 3 / 5 / 10 hộp or all) with the collapsed **"So sánh phân loại"** expand (giá niêm yết, giá bán, giá mỗi hộp, biên only); **③ 13 strategy pills**, each with its driver metric(s) | `picker` · `variation` · `expand` · `kinds` |
+| `TuTaoPhuongAnP92Mobile.dc.html` (390) | Same, rows as cards, expand as cards | same four |
+| `TuTaoPhuongAnKinds.dc.html` (1280) | One input panel per strategy (B-4): Voucher (4 kinds, đ / %, typed value and minimum from 0đ, cap, usage and per-buyer limits, dates, chips 5k/100k · 10k/100k · 10k/150k · 15k/200k, "đơn đủ điều kiện trong quá khứ", 5k vs 10k side by side), Combo (2–6 items, 3 pricing modes, live economics, "Sản phẩm hay mua cùng"), Mua kèm, Quà tặng (list or "quà không bán" with typed cost, trigger, stock use, break-even), Giảm giá, Giá bán + Flash sale, Phân loại / set, Quảng cáo (4 levers), Tiêu đề (keyword table → 3 titles ≤ 100 with counter and coverage, "Điền bằng Connector"), Ảnh bìa (3 overlay concepts on the real photo), Mô tả, Affiliate / KOL, Hiển thị giá + listing. Each has the result block: Δ GMV, Δ đơn, Δ lợi nhuận, biên sau, range, basis label, break-even, driver metrics | `voucher` · `combo` · `addon` · `gift` · `disc` · `flash` · `set` · `ads` · `title` · `cover` · `desc` · `aff` · `price` (also `#kind=`) |
+| `SoSanhPhuongAn.dc.html` (1280) | **B-5** compare table: P1–P4 mixed types; rows chi phí, Δ GMV, Δ đơn, Δ lợi nhuận, biên sau, hoà vốn, chỉ số chính (CTOR naming), cơ sở ước tính (4 labels), cảnh báo giá sàn (P2: Combo 5 hộp sau voucher 10k), "Chọn". P4 shows "không đủ dữ liệu" with its cost and break-even only | `default` · `warn` (Chọn P2 → warning dialog) · `chosen` (P1 → manual card `JC-…`) · `chosenWarn` (P2 with acknowledgement) |
+| `SoSanhPhuongAnMobile.dc.html` (390) | Same, one swipe card per version, warning as a bottom sheet | same four |
+| `CaiDatLoaiTru.dc.html` (1040) | **Cài đặt › Loại trừ sản phẩm** (B-1): add by search + reason select (ngừng bán · quà tặng · hàng phân phối · khác), list with reason select and **Hoàn tác**, note that totals still include their sales, preview of the Tổng quan line "trong đó Xđ từ sản phẩm đã loại trừ", rule version v5 with audit lines | `list` · `added` · `undone` · `empty` |
+| `SanPham.dc.html` (edited) | Variation block gets the **"So sánh phân loại"** expand (price and margin only, as in B-2) | `#cmp=1` opens it |
+
+`SanPhamMobile.dc.html` and `TongQuan*.dc.html` are not changed in this pass (the exclusion line is drawn in `CaiDatLoaiTru`'s preview).
+
+## Decisions made while drawing (please approve)
+
+1. A listing without giá vốn can be picked; its profit and biên read "chưa tính" until the cost is set (link to Cài đặt › Thông số shop).
+2. Floor and spend-cap breaches only warn (P91 rule): a red chip in the table and a dialog with "Vẫn tiếp tục" on Chọn.
+3. Break-even is always shown as extra đơn and the CTOR that implies; for voucher / combo / quà tặng it is the extra orders needed to pay for the cost.
+4. Price per unit uses the pack count in the variation name, else the Thông số shop pack column.
+5. Quà không bán takes a typed unit cost and does not draw down Juli's stock figure.

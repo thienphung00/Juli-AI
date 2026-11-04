@@ -329,3 +329,9 @@ Chạy bằng runtime thay thế nhỏ (jsdom, không commit): mở từng artbo
 | 20 | Mobile Tự tạo phương án: cùng số với desktop, cảnh báo giá sàn là bottom sheet, "Vẫn tiếp tục" ghi xác nhận | TuTaoPhuongAnMobile | đạt |
 
 Còn mở: số lượt tăng đơn, hệ số chồng thẻ (−0,12) và công thức MDE trong bản vẽ là số minh hoạ; số thật do backend (`combo.py`, `plan.py`) cho. Chưa vẽ mobile cho CardVersions, TuTaoPhuongAn, QuyetDinhHangDoi. Kiểm tra không thay thế việc xem trên canvas thật (runtime `support.js` không nằm trong repo).
+
+---
+
+# P92 — kiểm tra artboards (2026-11-05)
+
+Sáu file P92 (`TuTaoPhuongAnP92`, `TuTaoPhuongAnP92Mobile`, `TuTaoPhuongAnKinds`, `SoSanhPhuongAn`, `SoSanhPhuongAnMobile`, `CaiDatLoaiTru`) cộng `SanPham.dc.html` đã sửa: không có runtime `support.js` trong repo nên kiểm tra bằng script không commit: (1) parser HTML, mọi thẻ đóng đúng; (2) khối `<script type="text/x-dc">` qua `node --check`, tạo `Component`, gọi `renderVals()`; (3) mọi `{{tên}}` trong mẫu đều có trong kết quả `renderVals()`; (4) mở từng cảnh với bộ thay thế `sc-if` và chụp ảnh bằng Chromium headless để xem bố cục. Số liệu sinh từ một bộ dữ liệu tổng hợp duy nhất (không commit), làm tròn 1.000đ. Chưa chạy trên runtime thật.

@@ -124,7 +124,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </div>
 
 <section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px">
-<div style="display: flex; align-items: baseline; gap: 12px"><h2 style="margin: 0; font-size: 16px; font-weight: 700">Phiên bản sản phẩm</h2><span style="font-size: 13px; color: #5f5f6b">4 phiên bản · bấm một dòng để xem chi phí ở tab Chi phí &amp; giá sàn</span></div>
+<div style="display: flex; align-items: baseline; gap: 12px"><h2 style="margin: 0; font-size: 16px; font-weight: 700">Phiên bản sản phẩm</h2><span style="font-size: 13px; color: #5f5f6b">4 phiên bản · bấm một dòng để xem chi phí ở tab Chi phí &amp; giá sàn</span><button type="button" onClick="{{toggleCmp}}" aria-expanded="{{cmpOpen}}" style="margin-left: auto; font: inherit; font-size: 13px; font-weight: 600; color: #b0386a; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 14px; cursor: pointer"><sc-if value="{{cmpOpen}}" hint-placeholder-val="{{ false }}">So sánh phân loại ▾</sc-if><sc-if value="{{cmpClosed}}" hint-placeholder-val="{{ true }}">So sánh phân loại ▸</sc-if></button></div>
 <div style="display: grid; grid-template-columns: 52px minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr) 70px 80px minmax(0, 1.3fr) minmax(0, 1.5fr); gap: 12px; padding: 0 12px; font-size: 12px; color: #5f5f6b"><span></span><span>Tên · SKU</span><span>Giá niêm yết</span><span>Giá khuyến mãi</span><span>Tồn</span><span>Đơn 30 ngày</span><span>Biên/đơn (tự nhiên)</span><span>Giá sàn vận hành · tuyệt đối</span></div>
 <sc-for list="{{varRows}}" as="v" hint-placeholder-count="4">
 <button type="button" onClick="{{v.pick}}" aria-pressed="{{v.on}}" style="font: inherit; text-align: left; color: #1a1a1f; border-radius: 12px; padding: 8px 12px; min-height: 56px; cursor: pointer; display: grid; grid-template-columns: 52px minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr) 70px 80px minmax(0, 1.3fr) minmax(0, 1.5fr); gap: 12px; align-items: center; font-size: 14px; {{v.style}}">
@@ -138,6 +138,16 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <span style="display: flex; flex-direction: column; gap: 2px">{{v.floor}}<span style="font-size: 12px; color: #5f5f6b">{{v.floorAbs}}</span></span>
 </button>
 </sc-for>
+<sc-if value="{{cmpOpen}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 6px; background: #faf7f8; border-radius: 12px; padding: 10px 12px">
+<b style="font-size: 13px">So sánh phân loại · chỉ giá và biên</b>
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px; padding: 0 4px; font-size: 12px; color: #5f5f6b"><span>Phân loại</span><span>Giá niêm yết</span><span>Giá bán</span><span>Giá mỗi món</span><span>Biên lợi nhuận</span></div>
+<sc-for list="{{cmpRows}}" as="c" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px; align-items: center; background: #ffffff; border: 1px solid #f1e6eb; border-radius: 10px; padding: 8px 12px; min-height: 44px; font-size: 14px"><b>{{c.name}}</b><span>{{c.list}}</span><span style="font-weight: 600">{{c.sell}}</span><span>{{c.unit}}</span><span style="font-weight: 600; {{c.mStyle}}">{{c.margin}}</span></div>
+</sc-for>
+<div style="font-size: 12px; color: #5f5f6b">Mọi chỉ số khác (lượt xem, CTR, CTOR, đơn, AOV) là của cả sản phẩm và không lặp lại ở đây. Số món lấy từ tên phân loại; nếu tên không có số, lấy từ cột “số lượng trong gói” của Thông số shop. Biên là biên tự nhiên của một đơn.</div>
+</div>
+</sc-if>
 <div style="font-size: 12px; color: #5f5f6b">Cập nhật: giá, tồn 03/11 06:10 (Seller Centre) · giá vốn thông số v3 02/11 · đơn báo cáo đơn 03/11 · tổng đơn 30 ngày = {{varTotal}}</div>
 </section>
 
@@ -907,7 +917,7 @@ super(props);
 const h = (() => { const o = {}; try { location.hash.replace(/^#/, '').split('&').forEach((kv) => { const [k, v] = kv.split('='); if (k) o[k] = decodeURIComponent(v || ''); }); } catch (e) {} return o; })();
 this.pid = DS.pById(h.id) && !DS.pById(h.id).rest ? h.id : 'BEP-S5'; this.src = h.src === 'the_san_pham' && h.sub ? 'the_san_pham' : (h.src || null); this.kpi = h.kpi || null; this.hfrom = h.from || null; this.hrow = h.row || null; this.hsub = h.sub || null;
 const tab = ['hs', 'ng', 'kw', 'cp', 'ls'].indexOf(h.tab) >= 0 && (this.pid === 'BEP-S5' || ['hs', 'ng'].indexOf(h.tab) >= 0) ? h.tab : 'hs';
-this.state = { tab, period: '30', series: 'gmv', imgVer: 2, copied: false, sel: 0, adOn: true, roles: {}, limitMsg: false, filter: 'all', kids: !!h.sub };
+this.state = { cmp: h.cmp === '1', tab, period: '30', series: 'gmv', imgVer: 2, copied: false, sel: 0, adOn: true, roles: {}, limitMsg: false, filter: 'all', kids: !!h.sub };
 }
 renderVals() {
 const { vnd, vndS, num, pc, tr, C, chipUp, chipDn, chipWn, chipIn, chipNe, chipPk, pillOn, pillOff, SHOP, SKUS, econ, TITLE, KEYS, PERIODS, SERIES, MARKERS, TIMELINE, TOTAL_O, TOTAL_G, TOTAL_P, SKU_O, REJECT_REASONS, REVERT_REASONS, prod, pw, pq, SNOTE } = this._d();
@@ -1097,6 +1107,8 @@ return {
   imgPrevOff: st.imgVer === 0, imgNextOff: st.imgVer === 2,
   titleSegs: segs.map((x) => ({ t: x.t, style: segStyle(x) })), titleLen: TITLE.length, titlePct: Math.round(TITLE.length / 120 * 100),
   pid: prod.mid || prod.id, copyLabel: st.copied ? 'Đã sao chép ✓' : 'Sao chép', copy: () => this.setState({ copied: !st.copied }),
+  cmpOpen: !!st.cmp, cmpClosed: !st.cmp, toggleCmp: () => this.setState({ cmp: !st.cmp }),
+  cmpRows: SKUS.map((s) => { const e = econ(s); const n = parseInt((/(\d+) món/.exec(s.name) || [0, 1])[1], 10); const sell = s.promo || s.list; return { name: s.name, list: vnd(s.list), sell: vnd(sell), unit: vnd(Math.round(sell / n)) + '/món', margin: e ? pc(e.orgP) : 'Chưa có giá vốn', mStyle: !e ? 'color: #8a4b00' : (e.orgP < 0.10 ? 'color: #a3222f' : '') }; }),
   price, stockRows, varRows, varTotal: SKU_O + ' đơn', kpis,
   tabs: tabDefs.map(([id, label]) => ({ label, on: st.tab === id, style: st.tab === id ? 'color: #ffffff; background: #b0386a' : 'color: #4a4a55; background: transparent', pick: () => this.setState({ tab: id }) })),
   isHs: st.tab === 'hs', isNg: st.tab === 'ng', isKw: st.tab === 'kw', isCp: st.tab === 'cp', isLs: st.tab === 'ls',
