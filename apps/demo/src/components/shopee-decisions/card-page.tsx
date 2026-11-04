@@ -36,7 +36,7 @@ import { Checks, NumbersTable } from "./numbers";
 import { NavLink, RecoState, StatusChip, errorText } from "./ui";
 import { WhatIfPanel, type Patch } from "./whatif";
 import { KolWhatIf } from "../shopee-kol/kol-card";
-import { FEW_ORDERS, isKolKind, kolCertOf, kolVersionRows } from "../../lib/shopee-kol/model";
+import { isKolKind, kolBasis, kolOf, kolVersionRows } from "../../lib/shopee-kol/model";
 import { BreachDialog, TitleBox, VersionsTable } from "./versions";
 
 /**
@@ -205,7 +205,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   const isMega = shown.family === "mega_sale";
   const title = isTitleKind(shown);
   const isKol = isKolKind(detail.change_kind);
-  const kolCert = isKol ? kolCertOf(v) : null;
+  const kolBlock = isKol ? kolOf(v) : null;
   const kolInvite = detail.change_kind === "affiliate_invite";
   const name = versionName(v);
   const vcode = versionCode(detail.card, v);
@@ -374,9 +374,9 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
               {detail.plan_code}
             </span>
           ) : null}
-          {kolCert ? <span className="sa-chip sa-chip--outline">KOL · {kolCert.kol.handle}</span> : null}
-          {kolCert ? <span className="sa-chip sa-chip--outline">{kolCert.kol.channel}</span> : null}
-          {kolCert?.few_data ? <TextChip tone="warn">Ít dữ liệu</TextChip> : null}
+          {kolBlock ? <span className="sa-chip sa-chip--outline">KOL · {kolBlock.handle}</span> : null}
+          {kolBlock ? <span className="sa-chip sa-chip--outline">{kolBlock.channel}</span> : null}
+          {kolBlock?.low_data ? <TextChip tone="warn">{kolBlock.low_data_label ?? "Ít dữ liệu"}</TextChip> : null}
           {detail.product_id && !isKol ? <span className="sa-chip sa-chip--outline">SP · {detail.product_id}</span> : null}
           {isKol ? <h2 className="sa-h2">{detail.title}</h2> : <h1 className="sa-h1 sa-h1--title">{detail.title}</h1>}
           <StatusChip status={detail.status} />
@@ -387,10 +387,10 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
           {detail.product_queue ? " · " : ""}
           {detail.family_label} · cập nhật {dmy(shown.as_of)} · {fmt(versions.length, 0)} phiên bản{detail.product_queue && queueTotal > 0 ? ` · thẻ ${detail.product_queue} trong ${queueTotal} thẻ của sản phẩm này` : ""}
         </p>
-        {kolCert ? (
+        {kolBlock ? (
           <p className="sa-hint" data-testid="kol-basis">
-            Dữ liệu của KOL 30 ngày: {kolCert.basis}
-            {kolCert.few_data ? `. Cặp KOL × sản phẩm này dưới ${FEW_ORDERS} đơn nên ước tính được kéo về trung bình shop, khoảng rộng.` : `. Từ ${FEW_ORDERS} đơn của cặp KOL × sản phẩm, ước tính kéo nhẹ về trung bình shop.`}
+            Dữ liệu của KOL 30 ngày: {kolBasis(kolBlock)}
+            {kolBlock.low_data ? `. Cặp KOL × sản phẩm này dưới ${kolBlock.orders_threshold} đơn nên ước tính được kéo về trung bình shop, khoảng rộng.` : `. Từ ${kolBlock.orders_threshold} đơn của cặp KOL × sản phẩm, ước tính kéo nhẹ về trung bình shop.`}
           </p>
         ) : null}
         <p className="sa-hint">
@@ -512,7 +512,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
               </span>
             ) : null}
           </div>
-          {isKol && kolCert ? <KolWhatIf cert={kolCert} disabled={!adjustable || !seller} onChange={change} patch={patch} /> : isMega ? <MegaPanel card={shown} disabled={!adjustable} editable={adjustable && shown.whatif.children_editable !== false} onChange={change} patch={patch} /> : title ? <TitleBox current={titleOf(detail.card.change.before as Record<string, unknown>) || "—"} disabled={!adjustable || !seller} name={name} onChange={onTitle} value={titleText} /> : adjustable ? <WhatIfPanel card={shown} disabled={!seller && !host.readOnly} onChange={change} patch={patch} /> : null}
+          {isKol && kolBlock ? <KolWhatIf block={kolBlock} sliders={shown.whatif.sliders} disabled={!adjustable || !seller} onChange={change} patch={patch} /> : isMega ? <MegaPanel card={shown} disabled={!adjustable} editable={adjustable && shown.whatif.children_editable !== false} onChange={change} patch={patch} /> : title ? <TitleBox current={titleOf(detail.card.change.before as Record<string, unknown>) || "—"} disabled={!adjustable || !seller} name={name} onChange={onTitle} value={titleText} /> : adjustable ? <WhatIfPanel card={shown} disabled={!seller && !host.readOnly} onChange={change} patch={patch} /> : null}
           {isKol ? null : <Checks card={shown} />}
           {breaches.length > 0 && adjustable && maxInputs ? (
             <div className="sd-lock" data-testid="sd-lock" role="status">

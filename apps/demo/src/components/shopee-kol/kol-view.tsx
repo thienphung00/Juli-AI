@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
-import { FEW_ORDERS, KOL_KIND_LABEL, rowText, tilesOf } from "../../lib/shopee-kol/model";
+import { rowText, tilesOf } from "../../lib/shopee-kol/model";
 import type { KolReport, KolRow } from "../../lib/shopee-kol/types";
 import { Empty, Notice, ResourceState, TextChip } from "../shopee-analytics/ui";
 
@@ -20,7 +20,10 @@ const ALL = "Tất cả";
 export function KolView() {
   const host = useShopee();
   const kol = host.kol;
-  const res = useResource<KolReport | null>(() => (kol ? kol.report() : Promise.resolve(null)), `${host.shopKey}|kol`);
+  const [ch, setCh] = useState(ALL);
+  const [pid, setPid] = useState(ALL);
+  // The filters go to the server (`channel`, `item_id`), which also sums the totals of what is left.
+  const res = useResource<KolReport | null>(() => (kol ? kol.report({ channel: ch === ALL ? null : ch, itemId: pid === ALL ? null : pid }) : Promise.resolve(null)), `${host.shopKey}|kol|${ch}|${pid}`);
   return (
     <div className="sa-page" data-testid="kol-page">
       <header className="sa-prodhead">
@@ -36,21 +39,20 @@ export function KolView() {
         <h1 className="sa-h1">Ai bán gì, lãi bao nhiêu, và nên gửi mẫu cho ai</h1>
         <p className="sa-hint">Mỗi dòng là một KOL × sản phẩm × kênh. Hoa hồng tính theo mức áp dụng cho từng sản phẩm. Lợi nhuận ròng đã trừ phí sàn, giá vốn, đóng gói và hoa hồng. Chi phí mẫu = số lượng × (giá vốn + đóng gói) + phí ship; không tính phí book KOL.</p>
       </div>
-      <ResourceState resource={res}>{(report) => (report ? <Body report={report} /> : <Notice tone="info">KOL chưa bật cho shop này.</Notice>)}</ResourceState>
+      <ResourceState resource={res}>{(report) => (report ? <Body channel={ch} item={pid} onChannel={setCh} onItem={setPid} report={report} /> : <Notice tone="info">KOL chưa bật cho shop này.</Notice>)}</ResourceState>
     </div>
   );
 }
 
-function Body({ report }: { readonly report: KolReport }) {
+function Body({ report, channel, item, onChannel, onItem }: { readonly report: KolReport; readonly channel: string; readonly item: string; readonly onChannel: (c: string) => void; readonly onItem: (id: string) => void }) {
   const { links } = useShopee();
-  const [ch, setCh] = useState(ALL);
-  const [pid, setPid] = useState(ALL);
-  const products = useMemo(() => [...new Map(report.rows.map((r) => [r.product_id, r.product_name])).entries()], [report.rows]);
-  const rows = report.rows.filter((r) => (ch === ALL || r.channel === ch) && (pid === ALL || r.product_id === pid));
+  const rows = report.rows;
+  const threshold = report.labels.low_data_threshold;
+  const dq = report.data_quality;
   return (
     <>
       <div className="kol-tiles" data-testid="kol-tiles">
-        {tilesOf(rows).map((t) => (
+        {tilesOf(report).map((t) => (
           <div className="kol-tile" key={t.k}>
             <span className="sa-hint">{t.k}</span>
             <b className={t.bad ? "sa-tone--down" : ""}>{t.v}</b>
@@ -58,45 +60,51 @@ function Body({ report }: { readonly report: KolReport }) {
           </div>
         ))}
       </div>
+      {dq.untagged_affiliate_lines > 0 || dq.lines_without_commission > 0 ? (
+        <Notice tone="info" testId="kol-quality">
+          {dq.untagged_affiliate_lines > 0 ? `${dq.untagged_affiliate_lines} dòng đơn Tiếp thị liên kết chưa gắn được với KOL nào. ` : ""}
+          {dq.lines_without_commission > 0 ? `${dq.lines_without_commission} dòng chưa có hoa hồng.` : ""}
+        </Notice>
+      ) : null}
       <div className="kol-filters">
         <div className="sb-tabs">
           <span className="sa-hint">Kênh:</span>
-          {[ALL, ...report.channels].map((c) => (
-            <button aria-pressed={ch === c} className={`sb-pill ${ch === c ? "sb-pill--on" : ""}`} key={c} onClick={() => setCh(c)} type="button">
+          {[ALL, ...report.filters.channels].map((c) => (
+            <button aria-pressed={channel === c} className={`sb-pill ${channel === c ? "sb-pill--on" : ""}`} key={c} onClick={() => onChannel(c)} type="button">
               {c}
             </button>
           ))}
         </div>
         <div className="sb-tabs">
           <span className="sa-hint">Sản phẩm:</span>
-          {[[ALL, ALL] as const, ...products].map(([id, name]) => (
-            <button aria-pressed={pid === id} className={`sb-pill ${pid === id ? "sb-pill--on" : ""}`} key={id} onClick={() => setPid(id)} type="button">
-              {name}
+          {[{ item_id: ALL, name: ALL }, ...report.filters.products].map((p) => (
+            <button aria-pressed={item === p.item_id} className={`sb-pill ${item === p.item_id ? "sb-pill--on" : ""}`} key={p.item_id} onClick={() => onItem(p.item_id)} type="button">
+              {p.name}
             </button>
           ))}
         </div>
       </div>
       <div className="kol-table" data-testid="kol-table" role="table">
         <div className="kol-row kol-row--head" role="row">
-          {["KOL · kênh", "Sản phẩm", "Đơn", "SL", "GMV", "Lượt nhấp", "Chuyển đổi", "Hoa hồng", "Lợi nhuận ròng", "Chi phí mẫu", "Lợi nhuận sau mẫu", "ROI gồm mẫu", "ROI Shopee (chỉ hoa hồng)", "Hoàn vốn mẫu", "Thẻ"].map((h) => (
+          {["KOL · kênh", "Sản phẩm", "Đơn", "SL", "GMV", "Lượt nhấp của KOL", "Chuyển đổi của KOL", "Hoa hồng", "Lợi nhuận ròng", "Chi phí mẫu", "Lợi nhuận sau mẫu", "ROI gồm mẫu", "ROI Shopee (chỉ hoa hồng)", "Hoàn vốn mẫu", "Thẻ"].map((h) => (
             <span key={h} role="columnheader">
               {h}
             </span>
           ))}
         </div>
         {rows.map((r) => (
-          <KolRowView key={`${r.kol_key}|${r.product_id}|${r.channel}`} row={r} />
+          <KolRowView key={`${r.kol_key}|${r.item_id}|${r.channel}`} row={r} />
         ))}
         {rows.length === 0 ? <Empty testId="kol-empty">Không có dòng nào khớp bộ lọc.</Empty> : null}
       </div>
       <div className="kol-legend">
         <div>
-          <b>ROI gồm mẫu (Juli)</b> <span className="sa-hint">(lợi nhuận ròng của đơn KOL − chi phí mẫu) ÷ (hoa hồng + chi phí mẫu). Dưới 0% là KOL chưa hoàn vốn mẫu.</span>
+          <b>ROI gồm mẫu (Juli)</b> <span className="sa-hint">{report.labels.roi_formula}. Dưới 0% là KOL chưa hoàn vốn mẫu.</span>
         </div>
         <div>
           <b>ROI Shopee (chỉ hoa hồng)</b>{" "}
           <span className="sa-hint">
-            Giá trị trong file xuất KOL của Shopee, giữ nguyên, không tính lại. Chỉ tính hoa hồng, không có giá vốn, phí sàn và mẫu nên thường trông tốt hơn. “Ít dữ liệu” là cặp KOL × sản phẩm có dưới {FEW_ORDERS} đơn: số chỉ để tham khảo.
+            {report.labels.roi_shopee_note} Chỉ tính hoa hồng, không có giá vốn, phí sàn và mẫu nên thường trông tốt hơn. “{report.labels.low_data}” là cặp KOL × sản phẩm có dưới {threshold} đơn: số chỉ để tham khảo. Lượt nhấp và chuyển đổi là của cả KOL trong file xuất Shopee, không riêng sản phẩm này.
           </span>
         </div>
       </div>
@@ -109,12 +117,12 @@ function KolRowView({ row }: { readonly row: KolRow }) {
   const { links } = useShopee();
   const t = rowText(row);
   return (
-    <div className={`kol-row ${t.few ? "kol-row--few" : ""}`} data-testid={`kol-row-${row.kol_key}-${row.product_id}`} role="row">
+    <div className={`kol-row ${t.few ? "kol-row--few" : ""}`} data-testid={`kol-row-${row.kol_key}-${row.item_id}`} role="row">
       <span role="cell">
         <b>{t.handle}</b>
         <span className="kol-sub">
           <span className="sa-chip sa-chip--outline">{t.channel}</span>
-          {t.few ? <TextChip tone="warn">Ít dữ liệu</TextChip> : null}
+          {t.few ? <TextChip tone="warn">{t.fewLabel}</TextChip> : null}
         </span>
       </span>
       <span role="cell">{t.product}</span>
@@ -139,7 +147,7 @@ function KolRowView({ row }: { readonly row: KolRow }) {
           <>
             <span className="sd-code">{row.card.code}</span>{" "}
             <Link className="sa-link" href={links.card(row.card.id, "kol")}>
-              {KOL_KIND_LABEL[row.card.kind]} ›
+              {row.card.kind_label} ›
             </Link>
           </>
         ) : (

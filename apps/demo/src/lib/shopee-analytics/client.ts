@@ -68,7 +68,7 @@ export function refusalOf(error: unknown): ApiRefusal {
   return "failed";
 }
 
-function windowParams(q: WindowQuery): URLSearchParams {
+export function windowParams(q: WindowQuery): URLSearchParams {
   const p = new URLSearchParams();
   p.set("period", q.period);
   if (q.period === "month" && q.month) p.set("month", q.month);

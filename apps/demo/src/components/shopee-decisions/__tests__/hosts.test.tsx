@@ -20,7 +20,8 @@ describe("hosts", () => {
     const { f, seen } = api();
     render(<SellerShopeeDecisions fetchImpl={f} params={new URLSearchParams()} shop={{ id: "s1", name: "Shop" }} token="tok" />);
     await screen.findByTestId("sq-card-card-voucher");
-    expect(seen).toEqual(["GET /v1/demo/shopee/recommendations?queue=all"]);
+    // the plan is on by default: the list also asks for the draft plan's card count
+    expect(seen).toEqual(["GET /v1/demo/shopee/recommendations?queue=all", "GET /v1/demo/shopee/recommendations/plan"]);
     expect((f as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![1].headers).toMatchObject({ "X-Shop-Id": "s1" });
   });
 

@@ -1,3 +1,4 @@
+import type { KolBlock } from "../shopee-kol/types";
 import type { FiveNumbers } from "../shopee-analytics/types";
 
 /**
@@ -312,6 +313,8 @@ export interface CardVersion {
   readonly measurement_plan?: MeasurementPlan;
   readonly execution_sheet?: ExecutionSheet;
   readonly notes?: readonly string[];
+  /** P91 D-9: a Gửi mẫu / Mời KOL version's KOL block (its product, samples, expected orders). */
+  readonly kol?: KolBlock;
 }
 
 /** A floor or spend-cap breach, as the backend lists it (`versions.breaches_of`, `manual.breaches_of`). */
@@ -368,6 +371,8 @@ export interface Card {
   readonly execution_sheet: ExecutionSheet;
   readonly notes?: readonly string[];
   readonly bundle: boolean;
+  /** P91 D-9: set on Gửi mẫu / Mời KOL cards. */
+  readonly kol?: KolBlock;
   // mega_sale only
   readonly children?: readonly MegaChild[];
   readonly schedule?: readonly ScheduleDay[];

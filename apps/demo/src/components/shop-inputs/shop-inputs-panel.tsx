@@ -1,7 +1,6 @@
 "use client";
 
 import { KolSamplesPanel } from "../shopee-kol/samples-panel";
-import type { KolSamplesApi } from "../../lib/shopee-kol/types";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { saveBlob } from "../../lib/shop-inputs/api";
@@ -168,8 +167,8 @@ export interface ShopInputsPanelProps {
   readonly canEdit?: boolean;
   /** Who writes, for the "đã áp dụng" line. */
   readonly writerLabel?: string;
-  /** P91: the "Mẫu KOL" sheet (flag `NEXT_PUBLIC_P91_KOL`); absent = no such step. */
-  readonly kolSamples?: KolSamplesApi;
+  /** P91: show the "Mẫu KOL" step (flag `NEXT_PUBLIC_P91_KOL`); the sheet travels in the same workbook as the SKU sheet. */
+  readonly kolSamples?: boolean;
 }
 
 export function ShopInputsPanel({ api, canEdit = true, writerLabel = "Quản lý shop", kolSamples }: ShopInputsPanelProps) {
@@ -682,7 +681,7 @@ export function ShopInputsPanel({ api, canEdit = true, writerLabel = "Quản lý
         </section>
       ) : null}
 
-      {step === "kol" && kolSamples ? <KolSamplesPanel api={kolSamples} canEdit={canEdit} /> : null}
+      {step === "kol" && kolSamples ? <KolSamplesPanel api={api} canEdit={canEdit} /> : null}
 
       {step === "mt" ? <GoalsView overview={overview} preview={preview} onApply={() => go("apply")} /> : null}
     </div>

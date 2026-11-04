@@ -3,7 +3,6 @@
 import { useMemo, type ReactNode } from "react";
 
 import { createShopInputsApi } from "../../lib/shop-inputs/api";
-import { createKolSamplesApi } from "../../lib/shopee-kol/client";
 import { kolEnabled } from "../../lib/shopee-decisions/plan-client";
 import type { ShopInputsApi } from "../../lib/shop-inputs/types";
 import { AppPageHeader } from "../app-shell/page-header";
@@ -38,10 +37,6 @@ export function ShopInputsSettings({
       }),
     [api, auth.token, auth.shopId, auth.fetchImpl],
   );
-  const kolSamples = useMemo(
-    () => (kolEnabled() ? createKolSamplesApi({ base: "/v1/demo/shop-inputs", token: auth.token, shopId: auth.shopId, fetchImpl: auth.fetchImpl }) : undefined),
-    [auth.token, auth.shopId, auth.fetchImpl],
-  );
   return (
     <section aria-labelledby="shop-inputs-title" className="qd-page">
       <AppPageHeader
@@ -55,7 +50,7 @@ export function ShopInputsSettings({
         titleId="shop-inputs-title"
       />
       {tabs}
-      <ShopInputsPanel api={client} kolSamples={kolSamples} />
+      <ShopInputsPanel api={client} kolSamples={kolEnabled()} />
     </section>
   );
 }

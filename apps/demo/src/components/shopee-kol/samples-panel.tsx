@@ -3,12 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 
 import { saveBlob } from "../../lib/shop-inputs/api";
-import type { KolSamplesApi, KolSamplesApplied, KolSamplesOverview, KolSamplesPreview } from "../../lib/shopee-kol/types";
+import type { ApplyResult, ImportPreview, InputsOverview, SampleShipment, ShopInputsApi } from "../../lib/shop-inputs/types";
 import { vnd } from "../../lib/shopee-analytics/format";
+
+const SHEET = "Mẫu KOL";
+const dmy = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const shipText = (list: readonly SampleShipment[]): string => (list.length === 0 ? "chưa gửi" : list.map((x) => `${x.qty} mẫu ngày ${dmy(x.sent_on)}, ship ${vnd(x.ship_fee)}`).join("; "));
 
 /**
  * Cài đặt › Thông số shop › Mẫu KOL (`CaiDatMauKOL.dc.html`): the 7th step beside the SKU sheet. Same way of
- * working: download the template, upload it, Kiểm tra (bad rows do not block the good ones), So sánh cũ → mới
+ * working, on the SAME workbook, template, preview and apply routes as the SKU sheet (the sheet "Mẫu KOL" is its third sheet): download the template, upload it, Kiểm tra (bad rows do not block the good ones), So sánh cũ → mới
  * with what it changes (chi phí mẫu, ROI, hoàn vốn, cards recalculated), Áp dụng with a reason. Sample cost =
  * số lượng × (giá vốn + đóng gói) + phí ship; there is no KOL booking fee.
  */
@@ -26,13 +30,13 @@ function message(e: unknown): string {
   return e instanceof Error && e.message ? e.message : "Không thực hiện được. Bạn thử lại sau ít phút nhé.";
 }
 
-export function KolSamplesPanel({ api, canEdit = true }: { readonly api: KolSamplesApi; readonly canEdit?: boolean }) {
+export function KolSamplesPanel({ api, canEdit = true }: { readonly api: ShopInputsApi; readonly canEdit?: boolean }) {
   const [step, setStep] = useState<Step>(1);
-  const [overview, setOverview] = useState<KolSamplesOverview | null>(null);
+  const [overview, setOverview] = useState<InputsOverview | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<KolSamplesPreview | null>(null);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [reason, setReason] = useState<string | null>(null);
-  const [applied, setApplied] = useState<KolSamplesApplied | null>(null);
+  const [applied, setApplied] = useState<ApplyResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -84,8 +88,10 @@ export function KolSamplesPanel({ api, canEdit = true }: { readonly api: KolSamp
     }
   };
 
-  const cur = overview?.version ?? preview?.current_version ?? 0;
   const reasons = overview?.reasons.length ? overview.reasons : DEFAULT_REASONS;
+  const shipments = (overview?.samples.items ?? []).flatMap((pair) => pair.shipments.map((sh) => ({ pair, sh })));
+  const rejections = (preview?.rejections ?? []).filter((r) => r.sheet === SHEET);
+  const counts = preview?.counts;
   const needFile = step > 1 && !preview;
   return (
     <div className="ks" data-testid="kol-samples">
@@ -127,28 +133,28 @@ export function KolSamplesPanel({ api, canEdit = true }: { readonly api: KolSamp
                 <input accept=".xlsx" aria-label="Tệp Mẫu KOL" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} ref={input} type="file" />
               </>
             ) : null}
-            {overview?.filename ? (
-              <span className="sa-hint">
-                {overview.filename} · {overview.rows.length} dòng đã tải lên
+            {overview ? (
+              <span className="sa-hint" data-testid="ks-count">
+                {overview.samples.shipments} lần gửi mẫu · {overview.samples.pairs} cặp KOL × sản phẩm đã ghi
               </span>
             ) : null}
           </div>
           <div className="ks-table" role="table">
             <div className="ks-row ks-row--head" role="row">
-              {["KOL (tay cầm)", "Sản phẩm (mã SP hoặc SKU)", "Số lượng mẫu", "Ngày gửi", "Phí ship gửi mẫu", "Ghi chú"].map((h) => (
+              {["KOL (tay cầm)", "Sản phẩm (mã SP hoặc SKU)", "Số lượng mẫu", "Ngày gửi", "Phí ship gửi mẫu", "Giá vốn dùng"].map((h) => (
                 <span key={h} role="columnheader">
                   {h}
                 </span>
               ))}
             </div>
-            {(overview?.rows ?? []).map((r, i) => (
+            {shipments.map(({ pair, sh }, i) => (
               <div className="ks-row" key={i} role="row">
-                <b role="cell">{r.kol}</b>
-                <span role="cell">{r.product}</span>
-                <span role="cell">{r.qty}</span>
-                <span role="cell">{r.sent_on ?? "—"}</span>
-                <span role="cell">{vnd(r.ship)}</span>
-                <span role="cell">{r.qty === 0 ? "chưa gửi" : (r.note ?? "")}</span>
+                <b role="cell">{sh.handle}</b>
+                <span role="cell">{pair.sku}</span>
+                <span role="cell">{sh.qty}</span>
+                <span role="cell">{dmy(sh.sent_on)}</span>
+                <span role="cell">{vnd(sh.ship_fee)}</span>
+                <span role="cell">{pair.cost_label}</span>
               </div>
             ))}
           </div>
@@ -156,49 +162,54 @@ export function KolSamplesPanel({ api, canEdit = true }: { readonly api: KolSamp
         </section>
       ) : null}
 
-      {step === 2 && preview ? (
+      {step === 2 && preview && counts ? (
         <section className="sa-card" data-testid="ks-step2">
           <h3 className="sa-h2">
-            Kiểm tra: {preview.rows_valid} dòng hợp lệ, {preview.rows_rejected} dòng lỗi
+            Kiểm tra: {counts.sample_rows_valid} dòng hợp lệ, {counts.sample_rows_rejected} dòng lỗi
           </h3>
-          {preview.checks.map((c) => (
-            <div className={`ks-check ${c.ok ? "ks-check--ok" : "ks-check--bad"}`} key={c.row}>
+          {rejections.map((c, i) => (
+            <div className="ks-check ks-check--bad" key={i}>
               <b>{c.row}</b>
-              <span>{c.kol}</span>
-              <span>{c.product}</span>
-              <span>{c.message}</span>
+              <span>{c.sku}</span>
+              <span>{c.column}</span>
+              <span>{c.reason}</span>
             </div>
           ))}
-          <p className="sa-hint">Dòng lỗi không chặn các dòng hợp lệ (“Tiếp tục với {preview.rows_valid} dòng hợp lệ”), như sheet giá vốn.</p>
+          {rejections.length === 0 ? <div className="ks-check ks-check--ok">Mọi dòng của trang Mẫu KOL hợp lệ.</div> : null}
+          <p className="sa-hint">Dòng lỗi không chặn các dòng hợp lệ (“Tiếp tục với {counts.sample_rows_valid} dòng hợp lệ”), như sheet giá vốn. Một KOL × sản phẩm có dòng lỗi thì giữ nguyên các lần gửi cũ.</p>
           <button className="sa-btn sa-btn--primary" onClick={() => setStep(3)} type="button">
-            Tiếp tục với {preview.rows_valid} dòng hợp lệ
+            Tiếp tục với {counts.sample_rows_valid} dòng hợp lệ
           </button>
         </section>
       ) : null}
 
-      {step === 3 && preview ? (
+      {step === 3 && preview && counts ? (
         <section className="sa-card" data-testid="ks-step3">
           <h3 className="sa-h2">So sánh cũ → mới và hệ quả</h3>
-          {preview.diffs.map((d, i) => (
-            <div className="ks-diff" key={i}>
+          {preview.sample_diffs.length === 0 ? <p className="sa-hint">Trang Mẫu KOL không đổi gì so với số liệu hiện tại ({counts.sample_rows_unchanged} dòng giữ nguyên).</p> : null}
+          {preview.sample_diffs.map((d) => (
+            <div className="ks-diff" key={d.scope_ref}>
               <div>
-                <b>{d.kol}</b> <span>{d.product_name}</span> <span className={`sa-chip sa-chip--${d.tag === "Thêm mới" ? "up" : "info"}`}>{d.tag}</span>
+                <b>{d.handle}</b> <span>{d.sku}</span> <span className={`sa-chip sa-chip--${d.tag === "Mới" ? "up" : "info"}`}>{d.tag}</span>
               </div>
               <div className="ks-diff__cells">
-                {d.cells.map((c) => (
-                  <div key={c.label}>
-                    <span className="sa-hint">{c.label}</span>
-                    <span>
-                      <span className="sd-muted">{c.old}</span> → <b>{c.new}</b>
-                    </span>
-                  </div>
-                ))}
+                <div>
+                  <span className="sa-hint">Các lần gửi</span>
+                  <span>
+                    <span className="sd-muted">{shipText(d.old)}</span> → <b>{shipText(d.new)}</b>
+                  </span>
+                </div>
               </div>
-              <div className="sa-hint">{d.consequence}</div>
+              <div className="sa-hint">{d.effect}</div>
             </div>
           ))}
+          {counts.skus_changed > 0 || counts.months_changed > 0 ? (
+            <p className="sa-hint" data-testid="ks-other">
+              Cùng tệp này còn đổi {counts.skus_changed} SKU và {counts.months_changed} tháng mục tiêu; Áp dụng sẽ áp dụng cả những thay đổi đó (xem ở các bước Thông số shop).
+            </p>
+          ) : null}
           <b data-testid="ks-cards">
-            {preview.cards_recalculated.length} thẻ Gửi mẫu đang mở ({preview.cards_recalculated.join(", ")}) sẽ được tính lại sau khi áp dụng.
+            {preview.affected.total} thẻ đề xuất đang mở ({preview.affected.proposals} đề xuất, {preview.affected.action_cards} thẻ hành động) sẽ được tính lại sau khi áp dụng.
           </b>
           <button className="sa-btn sa-btn--primary" onClick={() => setStep(4)} type="button">
             Tiếp tục
@@ -210,7 +221,7 @@ export function KolSamplesPanel({ api, canEdit = true }: { readonly api: KolSamp
         <section className="sa-card" data-testid="ks-step4">
           <h3 className="sa-h2">Áp dụng với lý do</h3>
           <p className="sa-hint">
-            Tạo phiên bản mẫu KOL mới (v{cur} → v{cur + 1}). Chọn một lý do; mọi số trong Phân tích › KOL và các thẻ Gửi mẫu tính lại.
+            Mỗi KOL × sản phẩm có thay đổi tạo một phiên bản mới của quy tắc Mẫu KOL. Chọn một lý do; mọi số trong Phân tích › KOL và các thẻ Gửi mẫu tính lại.
           </p>
           <div className="sb-tabs" role="radiogroup" aria-label="Lý do">
             {reasons.map((r) => (
@@ -220,11 +231,11 @@ export function KolSamplesPanel({ api, canEdit = true }: { readonly api: KolSamp
             ))}
           </div>
           <button className="sa-btn sa-btn--primary" data-testid="ks-apply" disabled={!canEdit || !reason || !!applied || busy} onClick={() => void apply()} type="button">
-            Áp dụng phiên bản v{cur + 1}
+            Áp dụng
           </button>
           {applied ? (
             <p className="sd-ack-line" data-testid="ks-applied" role="status">
-              <b>Đã áp dụng Mẫu KOL v{applied.version}.</b> {applied.cards_recalculated.length} thẻ Gửi mẫu ({applied.cards_recalculated.join(", ")}) được tính lại. Khôi phục v{cur} tạo một phiên bản mới sao chép v{cur}, như sheet giá vốn.
+              <b>Đã áp dụng Mẫu KOL.</b> {applied.samples_changed} cặp KOL × sản phẩm đổi, {applied.versions_written} phiên bản được ghi, {applied.affected.total} thẻ đề xuất được tính lại. Khôi phục một phiên bản tạo phiên bản mới sao chép nó, như sheet giá vốn.
             </p>
           ) : null}
         </section>

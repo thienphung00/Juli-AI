@@ -1,25 +1,23 @@
-import { ShopeeApiError } from "../shopee-analytics/client";
-import { fileToBase64 } from "../shop-inputs/api";
-import type { KolApi, KolReport, KolSamplesApi, KolSamplesApplied, KolSamplesOverview, KolSamplesPreview } from "./types";
+import { ShopeeApiError, windowParams, type WindowQuery } from "../shopee-analytics/client";
+import type { KolApi, KolProductReport, KolQuery, KolReport } from "./types";
 
 export interface KolClientOptions {
-  /** `DEMO_SHOPEE_BASE` or `opsShopeeBase(shopId)`; the report is `<base>/kol`. */
+  /** `DEMO_SHOPEE_BASE` or `opsShopeeBase(shopId)`; the reports are `<base>/kols` and `<base>/products/{item_id}/kols`. */
   readonly base: string;
   readonly token: string;
   readonly shopId?: string;
   readonly fetchImpl?: typeof fetch;
 }
 
-async function request(options: KolClientOptions, path: string, init: { method?: string; body?: unknown } = {}): Promise<Response> {
-  const response = await (options.fetchImpl ?? fetch)(`${options.base}${path}`, {
-    method: init.method ?? "GET",
+const DEFAULT_WINDOW: WindowQuery = { period: "30d" };
+
+async function get<T>(options: KolClientOptions, path: string, params: URLSearchParams): Promise<T> {
+  const response = await (options.fetchImpl ?? fetch)(`${options.base}${path}?${params.toString()}`, {
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${options.token}`,
-      ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...(options.shopId ? { "X-Shop-Id": options.shopId } : {}),
     },
-    ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
     cache: "no-store",
   });
   if (!response.ok) {
@@ -38,24 +36,20 @@ async function request(options: KolClientOptions, path: string, init: { method?:
     }
     throw new ShopeeApiError(response.status, code, message);
   }
-  return response;
+  return (await response.json()) as T;
 }
 
 export function createKolApi(options: KolClientOptions): KolApi {
-  return { report: async () => (await (await request(options, "/kol")).json()) as KolReport };
-}
-
-/** `base` is `/v1/demo/shop-inputs` or `/v1/ops/shops/{id}/inputs`; envelopes are `{data}` like the SKU sheet's. */
-export function createKolSamplesApi(options: KolClientOptions): KolSamplesApi {
-  const data = async <T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> => ((await (await request(options, path, init)).json()) as { data: T }).data;
   return {
-    overview: () => data<KolSamplesOverview>("/kol-samples"),
-    template: async () => {
-      const response = await request(options, "/kol-samples/template");
-      const name = /filename="?([^";]+)"?/.exec(response.headers.get("Content-Disposition") ?? "")?.[1] ?? "mau-kol.xlsx";
-      return { blob: await response.blob(), filename: name };
+    report: (q: KolQuery = {}) => {
+      const p = windowParams(q.window ?? DEFAULT_WINDOW);
+      if (q.channel) p.set("channel", q.channel);
+      if (q.itemId) p.set("item_id", q.itemId);
+      if (q.kol) p.set("kol", q.kol);
+      if (q.sort) p.set("sort", q.sort);
+      if (q.limit) p.set("limit", String(q.limit));
+      return get<KolReport>(options, "/kols", p);
     },
-    preview: async (file) => data<KolSamplesPreview>("/kol-samples/preview", { method: "POST", body: { file_b64: await fileToBase64(file) } }),
-    apply: async (file, reason, fileHash) => data<KolSamplesApplied>("/kol-samples/apply", { method: "POST", body: { file_b64: await fileToBase64(file), reason, file_hash: fileHash } }),
+    productReport: (itemId, window = DEFAULT_WINDOW) => get<KolProductReport>(options, `/products/${encodeURIComponent(itemId)}/kols`, windowParams(window)),
   };
 }

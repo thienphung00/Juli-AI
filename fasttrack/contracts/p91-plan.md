@@ -215,3 +215,10 @@ File ownership in wave 1 (no agent edits another's files; the orchestrator integ
   `ops_shopee_reco_manual.py`, `demo_shopee_reco_manual.py` (+ router registration lines), their tests.
 - Design: `docs/product/design/shopee-shop/` only.
 - Bookkeeping (`DECISIONS.md`, `PROGRESS.md`, `LOG.md`, this file): orchestrator only.
+
+## Integration notes (P91 integration branch, 2026-11-04)
+- Merge order: p91-plan, p91-kol, p91-web. Migration chain: 116_shopee_reco_codes -> 117_shopee_reco_plans -> 118_shopee_kol_lines (KOL renumbered from 117);
+  the deferred write-mode tail (`deferred/101_*`) and its test pins sit on 118. D-12 income and D-13 listing become 119 / 120.
+- Plan and KOL screens are ON by default; `NEXT_PUBLIC_P91_PLAN=0` / `NEXT_PUBLIC_P91_KOL=0` switch them off. Types mirror the backend answers.
+- Backend: `versions.OPTIONAL_EVAL_FIELDS = ("kol",)` so every version of a KOL card carries its own `kol` block.
+- Not available from the backend, so not shown: MDE for a custom window length (no route), per-pair clicks, ROI/payback ranges for KOL, margin/AOV in "bỏ thẻ này thì".

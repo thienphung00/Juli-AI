@@ -374,8 +374,9 @@ Invariants below.
   (Tự tạo / So sánh phương án), `ops-list.tsx` (Ops list + card-by-code), `plan.tsx` (Kế hoạch). Models in
   `lib/shopee-decisions/{versions,builder-model,plan-model}.ts`; API clients `client.ts` (compare / manual / by-code) and
   `plan-client.ts`.
-- **Feature flags**: `NEXT_PUBLIC_P91_PLAN=1` (plan UI: "Thêm vào kế hoạch", Kế hoạch screen) and
-  `NEXT_PUBLIC_P91_KOL=1` (Phân tích › KOL, Sản phẩm › Tiếp thị liên kết, Cài đặt › Mẫu KOL). Both off until their
-  backends land; their payload shapes are ASSUMED (`plan-types.ts`, `lib/shopee-kol/types.ts`).
+- **Feature flags**: the plan UI ("Thêm vào kế hoạch", Kế hoạch screen) and the KOL screens (Phân tích › KOL,
+  Sản phẩm › Tiếp thị liên kết, Cài đặt › Mẫu KOL) are ON by default. `NEXT_PUBLIC_P91_PLAN=0` /
+  `NEXT_PUBLIC_P91_KOL=0` switch them off at build time. Payload types mirror the backend answers
+  (`plan-types.ts`, `lib/shopee-kol/types.ts`); the fixtures under `__tests__` use the same shapes.
 - **Routes** are query views of the existing pages: `?tu-tao=1&from=product|quyet-dinh&sp=<id>` and `?ke-hoach=1` on
   `/decisions` (and the Ops / view-as equivalents), `?tab=dx|kl` on the product page, `?tab=kol` on Phân tích.

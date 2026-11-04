@@ -28,6 +28,7 @@ vi.mock("../../lib/shop-inputs/api", async (importOriginal) => ({
 const AFFECTED: Affected = { total: 6, proposals: 5, action_cards: 1, item_ids: ["2001"], shop_wide: true };
 
 const OVERVIEW: InputsOverview = {
+  samples: { pairs: 0, shipments: 0, items: [] },
   catalogue: { sku_rows: 42, items: 12, with_cost: 30 },
   cost_fallback: {
     count: 2,
@@ -68,6 +69,11 @@ const PREVIEW: ImportPreview = {
     sku_rows_valid: 38,
     sku_rows_rejected: 4,
     sku_rows_unchanged: 33,
+    sample_rows: 0,
+    sample_rows_valid: 0,
+    sample_rows_rejected: 0,
+    sample_rows_unchanged: 0,
+    samples_changed: 0,
     goal_rows: 3,
     goal_rows_rejected: 0,
     changes: 5,
@@ -81,6 +87,7 @@ const PREVIEW: ImportPreview = {
     { scope_ref: "2002", item_id: "2002", variation_id: "", sku: "BEP-S3", field: "cost", label: "Giá vốn", unit: "vnd", rule_key: "sku_cost", old: null, new: 72000, effect: "Tính được biên gộp 44,2% theo giá niêm yết" },
     { scope_ref: "2002", item_id: "2002", variation_id: "", sku: "BEP-S3", field: "restock", label: "Ngày nhập lại", unit: "date", rule_key: "restock_date", old: "2026-11-08", new: "2026-11-10", effect: "" },
   ],
+  sample_diffs: [],
   goal_diffs: [
     { scope_ref: "2026-12", item_id: "", variation_id: "", sku: "T12/2026", field: "monthly_margin_target", label: "Biên mục tiêu (%)", unit: "pct", rule_key: "monthly_margin_target", old: 10, new: 12, effect: "" },
   ],
@@ -131,7 +138,7 @@ function fakeApi(over: Partial<ShopInputsApi> = {}): Fake {
     },
     apply: async (...args): Promise<ApplyResult> => {
       calls.apply.push(args);
-      return { file_hash: PREVIEW.file_hash, reason: String(args[1]), applied_at: "2026-11-03T14:30:00", versions_written: 5, skus_changed: 2, months_changed: 1, rejected: 4, affected: AFFECTED };
+      return { file_hash: PREVIEW.file_hash, reason: String(args[1]), applied_at: "2026-11-03T14:30:00", versions_written: 5, skus_changed: 2, samples_changed: 0, months_changed: 1, rejected: 4, affected: AFFECTED };
     },
     versionsIndex: async () => [
       { scope_ref: "2001:a", item_id: "2001", variation_id: "a", sku: "BEP-S5-CB", name: "" },

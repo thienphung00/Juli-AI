@@ -1,9 +1,9 @@
 import { ShopeeApiError } from "../shopee-analytics/client";
-import type { Plan, PlanApi, PlanWindowBody } from "./plan-types";
+import type { ChangeSet, PlanApi, PlanResponse } from "./plan-types";
 
 /**
- * Client of the draft plan (assumed routes, see `plan-types.ts`). It shares the recommendation
- * base and headers with {@link createRecoApi}; `base` is `DEMO_RECO_BASE` or `opsRecoBase(shopId)`.
+ * Client of the draft plan (routes in `plan-types.ts`). It shares the recommendation base and
+ * headers with {@link createRecoApi}; `base` is `DEMO_RECO_BASE` or `opsRecoBase(shopId)`.
  */
 
 export interface PlanClientOptions {
@@ -13,20 +13,20 @@ export interface PlanClientOptions {
   readonly fetchImpl?: typeof fetch;
 }
 
-/** Feature flag: the plan UI shows only where the backend is there (`NEXT_PUBLIC_P91_PLAN=1`). */
+/** The plan UI is on; `NEXT_PUBLIC_P91_PLAN=0` switches it off (kept as a kill switch). */
 export function planEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_P91_PLAN === "1";
+  return process.env.NEXT_PUBLIC_P91_PLAN !== "0";
 }
 
-/** Feature flag for the KOL screens (`NEXT_PUBLIC_P91_KOL=1`). */
+/** The KOL screens are on; `NEXT_PUBLIC_P91_KOL=0` switches them off. */
 export function kolEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_P91_KOL === "1";
+  return process.env.NEXT_PUBLIC_P91_KOL !== "0";
 }
 
 export function createPlanApi(options: PlanClientOptions): PlanApi {
   const { base, token, shopId, fetchImpl } = options;
   async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const response = await (fetchImpl ?? fetch)(`${base}/plan${path}`, {
+    const response = await (fetchImpl ?? fetch)(`${base}${path}`, {
       method,
       headers: {
         Accept: "application/json",
@@ -53,14 +53,22 @@ export function createPlanApi(options: PlanClientOptions): PlanApi {
     }
     return payload as T;
   }
-  const id = (cardId: string) => `/cards/${encodeURIComponent(cardId)}`;
+  const card = (cardId: string) => `/plan/cards/${encodeURIComponent(cardId)}`;
   return {
-    get: () => call<Plan>("GET", ""),
-    add: (cardId, version, ack = false) => call<Plan>("POST", "/cards", { card_id: cardId, chosen_version: version, acknowledge_breaches: ack }),
-    remove: (cardId) => call<Plan>("DELETE", id(cardId)),
-    setVersion: (cardId, version, ack = false) => call<Plan>("PUT", id(cardId), { chosen_version: version, acknowledge_breaches: ack }),
-    setWindow: (body: PlanWindowBody) => call<Plan>("PUT", "/window", body),
-    mde: async (days) => (await call<{ days: number; by_product: Record<string, number> }>("GET", `/mde?days=${days}`)).by_product,
-    confirm: (ack) => call<Plan>("POST", "/confirm", { acknowledge_breaches: ack }),
+    get: () => call<PlanResponse>("GET", "/plan"),
+    add: (cardId, version, ack = false) => call<PlanResponse>("POST", "/plan/cards", { card_id: cardId, chosen_version: version, acknowledge_breaches: ack }),
+    remove: (cardId) => call<PlanResponse>("POST", `${card(cardId)}/remove`, {}),
+    setVersion: (cardId, version) => call<PlanResponse>("POST", `${card(cardId)}/version`, { version }),
+    whatIf: (cardId, inputs) => call<PlanResponse>("POST", `${card(cardId)}/whatif`, { inputs }),
+    setWindow: (days, productId) => call<PlanResponse>("POST", "/plan/window", { days, ...(productId ? { product_id: productId } : {}) }),
+    setChangeSetWindow: (id, days) => call<ChangeSet>("POST", `/change-sets/${encodeURIComponent(id)}/window`, { days }),
+    confirm: ({ acknowledgeBreaches, plannedDate, note }) => call<PlanResponse>("POST", "/plan/confirm", { acknowledge_breaches: acknowledgeBreaches, ...(plannedDate ? { planned_date: plannedDate } : {}), ...(note ? { note } : {}) }),
+    changeSets: async (query) => {
+      const qs = new URLSearchParams();
+      if (query?.productId) qs.set("product_id", query.productId);
+      if (query?.status) qs.set("status", query.status);
+      const suffix = qs.toString();
+      return (await call<{ change_sets: ChangeSet[] }>("GET", `/change-sets${suffix ? `?${suffix}` : ""}`)).change_sets;
+    },
   };
 }

@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 
 import { createShopInputsApi } from "../../lib/shop-inputs/api";
-import { createKolSamplesApi } from "../../lib/shopee-kol/client";
 import { kolEnabled } from "../../lib/shopee-decisions/plan-client";
 import type { ShopInputsApi } from "../../lib/shop-inputs/types";
 import { readAuthSession } from "../../lib/supabase-auth";
@@ -36,17 +35,13 @@ export function OpsShopInputs({
       }),
     [api, shopId, baseFetch],
   );
-  const kolSamples = useMemo(
-    () => (kolEnabled() ? createKolSamplesApi({ base: `/v1/ops/shops/${encodeURIComponent(shopId)}/inputs`, token: readAuthSession()?.accessToken ?? "", fetchImpl: baseFetch }) : undefined),
-    [shopId, baseFetch],
-  );
   return (
     <div data-testid="ops-shop-inputs" style={card}>
       <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Thông số shop</h2>
       <span style={{ fontSize: 12, color: C.muted2 }}>
         Giá vốn, đóng gói, tồn kho và mục tiêu theo tháng. Mỗi lần áp dụng là một phiên bản ghi tên đội ngũ, lý do và tệp, khôi phục được, và được ghi nhật ký.
       </span>
-      <ShopInputsPanel api={client} canEdit={canEdit} kolSamples={kolSamples} writerLabel="Đội ngũ Juli" />
+      <ShopInputsPanel api={client} canEdit={canEdit} kolSamples={kolEnabled()} writerLabel="Đội ngũ Juli" />
     </div>
   );
 }

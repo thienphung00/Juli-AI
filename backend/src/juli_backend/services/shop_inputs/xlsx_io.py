@@ -193,6 +193,15 @@ def _column_index(ref: str) -> int:
     return index - 1
 
 
+def _parse(data: bytes) -> ET.Element:
+    """Parse one workbook part. A real .xlsx part never declares a DTD or entities, so one that
+    does (entity expansion, external entities) is refused before the parser sees it."""
+    head = data[:4096].upper()
+    if b"<!DOCTYPE" in head or b"<!ENTITY" in head:
+        raise WorkbookUnreadable("not an .xlsx file")
+    return ET.fromstring(data)  # nosec B314 - DTD and entities refused above, size capped by the caller
+
+
 def _text(node: ET.Element) -> str:
     return "".join(t.text or "" for t in node.iter(f"{{{_MAIN}}}t"))
 
@@ -214,10 +223,10 @@ def read_workbook(data: bytes) -> dict[str, Rows]:
         try:
             shared: list[str] = []
             if "xl/sharedStrings.xml" in names:
-                root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+                root = _parse(archive.read("xl/sharedStrings.xml"))
                 shared = [_text(item) for item in root.findall("m:si", _NS)]
-            workbook = ET.fromstring(archive.read("xl/workbook.xml"))
-            rels = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+            workbook = _parse(archive.read("xl/workbook.xml"))
+            rels = _parse(archive.read("xl/_rels/workbook.xml.rels"))
             targets = {rel.get("Id"): rel.get("Target", "") for rel in rels}
             sheets: dict[str, Rows] = {}
             sheet_list = workbook.find("m:sheets", _NS)
@@ -225,7 +234,7 @@ def read_workbook(data: bytes) -> dict[str, Rows]:
                 target = targets[sheet.get(f"{{{_REL}}}id")].lstrip("/")
                 target = target if target.startswith("xl/") else f"xl/{target}"
                 rows: Rows = []
-                for row in ET.fromstring(archive.read(target)).iter(f"{{{_MAIN}}}row"):
+                for row in _parse(archive.read(target)).iter(f"{{{_MAIN}}}row"):
                     if len(rows) >= MAX_ROWS:
                         raise WorkbookUnreadable("too many rows")
                     cells: dict[int, str | None] = {}

@@ -19,7 +19,29 @@ export interface FallbackSku {
   readonly assumed_cost: number | null;
 }
 
+/** One shipment of samples on the Mẫu KOL sheet (`kol_samples.Shipment.json`). */
+export interface SampleShipment {
+  readonly handle: string;
+  readonly qty: number;
+  /** ISO date. */
+  readonly sent_on: string;
+  readonly ship_fee: number;
+}
+
+/** A KOL × product with samples on record (`overview.samples.items`). */
+export interface SamplePair {
+  readonly scope_ref: string;
+  readonly kol_key: string;
+  readonly handle: string;
+  readonly item_id: string;
+  readonly sku: string;
+  readonly shipments: readonly SampleShipment[];
+  readonly sample_cost: number | null;
+  readonly cost_label: string;
+}
+
 export interface InputsOverview {
+  readonly samples: { readonly pairs: number; readonly shipments: number; readonly items: readonly SamplePair[] };
   readonly catalogue: { readonly sku_rows: number; readonly items: number; readonly with_cost: number };
   readonly cost_fallback: {
     readonly count: number;
@@ -40,7 +62,8 @@ export type RejectionKind =
   | "bad_date"
   | "duplicate_sku"
   | "invalid_value"
-  | "bad_month";
+  | "bad_month"
+  | "kol_missing";
 
 export interface Rejection {
   readonly sheet: string;
@@ -67,6 +90,23 @@ export interface FieldDiff {
   readonly effect: string;
 }
 
+/** One KOL × product whose shipments the Mẫu KOL sheet changes (`_sample_diff_json`). */
+export interface SampleDiff {
+  readonly scope_ref: string;
+  readonly kol_key: string;
+  readonly handle: string;
+  readonly item_id: string;
+  readonly sku: string;
+  readonly tag: "Mới" | "Đổi" | "Xoá" | string;
+  readonly old: readonly SampleShipment[];
+  readonly new: readonly SampleShipment[];
+  readonly old_cost: number | null;
+  readonly new_cost: number | null;
+  readonly cost_label: string;
+  /** "Chi phí mẫu 172.000đ → 221.000đ (giá vốn …)". */
+  readonly effect: string;
+}
+
 export interface GoalWarning {
   readonly month: string;
   readonly message: string;
@@ -80,6 +120,11 @@ export interface ImportPreview {
     readonly sku_rows_valid: number;
     readonly sku_rows_rejected: number;
     readonly sku_rows_unchanged: number;
+    readonly sample_rows: number;
+    readonly sample_rows_valid: number;
+    readonly sample_rows_rejected: number;
+    readonly sample_rows_unchanged: number;
+    readonly samples_changed: number;
     readonly goal_rows: number;
     readonly goal_rows_rejected: number;
     readonly changes: number;
@@ -89,6 +134,7 @@ export interface ImportPreview {
   readonly rejections: readonly Rejection[];
   readonly diffs: readonly FieldDiff[];
   readonly goal_diffs: readonly FieldDiff[];
+  readonly sample_diffs: readonly SampleDiff[];
   readonly warnings: readonly GoalWarning[];
   readonly affected: Affected;
 }
@@ -99,6 +145,7 @@ export interface ApplyResult {
   readonly applied_at: string;
   readonly versions_written: number;
   readonly skus_changed: number;
+  readonly samples_changed: number;
   readonly months_changed: number;
   readonly rejected: number;
   readonly affected: Affected;

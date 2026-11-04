@@ -57,6 +57,7 @@ test.describe("seller: P91", () => {
   });
 
   test("Sản phẩm › Đề xuất lists the queue; 'Tự tạo phương án' compares and saves", async ({ page }) => {
+    test.skip((page.viewportSize()?.width ?? 1000) < 600, "the phone compares as swipe cards (covered below)");
     const posts = await stub(page);
     await page.goto("/san-pham/BEP-S5?tab=dx");
     await expect(page.getByTestId("sp-proposals")).toBeVisible();
