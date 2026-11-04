@@ -108,6 +108,8 @@ BASE_INPUTS = {
     "variation_set": {"set_size": 3},
     "affiliate_commission": {"commission_pct": 6},
     "affiliate_target_campaign": {"commission_pct": 8},
+    "affiliate_sample": {"qty": 2, "commission_pct": 8},
+    "affiliate_invite": {"commission_pct": 8},
 }
 
 

@@ -30,6 +30,7 @@ from juli_backend.services.shopee_profit.shop_profit import ProductProfit
 from juli_backend.services.shopee_recommendations.listing import Listing
 
 if TYPE_CHECKING:
+    from juli_backend.services.shopee_analytics.kol import KolPool
     from juli_backend.services.shopee_analytics.rules_view import ProfitRules
     from juli_backend.services.shopee_recommendations.learning import (
         AcceptanceStats,
@@ -83,6 +84,8 @@ class RecoEnv:
     listings: dict[str, Listing] = field(default_factory=dict)
     #: the seller's "Từ không được dùng" (Quy tắc); the listing proposals never contain one
     banned_terms: tuple[str, ...] = ()
+    #: P91 D-9: the KOL facts the KOL cards forecast from (``kol_cards``); None = not loaded
+    kol: KolPool | None = None
     _floor_cache: dict[str, dict[str, FloorResult]] = field(default_factory=dict, repr=False)
 
     # ------------------------------------------------------------------ rules / targets

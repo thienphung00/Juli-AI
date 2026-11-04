@@ -1304,7 +1304,19 @@ def eval_listing(
 
 # ------------------------------------------------------------------------------ entry
 
+
+def eval_kol(
+    env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
+) -> Evaluation:
+    """P91 D-9: "Gửi mẫu cho KOL" / "Mời KOL"; the model is ``kol_cards``."""
+    from juli_backend.services.shopee_recommendations.kol_cards import evaluation_of
+
+    del predicted
+    return evaluation_of(env, cand, dict(inputs))
+
+
 _EVALUATORS = {
+    "kol": eval_kol,
     "voucher": eval_voucher,
     "price": eval_price,
     "ads": eval_ads,
@@ -1326,7 +1338,7 @@ def evaluator_key(kind: str) -> str:
     if s.family == "ads":
         return "ads"
     if s.family == "affiliate":
-        return "affiliate"
+        return "kol" if kind in ("affiliate_sample", "affiliate_invite") else "affiliate"
     if s.family == "listing":
         return "listing"
     return {"add_on": "add_on", "gift": "gift", "combo_multi": "combo_multi"}.get(kind, "bundle")

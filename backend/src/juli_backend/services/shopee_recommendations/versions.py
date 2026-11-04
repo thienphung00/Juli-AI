@@ -136,6 +136,9 @@ ALTERNATIVES: dict[str, Rule] = {
     "variation_set": _shift("set_size", -1, 1, 2),
     "affiliate_commission": _shift("commission_pct", -2, 2, 5),
     "affiliate_target_campaign": _shift("commission_pct", -2, 2, 5),
+    # P91 D-9: other products are added by ``kol_cards.product_alternatives``; these move the rest
+    "affiliate_sample": _shift("qty", 2, -1),
+    "affiliate_invite": _shift("commission_pct", 2, -2),
 }
 
 
@@ -331,6 +334,10 @@ def _alternative_candidates(
         return _keyword_alternatives(env, cand)
     before = (card.get("change") or {}).get("before") or {}
     out = []
+    if cand.kind in ("affiliate_sample", "affiliate_invite"):
+        from juli_backend.services.shopee_recommendations.kol_cards import product_alternatives
+
+        out = product_alternatives(env, cand)  # P91 D-9: the product pitched is a version axis
     for alt in alternative_inputs(cand.kind, cand.inputs, before):
         out.append((input_label(cand.kind, cand.inputs, alt), replace(cand, inputs=alt)))
     return out

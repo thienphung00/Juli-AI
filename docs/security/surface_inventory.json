@@ -385,6 +385,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/kols",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/shopee/matrix",
       "methods": [
         "GET"
@@ -402,6 +410,14 @@
     },
     {
       "path": "/v1/demo/shopee/products/{item_id}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/products/{item_id}/kols",
       "methods": [
         "GET"
       ],
@@ -1017,6 +1033,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/kols",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/analytics/matrix",
       "methods": [
         "GET"
@@ -1034,6 +1058,14 @@
     },
     {
       "path": "/v1/ops/shops/{shop_id}/shopee/analytics/products/{item_id}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/products/{item_id}/kols",
       "methods": [
         "GET"
       ],

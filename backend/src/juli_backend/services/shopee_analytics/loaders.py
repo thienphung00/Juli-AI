@@ -235,6 +235,11 @@ async def load_order_lines(
             buyer_shipping_fee=r.buyer_shipping_fee,
             bank_promo=r.bank_promo,
             ad_attributed=r.ad_attributed,
+            kol_key=r.kol_key,
+            kol_handle=r.kol_handle,
+            affiliate_channel=r.affiliate_channel,
+            affiliate_campaign_type=r.affiliate_campaign_type,
+            affiliate_mcn=r.affiliate_mcn,
         )
         for r in rows
     ]
@@ -813,6 +818,8 @@ class AffiliatePartner:
     clicks: Decimal
     est_commission: Decimal
     period: tuple[date, date]
+    #: Shopee's own ROI for the creator, as exported (never recomputed); None when absent.
+    roi: Decimal | None = None
 
 
 @dataclass
@@ -820,6 +827,8 @@ class AffiliateLoad:
     partners: list[AffiliatePartner]
     product_commission: dict[str, Decimal]
     choice: PeriodChoice
+    #: item -> (orders, clicks) of the affiliate programme's own product export (P91 D-9).
+    product_stats: dict[str, tuple[Decimal, Decimal]] = field(default_factory=dict)
 
 
 async def load_affiliate(
@@ -845,16 +854,20 @@ async def load_affiliate(
             clicks=_z(p.clicks),
             est_commission=_z((p.extra or {}).get("est_commission")),
             period=_period_key(p),
+            roi=_d((p.extra or {}).get("roi")),
         )
         for p in partners
         if _period_key(p) in chosen
     ]
     pchoice = choose_periods(window, {_period_key(p) for p in products})
     pc: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    stats: dict[str, tuple[Decimal, Decimal]] = {}
     for p in products:
         if _period_key(p) in set(pchoice.periods) and p.item_id:
             pc[p.item_id] += _z((p.extra or {}).get("est_commission"))
-    return AffiliateLoad(out, dict(pc), choice)
+            o, c = stats.get(p.item_id, (ZERO, ZERO))
+            stats[p.item_id] = (o + _z(p.orders), c + _z(p.clicks))
+    return AffiliateLoad(out, dict(pc), choice, stats)
 
 
 async def default_as_of(session: AsyncSession, shop_id: uuid.UUID) -> date | None:

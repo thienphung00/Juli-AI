@@ -9,6 +9,8 @@ request runs under that shop's tenant scope).
 - ``GET /demo/shopee/ranking``   -- a cell's rows (products / campaigns / KOLs / vouchers /
   keywords), ``source`` and ``xep_theo`` parameters, closing rows that add up.
 - ``GET /demo/shopee/products/{item_id}`` -- one product's page payload.
+- ``GET /demo/shopee/kols`` -- Phân tích › KOL: KOL x sản phẩm x kênh (P91 D-9).
+- ``GET /demo/shopee/products/{item_id}/kols`` -- the product's Tiếp thị liên kết tab.
 
 Read-only. A shop that is not on Shopee answers 409 ``not_a_shopee_shop``; a shop without Shopee
 numbers 409 ``no_shopee_data``. The logic is ``services/shopee_analytics``.
@@ -159,5 +161,65 @@ async def shopee_product(
     try:
         body = await queries.product_page(session, shop_id, item_id, period=period, as_of=as_of)
         return await reco.attach_card_refs(session, shop_id, "product", body, audience="seller")
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+# -- KOL (P91 D-9, D-11) -----------------------------------------------------------------
+
+KolSortQ = Annotated[str, Query(pattern="^(net_profit|orders|gmv|roi_incl_samples|commission)$")]
+
+
+@router.get("/kols")
+async def shopee_kols(
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
+    as_of: DateQ = None,
+    channel: Annotated[str | None, Query(max_length=64)] = None,
+    item_id: Annotated[str | None, Query(pattern=r"^[0-9A-Za-z:_\-]{1,64}$")] = None,
+    kol: Annotated[str | None, Query(max_length=120)] = None,
+    sort: KolSortQ = "net_profit",
+    limit: Annotated[int | None, Query(ge=1, le=1000)] = None,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Phân tích › KOL: KOL x sản phẩm x kênh."""
+    shop_id = _shopee(shop)
+    try:
+        body = await queries.kol_table(
+            session,
+            shop_id,
+            channel=channel,
+            item_id=item_id,
+            kol_key=kol,
+            sort=sort,
+            limit=limit,
+            **window_args(period, month, start, end, as_of),
+        )
+        return await reco.attach_kol_cards(session, shop_id, body, audience="seller")
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get("/products/{item_id}/kols")
+async def shopee_product_kols(
+    item_id: Annotated[str, Path(pattern=r"^[0-9A-Za-z:_\-]{1,64}$")],
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
+    as_of: DateQ = None,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Sản phẩm › Tiếp thị liên kết: the product's KOLs."""
+    shop_id = _shopee(shop)
+    try:
+        body = await queries.kol_product_tab(
+            session, shop_id, item_id, **window_args(period, month, start, end, as_of)
+        )
+        return await reco.attach_kol_cards(session, shop_id, body, audience="seller")
     except REFUSALS as exc:
         raise refusal(exc) from None

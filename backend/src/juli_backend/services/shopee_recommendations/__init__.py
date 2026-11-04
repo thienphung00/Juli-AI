@@ -9,6 +9,7 @@ flags the recommendations it affects.
 from __future__ import annotations
 
 from juli_backend.services.shop_inputs.affected import register_recompute_hook
+from juli_backend.services.shopee_recommendations.kol_cards import attach_kol_cards
 from juli_backend.services.shopee_recommendations.measure import (
     apply_backfill,
     backfill_natural,
@@ -53,6 +54,7 @@ __all__ = [
     "SimPriors",
     "apply_backfill",
     "attach_card_refs",
+    "attach_kol_cards",
     "backfill_codes",
     "backfill_natural",
     "card_by_code",
