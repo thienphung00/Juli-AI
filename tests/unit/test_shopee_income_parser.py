@@ -163,7 +163,8 @@ def test_an_unknown_header_stops_before_any_value_is_read(tmp_path):
     with pytest.raises(parse.UnknownColumn, match="Email người mua") as stopped:
         _scenario(tmp_path, header=[*HEADER, "Email người mua"])
         parse.parse_folder(tmp_path, order_ref_key=KEY)
-    assert not any(c in str(stopped.value) for c in CANARIES)
+    for canary in CANARIES:
+        assert canary not in str(stopped.value)
 
 
 def test_a_missing_required_header_stops_the_load(tmp_path):
