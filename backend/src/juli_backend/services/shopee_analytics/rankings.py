@@ -35,7 +35,7 @@ from juli_backend.services.shop_diagnosis.confidence import Confidence, volume_l
 from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num
-from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN
+from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN, product_totals_for
 from juli_backend.services.shopee_profit.flows import Flow, FlowSource
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.sources import CellStats
@@ -176,7 +176,7 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
             fig.gmv or ZERO, ZERO, None, ZERO, spend=fig.spend, extra={"direct_gmv": fig.direct_gmv}
         )
     # all
-    shopee = view.data.product_flows.totals.get(pid)
+    shopee = product_totals_for(view.data.product_flows, view.data.lines).get(pid)
     gmv = shopee[0] if shopee else sum((ln.order_value for ln, _ in pairs), ZERO)
     orders = Decimal(shopee[1]) if shopee else Decimal(len({ln.order_id for ln, _ in pairs}))
     if gmv == 0 and orders == 0 and pp is None:

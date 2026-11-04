@@ -8,10 +8,12 @@ bases and are never mixed into one total: each block states its own basis.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num, pct, ratio
+from juli_backend.services.shopee_analytics.loaders import product_totals_for
 from juli_backend.services.shopee_analytics.overview import CHILD_LABELS, LEVER_LABELS
 from juli_backend.services.shopee_analytics.shared import (
     cell_json,
@@ -87,7 +89,7 @@ def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
     total = view.matrix.totals.get(product_id)
     flows = view.flows.products.get(product_id) if view.flows else None
     pf = view.data.product_flows
-    shopee_total = pf.totals.get(product_id)
+    shopee_total = product_totals_for(pf, view.data.lines).get(product_id)
     gmv = shopee_total[0] if shopee_total else (total.gmv if total else None)
     return {
         "product_id": product_id,
@@ -152,6 +154,7 @@ def build_matrix(
     rows = [r for r in rows if (r["gmv"] or 0) > 0 or r["ads"]["spend"]]
     rows.sort(key=lambda r: _sort_key(sort, r))
     total = len(rows)
+    sum_gmv = sum((Decimal(str(r["gmv"] or 0)) for r in rows), ZERO)
     if limit is not None:
         rows = rows[:limit]
     if before is not None:
@@ -166,11 +169,10 @@ def build_matrix(
         "product_count": total,
         "ads_basis": ADS_BASIS,
         "sums": {
-            "gmv_shopee_products": num(
-                sum((g for g, _ in view.data.product_flows.totals.values()), ZERO)
-            ),
+            "gmv_shopee_products": num(sum_gmv),
             "gmv_shop": num(view.shop_gmv),
-            "note": "Σ GMV sản phẩm khớp Doanh số shop khi file sản phẩm đúng kỳ; phần lệch hiện "
+            "note": "Σ GMV sản phẩm khớp Doanh số shop khi file sản phẩm đúng kỳ (không thì lấy từ "
+            "dòng đơn hàng); phần lệch hiện "
             "ở dòng Chênh lệch nguồn.",
         },
     }

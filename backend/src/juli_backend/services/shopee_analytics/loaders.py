@@ -207,6 +207,16 @@ class OrderLinesLoad:
         b = self.export_bounds
         return b is not None and b[0] <= self.window.start and self.window.end <= b[1]
 
+    @property
+    def covered_days(self) -> int:
+        """Days of the window the order export speaks for: its span clipped to the window
+        (a day with no orders inside the span still counts), else the days that have lines."""
+        b = self.export_bounds
+        if b is None:
+            return self.days_with_orders
+        lo, hi = max(b[0], self.window.start), min(b[1], self.window.end)
+        return max((hi - lo).days + 1, 0) if lo <= hi else 0
+
 
 async def load_order_lines(
     session: AsyncSession, shop_id: uuid.UUID, window: Window
@@ -473,6 +483,17 @@ class ProductFlows:
     flows_basis: PeriodChoice
     totals_basis: PeriodChoice
     source: str  # item_traffic_sources | item_by_source_period | none
+
+
+def product_totals_for(pf: ProductFlows, lines: OrderLinesLoad) -> dict[str, tuple[Decimal, int]]:
+    """Shopee's per-product (Doanh số, orders) when they can stand for the window, else {}.
+
+    The product-period figures are used only when they cover at least as many days of the window
+    as the order lines do; a 3-day connector pull must not outrank 24 days of order lines (it
+    understated GMV 3.5x). Complete file periods cover the window and keep winning."""
+    if not pf.totals:
+        return {}
+    return pf.totals if pf.totals_basis.covered_days >= lines.covered_days else {}
 
 
 def _period_key(p: Any) -> tuple[date, date]:
