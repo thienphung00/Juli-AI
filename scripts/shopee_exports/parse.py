@@ -105,6 +105,8 @@ class Parsed:
     skipped_reasons: dict[str, str] = field(default_factory=dict)
     #: (file, reason) for rows / cards deliberately not loaded.
     notes: Counter[str] = field(default_factory=Counter)
+    #: The income exports as read (``income.IncomeFile``): kept for the loader's reconciliation.
+    income_files: list[Any] = field(default_factory=list)
 
 
 # -- values ------------------------------------------------------------------------------
@@ -1998,6 +2000,16 @@ def parse_order_export(path: Path, parsed: Parsed) -> None:
     run(path, parsed)
 
 
+# -- income export ---------------------------------------------------------------------------
+
+
+def parse_income_export(path: Path, parsed: Parsed) -> None:
+    """The income export (Tài chính › Doanh thu); all the work is in ``income.py``."""
+    from scripts.shopee_exports.income import parse_income_export as run
+
+    run(path, parsed)
+
+
 # -- in-shop flash sale metrics ----------------------------------------------------------
 
 FLASH_METRIC_SHEETS = ("Tổng quan", "Chỉ Số")
@@ -2102,6 +2114,7 @@ PARSERS: tuple[tuple[re.Pattern[str], Any], ...] = (
     ),
     (re.compile(r"^ops_log_[^/]+\.csv$", re.I), parse_ops_log),
     (re.compile(rf"^Order\.all\.\d{{8}}_\d{{8}}{_COPY}\.xlsx$"), parse_order_export),
+    (re.compile(rf"^Income\.T\d{{1,2}}\.\d{{8}}_\d{{8}}{_COPY}\.xlsx$"), parse_income_export),
     (
         re.compile(rf"^In_Shop_Flash_Sale_Metrics_\d{{8}}-\d{{8}}{_COPY}\.xlsx$", re.I),
         parse_flash_sale_metrics,

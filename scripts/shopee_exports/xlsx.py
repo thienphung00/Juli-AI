@@ -126,11 +126,21 @@ def _needed_strings(archive: zipfile.ZipFile, wanted: set[int]) -> dict[int, str
 
 
 def read_columns(
-    path: Path, sheet: str, choose: Callable[[list[str]], Iterable[int]]
+    path: Path,
+    sheet: str,
+    choose: Callable[[list[str]], Iterable[int]],
+    *,
+    header_marker: str | None = None,
+    max_header_rows: int = 8,
 ) -> ColumnRead:
     """Read ``sheet`` with its FIRST row as the header. ``choose(header)`` returns the header
     indexes whose values may be read (and may raise to stop the load); every other cell is
-    never decoded. Cells of unchosen columns are not touched."""
+    never decoded. Cells of unchosen columns are not touched.
+
+    ``header_marker``: the header is the first of the first ``max_header_rows`` rows that has a
+    cell equal to this text (a sheet with group-title rows above its column names, e.g. the
+    income export's three header rows). Rows above it are read as text only to find it; if none
+    matches, ``ValueError`` is raised and no data row was kept."""
     with zipfile.ZipFile(path) as archive:
         target = _sheet_target(archive, sheet)
         header: list[str] = []
@@ -138,6 +148,7 @@ def read_columns(
         raw_rows: list[dict[int, tuple[str | None, str | None]]] = []
         read: set[int] = set()
         wanted: set[int] = set()
+        scanned = 0
         with archive.open(target) as handle:
             for _, node in ET.iterparse(handle):
                 if node.tag != f"{{{_MAIN}}}row":
@@ -145,6 +156,9 @@ def read_columns(
                 if not header:
                     # Header cells are names, not data: all of them are read.
                     cells = {i: _raw(c) for i, c in _cells(node)}
+                    if not cells:
+                        node.clear()
+                        continue
                     shared = {int(t) for k, t in cells.values() if k == "s" and t is not None}
                     names = _needed_strings(archive, shared)
                     header = [
@@ -153,6 +167,13 @@ def read_columns(
                         for k, t in [cells.get(i, (None, None))]
                     ]
                     if not header:
+                        node.clear()
+                        continue
+                    if header_marker is not None and header_marker not in header:
+                        scanned += 1
+                        header = []
+                        if scanned >= max_header_rows:
+                            raise ValueError(f"no header row with {header_marker!r}")
                         node.clear()
                         continue
                     chosen = set(choose(header))
@@ -177,3 +198,38 @@ def read_columns(
             }
         )
     return ColumnRead(header=header, rows=rows, value_columns_read=read)
+
+
+def read_cells(
+    path: Path, sheet: str, columns: Iterable[int], *, first_row: int = 0
+) -> list[dict[int, str | None]]:
+    """Cells of the given column indexes from row ``first_row`` (0-based, counted over the
+    sheet's row elements) on; every other cell is never decoded. For a sheet that is not a
+    table (the income export's ``Summary``): the caller names the columns it needs and so never
+    touches the rest, such as the seller's account lines."""
+    wanted_columns = set(columns)
+    raw_rows: list[dict[int, tuple[str | None, str | None]]] = []
+    needed: set[int] = set()
+    with zipfile.ZipFile(path) as archive:
+        target = _sheet_target(archive, sheet)
+        ordinal = -1
+        with archive.open(target) as handle:
+            for _, node in ET.iterparse(handle):
+                if node.tag != f"{{{_MAIN}}}row":
+                    continue
+                ordinal += 1
+                if ordinal >= first_row:
+                    row: dict[int, tuple[str | None, str | None]] = {}
+                    for index, cell in _cells(node):
+                        if index in wanted_columns:
+                            kind, text = _raw(cell)
+                            row[index] = (kind, text)
+                            if kind == "s" and text is not None:
+                                needed.add(int(text))
+                    raw_rows.append(row)
+                node.clear()
+        strings = _needed_strings(archive, needed)
+    return [
+        {i: (strings.get(int(t)) if k == "s" and t is not None else t) for i, (k, t) in row.items()}
+        for row in raw_rows
+    ]

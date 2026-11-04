@@ -116,6 +116,9 @@ CANARY_TRACKING = "CANARY-SPXVN0123456789"
 CANARY_PACKAGE = "CANARY-PKG-77"
 CANARY_NOTE = "CANARY-ghi-chu-noi-bo"
 CANARY_PRODUCT_NAME = "CANARY-ten-san-pham-bi-mat"
+#: The variation's name is a product attribute (P91 D-12): not buyer data, and it does reach the
+#: posted line (the only way to tell "Combo 3 hộp" from "Combo 10 hộp" when they share a SKU).
+VARIATION_NAME = "Combo 3 hộp"
 ORDER_A = "2610AAAAAA0001"
 ORDER_B = "2610BBBBBB0002"
 ORDER_C = "2610CCCCCC0003"
@@ -156,7 +159,7 @@ def _line(order_id: str, **over: str) -> dict[str, str]:
             "SKU sản phẩm": "SKU-A",
             "Tên sản phẩm": CANARY_PRODUCT_NAME,
             "SKU phân loại hàng": "SKU-A-1",
-            "Tên phân loại hàng": CANARY_PRODUCT_NAME,
+            "Tên phân loại hàng": VARIATION_NAME,
             "Giá gốc": "100000.00",
             "Giá ưu đãi": "90000.00",
             "Số lượng": "1",
@@ -286,6 +289,10 @@ def test_no_canary_in_any_post_summary_note_or_error(tmp_path):
         assert canary not in everything
     assert [p.dataset for p in parsed.posts] == ["order_lines"]
     assert parsed.notes["Order.all.20261001_20261031.xlsx: order lines read"] == 2
+    # the variation name reaches the posted lines, in a pass of its own: the main pass still
+    # never decodes the column (the browser parser's parity fixture is unchanged)
+    assert all(r["variation_name"] == VARIATION_NAME for r in parsed.posts[0].body["rows"])
+    assert "Tên phân loại hàng" not in orders.read_order_export(path, KEY).value_columns_read
 
 
 def test_an_error_names_a_column_never_a_cell_value(tmp_path):
@@ -948,3 +955,39 @@ def test_the_browser_parity_fixture_matches_this_parser():
     dumped = json.dumps(golden, ensure_ascii=False)
     for canary in (*CANARIES, "P-0001", "P-0002"):
         assert canary not in dumped
+
+
+# ------------------------------------------------------------ variation names (P91 D-12)
+
+
+def test_variations_that_share_a_sku_keep_their_own_names(tmp_path):
+    rows = [
+        _line(ORDER_A, **{"Tên phân loại hàng": "Combo 3 hộp", "Giá gốc": "300000.00"}),
+        _line(ORDER_A, **{"Tên phân loại hàng": "Combo 10 hộp", "Giá gốc": "900000.00"}),
+        _line(ORDER_B, **{"Tên phân loại hàng": "Combo 10 hộp", "Giá gốc": "900000.00"}),
+    ]
+    _workbook(tmp_path, rows)
+    parsed = parse.parse_folder(tmp_path, order_ref_key=KEY)
+    posted = parsed.posts[0].body["rows"]
+    by_price = {(r["order_ref"], r["original_price"]): r["variation_name"] for r in posted}
+    assert by_price[(parse.order_ref(ORDER_A, KEY), 300000)] == "Combo 3 hộp"
+    assert by_price[(parse.order_ref(ORDER_A, KEY), 900000)] == "Combo 10 hộp"
+    assert by_price[(parse.order_ref(ORDER_B, KEY), 900000)] == "Combo 10 hộp"
+    assert parsed.notes["Order.all.20261001_20261031.xlsx: order lines with a variation name"] == 3
+
+
+def test_twin_lines_take_their_names_in_line_order(tmp_path):
+    twins = [
+        _line(ORDER_A, **{"Tên phân loại hàng": "Combo 3 hộp"}),
+        _line(ORDER_A, **{"Tên phân loại hàng": "Combo 5 hộp"}),
+    ]
+    _workbook(tmp_path, twins)
+    posted = parse.parse_folder(tmp_path, order_ref_key=KEY).posts[0].body["rows"]
+    assert sorted(r["variation_name"] for r in posted) == ["Combo 3 hộp", "Combo 5 hộp"]
+    assert sorted(r["line_no"] for r in posted) == [0, 1]
+
+
+def test_a_line_without_a_variation_name_posts_none(tmp_path):
+    _workbook(tmp_path, [_line(ORDER_A, **{"Tên phân loại hàng": ""})])
+    posted = parse.parse_folder(tmp_path, order_ref_key=KEY).posts[0].body["rows"]
+    assert "variation_name" not in posted[0]

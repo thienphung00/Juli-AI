@@ -25,7 +25,17 @@ then mark the matching lines. Order ids are hashed with the shop's key when
 the browser and this loader agree on an order), else with ``JULI_ORDER_REF_KEY``, else a random
 run-local key.
 
-The summary prints counts per dataset, never values.
+The income export (``Income.T<m>.<from>_<to>.xlsx``, Tài chính › Doanh thu) is read through
+``scripts/shopee_exports/income.py`` (the buyer's name and payment method, the invoice tax code,
+product names and voucher text are never decoded) and posted as ``order_income``: what Shopee
+actually charged and paid per order, keyed by the same hashed order id as the order lines. After
+the summary the loader prints, per income file, how many of its orders match an order line (the
+ones of this folder, plus the shop's stored ones with ``--database-url``) and how many do not, and
+the month's reconciliation: the sum of the Order rows against the file's own Summary sheet,
+line by line.
+
+The summary prints counts per dataset, never values (the income reconciliation prints the
+month's totals - shop aggregates, not an order).
 """
 
 from __future__ import annotations
@@ -89,6 +99,75 @@ def summary(parsed: Parsed) -> str:
     for note, count in sorted(parsed.notes.items()):
         lines.append(f"note: {note} x{count}")
     return "\n".join(lines)
+
+
+def income_report(parsed: Parsed, stored_refs: set[str] | None = None) -> str:
+    """Per income file: orders matched to order lines vs unmatched, and the monthly totals of
+    the Order rows against the Summary sheet. ``stored_refs``: order refs already in the shop's
+    database (None = not looked up, only this run's order exports count)."""
+    if not parsed.income_files:
+        return ""
+    known = {
+        row["order_ref"]
+        for post in parsed.posts
+        if post.dataset == "order_lines"
+        for row in post.body["rows"]
+    } | (stored_refs or set())
+    scope = "this folder's order exports" + (" and the database" if stored_refs is not None else "")
+    lines = [f"income orders vs order lines ({scope}):"]
+    for income in parsed.income_files:
+        refs = income.refs
+        matched = len(refs & known)
+        share = f"{matched / len(refs) * 100:.1f}%" if refs else "n/a"
+        lines.append(
+            f"  {income.file}: {len(refs)} orders, {matched} matched ({share}), "
+            f"{len(refs) - matched} not in the order lines"
+        )
+        lines.append(
+            f"    payout = sum of parts on {len(refs) - income.unreconciled}/{len(refs)} orders"
+        )
+        off = [r for r in income.recon if r.diff != 0]
+        lines.append(
+            f"    Summary reconciliation: {len(income.recon) - len(off)}/{len(income.recon)} "
+            "lines add up"
+        )
+        for row in off:
+            lines.append(
+                f"      DIFF {row.label}: Summary {row.summary} vs orders {row.orders} "
+                f"({row.diff:+})"
+            )
+    return "\n".join(lines)
+
+
+async def stored_order_refs(database_url: str, shop_id: uuid.UUID, refs: set[str]) -> set[str]:
+    """Which of ``refs`` already have an order line in the shop's (local) database."""
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from juli_backend.core.config.runtime import async_database_url
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.models.shopee_profit import ShopeeOrderLine
+
+    engine = create_async_engine(async_database_url(database_url))
+    found: set[str] = set()
+    try:
+        ordered = sorted(refs)
+        async with async_sessionmaker(engine, expire_on_commit=False)() as session:
+            async with with_shop_scope(session, shop_id):
+                for start in range(0, len(ordered), 1000):
+                    part = ordered[start : start + 1000]
+                    rows = await session.execute(
+                        select(ShopeeOrderLine.order_ref)
+                        .where(
+                            ShopeeOrderLine.shop_id == shop_id,
+                            ShopeeOrderLine.order_ref.in_(part),
+                        )
+                        .distinct()
+                    )
+                    found.update(rows.scalars())
+    finally:
+        await engine.dispose()
+    return found
 
 
 def _shop_order_ref_key(shop_id: uuid.UUID | None) -> bytes | None:
@@ -279,6 +358,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.only:
         parsed.posts = [post for post in parsed.posts if post.dataset in args.only]
     print(summary(parsed))
+    stored: set[str] | None = None
+    if parsed.income_files and args.database_url and args.shop_id:
+        _require_local(args.database_url, args.allow_remote_database)
+        income_refs = set().union(*(f.refs for f in parsed.income_files))
+        stored = asyncio.run(stored_order_refs(args.database_url, args.shop_id, income_refs))
+    print(income_report(parsed, stored))
     problems = validate(parsed, datetime.now(UTC).replace(tzinfo=None))
     if problems:
         print(f"{len(problems)} post(s) the gateway would refuse:", file=sys.stderr)
