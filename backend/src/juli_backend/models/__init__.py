@@ -79,6 +79,7 @@ from juli_backend.models.shop_keywords import ShopKeywordSeed
 from juli_backend.models.shop_proposals import (
     ShopProposal,
     ShopProposalApproval,
+    ShopProposalCodeCounter,
     ShopProposalExecution,
     ShopProposalResult,
 )
@@ -159,6 +160,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopProposalApproval,
     ShopProposalExecution,
     ShopProposalResult,
+    ShopProposalCodeCounter,
     MarketKeywordMetric,
     ShopKeywordSeed,
     ShopRuleVersion,

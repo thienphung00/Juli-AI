@@ -65,7 +65,7 @@ def test_migration_109_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # Migration 110 (Ops shop platform) went on 109 and took the deferred tail.
     later = (MIGRATIONS / "versions/110_ops_shop_platform.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "115_shopee_recommendations"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "116_shopee_reco_codes"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_109_and_its_upgrade_only_adds():
@@ -109,7 +109,11 @@ def test_migration_vocabularies_match_the_models():
 @pytest.mark.parametrize("model", MODELS, ids=lambda m: m.__tablename__)
 def test_every_model_column_is_created_by_the_migration(model):
     source = MIGRATION.read_text("utf-8")
+    # P91 migration 116 added these two to shop_proposals (tested in test_shopee_reco_p91.py)
+    later = {"code", "product_queue"} if model.__tablename__ == "shop_proposals" else set()
     for column in model.__table__.columns.keys():
+        if column in later:
+            continue
         assert f'sa.Column("{column}"' in source, f"{model.__tablename__}.{column}"
 
 
