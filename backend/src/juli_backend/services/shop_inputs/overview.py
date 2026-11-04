@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.run_changes import ShopRuleVersion
+from juli_backend.services.shop_inputs import kol_samples
 from juli_backend.services.shop_inputs.catalogue import (
     load_catalogue,
     load_current,
@@ -38,7 +39,31 @@ async def build_overview(session: AsyncSession, shop_id: uuid.UUID) -> dict[str,
         for s in catalogue
         if "sku_cost" in current.per_sku.get(s.scope, {}) or s.item_id in current.product_cost
     )
+    sent = await kol_samples.load_samples(session, shop_id)
+    by_scope = {c.scope: c for c in catalogue}
+    samples = []
+    for (key, sku_scope), shipments in sorted(sent.items()):
+        sku = by_scope.get(sku_scope)
+        unit = kol_samples.unit_cost_from_inputs(current, sku, sku_scope, split_scope(sku_scope)[0])
+        cost = kol_samples.sample_cost(shipments, unit)
+        samples.append(
+            {
+                "scope_ref": kol_samples.scope_ref(key, sku_scope),
+                "kol_key": key,
+                "handle": shipments[0].handle,
+                "item_id": split_scope(sku_scope)[0],
+                "sku": (sku.sku if sku and sku.sku else sku_scope),
+                "shipments": [sh.json() for sh in shipments],
+                "sample_cost": _number(cost),
+                "cost_label": unit.label if unit else "chưa có giá vốn",
+            }
+        )
     return {
+        "samples": {
+            "pairs": len(samples),
+            "shipments": sum(len(x["shipments"]) for x in samples),
+            "items": samples[:MAX_FALLBACK_ROWS],
+        },
         "catalogue": {
             "sku_rows": len(catalogue),
             "items": len({s.item_id for s in catalogue}),

@@ -16,7 +16,7 @@ from sqlalchemy import select
 
 from juli_backend.models.ops import OpsAuditLog
 from juli_backend.models.run_changes import ShopRuleVersion
-from juli_backend.services.shop_inputs import xlsx_io
+from juli_backend.services.shop_inputs import kol_samples, xlsx_io
 from tests.support.api import authenticated_client, client_for
 from tests.support.builders import make_tenant
 from tests.support.shop_inputs import COL, edit_workbook, find_row, seed_catalogue, sheet_rows
@@ -78,7 +78,7 @@ async def test_the_overview_and_the_template_download(session, tenant):
     assert "attachment" in response.headers["content-disposition"]
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-sku-rows"] == "5"
-    assert list(xlsx_io.read_workbook(response.content)) == ["SKU", "Mục tiêu"]
+    assert list(xlsx_io.read_workbook(response.content)) == ["SKU", "Mục tiêu", "Mẫu KOL"]
 
 
 async def test_preview_then_apply_then_versions_then_restore(session, tenant):
@@ -299,3 +299,56 @@ async def test_an_ops_request_for_an_unknown_shop_is_404(session, monkeypatch):
         response = await client.get(f"/v1/ops/shops/{uuid.uuid4()}/inputs")
     app.dependency_overrides.clear()
     assert response.status_code == 404
+
+
+# =========================================================================== Mẫu KOL (P91 D-9)
+
+
+def _with_samples(template: bytes, rows: list[list[object]]) -> bytes:
+    header = [h for h, _, _ in kol_samples.SAMPLE_COLUMNS]
+    sheets = xlsx_io.read_workbook(template)
+    return xlsx_io.write_workbook(
+        [xlsx_io.SheetSpec(n, [header, *rows] if n == "Mẫu KOL" else g) for n, g in sheets.items()]
+    )
+
+
+async def test_the_sample_sheet_previews_applies_lists_versions_and_restores(session, tenant):
+    owner, shop = tenant
+    async with authenticated_client(session, user=owner, shop=shop) as client:
+        template = await _seller_template(client)
+        first = _with_samples(template, [["kol_alpha", "GL-001", 3, "02/11/2026", 25000, ""]])
+        preview = (
+            await client.post("/v1/demo/shop-inputs/preview", json={"file_b64": _b64(first)})
+        ).json()["data"]
+        assert preview["counts"]["samples_changed"] == 1 and preview["counts"]["changes"] == 1
+        (diff,) = preview["sample_diffs"]
+        assert diff["tag"] == "Mới" and diff["new"][0]["qty"] == 3 and diff["new_cost"] > 0
+        applied = await client.post(
+            "/v1/demo/shop-inputs/apply",
+            json={"file_b64": _b64(first), "reason": "Gửi mẫu đợt 1"},
+        )
+        assert applied.status_code == 200, applied.text
+        assert applied.json()["data"]["samples_changed"] == 1
+        second = _with_samples(template, [["kol_alpha", "GL-001", 5, "02/11/2026", 25000, ""]])
+        await client.post(
+            "/v1/demo/shop-inputs/apply", json={"file_b64": _b64(second), "reason": "Sửa số lượng"}
+        )
+        scope = diff["scope_ref"]
+        versions = (
+            await client.get("/v1/demo/shop-inputs/versions", params={"scope_ref": scope})
+        ).json()["data"]
+        assert [(v["id"], v["current"]) for v in versions["versions"]] == [
+            ("v2", True),
+            ("v1", False),
+        ]
+        restored = await client.post(
+            "/v1/demo/shop-inputs/restore", json={"scope_ref": scope, "version": 1}
+        )
+        assert restored.status_code == 200, restored.text
+        assert restored.json()["data"]["new_version"] == "v3"
+        again = await client.post(
+            "/v1/demo/shop-inputs/restore", json={"scope_ref": scope, "version": 3}
+        )
+        assert again.status_code == 409
+        overview = (await client.get("/v1/demo/shop-inputs")).json()["data"]
+        assert overview["samples"]["items"][0]["shipments"][0]["qty"] == 3

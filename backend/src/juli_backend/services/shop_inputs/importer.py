@@ -26,7 +26,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.services.shop_inputs import xlsx_io
+from juli_backend.services.shop_inputs import kol_samples, xlsx_io
 from juli_backend.services.shop_inputs.affected import (
     STALE_REASON,
     AffectedRecommendations,
@@ -59,6 +59,7 @@ from juli_backend.services.shop_inputs.versions import (
     write_versions,
 )
 from juli_backend.services.shop_rules.rules import (
+    KOL_SAMPLE,
     MONTHLY_AOV,
     MONTHLY_GMV,
     MONTHLY_MARGIN_PCT,
@@ -87,6 +88,7 @@ KIND_LABELS: dict[str, str] = {
     "duplicate_sku": "Trùng SKU",
     "invalid_value": "Giá trị sai",
     "bad_month": "Tháng sai",
+    "kol_missing": "Thiếu KOL",
 }
 FIELD_LABELS: dict[str, str] = {
     "cost": "Giá vốn",
@@ -182,6 +184,10 @@ class ImportPreview:
     sku_rows: int = 0
     sku_rows_rejected: int = 0
     sku_rows_unchanged: int = 0
+    sample_rows: int = 0
+    sample_rows_rejected: int = 0
+    sample_rows_unchanged: int = 0
+    sample_diffs: list[kol_samples.SampleDiff] = field(default_factory=list)
     goal_rows: int = 0
     goal_rows_rejected: int = 0
     rejections: list[Rejection] = field(default_factory=list)
@@ -197,6 +203,17 @@ class ImportPreview:
     @property
     def changed_scopes(self) -> list[str]:
         return sorted({d.scope_ref for d in self.diffs})
+
+    @property
+    def sample_rows_valid(self) -> int:
+        return self.sample_rows - self.sample_rows_rejected
+
+    @property
+    def changed_item_ids(self) -> list[str]:
+        """Items whose open recommendations a valid change re-runs (SKU rows and samples)."""
+        items = {split_scope(s)[0] for s in self.changed_scopes}
+        items |= {d.item_id for d in self.sample_diffs}
+        return sorted(items)
 
     @property
     def changed_months(self) -> list[str]:
@@ -374,6 +391,7 @@ def _margin_text(price: Decimal, cost: Decimal) -> str:
 class _SkuContext:
     catalogue: dict[tuple[str, str], CatalogueSku]
     current: CurrentInputs
+    samples: dict[tuple[str, str], list[kol_samples.Shipment]] = field(default_factory=dict)
 
 
 def _reject(
@@ -612,6 +630,228 @@ def _column_title(field_key: str) -> str:
     return field_key
 
 
+# -- Mẫu KOL sheet ------------------------------------------------------------------------
+
+_SAMPLE_HEADERS: dict[str, tuple[str, ...]] = {
+    "kol": ("KOL (tay cầm)", "KOL", "tay cầm"),
+    "product": ("Sản phẩm (mã SP hoặc SKU)", "Sản phẩm", "SKU"),
+    "qty": ("Số lượng mẫu", "số lượng"),
+    "sent_on": ("Ngày gửi",),
+    "ship_fee": ("Phí ship gửi mẫu", "Phí ship"),
+    "note": ("Ghi chú",),
+}
+
+
+def _find_product(ctx: _SkuContext, text: str) -> CatalogueSku | None:
+    """A product cell: ``item_id``, ``item_id:variation_id``, or a seller SKU."""
+    cleaned = _id_text(text)
+    if (cleaned, "") in ctx.catalogue:
+        return ctx.catalogue[(cleaned, "")]
+    item_id, _, variation_id = cleaned.partition(":")
+    if variation_id and (item_id, variation_id) in ctx.catalogue:
+        return ctx.catalogue[(item_id, variation_id)]
+    wanted = cleaned.casefold()
+    by_sku = [s for s in ctx.catalogue.values() if s.sku and s.sku.casefold() == wanted]
+    if by_sku:
+        return by_sku[0]
+    holders = sorted(k for k in ctx.catalogue if k[0] == cleaned)
+    if holders:  # an item with variations named by its id: the item-level scope
+        return CatalogueSku(
+            cleaned, "", "", ctx.catalogue[holders[0]].name.split(" · ")[0], None, None
+        )
+    return None
+
+
+def _check_sample_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: ImportPreview) -> None:
+    if not rows:
+        return
+    header = _header_map(rows[0], _SAMPLE_HEADERS)
+    missing = [k for k in ("kol", "product") if k not in header]
+    if missing:
+        names = {"kol": "KOL", "product": "Sản phẩm"}
+        raise ImportFileError("Trang Mẫu KOL thiếu cột: " + ", ".join(names[k] for k in missing))
+    sheet = kol_samples.SAMPLE_SHEET
+
+    # pair -> shipments from valid rows; pairs with any rejected row are left untouched.
+    shipments: dict[tuple[str, str], list[kol_samples.Shipment]] = {}
+    rejected_pairs: set[tuple[str, str]] = set()
+    meta: dict[tuple[str, str], tuple[str, CatalogueSku, str]] = {}
+    cleared: set[tuple[str, str]] = set()
+    seen: Counter[tuple[str, str, date]] = Counter()
+    for index, row in enumerate(rows[1:], start=2):
+        cells = [(c or "").strip() for c in row]
+        if not any(cells) or not any(cells[1:]):
+            continue  # blank line, or a note line (first cell only)
+        kol_text = _cell(row, header["kol"]).lstrip("@").strip()
+        product_text = _cell(row, header["product"])
+        qty_text = _cell(row, header.get("qty"))
+        date_text = _cell(row, header.get("sent_on"))
+        fee_text = _cell(row, header.get("ship_fee"))
+        if not qty_text and not date_text and not fee_text:
+            continue  # "chưa gửi mẫu": a listing row with nothing sent
+        out.sample_rows += 1
+        label = kol_text or product_text
+        rejections: list[Rejection] = []
+        if not kol_text or len(kol_text) > 120:
+            _reject(
+                rejections,
+                sheet,
+                index,
+                label,
+                "KOL (tay cầm)",
+                kol_text,
+                "Cần tay cầm công khai của KOL (tối đa 120 ký tự).",
+                "kol_missing",
+            )
+        known = _find_product(ctx, product_text) if product_text else None
+        if known is None:
+            _reject(
+                rejections,
+                sheet,
+                index,
+                label,
+                "Sản phẩm",
+                product_text,
+                "Không có mã sản phẩm hoặc SKU này trong shop.",
+                "unknown_sku",
+            )
+        qty = 0
+        if not qty_text:
+            _reject(
+                rejections,
+                sheet,
+                index,
+                label,
+                "Số lượng mẫu",
+                "",
+                "Có ngày hoặc phí ship nhưng thiếu số lượng mẫu.",
+                "invalid_value",
+            )
+        else:
+            try:
+                number = parse_number(qty_text)
+                if number != number.to_integral_value() or number < 0:
+                    raise ValueError(qty_text)
+                if number > 10_000:
+                    _reject(
+                        rejections,
+                        sheet,
+                        index,
+                        label,
+                        "Số lượng mẫu",
+                        qty_text,
+                        "Số lượng mẫu tối đa 10.000.",
+                        "out_of_range",
+                    )
+                qty = int(number)
+            except ValueError:
+                _reject(
+                    rejections,
+                    sheet,
+                    index,
+                    label,
+                    "Số lượng mẫu",
+                    qty_text,
+                    "Số lượng mẫu phải là số nguyên từ 0 trở lên.",
+                    "invalid_value",
+                )
+        sent_on: date | None = None
+        if qty > 0 or date_text:
+            try:
+                sent_on = parse_date(date_text) if date_text else None
+            except ValueError:
+                sent_on = None
+            if sent_on is None:
+                _reject(
+                    rejections,
+                    sheet,
+                    index,
+                    label,
+                    "Ngày gửi",
+                    date_text,
+                    "Ngày gửi không đọc được. Dùng dd/mm/yyyy."
+                    if date_text
+                    else "Cần ngày gửi để đo trước và sau khi gửi.",
+                    "bad_date",
+                )
+        fee = Decimal(0)
+        if fee_text:
+            try:
+                fee = parse_number(fee_text)
+                if fee < 0:
+                    raise ValueError(fee_text)
+            except ValueError:
+                _reject(
+                    rejections,
+                    sheet,
+                    index,
+                    label,
+                    "Phí ship gửi mẫu",
+                    fee_text,
+                    "Phí ship phải là số từ 0 trở lên.",
+                    "invalid_value",
+                )
+        if known is None or not kol_text:
+            pair = ("", product_text)
+        else:
+            pair = (kol_samples.make_key(kol_text), known.scope)
+        if not rejections and sent_on is not None and qty > 0:
+            seen[(pair[0], pair[1], sent_on)] += 1
+            if seen[(pair[0], pair[1], sent_on)] > 1:
+                _reject(
+                    rejections,
+                    sheet,
+                    index,
+                    label,
+                    "Ngày gửi",
+                    date_text,
+                    "Cùng KOL, sản phẩm và ngày đã có một dòng. Gộp lại thành một dòng.",
+                    "duplicate_sku",
+                )
+        if rejections:
+            out.sample_rows_rejected += 1
+            out.rejections.extend(rejections)
+            rejected_pairs.add(pair)
+            continue
+        assert known is not None
+        meta.setdefault(pair, (kol_text, known, known.scope))
+        if qty == 0:
+            cleared.add(pair)
+            shipments.setdefault(pair, [])
+        else:
+            assert sent_on is not None
+            shipments.setdefault(pair, []).append(kol_samples.Shipment(kol_text, qty, sent_on, fee))
+
+    for pair, new_list in shipments.items():
+        if pair in rejected_pairs:
+            continue
+        handle, known, sku_scope = meta[pair]
+        key = pair[0]
+        old_list = ctx.samples.get((key, sku_scope), [])
+        ordered = sorted(new_list, key=lambda e: (e.sent_on, e.qty, e.ship_fee))
+        old_ordered = sorted(old_list, key=lambda e: (e.sent_on, e.qty, e.ship_fee))
+        if ordered == old_ordered:
+            out.sample_rows_unchanged += 1
+            continue
+        unit = kol_samples.unit_cost_from_inputs(ctx.current, known, sku_scope, known.item_id)
+        scope = kol_samples.scope_ref(key, sku_scope)
+        out.sample_diffs.append(
+            kol_samples.SampleDiff(
+                scope_ref=scope,
+                kol_key=key,
+                handle=handle,
+                item_id=known.item_id,
+                sku=known.sku or known.item_id,
+                old=[e.json() for e in old_ordered],
+                new=[e.json() for e in ordered],
+                old_cost=kol_samples.sample_cost(old_ordered, unit) if old_ordered else None,
+                new_cost=kol_samples.sample_cost(ordered, unit) if ordered else Decimal(0),
+                cost_label=unit.label if unit else "chưa có giá vốn",
+            )
+        )
+        out.changes.append(RuleChange(KOL_SAMPLE, scope, [e.json() for e in ordered]))
+
+
 # -- Mục tiêu sheet -----------------------------------------------------------------------
 
 
@@ -765,14 +1005,21 @@ async def preview_import(session: AsyncSession, shop_id: uuid.UUID, data: bytes)
         raise ImportFileError(f"Không đọc được tệp .xlsx: {exc}") from None
     sku_rows = _find_sheet(sheets, SKU_SHEET)
     goal_rows = _find_sheet(sheets, GOAL_SHEET)
-    if sku_rows is None and goal_rows is None:
-        raise ImportFileError("Tệp cần có trang SKU hoặc trang Mục tiêu")
+    sample_rows = _find_sheet(sheets, kol_samples.SAMPLE_SHEET)
+    if sku_rows is None and goal_rows is None and sample_rows is None:
+        raise ImportFileError("Tệp cần có trang SKU, trang Mục tiêu hoặc trang Mẫu KOL")
 
     catalogue = {(s.item_id, s.variation_id): s for s in await load_catalogue(session, shop_id)}
-    ctx = _SkuContext(catalogue=catalogue, current=await load_current(session, shop_id))
+    ctx = _SkuContext(
+        catalogue=catalogue,
+        current=await load_current(session, shop_id),
+        samples=await kol_samples.load_samples(session, shop_id) if sample_rows else {},
+    )
     out = ImportPreview(file_hash=file_hash(data))
     if sku_rows is not None:
         _check_sku_sheet(sku_rows, ctx, out)
+    if sample_rows is not None:
+        _check_sample_sheet(sample_rows, ctx, out)
     if goal_rows is not None:
         _check_goal_sheet(goal_rows, ctx, out)
     return out
@@ -793,7 +1040,7 @@ async def preview_affected(
     return await affected_recommendations(
         session,
         shop_id,
-        item_ids={split_scope(s)[0] for s in preview.changed_scopes},
+        item_ids=set(preview.changed_item_ids),
         shop_wide=is_shop_wide(preview),
     )
 
@@ -803,6 +1050,7 @@ class ApplyResult:
     preview: ImportPreview
     versions_written: int
     skus_changed: int
+    samples_changed: int
     months_changed: int
     affected: AffectedRecommendations
     applied_at: datetime
@@ -857,6 +1105,7 @@ async def apply_import(
         preview=preview,
         versions_written=len(written),
         skus_changed=len(preview.changed_scopes),
+        samples_changed=len(preview.sample_diffs),
         months_changed=len(preview.changed_months),
         affected=affected,
         applied_at=moment,

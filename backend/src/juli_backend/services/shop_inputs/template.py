@@ -15,7 +15,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.services.shop_inputs import xlsx_io
+from juli_backend.services.shop_inputs import kol_samples, xlsx_io
 from juli_backend.services.shop_inputs.catalogue import (
     CatalogueSku,
     effective_stock,
@@ -110,6 +110,7 @@ class TemplateResult:
     item_count: int
     prefilled_cost: int
     goal_rows: int
+    sample_rows: int = 0
 
 
 def sku_row(
@@ -164,6 +165,8 @@ async def build_template(session: AsyncSession, shop_id: uuid.UUID) -> TemplateR
     goal_rows.append([])
     goal_rows.append([(NOTE_GOALS, xlsx_io.STYLE_NOTE)])
 
+    sample_rows, sample_count = await _sample_rows(session, shop_id, catalogue)
+
     content = xlsx_io.write_workbook(
         [
             xlsx_io.SheetSpec(
@@ -173,6 +176,9 @@ async def build_template(session: AsyncSession, shop_id: uuid.UUID) -> TemplateR
                 protect=True,
             ),
             xlsx_io.SheetSpec(GOAL_SHEET, goal_rows, widths=(12, 16, 10, 12, 18, 24)),
+            xlsx_io.SheetSpec(
+                kol_samples.SAMPLE_SHEET, sample_rows, widths=(24, 26, 14, 14, 18, 30)
+            ),
         ]
     )
     return TemplateResult(
@@ -181,4 +187,59 @@ async def build_template(session: AsyncSession, shop_id: uuid.UUID) -> TemplateR
         item_count=len({s.item_id for s in catalogue}),
         prefilled_cost=prefilled,
         goal_rows=len(goal_rows) - 3,
+        sample_rows=sample_count,
     )
+
+
+async def _sample_rows(
+    session: AsyncSession, shop_id: uuid.UUID, catalogue: list[CatalogueSku]
+) -> tuple[list[list[Any]], int]:
+    """The Mẫu KOL sheet: one row per shipment sent, and one blank row per KOL x product pair
+    that already sold (so the seller only types quantity, date and shipping)."""
+    by_scope = {c.scope: c for c in catalogue}
+    header_style = xlsx_io.STYLE_HEADER
+    edit = xlsx_io.STYLE_EDIT
+
+    def product_ref(scope: str) -> str:
+        sku = by_scope.get(scope)
+        return (sku.sku or scope) if sku else scope
+
+    rows: list[list[Any]] = [
+        [
+            (f"{title} *" if required else title, header_style)
+            for title, required, _ in kol_samples.SAMPLE_COLUMNS
+        ]
+    ]
+    sent = await kol_samples.load_samples(session, shop_id)
+    have: set[tuple[str, str]] = set()
+    count = 0
+    for (key, scope), shipments in sorted(sent.items()):
+        have.add((key, scope))
+        for shipment in shipments:
+            count += 1
+            rows.append(
+                [
+                    (shipment.handle, edit),
+                    (product_ref(scope), edit),
+                    (shipment.qty, edit),
+                    (format_date_vi(shipment.sent_on.isoformat()), edit),
+                    (_plain(shipment.ship_fee), edit),
+                    (None, edit),
+                ]
+            )
+    for handle, item_id in await kol_samples.known_pairs(session, shop_id):
+        if (kol_samples.make_key(handle), item_id) in have:
+            continue
+        rows.append(
+            [
+                (handle, edit),
+                (product_ref(item_id), edit),
+                (None, edit),
+                (None, edit),
+                (None, edit),
+                (None, edit),
+            ]
+        )
+    rows.append([])
+    rows.append([(kol_samples.NOTE_SAMPLE, xlsx_io.STYLE_NOTE)])
+    return rows, count
