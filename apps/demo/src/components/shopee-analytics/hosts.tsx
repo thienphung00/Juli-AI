@@ -7,6 +7,9 @@ import { readAuthSession } from "../../lib/supabase-auth";
 import { useShopReport } from "../../lib/shop-report/shop-report-context";
 import { DEMO_SHOPEE_BASE, createShopeeApi, opsShopeeBase } from "../../lib/shopee-analytics/client";
 import { ShopeeHostProvider, type ShopeeHost } from "../../lib/shopee-analytics/context";
+import { createKolApi } from "../../lib/shopee-kol/client";
+import { kolEnabled } from "../../lib/shopee-decisions/plan-client";
+import { DEMO_RECO_BASE, createRecoApi, opsRecoBase } from "../../lib/shopee-decisions/client";
 import { opsTabShopeeLinks, sellerLinks, viewAsShopeeLinks } from "../../lib/shopee-analytics/links";
 import type { ShopeeScreen } from "../../lib/shopee-analytics/params";
 import { PhanTichPageView } from "./phan-tich-view";
@@ -37,6 +40,8 @@ function SellerHost({ children }: { readonly children: (host: ShopeeHost) => Rea
       token && shop
         ? {
             api: createShopeeApi({ base: DEMO_SHOPEE_BASE, token, shopId: shop.id }),
+            reco: createRecoApi({ base: DEMO_RECO_BASE, token, shopId: shop.id }),
+            kol: kolEnabled() ? createKolApi({ base: DEMO_SHOPEE_BASE, token, shopId: shop.id }) : undefined,
             links: sellerLinks,
             shopKey: shop.id,
             shopName: shop.name,
@@ -97,6 +102,8 @@ export function useOpsShopeeHost(shopId: string, kind: "view-as" | "tab", shopNa
       token
         ? {
             api: createShopeeApi({ base: opsShopeeBase(shopId), token, fetchImpl }),
+            reco: createRecoApi({ base: opsRecoBase(shopId), token, fetchImpl }),
+            kol: kolEnabled() ? createKolApi({ base: opsShopeeBase(shopId), token, fetchImpl }) : undefined,
             links: kind === "view-as" ? viewAsShopeeLinks(shopId) : opsTabShopeeLinks(shopId),
             shopKey: `ops:${shopId}`,
             shopName,

@@ -10,7 +10,7 @@ import type { FiveNumbers } from "../shopee-analytics/types";
 
 export type N = number | null;
 
-export type Family = "ads" | "promotion" | "voucher" | "sale" | "combo" | "affiliate" | "mega_sale";
+export type Family = "ads" | "promotion" | "voucher" | "sale" | "combo" | "affiliate" | "listing" | "mega_sale";
 
 /** Card status (`shop_proposals.status`; `draft` exists for Ops only). */
 export type CardStatus =
@@ -49,8 +49,42 @@ export interface Quantiles {
 /** Where a listed card stands in the Connector's read-back of "Đã làm". */
 export type VerificationState = "pending" | "verified" | "mismatch" | "not_seen";
 
+/** P91 D-2: `ok` | `floor_breach` | `spend_breach` | `refused` (a refused version is shown, never approvable). */
+export type VersionStatus = "ok" | "floor_breach" | "spend_breach" | "refused" | string;
+
+/** A version as the list and the by-code read summarise it (`service._version_brief`). */
+export interface VersionBrief {
+  readonly version: number;
+  readonly code: string | null;
+  readonly label: string | null;
+  readonly status: VersionStatus;
+  readonly ranked: boolean;
+  readonly inputs?: Readonly<Record<string, unknown>> | null;
+  readonly floor_ok?: boolean | null;
+  readonly dprofit_month_p50?: N;
+  readonly dgmv_month_p50?: N;
+}
+
+/** `{until: "YYYY-MM-DD", change_set}` of a product whose last change is still being measured (P91 D-1 / D-7). */
+export interface ProductMeasuring {
+  readonly until: string;
+  readonly change_set?: unknown;
+}
+
 export interface CardSummary {
   readonly id: string;
+  /** P91 D-5: `JC-<yymm>-<seq4>`; absent on a card from before migration 116. */
+  readonly code?: string | null;
+  readonly product_id?: string | null;
+  /** 1 = the card Quyết định shows for its product, 2.. wait behind it. */
+  readonly product_queue?: number | null;
+  readonly product_measuring?: ProductMeasuring | null;
+  readonly versions?: readonly VersionBrief[];
+  /** "manual" for a card made by hand (Tự tạo phương án); the engine's cards carry none. */
+  readonly origin?: string | null;
+  readonly created_at?: string | null;
+  /** P91 D-6 (assumed, wave 1b): the plan the card was confirmed in. */
+  readonly plan_code?: string | null;
   readonly status: CardStatus;
   readonly cycle?: number;
   readonly family: Family;
@@ -84,11 +118,13 @@ export interface CardSummary {
 export interface CardList {
   readonly platform: "shopee";
   readonly xep_theo: string;
+  readonly queue?: string;
   readonly cards: readonly CardSummary[];
   readonly counts: {
     readonly family: Readonly<Record<string, number>>;
     readonly section: Readonly<Record<string, number>>;
     readonly total: number;
+    readonly queued_behind?: number;
   };
 }
 
@@ -254,8 +290,52 @@ export interface ScheduleDay {
   readonly events: readonly { readonly child_id: string; readonly kind: string; readonly action: "bat" | "tat" | string; readonly at: string }[];
 }
 
+/** One evaluation of the change (P91 D-2): the same fields as a card, plus the version header. */
+export interface CardVersion {
+  readonly version: number;
+  readonly code: string | null;
+  readonly label: string | null;
+  readonly status: VersionStatus;
+  readonly default?: boolean;
+  readonly ranked: boolean;
+  readonly refusal: string | null;
+  readonly inputs: Readonly<Record<string, unknown>>;
+  // the evaluation fields; absent on a refused version
+  readonly reason?: string | null;
+  readonly change?: Card["change"];
+  readonly whatif?: Card["whatif"];
+  readonly certain?: Certain;
+  readonly five_numbers?: FiveNumbers;
+  readonly floor?: Card["floor"];
+  readonly spend?: SpendCheck | null;
+  readonly predicted?: Card["predicted"];
+  readonly measurement_plan?: MeasurementPlan;
+  readonly execution_sheet?: ExecutionSheet;
+  readonly notes?: readonly string[];
+}
+
+/** A floor or spend-cap breach, as the backend lists it (`versions.breaches_of`, `manual.breaches_of`). */
+export interface Breach {
+  readonly type: "floor" | "spend_cap" | string;
+  readonly sku?: string;
+  readonly kind?: string;
+  readonly floor?: N;
+  readonly min_unit_price?: N;
+  readonly spend_after?: N;
+  readonly spend_per_day_after?: N;
+  readonly cap?: N;
+  readonly [extra: string]: unknown;
+}
+
 export interface Card {
   readonly id?: string;
+  readonly code?: string | null;
+  readonly product_queue?: number | null;
+  readonly versions?: readonly CardVersion[];
+  /** The version the top-level evaluation fields are (1 when omitted). */
+  readonly version?: number;
+  readonly origin?: string | null;
+  readonly acknowledged_breaches?: { readonly at?: string; readonly breaches?: readonly Breach[]; readonly by?: unknown } | null;
   readonly family: Family;
   readonly family_label: string;
   readonly change_kind: string;
@@ -304,6 +384,10 @@ export interface JourneyEvent {
 
 export interface CardDetail extends CardSummary {
   readonly card: Card;
+  /** P91 (assumed on the detail): which version was approved, and the breaches the seller acknowledged. */
+  readonly chosen_version?: number | null;
+  readonly chosen_version_code?: string | null;
+  readonly acknowledged_breaches?: { readonly at?: string; readonly breaches?: readonly Breach[] } | null;
   readonly journey: readonly JourneyEvent[];
   /**
    * What the seller approved when they moved the sliders. `execution_sheet` is the sheet of those final
@@ -314,8 +398,10 @@ export interface CardDetail extends CardSummary {
 
 export interface DecideResult {
   readonly id: string;
+  readonly code?: string | null;
   readonly status: CardStatus;
   readonly approval_id: string;
+  readonly chosen_version?: number;
   readonly reason_code?: string;
 }
 
@@ -341,4 +427,111 @@ export interface LearningOverview {
   readonly acceptance: unknown;
   readonly sim: unknown;
   readonly note?: string;
+}
+
+// ── P91 D-3: Tự tạo phương án / So sánh phương án ───────────────────────────
+
+export type DiscountType = "pct" | "amount" | "fixed_price";
+
+export interface VariantInput {
+  readonly label?: string;
+  readonly change_kind: string;
+  readonly items: readonly string[];
+  readonly extra: {
+    readonly addon_item?: string;
+    readonly gift_item?: string;
+    readonly combo_items?: readonly { readonly item_id: string; readonly sku?: string; readonly qty: number }[];
+    readonly discount_type?: DiscountType;
+    readonly discount_value?: number;
+    readonly voucher?: { readonly value?: number; readonly pct?: number; readonly min_spend: number; readonly max_value?: number };
+  };
+  readonly inputs: Readonly<Record<string, unknown>>;
+}
+
+/** `manual.metrics_of`: every number is a change per month against doing nothing. */
+export interface VariantMetrics {
+  readonly dprofit_p10: N;
+  readonly dprofit_p50: N;
+  readonly dprofit_p90: N;
+  readonly dprofit_certain: N;
+  readonly dgmv_p50: N;
+  readonly dorders_p50: N;
+  readonly aov_p25: N;
+  readonly margin_points_p25: N;
+  readonly cost_month: N;
+  readonly floor_breaches: number;
+  readonly floor_ok: boolean;
+  readonly spend_after_per_day?: N;
+  readonly spend_cap?: N;
+  readonly spend_over_cap?: boolean | null;
+}
+
+export interface VariantRow {
+  readonly index: number;
+  readonly label: string;
+  readonly change_kind: string;
+  readonly ok: boolean;
+  readonly refusal: { readonly code: string; readonly message: string } | null;
+  readonly title: string | null;
+  readonly metrics: VariantMetrics | null;
+  readonly card: Card | null;
+}
+
+export interface CompareResult {
+  readonly today: {
+    readonly as_of: string;
+    readonly gmv_30d: number;
+    readonly orders_30d: number;
+    readonly aov: N;
+    readonly margin_pct: N;
+    readonly spend_per_day: N;
+    readonly spend_cap: N;
+  };
+  readonly variants: readonly VariantRow[];
+  readonly vs_today: readonly { readonly index: number; readonly delta: Readonly<Record<string, N>> }[];
+  readonly between: readonly { readonly from: number; readonly to: number; readonly delta: Readonly<Record<string, N>> }[];
+  readonly best_profit_p50: number | null;
+  readonly saved: false;
+}
+
+export interface ManualInput {
+  readonly variants: readonly VariantInput[];
+  readonly chosen: number;
+  readonly primary: boolean;
+  readonly acknowledgeBreaches: boolean;
+}
+
+export interface ManualResult {
+  readonly id: string;
+  readonly status: CardStatus;
+  readonly origin: "manual";
+  readonly position: number;
+  readonly primary: boolean;
+  /** `manual._version_row` (not the engine's version shape): `index`, `chosen`, `label`, `metrics`… */
+  readonly versions: readonly { readonly index: number; readonly chosen: boolean; readonly label: string; readonly metrics: VariantMetrics | null }[];
+  readonly card: Card;
+}
+
+/** `GET …/recommendations/code/{code}` (Ops): one card by code, everything a row of the later export needs. */
+export interface CardByCode {
+  readonly code: string;
+  readonly id: string;
+  readonly status: CardStatus;
+  readonly cycle?: string;
+  readonly family: Family;
+  readonly change_kind: string;
+  readonly title: string;
+  readonly product_id: string | null;
+  readonly product_queue: number | null;
+  readonly created_at: string | null;
+  readonly sent_at: string | null;
+  readonly supersedes_code: string | null;
+  readonly versions: readonly VersionBrief[];
+  readonly chosen_version: number | null;
+  readonly chosen_version_code: string | null;
+  readonly inputs: { readonly default: Readonly<Record<string, unknown>>; readonly chosen?: Readonly<Record<string, unknown>> | null; readonly approved?: Readonly<Record<string, unknown>> | null };
+  readonly change: { readonly target?: unknown; readonly before?: unknown; readonly after?: unknown };
+  readonly status_history: readonly { readonly event: string; readonly at: string | null; readonly actor?: string; readonly reason_code?: string | null; readonly payload?: Readonly<Record<string, unknown>> }[];
+  readonly verification: { readonly state: string | null };
+  readonly selected_version?: CardVersion;
 }

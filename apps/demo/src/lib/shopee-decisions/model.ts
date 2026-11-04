@@ -9,9 +9,10 @@ import type { Card, CardStatus, CardSummary, Family, FloorBreach, JourneyEvent, 
 // ── Sections and tabs ───────────────────────────────────────────────────────
 
 /** Section order of the list (ranking order inside each section is the API's). */
-export const FAMILY_ORDER: readonly Family[] = ["ads", "promotion", "voucher", "sale", "combo", "affiliate", "mega_sale"];
+export const FAMILY_ORDER: readonly Family[] = ["listing", "ads", "promotion", "voucher", "sale", "combo", "affiliate", "mega_sale"];
 
 export const FAMILY_TITLE: Readonly<Record<Family, string>> = {
+  listing: "Tên, từ khoá, ảnh bìa",
   ads: "Quảng cáo",
   promotion: "Khuyến mãi",
   voucher: "Voucher",
@@ -98,6 +99,7 @@ export function isWorthTrying(card: Pick<CardSummary, "worth_trying" | "rank">):
 const KPI_KEYS = new Set(["gmv", "views", "ctr", "ctor", "aov", "bien", "disc", "orders"]);
 const KPI_OF_METRIC: Readonly<Record<string, string>> = { ads_gmv: "gmv", roas: "gmv", lien_ket: "gmv", sale: "orders", none: "gmv" };
 const SRC_OF_FAMILY: Readonly<Record<Family, string>> = {
+  listing: "all",
   ads: "ads",
   promotion: "promo",
   voucher: "voucher",

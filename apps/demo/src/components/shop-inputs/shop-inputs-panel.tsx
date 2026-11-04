@@ -1,5 +1,7 @@
 "use client";
 
+import { KolSamplesPanel } from "../shopee-kol/samples-panel";
+import type { KolSamplesApi } from "../../lib/shopee-kol/types";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { saveBlob } from "../../lib/shop-inputs/api";
@@ -32,7 +34,7 @@ import type {
  * decides which backend it talks to.
  */
 
-type Step = "tai" | "kiem" | "diff" | "apply" | "ver" | "mt";
+type Step = "tai" | "kiem" | "diff" | "apply" | "ver" | "mt" | "kol";
 
 const STEPS: readonly [Step, string][] = [
   ["tai", "1 · Mẫu và tải lên"],
@@ -42,6 +44,8 @@ const STEPS: readonly [Step, string][] = [
   ["ver", "Phiên bản"],
   ["mt", "Mục tiêu"],
 ];
+/** P91 D-9: the 7th step, shown only when the host gives the KOL samples API. */
+const KOL_STEP: readonly [Step, string] = ["kol", "Mẫu KOL"];
 
 const SKU_COLUMNS: readonly [string, boolean][] = [
   ["item_id", true],
@@ -164,9 +168,11 @@ export interface ShopInputsPanelProps {
   readonly canEdit?: boolean;
   /** Who writes, for the "đã áp dụng" line. */
   readonly writerLabel?: string;
+  /** P91: the "Mẫu KOL" sheet (flag `NEXT_PUBLIC_P91_KOL`); absent = no such step. */
+  readonly kolSamples?: KolSamplesApi;
 }
 
-export function ShopInputsPanel({ api, canEdit = true, writerLabel = "Quản lý shop" }: ShopInputsPanelProps) {
+export function ShopInputsPanel({ api, canEdit = true, writerLabel = "Quản lý shop", kolSamples }: ShopInputsPanelProps) {
   const [step, setStep] = useState<Step>("tai");
   const [overview, setOverview] = useState<InputsOverview | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -306,7 +312,7 @@ export function ShopInputsPanel({ api, canEdit = true, writerLabel = "Quản lý
         Juli không đoán giá vốn của bạn. Tải mẫu đã điền sẵn SKU, điền số, tải lên. Mỗi lần áp dụng là một phiên bản, khôi phục được.
       </p>
       <div aria-label="Các bước" role="tablist" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {STEPS.map(([id, label]) => (
+        {(kolSamples ? [...STEPS, KOL_STEP] : STEPS).map(([id, label]) => (
           <button aria-selected={step === id} key={id} onClick={() => go(id)} role="tab" style={pill(step === id)} type="button">
             {label}
           </button>
@@ -675,6 +681,8 @@ export function ShopInputsPanel({ api, canEdit = true, writerLabel = "Quản lý
           ) : null}
         </section>
       ) : null}
+
+      {step === "kol" && kolSamples ? <KolSamplesPanel api={kolSamples} canEdit={canEdit} /> : null}
 
       {step === "mt" ? <GoalsView overview={overview} preview={preview} onApply={() => go("apply")} /> : null}
     </div>

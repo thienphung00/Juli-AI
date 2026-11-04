@@ -1,5 +1,5 @@
 import { ShopeeApiError } from "../shopee-analytics/client";
-import type { Card, CardDetail, CardList, DecideResult, ExecutedResult, GenerateReport, LearningOverview } from "./types";
+import type { Card, CardByCode, CardDetail, CardList, CompareResult, DecideResult, ExecutedResult, GenerateReport, LearningOverview, ManualInput, ManualResult, VariantInput } from "./types";
 
 /**
  * The one client of the Shopee recommendation cards. The SAME screens run for the seller
@@ -20,6 +20,19 @@ export interface ListQuery {
   readonly section?: string;
   readonly status?: string;
   readonly xepTheo?: string;
+  /** P91: every open card of this product (the Sản phẩm › Đề xuất tab). */
+  readonly productId?: string;
+  /** `top` (default): the product's #1 card only (Quyết định); `all`: every card, with its queue place. */
+  readonly queue?: "top" | "all";
+}
+
+export interface ApproveInput {
+  readonly inputs?: Readonly<Record<string, unknown>> | null;
+  readonly note?: string | null;
+  /** P91: which version is approved (1-based; omitted = 1). */
+  readonly chosenVersion?: number;
+  /** P91: a floor / spend-cap breach never blocks; it needs this yes (422 `reco_breach_unacknowledged` otherwise). */
+  readonly acknowledgeBreaches?: boolean;
 }
 
 export interface ExecutedInput {
@@ -32,9 +45,15 @@ export interface ExecutedInput {
 export interface RecoApi {
   list(q?: ListQuery): Promise<CardList>;
   detail(id: string): Promise<CardDetail>;
-  /** Recompute with other inputs. Seller: recorded as `whatif_adjusted`. Ops: nothing recorded. */
-  whatif(id: string, inputs: Readonly<Record<string, unknown>>): Promise<Card>;
-  approve(id: string, body: { readonly inputs?: Readonly<Record<string, unknown>> | null; readonly note?: string | null }): Promise<DecideResult>;
+  /** Recompute with other inputs. Seller: recorded as `whatif_adjusted`. Ops: nothing recorded. P91: `version` (1-based) moves that version only. */
+  whatif(id: string, inputs: Readonly<Record<string, unknown>>, version?: number): Promise<Card>;
+  approve(id: string, body: ApproveInput): Promise<DecideResult>;
+  /** P91 D-3: 2-4 variants side by side; saves nothing. */
+  compare(variants: readonly VariantInput[], asOf?: string | null): Promise<CompareResult>;
+  /** P91 D-3: save `variants[chosen]` as a card (`origin = "manual"`), the others as its versions. */
+  createManual(body: ManualInput): Promise<ManualResult>;
+  /** P91 D-5, Juli Ops only: one card by `JC-…` or `JC-…-Vn`. */
+  byCode(code: string): Promise<CardByCode>;
   requestChange(id: string, note: string): Promise<DecideResult>;
   dismiss(id: string, body: { readonly reasonCode?: string | null; readonly note?: string | null }): Promise<DecideResult>;
   executed(id: string, body?: ExecutedInput): Promise<ExecutedResult>;
@@ -57,6 +76,7 @@ function errorOf(status: number, payload: unknown): ShopeeApiError {
       const d = detail as { code?: unknown; message?: unknown };
       if (typeof d.code === "string") code = d.code;
       if (typeof d.message === "string") message = d.message;
+      return new ShopeeApiError(status, code, message, detail as Readonly<Record<string, unknown>>);
     }
   }
   return new ShopeeApiError(status, code, message);
@@ -104,11 +124,28 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
       if (q.section) p.set("section", q.section);
       if (q.status) p.set("status", q.status);
       if (q.xepTheo) p.set("xep_theo", q.xepTheo);
+      if (q.productId) p.set("product_id", q.productId);
+      if (q.queue) p.set("queue", q.queue);
       return call<CardList>("GET", "", undefined, p);
     },
     detail: (cardId) => call<CardDetail>("GET", id(cardId)),
-    whatif: async (cardId, inputs) => (await call<{ card: Card }>("POST", `${id(cardId)}/whatif`, { inputs })).card,
-    approve: (cardId, body) => call<DecideResult>("POST", `${id(cardId)}/approve`, { inputs: body.inputs ?? null, note: body.note ?? null }),
+    whatif: async (cardId, inputs, version) => (await call<{ card: Card }>("POST", `${id(cardId)}/whatif`, { inputs, ...(version ? { version } : {}) })).card,
+    approve: (cardId, body) =>
+      call<DecideResult>("POST", `${id(cardId)}/approve`, {
+        inputs: body.inputs ?? null,
+        note: body.note ?? null,
+        chosen_version: body.chosenVersion ?? 1,
+        acknowledge_breaches: body.acknowledgeBreaches ?? false,
+      }),
+    compare: (variants, asOf) => call<CompareResult>("POST", "/compare", { variants, ...(asOf ? { as_of: asOf } : {}) }),
+    createManual: (body) =>
+      call<ManualResult>("POST", "/manual", {
+        variants: body.variants,
+        chosen: body.chosen,
+        primary: body.primary,
+        acknowledge_breaches: body.acknowledgeBreaches,
+      }),
+    byCode: (code) => call<CardByCode>("GET", `/code/${encodeURIComponent(code)}`),
     requestChange: (cardId, note) => call<DecideResult>("POST", `${id(cardId)}/request-change`, { note }),
     dismiss: (cardId, body) => call<DecideResult>("POST", `${id(cardId)}/dismiss`, { reason_code: body.reasonCode ?? null, note: body.note ?? null }),
     executed: (cardId, body = {}) =>

@@ -2,14 +2,20 @@ import { five } from "../../shopee-analytics/__tests__/fixtures";
 import type { RecoApi } from "../client";
 import type {
   Card,
+  CardByCode,
   CardDetail,
   CardList,
   CardSummary,
+  CardVersion,
+  CompareResult,
   ExecutionSheet,
   FloorBreach,
   JourneyEvent,
+  ManualResult,
   MegaChild,
   MoneyAt,
+  VersionBrief,
+  VersionStatus,
 } from "../types";
 
 /**
@@ -132,6 +138,12 @@ export function summaryOf(card: Card, p: Partial<CardSummary> = {}): CardSummary
   const pm = card.predicted.money_per_month;
   return {
     id: card.id ?? "card-voucher",
+    code: card.code ?? null,
+    product_id: card.scope.product_ids[0] ?? null,
+    product_queue: card.product_queue ?? 1,
+    product_measuring: null,
+    versions: (card.versions ?? []).map(briefOf),
+    origin: card.origin ?? null,
     status: "sent",
     cycle: 1,
     family: card.family,
@@ -161,6 +173,82 @@ export function summaryOf(card: Card, p: Partial<CardSummary> = {}): CardSummary
 
 export function detailOf(card: Card, p: Partial<CardDetail> = {}): CardDetail {
   return { ...summaryOf(card), card, journey: [], ...p };
+}
+
+// ── Versions (P91 D-2) ──────────────────────────────────────────────────────
+
+/** A card's evaluation as version `n` of the card. */
+export function versionOf(card: Card, n: number, label: string, over: Partial<CardVersion> = {}): CardVersion {
+  const status: VersionStatus = card.floor.ok ? "ok" : "floor_breach";
+  return {
+    version: n,
+    code: card.code ? `${card.code}-V${n}` : null,
+    label,
+    status,
+    default: n === 1,
+    ranked: n === 1 && status === "ok",
+    refusal: null,
+    inputs: card.inputs,
+    reason: card.reason,
+    change: card.change,
+    whatif: card.whatif,
+    certain: card.certain,
+    five_numbers: card.five_numbers,
+    floor: card.floor,
+    spend: card.spend,
+    predicted: card.predicted,
+    measurement_plan: card.measurement_plan,
+    execution_sheet: card.execution_sheet,
+    notes: card.notes,
+    ...over,
+  };
+}
+
+/** The worked example of `CardVersions.dc.html`: voucher V1 (299.000đ), V2 (200.000đ) and V3 that breaks the floor. */
+export function versionedVoucher(p: Partial<Card> = {}): Card {
+  const v1 = voucherCard({ code: "JC-2611-0007", product_queue: 1 });
+  const v2 = voucherCardB();
+  const v3 = breachedVoucherCard();
+  return {
+    ...v1,
+    code: "JC-2611-0007",
+    product_queue: 1,
+    versions: [
+      versionOf(v1, 1, "Mặc định của Juli"),
+      versionOf({ ...v2, code: "JC-2611-0007" }, 2, "15.000đ cho đơn ≥ 200.000đ"),
+      versionOf({ ...v3, code: "JC-2611-0007" }, 3, "25.000đ cho đơn ≥ 299.000đ"),
+    ],
+    ...p,
+  };
+}
+
+export function titleCard(p: Partial<Card> = {}): Card {
+  const base = voucherCard({
+    id: "card-title",
+    code: "JC-2611-0011",
+    product_queue: 4,
+    family: "listing",
+    family_label: "Tên, từ khoá, ảnh bìa",
+    change_kind: "title",
+    title: 'Tiêu đề mới, từ khoá "găng tay cao su"',
+    inputs: { title: "Găng Tay Cao Su Rửa Chén Chống Trượt Dày Dai Bền Size S M L Đa Năng Nhà Bếp Giặt Đồ Giá Rẻ Loại 1" },
+    whatif: { sliders: [] },
+    certain: { label: "Chắc chắn" },
+    spend: null,
+  });
+  return {
+    ...base,
+    versions: [
+      versionOf(base, 1, "Tiêu đề A"),
+      versionOf({ ...base, inputs: { title: "Găng Tay Cao Su Rửa Chén Gia Dụng Dày Dai Chống Trượt Size S M L Cho Nhà Bếp Giặt Đồ Lau Dọn" } }, 2, "Tiêu đề B"),
+    ],
+    ...p,
+  };
+}
+
+export function briefOf(v: CardVersion): VersionBrief {
+  const pm = v.predicted?.money_per_month.total.p50;
+  return { version: v.version, code: v.code, label: v.label, status: v.status, ranked: v.ranked, inputs: v.inputs, floor_ok: v.floor?.ok ?? null, dprofit_month_p50: pm?.dprofit ?? null, dgmv_month_p50: pm?.dgmv ?? null };
 }
 
 // ── Other families ──────────────────────────────────────────────────────────
@@ -271,7 +359,10 @@ export function fakeReco(
   data: Partial<{
     list: CardList;
     detail: CardDetail;
-    whatif: Card | ((inputs: Readonly<Record<string, unknown>>) => Card);
+    whatif: Card | ((inputs: Readonly<Record<string, unknown>>, version?: number) => Card);
+    compare: CompareResult | ((variants: readonly unknown[]) => CompareResult);
+    manual: ManualResult;
+    byCode: CardByCode;
   }> = {},
   failWith?: Partial<Record<keyof RecoApi, Error>>,
 ): FakeReco {
@@ -286,8 +377,11 @@ export function fakeReco(
     calls,
     list: (...a) => run("list", data.list ?? { platform: "shopee", xep_theo: "diem", cards: [summaryOf(voucherCard())], counts: { family: { voucher: 1 }, section: { aov: 1 }, total: 1 } }, ...a),
     detail: (...a) => run("detail", detail, ...a),
-    whatif: (id, inputs) => run("whatif", typeof data.whatif === "function" ? data.whatif(inputs) : (data.whatif ?? detail.card), id, inputs),
-    approve: (...a) => run("approve", { id: detail.id, status: "approved", approval_id: "ap-1" }, ...a),
+    whatif: (id, inputs, version) => run("whatif", typeof data.whatif === "function" ? data.whatif(inputs, version) : (data.whatif ?? detail.card), id, inputs, version),
+    approve: (...a) => run("approve", { id: detail.id, status: "approved", approval_id: "ap-1", chosen_version: a[1]?.chosenVersion ?? 1 }, ...a),
+    compare: (variants, ...rest) => run("compare", typeof data.compare === "function" ? data.compare(variants) : (data.compare ?? compareResult(variants.length)), variants, ...rest),
+    createManual: (...a) => run("createManual", data.manual ?? manualResult(), ...a),
+    byCode: (code) => run("byCode", data.byCode ?? ({ code, id: "card-voucher", status: "sent", family: "voucher", change_kind: "min_spend_voucher", title: "Voucher", product_id: "BEP-S5", product_queue: 1, created_at: "2026-11-04T07:10:00", sent_at: null, supersedes_code: null, versions: [], chosen_version: null, chosen_version_code: null, inputs: { default: {} }, change: {}, status_history: [], verification: { state: null } } as CardByCode), code),
     requestChange: (...a) => run("requestChange", { id: detail.id, status: "changes_requested", approval_id: "ap-2" }, ...a),
     dismiss: (...a) => run("dismiss", { id: detail.id, status: "rejected", approval_id: "ap-3" }, ...a),
     executed: (...a) => run("executed", { id: detail.id, status: "executed", execution_id: "ex-1", events: 1 }, ...a),
@@ -297,5 +391,68 @@ export function fakeReco(
     rerunStale: (...a) => run("rerunStale", { replaced: 1 }, ...a),
     learning: (...a) => run("learning", { calibration: null, acceptance: null, sim: null }, ...a),
     learningRun: (...a) => run("learningRun", {}, ...a),
+  };
+}
+
+// ── Compare and manual (P91 D-3) ────────────────────────────────────────────
+
+const metricsOf = (dp50: number, over: Partial<NonNullable<CompareResult["variants"][number]["metrics"]>> = {}) => ({
+  dprofit_p10: dp50 - 120000,
+  dprofit_p50: dp50,
+  dprofit_p90: dp50 + 160000,
+  dprofit_certain: -30000,
+  dgmv_p50: 900000 + dp50,
+  dorders_p50: 6,
+  aov_p25: 4000,
+  margin_points_p25: -0.4,
+  cost_month: 80000,
+  floor_breaches: 0,
+  floor_ok: true,
+  spend_after_per_day: 1_040_000,
+  spend_cap: 1_200_000,
+  spend_over_cap: false,
+  ...over,
+});
+
+/** `n` priced variants; the third one (when asked for) breaks a floor. */
+export function compareResult(n = 3): CompareResult {
+  const rows = Array.from({ length: n }, (_, i) => {
+    const breach = i === 2;
+    const floor = breach ? breachedVoucherCard().floor : voucherCard().floor;
+    const card = voucherCard({ id: undefined, title: `Combo thử ${i + 1}`, floor });
+    return {
+      index: i,
+      label: `Phương án ${i + 1}`,
+      change_kind: "combo_multi",
+      ok: true,
+      refusal: null,
+      title: `Combo thử ${i + 1}`,
+      metrics: metricsOf(60000 + i * 20000, breach ? { floor_breaches: 1, floor_ok: false } : {}),
+      card,
+    };
+  });
+  return {
+    today: { as_of: "2026-11-02", gmv_30d: 19_800_000, orders_30d: 120, aov: 165000, margin_pct: 15.3, spend_per_day: 1_040_000, spend_cap: 1_200_000 },
+    variants: rows,
+    vs_today: rows.map((r) => ({ index: r.index, delta: { ...r.metrics! } as unknown as Record<string, number | null> })),
+    between: [],
+    best_profit_p50: 1,
+    saved: false,
+  };
+}
+
+export function manualResult(over: Partial<ManualResult> = {}): ManualResult {
+  return {
+    id: "card-manual",
+    status: "sent",
+    origin: "manual",
+    position: 50,
+    primary: false,
+    versions: [
+      { index: 1, chosen: true, label: "Phương án 2", metrics: null },
+      { index: 0, chosen: false, label: "Phương án 1", metrics: null },
+    ],
+    card: voucherCard({ id: "card-manual", code: "JC-2611-0015", origin: "manual" }),
+    ...over,
   };
 }

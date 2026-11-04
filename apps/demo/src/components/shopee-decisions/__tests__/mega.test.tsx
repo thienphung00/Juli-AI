@@ -40,12 +40,12 @@ describe("thẻ mega sale", () => {
     await screen.findByTestId("sd-mega-children");
     fireEvent.click(screen.getByRole("button", { name: "Bỏ Đổi ngân sách ngày" }));
     await waitFor(() => expect(screen.queryByTestId("sd-child-child-3")).toBeNull());
-    expect(reco.calls.find((c) => c.name === "whatif")!.args).toEqual(["card-mega", { remove: ["child-3"] }]);
+    expect(reco.calls.find((c) => c.name === "whatif")!.args).toEqual(["card-mega", { remove: ["child-3"] }, 1]);
     expect(screen.getByTestId("sd-mega-removed")).toHaveTextContent("Đã bỏ 1 thay đổi");
     expect(screen.getByTestId("sd-mega-totals")).toHaveTextContent("1.800.000đ");
-    fireEvent.click(screen.getByRole("button", { name: /Phê duyệt/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Duyệt V1$/ }));
     await waitFor(() => expect(reco.calls.some((c) => c.name === "approve")).toBe(true));
-    expect(reco.calls.find((c) => c.name === "approve")!.args).toEqual(["card-mega", { inputs: { remove: ["child-3"] } }]);
+    expect(reco.calls.find((c) => c.name === "approve")!.args).toEqual(["card-mega", { inputs: { remove: ["child-3"] }, chosenVersion: 1, acknowledgeBreaches: false }]);
   });
 
   it("the last child cannot be taken out, and an approved mega card is not editable", async () => {
@@ -56,7 +56,7 @@ describe("thẻ mega sale", () => {
     renderReco(<CardPage from={null} id="card-mega" />, fakeReco({ detail: detailOf(megaCard(), { status: "approved" }) }));
     await screen.findByTestId("sd-mega");
     expect(screen.queryByRole("button", { name: /^Bỏ (Giảm|Voucher|Đổi)/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Phê duyệt/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Duyệt V1$/ })).toBeNull();
   });
 
   it("one budget cap for the whole campaign: changing it recomputes", async () => {

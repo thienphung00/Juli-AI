@@ -7,9 +7,14 @@ import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { TABS, isWorthTrying, sectionsFor, statusLabel, tabCounts, tabOfParam, type DecisionTab } from "../../lib/shopee-decisions/model";
 import type { CardList, CardSummary } from "../../lib/shopee-decisions/types";
-import { Empty, Notice, PageHead, Section, TextChip } from "../shopee-analytics/ui";
+import { Empty, Notice, Section, TextChip } from "../shopee-analytics/ui";
+import { BuilderView } from "./builder";
 import { CardPage } from "./card-page";
-import { NavLink, RecoState, StatusChip, errorText } from "./ui";
+import { OpsRecoList } from "./ops-list";
+import { PlanView } from "./plan";
+import { StaffBar } from "./staff-bar";
+import { FlashNotice, NO_FLASH, TopCards, topEntries, type Flash } from "./top-cards";
+import { NavLink, RecoState, StatusChip } from "./ui";
 
 /**
  * Quyết định for a Shopee shop: the cards in sections by family (Quảng cáo, Khuyến mãi, Voucher,
@@ -71,58 +76,19 @@ function CardRow({ card, from }: { readonly card: CardSummary; readonly from: st
   );
 }
 
-function StaffBar({ onChanged }: { readonly onChanged: () => void }) {
-  const host = useReco();
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const act = async (label: string, call: () => Promise<string>) => {
-    setBusy(true);
-    setMsg(null);
-    try {
-      setMsg(`${label}: ${await call()}`);
-      onChanged();
-    } catch (e) {
-      setMsg(`${label}: ${errorText(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section className="sa-card sd-staff" data-testid="sd-staffbar">
-      <div className="sa-card__head">
-        <h2 className="sa-h2">Việc của Ops</h2>
-        <span className="sa-hint">Tạo thẻ từ số liệu mới nhất (nháp), gửi cho shop, hoặc tính lại thẻ khi thông số shop đổi.</span>
-      </div>
-      <div className="sd-actions">
-        <button className="sa-btn sa-btn--primary" disabled={busy} onClick={() => void act("Tạo đề xuất", async () => `${(await host.reco.generate({ topN: 10 })).persisted} thẻ nháp`)} type="button">
-          Tạo đề xuất
-        </button>
-        <button className="sa-btn" disabled={busy} onClick={() => void act("Gửi cho shop", async () => `${(await host.reco.publish(null)).sent.length} thẻ đã gửi`)} type="button">
-          Gửi tất cả nháp cho shop
-        </button>
-        <button className="sa-btn" disabled={busy} onClick={() => void act("Tính lại thẻ cũ", async () => JSON.stringify(await host.reco.rerunStale()))} type="button">
-          Tính lại thẻ cũ
-        </button>
-      </div>
-      {msg ? (
-        <p className="sa-hint" data-testid="sd-staff-msg" role="status">
-          {msg}
-        </p>
-      ) : null}
-    </section>
-  );
-}
-
 function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: string | null }) {
   const host = useReco();
   const [tick, setTick] = useState(0);
-  const res = useResource<CardList>(() => host.reco.list({}), `${host.shopKey}|list|${tick}`);
+  const [flash, setFlash] = useState<Flash>(NO_FLASH);
+  const res = useResource<CardList>(() => host.reco.list({ queue: "all" }), `${host.shopKey}|list|${tick}`);
   return (
     <>
       {host.staff ? <StaffBar onChanged={() => setTick((t) => t + 1)} /> : null}
+      <FlashNotice flash={flash} />
       <RecoState resource={res}>
         {(data) => {
-          const counts = tabCounts(data.cards);
+          const tops = topEntries(data.cards);
+          const counts = { ...tabCounts(data.cards), "de-xuat": tops.length };
           const sections = sectionsFor(data.cards, tab);
           return (
             <>
@@ -134,7 +100,13 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
                 ))}
               </nav>
               <p className="sa-hint">{TAB_HINT[tab]}</p>
-              {sections.length === 0 ? (
+              {tab === "de-xuat" ? (
+                tops.length === 0 ? (
+                  <Empty testId="sd-empty">{EMPTY[tab]}</Empty>
+                ) : (
+                  <TopCards cards={data.cards} flash={flash} onChanged={() => setTick((t) => t + 1)} onFlash={setFlash} />
+                )
+              ) : sections.length === 0 ? (
                 <Empty testId="sd-empty">{EMPTY[tab]}</Empty>
               ) : (
                 sections.map((s) => (
@@ -158,16 +130,36 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
 
 export function DecisionsView({ params }: { readonly params: URLSearchParams }) {
   const host = useReco();
+  const planRes = useResource(() => (host.plan ? host.plan.api.get().then((p) => p.cards.length) : Promise.resolve(null)), `${host.shopKey}|plan-count`);
+  const planCount = planRes.status === "ready" ? planRes.data : null;
   const the = params.get("the");
   const tab = tabOfParam(params.get("tab"));
-  if (the) return <CardPage from={params.get("from")} id={the} />;
+  if (the) return <CardPage from={params.get("from")} id={the} version={Number(params.get("v")) || null} />;
+  if (params.get("ke-hoach")) return <PlanView />;
+  if (params.get("tu-tao")) return <BuilderView from={params.get("from")} productId={params.get("sp")} />;
+  if (host.staff) return <OpsRecoList />;
   return (
     <div className="sa-page" data-testid="sd-list">
-      <PageHead
-        eyebrow="QUYẾT ĐỊNH"
-        right={host.shopName ?? undefined}
-        title="Đề xuất cho shop Shopee"
-      />
+      <header className="sa-head">
+        <div className="sa-eyebrow">QUYẾT ĐỊNH · ĐỀ XUẤT</div>
+        <div className="sa-head__line sq-head">
+          <h1 className="sa-h1">{tab === "de-xuat" ? "Mỗi sản phẩm một thẻ, thẻ kế tiếp lên ngay" : "Đề xuất cho shop Shopee"}</h1>
+          {host.shopName ? <span className="sa-head__right">{host.shopName}</span> : null}
+        </div>
+        {tab === "de-xuat" ? <p className="sa-hint">Thẻ đóng (bỏ qua, hết hạn), đã thực hiện hoặc đã thêm vào kế hoạch thì thẻ kế tiếp của sản phẩm lên Quyết định ngay.</p> : null}
+        {!host.readOnly ? (
+          <div className="sq-head__actions">
+            <NavLink className="sa-btn sa-btn--s" href={host.href({ builder: true, from: "quyet-dinh" })} testId="sq-builder-link">
+              + Tự tạo phương án
+            </NavLink>
+            {host.plan ? (
+              <NavLink className="sa-btn sa-btn--s" href={host.href({ plan: true })} testId="sq-plan-link">
+                Kế hoạch{planCount === null ? "" : ` (${planCount})`}
+              </NavLink>
+            ) : null}
+          </div>
+        ) : null}
+      </header>
       {host.readOnly ? <Notice tone="info">Chế độ xem: đọc và thử “nếu đổi”, không duyệt hay ghi được thay seller.</Notice> : null}
       <ListBody from={params.get("from")} key={host.shopKey} tab={tab} />
     </div>

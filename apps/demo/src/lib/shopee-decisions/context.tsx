@@ -5,6 +5,31 @@ import { createContext, useContext, type ReactNode } from "react";
 import type { ShopeeLinks } from "../shopee-analytics/links";
 import type { RecoApi } from "./client";
 import type { DecisionTab } from "./model";
+import type { PlanApi } from "./plan-types";
+
+/** A product the builder can put in a combo (id and name, from the product list). */
+export interface ProductChoice {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** P91 D-6 (wave 1b): the draft plan. Absent while the plan backend is off (`NEXT_PUBLIC_P91_PLAN`). */
+export interface PlanHost {
+  readonly api: PlanApi;
+}
+
+/** The views a host links between. */
+export interface DecisionView {
+  readonly tab?: DecisionTab;
+  readonly the?: string | null;
+  readonly from?: string | null;
+  /** P91: Tự tạo phương án / So sánh phương án. */
+  readonly builder?: boolean;
+  /** The product the builder opens for (a product page or Quyết định). */
+  readonly productId?: string | null;
+  /** P91: the Kế hoạch panel. */
+  readonly plan?: boolean;
+}
 
 /**
  * What a Shopee Quyết định screen needs from its host: the card API (seller or Ops base), the
@@ -22,7 +47,11 @@ export interface RecoHost {
   /** Juli Ops "Đề xuất" tab: generate, publish, withdraw, "Đã làm" by staff. */
   readonly staff?: boolean;
   /** The list (a tab) or one card of this host. */
-  readonly href: (view: { readonly tab?: DecisionTab; readonly the?: string | null; readonly from?: string | null }) => string;
+  readonly href: (view: DecisionView) => string;
+  /** The shop's products (id, name) for the builder; absent: the builder asks for ids. */
+  readonly products?: () => Promise<readonly ProductChoice[]>;
+  /** The draft plan (P91 D-6); absent while the plan backend is not there. */
+  readonly plan?: PlanHost;
   /** Follow an in-page href without a full navigation, when the host has a router of its own. */
   readonly navigate?: (href: string) => void;
   /** The clock, for the measurement countdown (tests). */
@@ -42,10 +71,13 @@ export function useReco(): RecoHost {
 }
 
 /** `?tab=…&the=…` appended to a base path. */
-export function decisionsQuery(view: { readonly tab?: DecisionTab; readonly the?: string | null; readonly from?: string | null }, extra?: URLSearchParams): URLSearchParams {
+export function decisionsQuery(view: DecisionView, extra?: URLSearchParams): URLSearchParams {
   const p = new URLSearchParams(extra);
   if (view.tab && view.tab !== "de-xuat") p.set("tab", view.tab);
   if (view.the) p.set("the", view.the);
   if (view.from) p.set("from", view.from);
+  if (view.builder) p.set("tu-tao", "1");
+  if (view.productId) p.set("sp", view.productId);
+  if (view.plan) p.set("ke-hoach", "1");
   return p;
 }
