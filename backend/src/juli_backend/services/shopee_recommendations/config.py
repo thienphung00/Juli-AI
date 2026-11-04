@@ -107,3 +107,5 @@ QUEUE_DEFAULT_PLAN_DAYS = 14
 #: ``shop_proposals.code``: ``JC-<yymm>-<seq4>``; versions append ``-V<n>``.
 CODE_PREFIX = "JC"
 CODE_SEQ_DIGITS = 4
+#: ``action_cards.priority`` of a manual card that does not ask to lead its product's queue.
+MANUAL_PRIORITY = 50

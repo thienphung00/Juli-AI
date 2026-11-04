@@ -68,6 +68,9 @@ class QueueCard:
     score: float  # ranking score at generation (higher = better)
     queue: int | None = None  # the stored place, only a tie-break
     expired: bool = False  # a `sent` card whose 7 days passed without a decision
+    #: ISO time a person pinned the card to place 1 (a manual card made with ``primary``); the
+    #: newest pin leads, the previous head moves to 2
+    pinned_at: str | None = None
 
 
 def holds_place(card: QueueCard) -> bool:
@@ -77,6 +80,13 @@ def holds_place(card: QueueCard) -> bool:
     if card.status in OPEN_STATUSES:
         return not card.expired
     return False  # executed, planned, rejected, withdrawn, superseded, measured
+
+
+def _pin_rank(c: QueueCard) -> tuple[int, float]:
+    """Pinned cards first, the newest pin leading (ISO strings of one clock order as text)."""
+    if not c.pinned_at:
+        return (1, 0.0)
+    return (0, -datetime.fromisoformat(c.pinned_at).timestamp())
 
 
 def assign(cards: Iterable[QueueCard]) -> dict[str, int | None]:
@@ -92,6 +102,7 @@ def assign(cards: Iterable[QueueCard]) -> dict[str, int | None]:
     for group in by_product.values():
         group.sort(
             key=lambda c: (
+                _pin_rank(c),
                 0 if c.status in config.QUEUE_IN_FLIGHT else 1,
                 -c.score,
                 c.queue if c.queue is not None else _LAST,
@@ -182,6 +193,9 @@ async def requeue_products(
                 score=float(score) if isinstance(score, int | float) else -float(priority or 0),
                 queue=p.product_queue,
                 expired=p.id in expired,
+                pinned_at=str(meta["primary_at"])
+                if meta.get("primary") and meta.get("primary_at")
+                else None,
             )
         )
     places = assign(cards)
