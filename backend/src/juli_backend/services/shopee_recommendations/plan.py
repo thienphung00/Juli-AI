@@ -5,6 +5,10 @@ effect (MDE) at alpha = 5 %, power = 80 % is computed for 14 and then 28 days of
 against a 28-day baseline: MDE <= 30 % at 14 days -> 14-day plan; else <= 30 % at 28 days ->
 28-day plan; else "khó kết luận" (the card may still be proposed; its own result will be hard
 to conclude). The numbers (30 %, 5 %, 80 %) are config. Pure.
+
+P91 D-8: ``mde_for`` already takes any number of post days; ``window_options`` /
+``recommended_window`` answer "what can N days detect" for the presets 7 / 14 / 28 and a custom
+3-90, and which preset to pre-select for a scope.
 """
 
 from __future__ import annotations
@@ -108,6 +112,71 @@ def measurement_plan(metric: str, stats: MetricStats) -> dict[str, Any]:
         "pooled_only": planned is None,
         "clock_starts": "verified",
     }
+
+
+# -- the measurement window the user chooses (P91 D-8) -----------------------------------------
+
+
+def window_option(metric: str, stats: MetricStats, days: int) -> dict[str, Any]:
+    """What a window of ``days`` can detect for this scope: the MDE at alpha 5 %, power 80 % against
+    the 28-day baseline, for ANY ``days`` (``mde_for`` takes any N). ``hard`` = it cannot be
+    judged or the MDE is above the limit: shown as "khó kết luận" but never refused."""
+    mde = mde_for(metric, stats, days)
+    hard = mde is None or mde > config.MDE_MAX
+    pct = None if mde is None else round(mde * 100, 1)
+    if mde is None:
+        label = f"{days} ngày: chưa đủ dữ liệu để kết luận"
+    elif hard:
+        label = f"{days} ngày: chỉ thấy thay đổi ≥ {pct:g} % (khó kết luận)".replace(".", ",")
+    else:
+        label = f"{days} ngày: chỉ thấy thay đổi ≥ {pct:g} %".replace(".", ",")
+    return {
+        "days": days,
+        "mde": _r(mde),
+        "mde_pct": pct,
+        "ok": not hard,
+        "hard": hard,
+        "label": label,
+    }
+
+
+def recommended_window(metric: str, stats: MetricStats) -> int | None:
+    """The shortest preset whose MDE is within ``MDE_MAX`` (30 %); None when none of the presets
+    reaches it (the longest preset is then pre-selected and the note says "khó kết luận")."""
+    for d in config.WINDOW_PRESETS:
+        m = mde_for(metric, stats, d)
+        if m is not None and m <= config.MDE_MAX:
+            return d
+    return None
+
+
+def window_options(metric: str, stats: MetricStats) -> dict[str, Any]:
+    """The chooser: each preset with what it can detect, the recommended one, the bounds."""
+    rec = recommended_window(metric, stats)
+    presets = [window_option(metric, stats, d) for d in config.WINDOW_PRESETS]
+    for row in presets:
+        row["recommended"] = row["days"] == rec
+    return {
+        "metric": metric,
+        "min_days": config.WINDOW_MIN_DAYS,
+        "max_days": config.WINDOW_MAX_DAYS,
+        "presets": presets,
+        "recommended_days": rec,
+        "default_days": rec or config.WINDOW_PRESETS[-1],
+        "mde_max": config.MDE_MAX,
+        "alpha": config.MDE_ALPHA,
+        "power": config.MDE_POWER,
+        "baseline_days": config.PLAN_PRE_DAYS,
+    }
+
+
+def check_window(days: Any) -> int:
+    """A window the user typed: an integer between 3 and 90, else ``ValueError``."""
+    if isinstance(days, bool) or not isinstance(days, int):
+        raise ValueError("the window is a whole number of days")
+    if not config.WINDOW_MIN_DAYS <= days <= config.WINDOW_MAX_DAYS:
+        raise ValueError(f"the window is {config.WINDOW_MIN_DAYS} to {config.WINDOW_MAX_DAYS} days")
+    return days
 
 
 def stats_for(env: RecoEnv, items: tuple[str, ...] | list[str] | None, metric: str) -> MetricStats:

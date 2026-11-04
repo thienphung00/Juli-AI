@@ -6,10 +6,10 @@ Sản phẩm page. When the first card closes the next one moves up.
 
 Closed for the queue (the card gives its place up, all at once): ``rejected`` (dismissed),
 ``withdrawn``, ``superseded``, ``executed`` (owner 2026-11-04: the next card is up right away),
-``measured``, and a ``sent`` card with an ``expired`` event. ``planned`` (D-6, the draft plan,
-built later) also takes a card out of the queue and gives it back when it leaves the plan: the
-rule is here, the status itself needs the CHECK widened when D-6 lands. A card the seller
-approved goes ahead of waiting cards.
+``measured``, and a ``sent`` card with an ``expired`` event. ``planned`` (D-6, the draft plan)
+also takes a card out of the queue and gives it back when it leaves the plan (removed) or when the
+plan is confirmed (the card is then ``approved``). A card the seller approved goes ahead of
+waiting cards.
 
 A product whose executed change is still inside its planned measurement window is "being
 measured": :func:`measuring` derives ``product_measuring = {until, change_set}`` for it (a
@@ -55,8 +55,6 @@ from juli_backend.models.shop_proposals import (
 from juli_backend.services.shopee_recommendations import config
 
 OPEN_STATUSES = (STATUS_DRAFT, STATUS_SENT, STATUS_CHANGES_REQUESTED, STATUS_APPROVED)
-#: D-6 (wave 1b): in the draft plan, so out of the queue until removed from it.
-STATUS_PLANNED = "planned"
 _LAST = 10**6
 
 
@@ -224,7 +222,9 @@ async def measuring(
 ) -> dict[str, dict[str, object]]:
     """``{product: {"until": "YYYY-MM-DD", "change_set": None}}`` for each product with an
     executed card whose planned measurement window has not ended (the latest end wins).
-    ``until`` is the last day of the window; ``change_set`` is filled by D-8, None until then."""
+    ``until`` is the last day of the window (the change set's chosen window, P91 D-8, stored as the
+    card's ``plan_days``); ``change_set`` is its id (None for a card executed before change sets).
+    A measurement a later change cut is no longer running."""
     now = now.replace(tzinfo=None) if now.tzinfo else now
     stmt = (
         select(ShopProposal.id, ShopProposal.item_id, ActionCard.metadata_json)
@@ -272,6 +272,8 @@ async def measuring(
             final.add(cid)
     out: dict[str, dict[str, object]] = {}
     for pid, item, raw in rows:
+        if _meta(raw).get("measure_cut_at"):
+            continue  # a later change cut this measurement (change_sets.cut)
         plan = _meta(raw).get("plan_days")
         plan_days = int(plan) if isinstance(plan, int | float) else None
         if window_over(
@@ -287,5 +289,5 @@ async def measuring(
             continue
         until = (start + timedelta(days=plan_days or config.QUEUE_DEFAULT_PLAN_DAYS)).date()
         if item not in out or until.isoformat() > str(out[item]["until"]):
-            out[item] = {"until": until.isoformat(), "change_set": None}
+            out[item] = {"until": until.isoformat(), "change_set": _meta(raw).get("change_set")}
     return out

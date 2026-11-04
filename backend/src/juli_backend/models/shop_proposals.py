@@ -68,6 +68,8 @@ STATUS_EXECUTED = "executed"
 STATUS_MEASURED = "measured"
 STATUS_WITHDRAWN = "withdrawn"
 STATUS_SUPERSEDED = "superseded"
+#: P91 D-6 (migration 117): in the shop's draft plan, nothing executed or sent to the team yet
+STATUS_PLANNED = "planned"
 STATUSES: tuple[str, ...] = (
     STATUS_DRAFT,
     STATUS_SENT,
@@ -78,6 +80,7 @@ STATUSES: tuple[str, ...] = (
     STATUS_MEASURED,
     STATUS_WITHDRAWN,
     STATUS_SUPERSEDED,
+    STATUS_PLANNED,
 )
 
 #: An approval's decision is also the status it moves the proposal to.

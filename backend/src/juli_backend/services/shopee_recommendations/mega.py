@@ -631,9 +631,9 @@ def build_mega_card(
 
 
 def _kpi_deltas(env: RecoEnv, money: dict[str, Any]) -> dict[str, float]:
-    from juli_backend.services.shopee_recommendations.cards import _shop_deltas
+    from juli_backend.services.shopee_recommendations.cards import shop_deltas
 
-    return _shop_deltas(env, money)
+    return shop_deltas(env, money)
 
 
 def children_from_card(card: Mapping[str, Any]) -> list[Candidate]:

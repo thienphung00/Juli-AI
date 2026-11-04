@@ -59,9 +59,10 @@ def _label(env: RecoEnv, cand: Candidate) -> str:
     return s.label
 
 
-def _shop_deltas(env: RecoEnv, money: dict[str, Any]) -> dict[str, float]:
-    """Shop-level dKPI at P25 (month): GMV, orders, AOV (VND), margin (points)."""
-    p25 = money["total"]["p25"]
+def shop_deltas(env: RecoEnv, money: dict[str, Any], quantile: str = "p25") -> dict[str, float]:
+    """Shop-level dKPI at a quantile (default P25; month): GMV, orders, AOV (VND), margin (points).
+    ``money`` is a ``prediction.convert`` dict (a card's, or a plan's combined one)."""
+    p25 = money["total"][quantile]
     gmv, orders = float(env.shop_gmv_30d), float(env.shop_orders_30d)
     d_gmv = p25["dgmv"]
     d_orders = p25["dorders"] or 0.0
@@ -155,7 +156,7 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
             else None
         )
     sheet = build_sheet(cand.kind, ev.target, ev.before, ev.after, dict(cand.inputs))
-    deltas = _shop_deltas(env, money)
+    deltas = shop_deltas(env, money)
     dprofit_p50 = money["total"]["p50"]["dprofit"]
     if dprofit_p50 is None:
         dprofit_p50 = money["certain"]["dprofit"]

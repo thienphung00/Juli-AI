@@ -34,6 +34,7 @@ from juli_backend.models.shop_proposals import (
     STATUS_CHANGES_REQUESTED,
     STATUS_DRAFT,
     STATUS_EXECUTED,
+    STATUS_PLANNED,
     STATUS_SENT,
     ShopProposal,
     ShopProposalExecution,
@@ -60,7 +61,13 @@ CARD_STATUS = "shopee_reco"
 ORIGIN_ENGINE = "engine"
 WORKFLOW_PREFIX = "shopee_reco"
 #: Proposal statuses that hold their products against a new card.
-LOCKING_STATUSES = (STATUS_SENT, STATUS_CHANGES_REQUESTED, STATUS_APPROVED, STATUS_EXECUTED)
+LOCKING_STATUSES = (
+    STATUS_SENT,
+    STATUS_CHANGES_REQUESTED,
+    STATUS_PLANNED,
+    STATUS_APPROVED,
+    STATUS_EXECUTED,
+)
 
 
 def workflow_key(card: Mapping[str, Any], card_id: uuid.UUID) -> str:
@@ -340,6 +347,8 @@ async def locked_products(
     out: dict[str, str] = {}
     for r in rows:
         meta = json.loads(r.metadata_json or "{}")
+        if r.status == STATUS_EXECUTED and meta.get("measure_cut_at"):
+            continue  # a newer change cut this measurement: the product is free again
         until = meta.get("lock_until")
         if (
             until

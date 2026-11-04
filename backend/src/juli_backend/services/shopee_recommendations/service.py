@@ -53,10 +53,12 @@ from juli_backend.services.shop_proposals.cycle import ProposalError
 from juli_backend.services.shopee_analytics import loaders
 from juli_backend.services.shopee_analytics.critical import build_critical
 from juli_backend.services.shopee_recommendations import (
+    change_sets,
     codes,
     combo,
     config,
     manual,
+    plan_codes,
     product_queue,
     store,
     versions,
@@ -393,6 +395,7 @@ def _summary(
     card: dict[str, Any],
     meta: dict[str, Any] | None = None,
     measuring: Mapping[str, Any] | None = None,
+    plan_codes_: Mapping[uuid.UUID, str | None] | None = None,
 ) -> dict[str, Any]:
     pm = card["predicted"]["money_per_month"]
     product = p.item_id
@@ -401,6 +404,9 @@ def _summary(
         "code": p.code,
         "product_id": product,
         "product_queue": p.product_queue,
+        "origin": card.get("origin") or store.ORIGIN_ENGINE,
+        "plan_id": None if p.lever_plan_id is None else str(p.lever_plan_id),
+        "plan_code": (plan_codes_ or {}).get(p.lever_plan_id) if p.lever_plan_id else None,
         "product_measuring": (
             measuring.get(product) if measuring and product and p.status in OPEN_STATUSES else None
         ),
@@ -585,6 +591,9 @@ async def list_cards(
         _naive(now or datetime.now(UTC)),
         None if product_id is None else [product_id],
     )
+    plan_codes_ = await plan_codes.plan_codes_for(
+        session, shop_id, [p.lever_plan_id for p, _ in rows]
+    )
     out: list[tuple[dict[str, Any], dict[str, Any]]] = []
     behind = 0
     for p, card in rows:
@@ -602,7 +611,7 @@ async def list_cards(
         if status and p.status != status:
             continue
         meta = await store.card_meta(session, shop_id, p.id)
-        summary = _summary(p, card, meta, measuring)
+        summary = _summary(p, card, meta, measuring, plan_codes_)
         summary["verification"] = {"state": states.get(p.id)}
         if audience == "seller":
             rank_ = card.get("rank") or {}
@@ -673,6 +682,7 @@ async def card_detail(
             await product_queue.measuring(
                 session, shop_id, _naive(datetime.now(UTC)), [p.item_id] if p.item_id else []
             ),
+            await plan_codes.plan_codes_for(session, shop_id, [p.lever_plan_id]),
         ),
         "card": seller_view(full) if audience == "seller" else full,
         "journey": [
@@ -1274,6 +1284,14 @@ async def mark_executed(
     )
     subject = _subject_of(card, card_id)
     chosen_version, chosen_code = await _chosen(session, shop_id, card_id)
+    # the card joins the change set of its product (or the shop) for that day; a running
+    # measurement of the same product is cut today (P91 D-7)
+    cset = await change_sets.attach_execution(session, shop_id, p, card, executed_at=when, now=now)
+    plan_code = (
+        (await plan_codes.plan_codes_for(session, shop_id, [p.lever_plan_id])).get(p.lever_plan_id)
+        if p.lever_plan_id
+        else None
+    )
     for n, change in enumerate(changes):
         await store.write_event(
             session,
@@ -1291,6 +1309,9 @@ async def mark_executed(
                 "execution_id": str(execution.id),
                 "executor_role": role,
                 "bundle": card.get("bundle", False),
+                "change_set": str(cset.id),
+                "plan_id": None if p.lever_plan_id is None else str(p.lever_plan_id),
+                "plan_code": plan_code,
             },
             family=card["family"],
             card=card,
@@ -1299,12 +1320,18 @@ async def mark_executed(
         )
     await store.set_meta(session, shop_id, card_id, {"executed_at": when.isoformat()})
     await _requeue(session, p, now)  # executed closes the card for the queue at once
+    from juli_backend.services.shopee_recommendations import plans
+
+    plan_done = await plans.on_executed(session, shop_id, p, now=now)
     return {
         "id": str(card_id),
         "code": p.code,
+        "plan_code": plan_code,
         "status": p.status,
         "execution_id": str(execution.id),
         "events": len(changes),
+        "change_set": change_sets.to_json(cset, now=now),
+        "plan_executed": plan_done,
     }
 
 
@@ -1373,6 +1400,16 @@ async def card_by_code(
         "title": card["title"],
         "product_id": p.item_id,
         "product_queue": p.product_queue,
+        "origin": card.get("origin") or store.ORIGIN_ENGINE,
+        "plan_id": None if p.lever_plan_id is None else str(p.lever_plan_id),
+        "plan_code": (
+            (await plan_codes.plan_codes_for(session, shop_id, [p.lever_plan_id])).get(
+                p.lever_plan_id
+            )
+            if p.lever_plan_id
+            else None
+        ),
+        "planned_date": p.planned_start.isoformat() if p.planned_start else None,
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "sent_at": p.sent_at.isoformat() if p.sent_at else None,
         "supersedes_code": card.get("supersedes_code"),

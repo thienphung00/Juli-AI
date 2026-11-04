@@ -109,3 +109,22 @@ CODE_PREFIX = "JC"
 CODE_SEQ_DIGITS = 4
 #: ``action_cards.priority`` of a manual card that does not ask to lead its product's queue.
 MANUAL_PRIORITY = 50
+
+# -- the draft plan, change sets and the measurement window (P91 D-6, D-7, D-8, D-10) ---------
+#: ``shop_reco_plans.code``: ``KH-<yymm>-<seq3>``, per shop, never reused.
+PLAN_CODE_PREFIX = "KH"
+PLAN_SEQ_DIGITS = 3
+#: Most cards one plan holds (the joint re-evaluation runs once per card to price "bỏ thẻ này thì").
+PLAN_MAX_CARDS = 30
+#: A change set's measurement window: at least this many days, at most that many (custom 3-90).
+WINDOW_MIN_DAYS, WINDOW_MAX_DAYS = 3, 90
+#: Presets offered; the recommended one is the shortest whose MDE is within ``MDE_MAX``.
+WINDOW_PRESETS = (7, 14, 28)
+#: Executing on a product that is still being measured cuts the running measurement that day: with
+#: at least this many days measured the result is kept ("đo được N ngày"), with fewer it is
+#: "không kết luận".
+CUT_MIN_DAYS = 3
+#: A card that was one of several in a change set counts for its change_kind at this weight in the
+#: calibration (never as a clean single-kind sample).
+MULTI_CARD_WEIGHT = 0.25
+#: A cut or short-window result is read at lower confidence: no calibration from it.

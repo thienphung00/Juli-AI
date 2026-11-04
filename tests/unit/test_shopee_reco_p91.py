@@ -199,7 +199,7 @@ def test_migration_116_is_additive_reversible_and_takes_the_tail():
     assert 'revision: str = "116_shopee_reco_codes"' in src
     assert 'down_revision: str | None = "115_shopee_recommendations"' in src
     tail = REPO / "backend/src/juli_backend/database/migrations/deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "116_shopee_reco_codes"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "117_shopee_reco_plans"' in tail.read_text("utf-8")
 
 
 # ============================================================================ flows (SQLite)
