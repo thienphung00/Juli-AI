@@ -55,3 +55,17 @@ never here.
   (the Ops masking layer would blank it; tests scan every payload).
 - Import from routes. Read tables through `repositories`, not raw SQL.
 - Re-derive a number `services/shopee_profit` already computes.
+
+
+## KOL (P91 D-9, D-11)
+
+`kol` builds KOL x sản phẩm x kênh rows from the affiliate-marked order lines (migration 117 keeps
+`kol_key`, public handle, channel, campaign type, MCN flag on the line). Commission per line:
+the report's `Chi phí(₫)` (`ingest/affiliate_commission`, G-15), else the product's targeted-campaign
+rate, else its open-campaign rate (`kol_rates`), on the line's `buyer_paid` (order value after the
+shop's discounts, shipping excluded); the profit waterfall is re-run with it. Per row: orders, units,
+GMV, commission, net profit, sample cost (Mẫu KOL), profit after samples, ROI incl. samples =
+(net - sample) / (commission + sample), `roi_shopee` = Shopee's creator-export ROI as exported,
+payback orders, `low_data` below 10 pair orders. Clicks exist per creator only (`kol_clicks`). `KolPool`
+carries the same facts for the KOL cards. Entry points `queries.kol_table` / `queries.kol_product_tab`;
+`kol.pair_daily` is the KOL x product daily series the measurement reads.

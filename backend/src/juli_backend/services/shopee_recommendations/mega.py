@@ -665,6 +665,8 @@ def select_children(
     for c in cards:
         if c["family"] == "mega_sale" or n[c["family"]] >= per_family:
             continue
+        if c["change_kind"] in ("affiliate_sample", "affiliate_invite"):
+            continue  # a KOL card is about one creator, not part of a shop-wide schedule
         if c["change_kind"] in PRICE_KINDS:
             item = c["scope"]["product_ids"][0] if c["scope"]["product_ids"] else ""
             if item in used_price:

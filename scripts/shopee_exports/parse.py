@@ -37,7 +37,10 @@ export, which carries buyer data, HĐDV 5.1) is listed as skipped and never open
 - ``Order.all.<from>_<to>.xlsx`` (the order export) → ``order_lines`` through ``orders.py``: an
   allowlist by header, the buyer's columns never decoded, the order id replaced by a keyed hash.
 - ``SellerConversionReport_<ts>.csv`` → ``affiliate_order_lines`` (the order id is replaced by a
-  keyed hash before anything leaves the parser; buyer-looking columns are dropped unread);
+  keyed hash before anything leaves the parser; buyer-looking columns are dropped unread). The
+  creator is the PUBLIC ``Tài khoản Tiếp thị liên kết`` handle (+ ``Kênh``, ``Loại chiến dịch``,
+  ``MCN được liên kết``); the gateway hashes it into the line's ``kol_key`` (P91 D-9, migration 117)
+  and the seller's commission is ``Chi phí(₫)`` (``ingest/affiliate_commission``, G-15);
   ``ops_log_*.csv`` → ``ads_change_log``.
 
 A header the parser does not know raises :class:`UnknownColumn` (Seller Centre changed
