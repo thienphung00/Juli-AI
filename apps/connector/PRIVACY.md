@@ -98,6 +98,25 @@ low rate, the way Seller Centre's own date picker asks for a single day. It
 remembers which days are done, so it continues where it stopped after the
 browser is closed, and it stops if Seller Centre or Juli refuses the request.
 
+## Filling in a product's text (pilot shops only, opt-in)
+
+For a shop on Juli's pilot list, and only when the seller opens a product's edit
+page **from Juli's "Điền bằng Connector" button**, the extension can type text the
+seller has already approved in Juli into that page's product-name field or the
+first line of its description. The address of the page then carries only the
+approved card's code (for example `#juli-fill=JC-2611-0007`); the extension asks
+Juli for that card's approved text with its access token, finds the two fields by
+their visible labels, highlights them and shows "Juli đã điền — kiểm tra rồi bấm
+Lưu của Shopee".
+
+It **never clicks anything** on the page — not Lưu, Cập nhật, Xác nhận, Ẩn or any
+other button — never submits a form, never leaves the page and reads nothing from
+it except the current text of the field it is filling. The seller reviews the text
+and presses Shopee's own Save. If the page does not look as expected the extension
+fills nothing and shows the text with copy buttons instead. For a new cover image
+it only shows a download link; for a variation change it shows a checklist beside
+the page.
+
 ## Retention and deletion
 
 How long Juli keeps the data depends on how the shop uses Juli:

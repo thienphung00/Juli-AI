@@ -17,6 +17,9 @@ importers:
 
   apps/connector:
     devDependencies:
+      jsdom:
+        specifier: ^26.0.0
+        version: 26.1.0
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

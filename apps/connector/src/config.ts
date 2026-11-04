@@ -156,3 +156,34 @@ export const MAX_ROWS_PER_POST = 400;
 export const MONEY_DIVISOR = { products: 1, ads: 1, vouchers: 1 } as const;
 export const MAX_PLAUSIBLE_PRICE_VND = 500_000_000;
 export const MAX_PLAUSIBLE_AD_VND = 5_000_000_000;
+
+// -- listing fill-in (p91 D-13, flag `fill_listing`) ----------------------------------------
+//
+// On a product's edit page the Connector can type an APPROVED card's text into the title and the
+// first line of the description, highlight the fields and say "kiểm tra rồi bấm Lưu của Shopee".
+// It NEVER clicks or submits anything (no Lưu / Cập nhật / Xác nhận / Ẩn), never navigates, and
+// reads no buyer data. It runs only when ALL of these hold: this flag is on, the paired shop is
+// on the explicit pilot list (the "*" wildcard of the readers does NOT count), the address carries
+// `#juli-fill=<card code>` (set by the Juli button "Điền bằng Connector"), and Juli's server
+// (CONNECTOR_FILL_LISTING) serves the card. An unknown layout fills nothing and shows copy buttons.
+
+export const FILL_LISTING_ACTIVE = true;
+
+/** The address fragment the Juli button adds: `#juli-fill=JC-2611-0007`. Only the card's code. */
+export const FILL_HASH_KEY = "juli-fill";
+export const FILL_CODE_PATTERN = /^JC-\d{4}-\d{4,}$/;
+/** The product edit page: `/portal/product/<item id>` (list pages and the new-product form never match). */
+export const FILL_EDIT_PATH = /^\/portal\/product\/(\d{1,20})(?:\/|$)/;
+/** How long the page gets to draw its form before the Connector gives up and offers copy buttons. */
+export const FILL_WAIT_MS = 25_000;
+export const FILL_POLL_MS = 400;
+
+/** Visible Vietnamese labels the fields are found by (recon of the real page pending: see PLAYBOOK). */
+export const FILL_LABELS = {
+  title: "Tên sản phẩm",
+  description_first_line: "Mô tả sản phẩm",
+} as const;
+
+export function fillActive(shopId: string | undefined): boolean {
+  return FILL_LISTING_ACTIVE && !!shopId && PILOT_SHOP_IDS.includes(shopId);
+}

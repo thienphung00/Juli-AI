@@ -12,6 +12,7 @@ import { GatewayClient } from "../ingest/client";
 import type { Captured } from "../shopee/map";
 import { isDataAnswer, type RequestResult } from "../shopee/runner";
 import { Connector } from "./connector";
+import { fillRequest, senderMatches } from "./fill";
 import { READER_RUN_ALARM, READER_WATCHDOG_ALARM, ReaderScheduler } from "./scheduler";
 
 const ALARM = "juli-daily-sync";
@@ -48,9 +49,11 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
   later: (ms, fn) => void setTimeout(fn, ms),
 });
 
+const gateway = new GatewayClient();
+
 const connector: Connector = new Connector({
   storage: chrome.storage.local,
-  client: new GatewayClient(),
+  client: gateway,
   version: MANIFEST_VERSION,
   now: () => Date.now(),
   busy: () => scheduler.isBusy(),
@@ -151,6 +154,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return outcome;
         }),
       );
+    }
+    if (msg.type === "fill-request") {
+      // Listing fill-in (p91 D-13): only the edit page that carries this card's code asks.
+      const code = String(msg.code ?? "");
+      const itemId = String(msg.itemId ?? "");
+      if (!senderMatches(sender.tab?.url, code, itemId)) return respond(Promise.resolve({ ok: false, reason: "inactive" }));
+      return respond(fillRequest({ storage: chrome.storage.local, client: gateway }, code, itemId));
     }
     if (msg.type === "sync-result") return respond(connector.syncResult(String(msg.status)));
     if (msg.type === "backfill-result") {
