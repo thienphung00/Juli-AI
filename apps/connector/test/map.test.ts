@@ -72,6 +72,19 @@ describe("traffic overview → shopee.traffic_overview", () => {
     expect(ads).toMatchObject({ ads_expense: 50000 });
   });
 
+  it("keeps a real rate above one (more clicks than views) in extra instead of calling it drift", () => {
+    const body = clone(overview) as unknown as { result: Record<string, { total: Record<string, unknown> }> };
+    const video = body.result.video!.total;
+    video.video_views = 1;
+    video.product_clicks = 2;
+    video.ctr = 2;
+    const mapped = capture(url, RANGE, body);
+    expect(mapped?.drift).toBeNull();
+    const row = mapped!.rows.find((r) => r.source === "psd_label_seller_video")!;
+    expect("ctr" in row).toBe(false);
+    expect(row.extra).toMatchObject({ ctr_above_one: 2 });
+  });
+
   it("treats a percentage where a fraction is expected as drift", () => {
     const body = clone(overview);
     body.result.video.total.ctr = 5;
