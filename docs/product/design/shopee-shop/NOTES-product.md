@@ -60,3 +60,28 @@ filenames are not known here, so links are by role:
 Each file was rendered headless (Playwright) with a small dev-only runtime that implements `sc-if`, `sc-for`,
 `{{path}}` and `setState`; every state was captured, every button clicked once, no console or template errors.
 Layout avoids `<table>` and inline SVG because of that runtime's parser limits; sliders are native range inputs.
+
+---
+
+## P91 (2026-11-04): thẻ theo sản phẩm, phiên bản, phương án thủ công, kế hoạch
+
+Artboards and decisions: see the P91 section of `README.md`. Notes that belong with the product screens:
+
+- **Sản phẩm › Đề xuất** is a new sub-tab between Nguồn and Từ khoá. It lists every open card of the product (not only #1), grouped by family; the product's Quyết định card is the one marked `#1 · Đang ở Quyết định`.
+- **Thẻ có phiên bản** replaces the A/B/C option buttons of `CardWhatIf` when a card has 2–4 versions: the user picks a column, the sliders change that column only (`whatif_adjusted` is recorded for that version), and `Duyệt Vn` records `chosen_version`. A version that breaches the floor or the spend cap is drawn, marked and cannot be approved.
+- **Tiêu đề**: 100 characters (counter `97/100`); above 100 the text is not saved and Duyệt is locked. Both versions of the drawn title card are under 100.
+- **Card codes**: `JC-2611-0007`, versions `-V1…-V4`. Export to Excel is later; Ops shows a disabled "Xuất Excel · Sắp có".
+
+### D-7 Measurement when changes run together (recommended, owner to confirm)
+
+- Unit of measurement is the **product's change set**: every card of one product executed the same day is one set, measured against the product's baseline and compared with the plan's joint prediction for that product. Different products are separate sets; the plan's shop total is measured too (Σ predicted vs shop actual).
+- Shop-wide cards are measured at shop level; product sets executed with them carry **"Kèm thay đổi toàn shop"**.
+- Learning: a one-card set calibrates its change kind as today; a multi-card set calibrates the joint prediction and counts for each kind with weight 0,25, never as a clean sample.
+- Executing on a product still being measured is allowed: the running measurement is cut that day. **≥ 3 days measured: result kept as "Đo được N ngày"** (lower confidence); **< 3 days: "Không kết luận"**. The confirm dialog lists the products whose measurement will be cut (drawn in `KeHoach.dc.html`, scene `confirm`; result chips in scene `ketqua`).
+- Window (D-8): minimum 3 days, presets 7 / 14 / 28 and custom 3–90, per plan with a per change set override. The recommendation is the smallest preset whose detectable change is ≤ 30 %; drawn with a stand-in formula (≥ 45 % × √(7 ÷ N): 7 → 45 %, 14 → 32 %, 28 → 23 %), the real figure comes from `plan.py`.
+
+### Open questions (product screens)
+
+- Does the sub-tab show closed cards (đã bỏ qua / đã đo xong) behind a link, as drawn, or in a filter?
+- Should the product page let the user reorder the queue by hand (drag), or is the score order final?
+- A version with a floor breach: keep it visible (drawn) or hide it behind "Xem thêm"?

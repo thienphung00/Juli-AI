@@ -63,3 +63,53 @@ All nine artboards now read one shared synthetic dataset (the `SHARED DATASET v1
 - Voucher / Khuyến mãi / Combo rankings for KPIs other than the drawn ones (CTOR for vouchers): confirm which KPI is meaningful per price lever (CTOR on "clicks of products with that voucher" is my assumption).
 - Keyword rows depend on owner-collected data (ADR-119); freshness chip for that source is drawn only in the stale state.
 - Confidence "Rõ" threshold: drawn as 100 orders in the period; real rule comes from `rankings.py`.
+
+---
+
+# P91 — đề xuất theo sản phẩm, phiên bản, phương án thủ công, kế hoạch (artboards)
+
+Draft for owner approval, 2026-11-04 (spec: `fasttrack/contracts/p91-plan.md` D-1 … D-8). Same conventions as above. Nothing is built until the owner approves. All data is synthetic ("Shop mẫu gia dụng": Găng tay cao su A, Túi rác sinh học B, Miếng rửa chén C); no client or staff names. P91 artboards share a separate `P91 DATASET v1` block (byte-identical in the eight files) with one engine for voucher, combo and plan, so the same version shows the same numbers on every screen. It is not the `SHARED DATASET v1` of the P90 set; the two are not wired together yet.
+
+| Artboard | What | States (`#scene=`) |
+|---|---|---|
+| `SanPhamDeXuat.dc.html` (1280) | Sản phẩm › new sub-tab **Đề xuất (8)**: every open card of Găng tay cao su A grouped by family (Tên/từ khoá/ảnh bìa, Quảng cáo, Khuyến mãi/giá, Voucher, Combo, Tiếp thị liên kết, Flash Sale/chương trình), or by queue order. Each card: code `JC-2611-0007`, queue chip (`#1 · Đang ở Quyết định`, `#2 · Xếp hàng` …), Δ lợi nhuận/tháng of V1, versions; "Xem phiên bản" opens V1…V4 rows with code `-V2`, Chắc chắn, range, "Chạm giá sàn" flag, "Mở thẻ ›". "+ Tự tạo phương án" entry point | view `Theo họ` / `Theo thứ tự hàng đợi`; per-card expand |
+| `SanPhamDeXuatMobile.dc.html` (390) | Same, cards stacked | same |
+| `CardVersions.dc.html` (1120) | Update of `CardWhatIf`: 2–4 versions as columns next to **Hôm nay**; rows ①…⑤, Chi phí, Δ lợi nhuận chắc chắn and dự kiến, giá sàn check, trần chi check; breach cells red and "Không thể duyệt"; radio picks the version; what-if sliders (and the title box) act on the selected version only, "Về mặc định"; `Duyệt V2` / `Thêm V2 vào kế hoạch` / `Yêu cầu chỉnh` / `Bỏ qua`; "Tiếp theo cho sản phẩm này" strip; title card with live counter `97/100` (green), `>90` amber, `>100` red and Duyệt locked | `voucher` · `floor` (V3: breach + over trần chi, "Đặt về mức tối đa") · `approved` (V2) · `planned` · `title` |
+| `QuyetDinhHangDoi.dc.html` (1040) | Quyết định, one card per product; each shows code, "Tiếp theo cho sản phẩm này", "#1 · còn N thẻ xếp hàng". Bỏ qua / Thêm vào kế hoạch / Đã thực hiện (demo) replace the card at once with the product's next card ("Vừa lên thay thẻ …"). A product still being measured shows "Sản phẩm đang đo: còn N ngày" on the replacement | `default` · `skip` · `plan` · `done` (executed, measuring) · `measured` |
+| `TuTaoPhuongAn.dc.html` (1280) | Builder + comparison. Change type (combo nhiều sản phẩm, mua kèm, quà tặng, voucher, giảm giá, quảng cáo, tiêu đề); up to 3 different products with qty; discount as % / số tiền / giá combo cố định; optional stacked voucher and gift; up to 4 variants. Table: lợi nhuận, biên, AOV, số đơn, GMV, chi phí, giá sàn — each cell with Δ vs hôm nay and vs P1; trade-off callout (biên giảm nhưng AOV tăng); per-order breakdown, floor per SKU, break-even; "Lưu thành đề xuất" with chosen variant and optional "Đưa lên Quyết định" | `compare` · `breach` (P3 giá 165.000đ chạm giá sàn, cannot be saved) · `one` · `saved`. Entry from the product page and from Quyết định (`#from=product` / `#from=quyet-dinh`) |
+| `KeHoach.dc.html` (1280) | **Kế hoạch** (D-6/D-7/D-8): waiting cards with "Thêm vào kế hoạch"; plan panel with card codes, version switch, per-card contribution and "bỏ thẻ này thì" deltas, stacked-same-product warning, aggregate today → after (five numbers, GMV, chi phí tháng và ngày vs trần, Δ lợi nhuận chắc chắn + dự kiến, giá sàn), measurement window chooser (7 / 14 / 28 / tuỳ chọn 3–90, "Đề xuất" mark, "chỉ thấy thay đổi ≥ X%", "Khó kết luận"), per change set override, "Xác nhận kế hoạch" blocked on breach, confirm dialog listing measurements to be cut | `breach` (voucher + khuyến mãi stack below the floor though each is fine) · `ok` · `combo` (biên 14,4 → 14,1 %, AOV +12.000đ) · `confirm` · `ketqua` (also the three result states) |
+| `KeHoachMobile.dc.html` (390) | Same as a bottom sheet; confirm as a bottom dialog | same five |
+| `OpsDeXuat.dc.html` (1440) | Ops › Đề xuất list: **Mã thẻ** column, product, family, nguồn (Juli / Thủ công), hàng đợi, phiên bản (chosen), kế hoạch, trạng thái; filter + search by code; disabled **Xuất Excel · Sắp có** | status filter, code search |
+
+## Navigation
+
+```
+Sản phẩm › Đề xuất  "Xem phiên bản › Mở thẻ ›" ──► CardVersions.dc.html#card=<code>&v=<Vn>
+Sản phẩm › Đề xuất  "+ Tự tạo phương án" ───────► TuTaoPhuongAn.dc.html#from=product
+Quyết định          "+ Tự tạo phương án" ───────► TuTaoPhuongAn.dc.html#from=quyet-dinh
+Quyết định / thẻ    "Thêm vào kế hoạch" ────────► KeHoach.dc.html
+Ops › Đề xuất       "+ Tạo phương án thủ công" ─► TuTaoPhuongAn.dc.html
+```
+
+## Decisions made while drawing (please approve)
+
+1. **Words**: "Duyệt" (Demo's "Phê duyệt" kept on P90 artboards) and "Bỏ qua" (Demo's label, P90 artboards say "Từ chối"). "Phương án khác" appears nowhere; versions are V1…V4, the builder's items are "P1…P4".
+2. **Card code**: shown as a pink chip on every card (product page, card, Quyết định, builder result, Ops). Version code = card code + `-Vn`. The code is a search key in Ops.
+3. **Excel export**: no working button in the seller views. Ops shows a **disabled** "Xuất Excel · Sắp có" because staff will want it first and the disabled button tells them it is planned and which data it will carry; sellers see only a one-line note on the product page. Say if you prefer no button at all.
+4. **Expected figures rounded to 1.000đ** in ranges so they do not look more precise than the model.
+5. **Quyết định hint**: "Tiếp theo cho sản phẩm này: <code> <kind>" on every card, plus "#1 · còn N thẻ xếp hàng".
+6. **Replacement is immediate** for executed and planned cards (D-1 changed): the newcomer carries a blue "Vừa lên thay thẻ …" tag in Quyết định.
+7. **Plan scope** in the aggregate is the products in the plan (here two), so the effect of one card is visible; the chi phí line is shop-wide per day against the daily cap.
+8. **Stacked floor check** runs on the same basket (voucher on a basket already discounted by a khuyến mãi). Combo and voucher do not stack in the example because the combo basket is below the voucher minimum.
+9. **Quảng cáo and Tiêu đề in the builder** have a form but no shared comparison table; they compare by versions inside their own card. Counter 97/100 on the title card.
+
+## Open questions for the owner (P91)
+
+- Measurement window: with the drawn rule (smallest preset with detectable change ≤ 30 %) the recommendation is 28 days; is a 28-day wait acceptable as the default, or should the default be 14 with "khó kết luận"?
+- Immediate replacement means the next card can touch a product still being measured; the drawn answer is allow, with the "Sản phẩm đang đo: còn N ngày" warning and the cut. Confirm, or block until the measurement ends for some families (e.g. price)?
+- Should "Thêm vào kế hoạch" exist on the product page version rows as well (drawn only on the card and in Quyết định)?
+- Builder: should staff be able to create for a seller whose Quyết định is empty (Ops, saved with `created_by`), and may a seller see staff-made cards marked "Thủ công"?
+- Ops "Xuất Excel": disabled button (drawn) or hidden?
+- Mobile for the card, the builder and Quyết định is not drawn (P90 has mobile only for Tổng quan, Xếp hạng, Sản phẩm; the plan has a mobile sheet because it is the place sellers confirm). Wanted?
+- Plan identifier: plans have no code in the spec; should the plan get `KH-<yymm>-<seq>` for Excel and Ops?
+- Result chips "Đo được N ngày", "Không kết luận", "Kèm thay đổi toàn shop": wording OK?
