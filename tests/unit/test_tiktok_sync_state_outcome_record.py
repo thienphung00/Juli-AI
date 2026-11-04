@@ -318,8 +318,9 @@ class TestTheMigrationMatchesTheModel:
         # ADR-118 `109_shop_proposals`; Ops platform labels `110_ops_shop_platform`;
         # ADR-119 `111_shopee_keywords`; ADR-120 `112_shopee_profit_and_history`;
         # P90 step 2 `113_shopee_orders_and_logs`; P90 step 6 `114_card_verification_events`;
-        # P90 step 8 `115_shopee_recommendations`; P91 `116_shopee_reco_codes`.
-        assert heads == ["116_shopee_reco_codes"], heads
+        # P90 step 8 `115_shopee_recommendations`; P91 `116_shopee_reco_codes`;
+        # P91 D-13 `117_planned_changes`.
+        assert heads == ["117_planned_changes"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema
