@@ -8,8 +8,15 @@ valid rows only -- one change set, one reason, one file hash -- and reports how 
 recommendations will be recomputed.
 
 Rejections (``kind``): ``unknown_sku``, ``cost_ge_price``, ``cost_missing``,
-``out_of_range``, ``bad_date``, ``duplicate_sku``, ``invalid_value``, ``bad_month``.
-An empty cell keeps the old value. Juli-filled columns (tên, giá niêm yết) are not read.
+``out_of_range``, ``bad_date``, ``duplicate_sku``, ``invalid_value``, ``bad_month``, and (P91 D-12)
+``bad_pack`` (số món / phân loại), ``bad_vat`` (VAT %), ``unknown_component``, ``bom_self``,
+``bad_quantity``, ``duplicate_component`` (sheet ``Thành phần combo``: a listing's bill of
+materials is applied whole or not at all). An empty cell keeps the old value. Juli-filled columns
+(tên, giá niêm yết) are not read. A ``số món`` equal to what Juli already reads from the variation
+name ("Combo 3 hộp" = 3) is not a change.
+
+P91 D-12 sheets: ``Thành phần combo`` (component SKU x quantity per listing without a SKU) and
+``VAT`` (whether prices / giá vốn include VAT, shop-wide Có / Không).
 """
 
 from __future__ import annotations
@@ -44,12 +51,15 @@ from juli_backend.services.shop_inputs.catalogue import (
     split_scope,
 )
 from juli_backend.services.shop_inputs.template import (
+    BOM_SHEET,
     GOAL_COLUMNS,
     GOAL_SHEET,
     GROUP_LABELS,
     SKU_COLUMNS,
     SKU_SHEET,
     STATUS_LABELS,
+    VAT_SETTINGS,
+    VAT_SHEET,
     month_label,
 )
 from juli_backend.services.shop_inputs.versions import (
@@ -59,16 +69,23 @@ from juli_backend.services.shop_inputs.versions import (
     write_versions,
 )
 from juli_backend.services.shop_rules.rules import (
+    MAX_COMPONENT_QTY,
+    MAX_COMPONENTS,
+    MAX_PACK_COUNT,
     MONTHLY_AOV,
     MONTHLY_GMV,
     MONTHLY_MARGIN_PCT,
     MONTHLY_MARKETING_CAP,
     MONTHLY_ORDERS,
     MONTHLY_RULE_KEYS,
+    PACK_COMPONENTS,
+    PACK_COUNT,
     SKU_COST,
+    VAT_RATES_PCT,
     RuleValidationError,
     validate_rule,
 )
+from juli_backend.services.shopee_profit.pack import pack_count_from_name
 
 #: Reasons the Áp dụng step offers as chips (any other text is accepted too).
 SUGGESTED_REASONS: tuple[str, ...] = (
@@ -87,6 +104,12 @@ KIND_LABELS: dict[str, str] = {
     "duplicate_sku": "Trùng SKU",
     "invalid_value": "Giá trị sai",
     "bad_month": "Tháng sai",
+    "bad_pack": "Số món sai",
+    "bad_vat": "VAT sai",
+    "unknown_component": "Thành phần lạ",
+    "bom_self": "Thành phần trùng chính nó",
+    "bad_quantity": "Số lượng sai",
+    "duplicate_component": "Trùng thành phần",
 }
 FIELD_LABELS: dict[str, str] = {
     "cost": "Giá vốn",
@@ -96,6 +119,11 @@ FIELD_LABELS: dict[str, str] = {
     "restock": "Ngày nhập lại",
     "group": "Nhóm",
     "status": "Trạng thái",
+    "pack": "Số món / phân loại",
+    "vat": "VAT (%)",
+    "bom": "Thành phần combo",
+    "prices_include_vat": "Giá bán đã gồm VAT",
+    "cost_includes_vat": "Giá vốn đã gồm VAT",
     MONTHLY_GMV: "GMV",
     MONTHLY_ORDERS: "Đơn",
     MONTHLY_AOV: "AOV",
@@ -110,6 +138,11 @@ FIELD_UNITS: dict[str, str] = {
     "restock": "date",
     "group": "group",
     "status": "status",
+    "pack": "count",
+    "vat": "pct",
+    "bom": "bom",
+    "prices_include_vat": "bool",
+    "cost_includes_vat": "bool",
     MONTHLY_GMV: "vnd",
     MONTHLY_ORDERS: "count",
     MONTHLY_AOV: "vnd",
@@ -184,9 +217,15 @@ class ImportPreview:
     sku_rows_unchanged: int = 0
     goal_rows: int = 0
     goal_rows_rejected: int = 0
+    #: ``Thành phần combo``: component lines read / rejected; one diff per listing changed.
+    bom_rows: int = 0
+    bom_rows_rejected: int = 0
     rejections: list[Rejection] = field(default_factory=list)
     diffs: list[FieldDiff] = field(default_factory=list)
     goal_diffs: list[FieldDiff] = field(default_factory=list)
+    bom_diffs: list[FieldDiff] = field(default_factory=list)
+    #: ``VAT`` sheet: the shop-wide flags the file changes.
+    shop_diffs: list[FieldDiff] = field(default_factory=list)
     warnings: list[GoalWarning] = field(default_factory=list)
     changes: list[RuleChange] = field(default_factory=list)
 
@@ -196,7 +235,7 @@ class ImportPreview:
 
     @property
     def changed_scopes(self) -> list[str]:
-        return sorted({d.scope_ref for d in self.diffs})
+        return sorted({d.scope_ref for d in (*self.diffs, *self.bom_diffs)})
 
     @property
     def changed_months(self) -> list[str]:
@@ -323,6 +362,8 @@ _SKU_HEADERS: dict[str, tuple[str, ...]] = {
     "cost": ("giá vốn",),
     "packaging": ("đóng gói",),
     "max_discount": ("giảm tối đa (%)", "giảm tối đa"),
+    "pack": ("số món / phân loại", "số món"),
+    "vat": ("VAT (%)", "VAT"),
     "stock": ("tồn kho",),
     "restock": ("ngày nhập lại",),
     "group": ("nhóm",),
@@ -409,6 +450,19 @@ def _parse_sku_field(key: str, text: str) -> tuple[Any, tuple[str, str] | None]:
             if number < 0:
                 return None, ("Tồn kho phải từ 0 trở lên.", "out_of_range")
             return int(number), None
+        if key == "pack":
+            number = parse_number(text)
+            if number != number.to_integral_value():
+                return None, ("Số món phải là số nguyên.", "bad_pack")
+            if not 1 <= number <= MAX_PACK_COUNT:
+                return None, (f"Số món phải từ 1 đến {MAX_PACK_COUNT}.", "bad_pack")
+            return int(number), None
+        if key == "vat":
+            number = parse_number(text)
+            if number != number.to_integral_value() or int(number) not in VAT_RATES_PCT:
+                allowed = ", ".join(str(r) for r in VAT_RATES_PCT)
+                return None, (f"VAT là một trong: {allowed} (%).", "bad_vat")
+            return int(number), None
         if key == "restock":
             return parse_date(text).isoformat(), None
         if key == "group":
@@ -426,15 +480,35 @@ def _parse_sku_field(key: str, text: str) -> tuple[Any, tuple[str, str] | None]:
     except ValueError:
         if key == "restock":
             return None, ("Ngày không đọc được. Dùng dd/mm/yyyy.", "bad_date")
+        if key == "pack":
+            return None, ("Số món không đọc được thành số.", "bad_pack")
+        if key == "vat":
+            return None, ("VAT không đọc được thành số.", "bad_vat")
         return None, ("Không đọc được thành số.", "invalid_value")
+
+
+def effective_pack(sku: CatalogueSku, old_values: dict[str, Any]) -> int:
+    """The pack count in force for a SKU: the seller's, else the one the variation name states,
+    else 1 (what the profit reads)."""
+    stored = old_values.get(PACK_COUNT)
+    if isinstance(stored, int) and not isinstance(stored, bool):
+        return stored
+    return pack_count_from_name(sku.variation_name) or 1
+
+
+def _old_value(field_key: str, sku: CatalogueSku, old_values: dict[str, Any]) -> Any:
+    """What Juli holds now for a field (stock: the platform's when not imported; pack: what the
+    variation name states)."""
+    if field_key == "stock":
+        return effective_stock(sku, old_values)
+    if field_key == "pack":
+        return effective_pack(sku, old_values)
+    return old_values.get(FIELD_RULES[field_key])
 
 
 def _would_change(field_key: str, new: Any, sku: CatalogueSku, old_values: dict[str, Any]) -> bool:
     """Whether a cell holds something other than what Juli already has for the SKU."""
-    old = old_values.get(FIELD_RULES[field_key])
-    if field_key == "stock":
-        old = effective_stock(sku, old_values)
-    return old != new
+    return _old_value(field_key, sku, old_values) != new
 
 
 def _effect(field_key: str, sku: CatalogueSku, old: Any, new: Any) -> str:
@@ -451,6 +525,8 @@ def _effect(field_key: str, sku: CatalogueSku, old: Any, new: Any) -> str:
             return "Còn hàng → hết hàng"
     if field_key == "status":
         return f"Trạng thái: {STATUS_LABELS[new]}"
+    if field_key == "pack":
+        return f"1 đơn vị bán = {new} món; giá vốn tính ×{new}"
     return ""
 
 
@@ -542,7 +618,10 @@ def _check_sku_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: Import
             old_values = ctx.current.per_sku.get(known.scope, {})
             cost_text = _cell(row, header.get("cost"))
             if "cost" in parsed and known.list_price is not None:
-                if Decimal(str(parsed["cost"])) >= known.list_price:
+                pack = int(parsed.get("pack") or effective_pack(known, old_values))
+                unit = Decimal(str(parsed["cost"])) * pack
+                if unit >= known.list_price:
+                    suffix = f" (giá vốn {pack} món)" if pack > 1 else ""
                     _reject(
                         rejections,
                         SKU_SHEET,
@@ -550,7 +629,8 @@ def _check_sku_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: Import
                         label,
                         "giá vốn",
                         cost_text,
-                        f"Giá vốn ≥ giá niêm yết {_money_text(known.list_price)}. Biên sẽ âm.",
+                        f"Giá vốn ≥ giá niêm yết {_money_text(known.list_price)}{suffix}. "
+                        "Biên sẽ âm.",
                         "cost_ge_price",
                     )
             elif (
@@ -581,9 +661,7 @@ def _check_sku_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: Import
         changed = 0
         for field_key, new in parsed.items():
             rule_key = FIELD_RULES[field_key]
-            old = old_values.get(rule_key)
-            if field_key == "stock":
-                old = effective_stock(known, old_values)
+            old = _old_value(field_key, known, old_values)
             if old == new:
                 continue
             changed += 1
@@ -745,6 +823,203 @@ def _check_goal_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: Impor
                 )
 
 
+# -- Thành phần combo sheet (P91 D-12) ------------------------------------------------------
+
+_BOM_HEADERS: dict[str, tuple[str, ...]] = {
+    "item_id": ("item_id",),
+    "variation_id": ("variation_id",),
+    "component": ("SKU thành phần", "thành phần"),
+    "qty": ("số lượng", "SL"),
+}
+
+
+def _check_bom_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: ImportPreview) -> None:
+    """A listing's component lines are applied WHOLE: one bad line rejects the listing's lines
+    (a bill of materials with a missing part would cost too little)."""
+    if not rows:
+        return
+    header = _header_map(rows[0], _BOM_HEADERS)
+    missing = [k for k in ("item_id", "component", "qty") if k not in header]
+    if missing:
+        names = {"item_id": "item_id", "component": "SKU thành phần", "qty": "số lượng"}
+        raise ImportFileError(
+            f"Trang {BOM_SHEET} thiếu cột: " + ", ".join(names[k] for k in missing)
+        )
+    known_skus = {s.sku.casefold(): s.sku for s in ctx.catalogue.values() if s.sku}
+    groups: dict[tuple[str, str], list[tuple[int, list[str | None]]]] = {}
+    for index, row in enumerate(rows[1:], start=2):
+        cells = [(c or "").strip() for c in row]
+        if not any(cells) or not any(cells[1:]):
+            continue  # blank, or a note line (first cell only)
+        key = (
+            _id_text(_cell(row, header["item_id"])),
+            _id_text(_cell(row, header.get("variation_id"))),
+        )
+        groups.setdefault(key, []).append((index, row))
+
+    for key, lines in groups.items():
+        out.bom_rows += len(lines)
+        item_id, variation_id = key
+        listing = ctx.catalogue.get(key)
+        label = listing.sku if listing and listing.sku else item_id
+        problems: list[Rejection] = []
+        if listing is None:
+            for index, row in lines:
+                _reject(
+                    problems,
+                    BOM_SHEET,
+                    index,
+                    label,
+                    "item_id",
+                    item_id,
+                    "Không có sản phẩm / phân loại này trong shop.",
+                    "unknown_sku",
+                )
+        components: list[dict[str, Any]] = []
+        seen: dict[str, int] = {}
+        for index, row in lines:
+            text = _cell(row, header["component"])
+            qty_text = _cell(row, header["qty"])
+            code = known_skus.get(text.casefold()) if text else None
+            if not text or code is None:
+                _reject(
+                    problems,
+                    BOM_SHEET,
+                    index,
+                    label,
+                    "SKU thành phần",
+                    text,
+                    "SKU thành phần không có trong shop. Kiểm tra lỗi gõ.",
+                    "unknown_component",
+                )
+                continue
+            if listing is not None and listing.sku and code.casefold() == listing.sku.casefold():
+                _reject(
+                    problems,
+                    BOM_SHEET,
+                    index,
+                    label,
+                    "SKU thành phần",
+                    text,
+                    "Thành phần trùng SKU của chính sản phẩm này.",
+                    "bom_self",
+                )
+                continue
+            try:
+                qty = parse_number(qty_text)
+            except ValueError:
+                qty = Decimal(-1)
+            if qty != qty.to_integral_value() or not 1 <= qty <= MAX_COMPONENT_QTY:
+                _reject(
+                    problems,
+                    BOM_SHEET,
+                    index,
+                    label,
+                    "số lượng",
+                    qty_text,
+                    f"Số lượng là số nguyên từ 1 đến {MAX_COMPONENT_QTY}.",
+                    "bad_quantity",
+                )
+                continue
+            if code in seen:
+                _reject(
+                    problems,
+                    BOM_SHEET,
+                    index,
+                    label,
+                    "SKU thành phần",
+                    text,
+                    f"Thành phần xuất hiện nhiều lần (cả dòng {seen[code]}). Gộp thành một dòng.",
+                    "duplicate_component",
+                )
+                continue
+            seen[code] = index
+            components.append({"sku": code, "qty": int(qty)})
+        if len(components) > MAX_COMPONENTS:
+            problems.append(
+                Rejection(
+                    BOM_SHEET,
+                    lines[0][0],
+                    label,
+                    "SKU thành phần",
+                    str(len(components)),
+                    f"Tối đa {MAX_COMPONENTS} thành phần cho một sản phẩm.",
+                    "out_of_range",
+                )
+            )
+        if problems:
+            out.bom_rows_rejected += len(lines)
+            out.rejections.extend(problems)
+            continue
+        assert listing is not None
+        old = ctx.current.per_sku.get(listing.scope, {}).get(PACK_COMPONENTS)
+        if old == components:
+            continue
+        out.bom_diffs.append(
+            FieldDiff(
+                scope_ref=listing.scope,
+                item_id=item_id,
+                variation_id=variation_id,
+                sku=label,
+                field="bom",
+                rule_key=PACK_COMPONENTS,
+                old=old,
+                new=components,
+                effect=f"{len(components)} thành phần; giá vốn = Σ giá vốn thành phần × số lượng",
+            )
+        )
+        out.changes.append(RuleChange(PACK_COMPONENTS, listing.scope, components))
+
+
+# -- VAT sheet (P91 D-12) ------------------------------------------------------------------
+
+_YES = {"co", "yes", "true", "1", "x", "y"}
+_NO = {"khong", "no", "false", "0", "n"}
+
+
+def _check_vat_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: ImportPreview) -> None:
+    labels = {_fold(label): key for label, key in VAT_SETTINGS}
+    for index, row in enumerate(rows[1:], start=2):
+        name, text = _cell(row, 0), _cell(row, 1)
+        key = labels.get(_fold(name))
+        if key is None or not text:
+            continue
+        folded = _fold(text)
+        if folded in _YES:
+            value = True
+        elif folded in _NO:
+            value = False
+        else:
+            _reject(
+                out.rejections,
+                VAT_SHEET,
+                index,
+                name,
+                name,
+                text,
+                "Điền Có hoặc Không.",
+                "invalid_value",
+            )
+            continue
+        old = ctx.current.flags.get(key)
+        if old == value:
+            continue
+        out.shop_diffs.append(
+            FieldDiff(
+                scope_ref="",
+                item_id="",
+                variation_id="",
+                sku=name,
+                field=key,
+                rule_key=key,
+                old=old,
+                new=value,
+                effect="Lợi nhuận tính sau VAT" if key == "prices_include_vat" and value else "",
+            )
+        )
+        out.changes.append(RuleChange(key, "", value))
+
+
 # -- entry points -------------------------------------------------------------------------
 
 
@@ -765,8 +1040,10 @@ async def preview_import(session: AsyncSession, shop_id: uuid.UUID, data: bytes)
         raise ImportFileError(f"Không đọc được tệp .xlsx: {exc}") from None
     sku_rows = _find_sheet(sheets, SKU_SHEET)
     goal_rows = _find_sheet(sheets, GOAL_SHEET)
-    if sku_rows is None and goal_rows is None:
-        raise ImportFileError("Tệp cần có trang SKU hoặc trang Mục tiêu")
+    bom_rows = _find_sheet(sheets, BOM_SHEET)
+    vat_rows = _find_sheet(sheets, VAT_SHEET)
+    if all(sheet is None for sheet in (sku_rows, goal_rows, bom_rows, vat_rows)):
+        raise ImportFileError("Tệp cần có trang SKU, Mục tiêu, Thành phần combo hoặc VAT")
 
     catalogue = {(s.item_id, s.variation_id): s for s in await load_catalogue(session, shop_id)}
     ctx = _SkuContext(catalogue=catalogue, current=await load_current(session, shop_id))
@@ -775,13 +1052,17 @@ async def preview_import(session: AsyncSession, shop_id: uuid.UUID, data: bytes)
         _check_sku_sheet(sku_rows, ctx, out)
     if goal_rows is not None:
         _check_goal_sheet(goal_rows, ctx, out)
+    if bom_rows is not None:
+        _check_bom_sheet(bom_rows, ctx, out)
+    if vat_rows is not None:
+        _check_vat_sheet(vat_rows, ctx, out)
     return out
 
 
 def is_shop_wide(preview: ImportPreview) -> bool:
     """Whether the file moves a monthly target that every price / voucher / ads proposal
     is judged against."""
-    return any(
+    return bool(preview.shop_diffs) or any(
         d.rule_key in (MONTHLY_MARGIN_PCT, MONTHLY_MARKETING_CAP) for d in preview.goal_diffs
     )
 
@@ -807,6 +1088,8 @@ class ApplyResult:
     affected: AffectedRecommendations
     applied_at: datetime
     reason: str
+    boms_changed: int = 0
+    flags_changed: int = 0
 
 
 async def apply_import(
@@ -861,6 +1144,8 @@ async def apply_import(
         affected=affected,
         applied_at=moment,
         reason=why,
+        boms_changed=len(preview.bom_diffs),
+        flags_changed=len(preview.shop_diffs),
     )
 
 

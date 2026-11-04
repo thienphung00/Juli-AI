@@ -359,11 +359,12 @@ async def test_the_template_is_prefilled_one_row_per_sku(session, shop):
         1,
     )
     sheets = xlsx_io.read_workbook(result.content)
-    assert list(sheets) == ["SKU", "Mục tiêu"]
+    assert list(sheets) == ["SKU", "Mục tiêu", "Thành phần combo", "VAT"]
     sku = sheets["SKU"]
     assert [h.rstrip(" *") for h in sku[0]] == [
         "item_id", "variation_id", "SKU", "tên", "giá niêm yết", "giá vốn", "đóng gói",
         "giảm tối đa (%)", "tồn kho", "ngày nhập lại", "nhóm", "trạng thái",
+        "số món / phân loại", "VAT (%)",
     ]  # fmt: skip
     row = sku[find_row(sku, "GL-001")]
     assert row[COL["item_id"]] == "1001" and row[COL["variation_id"]] in (None, "")
@@ -389,7 +390,7 @@ async def test_an_empty_shop_gets_a_template_with_headers_only(session):
     _, empty = await make_tenant(session)
     result = await shop_inputs.build_template(session, empty.id)
     assert (result.sku_rows, result.item_count) == (0, 0)
-    assert len(xlsx_io.read_workbook(result.content)["SKU"][0]) == 12
+    assert len(xlsx_io.read_workbook(result.content)["SKU"][0]) == 14
 
 
 async def test_an_item_with_variations_has_a_row_per_variation_not_one_for_the_item(session, shop):

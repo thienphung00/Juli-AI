@@ -78,7 +78,12 @@ async def test_the_overview_and_the_template_download(session, tenant):
     assert "attachment" in response.headers["content-disposition"]
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-sku-rows"] == "5"
-    assert list(xlsx_io.read_workbook(response.content)) == ["SKU", "Mục tiêu"]
+    assert list(xlsx_io.read_workbook(response.content)) == [
+        "SKU",
+        "Mục tiêu",
+        "Thành phần combo",
+        "VAT",
+    ]
 
 
 async def test_preview_then_apply_then_versions_then_restore(session, tenant):
@@ -299,3 +304,42 @@ async def test_an_ops_request_for_an_unknown_shop_is_404(session, monkeypatch):
         response = await client.get(f"/v1/ops/shops/{uuid.uuid4()}/inputs")
     app.dependency_overrides.clear()
     assert response.status_code == 404
+
+
+async def test_the_preview_and_apply_carry_the_bill_of_materials_and_the_vat_flags(session, tenant):
+    """P91 D-12: the new sheets reach the seller's preview (``bom_diffs``, ``shop_diffs``) and the
+    apply answer counts them."""
+    owner, shop = tenant
+    async with authenticated_client(session, user=owner, shop=shop) as client:
+        template = await _seller_template(client)
+        content = edit_workbook(
+            template,
+            {
+                "Thành phần combo": {
+                    (1, 0): "2002",
+                    (1, 3): "GL-001",
+                    (1, 4): "2",
+                    (2, 0): "2002",
+                    (2, 3): "NR-002",
+                    (2, 4): "1",
+                },
+                "VAT": {(1, 1): "Có"},
+            },
+        )
+        preview = (
+            await client.post("/v1/demo/shop-inputs/preview", json={"file_b64": _b64(content)})
+        ).json()["data"]
+        assert preview["counts"]["bom_rows"] == 2 and preview["counts"]["changes"] == 2
+        (bom,) = preview["bom_diffs"]
+        assert (bom["field"], bom["unit"], bom["scope_ref"]) == ("bom", "bom", "2002")
+        assert bom["new"] == [{"sku": "GL-001", "qty": 2}, {"sku": "NR-002", "qty": 1}]
+        assert [(d["field"], d["old"], d["new"]) for d in preview["shop_diffs"]] == [
+            ("prices_include_vat", None, True)
+        ]
+        assert preview["affected"]["shop_wide"] is True  # a VAT flag moves every profit figure
+        applied = await client.post(
+            "/v1/demo/shop-inputs/apply", json={"file_b64": _b64(content), "reason": "VAT"}
+        )
+        assert applied.status_code == 200, applied.text
+        data = applied.json()["data"]
+        assert (data["boms_changed"], data["flags_changed"], data["versions_written"]) == (1, 1, 2)

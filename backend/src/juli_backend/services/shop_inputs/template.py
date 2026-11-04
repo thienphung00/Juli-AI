@@ -1,8 +1,15 @@
-"""The seller-input template: ``.xlsx`` with sheets ``SKU`` and ``Mục tiêu``.
+"""The seller-input template: ``.xlsx`` with sheets ``SKU``, ``Mục tiêu``, ``Thành phần combo``
+and ``VAT``.
 
 Pre-filled with what Juli holds: one row per SKU of the shop's catalogue (list price
 read-only, from the latest product snapshot), the seller's current values written back,
 and the months already set. Empty cell = keep the old value. No buyer data is in the file.
+
+P91 D-12: the SKU sheet gains ``số món / phân loại`` (single items in one sold unit; the
+default shown is read from the variation name, "Combo 3 hộp" -> 3, and a blank cell keeps
+whatever Juli reads from the name) and ``VAT (%)``; ``Thành phần combo`` is the bill of
+materials of a listing that has no SKU of its own (component SKU x quantity); ``VAT`` holds the
+two shop flags - whether the listing prices and the giá vốn already include VAT.
 """
 
 from __future__ import annotations
@@ -23,6 +30,7 @@ from juli_backend.services.shop_inputs.catalogue import (
     load_current,
 )
 from juli_backend.services.shop_rules.rules import (
+    COST_INCLUDES_VAT,
     ITEM_STATUS,
     MAX_DISCOUNT_PCT,
     MONTHLY_AOV,
@@ -30,14 +38,21 @@ from juli_backend.services.shop_rules.rules import (
     MONTHLY_MARGIN_PCT,
     MONTHLY_MARKETING_CAP,
     MONTHLY_ORDERS,
+    PACK_COMPONENTS,
+    PACK_COUNT,
     PACKAGING,
+    PRICES_INCLUDE_VAT,
     PRODUCT_GROUP,
     RESTOCK_DATE,
     SKU_COST,
+    VAT_RATE,
 )
+from juli_backend.services.shopee_profit.pack import pack_count_from_name
 
 SKU_SHEET = "SKU"
 GOAL_SHEET = "Mục tiêu"
+BOM_SHEET = "Thành phần combo"
+VAT_SHEET = "VAT"
 
 #: (header, required, key) of the ``SKU`` sheet; ``key`` names the field in ``importer``.
 SKU_COLUMNS: tuple[tuple[str, bool, str], ...] = (
@@ -53,7 +68,23 @@ SKU_COLUMNS: tuple[tuple[str, bool, str], ...] = (
     ("ngày nhập lại", False, "restock"),
     ("nhóm", False, "group"),
     ("trạng thái", False, "status"),
+    ("số món / phân loại", False, "pack"),
+    ("VAT (%)", False, "vat"),
 )
+#: (header, key) of the ``Thành phần combo`` sheet.
+BOM_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("item_id", "item_id"),
+    ("variation_id", "variation_id"),
+    ("tên", "name"),
+    ("SKU thành phần", "component"),
+    ("số lượng", "qty"),
+)
+#: (label, rule key) of the two shop flags on the ``VAT`` sheet.
+VAT_SETTINGS: tuple[tuple[str, str], ...] = (
+    ("giá bán đã gồm VAT", PRICES_INCLUDE_VAT),
+    ("giá vốn đã gồm VAT", COST_INCLUDES_VAT),
+)
+YES_NO_LABELS: dict[bool, str] = {True: "Có", False: "Không"}
 GOAL_COLUMNS: tuple[tuple[str, str], ...] = (
     ("tháng", "month"),
     ("GMV", MONTHLY_GMV),
@@ -78,6 +109,19 @@ NOTE_SKU = (
 NOTE_VALUES = (
     "nhóm: Thương hiệu hoặc Phân phối. trạng thái: Đang bán, Tạm dừng, Ngừng bán, Xả hàng. "
     "ngày nhập lại: dd/mm/yyyy. giảm tối đa: 0 đến 100."
+)
+NOTE_PACK = (
+    "giá vốn là giá vốn của 1 món. số món / phân loại: số món trong 1 đơn vị bán ("
+    "Combo 3 hộp = 3). Ô trống: Juli tự đọc từ tên phân loại (Combo N, Set N), không có thì là 1. "
+    "VAT (%): 0, 5, 8 hoặc 10."
+)
+NOTE_BOM = (
+    "Dùng cho sản phẩm không có SKU riêng (combo nhiều sản phẩm): mỗi dòng một thành phần. "
+    "SKU thành phần là SKU có sẵn của shop; giá vốn = tổng giá vốn thành phần × số lượng. "
+    "Một sản phẩm / phân loại có mặt trong trang này sẽ được thay toàn bộ thành phần."
+)
+NOTE_VAT = (
+    "Chỉ điền khi chắc chắn. Có / Không. Để trống: Juli hiển thị lợi nhuận trước VAT và ghi rõ."
 )
 NOTE_GOALS = "Mỗi tháng một dòng, dạng T12/2026 hoặc 12/2026. Ô trống giữ nguyên giá trị cũ."
 
@@ -110,6 +154,16 @@ class TemplateResult:
     item_count: int
     prefilled_cost: int
     goal_rows: int
+    bom_rows: int = 0
+    pack_rows: int = 0
+
+
+def pack_prefill(sku: CatalogueSku, current: dict[str, Any]) -> int | None:
+    """The seller's pack count, else the one the variation name states; blank when neither."""
+    value = current.get(PACK_COUNT)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    return pack_count_from_name(sku.variation_name)
 
 
 def sku_row(
@@ -133,6 +187,8 @@ def sku_row(
         (format_date_vi(restock) if isinstance(restock, str) else None, edit),
         (GROUP_LABELS.get(group) if isinstance(group, str) else None, edit),
         (STATUS_LABELS.get(status) if isinstance(status, str) else None, edit),
+        (pack_prefill(sku, current), edit),
+        (_plain(current.get(VAT_RATE)), edit),
     ]
 
 
@@ -141,18 +197,23 @@ async def build_template(session: AsyncSession, shop_id: uuid.UUID) -> TemplateR
     current = await load_current(session, shop_id)
 
     header_style = xlsx_io.STYLE_HEADER
+    edit_style = xlsx_io.STYLE_EDIT
     sku_rows: list[list[Any]] = [
         [(f"{title} *" if required else title, header_style) for title, required, _ in SKU_COLUMNS]
     ]
     prefilled = 0
+    pack_rows = 0
     for sku in catalogue:
         values = current.per_sku.get(sku.scope, {})
         if SKU_COST in values:
             prefilled += 1
+        if pack_prefill(sku, values) is not None:
+            pack_rows += 1
         sku_rows.append(sku_row(sku, values))
     sku_rows.append([])
     sku_rows.append([(NOTE_SKU, xlsx_io.STYLE_NOTE)])
     sku_rows.append([(NOTE_VALUES, xlsx_io.STYLE_NOTE)])
+    sku_rows.append([(NOTE_PACK, xlsx_io.STYLE_NOTE)])
 
     goal_rows: list[list[Any]] = [[(title, header_style) for title, _ in GOAL_COLUMNS]]
     for month in sorted(current.monthly):
@@ -164,15 +225,52 @@ async def build_template(session: AsyncSession, shop_id: uuid.UUID) -> TemplateR
     goal_rows.append([])
     goal_rows.append([(NOTE_GOALS, xlsx_io.STYLE_NOTE)])
 
+    by_scope = {s.scope: s for s in catalogue}
+    bom_rows: list[list[Any]] = [[(title, header_style) for title, _ in BOM_COLUMNS]]
+    for scope in sorted(s for s, v in current.per_sku.items() if PACK_COMPONENTS in v):
+        listing = by_scope.get(scope)
+        item_id, _, variation_id = scope.partition(":")
+        for component in current.per_sku[scope][PACK_COMPONENTS]:
+            bom_rows.append(
+                [
+                    (item_id, xlsx_io.STYLE_EDIT),
+                    (variation_id or None, xlsx_io.STYLE_EDIT),
+                    (listing.name if listing else None, xlsx_io.STYLE_LOCKED),
+                    (component["sku"], xlsx_io.STYLE_EDIT),
+                    (component["qty"], xlsx_io.STYLE_EDIT),
+                ]
+            )
+    bom_count = len(bom_rows) - 1
+    bom_rows.append([])
+    bom_rows.append([(NOTE_BOM, xlsx_io.STYLE_NOTE)])
+
+    vat_rows: list[list[Any]] = [
+        [("thiết lập", header_style), ("giá trị", header_style)],
+        *[
+            [
+                (label, xlsx_io.STYLE_LOCKED),
+                (
+                    YES_NO_LABELS.get(current.flags[key]) if key in current.flags else None,
+                    edit_style,
+                ),
+            ]
+            for label, key in VAT_SETTINGS
+        ],
+        [],
+        [(NOTE_VAT, xlsx_io.STYLE_NOTE)],
+    ]
+
     content = xlsx_io.write_workbook(
         [
             xlsx_io.SheetSpec(
                 SKU_SHEET,
                 sku_rows,
-                widths=(16, 16, 22, 44, 14, 14, 12, 16, 10, 16, 14, 14),
+                widths=(16, 16, 22, 44, 14, 14, 12, 16, 10, 16, 14, 14, 18, 10),
                 protect=True,
             ),
             xlsx_io.SheetSpec(GOAL_SHEET, goal_rows, widths=(12, 16, 10, 12, 18, 24)),
+            xlsx_io.SheetSpec(BOM_SHEET, bom_rows, widths=(16, 16, 44, 22, 12)),
+            xlsx_io.SheetSpec(VAT_SHEET, vat_rows, widths=(28, 14)),
         ]
     )
     return TemplateResult(
@@ -181,4 +279,6 @@ async def build_template(session: AsyncSession, shop_id: uuid.UUID) -> TemplateR
         item_count=len({s.item_id for s in catalogue}),
         prefilled_cost=prefilled,
         goal_rows=len(goal_rows) - 3,
+        bom_rows=bom_count,
+        pack_rows=pack_rows,
     )

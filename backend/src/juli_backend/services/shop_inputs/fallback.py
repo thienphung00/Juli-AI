@@ -24,7 +24,11 @@ from juli_backend.services.shop_inputs.catalogue import (
     load_current,
 )
 from juli_backend.services.shop_rules import economics
-from juli_backend.services.shop_rules.rules import DEFAULT_GROSS_MARGIN_PCT, SKU_COST
+from juli_backend.services.shop_rules.rules import (
+    DEFAULT_GROSS_MARGIN_PCT,
+    PACK_COMPONENTS,
+    SKU_COST,
+)
 
 _HUNDRED = Decimal(100)
 #: Cost as a share of the list price when nothing else is known.
@@ -65,8 +69,27 @@ def _margin_rule(value: object) -> Decimal | None:
     return margin if Decimal(0) < margin < _HUNDRED else None
 
 
-def has_imported_cost(sku: CatalogueSku, current: CurrentInputs) -> bool:
-    return SKU_COST in current.per_sku.get(sku.scope, {}) or sku.item_id in current.product_cost
+def costed_skus(catalogue: list[CatalogueSku], current: CurrentInputs) -> set[str]:
+    """The seller SKU codes that have an imported cost of one item."""
+    return {
+        s.sku
+        for s in catalogue
+        if s.sku
+        and (SKU_COST in current.per_sku.get(s.scope, {}) or s.item_id in current.product_cost)
+    }
+
+
+def has_imported_cost(
+    sku: CatalogueSku, current: CurrentInputs, costed: set[str] | None = None
+) -> bool:
+    """A cost of its own, or (P91 D-12) a bill of materials whose every component has one."""
+    values = current.per_sku.get(sku.scope, {})
+    if SKU_COST in values or sku.item_id in current.product_cost:
+        return True
+    components = values.get(PACK_COMPONENTS)
+    if not isinstance(components, list) or not components or costed is None:
+        return False
+    return all(c["sku"] in costed for c in components)
 
 
 async def default_margin_rule(session: AsyncSession, shop_id: uuid.UUID) -> Decimal | None:
@@ -88,6 +111,7 @@ async def cost_fallbacks(session: AsyncSession, shop_id: uuid.UUID) -> list[Cost
     """The SKUs that have no imported cost, with the cost they are assumed to have."""
     catalogue = await load_catalogue(session, shop_id)
     current = await load_current(session, shop_id)
+    costed = costed_skus(catalogue, current)
     margin_rule = await default_margin_rule(session, shop_id)
     margin = margin_rule if margin_rule is not None else OWNER_DEFAULT_GROSS_MARGIN_PCT
     source: CostSource = "default_margin_rule" if margin_rule is not None else "assumed_one_third"
@@ -103,5 +127,5 @@ async def cost_fallbacks(session: AsyncSession, shop_id: uuid.UUID) -> list[Cost
             margin_pct=margin,
         )
         for sku in catalogue
-        if not has_imported_cost(sku, current)
+        if not has_imported_cost(sku, current, costed)
     ]

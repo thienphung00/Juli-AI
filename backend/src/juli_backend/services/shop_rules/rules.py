@@ -57,6 +57,16 @@ template, keyed per SKU (scope ``item_id`` or ``item_id:variation_id``, see
 - ``restock_date`` (scope: SKU) -- ISO date ``YYYY-MM-DD``.
 - ``product_group`` (scope: SKU) -- ``thuong_hieu`` | ``phan_phoi``.
 - ``item_status`` (scope: SKU) -- ``ban`` | ``tam_dung`` | ``ngung`` | ``xa_hang``.
+P91 D-12 (pack, bill of materials and the seller's own VAT):
+
+- ``pack_count`` (scope: SKU / variation) -- single items in one sold unit, integer 1..100
+  ("Combo 3 hộp" = 3). A SKU's giá vốn is the cost of ONE item.
+- ``pack_components`` (scope: listing / variation without a SKU of its own) -- the bill of
+  materials, a list of ``{"sku": component SKU, "qty": n}``, at most 20 lines.
+- ``vat_rate`` (scope: SKU) -- 0, 5, 8 or 10 (%).
+- ``prices_include_vat`` / ``cost_includes_vat`` (shop-wide) -- true / false. Unset until the
+  seller says (the profit is then shown before VAT).
+
 - ``monthly_gmv_target`` / ``monthly_orders_target`` / ``monthly_aov_target`` /
   ``monthly_margin_target`` / ``daily_marketing_cap`` (scope: month) -- the month's
   targets and the daily marketing cap.
@@ -117,6 +127,12 @@ STOCK = "stock"
 RESTOCK_DATE = "restock_date"
 PRODUCT_GROUP = "product_group"
 ITEM_STATUS = "item_status"
+# P91 D-12: pack multiplier, bill of materials, the seller's own VAT.
+PACK_COUNT = "pack_count"
+PACK_COMPONENTS = "pack_components"
+VAT_RATE = "vat_rate"
+PRICES_INCLUDE_VAT = "prices_include_vat"
+COST_INCLUDES_VAT = "cost_includes_vat"
 MONTHLY_GMV = "monthly_gmv_target"
 MONTHLY_ORDERS = "monthly_orders_target"
 MONTHLY_AOV = "monthly_aov_target"
@@ -134,7 +150,12 @@ SKU_INPUT_RULE_KEYS: tuple[str, ...] = (
     RESTOCK_DATE,
     PRODUCT_GROUP,
     ITEM_STATUS,
+    PACK_COUNT,
+    PACK_COMPONENTS,
+    VAT_RATE,
 )
+#: Shop-wide VAT flags the seller import writes (true / false; absent = not stated).
+VAT_FLAG_RULE_KEYS: tuple[str, ...] = (PRICES_INCLUDE_VAT, COST_INCLUDES_VAT)
 #: Per-month keys the import writes, in the template's column order.
 MONTHLY_RULE_KEYS: tuple[str, ...] = (
     MONTHLY_GMV,
@@ -146,6 +167,10 @@ MONTHLY_RULE_KEYS: tuple[str, ...] = (
 MONTH_SCOPE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 MAX_VND_VALUE = 10_000_000_000_000
 MAX_STOCK = 10_000_000
+MAX_PACK_COUNT = 100
+MAX_COMPONENTS = 20
+MAX_COMPONENT_QTY = 1000
+VAT_RATES_PCT: tuple[int, ...] = (0, 5, 8, 10)
 
 #: The P14-F keys, in the editor's order.
 OFF_API_RULE_KEYS: tuple[str, ...] = (
@@ -176,6 +201,10 @@ RULE_KEYS: tuple[str, ...] = (
     RESTOCK_DATE,
     PRODUCT_GROUP,
     ITEM_STATUS,
+    PACK_COUNT,
+    PACK_COMPONENTS,
+    VAT_RATE,
+    *VAT_FLAG_RULE_KEYS,
     *MONTHLY_RULE_KEYS,
 )
 
@@ -194,6 +223,9 @@ SCOPED_RULES: frozenset[str] = frozenset(
         RESTOCK_DATE,
         PRODUCT_GROUP,
         ITEM_STATUS,
+        PACK_COUNT,
+        PACK_COMPONENTS,
+        VAT_RATE,
         *MONTHLY_RULE_KEYS,
     }
 )
@@ -483,6 +515,13 @@ def _count(value: Any, *, rule: str, ceiling: int) -> int:
     return int(number)
 
 
+def _count_between(value: Any, *, rule: str, low: int, high: int) -> int:
+    number = _number(value, rule=rule)
+    if number != number.to_integral_value() or not Decimal(low) <= number <= Decimal(high):
+        raise RuleValidationError(f"{rule}: value must be a whole number from {low} to {high}")
+    return int(number)
+
+
 def _iso_date(value: Any) -> str:
     try:
         parsed = date.fromisoformat(value) if isinstance(value, str) else None
@@ -491,6 +530,38 @@ def _iso_date(value: Any) -> str:
     if parsed is None or parsed.isoformat() != value:
         raise RuleValidationError(f"{RESTOCK_DATE}: value must be a date, YYYY-MM-DD")
     return parsed.isoformat()
+
+
+def _vat_rate(value: Any) -> int:
+    number = _number(value, rule=VAT_RATE)
+    if number != number.to_integral_value() or int(number) not in VAT_RATES_PCT:
+        raise RuleValidationError(f"{VAT_RATE}: value must be one of {list(VAT_RATES_PCT)} (%)")
+    return int(number)
+
+
+def _components(value: Any) -> list[dict[str, Any]]:
+    rule = PACK_COMPONENTS
+    if not isinstance(value, list) or not value:
+        raise RuleValidationError(f"{rule}: value must be a non-empty list of components")
+    if len(value) > MAX_COMPONENTS:
+        raise RuleValidationError(f"{rule}: at most {MAX_COMPONENTS} components")
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in value:
+        if not isinstance(entry, Mapping) or set(entry) != {"sku", "qty"}:
+            raise RuleValidationError(f"{rule}: each component is {{sku, qty}}")
+        sku, qty = entry["sku"], entry["qty"]
+        if not isinstance(sku, str) or not sku.strip() or len(sku.strip()) > 100:
+            raise RuleValidationError(f"{rule}: a component SKU is text of at most 100 characters")
+        if isinstance(qty, bool) or not isinstance(qty, int) or not 1 <= qty <= MAX_COMPONENT_QTY:
+            raise RuleValidationError(
+                f"{rule}: a quantity is a whole number from 1 to {MAX_COMPONENT_QTY}"
+            )
+        if sku.strip() in seen:
+            raise RuleValidationError(f"{rule}: a component SKU appears twice")
+        seen.add(sku.strip())
+        out.append({"sku": sku.strip(), "qty": qty})
+    return out
 
 
 def _choice(value: Any, *, rule: str, allowed: tuple[str, ...]) -> str:
@@ -506,6 +577,11 @@ _SELLER_INPUT_VALIDATORS: Mapping[str, Any] = {
     RESTOCK_DATE: _iso_date,
     PRODUCT_GROUP: lambda v: _choice(v, rule=PRODUCT_GROUP, allowed=PRODUCT_GROUPS),
     ITEM_STATUS: lambda v: _choice(v, rule=ITEM_STATUS, allowed=ITEM_STATUSES),
+    PACK_COUNT: lambda v: _count_between(v, rule=PACK_COUNT, low=1, high=MAX_PACK_COUNT),
+    PACK_COMPONENTS: _components,
+    VAT_RATE: _vat_rate,
+    PRICES_INCLUDE_VAT: lambda v: _bool(v, rule=PRICES_INCLUDE_VAT),
+    COST_INCLUDES_VAT: lambda v: _bool(v, rule=COST_INCLUDES_VAT),
     MONTHLY_GMV: lambda v: _non_negative(v, rule=MONTHLY_GMV),
     MONTHLY_ORDERS: lambda v: _count(v, rule=MONTHLY_ORDERS, ceiling=MAX_STOCK),
     MONTHLY_AOV: lambda v: _non_negative(v, rule=MONTHLY_AOV),
