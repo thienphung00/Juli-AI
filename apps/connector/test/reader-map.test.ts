@@ -213,14 +213,14 @@ describe("ads", () => {
       "entry.campaign.campaign_id",
     ]);
     const scaled = JSON.parse(JSON.stringify(adsHome));
-    scaled.data.entry_list[0].campaign.daily_budget = 20_000_000_000;
+    scaled.data.entry_list[0].campaign.daily_budget = 20_000_000_000_000_000;
     const [post] = mapAdsDaily([response("ads_homepage", scaled, { day: DAY })]);
     expect(post!.drift?.unexpected).toEqual(["ads:money_scale"]);
     expect(post!.rows).toEqual([]);
   });
 
   it("negative or non-numeric report values are dropped, not posted", () => {
-    const odd = { code: 0, data: { entry_list: [{ campaign: { campaign_id: 1 }, report: { impression: -1, click: "x", cost: "1200" } }] } };
+    const odd = { code: 0, data: { entry_list: [{ campaign: { campaign_id: 1 }, report: { impression: -1, click: "x", cost: "120000000" } }] } };
     const [post] = mapAdsDaily([response("ads_homepage", odd, { day: DAY })]);
     expect(post!.rows[0]).toEqual({ date: DAY, campaign_id: "1", cost: 1200 });
   });
@@ -427,7 +427,7 @@ describe("item traffic sources (traffic/details)", () => {
 
   it("goes through mapReaderJob and ingestBody as a day post (order_type confirmed)", () => {
     const [post] = mapReaderJob({ id: "item_traffic", days: [day], itemIds: ["1001"] }, [ok("1001")], NOW);
-    const body = ingestBody(post!, "0.3.1", NOW);
+    const body = ingestBody(post!, "0.3.2", NOW);
     expect(body).toMatchObject({ period: { start: day, end: day, granularity: "day" }, order_type: "confirmed" });
   });
 

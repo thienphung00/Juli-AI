@@ -7,7 +7,7 @@
 // lists); those mappers are provisional until the second recon (D31.6) and check
 // only that each item has an id.
 
-import type { Dataset, MydataDataset } from "../config";
+import { type Dataset, type MydataDataset, SHOPEE_NO_VALUE } from "../config";
 import { ENDPOINTS } from "./endpoints";
 import { singleDay } from "./time";
 
@@ -167,10 +167,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 /** A metric value as a number, or undefined for absent / "-" / non-numeric. */
 export function toNumber(value: unknown): number | undefined {
+  if (value === SHOPEE_NO_VALUE) return undefined; // Shopee's "no value" placeholder, not a number
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
   if (typeof value === "string" && value.trim() !== "" && value.trim() !== "-") {
     const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
+    return Number.isFinite(parsed) && parsed !== SHOPEE_NO_VALUE ? parsed : undefined;
   }
   return undefined;
 }

@@ -85,7 +85,7 @@ describe("extension ↔ gateway contract", () => {
     });
     it("item_traffic_sources", () => {
       const [post] = mapItemTraffic([reply("traffic_details", trafficDetails, { day: "2026-11-02", itemId: "1001" })]);
-      expect(ingestBody(post!, "0.3.1", READ_AT)).toEqual(itemTrafficBody);
+      expect(ingestBody(post!, "0.3.2", READ_AT)).toEqual(itemTrafficBody);
     });
     it("voucher_settings", () =>
       expect(ingestBody(mapVoucherList([reply("voucher_list", vouchers, { page: 1 })], READ_AT), "0.3.0", READ_AT)).toEqual(

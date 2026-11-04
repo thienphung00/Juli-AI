@@ -60,6 +60,18 @@ describe("traffic overview → shopee.traffic_overview", () => {
     expect(drift?.unexpected).toContain("result.shop_tab");
   });
 
+  it("drops Shopee's -1000000 'no value' placeholder instead of calling it drift", () => {
+    const body = clone(overview) as unknown as { result: Record<string, { total: Record<string, unknown> }> };
+    body.result.paid_ads!.total.ctr = -1000000;
+    body.result.paid_ads!.total.conversion = "-1000000";
+    const mapped = capture(url, RANGE, body);
+    expect(mapped?.drift).toBeNull();
+    const ads = mapped!.rows.find((r) => r.source === "psd_label_shopee_ads")!;
+    expect("ctr" in ads).toBe(false);
+    expect("conversion" in ads).toBe(false);
+    expect(ads).toMatchObject({ ads_expense: 50000 });
+  });
+
   it("treats a percentage where a fraction is expected as drift", () => {
     const body = clone(overview);
     body.result.video.total.ctr = 5;

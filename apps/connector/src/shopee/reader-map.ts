@@ -8,7 +8,7 @@
 // list that cannot be found, or an implausible money scale is drift (dataset stopped, nothing
 // posted). Strings the contract does not name never leave the browser.
 
-import { MAX_PLAUSIBLE_AD_VND, MAX_PLAUSIBLE_PRICE_VND, MONEY_DIVISOR } from "../config";
+import { ADS_TARGET_DIVISOR, MAX_PLAUSIBLE_AD_VND, MAX_PLAUSIBLE_PRICE_VND, MONEY_DIVISOR } from "../config";
 import type { Drift, Mapped, Row } from "./map";
 import {
   classify,
@@ -41,6 +41,12 @@ export function num(value: unknown): number | undefined {
 function nonNeg(value: unknown): number | undefined {
   const n = num(value);
   return n !== undefined && n >= 0 ? n : undefined;
+}
+
+/** A ROAS target from the ads service (sent x ADS_TARGET_DIVISOR, e.g. 550 000 = 5,5). */
+function adsTarget(value: unknown): number | undefined {
+  const n = nonNeg(value);
+  return n === undefined ? undefined : Math.round((n / ADS_TARGET_DIVISOR) * 100) / 100;
 }
 
 function money(value: unknown, divisor: number): number | undefined {
@@ -410,7 +416,7 @@ function adRow(day: string, entry: Record<string, unknown>, drift: { missing: st
   put(row, "state", tag(entry.state));
   put(row, "daily_budget", money(campaign.daily_budget, divisor));
   put(row, "total_budget", money(campaign.total_budget, divisor));
-  put(row, "roi_two_target", nonNeg(campaign.roi_two_target));
+  put(row, "roi_two_target", adsTarget(campaign.roi_two_target));
   const report = isRecord(entry.report) ? entry.report : {};
   for (const key of AD_COUNTS) put(row, key, nonNeg(report[key]));
   for (const key of AD_RATIOS) put(row, key, nonNeg(report[key]));
@@ -437,7 +443,7 @@ export function roasTarget(body: unknown): { value: number; coldStart?: boolean 
   for (const point of found?.list ?? []) {
     const setting = point.roi_target_setting;
     if (!isRecord(setting)) continue;
-    const value = nonNeg(setting.value);
+    const value = adsTarget(setting.value);
     if (value === undefined || value <= 0) continue;
     result = { value, coldStart: flag(setting.is_cold_start) };
   }
