@@ -37,7 +37,7 @@ ERROR_KIND = "fill_not_supported"
 #: change kind -> what the Connector does with it
 FIELD_KINDS = ("title", "description_first_line")
 PAGE_KINDS = ("cover_image", "variation_restructure", "listing_hide", "listing_relist")
-FIELDS = {
+FIELDS: dict[str, dict[str, Any]] = {
     "title": {
         "key": "title",
         "label": "Tên sản phẩm",

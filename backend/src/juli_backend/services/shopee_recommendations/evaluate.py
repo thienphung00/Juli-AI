@@ -1245,10 +1245,10 @@ def _listing_before_after(
     if kind == "listing_hide":
         return {"status": "listed"}, {"status": "unlisted"}
     if kind == "listing_relist":
-        after: dict[str, Any] = {"status": "listed"}
+        relisted: dict[str, Any] = {"status": "listed"}
         if inputs.get("stock") is not None:
-            after["stock"] = int(inputs["stock"])
-        return {"status": "unlisted", "stock": x.get("current_stock")}, after
+            relisted["stock"] = int(inputs["stock"])
+        return {"status": "unlisted", "stock": x.get("current_stock")}, relisted
     return (
         {"cover_url": x.get("cover_url"), "text": x.get("before_text")},
         {"text": x.get("after_text"), "line": x.get("line")},

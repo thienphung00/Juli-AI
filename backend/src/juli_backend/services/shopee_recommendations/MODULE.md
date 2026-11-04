@@ -43,6 +43,22 @@ generic claim pattern (`content_cards.guardrails.check_banned`). Read-back: `tit
 lives in Juli's own key list and has no read-back. A cover or price card needs the snapshot's
 cover URL; a keyword card needs the market volumes the owner uploads.
 
+### P91 D-13: description, variations, hide, relist (and the import)
+
+`description_first_line`, `variation_restructure`, `listing_hide`, `listing_relist` join the listing
+family. Only the description has a prior (small, on CTOR); the others say "Không ước tính". The
+sheet carries the product's own edit page (`page.item_deep_link`, shape not recon-verified, flagged),
+`dependencies` (`depends_on` refs), `downloads` (cover image, https only) and the read-back kinds:
+`listing_status` (item snapshot `unlisted`), `variations` (catalogue rows still listed + their newest
+snapshot, an expected row names only the fields it fixes), `description_first_line` (no Connector
+reader exists yet: `verification.DESCRIPTION_READBACK_ACTIVE = False`, the person confirms by hand).
+An `executed` event with `payload.readback = False` is never read back (an imported, backdated
+execution). `services/planned_changes` imports a list of these changes from an `.xlsx`
+(`rows` = columns, parsing, checks; `importer` = preview / apply / versions); each valid row is a
+`manual.create_manual(origin="import")` card with `external_ref`; tables in migration 117.
+`fill.py` is the server half of the Connector's fill-in (`GET /v1/ingest/fill/{code}`, off unless
+`CONNECTOR_FILL_LISTING`): the approved text, never a write.
+
 ## Persistence (ADR-118 reused, migration 115 for the rest)
 
 A card is **one id** in three rows: `action_cards` (status `shopee_reco`, so the TikTok Decision

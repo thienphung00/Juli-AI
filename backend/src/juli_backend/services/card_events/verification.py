@@ -276,7 +276,7 @@ async def observations_for(session: AsyncSession, change: ExecutedChange) -> lis
         }[kind]
         return [Observation(fields(s), _utc(s.captured_at)) for s in snaps]
     if kind == "listing_status":
-        snaps = (
+        item_snaps = (
             (
                 await session.execute(
                     select(PlatformItemSnapshot).where(
@@ -295,12 +295,12 @@ async def observations_for(session: AsyncSession, change: ExecutedChange) -> lis
             Observation(
                 {"status": "unlisted" if s.status == "unlisted" else "listed"}, _utc(s.captured_at)
             )
-            for s in snaps
+            for s in item_snaps
         ]
     if kind == "variations":
         return await _variation_observations(session, shop_id, str(target["item_id"]), since)
     if kind == "description_first_line":
-        rows = (
+        described = (
             await session.execute(
                 select(PlatformItem.extra, PlatformItem.captured_at).where(
                     PlatformItem.shop_id == shop_id,
@@ -313,7 +313,7 @@ async def observations_for(session: AsyncSession, change: ExecutedChange) -> lis
         ).all()
         return [
             Observation({"first_line": extra["description_first_line"]}, _utc(at))
-            for extra, at in rows
+            for extra, at in described
             if (extra or {}).get("description_first_line")
         ]
     if kind in ("daily_budget", "roas_target"):
@@ -420,8 +420,8 @@ async def _variation_observations(
         .all()
     )
     latest: dict[str, PlatformItemSnapshot] = {}
-    for snap in snaps:
-        latest.setdefault(snap.variation_id, snap)
+    for newest_snap in snaps:
+        latest.setdefault(newest_snap.variation_id, newest_snap)
     out = []
     for r in live:
         snap = latest.get(r.variation_id)

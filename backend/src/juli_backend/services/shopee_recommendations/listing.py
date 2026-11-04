@@ -24,7 +24,7 @@ cards already refuse (``content_cards.guardrails``): the proposal passes the sam
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -513,7 +513,7 @@ def check_variation(row: object) -> str | None:
     return None
 
 
-def check_planned(kind: str, inputs: dict[str, object], banned_terms: Sequence[str]) -> str | None:
+def check_planned(kind: str, inputs: Mapping[str, Any], banned_terms: Sequence[str]) -> str | None:
     """Refusal code for the D-13 kinds' inputs (None = usable). Pure."""
     if kind == "description_first_line":
         line = str(inputs.get("first_line") or "").strip()

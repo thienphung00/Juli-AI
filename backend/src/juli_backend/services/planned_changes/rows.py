@@ -553,8 +553,10 @@ def check_rows(rows: list[PlannedRow], ctx: Context) -> Checked:
                 reject(r, "unknown_depends", "Phụ thuộc", d)
             elif d == r.ref:
                 reject(r, "depends_cycle", "Phụ thuộc", d)
-            elif d in by_ref and by_ref[d].on and r.on and by_ref[d].on > r.on:
-                warn(r, "depends_later", "Phụ thuộc", d)
+            else:
+                dep_on = by_ref[d].on if d in by_ref else None
+                if dep_on is not None and r.on is not None and dep_on > r.on:
+                    warn(r, "depends_later", "Phụ thuộc", d)
     order = _topological(rows, rejected, reject)
     _close_changes(rows, ctx, rejected, warn)
     return Checked(rows, {k: v for k, v in rejected.items() if v}, warnings, order)
@@ -616,10 +618,10 @@ def _close_changes(
         for (d1, r1), (d2, r2) in zip(entries, entries[1:], strict=False):
             gap = (d2 - d1).days
             if 0 < gap < CLOSE_DAYS:
-                for r, other in ((r1, d2), (r2, d1)):
-                    if r is not None:
+                for hit, other in ((r1, d2), (r2, d1)):
+                    if hit is not None:
                         warn(
-                            r,
+                            hit,
                             "close_changes",
                             "Ngày thực hiện",
                             f"{other.isoformat()} ({gap} ngày)",

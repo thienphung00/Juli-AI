@@ -150,7 +150,7 @@ class ApplyResult:
 def build_template() -> bytes:
     """The empty sheet with the column headers and two invented example rows."""
     head = [label for _, label, _ in pr.COLUMNS]
-    sample = [
+    sample: list[list[xlsx_io.Cell]] = [
         [
             "TD1", "1001", "Sửa tên sản phẩm", "Tên cũ của sản phẩm mẫu",
             "Tên mới của sản phẩm mẫu", "Đưa từ khoá chính lên đầu", 0, "05/11/2026", 14, "",
