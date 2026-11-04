@@ -10,6 +10,9 @@ shop's own tenant scope and are audited in ``ops_audit_log``.
 - ``POST .../recommendations/publish`` -- draft -> sent: the client sees them.
 - ``POST .../recommendations/{card_id}/whatif`` (Xem+) -- recompute, nothing recorded.
 - ``POST .../recommendations/{card_id}/executed`` -- "Đã làm" by staff.
+- ``GET  .../recommendations/code/{code}`` (Xem+) -- one card by its code (P91 D-5).
+- ``POST .../recommendations/requeue`` | ``/backfill-codes`` -- the idempotent product re-queue;
+  card codes for the proposals that predate migration 116.
 - ``POST .../recommendations/{card_id}/withdraw``
 - ``POST .../recommendations/rerun-stale`` -- recompute only the cards an import flagged.
 - ``GET/POST .../recommendations/sim-priors`` -- the audited import of a ``juli-sim/priors/v1``
@@ -28,7 +31,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,6 +55,8 @@ ACTION_SIM_IMPORT = "reco_sim_import"
 ACTION_LEARNING = "reco_learning_run"
 ACTION_BACKFILL = "reco_backfill"
 ACTION_RERUN_STALE = "reco_rerun_stale"
+ACTION_REQUEUE = "reco_requeue"
+ACTION_BACKFILL_CODES = "reco_backfill_codes"
 
 
 def _now() -> datetime:
@@ -99,6 +104,8 @@ async def ops_list_recommendations(
     section: Annotated[str | None, Query(max_length=16)] = None,
     status: Annotated[str | None, Query(max_length=24)] = None,
     xep_theo: Annotated[str, Query(max_length=24)] = "diem",
+    product_id: Annotated[str | None, Query(max_length=64)] = None,
+    queue: Annotated[str, Query(pattern="^(top|all)$")] = "top",
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -113,6 +120,8 @@ async def ops_list_recommendations(
                 section=section,
                 status=status,
                 xep_theo=xep_theo,
+                product_id=product_id,
+                queue=queue,
             )
     except ProposalError as exc:
         raise refused(exc) from None
@@ -138,6 +147,23 @@ async def ops_sim_priors(
     await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await reco.sim_summary(session, shop_id)
+
+
+@router.get(f"{BASE}/code/{{code}}")
+async def ops_card_by_code(
+    shop_id: uuid.UUID,
+    code: Annotated[str, Path(max_length=32)],
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """One card by its code (``JC-2611-0007`` or ``JC-2611-0007-V2``): versions, chosen version,
+    inputs before / after, status history and verification state."""
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id):
+            return await reco.card_by_code(session, shop_id, code, audience="ops")
+    except ProposalError as exc:
+        raise refused(exc) from None
 
 
 @router.get(BASE + "/{card_id}")
@@ -210,6 +236,34 @@ async def ops_publish(
     return {"sent": sent}
 
 
+@router.post(BASE + "/requeue")
+async def ops_requeue(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Idempotent: renumber every product's queue (a measurement window may have ended)."""
+    await _shopee_shop(session, shop_id)
+    async with with_shop_scope(session, shop_id):
+        changed = await reco.requeue(session, shop_id, now=_now())
+    await _audited(session, ctx, shop_id, ACTION_REQUEUE, {"changed": changed})
+    return {"changed": changed}
+
+
+@router.post(BASE + "/backfill-codes")
+async def ops_backfill_codes(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Idempotent: give the Shopee proposals that predate migration 116 their card codes."""
+    await _shopee_shop(session, shop_id)
+    async with with_shop_scope(session, shop_id):
+        coded = await reco.backfill_codes(session, shop_id, now=_now())
+    await _audited(session, ctx, shop_id, ACTION_BACKFILL_CODES, {"coded": coded})
+    return {"coded": coded}
+
+
 @router.post(BASE + "/rerun-stale")
 async def ops_rerun_stale(
     shop_id: uuid.UUID,
@@ -235,7 +289,13 @@ async def ops_whatif(
     try:
         async with with_shop_scope(session, shop_id):
             card = await reco.recompute(
-                session, shop_id, card_id, body.inputs, now=_now(), record=False
+                session,
+                shop_id,
+                card_id,
+                body.inputs,
+                now=_now(),
+                record=False,
+                version=body.version,
             )
     except ProposalError as exc:
         raise refused(exc) from None

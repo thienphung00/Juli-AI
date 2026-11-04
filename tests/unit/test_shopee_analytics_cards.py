@@ -32,7 +32,7 @@ CRIT = {
     "money_basis": "confirmed",
     "cause": {"stage": "ctor", "text": ""},
 }
-REF_KEYS = {"id", "family", "title", "at_stake_per_month"}
+REF_KEYS = {"id", "family", "title", "at_stake_per_month", "code", "product_queue"}
 P7 = {"period": "7d", "as_of": CUR_END}
 
 

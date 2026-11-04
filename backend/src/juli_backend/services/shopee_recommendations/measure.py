@@ -39,7 +39,13 @@ from juli_backend.repositories import (
 )
 from juli_backend.services.shopee_analytics import loaders
 from juli_backend.services.shopee_analytics.catalog import Catalog
-from juli_backend.services.shopee_recommendations import config, impact, learning, store
+from juli_backend.services.shopee_recommendations import (
+    config,
+    impact,
+    learning,
+    product_queue,
+    store,
+)
 from juli_backend.services.shopee_recommendations.kinds import KINDS, spec
 from juli_backend.services.shopee_recommendations.learning import Observation
 from juli_backend.services.shopee_recommendations.prediction import factor_from, prior_range
@@ -335,6 +341,7 @@ async def read_cards(
                 actor=ACTOR_SYSTEM,
                 occurred_at=datetime.combine(t + timedelta(days=days), datetime.min.time()),
                 dedup_key=f"{event_type}:{p.id}",
+                code=p.code,
                 family=card["family"],
                 change_kind=card["change_kind"],
                 subject=("item", items[0]) if items else ("shop", str(p.id)),
@@ -467,6 +474,9 @@ async def run_learning(
     states = learning.calibrate(all_obs)
     report.observations_total = len(all_obs)
     report.states = await store.save_calibrations(session, shop_id, states, all_obs, now=now)
+    await product_queue.requeue_shop(
+        session, shop_id, now
+    )  # a read-back or reading may close a card
     return report
 
 

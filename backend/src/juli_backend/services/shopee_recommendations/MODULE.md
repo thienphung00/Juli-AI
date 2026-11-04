@@ -22,18 +22,21 @@ a service package behind a thin route (`api/routes/demo_shopee_recommendations.p
 | `plan` | ADR-107 measurement plan: MDE (alpha 5 %, power 80 %) -> 14 / 28 days / "khó kết luận" |
 | `sheet` | execution sheet and the `change = {change_kind, target, expected}` the `executed` event carries (`card_events/verification.py`) |
 | `cards` | one card = the frozen proposal payload |
-| `listing` | the listing family's pure core: title audit (missing / late / > 120 chars), deterministic title rewrite from the shop's own words + core keywords, keyword promotion within five "Chính", unit price |
+| `listing` | the listing family's pure core: title audit (missing / late / > 100 chars), deterministic title rewrite from the shop's own words + core keywords, keyword promotion within five "Chính", unit price |
 | `refs` | `attach_card_refs`: `card {id, family, title, at_stake_per_month}` on the analytics payloads (seller: published cards; Ops: drafts too) |
 | `ranking` | contract 11: hard filters, gap-share score at P25, fallback dGMV/tháng, "đáng thử" slot |
 | `learning`, `impact`, `measure` | calibration, coverage, acceptance statistics; ADR-077 ratio-form DiD; readings at the plan end and the natural-experiment backfill |
 | `sim_priors` | the `juli-sim/priors/v1` loader (schema: `~/juli-sim-pilot/funnel/README.md`) |
+| `product_queue` | P91 D-1: the per-product queue of open cards (`shop_proposals.product_queue`), pure `assign`, `requeue_products` / `requeue_shop`, `measuring` (`product_measuring`) |
+| `versions` | P91 D-2: 2-4 versions per card; `ALTERNATIVES` = the one place that says which inputs per change_kind |
+| `codes` | P91 D-5: `JC-<yymm>-<seq4>`, per-shop counter, `backfill_codes` |
 | `store`, `service`, `stale` | persistence, use cases, staleness |
 
 ## Listing family (contract 8: Lượt xem / CTR)
 
 `title`, `keyword`, `cover_image`, `price_display` are traffic levers: no certain layer (the card
 says so), a predicted range from the lift model on views / CTR over the product's search or
-Thẻ sản phẩm GMV. A title never exceeds 120 characters and never holds a seller banned term or a
+Thẻ sản phẩm GMV. A title never exceeds 100 characters (P91 D-4) and never holds a seller banned term or a
 generic claim pattern (`content_cards.guardrails.check_banned`). Read-back: `title` through
 `platform_items.name`; `cover_image` / `price_display` through the cover URL changing
 (`expected = {"image_urls": {"changed_from": [url]}}`, `card_events/verification`); `keyword`
@@ -53,6 +56,18 @@ Status: `draft` (Ops) -> `sent` (Ops publishes) -> `approved` / `changes_request
 `accepted` (carries the final inputs when the client moved them), `edited` (request a change),
 `dismissed` (ADR-107 reason), `expired` (7 days), `executed` (one per change in the sheet, with
 `change`), `impact_preliminary` (T+7, never calibrates), `impact_final`; `verified` / `mismatch` / `not_seen` come from the Connector read-back.
+
+## P91: all cards, versions, codes
+
+- Ranking keeps every card that passes the other hard filters; `duplicate_product` is the queue.
+  Quyết định (`list_cards` default) shows `product_queue` 1 per product; `product_id=` / `queue=all`
+  return all. A card leaves the queue at once when dismissed, withdrawn, expired, superseded or
+  executed (a `planned` card, D-6, too); `product_measuring = {until, change_set}` says a running
+  measurement is still open on the product. Every status path calls `requeue_products`;
+  `requeue_shop` is the idempotent entry for the beat / measurement job.
+- `card["versions"]`: version 1 = default (the only ranked one); refused / floor-breaching ones are
+  kept and marked. What-if takes `version`; approve takes `chosen_version` (snapshot + events).
+- Codes are assigned in `store.save_card`; `service.card_by_code` is the read for the later export.
 
 ## Rules
 

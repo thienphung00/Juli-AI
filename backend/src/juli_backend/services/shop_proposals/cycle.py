@@ -255,6 +255,7 @@ async def record_approval(
     recorded_by_staff_id: uuid.UUID | None = None,
     evidence_ref: str | None = None,
     note: str | None = None,
+    snapshot_extra: dict[str, Any] | None = None,
 ) -> ShopProposalApproval:
     """The client's decision on a ``sent`` proposal.
 
@@ -282,7 +283,7 @@ async def record_approval(
         decided_by_user_id=decided_by_user_id,
         recorded_by_staff_id=recorded_by_staff_id,
         evidence_ref=(evidence_ref or "").strip() or None,
-        proposal_snapshot=snapshot(proposal),
+        proposal_snapshot={**snapshot(proposal), **(snapshot_extra or {})},
         note=note,
         decided_at=decided_at,
         created_at=now,

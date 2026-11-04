@@ -677,7 +677,7 @@ def test_revision_fits_alembic_and_the_deferred_tail_moved_onto_it():
     assert f'down_revision: str | None = "{mig.revision}"' in later
     # PR 5 put `106_write_platform_columns` on 105, then 107 on 106 and 108 on 107;
     # the deferred tail is on 108.
-    assert 'down_revision: str | None = "115_shopee_recommendations"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "116_shopee_reco_codes"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_app_role_may_only_select_and_insert():

@@ -46,7 +46,7 @@ from juli_backend.models.shopee_recommendations import (
 )
 from juli_backend.services.card_events import keys
 from juli_backend.services.card_events.writer import EventSpec, insert_event
-from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.shopee_recommendations import codes, config
 from juli_backend.services.shopee_recommendations.cards import proposal_fields
 from juli_backend.services.shopee_recommendations.learning import (
     AcceptanceStats,
@@ -87,11 +87,23 @@ async def save_card(
     staff_id: uuid.UUID | None = None,
     card_id: uuid.UUID | None = None,
     existing: ShopProposal | None = None,
+    product_queue: int | None = None,
 ) -> uuid.UUID:
     """Write a new card as a ``draft`` proposal (Ops publishes it) and freeze it. ``existing``
-    is a proposal ADR-118's ``revise`` already created (its id is the card id)."""
+    is a proposal ADR-118's ``revise`` already created (its id is the card id). The card gets
+    its code here (P91 D-5) and, for a card that replaces another, ``supersedes_code``."""
     cid = existing.id if existing is not None else (card_id or uuid.uuid4())
     card["id"] = str(cid)
+    code = await codes.assign_code(session, shop_id, now)
+    card["code"] = code
+    for v in card.get("versions") or []:
+        v["code"] = codes.version_code(code, int(v["version"]))
+    old_id = supersedes or (existing.supersedes_id if existing is not None else None)
+    if old_id is not None:
+        card["supersedes_id"] = str(old_id)
+        card["supersedes_code"] = await session.scalar(
+            select(ShopProposal.code).where(ShopProposal.id == old_id)
+        )
     subj_type, subj_id = _subject(card, cid)
     fields = proposal_fields(card, "")
     locked = sorted({*card["scope"]["product_ids"], *card.get("locked_items", [])})
@@ -104,6 +116,8 @@ async def save_card(
         "stale": False,
         "cycle": cycle,
         "lock_until": (card.get("lock") or {}).get("until"),
+        "rank_score": (card.get("rank") or {}).get("score"),
+        "code": code,
     }
     session.add(
         ActionCard(
@@ -125,6 +139,8 @@ async def save_card(
             computed_at=now,
         )
     )
+    if existing is not None:
+        existing.code = code
     if existing is None:
         session.add(
             ShopProposal(
@@ -142,6 +158,8 @@ async def save_card(
                 status=STATUS_DRAFT,
                 revision=1,
                 supersedes_id=supersedes,
+                code=code,
+                product_queue=product_queue,
                 proposed_by_staff_id=staff_id,
                 created_at=now,
                 updated_at=now,
@@ -251,7 +269,10 @@ async def write_event(
     change_kind: str,
     subject: tuple[str, str],
     reason_code: str | None = None,
+    code: str | None = None,
 ) -> bool:
+    if code is not None:
+        payload = {"code": code, **payload}
     return await insert_event(
         session,
         EventSpec(

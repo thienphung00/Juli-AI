@@ -33,7 +33,7 @@ from juli_backend.models.shop_proposals import (
 )
 from juli_backend.services.shop_inputs.affected import StaleRequest
 from juli_backend.services.shop_proposals import cycle as proposals
-from juli_backend.services.shopee_recommendations import store
+from juli_backend.services.shopee_recommendations import product_queue, store
 from juli_backend.services.shopee_recommendations.cards import proposal_fields
 
 OPEN = (STATUS_DRAFT, STATUS_SENT, STATUS_CHANGES_REQUESTED, STATUS_APPROVED)
@@ -164,7 +164,7 @@ async def rerun_stale(
         if p.status == STATUS_APPROVED:
             counts["kept_approved"] += 1
             continue
-        new = service.recompute_card(env, card, {}, now=now)
+        new = service.recompute_card(env, card, {}, now=now, rebuild_versions=True)
         if new is None:
             counts["dropped"] += 1
             await proposals.withdraw(session, p, now=now)
@@ -205,6 +205,7 @@ async def rerun_stale(
                 existing=successor,
             )
             counts["revised"] += 1
+    await product_queue.requeue_shop(session, shop_id, now)
     return counts
 
 

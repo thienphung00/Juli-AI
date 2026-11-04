@@ -73,10 +73,12 @@ STOCK_SHARE_CAP = 0.5
 MIN_PRODUCT_ORDERS = 3
 
 # -- listing family (title / keyword / cover_image / price_display) ---------------------------
-#: Shopee's product-name limit; a proposed title never exceeds it.
-MAX_TITLE_CHARS = 120
-#: Characters of a title the search result shows (the product page counts keywords against it).
-TITLE_VISIBLE_CHARS = 100
+#: Longest product name a card proposes or accepts (owner, P91 D-4: 100, was 120). A title is cut to
+#: it at a word boundary (``listing.cut_title``) and refused above it (what-if: 422).
+MAX_TITLE_CHARS = 100
+#: Characters of a title the search result shows (the product page counts keywords against it);
+#: never above the longest title.
+TITLE_VISIBLE_CHARS = min(100, MAX_TITLE_CHARS)
 #: At most this many "Chính" keywords per product (ADR-120 d.11).
 MAX_CORE_KEYWORDS = 5
 #: A "Phụ" keyword is promoted over the weakest "Chính" one only when its monthly search
@@ -94,3 +96,14 @@ ACCEPTANCE_PRIOR = (1.0, 2.0)  # (accepted + a) / (shown + b)
 
 # -- assisted execution -----------------------------------------------------------------------
 VERIFY_WINDOW_HOURS = 48
+
+# -- all cards per product, versions, codes (P91) --------------------------------------------
+#: A card carries at most this many versions (the default + three alternatives).
+MAX_VERSIONS = 4
+#: Open statuses that hold a product's queue slot ahead of the score (the seller chose them).
+QUEUE_IN_FLIGHT = ("approved", "executed")
+#: Days the measurement window runs when a card has no plan (same default as the product lock).
+QUEUE_DEFAULT_PLAN_DAYS = 14
+#: ``shop_proposals.code``: ``JC-<yymm>-<seq4>``; versions append ``-V<n>``.
+CODE_PREFIX = "JC"
+CODE_SEQ_DIGITS = 4

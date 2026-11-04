@@ -299,8 +299,7 @@ def test_every_hard_filter_drops_a_card_and_is_counted_once_under_the_first_it_f
         "below_operating_floor": 2,
         "over_spend_cap": 1,
         "negative_profit_p50": 1,
-        "duplicate_product": 0,
-    }
+    }  # P91 D-1: duplicate_product is no longer a filter (it is the product queue)
     assert (
         r.counts_any["negative_profit_p50"] == 2
     )  # "multi" fails two; counted under both in `any`
@@ -313,7 +312,8 @@ def test_unknown_stock_and_profit_pass_but_are_counted():
     assert [x.id for x in r.ordered] == ["a"] and r.unknown == {"stock": 1, "profit": 1}
 
 
-def test_one_change_per_product_keeps_the_best_card_and_a_mega_sale_holds_its_products():
+def test_cards_of_one_product_are_all_kept_and_queued_best_first():
+    """P91 D-1 (was: one change per product kept the best card and dropped the rest)."""
     cards = [
         _ri("p1-lo", items=("p1",), kpi_p25={"gmv": 10.0}),
         _ri("p1-hi", items=("p1",), kpi_p25={"gmv": 90_000.0}),
@@ -328,9 +328,11 @@ def test_one_change_per_product_keeps_the_best_card_and_a_mega_sale_holds_its_pr
         ),
     ]
     r = ranking.rank(cards, GAPS)
-    assert [x.id for x in r.ordered] == ["p1-hi", "mega"]
-    assert r.counts["duplicate_product"] == 2
-    assert {d["id"] for d in r.dropped} == {"p1-lo", "p2"}
+    assert [x.id for x in r.ordered] == ["p1-hi", "mega", "p2", "p1-lo"]
+    assert r.dropped == []
+    queue = {x.id: x.product_queue for x in r.ordered}
+    assert queue == {"p1-hi": 1, "p1-lo": 2, "p2": 1, "mega": None}
+    assert r.json()["queued_behind"] == 1
 
 
 def test_acceptance_only_breaks_ties():

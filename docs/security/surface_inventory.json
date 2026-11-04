@@ -1121,6 +1121,22 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/backfill-codes",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/code/{code}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/generate",
       "methods": [
         "POST"
@@ -1154,6 +1170,14 @@
     },
     {
       "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/publish",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/requeue",
       "methods": [
         "POST"
       ],

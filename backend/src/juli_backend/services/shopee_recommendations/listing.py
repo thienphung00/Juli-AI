@@ -225,6 +225,18 @@ def _joined(parts: Iterable[str]) -> str:
     return " ".join(p for p in parts if p)
 
 
+def cut_title(text: str, limit: int | None = None) -> str:
+    """``text`` cut back to ``limit`` (default ``MAX_TITLE_CHARS``) at a word boundary: trailing
+    words go first, a single word longer than the limit is cut hard. Whitespace is normalised."""
+    cap = config.MAX_TITLE_CHARS if limit is None else limit
+    words = text.split()
+    while words and len(" ".join(words)) > cap:
+        words.pop()
+    if not words:
+        return text.strip()[:cap].rstrip()
+    return " ".join(words)
+
+
 def _build(
     words: list[_Word],
     order: list[str],
@@ -352,7 +364,9 @@ class KeywordProposal:
         }
 
 
-def propose_keywords(listing: Listing, seller_banned: Sequence[str] = ()) -> KeywordProposal | None:
+def propose_keywords(
+    listing: Listing, seller_banned: Sequence[str] = (), *, nth: int = 0
+) -> KeywordProposal | None:
     """Promote the best "Phụ" keyword to "Chính": into a free slot, or in place of the weakest
     "Chính" one when its volume is at least ``KEYWORD_SWAP_FACTOR`` times higher. Needs the
     market volumes (shopeeanalytics.com, collected by the owner); no volume, no proposal."""
@@ -367,7 +381,10 @@ def propose_keywords(listing: Listing, seller_banned: Sequence[str] = ()) -> Key
     ]
     if not pool:
         return None
-    best = sorted(pool, key=_priority)[0]
+    ordered = sorted(pool, key=_priority)
+    if nth >= len(ordered):
+        return None
+    best = ordered[nth]
     before = tuple(k.keyword for k in sorted(core, key=_priority))
     if len(core) < config.MAX_CORE_KEYWORDS:
         after = (*before, best.keyword)

@@ -30,11 +30,13 @@ from sqlalchemy import (
     Date,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     SmallInteger,
     String,
     Text,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -117,6 +119,14 @@ class ShopProposal(Base):
         CheckConstraint("revision >= 1", name="ck_shop_proposals_revision"),
         Index("ix_shop_proposals_shop_cycle", "shop_id", "cycle"),
         Index("ix_shop_proposals_shop_status", "shop_id", "status"),
+        Index("ix_shop_proposals_shop_item_queue", "shop_id", "item_id", "product_queue"),
+        Index(
+            "uq_shop_proposals_shop_code",
+            "shop_id",
+            "code",
+            unique=True,
+            postgresql_where=text("code IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -142,6 +152,23 @@ class ShopProposal(Base):
     proposed_by_staff_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    #: P91 (migration 116). ``JC-<yymm>-<seq4>``, unique per shop, never reused; set when a
+    #: Shopee recommendation card is first persisted (None for proposals made by hand before).
+    code: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    #: P91 (migration 116). Place in the product's queue of open cards (1 = the Quyết định
+    #: card); None = closed, or not about one product. Written by ``product_queue``.
+    product_queue: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+
+
+class ShopProposalCodeCounter(Base):
+    """P91 (migration 116): the last card-code sequence number handed out per shop."""
+
+    __tablename__ = "shop_proposal_code_counters"
+    __table_args__ = (CheckConstraint("last_seq >= 0", name="ck_shop_proposal_code_counters_seq"),)
+
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), primary_key=True)
+    last_seq: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 

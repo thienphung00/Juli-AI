@@ -574,8 +574,8 @@ def _quote(items: Any) -> str:
 
 def gen_title(env: RecoEnv, crit: dict[str, Any] | None, item: str) -> list[Candidate]:
     """Lượt xem / CTR low: the title lacks a core keyword, has it beyond the visible characters,
-    is over 120 characters or holds a banned term. A concrete new title from the product's own
-    words and core keywords (``listing.propose_title``), never over 120 characters."""
+    is over 100 characters or holds a banned term. A concrete new title from the product's own
+    words and core keywords (``listing.propose_title``), never over 100 characters."""
     li = env.listings.get(item)
     if li is None or not li.title:
         return []

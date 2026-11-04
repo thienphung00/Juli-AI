@@ -17,6 +17,8 @@ from juli_backend.services.shopee_recommendations.measure import (
 from juli_backend.services.shopee_recommendations.mega import MegaWindow
 from juli_backend.services.shopee_recommendations.refs import attach_card_refs
 from juli_backend.services.shopee_recommendations.service import (
+    backfill_codes,
+    card_by_code,
     card_detail,
     decide,
     expire_old,
@@ -26,6 +28,7 @@ from juli_backend.services.shopee_recommendations.service import (
     mark_executed,
     publish,
     recompute,
+    requeue,
     seller_view,
     sim_summary,
     withdraw,
@@ -50,7 +53,9 @@ __all__ = [
     "SimPriors",
     "apply_backfill",
     "attach_card_refs",
+    "backfill_codes",
     "backfill_natural",
+    "card_by_code",
     "card_detail",
     "decide",
     "expire_old",
@@ -63,6 +68,7 @@ __all__ = [
     "parse_priors",
     "publish",
     "recompute",
+    "requeue",
     "rerun_stale",
     "run_learning",
     "save_card",

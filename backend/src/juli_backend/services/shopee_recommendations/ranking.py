@@ -9,10 +9,14 @@ or no target) -> the score is the expected dGMV per month at P25 under the same 
 
 Hard filters, in this order (a card is counted under the first it fails; all failing reasons
 are listed): ``locked_by_plan`` (a product with an open plan / inside a mega_sale window),
-``out_of_stock``, ``below_operating_floor``, ``over_spend_cap``, ``negative_profit_p50``;
-after scoring, ``duplicate_product`` keeps the best card per product (one change per product
-per measurement window). Acceptance statistics break ties only; the "đáng thử" slot, when
-reserved, is the eligible card with the largest simulation knowledge-gradient. Pure.
+``out_of_stock``, ``below_operating_floor``, ``over_spend_cap``, ``negative_profit_p50``.
+
+P91 D-1: ``duplicate_product`` is no longer a filter. One change per product per measurement
+window still holds, but as a queue: every card that passes the filters is kept and gets
+``product_queue`` 1..n among the cards of its product, best score first (1 = the Quyết định
+card; ``product_queue.py`` moves the next one up when it closes). Acceptance statistics break
+ties only; the "đáng thử" slot, when reserved, is the eligible card with the largest simulation
+knowledge-gradient. Pure.
 """
 
 from __future__ import annotations
@@ -29,7 +33,6 @@ FILTERS = (
     "below_operating_floor",
     "over_spend_cap",
     "negative_profit_p50",
-    "duplicate_product",
 )
 
 
@@ -132,6 +135,8 @@ class Ranked:
     score: float
     detail: dict[str, Any]
     explore: bool = False
+    #: place among the kept cards of the same product (1 = first); None = no product
+    product_queue: int | None = None
 
 
 @dataclass
@@ -149,6 +154,7 @@ class RankResult:
             "filters_first": self.counts,
             "filters_any": self.counts_any,
             "eligible": len(self.ordered),
+            "queued_behind": sum(1 for r in self.ordered if (r.product_queue or 1) > 1),
             "dropped": len(self.dropped),
             "unknown_inputs": self.unknown,
         }
@@ -202,18 +208,16 @@ def rank(
         s, d = score(c, gaps)
         scored.append((c, s, d))
     scored.sort(key=lambda t: (-t[1], -(t[0].acceptance or 0.0), -t[0].dgmv_p25, t[0].id))
-    kept: list[tuple[RankInput, float, dict[str, Any]]] = []
-    used: set[str] = set()
-    for c, s, d in scored:
-        items = set(c.all_items())
-        if items & used:
-            first["duplicate_product"] += 1
-            anyc["duplicate_product"] += 1
-            dropped.append({"id": c.id, "kind": c.kind, "reasons": ["duplicate_product"]})
-            continue
-        used |= items
-        kept.append((c, s, d))
-    ordered = [Ranked(c.id, i + 1, s, d) for i, (c, s, d) in enumerate(kept)]
+    kept = scored
+    seen: dict[str, int] = {}
+    ordered: list[Ranked] = []
+    for i, (c, s, d) in enumerate(kept):
+        product = c.items[0] if c.items else None
+        place = None
+        if product is not None:
+            seen[product] = seen.get(product, 0) + 1
+            place = seen[product]
+        ordered.append(Ranked(c.id, i + 1, s, d, product_queue=place))
     if explore_slot and len(kept) > top_n:
         pool = [(c, s, d) for c, s, d in kept[top_n - 1 :] if c.kg_value is not None]
         if pool:
@@ -225,6 +229,7 @@ def rank(
                 pick[1],
                 {**pick[2], "slot": "dang_thu", "kg_value": pick[0].kg_value},
                 True,
+                next(r.product_queue for r in ordered if r.id == pick[0].id),
             )
             ordered = [*rest[: top_n - 1], slot, *rest[top_n - 1 :]]
             for i, r in enumerate(ordered):
