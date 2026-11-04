@@ -9,7 +9,7 @@ import type { Card, CardStatus, CardSummary, Family, FloorBreach, JourneyEvent, 
 // ── Sections and tabs ───────────────────────────────────────────────────────
 
 /** Section order of the list (ranking order inside each section is the API's). */
-export const FAMILY_ORDER: readonly Family[] = ["ads", "promotion", "voucher", "sale", "combo", "affiliate", "mega_sale"];
+export const FAMILY_ORDER: readonly Family[] = ["ads", "promotion", "voucher", "sale", "combo", "affiliate", "listing", "mega_sale"];
 
 export const FAMILY_TITLE: Readonly<Record<Family, string>> = {
   ads: "Quảng cáo",
@@ -18,6 +18,7 @@ export const FAMILY_TITLE: Readonly<Record<Family, string>> = {
   sale: "Sale",
   combo: "Combo",
   affiliate: "Tiếp thị liên kết",
+  listing: "Tên, mô tả, ảnh, phân loại",
   mega_sale: "Mega sale",
 };
 
@@ -104,6 +105,7 @@ const SRC_OF_FAMILY: Readonly<Record<Family, string>> = {
   sale: "promo",
   combo: "combo",
   affiliate: "lien_ket",
+  listing: "all",
   mega_sale: "all",
 };
 

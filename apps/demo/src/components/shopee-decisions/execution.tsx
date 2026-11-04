@@ -6,6 +6,7 @@ import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { READBACK_LABEL, countdownOf, readbackOf, readingsOf, stepText, vnWhen, type Readback } from "../../lib/shopee-decisions/model";
 import type { CardDetail, ExecutionSheet, ExecutionStep, SheetPage } from "../../lib/shopee-decisions/types";
+import { ListingSheetExtras } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
 import { CopyButton, errorText } from "./ui";
 
@@ -153,6 +154,7 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
       ) : (
         <>
           <SheetView sheet={sheet} />
+          <ListingSheetExtras detail={detail} sheet={sheet} />
           {needsVoucherId ? (
             <label className="sd-voucher-id">
               Mã voucher trên Seller Centre (sau khi tạo)

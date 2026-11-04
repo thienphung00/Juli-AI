@@ -10,7 +10,7 @@ import type { FiveNumbers } from "../shopee-analytics/types";
 
 export type N = number | null;
 
-export type Family = "ads" | "promotion" | "voucher" | "sale" | "combo" | "affiliate" | "mega_sale";
+export type Family = "ads" | "promotion" | "voucher" | "sale" | "combo" | "affiliate" | "listing" | "mega_sale";
 
 /** Card status (`shop_proposals.status`; `draft` exists for Ops only). */
 export type CardStatus =
@@ -213,6 +213,9 @@ export interface SheetPage {
   readonly verified: boolean;
   readonly deep_link: string | null;
   readonly button: string;
+  /** P91 D-13: this one product's edit page (listing kinds); its address shape is not recon-verified yet. */
+  readonly item_deep_link?: string | null;
+  readonly item_link_verified?: boolean;
 }
 
 export interface ExecutionSheet {
@@ -221,6 +224,9 @@ export interface ExecutionSheet {
   readonly time_window: { readonly start?: string; readonly days?: N };
   readonly changes: readonly { readonly change_kind: string; readonly target: Readonly<Record<string, unknown>>; readonly expected: Readonly<Record<string, unknown>> }[];
   readonly save_hint: string;
+  /** P91 D-13: changes that must run before this one ("chỉ sau khi CB3 chạy"), and a cover image to download. */
+  readonly dependencies?: readonly { readonly ref: string; readonly code?: string | null; readonly text: string }[];
+  readonly downloads?: readonly { readonly label: string; readonly ref: string; readonly url: string | null }[];
   readonly revert_steps: readonly ExecutionStep[];
   readonly readback: { readonly kinds: readonly string[]; readonly deadline_hours: number; readonly note: string };
 }
