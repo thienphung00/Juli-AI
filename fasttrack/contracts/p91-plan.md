@@ -207,6 +207,13 @@ Real files arrived (header names only recorded here; files stay outside the repo
 - Learning / calibration runs **daily, right after the daily Shopee KPI beat**, for the pilot shop(s) only (DB only,
   idempotent); Ops can still trigger it by hand.
 - P91 ships as **one deploy** after D-12 + D-13 are merged and the full deploy gate passes.
+- Update-permission test: register the P90/P91 tables that need UPDATE (with their call sites) inside P91; the 23
+  older tables go to a separate ticket after P91.
+- Income "Phí vận chuyển – Người bán hỗ trợ": stored as reference, not subtracted; Ops warning the first time a
+  non-zero value arrives.
+- VAT flags apply to card what-ifs too (versions, compare, plan totals) so card Δ profit matches shop profit.
+- Connector fill-in: read-only recon of ORY's product edit page now (field labels, the page's own detail call); fill-in
+  for ORY ships in P91 if the recon confirms the labels.
 
 ## Waves
 1. Backend core (D-1, D-2, D-4, D-5) ‖ Backend manual + compare + combo (D-3) ‖ Design artboards (all of D-1..D-10).
