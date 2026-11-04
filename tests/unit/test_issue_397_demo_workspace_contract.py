@@ -276,7 +276,16 @@ def test_workspace_import_boundaries_are_acyclic_and_app_isolated() -> None:
 # Both are `NEXT_PUBLIC_*`, which Next.js compiles into the client bundle — they
 # are public by construction, and the anon key is designed to be published and is
 # constrained by RLS rather than by secrecy.
-_ALLOWED_DEMO_ENV = frozenset({"NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"})
+# P91 integration: the plan and KOL screens are on by default; these two public build-time
+# switches (value "0" turns the screen off) are the one deliberate addition. They hold no secret.
+_ALLOWED_DEMO_ENV = frozenset(
+    {
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "NEXT_PUBLIC_P91_PLAN",
+        "NEXT_PUBLIC_P91_KOL",
+    }
+)
 
 # Word-bound env-style prefixes only — product ids like GMV_TIKTOK_* must not match.
 _FORBIDDEN_IN_DEMO = re.compile(
