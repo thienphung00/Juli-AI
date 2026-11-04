@@ -183,10 +183,28 @@ Real files arrived (header names only recorded here; files stay outside the repo
   `số món / phân loại` column per variation (parsed default from the variation name "Combo N …", editable) and a BOM
   sheet for listings with no SKU (multi-product combos). Without it combo costs are understated N-fold.
 
+## D-13 Listing changes as cards, imported from a file, with Connector fill-in (owner 2026-11-04)
+- **New change kinds** (family listing): `description_first_line`, `variation_restructure` (gom phân loại: target
+  variations with names/prices/SKUs, listings to hide after it runs), `listing_hide` (ẩn, never delete), `listing_relist`
+  (nhập hàng / đưa trở lại). Existing: `title` (100-char rule, D-4), `cover_image`. Each has an execution sheet (page,
+  fields, before → after, dependencies such as "chỉ sau khi CB3/CB4 chạy") and a read-back check (title / description
+  / variations / status / stock from the product snapshot).
+- **Import from a file** (Cài đặt › Đề xuất, `.xlsx`, preview → apply with reason, versioned like the seller import):
+  columns ref (e.g. TD1, XM3), item id, change kind, before, after (title / description / variation table / image ref),
+  reason, chi phí, ngày thực hiện, cửa sổ đo (days), depends_on (refs), ORY decision (đồng ý / không / chỉnh sửa),
+  status (chưa / đang / hoàn thành). Each row → a manual card (`origin = "import"`, JC code, `external_ref` kept for the
+  export). Rows already executed carry their real execution date; measurement baseline comes from history. Validation:
+  title > 100 chars, unknown item, two changes of one product on different days within 3 days (D-7 warning).
+- **Connector fill-in** (flag `fill_listing`, ORY pilot shop only): on the product edit page the Connector fills the title
+  and the first line of the description with the card's approved value and highlights them; it never clicks Save /
+  Cập nhật / Xác nhận / Ẩn. Cover image: offered as a download to drop in by hand. Variation restructure: a step checklist
+  beside the page (no fill). Hide / relist: page opened only. Field location by visible label text, verified once by a
+  read-only recon of the edit page with a logged-in Seller Centre; unknown layout → no fill, copy buttons only.
+
 ## Waves
 1. Backend core (D-1, D-2, D-4, D-5) ‖ Backend manual + compare + combo (D-3) ‖ Design artboards (all of D-1..D-10).
    Parallel; file ownership below.
-1b. After core + manual merge: Backend plan + aggregation + measurement + plan codes (D-6, D-7, D-8, D-10) ‖ Backend KOL (D-9) ‖ Backend income + cost import (D-12).
+1b. After core + manual merge: Backend plan + aggregation + measurement + plan codes (D-6, D-7, D-8, D-10) ‖ Backend KOL (D-9) ‖ Backend income + cost import (D-12) ‖ Listing changes + import + Connector fill-in (D-13).
 2. Owner approves the artboards. **Done 2026-11-04** (19 artboards in `docs/product/design/shopee-shop/`, branch merged).
 3. Frontend Demo + Ops ‖ integration tests on ORY data. Then one deploy.
 
