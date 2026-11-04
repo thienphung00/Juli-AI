@@ -88,8 +88,8 @@ Artboards and decisions: see the P91 section of `README.md`. Notes that belong w
 
 ### KOL (D-9)
 
-- **Phân tích › KOL** and the product's **Tiếp thị liên kết** tab list KOL × sản phẩm × kênh with đơn, SL, GMV, lượt nhấp, chuyển đổi, hoa hồng, lợi nhuận ròng, chi phí mẫu, lợi nhuận sau mẫu, ROI gồm mẫu (Juli) beside ROI Shopee (chỉ hoa hồng), hoàn vốn mẫu. Few-data KOLs (≤ 3 orders) are badged "Ít dữ liệu" and their ROI is for reference only.
+- **Phân tích › KOL** and the product's **Tiếp thị liên kết** tab list KOL × sản phẩm × kênh with đơn, SL, GMV, lượt nhấp, chuyển đổi, hoa hồng, lợi nhuận ròng, chi phí mẫu, lợi nhuận sau mẫu, ROI gồm mẫu (ours) beside ROI Shopee (chỉ hoa hồng), hoàn vốn mẫu. ROI Shopee is the value in Shopee's KOL export, shown as-is, never recomputed. KOL × product pairs with fewer than 10 orders are badged "Ít dữ liệu" (D-11) and their ROI is for reference only.
 - Commission is per product sold, at the rate applying to that product. Sample cost = số lượng × (giá vốn + đóng gói) + phí ship, no booking fee.
-- Cards **Gửi mẫu cho KOL** and **Mời KOL** have versions and what-if knobs (sản phẩm, số lượng mẫu, hoa hồng %) and join plans like any card; the plan shows the total sample cost and expected return.
+- Cards **Gửi mẫu cho KOL** and **Mời KOL** have versions (different products; Mời KOL pitches a product with no sample cost) and what-if knobs (sản phẩm, số lượng mẫu, hoa hồng %) and join plans like any card; the plan shows the total sample cost and expected return.
 - The **Mẫu KOL** sheet (KOL, sản phẩm, số lượng mẫu, ngày gửi, phí ship) is versioned like the SKU sheet: validate, diff cũ → mới with consequences, apply with reason.
 - Open: should the product page list KOLs who sold nothing but received a sample (now: only KOLs with at least one order or sample row)?

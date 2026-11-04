@@ -323,8 +323,8 @@ Chạy bằng runtime thay thế nhỏ (jsdom, không commit): mở từng artbo
 | 14 | Ops: cột mã thẻ và mã kế hoạch, lọc, tìm theo mã; không có nút Xuất Excel | OpsDeXuat | đạt |
 | 15 | Mã kế hoạch KH-2611-003 trên khung kế hoạch, hộp xác nhận và từng thẻ sau khi xác nhận | KeHoach `#scene=ketqua` | đạt |
 | 16 | Kế hoạch KOL: 3 Gửi mẫu + 2 Mời KOL, tổng chi phí mẫu 344.000đ (cộng đúng các thẻ), ROI gồm mẫu = lợi nhuận ÷ (hoa hồng + mẫu) | KeHoach `#scene=kol` | đạt |
-| 17 | Phân tích KOL: lợi nhuận sau mẫu = ròng − mẫu; ROI gồm mẫu và ROI Shopee là hai cột khác nhau; \"Ít dữ liệu\" cho KOL ≤ 3 đơn; lọc kênh / sản phẩm | PhanTichKOL | đạt |
-| 18 | Thẻ Gửi mẫu: chi phí mẫu = số lượng × (giá vốn + đóng gói) + ship (3 × 49.000đ + 25.000đ = 172.000đ); thanh trượt chỉ đổi phiên bản đang chọn; Mời KOL không có chi phí mẫu | CardKOL | đạt |
+| 17 | Phân tích KOL: lợi nhuận sau mẫu = ròng − mẫu; ROI gồm mẫu và ROI Shopee là hai cột khác nhau; ROI Shopee giữ nguyên giá trị file xuất (không tính lại); \"Ít dữ liệu\" cho cặp KOL × sản phẩm dưới 10 đơn (8 trên 9 dòng mẫu); lọc kênh / sản phẩm | PhanTichKOL | đạt |
+| 18 | Thẻ Gửi mẫu: chi phí mẫu = số lượng × (giá vốn + đóng gói) + ship (3 × 49.000đ + 25.000đ = 172.000đ); thanh trượt chỉ đổi phiên bản đang chọn; Mời KOL: ba phiên bản là ba sản phẩm khác nhau, không có chi phí mẫu | CardKOL | đạt |
 | 19 | Sheet Mẫu KOL: dòng lỗi (KOL không có, SKU chưa có, số lượng 0) không chặn dòng hợp lệ; hệ quả cũ → mới tính cùng công thức; áp dụng cần lý do | CaiDatMauKOL | đạt |
 | 20 | Mobile Tự tạo phương án: cùng số với desktop, cảnh báo giá sàn là bottom sheet, "Vẫn tiếp tục" ghi xác nhận | TuTaoPhuongAnMobile | đạt |
 

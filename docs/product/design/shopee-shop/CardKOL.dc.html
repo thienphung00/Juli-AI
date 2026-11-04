@@ -171,22 +171,22 @@ const KOLS = [
   { id: 'K5', handle: 'Review Cùng Bạn E', ch: 'Shopee Video', mclicks: 600, card: 'JC-2611-0020', cardKind: 'Mời KOL' }
 ];
 const KROWS = [
-  { k: 'K1', p: 'GT-A', orders: 9, units: 14, clicks: 310, sq: 3 }, { k: 'K1', p: 'TR-B', orders: 2, units: 3, clicks: 90, sq: 0 },
-  { k: 'K2', p: 'TR-B', orders: 7, units: 11, clicks: 260, sq: 2 }, { k: 'K2', p: 'MR-C', orders: 12, units: 24, clicks: 380, sq: 0 },
-  { k: 'K3', p: 'MR-C', orders: 3, units: 6, clicks: 150, sq: 5 }, { k: 'K3', p: 'GT-A', orders: 5, units: 8, clicks: 140, sq: 2 },
-  { k: 'K4', p: 'GT-A', orders: 1, units: 2, clicks: 60, sq: 0 },
-  { k: 'K5', p: 'TR-B', orders: 6, units: 9, clicks: 200, sq: 0 }, { k: 'K5', p: 'GT-A', orders: 15, units: 23, clicks: 480, sq: 0 }
+  { k: 'K1', p: 'GT-A', orders: 9, units: 14, clicks: 310, sq: 3 , rs: '9,8' }, { k: 'K1', p: 'TR-B', orders: 2, units: 3, clicks: 90, sq: 0 , rs: '7,4' },
+  { k: 'K2', p: 'TR-B', orders: 7, units: 11, clicks: 260, sq: 2 , rs: '8,9' }, { k: 'K2', p: 'MR-C', orders: 12, units: 24, clicks: 380, sq: 0 , rs: '6,2' },
+  { k: 'K3', p: 'MR-C', orders: 3, units: 6, clicks: 150, sq: 5 , rs: '5,1' }, { k: 'K3', p: 'GT-A', orders: 5, units: 8, clicks: 140, sq: 2 , rs: '9,3' },
+  { k: 'K4', p: 'GT-A', orders: 1, units: 2, clicks: 60, sq: 0 , rs: '10,6' },
+  { k: 'K5', p: 'TR-B', orders: 6, units: 9, clicks: 200, sq: 0 , rs: '7,9' }, { k: 'K5', p: 'GT-A', orders: 15, units: 23, clicks: 480, sq: 0 , rs: '11,2' }
 ];
 const kolOf = (id) => KOLS.find((x) => x.id === id);
 const evalKolRow = (r) => { const pr = prod(r.p), k = kolOf(r.k); const gmv = pr.price * r.units; const comm = KRATE[r.p] * gmv;
   const net = gmv * (1 - SHOP.fee) - SHOP.feeFix * r.orders - pr.cogs * r.units - comm; const sample = r.sq > 0 ? r.sq * pr.cogs + SHIP : 0; const after = net - sample;
-  return { ...r, handle: k.handle, ch: k.ch, pname: pr.name, gmv, comm, net, sample, after, conv: r.orders / r.clicks, roi: (comm + sample) > 0 ? after / (comm + sample) : null, roiShopee: comm > 0 ? gmv / comm : null, payback: sample > 0 && r.orders > 0 ? Math.ceil(sample / (net / r.orders)) : null, few: r.orders <= 3, card: k.card, cardKind: k.cardKind }; };
+  return { ...r, handle: k.handle, ch: k.ch, pname: pr.name, gmv, comm, net, sample, after, conv: r.orders / r.clicks, roi: (comm + sample) > 0 ? after / (comm + sample) : null, roiShopee: r.rs, payback: sample > 0 && r.orders > 0 ? Math.ceil(sample / (net / r.orders)) : null, few: r.orders < 10, card: k.card, cardKind: k.cardKind }; };
 const KOL_EVAL = KROWS.map(evalKolRow);
 const evalKolPlan = (kid, pid, qty, rate, invite) => { const k = kolOf(kid), pr = prod(pid); const hist = KROWS.filter((x) => x.k === kid); const n = hist.reduce((a, x) => a + x.orders, 0), cl = hist.reduce((a, x) => a + x.clicks, 0);
   const w = n / (n + 12); const conv = w * (n / Math.max(1, cl)) + (1 - w) * SHOP_CONV; const m = k.mclicks * conv * KFIT[pid] * (invite ? 0.7 : 1) * Math.sqrt(rate / KRATE[pid]);
-  const sp = n <= 3 ? [0.3, 2.2] : (n < 10 ? [0.45, 1.7] : [0.6, 1.4]); const u = KUNITS[pid]; const gmvO = u * pr.price; const commO = rate * gmvO; const netO = gmvO * (1 - SHOP.fee) - SHOP.feeFix - u * pr.cogs - commO;
+  const nP = hist.filter((x) => x.p === pid).reduce((a, x) => a + x.orders, 0); const sp = nP < 4 ? [0.3, 2.2] : (nP < 10 ? [0.4, 1.9] : [0.6, 1.4]); const u = KUNITS[pid]; const gmvO = u * pr.price; const commO = rate * gmvO; const netO = gmvO * (1 - SHOP.fee) - SHOP.feeFix - u * pr.cogs - commO;
   const sample = invite ? 0 : qty * pr.cogs + SHIP; const mk = (o) => ({ orders: o, gmv: o * gmvO, comm: o * commO, net: o * netO, profit: o * netO - sample, roi: (o * commO + sample) > 0 ? (o * netO - sample) / (o * commO + sample) : null });
-  return { k, pr, n, few: n <= 3, qty, rate, sample, netO, commO, gmvO, mid: mk(m), lo: mk(m * sp[0]), hi: mk(m * sp[1]), payback: sample > 0 ? Math.ceil(sample / netO) : null, convTxt: n + ' đơn / ' + cl + ' lượt nhấp' }; };
+  return { k, pr, n, nP, few: nP < 10, qty, rate, sample, netO, commO, gmvO, mid: mk(m), lo: mk(m * sp[0]), hi: mk(m * sp[1]), payback: sample > 0 ? Math.ceil(sample / netO) : null, convTxt: 'KOL ' + n + ' đơn / ' + cl + ' lượt nhấp, riêng sản phẩm này ' + nP + ' đơn' }; };
 /* ---- kế hoạch (D-6): phạm vi = các sản phẩm trong kế hoạch; hiệu ứng mỗi thẻ so với hôm nay ---- */
 const TRB = { orders: 85, aov: 70000, gmv: 5950000, disc: 238000, chi: 700000, profit: 640000 };
 const MRC = { orders: 260, aov: 33000, gmv: 8580000, disc: 260000, chi: 520000, profit: 900000 };
@@ -212,10 +212,10 @@ Object.assign(PLAN_CARDS, {
   'JC-2611-0016': kolCard('JC-2611-0016', 'K1', 'GT-A', false, [{ qty: 3 }, { qty: 2 }]),
   'JC-2611-0017': kolCard('JC-2611-0017', 'K2', 'TR-B', false, [{ qty: 2 }, { qty: 3 }]),
   'JC-2611-0018': kolCard('JC-2611-0018', 'K3', 'MR-C', false, [{ qty: 5 }, { qty: 3 }]),
-  'JC-2611-0019': kolCard('JC-2611-0019', 'K4', 'GT-A', true, [{ qty: 0, rate: 0.10 }, { qty: 0, rate: 0.08 }]),
-  'JC-2611-0020': kolCard('JC-2611-0020', 'K5', 'TR-B', true, [{ qty: 0, rate: 0.12 }, { qty: 0, rate: 0.10 }])
+  'JC-2611-0019': kolCard('JC-2611-0019', 'K4', 'GT-A', true, [{ qty: 0, rate: 0.10 }, { qty: 0, rate: 0.10, pid: 'TR-B' }]),
+  'JC-2611-0020': kolCard('JC-2611-0020', 'K5', 'TR-B', true, [{ qty: 0, rate: 0.12 }, { qty: 0, rate: 0.12, pid: 'MR-C' }])
 });
-[['JC-2611-0016', 9, 'Gửi mẫu cho KOL', 'Gửi mẫu Găng tay cao su A cho “Review cùng Mẹ A”'], ['JC-2611-0019', 10, 'Mời KOL', 'Mời KOL “Mẹ bỉm D” bán Găng tay cao su A']].forEach(([code, q, kind, title]) => { const pc_ = PLAN_CARDS[code]; const vs = pc_.vers.map((v) => mkV(code + '-' + v.n, v.n, v.label, v.eff.lo.dP, v.eff.hi.dP, v.eff.sure, '')); const c = { code, fam: 'affiliate', kind, title, queue: q, status: 'Chờ duyệt', versions: vs, dLo: vs[0].lo, dHi: vs[0].hi }; c.mid = (c.dLo + c.dHi) / 2; CARDS.push(c); });
+[['JC-2611-0016', 9, 'Gửi mẫu cho KOL', 'Gửi mẫu Găng tay cao su A cho “Review cùng Mẹ A”'], ['JC-2611-0019', 10, 'Mời KOL', 'Mời KOL “Mẹ bỉm D”']].forEach(([code, q, kind, title]) => { const pc_ = PLAN_CARDS[code]; const vs = pc_.vers.map((v) => mkV(code + '-' + v.n, v.n, v.label, v.eff.lo.dP, v.eff.hi.dP, v.eff.sure, '')); const c = { code, fam: 'affiliate', kind, title, queue: q, status: 'Chờ duyệt', versions: vs, dLo: vs[0].lo, dHi: vs[0].hi }; c.mid = (c.dLo + c.dHi) / 2; CARDS.push(c); });
 const planAgg = (plan) => {
   const cs = plan.map((p) => ({ p, c: PLAN_CARDS[p.id], v: PLAN_CARDS[p.id].vers.find((x) => x.n === p.ver) }));
   const pids = Array.from(new Set(cs.map((x) => x.c.prod))); const s0 = pids.length ? pids.reduce((a, k) => ({ orders: a.orders + BASES[k].orders, gmv: a.gmv + BASES[k].gmv, disc: a.disc + BASES[k].disc, chi: a.chi + BASES[k].chi, profit: a.profit + BASES[k].profit }), { orders: 0, gmv: 0, disc: 0, chi: 0, profit: 0 }) : SCOPE0;
@@ -242,13 +242,13 @@ const recFor = (pid) => [7, 14, 28].find((n) => MDE(n, pid) <= 0.30) || 28;
 const REC_WINDOW = [7, 14, 28].find((n) => MDE(n) <= 0.30) || 28;
 
 const MAX_TITLE = 100;
-return { KRATE, KOLS, KROWS, KOL_EVAL, evalKolPlan, kolOf, SHIP, MRC, BASES, PERDAY, recFor, fmt, vnd, sv, pc, k1, rangeT, CH, pill, SHOP, PRODUCTS, prod, BASE, VCAP, elig, evalVoucher, VOUCHER_VERS, evalCombo, comboSpec, COMBO_VERS, FAMILIES, CARDS, otherProducts, MAX_TITLE, TRB, SCOPE0, SHOPDAY, PLAN_CARDS, planAgg, MDE, REC_WINDOW };
+return { evalKolRow, KRATE, KOLS, KROWS, KOL_EVAL, evalKolPlan, kolOf, SHIP, MRC, BASES, PERDAY, recFor, fmt, vnd, sv, pc, k1, rangeT, CH, pill, SHOP, PRODUCTS, prod, BASE, VCAP, elig, evalVoucher, VOUCHER_VERS, evalCombo, comboSpec, COMBO_VERS, FAMILIES, CARDS, otherProducts, MAX_TITLE, TRB, SCOPE0, SHOPDAY, PLAN_CARDS, planAgg, MDE, REC_WINDOW };
 })();
 /* ===== END P91 DATASET ===== */
 const { fmt, vnd, sv, pc, k1, rangeT, CH, pill, PRODUCTS, prod, KRATE, SHIP, evalKolPlan, kolOf, KROWS } = P91;
 const INIT = {
   mau: { kid: 'K1', invite: false, vers: [{ pid: 'GT-A', qty: 3, rate: 8 }, { pid: 'TR-B', qty: 2, rate: 10 }, { pid: 'MR-C', qty: 5, rate: 12 }], code: 'JC-2611-0016', title: 'Gửi mẫu cho “Review cùng Mẹ A”' },
-  moi: { kid: 'K4', invite: true, vers: [{ pid: 'GT-A', qty: 0, rate: 10 }, { pid: 'GT-A', qty: 0, rate: 12 }, { pid: 'GT-A', qty: 0, rate: 15 }], code: 'JC-2611-0019', title: 'Mời KOL “Mẹ bỉm D” bán Găng tay cao su A' }
+  moi: { kid: 'K4', invite: true, vers: [{ pid: 'GT-A', qty: 0, rate: 10 }, { pid: 'TR-B', qty: 0, rate: 10 }, { pid: 'MR-C', qty: 0, rate: 12 }], code: 'JC-2611-0019', title: 'Mời KOL “Mẹ bỉm D”' }
 };
 class Component extends DCLogic {
 constructor(props) { super(props); const h = {}; try { location.hash.replace(/^#/, '').split('&').forEach((kv) => { const [k, v] = kv.split('='); if (k) h[k] = v; }); } catch (e) {}
@@ -258,7 +258,7 @@ const st = this.state; const I = INIT[st.scene]; const invite = I.invite; const 
 const ev = st.vers.map((v) => evalKolPlan(I.kid, v.pid, v.qty, v.rate / 100, invite)); const E = ev[st.sel]; const cur = st.vers[st.sel];
 const upd = (fn) => { const v = JSON.parse(JSON.stringify(st.vers)); fn(v[st.sel]); this.setState({ vers: v }); };
 const adj = JSON.stringify(st.vers[st.sel]) !== JSON.stringify(INIT[st.scene].vers[st.sel]);
-const heads = [{ isVer: false, isLabel: true, label: 'Chỉ số', sub: invite ? 'không có chi phí mẫu' : 'so với không gửi', style: 'background: #faf7f8' }].concat(st.vers.map((v, i) => ({ isVer: true, isLabel: false, n: 'V' + (i + 1), label: invite ? 'Hoa hồng ' + v.rate + '%' : 'Gửi ' + v.qty + ' mẫu ' + prod(v.pid).name, code: I.code + '-V' + (i + 1), tag: i === 0 ? 'Juli đề xuất' : 'Phiên bản', tagStyle: i === 0 ? CH.pk : CH.ne, on: i === st.sel, dot: i === st.sel ? 'border: 5px solid #c2306d; background: #ffffff' : 'border: 1px solid #a1a1aa; background: #ffffff', style: i === st.sel ? 'background: #fff7fa; box-shadow: inset 0 3px 0 #c2306d' : 'background: #ffffff', pick: () => this.setState({ sel: i }) })));
+const heads = [{ isVer: false, isLabel: true, label: 'Chỉ số', sub: invite ? 'không có chi phí mẫu' : 'so với không gửi', style: 'background: #faf7f8' }].concat(st.vers.map((v, i) => ({ isVer: true, isLabel: false, n: 'V' + (i + 1), label: invite ? 'Mời bán ' + prod(v.pid).name + ', hoa hồng ' + v.rate + '%' : 'Gửi ' + v.qty + ' mẫu ' + prod(v.pid).name, code: I.code + '-V' + (i + 1), tag: i === 0 ? 'Juli đề xuất' : 'Phiên bản', tagStyle: i === 0 ? CH.pk : CH.ne, on: i === st.sel, dot: i === st.sel ? 'border: 5px solid #c2306d; background: #ffffff' : 'border: 1px solid #a1a1aa; background: #ffffff', style: i === st.sel ? 'background: #fff7fa; box-shadow: inset 0 3px 0 #c2306d' : 'background: #ffffff', pick: () => this.setState({ sel: i }) })));
 const cols = '210px ' + st.vers.map(() => 'minmax(0, 1fr)').join(' ');
 const cell = (i, v, vs, d) => ({ v, vStyle: vs || '', d: d || '', style: i === st.sel ? 'background: #fff7fa' : 'background: #ffffff' });
 const R = (label, sub, f) => ({ label, sub, cells: ev.map((e, i) => f(e, i)) });
@@ -277,16 +277,16 @@ const setScene = (sc) => this.setState({ scene: sc, sel: 0, vers: JSON.parse(JSO
 const noticeFor = { plan: ['Đã thêm ' + I.code + '-V' + (st.sel + 1) + ' vào kế hoạch (chưa thực hiện). Thẻ kế tiếp của sản phẩm đã lên Quyết định.', 'background: #f1faf3; border: 1px solid #c7e8d0'], approve: ['Đã duyệt ' + I.code + '-V' + (st.sel + 1) + '. Đội Juli ' + (invite ? 'gửi lời mời' : 'đóng gói và gửi mẫu') + ' và bạn xác nhận. Phép đo theo cặp KOL × sản phẩm, trước và sau ngày gửi.', 'background: #eef6ff; border: 1px solid #c9defa'] };
 const nf = st.mode ? noticeFor[st.mode] : null;
 return {
-  pageTitle: invite ? 'Mời KOL chưa từng nhận mẫu: không tốn chi phí mẫu' : 'Gửi mẫu cho KOL: chọn sản phẩm và số mẫu đáng gửi nhất',
+  pageTitle: invite ? 'Mời KOL chưa nhận mẫu: chọn sản phẩm mời bán, không tốn chi phí mẫu' : 'Gửi mẫu cho KOL: chọn sản phẩm và số mẫu đáng gửi nhất',
   scenes: [['mau', 'Gửi mẫu · 3 phiên bản'], ['moi', 'Mời KOL · không có mẫu']].map(([id, l]) => ({ label: l, on: st.scene === id, style: pill(st.scene === id), pick: () => setScene(id) })),
   code: I.code, kolHandle: k.handle, kolCh: k.ch, few: E.few, cardTitle: I.title,
-  basis: 'Dữ liệu của KOL 30 ngày: ' + E.convTxt + (E.few ? '. Ít dữ liệu nên ước tính được kéo về trung bình shop và khoảng rất rộng.' : '. Ước tính kéo nhẹ về trung bình shop.'),
+  basis: 'Dữ liệu của KOL 30 ngày: ' + E.convTxt + (E.few ? '. Cặp KOL × sản phẩm này dưới 10 đơn nên ước tính được kéo về trung bình shop, khoảng rộng.' : '. Từ 10 đơn của cặp KOL × sản phẩm, ước tính kéo nhẹ về trung bình shop.'),
   statusLabel: st.mode === 'plan' ? 'Trong kế hoạch' : (st.mode === 'approve' ? 'Đang thực hiện' : 'Chờ duyệt'), statusStyle: st.mode === 'plan' ? CH.pk : (st.mode === 'approve' ? CH.inf : CH.wn),
   heads, cols, table, locked, selName: 'V' + (st.sel + 1), selCode: I.code + '-V' + (st.sel + 1), adjusted: adj, resetSel: () => this.setState({ vers: Object.assign([], st.vers, { [st.sel]: JSON.parse(JSON.stringify(INIT[st.scene].vers[st.sel])) }) }),
   prodOpts: PRODUCTS.map((p) => ({ label: p.name + ' · hoa hồng ' + pc(KRATE[p.id], 0), on: cur.pid === p.id, style: pill(cur.pid === p.id), pick: () => upd((c) => { c.pid = p.id; c.rate = Math.round(KRATE[p.id] * 100); }) })),
   hasSample: !invite, qty: cur.qty, qDown: () => upd((c) => { c.qty = Math.max(1, c.qty - 1); }), qUp: () => upd((c) => { c.qty = Math.min(10, c.qty + 1); }), unitCost: 'giá vốn + đóng gói ' + vnd(prod(cur.pid).cogs), ship: vnd(SHIP), sampleCost: vnd(E.sample),
   rateLabel: cur.rate + '%', rateVal: cur.rate, setRate: (e) => upd((c) => { c.rate = Number(e.target.value); }), curRate: pc(KRATE[cur.pid], 0),
-  why: invite ? 'KOL này đã có 1 đơn trong 30 ngày, chưa nhận mẫu. Mời với mức hoa hồng riêng cho sản phẩm là cách rẻ nhất để thử: không tốn chi phí mẫu, chỉ trả hoa hồng khi có đơn.' : 'KOL này bán được 9 đơn Găng tay cao su A. Trong ba sản phẩm, mẫu Găng tay cao su A cho lợi nhuận kỳ vọng trên mỗi mẫu cao nhất; Miếng rửa chén C rẻ hơn nhưng KOL chưa có đơn nào.',
+  why: invite ? 'KOL này mới có 1 đơn trong 30 ngày và chưa nhận mẫu. Ba phiên bản mời bán ba sản phẩm khác nhau, hoa hồng chỉnh được: không tốn chi phí mẫu, chỉ trả hoa hồng khi có đơn.' : 'KOL này bán được 9 đơn Găng tay cao su A. Trong ba sản phẩm, mẫu Găng tay cao su A cho lợi nhuận kỳ vọng trên mỗi mẫu cao nhất; Miếng rửa chén C rẻ hơn nhưng KOL chưa có đơn nào.',
   notice: !!nf, noticeText: nf ? nf[0] : '', noticeStyle: nf ? nf[1] : '', showActions: !st.mode, approve: () => this.setState({ mode: 'approve' }), plan: () => this.setState({ mode: 'plan' }),
   hint: invite ? 'Không có giá sàn hay trần chi cần kiểm: chỉ có hoa hồng.' : 'Chi phí mẫu chi một lần; hoa hồng chỉ trả khi có đơn.'
 };

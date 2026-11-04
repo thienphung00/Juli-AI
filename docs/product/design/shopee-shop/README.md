@@ -68,7 +68,7 @@ All nine artboards now read one shared synthetic dataset (the `SHARED DATASET v1
 
 # P91 — đề xuất theo sản phẩm, phiên bản, phương án thủ công, kế hoạch (artboards)
 
-Draft for owner approval, 2026-11-04 (spec: `fasttrack/contracts/p91-plan.md` D-1 … D-10). Same conventions as above. Nothing is built until the owner approves. All data is synthetic ("Shop mẫu gia dụng": Găng tay cao su A, Túi rác sinh học B, Miếng rửa chén C); no client or staff names. P91 artboards share a separate `P91 DATASET v1` block (byte-identical in the artboards) with one engine for voucher, combo and plan, so the same version shows the same numbers on every screen. It is not the `SHARED DATASET v1` of the P90 set; the two are not wired together yet.
+Draft for owner approval, 2026-11-04 (spec: `fasttrack/contracts/p91-plan.md` D-1 … D-11). Same conventions as above. Nothing is built until the owner approves. All data is synthetic ("Shop mẫu gia dụng": Găng tay cao su A, Túi rác sinh học B, Miếng rửa chén C); no client or staff names. P91 artboards share a separate `P91 DATASET v1` block (byte-identical in the artboards) with one engine for voucher, combo and plan, so the same version shows the same numbers on every screen. It is not the `SHARED DATASET v1` of the P90 set; the two are not wired together yet.
 
 | Artboard | What | States (`#scene=`) |
 |---|---|---|
@@ -81,9 +81,9 @@ Draft for owner approval, 2026-11-04 (spec: `fasttrack/contracts/p91-plan.md` D-
 | `KeHoachMobile.dc.html` (390) | Same as a bottom sheet; confirm as a bottom dialog | same five |
 | `OpsDeXuat.dc.html` (1440) | Ops › Đề xuất list: **Mã thẻ** column, product, family, nguồn (Juli / Thủ công), hàng đợi, phiên bản (chosen), **Mã kế hoạch** (`KH-2610-007`, or "Nháp, chưa có mã"), trạng thái; filter + search by code. No export button (hidden until the export exists) | status filter, code search |
 | `TuTaoPhuongAnMobile.dc.html` (390) | Builder + comparison on a phone: variant tabs, wrapped controls, comparison as swipe cards (one per variant, each with Δ vs hôm nay and vs P1), per-order breakdown, save; the floor warning is a bottom sheet | same four as desktop |
-| `PhanTichKOL.dc.html` (1440) | **Phân tích › KOL** (D-9): KOL × sản phẩm × kênh (Shopee Video / Facebook / TikTok) with đơn, SL, GMV, lượt nhấp, chuyển đổi, hoa hồng, lợi nhuận ròng, chi phí mẫu, lợi nhuận sau mẫu, **ROI gồm mẫu** beside **ROI Shopee (chỉ hoa hồng)**, hoàn vốn mẫu (đơn); "Ít dữ liệu" badge for ≤ 3 orders; filter by channel and product; each row links to its card (`JC-2611-0016` …) | channel / product filters |
+| `PhanTichKOL.dc.html` (1440) | **Phân tích › KOL** (D-9): KOL × sản phẩm × kênh (Shopee Video / Facebook / TikTok) with đơn, SL, GMV, lượt nhấp, chuyển đổi, hoa hồng, lợi nhuận ròng, chi phí mẫu, lợi nhuận sau mẫu, **ROI gồm mẫu** (ours) beside ROI Shopee, hoàn vốn mẫu (đơn); "Ít dữ liệu" badge for a KOL × product pair with fewer than 10 orders; **ROI Shopee (chỉ hoa hồng)** is the value from Shopee's KOL export, shown as-is and never recomputed; filter by channel and product; each row links to its card (`JC-2611-0016` …) | channel / product filters |
 | `SanPhamLienKet.dc.html` (1280) | Product page › new **Tiếp thị liên kết** tab: the product's KOLs, same columns compact, with the product's commission rate | product switch (`#id=`) |
-| `CardKOL.dc.html` (1120) | Cards **Gửi mẫu cho KOL** (V1…V3 = different products / sample counts) and **Mời KOL** (V1…V3 = commission %, no sample cost). Knobs: sản phẩm, số lượng mẫu, hoa hồng %; sample cost = số lượng × (giá vốn + đóng gói) + ship shown as a formula; expected orders (wide range), ròng, sau mẫu, ROI, hoàn vốn; Duyệt / Thêm vào kế hoạch | `mau` · `moi` |
+| `CardKOL.dc.html` (1120) | Cards **Gửi mẫu cho KOL** (V1…V3 = different products / sample counts) and **Mời KOL** (V1…V3 = different products pitched, no sample cost). Knobs: sản phẩm, số lượng mẫu (Gửi mẫu only), hoa hồng %; sample cost = số lượng × (giá vốn + đóng gói) + ship shown as a formula; expected orders (wide range), ròng, sau mẫu, ROI, hoàn vốn; Duyệt / Thêm vào kế hoạch | `mau` · `moi` |
 | `CaiDatMauKOL.dc.html` (1040) | Cài đặt › Thông số shop, new **Mẫu KOL** sheet (7th step beside `CaiDatImport`): template columns (KOL, sản phẩm, số lượng mẫu, ngày gửi, phí ship), validation, cũ → mới diff with consequences (chi phí mẫu, ROI, hoàn vốn, cards recalculated), apply with reason (v3 → v4) | `#step=1…4` |
 
 ## Navigation
@@ -115,10 +115,7 @@ Ops › Đề xuất       "+ Tạo phương án thủ công" ─► TuTaoPhuong
 - Should "Thêm vào kế hoạch" exist on the product page version rows as well (drawn only on the card and in Quyết định)?
 - Builder: should staff be able to create for a seller whose Quyết định is empty (Ops, saved with `created_by`), and may a seller see staff-made cards marked "Thủ công"?
 - Mobile for the card versions and Quyết định stays desktop-only in this pass (owner). The KOL screens (Phân tích › KOL, card, Mẫu KOL sheet) are desktop-only too: needed on mobile?
-- ROI Shopee is drawn as GMV ÷ hoa hồng ("x lần"), next to ROI gồm mẫu in %. Is that the figure Shopee shows, or should it be (GMV − hoa hồng) ÷ hoa hồng?
-- KOL "ít dữ liệu" threshold is ≤ 3 orders in 30 days; a KOL × product pair with no orders yet still gets a Gửi mẫu forecast (wide range, pulled to the shop average). OK?
 - Sample cost uses one flat ship fee per parcel (25.000đ in the example); per-KOL ship fees come from the sheet. OK?
-- Mời KOL versions are commission levels (10 / 12 / 15 %); should they also offer different products?
 - Result chips "Đo được N ngày", "Không kết luận", "Kèm thay đổi toàn shop": wording OK?
 
 ## Owner answers folded in (2026-11-04, D-10)
@@ -127,3 +124,4 @@ Ops › Đề xuất       "+ Tạo phương án thủ công" ─► TuTaoPhuong
 - Approving on a product still being measured is allowed for every family; the confirm dialog warns that the running measurement is cut (kept as "đo được N ngày" from 3 days). Nothing is blocked.
 - Excel export button is hidden. Mobile: Tự tạo / So sánh added; card versions and Quyết định stay desktop-only.
 - Plan codes `KH-2611-003`: on the plan panel, the confirm dialog, each card of a confirmed plan, and the Ops list (column **Mã kế hoạch**).
+- KOL details (D-11): "ROI Shopee (chỉ hoa hồng)" is the export's ROI as-is; "Ít dữ liệu" = fewer than 10 orders for the KOL × product pair (badge, legend, wide range on the card); "Mời KOL" versions vary the product, hoa hồng % is a knob.
