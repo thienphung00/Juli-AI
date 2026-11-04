@@ -141,6 +141,8 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shop_reco_plan_cards"): "tenant_direct",
     ("public", "shop_reco_plan_counters"): "tenant_direct",
     ("public", "shop_reco_change_sets"): "tenant_direct",
+    ("public", "planned_change_imports"): "tenant_direct",
+    ("public", "planned_change_refs"): "tenant_direct",
     ("public", "shopee_sim_prior_runs"): "tenant_direct",
     ("public", "shopee_reco_calibrations"): "tenant_direct",
     # ADR-119 (migration 111): which keyword combinations came from which of the shop's
@@ -158,7 +160,7 @@ TABLE_CLASSIFICATION_MAP = {
     # append-only (SELECT / INSERT for juli_app).
     ("public", "shop_health_daily"): "tenant_direct",
     ("public", "ads_change_log"): "tenant_direct",
-    # P91 D-12 (migration 117): what Shopee actually charged and paid per order (the income
+    # P91 D-12 (migration 119): what Shopee actually charged and paid per order (the income
     # export), keyed by the same hashed order ref as the order lines.
     ("public", "shopee_order_income"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised

@@ -117,7 +117,7 @@ def test_migration_114_widens_the_check_to_the_models_vocabulary_and_takes_the_t
     assert set(mig.NEW_EVENT_TYPES) == {EVENT_VERIFIED, EVENT_MISMATCH, EVENT_NOT_SEEN}
     assert set(mig.EVENT_TYPES_112) == set(EVENT_TYPES) - set(mig.NEW_EVENT_TYPES)
     tail = (MIGRATIONS / "deferred/101_write_mode_backfill.py").read_text("utf-8")
-    assert 'down_revision: str | None = "118_shopee_kol_lines"' in tail
+    assert 'down_revision: str | None = "120_planned_changes"' in tail
 
 
 def test_migration_114_is_check_only_no_data_change_no_grant():

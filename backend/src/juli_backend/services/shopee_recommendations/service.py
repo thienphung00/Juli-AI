@@ -426,6 +426,7 @@ def _summary(
     return {
         "id": str(p.id),
         "code": p.code,
+        "external_ref": card.get("external_ref"),
         "product_id": product,
         "product_queue": p.product_queue,
         "origin": card.get("origin") or store.ORIGIN_ENGINE,
@@ -1291,6 +1292,7 @@ async def mark_executed(
     staff_id: uuid.UUID | None = None,
     voucher_id: str | None = None,
     evidence_ref: str | None = None,
+    payload_extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """ "Đã làm": a person saved the change in Seller Centre. Records the execution
     (ADR-118) and one `executed` event per change in the sheet, each carrying
@@ -1353,6 +1355,7 @@ async def mark_executed(
                 "change_set": str(cset.id),
                 "plan_id": None if p.lever_plan_id is None else str(p.lever_plan_id),
                 "plan_code": plan_code,
+                **(payload_extra or {}),
             },
             family=card["family"],
             card=card,

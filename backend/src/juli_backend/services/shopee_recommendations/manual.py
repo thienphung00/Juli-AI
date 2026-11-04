@@ -65,6 +65,12 @@ _REFUSAL_TEXT = {
     "title_too_long": "Tên sản phẩm vượt quá số ký tự cho phép.",
     "invalid_inputs": "Các giá trị nhập vào không tính được.",
     "gift_cost_unknown": "Chưa biết giá vốn của quà tặng nên chưa tính được.",
+    "no_listing": "Chưa có thông tin niêm yết của sản phẩm này.",
+    "description_empty": "Dòng đầu mô tả đang trống.",
+    "description_too_long": "Dòng đầu mô tả quá dài hoặc có nhiều dòng.",
+    "banned_term": "Nội dung có từ không được dùng.",
+    "variations_invalid": "Bảng phân loại chưa hợp lệ.",
+    "stock_invalid": "Số lượng tồn không hợp lệ.",
 }
 
 
@@ -359,8 +365,13 @@ async def create_manual(
     env: RecoEnv | None = None,
     cards: Sequence[dict[str, Any] | None] | None = None,
     acknowledge_breaches: bool = False,
+    origin: str = ORIGIN_MANUAL,
+    card_extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Save ``variants[chosen]`` as a manual card. Never commits (the route does).
+
+    ``origin`` ("import") and ``card_extra`` (``external_ref`` ...) are for the planned-changes
+    import (p91 D-13).
 
     ``cards`` (tests / a caller that already built them) skips building. The chosen variant
     must build; one that breaks a floor / the spend cap needs ``acknowledge_breaches`` (422
@@ -394,16 +405,17 @@ async def create_manual(
             "breaches": breaches,
         }
     order = [chosen, *[i for i in range(len(variants)) if i != chosen]]
-    card["origin"] = ORIGIN_MANUAL
+    card["origin"] = origin
     card["created_by"] = actor.json()
     card["primary"] = primary
+    card.update(card_extra or {})
     card["versions"] = _version_rows(order, variants, built, chosen)
     score = _score_of(window_env, card)
     card["rank"] = {
         "position": 1 if primary else config.MANUAL_PRIORITY,
         "score": score,
         "detail": {},
-        "mode": ORIGIN_MANUAL,
+        "mode": origin,
         "explore": False,
     }
     cycle = f"{window_env.as_of:%Y-%m}" if window_env is not None else f"{now:%Y-%m}"
@@ -416,7 +428,7 @@ async def create_manual(
         now=now,
         staff_id=actor.staff_id,
     )
-    meta: dict[str, Any] = {"origin": ORIGIN_MANUAL, "created_by": actor.json(), "primary": primary}
+    meta: dict[str, Any] = {"origin": origin, "created_by": actor.json(), "primary": primary}
     if primary:
         meta["primary_at"] = now.isoformat()
     await store.set_meta(session, shop_id, card_id, meta)
@@ -433,7 +445,7 @@ async def create_manual(
         "id": str(card_id),
         "code": proposal.code,
         "status": status,
-        "origin": ORIGIN_MANUAL,
+        "origin": origin,
         "position": queue,
         "product_queue": queue,
         "primary": primary,

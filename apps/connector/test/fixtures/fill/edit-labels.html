@@ -1,0 +1,27 @@
+<div id="app">
+  <h1>Chỉnh sửa sản phẩm</h1>
+  <section class="basic">
+    <div class="field">
+      <div class="label"><span class="req">*</span>Tên sản phẩm</div>
+      <div class="control"><input type="text" id="title" value="Tên cũ của sản phẩm mẫu"><span class="counter">23/100</span></div>
+    </div>
+    <div class="field">
+      <div class="label">Ngành hàng</div>
+      <div class="control"><input type="text" id="category" value="Nhà cửa"></div>
+    </div>
+    <div class="field">
+      <div class="label"><span class="req">*</span>Mô tả sản phẩm</div>
+      <div class="control"><textarea id="desc">Dòng một cũ
+Dòng hai giữ nguyên
+Dòng ba giữ nguyên</textarea></div>
+    </div>
+  </section>
+  <form id="form" action="/submit">
+    <div class="actions">
+      <button type="button" id="save">Lưu</button>
+      <button type="submit" id="update">Cập nhật</button>
+      <button type="button" id="confirm">Xác nhận</button>
+      <button type="button" id="hide">Ẩn</button>
+    </div>
+  </form>
+</div>

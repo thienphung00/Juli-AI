@@ -18,6 +18,7 @@ import { readAuthSession } from "../../lib/supabase-auth";
 import { AppPageHeader } from "../app-shell/page-header";
 import { PRIVACY_TAB_LABEL, PrivacySettings } from "../privacy-settings";
 import { SettingsView } from "../settings-view";
+import { PLANNED_CHANGES_TAB_LABEL, PlannedChangesSettings } from "../planned-changes/planned-changes-settings";
 import { SHOP_INPUTS_TAB_LABEL, ShopInputsSettings } from "../shop-inputs/shop-inputs-settings";
 import { RulesEditor, type RulesEditorProps } from "./rules-editor";
 
@@ -75,6 +76,15 @@ export function SettingsPageClient() {
       />
     );
   }
+  if (tab === "plan") {
+    return (
+      <PlannedChangesSettings
+        auth={{ token: auth.token, shopId: auth.shop.shopId }}
+        shopName={auth.shop.shopName}
+        tabs={tabs}
+      />
+    );
+  }
   return tab === "privacy" ? (
     <PrivacySettings tabs={tabs} token={auth.token} />
   ) : (
@@ -91,7 +101,7 @@ interface SettingsAuth {
   readonly shop: { readonly shopId: string; readonly shopName: string } | null;
 }
 
-export type SettingsTab = "rules" | "inputs" | "privacy";
+export type SettingsTab = "rules" | "inputs" | "plan" | "privacy";
 
 /** `/settings?tab=quyen-rieng-tu` opens Quyền riêng tư (the /privacy page's "Cài đặt → Quyền riêng tư"). */
 export const PRIVACY_TAB_QUERY = "quyen-rieng-tu";
@@ -99,9 +109,13 @@ export const PRIVACY_TAB_QUERY = "quyen-rieng-tu";
 /** `/settings?tab=thong-so-shop` opens Thông số shop (the seller's cost / stock / targets import). */
 export const INPUTS_TAB_QUERY = "thong-so-shop";
 
+/** `/settings?tab=de-xuat-ke-hoach` opens Đề xuất kế hoạch (the planned listing changes import, P91 D-13). */
+export const PLAN_TAB_QUERY = "de-xuat-ke-hoach";
+
 export function readSettingsTab(search: string): SettingsTab {
   const tab = new URLSearchParams(search).get("tab");
   if (tab === PRIVACY_TAB_QUERY) return "privacy";
+  if (tab === PLAN_TAB_QUERY) return "plan";
   return tab === INPUTS_TAB_QUERY ? "inputs" : "rules";
 }
 
@@ -109,6 +123,7 @@ function writeSettingsTab(tab: SettingsTab): void {
   const url = new URL(window.location.href);
   if (tab === "privacy") url.searchParams.set("tab", PRIVACY_TAB_QUERY);
   else if (tab === "inputs") url.searchParams.set("tab", INPUTS_TAB_QUERY);
+  else if (tab === "plan") url.searchParams.set("tab", PLAN_TAB_QUERY);
   else url.searchParams.delete("tab");
   window.history.replaceState(window.history.state, "", url);
 }
@@ -138,6 +153,7 @@ export function SettingsTabs({
       <div aria-label="Phần cài đặt" className="settings-view__tabs" role="tablist">
         {tab("rules", "Quy tắc")}
         {tab("inputs", SHOP_INPUTS_TAB_LABEL)}
+        {tab("plan", PLANNED_CHANGES_TAB_LABEL)}
         {tab("privacy", PRIVACY_TAB_LABEL)}
       </div>
     </div>

@@ -87,6 +87,8 @@ def _changes(
                 "expected": {"title": after["title"]},
             }
         ]
+    if kind in D13_KINDS:
+        return _planned_changes(kind, target, before, after)
     if vk == "images":
         # the new image is not known beforehand: the read-back looks for the cover URL to change
         return [
@@ -117,9 +119,115 @@ def _changes(
     ]
 
 
+#: The listing kinds p91 D-13 adds (their sheets, read-backs and dependencies live below).
+D13_KINDS: tuple[str, ...] = (
+    "description_first_line",
+    "variation_restructure",
+    "listing_hide",
+    "listing_relist",
+)
+
+
+def variation_key(row: dict[str, Any]) -> dict[str, Any]:
+    """The fields of one target variation the read-back compares (name, price, SKU, stock)."""
+    out: dict[str, Any] = {"name": str(row["name"]).strip(), "price": row["price"]}
+    if row.get("sku"):
+        out["sku"] = row["sku"]
+    if row.get("stock") is not None:
+        out["stock"] = row["stock"]
+    return out
+
+
+def sorted_variations(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted((variation_key(r) for r in rows), key=lambda r: r["name"].casefold())
+
+
+def _planned_changes(
+    kind: str, target: dict[str, Any], before: dict[str, Any], after: dict[str, Any]
+) -> list[dict[str, Any]]:
+    item = {"item_id": target.get("item_id")}
+    if kind == "description_first_line":
+        return [
+            {
+                "change_kind": "description_first_line",
+                "target": item,
+                "expected": {"first_line": after["first_line"]},
+            }
+        ]
+    if kind == "variation_restructure":
+        return [
+            {
+                "change_kind": "variations",
+                "target": item,
+                "expected": {"variations": sorted_variations(after["variations"])},
+            }
+        ]
+    out = [
+        {
+            "change_kind": "listing_status",
+            "target": item,
+            "expected": {"status": after["status"]},
+        }
+    ]
+    if kind == "listing_relist" and after.get("stock") is not None:
+        out.append({"change_kind": "stock", "target": item, "expected": {"stock": after["stock"]}})
+    return out
+
+
+def _variation_line(row: dict[str, Any]) -> str:
+    parts = [str(row["name"]), f"giá {int(row['price']):,}đ".replace(",", ".")]
+    if row.get("sku"):
+        parts.append(f"SKU {row['sku']}")
+    if row.get("stock") is not None:
+        parts.append(f"tồn {row['stock']}")
+    return " — ".join(parts)
+
+
+def _planned_steps(
+    kind: str, before: dict[str, Any], after: dict[str, Any]
+) -> list[dict[str, Any]]:
+    if kind == "description_first_line":
+        step = _step(
+            1,
+            "Dòng đầu của Mô tả sản phẩm (giữ nguyên phần còn lại)",
+            before.get("first_line"),
+            after.get("first_line"),
+            "ký tự",
+        )
+        return [step]
+    if kind == "variation_restructure":
+        old = {str(r.get("name", "")).strip().casefold(): r for r in before.get("variations", [])}
+        steps = []
+        for n, row in enumerate(after["variations"], 1):
+            was = old.get(str(row["name"]).strip().casefold())
+            step = _step(n, f"Phân loại {n}", _variation_line(was) if was else None, None)
+            step["after"] = _variation_line(row)
+            step["copy"] = str(row["name"])
+            steps.append(step)
+        hide = after.get("hide_items") or []
+        if hide:
+            steps.append(
+                _step(
+                    len(steps) + 1,
+                    "Sau khi xong: ẩn (không xoá) các sản phẩm đã gộp",
+                    None,
+                    ", ".join(str(i) for i in hide),
+                )
+            )
+        return steps
+    if kind == "listing_hide":
+        return [_step(1, "Trạng thái sản phẩm", "Đang hiển thị", "Ẩn (không xoá)")]
+    steps = [_step(1, "Trạng thái sản phẩm", "Đang ẩn", "Hiển thị lại")]
+    if after.get("stock") is not None:
+        steps.append(_step(2, "Số lượng tồn", before.get("stock"), after["stock"], "cái"))
+    return steps
+
+
 def _listing_steps(
     kind: str, before: dict[str, Any], after: dict[str, Any]
 ) -> list[dict[str, Any]]:
+    if kind in D13_KINDS:
+        return _planned_steps(kind, before, after)
     if kind == "title":
         return [_step(1, "Tên sản phẩm", before.get("title"), after.get("title"), "ký tự")]
     if kind == "keyword":
@@ -220,14 +328,24 @@ def build_sheet(
         }
         for st in steps
     ]
+    item_link = None
+    if page.item_path and target.get("item_id"):
+        item_link = _link(page.item_path.format(item_id=target["item_id"]))
+    sheet_page = {
+        "label": page.label,
+        "path": page.path,
+        "verified": page.verified,
+        "deep_link": _link(page.path),
+        "button": "Mở trang để sửa",
+    }
+    if page.item_path:
+        # the item's own page: the shape is not recon-verified yet (kinds.Page.item_path)
+        sheet_page["item_deep_link"] = item_link
+        sheet_page["item_link_verified"] = False
+    depends = [str(r) for r in (inputs.get("depends_on") or [])]
     return {
-        "page": {
-            "label": page.label,
-            "path": page.path,
-            "verified": page.verified,
-            "deep_link": _link(page.path),
-            "button": "Mở trang để sửa",
-        },
+        "page": sheet_page,
+        "dependencies": [{"ref": r, "text": f"Chỉ làm sau khi {r} đã chạy xong."} for r in depends],
         "steps": steps,
         "time_window": time_window or {"start": "khi bạn bấm lưu", "days": inputs.get("days")},
         "changes": changes,
@@ -238,6 +356,8 @@ def build_sheet(
             "deadline_hours": 48,
             "note": "Thay đổi này nằm trong bộ từ khoá của Juli nên không có bước đọc lại tự động."
             if kind == "keyword"
+            else "Connector chưa đọc được mô tả sản phẩm nên bước này bạn xác nhận bằng tay."
+            if kind == "description_first_line"
             else "Connector đọc lại ở lần chạy kế tiếp; không thấy trong 48 giờ sẽ báo cho Ops.",
         },
     }

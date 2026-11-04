@@ -19,6 +19,7 @@ export const FAMILY_TITLE: Readonly<Record<Family, string>> = {
   sale: "Sale",
   combo: "Combo",
   affiliate: "Tiếp thị liên kết",
+  listing: "Tên, mô tả, ảnh, phân loại",
   mega_sale: "Mega sale",
 };
 
@@ -106,6 +107,7 @@ const SRC_OF_FAMILY: Readonly<Record<Family, string>> = {
   sale: "promo",
   combo: "combo",
   affiliate: "lien_ket",
+  listing: "all",
   mega_sale: "all",
 };
 

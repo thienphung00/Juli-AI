@@ -3,6 +3,8 @@
 // service worker's daily sync / backfill / reader-job requests → page hook. It reads no page data itself.
 
 import { CHANNEL, SELLER_CENTRE_ORIGIN } from "../config";
+import { runFill } from "../fill/run";
+import type { FillReply } from "../fill/types";
 import { isPageMessage } from "./messages";
 
 window.addEventListener("message", (event: MessageEvent) => {
@@ -39,3 +41,25 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 void chrome.runtime.sendMessage({ type: "tab-ready" }).catch(() => undefined);
+
+// Listing fill-in (p91 D-13): only on a product's edit page opened by Juli's button
+// ("#juli-fill=<card code>"). Everything else returns at once. It never clicks or saves.
+function startFill(): void {
+  const go = () =>
+    void runFill({
+      doc: document,
+      loc: window.location,
+      ask: async (trigger): Promise<FillReply> => {
+        const answer = (await chrome.runtime
+          .sendMessage({ type: "fill-request", code: trigger.code, itemId: trigger.itemId })
+          .catch(() => undefined)) as { ok?: boolean; value?: FillReply } | undefined;
+        return answer?.ok && answer.value ? answer.value : { ok: false, reason: "error" };
+      },
+      panel: { copy: (text) => navigator.clipboard.writeText(text) },
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      now: () => Date.now(),
+    }).catch(() => undefined);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go, { once: true });
+  else go();
+}
+startFill();

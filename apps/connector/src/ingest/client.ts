@@ -90,6 +90,11 @@ export class GatewayClient {
     return this.call("/v1/ingest/status", { method: "GET" }, token);
   }
 
+  /** The approved text of one card for the listing fill-in (read-only; p91 D-13). */
+  fillRequest(token: string, code: string): Promise<unknown> {
+    return this.call(`/v1/ingest/fill/${encodeURIComponent(code)}`, { method: "GET" }, token);
+  }
+
   post(token: string, dataset: Dataset, body: IngestBody): Promise<unknown> {
     return this.call(`/v1/ingest/shopee/${dataset}`, { method: "POST", body: JSON.stringify(body) }, token);
   }
