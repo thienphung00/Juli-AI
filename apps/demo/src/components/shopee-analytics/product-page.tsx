@@ -200,7 +200,10 @@ function Hero({
   readonly w: WindowState;
 }) {
   const versions = useMemo(() => {
-    const v = (h.versions ?? []).map((x) => ({ captured_at: x.captured_at ?? "", images: versionImages(x) }));
+    // The backend sends newest first; the stepper runs oldest -> newest and opens on the latest.
+    const v = (h.versions ?? [])
+      .map((x) => ({ captured_at: x.captured_at ?? "", images: versionImages(x) }))
+      .sort((a, b) => (a.captured_at < b.captured_at ? -1 : a.captured_at > b.captured_at ? 1 : 0));
     return v.length > 0 ? v : [{ captured_at: h.price.captured_at ?? "", images: displayableImages(h.images) }];
   }, [h]);
   const [ver, setVer] = useState(versions.length - 1);

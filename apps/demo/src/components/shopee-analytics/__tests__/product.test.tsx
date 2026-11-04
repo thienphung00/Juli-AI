@@ -90,6 +90,21 @@ describe("Sản phẩm: the listing header", () => {
     expect(screen.getByTestId("sa-image-stepper")).toHaveTextContent("Phiên bản 3/3");
   });
 
+  it("opens on the newest version when the backend sends them newest first", async () => {
+    const p = product();
+    page("tab=hs", {
+      ...p,
+      header: {
+        ...p.header,
+        versions: [
+          { captured_at: "2026-11-03T00:00:00Z", cover_url: "https://img.example/new.jpg" },
+          { captured_at: "2026-10-01T00:00:00Z", cover_url: "https://img.example/old.jpg" },
+        ],
+      },
+    } as ProductPage);
+    expect(await screen.findByAltText("Bộ vệ sinh bếp 5 món set rửa chén")).toHaveAttribute("src", "https://img.example/new.jpg");
+  });
+
   it("uses a URL cover_url from a version and tolerates a header without images", async () => {
     const p = product();
     page("tab=hs", {
