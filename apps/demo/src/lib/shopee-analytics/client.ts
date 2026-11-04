@@ -48,6 +48,8 @@ export class ShopeeApiError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
+    /** The `detail` object of the refusal (P91: the `breaches` of a 422 that needs a yes). */
+    public readonly detail?: Readonly<Record<string, unknown>>,
   ) {
     super(message);
     this.name = "ShopeeApiError";

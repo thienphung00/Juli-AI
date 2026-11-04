@@ -9,7 +9,7 @@ function api() {
   const f = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     seen.push(`${init?.method ?? "GET"} ${url}`);
-    if (url.endsWith("/recommendations")) return new Response(JSON.stringify({ platform: "shopee", xep_theo: "diem", cards: [summaryOf(voucherCard())], counts: { family: {}, section: {}, total: 1 } }));
+    if (url.endsWith("/recommendations?queue=all")) return new Response(JSON.stringify({ platform: "shopee", xep_theo: "diem", cards: [summaryOf(voucherCard())], counts: { family: {}, section: {}, total: 1 } }));
     return new Response(JSON.stringify(detailOf(voucherCard())));
   }) as unknown as typeof fetch;
   return { f, seen };
@@ -19,8 +19,8 @@ describe("hosts", () => {
   it("seller /decisions: lists through the demo base with the shop header", async () => {
     const { f, seen } = api();
     render(<SellerShopeeDecisions fetchImpl={f} params={new URLSearchParams()} shop={{ id: "s1", name: "Shop" }} token="tok" />);
-    await screen.findByTestId("sd-card-card-voucher");
-    expect(seen).toEqual(["GET /v1/demo/shopee/recommendations"]);
+    await screen.findByTestId("sq-card-card-voucher");
+    expect(seen).toEqual(["GET /v1/demo/shopee/recommendations?queue=all"]);
     expect((f as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![1].headers).toMatchObject({ "X-Shop-Id": "s1" });
   });
 
@@ -36,9 +36,9 @@ describe("hosts", () => {
     window.sessionStorage.setItem("juli_demo_auth_session", JSON.stringify({ accessToken: "ops-tok", tokenType: "bearer" }));
     const { f, seen } = api();
     render(<OpsViewAsShopeeDecisions fetchImpl={f} params={new URLSearchParams()} shopId="abc" />);
-    const row = await screen.findByTestId("sd-card-card-voucher");
-    expect(seen).toEqual(["GET /v1/ops/shops/abc/shopee/recommendations"]);
-    expect(row.querySelector("a")).toHaveAttribute("href", "/ops/shops/abc/xem?trang=quyet-dinh&the=card-voucher");
+    const row = await screen.findByTestId("sq-card-card-voucher");
+    expect(seen).toEqual(["GET /v1/ops/shops/abc/shopee/recommendations?queue=all"]);
+    expect(row.querySelector("a")).toHaveAttribute("href", "/ops/shops/abc/xem?trang=quyet-dinh&the=card-voucher&from=quyet-dinh");
     expect(screen.getByText(/Chế độ xem/)).toBeInTheDocument();
   });
 });

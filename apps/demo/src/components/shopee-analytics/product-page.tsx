@@ -14,6 +14,8 @@ import {
   productPeriod,
 } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
+import { ProposalsTab, openCardsOf } from "../shopee-decisions/product-proposals";
+import type { CardList } from "../../lib/shopee-decisions/types";
 import type { ProductHeader, ProductPage, SkuCost } from "../../lib/shopee-analytics/types";
 import { CostTab, HistoryTab, KeywordsTab, PerformanceTab, SourcesTab } from "./product-tabs";
 import { Empty, Notice, PillLink, ResourceState, Section, TextChip, toneClass } from "./ui";
@@ -54,7 +56,12 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
   const { links } = host;
   const w: WindowState = readWindow(params);
   const h = page.header;
-  const tab = PRODUCT_TABS.some(([k]) => k === params.get("tab")) ? (params.get("tab") as string) : "hs";
+  const proposals = useResource<CardList | null>(() => (host.reco ? host.reco.list({ productId: id, queue: "all" }) : Promise.resolve(null)), `${host.shopKey}|sp-dx|${id}`);
+  const proposalCards = proposals.status === "ready" ? (proposals.data?.cards ?? []) : null;
+  const tabs: readonly (readonly [string, string])[] = host.reco
+    ? PRODUCT_TABS.flatMap(([k, label]) => (k === "ng" ? [[k, label] as const, ["dx", proposalCards ? `Đề xuất (${openCardsOf(proposalCards).length})` : "Đề xuất"] as const] : [[k, label] as const]))
+    : PRODUCT_TABS;
+  const tab = tabs.some(([k]) => k === params.get("tab")) ? (params.get("tab") as string) : "hs";
   const kpi = params.get("kpi");
   const src = params.get("src");
   const sub = params.get("sub");
@@ -148,7 +155,7 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
       ) : null}
 
       <div aria-label="Sản phẩm" className="sa-seg sa-seg--round sa-tabs" role="tablist">
-        {PRODUCT_TABS.map(([k, label]) => (
+        {tabs.map(([k, label]) => (
           <PillLink active={tab === k} href={tabHref(k)} key={k}>
             {label}
           </PillLink>
@@ -157,6 +164,7 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
 
       {tab === "hs" ? <PerformanceTab page={page} periodHref={periodHref} /> : null}
       {tab === "ng" ? <SourcesTab id={id} page={page} state={w} /> : null}
+      {tab === "dx" && host.reco ? <ProposalsTab builderHref={links.builder("product", id)} cards={proposalCards ?? []} historyHref={tabHref("ls")} links={links} reco={host.reco} /> : null}
       {tab === "kw" ? <KeywordsTab id={id} page={page} /> : null}
       {tab === "cp" ? <CostTab onPick={setSelSku} page={page} sel={sel} /> : null}
       {tab === "ls" ? <HistoryTab page={page} /> : null}

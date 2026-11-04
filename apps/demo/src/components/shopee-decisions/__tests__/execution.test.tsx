@@ -99,7 +99,7 @@ describe("thực hiện có hỗ trợ · bảng thao tác", () => {
     const reco = fakeReco({ detail: approved(voucherCard(), { approved_with: { inputs: { min_spend: 250000 } } }), whatif: final });
     renderReco(<CardPage from={null} id="card-voucher" />, reco);
     await waitFor(() => expect(within(screen.getByTestId("sd-sheet")).getByTestId("sd-step-1")).toHaveTextContent("250.000đ"));
-    expect(reco.calls.find((c) => c.name === "whatif")!.args).toEqual(["card-voucher", { min_spend: 250000 }]);
+    expect(reco.calls.find((c) => c.name === "whatif")!.args).toEqual(["card-voucher", { min_spend: 250000 }, 1]);
   });
 
   it("'Hoàn tác' shows the reverse sheet", async () => {

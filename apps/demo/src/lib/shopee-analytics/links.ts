@@ -40,6 +40,8 @@ export interface ShopeeLinks {
   card(cardId: string, from: string, row?: string | null): string;
   /** Cài đặt › Thông số shop: the cost import for a SKU. */
   costImport(sku: string | null, from: string): string;
+  /** P91: Tự tạo phương án / So sánh phương án, opened from a product (`from=product`) or from Quyết định. */
+  builder(from: "product" | "quyet-dinh", productId?: string | null): string;
 }
 
 function put(p: URLSearchParams, key: string, value: string | null | undefined): void {
@@ -51,6 +53,7 @@ export function createLinks(host: {
   readonly screen: (screen: ShopeeScreen, query: URLSearchParams, productId?: string) => string;
   readonly card: (cardId: string, from: string, row?: string | null) => string;
   readonly costImport: (sku: string | null, from: string) => string;
+  readonly builder: (from: "product" | "quyet-dinh", productId?: string | null) => string;
 }): ShopeeLinks {
   const withWindow = (p: URLSearchParams, w?: WindowState) => {
     if (w) windowParams(w).forEach((v, k) => p.set(k, v));
@@ -87,6 +90,7 @@ export function createLinks(host: {
     },
     card: host.card,
     costImport: host.costImport,
+    builder: host.builder,
   };
 }
 
@@ -124,6 +128,11 @@ export const sellerLinks: ShopeeLinks = createLinks({
     put(p, "sku", sku);
     return `/settings?${p.toString()}`;
   },
+  builder: (from, productId) => {
+    const p = new URLSearchParams({ "tu-tao": "1", from });
+    put(p, "sp", productId);
+    return `/decisions?${p.toString()}`;
+  },
 });
 
 /** Juli Ops "Xem như shop": one page, `/ops/shops/{id}/xem?trang=<slug>&…`. */
@@ -151,6 +160,11 @@ export function viewAsShopeeLinks(shopId: string, sellerCardHref?: ShopeeLinks["
         return `${base}?${p.toString()}`;
       }),
     costImport: () => `${base}?trang=quy-tac`,
+    builder: (from, productId) => {
+      const p = new URLSearchParams({ trang: "quyet-dinh", "tu-tao": "1", from });
+      put(p, "sp", productId);
+      return `${base}?${p.toString()}`;
+    },
   });
 }
 
@@ -171,5 +185,10 @@ export function opsTabShopeeLinks(shopId: string): ShopeeLinks {
       return `/ops/shops/${encodeURIComponent(shopId)}/shopee/de-xuat?${p.toString()}`;
     },
     costImport: () => `/ops/shops/${encodeURIComponent(shopId)}`,
+    builder: (from, productId) => {
+      const p = new URLSearchParams({ "tu-tao": "1", from });
+      put(p, "sp", productId);
+      return `/ops/shops/${encodeURIComponent(shopId)}/shopee/de-xuat?${p.toString()}`;
+    },
   });
 }

@@ -1,0 +1,719 @@
+/* ──────────────────────────────────────────────────────────────────────
+   P91 — versions, queue, builder, Ops list (wave 3). Built on the `sa-*`
+   and `sd-*` sets; colours are the --qd-* tokens declared on .sa-page.
+   Artboards: docs/product/design/shopee-shop/ CardVersions, QuyetDinhHangDoi,
+   SanPhamDeXuat(.Mobile), TuTaoPhuongAn(.Mobile), OpsDeXuat.
+   ────────────────────────────────────────────────────────────────────── */
+
+.sd-code {
+  display: inline-block;
+  border-radius: 6px;
+  background: var(--qd-grey-2);
+  padding: 2px 8px;
+  color: var(--qd-ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.sd-muted {
+  color: var(--qd-muted);
+}
+
+.sd-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  border: 1px dashed var(--qd-pink-dashed);
+  border-radius: 10px;
+  background: var(--qd-pink-bg);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.sd-next__q {
+  margin-left: auto;
+  color: var(--qd-pink);
+  font-weight: 700;
+}
+
+.sd-measuring {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--qd-blue-border);
+  border-radius: 10px;
+  background: var(--qd-blue-panel);
+  padding: 8px 12px;
+  color: var(--qd-info-fg);
+  font-size: 13px;
+}
+
+.sd-ack {
+  display: inline-block;
+  border-radius: 999px;
+  background: var(--qd-wait-bg);
+  padding: 2px 10px;
+  color: var(--qd-wait-fg);
+  font-size: 12px;
+}
+
+.sd-ack-line {
+  margin: 0;
+}
+
+.sd-hint--warn {
+  color: var(--qd-wait-fg);
+}
+
+.sd-hint--bad {
+  color: #a3222f;
+  font-weight: 600;
+}
+
+/* ── Quyết định: one card per product ───────────────────────────────── */
+
+.sq-head {
+  flex-wrap: wrap;
+}
+
+.sq-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sq-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 2px solid var(--qd-pink-button);
+  border-radius: 12px;
+  background: var(--qd-pink-bg);
+  padding: 14px 16px;
+}
+
+.sq-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sq-card__title {
+  margin: 0;
+  font-size: 17px;
+}
+
+.sq-card__title a {
+  color: var(--qd-ink);
+  text-decoration: none;
+}
+
+.sq-card__sum {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* ── Versions side by side ──────────────────────────────────────────── */
+
+.sv-scroll {
+  overflow-x: auto;
+}
+
+.sv-grid {
+  display: grid;
+  grid-template-columns: 190px 150px repeat(var(--sv-cols, 3), minmax(180px, 1fr));
+  min-width: 640px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 10px;
+  background: var(--qd-surface);
+}
+
+.sv-head,
+.sv-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--qd-line-2);
+  background: var(--qd-surface);
+  padding: 8px 10px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.sv-head {
+  font: inherit;
+  font-size: 13px;
+}
+
+.sv-head--label {
+  background: var(--qd-soft);
+}
+
+.sv-head span,
+.sv-cell--label span,
+.sv-cell__vs {
+  color: var(--qd-muted);
+  font-size: 12px;
+}
+
+button.sv-head {
+  cursor: pointer;
+  border: 0;
+  border-left: 1px solid var(--qd-line-2);
+  gap: 4px;
+}
+
+button.sv-head:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.sv-head--on {
+  background: var(--qd-pink-bg);
+  box-shadow: inset 0 3px 0 var(--qd-pink-button);
+}
+
+.sv-head--bad .sv-head__label {
+  color: #a3222f;
+}
+
+.sv-head__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sv-head__top b {
+  font-size: 15px;
+}
+
+.sv-head__label {
+  color: var(--qd-ink);
+  font-weight: 600;
+}
+
+.sv-head__code {
+  font-size: 11px;
+}
+
+.sv-dot {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #a1a1aa;
+  border-radius: 50%;
+  background: var(--qd-surface);
+}
+
+.sv-dot--on {
+  border: 4px solid var(--qd-pink-button);
+}
+
+.sv-cell--label {
+  background: var(--qd-soft);
+}
+
+.sv-cell--sel {
+  background: var(--qd-pink-bg);
+}
+
+.sv-cell--bad {
+  background: #fdecec;
+}
+
+.sv-cell__v {
+  color: var(--qd-ink);
+  font-weight: 600;
+}
+
+.sv-cell__v--s {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sv-cell__d {
+  align-self: flex-start;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sv-cell__d--up {
+  background: var(--qd-ok-bg);
+  color: var(--qd-ok-fg);
+}
+
+.sv-cell__d--down {
+  background: #fdecec;
+  color: #a3222f;
+}
+
+.sv-cell__d--flat {
+  background: var(--qd-grey-2);
+  color: var(--qd-ink-2);
+}
+
+.sv-warn__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid #f3b4b9;
+  border-radius: 10px;
+  background: #fdecec;
+  padding: 10px 12px;
+  color: #a3222f;
+  font-size: 13px;
+}
+
+.sv-overlay--sheet {
+  align-items: flex-end;
+}
+
+.sv-warn--sheet {
+  width: 100%;
+  max-width: none;
+  border-radius: 16px 16px 0 0;
+}
+
+.sv-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sv-title__box {
+  width: 100%;
+  border: 1px solid var(--qd-border);
+  border-radius: 10px;
+  background: var(--qd-surface);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.sv-title__box--over {
+  border: 2px solid #a3222f;
+  background: #fff8f8;
+}
+
+.sv-title__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sv-title__over {
+  color: #a3222f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Sản phẩm › Đề xuất ─────────────────────────────────────────────── */
+
+.sp {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sp-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.sp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sp-dots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.sp-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--qd-grey-2);
+  color: var(--qd-ink-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sp-dot--top {
+  background: var(--qd-pink-button);
+  color: #fff;
+}
+
+.sp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sp-group__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.sp-group__head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.sp-card {
+  border: 1px solid var(--qd-border-2);
+  border-radius: 10px;
+  background: var(--qd-surface);
+  padding: 10px 12px;
+}
+
+.sp-card--top {
+  border: 2px solid var(--qd-pink-button);
+  background: var(--qd-pink-bg);
+}
+
+.sp-card__row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) minmax(160px, auto) auto;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.sp-card__id,
+.sp-card__title,
+.sp-card__d {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sp-card__d {
+  text-align: right;
+}
+
+.sp-ver {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px 14px;
+  border-top: 1px dashed var(--qd-border-2);
+  margin-top: 8px;
+  padding-top: 8px;
+  font-size: 13px;
+}
+
+.sp-ver__n--1 {
+  color: var(--qd-pink);
+}
+
+.sp-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+@media (max-width: 767px) {
+  .sp-card__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .sp-card__title,
+  .sp-card__d {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .sp-ver {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}
+
+/* ── Tự tạo phương án ───────────────────────────────────────────────── */
+
+.sb-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.sb-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.sb-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sb-tabs,
+.sb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.sb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sb-pill {
+  border: 1px solid var(--qd-border);
+  border-radius: 999px;
+  background: var(--qd-surface);
+  padding: 4px 12px;
+  color: var(--qd-ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sb-pill--on {
+  border-color: var(--qd-pink);
+  background: var(--qd-pink);
+  color: #fff;
+}
+
+.sb-pill--dark {
+  border-color: var(--qd-ink-2);
+  background: var(--qd-ink-2);
+  color: #fff;
+}
+
+.sb-pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.sb-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.sb-num {
+  width: 140px;
+  border: 1px solid var(--qd-border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font: inherit;
+}
+
+.sb-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sb-item__n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--qd-grey-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sb-voucher {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sb-trade {
+  margin-top: 8px;
+  border-radius: 10px;
+  background: var(--qd-wait-bg);
+  padding: 8px 12px;
+  color: var(--qd-wait-fg);
+  font-size: 13px;
+}
+
+.sb-order {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 4px 24px;
+}
+
+.sb-order > div,
+.sb-floor {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--qd-line-2);
+  padding: 5px 0;
+  font-size: 13px;
+}
+
+.sb-floors {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.sb-floor--bad {
+  background: #fdecec;
+  color: #a3222f;
+}
+
+.sb-table {
+  min-width: 720px;
+}
+
+.sb-swipe {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 6px;
+}
+
+.sb-swipe__card {
+  flex: 0 0 82%;
+  scroll-snap-align: start;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 12px;
+  background: var(--qd-surface);
+  padding: 10px 12px;
+}
+
+.sb-swipe__card--on {
+  border: 2px solid var(--qd-pink-button);
+  background: var(--qd-pink-bg);
+}
+
+.sb-swipe__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0 0 6px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sb-swipe__row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-top: 1px solid var(--qd-line-2);
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.sb-swipe__row > span:first-child {
+  color: var(--qd-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .sb-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Ops · Danh sách đề xuất ────────────────────────────────────────── */
+
+.ol-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ol-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.ol-search input {
+  border: 1px solid var(--qd-border);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font: inherit;
+}
+
+.ol-table {
+  overflow-x: auto;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 10px;
+  background: var(--qd-surface);
+}
+
+.ol-row {
+  display: grid;
+  grid-template-columns: 130px minmax(220px, 2fr) 130px 80px 70px 110px 120px 130px 130px;
+  align-items: center;
+  gap: 10px;
+  min-width: 1100px;
+  border-bottom: 1px solid var(--qd-line-2);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.ol-row--head {
+  background: var(--qd-soft);
+  color: var(--qd-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ol-sub {
+  display: block;
+  color: var(--qd-muted);
+  font-size: 12px;
+}
+
+.ol-q1 {
+  color: var(--qd-pink);
+  font-weight: 700;
+}
+
+.ol-foot {
+  margin: 0;
+}
+
+.ol-ver {
+  display: block;
+}

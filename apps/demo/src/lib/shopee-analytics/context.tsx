@@ -3,6 +3,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 
 import type { ShopeeApi } from "./client";
+import type { RecoApi } from "../shopee-decisions/client";
 import type { ShopeeLinks } from "./links";
 
 /**
@@ -17,6 +18,8 @@ export interface ShopeeHost {
   readonly shopName?: string;
   /** Juli Ops: reading only (no copy-to-seller actions). */
   readonly readOnly?: boolean;
+  /** P91: the shop's recommendation cards, for the product page's "Đề xuất" tab; absent = the tab is not shown. */
+  readonly reco?: RecoApi;
 }
 
 const Ctx = createContext<ShopeeHost | null>(null);
