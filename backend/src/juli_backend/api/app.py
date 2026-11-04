@@ -18,6 +18,8 @@ from juli_backend.api.routes.auth_tiktok_business_account_holder import (
 from juli_backend.api.routes.auth_tiktok_business_advertiser import (
     router as auth_tiktok_business_advertiser_router,
 )
+from juli_backend.api.routes.connector_fill_flag import demo_router as demo_connector_fill_router
+from juli_backend.api.routes.connector_fill_flag import ops_router as ops_connector_fill_router
 from juli_backend.api.routes.creators import router as creators_router
 from juli_backend.api.routes.debug_tiktok import router as debug_tiktok_router
 from juli_backend.api.routes.demo_analysis import router as demo_analysis_router
@@ -40,6 +42,7 @@ from juli_backend.api.routes.demo_shopee_recommendations import (
 )
 from juli_backend.api.routes.executions import router as executions_router
 from juli_backend.api.routes.ingest import router as ingest_router
+from juli_backend.api.routes.ingest_fill import router as ingest_fill_router
 from juli_backend.api.routes.me import router as me_router
 from juli_backend.api.routes.ops import router as ops_router
 from juli_backend.api.routes.ops_billing import router as ops_billing_router
@@ -116,6 +119,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_shopee_recommendations_router)
     v1_router.include_router(demo_shopee_reco_manual_router)
     v1_router.include_router(demo_planned_changes_router)
+    v1_router.include_router(demo_connector_fill_router)
     # Fast track P16 (D25): the Juli Ops console and the seller's invite accept.
     v1_router.include_router(ops_router)
     # Fast track P20 (D28.3 / D28.4): Juli Ops tabs Chi phí and Thời hạn.
@@ -124,6 +128,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_shopee_recommendations_router)
     v1_router.include_router(ops_shopee_reco_manual_router)
     v1_router.include_router(ops_planned_changes_router)
+    v1_router.include_router(ops_connector_fill_router)
     v1_router.include_router(ops_contract_shops_router)
     v1_router.include_router(ops_shopee_kpi_router)
     v1_router.include_router(ops_shopee_dashboards_router)
@@ -133,6 +138,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_shopee_analytics_router)
     v1_router.include_router(shop_invites_router)
     # Fast track P24 (D31.3 / D31.4): the ingest gateway and Juli Connector pairing.
+    v1_router.include_router(ingest_fill_router)
     v1_router.include_router(ingest_router)
     # Fast track P32-A (D42): the partner reviewer's own routes (who am I, simulate).
     v1_router.include_router(reviewer_router)
