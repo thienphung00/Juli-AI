@@ -18,6 +18,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from sqlalchemy import text
 
 from juli_backend.database.tenant_context import with_shop_scope
@@ -127,8 +128,9 @@ async def test_the_gateway_marks_a_line_with_its_kol_and_the_read_model_shows_it
 
     async with juli_app_session() as session:
         async with with_shop_scope(session, b.shop_id):
-            other = await queries.kol_table(session, b.shop_id, period="30d", as_of=None)
-    assert other["rows"] == []
+            # the other shop has no Shopee numbers at all: nothing of A's is visible to it
+            with pytest.raises(queries.NoShopeeData):
+                await queries.kol_table(session, b.shop_id, period="30d")
 
 
 def test_zz_downgrade_drops_the_kol_columns_and_upgrade_restores_them(owner_engine):
