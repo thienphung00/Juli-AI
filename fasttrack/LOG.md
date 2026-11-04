@@ -3714,3 +3714,12 @@ reconcile --write` re-derived the no-assert corpus figure.
   (desktop + mobile); connector 214 passed, tsc, build 0.3.4.
 - Next (owner): deploy per contracts/p91-deploy-checklist.md; post-deploy: backfill-codes, connector 0.3.4 reload, import the
   planned-changes list, income + cost files via the converter, `CONNECTOR_FILL_LISTING=1` when wanted.
+
+## 2026-11-04 — agent (Claude Opus) — ORY VAT answers
+
+- Owner: VAT 8 % on all ORY items, 10 % on cleaning chemicals (the 8 % cut, Nghị quyết 204/2025, excludes chemical
+  products and ends 31/12/2026). Listing prices include VAT (Luật Giá 2023 Art. 4.6: listed prices include taxes; Shopee
+  withholds 0 VAT for ORY, consistent with a company invoicing itself); giá vốn includes VAT (owner). Both shop flags Có.
+- The per-listing rate list stays with the client files, outside the repo. One rate per listing: 26 combos mixing 8 % and 10 %
+  carry 10 % (chemicals dominate their value; < 2 % of price either way). Recorded in p91-deploy-checklist §5 step 7.
+- Only docs commits after the green gate at 7fad9773.
