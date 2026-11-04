@@ -78,14 +78,17 @@ is built (same rule as P90).
   lever (shop voucher, shop ads budget) is applied to the orders the product changes already modified (overlap
   counted once). Predicted ranges: P50s add after the joint certain layer; the range combines the cards' ranges
   (simulation draws or root-sum-of-squares — implementer chooses, documents, tests).
-- Confirm ("Xác nhận kế hoạch"): blocked while a floor breach or spend-cap breach is unresolved (Ops Vận hành may
-  override with a reason, audited). On confirm every card becomes `approved` with the plan id, one planned
+- Confirm ("Xác nhận kế hoạch"): **never blocked** (owner 2026-11-04). A floor breach or spend-cap breach shows a
+  warning naming each SKU / the amount over the cap; the seller (or Ops) confirms a second time ("Vẫn tiếp tục") to
+  proceed. The acknowledged warnings are recorded on the plan and in each card's events (who, when, which
+  breaches). Same rule everywhere a breach appears: approving a breaching version, saving a breaching manual
+  variant, adding a breaching card to the plan — warning + confirm, never a disabled button. On confirm every card becomes `approved` with the plan id, one planned
   execution date, and the plan enters the team's queue; assisted execution (human clicks Save, read-back
   verification per card) marks each card executed; the plan is "đã thực hiện" when all are.
 - Reuse what exists: `shop_proposals.lever_plan_id`, `plan.py` (measurement plan), the `locked_by_plan` filter,
   mega_sale aggregation code where it fits.
 
-## D-7 Measurement when changes run together (recommended, owner to confirm on the artboards)
+## D-7 Measurement when changes run together (owner approved 2026-11-04)
 - **Unit of measurement = the product's change set**, not the card: all cards of one product executed on the same
   day are one change set, measured together against the product's baseline (flow baseline counterfactual) and
   compared with the plan's joint prediction for that product. Different products → separate change sets; the plan's
