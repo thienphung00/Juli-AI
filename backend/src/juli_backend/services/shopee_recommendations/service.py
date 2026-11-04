@@ -397,6 +397,8 @@ def _summary(
     return {
         "id": str(p.id),
         "code": p.code,
+        "origin": card.get("origin"),
+        "external_ref": card.get("external_ref"),
         "product_id": product,
         "product_queue": p.product_queue,
         "product_measuring": (

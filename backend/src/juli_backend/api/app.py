@@ -28,6 +28,7 @@ from juli_backend.api.routes.demo_content_analysis import (
 from juli_backend.api.routes.demo_content_runs import router as demo_content_runs_router
 from juli_backend.api.routes.demo_decisions import router as demo_decisions_router
 from juli_backend.api.routes.demo_execution import router as demo_execution_router
+from juli_backend.api.routes.demo_planned_changes import router as demo_planned_changes_router
 from juli_backend.api.routes.demo_rules import router as demo_rules_router
 from juli_backend.api.routes.demo_run_changes import router as demo_run_changes_router
 from juli_backend.api.routes.demo_run_flows import router as demo_run_flows_router
@@ -43,6 +44,7 @@ from juli_backend.api.routes.me import router as me_router
 from juli_backend.api.routes.ops import router as ops_router
 from juli_backend.api.routes.ops_billing import router as ops_billing_router
 from juli_backend.api.routes.ops_contract_shops import router as ops_contract_shops_router
+from juli_backend.api.routes.ops_planned_changes import router as ops_planned_changes_router
 from juli_backend.api.routes.ops_proposals import router as ops_proposals_router
 from juli_backend.api.routes.ops_shop_inputs import router as ops_shop_inputs_router
 from juli_backend.api.routes.ops_shopee_analytics import router as ops_shopee_analytics_router
@@ -113,6 +115,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_shopee_analytics_router)
     v1_router.include_router(demo_shopee_recommendations_router)
     v1_router.include_router(demo_shopee_reco_manual_router)
+    v1_router.include_router(demo_planned_changes_router)
     # Fast track P16 (D25): the Juli Ops console and the seller's invite accept.
     v1_router.include_router(ops_router)
     # Fast track P20 (D28.3 / D28.4): Juli Ops tabs Chi phí and Thời hạn.
@@ -120,6 +123,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_proposals_router)
     v1_router.include_router(ops_shopee_recommendations_router)
     v1_router.include_router(ops_shopee_reco_manual_router)
+    v1_router.include_router(ops_planned_changes_router)
     v1_router.include_router(ops_contract_shops_router)
     v1_router.include_router(ops_shopee_kpi_router)
     v1_router.include_router(ops_shopee_dashboards_router)
