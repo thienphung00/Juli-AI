@@ -57,7 +57,7 @@ How it is operated
 Same procedure as 074: serving release at ``114_card_verification_events`` (P68
 re-parented this step onto ``102_shops_tiktok_numeric_id``, the D76 PRs onto 103, 104,
 105, 106 and 107, ADR-117 onto 108, ADR-118 onto 109, the Ops platform
-labels onto 110, ADR-119 onto 111, ADR-120 onto 112, P90 step 2 onto 113, P90 step 6 onto 114; it was ``100_sandbox_collision_xshop``); take the
+labels onto 110, ADR-119 onto 111, ADR-120 onto 112, P90 step 2 onto 113, P90 step 6 onto 114, P91 onto 116 and 117; it was ``100_sandbox_collision_xshop``); take the
 backup (``infra/scripts/safe-alembic-upgrade.sh`` does); copy this file (and, if
 running 074 too, that one) into the serving release's ``versions/`` and leave it
 there; ``alembic upgrade head``; land a follow-up moving it from ``deferred/`` into
@@ -70,7 +70,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "101_write_mode_backfill"
-down_revision: str | None = "116_shopee_reco_codes"
+down_revision: str | None = "117_shopee_order_income"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -1,5 +1,8 @@
 """Shopee profit and history tables (ADR-120), migration 112.
 
+Migration 117 (P91 D-12) adds ``shopee_order_income`` (the income export, per order) and
+``shopee_order_lines.variation_name``.
+
 Migration 113 (P90 step 2) adds order-export columns to ``shopee_order_lines`` and the two
 append-only tables ``shop_health_daily`` and ``ads_change_log``.
 
@@ -223,6 +226,74 @@ class ShopeeOrderLine(Base):
     #: catalogue when it knows the SKU (else ``item_id`` is ``sku:<sku>``).
     sku: Mapped[str | None] = mapped_column(String(128), nullable=True)
     variation_sku: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    #: Migration 117: the export's "Tên phân loại hàng" (a product's variation NAME, no buyer
+    #: data). Variations that share one SKU (combos) tell apart by it; the pack count
+    #: ("Combo 3 hộp") is read from it when the seller has set none.
+    variation_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+
+class ShopeeOrderIncome(Base):
+    """What Shopee ACTUALLY charged and paid for one order (the income export, migration 117).
+
+    One row per (shop, platform, ``order_ref``); ``order_ref`` is the same keyed hash as on
+    ``shopee_order_lines``, so the two join on it. Every cost column is a POSITIVE amount the
+    seller bore (a reversal is negative); ``payout`` is signed; ``net_shipping_cost`` is the
+    shipping actually charged minus what Shopee, the buyer and PiShip paid back. NULL = the
+    source did not state it (never 0). A per-order table, not columns on the lines: an income row
+    exists for orders the order export may not hold, and an order's amounts are split across its
+    lines by value only when the engine reads them.
+    """
+
+    __tablename__ = "shopee_order_income"
+    __table_args__ = (
+        UniqueConstraint("shop_id", "platform", "order_ref", name="uq_shopee_order_income_key"),
+        CheckConstraint(f"platform IN ({_in(PLATFORMS)})", name="ck_shopee_order_income_platform"),
+        Index("ix_shopee_order_income_paid", "shop_id", "paid_on"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    platform: Mapped[str] = mapped_column(String(16))
+    order_ref: Mapped[str] = mapped_column(String(128))
+    ordered_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    paid_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    payout: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    product_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    refund_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    fee_fixed: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    #: Phí Dịch Vụ as stated: it INCLUDES ``fee_infra`` and ``fee_voucher_xtra``.
+    fee_service: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    fee_infra: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    fee_voucher_xtra: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    fee_payment: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    fee_piship: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    fee_nttd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    affiliate_commission: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    ship_actual_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    ship_shopee_subsidy: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    ship_buyer_paid: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    ship_piship_refund: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    #: A reference value of the export, not part of the payout.
+    ship_seller_support: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    net_shipping_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    return_ship_refund: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    return_ship_failed: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    lost_compensation: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    vat_withheld: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    pit_withheld: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    seller_voucher_borne: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    seller_coin_borne: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    trade_in_bonus_seller: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    #: A fraction, 0.06 for 6 %.
+    transaction_fee_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    source: Mapped[str] = mapped_column(String(16))
+    source_rank: Mapped[int] = mapped_column(SmallInteger)
+    source_version: Mapped[str] = mapped_column(String(64))
+    raw_payload_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ingest_raw_payloads.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
 class PlatformFeeFormula(Base):

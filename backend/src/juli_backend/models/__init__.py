@@ -89,6 +89,7 @@ from juli_backend.models.shopee_profit import (
     PlatformFeeFormula,
     PlatformItemSnapshot,
     ProductImageAsset,
+    ShopeeOrderIncome,
     ShopeeOrderLine,
     ShopHealthDaily,
 )
@@ -166,6 +167,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopRuleVersion,
     PlatformItemSnapshot,
     ProductImageAsset,
+    ShopeeOrderIncome,
     ShopeeOrderLine,
     PlatformFeeFormula,
     AdCampaignPurpose,

@@ -30,6 +30,7 @@ from juli_backend.models.shopee_profit import (
     AdCampaignPurpose,
     PlatformFeeFormula,
     PlatformItemSnapshot,
+    ShopeeOrderIncome,
     ShopeeOrderLine,
 )
 from juli_backend.repositories._base import SessionRepo, ShopScopedRepo
@@ -75,6 +76,40 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
             ShopeeOrderLine.ordered_at < hi,
         ).with_only_columns(func.date(ShopeeOrderLine.ordered_at).distinct())
         return {r[0] for r in (await self._session.execute(stmt)).all()}
+
+
+class ShopeeOrderIncomeRepo(ShopScopedRepo[ShopeeOrderIncome]):
+    """The income export's per-order actuals (migration 117), read by ``order_ref``."""
+
+    _model = ShopeeOrderIncome
+    CHUNK = 1000
+
+    async def for_refs(self, shop_id: uuid.UUID, refs: Collection[str]) -> list[ShopeeOrderIncome]:
+        """The income rows of the given orders (a ref with none is simply absent)."""
+        ordered = sorted(set(refs))
+        out: list[ShopeeOrderIncome] = []
+        for start in range(0, len(ordered), self.CHUNK):
+            part = ordered[start : start + self.CHUNK]
+            out.extend(
+                await self._all(
+                    self._scoped(
+                        shop_id,
+                        ShopeeOrderIncome.platform == PLATFORM_SHOPEE,
+                        ShopeeOrderIncome.order_ref.in_(part),
+                    )
+                )
+            )
+        return out
+
+    async def count_in_window(self, shop_id: uuid.UUID, start: date, end: date) -> int:
+        """Income rows whose order was placed on a day in ``[start, end]``."""
+        stmt = self._scoped(
+            shop_id,
+            ShopeeOrderIncome.platform == PLATFORM_SHOPEE,
+            ShopeeOrderIncome.ordered_on >= start,
+            ShopeeOrderIncome.ordered_on <= end,
+        ).with_only_columns(func.count())
+        return int((await self._session.execute(stmt)).scalar_one())
 
 
 class PlatformDailyMetricsRepo(ShopScopedRepo[PlatformDailyMetric]):
@@ -339,5 +374,6 @@ __all__ = [
     "PlatformPromotionsRepo",
     "ShopKeywordSeedsReadRepo",
     "ShopRulesReadRepo",
+    "ShopeeOrderIncomeRepo",
     "ShopeeOrderLinesRepo",
 ]

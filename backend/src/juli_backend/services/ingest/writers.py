@@ -82,12 +82,18 @@ def _chunks(values: list[Any]) -> list[list[Any]]:
 
 async def _resolve_skus(
     session: AsyncSession, shop_id: uuid.UUID, platform: str, skus: set[str]
-) -> dict[str, tuple[str, str]]:
-    """``seller_sku`` -> (item_id, variation_id); the first item / variation wins on a twin."""
-    found: dict[str, tuple[str, str]] = {}
+) -> dict[str, list[tuple[str, str, str | None]]]:
+    """``seller_sku`` -> every (item_id, variation_id, variation_name) that carries it, in
+    item / variation order. Combo variations reuse one SKU, so a SKU may name several."""
+    found: dict[str, list[tuple[str, str, str | None]]] = defaultdict(list)
     for part in _chunks(sorted(skus)):
         rows = await session.execute(
-            select(PlatformItem.seller_sku, PlatformItem.item_id, PlatformItem.variation_id)
+            select(
+                PlatformItem.seller_sku,
+                PlatformItem.item_id,
+                PlatformItem.variation_id,
+                PlatformItem.variation_name,
+            )
             .where(
                 PlatformItem.shop_id == shop_id,
                 PlatformItem.platform == platform,
@@ -95,15 +101,26 @@ async def _resolve_skus(
             )
             .order_by(PlatformItem.item_id, PlatformItem.variation_id)
         )
-        for sku, item_id, variation_id in rows:
-            found.setdefault(sku, (item_id, variation_id))
+        for sku, item_id, variation_id, variation_name in rows:
+            found[sku].append((item_id, variation_id, variation_name))
     return found
 
 
-def _line_item(row: ShopeeOrderLineRow, known: dict[str, tuple[str, str]]) -> tuple[str, str]:
+def _same_name(left: str | None, right: str | None) -> bool:
+    return bool(left and right and left.strip().casefold() == right.strip().casefold())
+
+
+def _line_item(
+    row: ShopeeOrderLineRow, known: dict[str, list[tuple[str, str, str | None]]]
+) -> tuple[str, str]:
     for sku in (row.variation_sku, row.sku):
-        if sku and sku in known:
-            return known[sku]
+        candidates = known.get(sku or "")
+        if not candidates:
+            continue
+        # Variations that share a SKU: the line's own variation name picks the right one.
+        named = [c for c in candidates if _same_name(c[2], row.variation_name)]
+        item_id, variation_id, _ = (named or candidates)[0]
+        return item_id, variation_id
     label = row.variation_sku or row.sku or "unknown"
     return f"{UNRESOLVED_PREFIX}{label}"[:MAX_ITEM_ID], ITEM_LEVEL_VARIATION
 
@@ -135,6 +152,7 @@ async def write_order_lines(
                 "variation_id": variation_id,
                 "sku": row.sku,
                 "variation_sku": row.variation_sku,
+                "variation_name": row.variation_name,
                 "qty": int(row.qty),
                 "returned_qty": int(row.returned_qty),
                 "original_price": row.original_price,
@@ -159,7 +177,14 @@ async def write_order_lines(
             }
         )
     insert = _insert(session)
-    keep = ("fee_fixed", "fee_service", "fee_payment", "completed_at", "paid_at")
+    keep = (
+        "fee_fixed",
+        "fee_service",
+        "fee_payment",
+        "completed_at",
+        "paid_at",
+        "variation_name",
+    )
     for part in _chunks(values):
         stmt = insert(ShopeeOrderLine).values(part)
         table = ShopeeOrderLine.__table__

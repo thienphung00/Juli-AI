@@ -5,6 +5,12 @@ operating floor = (cogs + packaging + fixed fee/order)
                   / (1 - fee% - ads% - affiliate% - target margin%)
 max discount    = 1 - operating floor / list price, capped by the seller's own cap.
 
+Pack-aware (P91 D-12): ``cogs`` is the cost of ONE item (a SKU's giá vốn). A variation that holds
+``pack_count`` items ("Combo 3 hộp") costs ``cogs x pack_count`` per sold unit; a listing with a
+bill of materials passes the components' total as ``component_cost`` (per sold unit) and that
+wins. Packaging and the fixed fee are per ORDER, never multiplied. A caller whose ``cogs`` is
+already per sold unit (the analytics cost table is) leaves ``pack_count`` at 1.
+
 Rules:
 - Rates are fractions. Floors round to whole đồng, half up (121.176,47 -> 121.176).
 - Max discount amount = list - operating floor, rounded DOWN to 1.000đ (18.021 -> 18.000);
@@ -33,6 +39,17 @@ class FloorInputs:
     affiliate_rate: Decimal | None = None
     target_margin_rate: Decimal | None = None
     seller_max_discount_rate: Decimal | None = None
+    #: Single items in one sold unit (1 = the SKU itself).
+    pack_count: int = 1
+    #: Cost of one sold unit from a bill of materials; wins over ``cogs x pack_count``.
+    component_cost: Decimal | None = None
+
+    @property
+    def unit_cogs(self) -> Decimal | None:
+        """The cost of one SOLD unit: the bill of materials, else cogs x pack_count."""
+        if self.component_cost is not None:
+            return self.component_cost
+        return None if self.cogs is None else self.cogs * self.pack_count
 
 
 @dataclass(frozen=True)
@@ -54,18 +71,19 @@ def compute_floor(inp: FloorInputs) -> FloorResult:
     absolute: Decimal | None = None
     operating: Decimal | None = None
 
-    base_missing = _missing({"cogs": inp.cogs, "packaging": inp.packaging})
+    cogs = inp.unit_cogs
+    base_missing = _missing({"cogs": cogs, "packaging": inp.packaging})
     abs_missing = base_missing or _missing({"platform_fee_rate": inp.platform_fee_rate})
     if abs_missing:
         reasons["absolute_floor"] = abs_missing
     else:
-        assert inp.cogs is not None and inp.packaging is not None
+        assert cogs is not None and inp.packaging is not None
         assert inp.platform_fee_rate is not None
         denom = 1 - inp.platform_fee_rate
         if denom <= 0:
             reasons["absolute_floor"] = "denominator_non_positive"
         else:
-            absolute = to_dong((inp.cogs + inp.packaging + inp.fixed_fee_per_order) / denom)
+            absolute = to_dong((cogs + inp.packaging + inp.fixed_fee_per_order) / denom)
 
     op_missing = abs_missing or _missing(
         {
@@ -77,7 +95,7 @@ def compute_floor(inp: FloorInputs) -> FloorResult:
     if op_missing:
         reasons["operating_floor"] = op_missing
     else:
-        assert inp.cogs is not None and inp.packaging is not None
+        assert cogs is not None and inp.packaging is not None
         assert inp.platform_fee_rate is not None and inp.ads_rate is not None
         assert inp.affiliate_rate is not None and inp.target_margin_rate is not None
         denom = (
@@ -86,7 +104,7 @@ def compute_floor(inp: FloorInputs) -> FloorResult:
         if denom <= 0:
             reasons["operating_floor"] = "denominator_non_positive"
         else:
-            operating = to_dong((inp.cogs + inp.packaging + inp.fixed_fee_per_order) / denom)
+            operating = to_dong((cogs + inp.packaging + inp.fixed_fee_per_order) / denom)
 
     pct: Decimal | None = None
     amount: Decimal | None = None

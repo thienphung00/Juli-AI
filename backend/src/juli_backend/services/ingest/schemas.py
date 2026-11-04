@@ -893,6 +893,8 @@ class ShopeeOrderLineRow(PeriodRowBase):
     status: OrderStatusName
     sku: Text120 | None = None
     variation_sku: Text120 | None = None
+    #: "Tên phân loại hàng": the variation's NAME (a product attribute, not buyer data).
+    variation_name: Text120 | None = None
     qty: Count
     returned_qty: Count = Decimal(0)
     original_price: Money
@@ -916,6 +918,51 @@ class ShopeeOrderLineRow(PeriodRowBase):
 
     def key(self) -> tuple[Any, ...]:
         return (self.order_ref, self.line_no)
+
+
+class ShopeeOrderIncomeRow(PeriodRowBase):
+    """``order_income``: what Shopee actually charged and paid for one order (the income export,
+    Tài chính › Doanh thu), PII-stripped by the sender. The order id never arrives: ``order_ref``
+    is the same keyed hash as on ``order_lines``, so the two join.
+
+    Every cost is a POSITIVE amount the seller bore (a reversal is negative); ``payout`` is signed.
+    ``fee_service`` (Phí Dịch Vụ) INCLUDES ``fee_infra`` and ``fee_voucher_xtra``; the three are
+    never added together. ``net_shipping_cost`` is the shipping actually charged minus Shopee's
+    subsidy, the buyer's share and PiShip's refund. ``transaction_fee_rate`` is a fraction.
+    A field the source did not state is absent (None), never 0."""
+
+    order_ref: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
+    ordered_on: date | None = None
+    paid_on: date | None = None
+    payout: SignedCount | None = None
+    product_price: SignedCount | None = None
+    refund_amount: SignedCount | None = None
+    fee_fixed: SignedCount | None = None
+    fee_service: SignedCount | None = None
+    fee_infra: SignedCount | None = None
+    fee_voucher_xtra: SignedCount | None = None
+    fee_payment: SignedCount | None = None
+    fee_piship: SignedCount | None = None
+    fee_nttd: SignedCount | None = None
+    affiliate_commission: SignedCount | None = None
+    ship_actual_cost: SignedCount | None = None
+    ship_shopee_subsidy: SignedCount | None = None
+    ship_buyer_paid: SignedCount | None = None
+    ship_piship_refund: SignedCount | None = None
+    ship_seller_support: SignedCount | None = None
+    net_shipping_cost: SignedCount | None = None
+    return_ship_refund: SignedCount | None = None
+    return_ship_failed: SignedCount | None = None
+    lost_compensation: SignedCount | None = None
+    vat_withheld: SignedCount | None = None
+    pit_withheld: SignedCount | None = None
+    seller_voucher_borne: SignedCount | None = None
+    seller_coin_borne: SignedCount | None = None
+    trade_in_bonus_seller: SignedCount | None = None
+    transaction_fee_rate: Rate | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.order_ref,)
 
 
 class ShopeeAffiliateOrderLineRow(PeriodRowBase):

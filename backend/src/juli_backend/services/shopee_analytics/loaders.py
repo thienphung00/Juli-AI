@@ -38,6 +38,7 @@ from juli_backend.repositories import (
     ShopKeywordSeedsReadRepo,
     ShopRulesReadRepo,
 )
+from juli_backend.repositories.shopee_analytics import ShopeeOrderIncomeRepo
 from juli_backend.services.shopee_analytics import fee_table
 from juli_backend.services.shopee_analytics.catalog import (
     Catalog,
@@ -62,6 +63,7 @@ from juli_backend.services.shopee_profit.ads_sources import (
 )
 from juli_backend.services.shopee_profit.fees import FeeSchedule
 from juli_backend.services.shopee_profit.flows import FlowRow, FlowSource
+from juli_backend.services.shopee_profit.income import IncomeOrder
 from juli_backend.services.shopee_profit.money import ZERO
 
 CONFIRMED = "confirmed"
@@ -196,6 +198,8 @@ class OrderLinesLoad:
     window: Window
     days_with_orders: int = 0
     export_bounds: tuple[date, date] | None = None
+    #: order_ref -> the income export's actuals for that order (P91 D-12).
+    income: dict[str, IncomeOrder] = field(default_factory=dict)
 
     @property
     def covers_window(self) -> bool:
@@ -235,11 +239,45 @@ async def load_order_lines(
             buyer_shipping_fee=r.buyer_shipping_fee,
             bank_promo=r.bank_promo,
             ad_attributed=r.ad_attributed,
+            variation_id=r.variation_id,
+            variation_name=r.variation_name,
         )
         for r in rows
     ]
     days = await repo.days_with_lines(shop_id, window.start, window.end)
-    return OrderLinesLoad(raw, window, len(days), await repo.day_bounds(shop_id))
+    income = await load_income(session, shop_id, {r.order_ref for r in raw})
+    return OrderLinesLoad(raw, window, len(days), await repo.day_bounds(shop_id), income)
+
+
+async def load_income(
+    session: AsyncSession, shop_id: uuid.UUID, refs: set[str]
+) -> dict[str, IncomeOrder]:
+    """The income export's rows of these orders, detached (no buyer column exists)."""
+    if not refs:
+        return {}
+    rows = await ShopeeOrderIncomeRepo(session).for_refs(shop_id, refs)
+    return {
+        r.order_ref: IncomeOrder(
+            order_ref=r.order_ref,
+            fee_fixed=r.fee_fixed,
+            fee_service=r.fee_service,
+            fee_payment=r.fee_payment,
+            fee_piship=r.fee_piship,
+            fee_nttd=r.fee_nttd,
+            affiliate_commission=r.affiliate_commission,
+            net_shipping_cost=r.net_shipping_cost,
+            return_ship_refund=r.return_ship_refund,
+            return_ship_failed=r.return_ship_failed,
+            refund_amount=r.refund_amount,
+            lost_compensation=r.lost_compensation,
+            vat_withheld=r.vat_withheld,
+            pit_withheld=r.pit_withheld,
+            seller_coin_borne=r.seller_coin_borne,
+            trade_in_bonus_seller=r.trade_in_bonus_seller,
+            payout=r.payout,
+        )
+        for r in rows
+    }
 
 
 # ---------------------------------------------------------------------------------------

@@ -58,6 +58,7 @@ from juli_backend.models.platform_data import (
     PlatformPromotion,
 )
 from juli_backend.services.consent import ConsentRequired, require_consent
+from juli_backend.services.ingest.income import write_order_income
 from juli_backend.services.ingest.mapping import (
     KPI_COLUMNS,
     MAPPER_VERSION,
@@ -68,6 +69,7 @@ from juli_backend.services.ingest.mapping import (
     WRITE_FLAGS,
     WRITE_ITEM_SNAPSHOTS,
     WRITE_ITEMS,
+    WRITE_ORDER_INCOME,
     WRITE_ORDER_LINES,
     WRITE_PERIOD,
     WRITE_PROMOTIONS,
@@ -87,6 +89,7 @@ from juli_backend.services.ingest.schemas import (
     ShopeeItemBySourcePeriodRow,
     ShopeeItemCatalogRow,
     ShopeeItemSnapshotRow,
+    ShopeeOrderIncomeRow,
     ShopeeOrderLineRow,
     ShopeeProductFlagRow,
     ShopeeProductPeriodRow,
@@ -657,6 +660,8 @@ async def _write(
         await _upsert(session, PlatformPromotion, _PROMOTION_KEY_COLUMNS, promotions)
     elif spec.writes == WRITE_ORDER_LINES:
         await write_order_lines(session, _typed(rows, ShopeeOrderLineRow), body, provenance)
+    elif spec.writes == WRITE_ORDER_INCOME:
+        await write_order_income(session, _typed(rows, ShopeeOrderIncomeRow), body, provenance)
     elif spec.writes == WRITE_AFFILIATE_LINES:
         match = await write_affiliate_lines(
             session, _typed(rows, ShopeeAffiliateOrderLineRow), body, provenance

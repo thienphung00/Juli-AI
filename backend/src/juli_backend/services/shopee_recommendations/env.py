@@ -190,10 +190,10 @@ class RecoEnv:
             if oid not in hit:
                 continue
             for ln in lines:
-                if ln.actual_fees is not None and self.schedule(ln.product_id).formula_on(
-                    ln.order_date
-                ):
-                    ln = replace(ln, actual_fees=None)
+                if (ln.actual_fees is not None or ln.income is not None) and self.schedule(
+                    ln.product_id
+                ).formula_on(ln.order_date):
+                    ln = replace(ln, actual_fees=None, income=None)
                 out.append(ln)
         return out
 
