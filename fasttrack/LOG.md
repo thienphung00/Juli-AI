@@ -3688,3 +3688,29 @@ reconcile --write` re-derived the no-assert corpus figure.
   -1000000 placeholder and a real ctr of 2 paused datasets → 0.3.2 / 0.3.3 (fasttrack/connector-0.3.2).
 - P91: D-1…D-11 merged on fasttrack/reco-versions (migrations 116–118); D-12 (income, VAT, packs/BOM) and D-13
   (listing changes, planned-change import, fill-in) built on their branches, merge + gate next.
+
+## 2026-11-04 — agent (Claude Opus) — P91 ready to deploy: D-12 + D-13 merged, D-14 done, gate green
+
+- fasttrack/reco-versions: merged connector-0.3.2 (936c35f4), p91-income (ea84e461) and p91-listing (33128724).
+  Migration chain 115 → 116_shopee_reco_codes → 117_shopee_reco_plans → 118_shopee_kol_lines → 119_shopee_order_income
+  → 120_planned_changes (single head; deferred write-mode tail on 120; ~19 test pins moved). Connector 0.3.4 (0.3.2 / 0.3.3
+  live fixes + listing fill-in). Surface inventory regenerated. Merge fallout fixed: duplicate `_parse` in xlsx_io, duplicate
+  listing keys in the demo model, duplicate annotation in the ads mapper, template sheet order, import stand-in score.
+- D-14: VAT flags travel on `SkuCost`, so versions / compare / plan totals take the same VAT as the shop profit (delta
+  profit = shop delta, tested); the browser order upload reads and sends `variation_name` (script loader now reads it in
+  its main pass; parity fixture regenerated); P90/P91 UPDATE call sites registered (11 tables) so only the 23 older tables
+  stay red in `test_no_public_table_holds_update_beyond_its_call_site`; learning runs daily as the last step of the
+  `shopee-kpi-daily` task for Ops-stage-pilot shops (+ optional `RECO_LEARNING_SHOP_IDS`); seller-support shipping stays
+  reference-only and the ingest answer / loader warn Ops the first time a non-zero value is stored.
+- Connector fill-in: recon facts recorded (`*Tên sản phẩm` / `*Mô tả sản phẩm`, counter NN/120, rich-text description,
+  Cập nhật never clicked); labels tolerate the star, block-per-line editors are written line by line; ORY pilot only; server
+  flag `CONNECTOR_FILL_LISTING` default off, owner turns it on in the AWS secret; description read-back stays off.
+- Gate (throwaway local UTC Postgres 16, node 20): check.sh FULL OK (migrations up/down-1/up at 120, isolation 12, gitleaks,
+  ruff 1127 files, pytest 532 files: 7832 passed); unit 10495 passed / 9 skipped / 4 failed (act_records + 041 + 042
+  round-trip tests, which fail only with DATABASE_URL set and pass without it, 33 passed); integration 615 passed / 2 failed
+  (the update-grant test, now exactly the 23 older tables, and the agent registry sanitizer, both red on base); mypy 957
+  files clean; bandit -ll 0 medium/high; empty → head (120), head → 115 → head, additive gate from 115 accepted; demo eslint 0
+  errors, tsc clean, vitest 1806 passed (177 files), next build OK, Playwright e2e/shopee 35 passed + 1 skipped
+  (desktop + mobile); connector 214 passed, tsc, build 0.3.4.
+- Next (owner): deploy per contracts/p91-deploy-checklist.md; post-deploy: backfill-codes, connector 0.3.4 reload, import the
+  planned-changes list, income + cost files via the converter, `CONNECTOR_FILL_LISTING=1` when wanted.
