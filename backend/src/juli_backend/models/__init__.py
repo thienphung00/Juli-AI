@@ -56,6 +56,7 @@ from juli_backend.models.order_costs import (
     OrderFinanceTransaction,
     OrderPriceDetail,
 )
+from juli_backend.models.planned_changes import PlannedChangeImport, PlannedChangeRef
 from juli_backend.models.platform_data import (
     PlatformItem,
     PlatformPeriodMetric,
@@ -161,6 +162,8 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopProposalExecution,
     ShopProposalResult,
     ShopProposalCodeCounter,
+    PlannedChangeImport,
+    PlannedChangeRef,
     MarketKeywordMetric,
     ShopKeywordSeed,
     ShopRuleVersion,
