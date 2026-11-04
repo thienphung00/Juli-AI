@@ -999,6 +999,15 @@ def eval_gift(
     )
 
 
+def eval_combo_multi(
+    env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
+) -> Evaluation:
+    """p91 D-3: a combo of 2-3 different products; the calculator lives in ``combo``."""
+    from juli_backend.services.shopee_recommendations.combo import eval_combo
+
+    return eval_combo(env, cand, inputs, predicted)
+
+
 # -------------------------------------------------------------------------- affiliate
 
 
@@ -1302,6 +1311,7 @@ _EVALUATORS = {
     "bundle": eval_bundle,
     "add_on": eval_add_on,
     "gift": eval_gift,
+    "combo_multi": eval_combo_multi,
     "affiliate": eval_affiliate,
     "listing": eval_listing,
 }
@@ -1319,7 +1329,7 @@ def evaluator_key(kind: str) -> str:
         return "affiliate"
     if s.family == "listing":
         return "listing"
-    return {"add_on": "add_on", "gift": "gift"}.get(kind, "bundle")
+    return {"add_on": "add_on", "gift": "gift", "combo_multi": "combo_multi"}.get(kind, "bundle")
 
 
 def evaluate(

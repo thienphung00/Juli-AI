@@ -401,6 +401,18 @@ KINDS: dict[str, KindSpec] = {
         prior=(0.05, 0.30),
         sliders=(_S("budget_cap_per_day", "Trần chi / ngày", "vnd", 0, 1_000_000_000, 10_000),),
     ),
+    # p91 D-3: a combo of 2-3 different products (calculator in ``combo.py``)
+    "combo_multi": KindSpec(
+        "combo_multi",
+        "combo",
+        "Combo nhiều sản phẩm",
+        "bundle",
+        "item",
+        "aov",
+        _COMBO,
+        sim_kind="combo_pack",
+        prior=(0.03, 0.12),
+    ),
 }
 
 #: Contract section 8. Keyed by the critical metric (``services/shopee_analytics/critical.py``
