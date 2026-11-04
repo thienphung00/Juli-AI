@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Kế hoạch · Gộp nhiều thẻ trước khi làm</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="position: relative; width: 1280px; box-sizing: border-box; padding: 24px 32px 40px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 14px">
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">QUYẾT ĐỊNH · KẾ HOẠCH</div>
+<h1 style="margin: 0; font-size: 24px; font-weight: 700">Kế hoạch: xem cả gói thay đổi trước khi làm</h1>
+<div style="font-size: 13px; color: #5f5f6b">“Thêm vào kế hoạch” chưa thực hiện gì và chưa gửi gì cho đội Juli. Chỉ “Xác nhận kế hoạch” mới duyệt cả gói một lần.</div>
+</div>
+
+<div role="tablist" aria-label="Trường hợp" style="display: flex; gap: 6px; flex-wrap: wrap">
+<sc-for list="{{scenes}}" as="t" hint-placeholder-count="5"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; {{t.style}}">{{t.label}}</button></sc-for>
+</div>
+
+<div style="display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 16px; align-items: start">
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 16px; font-weight: 700">Thẻ đang chờ trong Quyết định</h2>
+<div style="font-size: 12px; color: #5f5f6b">Mỗi sản phẩm một thẻ. Thêm một thẻ vào kế hoạch thì thẻ kế tiếp của sản phẩm đó lên Quyết định ngay.</div>
+<sc-for list="{{cands}}" as="c" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 6px; border: 1px solid #ece3e7; border-radius: 12px; padding: 10px 12px; {{c.style}}">
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap"><span style="font-size: 13px; font-weight: 700; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">{{c.code}}</span><span style="font-size: 12px; color: #5f5f6b">{{c.kind}} · {{c.pname}}</span></div>
+<span style="font-size: 12px; color: #5f5f6b">{{c.vers}}</span>
+<div style="display: flex; align-items: center; gap: 8px"><b style="font-size: 13px; {{c.dStyle}}">{{c.d}}</b>
+<button type="button" onClick="{{c.add}}" disabled="{{c.inPlan}}" style="margin-left: auto; font: inherit; font-size: 13px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 2px solid #c2306d; border-radius: 10px; min-height: 44px; padding: 0 14px; cursor: pointer">{{c.btn}}</button></div>
+</div>
+</sc-for>
+<sc-if value="{{noCands}}" hint-placeholder-val="{{ false }}"><div style="font-size: 13px; color: #5f5f6b">Mọi thẻ chờ đã nằm trong kế hoạch.</div></sc-if>
+</section>
+
+<section style="background: #ffffff; border: 2px solid #c2306d; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 8px 24px rgba(20,20,30,0.08)">
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap"><h2 style="margin: 0; font-size: 18px; font-weight: 700">Kế hoạch nháp</h2><span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{stateStyle}}">{{stateLabel}}</span><span style="font-size: 13px; color: #5f5f6b">{{nCards}} thẻ · {{nProds}} sản phẩm</span></div>
+
+<sc-if value="{{done}}" hint-placeholder-val="{{ false }}"><div role="status" style="background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 12px 14px; font-size: 14px"><b style="color: #1d4f91">Đã xác nhận kế hoạch.</b> {{nCards}} thẻ chuyển sang “Đã duyệt”, đội Juli thực hiện cùng một ngày (dự kiến 05/11/2026). Các phiên bản không chọn đóng cùng thẻ. Phép đo theo cửa sổ {{winDays}} ngày bắt đầu từ ngày thực hiện.</div></sc-if>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{planRows}}" as="r" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 1px solid #ece3e7; border-radius: 12px; padding: 10px 12px; {{r.style}}">
+<div style="display: flex; flex-direction: column; gap: 5px; min-width: 0">
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap"><span style="font-size: 13px; font-weight: 700; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">{{r.code}}-{{r.ver}}</span><b style="font-size: 14px">{{r.kind}} · {{r.pname}}</b><span style="font-size: 12px; color: #5f5f6b">{{r.label}}</span>
+<sc-if value="{{r.bad}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 6px; color: #a3222f; background: #fdecec">Chạm giá sàn khi xếp chồng</span></sc-if></div>
+<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap"><span style="font-size: 12px; color: #5f5f6b">Phiên bản:</span>
+<sc-for list="{{r.pills}}" as="p" hint-placeholder-count="3"><button type="button" aria-pressed="{{p.on}}" onClick="{{p.pick}}" disabled="{{locked}}" style="font: inherit; font-size: 12px; font-weight: 600; border-radius: 999px; min-height: 32px; padding: 0 10px; cursor: pointer; {{p.style}}">{{p.n}}</button></sc-for></div>
+<div style="font-size: 12px; color: #4a4a55">Đóng góp: <b style="{{r.cStyle}}">{{r.contrib}}</b> · Bỏ thẻ này thì: lợi nhuận {{r.wo}}, biên {{r.woBien}}, AOV {{r.woAov}}</div>
+</div>
+<button type="button" onClick="{{r.remove}}" disabled="{{locked}}" style="font: inherit; font-size: 13px; font-weight: 600; color: #a3222f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 12px; cursor: pointer">Bỏ khỏi kế hoạch</button>
+</div>
+</sc-for>
+<sc-if value="{{emptyPlan}}" hint-placeholder-val="{{ false }}"><div style="border: 1px dashed #a1a1aa; border-radius: 12px; padding: 16px; font-size: 13px; color: #5f5f6b">Kế hoạch trống. Thêm thẻ từ danh sách bên trái hoặc từ thẻ trong Quyết định.</div></sc-if>
+</div>
+
+<sc-for list="{{warns}}" as="w" hint-placeholder-count="1">
+<div role="alert" style="background: #fdecec; border: 1px solid #f3b8bd; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 14px">
+<b style="color: #a3222f">{{w.title}}</b><span>{{w.body}}</span><span style="font-size: 12px; color: #4a4a55">{{w.fix}}</span>
+</div>
+</sc-for>
+<sc-if value="{{tradeoff}}" hint-placeholder-val="{{ false }}"><div style="background: #fff4e0; border: 1px solid #f5d9a8; border-radius: 12px; padding: 10px 14px; font-size: 13px"><b style="color: #8a4b00">Đánh đổi:</b> {{tradeoffText}}</div></sc-if>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 15px; font-weight: 700">Cả kế hoạch: hôm nay → sau kế hoạch</h3>
+<div style="font-size: 12px; color: #5f5f6b">Phạm vi: {{scopeText}}. Các thẻ cùng sản phẩm được tính chung trên cùng các đơn, không cộng rời.</div>
+<div style="border: 1px solid #ece3e7; border-radius: 12px; overflow: hidden">
+<div style="display: grid; grid-template-columns: 210px 150px minmax(0, 1fr); background: #faf7f8; font-size: 12px; font-weight: 600; color: #5f5f6b"><span style="padding: 8px 12px">Chỉ số</span><span style="padding: 8px 12px">Hôm nay</span><span style="padding: 8px 12px">Sau kế hoạch (dự kiến)</span></div>
+<sc-for list="{{aggRows}}" as="a" hint-placeholder-count="10">
+<div style="display: grid; grid-template-columns: 210px 150px minmax(0, 1fr); border-top: 1px solid #f6f0f3; align-items: center; {{a.style}}">
+<span style="padding: 8px 12px; font-size: 13px; font-weight: 600">{{a.label}}</span><span style="padding: 8px 12px; font-size: 13px; color: #4a4a55">{{a.today}}</span>
+<span style="padding: 8px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap"><b style="font-size: 14px; {{a.vStyle}}">{{a.after}}</b><sc-if value="{{a.d}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 1px 6px; {{a.dStyle}}">{{a.d}}</span></sc-if></span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #5f5f6b"><span>Chi phí toàn shop mỗi ngày so với trần {{capText}}</span>
+<span style="flex: 1; height: 10px; background: #f0eef0; border-radius: 999px; overflow: hidden; position: relative"><span style="position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; width: {{barW}}; {{barStyle}}"></span></span></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #f1e6eb; padding-top: 12px">
+<div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap"><h3 style="margin: 0; font-size: 15px; font-weight: 700">Đo trong bao lâu</h3><span style="font-size: 12px; color: #5f5f6b">Mặc định cho cả kế hoạch, tối thiểu 3 ngày. Cửa sổ ngắn chỉ thấy được thay đổi lớn.</span></div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{wins}}" as="w" hint-placeholder-count="4">
+<button type="button" aria-pressed="{{w.on}}" onClick="{{w.pick}}" disabled="{{locked}}" style="font: inherit; text-align: left; border-radius: 12px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; {{w.style}}">
+<span style="display: flex; align-items: center; gap: 6px"><b style="font-size: 15px">{{w.label}}</b><sc-if value="{{w.rec}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 6px; color: #b0386a; background: #fdeef4">Đề xuất</span></sc-if></span>
+<span style="font-size: 12px; color: #4a4a55">{{w.mde}}</span>
+</button>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span style="font-weight: 600">Tuỳ chọn</span>
+<button type="button" onClick="{{cDown}}" disabled="{{locked}}" aria-label="Giảm số ngày" style="font: inherit; font-size: 18px; font-weight: 700; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; width: 44px; min-height: 44px; cursor: pointer">−</button>
+<b style="min-width: 80px; text-align: center; font-size: 16px">{{customDays}} ngày</b>
+<button type="button" onClick="{{cUp}}" disabled="{{locked}}" aria-label="Tăng số ngày" style="font: inherit; font-size: 18px; font-weight: 700; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; width: 44px; min-height: 44px; cursor: pointer">+</button>
+<span style="color: #5f5f6b">từ 3 đến 90 ngày · {{customMde}}</span></div>
+<sc-if value="{{hardNote}}" hint-placeholder-val="{{ false }}"><div style="background: #fff4e0; border: 1px solid #f5d9a8; border-radius: 10px; padding: 8px 12px; font-size: 13px"><b style="color: #8a4b00">Khó kết luận.</b> {{hardText}}</div></sc-if>
+<div style="font-size: 12px; color: #5f5f6b">Với cửa sổ dài hơn 7 ngày, Juli vẫn đưa kết quả sơ bộ ở ngày 7.</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 12px; font-weight: 600; color: #5f5f6b">Riêng từng nhóm thay đổi (cùng sản phẩm, cùng ngày thực hiện)</span>
+<sc-for list="{{setRows}}" as="s" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #faf7f8; border-radius: 10px; padding: 6px 10px; font-size: 13px"><b style="min-width: 190px">{{s.name}}</b><span style="color: #5f5f6b; min-width: 150px">{{s.cards}}</span>
+<sc-for list="{{s.opts}}" as="o" hint-placeholder-count="4"><button type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}" disabled="{{locked}}" style="font: inherit; font-size: 12px; font-weight: 600; border-radius: 999px; min-height: 36px; padding: 0 10px; cursor: pointer; {{o.style}}">{{o.label}}</button></sc-for>
+<span style="font-size: 12px; color: #5f5f6b">{{s.note}}</span></div>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 10px; border-top: 1px solid #f1e6eb; padding-top: 12px; flex-wrap: wrap">
+<button type="button" onClick="{{openConfirm}}" disabled="{{confirmOff}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: {{confirmBg}}; border: 0; border-radius: 10px; min-height: 44px; padding: 0 20px; cursor: pointer">Xác nhận kế hoạch</button>
+<span style="font-size: 12px; color: {{confirmHintColor}}">{{confirmHint}}</span>
+</div>
+</section>
+</div>
+
+<sc-if value="{{showResults}}" hint-placeholder-val="{{ false }}">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 16px; font-weight: 700">Kết quả được ghi thế nào khi các thay đổi chạy cùng nhau</h2>
+<div style="font-size: 12px; color: #5f5f6b">Đơn vị đo là nhóm thay đổi của một sản phẩm, không phải từng thẻ. Ví dụ ba dòng kết quả trong Đo lường:</div>
+<sc-for list="{{results}}" as="x" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 250px 160px minmax(0, 1fr); gap: 12px; align-items: center; border: 1px solid #ece3e7; border-radius: 12px; padding: 10px 14px">
+<span style="display: flex; flex-direction: column; gap: 2px"><b style="font-size: 14px">{{x.name}}</b><span style="font-size: 12px; color: #5f5f6b">{{x.cards}}</span></span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; justify-self: start; {{x.style}}">{{x.chip}}</span>
+<span style="font-size: 13px; color: #4a4a55">{{x.body}}</span>
+</div>
+</sc-for>
+</section>
+</sc-if>
+
+<sc-if value="{{dialog}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; background: rgba(26,26,31,0.42); display: flex; align-items: flex-start; justify-content: center; padding-top: 160px">
+<div role="dialog" aria-modal="true" aria-labelledby="dq" style="box-sizing: border-box; width: 600px; background: #ffffff; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 48px rgba(20,20,30,0.25)">
+<h3 id="dq" style="margin: 0; font-size: 19px; font-weight: 700">Xác nhận kế hoạch {{nCards}} thẻ?</h3>
+<p style="margin: 0; font-size: 14px; color: #4a4a55">Các thẻ chuyển sang “Đã duyệt” và đội Juli thực hiện cùng một ngày. Cửa sổ đo: {{winDays}} ngày.</p>
+<sc-if value="{{cutAny}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 6px; background: #fff4e0; border: 1px solid #f5d9a8; border-radius: 12px; padding: 12px 14px; font-size: 14px">
+<b style="color: #8a4b00">Phép đo đang chạy của các sản phẩm này sẽ bị cắt hôm nay</b>
+<sc-for list="{{cuts}}" as="c" hint-placeholder-count="2"><span>{{c.text}}</span></sc-for>
+</div>
+</sc-if>
+<div style="display: flex; justify-content: flex-end; gap: 10px">
+<button type="button" onClick="{{closeConfirm}}" style="font: inherit; font-size: 14px; font-weight: 600; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Quay lại</button>
+<button type="button" onClick="{{doConfirm}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Xác nhận kế hoạch</button>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1500}}'>
+/* ===== P91 DATASET v1 · identical in every P91 artboard (one source, copied into each file) · synthetic: "Shop mẫu gia dụng" ===== */
+const P91 = (() => {
+const fmt = (n, d = 0) => { const s = Math.abs(n).toFixed(d); let [i, f] = s.split('.'); i = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); return (n < 0 && Number(s) !== 0 ? '−' : '') + i + (f ? ',' + f : ''); };
+const vnd = (n) => fmt(Math.round(n)) + 'đ';
+const sv = (n) => (Math.round(n) >= 0 ? '+' : '−') + fmt(Math.abs(Math.round(n))) + 'đ';
+const pc = (x, d = 1) => fmt(x * 100, d) + '%';
+const k1 = (n) => Math.round(n / 1000) * 1000;
+const rangeT = (a, b, fn) => (Math.abs(a - b) < 1e-9 ? fn(a) : fn(Math.min(a, b)) + ' – ' + fn(Math.max(a, b)));
+const CH = { up: 'color: #146c2e; background: #e3f5e8', dn: 'color: #a3222f; background: #fdecec', wn: 'color: #8a4b00; background: #fff4e0', inf: 'color: #1d4f91; background: #e6f0fd', ne: 'color: #4a4a55; background: #f0eef0', pk: 'color: #b0386a; background: #fdeef4' };
+const pill = (on) => on ? 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc';
+/* ---- shop, sản phẩm (tổng hợp) ---- */
+const SHOP = { name: 'Shop mẫu gia dụng', fee: 0.15, feeFix: 3000, other: 0.12, target: 0.10, month: 'T11/2026' };
+const PRODUCTS = [
+  { id: 'GT-A', name: 'Găng tay cao su A', price: 89000, cogs: 49000, tint: '#fdeef4' },
+  { id: 'TR-B', name: 'Túi rác sinh học B', price: 59000, cogs: 31000, tint: '#e6f0fd' },
+  { id: 'MR-C', name: 'Miếng rửa chén C', price: 29000, cogs: 12000, tint: '#e3f5e8' }
+];
+const prod = (id) => PRODUCTS.find((p) => p.id === id);
+/* hôm nay của Găng tay cao su A (30 ngày): voucher đang chạy 10.000đ cho đơn ≥ 200.000đ, 60 lượt */
+const BASE = { orders: 120, aov: 165000, gmv: 19800000, disc: 990000, vchi: 600000, chi: 2376000, profit: 2880000, c0: 24000, pay0: 156750 };
+BASE.pay = BASE.gmv - BASE.disc; BASE.bien = BASE.profit / BASE.pay;
+const VCAP = 700000; /* trần chi voucher cho sản phẩm / tháng (Cài đặt › Mục tiêu) */
+/* ---- voucher: một động cơ cho mọi phiên bản và thanh trượt ---- */
+const ELIG_PTS = [[149000, 88], [199000, 66], [249000, 46], [299000, 31], [349000, 18], [399000, 9]];
+const elig = (s) => { if (s <= ELIG_PTS[0][0]) return ELIG_PTS[0][1]; for (let i = 1; i < ELIG_PTS.length; i++) { const [x1, y1] = ELIG_PTS[i]; const [x0, y0] = ELIG_PTS[i - 1]; if (s <= x1) return y0 + (y1 - y0) * (s - x0) / (x1 - x0); } return ELIG_PTS[ELIG_PTS.length - 1][1]; };
+const evalVoucher = (v, s) => {
+  const q = Math.round(elig(s)); const vchi = q * v; const sureD = BASE.vchi - vchi;
+  const xHi = 0.12 * q * Math.pow(v / 10000, 1.2); const top = 0.2 * q * Math.max(0, s - 200000) * 0.5 * 0.45;
+  const lvl = (k) => { const x = xHi * (k === 'lo' ? 0.4 : 1); const tp = top * (k === 'lo' ? 0.3 : 1); const gain = x * (BASE.c0 - v) + tp;
+    const orders = BASE.orders + x; const gmv = BASE.gmv + x * (s * 1.05) + tp / 0.45; const disc = BASE.disc - BASE.vchi + vchi; const profit = BASE.profit + sureD + gain;
+    return { orders: Math.round(orders), aov: gmv / orders, gmv, disc, chi: BASE.chi - BASE.vchi + vchi, profit, pay: gmv - disc, bien: profit / (gmv - disc) }; };
+  const lo = lvl('lo'), hi = lvl('hi');
+  const basket = s; const pay = basket - v; const op = Math.round(basket * 0.907 + 4000); const abs = Math.round(op * 0.92);
+  const maxd = Math.max(0, basket - op);
+  return { v, s, q, vchi, sureD, lo, hi, dLo: lo.profit - BASE.profit, dHi: hi.profit - BASE.profit, floor: { pay, op, abs, breach: pay < op, short: Math.max(0, op - pay), maxd }, cap: { vchi, cap: VCAP, over: vchi > VCAP } };
+};
+const VOUCHER_VERS = [{ n: 'V1', v: 15000, s: 299000 }, { n: 'V2', v: 10000, s: 249000 }, { n: 'V3', v: 20000, s: 199000 }];
+/* ---- combo: động cơ dùng chung cho thẻ combo, "Tự tạo phương án" và "So sánh phương án" ---- */
+const evalCombo = (spec) => {
+  const items = spec.items.filter((it) => it.id && it.qty > 0).map((it) => ({ ...prod(it.id), qty: it.qty }));
+  const list = items.reduce((a, it) => a + it.price * it.qty, 0); const cogs = items.reduce((a, it) => a + it.cogs * it.qty, 0);
+  let disc = 0; if (spec.dtype === 'pct') disc = list * spec.dval / 100; else if (spec.dtype === 'amt') disc = spec.dval; else if (spec.dtype === 'price') disc = Math.max(0, list - spec.dval);
+  disc = Math.min(disc, list);
+  const afterDisc = list - disc; const vOff = spec.voucher && afterDisc >= spec.voucher.min ? spec.voucher.v : 0;
+  const pay = afterDisc - vOff; const gift = spec.gift ? prod(spec.gift) : null; const giftCost = gift ? gift.cogs : 0;
+  const fees = SHOP.fee * pay + SHOP.feeFix; const other = SHOP.other * pay; const cost = cogs + giftCost;
+  const contrib = pay - cost - fees - other; const margin = pay > 0 ? contrib / pay : 0;
+  const effD = (disc + vOff + 0.5 * giftCost) / Math.max(1, list);
+  const take = Math.min(0.5, Math.max(0.05, 0.05 + 1.2 * effD + (gift ? 0.06 : 0))); const C = BASE.orders * take;
+  const floors = items.map((it) => { const alloc = pay * it.price / list; const op = it.cogs / 0.75, abs = it.cogs / 0.85; return { name: it.name, unit: alloc, op, abs, breach: alloc < op }; });
+  const chiPer = disc + vOff + giftCost;
+  const lvl = (m) => { const c = C * m; const repl = c * 0.5; const orders = BASE.orders - repl + c; const profit = (BASE.orders - repl) * BASE.c0 + c * contrib;
+    const gmv = (BASE.orders - repl) * BASE.aov + c * list; const dsc = BASE.disc + c * (disc + vOff); return { combos: c, orders, profit, gmv, aov: gmv / orders, disc: dsc, pay: gmv - dsc, bien: profit / (gmv - dsc), chi: BASE.chi + c * chiPer }; };
+  const mid = lvl(1), lo = lvl(0.7), hi = lvl(1.3);
+  const C0 = 6; const sureD = C0 * (contrib - BASE.c0); const beN = contrib >= BASE.c0 ? 0 : (contrib > 0 ? Math.ceil(C0 * (BASE.c0 - contrib) / contrib) : null);
+  return { items, list, cogs, disc, vOff, pay, gift, giftCost, fees, other, contrib, margin, effD, take, C, floors, breach: floors.some((f) => f.breach), chiPer, C0, sureD, beN, mid, lo, hi, dLo: lo.profit - BASE.profit, dMid: mid.profit - BASE.profit, dHi: hi.profit - BASE.profit };
+};
+const comboSpec = (o) => Object.assign({ items: [{ id: 'GT-A', qty: 2 }, { id: 'TR-B', qty: 1 }, { id: '', qty: 0 }], dtype: 'pct', dval: 10, voucher: null, gift: null }, o || {});
+const COMBO_VERS = [
+  { n: 'V1', label: 'Giảm 10%', spec: comboSpec({}) },
+  { n: 'V2', label: 'Giá combo 199.000đ', spec: comboSpec({ dtype: 'price', dval: 199000 }) },
+  { n: 'V3', label: 'Giảm 10% + tặng Miếng rửa chén C', spec: comboSpec({ gift: 'MR-C' }) }
+];
+/* ---- thẻ của Găng tay cao su A (hàng đợi, nhóm theo họ) ---- */
+const FAMILIES = [
+  { k: 'listing', name: 'Tên, từ khoá, ảnh bìa' }, { k: 'ads', name: 'Quảng cáo' }, { k: 'promo', name: 'Khuyến mãi, giá' },
+  { k: 'voucher', name: 'Voucher' }, { k: 'combo', name: 'Combo' }, { k: 'affiliate', name: 'Tiếp thị liên kết' }, { k: 'program', name: 'Flash Sale, chương trình' }
+];
+const vv = VOUCHER_VERS.map((x) => evalVoucher(x.v, x.s)); const cv = COMBO_VERS.map((x) => evalCombo(x.spec));
+const mkV = (code, n, label, lo, hi, sure, flag) => ({ code, n, label, lo, hi, sure, flag: flag || '' });
+const CARDS = [
+  { code: 'JC-2611-0007', fam: 'voucher', kind: 'Voucher shop', title: 'Voucher cho đơn từ 299.000đ', queue: 1, status: 'Chờ duyệt', versions: VOUCHER_VERS.map((x, i) => mkV('JC-2611-0007-' + x.n, x.n, vnd(x.v) + ' cho đơn ≥ ' + vnd(x.s), vv[i].dLo, vv[i].dHi, vv[i].sureD, vv[i].floor.breach || vv[i].cap.over ? 'Chạm giá sàn' : '')) },
+  { code: 'JC-2611-0009', fam: 'combo', kind: 'Combo', title: 'Combo Găng tay cao su A × 2 + Túi rác sinh học B', queue: 2, status: 'Chờ duyệt', versions: COMBO_VERS.map((x, i) => mkV('JC-2611-0009-' + x.n, x.n, x.label, cv[i].dLo, cv[i].dHi, cv[i].sureD, cv[i].breach ? 'Chạm giá sàn' : '')) },
+  { code: 'JC-2611-0004', fam: 'ads', kind: 'Ngân sách quảng cáo', title: 'Chiến dịch Chuyển đổi "Gia dụng tháng 11"', queue: 3, status: 'Chờ duyệt', versions: [mkV('JC-2611-0004-V1', 'V1', 'Giảm ngân sách 20%', 120000, 190000, 160000), mkV('JC-2611-0004-V2', 'V2', 'Tăng ngân sách 20%', -30000, 260000, -160000), mkV('JC-2611-0004-V3', 'V3', 'Tăng ngân sách 50%', -180000, 300000, -400000)] },
+  { code: 'JC-2611-0011', fam: 'listing', kind: 'Tiêu đề', title: 'Tiêu đề mới, từ khoá "găng tay cao su"', queue: 4, status: 'Chờ duyệt', versions: [mkV('JC-2611-0011-V1', 'V1', 'Tiêu đề A · 97/100 ký tự', 60000, 210000, 0), mkV('JC-2611-0011-V2', 'V2', 'Tiêu đề B · 92/100 ký tự', 20000, 150000, 0)] },
+  { code: 'JC-2611-0012', fam: 'promo', kind: 'Khuyến mãi sản phẩm', title: 'Khuyến mãi 5% → 8%, giữ trên giá sàn', queue: 5, status: 'Chờ duyệt', versions: [mkV('JC-2611-0012-V1', 'V1', 'Khuyến mãi 8%', 40000, 190000, -90000), mkV('JC-2611-0012-V2', 'V2', 'Khuyến mãi 7%', 20000, 150000, -60000)] },
+  { code: 'JC-2611-0013', fam: 'affiliate', kind: 'Hoa hồng liên kết', title: 'Hoa hồng Tiếp thị liên kết 8% → 10%', queue: 6, status: 'Chờ duyệt', versions: [mkV('JC-2611-0013-V1', 'V1', 'Hoa hồng 10%', -10000, 180000, -55000), mkV('JC-2611-0013-V2', 'V2', 'Hoa hồng 9%', -15000, 120000, -28000)] },
+  { code: 'JC-2611-0010', fam: 'listing', kind: 'Ảnh bìa', title: 'Ảnh bìa mới cho nguồn Đề xuất', queue: 7, status: 'Chờ duyệt', versions: [mkV('JC-2611-0010-V1', 'V1', 'Ảnh bìa nền sáng, 2 đôi', 30000, 110000, 0), mkV('JC-2611-0010-V2', 'V2', 'Ảnh bìa có bảng kích cỡ', 10000, 90000, 0)] },
+  { code: 'JC-2611-0014', fam: 'program', kind: 'Flash Sale', title: 'Đăng ký Flash Sale 12.12, khung 20:00', queue: 8, status: 'Chờ duyệt', versions: [mkV('JC-2611-0014-V1', 'V1', 'Giá flash 79.000đ', -10000, 130000, -120000), mkV('JC-2611-0014-V2', 'V2', 'Giá flash 84.000đ', 0, 100000, -70000)] }
+];
+CARDS.forEach((c) => { c.dLo = c.versions[0].lo; c.dHi = c.versions[0].hi; c.mid = (c.dLo + c.dHi) / 2; });
+const otherProducts = [
+  { id: 'TR-B', name: 'Túi rác sinh học B', open: 5, card: { code: 'JC-2611-0003', kind: 'Khuyến mãi sản phẩm', title: 'Khuyến mãi 10% → 12%', n: 2, lo: 30000, hi: 140000, next: 'JC-2611-0008 · Combo' } },
+  { id: 'MR-C', name: 'Miếng rửa chén C', open: 2, card: { code: 'JC-2611-0005', kind: 'Quảng cáo', title: 'Tạm dừng từ khoá "miếng rửa chén" hiệu quả thấp', n: 2, lo: 50000, hi: 90000, next: 'JC-2611-0012 · Tiêu đề' } }
+];
+
+/* ---- kế hoạch (D-6): phạm vi = các sản phẩm trong kế hoạch; hiệu ứng mỗi thẻ so với hôm nay ---- */
+const TRB = { orders: 85, aov: 70000, gmv: 5950000, disc: 238000, chi: 700000, profit: 640000 };
+const SCOPE0 = { orders: BASE.orders + TRB.orders, gmv: BASE.gmv + TRB.gmv, disc: BASE.disc + TRB.disc, chi: BASE.chi + TRB.chi, profit: BASE.profit + TRB.profit };
+const SHOPDAY = { chiDay: 1040000, cap: 1200000 };
+const lvlEff = (l, b) => ({ dO: l.orders - b.orders, dG: l.gmv - b.gmv, dD: l.disc - b.disc, dP: l.profit - b.profit, dC: l.chi - b.chi });
+const mkEff = (lo, hi, sure) => ({ lo, hi, sure, dC: (lo.dC + hi.dC) / 2 });
+const PLAN_CARDS = {
+  'JC-2611-0007': { code: 'JC-2611-0007', prod: 'GT-A', pname: 'Găng tay cao su A', kind: 'Voucher', vers: VOUCHER_VERS.map((x) => { const e = evalVoucher(x.v, x.s); return { n: x.n, label: vnd(x.v) + ' cho đơn ≥ ' + vnd(x.s), eff: mkEff(lvlEff(e.lo, BASE), lvlEff(e.hi, BASE), e.sureD), v: x.v, s: x.s, floorBad: e.floor.breach, capBad: e.cap.over }; }) },
+  'JC-2611-0012': { code: 'JC-2611-0012', prod: 'GT-A', pname: 'Găng tay cao su A', kind: 'Khuyến mãi', vers: [
+    { n: 'V1', label: 'Khuyến mãi 8%', pct: 0.08, eff: mkEff({ dO: 2, dG: 330000, dD: 66000, dP: 40000, dC: 66000 }, { dO: 7, dG: 1150000, dD: 70000, dP: 190000, dC: 70000 }, -90000) },
+    { n: 'V2', label: 'Khuyến mãi 7%', pct: 0.07, eff: mkEff({ dO: 1, dG: 165000, dD: 58000, dP: 20000, dC: 58000 }, { dO: 5, dG: 830000, dD: 62000, dP: 150000, dC: 62000 }, -60000) }] },
+  'JC-2611-0003': { code: 'JC-2611-0003', prod: 'TR-B', pname: 'Túi rác sinh học B', kind: 'Khuyến mãi', vers: [
+    { n: 'V1', label: 'Khuyến mãi 12%', eff: mkEff({ dO: 2, dG: 140000, dD: 100000, dP: -10000, dC: 100000 }, { dO: 8, dG: 560000, dD: 115000, dP: 110000, dC: 115000 }, -95000) },
+    { n: 'V2', label: 'Khuyến mãi 11%', eff: mkEff({ dO: 1, dG: 70000, dD: 55000, dP: 0, dC: 55000 }, { dO: 5, dG: 350000, dD: 62000, dP: 80000, dC: 62000 }, -50000) }] },
+  'JC-2611-0009': { code: 'JC-2611-0009', prod: 'GT-A', pname: 'Găng tay cao su A', kind: 'Combo', vers: COMBO_VERS.map((x, i) => { const e = evalCombo(x.spec); return { n: x.n, label: x.label, eff: mkEff(lvlEff(e.lo, BASE), lvlEff(e.hi, BASE), e.sureD), floorBad: e.breach }; }) }
+};
+const planAgg = (plan) => {
+  const cs = plan.map((p) => ({ p, c: PLAN_CARDS[p.id], v: PLAN_CARDS[p.id].vers.find((x) => x.n === p.ver) }));
+  const sum = (k, f) => cs.reduce((a, x) => a + f(x.v.eff[k]), 0);
+  /* cùng sản phẩm: xếp chồng trên cùng dòng đơn, trừ phần trùng (hệ số −0,12 × số nhỏ hơn trong hai khoản chi) */
+  let inter = 0; const warn = [];
+  const byP = {}; cs.forEach((x) => { (byP[x.c.prod] = byP[x.c.prod] || []).push(x); });
+  Object.keys(byP).forEach((k) => { const g = byP[k]; if (g.length < 2) return;
+    for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) inter -= 0.12 * Math.min(g[i].v.eff.dC, g[j].v.eff.dC);
+    const vo = g.find((x) => x.c.kind === 'Voucher'), pr = g.find((x) => x.c.kind === 'Khuyến mãi');
+    if (vo && pr) { const pay = vo.v.s * (1 - pr.v.pct) - vo.v.v; const op = Math.round(vo.v.s * 0.907 + 4000); const alone = vo.v.s - vo.v.v;
+      if (pay < op) warn.push({ prod: k, pname: g[0].c.pname, a: vo, b: pr, pay, op, short: op - pay, aloneVoucher: alone, alonePromo: vo.v.s * (1 - pr.v.pct) }); } });
+  const lvl = (k) => { const dO = sum(k, (e) => e.dO), dG = sum(k, (e) => e.dG), dD = sum(k, (e) => e.dD), dP = sum(k, (e) => e.dP) + inter, dC = sum(k, (e) => e.dC);
+    const orders = SCOPE0.orders + dO, gmv = SCOPE0.gmv + dG, disc = SCOPE0.disc + dD, profit = SCOPE0.profit + dP, chi = SCOPE0.chi + dC;
+    return { orders, gmv, disc, profit, chi, aov: gmv / orders, pay: gmv - disc, bien: profit / (gmv - disc), dC }; };
+  const sure = cs.reduce((a, x) => a + x.v.eff.sure, 0) + inter; const lo = lvl('lo'), hi = lvl('hi');
+  const chiDayAfter = SHOPDAY.chiDay + (lo.dC + hi.dC) / 2 / 30;
+  const floorBad = warn.length > 0 || cs.some((x) => x.v.floorBad); const capBad = chiDayAfter > SHOPDAY.cap;
+  return { cs, lo, hi, sure, inter, warn, floorBad, capBad, chiDayAfter, dLo: lo.profit - SCOPE0.profit, dHi: hi.profit - SCOPE0.profit };
+};
+const MDE = (n) => 0.45 * Math.sqrt(7 / n);
+const REC_WINDOW = [7, 14, 28].find((n) => MDE(n) <= 0.30) || 28;
+const MAX_TITLE = 100;
+return { fmt, vnd, sv, pc, k1, rangeT, CH, pill, SHOP, PRODUCTS, prod, BASE, VCAP, elig, evalVoucher, VOUCHER_VERS, evalCombo, comboSpec, COMBO_VERS, FAMILIES, CARDS, otherProducts, MAX_TITLE, TRB, SCOPE0, SHOPDAY, PLAN_CARDS, planAgg, MDE, REC_WINDOW };
+})();
+/* ===== END P91 DATASET ===== */
+const { fmt, vnd, sv, pc, k1, rangeT, CH, pill, SCOPE0, SHOPDAY, PLAN_CARDS, planAgg, MDE, REC_WINDOW } = P91;
+const MEASURING = { 'GT-A': { code: 'JC-2610-0031', kind: 'Khuyến mãi', done: 8, total: 14 }, 'TR-B': { code: 'JC-2610-0027', kind: 'Quảng cáo', done: 2, total: 7 } };
+const SCENES = {
+  breach: { plan: [['JC-2611-0007', 'V1'], ['JC-2611-0012', 'V1'], ['JC-2611-0003', 'V1']] },
+  ok: { plan: [['JC-2611-0007', 'V1'], ['JC-2611-0003', 'V1']] },
+  combo: { plan: [['JC-2611-0007', 'V1'], ['JC-2611-0003', 'V1'], ['JC-2611-0009', 'V1']] },
+  confirm: { plan: [['JC-2611-0007', 'V1'], ['JC-2611-0003', 'V1'], ['JC-2611-0009', 'V1']], dialog: true },
+  ketqua: { plan: [['JC-2611-0007', 'V1'], ['JC-2611-0003', 'V1'], ['JC-2611-0009', 'V1']], done: true }
+};
+const mk = (id) => { const s = SCENES[id]; return { scene: id, plan: s.plan.map(([i, v]) => ({ id: i, ver: v })), dialog: !!s.dialog, done: !!s.done, win: REC_WINDOW, over: {} }; };
+const pts = (d) => (d >= 0 ? '+' : '−') + fmt(Math.abs(d * 100), 1) + ' điểm';
+class Component extends DCLogic {
+constructor(props) { super(props); const h = {}; try { location.hash.replace(/^#/, '').split('&').forEach((kv) => { const [k, v] = kv.split('='); if (k) h[k] = v; }); } catch (e) {} this.state = mk(SCENES[h.scene] ? h.scene : 'breach'); }
+renderVals() {
+const st = this.state; const A = planAgg(st.plan); const locked = st.done;
+const mid = (a, b) => (a + b) / 2;
+const S0 = { orders: SCOPE0.orders, gmv: SCOPE0.gmv, aov: SCOPE0.gmv / SCOPE0.orders, disc: SCOPE0.disc / SCOPE0.gmv, bien: SCOPE0.profit / (SCOPE0.gmv - SCOPE0.disc), chi: SCOPE0.chi };
+const planOf = (arr) => planAgg(arr);
+const aggFor = (arr) => { const a = planOf(arr); return { bien: mid(a.lo.bien, a.hi.bien), aov: mid(a.lo.aov, a.hi.aov), prof: mid(a.dLo, a.dHi) }; };
+const full = aggFor(st.plan);
+const setPlan = (arr) => this.setState({ plan: arr });
+const planRows = A.cs.map((x) => { const without = st.plan.filter((p) => p.id !== x.p.id); const w = without.length ? aggFor(without) : { bien: S0.bien, aov: S0.aov, prof: 0 };
+  const own = mid(x.v.eff.lo.dP, x.v.eff.hi.dP);
+  const stackBad = A.warn.some((wn) => wn.a.p.id === x.p.id || wn.b.p.id === x.p.id);
+  return { code: x.c.code, ver: x.p.ver, kind: x.c.kind, pname: x.c.pname, label: x.v.label, bad: stackBad || !!x.v.floorBad,
+    style: stackBad ? 'background: #fff8f8; border-color: #f3b8bd' : 'background: #ffffff',
+    pills: x.c.vers.map((v) => ({ n: v.n, on: v.n === x.p.ver, style: pill(v.n === x.p.ver), pick: () => setPlan(st.plan.map((p) => p.id === x.p.id ? { id: p.id, ver: v.n } : p)) })),
+    contrib: sv(k1(own)) + '/tháng (giữa khoảng)', cStyle: own >= 0 ? 'color: #146c2e' : 'color: #a3222f',
+    wo: sv(k1(w.prof - full.prof)) + '/tháng', woBien: pts(w.bien - full.bien), woAov: sv(k1(w.aov - full.aov)),
+    remove: () => setPlan(st.plan.filter((p) => p.id !== x.p.id)) }; });
+const inPlan = (id) => st.plan.some((p) => p.id === id);
+const cands = Object.keys(PLAN_CARDS).map((id) => { const c = PLAN_CARDS[id]; const v0 = c.vers[0]; const ip = inPlan(id);
+  return { code: id, kind: c.kind, pname: c.pname, vers: c.vers.length + ' phiên bản · V1 ' + v0.label, d: rangeT(v0.eff.lo.dP, v0.eff.hi.dP, (x) => sv(k1(x))) + '/tháng', dStyle: v0.eff.hi.dP <= 0 ? 'color: #a3222f' : 'color: #146c2e', inPlan: ip, btn: ip ? 'Đã trong kế hoạch' : 'Thêm vào kế hoạch', style: ip ? 'background: #faf7f8' : 'background: #ffffff', add: () => setPlan(st.plan.concat({ id, ver: 'V1' })) }; });
+const prods = Array.from(new Set(A.cs.map((x) => x.c.prod)));
+const pn = (k) => A.cs.find((x) => x.c.prod === k).c.pname;
+// ── bảng tổng
+const rng = (a, b, fm) => rangeT(a, b, fm);
+const tone = (good, d) => Math.abs(d) < 1e-9 ? CH.ne : ((d * good) > 0 ? CH.up : CH.dn);
+const row = (label, today, after, d, ds, vs, style) => ({ label, today, after, d: d || '', dStyle: ds || '', vStyle: vs || '', style: style || 'background: #ffffff' });
+let aggRows = [];
+if (A.cs.length) {
+  const lo = A.lo, hi = A.hi; const dc = mid(lo.chi, hi.chi) - SCOPE0.chi;
+  const discA = [lo.disc / lo.gmv, hi.disc / hi.gmv]; const effA = [lo, hi].map((l) => (l.chi - SCOPE0.chi) > 0 ? (l.gmv - SCOPE0.gmv) / (l.chi - SCOPE0.chi) : null);
+  aggRows = [
+    row('① Giảm giá (% GMV niêm yết)', pc(S0.disc, 1), rng(discA[0], discA[1], (x) => pc(x, 1)), pts(mid(discA[0], discA[1]) - S0.disc), tone(-1, mid(discA[0], discA[1]) - S0.disc)),
+    row('② Hiệu quả chi (ΔGMV ÷ Δchi)', '—', effA.every((x) => x == null) ? 'giảm chi' : rng(effA[0] || 0, effA[1] || 0, (x) => fmt(x, 2) + 'đ / 1đ chi')),
+    row('③ Biên lợi nhuận', pc(S0.bien, 1), rng(lo.bien, hi.bien, (x) => pc(x, 1)), (full.bien < S0.bien ? '▼ ' : '▲ ') + pts(full.bien - S0.bien), tone(1, full.bien - S0.bien)),
+    row('④ Số đơn / 30 ngày', String(S0.orders), rng(Math.round(lo.orders), Math.round(hi.orders), String), '+' + Math.round(mid(lo.orders, hi.orders) - S0.orders) + ' đơn', CH.up),
+    row('⑤ AOV', vnd(k1(S0.aov)), rng(lo.aov, hi.aov, (x) => vnd(k1(x))), (full.aov >= S0.aov ? '▲ ' : '▼ ') + sv(k1(full.aov - S0.aov)), tone(1, full.aov - S0.aov)),
+    row('GMV / 30 ngày', vnd(k1(S0.gmv)), rng(lo.gmv, hi.gmv, (x) => vnd(k1(x))), sv(k1(mid(lo.gmv, hi.gmv) - S0.gmv)), CH.ne),
+    row('Chi phí / tháng', vnd(k1(S0.chi)), vnd(k1(mid(lo.chi, hi.chi))), sv(k1(dc)), tone(-1, dc)),
+    row('Chi phí toàn shop / ngày', vnd(SHOPDAY.chiDay), vnd(k1(A.chiDayAfter)), A.capBad ? 'Vượt trần ' + vnd(SHOPDAY.cap) : 'Trong trần ' + vnd(SHOPDAY.cap), A.capBad ? CH.dn : CH.up),
+    row('Δ lợi nhuận / tháng · chắc chắn', '—', sv(k1(A.sure)) + '/tháng', '', '', A.sure >= 0 ? 'color: #146c2e' : 'color: #a3222f'),
+    row('Δ lợi nhuận / tháng · dự kiến', '—', rng(A.dLo, A.dHi, (x) => sv(k1(x))) + '/tháng', '', '', A.dLo >= 0 ? 'color: #146c2e' : (A.dHi <= 0 ? 'color: #a3222f' : '')),
+    row('Giá sàn', '—', A.floorBad ? '✕ Có thẻ chạm giá sàn khi xếp chồng' : '✓ Mọi thẻ trên giá sàn vận hành', '', '', A.floorBad ? 'color: #a3222f' : 'color: #146c2e', A.floorBad ? 'background: #fdecec' : 'background: #ffffff')
+  ];
+}
+const warns = A.warn.map((w) => ({ title: 'Chạm giá sàn khi xếp chồng: ' + w.pname, body: w.a.c.code + '-' + w.a.p.ver + ' (' + w.a.v.label + ') và ' + w.b.c.code + '-' + w.b.p.ver + ' (' + w.b.v.label + ') cùng áp trên giỏ ' + vnd(w.a.v.s) + ': khách trả ' + vnd(Math.round(w.pay)) + ', thấp hơn giá sàn vận hành ' + vnd(w.op) + ' (thiếu ' + vnd(Math.round(w.short)) + '). Mỗi thẻ riêng lẻ đều đạt: voucher một mình ' + vnd(w.aloneVoucher) + ', khuyến mãi một mình ' + vnd(Math.round(w.alonePromo)) + '.', fix: 'Gỡ một trong hai thẻ, hoặc chọn mức thấp hơn, rồi kế hoạch mới xác nhận được.' }));
+const comboIn = inPlan('JC-2611-0009');
+const trade = comboIn && full.bien < S0.bien && full.aov > S0.aov;
+// ── cửa sổ đo
+const presets = [7, 14, 28]; const base = st.win;
+const wins = presets.map((n) => ({ label: n + ' ngày', rec: n === REC_WINDOW, on: base === n, mde: 'chỉ thấy thay đổi ≥ ' + Math.round(MDE(n) * 100) + '%', style: base === n ? 'background: #fff7fa; border: 2px solid #c2306d' : 'background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState({ win: n }) }));
+wins.push({ label: 'Tuỳ chọn', rec: false, on: presets.indexOf(base) < 0, mde: presets.indexOf(base) < 0 ? base + ' ngày · ≥ ' + Math.round(MDE(base) * 100) + '%' : 'từ 3 đến 90 ngày', style: presets.indexOf(base) < 0 ? 'background: #fff7fa; border: 2px solid #c2306d' : 'background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState({ win: presets.indexOf(base) < 0 ? base : 10 }) });
+const cd = presets.indexOf(base) < 0 ? base : 10;
+const winOf = (k) => st.over[k] || base;
+const hard = (n) => n < REC_WINDOW;
+const setRows = prods.map((k) => { const cardsOf = A.cs.filter((x) => x.c.prod === k).map((x) => x.c.kind).join(' + '); const cur = winOf(k);
+  return { name: pn(k), cards: cardsOf, note: hard(cur) ? 'Dưới mức đề xuất: khó kết luận (≥ ' + Math.round(MDE(cur) * 100) + '%)' : (st.over[k] ? 'Riêng nhóm này' : 'Theo mặc định'),
+    opts: [['Mặc định', 0], ['7', 7], ['14', 14], ['28', 28]].map(([l, n]) => { const on = n === 0 ? !st.over[k] : st.over[k] === n; return { label: n === 0 ? 'Mặc định' : l + ' ngày', on, style: pill(on), pick: () => { const o = Object.assign({}, st.over); if (n === 0) delete o[k]; else o[k] = n; this.setState({ over: o }); } }; }) }; });
+const anyHard = hard(base) || prods.some((k) => hard(winOf(k)));
+const blocked = A.floorBad || A.capBad;
+const cuts = prods.filter((k) => MEASURING[k]).map((k) => { const m = MEASURING[k]; const ok = m.done >= 3;
+  return { text: pn(k) + ': đang đo ' + m.code + ' (' + m.kind + '), mới ' + m.done + '/' + m.total + ' ngày. Cắt hôm nay → ' + (ok ? 'giữ kết quả “đo được ' + m.done + ' ngày” (độ tin cậy thấp hơn).' : '“không kết luận” (dưới 3 ngày).') + ' Nhóm thay đổi mới bắt đầu đo.' }; });
+const stateLbl = st.done ? ['Đã xác nhận', CH.inf] : ['Chưa thực hiện', CH.ne];
+const results = [
+  { name: 'Găng tay cao su A', cards: 'JC-2610-0031 · Khuyến mãi (cắt sớm ngày 8/14)', chip: 'Đo được 8 ngày', style: CH.wn, body: 'Có từ 3 ngày đo trở lên nên kết quả được giữ, nhưng ghi rõ độ tin cậy thấp hơn so với đủ 14 ngày.' },
+  { name: 'Túi rác sinh học B', cards: 'JC-2610-0027 · Quảng cáo (cắt sớm ngày 2/7)', chip: 'Không kết luận', style: CH.ne, body: 'Dưới 3 ngày đo: Juli không đưa ra đúng/sai và không dùng mẫu này để học.' },
+  { name: 'Găng tay cao su A', cards: 'JC-2611-0007 + JC-2611-0009 · chạy cùng ngày với thay đổi toàn shop', chip: 'Kèm thay đổi toàn shop', style: CH.inf, body: 'Nhóm thay đổi này chạy cùng voucher toàn shop JC-2611-0002, nên kết quả gắn cờ và học với trọng số thấp.' }
+];
+return {
+  scenes: [['breach', 'Xếp chồng chạm giá sàn'], ['ok', 'Đã gỡ, xác nhận được'], ['combo', 'Thêm combo: biên giảm, AOV tăng'], ['confirm', 'Hộp xác nhận (cắt phép đo)'], ['ketqua', 'Đã xác nhận + cách ghi kết quả']].map(([id, label]) => ({ label, on: st.scene === id, style: pill(st.scene === id), pick: () => this.setState(mk(id)) })),
+  cands, noCands: cands.every((c) => c.inPlan), planRows, emptyPlan: !st.plan.length, warns, tradeoff: trade, tradeoffText: 'thêm combo làm biên cả kế hoạch ' + (full.bien < S0.bien ? 'giảm ' : 'tăng ') + fmt(Math.abs(full.bien - S0.bien) * 100, 1) + ' điểm (còn ' + pc(full.bien, 1) + ') nhưng AOV tăng ' + vnd(k1(full.aov - S0.aov)) + ' và lợi nhuận dự kiến vẫn tăng. Bỏ combo thì biên cao hơn, AOV thấp hơn.',
+  nCards: st.plan.length, nProds: prods.length, stateLabel: stateLbl[0], stateStyle: stateLbl[1], done: st.done, locked, winDays: base,
+  scopeText: prods.length ? prods.map(pn).join(' và ') + ' (30 ngày)' : 'chưa có thẻ', aggRows,
+  capText: vnd(SHOPDAY.cap), barW: Math.min(100, Math.round(A.chiDayAfter / SHOPDAY.cap * 100)) + '%', barStyle: A.capBad ? 'background: #a3222f' : 'background: #6b6b76',
+  wins, customDays: cd, customMde: 'thấy thay đổi ≥ ' + Math.round(MDE(cd) * 100) + '%', cDown: () => this.setState({ win: Math.max(3, cd - 1) }), cUp: () => this.setState({ win: Math.min(90, cd + 1) }),
+  hardNote: anyHard, hardText: 'Cửa sổ ngắn hơn mức đề xuất (' + REC_WINDOW + ' ngày, thấy thay đổi ≥ ' + Math.round(MDE(REC_WINDOW) * 100) + '%) vẫn được chọn, nhưng nhiều khả năng kết quả sẽ không đủ để kết luận.',
+  setRows, confirmOff: !st.plan.length || blocked || st.done, confirmBg: (!st.plan.length || blocked || st.done) ? '#c9a6b6' : '#c2306d',
+  confirmHint: st.done ? '' : (A.floorBad ? 'Không thể xác nhận: có thẻ chạm giá sàn khi xếp chồng.' : (A.capBad ? 'Không thể xác nhận: chi phí vượt trần chi mỗi ngày.' : 'Bấm để xem phép đo nào sẽ bị cắt trước khi xác nhận.')), confirmHintColor: blocked ? '#a3222f' : '#6b6b76',
+  openConfirm: () => this.setState({ dialog: true }), closeConfirm: () => this.setState({ dialog: false }), doConfirm: () => this.setState({ dialog: false, done: true }),
+  dialog: st.dialog, cutAny: cuts.length > 0, cuts, showResults: st.scene === 'ketqua', results
+};
+}
+}
+</script>
+</body>
+</html>
