@@ -156,7 +156,7 @@ is built (same rule as P90).
 1. Backend core (D-1, D-2, D-4, D-5) ‖ Backend manual + compare + combo (D-3) ‖ Design artboards (all of D-1..D-10).
    Parallel; file ownership below.
 1b. After core + manual merge: Backend plan + aggregation + measurement + plan codes (D-6, D-7, D-8, D-10) ‖ Backend KOL (D-9).
-2. Owner approves the artboards.
+2. Owner approves the artboards. **Done 2026-11-04** (19 artboards in `docs/product/design/shopee-shop/`, branch merged).
 3. Frontend Demo + Ops ‖ integration tests on ORY data. Then one deploy.
 
 File ownership in wave 1 (no agent edits another's files; the orchestrator integrates):
