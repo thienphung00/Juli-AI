@@ -44,15 +44,15 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </section>
 
 <section style="background: #ffffff; border: 2px solid #c2306d; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 8px 24px rgba(20,20,30,0.08)">
-<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap"><h2 style="margin: 0; font-size: 18px; font-weight: 700">Kế hoạch nháp</h2><span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{stateStyle}}">{{stateLabel}}</span><span style="font-size: 13px; color: #5f5f6b">{{nCards}} thẻ · {{nProds}} sản phẩm</span><sc-if value="{{hasAck}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; color: #8a4b00; background: #fff4e0">{{ackText}}</span></sc-if></div>
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap"><h2 style="margin: 0; font-size: 18px; font-weight: 700">Kế hoạch nháp</h2><span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{stateStyle}}">{{stateLabel}}</span><span style="font-size: 13px; color: #5f5f6b">{{nCards}} thẻ · {{nProds}} sản phẩm</span><span style="font-size: 12px; font-weight: 700; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">{{planCodeText}}</span><sc-if value="{{hasAck}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; color: #8a4b00; background: #fff4e0">{{ackText}}</span></sc-if></div>
 
-<sc-if value="{{done}}" hint-placeholder-val="{{ false }}"><div role="status" style="background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 12px 14px; font-size: 14px"><b style="color: #1d4f91">Đã xác nhận kế hoạch.</b> {{nCards}} thẻ chuyển sang “Đã duyệt”, đội Juli thực hiện cùng một ngày (dự kiến 05/11/2026). Các phiên bản không chọn đóng cùng thẻ. Phép đo theo cửa sổ {{winDays}} ngày bắt đầu từ ngày thực hiện.</div></sc-if>
+<sc-if value="{{done}}" hint-placeholder-val="{{ false }}"><div role="status" style="background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 12px 14px; font-size: 14px"><b style="color: #1d4f91">Đã xác nhận kế hoạch {{planCodeShort}}.</b> {{nCards}} thẻ chuyển sang “Đã duyệt”, đội Juli thực hiện cùng một ngày (dự kiến 05/11/2026). Các phiên bản không chọn đóng cùng thẻ. Phép đo theo cửa sổ {{winText}} bắt đầu từ ngày thực hiện.</div></sc-if>
 
 <div style="display: flex; flex-direction: column; gap: 8px">
 <sc-for list="{{planRows}}" as="r" hint-placeholder-count="3">
 <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 1px solid #ece3e7; border-radius: 12px; padding: 10px 12px; {{r.style}}">
 <div style="display: flex; flex-direction: column; gap: 5px; min-width: 0">
-<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap"><span style="font-size: 13px; font-weight: 700; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">{{r.code}}-{{r.ver}}</span><b style="font-size: 14px">{{r.kind}} · {{r.pname}}</b><span style="font-size: 12px; color: #5f5f6b">{{r.label}}</span>
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap"><span style="font-size: 13px; font-weight: 700; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">{{r.code}}-{{r.ver}}</span><sc-if value="{{r.hasPlanCode}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; font-weight: 700; color: #4a4a55; background: #f0eef0; border-radius: 6px; padding: 2px 6px">{{r.planCode}}</span></sc-if><b style="font-size: 14px">{{r.kind}} · {{r.pname}}</b><span style="font-size: 12px; color: #5f5f6b">{{r.label}}</span>
 <sc-if value="{{r.bad}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 6px; color: #a3222f; background: #fdecec">Chạm giá sàn khi xếp chồng</span></sc-if></div>
 <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap"><span style="font-size: 12px; color: #5f5f6b">Phiên bản:</span>
 <sc-for list="{{r.pills}}" as="p" hint-placeholder-count="3"><button type="button" aria-pressed="{{p.on}}" onClick="{{p.pick}}" disabled="{{locked}}" style="font: inherit; font-size: 12px; font-weight: 600; border-radius: 999px; min-height: 32px; padding: 0 10px; cursor: pointer; {{p.style}}">{{p.n}}</button></sc-for></div>
@@ -72,6 +72,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <sc-if value="{{tradeoff}}" hint-placeholder-val="{{ false }}"><div style="background: #fff4e0; border: 1px solid #f5d9a8; border-radius: 12px; padding: 10px 14px; font-size: 13px"><b style="color: #8a4b00">Đánh đổi:</b> {{tradeoffText}}</div></sc-if>
 
 <div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; flex-direction: column; gap: 4px; background: #faf7f8; border: 1px solid #ece3e7; border-radius: 12px; padding: 10px 12px"><sc-if value="{{kolOn}}" hint-placeholder-val="{{ false }}"><b style="font-size: 14px">Mẫu và KOL trong kế hoạch</b><sc-for list="{{kolRows}}" as="q" hint-placeholder-count="6"><div style="display: flex; justify-content: space-between; gap: 10px; font-size: 13px; border-bottom: 1px solid #f1e6eb; padding: 3px 0"><span style="color: #4a4a55">{{q.k}}</span><b>{{q.v}}</b></div></sc-for></sc-if></div>
 <h3 style="margin: 0; font-size: 15px; font-weight: 700">Cả kế hoạch: hôm nay → sau kế hoạch</h3>
 <div style="font-size: 12px; color: #5f5f6b">Phạm vi: {{scopeText}}. Các thẻ cùng sản phẩm được tính chung trên cùng các đơn, không cộng rời.</div>
 <div style="border: 1px solid #ece3e7; border-radius: 12px; overflow: hidden">
@@ -88,7 +89,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #f1e6eb; padding-top: 12px">
-<div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap"><h3 style="margin: 0; font-size: 15px; font-weight: 700">Đo trong bao lâu</h3><span style="font-size: 12px; color: #5f5f6b">Mặc định cho cả kế hoạch, tối thiểu 3 ngày. Cửa sổ ngắn chỉ thấy được thay đổi lớn.</span></div>
+<div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap"><h3 style="margin: 0; font-size: 15px; font-weight: 700">Đo trong bao lâu</h3><span style="font-size: 12px; color: #5f5f6b">Mặc định là tự động theo sản phẩm (cửa sổ ngắn nhất thấy được thay đổi ≥ 30% với lượng đơn của sản phẩm đó). Bạn đổi được, tối thiểu 3 ngày.</span></div>
 <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
 <sc-for list="{{wins}}" as="w" hint-placeholder-count="4">
 <button type="button" aria-pressed="{{w.on}}" onClick="{{w.pick}}" disabled="{{locked}}" style="font: inherit; text-align: left; border-radius: 12px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; {{w.style}}">
@@ -243,8 +244,36 @@ const otherProducts = [
   { id: 'MR-C', name: 'Miếng rửa chén C', open: 2, card: { code: 'JC-2611-0005', kind: 'Quảng cáo', title: 'Tạm dừng từ khoá "miếng rửa chén" hiệu quả thấp', n: 2, lo: 50000, hi: 90000, next: 'JC-2611-0012 · Tiêu đề' } }
 ];
 
+/* ---- KOL (D-9): dữ liệu tổng hợp, tay cầm giả ---- */
+const KRATE = { 'GT-A': 0.08, 'TR-B': 0.10, 'MR-C': 0.12 }; const KUNITS = { 'GT-A': 1.5, 'TR-B': 1.5, 'MR-C': 2 }; const KFIT = { 'GT-A': 1, 'TR-B': 0.8, 'MR-C': 1.1 }; const SHIP = 25000; const SHOP_CONV = 0.022;
+const KOLS = [
+  { id: 'K1', handle: 'Review cùng Mẹ A', ch: 'Shopee Video', mclicks: 400, card: 'JC-2611-0016', cardKind: 'Gửi mẫu' },
+  { id: 'K2', handle: 'Bếp nhà chị B', ch: 'Facebook', mclicks: 520, card: 'JC-2611-0017', cardKind: 'Gửi mẫu' },
+  { id: 'K3', handle: 'Góc dọn nhà C', ch: 'TikTok', mclicks: 300, card: 'JC-2611-0018', cardKind: 'Gửi mẫu' },
+  { id: 'K4', handle: 'Mẹ bỉm D', ch: 'Facebook', mclicks: 250, card: 'JC-2611-0019', cardKind: 'Mời KOL' },
+  { id: 'K5', handle: 'Review Cùng Bạn E', ch: 'Shopee Video', mclicks: 600, card: 'JC-2611-0020', cardKind: 'Mời KOL' }
+];
+const KROWS = [
+  { k: 'K1', p: 'GT-A', orders: 9, units: 14, clicks: 310, sq: 3 }, { k: 'K1', p: 'TR-B', orders: 2, units: 3, clicks: 90, sq: 0 },
+  { k: 'K2', p: 'TR-B', orders: 7, units: 11, clicks: 260, sq: 2 }, { k: 'K2', p: 'MR-C', orders: 12, units: 24, clicks: 380, sq: 0 },
+  { k: 'K3', p: 'MR-C', orders: 3, units: 6, clicks: 150, sq: 5 }, { k: 'K3', p: 'GT-A', orders: 5, units: 8, clicks: 140, sq: 2 },
+  { k: 'K4', p: 'GT-A', orders: 1, units: 2, clicks: 60, sq: 0 },
+  { k: 'K5', p: 'TR-B', orders: 6, units: 9, clicks: 200, sq: 3 }, { k: 'K5', p: 'GT-A', orders: 15, units: 23, clicks: 480, sq: 0 }
+];
+const kolOf = (id) => KOLS.find((x) => x.id === id);
+const evalKolRow = (r) => { const pr = prod(r.p), k = kolOf(r.k); const gmv = pr.price * r.units; const comm = KRATE[r.p] * gmv;
+  const net = gmv * (1 - SHOP.fee) - SHOP.feeFix * r.orders - pr.cogs * r.units - comm; const sample = r.sq > 0 ? r.sq * pr.cogs + SHIP : 0; const after = net - sample;
+  return { ...r, handle: k.handle, ch: k.ch, pname: pr.name, gmv, comm, net, sample, after, conv: r.orders / r.clicks, roi: (comm + sample) > 0 ? after / (comm + sample) : null, roiShopee: comm > 0 ? gmv / comm : null, payback: sample > 0 && r.orders > 0 ? Math.ceil(sample / (net / r.orders)) : null, few: r.orders <= 3, card: k.card, cardKind: k.cardKind }; };
+const KOL_EVAL = KROWS.map(evalKolRow);
+const evalKolPlan = (kid, pid, qty, rate, invite) => { const k = kolOf(kid), pr = prod(pid); const hist = KROWS.filter((x) => x.k === kid); const n = hist.reduce((a, x) => a + x.orders, 0), cl = hist.reduce((a, x) => a + x.clicks, 0);
+  const w = n / (n + 12); const conv = w * (n / Math.max(1, cl)) + (1 - w) * SHOP_CONV; const m = k.mclicks * conv * KFIT[pid] * (invite ? 0.7 : 1) * Math.sqrt(rate / KRATE[pid]);
+  const sp = n <= 3 ? [0.3, 2.2] : (n < 10 ? [0.45, 1.7] : [0.6, 1.4]); const u = KUNITS[pid]; const gmvO = u * pr.price; const commO = rate * gmvO; const netO = gmvO * (1 - SHOP.fee) - SHOP.feeFix - u * pr.cogs - commO;
+  const sample = invite ? 0 : qty * pr.cogs + SHIP; const mk = (o) => ({ orders: o, gmv: o * gmvO, comm: o * commO, net: o * netO, profit: o * netO - sample, roi: (o * commO + sample) > 0 ? (o * netO - sample) / (o * commO + sample) : null });
+  return { k, pr, n, few: n <= 3, qty, rate, sample, netO, commO, gmvO, mid: mk(m), lo: mk(m * sp[0]), hi: mk(m * sp[1]), payback: sample > 0 ? Math.ceil(sample / netO) : null, convTxt: n + ' đơn / ' + cl + ' lượt nhấp' }; };
 /* ---- kế hoạch (D-6): phạm vi = các sản phẩm trong kế hoạch; hiệu ứng mỗi thẻ so với hôm nay ---- */
 const TRB = { orders: 85, aov: 70000, gmv: 5950000, disc: 238000, chi: 700000, profit: 640000 };
+const MRC = { orders: 260, aov: 33000, gmv: 8580000, disc: 260000, chi: 520000, profit: 900000 };
+const BASES = { 'GT-A': BASE, 'TR-B': TRB, 'MR-C': MRC };
 const SCOPE0 = { orders: BASE.orders + TRB.orders, gmv: BASE.gmv + TRB.gmv, disc: BASE.disc + TRB.disc, chi: BASE.chi + TRB.chi, profit: BASE.profit + TRB.profit };
 const SHOPDAY = { chiDay: 1040000, cap: 1200000 };
 const lvlEff = (l, b) => ({ dO: l.orders - b.orders, dG: l.gmv - b.gmv, dD: l.disc - b.disc, dP: l.profit - b.profit, dC: l.chi - b.chi });
@@ -259,32 +288,46 @@ const PLAN_CARDS = {
     { n: 'V2', label: 'Khuyến mãi 11%', eff: mkEff({ dO: 1, dG: 70000, dD: 55000, dP: 0, dC: 55000 }, { dO: 5, dG: 350000, dD: 62000, dP: 80000, dC: 62000 }, -50000) }] },
   'JC-2611-0009': { code: 'JC-2611-0009', prod: 'GT-A', pname: 'Găng tay cao su A', kind: 'Combo', vers: COMBO_VERS.map((x, i) => { const e = evalCombo(x.spec); return { n: x.n, label: x.label, eff: mkEff(lvlEff(e.lo, BASE), lvlEff(e.hi, BASE), e.sureD), floorBad: e.breach }; }) }
 };
+
+const kolEff = (e) => { const f = (l, x) => ({ dO: x.orders, dG: x.gmv, dD: 0, dP: x.profit, dC: x.comm + e.sample }); return { lo: f('lo', e.lo), hi: f('hi', e.hi), sure: -e.sample, dC: (e.lo.comm + e.hi.comm) / 2 + e.sample }; };
+const kolCard = (code, kid, pid, invite, vers) => ({ code, prod: pid, pname: prod(pid).name, kind: invite ? 'Mời KOL' : 'Gửi mẫu', kol: kolOf(kid).handle, vers: vers.map((v, i) => { const e = evalKolPlan(kid, v.pid || pid, v.qty, v.rate || KRATE[v.pid || pid], invite); return { n: 'V' + (i + 1), label: (invite ? 'Mời ' : 'Gửi ') + (v.qty && !invite ? v.qty + ' mẫu ' : '') + prod(v.pid || pid).name + ', hoa hồng ' + Math.round((v.rate || KRATE[v.pid || pid]) * 100) + '%', eff: kolEff(e), sample: e.sample }; }) });
+Object.assign(PLAN_CARDS, {
+  'JC-2611-0016': kolCard('JC-2611-0016', 'K1', 'GT-A', false, [{ qty: 3 }, { qty: 2 }]),
+  'JC-2611-0017': kolCard('JC-2611-0017', 'K2', 'TR-B', false, [{ qty: 2 }, { qty: 3 }]),
+  'JC-2611-0018': kolCard('JC-2611-0018', 'K3', 'MR-C', false, [{ qty: 5 }, { qty: 3 }]),
+  'JC-2611-0019': kolCard('JC-2611-0019', 'K4', 'GT-A', true, [{ qty: 0, rate: 0.10 }, { qty: 0, rate: 0.08 }]),
+  'JC-2611-0020': kolCard('JC-2611-0020', 'K5', 'TR-B', true, [{ qty: 0, rate: 0.12 }, { qty: 0, rate: 0.10 }])
+});
 const planAgg = (plan) => {
   const cs = plan.map((p) => ({ p, c: PLAN_CARDS[p.id], v: PLAN_CARDS[p.id].vers.find((x) => x.n === p.ver) }));
+  const pids = Array.from(new Set(cs.map((x) => x.c.prod))); const s0 = pids.length ? pids.reduce((a, k) => ({ orders: a.orders + BASES[k].orders, gmv: a.gmv + BASES[k].gmv, disc: a.disc + BASES[k].disc, chi: a.chi + BASES[k].chi, profit: a.profit + BASES[k].profit }), { orders: 0, gmv: 0, disc: 0, chi: 0, profit: 0 }) : SCOPE0;
   const sum = (k, f) => cs.reduce((a, x) => a + f(x.v.eff[k]), 0);
   /* cùng sản phẩm: xếp chồng trên cùng dòng đơn, trừ phần trùng (hệ số −0,12 × số nhỏ hơn trong hai khoản chi) */
   let inter = 0; const warn = [];
   const byP = {}; cs.forEach((x) => { (byP[x.c.prod] = byP[x.c.prod] || []).push(x); });
-  Object.keys(byP).forEach((k) => { const g = byP[k]; if (g.length < 2) return;
+  Object.keys(byP).forEach((k) => { const g = byP[k].filter((x) => !x.c.kol); if (g.length < 2) return;
     for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) inter -= 0.12 * Math.min(g[i].v.eff.dC, g[j].v.eff.dC);
     const vo = g.find((x) => x.c.kind === 'Voucher'), pr = g.find((x) => x.c.kind === 'Khuyến mãi');
     if (vo && pr) { const pay = vo.v.s * (1 - pr.v.pct) - vo.v.v; const op = Math.round(vo.v.s * 0.907 + 4000); const alone = vo.v.s - vo.v.v;
       if (pay < op) warn.push({ prod: k, pname: g[0].c.pname, a: vo, b: pr, pay, op, short: op - pay, aloneVoucher: alone, alonePromo: vo.v.s * (1 - pr.v.pct) }); } });
   const lvl = (k) => { const dO = sum(k, (e) => e.dO), dG = sum(k, (e) => e.dG), dD = sum(k, (e) => e.dD), dP = sum(k, (e) => e.dP) + inter, dC = sum(k, (e) => e.dC);
-    const orders = SCOPE0.orders + dO, gmv = SCOPE0.gmv + dG, disc = SCOPE0.disc + dD, profit = SCOPE0.profit + dP, chi = SCOPE0.chi + dC;
+    const orders = s0.orders + dO, gmv = s0.gmv + dG, disc = s0.disc + dD, profit = s0.profit + dP, chi = s0.chi + dC;
     return { orders, gmv, disc, profit, chi, aov: gmv / orders, pay: gmv - disc, bien: profit / (gmv - disc), dC }; };
   const sure = cs.reduce((a, x) => a + x.v.eff.sure, 0) + inter; const lo = lvl('lo'), hi = lvl('hi');
   const chiDayAfter = SHOPDAY.chiDay + (lo.dC + hi.dC) / 2 / 30;
   const floorBad = warn.length > 0 || cs.some((x) => x.v.floorBad); const capBad = chiDayAfter > SHOPDAY.cap;
-  return { cs, lo, hi, sure, inter, warn, floorBad, capBad, chiDayAfter, dLo: lo.profit - SCOPE0.profit, dHi: hi.profit - SCOPE0.profit };
+  return { cs, s0, pids, lo, hi, sure, inter, warn, floorBad, capBad, chiDayAfter, dLo: lo.profit - s0.profit, dHi: hi.profit - s0.profit };
 };
-const MDE = (n) => 0.45 * Math.sqrt(7 / n);
+const PERDAY = { 'GT-A': 4, 'TR-B': 2.8, 'MR-C': 8.7 };
+const MDE = (n, pid) => 0.45 * Math.sqrt(7 / n) * Math.sqrt(4 / (pid ? PERDAY[pid] : 4));
+const recFor = (pid) => [7, 14, 28].find((n) => MDE(n, pid) <= 0.30) || 28;
 const REC_WINDOW = [7, 14, 28].find((n) => MDE(n) <= 0.30) || 28;
+
 const MAX_TITLE = 100;
-return { fmt, vnd, sv, pc, k1, rangeT, CH, pill, SHOP, PRODUCTS, prod, BASE, VCAP, elig, evalVoucher, VOUCHER_VERS, evalCombo, comboSpec, COMBO_VERS, FAMILIES, CARDS, otherProducts, MAX_TITLE, TRB, SCOPE0, SHOPDAY, PLAN_CARDS, planAgg, MDE, REC_WINDOW };
+return { KRATE, KOLS, KROWS, KOL_EVAL, evalKolPlan, kolOf, SHIP, MRC, BASES, PERDAY, recFor, fmt, vnd, sv, pc, k1, rangeT, CH, pill, SHOP, PRODUCTS, prod, BASE, VCAP, elig, evalVoucher, VOUCHER_VERS, evalCombo, comboSpec, COMBO_VERS, FAMILIES, CARDS, otherProducts, MAX_TITLE, TRB, SCOPE0, SHOPDAY, PLAN_CARDS, planAgg, MDE, REC_WINDOW };
 })();
 /* ===== END P91 DATASET ===== */
-const { fmt, vnd, sv, pc, k1, rangeT, CH, pill, SCOPE0, SHOPDAY, PLAN_CARDS, planAgg, MDE, REC_WINDOW, evalVoucher, evalCombo, COMBO_VERS } = P91;
+const { fmt, vnd, sv, pc, k1, rangeT, CH, pill, SCOPE0, SHOPDAY, PLAN_CARDS, planAgg, MDE, recFor, evalVoucher, evalCombo, COMBO_VERS } = P91;
 const MEASURING = { 'GT-A': { code: 'JC-2610-0031', kind: 'Khuyến mãi', done: 8, total: 14 }, 'TR-B': { code: 'JC-2610-0027', kind: 'Quảng cáo', done: 2, total: 7 } };
 const SCENES = {
   breach: { plan: [['JC-2611-0007', 'V1'], ['JC-2611-0012', 'V1'], ['JC-2611-0003', 'V1']] },
@@ -292,17 +335,19 @@ const SCENES = {
   combo: { plan: [['JC-2611-0007', 'V1'], ['JC-2611-0003', 'V1'], ['JC-2611-0009', 'V1']] },
   confirm: { plan: [['JC-2611-0007', 'V1'], ['JC-2611-0003', 'V1'], ['JC-2611-0009', 'V1']], dialog: true },
   ketqua: { plan: [['JC-2611-0007', 'V1'], ['JC-2611-0003', 'V1'], ['JC-2611-0009', 'V1']], done: true },
+  kol: { plan: [['JC-2611-0016', 'V1'], ['JC-2611-0017', 'V1'], ['JC-2611-0018', 'V1'], ['JC-2611-0019', 'V1'], ['JC-2611-0020', 'V1']] },
   breachDone: { plan: [['JC-2611-0007', 'V1'], ['JC-2611-0012', 'V1'], ['JC-2611-0003', 'V1']], done: true, ack: true }
 };
 const ACK = 'Đã xác nhận vượt giá sàn · 04/11/2026 10:15';
-const mk = (id) => { const s = SCENES[id]; return { scene: id, plan: s.plan.map(([i, v]) => ({ id: i, ver: v })), dialog: s.dialog ? 'confirm' : false, pendingAdd: null, ack: s.ack ? ACK : null, done: !!s.done, win: REC_WINDOW, over: {} }; };
+const PLAN_CODE = 'KH-2611-003';
+const mk = (id) => { const s = SCENES[id]; return { scene: id, plan: s.plan.map(([i, v]) => ({ id: i, ver: v })), dialog: s.dialog ? 'confirm' : false, pendingAdd: null, ack: s.ack ? ACK : null, done: !!s.done, win: 'auto', over: {} }; };
 const pts = (d) => (d >= 0 ? '+' : '−') + fmt(Math.abs(d * 100), 1) + ' điểm';
 class Component extends DCLogic {
 constructor(props) { super(props); const h = {}; try { location.hash.replace(/^#/, '').split('&').forEach((kv) => { const [k, v] = kv.split('='); if (k) h[k] = v; }); } catch (e) {} this.state = mk(SCENES[h.scene] ? h.scene : 'breach'); }
 renderVals() {
-const st = this.state; const A = planAgg(st.plan); const locked = st.done;
+const st = this.state; const A = planAgg(st.plan); const s0 = A.s0; const locked = st.done;
 const mid = (a, b) => (a + b) / 2;
-const S0 = { orders: SCOPE0.orders, gmv: SCOPE0.gmv, aov: SCOPE0.gmv / SCOPE0.orders, disc: SCOPE0.disc / SCOPE0.gmv, bien: SCOPE0.profit / (SCOPE0.gmv - SCOPE0.disc), chi: SCOPE0.chi };
+const S0 = { orders: s0.orders, gmv: s0.gmv, aov: s0.gmv / s0.orders, disc: s0.disc / s0.gmv, bien: s0.profit / (s0.gmv - s0.disc), chi: s0.chi };
 const planOf = (arr) => planAgg(arr);
 const aggFor = (arr) => { const a = planOf(arr); return { bien: mid(a.lo.bien, a.hi.bien), aov: mid(a.lo.aov, a.hi.aov), prof: mid(a.dLo, a.dHi) }; };
 const full = aggFor(st.plan);
@@ -310,7 +355,7 @@ const setPlan = (arr) => this.setState({ plan: arr });
 const planRows = A.cs.map((x) => { const without = st.plan.filter((p) => p.id !== x.p.id); const w = without.length ? aggFor(without) : { bien: S0.bien, aov: S0.aov, prof: 0 };
   const own = mid(x.v.eff.lo.dP, x.v.eff.hi.dP);
   const stackBad = A.warn.some((wn) => wn.a.p.id === x.p.id || wn.b.p.id === x.p.id);
-  return { code: x.c.code, ver: x.p.ver, kind: x.c.kind, pname: x.c.pname, label: x.v.label, bad: stackBad || !!x.v.floorBad,
+  return { code: x.c.code, ver: x.p.ver, kind: x.c.kind + (x.c.kol ? ' · ' + x.c.kol : ''), pname: x.c.pname, hasPlanCode: st.done, planCode: PLAN_CODE, label: x.v.label, bad: stackBad || !!x.v.floorBad,
     style: stackBad ? 'background: #fff8f8; border-color: #f3b8bd' : 'background: #ffffff',
     pills: x.c.vers.map((v) => ({ n: v.n, on: v.n === x.p.ver, style: pill(v.n === x.p.ver), pick: () => setPlan(st.plan.map((p) => p.id === x.p.id ? { id: p.id, ver: v.n } : p)) })),
     contrib: sv(k1(own)) + '/tháng (giữa khoảng)', cStyle: own >= 0 ? 'color: #146c2e' : 'color: #a3222f',
@@ -318,7 +363,7 @@ const planRows = A.cs.map((x) => { const without = st.plan.filter((p) => p.id !=
     remove: () => setPlan(st.plan.filter((p) => p.id !== x.p.id)) }; });
 const inPlan = (id) => st.plan.some((p) => p.id === id);
 const cands = Object.keys(PLAN_CARDS).map((id) => { const c = PLAN_CARDS[id]; const v0 = c.vers[0]; const ip = inPlan(id);
-  return { code: id, kind: c.kind, pname: c.pname, vers: c.vers.length + ' phiên bản · V1 ' + v0.label, d: rangeT(v0.eff.lo.dP, v0.eff.hi.dP, (x) => sv(k1(x))) + '/tháng', dStyle: v0.eff.hi.dP <= 0 ? 'color: #a3222f' : 'color: #146c2e', inPlan: ip, btn: ip ? 'Đã trong kế hoạch' : 'Thêm vào kế hoạch', style: ip ? 'background: #faf7f8' : 'background: #ffffff', add: () => { const np = st.plan.concat({ id, ver: 'V1' }); const na = planAgg(np); if (na.floorBad || na.capBad) this.setState({ dialog: 'add', pendingAdd: id }); else setPlan(np); } }; });
+  return { code: id, kind: c.kind + (c.kol ? ' · ' + c.kol : ''), pname: c.pname, vers: c.vers.length + ' phiên bản · V1 ' + v0.label, d: rangeT(v0.eff.lo.dP, v0.eff.hi.dP, (x) => sv(k1(x))) + '/tháng', dStyle: v0.eff.hi.dP <= 0 ? 'color: #a3222f' : 'color: #146c2e', inPlan: ip, btn: ip ? 'Đã trong kế hoạch' : 'Thêm vào kế hoạch', style: ip ? 'background: #faf7f8' : 'background: #ffffff', add: () => { const np = st.plan.concat({ id, ver: 'V1' }); const na = planAgg(np); if (na.floorBad || na.capBad) this.setState({ dialog: 'add', pendingAdd: id }); else setPlan(np); } }; });
 const prods = Array.from(new Set(A.cs.map((x) => x.c.prod)));
 const pn = (k) => A.cs.find((x) => x.c.prod === k).c.pname;
 // ── bảng tổng
@@ -327,8 +372,8 @@ const tone = (good, d) => Math.abs(d) < 1e-9 ? CH.ne : ((d * good) > 0 ? CH.up :
 const row = (label, today, after, d, ds, vs, style) => ({ label, today, after, d: d || '', dStyle: ds || '', vStyle: vs || '', style: style || 'background: #ffffff' });
 let aggRows = [];
 if (A.cs.length) {
-  const lo = A.lo, hi = A.hi; const dc = mid(lo.chi, hi.chi) - SCOPE0.chi;
-  const discA = [lo.disc / lo.gmv, hi.disc / hi.gmv]; const effA = [lo, hi].map((l) => (l.chi - SCOPE0.chi) > 0 ? (l.gmv - SCOPE0.gmv) / (l.chi - SCOPE0.chi) : null);
+  const lo = A.lo, hi = A.hi; const dc = mid(lo.chi, hi.chi) - s0.chi;
+  const discA = [lo.disc / lo.gmv, hi.disc / hi.gmv]; const effA = [lo, hi].map((l) => (l.chi - s0.chi) > 0 ? (l.gmv - s0.gmv) / (l.chi - s0.chi) : null);
   aggRows = [
     row('① Giảm giá (% GMV niêm yết)', pc(S0.disc, 1), rng(discA[0], discA[1], (x) => pc(x, 1)), pts(mid(discA[0], discA[1]) - S0.disc), tone(-1, mid(discA[0], discA[1]) - S0.disc)),
     row('② Hiệu quả chi (ΔGMV ÷ Δchi)', '—', effA.every((x) => x == null) ? 'giảm chi' : rng(effA[0] || 0, effA[1] || 0, (x) => fmt(x, 2) + 'đ / 1đ chi')),
@@ -347,16 +392,18 @@ const warns = A.warn.map((w) => ({ title: 'Chạm giá sàn khi xếp chồng: '
 const comboIn = inPlan('JC-2611-0009');
 const trade = comboIn && full.bien < S0.bien && full.aov > S0.aov;
 // ── cửa sổ đo
-const presets = [7, 14, 28]; const base = st.win;
-const wins = presets.map((n) => ({ label: n + ' ngày', rec: n === REC_WINDOW, on: base === n, mde: 'chỉ thấy thay đổi ≥ ' + Math.round(MDE(n) * 100) + '%', style: base === n ? 'background: #fff7fa; border: 2px solid #c2306d' : 'background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState({ win: n }) }));
-wins.push({ label: 'Tuỳ chọn', rec: false, on: presets.indexOf(base) < 0, mde: presets.indexOf(base) < 0 ? base + ' ngày · ≥ ' + Math.round(MDE(base) * 100) + '%' : 'từ 3 đến 90 ngày', style: presets.indexOf(base) < 0 ? 'background: #fff7fa; border: 2px solid #c2306d' : 'background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState({ win: presets.indexOf(base) < 0 ? base : 10 }) });
-const cd = presets.indexOf(base) < 0 ? base : 10;
-const winOf = (k) => st.over[k] || base;
-const hard = (n) => n < REC_WINDOW;
-const setRows = prods.map((k) => { const cardsOf = A.cs.filter((x) => x.c.prod === k).map((x) => x.c.kind).join(' + '); const cur = winOf(k);
-  return { name: pn(k), cards: cardsOf, note: hard(cur) ? 'Dưới mức đề xuất: khó kết luận (≥ ' + Math.round(MDE(cur) * 100) + '%)' : (st.over[k] ? 'Riêng nhóm này' : 'Theo mặc định'),
-    opts: [['Mặc định', 0], ['7', 7], ['14', 14], ['28', 28]].map(([l, n]) => { const on = n === 0 ? !st.over[k] : st.over[k] === n; return { label: n === 0 ? 'Mặc định' : l + ' ngày', on, style: pill(on), pick: () => { const o = Object.assign({}, st.over); if (n === 0) delete o[k]; else o[k] = n; this.setState({ over: o }); } }; }) }; });
-const anyHard = hard(base) || prods.some((k) => hard(winOf(k)));
+const presets = [7, 14, 28]; const auto = st.win === 'auto'; const numWin = auto ? null : st.win;
+const effWin = (k) => st.over[k] || (auto ? recFor(k) : numWin);
+const mdeRange = (n) => { const v = prods.map((k) => Math.round(MDE(n, k) * 100)); const a = Math.min.apply(null, v), b = Math.max.apply(null, v); return a === b ? '≥ ' + a + '%' : '≥ ' + a + '–' + b + '%'; };
+const on1 = (x) => x ? 'background: #fff7fa; border: 2px solid #c2306d' : 'background: #ffffff; border: 1px solid #e3d6dc';
+const wins = [{ label: 'Tự động theo sản phẩm', rec: true, on: auto, mde: 'mỗi sản phẩm một cửa sổ ngắn nhất thấy được thay đổi ≥ 30%', style: on1(auto), pick: () => this.setState({ win: 'auto' }) }].concat(presets.map((n) => ({ label: n + ' ngày cho cả kế hoạch', rec: false, on: numWin === n, mde: 'chỉ thấy thay đổi ' + mdeRange(n), style: on1(numWin === n), pick: () => this.setState({ win: n }) })));
+const cd = numWin && presets.indexOf(numWin) < 0 ? numWin : 10;
+const hard = (n, k) => n < recFor(k);
+const winText = auto ? 'tự động theo sản phẩm (' + prods.map((k) => pn(k) + ' ' + recFor(k) + ' ngày').join(', ') + ')' : numWin + ' ngày';
+const setRows = prods.map((k) => { const cardsOf = A.cs.filter((x) => x.c.prod === k).map((x) => x.c.kind).join(' + '); const cur = effWin(k);
+  return { name: pn(k), cards: cardsOf, note: hard(cur, k) ? 'Dưới mức đề xuất (' + recFor(k) + ' ngày): khó kết luận, chỉ thấy ≥ ' + Math.round(MDE(cur, k) * 100) + '%' : (st.over[k] ? 'Riêng nhóm này · chỉ thấy ≥ ' + Math.round(MDE(cur, k) * 100) + '%' : (auto ? 'Tự động: ' + cur + ' ngày, chỉ thấy ≥ ' + Math.round(MDE(cur, k) * 100) + '%' : 'Theo kế hoạch')),
+    opts: [0, 7, 14, 28].map((n) => { const on = n === 0 ? !st.over[k] : st.over[k] === n; const lab = n === 0 ? (auto ? 'Tự động (' + recFor(k) + ' ngày)' : 'Theo kế hoạch (' + numWin + ' ngày)') : n + ' ngày' + (n === recFor(k) ? ' · Đề xuất' : ''); return { label: lab, on, style: pill(on), pick: () => { const o = Object.assign({}, st.over); if (n === 0) delete o[k]; else o[k] = n; this.setState({ over: o }); } }; }) }; });
+const anyHard = prods.some((k) => hard(effWin(k), k));
 const blocked = A.floorBad || A.capBad;
 const warnFor = (AA) => { const L = []; AA.warn.forEach((w) => L.push(w.pname + ': ' + w.a.c.code + '-' + w.a.p.ver + ' và ' + w.b.c.code + '-' + w.b.p.ver + ' xếp chồng trên giỏ ' + vnd(w.a.v.s) + ', khách trả ' + vnd(Math.round(w.pay)) + ' thấp hơn giá sàn vận hành ' + vnd(w.op) + ', thiếu ' + vnd(Math.round(w.short)) + '.')); AA.cs.forEach((x) => { if (!x.v.floorBad) return; if (x.c.kind === 'Voucher') { const e = evalVoucher(x.v.v, x.v.s); L.push(x.c.code + '-' + x.p.ver + ': khách trả ' + vnd(e.floor.pay) + ' thấp hơn sàn vận hành ' + vnd(e.floor.op) + ', thiếu ' + vnd(e.floor.short) + '.'); } else { const e = evalCombo(COMBO_VERS.find((c) => c.n === x.p.ver).spec); e.floors.filter((f) => f.breach).forEach((f) => L.push(x.c.code + '-' + x.p.ver + ' · ' + f.name + ': ' + vnd(Math.round(f.unit)) + ' thấp hơn sàn ' + vnd(Math.round(f.op)) + ', thiếu ' + vnd(Math.round(f.op - f.unit)) + '.')); } }); if (AA.capBad) L.push('Trần chi: chi phí toàn shop ' + vnd(Math.round(AA.chiDayAfter)) + ' / ngày vượt trần ' + vnd(SHOPDAY.cap) + ' là ' + vnd(Math.round(AA.chiDayAfter - SHOPDAY.cap)) + ' mỗi ngày.'); return L.map((t) => ({ t })); };
 const mode = st.dialog;
@@ -365,6 +412,8 @@ const warnList = mode === 'add' && addAgg ? warnFor(addAgg) : (mode === 'confirm
 const ackWord = (AA) => 'Đã xác nhận ' + (AA.floorBad && AA.capBad ? 'vượt giá sàn và trần chi' : (AA.capBad ? 'vượt trần chi' : 'vượt giá sàn')) + ' · 04/11/2026 10:15';
 const cuts = prods.filter((k) => MEASURING[k]).map((k) => { const m = MEASURING[k]; const ok = m.done >= 3;
   return { text: pn(k) + ': đang đo ' + m.code + ' (' + m.kind + '), mới ' + m.done + '/' + m.total + ' ngày. Cắt hôm nay → ' + (ok ? 'giữ kết quả “đo được ' + m.done + ' ngày” (độ tin cậy thấp hơn).' : '“không kết luận” (dưới 3 ngày).') + ' Nhóm thay đổi mới bắt đầu đo.' }; });
+const kc = A.cs.filter((x) => x.c.kol); const kolRows = kc.length ? (() => { const sample = kc.reduce((a, x) => a + (x.v.sample || 0), 0); const dPlo = kc.reduce((a, x) => a + x.v.eff.lo.dP, 0), dPhi = kc.reduce((a, x) => a + x.v.eff.hi.dP, 0); const dClo = kc.reduce((a, x) => a + x.v.eff.lo.dC, 0), dChi = kc.reduce((a, x) => a + x.v.eff.hi.dC, 0); const oMid = kc.reduce((a, x) => a + (x.v.eff.lo.dO + x.v.eff.hi.dO) / 2, 0); const gross = kc.reduce((a, x) => a + (x.v.eff.lo.dP + x.v.eff.hi.dP) / 2 + (x.v.sample || 0), 0);
+  return [{ k: 'Số thẻ', v: kc.filter((x) => x.c.kind === 'Gửi mẫu').length + ' Gửi mẫu · ' + kc.filter((x) => x.c.kind === 'Mời KOL').length + ' Mời KOL' }, { k: 'Tổng chi phí mẫu (chắc chắn, chi một lần)', v: vnd(Math.round(sample)) }, { k: 'Đơn dự kiến từ KOL', v: Math.round(kc.reduce((a, x) => a + x.v.eff.lo.dO, 0)) + ' – ' + Math.round(kc.reduce((a, x) => a + x.v.eff.hi.dO, 0)) + ' đơn (ít dữ liệu: khoảng rộng)' }, { k: 'Lợi nhuận ròng sau mẫu, dự kiến', v: rangeT(dPlo, dPhi, (x) => sv(k1(x))) + '/tháng' }, { k: 'ROI gồm mẫu', v: rangeT(dPlo / dClo, dPhi / dChi, (x) => pc(x, 0)) }, { k: 'Hoàn vốn mẫu', v: sample > 0 && oMid > 0 ? 'cần ≥ ' + Math.ceil(sample / (gross / oMid)) + ' đơn từ KOL' : '—' }]; })() : [];
 const stateLbl = st.done ? ['Đã xác nhận', CH.inf] : ['Chưa thực hiện', CH.ne];
 const results = [
   { name: 'Găng tay cao su A', cards: 'JC-2610-0031 · Khuyến mãi (cắt sớm ngày 8/14)', chip: 'Đo được 8 ngày', style: CH.wn, body: 'Có từ 3 ngày đo trở lên nên kết quả được giữ, nhưng ghi rõ độ tin cậy thấp hơn so với đủ 14 ngày.' },
@@ -372,19 +421,20 @@ const results = [
   { name: 'Găng tay cao su A', cards: 'JC-2611-0007 + JC-2611-0009 · chạy cùng ngày với thay đổi toàn shop', chip: 'Kèm thay đổi toàn shop', style: CH.inf, body: 'Nhóm thay đổi này chạy cùng voucher toàn shop JC-2611-0002, nên kết quả gắn cờ và học với trọng số thấp.' }
 ];
 return {
-  scenes: [['breach', 'Xếp chồng chạm giá sàn'], ['ok', 'Đã gỡ, xác nhận được'], ['combo', 'Thêm combo: biên giảm, AOV tăng'], ['confirm', 'Hộp xác nhận (cắt phép đo)'], ['ketqua', 'Đã xác nhận + cách ghi kết quả'], ['breachDone', 'Xác nhận dù chạm giá sàn']].map(([id, label]) => ({ label, on: st.scene === id, style: pill(st.scene === id), pick: () => this.setState(mk(id)) })),
+  scenes: [['breach', 'Xếp chồng chạm giá sàn'], ['ok', 'Đã gỡ, xác nhận được'], ['combo', 'Thêm combo: biên giảm, AOV tăng'], ['confirm', 'Hộp xác nhận (cắt phép đo)'], ['ketqua', 'Đã xác nhận + cách ghi kết quả'], ['breachDone', 'Xác nhận dù chạm giá sàn'], ['kol', 'Kế hoạch gửi mẫu KOL']].map(([id, label]) => ({ label, on: st.scene === id, style: pill(st.scene === id), pick: () => this.setState(mk(id)) })),
+  planCodeText: st.done ? PLAN_CODE : 'Mã ' + PLAN_CODE + ' cấp khi xác nhận', kolOn: kolRows.length > 0, kolRows,
   cands, noCands: cands.every((c) => c.inPlan), planRows, emptyPlan: !st.plan.length, warns, tradeoff: trade, tradeoffText: 'thêm combo làm biên cả kế hoạch ' + (full.bien < S0.bien ? 'giảm ' : 'tăng ') + fmt(Math.abs(full.bien - S0.bien) * 100, 1) + ' điểm (còn ' + pc(full.bien, 1) + ') nhưng AOV tăng ' + vnd(k1(full.aov - S0.aov)) + ' và lợi nhuận dự kiến vẫn tăng. Bỏ combo thì biên cao hơn, AOV thấp hơn.',
-  nCards: st.plan.length, nProds: prods.length, stateLabel: stateLbl[0], stateStyle: stateLbl[1], done: st.done, locked, winDays: base,
+  nCards: st.plan.length, nProds: prods.length, stateLabel: stateLbl[0], stateStyle: stateLbl[1], done: st.done, locked, winText,
   scopeText: prods.length ? prods.map(pn).join(' và ') + ' (30 ngày)' : 'chưa có thẻ', aggRows,
   capText: vnd(SHOPDAY.cap), barW: Math.min(100, Math.round(A.chiDayAfter / SHOPDAY.cap * 100)) + '%', barStyle: A.capBad ? 'background: #a3222f' : 'background: #6b6b76',
-  wins, customDays: cd, customMde: 'thấy thay đổi ≥ ' + Math.round(MDE(cd) * 100) + '%', cDown: () => this.setState({ win: Math.max(3, cd - 1) }), cUp: () => this.setState({ win: Math.min(90, cd + 1) }),
-  hardNote: anyHard, hardText: 'Cửa sổ ngắn hơn mức đề xuất (' + REC_WINDOW + ' ngày, thấy thay đổi ≥ ' + Math.round(MDE(REC_WINDOW) * 100) + '%) vẫn được chọn, nhưng nhiều khả năng kết quả sẽ không đủ để kết luận.',
+  wins, customDays: cd, customMde: 'thấy thay đổi ' + mdeRange(cd), cDown: () => this.setState({ win: Math.max(3, cd - 1) }), cUp: () => this.setState({ win: Math.min(90, cd + 1) }),
+  hardNote: anyHard, hardText: 'Có nhóm đặt cửa sổ ngắn hơn mức đề xuất cho sản phẩm đó. Vẫn được chọn, nhưng nhiều khả năng kết quả sẽ không đủ để kết luận.',
   setRows, confirmOff: !st.plan.length || st.done, confirmBg: (!st.plan.length || st.done) ? '#c9a6b6' : '#c2306d',
   confirmHint: st.done ? '' : (A.floorBad ? 'Có thẻ chạm giá sàn: vẫn xác nhận được, Juli hiện cảnh báo trước.' : (A.capBad ? 'Chi phí vượt trần chi mỗi ngày: vẫn xác nhận được, Juli hiện cảnh báo trước.' : 'Bấm để xem phép đo nào sẽ bị cắt trước khi xác nhận.')), confirmHintColor: blocked ? '#8a4b00' : '#6b6b76',
   openConfirm: () => this.setState({ dialog: 'confirm' }), closeConfirm: () => this.setState({ dialog: false, pendingAdd: null }),
   doConfirm: () => { if (mode === 'add') this.setState({ dialog: false, pendingAdd: null, plan: st.plan.concat({ id: st.pendingAdd, ver: 'V1' }), ack: ackWord(addAgg) }); else this.setState({ dialog: false, done: true, ack: blocked ? ackWord(A) : st.ack }); },
-  dlgTitle: mode === 'add' ? 'Thêm ' + (st.pendingAdd || '') + ' vào kế hoạch dù chạm giá sàn?' : (blocked ? 'Xác nhận kế hoạch dù có cảnh báo?' : 'Xác nhận kế hoạch ' + st.plan.length + ' thẻ?'), dlgText: mode === 'add' ? 'Thẻ vào kế hoạch nháp, chưa thực hiện gì.' : 'Các thẻ chuyển sang “Đã duyệt” và đội Juli thực hiện cùng một ngày. Cửa sổ đo: ' + base + ' ngày.',
-  warnAny: warnList.length > 0, warnList, goLabel: warnList.length ? 'Vẫn tiếp tục' : (mode === 'add' ? 'Thêm vào kế hoạch' : 'Xác nhận kế hoạch'), hasAck: !!st.ack, ackText: st.ack || '',
+  dlgTitle: mode === 'add' ? 'Thêm ' + (st.pendingAdd || '') + ' vào kế hoạch dù chạm giá sàn?' : (blocked ? 'Xác nhận kế hoạch dù có cảnh báo?' : 'Xác nhận kế hoạch ' + st.plan.length + ' thẻ?'), dlgText: mode === 'add' ? 'Thẻ vào kế hoạch nháp, chưa thực hiện gì.' : 'Các thẻ chuyển sang “Đã duyệt” và đội Juli thực hiện cùng một ngày. Mã kế hoạch: ' + PLAN_CODE + '. Cửa sổ đo: ' + winText + '.',
+  warnAny: warnList.length > 0, warnList, goLabel: warnList.length ? 'Vẫn tiếp tục' : (mode === 'add' ? 'Thêm vào kế hoạch' : 'Xác nhận kế hoạch'), planCodeShort: PLAN_CODE, hasAck: !!st.ack, ackText: st.ack || '',
   dialog: !!st.dialog, cutAny: mode === 'confirm' && cuts.length > 0, cuts, showResults: st.scene === 'ketqua', results
 };
 }

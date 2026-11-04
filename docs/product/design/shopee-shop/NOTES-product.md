@@ -70,7 +70,7 @@ Artboards and decisions: see the P91 section of `README.md`. Notes that belong w
 - **Sản phẩm › Đề xuất** is a new sub-tab between Nguồn and Từ khoá. It lists every open card of the product (not only #1), grouped by family; the product's Quyết định card is the one marked `#1 · Đang ở Quyết định`.
 - **Thẻ có phiên bản** replaces the A/B/C option buttons of `CardWhatIf` when a card has 2–4 versions: the user picks a column, the sliders change that column only (`whatif_adjusted` is recorded for that version), and `Duyệt Vn` records `chosen_version`. A version that breaches the floor or the spend cap is drawn and marked, and never blocked: Duyệt opens a warning (gap in đ per SKU, amount over cap) with "Quay lại" / "Vẫn tiếp tục", and the acknowledgement is recorded on the card.
 - **Tiêu đề**: 100 characters (counter `97/100`); above 100 the text is not saved and Duyệt is locked. Both versions of the drawn title card are under 100.
-- **Card codes**: `JC-2611-0007`, versions `-V1…-V4`. Export to Excel is later; Ops shows a disabled "Xuất Excel · Sắp có".
+- **Card codes**: `JC-2611-0007`, versions `-V1…-V4`. Export to Excel is later; the button is hidden until it exists (owner). Confirmed plans carry `KH-2611-003`, shown on every card of the plan.
 
 ### D-7 Measurement when changes run together (approved by the owner, 2026-11-04)
 
@@ -78,10 +78,18 @@ Artboards and decisions: see the P91 section of `README.md`. Notes that belong w
 - Shop-wide cards are measured at shop level; product sets executed with them carry **"Kèm thay đổi toàn shop"**.
 - Learning: a one-card set calibrates its change kind as today; a multi-card set calibrates the joint prediction and counts for each kind with weight 0,25, never as a clean sample.
 - Executing on a product still being measured is allowed: the running measurement is cut that day. **≥ 3 days measured: result kept as "Đo được N ngày"** (lower confidence); **< 3 days: "Không kết luận"**. The confirm dialog lists the products whose measurement will be cut (drawn in `KeHoach.dc.html`, scene `confirm`; result chips in scene `ketqua`).
-- Window (D-8): minimum 3 days, presets 7 / 14 / 28 and custom 3–90, per plan with a per change set override. The recommendation is the smallest preset whose detectable change is ≤ 30 %; drawn with a stand-in formula (≥ 45 % × √(7 ÷ N): 7 → 45 %, 14 → 32 %, 28 → 23 %), the real figure comes from `plan.py`.
+- Window (D-8, D-10): minimum 3 days; default **auto per product** (the shortest of 7 / 14 / 28 days whose detectable change is ≤ 30% for that product's order volume, pre-selected and labelled "Đề xuất"), changeable per plan or per change set, custom 3–90. Drawn with a stand-in formula (≥ 45% × √(7 ÷ N) × √(4 ÷ đơn mỗi ngày)); the real figure comes from `plan.py`.
 
 ### Open questions (product screens)
 
 - Does the sub-tab show closed cards (đã bỏ qua / đã đo xong) behind a link, as drawn, or in a filter?
 - Should the product page let the user reorder the queue by hand (drag), or is the score order final?
 - A version with a floor breach: keep it visible and active (drawn, per the "never block" decision) or hide it behind "Xem thêm"?
+
+### KOL (D-9)
+
+- **Phân tích › KOL** and the product's **Tiếp thị liên kết** tab list KOL × sản phẩm × kênh with đơn, SL, GMV, lượt nhấp, chuyển đổi, hoa hồng, lợi nhuận ròng, chi phí mẫu, lợi nhuận sau mẫu, ROI gồm mẫu (Juli) beside ROI Shopee (chỉ hoa hồng), hoàn vốn mẫu. Few-data KOLs (≤ 3 orders) are badged "Ít dữ liệu" and their ROI is for reference only.
+- Commission is per product sold, at the rate applying to that product. Sample cost = số lượng × (giá vốn + đóng gói) + phí ship, no booking fee.
+- Cards **Gửi mẫu cho KOL** and **Mời KOL** have versions and what-if knobs (sản phẩm, số lượng mẫu, hoa hồng %) and join plans like any card; the plan shows the total sample cost and expected return.
+- The **Mẫu KOL** sheet (KOL, sản phẩm, số lượng mẫu, ngày gửi, phí ship) is versioned like the SKU sheet: validate, diff cũ → mới with consequences, apply with reason.
+- Open: should the product page list KOLs who sold nothing but received a sample (now: only KOLs with at least one order or sample row)?

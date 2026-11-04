@@ -319,7 +319,13 @@ Chạy bằng runtime thay thế nhỏ (jsdom, không commit): mở từng artbo
 | 10 | Kế hoạch: voucher V1 + khuyến mãi 8% chồng nhau chạm giá sàn (260.080đ < 275.193đ) dù mỗi thẻ riêng đạt; Xác nhận và Thêm vào kế hoạch không bị khoá, mở cảnh báo, "Vẫn tiếp tục" ghi xác nhận lên kế hoạch (cảnh `breachDone`); bỏ khuyến mãi thì không còn cảnh báo | KeHoach `#scene=breach` → `ok` | đạt |
 | 11 | Thêm combo: biên 14,4 % → 14,1 %, AOV +12.000đ, lợi nhuận dự kiến vẫn tăng | KeHoach `#scene=combo` | đạt |
 | 12 | Hộp xác nhận liệt kê phép đo bị cắt: Găng tay cao su A (đã đo 8 ngày: giữ "đo được 8 ngày"), Túi rác sinh học B (2 ngày: "không kết luận") | KeHoach `#scene=confirm` | đạt |
-| 13 | Cửa sổ đo: 28 ngày được đánh dấu "Đề xuất"; chọn 7 hoặc 14 ngày hiện ghi chú "Khó kết luận" | KeHoach | đạt |
-| 14 | Ops: cột mã thẻ, lọc, tìm theo mã; nút Xuất Excel bị khoá, nhãn "Sắp có" | OpsDeXuat | đạt |
+| 13 | Cửa sổ đo mặc định "Tự động theo sản phẩm" (đánh dấu Đề xuất): Găng tay cao su A 28 ngày, Túi rác sinh học B 28 ngày, Miếng rửa chén C 14 ngày; đặt ngắn hơn mức đề xuất của sản phẩm thì hiện "Khó kết luận" | KeHoach `#scene=kol` | đạt |
+| 14 | Ops: cột mã thẻ và mã kế hoạch, lọc, tìm theo mã; không có nút Xuất Excel | OpsDeXuat | đạt |
+| 15 | Mã kế hoạch KH-2611-003 trên khung kế hoạch, hộp xác nhận và từng thẻ sau khi xác nhận | KeHoach `#scene=ketqua` | đạt |
+| 16 | Kế hoạch KOL: 3 Gửi mẫu + 2 Mời KOL, tổng chi phí mẫu 344.000đ (cộng đúng các thẻ), ROI gồm mẫu = lợi nhuận ÷ (hoa hồng + mẫu) | KeHoach `#scene=kol` | đạt |
+| 17 | Phân tích KOL: lợi nhuận sau mẫu = ròng − mẫu; ROI gồm mẫu và ROI Shopee là hai cột khác nhau; \"Ít dữ liệu\" cho KOL ≤ 3 đơn; lọc kênh / sản phẩm | PhanTichKOL | đạt |
+| 18 | Thẻ Gửi mẫu: chi phí mẫu = số lượng × (giá vốn + đóng gói) + ship (3 × 49.000đ + 25.000đ = 172.000đ); thanh trượt chỉ đổi phiên bản đang chọn; Mời KOL không có chi phí mẫu | CardKOL | đạt |
+| 19 | Sheet Mẫu KOL: dòng lỗi (KOL không có, SKU chưa có, số lượng 0) không chặn dòng hợp lệ; hệ quả cũ → mới tính cùng công thức; áp dụng cần lý do | CaiDatMauKOL | đạt |
+| 20 | Mobile Tự tạo phương án: cùng số với desktop, cảnh báo giá sàn là bottom sheet, "Vẫn tiếp tục" ghi xác nhận | TuTaoPhuongAnMobile | đạt |
 
 Còn mở: số lượt tăng đơn, hệ số chồng thẻ (−0,12) và công thức MDE trong bản vẽ là số minh hoạ; số thật do backend (`combo.py`, `plan.py`) cho. Chưa vẽ mobile cho CardVersions, TuTaoPhuongAn, QuyetDinhHangDoi. Kiểm tra không thay thế việc xem trên canvas thật (runtime `support.js` không nằm trong repo).
