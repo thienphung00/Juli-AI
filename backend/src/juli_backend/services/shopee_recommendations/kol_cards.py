@@ -342,7 +342,7 @@ def evaluation_of(env: RecoEnv, cand: Candidate, inputs: dict[str, Any]) -> Eval
     f = forecast_of(env, cand, inputs)
     if f is None:
         return _refuse("no_kol_data")
-    spend_per_day = Decimal(str((f.sample_cost + f.at(f.orders_mid)["commission"]) / 30))
+    spend_per_day = Decimal(str((f.sample_cost + (f.at(f.orders_mid)["commission"] or 0.0)) / 30))
     breaches: list[dict[str, Any]] = []
     new_rate = Decimal(str(f.rate_pct)) / 100
     for sku in env.floors(f.item_id):
@@ -431,7 +431,8 @@ def _label(cand: Candidate, f: Forecast) -> str:
 
 
 def _choices(env: RecoEnv, cand: Candidate, chosen: str) -> list[dict[str, Any]]:
-    pool: KolPool = env.kol
+    pool = env.kol
+    assert pool is not None
     key = cand.extra["kol"]["key"]
     invite = cand.kind == "affiliate_invite"
     out = []
@@ -456,7 +457,7 @@ def _choices(env: RecoEnv, cand: Candidate, chosen: str) -> list[dict[str, Any]]
                 "selected": item == chosen,
             }
         )
-    out.sort(key=lambda c: -c["profit_p50"])
+    out.sort(key=lambda c: -c["profit_p50"])  # type: ignore[operator]
     return out[:8]
 
 
