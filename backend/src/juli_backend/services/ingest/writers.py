@@ -8,7 +8,8 @@ Called by ``gateway._write`` inside the shop's tenant scope; nothing here commit
   resolved from ``platform_items.seller_sku`` when the catalogue knows it, else it is
   ``sku:<sku>``.
 - ``affiliate_order_lines`` -> the SAME table, but only to MARK lines the order export already
-  wrote (``affiliate``, ``commission`` from ``cost``, ``traffic_source``). It never creates a
+  wrote (``affiliate``, ``commission`` from ``Chi phí(₫)`` (``affiliate_commission``), the KOL
+  columns of migration 118, ``traffic_source``). It never creates a
   line: the order export owns the line, and a second writer on one key would overwrite it.
   Load the order export first; unmatched rows are counted and left for a re-load.
 - ``ads_change_log`` and ``shop_health_daily``: append-only, ``ON CONFLICT DO NOTHING``.
@@ -35,6 +36,8 @@ from juli_backend.models.shopee_profit import (
     ShopeeOrderLine,
     ShopHealthDaily,
 )
+from juli_backend.services.ingest.affiliate_commission import seller_commission
+from juli_backend.services.ingest.kol_key import kol_key
 from juli_backend.services.ingest.schemas import (
     IngestBody,
     ShopeeAdsChangeLogRow,
@@ -183,6 +186,24 @@ async def write_order_lines(
 # -- affiliate order lines ---------------------------------------------------------------
 
 
+def _kol_columns(row: ShopeeAffiliateOrderLineRow) -> dict[str, Any]:
+    """The KOL columns of migration 118 for one report row: the hashed key and the public
+    handle of the creator account, the channel, the campaign type and the MCN flag. The
+    platform's raw affiliate id is not in the report and is never stored."""
+    out: dict[str, Any] = {}
+    account = (row.affiliate_account or "").strip()
+    if account:
+        out["kol_key"] = kol_key(account)
+        out["kol_handle"] = account[:120]
+    if row.channel:
+        out["affiliate_channel"] = row.channel
+    if row.campaign_type:
+        out["affiliate_campaign_type"] = row.campaign_type
+    if row.mcn is not None:
+        out["affiliate_mcn"] = bool(row.mcn.strip())
+    return out
+
+
 async def write_affiliate_lines(
     session: AsyncSession,
     rows: list[ShopeeAffiliateOrderLineRow],
@@ -208,6 +229,7 @@ async def write_affiliate_lines(
         for ref, line_id, item_id, variation_id in found:
             lines[ref].append((line_id, item_id, variation_id))
     commission: dict[uuid.UUID, Decimal | None] = {}
+    kol: dict[uuid.UUID, dict[str, Any]] = {}
     matched = unmatched = invalid = 0
     for row in rows:
         if row.valid is False:
@@ -226,15 +248,19 @@ async def write_affiliate_lines(
             continue
         matched += 1
         target = hits[0]
-        if row.cost is not None:
-            commission[target] = (commission.get(target) or Decimal(0)) + row.cost
+        reported = seller_commission(row)
+        if reported is not None:
+            commission[target] = (commission.get(target) or Decimal(0)) + reported
         else:
             commission.setdefault(target, None)
+        for column, value in _kol_columns(row).items():  # first row of the line wins
+            kol.setdefault(target, {}).setdefault(column, value)
     for line_id, total in commission.items():
         values: dict[str, Any] = {
             "affiliate": True,
             "traffic_source": "affiliate",
             "updated_at": provenance["updated_at"],
+            **kol.get(line_id, {}),
         }
         if total is not None:
             values["commission"] = total

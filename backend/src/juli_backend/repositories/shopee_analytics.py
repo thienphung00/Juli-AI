@@ -64,6 +64,23 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
             return None
         return first.date(), last.date()
 
+    async def kol_pair_lines(
+        self, shop_id: uuid.UUID, kol_key: str, item_id: str, start: date, end: date
+    ) -> list[ShopeeOrderLine]:
+        """P91 D-9: the affiliate-marked lines of one KOL x product on days in ``[start, end]``."""
+        lo = datetime.combine(start, datetime.min.time())
+        hi = datetime.combine(end + timedelta(days=1), datetime.min.time())
+        return await self._all(
+            self._scoped(
+                shop_id,
+                ShopeeOrderLine.platform == PLATFORM_SHOPEE,
+                ShopeeOrderLine.kol_key == kol_key,
+                ShopeeOrderLine.item_id == item_id,
+                ShopeeOrderLine.ordered_at >= lo,
+                ShopeeOrderLine.ordered_at < hi,
+            ).order_by(ShopeeOrderLine.ordered_at, ShopeeOrderLine.order_ref)
+        )
+
     async def days_with_lines(self, shop_id: uuid.UUID, start: date, end: date) -> set[date]:
         """Calendar days in the window that have at least one order line."""
         lo = datetime.combine(start, datetime.min.time())

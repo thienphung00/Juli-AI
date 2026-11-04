@@ -359,7 +359,7 @@ async def test_the_template_is_prefilled_one_row_per_sku(session, shop):
         1,
     )
     sheets = xlsx_io.read_workbook(result.content)
-    assert list(sheets) == ["SKU", "Mục tiêu"]
+    assert list(sheets) == ["SKU", "Mục tiêu", "Mẫu KOL"]
     sku = sheets["SKU"]
     assert [h.rstrip(" *") for h in sku[0]] == [
         "item_id", "variation_id", "SKU", "tên", "giá niêm yết", "giá vốn", "đóng gói",

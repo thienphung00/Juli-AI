@@ -80,6 +80,23 @@ class RawLine:
     buyer_shipping_fee: Decimal | None
     bank_promo: Decimal | None
     ad_attributed: bool | None
+    #: P91 D-9: the KOL of an affiliate-marked line (migration 118); all None otherwise.
+    kol_key: str | None = None
+    kol_handle: str | None = None
+    affiliate_channel: str | None = None
+    affiliate_campaign_type: str | None = None
+    affiliate_mcn: bool | None = None
+
+
+@dataclass(frozen=True)
+class KolTag:
+    """Who sold an affiliate line, from the SellerConversionReport (public handle only)."""
+
+    key: str
+    handle: str
+    channel: str | None = None
+    campaign_type: str | None = None
+    mcn: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -88,6 +105,7 @@ class ShopLine:
     ordered_on: date
     cost_key: str
     voucher_code: str | None = None
+    kol: KolTag | None = None
 
     @property
     def product_id(self) -> str:
@@ -129,6 +147,17 @@ def to_shop_lines(raw: Sequence[RawLine], catalog: Catalog) -> list[ShopLine]:
                 ordered_on=r.ordered_at.date(),
                 cost_key=key,
                 voucher_code=r.voucher_code,
+                kol=(
+                    KolTag(
+                        r.kol_key,
+                        r.kol_handle or "",
+                        r.affiliate_channel,
+                        r.affiliate_campaign_type,
+                        r.affiliate_mcn,
+                    )
+                    if r.affiliate and r.kol_key
+                    else None
+                ),
             )
         )
     return out

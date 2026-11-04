@@ -133,6 +133,10 @@ def _in_stock(env: RecoEnv, cand: Candidate) -> bool | None:
 
 
 def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any] | None:
+    if cand.kind in ("affiliate_sample", "affiliate_invite"):  # P91 D-9: own model
+        from juli_backend.services.shopee_recommendations.kol_cards import build_kol_card
+
+        return build_kol_card(env, cand, now=now)
     s = spec(cand.kind)
     ev0 = evaluate(env, cand)
     if ev0.refusal:

@@ -345,6 +345,32 @@ KINDS: dict[str, KindSpec] = {
         prior=(0.02, 0.15),
         sliders=(_S("commission_pct", "Hoa hồng", "pct", 0, 50, 0.5),),
     ),
+    # ---- P91 D-9 KOL cards (``kol_cards``): one creator, one pitched product
+    "affiliate_sample": KindSpec(
+        "affiliate_sample",
+        "affiliate",
+        "Gửi mẫu cho KOL",
+        "other",
+        "item",
+        "orders",
+        _AFFILIATE,
+        prior=(0.0, 0.0),
+        sliders=(
+            _S("qty", "Số lượng mẫu", "count", 1, 50, 1),
+            _S("commission_pct", "Hoa hồng cho KOL", "pct", 0, 50, 0.5),
+        ),
+    ),
+    "affiliate_invite": KindSpec(
+        "affiliate_invite",
+        "affiliate",
+        "Mời KOL",
+        "other",
+        "item",
+        "orders",
+        _AFFILIATE,
+        prior=(0.0, 0.0),
+        sliders=(_S("commission_pct", "Hoa hồng cho KOL", "pct", 0, 50, 0.5),),
+    ),
     # ---- listing (traffic levers: no certain layer, a predicted range only)
     "title": KindSpec(
         "title",

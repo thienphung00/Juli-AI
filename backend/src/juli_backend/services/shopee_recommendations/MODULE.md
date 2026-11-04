@@ -69,6 +69,20 @@ Status: `draft` (Ops) -> `sent` (Ops publishes) -> `approved` / `changes_request
   kept and marked. What-if takes `version`; approve takes `chosen_version` (snapshot + events).
 - Codes are assigned in `store.save_card`; `service.card_by_code` is the read for the later export.
 
+## KOL cards (P91 D-9, D-11)
+
+`kol_cards`: `affiliate_sample` "Gửi mẫu cho KOL" (creators with a sample on record) and
+`affiliate_invite` "Mời KOL" (none yet), one card per creator, at most 8 per run. Version 1 = the
+product with the best expected profit per sample; the other versions pitch the next products
+(`kol_cards.product_alternatives`, hooked in `versions._alternative_candidates`) and move the sample
+count / rate (`versions.ALTERNATIVES`). What-if: `item_id`, `qty`, `commission_pct`. Expected orders
+come from the creator's clicks and conversion, the product's affiliate conversion and the channel
+fit, shrunk toward the shop average with weight n / (n + 10) while the pair has few orders, with a wide
+range below 10 orders ("Ít dữ liệu"); the formulas are in the module docstring. `cards.build_card`
+hands these kinds to `kol_cards.build_kol_card` (same payload keys plus `card["kol"]`); the evaluator
+`eval_kol` serves `evaluate`. Measurement scope = `card["kol"]["measurement"]` (KOL x product pair,
+orders before / after the send date; series `shopee_analytics.kol.pair_daily`). Never a mega_sale child.
+
 ## Rules
 
 - Certain ("chắc chắn") is arithmetic on the shop's real orders; predicted ("dự kiến") is a

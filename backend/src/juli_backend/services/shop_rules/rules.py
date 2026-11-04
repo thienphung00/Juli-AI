@@ -57,6 +57,9 @@ template, keyed per SKU (scope ``item_id`` or ``item_id:variation_id``, see
 - ``restock_date`` (scope: SKU) -- ISO date ``YYYY-MM-DD``.
 - ``product_group`` (scope: SKU) -- ``thuong_hieu`` | ``phan_phoi``.
 - ``item_status`` (scope: SKU) -- ``ban`` | ``tam_dung`` | ``ngung`` | ``xa_hang``.
+- ``kol_sample`` (scope: ``kol:<kol_key>:<SKU scope>``) -- P91 D-9, the Mẫu KOL sheet: the samples
+  sent to one KOL for one product, a list of ``{handle, qty, sent_on, ship_fee}`` (qty > 0,
+  ``sent_on`` an ISO date, ``ship_fee`` VND >= 0); an empty list = none sent.
 - ``monthly_gmv_target`` / ``monthly_orders_target`` / ``monthly_aov_target`` /
   ``monthly_margin_target`` / ``daily_marketing_cap`` (scope: month) -- the month's
   targets and the daily marketing cap.
@@ -117,6 +120,7 @@ STOCK = "stock"
 RESTOCK_DATE = "restock_date"
 PRODUCT_GROUP = "product_group"
 ITEM_STATUS = "item_status"
+KOL_SAMPLE = "kol_sample"
 MONTHLY_GMV = "monthly_gmv_target"
 MONTHLY_ORDERS = "monthly_orders_target"
 MONTHLY_AOV = "monthly_aov_target"
@@ -144,6 +148,9 @@ MONTHLY_RULE_KEYS: tuple[str, ...] = (
     MONTHLY_MARKETING_CAP,
 )
 MONTH_SCOPE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+KOL_SAMPLE_SCOPE = re.compile(r"^kol:a[0-9a-f]{12}:[^\s:]{1,64}(:[^\s:]{1,32})?$")
+MAX_KOL_SAMPLES = 200
+MAX_SAMPLE_QTY = 10_000
 MAX_VND_VALUE = 10_000_000_000_000
 MAX_STOCK = 10_000_000
 
@@ -177,6 +184,7 @@ RULE_KEYS: tuple[str, ...] = (
     PRODUCT_GROUP,
     ITEM_STATUS,
     *MONTHLY_RULE_KEYS,
+    KOL_SAMPLE,
 )
 
 #: P14-F shop-wide keys; each is a ``ShopRules`` attribute of the same name.
@@ -194,6 +202,7 @@ SCOPED_RULES: frozenset[str] = frozenset(
         RESTOCK_DATE,
         PRODUCT_GROUP,
         ITEM_STATUS,
+        KOL_SAMPLE,
         *MONTHLY_RULE_KEYS,
     }
 )
@@ -304,6 +313,8 @@ def validate_rule(rule_key: str, scope_ref: str, value: Any) -> tuple[str, Any]:
     if rule_key in _SELLER_INPUT_VALIDATORS:
         if rule_key in MONTHLY_RULE_KEYS and not MONTH_SCOPE.match(scope_ref):
             raise RuleValidationError(f"{rule_key}: scope_ref is a month, YYYY-MM")
+        if rule_key == KOL_SAMPLE and not KOL_SAMPLE_SCOPE.match(scope_ref):
+            raise RuleValidationError(f"{rule_key}: scope_ref is kol:<kol_key>:<SKU scope>")
         return scope_ref, _SELLER_INPUT_VALIDATORS[rule_key](value)
     if rule_key == STABILITY_BAND:
         if scope_ref not in BAND_METRICS:
@@ -499,6 +510,33 @@ def _choice(value: Any, *, rule: str, allowed: tuple[str, ...]) -> str:
     return value
 
 
+def _kol_sample(value: Any) -> list[dict[str, Any]]:
+    """The shipments of one KOL x product: ``[{handle, qty, sent_on, ship_fee}]``, oldest first."""
+    rule = KOL_SAMPLE
+    if not isinstance(value, list) or len(value) > MAX_KOL_SAMPLES:
+        raise RuleValidationError(f"{rule}: value must be a list of at most {MAX_KOL_SAMPLES}")
+    out: list[dict[str, Any]] = []
+    for entry in value:
+        if not isinstance(entry, Mapping) or set(entry) - {"handle", "qty", "sent_on", "ship_fee"}:
+            raise RuleValidationError(
+                f"{rule}: each shipment is {{handle, qty, sent_on, ship_fee}}"
+            )
+        handle = entry.get("handle")
+        if not isinstance(handle, str) or not handle.strip() or len(handle.strip()) > 120:
+            raise RuleValidationError(f"{rule}: handle is the KOL's public account (<= 120)")
+        qty = _count(entry.get("qty"), rule=rule, ceiling=MAX_SAMPLE_QTY)
+        if qty < 1:
+            raise RuleValidationError(f"{rule}: qty must be at least 1")
+        try:
+            sent = _iso_date(entry.get("sent_on"))
+        except RuleValidationError:
+            raise RuleValidationError(f"{rule}: sent_on must be a date, YYYY-MM-DD") from None
+        fee = _non_negative(entry.get("ship_fee", 0), rule=rule)
+        out.append({"handle": handle.strip(), "qty": qty, "sent_on": sent, "ship_fee": fee})
+    out.sort(key=lambda e: (e["sent_on"], e["qty"], e["ship_fee"]))
+    return out
+
+
 #: P90 step 4 validators (``sku_cost`` and ``max_discount_pct`` keep their rules above).
 _SELLER_INPUT_VALIDATORS: Mapping[str, Any] = {
     PACKAGING: lambda v: _non_negative(v, rule=PACKAGING),
@@ -506,6 +544,7 @@ _SELLER_INPUT_VALIDATORS: Mapping[str, Any] = {
     RESTOCK_DATE: _iso_date,
     PRODUCT_GROUP: lambda v: _choice(v, rule=PRODUCT_GROUP, allowed=PRODUCT_GROUPS),
     ITEM_STATUS: lambda v: _choice(v, rule=ITEM_STATUS, allowed=ITEM_STATUSES),
+    KOL_SAMPLE: _kol_sample,
     MONTHLY_GMV: lambda v: _non_negative(v, rule=MONTHLY_GMV),
     MONTHLY_ORDERS: lambda v: _count(v, rule=MONTHLY_ORDERS, ceiling=MAX_STOCK),
     MONTHLY_AOV: lambda v: _non_negative(v, rule=MONTHLY_AOV),

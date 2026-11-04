@@ -35,6 +35,19 @@ SKU rules use `item_id` (an item without variations) or `item_id:variation_id`
 `monthly_gmv_target`, `monthly_orders_target`, `monthly_aov_target`, `monthly_margin_target`, `daily_marketing_cap`
 (per month). Validators live in `services/shop_rules/rules.py`.
 
+## Mẫu KOL (P91 D-9)
+
+The third sheet of the template. One row = one shipment of samples to a KOL for a product:
+`KOL (tay cầm)`, `Sản phẩm (mã SP hoặc SKU)`, `Số lượng mẫu`, `Ngày gửi`, `Phí ship gửi mẫu`,
+`Ghi chú`. Stored as the `kol_sample` shop rule, scope `kol:<kol_key>:<SKU scope>`, value the list of
+shipments (`kol_samples`), so preview / diff / apply-with-reason / versions / restore are the SKU
+sheet's machinery (`shop_rule_versions`; restore of a pair is the rule's own version number, `v<n>`).
+The sheet is the full state of the pairs it lists; a pair with any rejected row writes nothing; a
+quantity of 0 clears a pair; a row with no quantity, date or fee is "chưa gửi mẫu" and ignored.
+Sample cost = qty x (giá vốn + đóng gói) + phí ship, giá vốn per the cost resolution incl. the 1/3
+fallback, labelled (`kol_samples.unit_cost`). No KOL booking fee. Rejection kinds added:
+`kol_missing`. The overview carries `samples`; `preview.sample_diffs`, `apply.samples_changed`.
+
 ## Routes
 
 `/v1/demo/shop-inputs` (the shop's owner, `set_by = seller`) and `/v1/ops/shops/{id}/inputs`

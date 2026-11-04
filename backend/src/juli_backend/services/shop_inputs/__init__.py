@@ -45,6 +45,13 @@ from juli_backend.services.shop_inputs.importer import (
     preview_affected,
     preview_import,
 )
+from juli_backend.services.shop_inputs.kol_samples import (
+    SampleDiff,
+    Shipment,
+    is_sample_scope,
+    load_samples,
+    split_sample_scope,
+)
 from juli_backend.services.shop_inputs.overview import build_overview, versions_index
 from juli_backend.services.shop_inputs.template import TemplateResult, build_template
 from juli_backend.services.shop_inputs.versions import (
@@ -62,6 +69,7 @@ from juli_backend.services.shop_inputs.versions import (
     write_versions,
 )
 from juli_backend.services.shop_inputs.xlsx_io import MAX_FILE_BYTES
+from juli_backend.services.shop_rules.rules import KOL_SAMPLE
 
 __all__ = [
     "ASSUMED_COST_SHARE",
@@ -81,7 +89,10 @@ __all__ = [
     "ImportPreview",
     "NothingToApply",
     "Rejection",
+    "KOL_SAMPLE",
     "RuleChange",
+    "SampleDiff",
+    "Shipment",
     "StaleRequest",
     "TemplateResult",
     "VersionError",
@@ -92,8 +103,10 @@ __all__ = [
     "build_overview",
     "build_template",
     "cost_fallbacks",
+    "is_sample_scope",
     "list_versions",
     "load_catalogue",
+    "load_samples",
     "load_current",
     "mark_stale",
     "preview_affected",
@@ -103,6 +116,7 @@ __all__ = [
     "restore_version",
     "sku_history",
     "sku_scope",
+    "split_sample_scope",
     "split_scope",
     "unregister_recompute_hook",
     "versions_index",

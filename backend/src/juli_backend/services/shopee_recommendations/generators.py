@@ -800,4 +800,8 @@ def generate(env: RecoEnv, critical: dict[str, Any]) -> list[Candidate]:
     for item in env.listing_item_ids()[: config.LISTING_OPPORTUNITY_PRODUCTS]:
         add(gen_title(env, None, item))
         add(gen_keyword(env, None, item))
+    # KOL cards (P91 D-9): one per creator, from the creators' own numbers
+    from juli_backend.services.shopee_recommendations import kol_cards
+
+    add(kol_cards.generate(env))
     return list(out.values())

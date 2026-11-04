@@ -65,6 +65,7 @@ from pydantic import BaseModel
 
 from juli_backend.models.ingest import ORDER_TYPE_NONE, SEGMENT_ALL, SHOP_LEVEL_ITEM
 from juli_backend.models.platform_data import ITEM_LEVEL_VARIATION
+from juli_backend.services.ingest.kol_key import short_hash
 from juli_backend.services.ingest.schemas import (
     ITEM_TRAFFIC_L2,
     MAX_ADS_PERIOD_DAYS,
@@ -442,10 +443,7 @@ def _ads_campaign(row: ShopeeAdsCampaignPeriodRow) -> NormalizedRow:
     )
 
 
-def _short_hash(prefix: str, *parts: object) -> str:
-    """``prefix`` + 12 hex of the parts (13 characters: fits the 16-character ``segment``)."""
-    digest = hashlib.sha1("|".join(str(p) for p in parts).encode(), usedforsecurity=False)
-    return f"{prefix}{digest.hexdigest()[:12]}"
+_short_hash = short_hash
 
 
 def _ymd(value: date | None) -> int | None:

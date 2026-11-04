@@ -91,6 +91,7 @@ async def ops_inputs_apply(
                 "reason": result.reason,
                 "versions_written": result.versions_written,
                 "skus_changed": result.skus_changed,
+                "samples_changed": result.samples_changed,
                 "months_changed": result.months_changed,
                 "rejected_rows": len(result.preview.rejections),
                 "affected_recommendations": result.affected.total,

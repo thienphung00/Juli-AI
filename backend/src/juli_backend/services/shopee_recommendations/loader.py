@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformDailyMetricsRepo, PlatformPromotionsRepo
 from juli_backend.services import shop_rules
-from juli_backend.services.shopee_analytics import loaders, service
+from juli_backend.services.shopee_analytics import kol, loaders, service
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_recommendations import config, store
 from juli_backend.services.shopee_recommendations.env import (
@@ -170,6 +170,7 @@ async def load_env(
     env.acceptance = await store.load_acceptance(session, shop_id)
     env.sim = await store.load_sim(session, shop_id)
     env.banned_terms = tuple(await shop_rules.banned_terms(session, shop_id))
+    env.kol = (await kol.load_model(session, shop_id, ctx, view)).pool
     sources = await loaders.load_listing_sources(session, shop_id, env.listing_item_ids())
     env.listings = {item: listing_from(src, env) for item, src in sources.items()}
     return env

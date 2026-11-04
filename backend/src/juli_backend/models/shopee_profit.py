@@ -54,6 +54,7 @@ from sqlalchemy import (
     desc,
     false,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -160,6 +161,13 @@ class ShopeeOrderLine(Base):
         CheckConstraint("qty >= 0", name="ck_shopee_order_lines_qty"),
         Index("ix_shopee_order_lines_item_time", "shop_id", "item_id", "ordered_at"),
         Index("ix_shopee_order_lines_time", "shop_id", "ordered_at"),
+        Index(
+            "ix_shopee_order_lines_kol",
+            "shop_id",
+            "kol_key",
+            "ordered_at",
+            postgresql_where=text("kol_key IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -223,6 +231,14 @@ class ShopeeOrderLine(Base):
     #: catalogue when it knows the SKU (else ``item_id`` is ``sku:<sku>``).
     sku: Mapped[str | None] = mapped_column(String(128), nullable=True)
     variation_sku: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Migration 118 (P91 D-9): the KOL on an affiliate-marked line. ``kol_key`` is a keyed-free
+    # short hash of the creator's PUBLIC account handle (never the platform's raw affiliate id);
+    # ``kol_handle`` is that public handle; no buyer data.
+    kol_key: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    kol_handle: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    affiliate_channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    affiliate_campaign_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    affiliate_mcn: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
 
 class PlatformFeeFormula(Base):

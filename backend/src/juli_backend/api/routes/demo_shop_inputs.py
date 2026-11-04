@@ -105,6 +105,23 @@ def _diff_json(d: shop_inputs.FieldDiff) -> dict[str, Any]:
     }
 
 
+def _sample_diff_json(d: shop_inputs.SampleDiff) -> dict[str, Any]:
+    return {
+        "scope_ref": d.scope_ref,
+        "kol_key": d.kol_key,
+        "handle": d.handle,
+        "item_id": d.item_id,
+        "sku": d.sku,
+        "tag": d.tag,
+        "old": d.old,
+        "new": d.new,
+        "old_cost": float(d.old_cost) if d.old_cost is not None else None,
+        "new_cost": float(d.new_cost) if d.new_cost is not None else None,
+        "cost_label": d.cost_label,
+        "effect": d.effect,
+    }
+
+
 def _affected_json(a: shop_inputs.AffectedRecommendations) -> dict[str, Any]:
     return {
         "total": a.total,
@@ -125,9 +142,14 @@ def preview_json(
             "sku_rows_valid": preview.sku_rows_valid,
             "sku_rows_rejected": preview.sku_rows_rejected,
             "sku_rows_unchanged": preview.sku_rows_unchanged,
+            "sample_rows": preview.sample_rows,
+            "sample_rows_valid": preview.sample_rows_valid,
+            "sample_rows_rejected": preview.sample_rows_rejected,
+            "sample_rows_unchanged": preview.sample_rows_unchanged,
+            "samples_changed": len(preview.sample_diffs),
             "goal_rows": preview.goal_rows,
             "goal_rows_rejected": preview.goal_rows_rejected,
-            "changes": len(preview.diffs) + len(preview.goal_diffs),
+            "changes": len(preview.diffs) + len(preview.goal_diffs) + len(preview.sample_diffs),
             "skus_changed": len(preview.changed_scopes),
             "months_changed": len(preview.changed_months),
         },
@@ -146,6 +168,7 @@ def preview_json(
         ],
         "diffs": [_diff_json(d) for d in preview.diffs],
         "goal_diffs": [_diff_json(d) for d in preview.goal_diffs],
+        "sample_diffs": [_sample_diff_json(d) for d in preview.sample_diffs],
         "warnings": [
             {"month": w.month, "message": w.message, "deviation": w.deviation}
             for w in preview.warnings
@@ -257,6 +280,7 @@ def apply_json(result: shop_inputs.ApplyResult) -> dict[str, Any]:
             "applied_at": result.applied_at.isoformat(),
             "versions_written": result.versions_written,
             "skus_changed": result.skus_changed,
+            "samples_changed": result.samples_changed,
             "months_changed": result.months_changed,
             "rejected": len(result.preview.rejections),
             "affected": _affected_json(result.affected),
@@ -269,6 +293,8 @@ async def read_versions(
 ) -> dict[str, Any]:
     if scope_ref is None:
         return {"data": {"skus": await shop_inputs.versions_index(session, shop_id)}}
+    if shop_inputs.is_sample_scope(scope_ref):
+        return await _read_sample_versions(session, shop_id, scope_ref)
     history = await shop_inputs.sku_history(session, shop_id, scope_ref)
     item_id, _ = shop_inputs.split_scope(scope_ref)
     affected = await shop_inputs.affected_recommendations(session, shop_id, item_ids=[item_id])
@@ -281,6 +307,39 @@ async def read_versions(
     }
 
 
+async def _read_sample_versions(
+    session: AsyncSession, shop_id: uuid.UUID, scope_ref: str
+) -> dict[str, Any]:
+    """The versions of one KOL x product's Mẫu KOL rule (newest first); ``id`` is ``v<n>``."""
+    entries = await shop_inputs.list_versions(
+        session, shop_id, rule_key=shop_inputs.KOL_SAMPLE, scope_ref=scope_ref
+    )
+    _, sku_scope = shop_inputs.split_sample_scope(scope_ref)
+    item_id, _ = shop_inputs.split_scope(sku_scope)
+    affected = await shop_inputs.affected_recommendations(session, shop_id, item_ids=[item_id])
+    return {
+        "data": {
+            "scope_ref": scope_ref,
+            "versions": [
+                {
+                    "id": f"v{e.version}",
+                    "number": e.version,
+                    "valid_from": e.valid_from.isoformat(),
+                    "set_by": e.set_by,
+                    "set_by_user_id": str(e.set_by_user_id) if e.set_by_user_id else None,
+                    "reason": e.reason,
+                    "import_file_hash": e.import_file_hash,
+                    "changes": {shop_inputs.KOL_SAMPLE: e.value},
+                    "state": {shop_inputs.KOL_SAMPLE: e.value},
+                    "current": e.current,
+                }
+                for e in entries
+            ],
+            "restore_affects": _affected_json(affected),
+        }
+    }
+
+
 async def run_restore(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -288,10 +347,23 @@ async def run_restore(
     *,
     actor: shop_inputs.Actor,
 ) -> dict[str, Any]:
+    sample = shop_inputs.is_sample_scope(body.scope_ref)
     try:
-        written = await shop_inputs.restore_sku_version(
-            session, shop_id, scope_ref=body.scope_ref, number=body.version, actor=actor
-        )
+        if sample:
+            written = [
+                await shop_inputs.restore_version(
+                    session,
+                    shop_id,
+                    rule_key=shop_inputs.KOL_SAMPLE,
+                    scope_ref=body.scope_ref,
+                    version=body.version,
+                    actor=actor,
+                )
+            ]
+        else:
+            written = await shop_inputs.restore_sku_version(
+                session, shop_id, scope_ref=body.scope_ref, number=body.version, actor=actor
+            )
     except shop_inputs.VersionNotFound as exc:
         await session.rollback()
         raise HTTPException(
@@ -305,7 +377,8 @@ async def run_restore(
     except IntegrityError:
         await session.rollback()
         raise _concurrent() from None
-    item_id, _ = shop_inputs.split_scope(body.scope_ref)
+    sku_scope = shop_inputs.split_sample_scope(body.scope_ref)[1] if sample else body.scope_ref
+    item_id, _ = shop_inputs.split_scope(sku_scope)
     affected = await shop_inputs.affected_recommendations(session, shop_id, item_ids=[item_id])
     now = datetime.now(UTC)
     await shop_inputs.mark_stale(
@@ -318,12 +391,16 @@ async def run_restore(
             changed_at=now,
         ),
     )
-    history = await shop_inputs.sku_history(session, shop_id, body.scope_ref)
+    if sample:
+        new_version: str | None = f"v{written[0].version}"
+    else:
+        history = await shop_inputs.sku_history(session, shop_id, body.scope_ref)
+        new_version = history[-1].id if history else None
     return {
         "data": {
             "scope_ref": body.scope_ref,
             "restored_from": body.version,
-            "new_version": history[-1].id if history else None,
+            "new_version": new_version,
             "versions_written": len(written),
             "affected": _affected_json(affected),
         }
