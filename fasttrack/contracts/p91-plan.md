@@ -16,10 +16,11 @@ is built (same rule as P90).
 - **Quyết định stays one card per product**: the card with `product_queue = 1`.
 - **Replacement when a card closes**: when the product's Quyết định card closes, the next open card of that
   product moves up (re-numbered queue, the new #1 appears in Quyết định). Closed =
-  `dismissed` / `withdrawn` / `expired` / `superseded` at once; `executed` closes for the queue only when its
-  measurement window ends (the ADR-077 reading is in, or the window's end date passed), so two changes of one
-  product are never measured in the same window (contract 11). Approving a card supersedes nothing else; the
-  other open cards of that product wait in the queue.
+  `dismissed` / `withdrawn` / `expired` / `superseded` / `executed` — **all at once** (owner 2026-11-04: an
+  executed card is replaced right away so Quyết định stays on top). Adding a card to the draft plan (D-6) also
+  moves the product's next card up, so several changes of one product can be stacked in one plan. A card whose
+  product is still being measured carries `product_measuring = {until, change_set}` so the UI can say
+  "Sản phẩm đang đo: còn N ngày"; executing it early follows D-7.
 - No "phương án khác" label anywhere.
 
 ## D-2 Versions inside a card (comparison)
@@ -64,9 +65,52 @@ is built (same rule as P90).
 - Export itself is a later step; the code, versions, chosen version, inputs before/after, status history
   (`card_events`) and verification result must all be readable by card code so the export is one query.
 
+## D-6 Draft plan ("Kế hoạch"): approve without executing, see the aggregate, confirm all at once
+- Each shop has one open **draft plan**. "Thêm vào kế hoạch" on a card (a chosen version) puts it in the plan
+  (card status `planned`; nothing is executed, nothing is sent to the team). Cards can be removed, their version
+  switched or what-if adjusted while planned; each change re-aggregates at once.
+- **Aggregate panel** (seller and Ops): today → after the plan for the five numbers, Δ lợi nhuận/tháng (chắc
+  chắn + dự kiến range), biên, AOV, số đơn, GMV, **chi phí** (per day and per month, vs trần chi/ngày), floor
+  breaches, and per card its contribution to the total. Also "if you remove this card" deltas.
+- **Joint, not summed**: cards on the same product are evaluated together on the same order lines (a discount +
+  a voucher + a combo stack on the same orders; fees recomputed once per order; the floor check runs on the stacked
+  price — a plan can breach a floor no single card breaches). Cards on different products add up; a shop-wide
+  lever (shop voucher, shop ads budget) is applied to the orders the product changes already modified (overlap
+  counted once). Predicted ranges: P50s add after the joint certain layer; the range combines the cards' ranges
+  (simulation draws or root-sum-of-squares — implementer chooses, documents, tests).
+- Confirm ("Xác nhận kế hoạch"): blocked while a floor breach or spend-cap breach is unresolved (Ops Vận hành may
+  override with a reason, audited). On confirm every card becomes `approved` with the plan id, one planned
+  execution date, and the plan enters the team's queue; assisted execution (human clicks Save, read-back
+  verification per card) marks each card executed; the plan is "đã thực hiện" when all are.
+- Reuse what exists: `shop_proposals.lever_plan_id`, `plan.py` (measurement plan), the `locked_by_plan` filter,
+  mega_sale aggregation code where it fits.
+
+## D-7 Measurement when changes run together (recommended, owner to confirm on the artboards)
+- **Unit of measurement = the product's change set**, not the card: all cards of one product executed on the same
+  day are one change set, measured together against the product's baseline (flow baseline counterfactual) and
+  compared with the plan's joint prediction for that product. Different products → separate change sets; the plan's
+  shop total is measured too (Σ predicted vs shop actual).
+- Shop-wide cards are measured at shop level; product change sets executed with them carry a flag
+  "kèm thay đổi toàn shop" in their result.
+- **Learning**: a change set with one card calibrates its change_kind as today (clean); a multi-card change set
+  calibrates the joint prediction and counts for each change_kind with a reduced weight (config, default 0.25), never
+  as a clean single-kind sample.
+- **Executing on a product that is still being measured**: allowed; the running measurement is cut that day.
+  ≥ 3 days measured → its result is kept as "đo được N ngày" (lower confidence); < 3 days → "không kết luận". A new
+  change set starts. The confirm dialog says which products' measurements will be cut.
+
+## D-8 Measurement window chosen by the user
+- Per plan (default for all its cards) and overridable per change set: **minimum 3 days**, presets **7 / 14 / 28**
+  plus custom (3–90). The recommended preset is marked: the smallest preset whose minimum detectable effect
+  (`plan.py`, α 5 %, power 80 %) is ≤ 30 %; `plan.py` is extended to compute MDE for any N.
+- The chooser shows what each window can detect ("7 ngày: chỉ thấy thay đổi ≥ 45 %"); a window below the
+  recommendation is allowed with a "khó kết luận" note. The preliminary reading at 7 days stays for windows > 7.
+- Stored on the change set; `measure.py` uses it instead of `measurement_plan.planned_days` when set.
+
 ## Waves
-1. Backend core (D-1, D-2, D-4, D-5) ‖ Backend manual + compare + combo (D-3) ‖ Design artboards. Parallel; file
-   ownership below.
+1. Backend core (D-1, D-2, D-4, D-5) ‖ Backend manual + compare + combo (D-3) ‖ Design artboards (all of D-1..D-8).
+   Parallel; file ownership below.
+1b. After core + manual merge: Backend plan + aggregation + measurement (D-6, D-7, D-8).
 2. Owner approves the artboards.
 3. Frontend Demo + Ops ‖ integration tests on ORY data. Then one deploy.
 
