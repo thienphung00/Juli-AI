@@ -53,6 +53,7 @@ REPO = Path(__file__).resolve().parents[2]
 MIGRATIONS = REPO / "backend/src/juli_backend/database/migrations"
 MIGRATION = MIGRATIONS / "versions/112_shopee_profit_and_history.py"
 LATER_MIGRATION = MIGRATIONS / "versions/113_shopee_orders_and_logs.py"
+KOL_MIGRATION = MIGRATIONS / "versions/117_shopee_kol_lines.py"  # P91 D-9
 BACKFILL = MIGRATIONS / "deferred/101_write_mode_backfill.py"
 NOW = datetime(2026, 11, 3, 3, 0)
 
@@ -156,6 +157,7 @@ def test_every_model_column_is_created_by_the_migration(model):
     if model is ShopeeOrderLine:
         # Migration 113 adds the order-export columns to this table.
         created |= _added_columns(LATER_MIGRATION.read_text("utf-8"))
+        created |= _added_columns(KOL_MIGRATION.read_text("utf-8"))
     for column in model.__table__.columns.keys():
         assert column in created, f"{model.__tablename__}.{column}"
     for column in ("role", "item_scope"):
@@ -213,7 +215,9 @@ def test_order_lines_have_no_column_that_could_hold_a_buyer():
     source = (
         MIGRATION.read_text("utf-8").split("def _create_lines")[1].split("def _create_formulas")[0]
     )
-    added = _added_columns(LATER_MIGRATION.read_text("utf-8"))
+    added = _added_columns(LATER_MIGRATION.read_text("utf-8")) | _added_columns(
+        KOL_MIGRATION.read_text("utf-8")
+    )
     assert added and added.isdisjoint(_created_columns(source))
     assert _created_columns(source) | added == set(columns)
 

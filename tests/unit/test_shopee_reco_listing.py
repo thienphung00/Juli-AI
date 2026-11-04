@@ -417,12 +417,14 @@ async def test_listing_cards_are_generated_ranked_and_persisted_with_the_other_f
     report = await service.generate_cards(session, sid, now=NOW, as_of=AS_OF)
     assert report.by_kind["title"] >= 1
     assert report.by_family["listing"] >= 1
-    rows = await service.list_cards(session, sid, audience="ops", family="listing")
+    rows = await service.list_cards(
+        session, sid, audience="ops", family="listing", queue="all"
+    )  # P91: a KOL card may head a product queue
     assert rows["cards"] and all(c["family"] == "listing" for c in rows["cards"])
     assert all(c["certain_summary"]["dgmv_month"] == 0 for c in rows["cards"])
-    # one change per product per window: a product has at most one listing card in the ranking
-    items = [tuple(c["scope"]["product_ids"]) for c in rows["cards"]]
-    assert len(items) == len(set(items))
+    # P91 D-1: every card is kept; a product's cards are numbered in its queue
+    queues = [c["product_queue"] for c in rows["cards"]]
+    assert len(queues) == len(set(queues)) and min(queues) >= 1
 
 
 # ============================================================ Lượt xem (search) critical item
