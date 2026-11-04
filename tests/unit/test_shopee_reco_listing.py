@@ -49,7 +49,8 @@ def test_the_audit_names_missing_late_and_too_long():
     assert a.placed == ("nước rửa chén",)
     assert a.late == ("tinh dầu sả",)
     assert a.missing == ("túi đay",)
-    assert not a.too_long and a.issue_count == 2
+    # P91 D-4: visible characters = the 100-character limit, so a late keyword means too long too
+    assert a.too_long and a.issue_count == 3
     assert lst.audit_title("a" * 121, []).too_long
 
 
@@ -59,7 +60,7 @@ def test_a_missing_core_keyword_is_written_as_a_phrase_at_the_head():
     assert p is not None
     assert p.title.startswith("bàn chải tre")  # missing: written at the head
     assert "Miếng rửa chén xơ mướp" in p.title  # placed: kept as written
-    assert p.after.missing == () and p.after.late == () and len(p.title) <= 120
+    assert p.after.missing == () and p.after.late == () and len(p.title) <= config.MAX_TITLE_CHARS
     assert p.inserted == ("bàn chải tre",)
 
 
@@ -69,19 +70,19 @@ def test_a_late_keyword_is_moved_up_with_the_shops_own_words():
     p = lst.propose_title(title, ["dầu gội bồ kết"])
     assert p is not None and p.moved == ("dầu gội bồ kết",) and p.inserted == ()
     assert p.title.startswith("Dầu gội bồ kết")
-    assert p.after.late == () and len(p.title) <= 120
+    assert p.after.late == () and len(p.title) <= config.MAX_TITLE_CHARS
 
 
-def test_a_title_over_120_characters_is_cut_at_a_word_boundary_and_keeps_its_keywords():
+def test_a_title_over_the_limit_is_cut_at_a_word_boundary_and_keeps_its_keywords():
     title = "Nước rửa chén " + " ".join(f"từ{n}" for n in range(1, 40))
-    assert len(title) > 120
+    assert len(title) > config.MAX_TITLE_CHARS
     p = lst.propose_title(title, ["nước rửa chén"])
-    assert p is not None and 0 < len(p.title) <= 120
+    assert p is not None and 0 < len(p.title) <= config.MAX_TITLE_CHARS
     assert p.title.startswith("Nước rửa chén") and not p.title.endswith(" ")
     assert title.startswith(p.title)  # a prefix: only trailing words went
 
 
-def test_a_proposal_never_exceeds_120_characters_and_never_holds_a_banned_term():
+def test_a_proposal_never_exceeds_the_title_limit_and_never_holds_a_banned_term():
     titles = [
         "Lumi Miếng rửa chén xơ mướp rẻ nhất thị trường " + "loại lớn " * 12,
         "Combo " + "dầu gội thảo dược " * 9,
@@ -105,7 +106,7 @@ def test_a_keyword_that_cannot_fit_the_visible_characters_is_reported_not_squeez
     core = [f"cụm từ khoá số {n} khá dài dòng" for n in range(1, 6)]
     p = lst.propose_title("Sản phẩm thử", core)
     assert p is not None and p.unplaced
-    assert len(p.title) <= 120
+    assert len(p.title) <= config.MAX_TITLE_CHARS
     for kw in core:
         if kw not in p.unplaced:
             assert lst.fold(kw) in lst.fold(p.title)
@@ -262,7 +263,7 @@ async def test_the_env_reads_the_listing_keyword_list_and_market_numbers(env):
 async def test_a_title_card_is_a_traffic_lever_with_a_predicted_range_only(env):
     (cand,) = gen.gen_title(env, None, "1001")
     new = cand.inputs["title"]
-    assert len(new) <= 120 and new.startswith("túi rác sinh học")
+    assert len(new) <= config.MAX_TITLE_CHARS and new.startswith("túi rác sinh học")
     assert lst.audit_title(new, ["túi rác sinh học", "găng tay tự hủy"]).issue_count == 0
     card = _card(env, cand)
     assert card["family"] == "listing" and card["change_kind"] == "title"
