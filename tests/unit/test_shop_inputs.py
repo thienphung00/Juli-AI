@@ -93,8 +93,9 @@ def test_the_reader_refuses_a_workbook_part_that_declares_entities():
         for name in zin.namelist():
             zout.writestr(name, zin.read(name))
         zout.writestr("xl/sharedStrings.xml", bomb)
-    with pytest.raises(xlsx_io.WorkbookUnreadable):
+    with pytest.raises(xlsx_io.WorkbookUnreadable) as refused:
         xlsx_io.read_workbook(out.getvalue())
+    assert "not an .xlsx file" in str(refused.value)
 
 
 @pytest.mark.parametrize(
