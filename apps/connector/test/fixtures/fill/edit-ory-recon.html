@@ -1,0 +1,28 @@
+<!-- Shape of the real Seller Centre product edit page, as read-only recon recorded it (2026-11-04):
+     required star inside the label text, a character counter, a placeholder on the title input,
+     a rich-text description editor with one block per line, the save button "Cập nhật", and a
+     note that edits sync to linked shops in other markets. Synthetic text only. -->
+<div id="app">
+  <div class="notice">Thay đổi sẽ được đồng bộ tới các shop liên kết ở thị trường khác.</div>
+  <div class="field">
+    <div class="label">*Tên sản phẩm</div>
+    <div class="control">
+      <input type="text" id="title" placeholder="Tên thương hiệu + Loại sản phẩm + Đặc điểm nổi bật …" value="Tên cũ của sản phẩm mẫu">
+      <span class="counter">23/120</span>
+    </div>
+  </div>
+  <div class="field">
+    <div class="label">Ngành hàng</div>
+    <div class="control"><input type="text" id="category" value="Nhà cửa"></div>
+  </div>
+  <div class="field">
+    <div class="label">*Mô tả sản phẩm</div>
+    <div class="control">
+      <div id="rich" contenteditable="true"><div>Dòng đầu cũ</div><div>Dòng hai giữ nguyên</div><div>Dòng ba giữ nguyên</div></div>
+    </div>
+  </div>
+  <div class="actions">
+    <button type="button" id="cancel">Hủy</button>
+    <button type="button" id="update">Cập nhật</button>
+  </div>
+</div>

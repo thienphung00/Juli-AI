@@ -427,7 +427,7 @@ describe("item traffic sources (traffic/details)", () => {
 
   it("goes through mapReaderJob and ingestBody as a day post (order_type confirmed)", () => {
     const [post] = mapReaderJob({ id: "item_traffic", days: [day], itemIds: ["1001"] }, [ok("1001")], NOW);
-    const body = ingestBody(post!, "0.3.3", NOW);
+    const body = ingestBody(post!, "0.3.4", NOW);
     expect(body).toMatchObject({ period: { start: day, end: day, granularity: "day" }, order_type: "confirmed" });
   });
 

@@ -83,6 +83,22 @@ describe("filling the title", () => {
     expect((document.getElementById("a1") as HTMLInputElement).value).toBe("Tên mới của sản phẩm mẫu");
   });
 
+  it("fills the title and the first description line on the real page's shape, never touching Cập nhật", async () => {
+    loadPage("edit-ory-recon.html");
+    const update = document.getElementById("update") as HTMLButtonElement;
+    let clicks = 0;
+    update.addEventListener("click", () => (clicks += 1));
+    const title = await runFill(harness(ok()).deps);
+    expect(title).toEqual({ status: "filled", keys: ["title"] });
+    expect((document.getElementById("title") as HTMLInputElement).value).toBe("Tên mới của sản phẩm mẫu");
+    document.getElementById(PANEL_ID)?.remove();
+    const description = await runFill(harness(ok({ change_kind: "description_first_line", fields: [DESCRIPTION_FIELD] })).deps);
+    expect(description).toEqual({ status: "filled", keys: ["description_first_line"] });
+    expect(document.getElementById("rich")?.textContent).toBe("Gói 5 cái, dùng một lầnDòng hai giữ nguyênDòng ba giữ nguyên");
+    expect(document.getElementById("rich")?.children).toHaveLength(3);
+    expect(clicks).toBe(0);
+  });
+
   it("waits for a page that draws its form late", async () => {
     document.body.innerHTML = "";
     const h = harness(ok());

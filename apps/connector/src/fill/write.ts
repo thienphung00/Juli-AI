@@ -4,8 +4,20 @@
 
 import type { FillMode } from "./types";
 
+const BLOCKS = new Set(["DIV", "P", "LI"]);
+
+/** The lines of a rich editor that keeps one block element (div / p / li) per line, else null. */
+function blockLines(el: HTMLElement): HTMLElement[] | null {
+  const kids = Array.from(el.childNodes).filter((n) => !(n.nodeType === 3 && (n.textContent ?? "").trim() === ""));
+  if (kids.length === 0) return null;
+  const allBlocks = kids.every((n) => n.nodeType === 1 && BLOCKS.has((n as Element).tagName));
+  return allBlocks ? (kids as HTMLElement[]) : null;
+}
+
 export function readValue(el: HTMLElement): string {
   if ("value" in el) return String((el as HTMLInputElement | HTMLTextAreaElement).value ?? "");
+  const lines = blockLines(el);
+  if (lines) return lines.map((line) => line.textContent ?? "").join("\n");
   return el.innerText ?? el.textContent ?? "";
 }
 
@@ -30,6 +42,20 @@ function announce(el: HTMLElement, inputType: string, data: string): void {
   el.dispatchEvent(new win.Event("change", { bubbles: true }));
 }
 
+function writeBlocks(el: HTMLElement, blocks: HTMLElement[], wanted: string[]): void {
+  wanted.forEach((line, i) => {
+    const block = blocks[i];
+    if (block) {
+      if ((block.textContent ?? "") !== line) block.textContent = line;
+    } else {
+      const added = el.ownerDocument.createElement(blocks[0]?.tagName ?? "div");
+      added.textContent = line;
+      el.appendChild(added);
+    }
+  });
+  for (const extra of blocks.slice(wanted.length)) extra.remove();
+}
+
 /** Sets the control's text; true when it reads back equal. Never throws on a hostile page. */
 export function writeValue(el: HTMLElement, text: string): boolean {
   try {
@@ -37,8 +63,12 @@ export function writeValue(el: HTMLElement, text: string): boolean {
       nativeSet(el as HTMLInputElement | HTMLTextAreaElement, text);
       announce(el, "insertReplacementText", text);
     } else {
-      // contenteditable: replace the text node content, then tell the editor.
-      el.textContent = text;
+      // contenteditable: keep the editor's own line structure (one block per line) and change
+      // only the lines whose text differs, so the rest of the description is left as it was;
+      // an editor without blocks gets its text replaced. Then tell the editor.
+      const lines = blockLines(el);
+      if (lines) writeBlocks(el, lines, text.split("\n"));
+      else el.textContent = text;
       announce(el, "insertReplacementText", text);
     }
     return readValue(el).replace(/\r/g, "") === text;

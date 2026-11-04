@@ -182,10 +182,16 @@ export const FILL_EDIT_PATH = /^\/portal\/product\/(\d{1,20})(?:\/|$)/;
 export const FILL_WAIT_MS = 25_000;
 export const FILL_POLL_MS = 400;
 
-/** Visible Vietnamese labels the fields are found by (recon of the real page pending: see PLAYBOOK). */
+/**
+ * Visible Vietnamese labels the fields are found by, as the real edit page draws them (read-only
+ * recon 2026-11-04, ORY product edit page): the required star is part of the label text and the
+ * title shows a counter ("23/120"). Matching ignores the star, the colon and the counter, so
+ * "*Tên sản phẩm", "Tên sản phẩm" and "Tên sản phẩm 23/120" are the same label. The title is an
+ * `<input type=text>`, the description a contenteditable rich editor (one block per line).
+ */
 export const FILL_LABELS = {
-  title: "Tên sản phẩm",
-  description_first_line: "Mô tả sản phẩm",
+  title: "*Tên sản phẩm",
+  description_first_line: "*Mô tả sản phẩm",
 } as const;
 
 export function fillActive(shopId: string | undefined): boolean {

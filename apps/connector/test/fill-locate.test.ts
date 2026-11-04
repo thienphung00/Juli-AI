@@ -23,6 +23,16 @@ describe("findControl", () => {
     expect(findControl(document, "Ngành hàng")?.id).toBe("category");
   });
 
+  it("finds both fields on the real page's shape: the star is part of the label text, the title has a counter and a placeholder, the description is a block-per-line editor", () => {
+    loadPage("edit-ory-recon.html");
+    expect(findControl(document, "*Tên sản phẩm")?.id).toBe("title");
+    expect(findControl(document, "*Mô tả sản phẩm")?.id).toBe("rich");
+    // the star does not matter on either side
+    expect(findControl(document, "Tên sản phẩm")?.id).toBe("title");
+    expect(normalizeLabel("*Mô tả sản phẩm")).toBe(normalizeLabel("Mô tả sản phẩm"));
+    expect(normalizeLabel("*Tên sản phẩm 23/120")).toBe("tên sản phẩm");
+  });
+
   it("follows label[for] and leaves unrelated inputs alone", () => {
     loadPage("edit-label-for.html");
     expect(findControl(document, "Tên sản phẩm")?.id).toBe("a1");
@@ -60,6 +70,28 @@ describe("findControl", () => {
 });
 
 describe("writing", () => {
+  it("changes only the first line of a block-per-line editor and leaves the others as they are", () => {
+    loadPage("edit-ory-recon.html");
+    const rich = document.getElementById("rich")!;
+    const second = rich.children[1]!;
+    const before = readValue(rich);
+    expect(before).toBe("Dòng đầu cũ\nDòng hai giữ nguyên\nDòng ba giữ nguyên");
+    const next = targetValue(before, "Dòng đầu mới", "first_line");
+    expect(writeValue(rich, next)).toBe(true);
+    expect(readValue(rich)).toBe("Dòng đầu mới\nDòng hai giữ nguyên\nDòng ba giữ nguyên");
+    expect(rich.children).toHaveLength(3);
+    expect(rich.children[1]).toBe(second);
+  });
+
+  it("adds a line when the new text has more lines, and drops lines it no longer has", () => {
+    loadPage("edit-ory-recon.html");
+    const rich = document.getElementById("rich")!;
+    expect(writeValue(rich, "a\nb\nc\nd")).toBe(true);
+    expect(rich.children).toHaveLength(4);
+    expect(writeValue(rich, "a")).toBe(true);
+    expect(rich.children).toHaveLength(1);
+  });
+
   it("replaces the whole title, or only the first line of a description", () => {
     expect(targetValue("cũ", "mới", "replace")).toBe("mới");
     expect(targetValue("", "mới", "first_line")).toBe("mới");

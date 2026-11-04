@@ -57,7 +57,7 @@ function setup(busy = false) {
       return undefined;
     },
   };
-  const connector = new Connector({ storage, client, tabs, version: "0.3.3", now: () => NOW, busy: async () => busy });
+  const connector = new Connector({ storage, client, tabs, version: "0.3.4", now: () => NOW, busy: async () => busy });
   return { storage, client, connector, sent };
 }
 
@@ -74,7 +74,7 @@ describe("postReader", () => {
     const body = client.posts[0]!.body;
     expect(body).toMatchObject({
       source: "extension",
-      source_version: "0.3.3",
+      source_version: "0.3.4",
       period: { start: "2026-11-03", end: "2026-11-03", granularity: "period" },
       order_type: null,
     });
