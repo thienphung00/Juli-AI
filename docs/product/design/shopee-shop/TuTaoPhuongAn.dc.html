@@ -15,7 +15,7 @@ body{margin:0;background:#f7f5f6}
 a{color:#b0386a}a:hover{color:#8a2a52}
 </style>
 </helmet>
-<div style="width: 1280px; box-sizing: border-box; padding: 24px 32px 40px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 14px">
+<div style="position: relative; width: 1280px; box-sizing: border-box; padding: 24px 32px 40px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 14px">
 
 <header style="display: flex; align-items: center; gap: 12px">
 <a href="{{backHref}}" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">‹ {{backLabel}}</a>
@@ -125,10 +125,23 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
 <button type="button" onClick="{{save}}" disabled="{{saveOff}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: {{saveBg}}; border: 0; border-radius: 10px; min-height: 44px; padding: 0 20px; cursor: pointer">Lưu thành đề xuất</button>
 <span style="font-size: 12px; color: {{saveHintColor}}">{{saveHint}}</span></div>
-<sc-if value="{{saved}}" hint-placeholder-val="{{ false }}"><div role="status" style="background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 12px 14px; font-size: 14px; display: flex; flex-direction: column; gap: 4px"><span><b>Đã lưu {{savedCode}}</b> · nguồn: thủ công · {{savedVers}}</span><span style="color: #4a4a55">{{savedQueue}}</span><span style="font-size: 12px; color: #5f5f6b">Người tạo được ghi cùng thẻ. Thẻ thủ công được duyệt, thực hiện và đo như thẻ Juli đề xuất, nhưng kết quả được tính riêng khi Juli học.</span></div></sc-if>
+<sc-if value="{{saved}}" hint-placeholder-val="{{ false }}"><div role="status" style="background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 12px 14px; font-size: 14px; display: flex; flex-direction: column; gap: 4px"><span><b>Đã lưu {{savedCode}}</b> · nguồn: thủ công · {{savedVers}}</span><span style="color: #4a4a55">{{savedQueue}}</span><sc-if value="{{hasAck}}" hint-placeholder-val="{{ false }}"><b style="color: #8a4b00; font-size: 13px">{{ackText}}</b></sc-if><span style="font-size: 12px; color: #5f5f6b">Người tạo được ghi cùng thẻ. Thẻ thủ công được duyệt, thực hiện và đo như thẻ Juli đề xuất, nhưng kết quả được tính riêng khi Juli học.</span></div></sc-if>
 </section>
 </div>
 </div>
+<sc-if value="{{warnOpen}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; background: rgba(26,26,31,0.42); display: flex; align-items: flex-start; justify-content: center; padding-top: 360px">
+<div role="alertdialog" aria-modal="true" aria-labelledby="wq" style="box-sizing: border-box; width: 580px; background: #ffffff; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 48px rgba(20,20,30,0.25)">
+<h3 id="wq" style="margin: 0; font-size: 19px; font-weight: 700">{{warnTitle}}</h3>
+<div style="display: flex; flex-direction: column; gap: 6px; background: #fdecec; border: 1px solid #f3b8bd; border-radius: 12px; padding: 12px 14px; font-size: 14px">
+<sc-for list="{{warnLines}}" as="w" hint-placeholder-count="2"><span>{{w.t}}</span></sc-for>
+</div>
+<p style="margin: 0; font-size: 13px; color: #4a4a55">Bạn vẫn có thể lưu. Juli ghi lại rằng bạn đã xác nhận, kèm giờ, trên thẻ.</p>
+<div style="display: flex; justify-content: flex-end; gap: 10px">
+<button type="button" onClick="{{warnBack}}" style="font: inherit; font-size: 14px; font-weight: 600; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Quay lại</button>
+<button type="button" onClick="{{warnGo}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Vẫn tiếp tục</button>
+</div></div></div>
+</sc-if>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1900}}'>
@@ -270,7 +283,7 @@ const withKind = (k, spec) => Object.assign({ kind: k }, spec);
 const base3 = () => COMBO_VERS.map((x) => withKind('combo', JSON.parse(JSON.stringify(x.spec))));
 const SCENES = {
   compare: () => ({ vars: base3(), sel: 0, choose: 0, saved: null, promote: false }),
-  breach: () => { const v = base3(); v[2] = withKind('combo', comboSpec({ dtype: 'price', dval: 165000 })); return { vars: v, sel: 2, choose: 0, saved: null, promote: false }; },
+  breach: () => { const v = base3(); v[2] = withKind('combo', comboSpec({ dtype: 'price', dval: 165000 })); return { vars: v, sel: 2, choose: 2, saved: null, promote: false }; },
   one: () => ({ vars: [withKind('combo', comboSpec({}))], sel: 0, choose: 0, saved: null, promote: false }),
   saved: () => ({ vars: base3(), sel: 0, choose: 0, saved: { promoted: true }, promote: true })
 };
@@ -278,7 +291,7 @@ const TT = 'Găng Tay Cao Su Rửa Chén Chống Trượt Dày Dai Bền Size S 
 const pts = (d) => (d >= 0 ? '+' : '−') + fmt(Math.abs(d * 100), 1) + ' điểm';
 class Component extends DCLogic {
 constructor(props) { super(props); const h = {}; try { location.hash.replace(/^#/, '').split('&').forEach((kv) => { const [k, v] = kv.split('='); if (k) h[k] = v; }); } catch (e) {}
-  this.from = h.from === 'quyet-dinh' ? 'quyet-dinh' : 'product'; this.state = Object.assign({ scene: h.scene && SCENES[h.scene] ? h.scene : (h.from ? 'one' : 'compare'), title: TT }, SCENES[h.scene && SCENES[h.scene] ? h.scene : (h.from ? 'one' : 'compare')]()); }
+  this.from = h.from === 'quyet-dinh' ? 'quyet-dinh' : 'product'; this.state = Object.assign({ warn: false, scene: h.scene && SCENES[h.scene] ? h.scene : (h.from ? 'one' : 'compare'), title: TT }, SCENES[h.scene && SCENES[h.scene] ? h.scene : (h.from ? 'one' : 'compare')]()); }
 renderVals() {
 const st = this.state; const cur = st.vars[st.sel]; const upd = (fn) => { const v = JSON.parse(JSON.stringify(st.vars)); fn(v[st.sel]); this.setState({ vars: v, saved: null }); };
 const isCalc = ['combo', 'addon', 'gift', 'voucher', 'disc'].indexOf(cur.kind) >= 0;
@@ -316,15 +329,15 @@ const heads = [{ label: 'Chỉ số', sub: '', style: 'background: #faf7f8' }, {
 const cols = '170px 130px ' + st.vars.map(() => 'minmax(0, 1fr)').join(' ');
 // đánh đổi + chạm sàn
 const tradeoffs = []; act.slice(1).forEach((x) => { const a = ref, b = x.e; if (b.mid.bien < a.mid.bien && b.mid.aov > a.mid.aov) tradeoffs.push({ text: 'P' + (x.i + 1) + ' so với P' + (act[0].i + 1) + ': biên ' + pts(b.mid.bien - a.mid.bien).replace('−', 'giảm ').replace('+', 'tăng ') + ' nhưng AOV tăng ' + vnd(k1(b.mid.aov - a.mid.aov)) + ', GMV ' + sv(k1(b.mid.gmv - a.mid.gmv)) + ', lợi nhuận ' + sv(k1(b.dMid - a.dMid)) + '/tháng. Chọn theo việc bạn cần: lợi nhuận hay doanh thu.' }); });
-const breaches = act.filter((x) => x.e.breach).map((x) => ({ title: 'P' + (x.i + 1) + ' chạm giá sàn.', text: x.e.floors.filter((f) => f.breach).map((f) => f.name + ': ' + vnd(Math.round(f.unit)) + ' < sàn vận hành ' + vnd(Math.round(f.op))).join('; ') + '. Phương án này vẫn hiển thị nhưng không lưu được.' }));
+const breaches = act.filter((x) => x.e.breach).map((x) => ({ title: 'P' + (x.i + 1) + ' chạm giá sàn.', text: x.e.floors.filter((f) => f.breach).map((f) => f.name + ': ' + vnd(Math.round(f.unit)) + ' < sàn vận hành ' + vnd(Math.round(f.op))).join('; ') + '. Vẫn lưu được sau khi bạn xác nhận cảnh báo.' }));
 const sl = E ? 'P' + (st.sel + 1) : 'phương án đang chọn';
 const L = (k, v, s) => ({ k, v, s: s || '' });
 const orderLines = E ? [L('Giá niêm yết cả giỏ', vnd(E.list)), L('Giảm giá', '−' + vnd(Math.round(E.disc))), L('Voucher cộng thêm', E.vOff ? '−' + vnd(E.vOff) : '—'), L('Khách trả', vnd(Math.round(E.pay)), 'color: #1a1a1f'), L('Giá vốn + đóng gói', '−' + vnd(E.cogs)), L('Quà tặng (giá vốn + đóng gói)', E.gift ? '−' + vnd(E.giftCost) + ' · ' + E.gift.name : '—'), L('Phí sàn (một lần cho đơn)', '−' + vnd(Math.round(E.fees))), L('Chi phí khác (QC, hoa hồng)', '−' + vnd(Math.round(E.other))), L('Đóng góp mỗi đơn', sv(E.contrib).replace('+', ''), E.contrib >= BASE.c0 ? 'color: #146c2e' : 'color: #a3222f'), L('Biên của đơn combo', pc(E.margin, 1) + ' (hôm nay ' + pc(BASE.bien, 1) + ')'), L('Chi phí ưu đãi mỗi đơn', vnd(Math.round(E.chiPer))), L('Hoà vốn', E.beN === 0 ? 'Không cần đơn thêm' : (E.beN == null ? 'Không hoà vốn' : 'Cần ≥ ' + E.beN + ' đơn combo thêm / tháng'))] : [L('Loại này chưa có bảng tính', '—')];
 const floorLines = E ? E.floors.map((f) => ({ name: f.name, text: (f.breach ? '✕ ' : '✓ ') + vnd(Math.round(f.unit)) + ' / sản phẩm, sàn vận hành ' + vnd(Math.round(f.op)) + ', tuyệt đối ' + vnd(Math.round(f.abs)), box: f.breach ? 'background: #fdecec; color: #a3222f' : 'background: #f1faf3' })) : [];
 // lưu
-const chooseTabs = st.vars.map((v, i) => { const e = ev[i]; const off = !e || e.breach; return { label: 'P' + (i + 1) + (off ? ' (không lưu được)' : ''), on: st.choose === i, off, style: st.choose === i ? 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState({ choose: i }) }; });
-const ce = ev[st.choose]; const saveOff = !ce || ce.breach || !!st.saved;
-const savedPromoted = st.saved && st.saved.promoted;
+const chooseTabs = st.vars.map((v, i) => { const e = ev[i]; const off = !e; return { label: 'P' + (i + 1) + (e && e.breach ? ' (chạm giá sàn)' : (off ? ' (không lưu ở đây)' : '')), on: st.choose === i, off, style: st.choose === i ? 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc', pick: () => this.setState({ choose: i }) }; });
+const ce = ev[st.choose]; const saveOff = !ce || !!st.saved;
+const savedPromoted = st.saved && st.saved.promoted; const warnL = ce && ce.breach ? ce.floors.filter((f) => f.breach).map((f) => ({ t: f.name + ': khách trả ' + vnd(Math.round(f.unit)) + ' / sản phẩm, thấp hơn giá sàn vận hành ' + vnd(Math.round(f.op)) + ', thiếu ' + vnd(Math.round(f.op - f.unit)) + (f.unit < f.abs ? ' (dưới cả giá sàn tuyệt đối ' + vnd(Math.round(f.abs)) + ': lỗ)' : ' (chưa lỗ)') + '.' })) : [];
 const nSaved = st.vars.filter((v, i) => ev[i] && !ev[i].breach).length;
 const tl = st.title.length; const over = tl > MAX_TITLE;
 return {
@@ -338,8 +351,10 @@ return {
   titleText: st.title, titleBox: over ? 'border: 2px solid #a3222f; background: #fff8f8' : 'border: 1px solid #e3d6dc; background: #ffffff', cnt: tl, cntStyle: over ? CH.dn : (tl > 90 ? CH.wn : CH.up), cntNote: over ? 'Quá ' + (tl - MAX_TITLE) + ' ký tự: không lưu được.' : 'Còn ' + (MAX_TITLE - tl) + ' ký tự.', cntNoteStyle: over ? 'color: #a3222f; font-weight: 600' : 'color: #5f5f6b', setTitle: (e) => this.setState({ title: e.target.value }),
   heads, cols, table, tradeoffs, breaches, selLabel: sl, orderLines, floorLines,
   chooseTabs, promote: st.promote, togglePromote: () => this.setState({ promote: !st.promote }), saveOff, saveBg: saveOff ? '#c9a6b6' : '#c2306d',
-  saveHint: st.saved ? '' : (ce && ce.breach ? 'P' + (st.choose + 1) + ' chạm giá sàn: hãy chọn một phương án không chạm giá sàn.' : (!ce ? 'Phương án này chưa lưu được ở đây.' : 'Lưu ' + (nSaved > 1 ? nSaved + ' phương án thành các phiên bản của một thẻ, phiên bản chọn là V1.' : 'một phương án thành thẻ.'))), saveHintColor: ce && ce.breach ? '#a3222f' : '#6b6b76',
-  save: () => this.setState({ saved: { promoted: st.promote } }),
+  saveHint: st.saved ? '' : (ce && ce.breach ? 'P' + (st.choose + 1) + ' chạm giá sàn: vẫn lưu được, Juli hiện cảnh báo trước.' : (!ce ? 'Phương án này chưa lưu được ở đây.' : 'Lưu ' + (nSaved > 1 ? nSaved + ' phương án thành các phiên bản của một thẻ, phiên bản chọn là V1.' : 'một phương án thành thẻ.'))), saveHintColor: ce && ce.breach ? '#8a4b00' : '#6b6b76',
+  save: () => (ce && ce.breach) ? this.setState({ warn: true }) : this.setState({ saved: { promoted: st.promote, ack: '' } }),
+  warnOpen: !!st.warn, warnLines: warnL, warnTitle: 'Lưu P' + (st.choose + 1) + ' dù chạm giá sàn?', warnBack: () => this.setState({ warn: false }), warnGo: () => this.setState({ warn: false, saved: { promoted: st.promote, ack: 'Đã xác nhận vượt giá sàn · 04/11/2026 10:15' } }),
+  hasAck: !!(st.saved && st.saved.ack), ackText: st.saved && st.saved.ack ? st.saved.ack : '',
   saved: !!st.saved, savedCode: 'JC-2611-0015', savedVers: nSaved + ' phiên bản (JC-2611-0015-V1' + (nSaved > 1 ? ' … -V' + nSaved : '') + '), mở bằng V' + (st.choose + 1),
   savedQueue: savedPromoted ? 'Đã đưa lên Quyết định: JC-2611-0015 là thẻ số 1 của Găng tay cao su A, JC-2611-0007 xuống số 2.' : 'Thẻ vào hàng đợi của sản phẩm theo điểm (#3 trong 9 thẻ), chưa lên Quyết định. Bạn có thể đưa lên sau.'
 };

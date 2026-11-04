@@ -309,14 +309,14 @@ Chạy bằng runtime thay thế nhỏ (jsdom, không commit): mở từng artbo
 |---|---|---|---|
 | 1 | Tám file render không lỗi template (mọi `{{...}}` có giá trị) và không có chữ "phương án khác" | mở từng file | đạt |
 | 2 | Mỗi thẻ có mã `JC-…`; phiên bản `JC-…-Vn`; thứ tự hàng đợi 1…8 liền nhau | SanPhamDeXuat | đạt |
-| 3 | V1 của thẻ voucher: ba phiên bản, V3 chạm giá sàn và vượt trần chi, nút Duyệt V3 khoá, "Đặt về mức tối đa" làm hết chạm sàn | CardVersions `#scene=floor` | đạt |
+| 3 | Thẻ voucher ba phiên bản; V3 chạm giá sàn và vượt trần chi: nút Duyệt V3 vẫn bật, mở cảnh báo (thiếu 5.493đ; vượt trần 620.000đ/tháng), "Quay lại" đóng, "Vẫn tiếp tục" ghi "Đã xác nhận vượt giá sàn và trần chi · giờ" lên thẻ; "Đặt về mức tối đa" làm hết chạm sàn | CardVersions `#scene=floor` | đạt |
 | 4 | Thanh trượt chỉ đổi cột đang chọn; "Về mặc định" trả lại | CardVersions | đạt |
 | 5 | Tiêu đề: 97/100 và 92/100; thêm chữ cho 105/100 thì đỏ, Duyệt khoá | CardVersions `#scene=title` | đạt |
 | 6 | Bỏ qua / Thêm vào kế hoạch / Đã thực hiện thay thẻ bằng thẻ kế tiếp ngay; "Sản phẩm đang đo: còn 14 ngày" chỉ ở cảnh `done` | QuyetDinhHangDoi | đạt |
 | 7 | Combo 2 sản phẩm: đóng góp = khách trả − giá vốn − phí − chi khác; giá combo cố định 165.000đ chạm giá sàn từng SKU | TuTaoPhuongAn `#scene=breach` | đạt |
 | 8 | Ví dụ đánh đổi: P2/P3 so với P1 biên giảm, AOV tăng, GMV tăng, lợi nhuận giảm | TuTaoPhuongAn `#scene=compare` | đạt |
-| 9 | Tối đa 4 phương án; không thêm được quá 4; chạm giá sàn thì không lưu được | TuTaoPhuongAn | đạt |
-| 10 | Kế hoạch: voucher V1 + khuyến mãi 8% chồng nhau chạm giá sàn (260.080đ < 275.193đ) dù mỗi thẻ riêng đạt; Xác nhận bị khoá; bỏ khuyến mãi thì mở khoá | KeHoach `#scene=breach` → `ok` | đạt |
+| 9 | Tối đa 4 phương án; không thêm được quá 4; chạm giá sàn thì Lưu mở cảnh báo từng SKU với số thiếu, "Vẫn tiếp tục" mới lưu và ghi xác nhận | TuTaoPhuongAn | đạt |
+| 10 | Kế hoạch: voucher V1 + khuyến mãi 8% chồng nhau chạm giá sàn (260.080đ < 275.193đ) dù mỗi thẻ riêng đạt; Xác nhận và Thêm vào kế hoạch không bị khoá, mở cảnh báo, "Vẫn tiếp tục" ghi xác nhận lên kế hoạch (cảnh `breachDone`); bỏ khuyến mãi thì không còn cảnh báo | KeHoach `#scene=breach` → `ok` | đạt |
 | 11 | Thêm combo: biên 14,4 % → 14,1 %, AOV +12.000đ, lợi nhuận dự kiến vẫn tăng | KeHoach `#scene=combo` | đạt |
 | 12 | Hộp xác nhận liệt kê phép đo bị cắt: Găng tay cao su A (đã đo 8 ngày: giữ "đo được 8 ngày"), Túi rác sinh học B (2 ngày: "không kết luận") | KeHoach `#scene=confirm` | đạt |
 | 13 | Cửa sổ đo: 28 ngày được đánh dấu "Đề xuất"; chọn 7 hoặc 14 ngày hiện ghi chú "Khó kết luận" | KeHoach | đạt |

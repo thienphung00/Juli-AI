@@ -68,11 +68,11 @@ Layout avoids `<table>` and inline SVG because of that runtime's parser limits; 
 Artboards and decisions: see the P91 section of `README.md`. Notes that belong with the product screens:
 
 - **Sản phẩm › Đề xuất** is a new sub-tab between Nguồn and Từ khoá. It lists every open card of the product (not only #1), grouped by family; the product's Quyết định card is the one marked `#1 · Đang ở Quyết định`.
-- **Thẻ có phiên bản** replaces the A/B/C option buttons of `CardWhatIf` when a card has 2–4 versions: the user picks a column, the sliders change that column only (`whatif_adjusted` is recorded for that version), and `Duyệt Vn` records `chosen_version`. A version that breaches the floor or the spend cap is drawn, marked and cannot be approved.
+- **Thẻ có phiên bản** replaces the A/B/C option buttons of `CardWhatIf` when a card has 2–4 versions: the user picks a column, the sliders change that column only (`whatif_adjusted` is recorded for that version), and `Duyệt Vn` records `chosen_version`. A version that breaches the floor or the spend cap is drawn and marked, and never blocked: Duyệt opens a warning (gap in đ per SKU, amount over cap) with "Quay lại" / "Vẫn tiếp tục", and the acknowledgement is recorded on the card.
 - **Tiêu đề**: 100 characters (counter `97/100`); above 100 the text is not saved and Duyệt is locked. Both versions of the drawn title card are under 100.
 - **Card codes**: `JC-2611-0007`, versions `-V1…-V4`. Export to Excel is later; Ops shows a disabled "Xuất Excel · Sắp có".
 
-### D-7 Measurement when changes run together (recommended, owner to confirm)
+### D-7 Measurement when changes run together (approved by the owner, 2026-11-04)
 
 - Unit of measurement is the **product's change set**: every card of one product executed the same day is one set, measured against the product's baseline and compared with the plan's joint prediction for that product. Different products are separate sets; the plan's shop total is measured too (Σ predicted vs shop actual).
 - Shop-wide cards are measured at shop level; product sets executed with them carry **"Kèm thay đổi toàn shop"**.
@@ -84,4 +84,4 @@ Artboards and decisions: see the P91 section of `README.md`. Notes that belong w
 
 - Does the sub-tab show closed cards (đã bỏ qua / đã đo xong) behind a link, as drawn, or in a filter?
 - Should the product page let the user reorder the queue by hand (drag), or is the score order final?
-- A version with a floor breach: keep it visible (drawn) or hide it behind "Xem thêm"?
+- A version with a floor breach: keep it visible and active (drawn, per the "never block" decision) or hide it behind "Xem thêm"?

@@ -121,10 +121,10 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </dl>
 
 <sc-if value="{{isPlanned}}" hint-placeholder-val="{{ false }}">
-<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 12px 14px; font-size: 14px"><span>Đã thêm <b>{{selCode}}</b> vào kế hoạch. Chưa thực hiện gì. Thẻ kế tiếp của sản phẩm ({{nextCode}}) đã lên Quyết định.</span><a href="KeHoach.dc.html" style="margin-left: auto; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem kế hoạch ›</a></div>
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 12px 14px; font-size: 14px"><span>Đã thêm <b>{{selCode}}</b> vào kế hoạch. Chưa thực hiện gì. Thẻ kế tiếp của sản phẩm ({{nextCode}}) đã lên Quyết định.</span><sc-if value="{{hasAck}}" hint-placeholder-val="{{ false }}"><b style="color: #8a4b00">{{ackText}}</b></sc-if><a href="KeHoach.dc.html" style="margin-left: auto; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem kế hoạch ›</a></div>
 </sc-if>
 <sc-if value="{{isApproved}}" hint-placeholder-val="{{ false }}">
-<div style="display: flex; flex-direction: column; gap: 6px; background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 12px 14px; font-size: 14px"><span>Đã duyệt <b>{{selCode}}</b>. Các phiên bản còn lại đóng cùng thẻ. Đội Juli đặt thay đổi trên Seller Centre, bạn xác nhận lần cuối trước khi áp dụng.</span><span style="font-size: 12px; color: #4a4a55">Thẻ kế tiếp của sản phẩm ({{nextCode}}) đã lên Quyết định ngay. Sản phẩm này sẽ được đo: kết quả đọc sau {{winDays}} ngày; thẻ mới của sản phẩm vẫn duyệt được trong lúc đo (xem “Sản phẩm đang đo”).</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 12px 14px; font-size: 14px"><span>Đã duyệt <b>{{selCode}}</b>. Các phiên bản còn lại đóng cùng thẻ. Đội Juli đặt thay đổi trên Seller Centre, bạn xác nhận lần cuối trước khi áp dụng.</span><span style="font-size: 12px; color: #4a4a55">Thẻ kế tiếp của sản phẩm ({{nextCode}}) đã lên Quyết định ngay. Sản phẩm này sẽ được đo: kết quả đọc sau {{winDays}} ngày; thẻ mới của sản phẩm vẫn duyệt được trong lúc đo (xem “Sản phẩm đang đo”).</span><sc-if value="{{hasAck}}" hint-placeholder-val="{{ false }}"><b style="color: #8a4b00">{{ackText}}</b></sc-if></div>
 </sc-if>
 <sc-if value="{{showActions}}" hint-placeholder-val="{{ true }}">
 <div style="display: flex; align-items: center; gap: 10px; padding-top: 6px; border-top: 1px solid #f1e6eb; flex-wrap: wrap">
@@ -137,6 +137,19 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </div>
 </sc-if>
 </article>
+<sc-if value="{{warnOpen}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; background: rgba(26,26,31,0.42); display: flex; align-items: flex-start; justify-content: center; padding-top: 220px">
+<div role="alertdialog" aria-modal="true" aria-labelledby="wq" style="box-sizing: border-box; width: 560px; background: #ffffff; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 48px rgba(20,20,30,0.25)">
+<h3 id="wq" style="margin: 0; font-size: 19px; font-weight: 700">{{warnTitle}}</h3>
+<div style="display: flex; flex-direction: column; gap: 6px; background: #fdecec; border: 1px solid #f3b8bd; border-radius: 12px; padding: 12px 14px; font-size: 14px">
+<sc-for list="{{warnLines}}" as="w" hint-placeholder-count="2"><span>{{w.t}}</span></sc-for>
+</div>
+<p style="margin: 0; font-size: 13px; color: #4a4a55">Bạn vẫn có thể tiếp tục. Juli ghi lại rằng bạn đã xác nhận, kèm giờ, trên thẻ này.</p>
+<div style="display: flex; justify-content: flex-end; gap: 10px">
+<button type="button" onClick="{{warnBack}}" style="font: inherit; font-size: 14px; font-weight: 600; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Quay lại</button>
+<button type="button" onClick="{{warnGo}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">{{warnGoLabel}}</button>
+</div></div></div>
+</sc-if>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1120,"height":1500}}'>
@@ -274,12 +287,13 @@ const TITLE_ORD = [[123, 130, 60000, 210000, 'Tiêu đề A'], [121, 126, 20000,
 const tl = (o, d) => ({ orders: o, aov: BASE.aov, gmv: o * BASE.aov, disc: BASE.disc, chi: BASE.chi, profit: BASE.profit + d, pay: o * BASE.aov - BASE.disc, bien: (BASE.profit + d) / (o * BASE.aov - BASE.disc) });
 class Component extends DCLogic {
 constructor(props) { super(props); const h = {}; try { location.hash.replace(/^#/, '').split('&').forEach((kv) => { const [k, v] = kv.split('='); if (k) h[k] = v; }); } catch (e) {}
-  this.state = { scene: h.scene || (h.card === 'JC-2611-0011' ? 'title' : 'voucher'), sel: 0, adj: {}, titles: TITLES.slice() }; }
+  this.state = { scene: h.scene || (h.card === 'JC-2611-0011' ? 'title' : 'voucher'), sel: h.scene === 'floor' ? 2 : (h.scene === 'approved' ? 1 : 0), adj: {}, titles: TITLES.slice(), warn: null, ack: null }; }
 renderVals() {
 const st = this.state; const sc = st.scene; const isTitle = sc === 'title'; const approved = sc === 'approved'; const planned = sc === 'planned';
-const sel = approved ? 1 : st.sel; const locked = approved || planned;
-const setScene = (id) => this.setState({ scene: id, sel: id === 'floor' ? 2 : (id === 'approved' ? 1 : 0), adj: {}, titles: TITLES.slice() });
-const scenes = [['voucher', 'Voucher · 3 phiên bản'], ['floor', 'Chọn V3 · chạm giá sàn'], ['approved', 'Đã duyệt V2'], ['planned', 'Đã thêm vào kế hoạch'], ['title', 'Tiêu đề · 97/100']].map(([id, label]) => ({ label, on: sc === id || (id === 'voucher' && false), style: pill(sc === id), pick: () => setScene(id) }));
+const sel = st.sel; const locked = approved || planned;
+const ACK = 'Đã xác nhận vượt giá sàn và trần chi · 04/11/2026 10:15';
+const setScene = (id) => this.setState({ scene: id === 'approvedV3' ? 'approved' : id, sel: id === 'floor' || id === 'approvedV3' ? 2 : (id === 'approved' ? 1 : 0), adj: {}, titles: TITLES.slice(), warn: null, ack: id === 'approvedV3' ? ACK : null });
+const scenes = [['voucher', 'Voucher · 3 phiên bản'], ['floor', 'Chọn V3 · chạm giá sàn'], ['approved', 'Đã duyệt V2'], ['approvedV3', 'Đã duyệt V3 sau cảnh báo'], ['planned', 'Đã thêm vào kế hoạch'], ['title', 'Tiêu đề · 97/100']].map(([id, label]) => ({ label, on: sc === id || (id === 'voucher' && false), style: pill(sc === id), pick: () => setScene(id) }));
 let vers = [];
 if (!isTitle) {
   vers = VOUCHER_VERS.map((x, i) => { const a = st.adj[i] || {}; const v = a.v || x.v, s = a.s || x.s; const e = evalVoucher(v, s);
@@ -317,14 +331,16 @@ table.push({ label: 'Δ lợi nhuận · dự kiến', sub: 'khoảng, theo mô 
 table.push({ label: 'Giá sàn', sub: isTitle ? '' : 'giỏ nhỏ nhất đủ điều kiện', cells: [dash].concat(vers.map((v, i) => ({ v: v.floorTxt, d: '', dStyle: '', vStyle: v.floorBad ? 'color: #a3222f; font-size: 12px' : 'font-size: 12px; font-weight: 500', style: bg(i, v.floorBad) }))) });
 table.push({ label: isTitle ? 'Giới hạn 100 ký tự' : 'Trần chi', sub: isTitle ? 'mọi tiêu đề' : 'voucher của sản phẩm / tháng', cells: [dash].concat(vers.map((v, i) => ({ v: v.capTxt, d: '', dStyle: '', vStyle: v.capBad ? 'color: #a3222f; font-size: 12px' : 'font-size: 12px; font-weight: 500', style: bg(i, v.capBad) }))) });
 const heads = [{ isVer: false, isLabel: true, label: 'Chỉ số', sub: 'so với hôm nay', style: 'background: #faf7f8' }, { isVer: false, isLabel: true, label: 'Hôm nay', sub: isTitle ? 'tiêu đề hiện tại' : 'voucher A: 10.000đ cho đơn ≥ 200.000đ', style: 'background: #ffffff' }].concat(vers.map((v, i) => { const on = i === sel; const bad = v.floorBad || v.capBad;
-  return { isVer: true, isLabel: false, n: v.n, label: v.label, code: v.code + (v.adj ? ' · đã chỉnh' : ''), tag: i === 0 ? 'Juli đề xuất' : (bad ? 'Không thể duyệt' : 'Phiên bản'), tagStyle: i === 0 ? CH.pk : (bad ? CH.dn : CH.ne), on, dot: on ? 'border: 5px solid #c2306d; background: #ffffff' : 'border: 1px solid #a1a1aa; background: #ffffff', style: on ? 'background: #fff7fa; box-shadow: inset 0 3px 0 #c2306d' : 'background: #ffffff', pick: () => this.setState({ sel: i }) }; }));
+  return { isVer: true, isLabel: false, n: v.n, label: v.label, code: v.code + (v.adj ? ' · đã chỉnh' : ''), tag: i === 0 ? 'Juli đề xuất' : (bad ? 'Chạm giá sàn' : 'Phiên bản'), tagStyle: i === 0 ? CH.pk : (bad ? CH.dn : CH.ne), on, dot: on ? 'border: 5px solid #c2306d; background: #ffffff' : 'border: 1px solid #a1a1aa; background: #ffffff', style: on ? 'background: #fff7fa; box-shadow: inset 0 3px 0 #c2306d' : 'background: #ffffff', pick: () => this.setState({ sel: i }) }; }));
 const cols = '190px 150px ' + vers.map(() => 'minmax(0, 1fr)').join(' ');
 const setV = (e) => { const a = Object.assign({}, st.adj); a[sel] = { v: Number(e.target.value), s: (a[sel] && a[sel].s) || VOUCHER_VERS[sel].s }; this.setState({ adj: a }); };
 const setS = (e) => { const a = Object.assign({}, st.adj); a[sel] = { s: Number(e.target.value), v: (a[sel] && a[sel].v) || VOUCHER_VERS[sel].v }; this.setState({ adj: a }); };
 const breach = selV.floorBad || (!isTitle && selV.capBad);
 const tlen = isTitle ? st.titles[sel].length : 0; const over = isTitle && tlen > MAX_TITLE;
-const appOff = locked || breach || over;
-const hint = over ? 'Rút bớt ' + (tlen - MAX_TITLE) + ' ký tự để duyệt.' : (selV.floorBad ? 'Không thể duyệt ' + selV.n + ': thấp hơn giá sàn vận hành' + (selV.capBad ? ' và vượt trần chi.' : '.') : (selV.capBad ? 'Không thể duyệt ' + selV.n + ': vượt trần chi.' : (selV.adj ? 'Duyệt giá trị bạn đã chỉnh. Juli ghi lại thay đổi của bạn.' : 'Duyệt cả phiên bản như đang hiển thị.')));
+const appOff = locked || over;
+const hint = over ? 'Rút bớt ' + (tlen - MAX_TITLE) + ' ký tự để duyệt.' : (breach ? selV.n + ' ' + (selV.floorBad && selV.capBad ? 'chạm giá sàn và vượt trần chi' : (selV.floorBad ? 'chạm giá sàn' : 'vượt trần chi')) + ': vẫn duyệt được, Juli sẽ hiện cảnh báo trước.' : (selV.adj ? 'Duyệt giá trị bạn đã chỉnh. Juli ghi lại thay đổi của bạn.' : 'Duyệt cả phiên bản như đang hiển thị.'));
+const warnLines = (v) => { const L = []; if (v.floorBad && v.e) L.push('Giá sàn: ' + v.n + ' cho giỏ ' + vnd(v.s) + ', khách trả ' + vnd(v.e.floor.pay) + ' thấp hơn sàn vận hành ' + vnd(v.e.floor.op) + ', thiếu ' + vnd(v.e.floor.short) + (v.e.floor.pay < v.e.floor.abs ? ' (dưới cả giá sàn tuyệt đối: lỗ)' : ' (chưa lỗ)') + '.'); if (v.capBad && v.e) L.push('Trần chi: chi voucher ' + vnd(v.e.vchi) + ' / tháng vượt trần ' + vnd(VCAP) + ' là ' + vnd(v.e.vchi - VCAP) + ' mỗi tháng.'); return L.map((t) => ({ t })); };
+const ackText = (v) => 'Đã xác nhận ' + (v.floorBad && v.capBad ? 'vượt giá sàn và trần chi' : (v.floorBad ? 'vượt giá sàn' : 'vượt trần chi')) + ' · 04/11/2026 10:15';
 const status = planned ? ['Trong kế hoạch', CH.pk] : approved ? ['Đang thực hiện', CH.inf] : ['Chờ duyệt', CH.wn];
 return {
   familyTag: isTitle ? 'TIÊU ĐỀ' : 'VOUCHER', scenes, code: isTitle ? 'JC-2611-0011' : 'JC-2611-0007', cardTitle: isTitle ? 'Tiêu đề mới, từ khoá "găng tay cao su"' : 'Voucher cho đơn từ 299.000đ',
@@ -340,8 +356,10 @@ return {
   tooLongLabel: over ? 'Hoàn lại tiêu đề đề xuất (demo)' : 'Thêm chữ để xem trạng thái quá 100 (demo)',
   tooLong: () => { const t = st.titles.slice(); t[sel] = t[sel].length > MAX_TITLE ? TITLES[sel] : t[sel] + ' Cao Cấp'; this.setState({ titles: t }); },
   why: isTitle ? 'Tiêu đề hiện tại (42 ký tự) bỏ trống 58 ký tự và thiếu hai từ khoá chính của sản phẩm: "chống trượt" và "size". Hai phiên bản đều giữ trong 100 ký tự.' : 'Voucher A (10.000đ, đơn ≥ 200.000đ) giảm nhiều đơn nhỏ mà ít kéo giỏ lên. Ba phiên bản cùng đổi voucher; V1 cân bằng nhất giữa lợi nhuận chắc chắn và AOV.',
-  isApproved: approved, isPlanned: planned, winDays: 14, plan: () => this.setState({ scene: 'planned' }), showActions: !approved && !planned, approve: () => this.setState({ scene: 'approved' }), approveOff: appOff, approveBg: appOff ? '#c9a6b6' : '#c2306d',
-  approveHint: hint, hintColor: appOff ? '#a3222f' : '#6b6b76', canMax: !isTitle && selV.floorBad && !locked, toMax: () => { const a = Object.assign({}, st.adj); a[sel] = { v: selV.e.floor.maxd, s: selV.s }; this.setState({ adj: a }); }
+  isApproved: approved, isPlanned: planned, winDays: 14, plan: () => breach ? this.setState({ warn: 'plan' }) : this.setState({ scene: 'planned' }), showActions: !approved && !planned, approve: () => breach ? this.setState({ warn: 'approve' }) : this.setState({ scene: 'approved' }), approveOff: appOff, approveBg: appOff ? '#c9a6b6' : '#c2306d',
+  warnOpen: !!st.warn, warnTitle: (st.warn === 'plan' ? 'Thêm ' : 'Duyệt ') + selV.n + (st.warn === 'plan' ? ' vào kế hoạch' : '') + ' dù chạm giá sàn?', warnLines: warnLines(selV), warnBack: () => this.setState({ warn: null }), warnGo: () => this.setState({ scene: st.warn === 'plan' ? 'planned' : 'approved', warn: null, ack: ackText(selV) }), warnGoLabel: 'Vẫn tiếp tục',
+  hasAck: !!st.ack, ackText: st.ack || '',
+  approveHint: hint, hintColor: over ? '#a3222f' : (breach ? '#8a4b00' : '#6b6b76'), canMax: !isTitle && selV.floorBad && !locked, toMax: () => { const a = Object.assign({}, st.adj); a[sel] = { v: selV.e.floor.maxd, s: selV.s }; this.setState({ adj: a }); }
 };
 }
 }
