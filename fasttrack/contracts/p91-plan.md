@@ -110,10 +110,45 @@ is built (same rule as P90).
   recommendation is allowed with a "khó kết luận" note. The preliminary reading at 7 days stays for windows > 7.
 - Stored on the change set; `measure.py` uses it instead of `measurement_plan.planned_days` when set.
 
+## D-10 Design-pass answers (owner 2026-11-04)
+- **Window default (D-8)**: auto per product — the shortest preset (7 / 14 / 28) whose MDE ≤ 30 % for that product's
+  volume is pre-selected; the user can change it (min 3 days).
+- **Approving on a product still being measured (D-7)**: allowed for every family; the confirm dialog warns that the
+  running measurement is cut (≥ 3 days kept as "đo được N ngày"). Never blocked.
+- **Excel export button**: hidden until the export is built (codes are visible meanwhile).
+- **Mobile**: add a mobile artboard for Tự tạo / So sánh (KeHoach and SanPhamDeXuat already have one); card versions
+  and Quyết định stay desktop-only in this pass.
+- **Plan codes**: every confirmed plan gets `KH-<yymm>-<seq3>` (per shop, never reused); every card in it carries the
+  plan code; the "card by code" read and the later export include it.
+
+## D-9 KOL: who sells what, at what profit, and which product to send as a sample
+- **Data**: keep the KOL on each affiliate order line (`SellerConversionReport` → `affiliate_order_lines` marks the
+  order export's lines): hashed affiliate key + public handle (as `affiliate_partner_period` does; the raw id is never
+  stored) and the channel (`Kênh`: Shopee Video / Facebook / TikTok …). New column(s) on `shopee_order_lines` in
+  migration 116 or 117.
+- **KOL × sản phẩm × kênh table** (Phân tích › KOL, and each product's Tiếp thị liên kết tab lists its KOLs): orders,
+  units, GMV, clicks, conversion (orders ÷ clicks), commission, **net profit** (after platform fees, giá vốn, đóng gói
+  and commission), sample cost, profit after samples, ROI incl. samples, payback orders.
+- **Commission per product sold** (owner): commission is computed per order line from the rate that applied to that
+  product (targeted-campaign rate from `affiliate_campaign_terms`, else the open-campaign rate, else the line's actual
+  commission from the conversion report, which wins when present). Forecasts use the product's current rate.
+- **"Mẫu KOL" sheet** in the Cài đặt `.xlsx` template (file upload, versioned like the SKU sheet): KOL handle, product
+  (item id / SKU), số lượng mẫu, ngày gửi, phí ship gửi mẫu. Sample cost = số lượng × (giá vốn + đóng gói) + phí ship.
+  No KOL booking fee (owner: not part of sample cost).
+- **ROI incl. samples** = (net profit of the KOL's orders − sample cost) ÷ (commission + sample cost). Shopee's own ROI
+  (commission only) is shown beside it, labelled.
+- **Card `affiliate_sample` "Gửi mẫu cho KOL"** (family affiliate): for one KOL, the product with the best expected
+  profit per sample. Expected orders for a KOL × product pair from the KOL's clicks and conversion, the product's
+  affiliate conversion and the channel fit, **shrunk toward the shop average** while the KOL has few orders (labelled
+  "ít dữ liệu", wide range). Versions (D-2) = different products or sample counts; what-if knobs: product, số lượng mẫu,
+  hoa hồng %. Shows sample cost, expected orders (range), expected net profit, ROI, payback orders. Plus an
+  "Mời KOL" card (no sample cost) for KOLs not yet sent samples. Both join plans (D-6); measured per KOL × product
+  pair before vs after the send date (D-7).
+
 ## Waves
-1. Backend core (D-1, D-2, D-4, D-5) ‖ Backend manual + compare + combo (D-3) ‖ Design artboards (all of D-1..D-8).
+1. Backend core (D-1, D-2, D-4, D-5) ‖ Backend manual + compare + combo (D-3) ‖ Design artboards (all of D-1..D-10).
    Parallel; file ownership below.
-1b. After core + manual merge: Backend plan + aggregation + measurement (D-6, D-7, D-8).
+1b. After core + manual merge: Backend plan + aggregation + measurement + plan codes (D-6, D-7, D-8, D-10) ‖ Backend KOL (D-9).
 2. Owner approves the artboards.
 3. Frontend Demo + Ops ‖ integration tests on ORY data. Then one deploy.
 
