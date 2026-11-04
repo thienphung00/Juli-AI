@@ -492,11 +492,12 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | D-9/D-11 KOL × product × channel, commission per product sold, Mẫu KOL sheet, Gửi mẫu / Mời KOL cards (migration 118) | p91 D-9/11 | done, merged (G-15 commission column: owner to confirm on one real month) | KOL agent |
 | Demo + Ops screens to the artboards; plan/KOL screens on real shapes, flags ON | artboards | done, merged | web agent + integration |
 | Integration of plan + KOL + web on fasttrack/reco-versions (5fb949ae) | mypy 940 clean, bandit, check.sh --since, 22 integration, demo vitest 1786 / build / Playwright 35 | done (full check.sh and 2 unit files not re-run: disk) | integration agent |
-| D-12 income export (per-order actuals, table shopee_order_income), company VAT flags, pack count / BOM, cost-file converter | real files: 3 months reconcile to the đồng; 113/117 profit orders with income | built on fasttrack/p91-income (ea84e461), not merged; migration → 119 | income agent |
-| D-13 listing kinds, planned-changes file import (TD/XM), Connector fill-in without saving (flag off until edit-page recon) | p91 D-13 | built on fasttrack/p91-listing (33128724), not merged; migration → 120; connector → 0.3.4 | listing agent |
-| Merge D-12 + D-13, VAT-aware what-if, variation name in the browser order upload, full deploy gate, one deploy | — | todo | orchestrator |
+| D-12 income export (per-order actuals, table shopee_order_income), company VAT flags, pack count / BOM, cost-file converter | real files: 3 months reconcile to the đồng; 113/117 profit orders with income | done, merged (ea84e461; migration 119) | income agent |
+| D-13 listing kinds, planned-changes file import (TD/XM), Connector fill-in without saving | p91 D-13 | done, merged (33128724; migration 120; connector 0.3.4 with the 0.3.2/0.3.3 live fixes). Fill-in recon done 2026-11-04 (labels, rich editor, save = Cập nhật); server flag `CONNECTOR_FILL_LISTING` stays off until the owner sets it | listing agent |
+| D-14 VAT in card what-ifs, variation_name in the browser order upload, P90/P91 UPDATE call sites registered (23 older tables remain, separate ticket), daily learning after the KPI beat (pilot shops), seller-support shipping reference-only + Ops warning | p91 D-14 | done on fasttrack/reco-versions | integration agent |
+| Merge D-12 + D-13, full deploy gate (counts in LOG 2026-11-04 "P91 ready to deploy"), deploy checklist `contracts/p91-deploy-checklist.md` | — | done, ready for the owner's one deploy | integration agent |
 
-| Open (owner): ORY VAT answers (company? rate per SKU, prices/costs incl. VAT); costs for P300002/P300003; KOL sample sheet + KOL packaging/delivery costs; read-only recon of the product edit page (fill-in); free disk space (full runs failed on disk) | — | todo | owner |
+| Open (owner): ORY VAT answers (company? rate per SKU, prices/costs incl. VAT); costs for P300002/P300003; KOL sample sheet + KOL packaging/delivery costs; run the deploy (checklist), then post-deploy steps: backfill-codes, connector 0.3.4 reload, `CONNECTOR_FILL_LISTING=1` when wanted, import the planned-changes list, income + cost files via the converter; confirm ORY's Ops stage is Pilot (daily learning); ticket for the 23 older UPDATE-grant tables | — | todo | owner |
 
 ## P2–P6
 
