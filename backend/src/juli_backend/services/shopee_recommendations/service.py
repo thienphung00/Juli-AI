@@ -54,7 +54,9 @@ from juli_backend.services.shopee_analytics import loaders
 from juli_backend.services.shopee_analytics.critical import build_critical
 from juli_backend.services.shopee_recommendations import (
     codes,
+    combo,
     config,
+    manual,
     product_queue,
     store,
     versions,
@@ -753,6 +755,7 @@ async def recompute(
                 "floor_ok": new_card["floor"]["ok"],
             },
             family=card["family"],
+            card=card,
             change_kind=card["change_kind"],
             subject=subject,
         )
@@ -800,12 +803,26 @@ def recompute_card(
     out["rank"] = card.get("rank")
     out["metric"] = card["metric"]
     out["wiring"] = card["wiring"]
+    if cand.kind == combo.KIND:  # a combo is named by its products, not by the generic label
+        out["title"] = manual.combo_title(env, cand)
+    for key in ("origin", "created_by", "primary", "acknowledged_breaches"):
+        if key in card:  # who made the card travels with every recompute
+            out[key] = card[key]
     if rebuild_versions:
         out["versions"] = versions.build_versions(env, cand, out, now=now)
     else:
         label = vlist[number - 1].get("label") or versions.DEFAULT_LABEL
         code = vlist[number - 1].get("code")
-        vlist[number - 1] = versions.version_of(out, number, label, code=code)
+        old = vlist[number - 1]
+        new = versions.version_of(out, number, label, code=code)
+        for key in ("index", "chosen", "change_kind", "items", "extra"):  # manual variants
+            if key in old:
+                new[key] = old[key]
+        if "title" in old:
+            new["title"] = out["title"]
+        if "metrics" in old:
+            new["metrics"] = manual.metrics_of(out)
+        vlist[number - 1] = new
         out["versions"] = vlist
     out["version"] = number
     return out
@@ -1040,6 +1057,7 @@ async def _decide(
                 "final_vs_default": _final_vs_default(card, inputs or {}),
             },
             family=card["family"],
+            card=card,
             change_kind=card["change_kind"],
             subject=subject,
         )
@@ -1073,6 +1091,7 @@ async def _decide(
             code=code,
             payload={"request": note or "", "approval_id": str(approval.id)},
             family=card["family"],
+            card=card,
             change_kind=card["change_kind"],
             subject=subject,
         )
@@ -1104,6 +1123,7 @@ async def _decide(
             code=p.code,
             payload={"approval_id": str(approval.id)},
             family=card["family"],
+            card=card,
             change_kind=card["change_kind"],
             subject=subject,
             reason_code=dcode,
@@ -1136,6 +1156,7 @@ async def expire_old(
                 code=p.code,
                 payload={"sent_at": p.sent_at.isoformat()},
                 family=card["family"],
+                card=card,
                 change_kind=card["change_kind"],
                 subject=_subject_of(card, p.id),
             )
@@ -1272,6 +1293,7 @@ async def mark_executed(
                 "bundle": card.get("bundle", False),
             },
             family=card["family"],
+            card=card,
             change_kind=card["change_kind"],
             subject=subject,
         )
@@ -1386,10 +1408,14 @@ async def learning_overview(session: AsyncSession, shop_id: uuid.UUID) -> dict[s
 
     states = await store.load_calibrations(session, shop_id)
     acceptance = await store.load_acceptance(session, shop_id)
+    manual_acceptance = await store.load_acceptance(session, shop_id, origin="manual")
+    observations = await store.load_observations(session, shop_id)
     sim = await store.load_sim(session, shop_id)
     return {
         "calibration": learning.coverage_report(states),
+        "calibration_manual": learning.coverage_report(learning.calibrate(observations, "manual")),
         "acceptance": acceptance.json(),
+        "acceptance_manual": manual_acceptance.json(),
         "sim": None if sim is None else sim.summary(),
         "note": "Chấp nhận / bỏ qua chỉ đổi giá trị mặc định và thứ tự xếp hạng, không phải bằng "
         "chứng hiệu quả.",

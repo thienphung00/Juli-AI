@@ -343,6 +343,7 @@ async def read_cards(
                 dedup_key=f"{event_type}:{p.id}",
                 code=p.code,
                 family=card["family"],
+                card=card,
                 change_kind=card["change_kind"],
                 subject=("item", items[0]) if items else ("shop", str(p.id)),
                 payload={
@@ -395,6 +396,7 @@ async def read_cards(
                 bool(card.get("bundle")) or stacked,
                 str(p.id),
                 not reading.fallback,
+                str(card.get("origin") or "engine"),
             )
         )
         report.readings += 1
@@ -471,7 +473,7 @@ async def run_learning(
     prior_cards = {o.ref: o for o in old if o.source == "card"}
     merged = {**prior_cards, **{o.ref: o for o in card_obs}}
     all_obs = [*natural, *merged.values()]
-    states = learning.calibrate(all_obs)
+    states = learning.calibrate_all(all_obs)
     report.observations_total = len(all_obs)
     report.states = await store.save_calibrations(session, shop_id, states, all_obs, now=now)
     await product_queue.requeue_shop(
@@ -710,7 +712,7 @@ async def apply_backfill(
     old = await store.load_observations(session, shop_id)
     kept = [o for o in old if o.source != "natural"]
     all_obs = [*kept, *new]
-    states = learning.calibrate(all_obs)
+    states = learning.calibrate_all(all_obs)
     await store.save_calibrations(session, shop_id, states, all_obs, now=now)
     return report
 

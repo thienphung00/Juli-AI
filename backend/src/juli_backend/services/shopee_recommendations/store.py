@@ -57,6 +57,7 @@ from juli_backend.services.shopee_recommendations.learning import (
 from juli_backend.services.shopee_recommendations.sim_priors import SimPriors
 
 CARD_STATUS = "shopee_reco"
+ORIGIN_ENGINE = "engine"
 WORKFLOW_PREFIX = "shopee_reco"
 #: Proposal statuses that hold their products against a new card.
 LOCKING_STATUSES = (STATUS_SENT, STATUS_CHANGES_REQUESTED, STATUS_APPROVED, STATUS_EXECUTED)
@@ -255,6 +256,14 @@ async def set_meta(
     row.metadata_json = json.dumps(meta)
 
 
+def provenance(card: Mapping[str, Any]) -> dict[str, Any]:
+    """``{origin, created_by?}`` of a card: ``engine`` unless a person built it by hand."""
+    out: dict[str, Any] = {"origin": card.get("origin") or ORIGIN_ENGINE}
+    if card.get("created_by"):
+        out["created_by"] = dict(card["created_by"])
+    return out
+
+
 async def write_event(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -270,7 +279,13 @@ async def write_event(
     subject: tuple[str, str],
     reason_code: str | None = None,
     code: str | None = None,
+    card: Mapping[str, Any] | None = None,
 ) -> bool:
+    """Write one journey event. ``card`` (the frozen payload) adds who made the card
+    (``origin`` engine / manual, and ``created_by`` for a manual one), so the learning
+    statistics can be split by origin (P91 D-3)."""
+    if card is not None:
+        payload = {**provenance(card), **payload}
     if code is not None:
         payload = {"code": code, **payload}
     return await insert_event(
@@ -490,7 +505,10 @@ async def save_calibrations(
 # ------------------------------------------------------------------------ acceptance
 
 
-async def load_acceptance(session: AsyncSession, shop_id: uuid.UUID) -> AcceptanceStats:
+async def load_acceptance(
+    session: AsyncSession, shop_id: uuid.UUID, *, origin: str | None = "engine"
+) -> AcceptanceStats:
+    """The decision statistics of the cards made by ``origin`` (default the engine's)."""
     rows = (
         await session.execute(
             select(CardEvent.event_type, CardEvent.reason_code, CardEvent.payload).where(
@@ -503,8 +521,11 @@ async def load_acceptance(session: AsyncSession, shop_id: uuid.UUID) -> Acceptan
         )
     ).all()
     return acceptance_from_events(
-        {"event_type": r.event_type, "reason_code": r.reason_code, "payload": r.payload}
-        for r in rows
+        (
+            {"event_type": r.event_type, "reason_code": r.reason_code, "payload": r.payload}
+            for r in rows
+        ),
+        origin,
     )
 
 
