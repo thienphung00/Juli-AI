@@ -20,7 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
 from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
-from juli_backend.api.routes.shopee_reco_manual_common import CompareBody, ManualBody
+from juli_backend.api.routes.shopee_reco_manual_common import (
+    CompareBody,
+    ManualBody,
+    breach_refusal,
+)
 from juli_backend.api.routes.shopee_recommendations_common import refused
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
@@ -76,6 +80,7 @@ async def ops_create_manual(
                 manual.Actor("staff", ctx.staff.id, staff_id=ctx.staff.id),
                 now=_now(),
                 as_of=body.as_of,
+                acknowledge_breaches=body.acknowledge_breaches,
             )
         await audit.record(
             session,
@@ -90,6 +95,9 @@ async def ops_create_manual(
             },
         )
         await session.commit()
+    except manual.BreachNotAcknowledged as exc:
+        await session.rollback()
+        raise breach_refusal(exc) from None
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None

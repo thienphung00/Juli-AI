@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Literal
 
+from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from juli_backend.services.shopee_recommendations import combo, manual
@@ -109,6 +110,8 @@ class ManualBody(BaseModel):
     chosen: int = Field(default=0, ge=0, lt=manual.MAX_VARIANTS)
     #: ask to take the product's #1 slot in the queue
     primary: bool = False
+    #: must be true to save a variant that breaks a floor price or the spend cap
+    acknowledge_breaches: bool = False
     as_of: date | None = None
 
     @model_validator(mode="after")
@@ -116,3 +119,10 @@ class ManualBody(BaseModel):
         if self.chosen >= len(self.variants):
             raise ValueError("chosen must index one of the variants")
         return self
+
+
+def breach_refusal(exc: manual.BreachNotAcknowledged) -> HTTPException:
+    return HTTPException(
+        status_code=422,
+        detail={"code": exc.code, "message": exc.detail, "breaches": exc.breaches},
+    )

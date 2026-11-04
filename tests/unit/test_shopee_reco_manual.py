@@ -343,17 +343,30 @@ async def test_a_seller_manual_card_runs_approve_then_done_like_any_card(session
     assert (await session.get(ShopProposal, cid)).status == "executed"
 
 
-async def test_a_manual_card_under_the_floor_or_unbuildable_is_refused(session, shop, seller):
+async def test_a_breaching_manual_card_needs_the_acknowledgement(session, shop, seller):
+    seeded, _ = shop
     below = _combo(pct=60)
     r = await seller.post(f"{DEMO}/manual", json=_body([below]))
-    assert r.status_code == 422 and r.json()["detail"]["code"] == "reco_floor_breach"
-    seeded, _ = shop  # a refusing route rolls back; the app would load the shop afresh
-    await session.refresh(seeded.shop)
+    detail = r.json()["detail"]
+    assert r.status_code == 422 and detail["code"] == "reco_breach_not_acknowledged"
+    assert detail["breaches"] and detail["breaches"][0]["type"] == "floor"
+    await session.refresh(seeded.shop)  # a refusing route rolls back
     await session.refresh(seeded.user)
-    bad = {"change_kind": "product_discount", "items": ["nope"], "inputs": {"discount_pct": 5}}
-    r2 = await seller.post(f"{DEMO}/manual", json=_body([bad]))
-    assert r2.status_code == 422 and r2.json()["detail"]["code"] == "reco_manual_invalid"
     assert (await session.scalars(select(ShopProposal))).first() is None
+    ok = await seller.post(f"{DEMO}/manual", json=_body([below], acknowledge_breaches=True))
+    assert ok.status_code == 201, ok.text
+    cid = uuid.UUID(ok.json()["id"])
+    (proposed,) = await _events(session, seeded.shop_id, cid, "proposed")
+    ack = proposed.payload["acknowledged_breaches"]
+    assert ack["by"] == {"type": "seller", "id": str(seeded.user.id)} and ack["at"]
+    assert ack["breaches"] == [b for b in ack["breaches"] if b["type"] in ("floor", "spend_cap")]
+    assert ack["breaches"] and proposed.payload["floor"]["ok"] is False
+
+
+async def test_an_unbuildable_manual_card_is_refused(session, shop, seller):
+    bad = {"change_kind": "product_discount", "items": ["nope"], "inputs": {"discount_pct": 5}}
+    r2 = await seller.post(f"{DEMO}/manual", json=_body([bad], acknowledge_breaches=True))
+    assert r2.status_code == 422 and r2.json()["detail"]["code"] == "reco_manual_invalid"
 
 
 async def test_ops_compare_is_viewer_and_manual_is_operator_and_audited(session, shop, monkeypatch):

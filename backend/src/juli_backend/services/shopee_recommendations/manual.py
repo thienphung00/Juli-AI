@@ -44,7 +44,7 @@ MIN_VARIANTS, MAX_VARIANTS = 2, 4
 DEFAULT_MANUAL_POSITION = 50
 
 ERROR_BAD_VARIANT = "reco_manual_invalid"
-ERROR_FLOOR = "reco_floor_breach"
+ERROR_BREACH = "reco_breach_not_acknowledged"
 ERROR_NO_DATA = "reco_no_data"
 
 #: change kinds a person may build by hand (the mega sale is a campaign of other cards)
@@ -67,6 +67,31 @@ _REFUSAL_TEXT = {
 def refusal(code: str) -> dict[str, str]:
     head = code.split(":", 1)[0]
     return {"code": code, "message": _REFUSAL_TEXT.get(head, code)}
+
+
+class BreachNotAcknowledged(ProposalError):
+    """The chosen variant breaks a floor or the spend cap and the request did not
+    acknowledge it (owner decision 2026-11-04: breaches never block, they need a yes)."""
+
+    def __init__(self, breaches: list[dict[str, Any]]) -> None:
+        super().__init__(
+            ERROR_BREACH, 422, "the offer breaks a floor price or the spend cap; acknowledge it"
+        )
+        self.breaches = breaches
+
+
+def breaches_of(card: Mapping[str, Any]) -> list[dict[str, Any]]:
+    out = [{"type": "floor", **b} for b in card["floor"]["breaches"]]
+    spend = card.get("spend") or {}
+    if spend.get("over_cap"):
+        out.append(
+            {
+                "type": "spend_cap",
+                "spend_per_day_after": spend.get("shop_chi_per_day_after"),
+                "cap": spend.get("cap"),
+            }
+        )
+    return out
 
 
 @dataclass(frozen=True)
@@ -308,11 +333,14 @@ async def create_manual(
     as_of: date | None = None,
     env: RecoEnv | None = None,
     cards: Sequence[dict[str, Any] | None] | None = None,
+    acknowledge_breaches: bool = False,
 ) -> dict[str, Any]:
     """Save ``variants[chosen]`` as a manual card. Never commits (the route does).
 
     ``cards`` (tests / a caller that already built them) skips building. The chosen variant
-    must build and stay above its floor, else 422. Returns ``{id, status, versions, position}``.
+    must build; one that breaks a floor / the spend cap needs ``acknowledge_breaches`` (422
+    with the breach list otherwise) and the acknowledgement is stored on the card.
+    Returns ``{id, status, versions, position}``.
     A seller's card is sent at once (the seller approves it in the app); Ops' stays a draft.
     """
     now = now.replace(tzinfo=None)
@@ -331,8 +359,15 @@ async def create_manual(
     if card is None:
         assert why is not None
         raise ProposalError(ERROR_BAD_VARIANT, 422, why["message"])
-    if not card["floor"]["ok"]:
-        raise ProposalError(ERROR_FLOOR, 422, "the offer puts a SKU under its floor price")
+    breaches = breaches_of(card)
+    if breaches and not acknowledge_breaches:
+        raise BreachNotAcknowledged(breaches)
+    if breaches:
+        card["acknowledged_breaches"] = {
+            "by": actor.json(),
+            "at": now.isoformat(),
+            "breaches": breaches,
+        }
     order = [chosen, *[i for i in range(len(variants)) if i != chosen]]
     card["origin"] = ORIGIN_MANUAL
     card["created_by"] = actor.json()
@@ -379,6 +414,7 @@ async def create_manual(
 
 __all__ = [
     "Actor",
+    "BreachNotAcknowledged",
     "MANUAL_KINDS",
     "ORIGIN_MANUAL",
     "build_variant",

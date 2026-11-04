@@ -20,7 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.api.routes.demo_shopee_analytics import _shopee
-from juli_backend.api.routes.shopee_reco_manual_common import CompareBody, ManualBody
+from juli_backend.api.routes.shopee_reco_manual_common import (
+    CompareBody,
+    ManualBody,
+    breach_refusal,
+)
 from juli_backend.api.routes.shopee_recommendations_common import refused
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
@@ -84,8 +88,12 @@ async def create_manual_card(
             manual.Actor("seller", user.id),
             now=_now(),
             as_of=body.as_of,
+            acknowledge_breaches=body.acknowledge_breaches,
         )
         await session.commit()
+    except manual.BreachNotAcknowledged as exc:
+        await session.rollback()
+        raise breach_refusal(exc) from None
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None
