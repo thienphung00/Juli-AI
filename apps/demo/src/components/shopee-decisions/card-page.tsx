@@ -35,6 +35,8 @@ import { MegaPanel } from "./mega";
 import { Checks, NumbersTable } from "./numbers";
 import { NavLink, RecoState, StatusChip, errorText } from "./ui";
 import { WhatIfPanel, type Patch } from "./whatif";
+import { KolWhatIf } from "../shopee-kol/kol-card";
+import { FEW_ORDERS, isKolKind, kolCertOf, kolVersionRows } from "../../lib/shopee-kol/model";
 import { BreachDialog, TitleBox, VersionsTable } from "./versions";
 
 /**
@@ -202,6 +204,9 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   const shown = adjustable ? (detail.card.family === "mega_sale" ? (megaFresh ?? detail.card) : cardOfVersion(detail.card, v)) : final.card;
   const isMega = shown.family === "mega_sale";
   const title = isTitleKind(shown);
+  const isKol = isKolKind(detail.change_kind);
+  const kolCert = isKol ? kolCertOf(v) : null;
+  const kolInvite = detail.change_kind === "affiliate_invite";
   const name = versionName(v);
   const vcode = versionCode(detail.card, v);
   const refused = isRefused(v);
@@ -299,6 +304,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 
   const approveOutcome = (acknowledged: readonly Breach[]): Omit<Outcome, "kind"> => {
     const days = shown.measurement_plan.planned_days;
+    if (isKol) return { text: `Đã duyệt ${vcode}. Đội Juli ${kolInvite ? "gửi lời mời" : "đóng gói và gửi mẫu"} và bạn xác nhận. Phép đo theo cặp KOL × sản phẩm, trước và sau ngày gửi.` };
     return {
       text: `Đã duyệt ${vcode}. Các phiên bản còn lại đóng cùng thẻ. Đội Juli đặt thay đổi trên Seller Centre, bạn xác nhận lần cuối trước khi áp dụng.`,
       more: `${next ? `Thẻ kế tiếp của sản phẩm (${next.code ?? next.id}) đã lên Quyết định ngay. ` : ""}Sản phẩm này sẽ được đo: kết quả đọc sau ${days === null ? "…" : fmt(days, 0)} ngày; thẻ mới của sản phẩm vẫn duyệt được trong lúc đo (xem “Sản phẩm đang đo”).`,
@@ -333,7 +339,11 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   };
 
   const approveOff = !canDecide || busy || stale || calc === "error" || refused || (title && count.over) || (title && count.n === 0);
-  const hint = title && count.over
+  const hint = isKol
+    ? kolInvite
+      ? "Không có giá sàn hay trần chi cần kiểm: chỉ có hoa hồng."
+      : "Chi phí mẫu chi một lần; hoa hồng chỉ trả khi có đơn."
+    : title && count.over
     ? `Rút bớt ${count.n - MAX_TITLE_CHARS} ký tự để duyệt.`
     : breaches.length > 0
       ? `${name} ${breachNoun(breaches)}: vẫn duyệt được, Juli sẽ hiện cảnh báo trước.`
@@ -346,6 +356,11 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 
   return (
     <>
+      {isKol ? (
+        <h1 className="sa-h1" data-testid="kol-title">
+          {kolInvite ? "Mời KOL chưa nhận mẫu: chọn sản phẩm mời bán, không tốn chi phí mẫu" : "Gửi mẫu cho KOL: chọn sản phẩm và số mẫu đáng gửi nhất"}
+        </h1>
+      ) : null}
       <header className="sa-head">
         <div className="sa-eyebrow">QUYẾT ĐỊNH · ĐỀ XUẤT · {detail.family_label.toUpperCase()}</div>
         <div className="sa-head__line">
@@ -354,8 +369,16 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
               {detail.code}
             </span>
           ) : null}
-          {detail.product_id ? <span className="sa-chip sa-chip--outline">SP · {detail.product_id}</span> : null}
-          <h1 className="sa-h1 sa-h1--title">{detail.title}</h1>
+          {detail.plan_code ? (
+            <span className="sd-code" data-testid="sd-plan-code">
+              {detail.plan_code}
+            </span>
+          ) : null}
+          {kolCert ? <span className="sa-chip sa-chip--outline">KOL · {kolCert.kol.handle}</span> : null}
+          {kolCert ? <span className="sa-chip sa-chip--outline">{kolCert.kol.channel}</span> : null}
+          {kolCert?.few_data ? <TextChip tone="warn">Ít dữ liệu</TextChip> : null}
+          {detail.product_id && !isKol ? <span className="sa-chip sa-chip--outline">SP · {detail.product_id}</span> : null}
+          {isKol ? <h2 className="sa-h2">{detail.title}</h2> : <h1 className="sa-h1 sa-h1--title">{detail.title}</h1>}
           <StatusChip status={detail.status} />
           {detail.bundle ? <TextChip tone="info">Đo như một gói</TextChip> : null}
         </div>
@@ -364,6 +387,12 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
           {detail.product_queue ? " · " : ""}
           {detail.family_label} · cập nhật {dmy(shown.as_of)} · {fmt(versions.length, 0)} phiên bản{detail.product_queue && queueTotal > 0 ? ` · thẻ ${detail.product_queue} trong ${queueTotal} thẻ của sản phẩm này` : ""}
         </p>
+        {kolCert ? (
+          <p className="sa-hint" data-testid="kol-basis">
+            Dữ liệu của KOL 30 ngày: {kolCert.basis}
+            {kolCert.few_data ? `. Cặp KOL × sản phẩm này dưới ${FEW_ORDERS} đơn nên ước tính được kéo về trung bình shop, khoảng rộng.` : `. Từ ${FEW_ORDERS} đơn của cặp KOL × sản phẩm, ước tính kéo nhẹ về trung bình shop.`}
+          </p>
+        ) : null}
         <p className="sa-hint">
           Tính trên {fmt(shown.window.days, 0)} ngày đến {shown.window.to.slice(8, 10)}/{shown.window.to.slice(5, 7)} · {shown.order_basis.label} · Kế hoạch đo: {shown.measurement_plan.label}
         </p>
@@ -412,7 +441,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 
       {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”. Juli sẽ đọc lại trên Seller Centre để xác minh." })} sheet={final.sheet} /> : null}
 
-      {!isMega ? <VersionsTable card={detail.card} locked={!adjustable} onPick={pick} sel={sel} todayText={todayText(shown)} versions={versions} /> : null}
+      {!isMega ? <VersionsTable card={detail.card} locked={!adjustable} noToday={isKol} onPick={pick} rows={isKol ? kolVersionRows(versions, kolInvite) : undefined} sel={sel} subLabel={isKol ? (kolInvite ? "không có chi phí mẫu" : "so với không gửi") : undefined} todayText={todayText(shown)} versions={versions} /> : null}
 
       {refused ? (
         <Notice tone="warn" testId="sd-refused">
@@ -420,25 +449,35 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         </Notice>
       ) : (
         <section className="sa-card" data-testid="sd-changes">
-          <div className="sa-card__head">
-            <h2 className="sa-h2">Thay đổi đề xuất</h2>
-            <span className="sa-hint">Juli không tự sửa Seller Centre: bạn làm theo bảng thao tác sau khi duyệt.</span>
-          </div>
-          <div className="sa-chips">
-            {shown.execution_sheet.steps.map((s) => (
-              <span className="sa-chips__item" key={s.order}>
-                {s.field}: {stepText(s.before, s.unit)} → <b>{stepText(s.after, s.unit)}</b>
-              </span>
-            ))}
-          </div>
+          {isKol ? null : (
+            <>
+              <div className="sa-card__head">
+                <h2 className="sa-h2">Thay đổi đề xuất</h2>
+                <span className="sa-hint">Juli không tự sửa Seller Centre: bạn làm theo bảng thao tác sau khi duyệt.</span>
+              </div>
+              <div className="sa-chips">
+                {shown.execution_sheet.steps.map((s) => (
+                  <span className="sa-chips__item" key={s.order}>
+                    {s.field}: {stepText(s.before, s.unit)} → <b>{stepText(s.after, s.unit)}</b>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
           <dl className="sd-why">
             <dt>Lý do</dt>
             <dd data-testid="sd-why">
               {detail.reason ?? DASH}{" "}
-              <a className="sa-link" href={host.links.ranking(rank)}>
-                Xem phân tích ›
-              </a>
-              {productId ? (
+              {isKol ? (
+                <a className="sa-link" href={host.links.screen("phan-tich", new URLSearchParams({ tab: "kol" }))}>
+                  Xem KOL trong Phân tích ›
+                </a>
+              ) : (
+                <a className="sa-link" href={host.links.ranking(rank)}>
+                  Xem phân tích ›
+                </a>
+              )}
+              {productId && !isKol ? (
                 <>
                   {" "}
                   <a className="sa-link" href={host.links.product(productId, { from: "card", card: detail.id })}>
@@ -449,7 +488,8 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
             </dd>
             <dt>Phiên bản đang chọn</dt>
             <dd data-testid="sd-selected">
-              <b>{vcode}</b> <span className="sa-hint">Mã này được ghi vào quyết định (chosen_version) và nhật ký thẻ.</span>
+              <b>{vcode}</b>{" "}
+              <span className="sa-hint">{isKol ? "Khoảng đơn dự kiến rộng vì KOL ít dữ liệu: Juli kéo ước tính về mức trung bình của shop. Sau khi gửi, đo theo cặp KOL × sản phẩm, trước và sau ngày gửi." : "Mã này được ghi vào quyết định (chosen_version) và nhật ký thẻ."}</span>
             </dd>
           </dl>
         </section>
@@ -472,8 +512,8 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
               </span>
             ) : null}
           </div>
-          {isMega ? <MegaPanel card={shown} disabled={!adjustable} editable={adjustable && shown.whatif.children_editable !== false} onChange={change} patch={patch} /> : title ? <TitleBox current={titleOf(detail.card.change.before as Record<string, unknown>) || "—"} disabled={!adjustable || !seller} name={name} onChange={onTitle} value={titleText} /> : adjustable ? <WhatIfPanel card={shown} disabled={!seller && !host.readOnly} onChange={change} patch={patch} /> : null}
-          <Checks card={shown} />
+          {isKol && kolCert ? <KolWhatIf cert={kolCert} disabled={!adjustable || !seller} onChange={change} patch={patch} /> : isMega ? <MegaPanel card={shown} disabled={!adjustable} editable={adjustable && shown.whatif.children_editable !== false} onChange={change} patch={patch} /> : title ? <TitleBox current={titleOf(detail.card.change.before as Record<string, unknown>) || "—"} disabled={!adjustable || !seller} name={name} onChange={onTitle} value={titleText} /> : adjustable ? <WhatIfPanel card={shown} disabled={!seller && !host.readOnly} onChange={change} patch={patch} /> : null}
+          {isKol ? null : <Checks card={shown} />}
           {breaches.length > 0 && adjustable && maxInputs ? (
             <div className="sd-lock" data-testid="sd-lock" role="status">
               <span>{name} {breachNoun(breaches)}: vẫn duyệt được sau khi bạn xác nhận cảnh báo.</span>
@@ -485,7 +525,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         </section>
       ) : null}
 
-      {!refused ? (
+      {!refused && !isKol ? (
         <section className="sa-card" data-testid="sd-numbers-card">
           <NumbersTable card={shown} />
         </section>

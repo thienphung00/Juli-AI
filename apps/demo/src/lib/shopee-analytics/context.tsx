@@ -4,6 +4,7 @@ import { createContext, useContext, type ReactNode } from "react";
 
 import type { ShopeeApi } from "./client";
 import type { RecoApi } from "../shopee-decisions/client";
+import type { KolApi } from "../shopee-kol/types";
 import type { ShopeeLinks } from "./links";
 
 /**
@@ -20,6 +21,8 @@ export interface ShopeeHost {
   readonly readOnly?: boolean;
   /** P91: the shop's recommendation cards, for the product page's "Đề xuất" tab; absent = the tab is not shown. */
   readonly reco?: RecoApi;
+  /** P91 D-9: KOL × sản phẩm × kênh (flag `NEXT_PUBLIC_P91_KOL`); absent = no KOL screens. */
+  readonly kol?: KolApi;
 }
 
 const Ctx = createContext<ShopeeHost | null>(null);

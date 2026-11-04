@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 
 import { DASH } from "../../lib/shopee-analytics/format";
-import { MAX_TITLE_CHARS, isRefused, titleCount, versionCode, versionName, versionTag, versionTable, type TableCell } from "../../lib/shopee-decisions/versions";
+import { MAX_TITLE_CHARS, isRefused, titleCount, versionCode, versionName, versionTag, versionTable, type TableCell, type TableRow } from "../../lib/shopee-decisions/versions";
 import type { Card, CardVersion } from "../../lib/shopee-decisions/types";
 import { TextChip } from "../shopee-analytics/ui";
 
@@ -22,6 +22,9 @@ export function VersionsTable({
   onPick,
   locked,
   todayText,
+  rows: given,
+  noToday = false,
+  subLabel = "so với hôm nay",
 }: {
   readonly card: Card;
   readonly versions: readonly CardVersion[];
@@ -29,8 +32,13 @@ export function VersionsTable({
   readonly onPick: (index: number) => void;
   readonly locked: boolean;
   readonly todayText: string;
+  /** Other rows than the card's own table (KOL cards). */
+  readonly rows?: readonly TableRow[];
+  /** No "Hôm nay" column (KOL cards have nothing to compare with). */
+  readonly noToday?: boolean;
+  readonly subLabel?: string;
 }) {
-  const rows = versionTable(card, versions);
+  const rows = given ?? versionTable(card, versions);
   const n = versions.length;
   const style = { ["--sv-cols" as string]: n } as React.CSSProperties;
   return (
@@ -42,15 +50,17 @@ export function VersionsTable({
         <span className="sa-hint">V1 là bản Juli đề xuất. Chọn một cột để duyệt; thanh trượt bên dưới chỉ chỉnh phiên bản đang chọn. Các số tính theo cùng một công thức, so với hôm nay.</span>
       </div>
       <div className="sv-scroll">
-        <div className="sv-grid" role="radiogroup" aria-label="Phiên bản" style={style}>
+        <div className={`sv-grid ${noToday ? "sv-grid--notoday" : ""}`} role="radiogroup" aria-label="Phiên bản" style={style}>
           <div className="sv-head sv-head--label">
             <b>Chỉ số</b>
-            <span>so với hôm nay</span>
+            <span>{subLabel}</span>
           </div>
-          <div className="sv-head sv-head--today">
-            <b>Hôm nay</b>
-            <span>{todayText}</span>
-          </div>
+          {noToday ? null : (
+            <div className="sv-head sv-head--today">
+              <b>Hôm nay</b>
+              <span>{todayText}</span>
+            </div>
+          )}
           {versions.map((v, i) => {
             const on = i === sel;
             const tag = versionTag(v, i);
@@ -77,7 +87,7 @@ export function VersionsTable({
             );
           })}
           {rows.map((r) => (
-            <RowCells key={r.key} row={r} sel={sel} />
+            <RowCells key={r.key} noToday={noToday} row={r} sel={sel} />
           ))}
         </div>
       </div>
@@ -88,16 +98,18 @@ export function VersionsTable({
 const VALUE_TONED = new Set(["sure", "exp", "chi", "floor", "cap", "limit"]);
 const SMALL = new Set(["floor", "cap", "limit"]);
 
-function RowCells({ row, sel }: { readonly row: ReturnType<typeof versionTable>[number]; readonly sel: number }) {
+function RowCells({ row, sel, noToday }: { readonly row: TableRow; readonly sel: number; readonly noToday: boolean }) {
   return (
     <>
       <div className="sv-cell sv-cell--label" data-testid={`sv-row-${row.key}`}>
         <b>{row.label}</b>
         {row.sub ? <span>{row.sub}</span> : null}
       </div>
-      <div className="sv-cell sv-cell--today">
-        <span className="sd-muted">{row.today ?? DASH}</span>
-      </div>
+      {noToday ? null : (
+        <div className="sv-cell sv-cell--today">
+          <span className="sd-muted">{row.today ?? DASH}</span>
+        </div>
+      )}
       {row.cells.map((c, i) => (
         <div className={`sv-cell ${i === sel ? "sv-cell--sel" : ""} ${c.bad ? "sv-cell--bad" : ""}`} data-testid={`sv-${row.key}-${i + 1}`} key={i}>
           <span className={`sv-cell__v ${VALUE_TONED.has(row.key) ? toneClass(c.tone) : c.tone === "muted" ? "sd-muted" : ""} ${SMALL.has(row.key) ? "sv-cell__v--s" : ""}`}>{c.v}</span>

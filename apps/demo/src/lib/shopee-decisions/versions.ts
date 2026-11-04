@@ -103,7 +103,7 @@ export function versionCode(card: Pick<Card, "code">, v: Pick<CardVersion, "vers
 
 /** Floor and spend-cap breaches of one evaluation (`versions.breaches_of`). */
 export function breachesOf(card: Pick<Card, "floor" | "spend">): Breach[] {
-  const out: Breach[] = card.floor.breaches.map((b) => ({ type: "floor", ...b }));
+  const out: Breach[] = (card.floor?.breaches ?? []).map((b) => ({ type: "floor", ...b }));
   const s = card.spend;
   if (s?.over_cap === true) out.push({ type: "spend_cap", spend_after: s.shop_chi_per_day_after, cap: s.cap });
   return out;

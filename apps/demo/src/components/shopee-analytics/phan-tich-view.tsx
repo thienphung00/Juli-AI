@@ -8,6 +8,7 @@ import { DASH, fmt, pc, pp, sv, vnd } from "../../lib/shopee-analytics/format";
 import { readWindow, srcOfFlowKey, windowParams, type WindowState } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { Critical, CriticalItem, N } from "../../lib/shopee-analytics/types";
+import { KolView } from "../shopee-kol/kol-view";
 import { PeriodBar } from "./period-bar";
 import { Empty, Ini, InfoToggle, Notice, PageHead, ResourceState, initialsOf } from "./ui";
 
@@ -134,8 +135,19 @@ export function PhanTichPageView({ params }: { readonly params: URLSearchParams 
   const state = useMemo(() => readWindow(params), [params]);
   const key = `${host.shopKey}|ct|${JSON.stringify(state.query)}`;
   const data = useResource(() => host.api.critical(state.query), key);
+  if (host.kol && params.get("tab") === "kol") return <KolView />;
   return (
     <div className="sa-page" data-testid="sa-phan-tich">
+      {host.kol ? (
+        <nav aria-label="Phân tích" className="sa-seg sa-seg--round sa-tabs" data-testid="sa-pt-tabs">
+          <Link className="sa-seg__item sa-seg__item--on" href={host.links.critical()}>
+            Điểm cần xem
+          </Link>
+          <Link className="sa-seg__item" href={host.links.screen("phan-tich", new URLSearchParams({ tab: "kol" }))}>
+            KOL
+          </Link>
+        </nav>
+      ) : null}
       <ResourceState resource={data}>{(c) => <Loaded critical={c} state={state} />}</ResourceState>
     </div>
   );
