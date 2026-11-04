@@ -99,6 +99,9 @@ Already registered from P90 and unchanged: `card-change-verification` (01:17, 07
    written file through the normal import (preview -> reason -> apply). Then answer the VAT questions in the
    VAT sheet (company? rate per SKU, prices / costs include VAT): until `prices_include_vat` is stated the profit,
    and every card's delta profit, is shown before VAT and says so.
+   ORY's answers (owner, 2026-11-04): both flags **Có** (prices and giá vốn include VAT); rate per SKU from the
+   private list kept with the client files (never in the repo), filled into the `VAT (%)` column of the same
+   template before upload. The rate is per listing, so a combo mixing rates carries one value.
 8. Check the Ops pilot stage of ORY (or set `RECO_LEARNING_SHOP_IDS`) so tonight's 18:29 UTC beat learns for it;
    next morning `GET .../recommendations/learning` shows fresh calibration rows.
 9. Optional switches if something misbehaves on the screens: build the demo with `NEXT_PUBLIC_P91_PLAN=0` /
