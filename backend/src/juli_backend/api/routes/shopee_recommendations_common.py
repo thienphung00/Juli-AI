@@ -24,6 +24,8 @@ class ApproveBody(BaseModel):
     inputs: dict[str, Any] | None = None
     #: P91: which version of the card is approved (recorded on the decision and the events)
     chosen_version: int = Field(default=1, ge=1, le=4)
+    #: owner 2026-11-04: a floor / spend-cap breach never blocks, it must be acknowledged
+    acknowledge_breaches: bool = False
     note: str | None = Field(default=None, max_length=2000)
 
 

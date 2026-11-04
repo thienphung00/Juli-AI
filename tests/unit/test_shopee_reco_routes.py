@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 from juli_backend.models.card_events import CardEvent
 from juli_backend.models.ops import OpsAuditLog
-from juli_backend.models.shop_proposals import ShopProposal
+from juli_backend.models.shop_proposals import ShopProposal, ShopProposalApproval
 from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.card_events import verification
 from juli_backend.services.shopee_recommendations import store
@@ -289,12 +289,25 @@ async def test_approving_with_adjusted_inputs_carries_them_to_the_sheet_and_the_
     assert detail["approved_with"]["inputs"]["discount_pct"] == 16
 
 
-async def test_approving_inputs_that_break_a_floor_is_refused(session, shop, seller):
+async def test_approving_inputs_that_break_a_floor_needs_the_acknowledgement(session, shop, seller):
+    """P91 (owner 2026-11-04): a breach never blocks; it is refused until acknowledged, and the
+    acknowledgement (who, when, which breaches) is recorded on the snapshot and the event."""
     seeded, _, ids = shop
     await _publish(session, seeded)
-    r = await seller.post(f"{DEMO}/{ids[0]}/approve", json={"inputs": {"discount_pct": 70}})
-    assert r.status_code == 422 and r.json()["detail"]["code"] == "reco_floor_breach"
+    body = {"inputs": {"discount_pct": 70}}
+    r = await seller.post(f"{DEMO}/{ids[0]}/approve", json=body)
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "reco_breach_unacknowledged"
     assert (await session.get(ShopProposal, ids[0])).status == "sent"
+    await _fresh(session, seeded)
+    r = await seller.post(f"{DEMO}/{ids[0]}/approve", json={**body, "acknowledge_breaches": True})
+    assert r.status_code == 200, r.text
+    (acc,) = await _events(session, seeded.shop_id, ids[0], "accepted")
+    ack = acc.payload["acknowledged_breaches"]
+    assert ack["by"] == str(seeded.user.id) and ack["at"] and ack["breaches"][0]["type"] == "floor"
+    approval = await session.scalar(
+        select(ShopProposalApproval).where(ShopProposalApproval.proposal_id == ids[0])
+    )
+    assert approval.proposal_snapshot["acknowledged_breaches"]["breaches"]
 
 
 async def test_request_change_and_dismiss_with_an_adr_107_reason(session, shop, seller):

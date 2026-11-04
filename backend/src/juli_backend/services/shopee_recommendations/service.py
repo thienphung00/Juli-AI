@@ -918,6 +918,7 @@ async def decide(
     reason_code: str | None = None,
     note: str | None = None,
     chosen_version: int = 1,
+    acknowledge_breaches: bool = False,
 ) -> dict[str, Any]:
     """The client's decision in the app: ``approve`` one version of the card (``chosen_version``,
     default 1; optionally with adjusted what-if inputs), ``request_change`` or ``dismiss``
@@ -929,7 +930,7 @@ async def decide(
     subject = _subject_of(card, card_id)
     result = await _decide(
         session, shop_id, card_id, p, card, subject, decision, user_id, now, inputs,
-        reason_code, note, chosen_version, code,
+        reason_code, note, chosen_version, code, acknowledge_breaches,
     )  # fmt: skip
     await _requeue(session, p, now)
     return result
@@ -950,6 +951,7 @@ async def _decide(
     note: str | None,
     chosen_version: int,
     code: str | None,
+    acknowledge_breaches: bool = False,
 ) -> dict[str, Any]:
     if decision == "approve":
         vlist = versions.versions_of(card)
@@ -958,7 +960,7 @@ async def _decide(
                 "reco_version_unknown", 422, f"the card has {len(vlist)} version(s)"
             )
         chosen = vlist[chosen_version - 1]
-        if chosen.get("status") != versions.STATUS_OK:
+        if chosen.get("status") == versions.STATUS_REFUSED:
             raise ProposalError(
                 "reco_version_unavailable",
                 422,
@@ -978,10 +980,18 @@ async def _decide(
                 )
                 or final_card
             )
-            if not final_card["floor"]["ok"]:
-                raise ProposalError(
-                    "reco_floor_breach", 422, "inputs put a SKU under its floor price"
-                )
+        breaches = versions.breaches_of(final_card)
+        if breaches and not acknowledge_breaches:
+            kinds = ", ".join(sorted({b["type"] for b in breaches}))
+            raise ProposalError(
+                "reco_breach_unacknowledged",
+                422,
+                f"this version breaches the {kinds}; send acknowledge_breaches to approve it "
+                f"({len(breaches)} breach(es): {breaches})",
+            )
+        acknowledged = (
+            {"by": str(user_id), "at": now.isoformat(), "breaches": breaches} if breaches else None
+        )
         vcode = chosen.get("code") or (code and codes.version_code(code, chosen_version))
         snapshot_extra = {
             "code": code,
@@ -989,6 +999,7 @@ async def _decide(
             "chosen_version_code": vcode,
             "chosen_inputs": final_card["inputs"],
             "chosen_change": final_card["change"],
+            "acknowledged_breaches": acknowledged,
         }
         approval = await proposals.record_approval(
             session,
@@ -1020,6 +1031,7 @@ async def _decide(
                 "code": code,
                 "chosen_version": chosen_version,
                 "chosen_version_code": vcode,
+                "acknowledged_breaches": acknowledged,
                 "final": final if (inputs or chosen_version != 1) else None,
                 "approved_with": {
                     "inputs": final_card["inputs"],

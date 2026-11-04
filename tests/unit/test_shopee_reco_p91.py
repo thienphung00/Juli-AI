@@ -603,3 +603,15 @@ async def test_demo_and_ops_routes_carry_queue_versions_codes_and_chosen_version
         every = (await ops.get(base, params={"queue": "all"})).json()
         assert len(every["cards"]) == 3
     ops_app.dependency_overrides.clear()
+
+
+def test_breaches_cover_floor_and_spend_cap_and_mark_the_version():
+    ok = {"floor": {"ok": True, "breaches": []}, "rank_inputs": {}}
+    assert versions.breaches_of(ok) == [] and versions.version_of(ok, 2, "x")["status"] == "ok"
+    spend = {**ok, "rank_inputs": {"spend_after": 120.0, "spend_cap": 100.0}}
+    v = versions.version_of(spend, 2, "x")
+    assert v["status"] == versions.STATUS_SPEND and not v["ranked"]
+    assert versions.breaches_of(spend)[0]["type"] == "spend_cap"
+    floor = {"floor": {"ok": False, "breaches": [{"sku": "S"}]}, "rank_inputs": {}}
+    assert versions.version_of(floor, 1, "x")["status"] == versions.STATUS_FLOOR
+    assert not versions.version_of(floor, 1, "x")["ranked"]

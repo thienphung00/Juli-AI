@@ -49,6 +49,7 @@ EVAL_FIELDS: tuple[str, ...] = (
 )
 STATUS_OK = "ok"
 STATUS_FLOOR = "floor_breach"
+STATUS_SPEND = "spend_breach"
 STATUS_REFUSED = "refused"
 DEFAULT_LABEL = "Mặc định của Juli"
 
@@ -201,6 +202,17 @@ def input_label(kind: str, default: Mapping[str, Any], alt: Mapping[str, Any]) -
 # --------------------------------------------------------------------------- the payload
 
 
+def breaches_of(card: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Floor and spend-cap breaches of one evaluation (they never block, they must be
+    acknowledged to approve; a breaching version is never ranked)."""
+    out = [{"type": "floor", **b} for b in (card.get("floor") or {}).get("breaches") or []]
+    ri = card.get("rank_inputs") or {}
+    after, cap = ri.get("spend_after"), ri.get("spend_cap")
+    if after is not None and cap is not None and after > cap:
+        out.append({"type": "spend_cap", "spend_after": after, "cap": cap})
+    return out
+
+
 def version_of(
     card: Mapping[str, Any],
     number: int,
@@ -210,8 +222,11 @@ def version_of(
     code: str | None = None,
 ) -> dict[str, Any]:
     """One version from a full card payload: its evaluation fields plus the version header."""
-    ok = bool((card.get("floor") or {}).get("ok", True))
-    st = status or (STATUS_OK if ok else STATUS_FLOOR)
+    floor_ok = bool((card.get("floor") or {}).get("ok", True))
+    spend_ok = not any(b["type"] == "spend_cap" for b in breaches_of(card))
+    st = status or (
+        STATUS_OK if floor_ok and spend_ok else STATUS_FLOOR if not floor_ok else STATUS_SPEND
+    )
     out: dict[str, Any] = {
         "version": number,
         "code": code,
