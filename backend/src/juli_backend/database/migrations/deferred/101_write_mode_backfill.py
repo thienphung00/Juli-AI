@@ -1,7 +1,7 @@
 """DATA step for P61-F: mark agent runs that wrote to the SANDBOX as ``write_mode='simulated'``
 
 Revision ID: 101_write_mode_backfill
-Revises: 114_card_verification_events
+Revises: 115_shopee_recommendations
 Create Date: 2026-10-21
 
 DECISIONS D71.2 (owner, 2026-10-21); DEBT P61-B "No backfill of ``workflow_runs.write_mode``".

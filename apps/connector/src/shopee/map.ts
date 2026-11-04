@@ -7,7 +7,7 @@
 // lists); those mappers are provisional until the second recon (D31.6) and check
 // only that each item has an id.
 
-import type { Dataset, MydataDataset } from "../config";
+import { type Dataset, type MydataDataset, SHOPEE_NO_VALUE } from "../config";
 import { ENDPOINTS } from "./endpoints";
 import { singleDay } from "./time";
 
@@ -167,10 +167,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 /** A metric value as a number, or undefined for absent / "-" / non-numeric. */
 export function toNumber(value: unknown): number | undefined {
+  if (value === SHOPEE_NO_VALUE) return undefined; // Shopee's "no value" placeholder, not a number
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
   if (typeof value === "string" && value.trim() !== "" && value.trim() !== "-") {
     const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
+    return Number.isFinite(parsed) && parsed !== SHOPEE_NO_VALUE ? parsed : undefined;
   }
   return undefined;
 }
@@ -215,6 +216,41 @@ function scaleDrift(prefix: string, row: Row, drift: Drift): void {
   for (const [key, value] of Object.entries(row)) {
     if (RATE_FIELDS.has(key) && typeof value === "number" && (value < 0 || value > 1)) {
       drift.unexpected.push(`${prefix}${key}:not_a_fraction`);
+    }
+  }
+}
+
+/** The count a rate is computed from, per L1 block (rate = numerator ÷ denominator). */
+const RATE_PARTS: Record<string, [string, string]> = {
+  ctr: ["product_clicks", ""],
+  product_clicks_to_orders_rate: ["orders", "product_clicks"],
+  conversion: ["orders", "product_clicks"],
+};
+const VIEWS_OF: Record<string, string> = {
+  product_card: "product_impressions",
+  live: "live_views",
+  video: "video_views",
+  affiliate: "content_views",
+  paid_ads: "product_impressions",
+};
+
+/**
+ * Shopee's rate can exceed 1 for real (e.g. 2 clicks on 1 video view = ctr 2 on 2026-10-12): when
+ * the value equals the block's own count ratio it is a fraction above one, not a percentage. It is
+ * moved to `extra.<field>_above_one` (the gateway's rate fields are 0..1; Juli derives rates from
+ * the counts anyway). A value that matches the ratio x 100 stays and is reported as drift.
+ */
+function keepRatesAboveOne(block: string, row: Row, extra: Row): void {
+  for (const [field, [num, den]] of Object.entries(RATE_PARTS)) {
+    const value = row[field];
+    if (typeof value !== "number" || value <= 1) continue;
+    const top = row[num];
+    const bottom = row[den || VIEWS_OF[block] || ""];
+    if (typeof top !== "number" || typeof bottom !== "number" || bottom <= 0) continue;
+    const ratio = top / bottom;
+    if (Math.abs(value - ratio) <= Math.max(0.01, ratio * 0.02)) {
+      extra[`${field}_above_one`] = value;
+      delete row[field];
     }
   }
 }
@@ -268,6 +304,7 @@ export function mapTrafficOverview(result: unknown, date: string): { rows: Row[]
       // Level-2 sub-sources: schema pending the second recon (D31.6).
       addExtra(extra, "l2_breakdown_count", block.breakdown.length);
     }
+    keepRatesAboveOne(key, row, extra);
     if (Object.keys(extra).length) row.extra = extra;
     scaleDrift(`result.${key}.`, row, drift);
     rows.push(row);

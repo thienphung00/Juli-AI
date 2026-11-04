@@ -26,7 +26,7 @@ export function backfillLabel(backfill: Backfill | null | undefined): string | n
     }
   }
   if (backfill.needsDataPage) {
-    return `Đang lấy số liệu ${total} ngày trước: ${done}/${total} ngày · mở mục Dữ liệu trong Seller Centre để tiếp tục`;
+    return `Đang lấy số liệu ${total} ngày trước: ${done}/${total} ngày · mở Phân tích Bán Hàng › Truy cập trong Seller Centre để tiếp tục`;
   }
   return `Đang lấy số liệu ${total} ngày trước: ${done}/${total} ngày · cần mở Seller Centre`;
 }

@@ -148,11 +148,15 @@ export const VOUCHER_PAGE_LIMIT_DEFAULT = 20;
 export const MAX_ROWS_PER_POST = 400;
 
 /**
- * UNVERIFIED (recon recorded response SHAPES only): Seller Centre money may arrive in VND or in
- * VND x 100 000. A reader divides by these; the plausibility ceilings below turn a wrong
- * scale into drift (dataset stopped, nothing posted) instead of a silently wrong number.
- * Confirm on the first live run against a price / budget the page shows.
+ * Checked on the first live run (2026-11-04): the ads service (`/api/pas`) sends money AND the
+ * per-campaign ROAS target in VND x 100 000 (daily budget 8 000 000 000 = 80 000 đ; ROAS target
+ * 550 000 = 5,5); product prices and vouchers arrive in VND. A reader divides by these; the
+ * plausibility ceilings below still turn a wrong scale into drift instead of a wrong number.
  */
-export const MONEY_DIVISOR = { products: 1, ads: 1, vouchers: 1 } as const;
+export const MONEY_DIVISOR = { products: 1, ads: 100_000, vouchers: 1 } as const;
+/** The ads service's ratio scale for ROAS targets (`roi_two_target`, `roi_target_setting.value`). */
+export const ADS_TARGET_DIVISOR = 100_000;
+/** Shopee's "no value" placeholder in mydata metrics (e.g. paid_ads ctr / conversion). */
+export const SHOPEE_NO_VALUE = -1_000_000;
 export const MAX_PLAUSIBLE_PRICE_VND = 500_000_000;
 export const MAX_PLAUSIBLE_AD_VND = 5_000_000_000;

@@ -96,7 +96,7 @@ function setup(options: { token?: boolean; backfillBusy?: boolean } = {}) {
     tabs,
     alarms,
     origin: SC,
-    version: "0.3.1",
+    version: "0.3.3",
     now: () => clock.now,
     random: () => 0.5,
     backfillBusy: async () => flags.backfillBusy,

@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from fastapi import APIRouter, FastAPI
@@ -68,6 +69,36 @@ from juli_backend.api.routes.trial_signups import router as trial_signups_router
 from juli_backend.api.routes.webhook_tiktok import router as webhook_tiktok_router
 from juli_backend.api.routes.workflow_outcomes import router as workflow_outcomes_router
 from juli_backend.core.config import is_production
+
+logger = logging.getLogger(__name__)
+
+
+def warm_route_state(app: FastAPI) -> None:
+    """Build FastAPI's per-route request state now instead of inside the first request.
+
+    Recent FastAPI builds each route's dependant graph and response fields lazily, the
+    first time the router matches a request, for every route it walks past. With the P90
+    router growth (~200 routes) that is a few hundred milliseconds of synchronous CPU on
+    the sole uvicorn worker's event loop, paid by whichever request arrives first — long
+    enough to starve a concurrent ``/health`` probe (#927 exit gate). The state is cached
+    on the included-router objects, so one match against a path no route owns walks and
+    caches everything, and routes added to the top-level app afterwards (``/health``) do
+    not invalidate it.
+    """
+    scope: dict[str, Any] = {
+        "type": "http",
+        "method": "GET",
+        "path": "/__route_warmup__",
+        "root_path": "",
+        "headers": [],
+        "query_string": b"",
+        "app": app,
+    }
+    try:
+        for route in app.router.routes:
+            route.matches(scope)
+    except Exception:  # pragma: no cover - warm-up is an optimisation, never fatal
+        logger.warning("route_state_warmup_failed", exc_info=True)
 
 
 def create_app(*, lifespan: Any | None = None) -> FastAPI:
@@ -165,5 +196,6 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     # outermost-last) and therefore sees the request before any route or handler runs.
     app.add_middleware(CorrelationIdMiddleware)
     install_error_boundary(app)
+    warm_route_state(app)
 
     return app
