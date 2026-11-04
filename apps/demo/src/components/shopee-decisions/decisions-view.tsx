@@ -7,7 +7,7 @@ import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { TABS, isWorthTrying, sectionsFor, statusLabel, tabCounts, tabOfParam, type DecisionTab } from "../../lib/shopee-decisions/model";
 import type { CardList, CardSummary } from "../../lib/shopee-decisions/types";
-import { Empty, Notice, PageHead, Section, TextChip } from "../shopee-analytics/ui";
+import { Empty, Notice, Section, TextChip } from "../shopee-analytics/ui";
 import { BuilderView } from "./builder";
 import { CardPage } from "./card-page";
 import { OpsRecoList } from "./ops-list";

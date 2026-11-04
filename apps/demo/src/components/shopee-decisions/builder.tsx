@@ -58,6 +58,7 @@ interface Saved {
 }
 
 type Cmp = { readonly status: "idle" } | { readonly status: "busy" } | { readonly status: "error"; readonly message: string } | { readonly status: "ready"; readonly result: CompareResult };
+type Keyed = { readonly key: string; readonly state: Cmp };
 
 const toneClass = (t: "up" | "down" | "flat"): string => (t === "up" ? "sa-tone--up" : t === "down" ? "sa-tone--down" : "");
 
@@ -99,7 +100,7 @@ function Builder({ from, narrow, productId, products }: { readonly from: string 
   const [sel, setSel] = useState(0);
   const [choose, setChoose] = useState(0);
   const [promote, setPromote] = useState(false);
-  const [cmp, setCmp] = useState<Cmp>({ status: "idle" });
+  const [keyed, setKeyed] = useState<Keyed | null>(null);
   const [warn, setWarn] = useState<{ readonly breaches: readonly Breach[] } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -109,17 +110,15 @@ function Builder({ from, narrow, productId, products }: { readonly from: string 
   const sentKey = JSON.stringify(sent.map((s) => [s.index, s.input]));
   const seq = useRef(0);
 
+  // The answer belongs to the variants it was asked for; until it arrives for the current ones, it is "busy".
+  const cmp: Cmp = sent.length === 0 ? { status: "idle" } : keyed?.key === sentKey ? keyed.state : { status: "busy" };
   useEffect(() => {
-    if (sent.length === 0) {
-      setCmp({ status: "idle" });
-      return;
-    }
-    setCmp({ status: "busy" });
+    if (sent.length === 0) return;
     const n = ++seq.current;
     const timer = window.setTimeout(() => {
       host.reco.compare(compareBody(sent)).then(
-        (result) => n === seq.current && setCmp({ status: "ready", result }),
-        (e: unknown) => n === seq.current && setCmp({ status: "error", message: errorText(e) }),
+        (result) => n === seq.current && setKeyed({ key: sentKey, state: { status: "ready", result } }),
+        (e: unknown) => n === seq.current && setKeyed({ key: sentKey, state: { status: "error", message: errorText(e) } }),
       );
     }, 350);
     return () => window.clearTimeout(timer);

@@ -35,7 +35,7 @@ describe("Quyết định · Shopee · danh sách", () => {
     const tabs = screen.getByTestId("sd-tabs");
     expect(within(tabs).getByRole("link", { name: "Đề xuất · 2" })).toBeInTheDocument();
     expect(screen.getByText("Mỗi sản phẩm một thẻ, thẻ kế tiếp lên ngay")).toBeInTheDocument();
-    expect(screen.getByTestId("sq-builder-link")).toHaveAttribute("href", "/decisions?tu-tao=1&from=quyet-dinh");
+    expect(screen.getByTestId("sq-builder-link")).toHaveAttribute("href", "/decisions?from=quyet-dinh&tu-tao=1");
   });
 
   it("asks the whole queue once (queue=all) and shows no 'phương án khác'", async () => {

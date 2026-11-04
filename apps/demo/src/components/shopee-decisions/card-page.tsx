@@ -48,6 +48,7 @@ import { BreachDialog, TitleBox, VersionsTable } from "./versions";
 type Outcome = { readonly kind: "approved" | "requested" | "dismissed" | "executed" | "sent" | "withdrawn"; readonly text: string; readonly more?: string; readonly ack?: string };
 
 const ADJUSTABLE = new Set(["draft", "sent", "changes_requested"]);
+const NO_PATCH: Patch = {};
 const BREACH_CODES = new Set(["reco_breach_unacknowledged", "reco_breach_not_acknowledged"]);
 
 export function CardPage({ id, from, version = null }: { readonly id: string; readonly from: string | null; readonly version?: number | null }) {
@@ -188,7 +189,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   );
 
   const v = versions[sel] ?? versions[0]!;
-  const patch: Patch = patches[sel] ?? {};
+  const patch: Patch = patches[sel] ?? NO_PATCH;
   const shown = adjustable ? (detail.card.family === "mega_sale" ? (megaFresh ?? detail.card) : cardOfVersion(detail.card, v)) : final.card;
   const isMega = shown.family === "mega_sale";
   const title = isTitleKind(shown);
