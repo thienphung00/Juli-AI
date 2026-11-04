@@ -77,7 +77,7 @@ ERROR_NOT_DRAFT = "reco_plan_not_draft"
 ERROR_EMPTY = "reco_plan_empty"
 ERROR_CARD_STATE = "reco_card_not_plannable"
 ERROR_NOT_IN_PLAN = "reco_card_not_in_plan"
-ERROR_BREACH = "reco_plan_breach_unacknowledged"
+ERROR_BREACH = "reco_breach_not_acknowledged"
 ERROR_DATE = "reco_plan_date_invalid"
 #: statuses a card may be added to the plan from: the seller can see and decide on it
 ADDABLE = (STATUS_SENT, STATUS_CHANGES_REQUESTED)
@@ -746,6 +746,8 @@ async def _approve(
         p.id,
         {
             "approved_at": now.isoformat(),
+            "chosen_version": chosen,
+            "acknowledged_breaches": acknowledged,
             "plan_id": str(plan.id),
             "plan_code": code,
             "planned_date": when.isoformat(),

@@ -390,12 +390,36 @@ def _version_brief(v: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+async def measurement_states(
+    session: AsyncSession, shop_id: uuid.UUID, card_ids: Sequence[uuid.UUID]
+) -> dict[str, dict[str, Any]]:
+    """Per executed card: its change set and whether the measurement window has closed (the set is
+    done or was cut) -- the card then reads as ``measured`` (``status``; ``execution_status`` keeps
+    the proposal's own ``executed``)."""
+    wanted = {str(c) for c in card_ids}
+    out: dict[str, dict[str, Any]] = {}
+    if not wanted:
+        return out
+    for cs in await change_sets.sets_for(session, shop_id):
+        for cid in cs.card_ids or []:
+            if str(cid) in wanted:
+                out[str(cid)] = {
+                    "change_set": str(cs.id),
+                    "state": (cs.result or {}).get("state") or cs.status,
+                    "label": (cs.result or {}).get("label"),
+                    "window_days": cs.window_days,
+                    "window_closed": cs.status in (change_sets.SET_DONE, change_sets.SET_CUT),
+                }
+    return out
+
+
 def _summary(
     p: ShopProposal,
     card: dict[str, Any],
     meta: dict[str, Any] | None = None,
     measuring: Mapping[str, Any] | None = None,
     plan_codes_: Mapping[uuid.UUID, str | None] | None = None,
+    measurement: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     pm = card["predicted"]["money_per_month"]
     product = p.item_id
@@ -405,13 +429,19 @@ def _summary(
         "product_id": product,
         "product_queue": p.product_queue,
         "origin": card.get("origin") or store.ORIGIN_ENGINE,
+        "created_by": card.get("created_by"),
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "chosen_version": (meta or {}).get("chosen_version"),
+        "acknowledged_breaches": (meta or {}).get("acknowledged_breaches"),
+        "measurement": measurement,
         "plan_id": None if p.lever_plan_id is None else str(p.lever_plan_id),
         "plan_code": (plan_codes_ or {}).get(p.lever_plan_id) if p.lever_plan_id else None,
         "product_measuring": (
             measuring.get(product) if measuring and product and p.status in OPEN_STATUSES else None
         ),
         "versions": [_version_brief(v) for v in versions.versions_of(card)],
-        "status": p.status,
+        "status": "measured" if (measurement or {}).get("window_closed") else p.status,
+        "execution_status": p.status,
         "cycle": p.cycle,
         "family": card["family"],
         "family_label": card["family_label"],
@@ -591,6 +621,7 @@ async def list_cards(
         _naive(now or datetime.now(UTC)),
         None if product_id is None else [product_id],
     )
+    measured = await measurement_states(session, shop_id, [p.id for p, _ in rows])
     plan_codes_ = await plan_codes.plan_codes_for(
         session, shop_id, [p.lever_plan_id for p, _ in rows]
     )
@@ -611,7 +642,7 @@ async def list_cards(
         if status and p.status != status:
             continue
         meta = await store.card_meta(session, shop_id, p.id)
-        summary = _summary(p, card, meta, measuring, plan_codes_)
+        summary = _summary(p, card, meta, measuring, plan_codes_, measured.get(str(p.id)))
         summary["verification"] = {"state": states.get(p.id)}
         if audience == "seller":
             rank_ = card.get("rank") or {}
@@ -683,6 +714,7 @@ async def card_detail(
                 session, shop_id, _naive(datetime.now(UTC)), [p.item_id] if p.item_id else []
             ),
             await plan_codes.plan_codes_for(session, shop_id, [p.lever_plan_id]),
+            (await measurement_states(session, shop_id, [p.id])).get(str(p.id)),
         ),
         "card": seller_view(full) if audience == "seller" else full,
         "journey": [
@@ -1011,7 +1043,7 @@ async def _decide(
         if breaches and not acknowledge_breaches:
             kinds = ", ".join(sorted({b["type"] for b in breaches}))
             raise ProposalError(
-                "reco_breach_unacknowledged",
+                "reco_breach_not_acknowledged",
                 422,
                 f"this version breaches the {kinds}; send acknowledge_breaches to approve it "
                 f"({len(breaches)} breach(es): {breaches})",
@@ -1071,7 +1103,16 @@ async def _decide(
             change_kind=card["change_kind"],
             subject=subject,
         )
-        await store.set_meta(session, shop_id, card_id, {"approved_at": now.isoformat()})
+        await store.set_meta(
+            session,
+            shop_id,
+            card_id,
+            {
+                "approved_at": now.isoformat(),
+                "chosen_version": chosen_version,
+                "acknowledged_breaches": acknowledged,
+            },
+        )
         return {
             "id": str(card_id),
             "code": code,

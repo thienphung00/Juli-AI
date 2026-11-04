@@ -296,7 +296,7 @@ async def test_approving_inputs_that_break_a_floor_needs_the_acknowledgement(ses
     await _publish(session, seeded)
     body = {"inputs": {"discount_pct": 70}}
     r = await seller.post(f"{DEMO}/{ids[0]}/approve", json=body)
-    assert r.status_code == 422 and r.json()["detail"]["code"] == "reco_breach_unacknowledged"
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "reco_breach_not_acknowledged"
     assert (await session.get(ShopProposal, ids[0])).status == "sent"
     await _fresh(session, seeded)
     r = await seller.post(f"{DEMO}/{ids[0]}/approve", json={**body, "acknowledge_breaches": True})

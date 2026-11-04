@@ -939,7 +939,7 @@ async def test_a_breaching_plan_needs_the_acknowledgement_on_the_confirm_route(
         assert (await seller.post(f"{DEMO}/plan/cards", json={"card_id": cid})).status_code == 201
     denied = await seller.post(f"{DEMO}/plan/confirm", json={})
     detail = denied.json()["detail"]
-    assert denied.status_code == 422 and detail["code"] == "reco_plan_breach_unacknowledged"
+    assert denied.status_code == 422 and detail["code"] == "reco_breach_not_acknowledged"
     assert detail["breaches"][0]["type"] == "floor" and detail["breaches"][0]["sku"] == "G1"
     await _refreshed(session, shop[0])
     assert (await seller.get(f"{DEMO}/plan")).json()["plan"]["status"] == "draft"
@@ -951,7 +951,7 @@ async def test_a_breaching_plan_needs_the_acknowledgement_on_the_confirm_route(
 async def test_adding_a_breaching_card_needs_the_acknowledgement_too(session, shop, seller):
     below = await _post_manual(seller, _combo(pct=60))
     r = await seller.post(f"{DEMO}/plan/cards", json={"card_id": below})
-    assert r.status_code == 422 and r.json()["detail"]["code"] == "reco_plan_breach_unacknowledged"
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "reco_breach_not_acknowledged"
     assert r.json()["detail"]["breaches"][0]["type"] == "floor"
     await _refreshed(session, shop[0])
     assert (await seller.get(f"{DEMO}/plan")).json()["plan"] is None  # nothing was created
@@ -1020,3 +1020,36 @@ async def test_ops_plan_routes_are_viewer_read_operator_write_and_audited(
     approval = (await session.scalars(select(ShopProposalApproval))).first()
     assert approval.channel == "document" and approval.evidence_ref == f"plan:{code}"
     assert approval.recorded_by_staff_id is not None
+
+
+async def test_list_and_detail_expose_version_breach_ack_origin_plan_code_and_measured(
+    session, shop
+):
+    seeded, env = shop
+    sid = seeded.shop_id
+    ids, _ = await _confirm_plan(
+        session,
+        seeded,
+        env,
+        [_discount(30), {**VOUCHER, "inputs": {**VOUCHER["inputs"], "value": 20_000}}],
+        window=14,
+    )
+    listing = await service.list_cards(session, sid, audience="seller", queue="all", now=NOW)
+    by = {c["id"]: c for c in listing["cards"]}
+    row = by[str(ids[0])]  # manual cards list without a KeyError on their versions
+    assert row["chosen_version"] == 1 and row["origin"] == "manual" and row["created_at"]
+    assert row["plan_code"] == "KH-2610-001" and row["created_by"]["type"] == "seller"
+    assert row["acknowledged_breaches"]["breaches"][0]["sku"] == "G1"
+    assert (
+        row["acknowledged_breaches"]["by"]["type"] == "seller"
+        and row["acknowledged_breaches"]["at"]
+    )
+    assert row["status"] == "approved" and row["measurement"] is None
+    await _execute(session, seeded, ids[0], NOW + timedelta(hours=1))
+    (cs,) = await change_sets.sets_for(session, sid)
+    cs.status = "done"  # the window closed (the learning job does this when it reads the set)
+    cs.result = {"state": "measured", "label": "Đo xong sau 14 ngày"}
+    await session.commit()
+    detail = await service.card_detail(session, sid, ids[0], audience="seller")
+    assert detail["status"] == "measured" and detail["execution_status"] == "executed"
+    assert detail["measurement"]["state"] == "measured" and detail["chosen_version"] == 1

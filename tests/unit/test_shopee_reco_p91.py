@@ -344,7 +344,7 @@ async def test_executing_closes_the_card_for_the_queue_at_once_and_marks_the_pro
     )
     open_cards = [c for c in lst_["cards"] if c["status"] in ("sent",)]
     measuring = open_cards[0]["product_measuring"]
-    assert measuring["until"] and measuring["change_set"] is None
+    assert measuring["until"] and measuring["change_set"]  # the card's change set (D-7)
     # once the planned window is over the product is no longer measured
     done = await service.list_cards(
         session, sid, audience="ops", product_id="1001", now=NOW + timedelta(days=60)
