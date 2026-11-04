@@ -451,21 +451,21 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | ADR-120 + D82 | — | done | orchestrator |
-| Design: Tổng quan, ranking, Phân tích (`docs/product/design/shopee-shop/`) | owner approval | doing | design agent A |
-| Design: Sản phẩm, what-if card, Cài đặt import | owner approval | doing | design agent B |
-| Migration 112 (snapshots, images, order lines, fee formulas, rule versions, keyword roles, ad purposes, whatif_adjusted) | tests green | doing | schema agent |
-| Loader parsers: affiliate set, ads keyword, ad change log, Flash Sale metrics | tests + dry-run counts | doing | loader agent |
-| `services/shopee_profit/` (fees, order profit, floors, what-if, five numbers, sources) | worked example exact | doing | profit agent |
-| Importer (template, diff, versions, restore) | — | todo (after 112) | — |
-| Ops multi-file upload with PII strip | — | todo | — |
-| Rankings: Shopee streams + source param | — | todo | — |
-| Connector: product list, ads, voucher, discount, affiliate, income readers; export trigger; market module | — | todo (needs a logged-in Seller Centre for recon) | — |
-| UI build | — | blocked on design approval | — |
+| Design: Tổng quan, ranking, Phân tích (`docs/product/design/shopee-shop/`) | owner approval | done (owner approved) | design agent A |
+| Design: Sản phẩm, what-if card, Cài đặt import | owner approval | done (owner approved) | design agent B |
+| Migration 112 (snapshots, images, order lines, fee formulas, rule versions, keyword roles, ad purposes, whatif_adjusted) | tests green | done (in 115 chain) | schema agent |
+| Loader parsers: affiliate set, ads keyword, ad change log, Flash Sale metrics | tests + dry-run counts | done | loader agent |
+| `services/shopee_profit/` (fees, order profit, floors, what-if, five numbers, sources) | worked example exact | done | profit agent |
+| Importer (template, diff, versions, restore) | — | done (Step 4) | agents |
+| Ops multi-file upload with PII strip | — | done (Step 2) | agents |
+| Rankings: Shopee streams + source param | — | done (Step 7) | agents |
+| Connector: product list, ads, voucher, discount, affiliate, income readers; export trigger; market module | — | done for products / prices+stock / ads / vouchers / health / item traffic (0.3.1–0.3.3); income + affiliate via files | agents |
+| UI build | — | done (Step 9a/9b) | agents |
 | Freeze lifted: owner approved `contracts/p90-plan.md` (2026-11-03); Step 1 started | — | done | owner |
 | Step 1 — loader correctness on ORY's real files (G-01, G-02, G-23, parser tests) | p90-plan Step 1 | done (080f1038; dry-run 5/5 folders exit 0, 0 refusals; 455 passed) | step-1 agent |
 | Step 2 — order export parser + browser PII strip, migration 113, reserved datasets | p90-plan Step 2 | done (merge 94169394; Oct 121 orders / AOV 172.025đ reproduced, GMV gap +0,01 %, 0 buyer columns read; 959 passed) | step-2 agent |
 | Ops: ORY contract shop exists (created 02/11, consent on); connector pilot gate = d73a240b-… | Step 5 prereq | done (2026-11-04) | orchestrator |
-| Env: set JULI_ORDER_REF_MASTER_KEY in the backend before the first order upload (rotation = reload history) | Step 2 | todo (owner) | — |
+| Env: set JULI_ORDER_REF_MASTER_KEY in the backend before the first order upload (rotation = reload history) | Step 2 | done (owner, AWS secret, 2026-11-04) | owner |
 | Goal (owner 2026-11-04): implement Steps 4–9 via sub-agents, parallel where disjoint; one deploy at the end, install after | — | done — ready to deploy (fasttrack/ops-reco-pipeline incl. upstream 9eba0442/f2074bb5); checklist contracts/p90-deploy-checklist.md | orchestrator |
 | Wave 1: Steps 4, 5, 5/6 (+114), 7, sim port | — | done | agents |
 | Wave 2: Step 8 (+115) generators incl. mega_sale, ranking, prediction, learning, sim import | — | done | agents |
@@ -474,7 +474,29 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Assisted execution: execution sheet, deep links, "Đã làm", read-back verify / mismatch / not_seen (Steps 5 + 9) | p90-plan § Assisted execution | done | agents |
 | Release blocker: connector `PILOT_SHOP_IDS` must be ORY's Juli shop id only (owner), not "*", before 0.3.0 ships | — | done (2026-11-04) | orchestrator |
 
-| Open (owner): set JULI_ORDER_REF_MASTER_KEY; decide `test_no_public_table_holds_update_beyond_its_call_site` (red on base with 23 tables; P90 adds shopee_order_lines, shopee_sim_prior_runs, shopee_reco_calibrations); decide a schedule for learning/calibration (manual from Ops today) | — | todo | owner |
+| Open (owner): decide `test_no_public_table_holds_update_beyond_its_call_site` (red on base with 23 tables; P90 adds shopee_order_lines, shopee_sim_prior_runs, shopee_reco_calibrations); decide a schedule for learning/calibration (manual from Ops today) | — | todo | owner |
+
+| **Deployed** 2026-11-04: `fasttrack-deploy-20261104T0513Z` (6ff39429 = P90 + PR #2261 route warm-up / test-quality / migration doc), run 41777980080 attempt 2; one pre-migrate dump; 110→115 applied; demo 40/40, /health ok. Attempt 1 failed on DATABASE_DIRECT_URL auth (owner fixed the secret, refresh-secrets.sh on the VPS) | — | done | owner + orchestrator |
+| Post-deploy: Ops Tổng quan loads ORY data to 02/11; Thông số shop template (117 SKU / 95 products) downloads | p90-deploy-checklist § smoke | done | orchestrator |
+| Connector installed + paired (ORY, 2026-11-04); live fixes: 0.3.2 ads money + ROAS target ÷ 100 000, Shopee -1000000 "no value"; 0.3.3 real rate > 1 (video ctr 2 on 12/10) to extra. Products, prices+stock, vouchers, health, item traffic, shop traffic posted; 30-day backfill 22/30 → resuming on 0.3.3; ads with the next reader run (branch fasttrack/connector-0.3.2, c1f8e0d3 + 936c35f4, not yet on origin) | Step 5 first-run checks | doing | orchestrator + owner |
+| ORY order exports (Oct 2026, Nov 2025) uploaded to production | p90 Step 2 | todo (owner, Ops upload) | owner |
+
+## P91 — every card per aspect, versions, plans, KOL, income, listing changes (contract p91-plan.md, 2026-11-04)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Plan D-1…D-13 written with the owner; artboards (19) approved | owner approval | done | orchestrator + design agent |
+| D-1 all cards kept + per-product queue, D-2 versions, D-4 titles ≤ 100, D-5 card codes JC-yymm-seq (migration 116) | p91 D-1/2/4/5 | done, merged | core agent |
+| D-3 compare / manual offers / multi-product combo calculator | p91 D-3 | done, merged | manual agent |
+| D-6 draft plan + joint aggregate, D-7 change sets + cut measurement, D-8/D-10 window + plan codes KH-yymm-seq (migration 117) | p91 D-6/7/8/10 | done, merged | plan agent |
+| D-9/D-11 KOL × product × channel, commission per product sold, Mẫu KOL sheet, Gửi mẫu / Mời KOL cards (migration 118) | p91 D-9/11 | done, merged (G-15 commission column: owner to confirm on one real month) | KOL agent |
+| Demo + Ops screens to the artboards; plan/KOL screens on real shapes, flags ON | artboards | done, merged | web agent + integration |
+| Integration of plan + KOL + web on fasttrack/reco-versions (5fb949ae) | mypy 940 clean, bandit, check.sh --since, 22 integration, demo vitest 1786 / build / Playwright 35 | done (full check.sh and 2 unit files not re-run: disk) | integration agent |
+| D-12 income export (per-order actuals, table shopee_order_income), company VAT flags, pack count / BOM, cost-file converter | real files: 3 months reconcile to the đồng; 113/117 profit orders with income | built on fasttrack/p91-income (ea84e461), not merged; migration → 119 | income agent |
+| D-13 listing kinds, planned-changes file import (TD/XM), Connector fill-in without saving (flag off until edit-page recon) | p91 D-13 | built on fasttrack/p91-listing (33128724), not merged; migration → 120; connector → 0.3.4 | listing agent |
+| Merge D-12 + D-13, VAT-aware what-if, variation name in the browser order upload, full deploy gate, one deploy | — | todo | orchestrator |
+
+| Open (owner): ORY VAT answers (company? rate per SKU, prices/costs incl. VAT); costs for P300002/P300003; KOL sample sheet + KOL packaging/delivery costs; read-only recon of the product edit page (fill-in); free disk space (full runs failed on disk) | — | todo | owner |
 
 ## P2–P6
 

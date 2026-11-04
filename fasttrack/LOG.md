@@ -3677,3 +3677,14 @@ reconcile --write` re-derived the no-assert corpus figure.
 - ORY end-to-end on a throwaway DB: 121 orders / AOV 172.025đ (01–28/10), flows add up (0 residual), ad group spend
   reconciles within 1đ, vouchers reconcile every month, cards generated (13 → 6 persisted), 4 title cards ≤ 120 chars.
 - Next (owner): deploy per contracts/p90-deploy-checklist.md, set JULI_ORDER_REF_MASTER_KEY, then install connector.
+
+## 2026-11-04 — agent (Claude Opus) — P90 live; connector first run; P91 waves
+
+- P90 deployed: fasttrack-deploy-20261104T0513Z (6ff39429), attempt 1 blocked by DATABASE_DIRECT_URL auth (fixed by
+  the owner), attempt 2 applied 110→115 behind one dump; /health ok. Deploy gates first failed on mypy (5), bandit B314
+  (seller xlsx reader now refuses DTD/entities), a test-quality count and an event-loop stall (FastAPI lazy route state;
+  warmed at create_app) — PR #2261.
+- Connector live on ORY: tab suspender froze the reader tab (whitelisted by the owner); ads money/ROAS ×100 000,
+  -1000000 placeholder and a real ctr of 2 paused datasets → 0.3.2 / 0.3.3 (fasttrack/connector-0.3.2).
+- P91: D-1…D-11 merged on fasttrack/reco-versions (migrations 116–118); D-12 (income, VAT, packs/BOM) and D-13
+  (listing changes, planned-change import, fill-in) built on their branches, merge + gate next.
