@@ -552,9 +552,11 @@ def _ads_campaign_daily(row: ShopeeAdsCampaignDailyRow) -> NormalizedRow:
     ROAS-target row (no campaign id) keeps segment ``all``."""
     kpis, extra = _split(row, _ADS_DAILY_KPIS)
     if row.campaign_id is None:
-        source, segment = "ads_roas_target", SEGMENT_ALL
+        source: str | None = "ads_roas_target"
+        segment = SEGMENT_ALL
     else:
-        source, segment = (row.campaign_name or "")[:64] or None, campaign_segment(row.campaign_id)
+        source = (row.campaign_name or "")[:64] or None
+        segment = campaign_segment(row.campaign_id)
     return NormalizedRow(
         day=row.date,
         stream=STREAM_ADS,

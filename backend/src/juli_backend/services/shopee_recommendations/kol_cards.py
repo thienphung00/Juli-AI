@@ -435,7 +435,7 @@ def _choices(env: RecoEnv, cand: Candidate, chosen: str) -> list[dict[str, Any]]
     assert pool is not None
     key = cand.extra["kol"]["key"]
     invite = cand.kind == "affiliate_invite"
-    out = []
+    out: list[dict[str, Any]] = []
     for item in pool.products:
         f = forecast(
             pool,
@@ -457,7 +457,7 @@ def _choices(env: RecoEnv, cand: Candidate, chosen: str) -> list[dict[str, Any]]
                 "selected": item == chosen,
             }
         )
-    out.sort(key=lambda c: -c["profit_p50"])  # type: ignore[operator]
+    out.sort(key=lambda c: -c["profit_p50"])
     return out[:8]
 
 
@@ -468,7 +468,7 @@ def default_qty(kol: KolStat | None) -> int:
 
 def build_kol_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any] | None:
     """The whole card payload (same keys as ``cards.build_card``) for a KOL candidate."""
-    from juli_backend.services.shopee_recommendations.cards import _in_stock, _shop_deltas
+    from juli_backend.services.shopee_recommendations.cards import _in_stock, shop_deltas
     from juli_backend.services.shopee_recommendations.plan import MetricStats, measurement_plan
     from juli_backend.services.shopee_recommendations.sheet import _step, build_sheet
 
@@ -640,7 +640,7 @@ def build_kol_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str,
         "execution_sheet": sheet,
         "notes": ev.notes,
         "rank_inputs": {
-            "kpi_p25": _shop_deltas(env, money),
+            "kpi_p25": shop_deltas(env, money),
             "dgmv_p25": money["total"]["p25"]["dgmv"],
             "dprofit_p50": p50,
             "floor_breach": bool(ev.breaches),

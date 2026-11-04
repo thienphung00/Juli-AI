@@ -103,7 +103,7 @@ async def get_plan_by_id(
 
 async def _write(session: AsyncSession, call: Any, *args: Any, **kwargs: Any) -> dict[str, Any]:
     try:
-        out = await call(session, *args, **kwargs)
+        out: dict[str, Any] = await call(session, *args, **kwargs)
         await session.commit()
     except plans.PlanBreachNotAcknowledged as exc:
         await session.rollback()
@@ -111,7 +111,7 @@ async def _write(session: AsyncSession, call: Any, *args: Any, **kwargs: Any) ->
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None
-    return out  # type: ignore[no-any-return]
+    return out
 
 
 @router.post("/plan/cards", status_code=201)

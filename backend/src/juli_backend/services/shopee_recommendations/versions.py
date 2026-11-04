@@ -47,6 +47,9 @@ EVAL_FIELDS: tuple[str, ...] = (
     "notes",
     "rank_inputs",
 )
+#: Evaluation fields only some kinds have (P91 D-9: the KOL block of a "Gửi mẫu" / "Mời KOL" card,
+#: its product, samples and expected orders per version); copied when the card has them.
+OPTIONAL_EVAL_FIELDS: tuple[str, ...] = ("kol",)
 STATUS_OK = "ok"
 STATUS_FLOOR = "floor_breach"
 STATUS_SPEND = "spend_breach"
@@ -239,7 +242,9 @@ def version_of(
         "ranked": number == 1 and st == STATUS_OK,
         "refusal": None,
     }
-    out.update({k: copy.deepcopy(card[k]) for k in EVAL_FIELDS if k in card})
+    out.update(
+        {k: copy.deepcopy(card[k]) for k in (*EVAL_FIELDS, *OPTIONAL_EVAL_FIELDS) if k in card}
+    )
     return out
 
 
@@ -269,7 +274,13 @@ def versions_of(card: Mapping[str, Any]) -> list[dict[str, Any]]:
 def overlay(card: Mapping[str, Any], version: Mapping[str, Any]) -> dict[str, Any]:
     """The card as it reads when ``version`` is the one chosen (its evaluation over the card)."""
     out = dict(card)
-    out.update({k: copy.deepcopy(version[k]) for k in EVAL_FIELDS if k in version})
+    out.update(
+        {
+            k: copy.deepcopy(version[k])
+            for k in (*EVAL_FIELDS, *OPTIONAL_EVAL_FIELDS)
+            if k in version
+        }
+    )
     out["version"] = version["version"]
     return out
 

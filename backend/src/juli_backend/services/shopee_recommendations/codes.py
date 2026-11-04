@@ -21,6 +21,7 @@ from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.dml import ReturningUpdate
 
 from juli_backend.models.shop_proposals import ShopProposal, ShopProposalCodeCounter
 from juli_backend.services.shopee_recommendations import config
@@ -52,7 +53,7 @@ def parse_code(value: str) -> tuple[str, int | None] | None:
     return base, (int(m["version"]) if m["version"] else None)
 
 
-def _counter_bump(shop_id: uuid.UUID, now: datetime):  # noqa: ANN202
+def _counter_bump(shop_id: uuid.UUID, now: datetime) -> ReturningUpdate[tuple[int]]:
     c = ShopProposalCodeCounter
     return (
         update(c)

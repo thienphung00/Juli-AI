@@ -124,6 +124,7 @@ def allocate_ads(
     resolved: AdSpendResult | None = None,
 ) -> AdsAllocation:
     rows: list[AdsRow] = reports.campaign_rows
+    daily_total: Decimal | None
     if resolved is not None and resolved.total > 0:
         daily_total = resolved.total  # Connector days first, CSV windows for the rest
     else:

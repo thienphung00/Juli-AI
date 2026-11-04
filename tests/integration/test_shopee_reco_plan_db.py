@@ -29,7 +29,6 @@ from juli_backend.services.shopee_recommendations import (
 )
 from tests.integration.test_ingest_two_tenant import juli_app_session
 from tests.integration.test_shopee_reco_db import stub_card
-from tests.integration.test_shopee_reco_p91_db import MIG_PATH  # noqa: F401  (116, for the tail)
 from tests.integration.two_tenant import RUNTIME_ROLE
 from tests.support.postgres import requires_postgres
 

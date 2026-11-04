@@ -339,7 +339,11 @@ def _version_rows(
 
 def _brief(row: Mapping[str, Any]) -> dict[str, Any]:
     """A version without its evaluation fields (what the save response lists)."""
-    return {k: v for k, v in row.items() if k not in versions.EVAL_FIELDS}
+    return {
+        k: v
+        for k, v in row.items()
+        if k not in (*versions.EVAL_FIELDS, *versions.OPTIONAL_EVAL_FIELDS)
+    }
 
 
 async def create_manual(

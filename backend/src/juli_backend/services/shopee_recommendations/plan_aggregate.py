@@ -445,7 +445,10 @@ def aggregate(
     by_product: dict[str, list[Evaluated]] = {}
     shop_wide: list[Evaluated] = []
     for e in evs:
-        (by_product.setdefault(e.product, []) if e.product else shop_wide).append(e)  # type: ignore[arg-type]
+        if e.product:
+            by_product.setdefault(e.product, []).append(e)
+        else:
+            shop_wide.append(e)
     products = [_product_block(env, pid, group, memo) for pid, group in sorted(by_product.items())]
     shop_block = None
     if shop_wide:

@@ -245,8 +245,9 @@ async def measuring(
     if not rows:
         return {}
     ids = [r[0] for r in rows]
-    executed_at = dict(
-        (
+    executed_at: dict[uuid.UUID, datetime] = {
+        proposal_id: at
+        for proposal_id, at in (
             await session.execute(
                 select(
                     ShopProposalExecution.proposal_id, func.max(ShopProposalExecution.executed_at)
@@ -255,7 +256,7 @@ async def measuring(
                 .group_by(ShopProposalExecution.proposal_id)
             )
         ).all()
-    )
+    }
     verified: dict[uuid.UUID, datetime] = {}
     final: set[uuid.UUID] = set()
     for cid, etype, at in await session.execute(

@@ -65,9 +65,10 @@ async def _read(
     await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
-            return await call(session, shop_id, *args, **kwargs)  # type: ignore[no-any-return]
+            body: dict[str, Any] = await call(session, shop_id, *args, **kwargs)
     except ProposalError as exc:
         raise refused(exc) from None
+    return body
 
 
 async def _write(
@@ -83,7 +84,7 @@ async def _write(
     await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
-            out = await call(session, shop_id, *args, **kwargs)
+            out: dict[str, Any] = await call(session, shop_id, *args, **kwargs)
         await audit.record(session, ctx.staff.actor, action, shop_id=shop_id, after=after)
         await session.commit()
     except plans.PlanBreachNotAcknowledged as exc:
@@ -92,7 +93,7 @@ async def _write(
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None
-    return out  # type: ignore[no-any-return]
+    return out
 
 
 @router.get(BASE + "/plan")

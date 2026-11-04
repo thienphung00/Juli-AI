@@ -306,7 +306,10 @@ async def test_without_a_creator_export_the_roi_shopee_is_absent_not_zero(shop, 
         await session.delete(p)
     await session.commit()
     body = await queries.kol_table(session, sid, as_of=AS_OF)
-    assert all(r["roi_shopee"] is None and r["kol_clicks"] is None for r in body["rows"])
+    rows = body["rows"]
+    assert len(rows) >= 1
+    assert [r["roi_shopee"] for r in rows] == [None] * len(rows)
+    assert [r["kol_clicks"] for r in rows] == [None] * len(rows)
 
 
 # ===================================================================== forecast (pure)
