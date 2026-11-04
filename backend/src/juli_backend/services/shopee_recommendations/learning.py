@@ -45,6 +45,11 @@ class Observation:
     #: False = read without a control series (plain pre / post, tier Thấp): kept and counted,
     #: but it feeds neither the factor nor the coverage (a confounded reading must not move a range)
     controlled: bool = True
+    #: ``engine`` or ``manual`` (P91 D-3): manual cards are calibrated and reported apart
+    origin: str = "engine"
+    #: weight in the pooled ratio: 1 for a clean single-card reading, ``MULTI_CARD_WEIGHT``
+    #: (0.25) for a card that was one of several in a change set (P91 D-7)
+    weight: float = 1.0
 
     @property
     def predicted_mid(self) -> float:
@@ -61,7 +66,7 @@ class Observation:
             return None
         ratio = self.measured / m
         var = 1.0 if self.se is None else max((self.se / abs(m)) ** 2, MIN_VARIANCE)
-        return ratio, var
+        return ratio, var / max(self.weight, MIN_VARIANCE)  # a lighter sample = a larger variance
 
     def json(self) -> dict[str, Any]:
         return {
@@ -75,6 +80,8 @@ class Observation:
             "bundle": self.bundle,
             "ref": self.ref,
             "controlled": self.controlled,
+            "origin": self.origin,
+            "weight": self.weight,
         }
 
     @classmethod
@@ -90,6 +97,8 @@ class Observation:
             bool(d.get("bundle")),
             d.get("ref", ""),
             bool(d.get("controlled", True)),
+            str(d.get("origin") or "engine"),
+            float(d.get("weight", 1.0)),
         )
 
 
@@ -132,11 +141,17 @@ def range_scale_for(hits: int, n: int) -> float:
     return 1.0
 
 
-def calibrate(observations: Sequence[Observation]) -> dict[tuple[str, str], CalibrationState]:
-    """One state per (change_kind, metric). Bundle observations are counted, not pooled."""
+def calibrate(
+    observations: Sequence[Observation], origin: str | None = "engine"
+) -> dict[tuple[str, str], CalibrationState]:
+    """One state per (change_kind, metric) among the observations of one ``origin`` (default the
+    engine's own cards; ``None`` = all). Bundle observations are counted, not pooled. A
+    weighted observation (a card that was one of several in a change set) counts as its weight
+    in ``n_results`` and in the pooled ratio."""
     groups: dict[tuple[str, str], list[Observation]] = defaultdict(list)
     for o in observations:
-        groups[(o.change_kind, o.metric)].append(o)
+        if origin is None or o.origin == origin:
+            groups[(o.change_kind, o.metric)].append(o)
     out: dict[tuple[str, str], CalibrationState] = {}
     for key, obs in groups.items():
         usable = [o for o in obs if not o.bundle and o.controlled]
@@ -145,7 +160,7 @@ def calibrate(observations: Sequence[Observation]) -> dict[tuple[str, str], Cali
         out[key] = CalibrationState(
             change_kind=key[0],
             metric=key[1],
-            n_results=len(pairs),
+            n_results=int(sum(o.weight for o in usable if o.ratio_and_variance() is not None)),
             pooled_ratio=pool_ratios(pairs),
             coverage_n=len(usable),
             coverage_hits=hits,
@@ -161,6 +176,16 @@ def calibrate(observations: Sequence[Observation]) -> dict[tuple[str, str], Cali
             },
         )
     return out
+
+
+def calibrate_all(observations: Sequence[Observation]) -> dict[tuple[str, str], CalibrationState]:
+    """The shop's stored calibration: the engine's states, plus an empty state for a
+    (change_kind, metric) only manual cards have observations for (so their observations are
+    kept; they never move the engine's factor)."""
+    states = calibrate(observations, "engine")
+    for key in calibrate(observations, None):
+        states.setdefault(key, CalibrationState(key[0], key[1]))
+    return states
 
 
 def coverage_report(states: Mapping[tuple[str, str], CalibrationState]) -> list[dict[str, Any]]:
@@ -235,12 +260,28 @@ class AcceptanceStats:
         }
 
 
-def acceptance_from_events(events: Iterable[Mapping[str, Any]]) -> AcceptanceStats:
+def origin_of(payload: Mapping[str, Any]) -> str:
+    return str(payload.get("origin") or "engine")
+
+
+def acceptance_by_origin(events: Iterable[Mapping[str, Any]]) -> dict[str, AcceptanceStats]:
+    """``{"engine": stats, "manual": stats}``: the decisions split by who made the card."""
+    rows = list(events)
+    return {o: acceptance_from_events(rows, o) for o in ("engine", "manual")}
+
+
+def acceptance_from_events(
+    events: Iterable[Mapping[str, Any]], origin: str | None = "engine"
+) -> AcceptanceStats:
     """``events``: dicts with ``event_type``, ``reason_code`` and the card event ``payload``
-    (``change_kind`` is on the event payload of every event this package writes)."""
+    (``change_kind`` is on the event payload of every event this package writes). Only events of
+    cards made by ``origin`` count (default the engine's: a manual card never moves the defaults
+    or the ranking tie-break the engine's cards use); ``None`` = every origin."""
     stats = AcceptanceStats()
     for e in events:
         payload = e.get("payload") or {}
+        if origin is not None and origin_of(payload) != origin:
+            continue
         kind = payload.get("change_kind")
         if not kind:
             continue

@@ -53,8 +53,12 @@ from juli_backend.services.shop_proposals.cycle import ProposalError
 from juli_backend.services.shopee_analytics import loaders
 from juli_backend.services.shopee_analytics.critical import build_critical
 from juli_backend.services.shopee_recommendations import (
+    change_sets,
     codes,
+    combo,
     config,
+    manual,
+    plan_codes,
     product_queue,
     store,
     versions,
@@ -386,11 +390,36 @@ def _version_brief(v: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+async def measurement_states(
+    session: AsyncSession, shop_id: uuid.UUID, card_ids: Sequence[uuid.UUID]
+) -> dict[str, dict[str, Any]]:
+    """Per executed card: its change set and whether the measurement window has closed (the set is
+    done or was cut) -- the card then reads as ``measured`` (``status``; ``execution_status`` keeps
+    the proposal's own ``executed``)."""
+    wanted = {str(c) for c in card_ids}
+    out: dict[str, dict[str, Any]] = {}
+    if not wanted:
+        return out
+    for cs in await change_sets.sets_for(session, shop_id):
+        for cid in cs.card_ids or []:
+            if str(cid) in wanted:
+                out[str(cid)] = {
+                    "change_set": str(cs.id),
+                    "state": (cs.result or {}).get("state") or cs.status,
+                    "label": (cs.result or {}).get("label"),
+                    "window_days": cs.window_days,
+                    "window_closed": cs.status in (change_sets.SET_DONE, change_sets.SET_CUT),
+                }
+    return out
+
+
 def _summary(
     p: ShopProposal,
     card: dict[str, Any],
     meta: dict[str, Any] | None = None,
     measuring: Mapping[str, Any] | None = None,
+    plan_codes_: Mapping[uuid.UUID, str | None] | None = None,
+    measurement: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     pm = card["predicted"]["money_per_month"]
     product = p.item_id
@@ -399,11 +428,20 @@ def _summary(
         "code": p.code,
         "product_id": product,
         "product_queue": p.product_queue,
+        "origin": card.get("origin") or store.ORIGIN_ENGINE,
+        "created_by": card.get("created_by"),
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "chosen_version": (meta or {}).get("chosen_version"),
+        "acknowledged_breaches": (meta or {}).get("acknowledged_breaches"),
+        "measurement": measurement,
+        "plan_id": None if p.lever_plan_id is None else str(p.lever_plan_id),
+        "plan_code": (plan_codes_ or {}).get(p.lever_plan_id) if p.lever_plan_id else None,
         "product_measuring": (
             measuring.get(product) if measuring and product and p.status in OPEN_STATUSES else None
         ),
         "versions": [_version_brief(v) for v in versions.versions_of(card)],
-        "status": p.status,
+        "status": "measured" if (measurement or {}).get("window_closed") else p.status,
+        "execution_status": p.status,
         "cycle": p.cycle,
         "family": card["family"],
         "family_label": card["family_label"],
@@ -583,6 +621,10 @@ async def list_cards(
         _naive(now or datetime.now(UTC)),
         None if product_id is None else [product_id],
     )
+    measured = await measurement_states(session, shop_id, [p.id for p, _ in rows])
+    plan_codes_ = await plan_codes.plan_codes_for(
+        session, shop_id, [p.lever_plan_id for p, _ in rows]
+    )
     out: list[tuple[dict[str, Any], dict[str, Any]]] = []
     behind = 0
     for p, card in rows:
@@ -600,7 +642,7 @@ async def list_cards(
         if status and p.status != status:
             continue
         meta = await store.card_meta(session, shop_id, p.id)
-        summary = _summary(p, card, meta, measuring)
+        summary = _summary(p, card, meta, measuring, plan_codes_, measured.get(str(p.id)))
         summary["verification"] = {"state": states.get(p.id)}
         if audience == "seller":
             rank_ = card.get("rank") or {}
@@ -671,6 +713,8 @@ async def card_detail(
             await product_queue.measuring(
                 session, shop_id, _naive(datetime.now(UTC)), [p.item_id] if p.item_id else []
             ),
+            await plan_codes.plan_codes_for(session, shop_id, [p.lever_plan_id]),
+            (await measurement_states(session, shop_id, [p.id])).get(str(p.id)),
         ),
         "card": seller_view(full) if audience == "seller" else full,
         "journey": [
@@ -753,6 +797,7 @@ async def recompute(
                 "floor_ok": new_card["floor"]["ok"],
             },
             family=card["family"],
+            card=card,
             change_kind=card["change_kind"],
             subject=subject,
         )
@@ -800,12 +845,26 @@ def recompute_card(
     out["rank"] = card.get("rank")
     out["metric"] = card["metric"]
     out["wiring"] = card["wiring"]
+    if cand.kind == combo.KIND:  # a combo is named by its products, not by the generic label
+        out["title"] = manual.combo_title(env, cand)
+    for key in ("origin", "created_by", "primary", "acknowledged_breaches"):
+        if key in card:  # who made the card travels with every recompute
+            out[key] = card[key]
     if rebuild_versions:
         out["versions"] = versions.build_versions(env, cand, out, now=now)
     else:
         label = vlist[number - 1].get("label") or versions.DEFAULT_LABEL
         code = vlist[number - 1].get("code")
-        vlist[number - 1] = versions.version_of(out, number, label, code=code)
+        old = vlist[number - 1]
+        new = versions.version_of(out, number, label, code=code)
+        for key in ("index", "chosen", "change_kind", "items", "extra"):  # manual variants
+            if key in old:
+                new[key] = old[key]
+        if "title" in old:
+            new["title"] = out["title"]
+        if "metrics" in old:
+            new["metrics"] = manual.metrics_of(out)
+        vlist[number - 1] = new
         out["versions"] = vlist
     out["version"] = number
     return out
@@ -984,7 +1043,7 @@ async def _decide(
         if breaches and not acknowledge_breaches:
             kinds = ", ".join(sorted({b["type"] for b in breaches}))
             raise ProposalError(
-                "reco_breach_unacknowledged",
+                "reco_breach_not_acknowledged",
                 422,
                 f"this version breaches the {kinds}; send acknowledge_breaches to approve it "
                 f"({len(breaches)} breach(es): {breaches})",
@@ -1040,10 +1099,20 @@ async def _decide(
                 "final_vs_default": _final_vs_default(card, inputs or {}),
             },
             family=card["family"],
+            card=card,
             change_kind=card["change_kind"],
             subject=subject,
         )
-        await store.set_meta(session, shop_id, card_id, {"approved_at": now.isoformat()})
+        await store.set_meta(
+            session,
+            shop_id,
+            card_id,
+            {
+                "approved_at": now.isoformat(),
+                "chosen_version": chosen_version,
+                "acknowledged_breaches": acknowledged,
+            },
+        )
         return {
             "id": str(card_id),
             "code": code,
@@ -1073,6 +1142,7 @@ async def _decide(
             code=code,
             payload={"request": note or "", "approval_id": str(approval.id)},
             family=card["family"],
+            card=card,
             change_kind=card["change_kind"],
             subject=subject,
         )
@@ -1104,6 +1174,7 @@ async def _decide(
             code=p.code,
             payload={"approval_id": str(approval.id)},
             family=card["family"],
+            card=card,
             change_kind=card["change_kind"],
             subject=subject,
             reason_code=dcode,
@@ -1136,6 +1207,7 @@ async def expire_old(
                 code=p.code,
                 payload={"sent_at": p.sent_at.isoformat()},
                 family=card["family"],
+                card=card,
                 change_kind=card["change_kind"],
                 subject=_subject_of(card, p.id),
             )
@@ -1253,6 +1325,14 @@ async def mark_executed(
     )
     subject = _subject_of(card, card_id)
     chosen_version, chosen_code = await _chosen(session, shop_id, card_id)
+    # the card joins the change set of its product (or the shop) for that day; a running
+    # measurement of the same product is cut today (P91 D-7)
+    cset = await change_sets.attach_execution(session, shop_id, p, card, executed_at=when, now=now)
+    plan_code = (
+        (await plan_codes.plan_codes_for(session, shop_id, [p.lever_plan_id])).get(p.lever_plan_id)
+        if p.lever_plan_id
+        else None
+    )
     for n, change in enumerate(changes):
         await store.write_event(
             session,
@@ -1270,19 +1350,29 @@ async def mark_executed(
                 "execution_id": str(execution.id),
                 "executor_role": role,
                 "bundle": card.get("bundle", False),
+                "change_set": str(cset.id),
+                "plan_id": None if p.lever_plan_id is None else str(p.lever_plan_id),
+                "plan_code": plan_code,
             },
             family=card["family"],
+            card=card,
             change_kind=card["change_kind"],
             subject=subject,
         )
     await store.set_meta(session, shop_id, card_id, {"executed_at": when.isoformat()})
     await _requeue(session, p, now)  # executed closes the card for the queue at once
+    from juli_backend.services.shopee_recommendations import plans
+
+    plan_done = await plans.on_executed(session, shop_id, p, now=now)
     return {
         "id": str(card_id),
         "code": p.code,
+        "plan_code": plan_code,
         "status": p.status,
         "execution_id": str(execution.id),
         "events": len(changes),
+        "change_set": change_sets.to_json(cset, now=now),
+        "plan_executed": plan_done,
     }
 
 
@@ -1351,6 +1441,16 @@ async def card_by_code(
         "title": card["title"],
         "product_id": p.item_id,
         "product_queue": p.product_queue,
+        "origin": card.get("origin") or store.ORIGIN_ENGINE,
+        "plan_id": None if p.lever_plan_id is None else str(p.lever_plan_id),
+        "plan_code": (
+            (await plan_codes.plan_codes_for(session, shop_id, [p.lever_plan_id])).get(
+                p.lever_plan_id
+            )
+            if p.lever_plan_id
+            else None
+        ),
+        "planned_date": p.planned_start.isoformat() if p.planned_start else None,
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "sent_at": p.sent_at.isoformat() if p.sent_at else None,
         "supersedes_code": card.get("supersedes_code"),
@@ -1386,10 +1486,14 @@ async def learning_overview(session: AsyncSession, shop_id: uuid.UUID) -> dict[s
 
     states = await store.load_calibrations(session, shop_id)
     acceptance = await store.load_acceptance(session, shop_id)
+    manual_acceptance = await store.load_acceptance(session, shop_id, origin="manual")
+    observations = await store.load_observations(session, shop_id)
     sim = await store.load_sim(session, shop_id)
     return {
         "calibration": learning.coverage_report(states),
+        "calibration_manual": learning.coverage_report(learning.calibrate(observations, "manual")),
         "acceptance": acceptance.json(),
+        "acceptance_manual": manual_acceptance.json(),
         "sim": None if sim is None else sim.summary(),
         "note": "Chấp nhận / bỏ qua chỉ đổi giá trị mặc định và thứ tự xếp hạng, không phải bằng "
         "chứng hiệu quả.",

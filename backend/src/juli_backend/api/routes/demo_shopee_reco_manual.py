@@ -29,8 +29,7 @@ from juli_backend.api.routes.shopee_recommendations_common import refused
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.services.shop_proposals import ProposalError
-from juli_backend.services.shopee_recommendations import manual, seller_view
-from juli_backend.services.shopee_recommendations.loader import load_env
+from juli_backend.services.shopee_recommendations import loader, manual, seller_view
 
 router = APIRouter(prefix="/demo/shopee/recommendations", tags=["demo-shopee"])
 
@@ -58,7 +57,7 @@ async def compare_variants(
     shop_id = _shopee(shop)
     now = _now()
     try:
-        env = await load_env(session, shop_id, as_of=body.as_of, now=now)
+        env = await loader.load_env(session, shop_id, as_of=body.as_of, now=now)
         if env is None:
             raise ProposalError(manual.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
         out = manual.compare(env, [v.as_dict() for v in body.variants], now=now)

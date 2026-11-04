@@ -30,8 +30,7 @@ from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services.ops import audit
 from juli_backend.services.shop_proposals import ProposalError
-from juli_backend.services.shopee_recommendations import manual
-from juli_backend.services.shopee_recommendations.loader import load_env
+from juli_backend.services.shopee_recommendations import loader, manual
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 BASE = "/shops/{shop_id}/shopee/recommendations"
@@ -53,7 +52,7 @@ async def ops_compare(
     now = _now()
     try:
         async with with_shop_scope(session, shop_id):
-            env = await load_env(session, shop_id, as_of=body.as_of, now=now)
+            env = await loader.load_env(session, shop_id, as_of=body.as_of, now=now)
             if env is None:
                 raise ProposalError(manual.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
             return manual.compare(env, [v.as_dict() for v in body.variants], now=now)

@@ -83,6 +83,12 @@ from juli_backend.models.shop_proposals import (
     ShopProposalExecution,
     ShopProposalResult,
 )
+from juli_backend.models.shopee_plans import (
+    ShopRecoChangeSet,
+    ShopRecoPlan,
+    ShopRecoPlanCard,
+    ShopRecoPlanCounter,
+)
 from juli_backend.models.shopee_profit import (
     AdCampaignPurpose,
     AdsChangeLog,
@@ -161,6 +167,10 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopProposalExecution,
     ShopProposalResult,
     ShopProposalCodeCounter,
+    ShopRecoPlan,
+    ShopRecoPlanCard,
+    ShopRecoPlanCounter,
+    ShopRecoChangeSet,
     MarketKeywordMetric,
     ShopKeywordSeed,
     ShopRuleVersion,

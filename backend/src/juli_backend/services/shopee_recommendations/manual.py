@@ -30,7 +30,13 @@ from typing import Any
 from juli_backend.models.shop_proposals import ShopProposal
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
-from juli_backend.services.shopee_recommendations import combo, config, store
+from juli_backend.services.shopee_recommendations import (
+    combo,
+    config,
+    product_queue,
+    store,
+    versions,
+)
 from juli_backend.services.shopee_recommendations.cards import build_card
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.evaluate import evaluate
@@ -40,8 +46,6 @@ from juli_backend.services.shopee_recommendations.model import Candidate
 
 ORIGIN_MANUAL = "manual"
 MIN_VARIANTS, MAX_VARIANTS = 2, 4
-#: queue position given to a non-primary manual card until the queue integration lands
-DEFAULT_MANUAL_POSITION = 50
 
 ERROR_BAD_VARIANT = "reco_manual_invalid"
 ERROR_BREACH = "reco_breach_not_acknowledged"
@@ -134,7 +138,7 @@ def candidate_of(variant: Mapping[str, Any]) -> Candidate:
     )
 
 
-def _combo_title(env: RecoEnv, cand: Candidate) -> str:
+def combo_title(env: RecoEnv, cand: Candidate) -> str:
     names = " + ".join(env.name(i) for i in cand.items)
     gift = " + quà" if cand.inputs.get("gift_item") else ""
     return f"{KINDS[combo.KIND].label} — {names}{gift}"
@@ -173,7 +177,7 @@ def build_variant(
     if card is None:
         return None, refusal("no_order_lines")
     if kind == combo.KIND:
-        card["title"] = _combo_title(env, cand)
+        card["title"] = combo_title(env, cand)
     return card, None
 
 
@@ -286,39 +290,56 @@ def compare(
 # ------------------------------------------------------------------------------- save
 
 
-def _enqueue(card: dict[str, Any], *, primary: bool) -> int:
-    """INTEGRATION POINT (p91-core): put the new card into its product's queue and return the
-    position to store. TODO(p91-core): replace with the per-product queue -- assign the card
-    code ``JC-yymm-seq4``, take ``product_queue = 1`` when ``primary`` (previous #1 moves to
-    2), else append by score. Until then: position 1 for a primary card, a fixed late position
-    otherwise, and the intent is recorded on the card (``primary``) for the queue to read."""
-    card["primary"] = primary
-    return 1 if primary else DEFAULT_MANUAL_POSITION
+def _score_of(env: RecoEnv | None, card: dict[str, Any]) -> float | None:
+    """The ranking score the engine would give this card (so it queues among the engine's cards by
+    the same measure); None when no environment is at hand (tests that pass built cards)."""
+    if env is None:
+        return None
+    from juli_backend.services.shopee_recommendations import ranking, service
+
+    try:
+        value, _ = ranking.score(service._rank_input("manual", card, env), service.gaps_of(env))
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return None
+    return float(value)
 
 
-def _version_row(
-    index: int,
-    variant: Mapping[str, Any],
-    card: dict[str, Any] | None,
-    why: dict | None,
-    *,
-    chosen: bool,
-) -> dict[str, Any]:
-    row: dict[str, Any] = {
-        "index": index,
-        "chosen": chosen,
-        "label": variant.get("label") or f"Phương án {index + 1}",
-        "change_kind": variant.get("change_kind"),
-        "items": list(variant.get("items") or []),
-        "extra": dict(variant.get("extra") or {}),
-        "inputs": dict(variant.get("inputs") or {}),
-        "refusal": why,
-        "title": None if card is None else card["title"],
-        "metrics": None if card is None else metrics_of(card),
-    }
-    if card is not None and not chosen:
-        row["card"] = card
-    return row
+def _version_rows(
+    order: Sequence[int],
+    variants: Sequence[Mapping[str, Any]],
+    built: Sequence[tuple[dict[str, Any] | None, dict[str, str] | None]],
+    chosen: int,
+) -> list[dict[str, Any]]:
+    """The card's ``versions`` in the core format (``versions.version_of``): version 1 = the
+    chosen variant, the others follow. Each keeps the variant's own description beside it."""
+    out: list[dict[str, Any]] = []
+    for n, i in enumerate(order, start=1):
+        variant, (card, why) = variants[i], built[i]
+        label = str(variant.get("label") or f"Phương án {i + 1}")
+        if card is None:
+            row = versions.refused_version(
+                n, label, dict(variant.get("inputs") or {}), (why or {}).get("code")
+            )
+        else:
+            row = versions.version_of(card, n, label)
+        row.update(
+            {
+                "index": i,
+                "chosen": i == chosen,
+                "change_kind": variant.get("change_kind"),
+                "items": list(variant.get("items") or []),
+                "extra": dict(variant.get("extra") or {}),
+                "title": None if card is None else card["title"],
+                "metrics": None if card is None else metrics_of(card),
+            }
+        )
+        out.append(row)
+    return out
+
+
+def _brief(row: Mapping[str, Any]) -> dict[str, Any]:
+    """A version without its evaluation fields (what the save response lists)."""
+    return {k: v for k, v in row.items() if k not in versions.EVAL_FIELDS}
 
 
 async def create_manual(
@@ -371,11 +392,12 @@ async def create_manual(
     order = [chosen, *[i for i in range(len(variants)) if i != chosen]]
     card["origin"] = ORIGIN_MANUAL
     card["created_by"] = actor.json()
-    card["versions"] = [_version_row(i, variants[i], *built[i], chosen=i == chosen) for i in order]
-    position = _enqueue(card, primary=primary)
+    card["primary"] = primary
+    card["versions"] = _version_rows(order, variants, built, chosen)
+    score = _score_of(window_env, card)
     card["rank"] = {
-        "position": position,
-        "score": None,
+        "position": 1 if primary else config.MANUAL_PRIORITY,
+        "score": score,
         "detail": {},
         "mode": ORIGIN_MANUAL,
         "explore": False,
@@ -386,28 +408,32 @@ async def create_manual(
         shop_id,
         card,
         cycle=cycle,
-        position=position,
+        position=card["rank"]["position"],
         now=now,
         staff_id=actor.staff_id,
     )
-    await store.set_meta(
-        session,
-        shop_id,
-        card_id,
-        {"origin": ORIGIN_MANUAL, "created_by": actor.json(), "primary": primary},
-    )
+    meta: dict[str, Any] = {"origin": ORIGIN_MANUAL, "created_by": actor.json(), "primary": primary}
+    if primary:
+        meta["primary_at"] = now.isoformat()
+    await store.set_meta(session, shop_id, card_id, meta)
+    proposal = await session.get(ShopProposal, card_id)
     status = "draft"
     if actor.kind == "seller":
-        proposal = await session.get(ShopProposal, card_id)
         await proposals.send(session, proposal, now=now)
         status = proposal.status
+    item = proposal.item_id
+    if item:  # the card joins its product's queue (primary: place 1, the old head moves to 2)
+        await product_queue.requeue_products(session, shop_id, [item], now)
+    queue = proposal.product_queue
     return {
         "id": str(card_id),
+        "code": proposal.code,
         "status": status,
         "origin": ORIGIN_MANUAL,
-        "position": position,
+        "position": queue,
+        "product_queue": queue,
         "primary": primary,
-        "versions": [{k: v for k, v in row.items() if k != "card"} for row in card["versions"]],
+        "versions": [_brief(row) for row in card["versions"]],
         "card": card,
     }
 
@@ -419,6 +445,7 @@ __all__ = [
     "ORIGIN_MANUAL",
     "build_variant",
     "candidate_of",
+    "combo_title",
     "compare",
     "create_manual",
     "metrics_of",

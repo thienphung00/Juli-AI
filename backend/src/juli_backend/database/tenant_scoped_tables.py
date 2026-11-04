@@ -136,6 +136,11 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shop_proposal_executions"): "tenant_direct",
     ("public", "shop_proposal_results"): "tenant_direct",
     ("public", "shop_proposal_code_counters"): "tenant_direct",
+    # P91 migration 117: the draft plan, its cards and counter, and the measurement change sets
+    ("public", "shop_reco_plans"): "tenant_direct",
+    ("public", "shop_reco_plan_cards"): "tenant_direct",
+    ("public", "shop_reco_plan_counters"): "tenant_direct",
+    ("public", "shop_reco_change_sets"): "tenant_direct",
     ("public", "shopee_sim_prior_runs"): "tenant_direct",
     ("public", "shopee_reco_calibrations"): "tenant_direct",
     # ADR-119 (migration 111): which keyword combinations came from which of the shop's

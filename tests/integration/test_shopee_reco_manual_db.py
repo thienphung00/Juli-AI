@@ -103,7 +103,7 @@ async def test_a_staff_manual_card_stays_a_draft_until_ops_publishes(shopee_tena
                 now=NOW,
                 cards=[stub_card("5006", "gift", "combo")],
             )
-            assert out["status"] == "draft" and out["position"] == manual.DEFAULT_MANUAL_POSITION
+            assert out["status"] == "draft" and out["position"] == 1  # alone in its product queue
             assert out["card"]["primary"] is False
             sent = await reco.publish(session, a.shop_id, [uuid.UUID(out["id"])], now=NOW)
             assert sent == [out["id"]]

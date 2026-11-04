@@ -130,8 +130,11 @@ def test_floor_breach_is_marked_per_sku():
 
 def test_break_even_extra_combo_orders():
     assert combo.break_even_extra_orders(10, D(18_000), D(97_000)) == (2, None)  # 180k / 97k
-    assert combo.break_even_extra_orders(0, D(18_000), D(97_000)) == (0, None)
+    # no past basket held every product: the offer still costs its discount on the first combo order
+    assert combo.break_even_extra_orders(0, D(18_000), D(97_000)) == (1, None)
+    assert combo.break_even_extra_orders(0, D(200_000), D(97_000)) == (3, None)  # ceil(200k / 97k)
     assert combo.break_even_extra_orders(10, D(18_000), D(0)) == (None, "contribution_not_positive")
+    assert combo.break_even_extra_orders(0, D(0), D(0)) == (None, "contribution_not_positive")
 
 
 @pytest.mark.parametrize(
@@ -387,7 +390,7 @@ async def test_ops_compare_is_viewer_and_manual_is_operator_and_audited(session,
     operator.dependency_overrides.clear()
     out = r.json()
     cid = uuid.UUID(out["id"])
-    assert out["status"] == "draft" and out["position"] == manual.DEFAULT_MANUAL_POSITION
+    assert out["status"] == "draft" and out["position"] == 1  # alone in its product queue
     (row,) = (await session.scalars(select(OpsAuditLog))).all()
     assert row.action == "reco_manual_create" and row.after["card_id"] == out["id"]
     p = await session.get(ShopProposal, cid)

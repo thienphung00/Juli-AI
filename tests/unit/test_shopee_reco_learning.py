@@ -19,7 +19,7 @@ from juli_backend.models.platform_data import PlatformItem, PlatformPromotion
 from juli_backend.models.shopee_profit import AdsChangeLog, PlatformItemSnapshot
 from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.card_events.writer import EventSpec, insert_event
-from juli_backend.services.shopee_recommendations import measure, store
+from juli_backend.services.shopee_recommendations import change_sets, measure, store
 from juli_backend.services.shopee_recommendations.cards import build_card
 from juli_backend.services.shopee_recommendations.loader import load_env
 from juli_backend.services.shopee_recommendations.model import Candidate
@@ -484,20 +484,28 @@ async def test_the_backfill_of_a_shop_with_no_history_reports_zeros(session):
     assert report.json() == {}
 
 
-async def test_two_changes_on_one_product_in_one_window_are_one_bundle(session):
+async def test_two_changes_on_one_product_on_one_day_are_one_change_set_read_jointly(session):
+    """P91 D-7: the unit of measurement is the product's change set. Two cards of one product
+    executed the same day are read ONCE against the product's baseline; the joint prediction is
+    calibrated, and each kind counts at the reduced weight -- never as a clean sample."""
     user, shop, sid = await _series_shop(session, uplift=UPLIFT)
     first, _ = await _executed_card(session, sid, user)
-    second, _ = await _executed_card(session, sid, user)  # the same product, the same days
+    second, _ = await _executed_card(session, sid, user)  # the same product, the same day
     report = await reco.run_learning(session, sid, now=NOW)
     await session.commit()
-    st = (await store.load_calibrations(session, sid))[("flash_sale", "orders")]
-    assert report.readings == 2 and st.n_results == 0 and st.n_bundle_excluded == 2
+    states = await store.load_calibrations(session, sid)
+    assert report.readings == 1 and states[("joint", "gmv")].n_results == 1
+    kind = states[("flash_sale", "orders")]
+    assert kind.n_results == 0 and kind.pooled_ratio is not None  # 2 x 0.25 = half a sample
+    assert kind.n_bundle_excluded == 0
     events = (
         await session.scalars(select(CardEvent).where(CardEvent.event_type == "impact_final"))
     ).all()
-    assert {e.card_id for e in events} == {first, second} and all(
-        e.payload["bundle"] for e in events
-    )
+    assert {e.card_id for e in events} == {first, second}
+    assert all(e.payload["joint"] and e.payload["change_set"] for e in events)
+    (cs,) = await change_sets.sets_for(session, sid)
+    assert cs.status == "done" and cs.result["joint"] is True and len(cs.card_ids) == 2
+    assert cs.result["impact_pct"] == pytest.approx(UPLIFT, abs=0.1)
 
 
 async def test_a_running_plan_gets_one_preliminary_reading_at_day_7_that_never_calibrates(session):

@@ -65,7 +65,7 @@ def test_migration_109_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # Migration 110 (Ops shop platform) went on 109 and took the deferred tail.
     later = (MIGRATIONS / "versions/110_ops_shop_platform.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "116_shopee_reco_codes"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "117_shopee_reco_plans"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_109_and_its_upgrade_only_adds():
@@ -94,6 +94,9 @@ def test_migration_vocabularies_match_the_models():
         "VERIFIED_HOW",
         "VERDICTS",
     ):
+        if name == "STATUSES":  # 117 widened the status CHECK with `planned` (P91 D-6)
+            assert (*mig.STATUSES, "planned") == models.STATUSES
+            continue
         assert getattr(mig, name) == getattr(models, name), name
     # 111 widened the method CHECK (D81.1): 109's values plus ``self_baseline``.
     spec = importlib.util.spec_from_file_location(

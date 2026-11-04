@@ -199,7 +199,7 @@ def test_migration_116_is_additive_reversible_and_takes_the_tail():
     assert 'revision: str = "116_shopee_reco_codes"' in src
     assert 'down_revision: str | None = "115_shopee_recommendations"' in src
     tail = REPO / "backend/src/juli_backend/database/migrations/deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "116_shopee_reco_codes"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "117_shopee_reco_plans"' in tail.read_text("utf-8")
 
 
 # ============================================================================ flows (SQLite)
@@ -344,7 +344,7 @@ async def test_executing_closes_the_card_for_the_queue_at_once_and_marks_the_pro
     )
     open_cards = [c for c in lst_["cards"] if c["status"] in ("sent",)]
     measuring = open_cards[0]["product_measuring"]
-    assert measuring["until"] and measuring["change_set"] is None
+    assert measuring["until"] and measuring["change_set"]  # the card's change set (D-7)
     # once the planned window is over the product is no longer measured
     done = await service.list_cards(
         session, sid, audience="ops", product_id="1001", now=NOW + timedelta(days=60)

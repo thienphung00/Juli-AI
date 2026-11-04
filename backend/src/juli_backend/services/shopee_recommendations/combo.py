@@ -255,14 +255,19 @@ def price_combo(
 def break_even_extra_orders(
     existing_baskets: int, cost_per_order: Decimal, contribution: Decimal
 ) -> tuple[int | None, str | None]:
-    """Extra combo orders (over the history window) whose contribution pays back what the offer
-    costs on the baskets customers already buy whole: ``ceil(existing x cost / contribution)``."""
-    give_away = max(cost_per_order, ZERO) * existing_baskets
-    if give_away <= 0:
-        return 0, None
+    """Extra combo orders (over the history window) that pay back what the offer costs:
+    ``ceil(combo cost in the window / contribution per combo order)`` (owner 2026-11-04).
+
+    The combo cost in the window is the offer's cost per combo order times the baskets that take
+    it. When no past basket held every product (``existing_baskets`` 0) the offer still gives
+    its discount to the first combo order it sells, so one basket is counted: the answer is
+    never 0 only because history has no such basket. ``None`` + a reason when a combo order does
+    not earn anything."""
     if contribution <= 0:
         return None, "contribution_not_positive"
-    return math.ceil(give_away / contribution), None
+    baskets = max(existing_baskets, 1)
+    give_away = max(cost_per_order, ZERO) * baskets
+    return max(1, math.ceil(give_away / contribution)), None
 
 
 # ------------------------------------------------------------------ environment glue
