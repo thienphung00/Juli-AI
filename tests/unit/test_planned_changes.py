@@ -451,7 +451,7 @@ async def test_a_file_that_is_not_a_sheet_or_lacks_columns_is_refused(session, s
 
 async def test_apply_refuses_another_file_than_the_one_checked(session, shop):
     actor = pc.Actor("seller", user_id=shop.user.id)
-    with pytest.raises(pc.FileMismatch):
+    with pytest.raises(pc.FileMismatch) as refused:
         await pc.apply_import(
             session,
             shop.shop_id,
@@ -461,6 +461,8 @@ async def test_apply_refuses_another_file_than_the_one_checked(session, shop):
             expected_hash="0" * 64,
             now=NOW,
         )
+    assert "not the one that was checked" in str(refused.value)
+    assert (await session.scalars(select(ShopProposal))).first() is None  # nothing was written
 
 
 async def test_ops_import_records_the_decision_as_a_document_with_the_import_as_evidence(

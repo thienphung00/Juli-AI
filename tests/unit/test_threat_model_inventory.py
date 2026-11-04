@@ -196,6 +196,10 @@ UNAUTHENTICATED_ALLOWLIST = {
     "/v1/ingest/pair",
     "/v1/ingest/token/rotate",
     "/v1/ingest/status",
+    # P91 D-13: the Connector's listing fill-in reads one approved card of its own shop with
+    # the same ingest token (read-only; off unless CONNECTOR_FILL_LISTING).
+    "/v1/ingest/fill",
+    "/v1/ingest/fill/{code}",
     "/v1/ingest/{platform}/{dataset}",
     # Fast track P33-F (D43): the public free-trial sign-up from app-juli.com/dang-ky.
     # A visitor has no session by definition; bounded by validation, a honeypot and

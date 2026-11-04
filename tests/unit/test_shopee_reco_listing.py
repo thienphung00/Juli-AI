@@ -192,11 +192,22 @@ def test_the_unit_price_is_read_from_the_size_in_the_title():
 
 
 def test_the_listing_family_is_wired_to_views_and_ctr():
-    assert set(kinds_of("listing")) == {"title", "keyword", "cover_image", "price_display"}
-    for kind in kinds_of("listing"):
+    assert set(kinds_of("listing")) == {
+        "title",
+        "keyword",
+        "cover_image",
+        "price_display",
+        # P91 D-13: planned by hand or imported, not generated; no simulation prior
+        "description_first_line",
+        "variation_restructure",
+        "listing_hide",
+        "listing_relist",
+    }
+    for kind in ("title", "keyword", "cover_image", "price_display"):
         s = KINDS[kind]
         assert s.target_metric in ("views", "ctr")
         assert s.sim_kind is None
+    assert all(KINDS[k].sim_kind is None for k in kinds_of("listing"))
     assert WIRING["views"][:2] == ("title", "keyword") and WIRING["ctr"][:1] == ("cover_image",)
     assert KINDS["title"].verify_kind == "title"
     assert KINDS["cover_image"].verify_kind == KINDS["price_display"].verify_kind == "images"
