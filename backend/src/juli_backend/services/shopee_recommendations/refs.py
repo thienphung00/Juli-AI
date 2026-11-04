@@ -10,7 +10,8 @@ Only open cards count: ``sent`` / ``changes_requested`` / ``approved`` for the s
 ``draft`` for Ops (the seller never sees a draft). A row without a card has no ``card`` key.
 Matching, strongest first: the card's own critical item id; the same product with the same
 metric (and flow / source when the row names one); the same product. Among equals the card the
-ranking put first wins. The analytics package stays unaware of this one: the routes call
+ranking put first wins; the product's queue-1 card (P91) goes before any other.
+The analytics package stays unaware of this one: the routes call
 :func:`attach_card_refs` on the payload a query returned.
 """
 
@@ -49,6 +50,8 @@ class CardRef:
     kpi: str | None
     flow: str | None
     critical_id: str | None
+    queue: int = 1
+    code: str | None = None
 
     def json(self) -> dict[str, Any]:
         return {
@@ -56,6 +59,8 @@ class CardRef:
             "family": self.family,
             "title": self.title,
             "at_stake_per_month": self.at_stake_per_month,
+            "code": self.code,
+            "product_queue": self.queue,
         }
 
 
@@ -71,7 +76,9 @@ def _at_stake(card: dict[str, Any]) -> float | None:
         return None
 
 
-def _ref(card_id: uuid.UUID, card: dict[str, Any]) -> CardRef:
+def _ref(
+    card_id: uuid.UUID, card: dict[str, Any], queue: int | None = None, code: str | None = None
+) -> CardRef:
     m = card.get("metric") or {}
     return CardRef(
         id=str(card_id),
@@ -84,6 +91,8 @@ def _ref(card_id: uuid.UUID, card: dict[str, Any]) -> CardRef:
         kpi=m.get("critical_kpi") or card.get("wiring_key"),
         flow=m.get("flow"),
         critical_id=m.get("critical_id"),
+        queue=queue or 1,
+        code=code,
     )
 
 
@@ -94,7 +103,15 @@ class CardIndex:
     def _best(self, tiers: list[tuple[int, CardRef]]) -> dict[str, Any] | None:
         if not tiers:
             return None
-        tiers.sort(key=lambda t: (t[0], t[1].position, -(t[1].at_stake_per_month or 0), t[1].id))
+        tiers.sort(
+            key=lambda t: (
+                t[1].queue,
+                t[0],
+                t[1].position,
+                -(t[1].at_stake_per_month or 0),
+                t[1].id,
+            )
+        )
         return tiers[0][1].json()
 
     def for_critical(self, item: dict[str, Any]) -> dict[str, Any] | None:
@@ -121,7 +138,8 @@ class CardIndex:
 
     def all_for_product(self, product_id: str) -> list[dict[str, Any]]:
         mine = sorted(
-            (r for r in self.refs if product_id in r.products), key=lambda r: (r.position, r.id)
+            (r for r in self.refs if product_id in r.products),
+            key=lambda r: (r.queue, r.position, r.id),
         )
         return [r.json() for r in mine]
 
@@ -132,7 +150,7 @@ class CardIndex:
 async def load_index(session: AsyncSession, shop_id: uuid.UUID, *, audience: str) -> CardIndex:
     statuses = OPS_STATUSES if audience == "ops" else SELLER_STATUSES
     rows = await store.list_cards(session, shop_id, statuses=statuses)
-    return CardIndex([_ref(p.id, card) for p, card in rows])
+    return CardIndex([_ref(p.id, card, p.product_queue, p.code) for p, card in rows])
 
 
 def _put(row: dict[str, Any], ref: dict[str, Any] | None) -> int:

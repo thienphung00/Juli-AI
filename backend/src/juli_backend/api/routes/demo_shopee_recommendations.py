@@ -4,7 +4,9 @@ The client's manager reads the cards Ops published, moves the what-if inputs, ap
 asks for a change or dismisses (ADR-107 reasons), and marks "Đã làm" after saving the change
 in Seller Centre. Authenticated like every seller route (``get_active_shop``).
 
-- ``GET  /recommendations[?family=&section=&status=&xep_theo=]`` -- cards in ranking order.
+- ``GET  /recommendations[?family=&section=&status=&xep_theo=&product_id=&queue=top|all]`` -- cards
+  in ranking order; by default one card per product (``product_queue`` 1), ``queue=all`` or a
+  ``product_id`` returns every card (the Sản phẩm page).
 - ``GET  /recommendations/{id}`` -- certain + predicted + five numbers before -> after, floor,
   spend, measurement plan, execution sheet, journey.
 - ``POST /recommendations/{id}/whatif`` -- recompute with other inputs (records `whatif_adjusted`).
@@ -55,6 +57,8 @@ async def list_recommendations(
     section: Annotated[str | None, Query(max_length=16)] = None,
     status: Annotated[str | None, Query(max_length=24)] = None,
     xep_theo: Annotated[str, Query(max_length=24)] = "diem",
+    product_id: Annotated[str | None, Query(max_length=64)] = None,
+    queue: Annotated[str, Query(pattern="^(top|all)$")] = "top",
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -68,6 +72,8 @@ async def list_recommendations(
             section=section,
             status=status,
             xep_theo=xep_theo,
+            product_id=product_id,
+            queue=queue,
         )
     except ProposalError as exc:
         raise refused(exc) from None
@@ -95,7 +101,9 @@ async def recommendation_whatif(
 ) -> dict[str, Any]:
     shop_id = _shopee(shop)
     try:
-        card = await reco.recompute(session, shop_id, card_id, body.inputs, now=_now())
+        card = await reco.recompute(
+            session, shop_id, card_id, body.inputs, now=_now(), version=body.version
+        )
         await session.commit()
     except ProposalError as exc:
         await session.rollback()
@@ -112,7 +120,14 @@ async def approve_recommendation(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await _decide(
-        session, shop, card_id, user, "approve", inputs=body.inputs, note=body.note
+        session,
+        shop,
+        card_id,
+        user,
+        "approve",
+        inputs=body.inputs,
+        note=body.note,
+        chosen_version=body.chosen_version,
     )
 
 

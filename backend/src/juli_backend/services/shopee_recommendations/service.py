@@ -12,7 +12,7 @@ import uuid
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -52,7 +52,13 @@ from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
 from juli_backend.services.shopee_analytics import loaders
 from juli_backend.services.shopee_analytics.critical import build_critical
-from juli_backend.services.shopee_recommendations import config, store
+from juli_backend.services.shopee_recommendations import (
+    codes,
+    config,
+    product_queue,
+    store,
+    versions,
+)
 from juli_backend.services.shopee_recommendations.cards import build_card
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.generators import generate
@@ -82,6 +88,7 @@ ERROR_NO_DATA = "reco_no_data"
 ERROR_UNKNOWN_CARD = "reco_card_not_found"
 ERROR_BAD_INPUT = "reco_invalid"
 SELLER_HIDDEN = (STATUS_DRAFT, STATUS_WITHDRAWN, "superseded")
+OPEN_STATUSES = product_queue.OPEN_STATUSES
 
 
 def _naive(now: datetime) -> datetime:
@@ -243,7 +250,7 @@ async def generate_cards(
     mega_window: MegaWindow | None = None,
     mega_budget_cap: Decimal | None = None,
     persist: bool = True,
-    max_cards: int = 40,
+    max_cards: int | None = None,
     staff_id: uuid.UUID | None = None,
     env: RecoEnv | None = None,
 ) -> GenerationReport:
@@ -260,6 +267,7 @@ async def generate_cards(
         if card is None:
             report.skipped_refusals[c.kind] += 1
             continue
+        card["versions"] = versions.build_versions(env, c, card, now=now)
         built.append((c, card))
     report.generated = len(built)
     cards_by_id = {f"c{i}": (c, card) for i, (c, card) in enumerate(built)}
@@ -293,6 +301,7 @@ async def generate_cards(
             result = rank(
                 [*rest, mega_input], gaps, locked=env.locked, top_n=top_n, explore_slot=explore_slot
             )
+            mega_card["versions"] = [versions.version_of(mega_card, 1, versions.DEFAULT_LABEL)]
             cards_by_id["mega"] = (children[0], mega_card)
             report.mega = {
                 "children": len(ids),
@@ -308,7 +317,10 @@ async def generate_cards(
         dropped = next((d for d in result.dropped if d["id"] == "mega"), None)
         report.mega["dropped_by"] = None if dropped is None else dropped["reasons"]
     cycle_name = cycle or f"{env.as_of:%Y-%m}"
-    kept_all = result.ordered[:max_cards]
+    kept_all = result.ordered if max_cards is None else result.ordered[:max_cards]
+    if persist:
+        await codes.backfill_codes(session, shop_id, now)  # cards that predate migration 116
+    queued: set[str] = set()
     for r in kept_all:
         _, card = cards_by_id[r.id]
         card["rank"] = {
@@ -318,6 +330,7 @@ async def generate_cards(
             "mode": result.mode,
             "explore": r.explore,
         }
+        card["product_queue"] = r.product_queue
         report.by_family[card["family"]] += 1
         report.by_kind[card["change_kind"]] += 1
         if persist:
@@ -329,9 +342,13 @@ async def generate_cards(
                 position=r.position,
                 now=now,
                 staff_id=staff_id,
+                product_queue=r.product_queue,
             )
             report.card_ids.append(str(cid))
             report.persisted += 1
+            queued.update(str(i) for i in card["scope"]["product_ids"][:1])
+    if persist and queued:  # merge with the open cards earlier runs left on these products
+        await product_queue.requeue_products(session, shop_id, queued, now)
     for r in result.ordered[:5]:
         _, card = cards_by_id[r.id]
         report.top.append(
@@ -354,12 +371,38 @@ async def generate_cards(
 # ------------------------------------------------------------------------------- read
 
 
+def _version_brief(v: Mapping[str, Any]) -> dict[str, Any]:
+    pm = ((v.get("predicted") or {}).get("money_per_month") or {}).get("total", {}).get("p50", {})
+    return {
+        "version": v["version"],
+        "code": v.get("code"),
+        "label": v.get("label"),
+        "status": v.get("status"),
+        "ranked": bool(v.get("ranked")),
+        "inputs": v.get("inputs"),
+        "floor_ok": (v.get("floor") or {}).get("ok"),
+        "dprofit_month_p50": pm.get("dprofit"),
+        "dgmv_month_p50": pm.get("dgmv"),
+    }
+
+
 def _summary(
-    p: ShopProposal, card: dict[str, Any], meta: dict[str, Any] | None = None
+    p: ShopProposal,
+    card: dict[str, Any],
+    meta: dict[str, Any] | None = None,
+    measuring: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     pm = card["predicted"]["money_per_month"]
+    product = p.item_id
     return {
         "id": str(p.id),
+        "code": p.code,
+        "product_id": product,
+        "product_queue": p.product_queue,
+        "product_measuring": (
+            measuring.get(product) if measuring and product and p.status in OPEN_STATUSES else None
+        ),
+        "versions": [_version_brief(v) for v in versions.versions_of(card)],
         "status": p.status,
         "cycle": p.cycle,
         "family": card["family"],
@@ -401,23 +444,33 @@ _SELLER_HIDDEN_TOP = (
 _SELLER_HIDDEN_LIFT = ("factor", "source", "range_scale", "gap_bucket", "sim")
 
 
-def seller_view(card: dict[str, Any]) -> dict[str, Any]:
-    """The card as the client's manager sees it: certain, predicted range ("dự kiến"), five
-    numbers, floor, plan label and execution sheet -- without the model version, calibration
-    source / factor, simulation run or ranking internals."""
-    out = {k: v for k, v in card.items() if k not in _SELLER_HIDDEN_TOP}
+def _scrub(out: dict[str, Any]) -> dict[str, Any]:
+    """Drop the internals from one evaluation (a card, or one of its versions)."""
+    out = {k: v for k, v in out.items() if k not in _SELLER_HIDDEN_TOP}
     pred = dict(out.get("predicted") or {})
     pred.pop("model_version", None)
     pred.pop("sim", None)
     lift = dict(pred.get("lift") or {})
     for k in _SELLER_HIDDEN_LIFT:
         lift.pop(k, None)
-    pred["lift"] = lift
-    out["predicted"] = pred
+    if "predicted" in out:
+        pred["lift"] = lift
+        out["predicted"] = pred
     plan = dict(out.get("measurement_plan") or {})
     for k in ("mde_14", "mde_28", "mde_at_plan", "mde_max", "alpha", "power", "baseline_days"):
         plan.pop(k, None)
-    out["measurement_plan"] = plan
+    if "measurement_plan" in out:
+        out["measurement_plan"] = plan
+    return out
+
+
+def seller_view(card: dict[str, Any]) -> dict[str, Any]:
+    """The card as the client's manager sees it: certain, predicted range ("dự kiến"), five
+    numbers, floor, plan label and execution sheet -- without the model version, calibration
+    source / factor, simulation run or ranking internals; each version likewise."""
+    out = _scrub(dict(card))
+    if out.get("versions"):
+        out["versions"] = [_scrub(dict(v)) for v in out["versions"]]
     return out
 
 
@@ -510,14 +563,35 @@ async def list_cards(
     section: str | None = None,
     status: str | None = None,
     xep_theo: str = "diem",
+    product_id: str | None = None,
+    queue: str = "top",
+    now: datetime | None = None,
 ) -> dict[str, Any]:
+    """The cards. Default (``queue="top"``): one open card per product -- the one with
+    ``product_queue`` 1 (the Quyết định view); cards that are closed or not about one product
+    stay. ``queue="all"`` or a ``product_id`` returns every card (of that product): the Sản phẩm
+    page, each with its place in the queue."""
     if xep_theo not in XEP_THEO:
         raise ProposalError(ERROR_BAD_INPUT, 422, f"xep_theo must be one of {list(XEP_THEO)}")
+    if queue not in ("top", "all"):
+        raise ProposalError(ERROR_BAD_INPUT, 422, "queue must be top or all")
     rows = await store.list_cards(session, shop_id)
     states = await verification_states(session, shop_id, [p.id for p, _ in rows])
+    measuring = await product_queue.measuring(
+        session,
+        shop_id,
+        _naive(now or datetime.now(UTC)),
+        None if product_id is None else [product_id],
+    )
     out: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    behind = 0
     for p, card in rows:
         if audience == "seller" and p.status in SELLER_HIDDEN:
+            continue
+        if product_id is not None and p.item_id != product_id:
+            continue
+        if product_id is None and queue == "top" and (p.product_queue or 1) > 1:
+            behind += 1
             continue
         if family and card["family"] != family:
             continue
@@ -526,7 +600,7 @@ async def list_cards(
         if status and p.status != status:
             continue
         meta = await store.card_meta(session, shop_id, p.id)
-        summary = _summary(p, card, meta)
+        summary = _summary(p, card, meta, measuring)
         summary["verification"] = {"state": states.get(p.id)}
         if audience == "seller":
             rank_ = card.get("rank") or {}
@@ -535,7 +609,10 @@ async def list_cards(
                 "explore": bool(rank_.get("explore")),
             }
         out.append((summary, card))
-    out.sort(key=lambda t: (_xep_key(t[1], xep_theo), t[0]["id"]))
+    if product_id is not None:
+        out.sort(key=lambda t: (t[0]["product_queue"] or 10**6, _xep_key(t[1], xep_theo)))
+    else:
+        out.sort(key=lambda t: (_xep_key(t[1], xep_theo), t[0]["id"]))
     summaries = [s for s, _ in out]
     groups: dict[str, int] = Counter(s["family"] for s in summaries)
     sections: dict[str, int] = Counter(s["section"] or "-" for s in summaries)
@@ -543,7 +620,13 @@ async def list_cards(
         "platform": "shopee",
         "xep_theo": xep_theo,
         "cards": summaries,
-        "counts": {"family": dict(groups), "section": dict(sections), "total": len(summaries)},
+        "queue": queue if product_id is None else "product",
+        "counts": {
+            "family": dict(groups),
+            "section": dict(sections),
+            "total": len(summaries),
+            "queued_behind": behind,
+        },
     }
 
 
@@ -578,9 +661,18 @@ async def card_detail(
             .order_by(CardEvent.occurred_at)
         )
     ).all()
+    full = {**card, "code": p.code, "product_queue": p.product_queue}
+    full["versions"] = versions.versions_of(full)
     out = {
-        **_summary(p, card, meta),
-        "card": seller_view(card) if audience == "seller" else card,
+        **_summary(
+            p,
+            full,
+            meta,
+            await product_queue.measuring(
+                session, shop_id, _naive(datetime.now(UTC)), [p.item_id] if p.item_id else []
+            ),
+        ),
+        "card": seller_view(full) if audience == "seller" else full,
         "journey": [
             {
                 "event": e.event_type,
@@ -618,18 +710,23 @@ async def recompute(
     now: datetime,
     record: bool = True,
     actor: str = ACTOR_SELLER,
+    version: int | None = None,
 ) -> dict[str, Any]:
     """Recompute the whole card with other inputs (every input change recomputes everything,
-    contract 7) on the SAME history window the card was proposed on; records `whatif_adjusted`."""
+    contract 7) on the SAME history window the card was proposed on; records `whatif_adjusted`.
+    ``version`` (1-based, default 1) names the version the inputs move; only that version is
+    recomputed, the others come back as frozen."""
     now = _naive(now)
     p, card = await _proposal(session, shop_id, card_id)
+    card = {**card, "code": p.code, "product_queue": p.product_queue}
     if p.status in (STATUS_EXECUTED, STATUS_WITHDRAWN, "superseded"):
         raise ProposalError("reco_card_closed", 409, f"a {p.status} card can no longer be adjusted")
+    check_title_input(card, inputs)
     as_of = date.fromisoformat(card["as_of"])
     env = await load_env(session, shop_id, as_of=as_of, now=now)
     if env is None:
         raise ProposalError(ERROR_NO_DATA, 409, "shop has no Shopee numbers")
-    new_card = recompute_card(env, card, inputs, now=now)
+    new_card = recompute_card(env, card, inputs, now=now, version=version)
     if new_card is None:
         raise ProposalError(ERROR_BAD_INPUT, 422, "these inputs cannot be evaluated")
     if record:
@@ -646,9 +743,12 @@ async def recompute(
             actor=actor,
             occurred_at=now,
             dedup_key=f"whatif:{card_id}:{uuid.uuid4()}",
+            code=p.code,
             payload={
+                "version": new_card.get("version", 1),
                 "inputs": inputs,
-                "before_inputs": card["inputs"],
+                "before_inputs": versions.versions_of(card)[(version or 1) - 1].get("inputs")
+                or card["inputs"],
                 "dprofit_month_p50": new_card["rank_inputs"]["dprofit_p50"],
                 "floor_ok": new_card["floor"]["ok"],
             },
@@ -659,19 +759,55 @@ async def recompute(
     return new_card
 
 
+def check_title_input(card: Mapping[str, Any], inputs: Mapping[str, Any]) -> None:
+    """A title input is refused above ``MAX_TITLE_CHARS`` (P91 D-4: 100) with a 422."""
+    if card.get("change_kind") != "title" or "title" not in inputs:
+        return
+    n = len(str(inputs["title"] or "").strip())
+    if n == 0 or n > config.MAX_TITLE_CHARS:
+        raise ProposalError(
+            "reco_title_length",
+            422,
+            f"the title has {n} characters; it must have 1 to {config.MAX_TITLE_CHARS}",
+        )
+
+
 def recompute_card(
-    env: RecoEnv, card: dict[str, Any], inputs: dict[str, Any], *, now: datetime
+    env: RecoEnv,
+    card: dict[str, Any],
+    inputs: dict[str, Any],
+    *,
+    now: datetime,
+    version: int | None = None,
+    rebuild_versions: bool = False,
 ) -> dict[str, Any] | None:
+    """The card evaluated again. ``version`` moves that version's inputs and replaces only that
+    version in ``versions``; ``rebuild_versions`` regenerates every alternative (a replacement
+    card made after an import changed the numbers)."""
     if card["family"] == "mega_sale":
         return _recompute_mega(env, card, inputs, now)
+    vlist = versions.versions_of(card)
+    number = version or 1
+    if not 1 <= number <= len(vlist):
+        raise ProposalError("reco_version_unknown", 422, f"the card has {len(vlist)} version(s)")
     cand = candidate_of_card(card)
-    cand.inputs = _merge_inputs(cand.inputs, inputs)
+    cand.inputs = _merge_inputs(vlist[number - 1].get("inputs") or cand.inputs, inputs)
     out = build_card(env, cand, now=now)
-    if out is not None:
-        out["id"] = card["id"]
-        out["rank"] = card.get("rank")
-        out["metric"] = card["metric"]
-        out["wiring"] = card["wiring"]
+    if out is None:
+        return None
+    out["id"] = card["id"]
+    out["code"] = card.get("code")
+    out["rank"] = card.get("rank")
+    out["metric"] = card["metric"]
+    out["wiring"] = card["wiring"]
+    if rebuild_versions:
+        out["versions"] = versions.build_versions(env, cand, out, now=now)
+    else:
+        label = vlist[number - 1].get("label") or versions.DEFAULT_LABEL
+        code = vlist[number - 1].get("code")
+        vlist[number - 1] = versions.version_of(out, number, label, code=code)
+        out["versions"] = vlist
+    out["version"] = number
     return out
 
 
@@ -699,8 +835,27 @@ def _recompute_mega(
     )
     if out is not None:
         out["id"] = card["id"]
+        out["code"] = card.get("code")
         out["rank"] = card.get("rank")
+        out["versions"] = [versions.version_of(out, 1, versions.DEFAULT_LABEL)]
+        out["version"] = 1
     return out
+
+
+async def _requeue(session: AsyncSession, p: ShopProposal, now: datetime) -> None:
+    """A status changed: renumber the product's queue (the next card moves up)."""
+    if p.item_id:
+        await product_queue.requeue_products(session, p.shop_id, [p.item_id], now)
+
+
+async def requeue(session: AsyncSession, shop_id: uuid.UUID, *, now: datetime) -> int:
+    """The idempotent re-queue the beat / Ops can run: returns how many cards changed place."""
+    return await product_queue.requeue_shop(session, shop_id, _naive(now))
+
+
+async def backfill_codes(session: AsyncSession, shop_id: uuid.UUID, *, now: datetime) -> int:
+    """Code the Shopee proposals that predate migration 116 (created_at order; idempotent)."""
+    return await codes.backfill_codes(session, shop_id, _naive(now))
 
 
 # ---------------------------------------------------------------------------- publish
@@ -726,6 +881,7 @@ async def withdraw(
 ) -> None:
     p, _ = await _proposal(session, shop_id, card_id)
     await proposals.withdraw(session, p, now=_naive(now))
+    await _requeue(session, p, _naive(now))
 
 
 # ---------------------------------------------------------------------------- decide
@@ -761,22 +917,79 @@ async def decide(
     inputs: dict[str, Any] | None = None,
     reason_code: str | None = None,
     note: str | None = None,
+    chosen_version: int = 1,
 ) -> dict[str, Any]:
-    """The client's decision in the app: ``approve`` (optionally with adjusted what-if inputs),
-    ``request_change`` or ``dismiss`` (ADR-107 reason, optional)."""
+    """The client's decision in the app: ``approve`` one version of the card (``chosen_version``,
+    default 1; optionally with adjusted what-if inputs), ``request_change`` or ``dismiss``
+    (ADR-107 reason, optional). The chosen version is recorded on the approval snapshot and in
+    the card events."""
     now = _naive(now)
     p, card = await _proposal(session, shop_id, card_id)
+    code = p.code
     subject = _subject_of(card, card_id)
+    result = await _decide(
+        session, shop_id, card_id, p, card, subject, decision, user_id, now, inputs,
+        reason_code, note, chosen_version, code,
+    )  # fmt: skip
+    await _requeue(session, p, now)
+    return result
+
+
+async def _decide(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    card_id: uuid.UUID,
+    p: ShopProposal,
+    card: dict[str, Any],
+    subject: tuple[str, str],
+    decision: str,
+    user_id: uuid.UUID,
+    now: datetime,
+    inputs: dict[str, Any] | None,
+    reason_code: str | None,
+    note: str | None,
+    chosen_version: int,
+    code: str | None,
+) -> dict[str, Any]:
     if decision == "approve":
-        final_card = card
+        vlist = versions.versions_of(card)
+        if not 1 <= chosen_version <= len(vlist):
+            raise ProposalError(
+                "reco_version_unknown", 422, f"the card has {len(vlist)} version(s)"
+            )
+        chosen = vlist[chosen_version - 1]
+        if chosen.get("status") != versions.STATUS_OK:
+            raise ProposalError(
+                "reco_version_unavailable",
+                422,
+                f"version {chosen_version} is {chosen.get('status')} and cannot be approved",
+            )
+        final_card = versions.overlay(card, chosen) if chosen_version != 1 else card
         if inputs:
             final_card = (
-                await recompute(session, shop_id, card_id, inputs, now=now, record=False) or card
+                await recompute(
+                    session,
+                    shop_id,
+                    card_id,
+                    inputs,
+                    now=now,
+                    record=False,
+                    version=chosen_version,
+                )
+                or final_card
             )
             if not final_card["floor"]["ok"]:
                 raise ProposalError(
                     "reco_floor_breach", 422, "inputs put a SKU under its floor price"
                 )
+        vcode = chosen.get("code") or (code and codes.version_code(code, chosen_version))
+        snapshot_extra = {
+            "code": code,
+            "chosen_version": chosen_version,
+            "chosen_version_code": vcode,
+            "chosen_inputs": final_card["inputs"],
+            "chosen_change": final_card["change"],
+        }
         approval = await proposals.record_approval(
             session,
             p,
@@ -786,6 +999,7 @@ async def decide(
             now=now,
             decided_by_user_id=user_id,
             note=note,
+            snapshot_extra=snapshot_extra,
         )
         final = {
             "inputs": final_card["inputs"],
@@ -800,9 +1014,13 @@ async def decide(
             actor=ACTOR_SELLER,
             occurred_at=now,
             dedup_key=keys.accepted(approval.id),
+            code=code,
             payload={
                 "approval_id": str(approval.id),
-                "final": final if inputs else None,
+                "code": code,
+                "chosen_version": chosen_version,
+                "chosen_version_code": vcode,
+                "final": final if (inputs or chosen_version != 1) else None,
                 "approved_with": {
                     "inputs": final_card["inputs"],
                     "execution_sheet": final_card["execution_sheet"],
@@ -814,7 +1032,13 @@ async def decide(
             subject=subject,
         )
         await store.set_meta(session, shop_id, card_id, {"approved_at": now.isoformat()})
-        return {"id": str(card_id), "status": p.status, "approval_id": str(approval.id)}
+        return {
+            "id": str(card_id),
+            "code": code,
+            "status": p.status,
+            "approval_id": str(approval.id),
+            "chosen_version": chosen_version,
+        }
     if decision == "request_change":
         approval = await proposals.record_approval(
             session,
@@ -834,6 +1058,7 @@ async def decide(
             actor=ACTOR_SELLER,
             occurred_at=now,
             dedup_key=f"edited:{approval.id}",
+            code=code,
             payload={"request": note or "", "approval_id": str(approval.id)},
             family=card["family"],
             change_kind=card["change_kind"],
@@ -841,8 +1066,8 @@ async def decide(
         )
         return {"id": str(card_id), "status": p.status, "approval_id": str(approval.id)}
     if decision == "dismiss":
-        code = reason_code or "unspecified"
-        if code not in DISMISS_REASON_CODES:
+        dcode = reason_code or "unspecified"
+        if dcode not in DISMISS_REASON_CODES:
             raise ProposalError(
                 ERROR_BAD_INPUT, 422, f"reason_code must be one of {list(DISMISS_REASON_CODES)}"
             )
@@ -854,7 +1079,7 @@ async def decide(
             decided_at=now,
             now=now,
             decided_by_user_id=user_id,
-            note=note or code,
+            note=note or dcode,
         )
         await store.write_event(
             session,
@@ -864,17 +1089,18 @@ async def decide(
             actor=ACTOR_SELLER,
             occurred_at=now,
             dedup_key=keys.dismissed(card_id),
+            code=p.code,
             payload={"approval_id": str(approval.id)},
             family=card["family"],
             change_kind=card["change_kind"],
             subject=subject,
-            reason_code=code,
+            reason_code=dcode,
         )
         return {
             "id": str(card_id),
             "status": p.status,
             "approval_id": str(approval.id),
-            "reason_code": code,
+            "reason_code": dcode,
         }
     raise ProposalError(ERROR_BAD_INPUT, 422, "decision must be approve, request_change or dismiss")
 
@@ -895,12 +1121,15 @@ async def expire_old(
                 actor=ACTOR_SYSTEM,
                 occurred_at=now,
                 dedup_key=keys.expired(p.id),
+                code=p.code,
                 payload={"sent_at": p.sent_at.isoformat()},
                 family=card["family"],
                 change_kind=card["change_kind"],
                 subject=_subject_of(card, p.id),
             )
             n += int(ok)
+            if ok:
+                await _requeue(session, p, now)
     return n
 
 
@@ -950,6 +1179,23 @@ async def _approved_with(
     )
 
 
+async def _chosen(
+    session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID
+) -> tuple[int | None, str | None]:
+    """(chosen version, its code) from the card's latest `accepted` event."""
+    ev = await session.scalar(
+        select(CardEvent)
+        .where(
+            CardEvent.shop_id == shop_id,
+            CardEvent.card_id == card_id,
+            CardEvent.event_type == EVENT_ACCEPTED,
+        )
+        .order_by(CardEvent.occurred_at.desc())
+    )
+    payload = (ev.payload or {}) if ev else {}
+    return payload.get("chosen_version"), payload.get("chosen_version_code")
+
+
 async def mark_executed(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -994,6 +1240,7 @@ async def mark_executed(
         evidence_ref=evidence_ref,
     )
     subject = _subject_of(card, card_id)
+    chosen_version, chosen_code = await _chosen(session, shop_id, card_id)
     for n, change in enumerate(changes):
         await store.write_event(
             session,
@@ -1003,7 +1250,10 @@ async def mark_executed(
             actor=ACTOR_SELLER if user_id else ACTOR_SYSTEM,
             occurred_at=when,
             dedup_key=f"assisted:{card_id}:{execution.id}:{n}",
+            code=p.code,
             payload={
+                "chosen_version": chosen_version or 1,
+                "chosen_version_code": chosen_code,
                 "change": change,
                 "execution_id": str(execution.id),
                 "executor_role": role,
@@ -1014,12 +1264,109 @@ async def mark_executed(
             subject=subject,
         )
     await store.set_meta(session, shop_id, card_id, {"executed_at": when.isoformat()})
+    await _requeue(session, p, now)  # executed closes the card for the queue at once
     return {
         "id": str(card_id),
+        "code": p.code,
         "status": p.status,
         "execution_id": str(execution.id),
         "events": len(changes),
     }
+
+
+#: Event types that make up a card's status history for the export.
+_HISTORY_FIELDS = ("chosen_version", "chosen_version_code", "inputs", "before_inputs", "version")
+
+
+async def card_by_code(
+    session: AsyncSession, shop_id: uuid.UUID, code: str, *, audience: str = "ops"
+) -> dict[str, Any]:
+    """One card by its code (``JC-2611-0007``, or a version code ``JC-2611-0007-V2``): everything a
+    row of the later Excel export needs -- the versions with their inputs and numbers, the
+    chosen version, the inputs before and after, the status history and the verification state."""
+    parsed = codes.parse_code(code)
+    if parsed is None:
+        raise ProposalError(ERROR_UNKNOWN_CARD, 404)
+    base, wanted = parsed
+    p = await session.scalar(
+        select(ShopProposal).where(ShopProposal.shop_id == shop_id, ShopProposal.code == base)
+    )
+    payload = await store.card_payload(session, shop_id, p.id) if p is not None else None
+    if p is None or payload is None or (audience == "seller" and p.status in SELLER_HIDDEN):
+        raise ProposalError(ERROR_UNKNOWN_CARD, 404)
+    card = {**payload, "code": base, "product_queue": p.product_queue}
+    vlist = versions.versions_of(card)
+    for v in vlist:
+        v["code"] = v.get("code") or codes.version_code(base, int(v["version"]))
+    events = (
+        await session.execute(
+            select(
+                CardEvent.event_type,
+                CardEvent.occurred_at,
+                CardEvent.actor,
+                CardEvent.reason_code,
+                CardEvent.payload,
+            )
+            .where(CardEvent.shop_id == shop_id, CardEvent.card_id == p.id)
+            .order_by(CardEvent.occurred_at)
+        )
+    ).all()
+    chosen_n, chosen_code = await _chosen(session, shop_id, p.id)
+    approved = await _approved_with(session, shop_id, p.id)
+    shown = vlist[(chosen_n or 1) - 1] if 0 < (chosen_n or 1) <= len(vlist) else vlist[0]
+    verification_ = (await verification_states(session, shop_id, [p.id])).get(p.id)
+    history = [
+        {
+            "event": e.event_type,
+            "at": e.occurred_at.isoformat(),
+            "actor": e.actor,
+            "reason_code": e.reason_code,
+            "payload": {
+                **(journey_payload(e.event_type, e.payload) or {}),
+                **{k: e.payload[k] for k in _HISTORY_FIELDS if e.payload and k in e.payload},
+            },
+        }
+        for e in events
+        if e.event_type != "proposed"
+    ]
+    out: dict[str, Any] = {
+        "code": base,
+        "id": str(p.id),
+        "status": p.status,
+        "cycle": p.cycle,
+        "family": card["family"],
+        "change_kind": card["change_kind"],
+        "title": card["title"],
+        "product_id": p.item_id,
+        "product_queue": p.product_queue,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "sent_at": p.sent_at.isoformat() if p.sent_at else None,
+        "supersedes_code": card.get("supersedes_code"),
+        "versions": [_version_brief(v) for v in vlist],
+        "chosen_version": chosen_n,
+        "chosen_version_code": chosen_code,
+        "inputs": {
+            "default": card["inputs"],
+            "chosen": shown.get("inputs"),
+            "approved": (approved or {}).get("inputs"),
+        },
+        "change": {
+            "target": (shown.get("change") or {}).get("target"),
+            "before": (shown.get("change") or {}).get("before"),
+            "after": (shown.get("change") or {}).get("after"),
+        },
+        "status_history": [
+            {"event": "proposed", "at": events[0].occurred_at.isoformat() if events else None},
+            *history,
+        ],
+        "verification": {"state": verification_},
+        "card": seller_view(card) if audience == "seller" else card,
+    }
+    if wanted is not None:
+        if not 1 <= wanted <= len(vlist):
+            raise ProposalError(ERROR_UNKNOWN_CARD, 404)
+        out["selected_version"] = vlist[wanted - 1]
+    return out
 
 
 async def learning_overview(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Any]:
@@ -1050,6 +1397,7 @@ __all__ = [
     "ACTOR_JULI",
     "GenerationReport",
     "build_candidates",
+    "card_by_code",
     "card_detail",
     "decide",
     "expire_old",
@@ -1058,6 +1406,8 @@ __all__ = [
     "mark_executed",
     "publish",
     "recompute",
+    "requeue",
+    "backfill_codes",
     "short_id",
     "withdraw",
 ]
