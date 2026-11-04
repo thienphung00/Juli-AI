@@ -67,6 +67,38 @@ describe("Sản phẩm: the listing header", () => {
     expect(screen.getByAltText("Bộ vệ sinh bếp 5 món set rửa chén")).toHaveAttribute("src", "https://img.example/v2.jpg");
   });
 
+  it("does not crash on backend-shaped versions (cover_url ids, no images array) and shows the no-image hint", async () => {
+    const p = product();
+    const v = (captured_at: string, first = false) => ({
+      captured_at,
+      title: null,
+      title_chars: null,
+      list_price: 200000,
+      current_price: 190000,
+      cover_url: "vn-11134207-81ztc-synthetic01",
+      image_count: 1,
+      changes: [],
+      first,
+    });
+    page("tab=hs", {
+      ...p,
+      header: { ...p.header, images: ["vn-11134207-81ztc-synthetic01"], versions: [v("2026-10-01T00:00:00Z", true), v("2026-10-20T00:00:00Z"), v("2026-11-03T00:00:00Z")] },
+    } as ProductPage);
+    const hero = await screen.findByTestId("sa-hero");
+    expect(hero).toHaveTextContent("Chưa có ảnh sản phẩm");
+    expect(hero.querySelector("img")).toBeNull();
+    expect(screen.getByTestId("sa-image-stepper")).toHaveTextContent("Phiên bản 3/3");
+  });
+
+  it("uses a URL cover_url from a version and tolerates a header without images", async () => {
+    const p = product();
+    page("tab=hs", {
+      ...p,
+      header: { ...p.header, images: undefined, versions: [{ captured_at: "2026-11-03T00:00:00Z", cover_url: "https://img.example/c.jpg" }] },
+    } as ProductPage);
+    expect(await screen.findByAltText("Bộ vệ sinh bếp 5 món set rửa chén")).toHaveAttribute("src", "https://img.example/c.jpg");
+  });
+
   it("price block: list, selling, customer-paid, floors and max discount", async () => {
     page();
     const price = await screen.findByTestId("sa-price");

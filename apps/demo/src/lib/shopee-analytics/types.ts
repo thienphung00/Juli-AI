@@ -498,6 +498,21 @@ export interface KeywordsBlock {
   readonly title_counted_chars: number;
 }
 
+/** One listing snapshot, as `versions_block` sends it. `cover_url` may be a bare Shopee image id, not a URL. */
+export interface ProductVersion {
+  readonly captured_at: string;
+  readonly title?: string | null;
+  readonly title_chars?: number | null;
+  readonly list_price?: N;
+  readonly current_price?: N;
+  readonly cover_url?: string | null;
+  readonly image_count?: number | null;
+  readonly changes?: readonly unknown[] | null;
+  readonly first?: boolean;
+  /** Older payloads carried the image list directly. */
+  readonly images?: readonly string[] | null;
+}
+
 export interface ProductHeader {
   readonly product_id: string;
   readonly title: string | null;
@@ -505,7 +520,8 @@ export interface ProductHeader {
   readonly seller_sku: string | null;
   readonly status: string | null;
   readonly category_path: readonly string[] | null;
-  readonly images: readonly string[];
+  /** Image URLs when the backend has private copies; may be empty or hold bare Shopee image ids. */
+  readonly images?: readonly string[] | null;
   readonly price: {
     readonly list: N;
     readonly current: N;
@@ -528,7 +544,7 @@ export interface ProductHeader {
   }[];
   readonly missing_fields: readonly string[];
   /** Optional: image / title versions when snapshots exist (stepper shown only with 2+). */
-  readonly versions?: readonly { readonly captured_at: string; readonly images: readonly string[]; readonly title?: string | null }[];
+  readonly versions?: readonly ProductVersion[] | null;
   readonly group?: string | null;
   readonly group_label?: string | null;
   readonly priority?: string | null;

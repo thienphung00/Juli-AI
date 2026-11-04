@@ -17,7 +17,7 @@ import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { ProposalsTab, openCardsOf } from "../shopee-decisions/product-proposals";
 import { ProductKolTab } from "../shopee-kol/product-kol-tab";
 import type { CardList } from "../../lib/shopee-decisions/types";
-import type { ProductHeader, ProductPage, SkuCost } from "../../lib/shopee-analytics/types";
+import type { ProductHeader, ProductPage, ProductVersion, SkuCost } from "../../lib/shopee-analytics/types";
 import { CostTab, HistoryTab, KeywordsTab, PerformanceTab, SourcesTab } from "./product-tabs";
 import { Empty, Notice, PillLink, ResourceState, Section, TextChip, toneClass } from "./ui";
 import type { WindowState } from "../../lib/shopee-analytics/params";
@@ -32,6 +32,12 @@ import { readWindow } from "../../lib/shopee-analytics/params";
  */
 
 const SELLER_CENTRE_ITEM = "https://banhang.shopee.vn/portal/product";
+
+/** Only http(s) and root-relative values may reach an <img src>; a bare Shopee image id is not a URL. */
+const displayableImages = (xs: readonly (string | null | undefined)[] | null | undefined): string[] =>
+  (xs ?? []).filter((x): x is string => typeof x === "string" && (/^https?:\/\//i.test(x) || (x.startsWith("/") && !x.startsWith("//"))));
+
+const versionImages = (v: ProductVersion): string[] => displayableImages(v.images?.length ? v.images : [v.cover_url]);
 
 export function ProductPageView({ id, params }: { readonly id: string; readonly params: URLSearchParams }) {
   const host = useShopee();
@@ -194,8 +200,8 @@ function Hero({
   readonly w: WindowState;
 }) {
   const versions = useMemo(() => {
-    const v = h.versions ?? [];
-    return v.length > 0 ? v : [{ captured_at: h.price.captured_at ?? "", images: h.images }];
+    const v = (h.versions ?? []).map((x) => ({ captured_at: x.captured_at ?? "", images: versionImages(x) }));
+    return v.length > 0 ? v : [{ captured_at: h.price.captured_at ?? "", images: displayableImages(h.images) }];
   }, [h]);
   const [ver, setVer] = useState(versions.length - 1);
   const [copied, setCopied] = useState(false);
