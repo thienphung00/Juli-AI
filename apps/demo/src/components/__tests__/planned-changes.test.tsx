@@ -294,7 +294,7 @@ describe("the list", () => {
   it("shows the listing family (title, description, cover, variations, hide, relist) as its own section", () => {
     const card = summaryOf(voucherCard({ id: "c-listing", family: "listing", family_label: "Tên, từ khoá, ảnh bìa", change_kind: "listing_hide" }));
     const sections = sectionsFor([{ ...card, status: "sent" }], "de-xuat");
-    expect(sections.map((x) => [x.family, x.title, x.cards.length])).toEqual([["listing", "Tên, mô tả, ảnh, phân loại", 1]]);
+    expect(sections.map((x) => [x.family, x.title, x.cards.length])).toEqual([["listing", "Tên, từ khoá, ảnh bìa", 1]]);
   });
 });
 
