@@ -152,10 +152,41 @@ is built (same rule as P90).
   and the wide range on the card).
 - "Mời KOL" versions vary the **product** pitched (like "Gửi mẫu"); hoa hồng % is a what-if knob.
 
+## D-12 Doanh thu (income) export and the seller's cost file (owner 2026-11-04)
+Real files arrived (header names only recorded here; files stay outside the repo).
+- **Income export** `Income.T<m>.<yyyymmdd>_<yyyymmdd>.xlsx` (Tài chính › Doanh thu): sheets `Summary`, `Service Fee
+  Details` (`Mã giao dịch`, `Mã đơn hàng`, `Phí Hạ Tầng`, `Voucher Xtra`), sometimes `Shipping Fee Discrepancy`
+  (`Mã đơn hàng`, `Phí vận chuyển ước tính:`, `Phí vận chuyển thực tế:`, `Lý do chênh lệch`), and `Doanh thu` (3 header
+  rows; one `Order` row per order + `Sku` rows per product). Columns used: Mã đơn hàng (→ keyed order_ref, raw id
+  never stored), Mã sản phẩm, Phân Loại, Ngày đặt hàng, Ngày hoàn thành thanh toán, Tổng tiền đã thanh toán, Giá sản
+  phẩm, Số tiền hoàn lại, Phí vận chuyển Người mua trả / thực tế / được trợ giá từ Shopee / trả hàng (2 kinds) / được
+  hoàn bởi PiShip / Người bán hỗ trợ, Mã ưu đãi (Đồng Tài Trợ) do Người Bán chịu, Mã hoàn xu (Đồng Tài Trợ) do Người
+  Bán chịu, Phí cố định, Phí Dịch Vụ, Phí xử lý giao dịch, Phí hoa hồng Tiếp thị liên kết, Phí dịch vụ PiShip, Phí dịch
+  vụ hiển thị NTTD, Thuế GTGT, Thuế TNCN, Trade-in Bonus by Seller, Đền bù đơn mất hàng, Shopee xu/voucher (not seller
+  costs), Transaction Fee Rate (%). **Dropped unread in the sender**: Người Mua, Amount Paid By Buyer, Phương thức thanh
+  toán của Người mua, Buyer Payment Method Details_1, Mã Số Thuế (an invoice tax code), Tên sản phẩm, Mã voucher text.
+- It becomes the **actual** per order (wins over the order export's fee columns and over the formula): every
+  platform fee incl. Phí hạ tầng and the Voucher Xtra service fee, net shipping cost to the seller (thực tế − trợ giá
+  Shopee − người mua trả − PiShip hoàn), return-shipping and failed-delivery shipping, refunds, lost-parcel
+  compensation, affiliate commission per order, withheld VAT/PIT, payout. Loaded for Aug–Oct 2026 (3 files).
+- Findings on ORY (Aug–Oct 2026): **Thuế GTGT = Thuế TNCN = 0 in every order** → Shopee withholds nothing (consistent
+  with a company that invoices VAT itself — titles say "Có VAT"); **Phí Dịch Vụ = Voucher Xtra fee ≈ 5,5 % of product
+  value** every month; Phí hạ tầng 3.000đ/order confirmed; fixed fee ≈ 13,7 %, transaction fee 6 % as in §10.
+- **VAT for a company seller** (new): profit after the seller's own VAT = buyer-paid revenue ÷ (1 + VAT rate) when the
+  price includes VAT, and giá vốn ex-VAT when input VAT is credited. Per SKU `vat_rate` (0 / 5 / 8 / 10 %) and a shop
+  flag `prices_include_vat` + `cost_includes_vat`; until set, profit is shown before VAT and labelled.
+- **Cost file** `Tồn kho và giá.xlsx` (Mã nội bộ, Tên, Đơn vị tính, Giá bán, Giá vốn, Số lượng dự báo, Số lượng hiện
+  có, Kích thước đóng gói): Mã nội bộ = Shopee variation SKU for single items. Imported through the Cài đặt seller
+  import (versioned) via a converter, never by hand.
+- **Pack multiplier / bill of materials** (new, required): combo variations reuse the base SKU (e.g. G500001 for
+  "Combo 3/5/10 hộp"), so cost per order line = Σ component cost × quantity per variation. Template gets a
+  `số món / phân loại` column per variation (parsed default from the variation name "Combo N …", editable) and a BOM
+  sheet for listings with no SKU (multi-product combos). Without it combo costs are understated N-fold.
+
 ## Waves
 1. Backend core (D-1, D-2, D-4, D-5) ‖ Backend manual + compare + combo (D-3) ‖ Design artboards (all of D-1..D-10).
    Parallel; file ownership below.
-1b. After core + manual merge: Backend plan + aggregation + measurement + plan codes (D-6, D-7, D-8, D-10) ‖ Backend KOL (D-9).
+1b. After core + manual merge: Backend plan + aggregation + measurement + plan codes (D-6, D-7, D-8, D-10) ‖ Backend KOL (D-9) ‖ Backend income + cost import (D-12).
 2. Owner approves the artboards. **Done 2026-11-04** (19 artboards in `docs/product/design/shopee-shop/`, branch merged).
 3. Frontend Demo + Ops ‖ integration tests on ORY data. Then one deploy.
 
