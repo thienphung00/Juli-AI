@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { DecisionsView } from "../decisions-view";
+import { fakePlan } from "../../../lib/shopee-decisions/__tests__/plan-fixtures";
 import { adsCard, fakeReco, megaCard, promotionCard, summaryOf, versionedVoucher, voucherCard } from "../../../lib/shopee-decisions/__tests__/fixtures";
 import type { CardList, CardSummary } from "../../../lib/shopee-decisions/types";
 import { params, renderReco } from "./harness";
@@ -117,13 +118,25 @@ describe("Quyết định · Shopee · danh sách", () => {
     expect(screen.queryByTestId("sq-builder-link")).toBeNull();
   });
 
-  it("the plan button only shows when the host has a plan", async () => {
-    const plan = { addCard: async () => undefined };
+  it("the plan button and link only show when the host has a plan; the link counts the draft's cards", async () => {
     const first = renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }));
     await screen.findByTestId("sq-card-card-voucher");
     expect(screen.queryByTestId("sq-plan")).toBeNull();
+    expect(screen.queryByTestId("sq-plan-link")).toBeNull();
     first.unmount();
-    renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }), { plan });
+    renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }), { plan: { api: fakePlan() } });
     expect((await screen.findAllByTestId("sq-plan")).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByTestId("sq-plan-link")).toHaveTextContent("Kế hoạch (3)"));
+  });
+
+  it("Thêm vào kế hoạch puts V1 in the plan and the next card of the product is on top at once", async () => {
+    const plan = fakePlan();
+    renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }), { plan: { api: plan } });
+    const top = await screen.findByTestId("sq-card-card-voucher");
+    fireEvent.click(within(top).getByRole("button", { name: "Thêm vào kế hoạch" }));
+    const notice = await screen.findByTestId("sq-notice");
+    expect(notice).toHaveTextContent("Đã thêm JC-2611-0007-V1 vào kế hoạch (chưa thực hiện). JC-2611-0009 đã lên Quyết định.");
+    expect(plan.calls.find((c) => c.name === "add")!.args).toEqual(["card-voucher", 1, false]);
+    expect(within(notice).getByRole("link", { name: "Xem kế hoạch ›" })).toHaveAttribute("href", "/decisions?ke-hoach=1");
   });
 });

@@ -45,7 +45,7 @@ import { BreachDialog, TitleBox, VersionsTable } from "./versions";
  * the assisted-execution sheet.
  */
 
-type Outcome = { readonly kind: "approved" | "requested" | "dismissed" | "executed" | "sent" | "withdrawn"; readonly text: string; readonly more?: string; readonly ack?: string };
+type Outcome = { readonly kind: "approved" | "planned" | "requested" | "dismissed" | "executed" | "sent" | "withdrawn"; readonly text: string; readonly more?: string; readonly ack?: string; readonly planLink?: boolean };
 
 const ADJUSTABLE = new Set(["draft", "sent", "changes_requested"]);
 const NO_PATCH: Patch = {};
@@ -76,6 +76,14 @@ export function CardPage({ id, from, version = null }: { readonly id: string; re
               {" "}
               {outcome.ack}
             </b>
+          ) : null}
+          {outcome.planLink ? (
+            <>
+              {" "}
+              <NavLink className="sa-link" href={host.href({ plan: true })}>
+                Xem kế hoạch ›
+              </NavLink>
+            </>
           ) : null}
         </Notice>
       ) : null}
@@ -177,9 +185,10 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   const [calc, setCalc] = useState<"idle" | "busy" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"dismiss" | "request" | null>(null);
-  const [warn, setWarn] = useState<{ readonly breaches: readonly Breach[] } | null>(null);
+  const [warn, setWarn] = useState<{ readonly breaches: readonly Breach[]; readonly mode: "approve" | "plan" } | null>(null);
   const [busy, setBusy] = useState(false);
   const seq = useRef(0);
+  const planning = useRef(false);
   const timer = useRef<number | null>(null);
   useEffect(
     () => () => {
@@ -279,7 +288,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
       onChanged({ kind, ...outcome });
     } catch (e) {
       if (e instanceof ShopeeApiError && BREACH_CODES.has(e.code) && Array.isArray(e.detail?.["breaches"])) {
-        setWarn({ breaches: e.detail["breaches"] as Breach[] });
+        setWarn({ breaches: e.detail["breaches"] as Breach[], mode: planning.current ? "plan" : "approve" });
       } else {
         setError(errorText(e));
       }
@@ -298,7 +307,30 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   };
   const approve = (acknowledge: boolean, shownBreaches: readonly Breach[]) =>
     run("approved", approveOutcome(acknowledge ? shownBreaches : []), () => host.reco.approve(detail.id, { inputs: sendInputs, chosenVersion: v.version, acknowledgeBreaches: acknowledge }));
-  const onApprove = () => (breaches.length > 0 ? setWarn({ breaches }) : void approve(false, []));
+  const onApprove = () => {
+    planning.current = false;
+    if (breaches.length > 0) setWarn({ breaches, mode: "approve" });
+    else void approve(false, []);
+  };
+  const addToPlan = (acknowledge: boolean, shownBreaches: readonly Breach[]) => {
+    planning.current = true;
+    const plan = host.plan;
+    if (!plan) return;
+    return run(
+      "planned",
+      {
+        text: `Đã thêm ${vcode} vào kế hoạch. Chưa thực hiện gì.${next ? ` Thẻ kế tiếp của sản phẩm (${next.code ?? next.id}) đã lên Quyết định.` : ""}`,
+        ack: acknowledge && shownBreaches.length > 0 ? ackText(shownBreaches, new Date().toISOString()) : undefined,
+        planLink: true,
+      },
+      () => plan.api.add(detail.id, v.version, acknowledge),
+    );
+  };
+  const onPlan = () => {
+    planning.current = true;
+    if (breaches.length > 0) setWarn({ breaches, mode: "plan" });
+    else void addToPlan(false, []);
+  };
 
   const approveOff = !canDecide || busy || stale || calc === "error" || refused || (title && count.over) || (title && count.n === 0);
   const hint = title && count.over
@@ -471,7 +503,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
             Duyệt {name}
           </button>
           {host.plan ? (
-            <button className="sa-btn" data-testid="sd-add-plan" disabled={approveOff} onClick={() => void host.plan?.addCard(detail.id, v.version)} type="button">
+            <button className="sa-btn" data-testid="sd-add-plan" disabled={approveOff} onClick={onPlan} type="button">
               Thêm {name} vào kế hoạch
             </button>
           ) : null}
@@ -499,9 +531,9 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         closing="Bạn vẫn có thể tiếp tục. Juli ghi lại rằng bạn đã xác nhận, kèm giờ, trên thẻ này."
         lines={warn ? breachWarnLines(warn.breaches) : []}
         onBack={() => setWarn(null)}
-        onGo={() => void approve(true, warn?.breaches ?? [])}
+        onGo={() => void (warn?.mode === "plan" ? addToPlan(true, warn.breaches) : approve(true, warn?.breaches ?? []))}
         open={warn !== null}
-        title={`Duyệt ${name} dù ${warn ? breachNoun(warn.breaches) : "chạm giá sàn"}?`}
+        title={`${warn?.mode === "plan" ? `Thêm ${name} vào kế hoạch` : `Duyệt ${name}`} dù ${warn ? breachNoun(warn.breaches) : "chạm giá sàn"}?`}
       />
       <DismissDialog busy={busy} error={dialog === "dismiss" ? error : null} onCancel={() => setDialog(null)} onSubmit={(c) => void run("dismissed", { text: "Đã bỏ qua thẻ. Juli không đổi gì trên shop của bạn." }, () => host.reco.dismiss(detail.id, c))} open={dialog === "dismiss"} />
       <RequestChangeDialog

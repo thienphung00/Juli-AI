@@ -11,6 +11,7 @@ import { Empty, Notice, Section, TextChip } from "../shopee-analytics/ui";
 import { BuilderView } from "./builder";
 import { CardPage } from "./card-page";
 import { OpsRecoList } from "./ops-list";
+import { PlanView } from "./plan";
 import { StaffBar } from "./staff-bar";
 import { FlashNotice, NO_FLASH, TopCards, topEntries, type Flash } from "./top-cards";
 import { NavLink, RecoState, StatusChip } from "./ui";
@@ -129,9 +130,12 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
 
 export function DecisionsView({ params }: { readonly params: URLSearchParams }) {
   const host = useReco();
+  const planRes = useResource(() => (host.plan ? host.plan.api.get().then((p) => p.cards.length) : Promise.resolve(null)), `${host.shopKey}|plan-count`);
+  const planCount = planRes.status === "ready" ? planRes.data : null;
   const the = params.get("the");
   const tab = tabOfParam(params.get("tab"));
   if (the) return <CardPage from={params.get("from")} id={the} version={Number(params.get("v")) || null} />;
+  if (params.get("ke-hoach")) return <PlanView />;
   if (params.get("tu-tao")) return <BuilderView from={params.get("from")} productId={params.get("sp")} />;
   if (host.staff) return <OpsRecoList />;
   return (
@@ -150,7 +154,7 @@ export function DecisionsView({ params }: { readonly params: URLSearchParams }) 
             </NavLink>
             {host.plan ? (
               <NavLink className="sa-btn sa-btn--s" href={host.href({ plan: true })} testId="sq-plan-link">
-                Kế hoạch
+                Kế hoạch{planCount === null ? "" : ` (${planCount})`}
               </NavLink>
             ) : null}
           </div>

@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { fakePlan } from "../../../lib/shopee-decisions/__tests__/plan-fixtures";
 import { detailOf, fakeReco, summaryOf, titleCard, versionOf, versionedVoucher, voucherCardB } from "../../../lib/shopee-decisions/__tests__/fixtures";
 import type { CardList, CardSummary } from "../../../lib/shopee-decisions/types";
 import { CardPage } from "../card-page";
@@ -105,12 +106,36 @@ describe("CardVersions · nhiều phiên bản của một thay đổi", () => {
     expect(screen.getByTestId("sv-ver-1")).toBeDisabled();
   });
 
-  it("the plan button is there only when the host has a plan", async () => {
-    const plan: string[] = [];
-    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(versionedVoucher()) }), { plan: { addCard: async (id, v) => void plan.push(`${id}:${v}`) } });
+  it("'Thêm V2 vào kế hoạch' adds the chosen version; nothing is executed", async () => {
+    const plan = fakePlan();
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(versionedVoucher(), { code: "JC-2611-0007" }) }), { plan: { api: plan } });
     fireEvent.click(await screen.findByTestId("sv-ver-2"));
     fireEvent.click(screen.getByRole("button", { name: "Thêm V2 vào kế hoạch" }));
-    expect(plan).toEqual(["card-voucher:2"]);
+    await waitFor(() => expect(plan.calls.some((c) => c.name === "add")).toBe(true));
+    expect(plan.calls.find((c) => c.name === "add")!.args).toEqual(["card-voucher", 2, false]);
+    const outcome = await screen.findByTestId("sd-outcome");
+    expect(outcome).toHaveTextContent("Đã thêm JC-2611-0007-V2 vào kế hoạch. Chưa thực hiện gì.");
+    expect(within(outcome).getByRole("link", { name: "Xem kế hoạch ›" })).toHaveAttribute("href", "/decisions?ke-hoach=1");
+  });
+
+  it("adding a breaching version warns first; 'Vẫn tiếp tục' adds it acknowledged", async () => {
+    const plan = fakePlan();
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(versionedVoucher(), { code: "JC-2611-0007" }) }), { plan: { api: plan } });
+    fireEvent.click(await screen.findByTestId("sv-ver-3"));
+    fireEvent.click(screen.getByRole("button", { name: "Thêm V3 vào kế hoạch" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByRole("heading")).toHaveTextContent("Thêm V3 vào kế hoạch dù chạm giá sàn?");
+    expect(plan.calls).toHaveLength(0);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Vẫn tiếp tục" }));
+    await waitFor(() => expect(plan.calls.some((c) => c.name === "add")).toBe(true));
+    expect(plan.calls.find((c) => c.name === "add")!.args).toEqual(["card-voucher", 3, true]);
+    expect(await screen.findByTestId("sd-ack")).toHaveTextContent("Đã xác nhận vượt giá sàn");
+  });
+
+  it("there is no plan button when the host has no plan", async () => {
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(versionedVoucher()) }));
+    await screen.findByTestId("sv-table");
+    expect(screen.queryByTestId("sd-add-plan")).toBeNull();
   });
 
   it("opens on the version named in the link (?v=2)", async () => {

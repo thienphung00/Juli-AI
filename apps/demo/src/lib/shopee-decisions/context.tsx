@@ -5,6 +5,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import type { ShopeeLinks } from "../shopee-analytics/links";
 import type { RecoApi } from "./client";
 import type { DecisionTab } from "./model";
+import type { PlanApi } from "./plan-types";
 
 /** A product the builder can put in a combo (id and name, from the product list). */
 export interface ProductChoice {
@@ -12,9 +13,9 @@ export interface ProductChoice {
   readonly name: string;
 }
 
-/** P91 D-6 (wave 1b): what a card's "Thêm vào kế hoạch" needs from the host. Absent while the plan backend is off. */
+/** P91 D-6 (wave 1b): the draft plan. Absent while the plan backend is off (`NEXT_PUBLIC_P91_PLAN`). */
 export interface PlanHost {
-  addCard(cardId: string, version: number): Promise<void>;
+  readonly api: PlanApi;
 }
 
 /** The views a host links between. */

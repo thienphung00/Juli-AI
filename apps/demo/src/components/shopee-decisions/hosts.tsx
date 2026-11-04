@@ -6,6 +6,7 @@ import { readAuthSession } from "../../lib/supabase-auth";
 import { opsTabShopeeLinks, sellerLinks, viewAsShopeeLinks } from "../../lib/shopee-analytics/links";
 import { DEMO_SHOPEE_BASE, createShopeeApi, opsShopeeBase } from "../../lib/shopee-analytics/client";
 import { DEMO_RECO_BASE, createRecoApi, opsRecoBase } from "../../lib/shopee-decisions/client";
+import { createPlanApi, planEnabled } from "../../lib/shopee-decisions/plan-client";
 import { RecoHostProvider, decisionsQuery, type ProductChoice, type RecoHost } from "../../lib/shopee-decisions/context";
 import { viewAsTabHref } from "../../lib/ops/view-as-routes";
 import { DecisionsView } from "./decisions-view";
@@ -37,6 +38,7 @@ export function sellerRecoHost(options: {
     shopKey: options.shopId,
     shopName: options.shopName,
     products: productsOf(createShopeeApi({ base: DEMO_SHOPEE_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl })),
+    plan: planEnabled() ? { api: createPlanApi({ base: DEMO_RECO_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) } : undefined,
     href: (view) => withQuery("/decisions", decisionsQuery(view)),
     navigate: options.navigate,
   };
@@ -90,6 +92,7 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
       shopKey: `ops-tab:${shopId}`,
       shopName,
       products,
+      plan: planEnabled() ? { api: createPlanApi({ base: opsRecoBase(shopId), token, fetchImpl }) } : undefined,
       staff: true,
       href: (view) => withQuery(`/ops/shops/${encodeURIComponent(shopId)}/shopee/de-xuat`, decisionsQuery(view)),
     };

@@ -7,7 +7,11 @@ import { useReco } from "../../lib/shopee-decisions/context";
 import type { CardSummary } from "../../lib/shopee-decisions/types";
 import { firstVersionRange, isOpen, measuringDaysLeft, measuringNote, rangeTone } from "../../lib/shopee-decisions/versions";
 import { Notice, TextChip } from "../shopee-analytics/ui";
+import { ShopeeApiError } from "../../lib/shopee-analytics/client";
+import type { Breach } from "../../lib/shopee-decisions/types";
+import { breachNoun, breachWarnLines } from "../../lib/shopee-decisions/versions";
 import { DismissDialog } from "./dialogs";
+import { BreachDialog } from "./versions";
 import { NavLink, StatusChip, errorText } from "./ui";
 
 /**
@@ -46,7 +50,7 @@ export function topEntries(cards: readonly CardSummary[]): TopEntry[] {
 
 type Notice_ = { readonly text: string; readonly tone: "plain" | "ok" | "info"; readonly planLink?: boolean };
 
-function ProductCard({ entry, justUp, canAct, onSkip }: { readonly entry: TopEntry; readonly justUp: string | null; readonly canAct: boolean; readonly onSkip: (e: TopEntry) => void }) {
+function ProductCard({ entry, justUp, canAct, onSkip, onPlan }: { readonly entry: TopEntry; readonly justUp: string | null; readonly canAct: boolean; readonly onSkip: (e: TopEntry) => void; readonly onPlan: (e: TopEntry) => void }) {
   const host = useReco();
   const c = entry.top;
   const left = measuringDaysLeft(c.product_measuring ?? null, host.now?.() ?? new Date());
@@ -101,7 +105,7 @@ function ProductCard({ entry, justUp, canAct, onSkip }: { readonly entry: TopEnt
           Mở thẻ để chọn phiên bản
         </NavLink>
         {host.plan ? (
-          <button className="sa-btn" data-testid="sq-plan" disabled={!canAct} onClick={() => void host.plan?.addCard(c.id, 1)} type="button">
+          <button className="sa-btn" data-testid="sq-plan" disabled={!canAct} onClick={() => onPlan(entry)} type="button">
             Thêm vào kế hoạch
           </button>
         ) : null}
@@ -122,9 +126,18 @@ export interface Flash {
 export const NO_FLASH: Flash = { notice: null, justUp: {} };
 
 export function FlashNotice({ flash }: { readonly flash: Flash }) {
+  const host = useReco();
   return flash.notice ? (
     <Notice tone="info" testId="sq-notice">
       {flash.notice.text}
+      {flash.notice.planLink ? (
+        <>
+          {" "}
+          <NavLink className="sa-link" href={host.href({ plan: true })}>
+            Xem kế hoạch ›
+          </NavLink>
+        </>
+      ) : null}
     </Notice>
   ) : null;
 }
@@ -136,6 +149,28 @@ export function TopCards({ cards, flash, onFlash, onChanged }: { readonly cards:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const justUp = flash.justUp;
+  const [planning, setPlanning] = useState<{ readonly entry: TopEntry; readonly breaches: readonly Breach[] } | null>(null);
+  const addToPlan = async (entry: TopEntry, acknowledge: boolean) => {
+    const plan = host.plan;
+    if (!plan) return;
+    setBusy(true);
+    try {
+      await plan.api.add(entry.top.id, 1, acknowledge);
+      const gone = entry.top.code ?? entry.top.id;
+      const nx = entry.next;
+      onFlash({
+        notice: { text: `Đã thêm ${gone}-V1 vào kế hoạch (chưa thực hiện). ${nx ? `${nx.code ?? nx.id} đã lên Quyết định.` : ""}`.trim(), tone: "ok", planLink: true },
+        justUp: nx ? { ...justUp, [nx.id]: `Vừa lên thay thẻ ${gone} (đã vào kế hoạch)` } : justUp,
+      });
+      setPlanning(null);
+      onChanged();
+    } catch (e) {
+      if (e instanceof ShopeeApiError && e.code.startsWith("reco_breach") && Array.isArray(e.detail?.["breaches"])) setPlanning({ entry, breaches: e.detail["breaches"] as Breach[] });
+      else onFlash({ notice: { text: errorText(e), tone: "plain" }, justUp });
+    } finally {
+      setBusy(false);
+    }
+  };
   const canAct = !host.readOnly && !host.staff;
   const dismiss = async (choice: { readonly reasonCode: string | null; readonly note: string | null }) => {
     if (!skip) return;
@@ -160,8 +195,18 @@ export function TopCards({ cards, flash, onFlash, onChanged }: { readonly cards:
   return (
     <>
       {entries.map((e) => (
-        <ProductCard canAct={canAct} entry={e} justUp={justUp[e.top.id] ?? null} key={e.top.id} onSkip={setSkip} />
+        <ProductCard canAct={canAct} entry={e} justUp={justUp[e.top.id] ?? null} key={e.top.id} onPlan={(x) => void addToPlan(x, false)} onSkip={setSkip} />
       ))}
+      <BreachDialog
+        busy={busy}
+        closing="Bạn vẫn có thể tiếp tục. Juli ghi lại rằng bạn đã xác nhận, kèm giờ, trên thẻ này."
+        goLabel="Vẫn tiếp tục"
+        lines={planning ? breachWarnLines(planning.breaches) : []}
+        onBack={() => setPlanning(null)}
+        onGo={() => planning && void addToPlan(planning.entry, true)}
+        open={planning !== null}
+        title={planning ? `Thêm ${planning.entry.top.code ?? planning.entry.top.id} vào kế hoạch dù ${breachNoun(planning.breaches)}?` : ""}
+      />
       <DismissDialog busy={busy} error={error} onCancel={() => setSkip(null)} onSubmit={(c) => void dismiss(c)} open={skip !== null} />
     </>
   );
