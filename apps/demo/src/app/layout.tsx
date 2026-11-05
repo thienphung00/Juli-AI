@@ -10,6 +10,7 @@ import "./phan-tich.css";
 import "./shopee-analytics.css";
 import "./shopee-decisions.css";
 import "./shopee-p91.css";
+import "./shopee-p92.css";
 import "./shopee-p92-parity.css";
 import "./auth-screen.css";
 
