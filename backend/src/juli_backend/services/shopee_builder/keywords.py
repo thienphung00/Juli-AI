@@ -31,6 +31,7 @@ from juli_backend.repositories import (
     MarketKeywordMetricsReadRepo,
     MarketListingsReadRepo,
 )
+from juli_backend.services.ops.access import ops_role
 from juli_backend.services.shopee_analytics import loaders
 from juli_backend.services.shopee_analytics.fee_table import fold
 from juli_backend.services.shopee_analytics.windows import Window
@@ -143,7 +144,7 @@ async def keyword_table(
     market_ok = True
     title_grams = ngrams(title)
     try:
-        async with session.begin_nested():
+        async with session.begin_nested(), ops_role(session):
             repo = MarketKeywordMetricsReadRepo(session)
             market = {
                 m.keyword: m

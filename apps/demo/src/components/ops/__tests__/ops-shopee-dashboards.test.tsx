@@ -138,6 +138,22 @@ describe("Sản phẩm + luồng", () => {
     expect(screen.getByText(/10\/2026: 800.000/)).toBeInTheDocument();
   });
 
+  it("shows giá (min-max, list struck) and biên with its basis on every funnel row (P92 B-9)", async () => {
+    const withPrice = {
+      ...PRODUCTS,
+      products: [{ ...PRODUCTS.products[0]!, price_min: 54_000, price_max: 54_000, list_price: 60_000, price_basis: "order_lines", margin_pct: 16.3, margin_basis: "theo đơn thực tế" }, { ...PRODUCTS.products[0]!, item_id: "222", name: "Không có đơn", price_min: null, price_max: null, list_price: null, margin_pct: null, margin_basis: "chưa tính" }],
+    };
+    const api = { shopeeFlows: vi.fn().mockResolvedValue(FLOWS), shopeeProducts: vi.fn().mockResolvedValue(withPrice) };
+    render(<OpsShopeeProducts api={api} me={ME} shopId={SHOP_ID} />);
+    const price = await screen.findByTestId("price-111");
+    expect(price).toHaveTextContent(/54\.000/);
+    expect(price.querySelector("s")).toHaveTextContent(/60\.000/);
+    expect(screen.getByTestId("margin-111")).toHaveTextContent("16,3%");
+    expect(screen.getByTestId("margin-111")).toHaveTextContent("theo đơn thực tế");
+    expect(screen.getByTestId("price-222")).toHaveTextContent("—");
+    expect(screen.getByTestId("margin-222")).toHaveTextContent("chưa tính");
+  });
+
   it("asks again with the chosen order type and period", async () => {
     const api = { shopeeFlows: vi.fn().mockResolvedValue(FLOWS), shopeeProducts: vi.fn().mockResolvedValue(PRODUCTS) };
     render(<OpsShopeeProducts api={api} me={ME} shopId={SHOP_ID} />);

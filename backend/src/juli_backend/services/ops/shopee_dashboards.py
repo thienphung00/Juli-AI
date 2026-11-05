@@ -33,6 +33,8 @@ from typing import Any
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.services.shopee_analytics.queries import product_price_margin
+
 PLATFORM = "shopee"
 ORDER_TYPES = ("placed", "paid", "confirmed")
 DEFAULT_ORDER_TYPE = "confirmed"
@@ -505,6 +507,19 @@ async def products(
                 "from": ps.isoformat(),
                 "to": pe.isoformat(),
             }
+    # P92 B-9: giá (min-max, list struck) and biên with its basis, from the shop's own order lines
+    # over the same period, the figures the matrix shows. Dashes (None) when there is no order data.
+    money = await product_price_margin(
+        session, shop_id, start=chosen.start, end=chosen.end, item_ids=ids
+    )
+    no_price = {
+        "price_min": None,
+        "price_max": None,
+        "list_price": None,
+        "price_basis": None,
+        "margin_pct": None,
+        "margin_basis": "chưa tính",
+    }
     return {
         **empty,
         "items_total": len(funnel_rows),
@@ -514,6 +529,7 @@ async def products(
                 "item_id": row[0],
                 "name": names.get(row[0]),
                 **_funnel(row),
+                **money.get(row[0], no_price),
                 "by_flow": by_flow.get(row[0], {}),
                 "history": [
                     {"month": m.isoformat(), "gmv": v[1], "orders": v[2]}

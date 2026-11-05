@@ -591,3 +591,26 @@ async def test_critical_product_items_carry_price_and_margin_basis(session, seed
     for it in product_items:
         assert it["margin_basis"] in {"theo đơn thực tế", "ước tính", "chưa tính"}
         assert "price_min" in it and "list_price" in it
+
+
+async def test_product_price_margin_matches_the_matrix_for_an_exact_period(session, seeded):
+    """P92 B-9: the Ops / Demo funnel table (a Shopee export period) joins the same giá and biên
+    the matrix shows over that window; an item without order lines gets dashes and 'chưa tính'."""
+    body = await queries.matrix(
+        session, seeded.shop_id, period="custom", start=CUR_START, end=CUR_END
+    )
+    ids = [r["product_id"] for r in body["products"]]
+    out = await queries.product_price_margin(
+        session, seeded.shop_id, start=CUR_START, end=CUR_END, item_ids=[*ids, "no-such-item"]
+    )
+    for row in body["products"]:
+        got = out[row["product_id"]]
+        assert (got["price_min"], got["price_max"], got["list_price"]) == (
+            row["price_min"],
+            row["price_max"],
+            row["list_price"],
+        )
+        assert got["margin_basis"] == row["margin_basis"]
+        assert got["margin_pct"] == (row["profit"] or {}).get("margin_pct")
+    assert out["no-such-item"]["price_min"] is None
+    assert out["no-such-item"]["margin_basis"] == "chưa tính"

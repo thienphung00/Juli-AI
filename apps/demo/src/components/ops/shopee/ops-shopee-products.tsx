@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 
 import { opsApi, type OpsApi } from "../../../lib/ops/api";
+import { pp } from "../../../lib/shopee-analytics/format";
 import type { OpsMe, ShopeeFlows, ShopeeOrderType, ShopeeProduct, ShopeeProducts } from "../../../lib/ops/types";
 import { C, OpsHeader, OpsPage } from "../ops-shell";
 import { OpsSkeleton } from "../ops-skeleton";
@@ -231,6 +232,8 @@ function ProductsSection({ products, onPeriod }: { readonly products: ShopeeProd
           <thead>
             <tr>
               <th style={TH_LEFT}>Sản phẩm</th>
+              <th style={TH}>Giá</th>
+              <th style={TH}>Biên</th>
               <th style={TH}>Lượt hiển thị</th>
               <th style={TH}>Lượt nhấp</th>
               <th style={TH}>CTR</th>
@@ -245,6 +248,8 @@ function ProductsSection({ products, onPeriod }: { readonly products: ShopeeProd
             {products.totals ? (
               <tr data-testid="products-total" style={{ background: "#faf9fb" }}>
                 <td style={{ ...TD_LEFT, fontWeight: 700 }}>Tất cả sản phẩm</td>
+                <td style={TD} />
+                <td style={TD} />
                 <ProductCells row={products.totals} />
                 <td style={TD} />
               </tr>
@@ -262,6 +267,7 @@ function ProductsSection({ products, onPeriod }: { readonly products: ShopeeProd
                       {open === p.item_id ? "▾" : "▸"} {p.name ?? `Sản phẩm ${p.item_id}`}
                     </button>
                   </td>
+                  <PriceMarginCells product={p} />
                   <ProductCells row={p} />
                   <td style={TD_LEFT}>
                     {p.flags.length === 0 ? "—" : p.flags.map((f) => (
@@ -273,7 +279,7 @@ function ProductsSection({ products, onPeriod }: { readonly products: ShopeeProd
                 </tr>
                 {open === p.item_id ? (
                   <tr>
-                    <td colSpan={9} style={{ ...TD_LEFT, background: "#faf9fb" }}>
+                    <td colSpan={11} style={{ ...TD_LEFT, background: "#faf9fb" }}>
                       <ProductDetail product={p} />
                     </td>
                   </tr>
@@ -284,6 +290,28 @@ function ProductsSection({ products, onPeriod }: { readonly products: ShopeeProd
         </TableWrap>
       )}
     </Section>
+  );
+}
+
+/** P92 B-9: giá (min-max, list price struck through when higher) and biên with its basis label. */
+function PriceMarginCells({ product }: { readonly product: ShopeeProduct }) {
+  const lo = product.price_min ?? null;
+  const hi = product.price_max ?? null;
+  const price = lo === null && hi === null ? "—" : lo !== null && hi !== null && Math.round(lo) !== Math.round(hi) ? `${fmtVnd(lo)} – ${fmtVnd(hi)}` : fmtVnd(lo ?? hi);
+  const struck = product.list_price != null && hi != null && Math.round(product.list_price) > Math.round(hi);
+  const basis = product.margin_basis ?? "chưa tính";
+  const known = basis !== "chưa tính" && product.margin_pct != null;
+  return (
+    <>
+      <td data-testid={`price-${product.item_id}`} style={TD}>
+        {price}
+        {struck ? <s style={{ marginLeft: 6, color: C.muted }}>{fmtVnd(product.list_price ?? null)}</s> : null}
+      </td>
+      <td data-testid={`margin-${product.item_id}`} style={TD}>
+        {known ? pp(product.margin_pct ?? null, 1) : "chưa tính"}
+        <div style={{ fontSize: 11, color: C.muted }}>{basis}</div>
+      </td>
+    </>
   );
 }
 

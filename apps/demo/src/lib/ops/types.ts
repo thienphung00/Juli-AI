@@ -823,6 +823,14 @@ export interface ShopeeProduct {
   readonly ctr: number | null;
   readonly add_to_cart_rate: number | null;
   readonly click_to_order: number | null;
+  /** P92 B-9: selling price min-max (the shop's own order lines in the period), the list price (struck when higher). */
+  readonly price_min?: number | null;
+  readonly price_max?: number | null;
+  readonly list_price?: number | null;
+  readonly price_basis?: string | null;
+  /** Biên % and the stated basis ("theo đơn thực tế" / "ước tính" / "chưa tính"). */
+  readonly margin_pct?: number | null;
+  readonly margin_basis?: string;
   readonly by_flow: Record<string, { readonly gmv: number | null; readonly orders: number | null }>;
   readonly history: ShopeeMonth[];
   readonly flags: { readonly flag: string; readonly label: string; readonly from: string; readonly to: string }[];
@@ -833,7 +841,7 @@ export interface ShopeeProducts {
   readonly period: ShopeeRange | null;
   readonly periods: { readonly from: string; readonly to: string; readonly items: number }[];
   readonly items_total: number;
-  readonly totals: Omit<ShopeeProduct, "item_id" | "name" | "by_flow" | "history" | "flags"> | null;
+  readonly totals: Omit<ShopeeProduct, "item_id" | "name" | "by_flow" | "history" | "flags" | "price_min" | "price_max" | "list_price" | "price_basis" | "margin_pct" | "margin_basis"> | null;
   readonly products: ShopeeProduct[];
   readonly shop_monthly: ShopeeMonth[];
   readonly has_data: boolean;

@@ -39,6 +39,7 @@ from juli_backend.repositories import (
     ShopRulesReadRepo,
 )
 from juli_backend.repositories.shopee_analytics import ShopeeOrderIncomeRepo
+from juli_backend.services.ops.access import ops_role
 from juli_backend.services.shopee_analytics import fee_table
 from juli_backend.services.shopee_analytics.catalog import (
     Catalog,
@@ -1022,7 +1023,10 @@ async def load_keyword_seeds(
 
 
 async def load_keyword_market(session: AsyncSession, keywords: list[str]) -> dict[str, Any]:
-    return {m.keyword: m for m in await MarketKeywordMetricsReadRepo(session).latest(keywords)}
+    # The public lane is Ops-only for juli_app (migration 108): read it in a short ops block, as
+    # services/shop_keywords/metrics.metrics_for and the P92 market price do (no-op on SQLite).
+    async with ops_role(session):
+        return {m.keyword: m for m in await MarketKeywordMetricsReadRepo(session).latest(keywords)}
 
 
 async def load_freshness(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Any]:

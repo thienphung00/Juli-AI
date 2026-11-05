@@ -1,0 +1,1026 @@
+{
+ "ads": {
+  "alert_rule": {
+   "floor": 1.5,
+   "min_days": 5
+  },
+  "alerts": [],
+  "by_type": [
+   {
+    "ad_type": "ads_roas_custom",
+    "cost": 420000.0,
+    "cost_per_order": 15000.0,
+    "gmv": 2100000.0,
+    "label": "GMV tối đa ROAS tùy chỉnh",
+    "orders": 28.0,
+    "roas": 5.0
+   }
+  ],
+  "campaigns": [],
+  "campaigns_available": false,
+  "daily": [
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-09-24"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-09-25"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-09-26"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-09-27"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-09-28"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-09-29"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-09-30"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-10-01"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-10-02"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-10-03"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-10-04"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-10-05"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-10-06"
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 30000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 150000.0,
+      "orders": 2.0,
+      "roas": 5.0
+     }
+    ],
+    "day": "2026-10-07"
+   }
+  ],
+  "has_data": true,
+  "monthly": [
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 210000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 1050000.0,
+      "label": "GMV tối đa ROAS tùy chỉnh",
+      "orders": 14.0,
+      "roas": 5.0
+     }
+    ],
+    "cost": 210000.0,
+    "cost_per_order": 15000.0,
+    "gmv": 1050000.0,
+    "month": "2026-09-01",
+    "orders": 14.0,
+    "roas": 5.0
+   },
+   {
+    "by_type": [
+     {
+      "ad_type": "ads_roas_custom",
+      "cost": 210000.0,
+      "cost_per_order": 15000.0,
+      "gmv": 1050000.0,
+      "label": "GMV tối đa ROAS tùy chỉnh",
+      "orders": 14.0,
+      "roas": 5.0
+     }
+    ],
+    "cost": 210000.0,
+    "cost_per_order": 15000.0,
+    "gmv": 1050000.0,
+    "month": "2026-10-01",
+    "orders": 14.0,
+    "roas": 5.0
+   }
+  ],
+  "order_type": "placed",
+  "range": {
+   "from": "2026-09-08",
+   "to": "2026-10-07"
+  },
+  "total": {
+   "cost": 420000.0,
+   "cost_per_order": 15000.0,
+   "gmv": 2100000.0,
+   "orders": 28.0,
+   "roas": 5.0
+  }
+ },
+ "flows": {
+  "ads_overlay": null,
+  "flows": [
+   {
+    "buyers": null,
+    "children": [
+     {
+      "buyers": null,
+      "clicks": 420.0,
+      "gmv": 1260000.0,
+      "impressions": 8400.0,
+      "label": "Tìm kiếm",
+      "orders": 14.0,
+      "segment": "search"
+     },
+     {
+      "buyers": null,
+      "clicks": 140.0,
+      "gmv": 1120000.0,
+      "impressions": 4200.0,
+      "label": "Đề xuất",
+      "orders": 14.0,
+      "segment": "recommend"
+     },
+     {
+      "buyers": null,
+      "clicks": 140.0,
+      "gmv": 420000.0,
+      "impressions": 1400.0,
+      "label": "Trang shop",
+      "orders": 14.0,
+      "segment": "shop_page"
+     },
+     {
+      "buyers": null,
+      "clicks": 0.0,
+      "gmv": 0.0,
+      "impressions": 0.0,
+      "label": "Giỏ hàng",
+      "orders": 0.0,
+      "segment": "cart"
+     }
+    ],
+    "clicks": 700.0,
+    "gmv": 2800000.0,
+    "has_total_row": true,
+    "impressions": 14000.0,
+    "label": "Thẻ sản phẩm",
+    "orders": 42.0,
+    "stream": "product_card"
+   },
+   {
+    "buyers": null,
+    "children": [],
+    "clicks": 112.0,
+    "gmv": 280000.0,
+    "has_total_row": true,
+    "impressions": 560.0,
+    "label": "Video",
+    "orders": 14.0,
+    "stream": "seller_video"
+   },
+   {
+    "buyers": null,
+    "children": [],
+    "clicks": 168.0,
+    "gmv": 700000.0,
+    "has_total_row": true,
+    "impressions": 840.0,
+    "label": "Tiếp thị liên kết",
+    "orders": 14.0,
+    "stream": "affiliate"
+   }
+  ],
+  "has_data": true,
+  "monthly": [
+   {
+    "month": "2026-09-01",
+    "shop_page_gmv": 210000.0,
+    "streams": {
+     "affiliate": 350000.0,
+     "product_card": 1400000.0,
+     "seller_video": 140000.0
+    }
+   },
+   {
+    "month": "2026-10-01",
+    "shop_page_gmv": 210000.0,
+    "streams": {
+     "affiliate": 350000.0,
+     "product_card": 1400000.0,
+     "seller_video": 140000.0
+    }
+   }
+  ],
+  "order_type": "confirmed",
+  "range": {
+   "from": "2026-09-08",
+   "to": "2026-10-07"
+  },
+  "shop_monthly": [
+   {
+    "gmv": 1925000.0,
+    "month": "2026-09-01",
+    "orders": 35.0
+   },
+   {
+    "gmv": 1925000.0,
+    "month": "2026-10-01",
+    "orders": 35.0
+   }
+  ],
+  "total_gmv": 3780000.0,
+  "total_orders": 70.0
+ },
+ "keywords": {
+  "collection_dates": [
+   "2026-10-27",
+   "2026-11-03"
+  ],
+  "coverage": {
+   "bi_chan": 1,
+   "chua_tra": 0,
+   "da_tra": 1,
+   "khong_khop": 1
+  },
+  "keywords": [
+   {
+    "coverage": "da_tra",
+    "enabled": true,
+    "history": [
+     {
+      "collected_on": "2026-10-27",
+      "volume": 250
+     },
+     {
+      "collected_on": "2026-11-03",
+      "volume": 300
+     }
+    ],
+    "id": "6cee4941-cc92-5f37-bebf-fe556d30cc3c",
+    "keyword": "găng tay tự hủy",
+    "latest": {
+     "collected_on": "2026-11-03",
+     "competition": null,
+     "cpc_max": 2200,
+     "cpc_min": 400,
+     "difficulty": 56,
+     "opportunity": null,
+     "volume": 300
+    },
+    "pattern": "type_function",
+    "products": [
+     {
+      "item_id": "1001",
+      "name": "Găng tay tự hủy sinh học STAHAUS"
+     }
+    ],
+    "related": [
+     {
+      "competition": null,
+      "cpc_max": 2200,
+      "cpc_min": 400,
+      "difficulty": 56,
+      "keyword": "găng tay dùng một lần",
+      "opportunity": null,
+      "volume": 90
+     }
+    ]
+   },
+   {
+    "coverage": "khong_khop",
+    "enabled": true,
+    "history": [],
+    "id": "503acf3e-3280-5c11-9d0a-aa411d879a07",
+    "keyword": "nước rửa chén",
+    "latest": null,
+    "pattern": "type_function",
+    "products": [
+     {
+      "item_id": "1002",
+      "name": "Nước rửa chén Ory 500ml"
+     }
+    ],
+    "related": []
+   },
+   {
+    "coverage": "bi_chan",
+    "enabled": true,
+    "history": [],
+    "id": "3b28285f-895d-5479-a63d-2cfbab6808e6",
+    "keyword": "túi rác sinh học",
+    "latest": null,
+    "pattern": "brand_type",
+    "products": [
+     {
+      "item_id": "1003",
+      "name": "Túi rác tự hủy sinh học"
+     }
+    ],
+    "related": []
+   }
+  ],
+  "min_volume": 100,
+  "products": [
+   {
+    "best_volume": null,
+    "item_id": "1002",
+    "keywords": 1,
+    "name": "Nước rửa chén Ory 500ml",
+    "status": "de_xuat_tieu_de"
+   },
+   {
+    "best_volume": null,
+    "item_id": "1003",
+    "keywords": 1,
+    "name": "Túi rác tự hủy sinh học",
+    "status": "chua_du_du_lieu"
+   },
+   {
+    "best_volume": 300,
+    "item_id": "1001",
+    "keywords": 1,
+    "name": "Găng tay tự hủy sinh học STAHAUS",
+    "status": "co_tu_khoa"
+   }
+  ],
+  "to_look_up": [
+   "túi rác sinh học"
+  ]
+ },
+ "orders": {
+  "by_status": {
+   "cancelled": 1,
+   "delivered": 12
+  },
+  "count": 13,
+  "limit": 100,
+  "offset": 0,
+  "order_basis": {
+   "key": "confirmed",
+   "label": "Đơn đã xác nhận"
+  },
+  "orders": [
+   {
+    "buyer_paid": 88000,
+    "cogs": 30000,
+    "combo_discount": 0,
+    "contribution": 38100,
+    "fee_source": "actual",
+    "fees": 18900,
+    "gmv": 90000,
+    "income": null,
+    "items": [
+     "1001"
+    ],
+    "levers": [
+     "promotion",
+     "voucher"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-07",
+    "promo_discount": 10000,
+    "status": "delivered",
+    "units": 1,
+    "voucher": 2000
+   },
+   {
+    "buyer_paid": 45000,
+    "cogs": 16667,
+    "combo_discount": 0,
+    "contribution": 9433,
+    "fee_source": "actual",
+    "fees": 18900,
+    "gmv": 45000,
+    "income": null,
+    "items": [
+     "1003"
+    ],
+    "levers": [
+     "promotion"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-07",
+    "promo_discount": 5000,
+    "status": "delivered",
+    "units": 1,
+    "voucher": 0
+   },
+   {
+    "buyer_paid": 90000,
+    "cogs": 30000,
+    "combo_discount": 0,
+    "contribution": 40100,
+    "fee_source": "actual",
+    "fees": 18900,
+    "gmv": 90000,
+    "income": null,
+    "items": [
+     "1001"
+    ],
+    "levers": [
+     "promotion"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-06",
+    "promo_discount": 10000,
+    "status": "delivered",
+    "units": 1,
+    "voucher": 0
+   },
+   {
+    "buyer_paid": 54000,
+    "cogs": 20000,
+    "combo_discount": 0,
+    "contribution": 22090,
+    "fee_source": "formula",
+    "fees": 11910,
+    "gmv": 54000,
+    "income": null,
+    "items": [
+     "1002"
+    ],
+    "levers": [
+     "promotion"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-06",
+    "promo_discount": 6000,
+    "status": "delivered",
+    "units": 1,
+    "voucher": 0
+   },
+   {
+    "buyer_paid": 54000,
+    "cogs": null,
+    "combo_discount": 0,
+    "contribution": null,
+    "fee_source": null,
+    "fees": null,
+    "gmv": 54000,
+    "income": null,
+    "items": [
+     "1002"
+    ],
+    "levers": [
+     "promotion"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-05",
+    "promo_discount": 6000,
+    "status": "cancelled",
+    "units": 1,
+    "voucher": 0
+   },
+   {
+    "buyer_paid": 255000,
+    "cogs": 90000,
+    "combo_discount": 0,
+    "contribution": 137100,
+    "fee_source": "actual",
+    "fees": 18900,
+    "gmv": 255000,
+    "income": null,
+    "items": [
+     "1001"
+    ],
+    "levers": [
+     "promotion",
+     "affiliate"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-04",
+    "promo_discount": 45000,
+    "status": "delivered",
+    "units": 3,
+    "voucher": 0
+   },
+   {
+    "buyer_paid": 45000,
+    "cogs": 16667,
+    "combo_discount": 0,
+    "contribution": 9433,
+    "fee_source": "actual",
+    "fees": 18900,
+    "gmv": 45000,
+    "income": null,
+    "items": [
+     "1003"
+    ],
+    "levers": [
+     "promotion"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-04",
+    "promo_discount": 5000,
+    "status": "delivered",
+    "units": 1,
+    "voucher": 0
+   },
+   {
+    "buyer_paid": 53000,
+    "cogs": 20000,
+    "combo_discount": 0,
+    "contribution": 14100,
+    "fee_source": "actual",
+    "fees": 18900,
+    "gmv": 54000,
+    "income": null,
+    "items": [
+     "1002"
+    ],
+    "levers": [
+     "promotion",
+     "voucher"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-03",
+    "promo_discount": 6000,
+    "status": "delivered",
+    "units": 1,
+    "voucher": 1000
+   },
+   {
+    "buyer_paid": 85000,
+    "cogs": 30000,
+    "combo_discount": 5000,
+    "contribution": 35100,
+    "fee_source": "actual",
+    "fees": 18900,
+    "gmv": 90000,
+    "income": null,
+    "items": [
+     "1001"
+    ],
+    "levers": [
+     "promotion",
+     "combo"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-03",
+    "promo_discount": 10000,
+    "status": "delivered",
+    "units": 1,
+    "voucher": 0
+   },
+   {
+    "buyer_paid": 100000,
+    "cogs": 30000,
+    "combo_discount": 0,
+    "contribution": 50100,
+    "fee_source": "actual",
+    "fees": 18900,
+    "gmv": 100000,
+    "income": null,
+    "items": [
+     "1001"
+    ],
+    "levers": [],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-02",
+    "promo_discount": 0,
+    "status": "delivered",
+    "units": 1,
+    "voucher": 0
+   },
+   {
+    "buyer_paid": 45000,
+    "cogs": 16667,
+    "combo_discount": 0,
+    "contribution": 18133,
+    "fee_source": "formula",
+    "fees": 10200,
+    "gmv": 45000,
+    "income": null,
+    "items": [
+     "1003"
+    ],
+    "levers": [
+     "promotion"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-02",
+    "promo_discount": 5000,
+    "status": "delivered",
+    "units": 1,
+    "voucher": 0
+   },
+   {
+    "buyer_paid": 178000,
+    "cogs": 60000,
+    "combo_discount": 0,
+    "contribution": 98100,
+    "fee_source": "actual",
+    "fees": 18900,
+    "gmv": 180000,
+    "income": null,
+    "items": [
+     "1001"
+    ],
+    "levers": [
+     "promotion",
+     "voucher"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-01",
+    "promo_discount": 20000,
+    "status": "delivered",
+    "units": 2,
+    "voucher": 2000
+   },
+   {
+    "buyer_paid": 54000,
+    "cogs": 20000,
+    "combo_discount": 0,
+    "contribution": 15100,
+    "fee_source": "actual",
+    "fees": 18900,
+    "gmv": 54000,
+    "income": null,
+    "items": [
+     "1002"
+    ],
+    "levers": [
+     "promotion"
+    ],
+    "lines": 1,
+    "order_key": "000000000000",
+    "ordered_on": "2026-10-01",
+    "promo_discount": 6000,
+    "status": "delivered",
+    "units": 1,
+    "voucher": 0
+   }
+  ],
+  "platform": "shopee",
+  "privacy": "Mã đơn là khoá băm rút gọn; không có thông tin người mua.",
+  "sort": "date",
+  "window": {
+   "days": 7,
+   "from": "2026-10-01",
+   "to": "2026-10-07"
+  }
+ },
+ "products": {
+  "has_data": true,
+  "items_total": 3,
+  "order_type": "confirmed",
+  "period": {
+   "from": "2026-10-01",
+   "to": "2026-10-07"
+  },
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "items": 3,
+    "to": "2026-10-07"
+   }
+  ],
+  "products": [
+   {
+    "add_to_cart": null,
+    "add_to_cart_rate": null,
+    "buyers": null,
+    "by_flow": {
+     "affiliate": {
+      "gmv": 80000.0,
+      "orders": 1.0
+     },
+     "product_card": {
+      "gmv": 600000.0,
+      "orders": 7.0
+     }
+    },
+    "click_to_order": null,
+    "clicks": null,
+    "ctr": null,
+    "flags": [],
+    "gmv": 700000.0,
+    "history": [
+     {
+      "gmv": 700000.0,
+      "month": "2026-10-01",
+      "orders": 8.0
+     }
+    ],
+    "impressions": null,
+    "item_id": "1001",
+    "list_price": 100000,
+    "margin_basis": "ước tính",
+    "margin_pct": 42.5,
+    "name": "Găng tay tự hủy sinh học STAHAUS",
+    "orders": 8.0,
+    "page_views": null,
+    "price_basis": "order_lines",
+    "price_max": 100000,
+    "price_min": 85000,
+    "units": null,
+    "visitors": null
+   },
+   {
+    "add_to_cart": null,
+    "add_to_cart_rate": null,
+    "buyers": null,
+    "by_flow": {
+     "affiliate": {
+      "gmv": 80000.0,
+      "orders": 1.0
+     },
+     "product_card": {
+      "gmv": 300000.0,
+      "orders": 4.0
+     }
+    },
+    "click_to_order": null,
+    "clicks": null,
+    "ctr": null,
+    "flags": [],
+    "gmv": 400000.0,
+    "history": [
+     {
+      "gmv": 400000.0,
+      "month": "2026-10-01",
+      "orders": 5.0
+     }
+    ],
+    "impressions": null,
+    "item_id": "1002",
+    "list_price": 60000,
+    "margin_basis": "ước tính",
+    "margin_pct": 16.3,
+    "name": "Nước rửa chén Ory 500ml",
+    "orders": 5.0,
+    "page_views": null,
+    "price_basis": "order_lines",
+    "price_max": 54000,
+    "price_min": 54000,
+    "units": null,
+    "visitors": null
+   },
+   {
+    "add_to_cart": null,
+    "add_to_cart_rate": null,
+    "buyers": null,
+    "by_flow": {
+     "affiliate": {
+      "gmv": 80000.0,
+      "orders": 1.0
+     },
+     "product_card": {
+      "gmv": 80000.0,
+      "orders": 2.0
+     }
+    },
+    "click_to_order": null,
+    "clicks": null,
+    "ctr": null,
+    "flags": [],
+    "gmv": 180000.0,
+    "history": [
+     {
+      "gmv": 180000.0,
+      "month": "2026-10-01",
+      "orders": 3.0
+     }
+    ],
+    "impressions": null,
+    "item_id": "1003",
+    "list_price": 50000,
+    "margin_basis": "ước tính",
+    "margin_pct": 16.3,
+    "name": "Túi rác tự hủy sinh học",
+    "orders": 3.0,
+    "page_views": null,
+    "price_basis": "order_lines",
+    "price_max": 45000,
+    "price_min": 45000,
+    "units": null,
+    "visitors": null
+   }
+  ],
+  "shop_monthly": [
+   {
+    "gmv": 1925000.0,
+    "month": "2026-09-01",
+    "orders": 35.0
+   },
+   {
+    "gmv": 1925000.0,
+    "month": "2026-10-01",
+    "orders": 35.0
+   }
+  ],
+  "totals": {
+   "add_to_cart": null,
+   "add_to_cart_rate": null,
+   "buyers": null,
+   "click_to_order": null,
+   "clicks": null,
+   "ctr": null,
+   "gmv": 1280000.0,
+   "impressions": null,
+   "orders": 16.0,
+   "page_views": null,
+   "units": null,
+   "visitors": null
+  }
+ },
+ "promotions": {
+  "daily": [],
+  "has_data": true,
+  "order_type": "confirmed",
+  "programs": [
+   {
+    "buyers": null,
+    "ends_at": null,
+    "gmv": 90000.0,
+    "name": "Ory 1k",
+    "orders": 1.0,
+    "promo_type": "voucher",
+    "starts_at": "2026-09-01T00:00:00",
+    "status": null,
+    "type_label": "Voucher",
+    "units": null
+   },
+   {
+    "buyers": null,
+    "ends_at": null,
+    "gmv": 180000.0,
+    "name": "Ory 2k",
+    "orders": 2.0,
+    "promo_type": "voucher",
+    "starts_at": "2026-09-01T00:00:00",
+    "status": null,
+    "type_label": "Voucher",
+    "units": null
+   },
+   {
+    "buyers": null,
+    "ends_at": null,
+    "gmv": 90000.0,
+    "name": "Voucher Thông Minh",
+    "orders": 1.0,
+    "promo_type": "voucher",
+    "starts_at": "2026-09-01T00:00:00",
+    "status": null,
+    "type_label": "Voucher",
+    "units": null
+   }
+  ],
+  "range": {
+   "from": "2026-10-07",
+   "to": "2026-11-05"
+  }
+ }
+}

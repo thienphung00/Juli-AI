@@ -19,8 +19,14 @@ from juli_backend.repositories import PlatformItemSnapshotsRepo
 from juli_backend.services.shopee_analytics import kol, loaders, service
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.critical import build_critical
+from juli_backend.services.shopee_analytics.fmt import pct
 from juli_backend.services.shopee_analytics.loaders import ShopContext
-from juli_backend.services.shopee_analytics.matrix import SORTS, build_matrix
+from juli_backend.services.shopee_analytics.matrix import (
+    SORTS,
+    build_matrix,
+    margin_basis,
+    price_block,
+)
 from juli_backend.services.shopee_analytics.orders import build_orders
 from juli_backend.services.shopee_analytics.overview import build_overview
 from juli_backend.services.shopee_analytics.product import build_product_page
@@ -115,6 +121,35 @@ async def matrix(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     return build_matrix(now, sort=sort, limit=limit, before=before)
+
+
+async def product_price_margin(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    start: date,
+    end: date,
+    item_ids: list[str],
+) -> dict[str, dict[str, Any]]:
+    """P92 B-9: giá (min-max, list price) and biên with its basis label for ``item_ids`` over one
+    exact window, the same figures the matrix shows. Used by the Ops / Demo funnel table, whose
+    period is a Shopee export period rather than a rolling window. Empty when the shop has no
+    Shopee order data (the table then shows dashes)."""
+    ctx = await loaders.load_context(session, shop_id)
+    ctx = replace(ctx, rules=ctx.rules.for_month(f"{end:%Y-%m}"))
+    window = await service.resolve(session, shop_id, period="custom", start=start, end=end)
+    if window is None:
+        return {}
+    view = await service.load_view(session, shop_id, ctx, window)
+    out: dict[str, dict[str, Any]] = {}
+    for item_id in item_ids:
+        pp = view.profit.products.get(item_id)
+        out[item_id] = {
+            **price_block(view, item_id),
+            "margin_pct": None if pp is None else pct(pp.margin_pct),
+            "margin_basis": margin_basis(view, item_id, pp),
+        }
+    return out
 
 
 async def orders(
