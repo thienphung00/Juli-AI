@@ -277,6 +277,36 @@ async def test_removing_the_owner_row_holds_against_the_owner_fallback(owner_eng
         )
 
 
+async def test_ops_shopee_screens_still_open_after_the_owner_is_removed(owner_engine):
+    """2026-11-05: ``Gỡ`` on the owner of a Shopee shop made every Ops Shopee screen answer
+    409 ``not_a_shopee_shop``: the platform was read under the removed owner's scope."""
+    from fastapi import HTTPException
+
+    from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
+
+    shop = _tenant(owner_engine, "shopee", email=_unique("shopee"))
+    with owner_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE public.shops SET platform = 'shopee' WHERE id = :s"),
+            {"s": shop.shop_id},
+        )
+    async with app_session() as session:
+        listing = await overview.find_shop(session, shop.shop_id)
+        await shop_team.remove_member(
+            session, STAFF, listing, shop.user_id, now=__import__("datetime").datetime(2026, 11, 5)
+        )
+        await session.commit()
+    assert await _raw_shop_ids(shop.user_id) == []
+    async with app_session() as session:
+        await _shopee_shop(session, shop.shop_id)  # no 409
+    # a TikTok shop is still refused
+    other = _tenant(owner_engine, "tiktok", email=_unique("tiktok"))
+    async with app_session() as session:
+        with pytest.raises(HTTPException) as refused:
+            await _shopee_shop(session, other.shop_id)
+    assert refused.value.status_code == 409
+
+
 def test_owner_without_a_row_keeps_access_until_the_backfill_and_the_backfill_is_idempotent(
     owner_engine,
 ):

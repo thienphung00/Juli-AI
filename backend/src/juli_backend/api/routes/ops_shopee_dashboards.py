@@ -19,13 +19,11 @@ from datetime import date
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, _shop, viewer
 from juli_backend.database import get_session
-from juli_backend.database.tenant_context import with_shop_scope, with_user_scope
-from juli_backend.models.models import Shop
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services.ops import shopee_dashboards as dash
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
@@ -36,18 +34,14 @@ ToDay = Annotated[date | None, Query(alias="to")]
 
 
 async def _shopee_shop(session: AsyncSession, shop_id: uuid.UUID) -> None:
-    """404 for an unknown shop, 409 unless it is a Shopee shop (read under its owner)."""
+    """404 for an unknown shop, 409 unless it is a Shopee shop.
+
+    The platform comes from the Ops listing, not from a read under ``shops.user_id``: since
+    P93 that user may be a removed member, and ``shops`` RLS then hides the shop from them.
+    """
     listing = await _shop(session, shop_id)
-    async with with_user_scope(session, listing.owner_user_id):
-        platform = (
-            await session.execute(
-                select(Shop.platform).where(
-                    Shop.id == shop_id, Shop.user_id == listing.owner_user_id
-                )
-            )
-        ).scalar_one_or_none()
     await session.commit()
-    if platform != dash.PLATFORM:
+    if listing.platform != dash.PLATFORM:
         raise HTTPException(
             status_code=409,
             detail={"code": "not_a_shopee_shop", "message": "this shop is not on Shopee"},
