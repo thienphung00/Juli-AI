@@ -12,7 +12,7 @@
  * Anything else (TikTok deep links, /auth/…) is returned unchanged.
  */
 
-export type ViewAsTab = "home" | "decisions" | "analytics" | "rules" | "overview" | "products" | "ranking";
+export type ViewAsTab = "home" | "decisions" | "analytics" | "rules" | "overview" | "products" | "ranking" | "exclusions" | "keywords" | "ads" | "orders" | "flows";
 
 const TAB_SLUG: Readonly<Record<ViewAsTab, string>> = {
   home: "trang-chu",
@@ -24,6 +24,12 @@ const TAB_SLUG: Readonly<Record<ViewAsTab, string>> = {
   overview: "tong-quan",
   products: "san-pham",
   ranking: "xep-hang",
+  // P92 B-1 / B-8: Cài đặt › Loại trừ sản phẩm and the four read-only Ops dashboards.
+  exclusions: "loai-tru",
+  keywords: "tu-khoa",
+  ads: "quang-cao",
+  orders: "don-hang",
+  flows: "luong-san-pham",
 };
 
 const SLUG_TAB: Readonly<Record<string, ViewAsTab>> = Object.fromEntries(

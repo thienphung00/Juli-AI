@@ -10,6 +10,7 @@ import "./phan-tich.css";
 import "./shopee-analytics.css";
 import "./shopee-decisions.css";
 import "./shopee-p91.css";
+import "./shopee-p92-parity.css";
 import "./auth-screen.css";
 
 /** Quyết định's typeface (AC-10.3 artboards) and the auth screen's (P34-F,

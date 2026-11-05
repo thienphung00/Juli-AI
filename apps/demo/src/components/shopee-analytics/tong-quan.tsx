@@ -162,6 +162,14 @@ function Loaded({ ov, state }: { readonly ov: Overview; readonly state: WindowSt
             belowTarget ? "below" : undefined,
           )}
         </div>
+        {(ov.gmv.excluded_gmv ?? 0) > 0 ? (
+          <p className="sa-hint" data-testid="sa-excluded-gmv">
+            <b>GMV</b> trong đó{" "}
+            <Link data-testid="sa-excluded-gmv-link" href={links.exclusions()}>
+              {vnd(ov.gmv.excluded_gmv)} từ sản phẩm đã loại trừ
+            </Link>
+          </p>
+        ) : null}
         <p className="sa-hint" data-testid="sa-aov-note">
           AOV ở đây = GMV ÷ đơn ({vnd(ov.gmv.aov_gmv)}); AOV theo Seller Centre (trừ voucher shop) ={" "}
           {vnd(ov.gmv.aov_seller_centre)}.

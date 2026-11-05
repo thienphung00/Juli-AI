@@ -25,6 +25,8 @@ import { REAL_QD_CLIENTS } from "../quyet-dinh/signed-in-quyet-dinh";
 import { SellerViewProvider } from "../seller-view-context";
 import { ShopeeHostProvider } from "../../lib/shopee-analytics/context";
 import { useOpsShopeeHost } from "../shopee-analytics/hosts";
+import { OpsExclusions } from "../exclusions/ops-exclusions";
+import { EXCLUSIONS_LEDE, EXCLUSIONS_TITLE } from "../exclusions/exclusions-panel";
 import { OpsViewAsShopeeDecisions } from "../shopee-decisions/hosts";
 import { ShopeeScreenSwitch } from "../shopee-analytics/shopee-screens";
 import type { ShopeeScreen } from "../../lib/shopee-analytics/params";
@@ -236,6 +238,7 @@ export function OpsViewAs({
                     ["products", "Sản phẩm"],
                     ["decisions", "Quyết định"],
                     ["rules", "Quy tắc"],
+                    ["exclusions", "Loại trừ"],
                   ]
                 : [
                     ["home", "Trang chủ"],
@@ -297,6 +300,15 @@ export function OpsViewAs({
                 ) : (
                   envelope === null ? <p role="status">Shop chưa có báo cáo.</p> : <OpsSkeleton variant="cards" rows={3} />
                 )
+              ) : null}
+              {isShopee && tab === "exclusions" ? (
+                <section aria-labelledby="view-as-exclusions-title" data-testid="view-as-exclusions" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <h1 id="view-as-exclusions-title" style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
+                    {EXCLUSIONS_TITLE}
+                  </h1>
+                  <p style={{ margin: 0, fontSize: 14, color: C.body }}>{EXCLUSIONS_LEDE}</p>
+                  <OpsExclusions bare baseFetch={baseFetch} canEdit={false} shopId={shopId} />
+                </section>
               ) : null}
               {isShopee && tab === "decisions" ? (
                 <OpsViewAsShopeeDecisions fetchImpl={baseFetch} params={qdParams} shopId={shopId} shopName={session?.shop.shop_name} />

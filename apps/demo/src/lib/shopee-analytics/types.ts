@@ -244,6 +244,8 @@ export interface Overview {
     readonly aov_note: string;
     readonly line_gmv: N;
     readonly line_orders: number;
+    /** P92 B-1: the part of the GMV from excluded listings (still inside `shopee_gmv`); absent before P92. */
+    readonly excluded_gmv?: N;
   };
   readonly flows: OverviewFlows;
   readonly levers: {

@@ -287,3 +287,22 @@ describe("Tổng quan: product × source matrix", () => {
     expect(api.calls.find((c) => c.includes('"period":"custom"'))).toContain('"from":"2026-09-04","to":"2026-10-03"');
   });
 });
+
+describe("Tổng quan: sản phẩm đã loại trừ (P92 B-1)", () => {
+  it("shows 'trong đó Xđ từ sản phẩm đã loại trừ' under the figures only when the excluded GMV is above 0, linking to the list", async () => {
+    const base = overview();
+    const withExcluded = overview({ gmv: { ...base.gmv, excluded_gmv: 1_950_000 } });
+    const { unmount } = renderWith(<TongQuanView params={params()} />, fakeApi({ overview: withExcluded }));
+    const line = await screen.findByTestId("sa-excluded-gmv");
+    expect(line).toHaveTextContent("trong đó 1.950.000đ từ sản phẩm đã loại trừ");
+    expect(screen.getByTestId("sa-excluded-gmv-link")).toHaveAttribute("href", "/settings?tab=loai-tru-san-pham");
+    unmount();
+    for (const excluded of [0, null, undefined]) {
+      const none = overview({ gmv: { ...base.gmv, excluded_gmv: excluded } });
+      const r = renderWith(<TongQuanView params={params()} />, fakeApi({ overview: none }));
+      await screen.findByTestId("sa-tile-gmv");
+      expect(screen.queryByTestId("sa-excluded-gmv")).toBeNull();
+      r.unmount();
+    }
+  });
+});
