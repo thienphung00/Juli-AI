@@ -119,3 +119,12 @@ variation expand (same content, stacked).
 
 The product-page hotfix (`fasttrack/p91-hotfix`: version shape, partial product-period GMV) ships in the same
 deploy as P92.
+
+## B-8 Seller Demo parity for the Ops shop pages (owner 2026-11-05)
+The seller app (Demo) gets the four Ops shop pages, read-only, same numbers as Ops, own shop only, no buyer
+data (order IDs hashed): **Từ khóa** (keyword volumes, positions, ads keywords; also the source of the B-4
+title keyword table), **Quảng cáo + khuyến mãi** (per campaign / voucher / promotion breakdown), **Đơn hàng**
+(order-level levers, status, income per order), **Sản phẩm + luồng** (product × traffic-source matrix).
+Backend: demo routes mirroring the Ops ones (same services, `get_active_shop` scope). Web: four Demo nav
+entries reusing the Ops components. Seller access stays the existing "Mời seller" handover (P9-B): after the
+first accept the seller signs in at demo.app-juli.com with her e-mail and a 6-digit code, no new invite.
