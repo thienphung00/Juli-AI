@@ -18,10 +18,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, exists, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import Shop, ShopMember
+from juli_backend.repositories.identity import shops_of_user_clause
 from juli_backend.services.ops import audit
 from juli_backend.services.ops.access import ops_role
 from juli_backend.services.ops.overview import ShopListing
@@ -48,17 +49,6 @@ class MemberError(ValueError):
 
 def is_team_email(email: str | None) -> bool:
     return (email or "").strip().lower().endswith(TEAM_EMAIL_SUFFIX)
-
-
-def shops_of_user_clause(user_id: uuid.UUID) -> Any:
-    """``WHERE`` clause on ``Shop``: the shops ``user_id`` may act on."""
-    own_row = exists().where(ShopMember.shop_id == Shop.id, ShopMember.user_id == user_id)
-    active = exists().where(
-        ShopMember.shop_id == Shop.id,
-        ShopMember.user_id == user_id,
-        ShopMember.removed_at.is_(None),
-    )
-    return or_(active, and_(Shop.user_id == user_id, ~own_row))
 
 
 async def is_member(session: AsyncSession, shop_id: uuid.UUID, user_id: uuid.UUID) -> bool:

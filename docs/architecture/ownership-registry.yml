@@ -63,6 +63,13 @@ databaseTables:
       (core/security/tiktok_oauth.py). Shop connect/reconnect paths persist via
       this facade; API routes and services/tiktok delegate — no direct
       ShopsRepo.create outside Auth.
+  shop_members:
+    owner: Auth & Security
+    access: write
+    notes: >
+      P93 shop team (migration 121): who may act on a shop. Written only by Juli Ops
+      (services/shop_team.py, services/ops/invites.py, juli_ops role) and by the owner
+      trigger; juli_app reads its own rows.
   tiktok_credentials:
     owner: Auth & Security
     access: write

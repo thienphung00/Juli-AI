@@ -1,7 +1,7 @@
 """DATA step for P93: every existing shop's seller becomes a member of that shop.
 
 Revision ID: 102_shop_members_backfill
-Revises: 121_shop_members
+Revises: 074_users_placeholder_phone_cleanup
 Create Date: 2026-11-05
 
 **Deliberately NOT in ``versions/``.** It is an ``INSERT ... SELECT``, which
@@ -26,7 +26,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "102_shop_members_backfill"
-down_revision: str | None = "121_shop_members"
+down_revision: str | None = "074_users_placeholder_phone_cleanup"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
