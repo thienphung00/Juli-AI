@@ -25,6 +25,13 @@ class AddCardBody(BaseModel):
     acknowledge_breaches: bool = False
 
 
+class MoveCardBody(BaseModel):
+    """Reorder (P92 B-10): the card's new 1-based position among the plan's cards."""
+
+    model_config = ConfigDict(extra="forbid")
+    position: int = Field(ge=1, le=config.PLAN_MAX_CARDS)
+
+
 class SwitchVersionBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     version: int = Field(ge=1, le=config.MAX_VERSIONS)

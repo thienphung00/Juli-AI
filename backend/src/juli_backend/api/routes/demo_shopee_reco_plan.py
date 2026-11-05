@@ -6,8 +6,8 @@ sets (P91 D-6, D-7, D-8), under ``/v1/demo/shopee/recommendations``.
 - ``GET  /plan/aggregate`` -- the aggregate alone. ``GET /plans`` | ``/plans/{id}`` |
   ``/plans/code/{KH-...}`` -- plans of the shop (confirmed ones return the aggregate they were
   confirmed with).
-- ``POST /plan/cards`` (add a card + version) | ``/plan/cards/{id}/remove`` | ``/version`` |
-  ``/whatif`` -- each answers with the re-aggregated plan.
+- ``POST /plan/cards`` (add a card + version) | ``/plan/cards/{id}/remove`` | ``/move`` |
+  ``/version`` | ``/whatif`` -- each answers with the re-aggregated plan.
 - ``POST /plan/confirm`` -- never blocked; a breach needs ``acknowledge_breaches``.
 - ``POST /plan/window`` -- the plan's default window (3..90 days) or one product's.
 - ``GET  /change-sets`` | ``POST /change-sets/{id}/window`` -- the unit of measurement.
@@ -30,6 +30,7 @@ from juli_backend.api.routes.shopee_reco_plan_common import (
     AddCardBody,
     ChangeSetStatus,
     ConfirmBody,
+    MoveCardBody,
     PlanWhatIfBody,
     SetWindowBody,
     SwitchVersionBody,
@@ -145,6 +146,25 @@ async def remove_card(
         plans.remove_card,
         _shopee(shop),
         card_id,
+        actor=manual.Actor("seller", user.id),
+        now=_now(),
+    )
+
+
+@router.post("/plan/cards/{card_id}/move")
+async def move_card(
+    card_id: uuid.UUID,
+    body: MoveCardBody,
+    shop: Shop = Depends(require_writable_shop),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    return await _write(
+        session,
+        plans.move_card,
+        _shopee(shop),
+        card_id,
+        body.position,
         actor=manual.Actor("seller", user.id),
         now=_now(),
     )

@@ -38,7 +38,13 @@ from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_profit.money import ZERO
-from juli_backend.services.shopee_recommendations import config, plan, service, versions
+from juli_backend.services.shopee_recommendations import (
+    config,
+    plan,
+    plan_steps,
+    service,
+    versions,
+)
 from juli_backend.services.shopee_recommendations.cards import shop_deltas
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.mega import (
@@ -360,6 +366,19 @@ def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo
         "base_gmv_30d": base,
         "orders_per_day": stats.orders_per_day,
         "window": plan.window_options("orders", stats),
+        "steps": plan_steps.build_steps(
+            [
+                {
+                    "card_id": e.entry.card_id,
+                    "code": e.entry.code,
+                    "title": e.card["title"],
+                    "change_kind": e.cand.kind,
+                    "version_label": versions.versions_of(e.card)[e.entry.version - 1].get("label"),
+                }
+                for e in evs
+            ],
+            memo.of,
+        ),
     }
 
 
@@ -482,6 +501,17 @@ def aggregate(
         "cards": cards,
         "products": products,
         "shop_wide": shop_block,
+        "steps_summary": {
+            "shop": {
+                "products": len(products),
+                "dprofit_p50": full.total["p50"]["dprofit"],
+                "dprofit_certain": full.certain["dprofit"],
+                "dgmv_p50": full.total["p50"]["dgmv"],
+                "margin_pct_before": today["margin_pct"],
+                "margin_pct_after": _after(today, deltas)["margin_pct"],
+            },
+            "note": "Từng bước chồng lên các bước trước; tổng shop là kết quả chung của kế hoạch.",
+        },
         "joint_cards": full.joint_cards,
         "added_cards": full.added_cards,
         "profit_unknown_cards": full.profit_unknown,
