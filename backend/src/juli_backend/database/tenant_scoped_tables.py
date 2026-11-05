@@ -187,6 +187,9 @@ TABLE_CLASSIFICATION_MAP = {
     # Non-tenant tables
     ("public", "users"): "non_tenant",
     ("public", "shops"): "non_tenant",
+    # P93 (migration 121): who may act on a shop. Keyed on ``user_id`` like ``shops`` (juli_app
+    # SELECT of its own rows only; ``juli_ops`` writes), read by the ``shops`` policies.
+    ("public", "shop_members"): "non_tenant",
     ("public", "webhook_raw_events"): "non_tenant_unprotected",
     # Fast track P20 (D28.3, migration 086): system-wide Ops settings (the OpenAI
     # system cap). No shop data: RLS on, juli_ops writes, juli_app may only read.

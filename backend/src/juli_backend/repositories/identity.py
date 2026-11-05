@@ -308,7 +308,11 @@ class UsersRepo(SessionRepo):
 
 class ShopsRepo(SessionRepo):
     async def list(self, user_id: uuid.UUID) -> list[Shop]:
-        return await self._all(select(Shop).where(Shop.user_id == user_id))
+        # P93: the shops the user may act on -- an active member, or the owner who has no
+        # ``shop_members`` row yet (``services/shop_team.py`` says the rule once).
+        from juli_backend.services.shop_team import shops_of_user_clause
+
+        return await self._all(select(Shop).where(shops_of_user_clause(user_id)))
 
     async def list_for_authorization(
         self, user_id: uuid.UUID, *, scope_replaced_after: bool = False

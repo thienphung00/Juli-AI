@@ -117,6 +117,51 @@ class Shop(Base):
     )
 
 
+class ShopMember(Base):
+    """P93 (migration 121): a seller person who may act on a shop.
+
+    Every member has the same role. ``shops.user_id`` stays the shop's primary contact (the
+    scope Ops and the workers use); *access* is this table: an active row (``removed_at`` NULL),
+    or -- for a shop that has none of its own rows for that owner -- ``shops.user_id`` itself (see
+    ``services/shop_team.py``). Only Juli Ops adds (invite) and removes (soft delete).
+    """
+
+    __tablename__ = "shop_members"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    #: The e-mail the person signed in with, lower-cased at the time they joined.
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    added_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    added_via: Mapped[str] = mapped_column(String(16), nullable=False)
+    added_by_staff: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ops_staff.id"), nullable=True
+    )
+    invite_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ops_shop_invites.id"), nullable=True
+    )
+    removed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    removed_by_staff: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ops_staff.id"), nullable=True
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_shop_members_active",
+            "shop_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("removed_at IS NULL"),
+            sqlite_where=text("removed_at IS NULL"),
+        ),
+        Index("ix_shop_members_user", "user_id", "shop_id"),
+        CheckConstraint(
+            "added_via IN ('owner', 'invite', 'backfill')", name="ck_shop_members_added_via"
+        ),
+    )
+
+
 class TikTokCredential(Base):
     """TikTok OAuth credential row for a shop/merchant capability.
 
