@@ -100,6 +100,11 @@ def _enumerate_tenant_scoped_tables(engine: Engine) -> list[tuple[str, str]]:
             columns = inspector.get_columns(table, schema=schema)
             column_names = {col["name"] for col in columns}
 
+            if TABLE_CLASSIFICATION_MAP.get((schema, table)) == "non_tenant":
+                # P93: shop_members names a shop but is keyed on user_id (like shops / users): its
+                # policy answers "which shops is this person on", read by the shops policies.
+                # test_shop_team_db.py proves it (own rows only, no write, removal immediate).
+                continue
             if TABLE_CLASSIFICATION_MAP.get((schema, table)) == "ops_only":
                 # P16: ops tables name the shop they are about but are not tenant
                 # data; test_ops_console_db.py proves juli_app cannot reach them.
