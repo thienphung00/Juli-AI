@@ -146,3 +146,21 @@ first accept the seller signs in at demo.app-juli.com with her e-mail and a 6-di
   - A backtest guards the formula: for orders with an Income row, formula fees vs actual fees per order;
     the mean absolute gap is reported in Ops and must stay ≤ 1 % of buyer-paid (test on synthetic data, Ops
     figure on real data).
+
+## B-10 Competitor prices and draft plans that build on each other (owner 2026-11-05)
+- **Price card trigger unchanged**: margin under target / price under the floor (raise to floor + 2 %). Competitor
+  prices are context, not a trigger.
+- **Collection**: the Connector reads public Shopee search pages weekly for each product's 1–3 main keywords
+  (from the keyword table): page-1 listings (name, shop name, price, price range, sold/month, item id, image
+  id), no login, no buyer data, background tab, ORY pilot only, drift handling as the other readers. New
+  ingest dataset → the existing `market_listing_snapshots` / `market_keyword_snapshots`. Juli matches similar
+  listings (same keyword, pack-normalised) and computes price per unit (per hộp / 100 cái / 500 ml / cuộn …).
+  Data older than 14 days shows its date and a "cũ" chip.
+- **Display**: product page block "Giá thị trường" (price per unit vs page-1 median, P25–P75, the 5 closest
+  similar listings with name, shop, price, per-unit price, sold/month; keyword; collected date) on Demo and Ops;
+  builder price / discount / flash-sale panel shows a live marker of the drafted price inside that range.
+- **Draft plans compose in order**: per product the draft is a sequence price → giảm giá → voucher (e.g. cap
+  100k) → combo / mua kèm / quà tặng → ads. Each step is evaluated on top of the previous ones (new price, new
+  basket, size-dependent fees, B-9), showing margin and Δ profit after each step and in total, plus shop-wide
+  totals. Nothing executes until the plan is confirmed (P91 D-6); reordering or removing a step re-evaluates
+  the rest.
