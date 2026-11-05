@@ -72,7 +72,7 @@ def card_children(view: PeriodView, product_id: str) -> list[dict[str, Any]] | N
 def short_five(now: PeriodView, before: PeriodView, product_id: str) -> dict[str, Any]:
     """The matrix's per-product numbers (1) % giảm giá and (2) thu thêm / chi thêm against the
     previous period; withheld, not zero, when the previous period has no order lines."""
-    comparable = before.line_orders > 0 and before.data.lines.covers_window
+    comparable = before.comparable_as_previous
     full = five_json(five_for(now, before, None, product_id), comparable=comparable)
     return {
         "discount": full["discount"],

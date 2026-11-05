@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type CSSProperties, type ReactNode } from "react";
 
+import { DateField } from "../../date-field";
 import { fmtDate, fmtInt, fmtPct } from "../../../lib/ops/format";
 import type { ShopeeOrderType } from "../../../lib/ops/types";
 import { C, card } from "../ops-shell";
@@ -143,11 +144,11 @@ export function DayRange({ value, onApply }: { readonly value: { readonly from: 
     >
       <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12, fontWeight: 600 }}>
         Từ ngày
-        <input onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))} style={input} type="date" value={from} />
+        <DateField onChange={(iso) => setDraft((d) => ({ ...d, from: iso }))} style={input} value={from} />
       </label>
       <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12, fontWeight: 600 }}>
         Đến ngày
-        <input onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))} style={input} type="date" value={to} />
+        <DateField onChange={(iso) => setDraft((d) => ({ ...d, to: iso }))} style={input} value={to} />
       </label>
       <button disabled={!from || !to || from > to} style={{ font: "inherit", fontSize: 13, fontWeight: 600, padding: "6px 14px", borderRadius: 8, border: `1px solid ${C.line}`, background: "#ffffff", cursor: "pointer" }} type="submit">
         Áp dụng

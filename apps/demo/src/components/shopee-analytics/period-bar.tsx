@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { DateField } from "../date-field";
 import { rangeText } from "../../lib/shopee-analytics/format";
 import { periodLabel, type WindowState } from "../../lib/shopee-analytics/params";
 import type { WindowJson } from "../../lib/shopee-analytics/types";
@@ -67,11 +68,11 @@ export function PeriodBar({
           ) : null}
           <label>
             Từ ngày
-            <input onChange={(e) => setFrom(e.target.value)} type="date" value={from} />
+            <DateField onChange={setFrom} value={from} />
           </label>
           <label>
             Đến ngày
-            <input onChange={(e) => setTo(e.target.value)} type="date" value={to} />
+            <DateField onChange={setTo} value={to} />
           </label>
           {customOk ? (
             <Link className="sa-btn" href={hrefFor({ ...state, query: { period: "custom", from, to } })}>

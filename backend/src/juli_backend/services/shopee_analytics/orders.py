@@ -69,7 +69,7 @@ def build_orders(
                 "voucher": num(sum((pb.voucher for _, pb in items), ZERO)),
                 "promo_discount": num(sum((pb.promo_discount for _, pb in items), ZERO)),
                 "combo_discount": num(sum((pb.bundle for _, pb in items), ZERO)),
-                "buyer_paid": num(sum((pb.buyer_paid for _, pb in items), ZERO)),
+                "paid_amount": num(sum((pb.buyer_paid for _, pb in items), ZERO)),
                 "fees": num(sum((pb.fees_total or ZERO for pb in carrying), ZERO))
                 if carrying
                 else None,

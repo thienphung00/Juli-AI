@@ -346,30 +346,48 @@ def _affiliate_block(view: PeriodView) -> dict[str, Any]:
     }
 
 
+PREVIOUS_THIN = (
+    "Kỳ trước chưa đủ dữ liệu đơn hàng để so sánh: các mức tăng / giảm so với kỳ trước được ẩn."
+)
+
+
 def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dict[str, Any]:
     cap = ctx.rules.target("daily_marketing_cap")
     five = five_for(now, before, cap)
-    comparable = before.line_orders > 0 and before.data.lines.covers_window
+    comparable = before.comparable_as_previous
     chain = _shop_chain(now)
     prev_chain = _shop_chain(before)
     p, pp = now.profit, before.profit
+    # A previous window whose order lines are too thin must not feed any delta: its line-derived
+    # numbers are fragments (margin +819 points, orders +3,445 %). Shop totals / traffic that come
+    # from Shopee's own daily series stay comparable when that series is complete.
+    prev_totals_ok = comparable or before.data.totals.complete
+    prev_traffic_ok = before.data.traffic.basis not in ("partial_daily", "none")
+    prev_chain = prev_chain if prev_traffic_ok else {}
+    prev_gmv = before.shop_gmv if prev_totals_ok else None
+    prev_orders = before.shop_orders if prev_totals_ok else None
+    if not prev_totals_ok:
+        prev_chain = {k: v for k, v in prev_chain.items() if k != "aov"}
+    warns = warnings(now)
+    if not comparable:
+        warns.append({"code": "previous_period_thin", "message": PREVIOUS_THIN})
     targets = ctx.rules.targets
     return {
         "platform": "shopee",
         "order_basis": ORDER_BASIS,
         "period": {"window": now.window.json(), "previous": before.window.json()},
         "data": data_status(now),
-        "warnings": warnings(now),
+        "warnings": warns,
         "kpi_strip": {
-            "gmv": _kpi(now.shop_gmv, before.shop_gmv),
+            "gmv": _kpi(now.shop_gmv, prev_gmv),
             "views": _kpi(chain.get("views"), prev_chain.get("views")),
             "ctr": _kpi(chain.get("ctr"), prev_chain.get("ctr")),
             "ctor": _kpi(chain.get("ctor"), prev_chain.get("ctor")),
             "aov": _kpi(chain.get("aov"), prev_chain.get("aov")),
-            "orders": _kpi(now.shop_orders, before.shop_orders),
+            "orders": _kpi(now.shop_orders, prev_orders),
             "margin_pct": {
                 "value": pct(p.margin_pct),
-                "previous": pct(pp.margin_pct),
+                "previous": pct(pp.margin_pct) if comparable else None,
                 "label": "trên "
                 + str(pct_of(safe_div(now.coverage.real + now.coverage.assumed, now.coverage.base)))
                 + " % doanh thu có giá vốn (trong đó giả định "

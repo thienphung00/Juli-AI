@@ -543,6 +543,14 @@ export function QuyetDinhView({
     else title = measureSandbox ? MEASURE_SANDBOX_TITLE : measureTitle(measureItems, measureTab);
   }
 
+  // The rules page is not one of the three Quyết định tabs: its header says so and the tabs and
+  // their panels stay out of it (the editor's close button goes back to them).
+  const rulesPage = query.rulesOpen;
+  if (rulesPage) {
+    eyebrow = "Quy tắc";
+    title = "Quy tắc của shop";
+  }
+
   const runHref = (runId: string | null) => qdHref({ tab: "dang-thuc-hien", run: runId, rulesOpen: false });
 
   return (
@@ -555,6 +563,7 @@ export function QuyetDinhView({
         </p>
       ) : null}
 
+      {rulesPage ? null : (
       <div aria-label="Quyết định" className="qv-tabs" role="tablist">
         {QD_TABS.map((tab) => (
           <button
@@ -569,6 +578,7 @@ export function QuyetDinhView({
           </button>
         ))}
       </div>
+      )}
 
       {query.rulesOpen ? (
         rules.status === "ready" ? (
@@ -597,7 +607,7 @@ export function QuyetDinhView({
         </div>
       ) : null}
 
-      {query.tab === "de-xuat" ? (
+      {!rulesPage && query.tab === "de-xuat" ? (
         decisions.status === "loading" ? (
           <p className="qv-status-line" role="status">
             Đang tải đề xuất cho shop của bạn…
@@ -641,7 +651,7 @@ export function QuyetDinhView({
         )
       ) : null}
 
-      {query.tab === "dang-thuc-hien" ? (
+      {!rulesPage && query.tab === "dang-thuc-hien" ? (
         <div className="qv-dt">
           <div>
             {runs.status === "loading" ? (
@@ -689,7 +699,7 @@ export function QuyetDinhView({
         </div>
       ) : null}
 
-      {query.tab === "do-luong" && onSimulateMeasure ? (
+      {!rulesPage && query.tab === "do-luong" && onSimulateMeasure ? (
         <div className="reviewer-fast-forward" data-testid="reviewer-fast-forward">
           <SimulatedLabel>{REVIEWER_FAST_FORWARD_COPY}</SimulatedLabel>
           <button className="qv-btn qv-btn--secondary" onClick={() => simulateMeasure("day7")} type="button">
@@ -701,7 +711,7 @@ export function QuyetDinhView({
         </div>
       ) : null}
 
-      {query.tab === "do-luong" ? (
+      {!rulesPage && query.tab === "do-luong" ? (
         <DoLuongPanel
           items={measureItems}
           loading={runs.status === "loading"}

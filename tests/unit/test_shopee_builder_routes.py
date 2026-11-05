@@ -386,7 +386,12 @@ async def test_seller_orders_are_hashed_levers_and_no_buyer_data(
     assert len(row["order_key"]) == 12 and set(row["order_key"]) <= set("0123456789abcdef")
     text = r.text
     assert not any(ln.order_ref in text for ln in reco.lines)  # no full hashed ref, no buyer
-    assert "buyer" not in text.replace("buyer_paid", "")
+    assert "buyer" not in text
+    # the amount the customer paid must survive the Ops masking layer (a `buyer_*` key is "•••")
+    assert all(isinstance(o["paid_amount"], (int, float)) for o in out["orders"])
+    from juli_backend.services.ops.masking import mask_pii
+
+    assert mask_pii(row)["paid_amount"] == row["paid_amount"]
     assert set(out["by_status"]) <= {"delivered", "cancelled", "refunded_accepted", "in_transit"}
     assert any("voucher" in o["levers"] for o in out["orders"])
     assert any("combo" in o["levers"] for o in out["orders"])

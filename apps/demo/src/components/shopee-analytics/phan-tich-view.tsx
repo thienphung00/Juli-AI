@@ -158,6 +158,8 @@ function Loaded({ critical: c, state }: { readonly critical: Critical; readonly 
   const [filter, setFilter] = useState("all");
   const [okOpen, setOkOpen] = useState(false);
   const shown = c.items.filter((it) => filter === "all" || filterOf(it) === filter);
+  // The "trong dải bình thường" list follows the same filter as the items that need attention.
+  const inBand = c.in_band.filter((it) => filter === "all" || filterOf(it) === filter);
   const sumDay = shown.reduce((t, it) => t + (it.at_stake_per_day ?? 0), 0);
   const withCard = shown.filter((it) => it.card);
   const firstCard = withCard[0]?.card;
@@ -302,13 +304,13 @@ function Loaded({ critical: c, state }: { readonly critical: Critical; readonly 
       <section className="sa-card sa-card--soft" data-testid="sa-in-band">
         <div className="sa-card__head">
           <h2 className="sa-h2">Trong dải bình thường</h2>
-          <span className="sa-hint">{c.in_band.length} mục · không tính vào ₫ có nguy cơ</span>
+          <span className="sa-hint">{inBand.length} mục · không tính vào ₫ có nguy cơ</span>
           <button aria-expanded={okOpen} className="sa-link sa-card__aside" onClick={() => setOkOpen(!okOpen)} type="button">
             {okOpen ? "Thu gọn" : "Xem thêm"}
           </button>
         </div>
         {okOpen
-          ? c.in_band.map((it) => (
+          ? inBand.map((it) => (
               <div className="sa-orow" data-testid={`sa-ok-${it.id}`} key={it.id}>
                 <span className="sa-crow__who">
                   <Ini text={initialsOf(it.name ?? "Cả shop")} />
@@ -325,7 +327,7 @@ function Loaded({ critical: c, state }: { readonly critical: Critical; readonly 
               </div>
             ))
           : null}
-        {okOpen && c.in_band.length === 0 ? <Empty>Chưa có mục nào trong dải.</Empty> : null}
+        {okOpen && inBand.length === 0 ? <Empty>Chưa có mục nào trong dải.</Empty> : null}
       </section>
       <p className="sa-hint">
         Thanh xám là dải bình thường của luồng; vạch đen là mục tiêu, giá sàn, điểm hoà vốn hoặc trung vị shop; chấm là hiện

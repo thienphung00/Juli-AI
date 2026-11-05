@@ -57,6 +57,12 @@ def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[d
     margin_target = ctx.rules.target("margin_pct")
     default_cap = ctx.rules.default_max_discount_pct
     out: list[dict[str, Any]] = []
+    # A cost key may carry the pack ("G500002×3"); the catalogue knows the variation by its id and
+    # its plain seller SKU, so each row says which variation and SKU it belongs to.
+    owners: dict[str, tuple[str, str]] = {}
+    for sl in view.lines:
+        if sl.product_id == product_id and sl.cost_key not in owners:
+            owners[sl.cost_key] = (sl.scope.partition(":")[2], sl.base_key)
     spend = view.ads.product_spend.get(product_id, ZERO)
     product_paid = sum(
         (pb.revenue for ln, pb in _lines_of(view, product_id) if pb.excluded_reason is None), ZERO
@@ -113,6 +119,8 @@ def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[d
         out.append(
             {
                 "sku": sku,
+                "variation_id": owners.get(sku, ("", ""))[0] or None,
+                "base_sku": owners.get(sku, ("", ""))[1] or None,
                 "units": units,
                 "list_price": num(list_price),
                 "waterfall_per_unit": {
@@ -179,7 +187,7 @@ def kpi_block(now: PeriodView, before: PeriodView, product_id: str) -> dict[str,
         views = sum((r.views or 0) for r in flows) or None
         clicks = sum((r.clicks or 0) for r in flows) or None
     gmv, orders = row["gmv"], row["orders"]
-    comparable = before.line_orders > 0 and before.data.lines.covers_window
+    comparable = before.comparable_as_previous
     five = five_json(five_for(now, before, None, product_id), comparable=comparable)
     return {
         "gmv": {
@@ -275,12 +283,29 @@ def keyword_block(
     }
 
 
+def header_sku(info: ItemInfo | None, ambiguous: set[str] | frozenset[str]) -> str | None:
+    """The SKU the header shows. The listing-level SKU of a platform row can be another listing's
+    (production 2026-11-05: the TPE gloves showed the T-Clean SKU "1000"): when that SKU is held
+    by several listings and is not one of this listing's own variation SKUs it is dropped, and a
+    listing with exactly one own SKU shows that one."""
+    if info is None:
+        return None
+    own = sorted({v.seller_sku for v in info.variations if v.seller_sku})
+    sku = info.seller_sku
+    if sku and (sku not in ambiguous or sku in own):
+        return sku
+    if len(own) == 1:
+        return own[0]
+    return None if sku in ambiguous else sku
+
+
 def header_block(
     info: ItemInfo | None,
     snap: ItemHeader | None,
     view: PeriodView,
     product_id: str,
     as_of: date,
+    ambiguous_skus: set[str] | frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     lines = [ln for ln, _ in _lines_of(view, product_id)]
     last_line = max(lines, key=lambda ln: ln.order_date) if lines else None
@@ -299,7 +324,7 @@ def header_block(
         "product_id": product_id,
         "title": pick(title, "title"),
         "title_chars": len(title) if title else None,
-        "seller_sku": info.seller_sku if info else None,
+        "seller_sku": header_sku(info, ambiguous_skus),
         "status": pick(
             (snap.status if snap and snap.status else None) or (info.status if info else None),
             "status",
@@ -483,7 +508,7 @@ def build_product_page(
 ) -> dict[str, Any]:
     now, before = views[selected]
     info = ctx.catalog.items.get(product_id)
-    header = header_block(info, snap, now, product_id, as_of)
+    header = header_block(info, snap, now, product_id, as_of, ctx.catalog.ambiguous_skus)
     header["versions"] = versions_block(history or [])
     return {
         "platform": "shopee",

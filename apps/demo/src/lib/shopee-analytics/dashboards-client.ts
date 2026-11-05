@@ -47,7 +47,7 @@ export interface OrderRow {
   readonly voucher: N;
   readonly promo_discount: N;
   readonly combo_discount: N;
-  readonly buyer_paid: N;
+  readonly paid_amount: N;
   readonly fees: N;
   readonly fee_source?: string | null;
   readonly cogs: N;

@@ -577,6 +577,16 @@ describe("signed-in Quyết định", () => {
   });
 });
 
+describe("Quy tắc page header (V7)", () => {
+  it("is headed Quy tắc, without the Đề xuất / Đang thực hiện / Đo lường tabs", async () => {
+    renderSignedIn({ rulesOpen: true }, stubClients());
+    await screen.findByTestId("rules-editor");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Quy tắc của shop");
+    expect(document.body).not.toHaveTextContent("Chưa có đề xuất mới");
+    expect(screen.queryByRole("tablist", { name: "Quyết định" })).toBeNull();
+  });
+});
+
 describe("Đo lường placeholder", () => {
   it("says when day 7 is, with no number, before day 7", () => {
     expect(measurementLine("2026-10-08T03:05:00Z", Date.parse("2026-10-10T00:00:00Z"))).toBe(

@@ -87,6 +87,18 @@ export const XEP: readonly (readonly [string, string, string])[] = [
   ["disc", "giam_gia", "% giảm giá"],
 ];
 
+/** What a ranking of this KPI is sorted by when the link says nothing: the KPI itself where the
+ *  API ranks by it (biên, AOV, số đơn, % giảm giá), else ₫ GMV/ngày. A "Biên cuối" card must show
+ *  the margin, not the day's GMV. */
+export function defaultXep(kpi: string): string {
+  return kpi === "bien" || kpi === "aov" || kpi === "orders" || kpi === "disc" ? kpi : "gmv";
+}
+
+/** The `xep` URL parameter for a choice: omitted when it is the KPI's default. */
+export function xepParam(kpi: string, xep: string): string | null {
+  return xep === defaultXep(kpi) ? null : xep;
+}
+
 export const PRODUCT_TABS: readonly (readonly [string, string])[] = [
   ["hs", "Hiệu suất"],
   ["ng", "Nguồn"],
@@ -209,8 +221,8 @@ export function readRanking(params: URLSearchParams): RankingState {
   const src = SOURCE_NAME[rawSrc] ? rawSrc : rawSrc === "the_san_pham_khac" ? "the_san_pham" : "all";
   const rawSub = params.get("sub");
   const sub = src === "the_san_pham" && rawSub && CHILD_TO_API[rawSub] ? rawSub : null;
-  const xepRaw = params.get("xep") ?? "gmv";
-  const xep = XEP.some(([k]) => k === xepRaw) ? xepRaw : "gmv";
+  const xepRaw = params.get("xep") ?? defaultXep(kpi);
+  const xep = XEP.some(([k]) => k === xepRaw) ? xepRaw : defaultXep(kpi);
   const loai = params.get("loai") as RankingKind | null;
   const forced = loai && KINDS.has(loai) ? loai : null;
   const dflt = defaultKind(kpi, src, sub);

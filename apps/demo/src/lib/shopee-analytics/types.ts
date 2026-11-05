@@ -5,7 +5,7 @@
  *
  * Money is VND, ratios (ctr, ctor) are fractions, every `*_pct` is percent points. `null` is
  * "not known", never 0. The payloads carry no buyer field: money after voucher is
- * `net_revenue` (there is no `buyer_paid`).
+ * `net_revenue` (there is no `buyer_paid`; the order list says `paid_amount`).
  */
 
 export type N = number | null;
@@ -474,6 +474,10 @@ export interface WaterfallUnit {
 
 export interface SkuCost {
   readonly sku: string;
+  /** The catalogue variation this cost key belongs to (the key may carry a pack: "G500002×3"). */
+  readonly variation_id?: string | null;
+  /** The plain seller SKU without the pack. */
+  readonly base_sku?: string | null;
   readonly units: number;
   readonly list_price: N;
   readonly waterfall_per_unit: WaterfallUnit;
