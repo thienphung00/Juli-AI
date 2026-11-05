@@ -238,7 +238,7 @@ export function expectedRows(card: Card): NumberRow[] {
   return [
     disc!,
     { key: "eff", label: FIVE_LABELS[1], before: DASH, after: eff, dv: `${rangeText(lo.dgmv, hi.dgmv, sv)} GMV`, dp: "", tone: "flat" },
-    { ...bien!, dv: `${rangeText(lo.dprofit, hi.dprofit, sv)} / tháng` },
+    { ...bien!, dv: `${rangeText(lo.dprofit, hi.dprofit, sv)} trong ${fmt(pm.period?.days ?? pm.days, 0)} ngày` },
     {
       key: "orders",
       label: FIVE_LABELS[3],

@@ -228,6 +228,23 @@ def _plan(
     return _Plan(new_lines, qualifying, total, q, used, limit is not None and limit < by_rate)
 
 
+def max_discount_binding(lines: Sequence[OrderLine], rule: VoucherRule) -> tuple[int, int]:
+    """(orders whose discount the ``max_discount`` cap cuts, orders that qualify). A cap cuts an
+    order when the voucher's own value (amount, or pct of the subtotal) is above it."""
+    subtotals: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for ln in lines:
+        subtotals[ln.order_id] += ln.order_value
+    qualifying = binding = 0
+    for subtotal in subtotals.values():
+        if subtotal < rule.min_spend or subtotal <= 0:
+            continue
+        qualifying += 1
+        raw = rule.amount if rule.amount is not None else to_dong(subtotal * (rule.pct or ZERO))
+        if rule.max_discount is not None and raw > rule.max_discount:
+            binding += 1
+    return binding, qualifying
+
+
 def _stats(orders: list[tuple[Decimal | None, Decimal | None, Decimal]]) -> OrderGroupStats:
     """orders: (profit, contribution, buyer_paid) -- None = a cost is unknown."""
     known = [(p, b) for p, _, b in orders if p is not None]

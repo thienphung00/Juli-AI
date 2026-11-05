@@ -15,7 +15,7 @@ from typing import Any
 
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.whatif import PredictedRange
-from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.shopee_recommendations import config, freshness
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.evaluate import evaluate
 from juli_backend.services.shopee_recommendations.kinds import (
@@ -136,7 +136,10 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
     if cand.kind in ("affiliate_sample", "affiliate_invite"):  # P91 D-9: own model
         from juli_backend.services.shopee_recommendations.kol_cards import build_kol_card
 
-        return build_kol_card(env, cand, now=now)
+        kol = build_kol_card(env, cand, now=now)
+        if kol is not None:
+            kol["freshness"] = freshness.stamp(env, cand.items, now)
+        return kol
     s = spec(cand.kind)
     ev0 = evaluate(env, cand)
     if ev0.refusal:
@@ -239,6 +242,7 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
             "items": scope_items,
         },
         "bundle": False,
+        "freshness": freshness.stamp(env, scope_items, now),
     }
     return card
 

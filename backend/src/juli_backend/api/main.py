@@ -89,6 +89,16 @@ async def lifespan(app: FastAPI):
     # P29: open the pool's connections now (in parallel) rather than on the
     # first requests, then keep idle ones warm. Best effort: a failure is logged.
     keepwarm = await start_api_pool(engine)
+    # Cards store numbers computed on the inputs / engine of their day: after a deploy, recompute
+    # the stale ones (background, idempotent, logged). Never blocks or fails boot.
+    try:
+        from juli_backend.services import shopee_reco_refresh
+
+        shopee_reco_refresh.schedule_on_start(create_session_factory(engine))
+    except Exception as exc:  # pragma: no cover - best effort
+        logger.warning(
+            "shopee_reco_refresh_not_scheduled", extra={"error_type": type(exc).__name__}
+        )
     logger.info("api_startup_complete")
     try:
         yield

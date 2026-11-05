@@ -1953,6 +1953,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/withdraw",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/{card_id}",
       "methods": [
         "GET"

@@ -25,10 +25,12 @@ from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_builder import catalogue, copurchase, outcome, response
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
+from juli_backend.services.shopee_builder.reference import with_reference_lines
 from juli_backend.services.shopee_builder.translate import Translation, lst_fold, to_variant
-from juli_backend.services.shopee_builder.variations import economics, variation_rows
+from juli_backend.services.shopee_builder.variations import economics, observed_skus, variation_rows
 from juli_backend.services.shopee_recommendations import loader, manual
 from juli_backend.services.shopee_recommendations.env import RecoEnv
+from juli_backend.services.shopee_recommendations.voucher_notes import same_result_notes
 
 HISTORY_DAYS_90 = 90
 RESPONSE_PRODUCTS = 15
@@ -111,6 +113,7 @@ async def variation_rows_for(
     session: AsyncSession, shop_id: uuid.UUID, env: RecoEnv, items: Sequence[str]
 ) -> dict[str, list[dict[str, Any]]]:
     snaps = await _snapshot_variations(session, shop_id, items)
+    seen_skus = observed_skus(env.view.lines)
     rows: dict[str, list[dict[str, Any]]] = {}
     for item in items:
         variations, head = snaps.get(item, ([], None))
@@ -123,6 +126,7 @@ async def variation_rows_for(
             on=env.as_of,
             item_list_price=None if head is None else head.list_price,
             item_current_price=None if head is None else head.current_price,
+            observed=seen_skus.get(item),
         )
     return rows
 
@@ -204,12 +208,52 @@ async def ads_campaigns(
                 "products": products,
             }
         )
+    rows.extend(
+        _stored_campaigns(
+            env, {str(r["campaign_key"]) for r in rows}, {str(r["name"]) for r in rows}
+        )
+    )
     return {
         "window": env.view.window.json(),
         "daily_cap": num(env.daily_cap),
         "cap_rule": "daily_marketing_cap",
         "campaigns": rows,
     }
+
+
+def _stored_campaigns(env: RecoEnv, keys: set[str], names: set[str]) -> list[dict[str, Any]]:
+    """Real campaigns the allocation did not list: the Connector's per-campaign daily rows
+    (``env.campaigns``: budget, ROAS target) and the ads files' campaign rows. The allocation can
+    reduce a shop to one pseudo campaign ("Tổng chi quảng cáo"); the levers form still needs the
+    shop's own campaigns to pick from."""
+    from juli_backend.services.shopee_analytics.fmt import num
+
+    out: list[dict[str, Any]] = []
+    seen = set(keys) | set(names)
+
+    def add(key: str, name: str, budget: Any, roas: Any, running: bool | None) -> None:
+        if key in seen or name in seen:
+            return
+        seen.update({key, name})
+        out.append(
+            {
+                "campaign_key": key,
+                "name": name,
+                "running": running,
+                "daily_budget": num(budget) if budget is not None else None,
+                "roas_target": num(roas) if roas is not None else None,
+                "spend_per_day": None,
+                "roas_direct": None,
+                "break_even_roas": None,
+                "products": [],
+            }
+        )
+
+    for setting in dict.fromkeys(env.campaigns.values()):
+        add(setting.key, setting.name, setting.daily_budget, setting.roas_target, None)
+    for row in env.view.data.ads_reports.campaign_rows:
+        add(row.key, row.campaign or row.key, None, None, row.running)
+    return out
 
 
 # --------------------------------------------------------------- context for the versions
@@ -283,10 +327,13 @@ async def _responses(
     targets: set[str],
 ) -> None:
     """Fill ``env.response_by_item`` / ``response_shop`` from the 90-day order counts and the
-    snapshot price history. Needs the order export to cover the whole 90 days."""
-    if not view90.data.lines.covers_window:
+    snapshot price history. Uses the days the order export covers."""
+    span = response.covered_span(
+        view90.data.lines.export_bounds, view90.window.start, view90.window.end
+    )
+    if span is None:
         return
-    start, end = view90.window.start, view90.window.end
+    start, end = span
     per_day: dict[str, dict[date, set[str]]] = defaultdict(lambda: defaultdict(set))
     for ln, _ in view90.pairs:
         per_day[ln.product_id][ln.order_date].add(ln.order_id)
@@ -321,6 +368,8 @@ async def build_context(
     items = list(dict.fromkeys(i for spec in specs for i in sp.items_of(spec)))
     ctx = BuilderContext(env=env)
     ctx.variations = await variation_rows_for(session, shop_id, env, items)
+    ctx.env, ctx.reference_items = with_reference_lines(env, ctx.variations, items)
+    env = ctx.env
     if any(spec.kind in PRICE_SCALED for spec in specs):
         _, view90, _ = await load_view90(session, shop_id, env.as_of)
         ctx.view90 = view90
@@ -342,20 +391,29 @@ def evaluate_version(
     ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime
 ) -> tuple[dict[str, Any], Translation | None]:
     """One version -> its outcome (a refused one carries ``ok = false`` and a reason)."""
+    out, tr, _ = _evaluate_version_card(ctx, spec, index, now)
+    return out, tr
+
+
+def _evaluate_version_card(
+    ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime
+) -> tuple[dict[str, Any], Translation | None, dict[str, Any] | None]:
     label = spec.label or f"Phương án {index + 1}"
     try:
         tr = to_variant(spec, ctx)
     except SpecRefused as exc:
-        return outcome.refused(index, spec.kind, label, manual.refusal(exc.code)), None
+        return outcome.refused(index, spec.kind, label, manual.refusal(exc.code)), None, None
     card, why = manual.build_variant(ctx.env, tr.variant, now=now)
     if card is None:
-        return outcome.refused(index, spec.kind, label, why or manual.refusal("invalid_inputs")), tr
+        refusal = why or manual.refusal("invalid_inputs")
+        return outcome.refused(index, spec.kind, label, refusal), tr, None
     est_card = None
     if tr.estimate is not None:
         est_card, _ = manual.build_variant(ctx.env, tr.estimate, now=now)
-    return outcome.shape(
+    shaped = outcome.shape(
         card, tr, ctx, index=index, kind=spec.kind, label=label, estimate_card=est_card
-    ), tr
+    )
+    return shaped, tr, card
 
 
 def _row(key: str, label: str, values: list[Any], unit: str) -> dict[str, Any]:
@@ -370,9 +428,9 @@ def table_of(results: Sequence[dict[str, Any]]) -> dict[str, Any]:
 
     rows = [
         _row("cost", "Chi phí của thay đổi", pick(lambda r: r["cost"]["amount"]), "vnd"),
-        _row("delta_gmv", "Δ GMV / tháng", pick(lambda r: r["delta"]["gmv"]), "band"),
-        _row("delta_orders", "Δ đơn / tháng", pick(lambda r: r["delta"]["orders"]), "band"),
-        _row("delta_profit", "Δ lợi nhuận / tháng", pick(lambda r: r["delta"]["profit"]), "band"),
+        _row("delta_gmv", "Δ GMV", pick(lambda r: r["delta"]["gmv"]), "band"),
+        _row("delta_orders", "Δ đơn", pick(lambda r: r["delta"]["orders"]), "band"),
+        _row("delta_profit", "Δ lợi nhuận", pick(lambda r: r["delta"]["profit"]), "band"),
         _row("margin_after", "Biên sau thay đổi", pick(lambda r: r["margin_after_pct"]), "pct"),
     ]
     driver_keys = list(
@@ -419,7 +477,15 @@ async def evaluate_versions(
 ) -> dict[str, Any]:
     """Up to four versions of mixed kinds side by side. Saves nothing."""
     ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
-    results = [evaluate_version(ctx, spec, i, now)[0] for i, spec in enumerate(specs)]
+    evaluated = [_evaluate_version_card(ctx, spec, i, now) for i, spec in enumerate(specs)]
+    results = [e[0] for e in evaluated]
+    # Name why a version looks like V1 (an input that differs but does not bind), per version
+    head = next((e[2] for e in evaluated if e[2] is not None), None)
+    for res, _, card in evaluated:
+        if res["ok"] and card is not None and head is not None and card is not head:
+            notes = same_result_notes(head, card)
+            if notes:
+                res["same_as_first_notes"] = notes
     return {
         "today": today_of(ctx.env),
         "versions": results,

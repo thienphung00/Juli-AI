@@ -107,6 +107,7 @@ async def ops_list_recommendations(
     xep_theo: Annotated[str, Query(max_length=24)] = "diem",
     product_id: Annotated[str | None, Query(max_length=64)] = None,
     queue: Annotated[str, Query(pattern="^(top|all)$")] = "top",
+    audience: Annotated[str, Query(pattern="^(ops|seller)$")] = "ops",
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -116,7 +117,7 @@ async def ops_list_recommendations(
             return await reco.list_cards(
                 session,
                 shop_id,
-                audience="ops",
+                audience=audience,
                 family=family,
                 section=section,
                 status=status,
@@ -171,13 +172,15 @@ async def ops_card_by_code(
 async def ops_recommendation_detail(
     shop_id: uuid.UUID,
     card_id: uuid.UUID,
+    audience: Annotated[str, Query(pattern="^(ops|seller)$")] = "ops",
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """``audience=seller`` is "Xem như shop": the card as the seller gets it (404 for a draft)."""
     await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
-            return await reco.card_detail(session, shop_id, card_id, audience="ops")
+            return await reco.card_detail(session, shop_id, card_id, audience=audience)
     except ProposalError as exc:
         raise refused(exc) from None
 

@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 
-import { DASH, pp, vnd } from "../../../lib/shopee-analytics/format";
+import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
-import { bandText, breakEvenText, floorWarningText, metricValue, refusalText } from "../../../lib/shopee-decisions/builder-p92";
+import { bandText, breakEvenText, floorWarningText, metricValue, refusalText, unitLines, voucherMaxText, voucherUsageText } from "../../../lib/shopee-decisions/builder-p92";
 import { TextChip } from "../../shopee-analytics/ui";
 
 /**
@@ -46,7 +46,7 @@ export function ResultBlock({ index, title, state, costLink }: { readonly index:
         <h2 className="sa-h2">
           Kết quả P{index + 1} · {title}
         </h2>
-        <span className="sa-hint">30 ngày, dự kiến</span>
+        <span className="sa-hint">dự kiến, theo số ngày của thay đổi</span>
       </div>
       {state.status === "idle" ? <p className="sa-hint">{state.problem ?? "Nhập thông số để xem kết quả."}</p> : null}
       {state.status === "busy" ? (
@@ -142,6 +142,20 @@ export function OutcomeBody({ outcome: o, costLink }: { readonly outcome: Builde
           </dd>
         </div>
       </dl>
+      {unitLines(o).length > 0 ? (
+        <ul className="p2-units" data-testid="p2-units">
+          {unitLines(o).map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ul>
+      ) : null}
+      {voucherUsageText(o) ? (
+        <p className="p2-usage" data-testid="p2-usage">
+          <b>{voucherUsageText(o)}</b>
+          {voucherMaxText(o) ? ` · ${voucherMaxText(o)}` : ""}
+          {o.voucher?.per_user.limit ? ` · Giới hạn ${fmt(o.voucher.per_user.limit, 0)} lượt/người mua chưa tính vào kết quả` : ""}
+        </p>
+      ) : null}
       {insufficient ? <p className="sa-hint">Chưa có lần thử nào của sản phẩm hay của shop để so: Juli chỉ cho biết chi phí và mức đơn cần thêm. Chạy thử rồi đo.</p> : null}
       <div className="p2-drivers" data-testid="p2-drivers">
         <b>Chỉ số chính</b> <span className="sa-hint">(đo sau khi chạy · CTOR = đơn ÷ lượt nhấp)</span>

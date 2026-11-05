@@ -72,6 +72,10 @@ class ProfitModel:
     #: cap on extra units a slot can sell (Flash Sale quantity); None = no cap
     max_extra_units: Decimal | None = None
     base_label: str = "gmv_xac_nhan"  # or "gmv_quang_cao_don_da_dat"
+    #: orders per day the per-order unit economics divide by (a voucher: the orders that use it);
+    #: None = the scope's orders per day. ``orders_basis`` names it for the label.
+    orders_basis_per_day: Decimal | None = None
+    orders_basis: str = "order"  # "order" | "voucher_use"
 
 
 @dataclass

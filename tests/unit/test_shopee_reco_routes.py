@@ -550,6 +550,18 @@ async def test_ops_sees_drafts_publishes_and_the_audit_row_is_written(session, s
     assert wd.status_code == 200 and (await session.get(ShopProposal, ids[1])).status == "withdrawn"
 
 
+async def test_ops_view_as_shop_audience_hides_unsent_drafts(session, shop, ops):
+    seeded, _, ids = shop
+    base = f"/v1/ops/shops/{seeded.shop_id}/shopee/recommendations"
+    assert len((await ops.get(f"{base}?queue=all")).json()["cards"]) == 4  # Ops sees drafts
+    seller_view = await ops.get(f"{base}?queue=all&audience=seller")
+    assert seller_view.status_code == 200 and seller_view.json()["cards"] == []
+    assert (await ops.get(f"{base}/{ids[0]}?audience=seller")).status_code == 404
+    await ops.post(f"{base}/publish", json={"card_ids": [str(ids[0])]})
+    shown = (await ops.get(f"{base}?queue=all&audience=seller")).json()["cards"]
+    assert [c["id"] for c in shown] == [str(ids[0])]
+
+
 async def test_ops_ga_the_records_reason_audit_and_bulk(session, shop, ops):
     seeded, _, ids = shop
     base = f"/v1/ops/shops/{seeded.shop_id}/shopee/recommendations"

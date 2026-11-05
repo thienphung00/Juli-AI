@@ -84,14 +84,14 @@ describe("Quyết định · Shopee · danh sách", () => {
     cards[0] = { ...cards[0]!, stale: true, floor_ok: false };
     renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(cards) }));
     const top = await screen.findByTestId("sq-card-card-voucher");
-    expect(within(top).getByText("Cần tính lại")).toBeInTheDocument();
+    expect(within(top).getByText("Đang cập nhật")).toBeInTheDocument();
     expect(within(top).getByText("Chạm giá sàn")).toBeInTheDocument();
   });
 
   it("shows the certain-and-predicted range of V1 in nghìn", async () => {
     renderReco(<DecisionsView params={params()} />, fakeReco({ list: list([summaryOf(voucherCard())]) }));
     const row = await screen.findByTestId("sq-card-card-voucher");
-    expect(within(row).getByText("Δ lợi nhuận V1 −43.000đ – +237.000đ/tháng")).toBeInTheDocument();
+    expect(within(row).getByText("Δ lợi nhuận V1 −1.400đ – +7.900đ/ngày (trong 30 ngày: −43.000đ – +237.000đ)")).toBeInTheDocument();
   });
 
   it("the other tabs list their own cards by family; an empty tab says so", async () => {

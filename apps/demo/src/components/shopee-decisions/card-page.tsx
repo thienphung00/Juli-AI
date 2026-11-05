@@ -27,6 +27,7 @@ import {
   versionCode,
   versionName,
   versionsOf,
+  vnWhenFull,
 } from "../../lib/shopee-decisions/versions";
 import { Notice, TextChip } from "../shopee-analytics/ui";
 import { DismissDialog, RequestChangeDialog, WithdrawDialog } from "./dialogs";
@@ -339,7 +340,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
     else void addToPlan(false, []);
   };
 
-  const approveOff = !canDecide || busy || stale || calc === "error" || refused || (title && count.over) || (title && count.n === 0);
+  const approveOff = !canDecide || busy || stale || detail.stale || calc === "error" || refused || (title && count.over) || (title && count.n === 0);
   const hint = isKol
     ? kolInvite
       ? "Không có giá sàn hay trần chi cần kiểm: chỉ có hoa hồng."
@@ -428,8 +429,12 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 
       {detail.stale ? (
         <Notice tone="warn" testId="sd-stale">
-          <b>Thông số shop vừa đổi.</b> Thẻ này sẽ được tính lại; số bên dưới là số của lần tính trước.
+          <b>Đang cập nhật.</b> Số liệu hoặc thông số shop vừa đổi nên thẻ này đang được tính lại; số bên dưới là số của lần tính trước{detail.computed_at ? ` (${vnWhenFull(detail.computed_at)})` : ""}. Bạn sẽ duyệt được khi số mới sẵn sàng.
         </Notice>
+      ) : detail.computed_at ? (
+        <p className="sa-hint" data-testid="sd-computed-at">
+          Cập nhật lúc {vnWhenFull(detail.computed_at)}
+        </p>
       ) : null}
       {detail.status === "draft" ? <Notice tone="info">Nháp: shop chưa thấy thẻ này.</Notice> : null}
       {detail.status === "changes_requested" ? <Notice tone="info">Shop đã yêu cầu chỉnh thẻ này. Đội Juli tính lại và gửi thẻ mới.</Notice> : null}

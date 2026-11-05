@@ -50,8 +50,8 @@ describe("Sản phẩm › Đề xuất", () => {
     expect(screen.getByTestId("sp-card-c-combo")).toHaveTextContent("#2 · Xếp hàng");
     expect(screen.getByTestId("sp-card-c-title")).toHaveTextContent("#4 · Xếp hàng");
     expect(top).toHaveTextContent("2 phiên bản: V1 · V2");
-    expect(top).toHaveTextContent("Δ lợi nhuận / tháng (V1, dự kiến)");
-    expect(top).toHaveTextContent("−43.000đ – +237.000đ/tháng");
+    expect(top).toHaveTextContent("Δ lợi nhuận (V1, dự kiến)");
+    expect(top).toHaveTextContent("−1.400đ – +7.900đ/ngày (trong 30 ngày: −43.000đ – +237.000đ)");
     expect(screen.queryByTestId("sp-card-c-old")).toBeNull();
     expect(screen.getByTestId("sp-dots")).toHaveTextContent("Hàng đợi:1234");
   });
@@ -68,12 +68,12 @@ describe("Sản phẩm › Đề xuất", () => {
     const reco = tab();
     const block = screen.getByTestId("sp-card-c-voucher");
     expect(within(screen.getByTestId("sp-card-c-combo")).getByRole("button", { name: "Xem phiên bản" })).toBeInTheDocument();
-    await waitFor(() => expect(within(block).getByTestId("sp-ver-c-voucher-1")).toHaveTextContent("Chắc chắn −63.000đ/tháng"));
+    await waitFor(() => expect(within(block).getByTestId("sp-ver-c-voucher-1")).toHaveTextContent("Chắc chắn −2.100đ/ngày"));
     expect(reco.calls.find((c) => c.name === "detail")!.args).toEqual(["c-voucher"]);
     const v1 = within(block).getByTestId("sp-ver-c-voucher-1");
     expect(v1).toHaveTextContent("JC-2611-0007-V1");
     expect(v1).toHaveTextContent("Mặc định của Juli · Juli đề xuất");
-    expect(v1).toHaveTextContent("−43.000đ – +237.000đ/tháng");
+    expect(v1).toHaveTextContent("−1.400đ – +7.900đ/ngày · 30 ngày: −43.000đ – +237.000đ");
     expect(within(block).getByTestId("sp-ver-c-voucher-2")).toHaveTextContent("JC-2611-0007-V2");
     expect(within(within(block).getByTestId("sp-ver-c-voucher-2")).getByRole("link", { name: "Mở thẻ ›" })).toHaveAttribute("href", "/decisions?the=c-voucher&from=san-pham&v=2");
     fireEvent.click(within(block).getByRole("button", { name: "Thu gọn" }));

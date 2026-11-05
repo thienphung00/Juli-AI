@@ -59,6 +59,7 @@ from juli_backend.services.shopee_recommendations import (
     codes,
     combo,
     config,
+    freshness,
     manual,
     plan_codes,
     product_queue,
@@ -425,6 +426,7 @@ def _summary(
 ) -> dict[str, Any]:
     pm = card["predicted"]["money_per_month"]
     product = p.item_id
+    stale_why = freshness.card_stale_reason(card)
     return {
         "id": str(p.id),
         "code": p.code,
@@ -467,7 +469,10 @@ def _summary(
         },
         "floor_ok": card["floor"]["ok"],
         "plan": card["measurement_plan"]["label"],
-        "stale": bool((meta or {}).get("stale")),
+        "stale": bool((meta or {}).get("stale")) or stale_why is not None,
+        "stale_reason": (meta or {}).get("stale_reason") or stale_why,
+        "computed_at": (card.get("freshness") or {}).get("computed_at"),
+        "engine_version": (card.get("freshness") or {}).get("engine_version"),
         "bundle": card.get("bundle", False),
         "sent_at": None if p.sent_at is None else p.sent_at.isoformat() + "Z",
     }
@@ -870,7 +875,32 @@ def recompute_card(
         vlist[number - 1] = new
         out["versions"] = vlist
     out["version"] = number
+    versions.annotate_same_notes(out["versions"])
     return out
+
+
+def refresh_card(env: RecoEnv, card: dict[str, Any], *, now: datetime) -> dict[str, Any] | None:
+    """Every version of the card evaluated again on ``env`` with its OWN inputs (a manual card
+    keeps its variants; the engine's alternatives are not regenerated). The top level is V1."""
+    if card["family"] == "mega_sale":
+        return _recompute_mega(env, card, {}, now)
+    cur: dict[str, Any] = card
+    vlist = versions.versions_of(card)
+    for n in range(len(vlist), 0, -1):  # descending: the top level ends as version 1
+        if vlist[n - 1].get("status") == versions.STATUS_REFUSED and n > 1:
+            continue
+        res = recompute_card(env, cur, {}, now=now, version=n)
+        if res is None:
+            if n == 1:
+                return None
+            old = versions.versions_of(cur)
+            old[n - 1] = versions.refused_version(
+                n, old[n - 1].get("label") or "", old[n - 1].get("inputs") or {}, "no_longer_valid"
+            )
+            cur = {**cur, "versions": old}
+            continue
+        cur = res
+    return cur
 
 
 def _recompute_mega(

@@ -55,7 +55,7 @@ export function NumbersTable({ card }: { readonly card: Card }) {
       <Rows rows={sure} testPrefix="sd-sure" />
       <div className="sd-num__band sd-num__band--exp" data-testid="sd-expected" role="row">
         <b>Dự kiến</b>
-        <span>khoảng có thể xảy ra khi khách đổi hành vi (mỗi tháng, từ thấp đến cao), không phải cam kết</span>
+        <span>khoảng có thể xảy ra khi khách đổi hành vi (từ thấp đến cao), không phải cam kết</span>
       </div>
       <Rows rows={expected} testPrefix="sd-exp" />
       <p className="sd-num__foot">{card.five_numbers.chi_definition}. ③ tính trên doanh thu khách trả; ② = ΔGMV ÷ Δchi.</p>
