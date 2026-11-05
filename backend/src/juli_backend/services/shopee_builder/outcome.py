@@ -77,6 +77,31 @@ _SOURCE_BASIS = {
 }
 
 
+#: P96: every reason code the outcome carries, as the sentence a person reads. The codes stay in
+#: the JSON; clients print ``*_text`` and never a code.
+REASON_TEXT: dict[str, str] = {
+    "not_applicable": "Thay đổi này không có chi phí trực tiếp để hoà vốn; đo sau khi chạy.",
+    "no_flow_data": "Chưa có lưu lượng theo nguồn để tính CTOR cần đạt.",
+    "no_clicks": "Chưa có lượt nhấp để tính CTOR cần đạt.",
+    "no_extra_cost": "Không tốn thêm chi phí nên không cần thêm đơn.",
+    "profit_per_order_unknown": "Chưa biết lợi nhuận mỗi đơn (thiếu giá vốn hoặc phí).",
+    "profit_unknown": "Chưa biết lợi nhuận mỗi đơn (thiếu giá vốn hoặc phí).",
+    "profit_per_order_non_positive": (
+        "Mỗi đơn đang lỗ hoặc hoà vốn, thêm đơn không bù được chi phí."
+    ),
+    "no_qualifying_orders": "Chưa có đơn nào đạt đơn tối thiểu.",
+    "no_margin": "Đơn dùng voucher không có lãi nên giỏ hàng lớn hơn không bù được chi phí.",
+}
+GENERIC_REASON_TEXT = "Chưa tính được điểm hoà vốn cho thay đổi này."
+
+
+def reason_text(code: str | None) -> str | None:
+    """The sentence for a reason code; an unknown code gets a general sentence, never itself."""
+    if code is None:
+        return None
+    return REASON_TEXT.get(code.split(":", 1)[0], GENERIC_REASON_TEXT)
+
+
 def _band(total: Mapping[str, Any], key: str) -> dict[str, float | None]:
     return {
         "low": total["p10"][key],
@@ -205,10 +230,17 @@ def _cost(card: Mapping[str, Any], tr: Translation, p50_orders: float | None) ->
             expected_units_basis="history" if units else "minimum_one",
         )
     elif kind == "add_on":
+        # P96: the discount on today's attaches and on the attaches the deal is expected to bring
+        period = card["predicted"]["money_per_month"].get("period") or {}
+        days = period.get("days") or config.DAYS_PER_MONTH
+        existing = -((period.get("certain") or {}).get("dprofit") or 0)
+        gained = ((period.get("total") or {}).get("p50") or {}).get("dgmv") or 0
+        rate = certain.get("discount_per_attach_gmv") or 0
         out.update(
-            amount=certain.get("discount_cost_on_existing"),
-            period_days=config.DAYS_PER_MONTH,
-            label="Giảm cho khách trên các đơn đã mua kèm",
+            amount=round(existing + max(gained, 0) * rate),
+            period_days=days,
+            label="Giảm cho khách trên các lần mua kèm hiện có và dự kiến",
+            existing=certain.get("discount_cost_on_existing"),
         )
     elif kind == "gift":
         gift = certain.get("gift") or {}
@@ -220,11 +252,14 @@ def _cost(card: Mapping[str, Any], tr: Translation, p50_orders: float | None) ->
         )
     elif kind in ("product_discount", "price", "flash_sale"):
         delta = certain.get("profit_delta_same_volume")
-        out.update(
-            amount=None if delta is None else max(-delta, 0),
-            period_days=_period_days(card),
-            label="Lợi nhuận mất đi nếu số đơn không đổi",
-        )
+        period = card["predicted"]["money_per_month"].get("period")
+        if delta is not None and period:  # P96: over the change's own days (a flash: its slot)
+            out.update(amount=max(-period["certain"]["dprofit"], 0), period_days=period["days"])
+        else:
+            out.update(
+                amount=None if delta is None else max(-delta, 0), period_days=_period_days(card)
+            )
+        out["label"] = "Lợi nhuận mất đi nếu số đơn không đổi"
     elif kind.startswith("ads_"):
         spend = card.get("spend") or {}
         out.update(
@@ -260,6 +295,19 @@ def _break_even(
     extra: int | None = None
     period = config.DAYS_PER_MONTH
     reason: str | None = None
+    if kind == "min_spend_voucher" and certain.get("break_even_aov") is not None:
+        # P96: a basket-size lever pays back through the basket, not through extra orders
+        aov = certain["break_even_aov"]
+        return {
+            "applies": True,
+            "basis": "aov",
+            "extra_orders": None,
+            "aov_now": aov["aov_now"],
+            "aov_needed": aov["aov_needed"],
+            "period_days": int(certain.get("days") or config.VOUCHER_DAYS),
+            "reason": aov["reason"],
+            "reason_text": reason_text(aov["reason"]),
+        }
     if kind == "min_spend_voucher":
         extra, reason = certain.get("break_even_extra_orders"), certain.get("break_even_reason")
         period = int(certain.get("days") or config.VOUCHER_DAYS)
@@ -270,7 +318,12 @@ def _break_even(
     elif kind == "gift":
         extra = (certain.get("gift") or {}).get("break_even_extra_orders")
     else:
-        return {"extra_orders": None, "applies": False, "reason": "not_applicable"}
+        return {
+            "extra_orders": None,
+            "applies": False,
+            "reason": "not_applicable",
+            "reason_text": reason_text("not_applicable"),
+        }
     scope = [] if kind == "min_spend_voucher" and not items else list(items)
     if (
         kind == "gift"
@@ -284,8 +337,10 @@ def _break_even(
         "extra_orders": extra,
         "period_days": period,
         "reason": reason,
+        "reason_text": reason_text(reason),
         **{k: v for k, v in ctor.items() if k != "reason"},
         "ctor_reason": ctor["reason"],
+        "ctor_reason_text": reason_text(ctor["reason"]),
     }
     if kind == "add_on":
         out["attach"] = [
@@ -362,6 +417,8 @@ def _driver(
         elif key == "orders":
             unit = "count"
             orders = (five.get("orders") or {}).get("before")
+            if orders is None and kind == "gift":  # P96: the gift's own order lines
+                orders = (certain.get("gift") or {}).get("total_orders")
             if orders is None and traffic is not None:
                 orders = traffic.orders
             before = orders
@@ -443,6 +500,7 @@ def _warnings(
         out.append({"type": "floor_unknown", "skus": card["floor"]["unknown_skus"]})
     for note in [*tr.notes, *card.get("notes", [])]:
         out.append({"type": "note", "message": note})
+    out.extend(dict(w) for w in tr.warnings)
     return out
 
 
@@ -460,10 +518,11 @@ def shape(
     has none of its own (a variation set)."""
     numbers = estimate_card or card
     pm = numbers["predicted"]["money_per_month"]
-    total = pm["total"]
+    # P96: the bands cover the change's own days (``period``, up to 90), not a month capped at 30
+    total = (pm.get("period") or pm)["total"]
     items = list(dict.fromkeys([*tr.items, *card["scope"]["product_ids"]]))
     cost_known, missing = _items_cost_known(ctx, [i for i in items if i])
-    p50_orders = total["p50"]["dorders"]
+    p50_orders = pm["total"]["p50"]["dorders"]  # per month: the driver and combo cost read it
     margin_before, margin_after = _margin(numbers)
     delta_profit = _band(total, "dprofit")
     orders_band = _band(total, "dorders")
@@ -473,6 +532,13 @@ def shape(
         orders_band = {"low": 0.0, "p50": 0.0, "high": 0.0}
         orders_note = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
     basis = basis_of(numbers)
+    if card["change_kind"] == "listing_hide" and basis["key"] != "insufficient":
+        basis = {  # P96: the loss is the listing's own last 30 days, not an estimate
+            "key": "product_history",
+            "label": BASIS_LABELS["product_history"],
+            "detail": "GMV và lợi nhuận 30 ngày qua của sản phẩm: mất khi ẩn sản phẩm.",
+            "volume_estimate": False,
+        }
     if items and all(i in ctx.reference_items for i in items if i):
         basis = {
             "key": "insufficient",
@@ -485,10 +551,12 @@ def shape(
     if basis["key"] == "insufficient":  # no volume could be predicted: null, not a flat 0
         null = {"low": None, "p50": None, "high": None}
         delta_gmv, orders_band, delta_profit = dict(null), dict(null), dict(null)
+    if cost_known and tr.card_kind == "variation_restructure" and delta_profit["p50"] is None:
+        delta_profit = set_profit_band(delta_gmv, tr.details.get("new_variations") or [])
     if not cost_known:
         delta_profit = {"low": None, "p50": None, "high": None}
         margin_before = margin_after = None
-    certain_profit = None if not cost_known else pm["certain"]["dprofit"]
+    certain_profit = None if not cost_known else (pm.get("period") or pm)["certain"]["dprofit"]
     return {
         "index": index,
         "kind": kind,
@@ -527,6 +595,21 @@ def shape(
     }
 
 
+def set_profit_band(
+    delta_gmv: Mapping[str, float | None], new_variations: Sequence[Mapping[str, Any]]
+) -> dict[str, float | None]:
+    """P96: a set's Δ profit from its own margin when the estimate card has none -- the extra GMV
+    is set revenue at the margin computed for the biggest new set (``translate._variation_set``)."""
+    known = [v for v in new_variations if v.get("margin_pct") is not None]
+    if not known:
+        return {"low": None, "p50": None, "high": None}
+    rate = max(known, key=lambda v: v.get("pack_count") or 1)["margin_pct"] / 100
+    return {
+        k: None if delta_gmv.get(k) is None else round(float(delta_gmv[k] or 0) * rate, 2)
+        for k in ("low", "p50", "high")
+    }
+
+
 def refused(index: int, kind: str, label: str, refusal: Mapping[str, str]) -> dict[str, Any]:
     return {
         "index": index,
@@ -538,4 +621,13 @@ def refused(index: int, kind: str, label: str, refusal: Mapping[str, str]) -> di
     }
 
 
-__all__ = ["BASIS_LABELS", "DRIVERS", "METRIC_LABELS", "basis_of", "refused", "shape"]
+__all__ = [
+    "BASIS_LABELS",
+    "DRIVERS",
+    "METRIC_LABELS",
+    "REASON_TEXT",
+    "basis_of",
+    "reason_text",
+    "refused",
+    "shape",
+]

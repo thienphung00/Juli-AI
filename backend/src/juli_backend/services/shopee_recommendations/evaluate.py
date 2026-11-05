@@ -18,7 +18,7 @@ import math
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics.fmt import num, pct, ratio
@@ -177,6 +177,47 @@ def voucher_rule_from(inputs: Mapping[str, Any]) -> VoucherRule:
     )
 
 
+def _voucher_lift_scale(
+    lines: Sequence[OrderLine], rule: VoucherRule, c: Any, expected_uses: Decimal
+) -> tuple[Decimal, Decimal | None, Decimal | None]:
+    """P96 (owner decision 2026-11-05): ``(lift_scale, discount per use, AOV of the qualifying
+    orders)``. The prior is for a voucher worth ``VOUCHER_REF_SHARE`` of the basket, reaching
+    every order: the lift scales with value / AOV (0-2x), with the share of orders that meet the
+    minimum spend (none = no gain), and with limit / expected uses when the limit binds."""
+    from juli_backend.services.shopee_recommendations.prediction import size_scale
+
+    by_order: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for ln in lines:
+        by_order[ln.order_id] += ln.order_value
+    qualifying = [v for v in by_order.values() if v >= rule.min_spend]
+    if not by_order or not qualifying:
+        return ZERO, None, None
+    qual_aov = sum(qualifying, ZERO) / Decimal(len(qualifying))
+    per_use = safe_div(c.voucher_cost_scenario, c.used_scenario) if c.used_scenario else None
+    if per_use is None:
+        per_use = rule.amount if rule.amount is not None else qual_aov * (rule.pct or ZERO)
+    size = size_scale(float(per_use / qual_aov), config.VOUCHER_REF_SHARE) if qual_aov else ONE
+    share = Decimal(len(qualifying)) / Decimal(len(by_order))
+    cap = ONE
+    if c.usage_limit is not None and expected_uses > 0:
+        cap = min(ONE, Decimal(c.usage_limit) / expected_uses)
+    return size * share * cap, per_use, qual_aov
+
+
+def _voucher_break_even_aov(
+    aov_now: Decimal | None, per_use: Decimal | None, contribution_rate: Decimal | None
+) -> dict[str, Any]:
+    if aov_now is None or per_use is None:
+        return {"aov_now": num(aov_now), "aov_needed": None, "reason": "no_qualifying_orders"}
+    if contribution_rate is None or contribution_rate <= 0:
+        return {"aov_now": num(aov_now), "aov_needed": None, "reason": "no_margin"}
+    return {
+        "aov_now": num(aov_now),
+        "aov_needed": num(aov_now + per_use / contribution_rate),
+        "reason": None,
+    }
+
+
 def eval_voucher(
     env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
 ) -> Evaluation:
@@ -209,10 +250,11 @@ def eval_voucher(
     aov = c.five_numbers.aov.vnd_after
     cpo = c.organic.contribution_per_order
     dchi = c.extra_cost / Decimal(days)
-    # The usage limit also bounds the orders the voucher can bring: no more uses than the limit.
     headroom = (
         None if c.usage_limit is None else max(Decimal(c.usage_limit) - c.used_scenario, ZERO)
     )
+    expected_uses = c.expected_qualifying_orders * c.usage_rate
+    lift_scale, per_use, qual_aov = _voucher_lift_scale(lines, rule, c, expected_uses)
     profit = ProfitModel(
         effect_days=days,
         base_gmv_per_day=_scope_gmv_per_day(env, items),
@@ -221,14 +263,13 @@ def eval_voucher(
         profit_per_gmv=safe_div(cpo, aov) if cpo is not None and aov else None,
         extra_cost_per_day=dchi,
         dchi_per_day=dchi,
-        max_extra_units=headroom,
         orders_basis_per_day=c.used_scenario / Decimal(days),
         orders_basis="voucher_use",
+        lift_scale=lift_scale,
     )
     binding, n_qualifying = (
         max_discount_binding(lines, rule) if rule.max_discount is not None else (0, 0)
     )
-    expected_uses = c.expected_qualifying_orders * c.usage_rate
     used_per_order_cost = safe_div(c.voucher_cost_scenario, c.used_scenario)
     voucher_detail = {
         "days": days,
@@ -296,6 +337,12 @@ def eval_voucher(
         "break_even_reason": c.break_even_reason,
         "extra_orders_label": "Đơn thêm cần để hoà vốn",
         "voucher_detail": voucher_detail,
+        "lift_scale": ratio(lift_scale, 4),
+        # P96: a voucher is a basket-size lever, so it pays back through a bigger basket on the
+        # orders that use it: AOV needed = AOV now + cost per use / contribution per đồng
+        "break_even_aov": _voucher_break_even_aov(
+            qual_aov, per_use, safe_div(cpo, aov) if cpo is not None and aov else None
+        ),
     }
     if wi.predicted is not None:
         certain["predicted_net"] = {
@@ -386,7 +433,21 @@ def new_price(env: RecoEnv, kind: str, sku: str, inputs: Mapping[str, Any]) -> D
         return round_down_to(listed * (ONE - D(inputs.get("discount_pct", 0)) / 100), Decimal(100))
     if current is None:
         return None
-    return round_down_to(current * D(inputs.get("new_price_pct", 100)) / 100, Decimal(100))
+    # P96: a percent change rounds to the nearest 100 đ (a typed price never rounds)
+    raw = current * D(inputs.get("new_price_pct", 100)) / 100
+    return (raw / 100).to_integral_value(rounding=ROUND_HALF_UP) * 100
+
+
+def price_factor(env: RecoEnv, sku: str, sku_in: Mapping[str, Any]) -> Decimal:
+    """P96: today's price x this = the new price. A typed final price gives the exact ratio (a
+    float percent turned 115.000 đ into 114.900 đ); a percent change gives its rounded price."""
+    current = env.current_price(sku)
+    if sku_in.get("final_price") is not None and current:
+        return D(sku_in["final_price"]) / current
+    new = new_price(env, "price", sku, sku_in)
+    if new is not None and current:
+        return new / current
+    return D(sku_in.get("new_price_pct", 100)) / 100
 
 
 def sku_inputs(
@@ -394,13 +455,7 @@ def sku_inputs(
 ) -> dict[str, Any]:
     """The inputs of one SKU: the product-wide ones, over-ridden by the variation's own row
     (P92 B-4: ``variations`` = [{sku, discount_pct | final_price | new_price_pct}])."""
-    out = {**inputs, **{k: v for k, v in (per_sku.get(sku) or {}).items() if k != "sku"}}
-    if kind == "price" and out.get("final_price") is not None:
-        current = env.current_price(sku)
-        if current:
-            out["new_price_pct"] = float(D(out["final_price"]) / current * 100)
-            out.pop("final_price")
-    return out
+    return {**inputs, **{k: v for k, v in (per_sku.get(sku) or {}).items() if k != "sku"}}
 
 
 def _sku_margin(
@@ -416,6 +471,19 @@ def _sku_margin(
     if revenue <= 0 or any(pb.contribution is None for pb in mine):
         return None
     return pct(pct_points(safe_div(sum((pb.contribution or ZERO for pb in mine), ZERO), revenue)))
+
+
+def _slot_share(inputs: Mapping[str, Any], orders_per_day: Decimal, slot_days: int) -> Decimal:
+    """P96: the part of ``slot_days`` days of orders a flash slot reaches -- its hours of a day,
+    capped at its units (orders/day x hours/24, at most ``units``)."""
+    if orders_per_day <= 0 or slot_days <= 0:
+        return ONE
+    hours = D(inputs.get("slot_hours") or slot_days * 24)
+    slot_orders = orders_per_day * hours / 24
+    units = _opt(inputs.get("units"))
+    if units is not None:
+        slot_orders = min(slot_orders, units)
+    return min(slot_orders / (orders_per_day * slot_days), ONE)
 
 
 def eval_price(
@@ -454,7 +522,7 @@ def eval_price(
                 predicted.low * share, predicted.high * share, predicted.source
             )
         if cand.kind == "price":  # each line keeps its own price level: x factor
-            factor = D(sku_in.get("new_price_pct", 100)) / 100
+            factor = price_factor(env, sku, sku_in)
             kw: dict[str, Any] = {"price_factor": factor}
         else:  # a discount to a price: lines already cheaper keep theirs
             kw = {"new_deal_price": new, "ceiling": True}
@@ -504,9 +572,16 @@ def eval_price(
     effect_days = (
         int(inputs.get("slot_days") or 1)
         if cand.kind in ("flash_sale", "program_registration")
-        else min(int(inputs["days"]), config.DAYS_PER_MONTH)
+        else min(int(inputs["days"]), config.MAX_EFFECT_DAYS)
         if inputs.get("days") and cand.kind == "product_discount"
         else config.DAYS_PER_MONTH
+    )
+    # P96: a flash slot sells for its hours only, and at most its units: the share of the slot
+    # days' orders it reaches scales the cost, the certain layer and the predicted gain alike
+    slot = (
+        _slot_share(inputs, Decimal(orders_item) / window, effect_days)
+        if cand.kind == "flash_sale"
+        else ONE
     )
     profit = ProfitModel(
         effect_days=effect_days,
@@ -514,19 +589,27 @@ def eval_price(
         base_orders_per_day=Decimal(orders_item) / window,
         aov=aov,
         profit_per_gmv=safe_div(pi, aov) if pi is not None and aov else None,
-        extra_cost_per_day=(-delta / window) if delta_known else ZERO,
-        certain_dgmv_per_day=(gmv_after - gmv_before) / window,
-        dchi_per_day=safe_div(
-            sum((pb.promo_discount for _, pb in after_pairs if pb.excluded_reason is None), ZERO)
-            - sum(
-                (pb.promo_discount for _, pb in before_pairs if pb.excluded_reason is None), ZERO
-            ),
-            window,
+        extra_cost_per_day=((-delta / window) if delta_known else ZERO) * slot,
+        certain_dgmv_per_day=(gmv_after - gmv_before) / window * slot,
+        dchi_per_day=(
+            safe_div(
+                sum(
+                    (pb.promo_discount for _, pb in after_pairs if pb.excluded_reason is None),
+                    ZERO,
+                )
+                - sum(
+                    (pb.promo_discount for _, pb in before_pairs if pb.excluded_reason is None),
+                    ZERO,
+                ),
+                window,
+            )
+            or ZERO
         )
-        or ZERO,
+        * slot,
         max_extra_units=_opt(inputs.get("units"))
         if cand.kind in ("flash_sale", "program_registration")
         else None,
+        lift_scale=slot,
     )
     skus_json = []
     for sku, r in results.items():
@@ -937,6 +1020,8 @@ def eval_bundle(
     aov = safe_div(gmv_item, Decimal(orders_item)) if orders_item else None
     contrib = D(biggest["bundle_profit"]) if biggest["bundle_profit"] is not None else None
     ppg = safe_div(contrib, D(biggest["bundle_net_revenue"])) if contrib is not None else None
+    from juli_backend.services.shopee_recommendations.prediction import size_scale
+
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
         base_gmv_per_day=_scope_gmv_per_day(env, [item]),
@@ -945,6 +1030,10 @@ def eval_bundle(
         profit_per_gmv=ppg,
         extra_cost_per_day=extra_cost / window,
         dchi_per_day=extra_cost / window,
+        # P96: a set priced deeper below the single unit earns more (prior = SET_REF_PCT off)
+        lift_scale=size_scale(float(max(tiers.values())), config.SET_REF_PCT)
+        if cand.kind == "variation_set"
+        else ONE,
     )
     pairs_before = profit_lines(lines, env.costs, schedule=schedule)
     sp = _scope_ad_spend(env, [item])
@@ -1028,6 +1117,10 @@ def eval_add_on(
     rows: list[dict[str, Any]] = []
     breaches: list[dict[str, Any]] = []
     cost_total, contrib_total, paid_total = ZERO, ZERO, ZERO
+    # P96: the gain is the add-ons the deal attaches to the main product's orders -- per add-on,
+    # the GMV if every main order took it (units per order capped by its limit) -- and the cost
+    # is the discount on every attach, today's and the predicted ones
+    attach_gmv_per_day, discount_per_day_if_all, off_sum = ZERO, ZERO, ZERO
     for spec_in in specs:
         addon = str(spec_in["item_id"])
         a_lines = env.lines_for([addon])
@@ -1083,7 +1176,19 @@ def eval_add_on(
             )
         both = main_orders & {ln.order_id for ln in a_lines if ln.product_id == addon}
         discount_each = ref.deal_price - price_after
-        cost_existing = discount_each * len(both)
+        limit = int(spec_in.get("limit") or 1)
+        units_in: dict[str, int] = defaultdict(int)
+        for ln in a_lines:
+            if ln.product_id == addon and ln.order_id in both:
+                units_in[ln.order_id] += ln.qty
+        units_existing = sum(min(units, limit) for units in units_in.values())
+        units_per_attach = (
+            Decimal(units_existing) / Decimal(len(both)) if both else Decimal(min(1, limit))
+        )
+        cost_existing = discount_each * units_existing
+        attach_gmv_per_day += Decimal(n_main) / window * price_after * units_per_attach
+        discount_per_day_if_all += Decimal(n_main) / window * discount_each * units_per_attach
+        off_sum += off
         c = pb.contribution
         extra_needed = None if not c or c <= 0 else math.ceil(cost_existing / c)
         rows.append(
@@ -1120,16 +1225,20 @@ def eval_add_on(
         if c is not None:
             contrib_total += c
         paid_total += paid
+    from juli_backend.services.shopee_recommendations.prediction import size_scale
+
     base_gmv = _scope_gmv_per_day(env, [main])
     aov = safe_div(base_gmv * window, Decimal(n_main)) if n_main else None
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
-        base_gmv_per_day=base_gmv,
+        base_gmv_per_day=attach_gmv_per_day,
         base_orders_per_day=Decimal(n_main) / window,
         aov=aov,
+        # the add-on's own margin at the add-on price: the extra GMV is add-on revenue
         profit_per_gmv=safe_div(contrib_total, paid_total) if paid_total > 0 else None,
         extra_cost_per_day=cost_total / window,
         dchi_per_day=cost_total / window,
+        lift_scale=size_scale(float(off_sum / len(specs)), config.ADDON_REF_PCT),
     )
     first = rows[0]
     certain = {
@@ -1150,6 +1259,8 @@ def eval_add_on(
         "main_orders": n_main,
         "aov_now": num(aov),
         "discount_cost_on_existing": num(cost_total),
+        # discount per đồng of add-on GMV: the cost of the predicted attaches
+        "discount_per_attach_gmv": ratio(safe_div(discount_per_day_if_all, attach_gmv_per_day), 6),
         "break_even_extra_orders": max(
             (
                 r["break_even_extra_attaches"]
@@ -1216,9 +1327,12 @@ def eval_gift(
     else:
         gift_sku = env.skus_of(str(gift))[0] if env.skus_of(str(gift)) else None
         cost = env.costs.get(gift_sku) if gift_sku else None
+        typed_packaging = _opt(gift_in.get("packaging"))  # P96: the packaging typed for this gift
         if cost is not None and cost.cogs is not None:
-            gift_cost = cost.cogs + (cost.packaging or ZERO)
-            packaging_known = cost.packaging is not None
+            gift_cost = cost.cogs + (
+                typed_packaging if typed_packaging is not None else (cost.packaging or ZERO)
+            )
+            packaging_known = typed_packaging is not None or cost.packaging is not None
         else:  # the seller's own giá vốn, when the gift has not sold lately
             from juli_backend.services.shopee_recommendations.unit_cost import (
                 gift_cost_of,
@@ -1254,6 +1368,16 @@ def eval_gift(
     window = Decimal(env.window_days)
     be = None if not cpo or cpo <= 0 else math.ceil(total_cost / cpo)
     gmv_per_order = safe_div(sum(by_order.values(), ZERO), Decimal(n_orders))
+    # P96: the prior is for a gift worth GIFT_REF_SHARE of the basket on every order -- the lift
+    # scales with gift cost / AOV (0-2x) and with the share of orders that qualify (none = none)
+    from juli_backend.services.shopee_recommendations.prediction import size_scale
+
+    size = (
+        size_scale(float(gift_cost / gmv_per_order), config.GIFT_REF_SHARE)
+        if gmv_per_order
+        else ONE
+    )
+    share = Decimal(len(qualifying)) / Decimal(n_orders) if n_orders else ZERO
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
         base_gmv_per_day=_scope_gmv_per_day(env, [main] if main else None),
@@ -1262,6 +1386,7 @@ def eval_gift(
         profit_per_gmv=safe_div(cpo, gmv_per_order) if cpo is not None and gmv_per_order else None,
         extra_cost_per_day=total_cost / window,
         dchi_per_day=total_cost / window,
+        lift_scale=size * share,
     )
     stock = env.stock(str(gift)) if typed is None and gift is not None else None
     units_used = len(qualifying) * qty
@@ -1439,15 +1564,23 @@ def eval_affiliate(
         if paid_after > 0
         else None
     )
+    from juli_backend.services.shopee_recommendations.prediction import size_scale
+
+    # P96: the prior is for a commission COMMISSION_REF_POINTS above today's (unknown today =
+    # from 0); samples sent to KOLs are a one-off cost over the month
+    change = new_rate * 100 - (cur if cur is not None else ZERO)
+    sample = D(inputs.get("sample_cost") or 0)
+    days = Decimal(config.DAYS_PER_MONTH)
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
         base_gmv_per_day=lien_ket_gmv / window,
         base_orders_per_day=Decimal(aff_orders) / window,
         aov=aov,
         profit_per_gmv=ppg,
-        extra_cost_per_day=(comm_after - comm_before) / window,
-        dchi_per_day=(comm_after - comm_before) / window,
+        extra_cost_per_day=(comm_after - comm_before) / window + sample / days,
+        dchi_per_day=(comm_after - comm_before) / window + sample / days,
         base_label="gmv_lien_ket",
+        lift_scale=size_scale(float(change), config.COMMISSION_REF_POINTS),
     )
     certain = {
         "kind": "affiliate",
@@ -1618,7 +1751,7 @@ def eval_listing(
         reason = lst.check_planned(kind, inputs, env.banned_terms)
         if reason:
             return _refuse(reason)
-        if spec(kind).target_metric == "none":
+        if spec(kind).target_metric == "none" and kind != "listing_hide":
             notes.append("Không ước tính: thay đổi này chưa có căn cứ để dự kiến lượt xem hay đơn.")
     before, after = _listing_before_after(kind, cand, inputs)
     gmv_day, base_label = listing_base(env, item, kind)
@@ -1627,6 +1760,12 @@ def eval_listing(
     n_orders = _scope_orders(env, [item])
     gmv_item = sum((ln.order_value for ln, _ in env.view.pairs if ln.product_id == item), ZERO)
     window = Decimal(env.window_days)
+    lost_gmv = lost_profit = ZERO
+    if kind == "listing_hide":
+        # P96 (owner decision): hiding a listing that sells loses its GMV and its profit -- a
+        # certain figure from its own orders, not a prediction
+        lost_gmv = gmv_item / window
+        lost_profit = (pp.contribution or ZERO) / window if pp is not None else ZERO
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
         base_gmv_per_day=gmv_day,
@@ -1634,8 +1773,10 @@ def eval_listing(
         aov=safe_div(gmv_item, Decimal(n_orders)) if n_orders else None,
         profit_per_gmv=ppg,
         base_label=base_label,
+        certain_dgmv_per_day=-lost_gmv,
+        extra_cost_per_day=lost_profit,
     )
-    if gmv_day <= 0:
+    if gmv_day <= 0 and kind != "listing_hide":
         notes.append("Chưa có lưu lượng theo nguồn của sản phẩm này: chưa dự kiến được.")
     return Evaluation(
         certain=certain,

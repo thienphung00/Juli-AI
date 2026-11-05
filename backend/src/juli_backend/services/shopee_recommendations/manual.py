@@ -85,6 +85,12 @@ _REFUSAL_TEXT = {
     "addon_price_invalid": "Giá mua kèm phải lớn hơn 0 và không cao hơn giá hiện tại.",
     "gift_qty_invalid": "Số lượng quà từ 1 đến 20.",
     "no_price": "Chưa có giá hiện tại của phân loại đã chọn để tính.",
+    # P96
+    "voucher_scope_no_data": "Chưa có dữ liệu đơn theo loại voucher này để ước tính.",
+    "voucher_value_over_min_spend": "Giá trị voucher phải nhỏ hơn đơn tối thiểu.",
+    "sku_no_orders": "Phân loại này chưa có đơn trong kỳ (có thể hết hàng) — chọn phân loại khác.",
+    "sku_duplicate": "SKU trùng với một phân loại đang có của sản phẩm.",
+    "listing_already_live": "Sản phẩm đang được bán và còn hàng, không cần đưa lại.",
 }
 
 

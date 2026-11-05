@@ -43,6 +43,23 @@ DEFAULT_PRIOR: tuple[float, float] = (0.02, 0.10)
 #: 1 % price cut (P10, P90): 0.5 % to 2 % more orders. A price rise uses the same range with
 #: the opposite sign.
 PRICE_ELASTICITY_PER_PCT: tuple[float, float] = (0.005, 0.02)
+#: P96 (owner decision 2026-11-05): the price response is concave beyond this size of change
+#: (each further percent counts half) and capped: at most +100 % for a cut, at least -90 % for a
+#: rise. A price rise never loses more than the scope's own GMV.
+PRICE_CONCAVE_FROM_PCT = 30.0
+PRICE_LIFT_MAX, PRICE_LIFT_MIN = 1.0, -0.9
+#: P96: a non-price lever's prior is for a change of its reference size; the lift scales with
+#: size / reference, clamped to 0 .. MAGNITUDE_SCALE_MAX. Voucher and gift: value per order /
+#: AOV against 5 %; add-on: % off against 10 %; set: % cheaper per unit against 10 %;
+#: affiliate: commission change against +5 points.
+MAGNITUDE_SCALE_MAX = 2.0
+VOUCHER_REF_SHARE = 0.05
+GIFT_REF_SHARE = 0.05
+ADDON_REF_PCT = 10.0
+SET_REF_PCT = 10.0
+COMMISSION_REF_POINTS = 5.0
+#: P96: a change runs its own days up to this many (cost and gain over the same days).
+MAX_EFFECT_DAYS = 90
 
 # -- coverage (ADR-121 d.4) -------------------------------------------------------------------
 COVERAGE_TARGET = 0.8  # a P10-P90 range should hold 80 % of results

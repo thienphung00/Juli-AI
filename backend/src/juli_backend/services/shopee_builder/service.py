@@ -27,7 +27,12 @@ from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
 from juli_backend.services.shopee_builder.reference import with_reference_lines
 from juli_backend.services.shopee_builder.translate import Translation, lst_fold, to_variant
-from juli_backend.services.shopee_builder.variations import economics, observed_skus, variation_rows
+from juli_backend.services.shopee_builder.variations import (
+    economics,
+    observed_skus,
+    variation_rows,
+    with_orders,
+)
 from juli_backend.services.shopee_recommendations import loader, manual
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.voucher_notes import same_result_notes
@@ -128,6 +133,7 @@ async def variation_rows_for(
             item_current_price=None if head is None else head.current_price,
             observed=seen_skus.get(item),
         )
+        rows[item] = with_orders(rows[item], (ln for ln, _ in env.view.pairs), item)
     return rows
 
 

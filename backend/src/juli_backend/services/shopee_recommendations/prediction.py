@@ -102,16 +102,40 @@ class Lift:
         }
 
 
+def _concave(magnitude_pct: float) -> float:
+    """P96: beyond ``PRICE_CONCAVE_FROM_PCT`` each further percent of price change counts half."""
+    knee = config.PRICE_CONCAVE_FROM_PCT
+    size = abs(magnitude_pct)
+    if size <= knee:
+        return magnitude_pct
+    return (knee + (size - knee) / 2) * (1 if magnitude_pct > 0 else -1)
+
+
+def _price_capped(lo: float, hi: float) -> tuple[float, float]:
+    """P96: a price response stays within ``PRICE_LIFT_MIN`` .. ``PRICE_LIFT_MAX``."""
+    cap_lo, cap_hi = config.PRICE_LIFT_MIN, config.PRICE_LIFT_MAX
+    return (min(max(lo, cap_lo), cap_hi), min(max(hi, cap_lo), cap_hi))
+
+
+def size_scale(size: float | None, reference: float) -> Decimal:
+    """P96: the lift a change of ``size`` earns against the prior's ``reference`` size, clamped to
+    0 .. ``MAGNITUDE_SCALE_MAX``. Unknown size = the prior as it is (1)."""
+    if size is None or reference <= 0:
+        return Decimal(1)
+    scaled = min(max(size / reference, 0.0), config.MAGNITUDE_SCALE_MAX)
+    return Decimal(str(round(scaled, 6)))
+
+
 def prior_range(spec: KindSpec, magnitude: float | None, bucket: str) -> tuple[float, float]:
     """(P10, P90) before calibration. ``magnitude`` = percent size of the change for scaled
     kinds: price cut percent (positive = cheaper) / budget change percent / ROAS target change
     percent."""
     lo, hi = spec.prior
     if spec.price_scaled:
-        m = 0.0 if magnitude is None else magnitude
+        m = _concave(0.0 if magnitude is None else magnitude)
         e_lo, e_hi = config.PRICE_ELASTICITY_PER_PCT
         a, b = e_lo * m, e_hi * m
-        return (min(a, b), max(a, b))
+        return _price_capped(min(a, b), max(a, b))
     if spec.key == "ads_budget":
         k = 0.0 if magnitude is None else magnitude / config.ADS_BUDGET_STEP_PCT
         a, b = lo * k, hi * k
@@ -180,12 +204,35 @@ def predict_lift(
     if scale != 1.0:
         mid, half = (lo + hi) / 2, (hi - lo) / 2 * scale
         lo, hi = mid - half, mid + half
+    if spec.price_scaled:  # P96: the shop's own response is held to the same limits
+        lo, hi = _price_capped(lo, hi)
     return Lift(spec.target_metric, lo, hi, factor, source, scale, bucket, sim_info)
 
 
 # ----------------------------------------------------------------------- money conversion
 
 ORDER_METRICS = ("views", "ctr", "ctor", "orders")
+
+
+def _predicted_dgmv(lift: Lift, pm: ProfitModel, q: str, days: Decimal) -> Decimal:
+    """Predicted ΔGMV over ``days`` at quantile ``q``: the lift scaled by the change's own size
+    (``lift_scale``), capped by the units a slot can sell, and never below losing the scope's
+    whole GMV (P96)."""
+    d_gmv = pm.base_gmv_per_day * days * Decimal(str(lift.at(q))) * pm.lift_scale
+    if pm.max_extra_units is not None and pm.aov:
+        d_gmv = min(d_gmv, pm.max_extra_units * pm.aov)
+    return max(d_gmv, -pm.base_gmv_per_day * days)
+
+
+def _ordered(block: dict[str, Any]) -> None:
+    """P96: each figure's P10 .. P90 run low to high. Profit falls as GMV rises when the extra
+    GMV loses money, so the profit quantiles are sorted on their own."""
+    for key in ("dgmv", "dorders", "dprofit"):
+        values = [block[q].get(key) for q in QUANTILES if q in block]
+        if len(values) != len(QUANTILES) or any(v is None for v in values):
+            continue
+        for q, v in zip(QUANTILES, sorted(values), strict=True):
+            block[q][key] = v
 
 
 def convert(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
@@ -207,10 +254,7 @@ def convert(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
         "total": {},
     }
     for q in QUANTILES:
-        lift_q = Decimal(str(lift.at(q)))
-        d_gmv = pm.base_gmv_per_day * days * lift_q
-        if pm.max_extra_units is not None and pm.aov:
-            d_gmv = min(d_gmv, pm.max_extra_units * pm.aov)
+        d_gmv = _predicted_dgmv(lift, pm, q, days)
         d_orders = d_gmv / pm.aov if pm.aov and lift.metric in ORDER_METRICS else None
         d_profit = d_gmv * pm.profit_per_gmv if pm.profit_per_gmv is not None else None
         out["predicted"][q] = {
@@ -223,6 +267,8 @@ def convert(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
             "dorders": None if d_orders is None else float(d_orders),
             "dprofit": None if d_profit is None else float(certain_profit + d_profit),
         }
+    _ordered(out["predicted"])
+    _ordered(out["total"])
     out.update(_units(lift, pm))
     return out
 
@@ -275,10 +321,7 @@ def _units(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
         "total": {},
     }
     for q in QUANTILES:
-        lift_q = Decimal(str(lift.at(q)))
-        d_gmv = pm.base_gmv_per_day * n * lift_q
-        if pm.max_extra_units is not None and pm.aov:
-            d_gmv = min(d_gmv, pm.max_extra_units * pm.aov)
+        d_gmv = _predicted_dgmv(lift, pm, q, n)
         d_orders = d_gmv / pm.aov if pm.aov and lift.metric in ORDER_METRICS else None
         d_profit = d_gmv * pm.profit_per_gmv if pm.profit_per_gmv is not None else None
         tot_gmv = certain_gmv + d_gmv
@@ -303,6 +346,8 @@ def _units(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
         aov["total"][q] = (
             None if after_orders <= 0 else float((pm.base_gmv_per_day * n + tot_gmv) / after_orders)
         )
+    for block in (period["total"], per_day["total"]):
+        _ordered(block)
     return {
         "period": period,
         "per_day": per_day,
@@ -318,10 +363,8 @@ def extra_orders_range(lift: Lift, pm: ProfitModel) -> tuple[Decimal, Decimal] |
     if not pm.aov:
         return None
     days = Decimal(pm.effect_days)
-    lo = pm.base_gmv_per_day * days * Decimal(str(lift.at("p10"))) / pm.aov
-    hi = pm.base_gmv_per_day * days * Decimal(str(lift.at("p90"))) / pm.aov
-    if pm.max_extra_units is not None:
-        lo, hi = min(lo, pm.max_extra_units), min(hi, pm.max_extra_units)
+    lo = _predicted_dgmv(lift, pm, "p10", days) / pm.aov
+    hi = _predicted_dgmv(lift, pm, "p90", days) / pm.aov
     return (min(lo, hi), max(lo, hi))
 
 

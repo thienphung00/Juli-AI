@@ -66,7 +66,7 @@ REFUSALS: dict[str, str] = {
     "combo_no_offer": "Combo chưa có ưu đãi nào (giảm giá, voucher hoặc quà).",
     "combo_voucher_invalid": "Voucher kèm theo không hợp lệ.",
     "item_no_data": "Sản phẩm chưa có đơn trong kỳ phân tích nên chưa tính được.",
-    "sku_unknown": "SKU không thuộc sản phẩm đã chọn hoặc phân loại này chưa có đơn để tính.",
+    "sku_unknown": "SKU không thuộc sản phẩm đã chọn.",
     "cost_or_fee_unknown": "Thiếu giá vốn, đóng gói hoặc công thức phí của một món trong combo.",
     "gift_cost_unknown": "Chưa biết giá vốn của quà tặng nên chưa tính được.",
 }

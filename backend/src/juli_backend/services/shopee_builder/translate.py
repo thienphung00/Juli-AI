@@ -32,6 +32,8 @@ class Translation:
     details: dict[str, Any] = field(default_factory=dict)
     #: items the cost-known check covers
     items: list[str] = field(default_factory=list)
+    #: P96: typed warnings ({type, code, message}) beside the free-text notes
+    warnings: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _label(spec: sp.VersionSpec, fallback: str) -> str:
@@ -77,6 +79,16 @@ def _variation_inputs(
     return out
 
 
+def _sold_sku(ctx: BuilderContext, item_id: str, variation_id: str) -> str | None:
+    """The cost key of a variation the seller named, refused when it is the product's own variation
+    but has no order in the window (P96: out of stock, say) -- the evaluators price a variation
+    from its newest order line, so it could only be called "unknown" later."""
+    key = ctx.sku_key(item_id, variation_id)
+    if key is not None and variation_id and key not in ctx.env.skus_of(item_id):
+        raise SpecRefused(f"sku_no_orders:{key}")
+    return key
+
+
 def _core_keywords(ctx: BuilderContext, item_id: str) -> list[str]:
     li = ctx.env.listings.get(item_id)
     return [k.keyword for k in li.core()] if li is not None else []
@@ -85,6 +97,12 @@ def _core_keywords(ctx: BuilderContext, item_id: str) -> list[str]:
 def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
     env = ctx.env
     if isinstance(spec, sp.VoucherSpec):
+        if spec.scope in ("follower", "livestream"):
+            # P96 (owner decision 2026-11-05): the order history does not record which orders
+            # used a follower / livestream voucher, so its reach cannot be estimated
+            raise SpecRefused("voucher_scope_no_data")
+        if spec.discount_type == "amount" and spec.min_spend > 0 and spec.value >= spec.min_spend:
+            raise SpecRefused("voucher_value_over_min_spend")
         days = spec.days or config.VOUCHER_DAYS
         inputs = _voucher_inputs(spec.discount_type, spec.value, spec.min_spend, spec.max_value)
         if spec.usage_limit is not None:
@@ -92,12 +110,7 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
         if spec.per_buyer_limit is not None:
             inputs["per_user_limit"] = spec.per_buyer_limit
         inputs["days"] = days
-        notes = []
-        if spec.scope in ("follower", "livestream"):
-            notes.append(
-                "Lịch sử đơn không ghi đơn nào dùng voucher theo dõi / livestream, nên số đơn đủ "
-                "điều kiện tính trên mọi đơn của shop: đây là mức tối đa, không phải mức dự kiến."
-            )
+        notes: list[str] = []
         return Translation(
             {
                 "label": _label(spec, "Voucher"),
@@ -115,7 +128,7 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
         lines = []
         for line in spec.items:
             entry: dict[str, Any] = {"item_id": line.item_id, "qty": line.qty}
-            key = ctx.sku_key(line.item_id, line.variation_id)
+            key = _sold_sku(ctx, line.item_id, line.variation_id)
             if key is not None:
                 entry["sku"] = key
             lines.append(entry)
@@ -149,7 +162,7 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
         addons = []
         for a in spec.addons:
             row: dict[str, Any] = {"item_id": a.item_id, "limit": a.limit_per_order}
-            key = ctx.sku_key(a.item_id, a.variation_id)
+            key = _sold_sku(ctx, a.item_id, a.variation_id)
             if key is not None:
                 row["sku"] = key
             if a.price is not None:
@@ -176,8 +189,8 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
         else:
             gift["unit_cost"] = spec.gift.unit_cost
             gift["label"] = spec.gift.label or "Quà không bán"
-            if spec.gift.packaging:
-                gift["packaging"] = spec.gift.packaging
+        if spec.gift.packaging is not None:  # P96: typed packaging counts for a listing gift too
+            gift["packaging"] = spec.gift.packaging
         trigger = spec.trigger.model_dump(exclude_none=True)
         items = (
             [spec.trigger.item_id]
@@ -294,14 +307,17 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
     if isinstance(spec, sp.AffiliateSpec):
         kind = "affiliate_target_campaign" if spec.target_campaign else "affiliate_commission"
         details: dict[str, Any] = {}
+        aff_inputs: dict[str, Any] = {"commission_pct": spec.commission_pct}
         if spec.sample_qty:
             details["sample"] = _sample_cost(ctx, spec)
+            if details["sample"]["total"] is not None:  # P96: samples come out of the profit
+                aff_inputs["sample_cost"] = details["sample"]["total"]
         return Translation(
             {
                 "label": _label(spec, "Liên kết"),
                 "change_kind": kind,
                 "items": [spec.item_id],
-                "inputs": {"commission_pct": spec.commission_pct},
+                "inputs": aff_inputs,
             },
             kind,
             items=[spec.item_id],
@@ -319,6 +335,10 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
             items=[spec.item_id],
         )
     if isinstance(spec, sp.RelistSpec):
+        stock = env.stock(spec.item_id)
+        if spec.item_id in env.view.active_items and (stock is None or stock > 0):
+            # P96: "Đưa lại listing" is for a hidden or sold-out listing
+            raise SpecRefused("listing_already_live")
         inputs = {} if spec.stock is None else {"stock": spec.stock}
         return Translation(
             {
@@ -380,7 +400,11 @@ def _variation_set(spec: sp.VariationSetSpec, ctx: BuilderContext) -> Translatio
     )
     single_cost = None if base_cost.cogs is None else base_cost.cogs / max(base_cost.pack_count, 1)
     schedule = ctx.env.schedule(spec.item_id)
+    taken = {str(v) for r in rows for v in (r.get("sku"), r.get("sku_key")) if v}
+    warnings: list[dict[str, Any]] = []
     for nv in spec.new_variations:
+        if nv.sku and nv.sku.strip() in taken:  # P96: a new variation needs its own SKU
+            raise SpecRefused("sku_duplicate")
         pack = nv.pack_count or pack_count_from_name(nv.name) or 1
         new_rows.append({"name": nv.name, "price": nv.price, "sku": nv.sku, "stock": nv.stock})
         per_unit = nv.price / pack
@@ -415,6 +439,14 @@ def _variation_set(spec: sp.VariationSetSpec, ctx: BuilderContext) -> Translatio
                 "margin_label": None if margin is not None else "chưa tính",
             }
         )
+        if unit_price and pack > 1 and per_unit >= unit_price:
+            warnings.append(
+                {
+                    "type": "note",
+                    "code": "set_dearer_than_single",
+                    "message": f"{nv.name}: giá mỗi đơn vị không rẻ hơn mua lẻ.",
+                }
+            )
         if unit_price and pack > 1 and (best is None or pack > best[0]):
             best = (pack, max(0.0, (1 - per_unit / unit_price) * 100))
     variant = {
@@ -452,6 +484,7 @@ def _variation_set(spec: sp.VariationSetSpec, ctx: BuilderContext) -> Translatio
         notes=notes,
         items=[spec.item_id],
         details={"new_variations": details},
+        warnings=warnings,
     )
 
 

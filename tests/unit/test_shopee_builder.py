@@ -398,9 +398,10 @@ async def test_the_basis_label_is_product_history_then_shop_then_prior_then_insu
     lift = own["driver"]["relative_lift"]
     assert round(lift["p10"], 3) == 0.222 and round(lift["p90"], 3) == 0.444
     assert own["delta"]["orders"]["low"] < own["delta"]["orders"]["high"]
+    # P96: hiding a selling listing loses its own last 30 days (product history, not "insufficient")
     hide, _ = builder.evaluate_version(ctx, S(kind="listing_hide", item_id="1003"), 1, NOW)
-    assert hide["basis"]["key"] == "insufficient" and hide["basis"]["label"] == "không đủ dữ liệu"
-    assert hide["delta"]["gmv"] == {"low": None, "p50": None, "high": None}
+    assert hide["basis"]["key"] == "product_history"
+    assert hide["delta"]["gmv"]["p50"] < 0
 
 
 # ==================== the picker
@@ -469,10 +470,8 @@ async def test_two_vouchers_compare_side_by_side_with_typed_numbers(session, sho
     assert db["voucher_cost_scenario"] == 2 * da["voucher_cost_scenario"]
     assert b["cost"]["amount"] == 2 * a["cost"]["amount"] and a["cost"]["period_days"] == 14
     assert b["delta"]["profit"]["p50"] is not None and b["margin_after_pct"] is not None
-    be = a["break_even"]
-    assert be["extra_orders"] >= 1 and be["ctor_needed"] > be["ctor_now"]
-    expected = (be["orders_base"] + be["extra_orders"]) / be["clicks_base"] * 100
-    assert be["ctor_needed"] == pytest.approx(expected, abs=0.05)  # orders / clicks are rounded
+    be = a["break_even"]  # P96: a voucher pays back through the basket (AOV), not extra orders
+    assert be["basis"] == "aov" and be["aov_needed"] > be["aov_now"]
     # the table puts them side by side: cost, deltas, margin, then each driver metric
     keys = [r["key"] for r in out["table"]["rows"]]
     assert keys[:5] == ["cost", "delta_gmv", "delta_orders", "delta_profit", "margin_after"]
@@ -511,12 +510,11 @@ async def test_a_voucher_from_zero_a_percent_cap_limits_and_the_four_kinds(sessi
         min_spend=0,
     )
     assert product["details"]["total_orders"] < zero["details"]["total_orders"]
-    for scope in ("follower", "livestream"):
+    for scope in ("follower", "livestream"):  # P96: refused until orders record the voucher type
         v = await one(
             session, shop, kind="voucher", scope=scope, discount_type="amount", value=5000
         )
-        assert v["ok"] and v["details"]["voucher_scope"] == scope
-        assert any("tối đa" in w["message"] for w in v["warnings"] if w["type"] == "note")
+        assert v["ok"] is False and v["refusal"]["code"] == "voucher_scope_no_data"
 
 
 async def test_a_voucher_period_follows_the_dates(session, shop):
@@ -622,7 +620,8 @@ async def test_an_add_on_deal_prices_each_add_on_and_the_attach_rate_that_pays_i
     assert first["attach_rate_break_even"] > first["attach_rate_now"] > 0
     assert v["driver"]["target_metric"] == "aov"
     assert v["break_even"]["attach"][0]["extra_attaches"] == need
-    assert v["cost"]["amount"] == first["discount_cost_on_existing"]
+    # P96: the cost covers today's attaches and the ones the deal is expected to bring
+    assert v["cost"]["amount"] >= first["discount_cost_on_existing"]
     low = await one(
         session,
         shop,
@@ -867,7 +866,8 @@ async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
     assert [m["key"] for m in display["driver"]["metrics"]] == ["ctr", "ctor"]
     hide = await one(session, shop, kind="listing_hide", item_id="1003")
     relist = await one(session, shop, kind="listing_relist", item_id="1003", stock=40)
-    assert hide["basis"]["key"] == relist["basis"]["key"] == "insufficient"
+    assert hide["basis"]["key"] == "product_history"  # P96: the listing's own lost GMV
+    assert relist["refusal"]["code"] == "listing_already_live"  # P96: 1003 is live, in stock
     assert hide["driver"]["metrics"][0]["key"] == "views"
     banned = await one(
         session,

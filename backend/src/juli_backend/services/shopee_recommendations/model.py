@@ -76,6 +76,10 @@ class ProfitModel:
     #: None = the scope's orders per day. ``orders_basis`` names it for the label.
     orders_basis_per_day: Decimal | None = None
     orders_basis: str = "order"  # "order" | "voucher_use"
+    #: P96: how much of the kind's prior lift this change earns -- its size against the kind's
+    #: reference size (0..2), the share of the scope it reaches (qualifying orders) and the share
+    #: a usage cap leaves (limit / expected uses). 1 = the prior as it is.
+    lift_scale: Decimal = Decimal(1)
 
 
 @dataclass

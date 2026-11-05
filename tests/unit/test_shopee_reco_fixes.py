@@ -81,12 +81,17 @@ async def test_quantity_changes_the_outcome_once_it_binds(shop):
     assert same_result_notes(tight, loose) == []
 
 
-async def test_a_binding_limit_also_caps_the_extra_orders_the_voucher_can_bring(shop):
+async def test_a_binding_limit_scales_the_extra_orders_the_voucher_can_bring(shop):
+    # P96 (owner decision 2026-11-05): a binding limit scales the gain by limit / expected uses;
+    # it no longer zeroes it (5 uses of an expected 5,6 used to show +0 đ)
     _, env = shop
-    tight = voucher(env, quantity=1)
+    tight, free = voucher(env, quantity=1), voucher(env, quantity=10_000)
     assert tight["certain"]["voucher_detail"]["usage"]["headroom"] == 0
-    p50 = tight["predicted"]["money_per_month"]["predicted"]["p50"]
-    assert p50["dgmv"] == 0  # no use left for an extra order
+    p50 = tight["predicted"]["money_per_month"]["predicted"]["p50"]["dgmv"]
+    p50_free = free["predicted"]["money_per_month"]["predicted"]["p50"]["dgmv"]
+    expected = free["certain"]["voucher_detail"]["usage"]["expected_uses"]
+    assert 0 < p50 < p50_free
+    assert p50 == pytest.approx(p50_free / expected, rel=0.05)
 
 
 async def test_days_change_the_period_totals_not_the_per_day_flows(shop):

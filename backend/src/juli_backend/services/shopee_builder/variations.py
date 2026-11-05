@@ -184,6 +184,28 @@ def variation_rows(
     return rows
 
 
+def with_orders(
+    rows: Sequence[dict[str, Any]], lines: Iterable[Any], item_id: str
+) -> list[dict[str, Any]]:
+    """P96: each row's ``orders_30d`` (orders in the window holding its SKU; a listing with one row
+    counts every order of the item) and the rows ordered best seller first, then in stock, then
+    unknown stock, sold out last -- so the builder's default is a variation that sells."""
+    mine = [ln for ln in lines if ln.product_id == item_id]
+    single = len(rows) == 1
+    out = []
+    for row in rows:
+        key = row.get("sku_key")
+        orders = {ln.order_id for ln in mine if single or (key and ln.sku == key)}
+        out.append({**row, "orders_30d": len(orders)})
+
+    def stock_rank(row: Mapping[str, Any]) -> int:
+        stock = row.get("stock")
+        return 1 if stock is None else (0 if stock > 0 else 2)
+
+    out.sort(key=lambda r: (-r["orders_30d"], stock_rank(r)))
+    return out
+
+
 def _observed_for(
     observed: Mapping[str, str] | None,
     variation_id: str,
@@ -227,4 +249,5 @@ __all__ = [
     "observed_skus",
     "unit_margin",
     "variation_rows",
+    "with_orders",
 ]
