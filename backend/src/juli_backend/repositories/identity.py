@@ -12,14 +12,15 @@ import builtins
 import logging
 import uuid
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import case, or_, select, text, update
+from sqlalchemy import and_, case, exists, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import with_user_scope
-from juli_backend.models.models import Shop, User
+from juli_backend.models.models import Shop, ShopMember, User
 from juli_backend.repositories._base import SessionRepo, utc_now_naive
 
 logger = logging.getLogger(__name__)
@@ -306,9 +307,22 @@ class UsersRepo(SessionRepo):
         )
 
 
+def shops_of_user_clause(user_id: uuid.UUID) -> Any:
+    """``WHERE`` clause on ``Shop``: the shops ``user_id`` may act on."""
+    own_row = exists().where(ShopMember.shop_id == Shop.id, ShopMember.user_id == user_id)
+    active = exists().where(
+        ShopMember.shop_id == Shop.id,
+        ShopMember.user_id == user_id,
+        ShopMember.removed_at.is_(None),
+    )
+    return or_(active, and_(Shop.user_id == user_id, ~own_row))
+
+
 class ShopsRepo(SessionRepo):
     async def list(self, user_id: uuid.UUID) -> list[Shop]:
-        return await self._all(select(Shop).where(Shop.user_id == user_id))
+        # P93: the shops the user may act on -- an active member, or the owner who has no
+        # ``shop_members`` row yet (``services/shop_team.py`` says the rule once).
+        return await self._all(select(Shop).where(shops_of_user_clause(user_id)))
 
     async def list_for_authorization(
         self, user_id: uuid.UUID, *, scope_replaced_after: bool = False

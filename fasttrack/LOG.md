@@ -3750,3 +3750,24 @@ reconcile --write` re-derived the no-assert corpus figure.
   worktree (update-grant test, still exactly the 23 older tables; agent registry sanitizer); mypy 990 files clean; bandit -ll 0 medium/high; demo eslint 0
   errors, tsc clean, vitest 1891 passed (186 files), next build OK, Playwright e2e/shopee 66 passed (desktop + mobile); connector 241 passed, tsc, build 0.3.5.
 - Next (owner): deploy per contracts/p92-deploy-checklist.md; Connector 0.3.5 reload and the first-capture check before `CONNECTOR_MARKET_SEARCH=1`.
+
+## 2026-11-05 — P93 shop team built (branch fasttrack/p92-builder)
+
+- Access model: **membership**, with `shops.user_id` kept as the shop's primary contact (Ops, workers and contract-shop code scope by it). A person may act on a
+  shop iff they hold an ACTIVE `shop_members` row, or are `shops.user_id` and have NO row of their own ("owner without a row"). A removed member keeps a row with
+  `removed_at`, so the fallback never re-admits them. Chosen over "membership only" because it needs no data step at deploy (the additive gate refuses an INSERT),
+  keeps every path that creates a shop working, and makes the deferred backfill optional for safety; chosen over "user_id plus members" because that cannot revoke
+  the primary account. The same rule is in SQL (the `shops` SELECT / UPDATE policies, so a removed member reads zero rows at the database) and in
+  `services/shop_team.shops_of_user_clause` (used by `ShopsRepo.list` -> `get_active_shop`, `/v1/shops`, the write-approval click check).
+- Team accounts (`@app-juli.com`) and login-less contract-shop owners are not seller members: the trigger and backfill skip them and the first invite hands the
+  shop over (as P9-B), releasing the team account's row. Later invites only add.
+- Ops responses shorten seller e-mails by design (masking), so the member list shows the first characters only; "Gỡ" goes by user id. Last-seen is not shown
+  (no such field exists). Attribution needed no code: every seller route already records `user.id`.
+- Merged fasttrack/invite-fix (f812bc5e) in: its `is_team_owned` stays for `owned_by_team`; the invite form no longer depends on the owner e-mail.
+- Pins updated with reasons: the ten deferred-tail pins and the heads pin (121), ownership registry (+`shop_members`), surface inventory (+2 Ops routes), the
+  deferred-directory list (+102, chained above 074), isolation-proof helper (user-keyed `non_tenant` tables with a `shop_id` are not tenant data), a test conftest
+  entry, the P16 handover integration test (shop owned by a team account).
+- Gate (throwaway local UTC Postgres 16, node 20): migrations empty -> head (121), head -> 120 -> head, additive gate from 120 accepted; ruff clean, mypy 993 files
+  clean, bandit -ll 0 medium/high; unit suite sharded: all pass except timeouts under load that pass with `--timeout=600` (status_record, ratchets,
+  environment/run-metrics providers); integration: shop team 6 passed, ops console, privacy, two-tenant proof 12, migrations pass except the known 23-table
+  UPDATE-grant test; demo eslint 0, tsc clean, vitest ops + accept-invite pass.

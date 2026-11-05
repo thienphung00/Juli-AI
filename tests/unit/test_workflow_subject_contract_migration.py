@@ -194,6 +194,7 @@ def test_alembic_head_descends_from_the_contract_step():
 EXPECTED_DEFERRED_FILES = {
     "074_users_placeholder_phone_cleanup.py",
     "101_write_mode_backfill.py",  # P61-F: the write_mode data step, chained under 074
+    "102_shop_members_backfill.py",  # P93: member rows for existing shops, chained above 074
 }
 
 

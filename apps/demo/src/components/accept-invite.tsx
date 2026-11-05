@@ -7,7 +7,7 @@ import { INVITE_ERROR_COPY, InviteError, acceptInvite, previewInvite, type Invit
 import { storeActiveShop } from "../lib/shop-session";
 import { readAuthSession } from "../lib/supabase-auth";
 
-/** /nhan-shop?token=… — the seller takes the shop the Juli team connected (D25.7). */
+/** /nhan-shop#token — the invited person joins the shop team (D25.7, P93). */
 export function AcceptInvite({ inviteToken, fetchImpl }: { readonly inviteToken: string | null; readonly fetchImpl?: typeof fetch }) {
   const [token, setToken] = useState<string | null | undefined>(undefined);
   const [preview, setPreview] = useState<InvitePreview | null>(null);
@@ -34,13 +34,13 @@ export function AcceptInvite({ inviteToken, fetchImpl }: { readonly inviteToken:
       storeActiveShop({ id: result.shop_id, name: preview.shop_name });
       setDone(true);
     } catch (e) {
-      setError(INVITE_ERROR_COPY[e instanceof InviteError ? e.message : ""] ?? "Không nhận được shop.");
+      setError(INVITE_ERROR_COPY[e instanceof InviteError ? e.message : ""] ?? "Không tham gia được shop.");
     }
   };
 
   return (
     <section aria-labelledby="invite-title" className="connect-shop">
-      <h1 id="invite-title">Nhận shop</h1>
+      <h1 id="invite-title">Tham gia shop</h1>
       {!inviteToken ? <p role="alert">Liên kết thiếu mã mời.</p> : null}
       {token === null ? (
         <p>
@@ -51,7 +51,7 @@ export function AcceptInvite({ inviteToken, fetchImpl }: { readonly inviteToken:
       {preview && !done ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 520 }}>
           <p>
-            Đội ngũ Juli đã kết nối shop <b>{preview.shop_name}</b>. Nhận shop về tài khoản của bạn: thẻ, lượt chạy, Quy tắc và lịch sử được giữ nguyên.
+            Bạn được mời tham gia đội ngũ của shop <b>{preview.shop_name}</b>. Mọi thành viên có quyền như nhau và dùng chung dữ liệu của shop; thao tác của bạn được ghi theo email của bạn. Thẻ, lượt chạy, Quy tắc và lịch sử được giữ nguyên.
           </p>
           {preview.keep_ops_access_asked ? (
             <label style={{ display: "flex", gap: 8 }}>
@@ -60,13 +60,13 @@ export function AcceptInvite({ inviteToken, fetchImpl }: { readonly inviteToken:
             </label>
           ) : null}
           <button className="juli-btn juli-btn--primary juli-btn--default" onClick={() => void accept()} type="button">
-            Nhận shop
+            Tham gia shop
           </button>
         </div>
       ) : null}
       {done ? (
         <p role="status">
-          Shop đã về tài khoản của bạn. <Link href="/decisions">Mở Quyết định</Link>
+          Bạn đã tham gia đội ngũ của shop. <Link href="/decisions">Mở Quyết định</Link>
         </p>
       ) : null}
     </section>

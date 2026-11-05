@@ -5,9 +5,9 @@ under the pinned shop's owner GUC, so the database cannot tell the reviewer from
 
 **Who may click (:func:`approver_kind`).** Approving a card (``approve_action_card``) and
 approving the exact change at the CONFIRM pause (``agent_runs.decide_confirmation``) are
-refused unless the user belongs to the shop. Shop membership in this codebase is
-``shops.user_id`` -- one owner per shop, no member table -- so "belongs" means "is the
-owner". The one exception is D73: the partner reviewer, on a reviewer request, may approve
+refused unless the user belongs to the shop. Since P93 (migration 121) shop membership is
+``shop_members`` (``services/shop_team.py``): any active member may click, all with the same role.
+The one exception is D73: the partner reviewer, on a reviewer request, may approve
 its pinned shop while that pin is Juli's writable TikTok **sandbox** shop (an active
 reviewer account, this shop among ``REVIEWER_SHOP_ID(S)``, ``classify_pin`` = sandbox with writes
 on). Ops / staff sessions never reach these routes (``/v1/ops`` is separate) and, owning
@@ -51,7 +51,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import ActionCardApproval, Shop
+from juli_backend.models.models import ActionCardApproval
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.services.agent.runner.write_capture import FIELDS_BY_OPERATION, field_values
 
@@ -118,12 +118,11 @@ def _block_sha256(block: Mapping[str, Any]) -> str:
 # -- who may click ---------------------------------------------------------------------------
 
 
-async def is_shop_owner(session: AsyncSession, shop_id: uuid.UUID, user_id: uuid.UUID) -> bool:
-    """Whether ``user_id`` owns ``shop_id`` (``shops.user_id``: the shop's only member)."""
-    owner = (
-        await session.execute(select(Shop.user_id).where(Shop.id == shop_id))
-    ).scalar_one_or_none()
-    return owner is not None and owner == user_id
+async def is_shop_member(session: AsyncSession, shop_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    """Whether ``user_id`` belongs to ``shop_id``'s team (P93: every member may click)."""
+    from juli_backend.services.shop_team import is_member
+
+    return await is_member(session, shop_id, user_id)
 
 
 async def _is_pinned_sandbox_reviewer(
@@ -152,7 +151,7 @@ async def _is_pinned_sandbox_reviewer(
 async def approver_kind(session: AsyncSession, *, shop_id: uuid.UUID, user_id: uuid.UUID) -> str:
     """:data:`APPROVER_SHOP_OWNER` / :data:`APPROVER_SANDBOX_REVIEWER`, else raise
     :class:`ApproverNotShopMember`."""
-    if await is_shop_owner(session, shop_id, user_id):
+    if await is_shop_member(session, shop_id, user_id):
         return APPROVER_SHOP_OWNER
     if await _is_pinned_sandbox_reviewer(session, shop_id, user_id):
         return APPROVER_SANDBOX_REVIEWER
@@ -337,7 +336,7 @@ async def verify_write_approval(
     decided_by = _uuid_or_none(block.get("decided_by_user_id"))
     approvers = [decided_by] + ([card_approval.approved_by_user_id] if card_approval else [])
     for approver in approvers:
-        if approver is None or not await is_shop_owner(session, shop_id, approver):
+        if approver is None or not await is_shop_member(session, shop_id, approver):
             raise WriteApprovalRefused(PreconditionName.APPROVER_NOT_SHOP_MEMBER.value)
 
     clicks = [_datetime_or_none(block.get("decided_at"))] + (
@@ -388,7 +387,7 @@ __all__ = [
     "canonical_sha256",
     "card_snapshot_sha256",
     "freeze_approved_change",
-    "is_shop_owner",
+    "is_shop_member",
     "latest_card_approval",
     "return_card_to_pending",
     "verify_write_approval",

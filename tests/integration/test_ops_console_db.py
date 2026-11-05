@@ -370,6 +370,15 @@ async def test_handover_moves_the_shop_through_the_definer_function(owner_engine
             text("UPDATE public.users SET email = 'seller.p16@gmail.com' WHERE id = :u"),
             {"u": seller.user_id},
         )
+        # P93: a shop the team connected is owned by a team account, which is no seller member
+        # (the handover then happens for the first invited person).
+        conn.execute(
+            text("UPDATE public.users SET email = 'ops.p16@app-juli.com' WHERE id = :u"),
+            {"u": shop_tenant.user_id},
+        )
+        conn.execute(
+            text("DELETE FROM public.shop_members WHERE shop_id = :s"), {"s": shop_tenant.shop_id}
+        )
 
     class Quiet:
         async def send_invite(self, mail):

@@ -96,13 +96,33 @@ None new. The market reader is driven by the Connector's own alarm (weekly per k
 - `.gitleaks.toml` gained a line-level allowlist for the false positive `campaign_key=key,` in `tests/unit/test_shopee_builder.py`.
 - Nothing writes to Seller Centre. Every change is applied by a person who presses the platform's own save.
 
+## 8. P93 shop team (same branch, adds migration 121)
+
+Several seller people on one shop; only Ops (Vận hành+) invites and removes (contract `p93-shop-team.md`). This section is for the
+deploy that carries P93; P92 alone still needs no migration.
+
+1. **Migration 121_shop_members** (additive; head becomes `121_shop_members`): table `shop_members` (RLS; `juli_app` SELECT of its own rows, `juli_ops`
+   SELECT/INSERT/UPDATE), two replaced `shops` policies (SELECT / UPDATE admit an active member, or the owner who has no member row of their own), and an AFTER
+   INSERT trigger that gives a new seller owner a member row. No row is moved, so the additive gate accepts it. Rollback: `alembic downgrade -1` drops the
+   table, trigger and restores the owner-only policies (member rows are lost; shops untouched).
+2. **Backfill (separately operated, deferred)**: `deferred/102_shop_members_backfill.py` (an INSERT, so the additive gate refuses it from the release). Until it
+   runs nothing is lost: an owner with no row keeps access and Ops lists them as a member. Run it with the same procedure as the 101 deferred step; it is
+   idempotent. Check after: `SELECT count(*) FROM shops s JOIN users u ON u.id = s.user_id WHERE (u.email IS NOT NULL OR u.phone IS NOT NULL) AND u.email NOT ILIKE
+   '%@app-juli.com' AND NOT EXISTS (SELECT 1 FROM shop_members m WHERE m.shop_id = s.id AND m.user_id = u.id)` returns 0.
+3. **Smoke (ORY)**: in Ops, ORY > Cài đặt shop > "Thành viên shop": invite two e-mails (two separate links). Each person opens `/nhan-shop`, signs in with
+   their own e-mail and joins; both see ORY and act under their own name. The first accept on a shop with no seller member also takes the shop (as before). Then
+   "Gỡ" one of them (in-page confirmation): that person's next request gets 403 and the shop disappears from their list; the other keeps working. Check the audit
+   rows `member_add` / `member_remove`.
+4. Known limit: deleting the account of the shop's primary account (`shops.user_id`) still purges the whole shop (the existing P50-B purge); other members do not
+   keep it. Ask Ops to hand the shop over first. Last-seen time is not shown (no such field exists yet).
+
 ---
 
 # Release 2026-11-05b (branch `fasttrack/release-1105`)
 
 Second release of the day, on top of what 196f955e ships (invite fix, P95 doc). It is the merge of
-`fasttrack/reco-fixes` and `fasttrack/view-fixes`. P93 (builder, `fasttrack/p92-builder`) and P94 are **not** in it.
-No migration (head stays `120_planned_changes`).
+`fasttrack/reco-fixes` and `fasttrack/view-fixes`. P94 is **not** in it.
+Carries **migration `121_shop_members`** (P93, additive; head becomes `121_shop_members`) and the shop-team code; see §8 above for its details.
 
 ## What ships
 
@@ -117,6 +137,7 @@ No migration (head stays `120_planned_changes`).
   traffic_overview, shop_traffic); V4-V6 variation rows match pack-keyed costs, header SKU and title; V7 Quy tắc header; V10 a bare
   number never glues onto a keyword; V11/V12 dd/mm/yyyy date fields and Phân tích filter; X1/X2 Xếp hạng sorts a KPI card by that KPI,
   busy products are not "ít đơn".
+- **P93 shop team (`fasttrack/p92-builder`)**: `shop_members` table, membership-based shop access (RLS on `shops`, `shops_of_user_clause`, `is_shop_member`), Ops members routes / "Thành viên shop" UI, invite changes.
 - **Integration changes made in this release**: Xếp hạng (products) now refuses with `previous_period_thin` when the previous
   period fails the same V2 gate as every other delta; `ShopLine.variation_id` is the one place that reads the variation out of a
   line's scope (used by the builder's `observed_skus` and the V4 `base_sku`/`variation_id` columns).
@@ -143,6 +164,19 @@ No migration (head stays `120_planned_changes`).
 7. **TPE variation costs** (Sản phẩm > TPE gloves): each variation row shows its cost; header SKU is the listing's own, not "1000".
 8. **Xếp hạng**: "Biên cuối" column shows %, and sorting by a KPI card sorts by that KPI; a product with real volume is not "ít đơn".
 9. Check the logs once for `shopee_reco_refresh` start-up counts (flagged / revised) and that a second run reports 0.
+
+## Manual step: deferred 102 backfill (shop members)
+
+Not part of the automatic release (an INSERT; the additive gate refuses it). After 121 is live, run
+`backend/src/juli_backend/database/migrations/deferred/102_shop_members_backfill.py` with the 101 deferred-step procedure
+(copy into the serving release's `versions/`, take the backup, `alembic upgrade head`, then move it back). Idempotent; running it late is harmless
+(owners without a row keep access). Verify, expecting `0`:
+
+```sql
+SELECT count(*) FROM shops s JOIN users u ON u.id = s.user_id
+ WHERE (u.email IS NOT NULL OR u.phone IS NOT NULL) AND u.email NOT ILIKE '%@app-juli.com'
+   AND NOT EXISTS (SELECT 1 FROM shop_members m WHERE m.shop_id = s.id AND m.user_id = u.id);
+```
 
 ## Data follow-ups (not code)
 

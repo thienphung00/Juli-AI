@@ -58,6 +58,8 @@ from juli_backend.core.security import (
 from juli_backend.database import Shop, get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ops import ROLE_ADMIN, ROLE_OPERATOR, ROLE_VIEWER
+from juli_backend.repositories._base import utc_now_naive
+from juli_backend.services import shop_team
 from juli_backend.services.ops import (
     OpsRoleMissing,
     ShopListing,
@@ -413,6 +415,7 @@ async def ops_get_settings(
     async with ops_role(session) as block:
         listing, row = await _shop_and_settings(session, shop_id)
         shop_invites = await invites.list_invites(session, shop_id)
+        members = await shop_team.list_members(session, listing)
         log = await audit.list_entries(session, shop_id=shop_id, limit=20)
         previous_role = block.hand_over()
     # P29: the cap and tunables are cached for 30 s per shop. On a miss the
@@ -429,6 +432,7 @@ async def ops_get_settings(
         "shop": _shop_json(listing),
         "settings": view.to_json(),
         "invites": [invites.invite_json(i) for i in shop_invites],
+        "members": members,
         "audit": [_audit_json(r) for r in log],
     }
     if view.overrides.get("card_quota_mode") is True:
@@ -1349,7 +1353,9 @@ async def ops_create_invite(
         )
     except invites.InviteError as exc:
         await session.rollback()
-        raise HTTPException(status_code=422, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=409 if exc.code == "already_member" else 422, detail=str(exc)
+        ) from None
     await session.commit()
     return {
         "data": invites.invite_json(created.invite),
@@ -1358,6 +1364,39 @@ async def ops_create_invite(
         # carries no buyer data, and only the invited e-mail can redeem it.
         "accept_url": created.accept_url,
     }
+
+
+@router.get("/shops/{shop_id}/members")
+async def ops_list_members(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """P93: the shop team (every member has the same role)."""
+    async with ops_role(session, transaction_ends_after=True):
+        listing = await _shop(session, shop_id)
+        members = await shop_team.list_members(session, listing)
+    return {"data": members}
+
+
+@router.delete("/shops/{shop_id}/members/{user_id}")
+async def ops_remove_member(
+    shop_id: uuid.UUID,
+    user_id: uuid.UUID,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """P93: "Gỡ" -- the person loses the shop at once; the shop and its data stay. Audited."""
+    listing = await _shop(session, shop_id)
+    try:
+        removed = await shop_team.remove_member(
+            session, ctx.staff.actor, listing, user_id, now=utc_now_naive()
+        )
+    except shop_team.MemberError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=exc.code) from None
+    await session.commit()
+    return {"data": {"user_id": str(removed.user_id), "email": removed.email, "removed": True}}
 
 
 @router.get("/shops/{shop_id}/invites")

@@ -17,4 +17,6 @@ paths = [
 regexTarget = "line"
 regexes = [
   '''campaign_key=key,''',
+  # P93: a fake invite token literal in the /nhan-shop component test (a test fixture, not a secret).
+  '''inviteToken="tok-123456789012345678901"''',
 ]
