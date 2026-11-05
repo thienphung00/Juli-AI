@@ -3,6 +3,7 @@ Demo + Ops routes. Synthetic cards; SQLite."""
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import date, datetime
 from types import SimpleNamespace
@@ -117,6 +118,9 @@ def test_per_unit_median_quartiles_closest_and_what_is_left_out():
     market = out["market"]
     assert market["n_similar"] == 4  # the ad, the other unit and our own listing are out
     assert (market["median"], market["p25"], market["p75"]) == (85_000, 80_000, 92_500)
+    assert (
+        market["average"] == 87_500
+    )  # (80 000 + 80 000 + 90 000 + 100 000) / 4, same set as the median
     assert market["position"] == "within" and market["own_vs_median_pct"] == 5.9
     assert out["own"]["price_per_unit"] == 90_000
     assert {c["item_id"] for c in out["closest"]}.isdisjoint({"1002", "7005", "7006"})
@@ -227,13 +231,78 @@ async def test_demo_route_is_absent_without_a_capture_then_present(session, reco
         )
         out = r.json()
         assert out["available"] is True and out["market"]["n_similar"] == 4
-        assert out["marker"]["price_per_unit"] == 70_000 and out["closest"]
-        lite = await client.get(f"/v1/demo/shopee/builder/products/1002/market-range?as_of={AS_OF}")
-        assert (
-            lite.json()["closest"] is None
-            and lite.json()["market"]["median"] == out["market"]["median"]
+        # Owner decision 2026-11-05: the seller gets aggregates only (median, average, count, unit,
+        # keyword, date, stale) - enforced in the serializer, not hidden in the web.
+        assert out["marker"]["price_per_unit"] == 70_000 and "closest" not in out
+        assert out["market"]["median"] == 85_000 and out["market"]["average"] == 87_500
+        assert set(out["market"]) == {
+            "n_similar",
+            "median",
+            "average",
+            "own_vs_median_pct",
+            "own_vs_average_pct",
+        }
+        assert set(out["marker"]) == {
+            "price",
+            "pack_count",
+            "price_per_unit",
+            "vs_median_pct",
+            "vs_average_pct",
+        }
+        lite = await client.get(
+            f"/v1/demo/shopee/builder/products/1002/market-range?as_of={AS_OF}&price=70000"
         )
+        assert lite.json()["market"]["median"] == out["market"]["median"]
+        for body in (out, lite.json()):
+            assert _forbidden_keys(body) == set()
+            text = json.dumps(body, ensure_ascii=False)
+            assert "Shop " not in text and "Nước rửa chén hương chanh" not in text
+            assert "7001" not in text and "p25" not in text and "p75" not in text
         assert (await client.get("/v1/demo/shopee/products/nope/market-price")).status_code == 404
+    app.dependency_overrides.clear()
+
+
+def _forbidden_keys(node) -> set[str]:
+    banned = {
+        "closest",
+        "listings",
+        "shop_name",
+        "shop_title",
+        "title",
+        "p25",
+        "p75",
+        "position",
+        "sold_monthly",
+        "sold_lifetime",
+    }
+    found: set[str] = set()
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k in banned:
+                found.add(k)
+            found |= _forbidden_keys(v)
+    elif isinstance(node, list):
+        for v in node:
+            found |= _forbidden_keys(v)
+    return found
+
+
+async def test_a_seller_cannot_read_the_market_of_another_shops_product(session, reco):
+    await _capture(session)
+    other = await seed_reco_shop(session)
+    app = build_app(session)
+    authenticate(app, user=other.user, shop=other.shop)
+    async with client_for(app) as client:
+        for path in (
+            "products/1002/market-price",
+            "builder/products/1002/market-range",
+        ):
+            r = await client.get(f"/v1/demo/shopee/{path}?as_of={AS_OF}")
+            # seed_reco_shop gives every synthetic shop a product 1002 of its own: what comes back
+            # is that shop's own keyword state, never the first shop's keyword or capture.
+            assert r.status_code == 200
+            assert r.json()["available"] is False and r.json()["reason"] == "no_keyword"
+            assert r.json()["keyword"] is None and r.json()["market"] is None
     app.dependency_overrides.clear()
 
 
@@ -245,6 +314,9 @@ async def test_ops_route_reads_as_viewer(session, reco, monkeypatch):
             f"/v1/ops/shops/{reco.shop_id}/shopee/products/1002/market-price?as_of={AS_OF}"
         )
         assert r.status_code == 200 and r.json()["market"]["n_similar"] == 4
+        # Ops keeps the full block for staff: the closest listings and the P25-P75 range.
+        assert len(r.json()["closest"]) == 4 and r.json()["market"]["p25"] == 80_000
+        assert r.json()["closest"][0]["shop_name"]
         r = await client.get(
             f"/v1/ops/shops/{reco.shop_id}/shopee/builder/products/1002/market-range"
             f"?as_of={AS_OF}&price=88000"

@@ -164,3 +164,4 @@ first accept the seller signs in at demo.app-juli.com with her e-mail and a 6-di
   basket, size-dependent fees, B-9), showing margin and Δ profit after each step and in total, plus shop-wide
   totals. Nothing executes until the plan is confirmed (P91 D-6); reordering or removing a step re-evaluates
   the rest.
+- Seller (Demo) sees only median and average of similar products; listings and shop names are Ops-only.

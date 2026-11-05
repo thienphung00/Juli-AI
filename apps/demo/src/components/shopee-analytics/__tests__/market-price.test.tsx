@@ -57,6 +57,34 @@ describe("Giá thị trường (P92 B-10)", () => {
     expect(screen.getByTestId("market-bar-own")).toBeInTheDocument();
   });
 
+  it("the seller's aggregate-only body shows median, average and count, and never a range, a bar or listings", () => {
+    const seller: MarketPrice = {
+      item_id: "1001",
+      name: "Găng tay",
+      available: true,
+      reason: null,
+      keyword: "găng tay cao su",
+      collected_on: "2026-11-03",
+      age_days: 2,
+      stale: false,
+      stale_after_days: 14,
+      unit: ready.unit,
+      own: ready.own,
+      market: { n_similar: 18, median: 82000, average: 85500, own_vs_median_pct: 9.8, own_vs_average_pct: 5.3 },
+      marker: null,
+      note: null,
+    };
+    render(<MarketPriceView data={seller} />);
+    expect(screen.getByTestId("market-median")).toHaveTextContent("82.000đ");
+    expect(screen.getByTestId("market-average")).toHaveTextContent("85.500đ");
+    expect(screen.getByTestId("market-average")).toHaveTextContent("+5,3% so với trung bình");
+    expect(screen.getByText("18 sản phẩm tương tự")).toBeInTheDocument();
+    expect(screen.queryByTestId("market-range")).toBeNull();
+    expect(screen.queryByTestId("market-bar")).toBeNull();
+    expect(screen.queryByTestId("market-closest")).toBeNull();
+    expect(screen.queryByText(/P25|P75/)).toBeNull();
+  });
+
   it("stale data keeps its date and gets the 'cũ' chip", () => {
     render(<MarketPriceView data={{ ...ready, stale: true, age_days: 20, collected_on: "2026-10-16" }} />);
     expect(screen.getByText("cũ · 20 ngày")).toBeInTheDocument();

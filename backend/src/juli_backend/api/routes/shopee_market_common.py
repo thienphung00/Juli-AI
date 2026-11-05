@@ -27,9 +27,10 @@ async def h_market_price(
     as_of: date | None,
     now: datetime,
     closest: bool,
+    seller: bool = False,
 ) -> dict[str, Any]:
     try:
-        return await market_price.market_price(
+        full = await market_price.market_price(
             session,
             shop_id,
             item_id,
@@ -37,8 +38,9 @@ async def h_market_price(
             draft_price=price,
             as_of=as_of,
             now=now,
-            closest=closest,
+            closest=closest and not seller,
         )
+        return market_price.seller_view(full) if seller else full
     except builder.NoShopeeData:
         raise common.no_data() from None
     except LookupError:

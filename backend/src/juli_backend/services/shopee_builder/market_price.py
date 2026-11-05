@@ -228,12 +228,15 @@ def compute(
         percentile(unit_prices, 0.75),
     )
     position = _position(own_unit_price, p25, p75)
+    avg = sum(unit_prices) / len(unit_prices)
     market = {
         "n_similar": len(listings),
         "median": None if med is None else round(med),
+        "average": round(avg),
         "p25": None if p25 is None else round(p25),
         "p75": None if p75 is None else round(p75),
         "own_vs_median_pct": _pct(own_unit_price, med),
+        "own_vs_average_pct": _pct(own_unit_price, avg),
         "position": position,
     }
     marker = None
@@ -245,6 +248,7 @@ def compute(
             "price_per_unit": None if draft_unit is None else round(draft_unit),
             "position": _position(draft_unit, p25, p75),
             "vs_median_pct": _pct(draft_unit, med),
+            "vs_average_pct": _pct(draft_unit, avg),
         }
     near = sorted(listings, key=lambda x: (-x["similarity"], x["position"], x["item_id"]))[:CLOSEST]
     return {
@@ -253,6 +257,46 @@ def compute(
         "market": market,
         "closest": near if closest else None,
         "marker": marker,
+    }
+
+
+#: Owner decision 2026-11-05: the seller (Demo) sees ONLY aggregate figures of the similar products.
+#: Built from a whitelist, so a field added to the Ops payload never reaches the seller by accident.
+SELLER_MARKET_KEYS = ("n_similar", "median", "average", "own_vs_median_pct", "own_vs_average_pct")
+SELLER_MARKER_KEYS = ("price", "pack_count", "price_per_unit", "vs_median_pct", "vs_average_pct")
+SELLER_OWN_KEYS = (
+    "variation_id",
+    "selling_price",
+    "price_min",
+    "price_max",
+    "pack_count",
+    "price_per_unit",
+)
+
+
+def seller_view(full: Mapping[str, Any]) -> dict[str, Any]:
+    """Median and average per unit, number of similar listings, unit, keyword, collected date, stale
+    flag. No listing, no shop name, no title, no item id of another shop, no P25-P75."""
+    market = full.get("market")
+    marker = full.get("marker")
+    own = full.get("own")
+    unit = full.get("unit")
+    return {
+        "item_id": full["item_id"],
+        "name": full["name"],
+        "available": full["available"],
+        "reason": full["reason"],
+        "reason_text": full.get("reason_text"),
+        "keyword": full["keyword"],
+        "collected_on": full["collected_on"],
+        "age_days": full["age_days"],
+        "stale": full["stale"],
+        "stale_after_days": full["stale_after_days"],
+        "unit": None if unit is None else {k: unit[k] for k in ("key", "label", "per_label")},
+        "own": None if own is None else {k: own[k] for k in SELLER_OWN_KEYS},
+        "market": None if market is None else {k: market[k] for k in SELLER_MARKET_KEYS},
+        "marker": None if marker is None else {k: marker[k] for k in SELLER_MARKER_KEYS},
+        "note": full["note"],
     }
 
 
@@ -300,4 +344,4 @@ async def market_price(
     return out
 
 
-__all__ = ["REASONS", "compute", "market_price"]
+__all__ = ["REASONS", "compute", "market_price", "seller_view"]

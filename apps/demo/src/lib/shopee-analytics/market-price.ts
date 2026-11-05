@@ -8,7 +8,9 @@ import { ShopeeApiError } from "./client";
  * P92 B-10 "Giá thị trường": the product's price per unit against the page-1 listings of its
  * main keyword (contract `fasttrack/contracts/p92-api.md`, B-10). Same body for the seller
  * (`/v1/demo/shopee/...`) and Juli Ops (`/v1/ops/shops/{id}/shopee/...`). Nothing is invented:
- * `available: false` carries a reason and no numbers.
+ * `available: false` carries a reason and no numbers. Owner decision 2026-11-05: the seller's body has
+ * only aggregates (median, average, count, unit, keyword, date, stale); `closest`, `keywords`,
+ * `p25`, `p75` and `position` exist only in the Ops body.
  */
 
 type N = number | null;
@@ -44,8 +46,10 @@ export interface MarketMarker {
   readonly price: N;
   readonly pack_count: N;
   readonly price_per_unit: N;
-  readonly position: MarketPosition | null;
+  /** Ops only (the P25-P75 range is not sent to the seller). */
+  readonly position?: MarketPosition | null;
   readonly vs_median_pct: N;
+  readonly vs_average_pct?: N;
 }
 
 export interface MarketPrice {
@@ -71,10 +75,14 @@ export interface MarketPrice {
   readonly market?: {
     readonly n_similar: N;
     readonly median: N;
-    readonly p25: N;
-    readonly p75: N;
+    /** Mean price per unit of the same similar set as the median. */
+    readonly average?: N;
+    /** Ops only: the seller (Demo) gets the median and average, never the range or the listings. */
+    readonly p25?: N;
+    readonly p75?: N;
     readonly own_vs_median_pct: N;
-    readonly position: MarketPosition | null;
+    readonly own_vs_average_pct?: N;
+    readonly position?: MarketPosition | null;
   } | null;
   readonly closest?: readonly MarketListing[] | null;
   readonly marker?: MarketMarker | null;

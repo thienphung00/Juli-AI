@@ -79,10 +79,21 @@ export function MarketPriceView({ data }: { readonly data: MarketPrice }) {
         <strong data-testid="market-own">{vnd(own?.price_per_unit)}</strong> <span className="sa-hint">{per} của bạn</span> · trung vị thị trường <strong data-testid="market-median">{vnd(market.median)}</strong>
         {market.own_vs_median_pct !== null ? <span> ({market.own_vs_median_pct > 0 ? "+" : ""}{pp(market.own_vs_median_pct)} so với trung vị)</span> : null}
       </p>
-      <MarketBar median={market.median} own={own?.price_per_unit ?? null} p25={market.p25} p75={market.p75} />
-      <p className="sa-hint" data-testid="market-range">
-        P25 {vnd(market.p25)} – P75 {vnd(market.p75)} ({per}){market.position ? ` · ${POSITION_COPY[market.position]}` : ""}
-      </p>
+      {market.average != null ? (
+        <p data-testid="market-average" style={{ margin: "4px 0 0" }}>
+          Trung bình thị trường <strong>{vnd(market.average)}</strong>
+          {market.own_vs_average_pct != null ? <span> ({market.own_vs_average_pct > 0 ? "+" : ""}{pp(market.own_vs_average_pct)} so với trung bình)</span> : null}
+          <span className="sa-hint"> · {per}</span>
+        </p>
+      ) : null}
+      {market.p25 != null && market.p75 != null ? (
+        <>
+          <MarketBar median={market.median} own={own?.price_per_unit ?? null} p25={market.p25} p75={market.p75} />
+          <p className="sa-hint" data-testid="market-range">
+            P25 {vnd(market.p25)} – P75 {vnd(market.p75)} ({per}){market.position ? ` · ${POSITION_COPY[market.position]}` : ""}
+          </p>
+        </>
+      ) : null}
       {closest.length > 0 ? (
         <table data-testid="market-closest" style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
           <caption className="sa-hint" style={{ textAlign: "left" }}>

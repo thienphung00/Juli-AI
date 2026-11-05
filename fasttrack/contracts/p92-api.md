@@ -321,6 +321,13 @@ Branch `fasttrack/p92-market` (backend + Connector 0.3.5 + a small web block). P
   of that variation, VND -> `marker`), `as_of`.
 - Lightweight builder call (no `closest`): Demo `GET /v1/demo/shopee/builder/products/{item_id}/market-range`,
   Ops `GET /v1/ops/shops/{id}/shopee/builder/products/{item_id}/market-range`.
+- **Seller (Demo) body = aggregates only** (owner 2026-11-05, enforced by `market_price.seller_view`, a whitelist, and
+  tested): `market` = `n_similar`, `median`, `average` (mean of the same filtered set, ads excluded), `own_vs_median_pct`,
+  `own_vs_average_pct`; `marker` = `price`, `pack_count`, `price_per_unit`, `vs_median_pct`, `vs_average_pct`; plus unit,
+  keyword, `collected_on`, `age_days`, `stale`, `own`, `note`. NO `closest`, `keywords`, `p25`, `p75`, `position`, titles,
+  shop names or other shops' item ids. Ops keeps the full body (adds `market.average` too).
+- Tenant rule: the product must belong to the caller's shop (`404 not_found` otherwise); the public market rows are read
+  in a short `ops_role` block inside the service and only aggregates of them leave it on the seller route.
 ```json
 {"item_id":"1002","name":"…","available":true,"reason":null,"reason_text":null,
  "keyword":"nước rửa chén","collected_on":"2026-11-03","age_days":2,"stale":false,"stale_after_days":14,

@@ -38,13 +38,18 @@ export function MarketPriceMarker({
     );
   }
   const m = d.marker;
+  const range = d.market.p25 != null && d.market.p75 != null;
+  const versus = m && m.vs_median_pct != null ? ` (${m.vs_median_pct > 0 ? "+" : ""}${pp(m.vs_median_pct)} so với trung vị)` : "";
+  const draft = m && m.price_per_unit !== null ? ` · bản nháp ${vnd(m.price_per_unit)}${m.position ? `, ${COPY[m.position]}` : ""}${versus}` : draftPrice ? ` · bản nháp ${DASH}` : "";
   return (
     <div data-testid="market-marker">
-      <MarketBar median={d.market.median} own={m?.price_per_unit ?? null} p25={d.market.p25} p75={d.market.p75} />
+      {range ? <MarketBar median={d.market.median} own={m?.price_per_unit ?? null} p25={d.market.p25 ?? null} p75={d.market.p75 ?? null} /> : null}
       <p className="sa-hint">
-        Giá thị trường {d.unit?.per_label ?? "giá / đơn vị"}: {vnd(d.market.p25)} – {vnd(d.market.p75)} (trung vị {vnd(d.market.median)})
+        {range
+          ? `Giá thị trường ${d.unit?.per_label ?? "giá / đơn vị"}: ${vnd(d.market.p25 ?? null)} – ${vnd(d.market.p75 ?? null)} (trung vị ${vnd(d.market.median)})`
+          : `Giá thị trường ${d.unit?.per_label ?? "giá / đơn vị"}: trung vị ${vnd(d.market.median)}${d.market.average != null ? ` · trung bình ${vnd(d.market.average)}` : ""}`}
         {d.stale ? " · cũ" : ""}
-        {m && m.price_per_unit !== null ? ` · bản nháp ${vnd(m.price_per_unit)}${m.position ? `, ${COPY[m.position]}` : ""}${m.vs_median_pct !== null ? ` (${m.vs_median_pct > 0 ? "+" : ""}${pp(m.vs_median_pct)} so với trung vị)` : ""}` : draftPrice ? ` · bản nháp ${DASH}` : ""}
+        {draft}
       </p>
     </div>
   );

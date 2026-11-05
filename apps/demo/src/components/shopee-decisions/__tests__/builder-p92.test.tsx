@@ -305,8 +305,9 @@ describe("P92 · các loại khác", () => {
   it("giảm giá, đổi giá and flash sale mount the Giá thị trường marker with the drafted price", async () => {
     const range = {
       item_id: P_ZIP, available: true, reason: null, stale: false, unit: { key: "hop", label: "hộp", per_label: "giá / hộp" },
-      market: { n_similar: 12, median: 28_000, p25: 25_000, p75: 31_000, own_vs_median_pct: null, position: null },
-      marker: { price: 80_040, price_per_unit: 26_680, position: "within", vs_median_pct: -4.7 },
+      // The seller's body: aggregates only (no P25-P75, no position, no listings).
+      market: { n_similar: 12, median: 28_000, average: 28_900, own_vs_median_pct: null, own_vs_average_pct: null },
+      marker: { price: 80_040, pack_count: 3, price_per_unit: 26_680, vs_median_pct: -4.7, vs_average_pct: -7.7 },
     };
     const urls: string[] = [];
     const fetchImpl = (async (url: string) => {
@@ -319,7 +320,9 @@ describe("P92 · các loại khác", () => {
     fireEvent.click(screen.getByTestId("p2-kind-product_discount"));
     expect(screen.queryByTestId("market-marker")).toBeNull();
     fireEvent.change(await screen.findByRole("textbox", { name: "Giảm · Combo 3 hộp" }), { target: { value: "8" } });
-    expect(await screen.findByTestId("market-marker")).toHaveTextContent("bản nháp 26.680đ, trong khoảng phổ biến");
+    expect(await screen.findByTestId("market-marker")).toHaveTextContent("trung vị 28.000đ · trung bình 28.900đ")
+    expect(screen.getByTestId("market-marker")).toHaveTextContent("bản nháp 26.680đ (−4,7% so với trung vị)")
+    expect(screen.queryByTestId("market-bar")).toBeNull();
     // 87.000đ list price minus 8 % = 80.040đ, sent as the drafted price of the variation.
     await waitFor(() => expect(urls.some((u) => u === `/v1/demo/shopee/builder/products/${P_ZIP}/market-range?variation_id=v3&price=80040`)).toBe(true));
     await waitFor(() => expect(screen.getByTestId("p2-add")).toBeEnabled());

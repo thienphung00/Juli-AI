@@ -1,8 +1,10 @@
 """Seller scope: "Giá thị trường" of one product (P92 B-10), under ``/v1/demo/shopee``.
 
 - ``GET /products/{item_id}/market-price`` -- price per unit against page 1 of Shopee's public
-  search for the product's main keywords: median, P25-P75, the 5 closest similar listings,
-  keyword, collected date, stale flag. Absent (``available: false`` + reason) without a capture.
+  search for the product's main keywords: ONLY the median and average of the similar products,
+  their number, the unit, keyword, collected date and stale flag (owner decision 2026-11-05: no
+  listing, shop name, title or P25-P75 for the seller; Ops sees the full block). Absent
+  (``available: false`` + reason) without a capture.
 - ``GET /builder/products/{item_id}/market-range`` -- the same without the listings, for the
   builder's price-panel marker (``price`` = the drafted selling price of ``variation_id``).
 
@@ -48,7 +50,8 @@ async def product_market_price(
         price=price,
         as_of=as_of,
         now=_now(),
-        closest=True,
+        closest=False,
+        seller=True,
     )
 
 
@@ -70,4 +73,5 @@ async def builder_market_range(
         as_of=as_of,
         now=_now(),
         closest=False,
+        seller=True,
     )
