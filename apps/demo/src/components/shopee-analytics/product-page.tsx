@@ -436,6 +436,36 @@ function ReputationBlock({ h }: { readonly h: ProductHeader }) {
   );
 }
 
+type VariationRow = ProductHeader["variations"][number];
+
+/** The cost row of a catalogue variation: by its id, else by its seller SKU (a pack key such as
+ *  "G500002×3" belongs to the variation whose SKU is "G500002"; the packs sort by their own key). */
+export function skuOfVariation(v: VariationRow, skus: readonly SkuCost[]): SkuCost | undefined {
+  const byId = v.variation_id ? skus.find((s) => s.variation_id === v.variation_id) : undefined;
+  if (byId) return byId;
+  if (!v.seller_sku) return undefined;
+  return skus.find((s) => s.sku === v.seller_sku) ?? skus.find((s) => s.base_sku === v.seller_sku && !s.variation_id);
+}
+
+/** Why a variation row has no operating floor: no sale in the window, no cost, or no margin target. */
+export function operatingFloorNote(s: SkuCost | undefined): string {
+  if (!s) return "chưa có đơn trong kỳ";
+  if (s.cost.cogs_per_unit === null) return "chưa có giá vốn";
+  const r = s.floor?.reasons;
+  const text = r && !Array.isArray(r) ? Object.values(r as Record<string, string>).join(" ") : "";
+  return text.includes("target_margin_rate") ? "chưa đặt biên mục tiêu" : "chưa tính được";
+}
+
+/** Catalogue variations that can be sold: a parent option row (size "M" / "L") with no seller SKU
+ *  and no sale is not a model, so it is not listed when the listing has real SKU rows. */
+export function variationRows(h: ProductHeader, skus: readonly SkuCost[]): readonly VariationRow[] {
+  if (h.variations.length === 0) {
+    return skus.map((s) => ({ variation_id: s.sku, name: s.sku, seller_sku: s.sku, status: null }));
+  }
+  const anySku = h.variations.some((v) => !!v.seller_sku);
+  return h.variations.filter((v) => !anySku || !!v.seller_sku || skuOfVariation(v, skus) !== undefined);
+}
+
 function Variations({
   h,
   skus,
@@ -452,8 +482,7 @@ function Variations({
   readonly openCompare?: boolean;
 }) {
   const host = useShopee();
-  const bySku = new Map(skus.map((s) => [s.sku, s]));
-  const rows = h.variations.length > 0 ? h.variations : skus.map((s) => ({ variation_id: s.sku, name: s.sku, seller_sku: s.sku, status: null }));
+  const rows = variationRows(h, skus);
   return (
     <Section hint={`${rows.length} phiên bản · bấm một dòng để xem chi phí ở tab Chi phí & giá sàn`} testId="sa-variations" title="Phiên bản sản phẩm">
       {rows.length === 0 ? (
@@ -468,7 +497,7 @@ function Variations({
             <span>Giá sàn vận hành · tuyệt đối</span>
           </div>
           {rows.map((v) => {
-            const s = v.seller_sku ? bySku.get(v.seller_sku) : undefined;
+            const s = skuOfVariation(v, skus);
             const f = s?.floor ?? null;
             return (
               <button
@@ -491,7 +520,7 @@ function Variations({
                   {s?.cost.label ? <span className="sa-hint sa-block">{s.cost.label}</span> : null}
                 </span>
                 <span>
-                  {f && f.operating !== null ? vnd(f.operating) : "chưa có giá vốn"}
+                  {f && f.operating !== null ? vnd(f.operating) : operatingFloorNote(s)}
                   <span className="sa-hint sa-block">{f && f.absolute !== null ? vnd(f.absolute) : DASH}</span>
                 </span>
               </button>

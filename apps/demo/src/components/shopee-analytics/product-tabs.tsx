@@ -388,7 +388,7 @@ export function CostTab({ page, sel, onPick }: { readonly page: ProductPage; rea
           <h3 className="sa-h3">Giá sàn</h3>
           <div className="sa-pair">
             <span className="sa-hint">Giá sàn tuyệt đối · không lỗ</span>
-            <b className="sa-pair__big">{floor?.absolute == null ? "chưa có giá vốn" : vnd(floor.absolute)}</b>
+            <b className="sa-pair__big">{floor?.absolute == null ? (sel.cost.cogs_per_unit === null ? "chưa có giá vốn" : "chưa tính được") : vnd(floor.absolute)}</b>
             <span className="sa-hint">(giá vốn + đóng gói + phí cố định) ÷ (1 − phí sàn)</span>
           </div>
           <div className="sa-pair sa-pair--pink">
