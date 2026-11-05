@@ -97,6 +97,19 @@ describe("Phân tích", () => {
     expect(screen.getByTestId("sa-at-stake")).toHaveTextContent("−470.000đ/ngày");
   });
 
+  it("V12: the in-band list follows the active filter (Biên và giá sàn hides the CTR row)", async () => {
+    renderWith(<PhanTichPageView params={params()} />, fakeApi());
+    const user = userEvent.setup();
+    const box = await screen.findByTestId("sa-in-band");
+    await user.click(within(box).getByRole("button", { name: "Xem thêm" }));
+    expect(screen.getByTestId("sa-ok-flow:video:ctr")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Biên và giá sàn" }));
+    expect(screen.queryByTestId("sa-ok-flow:video:ctr")).toBeNull();
+    expect(screen.getByTestId("sa-in-band")).toHaveTextContent("0 mục");
+    await user.click(screen.getByRole("button", { name: "CTR và CTOR" }));
+    expect(screen.getByTestId("sa-ok-flow:video:ctr")).toBeInTheDocument();
+  });
+
   it("shows the notes (missing target, assumed cost, missing history) as they come", async () => {
     renderWith(<PhanTichPageView params={params()} />, fakeApi({ critical: critical({ notes: [{ code: "margin_target_missing", message: "Chưa đặt mục tiêu biên." }, { code: "band_missing:live", message: "Chưa đủ lịch sử để lập dải bình thường cho Live." }] }) }));
     expect(await screen.findByTestId("sa-note-margin_target_missing")).toHaveTextContent("Chưa đặt mục tiêu biên.");
