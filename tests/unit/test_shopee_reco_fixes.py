@@ -230,6 +230,18 @@ async def test_a_cost_change_or_a_new_engine_version_makes_the_card_stale(
     assert freshness.card_stale_reason(card) == freshness.REASON_ENGINE
 
 
+async def test_a_moved_data_anchor_alone_does_not_make_a_card_stale(session, shop):
+    """V3 moves the anchor to the newest synced day; the fingerprint is taken over the card's own
+    stored as_of (7-day order window), so a later anchor with the same orders is still fresh."""
+    from datetime import timedelta
+
+    seeded, env = shop
+    card = voucher(env)
+    later = await load_env(session, seeded.shop_id, as_of=AS_OF + timedelta(days=2))
+    assert later is not None and later.as_of != env.as_of
+    assert freshness.card_stale_reason(card, later) is None
+
+
 async def _saved_voucher(session, seeded, env):
     card = voucher(env)
     card["versions"] = versions.build_versions(
@@ -368,7 +380,12 @@ def test_bug2_an_affiliate_line_keeps_its_commission_when_the_formula_replaces_t
 
 def _sl(item, scope, base, cost_key=None):
     return SimpleNamespace(
-        product_id=item, scope=scope, base_key=base, cost_key=cost_key or base, ordered_on=AS_OF
+        product_id=item,
+        scope=scope,
+        variation_id=scope.partition(":")[2],
+        base_key=base,
+        cost_key=cost_key or base,
+        ordered_on=AS_OF,
     )
 
 

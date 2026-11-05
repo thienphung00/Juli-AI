@@ -141,6 +141,11 @@ class ShopLine:
     def product_id(self) -> str:
         return self.line.product_id
 
+    @property
+    def variation_id(self) -> str:
+        """The variation part of ``scope`` (``""`` when the line names none)."""
+        return self.scope.partition(":")[2]
+
 
 def _variation_of(catalog: Catalog, item_id: str, r: RawLine) -> tuple[str, str | None]:
     """(variation id, variation name) of a line. The stored variation wins; a line stored before

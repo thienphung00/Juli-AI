@@ -100,10 +100,9 @@ def observed_skus(lines: Iterable[Any]) -> dict[str, dict[str, str]]:
     newest: dict[tuple[str, str], tuple[Any, str]] = {}
     for sl in lines:
         base = getattr(sl, "base_key", "") or ""
-        scope = getattr(sl, "scope", "") or ""
         if not base or base == sl.product_id:
             continue
-        vid = scope.split(":", 1)[1] if ":" in scope else ""
+        vid = sl.variation_id
         key = (sl.product_id, vid)
         prev = newest.get(key)
         if prev is None or sl.ordered_on >= prev[0]:

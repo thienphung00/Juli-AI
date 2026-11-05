@@ -532,6 +532,13 @@ def build_ranking(
     if source == "ads" and xep_theo not in ("gmv_per_day",):
         return refuse("ads_only_gmv", "Quảng cáo (đơn đã đặt) chỉ xếp được theo ₫ GMV / ngày.")
 
+    if kind == "products" and not before.comparable_as_previous:
+        # same gate as every other delta (V2): a thin previous window would rank every product
+        # as a jump from nothing.
+        return refuse(
+            "previous_period_thin",
+            "Kỳ trước chưa đủ dữ liệu đơn hàng để so sánh nên chưa xếp hạng được thay đổi.",
+        )
     if kind == "products":
         rn, rb = _products(now, source, sub), _products(before, source, sub)
         cn, cb = _cell_products(now, source, sub), _cell_products(before, source, sub)

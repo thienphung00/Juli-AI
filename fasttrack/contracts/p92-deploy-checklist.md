@@ -95,3 +95,61 @@ None new. The market reader is driven by the Connector's own alarm (weekly per k
   `tests/integration/test_migrations.py::test_no_public_table_holds_update_beyond_its_call_site` (separate ticket, P91 D-14).
 - `.gitleaks.toml` gained a line-level allowlist for the false positive `campaign_key=key,` in `tests/unit/test_shopee_builder.py`.
 - Nothing writes to Seller Centre. Every change is applied by a person who presses the platform's own save.
+
+---
+
+# Release 2026-11-05b (branch `fasttrack/release-1105`)
+
+Second release of the day, on top of what 196f955e ships (invite fix, P95 doc). It is the merge of
+`fasttrack/reco-fixes` and `fasttrack/view-fixes`. P93 (builder, `fasttrack/p92-builder`) and P94 are **not** in it.
+No migration (head stays `120_planned_changes`).
+
+## What ships
+
+- **Recommendations (reco-fixes)**: Gỡ thẻ (Ops withdraws open cards with a reason, one or in bulk); voucher versions say what
+  binds (units, "không đổi kết quả" notes, quantity cap) and per day / per order / period units; builder bugs 1-9 (costs and
+  variations found by the order lines' SKU, zero-order listings, price response, ads campaigns, affiliate flag); V8 imported
+  "done" rows start measurement (`backfill_executed`); V13 the Xem như shop view (`audience=seller`) never shows unsent drafts.
+- **Card freshness**: every card and version carries `freshness` (computed_at, `ENGINE_VERSION`, inputs fingerprint, as_of);
+  stale ones are flagged and recomputed (`shopee_reco_refresh.refresh_shop`).
+- **Views (view-fixes)**: V1 order amount key no longer hits the PII mask (Đơn hàng NaN); V2 a thin previous period withholds
+  deltas (Tổng quan 90 ngày); V3 the data anchor follows the Connector's days (`default_as_of` over shop_overview,
+  traffic_overview, shop_traffic); V4-V6 variation rows match pack-keyed costs, header SKU and title; V7 Quy tắc header; V10 a bare
+  number never glues onto a keyword; V11/V12 dd/mm/yyyy date fields and Phân tích filter; X1/X2 Xếp hạng sorts a KPI card by that KPI,
+  busy products are not "ít đơn".
+- **Integration changes made in this release**: Xếp hạng (products) now refuses with `previous_period_thin` when the previous
+  period fails the same V2 gate as every other delta; `ShopLine.variation_id` is the one place that reads the variation out of a
+  line's scope (used by the builder's `observed_skus` and the V4 `base_sku`/`variation_id` columns).
+
+## Deploy-time behaviour to expect
+
+1. **ENGINE_VERSION bump (`2026-11-05.1`)**: every stored card is stale by version, so the first refresh after the deploy
+   **recomputes all cards of all Shopee shops once** (revise + re-send). Expect CPU / DB load for a few minutes at start-up
+   and one batch of "card updated" rows. It is idempotent: a second run changes nothing. The fingerprint is taken over the
+   card's own stored `as_of` (7-day order window), so the data anchor moving forward each day does not make cards stale.
+2. **New beat `shopee-reco-refresh`, daily 19:11 UTC (02:11 UTC+7)**: restart **beat** (and the worker) so the schedule is read.
+3. **Env switches** (both default on; set `0` to turn off): `RECO_REFRESH_AFTER_WRITE` (recompute right after a seller input
+   write) and `RECO_REFRESH_ON_START` (the one-time recompute at API start-up). If the start-up load is a concern, deploy with
+   `RECO_REFRESH_ON_START=0`, then let the 19:11 beat (or `refresh_shop` per shop) do it off-peak.
+
+## Post-deploy smoke (as Ops, then as the ORY seller)
+
+1. **Gỡ thẻ**: withdraw one open card with a reason; it leaves the seller's list and shows in Ops as withdrawn. (Undo / re-run.)
+2. **Voucher rows** show "Dự kiến dùng X/Y lượt"; changing only the quantity below the cap says "không đổi kết quả".
+3. **Đo lường** shows the 7 TD cards after the refresh (V8: imported done rows measured at their own date).
+4. **Đơn hàng**: no NaN in the order amounts.
+5. **Tổng quan 90 ngày**: no absurd delta against a thin previous period (deltas are withheld, not huge).
+6. **Data anchor** (header "dữ liệu đến ...") moves past 02/11 to the Connector's last synced day.
+7. **TPE variation costs** (Sản phẩm > TPE gloves): each variation row shows its cost; header SKU is the listing's own, not "1000".
+8. **Xếp hạng**: "Biên cuối" column shows %, and sorting by a KPI card sorts by that KPI; a product with real volume is not "ít đơn".
+9. Check the logs once for `shopee_reco_refresh` start-up counts (flagged / revised) and that a second run reports 0.
+
+## Data follow-ups (not code)
+
+- Load the **SellerConversionReport CSV** for the KOL cards (the Phân tích > KOL conversion numbers wait for it).
+- **Keyword seeds regenerate**: re-run the seeds for the shops whose keyword list changed (V10 changed how numbers are glued).
+
+## Rollback
+
+Redeploy 196f955e: no migration. Stored cards keep their `freshness` block, which the old code ignores. Turn the recompute
+off first with `RECO_REFRESH_ON_START=0` / `RECO_REFRESH_AFTER_WRITE=0` if the load is the problem.

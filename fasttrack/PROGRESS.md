@@ -514,6 +514,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | B-10 Giá thị trường: Connector 0.3.5 market search reader, ingest, product block, builder marker (mounted in giảm giá / đổi giá / flash sale panels), draft plan steps composed in order. **Seller sees only median and average**; listings and shop names Ops-only | p92 B-10 | done, merged (fasttrack/p92-market); reader built from recon, first live capture still to verify | market agent + integration |
 | Integration, full deploy gate (counts in LOG 2026-11-05 "P92 ready to deploy"), deploy checklist `contracts/p92-deploy-checklist.md` | — | done, ready for the owner's one deploy; no migration | integration agent |
 | Open (owner): run the deploy; Connector 0.3.5 reload + first-capture check, then `CONNECTOR_MARKET_SEARCH=1` + `CONNECTOR_MARKET_SHOP_IDS`; read the fee-backtest gap on ORY (<= 1 % of buyer-paid); ticket for the 23 older UPDATE-grant tables | checklist §5 | todo | owner |
+| Release 2026-11-05b: merge of reco-fixes (Gỡ thẻ, voucher units/notes, card freshness + beat, builder bugs 1-9, V8, V13) and view-fixes (V1-V7, V10-V12, X1-X2); Xếp hạng products gated on the V2 previous-period test; one `ShopLine.variation_id`; checklist section "Release 2026-11-05b"; no migration | contracts/p92-deploy-checklist.md | done, gate in LOG 2026-11-05 "Release 1105"; P93 / P94 not included | integration agent |
 
 ## P2–P6
 

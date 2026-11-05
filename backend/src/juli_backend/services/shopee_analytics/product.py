@@ -62,7 +62,7 @@ def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[d
     owners: dict[str, tuple[str, str]] = {}
     for sl in view.lines:
         if sl.product_id == product_id and sl.cost_key not in owners:
-            owners[sl.cost_key] = (sl.scope.partition(":")[2], sl.base_key)
+            owners[sl.cost_key] = (sl.variation_id, sl.base_key)
     spend = view.ads.product_spend.get(product_id, ZERO)
     product_paid = sum(
         (pb.revenue for ln, pb in _lines_of(view, product_id) if pb.excluded_reason is None), ZERO
