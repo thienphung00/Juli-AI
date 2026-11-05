@@ -44,18 +44,28 @@ async def test_real_route_sets_tenant_context_via_middleware():
     from sqlalchemy.ext.asyncio import create_async_engine
 
     from juli_backend.database.database import Base
+    from juli_backend.models.models import ShopMember
+    from juli_backend.models.ops import OpsShopInvite, OpsStaff
 
     # Set up a real Postgres database for this test
     engine = create_async_engine(database_url)
 
     try:
-        # Create only the User and Shop tables (public schema); skip multi-schema tables
+        # Create only the User and Shop tables (public schema); skip multi-schema tables.
+        # get_active_shop resolves access through shop_members (P93), so that table and
+        # the two its foreign keys point at come too.
         # Use checkfirst=True so on a shared DB with migrations already applied, this is a no-op
         async with engine.begin() as conn:
             await conn.run_sync(
                 lambda c: Base.metadata.create_all(
                     c,
-                    tables=[User.__table__, Shop.__table__],
+                    tables=[
+                        User.__table__,
+                        Shop.__table__,
+                        OpsStaff.__table__,
+                        OpsShopInvite.__table__,
+                        ShopMember.__table__,
+                    ],
                     checkfirst=True,
                 )
             )
