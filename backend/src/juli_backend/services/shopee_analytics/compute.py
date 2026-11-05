@@ -324,6 +324,12 @@ class PeriodView:
     def line_orders(self) -> int:
         return len({ln.order_id for ln, _ in self.pairs})
 
+    @property
+    def comparable_as_previous(self) -> bool:
+        """This (previous) window has enough order lines to compare a period against: the export
+        spans it and at least half of its days have orders. Otherwise every delta is withheld."""
+        return self.line_orders > 0 and self.data.lines.usable_as_previous
+
 
 def _active_items(ctx: ShopContext) -> dict[str, str]:
     """Active (not unlisted / banned / deleted) listings that are not excluded."""
@@ -375,14 +381,20 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
     )
     matrix = build_source_matrix(pairs)
 
+    # Totals from only some days of the window (the file upload trails the Connector's sync)
+    # would understate the shop: when the order lines span the whole window they stand in.
+    lines_stand_in = (
+        bool(pairs) and data.totals.basis == "partial_daily" and data.lines.covers_window
+    )
+    use_totals = data.totals.gmv is not None and not lines_stand_in
     shop_gmv = (
         data.totals.gmv
-        if data.totals.gmv is not None
+        if use_totals
         else (sum((ln.order_value for ln, _ in pairs), ZERO) if pairs else None)
     )
     shop_orders = (
         data.totals.orders
-        if data.totals.orders is not None
+        if data.totals.orders is not None and not lines_stand_in
         else (len({ln.order_id for ln, _ in pairs}) if pairs else None)
     )
     flow_rows = shop_flow_rows(data.traffic) + data.product_flows.rows

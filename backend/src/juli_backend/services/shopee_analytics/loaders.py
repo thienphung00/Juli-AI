@@ -218,6 +218,18 @@ class OrderLinesLoad:
         lo, hi = max(b[0], self.window.start), min(b[1], self.window.end)
         return max((hi - lo).days + 1, 0) if lo <= hi else 0
 
+    @property
+    def dense_enough(self) -> bool:
+        """At least half of the window's days have order lines. ``covers_window`` only says the
+        export's first and last day bracket the window, so a few stray old lines make an almost
+        empty window look covered (production 2026-11-05: 90 days against a thin previous 90)."""
+        return self.days_with_orders * 2 >= self.window.days
+
+    @property
+    def usable_as_previous(self) -> bool:
+        """The window can stand as the "before" side of a comparison."""
+        return self.covers_window and self.dense_enough
+
 
 async def load_order_lines(
     session: AsyncSession, shop_id: uuid.UUID, window: Window
@@ -930,11 +942,20 @@ async def load_affiliate(
     return AffiliateLoad(out, dict(pc), choice, stats)
 
 
+#: Daily datasets that say "Shopee numbers exist for this day". ``shop_overview`` comes from the
+#: Seller Centre file upload only; the Connector's daily sync writes ``traffic_overview`` and
+#: ``shop_traffic``, so anchoring on ``shop_overview`` alone pinned every window to the last file
+#: upload (02/11) while the Connector had synced to 04/11.
+ANCHOR_DATASETS = (SHOP_OVERVIEW_DAILY, "traffic_overview", "shop_traffic")
+
+
 async def default_as_of(session: AsyncSession, shop_id: uuid.UUID) -> date | None:
-    """The newest day the shop has Shopee numbers for: shop-overview day rows, else order lines."""
-    day = await PlatformDailyMetricsRepo(session).latest_day(shop_id, SHOP_OVERVIEW_DAILY)
-    if day is not None:
-        return day
+    """The newest day the shop has Shopee daily numbers for (any of :data:`ANCHOR_DATASETS`),
+    else the last order-line day."""
+    latest = await PlatformDailyMetricsRepo(session).latest_days(shop_id)
+    days = [latest[d] for d in ANCHOR_DATASETS if d in latest]
+    if days:
+        return max(days)
     bounds = await ShopeeOrderLinesRepo(session).day_bounds(shop_id)
     return bounds[1] if bounds else None
 
@@ -973,9 +994,15 @@ async def load_item_header(
     if not rows:
         return None
     head = next((r for r in rows if r.variation_id == ""), rows[0])
+    title = head.title
+    if not title:
+        # The newest capture can lack the title (a partial read): the newest one that has it
+        # stands in, so a title changed since is not replaced by the catalogue's older name.
+        past = await PlatformItemSnapshotsRepo(session).history(shop_id, item_id)
+        title = next((r.title for r in past if r.title), None)
     return ItemHeader(
         item_id=item_id,
-        title=head.title,
+        title=title,
         image_urls=list(head.image_urls or []),
         list_price=head.list_price,
         current_price=head.current_price,
