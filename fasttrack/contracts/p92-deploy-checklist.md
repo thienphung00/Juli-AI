@@ -185,5 +185,5 @@ SELECT count(*) FROM shops s JOIN users u ON u.id = s.user_id
 
 ## Rollback
 
-Redeploy 196f955e: no migration. Stored cards keep their `freshness` block, which the old code ignores. Turn the recompute
+Redeploy 196f955e (migration 121 can stay: additive, the old code ignores `shop_members`; to remove it `alembic downgrade -1`, see §8.1). Stored cards keep their `freshness` block, which the old code ignores. Turn the recompute
 off first with `RECO_REFRESH_ON_START=0` / `RECO_REFRESH_AFTER_WRITE=0` if the load is the problem.
