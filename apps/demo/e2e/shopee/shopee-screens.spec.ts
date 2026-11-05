@@ -42,7 +42,7 @@ test.describe("seller: Shopee shop", () => {
     await page.goto("/tong-quan");
     await expect(page.getByTestId("sa-tile-gmv")).toContainText("50.000.000đ");
     const nav = page.getByRole("navigation", { name: "Điều hướng chính" });
-    await expect(nav.getByRole("link")).toHaveText(["Tổng quan", "Phân tích", "Sản phẩm", "Quyết định"]);
+    await expect(nav.getByRole("link")).toHaveText(["Tổng quan", "Phân tích", "Sản phẩm", "Quyết định", "Từ khóa", "Quảng cáo", "Đơn hàng", "Luồng"]);
     await expect(nav.getByRole("link", { name: "Tổng quan" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("sa-five")).toContainText("② Doanh thu thêm / chi thêm");
     await expect(page.getByTestId("sa-flow-total")).toContainText("50.000.000đ");

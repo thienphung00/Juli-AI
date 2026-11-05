@@ -282,7 +282,7 @@ export function CompareView({
               {rows.map((r) => (
                 <div className="p2-swipe__row" key={r.key}>
                   <span className="p2-swipe__label">{r.label}</span>
-                  <div className="p2-cmp__cell">{cellOf(r, i)}</div>
+                  <div className="p2-cmp__cell" data-testid={`p2-${r.key}-${i + 1}`}>{cellOf(r, i)}</div>
                 </div>
               ))}
               <button className="sa-btn sa-btn--primary" data-testid={`p2-choose-${i + 1}`} disabled={readOnly || busy || !outcomes[i]?.ok || saved !== null} onClick={() => onChoose(i)} type="button">
