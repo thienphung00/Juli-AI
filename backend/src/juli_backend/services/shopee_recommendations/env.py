@@ -210,7 +210,13 @@ class RecoEnv:
                 if (ln.actual_fees is not None or ln.income is not None) and self.schedule(
                     ln.product_id
                 ).formula_on(ln.order_date):
-                    ln = replace(ln, actual_fees=None, income=None)
+                    # The formula replaces the reported fees, but the affiliate commission the
+                    # income row stated stays: dropping it left an affiliate line with no
+                    # commission and the whole line's profit unknown.
+                    commission = ln.commission
+                    if commission is None and ln.income is not None and ln.affiliate:
+                        commission = ln.income.commission
+                    ln = replace(ln, actual_fees=None, income=None, commission=commission)
                 out.append(ln)
         return out
 

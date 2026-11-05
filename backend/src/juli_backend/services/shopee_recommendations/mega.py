@@ -34,7 +34,7 @@ from juli_backend.services.shopee_profit.order_profit import (
     ProfitBreakdown,
     profit_lines,
 )
-from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.shopee_recommendations import config, freshness
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.evaluate import (
     D,
@@ -626,6 +626,7 @@ def build_mega_card(
             "items": locked,
         },
         "bundle": True,
+        "freshness": freshness.stamp(env, locked, now),
     }
     return card
 

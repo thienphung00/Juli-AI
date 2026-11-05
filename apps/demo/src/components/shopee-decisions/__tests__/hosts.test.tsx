@@ -9,7 +9,7 @@ function api() {
   const f = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     seen.push(`${init?.method ?? "GET"} ${url}`);
-    if (url.endsWith("/recommendations?queue=all")) return new Response(JSON.stringify({ platform: "shopee", xep_theo: "diem", cards: [summaryOf(voucherCard())], counts: { family: {}, section: {}, total: 1 } }));
+    if (url.includes("/recommendations?queue=all")) return new Response(JSON.stringify({ platform: "shopee", xep_theo: "diem", cards: [summaryOf(voucherCard())], counts: { family: {}, section: {}, total: 1 } }));
     return new Response(JSON.stringify(detailOf(voucherCard())));
   }) as unknown as typeof fetch;
   return { f, seen };
@@ -38,7 +38,8 @@ describe("hosts", () => {
     const { f, seen } = api();
     render(<OpsViewAsShopeeDecisions fetchImpl={f} params={new URLSearchParams()} shopId="abc" />);
     const row = await screen.findByTestId("sq-card-card-voucher");
-    expect(seen).toEqual(["GET /v1/ops/shops/abc/shopee/recommendations?queue=all"]);
+    // "Xem như shop" reads the cards as the seller gets them: no unsent drafts
+    expect(seen).toEqual(["GET /v1/ops/shops/abc/shopee/recommendations?queue=all&audience=seller"]);
     expect(row.querySelector("a")).toHaveAttribute("href", "/ops/shops/abc/xem?trang=quyet-dinh&the=card-voucher&from=quyet-dinh");
     expect(screen.getByText(/Chế độ xem/)).toBeInTheDocument();
   });

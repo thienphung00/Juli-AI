@@ -65,7 +65,7 @@ describe("the worked example (voucher A -> C)", () => {
   it("Dự kiến: ② is a range per 1đ of spend, and the other rows are monthly ranges", () => {
     const rows = expectedRows(voucherCard());
     expect(rows[1]!.after).toBe("1,40đ – 3,20đ / 1đ chi");
-    expect(rows[2]!.dv).toBe("−43.000đ – +237.000đ / tháng");
+    expect(rows[2]!.dv).toBe("−43.000đ – +237.000đ trong 30 ngày");
     expect(rows[3]!.after).toBe("31 – 36");
     expect(rows[3]!.dv).toBe("+1 đơn – +6 đơn");
   });

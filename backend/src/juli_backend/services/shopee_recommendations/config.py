@@ -14,6 +14,9 @@ MODEL_VERSION = "shopee-reco-v1"
 #: ``card_events.model_version`` for a frozen proposal (amendment 2026-10-20 section 3).
 RULES_VERSION = "rules:ADR-121:shopee-reco-v1"
 SCHEMA = "shopee_reco/v1"
+#: Bump when a change to the evaluation (formulas, models, defaults) must refresh every stored card:
+#: a card computed by another engine version is stale and the refresh job recomputes it.
+ENGINE_VERSION = "2026-11-05.1"
 
 DAYS_PER_MONTH = 30
 #: History window the certain layer is computed on (the last N days ending on ``as_of``).

@@ -371,7 +371,10 @@ describe("P92 · các loại khác", () => {
     fireEvent.click(screen.getByTestId("p2-add"));
     fireEvent.click(await screen.findByTestId("p2-kind-affiliate"));
     fireEvent.change(await screen.findByRole("textbox", { name: "Số mẫu gửi" }), { target: { value: "3" } });
-    await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "affiliate", commission_pct: 10, sample_qty: 3 }));
+    await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "affiliate", commission_pct: 10, sample_qty: 3, target_campaign: false }));
+    // "Chiến dịch" is a yes/no (Target campaign), never a number: the API takes a boolean
+    fireEvent.click(screen.getByLabelText(/Áp dụng trong chiến dịch mục tiêu/));
+    await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "affiliate", target_campaign: true }));
     fireEvent.click(screen.getByRole("button", { name: "Đặt lại" }));
     fireEvent.click(screen.getByRole("button", { name: /Chọn loại chiến lược/ }));
     fireEvent.click(screen.getByTestId("p2-kind-variation_set"));

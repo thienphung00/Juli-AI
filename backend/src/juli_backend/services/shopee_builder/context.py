@@ -27,11 +27,15 @@ class BuilderContext:
     view90: PeriodView | None = None
     #: keyword (folded) -> {volume, difficulty, cpc_min, cpc_max, ads: {...}} for ads keyword levers
     keyword_facts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: items with no order in the window, evaluated on one reference order per variation
+    reference_items: set[str] = field(default_factory=set)
 
     def rows(self, item_id: str) -> list[dict[str, Any]]:
         return self.variations.get(item_id, [])
 
     def variation(self, item_id: str, variation_id: str) -> dict[str, Any] | None:
+        if not variation_id and len(self.rows(item_id)) == 1:
+            return self.rows(item_id)[0]
         for row in self.rows(item_id):
             if row["variation_id"] == variation_id:
                 return row
@@ -41,9 +45,11 @@ class BuilderContext:
         """The cost key the profit engine files this variation under. ``None`` for "no variation
         named" on a listing that has several (the evaluator then takes its best seller)."""
         if not variation_id:
+            # "no variation named" is the listing's only model when it has just one (a listing
+            # without variations still has one model id); several: the evaluator takes the best
+            # seller
             rows = self.rows(item_id)
-            only = rows[0] if len(rows) == 1 and rows[0]["variation_id"] == "" else None
-            return None if only is None else str(only["sku_key"])
+            return str(rows[0]["sku_key"]) if len(rows) == 1 else None
         row = self.variation(item_id, variation_id)
         if row is None:
             raise SpecRefused(f"variation_unknown:{item_id}:{variation_id}")

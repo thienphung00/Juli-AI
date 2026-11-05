@@ -1,6 +1,7 @@
 import { DASH, fmt, vnd, type Tone } from "../shopee-analytics/format";
 import { parseServerIso } from "../vn-format";
 import { expectedRows, sureRows, vnWhen } from "./model";
+import { aovText, ordersText, perOrderNoun, sm, srange, um, unitsOf } from "./units";
 import type { Breach, Card, CardDetail, CardSummary, CardVersion, N, ProductMeasuring, VersionBrief } from "./types";
 
 /**
@@ -199,7 +200,9 @@ export function measuringNote(m: ProductMeasuring | null | undefined): string {
 /** "Δ lợi nhuận V1 +60.000đ – +210.000đ/tháng" from the list's version brief or the card's first version. */
 export function firstVersionRange(card: Pick<CardSummary, "predicted_summary">): string {
   const q = card.predicted_summary.dprofit_month;
-  return `${rangeK(q.p10, q.p90)}/tháng`;
+  const days = Math.max(1, card.predicted_summary.effect_days || 1);
+  const per = (n: N) => (num(n) ? n / days : null);
+  return `${srange(per(q.p10), per(q.p90))}/ngày (trong ${fmt(days, 0)} ngày: ${rangeK(q.p10, q.p90)})`;
 }
 
 // ── Title (D-4) ─────────────────────────────────────────────────────────────
@@ -257,7 +260,6 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
   });
   const first = per.find((p) => p !== null) ?? null;
   const title = isTitleKind(card);
-  const days = card.window.days;
   const cellOf = (pick: (p: NonNullable<(typeof per)[number]>) => TableCell): TableCell[] => per.map((p) => (p ? pick(p) : { v: "Không tính được", d: "", tone: "muted" as const, bad: false }));
   const fromRow = (rows: "sure" | "exp", i: number, delta: "dp" | "dv"): ((p: NonNullable<(typeof per)[number]>) => TableCell) => (p) => {
     const r = p[rows][i]!;
@@ -265,21 +267,45 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
     const arrow = r.tone === "up" ? "▲ " : r.tone === "down" ? "▼ " : "";
     return { v: r.after, d: d && d !== DASH ? `${arrow}${d}` : "", tone: r.tone, bad: false };
   };
-  const money = (p: NonNullable<(typeof per)[number]>) => p.c.predicted.money_per_month;
   const rows: TableRow[] = [
     rowFrom("disc", "① Giảm giá", "% GMV niêm yết", first?.sure[0]?.before ?? null, cellOf(fromRow("sure", 0, "dp"))),
     rowFrom("eff", "② Hiệu quả chi", "ΔGMV ÷ Δchi", null, cellOf((p) => ({ v: p.exp[1]!.after, d: "", tone: "plain", bad: false }))),
     rowFrom("bien", "③ Biên lợi nhuận", "trên tiền khách trả", first?.sure[2]?.before ?? null, cellOf(fromRow("exp", 2, "dp"))),
-    rowFrom("orders", "④ Số đơn", `${fmt(days, 0)} ngày`, first?.exp[3]?.before ?? null, cellOf(fromRow("exp", 3, "dv"))),
-    rowFrom("aov", "⑤ AOV", "GMV ÷ số đơn", first?.exp[4]?.before ?? null, cellOf(fromRow("exp", 4, "dv"))),
+    rowFrom(
+      "orders",
+      "④ Số đơn",
+      "dự kiến, theo mô hình",
+      first?.exp[3]?.before ?? null,
+      cellOf((p) => {
+        const o = ordersText(p.c);
+        if (!o) return fromRow("exp", 3, "dv")(p);
+        return { v: o.perDay, d: `${fmt(unitsOf(p.c).days, 0)} ngày: ${o.period}${o.changes ? "" : " · số đơn giữ nguyên (đòn bẩy giỏ hàng)"}`, tone: "plain", bad: false };
+      }),
+    ),
+    rowFrom(
+      "aov",
+      "⑤ AOV",
+      "GMV ÷ số đơn",
+      first?.exp[4]?.before ?? null,
+      cellOf((p) => {
+        const a = aovText(p.c);
+        if (!a) return fromRow("exp", 4, "dv")(p);
+        return { v: a.range, d: a.certain, tone: "plain", bad: false };
+      }),
+    ),
     rowFrom(
       "chi",
       "Chi phí",
-      "QC + voucher + khuyến mãi + combo + hoa hồng / tháng",
+      "chi marketing mỗi ngày · mỗi đơn · cả đợt",
       null,
       cellOf((p) => {
-        const d = money(p).certain.dchi;
-        return { v: num(d) && Math.abs(d) >= 500 ? `${svk(d)}/tháng` : num(d) ? "Không đổi" : DASH, d: "", tone: num(d) ? (d > 0 ? "down" : d < 0 ? "up" : "plain") : "plain", bad: false };
+        const u = unitsOf(p.c);
+        const d = u.perDay.dchi;
+        if (!num(d)) return { v: DASH, d: "", tone: "plain", bad: false };
+        const tone = d > 0 ? "down" : d < 0 ? "up" : "plain";
+        if (Math.abs(d) < 10) return { v: "Không đổi", d: "", tone, bad: false };
+        const unit = u.perOrder && num(u.perOrder.cost) && u.perOrder.cost !== 0 ? `${um(u.perOrder.cost)}/${perOrderNoun(u)} · ` : "";
+        return { v: `${sm(d)}/ngày`, d: `${unit}${fmt(u.days, 0)} ngày: ${sm(u.period.dchi)}`, tone, bad: false };
       }),
     ),
     rowFrom(
@@ -288,9 +314,11 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
       "nếu khách mua như 30 ngày qua",
       null,
       cellOf((p) => {
-        const d = money(p).certain.dprofit;
+        const u = unitsOf(p.c);
+        const d = u.perDay.certain;
         if (title || (card.family === "listing" && (!num(d) || d === 0))) return { v: "Không tốn chi phí", d: "", tone: "muted", bad: false };
-        return { v: num(d) ? `${svk(d)}/tháng` : DASH, d: "", tone: num(d) ? (d >= 0 ? "up" : "down") : "plain", bad: false };
+        const perOrder = u.perOrder && num(u.perOrder.certain) ? `${sm(u.perOrder.certain)}/${perOrderNoun(u)} · ` : "";
+        return { v: num(d) ? `${sm(d)}/ngày` : DASH, d: `${perOrder}${fmt(u.days, 0)} ngày: ${sm(u.period.certain)}`, tone: num(d) ? (d >= 0 ? "up" : "down") : "plain", bad: false };
       }),
     ),
     rowFrom(
@@ -299,8 +327,9 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
       "khoảng, theo mô hình tăng đơn",
       null,
       cellOf((p) => {
-        const t = money(p).total;
-        return { v: `${rangeK(t.p10.dprofit, t.p90.dprofit)}/tháng`, d: "", tone: rangeTone(t.p10.dprofit, t.p90.dprofit), bad: false };
+        const u = unitsOf(p.c);
+        const perOrder = u.perOrder && num(u.perOrder.p50) ? `giữa khoảng ${sm(u.perOrder.p50)}/${perOrderNoun(u)} · ` : "";
+        return { v: `${srange(u.perDay.p10, u.perDay.p90)}/ngày`, d: `${perOrder}${fmt(u.days, 0)} ngày: ${srange(u.period.p10, u.period.p90)}`, tone: rangeTone(u.period.p10, u.period.p90), bad: false };
       }),
     ),
     rowFrom(
@@ -343,12 +372,70 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
           const s = p.c.spend;
           if (!s || !num(s.shop_chi_per_day_after)) return { v: DASH, d: "", tone: "muted", bad: false };
           const over = s.over_cap === true;
-          return { v: `${over ? "✕" : "✓"} ${vnd(s.shop_chi_per_day_after)} / ${num(s.cap) ? vnd(s.cap) : "chưa đặt trần"} mỗi ngày`, d: "", tone: over ? "down" : "plain", bad: over };
+          const cap = num(s.cap) ? (over ? `vượt trần ${vnd(s.cap)}/ngày` : `trong trần ${vnd(s.cap)}/ngày`) : "chưa đặt trần";
+          return { v: `${over ? "✕" : "✓"} Chi marketing dự kiến ${vnd(s.shop_chi_per_day_after)}/ngày · ${cap}`, d: "", tone: over ? "down" : "plain", bad: over };
         }),
       ),
     );
   }
+  if (card.family === "voucher" && per.some((p) => p?.c.certain.voucher_detail)) rows.push(...voucherRows(per, versions));
   return rows;
+}
+
+type Per = { readonly v: CardVersion; readonly c: Card } | null;
+
+/** Usage vs limit, per-buyer limit, max discount and the one-line reason two versions look alike. */
+function voucherRows(per: readonly (Per | { readonly v: CardVersion; readonly c: Card; readonly sure: unknown; readonly exp: unknown })[], versions: readonly CardVersion[]): TableRow[] {
+  const cell = (pick: (d: NonNullable<Card["certain"]["voucher_detail"]>, p: NonNullable<Per>) => TableCell): TableCell[] =>
+    per.map((p) => {
+      const d = p?.c.certain.voucher_detail;
+      return p && d ? pick(d, p) : { v: DASH, d: "", tone: "muted" as const, bad: false };
+    });
+  return [
+    rowFrom(
+      "usage",
+      "Số lượt dùng",
+      "dự kiến dùng / giới hạn",
+      null,
+      cellOf2(cell, (d) => {
+        const u = d.usage;
+        const used = num(u.used) ? fmt(u.used, Number.isInteger(u.used) || u.used >= 10 ? 0 : 1) : DASH;
+        const limit = num(u.limit) ? fmt(u.limit, 0) : "không giới hạn";
+        return { v: `Dự kiến dùng ${used} / ${limit} lượt`, d: num(u.limit) ? (u.capped ? "chạm giới hạn" : "chưa chạm giới hạn") : "", tone: u.capped ? "down" : "plain", bad: false };
+      }),
+    ),
+    rowFrom(
+      "peruser",
+      "Giới hạn mỗi người mua",
+      "chưa tính vào kết quả",
+      null,
+      cellOf2(cell, (d) => ({ v: num(d.per_user.limit) ? `${fmt(d.per_user.limit, 0)} lượt/người` : "Không đặt", d: num(d.per_user.limit) ? "chưa tính vào kết quả: đơn hàng không cho biết người mua" : "", tone: "muted", bad: false })),
+    ),
+    rowFrom(
+      "maxd",
+      "Mức giảm tối đa",
+      "chỉ voucher giảm theo %",
+      null,
+      cellOf2(cell, (d) => {
+        const m = d.max_discount;
+        if (!m.applies) return { v: "Không đặt", d: "", tone: "muted", bad: false };
+        if (!m.pct_voucher) return { v: um(m.value), d: "chỉ có tác dụng với voucher %", tone: "muted", bad: false };
+        const binds = m.binding_orders > 0;
+        return { v: um(m.value), d: binds ? `chạm trần ở ${fmt(m.binding_orders, 0)}/${fmt(m.qualifying_orders, 0)} đơn đủ điều kiện` : "chưa đơn nào chạm trần", tone: binds ? "down" : "plain", bad: false };
+      }),
+    ),
+    rowFrom(
+      "same",
+      "Vì sao giống V1",
+      "đầu vào khác nhưng kết quả không đổi",
+      null,
+      versions.map((v) => ({ v: v.same_as_default_notes && v.same_as_default_notes.length > 0 ? v.same_as_default_notes.join(" ") : DASH, d: "", tone: "muted" as const, bad: false })),
+    ),
+  ];
+}
+
+function cellOf2(cell: (pick: (d: NonNullable<Card["certain"]["voucher_detail"]>, p: NonNullable<Per>) => TableCell) => TableCell[], f: (d: NonNullable<Card["certain"]["voucher_detail"]>) => TableCell): TableCell[] {
+  return cell((d) => f(d));
 }
 
 /** Column tag of a version: the engine's pick, a breach, a version that could not be priced. */

@@ -238,7 +238,7 @@ export function expectedRows(card: Card): NumberRow[] {
   return [
     disc!,
     { key: "eff", label: FIVE_LABELS[1], before: DASH, after: eff, dv: `${rangeText(lo.dgmv, hi.dgmv, sv)} GMV`, dp: "", tone: "flat" },
-    { ...bien!, dv: `${rangeText(lo.dprofit, hi.dprofit, sv)} / tháng` },
+    { ...bien!, dv: `${rangeText(lo.dprofit, hi.dprofit, sv)} trong ${fmt(pm.period?.days ?? pm.days, 0)} ngày` },
     {
       key: "orders",
       label: FIVE_LABELS[3],
@@ -453,3 +453,6 @@ export function stepText(v: string | number | null | undefined, unit?: string | 
   if (typeof v === "number") return unit === "VND" ? vnd(v) : unit === "%" ? `${fmt(v, 0)}%` : `${fmt(v, 0)}${unit ? ` ${unit}` : ""}`;
   return v;
 }
+
+/** Statuses Ops can take a card off the list from ("Gỡ thẻ"); a planned card leaves its draft plan first. */
+export const WITHDRAWABLE: readonly string[] = ["draft", "sent", "changes_requested", "approved", "planned"];

@@ -196,8 +196,8 @@ const todayOf = (c: CompareResult) => c.today;
 const METRICS: readonly MetricDef[] = [
   {
     key: "profit",
-    label: "Lợi nhuận / tháng",
-    sub: "Δ so với hôm nay, khoảng dự kiến",
+    label: "Lợi nhuận",
+    sub: "Δ trong số ngày của thay đổi, khoảng dự kiến",
     delta: "dprofit_p50",
     good: 1,
     today: () => DASH,
@@ -326,7 +326,7 @@ export function tradeoffs(result: CompareResult, sent: readonly Sendable[]): str
     const dAov = between.delta["aov_p25"];
     if (num(dBien) && num(dAov) && dBien < 0 && dAov > 0) {
       out.push(
-        `P${x.editor + 1} so với P${ref.editor + 1}: biên giảm ${fmt(Math.abs(dBien), 1)} điểm nhưng AOV tăng ${vnd(roundK(dAov))}, GMV ${svk(between.delta["dgmv_p50"])}, lợi nhuận ${svk(between.delta["dprofit_p50"])}/tháng. Chọn theo việc bạn cần: lợi nhuận hay doanh thu.`,
+        `P${x.editor + 1} so với P${ref.editor + 1}: biên giảm ${fmt(Math.abs(dBien), 1)} điểm nhưng AOV tăng ${vnd(roundK(dAov))}, GMV ${svk(between.delta["dgmv_p50"])}, lợi nhuận ${svk(between.delta["dprofit_p50"])} trong kỳ tính. Chọn theo việc bạn cần: lợi nhuận hay doanh thu.`,
       );
     }
   }
@@ -377,7 +377,7 @@ export function orderLines(row: VariantRow | undefined, todayMargin: N): OrderLi
     { k: "Đóng góp mỗi đơn", v: vnd(contrib), tone: contrib !== null && base !== null ? (contrib >= base ? "up" : "down") : undefined },
     { k: "Biên của đơn combo", v: `${pp(margin, 1)}${num(todayMargin) ? ` (hôm nay ${pp(todayMargin, 1)})` : ""}` },
     { k: "Chi phí ưu đãi mỗi đơn", v: vnd(n("cost_per_combo_order")) },
-    { k: "Hoà vốn", v: be === 0 ? "Không cần đơn thêm" : typeof be === "number" ? `Cần ≥ ${fmt(be, 0)} đơn combo thêm / tháng` : "Không hoà vốn" },
+    { k: "Hoà vốn", v: be === 0 ? "Không cần đơn thêm" : typeof be === "number" ? `Cần ≥ ${fmt(be, 0)} đơn combo thêm trong kỳ tính` : "Không hoà vốn" },
   ];
 }
 

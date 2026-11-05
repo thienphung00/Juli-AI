@@ -85,6 +85,54 @@ def _band(total: Mapping[str, Any], key: str) -> dict[str, float | None]:
     }
 
 
+def _band_of(block: Mapping[str, Any], key: str) -> dict[str, float | None]:
+    return {"low": block["p10"][key], "p50": block["p50"][key], "high": block["p90"][key]}
+
+
+def _per_day(card: Mapping[str, Any], cost_known: bool) -> dict[str, Any] | None:
+    block = card["predicted"]["money_per_month"].get("per_day")
+    if not block:
+        return None
+    total = block["total"]
+    profit = _band_of(total, "dprofit")
+    return {
+        "gmv": _band_of(total, "dgmv"),
+        "orders": _band_of(total, "dorders"),
+        "profit": profit if cost_known else {"low": None, "p50": None, "high": None},
+        "cost": block["certain"]["dchi"],
+    }
+
+
+def _period(card: Mapping[str, Any], cost_known: bool) -> dict[str, Any] | None:
+    block = card["predicted"]["money_per_month"].get("period")
+    if not block:
+        return None
+    total = block["total"]
+    return {
+        "days": block["days"],
+        "gmv": _band_of(total, "dgmv"),
+        "orders": _band_of(total, "dorders"),
+        "profit": _band_of(total, "dprofit")
+        if cost_known
+        else {"low": None, "p50": None, "high": None},
+        "cost": block["certain"]["dchi"],
+    }
+
+
+def _per_order(card: Mapping[str, Any], cost_known: bool) -> dict[str, Any] | None:
+    block = card["predicted"]["money_per_month"].get("per_order")
+    if not block:
+        return None
+    return {
+        "basis": block["basis"],
+        "orders": block["orders_in_period"],
+        "cost": block["certain"]["cost"],
+        "profit": _band_of(block["total"], "dprofit")
+        if cost_known
+        else {"low": None, "p50": None, "high": None},
+    }
+
+
 def basis_of(card: Mapping[str, Any]) -> dict[str, Any]:
     """Where the card's estimate comes from. ``insufficient`` when no volume could be predicted
     (no traffic base, or a kind without a prior) and the certain layer is empty too."""
@@ -425,6 +473,14 @@ def shape(
         orders_band = {"low": 0.0, "p50": 0.0, "high": 0.0}
         orders_note = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
     basis = basis_of(numbers)
+    if items and all(i in ctx.reference_items for i in items if i):
+        basis = {
+            "key": "insufficient",
+            "label": BASIS_LABELS["insufficient"],
+            "detail": "Sản phẩm chưa có đơn trong kỳ: chỉ tính chi phí và hoà vốn trên một đơn mẫu "
+            "theo giá hiện tại, không dự kiến số đơn hay doanh thu.",
+            "volume_estimate": False,
+        }
     delta_gmv = _band(total, "dgmv")
     if basis["key"] == "insufficient":  # no volume could be predicted: null, not a flat 0
         null = {"low": None, "p50": None, "high": None}
@@ -449,8 +505,14 @@ def shape(
             "profit": delta_profit,
             "certain_profit": certain_profit,
             "orders_note": orders_note,
-            "per": "month",
+            # the figures above cover ``days`` days (the change's own, up to 30), not a month
+            "per": "period",
+            "days": pm.get("period", {}).get("days", pm["days"]),
+            "per_day": _per_day(numbers, cost_known),
+            "period": _period(numbers, cost_known),
+            "per_order": _per_order(numbers, cost_known),
         },
+        "voucher": (numbers.get("certain") or {}).get("voucher_detail"),
         "margin_before_pct": margin_before,
         "margin_after_pct": margin_after,
         "profit_status": "ok" if cost_known else "chua_tinh",

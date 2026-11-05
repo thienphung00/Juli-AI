@@ -43,6 +43,7 @@ from juli_backend.services.shopee_recommendations.evaluate import evaluate
 from juli_backend.services.shopee_recommendations.kinds import KINDS
 from juli_backend.services.shopee_recommendations.loader import load_env
 from juli_backend.services.shopee_recommendations.model import Candidate
+from juli_backend.services.shopee_recommendations.voucher_notes import same_result_notes
 
 ORIGIN_MANUAL = "manual"
 MIN_VARIANTS, MAX_VARIANTS = 2, 4
@@ -190,7 +191,8 @@ def build_variant(
             )
             if not cand.items and KINDS[kind].subject_type == "item" and not shop_gift:
                 return None, refusal("no_item")
-            known = set(env.item_ids())
+            # a listing nobody bought lately is still a listing: hide / relist / title need no order
+            known = {*env.item_ids(), *env.ctx.catalog.items, *env.view.active_items}
             for item in (
                 *cand.items,
                 *(cand.extra.get(k) for k in ("addon_item", "gift_item") if cand.extra.get(k)),
@@ -252,6 +254,34 @@ def metrics_of(card: Mapping[str, Any]) -> dict[str, Any]:
         "spend_after_per_day": spend.get("shop_chi_per_day_after"),
         "spend_cap": spend.get("cap"),
         "spend_over_cap": spend.get("over_cap"),
+        **_period_metrics(card),
+    }
+
+
+def _period_metrics(card: Mapping[str, Any]) -> dict[str, Any]:
+    """Per-day and over-the-period figures beside the monthly ones (no per-month for the reader)."""
+    pm = card["predicted"]["money_per_month"]
+    per_day, period = pm.get("per_day"), pm.get("period")
+    if not per_day or not period:
+        return {}
+    detail = (card.get("certain") or {}).get("voucher_detail") or {}
+    usage = detail.get("usage") or {}
+    return {
+        "period_days": period["days"],
+        "dprofit_per_day_p50": per_day["total"]["p50"]["dprofit"],
+        "dgmv_per_day_p50": per_day["total"]["p50"]["dgmv"],
+        "cost_per_day": per_day["certain"]["dchi"],
+        "dprofit_period_p10": period["total"]["p10"]["dprofit"],
+        "dprofit_period_p50": period["total"]["p50"]["dprofit"],
+        "dprofit_period_p90": period["total"]["p90"]["dprofit"],
+        "cost_period": period["certain"]["dchi"],
+        "dprofit_per_order_p50": (pm.get("per_order") or {})
+        .get("total", {})
+        .get("p50", {})
+        .get("dprofit"),
+        "usage_expected": usage.get("expected_uses"),
+        "usage_limit": usage.get("limit"),
+        "usage_capped": usage.get("capped"),
     }
 
 
@@ -303,7 +333,12 @@ def compare(
         )
     ok = [r for r in rows if r["ok"]]
     between = [
-        {"from": a["index"], "to": b["index"], "delta": _diff(a["metrics"], b["metrics"])}
+        {
+            "from": a["index"],
+            "to": b["index"],
+            "delta": _diff(a["metrics"], b["metrics"]),
+            "notes": same_result_notes(a["card"], b["card"]),
+        }
         for i, a in enumerate(ok)
         for b in ok[i + 1 :]
     ]
@@ -368,6 +403,13 @@ def _version_rows(
             }
         )
         out.append(row)
+    head = built[order[0]][0]
+    for n, i in enumerate(order):
+        card = built[i][0]
+        if n > 0 and head is not None and card is not None:
+            notes = same_result_notes(head, card)
+            if notes:
+                out[n]["same_as_default_notes"] = notes
     return out
 
 

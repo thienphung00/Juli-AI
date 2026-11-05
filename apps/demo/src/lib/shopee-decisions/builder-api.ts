@@ -209,8 +209,16 @@ export interface BuilderOutcome {
     readonly profit: Band | null;
     readonly certain_profit?: N;
     readonly orders_note?: string | null;
+    /** The figures above cover `days` days (the change's own, up to 30). */
     readonly per?: string;
+    readonly days?: number;
+    readonly per_day?: { readonly gmv: Band | null; readonly orders: Band | null; readonly profit: Band | null; readonly cost: N } | null;
+    readonly period?: { readonly days: number; readonly gmv: Band | null; readonly orders: Band | null; readonly profit: Band | null; readonly cost: N } | null;
+    readonly per_order?: { readonly basis: "order" | "voucher_use"; readonly orders: number; readonly cost: N; readonly profit: Band | null } | null;
   };
+  readonly voucher?: import("./types").VoucherDetail | null;
+  /** Inputs that differ from P1 without changing the result, named (compare only). */
+  readonly same_as_first_notes?: readonly string[];
   readonly margin_before_pct?: N;
   readonly margin_after_pct?: N;
   readonly profit_status?: "ok" | "chua_tinh" | string;

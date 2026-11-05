@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 
 import { DASH } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
+import type { WithdrawManyResult } from "../../lib/shopee-decisions/client";
 import { useReco } from "../../lib/shopee-decisions/context";
-import { statusLabel } from "../../lib/shopee-decisions/model";
+import { WITHDRAWABLE, statusLabel } from "../../lib/shopee-decisions/model";
 import type { CardByCode, CardList, CardSummary } from "../../lib/shopee-decisions/types";
 import { PRODUCT_GROUPS, versionFlag, vnWhenFull } from "../../lib/shopee-decisions/versions";
 import { Empty, Notice, TextChip } from "../shopee-analytics/ui";
+import { WithdrawDialog } from "./dialogs";
 import { StaffBar } from "./staff-bar";
 import { NavLink, RecoState, errorText } from "./ui";
 
@@ -64,6 +66,7 @@ export function OpsRecoList() {
   const [tick, setTick] = useState(0);
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
+  const [flash, setFlash] = useState<string | null>(null);
   const res = useResource<CardList>(() => host.reco.list({ queue: "all" }), `${host.shopKey}|ops-list|${tick}`);
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
   useEffect(() => {
@@ -88,17 +91,57 @@ export function OpsRecoList() {
       </header>
       <StaffBar onChanged={() => setTick((t) => t + 1)} />
       <RecoState resource={res}>
-        {(data) => <Table cards={data.cards} filter={filter} names={names} onFilter={setFilter} onQuery={setQ} q={q} />}
+        {(data) => <Table cards={data.cards} filter={filter} flash={flash} names={names} onChanged={() => setTick((t) => t + 1)} onFilter={setFilter} onFlash={setFlash} onQuery={setQ} q={q} />}
       </RecoState>
     </div>
   );
 }
 
-function Table({ cards, filter, q, names, onFilter, onQuery }: { readonly cards: readonly CardSummary[]; readonly filter: Filter; readonly q: string; readonly names: ReadonlyMap<string, string>; readonly onFilter: (f: Filter) => void; readonly onQuery: (q: string) => void }) {
+function Table({ cards, filter, q, names, flash, onFilter, onQuery, onChanged, onFlash }: { readonly cards: readonly CardSummary[]; readonly filter: Filter; readonly q: string; readonly names: ReadonlyMap<string, string>; readonly onFilter: (f: Filter) => void; readonly onQuery: (q: string) => void; readonly flash: string | null; readonly onChanged: () => void; readonly onFlash: (text: string | null) => void }) {
   const host = useReco();
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [asking, setAsking] = useState<readonly string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const needle = q.trim().toLowerCase();
   const rows = useMemo(() => cards.filter((c) => (filter === "all" || filterOf(c) === filter) && (c.code ?? "").toLowerCase().includes(needle)), [cards, filter, needle]);
   const whole = CODE_RE.test(q.trim());
+  const open = (c: CardSummary) => WITHDRAWABLE.includes(c.status);
+  const chosen = rows.filter((c) => picked.has(c.id) && open(c)).map((c) => c.id);
+  const toggle = (cardId: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(cardId)) next.delete(cardId);
+      else next.add(cardId);
+      return next;
+    });
+  const labelOf = (cardId: string) => {
+    const c = cards.find((x) => x.id === cardId);
+    return c?.code ?? cardId;
+  };
+  const withdraw = async (choice: { readonly reasonCode: string; readonly note: string | null }) => {
+    if (!asking) return;
+    setBusy(true);
+    setError(null);
+    try {
+      let out: WithdrawManyResult = { withdrawn: [], refused: [] };
+      if (asking.length === 1) {
+        await host.reco.withdraw(asking[0]!, choice);
+        out = { withdrawn: [asking[0]!], refused: [] };
+      } else {
+        out = await host.reco.withdrawMany(asking, choice);
+      }
+      const refused = out.refused.map((r) => `${labelOf(r.id)} (${r.error})`);
+      onFlash(`Đã gỡ ${out.withdrawn.length} thẻ; thẻ kế tiếp của sản phẩm đã lên thay.${refused.length > 0 ? ` Không gỡ được: ${refused.join(", ")}.` : ""}`);
+      setPicked(new Set());
+      setAsking(null);
+      onChanged();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <>
       <div className="ol-filters" data-testid="ops-filters">
@@ -113,9 +156,25 @@ function Table({ cards, filter, q, names, onFilter, onQuery }: { readonly cards:
         </label>
       </div>
       {whole ? <CodeLookup code={q.trim().toUpperCase()} /> : null}
+      {flash ? (
+        <Notice tone="info" testId="ops-withdraw-flash">
+          {flash}
+        </Notice>
+      ) : null}
+      {chosen.length > 0 ? (
+        <div className="ol-filters" data-testid="ops-bulk">
+          <span className="sa-hint">Đã chọn {chosen.length} thẻ</span>
+          <button className="sa-btn sa-btn--s" data-testid="ops-bulk-withdraw" onClick={() => setAsking(chosen)} type="button">
+            Gỡ {chosen.length} thẻ
+          </button>
+          <button className="sa-btn sa-btn--s" onClick={() => setPicked(new Set())} type="button">
+            Bỏ chọn
+          </button>
+        </div>
+      ) : null}
       <div className="ol-table" data-testid="ops-table" role="table">
         <div className="ol-row ol-row--head" role="row">
-          {["Mã thẻ", "Sản phẩm · thay đổi", "Họ", "Nguồn", "Hàng đợi", "Phiên bản", "Mã kế hoạch", "Trạng thái", "Tạo lúc"].map((h) => (
+          {["Chọn", "Mã thẻ", "Sản phẩm · thay đổi", "Họ", "Nguồn", "Hàng đợi", "Phiên bản", "Mã kế hoạch", "Trạng thái", "Tạo lúc", "Thao tác"].map((h) => (
             <span key={h} role="columnheader">
               {h}
             </span>
@@ -123,6 +182,9 @@ function Table({ cards, filter, q, names, onFilter, onQuery }: { readonly cards:
         </div>
         {rows.map((c) => (
           <div className="ol-row" data-testid={`ops-row-${c.code ?? c.id}`} key={c.id} role="row">
+            <span role="cell">
+              {open(c) ? <input aria-label={`Chọn thẻ ${c.code ?? c.id}`} checked={picked.has(c.id)} onChange={() => toggle(c.id)} type="checkbox" /> : null}
+            </span>
             <b role="cell">
               <NavLink href={host.href({ the: c.id })}>{c.code ?? c.id}</NavLink>
             </b>
@@ -141,10 +203,18 @@ function Table({ cards, filter, q, names, onFilter, onQuery }: { readonly cards:
               <TextChip tone={c.status === "sent" || c.status === "changes_requested" ? "warn" : c.status === "planned" ? "pink" : c.status === "executed" || c.status === "approved" ? "info" : "flat"}>{statusLabel(c.status)}</TextChip>
             </span>
             <span role="cell">{whenText(c.sent_at)}</span>
+            <span role="cell">
+              {open(c) ? (
+                <button className="sa-btn sa-btn--s" data-testid={`ops-withdraw-${c.code ?? c.id}`} onClick={() => setAsking([c.id])} type="button">
+                  Gỡ thẻ
+                </button>
+              ) : null}
+            </span>
           </div>
         ))}
         {rows.length === 0 ? <Empty testId="ops-empty">Không có thẻ khớp mã hoặc trạng thái này.</Empty> : null}
       </div>
+      <WithdrawDialog busy={busy} count={asking?.length ?? 0} error={error} label={asking && asking.length === 1 ? labelOf(asking[0]!) : ""} onCancel={() => setAsking(null)} onSubmit={(c) => void withdraw(c)} open={asking !== null} />
       <p className="sa-hint ol-foot">Mã thẻ không bao giờ dùng lại trong cùng shop; thẻ trong kế hoạch đã xác nhận mang thêm mã kế hoạch KH-&lt;yymm&gt;-&lt;số&gt;. Phiên bản là mã thẻ thêm -V1 … -V4. Thẻ thay thế thẻ cũ khi sinh lại có liên kết tới mã cũ.</p>
     </>
   );

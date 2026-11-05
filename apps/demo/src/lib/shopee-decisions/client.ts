@@ -42,6 +42,16 @@ export interface ExecutedInput {
   readonly executedAt?: string | null;
 }
 
+export interface WithdrawInput {
+  readonly reasonCode: string;
+  readonly note?: string | null;
+}
+
+export interface WithdrawManyResult {
+  readonly withdrawn: readonly string[];
+  readonly refused: readonly { readonly id: string; readonly error: string; readonly status: number }[];
+}
+
 export interface RecoApi {
   list(q?: ListQuery): Promise<CardList>;
   detail(id: string): Promise<CardDetail>;
@@ -60,7 +70,10 @@ export interface RecoApi {
   // Juli Ops only
   generate(body: { readonly topN?: number; readonly mega?: { readonly start: string; readonly end: string; readonly budgetCapPerDay?: number | null } | null }): Promise<GenerateReport>;
   publish(cardIds?: readonly string[] | null): Promise<{ readonly sent: readonly string[] }>;
-  withdraw(id: string): Promise<{ readonly id: string; readonly status: string }>;
+  /** "Gỡ thẻ": close the card (withdrawn) with a reason; the product's next card moves up. */
+  withdraw(id: string, body?: WithdrawInput): Promise<{ readonly id: string; readonly status: string }>;
+  /** Bulk "Gỡ thẻ": each card closes on its own; the ones that could not are listed. */
+  withdrawMany(ids: readonly string[], body: WithdrawInput): Promise<WithdrawManyResult>;
   rerunStale(): Promise<Readonly<Record<string, number>>>;
   learning(): Promise<LearningOverview>;
   learningRun(): Promise<Readonly<Record<string, unknown>>>;
@@ -88,11 +101,13 @@ export interface RecoClientOptions {
   readonly token: string;
   /** Seller scope only: the acting shop (`X-Shop-Id`). */
   readonly shopId?: string;
+  /** Ops "Xem như shop": read the cards as the seller gets them (no unsent drafts, no internals). */
+  readonly asSeller?: boolean;
   readonly fetchImpl?: typeof fetch;
 }
 
 export function createRecoApi(options: RecoClientOptions): RecoApi {
-  const { base, token, shopId, fetchImpl } = options;
+  const { base, token, shopId, fetchImpl, asSeller } = options;
   async function call<T>(method: "GET" | "POST", path: string, body?: unknown, params?: URLSearchParams): Promise<T> {
     const doFetch = fetchImpl ?? fetch;
     const qs = params?.toString();
@@ -126,9 +141,10 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
       if (q.xepTheo) p.set("xep_theo", q.xepTheo);
       if (q.productId) p.set("product_id", q.productId);
       if (q.queue) p.set("queue", q.queue);
+      if (asSeller) p.set("audience", "seller");
       return call<CardList>("GET", "", undefined, p);
     },
-    detail: (cardId) => call<CardDetail>("GET", id(cardId)),
+    detail: (cardId) => call<CardDetail>("GET", id(cardId), undefined, asSeller ? new URLSearchParams({ audience: "seller" }) : undefined),
     whatif: async (cardId, inputs, version) => (await call<{ card: Card }>("POST", `${id(cardId)}/whatif`, { inputs, ...(version ? { version } : {}) })).card,
     approve: (cardId, body) =>
       call<DecideResult>("POST", `${id(cardId)}/approve`, {
@@ -160,7 +176,8 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
         ...(body.mega ? { mega: { start: body.mega.start, end: body.mega.end, budget_cap_per_day: body.mega.budgetCapPerDay ?? null } } : {}),
       }),
     publish: (cardIds) => call<{ sent: string[] }>("POST", "/publish", { card_ids: cardIds ?? null }),
-    withdraw: (cardId) => call<{ id: string; status: string }>("POST", `${id(cardId)}/withdraw`, {}),
+    withdraw: (cardId, body) => call<{ id: string; status: string }>("POST", `${id(cardId)}/withdraw`, body ? { reason_code: body.reasonCode, note: body.note ?? null } : {}),
+    withdrawMany: (cardIds, body) => call<WithdrawManyResult>("POST", "/withdraw", { card_ids: cardIds, reason_code: body.reasonCode, note: body.note ?? null }),
     rerunStale: () => call<Record<string, number>>("POST", "/rerun-stale", {}),
     learning: () => call<LearningOverview>("GET", "/learning"),
     learningRun: () => call<Record<string, unknown>>("POST", "/learning/run", {}),

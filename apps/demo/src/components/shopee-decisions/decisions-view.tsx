@@ -35,6 +35,11 @@ const EMPTY: Readonly<Record<DecisionTab, string>> = {
   "do-luong": "Chưa có thẻ nào đang được đo.",
 };
 
+/** A figure over the card's own days, per day. */
+function perDay(n: number | null | undefined, days: number): number | null {
+  return typeof n === "number" ? n / Math.max(1, days || 1) : null;
+}
+
 function moneyRange(q: { readonly p10: number | null; readonly p90: number | null }): string {
   if (q.p10 === null || q.p90 === null) return DASH;
   const lo = Math.min(q.p10, q.p90);
@@ -53,7 +58,7 @@ function CardRow({ card, from }: { readonly card: CardSummary; readonly from: st
         <span className="sd-row__chips">
           {isWorthTrying(card) ? <TextChip tone="pink">đáng thử</TextChip> : null}
           <StatusChip status={card.status} />
-          {card.stale ? <TextChip tone="warn">Cần tính lại</TextChip> : null}
+          {card.stale ? <TextChip tone="warn">Đang cập nhật</TextChip> : null}
           {!card.floor_ok ? <TextChip tone="down">Chạm giá sàn</TextChip> : null}
           {card.bundle ? <TextChip tone="info">Đo như một gói</TextChip> : null}
         </span>
@@ -61,12 +66,16 @@ function CardRow({ card, from }: { readonly card: CardSummary; readonly from: st
       </div>
       <dl className="sd-row__nums">
         <div>
-          <dt>Chắc chắn / tháng</dt>
-          <dd>{sv(card.certain_summary.dprofit_month)} lợi nhuận</dd>
+          <dt>Chắc chắn / ngày</dt>
+          <dd>
+            {sv(perDay(card.certain_summary.dprofit_month, card.predicted_summary.effect_days))} lợi nhuận · {fmt(card.predicted_summary.effect_days, 0)} ngày: {sv(card.certain_summary.dprofit_month)}
+          </dd>
         </div>
         <div>
-          <dt>Dự kiến / tháng</dt>
-          <dd>{moneyRange(card.predicted_summary.dprofit_month)} lợi nhuận</dd>
+          <dt>Dự kiến / ngày</dt>
+          <dd>
+            {moneyRange({ p10: perDay(card.predicted_summary.dprofit_month.p10, card.predicted_summary.effect_days), p90: perDay(card.predicted_summary.dprofit_month.p90, card.predicted_summary.effect_days) })} lợi nhuận · {fmt(card.predicted_summary.effect_days, 0)} ngày: {moneyRange(card.predicted_summary.dprofit_month)}
+          </dd>
         </div>
         <div>
           <dt>Đo</dt>

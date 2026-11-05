@@ -117,3 +117,57 @@ export function RequestChangeDialog({ open, busy, error, viewing, onCancel, onSu
     </div>
   );
 }
+
+/** Why Ops takes a card off the list ("Gỡ thẻ"); codes match `WITHDRAW_REASONS` in the backend. */
+export const WITHDRAW_REASONS: readonly (readonly [string, string])[] = [
+  ["not_fit", "Không phù hợp"],
+  ["duplicate", "Trùng thẻ khác"],
+  ["done_outside", "Đã làm ngoài Juli"],
+  ["other", "Khác"],
+];
+
+/** In-page confirmation for "Gỡ thẻ" (one card or a selection): a reason select, an optional note. */
+export function WithdrawDialog({ open, count, label, busy, error, onCancel, onSubmit }: { readonly open: boolean; readonly count: number; readonly label: string; readonly busy: boolean; readonly error: string | null; readonly onCancel: () => void; readonly onSubmit: (choice: { readonly reasonCode: string; readonly note: string | null }) => void }) {
+  const id = useId();
+  const [reason, setReason] = useState("not_fit");
+  const [note, setNote] = useState("");
+  useEscape(open, onCancel);
+  if (!open) return null;
+  return (
+    <div className="qv-overlay" data-testid="sd-withdraw-dialog">
+      <div aria-labelledby={`${id}-t`} aria-modal="true" className="qv-dialog" role="dialog">
+        <h3 className="qv-dialog__title" id={`${id}-t`}>
+          {count > 1 ? `Gỡ ${count} thẻ đã chọn?` : `Gỡ thẻ ${label}?`}
+        </h3>
+        <p className="qv-dialog__body">Thẻ đóng lại (đã gỡ) và rời khỏi Đề xuất; thẻ kế tiếp của sản phẩm lên thay. Việc này được ghi lại cùng lý do.</p>
+        <label className="qv-dialog__note">
+          Lý do
+          <select data-testid="sd-withdraw-reason" onChange={(event) => setReason(event.target.value)} value={reason}>
+            {WITHDRAW_REASONS.map(([code, text]) => (
+              <option key={code} value={code}>
+                {text}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="qv-dialog__note">
+          Ghi chú thêm (không bắt buộc)
+          <input maxLength={300} onChange={(event) => setNote(event.target.value)} type="text" value={note} />
+        </label>
+        {error ? (
+          <p className="qv-inline-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="qv-dialog__actions">
+          <button className="qv-btn qv-btn--secondary" onClick={onCancel} type="button">
+            Quay lại
+          </button>
+          <button className="qv-btn qv-btn--primary" data-testid="sd-withdraw-confirm" disabled={busy} onClick={() => onSubmit({ reasonCode: reason, note: note.trim() || null })} type="button">
+            {count > 1 ? `Gỡ ${count} thẻ` : "Gỡ thẻ"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ShopeeLinks } from "../../lib/shopee-analytics/links";
-import { DASH } from "../../lib/shopee-analytics/format";
+import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import type { RecoApi } from "../../lib/shopee-decisions/client";
 import type { CardSummary, CardVersion } from "../../lib/shopee-decisions/types";
-import { PRODUCT_GROUPS, firstVersionRange, isOpen, queueLabel, rangeK, rangeTone, svk, versionFlag, versionsOf, CLOSED_STATUSES } from "../../lib/shopee-decisions/versions";
+import { sm, srange, unitsOf } from "../../lib/shopee-decisions/units";
+import { PRODUCT_GROUPS, firstVersionRange, isOpen, queueLabel, rangeTone, versionFlag, versionsOf, CLOSED_STATUSES } from "../../lib/shopee-decisions/versions";
 import { TextChip } from "../shopee-analytics/ui";
 
 /**
@@ -148,7 +149,7 @@ function CardBlock({ card, expanded, onToggle, links, reco }: { readonly card: C
           </span>
         </span>
         <span className="sp-card__d">
-          <span className="sa-hint">Δ lợi nhuận / tháng (V1, dự kiến)</span>
+          <span className="sa-hint">Δ lợi nhuận (V1, dự kiến)</span>
           <b className={toneClass(rangeTone(q.p10, q.p90))}>{firstVersionRange(card)}</b>
         </span>
         {briefs.length > 0 ? (
@@ -166,6 +167,7 @@ function CardBlock({ card, expanded, onToggle, links, reco }: { readonly card: C
             const v = full?.find((x) => x.version === b.version);
             const pm = v?.predicted?.money_per_month;
             const t = pm?.total;
+            const vu = v?.predicted ? unitsOf(v as { predicted: NonNullable<typeof v.predicted> }) : null;
             return (
               <div className="sp-ver" data-testid={`sp-ver-${card.id}-${b.version}`} key={b.version}>
                 <span className="sd-code">{b.code ?? `${card.code ?? ""}-V${b.version}`}</span>
@@ -175,9 +177,9 @@ function CardBlock({ card, expanded, onToggle, links, reco }: { readonly card: C
                   {i === 0 ? " · Juli đề xuất" : ""} {versionFlag(b) ? <TextChip tone="down">{versionFlag(b)}</TextChip> : null}
                 </span>
                 <span>
-                  Chắc chắn <b>{pm ? `${svk(pm.certain.dprofit)}/tháng` : full ? DASH : "…"}</b>
+                  Chắc chắn <b>{vu ? `${sm(vu.perDay.certain)}/ngày` : full ? DASH : "…"}</b>
                 </span>
-                <b className={toneClass(rangeTone(t?.p10.dprofit, t?.p90.dprofit))}>{t ? `${rangeK(t.p10.dprofit, t.p90.dprofit)}/tháng` : full ? DASH : "…"}</b>
+                <b className={toneClass(rangeTone(t?.p10.dprofit, t?.p90.dprofit))}>{vu ? `${srange(vu.perDay.p10, vu.perDay.p90)}/ngày · ${fmt(vu.days, 0)} ngày: ${srange(vu.period.p10, vu.period.p90)}` : full ? DASH : "…"}</b>
                 <Link className="sa-link" href={`${href}&v=${b.version}`}>
                   Mở thẻ ›
                 </Link>

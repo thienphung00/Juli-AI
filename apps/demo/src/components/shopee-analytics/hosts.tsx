@@ -104,7 +104,7 @@ export function useOpsShopeeHost(shopId: string, kind: "view-as" | "tab", shopNa
       token
         ? {
             api: createShopeeApi({ base: opsShopeeBase(shopId), token, fetchImpl }),
-            reco: createRecoApi({ base: opsRecoBase(shopId), token, fetchImpl }),
+            reco: createRecoApi({ base: opsRecoBase(shopId), token, fetchImpl, asSeller: kind === "view-as" }),
             builder: p92BuilderEnabled() ? createBuilderApi({ base: opsBuilderBase(shopId), token, fetchImpl }) : undefined,
             kol: kolEnabled() ? createKolApi({ base: opsShopeeBase(shopId), token, fetchImpl }) : undefined,
             links: kind === "view-as" ? viewAsShopeeLinks(shopId) : opsTabShopeeLinks(shopId),

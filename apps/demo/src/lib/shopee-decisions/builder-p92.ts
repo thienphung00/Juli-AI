@@ -356,7 +356,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (pct === null || pct < 0 || pct > 50) return no("Hoa hồng từ 0% đến 50%.");
       const samples = Math.round(num(a.samples) ?? 0);
       if (samples < 0 || samples > 50) return no("Số mẫu gửi từ 0 đến 50.");
-      return { problem: null, version: { kind: "affiliate", label: clip(`Hoa hồng ${fmt(pct, 1)}%`), item_id: id, commission_pct: pct, target_campaign: a.campaign.trim(), sample_qty: samples, ...opt("sample_ship_fee", a.shipFee) } };
+      return { problem: null, version: { kind: "affiliate", label: clip(`Hoa hồng ${fmt(pct, 1)}%`), item_id: id, commission_pct: pct, target_campaign: a.campaign === "1", sample_qty: samples, ...opt("sample_ship_fee", a.shipFee) } };
     }
     case "price_display": {
       const p = f.price_display;
@@ -425,3 +425,36 @@ export function breachesOfOutcome(o: BuilderOutcome): readonly BuilderWarning[] 
 }
 
 export const BASIS_LABELS: readonly string[] = ["từ lịch sử sản phẩm", "của shop", "ước tính chung", "không đủ dữ liệu"];
+
+
+/** "Dự kiến dùng 6 / 20 lượt · chưa chạm giới hạn" of a voucher outcome (null for other kinds). */
+export function voucherUsageText(o: BuilderOutcome): string | null {
+  const u = o.voucher?.usage;
+  if (!u) return null;
+  const used = u.used === null ? DASH : fmt(u.used, Number.isInteger(u.used) || u.used >= 10 ? 0 : 1);
+  const limit = u.limit === null ? "không giới hạn" : fmt(u.limit, 0);
+  const state = u.limit === null ? "" : u.capped ? " · chạm giới hạn" : " · chưa chạm giới hạn";
+  return `Dự kiến dùng ${used} / ${limit} lượt${state}`;
+}
+
+/** The max-discount line: whether the cap binds and how often (percent vouchers only). */
+export function voucherMaxText(o: BuilderOutcome): string | null {
+  const m = o.voucher?.max_discount;
+  if (!m || !m.applies) return null;
+  if (!m.pct_voucher) return "Mức giảm tối đa chỉ có tác dụng với voucher %";
+  return m.binding_orders > 0 ? `Mức giảm tối đa chạm ở ${fmt(m.binding_orders, 0)}/${fmt(m.qualifying_orders, 0)} đơn đủ điều kiện` : "Mức giảm tối đa chưa đơn nào chạm";
+}
+
+/** Per day / per order / period lines of an outcome, in the units the seller reads. */
+export function unitLines(o: BuilderOutcome): readonly string[] {
+  const d = o.delta;
+  if (!d) return [];
+  const out: string[] = [];
+  const pd = d.per_day?.profit;
+  if (pd && pd.p50 !== null) out.push(`Mỗi ngày: ${sv(pd.p50)} lợi nhuận (${sv(pd.low)} – ${sv(pd.high)})`);
+  const po = d.per_order;
+  if (po?.profit && po.profit.p50 !== null) out.push(`Mỗi ${po.basis === "voucher_use" ? "đơn dùng voucher" : "đơn"}: ${sv(po.profit.p50)} lợi nhuận${po.cost !== null && po.cost !== 0 ? `, chi phí ${vnd(po.cost)}` : ""}`);
+  const pp_ = d.period?.profit;
+  if (pp_ && pp_.p50 !== null) out.push(`Trong ${fmt(d.period?.days ?? d.days ?? 0, 0)} ngày: ${sv(pp_.p50)} (${sv(pp_.low)} – ${sv(pp_.high)})`);
+  return out;
+}

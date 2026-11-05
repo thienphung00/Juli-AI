@@ -32,18 +32,51 @@ function open(reco = fakeReco({ list })) {
 }
 
 describe("Ops · Danh sách đề xuất", () => {
+  it("Gỡ thẻ on an open card asks in the page (reason select), then withdraws with the reason", async () => {
+    const reco = open();
+    await screen.findByTestId("ops-row-JC-2611-0007");
+    expect(screen.queryByTestId("ops-withdraw-JC-2610-0031")).toBeNull(); // executed: nothing to take off
+    expect(screen.queryByTestId("ops-withdraw-JC-2610-0008")).toBeNull(); // dismissed already
+    fireEvent.click(screen.getByTestId("ops-withdraw-JC-2611-0007"));
+    expect(await screen.findByTestId("sd-withdraw-dialog")).toBeInTheDocument();
+    expect(reco.calls.filter((c) => c.name === "withdraw")).toHaveLength(0);
+    fireEvent.change(screen.getByTestId("sd-withdraw-reason"), { target: { value: "duplicate" } });
+    fireEvent.click(screen.getByTestId("sd-withdraw-confirm"));
+    await waitFor(() => expect(reco.calls.some((c) => c.name === "withdraw")).toBe(true));
+    const call = reco.calls.find((c) => c.name === "withdraw")!;
+    expect(call.args[0]).toBe("a");
+    expect(call.args[1]).toMatchObject({ reasonCode: "duplicate" });
+    expect(await screen.findByTestId("ops-withdraw-flash")).toHaveTextContent("Đã gỡ 1 thẻ");
+  });
+
+  it("bulk: select open cards (planned and manual too), Gỡ N thẻ, one request with the reason", async () => {
+    const reco = open();
+    await screen.findByTestId("ops-row-JC-2611-0007");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Chọn thẻ JC-2611-0007" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Chọn thẻ JC-2611-0003" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Chọn thẻ JC-2611-0015" }));
+    expect(screen.queryByRole("checkbox", { name: "Chọn thẻ JC-2610-0031" })).toBeNull();
+    fireEvent.click(screen.getByTestId("ops-bulk-withdraw"));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Gỡ 3 thẻ đã chọn?");
+    fireEvent.click(screen.getByTestId("sd-withdraw-confirm"));
+    await waitFor(() => expect(reco.calls.some((c) => c.name === "withdrawMany")).toBe(true));
+    const call = reco.calls.find((c) => c.name === "withdrawMany")!;
+    expect([...(call.args[0] as string[])].sort()).toEqual(["a", "b", "c"]);
+    expect(call.args[1]).toMatchObject({ reasonCode: "not_fit" });
+  });
+
   it("one row per card with its code, product, family, source, queue, versions, plan code, status", async () => {
     open();
     const row = await screen.findByTestId("ops-row-JC-2611-0007");
     await waitFor(() => expect(row).toHaveTextContent("Găng tay cao su A"));
     const cells = within(row).getAllByRole("cell").map((c) => c.textContent);
-    expect(cells[0]).toBe("JC-2611-0007");
-    expect(cells[2]).toBe("Voucher");
-    expect(cells[3]).toBe("Juli");
-    expect(cells[4]).toBe("#1");
-    expect(cells[5]).toBe("2 (V1 mặc định)");
-    expect(cells[6]).toBe("—");
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Mã thẻ", "Sản phẩm · thay đổi", "Họ", "Nguồn", "Hàng đợi", "Phiên bản", "Mã kế hoạch", "Trạng thái", "Tạo lúc"]);
+    expect(cells[1]).toBe("JC-2611-0007");
+    expect(cells[3]).toBe("Voucher");
+    expect(cells[4]).toBe("Juli");
+    expect(cells[5]).toBe("#1");
+    expect(cells[6]).toBe("2 (V1 mặc định)");
+    expect(cells[7]).toBe("—");
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Chọn", "Mã thẻ", "Sản phẩm · thay đổi", "Họ", "Nguồn", "Hàng đợi", "Phiên bản", "Mã kế hoạch", "Trạng thái", "Tạo lúc", "Thao tác"]);
     expect(within(screen.getByTestId("ops-row-JC-2611-0015")).getByText("Thủ công")).toBeInTheDocument();
     expect(screen.getByTestId("ops-row-JC-2611-0003")).toHaveTextContent("Nháp, chưa có mã");
     expect(screen.getByTestId("ops-row-JC-2610-0031")).toHaveTextContent("KH-2610-007");

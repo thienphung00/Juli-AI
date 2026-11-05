@@ -223,6 +223,13 @@ celery_app.conf.update(
         # P90 assisted execution: compare the Connector's readings with each executed card
         # change (verified / mismatch / not_seen after 48 h). Four times a day so a saved change
         # is verified within hours; minute 17 at 01/07/13/19 UTC is free. Default queue.
+        # Keep the stored Shopee recommendation cards equal to what the engine computes now:
+        # recompute the cards whose engine version or inputs changed (also run after each input
+        # write and at API start). 19:11 UTC = 02:11 UTC+7; minute 11 is free. Default queue.
+        "shopee-reco-refresh": {
+            "task": "juli_backend.shopee_reco_refresh",
+            "schedule": crontab(hour=19, minute=11),
+        },
         "card-change-verification": {
             "task": "juli_backend.card_change_verification",
             "schedule": crontab(hour="1,7,13,19", minute=17),

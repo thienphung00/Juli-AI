@@ -48,6 +48,7 @@ from juli_backend.services.shopee_profit.whatif import (
     FloorBreach,
     PredictedRange,
     VoucherRule,
+    max_discount_binding,
     price_change_whatif,
     voucher_whatif,
 )
@@ -208,6 +209,10 @@ def eval_voucher(
     aov = c.five_numbers.aov.vnd_after
     cpo = c.organic.contribution_per_order
     dchi = c.extra_cost / Decimal(days)
+    # The usage limit also bounds the orders the voucher can bring: no more uses than the limit.
+    headroom = (
+        None if c.usage_limit is None else max(Decimal(c.usage_limit) - c.used_scenario, ZERO)
+    )
     profit = ProfitModel(
         effect_days=days,
         base_gmv_per_day=_scope_gmv_per_day(env, items),
@@ -216,7 +221,46 @@ def eval_voucher(
         profit_per_gmv=safe_div(cpo, aov) if cpo is not None and aov else None,
         extra_cost_per_day=dchi,
         dchi_per_day=dchi,
+        max_extra_units=headroom,
+        orders_basis_per_day=c.used_scenario / Decimal(days),
+        orders_basis="voucher_use",
     )
+    binding, n_qualifying = (
+        max_discount_binding(lines, rule) if rule.max_discount is not None else (0, 0)
+    )
+    expected_uses = c.expected_qualifying_orders * c.usage_rate
+    used_per_order_cost = safe_div(c.voucher_cost_scenario, c.used_scenario)
+    voucher_detail = {
+        "days": days,
+        "usage": {
+            "expected_uses": num(expected_uses),
+            "used": num(c.used_scenario),
+            "limit": c.usage_limit,
+            "capped": c.usage_capped,
+            "headroom": None if headroom is None else num(headroom),
+            "source": c.usage_rate_source,
+        },
+        "per_user": {
+            "limit": c.per_user_limit,
+            "status": c.per_user_limit_status,
+            "enforced": False,
+        },
+        "max_discount": {
+            "value": None if rule.max_discount is None else num(rule.max_discount),
+            "applies": rule.max_discount is not None,
+            "pct_voucher": rule.pct is not None,
+            "binding_orders": binding,
+            "qualifying_orders": n_qualifying,
+            "binding_share": None if n_qualifying == 0 else binding / n_qualifying,
+        },
+        "min_spend": {
+            "value": num(rule.min_spend),
+            "qualifying_orders": c.qualifying_orders,
+            "total_orders": c.total_orders,
+        },
+        "cost_per_used_order": num(used_per_order_cost),
+        "profit_per_order_after": num(cpo),
+    }
     certain = {
         "kind": "voucher",
         "qualifying_orders": c.qualifying_orders,
@@ -251,6 +295,7 @@ def eval_voucher(
         "break_even_extra_orders": c.break_even_extra_orders,
         "break_even_reason": c.break_even_reason,
         "extra_orders_label": "Đơn thêm cần để hoà vốn",
+        "voucher_detail": voucher_detail,
     }
     if wi.predicted is not None:
         certain["predicted_net"] = {

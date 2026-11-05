@@ -55,6 +55,7 @@ from juli_backend.workers.tasks import (
     shop_ingestion,
     shop_quick_scan,
     shopee_kpi_daily,
+    shopee_reco_refresh,
     tool_execution,
 )
 
@@ -80,5 +81,6 @@ __all__ = [
     "shop_ingestion",
     "shop_quick_scan",
     "shopee_kpi_daily",
+    "shopee_reco_refresh",
     "tool_execution",
 ]

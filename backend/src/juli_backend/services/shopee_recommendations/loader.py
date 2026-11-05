@@ -171,6 +171,11 @@ async def load_env(
     env.sim = await store.load_sim(session, shop_id)
     env.banned_terms = tuple(await shop_rules.banned_terms(session, shop_id))
     env.kol = (await kol.load_model(session, shop_id, ctx, view)).pool
-    sources = await loaders.load_listing_sources(session, shop_id, env.listing_item_ids())
+    # every active listing, sold or not: hide / relist / title of a listing nobody bought lately
+    wanted = [
+        *env.listing_item_ids(),
+        *(i for i in env.view.active_items if i not in env.excluded),
+    ]
+    sources = await loaders.load_listing_sources(session, shop_id, list(dict.fromkeys(wanted)))
     env.listings = {item: listing_from(src, env) for item, src in sources.items()}
     return env

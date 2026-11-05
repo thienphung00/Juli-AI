@@ -31,6 +31,19 @@ SOURCE_PRODUCT = "product_history"
 SOURCE_SHOP = "shop_products"
 
 
+def covered_span(
+    bounds: tuple[date, date] | None, start: date, end: date
+) -> tuple[date, date] | None:
+    """The part of ``start..end`` the order export speaks for (its first to last day), or ``None``
+    when it speaks for none of it. A day outside the export is unknown, not a day with 0 orders, so
+    the series is cut to this span instead of being dropped when the export does not reach all 90
+    days (it used to need the whole window, which left every product on the preset prior)."""
+    if bounds is None:
+        return None
+    lo, hi = max(bounds[0], start), min(bounds[1], end)
+    return (lo, hi) if lo <= hi else None
+
+
 def depth_by_day(
     snapshots: list[tuple[date, Decimal | None, Decimal | None]], start: date, end: date
 ) -> dict[date, float]:
@@ -105,6 +118,7 @@ __all__ = [
     "MIN_DAYS",
     "SOURCE_PRODUCT",
     "SOURCE_SHOP",
+    "covered_span",
     "depth_by_day",
     "product_response",
     "shop_response",

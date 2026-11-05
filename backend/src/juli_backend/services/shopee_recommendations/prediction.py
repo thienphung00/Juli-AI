@@ -223,7 +223,93 @@ def convert(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
             "dorders": None if d_orders is None else float(d_orders),
             "dprofit": None if d_profit is None else float(certain_profit + d_profit),
         }
+    out.update(_units(lift, pm))
     return out
+
+
+def _units(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
+    """The same money in the units the seller reads: per DAY (flows), per ORDER (unit economics)
+    and the total over the change's own days (``period``, not capped at a month). Orders and AOV
+    ranges come from the model layer; the certain layer keeps AOV and orders as they were."""
+    n = Decimal(max(pm.effect_days, 1))
+    certain_gmv = pm.certain_dgmv_per_day * n
+    certain_profit = -pm.extra_cost_per_day * n
+    base_orders = pm.base_orders_per_day
+    basis_day = pm.orders_basis_per_day if pm.orders_basis_per_day is not None else base_orders
+    basis_orders = basis_day * n
+    base_aov = safe_div(pm.base_gmv_per_day, base_orders) if base_orders > 0 else None
+
+    def per(value: Decimal | None, d: Decimal) -> float | None:
+        return None if value is None or d <= 0 else float(value / d)
+
+    period: dict[str, Any] = {
+        "days": int(n),
+        "certain": {
+            "dgmv": float(certain_gmv),
+            "dprofit": float(certain_profit),
+            "dchi": float(pm.dchi_per_day * n),
+        },
+        "total": {},
+    }
+    per_day: dict[str, Any] = {
+        "certain": {
+            "dgmv": float(pm.certain_dgmv_per_day),
+            "dprofit": float(-pm.extra_cost_per_day),
+            "dchi": float(pm.dchi_per_day),
+        },
+        "total": {},
+    }
+    per_order: dict[str, Any] = {
+        "basis": pm.orders_basis,
+        "orders_in_period": float(basis_orders),
+        "certain": {
+            "dprofit": per(certain_profit, basis_orders),
+            "cost": per(pm.extra_cost_per_day * n, basis_orders),
+        },
+        "total": {},
+    }
+    orders: dict[str, Any] = {"base_per_day": float(base_orders), "total": {}}
+    aov: dict[str, Any] = {
+        "base": None if base_aov is None else float(base_aov),
+        "certain": None if pm.aov is None else float(pm.aov),
+        "total": {},
+    }
+    for q in QUANTILES:
+        lift_q = Decimal(str(lift.at(q)))
+        d_gmv = pm.base_gmv_per_day * n * lift_q
+        if pm.max_extra_units is not None and pm.aov:
+            d_gmv = min(d_gmv, pm.max_extra_units * pm.aov)
+        d_orders = d_gmv / pm.aov if pm.aov and lift.metric in ORDER_METRICS else None
+        d_profit = d_gmv * pm.profit_per_gmv if pm.profit_per_gmv is not None else None
+        tot_gmv = certain_gmv + d_gmv
+        tot_profit = None if d_profit is None else certain_profit + d_profit
+        period["total"][q] = {
+            "dgmv": float(tot_gmv),
+            "dorders": None if d_orders is None else float(d_orders),
+            "dprofit": None if tot_profit is None else float(tot_profit),
+        }
+        per_day["total"][q] = {
+            "dgmv": float(tot_gmv / n),
+            "dorders": None if d_orders is None else float(d_orders / n),
+            "dprofit": None if tot_profit is None else float(tot_profit / n),
+        }
+        per_order["total"][q] = {"dprofit": per(tot_profit, basis_orders)}
+        after_orders = base_orders * n + (d_orders or ZERO)
+        orders["total"][q] = {
+            "per_day": float(after_orders / n),
+            "period": float(after_orders),
+            "changes": d_orders is not None,
+        }
+        aov["total"][q] = (
+            None if after_orders <= 0 else float((pm.base_gmv_per_day * n + tot_gmv) / after_orders)
+        )
+    return {
+        "period": period,
+        "per_day": per_day,
+        "per_order": per_order,
+        "orders": orders,
+        "aov": aov,
+    }
 
 
 def extra_orders_range(lift: Lift, pm: ProfitModel) -> tuple[Decimal, Decimal] | None:

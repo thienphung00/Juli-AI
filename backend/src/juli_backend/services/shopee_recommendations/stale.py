@@ -33,8 +33,9 @@ from juli_backend.models.shop_proposals import (
 )
 from juli_backend.services.shop_inputs.affected import StaleRequest
 from juli_backend.services.shop_proposals import cycle as proposals
-from juli_backend.services.shopee_recommendations import product_queue, store
+from juli_backend.services.shopee_recommendations import freshness, product_queue, store
 from juli_backend.services.shopee_recommendations.cards import proposal_fields
+from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 OPEN = (STATUS_DRAFT, STATUS_SENT, STATUS_CHANGES_REQUESTED, STATUS_APPROVED)
 #: Families judged against the operating floor / spend cap: a shop-wide target change moves them.
@@ -110,6 +111,8 @@ async def on_stale_request(
     session: AsyncSession, shop_id: uuid.UUID, request: StaleRequest
 ) -> None:
     """The ``shop_inputs`` hook: SKU ids and item ids arrive together in ``item_ids``."""
+    from juli_backend.services import shopee_reco_refresh
+
     ids = list(request.item_ids)
     await mark_stale_for(
         session,
@@ -120,6 +123,8 @@ async def on_stale_request(
         reason=request.reason,
         now=request.changed_at,
     )
+    # Recompute what the write touched once it has committed (background, idempotent).
+    shopee_reco_refresh.schedule_after_commit(session, shop_id, request.reason)
 
 
 async def stale_cards(session: AsyncSession, shop_id: uuid.UUID) -> list[uuid.UUID]:
@@ -142,9 +147,17 @@ async def stale_cards(session: AsyncSession, shop_id: uuid.UUID) -> list[uuid.UU
 
 
 async def rerun_stale(
-    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    now: datetime,
+    resend: bool = False,
+    env: RecoEnv | None = None,
 ) -> dict[str, Any]:
-    """Recompute only the flagged cards on a fresh environment. Returns the counts."""
+    """Recompute only the flagged cards on a fresh environment. Returns the counts.
+
+    ``resend``: a card the shop had been sent comes back as a sent card (the automatic refresh), not
+    as a draft Ops must send again, so the seller never loses it."""
     from juli_backend.services.shopee_recommendations import service
     from juli_backend.services.shopee_recommendations.loader import load_env
 
@@ -153,7 +166,7 @@ async def rerun_stale(
     counts = {"stale": len(ids), "replaced": 0, "revised": 0, "kept_approved": 0, "dropped": 0}
     if not ids:
         return counts
-    env = await load_env(session, shop_id, now=now)
+    env = env or await load_env(session, shop_id, now=now)
     if env is None:
         return counts
     for cid in ids:
@@ -164,7 +177,7 @@ async def rerun_stale(
         if p.status == STATUS_APPROVED:
             counts["kept_approved"] += 1
             continue
-        new = service.recompute_card(env, card, {}, now=now, rebuild_versions=True)
+        new = service.refresh_card(env, card, now=now)
         if new is None:
             counts["dropped"] += 1
             await proposals.withdraw(session, p, now=now)
@@ -204,9 +217,56 @@ async def rerun_stale(
                 now=now,
                 existing=successor,
             )
+            if resend:
+                await proposals.send(session, successor, now=now)
             counts["revised"] += 1
     await product_queue.requeue_shop(session, shop_id, now)
     return counts
 
 
-__all__ = ["date", "mark_stale_for", "on_stale_request", "rerun_stale", "stale_cards"]
+async def mark_stale_by_freshness(
+    session: AsyncSession, shop_id: uuid.UUID, env: RecoEnv, *, now: datetime
+) -> dict[str, int]:
+    """Flag every open card (or version) computed by another engine version or on other inputs
+    than ``env`` reads now. Returns ``{checked, flagged}``; flags only, recomputes nothing."""
+    rows = (
+        (
+            await session.execute(
+                select(ActionCard)
+                .join(ShopProposal, ShopProposal.id == ActionCard.id)
+                .where(
+                    ShopProposal.shop_id == shop_id,
+                    ActionCard.status == store.CARD_STATUS,
+                    ShopProposal.status.in_(OPEN),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    checked = flagged = 0
+    for row in rows:
+        card = await store.card_payload(session, shop_id, row.id)
+        if card is None:
+            continue
+        checked += 1
+        why = freshness.card_stale_reason(card, env)
+        if why is None:
+            continue
+        flagged += 1
+        meta = json.loads(row.metadata_json or "{}")
+        if not meta.get("stale"):
+            meta.update({"stale": True, "stale_reason": why, "stale_at": now.isoformat()})
+            row.metadata_json = json.dumps(meta)
+    await session.flush()
+    return {"checked": checked, "flagged": flagged}
+
+
+__all__ = [
+    "mark_stale_by_freshness",
+    "date",
+    "mark_stale_for",
+    "on_stale_request",
+    "rerun_stale",
+    "stale_cards",
+]

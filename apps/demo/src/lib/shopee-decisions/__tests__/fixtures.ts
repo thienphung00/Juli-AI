@@ -388,6 +388,7 @@ export function fakeReco(
     generate: (...a) => run("generate", { generated: 3, persisted: 3, by_family: {}, card_ids: [] }, ...a),
     publish: (...a) => run("publish", { sent: ["card-voucher"] }, ...a),
     withdraw: (...a) => run("withdraw", { id: detail.id, status: "withdrawn" }, ...a),
+    withdrawMany: (...a) => run("withdrawMany", { withdrawn: [...a[0]], refused: [] }, ...a),
     rerunStale: (...a) => run("rerunStale", { replaced: 1 }, ...a),
     learning: (...a) => run("learning", { calibration: null, acceptance: null, sim: null }, ...a),
     learningRun: (...a) => run("learningRun", {}, ...a),

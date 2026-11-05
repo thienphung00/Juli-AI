@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
 import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderApi, BuilderEvaluation, BuilderOutcome, BuilderVersion, ChooseResult } from "../../../lib/shopee-decisions/builder-api";
-import { SERVER_KIND_NAMES, bandText, breachesOfOutcome, breakEvenText, metricValue, refusalText, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
+import { SERVER_KIND_NAMES, bandText, breachesOfOutcome, breakEvenText, metricValue, refusalText, unitLines, voucherMaxText, voucherUsageText, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
 import type { Breach } from "../../../lib/shopee-decisions/types";
 import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions";
 import { TextChip } from "../../shopee-analytics/ui";
@@ -71,9 +71,38 @@ function rowsFor(): RowDef[] {
         </>
       ),
     },
-    { key: "dgmv", label: "Δ GMV", sub: "30 ngày", cell: (o) => money(o, "gmv") },
-    { key: "dorders", label: "Δ đơn", sub: "30 ngày", cell: (o) => money(o, "orders") },
-    { key: "dprofit", label: "Δ lợi nhuận", sub: "30 ngày", cell: (o) => money(o, "profit") },
+    { key: "dgmv", label: "Δ GMV", sub: "trong số ngày của thay đổi", cell: (o) => money(o, "gmv") },
+    { key: "dorders", label: "Δ đơn", sub: "trong số ngày của thay đổi", cell: (o) => money(o, "orders") },
+    { key: "dprofit", label: "Δ lợi nhuận", sub: "trong số ngày của thay đổi", cell: (o) => money(o, "profit") },
+    {
+      key: "units",
+      label: "Theo ngày · theo đơn",
+      sub: "lợi nhuận mỗi ngày, mỗi đơn, cả đợt",
+      cell: (o) => (
+        <ul className="p2-units">
+          {unitLines(o).map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ul>
+      ),
+    },
+    {
+      key: "usage",
+      label: "Số lượt dùng",
+      sub: "dự kiến / giới hạn · mức giảm tối đa",
+      cell: (o) => (
+        <>
+          <b>{voucherUsageText(o) ?? DASH}</b>
+          {voucherMaxText(o) ? <span>{voucherMaxText(o)}</span> : null}
+        </>
+      ),
+    },
+    {
+      key: "same",
+      label: "Vì sao giống P1",
+      sub: "đầu vào khác nhưng kết quả không đổi",
+      cell: (o) => (o.same_as_first_notes && o.same_as_first_notes.length > 0 ? <span>{o.same_as_first_notes.join(" ")}</span> : <span className="sd-muted">{DASH}</span>),
+    },
     {
       key: "margin",
       label: "Biên sau",

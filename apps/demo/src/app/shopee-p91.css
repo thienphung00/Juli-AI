@@ -683,10 +683,10 @@ button.sv-head:disabled {
 
 .ol-row {
   display: grid;
-  grid-template-columns: 130px minmax(220px, 2fr) 130px 80px 70px 110px 120px 130px 130px;
+  grid-template-columns: 40px 130px minmax(220px, 2fr) 130px 80px 70px 110px 120px 130px 130px 90px;
   align-items: center;
   gap: 10px;
-  min-width: 1100px;
+  min-width: 1260px;
   border-bottom: 1px solid var(--qd-line-2);
   padding: 8px 12px;
   font-size: 13px;

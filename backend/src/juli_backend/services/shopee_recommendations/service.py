@@ -42,11 +42,13 @@ from juli_backend.models.shop_proposals import (
     STATUS_CHANGES_REQUESTED,
     STATUS_DRAFT,
     STATUS_EXECUTED,
+    STATUS_PLANNED,
     STATUS_REJECTED,
     STATUS_SENT,
     STATUS_WITHDRAWN,
     ShopProposal,
 )
+from juli_backend.models.shopee_plans import PLAN_DRAFT, ShopRecoPlan, ShopRecoPlanCard
 from juli_backend.services.card_events import keys, verification
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
@@ -57,6 +59,7 @@ from juli_backend.services.shopee_recommendations import (
     codes,
     combo,
     config,
+    freshness,
     manual,
     plan_codes,
     product_queue,
@@ -423,6 +426,7 @@ def _summary(
 ) -> dict[str, Any]:
     pm = card["predicted"]["money_per_month"]
     product = p.item_id
+    stale_why = freshness.card_stale_reason(card)
     return {
         "id": str(p.id),
         "code": p.code,
@@ -465,7 +469,10 @@ def _summary(
         },
         "floor_ok": card["floor"]["ok"],
         "plan": card["measurement_plan"]["label"],
-        "stale": bool((meta or {}).get("stale")),
+        "stale": bool((meta or {}).get("stale")) or stale_why is not None,
+        "stale_reason": (meta or {}).get("stale_reason") or stale_why,
+        "computed_at": (card.get("freshness") or {}).get("computed_at"),
+        "engine_version": (card.get("freshness") or {}).get("engine_version"),
         "bundle": card.get("bundle", False),
         "sent_at": None if p.sent_at is None else p.sent_at.isoformat() + "Z",
     }
@@ -868,7 +875,32 @@ def recompute_card(
         vlist[number - 1] = new
         out["versions"] = vlist
     out["version"] = number
+    versions.annotate_same_notes(out["versions"])
     return out
+
+
+def refresh_card(env: RecoEnv, card: dict[str, Any], *, now: datetime) -> dict[str, Any] | None:
+    """Every version of the card evaluated again on ``env`` with its OWN inputs (a manual card
+    keeps its variants; the engine's alternatives are not regenerated). The top level is V1."""
+    if card["family"] == "mega_sale":
+        return _recompute_mega(env, card, {}, now)
+    cur: dict[str, Any] = card
+    vlist = versions.versions_of(card)
+    for n in range(len(vlist), 0, -1):  # descending: the top level ends as version 1
+        if vlist[n - 1].get("status") == versions.STATUS_REFUSED and n > 1:
+            continue
+        res = recompute_card(env, cur, {}, now=now, version=n)
+        if res is None:
+            if n == 1:
+                return None
+            old = versions.versions_of(cur)
+            old[n - 1] = versions.refused_version(
+                n, old[n - 1].get("label") or "", old[n - 1].get("inputs") or {}, "no_longer_valid"
+            )
+            cur = {**cur, "versions": old}
+            continue
+        cur = res
+    return cur
 
 
 def _recompute_mega(
@@ -936,12 +968,70 @@ async def publish(
     return out
 
 
+#: Why Ops takes a card off the list ("Gỡ thẻ"): not fitting, a duplicate, already done outside
+#: Juli, anything else.
+WITHDRAW_REASONS: tuple[str, ...] = ("not_fit", "duplicate", "done_outside", "other")
+
+
+async def _detach_from_plan(session: AsyncSession, p: ShopProposal, now: datetime) -> None:
+    """A planned card leaves its draft plan before it is withdrawn (a confirmed plan keeps it)."""
+    row = await session.scalar(
+        select(ShopRecoPlanCard).where(
+            ShopRecoPlanCard.shop_id == p.shop_id,
+            ShopRecoPlanCard.proposal_id == p.id,
+            ShopRecoPlanCard.removed_at.is_(None),
+        )
+    )
+    plan = await session.get(ShopRecoPlan, row.plan_id) if row is not None else None
+    if row is None or plan is None or plan.status != PLAN_DRAFT:
+        raise ProposalError(
+            "reco_card_in_confirmed_plan",
+            409,
+            "the card belongs to a confirmed plan: take it out of the plan first",
+        )
+    row.removed_at = now
+    plan.updated_at = now
+    p.status = row.prior_status
+    p.lever_plan_id = None
+    await store.set_meta(session, p.shop_id, p.id, {"plan_id": None})
+
+
 async def withdraw(
-    session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID, *, now: datetime
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    card_id: uuid.UUID,
+    *,
+    now: datetime,
+    reason_code: str | None = None,
+    note: str | None = None,
+    by: str | None = None,
 ) -> None:
+    """Ops takes a card off the list: it closes as ``withdrawn`` (a planned card leaves its
+    draft plan first), the reason is kept on the card, and the product's next card moves up."""
+    reason = reason_code or "other"
+    if reason not in WITHDRAW_REASONS:
+        raise ProposalError(
+            ERROR_BAD_INPUT, 422, f"reason_code must be one of {list(WITHDRAW_REASONS)}"
+        )
+    now = _naive(now)
     p, _ = await _proposal(session, shop_id, card_id)
-    await proposals.withdraw(session, p, now=_naive(now))
-    await _requeue(session, p, _naive(now))
+    if p.status == STATUS_PLANNED:
+        await _detach_from_plan(session, p, now)
+    await proposals.withdraw(session, p, now=now)
+    await store.set_meta(
+        session,
+        shop_id,
+        card_id,
+        {
+            "withdrawn": {
+                "reason_code": reason,
+                "note": (note or "").strip()[:300] or None,
+                "by": by,
+                "at": now.isoformat(),
+            }
+        },
+    )
+    await _requeue(session, p, now)
 
 
 # ---------------------------------------------------------------------------- decide
@@ -1163,6 +1253,8 @@ async def _decide(
             now=now,
             decided_by_user_id=user_id,
             note=note or dcode,
+            # a card sent back for a change can still be dropped by the seller
+            from_states=frozenset({STATUS_SENT, STATUS_CHANGES_REQUESTED}),
         )
         await store.write_event(
             session,
@@ -1529,4 +1621,5 @@ __all__ = [
     "backfill_codes",
     "short_id",
     "withdraw",
+    "WITHDRAW_REASONS",
 ]

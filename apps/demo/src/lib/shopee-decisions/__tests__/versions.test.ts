@@ -110,9 +110,57 @@ describe("the side-by-side table", () => {
     expect(floor.cells[2]).toMatchObject({ bad: true, tone: "down" });
     expect(floor.cells[2]!.v).toContain("✕ Khách trả 175.000đ < sàn 181.979đ (thiếu 6.979đ)");
     const exp = rows.find((r) => r.key === "exp")!;
-    expect(exp.cells[0]!.v).toBe("−43.000đ – +237.000đ/tháng");
-    expect(rows.find((r) => r.key === "sure")!.cells[0]!.v).toBe("−63.000đ/tháng");
-    expect(rows.find((r) => r.key === "cap")!.cells[0]!.v).toBe("✓ 1.112.311đ / 1.200.000đ mỗi ngày");
+    expect(exp.cells[0]!.v).toBe("−1.400đ – +7.900đ/ngày");
+    expect(exp.cells[0]!.d).toContain("30 ngày: −43.000đ – +237.000đ");
+    expect(rows.find((r) => r.key === "sure")!.cells[0]!.v).toBe("−2.100đ/ngày");
+    expect(rows.find((r) => r.key === "cap")!.cells[0]!.v).toBe("✓ Chi marketing dự kiến 1.112.311đ/ngày · trong trần 1.200.000đ/ngày");
+  });
+
+  it("a voucher shows usage against its limit, the per-buyer limit, the max discount and why versions match; flows are per day and per order", () => {
+    const base = versionedVoucher();
+    const detail = (used: number, limit: number | null, capped: boolean, binding = 0) => ({
+      days: 3,
+      usage: { expected_uses: used, used, limit, capped, headroom: limit === null ? null : Math.max(limit - used, 0) },
+      per_user: { limit: 1, status: "not_enforceable", enforced: false },
+      max_discount: { value: 20_000, applies: true, pct_voucher: true, binding_orders: binding, qualifying_orders: 10, binding_share: binding / 10 },
+      min_spend: { value: 99_000, qualifying_orders: 10, total_orders: 40 },
+      cost_per_used_order: 5000,
+      profit_per_order_after: 30_000,
+    });
+    const money = {
+      ...base.predicted.money_per_month,
+      days: 3,
+      period: { days: 3, certain: { dgmv: 0, dprofit: -30_000, dchi: 30_000 }, total: { p10: { dgmv: 0, dorders: null, dprofit: -30_000 }, p50: { dgmv: 90_000, dorders: null, dprofit: 6000 }, p90: { dgmv: 200_000, dorders: null, dprofit: 40_000 } } },
+      per_day: { certain: { dgmv: 0, dprofit: -10_000, dchi: 10_000 }, total: { p10: { dgmv: 0, dorders: null, dprofit: -10_000 }, p50: { dgmv: 30_000, dorders: null, dprofit: 2000 }, p90: { dgmv: 66_000, dorders: null, dprofit: 13_300 } } },
+      per_order: { basis: "voucher_use" as const, orders_in_period: 6, certain: { dprofit: -5000, cost: 5000 }, total: { p10: { dprofit: -5000 }, p50: { dprofit: 1000 }, p90: { dprofit: 6600 } } },
+      orders: { base_per_day: 2, total: { p10: { per_day: 2, period: 6, changes: false }, p50: { per_day: 2, period: 6, changes: false }, p90: { per_day: 2, period: 6, changes: false } } },
+      aov: { base: 100_000, certain: 100_000, total: { p10: 103_000, p50: 108_000, p90: 112_000 } },
+    };
+    const mk = (limit: number, capped: boolean, notes?: readonly string[]) => ({
+      ...base.versions![0]!,
+      certain: { ...base.certain, voucher_detail: detail(6, limit, capped) },
+      predicted: { ...base.predicted, money_per_month: money },
+      same_as_default_notes: notes,
+    });
+    const versions = [mk(10, false), mk(20, false, ["Giới hạn 20 lượt không đổi kết quả: dự kiến chỉ dùng 6 lượt trong 3 ngày, chưa chạm giới hạn."]), mk(5, true)];
+    const card = { ...base, versions, certain: versions[0]!.certain, predicted: versions[0]!.predicted };
+    const rows = versionTable(card, versions);
+    const by = (k: string) => rows.find((r) => r.key === k)!;
+    expect(by("usage").cells.map((c) => c.v)).toEqual(["Dự kiến dùng 6 / 10 lượt", "Dự kiến dùng 6 / 20 lượt", "Dự kiến dùng 6 / 5 lượt"]);
+    expect(by("usage").cells.map((c) => c.d)).toEqual(["chưa chạm giới hạn", "chưa chạm giới hạn", "chạm giới hạn"]);
+    expect(by("same").cells[1]!.v).toContain("Giới hạn 20 lượt không đổi kết quả");
+    expect(by("peruser").cells[0]!.v).toBe("1 lượt/người");
+    expect(by("maxd").cells[0]!.d).toBe("chưa đơn nào chạm trần");
+    // units: per day, per order, the whole period; never per month
+    expect(by("chi").cells[0]).toMatchObject({ v: "+10.000đ/ngày" });
+    expect(by("chi").cells[0]!.d).toBe("5.000đ/đơn dùng voucher · 3 ngày: +30.000đ");
+    expect(by("sure").cells[0]!.v).toBe("−10.000đ/ngày");
+    expect(by("sure").cells[0]!.d).toBe("−5.000đ/đơn dùng voucher · 3 ngày: −30.000đ");
+    expect(by("exp").cells[0]!.d).toContain("3 ngày: −30.000đ – +40.000đ");
+    expect(by("orders").cells[0]!.v).toBe("2,0 đơn/ngày");
+    expect(by("orders").cells[0]!.d).toContain("số đơn giữ nguyên");
+    expect(by("aov").cells[0]).toMatchObject({ v: "103.000đ – 112.000đ", d: "AOV giữ nguyên ở lớp chắc chắn" });
+    expect(rows.some((r) => r.label.includes("tháng") || r.sub.includes("tháng"))).toBe(false);
   });
 
   it("a title card swaps the floor and the cap for the 100-character limit", () => {

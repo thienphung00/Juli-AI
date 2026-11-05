@@ -30,6 +30,7 @@ from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.evaluate import evaluate
 from juli_backend.services.shopee_recommendations.kinds import KINDS, Slider, spec
 from juli_backend.services.shopee_recommendations.model import Candidate
+from juli_backend.services.shopee_recommendations.voucher_notes import same_result_notes
 
 #: The fields of a card that belong to ONE evaluation of the change; a version carries these.
 EVAL_FIELDS: tuple[str, ...] = (
@@ -49,7 +50,7 @@ EVAL_FIELDS: tuple[str, ...] = (
 )
 #: Evaluation fields only some kinds have (P91 D-9: the KOL block of a "Gửi mẫu" / "Mời KOL" card,
 #: its product, samples and expected orders per version); copied when the card has them.
-OPTIONAL_EVAL_FIELDS: tuple[str, ...] = ("kol",)
+OPTIONAL_EVAL_FIELDS: tuple[str, ...] = ("kol", "freshness")
 STATUS_OK = "ok"
 STATUS_FLOOR = "floor_breach"
 STATUS_SPEND = "spend_breach"
@@ -366,4 +367,19 @@ def build_versions(
             versions.append(refused_version(n, label, alt.inputs, evaluate(env, alt).refusal))
         else:
             versions.append(version_of(built, n, label))
+    annotate_same_notes(versions)
     return versions
+
+
+def annotate_same_notes(versions: list[dict[str, Any]]) -> None:
+    """Name, on each version, the inputs that differ from V1 without changing the result."""
+    if not versions:
+        return
+    first = versions[0]
+    for v in versions[1:]:
+        v.pop("same_as_default_notes", None)
+        if v.get("status") == STATUS_REFUSED:
+            continue
+        notes = same_result_notes(first, v)
+        if notes:
+            v["same_as_default_notes"] = notes

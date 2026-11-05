@@ -69,7 +69,7 @@ describe("reading the comparison", () => {
 
   it("rows: today, per-variant value with Δ vs hôm nay and vs the first, the floor row", () => {
     const rows = compareRows(result, sent, 3);
-    expect(rows.map((r) => r.label)).toEqual(["Lợi nhuận / tháng", "Biên", "AOV", "Số đơn", "GMV", "Chi phí", "Giá sàn"]);
+    expect(rows.map((r) => r.label)).toEqual(["Lợi nhuận", "Biên", "AOV", "Số đơn", "GMV", "Chi phí", "Giá sàn"]);
     const profit = rows[0]!;
     expect(profit.cells[0]).toMatchObject({ v: "−60.000đ – +220.000đ", d: "▲ +60.000đ", vs: "phương án gốc" });
     expect(profit.cells[1]!.vs).toBe("so P1: +20.000đ");
@@ -100,7 +100,7 @@ describe("reading the comparison", () => {
       { from: 0, to: 2, delta: { margin_points_p25: 0.2, aov_p25: 15000, dgmv_p50: 0, dprofit_p50: 0 } },
     ];
     const t = tradeoffs({ ...base, between }, sent);
-    expect(t).toEqual(["P2 so với P1: biên giảm 1,2 điểm nhưng AOV tăng 15.000đ, GMV +300.000đ, lợi nhuận +30.000đ/tháng. Chọn theo việc bạn cần: lợi nhuận hay doanh thu."]);
+    expect(t).toEqual(["P2 so với P1: biên giảm 1,2 điểm nhưng AOV tăng 15.000đ, GMV +300.000đ, lợi nhuận +30.000đ trong kỳ tính. Chọn theo việc bạn cần: lợi nhuận hay doanh thu."]);
     const alerts = floorAlerts(base, sent, (id) => id);
     expect(alerts).toHaveLength(1);
     expect(alerts[0]!.title).toBe("P3 chạm giá sàn.");
@@ -122,7 +122,7 @@ describe("reading the comparison", () => {
       "Đóng góp mỗi đơn": "40.000đ",
       "Biên của đơn combo": "18,8% (hôm nay 15,3%)",
       "Chi phí ưu đãi mỗi đơn": "12.000đ",
-      "Hoà vốn": "Cần ≥ 4 đơn combo thêm / tháng",
+      "Hoà vốn": "Cần ≥ 4 đơn combo thêm trong kỳ tính",
     });
     expect(lines.find((l) => l.k === "Đóng góp mỗi đơn")!.tone).toBe("down");
     expect(orderLines(result.variants[0], null)).toBeNull();

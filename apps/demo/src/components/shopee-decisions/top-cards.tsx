@@ -69,7 +69,7 @@ function ProductCard({ entry, justUp, canAct, onSkip, onPlan }: { readonly entry
         {justUp ? <TextChip tone="pink">{justUp}</TextChip> : null}
         {c.origin === "manual" ? <TextChip tone="info">Thủ công</TextChip> : null}
         <StatusChip status={c.status} />
-        {c.stale ? <TextChip tone="warn">Cần tính lại</TextChip> : null}
+        {c.stale ? <TextChip tone="warn">Đang cập nhật</TextChip> : null}
         {!c.floor_ok ? <TextChip tone="down">Chạm giá sàn</TextChip> : null}
       </div>
       <div className="sq-card__sum">
