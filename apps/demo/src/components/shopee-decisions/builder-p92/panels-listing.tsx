@@ -392,7 +392,9 @@ export function AffiliatePanel({ form, set, ctx }: P<"affiliate">) {
       </p>
       <div className="p2-grid">
         <NumIn label="Hoa hồng mới" onChange={(commission) => set({ commission })} suffix="%" value={form.commission} />
-        <TextIn label="Chiến dịch" onChange={(campaign) => set({ campaign })} value={form.campaign} />
+        <label className="p2-check" data-testid="p2-aff-target">
+          <input checked={form.campaign === "1"} onChange={(e) => set({ campaign: e.target.checked ? "1" : "" })} type="checkbox" /> Áp dụng trong chiến dịch mục tiêu (Target campaign)
+        </label>
         <NumIn label="Số mẫu gửi" onChange={(samples) => set({ samples })} value={form.samples} />
         <NumIn label="Phí ship mỗi mẫu" onChange={(shipFee) => set({ shipFee })} suffix="đ" value={form.shipFee} />
       </div>

@@ -19,7 +19,7 @@ Pure: the caller passes what it loaded.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -92,6 +92,28 @@ def _dec(value: Any) -> Decimal | None:
     return d if d > 0 else None
 
 
+def observed_skus(lines: Iterable[Any]) -> dict[str, dict[str, str]]:
+    """item id -> variation id (``""`` = none) -> the seller SKU text the item's newest order lines
+    carry for it. The catalogue often has no seller SKU for a model (a single-model listing, a
+    combo variation); the order lines do, and the shop's giá vốn is keyed by it, so the builder
+    must look costs up by the same text the profit engine does (``ShopLine.base_key``)."""
+    newest: dict[tuple[str, str], tuple[Any, str]] = {}
+    for sl in lines:
+        base = getattr(sl, "base_key", "") or ""
+        scope = getattr(sl, "scope", "") or ""
+        if not base or base == sl.product_id:
+            continue
+        vid = scope.split(":", 1)[1] if ":" in scope else ""
+        key = (sl.product_id, vid)
+        prev = newest.get(key)
+        if prev is None or sl.ordered_on >= prev[0]:
+            newest[key] = (sl.ordered_on, base)
+    out: dict[str, dict[str, str]] = {}
+    for (item, vid), (_, base) in newest.items():
+        out.setdefault(item, {})[vid] = base
+    return out
+
+
 def variation_rows(
     item_id: str,
     info: ItemInfo | None,
@@ -102,8 +124,10 @@ def variation_rows(
     on: date,
     item_list_price: Decimal | None = None,
     item_current_price: Decimal | None = None,
+    observed: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
-    """The variations of one product (one row without variations)."""
+    """The variations of one product (one row without variations). ``observed`` = variation id ->
+    the SKU text on the order lines (:func:`observed_skus`), used where the catalogue has none."""
     snaps = {str(s.get("variation_id") or ""): s for s in snapshot_variations}
     base_list = _dec(item_list_price) or _dec(info.list_price if info else None)
     base_now = _dec(item_current_price) or _dec(info.current_price if info else None)
@@ -113,8 +137,13 @@ def variation_rows(
     ]
     seen = {e[0] for e in entries}
     entries += [(vid, None, None) for vid in snaps if vid and vid not in seen]
+    seen = {e[0] for e in entries}
+    entries += [(vid, None, None) for vid in (observed or {}) if vid and vid not in seen]
     if not entries:
         entries = [("", None, info.seller_sku if info else None)]
+    entries = [
+        (vid, name, sku or _observed_for(observed, vid, entries)) for vid, name, sku in entries
+    ]
     rows: list[dict[str, Any]] = []
     for variation_id, name, sku in sorted(entries, key=lambda e: (e[0] == "", e[0])):
         snap = snaps.get(variation_id) or {}
@@ -156,6 +185,22 @@ def variation_rows(
     return rows
 
 
+def _observed_for(
+    observed: Mapping[str, str] | None,
+    variation_id: str,
+    entries: Sequence[tuple[str, str | None, str | None]],
+) -> str | None:
+    """The SKU text of the order lines for this variation; a listing with a single model takes the
+    lines that carry no variation (older lines, before the catalogue named the model)."""
+    if not observed:
+        return None
+    if variation_id in observed:
+        return observed[variation_id]
+    if len(entries) == 1 and observed:
+        return observed.get("") or (next(iter(observed.values())) if len(observed) == 1 else None)
+    return None
+
+
 def economics(
     item_id: str,
     name: str,
@@ -176,4 +221,11 @@ def economics(
     }
 
 
-__all__ = ["NOT_COUNTED", "cost_key", "economics", "unit_margin", "variation_rows"]
+__all__ = [
+    "NOT_COUNTED",
+    "cost_key",
+    "economics",
+    "observed_skus",
+    "unit_margin",
+    "variation_rows",
+]

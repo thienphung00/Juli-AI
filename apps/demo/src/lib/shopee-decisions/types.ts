@@ -108,6 +108,10 @@ export interface CardSummary {
   readonly floor_ok: boolean;
   readonly plan: string;
   readonly stale: boolean;
+  /** Why it is stale (`engine_version_changed` | `inputs_changed` | …): the card shows "đang cập nhật". */
+  readonly stale_reason?: string | null;
+  /** When the numbers were computed ("Cập nhật lúc …"). */
+  readonly computed_at?: string | null;
   readonly bundle: boolean;
   readonly sent_at: string | null;
   /** The "đáng thử" slot (ranking contract 11), when the API flags it. */
@@ -165,11 +169,45 @@ export interface MoneyAt {
   readonly dprofit: N;
 }
 
+type Quantile3<T> = { readonly p10: T; readonly p50: T; readonly p90: T };
+
+/** The same money per DAY (flows) and over the change's own days (`period`); the seller reads these, not a month. */
+export interface MoneyBlock {
+  readonly days?: number;
+  readonly certain: { readonly dgmv: N; readonly dprofit: N; readonly dchi: N };
+  readonly total: Quantile3<MoneyAt>;
+}
+
 export interface MoneyPerMonth {
   readonly days: number;
   readonly certain: { readonly dgmv: N; readonly dprofit: N; readonly dchi: N };
   readonly predicted: { readonly p10: MoneyAt; readonly p50: MoneyAt; readonly p90: MoneyAt };
   readonly total: { readonly p10: MoneyAt; readonly p50: MoneyAt; readonly p90: MoneyAt };
+  /** Over the change's own days (not capped at a month). Absent on cards stored before the units change. */
+  readonly period?: MoneyBlock & { readonly days: number };
+  readonly per_day?: MoneyBlock;
+  /** Unit economics: per order that uses the change (`basis`), Δ profit and cost. */
+  readonly per_order?: { readonly basis: "order" | "voucher_use"; readonly orders_in_period: number; readonly certain: { readonly dprofit: N; readonly cost: N }; readonly total: Quantile3<{ readonly dprofit: N }> };
+  /** Orders the model expects (`changes` false: an AOV lever, orders stay as they were). */
+  readonly orders?: { readonly base_per_day: number; readonly total: Quantile3<{ readonly per_day: N; readonly period: N; readonly changes: boolean }> };
+  readonly aov?: { readonly base: N; readonly certain: N; readonly total: Quantile3<N> };
+}
+
+export interface VoucherDetail {
+  readonly days: number;
+  readonly usage: { readonly expected_uses: N; readonly used: N; readonly limit: N; readonly capped: boolean; readonly headroom: N };
+  readonly per_user: { readonly limit: N; readonly status: string | null; readonly enforced: boolean };
+  readonly max_discount: { readonly value: N; readonly applies: boolean; readonly pct_voucher: boolean; readonly binding_orders: number; readonly qualifying_orders: number; readonly binding_share: N };
+  readonly min_spend: { readonly value: N; readonly qualifying_orders: number; readonly total_orders: number };
+  readonly cost_per_used_order: N;
+  readonly profit_per_order_after: N;
+}
+
+export interface Freshness {
+  readonly computed_at: string;
+  readonly engine_version: string;
+  readonly inputs_fingerprint: string;
+  readonly as_of: string;
 }
 
 export interface GroupJson {
@@ -191,6 +229,7 @@ export interface Certain {
   readonly voucher_cost_scenario?: N;
   readonly voucher_cost_baseline?: N;
   readonly extra_cost?: N;
+  readonly voucher_detail?: VoucherDetail;
   readonly voucher_spend_per_day?: N;
   readonly voucher_spend_check?: { readonly per_day: N; readonly cap: N; readonly over_cap: boolean } | null;
   readonly organic?: GroupJson;
@@ -321,6 +360,9 @@ export interface CardVersion {
   readonly notes?: readonly string[];
   /** P91 D-9: a Gửi mẫu / Mời KOL version's KOL block (its product, samples, expected orders). */
   readonly kol?: KolBlock;
+  /** Inputs that differ from V1 without changing the result, named ("Giới hạn 20 lượt không đổi kết quả: …"). */
+  readonly same_as_default_notes?: readonly string[];
+  readonly freshness?: Freshness;
 }
 
 /** A floor or spend-cap breach, as the backend lists it (`versions.breaches_of`, `manual.breaches_of`). */
@@ -376,6 +418,7 @@ export interface Card {
   readonly measurement_plan: MeasurementPlan;
   readonly execution_sheet: ExecutionSheet;
   readonly notes?: readonly string[];
+  readonly freshness?: Freshness;
   readonly bundle: boolean;
   /** P91 D-9: set on Gửi mẫu / Mời KOL cards. */
   readonly kol?: KolBlock;
@@ -475,6 +518,19 @@ export interface VariantMetrics {
   readonly spend_after_per_day?: N;
   readonly spend_cap?: N;
   readonly spend_over_cap?: boolean | null;
+  /** Per day / per order / over the change's own days (the card's "period"). */
+  readonly period_days?: number;
+  readonly dprofit_per_day_p50?: N;
+  readonly dgmv_per_day_p50?: N;
+  readonly cost_per_day?: N;
+  readonly dprofit_period_p10?: N;
+  readonly dprofit_period_p50?: N;
+  readonly dprofit_period_p90?: N;
+  readonly cost_period?: N;
+  readonly dprofit_per_order_p50?: N;
+  readonly usage_expected?: N;
+  readonly usage_limit?: N;
+  readonly usage_capped?: boolean | null;
 }
 
 export interface VariantRow {
@@ -500,7 +556,7 @@ export interface CompareResult {
   };
   readonly variants: readonly VariantRow[];
   readonly vs_today: readonly { readonly index: number; readonly delta: Readonly<Record<string, N>> }[];
-  readonly between: readonly { readonly from: number; readonly to: number; readonly delta: Readonly<Record<string, N>> }[];
+  readonly between: readonly { readonly from: number; readonly to: number; readonly delta: Readonly<Record<string, N>>; readonly notes?: readonly string[] }[];
   readonly best_profit_p50: number | null;
   readonly saved: false;
 }

@@ -19,9 +19,11 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics.catalog import SKU_PREFIX
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num
 from juli_backend.services.shopee_analytics.loaders import ShopContext, product_totals_for
+from juli_backend.services.shopee_builder.variations import observed_skus
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_recommendations.unit_cost import unit_cost
 
@@ -54,8 +56,13 @@ def is_active(status: str | None) -> bool:
     return not any(w in word for w in INACTIVE_WORDS)
 
 
-def _item_has_cost(ctx: ShopContext, item_id: str) -> tuple[bool, int, int]:
-    """``(every variation has a giá vốn, with cost, variations)`` per the seller's rules."""
+def _item_has_cost(
+    ctx: ShopContext, item_id: str, observed: Mapping[str, str] | None = None
+) -> tuple[bool, int, int]:
+    """``(every variation has a giá vốn, with cost, variations)`` per the seller's rules.
+
+    A variation the catalogue has no seller SKU for is looked up by the SKU text of its order lines
+    (the key the profit engine costs it under): combo variations are often costed that way."""
     info = ctx.catalog.items.get(item_id)
     variations = list(info.variations) if info and info.variations else []
     pairs = (
@@ -63,12 +70,24 @@ def _item_has_cost(ctx: ShopContext, item_id: str) -> tuple[bool, int, int]:
         if variations
         else [("", info.seller_sku if info else None, None)]
     )
-    known = sum(
-        1
-        for vid, sku, name in pairs
-        if unit_cost(ctx.rules, item_id, vid, seller_sku=sku, variation_name=name).known
-    )
+    seen = {p[0] for p in pairs}
+    pairs += [(vid, None, None) for vid in (observed or {}) if vid and vid not in seen]
+    known = 0
+    for vid, sku, name in pairs:
+        sku = sku or _observed_sku(observed, vid, len(pairs))
+        if unit_cost(ctx.rules, item_id, vid, seller_sku=sku, variation_name=name).known:
+            known += 1
     return known == len(pairs), known, len(pairs)
+
+
+def _observed_sku(observed: Mapping[str, str] | None, vid: str, n_pairs: int) -> str | None:
+    if not observed:
+        return None
+    if vid in observed:
+        return observed[vid]
+    if n_pairs == 1:  # a single-model listing takes the lines that name no variation
+        return observed.get("") or (next(iter(observed.values())) if len(observed) == 1 else None)
+    return None
 
 
 def picker(
@@ -97,7 +116,12 @@ def picker(
             orders30[ln.product_id].add(ln.order_id)
             gmv30[ln.product_id] += ln.order_value
     shopee = product_totals_for(view.data.product_flows, view.data.lines)
-    ids = set(ctx.catalog.items) | set(orders90)
+    seen_skus = observed_skus(view.lines)
+    # Order lines whose SKU matched no listing carry a placeholder id ("sku:…"): they are not a
+    # product the seller can act on, so they are counted apart instead of listed.
+    unmatched = {i for i in orders90 if i.startswith(SKU_PREFIX) and i not in ctx.catalog.items}
+    unmatched_orders = len(set().union(*(orders90[i] for i in unmatched))) if unmatched else 0
+    ids = (set(ctx.catalog.items) | set(orders90)) - unmatched
     needle = fold(query) if query else None
     rows: list[dict[str, Any]] = []
     hidden = 0
@@ -117,7 +141,7 @@ def picker(
             gmv, basis = shopee[item_id][0], "shopee_product_period"
         else:
             gmv, basis = gmv90.get(item_id, ZERO), "order_lines"
-        all_costed, with_cost, n_var = _item_has_cost(ctx, item_id)
+        all_costed, with_cost, n_var = _item_has_cost(ctx, item_id, seen_skus.get(item_id))
         rows.append(
             {
                 "item_id": item_id,
@@ -156,6 +180,8 @@ def picker(
         "limit": limit,
         "products": rows[offset : offset + limit],
         "excluded_hidden": hidden,
+        "unmatched_orders": unmatched_orders,
+        "unmatched_label": "Đơn chưa khớp sản phẩm" if unmatched_orders else None,
         "missing_cost_count": sum(1 for r in rows if not r["has_cost"]),
     }
 
