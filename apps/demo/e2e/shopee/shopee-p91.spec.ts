@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { ME, SETTINGS, SHOP_ID, VIEW_SESSION } from "../../src/components/ops/__tests__/fixtures";
 import { matrix, product } from "../../src/lib/shopee-analytics/__tests__/fixtures";
 import { compareResult, detailOf, manualResult, summaryOf, titleCard, versionedVoucher } from "../../src/lib/shopee-decisions/__tests__/fixtures";
+import { builderResponse } from "./p92-stub";
 
 /**
  * P91 smoke (wave 3): the versioned card with its breach warning, the product's Đề xuất tab, Tự tạo /
@@ -24,6 +25,8 @@ async function stub(page: Page) {
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (req.method() === "POST") posts.push({ path, body: req.postDataJSON() });
     if (path === "/v1/shops/me") return json({ id: SHOP.id, platform: "shopee" });
+    const built = builderResponse(path, req.method(), req.method() === "POST" ? req.postDataJSON() : null, false);
+    if (built) return json(built.body, built.status);
     if (path.endsWith("/shopee/matrix")) return json(matrix());
     if (path.includes("/shopee/products/")) return json(product());
     if (path.endsWith("/compare")) return json(compareResult(3));
@@ -56,32 +59,23 @@ test.describe("seller: P91", () => {
     await expect(page.getByTestId("sd-ack")).toContainText("Đã xác nhận vượt giá sàn");
   });
 
-  test("Sản phẩm › Đề xuất lists the queue; 'Tự tạo phương án' compares and saves", async ({ page }) => {
-    test.skip((page.viewportSize()?.width ?? 1000) < 600, "the phone compares as swipe cards (covered below)");
-    const posts = await stub(page);
+  test("Sản phẩm › Đề xuất lists the queue and links to Tự tạo phương án (the P92 builder, covered in shopee-p92-builder)", async ({ page }) => {
+    await stub(page);
     await page.goto("/san-pham/BEP-S5?tab=dx");
     await expect(page.getByTestId("sp-proposals")).toBeVisible();
     await expect(page.getByTestId("sp-card-card-voucher")).toContainText("#1 · Đang ở Quyết định");
     await page.getByTestId("sp-builder").click();
-    await expect(page.getByRole("heading", { name: "Tự đặt ưu đãi, xem số trước khi quyết định" })).toBeVisible();
-    await expect(page.getByTestId("sb-table")).toBeVisible();
-    await page.getByRole("button", { name: "+ Thêm phương án" }).click();
-    await page.getByRole("button", { name: "+ Thêm phương án" }).click();
-    await expect(page.getByTestId("sb-floor-3")).toContainText("✕");
-    await page.getByRole("radio", { name: /P3 \(chạm giá sàn\)/ }).click();
-    await page.getByTestId("sb-save-btn").click();
-    await page.getByRole("alertdialog").getByRole("button", { name: "Vẫn tiếp tục" }).click();
-    await expect(page.getByTestId("sb-saved")).toContainText("Đã lưu");
-    expect(posts.find((p) => p.path.endsWith("/manual"))?.body).toMatchObject({ chosen: 2, acknowledge_breaches: true });
+    await expect(page.getByRole("heading", { name: /Tự đặt ưu đãi, xem số trước khi quyết định|Chọn sản phẩm, phân loại và loại chiến lược/ })).toBeVisible();
+    await expect(page.getByTestId("p2-picker")).toBeVisible();
   });
 });
 
 test.describe("phone: Tự tạo phương án", () => {
   test.use({ viewport: { width: 390, height: 844 } });
-  test("compares as swipe cards without a horizontal page scroll", async ({ page }) => {
+  test("opens on the picker without a horizontal page scroll", async ({ page }) => {
     await stub(page);
     await page.goto("/decisions?tu-tao=1&from=quyet-dinh");
-    await expect(page.getByTestId("sb-swipe")).toBeVisible();
+    await expect(page.getByTestId("p2-picker")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   });
 });
