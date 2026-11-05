@@ -457,3 +457,19 @@ def test_imported_per_sku_rules_are_found_under_the_order_lines_seller_sku():
     assert aliased.sku_cost["TD01"] == 65_000
     assert aliased.packaging_by_key["G500001"] == 2_000
     assert aliased.sku_cost["26107129526:251347806793"] == 30_000
+
+
+def test_a_listing_without_variations_takes_its_only_model_so_a_variation_scoped_cost_applies():
+    # The catalogue knows the listing's single model but not its seller SKU; the order line only
+    # carries the SKU text. The cost imported for "item:model" must still reach the line.
+    catalog = build_catalog(
+        [
+            RawItem("33", "", "Viên giặt", None, None, None),
+            RawItem("33", "333", None, None, None, None),
+        ]
+    )
+    lines = to_shop_lines([_raw(1, item_id="33", sku="V1")], catalog)
+    assert lines[0].scope == "33:333"
+    costs = resolve_costs(lines, read_rules([RuleRow("sku_cost", "33:333", 50_000)]))
+    key = lines[0].cost_key
+    assert costs.by_key[key].cogs == D(50_000) and costs.cogs_source[key] == "real"

@@ -160,6 +160,10 @@ def _variation_of(catalog: Catalog, item_id: str, r: RawLine) -> tuple[str, str 
     ]
     only = [v for v in variations if v.seller_sku in wanted]
     pick = named[0] if named else (only[0] if len(only) == 1 else None)
+    if pick is None and len(variations) == 1:
+        # A listing without variations still has one model; the catalogue often lacks its seller
+        # SKU, so the line could not be matched by SKU. Its only model is the line's.
+        pick = variations[0]
     if pick is None:
         return "", r.variation_name
     return pick.variation_id, r.variation_name or pick.name
