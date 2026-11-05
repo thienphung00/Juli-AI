@@ -16,7 +16,7 @@ A variant is a plain dict::
     {"label": str | None, "change_kind": str, "items": [item_id, ...],
      "extra": {"addon_item": ..., "gift_item": ..., "combo_items": [{item_id, sku?, qty}],
                "discount_type": "pct|amount|fixed_price", "discount_value": n, "voucher": {...}},
-     "inputs": {<the kind's what-if knobs>}}
+     "inputs": {<the kind's what-if knobs>}, "campaign_key": str | None}
 """
 
 from __future__ import annotations
@@ -71,6 +71,19 @@ _REFUSAL_TEXT = {
     "banned_term": "Nội dung có từ không được dùng.",
     "variations_invalid": "Bảng phân loại chưa hợp lệ.",
     "stock_invalid": "Số lượng tồn không hợp lệ.",
+    "item_excluded": "Sản phẩm đang được loại trừ (Cài đặt › Loại trừ sản phẩm).",
+    # P92 builder
+    "variation_required": "Chọn phân loại cho sản phẩm này.",
+    "variations_required": "Chọn phân loại và mức giảm.",
+    "variation_unknown": "Phân loại không thuộc sản phẩm này.",
+    "final_price_not_below_list": "Giá sau giảm phải thấp hơn giá niêm yết.",
+    "no_campaign_report": "Chưa có báo cáo của chiến dịch này để tính.",
+    "no_keywords": "Chưa chọn từ khoá nào.",
+    "too_many_addons": "Mua kèm có tối đa 5 sản phẩm.",
+    "addon_duplicate": "Các sản phẩm mua kèm phải khác nhau và khác sản phẩm chính.",
+    "addon_price_invalid": "Giá mua kèm phải lớn hơn 0 và không cao hơn giá hiện tại.",
+    "gift_qty_invalid": "Số lượng quà từ 1 đến 20.",
+    "no_price": "Chưa có giá hiện tại của phân loại đã chọn để tính.",
 }
 
 
@@ -128,7 +141,7 @@ def candidate_of(variant: Mapping[str, Any]) -> Candidate:
     if kind == combo.KIND:
         lines = [dict(x) for x in (extra.get("combo_items") or inputs.get("lines") or [])]
         inputs["lines"] = lines
-        for key in ("discount_type", "discount_value", "voucher", "gift_item"):
+        for key in ("discount_type", "discount_value", "voucher", "gift_item", "combo_target"):
             if key in extra and key not in inputs:
                 inputs[key] = extra[key]
         inputs.setdefault("discount_type", "pct")
@@ -138,6 +151,7 @@ def candidate_of(variant: Mapping[str, Any]) -> Candidate:
         kind=kind,
         items=items,
         inputs=inputs,
+        campaign_key=variant.get("campaign_key"),
         extra={k: v for k, v in extra.items() if v is not None},
         reason=str(variant.get("reason") or ""),
         wiring_key=variant.get("wiring_key"),
@@ -159,8 +173,22 @@ def build_variant(
         return None, refusal("unknown_kind")
     try:
         cand = candidate_of(variant)
+        named = [
+            *cand.items,
+            *(cand.extra.get(k) for k in ("addon_item", "gift_item") if cand.extra.get(k)),
+            *(a.get("item_id") for a in cand.inputs.get("addons") or [] if isinstance(a, dict)),
+            (cand.inputs.get("gift") or {}).get("item_id"),
+            (cand.inputs.get("trigger") or {}).get("item_id"),
+        ]
+        shut = [i for i in named if i and str(i) in env.excluded]
+        if shut:  # P92 B-1: an excluded listing has no builder entry
+            return None, refusal(f"item_excluded:{shut[0]}")
         if kind != combo.KIND:
-            if not cand.items and KINDS[kind].subject_type == "item":
+            # a gift on "order of at least N đ" belongs to the shop, not to one product (P92 B-4)
+            shop_gift = (
+                kind == "gift" and (cand.inputs.get("trigger") or {}).get("type") == "min_spend"
+            )
+            if not cand.items and KINDS[kind].subject_type == "item" and not shop_gift:
                 return None, refusal("no_item")
             known = set(env.item_ids())
             for item in (

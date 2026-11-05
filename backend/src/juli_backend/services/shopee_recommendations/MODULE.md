@@ -99,6 +99,18 @@ hands these kinds to `kol_cards.build_kol_card` (same payload keys plus `card["k
 `eval_kol` serves `evaluate`. Measurement scope = `card["kol"]["measurement"]` (KOL x product pair,
 orders before / after the send date; series `shopee_analytics.kol.pair_daily`). Never a mega_sale child.
 
+## P92 additions
+
+- `combo_multi` takes 2-6 products; `add_on` 1-5 add-ons (price or % off, per-order limit, attach rate
+  that pays the discount back); `gift` is a listing or a typed-cost "quà không bán" with a buy-X /
+  min-spend trigger; `product_discount` / `price` / `flash_sale` take per-variation rows
+  (`inputs.variations = [{sku, discount_pct | final_price | new_price_pct}]`); `ads_keywords` lists
+  keywords + bids with no invented lift. `unit_cost` reads the seller's giá vốn / pack / VAT straight
+  from the rules ("chưa tính" when none). `env.response_by_item` / `response_shop` let
+  `prediction.predict_lift` use the product's own response to a price cut (`Lift.source`
+  `product_history` / `shop_products`). `env.excluded` drops excluded listings from `item_ids`, the
+  generators and `manual.build_variant`. The builder that drives all of this is `services/shopee_builder`.
+
 ## Rules
 
 - Certain ("chắc chắn") is arithmetic on the shop's real orders; predicted ("dự kiến") is a

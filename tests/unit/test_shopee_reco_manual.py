@@ -140,7 +140,7 @@ def test_break_even_extra_combo_orders():
 @pytest.mark.parametrize(
     ("lines", "offer", "code"),
     [
-        ([_line("A", 100_000, 1)], combo.ComboOffer("pct", D(10)), "combo_needs_2_or_3_products"),
+        ([_line("A", 100_000, 1)], combo.ComboOffer("pct", D(10)), "combo_needs_2_to_6_products"),
         (
             [_line("A", 1, 1, "A"), _line("A", 1, 1, "B")],
             combo.ComboOffer("pct", D(10)),
@@ -277,8 +277,8 @@ async def test_request_limits_are_422(session, shop, seller):
     one = await seller.post(f"{DEMO}/compare", json=_body([_discount()]))
     five = await seller.post(f"{DEMO}/compare", json=_body([_discount()] * 5))
     assert one.status_code == 422 and five.status_code == 422
-    four_items = _combo()
-    four_items["extra"]["combo_items"] = [{"item_id": str(n), "qty": 1} for n in range(4)]
+    four_items = _combo()  # 7 products: one over the P92 limit of 6
+    four_items["extra"]["combo_items"] = [{"item_id": str(n), "qty": 1} for n in range(7)]
     bad = [
         four_items,
         {**_combo(), "extra": {**_combo()["extra"], "combo_items": [{"item_id": "1", "qty": 1}]}},

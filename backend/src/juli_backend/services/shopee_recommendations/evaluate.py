@@ -329,8 +329,12 @@ def _refuse(reason: str) -> Evaluation:
 
 
 def new_price(env: RecoEnv, kind: str, sku: str, inputs: Mapping[str, Any]) -> Decimal | None:
+    """The price a SKU gets: a percent off the list price, a percent of today's price, or (P92 B-4)
+    the final price the seller typed."""
     current = env.current_price(sku)
     listed = env.list_price(sku)
+    if inputs.get("final_price") is not None:
+        return D(inputs["final_price"])
     if kind in ("product_discount", "flash_sale", "program_registration"):
         if listed is None:
             return None
@@ -340,6 +344,35 @@ def new_price(env: RecoEnv, kind: str, sku: str, inputs: Mapping[str, Any]) -> D
     return round_down_to(current * D(inputs.get("new_price_pct", 100)) / 100, Decimal(100))
 
 
+def sku_inputs(
+    env: RecoEnv, kind: str, sku: str, inputs: Mapping[str, Any], per_sku: Mapping[str, Any]
+) -> dict[str, Any]:
+    """The inputs of one SKU: the product-wide ones, over-ridden by the variation's own row
+    (P92 B-4: ``variations`` = [{sku, discount_pct | final_price | new_price_pct}])."""
+    out = {**inputs, **{k: v for k, v in (per_sku.get(sku) or {}).items() if k != "sku"}}
+    if kind == "price" and out.get("final_price") is not None:
+        current = env.current_price(sku)
+        if current:
+            out["new_price_pct"] = float(D(out["final_price"]) / current * 100)
+            out.pop("final_price")
+    return out
+
+
+def _sku_margin(
+    pairs: Sequence[tuple[OrderLine, ProfitBreakdown]], sku: str, item: str
+) -> int | float | None:
+    """Contribution margin (percent of what the buyer paid) of one SKU's carrying lines."""
+    mine = [
+        pb
+        for ln, pb in pairs
+        if ln.sku == sku and ln.product_id == item and pb.excluded_reason is None
+    ]
+    revenue = sum((pb.revenue for pb in mine), ZERO)
+    if revenue <= 0 or any(pb.contribution is None for pb in mine):
+        return None
+    return pct(pct_points(safe_div(sum((pb.contribution or ZERO for pb in mine), ZERO), revenue)))
+
+
 def eval_price(
     env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
 ) -> Evaluation:
@@ -347,7 +380,10 @@ def eval_price(
     if item is None:
         return _refuse("no_item")
     lines = env.lines_for([item])
+    per_sku = {str(v["sku"]): v for v in inputs.get("variations") or [] if v.get("sku")}
     skus = [s for s in env.skus_of(item) if env.current_price(s) is not None]
+    if per_sku:  # P92 B-4: only the variations the seller chose
+        skus = [s for s in skus if s in per_sku]
     if not lines or not skus:
         return _refuse("no_order_lines")
     floors = _floors_for(env, [item])
@@ -361,7 +397,8 @@ def eval_price(
     repriced: dict[int, OrderLine] = {}
     new_prices: dict[str, Decimal] = {}
     for sku in skus:
-        new = new_price(env, cand.kind, sku, inputs)
+        sku_in = sku_inputs(env, cand.kind, sku, inputs, per_sku)
+        new = new_price(env, cand.kind, sku, sku_in)
         if new is None:
             continue
         new_prices[sku] = new
@@ -372,7 +409,7 @@ def eval_price(
                 predicted.low * share, predicted.high * share, predicted.source
             )
         if cand.kind == "price":  # each line keeps its own price level: x factor
-            factor = D(inputs.get("new_price_pct", 100)) / 100
+            factor = D(sku_in.get("new_price_pct", 100)) / 100
             kw: dict[str, Any] = {"price_factor": factor}
         else:  # a discount to a price: lines already cheaper keep theirs
             kw = {"new_deal_price": new, "ceiling": True}
@@ -422,6 +459,8 @@ def eval_price(
     effect_days = (
         int(inputs.get("slot_days") or 1)
         if cand.kind in ("flash_sale", "program_registration")
+        else min(int(inputs["days"]), config.DAYS_PER_MONTH)
+        if inputs.get("days") and cand.kind == "product_discount"
         else config.DAYS_PER_MONTH
     )
     profit = ProfitModel(
@@ -454,6 +493,8 @@ def eval_price(
                 "list_price": num(env.list_price(sku)),
                 "price_before": num(env.current_price(sku)),
                 "price_after": num(new_prices[sku]),
+                "margin_pct_before": _sku_margin(before_pairs, sku, item),
+                "margin_pct_after": _sku_margin(after_pairs, sku, item),
                 "orders": c.orders,
                 "profit_per_order_before": num(c.profit_per_order_before),
                 "profit_per_order_after": num(c.profit_per_order_after),
@@ -522,6 +563,7 @@ def eval_price(
                 "net_profit_high": num(sum((x.net_profit_high for x in nets), ZERO)),
                 "source": nets[0].source,
             }
+    skus_json.sort(key=lambda row: -row["orders"])  # the best seller leads (it sets the size)
     first = skus_json[0]
     return Evaluation(
         certain=certain,
@@ -584,9 +626,60 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
     }
 
 
+def _eval_ads_keywords(env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any]) -> Evaluation:
+    """P92 B-4: keywords + bids. There is no certain layer and no lift: the evaluation lists each
+    keyword with the facts the caller found (volume, CPC range, the shop's own ads report row) and
+    warns when a bid is under the lowest CPC seen. Spend, GMV and ROAS are not predicted."""
+    rows = []
+    for k in inputs.get("keywords") or []:
+        bid = k.get("bid")
+        cpc_min = k.get("cpc_min")
+        own = k.get("ads") or None
+        rows.append(
+            {
+                "keyword": k["keyword"],
+                "bid": bid,
+                "match": k.get("match"),
+                "volume": k.get("volume"),
+                "difficulty": k.get("difficulty"),
+                "cpc_min": cpc_min,
+                "cpc_max": k.get("cpc_max"),
+                "bid_below_cpc_min": None
+                if bid is None or cpc_min is None
+                else bool(bid < cpc_min),
+                "own_report": own,
+            }
+        )
+    if not rows:
+        return _refuse("no_keywords")
+    item = cand.item
+    pp = env.product(item) if item else None
+    certain = {
+        "kind": "ads",
+        "basis": {"key": "placed", "label": "đơn đã đặt"},
+        "keywords": rows,
+        "break_even_roas": ratio(pp.break_even_roas, 2) if pp else None,
+        "note": "Không dự đoán chi, doanh thu hay ROAS cho từ khoá chưa có trong báo cáo quảng cáo "
+        "của shop.",
+    }
+    return Evaluation(
+        certain=certain,
+        five=None,
+        breaches=[],
+        profit=ProfitModel(),
+        before={"keywords": []},
+        after={"keywords": [{"keyword": r["keyword"], "bid": r["bid"]} for r in rows]},
+        target={"campaign_key": cand.campaign_key, "item_id": item},
+        spend_check=_spend_check(env, ZERO),
+        notes=["Từ khoá và giá thầu: chưa ước tính được lượt bấm và doanh thu."],
+    )
+
+
 def eval_ads(
     env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
 ) -> Evaluation:
+    if cand.kind == "ads_keywords":
+        return _eval_ads_keywords(env, cand, inputs)
     key = cand.campaign_key
     prof = campaign_profile(env, key) if key else None
     if prof is None:
@@ -854,84 +947,193 @@ def eval_bundle(
     )
 
 
+MAX_ADDONS = 5
+MAX_GIFT_QTY = 20
+
+
+def _addon_specs(cand: Candidate, inputs: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The add-ons of the deal: P92 ``addons`` [{item_id, sku?, price | pct, limit?}] (1-5), or the
+    P91 single add-on (``extra.addon_item`` + ``addon_discount_pct``)."""
+    raw = inputs.get("addons")
+    if raw:
+        return [dict(a) for a in raw]
+    addon = cand.extra.get("addon_item")
+    return [] if addon is None else [{"item_id": addon, "pct": inputs.get("addon_discount_pct", 0)}]
+
+
 def eval_add_on(
     env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
 ) -> Evaluation:
-    """Mua kèm deal sốc: main product A + add-on product B at a discount. Floor check on B."""
+    """Mua kèm deal sốc: main product A + 1-5 add-ons at a price (or a % off). Per add-on: its
+    margin at the add-on price, the floor check, the discount given on the orders that already
+    hold both, and the attach rate that pays that discount back."""
     main = cand.item
-    addon = cand.extra.get("addon_item")
-    if main is None or addon is None:
+    specs = _addon_specs(cand, inputs)
+    if main is None or not specs:
         return _refuse("no_addon")
-    a_lines = env.lines_for([addon])
-    if not a_lines:
-        return _refuse("no_order_lines")
-    off = D(inputs.get("addon_discount_pct", 0))
-    sku = env.skus_of(addon)[0]
-    ref = max(
-        (ln for ln in a_lines if ln.product_id == addon and ln.sku == sku),
-        key=lambda ln: ln.order_date,
-    )
-    sched = env.schedule(addon)
-    line = _bundle_line(ref, 1, off)
-    pb = profit_lines([line], env.costs, schedule=sched)[0][1]
-    floor_px = env.floor_price(addon, sku)
-    paid = pb.buyer_paid
-    floor = env.floors(addon).get(sku)
-    breaches = []
-    if floor_px is not None and paid < floor_px:
-        breaches.append(
+    if len(specs) > MAX_ADDONS:
+        return _refuse("too_many_addons")
+    if len({str(a["item_id"]) for a in specs}) != len(specs) or any(
+        str(a["item_id"]) == main for a in specs
+    ):
+        return _refuse("addon_duplicate")
+    window = Decimal(env.window_days)
+    main_orders = {ln.order_id for ln in env.lines_for([main]) if ln.product_id == main}
+    n_main = len(main_orders)
+    rows: list[dict[str, Any]] = []
+    breaches: list[dict[str, Any]] = []
+    cost_total, contrib_total, paid_total = ZERO, ZERO, ZERO
+    for spec_in in specs:
+        addon = str(spec_in["item_id"])
+        a_lines = env.lines_for([addon])
+        if not a_lines:
+            return _refuse(f"no_order_lines:{addon}")
+        skus = env.skus_of(addon)
+        sku = spec_in.get("sku")
+        if sku is None:
+            sku = max(
+                skus, key=lambda x: sum((ln.order_value for ln in a_lines if ln.sku == x), ZERO)
+            )
+        elif sku not in skus:
+            return _refuse(f"sku_unknown:{sku}")
+        ref = max(
+            (ln for ln in a_lines if ln.product_id == addon and ln.sku == sku),
+            key=lambda ln: ln.order_date,
+        )
+        if spec_in.get("price") is not None:
+            price_after = D(spec_in["price"])
+            off = (ref.deal_price - price_after) / ref.deal_price * 100 if ref.deal_price else ZERO
+        else:
+            off = D(spec_in.get("pct", 0))
+            price_after = ref.deal_price - to_dong(ref.deal_price * off / 100)
+        if price_after <= 0 or price_after > ref.deal_price:
+            return _refuse("addon_price_invalid")
+        sched = env.schedule(addon)
+        line = replace(
+            ref,
+            qty=1,
+            deal_price=price_after,
+            shop_voucher_share=ZERO,
+            bundle_discount=ZERO,
+            order_id=f"addon:{sku}",
+            promo_kind=PromoKind.NONE,
+        )
+        pb = profit_lines([line], env.costs, schedule=sched)[0][1]
+        floor_px = env.floor_price(addon, sku)
+        floor = env.floors(addon).get(sku)
+        paid = pb.buyer_paid
+        below = floor_px is not None and paid < floor_px
+        if below:
+            breaches.append(
+                {
+                    "sku": sku,
+                    "item_id": addon,
+                    "kind": "operating"
+                    if floor and floor.operating_floor is not None
+                    else "absolute",
+                    "floor": num(floor_px),
+                    "min_unit_price": num(paid),
+                    "lines": 1,
+                }
+            )
+        both = main_orders & {ln.order_id for ln in a_lines if ln.product_id == addon}
+        discount_each = ref.deal_price - price_after
+        cost_existing = discount_each * len(both)
+        c = pb.contribution
+        extra_needed = None if not c or c <= 0 else math.ceil(cost_existing / c)
+        rows.append(
             {
+                "item_id": addon,
                 "sku": sku,
-                "kind": "operating" if floor and floor.operating_floor is not None else "absolute",
+                "price_before": num(ref.deal_price),
+                "price_after": num(paid),
+                "discount_pct": num(round(off, 2)),
+                "limit_per_order": spec_in.get("limit"),
+                "profit_per_unit": num(c),
+                "margin_pct": pct(pct_points(safe_div(c, paid))) if c is not None else None,
                 "floor": num(floor_px),
-                "min_unit_price": num(paid),
-                "lines": 1,
+                "below_floor": bool(below),
+                "orders_with_both_today": len(both),
+                "attach_rate_now": ratio(safe_div(Decimal(len(both)), Decimal(n_main)), 4)
+                if n_main
+                else None,
+                "discount_cost_on_existing": num(cost_existing),
+                "break_even_extra_attaches": extra_needed,
+                "attach_rate_break_even": ratio(
+                    safe_div(Decimal(len(both) + extra_needed), Decimal(n_main)), 4
+                )
+                if extra_needed is not None and n_main
+                else None,
+                "aov_lift_at_break_even": num(
+                    safe_div(Decimal(extra_needed) * paid, Decimal(n_main))
+                )
+                if extra_needed is not None and n_main
+                else None,
             }
         )
-    both = {ln.order_id for ln in env.lines_for([main]) if ln.product_id == main} & {
-        ln.order_id for ln in a_lines if ln.product_id == addon
-    }
-    cost_existing = to_dong(ref.deal_price * off / 100) * len(both)
-    window = Decimal(env.window_days)
-    ppg = safe_div(pb.contribution, paid) if pb.contribution is not None else None
+        cost_total += cost_existing
+        if c is not None:
+            contrib_total += c
+        paid_total += paid
     base_gmv = _scope_gmv_per_day(env, [main])
-    orders_main = _scope_orders(env, [main])
-    aov = safe_div(base_gmv * window, Decimal(orders_main)) if orders_main else None
+    aov = safe_div(base_gmv * window, Decimal(n_main)) if n_main else None
     profit = ProfitModel(
         effect_days=config.DAYS_PER_MONTH,
         base_gmv_per_day=base_gmv,
-        base_orders_per_day=Decimal(orders_main) / window,
+        base_orders_per_day=Decimal(n_main) / window,
         aov=aov,
-        profit_per_gmv=ppg,
-        extra_cost_per_day=cost_existing / window,
-        dchi_per_day=cost_existing / window,
+        profit_per_gmv=safe_div(contrib_total, paid_total) if paid_total > 0 else None,
+        extra_cost_per_day=cost_total / window,
+        dchi_per_day=cost_total / window,
     )
+    first = rows[0]
     certain = {
         "kind": "combo",
         "addon": {
-            "item_id": addon,
-            "price_before": num(ref.deal_price),
-            "price_after": num(paid),
-            "discount_pct": num(off),
-            "profit_per_unit": num(pb.contribution),
-            "margin_pct": pct(pct_points(safe_div(pb.contribution, paid)))
-            if pb.contribution is not None
-            else None,
-            "floor": num(floor_px),
-            "below_floor": bool(breaches),
-            "orders_with_both_today": len(both),
-            "discount_cost_on_existing": num(cost_existing),
+            "item_id": first["item_id"],
+            "price_before": first["price_before"],
+            "price_after": first["price_after"],
+            "discount_pct": first["discount_pct"],
+            "profit_per_unit": first["profit_per_unit"],
+            "margin_pct": first["margin_pct"],
+            "floor": first["floor"],
+            "below_floor": first["below_floor"],
+            "orders_with_both_today": first["orders_with_both_today"],
+            "discount_cost_on_existing": first["discount_cost_on_existing"],
         },
+        "addons": rows,
+        "main_orders": n_main,
         "aov_now": num(aov),
+        "discount_cost_on_existing": num(cost_total),
+        "break_even_extra_orders": max(
+            (
+                r["break_even_extra_attaches"]
+                for r in rows
+                if r["break_even_extra_attaches"] is not None
+            ),
+            default=None,
+        ),
     }
     return Evaluation(
         certain=certain,
         five=None,
         breaches=breaches,
         profit=profit,
-        before={"addon_price": num(ref.deal_price)},
-        after={"addon_item_id": addon, "addon_price": num(paid), "discount_pct": num(off)},
-        target={"item_id": main, "addon_item_id": addon},
+        before={"addon_price": first["price_before"]},
+        after={
+            "addon_item_id": first["item_id"],
+            "addon_price": first["price_after"],
+            "discount_pct": first["discount_pct"],
+            "addons": [
+                {
+                    "item_id": r["item_id"],
+                    "price": r["price_after"],
+                    "limit_per_order": r["limit_per_order"],
+                }
+                for r in rows
+            ],
+        },
+        target={"item_id": main, "addon_item_id": first["item_id"]},
         spend_check=_spend_check(env, profit.dchi_per_day),
     )
 
@@ -939,22 +1141,62 @@ def eval_add_on(
 def eval_gift(
     env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
 ) -> Evaluation:
-    """Quà tặng kèm: a gift item with a cost per qualifying order (giá vốn + đóng gói)."""
+    """Quà tặng kèm. The gift is a listing (cost = its giá vốn + đóng gói) or "quà không bán" with a
+    typed unit cost (``gift = {unit_cost, label, qty}``); the trigger is "buy product X" or "order
+    of at least N đ" (``trigger``; the P91 ``min_spend`` input still works). A gift that is not a
+    listing never touches the stock figure."""
     main = cand.item
-    gift = cand.extra.get("gift_item")
+    gift_in = dict(inputs.get("gift") or {})
+    gift = cand.extra.get("gift_item") or gift_in.get("item_id")
+    typed = gift_in.get("unit_cost")
+    trigger = dict(inputs.get("trigger") or {})
+    if not trigger:
+        trigger = {"type": "min_spend", "amount": inputs.get("min_spend", 0)}
+    if trigger.get("type") == "buy_item" and trigger.get("item_id"):
+        main = str(trigger["item_id"])
     lines = env.lines_for([main] if main else None)
-    if not lines or gift is None:
+    if not lines:
         return _refuse("no_order_lines")
-    min_spend = D(inputs.get("min_spend", 0))
-    gift_sku = env.skus_of(gift)[0] if env.skus_of(gift) else None
-    cost = env.costs.get(gift_sku) if gift_sku else None
-    if cost is None or cost.cogs is None:
+    if gift is None and typed is None:
         return _refuse("gift_cost_unknown")
-    gift_cost = cost.cogs + (cost.packaging or ZERO)
+    qty = int(gift_in.get("qty", inputs.get("gift_qty", 1)))
+    if not 1 <= qty <= MAX_GIFT_QTY:
+        return _refuse("gift_qty_invalid")
+    packaging_known = True
+    if typed is not None:
+        unit_cost = D(typed)
+        packaging = D(gift_in.get("packaging") or 0)
+        gift_cost = unit_cost + packaging
+        label = str(gift_in.get("label") or "Quà không bán")
+    else:
+        gift_sku = env.skus_of(str(gift))[0] if env.skus_of(str(gift)) else None
+        cost = env.costs.get(gift_sku) if gift_sku else None
+        if cost is not None and cost.cogs is not None:
+            gift_cost = cost.cogs + (cost.packaging or ZERO)
+            packaging_known = cost.packaging is not None
+        else:  # the seller's own giá vốn, when the gift has not sold lately
+            from juli_backend.services.shopee_recommendations.unit_cost import (
+                gift_cost_of,
+            )
+            from juli_backend.services.shopee_recommendations.unit_cost import (
+                unit_cost as rules_unit_cost,
+            )
+
+            known = gift_cost_of(rules_unit_cost(env.rules, str(gift)))
+            if known is None:
+                return _refuse("gift_cost_unknown")
+            gift_cost = known
+        label = env.name(str(gift))
+    gift_cost *= qty
     by_order: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for ln in lines:
         by_order[ln.order_id] += ln.order_value
-    qualifying = [o for o, v in by_order.items() if v >= min_spend]
+    if trigger.get("type") == "buy_item":
+        item_orders = {ln.order_id for ln in lines if ln.product_id == main}
+        qualifying = [o for o in by_order if o in item_orders]
+    else:
+        min_spend = D(trigger.get("amount", 0))
+        qualifying = [o for o, v in by_order.items() if v >= min_spend]
     total_cost = gift_cost * len(qualifying)
     pairs = profit_lines(lines, env.costs, schedule=env.schedule(main or ""))
     contrib = [
@@ -976,26 +1218,60 @@ def eval_gift(
         extra_cost_per_day=total_cost / window,
         dchi_per_day=total_cost / window,
     )
+    stock = env.stock(str(gift)) if typed is None and gift is not None else None
+    units_used = len(qualifying) * qty
     certain = {
         "kind": "combo",
         "gift": {
-            "item_id": gift,
+            "item_id": gift if typed is None else None,
+            "label": label,
+            "typed_cost": typed is not None,
+            "qty": qty,
             "cost_per_gift": num(gift_cost),
             "qualifying_orders": len(qualifying),
             "total_orders": n_orders,
             "gift_cost_window": num(total_cost),
+            "gift_cost_per_order": num(gift_cost),
+            "trigger": trigger,
+            "stock": stock,
+            "units_used_in_window": units_used,
+            "stock_covers_window": None if stock is None else stock >= units_used,
+            "stock_note": "Quà không bán: không tính vào tồn kho của Juli."
+            if typed is not None
+            else None,
+            "profit_per_order_now": num(cpo),
+            "margin_before_pct": pct(pct_points(safe_div(cpo, gmv_per_order)))
+            if cpo is not None and gmv_per_order
+            else None,
+            "margin_after_pct": pct(
+                pct_points(safe_div(cpo - total_cost / Decimal(n_orders), gmv_per_order))
+            )
+            if cpo is not None and gmv_per_order and n_orders
+            else None,
             "break_even_extra_orders": be,
         },
     }
+    notes = []
+    if typed is None and not packaging_known:
+        notes.append("Chưa có chi phí đóng gói của quà tặng: tính 0đ.")
     return Evaluation(
         certain=certain,
         five=None,
         breaches=[],
         profit=profit,
         before={},
-        after={"gift_item_id": gift, "min_spend": num(min_spend)},
-        target={"item_id": main, "gift_item_id": gift},
+        after={
+            "gift_item_id": gift if typed is None else None,
+            "gift_label": label,
+            "gift_qty": qty,
+            "min_spend": num(D(trigger.get("amount", 0)))
+            if trigger.get("type") != "buy_item"
+            else None,
+            "trigger": trigger,
+        },
+        target={"item_id": main, "gift_item_id": gift if typed is None else None},
         spend_check=_spend_check(env, profit.dchi_per_day),
+        notes=notes,
     )
 
 

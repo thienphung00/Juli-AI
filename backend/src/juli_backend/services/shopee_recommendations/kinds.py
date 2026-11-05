@@ -148,6 +148,18 @@ KINDS: dict[str, KindSpec] = {
         _ADS,
         prior=(-0.9, -0.4),
     ),
+    # P92 B-4: keywords + bids of a manual keyword campaign. No certain layer and no preset prior:
+    # the card shows the keywords, their volumes and the shop's own report, never an invented lift.
+    "ads_keywords": KindSpec(
+        "ads_keywords",
+        "ads",
+        "Từ khoá và giá thầu quảng cáo",
+        "ads",
+        "campaign",
+        "none",
+        _ADS,
+        prior=(0, 0),
+    ),
     "ads_add_product": KindSpec(
         "ads_add_product",
         "ads",

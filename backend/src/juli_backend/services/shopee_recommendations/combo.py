@@ -1,4 +1,4 @@
-"""p91 D-3: the combo calculator -- 2-3 DIFFERENT products (each SKU x qty) sold as one order
+"""p91 D-3: the combo calculator -- 2-6 DIFFERENT products (each SKU x qty) sold as one order
 at a combo discount, with an optional stacked shop voucher and an optional gift item.
 
 Pure arithmetic over ``services/shopee_profit`` (no database, no forecast):
@@ -53,11 +53,11 @@ from juli_backend.services.shopee_recommendations.model import Candidate, Evalua
 
 KIND = "combo_multi"
 DISCOUNT_TYPES = ("pct", "amount", "fixed_price")
-MIN_LINES, MAX_LINES = 2, 3
+MIN_LINES, MAX_LINES = 2, 6  # P92 B-4: 2-6 products (P91 allowed 2-3)
 MAX_QTY = 20
 
 REFUSALS: dict[str, str] = {
-    "combo_needs_2_or_3_products": "Combo cần 2 hoặc 3 sản phẩm.",
+    "combo_needs_2_to_6_products": "Combo cần từ 2 đến 6 sản phẩm.",
     "combo_needs_distinct_products": "Các sản phẩm trong combo phải khác nhau.",
     "combo_qty_out_of_range": "Số lượng mỗi món từ 1 đến 20.",
     "combo_discount_type_invalid": "Kiểu giảm giá phải là %, số tiền hoặc giá combo cố định.",
@@ -66,7 +66,7 @@ REFUSALS: dict[str, str] = {
     "combo_no_offer": "Combo chưa có ưu đãi nào (giảm giá, voucher hoặc quà).",
     "combo_voucher_invalid": "Voucher kèm theo không hợp lệ.",
     "item_no_data": "Sản phẩm chưa có đơn trong kỳ phân tích nên chưa tính được.",
-    "sku_unknown": "SKU không thuộc sản phẩm đã chọn.",
+    "sku_unknown": "SKU không thuộc sản phẩm đã chọn hoặc phân loại này chưa có đơn để tính.",
     "cost_or_fee_unknown": "Thiếu giá vốn, đóng gói hoặc công thức phí của một món trong combo.",
     "gift_cost_unknown": "Chưa biết giá vốn của quà tặng nên chưa tính được.",
 }
@@ -163,7 +163,7 @@ def price_combo(
     ``order_id``); ``floors`` maps SKU -> floor price per unit (None / missing = unknown).
     Raises :class:`ComboRefusal`."""
     if not MIN_LINES <= len(lines) <= MAX_LINES:
-        raise ComboRefusal("combo_needs_2_or_3_products")
+        raise ComboRefusal("combo_needs_2_to_6_products")
     if len({ln.product_id for ln in lines}) != len(lines):
         raise ComboRefusal("combo_needs_distinct_products")
     if any(not 1 <= ln.qty <= MAX_QTY for ln in lines):
@@ -232,6 +232,7 @@ def price_combo(
         "list_value": num(list_value),
         "value_now": num(value),
         "combo_discount": num(disc),
+        "savings_pct": pct(pct_points(safe_div(disc, value))) if value > 0 else None,
         "voucher_discount": num(v_disc),
         "voucher_applies": v_disc > 0 if offer.voucher is not None else None,
         "buyer_pays": num(buyer_pays),
