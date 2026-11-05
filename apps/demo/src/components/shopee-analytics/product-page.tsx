@@ -18,6 +18,7 @@ import { ProposalsTab, openCardsOf } from "../shopee-decisions/product-proposals
 import { ProductKolTab } from "../shopee-kol/product-kol-tab";
 import type { CardList } from "../../lib/shopee-decisions/types";
 import type { ProductHeader, ProductPage, ProductVersion, SkuCost } from "../../lib/shopee-analytics/types";
+import { VariationExpand } from "../shopee-decisions/builder-p92/variations";
 import { CostTab, HistoryTab, KeywordsTab, PerformanceTab, SourcesTab } from "./product-tabs";
 import { Empty, Notice, PillLink, ResourceState, Section, TextChip, toneClass } from "./ui";
 import type { WindowState } from "../../lib/shopee-analytics/params";
@@ -135,7 +136,7 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
         <ReputationBlock h={h} />
       </div>
 
-      <Variations h={h} skus={skus} selSku={sel?.sku ?? null} onPick={setSelSku} period={page.period.window.days} />
+      <Variations h={h} skus={skus} selSku={sel?.sku ?? null} onPick={setSelSku} period={page.period.window.days} openCompare={params.get("cmp") === "1"} />
 
       <Section hint={`${page.period.window.days} ngày · so với ${page.period.previous.days} ngày trước · cùng định nghĩa với Tổng quan và thẻ`} testId="sa-sp-five" title="5 con số chính">
         <div className="sa-five sa-five--5">
@@ -440,13 +441,16 @@ function Variations({
   selSku,
   onPick,
   period,
+  openCompare,
 }: {
   readonly h: ProductHeader;
   readonly skus: readonly SkuCost[];
   readonly selSku: string | null;
   readonly onPick: (sku: string) => void;
   readonly period: number;
+  readonly openCompare?: boolean;
 }) {
+  const host = useShopee();
   const bySku = new Map(skus.map((s) => [s.sku, s]));
   const rows = h.variations.length > 0 ? h.variations : skus.map((s) => ({ variation_id: s.sku, name: s.sku, seller_sku: s.sku, status: null }));
   return (
@@ -494,6 +498,7 @@ function Variations({
           })}
         </>
       )}
+      {host.builder ? <VariationExpand api={host.builder} defaultOpen={openCompare} costLink={host.links.costImport(null, "san-pham")} itemId={h.product_id} /> : null}
       <p className="sa-hint">Giá, tồn lấy từ lần đọc Seller Centre gần nhất · giá vốn từ Cài đặt (hoặc giả định 1/3 giá, có ghi rõ) · đơn từ báo cáo đơn.</p>
     </Section>
   );
