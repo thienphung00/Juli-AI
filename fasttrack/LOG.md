@@ -3779,3 +3779,23 @@ reconcile --write` re-derived the no-assert corpus figure.
 - P93 fixes found by the gate: `shop_members` FKs now `ON DELETE CASCADE` (the trigger's member row blocked the cohort seeder and would have blocked the account purge deleting a shop); RLS test allows the membership policy; reviewer-no-write path param; ratchet (no `type: ignore`); beat-schedule pin for `shopee-reco-refresh`; Shopee real-response fixture regenerated (V1 key order).
 - Gate (throwaway local UTC Postgres 16, node 20): check.sh --since origin/fasttrack/optimize-product PASS (migrations empty → 121, 121 → 120 → 121; isolation 12; gitleaks; ruff 81 files; pytest 57 files 931 passed); additive gate on 121 ACCEPTED; unit `-m "not live"` without DB: 10463 passed / 4 failed, all four fixed and re-run green; integration 624 passed / 3 skipped / 5 failed = pre-existing, reproduced on 196f955e (agent registry sanitizer, update-grant: the same 23 tables, restore_drill x3 needs the local pg tools); mypy 998 files clean; bandit -ll 0 medium/high; demo eslint 0 errors, tsc clean, vitest 1910 passed (189 files), next build OK, Playwright e2e/shopee 66 passed (desktop + mobile); connector tsc, vitest 241, build OK.
 - Owner steps: contracts/p92-deploy-checklist.md "Release 2026-11-05b" (ENGINE_VERSION recompute load, beat restart, deferred 102 backfill by hand with its verification query).
+
+## 2026-11-05 — P96 agents (Claude Opus) — Tự tạo phương án: estimates follow the lever (D84)
+
+- Source: owner's Ops bug sweep on ORY (Túi Bio STAHAUS), bug IDs A1–N1 (A–K strategies; L Xếp hạng; M Phân tích; N other).
+- Backend (shopee_builder, shopee_recommendations): one `ProfitModel.lift_scale` for lever size (voucher ÷ AOV, gift,
+  add-on, set, commission), qualifying-order share, proportional caps; price lift concave above 30 % and capped
+  (−90 %..+100 %), ΔGMV ≥ −scope GMV; sorted bands; real period ≤ 90 days with cost on the same days; add-on attach
+  model; typed packaging; set margins; affiliate samples in profit; flash slot share; typed price exact (115.000 stays
+  115.000); refusals voucher_scope_no_data, voucher_value_over_min_spend, sku_no_orders (split from sku_unknown),
+  sku_duplicate, listing_already_live; warning set_dearer_than_single; `reason_text` beside every reason code;
+  variations carry `orders_30d`, best seller first. Shared with auto-generated cards (same prediction module).
+- Frontend (builder-p92): client limits = server limits with Vietnamese problems, pydantic errors read as
+  "Thông số chưa hợp lệ: …", never "HTTP n"; no raw codes; "Thay đổi · <phân loại>" ± for Đổi giá niêm yết;
+  "Giá không đổi."; no empty variation_id; default variation = selling one; gift name required; relist disabled
+  while in stock; no per-day lines without an estimate.
+- Not fixed: B5 per-buyer limit (no buyer id on order lines — stays a note); B7 only voucher moved to an AOV
+  break-even.
+- Gate (local, Node 20, Postgres 16): demo tsc clean, vitest 190 files / 1923 passed; backend 41 related files
+  772 passed incl. test_test_quality; ruff 13 files clean; mypy shopee_builder + shopee_recommendations 55 files clean.
+- Next (owner order): Phân tích replaces Xếp hạng; Ops QA extension; Seller Centre ad types.

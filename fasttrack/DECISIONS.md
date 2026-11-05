@@ -1818,3 +1818,14 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      score coverage; approvals / dismissals only feed acceptance statistics.
   3. juli-sim-pilot is a prior and pre-screen, gated per change_kind; stays local; exports priors/v1.
   4. ORY Seller Centre data may calibrate the simulation and ORY's own forecasts; never pooled.
+- **D84** — Tự tạo phương án estimates follow the lever (owner, 2026-11-05, after the ORY Ops bug sweep).
+  1. The predicted gain scales with the lever's size for every kind, not only price: voucher discount ÷ AOV
+     against a 5 % reference (0–2× the prior), gift cost ÷ AOV, add-on % off, combo / set discount, commission change.
+  2. Only orders that qualify count (minimum spend share; none qualifying → no gain).
+  3. A cap (usage limit, flash-sale units, per-order limit) scales gain and cost together: min(1, limit ÷ expected).
+  4. Price effect is capped (+100 % for a cut, −90 % for a rise, flatter above 30 %); ΔGMV never below −the scope's GMV.
+  5. Effect period = the change's own days up to 90; cost scales with the same days.
+  6. "Ẩn listing" shows the lost 30-day GMV and profit as certain.
+  7. Follower / new-buyer and livestream vouchers are refused ("Chưa có dữ liệu đơn theo loại voucher này để ước tính.")
+     until order lines record the voucher type.
+  8. "Đổi giá niêm yết" % is a ± change, + = price up, labelled "Thay đổi"; past start dates stay allowed.

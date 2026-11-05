@@ -526,6 +526,18 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Attribution: seller actions already record `user.id` (the acting member); write-approval now admits any member | p93 | done, test | builder agent |
 | Open (owner): run the deploy with migration 121, then the deferred backfill; smoke in `p92-deploy-checklist.md` §8 (invite two e-mails on ORY, remove one) | checklist §8 | todo | owner |
 
+## P96 — Tự tạo phương án: estimates follow the lever, no raw errors (D84, 2026-11-05)
+
+Source: the ORY Ops bug sweep of 2026-11-05 (bug IDs A1–N1 in LOG 2026-11-05 "P96").
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Estimate model per D84 (lever size, qualifying share, proportional caps, capped elasticity, real period, one cost in profit, sorted bands) | D84 | in progress | backend agent |
+| Validation and messages: client limits = server limits, pydantic errors in Vietnamese, no raw codes (no_clicks, not_applicable), refusal codes mapped | — | in progress | frontend + backend agents |
+| Variations: default = a selling variation; `sku_no_orders` vs `sku_unknown`; no empty variation_id | — | in progress | frontend + backend agents |
+| Price: "Thay đổi" ± label, typed price used exactly (115.000 ≠ 114.900), flash-sale slots and hours count | D84.8 | in progress | frontend + backend agents |
+| Next (owner order): Phân tích replaces Xếp hạng; Ops QA extension (separate from Connector) logging to the backend; Seller Centre ad types (GMV tối đa tự động / ROAS tùy chỉnh, Quảng cáo cửa hàng, nhóm) | — | todo | — |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
