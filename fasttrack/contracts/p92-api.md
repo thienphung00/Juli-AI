@@ -278,3 +278,14 @@ voucher | combo | affiliate), `sort` date|gmv|contribution, `limit` (≤500, 100
 `order_key` = the first 12 characters of the keyed hash the order lines are stored under (never a
 platform order id, no buyer field anywhere). `contribution` is `null` for an order outside the profit base
 (cancelled, in transit) or with a missing cost / fee. `income` is `null` when the income export has no row.
+
+## 8. B-9 price and margin on every product table
+
+`GET /matrix` rows and `GET /ranking?kind=products` rows (Demo and Ops) gain: `price_min`, `price_max` (selling
+price per unit that buyers paid in the window; the catalogue's current price when nothing sold),
+`list_price` (highest list price of the window's lines, else the catalogue's), `price_basis`
+(`order_lines` | `catalogue` | `null`) and `margin_basis` (`"theo đơn thực tế"` every order has an Income row
+and a stated giá vốn · `"ước tính"` fee formula or assumed cost stands in · `"chưa tính"` no margin).
+`GET /matrix` also returns `idle_products[]` = active, non-excluded listings with no order in the window
+(`product_id`, `name`, price fields, `margin_basis:"chưa tính"`), for the collapsed "N sản phẩm không có đơn
+trong kỳ". The fee backtest is not part of this change.

@@ -568,3 +568,18 @@ async def test_another_shops_rows_never_enter(session, seeded):
     again = await queries.overview(session, other.shop_id, period="7d", as_of=CUR_END)
     assert mine["gmv"]["line_orders"] == again["gmv"]["line_orders"] == 13  # not 26
     assert mine["flows"]["total_gmv"] == again["flows"]["total_gmv"]
+
+
+async def test_matrix_rows_carry_price_range_margin_basis_and_idle_listings(session, seeded):
+    """P92 B-9: every product row has giá (min-max, list price) and the basis of its biên; active
+    listings without orders in the window come back under ``idle_products``."""
+    body = await queries.matrix(session, seeded.shop_id, period="7d", as_of=CUR_END)
+    assert body["products"]
+    for row in body["products"]:
+        assert row["price_min"] is not None and row["price_max"] >= row["price_min"]
+        assert row["list_price"] is not None
+        assert row["margin_basis"] in {"theo đơn thực tế", "ước tính", "chưa tính"}
+    sold = {r["product_id"] for r in body["products"]}
+    assert not sold & {i["product_id"] for i in body["idle_products"]}
+    for idle in body["idle_products"]:
+        assert idle["margin_basis"] == "chưa tính"

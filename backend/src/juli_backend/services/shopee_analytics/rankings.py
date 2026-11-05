@@ -36,6 +36,7 @@ from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num
 from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN, product_totals_for
+from juli_backend.services.shopee_analytics.matrix import margin_basis, price_block
 from juli_backend.services.shopee_profit.flows import Flow, FlowSource
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.sources import CellStats
@@ -207,7 +208,13 @@ def _products(view: PeriodView, source: str, sub: str | None) -> Rows:
     for pid in ids - set(view.excluded):  # P92 B-1: excluded listings are not ranked
         m = _product_m(view, pid, source, sub)
         if m is not None:
-            out[pid] = (view.names.get(pid) or pid, m, {"product_id": pid})
+            pp = view.profit.products.get(pid)
+            extra = {
+                "product_id": pid,
+                **price_block(view, pid),
+                "margin_basis": margin_basis(view, pid, pp),
+            }
+            out[pid] = (view.names.get(pid) or pid, m, extra)
     return out
 
 

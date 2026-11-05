@@ -307,6 +307,10 @@ class PeriodView:
     #: item id -> exclusion reason (P92 B-1). Excluded listings stay in every shop total and leave
     #: the product lists, rankings and Phân tích flags.
     excluded: dict[str, str] = field(default_factory=dict)
+    #: item id -> (current price, list price) from the newest catalogue snapshot (P92 B-9).
+    item_prices: dict[str, tuple[Decimal | None, Decimal | None]] = field(default_factory=dict)
+    #: active, non-excluded catalogue listings (item id -> name), sold or not (P92 B-9).
+    active_items: dict[str, str] = field(default_factory=dict)
 
     @property
     def window(self) -> Window:
@@ -319,6 +323,17 @@ class PeriodView:
     @property
     def line_orders(self) -> int:
         return len({ln.order_id for ln, _ in self.pairs})
+
+
+def _active_items(ctx: ShopContext) -> dict[str, str]:
+    """Active (not unlisted / banned / deleted) listings that are not excluded."""
+    from juli_backend.services.shopee_builder.catalogue import is_active
+
+    return {
+        i: ctx.catalog.name(i)
+        for i, info in ctx.catalog.items.items()
+        if not i.startswith("sku:") and is_active(info.status) and i not in ctx.rules.excluded
+    }
 
 
 def shop_flow_rows(traffic: ShopTraffic) -> list[FlowRow]:
@@ -412,4 +427,8 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
         shop_orders=shop_orders,
         names={i: ctx.catalog.name(i) for i in item_ids},
         excluded=dict(ctx.rules.excluded),
+        item_prices={
+            i: (info.current_price, info.list_price) for i, info in ctx.catalog.items.items()
+        },
+        active_items=_active_items(ctx),
     )

@@ -81,6 +81,47 @@ def short_five(now: PeriodView, before: PeriodView, product_id: str) -> dict[str
     }
 
 
+BASIS_ACTUAL = "theo đơn thực tế"
+BASIS_ESTIMATE = "ước tính"
+BASIS_UNKNOWN = "chưa tính"
+
+
+def price_block(view: PeriodView, product_id: str) -> dict[str, Any]:
+    """P92 B-9: selling price min-max (paid per unit in the window; the catalogue's current price
+    when nothing sold) and the list price (the web strikes it through when it differs)."""
+    pairs = getattr(view, "pairs", [])
+    lines = [ln for ln, _ in pairs if ln.product_id == product_id]
+    current, listed = getattr(view, "item_prices", {}).get(product_id, (None, None))
+    if lines:
+        sell = [ln.deal_price for ln in lines]
+        lo, hi = min(sell), max(sell)
+        list_price = max(ln.original_price for ln in lines)
+        basis = "order_lines"
+    else:
+        lo = hi = current if current is not None else listed
+        list_price = listed
+        basis = "catalogue" if lo is not None else None
+    return {
+        "price_min": num(lo),
+        "price_max": num(hi),
+        "list_price": num(list_price),
+        "price_basis": basis,
+    }
+
+
+def margin_basis(view: PeriodView, product_id: str, pp: ProductProfit | None) -> str:
+    """Basis of the biên: "theo đơn thực tế" when every order has an Income row and a giá vốn,
+    "ước tính" when the fee formula or an assumed cost stands in, "chưa tính" without a margin."""
+    if pp is None or pp.margin_pct is None:
+        return BASIS_UNKNOWN
+    pairs = [(ln, b) for ln, b in getattr(view, "pairs", []) if ln.product_id == product_id]
+    if any(not view.costs.cogs_is_real(ln.sku) for ln, _ in pairs):
+        return BASIS_ESTIMATE
+    if any(ln.income is None for ln, _ in pairs):
+        return BASIS_ESTIMATE
+    return BASIS_ACTUAL
+
+
 def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
     pp = view.profit.products.get(product_id)
     levers = []
@@ -100,6 +141,8 @@ def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
         "orders": shopee_total[1] if shopee_total else (total.orders if total else None),
         "line_gmv": num(total.gmv if total else None),
         "line_orders": total.orders if total else 0,
+        **price_block(view, product_id),
+        "margin_basis": margin_basis(view, product_id, pp),
         "profit": None
         if pp is None
         else {
@@ -155,6 +198,17 @@ def build_matrix(
     rows = [r for r in rows if (r["gmv"] or 0) > 0 or r["ads"]["spend"]]
     rows.sort(key=lambda r: _sort_key(sort, r))
     total = len(rows)
+    sold = {r["product_id"] for r in rows}
+    idle = [
+        {
+            "product_id": i,
+            "name": name,
+            **price_block(view, i),
+            "margin_basis": BASIS_UNKNOWN,
+        }
+        for i, name in sorted(getattr(view, "active_items", {}).items(), key=lambda kv: kv[1])
+        if i not in sold
+    ]
     sum_gmv = sum((Decimal(str(r["gmv"] or 0)) for r in rows), ZERO)
     if limit is not None:
         rows = rows[:limit]
@@ -168,6 +222,7 @@ def build_matrix(
         "sort": sort,
         "products": rows,
         "product_count": total,
+        "idle_products": idle,
         "ads_basis": ADS_BASIS,
         "excluded": excluded_summary(view),
         "sums": {
