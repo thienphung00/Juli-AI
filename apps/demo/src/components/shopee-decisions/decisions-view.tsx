@@ -9,6 +9,7 @@ import { TABS, isWorthTrying, sectionsFor, statusLabel, tabCounts, tabOfParam, t
 import type { CardList, CardSummary } from "../../lib/shopee-decisions/types";
 import { Empty, Notice, Section, TextChip } from "../shopee-analytics/ui";
 import { BuilderView } from "./builder";
+import { BuilderP92View } from "./builder-p92";
 import { CardPage } from "./card-page";
 import { OpsRecoList } from "./ops-list";
 import { PlanView } from "./plan";
@@ -136,7 +137,7 @@ export function DecisionsView({ params }: { readonly params: URLSearchParams }) 
   const tab = tabOfParam(params.get("tab"));
   if (the) return <CardPage from={params.get("from")} id={the} version={Number(params.get("v")) || null} />;
   if (params.get("ke-hoach")) return <PlanView />;
-  if (params.get("tu-tao")) return <BuilderView from={params.get("from")} productId={params.get("sp")} />;
+  if (params.get("tu-tao")) return host.builder ? <BuilderP92View from={params.get("from")} productId={params.get("sp")} /> : <BuilderView from={params.get("from")} productId={params.get("sp")} />;
   if (host.staff) return <OpsRecoList />;
   return (
     <div className="sa-page" data-testid="sd-list">
