@@ -71,8 +71,12 @@ def upgrade() -> None:
     op.create_table(
         TABLE,
         sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("shop_id", sa.Uuid(), sa.ForeignKey("shops.id"), nullable=False),
-        sa.Column("user_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column(
+            "shop_id", sa.Uuid(), sa.ForeignKey("shops.id", ondelete="CASCADE"), nullable=False
+        ),
+        sa.Column(
+            "user_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("email", sa.String(length=320), nullable=True),
         sa.Column("added_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("added_via", sa.String(length=16), nullable=False),

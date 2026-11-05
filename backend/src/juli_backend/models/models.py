@@ -129,8 +129,12 @@ class ShopMember(Base):
     __tablename__ = "shop_members"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    shop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("shops.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     #: The e-mail the person signed in with, lower-cased at the time they joined.
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     added_at: Mapped[datetime] = mapped_column(server_default=func.now())
