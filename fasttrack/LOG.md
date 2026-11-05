@@ -3799,3 +3799,15 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Gate (local, Node 20, Postgres 16): demo tsc clean, vitest 190 files / 1923 passed; backend 41 related files
   772 passed incl. test_test_quality; ruff 13 files clean; mypy shopee_builder + shopee_recommendations 55 files clean.
 - Next (owner order): Phân tích replaces Xếp hạng; Ops QA extension; Seller Centre ad types.
+
+## 2026-11-06 — P96b agent (Claude Opus) — Phân tích replaces Xếp hạng
+
+- Ranking page → `RankingSection` inside Phân tích; all `links.ranking` point at Phân tích; `/xep-hang` redirects
+  (next.config), Ops view-as rewrites `trang=xep-hang`, Ops tab maps it. KPI chips reset the measure; new views / ctr /
+  ctor measures in rankings.py. Critical list: previous-window drops ≥ 10 % (`previous_items`), median gap ≥ 5 %,
+  filtered heading count; view-as skips `/view/analysis` for Shopee shops.
+- M5: KOL rows come only from the affiliate conversion report upload; the Connector has no affiliate reader.
+- Pre-existing date bomb fixed: `test_demo_shopee_pages_db` asked promotions for "30 days ending today"; the seeded
+  programme ends CUR_END (07/10) and fell out on 2026-11-06 — the request is now pinned (fixture range only changed).
+- Gate (local, Node 20, Postgres 16): demo tsc clean, vitest 190 files / 1932 passed; backend shopee_analytics-related
+  files + p96b + test_test_quality 481 passed; ruff / mypy clean.
