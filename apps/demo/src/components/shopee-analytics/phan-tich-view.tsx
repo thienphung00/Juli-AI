@@ -10,7 +10,7 @@ import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { Critical, CriticalItem, N } from "../../lib/shopee-analytics/types";
 import { KolView } from "../shopee-kol/kol-view";
 import { PeriodBar } from "./period-bar";
-import { Empty, Ini, InfoToggle, Notice, PageHead, ResourceState, initialsOf } from "./ui";
+import { Empty, Ini, InfoToggle, Notice, PageHead, PriceMargin, ResourceState, initialsOf } from "./ui";
 
 /**
  * Phân tích (artboard PhanTich): the critical list ranked by the đồng each item has at stake. An
@@ -237,6 +237,7 @@ function Loaded({ critical: c, state }: { readonly critical: Critical; readonly 
                 <Ini text={initialsOf(it.name ?? "Cả shop")} />
                 <span>
                   <span className="sa-mname__t">{it.name ?? "Cả shop"}</span>
+                  {it.product_id && it.margin_basis ? <PriceMargin margin={it.margin_pct} p={it} /> : null}
                   <span className="sa-tags">
                     <span className="sa-tag2">{sourceLabel(it)}</span>
                     <span className="sa-tag2">{kpiLabel(it)}</span>

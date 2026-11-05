@@ -22,7 +22,7 @@ import {
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { N, Ranking, RankingRow, RankingView as RankingSide } from "../../lib/shopee-analytics/types";
 import { PeriodBar } from "./period-bar";
-import { ChipView, Empty, Ini, InfoToggle, Notice, PageHead, PillLink, ResourceState, Section, initialsOf } from "./ui";
+import { ChipView, Empty, Ini, InfoToggle, Notice, PageHead, PillLink, PriceMargin, ResourceState, Section, initialsOf } from "./ui";
 
 /**
  * Xếp hạng (artboards Ranking / RankingMobile): what a KPI click opens. The context cell, KPI
@@ -311,6 +311,7 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
                       <span className="sa-mname__t">{row.label}</span>
                       {hlOn ? <span className="sa-tag">Vừa xem ở thẻ</span> : null}
                       <span className="sa-hint sa-block">{productId ?? row.id}</span>
+                      {kind === "products" && row.margin_basis ? <PriceMargin margin={row.margin_pct} p={row} /> : null}
                     </span>
                   </button>
                   <span>

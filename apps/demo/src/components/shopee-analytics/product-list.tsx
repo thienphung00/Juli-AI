@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useMemo } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
-import { fmt, pp, vnd } from "../../lib/shopee-analytics/format";
+import { fmt, vnd } from "../../lib/shopee-analytics/format";
 import { readWindow, windowParams, type WindowState } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { Matrix } from "../../lib/shopee-analytics/types";
 import { PeriodBar } from "./period-bar";
-import { Empty, Ini, PageHead, ResourceState, Section, initialsOf } from "./ui";
+import { Empty, Ini, PageHead, PriceMargin, ResourceState, Section, initialsOf } from "./ui";
 
 /** Sản phẩm (the nav entry): the shop's products by GMV, each opening its product page. */
 export function ProductListView({ params }: { readonly params: URLSearchParams }) {
@@ -54,13 +54,25 @@ function List({ matrix, state }: { readonly matrix: Matrix; readonly state: Wind
                 <span className="sa-fcell__label">Đơn</span>
                 <b>{fmt(p.orders)}</b>
               </span>
-              <span>
-                <span className="sa-fcell__label">Biên cuối</span>
-                <b>{pp(p.profit?.margin_pct, 1)}</b>
-              </span>
+              <PriceMargin margin={p.profit?.margin_pct} p={p} />
             </Link>
           ))
         )}
+        {(matrix.idle_products ?? []).length > 0 ? (
+          <details className="sa-idle" data-testid="sa-idle-products">
+            <summary>{matrix.idle_products!.length} sản phẩm không có đơn trong kỳ</summary>
+            {matrix.idle_products!.map((p) => (
+              <Link className="sa-plist" href={links.product(p.product_id, { tab: "hs", from: "san-pham" }, state)} key={p.product_id}>
+                <Ini text={initialsOf(p.name)} />
+                <span>
+                  <span className="sa-mname__t">{p.name}</span>
+                  <span className="sa-hint sa-block">{p.product_id}</span>
+                </span>
+                <PriceMargin p={p} />
+              </Link>
+            ))}
+          </details>
+        ) : null}
       </Section>
     </>
   );

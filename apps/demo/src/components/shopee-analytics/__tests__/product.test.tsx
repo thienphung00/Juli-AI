@@ -418,6 +418,24 @@ describe("Sản phẩm: list", () => {
     expect(first.getAttribute("href")).toBe("/san-pham/BEP-S5?tab=hs&from=san-pham");
   });
 
+  it("P92 B-9: every row has giá (min–max, list price struck through) and biên with its basis; idle listings sit under a collapsed line", async () => {
+    const m = matrix();
+    const first = { ...m.products[0]!, price_min: 87_000, price_max: 139_000, list_price: 159_000, margin_basis: "theo đơn thực tế" };
+    renderWith(
+      <ProductListView params={params()} />,
+      fakeApi({ matrix: { ...m, products: [first, ...m.products.slice(1)], idle_products: [{ product_id: "IDLE-1", name: "Màng bọc thực phẩm G", price_min: 52_000, price_max: 52_000, list_price: 52_000, margin_basis: "chưa tính" }] } }),
+    );
+    const rows = await screen.findByTestId("sa-product-rows");
+    const pm = within(rows).getAllByTestId("sa-price-margin")[0]!;
+    expect(pm).toHaveTextContent("87.000đ – 139.000đ");
+    expect(pm.querySelector("s")).toHaveTextContent("159.000đ");
+    expect(pm).toHaveTextContent("theo đơn thực tế");
+    const idle = within(rows).getByTestId("sa-idle-products");
+    expect(idle).not.toHaveAttribute("open");
+    expect(idle).toHaveTextContent("1 sản phẩm không có đơn trong kỳ");
+    expect(within(idle).getByTestId("sa-price-margin")).toHaveTextContent("chưa tính");
+  });
+
   it("empty", async () => {
     renderWith(<ProductListView params={params()} />, fakeApi({ matrix: matrix({ products: [], product_count: 0 }) }));
     await waitFor(() => expect(screen.getByTestId("sa-product-empty")).toBeInTheDocument());

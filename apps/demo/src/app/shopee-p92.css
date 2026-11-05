@@ -573,3 +573,25 @@ button.p2-prow:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* P92 B-9: giá and biên next to GMV / orders on every product table */
+.sa-pm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.sa-pm > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.sa-idle > summary {
+  cursor: pointer;
+  padding: 8px 0;
+  color: var(--qd-muted);
+  font-size: 13px;
+}

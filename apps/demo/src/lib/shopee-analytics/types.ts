@@ -285,6 +285,12 @@ export interface MatrixProduct {
   readonly orders: N;
   readonly line_gmv: N;
   readonly line_orders: number;
+  /** P92 B-9: selling price per unit (min-max), list price, and the basis of the biên. */
+  readonly price_min?: N;
+  readonly price_max?: N;
+  readonly list_price?: N;
+  readonly price_basis?: string | null;
+  readonly margin_basis?: "theo đơn thực tế" | "ước tính" | "chưa tính" | string;
   readonly profit: {
     readonly profit: N;
     readonly margin_pct: N;
@@ -310,7 +316,18 @@ export interface CardRef {
   readonly at_stake_per_month?: N;
 }
 
+/** An active listing with no order in the window (P92 B-9). */
+export interface IdleProduct {
+  readonly product_id: string;
+  readonly name: string;
+  readonly price_min?: N;
+  readonly price_max?: N;
+  readonly list_price?: N;
+  readonly margin_basis?: string;
+}
+
 export interface Matrix {
+  readonly idle_products?: readonly IdleProduct[];
   readonly platform: "shopee";
   readonly window: WindowJson;
   readonly sort: string;
@@ -348,6 +365,13 @@ export interface CriticalItem {
   readonly change_kinds: readonly string[];
   readonly ranking_link: { readonly kpi: string; readonly src: string; readonly focus: string | null };
   readonly assumed_cost: boolean;
+  /** P92 B-9: selling price per unit (min-max), list price, and the basis of the biên. */
+  readonly price_min?: N;
+  readonly price_max?: N;
+  readonly list_price?: N;
+  readonly price_basis?: string | null;
+  readonly margin_basis?: "theo đơn thực tế" | "ước tính" | "chưa tính" | string;
+  readonly margin_pct?: N;
   readonly rank?: number;
   /** Optional: the Quyết định card for this item, when the card pipeline provides one. */
   readonly card?: CardRef | null;
@@ -375,6 +399,13 @@ export interface RankingRow {
   readonly before_missing: boolean;
   readonly link: { readonly kpi: string; readonly focus: string };
   readonly product_id?: string;
+  /** P92 B-9: selling price per unit (min-max), list price, and the basis of the biên. */
+  readonly price_min?: N;
+  readonly price_max?: N;
+  readonly list_price?: N;
+  readonly price_basis?: string | null;
+  readonly margin_basis?: "theo đơn thực tế" | "ước tính" | "chưa tính" | string;
+  readonly margin_pct?: N;
   readonly campaign_key?: string;
   readonly kol_key?: string;
   readonly keyword?: string;

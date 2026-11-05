@@ -34,7 +34,7 @@ from typing import Any
 from juli_backend.services.shop_diagnosis.confidence import Confidence, volume_label
 from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num
+from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num, pct
 from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN, product_totals_for
 from juli_backend.services.shopee_analytics.matrix import margin_basis, price_block
 from juli_backend.services.shopee_profit.flows import Flow, FlowSource
@@ -213,6 +213,7 @@ def _products(view: PeriodView, source: str, sub: str | None) -> Rows:
                 "product_id": pid,
                 **price_block(view, pid),
                 "margin_basis": margin_basis(view, pid, pp),
+                "margin_pct": pct(pp.margin_pct) if pp else None,
             }
             out[pid] = (view.names.get(pid) or pid, m, extra)
     return out

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { DASH, type Chip, type Tone } from "../../lib/shopee-analytics/format";
+import { DASH, pp, vnd, type Chip, type Tone } from "../../lib/shopee-analytics/format";
 import type { ApiRefusal } from "../../lib/shopee-analytics/client";
 import type { Resource } from "../../lib/shopee-analytics/use-resource";
 
@@ -179,4 +179,31 @@ export function ResourceState<T>({ resource, children }: { readonly resource: Re
     );
   }
   return <>{children(resource.data)}</>;
+}
+
+/** P92 B-9: "giá" (selling price min-max, list price struck through when different) and "biên" with its basis label. */
+export function priceText(p: { readonly price_min?: number | null; readonly price_max?: number | null }): string {
+  const lo = p.price_min ?? null;
+  const hi = p.price_max ?? null;
+  if (lo === null && hi === null) return DASH;
+  return lo !== null && hi !== null && Math.round(lo) !== Math.round(hi) ? `${vnd(lo)} – ${vnd(hi)}` : vnd(lo ?? hi);
+}
+
+export function PriceMargin({ p, margin }: { readonly p: { readonly price_min?: number | null; readonly price_max?: number | null; readonly list_price?: number | null; readonly margin_basis?: string }; readonly margin?: number | null }) {
+  const struck = p.list_price != null && p.price_max != null && Math.round(p.list_price) > Math.round(p.price_max);
+  const basis = p.margin_basis ?? "chưa tính";
+  return (
+    <span className="sa-pm" data-testid="sa-price-margin">
+      <span className="sa-pm__price">
+        <span className="sa-fcell__label">Giá</span>
+        <b>{priceText(p)}</b>
+        {struck ? <s className="sa-hint">{vnd(p.list_price)}</s> : null}
+      </span>
+      <span className="sa-pm__margin">
+        <span className="sa-fcell__label">Biên</span>
+        <b>{basis === "chưa tính" || margin == null ? "chưa tính" : pp(margin, 1)}</b>
+        <span className="sa-hint">{basis}</span>
+      </span>
+    </span>
+  );
 }

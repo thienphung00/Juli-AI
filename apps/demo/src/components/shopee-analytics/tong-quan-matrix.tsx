@@ -9,7 +9,7 @@ import { CELL_THRESHOLD, isBad, isGood } from "../../lib/shopee-analytics/model"
 import { srcOfFlowKey, type WindowState } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { FlowRow, LeverRow, MatrixProduct, N, Overview } from "../../lib/shopee-analytics/types";
-import { ChipView, Empty, Ini, ResourceState, Section, initialsOf } from "./ui";
+import { ChipView, Empty, Ini, PriceMargin, ResourceState, Section, initialsOf } from "./ui";
 
 /**
  * "Sản phẩm × nguồn": every product with the nine numbers (Lượt xem, CTR, CTOR, ⑤ AOV, GMV,
@@ -317,6 +317,7 @@ function MatrixBody(props: BodyProps) {
                       : ""}
                     {r.p.profit?.assumed_cost ? " · giá vốn giả định (1/3 giá)" : ""}
                   </span>
+                  <PriceMargin margin={r.p.profit?.margin_pct} p={r.p} />
                 </span>
               </button>
               {r.cells.map((c) => (
