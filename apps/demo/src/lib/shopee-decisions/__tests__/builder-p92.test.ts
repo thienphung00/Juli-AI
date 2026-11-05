@@ -39,7 +39,9 @@ describe("builder-p92 model", () => {
     const same = { ...f, combo: { ...f.combo, items: [{ itemId: P_ZIP, variationId: "", qty: "1" }, { itemId: P_ZIP, variationId: "", qty: "1" }] } };
     expect(buildVersion("combo", same, ctx).problem).toMatch(/khác nhau/);
     const ok = { ...f, combo: { ...f.combo, items: [{ itemId: P_ZIP, variationId: "v3", qty: "1" }, { itemId: P_SPONGE, variationId: "", qty: "2" }] } };
-    expect(buildVersion("combo", ok, ctx).version).toMatchObject({ kind: "combo", items: [{ item_id: P_ZIP, variation_id: "v3", qty: 1 }, { item_id: P_SPONGE, variation_id: "", qty: 2 }], pricing: "pct", value: 10 });
+    expect(buildVersion("combo", ok, ctx).version).toMatchObject({ kind: "combo", items: [{ item_id: P_ZIP, variation_id: "v3", qty: 1 }, { item_id: P_SPONGE, qty: 2 }], pricing: "pct", value: 10 });
+    // P96 (C2): an empty variation id is never sent; the server picks the product's top SKU.
+    expect((buildVersion("combo", ok, ctx).version as unknown as { items: Record<string, unknown>[] }).items[1]).not.toHaveProperty("variation_id");
   });
 
   it("title and first line keep their limits", () => {

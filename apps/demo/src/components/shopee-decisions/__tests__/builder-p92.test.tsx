@@ -329,7 +329,10 @@ describe("P92 · các loại khác", () => {
     fireEvent.click(screen.getByTestId("p2-add"));
     await screen.findByTestId("p2-kinds");
     fireEvent.click(screen.getByTestId("p2-kind-price_flash"));
-    fireEvent.change(await screen.findByRole("textbox", { name: "Giảm · Combo 3 hộp" }), { target: { value: "-10" } });
+    // P96 (G3): a list-price change is ± (+ = price up), so the field is "Thay đổi", not "Giảm".
+    expect(screen.queryByRole("textbox", { name: "Giảm · Combo 3 hộp" })).not.toBeInTheDocument();
+    expect(screen.getByText("−5 = giảm 5%, +5 = tăng 5%")).toBeInTheDocument();
+    fireEvent.change(await screen.findByRole("textbox", { name: "Thay đổi · Combo 3 hộp" }), { target: { value: "-10" } });
     await waitFor(() => expect(urls.some((u) => u.endsWith("price=78300"))).toBe(true));
     expect(screen.getByTestId("market-marker")).toBeInTheDocument();
   });

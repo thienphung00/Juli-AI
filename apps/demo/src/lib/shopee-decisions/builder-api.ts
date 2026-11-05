@@ -104,6 +104,8 @@ export interface VariationRow {
   readonly margin_reason: string | null;
   readonly has_cost: boolean;
   readonly stock: N;
+  /** Orders of the variation in the last 30 days, when the server sends it (P96). */
+  readonly orders_30d?: N;
 }
 
 export interface VariationList {
@@ -241,6 +243,9 @@ export interface BuilderOutcome {
     readonly ctor_needed: N;
     readonly reason?: string | null;
     readonly ctor_reason?: string | null;
+    /** Vietnamese texts of the two reasons, when the server sends them (P96). */
+    readonly reason_text?: string | null;
+    readonly ctor_reason_text?: string | null;
   } | null;
   readonly basis?: { readonly key: "product_history" | "shop" | "prior" | "insufficient" | string; readonly label: string; readonly detail?: string | null } | null;
   readonly warnings?: readonly BuilderWarning[];
@@ -371,12 +376,63 @@ export interface BuilderApi {
   undoExclusion(itemId: string, note?: string | null): Promise<void>;
 }
 
+/** The Vietnamese name of a version field, for a server validation error (`loc[-1]`). */
+export const FIELD_LABELS: Readonly<Record<string, string>> = {
+  value: "Giá trị",
+  min_spend: "Đơn tối thiểu",
+  max_value: "Giảm tối đa",
+  usage_limit: "Số lượt dùng tối đa",
+  per_buyer_limit: "Giới hạn mỗi người",
+  start: "Bắt đầu",
+  end: "Kết thúc",
+  qty: "Số lượng",
+  pct: "% giảm",
+  price: "Giá",
+  limit_per_order: "Giới hạn mỗi đơn",
+  unit_cost: "Chi phí mỗi quà",
+  packaging: "Đóng gói mỗi quà",
+  amount: "Đơn tối thiểu",
+  discount_pct: "% giảm",
+  final_price: "Giá mới",
+  change_pct: "Thay đổi (%)",
+  units: "Số lượng (suất)",
+  slot_hours: "Số giờ của khung",
+  pack_count: "Số lượng trong gói",
+  stock: "Tồn",
+  bid: "Giá thầu",
+  daily_budget: "Ngân sách mỗi ngày",
+  roas_target: "ROAS mục tiêu",
+  title: "Tiêu đề",
+  first_line: "Dòng đầu mô tả",
+  commission_pct: "Hoa hồng",
+  sample_qty: "Số mẫu gửi",
+  sample_ship_fee: "Phí ship mỗi mẫu",
+  name: "Tên phân loại",
+  sku: "SKU",
+  label: "Tên",
+};
+
+/** A pydantic `detail` list -> "Thông số chưa hợp lệ: Giá trị, Kết thúc." (never a bare HTTP code). */
+function validationMessage(detail: readonly unknown[]): string {
+  const names: string[] = [];
+  for (const d of detail) {
+    const loc = typeof d === "object" && d !== null && Array.isArray((d as { loc?: unknown }).loc) ? (d as { loc: unknown[] }).loc : [];
+    const last = [...loc].reverse().find((x) => typeof x === "string" && x !== "body" && x !== "versions");
+    const name = typeof last === "string" ? FIELD_LABELS[last] : undefined;
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names.length > 0 ? `Thông số chưa hợp lệ: ${names.join(", ")}.` : "Thông số chưa hợp lệ. Kiểm tra lại các ô vừa nhập.";
+}
+
+export const fallbackErrorText = (status: number): string => `Không tính được phương án này (lỗi ${status}). Thử lại hoặc đổi thông số.`;
+
 function errorOf(status: number, payload: unknown): ShopeeApiError {
   let code = "";
-  let message = `HTTP ${status}`;
+  let message = fallbackErrorText(status);
   if (typeof payload === "object" && payload !== null && "detail" in payload) {
     const detail = (payload as { detail: unknown }).detail;
     if (typeof detail === "string") message = detail;
+    else if (Array.isArray(detail)) return new ShopeeApiError(status, "invalid_input", validationMessage(detail));
     else if (typeof detail === "object" && detail !== null) {
       const d = detail as { code?: unknown; message?: unknown };
       if (typeof d.code === "string") code = d.code;

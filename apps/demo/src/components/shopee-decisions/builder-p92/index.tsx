@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { BuilderOutcome, PickerResult, PickerProduct } from "../../../lib/shopee-decisions/builder-api";
-import { KINDS_92, MAX_VERSIONS, buildVersion, initialForms, kindName92, newItem, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
+import { KINDS_92, MAX_VERSIONS, buildVersion, defaultVariationId, initialForms, kindName92, newItem, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
 import { useReco } from "../../../lib/shopee-decisions/context";
 import { useNarrow } from "../../quyet-dinh/use-narrow";
 import { NavLink, errorText } from "../ui";
@@ -82,7 +82,7 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
   const costLink = host.links.costImport(null, "tu-tao");
   const vars = useVariationList(api, product?.item_id ?? null);
   const list = vars.status === "ready" ? vars.data : null;
-  const first = list?.variations[0]?.variation_id;
+  const first = list ? defaultVariationId(list.variations) : undefined;
   const effective = useMemo<readonly string[]>(() => selIds ?? (first !== undefined ? [first] : []), [selIds, first]);
   const chosen = useMemo(() => (list ? list.variations.filter((v) => allVars || effective.includes(v.variation_id)) : []), [list, allVars, effective]);
 

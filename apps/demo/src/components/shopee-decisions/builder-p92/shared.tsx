@@ -53,13 +53,13 @@ export function Seg<T extends string>({ label, value, options, onChange }: { rea
   );
 }
 
-export function Pills<T extends string>({ label, value, options, onChange }: { readonly label: string; readonly value: T; readonly options: readonly (readonly [T, string])[]; readonly onChange: (v: T) => void }) {
+export function Pills<T extends string>({ label, value, options, onChange, disabled }: { readonly label: string; readonly value: T; readonly options: readonly (readonly [T, string])[]; readonly onChange: (v: T) => void; readonly disabled?: readonly T[] }) {
   return (
     <div className="p2-field">
       <span className="sd-field__label">{label}</span>
       <div className="sb-chips" role="radiogroup" aria-label={label}>
         {options.map(([k, text]) => (
-          <button aria-checked={value === k} className={`sb-pill ${value === k ? "sb-pill--on" : ""}`} key={k} onClick={() => onChange(k)} role="radio" type="button">
+          <button aria-checked={value === k} className={`sb-pill ${value === k ? "sb-pill--on" : ""}`} disabled={disabled?.includes(k) ?? false} key={k} onClick={() => onChange(k)} role="radio" type="button">
             {text}
           </button>
         ))}

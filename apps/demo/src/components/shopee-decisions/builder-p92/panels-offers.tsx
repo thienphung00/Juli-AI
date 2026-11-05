@@ -50,7 +50,7 @@ export function VoucherPanel({ form, set, ctx }: P<"voucher">) {
     <div className="p2-panel" data-testid="p2-panel-voucher">
       <Pills label="Loại voucher" onChange={(scope) => set({ scope })} options={SCOPES} value={form.scope} />
       <p className="sa-hint">
-        {form.scope === "product" ? `Voucher sản phẩm: áp cho ${ctx.product.name}.` : form.scope === "shop" ? "Voucher shop áp cho mọi sản phẩm của shop." : "Voucher người theo dõi / khách mới và livestream / video có số đơn riêng mà Juli chưa đo: ước tính chung."}
+        {form.scope === "product" ? `Voucher sản phẩm: áp cho ${ctx.product.name}. Voucher áp cho cả sản phẩm (mọi phân loại).` : form.scope === "shop" ? "Voucher shop áp cho mọi sản phẩm của shop." : "Voucher người theo dõi / khách mới và livestream / video: chưa có dữ liệu đơn theo loại voucher này để ước tính."}
       </p>
       <Seg label="Cách giảm" onChange={(dtype) => set({ dtype })} options={[["amount", "Số tiền (đ)"], ["pct", "Phần trăm (%)"]]} value={form.dtype} />
       <div className="p2-grid">
@@ -277,6 +277,12 @@ function draftPrice(selling: number | null, mode: "pct" | "final_price", raw: st
   return price > 0 ? price : null;
 }
 
+/** "Giảm" only where the number is a decrease; a list-price change is ± (+ = price up). */
+export function pctLabel(mode: "pct" | "final_price", direction: "off" | "change"): string {
+  if (mode !== "pct") return "Giá mới";
+  return direction === "change" ? "Thay đổi" : "Giảm";
+}
+
 function VarRows({ ctx, rows, mode, direction, onRow }: { readonly ctx: PanelCtx; readonly direction: "off" | "change"; readonly rows: readonly { readonly variationId: string; readonly value: string }[]; readonly mode: "pct" | "final_price"; readonly onRow: (id: string, value: string) => void }) {
   const skus = (Array.isArray(ctx.outcome?.details?.["skus"]) ? ctx.outcome!.details!["skus"] : []) as Readonly<Record<string, unknown>>[];
   return (
@@ -290,7 +296,8 @@ function VarRows({ ctx, rows, mode, direction, onRow }: { readonly ctx: PanelCtx
               <b>{v.name}</b>
               <span className="sa-hint">giá hiện tại {vnd(v.selling_price)}</span>
             </span>
-            <NumIn label={`${mode === "pct" ? "Giảm" : "Giá mới"} · ${v.name}`} onChange={(x) => onRow(v.variation_id, x)} suffix={mode === "pct" ? "%" : "đ"} value={val} />
+            <NumIn label={`${pctLabel(mode, direction)} · ${v.name}`} onChange={(x) => onRow(v.variation_id, x)} suffix={mode === "pct" ? "%" : "đ"} value={val} />
+            {mode === "pct" && direction === "change" ? <span className="sa-hint">−5 = giảm 5%, +5 = tăng 5%</span> : null}
             {sku ? (
               <span className="sa-hint" data-testid={`p2-sku-${i + 1}`}>
                 {vnd(dn(sku, "price_before"))} → {vnd(dn(sku, "price_after"))} · biên {pp(dn(sku, "margin_pct_before"), 1)} → {pp(dn(sku, "margin_pct_after"), 1)}

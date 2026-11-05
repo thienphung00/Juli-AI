@@ -24,6 +24,9 @@ export type Kind92 =
 
 export const MAX_VERSIONS = 4;
 export const MAX_TITLE = 100;
+/** The server's limits (`services/shopee_builder/specs.py`), checked here so a refusal reads in Vietnamese. */
+export const MAX_PCT = 90;
+export const MAX_VOUCHER_DAYS = 90;
 export const MAX_FIRST_LINE = 300;
 
 /** The 13 strategies, each with the driver metric(s) it is measured by (B-3, artboard `kinds`). */
@@ -91,6 +94,16 @@ export function voucherChips(aov: number | null): readonly { readonly value: num
     [15_000, lo + 100_000],
   ];
   return pairs.map(([value, min]) => ({ value, min, label: `${value / 1000}k / ${min / 1000}k` }));
+}
+
+/**
+ * The variation step 2 starts on: the first one with orders in the last 30 days, else the first in
+ * stock, else the first. The list is in variation-id order, so its head is often an old, sold-out one.
+ */
+export function defaultVariationId(variations: readonly VariationRow[]): string | undefined {
+  const withOrders = variations.find((v) => (v.orders_30d ?? 0) > 0);
+  const inStock = variations.find((v) => (v.stock ?? 0) > 0);
+  return (withOrders ?? inStock ?? variations[0])?.variation_id;
 }
 
 // ── form state ───────────────────────────────────────────────────────────
@@ -174,6 +187,25 @@ export interface Built92 {
 }
 
 const no = (problem: string): Built92 => ({ version: null, problem });
+const PCT_PROBLEM = `Phần trăm giảm tối đa ${MAX_PCT}%.`;
+/** `{variation_id}` only when one is chosen: an empty id is never sent (the server picks the top SKU). */
+const vid = (variationId: string): Record<string, string> => (variationId ? { variation_id: variationId } : {});
+/** An optional whole number typed in a field: null when empty, the problem text when below `min` / above `max`. */
+function intIn(text: string, min: number, max: number, problem: string): { readonly n: number | null; readonly problem: string | null } {
+  const n = num(text);
+  if (n === null) return { n: null, problem: null };
+  if (!Number.isInteger(n) || n < min || n > max) return { n: null, problem };
+  return { n, problem: null };
+}
+function dateProblem(start: string, end: string, maxDays: number | null): string | null {
+  if (!start || !end) return null;
+  const a = Date.parse(`${start}T00:00:00Z`);
+  const b = Date.parse(`${end}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  if (b < a) return "Ngày kết thúc phải từ ngày bắt đầu trở đi.";
+  if (maxDays !== null && Math.round((b - a) / 86_400_000) + 1 > maxDays) return `Chạy tối đa ${maxDays} ngày.`;
+  return null;
+}
 const clip = (s: string, n = 60): string => (s.length > n ? s.slice(0, n) : s);
 const dated = (start: string, end: string): Record<string, string> => ({ ...(start ? { start } : {}), ...(end ? { end } : {}) });
 const opt = (key: string, text: string): Record<string, number> => {
@@ -187,8 +219,8 @@ function varRows(rows: readonly VarValue[], mode: "pct" | "final_price", pctKey:
     const n = num(r.value);
     if (n === null || r.value.trim() === "") continue;
     if (n <= 0) return { rows: [], problem: "Nhập số lớn hơn 0." };
-    if (mode === "pct" && n >= 100) return { rows: [], problem: "Phần trăm giảm phải nhỏ hơn 100." };
-    out.push({ variation_id: r.variationId, [mode === "pct" ? pctKey : "final_price"]: n });
+    if (mode === "pct" && n > MAX_PCT) return { rows: [], problem: PCT_PROBLEM };
+    out.push({ ...vid(r.variationId), [mode === "pct" ? pctKey : "final_price"]: n });
   }
   return { rows: out, problem: out.length === 0 ? "Nhập mức giảm hoặc giá cho ít nhất một phân loại." : null };
 }
@@ -203,6 +235,12 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (value === null || value <= 0) return no("Nhập giá trị voucher.");
       if (v.dtype === "pct" && value > 90) return no("Voucher phần trăm tối đa 90%.");
       if (min < 0) return no("Đơn tối thiểu từ 0đ.");
+      if (v.dtype === "amount" && min > 0 && value >= min) return no("Giá trị voucher phải nhỏ hơn đơn tối thiểu.");
+      const cap = v.dtype === "pct" ? intIn(v.max, 1, Number.MAX_SAFE_INTEGER, "Giảm tối đa từ 1đ.") : { n: null, problem: null };
+      const usage = intIn(v.usage, 1, 10_000_000, "Số lượt dùng tối đa từ 1.");
+      const perBuyer = intIn(v.perBuyer, 1, 100, "Giới hạn mỗi người từ 1 đến 100 lượt.");
+      const problem = cap.problem ?? usage.problem ?? perBuyer.problem ?? dateProblem(v.start, v.end, MAX_VOUCHER_DAYS);
+      if (problem) return no(problem);
       const label = v.dtype === "pct" ? `${fmt(value, 0)}% / ${kmoney(min)}` : `${kmoney(value)} / ${kmoney(min)}`;
       return {
         problem: null,
@@ -214,9 +252,9 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
           discount_type: v.dtype,
           value,
           min_spend: min,
-          ...(v.dtype === "pct" ? opt("max_value", v.max) : {}),
-          ...opt("usage_limit", v.usage),
-          ...opt("per_buyer_limit", v.perBuyer),
+          ...(cap.n !== null ? { max_value: cap.n } : {}),
+          ...(usage.n !== null ? { usage_limit: usage.n } : {}),
+          ...(perBuyer.n !== null ? { per_buyer_limit: perBuyer.n } : {}),
           ...dated(v.start, v.end),
         },
       };
@@ -228,8 +266,13 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (new Set(items.map((i) => i.itemId)).size !== items.length) return no("Các sản phẩm trong combo phải khác nhau.");
       const value = num(c.value);
       if (value === null || value <= 0) return no(c.pricing === "fixed_price" ? "Nhập giá combo." : "Nhập mức giảm.");
-      if (c.pricing === "pct" && value >= 100) return no("Phần trăm giảm phải nhỏ hơn 100.");
-      const lines = items.map((i) => ({ item_id: i.itemId, variation_id: i.variationId, qty: Math.max(1, Math.min(20, Math.round(num(i.qty) ?? 1))) }));
+      if (c.pricing === "pct" && value > MAX_PCT) return no(PCT_PROBLEM);
+      const lines: Record<string, unknown>[] = [];
+      for (const i of items) {
+        const q = intIn(i.qty.trim() === "" ? "1" : i.qty, 1, 20, "Số lượng mỗi sản phẩm từ 1 đến 20.");
+        if (q.problem) return no(q.problem);
+        lines.push({ item_id: i.itemId, ...vid(i.variationId), qty: q.n ?? 1 });
+      }
       return { problem: null, version: { kind: "combo", label: clip(`Combo ${lines.length} sản phẩm`), items: lines, pricing: c.pricing, value, target: c.target } };
     }
     case "add_on": {
@@ -239,14 +282,18 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       for (const a of rows) {
         const n = num(a.value);
         if (n === null || n <= 0) return no("Nhập giá mua kèm hoặc % giảm.");
-        if (a.mode === "pct" && n >= 100) return no("Phần trăm giảm phải nhỏ hơn 100.");
-        addons.push({ item_id: a.itemId, variation_id: a.variationId, [a.mode === "price" ? "price" : "pct"]: n, limit_per_order: Math.max(1, Math.min(20, Math.round(num(a.limit) ?? 1))) });
+        if (a.mode === "pct" && n > MAX_PCT) return no(PCT_PROBLEM);
+        const limit = intIn(a.limit.trim() === "" ? "1" : a.limit, 1, 20, "Giới hạn mỗi đơn từ 1 đến 20.");
+        if (limit.problem) return no(limit.problem);
+        addons.push({ item_id: a.itemId, ...vid(a.variationId), [a.mode === "price" ? "price" : "pct"]: n, limit_per_order: limit.n ?? 1 });
       }
       return { problem: null, version: { kind: "add_on", label: clip(`Mua kèm ${addons.length} sản phẩm`), main_item_id: id, addons } };
     }
     case "gift": {
       const g = f.gift;
-      const qty = Math.max(1, Math.min(20, Math.round(num(g.qty) ?? 1)));
+      const q = intIn(g.qty.trim() === "" ? "1" : g.qty, 1, 20, "Số lượng quà từ 1 đến 20.");
+      if (q.problem) return no(q.problem);
+      const qty = q.n ?? 1;
       let gift: Record<string, unknown>;
       if (g.source === "listing") {
         if (!g.giftItemId) return no("Chọn sản phẩm làm quà.");
@@ -254,7 +301,8 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       } else {
         const cost = num(g.unitCost);
         if (cost === null || cost < 0) return no("Nhập chi phí mỗi quà.");
-        gift = { unit_cost: cost, qty, ...(g.label.trim() ? { label: clip(g.label.trim()) } : {}), ...opt("packaging", g.packaging) };
+        if (!g.label.trim()) return no("Nhập tên quà.");
+        gift = { unit_cost: cost, qty, label: clip(g.label.trim()), ...opt("packaging", g.packaging) };
       }
       let trigger: Record<string, unknown>;
       if (g.trigger === "buy_item") trigger = { type: "buy_item", item_id: g.triggerItemId || id };
@@ -269,9 +317,12 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       const d = f.product_discount;
       const { rows, problem } = varRows(d.rows, d.mode, "discount_pct");
       if (problem) return no(problem);
+      const perBuyer = intIn(d.perBuyer, 1, 100, "Giới hạn mỗi người từ 1 đến 100 lượt.");
+      const more = perBuyer.problem ?? dateProblem(d.start, d.end, null);
+      if (more) return no(more);
       return {
         problem: null,
-        version: { kind: "product_discount", label: clip(d.mode === "pct" ? `Giảm ${d.rows.map((r) => num(r.value)).find((n) => n) ?? ""}%` : "Giảm về giá mới"), item_id: id, variations: rows, ...dated(d.start, d.end), ...opt("per_buyer_limit", d.perBuyer) },
+        version: { kind: "product_discount", label: clip(d.mode === "pct" ? `Giảm ${d.rows.map((r) => num(r.value)).find((n) => n) ?? ""}%` : "Giảm về giá mới"), item_id: id, variations: rows, ...dated(d.start, d.end), ...(perBuyer.n !== null ? { per_buyer_limit: perBuyer.n } : {}) },
       };
     }
     case "price_flash": {
@@ -283,7 +334,9 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
           if (n === null) continue;
           if (p.mode === "pct" && (n < -50 || n > 100)) return no("Đổi giá trong khoảng −50% đến +100%.");
           if (p.mode === "final_price" && n <= 0) return no("Nhập giá bán lớn hơn 0.");
-          out.push({ variation_id: r.variationId, [p.mode === "pct" ? "change_pct" : "final_price"]: n });
+          const current = ctx.variations.find((x) => x.variation_id === r.variationId)?.selling_price ?? null;
+          if ((p.mode === "pct" && n === 0) || (p.mode === "final_price" && current !== null && n === current)) return no("Giá không đổi.");
+          out.push({ ...vid(r.variationId), [p.mode === "pct" ? "change_pct" : "final_price"]: n });
         }
         if (out.length === 0) return no("Nhập giá mới cho ít nhất một phân loại.");
         return { problem: null, version: { kind: "price", label: "Đổi giá niêm yết", item_id: id, variations: out } };
@@ -292,7 +345,10 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (problem) return no(problem);
       const units = num(p.units);
       if (units === null || units <= 0) return no("Nhập số lượng suất flash sale.");
-      return { problem: null, version: { kind: "flash_sale", label: "Flash sale", item_id: id, variations: rows, units, ...(p.slotStart ? { slot_start: p.slotStart } : {}), slot_hours: Math.max(1, Math.min(72, Math.round(num(p.slotHours) ?? 2))) } };
+      if (!Number.isInteger(units)) return no("Số lượng suất là số nguyên.");
+      const hours = intIn(p.slotHours.trim() === "" ? "2" : p.slotHours, 1, 72, "Số giờ của khung từ 1 đến 72.");
+      if (hours.problem) return no(hours.problem);
+      return { problem: null, version: { kind: "flash_sale", label: "Flash sale", item_id: id, variations: rows, units, ...(p.slotStart ? { slot_start: p.slotStart } : {}), slot_hours: hours.n ?? 2 } };
     }
     case "variation_set": {
       const out: Record<string, unknown>[] = [];
@@ -300,7 +356,9 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
         if (!r.name.trim() && !r.price.trim()) continue;
         const price = num(r.price);
         if (!r.name.trim() || price === null || price <= 0) return no("Mỗi phân loại mới cần tên và giá.");
-        out.push({ name: r.name.trim(), price, ...(r.sku.trim() ? { sku: r.sku.trim() } : {}), ...opt("pack_count", r.packCount), ...opt("stock", r.stock) });
+        const pack = intIn(r.packCount, 1, 100, "Số lượng trong gói từ 1 đến 100.");
+        if (pack.problem) return no(pack.problem);
+        out.push({ name: r.name.trim(), price, ...(r.sku.trim() ? { sku: r.sku.trim() } : {}), ...(pack.n !== null ? { pack_count: pack.n } : {}), ...opt("stock", r.stock) });
       }
       if (out.length === 0) return no("Thêm ít nhất một phân loại mới.");
       return { problem: null, version: { kind: "variation_set", label: clip(`Thêm ${out.map((o) => String(o["name"])).join(", ")}`), item_id: id, new_variations: out } };
@@ -361,6 +419,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     case "price_display": {
       const p = f.price_display;
       if (p.what === "listing_hide") return { problem: null, version: { kind: "listing_hide", label: "Ẩn listing", item_id: id } };
+      if (p.what === "listing_relist" && ctx.product.stock !== null && ctx.product.stock > 0) return no(REFUSAL_TEXT.listing_already_live);
       if (p.what === "listing_relist") return { problem: null, version: { kind: "listing_relist", label: "Đưa lại listing", item_id: id, ...opt("stock", p.stock) } };
       const v = ctx.variations[0];
       return { problem: null, version: { kind: "price_display", label: "Hiển thị giá mỗi đơn vị", item_id: id, ...(v && ctx.variations.length === 1 ? { variation_id: v.variation_id } : {}), ...(p.text.trim() ? { text: p.text.trim() } : {}) } };
@@ -370,11 +429,50 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
 
 // ── reading an outcome ───────────────────────────────────────────────────
 
+/** Refusal codes the server sends, in Vietnamese (the server's own `message` wins when it has one). */
+export const REFUSAL_TEXT: Readonly<Record<string, string>> = {
+  sku_no_orders: "Phân loại này chưa có đơn trong kỳ (có thể hết hàng) — chọn phân loại khác.",
+  sku_unknown: "Phân loại này không thuộc sản phẩm đã chọn.",
+  voucher_scope_no_data: "Chưa có dữ liệu đơn theo loại voucher này để ước tính.",
+  voucher_value_over_min_spend: "Giá trị voucher phải nhỏ hơn đơn tối thiểu.",
+  sku_duplicate: "SKU trùng với một phân loại đang có.",
+  listing_already_live: "Listing đang bán — chỉ đưa lại listing đã ẩn hoặc hết hàng.",
+  no_campaign_report: "Chưa có báo cáo của chiến dịch này để tính.",
+};
+
+/** A code -> its sentence; a code with a suffix (`sku_unknown:G600013`) reads by its stem; never the code itself. */
+export function codeText(code: string | null | undefined, map: Readonly<Record<string, string>>, fallback: string): string {
+  if (!code) return fallback;
+  if (map[code]) return map[code];
+  const stem = code.split(":")[0] ?? code;
+  return map[stem] ?? fallback;
+}
+
+const looksLikeCode = (s: string): boolean => /^[a-z0-9_]+(:[\w-]+)?$/.test(s.trim());
+
 export const refusalText = (o: Pick<BuilderOutcome, "refusal">): string => {
   const r = o.refusal;
-  if (!r) return "Chưa tính được.";
-  return typeof r === "string" ? r : (r.message ?? r.code ?? "Chưa tính được.");
+  const fallback = "Chưa tính được phương án này.";
+  if (!r) return fallback;
+  if (typeof r === "string") return looksLikeCode(r) ? codeText(r, REFUSAL_TEXT, fallback) : r;
+  if (r.message && !looksLikeCode(r.message)) return r.message;
+  return codeText(r.code ?? r.message, REFUSAL_TEXT, fallback);
 };
+
+/** Break-even / CTOR reason codes (`outcome.py`, `traffic.py`) in Vietnamese. */
+export const REASON_TEXT: Readonly<Record<string, string>> = {
+  not_applicable: "Không có chi phí trực tiếp; đo sau khi chạy.",
+  no_clicks: "chưa có lượt nhấp để tính CTOR",
+  no_flow_data: "chưa có số liệu luồng để tính CTOR",
+  no_cost: "chưa có chi phí để tính mức hoà vốn",
+  no_profit: "chưa tính được lợi nhuận để tính mức hoà vốn",
+};
+
+function reasonOf(text: string | null | undefined, code: string | null | undefined, fallback: string): string {
+  if (text) return text;
+  if (code && !looksLikeCode(code)) return code;
+  return codeText(code, REASON_TEXT, fallback);
+}
 
 export function bandText(b: Band | null | undefined, unit: "vnd" | "orders" = "vnd"): { readonly main: string; readonly range: string } {
   if (!b || b.p50 === null) return { main: DASH, range: "không đủ dữ liệu" };
@@ -396,9 +494,10 @@ export function metricValue(unit: string, n: number | null): string {
 export function breakEvenText(o: BuilderOutcome): string {
   const b = o.break_even;
   if (!b) return DASH;
-  if (!b.applies) return b.reason ?? "Không có chi phí trực tiếp; đo sau khi chạy.";
-  if (b.extra_orders === null) return b.reason ?? "Chưa đủ dữ liệu để tính mức hoà vốn.";
-  const ctor = b.ctor_needed !== null ? `, tức CTOR ≥ ${pp(b.ctor_needed, 2)} (hôm nay ${pp(b.ctor_now, 2)})` : (b.ctor_reason ? `; ${b.ctor_reason}` : "");
+  if (!b.applies) return reasonOf(b.reason_text, b.reason, "Không có chi phí trực tiếp; đo sau khi chạy.");
+  if (b.extra_orders === null) return reasonOf(b.reason_text, b.reason, "Chưa đủ dữ liệu để tính mức hoà vốn.");
+  const ctorWhy = b.ctor_reason || b.ctor_reason_text ? reasonOf(b.ctor_reason_text, b.ctor_reason, "chưa tính được CTOR cần có") : "";
+  const ctor = b.ctor_needed !== null ? `, tức CTOR ≥ ${pp(b.ctor_needed, 2)} (hôm nay ${pp(b.ctor_now, 2)})` : (ctorWhy ? `; ${ctorWhy}` : "");
   return `cần thêm ≥ ${fmt(Math.ceil(b.extra_orders))} đơn${ctor}, để lợi nhuận không giảm.`;
 }
 
@@ -449,6 +548,8 @@ export function voucherMaxText(o: BuilderOutcome): string | null {
 export function unitLines(o: BuilderOutcome): readonly string[] {
   const d = o.delta;
   if (!d) return [];
+  // No estimate ("không đủ dữ liệu"): no "+0đ lợi nhuận" lines that read like a forecast.
+  if (o.basis?.key === "insufficient" || !d.profit || d.profit.p50 === null) return [];
   const out: string[] = [];
   const pd = d.per_day?.profit;
   if (pd && pd.p50 !== null) out.push(`Mỗi ngày: ${sv(pd.p50)} lợi nhuận (${sv(pd.low)} – ${sv(pd.high)})`);
