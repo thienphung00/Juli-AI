@@ -12,3 +12,9 @@ paths = [
   '''docs/integrations/tiktok_api/webhook-contract-collection\.md''',
   '''infra/apiwatch/snapshots/[a-z]+\.json''',
 ]
+# A test calling its own helper with a local variable named `key` (campaign_key=key, ...) trips
+# generic-api-key; the value is a variable name, not a secret (P92 tests/unit/test_shopee_builder.py).
+regexTarget = "line"
+regexes = [
+  '''campaign_key=key,''',
+]
