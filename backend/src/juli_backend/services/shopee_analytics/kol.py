@@ -147,6 +147,8 @@ def collect(view: PeriodView, data: KolData) -> Lines:
         all_pairs.append((sl, pb.contribution, pb.commission, carries))
         if not ln.affiliate:
             continue
+        if ln.product_id in view.excluded:  # P92 B-1: no KOL row, no card; shop totals keep it
+            continue
         if sl.kol is None:
             untagged += 1
             continue
@@ -476,6 +478,8 @@ def compute(view: PeriodView, ctx: ShopContext, data: KolData) -> KolModel:
     handles = {kk: s.handle for (kk, _), ss in data.samples.items() for s in ss[:1]}
     handles.update({r.kol_key: r.handle for r in rows.values()})
     for kol_key, item in sample:  # a pair with samples and no order yet still gets a row
+        if item in view.excluded:  # P92 B-1
+            continue
         if not any(k[0] == kol_key and k[1] == item for k in rows):
             rows[(kol_key, item, NO_ORDERS_CHANNEL)] = KolRow(
                 kol_key,

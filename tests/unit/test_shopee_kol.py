@@ -544,3 +544,21 @@ async def test_the_pair_series_for_measurement_counts_distinct_orders_per_day(sh
         session, shop.shop_id, kol_key(BETA), "sku:G1", date(2026, 10, 1), date(2026, 10, 7)
     )
     assert other == {}
+
+
+async def test_an_excluded_listing_has_no_kol_rows_and_the_filters_forget_it(shop, session):
+    """P92 B-1: excluding a listing removes it from Phân tích › KOL (rows, totals, filters, the
+    product tab); the other listings' rows are untouched."""
+    sid = shop.shop_id
+    before = await queries.kol_table(session, sid, as_of=AS_OF)
+    assert any(r["item_id"] == "1002" for r in before["rows"])
+    session.add(rule(sid, "excluded", "1002", True))
+    session.add(rule(sid, "exclude_reason", "1002", "phan_phoi"))
+    await session.commit()
+    after = await queries.kol_table(session, sid, as_of=AS_OF)
+    assert all(r["item_id"] != "1002" for r in after["rows"])
+    assert all(p["item_id"] != "1002" for p in after["filters"]["products"])
+    kept = [r for r in before["rows"] if r["item_id"] != "1002"]
+    assert after["totals"]["orders"] == sum(r["orders"] for r in kept)
+    tab = await queries.kol_product_tab(session, sid, "1002", as_of=AS_OF)
+    assert tab["rows"] == []
