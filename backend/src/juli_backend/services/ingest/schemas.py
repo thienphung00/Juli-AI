@@ -1105,3 +1105,45 @@ class ShopeeShopHealthDailyRow(RowBase):
 
     def key(self) -> tuple[Any, ...]:
         return (self.date, self.metric_id)
+
+
+class ShopeeMarketSearchRow(PeriodRowBase):
+    """``market_search`` (P92 B-10): one card of page 1 of a PUBLIC Shopee search for one of the
+    shop's keywords, read by the Connector in a background tab without a login. Public listing
+    data only -- there is no field for a buyer, a review or a reviewer. The keyword must be one of
+    the shop's own keyword seeds (the gateway refuses others). Money is VND; ``pos`` is the
+    card's true position on the page (ads included, ``is_ad`` true). The listing text is
+    ``title`` / ``shop_title`` (never a key containing ``name``: the privacy test)."""
+
+    keyword: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    sort: Literal["relevancy", "sales"] = "relevancy"
+    page: Annotated[int, Field(ge=1, le=3)] = 1
+    pos: Annotated[int, Field(ge=1, le=200)]
+    is_ad: bool = False
+    item_id: ItemId
+    shop_id: ItemId | None = None
+    shop_title: Annotated[str, StringConstraints(max_length=120)] | None = None
+    title: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+    price: Money
+    price_min: Money | None = None
+    price_max: Money | None = None
+    price_before_discount: Money | None = None
+    discount_pct: Percent | None = None
+    rating: Annotated[Decimal, Field(ge=0, le=5, allow_inf_nan=False)] | None = None
+    sold_monthly: Count | None = None
+    sold_lifetime: Count | None = None
+    sold_text: Annotated[str, StringConstraints(max_length=120)] | None = None
+    image_id: Annotated[str, StringConstraints(max_length=100)] | None = None
+
+    @model_validator(mode="after")
+    def _range_ordered(self) -> ShopeeMarketSearchRow:
+        if (
+            self.price_min is not None
+            and self.price_max is not None
+            and self.price_min > self.price_max
+        ):
+            raise ValueError("price_min is above price_max")
+        return self
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.keyword, self.sort, self.page, self.pos)

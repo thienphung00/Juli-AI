@@ -92,6 +92,7 @@ from juli_backend.services.ingest.schemas import (
     ShopeeItemPerformanceRow,
     ShopeeItemSnapshotRow,
     ShopeeItemTrafficSourceRow,
+    ShopeeMarketSearchRow,
     ShopeeOrderIncomeRow,
     ShopeeOrderLineRow,
     ShopeeProductFlagRow,
@@ -600,6 +601,7 @@ WRITE_ORDER_INCOME = "order_income"  # shopee_order_income (upsert by rank)
 WRITE_ADS_LOG = "ads_log"  # ads_change_log (append-only)
 WRITE_ITEM_SNAPSHOTS = "item_snapshots"  # platform_item_snapshots (insert on change)
 WRITE_SHOP_HEALTH = "shop_health"  # shop_health_daily (append-only)
+WRITE_MARKET_SEARCH = "market_search"  # market_listing_snapshots + market_keyword_snapshots
 
 
 @dataclass(frozen=True)
@@ -912,6 +914,17 @@ DATASETS: dict[tuple[str, str], DatasetSpec] = {
         "Per account-health metric per capture day (Tài khoản › Sức khỏe).",
         GRANULARITY_DAY,
         WRITE_SHOP_HEALTH,
+    ),
+    ("shopee", "market_search"): DatasetSpec(
+        "shopee",
+        "market_search",
+        ShopeeMarketSearchRow,
+        _not_metrics,
+        False,
+        "Page 1 of a public Shopee search for one of the shop's keywords (P92 B-10): the public "
+        "market lane, no buyer data.",
+        GRANULARITY_PERIOD,
+        WRITE_MARKET_SEARCH,
     ),
 }
 

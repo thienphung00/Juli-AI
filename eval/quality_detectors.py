@@ -1502,7 +1502,9 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # ``_assert_clean``, a same-file asserting helper; the helper layer did not move).
     # P76-1 (D78): +2 no_assert_statement (two `pytest.raises`-only strict-schema tests).
     # P91 integration: +1 no_assert_statement, found drifting when the P91 branches were merged.
-    "no_assert_statement": 553,
+    # P92 B-10: +3 no_assert_statement (new tests that only check a refusal, e.g. the
+    # market_search dataset's bad card / excluded seed); the later layers did not move.
+    "no_assert_statement": 556,
     "and_no_pytest_raises": 132,
     "and_no_mock_assert_called": 117,
     "and_no_unittest_self_assert": 117,

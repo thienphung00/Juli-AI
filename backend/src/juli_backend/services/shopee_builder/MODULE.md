@@ -25,6 +25,7 @@ estimate basis, warnings).
 | `response` | the product's own (then the other products') orders response to a price cut -> `prediction` |
 | `keywords` | the keyword table of a product: title seeds, suggestions, competitor phrases, ads report |
 | `drafts`, `llm` | LLM drafts (titles, cover overlay concepts, description first lines) behind `LLMClient` |
+| `unit_price`, `market_price` | B-10 "Giá thị trường": pack-normalised price per unit (hộp / 100 cái / 500 ml / 100 g / cuộn) of the public search cards the Connector collects (`market_search`), per-unit median / P25 / P75, the 5 closest similar cards, stale after 14 days; absent (never invented) without a capture. Public tables are read in an `ops_role` block |
 | `service` | loading, `evaluate_versions`, `choose` (through `manual.create_manual`), draft facts |
 
 ## Rules
