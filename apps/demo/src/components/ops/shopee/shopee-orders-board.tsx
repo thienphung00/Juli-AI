@@ -191,7 +191,7 @@ export function ShopeeOrdersBody({ shopId, api }: { readonly shopId: string; rea
                     <td style={TD}>{fmtVnd(o.voucher)}</td>
                     <td style={TD}>{fmtVnd(o.promo_discount)}</td>
                     <td style={TD}>{fmtVnd(o.combo_discount)}</td>
-                    <td style={TD}>{fmtVnd(o.buyer_paid)}</td>
+                    <td style={TD}>{fmtVnd(o.paid_amount)}</td>
                     <td style={TD}>{fmtVnd(o.fees)}</td>
                     <td style={TD}>{fmtVnd(o.cogs)}</td>
                     <td style={TD} title={o.contribution === null ? "Ngoài cơ sở tính lợi nhuận, hoặc thiếu giá vốn / phí" : undefined}>
