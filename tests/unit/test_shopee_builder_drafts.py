@@ -124,7 +124,7 @@ async def test_a_claim_word_the_product_already_states_is_allowed():
     facts = drafts.ProductFacts(item_id="1", title="Nước rửa chén hữu cơ Ory 500ml")
     client = FakeLLM({"drafts": [{"title": "Nước rửa chén hữu cơ Ory 500ml êm tay", "note": ""}]})
     out = await drafts.draft_titles(client, facts, ["nước rửa chén"])
-    assert out["drafts"][0]["title"].endswith("êm tay")
+    assert out["drafts"][0]["title"] == "Nước rửa chén hữu cơ Ory 500ml êm tay"
 
 
 async def test_nothing_valid_is_an_error_with_the_reasons_and_a_bad_answer_is_llm_trouble():
