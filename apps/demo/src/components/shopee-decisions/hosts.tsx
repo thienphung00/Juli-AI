@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { readAuthSession } from "../../lib/supabase-auth";
 import { opsTabShopeeLinks, sellerLinks, viewAsShopeeLinks } from "../../lib/shopee-analytics/links";
 import { DEMO_SHOPEE_BASE, createShopeeApi, opsShopeeBase } from "../../lib/shopee-analytics/client";
+import { DEMO_BUILDER_BASE, createBuilderApi, opsBuilderBase, p92BuilderEnabled } from "../../lib/shopee-decisions/builder-api";
 import { DEMO_RECO_BASE, createRecoApi, opsRecoBase } from "../../lib/shopee-decisions/client";
 import { createPlanApi, planEnabled } from "../../lib/shopee-decisions/plan-client";
 import { RecoHostProvider, decisionsQuery, type ProductChoice, type RecoHost } from "../../lib/shopee-decisions/context";
@@ -38,6 +39,7 @@ export function sellerRecoHost(options: {
     shopKey: options.shopId,
     shopName: options.shopName,
     products: productsOf(createShopeeApi({ base: DEMO_SHOPEE_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl })),
+    builder: p92BuilderEnabled() ? createBuilderApi({ base: DEMO_BUILDER_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) : undefined,
     plan: planEnabled() ? { api: createPlanApi({ base: DEMO_RECO_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) } : undefined,
     href: (view) => withQuery("/decisions", decisionsQuery(view)),
     navigate: options.navigate,
@@ -75,6 +77,7 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
     if (!token) return null;
     const reco = createRecoApi({ base: opsRecoBase(shopId), token, fetchImpl });
     const products = productsOf(createShopeeApi({ base: opsShopeeBase(shopId), token, fetchImpl }));
+    const builder = p92BuilderEnabled() ? createBuilderApi({ base: opsBuilderBase(shopId), token, fetchImpl }) : undefined;
     if (kind === "view-as") {
       return {
         reco,
@@ -82,6 +85,7 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
         shopKey: `ops:${shopId}`,
         shopName,
         products,
+        builder,
         readOnly: true,
         href: (view) => viewAsTabHref(shopId, "decisions", decisionsQuery(view)),
       };
@@ -92,6 +96,7 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
       shopKey: `ops-tab:${shopId}`,
       shopName,
       products,
+      builder,
       plan: planEnabled() ? { api: createPlanApi({ base: opsRecoBase(shopId), token, fetchImpl }) } : undefined,
       staff: true,
       href: (view) => withQuery(`/ops/shops/${encodeURIComponent(shopId)}/shopee/de-xuat`, decisionsQuery(view)),

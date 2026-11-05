@@ -3,6 +3,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 
 import type { ShopeeLinks } from "../shopee-analytics/links";
+import type { BuilderApi } from "./builder-api";
 import type { RecoApi } from "./client";
 import type { DecisionTab } from "./model";
 import type { PlanApi } from "./plan-types";
@@ -50,6 +51,8 @@ export interface RecoHost {
   readonly href: (view: DecisionView) => string;
   /** The shop's products (id, name) for the builder; absent: the builder asks for ids. */
   readonly products?: () => Promise<readonly ProductChoice[]>;
+  /** P92: the builder API (picker, evaluate / compare / choose, drafts). Absent: the P91 builder runs. */
+  readonly builder?: BuilderApi;
   /** The draft plan (P91 D-6); absent while the plan backend is not there. */
   readonly plan?: PlanHost;
   /** Follow an in-page href without a full navigation, when the host has a router of its own. */
