@@ -92,6 +92,7 @@ def price_block(view: PeriodView, product_id: str) -> dict[str, Any]:
     pairs = getattr(view, "pairs", [])
     lines = [ln for ln, _ in pairs if ln.product_id == product_id]
     current, listed = getattr(view, "item_prices", {}).get(product_id, (None, None))
+    basis: str | None
     if lines:
         sell = [ln.deal_price for ln in lines]
         lo, hi = min(sell), max(sell)
