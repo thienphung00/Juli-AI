@@ -10,14 +10,16 @@ import { ME, SETTINGS, SHOP_ID, VIEW_SESSION } from "./fixtures";
 /** Step 9: the Shopee shop screens inside Juli Ops, through the Ops API base. */
 
 let search = "";
+let replaced: string[] = [];
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace: (href: string) => replaced.push(href), push: vi.fn() }),
   usePathname: () => "/ops",
   useSearchParams: () => new URLSearchParams(search),
 }));
 
 beforeEach(() => {
   search = "";
+  replaced = [];
   window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "t", tokenType: "bearer" }));
 });
 
@@ -66,7 +68,7 @@ describe("Xem như shop on a Shopee shop", () => {
     const href = tile.getAttribute("href")!;
     expect(href.startsWith(`/ops/shops/${SHOP_ID}/xem?`)).toBe(true);
     const p = new URLSearchParams(href.split("?")[1]);
-    expect(p.get("trang")).toBe("xep-hang");
+    expect(p.get("trang")).toBe("phan-tich");
     expect(p.get("kpi")).toBe("ctr");
     expect(p.get("from")).toBe("tong-quan");
     const row = await screen.findByTestId("sa-mrow-BEP-S5");
@@ -81,7 +83,7 @@ describe("Xem như shop on a Shopee shop", () => {
     await waitFor(() => expect(calls.some((c) => c.url.startsWith(`${BASE}/critical`))).toBe(true));
   });
 
-  it("opens a product by ?id= and the Xếp hạng by trang=xep-hang", async () => {
+  it("opens a product by ?id=, and an old trang=xep-hang link opens Phân tích with its product table", async () => {
     search = "trang=san-pham&id=BEP-S5&tab=cp";
     const { fn, calls } = opsFetch();
     const { unmount } = render(<OpsViewAs api={{ viewSession: async () => SHOPEE_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
@@ -91,7 +93,26 @@ describe("Xem như shop on a Shopee shop", () => {
     search = "trang=xep-hang&kpi=ctr&src=live";
     render(<OpsViewAs api={{ viewSession: async () => SHOPEE_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
     expect(await screen.findByTestId("sa-ranking")).toBeInTheDocument();
-    await waitFor(() => expect(calls.some((c) => c.url.includes("/ranking?") && c.url.includes("source=live"))).toBe(true));
+    expect(screen.getByTestId("sa-phan-tich")).toBeInTheDocument();
+    // L1: the CTR table ranks by CTR, not by ₫ GMV/ngày
+    await waitFor(() => expect(calls.some((c) => c.url.includes("/ranking?") && c.url.includes("source=live") && c.url.includes("xep_theo=ctr"))).toBe(true));
+    await waitFor(() => expect(replaced.some((h) => h.includes("trang=phan-tich") && h.includes("kpi=ctr") && h.includes("src=live"))).toBe(true));
+  });
+
+  it("never asks a Shopee shop for the TikTok analysis (M4: it answered 404 'No analysis yet')", async () => {
+    search = "trang=phan-tich";
+    const { fn, calls } = opsFetch();
+    render(<OpsViewAs api={{ viewSession: async () => SHOPEE_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
+    await screen.findByTestId("sa-phan-tich");
+    await waitFor(() => expect(calls.some((c) => c.url.startsWith(`${BASE}/critical`))).toBe(true));
+    expect(calls.some((c) => c.url.includes("/view/analysis"))).toBe(false);
+  });
+
+  it("still loads the TikTok analysis for a TikTok shop", async () => {
+    const { fn, calls } = opsFetch();
+    render(<OpsViewAs api={{ viewSession: async () => VIEW_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
+    await screen.findByTestId("view-as-banner");
+    await waitFor(() => expect(calls.some((c) => c.url.includes("/view/analysis"))).toBe(true));
   });
 
   it("a TikTok shop keeps Trang chủ / Quyết định / Phân tích / Juli / Quy tắc", async () => {

@@ -10,14 +10,17 @@ import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { Critical, CriticalItem, N } from "../../lib/shopee-analytics/types";
 import { KolView } from "../shopee-kol/kol-view";
 import { PeriodBar } from "./period-bar";
+import { RankingSection } from "./ranking-view";
 import { Empty, Ini, InfoToggle, Notice, PageHead, PriceMargin, ResourceState, initialsOf } from "./ui";
 
 /**
  * Phân tích (artboard PhanTich): the critical list ranked by the đồng each item has at stake. An
  * item is one metric of one scope held against ONE reference (the flow's normal band, a target,
  * the floor price, ROAS break-even or the shop median), drawn as a band chart; the cause is the
- * funnel stage plus one sentence; each item links to its Xếp hạng row and to its card. Items inside
- * their reference fold into "Trong dải bình thường" and are not counted in the total at stake.
+ * funnel stage plus one sentence; each item links to its row in the product table below and to its
+ * card. Items inside their reference fold into "Trong dải bình thường" and are not counted in the
+ * total at stake. P96b (owner, 2026-11-06): the product table that was Xếp hạng is a section of this
+ * page ("Theo sản phẩm"), and a product whose GMV per day fell against the previous window is an item.
  */
 
 const STAGES = ["Lượt xem", "CTR", "CTOR", "AOV", "Biên"] as const;
@@ -25,6 +28,7 @@ const STAGE_INDEX: Record<string, number> = { views: 0, ctr: 1, ctor: 2, aov: 3 
 
 const FILTERS: readonly (readonly [string, string])[] = [
   ["all", "Tất cả"],
+  ["gmv", "Doanh số"],
   ["views", "Lượt xem"],
   ["ctor", "CTR và CTOR"],
   ["aov", "AOV"],
@@ -33,6 +37,7 @@ const FILTERS: readonly (readonly [string, string])[] = [
 ];
 
 function filterOf(item: CriticalItem): string {
+  if (item.kpi === "gmv" || item.kpi === "orders") return "gmv";
   if (item.kpi === "views") return "views";
   if (item.kpi === "ctr" || item.kpi === "ctor") return "ctor";
   if (item.kpi === "aov") return "aov";
@@ -57,7 +62,7 @@ function kpiLabel(item: CriticalItem): string {
     aov: "AOV",
     bien: item.reference.type === "floor" ? "Giá sau voucher" : "Biên cuối",
     roas: "ROAS trực tiếp",
-    gmv: "GMV theo mục tiêu tháng",
+    gmv: item.reference.type === "previous" ? "GMV / ngày so với kỳ trước" : "GMV theo mục tiêu tháng",
     orders: "Số đơn theo mục tiêu tháng",
   };
   return base[item.kpi] ?? item.kpi;
@@ -87,6 +92,8 @@ function deviationText(item: CriticalItem): string {
       return ref.value == null ? DASH : `Thấp hơn giá sàn ${vnd(ref.value - cur)}`;
     case "break_even":
       return ref.value == null ? DASH : `Thấp hơn hoà vốn ${fmt(ref.value - cur, 1)}`;
+    case "previous":
+      return ref.value == null ? DASH : `Thấp hơn kỳ trước ${vnd(ref.value - cur)}/ngày`;
     default:
       return ref.value == null ? DASH : `Thấp hơn trung vị ${item.kpi === "ctr" || item.kpi === "ctor" ? `${fmt((ref.value - cur) * 100, 2)} điểm` : vnd(ref.value - cur)}`;
   }
@@ -96,6 +103,7 @@ function refText(item: CriticalItem): string {
   const r = item.reference;
   const v = (n: N | undefined) => (n == null ? DASH : valueText(item, n));
   if (r.type === "band") return `Dải bình thường ${v(r.low)}–${v(r.high)} (${r.label})`;
+  if (r.type === "previous") return `${r.label}: ${v(r.value)}/ngày`;
   return `${r.label}: ${v(r.value)}`;
 }
 
@@ -130,6 +138,19 @@ function ItemChart({ item, small }: { readonly item: CriticalItem; readonly smal
   );
 }
 
+/** The window keys a period link replaces; everything else (kpi, src, sub, xep, …) is kept. */
+const WINDOW_KEYS = new Set(["ky", "thang", "tu", "den", "cmp", "focus", "from", "card"]);
+
+/** Phân tích at another window, keeping the product table's KPI / source / measure. */
+export function periodQuery(params: URLSearchParams, next: WindowState): URLSearchParams {
+  const p = new URLSearchParams();
+  params.forEach((v, k) => {
+    if (!WINDOW_KEYS.has(k) && k !== "tab") p.append(k, v);
+  });
+  windowParams(next).forEach((v, k) => p.set(k, v));
+  return p;
+}
+
 export function PhanTichPageView({ params }: { readonly params: URLSearchParams }) {
   const host = useShopee();
   const state = useMemo(() => readWindow(params), [params]);
@@ -148,12 +169,13 @@ export function PhanTichPageView({ params }: { readonly params: URLSearchParams 
           </Link>
         </nav>
       ) : null}
-      <ResourceState resource={data}>{(c) => <Loaded critical={c} state={state} />}</ResourceState>
+      <ResourceState resource={data}>{(c) => <Loaded critical={c} params={params} state={state} />}</ResourceState>
+      <RankingSection params={params} />
     </div>
   );
 }
 
-function Loaded({ critical: c, state }: { readonly critical: Critical; readonly state: WindowState }) {
+function Loaded({ critical: c, params, state }: { readonly critical: Critical; readonly params: URLSearchParams; readonly state: WindowState }) {
   const { links } = useShopee();
   const [filter, setFilter] = useState("all");
   const [okOpen, setOkOpen] = useState(false);
@@ -163,7 +185,7 @@ function Loaded({ critical: c, state }: { readonly critical: Critical; readonly 
   const sumDay = shown.reduce((t, it) => t + (it.at_stake_per_day ?? 0), 0);
   const withCard = shown.filter((it) => it.card);
   const firstCard = withCard[0]?.card;
-  const href = (next: WindowState) => links.screen("phan-tich", windowParams(next));
+  const href = (next: WindowState) => links.screen("phan-tich", periodQuery(params, next));
   return (
     <>
       <PageHead
@@ -179,7 +201,7 @@ function Loaded({ critical: c, state }: { readonly critical: Critical; readonly 
             (hoặc ROAS dưới điểm hoà vốn), hoặc thấp hơn trung vị của shop. {c.ranking_rule}
           </InfoToggle>
         }
-        title={`${c.items.length} chỉ số cần chú ý`}
+        title={`${shown.length} chỉ số cần chú ý`}
       />
       <PeriodBar hrefFor={href} previous={null} state={state} window={c.window} />
       {c.notes.map((n) => (
@@ -286,7 +308,7 @@ function Loaded({ critical: c, state }: { readonly critical: Critical; readonly 
                     state,
                   )}
                 >
-                  Xem xếp hạng ›
+                  Xem theo sản phẩm ›
                 </Link>
               </div>
             </div>

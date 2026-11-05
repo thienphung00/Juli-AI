@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "reac
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
 import { createOpsViewFetch } from "../../lib/ops/view-fetch";
-import { VIEW_AS_PAGE_PARAM, readViewAsQuery, viewAsBase, viewAsHref, viewAsTabHref, type ViewAsTab } from "../../lib/ops/view-as-routes";
+import { LEGACY_SLUG, VIEW_AS_PAGE_PARAM, readViewAsQuery, viewAsBase, viewAsHref, viewAsTabHref, type ViewAsTab } from "../../lib/ops/view-as-routes";
 import type { OpsMe, ViewSession } from "../../lib/ops/types";
 import { fetchMetricRanking } from "../../lib/phan-tich/rankings-client";
 import { resolveTab } from "../../lib/quyet-dinh/copy";
@@ -121,7 +121,6 @@ export function OpsViewAs({
   // A Shopee shop opens on Tổng quan, not on Quyết định (its nav has no Trang chủ).
   const isShopee = platformOf(session?.shop.platform) === "shopee";
   const tab: Tab = !current.has(VIEW_AS_PAGE_PARAM) && isShopee ? "overview" : read.tab;
-  const navTab: Tab = tab === "ranking" ? "overview" : tab;
   const shopeeHost = useOpsShopeeHost(shopId, "view-as", session?.shop.shop_name, baseFetch);
   // P92 B-8: the four read-only Ops pages, read through the Ops base (bearer only).
   const dashKind = DASHBOARD_TAB[tab] ?? null;
@@ -155,9 +154,12 @@ export function OpsViewAs({
   const viewFetch = useMemo(() => createOpsViewFetch({ shopId, baseFetch }), [shopId, baseFetch]);
   const clients = useMemo(() => opsQdClients(viewFetch), [viewFetch]);
 
-  // P22: the seller screens load in parallel with the (logged) view session —
-  // the view API does not depend on it.
+  // The TikTok analysis (Trang chủ / Phân tích of a TikTok shop) — never for a Shopee shop, whose
+  // screens read the Shopee analytics (P96b M4: it answered 404 "No analysis yet" on every load).
+  // It waits for the view session only to learn the platform.
+  const platformKnown = session !== null;
   useEffect(() => {
+    if (!platformKnown || isShopee) return;
     let live = true;
     fetchShopAnalysis({ token, shopId, fetchImpl: viewFetch })
       .then((e) => live && setEnvelope(e))
@@ -165,7 +167,14 @@ export function OpsViewAs({
     return () => {
       live = false;
     };
-  }, [token, shopId, viewFetch]);
+  }, [token, shopId, viewFetch, platformKnown, isShopee]);
+
+  // P96b: an old `trang=xep-hang` link already shows Phân tích (readViewAsQuery); only its URL follows.
+  const legacy = current.get(VIEW_AS_PAGE_PARAM);
+  const legacyTarget = legacy && LEGACY_SLUG[legacy] ? viewAsTabHref(shopId, LEGACY_SLUG[legacy], screenParams) : null;
+  useEffect(() => {
+    if (legacyTarget) router.replace(legacyTarget, { scroll: false });
+  }, [legacyTarget, router]);
 
   /** A seller screen asked for a seller href: its view-as equivalent, never a seller route. */
   const onNavigate = useCallback(
@@ -264,12 +273,12 @@ export function OpsViewAs({
                   ]) as readonly (readonly [Tab | "juli", string])[]
             ).map(([id, label]) => (
               <button
-                aria-current={navTab === id ? "page" : undefined}
+                aria-current={tab === id ? "page" : undefined}
                 key={id}
                 disabled={id === "juli"}
                 onClick={() => id !== "juli" && setTab(id)}
                 title={id === "juli" ? "Trợ lý Juli của seller: không có trong Xem như shop" : undefined}
-                style={{ font: "inherit", fontSize: 12, background: "transparent", border: 0, cursor: "pointer", color: navTab === id ? C.pink : C.body, fontWeight: navTab === id ? 700 : 400 }}
+                style={{ font: "inherit", fontSize: 12, background: "transparent", border: 0, cursor: "pointer", color: tab === id ? C.pink : C.body, fontWeight: tab === id ? 700 : 400 }}
                 type="button"
               >
                 {label}
@@ -289,7 +298,7 @@ export function OpsViewAs({
             </div>
             <SellerViewProvider href={mapHref} readOnly>
             <div data-read-only-view="" data-testid="seller-view" onClick={onSellerClick} style={{ minWidth: 0 }}>
-              {isShopee && shopeeHost && (tab === "overview" || tab === "analytics" || tab === "products" || tab === "ranking") ? (
+              {isShopee && shopeeHost && (tab === "overview" || tab === "analytics" || tab === "products") ? (
                 <ShopeeHostProvider host={shopeeHost}>
                   <ShopeeScreenSwitch
                     params={screenParams}
@@ -350,11 +359,10 @@ const DASHBOARD_TAB: Partial<Record<Tab, DashboardKind>> = {
   flows: "luong-san-pham",
 };
 
-const SHOPEE_SCREEN: Readonly<Record<"overview" | "analytics" | "products" | "ranking", ShopeeScreen>> = {
+const SHOPEE_SCREEN: Readonly<Record<"overview" | "analytics" | "products", ShopeeScreen>> = {
   overview: "tong-quan",
   analytics: "phan-tich",
   products: "san-pham",
-  ranking: "xep-hang",
 };
 
 const STAGE_NAMES: Record<string, string> = { trial: "Thử nghiệm", self: "Tự vận hành", pilot: "Pilot đặc biệt" };

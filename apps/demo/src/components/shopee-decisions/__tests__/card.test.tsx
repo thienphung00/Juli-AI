@@ -64,7 +64,7 @@ describe("thẻ voucher · phép thử 'nếu đổi'", () => {
   it("'Xem phân tích ›' and 'Mở sản phẩm ›' link to the ranking row and the product", async () => {
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco());
     const why = await screen.findByTestId("sd-why");
-    expect(within(why).getByRole("link", { name: "Xem phân tích ›" })).toHaveAttribute("href", "/xep-hang?kpi=aov&src=voucher&focus=BEP-S5&from=card&card=card-voucher");
+    expect(within(why).getByRole("link", { name: "Xem phân tích ›" })).toHaveAttribute("href", "/phan-tich?kpi=aov&src=voucher&focus=BEP-S5&from=card&card=card-voucher");
     expect(within(why).getByRole("link", { name: "Mở sản phẩm ›" })).toHaveAttribute("href", "/san-pham/BEP-S5?from=card&card=card-voucher");
     expect(why).toHaveTextContent("Giỏ hàng trung bình 241.000đ");
   });

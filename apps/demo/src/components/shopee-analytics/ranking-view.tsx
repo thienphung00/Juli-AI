@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
-import { DASH, chipOf, fmt, pp, sv, vnd, type Chip } from "../../lib/shopee-analytics/format";
+import { DASH, chipOf, fmt, pc, pp, sv, vnd, type Chip } from "../../lib/shopee-analytics/format";
 import {
   CHILDREN,
   CHILD_NAME,
+  FUNNEL_XEP,
   KPIS,
   KPI_NAME,
   SOURCES,
@@ -22,15 +23,16 @@ import {
 } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { N, Ranking, RankingRow, RankingView as RankingSide } from "../../lib/shopee-analytics/types";
-import { PeriodBar } from "./period-bar";
-import { ChipView, Empty, Ini, InfoToggle, Notice, PageHead, PillLink, PriceMargin, ResourceState, Section, initialsOf } from "./ui";
+import { ChipView, Empty, Ini, InfoToggle, Notice, PillLink, PriceMargin, ResourceState, Section, initialsOf } from "./ui";
 
 /**
- * Xếp hạng (artboards Ranking / RankingMobile): what a KPI click opens. The context cell, KPI
- * tabs, source chips (Thẻ sản phẩm with its six children), the "Xếp theo" switch, Kéo xuống / Kéo
- * lên, rows with trước → nay, Rõ / Tham khảo, "→ đề xuất", and closing rows so the table adds up to
- * the cell. Row kinds follow the source: products, campaigns (ads), KOLs, vouchers, keywords.
- * Returning from a card or a product highlights `focus` for three seconds.
+ * Phân tích › theo sản phẩm (was the Xếp hạng page; P96b, owner 2026-11-06): what a KPI click on
+ * Tổng quan opens, as a section of Phân tích under its period bar. The context cell, KPI tabs,
+ * source chips (Thẻ sản phẩm with its six children), the "Xếp theo" switch, Kéo xuống / Kéo lên,
+ * rows with trước → nay, Rõ / Tham khảo, "→ đề xuất", and closing rows so the table adds up to the
+ * cell. Row kinds follow the source: products, campaigns (ads), KOLs, vouchers, keywords. Choosing a
+ * KPI ranks by THAT KPI's own number (L1: a CTR click used to keep showing ₫ GMV/ngày). Returning
+ * from a card or a product highlights `focus` for three seconds.
  */
 
 const ROW_KIND: Record<RankingKind, { noun: string; head: string }> = {
@@ -42,13 +44,6 @@ const ROW_KIND: Record<RankingKind, { noun: string; head: string }> = {
 };
 const ROW_INI: Record<RankingKind, string> = { products: "", campaigns: "QC", kols: "KOL", vouchers: "VC", keywords: "Tk" };
 
-const BACK: Record<string, string> = {
-  "tong-quan": "Tổng quan",
-  "phan-tich": "Phân tích",
-  card: "Thẻ đề xuất",
-  "san-pham": "Sản phẩm",
-};
-
 function valueText(xep: string, v: N): string {
   if (v === null) return DASH;
   switch (xep) {
@@ -58,6 +53,11 @@ function valueText(xep: string, v: N): string {
       return vnd(v);
     case "orders":
       return `${fmt(v, 1)} đơn`;
+    case "views":
+      return `${fmt(v, 0)} lượt`;
+    case "ctr":
+    case "ctor":
+      return pc(v);
     case "bien":
     case "disc":
       return pp(v, 1);
@@ -67,18 +67,31 @@ function valueText(xep: string, v: N): string {
 }
 
 const isMoney = (xep: string) => xep === "gmv" || xep === "profit";
+/** A figure per day: money, đơn and lượt xem (the context cell adds "/ngày"). */
+const perDay = (xep: string) => isMoney(xep) || xep === "orders" || xep === "views";
 
-export function RankingPageView({ params }: { readonly params: URLSearchParams }) {
+/** The "Xếp theo" choices: the six money / order measures, plus the selected funnel KPI's own. */
+function xepChoices(kpi: string): readonly (readonly [string, string, string])[] {
+  return XEP.filter(([k]) => !FUNNEL_XEP.has(k) || k === kpi);
+}
+
+export function RankingSection({ params }: { readonly params: URLSearchParams }) {
   const host = useShopee();
   const rs = useMemo(() => readRanking(params), [params]);
   const w = useMemo(() => readWindow(params), [params]);
   const args = apiRankingArgs(rs);
   const key = `${host.shopKey}|rk|${JSON.stringify(w.query)}|${JSON.stringify(args)}`;
   const data = useResource(() => host.api.ranking({ ...w.query, ...args }), key);
+  // A link that names a KPI (Tổng quan, a card, a product) lands on this table, not the top of Phân tích.
+  const ref = useRef<HTMLElement | null>(null);
+  const linked = params.has("kpi") && !params.has("focus");
+  useEffect(() => {
+    if (linked) ref.current?.scrollIntoView?.({ block: "start" });
+  }, [linked]);
   return (
-    <div className="sa-page" data-testid="sa-ranking">
+    <section className="sa-rk" data-testid="sa-ranking" id="theo-san-pham" ref={ref}>
       <ResourceState resource={data}>{(r) => <Loaded key={`${key}|${rs.focus ?? ""}`} rankingData={r} rs={rs} w={w} />}</ResourceState>
-    </div>
+    </section>
   );
 }
 
@@ -99,12 +112,14 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
   const srcN = rs.src === "the_san_pham" && rs.sub ? (CHILD_NAME[rs.sub] ?? rs.sub) : (SOURCE_NAME[rs.src] ?? rs.src);
   const withState = (patch: Partial<Record<keyof ReturnType<typeof readRanking> | "huong" | "loai", string | null>>) => {
     const next = { ...patch };
+    // L1: a new KPI ranks by its own number; keeping the old "Xếp theo" made every KPI show ₫ GMV/ngày.
+    const kpiChanged = next.kpi != null && next.kpi !== rs.kpi;
     return links.ranking(
       {
         kpi: next.kpi ?? rs.kpi,
         src: next.src ?? rs.src,
         sub: "sub" in next ? next.sub : rs.sub,
-        xep: "xep" in next ? next.xep : xepParam(next.kpi ?? rs.kpi, rs.xep),
+        xep: "xep" in next ? next.xep : kpiChanged ? null : xepParam(rs.kpi, rs.xep),
         huong: "huong" in next ? next.huong : null,
         loai: "loai" in next ? next.loai : rs.byProduct ? "products" : null,
       },
@@ -135,30 +150,23 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
 
   return (
     <>
-      <header className="sa-head">
-        <div className="sa-crumb">
+      <header className="sa-card__head">
+        {back ? (
           <Link className="sa-link" href={back.href}>
             ‹ {back.label}
           </Link>
-          <span className="sa-hint">/</span>
-          <span>Xếp hạng</span>
-        </div>
-        <PageHead
-          chips={
-            <span className="sa-chip sa-chip--outline" data-testid="sa-rk-window">
-              {r.window.days} ngày · so với {r.previous.days} ngày trước
-            </span>
-          }
-          eyebrow="XẾP HẠNG"
-          info={
-            <InfoToggle>
-              Số trung bình mỗi ngày. Mỗi dòng ghi số ₫/ngày mà thay đổi của dòng đó kéo số của ô lên hoặc xuống. Các dòng và
-              các dòng &ldquo;Còn lại&rdquo; cộng lại đúng bằng số của ô vừa bấm. Độ tin cậy &ldquo;Rõ&rdquo; khi có từ 30 đơn
-              ở cả hai kỳ.
-            </InfoToggle>
-          }
-          title={`Xếp hạng ${kpiN} · ${srcN}`}
-        />
+        ) : null}
+        <h2 className="sa-h2">
+          Theo sản phẩm · {kpiN} · {srcN}
+        </h2>
+        <span className="sa-chip sa-chip--outline" data-testid="sa-rk-window">
+          {r.window.days} ngày · so với {r.previous.days} ngày trước
+        </span>
+        <InfoToggle>
+          Số trung bình mỗi ngày. Mỗi dòng ghi thay đổi của dòng đó kéo số của ô lên hoặc xuống. Với các số cộng được (₫,
+          đơn, lượt xem), các dòng và các dòng &ldquo;Còn lại&rdquo; cộng lại đúng bằng số của ô. Độ tin cậy &ldquo;Rõ&rdquo;
+          khi có từ 30 đơn ở cả hai kỳ.
+        </InfoToggle>
       </header>
 
       <div className="sa-rk-top">
@@ -170,7 +178,7 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
             <>
               <span className="sa-ctx__value">
                 {valueText(rs.xep, r.cell.now)}
-                {isMoney(rs.xep) || rs.xep === "orders" ? "/ngày" : ""}
+                {perDay(rs.xep) ? "/ngày" : ""}
               </span>
               <span>
                 <ChipView chip={cellChip(rs.xep, r.cell.before, r.cell.now)} />
@@ -178,7 +186,7 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
               <span className={`sa-ctx__impact ${(cellDelta ?? 0) < 0 ? "sa-tone--down" : "sa-tone--up"}`}>
                 {cellDelta === null ? DASH : isMoney(rs.xep) ? `${sv(cellDelta)}/ngày` : deltaText(rs.xep, cellDelta)}
               </span>
-              <span className="sa-hint">Các dòng bên dưới cộng lại đúng bằng số này.</span>
+              {additive ? <span className="sa-hint">Các dòng bên dưới cộng lại đúng bằng số này.</span> : null}
             </>
           ) : (
             <span className="sa-ctx__value">{DASH}</span>
@@ -221,17 +229,10 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
         </div>
       </div>
 
-      <PeriodBar
-        hrefFor={(next) => links.ranking({ kpi: rs.kpi, src: rs.src, sub: rs.sub, focus: rs.focus, from: rs.from, card: rs.card, xep: xepParam(rs.kpi, rs.xep) }, next)}
-        previous={r.previous}
-        state={w}
-        window={r.window}
-      />
-
       {cardBanner ? (
         <Notice tone="info" testId="sa-card-banner">
           <b>Vừa quay về từ thẻ</b> · {rs.card} · dòng được đánh dấu bên dưới, tự tắt sau 3 giây{" "}
-          <Link className="sa-link" href={links.card(rs.card as string, "xep-hang")}>
+          <Link className="sa-link" href={links.card(rs.card as string, "phan-tich")}>
             Về thẻ ›
           </Link>
         </Notice>
@@ -255,7 +256,7 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
             <span className="sa-rk-switches">
               <span className="sa-hint">Xếp theo</span>
               <span className="sa-seg">
-                {XEP.map(([k, , label]) => (
+                {xepChoices(rs.kpi).map(([k, , label]) => (
                   <Link className={`sa-seg__item ${rs.xep === k ? "sa-seg__item--on" : ""}`} aria-current={rs.xep === k ? "true" : undefined} href={withState({ xep: xepParam(rs.kpi, k) })} key={k}>
                     {label}
                   </Link>
@@ -333,7 +334,7 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
                   <span className={`sa-conf ${row.confidence === "Rõ" ? "sa-conf--ok" : "sa-conf--warn"}`}>{row.confidence}</span>
                   <span className="sa-mrec">
                     {row.card ? (
-                      <Link className="sa-rec" href={links.card(row.card.id, "xep-hang", row.id)}>
+                      <Link className="sa-rec" href={links.card(row.card.id, "phan-tich", row.id)}>
                         → {row.card.at_stake_per_month != null ? `${vnd(row.card.at_stake_per_month)}/tháng` : "đề xuất"}
                         <br />
                         <span className="sa-hint">{row.card.title ?? ""}</span>
@@ -414,6 +415,13 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
 }
 
 function cellChip(xep: string, before: N, now: N): Chip {
+  if (xep === "ctr" || xep === "ctor") {
+    if (before === null || now === null) return { text: DASH, up: null, r: 0 };
+    const d = (now - before) * 100;
+    return Math.abs(d) < 0.005
+      ? { text: "0,00 điểm", up: null, r: d }
+      : { text: `${d > 0 ? "▲" : "▼"} ${fmt(Math.abs(d), 2)} điểm`, up: d > 0, r: d };
+  }
   if (xep === "bien" || xep === "disc") {
     if (before === null || now === null) return { text: DASH, up: null, r: 0 };
     const d = now - before;
@@ -428,22 +436,17 @@ function deltaText(xep: string, d: number): string {
   const sign = d >= 0 ? "+" : "−";
   if (xep === "bien" || xep === "disc") return `${sign}${fmt(Math.abs(d), 1)} điểm`;
   if (xep === "orders") return `${sign}${fmt(Math.abs(d), 1)} đơn/ngày`;
+  if (xep === "views") return `${sign}${fmt(Math.abs(d), 0)} lượt/ngày`;
+  if (xep === "ctr" || xep === "ctor") return `${sign}${fmt(Math.abs(d) * 100, 2)} điểm`;
   if (xep === "aov") return sv(d);
   return `${sign}${fmt(Math.abs(d), 2)}`;
 }
 
-function backOf(rs: RankingState, links: ReturnType<typeof useShopee>["links"], w: ReturnType<typeof readWindow>): { href: string; label: string } {
-  switch (rs.from) {
-    case "phan-tich":
-      return { href: links.critical(w), label: BACK["phan-tich"] ?? "Phân tích" };
-    case "card":
-      return { href: links.card(rs.card ?? "", "xep-hang"), label: BACK.card ?? "Thẻ đề xuất" };
-    case "san-pham":
-      return rs.focus
-        ? { href: links.product(rs.focus, { tab: "ng" }, w), label: BACK["san-pham"] ?? "Sản phẩm" }
-        : { href: links.products(w), label: "Sản phẩm" };
-    default:
-      return { href: links.overview(w), label: BACK["tong-quan"] ?? "Tổng quan" };
+/** Back to a card or a product the person came from; Tổng quan and Phân tích are in the main navigation. */
+function backOf(rs: RankingState, links: ReturnType<typeof useShopee>["links"], w: ReturnType<typeof readWindow>): { href: string; label: string } | null {
+  if (rs.from === "card" && rs.card) return { href: links.card(rs.card, "phan-tich"), label: "Thẻ đề xuất" };
+  if (rs.from === "san-pham") {
+    return rs.focus ? { href: links.product(rs.focus, { tab: "ng" }, w), label: "Sản phẩm" } : { href: links.products(w), label: "Sản phẩm" };
   }
+  return null;
 }
-

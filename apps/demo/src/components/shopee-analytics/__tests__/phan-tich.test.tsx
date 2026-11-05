@@ -47,23 +47,23 @@ describe("Phân tích", () => {
     expect(roas).toHaveTextContent("Thấp hơn hoà vốn 0,9");
   });
 
-  it("links to the Xếp hạng row (kpi, src, focus, from=phan-tich, card) and to the card", async () => {
+  it("links to its row in the product table (kpi, src, focus, from=phan-tich, card) and to the card", async () => {
     renderWith(<PhanTichPageView params={params()} />, fakeApi());
     const flow = await screen.findByTestId("sa-item-flow:the_san_pham_khac:ctor");
-    const rank = within(flow).getByRole("link", { name: "Xem xếp hạng ›" });
-    expect(rank.getAttribute("href")?.split("?")[0]).toBe("/xep-hang");
+    const rank = within(flow).getByRole("link", { name: "Xem theo sản phẩm ›" });
+    expect(rank.getAttribute("href")?.split("?")[0]).toBe("/phan-tich");
     expect(Object.fromEntries(q(rank.getAttribute("href")))).toEqual({ kpi: "ctor", src: "the_san_pham", focus: "the_san_pham_khac", from: "phan-tich", card: "c_xm_disc" });
     const card = within(flow).getByRole("link", { name: "Xem đề xuất ›" });
     expect(Object.fromEntries(q(card.getAttribute("href")))).toEqual({ the: "c_xm_disc", from: "phan-tich", row: "flow:the_san_pham_khac:ctor" });
     const margin = screen.getByTestId("sa-item-product:GL-001:bien");
     expect(within(margin).getByText("Chưa có đề xuất")).toBeInTheDocument();
-    expect(Object.fromEntries(q(within(margin).getByRole("link", { name: "Xem xếp hạng ›" }).getAttribute("href")))).toEqual({ kpi: "bien", src: "all", focus: "GL-001", from: "phan-tich" });
+    expect(Object.fromEntries(q(within(margin).getByRole("link", { name: "Xem theo sản phẩm ›" }).getAttribute("href")))).toEqual({ kpi: "bien", src: "all", focus: "GL-001", from: "phan-tich" });
   });
 
   it("a ROAS item opens the ads ranking (kpi roas is not a ranking tab)", async () => {
     renderWith(<PhanTichPageView params={params()} />, fakeApi());
     const roas = await screen.findByTestId("sa-item-product:XM-003:roas");
-    const href = within(roas).getByRole("link", { name: "Xem xếp hạng ›" }).getAttribute("href");
+    const href = within(roas).getByRole("link", { name: "Xem theo sản phẩm ›" }).getAttribute("href");
     expect(q(href).get("kpi")).toBe("gmv");
     expect(q(href).get("src")).toBe("ads");
   });
@@ -131,6 +131,59 @@ describe("Phân tích", () => {
     const target = chartOf(critical().items[1]!)!;
     expect(target.tick).not.toBeNull();
     expect(target.band).toBeNull();
+  });
+
+  it("M3: the heading counts the items of the active filter", async () => {
+    renderWith(<PhanTichPageView params={params()} />, fakeApi());
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { level: 1, name: "3 chỉ số cần chú ý" });
+    await user.click(screen.getByRole("button", { name: "Quảng cáo" }));
+    expect(screen.getByRole("heading", { level: 1, name: "1 chỉ số cần chú ý" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "AOV" }));
+    expect(screen.getByRole("heading", { level: 1, name: "0 chỉ số cần chú ý" })).toBeInTheDocument();
+  });
+
+  it("M1: a product that fell against the previous window is an item, under 'Doanh số'", async () => {
+    const base = critical().items[0]!;
+    const drop = {
+      ...base,
+      id: "product:26107129526:gmv:previous",
+      kind: "below_previous",
+      level: "product" as const,
+      product_id: "26107129526",
+      name: "Combo 3, 5,10 Hộp 100 Găng Tay",
+      flow: null,
+      flow_label: null,
+      kpi: "gmv",
+      current: 257_958,
+      reference: { type: "previous" as const, label: "GMV / ngày kỳ trước", value: 390_150 },
+      deviation_pct: -33.9,
+      at_stake_per_day: 132_192,
+      at_stake_per_month: 3_965_760,
+      cause: { stage: "ctor", text: "CTOR giảm so với kỳ trước: khách bấm vào nhưng ít đặt đơn." },
+      ranking_link: { kpi: "gmv", src: "all", focus: "26107129526" },
+      rank: 1,
+      card: null,
+    };
+    renderWith(<PhanTichPageView params={params()} />, fakeApi({ critical: critical({ items: [drop], in_band: [] }) }));
+    const item = await screen.findByTestId("sa-item-product:26107129526:gmv:previous");
+    expect(item).toHaveTextContent("GMV / ngày so với kỳ trước");
+    expect(item).toHaveTextContent("Thấp hơn kỳ trước 132.192đ/ngày");
+    expect(item).toHaveTextContent("GMV / ngày kỳ trước: 390.150đ/ngày");
+    expect(item).toHaveTextContent("−132.192đ/ngày");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Doanh số" }));
+    expect(screen.getByTestId("sa-item-product:26107129526:gmv:previous")).toBeInTheDocument();
+  });
+
+  it("holds the product table (what Xếp hạng was) and a period link keeps its KPI and source", async () => {
+    const api = fakeApi();
+    renderWith(<PhanTichPageView params={params("kpi=ctr&src=live")} />, api);
+    expect(await screen.findByTestId("sa-rk-table")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Theo sản phẩm · CTR · Live" })).toBeInTheDocument();
+    expect(api.calls.some((c) => c.startsWith("ranking:") && c.includes('"xepTheo":"ctr"'))).toBe(true);
+    const seven = screen.getAllByRole("link", { name: "7 ngày" })[0]!;
+    expect(Object.fromEntries(q(seven.getAttribute("href")))).toEqual({ kpi: "ctr", src: "live", ky: "7d" });
   });
 
   it("never draws a buyer field", async () => {

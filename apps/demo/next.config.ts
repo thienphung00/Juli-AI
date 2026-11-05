@@ -25,7 +25,12 @@ const nextConfig: NextConfig = {
   // The per-metric KPI dashboard (/analytics/<metricKey>) was retired; /analytics
   // is the Phân tích page (ADR-109). Old bookmarks land there instead of 404ing.
   async redirects() {
-    return [{ source: "/analytics/:path+", destination: "/analytics", permanent: true }];
+    return [
+      { source: "/analytics/:path+", destination: "/analytics", permanent: true },
+      // P96b (owner, 2026-11-06): Xếp hạng is now Phân tích's product table; the query (kpi, src,
+      // sub, xep, ky…) is carried over by Next, so an old link opens the same table.
+      { source: "/xep-hang", destination: "/phan-tich", permanent: false },
+    ];
   },
   // The English partner reviewer guide (Shopee ISV, P89): a static page in public/, linked
   // from the application form. Noindex like every other path.

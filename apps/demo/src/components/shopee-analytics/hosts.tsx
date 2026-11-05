@@ -16,7 +16,6 @@ import type { ShopeeScreen } from "../../lib/shopee-analytics/params";
 import { PhanTichPageView } from "./phan-tich-view";
 import { ProductListView } from "./product-list";
 import { ProductPageView } from "./product-page";
-import { RankingPageView } from "./ranking-view";
 import { ScreenTabs, ShopeeScreenSwitch, screenOf } from "./shopee-screens";
 import { TongQuanView } from "./tong-quan";
 import { Notice } from "./ui";
@@ -76,7 +75,7 @@ function SellerProduct() {
   return <SellerHost>{() => <ProductPageView id={id} params={params} />}</SellerHost>;
 }
 
-/** `/tong-quan`, `/phan-tich`, `/san-pham`, `/xep-hang` of the seller app. */
+/** `/tong-quan`, `/phan-tich`, `/san-pham` of the seller app (`/xep-hang` redirects to `/phan-tich`). */
 export function SellerShopeePage({ screen }: { readonly screen: ShopeeScreen }) {
   return (
     <Suspense fallback={<p className="sa-loading">Đang tải…</p>}>
@@ -135,4 +134,4 @@ export function OpsShopeeAnalyticsBody({ shopId, fetchImpl }: { readonly shopId:
   );
 }
 
-export { PhanTichPageView, ProductListView, RankingPageView, TongQuanView };
+export { PhanTichPageView, ProductListView, TongQuanView };

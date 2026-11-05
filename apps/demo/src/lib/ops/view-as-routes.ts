@@ -12,7 +12,7 @@
  * Anything else (TikTok deep links, /auth/…) is returned unchanged.
  */
 
-export type ViewAsTab = "home" | "decisions" | "analytics" | "rules" | "overview" | "products" | "ranking" | "exclusions" | "keywords" | "ads" | "orders" | "flows";
+export type ViewAsTab = "home" | "decisions" | "analytics" | "rules" | "overview" | "products" | "exclusions" | "keywords" | "ads" | "orders" | "flows";
 
 const TAB_SLUG: Readonly<Record<ViewAsTab, string>> = {
   home: "trang-chu",
@@ -20,10 +20,9 @@ const TAB_SLUG: Readonly<Record<ViewAsTab, string>> = {
   analytics: "phan-tich",
   rules: "quy-tac",
   // Shopee shops (ADR-120 d.2): Tổng quan / Phân tích / Sản phẩm / Quyết định. `analytics` is the
-  // Phân tích of the shop's platform; Xếp hạng opens from Tổng quan and has no tab of its own.
+  // Phân tích of the shop's platform; since P96b it also holds the product table Xếp hạng was.
   overview: "tong-quan",
   products: "san-pham",
-  ranking: "xep-hang",
   // P92 B-1 / B-8: Cài đặt › Loại trừ sản phẩm and the four read-only Ops dashboards.
   exclusions: "loai-tru",
   keywords: "tu-khoa",
@@ -32,9 +31,13 @@ const TAB_SLUG: Readonly<Record<ViewAsTab, string>> = {
   flows: "luong-san-pham",
 };
 
-const SLUG_TAB: Readonly<Record<string, ViewAsTab>> = Object.fromEntries(
-  Object.entries(TAB_SLUG).map(([tab, slug]) => [slug, tab as ViewAsTab]),
-);
+/** Old slugs that open another tab (P96b: `xep-hang` → Phân tích, its query kept). */
+export const LEGACY_SLUG: Readonly<Record<string, ViewAsTab>> = { "xep-hang": "analytics" };
+
+const SLUG_TAB: Readonly<Record<string, ViewAsTab>> = {
+  ...Object.fromEntries(Object.entries(TAB_SLUG).map(([tab, slug]) => [slug, tab as ViewAsTab])),
+  ...LEGACY_SLUG,
+};
 
 export const VIEW_AS_PAGE_PARAM = "trang";
 

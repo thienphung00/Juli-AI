@@ -338,7 +338,8 @@ export interface Matrix {
 }
 
 export interface CriticalReference {
-  readonly type: "band" | "target" | "floor" | "break_even" | "shop_median";
+  /** P96b: `previous` = the product's GMV per day in the previous window of the same length. */
+  readonly type: "band" | "target" | "floor" | "break_even" | "shop_median" | "previous";
   readonly label: string;
   readonly value: N;
   readonly low?: N;

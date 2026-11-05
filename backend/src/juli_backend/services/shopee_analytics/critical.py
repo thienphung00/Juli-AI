@@ -9,7 +9,11 @@ carries the đồng per day it moves if it came back to that reference:
   seller's Cài đặt › Mục tiêu (no target set = no item, never a default);
 - ``floor``      -- a SKU's buyer-paid per unit under its operating (else absolute) floor price;
 - ``break_even`` -- a product's ROAS trực tiếp under its break-even ROAS;
-- ``shop_median`` -- a product's CTR / CTOR / AOV under the median of the shop's products.
+- ``shop_median`` -- a product's CTR / CTOR / AOV under the median of the shop's products, by at
+  least ``MIN_MEDIAN_GAP_SHARE`` (P96b: a product a hair under the median is not "cần chú ý");
+- ``previous``   -- P96b: a product whose GMV per day fell materially against the previous window
+  of the same length: the Phân tích product table's own "kéo xuống" rows (same đồng per day),
+  attributed to the funnel stage that fell most.
 
 Items inside their reference go to ``in_band`` ("Trong dải bình thường"). Every item names the
 card kinds contract 8 maps its metric to, and the Xếp hạng link (kpi, src, focus) that shows the
@@ -37,6 +41,7 @@ from juli_backend.services.shopee_analytics.fmt import (
 from juli_backend.services.shopee_analytics.loaders import ShopContext
 from juli_backend.services.shopee_analytics.matrix import margin_basis, price_block
 from juli_backend.services.shopee_analytics.product import sku_waterfall
+from juli_backend.services.shopee_analytics.rankings import build_ranking
 from juli_backend.services.shopee_kpi import flow_glm
 from juli_backend.services.shopee_profit.flows import FLOW_LABELS
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
@@ -45,6 +50,11 @@ DAYS_PER_MONTH = Decimal(30)
 MIN_PRODUCT_CLICKS = 100
 MIN_PRODUCT_ORDERS = 10
 MIN_PRODUCTS_FOR_MEDIAN = 3
+#: P96b: a product is below the shop median only when it is at least this share under it.
+MIN_MEDIAN_GAP_SHARE = Decimal("0.05")
+#: P96b: a fall against the previous window is "cần chú ý" from this share of the product's
+#: previous GMV per day (the table already drops thin rows and rows under 1 % of the shop's move).
+MIN_PREVIOUS_DROP_SHARE = Decimal("0.10")
 
 CHANGE_KINDS: dict[str, list[str]] = {
     "views": ["title", "keyword", "ads_budget", "affiliate_commission"],
@@ -64,7 +74,24 @@ CAUSE_TEXT: dict[str, str] = {
     "roas": "ROAS trực tiếp thấp hơn điểm hoà vốn: quảng cáo đang lỗ.",
     "gmv": "Doanh số đang chậm so với mục tiêu tháng.",
     "orders": "Số đơn đang chậm so với mục tiêu tháng.",
+    "views": "Ít người thấy sản phẩm hơn kỳ trước: lượt xem giảm.",
+    "gmv_drop": "Doanh số của sản phẩm giảm so với kỳ trước.",
 }
+#: P96b: the cause of a fall against the previous window, by the funnel stage that fell most.
+DROP_CAUSE_TEXT: dict[str, str] = {
+    "views": "Lượt xem giảm so với kỳ trước: ít người thấy sản phẩm hơn.",
+    "ctr": "CTR giảm so với kỳ trước: khách thấy nhưng ít bấm vào.",
+    "ctor": "CTOR giảm so với kỳ trước: khách bấm vào nhưng ít đặt đơn.",
+    "aov": "AOV giảm so với kỳ trước: mỗi đơn mua ít hơn.",
+    "gmv_drop": "Doanh số của sản phẩm giảm so với kỳ trước.",
+}
+
+
+def material_gap(now: Decimal, reference: Decimal, share: Decimal = MIN_MEDIAN_GAP_SHARE) -> bool:
+    """P96b: ``now`` is materially under ``reference`` (at least ``share`` of it)."""
+    if reference <= 0:
+        return False
+    return (reference - now) / reference >= share
 
 
 def _item(
@@ -356,8 +383,81 @@ def _median_items(view: PeriodView) -> tuple[list[dict[str, Any]], list[dict[str
                 product_id=pid,
                 name=view.names.get(pid),
             )
-            (crit if now < median and lost > 0 else ok).append(item)
+            (crit if material_gap(now, median) and lost > 0 else ok).append(item)
     return crit, ok
+
+
+def _funnel(view: PeriodView, pid: str) -> dict[str, Decimal | None]:
+    """A product's views / CTR / CTOR / AOV in one window from its flow rows (None = unknown)."""
+    table = view.flows.products.get(pid) if view.flows else None
+    if table is None:
+        return {"views": None, "ctr": None, "ctor": None, "aov": None}
+    rows = [r for r in table.rows if not r.is_residual]
+    views = sum((r.views or 0) for r in rows)
+    clicks = sum((r.clicks or 0) for r in rows)
+    orders = sum(r.orders for r in rows)
+    gmv = sum((r.gmv for r in rows), ZERO)
+    return {
+        "views": Decimal(views) if views else None,
+        "ctr": safe_div(Decimal(clicks), Decimal(views)) if views else None,
+        "ctor": safe_div(Decimal(orders), Decimal(clicks)) if clicks else None,
+        "aov": safe_div(gmv, Decimal(orders)) if orders else None,
+    }
+
+
+def drop_stage(now: dict[str, Decimal | None], before: dict[str, Decimal | None]) -> str:
+    """The funnel stage with the largest relative fall (``gmv_drop`` when none is known)."""
+    worst, worst_change = "gmv_drop", Decimal(0)
+    for stage in ("views", "ctr", "ctor", "aov"):
+        a, b = now.get(stage), before.get(stage)
+        if a is None or b is None or b <= 0:
+            continue
+        change = (a - b) / b
+        if change < worst_change:
+            worst, worst_change = stage, change
+    return worst
+
+
+def previous_items(
+    ranking: dict[str, Any],
+    stages: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """P96b: the product table's "kéo xuống" rows (GMV per day against the previous window) that
+    fell by at least ``MIN_PREVIOUS_DROP_SHARE`` of their previous figure. The đồng at stake is
+    the fall itself, so Phân tích and its product table show the same number."""
+    if not ranking.get("supported"):
+        return []
+    stages = stages or {}
+    out: list[dict[str, Any]] = []
+    for row in ranking.get("down") or []:
+        delta, before, now = row.get("delta"), row.get("before"), row.get("now")
+        if delta is None or before is None or now is None or delta >= 0 or before <= 0:
+            continue
+        if Decimal(str(-delta)) < Decimal(str(before)) * MIN_PREVIOUS_DROP_SHARE:
+            continue
+        pid = row.get("product_id") or row["id"]
+        stage = stages.get(pid, "gmv_drop")
+        item = _item(
+            id=f"product:{pid}:gmv:previous",
+            kind="below_previous",
+            level="product",
+            kpi="gmv",
+            stage=stage,
+            current=Decimal(str(now)),
+            reference={
+                "type": "previous",
+                "label": "GMV / ngày kỳ trước",
+                "value": float(before),
+            },
+            at_stake_per_day=Decimal(str(-delta)),
+            product_id=pid,
+            name=row.get("label"),
+        )
+        item["cause"]["text"] = DROP_CAUSE_TEXT.get(stage, DROP_CAUSE_TEXT["gmv_drop"])
+        item["change_kinds"] = CHANGE_KINDS.get(stage, CHANGE_KINDS["ctor"])
+        item["confidence"] = row.get("confidence")
+        out.append(item)
+    return out
 
 
 #: A product is "low on search views" below this share of the shop's median per-product search
@@ -456,8 +556,20 @@ def build_critical(
     ctx: ShopContext,
     now: PeriodView,
     series: dict[str, dict[date, tuple[float, float, float, float]]],
+    before: PeriodView | None = None,
 ) -> dict[str, Any]:
     flow_crit, flow_ok, notes = _flow_items(now, series)
+    drops: list[dict[str, Any]] = []
+    if before is not None:
+        table = build_ranking(now, before, kind="products", source="all")
+        stages = {
+            str(r.get("product_id") or r["id"]): drop_stage(
+                _funnel(now, str(r.get("product_id") or r["id"])),
+                _funnel(before, str(r.get("product_id") or r["id"])),
+            )
+            for r in table.get("down") or []
+        }
+        drops = previous_items(table, stages)
     med_crit, med_ok = _median_items(now)
     views_crit, views_ok = _search_views_items(now)
     med_crit, med_ok = [*med_crit, *views_crit], [*med_ok, *views_ok]
@@ -468,6 +580,7 @@ def build_critical(
         *_roas_items(now),
         *med_crit,
         *_target_items(now, ctx),
+        *drops,
     ]
     items = [it for it in items if it.get("product_id") not in now.excluded]  # P92 B-1
     flow_ok = [it for it in flow_ok if it.get("product_id") not in now.excluded]

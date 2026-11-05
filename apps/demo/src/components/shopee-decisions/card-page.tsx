@@ -59,14 +59,16 @@ export function CardPage({ id, from, version = null }: { readonly id: string; re
   const [tick, setTick] = useState(0);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const res = useResource(() => host.reco.detail(id), `${host.shopKey}|card|${id}|${tick}`);
-  const backTo = from === "phan-tich" ? host.links.critical() : from === "xep-hang" ? host.links.ranking() : from === "san-pham" ? host.links.products() : from === "tong-quan" ? host.links.overview() : null;
+  // P96b: Xếp hạng is Phân tích's product table; an old `from=xep-hang` returns there too.
+  const fromPhanTich = from === "phan-tich" || from === "xep-hang";
+  const backTo = fromPhanTich ? host.links.critical() : from === "san-pham" ? host.links.products() : from === "tong-quan" ? host.links.overview() : null;
   return (
     <div className="sa-page" data-testid="sd-card-page">
       <nav className="sd-back">
         <NavLink href={host.href({})}>‹ Danh sách đề xuất</NavLink>
         {backTo ? (
           <a className="sa-link" href={backTo}>
-            Về {from === "phan-tich" ? "Phân tích" : from === "xep-hang" ? "Xếp hạng" : from === "san-pham" ? "Sản phẩm" : "Tổng quan"}
+            Về {fromPhanTich ? "Phân tích" : from === "san-pham" ? "Sản phẩm" : "Tổng quan"}
           </a>
         ) : null}
       </nav>

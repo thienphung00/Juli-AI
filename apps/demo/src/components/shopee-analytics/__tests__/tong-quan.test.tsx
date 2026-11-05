@@ -10,7 +10,7 @@ import { params, renderWith, textOf } from "./harness";
 const q = (href: string | null) => new URLSearchParams((href ?? "").split("?")[1] ?? "");
 
 describe("Tổng quan", () => {
-  it("opens with the six KPI tiles, each linking to its Xếp hạng", async () => {
+  it("opens with the six KPI tiles, each linking to Phân tích set to its KPI", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     expect(await screen.findByTestId("sa-tile-gmv")).toHaveTextContent("50.000.000đ");
     expect(screen.getByTestId("sa-tile-views")).toHaveTextContent("68.000");
@@ -19,7 +19,7 @@ describe("Tổng quan", () => {
     expect(screen.getByTestId("sa-tile-aov")).toHaveTextContent("200.000đ");
     expect(screen.getByTestId("sa-tile-bien")).toHaveTextContent("20,9%");
     const href = screen.getByTestId("sa-tile-ctr").getAttribute("href");
-    expect(href?.split("?")[0]).toBe("/xep-hang");
+    expect(href?.split("?")[0]).toBe("/phan-tich");
     expect(Object.fromEntries(q(href))).toEqual({ kpi: "ctr", src: "all", from: "tong-quan" });
   });
 
@@ -196,7 +196,7 @@ describe("Tổng quan: product × source matrix", () => {
     expect(within(screen.getByTestId("sa-mrow-GL-001")).getByText("Chưa có đề xuất")).toBeInTheDocument();
   });
 
-  it("a cell opens the Xếp hạng of its KPI", async () => {
+  it("a cell opens Phân tích set to its KPI", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     const row = await screen.findByTestId("sa-mrow-BEP-S5");
     const bien = within(row).getByText("③ Biên cuối", { selector: "span" }).closest("a");

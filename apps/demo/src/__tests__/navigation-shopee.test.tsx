@@ -38,10 +38,11 @@ describe("navigation for a Shopee shop", () => {
     expect(within(nav).getByRole("list")).toHaveClass("app-nav__list--many");
   });
 
-  it("marks the active destination; Xếp hạng and a product page belong to their parents", () => {
+  it("marks the active destination; an old Xếp hạng link and a product page belong to their parents", () => {
+    // P96b: Xếp hạng is Phân tích's product table (/xep-hang redirects to /phan-tich).
     const { rerender } = render(<AppNavigation activePath="/xep-hang" platform="shopee" />);
-    expect(screen.getByRole("link", { name: "Tổng quan" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Phân tích" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Phân tích" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Tổng quan" })).not.toHaveAttribute("aria-current");
     rerender(<AppNavigation activePath="/san-pham/BEP-S5" platform="shopee" />);
     expect(screen.getByRole("link", { name: "Sản phẩm" })).toHaveAttribute("aria-current", "page");
     rerender(<AppNavigation activePath="/don-hang" platform="shopee" />);

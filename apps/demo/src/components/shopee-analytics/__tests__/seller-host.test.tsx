@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { critical, matrix, overview, product, ranking } from "../../../lib/shopee-analytics/__tests__/fixtures";
@@ -48,13 +48,16 @@ describe("the seller routes of the Shopee screens", () => {
     expect(first.headers["x-shop-id"]).toBe("shop-9");
   });
 
-  it("/phan-tich, /xep-hang, /san-pham and /san-pham/[itemId]", async () => {
+  it("/phan-tich (with its product table), /san-pham and /san-pham/[itemId]", async () => {
     const { unmount } = render(<SellerShopeePage screen="phan-tich" />);
     expect(await screen.findByTestId("sa-phan-tich")).toBeInTheDocument();
     unmount();
+    // P96b: what was /xep-hang is Phân tích's product table (next.config redirects /xep-hang here)
     search = "kpi=ctr&src=live";
-    const r = render(<SellerShopeePage screen="xep-hang" />);
+    const r = render(<SellerShopeePage screen="phan-tich" />);
     expect(await screen.findByTestId("sa-ranking")).toBeInTheDocument();
+    expect(screen.getByTestId("sa-phan-tich")).toBeInTheDocument();
+    await waitFor(() => expect(calls.some((c) => c.url.includes("/ranking?") && c.url.includes("xep_theo=ctr"))).toBe(true));
     r.unmount();
     const l = render(<SellerShopeePage screen="san-pham" />);
     expect(await screen.findByTestId("sa-product-list")).toBeInTheDocument();

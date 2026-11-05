@@ -53,9 +53,9 @@ export const SHOPEE_DESTINATIONS: readonly AppDestination[] = [
     icon: "overview",
     href: "/tong-quan",
     locked: false,
-    alsoActive: ["/xep-hang"],
   },
-  { key: "analytics", label: "Phân tích", icon: "analytics", href: "/phan-tich", locked: false },
+  // P96b: /xep-hang redirects to /phan-tich (its product table); the entry stays lit for an old link.
+  { key: "analytics", label: "Phân tích", icon: "analytics", href: "/phan-tich", locked: false, alsoActive: ["/xep-hang"] },
   { key: "products", label: "Sản phẩm", icon: "products", href: "/san-pham", locked: false },
   {
     key: "decisions",

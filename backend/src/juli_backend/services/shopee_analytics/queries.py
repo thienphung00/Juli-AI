@@ -188,11 +188,11 @@ async def critical(
     end: date | None = None,
     as_of: date | None = None,
 ) -> dict[str, Any]:
-    ctx, now, _ = await _views(
+    ctx, now, before = await _views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     series = await loaders.load_flow_series(session, shop_id, now.window.end)
-    return build_critical(ctx, now, series)
+    return build_critical(ctx, now, series, before)
 
 
 async def ranking(

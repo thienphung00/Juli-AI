@@ -7,9 +7,9 @@ const q = (href: string) => new URLSearchParams(href.split("?")[1] ?? "");
 const path = (href: string) => href.split("?")[0];
 
 describe("link parameters follow the VERIFY.md table", () => {
-  it("Tổng quan tile / matrix cell → Xếp hạng: kpi, src, from", () => {
+  it("Tổng quan tile / matrix cell → Phân tích's product table: kpi, src, from (P96b: no Xếp hạng page)", () => {
     const href = sellerLinks.ranking({ kpi: "aov", src: "ads", from: "tong-quan" });
-    expect(path(href)).toBe("/xep-hang");
+    expect(path(href)).toBe("/phan-tich");
     expect([...q(href).entries()]).toEqual([
       ["kpi", "aov"],
       ["src", "ads"],
@@ -60,7 +60,7 @@ describe("link parameters follow the VERIFY.md table", () => {
     expect(path(href)).toBe("/ops/shops/shop-1/xem");
     expect(q(href).get("trang")).toBe("san-pham");
     expect(q(href).get("id")).toBe("BEP-S5");
-    expect(q(l.ranking({ kpi: "gmv" })).get("trang")).toBe("xep-hang");
+    expect(q(l.ranking({ kpi: "gmv" })).get("trang")).toBe("phan-tich");
     expect(q(l.overview()).get("trang")).toBe("tong-quan");
   });
 
@@ -68,7 +68,7 @@ describe("link parameters follow the VERIFY.md table", () => {
     const l = opsTabShopeeLinks("shop-1");
     const href = l.ranking({ kpi: "ctr", src: "live", from: "tong-quan" });
     expect(path(href)).toBe("/ops/shops/shop-1/shopee/phan-tich");
-    expect(q(href).get("man")).toBe("xep-hang");
+    expect(q(href).get("man")).toBe("phan-tich");
     expect(q(href).get("kpi")).toBe("ctr");
   });
 });
@@ -99,7 +99,8 @@ describe("window and ranking state from the URL", () => {
 
   it("maps the artboard's source keys to the API's", () => {
     const s = readRanking(new URLSearchParams("kpi=ctor&src=the_san_pham&sub=de_xuat&focus=XM-003&from=card&card=c_xm_disc"));
-    expect(apiRankingArgs(s)).toEqual({ kind: "products", source: "the_san_pham_khac", sub: "recommend", xepTheo: "gmv_per_day" });
+    // P96b L1: a CTOR link ranks by the CTOR itself, not by ₫ GMV/ngày
+    expect(apiRankingArgs(s)).toEqual({ kind: "products", source: "the_san_pham_khac", sub: "recommend", xepTheo: "ctor" });
     expect(s.focus).toBe("XM-003");
     expect(s.card).toBe("c_xm_disc");
   });

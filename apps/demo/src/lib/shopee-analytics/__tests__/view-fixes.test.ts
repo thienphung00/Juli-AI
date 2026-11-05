@@ -25,7 +25,10 @@ describe("X1 the ranking default sort follows the KPI", () => {
     expect(readRanking(q("kpi=bien&src=the_san_pham")).xep).toBe("bien");
     expect(readRanking(q("kpi=gmv")).xep).toBe("gmv");
     expect(readRanking(q("kpi=bien&xep=gmv")).xep).toBe("gmv");
-    expect(defaultXep("ctr")).toBe("gmv");
+    // P96b L1: every KPI ranks by its own number (CTR by CTR); an unknown KPI by ₫ GMV/ngày
+    expect(defaultXep("ctr")).toBe("ctr");
+    expect(defaultXep("views")).toBe("views");
+    expect(defaultXep("nope")).toBe("gmv");
     expect(xepParam("bien", "bien")).toBeNull();
     expect(xepParam("bien", "gmv")).toBe("gmv");
   });

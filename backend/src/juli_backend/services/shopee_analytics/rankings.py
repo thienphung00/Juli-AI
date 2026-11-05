@@ -13,7 +13,8 @@ Parameters
   price lever (``none`` ``voucher`` ``promo`` ``combo``). Which kinds support which source is in
   :data:`SUPPORTED`; an unsupported combination answers ``supported: false`` with the reason.
 - ``xep_theo``: ``gmv_per_day`` (default) | ``profit_per_day`` | the five numbers: ``giam_gia``,
-  ``thu_them`` (ΔGMV ÷ Δchi), ``bien``, ``orders``, ``aov``.
+  ``thu_them`` (ΔGMV ÷ Δchi), ``bien``, ``orders``, ``aov`` | the funnel (P96b, products by
+  traffic source only): ``views`` (per day, additive), ``ctr``, ``ctor``.
 
 Adds up: for the additive measures (``gmv_per_day``, ``profit_per_day``, ``orders``) every table
 satisfies ``Σ listed rows + few + others + mix == the cell's change``; ``mix`` ("Thay đổi cơ cấu")
@@ -45,8 +46,21 @@ KINDS = ("products", "campaigns", "kols", "vouchers", "keywords")
 FLOW_SOURCES = tuple(f.value for f in Flow)
 LEVER_SOURCES = ("none", "voucher", "promo", "combo")
 SOURCES = ("all", *FLOW_SOURCES, "ads", *LEVER_SOURCES)
-XEP_THEO = ("gmv_per_day", "profit_per_day", "giam_gia", "thu_them", "bien", "orders", "aov")
-ADDITIVE = frozenset({"gmv_per_day", "profit_per_day", "orders"})
+XEP_THEO = (
+    "gmv_per_day",
+    "profit_per_day",
+    "giam_gia",
+    "thu_them",
+    "bien",
+    "orders",
+    "aov",
+    "views",
+    "ctr",
+    "ctor",
+)
+ADDITIVE = frozenset({"gmv_per_day", "profit_per_day", "orders", "views"})
+#: P96b: the funnel measures exist only where Shopee reports views and clicks (traffic sources).
+FUNNEL = frozenset({"views", "ctr", "ctor"})
 XEP_LABELS = {
     "gmv_per_day": "₫ GMV / ngày",
     "profit_per_day": "₫ lợi nhuận / ngày",
@@ -55,6 +69,9 @@ XEP_LABELS = {
     "bien": "Biên cuối",
     "orders": "Số đơn / ngày",
     "aov": "AOV",
+    "views": "Lượt xem / ngày",
+    "ctr": "CTR",
+    "ctor": "CTOR",
 }
 LEVER_KEY = {"none": "khong_uu_dai", "voucher": "voucher", "promo": "khuyen_mai", "combo": "combo"}
 NOUNS: dict[str, tuple[str, str, str]] = {
@@ -96,6 +113,8 @@ class M:
     spend: Decimal = ZERO
     chi: Decimal = ZERO  # QC + voucher + khuyến mãi + combo + hoa hồng (contract 5)
     extra: dict[str, Any] = field(default_factory=dict)
+    views: Decimal | None = None  # P96b: None = the source reports no views
+    clicks: Decimal | None = None
 
 
 def _measure(m: M | None, key: str, days: int) -> Decimal | None:
@@ -115,7 +134,28 @@ def _measure(m: M | None, key: str, days: int) -> Decimal | None:
     if key == "giam_gia":
         v = safe_div(m.discount * 100, m.list_value)
         return v
+    if key == "views":
+        return None if m.views is None else m.views / d
+    if key == "ctr":
+        return None if m.views is None or m.clicks is None else safe_div(m.clicks, m.views)
+    if key == "ctor":
+        return None if m.clicks is None else safe_div(m.orders, m.clicks)
     return None
+
+
+def _dec(value: Any) -> Decimal | None:
+    return None if value is None else Decimal(str(value))
+
+
+def _funnel_sum(rows: Any) -> tuple[Decimal | None, Decimal | None]:
+    """Views and clicks summed over flow rows (the residual row has none); None when no row
+    reports them."""
+    views = [r.views for r in rows if not r.is_residual and r.views is not None]
+    clicks = [r.clicks for r in rows if not r.is_residual and r.clicks is not None]
+    return (
+        Decimal(sum(views)) if views else None,
+        Decimal(sum(clicks)) if clicks else None,
+    )
 
 
 @dataclass
@@ -155,7 +195,13 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
             if agg is None or (agg.orders == 0 and agg.gmv == 0 and not agg.views):
                 return None
             return M(
-                agg.gmv, agg.orders, None, ZERO, extra={"views": agg.views, "clicks": agg.clicks}
+                agg.gmv,
+                agg.orders,
+                None,
+                ZERO,
+                extra={"views": agg.views, "clicks": agg.clicks},
+                views=_dec(agg.views),
+                clicks=_dec(agg.clicks),
             )
         if table is None:
             return None
@@ -168,6 +214,8 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
             None,
             ZERO,
             extra={"views": row.views, "clicks": row.clicks},
+            views=_dec(row.views),
+            clicks=_dec(row.clicks),
         )
     if source == "ads":
         fig = view.ads.product_figures.get(pid)
@@ -186,6 +234,8 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
     discount = sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in pairs), ZERO)
     commission = sum((pb.commission or ZERO for _, pb in carrying), ZERO)
     spend = view.ads.product_spend.get(pid, ZERO)
+    flows = view.flows.products.get(pid) if view.flows else None
+    views, clicks = _funnel_sum(flows.rows) if flows else (None, None)
     return M(
         gmv,
         orders,
@@ -195,6 +245,8 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
         sum((pb.list_value for _, pb in pairs), ZERO),
         spend,
         spend + discount + commission,
+        views=views,
+        clicks=clicks,
     )
 
 
@@ -228,15 +280,26 @@ def _cell_products(view: PeriodView, source: str, sub: str | None) -> M:
         return M(agg.gmv, Decimal(agg.orders), agg.profit, agg.buyer_paid_known)
     if sub:
         a = view.data.traffic.children.get(sub)
-        return M(a.gmv if a else ZERO, a.orders if a else ZERO)
+        return M(
+            a.gmv if a else ZERO,
+            a.orders if a else ZERO,
+            views=_dec(a.views) if a else None,
+            clicks=_dec(a.clicks) if a else None,
+        )
     if source in FLOW_SOURCES:
         row = view.flows.shop.row(source) if view.flows else None
-        return M(row.gmv if row else ZERO, Decimal(row.orders) if row else ZERO)
+        return M(
+            row.gmv if row else ZERO,
+            Decimal(row.orders) if row else ZERO,
+            views=_dec(row.views) if row else None,
+            clicks=_dec(row.clicks) if row else None,
+        )
     if source == "ads":
         d = view.data.ads_daily
         return M(d.gmv, d.orders, None, ZERO, spend=d.spend)
     p = view.profit
     discount = sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in view.pairs), ZERO)
+    views, clicks = _funnel_sum(view.flows.shop.rows) if view.flows else (None, None)
     return M(
         view.shop_gmv or ZERO,
         Decimal(view.shop_orders or 0),
@@ -245,6 +308,8 @@ def _cell_products(view: PeriodView, source: str, sub: str | None) -> M:
         discount,
         sum((pb.list_value for _, pb in view.pairs), ZERO),
         view.ads.total_spend,
+        views=views,
+        clicks=clicks,
     )
 
 
@@ -473,7 +538,8 @@ def rank(
         "adds_up": adds_up,
         "adds_up_note": None
         if additive
-        else "Đại lượng tỷ lệ (biên, AOV, % giảm giá, thu thêm / chi thêm) không cộng được; "
+        else "Đại lượng tỷ lệ (biên, AOV, % giảm giá, CTR, CTOR, thu thêm / chi thêm) không cộng "
+        "được; "
         "chỉ xếp theo thay đổi.",
         "row_count": len(items),
     }
@@ -531,6 +597,12 @@ def build_ranking(
         )
     if source == "ads" and xep_theo not in ("gmv_per_day",):
         return refuse("ads_only_gmv", "Quảng cáo (đơn đã đặt) chỉ xếp được theo ₫ GMV / ngày.")
+    if source in LEVER_SOURCES and xep_theo in FUNNEL:
+        return refuse(
+            "not_split_by_lever",
+            "Lượt xem, CTR và CTOR không tách được theo mức ưu đãi (Shopee không ghi lượt xem "
+            "theo voucher / khuyến mãi / combo).",
+        )
 
     if kind == "products" and not before.comparable_as_previous:
         # same gate as every other delta (V2): a thin previous window would rank every product

@@ -55,6 +55,7 @@ export interface ShopeeLinks {
   critical(window?: WindowState): string;
   products(window?: WindowState): string;
   product(id: string, link?: ProductLink, window?: WindowState): string;
+  /** P96b: Phân tích with its product table set to this KPI / source (Xếp hạng is gone). */
   ranking(link?: RankingLink, window?: WindowState): string;
   /** A Quyết định card (`from` says which screen the person comes from). */
   card(cardId: string, from: string, row?: string | null): string;
@@ -112,7 +113,7 @@ export function createLinks(host: {
       put(p, "xep", l.xep);
       put(p, "loai", l.loai);
       put(p, "huong", l.huong);
-      return host.screen("xep-hang", withWindow(p, w));
+      return host.screen("phan-tich", withWindow(p, w));
     },
     card: host.card,
     costImport: host.costImport,
@@ -122,12 +123,11 @@ export function createLinks(host: {
   };
 }
 
-/** The seller app: real routes, `/tong-quan`, `/phan-tich`, `/san-pham[/id]`, `/xep-hang`. */
+/** The seller app: real routes, `/tong-quan`, `/phan-tich`, `/san-pham[/id]` (`/xep-hang` redirects to `/phan-tich`). */
 export const SELLER_ROUTE: Readonly<Record<ShopeeScreen, string>> = {
   "tong-quan": "/tong-quan",
   "phan-tich": "/phan-tich",
   "san-pham": "/san-pham",
-  "xep-hang": "/xep-hang",
 };
 
 function withQuery(path: string, query: URLSearchParams): string {
@@ -170,7 +170,6 @@ export const VIEW_AS_SLUG: Readonly<Record<ShopeeScreen, string>> = {
   "tong-quan": "tong-quan",
   "phan-tich": "phan-tich",
   "san-pham": "san-pham",
-  "xep-hang": "xep-hang",
 };
 
 export function viewAsShopeeLinks(shopId: string, sellerCardHref?: ShopeeLinks["card"]): ShopeeLinks {

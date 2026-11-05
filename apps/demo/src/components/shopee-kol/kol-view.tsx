@@ -95,7 +95,13 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
         {rows.map((r) => (
           <KolRowView key={`${r.kol_key}|${r.item_id}|${r.channel}`} row={r} />
         ))}
-        {rows.length === 0 ? <Empty testId="kol-empty">Không có dòng nào khớp bộ lọc.</Empty> : null}
+        {rows.length === 0 ? (
+          <Empty testId="kol-empty">
+            {channel === ALL && item === ALL
+              ? "Chưa có đơn Tiếp thị liên kết theo KOL trong kỳ này. Số KOL lấy từ báo cáo chuyển đổi Affiliate của Shopee (tải tệp lên); Juli Connector chưa đọc báo cáo này."
+              : "Không có dòng nào khớp bộ lọc."}
+          </Empty>
+        ) : null}
       </div>
       <div className="kol-legend">
         <div>

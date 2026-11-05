@@ -137,11 +137,11 @@ describe("read-back and measurement", () => {
 });
 
 describe("links", () => {
-  it("'Xem phân tích ›' opens the Xếp hạng row the card came from", () => {
+  it("'Xem phân tích ›' opens the card's row in Phân tích's product table (P96b: no Xếp hạng page)", () => {
     const s = summaryOf(voucherCard());
     expect(rankingLinkOf(s)).toEqual({ kpi: "aov", src: "voucher", focus: "BEP-S5", from: "card", card: "card-voucher" });
     const href = sellerLinks.ranking(rankingLinkOf(s));
-    expect(href).toBe("/xep-hang?kpi=aov&src=voucher&focus=BEP-S5&from=card&card=card-voucher");
+    expect(href).toBe("/phan-tich?kpi=aov&src=voucher&focus=BEP-S5&from=card&card=card-voucher");
     expect(rankingLinkOf(summaryOf(adsCard(), { section: "roas" }))).toMatchObject({ kpi: "gmv", src: "ads" });
   });
 

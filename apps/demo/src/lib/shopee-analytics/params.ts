@@ -8,7 +8,8 @@ import type { PeriodKind, WindowQuery } from "./client";
  * `from` already says where a link came from.
  */
 
-export type ShopeeScreen = "tong-quan" | "phan-tich" | "san-pham" | "xep-hang";
+/** P96b: Xếp hạng is no longer a screen; its product table lives in Phân tích (old links redirect). */
+export type ShopeeScreen = "tong-quan" | "phan-tich" | "san-pham";
 
 export const KPIS: readonly (readonly [string, string])[] = [
   ["gmv", "GMV"],
@@ -85,13 +86,20 @@ export const XEP: readonly (readonly [string, string, string])[] = [
   ["orders", "orders", "Số đơn"],
   ["aov", "aov", "AOV"],
   ["disc", "giam_gia", "% giảm giá"],
+  // P96b: the funnel KPIs rank by their own number (traffic sources only).
+  ["views", "views", "Lượt xem/ngày"],
+  ["ctr", "ctr", "CTR"],
+  ["ctor", "ctor", "CTOR"],
 ];
 
-/** What a ranking of this KPI is sorted by when the link says nothing: the KPI itself where the
- *  API ranks by it (biên, AOV, số đơn, % giảm giá), else ₫ GMV/ngày. A "Biên cuối" card must show
- *  the margin, not the day's GMV. */
+/** The funnel measures: offered in "Xếp theo" only when their KPI is the one selected. */
+export const FUNNEL_XEP: ReadonlySet<string> = new Set(["views", "ctr", "ctor"]);
+
+/** What a ranking of this KPI is sorted by when the link says nothing: the KPI itself (P96b: every
+ *  KPI, including Lượt xem / CTR / CTOR), never another KPI's number. A "Biên cuối" card must show
+ *  the margin, not the day's GMV; a "CTR" click must show the CTR. */
 export function defaultXep(kpi: string): string {
-  return kpi === "bien" || kpi === "aov" || kpi === "orders" || kpi === "disc" ? kpi : "gmv";
+  return XEP.some(([k]) => k === kpi) ? kpi : "gmv";
 }
 
 /** The `xep` URL parameter for a choice: omitted when it is the KPI's default. */
