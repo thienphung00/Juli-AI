@@ -25,6 +25,10 @@ const ICON_PATHS: Record<AppDestinationIcon, string> = {
   analytics: "M4 20V10M10 20V4M16 20v-7M22 20H2",
   overview: "M4 5h7v7H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 14h7v5H4z",
   products: "M3 7.5 12 3l9 4.5v9L12 21l-9-4.5zM3 7.5l9 4.5 9-4.5M12 12v9",
+  keywords: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4",
+  ads: "M3 11v3l11 5V6zM14 9a4 4 0 0 1 0 6M6 14l1 5",
+  orders: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6",
+  flows: "M4 6h10M4 12h16M4 18h7M17 4l3 2-3 2M14 16l3 2-3 2",
   juli: "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6",
 };
 
@@ -75,7 +79,7 @@ export function AppNavigation({
         Juli<span aria-hidden="true">.</span>
       </Link>
       <nav aria-label="Điều hướng chính" className="app-nav">
-      <ul className="app-nav__list">
+      <ul className={`app-nav__list${destinationsFor(platform).length > 4 ? " app-nav__list--many" : ""}`}>
         {destinationsFor(platform).map((destination) => {
           if (destination.locked || !destination.href) {
             return (

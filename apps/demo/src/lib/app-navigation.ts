@@ -11,7 +11,7 @@ import { ACTIONS_DESTINATION_LABEL } from "./destination-copy";
  * and carries `JULI_LOCKED_HINT` as its tooltip.
  */
 
-export type AppDestinationIcon = "home" | "decisions" | "analytics" | "juli" | "overview" | "products";
+export type AppDestinationIcon = "home" | "decisions" | "analytics" | "juli" | "overview" | "products" | "keywords" | "ads" | "orders" | "flows";
 
 export interface AppDestination {
   readonly key: AppDestinationIcon;
@@ -41,7 +41,8 @@ export const APP_DESTINATIONS: readonly AppDestination[] = [
 
 /**
  * Shopee shops (ADR-120 decision 2): Tổng quan / Phân tích / Sản phẩm / Quyết định, in that
- * order; Cài đặt stays in the avatar menu. Tổng quan replaces Trang chủ, and there is no locked
+ * order, then (P92 B-8) the four read-only pages the seller has from Juli Ops: Từ khóa / Quảng cáo /
+ * Đơn hàng / Luồng; Cài đặt stays in the avatar menu. Tổng quan replaces Trang chủ, and there is no locked
  * Juli entry. Isolated here so TikTok shops keep `APP_DESTINATIONS` untouched; the P81 app-shell
  * rework may fold the two lists into one.
  */
@@ -63,6 +64,10 @@ export const SHOPEE_DESTINATIONS: readonly AppDestination[] = [
     href: "/decisions",
     locked: false,
   },
+  { key: "keywords", label: "Từ khóa", icon: "keywords", href: "/tu-khoa", locked: false },
+  { key: "ads", label: "Quảng cáo", icon: "ads", href: "/quang-cao", locked: false },
+  { key: "orders", label: "Đơn hàng", icon: "orders", href: "/don-hang", locked: false },
+  { key: "flows", label: "Luồng", icon: "flows", href: "/luong-san-pham", locked: false },
 ];
 
 export type NavPlatform = "tiktok" | "shopee";

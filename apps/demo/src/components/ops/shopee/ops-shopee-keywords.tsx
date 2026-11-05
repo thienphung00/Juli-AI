@@ -18,6 +18,8 @@ import { Empty, PageTitle, Section, TD, TD_LEFT, TH, TH_LEFT, TableWrap, errorTe
  */
 
 type Api = Pick<OpsApi, "shopeeKeywords" | "generateKeywordSeeds" | "setKeywordSeed" | "uploadKeywordMetrics">;
+/** What the board needs: the seller's Demo can only read (`canEdit` false never calls a write). */
+export type ShopeeKeywordsApi = Pick<OpsApi, "shopeeKeywords"> & Partial<Omit<Api, "shopeeKeywords">>;
 
 export const PATTERN_LABEL: Record<KeywordPattern, string> = {
   brand_type: "Thương hiệu + loại",
@@ -99,7 +101,33 @@ function apiMessage(e: unknown): string {
 }
 
 export function OpsShopeeKeywords({ me, shopId, api = opsApi }: { readonly me: OpsMe; readonly shopId: string; readonly api?: Api }) {
-  const canEdit = me.role !== "viewer";
+  return (
+    <OpsPage>
+      <OpsHeader me={me} shopId={shopId} />
+      <main style={{ padding: "22px 28px 40px", display: "flex", flexDirection: "column", gap: 16 }}>
+        <PageTitle active="tu-khoa" shopId={shopId} title="Shopee · Từ khóa" />
+        <ShopeeKeywordsBody api={api} canEdit={me.role !== "viewer"} shopId={shopId} />
+      </main>
+    </OpsPage>
+  );
+}
+
+/**
+ * The page's content without Ops' chrome. Juli Ops (Vận hành+ edits) and the seller's Demo
+ * (P92 B-8, `canEdit` false: no seed generation, no metrics upload, no "Giữ" boxes) both draw it.
+ */
+export function ShopeeKeywordsBody({
+  shopId,
+  api,
+  canEdit,
+  seller = false,
+}: {
+  readonly shopId: string;
+  readonly api: ShopeeKeywordsApi;
+  readonly canEdit: boolean;
+  /** The seller's own view: hides the team's look-up worklist and the "Tạo từ khóa" hint. */
+  readonly seller?: boolean;
+}) {
   const [minVolume, setMinVolume] = useState<number | undefined>(undefined);
   const [draftMin, setDraftMin] = useState<string>("");
   const [board, setBoard] = useState<ShopeeKeywordBoard | null>(null);
@@ -141,6 +169,7 @@ export function OpsShopeeKeywords({ me, shopId, api = opsApi }: { readonly me: O
 
   const generate = () =>
     run(async () => {
+      if (!api.generateKeywordSeeds) throw new Error("Chỉ xem.");
       const r = await api.generateKeywordSeeds(shopId, brand.trim() || null);
       return `Đã đọc ${r.titles} tiêu đề: ${r.created} từ khóa mới, ${r.updated} từ khóa cập nhật.`;
     });
@@ -149,6 +178,7 @@ export function OpsShopeeKeywords({ me, shopId, api = opsApi }: { readonly me: O
     run(async () => {
       const parsed = parseCollection(await readText(file));
       if ("error" in parsed) throw new Error(parsed.error);
+      if (!api.uploadKeywordMetrics) throw new Error("Chỉ xem.");
       const r = await api.uploadKeywordMetrics(parsed.records);
       const s = r.by_status;
       const days = r.collected_on.map(fmtDate).join(", ");
@@ -157,15 +187,13 @@ export function OpsShopeeKeywords({ me, shopId, api = opsApi }: { readonly me: O
 
   const toggle = (k: ShopeeKeyword) =>
     run(async () => {
+      if (!api.setKeywordSeed) throw new Error("Chỉ xem.");
       await api.setKeywordSeed(shopId, k.id, !k.enabled);
       return k.enabled ? `Đã bỏ "${k.keyword}".` : `Đã giữ lại "${k.keyword}".`;
     });
 
   return (
-    <OpsPage>
-      <OpsHeader me={me} shopId={shopId} />
-      <main style={{ padding: "22px 28px 40px", display: "flex", flexDirection: "column", gap: 16 }}>
-        <PageTitle active="tu-khoa" shopId={shopId} title="Shopee · Từ khóa" />
+    <>
         {error ? (
           <p role="alert" style={{ margin: 0, color: C.red }}>
             {error}
@@ -206,7 +234,7 @@ export function OpsShopeeKeywords({ me, shopId, api = opsApi }: { readonly me: O
         {!error && !board ? <OpsSkeleton /> : null}
         {board ? (
           <>
-            <CoverageSection board={board} />
+            <CoverageSection board={board} seller={seller} />
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
               <label style={LABEL}>
                 Ngưỡng lượt tìm/tháng
@@ -221,16 +249,15 @@ export function OpsShopeeKeywords({ me, shopId, api = opsApi }: { readonly me: O
                 Áp dụng
               </button>
             </div>
-            <KeywordsSection board={board} busy={busy} canEdit={canEdit} onToggle={toggle} open={open} setOpen={setOpen} />
+            <KeywordsSection board={board} busy={busy} canEdit={canEdit} seller={seller} onToggle={toggle} open={open} setOpen={setOpen} />
             <ProductsSection board={board} />
           </>
         ) : null}
-      </main>
-    </OpsPage>
+    </>
   );
 }
 
-function CoverageSection({ board }: { readonly board: ShopeeKeywordBoard }) {
+function CoverageSection({ board, seller }: { readonly board: ShopeeKeywordBoard; readonly seller: boolean }) {
   const [copied, setCopied] = useState(false);
   const dates = board.collection_dates;
   return (
@@ -242,7 +269,7 @@ function CoverageSection({ board }: { readonly board: ShopeeKeywordBoard }) {
           </span>
         ))}
       </div>
-      {board.to_look_up.length ? (
+      {!seller && board.to_look_up.length ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <span style={{ fontSize: 13, color: C.muted }}>Cần tra ({board.to_look_up.length}) — chưa tra hoặc bị chặn lần trước:</span>
           <textarea aria-label="Danh sách cần tra" readOnly rows={Math.min(6, board.to_look_up.length)} style={{ ...INPUT, fontFamily: "inherit", resize: "vertical" }} value={board.to_look_up.join("\n")} />
@@ -266,11 +293,13 @@ function CoverageSection({ board }: { readonly board: ShopeeKeywordBoard }) {
 function KeywordsSection({
   board,
   canEdit,
+  seller,
   busy,
   onToggle,
   open,
   setOpen,
 }: {
+  readonly seller: boolean;
   readonly board: ShopeeKeywordBoard;
   readonly canEdit: boolean;
   readonly busy: boolean;
@@ -281,7 +310,11 @@ function KeywordsSection({
   if (board.keywords.length === 0) {
     return (
       <Section title="Từ khóa">
-        <Empty>Chưa có từ khóa. Bấm “Tạo từ khóa từ tiêu đề” để ghép từ khóa từ tiêu đề sản phẩm.</Empty>
+        <Empty>
+          {seller
+            ? "Chưa có từ khóa cho shop này. Từ khóa được ghép từ tiêu đề sản phẩm và hiện ở đây khi đã tạo."
+            : "Chưa có từ khóa. Bấm “Tạo từ khóa từ tiêu đề” để ghép từ khóa từ tiêu đề sản phẩm."}
+        </Empty>
       </Section>
     );
   }

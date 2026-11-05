@@ -34,7 +34,8 @@ import {
  * Not built: grouping products into brand vs distribution (needs a per-shop group config).
  */
 
-type Api = Pick<OpsApi, "shopeeProducts" | "shopeeFlows">;
+export type ShopeeProductsApi = Pick<OpsApi, "shopeeProducts" | "shopeeFlows">;
+type Api = ShopeeProductsApi;
 
 const FLOW_SERIES = [
   { key: "product_card", label: "Thẻ sản phẩm" },
@@ -44,6 +45,19 @@ const FLOW_SERIES = [
 ];
 
 export function OpsShopeeProducts({ me, shopId, api = opsApi }: { readonly me: OpsMe; readonly shopId: string; readonly api?: Api }) {
+  return (
+    <OpsPage>
+      <OpsHeader me={me} shopId={shopId} />
+      <main style={{ padding: "22px 28px 40px", display: "flex", flexDirection: "column", gap: 16 }}>
+        <PageTitle active="san-pham" shopId={shopId} title="Shopee · Sản phẩm + luồng" />
+        <ShopeeProductsBody api={api} shopId={shopId} />
+      </main>
+    </OpsPage>
+  );
+}
+
+/** The page's content without Ops' chrome: Juli Ops and the seller's Demo (P92 B-8) both draw it. */
+export function ShopeeProductsBody({ shopId, api }: { readonly shopId: string; readonly api: Api }) {
   const [orderType, setOrderType] = useState<ShopeeOrderType>("confirmed");
   const [range, setRange] = useState<{ from: string; to: string } | null>(null);
   const [period, setPeriod] = useState<{ from: string; to: string } | null>(null);
@@ -69,10 +83,7 @@ export function OpsShopeeProducts({ me, shopId, api = opsApi }: { readonly me: O
   }, [api, shopId, orderType, range, period]);
 
   return (
-    <OpsPage>
-      <OpsHeader me={me} shopId={shopId} />
-      <main style={{ padding: "22px 28px 40px", display: "flex", flexDirection: "column", gap: 16 }}>
-        <PageTitle active="san-pham" shopId={shopId} title="Shopee · Sản phẩm + luồng" />
+    <>
         {error ? (
           <p role="alert" style={{ margin: 0, color: C.red }}>
             {error}
@@ -85,8 +96,7 @@ export function OpsShopeeProducts({ me, shopId, api = opsApi }: { readonly me: O
         {!error && (!flows || !products) ? <OpsSkeleton /> : null}
         {flows ? <FlowsSection flows={flows} /> : null}
         {products ? <ProductsSection onPeriod={setPeriod} products={products} /> : null}
-      </main>
-    </OpsPage>
+    </>
   );
 }
 

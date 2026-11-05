@@ -6,6 +6,26 @@ import { windowParams, type ShopeeScreen, type WindowState } from "./params";
  * an href instead of writing a route. The parameter names are the artboards' (`VERIFY.md` table).
  */
 
+/** P92 B-8: the four read-only pages the seller's Demo has from Ops (slug = the Demo route and the view-as `trang`). */
+export type DashboardKind = "tu-khoa" | "quang-cao" | "don-hang" | "luong-san-pham";
+
+export const DASHBOARD_LABEL: Readonly<Record<DashboardKind, string>> = {
+  "tu-khoa": "Từ khóa",
+  "quang-cao": "Quảng cáo + khuyến mãi",
+  "don-hang": "Đơn hàng",
+  "luong-san-pham": "Sản phẩm + luồng",
+};
+
+export const DASHBOARD_KINDS: readonly DashboardKind[] = ["tu-khoa", "quang-cao", "don-hang", "luong-san-pham"];
+
+/** Where each page lives in the Ops shop tabs (`/ops/shops/{id}/shopee/<slug>`). */
+const OPS_TAB_SLUG: Readonly<Record<DashboardKind, string>> = {
+  "tu-khoa": "tu-khoa",
+  "quang-cao": "quang-cao",
+  "don-hang": "don-hang",
+  "luong-san-pham": "san-pham",
+};
+
 export interface RankingLink {
   readonly kpi?: string;
   readonly src?: string;
@@ -44,6 +64,8 @@ export interface ShopeeLinks {
   builder(from: "product" | "quyet-dinh", productId?: string | null): string;
   /** P92 B-1: Cài đặt › Loại trừ sản phẩm (the Tổng quan "trong đó Xđ từ sản phẩm đã loại trừ" line opens it). */
   exclusions(): string;
+  /** P92 B-8: one of the four read-only shop pages (Từ khóa, Quảng cáo, Đơn hàng, Sản phẩm + luồng). */
+  dashboard(kind: DashboardKind): string;
 }
 
 function put(p: URLSearchParams, key: string, value: string | null | undefined): void {
@@ -57,6 +79,7 @@ export function createLinks(host: {
   readonly costImport: (sku: string | null, from: string) => string;
   readonly builder: (from: "product" | "quyet-dinh", productId?: string | null) => string;
   readonly exclusions: () => string;
+  readonly dashboard: (kind: DashboardKind) => string;
 }): ShopeeLinks {
   const withWindow = (p: URLSearchParams, w?: WindowState) => {
     if (w) windowParams(w).forEach((v, k) => p.set(k, v));
@@ -95,6 +118,7 @@ export function createLinks(host: {
     costImport: host.costImport,
     builder: host.builder,
     exclusions: host.exclusions,
+    dashboard: host.dashboard,
   };
 }
 
@@ -138,6 +162,7 @@ export const sellerLinks: ShopeeLinks = createLinks({
     return `/decisions?${p.toString()}`;
   },
   exclusions: () => "/settings?tab=loai-tru-san-pham",
+  dashboard: (kind) => `/${kind}`,
 });
 
 /** Juli Ops "Xem như shop": one page, `/ops/shops/{id}/xem?trang=<slug>&…`. */
@@ -166,6 +191,7 @@ export function viewAsShopeeLinks(shopId: string, sellerCardHref?: ShopeeLinks["
       }),
     costImport: () => `${base}?trang=quy-tac`,
     exclusions: () => `${base}?trang=loai-tru`,
+    dashboard: (kind) => `${base}?trang=${kind}`,
     builder: (from, productId) => {
       const p = new URLSearchParams({ trang: "quyet-dinh", "tu-tao": "1", from });
       put(p, "sp", productId);
@@ -192,6 +218,7 @@ export function opsTabShopeeLinks(shopId: string): ShopeeLinks {
     },
     costImport: () => `/ops/shops/${encodeURIComponent(shopId)}`,
     exclusions: () => `/ops/shops/${encodeURIComponent(shopId)}#loai-tru-san-pham`,
+    dashboard: (kind) => `/ops/shops/${encodeURIComponent(shopId)}/shopee/${OPS_TAB_SLUG[kind]}`,
     builder: (from, productId) => {
       const p = new URLSearchParams({ "tu-tao": "1", from });
       put(p, "sp", productId);

@@ -25,6 +25,9 @@ import { REAL_QD_CLIENTS } from "../quyet-dinh/signed-in-quyet-dinh";
 import { SellerViewProvider } from "../seller-view-context";
 import { ShopeeHostProvider } from "../../lib/shopee-analytics/context";
 import { useOpsShopeeHost } from "../shopee-analytics/hosts";
+import { DashboardPage } from "../shopee-analytics/dashboard-pages";
+import { createDashboardsApi, opsDashboardsBase } from "../../lib/shopee-analytics/dashboards-client";
+import { viewAsShopeeLinks, type DashboardKind } from "../../lib/shopee-analytics/links";
 import { OpsExclusions } from "../exclusions/ops-exclusions";
 import { EXCLUSIONS_LEDE, EXCLUSIONS_TITLE } from "../exclusions/exclusions-panel";
 import { OpsViewAsShopeeDecisions } from "../shopee-decisions/hosts";
@@ -120,6 +123,14 @@ export function OpsViewAs({
   const tab: Tab = !current.has(VIEW_AS_PAGE_PARAM) && isShopee ? "overview" : read.tab;
   const navTab: Tab = tab === "ranking" ? "overview" : tab;
   const shopeeHost = useOpsShopeeHost(shopId, "view-as", session?.shop.shop_name, baseFetch);
+  // P92 B-8: the four read-only Ops pages, read through the Ops base (bearer only).
+  const dashKind = DASHBOARD_TAB[tab] ?? null;
+  const dashLinks = useMemo(() => viewAsShopeeLinks(shopId), [shopId]);
+  const dashToken = readAuthSession()?.accessToken ?? "";
+  const dashApi = useMemo(
+    () => createDashboardsApi({ base: opsDashboardsBase(shopId), dashboardPrefix: "", token: dashToken, fetchImpl: baseFetch }),
+    [shopId, dashToken, baseFetch],
+  );
   const qdParams = tab === "decisions" || tab === "rules" ? screenParams : new URLSearchParams();
   const ptParams = tab === "analytics" ? screenParams : new URLSearchParams();
   const [envelope, setEnvelope] = useState<ShopAnalysisEnvelope | null | undefined>(undefined);
@@ -237,6 +248,10 @@ export function OpsViewAs({
                     ["analytics", "Phân tích"],
                     ["products", "Sản phẩm"],
                     ["decisions", "Quyết định"],
+                    ["keywords", "Từ khóa"],
+                    ["ads", "Quảng cáo"],
+                    ["orders", "Đơn hàng"],
+                    ["flows", "Luồng"],
                     ["rules", "Quy tắc"],
                     ["exclusions", "Loại trừ"],
                   ]
@@ -301,6 +316,9 @@ export function OpsViewAs({
                   envelope === null ? <p role="status">Shop chưa có báo cáo.</p> : <OpsSkeleton variant="cards" rows={3} />
                 )
               ) : null}
+              {isShopee && dashKind ? (
+                <DashboardPage api={dashApi} kind={dashKind} links={dashLinks} shopId={shopId} shopName={session?.shop.shop_name} />
+              ) : null}
               {isShopee && tab === "exclusions" ? (
                 <section aria-labelledby="view-as-exclusions-title" data-testid="view-as-exclusions" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <h1 id="view-as-exclusions-title" style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
@@ -324,6 +342,13 @@ export function OpsViewAs({
     </div>
   );
 }
+
+const DASHBOARD_TAB: Partial<Record<Tab, DashboardKind>> = {
+  keywords: "tu-khoa",
+  ads: "quang-cao",
+  orders: "don-hang",
+  flows: "luong-san-pham",
+};
 
 const SHOPEE_SCREEN: Readonly<Record<"overview" | "analytics" | "products" | "ranking", ShopeeScreen>> = {
   overview: "tong-quan",

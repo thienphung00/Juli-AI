@@ -127,3 +127,17 @@ describe("window and ranking state from the URL", () => {
     expect(apiRankingArgs(readRanking(new URLSearchParams("xep=disc"))).xepTheo).toBe("giam_gia");
   });
 });
+
+describe("P92 links: Loại trừ sản phẩm and the four read-only pages", () => {
+  it("each host has its own route for them", async () => {
+    const { sellerLinks, viewAsShopeeLinks, opsTabShopeeLinks } = await import("../links");
+    expect(sellerLinks.exclusions()).toBe("/settings?tab=loai-tru-san-pham");
+    expect(viewAsShopeeLinks("s1").exclusions()).toBe("/ops/shops/s1/xem?trang=loai-tru");
+    expect(opsTabShopeeLinks("s1").exclusions()).toBe("/ops/shops/s1#loai-tru-san-pham");
+    expect(sellerLinks.dashboard("luong-san-pham")).toBe("/luong-san-pham");
+    expect(sellerLinks.dashboard("tu-khoa")).toBe("/tu-khoa");
+    expect(viewAsShopeeLinks("s1").dashboard("don-hang")).toBe("/ops/shops/s1/xem?trang=don-hang");
+    expect(opsTabShopeeLinks("s1").dashboard("luong-san-pham")).toBe("/ops/shops/s1/shopee/san-pham");
+    expect(opsTabShopeeLinks("s1").dashboard("quang-cao")).toBe("/ops/shops/s1/shopee/quang-cao");
+  });
+});

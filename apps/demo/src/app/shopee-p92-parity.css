@@ -254,3 +254,59 @@
     width: 100%;
   }
 }
+
+/* ── B-8: the four read-only Ops pages in the seller's Demo and in Xem như shop ── */
+
+.sx-dash,
+.sx-dash__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sx-dash > *,
+.sx-dash__body > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sx-dash .sa-tabs {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+/* More than four destinations (Shopee): the bottom bar scrolls sideways inside itself, the rail scrolls down. */
+.app-nav__list--many {
+  display: flex;
+  max-width: none;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-nav__list--many > li {
+  flex: 0 0 78px;
+}
+
+@media (min-width: 768px) {
+  .app-nav__list--many {
+    flex-direction: column;
+    gap: 6px;
+    overflow: visible;
+  }
+
+  .app-nav__list--many > li {
+    flex: 0 0 auto;
+  }
+
+  .app-rail:has(.app-nav__list--many) {
+    overflow-y: auto;
+    padding-bottom: 16px;
+    scrollbar-width: thin;
+  }
+
+  .app-nav__list--many .app-nav__item {
+    padding: 8px 0;
+  }
+}

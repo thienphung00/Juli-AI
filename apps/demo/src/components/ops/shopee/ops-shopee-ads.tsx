@@ -35,9 +35,23 @@ import {
  * ads-campaign files, which are not loaded yet: an explicit empty state.
  */
 
-type Api = Pick<OpsApi, "shopeeAds" | "shopeePromotions">;
+export type ShopeeAdsApi = Pick<OpsApi, "shopeeAds" | "shopeePromotions">;
+type Api = ShopeeAdsApi;
 
 export function OpsShopeeAds({ me, shopId, api = opsApi }: { readonly me: OpsMe; readonly shopId: string; readonly api?: Api }) {
+  return (
+    <OpsPage>
+      <OpsHeader me={me} shopId={shopId} />
+      <main style={{ padding: "22px 28px 40px", display: "flex", flexDirection: "column", gap: 16 }}>
+        <PageTitle active="quang-cao" shopId={shopId} title="Shopee · Quảng cáo + khuyến mãi" />
+        <ShopeeAdsBody api={api} shopId={shopId} />
+      </main>
+    </OpsPage>
+  );
+}
+
+/** The page's content without Ops' chrome: Juli Ops and the seller's Demo (P92 B-8) both draw it. */
+export function ShopeeAdsBody({ shopId, api }: { readonly shopId: string; readonly api: Api }) {
   const [orderType, setOrderType] = useState<ShopeeOrderType | null>(null);
   const [range, setRange] = useState<{ from: string; to: string } | null>(null);
   const [ads, setAds] = useState<ShopeeAds | null>(null);
@@ -65,10 +79,7 @@ export function OpsShopeeAds({ me, shopId, api = opsApi }: { readonly me: OpsMe;
   }, [api, shopId, orderType, range]);
 
   return (
-    <OpsPage>
-      <OpsHeader me={me} shopId={shopId} />
-      <main style={{ padding: "22px 28px 40px", display: "flex", flexDirection: "column", gap: 16 }}>
-        <PageTitle active="quang-cao" shopId={shopId} title="Shopee · Quảng cáo + khuyến mãi" />
+    <>
         {error ? (
           <p role="alert" style={{ margin: 0, color: C.red }}>
             {error}
@@ -81,8 +92,7 @@ export function OpsShopeeAds({ me, shopId, api = opsApi }: { readonly me: OpsMe;
         {!error && (!ads || !promos) ? <OpsSkeleton /> : null}
         {ads ? <AdsSection ads={ads} /> : null}
         {promos ? <PromotionsSection promos={promos} /> : null}
-      </main>
-    </OpsPage>
+    </>
   );
 }
 
