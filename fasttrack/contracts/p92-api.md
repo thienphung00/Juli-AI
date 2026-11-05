@@ -288,4 +288,103 @@ price per unit that buyers paid in the window; the catalogue's current price whe
 and a stated giá vốn · `"ước tính"` fee formula or assumed cost stands in · `"chưa tính"` no margin).
 `GET /matrix` also returns `idle_products[]` = active, non-excluded listings with no order in the window
 (`product_id`, `name`, price fields, `margin_basis:"chưa tính"`), for the collapsed "N sản phẩm không có đơn
-trong kỳ". The fee backtest is not part of this change.
+trong kỳ". The fee backtest is in §9.4.
+
+## 9. B-10 competitor prices ("Giá thị trường"), draft plans in order, fee backtest
+
+Branch `fasttrack/p92-market` (backend + Connector 0.3.5 + a small web block). Plan: `p92-plan.md` B-10 / B-9.
+
+### 9.1 Collection (Connector 0.3.5 -> ingest)
+- `GET /v1/ingest/market/keywords` (ingest-token auth): `{"enabled","max_per_product":3,"due_after_days":6,
+  "products":[{"item_id","keywords":[…]}],"due_keywords":[…],"last_collected":{"<keyword>":"2026-11-02"},"as_of"}`.
+  Keywords = each product's 1-3 main seeds (`shop_keyword_seeds`: enabled, role `chinh` first, then `phu` /
+  `thuong_hieu`, never `loai_tru`). `due_keywords` = no capture in the last 6 days. `enabled:false` (empty lists)
+  unless the server switch `CONNECTOR_MARKET_SEARCH` is on (default off) and, when `CONNECTOR_MARKET_SHOP_IDS`
+  is set, the shop is listed (pilot: ORY only; the Connector also gates on the explicit ORY id).
+- `POST /v1/ingest/shopee/market_search` (`granularity:"period"`, start = end = capture day GMT+7, no
+  `order_type`). Row: `keyword, sort ("relevancy"|"sales"), page (1-3), pos (1-based, ads counted), is_ad,
+  item_id, shop_id?, shop_title?, title, price, price_min?, price_max?, price_before_discount?, discount_pct?,
+  rating?, sold_monthly?, sold_lifetime?, sold_text?, image_id?` (VND; `title` / `shop_title`, not `name`: the
+  privacy test forbids keys containing "name"). The keyword must be one of the shop's seeds (`422
+  market_keyword_unknown`); switch off -> `403 market_search_disabled`; drift stops the dataset per version as
+  for the other datasets (`409 dataset_in_drift`).
+- Lands in the existing public tables, **no migration**: `market_listing_snapshots` (one row per card; ad flag,
+  price range, before-discount price, shop title and image id in `extra`; `collector` = the post's `source`, a
+  card key is replaced only by the same or a higher rank vendor < extension < file < api) and
+  `market_keyword_snapshots` (per keyword x sort x day: cards, shops, median price, share discounted, sold
+  median / P75 -- ads left out). Both tables stay Ops-only: the write and the Demo / Ops reads run in a short
+  `ops_role` block (`SET LOCAL ROLE juli_ops`), the runtime role needs the same `juli_ops` membership as `/v1/ops`.
+
+### 9.2 Giá thị trường (Demo + Ops, read-only)
+- Demo `GET /v1/demo/shopee/products/{item_id}/market-price`; Ops `GET /v1/ops/shops/{id}/shopee/products/{item_id}/market-price` (Xem+).
+  Query: `variation_id` (default: the variation with the lowest price per unit), `price` (a drafted selling price
+  of that variation, VND -> `marker`), `as_of`.
+- Lightweight builder call (no `closest`): Demo `GET /v1/demo/shopee/builder/products/{item_id}/market-range`,
+  Ops `GET /v1/ops/shops/{id}/shopee/builder/products/{item_id}/market-range`.
+```json
+{"item_id":"1002","name":"…","available":true,"reason":null,"reason_text":null,
+ "keyword":"nước rửa chén","collected_on":"2026-11-03","age_days":2,"stale":false,"stale_after_days":14,
+ "keywords":[{"keyword","collected_on","age_days","stale","n_cards":58,"n_similar":18}],
+ "unit":{"key":"ml","label":"500 ml","per_label":"giá / 500 ml"},
+ "own":{"variation_id":"","selling_price":90000,"price_min":90000,"price_max":90000,"pack_count":1,"price_per_unit":90000},
+ "market":{"n_similar":18,"median":85000,"p25":80000,"p75":92500,"own_vs_median_pct":5.9,"position":"within"},
+ "closest":[{"item_id","name","shop_name","price","price_min","price_max","pack_count","quantity","price_per_unit",
+   "sold_monthly","sold_lifetime","position","is_ad":false,"similarity":0.67}],
+ "marker":{"price":88000,"pack_count":1,"price_per_unit":88000,"position":"within","vs_median_pct":3.5},
+ "note":"…"}
+```
+- **Matching**: the newest page-1 capture of each of the product's main keywords; ads, the product's own item and
+  cards without a price are dropped; the pack of every card is read from its title (`unit_price.parse`, same
+  `combo N` / `set N` rule as the variation pack parser, plus `N hộp`, `N cái`, `N ml / l`, `N g / kg`, `N cuộn`)
+  and only cards of the SAME unit are compared, per hộp / 100 cái / 500 ml / 100 g / cuộn (`item` = nothing
+  readable: per sold unit); the card must share >= 25 % of the title words (Dice) with the product. Median / P25 /
+  P75 (linear interpolation) of the per-unit price over the merged, de-duplicated cards; the 5 closest by title
+  similarity then position. The product's own per-unit price = selling price / (unit quantity of its title x the
+  variation's pack count).
+- **Absent, never invented**: `available:false` with `reason` = `no_keyword` | `no_capture` | `no_similar` (< 3
+  similar cards; `n_similar` given) | `market_closed`; `market`, `closest`, `marker` are `null`. `stale:true`
+  when the newest capture is older than 14 days (the date is always shown). `position` = `below_p25` | `within` |
+  `above_p75`. `404 product_not_found`, `409 reco_no_data` as the other product reads.
+
+### 9.3 Draft plans in order (extends the P91 plan endpoints; nothing parallel)
+- `GET …/recommendations/plan` (Demo + Ops): each `aggregate.products[i]` gains `steps`:
+```json
+"steps":{"order":["price","giam_gia","voucher","combo","ads"],"custom_order":false,"margin_basis":"…",
+ "items":[{"index":1,"step":"giam_gia","step_label":"Giảm giá","card_id","code","title","change_kind","version_label",
+   "margin_pct_before":31.2,"margin_pct_after":27.9,"dprofit_step_p50":-120000,"dprofit_total_p50":-120000,
+   "dprofit_total_certain":-150000,"dgmv_total_p50":900000,"cost_month_total":150000,"floor_ok":true}],
+ "total":{"margin_pct_before","margin_pct_after","dprofit_p50","dprofit_certain","dgmv_p50","floor_ok"}}
+```
+  and the aggregate gains `steps_summary.shop` `{products, dprofit_p50, dprofit_certain, dgmv_p50,
+  margin_pct_before, margin_pct_after}` (the shop-wide totals: the plan's joint total, shop margin today -> after).
+- **Semantics**: step *k* = the product's first *k* cards re-priced TOGETHER on the same history orders
+  (`mega.evaluate_mega` stacking: new price, then the voucher on the new basket, fees recomputed once per order on
+  the new buyer-paid amount with the shop's size-dependent fee formula, floor on the stacked price) - not a sum of
+  the cards' own numbers. `dprofit_total_*` is Δ lợi nhuận / tháng after steps 1..k (P50 = certain + predicted;
+  `certain` = same volume), `dprofit_step_p50` = what step k adds over k-1; the last step equals the product's
+  joint total. `margin_pct_*` = margin of the product's orders at the certain layer (no volume change), from the
+  joint five numbers; for cards the stacking does not model (add-on, gift, multi-product combo) derived from
+  the baseline and the cards' certain profit / GMV; `null` = "chưa tính". `null` P50 = profit unknown, never 0.
+- **Order**: the plan order of the product's cards. A card joins at its canonical step slot
+  (price/flash sale -> giảm giá -> voucher -> combo/mua kèm/quà tặng -> ads, other kinds last); positions are
+  renumbered. `custom_order:true` when the plan order differs from canonical. Cards of different products stay
+  independent (each product its own `steps`); shop-wide levers are not steps.
+- `POST …/recommendations/plan/cards/{card_id}/move` `{"position": 1..30}` (1-based among the plan's cards,
+  clamped) -> the re-aggregated plan (same payload as add / remove). Demo (writable shop) and Ops (Vận hành,
+  audit `reco_plan_move_card`). `404 reco_card_not_in_plan`, `404 reco_plan_not_found`. Removing a card
+  (`/remove`) and every other edit re-evaluate all prefixes. Nothing executes before the confirm (P91 D-6).
+
+### 9.4 Fee-formula backtest (B-9, Ops only)
+`GET /v1/ops/shops/{id}/shopee/fee-backtest?days=90&as_of=` (Xem+; `days` 7-180):
+```json
+{"window":{…},"days":90,"orders_in_profit_base":240,"orders_with_income":120,"target_pct":1.0,
+ "orders_compared":118,"orders_skipped":{"no_income":120,"no_fee_status":0,"no_formula":2},
+ "mean_abs_gap":3150.0,"mean_gap":-420.5,"mean_formula_fees":18200.0,"mean_actual_fees":18620.5,
+ "mean_buyer_paid":210000.0,"pct_of_buyer_paid":0.84,"within_target":true,
+ "worst":[{"order_key":"0000000000a1","formula_fees":…,"actual_fees":…,"gap":…,"buyer_paid":…}],"definition":"…"}
+```
+Per order with an Income row: `gap = formula - actual` (formula = the same lines with income / reported fees
+stripped, the shop's schedule on the order date, per-order fees split once per order; actual = fixed + service +
+payment + PiShip + NTTD from the Income row). `pct_of_buyer_paid` = Σ|gap| / Σ buyer-paid; the contract's
+target is <= 1 % (`within_target`; `null` when nothing is comparable). `worst` = the 5 largest |gap| (order key =
+the first 12 characters of the keyed hash; no buyer field). `409 reco_no_data` without Shopee numbers.
