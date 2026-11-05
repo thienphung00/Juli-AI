@@ -551,6 +551,62 @@ async def _execute(
     )
 
 
+async def backfill_executed(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
+) -> dict[str, int]:
+    """Imported rows the file marked ``done`` whose card still sits as "Đã duyệt · chờ làm":
+    record the execution at the row's own date (the ``executed`` event and the change set the
+    measurement window starts from), exactly as the import does for a row it applies as done.
+
+    Idempotent: a card already executed is skipped, so a second run records nothing. A voucher card
+    needs a voucher id to verify and is left for a person (``needs_voucher``)."""
+    now = _naive(now)
+    out = {"checked": 0, "executed": 0, "needs_voucher": 0, "skipped": 0}
+    found = (
+        await session.execute(
+            select(PlannedChangeRef, PlannedChangeImport)
+            .join(PlannedChangeImport, PlannedChangeImport.id == PlannedChangeRef.import_id)
+            .where(PlannedChangeRef.shop_id == shop_id)
+        )
+    ).all()
+    for ref, record in found:
+        state = ref.state or {}
+        if state.get("status") != "done":
+            continue
+        out["checked"] += 1
+        p = await session.get(ShopProposal, ref.card_id)
+        if p is None or p.status != STATUS_APPROVED:
+            out["skipped"] += 1
+            continue
+        on = state.get("executed_on")
+        when = _when(date.fromisoformat(on)) if on else record.created_at
+        try:
+            async with session.begin_nested():
+                await reco_service.mark_executed(
+                    session,
+                    shop_id,
+                    ref.card_id,
+                    now=now,
+                    executed_at=min(when, now),
+                    user_id=record.set_by_user_id if record.set_by == "seller" else None,
+                    staff_id=record.set_by_staff_id,
+                    evidence_ref=f"planned-changes:{record.number}:{ref.external_ref}",
+                    payload_extra={
+                        "imported": True,
+                        "readback": False,
+                        "external_ref": ref.external_ref,
+                        "backfilled": True,
+                        "date_known": on is not None,
+                    },
+                )
+            out["executed"] += 1
+        except ProposalError as exc:
+            out["needs_voucher" if exc.status == 422 else "skipped"] += 1
+    if out["executed"]:
+        await reco_service.requeue(session, shop_id, now=now)
+    return out
+
+
 async def _next_number(session: AsyncSession, shop_id: uuid.UUID) -> int:
     last = await session.scalar(
         select(func.max(PlannedChangeImport.number)).where(PlannedChangeImport.shop_id == shop_id)

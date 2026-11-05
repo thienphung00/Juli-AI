@@ -76,7 +76,7 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
   const token = readAuthSession()?.accessToken ?? null;
   return useMemo(() => {
     if (!token) return null;
-    const reco = createRecoApi({ base: opsRecoBase(shopId), token, fetchImpl });
+    const reco = createRecoApi({ base: opsRecoBase(shopId), token, fetchImpl, asSeller: kind === "view-as" });
     const products = productsOf(createShopeeApi({ base: opsShopeeBase(shopId), token, fetchImpl }));
     const builder = p92BuilderEnabled() ? createBuilderApi({ base: opsBuilderBase(shopId), token, fetchImpl }) : undefined;
     const market = { base: opsBuilderBase(shopId), token, fetchImpl };

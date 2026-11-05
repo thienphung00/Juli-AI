@@ -101,11 +101,13 @@ export interface RecoClientOptions {
   readonly token: string;
   /** Seller scope only: the acting shop (`X-Shop-Id`). */
   readonly shopId?: string;
+  /** Ops "Xem như shop": read the cards as the seller gets them (no unsent drafts, no internals). */
+  readonly asSeller?: boolean;
   readonly fetchImpl?: typeof fetch;
 }
 
 export function createRecoApi(options: RecoClientOptions): RecoApi {
-  const { base, token, shopId, fetchImpl } = options;
+  const { base, token, shopId, fetchImpl, asSeller } = options;
   async function call<T>(method: "GET" | "POST", path: string, body?: unknown, params?: URLSearchParams): Promise<T> {
     const doFetch = fetchImpl ?? fetch;
     const qs = params?.toString();
@@ -139,9 +141,10 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
       if (q.xepTheo) p.set("xep_theo", q.xepTheo);
       if (q.productId) p.set("product_id", q.productId);
       if (q.queue) p.set("queue", q.queue);
+      if (asSeller) p.set("audience", "seller");
       return call<CardList>("GET", "", undefined, p);
     },
-    detail: (cardId) => call<CardDetail>("GET", id(cardId)),
+    detail: (cardId) => call<CardDetail>("GET", id(cardId), undefined, asSeller ? new URLSearchParams({ audience: "seller" }) : undefined),
     whatif: async (cardId, inputs, version) => (await call<{ card: Card }>("POST", `${id(cardId)}/whatif`, { inputs, ...(version ? { version } : {}) })).card,
     approve: (cardId, body) =>
       call<DecideResult>("POST", `${id(cardId)}/approve`, {
