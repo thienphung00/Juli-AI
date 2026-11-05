@@ -161,7 +161,8 @@ async def probe(two_tenants, staff_user) -> AsyncIterator[Probe]:
 BOUNDS: dict[str, int] = {
     "me": 0,
     "overview": 4,
-    "settings": 6,  # cap + tunables cached; the miss is test_ops_settings_cold_cap
+    # P93: +1 for the shop team read (members) beside the invites read.
+    "settings": 7,  # cap + tunables cached; the miss is test_ops_settings_cold_cap
     "simulation": 9,
     "view_session": 5,
     "view_decisions": 7,
@@ -228,7 +229,7 @@ async def test_ops_settings_cold_cap(probe, two_tenants):
     ops_settings.forget_cap_and_tunables()
     seen = await probe.once("GET", f"/v1/ops/shops/{shop}/settings")
     print(f"\n== GET settings (cold cap cache)\n{seen.describe()}")
-    assert seen.round_trips <= 8, seen.describe()
+    assert seen.round_trips <= 9, seen.describe()
 
 
 async def test_ops_user_cache_never_serves_another_user(probe, owner_engine, two_tenants):

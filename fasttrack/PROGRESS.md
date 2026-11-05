@@ -515,6 +515,16 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Integration, full deploy gate (counts in LOG 2026-11-05 "P92 ready to deploy"), deploy checklist `contracts/p92-deploy-checklist.md` | — | done, ready for the owner's one deploy; no migration | integration agent |
 | Open (owner): run the deploy; Connector 0.3.5 reload + first-capture check, then `CONNECTOR_MARKET_SEARCH=1` + `CONNECTOR_MARKET_SHOP_IDS`; read the fee-backtest gap on ORY (<= 1 % of buyer-paid); ticket for the 23 older UPDATE-grant tables | checklist §5 | todo | owner |
 
+## P93 — Shop team: several seller people on one shop (contract p93-shop-team.md, 2026-11-05)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Migration 121 `shop_members` (RLS, soft remove, partial unique active row), membership-aware `shops` SELECT/UPDATE policies, owner trigger; deferred backfill `102_shop_members_backfill` | p93 | done (head = 121; additive gate accepts) | builder agent |
+| Invites ADD members (one person per link, e-mail bound; only the same e-mail's older link is replaced; current member refused); first accept of a shop with no seller member still hands it over | p93 | done | builder agent |
+| Ops "Thành viên shop": list, "Mời thêm", "Gỡ" (in-page dialog, audited `member_add` / `member_remove`); no seller endpoint; `/nhan-shop` says "tham gia đội ngũ" | p93 | done | builder agent |
+| Attribution: seller actions already record `user.id` (the acting member); write-approval now admits any member | p93 | done, test | builder agent |
+| Open (owner): run the deploy with migration 121, then the deferred backfill; smoke in `p92-deploy-checklist.md` §8 (invite two e-mails on ORY, remove one) | checklist §8 | todo | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
