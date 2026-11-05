@@ -37,6 +37,8 @@ from juli_backend.api.routes.demo_run_changes import router as demo_run_changes_
 from juli_backend.api.routes.demo_run_flows import router as demo_run_flows_router
 from juli_backend.api.routes.demo_shop_inputs import router as demo_shop_inputs_router
 from juli_backend.api.routes.demo_shopee_analytics import router as demo_shopee_analytics_router
+from juli_backend.api.routes.demo_shopee_builder import router as demo_shopee_builder_router
+from juli_backend.api.routes.demo_shopee_pages import router as demo_shopee_pages_router
 from juli_backend.api.routes.demo_shopee_reco_manual import router as demo_shopee_reco_manual_router
 from juli_backend.api.routes.demo_shopee_reco_plan import router as demo_shopee_reco_plan_router
 from juli_backend.api.routes.demo_shopee_recommendations import (
@@ -53,6 +55,7 @@ from juli_backend.api.routes.ops_planned_changes import router as ops_planned_ch
 from juli_backend.api.routes.ops_proposals import router as ops_proposals_router
 from juli_backend.api.routes.ops_shop_inputs import router as ops_shop_inputs_router
 from juli_backend.api.routes.ops_shopee_analytics import router as ops_shopee_analytics_router
+from juli_backend.api.routes.ops_shopee_builder import router as ops_shopee_builder_router
 from juli_backend.api.routes.ops_shopee_dashboards import router as ops_shopee_dashboards_router
 from juli_backend.api.routes.ops_shopee_keywords import router as ops_shopee_keywords_router
 from juli_backend.api.routes.ops_shopee_kpi import router as ops_shopee_kpi_router
@@ -153,6 +156,8 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_shopee_reco_plan_router)
     v1_router.include_router(demo_shopee_recommendations_router)
     v1_router.include_router(demo_shopee_reco_manual_router)
+    v1_router.include_router(demo_shopee_builder_router)
+    v1_router.include_router(demo_shopee_pages_router)
     v1_router.include_router(demo_planned_changes_router)
     v1_router.include_router(demo_connector_fill_router)
     # Fast track P16 (D25): the Juli Ops console and the seller's invite accept.
@@ -163,6 +168,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_shopee_reco_plan_router)
     v1_router.include_router(ops_shopee_recommendations_router)
     v1_router.include_router(ops_shopee_reco_manual_router)
+    v1_router.include_router(ops_shopee_builder_router)
     v1_router.include_router(ops_planned_changes_router)
     v1_router.include_router(ops_connector_fill_router)
     v1_router.include_router(ops_contract_shops_router)

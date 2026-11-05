@@ -77,6 +77,7 @@ from juli_backend.repositories.shop_diagnosis import (
 from juli_backend.repositories.shopee_analytics import (
     AdCampaignPurposesReadRepo,
     MarketKeywordMetricsReadRepo,
+    MarketListingsReadRepo,
     PlatformDailyMetricsRepo,
     PlatformFeeFormulasReadRepo,
     PlatformItemSnapshotsRepo,
@@ -98,6 +99,7 @@ from juli_backend.repositories.workflow import (
 __all__ = [
     "AdCampaignPurposesReadRepo",
     "MarketKeywordMetricsReadRepo",
+    "MarketListingsReadRepo",
     "PlatformDailyMetricsRepo",
     "PlatformFeeFormulasReadRepo",
     "PlatformItemSnapshotsRepo",

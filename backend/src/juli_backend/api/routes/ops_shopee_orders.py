@@ -24,19 +24,29 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator
+from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
 from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
+from juli_backend.api.routes.shopee_analytics_common import (
+    REFUSALS,
+    DateQ,
+    MonthQ,
+    PeriodQ,
+    refusal,
+    window_args,
+)
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services import ingest as ingest_service
 from juli_backend.services.ingest import order_ref
 from juli_backend.services.ops import audit
+from juli_backend.services.shopee_analytics import orders as order_view
+from juli_backend.services.shopee_analytics import queries
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 
@@ -145,3 +155,39 @@ async def ops_upload_order_lines(
     await audit.record(session, ctx.staff.actor, ACTION_UPLOAD, shop_id=shop_id, after=after)
     await session.commit()
     return after
+
+
+@router.get("/shops/{shop_id}/shopee/orders")
+async def ops_orders(
+    shop_id: uuid.UUID,
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
+    as_of: DateQ = None,
+    status: Annotated[str | None, Query(pattern=f"^({'|'.join(order_view.STATUSES)})$")] = None,
+    lever: Annotated[
+        str | None, Query(pattern="^(promotion|flash_sale|voucher|combo|affiliate)$")
+    ] = None,
+    sort: Annotated[str, Query(pattern=f"^({'|'.join(order_view.SORTS)})$")] = "date",
+    limit: Annotated[int, Query(ge=1, le=order_view.MAX_LIMIT)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Đơn hàng, the same read the seller has: hashed keys, no buyer data."""
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id):
+            return await queries.orders(
+                session,
+                shop_id,
+                status=status,
+                lever=lever,
+                sort=sort,
+                limit=limit,
+                offset=offset,
+                **window_args(period, month, start, end, as_of),
+            )
+    except REFUSALS as exc:
+        raise refusal(exc) from None

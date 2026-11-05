@@ -1,0 +1,179 @@
+"""P92 B-2: per product, per variation -- only price and profit margin.
+
+``economics`` turns the catalogue (variations and their names / SKUs), the newest item snapshots
+(list and selling price per variation) and the seller's rules (giá vốn, đóng gói, số món / phân
+loại, VAT) into the rows the builder's variation picker and the product page's "So sánh phân loại"
+show:
+
+- ``list_price`` / ``selling_price`` -- the snapshot's list and current price of the variation
+  (the item's own when the variation has none);
+- ``pack_count`` -- from the Thông số shop pack column, else read from the name ("Combo 3 hộp" = 3),
+  else 1; ``price_per_unit`` = selling price / pack count;
+- ``margin_pct`` -- contribution of ONE order of this variation (platform fees by the shop's fee
+  schedule, giá vốn x pack, đóng gói, VAT per the P91 D-12/D-14 flags) over what the seller
+  keeps. ``None`` with ``margin_label`` "chưa tính" when the seller has not stated a giá vốn: the
+  1/3-of-price fallback is never used here (P92 B-7.1).
+
+Pure: the caller passes what it loaded.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from datetime import date
+from decimal import Decimal
+from typing import Any
+
+from juli_backend.services.shopee_analytics.catalog import ItemInfo
+from juli_backend.services.shopee_analytics.fmt import num, pct
+from juli_backend.services.shopee_analytics.rules_view import ProfitRules
+from juli_backend.services.shopee_profit.fees import FeeSchedule
+from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
+from juli_backend.services.shopee_profit.order_profit import OrderLine, SkuCost, profit_lines
+from juli_backend.services.shopee_recommendations.unit_cost import UnitCost, scope_of, unit_cost
+
+NOT_COUNTED = "chưa tính"
+NOT_COUNTED_REASON = "Chưa có giá vốn trong Thông số shop"
+PACK_SOURCE_LABELS = {
+    "set": "Thông số shop",
+    "name": "đọc từ tên phân loại",
+    "single": "mặc định 1",
+}
+DEFAULT_NAME = "Mặc định"
+
+
+def cost_key(item_id: str, variation_id: str, seller_sku: str | None, cost: UnitCost) -> str:
+    """The SKU key the profit engine costs this variation under (``engine.to_shop_lines``):
+    the seller SKU (or the item id), ``×pack`` when a pack, ``bom:<scope>`` for a bill of
+    materials."""
+    scope = scope_of(item_id, variation_id)
+    if cost.bom:
+        return f"bom:{scope}"
+    base = seller_sku or item_id
+    return base if cost.pack_count == 1 else f"{base}×{cost.pack_count}"
+
+
+def unit_margin(
+    item_id: str,
+    key: str,
+    cost: UnitCost,
+    list_price: Decimal,
+    selling_price: Decimal,
+    schedule: FeeSchedule,
+    on: date,
+) -> tuple[Decimal | None, Decimal | None, str | None]:
+    """``(margin rate, profit per unit, reason)`` of one order of one sold unit at
+    ``selling_price``; ``(None, None, reason)`` when it cannot be computed."""
+    if cost.cogs is None:
+        return None, None, "cost_missing"
+    line = OrderLine(
+        order_id="variation:1",
+        sku=key,
+        product_id=item_id,
+        order_date=on,
+        qty=1,
+        original_price=max(list_price, selling_price),
+        deal_price=selling_price,
+    )
+    sku_cost = SkuCost(key, cost.cogs, cost.packaging or ZERO, vat=cost.vat)
+    pb = profit_lines([line], {key: sku_cost}, schedule=schedule)[0][1]
+    if pb.contribution is None:
+        return None, None, ",".join(pb.missing) or "profit_unknown"
+    revenue = pb.revenue
+    if revenue <= 0:
+        return None, pb.contribution, "no_revenue"
+    return pb.contribution / revenue, pb.contribution, None
+
+
+def _dec(value: Any) -> Decimal | None:
+    if value is None:
+        return None
+    d = value if isinstance(value, Decimal) else Decimal(str(value))
+    return d if d > 0 else None
+
+
+def variation_rows(
+    item_id: str,
+    info: ItemInfo | None,
+    snapshot_variations: Sequence[Mapping[str, Any]],
+    *,
+    rules: ProfitRules,
+    schedule: FeeSchedule,
+    on: date,
+    item_list_price: Decimal | None = None,
+    item_current_price: Decimal | None = None,
+) -> list[dict[str, Any]]:
+    """The variations of one product (one row without variations)."""
+    snaps = {str(s.get("variation_id") or ""): s for s in snapshot_variations}
+    base_list = _dec(item_list_price) or _dec(info.list_price if info else None)
+    base_now = _dec(item_current_price) or _dec(info.current_price if info else None)
+    catalogued = list(info.variations) if info else []
+    entries: list[tuple[str, str | None, str | None]] = [
+        (v.variation_id, v.name, v.seller_sku) for v in catalogued
+    ]
+    seen = {e[0] for e in entries}
+    entries += [(vid, None, None) for vid in snaps if vid and vid not in seen]
+    if not entries:
+        entries = [("", None, info.seller_sku if info else None)]
+    rows: list[dict[str, Any]] = []
+    for variation_id, name, sku in sorted(entries, key=lambda e: (e[0] == "", e[0])):
+        snap = snaps.get(variation_id) or {}
+        own_list, own_now = _dec(snap.get("list_price")), _dec(snap.get("current_price"))
+        listed = own_list or own_now or base_list
+        selling = own_now or own_list or base_now or base_list
+        cost = unit_cost(rules, item_id, variation_id, seller_sku=sku, variation_name=name)
+        key = cost_key(item_id, variation_id, sku, cost)
+        margin: Decimal | None = None
+        profit_unit: Decimal | None = None
+        reason: str | None = "price_missing"
+        if listed is not None and selling is not None:
+            margin, profit_unit, reason = unit_margin(
+                item_id, key, cost, listed, selling, schedule, on
+            )
+        per_unit = safe_div(selling, Decimal(cost.pack_count)) if selling is not None else None
+        rows.append(
+            {
+                "variation_id": variation_id,
+                "name": name or DEFAULT_NAME,
+                "sku": sku,
+                "sku_key": key,
+                "list_price": num(listed),
+                "selling_price": num(selling),
+                "pack_count": cost.pack_count,
+                "pack_source": cost.pack_source,
+                "pack_source_label": PACK_SOURCE_LABELS[cost.pack_source],
+                "price_per_unit": num(per_unit),
+                "margin_pct": pct(pct_points(margin)),
+                "profit_per_unit": num(profit_unit),
+                "margin_label": None if margin is not None else NOT_COUNTED,
+                "margin_reason": None
+                if margin is not None
+                else (NOT_COUNTED_REASON if reason == "cost_missing" else reason),
+                "has_cost": cost.known,
+                "stock": snap.get("stock"),
+            }
+        )
+    return rows
+
+
+def economics(
+    item_id: str,
+    name: str,
+    rows: list[dict[str, Any]],
+    *,
+    vat: Mapping[str, Any],
+) -> dict[str, Any]:
+    """The payload of ``GET .../products/{item}/variations``."""
+    return {
+        "item_id": item_id,
+        "name": name,
+        "variations": rows,
+        "columns": ["list_price", "selling_price", "price_per_unit", "margin_pct"],
+        "margin_basis": "Biên của một đơn gồm 1 đơn vị bán của phân loại này, sau phí sàn, "
+        "giá vốn, đóng gói" + (" và VAT" if vat.get("basis") == "after_vat" else ""),
+        "vat": dict(vat),
+        "missing_cost": [r["variation_id"] for r in rows if not r["has_cost"]],
+    }
+
+
+__all__ = ["NOT_COUNTED", "cost_key", "economics", "unit_margin", "variation_rows"]

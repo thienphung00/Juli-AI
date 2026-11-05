@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, select
 
 from juli_backend.models.ingest import PlatformDailyMetric
-from juli_backend.models.market import MarketKeywordMetric
+from juli_backend.models.market import MarketKeywordMetric, MarketListingSnapshot
 from juli_backend.models.platform_data import (
     PlatformItem,
     PlatformPeriodMetric,
@@ -379,10 +379,66 @@ class MarketKeywordMetricsReadRepo(SessionRepo):
                 out.append(row)
         return out
 
+    async def related(
+        self, seeds: Collection[str], *, limit: int = 300
+    ) -> list[MarketKeywordMetric]:
+        """P92: the other keywords the lookups of these seeds listed (``keyword != seed``), the
+        newest numbers of each, highest volume first."""
+        if not seeds:
+            return []
+        rows = await self._all(
+            select(MarketKeywordMetric)
+            .where(
+                MarketKeywordMetric.seed.in_(list(seeds)),
+                MarketKeywordMetric.keyword != MarketKeywordMetric.seed,
+                MarketKeywordMetric.status == "ok",
+            )
+            .order_by(MarketKeywordMetric.keyword, MarketKeywordMetric.collected_on.desc())
+        )
+        newest: dict[str, MarketKeywordMetric] = {}
+        for row in rows:
+            newest.setdefault(row.keyword, row)
+        ordered = sorted(newest.values(), key=lambda r: (-(r.volume or 0), r.keyword))
+        return ordered[:limit]
+
+
+class MarketListingsReadRepo(SessionRepo):
+    """Public lane: the search cards the owner collected (competitor titles)."""
+
+    async def top_titles(
+        self, keywords: Collection[str], *, per_keyword: int = 10
+    ) -> dict[str, list[str]]:
+        """Per keyword the titles of its newest collection, best position first."""
+        if not keywords:
+            return {}
+        rows = await self._all(
+            select(MarketListingSnapshot)
+            .where(
+                MarketListingSnapshot.keyword.in_(list(keywords)),
+                MarketListingSnapshot.title.is_not(None),
+            )
+            .order_by(
+                MarketListingSnapshot.keyword,
+                MarketListingSnapshot.collected_at.desc(),
+                MarketListingSnapshot.page,
+                MarketListingSnapshot.pos,
+            )
+        )
+        newest: dict[str, datetime] = {}
+        out: dict[str, list[str]] = {}
+        for row in rows:
+            at = newest.setdefault(row.keyword, row.collected_at)
+            if row.collected_at != at or len(out.setdefault(row.keyword, [])) >= per_keyword:
+                continue
+            if row.title:
+                out[row.keyword].append(row.title)
+        return out
+
 
 __all__ = [
     "AdCampaignPurposesReadRepo",
     "MarketKeywordMetricsReadRepo",
+    "MarketListingsReadRepo",
     "PlatformDailyMetricsRepo",
     "PlatformFeeFormulasReadRepo",
     "PlatformItemSnapshotsRepo",

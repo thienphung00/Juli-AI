@@ -21,6 +21,7 @@ from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.critical import build_critical
 from juli_backend.services.shopee_analytics.loaders import ShopContext
 from juli_backend.services.shopee_analytics.matrix import SORTS, build_matrix
+from juli_backend.services.shopee_analytics.orders import build_orders
 from juli_backend.services.shopee_analytics.overview import build_overview
 from juli_backend.services.shopee_analytics.product import build_product_page
 from juli_backend.services.shopee_analytics.rankings import build_ranking
@@ -114,6 +115,32 @@ async def matrix(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     return build_matrix(now, sort=sort, limit=limit, before=before)
+
+
+async def orders(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    period: str = "30d",
+    month: str | None = None,
+    start: date | None = None,
+    end: date | None = None,
+    as_of: date | None = None,
+    status: str | None = None,
+    lever: str | None = None,
+    sort: str = "date",
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Đơn hàng: one row per confirmed order, hashed key, no buyer data."""
+    window = await service.resolve(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+    )
+    if window is None:
+        raise NoShopeeData(str(shop_id))
+    ctx = await loaders.load_context(session, shop_id)
+    view = await service.load_view(session, shop_id, ctx, window)
+    return build_orders(view, status=status, lever=lever, sort=sort, limit=limit, offset=offset)
 
 
 async def critical(
