@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import select
@@ -427,7 +428,7 @@ def test_bug3_5_variation_rows_take_the_sku_text_of_the_order_lines():
         observed={"": "HAE-01"},  # older lines, stored before the model was named
     )  # fmt: skip
     assert row["sku_key"] == "HAE-01" and row["has_cost"]
-    ctx = BuilderContext(env=None, variations={"77": [row]})  # type: ignore[arg-type]
+    ctx = BuilderContext(env=cast(Any, None), variations={"77": [row]})
     assert ctx.sku_key("77", "") == "HAE-01"  # "no variation named" = its only model
     assert ctx.variation("77", "")["sku_key"] == "HAE-01"
 

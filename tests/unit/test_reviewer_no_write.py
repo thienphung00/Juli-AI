@@ -301,6 +301,7 @@ async def test_every_route_as_reviewer_writes_nothing(
         "code": "JC-2611-0001",  # P91: .../shopee/recommendations/code/{code}
         "item_id": "1001",  # P90: GET /v1/demo/shopee/products/{item_id}
         "group_id": str(uuid.uuid4()),  # P36: PATCH /v1/ops/shops/{shop_id}/groups/{group_id}
+        "user_id": str(uuid.uuid4()),  # P93: DELETE /v1/ops/shops/{shop_id}/members/{user_id}
         "rest": "anything",
         "number": "1",  # P91 D-13: .../planned-changes/versions/{number}
         "workflow_key": "optimize_product_2",

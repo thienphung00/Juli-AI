@@ -835,6 +835,8 @@ def test_beat_schedule_has_exactly_the_expected_entries():
         "shop-history-extend",
         # P90 assisted execution: read-back verification of executed card changes.
         "card-change-verification",
+        # Release 2026-11-05b: daily recompute of stale Shopee recommendation cards.
+        "shopee-reco-refresh",
         # Fast track P18 (D27.4): nightly Ops audit retention.
         "ops-audit-retention",
         # Fast track P20 (D28.3): hourly system OpenAI limit 80 % e-mail check.
