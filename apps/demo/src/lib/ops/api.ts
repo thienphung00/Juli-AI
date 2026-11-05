@@ -147,6 +147,13 @@ export const opsApi = {
       { method: "POST", body: { email, keep_ops_access: keepOpsAccess } },
       o,
     ),
+  /** P93 "Gỡ": the person loses the shop at once; the shop and its data stay. */
+  removeMember: (shopId: string, userId: string, o?: OpsRequestOptions) =>
+    opsRequest<{ data: { user_id: string; email: string | null; removed: boolean } }>(
+      `${shopPath(shopId)}/members/${encodeURIComponent(userId)}`,
+      { method: "DELETE" },
+      o,
+    ),
   viewSession: (shopId: string, mode: "view" | "exit", o?: OpsRequestOptions) =>
     opsRequest<ViewSession>(`${shopPath(shopId)}/view-session`, { method: "POST", body: { mode } }, o),
   disconnect: (shopId: string, reason: string, confirmName: string, o?: OpsRequestOptions) =>

@@ -553,6 +553,7 @@ async def test_invite_and_accept_moves_the_shop_and_keeps_ops_access(session, fa
 
 async def test_seller_can_decline_ops_access_and_expired_invite_fails(session, fake_mailer):
     _, shop = await make_tenant(session)
+    shop_id = shop.id
     fake_mailer.ok = False
     staff_user = await _staff(session, "operator")
     async with _client_as(session, staff_user) as client:
@@ -571,9 +572,10 @@ async def test_seller_can_decline_ops_access_and_expired_invite_fails(session, f
 
     async with _client_as(session, staff_user) as client:
         second = await client.post(
-            f"/v1/ops/shops/{shop.id}/invites", json={"email": "s@gmail.com"}
+            f"/v1/ops/shops/{shop.id}/invites", json={"email": "t@gmail.com"}
         )
     token2 = second.json()["accept_url"].split("#")[1]
+    other = await make_user(session, email="t@gmail.com")
     from juli_backend.models.ops import OpsShopInvite
 
     row = (
@@ -583,9 +585,13 @@ async def test_seller_can_decline_ops_access_and_expired_invite_fails(session, f
     )
     row.expires_at = datetime(2020, 1, 1)
     await session.flush()
-    async with _client_as(session, seller) as client:
+    async with _client_as(session, other) as client:
         expired = await client.post("/v1/shop-invites/accept", json={"token": token2})
     assert expired.status_code == 410
+    # P93: an e-mail that is already on the team cannot be invited again.
+    async with _client_as(session, staff_user) as client:
+        again = await client.post(f"/v1/ops/shops/{shop_id}/invites", json={"email": "S@gmail.com"})
+    assert again.status_code == 409
 
 
 # -- Quy tắc in Cài đặt shop (D25.14) ---------------------------------------------------

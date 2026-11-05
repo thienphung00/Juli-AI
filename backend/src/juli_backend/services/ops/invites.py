@@ -1,13 +1,17 @@
-"""P9-B handover (D25.7): "Mời seller" → the seller signs in and takes the shop.
+"""P9-B handover (D25.7) and P93 shop team: "Mời seller" → the person signs in and joins the shop.
 
 - Staff (Vận hành+) create an invite for an e-mail: a one-time token (only its
   sha256 is stored), 7-day expiry, and whether to ask the seller to let the
-  team keep Vận hành access. Older pending invites of the shop are revoked.
-- The seller opens the link on the seller app, signs in with THAT e-mail
-  (verified by Supabase; compared case-insensitively) and accepts. The shop's
-  ``user_id`` moves to the seller through ``ops_transfer_shop`` (SECURITY
-  DEFINER, juli_ops only). Cards, runs, rules and history key on ``shop_id``
-  and are untouched.
+  team keep Vận hành access. An older pending invite of the SAME e-mail is
+  revoked; invites to other people stay valid (one person per link). An e-mail
+  that is already a member is refused (``already_member``).
+- The person opens the link on the seller app, signs in with THAT e-mail
+  (verified by Supabase; compared case-insensitively) and accepts. P93: they are
+  ADDED to the shop team (``shop_members``); nobody already on it loses the shop.
+  Only a shop with no member yet (a contract shop's login-less owner, or every
+  member removed) still does the P9-B handover for its first person: ``user_id``
+  moves to them through ``ops_transfer_shop`` (SECURITY DEFINER, juli_ops only).
+  Cards, runs, rules and history key on ``shop_id`` and are untouched.
 - The seller's answer to "let the team keep Vận hành access" is stored on the
   invite (``seller_kept_ops_access``) and shown in Ops. Since D25.3 was amended
   (2026-10-10) nobody acts FOR a seller: Vận hành access means the team keeps
@@ -32,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.models.models import Shop, User
 from juli_backend.models.ops import OpsShopInvite
 from juli_backend.repositories._base import utc_now_naive
+from juli_backend.services import shop_team
 from juli_backend.services.ops import audit
 from juli_backend.services.ops.access import is_sqlite, ops_role
 from juli_backend.services.ops.mailer import InviteMail, get_mailer
@@ -121,11 +126,14 @@ async def create_invite(
     address = _clean_email(email)
     moment = now or utc_now_naive()
     token = secrets.token_urlsafe(32)
+    if await shop_team.is_active_member_email(session, shop, address):
+        raise InviteError("already_member", "this e-mail is already a member of the shop")
     async with ops_role(session):
         await session.execute(
             update(OpsShopInvite)
             .where(
                 OpsShopInvite.shop_id == shop.shop_id,
+                OpsShopInvite.email == address,
                 OpsShopInvite.accepted_at.is_(None),
                 OpsShopInvite.revoked_at.is_(None),
             )
@@ -227,25 +235,73 @@ async def accept_invite(
     keep_ops_access: bool,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Take the shop. Caller commits."""
+    """Join the shop team (P93); the first person of a shop with no member also takes it.
+
+    Caller commits.
+    """
     moment = now or utc_now_naive()
     row = await _usable(session, token, user, moment)
     kept = bool(keep_ops_access and row.keep_ops_access)
-    previous_owner = await _transfer(session, row.shop_id, user.id)
+    listing = await find_shop(session, row.shop_id)
+    if listing is None:
+        raise InviteError("invalid_token", "invalid invite")
+    members = await shop_team.list_members(session, listing)
+    # The Juli team account that connected the shop is not a seller member.
+    handover = not [m for m in members if not shop_team.is_team_email(m["email"])]
+    previous_owner = listing.owner_user_id
+    if handover:
+        previous_owner = await _transfer(session, row.shop_id, user.id)
+        await shop_team.release_team_accounts(session, row.shop_id, now=moment)
+    elif members[0]["implicit"]:
+        # Give a pre-backfill owner their real row before someone else joins, so the team
+        # list and a later removal do not depend on the "owner without a row" fallback.
+        await shop_team.add_member(
+            session,
+            row.shop_id,
+            listing.owner_user_id,
+            listing.owner_email,
+            via=shop_team.VIA_BACKFILL,
+            now=moment,
+        )
+    await shop_team.add_member(
+        session,
+        row.shop_id,
+        user.id,
+        user.email,
+        via=shop_team.VIA_INVITE,
+        invite_id=row.id,
+        staff_id=row.created_by,
+        now=moment,
+    )
     async with ops_role(session):
         row.accepted_at = moment
         row.accepted_user_id = user.id
         row.seller_kept_ops_access = kept
+    actor = audit.Actor(staff_id=None, email=user.email or "seller")
     await audit.record(
         session,
-        audit.Actor(staff_id=None, email=user.email or "seller"),
+        actor,
         "invite_accept",
         shop_id=row.shop_id,
         before={"owner_user_id": str(previous_owner)},
         after={
-            "owner_user_id": str(user.id),
+            "owner_user_id": str(user.id) if handover else str(previous_owner),
             "seller_kept_ops_access": kept,
+            "handover": handover,
         },
         at=moment,
     )
-    return {"shop_id": str(row.shop_id), "kept_ops_access": kept}
+    await audit.record(
+        session,
+        actor,
+        shop_team.ACTION_MEMBER_ADD,
+        shop_id=row.shop_id,
+        after={"member": str(user.id), "email": (user.email or "").lower(), "via": "invite"},
+        at=moment,
+    )
+    return {
+        "shop_id": str(row.shop_id),
+        "kept_ops_access": kept,
+        "joined_team": True,
+        "took_shop": handover,
+    }

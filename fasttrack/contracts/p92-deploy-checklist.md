@@ -95,3 +95,23 @@ None new. The market reader is driven by the Connector's own alarm (weekly per k
   `tests/integration/test_migrations.py::test_no_public_table_holds_update_beyond_its_call_site` (separate ticket, P91 D-14).
 - `.gitleaks.toml` gained a line-level allowlist for the false positive `campaign_key=key,` in `tests/unit/test_shopee_builder.py`.
 - Nothing writes to Seller Centre. Every change is applied by a person who presses the platform's own save.
+
+## 8. P93 shop team (same branch, adds migration 121)
+
+Several seller people on one shop; only Ops (Vận hành+) invites and removes (contract `p93-shop-team.md`). This section is for the
+deploy that carries P93; P92 alone still needs no migration.
+
+1. **Migration 121_shop_members** (additive; head becomes `121_shop_members`): table `shop_members` (RLS; `juli_app` SELECT of its own rows, `juli_ops`
+   SELECT/INSERT/UPDATE), two replaced `shops` policies (SELECT / UPDATE admit an active member, or the owner who has no member row of their own), and an AFTER
+   INSERT trigger that gives a new seller owner a member row. No row is moved, so the additive gate accepts it. Rollback: `alembic downgrade -1` drops the
+   table, trigger and restores the owner-only policies (member rows are lost; shops untouched).
+2. **Backfill (separately operated, deferred)**: `deferred/102_shop_members_backfill.py` (an INSERT, so the additive gate refuses it from the release). Until it
+   runs nothing is lost: an owner with no row keeps access and Ops lists them as a member. Run it with the same procedure as the 101 deferred step; it is
+   idempotent. Check after: `SELECT count(*) FROM shops s JOIN users u ON u.id = s.user_id WHERE (u.email IS NOT NULL OR u.phone IS NOT NULL) AND u.email NOT ILIKE
+   '%@app-juli.com' AND NOT EXISTS (SELECT 1 FROM shop_members m WHERE m.shop_id = s.id AND m.user_id = u.id)` returns 0.
+3. **Smoke (ORY)**: in Ops, ORY > Cài đặt shop > "Thành viên shop": invite two e-mails (two separate links). Each person opens `/nhan-shop`, signs in with
+   their own e-mail and joins; both see ORY and act under their own name. The first accept on a shop with no seller member also takes the shop (as before). Then
+   "Gỡ" one of them (in-page confirmation): that person's next request gets 403 and the shop disappears from their list; the other keeps working. Check the audit
+   rows `member_add` / `member_remove`.
+4. Known limit: deleting the account of the shop's primary account (`shops.user_id`) still purges the whole shop (the existing P50-B purge); other members do not
+   keep it. Ask Ops to hand the shop over first. Last-seen time is not shown (no such field exists yet).

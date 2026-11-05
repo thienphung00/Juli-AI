@@ -1,8 +1,9 @@
-"""The seller's side of the P9-B handover (D25.7): preview and accept an invite.
+"""The seller's side of the shop invite (D25.7, P93): preview and accept.
 
 Both need the seller signed in (``get_current_user``); the invite only works for
-the e-mail it was sent to. Accepting moves the shop to the seller's account and
-keeps its cards, runs, rules and history (``services/ops/invites.py``).
+the e-mail it was sent to. Accepting adds the person to the shop team (P93); a shop
+with no member yet is also handed to them (P9-B). Cards, runs, rules and history are
+kept (``services/ops/invites.py``). There is no seller endpoint to invite or remove.
 """
 
 from __future__ import annotations

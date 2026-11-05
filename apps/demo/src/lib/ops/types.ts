@@ -157,6 +157,16 @@ export interface Invite {
   readonly revoked_at: string | null;
 }
 
+/** P93: one person on the shop team (all members have the same role). */
+export interface ShopMember {
+  readonly user_id: string;
+  readonly email: string | null;
+  /** null for an owner with no member row yet (before the backfill ran). */
+  readonly added_at: string | null;
+  readonly added_via: "owner" | "invite" | "backfill";
+  readonly implicit: boolean;
+}
+
 export interface ShopInfo {
   readonly shop_id: string;
   readonly shop_name: string;
@@ -171,6 +181,8 @@ export interface ShopSettingsPage {
   readonly shop: ShopInfo;
   readonly settings: ShopSettings;
   readonly invites: readonly Invite[];
+  /** P93: the shop team; absent from an older backend. */
+  readonly members?: readonly ShopMember[];
   readonly audit: readonly AuditEntry[];
   /** P28 (D33): open cards per cell ("ctr@product_card" → 3); only while the quota mode is on. */
   readonly card_cells?: Readonly<Record<string, number>> | null;

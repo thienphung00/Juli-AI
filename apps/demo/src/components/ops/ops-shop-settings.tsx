@@ -16,6 +16,7 @@ import { OpsRules } from "./ops-rules";
 import { OpsExclusions } from "../exclusions/ops-exclusions";
 import { OpsPlannedChanges } from "../planned-changes/ops-planned-changes";
 import { OpsShopInputs } from "./ops-shop-inputs";
+import { OpsShopTeam } from "./ops-shop-team";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
 import { OpsSkeleton } from "./ops-skeleton";
 
@@ -33,7 +34,7 @@ const STAGES: [StageId, string, string][] = [
 const STREAM_LABEL: Record<string, string> = { product_card: "Thẻ SP", shop_tab: "Tab", seller_video: "Video", seller_live: "LIVE" };
 const OWN: CSSProperties = { background: "#fff7fa", borderColor: "#f8b9d3", fontWeight: 600 };
 
-type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "groups" | "createGroup" | "setGroupReason" | "consent" | "enableConsent" | "createPairingCode" | "ingestTokens" | "revokeIngestToken">>;
+type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "removeMember" | "groups" | "createGroup" | "setGroupReason" | "consent" | "enableConsent" | "createPairingCode" | "ingestTokens" | "revokeIngestToken">>;
 
 function SettingRow({
   title,
@@ -151,9 +152,6 @@ const sameValue = (a: unknown, b: unknown) => {
 export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: OpsMe; readonly shopId: string; readonly api?: Api }) {
   const [page, setPage] = useState<ShopSettingsPage | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [keep, setKeep] = useState(true);
-  const [inviteNote, setInviteNote] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({});
   const [dialog, setDialog] = useState<Dialog>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -220,23 +218,12 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
   const platform = platformOf(page.shop.platform);
   const capShown = eff("openai_monthly_cap_usd") as number | null;
   const anyOverride = SETTING_KEYS.some((k) => s.overrides[k] !== null && s.overrides[k] !== undefined);
-  const pendingInvite = page.invites.find((i) => !i.accepted_at && !i.revoked_at);
-  const ownerText = page.shop.owned_by_team
-    ? pendingInvite
-      ? `Đã gửi lời mời tới ${pendingInvite.email} · chờ seller đăng nhập và nhận shop.`
-      : `Shop do đội ngũ kết nối (tài khoản ${page.shop.owner_email ?? "—"}). Chưa bàn giao.`
-    : `Chủ shop: ${page.shop.owner_email ?? "—"}.`;
-
-  const sendInvite = async () => {
-    setInviteNote(null);
-    try {
-      const r = await api.invite(shopId, inviteEmail, keep);
-      setInviteNote(r.email_sent ? "Đã gửi email mời." : `Chưa gửi được email. Gửi liên kết này cho seller: ${r.accept_url ?? ""}`);
-      load();
-    } catch (e) {
-      setInviteNote(e instanceof Error ? e.message : "Không mời được.");
-    }
-  };
+  // P93: the invite form never depends on the owner account (a contract shop's owner has no e-mail).
+  const ownerText = !page.shop.owner_email
+    ? "Chưa có thành viên."
+    : page.shop.owned_by_team
+      ? `Shop do đội ngũ kết nối (tài khoản ${page.shop.owner_email}).`
+      : `Tài khoản chính: ${page.shop.owner_email}.`;
 
   const resetRows = SETTING_KEYS.filter((k) => s.overrides[k] !== null && s.overrides[k] !== undefined).flatMap((k) =>
     changeRows(k, s.overrides[k], s.defaults[k], true),
@@ -499,41 +486,7 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
           {platform === "shopee" ? <OpsExclusions canEdit={canEdit} shopId={shopId} /> : null}
         </section>
         <aside style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={card}>
-            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Chủ shop và bàn giao</h2>
-            <div style={{ fontSize: 14, color: C.body }}>{ownerText}</div>
-            {page.shop.owned_by_team && !pendingInvite && canEdit ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: C.muted }}>
-                  Email của seller
-                  <input
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    style={{ font: "inherit", fontSize: 14, border: `1px solid ${C.line}`, borderRadius: 8, minHeight: 40, padding: "0 10px" }}
-                    type="email"
-                    value={inviteEmail}
-                  />
-                </label>
-                <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
-                  <input checked={keep} onChange={(e) => setKeep(e.target.checked)} style={{ width: 18, height: 18, accentColor: C.pinkStrong }} type="checkbox" />
-                  Hỏi seller cho đội ngũ giữ quyền Vận hành
-                </label>
-                <button
-                  disabled={!inviteEmail.includes("@")}
-                  onClick={() => void sendInvite()}
-                  style={{ font: "inherit", fontSize: 14, fontWeight: 600, color: "#fff", background: C.pinkStrong, border: 0, borderRadius: 10, minHeight: 44, cursor: "pointer" }}
-                  type="button"
-                >
-                  Mời seller
-                </button>
-              </div>
-            ) : null}
-            {inviteNote ? (
-              <span role="status" style={{ fontSize: 13, wordBreak: "break-all" }}>
-                {inviteNote}
-              </span>
-            ) : null}
-            <span style={{ fontSize: 12, color: C.muted2 }}>Thẻ, lượt chạy, Quy tắc và lịch sử được giữ nguyên khi bàn giao.</span>
-          </div>
+          <OpsShopTeam api={api} canEdit={canEdit} invites={page.invites} members={page.members ?? []} onChanged={load} ownerText={ownerText} shopId={shopId} shopName={shopName} />
           <div style={{ ...card, gap: 8 }}>
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Nhật ký</h2>
             {page.audit.length === 0 ? <span style={{ fontSize: 13, color: C.muted2 }}>Chưa có thao tác nào.</span> : null}
