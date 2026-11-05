@@ -550,6 +550,35 @@ async def test_ops_sees_drafts_publishes_and_the_audit_row_is_written(session, s
     assert wd.status_code == 200 and (await session.get(ShopProposal, ids[1])).status == "withdrawn"
 
 
+async def test_ops_ga_the_records_reason_audit_and_bulk(session, shop, ops):
+    seeded, _, ids = shop
+    base = f"/v1/ops/shops/{seeded.shop_id}/shopee/recommendations"
+    one = await ops.post(
+        f"{base}/{ids[0]}/withdraw", json={"reason_code": "duplicate", "note": "trùng"}
+    )
+    assert one.status_code == 200 and one.json()["status"] == "withdrawn"
+    bad_one = await ops.post(f"{base}/{ids[1]}/withdraw", json={"reason_code": "x"})
+    assert bad_one.status_code == 422
+    bulk = await ops.post(
+        f"{base}/withdraw",
+        json={"card_ids": [str(ids[1]), str(ids[2]), str(ids[0])], "reason_code": "not_fit"},
+    )
+    assert bulk.status_code == 200, bulk.text
+    out = bulk.json()
+    assert out["withdrawn"] == [str(ids[1]), str(ids[2])]
+    assert [r["id"] for r in out["refused"]] == [str(ids[0])] and out["refused"][0]["status"] == 409
+    for cid in ids[:3]:
+        assert (await session.get(ShopProposal, cid)).status == "withdrawn"
+    audit = [
+        r for r in (await session.scalars(select(OpsAuditLog))).all() if r.action == "reco_withdraw"
+    ]
+    assert len(audit) == 2
+    empty = await ops.post(f"{base}/withdraw", json={"card_ids": [], "reason_code": "other"})
+    assert empty.status_code == 422
+    bad = await ops.post(f"{base}/withdraw", json={"card_ids": [str(ids[3])], "reason_code": "zzz"})
+    assert bad.status_code == 422
+
+
 async def test_ops_generate_ranks_and_persists_drafts(session, shop, ops):
     seeded, _, _ = shop
     base = f"/v1/ops/shops/{seeded.shop_id}/shopee/recommendations"

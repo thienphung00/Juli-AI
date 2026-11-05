@@ -42,11 +42,13 @@ from juli_backend.models.shop_proposals import (
     STATUS_CHANGES_REQUESTED,
     STATUS_DRAFT,
     STATUS_EXECUTED,
+    STATUS_PLANNED,
     STATUS_REJECTED,
     STATUS_SENT,
     STATUS_WITHDRAWN,
     ShopProposal,
 )
+from juli_backend.models.shopee_plans import PLAN_DRAFT, ShopRecoPlan, ShopRecoPlanCard
 from juli_backend.services.card_events import keys, verification
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
@@ -936,12 +938,70 @@ async def publish(
     return out
 
 
+#: Why Ops takes a card off the list ("Gỡ thẻ"): not fitting, a duplicate, already done outside
+#: Juli, anything else.
+WITHDRAW_REASONS: tuple[str, ...] = ("not_fit", "duplicate", "done_outside", "other")
+
+
+async def _detach_from_plan(session: AsyncSession, p: ShopProposal, now: datetime) -> None:
+    """A planned card leaves its draft plan before it is withdrawn (a confirmed plan keeps it)."""
+    row = await session.scalar(
+        select(ShopRecoPlanCard).where(
+            ShopRecoPlanCard.shop_id == p.shop_id,
+            ShopRecoPlanCard.proposal_id == p.id,
+            ShopRecoPlanCard.removed_at.is_(None),
+        )
+    )
+    plan = await session.get(ShopRecoPlan, row.plan_id) if row is not None else None
+    if row is None or plan is None or plan.status != PLAN_DRAFT:
+        raise ProposalError(
+            "reco_card_in_confirmed_plan",
+            409,
+            "the card belongs to a confirmed plan: take it out of the plan first",
+        )
+    row.removed_at = now
+    plan.updated_at = now
+    p.status = row.prior_status
+    p.lever_plan_id = None
+    await store.set_meta(session, p.shop_id, p.id, {"plan_id": None})
+
+
 async def withdraw(
-    session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID, *, now: datetime
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    card_id: uuid.UUID,
+    *,
+    now: datetime,
+    reason_code: str | None = None,
+    note: str | None = None,
+    by: str | None = None,
 ) -> None:
+    """Ops takes a card off the list: it closes as ``withdrawn`` (a planned card leaves its
+    draft plan first), the reason is kept on the card, and the product's next card moves up."""
+    reason = reason_code or "other"
+    if reason not in WITHDRAW_REASONS:
+        raise ProposalError(
+            ERROR_BAD_INPUT, 422, f"reason_code must be one of {list(WITHDRAW_REASONS)}"
+        )
+    now = _naive(now)
     p, _ = await _proposal(session, shop_id, card_id)
-    await proposals.withdraw(session, p, now=_naive(now))
-    await _requeue(session, p, _naive(now))
+    if p.status == STATUS_PLANNED:
+        await _detach_from_plan(session, p, now)
+    await proposals.withdraw(session, p, now=now)
+    await store.set_meta(
+        session,
+        shop_id,
+        card_id,
+        {
+            "withdrawn": {
+                "reason_code": reason,
+                "note": (note or "").strip()[:300] or None,
+                "by": by,
+                "at": now.isoformat(),
+            }
+        },
+    )
+    await _requeue(session, p, now)
 
 
 # ---------------------------------------------------------------------------- decide
@@ -1163,6 +1223,8 @@ async def _decide(
             now=now,
             decided_by_user_id=user_id,
             note=note or dcode,
+            # a card sent back for a change can still be dropped by the seller
+            from_states=frozenset({STATUS_SENT, STATUS_CHANGES_REQUESTED}),
         )
         await store.write_event(
             session,
@@ -1529,4 +1591,5 @@ __all__ = [
     "backfill_codes",
     "short_id",
     "withdraw",
+    "WITHDRAW_REASONS",
 ]

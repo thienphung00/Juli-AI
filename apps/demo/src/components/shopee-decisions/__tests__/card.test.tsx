@@ -235,4 +235,23 @@ describe("quyết định của seller", () => {
     expect(screen.queryByRole("button", { name: /^Duyệt V1$/ })).toBeNull();
     await act(async () => undefined);
   });
+
+  it("Gỡ thẻ on an open card in the Ops tab: in-page confirmation with a reason, then withdrawn", async () => {
+    const reco = fakeReco({ detail: detailOf(voucherCard(), { status: "approved" }) });
+    renderReco(<CardPage from={null} id="card-voucher" />, reco, { staff: true });
+    fireEvent.click(await screen.findByTestId("sd-withdraw"));
+    const dialog = await screen.findByTestId("sd-withdraw-dialog");
+    expect(reco.calls.some((c) => c.name === "withdraw")).toBe(false);
+    expect(within(dialog).getAllByRole("option").map((o) => o.textContent)).toEqual(["Không phù hợp", "Trùng thẻ khác", "Đã làm ngoài Juli", "Khác"]);
+    fireEvent.change(within(dialog).getByTestId("sd-withdraw-reason"), { target: { value: "done_outside" } });
+    fireEvent.click(within(dialog).getByTestId("sd-withdraw-confirm"));
+    await waitFor(() => expect(reco.calls.find((c) => c.name === "withdraw")?.args).toEqual(["card-voucher", { reasonCode: "done_outside", note: null }]));
+    expect(await screen.findByTestId("sd-outcome")).toHaveTextContent("Đã gỡ thẻ");
+  });
+
+  it("a card sent back for a change can still be dismissed by the seller", async () => {
+    const reco = fakeReco({ detail: detailOf(voucherCard(), { status: "changes_requested" }) });
+    renderReco(<CardPage from={null} id="card-voucher" />, reco);
+    expect(await screen.findByRole("button", { name: "Bỏ qua" })).toBeEnabled();
+  });
 });

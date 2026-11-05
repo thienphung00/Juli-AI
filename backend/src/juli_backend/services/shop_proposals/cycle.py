@@ -256,8 +256,9 @@ async def record_approval(
     evidence_ref: str | None = None,
     note: str | None = None,
     snapshot_extra: dict[str, Any] | None = None,
+    from_states: frozenset[str] = frozenset({STATUS_SENT}),
 ) -> ShopProposalApproval:
-    """The client's decision on a ``sent`` proposal.
+    """The client's decision on a ``sent`` proposal (``from_states`` widens that).
 
     In the app the client's own user id decides; from an email or a document an operator
     records it and names where the evidence is kept (``evidence_ref``, a pointer, never
@@ -273,7 +274,7 @@ async def record_approval(
         raise ProposalError(ERROR_INVALID, 422, "a recorded decision needs evidence_ref")
     if decided_at > now:
         raise ProposalError(ERROR_INVALID, 422, "decided_at is in the future")
-    _move(proposal, frozenset({STATUS_SENT}), decision, now)
+    _move(proposal, from_states, decision, now)
     approval = ShopProposalApproval(
         id=uuid.uuid4(),
         shop_id=proposal.shop_id,

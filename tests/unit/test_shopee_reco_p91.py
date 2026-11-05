@@ -617,3 +617,63 @@ def test_breaches_cover_floor_and_spend_cap_and_mark_the_version():
     floor = {"floor": {"ok": False, "breaches": [{"sku": "S"}]}, "rank_inputs": {}}
     assert versions.version_of(floor, 1, "x")["status"] == versions.STATUS_FLOOR
     assert not versions.version_of(floor, 1, "x")["ranked"]
+
+
+# ============================================================ "Gỡ thẻ" (Ops withdraw, reasons)
+
+
+async def test_withdraw_keeps_the_reason_and_the_next_card_moves_up(session, shop):
+    seeded, _ = shop
+    sid = seeded.shop_id
+    ids = await _three_on_one_product(session, shop)
+    await service.publish(session, sid, None, now=NOW)
+    await service.withdraw(session, sid, ids[0], now=NOW, reason_code="duplicate", note="trùng V2")
+    await session.commit()
+    p = await session.get(ShopProposal, ids[0])
+    assert p.status == "withdrawn"
+    assert await _queue(session, ids) == [None, 1, 2]
+    meta = await store.card_meta(session, sid, ids[0])
+    assert (
+        meta["withdrawn"]["reason_code"] == "duplicate" and meta["withdrawn"]["note"] == "trùng V2"
+    )
+    with pytest.raises(ProposalError) as bad:
+        await service.withdraw(session, sid, ids[1], now=NOW, reason_code="nope")
+    assert bad.value.status == 422
+
+
+async def test_withdraw_takes_a_planned_card_out_of_its_draft_plan(session, shop):
+    from juli_backend.services.shopee_recommendations import manual, plans
+
+    seeded, _ = shop
+    sid = seeded.shop_id
+    ids = await _three_on_one_product(session, shop)
+    await service.publish(session, sid, None, now=NOW)
+    actor = manual.Actor("seller", seeded.user.id)
+    await plans.add_card(session, sid, ids[0], actor=actor, now=NOW)
+    await session.commit()
+    assert (await session.get(ShopProposal, ids[0])).status == "planned"
+    await service.withdraw(session, sid, ids[0], now=NOW, reason_code="done_outside")
+    await session.commit()
+    p = await session.get(ShopProposal, ids[0])
+    assert p.status == "withdrawn" and p.lever_plan_id is None
+    plan = await plans.draft_of(session, sid)
+    assert plan is not None and await plans._rows(session, sid, plan.id) == []
+    assert await _queue(session, ids) == [None, 1, 2]
+
+
+async def test_the_seller_can_still_dismiss_a_card_sent_back_for_a_change(session, shop):
+    seeded, _ = shop
+    sid = seeded.shop_id
+    ids = await _three_on_one_product(session, shop)
+    await service.publish(session, sid, None, now=NOW)
+    await service.decide(
+        session, sid, ids[0], decision="request_change", user_id=seeded.user.id, now=NOW,
+        note="đổi giá",
+    )  # fmt: skip
+    assert (await session.get(ShopProposal, ids[0])).status == "changes_requested"
+    await service.decide(
+        session, sid, ids[0], decision="dismiss", user_id=seeded.user.id, now=NOW,
+        reason_code="later",
+    )  # fmt: skip
+    assert (await session.get(ShopProposal, ids[0])).status == "rejected"
+    assert await _queue(session, ids) == [None, 1, 2]

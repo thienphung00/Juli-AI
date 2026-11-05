@@ -42,6 +42,16 @@ export interface ExecutedInput {
   readonly executedAt?: string | null;
 }
 
+export interface WithdrawInput {
+  readonly reasonCode: string;
+  readonly note?: string | null;
+}
+
+export interface WithdrawManyResult {
+  readonly withdrawn: readonly string[];
+  readonly refused: readonly { readonly id: string; readonly error: string; readonly status: number }[];
+}
+
 export interface RecoApi {
   list(q?: ListQuery): Promise<CardList>;
   detail(id: string): Promise<CardDetail>;
@@ -60,7 +70,10 @@ export interface RecoApi {
   // Juli Ops only
   generate(body: { readonly topN?: number; readonly mega?: { readonly start: string; readonly end: string; readonly budgetCapPerDay?: number | null } | null }): Promise<GenerateReport>;
   publish(cardIds?: readonly string[] | null): Promise<{ readonly sent: readonly string[] }>;
-  withdraw(id: string): Promise<{ readonly id: string; readonly status: string }>;
+  /** "Gỡ thẻ": close the card (withdrawn) with a reason; the product's next card moves up. */
+  withdraw(id: string, body?: WithdrawInput): Promise<{ readonly id: string; readonly status: string }>;
+  /** Bulk "Gỡ thẻ": each card closes on its own; the ones that could not are listed. */
+  withdrawMany(ids: readonly string[], body: WithdrawInput): Promise<WithdrawManyResult>;
   rerunStale(): Promise<Readonly<Record<string, number>>>;
   learning(): Promise<LearningOverview>;
   learningRun(): Promise<Readonly<Record<string, unknown>>>;
@@ -160,7 +173,8 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
         ...(body.mega ? { mega: { start: body.mega.start, end: body.mega.end, budget_cap_per_day: body.mega.budgetCapPerDay ?? null } } : {}),
       }),
     publish: (cardIds) => call<{ sent: string[] }>("POST", "/publish", { card_ids: cardIds ?? null }),
-    withdraw: (cardId) => call<{ id: string; status: string }>("POST", `${id(cardId)}/withdraw`, {}),
+    withdraw: (cardId, body) => call<{ id: string; status: string }>("POST", `${id(cardId)}/withdraw`, body ? { reason_code: body.reasonCode, note: body.note ?? null } : {}),
+    withdrawMany: (cardIds, body) => call<WithdrawManyResult>("POST", "/withdraw", { card_ids: cardIds, reason_code: body.reasonCode, note: body.note ?? null }),
     rerunStale: () => call<Record<string, number>>("POST", "/rerun-stale", {}),
     learning: () => call<LearningOverview>("GET", "/learning"),
     learningRun: () => call<Record<string, unknown>>("POST", "/learning/run", {}),

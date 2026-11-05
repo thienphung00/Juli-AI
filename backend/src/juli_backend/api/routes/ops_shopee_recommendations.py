@@ -13,7 +13,8 @@ shop's own tenant scope and are audited in ``ops_audit_log``.
 - ``GET  .../recommendations/code/{code}`` (Xem+) -- one card by its code (P91 D-5).
 - ``POST .../recommendations/requeue`` | ``/backfill-codes`` -- the idempotent product re-queue;
   card codes for the proposals that predate migration 116.
-- ``POST .../recommendations/{card_id}/withdraw``
+- ``POST .../recommendations/{card_id}/withdraw`` | ``/withdraw`` (bulk) -- "Gỡ thẻ" with a
+  reason (not_fit / duplicate / done_outside / other), audited; the product's next card moves up.
 - ``POST .../recommendations/rerun-stale`` -- recompute only the cards an import flagged.
 - ``GET/POST .../recommendations/sim-priors`` -- the audited import of a ``juli-sim/priors/v1``
   run (the per change_kind gate may be overridden, recorded).
@@ -302,18 +303,90 @@ async def ops_whatif(
     return {"card": card}
 
 
+class WithdrawBody(BaseModel):
+    """ "Gỡ thẻ": why Ops takes the card off the list (default ``other``)."""
+
+    model_config = ConfigDict(extra="forbid")
+    reason_code: str = "other"
+    note: str | None = Field(default=None, max_length=300)
+
+
+class BulkWithdrawBody(WithdrawBody):
+    card_ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+
+
+@router.post(BASE + "/withdraw")
+async def ops_withdraw_many(
+    shop_id: uuid.UUID,
+    body: BulkWithdrawBody,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Bulk "Gỡ thẻ": each card closes on its own; one that cannot is listed, the rest go."""
+    await _shopee_shop(session, shop_id)
+    if body.reason_code not in reco.WITHDRAW_REASONS:
+        raise HTTPException(422, f"reason_code must be one of {list(reco.WITHDRAW_REASONS)}")
+    done: list[str] = []
+    failed: list[dict[str, Any]] = []
+    async with with_shop_scope(session, shop_id):
+        for card_id in dict.fromkeys(body.card_ids):
+            try:
+                async with session.begin_nested():
+                    await reco.withdraw(
+                        session,
+                        shop_id,
+                        card_id,
+                        now=_now(),
+                        reason_code=body.reason_code,
+                        note=body.note,
+                        by=ctx.staff.actor.email,
+                    )
+                done.append(str(card_id))
+            except ProposalError as exc:
+                failed.append({"id": str(card_id), "error": exc.code, "status": exc.status})
+    await _audited(
+        session,
+        ctx,
+        shop_id,
+        ACTION_WITHDRAW,
+        {
+            "card_ids": done,
+            "reason_code": body.reason_code,
+            "note": body.note,
+            "refused": [f["id"] for f in failed],
+        },
+    )
+    return {"withdrawn": done, "refused": failed, "status": "withdrawn"}
+
+
 @router.post(BASE + "/{card_id}/withdraw")
 async def ops_withdraw(
     shop_id: uuid.UUID,
     card_id: uuid.UUID,
+    body: WithdrawBody | None = None,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     await _shopee_shop(session, shop_id)
+    body = body or WithdrawBody()
     try:
         async with with_shop_scope(session, shop_id):
-            await reco.withdraw(session, shop_id, card_id, now=_now())
-        await _audited(session, ctx, shop_id, ACTION_WITHDRAW, {"card_id": str(card_id)})
+            await reco.withdraw(
+                session,
+                shop_id,
+                card_id,
+                now=_now(),
+                reason_code=body.reason_code,
+                note=body.note,
+                by=ctx.staff.actor.email,
+            )
+        await _audited(
+            session,
+            ctx,
+            shop_id,
+            ACTION_WITHDRAW,
+            {"card_id": str(card_id), "reason_code": body.reason_code, "note": body.note},
+        )
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None

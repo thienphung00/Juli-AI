@@ -453,3 +453,6 @@ export function stepText(v: string | number | null | undefined, unit?: string | 
   if (typeof v === "number") return unit === "VND" ? vnd(v) : unit === "%" ? `${fmt(v, 0)}%` : `${fmt(v, 0)}${unit ? ` ${unit}` : ""}`;
   return v;
 }
+
+/** Statuses Ops can take a card off the list from ("Gỡ thẻ"); a planned card leaves its draft plan first. */
+export const WITHDRAWABLE: readonly string[] = ["draft", "sent", "changes_requested", "approved", "planned"];

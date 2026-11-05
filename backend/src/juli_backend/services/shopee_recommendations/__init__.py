@@ -18,6 +18,7 @@ from juli_backend.services.shopee_recommendations.measure import (
 from juli_backend.services.shopee_recommendations.mega import MegaWindow
 from juli_backend.services.shopee_recommendations.refs import attach_card_refs
 from juli_backend.services.shopee_recommendations.service import (
+    WITHDRAW_REASONS,
     backfill_codes,
     card_by_code,
     card_detail,
@@ -77,5 +78,6 @@ __all__ = [
     "save_sim",
     "seller_view",
     "sim_summary",
+    "WITHDRAW_REASONS",
     "withdraw",
 ]

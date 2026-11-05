@@ -6,7 +6,7 @@ import { ShopeeApiError } from "../../lib/shopee-analytics/client";
 import { DASH, fmt, vnd } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
-import { changedInputs, describeInputs, maxInputsFor, rankingLinkOf, stepText } from "../../lib/shopee-decisions/model";
+import { WITHDRAWABLE, changedInputs, describeInputs, maxInputsFor, rankingLinkOf, stepText } from "../../lib/shopee-decisions/model";
 import type { Breach, Card, CardDetail, CardSummary, CardVersion, ExecutionSheet } from "../../lib/shopee-decisions/types";
 import {
   MAX_TITLE_CHARS,
@@ -29,7 +29,7 @@ import {
   versionsOf,
 } from "../../lib/shopee-decisions/versions";
 import { Notice, TextChip } from "../shopee-analytics/ui";
-import { DismissDialog, RequestChangeDialog } from "./dialogs";
+import { DismissDialog, RequestChangeDialog, WithdrawDialog } from "./dialogs";
 import { ExecutionPanel, READ_ONLY_TITLE } from "./execution";
 import { MegaPanel } from "./mega";
 import { Checks, NumbersTable } from "./numbers";
@@ -269,6 +269,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   const viewing = describeInputs(shown, sliders);
   const sent = (detail.status === "sent" || detail.status === "changes_requested") && seller;
   const canDecide = detail.status === "sent" && seller;
+  const canDismiss = sent;  // sent, or sent back for a change: the seller can still drop it
   const breaches = breachesOf(shown);
   const stale = calc === "busy";
   const stored = baseVersions[sel]?.inputs ?? detail.card.inputs;
@@ -550,7 +551,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
           <button className="sa-btn" disabled={!canDecide || busy || stale} onClick={() => setDialog("request")} type="button">
             Yêu cầu chỉnh
           </button>
-          <button className="sa-btn" disabled={!canDecide || busy} onClick={() => setDialog("dismiss")} type="button">
+          <button className="sa-btn" disabled={!canDismiss || busy} onClick={() => setDialog("dismiss")} type="button">
             Bỏ qua
           </button>
           <span className={`sa-hint ${breaches.length > 0 ? "sd-hint--warn" : ""} ${title && count.over ? "sd-hint--bad" : ""}`} data-testid="sd-approve-hint">
@@ -592,16 +593,18 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   );
 }
 
-/** Juli Ops: send a draft to the shop, or take a card back. */
+/** Juli Ops: send a draft to the shop, or take a card off the list ("Gỡ thẻ", with a reason). */
 function StaffActions({ detail, onChanged }: { readonly detail: CardDetail; readonly onChanged: (o: Outcome) => void }) {
   const host = useReco();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
   const go = async (kind: Outcome["kind"], text: string, call: () => Promise<unknown>) => {
     setBusy(true);
     setError(null);
     try {
       await call();
+      setAsking(false);
       onChanged({ kind, text });
     } catch (e) {
       setError(errorText(e));
@@ -609,7 +612,7 @@ function StaffActions({ detail, onChanged }: { readonly detail: CardDetail; read
       setBusy(false);
     }
   };
-  const canWithdraw = ["draft", "sent", "changes_requested", "approved"].includes(detail.status);
+  const canWithdraw = WITHDRAWABLE.includes(detail.status);
   return (
     <section className="sd-decision" data-testid="sd-staff">
       {detail.status === "draft" ? (
@@ -618,15 +621,24 @@ function StaffActions({ detail, onChanged }: { readonly detail: CardDetail; read
         </button>
       ) : null}
       {canWithdraw ? (
-        <button className="sa-btn" disabled={busy} onClick={() => void go("withdrawn", "Đã rút thẻ lại.", () => host.reco.withdraw(detail.id))} type="button">
-          Rút lại
+        <button className="sa-btn" data-testid="sd-withdraw" disabled={busy} onClick={() => setAsking(true)} type="button">
+          Gỡ thẻ
         </button>
       ) : null}
-      {error ? (
+      {error && !asking ? (
         <span className="sd-error" role="alert">
           {error}
         </span>
       ) : null}
+      <WithdrawDialog
+        busy={busy}
+        count={1}
+        error={asking ? error : null}
+        label={detail.code ?? detail.id}
+        onCancel={() => setAsking(false)}
+        onSubmit={(c) => void go("withdrawn", "Đã gỡ thẻ. Thẻ kế tiếp của sản phẩm đã lên thay.", () => host.reco.withdraw(detail.id, c))}
+        open={asking}
+      />
     </section>
   );
 }
