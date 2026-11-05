@@ -57,6 +57,12 @@ CONN_NONE = "none"
 FAILED_RUN_STATUSES = ("failed", "timed_out")
 
 
+def is_team_owned(owner_email: str | None) -> bool:
+    """No seller has taken the shop yet: the owner is a staff account, or (contract shops) an
+    owner with no e-mail and so no sign-in behind it. Such a shop can be handed over by invite."""
+    return owner_email is None or owner_email.lower().endswith("@" + STAFF_DOMAIN)
+
+
 @dataclass(frozen=True)
 class ShopListing:
     shop_id: uuid.UUID
@@ -101,8 +107,7 @@ class ShopRow:
 
     @property
     def owned_by_team(self) -> bool:
-        email = (self.listing.owner_email or "").lower()
-        return email.endswith("@" + STAFF_DOMAIN)
+        return is_team_owned(self.listing.owner_email)
 
     def active(self, now: datetime) -> bool:
         reference = self.generated_at or now

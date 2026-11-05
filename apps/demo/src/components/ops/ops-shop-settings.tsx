@@ -224,7 +224,9 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
   const ownerText = page.shop.owned_by_team
     ? pendingInvite
       ? `Đã gửi lời mời tới ${pendingInvite.email} · chờ seller đăng nhập và nhận shop.`
-      : `Shop do đội ngũ kết nối (tài khoản ${page.shop.owner_email ?? "—"}). Chưa bàn giao.`
+      : page.shop.owner_email
+        ? `Shop do đội ngũ kết nối (tài khoản ${page.shop.owner_email}). Chưa bàn giao.`
+        : "Shop chưa có seller đăng nhập. Chưa bàn giao.",
     : `Chủ shop: ${page.shop.owner_email ?? "—"}.`;
 
   const sendInvite = async () => {

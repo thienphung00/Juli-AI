@@ -394,7 +394,7 @@ def _shop_json(listing: ShopListing) -> dict[str, Any]:
         "shop_name": listing.shop_name,
         "platform": listing.platform,
         "owner_email": listing.owner_email,
-        "owned_by_team": (listing.owner_email or "").lower().endswith("@app-juli.com"),
+        "owned_by_team": overview.is_team_owned(listing.owner_email),
         "staff_access_consent_at": listing.owner_consent_at.isoformat()
         if listing.owner_consent_at
         else None,
