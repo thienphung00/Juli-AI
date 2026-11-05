@@ -35,6 +35,20 @@ class Candidate:
         return self.items[0] if self.items else None
 
 
+@dataclass(frozen=True)
+class DiscountResponse:
+    """P92 B-3: how orders responded to a price cut in the shop's own history, as a relative
+    orders lift per 1 % cut (P10, P90). ``source`` is ``product_history`` (this product's own days)
+    or ``shop_products`` (the other products, pooled)."""
+
+    per_pct_low: float
+    per_pct_high: float
+    source: str
+    discount_days: int = 0
+    base_days: int = 0
+    products: int = 1
+
+
 @dataclass
 class ProfitModel:
     """Everything the predicted-range conversion needs, per DAY of the effect period.

@@ -32,6 +32,9 @@ PACK_COMPONENTS = "pack_components"
 VAT_RATE = "vat_rate"
 PRICES_INCLUDE_VAT = "prices_include_vat"
 COST_INCLUDES_VAT = "cost_includes_vat"
+#: P92 B-1: listings the shop leaves out of cards and product lists (scope = item id).
+EXCLUDED = "excluded"
+EXCLUDE_REASON = "exclude_reason"
 
 TARGET_ALIASES: dict[str, tuple[str, ...]] = {
     "gmv_month": ("monthly_gmv_target", "target_gmv_month", "gmv_target_month"),
@@ -56,6 +59,8 @@ RULE_KEYS_READ: tuple[str, ...] = (
     VAT_RATE,
     PRICES_INCLUDE_VAT,
     COST_INCLUDES_VAT,
+    EXCLUDED,
+    EXCLUDE_REASON,
     *(alias for aliases in TARGET_ALIASES.values() for alias in aliases),
 )
 
@@ -97,6 +102,8 @@ class ProfitRules:
     #: None = the seller has not said (profit is then shown before VAT).
     prices_include_vat: bool | None = None
     cost_includes_vat: bool | None = None
+    #: item id -> the reason it is excluded (P92 B-1); sales stay in the shop totals.
+    excluded: dict[str, str] = field(default_factory=dict)
     targets: dict[str, Decimal | None] = field(default_factory=dict)
     #: month ("YYYY-MM") -> target name -> value, from the seller import's monthly targets (Step 4).
     targets_by_month: dict[str, dict[str, Decimal]] = field(default_factory=dict)
@@ -115,8 +122,18 @@ def read_rules(rows: Iterable[RuleRow]) -> ProfitRules:
     rules = ProfitRules()
     shop_wide: dict[str, Decimal] = {}
     monthly: dict[str, dict[str, Decimal]] = {}
+    flagged: set[str] = set()
+    reasons: dict[str, str] = {}
     for row in rows:
         scope = (row.scope_ref or "").strip()
+        if row.rule_key == EXCLUDED and scope:
+            if row.value is True:
+                flagged.add(scope)
+            continue
+        if row.rule_key == EXCLUDE_REASON and scope:
+            if isinstance(row.value, str):
+                reasons[scope] = row.value
+            continue
         if row.rule_key in (PRICES_INCLUDE_VAT, COST_INCLUDES_VAT) and not scope:
             if isinstance(row.value, bool):
                 setattr(rules, row.rule_key, row.value)
@@ -148,6 +165,7 @@ def read_rules(rows: Iterable[RuleRow]) -> ProfitRules:
             shop_wide[row.rule_key] = number
         elif _MONTH.fullmatch(scope):
             monthly.setdefault(scope, {})[row.rule_key] = number
+    rules.excluded = {item: reasons.get(item, "khac") for item in sorted(flagged)}
     for name, aliases in TARGET_ALIASES.items():
         rules.targets[name] = next((shop_wide[a] for a in aliases if a in shop_wide), None)
         for month, keyed in monthly.items():
@@ -167,6 +185,7 @@ def rules_summary(rules: ProfitRules) -> Mapping[str, Any]:
         "vat_rate_count": len(rules.vat_rate),
         "prices_include_vat": rules.prices_include_vat,
         "cost_includes_vat": rules.cost_includes_vat,
+        "excluded_count": len(rules.excluded),
         "targets": {k: (float(v) if v is not None else None) for k, v in rules.targets.items()},
     }
 

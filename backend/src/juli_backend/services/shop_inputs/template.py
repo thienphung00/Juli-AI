@@ -31,6 +31,8 @@ from juli_backend.services.shop_inputs.catalogue import (
 )
 from juli_backend.services.shop_rules.rules import (
     COST_INCLUDES_VAT,
+    EXCLUDE_REASON,
+    EXCLUDED,
     ITEM_STATUS,
     MAX_DISCOUNT_PCT,
     MONTHLY_AOV,
@@ -70,6 +72,8 @@ SKU_COLUMNS: tuple[tuple[str, bool, str], ...] = (
     ("trạng thái", False, "status"),
     ("số món / phân loại", False, "pack"),
     ("VAT (%)", False, "vat"),
+    ("loại trừ", False, "excluded"),
+    ("lý do", False, "exclude_reason"),
 )
 #: (header, key) of the ``Thành phần combo`` sheet.
 BOM_COLUMNS: tuple[tuple[str, str], ...] = (
@@ -94,6 +98,13 @@ GOAL_COLUMNS: tuple[tuple[str, str], ...] = (
     ("trần chi marketing/ngày", MONTHLY_MARKETING_CAP),
 )
 
+#: P92 B-1: "loại trừ" (Có / Không) and "lý do" of a listing left out of cards and product lists.
+EXCLUDE_REASON_LABELS: dict[str, str] = {
+    "ngung_ban": "Ngừng bán",
+    "qua_tang": "Quà tặng",
+    "phan_phoi": "Hàng phân phối",
+    "khac": "Khác",
+}
 GROUP_LABELS: dict[str, str] = {"thuong_hieu": "Thương hiệu", "phan_phoi": "Phân phối"}
 STATUS_LABELS: dict[str, str] = {
     "ban": "Đang bán",
@@ -114,6 +125,11 @@ NOTE_PACK = (
     "giá vốn là giá vốn của 1 món. số món / phân loại: số món trong 1 đơn vị bán ("
     "Combo 3 hộp = 3). Ô trống: Juli tự đọc từ tên phân loại (Combo N, Set N), không có thì là 1. "
     "VAT (%): 0, 5, 8 hoặc 10."
+)
+NOTE_EXCLUDE = (
+    "loại trừ: Có / Không, theo sản phẩm (các dòng cùng item_id ghi giống nhau). Sản phẩm loại trừ "
+    "không có thẻ đề xuất, dòng sản phẩm hay cờ Phân tích; doanh số vẫn nằm trong tổng của shop. "
+    "lý do: Ngừng bán, Quà tặng, Hàng phân phối hoặc Khác (bắt buộc khi loại trừ = Có)."
 )
 NOTE_BOM = (
     "Dùng cho sản phẩm không có SKU riêng (combo nhiều sản phẩm): mỗi dòng một thành phần. "
@@ -168,10 +184,14 @@ def pack_prefill(sku: CatalogueSku, current: dict[str, Any]) -> int | None:
 
 
 def sku_row(
-    sku: CatalogueSku, current: dict[str, Any]
+    sku: CatalogueSku, current: dict[str, Any], item_current: dict[str, Any] | None = None
 ) -> list[xlsx_io.Cell | tuple[xlsx_io.Cell, int]]:
-    """The cells of one SKU row, in ``SKU_COLUMNS`` order."""
+    """The cells of one SKU row, in ``SKU_COLUMNS`` order (``item_current``: the item's own
+    values, where the exclusion lives)."""
     locked, edit = xlsx_io.STYLE_LOCKED, xlsx_io.STYLE_EDIT
+    item_current = item_current or {}
+    excluded = item_current.get(EXCLUDED)
+    reason = item_current.get(EXCLUDE_REASON)
     restock = current.get(RESTOCK_DATE)
     group = current.get(PRODUCT_GROUP)
     status = current.get(ITEM_STATUS)
@@ -190,6 +210,8 @@ def sku_row(
         (STATUS_LABELS.get(status) if isinstance(status, str) else None, edit),
         (pack_prefill(sku, current), edit),
         (_plain(current.get(VAT_RATE)), edit),
+        (YES_NO_LABELS.get(excluded) if isinstance(excluded, bool) else None, edit),
+        (EXCLUDE_REASON_LABELS.get(reason) if isinstance(reason, str) else None, edit),
     ]
 
 
@@ -210,11 +232,12 @@ async def build_template(session: AsyncSession, shop_id: uuid.UUID) -> TemplateR
             prefilled += 1
         if pack_prefill(sku, values) is not None:
             pack_rows += 1
-        sku_rows.append(sku_row(sku, values))
+        sku_rows.append(sku_row(sku, values, current.per_sku.get(sku.item_id)))
     sku_rows.append([])
     sku_rows.append([(NOTE_SKU, xlsx_io.STYLE_NOTE)])
     sku_rows.append([(NOTE_VALUES, xlsx_io.STYLE_NOTE)])
     sku_rows.append([(NOTE_PACK, xlsx_io.STYLE_NOTE)])
+    sku_rows.append([(NOTE_EXCLUDE, xlsx_io.STYLE_NOTE)])
 
     goal_rows: list[list[Any]] = [[(title, header_style) for title, _ in GOAL_COLUMNS]]
     for month in sorted(current.monthly):
@@ -267,7 +290,7 @@ async def build_template(session: AsyncSession, shop_id: uuid.UUID) -> TemplateR
             xlsx_io.SheetSpec(
                 SKU_SHEET,
                 sku_rows,
-                widths=(16, 16, 22, 44, 14, 14, 12, 16, 10, 16, 14, 14, 18, 10),
+                widths=(16, 16, 22, 44, 14, 14, 12, 16, 10, 16, 14, 14, 18, 10, 12, 18),
                 protect=True,
             ),
             xlsx_io.SheetSpec(GOAL_SHEET, goal_rows, widths=(12, 16, 10, 12, 18, 24)),

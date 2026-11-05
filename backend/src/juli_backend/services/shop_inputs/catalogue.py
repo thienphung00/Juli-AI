@@ -25,6 +25,8 @@ from juli_backend.models.platform_data import PlatformItem
 from juli_backend.models.run_changes import ShopRule
 from juli_backend.models.shopee_profit import PlatformItemSnapshot
 from juli_backend.services.shop_rules.rules import (
+    EXCLUDE_REASON,
+    EXCLUDED,
     ITEM_STATUS,
     MAX_DISCOUNT_PCT,
     PACK_COUNT,
@@ -154,6 +156,9 @@ FIELD_RULES: dict[str, str] = {
     "pack": PACK_COUNT,
     "vat": VAT_RATE,
 }
+#: P92 B-1: the two columns that belong to the LISTING, not to a SKU row. They are stored under the
+#: item id, every row of the item carries the same pair, and the importer reads them once per item.
+ITEM_FIELD_RULES: dict[str, str] = {"excluded": EXCLUDED, "exclude_reason": EXCLUDE_REASON}
 RULE_FIELDS: dict[str, str] = {rule: field for field, rule in FIELD_RULES.items()}
 
 

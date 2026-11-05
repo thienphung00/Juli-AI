@@ -7,6 +7,7 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num, pct, pct_of, ratio
+from juli_backend.services.shopee_analytics.loaders import product_totals_for
 from juli_backend.services.shopee_profit.five_numbers import (
     FiveNumbers,
     Snapshot,
@@ -168,3 +169,40 @@ def five_for(
     return five_numbers(
         snapshot_of(before, product_id), snapshot_of(now, product_id), spend_cap=cap
     )
+
+
+def excluded_summary(view: PeriodView) -> dict[str, Any]:
+    """P92 B-1: what the excluded listings sold in the window. The shop totals include it; the
+    product lists do not. Same GMV basis as the product rows (Shopee's product totals when they
+    stand for the window, else the order lines)."""
+    if not view.excluded:
+        return {"count": 0, "gmv": 0, "orders": 0, "items": []}
+    pf = view.data.product_flows
+    shopee = product_totals_for(pf, view.data.lines)
+    items: list[dict[str, Any]] = []
+    gmv_sum, orders_sum = ZERO, 0
+    for item_id, reason in sorted(view.excluded.items()):
+        total = view.matrix.totals.get(item_id)
+        if item_id in shopee:
+            gmv, orders = shopee[item_id]
+        else:
+            gmv, orders = (total.gmv, total.orders) if total else (ZERO, 0)
+        gmv_sum += Decimal(str(gmv))
+        orders_sum += int(orders or 0)
+        items.append(
+            {
+                "item_id": item_id,
+                "name": view.names.get(item_id) or item_id,
+                "reason": reason,
+                "gmv": num(gmv),
+                "orders": int(orders or 0),
+            }
+        )
+    return {
+        "count": len(items),
+        "gmv": num(gmv_sum),
+        "orders": orders_sum,
+        "items": items,
+        "note": "Đã nằm trong tổng GMV, đơn và lợi nhuận của shop; không có thẻ, dòng sản phẩm "
+        "hay cờ Phân tích riêng.",
+    }

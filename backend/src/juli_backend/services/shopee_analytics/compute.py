@@ -304,6 +304,9 @@ class PeriodView:
     shop_gmv: Decimal | None
     shop_orders: int | None
     names: dict[str, str] = field(default_factory=dict)
+    #: item id -> exclusion reason (P92 B-1). Excluded listings stay in every shop total and leave
+    #: the product lists, rankings and Phân tích flags.
+    excluded: dict[str, str] = field(default_factory=dict)
 
     @property
     def window(self) -> Window:
@@ -408,4 +411,5 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
         shop_gmv=shop_gmv,
         shop_orders=shop_orders,
         names={i: ctx.catalog.name(i) for i in item_ids},
+        excluded=dict(ctx.rules.excluded),
     )

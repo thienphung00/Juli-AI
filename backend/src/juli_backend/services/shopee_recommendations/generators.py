@@ -764,6 +764,11 @@ def generate(env: RecoEnv, critical: dict[str, Any]) -> list[Candidate]:
                 continue
             if c.item and (env.locked.get(c.item) or env.stock(c.item) == 0):
                 continue
+            if env.excluded and (
+                any(i in env.excluded for i in c.items)
+                or any(c.extra.get(k) in env.excluded for k in ("addon_item", "gift_item"))
+            ):
+                continue  # P92 B-1: an excluded listing gets no card, nor is it a partner in one
             out.setdefault(_key(c), c)
 
     for crit in critical.get("items", []):

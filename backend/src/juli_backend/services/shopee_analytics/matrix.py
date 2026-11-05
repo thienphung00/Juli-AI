@@ -17,6 +17,7 @@ from juli_backend.services.shopee_analytics.loaders import product_totals_for
 from juli_backend.services.shopee_analytics.overview import CHILD_LABELS, LEVER_LABELS
 from juli_backend.services.shopee_analytics.shared import (
     cell_json,
+    excluded_summary,
     five_for,
     five_json,
     flow_table_json,
@@ -149,7 +150,7 @@ def build_matrix(
 ) -> dict[str, Any]:
     ids = (
         set(view.matrix.totals) | set(view.data.product_flows.totals) | set(view.ads.product_spend)
-    )
+    ) - set(view.excluded)
     rows = [product_row(view, pid) for pid in ids]
     rows = [r for r in rows if (r["gmv"] or 0) > 0 or r["ads"]["spend"]]
     rows.sort(key=lambda r: _sort_key(sort, r))
@@ -168,6 +169,7 @@ def build_matrix(
         "products": rows,
         "product_count": total,
         "ads_basis": ADS_BASIS,
+        "excluded": excluded_summary(view),
         "sums": {
             "gmv_shopee_products": num(sum_gmv),
             "gmv_shop": num(view.shop_gmv),

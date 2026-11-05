@@ -294,6 +294,8 @@ def _median_items(view: PeriodView) -> tuple[list[dict[str, Any]], list[dict[str
     days = Decimal(view.window.days)
     stats: dict[str, _ProdStats] = {}
     for pid, table in view.flows.products.items():
+        if pid in view.excluded:  # P92 B-1: no flag, and not part of the median
+            continue
         flows = [r for r in table.rows if not r.is_residual]
         views = sum((r.views or 0) for r in flows)
         clicks = sum((r.clicks or 0) for r in flows)
@@ -460,6 +462,9 @@ def build_critical(
         *med_crit,
         *_target_items(now, ctx),
     ]
+    items = [it for it in items if it.get("product_id") not in now.excluded]  # P92 B-1
+    flow_ok = [it for it in flow_ok if it.get("product_id") not in now.excluded]
+    med_ok = [it for it in med_ok if it.get("product_id") not in now.excluded]
     items.sort(key=lambda it: -(it["at_stake_per_day"] or 0))
     for rank, it in enumerate(items, 1):
         it["rank"] = rank

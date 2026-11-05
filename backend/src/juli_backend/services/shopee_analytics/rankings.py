@@ -204,7 +204,7 @@ def _products(view: PeriodView, source: str, sub: str | None) -> Rows:
     if view.flows:
         ids |= set(view.flows.products)
     out: Rows = {}
-    for pid in ids:
+    for pid in ids - set(view.excluded):  # P92 B-1: excluded listings are not ranked
         m = _product_m(view, pid, source, sub)
         if m is not None:
             out[pid] = (view.names.get(pid) or pid, m, {"product_id": pid})

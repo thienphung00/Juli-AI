@@ -43,6 +43,7 @@ from juli_backend.services.shop_inputs.affected import (
 )
 from juli_backend.services.shop_inputs.catalogue import (
     FIELD_RULES,
+    ITEM_FIELD_RULES,
     CatalogueSku,
     CurrentInputs,
     effective_stock,
@@ -52,6 +53,7 @@ from juli_backend.services.shop_inputs.catalogue import (
 )
 from juli_backend.services.shop_inputs.template import (
     BOM_SHEET,
+    EXCLUDE_REASON_LABELS,
     GOAL_COLUMNS,
     GOAL_SHEET,
     GROUP_LABELS,
@@ -123,6 +125,8 @@ FIELD_LABELS: dict[str, str] = {
     "status": "Trạng thái",
     "pack": "Số món / phân loại",
     "vat": "VAT (%)",
+    "excluded": "Loại trừ",
+    "exclude_reason": "Lý do loại trừ",
     "bom": "Thành phần combo",
     "prices_include_vat": "Giá bán đã gồm VAT",
     "cost_includes_vat": "Giá vốn đã gồm VAT",
@@ -142,6 +146,8 @@ FIELD_UNITS: dict[str, str] = {
     "status": "status",
     "pack": "count",
     "vat": "pct",
+    "excluded": "bool",
+    "exclude_reason": "reason",
     "bom": "bom",
     "prices_include_vat": "bool",
     "cost_includes_vat": "bool",
@@ -381,6 +387,8 @@ _SKU_HEADERS: dict[str, tuple[str, ...]] = {
     "max_discount": ("giảm tối đa (%)", "giảm tối đa"),
     "pack": ("số món / phân loại", "số món"),
     "vat": ("VAT (%)", "VAT"),
+    "excluded": ("loại trừ",),
+    "exclude_reason": ("lý do", "lý do loại trừ"),
     "stock": ("tồn kho",),
     "restock": ("ngày nhập lại",),
     "group": ("nhóm",),
@@ -403,6 +411,12 @@ _STATUS_LOOKUP = {_fold(label): code for code, label in STATUS_LABELS.items()} |
     code: code for code in STATUS_LABELS
 }
 _STATUS_LOOKUP |= {"dang ban": "ban", "ngung": "ngung", "tam ngung": "tam_dung"}
+_YES = {"co", "yes", "true", "1", "x", "y"}
+_NO = {"khong", "no", "false", "0", "n"}
+_REASON_LOOKUP = {_fold(label): code for code, label in EXCLUDE_REASON_LABELS.items()} | {
+    code: code for code in EXCLUDE_REASON_LABELS
+}
+_REASON_LOOKUP |= {"ngung ban": "ngung_ban", "qua tang": "qua_tang", "phan phoi": "phan_phoi"}
 
 
 def file_hash(data: bytes) -> str:
@@ -483,6 +497,21 @@ def _parse_sku_field(key: str, text: str) -> tuple[Any, tuple[str, str] | None]:
             return int(number), None
         if key == "restock":
             return parse_date(text).isoformat(), None
+        if key == "excluded":
+            word = _fold(text)
+            if word in _YES:
+                return True, None
+            if word in _NO:
+                return False, None
+            return None, ("Loại trừ là Có hoặc Không.", "invalid_value")
+        if key == "exclude_reason":
+            code = _REASON_LOOKUP.get(_fold(text))
+            if code is None:
+                return None, (
+                    "Lý do là Ngừng bán, Quà tặng, Hàng phân phối hoặc Khác.",
+                    "invalid_value",
+                )
+            return code, None
         if key == "group":
             code = _GROUP_LOOKUP.get(_fold(text))
             if code is None:
@@ -548,6 +577,59 @@ def _effect(field_key: str, sku: CatalogueSku, old: Any, new: Any) -> str:
     return ""
 
 
+def _exclusion_effect(field_key: str, new: Any) -> str:
+    if field_key == "excluded":
+        return (
+            "Không còn thẻ, dòng sản phẩm hay cờ Phân tích; doanh số vẫn nằm trong tổng của shop"
+            if new
+            else "Sản phẩm trở lại thẻ, danh sách và Phân tích"
+        )
+    return f"Lý do: {EXCLUDE_REASON_LABELS[new]}"
+
+
+def _check_exclusion(
+    item_parsed: dict[str, Any],
+    item_id: str,
+    index: int,
+    label: str,
+    ctx: _SkuContext,
+    item_seen: dict[tuple[str, str], tuple[Any, int]],
+    rejections: list[Rejection],
+    row: list[str | None],
+    header: dict[str, int],
+) -> None:
+    """One listing, one answer: rows of the same item must say the same, and "Có" needs a reason
+    (this file's, else the one already stored)."""
+    old = ctx.current.per_sku.get(item_id, {})
+    for field_key, value in item_parsed.items():
+        seen = item_seen.get((item_id, field_key))
+        if seen is not None and seen[0] != value:
+            _reject(
+                rejections,
+                SKU_SHEET,
+                index,
+                label,
+                _column_title(field_key),
+                _cell(row, header.get(field_key)),
+                f"Các dòng của cùng sản phẩm ghi khác nhau (dòng {seen[1]}). Giữ một giá trị.",
+                "invalid_value",
+            )
+            return
+        item_seen.setdefault((item_id, field_key), (value, index))
+    reason = item_parsed.get("exclude_reason") or old.get("exclude_reason")
+    if item_parsed.get("excluded") is True and not reason:
+        _reject(
+            rejections,
+            SKU_SHEET,
+            index,
+            label,
+            _column_title("exclude_reason"),
+            "",
+            "Loại trừ cần ghi lý do: Ngừng bán, Quà tặng, Hàng phân phối hoặc Khác.",
+            "invalid_value",
+        )
+
+
 def _check_sku_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: ImportPreview) -> None:
     if not rows:
         raise ImportFileError("Trang SKU trống")
@@ -578,6 +660,8 @@ def _check_sku_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: Import
     for (index, _), key in zip(data, keys, strict=True):
         positions.setdefault(key, []).append(index)
 
+    item_seen: dict[tuple[str, str], tuple[Any, int]] = {}
+    item_emitted: set[tuple[str, str]] = set()
     for (index, row), key in zip(data, keys, strict=True):
         out.sku_rows += 1
         item_id, variation_id = key
@@ -622,15 +706,23 @@ def _check_sku_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: Import
             )
 
         parsed: dict[str, Any] = {}
-        for field_key in FIELD_RULES:
+        item_parsed: dict[str, Any] = {}  # P92 B-1: the listing's exclusion, read once per item
+        for field_key in (*FIELD_RULES, *ITEM_FIELD_RULES):
             text = _cell(row, header.get(field_key))
             if not text:
                 continue
             value, error = _parse_sku_field(field_key, text)
             if error is not None:
                 _reject(rejections, SKU_SHEET, index, label, _column_title(field_key), text, *error)
+            elif field_key in ITEM_FIELD_RULES:
+                item_parsed[field_key] = value
             else:
                 parsed[field_key] = value
+
+        if item_parsed and not rejections:
+            _check_exclusion(
+                item_parsed, item_id, index, label, ctx, item_seen, rejections, row, header
+            )
 
         if known is not None:
             old_values = ctx.current.per_sku.get(known.scope, {})
@@ -671,12 +763,35 @@ def _check_sku_sheet(rows: list[list[str | None]], ctx: _SkuContext, out: Import
             out.sku_rows_rejected += 1
             out.rejections.extend(rejections)
             continue
-        if known is None or not parsed:
+        if known is None or not (parsed or item_parsed):
             out.sku_rows_unchanged += 1
             continue
 
         old_values = ctx.current.per_sku.get(known.scope, {})
         changed = 0
+        for field_key, new in item_parsed.items():  # once per item: the first row that says it
+            rule_key = ITEM_FIELD_RULES[field_key]
+            if (item_id, field_key) in item_emitted:
+                continue
+            item_emitted.add((item_id, field_key))
+            old = ctx.current.per_sku.get(item_id, {}).get(rule_key)
+            if old == new:
+                continue
+            changed += 1
+            out.diffs.append(
+                FieldDiff(
+                    scope_ref=item_id,
+                    item_id=item_id,
+                    variation_id="",
+                    sku=known.sku or item_id,
+                    field=field_key,
+                    rule_key=rule_key,
+                    old=old,
+                    new=new,
+                    effect=_exclusion_effect(field_key, new),
+                )
+            )
+            out.changes.append(RuleChange(rule_key, item_id, new))
         for field_key, new in parsed.items():
             rule_key = FIELD_RULES[field_key]
             old = _old_value(field_key, known, old_values)

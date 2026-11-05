@@ -138,7 +138,16 @@ def predict_lift(
     lo, hi = prior_range(spec, magnitude, bucket)
     factor, source = 1.0, "prior"
     scale = 1.0
-    if env is not None:
+    own = None
+    if env is not None and spec.price_scaled and magnitude is not None:
+        # P92 B-3: this product's own past response to a price cut first, then the shop's other
+        # products, before the preset prior and its calibration
+        by_item = getattr(env, "response_by_item", None) or {}
+        own = (by_item.get(cand.item) if cand.item else None) or getattr(env, "response_shop", None)
+    if own is not None:
+        a, b = own.per_pct_low * magnitude, own.per_pct_high * magnitude
+        lo, hi, source = min(a, b), max(a, b), own.source
+    elif env is not None:
         state = env.calibration.get((spec.key, spec.target_metric))
         if state is not None:
             factor, source = factor_from(state.pooled_ratio, state.n_results)

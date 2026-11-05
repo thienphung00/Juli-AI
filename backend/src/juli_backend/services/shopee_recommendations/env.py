@@ -28,6 +28,7 @@ from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import OrderLine, SkuCost
 from juli_backend.services.shopee_profit.shop_profit import ProductProfit
 from juli_backend.services.shopee_recommendations.listing import Listing
+from juli_backend.services.shopee_recommendations.model import DiscountResponse
 
 if TYPE_CHECKING:
     from juli_backend.services.shopee_analytics.kol import KolPool
@@ -86,6 +87,10 @@ class RecoEnv:
     banned_terms: tuple[str, ...] = ()
     #: P91 D-9: the KOL facts the KOL cards forecast from (``kol_cards``); None = not loaded
     kol: KolPool | None = None
+    #: P92 B-3: how this product's (and the shop's other products') orders answered a price cut in
+    #: the shop's own history; empty until the builder loads it (``shopee_builder.response``).
+    response_by_item: dict[str, DiscountResponse] = field(default_factory=dict)
+    response_shop: DiscountResponse | None = None
     _floor_cache: dict[str, dict[str, FloorResult]] = field(default_factory=dict, repr=False)
 
     # ------------------------------------------------------------------ rules / targets
@@ -111,11 +116,18 @@ class RecoEnv:
         return self.rules.target("daily_marketing_cap")
 
     # ----------------------------------------------------------------------- products
+    @property
+    def excluded(self) -> dict[str, str]:
+        """P92 B-1: item id -> reason, listings that get no card and no builder entry."""
+        return self.view.excluded
+
     def item_ids(self) -> list[str]:
-        """Products with confirmed order lines in the window, by GMV descending."""
+        """Products with confirmed order lines in the window, by GMV descending (excluded
+        listings left out)."""
         gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
         for ln, _ in self.view.pairs:
-            gmv[ln.product_id] += ln.order_value
+            if ln.product_id not in self.excluded:
+                gmv[ln.product_id] += ln.order_value
         return [i for i, _ in sorted(gmv.items(), key=lambda kv: (-kv[1], kv[0]))]
 
     def listing_item_ids(self) -> list[str]:
@@ -124,9 +136,11 @@ class RecoEnv:
         but few order lines is exactly the one a better title helps), by GMV descending."""
         gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
         for ln, _ in self.view.pairs:
-            gmv[ln.product_id] += ln.order_value
+            if ln.product_id not in self.excluded:
+                gmv[ln.product_id] += ln.order_value
         for item, (total, _orders) in self.view.data.product_flows.totals.items():
-            gmv[item] = max(gmv[item], total)
+            if item not in self.excluded:
+                gmv[item] = max(gmv[item], total)
         return [i for i, _ in sorted(gmv.items(), key=lambda kv: (-kv[1], kv[0]))]
 
     def stock(self, item_id: str) -> int | None:

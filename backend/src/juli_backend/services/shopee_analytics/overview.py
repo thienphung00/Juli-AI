@@ -26,6 +26,7 @@ from juli_backend.services.shopee_analytics.fmt import (
 from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN, ShopContext
 from juli_backend.services.shopee_analytics.shared import (
     cell_json,
+    excluded_summary,
     five_for,
     five_json,
     flow_table_json,
@@ -379,6 +380,7 @@ def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dic
             },
         },
         "gmv": {
+            "excluded_gmv": excluded_summary(now),
             "shopee_gmv": num(now.shop_gmv),
             "shopee_orders": now.shop_orders,
             "aov_gmv": num(

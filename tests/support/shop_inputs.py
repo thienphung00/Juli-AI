@@ -104,4 +104,8 @@ COL = {
     "restock": 9,
     "group": 10,
     "status": 11,
+    "pack": 12,
+    "vat": 13,
+    "excluded": 14,
+    "exclude_reason": 15,
 }
