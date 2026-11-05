@@ -17,7 +17,7 @@ import json
 import os
 import uuid
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -36,6 +36,7 @@ REPO = Path(__file__).resolve().parents[2]
 FIXTURE = REPO / "apps/demo/src/components/ops/__tests__/fixtures/p92-real-responses.json"
 DEMO = "/v1/demo/shopee"
 D1, D2 = date(2026, 10, 27), date(2026, 11, 3)
+PROMO_FROM = (CUR_END - timedelta(days=29)).isoformat()
 
 
 @asynccontextmanager
@@ -112,7 +113,13 @@ async def _answers(session: AsyncSession, seeded) -> dict[str, object]:
                 ("products", "/dashboard/products", {}),
                 ("flows", "/dashboard/flows", {}),
                 ("ads", "/dashboard/ads", {}),
-                ("promotions", "/dashboard/promotions", {}),
+                # Pinned: with no promotion_daily rows the default window ends today, and the
+                # seeded programme (ending CUR_END) fell out of it once the calendar moved on.
+                (
+                    "promotions",
+                    "/dashboard/promotions",
+                    {"from": PROMO_FROM, "to": CUR_END.isoformat()},
+                ),
             ):
                 response = await client.get(f"{DEMO}{path}", params=params)
                 assert response.status_code == 200, (name, response.text)
