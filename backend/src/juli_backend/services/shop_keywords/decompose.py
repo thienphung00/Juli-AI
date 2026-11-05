@@ -269,6 +269,12 @@ def _clean(title: str) -> list[_Token | None]:
             out.append(_Token(display, fold(display)))
             i += length
             continue
+        if _NUMBER.match(raw[i].key):
+            # A bare number with no unit ("1 găng tay", a model or pack count) is not a word a
+            # buyer searches with: it breaks the phrase instead of gluing onto it.
+            out.append(None)
+            i += 1
+            continue
         out.append(raw[i])
         i += 1
     return out
