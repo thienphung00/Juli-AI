@@ -12,6 +12,7 @@ import type { Breach, CardList } from "../../lib/shopee-decisions/types";
 import { ackText, breachNoun, breachWarnLines, firstVersionRange, svk } from "../../lib/shopee-decisions/versions";
 import { useNarrow } from "../quyet-dinh/use-narrow";
 import { Notice, PageHead, TextChip } from "../shopee-analytics/ui";
+import { PlanSteps } from "./plan-steps";
 import { topEntries } from "./top-cards";
 import { NavLink, RecoState, errorText } from "./ui";
 import { BreachDialog } from "./versions";
@@ -214,6 +215,8 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, onAct, onConfirm }: { 
           <b>Đã xác nhận kế hoạch {head?.code}.</b> {plan.cards.length} thẻ chuyển sang “Đã duyệt”, đội Juli thực hiện cùng một ngày{head?.planned_date ? ` (dự kiến ${head.planned_date.slice(8, 10)}/${head.planned_date.slice(5, 7)}/${head.planned_date.slice(0, 4)})` : ""}. {narrow ? "" : "Các phiên bản không chọn đóng cùng thẻ. "}Phép đo theo cửa sổ {winLabel} bắt đầu từ ngày thực hiện.
         </Notice>
       ) : null}
+
+      <PlanSteps api={api} busy={busy} done={done} onAct={onAct} plan={plan} />
 
       <div className="kh-rows">
         {plan.cards.map((r) => (
