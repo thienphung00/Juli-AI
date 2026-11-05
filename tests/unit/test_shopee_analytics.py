@@ -583,3 +583,11 @@ async def test_matrix_rows_carry_price_range_margin_basis_and_idle_listings(sess
     assert not sold & {i["product_id"] for i in body["idle_products"]}
     for idle in body["idle_products"]:
         assert idle["margin_basis"] == "chưa tính"
+
+
+async def test_critical_product_items_carry_price_and_margin_basis(session, seeded):
+    body = await queries.critical(session, seeded.shop_id, period="7d", as_of=CUR_END)
+    product_items = [it for it in body["items"] if it.get("product_id")]
+    for it in product_items:
+        assert it["margin_basis"] in {"theo đơn thực tế", "ước tính", "chưa tính"}
+        assert "price_min" in it and "list_price" in it

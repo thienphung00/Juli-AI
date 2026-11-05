@@ -27,8 +27,15 @@ from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ASSUMED_COST_LABEL, num, ratio
+from juli_backend.services.shopee_analytics.fmt import (
+    ADS_BASIS,
+    ASSUMED_COST_LABEL,
+    num,
+    pct,
+    ratio,
+)
 from juli_backend.services.shopee_analytics.loaders import ShopContext
+from juli_backend.services.shopee_analytics.matrix import margin_basis, price_block
 from juli_backend.services.shopee_analytics.product import sku_waterfall
 from juli_backend.services.shopee_kpi import flow_glm
 from juli_backend.services.shopee_profit.flows import FLOW_LABELS
@@ -466,6 +473,13 @@ def build_critical(
     flow_ok = [it for it in flow_ok if it.get("product_id") not in now.excluded]
     med_ok = [it for it in med_ok if it.get("product_id") not in now.excluded]
     items.sort(key=lambda it: -(it["at_stake_per_day"] or 0))
+    for it in items:  # P92 B-9: giá and biên basis next to every product-level item
+        pid = it.get("product_id")
+        if pid:
+            it.update(price_block(now, pid))
+            it["margin_basis"] = margin_basis(now, pid, now.profit.products.get(pid))
+            pp = now.profit.products.get(pid)
+            it["margin_pct"] = pct(pp.margin_pct) if pp else None
     for rank, it in enumerate(items, 1):
         it["rank"] = rank
     if ctx.rules.target("margin_pct") is None:
