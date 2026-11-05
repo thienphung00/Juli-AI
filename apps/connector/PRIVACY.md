@@ -56,6 +56,15 @@ The numbers above, for whole finished days, to Juli's API
 (`https://api.app-juli.com`) over HTTPS, under the seller's Juli shop. Nothing is
 sent to anyone else. Nothing is sold or used for advertising.
 
+## Public market search (pilot shops only)
+
+Once a week, for a few of the shop's own product keywords (chosen by Juli), the extension
+opens the public Shopee search page (`https://shopee.vn/search?keyword=...`, no login) in a
+background tab and reads only the listing cards that page loads for everyone: product name,
+shop name, price, sold count, rating and image id. It reads no account, cookie, review or
+buyer information, clicks nothing, and stops on a login page or CAPTCHA. It is off for every
+shop except the pilot shops.
+
 ## Credentials
 
 The extension never asks for or stores the seller's Shopee or Juli password. It

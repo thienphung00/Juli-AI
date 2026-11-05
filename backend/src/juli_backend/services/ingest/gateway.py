@@ -58,6 +58,7 @@ from juli_backend.models.platform_data import (
     PlatformPromotion,
 )
 from juli_backend.services.consent import ConsentRequired, require_consent
+from juli_backend.services.ingest import market as market_search
 from juli_backend.services.ingest.income import write_order_income
 from juli_backend.services.ingest.mapping import (
     KPI_COLUMNS,
@@ -69,6 +70,7 @@ from juli_backend.services.ingest.mapping import (
     WRITE_FLAGS,
     WRITE_ITEM_SNAPSHOTS,
     WRITE_ITEMS,
+    WRITE_MARKET_SEARCH,
     WRITE_ORDER_INCOME,
     WRITE_ORDER_LINES,
     WRITE_PERIOD,
@@ -89,6 +91,7 @@ from juli_backend.services.ingest.schemas import (
     ShopeeItemBySourcePeriodRow,
     ShopeeItemCatalogRow,
     ShopeeItemSnapshotRow,
+    ShopeeMarketSearchRow,
     ShopeeOrderIncomeRow,
     ShopeeOrderLineRow,
     ShopeeProductFlagRow,
@@ -689,6 +692,10 @@ async def _write(
         await write_item_snapshots(session, _typed(rows, ShopeeItemSnapshotRow), body, provenance)
     elif spec.writes == WRITE_SHOP_HEALTH:
         await write_shop_health(session, _typed(rows, ShopeeShopHealthDailyRow), body, provenance)
+    elif spec.writes == WRITE_MARKET_SEARCH:
+        await market_search.write_market_search(
+            session, _typed(rows, ShopeeMarketSearchRow), body, provenance
+        )
     else:
         raise ValueError(f"unknown write target {spec.writes}")
     return []
@@ -713,6 +720,19 @@ async def ingest(
         raise IngestRejected("unknown_dataset", status=404)
     rows = validate_rows(spec, body, now)
     order_type = effective_order_type(spec, body.order_type)
+    if spec.writes == WRITE_MARKET_SEARCH:
+        if not market_search.enabled(shop_id):
+            raise IngestRejected("market_search_disabled", status=403)
+        allowed = await market_search.allowed_keywords(session, shop_id)
+        unknown = sorted(
+            {r.keyword for r in _typed(rows, ShopeeMarketSearchRow)} if rows else set()
+        )
+        bad = [k for k in unknown if market_search.fold(k) not in allowed]
+        if bad:
+            raise IngestRejected(
+                "market_keyword_unknown",
+                [{"loc": ["rows", "keyword"], "msg": "keyword is not one of the shop's seeds"}],
+            )
 
     status = (
         await session.execute(

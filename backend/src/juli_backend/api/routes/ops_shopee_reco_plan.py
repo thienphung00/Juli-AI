@@ -26,6 +26,7 @@ from juli_backend.api.routes.shopee_reco_plan_common import (
     AddCardBody,
     ChangeSetStatus,
     ConfirmBody,
+    MoveCardBody,
     PlanWhatIfBody,
     SetWindowBody,
     SwitchVersionBody,
@@ -45,6 +46,7 @@ BASE = "/shops/{shop_id}/shopee/recommendations"
 ACTION_ADD = "reco_plan_add_card"
 ACTION_REMOVE = "reco_plan_remove_card"
 ACTION_VERSION = "reco_plan_switch_version"
+ACTION_MOVE = "reco_plan_move_card"
 ACTION_WHATIF = "reco_plan_whatif"
 ACTION_CONFIRM = "reco_plan_confirm"
 ACTION_WINDOW = "reco_plan_window"
@@ -179,6 +181,21 @@ async def ops_add_card(
         plans.add_card, body.card_id,
         chosen_version=body.chosen_version, actor=_actor(ctx), now=_now(),
         acknowledge_breaches=body.acknowledge_breaches,
+    )  # fmt: skip
+
+
+@router.post(BASE + "/plan/cards/{card_id}/move")
+async def ops_move_card(
+    shop_id: uuid.UUID,
+    card_id: uuid.UUID,
+    body: MoveCardBody,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    return await _write(
+        session, ctx, shop_id, ACTION_MOVE,
+        {"card_id": str(card_id), "position": body.position},
+        plans.move_card, card_id, body.position, actor=_actor(ctx), now=_now(),
     )  # fmt: skip
 
 

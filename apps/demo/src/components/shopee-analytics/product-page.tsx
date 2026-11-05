@@ -18,6 +18,7 @@ import { ProposalsTab, openCardsOf } from "../shopee-decisions/product-proposals
 import { ProductKolTab } from "../shopee-kol/product-kol-tab";
 import type { CardList } from "../../lib/shopee-decisions/types";
 import type { ProductHeader, ProductPage, ProductVersion, SkuCost } from "../../lib/shopee-analytics/types";
+import { MarketPriceBlock } from "./market-price-block";
 import { VariationExpand } from "../shopee-decisions/builder-p92/variations";
 import { CostTab, HistoryTab, KeywordsTab, PerformanceTab, SourcesTab } from "./product-tabs";
 import { Empty, Notice, PillLink, ResourceState, Section, TextChip, toneClass } from "./ui";
@@ -499,6 +500,7 @@ function Variations({
         </>
       )}
       {host.builder ? <VariationExpand api={host.builder} defaultOpen={openCompare} costLink={host.links.costImport(null, "san-pham")} itemId={h.product_id} /> : null}
+      {host.api.marketScope ? <MarketPriceBlock itemId={h.product_id} scope={host.api.marketScope} /> : null}
       <p className="sa-hint">Giá, tồn lấy từ lần đọc Seller Centre gần nhất · giá vốn từ Cài đặt (hoặc giả định 1/3 giá, có ghi rõ) · đơn từ báo cáo đơn.</p>
     </Section>
   );

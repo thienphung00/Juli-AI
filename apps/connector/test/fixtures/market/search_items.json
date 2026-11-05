@@ -1,0 +1,73 @@
+{
+ "error": null,
+ "total_count": 3,
+ "items": [
+  {
+   "item_basic": {
+    "itemid": 1000001,
+    "shopid": 555001,
+    "name": "Găng tay cao su loại 1",
+    "shop_name": "Shop mẫu 1",
+    "price": 13000000000,
+    "price_min": 12900000000,
+    "price_max": 14900000000,
+    "price_before_discount": 15900000000,
+    "raw_discount": 19,
+    "historical_sold": 1201,
+    "sold": 81,
+    "image": "vn-11134207-synthetic-1",
+    "item_rating": {
+     "rating_star": 4.87
+    },
+    "item_card_display_sold_count": {
+     "monthly_sold_count": 95,
+     "display_sold_count_text": "Đã bán 95/tháng"
+    },
+    "user_secret": "x"
+   }
+  },
+  {
+   "item_basic": {
+    "itemid": 1000002,
+    "shopid": 555002,
+    "name": "Găng tay cao su loại 2",
+    "shop_name": "Shop mẫu 2",
+    "price": 13100000000,
+    "price_min": 0,
+    "price_max": 0,
+    "price_before_discount": 15900000000,
+    "raw_discount": 19,
+    "historical_sold": 1202,
+    "sold": 82,
+    "image": "vn-11134207-synthetic-2",
+    "item_rating": {
+     "rating_star": 4.87
+    }
+   }
+  },
+  {
+   "item_basic": {
+    "itemid": 1000003,
+    "shopid": 555000,
+    "name": "Găng tay cao su loại 3",
+    "shop_name": "Shop mẫu 0",
+    "price": 13200000000,
+    "price_min": 12900000000,
+    "price_max": 14900000000,
+    "price_before_discount": 15900000000,
+    "raw_discount": 19,
+    "historical_sold": 1203,
+    "sold": 83,
+    "image": "vn-11134207-synthetic-3",
+    "item_rating": {
+     "rating_star": 4.87
+    }
+   },
+   "adsid": 777,
+   "campaignid": 1
+  }
+ ],
+ "extra_tracking": {
+  "uid": "nobody"
+ }
+}

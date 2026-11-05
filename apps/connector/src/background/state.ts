@@ -100,6 +100,26 @@ export interface ReaderSchedule {
   itemIds?: string[];
 }
 
+/** The market search run's bookkeeping (P92 B-10), kept apart from the Seller Centre readers'. */
+export interface MarketSchedule {
+  lastRunDay?: string;
+  lastRun?: { day: string; at: string; outcomes: Record<string, string>; blocked?: ReaderBlockReason };
+  run?: MarketRun;
+  blocked?: { at: string; reason: ReaderBlockReason; until: number };
+  /** keyword -> the GMT+7 day it was last read and accepted (trimmed). */
+  lastRead: Record<string, string>;
+}
+
+export interface MarketRun {
+  day: string;
+  startedAt: number;
+  keywords: string[];
+  index: number;
+  current?: { tabId: number; openedAt: number };
+  nextAt?: number;
+  outcomes: Record<string, string>;
+}
+
 export interface State {
   token?: TokenInfo;
   stopped: Partial<Record<Dataset, Stop>>;
@@ -112,6 +132,7 @@ export interface State {
   /** Juli answered 403 consent_required: nothing is sent until the seller retries or pairs again. */
   consentBlocked?: { at: string };
   readers?: ReaderSchedule;
+  market?: MarketSchedule;
 }
 
 export const MAX_QUEUE = 20;
@@ -133,6 +154,7 @@ export async function loadState(storage: Storage): Promise<State> {
     "backfill",
     "consentBlocked",
     "readers",
+    "market",
   ])) as Partial<State>;
   return {
     token: raw.token,
@@ -145,6 +167,7 @@ export async function loadState(storage: Storage): Promise<State> {
     backfill: raw.backfill,
     consentBlocked: raw.consentBlocked,
     readers: raw.readers,
+    market: raw.market,
   };
 }
 

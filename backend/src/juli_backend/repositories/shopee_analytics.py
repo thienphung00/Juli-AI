@@ -434,6 +434,37 @@ class MarketListingsReadRepo(SessionRepo):
                 out[row.keyword].append(row.title)
         return out
 
+    async def latest_page1(
+        self, keywords: Collection[str]
+    ) -> dict[str, tuple[datetime, list[MarketListingSnapshot]]]:
+        """P92 B-10: per keyword the cards of its newest page-1 collection (relevancy sort), best
+        position first. A keyword never collected is absent."""
+        out: dict[str, tuple[datetime, list[MarketListingSnapshot]]] = {}
+        for keyword in dict.fromkeys(keywords):
+            newest = await self._session.scalar(
+                select(func.max(MarketListingSnapshot.collected_at)).where(
+                    MarketListingSnapshot.platform == "shopee",
+                    MarketListingSnapshot.keyword == keyword,
+                    MarketListingSnapshot.sort == "relevancy",
+                    MarketListingSnapshot.page == 1,
+                )
+            )
+            if newest is None:
+                continue
+            cards = await self._all(
+                select(MarketListingSnapshot)
+                .where(
+                    MarketListingSnapshot.platform == "shopee",
+                    MarketListingSnapshot.keyword == keyword,
+                    MarketListingSnapshot.sort == "relevancy",
+                    MarketListingSnapshot.page == 1,
+                    MarketListingSnapshot.collected_at == newest,
+                )
+                .order_by(MarketListingSnapshot.pos)
+            )
+            out[keyword] = (newest, list(cards))
+        return out
+
 
 __all__ = [
     "AdCampaignPurposesReadRepo",

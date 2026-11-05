@@ -174,6 +174,52 @@ export interface ProductBlock {
   readonly base_gmv_30d: number;
   readonly orders_per_day: N;
   readonly window: WindowOptions;
+  /** P92 B-10: the product's cards as ordered steps (price, giảm giá, voucher, combo, ads). */
+  readonly steps?: ProductSteps;
+}
+
+export type StepKey = "price" | "giam_gia" | "voucher" | "combo" | "ads" | (string & {});
+
+/** One step of a product's draft: evaluated on top of the previous steps. `null` = not computable. */
+export interface PlanStep {
+  readonly index: number;
+  readonly step: StepKey;
+  readonly step_label: string;
+  readonly card_id: string;
+  readonly code: string | null;
+  readonly title: string | null;
+  readonly change_kind: string;
+  readonly version_label?: string | null;
+  readonly margin_pct_before: N;
+  readonly margin_pct_after: N;
+  readonly dprofit_step_p50: N;
+  readonly dprofit_total_p50: N;
+  readonly dprofit_total_certain: N;
+  readonly dgmv_total_p50: N;
+  readonly cost_month_total: N;
+  readonly floor_ok: boolean;
+}
+
+export interface ProductSteps {
+  readonly order: readonly StepKey[];
+  readonly custom_order: boolean;
+  readonly items: readonly PlanStep[];
+  readonly total: {
+    readonly margin_pct_before: N;
+    readonly margin_pct_after: N;
+    readonly dprofit_p50: N;
+    readonly dprofit_certain: N;
+    readonly dgmv_p50: N;
+  };
+}
+
+export interface StepsSummary {
+  readonly shop: {
+    readonly dprofit_p50: N;
+    readonly dprofit_certain: N;
+    readonly margin_pct_after: N;
+    readonly products: number;
+  };
 }
 
 export interface StackedProduct {
@@ -230,6 +276,7 @@ export interface PlanAggregate {
   readonly stacked_products?: readonly StackedProduct[];
   readonly cards: readonly PlanEvaluation[];
   readonly products?: readonly ProductBlock[];
+  readonly steps_summary?: StepsSummary;
   readonly shop_wide?: { readonly cards: readonly string[]; readonly codes: readonly string[]; readonly joint: Brief } | null;
   readonly joint_cards?: readonly string[];
   readonly added_cards?: readonly string[];
@@ -308,6 +355,8 @@ export interface PlanApi {
   get(): Promise<PlanResponse>;
   add(cardId: string, version: number, acknowledgeBreaches?: boolean): Promise<PlanResponse>;
   remove(cardId: string): Promise<PlanResponse>;
+  /** P92 B-10: move a planned card to a 1-based position among the plan's cards (re-orders its product's steps). */
+  move?(cardId: string, position: number): Promise<PlanResponse>;
   setVersion(cardId: string, version: number): Promise<PlanResponse>;
   /** What-if inputs of one planned card (the plan is re-aggregated on them). */
   whatIf(cardId: string, inputs: Readonly<Record<string, unknown>>): Promise<PlanResponse>;

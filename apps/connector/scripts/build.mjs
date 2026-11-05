@@ -19,6 +19,8 @@ const entries = {
   hook: "src/page/hook.ts",
   content: "src/content/content.ts",
   popup: "src/popup/popup.ts",
+  markethook: "src/page/market-hook.ts",
+  marketcontent: "src/content/market-content.ts",
 };
 
 await rm(outDir, { recursive: true, force: true });

@@ -58,6 +58,7 @@ export function createPlanApi(options: PlanClientOptions): PlanApi {
     get: () => call<PlanResponse>("GET", "/plan"),
     add: (cardId, version, ack = false) => call<PlanResponse>("POST", "/plan/cards", { card_id: cardId, chosen_version: version, acknowledge_breaches: ack }),
     remove: (cardId) => call<PlanResponse>("POST", `${card(cardId)}/remove`, {}),
+    move: (cardId, position) => call<PlanResponse>("POST", `${card(cardId)}/move`, { position }),
     setVersion: (cardId, version) => call<PlanResponse>("POST", `${card(cardId)}/version`, { version }),
     whatIf: (cardId, inputs) => call<PlanResponse>("POST", `${card(cardId)}/whatif`, { inputs }),
     setWindow: (days, productId) => call<PlanResponse>("POST", "/plan/window", { days, ...(productId ? { product_id: productId } : {}) }),

@@ -60,6 +60,7 @@ from juli_backend.services.shopee_recommendations import (
     config,
     manual,
     plan_codes,
+    plan_steps,
     product_queue,
     service,
     store,
@@ -389,21 +390,21 @@ async def add_card(
     if breaches and not acknowledge_breaches:
         raise PlanBreachNotAcknowledged(breaches, "this card")
     acknowledged = {"by": actor.json(), "at": now.isoformat(), "breaches": breaches}
-    session.add(
-        ShopRecoPlanCard(
-            id=uuid.uuid4(),
-            shop_id=shop_id,
-            plan_id=plan.id,
-            proposal_id=p.id,
-            chosen_version=chosen_version,
-            inputs={},
-            prior_status=p.status,
-            position=len(current) + 1,
-            added_by=actor.json(),
-            acknowledged_breaches=acknowledged if breaches else None,
-            added_at=now,
-        )
+    new_row = ShopRecoPlanCard(
+        id=uuid.uuid4(),
+        shop_id=shop_id,
+        plan_id=plan.id,
+        proposal_id=p.id,
+        chosen_version=chosen_version,
+        inputs={},
+        prior_status=p.status,
+        position=len(current) + 1,
+        added_by=actor.json(),
+        acknowledged_breaches=acknowledged if breaches else None,
+        added_at=now,
     )
+    session.add(new_row)
+    await _place_at_slot(session, shop_id, current, new_row, p, payload)
     p.status = STATUS_PLANNED
     p.lever_plan_id = plan.id
     p.updated_at = now
@@ -413,6 +414,56 @@ async def add_card(
     await session.flush()
     if p.item_id:
         await product_queue.requeue_products(session, shop_id, [p.item_id], now)
+    return await get_plan(session, shop_id, plan.id, now=now)
+
+
+async def _place_at_slot(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    current: list[tuple[ShopRecoPlanCard, ShopProposal]],
+    new_row: ShopRecoPlanCard,
+    proposal: ShopProposal,
+    payload: Mapping[str, Any],
+) -> None:
+    """P92 B-10: a new card joins its product's sequence at its canonical step slot (price ->
+    giảm giá -> voucher -> combo -> ads); a card of another product, or of no product, goes last.
+    Positions are renumbered 1..n."""
+    ordered = [row for row, _ in current]
+    same = [
+        (i, (await store.card_payload(session, shop_id, p.id) or {}).get("change_kind", ""))
+        for i, (row, p) in enumerate(current)
+        if proposal.item_id and p.item_id == proposal.item_id
+    ]
+    target = len(ordered)
+    if same:
+        slot = plan_steps.slot_for([kind for _, kind in same], str(payload.get("change_kind", "")))
+        target = same[slot][0] if slot < len(same) else same[-1][0] + 1
+    ordered.insert(target, new_row)
+    for index, row in enumerate(ordered, start=1):
+        row.position = index
+
+
+async def move_card(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    card_id: uuid.UUID,
+    position: int,
+    *,
+    actor: manual.Actor,
+    now: datetime,
+) -> dict[str, Any]:
+    """Reorder: the card takes ``position`` (1-based, clamped) among the plan's cards; the steps
+    of its product are re-evaluated in the new order (:mod:`.plan_steps`)."""
+    now = _naive(now)
+    plan = await _require_draft(session, shop_id)
+    rows = await _rows(session, shop_id, plan.id)
+    row, _ = await _row_of(session, shop_id, plan.id, card_id)
+    ordered = [r for r, _ in rows if r.id != row.id]
+    ordered.insert(min(max(position, 1), len(ordered) + 1) - 1, row)
+    for index, r in enumerate(ordered, start=1):
+        r.position = index
+    plan.updated_at = now
+    await session.flush()
     return await get_plan(session, shop_id, plan.id, now=now)
 
 

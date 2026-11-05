@@ -38,6 +38,7 @@ from juli_backend.api.routes.demo_run_flows import router as demo_run_flows_rout
 from juli_backend.api.routes.demo_shop_inputs import router as demo_shop_inputs_router
 from juli_backend.api.routes.demo_shopee_analytics import router as demo_shopee_analytics_router
 from juli_backend.api.routes.demo_shopee_builder import router as demo_shopee_builder_router
+from juli_backend.api.routes.demo_shopee_market import router as demo_shopee_market_router
 from juli_backend.api.routes.demo_shopee_pages import router as demo_shopee_pages_router
 from juli_backend.api.routes.demo_shopee_reco_manual import router as demo_shopee_reco_manual_router
 from juli_backend.api.routes.demo_shopee_reco_plan import router as demo_shopee_reco_plan_router
@@ -47,6 +48,7 @@ from juli_backend.api.routes.demo_shopee_recommendations import (
 from juli_backend.api.routes.executions import router as executions_router
 from juli_backend.api.routes.ingest import router as ingest_router
 from juli_backend.api.routes.ingest_fill import router as ingest_fill_router
+from juli_backend.api.routes.ingest_market import router as ingest_market_router
 from juli_backend.api.routes.me import router as me_router
 from juli_backend.api.routes.ops import router as ops_router
 from juli_backend.api.routes.ops_billing import router as ops_billing_router
@@ -55,10 +57,12 @@ from juli_backend.api.routes.ops_planned_changes import router as ops_planned_ch
 from juli_backend.api.routes.ops_proposals import router as ops_proposals_router
 from juli_backend.api.routes.ops_shop_inputs import router as ops_shop_inputs_router
 from juli_backend.api.routes.ops_shopee_analytics import router as ops_shopee_analytics_router
+from juli_backend.api.routes.ops_shopee_backtest import router as ops_shopee_backtest_router
 from juli_backend.api.routes.ops_shopee_builder import router as ops_shopee_builder_router
 from juli_backend.api.routes.ops_shopee_dashboards import router as ops_shopee_dashboards_router
 from juli_backend.api.routes.ops_shopee_keywords import router as ops_shopee_keywords_router
 from juli_backend.api.routes.ops_shopee_kpi import router as ops_shopee_kpi_router
+from juli_backend.api.routes.ops_shopee_market import router as ops_shopee_market_router
 from juli_backend.api.routes.ops_shopee_orders import router as ops_shopee_orders_router
 from juli_backend.api.routes.ops_shopee_reco_manual import router as ops_shopee_reco_manual_router
 from juli_backend.api.routes.ops_shopee_reco_plan import router as ops_shopee_reco_plan_router
@@ -157,6 +161,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_shopee_recommendations_router)
     v1_router.include_router(demo_shopee_reco_manual_router)
     v1_router.include_router(demo_shopee_builder_router)
+    v1_router.include_router(demo_shopee_market_router)
     v1_router.include_router(demo_shopee_pages_router)
     v1_router.include_router(demo_planned_changes_router)
     v1_router.include_router(demo_connector_fill_router)
@@ -169,6 +174,8 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_shopee_recommendations_router)
     v1_router.include_router(ops_shopee_reco_manual_router)
     v1_router.include_router(ops_shopee_builder_router)
+    v1_router.include_router(ops_shopee_market_router)
+    v1_router.include_router(ops_shopee_backtest_router)
     v1_router.include_router(ops_planned_changes_router)
     v1_router.include_router(ops_connector_fill_router)
     v1_router.include_router(ops_contract_shops_router)
@@ -181,6 +188,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(shop_invites_router)
     # Fast track P24 (D31.3 / D31.4): the ingest gateway and Juli Connector pairing.
     v1_router.include_router(ingest_fill_router)
+    v1_router.include_router(ingest_market_router)
     v1_router.include_router(ingest_router)
     # Fast track P32-A (D42): the partner reviewer's own routes (who am I, simulate).
     v1_router.include_router(reviewer_router)

@@ -50,7 +50,8 @@ export type ReaderDataset =
   | "item_traffic_sources"
   | "ads_campaign_daily"
   | "voucher_settings"
-  | "shop_health_daily";
+  | "shop_health_daily"
+  | "market_search";
 export type Dataset = MydataDataset | ReaderDataset;
 
 // -- page readers + tab-opening scheduler (ADR-120 d.14) -----------------------------------
@@ -196,4 +197,42 @@ export const FILL_LABELS = {
 
 export function fillActive(shopId: string | undefined): boolean {
   return FILL_LISTING_ACTIVE && !!shopId && PILOT_SHOP_IDS.includes(shopId);
+}
+
+// -- market search reader (P92 B-10, Connector 0.3.5) -----------------------------------------
+//
+// Once a week per keyword the Connector opens the PUBLIC Shopee search page for a product's 1-3
+// main keywords (the list comes from Juli: GET /v1/ingest/market/keywords) in a background tab,
+// keeps the page's OWN search answer (page 1, relevancy) and posts the cards to the dataset
+// `market_search`. No login, no buyer data, never clicks. ORY only: `marketActive` needs the
+// explicit shop id in PILOT_SHOP_IDS (the "*" wildcard does NOT count, like fillActive).
+// Everything marked "to verify" below is a recon GUESS to confirm on a real capture
+// (docs/integrations/shopee/market-search-recon.md).
+
+export const MARKET_ORIGIN = "https://shopee.vn";
+/** The window.postMessage channel between the market hook and its relay (not the Seller Centre one). */
+export const MARKET_CHANNEL = "juli-connector/market/v1";
+/** The page's own search answer (to verify on a real capture). */
+export const MARKET_SEARCH_PATH = "/api/v4/search/search_items";
+/** The public search page the tab is opened on: `${MARKET_ORIGIN}${MARKET_PAGE_PATH}?keyword=...`. */
+export const MARKET_PAGE_PATH = "/search";
+/** Shopee v4 sends money as VND x 100 000, e.g. 12900000000 = 129 000 d (to verify). */
+export const MARKET_PRICE_DIVISOR = 100_000;
+/** A page whose cards have a median price below this is read as a wrong scale -> drift. */
+export const MARKET_MIN_PLAUSIBLE_VND = 100;
+/** Cards kept from page 1 (Shopee shows about 60). */
+export const MARKET_MAX_CARDS = 80;
+/** Keywords per product and per run, and the minimum days between two reads of one keyword. */
+export const MARKET_MAX_PER_PRODUCT = 3;
+export const MARKET_MAX_KEYWORDS_PER_RUN = 12;
+export const MARKET_MIN_DAYS_BETWEEN_READS = 6;
+/** The market run's own daily alarm starts after the Seller Centre readers (minutes, plus jitter). */
+export const MARKET_RUN_START_MIN_MINUTES = 150;
+export const MARKET_RUN_START_JITTER_MINUTES = 120;
+/** A search tab with no answer after this long is closed and counted as a timeout. */
+export const MARKET_JOB_TIMEOUT_MS = 90_000;
+export const MARKET_SORT = "relevancy";
+
+export function marketActive(shopId: string | undefined): boolean {
+  return !!shopId && PILOT_SHOP_IDS.includes(shopId);
 }

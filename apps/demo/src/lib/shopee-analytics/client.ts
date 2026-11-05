@@ -1,3 +1,4 @@
+import type { MarketScope } from "./market-price";
 import type { Critical, Matrix, Overview, ProductPage, Ranking } from "./types";
 
 /**
@@ -41,6 +42,8 @@ export interface ShopeeApi {
   critical(q: WindowQuery): Promise<Critical>;
   ranking(q: RankingQuery): Promise<Ranking>;
   product(itemId: string, period: "7d" | "30d" | "90d"): Promise<ProductPage>;
+  /** P92 B-10: where the "Giá thị trường" call goes (same token and shop as this client). */
+  readonly marketScope?: MarketScope;
 }
 
 export class ShopeeApiError extends Error {
@@ -145,5 +148,6 @@ export function createShopeeApi(options: ShopeeClientOptions): ShopeeApi {
     },
     product: (itemId, period) =>
       get<ProductPage>(`/products/${encodeURIComponent(itemId)}`, new URLSearchParams({ period })),
+    marketScope: { base, token, shopId, fetchImpl },
   };
 }
