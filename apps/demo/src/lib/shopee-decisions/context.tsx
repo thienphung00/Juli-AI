@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
+import type { MarketScope } from "../shopee-analytics/market-price";
 import type { ShopeeLinks } from "../shopee-analytics/links";
 import type { BuilderApi } from "./builder-api";
 import type { RecoApi } from "./client";
@@ -53,6 +54,8 @@ export interface RecoHost {
   readonly products?: () => Promise<readonly ProductChoice[]>;
   /** P92: the builder API (picker, evaluate / compare / choose, drafts). Absent: the P91 builder runs. */
   readonly builder?: BuilderApi;
+  /** P92 B-10: where the Giá thị trường marker of the builder price panels reads (seller or Ops base). */
+  readonly market?: MarketScope;
   /** The draft plan (P91 D-6); absent while the plan backend is not there. */
   readonly plan?: PlanHost;
   /** Follow an in-page href without a full navigation, when the host has a router of its own. */

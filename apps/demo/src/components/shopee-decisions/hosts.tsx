@@ -40,6 +40,7 @@ export function sellerRecoHost(options: {
     shopName: options.shopName,
     products: productsOf(createShopeeApi({ base: DEMO_SHOPEE_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl })),
     builder: p92BuilderEnabled() ? createBuilderApi({ base: DEMO_BUILDER_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) : undefined,
+    market: { base: DEMO_BUILDER_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl },
     plan: planEnabled() ? { api: createPlanApi({ base: DEMO_RECO_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) } : undefined,
     href: (view) => withQuery("/decisions", decisionsQuery(view)),
     navigate: options.navigate,
@@ -78,6 +79,7 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
     const reco = createRecoApi({ base: opsRecoBase(shopId), token, fetchImpl });
     const products = productsOf(createShopeeApi({ base: opsShopeeBase(shopId), token, fetchImpl }));
     const builder = p92BuilderEnabled() ? createBuilderApi({ base: opsBuilderBase(shopId), token, fetchImpl }) : undefined;
+    const market = { base: opsBuilderBase(shopId), token, fetchImpl };
     if (kind === "view-as") {
       return {
         reco,
@@ -86,6 +88,7 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
         shopName,
         products,
         builder,
+        market,
         readOnly: true,
         href: (view) => viewAsTabHref(shopId, "decisions", decisionsQuery(view)),
       };
@@ -97,6 +100,7 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
       shopName,
       products,
       builder,
+      market,
       plan: planEnabled() ? { api: createPlanApi({ base: opsRecoBase(shopId), token, fetchImpl }) } : undefined,
       staff: true,
       href: (view) => withQuery(`/ops/shops/${encodeURIComponent(shopId)}/shopee/de-xuat`, decisionsQuery(view)),

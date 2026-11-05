@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import type { BuilderApi, BuilderOutcome, PickerProduct, VariationRow } from "../../../lib/shopee-decisions/builder-api";
+import type { MarketScope } from "../../../lib/shopee-analytics/market-price";
 import { useVariationList } from "./variations";
 
 /** Small form pieces of the P92 builder (classes in `app/shopee-p92.css`). */
@@ -85,6 +86,8 @@ export interface PanelCtx {
   readonly outcome: BuilderOutcome | null;
   readonly narrow: boolean;
   readonly costLink: string;
+  /** Where the Giá thị trường marker reads; null while the host has none. */
+  readonly market: MarketScope | null;
 }
 
 export function ProductSelect({ label, value, onChange, products, allowEmpty = true }: { readonly label: string; readonly value: string; readonly onChange: (id: string) => void; readonly products: readonly PickerProduct[]; readonly allowEmpty?: boolean }) {

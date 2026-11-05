@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { MarketPriceMarker } from "../../shopee-analytics/market-price-marker";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { CoPurchase } from "../../../lib/shopee-decisions/builder-api";
 import { kmoney, newItem, num, voucherChips, type AddonRow, type Forms, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
@@ -266,7 +267,17 @@ export function GiftPanel({ form, set, ctx }: P<"gift">) {
 
 // ── Giảm giá, Giá bán + Flash sale ───────────────────────────────────────
 
-function VarRows({ ctx, rows, mode, onRow }: { readonly ctx: PanelCtx; readonly rows: readonly { readonly variationId: string; readonly value: string }[]; readonly mode: "pct" | "final_price"; readonly onRow: (id: string, value: string) => void }) {
+/** The price a buyer sees after the typed row: the final price, or the list price moved by the percentage. */
+function draftPrice(selling: number | null, mode: "pct" | "final_price", raw: string, direction: "off" | "change"): number | null {
+  const n = num(raw);
+  if (n === null) return null;
+  if (mode === "final_price") return n > 0 ? n : null;
+  if (selling === null) return null;
+  const price = direction === "off" ? selling * (1 - n / 100) : selling * (1 + n / 100);
+  return price > 0 ? price : null;
+}
+
+function VarRows({ ctx, rows, mode, direction, onRow }: { readonly ctx: PanelCtx; readonly direction: "off" | "change"; readonly rows: readonly { readonly variationId: string; readonly value: string }[]; readonly mode: "pct" | "final_price"; readonly onRow: (id: string, value: string) => void }) {
   const skus = (Array.isArray(ctx.outcome?.details?.["skus"]) ? ctx.outcome!.details!["skus"] : []) as Readonly<Record<string, unknown>>[];
   return (
     <div className="p2-rows" data-testid="p2-varrows">
@@ -285,6 +296,9 @@ function VarRows({ ctx, rows, mode, onRow }: { readonly ctx: PanelCtx; readonly 
                 {vnd(dn(sku, "price_before"))} → {vnd(dn(sku, "price_after"))} · biên {pp(dn(sku, "margin_pct_before"), 1)} → {pp(dn(sku, "margin_pct_after"), 1)}
               </span>
             ) : null}
+            {ctx.market && val.trim() !== "" ? (
+              <MarketPriceMarker draftPrice={draftPrice(v.selling_price, mode, val, direction)} itemId={ctx.product.item_id} scope={ctx.market} variationId={v.variation_id || undefined} />
+            ) : null}
           </div>
         );
       })}
@@ -300,7 +314,7 @@ export function DiscountPanel({ form, set, ctx }: P<"product_discount">) {
   return (
     <div className="p2-panel" data-testid="p2-panel-discount">
       <Seg label="Nhập giảm theo" onChange={(mode) => set({ mode })} options={[["pct", "Phần trăm (%)"], ["final_price", "Giá cuối (đ)"]]} value={form.mode} />
-      <VarRows ctx={ctx} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
+      <VarRows ctx={ctx} direction="off" mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
       <div className="p2-grid">
         <TextIn label="Bắt đầu" onChange={(start) => set({ start })} type="date" value={form.start} />
         <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
@@ -315,7 +329,7 @@ export function PriceFlashPanel({ form, set, ctx }: P<"price_flash">) {
     <div className="p2-panel" data-testid="p2-panel-flash">
       <Pills label="Loại thay đổi" onChange={(what) => set({ what })} options={[["price", "Đổi giá niêm yết"], ["flash_sale", "Flash sale của shop"]]} value={form.what} />
       <Seg label={form.what === "price" ? "Nhập giá theo" : "Nhập giảm theo"} onChange={(mode) => set({ mode })} options={[["pct", form.what === "price" ? "Thay đổi (%)" : "Giảm (%)"], ["final_price", form.what === "price" ? "Giá bán mới (đ)" : "Giá flash sale (đ)"]]} value={form.mode} />
-      <VarRows ctx={ctx} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
+      <VarRows ctx={ctx} direction={form.what === "price" ? "change" : "off"} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
       {form.what === "flash_sale" ? (
         <div className="p2-grid">
           <NumIn label="Số lượng (suất)" onChange={(units) => set({ units })} value={form.units} />

@@ -302,6 +302,35 @@ describe("P92 · các loại khác", () => {
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "flash_sale", units: 50, slot_hours: 2 }));
   });
 
+  it("giảm giá, đổi giá and flash sale mount the Giá thị trường marker with the drafted price", async () => {
+    const range = {
+      item_id: P_ZIP, available: true, reason: null, stale: false, unit: { key: "hop", label: "hộp", per_label: "giá / hộp" },
+      market: { n_similar: 12, median: 28_000, p25: 25_000, p75: 31_000, own_vs_median_pct: null, position: null },
+      marker: { price: 80_040, price_per_unit: 26_680, position: "within", vs_median_pct: -4.7 },
+    };
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      urls.push(url);
+      return { ok: true, status: 200, json: async () => range } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const builder = fakeBuilder();
+    open(builder, null, { market: { base: "/v1/demo/shopee", token: "tok", shopId: "shop-1", fetchImpl } });
+    await toKinds(builder);
+    fireEvent.click(screen.getByTestId("p2-kind-product_discount"));
+    expect(screen.queryByTestId("market-marker")).toBeNull();
+    fireEvent.change(await screen.findByRole("textbox", { name: "Giảm · Combo 3 hộp" }), { target: { value: "8" } });
+    expect(await screen.findByTestId("market-marker")).toHaveTextContent("bản nháp 26.680đ, trong khoảng phổ biến");
+    // 87.000đ list price minus 8 % = 80.040đ, sent as the drafted price of the variation.
+    await waitFor(() => expect(urls.some((u) => u === `/v1/demo/shopee/builder/products/${P_ZIP}/market-range?variation_id=v3&price=80040`)).toBe(true));
+    await waitFor(() => expect(screen.getByTestId("p2-add")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("p2-add"));
+    await screen.findByTestId("p2-kinds");
+    fireEvent.click(screen.getByTestId("p2-kind-price_flash"));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Giảm · Combo 3 hộp" }), { target: { value: "-10" } });
+    await waitFor(() => expect(urls.some((u) => u.endsWith("price=78300"))).toBe(true));
+    expect(screen.getByTestId("market-marker")).toBeInTheDocument();
+  });
+
   it("cover: overlay concepts are text over the real photo; picking one sends the overlay; 'LLM tắt' is said", async () => {
     const builder = fakeBuilder();
     open(builder);

@@ -86,7 +86,7 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
   const effective = useMemo<readonly string[]>(() => selIds ?? (first !== undefined ? [first] : []), [selIds, first]);
   const chosen = useMemo(() => (list ? list.variations.filter((v) => allVars || effective.includes(v.variation_id)) : []), [list, allVars, effective]);
 
-  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, products, aov, outcome: result?.state.status === "ready" ? result.state.outcome : null, narrow, costLink } : null;
+  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, products, aov, outcome: result?.state.status === "ready" ? result.state.outcome : null, narrow, costLink, market: host.market ?? null } : null;
   const built = useMemo(() => (kind && product ? buildVersion(kind, forms, { product, variations: chosen }) : { version: null, problem: null }), [kind, forms, product, chosen]);
   const key = built.version ? JSON.stringify(built.version) : "";
 
