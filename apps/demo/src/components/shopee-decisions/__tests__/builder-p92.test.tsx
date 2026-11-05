@@ -52,6 +52,7 @@ describe("P92 · chọn sản phẩm và phân loại", () => {
     fireEvent.click(screen.getByRole("button", { name: /Xem thêm 3 sản phẩm/ }));
     expect(screen.getAllByTestId(/^p2-prod-/)).toHaveLength(12);
     expect(screen.getByTestId("p2-excluded-note")).toHaveTextContent("Đã loại trừ 4 sản phẩm");
+    expect(within(screen.getByTestId("p2-excluded-note")).getByRole("link", { name: /Loại trừ sản phẩm/ })).toHaveAttribute("href", "/settings?tab=loai-tru-san-pham");
   });
 
   it("searches by name or id and filters", async () => {

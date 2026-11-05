@@ -206,7 +206,7 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
         </div>
       ) : null}
 
-      {step === "pick" ? <ProductPicker excludedHidden={data.excluded_hidden} exclusionsHref={null} onPick={pickProduct} products={products} /> : null}
+      {step === "pick" ? <ProductPicker excludedHidden={data.excluded_hidden} exclusionsHref={host.links.exclusions()} onPick={pickProduct} products={products} /> : null}
 
       {product && step !== "pick" && step !== "compare" ? <ProductStrip onChange={() => setStep("pick")} product={product} /> : null}
 
