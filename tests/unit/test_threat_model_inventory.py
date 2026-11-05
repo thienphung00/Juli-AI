@@ -199,6 +199,7 @@ UNAUTHENTICATED_ALLOWLIST = {
     # P91 D-13: the Connector's listing fill-in reads one approved card of its own shop with
     # the same ingest token (read-only; off unless CONNECTOR_FILL_LISTING).
     "/v1/ingest/fill",
+    "/v1/ingest/market/keywords",
     "/v1/ingest/fill/{code}",
     "/v1/ingest/{platform}/{dataset}",
     # Fast track P33-F (D43): the public free-trial sign-up from app-juli.com/dang-ky.

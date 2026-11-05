@@ -513,6 +513,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/builder/products/{item_id}/market-range",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/shopee/builder/products/{item_id}/variations",
       "methods": [
         "GET"
@@ -641,6 +649,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/products/{item_id}/market-price",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/shopee/ranking",
       "methods": [
         "GET"
@@ -706,6 +722,14 @@
     },
     {
       "path": "/v1/demo/shopee/recommendations/plan/cards",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/plan/cards/{card_id}/move",
       "methods": [
         "POST"
       ],
@@ -850,6 +874,14 @@
     },
     {
       "path": "/v1/ingest/fill/{code}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ingest/market/keywords",
       "methods": [
         "GET"
       ],
@@ -1569,6 +1601,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/builder/products/{item_id}/market-range",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/builder/products/{item_id}/variations",
       "methods": [
         "GET"
@@ -1596,6 +1636,14 @@
       "path": "/v1/ops/shops/{shop_id}/shopee/exclusions/{item_id}",
       "methods": [
         "PUT"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/fee-backtest",
+      "methods": [
+        "GET"
       ],
       "requires_auth": true,
       "tenant_scoped": false
@@ -1658,6 +1706,14 @@
     },
     {
       "path": "/v1/ops/shops/{shop_id}/shopee/products",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/products/{item_id}/market-price",
       "methods": [
         "GET"
       ],
@@ -1778,6 +1834,14 @@
     },
     {
       "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/plan/cards",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/plan/cards/{card_id}/move",
       "methods": [
         "POST"
       ],

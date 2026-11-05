@@ -15,8 +15,7 @@ from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.repositories import utc_now_naive
 from juli_backend.services import ingest as ingest_service
-from juli_backend.services.ingest import market
-from juli_backend.services.ingest.gateway import platform_today
+from juli_backend.services.ingest import gateway, market
 
 router = APIRouter(prefix="/ingest/market", tags=["ingest"])
 
@@ -41,7 +40,7 @@ async def get_market_keywords(
         every = sorted({k for ks in per_item.values() for k in ks})
         last = await market.last_collected(session, every)
     await session.commit()
-    today = platform_today(utc_now_naive())
+    today = gateway.platform_today(utc_now_naive())
     return {
         "enabled": True,
         "max_per_product": market.MAX_KEYWORDS_PER_PRODUCT,

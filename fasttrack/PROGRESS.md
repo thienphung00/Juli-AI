@@ -502,6 +502,19 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 
 | Open (owner): costs for P300002/P300003; KOL sample sheet + KOL packaging/delivery costs; run the deploy (checklist), then post-deploy steps: backfill-codes, connector 0.3.4 reload, `CONNECTOR_FILL_LISTING=1` when wanted, import the planned-changes list, income + cost files via the converter; confirm ORY's Ops stage is Pilot (daily learning); ticket for the 23 older UPDATE-grant tables | — | todo | owner |
 
+## P92 — Tự tạo phương án, precise strategies compared, market prices (contract p92-plan.md, 2026-11-05)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Product-page hotfix (version shape, partial product-period GMV) | p92-plan | done (fasttrack/p91-hotfix, ships in the same deploy) | hotfix agent |
+| B-1 picker of all active listings + exclusions (Cài đặt, Thông số shop columns), B-2 variation picker + so sánh phân loại | p92 B-1/2 | done; excluded listings also leave Phân tích > KOL rows | builder agent + integration |
+| B-3/B-4/B-5 per-kind inputs and evaluators (voucher typed 5k/100k vs 10k/100k, combo, mua kèm, quà tặng, giảm giá, flash sale, set, ads, tiêu đề, ảnh bìa, mô tả, affiliate, hiển thị giá), compare of 4 mixed kinds | p92 B-3..5 | done | builder agent |
+| B-8 seller Demo parity: Từ khóa, Quảng cáo + khuyến mãi, Đơn hàng, Sản phẩm + luồng | p92 B-8 | done; client parsing proven on fixtures generated from the real serializers (Postgres test) | parity agent + integration |
+| B-9 giá + biên with basis on every product table (Sản phẩm, luồng, Xếp hạng, Phân tích) incl. the Ops/Demo funnel table; fee backtest in Ops | p92 B-9 | done | builder agent + integration |
+| B-10 Giá thị trường: Connector 0.3.5 market search reader, ingest, product block, builder marker (mounted in giảm giá / đổi giá / flash sale panels), draft plan steps composed in order. **Seller sees only median and average**; listings and shop names Ops-only | p92 B-10 | done, merged (fasttrack/p92-market); reader built from recon, first live capture still to verify | market agent + integration |
+| Integration, full deploy gate (counts in LOG 2026-11-05 "P92 ready to deploy"), deploy checklist `contracts/p92-deploy-checklist.md` | — | done, ready for the owner's one deploy; no migration | integration agent |
+| Open (owner): run the deploy; Connector 0.3.5 reload + first-capture check, then `CONNECTOR_MARKET_SEARCH=1` + `CONNECTOR_MARKET_SHOP_IDS`; read the fee-backtest gap on ORY (<= 1 % of buyer-paid); ticket for the 23 older UPDATE-grant tables | checklist §5 | todo | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

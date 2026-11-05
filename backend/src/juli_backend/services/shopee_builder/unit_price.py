@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from typing import cast
 
 from juli_backend.services.shopee_profit.pack import pack_count_from_name
 
@@ -120,7 +121,7 @@ def per_unit_price(price: float, quantity: Quantity) -> float | None:
     """``price`` for the comparable unit of ``quantity`` (per hộp / 100 cái / 500 ml / ...)."""
     if price <= 0 or quantity.qty <= 0:
         return None
-    return price / quantity.qty * float(UNITS[quantity.unit]["per"])  # type: ignore[arg-type]
+    return price / quantity.qty * float(cast("float", UNITS[quantity.unit]["per"]))
 
 
 def tokens(text: str) -> frozenset[str]:

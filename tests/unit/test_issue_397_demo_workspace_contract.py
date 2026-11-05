@@ -278,12 +278,14 @@ def test_workspace_import_boundaries_are_acyclic_and_app_isolated() -> None:
 # constrained by RLS rather than by secrecy.
 # P91 integration: the plan and KOL screens are on by default; these two public build-time
 # switches (value "0" turns the screen off) are the one deliberate addition. They hold no secret.
+# P92 integration: NEXT_PUBLIC_P92_BUILDER is the same kind of switch ("0" = the P91 builder).
 _ALLOWED_DEMO_ENV = frozenset(
     {
         "NEXT_PUBLIC_SUPABASE_URL",
         "NEXT_PUBLIC_SUPABASE_ANON_KEY",
         "NEXT_PUBLIC_P91_PLAN",
         "NEXT_PUBLIC_P91_KOL",
+        "NEXT_PUBLIC_P92_BUILDER",
     }
 )
 

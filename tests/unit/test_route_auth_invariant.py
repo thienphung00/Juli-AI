@@ -144,6 +144,11 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
         "Whether the server allows the Connector's listing fill-in: authenticated by the "
         "ingest token (get_ingest_principal); returns a boolean and the platform only."
     ),
+    ("GET", "/v1/ingest/market/keywords"): (
+        "Connector market-search keyword list (P92 B-10): authenticated by the ingest token "
+        "(get_ingest_principal), shop-scoped under that shop's RLS scope, read-only; empty "
+        "unless CONNECTOR_MARKET_SEARCH is on."
+    ),
     ("POST", "/v1/ingest/{platform}/{dataset}"): (
         "Ingest gateway post: authenticated by the ingest token (get_ingest_principal), "
         "which names exactly one shop; writes only under that shop's RLS scope, "

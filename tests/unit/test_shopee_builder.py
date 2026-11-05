@@ -993,7 +993,10 @@ async def test_four_versions_of_mixed_kinds_compare_and_the_best_is_a_safe_one(s
     assert rows["driver:aov"][3] is None and rows["driver:orders"][:3] == [None, None, None]
     best = out["best_profit_p50"]
     assert best is not None and not out["versions"][best]["breach"]
-    p50 = lambda i: out["versions"][i]["delta"]["profit"]["p50"]  # noqa: E731
+
+    def p50(i):
+        return out["versions"][i]["delta"]["profit"]["p50"]
+
     assert p50(best) == max(p50(i) for i in range(4) if p50(i) is not None)
 
 

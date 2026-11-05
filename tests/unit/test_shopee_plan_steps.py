@@ -11,15 +11,12 @@ import pytest
 
 from juli_backend.services.shopee_recommendations import plan_steps as ps
 from juli_backend.services.shopee_recommendations import plans
+from tests.unit import test_shopee_reco_plan as _plan
 from tests.unit.test_shopee_reco_manual import _combo, _discount
-from tests.unit.test_shopee_reco_plan import (  # noqa: F401  (fixtures)
-    NOW,
-    VOUCHER,
-    _actor,
-    _manual,
-    seller,
-    shop,
-)
+
+# The plan tests' fixtures, re-exported by name so pytest finds them in this module.
+NOW, VOUCHER, _actor, _manual = _plan.NOW, _plan.VOUCHER, _plan._actor, _plan._manual
+seller, shop = _plan.seller, _plan.shop
 
 # ------------------------------------------------------------------ pure
 
