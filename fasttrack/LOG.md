@@ -3723,3 +3723,30 @@ reconcile --write` re-derived the no-assert corpus figure.
 - The per-listing rate list stays with the client files, outside the repo. One rate per listing: 26 combos mixing 8 % and 10 %
   carry 10 % (chemicals dominate their value; < 2 % of price either way). Recorded in p91-deploy-checklist §5 step 7.
 - Only docs commits after the green gate at 7fad9773.
+
+## 2026-11-05 — integration agent (Claude Opus) — P92 ready to deploy
+
+- Branch `fasttrack/p92-builder` (pushed head f324837f = hotfix + waves 1-2 + B-9) + local merge of `fasttrack/p92-market` (B-10, 6
+  commits from dea8d3e1; merge e8b76996, no conflicts; the backtest router file arrives in the same merge, so the merged tree imports and builds).
+  Nothing pushed, tagged or deployed.
+- Gaps closed: (a) `MarketPriceMarker` mounted in the builder giảm giá, đổi giá and flash-sale panels with the drafted price (host.market scope, seller and
+  Ops); (b) the Sản phẩm + luồng funnel table (Ops and Demo twin, one shared body) shows giá (min-max, list struck) and biên with its basis, the fields
+  added to the dashboards products payload from the same exact-period view the matrix uses (`queries.product_price_margin`); (c) exclusions remove the listing
+  from Phân tích › KOL rows, filters, sample-only rows and the product tab; (d) Demo Từ khóa / Đơn hàng / Sản phẩm + luồng / Quảng cáo parse the REAL answers:
+  a Postgres test regenerates `apps/demo/src/components/ops/__tests__/fixtures/p92-real-responses.json` through the real Demo routes and fails on drift; no
+  client mismatch found; (e) `ops_role`: the B-10 short block matches `shop_keywords.metrics_for`; proven on Postgres as `juli_app` (refused without the block, works
+  with it, role restored); the keyword-market reads of the builder title table and `load_keyword_market` lacked the block (a seller got nothing silently): fixed;
+  tenant: the product must be the caller's, another shop's keyword/capture never reaches a seller (cross-tenant tests); (f) pins refreshed with reason: the
+  surface inventory (+8 routes), route-auth and threat-model allowlists (`/v1/ingest/market/keywords`, ingest-token auth), demo env allowlist
+  (`NEXT_PUBLIC_P92_BUILDER`), import-boundary (no deep import of the ingest gateway), three suppressions removed (ratchet baseline untouched),
+  `.gitleaks.toml` line allowlist for the false positive `campaign_key=key,`.
+- Owner decision added during the gate: the seller (Demo) sees only median and average of similar products (count, unit, keyword, date, stale); listings, shop
+  names, titles and P25-P75 are Ops-only, enforced by a whitelist serializer (`market_price.seller_view`) and a no-leak test.
+- Gate (throwaway local UTC Postgres 16, node 20): check.sh FULL --since origin/main: migrations PASS (empty → head, head → -1 → head, at
+  120_planned_changes; no new migration), isolation 12 passed, gitleaks PASS after the allowlist, ruff 1170 files clean, pytest 545 files: 8004 passed, 4
+  failed (demo env allowlist, route-auth, surface inventory, status_record timeout under load) → all fixed/verified, 179 passed on re-run; full unit suite without DB
+  (`-m "not live"`): 10409 passed / 247 skipped / 2 xfailed, 5 failed (the same files plus import-boundary, ratchets, threat-model allowlist), all fixed and
+  re-run green; integration 621 passed / 3 skipped / 2 failed = the two known pre-existing failures, both reproduced on the deployed base 7b57e4a8 in a temporary
+  worktree (update-grant test, still exactly the 23 older tables; agent registry sanitizer); mypy 990 files clean; bandit -ll 0 medium/high; demo eslint 0
+  errors, tsc clean, vitest 1891 passed (186 files), next build OK, Playwright e2e/shopee 66 passed (desktop + mobile); connector 241 passed, tsc, build 0.3.5.
+- Next (owner): deploy per contracts/p92-deploy-checklist.md; Connector 0.3.5 reload and the first-capture check before `CONNECTOR_MARKET_SEARCH=1`.
