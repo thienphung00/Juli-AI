@@ -25,3 +25,13 @@ export function isPageMessage(
     KINDS.has(data.kind)
   );
 }
+
+/**
+ * Market search page (https://shopee.vn/search): only the hook's one answer kind, from that
+ * origin, on the market channel. The Seller Centre `isPageMessage` is not used there.
+ */
+export function isMarketMessage(event: MessageLike, self: unknown, expectedOrigin: string, channel: string): boolean {
+  if (event.source !== self || event.origin !== expectedOrigin) return false;
+  const data = event.data as { channel?: unknown; kind?: unknown } | null;
+  return typeof data === "object" && data !== null && data.channel === channel && data.kind === "market-answer";
+}

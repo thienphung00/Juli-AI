@@ -95,6 +95,11 @@ export class GatewayClient {
     return this.call(`/v1/ingest/fill/${encodeURIComponent(code)}`, { method: "GET" }, token);
   }
 
+  /** The keywords of the shop's products to read on the public search page (P92 B-10). */
+  marketKeywords(token: string): Promise<unknown> {
+    return this.call("/v1/ingest/market/keywords", { method: "GET" }, token);
+  }
+
   post(token: string, dataset: Dataset, body: IngestBody): Promise<unknown> {
     return this.call(`/v1/ingest/shopee/${dataset}`, { method: "POST", body: JSON.stringify(body) }, token);
   }

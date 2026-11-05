@@ -13,6 +13,7 @@ import {
 } from "../config";
 import { GatewayClient, GatewayError, ingestBody, type TokenInfo } from "../ingest/client";
 import { type Captured, mapCaptured, type Mapped } from "../shopee/map";
+import { mapMarketSearch } from "../shopee/market";
 import { mapReaderJob } from "../shopee/reader-map";
 import type { ReaderJob, ReaderResponse } from "../shopee/reader";
 import { isDataAnswer, type RequestResult } from "../shopee/runner";
@@ -227,6 +228,11 @@ export class Connector {
       outcomes[key] = await this.submit(mapped, capturedAt);
     }
     return outcomes;
+  }
+
+  /** One keyword's page-1 search answer -> mapped -> posted (dataset market_search). */
+  async postMarket(keyword: string, body: unknown, capturedAt: number): Promise<CaptureOutcome> {
+    return this.submit(mapMarketSearch(keyword, body, capturedAt), capturedAt);
   }
 
   /** Retry queued posts (oldest first); a post that keeps failing is dropped after 5 tries. */

@@ -1,6 +1,9 @@
 // The Manifest V3 service worker: wires the Connector to Chrome's APIs.
 
 import {
+  MARKET_ORIGIN,
+  MARKET_RUN_START_JITTER_MINUTES,
+  MARKET_RUN_START_MIN_MINUTES,
   READER_RUN_PERIOD_MINUTES,
   READER_RUN_START_JITTER_MINUTES,
   READER_RUN_START_MIN_MINUTES,
@@ -11,6 +14,8 @@ import {
 import { GatewayClient } from "../ingest/client";
 import type { Captured } from "../shopee/map";
 import { isDataAnswer, type RequestResult } from "../shopee/runner";
+import type { MarketPlan } from "../shopee/market";
+import { MARKET_RUN_ALARM, MARKET_WATCHDOG_ALARM, MarketScheduler } from "./market";
 import { Connector } from "./connector";
 import { fillRequest, senderMatches } from "./fill";
 import { READER_RUN_ALARM, READER_WATCHDOG_ALARM, ReaderScheduler } from "./scheduler";
@@ -45,24 +50,55 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     clear: (name) => chrome.alarms.clear(name),
   },
   sink: { postReader: (job, responses) => connector.postReader(job, responses) },
-  backfillBusy: () => connector.backfillInFlight(),
+  backfillBusy: async () => (await connector.backfillInFlight()) || (await market.isBusy()),
   later: (ms, fn) => void setTimeout(fn, ms),
 });
 
 const gateway = new GatewayClient();
+
+// The market search run (P92 B-10): public shopee.vn search pages, ORY only, own alarm.
+const market: MarketScheduler = new MarketScheduler({
+  storage: chrome.storage.local,
+  version: MANIFEST_VERSION,
+  now: () => Date.now(),
+  tabs: {
+    async open(url) {
+      const tab = await chrome.tabs.create({ url, active: false }).catch(() => undefined);
+      return tab?.id;
+    },
+    close: (tabId) => chrome.tabs.remove(tabId),
+    send: (tabId, message) => chrome.tabs.sendMessage(tabId, message),
+    async inspect(tabId) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        return { open: true, url: tab.url };
+      } catch {
+        return { open: false };
+      }
+    },
+  },
+  alarms: {
+    create: (name, info) => chrome.alarms.create(name, info),
+    clear: (name) => chrome.alarms.clear(name),
+  },
+  plan: async (token) => (await gateway.marketKeywords(token)) as MarketPlan | null,
+  sink: { postMarket: (keyword, body, capturedAt) => connector.postMarket(keyword, body, capturedAt) },
+  otherBusy: async () => (await scheduler.isBusy()) || (await connector.backfillInFlight()),
+  later: (ms, fn) => void setTimeout(fn, ms),
+});
 
 const connector: Connector = new Connector({
   storage: chrome.storage.local,
   client: gateway,
   version: MANIFEST_VERSION,
   now: () => Date.now(),
-  busy: () => scheduler.isBusy(),
+  busy: async () => (await scheduler.isBusy()) || (await market.isBusy()),
   tabs: {
     async sellerCentreTabs() {
       const tabs = await chrome.tabs.query({ url: `${SELLER_CENTRE_ORIGIN}/*` });
       // Never the scheduler's own background tab: the daily sync and the backfill talk to the
       // seller's tabs only.
-      const held = new Set(await scheduler.activeTabIds());
+      const held = new Set([...(await scheduler.activeTabIds()), ...(await market.activeTabIds())]);
       return tabs.map((t) => t.id).filter((id): id is number => typeof id === "number" && !held.has(id));
     },
     send: (tabId, message) => chrome.tabs.sendMessage(tabId, message),
@@ -87,10 +123,22 @@ async function ensureReaderAlarm(): Promise<void> {
   });
 }
 
-chrome.runtime.onInstalled.addListener(() => void ensureAlarm().then(ensureReaderAlarm));
-chrome.runtime.onStartup.addListener(() => void ensureAlarm().then(ensureReaderAlarm));
+async function ensureMarketAlarm(): Promise<void> {
+  if (await chrome.alarms.get(MARKET_RUN_ALARM)) return;
+  await chrome.alarms.create(MARKET_RUN_ALARM, {
+    delayInMinutes: MARKET_RUN_START_MIN_MINUTES + Math.floor(Math.random() * MARKET_RUN_START_JITTER_MINUTES),
+    periodInMinutes: READER_RUN_PERIOD_MINUTES,
+  });
+}
+
+chrome.runtime.onInstalled.addListener(() => void ensureAlarm().then(ensureReaderAlarm).then(ensureMarketAlarm));
+chrome.runtime.onStartup.addListener(() => void ensureAlarm().then(ensureReaderAlarm).then(ensureMarketAlarm));
 
 chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === MARKET_RUN_ALARM || alarm.name === MARKET_WATCHDOG_ALARM) {
+    void market.tick();
+    return;
+  }
   if (alarm.name === READER_RUN_ALARM || alarm.name === READER_WATCHDOG_ALARM) {
     void (async () => {
       if (alarm.name === READER_RUN_ALARM) await connector.flushQueue();
@@ -107,10 +155,17 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   })();
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => void scheduler.onTabRemoved(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void scheduler.onTabRemoved(tabId);
+  void market.onTabRemoved(tabId);
+});
 
 function fromSellerCentreTab(sender: chrome.runtime.MessageSender): boolean {
   return sender.id === chrome.runtime.id && !!sender.tab?.url?.startsWith(`${SELLER_CENTRE_ORIGIN}/`);
+}
+
+function fromMarketTab(sender: chrome.runtime.MessageSender): boolean {
+  return sender.id === chrome.runtime.id && !!sender.tab?.url?.startsWith(`${MARKET_ORIGIN}/`);
 }
 
 function fromExtensionPage(sender: chrome.runtime.MessageSender): boolean {
@@ -135,6 +190,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return value;
     });
 
+  if (fromMarketTab(sender)) {
+    // Only the search tab the market run opened is listened to; any other tab is ignored.
+    const tabId = sender.tab?.id;
+    if (tabId === undefined) return undefined;
+    if (msg.type === "market-result") {
+      return respond(market.onResult(tabId, msg as { keyword?: unknown; status?: unknown; body?: unknown; capturedAt?: unknown }).then(() => market.tick()));
+    }
+    if (msg.type === "market-tab-ready") return respond(market.onTabReady(tabId, sender.tab?.url));
+    if (msg.type === "market-blocked") return respond(market.onBlocked(tabId, String(msg.reason ?? "")).then(() => market.tick()));
+    return undefined;
+  }
   if (fromSellerCentreTab(sender)) {
     const tabId = sender.tab?.id;
     if (msg.type === "reader-result" && tabId !== undefined) {
@@ -176,9 +242,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (msg.type === "server-status") return respond(connector.serverStatus());
     if (msg.type === "sync-now") {
       return respond(
-        scheduler.clearBlock().then(async () => {
+        Promise.all([scheduler.clearBlock(), market.clearBlock()]).then(async () => {
           const result = await thenBackfill(connector.syncNow());
           void scheduler.tick();
+          void market.tick();
           return result;
         }),
       );
