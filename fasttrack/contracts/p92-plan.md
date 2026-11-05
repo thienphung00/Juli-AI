@@ -128,3 +128,21 @@ title keyword table), **Quảng cáo + khuyến mãi** (per campaign / voucher /
 Backend: demo routes mirroring the Ops ones (same services, `get_active_shop` scope). Web: four Demo nav
 entries reusing the Ops components. Seller access stays the existing "Mời seller" handover (P9-B): after the
 first accept the seller signs in at demo.app-juli.com with her e-mail and a 6-digit code, no new invite.
+
+## B-9 Price and margin on every product table, seller side included (owner 2026-11-05)
+- **Sản phẩm list, Sản phẩm + luồng table, Phân tích** (Demo and Ops) show for every product: **giá** (selling
+  price; min–max across variations, list price struck through when different) and **biên** (margin %), next to
+  GMV / orders. The list shows every active, non-excluded listing: products with sales in the window first
+  (GMV sort), the rest under a collapsed "N sản phẩm không có đơn trong kỳ".
+- **Margin basis, stated on screen:**
+  - *Per order / per product (history)*: profit of each real order — Income-file actual fees (fixed fee,
+    service fee incl. Voucher Xtra, payment fee, infrastructure fee per order), seller voucher share, combo /
+    discount, affiliate commission, shipping the seller bore, ads allocated by the product's share, giá vốn +
+    đóng gói, VAT per P91 D-12 — summed per product. Basis label "theo đơn thực tế"; "ước tính" when an order
+    has no Income row (fee formula used) or the cost is assumed; "chưa tính" without giá vốn.
+  - *Per strategy (builder, cards)*: every affected order is recomputed with the size-dependent fee formula
+    (per-order components split across the order's lines, percentage fees on the new buyer-paid amount), the
+    new voucher / discount / gift / add-on and the ads change, so the margin follows the basket size.
+  - A backtest guards the formula: for orders with an Income row, formula fees vs actual fees per order;
+    the mean absolute gap is reported in Ops and must stay ≤ 1 % of buyer-paid (test on synthetic data, Ops
+    figure on real data).
