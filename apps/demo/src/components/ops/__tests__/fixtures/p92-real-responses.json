@@ -501,7 +501,6 @@
   },
   "orders": [
    {
-    "paid_amount": 88000,
     "cogs": 30000,
     "combo_discount": 0,
     "contribution": 38100,
@@ -519,13 +518,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-07",
+    "paid_amount": 88000,
     "promo_discount": 10000,
     "status": "delivered",
     "units": 1,
     "voucher": 2000
    },
    {
-    "paid_amount": 45000,
     "cogs": 16667,
     "combo_discount": 0,
     "contribution": 9433,
@@ -542,13 +541,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-07",
+    "paid_amount": 45000,
     "promo_discount": 5000,
     "status": "delivered",
     "units": 1,
     "voucher": 0
    },
    {
-    "paid_amount": 90000,
     "cogs": 30000,
     "combo_discount": 0,
     "contribution": 40100,
@@ -565,13 +564,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-06",
+    "paid_amount": 90000,
     "promo_discount": 10000,
     "status": "delivered",
     "units": 1,
     "voucher": 0
    },
    {
-    "paid_amount": 54000,
     "cogs": 20000,
     "combo_discount": 0,
     "contribution": 22090,
@@ -588,13 +587,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-06",
+    "paid_amount": 54000,
     "promo_discount": 6000,
     "status": "delivered",
     "units": 1,
     "voucher": 0
    },
    {
-    "paid_amount": 54000,
     "cogs": null,
     "combo_discount": 0,
     "contribution": null,
@@ -611,13 +610,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-05",
+    "paid_amount": 54000,
     "promo_discount": 6000,
     "status": "cancelled",
     "units": 1,
     "voucher": 0
    },
    {
-    "paid_amount": 255000,
     "cogs": 90000,
     "combo_discount": 0,
     "contribution": 137100,
@@ -635,13 +634,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-04",
+    "paid_amount": 255000,
     "promo_discount": 45000,
     "status": "delivered",
     "units": 3,
     "voucher": 0
    },
    {
-    "paid_amount": 45000,
     "cogs": 16667,
     "combo_discount": 0,
     "contribution": 9433,
@@ -658,13 +657,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-04",
+    "paid_amount": 45000,
     "promo_discount": 5000,
     "status": "delivered",
     "units": 1,
     "voucher": 0
    },
    {
-    "paid_amount": 53000,
     "cogs": 20000,
     "combo_discount": 0,
     "contribution": 14100,
@@ -682,13 +681,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-03",
+    "paid_amount": 53000,
     "promo_discount": 6000,
     "status": "delivered",
     "units": 1,
     "voucher": 1000
    },
    {
-    "paid_amount": 85000,
     "cogs": 30000,
     "combo_discount": 5000,
     "contribution": 35100,
@@ -706,13 +705,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-03",
+    "paid_amount": 85000,
     "promo_discount": 10000,
     "status": "delivered",
     "units": 1,
     "voucher": 0
    },
    {
-    "paid_amount": 100000,
     "cogs": 30000,
     "combo_discount": 0,
     "contribution": 50100,
@@ -727,13 +726,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-02",
+    "paid_amount": 100000,
     "promo_discount": 0,
     "status": "delivered",
     "units": 1,
     "voucher": 0
    },
    {
-    "paid_amount": 45000,
     "cogs": 16667,
     "combo_discount": 0,
     "contribution": 18133,
@@ -750,13 +749,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-02",
+    "paid_amount": 45000,
     "promo_discount": 5000,
     "status": "delivered",
     "units": 1,
     "voucher": 0
    },
    {
-    "paid_amount": 178000,
     "cogs": 60000,
     "combo_discount": 0,
     "contribution": 98100,
@@ -774,13 +773,13 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-01",
+    "paid_amount": 178000,
     "promo_discount": 20000,
     "status": "delivered",
     "units": 2,
     "voucher": 2000
    },
    {
-    "paid_amount": 54000,
     "cogs": 20000,
     "combo_discount": 0,
     "contribution": 15100,
@@ -797,6 +796,7 @@
     "lines": 1,
     "order_key": "000000000000",
     "ordered_on": "2026-10-01",
+    "paid_amount": 54000,
     "promo_discount": 6000,
     "status": "delivered",
     "units": 1,
