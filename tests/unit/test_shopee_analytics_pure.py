@@ -473,3 +473,39 @@ def test_a_listing_without_variations_takes_its_only_model_so_a_variation_scoped
     costs = resolve_costs(lines, read_rules([RuleRow("sku_cost", "33:333", 50_000)]))
     key = lines[0].cost_key
     assert costs.by_key[key].cogs == D(50_000) and costs.cogs_source[key] == "real"
+
+
+def test_x2_a_busy_product_with_a_thin_previous_period_is_ranked_not_folded_into_few():
+    """65 orders now against 3 before: its ₫ change is measured exactly, so it pulls the cell up
+    (it used to be filed under "N sản phẩm ít đơn" because the thinner period had < 10 orders)."""
+    out = rank(
+        kind="products",
+        rows_now=_rows({"busy": (900, 65), "tiny": (10, 1)}),
+        rows_before=_rows({"busy": (100, 3), "tiny": (5, 1)}),
+        cell_now=M(D(910), D(66)),
+        cell_before=M(D(105), D(4)),
+        xep="gmv_per_day",
+        days_now=1,
+        days_before=1,
+        source="all",
+        sub=None,
+    )
+    assert [r["id"] for r in out["up"]] == ["busy"]
+    assert out["closing"]["few"]["count"] == 1  # only "tiny"
+    assert out["adds_up"] is True
+
+
+def test_x2_a_ratio_with_no_previous_value_has_no_change():
+    out = rank(
+        kind="products",
+        rows_now={"a": ("A", M(D(500), D(40), D(100), D(500)), {})},
+        rows_before={},
+        cell_now=M(D(500), D(40), D(100), D(500)),
+        cell_before=None,
+        xep="bien",
+        days_now=1,
+        days_before=1,
+        source="all",
+        sub=None,
+    )
+    assert out["down"] == [] and out["up"] == []

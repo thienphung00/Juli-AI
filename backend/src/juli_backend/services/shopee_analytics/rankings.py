@@ -337,16 +337,24 @@ def _cell_other(kind: str, view: PeriodView) -> M:
 # ---- ranking ---------------------------------------------------------------------------
 
 
-def _confidence(now: M | None, before: M | None) -> Confidence:
-    return volume_label(
-        float(before.orders) if before else 0.0, float(now.orders) if now else 0.0, CONFIG
-    )
+def _confidence(now: M | None, before: M | None, additive: bool = False) -> Confidence:
+    """The order-floor label of a row. A ratio (biên, AOV, % giảm giá) is only as steady as the
+    thinner of its two periods. An additive change (₫ / ngày, đơn / ngày) is measured exactly,
+    so a product with real volume in either period is ranked: a new product, or one whose
+    previous period is thin, must not fall into "ít đơn" with its whole change."""
+    prior = float(before.orders) if before else 0.0
+    last = float(now.orders) if now else 0.0
+    if additive:
+        return volume_label(max(prior, last), max(prior, last), CONFIG)
+    return volume_label(prior, last, CONFIG)
 
 
 def _row_json(r: _Out, xep: str, days_now: int, days_before: int, ordered: bool) -> dict[str, Any]:
     a, b = _measure(r.now, xep, days_now), _measure(r.before, xep, days_before)
     delta = None if a is None and b is None else (a or ZERO) - (b or ZERO)
-    conf = _confidence(r.now, r.before)
+    conf = _confidence(r.now, r.before, xep in ADDITIVE)
+    if (a is None or b is None) and xep not in ADDITIVE:
+        delta = None  # a ratio missing on one side has no change, not a change from zero
     extra = {k: (num(v) if isinstance(v, Decimal) else v) for k, v in r.extra.items()}
     return {
         "id": r.id,

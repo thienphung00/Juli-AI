@@ -16,6 +16,7 @@ import {
   apiRankingArgs,
   readRanking,
   readWindow,
+  xepParam,
   type RankingKind,
   type RankingState,
 } from "../../lib/shopee-analytics/params";
@@ -103,7 +104,7 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
         kpi: next.kpi ?? rs.kpi,
         src: next.src ?? rs.src,
         sub: "sub" in next ? next.sub : rs.sub,
-        xep: "xep" in next ? next.xep : rs.xep === "gmv" ? null : rs.xep,
+        xep: "xep" in next ? next.xep : xepParam(next.kpi ?? rs.kpi, rs.xep),
         huong: "huong" in next ? next.huong : null,
         loai: "loai" in next ? next.loai : rs.byProduct ? "products" : null,
       },
@@ -221,7 +222,7 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
       </div>
 
       <PeriodBar
-        hrefFor={(next) => links.ranking({ kpi: rs.kpi, src: rs.src, sub: rs.sub, focus: rs.focus, from: rs.from, card: rs.card, xep: rs.xep === "gmv" ? null : rs.xep }, next)}
+        hrefFor={(next) => links.ranking({ kpi: rs.kpi, src: rs.src, sub: rs.sub, focus: rs.focus, from: rs.from, card: rs.card, xep: xepParam(rs.kpi, rs.xep) }, next)}
         previous={r.previous}
         state={w}
         window={r.window}
@@ -255,7 +256,7 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
               <span className="sa-hint">Xếp theo</span>
               <span className="sa-seg">
                 {XEP.map(([k, , label]) => (
-                  <Link className={`sa-seg__item ${rs.xep === k ? "sa-seg__item--on" : ""}`} aria-current={rs.xep === k ? "true" : undefined} href={withState({ xep: k === "gmv" ? null : k })} key={k}>
+                  <Link className={`sa-seg__item ${rs.xep === k ? "sa-seg__item--on" : ""}`} aria-current={rs.xep === k ? "true" : undefined} href={withState({ xep: xepParam(rs.kpi, k) })} key={k}>
                     {label}
                   </Link>
                 ))}
