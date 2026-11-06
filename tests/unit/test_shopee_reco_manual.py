@@ -90,8 +90,11 @@ def test_amount_and_fixed_price_discounts():
     assert [x["combo_discount"] for x in amount["lines"]] == [15_000, 15_000]
     fixed = _price(combo.ComboOffer("fixed_price", D(150_000)))
     assert fixed["combo_discount"] == 50_000 and fixed["buyer_pays"] == 150_000
-    # an amount larger than the basket is capped at the basket
-    assert combo.combo_discount(combo.ComboOffer("amount", D(900_000)), D(200_000)) == 200_000
+    # P96e: no mode may take more than 90 % off (an amount larger than the basket used to
+    # make the combo free; it is refused like a percent above 90)
+    with pytest.raises(combo.ComboRefusal, match="combo_discount_over_max"):
+        combo.combo_discount(combo.ComboOffer("amount", D(900_000)), D(200_000))
+    assert combo.combo_discount(combo.ComboOffer("amount", D(180_000)), D(200_000)) == 180_000
 
 
 def test_discount_is_spread_by_value_with_the_remainder_on_the_last_line():

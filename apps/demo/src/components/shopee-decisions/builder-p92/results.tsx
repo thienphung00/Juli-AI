@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
-import { bandText, breakEvenText, floorWarningText, metricValue, refusalText, unitLines, voucherMaxText, voucherUsageText } from "../../../lib/shopee-decisions/builder-p92";
+import { bandText, breakEvenText, floorWarningText, marginText, metricValue, refusalText, unitLines, voucherMaxText, voucherUsageText } from "../../../lib/shopee-decisions/builder-p92";
 import { TextChip } from "../../shopee-analytics/ui";
 
 /**
@@ -121,7 +121,7 @@ export function OutcomeBody({ outcome: o, costLink }: { readonly outcome: Builde
               <b>{unknown ? "chưa tính" : DASH}</b>
             ) : (
               <>
-                <b>{pp(after, 1)}</b>
+                <b>{marginText(after)}</b>
                 <span>hôm nay {pp(before, 1)}</span>
               </>
             )}

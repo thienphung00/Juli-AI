@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { MarketPriceMarker } from "../../shopee-analytics/market-price-marker";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { CoPurchase } from "../../../lib/shopee-decisions/builder-api";
-import { kmoney, newItem, num, voucherChips, type AddonRow, type Forms, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
+import { comboPriceOf, kmoney, marginText, newItem, num, voucherChips, type AddonRow, type Forms, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
 import { NumIn, Pills, ProductSelect, Seg, TextIn, VariationSelect, setAt, type PanelCtx } from "./shared";
 
 /**
@@ -132,12 +132,12 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
         <Calc
           rows={[
             ["Tổng giá niêm yết", vnd(dn(d, "list_value"))],
-            ["Giá combo", vnd(dn(d, "buyer_pays"))],
+            ["Giá combo", vnd(comboPriceOf(d))],
             ["Tiết kiệm cho khách", `${vnd(dn(d, "combo_discount"))} (${pp(dn(d, "savings_pct"), 1)})`],
             ["Giá vốn + đóng gói", vnd((dn(d, "cogs") ?? 0) + (dn(d, "packaging") ?? 0))],
             ["Phí sàn", vnd(dn(d, "platform_fees"))],
             ["Lợi nhuận mỗi combo", vnd(dn(d, "contribution"))],
-            ["Biên", pp(dn(d, "margin_pct"), 1)],
+            ["Biên", marginText(dn(d, "margin_pct"))],
           ]}
           testId="p2-combo-calc"
         />
@@ -193,7 +193,7 @@ export function AddOnPanel({ form, set, ctx }: P<"add_on">) {
             ) : null}
             {lines[i] ? (
               <span className="sa-hint" data-testid={`p2-addon-margin-${i + 1}`}>
-                {vnd(dn(lines[i], "price_before"))} → {vnd(dn(lines[i], "price_after"))} · biên {pp(dn(lines[i], "margin_pct"), 1)}
+                {vnd(dn(lines[i], "price_before"))} → {vnd(dn(lines[i], "price_after"))} · biên {marginText(dn(lines[i], "margin_pct"))}
                 {lines[i]!["below_floor"] === true ? " · dưới giá sàn" : ""}
               </span>
             ) : null}
@@ -300,7 +300,7 @@ function VarRows({ ctx, rows, mode, direction, onRow }: { readonly ctx: PanelCtx
             {mode === "pct" && direction === "change" ? <span className="sa-hint">−5 = giảm 5%, +5 = tăng 5%</span> : null}
             {sku ? (
               <span className="sa-hint" data-testid={`p2-sku-${i + 1}`}>
-                {vnd(dn(sku, "price_before"))} → {vnd(dn(sku, "price_after"))} · biên {pp(dn(sku, "margin_pct_before"), 1)} → {pp(dn(sku, "margin_pct_after"), 1)}
+                {vnd(dn(sku, "price_before"))} → {vnd(dn(sku, "price_after"))} · biên {marginText(dn(sku, "margin_pct_before"))} → {marginText(dn(sku, "margin_pct_after"))}
               </span>
             ) : null}
             {ctx.market && val.trim() !== "" ? (
@@ -371,7 +371,7 @@ export function SetPanel({ form, set, ctx }: P<"variation_set">) {
             ) : null}
             {out[i] ? (
               <span className="sa-hint" data-testid={`p2-set-calc-${i + 1}`}>
-                {vnd(dn(out[i], "price_per_unit"))}/đơn vị · biên {out[i]!["margin_label"] ? String(out[i]!["margin_label"]) : pp(dn(out[i], "margin_pct"), 1)}
+                {vnd(dn(out[i], "price_per_unit"))}/đơn vị · biên {out[i]!["margin_label"] ? String(out[i]!["margin_label"]) : marginText(dn(out[i], "margin_pct"))}
               </span>
             ) : null}
           </div>

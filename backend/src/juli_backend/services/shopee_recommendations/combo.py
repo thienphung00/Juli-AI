@@ -55,6 +55,10 @@ KIND = "combo_multi"
 DISCOUNT_TYPES = ("pct", "amount", "fixed_price")
 MIN_LINES, MAX_LINES = 2, 6  # P92 B-4: 2-6 products (P91 allowed 2-3)
 MAX_QTY = 20
+#: P96e: a fixed combo price under 1.000đ is almost always a percent typed in the wrong mode.
+MIN_FIXED_PRICE = Decimal(1000)
+#: P96e: no pricing mode may take more than 90 % off the combo (same cap as the percent mode).
+MAX_DISCOUNT_SHARE = Decimal("0.9")
 
 REFUSALS: dict[str, str] = {
     "combo_needs_2_to_6_products": "Combo cần từ 2 đến 6 sản phẩm.",
@@ -63,6 +67,8 @@ REFUSALS: dict[str, str] = {
     "combo_discount_type_invalid": "Kiểu giảm giá phải là %, số tiền hoặc giá combo cố định.",
     "combo_discount_value_invalid": "Mức giảm không hợp lệ.",
     "combo_price_not_below_value": "Giá combo cố định phải thấp hơn tổng giá bán hiện tại.",
+    "combo_price_too_low": "Giá combo quá thấp (dưới 1.000đ) — bạn muốn nhập % giảm?",
+    "combo_discount_over_max": "Combo giảm tối đa 90% tổng giá bán hiện tại.",
     "combo_no_offer": "Combo chưa có ưu đãi nào (giảm giá, voucher hoặc quà).",
     "combo_voucher_invalid": "Voucher kèm theo không hợp lệ.",
     "item_no_data": "Sản phẩm chưa có đơn trong kỳ phân tích nên chưa tính được.",
@@ -122,13 +128,21 @@ def combo_discount(offer: ComboOffer, value: Decimal) -> Decimal:
     if offer.discount_type == "amount":
         if offer.discount_value < 0:
             raise ComboRefusal("combo_discount_value_invalid")
-        return min(to_dong(offer.discount_value), value)
+        disc = min(to_dong(offer.discount_value), value)
+        if disc > value * MAX_DISCOUNT_SHARE:
+            raise ComboRefusal("combo_discount_over_max")
+        return disc
     if offer.discount_type == "fixed_price":
         if offer.discount_value <= 0:
             raise ComboRefusal("combo_discount_value_invalid")
+        if offer.discount_value < MIN_FIXED_PRICE:
+            raise ComboRefusal("combo_price_too_low")
         if offer.discount_value >= value:
             raise ComboRefusal("combo_price_not_below_value")
-        return value - to_dong(offer.discount_value)
+        disc = value - to_dong(offer.discount_value)
+        if disc > value * MAX_DISCOUNT_SHARE:
+            raise ComboRefusal("combo_discount_over_max")
+        return disc
     raise ComboRefusal("combo_discount_type_invalid")
 
 
@@ -236,6 +250,8 @@ def price_combo(
         "voucher_discount": num(v_disc),
         "voucher_applies": v_disc > 0 if offer.voucher is not None else None,
         "buyer_pays": num(buyer_pays),
+        # the same price under a key the Ops buyer-PII mask (``buyer_*``) leaves alone (P96e)
+        "combo_price": num(buyer_pays),
         "platform_fees": num(fees),
         "cogs": num(cogs),
         "packaging": num(packaging),
@@ -248,6 +264,7 @@ def price_combo(
         "floor_unknown_skus": unknown_floor,
         # exact values for the caller's arithmetic (not serialised)
         "_buyer_pays": buyer_pays,
+        "_value": value,
         "_contribution": contribution,
         "_cost_per_order": cost_per_order,
     }
@@ -371,6 +388,7 @@ def eval_combo(
     except ComboRefusal as exc:
         return _refuse(exc.code)
     buyer_pays: Decimal = priced.pop("_buyer_pays")
+    value_now: Decimal = priced.pop("_value")
     contribution: Decimal = priced.pop("_contribution")
     cost_per_order: Decimal = priced.pop("_cost_per_order")
     window = Decimal(env.window_days)
@@ -391,7 +409,10 @@ def eval_combo(
         base_gmv_per_day=gmv_scope_day,
         base_orders_per_day=Decimal(orders_scope) / window,
         aov=aov_scope,
-        profit_per_gmv=safe_div(contribution, buyer_pays) if buyer_pays > 0 else None,
+        # P96e: the predicted ΔGMV is the scope's sales at today's prices, so it buys
+        # ΔGMV ÷ value_now combos, each earning ``contribution`` -- dividing by the combo's own
+        # (discounted) price multiplied a tiny price into billions of đồng.
+        profit_per_gmv=safe_div(contribution, value_now) if value_now > 0 else None,
         extra_cost_per_day=cost_existing / window,
         dchi_per_day=cost_existing / window,
     )

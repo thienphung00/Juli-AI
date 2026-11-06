@@ -102,16 +102,19 @@ def reason_text(code: str | None) -> str | None:
     return REASON_TEXT.get(code.split(":", 1)[0], GENERIC_REASON_TEXT)
 
 
+def _sorted_band(lo: Any, mid: Any, hi: Any) -> dict[str, float | None]:
+    """Low .. high in order: profit falls as GMV rises when the extra GMV loses money (P96e)."""
+    if all(isinstance(v, int | float) for v in (lo, mid, hi)):
+        lo, mid, hi = sorted((lo, mid, hi))
+    return {"low": lo, "p50": mid, "high": hi}
+
+
 def _band(total: Mapping[str, Any], key: str) -> dict[str, float | None]:
-    return {
-        "low": total["p10"][key],
-        "p50": total["p50"][key],
-        "high": total["p90"][key],
-    }
+    return _sorted_band(total["p10"][key], total["p50"][key], total["p90"][key])
 
 
 def _band_of(block: Mapping[str, Any], key: str) -> dict[str, float | None]:
-    return {"low": block["p10"][key], "p50": block["p50"][key], "high": block["p90"][key]}
+    return _sorted_band(block["p10"][key], block["p50"][key], block["p90"][key])
 
 
 def _per_day(card: Mapping[str, Any], cost_known: bool) -> dict[str, Any] | None:
@@ -631,6 +634,9 @@ def set_profit_band(
     if not known:
         return {"low": None, "p50": None, "high": None}
     rate = max(known, key=lambda v: v.get("pack_count") or 1)["margin_pct"] / 100
+    # P96e: ΔGMV is at today's prices and a set's goods cost no more than that, so a set sold
+    # far below cost loses at most its extra GMV -- not margin % x GMV (−1.404.170 % x ...).
+    rate = max(rate, -1.0)
     return {
         k: None if delta_gmv.get(k) is None else round(float(delta_gmv[k] or 0) * rate, 2)
         for k in ("low", "p50", "high")

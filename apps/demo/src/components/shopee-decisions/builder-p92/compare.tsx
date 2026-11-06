@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
 import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderApi, BuilderEvaluation, BuilderOutcome, BuilderVersion, ChooseResult } from "../../../lib/shopee-decisions/builder-api";
-import { bandText, baseText, bestBadge, breachesOfOutcome, breakEvenText, metricValue, refusalText, unitLines, versionFacts, voucherMaxText, voucherUsageText, type Forms, type Kind92, type VersionFact, type VersionNames } from "../../../lib/shopee-decisions/builder-p92";
+import { bandText, baseText, bestBadge, breachesOfOutcome, breakEvenText, marginText, metricValue, refusalText, unitLines, versionFacts, voucherMaxText, voucherUsageText, type Forms, type Kind92, type VersionFact, type VersionNames } from "../../../lib/shopee-decisions/builder-p92";
 import type { Breach } from "../../../lib/shopee-decisions/types";
 import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions";
 import { TextChip } from "../../shopee-analytics/ui";
@@ -135,7 +135,7 @@ function rowsFor(names: VersionNames): RowDef[] {
           <b>chưa tính</b>
         ) : (
           <>
-            <b>{pp(o.margin_after_pct ?? null, 1)}</b>
+            <b>{marginText(o.margin_after_pct ?? null)}</b>
             <span>hôm nay {pp(o.margin_before_pct ?? null, 1)}</span>
           </>
         ),

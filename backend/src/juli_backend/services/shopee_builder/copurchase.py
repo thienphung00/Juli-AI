@@ -15,6 +15,13 @@ from juli_backend.services.shopee_profit.order_profit import OrderLine
 
 MIN_TOGETHER = 2
 MAX_SUGGESTIONS = 10
+#: Order lines whose item id is missing come through as these; they are never a partner (P96e).
+NO_ITEM = frozenset({"", "unknown", "none", "null"})
+
+
+def _name(names: Mapping[str, str], item: str) -> str:
+    """The catalog name, else an honest label -- never the bare id (P96e)."""
+    return names.get(item) or f"Sản phẩm đã ẩn/không còn bán (id {item})"
 
 
 def order_sets(lines: Iterable[OrderLine], skip: Mapping[str, Any] | None = None) -> list[set[str]]:
@@ -39,12 +46,14 @@ def suggestions(
     counts: dict[str, int] = defaultdict(int)
     for s in with_anchor:
         for other in s - {anchor}:
+            if str(other).strip().lower() in NO_ITEM:
+                continue
             counts[other] += 1
     bought = {item: sum(1 for s in sets if item in s) for item in counts}
     rows: list[dict[str, Any]] = [
         {
             "item_id": item,
-            "name": names.get(item) or item,
+            "name": _name(names, item),
             "together": n,
             "orders_with_partner": bought[item],
             "share_of_anchor_orders": round(n / len(with_anchor), 4) if with_anchor else None,
@@ -55,7 +64,7 @@ def suggestions(
     ]
     rows.sort(key=lambda r: (-int(r["together"]), str(r["item_id"])))
     return {
-        "anchor": {"item_id": anchor, "name": names.get(anchor) or anchor},
+        "anchor": {"item_id": anchor, "name": _name(names, anchor)},
         "orders_with_anchor": len(with_anchor),
         "orders_total": len(sets),
         "min_together": min_together,

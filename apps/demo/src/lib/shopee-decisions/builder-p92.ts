@@ -267,6 +267,8 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       const value = num(c.value);
       if (value === null || value <= 0) return no(c.pricing === "fixed_price" ? "Nhập giá combo." : "Nhập mức giảm.");
       if (c.pricing === "pct" && value > MAX_PCT) return no(PCT_PROBLEM);
+      // P96e: 10đ as a fixed combo price is a percent typed in the wrong mode, not a price.
+      if (c.pricing === "fixed_price" && value < MIN_COMBO_PRICE) return no(REFUSAL_TEXT.combo_price_too_low!);
       const lines: Record<string, unknown>[] = [];
       for (const i of items) {
         const q = intIn(i.qty.trim() === "" ? "1" : i.qty, 1, 20, "Số lượng mỗi sản phẩm từ 1 đến 20.");
@@ -438,7 +440,27 @@ export const REFUSAL_TEXT: Readonly<Record<string, string>> = {
   sku_duplicate: "SKU trùng với một phân loại đang có.",
   listing_already_live: "Listing đang bán — chỉ đưa lại listing đã ẩn hoặc hết hàng.",
   no_campaign_report: "Chưa có báo cáo của chiến dịch này để tính.",
+  combo_price_too_low: "Giá combo quá thấp (dưới 1.000đ) — bạn muốn nhập % giảm?",
+  combo_discount_over_max: "Combo giảm tối đa 90% tổng giá bán hiện tại.",
 };
+
+/** P96e: the smallest fixed combo price the builder accepts (mirrors combo.MIN_FIXED_PRICE). */
+export const MIN_COMBO_PRICE = 1000;
+
+/** The combo price from a result's details; Ops masks `buyer_*` keys as "•••", so `combo_price` first. */
+export function comboPriceOf(d: Readonly<Record<string, unknown>>): number | null {
+  for (const k of ["combo_price", "buyer_pays"]) {
+    const v = d[k];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+/** "31,6%" / "−12,5%"; below −100 % the item sells under cost and a percent means nothing (P96e). */
+export function marginText(pct: number | null | undefined): string {
+  if (pct === null || pct === undefined || !Number.isFinite(pct)) return DASH;
+  return pct < -100 ? "lỗ (bán dưới giá vốn)" : pp(pct, 1);
+}
 
 /** A code -> its sentence; a code with a suffix (`sku_unknown:G600013`) reads by its stem; never the code itself. */
 export function codeText(code: string | null | undefined, map: Readonly<Record<string, string>>, fallback: string): string {
