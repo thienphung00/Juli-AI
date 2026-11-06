@@ -21,6 +21,7 @@ import {
   READER_PAGE_GAP_MS,
   READER_WATCHDOG_ALARM_MINUTES,
   type ReaderDataset,
+  type ReaderId,
   readerActive,
   schedulerActive,
   TRAFFIC_CATCHUP_DAYS,
@@ -78,6 +79,8 @@ export interface SchedulerDeps {
   random?: () => number;
   /** Best effort: call `fn` after `ms` (the watchdog alarm is the guarantee). */
   later?: (ms: number, fn: () => void) => void;
+  /** The readers a run may open, in order (default READER_IDS). */
+  readers?: readonly ReaderId[];
 }
 
 /** The pages to open today, in order: products, vouchers, ads (one tab, several days), health. */
@@ -88,10 +91,11 @@ export function planJobs(args: {
   adsDone: readonly string[];
   trafficDone?: readonly string[];
   held?: ReadonlySet<ReaderDataset>;
+  readers?: readonly ReaderId[];
 }): PlannedJob[] {
   const held = args.held ?? HELD_DATASETS;
   const jobs: PlannedJob[] = [];
-  for (const id of READER_IDS) {
+  for (const id of args.readers ?? READER_IDS) {
     if (!readerActive(id, args.shopId)) continue;
     // A page is only worth opening while at least one of its datasets can be posted.
     const postable = READER_DATASETS[id].some((dataset) => !held.has(dataset) && !args.stopped.has(dataset));
@@ -160,8 +164,10 @@ export class ReaderScheduler {
     return !!sched.run && this.deps.now() - sched.run.startedAt < RUN_MAX_AGE_MS;
   }
 
-  /** The alarm / watchdog / "Đồng bộ" entry point: start today's run, or advance the one running. */
-  tick(): Promise<string> {
+  /** The alarm / watchdog / "Đồng bộ" entry point: start today's run, or advance the one running.
+   * ``manual`` (the seller pressed "Đồng bộ"): after today's run, read again only the days that
+   * are still missing (ads, item traffic) instead of answering ``done_today``. */
+  tick(options: { manual?: boolean } = {}): Promise<string> {
     return this.exclusive(async () => {
       const { state, sched } = await this.load();
       const now = this.deps.now();
@@ -175,15 +181,20 @@ export class ReaderScheduler {
       if (state.consentBlocked) return "consent_required";
       if (sched.blocked && sched.blocked.until > now) return "blocked";
       const today = gmt7Date(Math.floor(now / 1000));
-      if (sched.lastRunDay === today) return "done_today";
+      const rerun = sched.lastRunDay === today;
+      if (rerun && !options.manual) return "done_today";
       if (await this.deps.backfillBusy()) return "backfill_busy";
-      const jobs = planJobs({
+      const planned = planJobs({
         shopId,
         nowMs: now,
         stopped: stoppedFor(state, this.deps.version),
-        adsDone: sched.adsDone,
+        adsDone: sched.adsPosted ?? [],
         trafficDone: sched.trafficDone,
+        ...(this.deps.readers ? { readers: this.deps.readers } : {}),
       });
+      // A same-day re-run opens only the pages that still have missing days.
+      const jobs = rerun ? planned.filter((job) => (job.days?.length ?? 0) > 0) : planned;
+      if (rerun && jobs.length === 0) return "done_today";
       if (jobs.length === 0) {
         await this.save({ ...sched, lastRunDay: today });
         return "nothing_to_do";
@@ -352,13 +363,21 @@ export class ReaderScheduler {
       const summary = Object.entries(posted)
         .map(([key, outcome]) => `${key}=${outcome}`)
         .join(",");
-      const adsDone = job.id === "ads" ? [...sched.adsDone, ...(job.days ?? [])].slice(-ADS_DONE_KEPT) : sched.adsDone;
+      // An ads day is read only when Juli accepted its upload: a failed, queued or empty
+      // ("ignored" -- Shopee had not finished the day) answer leaves it in the plan.
+      const adsPosted =
+        job.id === "ads"
+          ? [
+              ...(sched.adsPosted ?? []),
+              ...(job.days ?? []).filter((day) => posted[`ads_campaign_daily:${day}`] === "posted"),
+            ].slice(-ADS_DONE_KEPT)
+          : sched.adsPosted;
       const itemIds = job.id === "products" ? ids(responses, sched.itemIds) : sched.itemIds;
       const trafficDone =
         job.id === "item_traffic"
           ? [...(sched.trafficDone ?? []), ...completedTrafficDays(readerJob, responses)].slice(-TRAFFIC_DONE_KEPT)
           : sched.trafficDone;
-      await this.finishJob({ ...sched, adsDone, itemIds, trafficDone }, run, summary ? `done:${summary}` : "done");
+      await this.finishJob({ ...sched, adsPosted, itemIds, trafficDone }, run, summary ? `done:${summary}` : "done");
       return true;
     });
   }

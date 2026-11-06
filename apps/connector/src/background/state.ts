@@ -92,8 +92,11 @@ export interface ReaderSchedule {
   run?: ReaderRun;
   /** A CAPTCHA / login wall stopped the readers: nothing is opened before `until` (ms since epoch). */
   blocked?: { at: string; reason: ReaderBlockReason; page: ReaderId; until: number };
-  /** Ads days already read (trimmed to the last 14), so a missed day is retried but a read one is not. */
+  /** Legacy (≤ 0.3.5): days marked read whether or not their upload landed. No longer read. */
   adsDone: string[];
+  /** Ads days whose upload Juli accepted (trimmed to the last 14): a missed, empty or failed day
+   * stays in the plan until it posts. Replaces `adsDone`, which also counted failed days. */
+  adsPosted?: string[];
   /** Item-traffic days read for every item (trimmed to the last 14). */
   trafficDone?: string[];
   /** Active, visible item ids of the shop, from the last product-list read. */

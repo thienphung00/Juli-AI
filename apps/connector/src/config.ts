@@ -51,7 +51,15 @@ export type ReaderDataset =
   | "ads_campaign_daily"
   | "voucher_settings"
   | "shop_health_daily"
-  | "market_search";
+  | "market_search"
+  | "affiliate_order_lines"
+  | "affiliate_partner_period"
+  | "affiliate_shop_period"
+  | "affiliate_product_period"
+  | "affiliate_shop_campaigns"
+  | "affiliate_commission_period"
+  | "affiliate_content_period"
+  | "affiliate_bill_period";
 export type Dataset = MydataDataset | ReaderDataset;
 
 // -- page readers + tab-opening scheduler (ADR-120 d.14) -----------------------------------
@@ -60,8 +68,42 @@ export type Dataset = MydataDataset | ReaderDataset;
 // own session) and posts mapped rows. Like ITEM_READERS_ACTIVE, a reader is a feature flag
 // here, and it is ON only for the pilot shops below: `readerActive(id, shopId)`.
 
-export type ReaderId = "products" | "item_traffic" | "ads" | "vouchers" | "health";
-export const READER_IDS: readonly ReaderId[] = ["products", "vouchers", "ads", "health", "item_traffic"];
+export type ReaderId =
+  | "products"
+  | "item_traffic"
+  | "ads"
+  | "vouchers"
+  | "health"
+  | AffiliateReaderId;
+/** The affiliate ("Tăng Đơn Cùng KOL") pages, one reader per page (Connector 0.3.6). */
+export type AffiliateReaderId =
+  | "affiliate"
+  | "affiliate_kols"
+  | "affiliate_dashboard"
+  | "affiliate_products"
+  | "affiliate_campaigns"
+  | "affiliate_commissions"
+  | "affiliate_content"
+  | "affiliate_bills";
+export const AFFILIATE_READER_IDS: readonly AffiliateReaderId[] = [
+  "affiliate",
+  "affiliate_kols",
+  "affiliate_dashboard",
+  "affiliate_products",
+  "affiliate_campaigns",
+  "affiliate_commissions",
+  "affiliate_content",
+  "affiliate_bills",
+];
+/** item_traffic stays last: it runs on the ids the product list just read. */
+export const READER_IDS: readonly ReaderId[] = [
+  "products",
+  "vouchers",
+  "ads",
+  "health",
+  ...AFFILIATE_READER_IDS,
+  "item_traffic",
+];
 
 /** Master flag per reader (a build-time switch). */
 export const READERS_ACTIVE: Record<ReaderId, boolean> = {
@@ -70,6 +112,14 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
   ads: true,
   vouchers: true,
   health: true,
+  affiliate: true,
+  affiliate_kols: true,
+  affiliate_dashboard: true,
+  affiliate_products: true,
+  affiliate_campaigns: true,
+  affiliate_commissions: true,
+  affiliate_content: true,
+  affiliate_bills: true,
 };
 
 /** The scheduler that OPENS the report pages itself (a background tab per page, once a day). */
@@ -101,6 +151,14 @@ export const READER_DATASETS: Record<ReaderId, readonly ReaderDataset[]> = {
   vouchers: ["voucher_settings"],
   ads: ["ads_campaign_daily"],
   health: ["shop_health_daily"],
+  affiliate: ["affiliate_order_lines"],
+  affiliate_kols: ["affiliate_partner_period"],
+  affiliate_dashboard: ["affiliate_shop_period"],
+  affiliate_products: ["affiliate_product_period"],
+  affiliate_campaigns: ["affiliate_shop_campaigns"],
+  affiliate_commissions: ["affiliate_commission_period"],
+  affiliate_content: ["affiliate_content_period"],
+  affiliate_bills: ["affiliate_bill_period"],
 };
 
 /**
@@ -145,6 +203,25 @@ export const TRAFFIC_MAX_CONSECUTIVE_ERRORS = 5;
 export const PRODUCT_MAX_PAGES = 40;
 export const VOUCHER_MAX_ROWS = 600;
 export const VOUCHER_PAGE_LIMIT_DEFAULT = 20;
+/**
+ * Affiliate conversion report (Báo cáo chuyển đổi): the last this-many finished GMT+7 days by
+ * purchase time, re-read every day (orders change status and commission for weeks). One post's
+ * period may not exceed the gateway's 31 days.
+ */
+export const AFFILIATE_WINDOW_DAYS = 30;
+export const AFFILIATE_MAX_ROWS = 2_000;
+export const AFFILIATE_PAGE_SIZE_DEFAULT = 20;
+/**
+ * The affiliate service's money unit is NOT pinned yet (recon saw shapes only). Where a number
+ * has its display twin (`dis_<field>`, e.g. "₫126.360") the scale is read from the pair; where
+ * it has none this divisor is assumed (VND x 100 000 like the ads service) and the plausibility
+ * floor below turns a wrong guess into drift instead of a wrong number. To verify on the first
+ * capture.
+ */
+export const AFFILIATE_MONEY_DIVISOR_FALLBACK = 100_000;
+/** A non-zero affiliate amount below this (VND) after scaling is read as a wrong scale. */
+export const AFFILIATE_MIN_PLAUSIBLE_VND = 100;
+
 /** Rows per ingest post (the gateway takes 2 000 rows and ~1 MB). */
 export const MAX_ROWS_PER_POST = 400;
 

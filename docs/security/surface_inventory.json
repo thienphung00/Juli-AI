@@ -889,6 +889,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ingest/order-ref-key",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ingest/pair",
       "methods": [
         "POST"

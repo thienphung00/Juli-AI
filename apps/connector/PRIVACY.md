@@ -1,6 +1,6 @@
 # Juli Connector — Privacy policy (DRAFT, not yet reviewed)
 
-_Last updated: 2026-11-03. Draft for the Chrome Web Store (Unlisted) submission;
+_Last updated: 2026-11-06. Draft for the Chrome Web Store (Unlisted) submission;
 to be reviewed before publishing and linked from app-juli.com._
 
 Juli Connector is a browser extension by Juli (app-juli.com) for sellers who use
@@ -44,7 +44,26 @@ number:
   voucher's code, name, dates, discount, minimum spend, usage limit and how many
   times it has been used or handed out (not who used it);
 - **Hiệu suất tài khoản** (`/portal/accounthealth`) — the shop's account-health
-  metrics, their targets and whether each is met.
+  metrics, their targets and whether each is met;
+- **Tăng Đơn Cùng KOL** (affiliate marketing, `/portal/web-seller-affiliate/...`, from
+  version 0.3.6) — the shop's own affiliate results as these pages show them:
+  - *Báo cáo chuyển đổi* (conversion report): per affiliate order line of the last 30
+    days, the product and variation, price, quantity, order value, refund, the programme's
+    cost, status and times, the campaign type and channel, and the creator's public
+    Shopee login handle. **The order id is replaced in the browser by a keyed hash**
+    (with a key Juli gives the extension for this shop only) before anything is sent; the
+    creator's display name, avatar and platform user id and any buyer information are
+    dropped in the page and never sent;
+  - *Phân tích Tăng đơn cùng KOL*, *Dữ liệu phân tích chính*, *Phân tích sản phẩm*,
+    *Phân tích chiến dịch*, *Phân tích Nội dung* — totals per creator (public handle),
+    per day, per product, per commission campaign and for content: clicks, orders, sales,
+    units, buyers and new buyers, estimated and actual commission, ROI, views and likes;
+  - *Chiến dịch mở rộng* — the shop's own affiliate campaigns: name, commission rate,
+    dates, budget;
+  - *Báo cáo đối soát* — the monthly affiliate bill: commission, deductions, pending.
+  On these pages the extension only keeps the answers the page loads by itself (and, for
+  the conversion report, asks for the next pages of the same list). It never sends any
+  request that changes something and never clicks anything.
 
 These are **aggregated shop and product numbers**. The extension does not read
 buyer names, addresses, phone numbers, messages, orders' personal details,

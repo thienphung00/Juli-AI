@@ -200,6 +200,8 @@ UNAUTHENTICATED_ALLOWLIST = {
     # the same ingest token (read-only; off unless CONNECTOR_FILL_LISTING).
     "/v1/ingest/fill",
     "/v1/ingest/market/keywords",
+    # Connector 0.3.6 affiliate reader: the shop's order_ref key, same ingest token.
+    "/v1/ingest/order-ref-key",
     "/v1/ingest/fill/{code}",
     "/v1/ingest/{platform}/{dataset}",
     # Fast track P33-F (D43): the public free-trial sign-up from app-juli.com/dang-ky.

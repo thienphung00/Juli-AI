@@ -82,10 +82,14 @@ from juli_backend.services.ingest.schemas import (
     ShopeeAdsKeywordPeriodRow,
     ShopeeAffiliateBillPeriodRow,
     ShopeeAffiliateCampaignTermsRow,
+    ShopeeAffiliateCommissionPeriodRow,
+    ShopeeAffiliateContentPeriodRow,
     ShopeeAffiliateOpenCampaignPeriodRow,
     ShopeeAffiliateOrderLineRow,
     ShopeeAffiliatePartnerPeriodRow,
     ShopeeAffiliateProductPeriodRow,
+    ShopeeAffiliateShopCampaignRow,
+    ShopeeAffiliateShopPeriodRow,
     ShopeeItemBySourcePeriodRow,
     ShopeeItemBySourceRow,
     ShopeeItemCatalogRow,
@@ -525,6 +529,62 @@ def _affiliate_bill(row: ShopeeAffiliateBillPeriodRow) -> NormalizedRow:
     )
 
 
+def _affiliate_shop(row: ShopeeAffiliateShopPeriodRow) -> NormalizedRow:
+    """The shop's affiliate programme totals (Connector 0.3.6): stream ``affiliate``, shop level,
+    ``platform_source`` ``affiliate_shop`` (not the shop-stats affiliate traffic source)."""
+    kpis, extra = _split(row, _AFFILIATE_KPIS)
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_AFFILIATE,
+        platform_source="affiliate_shop",
+        kpis=kpis,
+        extra=extra,
+    )
+
+
+def _affiliate_shop_campaign(row: ShopeeAffiliateShopCampaignRow) -> NormalizedRow:
+    """A shop affiliate campaign's terms: numbers only in ``extra`` (D16), run dates as
+    ``YYYYMMDD``; ``segment`` hashes the campaign id."""
+    _, split = _split(row, {})
+    extra = {key: value for key, value in split.items() if not isinstance(value, str | date)}
+    extra["campaign_id"] = int(row.campaign_id)
+    extra["starts_ymd"] = _ymd(row.starts_on)
+    extra["ends_ymd"] = _ymd(row.ends_on)
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_AFFILIATE,
+        platform_source=row.campaign_name[:64],
+        segment=_short_hash("s", row.campaign_id),
+        extra=extra,
+    )
+
+
+def _affiliate_commission(row: ShopeeAffiliateCommissionPeriodRow) -> NormalizedRow:
+    """One commission campaign x product: ``segment`` hashes the campaign id."""
+    kpis, extra = _split(row, _OPEN_CAMPAIGN_KPIS)
+    extra["campaign_id"] = int(row.campaign_id)
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_AFFILIATE,
+        item_id=row.item_id or SHOP_LEVEL_ITEM,
+        platform_source="commission_campaign",
+        segment=_short_hash("k", row.campaign_id),
+        kpis=kpis,
+        extra=extra,
+    )
+
+
+def _affiliate_content(row: ShopeeAffiliateContentPeriodRow) -> NormalizedRow:
+    kpis, extra = _split(row, {"sales": "gmv", "units": "units", "orders": "orders"})
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_AFFILIATE,
+        platform_source="affiliate_content",
+        kpis=kpis,
+        extra=extra,
+    )
+
+
 def _ads_keyword(row: ShopeeAdsKeywordPeriodRow) -> NormalizedRow:
     """A campaign x product x keyword total: an ``ads`` overlay row like
     ``ads_campaign_period``. ``platform_source`` packs ``campaign › keyword`` (cut to its
@@ -874,6 +934,46 @@ DATASETS: dict[tuple[str, str], DatasetSpec] = {
         "order id is a keyed hash.",
         GRANULARITY_PERIOD,
         WRITE_ORDER_INCOME,
+    ),
+    ("shopee", "affiliate_shop_period"): DatasetSpec(
+        "shopee",
+        "affiliate_shop_period",
+        ShopeeAffiliateShopPeriodRow,
+        _affiliate_shop,
+        False,
+        "Per period (a day, or the page's period), the shop's affiliate programme totals.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+    ),
+    ("shopee", "affiliate_shop_campaigns"): DatasetSpec(
+        "shopee",
+        "affiliate_shop_campaigns",
+        ShopeeAffiliateShopCampaignRow,
+        _affiliate_shop_campaign,
+        False,
+        "Per capture day, each of the shop's affiliate campaigns: rate, run dates, budget.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+    ),
+    ("shopee", "affiliate_commission_period"): DatasetSpec(
+        "shopee",
+        "affiliate_commission_period",
+        ShopeeAffiliateCommissionPeriodRow,
+        _affiliate_commission,
+        False,
+        "Per period, per commission campaign x product: KOLs, units, sales, est. commission.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+    ),
+    ("shopee", "affiliate_content_period"): DatasetSpec(
+        "shopee",
+        "affiliate_content_period",
+        ShopeeAffiliateContentPeriodRow,
+        _affiliate_content,
+        False,
+        "Per period, the shop's affiliate content: sales, orders, contents, views, likes.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
     ),
     ("shopee", "affiliate_order_lines"): DatasetSpec(
         "shopee",

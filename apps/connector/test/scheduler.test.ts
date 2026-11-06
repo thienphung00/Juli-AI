@@ -20,6 +20,9 @@ import { loadState, saveState } from "../src/background/state";
 import type { ReaderJob, ReaderResponse } from "../src/shopee/reader";
 
 const SC = "https://banhang.shopee.vn";
+/** The run sequences below were written for the Seller Centre report pages; the affiliate pages
+ *  (Connector 0.3.6) are planned by default and covered on their own (affiliate tests + below). */
+const CORE_READERS = ["products", "vouchers", "ads", "health", "item_traffic"] as const;
 // 2026-11-03 10:00 GMT+7
 const T0 = Date.UTC(2026, 10, 3, 3, 0, 0);
 const GAP = READER_PAGE_GAP_MS + READER_PAGE_GAP_JITTER_MS + 1;
@@ -90,11 +93,16 @@ function setup(options: { token?: boolean; backfillBusy?: boolean } = {}) {
   const alarms = new FakeAlarms();
   const posted: { job: ReaderJob; responses: ReaderResponse[] }[] = [];
   const clock = { now: T0 };
-  const flags = { backfillBusy: options.backfillBusy ?? false };
+  const flags = {
+    backfillBusy: options.backfillBusy ?? false,
+    /** How each ads day's upload ends (default "posted"), keyed like the real sink. */
+    adsOutcome: {} as Record<string, string>,
+  };
   const scheduler = new ReaderScheduler({
     storage,
     tabs,
     alarms,
+    readers: CORE_READERS,
     origin: SC,
     version: "0.3.4",
     now: () => clock.now,
@@ -103,6 +111,11 @@ function setup(options: { token?: boolean; backfillBusy?: boolean } = {}) {
     sink: {
       async postReader(job, responses) {
         posted.push({ job, responses });
+        if (job.id === "ads") {
+          return Object.fromEntries(
+            (job.days ?? []).map((day) => [`ads_campaign_daily:${day}`, flags.adsOutcome[day] ?? "posted"]),
+          );
+        }
         return { [job.id]: "posted" };
       },
     },
@@ -143,7 +156,26 @@ function productList(ids: string[], page: number, tag?: "unlist") {
 }
 
 describe("planJobs", () => {
-  const base = { shopId: PILOT, nowMs: T0, stopped: new Set<never>(), adsDone: [] as string[] };
+  const base = { shopId: PILOT, nowMs: T0, stopped: new Set<never>(), adsDone: [] as string[], readers: CORE_READERS };
+
+  it("by default the affiliate pages are planned too, before item_traffic (which stays last)", () => {
+    const ids = planJobs({ ...base, readers: undefined }).map((j) => j.id);
+    expect(ids).toEqual([
+      "products",
+      "vouchers",
+      "ads",
+      "health",
+      "affiliate",
+      "affiliate_kols",
+      "affiliate_dashboard",
+      "affiliate_products",
+      "affiliate_campaigns",
+      "affiliate_commissions",
+      "affiliate_content",
+      "affiliate_bills",
+      "item_traffic",
+    ]);
+  });
 
   it("opens every page whose dataset can be posted: health runs, nothing is held", () => {
     expect(planJobs(base).map((j) => j.id)).toEqual(["products", "vouchers", "ads", "health", "item_traffic"]);
@@ -242,7 +274,7 @@ describe("a daily run", () => {
     expect(state?.lastRun?.outcomes).toEqual({
       products: "done:products=posted",
       vouchers: "done:vouchers=posted",
-      ads: "done:ads=posted",
+      ads: "done:" + ["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"].map((d) => `ads_campaign_daily:${d}=posted`).join(","),
       health: "done:health=posted",
       item_traffic: "no_items",
     });
@@ -275,7 +307,7 @@ describe("a daily run", () => {
     await finishPage(ctx); // health
     ctx.clock.now += GAP;
     await ctx.scheduler.tick(); // item_traffic: no ids, skipped
-    expect((await ctx.read())?.adsDone).toEqual(["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"]);
+    expect((await ctx.read())?.adsPosted).toEqual(["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"]);
     // tomorrow: only the new finished day
     ctx.clock.now += 24 * 3_600_000;
     await ctx.scheduler.tick();
@@ -532,5 +564,82 @@ describe("never reads outside the allowed pages", () => {
     expect(ctx.tabs.opened.length).toBeGreaterThan(0);
     for (const tab of ctx.tabs.opened) expect(allowed.has(new URL(tab.url).pathname)).toBe(true);
     for (const tab of ctx.tabs.opened) expect(tab.url.startsWith(`${SC}/`)).toBe(true);
+  });
+});
+
+/** Run today's pages to the end, answering every page "done" (ads days per `flags.adsOutcome`). */
+async function runDay(ctx: ReturnType<typeof setup>): Promise<void> {
+  for (let i = 0; i < 8; i++) {
+    const state = await ctx.read();
+    if (!state?.run) {
+      const started = await ctx.scheduler.tick();
+      if (started !== "opened") return;
+    }
+    const run = (await ctx.read())?.run;
+    if (!run) return;
+    const job = run.jobs[run.index];
+    if (!job) return;
+    await finishPage(ctx);
+    ctx.clock.now += GAP;
+    const next = await ctx.scheduler.tick();
+    if (next !== "opened" && !(await ctx.read())?.run) return;
+  }
+}
+
+describe("P96c: an ads day is read only when its upload landed", () => {
+  it("a day whose upload failed or came back empty is planned again tomorrow", async () => {
+    const ctx = setup();
+    ctx.flags.adsOutcome = { "2026-11-02": "ignored", "2026-11-01": "queued" };
+    await runDay(ctx);
+    expect((await ctx.read())?.adsPosted).toEqual(["2026-10-31", "2026-10-30"]);
+    ctx.clock.now += 24 * 3_600_000;
+    ctx.flags.adsOutcome = {};
+    await ctx.scheduler.tick();
+    // products, vouchers ... until the ads job: its days are the new one plus the two missed
+    for (let i = 0; i < 4 && (await ctx.read())?.run?.jobs[(await ctx.read())?.run?.index ?? 0]?.id !== "ads"; i++) {
+      await finishPage(ctx);
+      ctx.clock.now += GAP;
+      await ctx.scheduler.tick();
+    }
+    expect((await ctx.read())?.run?.jobs.find((j) => j.id === "ads")?.days).toEqual([
+      "2026-11-03",
+      "2026-11-02",
+      "2026-11-01",
+    ]);
+  });
+
+  it("days the old version marked read (adsDone) are read again", async () => {
+    const ctx = setup();
+    ctx.storage.data.readers = { adsDone: ["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"], trafficDone: [] };
+    await ctx.scheduler.tick();
+    expect((await ctx.read())?.run?.jobs.find((j) => j.id === "ads")?.days).toEqual([
+      "2026-11-02",
+      "2026-11-01",
+      "2026-10-31",
+      "2026-10-30",
+    ]);
+  });
+
+  it("'Đồng bộ' after today's run reads only the days still missing; nothing missing = done_today", async () => {
+    const ctx = setup();
+    ctx.flags.adsOutcome = { "2026-11-02": "ignored" };
+    await runDay(ctx);
+    expect(await ctx.scheduler.tick()).toBe("done_today");
+    const opened = ctx.tabs.opened.length;
+    ctx.flags.adsOutcome = {};
+    expect(await ctx.scheduler.tick({ manual: true })).toBe("opened");
+    const run = (await ctx.read())?.run;
+    // only the pages with missing days: ads, and item traffic (no items here, so it opens nothing)
+    expect(run?.jobs.map((j) => j.id)).toEqual(["ads", "item_traffic"]);
+    expect(run?.jobs[0]?.days).toEqual(["2026-11-02"]);
+    expect(ctx.tabs.opened.length).toBe(opened + 1);
+    await finishPage(ctx);
+    ctx.clock.now += GAP;
+    await ctx.scheduler.tick();
+    expect((await ctx.read())?.adsPosted).toContain("2026-11-02");
+    // no ads day missing any more: a further press opens only item traffic (no items, no tab)
+    const before = ctx.tabs.opened.length;
+    await ctx.scheduler.tick({ manual: true });
+    expect(ctx.tabs.opened.length).toBe(before);
   });
 });

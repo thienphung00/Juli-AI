@@ -965,6 +965,67 @@ class ShopeeOrderIncomeRow(PeriodRowBase):
         return (self.order_ref,)
 
 
+class ShopeeAffiliateShopPeriodRow(_AffiliateMetrics):
+    """``shopee.affiliate_shop_period``: the shop's affiliate programme results over the period
+    (Connector 0.3.6, "Dữ liệu phân tích chính" ``dashboard/seller_daily``: one post per day, plus
+    the page's period with the direct / indirect split). ``est_commission`` is the programme's
+    gross commission estimate, ``actual_commission`` what was actually charged."""
+
+    actual_commission: Money | None = None
+    direct_orders: Count | None = None
+    indirect_orders: Count | None = None
+    direct_sales: Money | None = None
+    indirect_sales: Money | None = None
+
+
+class ShopeeAffiliateShopCampaignRow(PeriodRowBase):
+    """``shopee.affiliate_shop_campaigns``: one of the shop's own affiliate campaigns as it stood
+    on the capture day (Connector 0.3.6, "Chiến dịch mở rộng" ``GetShopCampaign``): rate, run
+    dates, budget. A terms snapshot, not a result."""
+
+    campaign_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,32}$")]
+    campaign_name: Annotated[str, StringConstraints(min_length=1, max_length=255)]
+    commission_rate: Rate | None = None
+    status: Text64 | None = None
+    starts_on: date | None = None
+    #: None = no end.
+    ends_on: date | None = None
+    budget: Money | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.campaign_id,)
+
+
+class ShopeeAffiliateCommissionPeriodRow(PeriodRowBase):
+    """``shopee.affiliate_commission_period``: one commission campaign x product over the period
+    (Connector 0.3.6, "Phân tích chiến dịch" ``QueryCommissionList``)."""
+
+    campaign_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,32}$")]
+    item_id: ItemId | None = None
+    kols: Count | None = None
+    units: Count | None = None
+    sales: Money | None = None
+    est_commission: Money | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.campaign_id, self.item_id)
+
+
+class ShopeeAffiliateContentPeriodRow(PeriodRowBase):
+    """``shopee.affiliate_content_period``: the shop's affiliate content over the period
+    (Connector 0.3.6, "Phân tích Nội dung" ``QuerySellerContentSummaryQuery``)."""
+
+    sales: Money | None = None
+    units: Count | None = None
+    orders: Count | None = None
+    contents: Count | None = None
+    views: Count | None = None
+    likes: Count | None = None
+    comments: Count | None = None
+    #: GMV per thousand views, as the page shows it.
+    gpm: Money | None = None
+
+
 class ShopeeAffiliateOrderLineRow(PeriodRowBase):
     """``affiliate_order_lines``: one affiliate-attributed order line. It marks the matching
     ``shopee_order_lines`` row (``affiliate`` true, ``commission`` from ``cost``) and never

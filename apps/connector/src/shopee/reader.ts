@@ -8,6 +8,9 @@
 
 import {
   ADS_MAX_ROWS_PER_DAY,
+  AFFILIATE_MAX_ROWS,
+  AFFILIATE_PAGE_SIZE_DEFAULT,
+  AFFILIATE_WINDOW_DAYS,
   ADS_PAGE_LIMIT_DEFAULT,
   PRODUCT_MAX_PAGES,
   TRAFFIC_MAX_CONSECUTIVE_ERRORS,
@@ -20,7 +23,7 @@ import {
 } from "../config";
 import { READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
 import type { Pacer } from "./runner";
-import { gmt7DateStart } from "./time";
+import { gmt7DateStart, lastFinishedDays } from "./time";
 
 /** What the hook learned from the page's own call to an endpoint (kept in page memory only). */
 export interface Template {
@@ -58,6 +61,8 @@ export interface ReaderResponse {
   source: "replay" | "page";
   /** Ads: the request asked for paid (not placed) orders. */
   usePaidGmv?: boolean;
+  /** Affiliate: the GMT+7 days the answer covers (from the page's own request, or the window asked). */
+  period?: { start: string; end: string };
 }
 
 export type ReaderStatus =
@@ -515,6 +520,224 @@ async function readHealth(env: ReaderEnv, collected: ReaderResponse[]): Promise<
   }
 }
 
+// -- affiliate ("Tăng Đơn Cùng KOL") ---------------------------------------------------------
+//
+// HARD RULE: no `*Mutation` is ever sent or replayed, and nothing is clicked. The conversion
+// report is the only affiliate endpoint replayed (a GET, with only its page number and purchase
+// window changed); every other affiliate answer is the one the page loaded itself.
+
+/** Order fields of a conversion-report answer a mapper may read. Buyer data and the creator's
+ *  display name / avatar / platform user id never leave the page. */
+const CONVERSION_ORDER_KEYS = [
+  "order_id",
+  "purchase_time",
+  "conversion_complete_time",
+  "order_complete_time",
+  "order_status",
+  "fraud_status",
+  "shopee_username",
+  "linked_mcn_name",
+  "traffic_type",
+  "items",
+] as const;
+const CONVERSION_ITEM_KEYS = [
+  "item_id",
+  "model_id",
+  "item_price",
+  "dis_item_price",
+  "actual_amount",
+  "dis_actual_amount",
+  "refunded_amount",
+  "dis_refunded_amount",
+  "qty",
+  "expense",
+  "campaign_type",
+  "fraud_status",
+  "ams_deduction_status",
+  "ams_deduction_method",
+  "ams_deduction_time",
+  "brand_commission_rate",
+] as const;
+/** Per-KOL fields kept from `affiliate_performance` (no avatar, no platform user id). */
+const PERFORMANCE_KEYS = [
+  "affiliate_id",
+  "shopee_username",
+  "clicks",
+  "orders",
+  "gmv",
+  "dis_gmv",
+  "est_commission",
+  "dis_est_commission",
+  "actual_commission",
+  "conversion_rate",
+  "roi",
+  "item_sold",
+  "total_buyers",
+  "new_buyers",
+] as const;
+
+function pick(source: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of keys) if (key in source) out[key] = source[key];
+  return out;
+}
+
+function mapList(body: unknown, rowKeys: readonly string[], nested?: { key: string; keys: readonly string[] }): unknown {
+  if (!isRecord(body)) return body;
+  const data = isRecord(body.data) ? body.data : null;
+  if (!data || !Array.isArray(data.list)) return body;
+  const list = data.list.filter(isRecord).map((row) => {
+    const kept = pick(row, rowKeys);
+    if (nested && Array.isArray(row[nested.key])) {
+      kept[nested.key] = (row[nested.key] as unknown[]).filter(isRecord).map((r) => pick(r, nested.keys));
+    }
+    return kept;
+  });
+  return { code: body.code, msg: body.msg, data: { ...data, list } };
+}
+
+/** A conversion-report answer with only the fields the mapper reads. */
+export function trimConversionBody(body: unknown): unknown {
+  return mapList(body, CONVERSION_ORDER_KEYS, { key: "items", keys: CONVERSION_ITEM_KEYS });
+}
+
+/** What a captured answer may keep before it leaves the page (personal fields dropped). */
+export function trimCaptured(endpoint: ReaderEndpoint, body: unknown): unknown {
+  if (endpoint === "affiliate_performance") return mapList(body, PERFORMANCE_KEYS);
+  if (endpoint === "affiliate_conversion") return trimConversionBody(body);
+  return body;
+}
+
+export const isConversionOrder = (o: Record<string, unknown>) => "order_id" in o && Array.isArray(o.items);
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A unix-seconds (or ms) value or a YYYY-MM-DD / DD-MM-YYYY string as a GMT+7 day. */
+function dayOf(value: unknown): string | undefined {
+  const n = typeof value === "string" && /^\d{9,13}$/.test(value) ? Number(value) : value;
+  if (typeof n === "number" && Number.isFinite(n) && n > 1e9) {
+    const seconds = n > 1e12 ? Math.floor(n / 1000) : n;
+    return new Date((seconds + 7 * 3600) * 1000).toISOString().slice(0, 10);
+  }
+  if (typeof value === "string") {
+    if (DAY_RE.test(value)) return value;
+    const vn = /^(\d{2})-(\d{2})-(\d{4})$/.exec(value);
+    if (vn) return `${vn[3]}-${vn[2]}-${vn[1]}`;
+    if (/^\d{8}$/.test(value)) return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
+  }
+  return undefined;
+}
+
+/**
+ * The days a page asked for, read from its own request: query params or GraphQL variables whose
+ * name says start / end (startTime, start_time, purchase_time_s, ...). Undefined when none.
+ */
+export function periodOfTemplate(template: Template | undefined): { start: string; end: string } | undefined {
+  if (!template) return undefined;
+  const fields: [string, unknown][] = Object.entries(template.query);
+  const body = isRecord(template.body) ? template.body : undefined;
+  const variables = body && isRecord(body.variables) ? body.variables : body;
+  if (variables) fields.push(...Object.entries(variables));
+  let start: string | undefined;
+  let end: string | undefined;
+  for (const [key, value] of fields) {
+    const day = dayOf(value);
+    if (!day) continue;
+    if (/(start|begin|from|_s$)/i.test(key)) start = start ?? day;
+    else if (/(end|to$|_e$)/i.test(key)) end = end ?? day;
+  }
+  if (start && end) return start <= end ? { start, end } : { start: end, end: start };
+  if (start || end) return { start: (start ?? end) as string, end: (end ?? start) as string };
+  return undefined;
+}
+
+async function readAffiliateConversions(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
+  await waitForPage(env, [], collected);
+  await env.waitFor(() => env.template("affiliate_conversion") !== undefined, READER_TEMPLATE_WAIT_MS / 2);
+  const template = env.template("affiliate_conversion");
+  const days = lastFinishedDays(env.now(), AFFILIATE_WINDOW_DAYS);
+  if (days.length === 0) return;
+  const sorted = [...days].sort();
+  const period = { start: sorted[0] as string, end: sorted[sorted.length - 1] as string };
+  const window = {
+    purchase_time_s: String(gmt7DateStart(period.start)),
+    purchase_time_e: String(gmt7DateStart(period.end) + 86_399),
+  };
+  const size = template ? pageSizeOf(template, AFFILIATE_PAGE_SIZE_DEFAULT) : AFFILIATE_PAGE_SIZE_DEFAULT;
+  let rows = 0;
+  for (let page = 1; rows < AFFILIATE_MAX_ROWS; page += 1) {
+    const request = buildReaderRequest(
+      env.origin,
+      "affiliate_conversion",
+      template,
+      { query: { page_num: String(page), page_size: String(size), ...window } },
+      env.session(),
+    );
+    const response = await send(env, request, collected, { page, period });
+    response.body = trimConversionBody(response.body);
+    const found = findList(payloadOf(response.body), isConversionOrder);
+    const count = found?.list.length ?? 0;
+    rows += count;
+    if (!found || count < size) break;
+    const total = totalOf(response.body, found.parent);
+    if (total !== undefined && rows >= total) break;
+  }
+}
+
+/** The answers the affiliate page loaded itself, for `endpoints` (none replayed). */
+async function readAffiliateCaptured(
+  env: ReaderEnv,
+  endpoints: readonly ReaderEndpoint[],
+  collected: ReaderResponse[],
+): Promise<void> {
+  await waitForPage(env, [], collected);
+  const answered = () => endpoints.every((endpoint) => env.template(endpoint)?.lastResponse !== undefined);
+  await env.waitFor(answered, READER_TEMPLATE_WAIT_MS);
+  await env.waitFor(() => env.template("affiliate_latest_date")?.lastResponse !== undefined, 2_000);
+  const latest = env.template("affiliate_latest_date")?.lastResponse;
+  const latestDay = latestReportDay(latest);
+  let any = false;
+  for (const endpoint of endpoints) {
+    const template = env.template(endpoint);
+    if (template?.lastResponse === undefined) continue;
+    any = true;
+    const period = periodOfTemplate(template) ?? (latestDay ? { start: latestDay, end: latestDay } : undefined);
+    collected.push({
+      endpoint,
+      url: `${env.origin}${READER_ENDPOINTS[endpoint].path}`,
+      status: 200,
+      body: trimCaptured(endpoint, template.lastResponse),
+      capturedAt: env.now(),
+      source: "page",
+      ...(period ? { period } : {}),
+    });
+  }
+  if (!any) throw new Stop(fail("needs_template", collected, endpoints.join(",")));
+}
+
+/** The newest day the affiliate service has data for (`latest_report_date`), any shape. */
+export function latestReportDay(body: unknown): string | undefined {
+  const queue: unknown[] = [payloadOf(body), body];
+  while (queue.length > 0) {
+    const node = queue.shift();
+    const direct = dayOf(node);
+    if (direct) return direct;
+    if (isRecord(node)) for (const value of Object.values(node)) queue.push(value);
+  }
+  return undefined;
+}
+
+/** The captured endpoints each affiliate page reader keeps. */
+export const AFFILIATE_CAPTURES: Partial<Record<ReaderId, readonly ReaderEndpoint[]>> = {
+  affiliate_kols: ["affiliate_performance"],
+  affiliate_dashboard: ["affiliate_seller_daily"],
+  affiliate_products: ["affiliate_item_detail"],
+  affiliate_campaigns: ["affiliate_shop_campaign"],
+  affiliate_commissions: ["affiliate_commission_list"],
+  affiliate_content: ["affiliate_content_summary"],
+  affiliate_bills: ["affiliate_validation"],
+};
+
 /** Run one reader job against the open Seller Centre page. Never throws. */
 export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<ReaderOutcome> {
   const collected: ReaderResponse[] = [];
@@ -535,6 +758,14 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
       case "health":
         await readHealth(env, collected);
         break;
+      case "affiliate":
+        await readAffiliateConversions(env, collected);
+        break;
+      default: {
+        const captures = AFFILIATE_CAPTURES[job.id];
+        if (captures) await readAffiliateCaptured(env, captures, collected);
+        break;
+      }
     }
     return { status: "done", responses: collected };
   } catch (error) {

@@ -244,7 +244,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return respond(
         Promise.all([scheduler.clearBlock(), market.clearBlock()]).then(async () => {
           const result = await thenBackfill(connector.syncNow());
-          void scheduler.tick();
+          void scheduler.tick({ manual: true });
           void market.tick();
           return result;
         }),

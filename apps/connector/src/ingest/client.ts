@@ -40,7 +40,7 @@ export function ingestBody(mapped: Mapped, version: string, capturedAt: number, 
     source: "extension",
     source_version: version,
     captured_at: new Date(capturedAt).toISOString(),
-    period: { start: mapped.date, end: mapped.date, granularity: mapped.granularity ?? "day" },
+    period: { start: mapped.periodStart ?? mapped.date, end: mapped.date, granularity: mapped.granularity ?? "day" },
     order_type: mapped.orderType,
     rows: mapped.rows,
   };
@@ -98,6 +98,11 @@ export class GatewayClient {
   /** The keywords of the shop's products to read on the public search page (P92 B-10). */
   marketKeywords(token: string): Promise<unknown> {
     return this.call("/v1/ingest/market/keywords", { method: "GET" }, token);
+  }
+
+  /** The shop's order_ref key (affiliate reader): order ids are hashed with it in the browser. */
+  orderRefKey(token: string): Promise<unknown> {
+    return this.call("/v1/ingest/order-ref-key", { method: "GET" }, token);
   }
 
   post(token: string, dataset: Dataset, body: IngestBody): Promise<unknown> {

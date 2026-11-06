@@ -9,6 +9,7 @@
 // posted). Strings the contract does not name never leave the browser.
 
 import { ADS_TARGET_DIVISOR, MAX_PLAUSIBLE_AD_VND, MAX_PLAUSIBLE_PRICE_VND, MONEY_DIVISOR } from "../config";
+import { mapAffiliateJob } from "./affiliate-map";
 import type { Drift, Mapped, Row } from "./map";
 import {
   classify,
@@ -653,6 +654,8 @@ export function mapShopHealth(responses: ReaderResponse[], capturedAt: number): 
 // -- one job -------------------------------------------------------------------------------
 
 export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], capturedAt: number): Mapped[] {
+  const affiliate = mapAffiliateJob(job.id, responses, capturedAt);
+  if (affiliate) return affiliate;
   switch (job.id) {
     case "products": {
       const { catalog, snapshot } = mapProductList(responses, capturedAt);
@@ -666,5 +669,7 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
       return [mapVoucherList(responses, capturedAt)];
     case "health":
       return [mapShopHealth(responses, capturedAt)];
+    default:
+      return [];
   }
 }

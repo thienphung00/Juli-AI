@@ -49,6 +49,7 @@ from juli_backend.api.routes.executions import router as executions_router
 from juli_backend.api.routes.ingest import router as ingest_router
 from juli_backend.api.routes.ingest_fill import router as ingest_fill_router
 from juli_backend.api.routes.ingest_market import router as ingest_market_router
+from juli_backend.api.routes.ingest_order_ref import router as ingest_order_ref_router
 from juli_backend.api.routes.me import router as me_router
 from juli_backend.api.routes.ops import router as ops_router
 from juli_backend.api.routes.ops_billing import router as ops_billing_router
@@ -189,6 +190,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     # Fast track P24 (D31.3 / D31.4): the ingest gateway and Juli Connector pairing.
     v1_router.include_router(ingest_fill_router)
     v1_router.include_router(ingest_market_router)
+    v1_router.include_router(ingest_order_ref_router)
     v1_router.include_router(ingest_router)
     # Fast track P32-A (D42): the partner reviewer's own routes (who am I, simulate).
     v1_router.include_router(reviewer_router)

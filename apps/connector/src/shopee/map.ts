@@ -36,6 +36,8 @@ export interface Mapped {
   drift: Drift | null;
   /** The post's period shape: one GMT+7 day (default), or a one-day snapshot (`period`). */
   granularity?: "day" | "period";
+  /** A `period` post that spans several days starts here (`date` is its last day). */
+  periodStart?: string;
 }
 
 export const L1_SOURCES = [

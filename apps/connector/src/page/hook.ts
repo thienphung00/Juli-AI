@@ -14,8 +14,15 @@
 // cookies, no other URLs, and sends nothing but those queries: it never clicks, applies or
 // saves anything.
 
-import { CHANNEL, SELLER_CENTRE_ORIGIN } from "../config";
-import { READER_ENDPOINTS, type ReaderEndpoint, readerEndpointOf, SESSION_PARAMS, WATCHED_PATHS } from "../shopee/endpoints";
+import { CHANNEL, READER_IDS, SELLER_CENTRE_ORIGIN } from "../config";
+import {
+  isCapturedEndpoint,
+  READER_ENDPOINTS,
+  type ReaderEndpoint,
+  readerEndpointOf,
+  SESSION_PARAMS,
+  WATCHED_PATHS,
+} from "../shopee/endpoints";
 import {
   blockedPath,
   pollingWaitFor,
@@ -25,6 +32,7 @@ import {
   type ReaderRequest,
   runReaderJob,
   type Template as ReaderTemplate,
+  trimCaptured,
 } from "../shopee/reader";
 import { Pacer, runDay, type DayRequest } from "../shopee/runner";
 import { type PlannedRequest, requestUrl } from "../shopee/sync";
@@ -126,17 +134,18 @@ function learn(
 }
 
 function keepResponse(endpoint: ReaderEndpoint, body: unknown): void {
-  // Only the campaign query's own answer is kept (its request is not replayed).
-  if (endpoint !== "campaign_info") return;
+  // Only the answers of captured endpoints are kept (their requests are never replayed): the
+  // campaign query and the affiliate pages' own reports. Trimmed to what a mapper may read.
+  if (!isCapturedEndpoint(endpoint)) return;
   const template = readerTemplates.get(endpoint);
-  if (template) template.lastResponse = body;
+  if (template) template.lastResponse = trimCaptured(endpoint, body);
 }
 
 function readerTarget(rawUrl: string, method: string): { endpoint: ReaderEndpoint; url: URL } | null {
   try {
     const url = new URL(rawUrl, location.href);
     if (url.origin !== SELLER_CENTRE_ORIGIN) return null;
-    const endpoint = readerEndpointOf(method, url.pathname);
+    const endpoint = readerEndpointOf(method, url.pathname, url.searchParams.get("q"));
     return endpoint ? { endpoint, url } : null;
   } catch {
     return null;
@@ -395,7 +404,7 @@ function isReaderJob(value: unknown): value is ReaderJob {
     typeof job === "object" &&
     job !== null &&
     typeof job.id === "string" &&
-    ["products", "ads", "vouchers", "health", "item_traffic"].includes(job.id) &&
+    (READER_IDS as readonly string[]).includes(job.id) &&
     (job.itemIds === undefined ||
       (Array.isArray(job.itemIds) && job.itemIds.every((id) => typeof id === "string" && /^\d{1,32}$/.test(id)))) &&
     (job.days === undefined || (Array.isArray(job.days) && job.days.every((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))))

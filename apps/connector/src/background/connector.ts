@@ -14,6 +14,8 @@ import {
 import { GatewayClient, GatewayError, ingestBody, type TokenInfo } from "../ingest/client";
 import { type Captured, mapCaptured, type Mapped } from "../shopee/map";
 import { mapMarketSearch } from "../shopee/market";
+import { importOrderRefKey, orderRef } from "../ingest/order-ref";
+import { RAW_ORDER_ID } from "../shopee/affiliate-map";
 import { mapReaderJob } from "../shopee/reader-map";
 import type { ReaderJob, ReaderResponse } from "../shopee/reader";
 import { isDataAnswer, type RequestResult } from "../shopee/runner";
@@ -161,6 +163,8 @@ export class Connector {
       return "drift";
     }
     if (mapped.rows.length === 0) return "ignored";
+    // A raw Shopee order id never leaves the browser: such a row must have been hashed first.
+    if (mapped.rows.some((row) => RAW_ORDER_ID in row)) return "rejected";
 
     let outcome: CaptureOutcome = "posted";
     for (let start = 0; start < mapped.rows.length; start += MAX_ROWS_PER_POST) {
@@ -223,11 +227,40 @@ export class Connector {
   async postReader(job: ReaderJob, responses: ReaderResponse[]): Promise<Record<string, CaptureOutcome>> {
     const capturedAt = responses.reduce((latest, r) => Math.max(latest, r.capturedAt), 0) || this.deps.now();
     const outcomes: Record<string, CaptureOutcome> = {};
-    for (const mapped of mapReaderJob(job, responses, capturedAt)) {
-      const key = job.id === "ads" || job.id === "item_traffic" ? `${mapped.dataset}:${mapped.date}` : mapped.dataset;
-      outcomes[key] = await this.submit(mapped, capturedAt);
+    const perDate = new Set(["ads", "item_traffic", "affiliate_dashboard", "affiliate_bills"]);
+    for (const raw of mapReaderJob(job, responses, capturedAt)) {
+      const key = perDate.has(job.id) ? `${raw.dataset}:${raw.date}` : raw.dataset;
+      const mapped = await this.hashOrderIds(raw);
+      outcomes[key] = mapped ? await this.submit(mapped, capturedAt) : "rejected";
     }
     return outcomes;
+  }
+
+  /**
+   * Affiliate conversion rows carry the raw order id only until here: it is replaced by
+   * `order_ref` with the shop's key from Juli (never stored). No key, no post.
+   */
+  private async hashOrderIds(mapped: Mapped): Promise<Mapped | null> {
+    if (!mapped.rows.some((row) => RAW_ORDER_ID in row)) return mapped;
+    const state = await this.state();
+    if (!state.token) return mapped; // submit() answers "unpaired"
+    let key: CryptoKey;
+    try {
+      const answer = (await this.deps.client.orderRefKey(state.token.token)) as { order_ref_key?: unknown };
+      if (typeof answer?.order_ref_key !== "string") throw new Error("no key");
+      key = await importOrderRefKey(answer.order_ref_key);
+    } catch (error) {
+      if (await this.onAuthError(error)) return null;
+      await saveState(this.deps.storage, { lastError: { at: this.iso(), code: "order_ref_key_unavailable" } });
+      return null;
+    }
+    const rows = await Promise.all(
+      mapped.rows.map(async (row) => {
+        const { [RAW_ORDER_ID]: orderId, ...rest } = row;
+        return { ...rest, order_ref: await orderRef(String(orderId), key) };
+      }),
+    );
+    return { ...mapped, rows };
   }
 
   /** One keyword's page-1 search answer -> mapped -> posted (dataset market_search). */

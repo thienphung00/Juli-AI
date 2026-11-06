@@ -149,6 +149,11 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
         "(get_ingest_principal), shop-scoped under that shop's RLS scope, read-only; empty "
         "unless CONNECTOR_MARKET_SEARCH is on."
     ),
+    ("GET", "/v1/ingest/order-ref-key"): (
+        "Connector affiliate reader (0.3.6): the shop's order_ref key, authenticated by the "
+        "ingest token (get_ingest_principal), which names exactly one shop; no-store; the key "
+        "only hashes that shop's own order ids in the browser."
+    ),
     ("POST", "/v1/ingest/{platform}/{dataset}"): (
         "Ingest gateway post: authenticated by the ingest token (get_ingest_principal), "
         "which names exactly one shop; writes only under that shop's RLS scope, "
