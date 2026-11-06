@@ -128,6 +128,7 @@ async def approve_recommendation(
         inputs=body.inputs,
         note=body.note,
         chosen_version=body.chosen_version,
+        chosen_versions=body.chosen_versions,
         acknowledge_breaches=body.acknowledge_breaches,
     )
 

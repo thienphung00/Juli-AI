@@ -207,11 +207,14 @@ describe("ads", () => {
     expect(roasTarget({ code: 0, data: { report_by_time: [{ roi_target_setting: { value: 0 } }] } })).toBeNull();
   });
 
-  it("an entry without a campaign id is drift; an implausible budget is a money-scale stop", () => {
+  it("a list with no campaign id is drift; a summary row beside a campaign is skipped; an implausible budget is a money-scale stop", () => {
     const noId = { code: 0, data: { entry_list: [{ title: "x", campaign: {}, report: {} }] } };
     expect(mapAdsDaily([response("ads_homepage", noId, { day: DAY })])[0]!.drift?.missing).toEqual([
       "entry.campaign.campaign_id",
     ]);
+    const mixed = JSON.parse(JSON.stringify(adsHome)) as typeof adsHome;
+    mixed.data.entry_list.push({ title: "tổng", campaign: {}, report: { cost: 1 } } as (typeof mixed.data.entry_list)[number]);
+    expect(mapAdsDaily([response("ads_homepage", mixed, { day: DAY })])[0]!.drift).toBeNull();
     const scaled = JSON.parse(JSON.stringify(adsHome));
     scaled.data.entry_list[0].campaign.daily_budget = 20_000_000_000_000_000;
     const [post] = mapAdsDaily([response("ads_homepage", scaled, { day: DAY })]);

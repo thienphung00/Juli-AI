@@ -575,6 +575,26 @@ WHERE shop_id = :shop AND platform = 'shopee' AND dataset = 'traffic_overview'
   AND day BETWEEN :a AND :b
 GROUP BY 1, segment
 """
+# Connector ``ads_campaign_daily``: one Shopee ads-homepage row per campaign per day.
+# ``cost`` / budget / ROAS target live in ``extra``; GMV and orders are the broad figures.
+_ADS_CAMPAIGNS = """
+SELECT segment,
+       max(platform_source),
+       sum(gmv), sum(orders), sum(impressions), sum(clicks),
+       sum(CASE WHEN jsonb_typeof(extra -> 'cost') = 'number'
+                THEN (extra ->> 'cost')::numeric END),
+       max(extra ->> 'state'),
+       max(CASE WHEN jsonb_typeof(extra -> 'daily_budget') = 'number'
+                THEN (extra ->> 'daily_budget')::numeric END),
+       max(CASE WHEN jsonb_typeof(extra -> 'roi_two_target') = 'number'
+                THEN (extra ->> 'roi_two_target')::numeric END)
+FROM platform_daily_metrics
+WHERE shop_id = :shop AND platform = 'shopee' AND dataset = 'ads_campaign_daily'
+  AND segment <> 'all' AND order_type = :ot
+  AND day BETWEEN :a AND :b
+GROUP BY segment
+ORDER BY 7 DESC NULLS LAST, 2
+"""
 _ADS_MONTHLY_PERIOD = """
 SELECT period_start, period_end, 'ads', segment, gmv, orders,
        CASE WHEN jsonb_typeof(extra -> 'ads_expense') = 'number'
@@ -698,6 +718,26 @@ async def ads(
             }
         )
     alerts = roas_alerts([(d, t, g, c) for d, t, g, _o, c, _i, _k in daily_rows])
+    campaign_rows = await _rows(
+        session, _ADS_CAMPAIGNS, shop=shop_id, ot=order_type, a=window.start, b=window.end
+    )
+    campaigns = [_campaign(row) for row in campaign_rows]
+    # When the traffic-overview ads slice is missing, the homepage campaigns are the ads screen.
+    if campaigns and not by_type:
+        camp_gmv = sum((Decimal(c["gmv"] or 0) for c in campaigns), Decimal(0))
+        camp_orders = sum((Decimal(c["orders"] or 0) for c in campaigns), Decimal(0))
+        camp_cost = sum(
+            (Decimal(c["cost"] or 0) for c in campaigns if c["cost"] is not None),
+            Decimal(0),
+        )
+        total_gmv, total_orders, total_cost = camp_gmv, camp_orders, camp_cost
+        by_type = [
+            {
+                "ad_type": "campaign",
+                "label": "Chiến dịch",
+                **_ad_cell(camp_gmv, camp_orders, camp_cost or None),
+            }
+        ]
     return {
         "range": window.json(),
         "order_type": order_type,
@@ -713,12 +753,30 @@ async def ads(
             for day, parts in sorted(daily.items())
         ],
         "monthly": monthly,
-        # No campaign-level export is loaded yet (ads-campaign files): an explicit empty state.
-        "campaigns": [],
-        "campaigns_available": False,
+        "campaigns": campaigns,
+        "campaigns_available": bool(campaigns),
         "alerts": alerts,
         "alert_rule": {"floor": float(ROAS_FLOOR), "min_days": ROAS_ALERT_MIN_DAYS},
-        "has_data": bool(daily_rows),
+        "has_data": bool(daily_rows) or bool(campaigns),
+    }
+
+
+def _campaign(row: Any) -> dict[str, Any]:
+    """One Shopee ads-homepage campaign over the window: broad GMV / orders, cost in đồng."""
+    _segment, name, gmv, orders, impressions, clicks, cost, state, budget, roi_target = row
+    cell = _ad_cell(gmv, orders, cost)
+    impr = Decimal(impressions) if impressions is not None else None
+    clk = Decimal(clicks) if clicks is not None else None
+    return {
+        "campaign_id": str(_segment),
+        "name": name or "Chiến dịch",
+        "state": state,
+        "impressions": _num(impr),
+        "clicks": _num(clk),
+        "ctr": _ratio(clk, impr),
+        "daily_budget": _num(budget),
+        "roi_target": _num(roi_target),
+        **cell,
     }
 
 

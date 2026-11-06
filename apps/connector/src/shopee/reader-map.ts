@@ -405,10 +405,9 @@ const AD_REPORT_KNOWN = new Set<string>([...AD_COUNTS, ...AD_RATIOS, ...AD_MONEY
 function adRow(day: string, entry: Record<string, unknown>, drift: { missing: string[]; unexpected: string[] }): Row | null {
   const campaign = isRecord(entry.campaign) ? entry.campaign : {};
   const id = digits(campaign.campaign_id);
-  if (id === undefined) {
-    if (!drift.missing.includes("entry.campaign.campaign_id")) drift.missing.push("entry.campaign.campaign_id");
-    return null;
-  }
+  // A homepage total / summary sits in the same list with a report and no campaign id.
+  // Skipping it keeps the real campaigns; an empty list of campaigns is drift below.
+  if (id === undefined) return null;
   const divisor = MONEY_DIVISOR.ads;
   const row: Row = { date: day, campaign_id: id };
   put(row, "campaign_name", text(entry.title, 255));
@@ -459,15 +458,20 @@ export function mapAdsDaily(responses: ReaderResponse[]): Mapped[] {
     const rows: Row[] = [];
     const seen = new Set<string>();
     const homes = dataResponses(responses.filter((r) => r.day === day), "ads_homepage");
+    let sawEntry = false;
     for (const response of homes) {
       const found = findList(payloadOf(response.body), isAdsEntry);
       for (const entry of found?.list ?? []) {
+        sawEntry = true;
         const row = adRow(day, entry, issues);
         if (row && !seen.has(row.campaign_id as string)) {
           seen.add(row.campaign_id as string);
           rows.push(row);
         }
       }
+    }
+    if (sawEntry && seen.size === 0 && !issues.missing.includes("entry.campaign.campaign_id")) {
+      issues.missing.push("entry.campaign.campaign_id");
     }
     for (const response of dataResponses(responses.filter((r) => r.day === day), "ads_time_graph")) {
       const target = roasTarget(response.body);

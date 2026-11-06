@@ -1068,22 +1068,33 @@ async def decide(
     reason_code: str | None = None,
     note: str | None = None,
     chosen_version: int = 1,
+    chosen_versions: list[int] | None = None,
     acknowledge_breaches: bool = False,
 ) -> dict[str, Any]:
     """The client's decision in the app: ``approve`` one version of the card (``chosen_version``,
     default 1; optionally with adjusted what-if inputs), ``request_change`` or ``dismiss``
-    (ADR-107 reason, optional). The chosen version is recorded on the approval snapshot and in
-    the card events."""
+    (ADR-107 reason, optional). ``chosen_versions`` (P94) approves several versions as Nhóm A
+    when the card can have more than one live value. The chosen version is recorded on the
+    approval snapshot and in the card events."""
     now = _naive(now)
     p, card = await _proposal(session, shop_id, card_id)
     code = p.code
     subject = _subject_of(card, card_id)
     result = await _decide(
         session, shop_id, card_id, p, card, subject, decision, user_id, now, inputs,
-        reason_code, note, chosen_version, code, acknowledge_breaches,
+        reason_code, note, chosen_version, code, acknowledge_breaches, chosen_versions,
     )  # fmt: skip
     await _requeue(session, p, now)
     return result
+
+
+_EXCLUSIVE_KINDS = frozenset({"title", "price", "cover", "description", "main_image", "discount"})
+
+
+def _one_live_value(card: dict[str, Any]) -> bool:
+    """P94: title, price, cover, one discount, one budget or ROAS cannot share a group."""
+    kind = str(card.get("change_kind") or "")
+    return kind in _EXCLUSIVE_KINDS or "budget" in kind or "roas" in kind
 
 
 async def _decide(
@@ -1102,20 +1113,33 @@ async def _decide(
     chosen_version: int,
     code: str | None,
     acknowledge_breaches: bool = False,
+    chosen_versions: list[int] | None = None,
 ) -> dict[str, Any]:
     if decision == "approve":
         vlist = versions.versions_of(card)
-        if not 1 <= chosen_version <= len(vlist):
+        picked = list(dict.fromkeys(chosen_versions or [chosen_version]))
+        if not picked:
+            picked = [chosen_version]
+        for version in picked:
+            if not 1 <= version <= len(vlist):
+                raise ProposalError(
+                    "reco_version_unknown", 422, f"the card has {len(vlist)} version(s)"
+                )
+            if vlist[version - 1].get("status") == versions.STATUS_REFUSED:
+                raise ProposalError(
+                    "reco_version_unavailable",
+                    422,
+                    f"version {version} is {vlist[version - 1].get('status')} "
+                    "and cannot be approved",
+                )
+        if len(picked) > 1 and _one_live_value(card):
             raise ProposalError(
-                "reco_version_unknown", 422, f"the card has {len(vlist)} version(s)"
-            )
-        chosen = vlist[chosen_version - 1]
-        if chosen.get("status") == versions.STATUS_REFUSED:
-            raise ProposalError(
-                "reco_version_unavailable",
+                "reco_group_exclusive",
                 422,
-                f"version {chosen_version} is {chosen.get('status')} and cannot be approved",
+                "this card can keep only one live value; approve the next option as the next group",
             )
+        chosen_version = picked[0]
+        chosen = vlist[chosen_version - 1]
         final_card = versions.overlay(card, chosen) if chosen_version != 1 else card
         if inputs:
             final_card = (
@@ -1143,6 +1167,16 @@ async def _decide(
             {"by": str(user_id), "at": now.isoformat(), "breaches": breaches} if breaches else None
         )
         vcode = chosen.get("code") or (code and codes.version_code(code, chosen_version))
+        group = None
+        if len(picked) > 1:
+            group = {
+                "name": "A",
+                "versions": picked,
+                "version_codes": [
+                    (vlist[n - 1].get("code") or (code and codes.version_code(code, n)))
+                    for n in picked
+                ],
+            }
         snapshot_extra = {
             "code": code,
             "chosen_version": chosen_version,
@@ -1150,6 +1184,7 @@ async def _decide(
             "chosen_inputs": final_card["inputs"],
             "chosen_change": final_card["change"],
             "acknowledged_breaches": acknowledged,
+            **({"group": group} if group else {}),
         }
         approval = await proposals.record_approval(
             session,
@@ -1181,6 +1216,7 @@ async def _decide(
                 "code": code,
                 "chosen_version": chosen_version,
                 "chosen_version_code": vcode,
+                **({"group": group} if group else {}),
                 "acknowledged_breaches": acknowledged,
                 "final": final if (inputs or chosen_version != 1) else None,
                 "approved_with": {
@@ -1202,6 +1238,7 @@ async def _decide(
                 "approved_at": now.isoformat(),
                 "chosen_version": chosen_version,
                 "acknowledged_breaches": acknowledged,
+                **({"group": group} if group else {}),
             },
         )
         return {
@@ -1210,6 +1247,7 @@ async def _decide(
             "status": p.status,
             "approval_id": str(approval.id),
             "chosen_version": chosen_version,
+            **({"group": group} if group else {}),
         }
     if decision == "request_change":
         approval = await proposals.record_approval(

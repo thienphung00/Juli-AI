@@ -31,6 +31,8 @@ export interface ApproveInput {
   readonly note?: string | null;
   /** P91: which version is approved (1-based; omitted = 1). */
   readonly chosenVersion?: number;
+  /** P94: versions approved together as Nhóm A (1-based). Omitted = `chosenVersion` alone. */
+  readonly chosenVersions?: readonly number[];
   /** P91: a floor / spend-cap breach never blocks; it needs this yes (422 `reco_breach_unacknowledged` otherwise). */
   readonly acknowledgeBreaches?: boolean;
 }
@@ -150,7 +152,8 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
       call<DecideResult>("POST", `${id(cardId)}/approve`, {
         inputs: body.inputs ?? null,
         note: body.note ?? null,
-        chosen_version: body.chosenVersion ?? 1,
+        chosen_version: body.chosenVersion ?? body.chosenVersions?.[0] ?? 1,
+        ...(body.chosenVersions && body.chosenVersions.length > 0 ? { chosen_versions: [...body.chosenVersions] } : {}),
         acknowledge_breaches: body.acknowledgeBreaches ?? false,
       }),
     compare: (variants, asOf) => call<CompareResult>("POST", "/compare", { variants, ...(asOf ? { as_of: asOf } : {}) }),

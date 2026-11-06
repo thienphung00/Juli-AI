@@ -652,8 +652,13 @@ export function periodOfTemplate(template: Template | undefined): { start: strin
 }
 
 async function readAffiliateConversions(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
-  await waitForPage(env, [], collected);
-  await env.waitFor(() => env.template("affiliate_conversion") !== undefined, READER_TEMPLATE_WAIT_MS / 2);
+  // The conversion page's own call is the template. It often carries no SPC_CDS query,
+  // so waiting on the session first ended the job as needs_data_page with nothing posted.
+  const seen = () => env.template("affiliate_conversion") !== undefined;
+  if (!(await env.waitFor(() => env.hasSession() || seen(), READER_TEMPLATE_WAIT_MS))) {
+    throw new Stop(fail("needs_data_page", collected, "affiliate_conversion"));
+  }
+  await env.waitFor(seen, READER_TEMPLATE_WAIT_MS / 2);
   const template = env.template("affiliate_conversion");
   const days = lastFinishedDays(env.now(), AFFILIATE_WINDOW_DAYS);
   if (days.length === 0) return;
@@ -690,9 +695,13 @@ async function readAffiliateCaptured(
   endpoints: readonly ReaderEndpoint[],
   collected: ReaderResponse[],
 ): Promise<void> {
-  await waitForPage(env, [], collected);
-  const answered = () => endpoints.every((endpoint) => env.template(endpoint)?.lastResponse !== undefined);
-  await env.waitFor(answered, READER_TEMPLATE_WAIT_MS);
+  // Capture-only: the page's own answer is enough. A missing SPC_CDS must not discard it.
+  const answered = () => endpoints.some((endpoint) => env.template(endpoint)?.lastResponse !== undefined);
+  if (!(await env.waitFor(() => env.hasSession() || answered(), READER_TEMPLATE_WAIT_MS)) && !answered()) {
+    throw new Stop(fail("needs_data_page", collected, endpoints.join(",")));
+  }
+  const every = () => endpoints.every((endpoint) => env.template(endpoint)?.lastResponse !== undefined);
+  await env.waitFor(every, READER_TEMPLATE_WAIT_MS);
   await env.waitFor(() => env.template("affiliate_latest_date")?.lastResponse !== undefined, 2_000);
   const latest = env.template("affiliate_latest_date")?.lastResponse;
   const latestDay = latestReportDay(latest);

@@ -21,6 +21,9 @@ export function VersionsTable({
   sel,
   onPick,
   locked,
+  /** P94: several versions of a non-exclusive card approve together as Nhóm A. */
+  multi = false,
+  picked,
   todayText,
   rows: given,
   noToday = false,
@@ -31,6 +34,9 @@ export function VersionsTable({
   readonly sel: number;
   readonly onPick: (index: number) => void;
   readonly locked: boolean;
+  readonly multi?: boolean;
+  /** Selected column indexes when `multi` (includes `sel`). */
+  readonly picked?: readonly number[];
   readonly todayText: string;
   /** Other rows than the card's own table (KOL cards). */
   readonly rows?: readonly TableRow[];
@@ -47,10 +53,14 @@ export function VersionsTable({
         <h3 className="sa-h2" data-testid="sv-count">
           {n} phiên bản của cùng một thay đổi
         </h3>
-        <span className="sa-hint">V1 là bản Juli đề xuất. Chọn một cột để duyệt; thanh trượt bên dưới chỉ chỉnh phiên bản đang chọn. Các số tính theo cùng một công thức, so với hôm nay.</span>
+        <span className="sa-hint">
+          {multi
+            ? "Chọn một hoặc nhiều cột để duyệt cùng nhau (Nhóm A). Cột đang mở là cột thanh trượt chỉnh."
+            : "V1 là bản Juli đề xuất. Chọn một cột để duyệt; thanh trượt bên dưới chỉ chỉnh phiên bản đang chọn. Các số tính theo cùng một công thức, so với hôm nay."}
+        </span>
       </div>
       <div className="sv-scroll">
-        <div className={`sv-grid ${noToday ? "sv-grid--notoday" : ""}`} role="radiogroup" aria-label="Phiên bản" style={style}>
+        <div className={`sv-grid ${noToday ? "sv-grid--notoday" : ""}`} role={multi ? "group" : "radiogroup"} aria-label="Phiên bản" style={style}>
           <div className="sv-head sv-head--label">
             <b>Chỉ số</b>
             <span>{subLabel}</span>
@@ -62,7 +72,7 @@ export function VersionsTable({
             </div>
           )}
           {versions.map((v, i) => {
-            const on = i === sel;
+            const on = multi ? (picked ?? [sel]).includes(i) : i === sel;
             const tag = versionTag(v, i);
             const bad = tag.tone === "down";
             return (
@@ -73,7 +83,7 @@ export function VersionsTable({
                 disabled={locked || isRefused(v)}
                 key={v.version}
                 onClick={() => onPick(i)}
-                role="radio"
+                role={multi ? "checkbox" : "radio"}
                 type="button"
               >
                 <span className="sv-head__top">
