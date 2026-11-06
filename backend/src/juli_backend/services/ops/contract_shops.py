@@ -14,11 +14,11 @@ work on it there.
   ``contract_paper``, ``granted_by`` the staff member's id, and an evidence reference
   that names the button. It refuses a shop with a seller login: that seller's own
   Terms acceptance decides their consent, never Ops.
-- :func:`issue_pairing_code` is "Tạo mã kết nối": the seller path's own 10-minute,
-  single-use code, which the Juli Connector or ``load_shopee_exports.py --api-url``
-  exchanges for a shop-bound ingest token. Only once consent is on (the gateway would
-  refuse every post anyway). :func:`list_tokens` / :func:`revoke_token` are the token
-  list and "Thu hồi".
+- :func:`issue_pairing_code` is "Tạo mã kết nối" for every shop, not only a contract
+  client: the seller path's own 10-minute, single-use code, which the Juli Connector
+  or ``load_shopee_exports.py --api-url`` exchanges for a shop-bound ingest token.
+  Only once service consent is on (the gateway would refuse every post anyway).
+  :func:`list_tokens` / :func:`revoke_token` are the token list and "Thu hồi".
 
 Nothing commits here; the route audits and commits.
 """
@@ -145,11 +145,6 @@ async def enable_consent(
     return granted
 
 
-async def _require_contract(session: AsyncSession, shop_id: uuid.UUID, owner_id: uuid.UUID) -> None:
-    if not await is_contract_client(session, shop_id, owner_id):
-        raise NotAContractShop(str(shop_id))
-
-
 async def issue_pairing_code(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -158,10 +153,12 @@ async def issue_pairing_code(
     created_by: uuid.UUID | None,
     now: datetime,
 ) -> ingest_service.IssuedCode:
-    """A pairing code for the contract shop; ``PairingError`` past the live-code cap."""
+    """A pairing code for any shop Ops can open; ``PairingError`` past the live-code cap.
+
+    Contract shops are gone. The code is refused until the shop has service consent,
+    because the ingest gateway would refuse every post from the Connector anyway.
+    """
     state = await consent_state(session, shop_id, owner_id)
-    if not state.contract_client:
-        raise NotAContractShop(str(shop_id))
     if not state.scopes.get("service"):
         raise ConsentNotEnabled(str(shop_id))
     async with with_user_scope(session, owner_id):
@@ -177,7 +174,7 @@ async def issue_pairing_code(
 async def list_tokens(
     session: AsyncSession, shop_id: uuid.UUID, owner_id: uuid.UUID
 ) -> list[IngestToken]:
-    await _require_contract(session, shop_id, owner_id)
+    del owner_id  # kept so callers stay stable; any shop Ops opened is listed
     async with with_shop_scope(session, shop_id):
         return await ingest_service.list_tokens(session, shop_id)
 
@@ -190,7 +187,7 @@ async def revoke_token(
     *,
     now: datetime,
 ) -> bool:
-    await _require_contract(session, shop_id, owner_id)
+    del owner_id
     async with with_shop_scope(session, shop_id):
         return await ingest_service.revoke_token(
             session, shop_id=shop_id, token_id=token_id, reason="ops", now=now

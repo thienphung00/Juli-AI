@@ -4,6 +4,9 @@ export interface InvitePreview {
   readonly shop_name: string;
   readonly keep_ops_access_asked: boolean;
   readonly expires_at: string;
+  /** The invited person already pressed "Tham gia shop". The link still opens the shop. */
+  readonly already_joined?: boolean;
+  readonly shop_id?: string;
 }
 
 export const INVITE_ERROR_COPY: Record<string, string> = {
@@ -52,8 +55,9 @@ export function acceptInvite(token: string, inviteToken: string, keepOpsAccess: 
 /**
  * An invite opened while signed out survives the sign-in (2026-11-06: the seller signed in and the
  * invite was lost — sign-in always lands on connect-shop). Kept in localStorage because a magic link
- * often opens in a new tab; it lasts the invite's 7 days at most and is removed as soon as it is used.
- * Storage may be unavailable (private mode): then nothing is remembered and the old path stays.
+ * often opens in a new tab. It lasts the invite's 7 days and is removed only after "Tham gia shop"
+ * succeeds, so the one-time sign-in does not spend the invite. Storage may be unavailable (private
+ * mode): then nothing is remembered and the person reopens the e-mail link.
  */
 export const PENDING_INVITE_KEY = "juli.pendingInvite";
 const PENDING_INVITE_TTL_MS = 7 * 86_400_000;
@@ -66,16 +70,38 @@ export function rememberPendingInvite(inviteToken: string): void {
   }
 }
 
-/** The remembered invite token (and forget it), or null when none / expired / unreadable. */
-export function takePendingInvite(): string | null {
+function readPendingInvite(): string | null {
   try {
     const raw = window.localStorage.getItem(PENDING_INVITE_KEY);
-    window.localStorage.removeItem(PENDING_INVITE_KEY);
     if (!raw) return null;
     const saved = JSON.parse(raw) as { token?: unknown; at?: unknown };
     if (typeof saved.token !== "string" || !saved.token || typeof saved.at !== "number") return null;
-    return Date.now() - saved.at > PENDING_INVITE_TTL_MS ? null : saved.token;
+    if (Date.now() - saved.at > PENDING_INVITE_TTL_MS) {
+      window.localStorage.removeItem(PENDING_INVITE_KEY);
+      return null;
+    }
+    return saved.token;
   } catch {
     return null;
   }
+}
+
+/** The remembered invite, left in place until "Tham gia shop" succeeds. */
+export function peekPendingInvite(): string | null {
+  return readPendingInvite();
+}
+
+export function forgetPendingInvite(): void {
+  try {
+    window.localStorage.removeItem(PENDING_INVITE_KEY);
+  } catch {
+    // private mode: nothing was stored
+  }
+}
+
+/** The remembered invite token (and forget it), or null when none / expired / unreadable. */
+export function takePendingInvite(): string | null {
+  const token = readPendingInvite();
+  if (token) forgetPendingInvite();
+  return token;
 }

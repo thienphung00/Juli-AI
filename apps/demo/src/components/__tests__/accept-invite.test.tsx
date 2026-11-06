@@ -36,6 +36,22 @@ describe("Nhận shop (P9-B, D25.7)", () => {
     expect(screen.queryByText(/về tài khoản của bạn/)).toBeNull();
   });
 
+  it("an invite already joined still opens the shop, with no second login", async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: { shop_name: "Mỹ phẩm Thảo Nhi", keep_ops_access_asked: false, expires_at: "x", already_joined: true, shop_id: "s1" },
+          }),
+          { status: 200 },
+        ),
+    );
+    render(<AcceptInvite fetchImpl={fetchImpl as unknown as typeof fetch} inviteToken="tok-123456789012345678901" />);
+    expect(await screen.findByRole("status")).toHaveTextContent("Bạn đã tham gia đội ngũ của shop");
+    expect(screen.queryByRole("button", { name: "Tham gia shop" })).toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it("explains a wrong account", async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ detail: "wrong_account" }), { status: 403 }));
     render(<AcceptInvite fetchImpl={fetchImpl as unknown as typeof fetch} inviteToken="tok-123456789012345678901" />);
