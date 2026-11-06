@@ -207,7 +207,7 @@ describe("ads", () => {
     expect(roasTarget({ code: 0, data: { report_by_time: [{ roi_target_setting: { value: 0 } }] } })).toBeNull();
   });
 
-  it("a list with no campaign id is drift; a summary row beside a campaign is skipped; an implausible budget is a money-scale stop", () => {
+  it("a list with no campaign id is drift; a summary row beside a campaign is skipped; an uncapped budget is dropped and a huge cost stops the scale", () => {
     const noId = { code: 0, data: { entry_list: [{ title: "x", campaign: {}, report: {} }] } };
     expect(mapAdsDaily([response("ads_homepage", noId, { day: DAY })])[0]!.drift?.missing).toEqual([
       "entry.campaign.campaign_id",
@@ -218,8 +218,14 @@ describe("ads", () => {
     const scaled = JSON.parse(JSON.stringify(adsHome));
     scaled.data.entry_list[0].campaign.daily_budget = 20_000_000_000_000_000;
     const [post] = mapAdsDaily([response("ads_homepage", scaled, { day: DAY })]);
-    expect(post!.drift?.unexpected).toEqual(["ads:money_scale"]);
-    expect(post!.rows).toEqual([]);
+    expect(post!.drift).toBeNull();
+    expect(post!.rows[0]).not.toHaveProperty("daily_budget");
+    expect(post!.rows[0]).toMatchObject({ campaign_id: "7001", cost: 50000 });
+    const hugeCost = JSON.parse(JSON.stringify(adsHome));
+    hugeCost.data.entry_list[0].report.cost = 20_000_000_000_000_000;
+    const [stopped] = mapAdsDaily([response("ads_homepage", hugeCost, { day: DAY })]);
+    expect(stopped!.drift?.unexpected).toEqual(["ads:money_scale"]);
+    expect(stopped!.rows).toEqual([]);
   });
 
   it("negative or non-numeric report values are dropped, not posted", () => {
