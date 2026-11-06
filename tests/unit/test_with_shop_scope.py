@@ -67,6 +67,9 @@ class _RecordingSession:
     def get_bind(self):
         return _Bind()
 
+    async def flush(self) -> None:
+        """The scope writes pending ORM changes before its restore; the double has none."""
+
     async def execute(self, statement, *args, **kwargs):
         self.statements.append((str(statement), dict(statement.compile().params)))
         # The seam reads the current GUC pair on entry so it can put it back on

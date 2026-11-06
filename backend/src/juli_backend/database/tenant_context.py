@@ -530,6 +530,11 @@ async def with_shop_scope(
         )
         applied = True
         yield
+        # The body's pending ORM changes are written under THIS shop's scope: the restore below
+        # is a text statement, which does not autoflush, so they would otherwise fire later under
+        # whatever scope or role comes next -- RLS then matches 0 rows (StaleDataError) or the
+        # Ops role has no grant (2026-11-06: "Gỡ thẻ" of a shop-wide card answered 500).
+        await session.flush()
     except BaseException:
         body_failed = True
         raise

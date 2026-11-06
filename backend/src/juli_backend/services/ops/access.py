@@ -137,6 +137,11 @@ async def ops_role(
         yield block
         await session.flush()
         return
+    # Changes the caller made in its own role are written in that role: the role switch is a
+    # text statement, which does not autoflush, so a pending UPDATE would otherwise fire inside
+    # the block as ``juli_ops`` -- a role without grants on the tenant tables (2026-11-06: "Gỡ thẻ"
+    # of a shop-wide card answered 500 "permission denied for table action_cards").
+    await session.flush()
     try:
         row = (await session.execute(_ENTER_SQL.bindparams(role=OPS_ROLE))).one()
     except DBAPIError as exc:
