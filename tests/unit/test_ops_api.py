@@ -534,7 +534,10 @@ async def test_invite_and_accept_moves_the_shop_and_keeps_ops_access(session, fa
         )
         assert accepted.status_code == 200
         again = await client.post("/v1/shop-invites/accept", json={"token": token})
-        assert again.status_code == 409
+        # The person who joined can open the link again. It does not hand the shop over twice.
+        assert again.status_code == 200
+        assert again.json()["data"]["already_joined"] is True
+        assert again.json()["data"]["shop_id"] == str(shop_id)
     from juli_backend.models.models import WorkflowRun
 
     owner_id = (await session.execute(select(Shop.user_id).where(Shop.id == shop_id))).scalar_one()
