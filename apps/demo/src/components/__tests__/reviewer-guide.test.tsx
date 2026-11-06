@@ -207,27 +207,28 @@ describe("CTA and links", () => {
 });
 
 describe("auto-ticks", () => {
-  it("visiting Trang chủ and Phân tích on the masked shop", () => {
+  it("visiting Trang chủ and Phân tích on the masked shop", async () => {
     nav.pathname = "/";
     const view = render(app(MASKED));
-    expect(doneIds()).toEqual(["home"]);
+    await waitFor(() => expect(doneIds()).toEqual(["home"]));
     nav.pathname = "/analytics";
     view.rerender(app(MASKED));
-    expect(doneIds()).toEqual(["home", "analysis"]);
+    await waitFor(() => expect(doneIds()).toEqual(["home", "analysis"]));
   });
 
-  it("does not tick route visits on the sandbox shop", () => {
+  it("does not tick route visits on the sandbox shop", async () => {
     nav.pathname = "/";
     render(app({ ...SANDBOX, shops: [] }));
+    await act(async () => undefined);
     expect(doneIds()).not.toContain("home");
   });
 
-  it("a sandbox-only account has no switch to make: step 4 ticks", () => {
+  it("a sandbox-only account has no switch to make: step 4 ticks", async () => {
     render(app(SANDBOX));
-    expect(doneIds()).toContain("switch");
+    await waitFor(() => expect(doneIds()).toContain("switch"));
   });
 
-  it("the shop switch marks step 4 (the mark a handler makes before reload)", () => {
+  it("the shop switch marks step 4 (the mark a handler makes before reload)", async () => {
     nav.pathname = "/settings";
     function Switcher() {
       const mark = useGuideMark();
@@ -235,7 +236,7 @@ describe("auto-ticks", () => {
       return null;
     }
     render(app(MASKED, <Switcher />));
-    expect(doneIds()).toEqual(["switch"]);
+    await waitFor(() => expect(doneIds()).toEqual(["switch"]));
   });
 
   it("pressing Đồng bộ ngay on the connection card ticks step 5", async () => {
@@ -388,13 +389,14 @@ describe("auto-ticks inside Quyết định", () => {
     nav.pathname = "/decisions";
     render(qd(MASKED, "de-xuat", qdClients()));
     await screen.findByTestId("recommendation-card");
-    expect(doneIds()).toContain("propose");
+    await waitFor(() => expect(doneIds()).toContain("propose"));
   });
 
   it("Đề xuất on the sandbox shop does not", async () => {
     nav.pathname = "/decisions";
     render(qd({ ...SANDBOX, shops: [] }, "de-xuat", qdClients()));
     await screen.findByTestId("recommendation-card");
+    await act(async () => undefined);
     expect(doneIds()).not.toContain("propose");
   });
 
@@ -402,7 +404,9 @@ describe("auto-ticks inside Quyết định", () => {
     nav.pathname = "/decisions";
     render(qd(SANDBOX, "do-luong", qdClients({ fetchRuns: vi.fn().mockResolvedValue([confirmedRun()]) })));
     await screen.findByTestId("measure-panel");
-    expect(doneIds()).toEqual(expect.arrayContaining(["measure", "write"]));
+    // Step 7 ticks with the panel. Step 6 ticks only after the run list resolves,
+    // which can still be in flight when the panel is already on screen.
+    await waitFor(() => expect(doneIds()).toEqual(expect.arrayContaining(["measure", "write"])));
   });
 
   it("no confirmed write, no step 6", async () => {
@@ -421,8 +425,8 @@ describe("auto-ticks inside Quyết định", () => {
     expect(doneIds()).not.toContain("undo");
     await userEvent.click(screen.getByRole("radio", { name: "Không hợp giọng thương hiệu" }));
     await userEvent.click(screen.getByRole("button", { name: "Bắt đầu hoàn tác" }));
-    expect(startRevert).toHaveBeenCalled();
-    expect(doneIds()).toContain("undo");
+    await waitFor(() => expect(startRevert).toHaveBeenCalled());
+    await waitFor(() => expect(doneIds()).toContain("undo"));
   });
 });
 
