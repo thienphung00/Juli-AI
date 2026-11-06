@@ -24,7 +24,7 @@ describe("lời mời qua bước đăng nhập (2026-11-06: an invited seller s
   it("opening the invite signed out remembers it for after sign-in", async () => {
     render(<AcceptInvite inviteToken={FAKE_INVITE} />);
     expect(await screen.findByText(/Đăng nhập bằng email được mời/)).toBeInTheDocument();
-    expect(screen.getByText(/Sau khi tham gia/)).toBeInTheDocument();
+    expect(screen.getByText(/Sau khi bạn đã tham gia/)).toBeInTheDocument();
     expect(takePendingInvite()).toBe(FAKE_INVITE);
   });
 
