@@ -75,7 +75,7 @@ export type ReaderId =
   | "vouchers"
   | "health"
   | AffiliateReaderId;
-/** The affiliate ("Tăng Đơn Cùng KOL") pages, one reader per page (Connector 0.3.6). */
+/** The affiliate ("Tăng Đơn Cùng KOL") pages, one reader per page (Connector 0.3.6, every paired shop in 0.3.7). */
 export type AffiliateReaderId =
   | "affiliate"
   | "affiliate_kols"
@@ -126,14 +126,14 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
 export const SCHEDULER_ACTIVE = true;
 
 /**
- * Juli shop ids the readers and the scheduler run for. "*" = every paired shop: this build is
- * the Unlisted pilot build (STORE_LISTING.md), so every shop that can pair is a pilot shop.
- * Replace "*" with explicit ids before the extension is listed publicly; an empty list turns
+ * Juli shop ids the readers and the scheduler run for. "*" = every paired shop.
+ * Connector 0.3.7: the report readers, including the eight Tăng Đơn Cùng KOL pages,
+ * run for every shop that has paired. Listing fill-in and market search stay on the
+ * explicit id only (`fillActive` / `marketActive` ignore "*"). An empty list turns
  * every reader off.
  */
-// Owner 2026-11-04: ORY only (Juli Ops shop "ORY") until its first live run is confirmed
-// (request bodies, money units). Widen to "*" (every paired shop) only after that.
-export const PILOT_SHOP_IDS: readonly string[] = ["d73a240b-a00a-4306-9b3e-9fdf75d72aaf"];
+export const ORY_SHOP_ID = "d73a240b-a00a-4306-9b3e-9fdf75d72aaf";
+export const PILOT_SHOP_IDS: readonly string[] = [ORY_SHOP_ID, "*"];
 
 export function readerActive(id: ReaderId, shopId: string | undefined): boolean {
   if (!READERS_ACTIVE[id] || !shopId) return false;

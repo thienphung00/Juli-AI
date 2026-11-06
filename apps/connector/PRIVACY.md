@@ -46,7 +46,7 @@ number:
 - **Hiệu suất tài khoản** (`/portal/accounthealth`) — the shop's account-health
   metrics, their targets and whether each is met;
 - **Tăng Đơn Cùng KOL** (affiliate marketing, `/portal/web-seller-affiliate/...`, from
-  version 0.3.6) — the shop's own affiliate results as these pages show them:
+  version 0.3.6; every paired shop from 0.3.7) — the shop's own affiliate results as these pages show them:
   - *Báo cáo chuyển đổi* (conversion report): per affiliate order line of the last 30
     days, the product and variation, price, quantity, order value, refund, the programme's
     cost, status and times, the campaign type and channel, and the creator's public
