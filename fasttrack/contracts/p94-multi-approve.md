@@ -1,5 +1,10 @@
 # P94 — Approve several options of a card, as groups (owner decision 2026-11-05)
 
+Scheduled by `contracts/plan-2026-11-09.md`. Built once, on the shared shell. The shared field
+gate and the Shopee and TikTok gates decide which option types a platform may put in a group.
+Connector fill-in prepares the group's current exclusive field on that shop's Seller Centre,
+for a seller or a developer paired to the shop.
+
 - Every card (all recommendation types, engine and manual) lets the seller / Ops **approve more than one
   version**. Example: voucher 15k/200k and 20k/250k approved together.
 - **Groups.** Options approved together form a **group** ("Nhóm A") with one period (start, N days, minimum 3).
