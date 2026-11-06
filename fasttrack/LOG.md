@@ -3841,8 +3841,9 @@ reconcile --write` re-derived the no-assert corpus figure.
 
 ## 2026-11-06 — plan for Monday 9 Nov: one product
 
-- Owner: the ISV demo (mock data) and TikTok Shop sync to the Shopee screens. No hand-maintained
-  second shell and no second version model. P94 groups, the P95 adapter, and the Ops/Demo bug-log
-  extension are in that plan (`contracts/plan-2026-11-09.md`). Monday locks the shop mode, the
-  mock as today's Shopee response shapes, and the bug-report fields. The TikTok adapter and P94
-  follow; they are not Monday's build.
+- Owner: the ISV demo (mock data) and TikTok Shop sync to the Shopee screens. P94 and P95 are
+  in the plan (`contracts/plan-2026-11-09.md`), and P95 is no longer "not scheduled". Shops are
+  dynamic: TikTok reads come from that shop's partner endpoints, Shopee from imported files plus
+  the Juli Connector. No compiled shop id. A shared field gate plus a Shopee gate and a TikTok
+  gate. The Connector fills Seller Centre for both platforms, used by a developer or a seller
+  paired to the shop. Monday locks the gates, the mock shapes, and the bug-log fields.
