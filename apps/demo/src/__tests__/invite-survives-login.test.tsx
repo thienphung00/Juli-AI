@@ -25,6 +25,8 @@ describe("lời mời qua bước đăng nhập (2026-11-06: an invited seller s
     render(<AcceptInvite inviteToken={FAKE_INVITE} />);
     expect(await screen.findByText(/Đăng nhập bằng email được mời/)).toBeInTheDocument();
     expect(screen.getByText(/Sau khi bạn đã tham gia/)).toBeInTheDocument();
+    // The token is stored after the signed-out session resolves (a timeout), not with the first paint.
+    await waitFor(() => expect(window.localStorage.getItem(PENDING_INVITE_KEY)).toContain(FAKE_INVITE));
     expect(takePendingInvite()).toBe(FAKE_INVITE);
   });
 
