@@ -147,7 +147,7 @@ const signedPct = (n: number) => `${n < 0 ? "−" : "+"}${fmt(Math.abs(n), 0)}%`
 function extraSpend(card: Card): N {
   const c = card.certain;
   if (num(c.extra_cost)) return c.extra_cost;
-  return card.five_numbers.extra_revenue_per_extra_spend.extra_spend;
+  return card.five_numbers?.extra_revenue_per_extra_spend.extra_spend ?? null;
 }
 
 /**
@@ -157,6 +157,7 @@ function extraSpend(card: Card): N {
  */
 export function sureRows(card: Card): NumberRow[] {
   const f = card.five_numbers;
+  if (!f) return []; // listing kinds carry no five numbers
   const compare = f.comparison.available;
   const d = f.discount;
   const discChip = compare ? chipPt(d.pct_before, d.pct_after) : { text: DASH, up: null, r: 0 };
@@ -216,6 +217,7 @@ const atP = (card: Card, q: "p10" | "p50" | "p90"): MoneyAt => card.predicted.mo
 
 /** "Dự kiến": ranges (P10 – P90) per month on top of the certain layer; a range, not a promise. */
 export function expectedRows(card: Card): NumberRow[] {
+  if (!card.five_numbers) return [];
   const sure = sureRows(card);
   const pm = card.predicted.money_per_month;
   const lo = atP(card, "p10");

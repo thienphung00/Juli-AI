@@ -351,7 +351,7 @@ export interface CardVersion {
   readonly change?: Card["change"];
   readonly whatif?: Card["whatif"];
   readonly certain?: Certain;
-  readonly five_numbers?: FiveNumbers;
+  readonly five_numbers?: FiveNumbers | null;
   readonly floor?: Card["floor"];
   readonly spend?: SpendCheck | null;
   readonly predicted?: Card["predicted"];
@@ -406,7 +406,8 @@ export interface Card {
   readonly inputs: Readonly<Record<string, unknown>>;
   readonly whatif: { readonly sliders: readonly SliderRow[]; readonly children_editable?: boolean };
   readonly certain: Certain;
-  readonly five_numbers: FiveNumbers;
+  /** Null for kinds with no five numbers (listing changes: tên, mô tả, ảnh bìa, ẩn, gom phân loại). */
+  readonly five_numbers: FiveNumbers | null;
   readonly floor: { readonly breaches: readonly FloorBreach[]; readonly unknown_skus: readonly string[]; readonly ok: boolean };
   readonly spend: SpendCheck | null;
   readonly predicted: {

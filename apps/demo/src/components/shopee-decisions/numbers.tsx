@@ -33,8 +33,17 @@ function Rows({ rows, testPrefix }: { readonly rows: readonly NumberRow[]; reado
 }
 
 export function NumbersTable({ card }: { readonly card: Card }) {
+  const five = card.five_numbers;
+  if (!five) {
+    // Listing changes (tên, mô tả, ảnh bìa, ẩn, gom phân loại) have no price or spend to put in numbers.
+    return (
+      <p className="sa-hint" data-testid="sd-no-numbers">
+        Thay đổi nội dung listing: không có 5 con số trước khi chạy. Kết quả đo sau khi làm, ở Đo lường.
+      </p>
+    );
+  }
   const days = card.window.days;
-  const orders = card.five_numbers.orders.before;
+  const orders = five.orders.before;
   const sure = sureRows(card);
   const expected = expectedRows(card);
   return (
@@ -58,7 +67,7 @@ export function NumbersTable({ card }: { readonly card: Card }) {
         <span>khoảng có thể xảy ra khi khách đổi hành vi (từ thấp đến cao), không phải cam kết</span>
       </div>
       <Rows rows={expected} testPrefix="sd-exp" />
-      <p className="sd-num__foot">{card.five_numbers.chi_definition}. ③ tính trên doanh thu khách trả; ② = ΔGMV ÷ Δchi.</p>
+      <p className="sd-num__foot">{five.chi_definition}. ③ tính trên doanh thu khách trả; ② = ΔGMV ÷ Δchi.</p>
     </section>
   );
 }
