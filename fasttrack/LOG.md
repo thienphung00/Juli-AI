@@ -3827,6 +3827,14 @@ reconcile --write` re-derived the no-assert corpus figure.
   Local Postgres runs in Asia/Ho_Chi_Minh — `test_p61e` fails locally only; CI is UTC.
 - Open: Shopee ads rebuild (assisted edit), Ops QA extension, shop totals have no Connector reader.
 
+## 2026-11-06 — Connector 0.3.7: KOL and the other report readers for every paired shop
+
+- 0.3.6 already reads the eight Tăng Đơn Cùng KOL pages, but only for the one compiled
+  ORY shop id. 0.3.7 keeps that reader set and turns it on for every shop that has
+  paired (`PILOT_SHOP_IDS` includes `*`). Listing fill-in and market search stay on
+  ORY's explicit id. Chrome shows 0.3.7 only after `pnpm --filter @juli/connector build`
+  and a reload of `apps/connector/dist`.
+
 ## 2026-11-06 — P96e deploy gate (combo profit) unblocked
 
 - P96e (`7e8ea9ba`) is on `fasttrack/optimize-product`: combo profit is per combo, prices under
