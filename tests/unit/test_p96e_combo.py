@@ -8,20 +8,35 @@ named "unknown" (order lines without an item id).
 
 from __future__ import annotations
 
+import pytest
+
 from juli_backend.services.ops.masking import mask_pii
 from juli_backend.services.shopee_builder import copurchase
-from tests.unit.test_shopee_builder import one, shop  # noqa: F401  (fixture)
+from tests.support.shopee_reco import seed_reco_shop
+from tests.unit.test_shopee_builder import one
 
 ITEMS = [{"item_id": "1001"}, {"item_id": "1002"}]
 
 
-async def test_a_combo_price_under_1000d_is_refused_as_a_likely_percent(session, shop):  # noqa: F811
+@pytest.fixture
+async def shop(session):
+    """Synthetic reco shop. Owned here so this file does not import a ``shop`` name.
+
+    Importing the fixture and requesting it by the same name needed F401 and F811
+    suppressions, and those new suppressions failed the deploy ratchet.
+    """
+    seeded = await seed_reco_shop(session)
+    await session.commit()
+    return seeded
+
+
+async def test_a_combo_price_under_1000d_is_refused_as_a_likely_percent(session, shop):
     v = await one(session, shop, kind="combo", items=ITEMS, pricing="fixed_price", value=10)
     assert v["ok"] is False and v["refusal"]["code"] == "combo_price_too_low"
     assert "% giảm" in v["refusal"]["message"]
 
 
-async def test_a_combo_cannot_give_more_than_90_percent_off(session, shop):  # noqa: F811
+async def test_a_combo_cannot_give_more_than_90_percent_off(session, shop):
     # list value 144.000đ today: 5.000đ is a 96 % cut, 140.000đ off is 97 %
     fixed = await one(session, shop, kind="combo", items=ITEMS, pricing="fixed_price", value=5_000)
     amount = await one(session, shop, kind="combo", items=ITEMS, pricing="amount", value=140_000)
@@ -30,7 +45,7 @@ async def test_a_combo_cannot_give_more_than_90_percent_off(session, shop):  # n
         assert "90%" in v["refusal"]["message"]
 
 
-async def test_a_deep_combo_cannot_lose_more_than_its_combos_lose(session, shop):  # noqa: F811
+async def test_a_deep_combo_cannot_lose_more_than_its_combos_lose(session, shop):
     v = await one(session, shop, kind="combo", items=ITEMS, pricing="pct", value=85)
     assert v["ok"]
     d = v["details"]
@@ -42,13 +57,13 @@ async def test_a_deep_combo_cannot_lose_more_than_its_combos_lose(session, shop)
     assert v["delta"]["profit"]["low"] >= floor - 1
 
 
-async def test_bands_per_order_run_low_to_high(session, shop):  # noqa: F811
+async def test_bands_per_order_run_low_to_high(session, shop):
     v = await one(session, shop, kind="combo", items=ITEMS, pricing="pct", value=85)
     band = v["delta"]["per_order"]["profit"]
     assert band["low"] <= band["p50"] <= band["high"]
 
 
-async def test_the_combo_price_survives_the_ops_buyer_mask(session, shop):  # noqa: F811
+async def test_the_combo_price_survives_the_ops_buyer_mask(session, shop):
     v = await one(session, shop, kind="combo", items=ITEMS, pricing="fixed_price", value=120_000)
     masked = mask_pii(v)
     assert masked["details"]["combo_price"] == 120_000
