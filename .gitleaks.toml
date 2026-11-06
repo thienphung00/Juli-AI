@@ -11,6 +11,10 @@ description = "Public samples: TikTok webhook contract collection (sanitized Par
 paths = [
   '''docs/integrations/tiktok_api/webhook-contract-collection\.md''',
   '''infra/apiwatch/snapshots/[a-z]+\.json''',
+  # P96 (Connector 0.3.6, owner-approved 2026-11-06): commit 3487b229 carried a made-up 64-hex HMAC test
+  # key in this test (not a secret; now a low-entropy "ab".repeat(32)). The commit is pushed, so the
+  # file stays allowed rather than rewriting history.
+  '''apps/connector/test/connector-affiliate\.test\.ts''',
 ]
 # A test calling its own helper with a local variable named `key` (campaign_key=key, ...) trips
 # generic-api-key; the value is a variable name, not a secret (P92 tests/unit/test_shopee_builder.py).

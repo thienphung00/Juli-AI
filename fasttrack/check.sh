@@ -26,6 +26,10 @@
 #                        points at a database already at head; otherwise it is
 #                        reported SKIPPED.
 #   --skip-gitleaks      skip step 3 (local use only; the deploy never passes it).
+#   --shard N/M          run as shard N of M (the deploy runs 4 in parallel): every shard
+#                        migrates its own database; steps 2-4 run in shard 1 only; step 5
+#                        runs this shard's part of the selected files (fasttrack/ci_shard.py:
+#                        each file in exactly one shard). Default 1/1 = the whole check.
 #
 # Database for steps 1, 2 and 5:
 #   CHECK_DATABASE_URL   a THROWAWAY Postgres (CI passes its service container).
@@ -44,6 +48,8 @@ cd "${REPO_ROOT}"
 SINCE="origin/main"
 SKIP_MIGRATIONS=0
 SKIP_GITLEAKS=0
+SHARD_N=1
+SHARD_M=1
 
 usage() { sed -n '2,40p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
@@ -53,10 +59,16 @@ while [ $# -gt 0 ]; do
         --since=*) SINCE="${1#--since=}"; shift ;;
         --skip-migrations) SKIP_MIGRATIONS=1; shift ;;
         --skip-gitleaks) SKIP_GITLEAKS=1; shift ;;
+        --shard) [ $# -ge 2 ] || { echo "--shard needs N/M" >&2; exit 2; }; SHARD_N="${2%/*}"; SHARD_M="${2#*/}"; shift 2 ;;
+        --shard=*) v="${1#--shard=}"; SHARD_N="${v%/*}"; SHARD_M="${v#*/}"; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown argument: $1 (see --help)" >&2; exit 2 ;;
     esac
 done
+if ! [[ "${SHARD_N}" =~ ^[1-9][0-9]*$ && "${SHARD_M}" =~ ^[1-9][0-9]*$ ]] || [ "${SHARD_N}" -gt "${SHARD_M}" ]; then
+    echo "--shard must be N/M with 1 <= N <= M (got ${SHARD_N}/${SHARD_M})" >&2
+    exit 2
+fi
 
 # --------------------------------------------------------------------------------------
 # Environment
@@ -263,7 +275,9 @@ run_pytest() {  # run_pytest <strict|lenient> <label> <pytest args...>
 
 section "2/5 shop isolation"
 ISOLATION_TEST="tests/integration/test_two_tenant_isolation_proof.py"
-if [ "${MIGRATED}" -ne 1 ]; then
+if [ "${SHARD_N}" -ne 1 ]; then
+    record isolation SKIPPED "runs in shard 1 of ${SHARD_M}"
+elif [ "${MIGRATED}" -ne 1 ]; then
     if [ "${SKIP_MIGRATIONS}" -eq 1 ]; then
         record isolation SKIPPED "no migrated database (--skip-migrations without CHECK_DATABASE_URL)"
     else
@@ -284,7 +298,9 @@ fi
 # --------------------------------------------------------------------------------------
 
 section "3/5 gitleaks"
-if [ "${SKIP_GITLEAKS}" -eq 1 ]; then
+if [ "${SHARD_N}" -ne 1 ]; then
+    record gitleaks SKIPPED "runs in shard 1 of ${SHARD_M}"
+elif [ "${SKIP_GITLEAKS}" -eq 1 ]; then
     record gitleaks SKIPPED "--skip-gitleaks"
 elif ! command -v "${GITLEAKS}" >/dev/null 2>&1; then
     echo "gitleaks is not installed. Install it (v8.19+ for the 'git' subcommand):" >&2
@@ -330,7 +346,9 @@ ruff_group() {  # ruff_group <files> [--config <cfg>]
     # shellcheck disable=SC2086
     ${RUFF} format --check "$@" "${list[@]}" || ruff_ok=0
 }
-if [ -z "${CHANGED_PY}" ]; then
+if [ "${SHARD_N}" -ne 1 ]; then
+    record ruff SKIPPED "runs in shard 1 of ${SHARD_M}"
+elif [ -z "${CHANGED_PY}" ]; then
     record ruff PASS "no changed Python files"
 else
     echo "ruff: $(${RUFF} --version 2>&1)"
@@ -365,6 +383,11 @@ SELECTED="$(
             done
     } | grep . | sort -u || true
 )"
+if [ "${SHARD_M}" -gt 1 ] && [ -n "${SELECTED}" ]; then
+    ALL_SELECTED="$(printf '%s\n' "${SELECTED}" | grep -c .)"
+    SELECTED="$(printf '%s\n' "${SELECTED}" | "${PYTHON}" fasttrack/ci_shard.py "${SHARD_N}" "${SHARD_M}")"
+    echo "pytest shard ${SHARD_N}/${SHARD_M}: $(printf '%s\n' "${SELECTED}" | grep -c . || true) of ${ALL_SELECTED} selected file(s)"
+fi
 if [ -z "${SELECTED}" ]; then
     record pytest PASS "no touched or matching test files"
 else

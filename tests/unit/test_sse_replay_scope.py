@@ -66,6 +66,9 @@ class _ScopeRecordingSession:
         self.guc_at_query = self.shop_guc
         return _Scalars()
 
+    async def flush(self) -> None:
+        """``with_shop_scope`` flushes pending writes before it restores the scope."""
+
     async def __aenter__(self):
         return self
 

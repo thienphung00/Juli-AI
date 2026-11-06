@@ -8,7 +8,8 @@ import { gmt7DateStart } from "../src/shopee/time";
 
 // 2026-11-06 09:00 GMT+7
 const NOW = Date.UTC(2026, 10, 6, 2, 0, 0);
-const KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+// A synthetic test key (not a secret): low entropy on purpose so secret scanners leave it alone.
+const KEY = "ab".repeat(32);
 const TOKEN: TokenInfo = {
   token: "jci_x",
   token_id: "t1",
