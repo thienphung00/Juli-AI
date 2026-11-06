@@ -538,7 +538,7 @@ Source: the ORY Ops bug sweep of 2026-11-05 (bug IDs A1–N1 in LOG 2026-11-05 "
 | Price: "Thay đổi" ± label, typed price used exactly (115.000 ≠ 114.900), flash-sale slots and hours count | D84.8 | in progress | frontend + backend agents |
 | Phân tích replaces Xếp hạng (owner 2026-11-06): per-KPI product table inside Phân tích, KPI chips rank by their own number, Xếp hạng URLs redirect (seller, Ops view-as, Ops tab); critical list shows previous-window drops; no flag below 5 % under the median; heading counts the filter; no TikTok analysis call for Shopee shops | — | done (P96b) | integration agent |
 | KOL tab empty for ORY: Connector 0.3.6 reads the 8 affiliate Seller Centre pages and marks order lines (hashed order ids via the paired connector's order-ref key). Display name, avatar and platform user id are dropped in the page | — | done (0.3.6, deployed on fasttrack-deploy-20261106T0300Z) | connector agent |
-| Next (owner order): Ops QA extension (separate from Connector) logging to the backend; Seller Centre ad types (GMV tối đa tự động / ROAS tùy chỉnh, Tìm kiếm, Khám phá, Cửa hàng, nhóm) — needs field limits read from ORY's Seller Centre create forms first | — | todo | — |
+| Ops QA extension, TikTok parity (P95), ISV mock on the Shopee shell, P94 groups | plan-2026-11-09 | scheduled, starts Monday 9 Nov 2026; Monday locks seams and the bug-log fields, it does not ship the adapter | — |
 
 ## P2–P6
 

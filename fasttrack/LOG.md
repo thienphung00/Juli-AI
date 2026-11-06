@@ -3838,3 +3838,11 @@ reconcile --write` re-derived the no-assert corpus figure.
   and imports only `one`. No new suppression. The KOL reader (Connector 0.3.6, affiliate pages,
   order lines marked by the paired connector's order-ref key) shipped on the earlier tag
   `fasttrack-deploy-20261106T0300Z`, which went green.
+
+## 2026-11-06 — plan for Monday 9 Nov: one product
+
+- Owner: the ISV demo (mock data) and TikTok Shop sync to the Shopee screens. No hand-maintained
+  second shell and no second version model. P94 groups, the P95 adapter, and the Ops/Demo bug-log
+  extension are in that plan (`contracts/plan-2026-11-09.md`). Monday locks the shop mode, the
+  mock as today's Shopee response shapes, and the bug-report fields. The TikTok adapter and P94
+  follow; they are not Monday's build.
