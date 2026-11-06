@@ -235,12 +235,18 @@ export interface BuilderOutcome {
     readonly expected_units?: N;
     readonly sample?: { readonly qty: number; readonly unit_cost: N; readonly ship_fee: N; readonly total: N } | null;
   } | null;
+  /** P96d: the orders this version's "hôm nay" figures stand on (shop, or its products). */
+  readonly base?: { readonly scope: "shop" | "product" | string; readonly items: readonly string[]; readonly aov: N; readonly margin_pct: N } | null;
   readonly break_even?: {
     readonly applies: boolean;
+    /** P96: "aov" for a basket-size lever (voucher) — it pays back through the AOV of the orders that use it. */
+    readonly basis?: "aov" | string;
+    readonly aov_now?: N;
+    readonly aov_needed?: N;
     readonly extra_orders: N;
     readonly period_days?: N;
-    readonly ctor_now: N;
-    readonly ctor_needed: N;
+    readonly ctor_now?: N;
+    readonly ctor_needed?: N;
     readonly reason?: string | null;
     readonly ctor_reason?: string | null;
     /** Vietnamese texts of the two reasons, when the server sends them (P96). */

@@ -223,6 +223,9 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
             "label": "Dự kiến",
             "model_version": config.MODEL_VERSION,
             "lift": lift.json(),
+            # P96d: the change's own size (``ProfitModel.lift_scale``) that the money already
+            # carries; the driver metrics read it so each version's "after" follows its size
+            "lift_scale": float(ev.profit.lift_scale),
             "money_per_month": money,
             "base": ev.profit.base_label,
             "sim": lift.sim,

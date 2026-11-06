@@ -387,7 +387,9 @@ def _driver(
     five = card.get("five_numbers") or {}
     lift = card["predicted"]["lift"]
     metric = lift["metric"]
-    p50 = lift["lift"]["p50"] if metric != "none" else 0.0
+    # P96d: the same size scaling the money carries, so a bigger voucher shows a bigger AOV after
+    scale = float(card["predicted"].get("lift_scale") or 1.0)
+    p50 = lift["lift"]["p50"] * scale if metric != "none" else 0.0
     traffic = scope_traffic(ctx.env, [] if kind == "min_spend_voucher" and not items else items)
     window = ctx.env.window_days
     rows: list[dict[str, Any]] = []
@@ -458,6 +460,29 @@ def _driver(
         "metrics": rows,
         "target_metric": metric,
         "relative_lift": lift["lift"] if metric != "none" else None,
+    }
+
+
+def _base(
+    card: Mapping[str, Any],
+    tr: Translation,
+    items: Sequence[str],
+    driver: Mapping[str, Any],
+    margin_before: float | None,
+) -> dict[str, Any]:
+    """P96d: the orders a version's "hôm nay" figures stand on. A shop-wide voucher reads the whole
+    shop; anything else reads its products. Same scope -> same figures, so two columns that differ
+    here say so instead of looking like the same baseline."""
+    shop_wide = card["change_kind"] == "min_spend_voucher" and not tr.items
+    scope_items = [] if shop_wide or not items else [i for i in items if i]
+    aov = next((m["before"] for m in driver["metrics"] if m["key"] == "aov"), None)
+    if aov is None:
+        aov = ((card.get("five_numbers") or {}).get("aov") or {}).get("before")
+    return {
+        "scope": "product" if scope_items else "shop",
+        "items": scope_items,
+        "aov": aov,
+        "margin_pct": margin_before,
     }
 
 
@@ -557,6 +582,7 @@ def shape(
         delta_profit = {"low": None, "p50": None, "high": None}
         margin_before = margin_after = None
     certain_profit = None if not cost_known else (pm.get("period") or pm)["certain"]["dprofit"]
+    driver = _driver(numbers, ctx, items, p50_orders)
     return {
         "index": index,
         "kind": kind,
@@ -566,7 +592,8 @@ def shape(
         "ok": True,
         "refusal": None,
         "title": card["title"],
-        "driver": _driver(numbers, ctx, items, p50_orders),
+        "driver": driver,
+        "base": _base(numbers, tr, items, driver, margin_before),
         "delta": {
             "gmv": delta_gmv,
             "orders": orders_band,

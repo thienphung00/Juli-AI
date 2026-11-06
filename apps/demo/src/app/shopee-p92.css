@@ -498,6 +498,14 @@ button.p2-prow:hover {
   color: #a3222f;
 }
 
+/* P96d: an input that differs from P1's */
+.p2-cmp__diff {
+  color: #b5246b;
+  background: #fde9f1;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
 .p2-cmp__drivers {
   margin: 0;
   padding: 0;

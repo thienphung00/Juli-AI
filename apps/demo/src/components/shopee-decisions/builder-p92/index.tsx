@@ -148,8 +148,13 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
   };
   const addEntry = () => {
     if (!built.version || !kind) return;
-    if (editing !== null) setEntries((all) => all.map((e, i) => (i === editing ? { ...e, kind, forms, version: built.version! } : e)));
-    else setEntries((all) => [...all, { id: nextId.current++, kind, forms, version: built.version! }]);
+    // P96d: the names the compare table shows for this version's ids, as they are now
+    const names = {
+      products: Object.fromEntries(products.map((p) => [p.item_id, p.name])),
+      variations: Object.fromEntries((list?.variations ?? []).map((v) => [v.variation_id, v.name])),
+    };
+    if (editing !== null) setEntries((all) => all.map((e, i) => (i === editing ? { ...e, kind, forms, version: built.version!, names } : e)));
+    else setEntries((all) => [...all, { id: nextId.current++, kind, forms, version: built.version!, names }]);
     setEditing(null);
     setStep("kinds");
   };

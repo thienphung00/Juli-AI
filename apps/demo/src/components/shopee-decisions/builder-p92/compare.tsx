@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
 import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderApi, BuilderEvaluation, BuilderOutcome, BuilderVersion, ChooseResult } from "../../../lib/shopee-decisions/builder-api";
-import { SERVER_KIND_NAMES, bandText, breachesOfOutcome, breakEvenText, metricValue, refusalText, unitLines, voucherMaxText, voucherUsageText, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
+import { bandText, baseText, bestBadge, breachesOfOutcome, breakEvenText, metricValue, refusalText, unitLines, versionFacts, voucherMaxText, voucherUsageText, type Forms, type Kind92, type VersionFact, type VersionNames } from "../../../lib/shopee-decisions/builder-p92";
 import type { Breach } from "../../../lib/shopee-decisions/types";
 import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions";
 import { TextChip } from "../../shopee-analytics/ui";
@@ -26,6 +26,8 @@ export interface Entry {
   readonly kind: Kind92;
   readonly forms: Forms;
   readonly version: BuilderVersion;
+  /** P96d: names of the products / variations the version names, taken when it was added. */
+  readonly names?: VersionNames;
 }
 
 type Load = { readonly key: string; readonly state: { readonly status: "ready"; readonly result: BuilderEvaluation } | { readonly status: "error"; readonly message: string } };
@@ -36,9 +38,24 @@ interface Saved {
   readonly ack: string | null;
 }
 
-function kindOf(e: Entry): string {
-  return SERVER_KIND_NAMES[String(e.version.kind)] ?? String(e.version.kind);
+/** Every entry's names in one map; an ads campaign takes its name from the server's card title. */
+function namesOf(entries: readonly Entry[], outcomes: readonly BuilderOutcome[]): VersionNames {
+  const products: Record<string, string> = {};
+  const variations: Record<string, string> = {};
+  const campaigns: Record<string, string> = {};
+  entries.forEach((e, i) => {
+    Object.assign(products, e.names?.products ?? {});
+    Object.assign(variations, e.names?.variations ?? {});
+    Object.assign(campaigns, e.names?.campaigns ?? {});
+    const key = e.version["campaign_key"];
+    const title = outcomes[i]?.title ?? "";
+    if (typeof key === "string" && key && !campaigns[key] && title.includes(" — ")) campaigns[key] = title.split(" — ").slice(1).join(" — ");
+  });
+  return { products, variations, campaigns };
 }
+
+/** A fact differs from P1's when P1 has no such input or another value. */
+const differs = (f: VersionFact, first: readonly VersionFact[]): boolean => first.find((x) => x.key === f.key)?.value !== f.value;
 
 interface RowDef {
   readonly key: string;
@@ -58,8 +75,14 @@ const money = (o: BuilderOutcome, pick: "gmv" | "orders" | "profit"): ReactNode 
   );
 };
 
-function rowsFor(): RowDef[] {
+function rowsFor(names: VersionNames): RowDef[] {
   return [
+    {
+      key: "base",
+      label: "Phạm vi",
+      sub: "các đơn mà số “hôm nay” dựa trên",
+      cell: (o) => <span>{baseText(o, names) ?? DASH}</span>,
+    },
     {
       key: "cost",
       label: "Chi phí của thay đổi",
@@ -204,7 +227,19 @@ export function CompareView({
   const current = load?.key === key ? load.state : null;
   const result = current?.status === "ready" ? current.result : null;
   const outcomes = result?.versions ?? [];
-  const rows = rowsFor();
+  const names = namesOf(entries, outcomes);
+  const rows = rowsFor(names);
+  const facts = entries.map((e) => versionFacts(e.version, names));
+  const factsCell = (i: number) => (
+    <ul className="p2-units">
+      {(facts[i]?.facts ?? []).map((f) => (
+        <li key={f.key}>
+          <span>{f.label}: </span>
+          <b className={i > 0 && differs(f, facts[0]?.facts ?? []) ? "p2-cmp__diff" : undefined}>{f.value}</b>
+        </li>
+      ))}
+    </ul>
+  );
 
   const choose = async (index: number, ack: boolean, breaches: readonly Breach[]) => {
     setBusy(true);
@@ -231,11 +266,11 @@ export function CompareView({
   const best = result?.best_profit_p50 ?? null;
   const style = { ["--p2-cols" as string]: entries.length } as React.CSSProperties;
   const head = (e: Entry, i: number) => (
-    <div className="p2-cmp__head" key={e.id}>
+    <div className="p2-cmp__head" data-testid={`p2-head-${i + 1}`} key={e.id}>
       <b>P{i + 1}</b>
-      <TextChip tone="pink">{kindOf(e)}</TextChip>
+      <TextChip tone="pink">{facts[i]?.type ?? String(e.version.kind)}</TextChip>
       <span>{String(e.version.label ?? "")}</span>
-      {best === i ? <TextChip tone="up">lợi nhuận tốt nhất</TextChip> : null}
+      {best === i && outcomes[i] ? <TextChip tone="up">{bestBadge(outcomes[i]!)}</TextChip> : null}
       <span className="p2-cmp__tools">
         <button className="sa-link p2-linkbtn" onClick={() => onEdit(i)} type="button">
           Sửa
@@ -278,6 +313,17 @@ export function CompareView({
         <div className="p2-cmp" data-testid="p2-cmp-table" style={style}>
           <div className="p2-cmp__corner" />
           {entries.map(head)}
+          <div className="p2-cmp__line" data-testid="p2-row-facts">
+            <div className="p2-cmp__label">
+              <b>Thông số</b>
+              <span>đậm màu: khác P1</span>
+            </div>
+            {entries.map((e, i) => (
+              <div className="p2-cmp__cell" data-testid={`p2-facts-${i + 1}`} key={e.id}>
+                {factsCell(i)}
+              </div>
+            ))}
+          </div>
           {rows.map((r) => (
             <div className="p2-cmp__line" data-testid={`p2-row-${r.key}`} key={r.key}>
               <div className="p2-cmp__label">
@@ -308,6 +354,10 @@ export function CompareView({
           {entries.map((e, i) => (
             <div className="sb-swipe__card" key={e.id}>
               {head(e, i)}
+              <div className="p2-swipe__row">
+                <span className="p2-swipe__label">Thông số</span>
+                <div className="p2-cmp__cell" data-testid={`p2-facts-${i + 1}`}>{factsCell(i)}</div>
+              </div>
               {rows.map((r) => (
                 <div className="p2-swipe__row" key={r.key}>
                   <span className="p2-swipe__label">{r.label}</span>

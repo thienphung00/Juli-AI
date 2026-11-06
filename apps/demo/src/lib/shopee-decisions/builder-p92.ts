@@ -495,9 +495,14 @@ export function breakEvenText(o: BuilderOutcome): string {
   const b = o.break_even;
   if (!b) return DASH;
   if (!b.applies) return reasonOf(b.reason_text, b.reason, "Không có chi phí trực tiếp; đo sau khi chạy.");
+  // P96d: a voucher pays back through a bigger basket on the orders that use it, not extra orders
+  if (b.basis === "aov") {
+    if (b.aov_needed == null) return reasonOf(b.reason_text, b.reason, "Chưa đủ dữ liệu để tính mức hoà vốn.");
+    return `cần AOV đơn dùng voucher ≥ ${vnd(b.aov_needed)} (hôm nay ${vnd(b.aov_now ?? null)}), để lợi nhuận không giảm.`;
+  }
   if (b.extra_orders === null) return reasonOf(b.reason_text, b.reason, "Chưa đủ dữ liệu để tính mức hoà vốn.");
   const ctorWhy = b.ctor_reason || b.ctor_reason_text ? reasonOf(b.ctor_reason_text, b.ctor_reason, "chưa tính được CTOR cần có") : "";
-  const ctor = b.ctor_needed !== null ? `, tức CTOR ≥ ${pp(b.ctor_needed, 2)} (hôm nay ${pp(b.ctor_now, 2)})` : (ctorWhy ? `; ${ctorWhy}` : "");
+  const ctor = b.ctor_needed != null ? `, tức CTOR ≥ ${pp(b.ctor_needed, 2)} (hôm nay ${pp(b.ctor_now ?? null, 2)})` : (ctorWhy ? `; ${ctorWhy}` : "");
   return `cần thêm ≥ ${fmt(Math.ceil(b.extra_orders))} đơn${ctor}, để lợi nhuận không giảm.`;
 }
 
@@ -558,4 +563,196 @@ export function unitLines(o: BuilderOutcome): readonly string[] {
   const pp_ = d.period?.profit;
   if (pp_ && pp_.p50 !== null) out.push(`Trong ${fmt(d.period?.days ?? d.days ?? 0, 0)} ngày: ${sv(pp_.p50)} (${sv(pp_.low)} – ${sv(pp_.high)})`);
   return out;
+}
+
+// ── telling versions apart (P96d) ────────────────────────────────────────
+
+/** Names the compare table shows for the ids a version carries. */
+export interface VersionNames {
+  readonly products?: Readonly<Record<string, string>>;
+  readonly variations?: Readonly<Record<string, string>>;
+  readonly campaigns?: Readonly<Record<string, string>>;
+}
+
+/** One input of a version, under the label its panel uses; `key` lines up the same input across versions. */
+export interface VersionFact {
+  readonly key: string;
+  readonly label: string;
+  readonly value: string;
+}
+
+const VOUCHER_TYPES: Readonly<Record<string, string>> = {
+  shop: "Voucher shop",
+  product: "Voucher sản phẩm",
+  follower: "Voucher người theo dõi / khách mới",
+  livestream: "Voucher livestream / video",
+};
+
+const ADS_LEVERS: Readonly<Record<string, string>> = {
+  budget: "Ngân sách mỗi ngày",
+  roas: "ROAS mục tiêu",
+  add_product: "Thêm sản phẩm",
+  remove_product: "Bỏ sản phẩm",
+  keywords: "Từ khoá và giá thầu",
+};
+
+const COMBO_PRICING: Readonly<Record<string, string>> = { fixed_price: "Giá combo", pct: "% giảm trên tổng", amount: "đ giảm trên tổng" };
+
+const n_ = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
+const s_ = (x: unknown): string => (typeof x === "string" ? x : "");
+const pctText = (x: number): string => `${fmt(x, Number.isInteger(x) ? 0 : 1)}%`;
+const signedPct = (x: number): string => `${x > 0 ? "+" : ""}${pctText(x)}`;
+const dayText = (iso: string): string => (/^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : iso);
+
+/** The type a compare column names (voucher kind, ads lever, gift source…) and the inputs that make it. */
+export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { readonly type: string; readonly facts: readonly VersionFact[] } {
+  const product = (id: unknown): string => names.products?.[s_(id)] ?? s_(id);
+  const variation = (id: unknown): string => names.variations?.[s_(id)] ?? (s_(id) || "phân loại chính");
+  const facts: VersionFact[] = [];
+  const add = (key: string, label: string, value: string | null) => {
+    if (value !== null && value !== "") facts.push({ key, label, value });
+  };
+  const dates = () => {
+    const start = s_(v["start"]);
+    const end = s_(v["end"]);
+    if (start || end) add("dates", "Thời gian", `${start ? dayText(start) : "…"}–${end ? dayText(end) : "…"}`);
+  };
+  const kind = String(v.kind);
+  switch (kind) {
+    case "voucher": {
+      const value = n_(v["value"]);
+      add("value", "Giảm", value === null ? null : v["discount_type"] === "pct" ? pctText(value) : vnd(value));
+      add("min", "Đơn tối thiểu", vnd(n_(v["min_spend"]) ?? 0));
+      const max = n_(v["max_value"]);
+      if (max !== null) add("max", "Giảm tối đa", vnd(max));
+      const usage = n_(v["usage_limit"]);
+      if (usage !== null) add("usage", "Lượt dùng tối đa", fmt(usage));
+      const perBuyer = n_(v["per_buyer_limit"]);
+      if (perBuyer !== null) add("per_buyer", "Giới hạn mỗi người", fmt(perBuyer));
+      dates();
+      const items = Array.isArray(v["item_ids"]) ? (v["item_ids"] as unknown[]) : [];
+      if (items.length > 0) add("product", "Sản phẩm", items.map(product).join(", "));
+      return { type: VOUCHER_TYPES[s_(v["scope"])] ?? "Voucher", facts };
+    }
+    case "combo": {
+      const items = Array.isArray(v["items"]) ? (v["items"] as Record<string, unknown>[]) : [];
+      add("items", "Sản phẩm", items.map((i) => `${product(i["item_id"])} × ${fmt(n_(i["qty"]) ?? 1)}`).join(" + "));
+      const value = n_(v["value"]);
+      const pricing = s_(v["pricing"]);
+      add("value", COMBO_PRICING[pricing] ?? "Mức giảm", value === null ? null : pricing === "pct" ? pctText(value) : vnd(value));
+      return { type: v["target"] === "new_listing" ? "Combo · Listing combo mới" : "Combo", facts };
+    }
+    case "add_on": {
+      add("main", "Sản phẩm chính", product(v["main_item_id"]));
+      for (const a of Array.isArray(v["addons"]) ? (v["addons"] as Record<string, unknown>[]) : []) {
+        const price = n_(a["price"]);
+        const pct = n_(a["pct"]);
+        add(`a:${s_(a["item_id"])}`, `Mua kèm · ${product(a["item_id"])}`, `${price !== null ? vnd(price) : pct !== null ? `−${pctText(pct)}` : DASH} · tối đa ${fmt(n_(a["limit_per_order"]) ?? 1)}/đơn`);
+      }
+      return { type: "Mua kèm", facts };
+    }
+    case "gift": {
+      const g = (v["gift"] ?? {}) as Record<string, unknown>;
+      const t = (v["trigger"] ?? {}) as Record<string, unknown>;
+      const listing = g["item_id"] !== undefined;
+      add("gift", "Quà", `${listing ? product(g["item_id"]) : s_(g["label"]) || "Quà"} × ${fmt(n_(g["qty"]) ?? 1)}`);
+      if (!listing) add("unit_cost", "Chi phí mỗi quà", vnd(n_(g["unit_cost"])));
+      const pack = n_(g["packaging"]);
+      if (pack !== null) add("packaging", "Đóng gói mỗi quà", vnd(pack));
+      if (t["type"] === "min_spend") add("trigger", "Đơn tối thiểu", vnd(n_(t["amount"]) ?? 0));
+      else add("trigger", "Mua sản phẩm", product(t["item_id"]));
+      return { type: listing ? "Quà tặng · Sản phẩm trong danh sách" : "Quà tặng · Quà không bán", facts };
+    }
+    case "product_discount":
+    case "price":
+    case "flash_sale": {
+      for (const r of Array.isArray(v["variations"]) ? (v["variations"] as Record<string, unknown>[]) : []) {
+        const key = `v:${s_(r["variation_id"])}`;
+        const name = variation(r["variation_id"]);
+        const final = n_(r["final_price"]);
+        const change = n_(r["change_pct"]);
+        const off = n_(r["discount_pct"]);
+        if (change !== null) add(key, `Thay đổi · ${name}`, signedPct(change));
+        else if (final !== null) add(key, `${kind === "flash_sale" ? "Giá flash sale" : kind === "price" ? "Giá mới" : "Giá cuối"} · ${name}`, vnd(final));
+        else if (off !== null) add(key, `Giảm · ${name}`, pctText(off));
+      }
+      if (kind === "flash_sale") {
+        add("units", "Số lượng (suất)", fmt(n_(v["units"])));
+        add("hours", "Số giờ của khung", fmt(n_(v["slot_hours"])));
+        if (s_(v["slot_start"])) add("slot", "Khung giờ bắt đầu", s_(v["slot_start"]).replace("T", " "));
+      }
+      if (kind === "product_discount") {
+        const perBuyer = n_(v["per_buyer_limit"]);
+        if (perBuyer !== null) add("per_buyer", "Giới hạn mỗi người", fmt(perBuyer));
+        dates();
+      }
+      return { type: SERVER_KIND_NAMES[kind] ?? kind, facts };
+    }
+    case "variation_set": {
+      for (const r of Array.isArray(v["new_variations"]) ? (v["new_variations"] as Record<string, unknown>[]) : []) {
+        const pack = n_(r["pack_count"]);
+        add(`n:${s_(r["name"])}`, s_(r["name"]), `${vnd(n_(r["price"]))}${pack !== null ? ` · ${fmt(pack)} cái` : ""}`);
+      }
+      return { type: "Phân loại / set", facts };
+    }
+    case "ads": {
+      const lever = s_(v["lever"]);
+      const key = s_(v["campaign_key"]);
+      if (key) add("campaign", "Chiến dịch", names.campaigns?.[key] ?? (key === "daily" ? "Tổng chi quảng cáo (theo ngày)" : key));
+      const budget = n_(v["daily_budget"]);
+      if (budget !== null) add("budget", "Ngân sách mới mỗi ngày", vnd(budget));
+      const roas = n_(v["roas_target"]);
+      if (roas !== null) add("roas", "ROAS mục tiêu mới", fmt(roas, 1));
+      if (v["item_id"] !== undefined) add("item", "Sản phẩm", product(v["item_id"]));
+      for (const k of Array.isArray(v["keywords"]) ? (v["keywords"] as Record<string, unknown>[]) : []) add(`k:${s_(k["keyword"])}`, s_(k["keyword"]), vnd(n_(k["bid"])));
+      return { type: `Quảng cáo · ${ADS_LEVERS[lever] ?? lever}`, facts };
+    }
+    case "title":
+      add("text", "Tiêu đề", s_(v["title"]));
+      return { type: "Tiêu đề", facts };
+    case "description_first_line":
+      add("text", "Dòng đầu mô tả", s_(v["first_line"]));
+      return { type: "Mô tả", facts };
+    case "cover_image": {
+      const o = (v["overlay"] ?? {}) as Record<string, unknown>;
+      add("text", "Lớp chữ", [o["hook_text"], o["badge_text"], o["pack_text"]].map(s_).filter(Boolean).join(" · "));
+      return { type: "Ảnh bìa", facts };
+    }
+    case "affiliate": {
+      const pct = n_(v["commission_pct"]);
+      add("commission", "Hoa hồng mới", pct === null ? null : pctText(pct));
+      add("samples", "Số mẫu gửi", fmt(n_(v["sample_qty"]) ?? 0));
+      const fee = n_(v["sample_ship_fee"]);
+      if (fee !== null) add("ship", "Phí ship mỗi mẫu", vnd(fee));
+      if (v["target_campaign"] === true) add("target", "Chiến dịch mục tiêu", "có");
+      return { type: "Affiliate / KOL", facts };
+    }
+    case "price_display":
+      add("text", "Dòng hiển thị", s_(v["text"]) || "giá mỗi đơn vị");
+      return { type: "Hiển thị giá", facts };
+    case "listing_relist": {
+      const stock = n_(v["stock"]);
+      if (stock !== null) add("stock", "Tồn", fmt(stock));
+      return { type: "Đưa lại listing", facts };
+    }
+    default:
+      return { type: SERVER_KIND_NAMES[kind] ?? kind, facts };
+  }
+}
+
+/** "Cả shop · AOV 160.152đ · biên 41,7%": the orders a column's "hôm nay" figures stand on. */
+export function baseText(o: BuilderOutcome, names: VersionNames = {}): string | null {
+  const b = o.base;
+  if (!b) return null;
+  const scope = b.scope === "shop" || b.items.length === 0 ? "Cả shop" : b.items.map((i) => names.products?.[i] ?? i).join(", ");
+  const parts = [scope];
+  if (b.aov !== null) parts.push(`AOV ${vnd(b.aov)}`);
+  if (b.margin_pct !== null) parts.push(`biên ${pp(b.margin_pct, 1)}`);
+  return parts.join(" · ");
+}
+
+/** The best version's chip: it can still lose money, then it is the smallest loss. */
+export function bestBadge(o: BuilderOutcome): string {
+  const p = o.delta?.profit?.p50 ?? null;
+  return p !== null && p < 0 ? "lỗ ít nhất" : "lợi nhuận tốt nhất";
 }
