@@ -55,6 +55,12 @@ function money(value: unknown, divisor: number): number | undefined {
   return n === undefined ? undefined : Math.round((n / divisor) * 100) / 100;
 }
 
+/** Money in VND, or undefined when the scaled amount is above the ceiling (an uncapped budget). */
+function cappedMoney(value: unknown, divisor: number): number | undefined {
+  const n = money(value, divisor);
+  return n !== undefined && n <= MAX_PLAUSIBLE_AD_VND ? n : undefined;
+}
+
 function text(value: unknown, max: number): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -414,8 +420,10 @@ function adRow(day: string, entry: Record<string, unknown>, drift: { missing: st
   put(row, "ad_type", tag(entry.type));
   put(row, "ad_subtype", tag(entry.subtype));
   put(row, "state", tag(entry.state));
-  put(row, "daily_budget", money(campaign.daily_budget, divisor));
-  put(row, "total_budget", money(campaign.total_budget, divisor));
+  // GMV Max with no cap sends a huge daily/total budget. That is not spend: drop the field.
+  // A real day's cost above the ceiling is still a wrong scale and stops the dataset.
+  put(row, "daily_budget", cappedMoney(campaign.daily_budget, divisor));
+  put(row, "total_budget", cappedMoney(campaign.total_budget, divisor));
   put(row, "roi_two_target", adsTarget(campaign.roi_two_target));
   const report = isRecord(entry.report) ? entry.report : {};
   for (const key of AD_COUNTS) put(row, key, nonNeg(report[key]));
@@ -428,10 +436,9 @@ function adRow(day: string, entry: Record<string, unknown>, drift: { missing: st
     if (n !== undefined && Object.keys(extra).length < 20) extra[key] = n;
   }
   if (Object.keys(extra).length) row.extra = extra;
-  const budget = nonNeg(campaign.daily_budget) ?? 0;
   const cost = nonNeg(report.cost) ?? 0;
-  if (Math.max(budget, cost) / divisor > MAX_PLAUSIBLE_AD_VND) {
-    if (!drift.unexpected.includes("ads:money_scale")) drift.unexpected.push("ads:money_scale");
+  if (cost / divisor > MAX_PLAUSIBLE_AD_VND && !drift.unexpected.includes("ads:money_scale")) {
+    drift.unexpected.push("ads:money_scale");
   }
   return row;
 }

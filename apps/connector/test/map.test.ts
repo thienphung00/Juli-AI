@@ -86,10 +86,15 @@ describe("traffic overview → shopee.traffic_overview", () => {
     expect(row.extra).toMatchObject({ ctr_above_one: 2 });
   });
 
-  it("treats a percentage where a fraction is expected as drift", () => {
+  it("keeps a video CTR that is not a fraction, and still posts the day", () => {
     const body = clone(overview);
     body.result.video.total.ctr = 5;
-    expect(capture(url, RANGE, body)?.drift?.unexpected).toEqual(["result.video.ctr:not_a_fraction"]);
+    const mapped = capture(url, RANGE, body);
+    expect(mapped?.drift).toBeNull();
+    const row = mapped!.rows.find((r) => r.source === "psd_label_seller_video")!;
+    expect("ctr" in row).toBe(false);
+    expect(row.extra).toMatchObject({ ctr_raw: 5 });
+    expect(row).toMatchObject({ sales: expect.any(Number) });
   });
 
   it("ignores errors, partial days, aggregates and other origins", () => {
