@@ -326,7 +326,8 @@ describe("OpsGate: me once per tab session, the page starts at once", () => {
     render(<OpsGate api={{ me }}>{(m) => <Page load={pageFetch} me={m} />}</OpsGate>);
     const page = await screen.findByTestId("page");
     expect(page).toHaveAttribute("data-role", PENDING_ME.role);
-    expect(pageFetch).toHaveBeenCalled();
+    // The page is painted before its mount effect. Under CI load that effect has not run yet.
+    await waitFor(() => expect(pageFetch).toHaveBeenCalled());
     expect(me).toHaveBeenCalledTimes(1);
     await act(async () => resolveMe(ME));
     await waitFor(() => expect(screen.getByTestId("page")).toHaveAttribute("data-role", "admin"));
