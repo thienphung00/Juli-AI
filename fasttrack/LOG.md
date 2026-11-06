@@ -3811,3 +3811,18 @@ reconcile --write` re-derived the no-assert corpus figure.
   programme ends CUR_END (07/10) and fell out on 2026-11-06 — the request is now pinned (fixture range only changed).
 - Gate (local, Node 20, Postgres 16): demo tsc clean, vitest 190 files / 1932 passed; backend shopee_analytics-related
   files + p96b + test_test_quality 481 passed; ruff / mypy clean.
+
+## 2026-11-06 — P96c/d agents (Claude Opus) — ORY production fixes, Connector 0.3.6, compare
+
+- Gỡ thẻ 500 on shop-wide builder cards: `with_shop_scope` / `ops_role` now flush before switching
+  (the card update was written later as juli_ops: permission denied on action_cards).
+- 20 of 21 in-progress ORY cards crashed: listing kinds have `five_numbers: null`; the card page reads it guarded.
+- Connector 0.3.6: ads days count as done only when posted (03/11–04/11 had been marked done on an empty
+  answer); manual Đồng bộ re-opens pages with missing days; affiliate readers for 8 Seller Centre pages
+  (conversion report replayed with hashed order ids from `GET /v1/ingest/order-ref-key`; 7 captured answers);
+  never matches a Mutation; KOL display name / avatar / user id dropped in the page.
+- Compare (P96d): per-version type + inputs, Thông số row, Phạm vi base, driver scaled by lift_scale,
+  AOV break-even, "lỗ ít nhất".
+- Local gates: combined backend 144 files 1917 passed; Connector 262; demo cards/decisions 407 + builder 219.
+  Local Postgres runs in Asia/Ho_Chi_Minh — `test_p61e` fails locally only; CI is UTC.
+- Open: Shopee ads rebuild (assisted edit), Ops QA extension, shop totals have no Connector reader.
