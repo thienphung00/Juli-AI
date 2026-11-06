@@ -243,16 +243,17 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   };
   const pick = (index: number) => {
     setSel(index);
+    setPicked([index]);
     setError(null);
     setCalc("idle");
-    if (!multi) {
-      setPicked([index]);
-      return;
-    }
+  };
+  const toggleGroup = (index: number) => {
     setPicked((cur) => {
       if (!cur.includes(index)) return [...cur, index].sort((a, b) => a - b);
       if (cur.length === 1) return cur;
-      return cur.filter((i) => i !== index);
+      const next = cur.filter((i) => i !== index);
+      if (!next.includes(sel)) setSel(next[0] ?? index);
+      return next;
     });
   };
   const reset = () => {
@@ -335,8 +336,8 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
     run("approved", approveOutcome(acknowledge ? shownBreaches : []), () =>
       host.reco.approve(detail.id, {
         inputs: sendInputs,
-        chosenVersion: chosenVersions[0] ?? v.version,
-        chosenVersions,
+        chosenVersion: v.version,
+        ...(chosenVersions.length > 1 ? { chosenVersions } : {}),
         acknowledgeBreaches: acknowledge,
       }),
     );
@@ -472,7 +473,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 
       {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”. Juli sẽ đọc lại trên Seller Centre để xác minh." })} sheet={final.sheet} /> : null}
 
-      {!isMega ? <VersionsTable card={detail.card} locked={!adjustable} multi={multi} noToday={isKol} onPick={pick} picked={picked} rows={isKol ? kolVersionRows(versions, kolInvite) : undefined} sel={sel} subLabel={isKol ? (kolInvite ? "không có chi phí mẫu" : "so với không gửi") : undefined} todayText={todayText(shown)} versions={versions} /> : null}
+      {!isMega ? <VersionsTable card={detail.card} locked={!adjustable} multi={multi} noToday={isKol} onPick={pick} onToggle={multi ? toggleGroup : undefined} picked={picked} rows={isKol ? kolVersionRows(versions, kolInvite) : undefined} sel={sel} subLabel={isKol ? (kolInvite ? "không có chi phí mẫu" : "so với không gửi") : undefined} todayText={todayText(shown)} versions={versions} /> : null}
 
       {refused ? (
         <Notice tone="warn" testId="sd-refused">

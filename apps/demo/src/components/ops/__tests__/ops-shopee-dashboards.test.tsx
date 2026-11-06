@@ -198,7 +198,7 @@ describe("Quảng cáo + khuyến mãi", () => {
   it("shows the campaign empty state and the promotion timeline", async () => {
     const api = { shopeeAds: vi.fn().mockResolvedValue({ ...ADS, alerts: [] }), shopeePromotions: vi.fn().mockResolvedValue(PROMOS) };
     render(<OpsShopeeAds api={api} me={ME} shopId={SHOP_ID} />);
-    expect(await screen.findByText(/Chưa có dữ liệu theo chiến dịch/)).toBeInTheDocument();
+    expect(await screen.findByText(/Chưa có chiến dịch từ Juli Connector/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
     const timeline = screen.getByRole("list", { name: "Dòng thời gian khuyến mãi" });
     expect(timeline).toHaveTextContent("Chương trình thử");
