@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { takePendingInvite } from "../../../lib/ops/invite-client";
+import { peekPendingInvite } from "../../../lib/ops/invite-client";
 import {
   describeAuthCallbackError,
   parseAuthCallbackHash,
@@ -47,7 +47,7 @@ export default function AuthCallbackPage() {
         // could never cost the session itself.
         void reportTikTokRegistration(result.session.accessToken);
         // An invite opened before signing in (components/accept-invite.tsx) takes priority.
-        const invite = takePendingInvite();
+        const invite = peekPendingInvite();
         router.replace(invite ? `/nhan-shop#${invite}` : "/auth/connect-shop");
         return;
       }

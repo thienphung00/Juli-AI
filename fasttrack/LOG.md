@@ -3838,3 +3838,11 @@ reconcile --write` re-derived the no-assert corpus figure.
   and imports only `one`. No new suppression. The KOL reader (Connector 0.3.6, affiliate pages,
   order lines marked by the paired connector's order-ref key) shipped on the earlier tag
   `fasttrack-deploy-20261106T0300Z`, which went green.
+
+## 2026-11-06 — Kết nối dữ liệu on every shop; invite stays after Tham gia shop
+
+- Contract shops are no longer created from Ops (`POST /v1/ops/contract-shops` is 410).
+  "Kết nối dữ liệu" / "Tạo mã kết nối" is on every shop's settings page. A code still
+  needs service consent, because the Connector's posts would be refused without it.
+- An invite is membership, not a one-time login. Sign-in does not spend the link.
+  After "Tham gia shop", the same person opening the link again gets the shop.

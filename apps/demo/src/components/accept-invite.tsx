@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { INVITE_ERROR_COPY, InviteError, acceptInvite, previewInvite, rememberPendingInvite, type InvitePreview } from "../lib/ops/invite-client";
+import { INVITE_ERROR_COPY, InviteError, acceptInvite, forgetPendingInvite, previewInvite, rememberPendingInvite, type InvitePreview } from "../lib/ops/invite-client";
 import { storeActiveShop } from "../lib/shop-session";
 import { readAuthSession } from "../lib/supabase-auth";
 
@@ -28,7 +28,13 @@ export function AcceptInvite({ inviteToken, fetchImpl }: { readonly inviteToken:
   useEffect(() => {
     if (!token || !inviteToken) return;
     previewInvite(token, inviteToken, fetchImpl)
-      .then(setPreview)
+      .then((next) => {
+        setPreview(next);
+        if (next.already_joined && next.shop_id) {
+          storeActiveShop({ id: next.shop_id, name: next.shop_name });
+          forgetPendingInvite();
+        }
+      })
       .catch((e: unknown) => setError(INVITE_ERROR_COPY[e instanceof InviteError ? e.message : ""] ?? "Không mở được lời mời."));
   }, [token, inviteToken, fetchImpl]);
 
@@ -37,6 +43,7 @@ export function AcceptInvite({ inviteToken, fetchImpl }: { readonly inviteToken:
     try {
       const result = await acceptInvite(token, inviteToken, preview.keep_ops_access_asked && keep, fetchImpl);
       storeActiveShop({ id: result.shop_id, name: preview.shop_name });
+      forgetPendingInvite();
       setDone(true);
     } catch (e) {
       setError(INVITE_ERROR_COPY[e instanceof InviteError ? e.message : ""] ?? "Không tham gia được shop.");
@@ -49,12 +56,18 @@ export function AcceptInvite({ inviteToken, fetchImpl }: { readonly inviteToken:
       {!inviteToken ? <p role="alert">Liên kết thiếu mã mời.</p> : null}
       {token === null ? (
         <p>
-          Bạn cần đăng nhập bằng email được mời. Sau khi đăng nhập, Juli tự quay lại lời mời này để bạn bấm “Tham gia shop”.{" "}
+          Đăng nhập bằng email được mời. Juli giữ lời mời này và đưa bạn trở lại để bấm “Tham gia shop”. Sau khi bạn đã tham gia, mở lại lời mời này vẫn vào shop.{" "}
           <Link href="/?entry=door">Đăng nhập</Link>
         </p>
       ) : null}
       {error ? <p role="alert">{error}</p> : null}
-      {preview && !done ? (
+      {preview?.already_joined && !done ? (
+        <p role="status">
+          Bạn đã tham gia đội ngũ của shop <b>{preview.shop_name}</b>.{" "}
+          <Link href="/decisions">Mở Quyết định</Link>
+        </p>
+      ) : null}
+      {preview && !preview.already_joined && !done ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 520 }}>
           <p>
             Bạn được mời tham gia đội ngũ của shop <b>{preview.shop_name}</b>. Mọi thành viên có quyền như nhau và dùng chung dữ liệu của shop; thao tác của bạn được ghi theo email của bạn. Thẻ, lượt chạy, Quy tắc và lịch sử được giữ nguyên.
