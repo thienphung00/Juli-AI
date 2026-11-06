@@ -98,7 +98,7 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
         {rows.length === 0 ? (
           <Empty testId="kol-empty">
             {channel === ALL && item === ALL
-              ? "Chưa có đơn Tiếp thị liên kết theo KOL trong kỳ này. Số KOL lấy từ báo cáo chuyển đổi Affiliate của Shopee (tải tệp lên); Juli Connector chưa đọc báo cáo này."
+              ? "Chưa có đơn Tiếp thị liên kết theo KOL trong kỳ này. Tải lên báo cáo chuyển đổi Affiliate của Shopee, hoặc bấm Đồng bộ hôm qua trong Juli Connector khi trang Tăng Đơn Cùng KOL đã mở."
               : "Không có dòng nào khớp bộ lọc."}
           </Empty>
         ) : null}

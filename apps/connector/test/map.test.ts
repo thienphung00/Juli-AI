@@ -42,11 +42,12 @@ describe("traffic overview → shopee.traffic_overview", () => {
     expect(ads).toMatchObject({ ads_expense: 50000, ads_roas: 4, conversion: 0.0167 });
   });
 
-  it("reports an unexpected field as drift", () => {
+  it("keeps a new metric in extra and still posts the known sources", () => {
     const body = clone(overview);
     (body.result.product_card.total as Record<string, unknown>).new_metric = 1;
     const mapped = capture(url, RANGE, body);
-    expect(mapped?.drift?.unexpected).toEqual(["result.product_card.new_metric"]);
+    expect(mapped?.drift).toBeNull();
+    expect(mapped?.rows[0]?.extra).toMatchObject({ new_metric: 1 });
   });
 
   it("reports a missing field, a new source key and a renamed enum as drift", () => {
@@ -57,7 +58,7 @@ describe("traffic overview → shopee.traffic_overview", () => {
     const drift = capture(url, RANGE, body)?.drift;
     expect(drift?.missing).toContain("result.product_card.product_impressions");
     expect(drift?.unexpected).toContain("result.live.source=psd_label_live_v2");
-    expect(drift?.unexpected).toContain("result.shop_tab");
+    expect(drift?.unexpected ?? []).not.toContain("result.shop_tab");
   });
 
   it("drops Shopee's -1000000 'no value' placeholder instead of calling it drift", () => {

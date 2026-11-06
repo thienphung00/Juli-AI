@@ -267,9 +267,8 @@ export function mapTrafficOverview(result: unknown, date: string): { rows: Row[]
   const drift: Drift = { unexpected: [], missing: [] };
   if (!isObject(result)) return { rows: [], drift: { unexpected: [], missing: ["result"] } };
   const rows: Row[] = [];
-  for (const key of Object.keys(result)) {
-    if (key !== "overview" && !(key in SOURCE_KEYS)) drift.unexpected.push(`result.${key}`);
-  }
+  // A block Seller Centre added later is ignored. Stopping the whole day on it
+  // dropped Doanh số theo nguồn while the known sources were still readable.
   for (const [key, enumValue] of Object.entries(SOURCE_KEYS)) {
     const block = result[key];
     if (!isObject(block) || !isObject(block.total)) {
@@ -288,7 +287,9 @@ export function mapTrafficOverview(result: unknown, date: string): { rows: Row[]
         continue; // comparison vs the previous period: derivable, not stored
       }
       if (!known.has(field)) {
-        drift.unexpected.push(`result.${key}.${field}`);
+        // A new metric stays in extra so the known totals still post.
+        const number = toNumber(value);
+        if (number !== undefined) addExtra(extra, field, number);
         continue;
       }
       if (field === "source") continue;

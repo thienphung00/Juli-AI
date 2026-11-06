@@ -187,9 +187,45 @@ function AdsSection({ ads }: { readonly ads: ShopeeAds }) {
           </>
         )}
       </Section>
-      <Section title="Theo chiến dịch">
-        {ads.campaigns_available && ads.campaigns.length > 0 ? null : (
-          <Empty>Chưa có dữ liệu theo chiến dịch: file báo cáo chiến dịch quảng cáo chưa được nạp. Bảng trên là số theo loại quảng cáo.</Empty>
+      <Section hint="Cùng các cột trang Quảng cáo của Shopee: chi phí, lượt hiển thị, lượt nhấp, đơn và GMV broad, ROAS = GMV ÷ chi phí." title="Theo chiến dịch">
+        {ads.campaigns_available && ads.campaigns.length > 0 ? (
+          <TableWrap label="Chiến dịch quảng cáo">
+            <thead>
+              <tr>
+                <th style={TH_LEFT}>Chiến dịch</th>
+                <th style={TH}>Chi phí</th>
+                <th style={TH}>Hiển thị</th>
+                <th style={TH}>Nhấp</th>
+                <th style={TH}>CTR</th>
+                <th style={TH}>Đơn</th>
+                <th style={TH}>GMV</th>
+                <th style={TH}>ROAS</th>
+                <th style={TH}>Ngân sách/ngày</th>
+                <th style={TH}>ROAS mục tiêu</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ads.campaigns.map((c) => (
+                <tr key={c.campaign_id}>
+                  <td style={TD_LEFT}>
+                    {c.name}
+                    {c.state ? <span style={{ color: C.muted2 }}> · {c.state}</span> : null}
+                  </td>
+                  <td style={TD}>{fmtVnd(c.cost)}</td>
+                  <td style={TD}>{fmtCount(c.impressions)}</td>
+                  <td style={TD}>{fmtCount(c.clicks)}</td>
+                  <td style={TD}>{c.ctr === null ? "—" : `${(c.ctr * 100).toFixed(2)}%`}</td>
+                  <td style={TD}>{fmtCount(c.orders)}</td>
+                  <td style={TD}>{fmtVnd(c.gmv)}</td>
+                  <td style={TD}>{fmtRoas(c.roas)}</td>
+                  <td style={TD}>{fmtVnd(c.daily_budget)}</td>
+                  <td style={TD}>{fmtRoas(c.roi_target)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </TableWrap>
+        ) : (
+          <Empty>Chưa có chiến dịch từ Juli Connector. Bấm Đồng bộ hôm qua khi trang Quảng cáo của Shopee đã mở.</Empty>
         )}
       </Section>
     </>

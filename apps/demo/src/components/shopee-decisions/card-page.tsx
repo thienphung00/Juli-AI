@@ -19,6 +19,7 @@ import {
   isOpen,
   isRefused,
   isTitleKind,
+  oneLiveValue,
   measuringDaysLeft,
   measuringNote,
   queueLabel,
@@ -186,6 +187,8 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   const [versions, setVersions] = useState<readonly CardVersion[]>(baseVersions);
   const [megaFresh, setMegaFresh] = useState<Card | null>(null);
   const [sel, setSel] = useState(() => (initial && initial >= 1 && initial <= baseVersions.length ? initial - 1 : adjustable ? Math.max(0, baseVersions.findIndex((v) => !isRefused(v))) : chosen));
+  const multi = adjustable && !oneLiveValue(detail.change_kind);
+  const [picked, setPicked] = useState<readonly number[]>(() => [sel]);
   const [patches, setPatches] = useState<Readonly<Record<number, Patch>>>({});
   const [calc, setCalc] = useState<"idle" | "busy" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -242,6 +245,15 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
     setSel(index);
     setError(null);
     setCalc("idle");
+    if (!multi) {
+      setPicked([index]);
+      return;
+    }
+    setPicked((cur) => {
+      if (!cur.includes(index)) return [...cur, index].sort((a, b) => a - b);
+      if (cur.length === 1) return cur;
+      return cur.filter((i) => i !== index);
+    });
   };
   const reset = () => {
     const index = sel;
@@ -315,8 +327,19 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
       ack: acknowledged.length > 0 ? ackText(acknowledged, new Date().toISOString()) : undefined,
     };
   };
+  const chosenVersions = (multi ? picked : [sel]).flatMap((i) => {
+    const version = versions[i]?.version;
+    return typeof version === "number" ? [version] : [];
+  });
   const approve = (acknowledge: boolean, shownBreaches: readonly Breach[]) =>
-    run("approved", approveOutcome(acknowledge ? shownBreaches : []), () => host.reco.approve(detail.id, { inputs: sendInputs, chosenVersion: v.version, acknowledgeBreaches: acknowledge }));
+    run("approved", approveOutcome(acknowledge ? shownBreaches : []), () =>
+      host.reco.approve(detail.id, {
+        inputs: sendInputs,
+        chosenVersion: chosenVersions[0] ?? v.version,
+        chosenVersions,
+        acknowledgeBreaches: acknowledge,
+      }),
+    );
   const onApprove = () => {
     planning.current = false;
     if (breaches.length > 0) setWarn({ breaches, mode: "approve" });
@@ -449,7 +472,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 
       {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”. Juli sẽ đọc lại trên Seller Centre để xác minh." })} sheet={final.sheet} /> : null}
 
-      {!isMega ? <VersionsTable card={detail.card} locked={!adjustable} noToday={isKol} onPick={pick} rows={isKol ? kolVersionRows(versions, kolInvite) : undefined} sel={sel} subLabel={isKol ? (kolInvite ? "không có chi phí mẫu" : "so với không gửi") : undefined} todayText={todayText(shown)} versions={versions} /> : null}
+      {!isMega ? <VersionsTable card={detail.card} locked={!adjustable} multi={multi} noToday={isKol} onPick={pick} picked={picked} rows={isKol ? kolVersionRows(versions, kolInvite) : undefined} sel={sel} subLabel={isKol ? (kolInvite ? "không có chi phí mẫu" : "so với không gửi") : undefined} todayText={todayText(shown)} versions={versions} /> : null}
 
       {refused ? (
         <Notice tone="warn" testId="sd-refused">

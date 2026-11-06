@@ -208,6 +208,20 @@ export function firstVersionRange(card: Pick<CardSummary, "predicted_summary">):
 // ── Title (D-4) ─────────────────────────────────────────────────────────────
 
 export const isTitleKind = (card: Pick<Card, "change_kind">): boolean => card.change_kind === "title";
+
+/** One live value at a time (P94): a second option of these starts the next group, so the card stays a single choice. */
+export function oneLiveValue(kind: string): boolean {
+  return (
+    kind === "title" ||
+    kind === "price" ||
+    kind === "cover" ||
+    kind === "description" ||
+    kind === "main_image" ||
+    kind === "discount" ||
+    kind.includes("budget") ||
+    kind.includes("roas")
+  );
+}
 export const titleOf = (inputs: Readonly<Record<string, unknown>>): string => (typeof inputs["title"] === "string" ? (inputs["title"] as string) : "");
 
 export interface TitleCount {

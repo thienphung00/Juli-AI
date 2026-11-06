@@ -9,6 +9,7 @@ interface DatasetStatus {
   last_ingest_at: string | null;
   last_period_end: string | null;
   drift: string;
+  drift_detail?: { unexpected?: string[]; missing?: string[] } | null;
 }
 
 const LABELS: Record<string, string> = {
@@ -21,6 +22,14 @@ const LABELS: Record<string, string> = {
   ads_campaign_daily: "Quảng cáo theo ngày",
   voucher_settings: "Voucher của shop",
   shop_health_daily: "Sức khỏe tài khoản",
+  affiliate_order_lines: "Đơn KOL",
+  affiliate_partner_period: "KOL theo kỳ",
+  affiliate_shop_period: "Shop KOL theo kỳ",
+  affiliate_product_period: "Sản phẩm KOL theo kỳ",
+  affiliate_shop_campaigns: "Chiến dịch KOL",
+  affiliate_commission_period: "Hoa hồng KOL",
+  affiliate_content_period: "Nội dung KOL",
+  affiliate_bill_period: "Đối soát KOL",
 };
 
 function el<T extends HTMLElement>(id: string): T {
@@ -69,7 +78,8 @@ async function render(): Promise<void> {
   const status = await send<{ datasets?: DatasetStatus[] } | null>({ type: "server-status" });
   for (const item of status?.datasets ?? []) {
     const li = document.createElement("li");
-    const stopped = item.drift === "drift" ? " · tạm dừng (Seller Centre đã thay đổi)" : "";
+    const why = item.drift === "drift" ? item.drift_detail?.unexpected?.[0] ?? item.drift_detail?.missing?.[0] : undefined;
+    const stopped = item.drift === "drift" ? ` · tạm dừng (Seller Centre đã thay đổi${why ? `: ${why}` : ""})` : "";
     li.textContent = `${LABELS[item.dataset] ?? item.dataset}: ${fmt(item.last_ingest_at)}${stopped}`;
     list.append(li);
   }

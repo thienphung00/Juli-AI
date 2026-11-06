@@ -192,8 +192,17 @@ export class ReaderScheduler {
         trafficDone: sched.trafficDone,
         ...(this.deps.readers ? { readers: this.deps.readers } : {}),
       });
-      // A same-day re-run opens only the pages that still have missing days.
-      const jobs = rerun ? planned.filter((job) => (job.days?.length ?? 0) > 0) : planned;
+      // A same-day re-run opens pages that still have missing days. A manual
+      // "Đồng bộ" also reopens a page whose last outcome did not post (KOL
+      // needs_data_page), otherwise that page waits until tomorrow.
+      const retry = new Set(
+        Object.entries(sched.lastRun?.outcomes ?? {})
+          .filter(([, outcome]) => !String(outcome).startsWith("done"))
+          .map(([id]) => id),
+      );
+      const jobs = rerun
+        ? planned.filter((job) => (job.days?.length ?? 0) > 0 || (options.manual === true && retry.has(job.id)))
+        : planned;
       if (rerun && jobs.length === 0) return "done_today";
       if (jobs.length === 0) {
         await this.save({ ...sched, lastRunDay: today });
