@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { INVITE_ERROR_COPY, InviteError, acceptInvite, previewInvite, type InvitePreview } from "../lib/ops/invite-client";
+import { INVITE_ERROR_COPY, InviteError, acceptInvite, previewInvite, rememberPendingInvite, type InvitePreview } from "../lib/ops/invite-client";
 import { storeActiveShop } from "../lib/shop-session";
 import { readAuthSession } from "../lib/supabase-auth";
 
@@ -19,6 +19,11 @@ export function AcceptInvite({ inviteToken, fetchImpl }: { readonly inviteToken:
     const timer = window.setTimeout(() => setToken(readAuthSession()?.accessToken ?? null), 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    // Signed out: keep the invite so the sign-in comes back here (auth/callback reads it).
+    if (token === null && inviteToken) rememberPendingInvite(inviteToken);
+  }, [token, inviteToken]);
 
   useEffect(() => {
     if (!token || !inviteToken) return;
@@ -44,7 +49,8 @@ export function AcceptInvite({ inviteToken, fetchImpl }: { readonly inviteToken:
       {!inviteToken ? <p role="alert">Liên kết thiếu mã mời.</p> : null}
       {token === null ? (
         <p>
-          Bạn cần đăng nhập bằng email được mời, rồi mở lại liên kết trong email. <Link href="/?entry=door">Đăng nhập</Link>
+          Bạn cần đăng nhập bằng email được mời. Sau khi đăng nhập, Juli tự quay lại lời mời này để bạn bấm “Tham gia shop”.{" "}
+          <Link href="/?entry=door">Đăng nhập</Link>
         </p>
       ) : null}
       {error ? <p role="alert">{error}</p> : null}

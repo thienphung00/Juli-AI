@@ -48,3 +48,34 @@ export function acceptInvite(token: string, inviteToken: string, keepOpsAccess: 
     fetchImpl,
   );
 }
+
+/**
+ * An invite opened while signed out survives the sign-in (2026-11-06: the seller signed in and the
+ * invite was lost — sign-in always lands on connect-shop). Kept in localStorage because a magic link
+ * often opens in a new tab; it lasts the invite's 7 days at most and is removed as soon as it is used.
+ * Storage may be unavailable (private mode): then nothing is remembered and the old path stays.
+ */
+export const PENDING_INVITE_KEY = "juli.pendingInvite";
+const PENDING_INVITE_TTL_MS = 7 * 86_400_000;
+
+export function rememberPendingInvite(inviteToken: string): void {
+  try {
+    window.localStorage.setItem(PENDING_INVITE_KEY, JSON.stringify({ token: inviteToken, at: Date.now() }));
+  } catch {
+    // no storage: the person reopens the link from the e-mail, as before
+  }
+}
+
+/** The remembered invite token (and forget it), or null when none / expired / unreadable. */
+export function takePendingInvite(): string | null {
+  try {
+    const raw = window.localStorage.getItem(PENDING_INVITE_KEY);
+    window.localStorage.removeItem(PENDING_INVITE_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as { token?: unknown; at?: unknown };
+    if (typeof saved.token !== "string" || !saved.token || typeof saved.at !== "number") return null;
+    return Date.now() - saved.at > PENDING_INVITE_TTL_MS ? null : saved.token;
+  } catch {
+    return null;
+  }
+}
