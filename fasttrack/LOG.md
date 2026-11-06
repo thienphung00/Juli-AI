@@ -3826,3 +3826,15 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Local gates: combined backend 144 files 1917 passed; Connector 262; demo cards/decisions 407 + builder 219.
   Local Postgres runs in Asia/Ho_Chi_Minh — `test_p61e` fails locally only; CI is UTC.
 - Open: Shopee ads rebuild (assisted edit), Ops QA extension, shop totals have no Connector reader.
+
+## 2026-11-06 — P96e deploy gate (combo profit) unblocked
+
+- P96e (`7e8ea9ba`) is on `fasttrack/optimize-product`: combo profit is per combo, prices under
+  1.000đ and discounts over 90 % are refused, the typed combo price survives the Ops buyer mask.
+  Tag `fasttrack-deploy-20261106T0323Z` failed unit shard 2/4: `test_p96e_combo.py` imported the
+  `shop` fixture and then requested it by the same name, so ruff needed six new noqa (F401, F811)
+  and `test_ratchets` refused the extra suppression debt.
+- The file now owns its own `shop` fixture (same `seed_reco_shop` + commit as the builder tests)
+  and imports only `one`. No new suppression. The KOL reader (Connector 0.3.6, affiliate pages,
+  order lines marked by the paired connector's order-ref key) shipped on the earlier tag
+  `fasttrack-deploy-20261106T0300Z`, which went green.
