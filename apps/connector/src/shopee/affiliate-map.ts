@@ -113,18 +113,14 @@ export function scaleFromPairs(rows: Record<string, unknown>[], fields: readonly
 }
 
 class Money {
-  constructor(
-    readonly divisor: number,
-    private readonly issues: { unexpected: string[] },
-  ) {}
+  constructor(readonly divisor: number) {}
 
   of(value: unknown): number | undefined {
     const n = nonNeg(value);
     if (n === undefined) return undefined;
     const vnd = Math.round((n / this.divisor) * 100) / 100;
-    if (vnd !== 0 && (vnd < AFFILIATE_MIN_PLAUSIBLE_VND || vnd > MAX_PLAUSIBLE_AD_VND)) {
-      note(this.issues.unexpected, "affiliate:money_scale");
-    }
+    // One odd amount must not drop the KOL page. Leave that field out; keep the row.
+    if (vnd !== 0 && (vnd < AFFILIATE_MIN_PLAUSIBLE_VND || vnd > MAX_PLAUSIBLE_AD_VND)) return undefined;
     return vnd;
   }
 }
@@ -132,11 +128,10 @@ class Money {
 function moneyFor(
   rows: Record<string, unknown>[],
   pairs: readonly string[],
-  issues: { unexpected: string[] },
+  _issues: { unexpected: string[] },
 ): Money {
   const scale = scaleFromPairs(rows, pairs);
-  if (scale === null) note(issues.unexpected, "affiliate:money_scale");
-  return new Money(scale ?? AFFILIATE_MONEY_DIVISOR_FALLBACK, issues);
+  return new Money(scale ?? AFFILIATE_MONEY_DIVISOR_FALLBACK);
 }
 
 /** A ratio sent as 0..1, as a percent (0..100) or in basis points (0..10 000) → 0..1. */
@@ -376,11 +371,8 @@ export function mapAffiliateCampaigns(responses: ReaderResponse[], capturedAt: n
   const rows: Row[] = [];
   for (const campaign of list) {
     const id = digits(campaign.commissionId);
-    const name = text(campaign.commissionName, 255);
-    if (id === undefined || name === undefined) {
-      note(issues.missing, id === undefined ? "shopCampaigns[].commissionId" : "shopCampaigns[].commissionName");
-      continue;
-    }
+    if (id === undefined) continue;
+    const name = text(campaign.commissionName, 255) ?? `Chiến dịch ${id}`;
     const row: Row = { campaign_id: id, campaign_name: name };
     put(row, "commission_rate", rate(campaign.commissionRate));
     put(row, "status", label(campaign.commissionStatus));

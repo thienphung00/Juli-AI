@@ -214,11 +214,11 @@ function orderTypeOf(params: URLSearchParams): OrderType {
   return value === "placed" || value === "paid" ? value : "confirmed";
 }
 
-function scaleDrift(prefix: string, row: Row, drift: Drift): void {
-  for (const [key, value] of Object.entries(row)) {
-    if (RATE_FIELDS.has(key) && typeof value === "number" && (value < 0 || value > 1)) {
-      drift.unexpected.push(`${prefix}${key}:not_a_fraction`);
-    }
+function scaleDrift(_prefix: string, row: Row, _drift: Drift): void {
+  // A rate outside 0..1 must not drop the day's sales. The counts stay; Juli derives the rate.
+  for (const key of Object.keys(row)) {
+    const value = row[key];
+    if (RATE_FIELDS.has(key) && typeof value === "number" && (value < 0 || value > 1)) delete row[key];
   }
 }
 
@@ -256,8 +256,12 @@ function keepRatesAboveOne(block: string, row: Row, extra: Row): void {
     if (ratio !== undefined && close(ratio)) {
       extra[`${field}_above_one`] = value;
     } else if (ratio !== undefined && close(ratio * 100)) {
-      row[field] = Math.round((value / 100) * 10_000) / 10_000;
-      continue;
+      const fraction = Math.round((value / 100) * 10_000) / 10_000;
+      if (fraction <= 1) {
+        row[field] = fraction;
+        continue;
+      }
+      extra[`${field}_raw`] = value;
     } else {
       extra[`${field}_raw`] = value;
     }
