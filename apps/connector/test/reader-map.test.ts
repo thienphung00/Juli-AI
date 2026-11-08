@@ -223,9 +223,10 @@ describe("ads", () => {
     expect(post!.rows[0]).toMatchObject({ campaign_id: "7001", cost: 50000 });
     const hugeCost = JSON.parse(JSON.stringify(adsHome));
     hugeCost.data.entry_list[0].report.cost = 20_000_000_000_000_000;
-    const [stopped] = mapAdsDaily([response("ads_homepage", hugeCost, { day: DAY })]);
-    expect(stopped!.drift?.unexpected).toEqual(["ads:money_scale"]);
-    expect(stopped!.rows).toEqual([]);
+    const [kept] = mapAdsDaily([response("ads_homepage", hugeCost, { day: DAY })]);
+    expect(kept!.drift).toBeNull();
+    expect(kept!.rows[0]).toMatchObject({ campaign_id: "7001", impression: 1000 });
+    expect(kept!.rows[0]).not.toHaveProperty("cost");
   });
 
   it("negative or non-numeric report values are dropped, not posted", () => {

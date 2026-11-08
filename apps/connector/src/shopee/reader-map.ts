@@ -428,7 +428,7 @@ function adRow(day: string, entry: Record<string, unknown>, drift: { missing: st
   const report = isRecord(entry.report) ? entry.report : {};
   for (const key of AD_COUNTS) put(row, key, nonNeg(report[key]));
   for (const key of AD_RATIOS) put(row, key, nonNeg(report[key]));
-  for (const key of AD_MONEY) put(row, key, money(report[key], divisor));
+  for (const key of AD_MONEY) put(row, key, cappedMoney(report[key], divisor));
   const extra: Row = {};
   for (const [key, value] of Object.entries(report)) {
     if (AD_REPORT_KNOWN.has(key) || !/^[A-Za-z0-9_.-]{1,64}$/.test(key)) continue;
@@ -436,10 +436,6 @@ function adRow(day: string, entry: Record<string, unknown>, drift: { missing: st
     if (n !== undefined && Object.keys(extra).length < 20) extra[key] = n;
   }
   if (Object.keys(extra).length) row.extra = extra;
-  const cost = nonNeg(report.cost) ?? 0;
-  if (cost / divisor > MAX_PLAUSIBLE_AD_VND && !drift.unexpected.includes("ads:money_scale")) {
-    drift.unexpected.push("ads:money_scale");
-  }
   return row;
 }
 

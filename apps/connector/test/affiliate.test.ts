@@ -196,15 +196,15 @@ describe("conversion report reader", () => {
     expect(body.period).toEqual({ start: "2026-10-06", end: "2026-11-05", granularity: "period" });
   });
 
-  it("a money scale the display twins contradict is drift: nothing is posted", () => {
+  it("a money scale the display twins contradict still posts the order and drops the odd amount", () => {
     const bad = structuredClone(CONVERSION_PAGE);
     (bad.data.list[0]!.items[0] as Record<string, unknown>).item_price = 999;
     const mapped = mapAffiliateConversions(
       [{ endpoint: "affiliate_conversion", url: "x", status: 200, body: bad, capturedAt: NOW, source: "replay", period: { start: "2026-10-06", end: "2026-11-05" } }],
       NOW,
     );
-    expect(mapped.drift?.unexpected).toContain("affiliate:money_scale");
-    expect(mapped.rows).toEqual([]);
+    expect(mapped.drift).toBeNull();
+    expect(mapped.rows.length).toBeGreaterThan(0);
   });
 });
 
