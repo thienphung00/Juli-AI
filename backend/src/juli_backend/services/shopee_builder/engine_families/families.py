@@ -207,12 +207,10 @@ def price_option(
     spec: sp.PriceSpec | sp.ProductDiscountSpec | sp.FlashSaleSpec, facts: PriceFacts
 ) -> OptionInput:
     """CTOR (the orders response, product history > shop > prior) + AOV (the price factor is
-    certain arithmetic). The engine also adds ΔAOV × contribution rate to profit for an AOV
-    driver, so ``profit_per_order_after`` takes that part out: the price effect counts once."""
+    certain arithmetic). ``profit_per_order_after`` carries the price effect on profit; the engine
+    then moves GMV only through the AOV driver, so the price effect counts once."""
     aov_lift = facts.price_factor - ONE
     ppo_after = facts.profit_per_order_after
-    if ppo_after is not None and facts.aov_now and facts.contribution_rate is not None:
-        ppo_after = ppo_after - facts.aov_now * aov_lift * facts.contribution_rate
     kind = {"price": "price", "product_discount": "product_discount", "flash_sale": "flash_sale"}[
         spec.kind
     ]

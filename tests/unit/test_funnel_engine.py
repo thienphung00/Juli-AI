@@ -377,3 +377,25 @@ def test_residual_keeps_the_shop_funnel_and_adds_no_note():
     ctor = col.orders / col.clicks
     assert abs(col.views * ctr * ctor - col.orders) <= D("1e-6") * col.orders
     assert not any("Chênh lệch" in n for n in result.notes)
+
+
+def test_a_price_change_counts_its_profit_effect_once():
+    """profit_per_order_after carries the price effect; the AOV driver then moves GMV only."""
+    base = simple_base()
+    ppo_before = D(5_000_000) / D(250)  # 20.000đ per order
+    option = OptionInput(
+        "price",
+        "Đổi giá",
+        (
+            DriverEffect(
+                "aov", ("the_san_pham_khac", "trang_shop"), "measured", lift=band(0.1, 0.1, 0.1)
+            ),
+        ),
+        30,
+        profit_per_order_after=ppo_before + D(3_000),
+    )
+    r = run(base, option)
+    assert r.likely is not None and r.likely.profit is not None
+    # orders unchanged (AOV-only), so Δ profit = orders × 3.000đ exactly, with no extra AOV term
+    assert abs((r.likely.profit - r.before.profit) - r.before.orders * D(3_000)) <= D(1)
+    assert r.likely.gmv > r.before.gmv  # the AOV driver still moves GMV

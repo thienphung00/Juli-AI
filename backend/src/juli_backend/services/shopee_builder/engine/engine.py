@@ -23,7 +23,7 @@ Method (pure; the only randomness is a ``random.Random(seed)`` -- stdlib, no new
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Literal
 
@@ -205,7 +205,9 @@ def _scenario(
                 p += o * (ppo_after - s.ppo)
         if ma != 1.0 and s.aov is not None:
             g = g * ma
-            a = s.aov * (ma - 1.0) * o * (cr or 0.0)
+            # a price change states its new profit per order (``profit_per_order_after``): the
+            # price effect is already in ``price_term``: the AOV term moves GMV only (counted once)
+            a = 0.0 if ppo_after is not None else s.aov * (ma - 1.0) * o * (cr or 0.0)
             aov_term += a
             p += a
         if i in aov_idx:
@@ -439,14 +441,15 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     has_aov = any(d.metric == "aov" for d in option.drivers)
     profit_known = (
         all(s.p is not None for s in srcs)
-        and (not has_aov or cr is not None)
+        and (not has_aov or cr is not None or option.profit_per_order_after is not None)
         and (added is None or added.profit_per_order is not None)
     )
 
+    # "before" is today: the option's new profit per order (a price change) never applies to it
     before_draw = _scenario(
         srcs,
         _neutral(len(srcs), len(option.offers)),
-        option,
+        replace(option, profit_per_order_after=None),
         cr,
         profit_known,
         aov_idx,

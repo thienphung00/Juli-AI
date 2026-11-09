@@ -9,7 +9,6 @@ has not given is ``None`` and listed in ``missing_fields``.
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -31,6 +30,7 @@ from juli_backend.services.shopee_analytics.loaders import (
     KeywordSeed,
     ShopContext,
 )
+from juli_backend.services.shopee_analytics.margins import Rates, final_margin, measured_rates
 from juli_backend.services.shopee_analytics.matrix import ads_overlay, product_row
 from juli_backend.services.shopee_analytics.shared import five_for, five_json
 from juli_backend.services.shopee_profit.floor import FloorInputs, compute_floor
@@ -66,41 +66,12 @@ COST_MISSING_LABEL = "Chưa tính"
 RATES_DAYS = 30
 
 
-@dataclass(frozen=True)
-class CostRates:
-    """Measured shares of what the seller keeps (``revenue``) that go to the shop voucher,
-    affiliate commission and ads (ads allocated by revenue as :func:`sku_waterfall` does)."""
-
-    voucher: Decimal
-    commission: Decimal
-    ads: Decimal
-
-    @property
-    def total(self) -> Decimal:
-        return self.voucher + self.commission + self.ads
-
-    def json(self) -> dict[str, Any]:
-        return {
-            "voucher_pct": pct(pct_points(self.voucher)),
-            "commission_pct": pct(pct_points(self.commission)),
-            "ads_pct": pct(pct_points(self.ads)),
-        }
-
-
-def _rates(view: PeriodView, product_id: str, sku: str | None) -> CostRates | None:
-    """The 30-day rates of one SKU (``sku``) or the whole product (None); None without sales."""
-    lines = [(ln, pb) for ln, pb in _lines_of(view, product_id) if pb.excluded_reason is None]
-    product_paid = sum((pb.revenue for _, pb in lines), ZERO)
-    mine = lines if sku is None else [(ln, pb) for ln, pb in lines if ln.sku == sku]
-    paid = sum((pb.revenue for _, pb in mine), ZERO)
-    if paid <= 0 or product_paid <= 0:
-        return None
-    spend = view.ads.product_spend.get(product_id, ZERO)
-    return CostRates(
-        sum((pb.voucher for _, pb in mine), ZERO) / paid,
-        sum((pb.commission or ZERO for _, pb in mine), ZERO) / paid,
-        (spend * paid / product_paid) / paid,
-    )
+def _rates(view: PeriodView, product_id: str, sku: str | None) -> Rates | None:
+    """The 30-day rates of one SKU (``sku``) or the whole product (None); None without sales.
+    One math with the builder (``shopee_analytics.margins``, ADR-122 d.12)."""
+    pairs = list(_lines_of(view, product_id))
+    product_rates, by_sku = measured_rates(pairs, view.ads.product_spend.get(product_id, ZERO))
+    return product_rates if sku is None else by_sku.get(sku)
 
 
 def _selling_price(
@@ -178,14 +149,14 @@ def margins_json(
     own = _rates(rates_view, product_id, sku)
     rates = own or _rates(rates_view, product_id, None)
     basis = None if rates is None else ("variation" if own is not None else "product")
-    final = None if margin is None or rates is None else margin - rates.total
+    final = final_margin(None if margin is None else pct_points(margin), rates)
     return {
         "selling_price": num(selling),
         "price_margin_pct": pct(pct_points(margin)),
         "price_margin_name": PRICE_MARGIN_NAME,
         "price_margin_label": PRICE_MARGIN_LABEL,
         "price_margin_reason": reason,
-        "final_margin_pct": pct(pct_points(final)),
+        "final_margin_pct": final,
         "final_margin_name": FINAL_MARGIN_NAME,
         "final_margin_label": FINAL_MARGIN_LABEL,
         "final_margin_basis": basis,

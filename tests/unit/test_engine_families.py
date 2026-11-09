@@ -246,8 +246,9 @@ def test_price_family_drivers_and_single_profit_effect():
     o = price_option(spec, facts)
     assert [d.metric for d in o.drivers] == ["ctor", "aov"]
     assert o.drivers[0].basis == "product_history" and o.drivers[1].lift.p50 == D("-0.1")
-    # the engine adds dAOV x contribution rate itself: -10.000 x 0.3 = -3.000 is taken out
-    assert o.profit_per_order_after == D(12_000) - D(100_000) * D("-0.1") * D("0.3")
+    # profit_per_order_after carries the price effect as-is; the engine's AOV driver then moves
+    # GMV only, so the price effect counts once (ADR-122 d.10)
+    assert o.profit_per_order_after == D(12_000)
     r = run(base(), o, n=400)
     assert r.basis == "product_history" and r.drivers == ("ctor", "aov")
     assert_funnel(r)
