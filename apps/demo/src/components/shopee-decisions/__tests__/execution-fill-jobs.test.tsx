@@ -96,9 +96,25 @@ describe("Connector điền sẵn · danh sách trang", () => {
   it("asks nothing for a card that is not approved or has no fill kind", async () => {
     const f = answer([job()]);
     vi.stubGlobal("fetch", f);
-    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(voucherCard({ change_kind: "bundle_deal", family: "combo" }), { status: "approved" }) }));
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(voucherCard({ change_kind: "add_on", family: "combo" }), { status: "approved" }) }));
     await screen.findByTestId("sd-execution");
     expect(f).not.toHaveBeenCalled();
     expect(SHEET_VOUCHER).toBeDefined();
+  });
+
+  it("lists a combo job like any other page, and says why a legacy basket was not filled", async () => {
+    const id = "8f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f";
+    vi.stubGlobal(
+      "fetch",
+      answer([
+        job({ kind: "combo", target: { product_ids: ["1001", "1003"] }, open_path: "/portal/marketing/bundle/new" }),
+        job({ id, kind: "combo", status: "failed", error: "Combo kiểu cũ — tạo lại theo mức ưu đãi của Shopee", open_path: null }),
+      ]),
+    );
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(voucherCard({ change_kind: "bundle_deal", family: "combo" }), { status: "approved" }) }));
+    const first = await screen.findByTestId("sd-fill-job-6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
+    expect(first).toHaveTextContent("Tạo Combo Khuyến Mãi · 2 sản phẩm");
+    expect(within(first).getByTestId("sd-fill-open")).toHaveAttribute("href", "https://banhang.shopee.vn/portal/marketing/bundle/new#juli-fill=6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
+    expect(within(screen.getByTestId(`sd-fill-job-${id}`)).getByTestId("sd-fill-error")).toHaveTextContent("Combo kiểu cũ");
   });
 });

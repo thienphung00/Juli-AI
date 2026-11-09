@@ -6,7 +6,7 @@ import { FillJobs, jobUrl, senderMatchesJob } from "../src/background/fill-jobs"
 import { addRequests, loadState, requestsLeft } from "../src/background/state";
 import { DAILY_REQUEST_BUDGET, READER_PAGE_LOAD_COST } from "../src/config";
 import { GatewayError } from "../src/ingest/client";
-import { savedVoucherPath, voucherIdFrom } from "../src/fill/saved";
+import { bundleIdFrom, savedBundlePath, savedVoucherPath, voucherIdFrom } from "../src/fill/saved";
 import { gmt7Date } from "../src/shopee/time";
 import { JOB_ID, voucherJob } from "./fill-job-helpers";
 
@@ -188,5 +188,15 @@ describe("noticing a saved voucher", () => {
     expect(voucherIdFrom({ voucher_id: "42" })).toBe("42");
     expect(voucherIdFrom({ voucher_id: "4 2; drop" })).toBeNull();
     expect(voucherIdFrom({ data: { list: [] } })).toBeNull();
+  });
+
+  it("knows a combo create endpoint and reads only digits of its id; nothing else is captured", () => {
+    expect(savedBundlePath("/api/marketing/v3/bundle_deal/create/")).toBe(true);
+    expect(savedBundlePath("/api/marketing/v3/bundle_deal/list/")).toBe(false);
+    expect(savedBundlePath("/api/marketing/v3/voucher/create/")).toBe(false);
+    expect(bundleIdFrom({ code: 0, data: { bundle_deal_id: 555000111 } })).toBe("555000111");
+    expect(bundleIdFrom({ bundle_id: "77" })).toBe("77");
+    expect(bundleIdFrom({ bundle_id: "7 7; x" })).toBeNull();
+    expect(bundleIdFrom({ data: { list: [] } })).toBeNull();
   });
 });

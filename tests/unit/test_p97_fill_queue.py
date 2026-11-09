@@ -312,3 +312,76 @@ async def test_product_period_and_group_ads_posts_land_in_the_period_tables(sess
     assert ("product_period", "placed", "1001", "5001") in by
     assert any(r.dataset == "ads_campaign_period" and r.stream == "ads" for r in rows)
     assert all(r.period_start == date(2026, 10, 1) for r in rows)
+
+
+def _combo_card(change_kind="bundle_deal", **inputs):
+    return {
+        "change_kind": change_kind,
+        "inputs": inputs,
+        "scope": {"product_ids": ["1001", "1003"]},
+    }
+
+
+async def _combo_jobs(session, seeded, card):
+    p = await session.scalar(select(ShopProposal).where(ShopProposal.shop_id == seeded.shop_id))
+    assert p is not None
+    return await fill_queue.build_jobs(session, seeded.shop_id, p, card, 1, None, NOW)
+
+
+async def test_a_combo_card_becomes_a_validated_combo_job(session, shop):
+    seeded, _ = shop
+    card = _combo_card(
+        discount_type="amount",
+        tiers=[{"qty": 2, "value": 5000}, {"qty": 4, "value": 12000}],
+        limit_per_buyer=3,
+        start="2026-11-20",
+        end="2026-12-05",
+    )
+    (job,) = await _combo_jobs(session, seeded, card)
+    pl = job["payload"]
+    assert (job["kind"], job["status"], job["error"]) == ("combo", "queued", None)
+    assert pl["open_path"] == "/portal/marketing/bundle/new"
+    assert pl["discount_type"] == "amount" and pl["purchase_limit"] == 3
+    assert pl["tiers"] == [{"qty": 2, "value": 5000}, {"qty": 4, "value": 12000}]
+    assert pl["product_ids"] == ["1001", "1003"]
+    assert (pl["starts_at"], pl["ends_at"]) == ("00:00 20-11-2026", "23:59 05-12-2026")
+    assert 0 < len(pl["name"]) <= fill_queue.MAX_COMBO_NAME
+
+
+async def test_a_generated_bundle_card_fills_as_two_percent_tiers_with_a_long_name_cut(
+    session, shop
+):
+    seeded, _ = shop
+    (job,) = await _combo_jobs(
+        session, seeded, _combo_card(tier2_pct=5, tier3_pct=8, name="N" * 40)
+    )
+    assert job["payload"]["tiers"] == [{"qty": 2, "value": 5}, {"qty": 3, "value": 8}]
+    assert job["payload"]["discount_type"] == "pct" and len(job["payload"]["name"]) == 25
+    assert "purchase_limit" not in job["payload"]
+
+
+@pytest.mark.parametrize(
+    "inputs",
+    [
+        {"tiers": []},
+        {"tiers": [{"qty": 3, "value": 5}, {"qty": 2, "value": 8}]},
+        {"tiers": [{"qty": 2, "value": 5}, {"qty": 2, "value": 8}]},
+        {"tiers": [{"qty": 2, "value": 100}]},
+        {"tiers": [{"qty": 2, "value": 0}], "discount_type": "amount"},
+        {"tiers": [{"qty": 2, "value": 0}], "discount_type": "special_price"},
+        {"tiers": [{"qty": 2, "value": 5}], "discount_type": "free"},
+        {"tiers": [{"qty": 2, "value": 5}], "limit_per_buyer": 1_000_000_000},
+    ],
+)
+async def test_a_combo_with_bad_tiers_is_a_failed_job_not_a_fill(session, shop, inputs):
+    seeded, _ = shop
+    (job,) = await _combo_jobs(session, seeded, _combo_card(**inputs))
+    assert (job["status"], job["error"], job["payload"]) == ("failed", "combo_incomplete", {})
+
+
+async def test_a_legacy_basket_combo_is_failed_with_a_vietnamese_reason(session, shop):
+    seeded, _ = shop
+    (job,) = await _combo_jobs(session, seeded, _combo_card("combo_multi"))
+    assert job["status"] == "failed" and job["kind"] == "combo"
+    assert job["error"] == "Combo kiểu cũ — tạo lại theo mức ưu đãi của Shopee"
+    assert len(job["error"]) <= 64

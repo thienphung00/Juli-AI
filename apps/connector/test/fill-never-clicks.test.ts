@@ -6,7 +6,7 @@ import { PANEL_ID } from "../src/fill/locate";
 import { runFill } from "../src/fill/run";
 import { parseFillRequest } from "../src/fill/types";
 import { wireEds } from "./eds-wire";
-import { adsJob, affiliateJob, jobHarness, rawJob, voucherJob } from "./fill-job-helpers";
+import { adsJob, affiliateJob, comboJob, jobHarness, rawJob, voucherJob } from "./fill-job-helpers";
 import { DESCRIPTION_FIELD, harness, loadPage, rawRequest, watchForbidden } from "./fill-helpers";
 
 const FORBIDDEN_EVENTS = ["click", "submit", "mousedown", "mouseup", "pointerdown", "pointerup", "dblclick", "keydown", "keyup", "keypress"];
@@ -65,6 +65,10 @@ describe("a job fill never presses Shopee's save / confirm / send", () => {
     ["an ads budget, unlimited", adsJob({ budget: { mode: "unlimited" } }), "ads-edit.html"],
     ["an ads ROAS", adsJob({ roas: { mode: "custom", value: 3 } }), "ads-edit.html"],
     ["an affiliate commission", affiliateJob(), "affiliate-open.html"],
+    ["a percentage combo, one tier", comboJob({ tiers: [{ qty: 2, value: 10 }] }), "combo-tiers.html"],
+    ["an amount combo, three tiers", comboJob({ discount_type: "amount", tiers: [{ qty: 2, value: 5000 }, { qty: 3, value: 9000 }, { qty: 5, value: 20000 }] }), "combo-tiers.html"],
+    ["a special-price combo with no limit", comboJob({ discount_type: "special_price", purchase_limit: undefined, tiers: [{ qty: 2, value: 90000 }, { qty: 4, value: 160000 }] }), "combo-tiers.html"],
+    ["a combo on a page that is not the form", comboJob(), "edit-unknown.html"],
     ["a title", titleJob, "edit-ory-recon.html"],
     ["a page that is not the expected form", voucherJob(), "edit-unknown.html"],
   ])("%s", async (_name, raw, page) => {

@@ -15,7 +15,7 @@
 // saves anything.
 
 import { CHANNEL, FILL_HASH_KEY, READER_IDS, SELLER_CENTRE_ORIGIN } from "../config";
-import { savedVoucherPath, voucherIdFrom } from "../fill/saved";
+import { bundleIdFrom, savedBundlePath, savedVoucherPath, voucherIdFrom } from "../fill/saved";
 import {
   isCapturedEndpoint,
   READER_ENDPOINTS,
@@ -155,13 +155,13 @@ function readerTarget(rawUrl: string, method: string): { endpoint: ReaderEndpoin
 
 // -- a voucher the person saved on a fill-job page (P97 D85.6) ----------------------------------
 
-/** Only on a page opened by a fill job (`#juli-fill=...`): keep the new voucher_id of the create answer. */
+/** Only on a page opened by a fill job (`#juli-fill=...`): keep the new voucher_id / combo id of the create answer. */
 function noteSavedVoucher(rawUrl: string, method: string, body: unknown): void {
   try {
     if (method !== "POST" || !location.hash.includes(`${FILL_HASH_KEY}=`)) return;
     const url = new URL(rawUrl, location.href);
-    if (url.origin !== SELLER_CENTRE_ORIGIN || !savedVoucherPath(url.pathname)) return;
-    const ref = voucherIdFrom(body);
+    if (url.origin !== SELLER_CENTRE_ORIGIN) return;
+    const ref = savedVoucherPath(url.pathname) ? voucherIdFrom(body) : savedBundlePath(url.pathname) ? bundleIdFrom(body) : null;
     if (ref) window.postMessage({ channel: CHANNEL, kind: "fill-saved", ref }, SELLER_CENTRE_ORIGIN);
   } catch {
     // not ours to report

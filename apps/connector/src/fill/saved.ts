@@ -22,3 +22,23 @@ export function voucherIdFrom(body: unknown, depth = 0): string | null {
   }
   return null;
 }
+
+/** A POST to a marketing bundle-deal (Combo Khuyến Mãi) create / add / save endpoint. Like the
+ * voucher one, a pattern and not a recorded fact; a missed answer leaves the combo without an id
+ * (its read-back stays "executed_no_readback"). */
+export function savedBundlePath(pathname: string): boolean {
+  return /^\/api\/marketing\/.*bundle.*\/(create|add|save)[a-z_]*\/?$/i.test(pathname);
+}
+
+/** The new combo id in a create answer (`bundle_deal_id` or `bundle_id`), digits only; else null. */
+export function bundleIdFrom(body: unknown, depth = 0): string | null {
+  if (!isRecord(body) || depth > 3) return null;
+  for (const id of [body.bundle_deal_id, body.bundle_id]) {
+    if ((typeof id === "number" && Number.isSafeInteger(id) && id > 0) || (typeof id === "string" && /^\d{1,20}$/.test(id))) return String(id);
+  }
+  for (const value of Object.values(body)) {
+    const found = bundleIdFrom(value, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
