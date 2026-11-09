@@ -7,6 +7,7 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num, pct, pct_of, ratio
+from juli_backend.services.shopee_analytics.funnel import CTOR_NOTE
 from juli_backend.services.shopee_profit.five_numbers import (
     FiveNumbers,
     Snapshot,
@@ -65,6 +66,7 @@ def flow_table_json(table: FlowTable) -> dict[str, Any]:
         "orders_sum": table.orders_sum,
         "adds_up": table.total_gmv is None or table.gmv_sum == table.total_gmv,
         "has_residual": table.residual is not None,
+        "ctor_note": CTOR_NOTE,
     }
 
 

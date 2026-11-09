@@ -12,6 +12,7 @@ from dataclasses import replace
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import (
     ADS_BASIS,
@@ -24,6 +25,7 @@ from juli_backend.services.shopee_analytics.fmt import (
     pct_of,
     ratio,
 )
+from juli_backend.services.shopee_analytics.funnel import CTOR_NOTE
 from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN, ShopContext
 from juli_backend.services.shopee_analytics.metrics import (
     AOV_LABEL,
@@ -132,16 +134,15 @@ def _shop_chain(view: PeriodView, metrics: ShopMetrics | None = None) -> dict[st
     if table is None:
         return {}
     m = metrics or view.metrics
-    flows = [r for r in table.rows if not r.is_residual]
-    views = sum((r.views for r in flows if r.views is not None), 0)
-    clicks = sum((r.clicks for r in flows if r.clicks is not None), 0)
+    # P98 / ADR-122 d.2: lượt xem / lượt nhấp of the stored funnel (ShopMetrics carries them) and
+    # CTOR = ShopMetrics đơn ÷ lượt nhấp, so Lượt xem × CTR × CTOR = Đơn of the KPI strip
     total = FlowMetrics(
         "shop",
         "Cả shop",
-        views or None,
-        clicks or None,
-        table.total_orders or 0,
-        table.total_gmv or ZERO,
+        m.views,
+        m.clicks,
+        m.orders if m.orders is not None else (table.total_orders or 0),
+        m.gmv if m.gmv is not None else (table.total_gmv or ZERO),
     )
     identity = total.gmv_by_identity()
     return {
@@ -157,6 +158,8 @@ def _shop_chain(view: PeriodView, metrics: ShopMetrics | None = None) -> dict[st
         "identity_ok": identity is None or abs(identity - total.gmv) < Decimal("0.01"),
         "note": "Lượt xem cộng các luồng (Live / Video đếm phiên / video); CTR không so giữa các "
         "luồng.",
+        "ctor_note": CTOR_NOTE,
+        "funnel_basis": m.funnel_basis,
     }
 
 
@@ -389,13 +392,14 @@ def build_overview(
         "order_basis": ORDER_BASIS,
         "period": {"window": now.window.json(), "previous": before.window.json()},
         "shop_metrics": metrics.json(),
+        "funnel": funnel.basis_json(now.data.funnel),
         "data": data_status(now),
         "warnings": warns,
         "kpi_strip": {
             "gmv": _kpi(now.shop_gmv, prev_gmv),
             "views": _kpi(chain.get("views"), prev_chain.get("views")),
             "ctr": _kpi(chain.get("ctr"), prev_chain.get("ctr")),
-            "ctor": _kpi(chain.get("ctor"), prev_chain.get("ctor")),
+            "ctor": {**_kpi(chain.get("ctor"), prev_chain.get("ctor")), "note": CTOR_NOTE},
             "aov": _kpi(metrics.aov, prev_metrics.aov if prev_totals_ok else None),
             "orders": _kpi(now.shop_orders, prev_orders),
             "margin_pct": {

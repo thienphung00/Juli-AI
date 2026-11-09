@@ -82,6 +82,9 @@ class PeriodData:
     voucher_join: VoucherJoin | None = None
     #: the materialized daily rows of the window (P97 D85.2); None = not loaded / not built
     stored: Any = None
+    #: the window's stored funnel rows (P98 / ADR-122 d.2, ``funnel.FunnelRows``); None = not
+    #: loaded (the rebuild path and callers that do not show Lượt xem / CTR / CTOR)
+    funnel: Any = None
 
 
 @dataclass

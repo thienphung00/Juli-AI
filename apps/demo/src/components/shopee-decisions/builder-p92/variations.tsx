@@ -37,7 +37,25 @@ export function unitText(v: VariationRow): string {
   return v.price_per_unit === null ? DASH : `${vnd(v.price_per_unit)}/đơn vị`;
 }
 
+/** ADR-122 d.12 (slot W2-G adds them to the variations answer): Biên cuối next to `margin_pct`. */
+export type VariationMargins = VariationRow & {
+  readonly final_margin_pct?: number | null;
+  readonly final_margin_basis?: "variation" | "product" | null;
+};
+
+/** Biên cuối (ước tính) when the server sends it; nothing when the field is absent. */
+function FinalMargin({ v }: { readonly v: VariationRow }) {
+  const m = v as VariationMargins;
+  if (m.final_margin_pct === undefined) return null;
+  return (
+    <span className="sa-block" data-testid="p2-vcmp-final">
+      {m.final_margin_pct === null ? "chưa tính" : pp(m.final_margin_pct, 1)} <span className="sa-hint">Biên cuối · ước tính{m.final_margin_basis === "product" ? " · theo tỉ lệ của sản phẩm" : ""}</span>
+    </span>
+  );
+}
+
 function MarginCell({ v, costLink }: { readonly v: VariationRow; readonly costLink: string }) {
+  const hasFinal = (v as VariationMargins).final_margin_pct !== undefined;
   if (v.margin_pct === null) {
     return (
       <span title={v.margin_reason ?? undefined}>
@@ -45,10 +63,19 @@ function MarginCell({ v, costLink }: { readonly v: VariationRow; readonly costLi
         <Link href={costLink} className="sa-link">
           Thông số shop ›
         </Link>
+        <FinalMargin v={v} />
       </span>
     );
   }
-  return <b>{pp(v.margin_pct, 1)}</b>;
+  if (!hasFinal) return <b>{pp(v.margin_pct, 1)}</b>;
+  return (
+    <span>
+      <span className="sa-block">
+        <b>{pp(v.margin_pct, 1)}</b> <span className="sa-hint">Biên ở giá bán · chắc chắn</span>
+      </span>
+      <FinalMargin v={v} />
+    </span>
+  );
 }
 
 export function VariationCompare({ data, costLink }: { readonly data: VariationList; readonly costLink: string }) {

@@ -77,8 +77,8 @@ async def _views(
         raise NoShopeeData(str(shop_id))
     ctx = await loaders.load_context(session, shop_id)
     ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
-    now = await service.load_view(session, shop_id, ctx, window)
-    before = await service.load_view(session, shop_id, ctx, window.previous())
+    now = await service.load_view(session, shop_id, ctx, window, funnel=True)
+    before = await service.load_view(session, shop_id, ctx, window.previous(), funnel=True)
     return ctx, now, before
 
 
@@ -167,7 +167,7 @@ async def window_metrics(
         return None
     if window is None:
         return None
-    view = await service.load_view(session, shop_id, ctx, window)
+    view = await service.load_view(session, shop_id, ctx, window, funnel=True)
     return view.metrics.json(), dict(view.excluded)
 
 
@@ -254,8 +254,8 @@ async def product_page(
         window = await service.resolve(session, shop_id, period=key, as_of=anchor)
         assert isinstance(window, Window)
         views[key] = (
-            await service.load_view(session, shop_id, ctx, window),
-            await service.load_view(session, shop_id, ctx, window.previous()),
+            await service.load_view(session, shop_id, ctx, window, funnel=True),
+            await service.load_view(session, shop_id, ctx, window.previous(), funnel=True),
         )
     known = (
         item_id in ctx.catalog.items
