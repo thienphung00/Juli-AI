@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { BuilderOutcome, PickerResult, PickerProduct } from "../../../lib/shopee-decisions/builder-api";
+import type { BuilderApi, BuilderOutcome, PickerResult, PickerProduct } from "../../../lib/shopee-decisions/builder-api";
 import { KINDS_92, MAX_VERSIONS, buildVersion, defaultVariationId, initialForms, kindName92, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
 import { useReco } from "../../../lib/shopee-decisions/context";
+import type { BuilderP98Api } from "../../../lib/shopee-decisions/builder-p98-api";
 import { useNarrow } from "../../quyet-dinh/use-narrow";
 import { NavLink, errorText } from "../ui";
 import { CompareView, type Entry } from "./compare";
@@ -12,6 +13,9 @@ import { AddOnPanel, ComboPanel, DiscountPanel, GiftPanel, ListingComboPanel, Pr
 import { AdsPanel, AffiliatePanel, CoverPanel, DescPanel, PriceDisplayPanel, TitlePanel } from "./panels-listing";
 import { ProductPicker, ProductStrip, Steps, VariationStep, VariationStrip } from "./picker";
 import { ResultBlock, type ResultState } from "./results";
+import { AdsBuilder } from "../ads-builder";
+import { ComboBuilder } from "../combo-builder";
+import { KolBuilder, type KolCandidate } from "../kol-builder";
 import type { PanelCtx } from "./shared";
 import { useVariationList } from "./variations";
 
@@ -26,7 +30,7 @@ type Step = "pick" | "variation" | "kinds" | "panel" | "compare";
 
 type PickerState = { readonly status: "loading" } | { readonly status: "error"; readonly message: string } | { readonly status: "ready"; readonly data: PickerResult };
 
-export function BuilderP92View({ from, productId }: { readonly from: string | null; readonly productId: string | null }) {
+export function BuilderP92View({ from, productId, p98Api, kols = [] }: { readonly from: string | null; readonly productId: string | null; readonly p98Api?: BuilderP98Api; readonly kols?: readonly KolCandidate[] }) {
   const host = useReco();
   const api = host.builder!;
   const [state, setState] = useState<PickerState>({ status: "loading" });
@@ -58,7 +62,36 @@ export function BuilderP92View({ from, productId }: { readonly from: string | nu
       </div>
     );
   }
-  return <Builder data={state.data} from={from} productId={productId} />;
+  return <P98Entry api={api} data={state.data} from={from} kols={kols} p98Api={p98Api} productId={productId} />;
+}
+
+type Mode = "single" | "combo" | "kol" | "ads";
+const MODES: readonly { readonly key: Mode; readonly label: string }[] = [
+  { key: "single", label: "Từng phương án" },
+  { key: "combo", label: "Combo nhiều SKU" },
+  { key: "kol", label: "KOL" },
+  { key: "ads", label: "Quảng cáo" },
+];
+
+/** P98 entry points: three extra builders beside the P92 one (shown only when the P98 client is given). */
+function P98Entry({ api, data, from, productId, p98Api, kols }: { readonly api: BuilderApi; readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly p98Api?: BuilderP98Api; readonly kols: readonly KolCandidate[] }) {
+  const [mode, setMode] = useState<Mode>("single");
+  if (!p98Api) return <Builder data={data} from={from} productId={productId} />;
+  return (
+    <>
+      <nav aria-label="Loại công cụ" className="sb-pills" data-testid="p98-modes">
+        {MODES.map((m) => (
+          <button aria-pressed={mode === m.key} className={`sb-pill ${mode === m.key ? "sb-pill--on" : ""}`} data-testid={`p98-mode-${m.key}`} key={m.key} onClick={() => setMode(m.key)} type="button">
+            {m.label}
+          </button>
+        ))}
+      </nav>
+      {mode === "single" ? <Builder data={data} from={from} productId={productId} /> : null}
+      {mode === "combo" ? <ComboBuilder api={p98Api} products={data.products} variationsApi={api} /> : null}
+      {mode === "kol" ? <KolBuilder api={p98Api} kols={kols} products={data.products} /> : null}
+      {mode === "ads" ? <AdsBuilder api={p98Api} products={data.products} /> : null}
+    </>
+  );
 }
 
 function Builder({ data, from, productId }: { readonly data: PickerResult; readonly from: string | null; readonly productId: string | null }) {
