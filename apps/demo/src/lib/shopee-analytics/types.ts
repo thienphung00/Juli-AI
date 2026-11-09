@@ -127,6 +127,12 @@ export interface AdsLabel {
 
 export interface ProfitBlock {
   readonly profit_vnd: N;
+  readonly profit_estimated?: boolean;
+  readonly profit_estimate_label?: string | null;
+  readonly profit_waterfall_vnd?: N;
+  readonly profit_detail_label?: string;
+  readonly profit_detail_orders?: number;
+  readonly profit_detail_gmv_share_pct?: N;
   readonly profit_on_covered_vnd: N;
   readonly margin_pct: N;
   readonly margin_basis: string;

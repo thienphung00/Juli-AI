@@ -263,11 +263,18 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
       tone: "sa-tone--down",
     },
     {
-      k: "= Lợi nhuận shop",
-      v: partial ? DASH : vnd(p.profit_vnd),
+      k: "= Lợi nhuận (chi tiết)",
+      v: partial ? DASH : vnd(p.profit_waterfall_vnd ?? p.profit_vnd),
       note: partial
         ? "Chỉ hiện bằng đồng khi 100% doanh thu có giá vốn"
-        : `Biên ${pp(p.margin_pct, 1)} = lợi nhuận ÷ doanh thu thực (sau voucher và combo)`,
+        : `${p.profit_detail_label ? `${p.profit_detail_label} · ` : ""}Biên ${pp(p.margin_pct, 1)} = lợi nhuận ÷ doanh thu thực (sau voucher và combo)`,
+    },
+    {
+      k: "Lợi nhuận shop",
+      v: partial ? DASH : vnd(p.profit_vnd),
+      note: p.profit_estimated
+        ? `${p.profit_estimate_label ?? "ước tính theo tỉ lệ"} · cùng số với Sản phẩm và Kế hoạch`
+        : "Cùng số với Sản phẩm và Kế hoạch",
     },
   ];
   return (

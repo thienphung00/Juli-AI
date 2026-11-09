@@ -1,4 +1,4 @@
-"""P98 / ADR-122 d.11.2: the one number, read from every screen of a Shopee shop.
+"""P98 / ADR-122 d.11.2 + d.14: the one number, read from every screen of a Shopee shop.
 
 ``collect`` reads Tổng quan, Phân tích, Sản phẩm, the Kế hoạch base and the builder "before" for the
 same shop, scope and 30-day window and returns each screen's Lượt xem, CTR, CTOR, Đơn, AOV, GMV and
@@ -49,7 +49,7 @@ async def collect_shop(
         "gmv": strip["gmv"]["value"],
         "profit": sm["profit"],  # ShopMetrics, the one number (D85.2)
     }
-    profit_block = ov["profit"]["profit_vnd"]  # the waterfall block of the same screen
+    profit_block = ov["profit"]["profit_vnd"]  # the profit block's headline (d.14: ShopMetrics)
 
     async def cell(xep: str) -> Any:
         body = await queries.ranking(session, shop_id, xep_theo=xep, **kw)

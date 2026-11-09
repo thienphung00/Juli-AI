@@ -36,7 +36,7 @@ from juli_backend.services.shop_diagnosis.confidence import Confidence, volume_l
 from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
 from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num, pct
+from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, frac, num, pct
 from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN
 from juli_backend.services.shopee_analytics.matrix import margin_basis, price_block
 from juli_backend.services.shopee_profit.flows import Flow, FlowSource
@@ -142,6 +142,13 @@ def _measure(m: M | None, key: str, days: int) -> Decimal | None:
     if key == "ctor":
         return None if m.clicks is None else safe_div(m.orders, m.clicks)
     return None
+
+
+RATIO_MEASURES = frozenset({"ctr", "ctor"})  # fractions kept unrounded (P98 d.14)
+
+
+def _ratio(value: Any) -> int | float | None:
+    return frac(value)
 
 
 def _dec(value: Any) -> Decimal | None:
@@ -304,7 +311,7 @@ def _cell_products(view: PeriodView, source: str, sub: str | None) -> M:
     return M(
         view.metrics.gmv or ZERO,
         Decimal(view.metrics.orders or 0),
-        p.covered_margin_profit if p.margin_is_partial else p.profit_on_covered,
+        view.metrics.profit,  # P98 d.14: the ShopMetrics profit, as on every other screen
         p.buyer_paid_covered,
         discount,
         sum((pb.list_value for _, pb in view.pairs), ZERO),
@@ -422,12 +429,13 @@ def _row_json(r: _Out, xep: str, days_now: int, days_before: int, ordered: bool)
     if (a is None or b is None) and xep not in ADDITIVE:
         delta = None  # a ratio missing on one side has no change, not a change from zero
     extra = {k: (num(v) if isinstance(v, Decimal) else v) for k, v in r.extra.items()}
+    out = _ratio if xep in RATIO_MEASURES else num
     return {
         "id": r.id,
         "label": r.label,
-        "now": num(a),
-        "before": num(b),
-        "delta": num(delta),
+        "now": out(a),
+        "before": out(b),
+        "delta": out(delta),
         "quantity": {
             "orders_now": num(r.now.orders) if r.now else 0,
             "orders_before": num(r.before.orders) if r.before else 0,
@@ -531,7 +539,11 @@ def rank(
             }
     return {
         "supported": True,
-        "cell": {"now": num(cell_a), "before": num(cell_b), "delta": num(cell_delta)},
+        "cell": {
+            "now": (_ratio if xep in RATIO_MEASURES else num)(cell_a),
+            "before": (_ratio if xep in RATIO_MEASURES else num)(cell_b),
+            "delta": (_ratio if xep in RATIO_MEASURES else num)(cell_delta),
+        },
         "down": down,
         "up": up,
         "closing": closing,

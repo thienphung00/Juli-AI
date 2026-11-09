@@ -35,6 +35,13 @@ def ratio(value: Decimal | None, places: int = 6) -> float | None:
     return None if value is None else float(round(value, places))
 
 
+def frac(value: Any, places: int = 6) -> float | None:
+    """A ratio kept as a fraction, never collapsed to ``num``'s 2 decimals (CTR 0.0636 stays)."""
+    if value is None:
+        return None
+    return float(round(Decimal(str(value)), places))
+
+
 def pct(value: Decimal | None) -> float | None:
     return None if value is None else float(value)
 
