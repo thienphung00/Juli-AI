@@ -13,6 +13,7 @@ import {
   mapAffiliateProducts,
   mapAffiliateShop,
   RAW_ORDER_ID,
+  scaleFromMagnitude,
   scaleFromPairs,
 } from "../src/shopee/affiliate-map";
 import { isCapturedEndpoint, READER_PAGES, readerEndpointOf, type ReaderEndpoint } from "../src/shopee/endpoints";
@@ -269,6 +270,17 @@ describe("captured affiliate pages", () => {
     expect(periodOfTemplate(template)).toEqual({ start: "2026-10-06", end: "2026-11-04" });
   });
 
+  it("nested GraphQL variables (input.timeRange.startTime) give the period too", () => {
+    const template: Template = {
+      query: {},
+      body: {
+        operationName: "QueryCommissionList",
+        variables: { input: { timeRange: { startTime: gmt7DateStart("2026-10-06"), endTime: gmt7DateStart("2026-11-04") + 86_399 }, pageNum: 1 } },
+      },
+    };
+    expect(periodOfTemplate(template)).toEqual({ start: "2026-10-06", end: "2026-11-04" });
+  });
+
   it("seller_daily: one post per day plus the direct / indirect split of the page's period", () => {
     const daily = {
       code: 0,
@@ -327,6 +339,30 @@ describe("money scale helpers", () => {
     expect(scaleFromPairs([{ gmv: 126360, dis_gmv: "₫126.360" }], ["gmv"])).toBe(1);
     expect(scaleFromPairs([{ gmv: 5, dis_gmv: "₫126.360" }], ["gmv"])).toBeNull();
     expect(scaleFromPairs([{ gmv: 5 }], ["gmv"])).toBeUndefined();
+  });
+
+  it("with no display twin the scale comes from the size of the amounts (F4)", () => {
+    expect(scaleFromMagnitude([{ gmv: 12_636_000_000 }], ["gmv"])).toBe(100_000);
+    expect(scaleFromMagnitude([{ gmv: 126360 }, { gmv: 82620 }], ["gmv"])).toBe(1);
+    expect(scaleFromMagnitude([{ gmv: 0 }], ["gmv"])).toBeUndefined();
+    expect(scaleFromMagnitude([{ gmv: 2_000_000_000 }], ["gmv"])).toBeUndefined(); // fits both: fallback applies
+  });
+
+  it("conversion rows without display twins: plain VND is read as VND, not divided again", () => {
+    const { dis_item_price: _a, dis_actual_amount: _b, dis_refunded_amount: _c, ...bare } = ITEM;
+    const plain = { ...bare, item_price: 126_360, actual_amount: 126_360, refunded_amount: 0 };
+    const page = { code: 0, data: { list: [order("261105GDSAEB5W", "kol", [plain])] } };
+    const mapped = mapAffiliateConversions([{ endpoint: "affiliate_conversion", url: "u", status: 200, capturedAt: NOW, source: "replay", body: page, period: { start: "2026-11-05", end: "2026-11-05" } } as ReaderResponse], NOW);
+    expect(mapped.drift).toBeNull();
+    expect(mapped.rows[0]).toMatchObject({ price: 126360, order_value: 126360 });
+  });
+
+  it("order_id as a number is kept (and hashed to the same ref as its string)", () => {
+    const numeric = { ...order("0", "kol", [ITEM]), order_id: 2611051234567 };
+    const page = { code: 0, data: { list: [numeric] } };
+    const mapped = mapAffiliateConversions([{ endpoint: "affiliate_conversion", url: "u", status: 200, capturedAt: NOW, source: "replay", body: page, period: { start: "2026-11-05", end: "2026-11-05" } } as ReaderResponse], NOW);
+    expect(mapped.drift).toBeNull();
+    expect(mapped.rows[0]![RAW_ORDER_ID]).toBe("2611051234567");
   });
 
   it("order_ref matches the Ops upload page's function (same key, same id)", async () => {

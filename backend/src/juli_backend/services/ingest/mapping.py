@@ -60,7 +60,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -77,7 +77,9 @@ from juli_backend.services.ingest.schemas import (
     SHOPEE_PROMO_TYPES,
     DatasetRow,
     ShopeeAdsCampaignDailyRow,
+    ShopeeAdsCampaignDetailRow,
     ShopeeAdsCampaignPeriodRow,
+    ShopeeAdsCampaignSettingRow,
     ShopeeAdsChangeLogRow,
     ShopeeAdsKeywordPeriodRow,
     ShopeeAffiliateBillPeriodRow,
@@ -632,6 +634,44 @@ def _ads_campaign_daily(row: ShopeeAdsCampaignDailyRow) -> NormalizedRow:
     )
 
 
+def _ads_snapshot_extra(
+    row: ShopeeAdsCampaignSettingRow | ShopeeAdsCampaignDetailRow,
+) -> dict[str, Any]:
+    """Every field of an ads settings / detail row, JSON-ready: instants as wall-clock ISO text."""
+    _, extra = _split(row, {})
+    out = {
+        key: value.isoformat() if isinstance(value, datetime) else value
+        for key, value in extra.items()
+    }
+    out["campaign_id"] = row.campaign_id  # a key field, which _split leaves out
+    return out
+
+
+def _ads_campaign_setting(row: ShopeeAdsCampaignSettingRow) -> NormalizedRow:
+    """One campaign's settings on the capture day: ``segment`` hashes the campaign id, as on
+    ``ads_campaign_daily``; ``platform_source`` is the campaign title. The enum values (state,
+    type, bidding, placement) are the row model's own validated fields, kept like the daily ads
+    row's ``state`` / ``ad_type``."""
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_ADS,
+        platform_source=(row.campaign_name or "")[:64] or None,
+        segment=campaign_segment(row.campaign_id),
+        extra=_ads_snapshot_extra(row),
+    )
+
+
+def _ads_campaign_detail(row: ShopeeAdsCampaignDetailRow) -> NormalizedRow:
+    """One ongoing campaign's edit-page limits on the capture day (same segment as its settings)."""
+    return NormalizedRow(
+        day=None,
+        stream=STREAM_ADS,
+        platform_source="ads_campaign_detail",
+        segment=campaign_segment(row.campaign_id),
+        extra=_ads_snapshot_extra(row),
+    )
+
+
 def _promotion_period(row: ShopeePromotionPeriodRow) -> NormalizedRow:
     kpis, extra = _split(row, _PROMOTION_KPIS)
     return NormalizedRow(
@@ -875,6 +915,28 @@ DATASETS: dict[tuple[str, str], DatasetSpec] = {
         _ads_campaign_daily,
         True,
         "Per finished day, per ad campaign (Quảng cáo › Tổng quan), plus the day's ROAS target.",
+    ),
+    ("shopee", "ads_campaign_settings"): DatasetSpec(
+        "shopee",
+        "ads_campaign_settings",
+        ShopeeAdsCampaignSettingRow,
+        _ads_campaign_setting,
+        False,
+        "Per capture day, each ad campaign's settings (Quảng cáo list): type, state, run dates, "
+        "budget, ROAS target, bidding, placement, what Shopee lets the seller edit.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
+    ),
+    ("shopee", "ads_campaign_detail"): DatasetSpec(
+        "shopee",
+        "ads_campaign_detail",
+        ShopeeAdsCampaignDetailRow,
+        _ads_campaign_detail,
+        False,
+        "Per capture day, an ongoing campaign's edit-page limits: products, ROAS estimate and "
+        "bounds, budget min / max / recommended, spend so far.",
+        GRANULARITY_PERIOD,
+        WRITE_PERIOD,
     ),
     ("shopee", "item_traffic_sources"): DatasetSpec(
         "shopee",

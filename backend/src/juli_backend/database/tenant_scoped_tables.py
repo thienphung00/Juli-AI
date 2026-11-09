@@ -163,6 +163,9 @@ TABLE_CLASSIFICATION_MAP = {
     # P91 D-12 (migration 119): what Shopee actually charged and paid per order (the income
     # export), keyed by the same hashed order ref as the order lines.
     ("public", "shopee_order_income"): "tenant_direct",
+    # P96 (migration 122): affiliate order lines of the conversion report, stored on their own
+    # (the KOL tab no longer needs the order export); same hashed order ref, KOL handle only.
+    ("public", "shopee_affiliate_lines"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",

@@ -39,7 +39,15 @@ number:
 - **Marketing › Quảng cáo** (`/portal/marketing/pas/index`) — per campaign and per
   finished day: title, type, state, budgets, ROAS target and the report numbers
   (impressions, clicks, cost, sales and orders, ranks, voucher amounts), and the
-  ROAS target in force that day;
+  ROAS target in force that day; and, once a day, each campaign's settings: run
+  dates, budgets, ROAS target, bidding and placement, the advertised product id and
+  which settings Shopee lets the seller change (no images);
+- **Marketing › Quảng cáo › a running campaign's edit page**
+  (`/portal/marketing/pas/product/manual/<id>`) — for the shop's ongoing or
+  scheduled product campaigns: the products in the campaign (ids, stock, price
+  range), Shopee's ROAS estimate, suggested and allowed ROAS targets, the allowed
+  daily budget (minimum, maximum, suggested) and spend so far. The extension only
+  reads: it never changes, saves, pauses or creates a campaign;
 - **Marketing › Voucher của shop** (`/portal/marketing/vouchers/list`) — each
   voucher's code, name, dates, discount, minimum spend, usage limit and how many
   times it has been used or handed out (not who used it);
@@ -65,9 +73,34 @@ number:
   the conversion report, asks for the next pages of the same list). It never sends any
   request that changes something and never clicks anything.
 
-These are **aggregated shop and product numbers**. The extension does not read
+- **Dữ liệu › Phân tích bán hàng › Tổng quan** (`/datacenter/overview`, from version 0.3.11) —
+  the shop's daily totals for the last 30 days (then the last 7 each day): sales, orders and
+  sales per order on the placed, paid and confirmed basis, visits, visitors, product clicks,
+  and cancelled / returned orders and sales. Shop-level numbers only;
+- **Bán hàng › Đơn hàng** (`/portal/sale/order`, from version 0.3.11) — the order lines of
+  the newest orders (at most 5 list pages a day): order time, status, SKU, variation name,
+  quantity, prices, discounts, vouchers and shipping paid by the buyer. **The buyer's name,
+  username, address, phone number, notes and tracking number are dropped in the page and never
+  sent, and the order number is replaced in the browser by a keyed hash** (a key Juli gives the
+  extension for this shop only) before anything is sent;
+- **an order's page** (`/portal/sale/order/<id>`, from version 0.3.11) — for orders that
+  completed since the previous day (at most 100 a day, never older ones), the fees and payout
+  Shopee shows for that order (fixed and service fees, payment fee, PiShip, shipping, voucher
+  and the final amount). Amounts only; the order number is hashed as above. The extension keeps
+  the numbers of those orders in its local storage until they have been read.
+
+These are **aggregated shop and product numbers** and order amounts. The extension does not read
 buyer names, addresses, phone numbers, messages, orders' personal details,
 payment data, passwords or cookies.
+
+## Request budget and stopping
+
+All requests the extension sends to Seller Centre — the readers, the daily sync and the
+backfill together — are capped at 400 a day per shop, at least 2 seconds apart (order list
+pages 20-45 seconds apart), one page at a time. If Seller Centre shows a CAPTCHA, a login
+page, answers HTTP 429 or 403, or says there are too many requests, the extension stops
+**all** reading for that shop for days and tells Juli which reader, which page, what happened
+and when (no data), so the operator can see it.
 
 ## What it sends, and where
 

@@ -86,7 +86,7 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
       </div>
       <div className="kol-table" data-testid="kol-table" role="table">
         <div className="kol-row kol-row--head" role="row">
-          {["KOL · kênh", "Sản phẩm", "Đơn", "SL", "GMV", "Lượt nhấp của KOL", "Chuyển đổi của KOL", "Hoa hồng", "Lợi nhuận ròng", "Chi phí mẫu", "Lợi nhuận sau mẫu", "ROI gồm mẫu", "ROI Shopee (chỉ hoa hồng)", "Hoàn vốn mẫu", "Thẻ"].map((h) => (
+          {["KOL · kênh", "Sản phẩm", "Đơn", "SL", "GMV", "Lượt nhấp của KOL", "Chuyển đổi của KOL", "Người mua của KOL", "Hoa hồng", "Lợi nhuận ròng", "Chi phí mẫu", "Lợi nhuận sau mẫu", "ROI gồm mẫu", "ROI Shopee (chỉ hoa hồng)", "Hoàn vốn mẫu", "Thẻ"].map((h) => (
             <span key={h} role="columnheader">
               {h}
             </span>
@@ -110,7 +110,7 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
         <div>
           <b>ROI Shopee (chỉ hoa hồng)</b>{" "}
           <span className="sa-hint">
-            {report.labels.roi_shopee_note} Chỉ tính hoa hồng, không có giá vốn, phí sàn và mẫu nên thường trông tốt hơn. “{report.labels.low_data}” là cặp KOL × sản phẩm có dưới {threshold} đơn: số chỉ để tham khảo. Lượt nhấp và chuyển đổi là của cả KOL trong file xuất Shopee, không riêng sản phẩm này.
+            {report.labels.roi_shopee_note} Chỉ tính hoa hồng, không có giá vốn, phí sàn và mẫu nên thường trông tốt hơn. “{report.labels.low_data}” là cặp KOL × sản phẩm có dưới {threshold} đơn: số chỉ để tham khảo. Lượt nhấp, chuyển đổi và người mua là của cả KOL trên Shopee, không riêng sản phẩm này.
           </span>
         </div>
       </div>
@@ -137,6 +137,7 @@ function KolRowView({ row }: { readonly row: KolRow }) {
       <span role="cell">{t.gmv}</span>
       <span role="cell">{t.clicks}</span>
       <span role="cell">{t.conversion}</span>
+      <span role="cell">{t.buyers}</span>
       <span role="cell">{t.commission}</span>
       <span role="cell">{t.net}</span>
       <span role="cell">{t.sample}</span>

@@ -211,6 +211,7 @@ class KolRow:
     campaign_type: str | None = None
     roi_shopee: Decimal | None = None
     kol_clicks: Decimal | None = None
+    kol_buyers: Decimal | None = None
     kol_conversion: Decimal | None = None
     #: internal (hashed refs never leave the service): the distinct orders of the row
     order_ids: set[str] = field(default_factory=set, repr=False)
@@ -250,6 +251,7 @@ class KolRow:
             "gmv": num(self.gmv),
             "clicks": None,
             "kol_clicks": num(self.kol_clicks),
+            "kol_buyers": num(self.kol_buyers),
             "kol_conversion": None
             if self.kol_conversion is None
             else float(round(self.kol_conversion, 6)),
@@ -516,6 +518,7 @@ def compute(view: PeriodView, ctx: ShopContext, data: KolData) -> KolModel:
         if partner is not None:
             r.roi_shopee = partner.roi
             r.kol_clicks = partner.clicks
+            r.kol_buyers = partner.buyers
             r.kol_conversion = (partner.orders / partner.clicks) if partner.clicks else None
     choice = view.data.affiliate.choice
     return KolModel(
@@ -780,7 +783,13 @@ async def load_model(
     ctx: ShopContext,
     view: PeriodView,
 ) -> KolModel:
-    return compute(view, ctx, await load_kol_data(session, shop_id))
+    # P96: the Connector's affiliate lines fill the KOL rows without the order export.
+    from juli_backend.services.shopee_analytics import kol_affiliate
+
+    window = view.data.window
+    affiliate = await kol_affiliate.load_affiliate_lines(session, shop_id, window.start, window.end)
+    merged = kol_affiliate.merge(view, ctx, affiliate)
+    return compute(merged, ctx, await load_kol_data(session, shop_id))
 
 
 async def pair_daily(

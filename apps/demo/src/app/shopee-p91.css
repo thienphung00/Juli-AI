@@ -1003,10 +1003,10 @@ button.sv-head:disabled {
 
 .kol-row {
   display: grid;
-  grid-template-columns: 170px 130px 50px 40px 100px 70px 80px 100px 110px 100px 120px 90px 110px 90px 160px;
+  grid-template-columns: 170px 130px 50px 40px 100px 70px 80px 80px 100px 110px 100px 120px 90px 110px 90px 160px;
   align-items: center;
   gap: 8px;
-  min-width: 1500px;
+  min-width: 1590px;
   border-bottom: 1px solid var(--qd-line-2);
   padding: 8px 12px;
   font-size: 13px;

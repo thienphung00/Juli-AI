@@ -372,6 +372,15 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
     ),
     MutationSite(
         "public",
+        "shopee_affiliate_lines",
+        "UPDATE",
+        "backend/src/juli_backend/services/ingest/writers.py",
+        "stmt.on_conflict_do_update(",
+        "a later conversion report moves a stored affiliate line's status, refund and commission "
+        "(migration 122, P96)",
+    ),
+    MutationSite(
+        "public",
         "shopee_order_income",
         "UPDATE",
         "backend/src/juli_backend/services/ingest/income.py",

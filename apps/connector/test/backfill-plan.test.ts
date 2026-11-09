@@ -14,8 +14,9 @@ describe("backfill day plan", () => {
     for (const [index, plan] of plans.entries()) {
       const day = days[index]!;
       const start = gmt7DateStart(day);
-      expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "shop_traffic"]);
-      const [overview, traffic] = plan;
+      expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "traffic_overview", "shop_traffic"]);
+      const [overview, placed, traffic] = plan;
+      expect(placed!.params).toEqual({ ...overview!.params, order_type: "placed" });
       if (index === 0) {
         // yesterday: as "Hôm qua" sends it
         expect(overview!.params).toEqual({
@@ -42,7 +43,7 @@ describe("backfill day plan", () => {
   });
 
   it("matches the recorded 2026-10-01 URL", () => {
-    const [overview, traffic] = buildBackfillDayPlan("2026-10-01", NOW, new Set());
+    const [overview, , traffic] = buildBackfillDayPlan("2026-10-01", NOW, new Set());
     expect(overview!.path).toBe("/api/mydata/v1/product/traffic/overview/");
     expect(new URLSearchParams(overview!.params).toString()).toBe(
       `start_time=${OCT1}&end_time=${OCT1 + 86400}&period=day&order_type=confirmed`,

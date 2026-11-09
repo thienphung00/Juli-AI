@@ -5,6 +5,7 @@ import {
   activeItemIds,
   campaignCounts,
   completedTrafficDays,
+  adsDayAnswer,
   mapAdsDaily,
   mapItemTraffic,
   mapProductList,
@@ -207,11 +208,12 @@ describe("ads", () => {
     expect(roasTarget({ code: 0, data: { report_by_time: [{ roi_target_setting: { value: 0 } }] } })).toBeNull();
   });
 
-  it("a list with no campaign id is drift; a summary row beside a campaign is skipped; an uncapped budget is dropped and a huge cost stops the scale", () => {
+  it("a list with no campaign id is skipped and counted, not drift; a summary row beside a campaign is skipped; an uncapped budget is dropped and a huge cost stops the scale", () => {
     const noId = { code: 0, data: { entry_list: [{ title: "x", campaign: {}, report: {} }] } };
-    expect(mapAdsDaily([response("ads_homepage", noId, { day: DAY })])[0]!.drift?.missing).toEqual([
-      "entry.campaign.campaign_id",
-    ]);
+    const [shopOnly] = mapAdsDaily([response("ads_homepage", noId, { day: DAY })]);
+    expect(shopOnly!.drift).toBeNull();
+    expect(shopOnly!.rows).toEqual([]);
+    expect(adsDayAnswer([response("ads_homepage", noId, { day: DAY })], DAY)).toMatchObject({ withId: 0, skipped: 1, complete: true });
     const mixed = JSON.parse(JSON.stringify(adsHome)) as typeof adsHome;
     mixed.data.entry_list.push({ title: "tổng", campaign: {}, report: { cost: 1 } } as (typeof mixed.data.entry_list)[number]);
     expect(mapAdsDaily([response("ads_homepage", mixed, { day: DAY })])[0]!.drift).toBeNull();

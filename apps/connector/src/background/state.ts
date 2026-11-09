@@ -2,7 +2,7 @@
 // Juli password or session), per-dataset stops after drift, the last sync, and a
 // small retry queue of posts that failed on the network.
 
-import type { Dataset, ReaderId } from "../config";
+import { DAILY_REQUEST_BUDGET, type Dataset, type ReaderId } from "../config";
 import type { IngestBody, TokenInfo } from "../ingest/client";
 
 export interface Stop {
@@ -67,6 +67,12 @@ export interface PlannedJob {
   id: ReaderId;
   days?: string[];
   itemIds?: string[];
+  /** ads_detail: the ongoing campaigns to read (filled in when its turn comes) and their kind. */
+  campaignIds?: string[];
+  campaignKinds?: string[];
+  /** order_income: the completed orders to read (raw ids stay in this browser; filled in at its turn). */
+  orderIds?: string[];
+  orderSns?: string[];
 }
 
 /** One scheduled run: the pages in order, one open tab at a time (persisted: the worker may restart). */
@@ -83,7 +89,8 @@ export interface ReaderRun {
   outcomes: Record<string, string>;
 }
 
-export type ReaderBlockReason = "captcha" | "login";
+/** `rate_limit`: HTTP 429 / 403 or Shopee wording for "too many requests" (P97). */
+export type ReaderBlockReason = "captcha" | "login" | "rate_limit";
 
 /** The tab-opening schedule's bookkeeping. */
 export interface ReaderSchedule {
@@ -101,6 +108,23 @@ export interface ReaderSchedule {
   trafficDone?: string[];
   /** Active, visible item ids of the shop, from the last product-list read. */
   itemIds?: string[];
+  /** The GMT+7 day the campaign settings were last posted (Connector 0.3.11). */
+  adsSettingsDay?: string;
+  /** Ongoing / scheduled product campaigns from that list read: the ads_detail work list. */
+  adsCampaigns?: { id: string; kind: string }[];
+  /** Shop totals (0.3.11): the GMT+7 day they last posted, and the shop whose 30-day backfill is done. */
+  totalsDay?: string;
+  totalsBackfilledShop?: string;
+  /** Order lines (0.3.11): the day the list was last read and posted. */
+  ordersDay?: string;
+  /**
+   * Per-order income (0.3.11): completed orders waiting for their income read, oldest first. The raw
+   * order ids stay in this browser (chrome.storage.local) -- only hashed refs are ever posted.
+   */
+  incomeQueue?: { id: string; sn?: string; completedAt: number }[];
+  /** Orders completing before this time (ms) were queued already: only later ones are added. */
+  incomeSince?: number;
+  incomeDay?: string;
 }
 
 /** The market search run's bookkeeping (P92 B-10), kept apart from the Seller Centre readers'. */
@@ -136,6 +160,28 @@ export interface State {
   consentBlocked?: { at: string };
   readers?: ReaderSchedule;
   market?: MarketSchedule;
+  /** Requests sent to Seller Centre today (GMT+7), all readers + sync + backfill together. */
+  budget?: RequestBudget;
+}
+
+/** The shared daily request budget's counter. */
+export interface RequestBudget {
+  day: string;
+  used: number;
+}
+
+/** Requests left today (the budget resets with the GMT+7 day). */
+export function requestsLeft(state: Pick<State, "budget">, day: string): number {
+  const used = state.budget?.day === day ? state.budget.used : 0;
+  return Math.max(0, DAILY_REQUEST_BUDGET - used);
+}
+
+/** Count `count` more requests today. Read-modify-write: sync, backfill and the scheduler never overlap. */
+export async function addRequests(storage: Storage, day: string, count: number): Promise<void> {
+  if (count <= 0) return;
+  const raw = (await storage.get(["budget"])) as Partial<State>;
+  const used = raw.budget?.day === day ? raw.budget.used : 0;
+  await saveState(storage, { budget: { day, used: used + count } });
 }
 
 export const MAX_QUEUE = 20;
@@ -158,6 +204,7 @@ export async function loadState(storage: Storage): Promise<State> {
     "consentBlocked",
     "readers",
     "market",
+    "budget",
   ])) as Partial<State>;
   return {
     token: raw.token,
@@ -171,6 +218,7 @@ export async function loadState(storage: Storage): Promise<State> {
     consentBlocked: raw.consentBlocked,
     readers: raw.readers,
     market: raw.market,
+    budget: raw.budget,
   };
 }
 

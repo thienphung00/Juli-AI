@@ -9,10 +9,19 @@
 
 import {
   ADS_CATCHUP_DAYS,
+  ADS_DETAIL_MAX_CAMPAIGNS,
   type Dataset,
   HELD_DATASETS,
+  ORDER_INCOME_FIRST_RUN_DAYS,
+  ORDER_INCOME_MAX_PER_DAY,
+  ORDER_INCOME_QUEUE_DAYS,
+  ORDER_INCOME_QUEUE_MAX,
   READER_BLOCK_CAPTCHA_MS,
   READER_BLOCK_LOGIN_MS,
+  READER_BLOCK_RATE_MS,
+  READER_PAGE_LOAD_COST,
+  SHOP_TOTALS_BACKFILL_DAYS,
+  SHOP_TOTALS_REFRESH_DAYS,
   READER_DATASETS,
   READER_IDS,
   READER_JOB_TIMEOUT_MS,
@@ -28,8 +37,10 @@ import {
   TRAFFIC_JOB_TIMEOUT_MS,
   TRAFFIC_MAX_ITEMS,
 } from "../config";
-import { activeItemIds, completedTrafficDays } from "../shopee/reader-map";
-import { READER_PAGES } from "../shopee/endpoints";
+import { completedOrders } from "../shopee/orders-map";
+import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../shopee/reader-map";
+import type { CaptureOutcome } from "./connector";
+import { READER_PAGES, readerPageUrl } from "../shopee/endpoints";
 import { blockedPath, type ReaderJob, type ReaderResponse } from "../shopee/reader";
 import { gmt7Date, lastFinishedDays } from "../shopee/time";
 import {
@@ -37,7 +48,9 @@ import {
   type ReaderBlockReason,
   type ReaderRun,
   type ReaderSchedule,
+  addRequests,
   loadState,
+  requestsLeft,
   saveState,
   type Storage,
   stoppedFor,
@@ -65,12 +78,25 @@ export interface SchedulerAlarms {
   clear(name: string): Promise<unknown>;
 }
 
+/** What Ops sees of a stop: which reader, which page, what happened and when (never a body). */
+export interface BlockEvent {
+  reader: string;
+  page: string;
+  status: ReaderBlockReason;
+  code?: string;
+  at: string;
+}
+
 export interface SchedulerDeps {
   storage: Storage;
   tabs: SchedulerTabs;
   alarms: SchedulerAlarms;
   /** Posts a finished job's responses (the Connector). */
-  sink: { postReader(job: ReaderJob, responses: ReaderResponse[]): Promise<Record<string, string>> };
+  sink: {
+    postReader(job: ReaderJob, responses: ReaderResponse[]): Promise<Record<string, string>>;
+    /** A stop that halts every reader (CAPTCHA, login wall, 429 / 403): told to Juli so Ops can see it. */
+    reportBlock?(event: BlockEvent): Promise<void>;
+  };
   /** The 30-day backfill has a day in flight: do not start a run on top of it. */
   backfillBusy: () => Promise<boolean>;
   origin: string;
@@ -90,9 +116,18 @@ export function planJobs(args: {
   stopped: ReadonlySet<Dataset>;
   adsDone: readonly string[];
   trafficDone?: readonly string[];
+  /** The GMT+7 day the list's campaign settings were last posted (Connector 0.3.11). */
+  adsSettingsDay?: string;
+  /** Shop totals (0.3.11): the day they last posted; whether the 30-day backfill is done for this shop. */
+  totalsDay?: string;
+  totalsBackfilled?: boolean;
+  ordersDay?: string;
+  /** The day the per-order income was last read. */
+  incomeDay?: string;
   held?: ReadonlySet<ReaderDataset>;
   readers?: readonly ReaderId[];
 }): PlannedJob[] {
+  const todayDay = gmt7Date(Math.floor(args.nowMs / 1000));
   const held = args.held ?? HELD_DATASETS;
   const jobs: PlannedJob[] = [];
   for (const id of args.readers ?? READER_IDS) {
@@ -102,18 +137,45 @@ export function planJobs(args: {
     if (!postable) continue;
     if (id === "ads") {
       const days = lastFinishedDays(args.nowMs, 1 + ADS_CATCHUP_DAYS).filter((day) => !args.adsDone.includes(day));
-      if (days.length > 0) jobs.push({ id, days });
+      // Every day posted: the list is still opened once a day for its campaign settings, once
+      // a first settings capture has been recorded (before that, an open day always exists).
+      const settingsDue = args.adsSettingsDay !== undefined && args.adsSettingsDay !== gmt7Date(Math.floor(args.nowMs / 1000));
+      if (days.length > 0 || settingsDue) jobs.push({ id, days });
     } else if (id === "item_traffic") {
       // The item ids are filled in when the job's turn comes (the product list is read first).
       const days = lastFinishedDays(args.nowMs, 1 + TRAFFIC_CATCHUP_DAYS).filter(
         (day) => !(args.trafficDone ?? []).includes(day),
       );
       if (days.length > 0) jobs.push({ id, days });
+    } else if (id === "shop_totals") {
+      // 30 days right after pairing, then the last 7 finished days once a day (placed / paid settle late).
+      if (args.totalsDay !== todayDay) {
+        const count = args.totalsBackfilled ? SHOP_TOTALS_REFRESH_DAYS : SHOP_TOTALS_BACKFILL_DAYS;
+        jobs.push({ id, days: lastFinishedDays(args.nowMs, count) });
+      }
+    } else if (id === "orders") {
+      if (args.ordersDay !== todayDay) jobs.push({ id });
+    } else if (id === "order_income") {
+      // Planned every day, right after "orders" (which fills the queue in the same run); its turn
+      // opens nothing when no completed order is waiting.
+      if (args.incomeDay !== todayDay) jobs.push({ id });
     } else {
       jobs.push({ id });
     }
   }
   return jobs;
+}
+
+/**
+ * An ads day is read when its campaigns were posted, or Shopee answered with no campaign of its own
+ * (an empty list, or only shop-level entries). A day that came back with just the ROAS-target row
+ * stays in the plan (F3, 0.3.11).
+ */
+export function adsDayRead(outcome: CaptureOutcome | undefined, responses: ReaderResponse[], day: string): boolean {
+  if (outcome !== "posted" && outcome !== "ignored") return false;
+  const answer = adsDayAnswer(responses, day);
+  if (!answer.complete) return false;
+  return outcome === "posted" || answer.withId === 0;
 }
 
 /** The ids of a fresh product-list read; the previous ids are kept when the read found none. */
@@ -190,6 +252,11 @@ export class ReaderScheduler {
         stopped: stoppedFor(state, this.deps.version),
         adsDone: sched.adsPosted ?? [],
         trafficDone: sched.trafficDone,
+        adsSettingsDay: sched.adsSettingsDay,
+        totalsDay: sched.totalsDay,
+        totalsBackfilled: sched.totalsBackfilledShop === shopId,
+        ordersDay: sched.ordersDay,
+        incomeDay: sched.incomeDay,
         ...(this.deps.readers ? { readers: this.deps.readers } : {}),
       });
       // A same-day re-run opens pages that still have missing days. A manual
@@ -253,8 +320,34 @@ export class ReaderScheduler {
       job = { ...job, itemIds };
       run = { ...run, jobs: run.jobs.map((j, i) => (i === run.index ? (job as PlannedJob) : j)) };
     }
-    const tabId = await this.deps.tabs.open(`${this.deps.origin}${READER_PAGES[job.id].path}`);
+    if (job.id === "ads_detail") {
+      // The ongoing campaigns the last list read named; the first one's edit page is opened.
+      const campaigns = (sched.adsCampaigns ?? []).slice(0, ADS_DETAIL_MAX_CAMPAIGNS);
+      if (campaigns.length === 0) {
+        const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_campaigns" }, index: run.index + 1 };
+        return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
+      }
+      job = { ...job, campaignIds: campaigns.map((c) => c.id), campaignKinds: campaigns.map((c) => c.kind) };
+      run = { ...run, jobs: run.jobs.map((j, i) => (i === run.index ? (job as PlannedJob) : j)) };
+    }
+    if (job.id === "order_income") {
+      // Completed orders since the last run, oldest first, at most ORDER_INCOME_MAX_PER_DAY a day.
+      const queued = (sched.incomeQueue ?? []).slice(0, ORDER_INCOME_MAX_PER_DAY);
+      const orderIds = queued.map((o) => o.id);
+      if (orderIds.length === 0) {
+        const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_orders" }, index: run.index + 1 };
+        return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
+      }
+      job = { ...job, orderIds, orderSns: queued.map((o) => o.sn ?? "") };
+      run = { ...run, jobs: run.jobs.map((j, i) => (i === run.index ? (job as PlannedJob) : j)) };
+    }
+    // The shared daily request budget: nothing is opened once it is spent; the rest waits for tomorrow.
+    const { state } = await this.load();
+    const left = requestsLeft(state, run.day);
+    if (left <= READER_PAGE_LOAD_COST) return this.budgetSpent(sched, run);
+    const tabId = await this.deps.tabs.open(`${this.deps.origin}${readerPageUrl(job)}`);
     if (tabId === undefined) return this.finishJob(sched, run, "open_failed", false);
+    await addRequests(this.deps.storage, run.day, READER_PAGE_LOAD_COST);
     const next = { ...run, current: { tabId, openedAt: this.deps.now() } };
     await this.save({ ...sched, run: next });
     return "opened";
@@ -294,12 +387,30 @@ export class ReaderScheduler {
     return blocked ? `blocked:${blocked}` : outcome;
   }
 
-  /** CAPTCHA or login wall: close the tab, remember why, stop the run (no other page is opened). */
-  private async block(sched: ReaderSchedule, run: ReaderRun, reason: ReaderBlockReason): Promise<string> {
+  /** The day's request budget is spent: this job and the rest wait for tomorrow's run. */
+  private async budgetSpent(sched: ReaderSchedule, run: ReaderRun): Promise<string> {
+    const outcomes = { ...run.outcomes };
+    for (const job of run.jobs.slice(run.index)) outcomes[job.id] = "waiting_budget";
+    return this.finishRun(sched, { ...run, outcomes }, undefined, "budget_spent");
+  }
+
+  /** A stop that halts every reader: close the tab, remember why, tell Juli, open no other page. */
+  private async block(sched: ReaderSchedule, run: ReaderRun, reason: ReaderBlockReason, detail?: string): Promise<string> {
     const job = run.jobs[run.index];
     const now = this.deps.now();
-    const until = now + (reason === "captcha" ? READER_BLOCK_CAPTCHA_MS : READER_BLOCK_LOGIN_MS);
+    const until =
+      now + (reason === "captcha" ? READER_BLOCK_CAPTCHA_MS : reason === "rate_limit" ? READER_BLOCK_RATE_MS : READER_BLOCK_LOGIN_MS);
     const outcomes = { ...run.outcomes, ...(job ? { [job.id]: `blocked_${reason}` } : {}) };
+    // Ops sees the stop (reader, page, status, time); a failed post never changes the stop.
+    await this.deps.sink
+      .reportBlock?.({
+        reader: job?.id ?? "products",
+        page: job ? READER_PAGES[job.id].path : "",
+        status: reason,
+        ...(detail ? { code: detail.slice(0, 40) } : {}),
+        at: this.iso(),
+      })
+      .catch(() => undefined);
     return this.finishRun(
       { ...sched, blocked: { at: this.iso(), reason, page: job?.id ?? "products", until } },
       { ...run, outcomes },
@@ -335,7 +446,16 @@ export class ReaderScheduler {
       try {
         await this.deps.tabs.send(tabId, {
           type: "reader-job",
-          job: { id: job.id, ...(job.days ? { days: job.days } : {}), ...(job.itemIds ? { itemIds: job.itemIds } : {}) },
+          job: {
+            id: job.id,
+            ...(job.days ? { days: job.days } : {}),
+            ...(job.itemIds ? { itemIds: job.itemIds } : {}),
+            ...(job.campaignIds ? { campaignIds: job.campaignIds } : {}),
+            ...(job.orderIds ? { orderIds: job.orderIds } : {}),
+            ...(job.orderSns ? { orderSns: job.orderSns } : {}),
+            // What is left of today's shared budget for this job's own requests.
+            budget: Math.max(0, requestsLeft((await this.load()).state, run.day)),
+          },
         });
       } catch {
         return true; // the content script is not listening yet: the next tab-ready / watchdog retries
@@ -348,7 +468,7 @@ export class ReaderScheduler {
   /** A page hook's answer for the job it was sent. True when the tab is the scheduler's own. */
   onResult(tabId: number, message: { job?: unknown; status?: unknown; responses?: unknown }): Promise<boolean> {
     return this.exclusive(async () => {
-      const { sched } = await this.load();
+      const { state, sched } = await this.load();
       const run = sched.run;
       if (!run?.current || run.current.tabId !== tabId) return false;
       const job = run.jobs[run.index] as PlannedJob;
@@ -362,23 +482,46 @@ export class ReaderScheduler {
         await this.block(sched, run, "login");
         return true;
       }
+      if (status === "blocked_rate") {
+        await this.countRequests(run.day, message.responses);
+        await this.block(sched, run, "rate_limit", String((message as { detail?: unknown }).detail ?? ""));
+        return true;
+      }
+      if (status === "budget_spent") {
+        await this.countRequests(run.day, message.responses);
+        if (run.current) await this.deps.tabs.close(run.current.tabId).catch(() => undefined);
+        await this.budgetSpent(sched, { ...run, current: undefined, outcomes: { ...run.outcomes } });
+        return true;
+      }
       if (status !== "done") {
         await this.finishJob(sched, run, status);
         return true;
       }
       const responses = Array.isArray(message.responses) ? (message.responses as ReaderResponse[]) : [];
-      const readerJob: ReaderJob = { id: job.id, days: job.days, ...(job.itemIds ? { itemIds: job.itemIds } : {}) };
+      await this.countRequests(run.day, responses);
+      const readerJob: ReaderJob = {
+        id: job.id,
+        days: job.days,
+        ...(job.itemIds ? { itemIds: job.itemIds } : {}),
+        ...(job.campaignIds ? { campaignIds: job.campaignIds } : {}),
+        ...(job.orderIds ? { orderIds: job.orderIds } : {}),
+        ...(job.orderSns ? { orderSns: job.orderSns } : {}),
+      };
       const posted = await this.deps.sink.postReader(readerJob, responses);
-      const summary = Object.entries(posted)
-        .map(([key, outcome]) => `${key}=${outcome}`)
-        .join(",");
+      const skippedEntries =
+        job.id === "ads" ? (job.days ?? []).reduce((sum, day) => sum + adsDayAnswer(responses, day).skipped, 0) : 0;
+      const summary = [
+        ...Object.entries(posted).map(([key, outcome]) => `${key}=${outcome}`),
+        // Entries without a campaign id (GMV Max shop-level, totals) are counted, never drift.
+        ...(skippedEntries > 0 ? [`ads_entries_skipped=${skippedEntries}`] : []),
+      ].join(",");
       // An ads day is read only when Juli accepted its upload: a failed, queued or empty
       // ("ignored" -- Shopee had not finished the day) answer leaves it in the plan.
       const adsPosted =
         job.id === "ads"
           ? [
               ...(sched.adsPosted ?? []),
-              ...(job.days ?? []).filter((day) => posted[`ads_campaign_daily:${day}`] === "posted"),
+              ...(job.days ?? []).filter((day) => adsDayRead(posted[`ads_campaign_daily:${day}`] as CaptureOutcome | undefined, responses, day)),
             ].slice(-ADS_DONE_KEPT)
           : sched.adsPosted;
       const itemIds = job.id === "products" ? ids(responses, sched.itemIds) : sched.itemIds;
@@ -386,9 +529,65 @@ export class ReaderScheduler {
         job.id === "item_traffic"
           ? [...(sched.trafficDone ?? []), ...completedTrafficDays(readerJob, responses)].slice(-TRAFFIC_DONE_KEPT)
           : sched.trafficDone;
-      await this.finishJob({ ...sched, adsPosted, itemIds, trafficDone }, run, summary ? `done:${summary}` : "done");
+      // The list's settings landed: remember the day and the ongoing campaigns for ads_detail.
+      const settingsPosted =
+        job.id === "ads" &&
+        Object.entries(posted).some(([key, outcome]) => key.startsWith("ads_campaign_settings:") && outcome === "posted");
+      const adsSettingsDay = settingsPosted ? run.day : sched.adsSettingsDay;
+      const adsCampaigns = job.id === "ads" && settingsPosted ? ongoingAdsCampaigns(responses) : sched.adsCampaigns;
+      const extra = this.shopReaderState(sched, run, job, posted, responses, state.token?.shop_id);
+      await this.finishJob(
+        { ...sched, adsPosted, itemIds, trafficDone, adsSettingsDay, adsCampaigns, ...extra },
+        run,
+        summary ? `done:${summary}` : "done",
+      );
       return true;
     });
+  }
+
+  /** The job's own replayed requests count against today's shared budget (page-made calls do not). */
+  private async countRequests(day: string, responses: unknown): Promise<void> {
+    const list = Array.isArray(responses) ? (responses as ReaderResponse[]) : [];
+    await addRequests(this.deps.storage, day, list.filter((r) => r.source === "replay").length);
+  }
+
+  /** Bookkeeping of the shop totals / order list / per-order income jobs after a finished read. */
+  private shopReaderState(
+    sched: ReaderSchedule,
+    run: ReaderRun,
+    job: PlannedJob,
+    posted: Record<string, string>,
+    responses: ReaderResponse[],
+    shopId: string | undefined,
+  ): Partial<ReaderSchedule> {
+    if (job.id === "shop_totals") {
+      // Done when the confirmed post (the one Tổng quan reads) landed; the 30-day read marks the shop backfilled.
+      if (posted["shop_overview:confirmed"] !== "posted") return {};
+      return {
+        totalsDay: run.day,
+        totalsBackfilledShop: (job.days?.length ?? 0) >= SHOP_TOTALS_BACKFILL_DAYS ? shopId : sched.totalsBackfilledShop,
+      };
+    }
+    if (job.id === "orders") {
+      const now = this.deps.now();
+      const since = sched.incomeSince ?? now - ORDER_INCOME_FIRST_RUN_DAYS * 86_400_000;
+      const known = new Set((sched.incomeQueue ?? []).map((o) => o.id));
+      const fresh = completedOrders(responses)
+        .filter((o) => o.completedAt >= since && !known.has(o.id))
+        .sort((a, b) => a.completedAt - b.completedAt);
+      const horizon = now - ORDER_INCOME_QUEUE_DAYS * 86_400_000;
+      const queue = [...(sched.incomeQueue ?? []), ...fresh].filter((o) => o.completedAt >= horizon).slice(0, ORDER_INCOME_QUEUE_MAX);
+      return {
+        ordersDay: posted.order_lines === "posted" || responses.length > 0 ? run.day : sched.ordersDay,
+        incomeQueue: queue,
+        incomeSince: now,
+      };
+    }
+    if (job.id === "order_income") {
+      const sent = new Set(job.orderIds ?? []);
+      return { incomeDay: run.day, incomeQueue: (sched.incomeQueue ?? []).filter((o) => !sent.has(o.id)) };
+    }
+    return {};
   }
 
   /** The seller (or an extension page) closed the scheduler's tab: move on, do not block. */
@@ -413,6 +612,8 @@ export class ReaderScheduler {
     return this.exclusive(async () => {
       const { sched } = await this.load();
       if (!sched.blocked) return;
+      // A rate-limit stop is Shopee asking us to slow down: the button does not lift it.
+      if (sched.blocked.reason === "rate_limit" && sched.blocked.until > this.deps.now()) return;
       await this.save({ ...sched, blocked: undefined, lastRunDay: sched.lastRun?.blocked ? undefined : sched.lastRunDay });
     });
   }

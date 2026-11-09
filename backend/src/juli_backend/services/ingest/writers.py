@@ -7,11 +7,12 @@ Called by ``gateway._write`` inside the shop's tenant scope; nothing here commit
   erases a value already stored. The export names a product by SKU only, so ``item_id`` is
   resolved from ``platform_items.seller_sku`` when the catalogue knows it, else it is
   ``sku:<sku>``.
-- ``affiliate_order_lines`` -> the SAME table, but only to MARK lines the order export already
-  wrote (``affiliate``, ``commission`` from ``Chi phí(₫)`` (``affiliate_commission``), the KOL
-  columns of migration 118, ``traffic_source``). It never creates a
-  line: the order export owns the line, and a second writer on one key would overwrite it.
-  Load the order export first; unmatched rows are counted and left for a re-load.
+- ``affiliate_order_lines`` -> ``shopee_affiliate_lines`` (migration 122, P96): every report line
+  is upserted there on (shop, platform, order_ref, line_no, item_id, model_id), so the KOL tab
+  fills without the order export. It also MARKS the order export's matching ``shopee_order_lines``
+  row (``affiliate``, ``commission`` from ``Chi phí(₫)`` (``affiliate_commission``), the KOL
+  columns of migration 118, ``traffic_source``) and never creates one there: the export owns that
+  line. A line the export does not hold yet is counted unmatched, and is still stored.
 - ``ads_change_log`` and ``shop_health_daily``: append-only, ``ON CONFLICT DO NOTHING``.
 - ``item_snapshot`` -> ``platform_item_snapshots``: a row is inserted only when a tracked field
   changed since the item's latest snapshot (the 112 rule lives here; SQL cannot express it).
@@ -33,6 +34,7 @@ from juli_backend.models.platform_data import ITEM_LEVEL_VARIATION, PlatformItem
 from juli_backend.models.shopee_profit import (
     AdsChangeLog,
     PlatformItemSnapshot,
+    ShopeeAffiliateLine,
     ShopeeOrderLine,
     ShopHealthDaily,
 )
@@ -294,7 +296,89 @@ async def write_affiliate_lines(
             .where(ShopeeOrderLine.id == line_id, ShopeeOrderLine.shop_id == shop_id)
             .values(**values)
         )
+    await _store_affiliate_lines(session, rows, provenance)
     return AffiliateMatch(matched, unmatched, invalid)
+
+
+#: Columns a later conversion report may move (status, refund, commission, the fraud check ...).
+_AFFILIATE_MUTABLE = (
+    "price",
+    "qty",
+    "order_value",
+    "refund_amount",
+    "commission",
+    "valid",
+    "order_status",
+    "ordered_at",
+    "completed_at",
+    "conversion_at",
+    "kol_key",
+    "kol_handle",
+    "affiliate_channel",
+    "affiliate_campaign_type",
+    "affiliate_mcn",
+    "source",
+    "source_version",
+    "raw_payload_id",
+    "updated_at",
+)
+
+
+async def _store_affiliate_lines(
+    session: AsyncSession,
+    rows: list[ShopeeAffiliateOrderLineRow],
+    provenance: dict[str, Any],
+) -> None:
+    """Every report line on its own (migration 122), the invalid ones too with ``valid`` False:
+    the KOL tab reads these, so a KOL sale shows before (or without) the order export."""
+    by_key: dict[tuple[str, int, str, str], dict[str, Any]] = {}
+    for row in rows:
+        key = (row.order_ref, row.line_no, row.item_id, row.model_id or "")
+        by_key[key] = {  # a repeated key in one post: the last row wins
+            "id": uuid.uuid4(),
+            "shop_id": provenance["shop_id"],
+            "platform": provenance["platform"],
+            "order_ref": row.order_ref,
+            "line_no": row.line_no,
+            "item_id": row.item_id,
+            "model_id": row.model_id or "",
+            "price": row.price,
+            "qty": None if row.qty is None else int(row.qty),
+            "order_value": row.order_value,
+            "refund_amount": row.refund_amount,
+            "commission": seller_commission(row),
+            "valid": row.valid,
+            "order_status": row.order_status,
+            "ordered_at": _naive(row.ordered_at),
+            "completed_at": _naive(row.completed_at),
+            "conversion_at": _naive(row.conversion_at),
+            "kol_key": None,
+            "kol_handle": None,
+            "affiliate_channel": None,
+            "affiliate_campaign_type": None,
+            "affiliate_mcn": None,
+            **_kol_columns(row),
+            "source": provenance["source"],
+            "source_version": provenance["source_version"],
+            "raw_payload_id": provenance["raw_payload_id"],
+            "updated_at": provenance["updated_at"],
+        }
+    insert = _insert(session)
+    for part in _chunks(list(by_key.values())):
+        stmt = insert(ShopeeAffiliateLine).values(part)
+        await session.execute(
+            stmt.on_conflict_do_update(
+                index_elements=[
+                    "shop_id",
+                    "platform",
+                    "order_ref",
+                    "line_no",
+                    "item_id",
+                    "model_id",
+                ],
+                set_={column: stmt.excluded[column] for column in _AFFILIATE_MUTABLE},
+            )
+        )
 
 
 # -- ads change log ----------------------------------------------------------------------

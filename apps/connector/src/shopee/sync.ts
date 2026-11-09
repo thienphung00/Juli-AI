@@ -75,6 +75,20 @@ function itemRequests(range: Range, wanted: (dataset: MydataDataset) => boolean)
   return plan;
 }
 
+/**
+ * The traffic overview on both order bases (D85.3, 0.3.11): `confirmed` for Tổng quan, cards and
+ * plans, `placed` because Quảng cáo reads placed orders. Two calls, spaced like any others.
+ */
+export const TRAFFIC_ORDER_TYPES = ["confirmed", "placed"] as const;
+
+function trafficOverviewRequests(range: Range): PlannedRequest[] {
+  return TRAFFIC_ORDER_TYPES.map((order_type) => ({
+    dataset: "traffic_overview" as const,
+    path: ENDPOINTS.traffic_overview,
+    params: { ...range, order_type },
+  }));
+}
+
 export function buildSyncPlan(
   nowMs: number,
   stopped: ReadonlySet<Dataset>,
@@ -90,11 +104,7 @@ export function buildSyncPlan(
   const wanted = (dataset: MydataDataset) => DATASETS.includes(dataset) && !stopped.has(dataset);
 
   if (wanted("traffic_overview")) {
-    plan.push({
-      dataset: "traffic_overview",
-      path: ENDPOINTS.traffic_overview,
-      params: { ...range, order_type: "confirmed" },
-    });
+    plan.push(...trafficOverviewRequests(range));
   }
   if (wanted("shop_traffic")) {
     // The daily sync replays the page's own "yesterday" call (kept as it works);
@@ -135,11 +145,7 @@ export function buildBackfillDayPlan(
   const wanted = (dataset: MydataDataset) => datasets.includes(dataset) && !skip.has(dataset);
   const plan: PlannedRequest[] = [];
   if (wanted("traffic_overview")) {
-    plan.push({
-      dataset: "traffic_overview",
-      path: ENDPOINTS.traffic_overview,
-      params: { ...range, order_type: "confirmed" },
-    });
+    plan.push(...trafficOverviewRequests(range));
   }
   if (wanted("shop_traffic")) {
     plan.push({

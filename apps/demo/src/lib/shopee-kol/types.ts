@@ -41,6 +41,8 @@ export interface KolRow {
   readonly kol_clicks: N;
   /** The creator's conversion in the export, a fraction. */
   readonly kol_conversion: N;
+  /** The creator's buyers in the period (P96: Juli Connector's KOL analytics page). */
+  readonly kol_buyers?: N;
   readonly commission: number;
   /** Commission ÷ base, a fraction. */
   readonly commission_rate: N;
