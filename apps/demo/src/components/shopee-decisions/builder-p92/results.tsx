@@ -6,6 +6,7 @@ import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
 import { bandText, breakEvenText, floorWarningText, marginText, metricValue, refusalText, unitLines, voucherMaxText, voucherUsageText } from "../../../lib/shopee-decisions/builder-p92";
 import { TextChip } from "../../shopee-analytics/ui";
+import { OptionCard } from "../option-card";
 import { TargetRows } from "./targets";
 
 /**
@@ -71,6 +72,14 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
       <p className="sd-error" role="alert">
         {refusalText(o)}
       </p>
+    );
+  }
+  if (o.result) {
+    return (
+      <div className="p2-result__body">
+        <OptionCard result={o.result} />
+        <WarningLines outcome={o} />
+      </div>
     );
   }
   const insufficient = o.basis?.key === "insufficient";
@@ -175,6 +184,14 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
       <p className="p2-be" data-testid="p2-breakeven">
         <b>Hoà vốn:</b> {breakEvenText(o)}
       </p>
+      <WarningLines outcome={o} />
+    </div>
+  );
+}
+
+function WarningLines({ outcome: o }: { readonly outcome: BuilderOutcome }) {
+  return (
+    <>
       {(o.warnings ?? []).map((w, i) => (
         <div className={`sd-check ${w.type === "floor" || w.type === "spend_cap" ? "sd-check--bad" : ""}`} key={i} role="alert">
           <span>
@@ -182,6 +199,6 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
           </span>
         </div>
       ))}
-    </div>
+    </>
   );
 }

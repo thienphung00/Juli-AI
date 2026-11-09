@@ -1,3 +1,4 @@
+import type { OptionResult } from "./option-result";
 import { ShopeeApiError } from "../shopee-analytics/client";
 import type { PlanResponse } from "./plan-types";
 
@@ -244,6 +245,8 @@ export interface BuilderOutcome {
   readonly kind: string;
   readonly label: string;
   readonly ok: boolean;
+  /** P98 d.5: the option result (`OptionResult.json()`); when present the card is drawn from it alone. */
+  readonly result?: OptionResult;
   readonly refusal?: { readonly code?: string; readonly message?: string } | string | null;
   readonly title?: string;
   readonly card_kind?: string;
