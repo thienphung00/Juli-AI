@@ -776,6 +776,17 @@ async def ingest(
             "updated_at": now,
         }
         warnings = await _write(session, spec, rows, body, order_type, provenance)
+        # P97 D85.2 hook (T2): refresh the materialized shop / product metrics of the days written
+        from juli_backend.services.shopee_analytics.materialize import after_ingest
+
+        await after_ingest(
+            session,
+            shop_id,
+            platform=platform,
+            dataset=dataset,
+            start=body.period.start,
+            end=body.period.end,
+        )
     await _record_status(
         session,
         shop_id=shop_id,

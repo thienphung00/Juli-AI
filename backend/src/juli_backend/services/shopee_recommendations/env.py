@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.loaders import ShopContext
+from juli_backend.services.shopee_analytics.metrics import ShopMetrics
 from juli_backend.services.shopee_profit.fees import FeeSchedule
 from juli_backend.services.shopee_profit.floor import FloorInputs, FloorResult, compute_floor
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
@@ -278,12 +279,17 @@ class RecoEnv:
 
     # ---------------------------------------------------------------- shop-level figures
     @property
+    def metrics(self) -> ShopMetrics:
+        """The window's core numbers (D85.2): the same read model as every analytics screen."""
+        return self.view.metrics
+
+    @property
     def shop_gmv_30d(self) -> Decimal:
-        return self.view.shop_gmv or ZERO
+        return self.metrics.gmv or ZERO
 
     @property
     def shop_orders_30d(self) -> int:
-        return int(self.view.shop_orders or 0)
+        return int(self.metrics.orders or 0)
 
     def shop_chi_per_day(self) -> Decimal:
         """Marketing spend per day in the window: ads + voucher + khuyen mai + combo + commission

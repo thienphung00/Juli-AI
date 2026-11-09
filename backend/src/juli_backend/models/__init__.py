@@ -84,6 +84,11 @@ from juli_backend.models.shop_proposals import (
     ShopProposalExecution,
     ShopProposalResult,
 )
+from juli_backend.models.shopee_metrics import (
+    ShopeePlanBaseSnapshot,
+    ShopeeProductMetricsDaily,
+    ShopeeShopMetricsDaily,
+)
 from juli_backend.models.shopee_plans import (
     ShopRecoChangeSet,
     ShopRecoPlan,
@@ -173,6 +178,9 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopRecoPlanCard,
     ShopRecoPlanCounter,
     ShopRecoChangeSet,
+    ShopeePlanBaseSnapshot,
+    ShopeeProductMetricsDaily,
+    ShopeeShopMetricsDaily,
     PlannedChangeImport,
     PlannedChangeRef,
     MarketKeywordMetric,

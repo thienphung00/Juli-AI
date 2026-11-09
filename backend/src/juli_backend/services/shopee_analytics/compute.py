@@ -12,6 +12,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
+from typing import TYPE_CHECKING, Any, cast
 
 from juli_backend.services.shopee_analytics.engine import (
     CostCoverage,
@@ -59,6 +60,9 @@ from juli_backend.services.shopee_profit.sources import SourceMatrix, build_sour
 from juli_backend.services.shopee_profit.vat import vat_label
 from juli_backend.services.shopee_profit.vouchers import VoucherJoin
 
+if TYPE_CHECKING:
+    from juli_backend.services.shopee_analytics.metrics import ShopMetrics
+
 SHOP_KEY = "__shop__"
 
 
@@ -76,6 +80,8 @@ class PeriodData:
     affiliate: AffiliateLoad
     ad_spend: AdSpendResult | None = None  # services/shopee_profit/ads_sources (Step 6)
     voucher_join: VoucherJoin | None = None
+    #: the materialized daily rows of the window (P97 D85.2); None = not loaded / not built
+    stored: Any = None
 
 
 @dataclass
@@ -311,6 +317,16 @@ class PeriodView:
     item_prices: dict[str, tuple[Decimal | None, Decimal | None]] = field(default_factory=dict)
     #: active, non-excluded catalogue listings (item id -> name), sold or not (P92 B-9).
     active_items: dict[str, str] = field(default_factory=dict)
+    _metrics: Any = field(default=None, repr=False, compare=False)
+
+    @property
+    def metrics(self) -> ShopMetrics:
+        """The window's core numbers (D85.2), computed once per view: every screen reads this."""
+        if self._metrics is None:
+            from juli_backend.services.shopee_analytics.metrics import metrics_of
+
+            self._metrics = metrics_of(self)
+        return cast("ShopMetrics", self._metrics)
 
     @property
     def window(self) -> Window:

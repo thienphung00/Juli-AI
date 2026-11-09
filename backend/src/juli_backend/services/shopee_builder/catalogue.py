@@ -22,7 +22,7 @@ from typing import Any
 from juli_backend.services.shopee_analytics.catalog import SKU_PREFIX
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num
-from juli_backend.services.shopee_analytics.loaders import ShopContext, product_totals_for
+from juli_backend.services.shopee_analytics.loaders import ShopContext
 from juli_backend.services.shopee_builder.variations import observed_skus
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_recommendations.unit_cost import unit_cost
@@ -100,8 +100,11 @@ def picker(
     sort: str = "gmv_90d",
     limit: int = DEFAULT_LIMIT,
     offset: int = 0,
+    view30: PeriodView | None = None,
 ) -> dict[str, Any]:
-    """The picker payload for a 90-day ``view`` ending on ``anchor``."""
+    """The picker payload for a 90-day ``view`` ending on ``anchor``. Both GMV columns are the
+    ShopMetrics splits (order lines scaled to the shop totals of their own window, D85.2); pass
+    the 30-day ``view30`` so the 30-day column is scaled to the 30-day totals, not the 90-day."""
     if sort not in SORTS:
         raise ValueError(f"sort must be one of {list(SORTS)}")
     recent_from = anchor - timedelta(days=RECENT_DAYS - 1)
@@ -115,7 +118,8 @@ def picker(
         if ln.order_date >= recent_from:
             orders30[ln.product_id].add(ln.order_id)
             gmv30[ln.product_id] += ln.order_value
-    shopee = product_totals_for(view.data.product_flows, view.data.lines)
+    m90 = view.metrics
+    m30 = view30.metrics if view30 is not None else None
     seen_skus = observed_skus(view.lines)
     # Order lines whose SKU matched no listing carry a placeholder id ("sku:…"): they are not a
     # product the seller can act on, so they are counted apart instead of listed.
@@ -137,19 +141,23 @@ def picker(
         name = view.names.get(item_id) or ctx.catalog.name(item_id)
         if needle and needle not in fold(name) and needle not in item_id.lower():
             continue
-        if item_id in shopee:
-            gmv, basis = shopee[item_id][0], "shopee_product_period"
-        else:
-            gmv, basis = gmv90.get(item_id, ZERO), "order_lines"
+        s90 = m90.split(item_id)
+        gmv, basis = (s90.gmv, s90.basis) if s90 else (gmv90.get(item_id, ZERO), "order_lines")
+        s30 = m30.split(item_id) if m30 is not None else None
+        gmv30_item = s30.gmv if s30 else (ZERO if m30 is not None else gmv30.get(item_id, ZERO))
+        orders30_item = (
+            s30.orders if s30 else (0 if m30 is not None else len(orders30.get(item_id, ())))
+        )
+        orders90_item = s90.orders if s90 else len(orders90.get(item_id, ()))
         all_costed, with_cost, n_var = _item_has_cost(ctx, item_id, seen_skus.get(item_id))
         rows.append(
             {
                 "item_id": item_id,
                 "name": name,
                 "status": status,
-                "orders_30d": len(orders30.get(item_id, ())),
-                "orders_90d": len(orders90.get(item_id, ())),
-                "gmv_30d": num(gmv30.get(item_id, ZERO)),
+                "orders_30d": orders30_item,
+                "orders_90d": orders90_item,
+                "gmv_30d": num(gmv30_item),
                 "gmv_90d": num(gmv),
                 "gmv_basis": basis,
                 "price": num(info.current_price or info.list_price) if info else None,

@@ -33,7 +33,7 @@ from typing import Any
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.services.shopee_analytics.queries import product_price_margin
+from juli_backend.services.shopee_analytics.queries import product_price_margin, window_metrics
 
 PLATFORM = "shopee"
 ORDER_TYPES = ("placed", "paid", "confirmed")
@@ -345,10 +345,13 @@ async def flows(
                 "shop_page_gmv": cells.get(("product_card", "shop_page"), [None])[0],
             }
         )
+    shared = await window_metrics(session, shop_id, start=window.start, end=window.end)
     return {
         "range": window.json(),
         "order_type": order_type,
         **body,
+        # D85.2: the headline GMV / đơn / AOV is the shared ShopMetrics, not this table's sum
+        "metrics": None if shared is None else shared[0],
         "monthly": monthly,
         "shop_monthly": await shop_monthly(session, shop_id, order_type, h0, window.end),
         "has_data": bool(rows),
@@ -463,6 +466,11 @@ async def products(
     )
     if not funnel_rows:
         return empty
+    shared = await window_metrics(session, shop_id, start=chosen.start, end=chosen.end)
+    excluded = shared[1] if shared else {}
+    left_out = [r for r in funnel_rows if r[0] in excluded]
+    # D85.2 / P92 B-1: excluded listings stay in the shop totals and leave the product table
+    funnel_rows = [r for r in funnel_rows if r[0] not in excluded]
     funnel_rows.sort(key=lambda r: -(r[7] or 0))
     totals = _funnel(("", *[_total(funnel_rows, i) for i in range(1, 10)]))
     shown = funnel_rows[:limit]
@@ -524,6 +532,12 @@ async def products(
         **empty,
         "items_total": len(funnel_rows),
         "totals": totals,
+        "metrics": None if shared is None else shared[0],
+        "excluded": {
+            "count": len(left_out),
+            "gmv": _total(left_out, 7),
+            "item_ids": sorted(r[0] for r in left_out),
+        },
         "products": [
             {
                 "item_id": row[0],
