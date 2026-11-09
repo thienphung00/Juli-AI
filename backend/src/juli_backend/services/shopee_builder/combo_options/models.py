@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from juli_backend.services.shopee_builder.combo_options import config
+from juli_backend.services.shopee_builder.variations import Rates
 from juli_backend.services.shopee_profit.fees import FeeSchedule
 from juli_backend.services.shopee_recommendations.unit_cost import UnitCost
 
@@ -126,8 +127,13 @@ class PriceRule:
 
 @dataclass(frozen=True)
 class Economics:
+    """``rates`` = item id -> the product's measured 30-day voucher / commission / ad rates
+    (``variations.measured_rates``). With rates, pricing and the floor use Biên cuối (ADR-122
+    d.12); without them (or when a member has none) they use the price-only margin."""
+
     schedule: FeeSchedule
     on: date
+    rates: Mapping[str, Rates] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -138,13 +144,16 @@ class PricedRow:
     separate_total: Decimal | None
     saving: Decimal | None
     saving_pct: Decimal | None
-    margin_pct: Decimal | None
+    margin_pct: Decimal | None  # Biên ở giá bán (chắc chắn)
     profit_per_order: Decimal | None
     margin_label: str | None  # "chưa tính" when margin / profit cannot be computed
     below_floor: bool | None  # None = unknown; warns, never blocks
     overridden: bool = False
     basis: str = ""
     notes: tuple[str, ...] = ()
+    final_margin_pct: Decimal | None = None  # Biên cuối (ước tính); None = no measured rates
+    final_rates: Rates | None = None
+    floor_basis: str = "price"  # which margin the floor check read: "final" | "price"
 
 
 __all__ = [
