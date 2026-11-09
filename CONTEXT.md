@@ -596,6 +596,10 @@ _Avoid_: CTOR from the traffic table's own order count, averaging daily ratios, 
 The Shopee funnel base kept per traffic source — Thẻ sản phẩm (ngoài Trang shop), Trang shop, Live, Video, Liên kết, plus the residual Chênh lệch nguồn — with đơn per source scaled to ShopMetrics so the sources sum to Tổng quan; Quảng cáo is a "trong đó" share of Thẻ sản phẩm (P98 grill C2b, ADR-122 d.3). An option changes only the source(s) its drivers act on.
 _Avoid_: a shop-level funnel spreading an option over every source, adding Quảng cáo to the sources
 
+**Biên ở giá bán / Biên cuối**:
+The two margins of a Shopee variation (ADR-122 d.12). **Biên ở giá bán** (chắc chắn) = one order at today's selling price after the fee schedule, giá vốn and packaging. **Biên cuối** (ước tính) = that minus the variation's measured 30-day voucher, affiliate commission and ad-cost rates (the product's rates when the variation has no history). The combo builder prices and floor-checks on Biên cuối and shows both.
+_Avoid_: "biên thực tế", one unlabelled margin, comparing a realized 30-day margin with a price-only margin
+
 **Cashback affiliate**:
 A Shopee affiliate partner that is a cashback or coupon site (e.g. accesstradevn, shopbackvn_) rather than a content creator: its orders mostly come from buyers who would have bought anyway, so they never count as extra orders, and it is never suggested samples (P98 grill C7, ADR-122 d.9).
 _Avoid_: treating every affiliate partner as a KOL, counting cashback orders as uplift

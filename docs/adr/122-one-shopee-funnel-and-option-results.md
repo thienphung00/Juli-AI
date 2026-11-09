@@ -156,6 +156,19 @@ GMV still rises; AOV's range is a ratio of two percentiles. Options cannot be co
        (target ≈ 80 % inside low–high), and a family that keeps missing is widened or switched to
        "chưa ước tính được" by the existing calibration.
 
+12. **Two margins per variation (owner, 2026-11-09).** Everywhere a variation's margin appears
+    (Sản phẩm › Phiên bản sản phẩm, So sánh phân loại, the combo builder rows):
+    - **Biên ở giá bán — chắc chắn:** one order at today's selling price through the shop's fee
+      schedule, giá vốn and packaging only (today's `variations.unit_margin`).
+    - **Biên cuối — ước tính:** the same order minus this variation's measured 30-day rates of shop
+      voucher, affiliate commission and ad cost (ads allocated by revenue as `product.py` does); a
+      variation without history takes its product's rates, and the cell says so. Same name as ADR-120
+      d.4 ③ "biên lợi nhuận cuối".
+    The combo builder prices (target margin) and floor-checks on **Biên cuối**; it shows both. Also on
+    the product page: "Đơn 30 ngày" counts orders (units in Chi tiết), each variation's SKU chip shows
+    its pack key (G500001×3), and the footer drops the "giả định 1/3 giá" text (no 1/3 fallback,
+    "chưa tính" when giá vốn is missing, as in the builder, P92 B-7.1).
+
 ## Consequences
 
 - **Live numbers change.** Options whose driver sits above đơn now move đơn (a minimum-spend voucher
