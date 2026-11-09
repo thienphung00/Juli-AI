@@ -66,3 +66,22 @@ describe("builder-p92 model", () => {
     expect(breakEvenText(outcome(0, { break_even: { applies: false, extra_orders: null, ctor_now: null, ctor_needed: null, reason: "Không có chi phí trực tiếp." } }))).toBe("Không có chi phí trực tiếp.");
   });
 });
+
+
+describe("beforeAfterText (So sánh, D85.9)", () => {
+  const base = { label: "AOV", unit: "vnd" as const, unchanged: false, reason: null };
+  it("shows before -> P50 with the P10 - P90 range", async () => {
+    const { beforeAfterText } = await import("../builder-p92");
+    const t = beforeAfterText({ ...base, key: "aov", before: 150_000, after: { low: 152_000, p50: 158_000, high: 165_000 } });
+    expect(t.main).toContain("→");
+    expect(t.range).toContain("–");
+    expect(t.unchanged).toBe(false);
+  });
+  it("says không đổi with the reason and never a lift", async () => {
+    const { beforeAfterText } = await import("../builder-p92");
+    const t = beforeAfterText({ ...base, key: "views", label: "Lượt xem", unit: "count", before: 1000, after: { low: 1000, p50: 1000, high: 1000 }, unchanged: true, reason: "Mô hình không dự kiến thay đổi Lượt xem (không bịa mức tăng)." });
+    expect(t.main).toContain("không đổi");
+    expect(t.main).not.toContain("→");
+    expect(t.range).toContain("không bịa");
+  });
+});

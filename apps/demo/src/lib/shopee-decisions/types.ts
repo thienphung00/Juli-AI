@@ -511,8 +511,8 @@ export interface VariantMetrics {
   readonly dprofit_certain: N;
   readonly dgmv_p50: N;
   readonly dorders_p50: N;
-  readonly aov_p25: N;
-  readonly margin_points_p25: N;
+  readonly aov_p50: N;
+  readonly margin_points_p50: N;
   readonly cost_month: N;
   readonly floor_breaches: number;
   readonly floor_ok: boolean;

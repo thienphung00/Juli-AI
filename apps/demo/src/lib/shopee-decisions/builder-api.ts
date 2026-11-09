@@ -191,6 +191,25 @@ export interface BuilderWarning {
   readonly [extra: string]: unknown;
 }
 
+/** P97 D85.9: one of the seven before -> after rows of So sánh. `after` is P10 / P50 / P90. */
+export interface BeforeAfterRow {
+  readonly key: "gmv" | "margin" | "orders" | "aov" | "ctor" | "ctr" | "views";
+  readonly label: string;
+  readonly unit: "vnd" | "pct" | "count";
+  readonly before: number | null;
+  readonly after: { readonly low: number | null; readonly p50: number | null; readonly high: number | null } | null;
+  /** The lever has no modelled effect on this metric: `reason` says why; the range is the before. */
+  readonly unchanged: boolean;
+  readonly reason: string | null;
+}
+
+export interface BeforeAfter {
+  readonly scope: "shop" | "product";
+  readonly rows: readonly BeforeAfterRow[];
+  readonly range: string;
+  readonly note: string;
+}
+
 export interface BuilderOutcome {
   readonly index: number;
   readonly kind: string;
@@ -200,6 +219,8 @@ export interface BuilderOutcome {
   readonly title?: string;
   readonly card_kind?: string;
   readonly change_kind?: string;
+  /** P97 D85.9: GMV, biên, đơn, AOV, CTOR, CTR, lượt xem: before -> after with the range. */
+  readonly before_after?: BeforeAfter;
   readonly driver?: {
     readonly metrics: readonly DriverMetric[];
     readonly target_metric?: string | null;

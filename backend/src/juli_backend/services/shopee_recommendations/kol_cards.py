@@ -641,6 +641,7 @@ def build_kol_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str,
         "notes": ev.notes,
         "rank_inputs": {
             "kpi_p25": shop_deltas(env, money),
+            "kpi_p50": shop_deltas(env, money, "p50"),
             "dgmv_p25": money["total"]["p25"]["dgmv"],
             "dprofit_p50": p50,
             "floor_breach": bool(ev.breaches),

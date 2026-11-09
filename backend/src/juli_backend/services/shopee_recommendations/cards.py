@@ -234,7 +234,8 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
         "execution_sheet": sheet,
         "notes": ev.notes,
         "rank_inputs": {
-            "kpi_p25": deltas,
+            "kpi_p25": deltas,  # ranking only (D83); screens show the P50 below
+            "kpi_p50": shop_deltas(env, money, "p50"),
             "dgmv_p25": money["total"]["p25"]["dgmv"],
             "dprofit_p50": dprofit_p50,
             "floor_breach": bool(ev.breaches),
