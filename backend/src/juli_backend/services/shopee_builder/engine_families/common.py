@@ -16,12 +16,18 @@ NOTE_ADS_NOT_ESTIMABLE = "chưa ước tính được — cần chạy thử"
 NOTE_KOL_NOT_ESTIMABLE = "chưa ước tính được — đo sau lần gửi mẫu đầu"
 NOTE_NO_PACK_EVIDENCE = "chưa có dữ liệu cho quy cách này"
 NOTE_FOLLOWER = "chưa biết tỉ lệ người theo dõi"
+NOTE_PACK_SOLD = "Shop đang bán quy cách này: khách chuyển sang listing mới, không thêm đơn."
 
 #: Priors tagged "prior" (ước tính chung) until the shop's own results calibrate them (ADR-121).
 #: A visible discount / badge converts a few more clicks: relative CTOR lift at P10 / P50 / P90.
 CTOR_VISIBLE_OFFER = (Decimal("0"), Decimal("0.01"), Decimal("0.03"))
-#: Share of the orders that sit under a minimum / one unit under a tier that move up to it.
+#: Share of the orders that sit under a minimum / one unit under a tier that move up to it: the
+#: prior (ADR-122 d.13 E2), used only when the scope has too few orders to measure it.
 REACH = (Decimal("0"), Decimal("0.2"), Decimal("0.5"))
+#: E2: an order within this share below a voucher minimum / combo tier today reaches it.
+REACH_WINDOW = Decimal("0.2")
+#: E2: fewer orders than this in the scope -> the reach is the tagged prior, not measured.
+MIN_REACH_ORDERS = 30
 #: The second driver of a two-driver listing / basket family earns this share of the lead
 #: driver's predicted lift (tagged "prior").
 CO_DRIVER_SHARE = Decimal("0.5")

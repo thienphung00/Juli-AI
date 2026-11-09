@@ -134,8 +134,10 @@ async def test_demo_picker_variations_co_purchase_and_campaigns(session, reco, s
     v = var.json()
     row = v["variations"][0]
     assert v["item_id"] == "1001" and v["columns"] == [
-        "list_price", "selling_price", "price_per_unit", "margin_pct",
+        "list_price", "selling_price", "price_per_unit", "margin_pct", "final_margin_pct",
     ]  # fmt: skip
+    # ADR-122 d.12: So sánh phân loại shows Biên cuối beside Biên ở giá bán
+    assert "final_margin_pct" in v["variations"][0]
     assert (row["list_price"], row["selling_price"], row["pack_count"]) == (100_000, 90_000, 1)
     assert row["margin_pct"] is not None and row["margin_label"] is None
     assert v["excluded"] is False and v["vat"]["basis"] == "before_vat"

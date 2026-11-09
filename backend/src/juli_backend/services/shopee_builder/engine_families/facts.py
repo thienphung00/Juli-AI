@@ -36,6 +36,11 @@ class VoucherFacts:
     below_share: Decimal  # share of orders under the minimum
     usage_rate: Decimal = Decimal(1)  # share of qualifying orders that use the voucher
     baseline_per_use: Decimal | None = None  # "giảm mức": today's discount per use
+    #: ADR-122 d.13 E2: the share of ALL orders that reach the minimum, measured from the order
+    #: lines (orders within 20 % below it today); None = too few orders -> the tagged prior
+    reach: Band | None = None
+    reach_gap: Decimal = Decimal(0)  # mean (minimum - order value) of those orders
+    near_share: Decimal = Decimal(0)  # share of ALL orders within 20 % below the minimum
 
 
 @dataclass(frozen=True)
@@ -46,8 +51,12 @@ class ComboFacts:
     profit_per_order: Decimal | None
     per_use: Decimal  # mean discount of an order that reaches a tier
     use_share_now: Decimal  # share of ALL orders already holding a tier's units
-    near_share: Decimal  # share of orders one unit under a tier
+    near_share: Decimal  # share of orders within 20 % (at least one unit) under the lowest tier
     unit_price: Decimal  # mean unit price of the listed products
+    #: ADR-122 d.13 E2: the share of ALL orders that reach the tier, measured (the near orders);
+    #: None = too few orders -> the tagged prior on ``near_share``
+    reach: Band | None = None
+    reach_units: Decimal = Decimal(1)  # mean units those orders are short of the tier
 
 
 @dataclass(frozen=True)
@@ -71,6 +80,24 @@ class ListingComboFacts:
     new_price: Decimal
     profit_per_order_after: Decimal | None  # blended for the base orders after switching
     pack: PackEvidence | None = None
+    #: ADR-122 d.13 E3: the shop already sells this pack size: switching only (Δ Đơn 0)
+    pack_sold_today: bool = False
+
+
+@dataclass(frozen=True)
+class NewComboListing:
+    """One row of the combo builder as an option (ADR-122 d.7 / d.13 E3): a new listing selling
+    ``quantities`` of existing variations at ``price``. ``pack_sold_today`` = the product already
+    has a variation of this pack size (then buyers only switch). ``sku_keys`` = the order-line SKU
+    of each member (item, sku key, quantity) to count the orders that already hold them."""
+
+    key: str
+    label: str
+    item_ids: tuple[str, ...]
+    members: tuple[tuple[str, str, int], ...]  # (item id, sku key, quantity)
+    price: Decimal
+    profit_per_order: Decimal | None
+    pack_sold_today: bool = False
 
 
 @dataclass(frozen=True)
@@ -125,6 +152,7 @@ class KolChoice:
     fixed_fee: Decimal = Decimal(0)
     sample_qty: int = 0
     sample_ship_fee: Decimal = Decimal(0)
+    sample_item_id: str | None = None  # the product sent (None = the mean over ``item_ids``)
 
 
 @dataclass(frozen=True)

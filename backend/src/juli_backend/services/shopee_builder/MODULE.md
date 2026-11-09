@@ -59,3 +59,31 @@ estimate basis, warnings).
   versions as cards (versions of the same change share a card) and hands them to `plans.run_together`.
 - `combo` is Shopee's tiers form (`bundle_deal` + `tiers`, evaluated by `shopee_recommendations.bundle_tiers`); `listing_combo` is a new
   listing (`shopee_recommendations.listing_combo`). `ads` follows Shopee's edit form; keyword bids are not a lever.
+
+## P98 W3-H: one result per option (ADR-122)
+
+- Every evaluation (`service.evaluate_versions`, `choose`'s outcome, the P98 combo / KOL / ads builders) carries
+  `result` = `OptionResult.json()` from **one** path, `engine_families.integrate`: the stored funnel of the scope
+  (`funnel.base_from_rows` on the env's rows -- the env is loaded with `funnel=True`; shop for a shop-wide voucher or a
+  minimum-spend gift, else the version's products) -> `engine_families.option_for` (+ `FamilyExtras`: the base's
+  contribution rate and profit per order, combo pack evidence, ads history, KOL rates) -> `engine.run` with a seed
+  hashed from the version's JSON (an all-point option runs one draw). `compare` lists the indexes / keys by
+  per-30-day Δ lợi nhuận (`engine.compare`).
+- `before_after.from_result` lays the seven rows out of `result.detail` and `outcome.result_delta` builds `delta`
+  (and `per_day` / `period`) from the same columns; `driver` and `basis` read the result too. The card's money layer
+  no longer produces a builder number (`before_after.build` is gone). The evaluators still
+  give costs, floors, margins and profit per order (`cost`, `break_even`, `margin_*`, `details`).
+- Several targets (`multi.SUM`): one result per `multi.expand`ed version, the version's result is their column-wise
+  sum (`integrate.sum_results`); each target row carries its own `result` and its figures. One voucher over a product
+  list (`multi.JOINT`) is one option on the union of the products.
+- Ads edits of running campaigns (`kind = ads`) are hidden: So sánh refuses them with `ads_edit_hidden`, `choose`
+  and `run_together` with 422 `ads_edit_hidden`. New campaigns go through `/builder/ads/setup`.
+- The old `affiliate` kind has no result (`result_refusal.code = affiliate_needs_kol`): KOL extra orders are
+  measured only, through `/builder/kol/setup`.
+- ADR-122 d.13 in `engine_families`: E2 -- the reach to a voucher minimum / combo tier is the share of orders within
+  20 % below it (a tier: at least one unit), measured with >= `MIN_REACH_ORDERS` orders, else the 0 / 20 / 50 % prior
+  on those near orders (tagged prior); E3 -- a combo builder row of a pack size the product already has
+  (`integrate.pack_sold_today`) only switches buyers (Δ Đơn 0); a new pack size adds orders from the matching
+  variation (the product's CTR / CTOR, views × the variation's share of orders, AOV = the pack price).
+- Ads on / off days come from the stored funnel's product Thẻ sản phẩm rows (`ads_spend` > 0 = on); product rows
+  post ad GMV, not ad orders, so a day's ad orders are its ad GMV ÷ the day's card AOV.

@@ -96,6 +96,8 @@ def voucher_facts(**kw):
         raise_gap_per_order=D(10_000),
         below_share=D("0.6"),
         usage_rate=D("0.5"),
+        near_share=D("0.3"),  # P98 E2: the orders within 20 % below the minimum
+        reach_gap=D(12_000),
     )
     d.update(kw)
     return VoucherFacts(**d)
@@ -114,11 +116,12 @@ def test_voucher_min_spend_drivers_sources_cost():
     assert o.duration_days == 14
     offer = o.offers[0]
     assert offer.per_use == D(8000) and offer.use_cap == D(50)
-    # existing qualifying orders are included, then orders raised over the minimum
+    # existing qualifying orders are included, then the near orders raised over the minimum
+    # (too few orders to measure the reach: the tagged 0 / 20 / 50 % prior on them, E2)
     assert offer.use_share.p10 == D("0.4") * D("0.5")
-    assert offer.use_share.p90 == (D("0.4") + D("0.5") * D("0.6")) * D("0.5")
+    assert offer.use_share.p90 == (D("0.4") + D("0.5") * D("0.3")) * D("0.5")
     aov = o.drivers[0].lift
-    assert aov.p10 == 0 and aov.p90 == D("0.5") * D(10_000) / D(100_000)
+    assert aov.p10 == 0 and aov.p90 == D("0.5") * D("0.3") * D(12_000) / D(100_000)
 
 
 def test_voucher_review_is_ctor_only_and_scopes():
@@ -308,7 +311,8 @@ def test_simple_families_table_and_end_to_end(spec, metrics, sources):
     o = simple_option(spec, facts)
     assert [d.metric for d in o.drivers] == metrics
     assert all(d.sources == sources for d in o.drivers)
-    assert o.drivers[0].basis == "shop"
+    # hiding a listing takes away all of its views: the product's own 30 days, not a lift model
+    assert o.drivers[0].basis == ("product_history" if spec.kind == "listing_hide" else "shop")
     if len(o.drivers) == 2:
         assert o.drivers[1].basis == "prior"
     r = run(base(), o, n=300)

@@ -441,12 +441,28 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/builder/ads/setup",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/shopee/builder/choose",
       "methods": [
         "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/builder/combo/options",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
     },
     {
       "path": "/v1/demo/shopee/builder/compare",
@@ -495,6 +511,14 @@
       ],
       "requires_auth": true,
       "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/builder/kol/setup",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
     },
     {
       "path": "/v1/demo/shopee/builder/products",

@@ -6,13 +6,17 @@ and facts only; the ads family (W2-F) turns them into an option. Read-only."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.services.shopee_analytics.fmt import num, ratio
 from juli_backend.services.shopee_builder import service
+from juli_backend.services.shopee_builder.engine.contract import OptionResult
+from juli_backend.services.shopee_builder.engine_families import integrate
+from juli_backend.services.shopee_builder.engine_families.facts import AdsNewCampaign
 from juli_backend.services.shopee_builder.specs_p98 import (
     ADS_BUDGET_FLOOR,
     AdsRequest,
@@ -23,6 +27,7 @@ from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_recommendations import loader
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 
+DEFAULT_DAYS = 30  # a setup without an end date: the "30 ngày đầu" horizon
 NO_ADS = "Sản phẩm này chưa có số liệu quảng cáo trong 30 ngày: chưa ước tính được, cần chạy thử"
 
 
@@ -88,11 +93,38 @@ def _setup(env: RecoEnv, s: AdsSetup) -> dict[str, Any]:
     }
 
 
-def assemble(env: RecoEnv, req: AdsRequest) -> dict[str, Any]:
+def campaign_of(s: AdsSetup) -> AdsNewCampaign:
+    """A setup as the ads family's input; no end date = a 30-day horizon from the start."""
+    end = s.end_date or s.start_date + timedelta(days=DEFAULT_DAYS - 1)
+    return AdsNewCampaign(
+        item_ids=tuple(s.item_ids),
+        daily_budget=Decimal(s.daily_budget),
+        start=s.start_date,
+        end=end,
+        roas_target=None if s.roas.target is None else Decimal(str(s.roas.target)),
+        ad_type=integrate.AD_TYPE,
+        label=s.name,
+    )
+
+
+def assemble(env: RecoEnv, req: AdsRequest, shop_id: str = "") -> dict[str, Any]:
+    setups: list[dict[str, Any]] = []
+    keyed: list[tuple[str, OptionResult | None]] = []
+    for i, s in enumerate(req.setups):
+        out = _setup(env, s)
+        # ADR-122 d.8: views from spend ÷ measured CPM, extra orders measured on / off days only
+        ev = integrate.ads_result(
+            env, campaign_of(s), shop_id=shop_id, seed_payload=s.model_dump(mode="json")
+        )
+        out["result"] = ev.result_json()
+        setups.append(out)
+        keyed.append((str(i), ev.result))
     return {
         "as_of": env.as_of.isoformat(),
-        "setups": [_setup(env, s) for s in req.setups],
+        "setups": setups,
         "budget_minimum": ADS_BUDGET_FLOOR,
+        # P98: the setups' indexes in the comparison order (per-30-day Δ lợi nhuận)
+        "compare": [int(k) for k in integrate.compare_keys(keyed)],
     }
 
 
@@ -102,7 +134,7 @@ async def build(
     env = await loader.load_env(session, shop_id, as_of=req.as_of, now=now)
     if env is None:
         raise service.NoShopeeData(str(shop_id))
-    return assemble(env, req)
+    return assemble(env, req, str(shop_id))
 
 
 __all__ = ["assemble", "build", "product_ad_facts"]

@@ -4,7 +4,10 @@
 block the compare table and the builder panel show:
 
 - ``driver`` -- the metric(s) the strategy moves, CTOR naming (orders / clicks);
-- ``delta`` -- Δ GMV, Δ orders, Δ profit per month as ``{low, p50, high}`` (P10 / P50 / P90);
+- ``result`` -- ``OptionResult.json()`` (P98 / ADR-122), the one estimate; ``delta``,
+  ``before_after``, ``driver`` and ``basis`` are laid out from it;
+- ``delta`` -- Δ GMV, Δ orders, Δ profit over the result's days as ``{low, p50, high}`` (the
+  result's low / likely / high columns);
 - ``margin_after_pct`` -- the margin after the change;
 - ``cost`` -- the cost of the change (combo: the discount given to buyers x expected combos);
 - ``break_even`` -- extra orders AND the CTOR they take ("≥ 18 đơn, CTOR ≥ 2,71 %");
@@ -112,42 +115,8 @@ def _sorted_band(lo: Any, mid: Any, hi: Any) -> dict[str, float | None]:
     return {"low": lo, "p50": mid, "high": hi}
 
 
-def _band(total: Mapping[str, Any], key: str) -> dict[str, float | None]:
-    return _sorted_band(total["p10"][key], total["p50"][key], total["p90"][key])
-
-
 def _band_of(block: Mapping[str, Any], key: str) -> dict[str, float | None]:
     return _sorted_band(block["p10"][key], block["p50"][key], block["p90"][key])
-
-
-def _per_day(card: Mapping[str, Any], cost_known: bool) -> dict[str, Any] | None:
-    block = card["predicted"]["money_per_month"].get("per_day")
-    if not block:
-        return None
-    total = block["total"]
-    profit = _band_of(total, "dprofit")
-    return {
-        "gmv": _band_of(total, "dgmv"),
-        "orders": _band_of(total, "dorders"),
-        "profit": profit if cost_known else {"low": None, "p50": None, "high": None},
-        "cost": block["certain"]["dchi"],
-    }
-
-
-def _period(card: Mapping[str, Any], cost_known: bool) -> dict[str, Any] | None:
-    block = card["predicted"]["money_per_month"].get("period")
-    if not block:
-        return None
-    total = block["total"]
-    return {
-        "days": block["days"],
-        "gmv": _band_of(total, "dgmv"),
-        "orders": _band_of(total, "dorders"),
-        "profit": _band_of(total, "dprofit")
-        if cost_known
-        else {"low": None, "p50": None, "high": None},
-        "cost": block["certain"]["dchi"],
-    }
 
 
 def _per_order(card: Mapping[str, Any], cost_known: bool) -> dict[str, Any] | None:
@@ -194,7 +163,7 @@ def basis_of(card: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _items_cost_known(ctx: BuilderContext, items: Sequence[str]) -> tuple[bool, list[str]]:
+def items_cost_known(ctx: BuilderContext, items: Sequence[str]) -> tuple[bool, list[str]]:
     """Every listing the version touches has a real giá vốn (per its SKUs' cost source)."""
     env = ctx.env
     missing = []
@@ -562,6 +531,130 @@ def _warnings(
     return out
 
 
+NULL_BAND: dict[str, float | None] = {"low": None, "p50": None, "high": None}
+#: OptionResult basis -> the builder's basis block (P98: one estimate path)
+RESULT_BASIS: dict[str, tuple[str, str, str]] = {
+    "measured": ("measured", "đo từ số liệu của shop", "Đo từ đơn và phễu của chính shop."),
+    "product_history": (
+        "product_history",
+        BASIS_LABELS["product_history"],
+        "Đơn của chính sản phẩm khi từng giảm giá trước đây.",
+    ),
+    "shop": ("shop", BASIS_LABELS["shop"], "Kết quả đã đo của các sản phẩm khác trong shop."),
+    "prior": ("prior", BASIS_LABELS["prior"], "Mức ước tính chung, chưa có đủ lịch sử của shop."),
+    "not_estimable": (
+        "insufficient",
+        BASIS_LABELS["insufficient"],
+        "Chưa ước tính được: chỉ có chi phí và điểm hoà vốn.",
+    ),
+}
+_DRIVER_UNITS = {"views": "count", "ctr": "pct", "ctor": "pct", "aov": "vnd", "orders": "count"}
+
+
+def _col_delta(result: Mapping[str, Any], key: str) -> dict[str, float | None]:
+    """Δ of one metric in the low / likely / high columns of ``result`` (the same numbers as
+    ``before_after`` and ``result.delta``: GMV / profit whole đồng as the wire rounds them)."""
+    detail = result.get("detail") or {}
+    before = (detail.get("before") or {}).get(key)
+    out: dict[str, float | None] = {}
+    for q, col in (("low", "low"), ("p50", "likely"), ("high", "high")):
+        c = detail.get(col) or {}
+        a = c.get(key)
+        if a is None or before is None:
+            out[q] = None
+            continue
+        d = float(a) - float(before)
+        out[q] = float(round(d)) if key in ("gmv", "profit") else d
+    return out
+
+
+def result_delta(result: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The outcome's ``delta`` from ONE result (P98: the money layer no longer produces it)."""
+    if result is None or not result.get("estimable"):
+        days = None if result is None else result.get("days")
+        return {
+            "gmv": dict(NULL_BAND),
+            "orders": dict(NULL_BAND),
+            "profit": dict(NULL_BAND),
+            "orders_note": None
+            if result is None
+            else ((result.get("delta") or {}).get("orders") or {}).get("note"),
+            "per": "period",
+            "days": days,
+            "per_day": None,
+            "period": None,
+        }
+    days = int(result["days"])
+    gmv, orders, profit = (_col_delta(result, k) for k in ("gmv", "orders", "profit"))
+    note = ((result.get("delta") or {}).get("orders") or {}).get("note")
+
+    def per_day(b: Mapping[str, float | None]) -> dict[str, float | None]:
+        return {k: None if v is None else v / days for k, v in b.items()}
+
+    cost = (result.get("cost") or {}).get("total")
+    return {
+        "gmv": gmv,
+        "orders": orders,
+        "profit": profit,
+        "orders_note": note,
+        "per": "period",
+        "days": days,
+        "per_day": {
+            "gmv": per_day(gmv),
+            "orders": per_day(orders),
+            "profit": per_day(profit),
+            "cost": None if cost is None else cost / days,
+        },
+        "period": {"days": days, "gmv": gmv, "orders": orders, "profit": profit, "cost": cost},
+    }
+
+
+def result_driver(result: Mapping[str, Any] | None, old: Mapping[str, Any]) -> dict[str, Any]:
+    """The driver block from the result's own columns (before -> likely) for its drivers + đơn."""
+    if result is None:
+        return dict(old)
+    detail = result.get("detail") or {}
+    before, likely = detail.get("before") or {}, detail.get("likely")
+    rows = []
+    for key in [*result.get("drivers", []), "orders"]:
+        rows.append(
+            {
+                "key": key,
+                "label": METRIC_LABELS[key],
+                "unit": _DRIVER_UNITS[key],
+                "before": before.get(key),
+                "after_p50": None if likely is None else likely.get(key),
+            }
+        )
+    return {
+        "metrics": rows,
+        "target_metric": (result.get("drivers") or [old.get("target_metric")])[0],
+        "relative_lift": old.get("relative_lift"),
+        "drivers_pct": result.get("drivers_pct") or [],
+    }
+
+
+def result_basis(result: Mapping[str, Any] | None, old: Mapping[str, Any]) -> dict[str, Any]:
+    if result is None:
+        return {
+            "key": "insufficient",
+            "label": BASIS_LABELS["insufficient"],
+            "detail": "Chưa ước tính được cho phương án này.",
+            "volume_estimate": False,
+        }
+    key, label, detail = RESULT_BASIS[str(result.get("basis"))]
+    if not result.get("estimable"):
+        key, label, detail = RESULT_BASIS["not_estimable"]
+    return {
+        "key": key,
+        "label": label,
+        "detail": detail,
+        "volume_estimate": bool(result.get("estimable")),
+        "weak": bool(result.get("basis_weak")),
+        "previous": old.get("key"),
+    }
+
+
 def shape(
     card: Mapping[str, Any],
     tr: Translation,
@@ -571,61 +664,31 @@ def shape(
     kind: str,
     label: str,
     estimate_card: Mapping[str, Any] | None = None,
+    result: Mapping[str, Any] | None = None,
+    result_refusal: Mapping[str, str] | None = None,
+    scope: str | None = None,
 ) -> dict[str, Any]:
-    """The outcome block of one version. ``estimate_card`` carries the numbers when the saved card
-    has none of its own (a variation set)."""
+    """The outcome block of one version. ``estimate_card`` carries the evaluators' certain layer
+    (costs, profit per order, floor) when the saved card has none of its own (a variation set).
+    P98 / ADR-122: ``result`` (``OptionResult.json()``) is the one estimate -- ``before_after``,
+    ``delta``, ``driver`` and ``basis`` are laid out from it; the card's money layer no longer
+    produces numbers."""
     numbers = estimate_card or card
     pm = numbers["predicted"]["money_per_month"]
-    # P96: the bands cover the change's own days (``period``, up to 90), not a month capped at 30
-    total = (pm.get("period") or pm)["total"]
     items = list(dict.fromkeys([*tr.items, *card["scope"]["product_ids"]]))
-    cost_known, missing = _items_cost_known(ctx, [i for i in items if i])
+    cost_known, missing = items_cost_known(ctx, [i for i in items if i])
     p50_orders = pm["total"]["p50"]["dorders"]  # per month: the driver and combo cost read it
     margin_before, margin_after = _margin(numbers)
-    delta_profit = _band(total, "dprofit")
-    orders_band = _band(total, "dorders")
-    orders_note = None
-    if numbers["predicted"]["lift"]["metric"] == "aov":
-        # a basket-size lever moves AOV, not the number of orders
-        orders_band = {"low": 0.0, "p50": 0.0, "high": 0.0}
-        orders_note = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
-        if card["change_kind"] == "listing_combo":
-            orders_note = "Listing mới chỉ lấy đơn từ các sản phẩm lẻ, không thêm đơn mới."
     basis = basis_of(numbers)
-    if card["change_kind"] == "listing_hide" and basis["key"] != "insufficient":
-        basis = {  # P96: the loss is the listing's own last 30 days, not an estimate
-            "key": "product_history",
-            "label": BASIS_LABELS["product_history"],
-            "detail": "GMV và lợi nhuận 30 ngày qua của sản phẩm: mất khi ẩn sản phẩm.",
-            "volume_estimate": False,
-        }
-    if card["change_kind"] == "listing_combo":
-        baskets = card["certain"].get("existing_baskets") or 0
-        basis = {
-            "key": "prior" if baskets else "insufficient",
-            "label": "giả định cannibalize" if baskets else BASIS_LABELS["insufficient"],
-            "detail": card["certain"].get("assumption"),
-            "volume_estimate": bool(baskets),
-        }
-    if items and all(i in ctx.reference_items for i in items if i):
-        basis = {
-            "key": "insufficient",
-            "label": BASIS_LABELS["insufficient"],
-            "detail": "Sản phẩm chưa có đơn trong kỳ: chỉ tính chi phí và hoà vốn trên một đơn mẫu "
-            "theo giá hiện tại, không dự kiến số đơn hay doanh thu.",
-            "volume_estimate": False,
-        }
-    delta_gmv = _band(total, "dgmv")
-    if basis["key"] == "insufficient":  # no volume could be predicted: null, not a flat 0
-        null = {"low": None, "p50": None, "high": None}
-        delta_gmv, orders_band, delta_profit = dict(null), dict(null), dict(null)
-    if cost_known and tr.card_kind == "variation_restructure" and delta_profit["p50"] is None:
-        delta_profit = set_profit_band(delta_gmv, tr.details.get("new_variations") or [])
     if not cost_known:
-        delta_profit = {"low": None, "p50": None, "high": None}
         margin_before = margin_after = None
     certain_profit = None if not cost_known else (pm.get("period") or pm)["certain"]["dprofit"]
     driver = _driver(numbers, ctx, items, p50_orders)
+    old_scope = "shop" if card["change_kind"] == "min_spend_voucher" and not tr.items else "product"
+    rd = result_delta(result)
+    if not cost_known:
+        rd["profit"] = dict(NULL_BAND)
+    delta_profit = rd["profit"]
     return {
         "index": index,
         "kind": kind,
@@ -635,28 +698,18 @@ def shape(
         "ok": True,
         "refusal": None,
         "title": card["title"],
-        "driver": driver,
-        "before_after": before_after.build(
-            numbers,
-            ctx,
-            items,
-            shop_wide=card["change_kind"] == "min_spend_voucher" and not tr.items,
-            basis_known=basis["key"] != "insufficient",
-            cost_known=cost_known,
-            orders_note=orders_note,
+        "driver": result_driver(result, driver),
+        "result": None if result is None else dict(result),
+        "result_refusal": None if result_refusal is None else dict(result_refusal),
+        "before_after": before_after.from_result(
+            result,
+            scope=scope or old_scope,
+            reason=None if result_refusal is None else result_refusal.get("message"),
         ),
         "base": _base(numbers, tr, items, driver, margin_before),
         "delta": {
-            "gmv": delta_gmv,
-            "orders": orders_band,
-            "profit": delta_profit,
+            **rd,
             "certain_profit": certain_profit,
-            "orders_note": orders_note,
-            # the figures above cover ``days`` days (the change's own, up to 30), not a month
-            "per": "period",
-            "days": pm.get("period", {}).get("days", pm["days"]),
-            "per_day": _per_day(numbers, cost_known),
-            "period": _period(numbers, cost_known),
             "per_order": _per_order(numbers, cost_known),
         },
         "voucher": (numbers.get("certain") or {}).get("voucher_detail"),
@@ -666,29 +719,11 @@ def shape(
         "cost_known": cost_known,
         "cost": _cost(numbers, tr, p50_orders),
         "break_even": _break_even(numbers, ctx, items),
-        "basis": basis,
+        "basis": result_basis(result, basis),
         "warnings": _warnings(numbers, tr, cost_known, missing, delta_profit),
         "breach": bool(card["floor"]["breaches"])
         or bool((card.get("spend") or {}).get("over_cap")),
         "details": {**card["certain"], **tr.details},
-    }
-
-
-def set_profit_band(
-    delta_gmv: Mapping[str, float | None], new_variations: Sequence[Mapping[str, Any]]
-) -> dict[str, float | None]:
-    """P96: a set's Δ profit from its own margin when the estimate card has none -- the extra GMV
-    is set revenue at the margin computed for the biggest new set (``translate._variation_set``)."""
-    known = [v for v in new_variations if v.get("margin_pct") is not None]
-    if not known:
-        return {"low": None, "p50": None, "high": None}
-    rate = max(known, key=lambda v: v.get("pack_count") or 1)["margin_pct"] / 100
-    # P96e: ΔGMV is at today's prices and a set's goods cost no more than that, so a set sold
-    # far below cost loses at most its extra GMV -- not margin % x GMV (−1.404.170 % x ...).
-    rate = max(rate, -1.0)
-    return {
-        k: None if delta_gmv.get(k) is None else round(float(delta_gmv[k] or 0) * rate, 2)
-        for k in ("low", "p50", "high")
     }
 
 

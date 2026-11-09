@@ -3,6 +3,7 @@ prediction's lift. Everything here reads ``RecoEnv`` (never the database)."""
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from collections.abc import Sequence
 from decimal import Decimal
@@ -10,10 +11,12 @@ from typing import Any
 
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.engine.contract import Band, Basis
+from juli_backend.services.shopee_builder.engine_families import common
 from juli_backend.services.shopee_builder.engine_families.facts import (
     ComboFacts,
     LiftEvidence,
     ListingComboFacts,
+    NewComboListing,
     PackEvidence,
     PriceFacts,
     VoucherFacts,
@@ -78,6 +81,29 @@ def profit_per_order(env: RecoEnv, order_ids: set[str]) -> Decimal | None:
     return total / len(order_ids) if order_ids else None
 
 
+def measured_reach(near: int, n: int, below: int) -> Band | None:
+    """ADR-122 d.13 E2: the share of ALL ``n`` orders that reach a minimum / tier = the ``near``
+    orders sitting within 20 % below it today, with a binomial spread (z of P90); never above the
+    ``below`` share. ``None`` with fewer than ``MIN_REACH_ORDERS`` orders (then the tagged
+    prior)."""
+    if n < common.MIN_REACH_ORDERS:
+        return None
+    m = Decimal(near) / n
+    cap = Decimal(below) / n
+    se = (m * (ONE - m) / n).sqrt()
+    return Band(
+        min(max(m - common.Z90 * se, ZERO), cap), m, min(max(m + common.Z90 * se, ZERO), cap)
+    )
+
+
+def qualifying_share(env: RecoEnv, minimum: Decimal) -> Decimal:
+    """Share of the shop's orders at / over ``minimum`` (a gift on a minimum spend)."""
+    values = order_values(env.lines_for(None))
+    if not values:
+        return ZERO
+    return Decimal(sum(1 for v in values.values() if v >= minimum)) / len(values)
+
+
 def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
     lines = env.lines_for(spec.item_ids or None)
     values = order_values(lines)
@@ -95,6 +121,7 @@ def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
         per_use = ref * Decimal(str(spec.value)) / 100
         if spec.max_value is not None:
             per_use = min(per_use, Decimal(spec.max_value))
+    near = [v for v in below if v >= minimum * (ONE - common.REACH_WINDOW)]
     return VoucherFacts(
         aov_now=total / n,
         profit_per_order=profit_per_order(env, set(values)),
@@ -103,6 +130,9 @@ def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
         raise_gap_per_order=sum((minimum - v for v in below), ZERO) / n,
         below_share=Decimal(len(below)) / n,
         usage_rate=env.usage_rate if env.usage_rate is not None else ONE,
+        reach=measured_reach(len(near), n, len(below)),
+        reach_gap=sum((minimum - v for v in near), ZERO) / len(near) if near else ZERO,
+        near_share=Decimal(len(near)) / n,
     )
 
 
@@ -124,23 +154,30 @@ def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
     avg_price = unit_value / unit_count
     tiers = sorted((Tier(t.qty, Decimal(str(t.value))) for t in spec.tiers), key=lambda t: t.qty)
     discounts: list[Decimal] = []
-    near = 0
-    qtys = {t.qty for t in tiers}
+    near: list[int] = []  # units short of the lowest tier, for the orders within reach of it
+    below = 0
+    lowest = tiers[0].qty
+    # E2: within 20 % below the tier, and at least one unit (a tier of 2-5 is one unit away)
+    floor_units = min(lowest - 1, math.ceil(lowest * (ONE - common.REACH_WINDOW)))
     for oid in values:
         u = units.get(oid, 0)
         tier = best_tier(u, tiers)
         if tier is not None:
             eff = effective_pct(spec.discount_type, tier, avg_price)
             discounts.append((u // tier.qty) * tier.qty * avg_price * eff / 100)
-        elif u > 0 and (u + 1) in qtys:
-            near += 1
+        elif u > 0:
+            below += 1
+            if u >= floor_units:
+                near.append(lowest - u)
     return ComboFacts(
         aov_now=sum(values.values(), ZERO) / n,
         profit_per_order=profit_per_order(env, set(values)),
         per_use=sum(discounts, ZERO) / len(discounts) if discounts else ZERO,
         use_share_now=Decimal(len(discounts)) / n,
-        near_share=Decimal(near) / n,
+        near_share=Decimal(len(near)) / n,
         unit_price=avg_price,
+        reach=measured_reach(len(near), n, below),
+        reach_units=Decimal(sum(near)) / len(near) if near else ONE,
     )
 
 
@@ -169,6 +206,53 @@ def listing_combo_facts(
         new_price=Decimal(spec.price),
         profit_per_order_after=None,
         pack=pack,
+    )
+
+
+def new_listing_facts(
+    row: NewComboListing,
+    env: RecoEnv,
+    pack: PackEvidence | None,
+    base_profit_per_order: Decimal | None = None,
+) -> ListingComboFacts:
+    """A combo builder row: the orders that already hold every member at its quantity switch to
+    the new listing (their lines' value today vs the row's price). The profit per order after
+    switching is the base's (``base_profit_per_order``, the funnel's) plus the switching share x
+    (the row's profit per order - those orders' profit per order today) (E3)."""
+    wanted = {i for i, _, _ in row.members}
+    lines = env.lines_for(sorted(wanted))
+    values = order_values(lines)
+    held: dict[str, dict[tuple[str, str], int]] = defaultdict(lambda: defaultdict(int))
+    price: dict[tuple[str, str], Decimal] = {}
+    for ln in lines:
+        key = (ln.product_id, ln.sku)
+        held[ln.order_id][key] += ln.qty
+        price[key] = ln.deal_price
+    need = {(i, sku): q for i, sku, q in row.members}
+    switching = [oid for oid, h in held.items() if all(h.get(k, 0) >= q for k, q in need.items())]
+    n = len(values)
+    value_now = (
+        sum((price[k] * q for k, q in need.items() if k in price), ZERO) if switching else ZERO
+    )
+    ppo_now = profit_per_order(env, set(values)) if n else None
+    ppo_switch = profit_per_order(env, set(switching)) if switching else None
+    share = Decimal(len(switching)) / n if n else ZERO
+    ppo_after = None
+    if (
+        base_profit_per_order is not None
+        and row.profit_per_order is not None
+        and ppo_switch is not None
+    ):
+        ppo_after = base_profit_per_order + share * (row.profit_per_order - ppo_switch)
+    return ListingComboFacts(
+        aov_now=sum(values.values(), ZERO) / n if n else None,
+        profit_per_order=ppo_now,
+        switch_share=share,
+        value_now=value_now,
+        new_price=row.price,
+        profit_per_order_after=ppo_after,
+        pack=None if row.pack_sold_today else pack,
+        pack_sold_today=row.pack_sold_today,
     )
 
 

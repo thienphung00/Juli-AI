@@ -1,27 +1,15 @@
-"""So sánh phương án: before -> after with its range for seven metrics (P97 D85.9).
-
-GMV, biên lợi nhuận, số đơn, AOV, CTOR, CTR, lượt xem -- each ``before`` (the base the version
-stands on: the shop for a shop-wide lever, the product(s) otherwise; the window ShopMetrics
-reads) and ``after`` as ``{low, p50, high}`` = P10 / P50 / P90. A metric the lever has no
-modelled effect on is ``unchanged`` with the reason in Vietnamese -- never an invented lift:
-
-- the money layer (``predicted.money_per_month``) moves GMV and đơn; AOV is GMV ÷ đơn on the same
-  quantile; the margin follows profit and GMV;
-- the lift's own metric (``predicted.lift.metric``) says which funnel metric the model scales:
-  ``aov`` -> AOV only; ``ctor`` / ``orders`` -> đơn and CTOR (orders ÷ clicks); ``views`` -> lượt
-  xem; ``ctr`` -> CTR; ``none`` / ads -> none of them.
-
-Pure over a built card and the builder context; no I/O.
+"""So sánh phương án: before -> after with its range for seven metrics (P97 D85.9), laid out from
+the option's ONE result (P98 / ADR-122): GMV, biên lợi nhuận, số đơn, AOV, CTOR, CTR, lượt xem --
+``before`` = ``result.detail.before`` (the scope's stored funnel, scaled to the option's days) and
+``after`` = the low / likely / high columns (whole scenarios ranked by Δ lợi nhuận, so the funnel
+holds in each). A metric the option does not move is ``unchanged`` with the reason in Vietnamese --
+never an invented lift. Pure; no I/O.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any
-
-from juli_backend.services.shopee_builder.context import BuilderContext
-from juli_backend.services.shopee_builder.traffic import scope_traffic
-from juli_backend.services.shopee_recommendations import config
 
 ROWS: tuple[tuple[str, str, str], ...] = (
     ("gmv", "GMV", "vnd"),
@@ -32,14 +20,6 @@ ROWS: tuple[tuple[str, str, str], ...] = (
     ("ctr", "CTR", "pct"),
     ("views", "Lượt xem", "count"),
 )
-#: lift metric -> the funnel metrics the model scales
-MOVES: dict[str, frozenset[str]] = {
-    "aov": frozenset({"aov"}),
-    "ctor": frozenset({"orders", "ctor"}),
-    "orders": frozenset({"orders", "ctor"}),
-    "views": frozenset({"views"}),
-    "ctr": frozenset({"ctr"}),
-}
 LEVER_NAME = {
     "aov": "tăng giá trị mỗi đơn",
     "ctor": "tăng tỉ lệ đặt hàng",
@@ -48,14 +28,6 @@ LEVER_NAME = {
     "ctr": "tăng tỉ lệ nhấp",
 }
 NO_DATA = "Chưa đủ dữ liệu để ước tính."
-
-
-def _band(values: Sequence[float | None]) -> dict[str, float | None]:
-    if any(v is None for v in values):
-        return {"low": None, "p50": None, "high": None}
-    lo, mid, hi = sorted(float(v) for v in values if v is not None)
-    # the median is the P50 value, not the middle of the sorted three
-    return {"low": lo, "p50": float(values[1]) if values[1] is not None else mid, "high": hi}
 
 
 def _row(key: str, label: str, unit: str, before: float | None, after: Mapping[str, Any] | None,
@@ -78,176 +50,84 @@ def _unchanged(
     return _row(key, label, unit, before, flat, reason, unchanged=True)
 
 
-def _shop_base(ctx: BuilderContext, items: Sequence[str], shop_wide: bool) -> dict[str, Any]:
-    """gmv / orders / profit / paid of the base, over the history window."""
-    env = ctx.env
-    m = env.metrics
-    if shop_wide or not items:
-        p = env.view.profit
-        return {
-            "scope": "shop",
-            "gmv": float(m.gmv or 0),
-            "orders": float(m.orders or 0),
-            "profit": None if p.covered_margin_profit is None else float(p.covered_margin_profit),
-            "paid": float(p.buyer_paid_covered),
-        }
-    gmv = orders = profit = paid = 0.0
-    known = False
-    for item in dict.fromkeys(items):
-        s = m.split(item)
-        if s is not None:
-            gmv += float(s.gmv)
-            orders += float(s.orders)
-        pp = env.product(item)
-        if pp is not None and pp.profit is not None and pp.buyer_paid_covered > 0:
-            profit += float(pp.profit)
-            paid += float(pp.buyer_paid_covered)
-            known = True
-    return {
-        "scope": "product",
-        "gmv": gmv,
-        "orders": orders,
-        "profit": profit if known else None,
-        "paid": paid,
-    }
+#: result driver -> the funnel rows it moves (ADR-122 d.1: đơn moves only under views / CTR / CTOR)
+RESULT_MOVES: dict[str, frozenset[str]] = {
+    "views": frozenset({"views", "orders", "gmv"}),
+    "ctr": frozenset({"ctr", "orders", "gmv"}),
+    "ctor": frozenset({"ctor", "orders", "gmv"}),
+    "aov": frozenset({"aov", "gmv"}),
+}
+_COLUMN_KEY = {"gmv": "gmv", "orders": "orders", "aov": "aov", "ctor": "ctor", "ctr": "ctr",
+               "views": "views"}  # fmt: skip
+EPS = 1e-6
 
 
-def build(
-    numbers: Mapping[str, Any],
-    ctx: BuilderContext,
-    items: Sequence[str],
+def _margin_of(col: Mapping[str, Any] | None) -> float | None:
+    if col is None or col.get("profit") is None or not col.get("gmv"):
+        return None
+    return float(col["profit"]) / float(col["gmv"]) * 100
+
+
+def _value(col: Mapping[str, Any] | None, key: str) -> float | None:
+    if col is None:
+        return None
+    if key == "margin":
+        return _margin_of(col)
+    v = col.get(_COLUMN_KEY[key])
+    return None if v is None else float(v)
+
+
+def from_result(
+    result: Mapping[str, Any] | None,
     *,
-    shop_wide: bool,
-    basis_known: bool,
-    cost_known: bool,
-    orders_note: str | None,
+    scope: str,
+    reason: str | None = None,
 ) -> dict[str, Any]:
-    """The seven rows of one version; ``numbers`` is the card whose money layer it shows."""
-    env = ctx.env
-    base = _shop_base(ctx, items, shop_wide)
-    f = env.window_days / config.DAYS_PER_MONTH  # the card's month -> the history window
-    total = numbers["predicted"]["money_per_month"]["total"]
-    lift = numbers["predicted"]["lift"]
-    metric = lift["metric"]
-    moves = MOVES.get(metric, frozenset())
-    scale = float(numbers["predicted"].get("lift_scale") or 1.0)
-    traffic = scope_traffic(env, [] if base["scope"] == "shop" else items)
-    gmv0, orders0 = base["gmv"], base["orders"]
-    qs = ("p10", "p50", "p90")
-
-    def d(key: str, q: str) -> float | None:
-        v = total[q][key]
-        return None if v is None else float(v) * f
-
-    def dq(key: str, q: str) -> float:
-        return d(key, q) or 0.0
-
+    """P98 / ADR-122: the seven rows laid out from ONE ``OptionResult.json()`` -- ``before`` is the
+    result's ``detail.before`` and ``after`` its low / likely / high columns, so this view shows
+    exactly the numbers of ``result`` (no second calculation). Biên lợi nhuận = lợi nhuận ÷ GMV of
+    the same column. ``result`` None (the family refused) or not estimable: ``after`` is None with
+    the reason."""
+    detail = (result or {}).get("detail") or {}
+    before = detail.get("before")
+    cols = (detail.get("low"), detail.get("likely"), detail.get("high"))
+    estimable = bool(result and result.get("estimable")) and all(c is not None for c in cols)
+    drivers = list((result or {}).get("drivers") or [])
+    moved: set[str] = set()
+    for d in drivers:
+        moved |= RESULT_MOVES.get(d, frozenset())
+    orders_note = (((result or {}).get("delta") or {}).get("orders") or {}).get("note")
+    why_not = reason or orders_note or NO_DATA
     rows: list[dict[str, Any]] = []
-    aov0 = gmv0 / orders0 if orders0 else None
-    margin0 = (
-        base["profit"] / base["paid"] * 100
-        if base["profit"] is not None and base["paid"] > 0 and cost_known
-        else None
-    )
-    if not basis_known:
-        for key, label, unit in ROWS:
-            before = {"gmv": gmv0, "orders": orders0, "aov": aov0, "margin": margin0}.get(key)
-            rows.append(_row(key, label, unit, before, None, NO_DATA))
-        return _wrap(base, rows)
-
-    def after(fn: Any) -> dict[str, float | None]:
-        out: list[float | None] = []
-        for q in qs:
-            try:
-                out.append(fn(q))
-            except (ZeroDivisionError, TypeError):
-                out.append(None)
-        return _band(out)
-
-    rows.append(_row("gmv", "GMV", "vnd", gmv0, after(lambda q: gmv0 + (d("dgmv", q) or 0.0))))
-    if margin0 is None:
-        rows.append(
-            _row("margin", "Biên lợi nhuận", "pct", None, None, "Chưa có giá vốn: biên chưa tính.")
+    for key, label, unit in ROWS:
+        b = _value(before, key)
+        if not estimable:
+            rows.append(_row(key, label, unit, b, None, why_not))
+            continue
+        lo, mid, hi = (_value(c, key) for c in cols)
+        after = {"low": lo, "p50": mid, "high": hi}
+        flat = b is not None and all(
+            v is not None and abs(v - b) <= EPS * max(1.0, abs(b)) for v in (lo, mid, hi)
         )
-    else:
-        ratio = base["paid"] / gmv0 if gmv0 else 0.0
-
-        def margin(q: str) -> float | None:
-            dp, dg = d("dprofit", q), d("dgmv", q)
-            if dp is None or dg is None:
-                return None
-            return (base["profit"] + dp) / (base["paid"] + dg * ratio) * 100
-
-        rows.append(_row("margin", "Biên lợi nhuận", "pct", margin0, after(margin)))
-    if "orders" in moves:
-        rows.append(
-            _row(
-                "orders",
-                "Số đơn",
-                "count",
-                orders0,
-                after(lambda q: orders0 + (d("dorders", q) or 0.0)),
-            )
-        )
-    else:
-        why = orders_note or _no_effect("orders", metric)
-        rows.append(_unchanged("orders", "Số đơn", "count", orders0, why))
-    if "aov" in moves or "orders" in moves:
-        more = "orders" in moves
-
-        def aov_after(q: str) -> float:
-            return (gmv0 + dq("dgmv", q)) / (orders0 + (dq("dorders", q) if more else 0.0))
-
-        rows.append(_row("aov", "AOV", "vnd", aov0, after(aov_after)))
-    else:
-        rows.append(_unchanged("aov", "AOV", "vnd", aov0, _no_effect("aov", metric)))
-    clicks0 = None if traffic is None else float(traffic.clicks)
-    ctor0 = None if traffic is None or traffic.ctor is None else traffic.ctor * 100
-    ctr0 = None if traffic is None or traffic.ctr is None else traffic.ctr * 100
-    views0 = None if traffic is None or not traffic.views else float(traffic.views)
-    if "ctor" in moves and clicks0 and traffic is not None:
-        t_orders = float(traffic.orders)
-
-        def ctor_after(q: str) -> float:
-            return (t_orders + dq("dorders", q)) / clicks0 * 100
-
-        rows.append(_row("ctor", "CTOR", "pct", ctor0, after(ctor_after)))
-    elif "ctor" in moves:
-        rows.append(
-            _row("ctor", "CTOR", "pct", None, None, "Chưa có lượt nhấp theo nguồn để tính CTOR.")
-        )
-    else:
-        rows.append(_unchanged("ctor", "CTOR", "pct", ctor0, _no_effect("ctor", metric)))
-    if "ctr" in moves and ctr0 is not None:
-        rows.append(
-            _row("ctr", "CTR", "pct", ctr0, after(lambda q: ctr0 * _lifted(lift, q, scale)))
-        )
-    elif "ctr" in moves:
-        rows.append(
-            _row("ctr", "CTR", "pct", None, None, "Chưa có lượt xem và lượt nhấp để tính CTR.")
-        )
-    else:
-        rows.append(_unchanged("ctr", "CTR", "pct", ctr0, _no_effect("ctr", metric)))
-    if "views" in moves and views0 is not None:
-        rows.append(
-            _row(
-                "views",
-                "Lượt xem",
-                "count",
-                views0,
-                after(lambda q: views0 * _lifted(lift, q, scale)),
-            )
-        )
-    elif "views" in moves:
-        rows.append(_row("views", "Lượt xem", "count", None, None, "Chưa có lượt xem theo nguồn."))
-    else:
-        rows.append(_unchanged("views", "Lượt xem", "count", views0, _no_effect("views", metric)))
-    return _wrap(base, rows)
-
-
-def _lifted(lift: Mapping[str, Any], q: str, scale: float) -> float:
-    """1 + the lift at quantile ``q``, scaled by the change's size."""
-    return 1 + float(lift["lift"][q]) * scale
+        if key == "margin" and b is None:
+            rows.append(_row(key, label, unit, None, None, "Chưa có giá vốn: biên chưa tính."))
+        elif flat and key not in moved and key not in ("gmv", "margin"):
+            lead = drivers[0] if drivers else "none"
+            why = orders_note if key == "orders" and orders_note else _no_effect(key, lead)
+            rows.append(_unchanged(key, label, unit, b, why))  # flat: float noise dropped
+        else:
+            rows.append(_row(key, label, unit, b, after))
+    days = (result or {}).get("days")
+    return {
+        "scope": scope,
+        "rows": rows,
+        "range": "P10 – P90, giữa là P50 (cả ba là kịch bản trọn vẹn của cùng phễu)",
+        "days": days,
+        "note": f"Trước = phễu 30 ngày gần nhất của cùng phạm vi, quy về {days or 30} ngày; sau = "
+        "kết quả dự kiến của cùng phương án. Chỉ số phương án không tác động ghi “không đổi” "
+        "kèm lý do.",
+        "source": "result",
+    }
 
 
 def _no_effect(key: str, metric: str) -> str:
@@ -271,4 +151,4 @@ def _wrap(base: Mapping[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any]
     }
 
 
-__all__ = ["ROWS", "build"]
+__all__ = ["ROWS", "from_result"]

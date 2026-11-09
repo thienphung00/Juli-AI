@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.services.shopee_analytics.fmt import num
 from juli_backend.services.shopee_builder import combo_options as co
 from juli_backend.services.shopee_builder import service
+from juli_backend.services.shopee_builder.engine.contract import OptionResult
+from juli_backend.services.shopee_builder.engine_families import integrate
+from juli_backend.services.shopee_builder.engine_families.facts import NewComboListing
 from juli_backend.services.shopee_builder.specs_p98 import BuilderInputError, ComboRequest
 from juli_backend.services.shopee_builder.variations import Rates, measured_rates, with_final_margin
 from juli_backend.services.shopee_recommendations import loader
@@ -101,10 +104,61 @@ def _row_json(row: co.PricedRow, rates: dict[str, Rates]) -> dict[str, Any]:
     }
 
 
+def listing_of(
+    row: co.PricedRow, rows_by_item: dict[str, list[dict[str, Any]]]
+) -> NewComboListing | None:
+    """A priced row as a new combo listing (ADR-122 d.7): its members' order-line SKUs, and
+    whether the shop already sells this pack size of the product (E3: switching only)."""
+    o = row.option
+    if row.price is None:
+        return None
+    members: list[tuple[str, str, int]] = []
+    for m in o.members:
+        vrow = next(
+            (v for v in rows_by_item.get(m.item_id, []) if v["variation_id"] == m.variation_id),
+            None,
+        )
+        if vrow is None or not vrow.get("sku_key"):
+            return None
+        members.append((m.item_id, str(vrow["sku_key"]), m.quantity))
+    items = tuple(dict.fromkeys(m.item_id for m in o.members))
+    sold = False
+    if len(o.members) == 1:
+        m = o.members[0]
+        vrow = next(v for v in rows_by_item[m.item_id] if v["variation_id"] == m.variation_id)
+        sold = integrate.pack_sold_today(
+            rows_by_item[m.item_id], int(vrow.get("pack_count") or 1), m.quantity
+        )
+    return NewComboListing(
+        key=o.key,
+        label=o.name,
+        item_ids=items,
+        members=tuple(members),
+        price=row.price,
+        profit_per_order=row.profit_per_order,
+        pack_sold_today=sold,
+    )
+
+
+def row_result(
+    env: RecoEnv,
+    row: co.PricedRow,
+    rows_by_item: dict[str, list[dict[str, Any]]],
+    shop_id: str = "",
+) -> integrate.Evaluated | None:
+    """The row's ``OptionResult`` through the listing combo family and the engine (None: the
+    row has no price or a member variation without an order-line SKU)."""
+    listing = listing_of(row, rows_by_item)
+    if listing is None:
+        return None
+    return integrate.combo_listing_result(env, listing, pack_rows=rows_by_item, shop_id=shop_id)
+
+
 def assemble(
     env: RecoEnv,
     rows_by_item: dict[str, list[dict[str, Any]]],
     req: ComboRequest,
+    shop_id: str = "",
 ) -> dict[str, Any]:
     """Pure part: economics rows (+ rates) -> options -> priced rows. ``rows_by_item`` = the
     variation rows of each picked product (``variations.variation_rows`` shape)."""
@@ -154,6 +208,15 @@ def assemble(
         priced = co.price(options, req.price_rule.to_rule(), eco, floor, overrides)
     except co.PriceRuleError as exc:
         raise BuilderInputError("bad_price_rule", str(exc)) from None
+    row_json: list[dict[str, Any]] = []
+    keyed: list[tuple[str, OptionResult | None]] = []
+    for r in priced:
+        out = _row_json(r, rates)
+        ev = row_result(env, r, rows_by_item, shop_id)
+        out["result"] = ev.result_json() if ev is not None else None
+        out["result_refusal"] = None if ev is None else ev.refusal_json()
+        row_json.append(out)
+        keyed.append((r.option.key, None if ev is None else ev.result))
     return {
         "as_of": env.as_of.isoformat(),
         "count": {
@@ -163,7 +226,9 @@ def assemble(
             "by_form": dict(counted.by_form),
         },
         "variations": shown,  # the picked products' variation rows, both margins
-        "rows": [_row_json(r, rates) for r in priced],
+        "rows": row_json,
+        # P98: the rows' keys in the comparison order (per-30-day Δ lợi nhuận, best first)
+        "compare": integrate.compare_keys(keyed),
         "warnings": co.limit_warnings(options),
         "margin_basis": MARGIN_BASIS,
         "floor_pct": req.floor_pct,
@@ -179,7 +244,7 @@ async def build(
     items = [p.item_id for p in req.products]
     _check_items(env, items)
     loaded = await service.variation_rows_for(session, shop_id, env, items)
-    return assemble(env, loaded, req)
+    return assemble(env, loaded, req, str(shop_id))
 
 
 __all__ = ["assemble", "build"]
