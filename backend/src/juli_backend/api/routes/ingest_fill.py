@@ -130,7 +130,7 @@ async def seller_fill_jobs(
     shop_id = _shopee(shop)
     jobs = await fill_queue.jobs_of_card(session, shop_id, card_id)
     await session.commit()
-    return {"enabled": fill_queue.enabled(), "jobs": jobs}
+    return {"data": {"enabled": fill_queue.enabled(), "jobs": jobs}}
 
 
 @seller_router.post("/{job_id}/cancel")
@@ -146,4 +146,4 @@ async def seller_cancel_fill_job(
     except ProposalError as exc:
         await session.rollback()
         raise HTTPException(status_code=exc.status, detail={"code": exc.code}) from None
-    return out
+    return {"data": out}

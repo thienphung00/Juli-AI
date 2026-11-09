@@ -253,10 +253,10 @@ async def test_the_seller_sees_the_checklist_of_a_card(session, shop):
     app = build_app(session)
     authenticate(app, user=seeded.user, shop=seeded.shop)
     async with client_for(app) as client:
-        got = (await client.get(f"/v1/demo/shopee/fill-jobs?card_id={ids[0]}")).json()
+        got = (await client.get(f"/v1/demo/shopee/fill-jobs?card_id={ids[0]}")).json()["data"]
         assert got["enabled"] is True and [j["status"] for j in got["jobs"]] == ["queued"]
         cancelled = await client.post(f"/v1/demo/shopee/fill-jobs/{got['jobs'][0]['id']}/cancel")
-        assert cancelled.json()["status"] == "cancelled"
+        assert cancelled.json()["data"]["status"] == "cancelled"
     app.dependency_overrides.clear()
 
 
