@@ -82,6 +82,15 @@ have to be typed into Seller Centre by hand for every kind except title and desc
 18. **ORY now:** campaign 160675212 (Nước Rửa Chén 500ml) at ₫22.000/day (below ₫100.000) and ROAS 5.0 (hint
     ≤ 3.5), 0 views on 08-11 → an ads card for Ops today.
 
+19. **Bot risk (owner, 2026-11-09).** Shopee's Điều Khoản Dịch Vụ Chung (k) forbids account access through
+    unapproved "phần mềm tự động" (aimed at fraud, wording not exempting us); article 12339 says software not
+    registered through Open Platform is not licensed. Open Platform approval is in progress, so the Connector
+    readers go ahead with: one daily request budget per shop shared by all readers; per-order income only for
+    newly completed orders, ≤ 100/day, no historical sweep; order list ≤ 5 pages/run; one reader at a time at
+    the existing pace; any CAPTCHA / login wall / 403 / 429 stops every reader for the shop and is reported to
+    Ops. When the Open Platform app is approved, orders, income, vouchers, combos and ads move to the API and
+    the Connector keeps only what the API lacks (traffic sources, affiliate pages).
+
 ## Tracks
 
 ### T1 — Connector 0.3.11 + readers (connector + ingest agents)
