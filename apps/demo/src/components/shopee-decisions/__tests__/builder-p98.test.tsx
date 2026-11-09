@@ -12,7 +12,26 @@ configure({ asyncUtilTimeout: 4000 });
 
 const products = pickerProducts().products;
 
-const result = (label: string): OptionResult => ({ label, kind: "combo" }) as unknown as OptionResult;
+const col = { views: 1000, ctr: 5, ctor: 10, orders: 5, aov: 100_000, gmv: 500_000, profit: 100_000, by_source: {} };
+// a complete wire result (option-result.ts), as the real OptionCard / CompareTable read it
+const result = (label: string): OptionResult => ({
+  kind: "listing_combo",
+  label,
+  days: 30,
+  horizon: "first_30_days",
+  drivers: ["aov"],
+  estimable: true,
+  basis: "measured",
+  basis_weak: false,
+  delta: { profit: { value: 10_000, pct: 1, low: 5_000, high: 15_000 }, gmv: { value: 50_000, pct: 2 }, orders: { value: 0, pct: 0, note: null } },
+  build_up: [],
+  drivers_pct: [{ metric: "aov", label: "AOV", pct: 2 }],
+  cost: { total: 0, break_even_orders: null, break_even_aov: null, text: "" },
+  after: { days: 30, label: "30 ngày đầu", gmv_before: 500_000, gmv_after: 550_000, profit_before: 100_000, profit_after: 110_000 },
+  per_30d: { profit: 10_000, gmv: 50_000, orders: 0 },
+  detail: { before: col, low: col, likely: col, high: col },
+  notes: [],
+});
 
 const row = (key: string, over: Partial<ComboRow> = {}): ComboRow => ({
   key,
@@ -121,7 +140,9 @@ describe("P98 combo builder", () => {
     await openCombo(api);
     fireEvent.click(await screen.findByTestId("combo-build"));
     expect(await screen.findAllByTestId("option-card")).toHaveLength(2);
-    expect(screen.getByTestId("compare-table")).toHaveTextContent("Phương án A | Phương án B");
+    const cmp = screen.getByTestId("oc-compare");
+    expect(cmp).toHaveTextContent("Phương án A");
+    expect(cmp).toHaveTextContent("Phương án B");
   });
 });
 
@@ -198,6 +219,8 @@ describe("P98 ads builder", () => {
       fireEvent.change(screen.getByLabelText(`Ngày bắt đầu ${i + 1}`), { target: { value: "2026-11-10" } });
     }
     fireEvent.click(screen.getByTestId("ads-calc"));
-    expect(await screen.findByTestId("compare-table")).toHaveTextContent("S1 | S2");
+    const cmp = await screen.findByTestId("oc-compare");
+    expect(cmp).toHaveTextContent("S1");
+    expect(cmp).toHaveTextContent("S2");
   });
 });

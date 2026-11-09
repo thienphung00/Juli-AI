@@ -22,7 +22,7 @@ export function ResultCards({ items }: { readonly items: readonly { readonly tit
           <OptionCard result={i.result} />
         </div>
       ))}
-      {have.length > 1 ? <CompareTable results={have.map((i) => i.result)} /> : null}
+      {have.length > 1 ? <CompareTable rows={have.map((i, n) => ({ id: `${n}:${i.title}`, result: i.result }))} /> : null}
     </section>
   );
 }
