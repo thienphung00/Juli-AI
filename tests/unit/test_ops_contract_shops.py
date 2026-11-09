@@ -97,7 +97,7 @@ async def test_a_pairing_code_comes_after_consent_and_its_token_can_be_revoked(
     from tests.support.api import client_for
 
     seller = await make_user(session, email="connector@example.com")
-    shop = await make_shop(session, seller)
+    shop = await make_shop(session, seller, platform="shopee", tiktok_shop_id=None)
     shop_id = str(shop.id)
     async with with_shop_scope(session, shop.id):
         await grant_consent(
@@ -148,7 +148,7 @@ async def test_a_seller_shop_lists_connections_before_it_has_any(session, monkey
     from tests.support.api import client_for
 
     seller = await make_user(session, email="seller2@example.com")
-    shop_id = (await make_shop(session, seller)).id
+    shop_id = (await make_shop(session, seller, platform="shopee", tiktok_shop_id=None)).id
     await session.commit()
     app = await _ops_client(session, monkeypatch, "operator")
     async with client_for(app) as client:

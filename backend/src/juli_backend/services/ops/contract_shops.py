@@ -49,6 +49,10 @@ class NotAContractShop(ValueError):
     """The shop has a seller login: its consent is the seller's to give."""
 
 
+class NotAShopeeShop(ValueError):
+    """Pairing (the Juli Connector) is Shopee-only."""
+
+
 class ConsentNotEnabled(ValueError):
     """A pairing code before "Bật": every post would be refused ``consent_required``."""
 
@@ -80,6 +84,12 @@ async def create_contract_shop(
     return await connect_shopee_shop(
         session, user_id=owner_id, shop_name=shop_name, shopee_shop_id=shopee_shop_id
     )
+
+
+async def _shop_row(session: AsyncSession, shop_id: uuid.UUID) -> Shop | None:
+    """The shop, read in its own scope (never the owner's: a removed owner cannot see it)."""
+    async with with_shop_scope(session, shop_id):
+        return (await session.execute(select(Shop).where(Shop.id == shop_id))).scalar_one_or_none()
 
 
 async def is_contract_client(
@@ -158,13 +168,12 @@ async def issue_pairing_code(
     Contract shops are gone. The code is refused until the shop has service consent,
     because the ingest gateway would refuse every post from the Connector anyway.
     """
+    shop = await _shop_row(session, shop_id)
+    if shop is None or shop.platform != "shopee":
+        raise NotAShopeeShop(str(shop_id))
     state = await consent_state(session, shop_id, owner_id)
     if not state.scopes.get("service"):
         raise ConsentNotEnabled(str(shop_id))
-    async with with_user_scope(session, owner_id):
-        shop = (
-            await session.execute(select(Shop).where(Shop.id == shop_id, Shop.user_id == owner_id))
-        ).scalar_one()
     async with with_shop_scope(session, shop_id):
         return await ingest_service.create_pairing_code(
             session, shop=shop, user_id=created_by, now=now

@@ -892,6 +892,8 @@ class AffiliatePartner:
     period: tuple[date, date]
     #: Shopee's own ROI for the creator, as exported (never recomputed); None when absent.
     roi: Decimal | None = None
+    #: Buyers of the creator's orders in the period (P96: the Connector's KOL analytics page).
+    buyers: Decimal | None = None
 
 
 @dataclass
@@ -927,6 +929,7 @@ async def load_affiliate(
             est_commission=_z((p.extra or {}).get("est_commission")),
             period=_period_key(p),
             roi=_d((p.extra or {}).get("roi")),
+            buyers=p.buyers,
         )
         for p in partners
         if _period_key(p) in chosen

@@ -32,6 +32,13 @@ export const READER_ENDPOINTS = {
   campaign_info: { method: "POST", path: "/api/v3/opt/product/get_campaign_info_by_item_list/" },
   ads_homepage: { method: "POST", path: "/api/pas/v1/homepage/query/" },
   ads_time_graph: { method: "POST", path: "/api/pas/v1/report/get_time_graph/" },
+  // -- one ad campaign's edit page (Connector 0.3.11, recon 2026-11-06). Captured as the page
+  // loads them for the campaign it opened, and replayed (only `campaign_id` changed) for the
+  // other ongoing campaigns. All four are reads: isReadOnlyPasPath guards every replay.
+  ads_product_get: { method: "POST", path: "/api/pas/v1/product/get/", capture: true },
+  ads_roi_recommend: { method: "POST", path: "/api/pas/v1/setup_helper/get_recommended_roi_two_target/", capture: true },
+  ads_budget_edit: { method: "POST", path: "/api/pas/v1/setup_helper/get_budget_data_for_edit/", capture: true },
+  ads_expense_stats: { method: "POST", path: "/api/pas/v1/setup_helper/get_campaign_expense_statistics/", capture: true },
   voucher_list: { method: "GET", path: "/api/marketing/v3/voucher/list/" },
   traffic_details: { method: "GET", path: "/api/mydata/v1/product/traffic/details/" },
   health_overview: { method: "GET", path: "/api/accounthealth/v1/sc/shops/overview" },
@@ -94,6 +101,8 @@ export const READER_PAGES: Record<ReaderId, { path: string }> = {
   item_traffic: { path: "/datacenter/product/traffic" },
   vouchers: { path: "/portal/marketing/vouchers/list" },
   ads: { path: "/portal/marketing/pas/index" },
+  // The prefix of every campaign edit page; readerPageUrl names the campaign.
+  ads_detail: { path: "/portal/marketing/pas/product/" },
   health: { path: "/portal/accounthealth" },
   affiliate: { path: "/portal/web-seller-affiliate/conversion_report" },
   affiliate_kols: { path: "/portal/web-seller-affiliate/affiliate_analytics" },
@@ -104,3 +113,28 @@ export const READER_PAGES: Record<ReaderId, { path: string }> = {
   affiliate_content: { path: "/portal/web-seller-affiliate/content_analytics" },
   affiliate_bills: { path: "/portal/web-seller-affiliate/validation_bill" },
 };
+
+/**
+ * A /api/pas/ path the Connector may replay: its last segment must read (get / query / list).
+ * The ads pages also call create / edit / update / delete / modify endpoints (the list page
+ * itself calls banner/modify); none of them is ever sent by the Connector.
+ */
+export function isReadOnlyPasPath(pathname: string): boolean {
+  const segments = pathname.replace(/\/+$/, "").split("/");
+  const last = segments[segments.length - 1] ?? "";
+  if (!pathname.startsWith("/api/pas/")) return false;
+  if (/(create|edit|update|delete|modify|save|submit|set|toggle|pause|resume|enable|disable)/i.test(last.replace(/^get_.*$/, ""))) {
+    return false;
+  }
+  return /^(get|query|list)(_|$)/.test(last);
+}
+
+/** The page a reader job opens: the campaign's own edit page for ads_detail, else the reader's page. */
+export function readerPageUrl(job: { id: ReaderId; campaignIds?: string[]; campaignKinds?: string[] }): string {
+  if (job.id === "ads_detail") {
+    const id = job.campaignIds?.[0] ?? "";
+    const kind = job.campaignKinds?.[0] === "mpd" ? "manual-mpd" : "manual";
+    return `${READER_PAGES.ads_detail.path}${kind}/${id}`;
+  }
+  return READER_PAGES[job.id].path;
+}

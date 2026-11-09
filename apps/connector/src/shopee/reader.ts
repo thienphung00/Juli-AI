@@ -21,9 +21,9 @@ import {
   VOUCHER_MAX_ROWS,
   VOUCHER_PAGE_LIMIT_DEFAULT,
 } from "../config";
-import { READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
+import { isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
 import type { Pacer } from "./runner";
-import { gmt7DateStart, lastFinishedDays } from "./time";
+import { gmt7Date, gmt7DateStart, lastFinishedDays } from "./time";
 
 /** What the hook learned from the page's own call to an endpoint (kept in page memory only). */
 export interface Template {
@@ -43,6 +43,10 @@ export interface ReaderJob {
   days?: string[];
   /** item_traffic: the item ids to read for each day. */
   itemIds?: string[];
+  /** ads_detail: the ongoing campaigns to read; the first is the page the scheduler opened. */
+  campaignIds?: string[];
+  /** ads_detail: per campaign, "manual" or "mpd" (which edit page it has). */
+  campaignKinds?: string[];
 }
 
 export interface ReaderResponse {
@@ -58,6 +62,8 @@ export interface ReaderResponse {
   day?: string;
   /** item_traffic: the item the request was for. */
   itemId?: string;
+  /** ads_detail: the campaign the answer is about. */
+  campaignId?: string;
   source: "replay" | "page";
   /** Ads: the request asked for paid (not placed) orders. */
   usePaidGmv?: boolean;
@@ -395,6 +401,29 @@ async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse
   const limitNumber = Number(homeBody.limit);
   const limit = Number.isInteger(limitNumber) && limitNumber > 0 ? limitNumber : ADS_PAGE_LIMIT_DEFAULT;
   const usePaidGmv = homeBody.use_paid_gmv === true;
+  if (days.length === 0) {
+    // Connector 0.3.11: no day left to read, but the list's settings are refreshed once a day.
+    // Read with yesterday's bounds and NO day tag, so no daily post is made from it.
+    const bounds = dayBounds(gmt7Date(Math.floor(env.now() / 1000) - 86_400));
+    let rows = 0;
+    for (let offset = 0; offset < ADS_MAX_ROWS_PER_DAY; offset += limit) {
+      const request = buildReaderRequest(
+        env.origin,
+        "ads_homepage",
+        home,
+        { body: { ...bounds, offset, limit, use_paid_gmv: usePaidGmv } },
+        env.session(),
+        ADS_HOMEPAGE_FALLBACK,
+      );
+      const response = await send(env, request, collected, { page: offset / limit + 1, usePaidGmv });
+      const found = findList(payloadOf(response.body), isAdsEntry);
+      rows += found?.list.length ?? 0;
+      if (!found || found.list.length < limit) break;
+      const total = totalOf(response.body, found.parent);
+      if (total !== undefined && rows >= total) break;
+    }
+    return;
+  }
   for (const day of days) {
     const bounds = dayBounds(day);
     let rows = 0;
@@ -417,6 +446,51 @@ async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse
     if (graph) {
       const request = buildReaderRequest(env.origin, "ads_time_graph", graph, { body: bounds }, env.session());
       await send(env, request, collected, { day });
+    }
+  }
+}
+
+/** The four read calls of a campaign edit page (Connector 0.3.11). */
+export const ADS_DETAIL_ENDPOINTS: readonly ReaderEndpoint[] = [
+  "ads_product_get",
+  "ads_roi_recommend",
+  "ads_budget_edit",
+  "ads_expense_stats",
+];
+
+/**
+ * One campaign edit page and the other ongoing campaigns' same answers. The page the scheduler
+ * opened is `ids[0]`: its own answers are kept as the page loaded them. For every other id each
+ * read call is replayed with only `campaign_id` changed (paced, one at a time). A call whose path
+ * is not a read (isReadOnlyPasPath), or whose request has no `campaign_id`, is never replayed.
+ */
+async function readAdsDetail(env: ReaderEnv, ids: string[], collected: ReaderResponse[]): Promise<void> {
+  await waitForPage(env, ["ads_product_get"], collected);
+  for (const endpoint of ADS_DETAIL_ENDPOINTS.slice(1)) await env.waitFor(() => env.template(endpoint) !== undefined, 8_000);
+  const opened = ids[0];
+  for (const endpoint of ADS_DETAIL_ENDPOINTS) {
+    const template = env.template(endpoint);
+    const body = isRecord(template?.body) ? template.body : {};
+    if (opened && template?.lastResponse !== undefined && String(body.campaign_id ?? "") === opened) {
+      collected.push({
+        endpoint,
+        url: `${env.origin}${READER_ENDPOINTS[endpoint].path}`,
+        status: 200,
+        body: template.lastResponse,
+        capturedAt: env.now(),
+        source: "page",
+        campaignId: opened,
+      });
+    }
+  }
+  for (const id of ids.slice(1)) {
+    for (const endpoint of ADS_DETAIL_ENDPOINTS) {
+      const template = env.template(endpoint);
+      if (!isRecord(template?.body) || !("campaign_id" in template.body)) continue;
+      if (!isReadOnlyPasPath(READER_ENDPOINTS[endpoint].path)) continue;
+      const typed = typeof template.body.campaign_id === "number" ? Number(id) : id;
+      const request = buildReaderRequest(env.origin, endpoint, template, { body: { campaign_id: typed } }, env.session());
+      await send(env, request, collected, { campaignId: id }, true);
     }
   }
 }
@@ -760,6 +834,9 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         break;
       case "ads":
         await readAds(env, job.days ?? [], collected);
+        break;
+      case "ads_detail":
+        await readAdsDetail(env, job.campaignIds ?? [], collected);
         break;
       case "vouchers":
         await readVouchers(env, collected);

@@ -67,6 +67,9 @@ export interface PlannedJob {
   id: ReaderId;
   days?: string[];
   itemIds?: string[];
+  /** ads_detail: the ongoing campaigns to read (filled in when its turn comes) and their kind. */
+  campaignIds?: string[];
+  campaignKinds?: string[];
 }
 
 /** One scheduled run: the pages in order, one open tab at a time (persisted: the worker may restart). */
@@ -101,6 +104,10 @@ export interface ReaderSchedule {
   trafficDone?: string[];
   /** Active, visible item ids of the shop, from the last product-list read. */
   itemIds?: string[];
+  /** The GMT+7 day the campaign settings were last posted (Connector 0.3.11). */
+  adsSettingsDay?: string;
+  /** Ongoing / scheduled product campaigns from that list read: the ads_detail work list. */
+  adsCampaigns?: { id: string; kind: string }[];
 }
 
 /** The market search run's bookkeeping (P92 B-10), kept apart from the Seller Centre readers'. */

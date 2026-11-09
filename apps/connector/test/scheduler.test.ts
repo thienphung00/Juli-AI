@@ -164,6 +164,7 @@ describe("planJobs", () => {
       "products",
       "vouchers",
       "ads",
+      "ads_detail",
       "health",
       "affiliate",
       "affiliate_kols",

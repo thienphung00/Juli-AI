@@ -101,14 +101,16 @@ describe("postReader", () => {
     const outcomes = await connector.postReader({ id: "ads", days: ["2026-11-02"] }, [
       response("ads_homepage", adsHome, { day: "2026-11-02", usePaidGmv: false }),
     ]);
-    expect(outcomes).toEqual({ "ads_campaign_daily:2026-11-02": "posted" });
+    // Connector 0.3.11: the same list answer also posts the campaigns' settings (capture day).
+    expect(outcomes).toEqual({ "ads_campaign_daily:2026-11-02": "posted", "ads_campaign_settings:2026-11-03": "posted" });
     expect(client.posts[0]!.body).toMatchObject({
       period: { start: "2026-11-02", end: "2026-11-02", granularity: "day" },
       order_type: "placed",
     });
     await connector.postReader({ id: "vouchers" }, [response("voucher_list", vouchers, { page: 1 })]);
-    expect(client.posts[1]).toMatchObject({ dataset: "voucher_settings" });
-    expect(client.posts[1]!.body.period.granularity).toBe("period");
+    const voucherPost = client.posts.find((p) => p.dataset === "voucher_settings");
+    expect(voucherPost).toMatchObject({ dataset: "voucher_settings" });
+    expect(voucherPost!.body.period.granularity).toBe("period");
   });
 
   it("splits a big list into posts of at most MAX_ROWS_PER_POST rows", async () => {

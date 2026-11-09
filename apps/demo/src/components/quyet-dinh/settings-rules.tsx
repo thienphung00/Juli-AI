@@ -13,9 +13,11 @@ import { SAMPLE_SHOP, SAMPLE_TOKEN } from "../../lib/quyet-dinh/sample-data";
 import type { ShopRules } from "../../lib/quyet-dinh/types";
 import { useReviewer } from "../../lib/reviewer/mode";
 import { reviewerSampleClients, reviewerSampleEpoch, subscribeReviewerSample } from "../../lib/reviewer/sample-store";
+import { probeShopPlatform } from "../../lib/shopee-analytics/platform";
 import { readActiveShop } from "../../lib/shop-session";
 import { readAuthSession } from "../../lib/supabase-auth";
 import { AppPageHeader } from "../app-shell/page-header";
+import { ConnectorSettings } from "../connector/connector-settings";
 import { PRIVACY_TAB_LABEL, PrivacySettings } from "../privacy-settings";
 import { SettingsView } from "../settings-view";
 import { PLANNED_CHANGES_TAB_LABEL, PlannedChangesSettings } from "../planned-changes/planned-changes-settings";
@@ -35,6 +37,18 @@ export function SettingsPageClient() {
   const reviewer = useReviewer();
   const [auth, setAuth] = useState<SettingsAuth | null | undefined>(undefined);
   const [tab, setTab] = useState<SettingsTab>("rules");
+  // P96: the Juli Connector tab is Shopee-only (the extension reads Shopee Seller Centre).
+  const [shopee, setShopee] = useState(false);
+  useEffect(() => {
+    if (!auth?.shop) return;
+    let live = true;
+    probeShopPlatform(auth.token, auth.shop.shopId)
+      .then((p) => live && setShopee(p === "shopee"))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [auth]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const session = readAuthSession();
@@ -67,7 +81,16 @@ export function SettingsPageClient() {
     setTab(next);
     writeSettingsTab(next);
   };
-  const tabs = <SettingsTabs active={tab} onChange={choose} />;
+  const tabs = <SettingsTabs active={tab} onChange={choose} showConnector={shopee} />;
+  if (tab === "connector" && shopee) {
+    return (
+      <ConnectorSettings
+        auth={{ token: auth.token, shopId: auth.shop.shopId }}
+        shopName={auth.shop.shopName}
+        tabs={tabs}
+      />
+    );
+  }
   if (tab === "inputs") {
     return (
       <ShopInputsSettings
@@ -111,7 +134,7 @@ interface SettingsAuth {
   readonly shop: { readonly shopId: string; readonly shopName: string } | null;
 }
 
-export type SettingsTab = "rules" | "inputs" | "plan" | "privacy" | "exclusions";
+export type SettingsTab = "rules" | "inputs" | "plan" | "privacy" | "exclusions" | "connector";
 
 /** `/settings?tab=quyen-rieng-tu` opens Quyền riêng tư (the /privacy page's "Cài đặt → Quyền riêng tư"). */
 export const PRIVACY_TAB_QUERY = "quyen-rieng-tu";
@@ -125,9 +148,13 @@ export const PLAN_TAB_QUERY = "de-xuat-ke-hoach";
 /** `/settings?tab=loai-tru-san-pham` opens Loại trừ sản phẩm (P92 B-1). */
 export const EXCLUSIONS_TAB_QUERY = "loai-tru-san-pham";
 
+/** `/settings?tab=juli-connector` opens Juli Connector (P96: the seller's pairing code; Shopee shops). */
+export const CONNECTOR_TAB_QUERY = "juli-connector";
+
 export function readSettingsTab(search: string): SettingsTab {
   const tab = new URLSearchParams(search).get("tab");
   if (tab === EXCLUSIONS_TAB_QUERY) return "exclusions";
+  if (tab === CONNECTOR_TAB_QUERY) return "connector";
   if (tab === PRIVACY_TAB_QUERY) return "privacy";
   if (tab === PLAN_TAB_QUERY) return "plan";
   return tab === INPUTS_TAB_QUERY ? "inputs" : "rules";
@@ -139,6 +166,7 @@ function writeSettingsTab(tab: SettingsTab): void {
   else if (tab === "inputs") url.searchParams.set("tab", INPUTS_TAB_QUERY);
   else if (tab === "plan") url.searchParams.set("tab", PLAN_TAB_QUERY);
   else if (tab === "exclusions") url.searchParams.set("tab", EXCLUSIONS_TAB_QUERY);
+  else if (tab === "connector") url.searchParams.set("tab", CONNECTOR_TAB_QUERY);
   else url.searchParams.delete("tab");
   window.history.replaceState(window.history.state, "", url);
 }
@@ -147,9 +175,12 @@ function writeSettingsTab(tab: SettingsTab): void {
 export function SettingsTabs({
   active,
   onChange,
+  showConnector = false,
 }: {
   readonly active: SettingsTab;
   readonly onChange: (tab: SettingsTab) => void;
+  /** P96: a Shopee shop gets the Juli Connector tab. */
+  readonly showConnector?: boolean;
 }) {
   const tab = (key: SettingsTab, label: string) => (
     <button
@@ -170,6 +201,7 @@ export function SettingsTabs({
         {tab("inputs", SHOP_INPUTS_TAB_LABEL)}
         {tab("exclusions", EXCLUSIONS_TAB_LABEL)}
         {tab("plan", PLANNED_CHANGES_TAB_LABEL)}
+        {showConnector ? tab("connector", "Juli Connector") : null}
         {tab("privacy", PRIVACY_TAB_LABEL)}
       </div>
     </div>

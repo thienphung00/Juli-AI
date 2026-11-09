@@ -399,14 +399,16 @@ window.addEventListener("message", (event: MessageEvent) => {
 });
 
 function isReaderJob(value: unknown): value is ReaderJob {
-  const job = value as { id?: unknown; days?: unknown; itemIds?: unknown } | null;
+  const job = value as { id?: unknown; days?: unknown; itemIds?: unknown; campaignIds?: unknown } | null;
+  const digitList = (list: unknown) =>
+    list === undefined || (Array.isArray(list) && list.every((id) => typeof id === "string" && /^\d{1,32}$/.test(id)));
   return (
     typeof job === "object" &&
     job !== null &&
     typeof job.id === "string" &&
     (READER_IDS as readonly string[]).includes(job.id) &&
-    (job.itemIds === undefined ||
-      (Array.isArray(job.itemIds) && job.itemIds.every((id) => typeof id === "string" && /^\d{1,32}$/.test(id)))) &&
+    digitList(job.itemIds) &&
+    digitList(job.campaignIds) &&
     (job.days === undefined || (Array.isArray(job.days) && job.days.every((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))))
   );
 }

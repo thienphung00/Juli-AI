@@ -9,6 +9,7 @@
 
 import {
   ADS_CATCHUP_DAYS,
+  ADS_DETAIL_MAX_CAMPAIGNS,
   type Dataset,
   HELD_DATASETS,
   READER_BLOCK_CAPTCHA_MS,
@@ -28,8 +29,8 @@ import {
   TRAFFIC_JOB_TIMEOUT_MS,
   TRAFFIC_MAX_ITEMS,
 } from "../config";
-import { activeItemIds, completedTrafficDays } from "../shopee/reader-map";
-import { READER_PAGES } from "../shopee/endpoints";
+import { activeItemIds, completedTrafficDays, ongoingAdsCampaigns } from "../shopee/reader-map";
+import { READER_PAGES, readerPageUrl } from "../shopee/endpoints";
 import { blockedPath, type ReaderJob, type ReaderResponse } from "../shopee/reader";
 import { gmt7Date, lastFinishedDays } from "../shopee/time";
 import {
@@ -90,6 +91,8 @@ export function planJobs(args: {
   stopped: ReadonlySet<Dataset>;
   adsDone: readonly string[];
   trafficDone?: readonly string[];
+  /** The GMT+7 day the list's campaign settings were last posted (Connector 0.3.11). */
+  adsSettingsDay?: string;
   held?: ReadonlySet<ReaderDataset>;
   readers?: readonly ReaderId[];
 }): PlannedJob[] {
@@ -102,7 +105,10 @@ export function planJobs(args: {
     if (!postable) continue;
     if (id === "ads") {
       const days = lastFinishedDays(args.nowMs, 1 + ADS_CATCHUP_DAYS).filter((day) => !args.adsDone.includes(day));
-      if (days.length > 0) jobs.push({ id, days });
+      // Every day posted: the list is still opened once a day for its campaign settings, once
+      // a first settings capture has been recorded (before that, an open day always exists).
+      const settingsDue = args.adsSettingsDay !== undefined && args.adsSettingsDay !== gmt7Date(Math.floor(args.nowMs / 1000));
+      if (days.length > 0 || settingsDue) jobs.push({ id, days });
     } else if (id === "item_traffic") {
       // The item ids are filled in when the job's turn comes (the product list is read first).
       const days = lastFinishedDays(args.nowMs, 1 + TRAFFIC_CATCHUP_DAYS).filter(
@@ -190,6 +196,7 @@ export class ReaderScheduler {
         stopped: stoppedFor(state, this.deps.version),
         adsDone: sched.adsPosted ?? [],
         trafficDone: sched.trafficDone,
+        adsSettingsDay: sched.adsSettingsDay,
         ...(this.deps.readers ? { readers: this.deps.readers } : {}),
       });
       // A same-day re-run opens pages that still have missing days. A manual
@@ -253,7 +260,17 @@ export class ReaderScheduler {
       job = { ...job, itemIds };
       run = { ...run, jobs: run.jobs.map((j, i) => (i === run.index ? (job as PlannedJob) : j)) };
     }
-    const tabId = await this.deps.tabs.open(`${this.deps.origin}${READER_PAGES[job.id].path}`);
+    if (job.id === "ads_detail") {
+      // The ongoing campaigns the last list read named; the first one's edit page is opened.
+      const campaigns = (sched.adsCampaigns ?? []).slice(0, ADS_DETAIL_MAX_CAMPAIGNS);
+      if (campaigns.length === 0) {
+        const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_campaigns" }, index: run.index + 1 };
+        return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
+      }
+      job = { ...job, campaignIds: campaigns.map((c) => c.id), campaignKinds: campaigns.map((c) => c.kind) };
+      run = { ...run, jobs: run.jobs.map((j, i) => (i === run.index ? (job as PlannedJob) : j)) };
+    }
+    const tabId = await this.deps.tabs.open(`${this.deps.origin}${readerPageUrl(job)}`);
     if (tabId === undefined) return this.finishJob(sched, run, "open_failed", false);
     const next = { ...run, current: { tabId, openedAt: this.deps.now() } };
     await this.save({ ...sched, run: next });
@@ -335,7 +352,12 @@ export class ReaderScheduler {
       try {
         await this.deps.tabs.send(tabId, {
           type: "reader-job",
-          job: { id: job.id, ...(job.days ? { days: job.days } : {}), ...(job.itemIds ? { itemIds: job.itemIds } : {}) },
+          job: {
+            id: job.id,
+            ...(job.days ? { days: job.days } : {}),
+            ...(job.itemIds ? { itemIds: job.itemIds } : {}),
+            ...(job.campaignIds ? { campaignIds: job.campaignIds } : {}),
+          },
         });
       } catch {
         return true; // the content script is not listening yet: the next tab-ready / watchdog retries
@@ -367,7 +389,12 @@ export class ReaderScheduler {
         return true;
       }
       const responses = Array.isArray(message.responses) ? (message.responses as ReaderResponse[]) : [];
-      const readerJob: ReaderJob = { id: job.id, days: job.days, ...(job.itemIds ? { itemIds: job.itemIds } : {}) };
+      const readerJob: ReaderJob = {
+        id: job.id,
+        days: job.days,
+        ...(job.itemIds ? { itemIds: job.itemIds } : {}),
+        ...(job.campaignIds ? { campaignIds: job.campaignIds } : {}),
+      };
       const posted = await this.deps.sink.postReader(readerJob, responses);
       const summary = Object.entries(posted)
         .map(([key, outcome]) => `${key}=${outcome}`)
@@ -386,7 +413,17 @@ export class ReaderScheduler {
         job.id === "item_traffic"
           ? [...(sched.trafficDone ?? []), ...completedTrafficDays(readerJob, responses)].slice(-TRAFFIC_DONE_KEPT)
           : sched.trafficDone;
-      await this.finishJob({ ...sched, adsPosted, itemIds, trafficDone }, run, summary ? `done:${summary}` : "done");
+      // The list's settings landed: remember the day and the ongoing campaigns for ads_detail.
+      const settingsPosted =
+        job.id === "ads" &&
+        Object.entries(posted).some(([key, outcome]) => key.startsWith("ads_campaign_settings:") && outcome === "posted");
+      const adsSettingsDay = settingsPosted ? run.day : sched.adsSettingsDay;
+      const adsCampaigns = job.id === "ads" && settingsPosted ? ongoingAdsCampaigns(responses) : sched.adsCampaigns;
+      await this.finishJob(
+        { ...sched, adsPosted, itemIds, trafficDone, adsSettingsDay, adsCampaigns },
+        run,
+        summary ? `done:${summary}` : "done",
+      );
       return true;
     });
   }

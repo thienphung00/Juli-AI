@@ -49,6 +49,8 @@ export type ReaderDataset =
   | "item_snapshot"
   | "item_traffic_sources"
   | "ads_campaign_daily"
+  | "ads_campaign_settings"
+  | "ads_campaign_detail"
   | "voucher_settings"
   | "shop_health_daily"
   | "market_search"
@@ -72,6 +74,7 @@ export type ReaderId =
   | "products"
   | "item_traffic"
   | "ads"
+  | "ads_detail"
   | "vouchers"
   | "health"
   | AffiliateReaderId;
@@ -100,6 +103,8 @@ export const READER_IDS: readonly ReaderId[] = [
   "products",
   "vouchers",
   "ads",
+  // Connector 0.3.7: right after the list, on the ongoing campaigns the list just named.
+  "ads_detail",
   "health",
   ...AFFILIATE_READER_IDS,
   "item_traffic",
@@ -110,6 +115,7 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
   products: true,
   item_traffic: true,
   ads: true,
+  ads_detail: true,
   vouchers: true,
   health: true,
   affiliate: true,
@@ -149,7 +155,8 @@ export const READER_DATASETS: Record<ReaderId, readonly ReaderDataset[]> = {
   products: ["item_catalog", "item_snapshot"],
   item_traffic: ["item_traffic_sources"],
   vouchers: ["voucher_settings"],
-  ads: ["ads_campaign_daily"],
+  ads: ["ads_campaign_daily", "ads_campaign_settings"],
+  ads_detail: ["ads_campaign_detail"],
   health: ["shop_health_daily"],
   affiliate: ["affiliate_order_lines"],
   affiliate_kols: ["affiliate_partner_period"],
@@ -189,6 +196,8 @@ export const READER_BLOCK_LOGIN_MS = 6 * 3_600_000;
 export const ADS_CATCHUP_DAYS = 3;
 export const ADS_MAX_ROWS_PER_DAY = 300;
 export const ADS_PAGE_LIMIT_DEFAULT = 20;
+/** Ads edit pages (Connector 0.3.7): at most this many ongoing / scheduled campaigns a day. */
+export const ADS_DETAIL_MAX_CAMPAIGNS = 20;
 /**
  * Per-product traffic sources (/datacenter/product/traffic): yesterday plus up to this many
  * earlier finished days not read yet; one request per item per day, so a job is capped.

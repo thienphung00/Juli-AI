@@ -39,7 +39,15 @@ number:
 - **Marketing › Quảng cáo** (`/portal/marketing/pas/index`) — per campaign and per
   finished day: title, type, state, budgets, ROAS target and the report numbers
   (impressions, clicks, cost, sales and orders, ranks, voucher amounts), and the
-  ROAS target in force that day;
+  ROAS target in force that day; and, once a day, each campaign's settings: run
+  dates, budgets, ROAS target, bidding and placement, the advertised product id and
+  which settings Shopee lets the seller change (no images);
+- **Marketing › Quảng cáo › a running campaign's edit page**
+  (`/portal/marketing/pas/product/manual/<id>`) — for the shop's ongoing or
+  scheduled product campaigns: the products in the campaign (ids, stock, price
+  range), Shopee's ROAS estimate, suggested and allowed ROAS targets, the allowed
+  daily budget (minimum, maximum, suggested) and spend so far. The extension only
+  reads: it never changes, saves, pauses or creates a campaign;
 - **Marketing › Voucher của shop** (`/portal/marketing/vouchers/list`) — each
   voucher's code, name, dates, discount, minimum spend, usage limit and how many
   times it has been used or handed out (not who used it);

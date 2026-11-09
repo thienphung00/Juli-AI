@@ -248,6 +248,68 @@ class ShopeeOrderLine(Base):
     variation_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
+class ShopeeAffiliateLine(Base):
+    """One affiliate order line of the conversion report, stored on its own (migration 122, P96).
+
+    The KOL tab reads these, so a KOL sale shows without the order export; when the export holds
+    the same order (``order_ref`` is the same keyed hash), its line supplies the real fees and the
+    two are never counted twice. Only the creator's PUBLIC handle is kept, never a buyer."""
+
+    __tablename__ = "shopee_affiliate_lines"
+    __table_args__ = (
+        UniqueConstraint(
+            "shop_id",
+            "platform",
+            "order_ref",
+            "line_no",
+            "item_id",
+            "model_id",
+            name="uq_shopee_affiliate_lines_line",
+        ),
+        CheckConstraint(
+            f"platform IN ({_in(PLATFORMS)})", name="ck_shopee_affiliate_lines_platform"
+        ),
+        Index("ix_shopee_affiliate_lines_time", "shop_id", "platform", "ordered_at"),
+        Index(
+            "ix_shopee_affiliate_lines_kol",
+            "shop_id",
+            "kol_key",
+            "ordered_at",
+            postgresql_where=text("kol_key IS NOT NULL"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    platform: Mapped[str] = mapped_column(String(16))
+    order_ref: Mapped[str] = mapped_column(String(128))
+    line_no: Mapped[int] = mapped_column(SmallInteger)
+    item_id: Mapped[str] = mapped_column(String(64))
+    model_id: Mapped[str] = mapped_column(String(32), default="", server_default="")
+    price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    qty: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    order_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    refund_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    commission: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    valid: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    order_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ordered_at: Mapped[datetime] = mapped_column()
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    conversion_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    kol_key: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    kol_handle: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    affiliate_channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    affiliate_campaign_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    affiliate_mcn: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    source: Mapped[str] = mapped_column(String(16))
+    source_version: Mapped[str] = mapped_column(String(64))
+    raw_payload_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ingest_raw_payloads.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class ShopeeOrderIncome(Base):
     """What Shopee ACTUALLY charged and paid for one order (the income export, migration 119).
 

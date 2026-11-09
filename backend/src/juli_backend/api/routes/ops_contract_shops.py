@@ -45,6 +45,11 @@ CONTRACT_SHOP_REMOVED = HTTPException(
     },
 )
 
+NOT_A_SHOPEE_SHOP = HTTPException(
+    status_code=409,
+    detail={"code": "not_a_shopee_shop", "message": "Juli Connector chỉ dùng cho shop Shopee."},
+)
+
 NOT_A_CONTRACT_SHOP = HTTPException(
     status_code=409,
     detail={
@@ -138,6 +143,9 @@ async def ops_create_pairing_code(
         issued = await contract_shops.issue_pairing_code(
             session, shop_id, listing.owner_user_id, created_by=ctx.user.id, now=_now()
         )
+    except contract_shops.NotAShopeeShop:
+        await session.rollback()
+        raise NOT_A_SHOPEE_SHOP from None
     except contract_shops.ConsentNotEnabled:
         await session.rollback()
         raise HTTPException(status_code=409, detail={"code": "consent_required"}) from None
