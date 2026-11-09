@@ -832,7 +832,7 @@ def test_migration_117_is_additive_reversible_and_fits_alembic():
     assert "app_current_shop_id()" in src and "GRANT SELECT, INSERT, UPDATE" in src
     assert "planned" in mod.STATUSES and "planned" not in mod._STATUSES_116
     tail = REPO / "backend/src/juli_backend/database/migrations/deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "123_shopee_metrics_tables"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "124_shopee_fill_jobs"' in tail.read_text("utf-8")
 
 
 def test_the_models_match_the_migration_columns():
