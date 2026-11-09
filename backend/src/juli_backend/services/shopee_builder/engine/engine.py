@@ -28,6 +28,7 @@ from decimal import Decimal
 from typing import Literal
 
 from juli_backend.services.shopee_builder.engine.contract import (
+    RESIDUAL,
     AddedTraffic,
     Band,
     Basis,
@@ -280,17 +281,20 @@ def _to_scenario(draw: _Draw, keys: list[str]) -> Scenario:
             "gmv": _d(g),
             "profit": _opt(p),
         }
-    vals_v = [r[0] for r in draw.rows]
-    vals_k = [r[1] for r in draw.rows]
+    # the residual carries orders but never traffic: it counts as 0 views / clicks (contract
+    # FunnelBase.total, ADR-122 d.2), so the shop's CTOR = all orders ÷ clicks
+    traffic = [r for key, r in zip(keys, draw.rows, strict=True) if key != RESIDUAL]
+    vals_v = [r[0] for r in traffic]
+    vals_k = [r[1] for r in traffic]
     views = (
         None
         if any(x is None for x in vals_v)
-        else sum((by_source[k]["views"] or Decimal(0) for k in keys), Decimal(0))
+        else sum((by_source[k]["views"] or Decimal(0) for k in keys if k != RESIDUAL), Decimal(0))
     )
     clicks = (
         None
         if any(x is None for x in vals_k)
-        else sum((by_source[k]["clicks"] or Decimal(0) for k in keys), Decimal(0))
+        else sum((by_source[k]["clicks"] or Decimal(0) for k in keys if k != RESIDUAL), Decimal(0))
     )
     profit = None if draw.profit is None else _d(draw.profit)
     if draw.profit is not None:
@@ -426,7 +430,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         named = {srcs[i].key for i in c}
         if d.added is None:
             for key in d.sources:
-                if key in keys and key not in named:
+                if key in keys and key not in named and key != RESIDUAL:
                     notes.append(
                         f"Nguồn {SOURCE_LABELS.get(key, key)} chưa có dữ liệu nên không tính vào."
                     )

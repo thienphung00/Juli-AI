@@ -38,18 +38,24 @@ SOURCES: tuple[Source, ...] = (
 #: recommendation cards (Thẻ sản phẩm outside Trang shop).
 CARD_SOURCES: tuple[Source, ...] = ("the_san_pham_khac",)
 ALL_SOURCES: tuple[Source, ...] = SOURCES
+#: The residual: orders Shopee assigns to no source; never carries views or clicks.
+RESIDUAL: Source = "chenh_lech_nguon"
 
 
 @dataclass(frozen=True)
 class AdShare:
     """The "trong đó Quảng cáo" part of a source (only ``the_san_pham_khac`` has one): ad views,
-    clicks, direct orders, direct GMV and spend over the window. Never added to the source."""
+    clicks, direct orders, direct GMV and spend over the window. Never added to the source.
+    A field Shopee does not post for the scope is ``None`` (product rows carry spend and GMV only:
+    there are no per-product daily ad views / clicks / orders); a consumer that needs a missing
+    field treats the share as "no ad data". Shop ads orders / GMV are Shopee's placed-order ads
+    figures, not the confirmed basis of the source rows."""
 
-    views: Decimal
-    clicks: Decimal
-    orders: Decimal
-    gmv: Decimal
-    spend: Decimal
+    views: Decimal | None
+    clicks: Decimal | None
+    orders: Decimal | None
+    gmv: Decimal | None
+    spend: Decimal | None
 
 
 @dataclass(frozen=True)
@@ -106,7 +112,15 @@ class FunnelBase:
     def total(
         self, field_name: Literal["orders", "gmv", "views", "clicks", "profit"]
     ) -> Decimal | None:
-        values = [getattr(s, field_name) for s in self.sources]
+        """The scope's sum. The residual ``chenh_lech_nguon`` carries orders but never traffic (by
+        definition Shopee assigns it to no source), so for views / clicks it counts as 0; any other
+        source without traffic makes the total unknown (ADR-122 d.2: CTOR = all orders ÷ clicks)."""
+        values = [
+            Decimal(0)
+            if (s.source == RESIDUAL and field_name in ("views", "clicks"))
+            else getattr(s, field_name)
+            for s in self.sources
+        ]
         if any(v is None for v in values):
             return None
         return sum(values, Decimal(0))

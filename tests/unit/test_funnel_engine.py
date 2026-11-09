@@ -319,8 +319,11 @@ def test_properties_over_random_cases():
             assert sum(x["gmv"] for x in s.by_source.values()) == s.gmv
             if s.profit is not None:
                 assert sum(x["profit"] for x in s.by_source.values()) == s.profit
-            if s.views is not None:
-                assert sum(x["views"] for x in s.by_source.values()) == s.views
+            if s.views is not None:  # the residual counts as 0 traffic (contract FunnelBase.total)
+                assert (
+                    sum(x["views"] or 0 for k, x in s.by_source.items() if k != "chenh_lech_nguon")
+                    == s.views
+                )
         assert r.low and r.likely and r.high
         if r.likely.profit is not None:
             lo, mid, hi = (c.profit for c in (r.low, r.likely, r.high))
@@ -335,3 +338,42 @@ def test_properties_over_random_cases():
             assert r.likely.orders == r.before.orders
             assert j["delta"]["orders"]["value"] == 0
     assert n_est > 60  # the generator must exercise the estimable path
+
+
+# -- the residual source (ADR-122 d.2 / d.3) ------------------------------------------------------
+
+
+def residual_base():
+    return FunnelBase(
+        "shop-1",
+        "shop",
+        (),
+        date(2026, 10, 1),
+        date(2026, 10, 30),
+        (
+            src("the_san_pham_khac", 100000, 5000, 200, 20_000_000, 4_000_000),
+            src("trang_shop", 20000, 1000, 50, 5_000_000, 1_000_000),
+            src("chenh_lech_nguon", None, None, 10, 1_000_000, 200_000),
+        ),
+        D("0.3"),
+    )
+
+
+def test_residual_counts_as_zero_traffic_in_totals():
+    base = residual_base()
+    assert base.total("views") == D(120000)
+    assert base.total("clicks") == D(6000)
+    assert base.total("orders") == D(260)  # the residual's orders stay in the total
+
+
+def test_residual_keeps_the_shop_funnel_and_adds_no_note():
+    result = run(residual_base(), voucher_option())
+    assert result.before.views is not None and result.before.clicks is not None
+    assert result.likely is not None and result.likely.views is not None
+    # shop CTOR = all orders (residual included) ÷ clicks, so views × CTR × CTOR = orders
+    col = result.likely
+    assert col.clicks is not None and col.views is not None
+    ctr = col.clicks / col.views
+    ctor = col.orders / col.clicks
+    assert abs(col.views * ctr * ctor - col.orders) <= D("1e-6") * col.orders
+    assert not any("Chênh lệch" in n for n in result.notes)
