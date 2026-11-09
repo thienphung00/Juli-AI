@@ -219,6 +219,7 @@ async def test_a_failed_rebuild_never_fails_the_ingest(session, seeded, monkeypa
         session, seeded.shop_id, platform="shopee", dataset="traffic_overview",
         start=CUR_END, end=CUR_END,
     )  # fmt: skip
+    assert await _shop_rows(session, seeded.shop_id) == []  # nothing derived, nothing raised
 
 
 async def test_the_window_is_read_from_the_tables_only_when_every_day_is_complete(session, seeded):
