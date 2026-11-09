@@ -136,7 +136,7 @@ describe("Quyết định · Shopee · danh sách", () => {
     fireEvent.click(within(top).getByRole("button", { name: "Thêm vào kế hoạch" }));
     const notice = await screen.findByTestId("sq-notice");
     expect(notice).toHaveTextContent("Đã thêm JC-2611-0007-V1 vào kế hoạch (chưa thực hiện). JC-2611-0009 đã lên Quyết định.");
-    expect(plan.calls.find((c) => c.name === "add")!.args).toEqual(["card-voucher", 1, false]);
+    expect(plan.calls.find((c) => c.name === "add")!.args).toEqual(["card-voucher", null, false]);
     expect(within(notice).getByRole("link", { name: "Xem kế hoạch ›" })).toHaveAttribute("href", "/decisions?ke-hoach=1");
   });
 });

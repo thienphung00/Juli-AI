@@ -65,6 +65,20 @@ export interface PlanHead {
   readonly acknowledged_breaches: PlanAck | null;
   /** The running measurements that confirming (or the confirmation made) cut. */
   readonly measurement_cut: readonly MeasurementCut[];
+  /** P97 D85.4: the frozen base of a draft plan (absent on plans from before the base existed). */
+  readonly base?: PlanBase | null;
+}
+
+/** The day a draft plan's numbers are on; only "Cập nhật số" moves it. */
+export interface PlanBase {
+  readonly label: string;
+  readonly version: number;
+  readonly as_of: string;
+  readonly newest_day: string | null;
+  readonly newer_available: boolean;
+  readonly refreshed_at: string | null;
+  /** Vietnamese sentence the screen shows as is. */
+  readonly note: string;
 }
 
 export interface PlanVersion {
@@ -353,7 +367,8 @@ export interface ConfirmBody {
 
 export interface PlanApi {
   get(): Promise<PlanResponse>;
-  add(cardId: string, version: number, acknowledgeBreaches?: boolean): Promise<PlanResponse>;
+  /** `version` null = the version and what-if the card had when it was last removed from the plan (else V1). */
+  add(cardId: string, version: number | null, acknowledgeBreaches?: boolean): Promise<PlanResponse>;
   remove(cardId: string): Promise<PlanResponse>;
   /** P92 B-10: move a planned card to a 1-based position among the plan's cards (re-orders its product's steps). */
   move?(cardId: string, position: number): Promise<PlanResponse>;
@@ -363,6 +378,8 @@ export interface PlanApi {
   /** The measurement window: `days` for the whole plan (null = automatic per product), or for one product. */
   setWindow(days: number | null, productId?: string): Promise<PlanResponse>;
   setChangeSetWindow(changeSetId: string, days: number): Promise<ChangeSet>;
+  /** "Cập nhật số": move the draft plan's base to the newest complete day. */
+  refreshBase?(): Promise<PlanResponse>;
   confirm(body: ConfirmBody): Promise<PlanResponse>;
   changeSets(query?: { readonly productId?: string; readonly status?: "measuring" | "done" | "cut" }): Promise<readonly ChangeSet[]>;
 }

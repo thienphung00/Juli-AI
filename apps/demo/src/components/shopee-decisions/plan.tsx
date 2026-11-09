@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { ShopeeApiError } from "../../lib/shopee-analytics/client";
 import { vnd } from "../../lib/shopee-analytics/format";
@@ -56,6 +56,11 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
   const [ack, setAck] = useState<string | null>(null);
   const [doneOnce, setDoneOnce] = useState(false);
   const plan = override ?? (loaded.status === "ready" ? loaded.data : null);
+  // D85.4: the answer of an action is shown until the refetch lands, then dropped, so a stale
+  // override can never hide what the server now says
+  useEffect(() => {
+    if (loaded.status === "ready") setOverride(null);
+  }, [loaded]);
 
   const act = async (call: () => Promise<PlanResponse>, after?: (p: PlanResponse) => void) => {
     setBusy(true);
@@ -93,7 +98,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
                     setBusy(true);
                     setError(null);
                     try {
-                      const next = await api.add(id, 1, false);
+                      const next = await api.add(id, null, false);
                       setOverride(next);
                       setTick((t) => t + 1);
                     } catch (e) {
@@ -127,7 +132,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
           onGo={() => {
             if (!dialog) return;
             if (dialog.kind === "add") {
-              void act(() => api.add(dialog.cardId, 1, true), () => {
+              void act(() => api.add(dialog.cardId, null, true), () => {
                 setAck(ackText(dialog.breaches, new Date().toISOString()));
                 setDialog(null);
               });
@@ -214,6 +219,19 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, onAct, onConfirm }: { 
         <Notice tone="info" testId="kh-done">
           <b>Đã xác nhận kế hoạch {head?.code}.</b> {plan.cards.length} thẻ chuyển sang “Đã duyệt”, đội Juli thực hiện cùng một ngày{head?.planned_date ? ` (dự kiến ${head.planned_date.slice(8, 10)}/${head.planned_date.slice(5, 7)}/${head.planned_date.slice(0, 4)})` : ""}. {narrow ? "" : "Các phiên bản không chọn đóng cùng thẻ. "}Phép đo theo cửa sổ {winLabel} bắt đầu từ ngày thực hiện.
         </Notice>
+      ) : null}
+
+      {head?.base && !done ? (
+        <div className="kh-base" data-testid="kh-base">
+          <span className="sa-hint" data-testid="kh-base-note">
+            {head.base.note}
+          </span>
+          {api.refreshBase ? (
+            <button className="sa-btn sa-btn--s" data-testid="kh-refresh" disabled={busy} onClick={() => void onAct(() => api.refreshBase!())} type="button">
+              Cập nhật số
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       <PlanSteps api={api} busy={busy} done={done} onAct={onAct} plan={plan} />

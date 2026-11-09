@@ -49,6 +49,7 @@ ACTION_VERSION = "reco_plan_switch_version"
 ACTION_MOVE = "reco_plan_move_card"
 ACTION_WHATIF = "reco_plan_whatif"
 ACTION_CONFIRM = "reco_plan_confirm"
+ACTION_REFRESH = "reco_plan_refresh_base"
 ACTION_WINDOW = "reco_plan_window"
 ACTION_SET_WINDOW = "reco_change_set_window"
 
@@ -196,6 +197,18 @@ async def ops_move_card(
         session, ctx, shop_id, ACTION_MOVE,
         {"card_id": str(card_id), "position": body.position},
         plans.move_card, card_id, body.position, actor=_actor(ctx), now=_now(),
+    )  # fmt: skip
+
+
+@router.post(BASE + "/plan/refresh-base")
+async def ops_refresh_base(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    return await _write(
+        session, ctx, shop_id, ACTION_REFRESH, {},
+        plans.refresh_base, actor=_actor(ctx), now=_now(),
     )  # fmt: skip
 
 
