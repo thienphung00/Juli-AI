@@ -6,6 +6,7 @@ import type {
   ChooseResult,
   CoPurchase,
   ExclusionList,
+  GroupResult,
   KeywordTable,
   PickerProduct,
   PickerResult,
@@ -42,9 +43,9 @@ const product = (item_id: string, name: string, over: Partial<PickerProduct> = {
 
 export function pickerProducts(): PickerResult {
   const products = [
-    product(P_ZIP, "Túi zip thực phẩm D", { orders_30d: 210, orders_90d: 598, gmv_90d: 70_564_000 }),
-    product(P_GLOVE, "Găng tay cao su A", { orders_30d: 187, orders_90d: 521, gmv_90d: 51_058_000 }),
-    product(P_SPONGE, "Miếng rửa chén C", { orders_30d: 305, orders_90d: 842, gmv_90d: 30_312_000, variation_count: 0 }),
+    product(P_ZIP, "Túi zip thực phẩm D", { orders_30d: 210, orders_90d: 598, gmv_90d: 70_564_000, category: "Túi đựng thực phẩm", margin_pct: 14.1, in_ads: true }),
+    product(P_GLOVE, "Găng tay cao su A", { orders_30d: 187, orders_90d: 521, gmv_90d: 51_058_000, category: "Găng tay", margin_pct: 31.5, ctor_down: true, has_proposal: true }),
+    product(P_SPONGE, "Miếng rửa chén C", { orders_30d: 305, orders_90d: 842, gmv_90d: 30_312_000, variation_count: 0, category: "Dụng cụ rửa chén", margin_pct: 8.2, in_kol: true }),
     product(P_LEMON, "Nước rửa chén hương chanh E", { orders_30d: 71, orders_90d: 233, gmv_90d: 15_844_000, has_cost: false, missing_cost_chip: "thiếu giá vốn" }),
     product(P_IDLE, "Màng bọc thực phẩm G", { orders_30d: 0, orders_90d: 58, gmv_90d: 3_016_000, has_cost: false, missing_cost_chip: "thiếu giá vốn" }),
     ...Array.from({ length: 7 }, (_, i) => product(`9000${i}`, `Sản phẩm mẫu ${i + 1}`, { orders_30d: 5, gmv_90d: 2_000_000 - i * 1000 })),
@@ -183,6 +184,7 @@ export function fakeBuilder(
     evaluate: BuilderEvaluation | ((v: readonly BuilderVersion[]) => BuilderEvaluation);
     compare: BuilderEvaluation | ((v: readonly BuilderVersion[]) => BuilderEvaluation);
     choose: ChooseResult;
+    group: GroupResult;
   }> = {},
   failWith: Failures = {},
 ): FakeBuilder {
@@ -207,6 +209,12 @@ export function fakeBuilder(
     evaluate: (v) => run("evaluate", pick(data.evaluate, v), v),
     compare: (v) => run("compare", pick(data.compare, v), v),
     choose: (b) => run("choose", data.choose ?? { id: "card-1", code: "JC-2611-0021", status: "sent", origin: "manual", position: 1, versions: [] }, b),
+    group: (b) =>
+      run(
+        "group",
+        data.group ?? ({ plan: null, cards: [], aggregate: null, groups: [], windows: null, change_sets: [], saved: b.members.map((i) => ({ id: `card-${i + 1}`, code: `JC-2611-00${i + 1}`, indexes: [i] })), placed: [] } as GroupResult),
+        b,
+      ),
     draftTitle: (b) =>
       run("draftTitle", { item_id: b.itemId, max_chars: 100, drafts: [{ title: "Túi Zip Thực Phẩm, Túi Zip Đựng Đồ Ăn Combo 3 Hộp", chars: 47, keywords: { covered: ["túi zip thực phẩm"], missing: [] } }] }, b),
     draftCover: (b) => run("draftCover", { concepts: [{ overlay: { layout: "banner_bottom", price_vnd: 25_900, pack_text: "25.900đ / hộp", hook_text: "Combo 10 hộp" }, rationale: "giá mỗi hộp" }], note: "Ảnh thật giữ nguyên; chỉ thêm chữ." }, b),

@@ -15,18 +15,30 @@ from dataclasses import replace
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.shop_proposals import (
+    STATUS_CHANGES_REQUESTED,
+    STATUS_SENT,
+    ShopProposal,
+)
 from juli_backend.repositories import PlatformItemSnapshotsRepo
 from juli_backend.services.shopee_analytics import loaders, service
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.loaders import ShopContext
 from juli_backend.services.shopee_analytics.windows import Window
-from juli_backend.services.shopee_builder import catalogue, copurchase, outcome, response
+from juli_backend.services.shopee_builder import (
+    catalogue,
+    copurchase,
+    outcome,
+    picker_table,
+    response,
+)
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
 from juli_backend.services.shopee_builder.reference import with_reference_lines
-from juli_backend.services.shopee_builder.translate import Translation, lst_fold, to_variant
+from juli_backend.services.shopee_builder.translate import Translation, to_variant
 from juli_backend.services.shopee_builder.variations import (
     economics,
     observed_skus,
@@ -34,6 +46,7 @@ from juli_backend.services.shopee_builder.variations import (
     with_orders,
 )
 from juli_backend.services.shopee_recommendations import loader, manual
+from juli_backend.services.shopee_recommendations import targets as multi_targets
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.voucher_notes import same_result_notes
 
@@ -64,6 +77,20 @@ async def load_view90(
 # ------------------------------------------------------------------------------ B-1: picker
 
 
+async def _items_with_proposals(session: AsyncSession, shop_id: uuid.UUID) -> set[str]:
+    """Products that have a card the seller can still decide on (the picker's "có đề xuất")."""
+    rows = await session.scalars(
+        select(ShopProposal.item_id)
+        .where(
+            ShopProposal.shop_id == shop_id,
+            ShopProposal.status.in_((STATUS_SENT, STATUS_CHANGES_REQUESTED)),
+            ShopProposal.item_id.is_not(None),
+        )
+        .distinct()
+    )
+    return {str(i) for i in rows}
+
+
 async def products(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -79,11 +106,20 @@ async def products(
     view30 = await service.load_view(
         session, shop_id, ctx, Window(anchor - timedelta(days=catalogue.RECENT_DAYS - 1), anchor)
     )
+    prev_end = anchor - timedelta(days=catalogue.RECENT_DAYS)
+    prev30 = await service.load_view(
+        session,
+        shop_id,
+        ctx,
+        Window(prev_end - timedelta(days=catalogue.RECENT_DAYS - 1), prev_end),
+    )
+    waiting = await _items_with_proposals(session, shop_id)
     return catalogue.picker(
         ctx,
         view,
         anchor,
         view30=view30,
+        extra=picker_table.extras(view30, prev30, proposal_items=waiting),
         query=query,
         include_excluded=include_excluded,
         sort=sort,
@@ -269,66 +305,6 @@ def _stored_campaigns(env: RecoEnv, keys: set[str], names: set[str]) -> list[dic
 # --------------------------------------------------------------- context for the versions
 
 
-def _keyword_name(campaign_label: str) -> str:
-    return campaign_label.split("›", 1)[1].strip() if "›" in campaign_label else ""
-
-
-def _own_keyword_report(env: RecoEnv, item_id: str | None) -> dict[str, dict[str, Any]]:
-    """The shop's ads keyword report (placed orders) per keyword, for one product when given."""
-    acc: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"spend": 0.0, "clicks": 0.0, "orders": 0.0, "gmv": 0.0}
-    )
-    for row in env.view.data.ads_reports.keyword_rows:
-        if item_id and row.item_id != item_id:
-            continue
-        kw = lst_fold(_keyword_name(row.campaign))
-        if not kw:
-            continue
-        a = acc[kw]
-        a["spend"] += float(row.spend)
-        a["clicks"] += float(row.clicks)
-        a["orders"] += float(row.orders)
-        a["gmv"] += float(row.gmv)
-    for a in acc.values():
-        a["roas"] = round(a["gmv"] / a["spend"], 2) if a["spend"] else None
-    return dict(acc)
-
-
-async def _keyword_facts(
-    session: AsyncSession, env: RecoEnv, specs: Sequence[sp.VersionSpec]
-) -> dict[str, dict[str, Any]]:
-    wanted: dict[str, str | None] = {}
-    for spec in specs:
-        if isinstance(spec, sp.AdsSpec) and spec.lever == "keywords":
-            for k in spec.keywords:
-                wanted[k.keyword] = spec.item_id
-    if not wanted:
-        return {}
-    metrics: dict[str, Any] = {}
-    try:
-        async with session.begin_nested():
-            metrics = await loaders.load_keyword_market(session, list(wanted))
-    except Exception:  # the public market lane may be closed to this role: facts stay empty
-        metrics = {}
-    out: dict[str, dict[str, Any]] = {}
-    for kw, item in wanted.items():
-        folded = lst_fold(kw)
-        m = metrics.get(kw)
-        facts: dict[str, Any] = {}
-        if m is not None:
-            facts = {
-                "volume": m.volume,
-                "difficulty": None if m.difficulty is None else float(m.difficulty),
-                "cpc_min": None if m.cpc_min is None else float(m.cpc_min),
-                "cpc_max": None if m.cpc_max is None else float(m.cpc_max),
-            }
-        own = _own_keyword_report(env, item).get(folded)
-        if own is not None:
-            facts["ads"] = own
-        out[folded] = facts
-    return out
-
-
 async def _responses(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -390,7 +366,6 @@ async def build_context(
             view90,
             {i for spec in specs if spec.kind in PRICE_SCALED for i in sp.items_of(spec)},
         )
-    ctx.keyword_facts = await _keyword_facts(session, env, specs)
     return ctx
 
 
@@ -423,7 +398,71 @@ def _evaluate_version_card(
     shaped = outcome.shape(
         card, tr, ctx, index=index, kind=spec.kind, label=label, estimate_card=est_card
     )
+    if tr.multi is not None:
+        _add_targets(shaped, ctx, tr, card, now)
     return shaped, tr, card
+
+
+def _add_targets(
+    shaped: dict[str, Any],
+    ctx: BuilderContext,
+    tr: Translation,
+    card: dict[str, Any],
+    now: datetime,
+) -> None:
+    """P97 D85.13: the total above is the card; below it a row per target (what untick changes) and
+    how the fill works (one bulk pass where Shopee has a bulk edit, else one job per target)."""
+    rows: list[dict[str, Any]]
+    if tr.multi == "joint":
+        rows = []
+        for tid, part in tr.parts:
+            one, why = manual.build_variant(ctx.env, part.variant, now=now)
+            name = ctx.env.name(tid)
+            rows.append(
+                {
+                    "id": tid,
+                    "kind": "item",
+                    "name": name,
+                    "ok": False,
+                    "refusal": why,
+                    "breaches": [],
+                }
+                if one is None
+                else {
+                    "id": tid,
+                    "kind": "item",
+                    "name": name,
+                    "ok": True,
+                    "refusal": None,
+                    **multi_targets.brief(one),
+                    "breaches": [dict(b) for b in one["floor"]["breaches"]],
+                    "breach": bool(one["floor"]["breaches"]),
+                }
+            )
+        rows += [{**r, "ok": False, "breaches": []} for r in tr.details.get("refused_targets", [])]
+        shaped["targets_note"] = (
+            "Một voucher chung cho cả danh sách: tổng là kết quả chung. Mỗi dòng là mức voucher "
+            "này mang lại nếu chỉ áp cho riêng sản phẩm đó."
+        )
+    else:
+        rows = []
+        for r in card[multi_targets.KEY]:
+            own = [dict(b) for b in card["floor"]["breaches"] if b.get("target") == r["id"]]
+            rows.append(
+                {k: v for k, v in r.items() if k != "variant"}
+                | {"breaches": own, "breach": bool(own)}
+            )
+    shaped["targets"] = rows
+    shaped["targets_mode"] = tr.multi
+    shaped["fill"] = card.get("fill") or {
+        "mode": "bulk" if tr.multi == "joint" else multi_targets.fill_mode(card["change_kind"]),
+        "targets": len(rows),
+    }
+    ba = shaped.get("before_after") or {}
+    margin = next((r for r in ba.get("rows", []) if r["key"] == "margin"), None)
+    if shaped.get("margin_after_pct") is None and margin and margin.get("after"):
+        shaped["margin_before_pct"] = margin["before"]
+        shaped["margin_after_pct"] = margin["after"]["p50"]
 
 
 def _row(key: str, label: str, values: list[Any], unit: str) -> dict[str, Any]:
@@ -546,8 +585,84 @@ async def choose(
     return out
 
 
+async def run_together(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    specs: Sequence[sp.VersionSpec],
+    members: Sequence[int],
+    *,
+    days: int,
+    start: date | None,
+    acknowledge_breaches: bool,
+    actor: manual.Actor,
+    as_of: date | None,
+    now: datetime,
+    audience: str = "ops",
+) -> dict[str, Any]:
+    """ "Chạy cùng nhau" (P97 D85.14): the ticked versions of So sánh become ONE group of the plan.
+
+    Versions of the same change (same kind, products and campaign: two vouchers of the same scope)
+    are saved as versions of one card; every other kind is its own card. All of them go to the draft
+    plan and into one new group with one period; a version whose exclusive field is taken in the
+    group moves to the next group (never refused). Returns the plan and ``saved``."""
+    from juli_backend.services.shopee_recommendations import plans
+    from juli_backend.services.shopee_recommendations import service as reco
+
+    picked = list(dict.fromkeys(members))
+    if not picked or any(not 0 <= i < len(specs) for i in picked):
+        raise manual.ProposalError(manual.ERROR_BAD_VARIANT, 422, "choose versions of the list")
+    ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
+    buckets: dict[tuple[Any, ...], list[tuple[int, dict[str, Any]]]] = {}
+    for i in picked:
+        try:
+            variant = to_variant(specs[i], ctx).variant
+        except SpecRefused as exc:
+            raise manual.ProposalError(
+                manual.ERROR_BAD_VARIANT, 422, manual.refusal(exc.code)["message"]
+            ) from None
+        key = (
+            variant.get("change_kind"),
+            tuple(variant.get("items") or ()),
+            variant.get("campaign_key"),
+        )
+        buckets.setdefault(key, []).append((i, variant))
+    saved: list[dict[str, Any]] = []
+    pairs: list[tuple[uuid.UUID, int]] = []
+    for rows in buckets.values():
+        for chunk in (rows[n : n + manual.MAX_VARIANTS] for n in range(0, len(rows), 4)):
+            out = await manual.create_manual(
+                session,
+                shop_id,
+                [v for _, v in chunk],
+                0,
+                False,
+                actor,
+                now=now,
+                env=ctx.env,
+                acknowledge_breaches=acknowledge_breaches,
+            )
+            card_id = uuid.UUID(out["id"])
+            saved.append({"id": out["id"], "code": out["code"], "indexes": [i for i, _ in chunk]})
+            pairs += [(card_id, n) for n in range(1, len(chunk) + 1)]
+    if actor.kind == "staff":  # Ops' cards are drafts: they must be sent to join the plan
+        await reco.publish(session, shop_id, [uuid.UUID(c["id"]) for c in saved], now=now)
+    out = await plans.run_together(
+        session,
+        shop_id,
+        pairs,
+        days=days,
+        start=start,
+        actor=actor,
+        now=now,
+        acknowledge_breaches=acknowledge_breaches,
+        audience=audience,
+    )
+    return {**out, "saved": saved}
+
+
 __all__ = [
     "NoShopeeData",
+    "run_together",
     "ads_campaigns",
     "best_index",
     "build_context",

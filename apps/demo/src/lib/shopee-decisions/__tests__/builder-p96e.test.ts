@@ -8,14 +8,15 @@ import { pickerProducts, variationList } from "./builder-fixtures";
 const product = pickerProducts().products[0]!;
 const ctx = { product, variations: variationList().variations.slice(0, 2) };
 const f = initialForms();
-const two = [{ itemId: "a", variationId: "", qty: "1" }, { itemId: "b", variationId: "", qty: "1" }];
+const two = ["a", "b"];
 
 describe("P96e · combo price and margin", () => {
-  it("a fixed combo price under 1.000đ is refused with a hint that a percent was meant", () => {
-    const p = buildVersion("combo", { ...f, combo: { ...f.combo, items: two, pricing: "fixed_price", value: "10" } }, ctx).problem;
+  it("a special price under 1.000đ is refused with a hint that a percent was meant", () => {
+    const special = (value: string) => ({ ...f, combo: { ...f.combo, items: two, dtype: "special_price" as const, tiers: [{ qty: "2", value }] } });
+    const p = buildVersion("combo", special("10"), ctx).problem;
     expect(p).toMatch(/quá thấp/);
     expect(p).toMatch(/% giảm/);
-    expect(buildVersion("combo", { ...f, combo: { ...f.combo, items: two, pricing: "fixed_price", value: "120000" } }, ctx).problem).toBeNull();
+    expect(buildVersion("combo", special("120000"), ctx).problem).toBeNull();
   });
 
   it("the server's new combo refusals read in Vietnamese", () => {

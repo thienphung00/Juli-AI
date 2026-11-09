@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { BuilderOutcome, PickerResult, PickerProduct } from "../../../lib/shopee-decisions/builder-api";
-import { KINDS_92, MAX_VERSIONS, buildVersion, defaultVariationId, initialForms, kindName92, newItem, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
+import { KINDS_92, MAX_VERSIONS, buildVersion, defaultVariationId, initialForms, kindName92, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
 import { useReco } from "../../../lib/shopee-decisions/context";
 import { useNarrow } from "../../quyet-dinh/use-narrow";
 import { NavLink, errorText } from "../ui";
 import { CompareView, type Entry } from "./compare";
-import { AddOnPanel, ComboPanel, DiscountPanel, GiftPanel, PriceFlashPanel, SetPanel, VoucherPanel } from "./panels-offers";
+import { AddOnPanel, ComboPanel, DiscountPanel, GiftPanel, ListingComboPanel, PriceFlashPanel, SetPanel, VoucherPanel } from "./panels-offers";
 import { AdsPanel, AffiliatePanel, CoverPanel, DescPanel, PriceDisplayPanel, TitlePanel } from "./panels-listing";
 import { ProductPicker, ProductStrip, Steps, VariationStep, VariationStrip } from "./picker";
 import { ResultBlock, type ResultState } from "./results";
@@ -133,7 +133,8 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
     setResult(null);
     setForms((f) => {
       let next = f;
-      if (k === "combo" && !f.combo.items[0]?.itemId) next = { ...next, combo: { ...f.combo, items: [newItem(product.item_id, chosen[0]?.variation_id ?? ""), ...f.combo.items.slice(1)] } };
+      if (k === "combo" && f.combo.items.length === 0) next = { ...next, combo: { ...f.combo, items: [product.item_id] } };
+      if (k === "listing_combo" && f.listing_combo.members.length === 0) next = { ...next, listing_combo: { ...f.listing_combo, members: [product.item_id] } };
       if (k === "ads" && !f.ads.itemId) next = { ...next, ads: { ...f.ads, itemId: product.item_id } };
       return next;
     });
@@ -144,7 +145,20 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
     const fresh = initialForms();
     setForms((f) => ({ ...f, [kind]: fresh[kind] }));
     setResult(null);
-    if (kind === "combo" && product) setForm("combo", { items: [newItem(product.item_id, chosen[0]?.variation_id ?? ""), newItem()] });
+    if (kind === "combo" && product) setForm("combo", { items: [product.item_id] });
+    if (kind === "listing_combo" && product) setForm("listing_combo", { members: [product.item_id] });
+  };
+  /** P97 D85.13: unticking a target in the result takes it out of the form; the version is then evaluated again. */
+  const untick = (id: string) => {
+    if (!kind) return;
+    if (kind === "product_discount") setForm("product_discount", { targets: forms.product_discount.targets.filter((t) => t !== id) });
+    else if (kind === "affiliate") setForm("affiliate", { targets: forms.affiliate.targets.filter((t) => t !== id) });
+    else if (kind === "voucher") setForm("voucher", { items: forms.voucher.items.filter((t) => t !== id) });
+    else if (kind === "combo") setForm("combo", { items: forms.combo.items.filter((t) => t !== id) });
+    else if (kind === "ads") {
+      const next = forms.ads.campaignKeys.filter((t) => t !== id);
+      setForm("ads", { campaignKeys: next, campaignKey: next[0] ?? "" });
+    }
   };
   const addEntry = () => {
     if (!built.version || !kind) return;
@@ -267,7 +281,7 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
               <Panel ctx={ctx} forms={forms} kind={kind} setForm={setForm} />
             </section>
             <div className="p2-side">
-              <ResultBlock costLink={costLink} index={editing !== null ? editing : entries.length} state={shown} title={kindName92(kind)} />
+              <ResultBlock costLink={costLink} index={editing !== null ? editing : entries.length} onUntick={untick} state={shown} title={kindName92(kind)} />
               <div className="sd-actions">
                 <button className="sa-btn sa-btn--primary" data-testid="p2-add" disabled={!built.version || (editing === null && entries.length >= MAX_VERSIONS) || shown.status !== "ready" || !shown.outcome.ok} onClick={addEntry} type="button">
                   {editing !== null ? `Cập nhật P${editing + 1}` : "+ Thêm vào So sánh phương án"}
@@ -310,6 +324,8 @@ function Panel({ kind, forms, setForm, ctx }: { readonly kind: Kind92; readonly 
       return <VoucherPanel ctx={ctx} form={forms.voucher} set={(p) => setForm("voucher", p)} />;
     case "combo":
       return <ComboPanel ctx={ctx} form={forms.combo} set={(p) => setForm("combo", p)} />;
+    case "listing_combo":
+      return <ListingComboPanel ctx={ctx} form={forms.listing_combo} set={(p) => setForm("listing_combo", p)} />;
     case "add_on":
       return <AddOnPanel ctx={ctx} form={forms.add_on} set={(p) => setForm("add_on", p)} />;
     case "gift":

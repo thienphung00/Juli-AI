@@ -140,6 +140,9 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shop_reco_plans"): "tenant_direct",
     ("public", "shop_reco_plan_cards"): "tenant_direct",
     ("public", "shop_reco_plan_counters"): "tenant_direct",
+    # P97 D85.14 / P94 (migration 125): the groups of a plan ("Nhóm A, B ...") and their members.
+    ("public", "shop_reco_plan_groups"): "tenant_direct",
+    ("public", "shop_reco_plan_group_members"): "tenant_direct",
     ("public", "shop_reco_change_sets"): "tenant_direct",
     ("public", "planned_change_imports"): "tenant_direct",
     ("public", "planned_change_refs"): "tenant_direct",

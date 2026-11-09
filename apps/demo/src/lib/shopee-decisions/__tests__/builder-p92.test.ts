@@ -33,15 +33,30 @@ describe("builder-p92 model", () => {
     expect(buildVersion("voucher", { ...f, voucher: { ...f.voucher, scope: "shop" } }, ctx).version).not.toHaveProperty("item_ids");
   });
 
-  it("combo needs 2-6 distinct products", () => {
+  it("combo (P97 D85.15): a product list, tiers 'Mua N', Shopee's limits, no per-item quantity or variation", () => {
     const f = initialForms();
-    expect(buildVersion("combo", f, ctx).problem).toMatch(/2 đến 6/);
-    const same = { ...f, combo: { ...f.combo, items: [{ itemId: P_ZIP, variationId: "", qty: "1" }, { itemId: P_ZIP, variationId: "", qty: "1" }] } };
-    expect(buildVersion("combo", same, ctx).problem).toMatch(/khác nhau/);
-    const ok = { ...f, combo: { ...f.combo, items: [{ itemId: P_ZIP, variationId: "v3", qty: "1" }, { itemId: P_SPONGE, variationId: "", qty: "2" }] } };
-    expect(buildVersion("combo", ok, ctx).version).toMatchObject({ kind: "combo", items: [{ item_id: P_ZIP, variation_id: "v3", qty: 1 }, { item_id: P_SPONGE, qty: 2 }], pricing: "pct", value: 10 });
-    // P96 (C2): an empty variation id is never sent; the server picks the product's top SKU.
-    expect((buildVersion("combo", ok, ctx).version as unknown as { items: Record<string, unknown>[] }).items[1]).not.toHaveProperty("variation_id");
+    expect(buildVersion("combo", f, ctx).problem).toMatch(/ít nhất một sản phẩm/);
+    const ok = { ...f, combo: { ...f.combo, name: "Mua 2 giảm 5", items: [P_ZIP, P_SPONGE], limit: "3" } };
+    const v = buildVersion("combo", ok, ctx).version as unknown as Record<string, unknown>;
+    expect(v).toMatchObject({ kind: "combo", name: "Mua 2 giảm 5", item_ids: [P_ZIP, P_SPONGE], discount_type: "pct", tiers: [{ qty: 2, value: 5 }, { qty: 3, value: 8 }], purchase_limit: 3 });
+    expect(v).not.toHaveProperty("items");
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, name: "x".repeat(26) } }, ctx).problem).toMatch(/25 ký tự/);
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, tiers: [{ qty: "2", value: "5" }, { qty: "2", value: "9" }] } }, ctx).problem).toMatch(/khác nhau/);
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, tiers: [{ qty: "1", value: "5" }] } }, ctx).problem).toMatch(/từ 2 đến 9999/);
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, tiers: [{ qty: "2", value: "95" }] } }, ctx).problem).toMatch(/tối đa 90%/);
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, dtype: "special_price", tiers: [{ qty: "2", value: "10" }] } }, ctx).problem).toMatch(/quá thấp/);
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, tiers: [] } }, ctx).problem).toMatch(/ít nhất một mức/);
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, limit: "0" } }, ctx).problem).toMatch(/Giới hạn đặt hàng/);
+  });
+
+  it("listing combo (P97 D85.16): a title, a price, stock and at least two member products", () => {
+    const f = initialForms();
+    expect(buildVersion("listing_combo", f, ctx).problem).toMatch(/tên listing combo/);
+    const base = { ...f, listing_combo: { ...f.listing_combo, title: "Combo túi zip + miếng rửa", price: "120000", stock: "50", sku: "CB-01", images: ["a.jpg"], members: [P_ZIP, P_SPONGE] } };
+    expect(buildVersion("listing_combo", base, ctx).version).toMatchObject({ kind: "listing_combo", title: "Combo túi zip + miếng rửa", price: 120000, stock: 50, sku: "CB-01", image_refs: ["a.jpg"], member_ids: [P_ZIP, P_SPONGE] });
+    expect(buildVersion("listing_combo", { ...base, listing_combo: { ...base.listing_combo, members: [P_ZIP] } }, ctx).problem).toMatch(/từ 2 sản phẩm/);
+    expect(buildVersion("listing_combo", { ...base, listing_combo: { ...base.listing_combo, price: "10" } }, ctx).problem).toMatch(/từ 1.000đ/);
+    expect(buildVersion("listing_combo", { ...base, listing_combo: { ...base.listing_combo, stock: "" } }, ctx).problem).toMatch(/tồn kho/);
   });
 
   it("title and first line keep their limits", () => {

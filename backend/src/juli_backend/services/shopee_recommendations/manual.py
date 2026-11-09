@@ -35,6 +35,7 @@ from juli_backend.services.shopee_recommendations import (
     config,
     product_queue,
     store,
+    targets,
     versions,
 )
 from juli_backend.services.shopee_recommendations.cards import build_card
@@ -57,6 +58,8 @@ MANUAL_KINDS: tuple[str, ...] = tuple(k for k, s in KINDS.items() if s.family !=
 
 _REFUSAL_TEXT = {
     **combo.REFUSALS,
+    "ads_budget_below_min": "Ngân sách tối thiểu: ₫100.000",
+    "no_target": "Chưa có đối tượng nào để áp dụng.",
     "unknown_kind": "Loại thay đổi không hợp lệ.",
     "no_item": "Chưa chọn sản phẩm.",
     "item_unknown": "Sản phẩm chưa có đơn trong kỳ phân tích.",
@@ -178,6 +181,8 @@ def build_variant(
     kind = str(variant.get("change_kind", ""))
     if kind not in MANUAL_KINDS:
         return None, refusal("unknown_kind")
+    if targets.is_multi(variant):  # P97 D85.13: one card, a row per target
+        return targets.build_multi(env, variant, now=now, build_one=build_variant)
     try:
         cand = candidate_of(variant)
         named = [
@@ -220,6 +225,10 @@ def build_variant(
         return None, refusal("no_order_lines")
     if kind == combo.KIND:
         card["title"] = combo_title(env, cand)
+    joint = variant.get("joint_targets")
+    if joint:  # one voucher over a product list: the list is the fill's bulk target
+        card[targets.KEY] = [{"id": str(i), "kind": "item"} for i in joint]
+        card["fill"] = {"mode": "bulk", "targets": len(joint)}
     return card, None
 
 
@@ -404,6 +413,7 @@ def _version_rows(
                 "change_kind": variant.get("change_kind"),
                 "items": list(variant.get("items") or []),
                 "extra": dict(variant.get("extra") or {}),
+                **({targets.KEY: list(variant[targets.KEY])} if variant.get(targets.KEY) else {}),
                 "title": None if card is None else card["title"],
                 "metrics": None if card is None else metrics_of(card),
             }

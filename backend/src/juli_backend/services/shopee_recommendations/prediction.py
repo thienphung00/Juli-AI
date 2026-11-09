@@ -146,6 +146,11 @@ def prior_range(spec: KindSpec, magnitude: float | None, bucket: str) -> tuple[f
         return (min(a, b), max(a, b))
     if spec.key in ("ads_pause", "ads_remove_product", "ads_purpose"):
         return (lo, hi)
+    if spec.key == "listing_combo":
+        # P97 D85.16: the relative GMV change of the baskets that switch, from none (P10) to all
+        # (P90) of them; ``magnitude`` is the combo price against the sum of its members, in %
+        r = 0.0 if magnitude is None else magnitude / 100
+        return (min(0.0, r), max(0.0, r))
     scale = config.GAP_BUCKET_SCALE[bucket]
     return (lo * scale, hi * scale)
 

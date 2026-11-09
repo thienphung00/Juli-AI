@@ -23,6 +23,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import PlatformDailyMetric
@@ -251,6 +252,26 @@ def _card_text(card: dict[str, Any], change_kind: str) -> str:
     return ""
 
 
+def _card_targets(card: dict[str, Any], kind: str) -> list[dict[str, Any]]:
+    """P97 T4 many-target cards (D85.13): ``card["targets"]`` rows ``{id, kind, ...}``; refused
+    rows carry ``refusal`` and are skipped. A bulk fill (affiliate commission, one voucher over a
+    product list) is one target holding every product; otherwise one target per row."""
+    rows = [
+        r
+        for r in (card.get("targets") or [])
+        if isinstance(r, dict) and r.get("id") and not r.get("refusal") and r.get("ok", True)
+    ]
+    if not rows:
+        return []
+    if rows[0].get("kind") == "campaign":
+        return [{"campaign_key": str(r["id"])} for r in rows]
+    ids = [str(r["id"]) for r in rows]
+    mode = (card.get("fill") or {}).get("mode")
+    if mode == "bulk" or kind in ("voucher", "affiliate_commission"):
+        return [{"product_ids": ids}]
+    return [{"item_id": i} for i in ids]
+
+
 async def build_jobs(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -267,7 +288,7 @@ async def build_jobs(
         return []
     base_inputs = dict(card.get("inputs") or {})
     scope_items = _ids(card.get("scope", {}).get("product_ids"))
-    given = [t for t in (targets or []) if isinstance(t, dict)]
+    given = [t for t in (targets or []) if isinstance(t, dict)] or _card_targets(card, kind)
     jobs: list[dict[str, Any]] = []
 
     def job(target: dict[str, Any], key: str, payload: dict[str, Any], error: str | None = None):
@@ -459,7 +480,8 @@ async def enqueue_after_decision(
                     card=final_card if n == 0 else None,
                     now=now,
                 )
-    except Exception:  # noqa: BLE001 - the approval stands whatever the queue does
+    except (SQLAlchemyError, RuntimeError, ArithmeticError, LookupError, TypeError, ValueError):
+        # the approval stands whatever the queue does
         logger.exception("fill_enqueue_failed", extra={"shop_id": str(shop_id)})
 
 

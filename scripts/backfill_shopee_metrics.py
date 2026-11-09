@@ -20,6 +20,7 @@ import uuid
 from datetime import date
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from juli_backend.core.config.runtime import async_database_url
@@ -58,7 +59,14 @@ async def run(args: argparse.Namespace) -> int:
                         written = await materialize.rebuild_days(session, shop_id, days)
                         await session.commit()
                     print(f"{shop_id}: {written} day(s) rebuilt")
-                except Exception as exc:  # noqa: BLE001 - report and go on to the next shop
+                except (
+                    SQLAlchemyError,
+                    ArithmeticError,
+                    LookupError,
+                    TypeError,
+                    ValueError,
+                ) as exc:
+                    # report and go on to the next shop
                     failures += 1
                     await session.rollback()
                     print(f"{shop_id}: FAILED ({type(exc).__name__})")

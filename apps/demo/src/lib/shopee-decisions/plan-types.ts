@@ -154,6 +154,10 @@ export interface PlanCard {
   readonly added_at: string | null;
   readonly added_by: unknown;
   readonly acknowledged_breaches: PlanAck | null;
+  /** P97 D85.14: the groups this card has a version in (`letter` + version). */
+  readonly groups?: readonly { readonly letter: string; readonly version: number }[];
+  /** P97 D85.13: how many targets a many-target card applies to (0 = one product). */
+  readonly n_targets?: number;
   /** Null while the plan could not evaluate the card. */
   readonly evaluation: PlanEvaluation | null;
 }
@@ -301,6 +305,46 @@ export interface PlanAggregate {
   readonly range_note?: string;
 }
 
+/** P97 D85.14: one version of one card inside a group. */
+export interface PlanGroupMember {
+  readonly card_id: string;
+  readonly plan_card_id: string;
+  readonly entry_id: string;
+  readonly code: string | null;
+  readonly version: number;
+  readonly version_code: string | null;
+  readonly version_label: string | null;
+  readonly title: string | null;
+  readonly change_kind: string | null;
+  readonly family: string | null;
+  readonly product_id: string | null;
+  readonly n_targets: number;
+}
+
+/** "Nhóm A, B ...": options that run together with ONE period (at least 3 days); the aggregate is the plan math over its members. */
+export interface PlanGroup {
+  readonly id: string;
+  readonly letter: string;
+  readonly name: string;
+  readonly position: number;
+  /** `<card code>-G<letter>`. */
+  readonly code: string | null;
+  readonly status: "draft" | "approved" | string;
+  readonly days: number;
+  readonly start: string;
+  readonly end: string;
+  readonly start_fixed: boolean;
+  readonly min_days: number;
+  readonly members: readonly PlanGroupMember[];
+  readonly aggregate: PlanAggregate | null;
+}
+
+export interface PlanNotice {
+  readonly type: "moved_to_group" | string;
+  readonly group?: string;
+  readonly message: string;
+}
+
 export interface WindowProductRow {
   readonly product_id: string;
   readonly name: string | null;
@@ -352,6 +396,10 @@ export interface PlanResponse {
   readonly plan: PlanHead | null;
   readonly cards: readonly PlanCard[];
   readonly aggregate: PlanAggregate | null;
+  /** P97 D85.14: the groups of the plan; `aggregate` is then the cards that are in no group. */
+  readonly groups?: readonly PlanGroup[];
+  /** Said when an option moved to a later group because an exclusive field was taken. */
+  readonly notice?: PlanNotice | null;
   readonly windows: PlanWindows | null;
   readonly change_sets: readonly ChangeSet[];
   /** Only on the answer of `plan/confirm`: the same list as `plan.measurement_cut`. */
@@ -365,8 +413,20 @@ export interface ConfirmBody {
   readonly note?: string;
 }
 
+export interface GroupMemberRef {
+  readonly cardId: string;
+  readonly version: number;
+}
+
 export interface PlanApi {
   get(): Promise<PlanResponse>;
+  /** "Chạy cùng nhau" for cards of the plan: these versions become one group with one period (days >= 3). */
+  createGroup?(members: readonly GroupMemberRef[], opts: { readonly days: number; readonly start?: string | null; readonly acknowledgeBreaches?: boolean }): Promise<PlanResponse>;
+  setGroupPeriod?(groupId: string, patch: { readonly days?: number; readonly start?: string | null; readonly clearStart?: boolean }): Promise<PlanResponse>;
+  removeGroupMember?(groupId: string, member: GroupMemberRef): Promise<PlanResponse>;
+  cancelGroup?(groupId: string): Promise<PlanResponse>;
+  /** The plan as an Excel file: group, versions, period (one row per version). */
+  exportPlan?(): Promise<Blob>;
   /** `version` null = the version and what-if the card had when it was last removed from the plan (else V1). */
   add(cardId: string, version: number | null, acknowledgeBreaches?: boolean): Promise<PlanResponse>;
   remove(cardId: string): Promise<PlanResponse>;

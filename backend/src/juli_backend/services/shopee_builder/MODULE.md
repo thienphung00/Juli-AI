@@ -21,6 +21,8 @@ estimate basis, warnings).
 | `traffic` | orders / clicks of a scope from the flow tables; the CTOR a break-even takes |
 | `variations` | B-2: list / selling price, pack count, price per unit, VAT-aware margin, "chưa tính" |
 | `catalogue` | B-1: the product picker (catalogue + order lines, 90-day GMV, has_cost, excluded) |
+| `picker_table` | P97 D85.12: the table picker's filter columns (category, biên, CTOR vs the 30 days before, có đề xuất, đang chạy QC / KOL) |
+| `multi` | P97 D85.13: the target list of a version (`sum` / `joint`) and its expansion into one single-target version per target |
 | `copurchase` | "Sản phẩm hay mua cùng" from order lines |
 | `response` | the product's own (then the other products') orders response to a price cut -> `prediction` |
 | `keywords` | the keyword table of a product: title seeds, suggestions, competitor phrases, ads report |
@@ -48,3 +50,12 @@ estimate basis, warnings).
 - Re-implement an evaluator, a fee or a floor; extend `shopee_recommendations` instead.
 - Put a buyer field, an order reference or a voucher code in a payload.
 - Call a model outside `llm.GatedLLMClient` (the OpenAI gate), or in a test.
+
+## P97 T4 notes
+
+- A version may name **targets** (giảm giá %, affiliate commission, ads budget / ROAS of several campaigns, a voucher over a product
+  list): `multi.expand` makes one single-target version each; `shopee_recommendations.targets` adds the cards up (P50s add, range =
+  root sum of squares of half-widths, an unknown profit stays unknown). `service.run_together` is "Chạy cùng nhau": it saves the ticked
+  versions as cards (versions of the same change share a card) and hands them to `plans.run_together`.
+- `combo` is Shopee's tiers form (`bundle_deal` + `tiers`, evaluated by `shopee_recommendations.bundle_tiers`); `listing_combo` is a new
+  listing (`shopee_recommendations.listing_combo`). `ads` follows Shopee's edit form; keyword bids are not a lever.

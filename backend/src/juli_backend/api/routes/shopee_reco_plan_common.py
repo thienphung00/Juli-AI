@@ -51,6 +51,31 @@ class ConfirmBody(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class GroupMemberBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    card_id: uuid.UUID
+    version: int = Field(ge=1, le=config.MAX_VERSIONS)
+
+
+class CreateGroupBody(BaseModel):
+    """ "Chạy cùng nhau" for cards already in the plan (or ready to join it): these versions run as
+    one group with one period (days at least 3)."""
+
+    model_config = ConfigDict(extra="forbid")
+    members: list[GroupMemberBody] = Field(min_length=1, max_length=config.PLAN_MAX_CARDS)
+    days: int = Field(default=7, ge=1, le=1000)
+    start: date | None = None
+    acknowledge_breaches: bool = False
+
+
+class GroupPeriodBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    days: int | None = Field(default=None, ge=1, le=1000)
+    start: date | None = None
+    #: true: the group starts right after the previous one again
+    clear_start: bool = False
+
+
 class WindowBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     #: measurement window in days (3..90); null = automatic (the recommended preset per product)

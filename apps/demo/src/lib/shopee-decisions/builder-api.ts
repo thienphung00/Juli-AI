@@ -1,4 +1,5 @@
 import { ShopeeApiError } from "../shopee-analytics/client";
+import type { PlanResponse } from "./plan-types";
 
 /**
  * P92 client of the builder API (`fasttrack/contracts/p92-api.md`): the product picker, variations,
@@ -40,6 +41,16 @@ export interface PickerProduct {
   readonly missing_cost_chip: string | null;
   readonly excluded: boolean;
   readonly exclude_reason: string | null;
+  /** P97 D85.12: the table picker's filter columns (absent on an older server = unknown). */
+  readonly category?: string | null;
+  readonly category_path?: string | null;
+  readonly margin_pct?: N;
+  readonly ctor_30d?: N;
+  readonly ctor_prev_30d?: N;
+  readonly ctor_down?: boolean | null;
+  readonly has_proposal?: boolean;
+  readonly in_ads?: boolean;
+  readonly in_kol?: boolean;
 }
 
 export interface PickerResult {
@@ -210,6 +221,24 @@ export interface BeforeAfter {
   readonly note: string;
 }
 
+/** P97 D85.13: one row of a many-target card: its own figures (monthly, P50 + range) and floor breaches. */
+export interface OutcomeTarget {
+  readonly id: string;
+  readonly kind: "item" | "campaign" | string;
+  readonly name?: string | null;
+  readonly ok: boolean;
+  readonly refusal?: { readonly code?: string; readonly message?: string } | null;
+  readonly dgmv_p50?: N;
+  readonly dorders_p50?: N;
+  readonly dprofit_p50?: N;
+  readonly dprofit_p10?: N;
+  readonly dprofit_p90?: N;
+  readonly cost_month?: N;
+  readonly floor_ok?: boolean;
+  readonly breach?: boolean;
+  readonly breaches?: readonly BuilderWarning[];
+}
+
 export interface BuilderOutcome {
   readonly index: number;
   readonly kind: string;
@@ -278,6 +307,12 @@ export interface BuilderOutcome {
   readonly warnings?: readonly BuilderWarning[];
   readonly breach?: boolean;
   readonly details?: Readonly<Record<string, unknown>>;
+  /** P97 D85.13: the targets of a many-target card: `sum` = each target is its own change, `joint` = one voucher over a list. */
+  readonly targets?: readonly OutcomeTarget[];
+  readonly targets_mode?: "sum" | "joint" | string;
+  readonly targets_note?: string | null;
+  /** How the Connector will fill the card in: one bulk pass where Shopee has a bulk edit, else one job per target. */
+  readonly fill?: { readonly mode: "bulk" | "per_target" | string; readonly targets: number } | null;
 }
 
 export interface TableRowBand {
@@ -386,6 +421,12 @@ export interface DescriptionDrafts {
   readonly max_chars: number;
 }
 
+/** "Chạy cùng nhau": the cards saved from the ticked versions and the plan with its groups. */
+export interface GroupResult extends PlanResponse {
+  readonly saved: readonly { readonly id: string; readonly code: string | null; readonly indexes: readonly number[] }[];
+  readonly placed: readonly { readonly card_id: string; readonly code: string | null; readonly version: number; readonly group: string; readonly moved: boolean }[];
+}
+
 export interface BuilderApi {
   products(q?: PickerQuery): Promise<PickerResult>;
   variations(itemId: string): Promise<VariationList>;
@@ -395,6 +436,8 @@ export interface BuilderApi {
   evaluate(versions: readonly BuilderVersion[]): Promise<BuilderEvaluation>;
   compare(versions: readonly BuilderVersion[]): Promise<BuilderEvaluation>;
   choose(body: { readonly versions: readonly BuilderVersion[]; readonly chosen: number; readonly primary?: boolean; readonly acknowledgeBreaches?: boolean }): Promise<ChooseResult>;
+  /** P97 D85.14: the ticked versions run together as one group (Nhóm) of the plan. */
+  group(body: { readonly versions: readonly BuilderVersion[]; readonly members: readonly number[]; readonly days: number; readonly start?: string | null; readonly acknowledgeBreaches?: boolean }): Promise<GroupResult>;
   draftTitle(body: { readonly itemId: string; readonly keywords: readonly string[]; readonly count?: number }): Promise<TitleDrafts>;
   draftCover(body: { readonly itemId: string; readonly count?: number }): Promise<CoverDrafts>;
   draftDescription(body: { readonly itemId: string; readonly count?: number }): Promise<DescriptionDrafts>;
@@ -527,6 +570,14 @@ export function createBuilderApi(options: BuilderClientOptions): BuilderApi {
         versions: b.versions,
         chosen: b.chosen,
         primary: b.primary ?? false,
+        acknowledge_breaches: b.acknowledgeBreaches ?? false,
+      }),
+    group: (b) =>
+      call<GroupResult>("POST", "/builder/group", {
+        versions: b.versions,
+        members: b.members,
+        days: b.days,
+        ...(b.start ? { start: b.start } : {}),
         acknowledge_breaches: b.acknowledgeBreaches ?? false,
       }),
     draftTitle: (b) => call<TitleDrafts>("POST", "/builder/drafts/title", { item_id: b.itemId, keywords: b.keywords, count: b.count ?? 3 }),

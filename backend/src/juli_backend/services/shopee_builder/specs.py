@@ -18,16 +18,17 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 MAX_MONEY = 2_000_000_000
 MAX_VERSIONS = 4
 MIN_VERSIONS_COMPARE = 2
-MAX_COMBO_ITEMS = 6
 MAX_ADDONS = 5
 MAX_VOUCHER_DAYS = 90
 MAX_TITLE_CHARS = 100
 MAX_KEYWORDS = 30
+MAX_TARGETS = 100
 
 VOUCHER_SCOPES = ("shop", "product", "follower", "livestream")
 KIND_KEYS = (
     "voucher",
     "combo",
+    "listing_combo",
     "add_on",
     "gift",
     "product_discount",
@@ -60,7 +61,7 @@ class VoucherSpec(_Base):
 
     kind: Literal["voucher"]
     scope: Literal["shop", "product", "follower", "livestream"] = "shop"
-    item_ids: list[ItemId] = Field(default_factory=list, max_length=20)
+    item_ids: list[ItemId] = Field(default_factory=list, max_length=MAX_TARGETS)
     discount_type: Literal["amount", "pct"]
     value: float = Field(gt=0, le=MAX_MONEY)
     min_spend: Money = 0
@@ -92,45 +93,77 @@ class VoucherSpec(_Base):
         return None if not (self.start and self.end) else (self.end - self.start).days + 1
 
 
-class ComboLine(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    item_id: ItemId
-    variation_id: VariationId = ""
-    qty: Annotated[int, Field(ge=1, le=20)] = 1
+COMBO_TYPES = ("pct", "amount", "special_price")
+MAX_COMBO_TIERS = 5
+MAX_COMBO_NAME = 25
+MAX_COMBO_PRODUCTS = 100
+MAX_PURCHASE_LIMIT = 999_999_999
 
 
-class InlineVoucher(BaseModel):
+class ComboTier(BaseModel):
+    """One row "Mua [N] sản phẩm → x": a percent off, an amount off, or a special price for N."""
+
     model_config = ConfigDict(extra="forbid")
-    discount_type: Literal["amount", "pct"]
+    qty: Annotated[int, Field(ge=2, le=9999)]
     value: float = Field(gt=0, le=MAX_MONEY)
-    min_spend: Money = 0
-    max_value: Annotated[int, Field(ge=1, le=MAX_MONEY)] | None = None
-
-    @model_validator(mode="after")
-    def _check(self) -> InlineVoucher:
-        if self.discount_type == "pct" and not 0 < self.value <= 90:
-            raise ValueError("a percent voucher is above 0 and at most 90")
-        return self
 
 
 class ComboSpec(_Base):
-    """2-6 products with a quantity and a variation each; price as a fixed price, % off or đ off the
-    sum. ``target``: a Shopee "Combo khuyến mãi" or a new combo listing."""
+    """Combo Khuyến Mãi in Shopee's shape (P97 D85.15): a product list (no quantity or variation per
+    item), a type (giảm %, giảm số tiền, giá đặc biệt), tiers "Mua N sản phẩm → x", the order
+    limit per buyer (giới hạn đặt hàng), a name of at most 25 characters and the dates. It is the
+    model of the ``bundle_deal`` cards Juli generates. The inline voucher and the gift are their
+    own kinds."""
 
     kind: Literal["combo"]
-    items: list[ComboLine] = Field(min_length=2, max_length=MAX_COMBO_ITEMS)
-    pricing: Literal["pct", "amount", "fixed_price"]
-    value: float = Field(gt=0, le=MAX_MONEY)
-    target: Literal["bundle_deal", "new_listing"] = "bundle_deal"
-    voucher: InlineVoucher | None = None
-    gift_item_id: ItemId | None = None
+    name: str | None = Field(default=None, max_length=MAX_COMBO_NAME)
+    item_ids: list[ItemId] = Field(min_length=1, max_length=MAX_COMBO_PRODUCTS)
+    discount_type: Literal["pct", "amount", "special_price"]
+    tiers: list[ComboTier] = Field(min_length=1, max_length=MAX_COMBO_TIERS)
+    purchase_limit: Annotated[int, Field(ge=1, le=MAX_PURCHASE_LIMIT)] | None = None
+    start: date | None = None
+    end: date | None = None
 
     @model_validator(mode="after")
     def _check(self) -> ComboSpec:
-        if self.pricing == "pct" and not 0 < self.value <= 90:
-            raise ValueError("a percent discount is above 0 and at most 90")
-        if len({line.item_id for line in self.items}) != len(self.items):
+        if len(set(self.item_ids)) != len(self.item_ids):
             raise ValueError("the products of a combo are different")
+        if len({t.qty for t in self.tiers}) != len(self.tiers):
+            raise ValueError("each tier has its own quantity")
+        if self.discount_type == "pct" and any(not 0 < t.value <= 90 for t in self.tiers):
+            raise ValueError("a percent discount is above 0 and at most 90")
+        if self.start and self.end and self.end < self.start:
+            raise ValueError("end is before start")
+        return self
+
+    @property
+    def days(self) -> int | None:
+        return None if not (self.start and self.end) else (self.end - self.start).days + 1
+
+
+MAX_LISTING_MEMBERS = 20
+MAX_LISTING_IMAGES = 9
+
+
+class ListingComboSpec(_Base):
+    """A new listing that sells existing products together (P97 D85.16): title, image references
+    (file names or ids -- never bytes), price, stock, SKU and the member products. Its estimate
+    starts with no history or ranking and takes demand from the singles it contains."""
+
+    kind: Literal["listing_combo"]
+    title: str = Field(min_length=1, max_length=MAX_TITLE_CHARS)
+    image_refs: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
+        default_factory=list, max_length=MAX_LISTING_IMAGES
+    )
+    price: Annotated[int, Field(ge=1_000, le=MAX_MONEY)]
+    stock: Annotated[int, Field(ge=0, le=10_000_000)]
+    sku: str | None = Field(default=None, max_length=100)
+    member_ids: list[ItemId] = Field(min_length=2, max_length=MAX_LISTING_MEMBERS)
+
+    @model_validator(mode="after")
+    def _check(self) -> ListingComboSpec:
+        if len(set(self.member_ids)) != len(self.member_ids):
+            raise ValueError("the products of a listing combo are different")
         return self
 
 
@@ -221,10 +254,15 @@ class VariationPrice(BaseModel):
 
 
 class ProductDiscountSpec(_Base):
-    """Giảm giá per variation (% or final price), dates, per-buyer limit."""
+    """Giảm giá per variation (% or final price), dates, per-buyer limit.
+
+    P97 D85.13: ``targets`` + ``discount_pct`` apply one % to every variation of each product in
+    the list (Shopee's bulk discount): one card, a total and a row per target."""
 
     kind: Literal["product_discount"]
-    item_id: ItemId
+    item_id: ItemId | None = None
+    targets: list[ItemId] = Field(default_factory=list, max_length=MAX_TARGETS)
+    discount_pct: Annotated[float, Field(gt=0, le=90)] | None = None
     variations: list[VariationPrice] = Field(default_factory=list, max_length=40)
     start: date | None = None
     end: date | None = None
@@ -232,6 +270,18 @@ class ProductDiscountSpec(_Base):
 
     @model_validator(mode="after")
     def _check(self) -> ProductDiscountSpec:
+        if self.targets:
+            if self.item_id is not None or self.variations:
+                raise ValueError("a many-target discount names targets and discount_pct only")
+            if self.discount_pct is None:
+                raise ValueError("a many-target discount needs discount_pct")
+            if len(set(self.targets)) != len(self.targets):
+                raise ValueError("targets are different from each other")
+        else:
+            if self.item_id is None:
+                raise ValueError("item_id or targets")
+            if self.discount_pct is not None:
+                raise ValueError("discount_pct belongs to a many-target discount")
         if any(v.change_pct is not None for v in self.variations):
             raise ValueError("change_pct belongs to a price change, use discount_pct / final_price")
         if self.start and self.end and self.end < self.start:
@@ -292,36 +342,58 @@ class VariationSetSpec(_Base):
     hide_item_ids: list[ItemId] = Field(default_factory=list, max_length=10)
 
 
-class AdsKeyword(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    keyword: str = Field(min_length=1, max_length=100)
-    bid: Annotated[int, Field(ge=0, le=MAX_MONEY)]
-    match: Literal["broad", "exact"] = "broad"
+ADS_MIN_BUDGET = 100_000
+#: Shopee's own hint for a custom ROAS target ("Vui lòng đặt ≤ 3.5"); higher is allowed with a
+#: warning
+ADS_ROAS_HINT = 3.5
+ADS_ROAS_PRESETS = (2.5, 3.5, 4.5)
+MAX_CAMPAIGNS = 30
 
 
 class AdsSpec(_Base):
-    """Four levers: ``budget`` (đ/day), ``roas`` (target), ``add_product`` / ``remove_product`` and
-    ``keywords`` (+ bids) for a manual keyword campaign."""
+    """Shopee's edit form of a product-ads campaign (P97 D85.17): ``budget`` (≥ ₫100.000 per day, or
+    ``unlimited``), ``roas`` (``system`` = optimised by Shopee, or ``custom`` with a target; presets
+    2.5 / 3.5 / 4.5), ``add_product`` / ``remove_product``, and the run dates. ``campaign_keys``
+    applies one budget / ROAS to several campaigns (P97 D85.13). Keyword bids are not a field of
+    Shopee's form, so they are not a lever any more (old keyword cards stay readable)."""
 
     kind: Literal["ads"]
-    lever: Literal["budget", "roas", "add_product", "remove_product", "keywords"]
+    lever: Literal["budget", "roas", "add_product", "remove_product"]
     campaign_key: str | None = Field(default=None, max_length=100)
+    campaign_keys: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(
+        default_factory=list, max_length=MAX_CAMPAIGNS
+    )
     daily_budget: Annotated[int, Field(ge=0, le=MAX_MONEY)] | None = None
+    unlimited: bool = False
+    roas_mode: Literal["system", "custom"] = "custom"
     roas_target: Annotated[float, Field(gt=0, le=100)] | None = None
     item_id: ItemId | None = None
-    keywords: list[AdsKeyword] = Field(default_factory=list, max_length=MAX_KEYWORDS)
+    start: date | None = None
+    end: date | None = None
 
     @model_validator(mode="after")
     def _check(self) -> AdsSpec:
-        need = {
-            "budget": self.daily_budget is not None,
-            "roas": self.roas_target is not None,
-            "add_product": self.item_id is not None,
-            "remove_product": self.item_id is not None,
-            "keywords": bool(self.keywords),
-        }[self.lever]
-        if not need:
+        if self.lever == "budget":
+            if self.unlimited == (self.daily_budget is not None):
+                raise ValueError("budget: either daily_budget or unlimited")
+        elif self.unlimited or self.daily_budget is not None:
+            raise ValueError("daily_budget / unlimited belong to the budget lever")
+        if self.lever == "roas":
+            if (self.roas_mode == "custom") != (self.roas_target is not None):
+                raise ValueError("roas: a custom target needs roas_target, the system mode none")
+        elif self.roas_target is not None:
+            raise ValueError("roas_target belongs to the roas lever")
+        if self.lever in ("add_product", "remove_product") and self.item_id is None:
             raise ValueError(f"lever {self.lever} is missing its input")
+        if self.campaign_keys:
+            if self.lever not in ("budget", "roas"):
+                raise ValueError("many campaigns only for budget / roas")
+            if self.campaign_key is not None:
+                raise ValueError("campaign_key or campaign_keys, not both")
+            if len(set(self.campaign_keys)) != len(self.campaign_keys):
+                raise ValueError("campaign_keys are different from each other")
+        if self.start and self.end and self.end < self.start:
+            raise ValueError("end is before start")
         return self
 
 
@@ -359,14 +431,27 @@ class DescriptionSpec(_Base):
 
 
 class AffiliateSpec(_Base):
-    """Commission rate per product, optional target campaign, optional sample sending."""
+    """Commission rate per product, optional target campaign, optional sample sending.
+
+    P97 D85.13: ``targets`` applies one rate to many products (Shopee's "Chỉnh sửa hàng loạt")."""
 
     kind: Literal["affiliate"]
-    item_id: ItemId
+    item_id: ItemId | None = None
+    targets: list[ItemId] = Field(default_factory=list, max_length=MAX_TARGETS)
     commission_pct: Annotated[float, Field(ge=0, le=50)]
     target_campaign: bool = False
     sample_qty: Annotated[int, Field(ge=0, le=50)] = 0
     sample_ship_fee: Money = 0
+
+    @model_validator(mode="after")
+    def _check(self) -> AffiliateSpec:
+        if self.targets and self.item_id is not None:
+            raise ValueError("item_id or targets, not both")
+        if not self.targets and self.item_id is None:
+            raise ValueError("item_id or targets")
+        if len(set(self.targets)) != len(self.targets):
+            raise ValueError("targets are different from each other")
+        return self
 
 
 class PriceDisplaySpec(_Base):
@@ -392,6 +477,7 @@ class RelistSpec(_Base):
 VersionSpec = Annotated[
     VoucherSpec
     | ComboSpec
+    | ListingComboSpec
     | AddOnSpec
     | GiftSpec
     | ProductDiscountSpec
@@ -417,10 +503,8 @@ def items_of(spec: BaseModel) -> list[str]:
         value = getattr(spec, key, None)
         if value:
             out.append(str(value))
-    for key in ("item_ids", "hide_item_ids"):
+    for key in ("item_ids", "hide_item_ids", "targets", "member_ids"):
         out += [str(x) for x in getattr(spec, key, None) or []]
-    for line in getattr(spec, "items", None) or []:
-        out.append(line.item_id)
     for add in getattr(spec, "addons", None) or []:
         out.append(add.item_id)
     gift = getattr(spec, "gift", None)

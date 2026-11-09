@@ -55,12 +55,24 @@ describe("P96d · each version names its type and inputs", () => {
       type: "Quà tặng · Quà không bán",
       facts: expect.arrayContaining([{ key: "gift", label: "Quà", value: "Túi vải × 1" }, { key: "trigger", label: "Đơn tối thiểu", value: "150.000đ" }]),
     });
-    expect(versionFacts({ kind: "combo", items: [{ item_id: "p1", qty: 1 }, { item_id: "p2", qty: 2 }], pricing: "pct", value: 10 }, names).facts).toEqual(
+    // a combo saved as a fixed basket (before P97) stays readable and is named as such
+    const legacy = versionFacts({ kind: "combo", items: [{ item_id: "p1", qty: 1 }, { item_id: "p2", qty: 2 }], pricing: "pct", value: 10 }, names);
+    expect(legacy.type).toBe("Combo kiểu cũ (giỏ cố định)");
+    expect(legacy.facts).toEqual(
       expect.arrayContaining([
         { key: "items", label: "Sản phẩm", value: "Túi Bio × 1 + Viên giặt × 2" },
         { key: "value", label: "% giảm trên tổng", value: "10%" },
       ]),
     );
+    expect(versionFacts({ kind: "combo", name: "Mua 2 giảm 5", item_ids: ["p1", "p2"], discount_type: "pct", tiers: [{ qty: 2, value: 5 }, { qty: 3, value: 8 }], purchase_limit: 3 }, names)).toMatchObject({
+      type: "Combo khuyến mãi",
+      facts: expect.arrayContaining([
+        { key: "name", label: "Tên combo", value: "Mua 2 giảm 5" },
+        { key: "tier:2", label: "Mua 2 sản phẩm", value: "giảm 5%" },
+        { key: "tier:3", label: "Mua 3 sản phẩm", value: "giảm 8%" },
+        { key: "limit", label: "Giới hạn đặt hàng", value: "3" },
+      ]),
+    });
     expect(versionFacts({ kind: "price", item_id: "p1", variations: [{ variation_id: "v1", change_pct: -5 }] }, names).facts).toContainEqual({ key: "v:v1", label: "Thay đổi · 18 x 28 cm (220g)", value: "−5%" });
     expect(versionFacts({ kind: "listing_hide", item_id: "p1" }, names).type).toBe("Ẩn listing");
   });

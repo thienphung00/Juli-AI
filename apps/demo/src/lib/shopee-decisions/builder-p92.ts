@@ -10,6 +10,7 @@ import type { Band, BeforeAfterRow, BuilderOutcome, BuilderVersion, BuilderWarni
 export type Kind92 =
   | "voucher"
   | "combo"
+  | "listing_combo"
   | "add_on"
   | "gift"
   | "product_discount"
@@ -28,11 +29,23 @@ export const MAX_TITLE = 100;
 export const MAX_PCT = 90;
 export const MAX_VOUCHER_DAYS = 90;
 export const MAX_FIRST_LINE = 300;
+/** Shopee's product-ads edit form (P97 D85.17): the lowest daily budget, the ROAS hint and the presets. */
+export const ADS_MIN_BUDGET = 100_000;
+export const ADS_BUDGET_MIN_TEXT = "Ngân sách tối thiểu: ₫100.000";
+export const ADS_ROAS_HINT = 3.5;
+export const ADS_ROAS_PRESETS: readonly number[] = [2.5, 3.5, 4.5];
+export const MAX_TARGETS = 100;
+export const MAX_COMBO_NAME = 25;
+export const MAX_COMBO_TIERS = 5;
+export const MAX_COMBO_MEMBERS = 20;
+export const MAX_LISTING_IMAGES = 9;
+export const MAX_CAMPAIGNS = 30;
 
 /** The 13 strategies, each with the driver metric(s) it is measured by (B-3, artboard `kinds`). */
 export const KINDS_92: readonly { readonly key: Kind92; readonly name: string; readonly drivers: string }[] = [
   { key: "voucher", name: "Voucher", drivers: "AOV · CTOR" },
-  { key: "combo", name: "Combo nhiều sản phẩm", drivers: "AOV · CTOR" },
+  { key: "combo", name: "Combo khuyến mãi", drivers: "AOV · CTOR" },
+  { key: "listing_combo", name: "Listing combo mới", drivers: "đơn · bán chéo" },
   { key: "add_on", name: "Mua kèm", drivers: "AOV" },
   { key: "gift", name: "Quà tặng", drivers: "CTOR · đơn" },
   { key: "product_discount", name: "Giảm giá", drivers: "CTOR · đơn" },
@@ -51,7 +64,8 @@ export const kindName92 = (k: string): string => KINDS_92.find((x) => x.key === 
 /** The kind the server knows for a form kind (some forms hold two). */
 export const SERVER_KIND_NAMES: Readonly<Record<string, string>> = {
   voucher: "Voucher",
-  combo: "Combo",
+  combo: "Combo khuyến mãi",
+  listing_combo: "Listing combo mới",
   add_on: "Mua kèm",
   gift: "Quà tặng",
   product_discount: "Giảm giá",
@@ -108,10 +122,10 @@ export function defaultVariationId(variations: readonly VariationRow[]): string 
 
 // ── form state ───────────────────────────────────────────────────────────
 
-export interface ComboItem {
-  readonly itemId: string;
-  readonly variationId: string;
+/** One row "Mua [N] sản phẩm → [giá trị]" of Shopee's Combo Khuyến Mãi form. */
+export interface ComboTierRow {
   readonly qty: string;
+  readonly value: string;
 }
 export interface AddonRow {
   readonly itemId: string;
@@ -131,44 +145,45 @@ export interface NewVariation {
   readonly packCount: string;
   readonly stock: string;
 }
-export interface KeywordBid {
-  readonly keyword: string;
-  readonly bid: string;
-  readonly match: "broad" | "exact";
-}
-
 export interface Forms {
-  readonly voucher: { scope: "shop" | "product" | "follower" | "livestream"; dtype: "amount" | "pct"; value: string; min: string; max: string; usage: string; perBuyer: string; start: string; end: string };
-  readonly combo: { items: readonly ComboItem[]; pricing: "fixed_price" | "pct" | "amount"; value: string; target: "bundle_deal" | "new_listing" };
+  /** `items`: the products of a product voucher besides the chosen one (P97 D85.13, the picker's selection). */
+  readonly voucher: { scope: "shop" | "product" | "follower" | "livestream"; dtype: "amount" | "pct"; value: string; min: string; max: string; usage: string; perBuyer: string; start: string; end: string; items: readonly string[] };
+  /** Combo Khuyến Mãi in Shopee's shape (P97 D85.15): a product list, a type, tiers, the order limit, name ≤ 25, dates. */
+  readonly combo: { name: string; items: readonly string[]; dtype: "pct" | "amount" | "special_price"; tiers: readonly ComboTierRow[]; limit: string; start: string; end: string };
+  /** A new listing that sells several existing products together (P97 D85.16). */
+  readonly listing_combo: { title: string; images: readonly string[]; price: string; stock: string; sku: string; members: readonly string[] };
   readonly add_on: { addons: readonly AddonRow[] };
   readonly gift: { source: "listing" | "unsold"; giftItemId: string; unitCost: string; label: string; packaging: string; qty: string; trigger: "buy_item" | "min_spend"; triggerItemId: string; minSpend: string };
-  readonly product_discount: { mode: "pct" | "final_price"; rows: readonly VarValue[]; start: string; end: string; perBuyer: string };
+  /** `multi`: one % for every product in `targets` (Shopee's bulk discount, P97 D85.13). */
+  readonly product_discount: { mode: "pct" | "final_price"; rows: readonly VarValue[]; start: string; end: string; perBuyer: string; multi: boolean; targets: readonly string[]; pct: string };
   readonly price_flash: { what: "price" | "flash_sale"; mode: "pct" | "final_price"; rows: readonly VarValue[]; units: string; slotStart: string; slotHours: string };
   readonly variation_set: { rows: readonly NewVariation[] };
-  readonly ads: { lever: "budget" | "roas" | "add_product" | "remove_product" | "keywords"; campaignKey: string; dailyBudget: string; roasTarget: string; itemId: string; keywords: readonly KeywordBid[] };
+  /** Shopee's edit form (P97 D85.17): budget (≥ ₫100.000 or unlimited), ROAS (system / custom), products, dates; `campaignKeys` = many campaigns. */
+  readonly ads: { lever: "budget" | "roas" | "add_product" | "remove_product"; campaignKey: string; campaignKeys: readonly string[]; dailyBudget: string; unlimited: boolean; roasMode: "system" | "custom"; roasTarget: string; itemId: string; start: string; end: string };
   readonly title: { ticked: readonly string[]; text: string };
   readonly cover_image: { overlay: CoverOverlay | null };
   readonly description_first_line: { text: string };
-  readonly affiliate: { commission: string; campaign: string; samples: string; shipFee: string };
+  readonly affiliate: { commission: string; campaign: string; samples: string; shipFee: string; multi: boolean; targets: readonly string[] };
   readonly price_display: { what: "price_display" | "listing_hide" | "listing_relist"; text: string; stock: string };
 }
 
-export const newItem = (itemId = "", variationId = ""): ComboItem => ({ itemId, variationId, qty: "1" });
+export const newTier = (qty = "2", value = ""): ComboTierRow => ({ qty, value });
 
 export function initialForms(): Forms {
   return {
-    voucher: { scope: "product", dtype: "amount", value: "5000", min: "100000", max: "", usage: "", perBuyer: "", start: "", end: "" },
-    combo: { items: [newItem(), newItem()], pricing: "pct", value: "10", target: "new_listing" },
+    voucher: { scope: "product", dtype: "amount", value: "5000", min: "100000", max: "", usage: "", perBuyer: "", start: "", end: "", items: [] },
+    combo: { name: "", items: [], dtype: "pct", tiers: [newTier("2", "5"), newTier("3", "8")], limit: "", start: "", end: "" },
+    listing_combo: { title: "", images: [], price: "", stock: "", sku: "", members: [] },
     add_on: { addons: [{ itemId: "", variationId: "", mode: "pct", value: "15", limit: "1" }] },
     gift: { source: "listing", giftItemId: "", unitCost: "", label: "", packaging: "", qty: "1", trigger: "min_spend", triggerItemId: "", minSpend: "150000" },
-    product_discount: { mode: "pct", rows: [], start: "", end: "", perBuyer: "" },
+    product_discount: { mode: "pct", rows: [], start: "", end: "", perBuyer: "", multi: false, targets: [], pct: "10" },
     price_flash: { what: "price", mode: "pct", rows: [], units: "50", slotStart: "", slotHours: "2" },
     variation_set: { rows: [{ name: "", price: "", sku: "", packCount: "", stock: "" }] },
-    ads: { lever: "budget", campaignKey: "", dailyBudget: "", roasTarget: "", itemId: "", keywords: [{ keyword: "", bid: "", match: "broad" }] },
+    ads: { lever: "budget", campaignKey: "", campaignKeys: [], dailyBudget: "", unlimited: false, roasMode: "custom", roasTarget: "", itemId: "", start: "", end: "" },
     title: { ticked: [], text: "" },
     cover_image: { overlay: null },
     description_first_line: { text: "" },
-    affiliate: { commission: "10", campaign: "", samples: "0", shipFee: "" },
+    affiliate: { commission: "10", campaign: "", samples: "0", shipFee: "", multi: false, targets: [] },
     price_display: { what: "price_display", text: "", stock: "" },
   };
 }
@@ -241,6 +256,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       const perBuyer = intIn(v.perBuyer, 1, 100, "Giới hạn mỗi người từ 1 đến 100 lượt.");
       const problem = cap.problem ?? usage.problem ?? perBuyer.problem ?? dateProblem(v.start, v.end, MAX_VOUCHER_DAYS);
       if (problem) return no(problem);
+      if (v.scope === "product" && v.items.length > MAX_TARGETS) return no(`Voucher sản phẩm áp tối đa ${MAX_TARGETS} sản phẩm.`);
       const label = v.dtype === "pct" ? `${fmt(value, 0)}% / ${kmoney(min)}` : `${kmoney(value)} / ${kmoney(min)}`;
       return {
         problem: null,
@@ -248,7 +264,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
           kind: "voucher",
           label: clip(label),
           scope: v.scope,
-          ...(v.scope === "product" ? { item_ids: [id] } : {}),
+          ...(v.scope === "product" ? { item_ids: v.items.length > 0 ? [...v.items] : [id] } : {}),
           discount_type: v.dtype,
           value,
           min_spend: min,
@@ -261,21 +277,46 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     }
     case "combo": {
       const c = f.combo;
-      const items = c.items.filter((i) => i.itemId);
-      if (items.length < 2) return no("Combo cần từ 2 đến 6 sản phẩm khác nhau.");
-      if (new Set(items.map((i) => i.itemId)).size !== items.length) return no("Các sản phẩm trong combo phải khác nhau.");
-      const value = num(c.value);
-      if (value === null || value <= 0) return no(c.pricing === "fixed_price" ? "Nhập giá combo." : "Nhập mức giảm.");
-      if (c.pricing === "pct" && value > MAX_PCT) return no(PCT_PROBLEM);
-      // P96e: 10đ as a fixed combo price is a percent typed in the wrong mode, not a price.
-      if (c.pricing === "fixed_price" && value < MIN_COMBO_PRICE) return no(REFUSAL_TEXT.combo_price_too_low!);
-      const lines: Record<string, unknown>[] = [];
-      for (const i of items) {
-        const q = intIn(i.qty.trim() === "" ? "1" : i.qty, 1, 20, "Số lượng mỗi sản phẩm từ 1 đến 20.");
-        if (q.problem) return no(q.problem);
-        lines.push({ item_id: i.itemId, ...vid(i.variationId), qty: q.n ?? 1 });
+      if (c.items.length === 0) return no("Chọn ít nhất một sản phẩm cho combo.");
+      if (c.items.length > MAX_TARGETS) return no(`Combo có tối đa ${MAX_TARGETS} sản phẩm.`);
+      if ([...c.name.trim()].length > MAX_COMBO_NAME) return no(`Tên combo tối đa ${MAX_COMBO_NAME} ký tự.`);
+      const tiers: { qty: number; value: number }[] = [];
+      for (const [i, t] of c.tiers.entries()) {
+        const qty = num(t.qty);
+        const value = num(t.value);
+        if (qty === null || !Number.isInteger(qty) || qty < 2 || qty > 9999) return no(`Mức ${i + 1}: số sản phẩm cần mua là số nguyên từ 2 đến 9999.`);
+        if (value === null || value <= 0) return no(`Mức ${i + 1}: nhập ${c.dtype === "special_price" ? "giá" : c.dtype === "pct" ? "% giảm" : "số tiền giảm"}.`);
+        if (c.dtype === "pct" && value > MAX_PCT) return no(`Mức ${i + 1}: ${PCT_PROBLEM}`);
+        if (c.dtype === "special_price" && value < MIN_COMBO_PRICE) return no(REFUSAL_TEXT.combo_price_too_low!);
+        tiers.push({ qty, value });
       }
-      return { problem: null, version: { kind: "combo", label: clip(`Combo ${lines.length} sản phẩm`), items: lines, pricing: c.pricing, value, target: c.target } };
+      if (tiers.length === 0) return no("Thêm ít nhất một mức ưu đãi.");
+      if (new Set(tiers.map((t) => t.qty)).size !== tiers.length) return no("Mỗi mức ưu đãi cần một số lượng mua khác nhau.");
+      if (tiers.length > MAX_COMBO_TIERS) return no(`Tối đa ${MAX_COMBO_TIERS} mức ưu đãi.`);
+      const limit = intIn(c.limit, 1, 999_999_999, "Giới hạn đặt hàng từ 1 đến 999.999.999.");
+      const issue = limit.problem ?? dateProblem(c.start, c.end, null);
+      if (issue) return no(issue);
+      const name = c.name.trim();
+      return {
+        problem: null,
+        version: { kind: "combo", label: clip(name || `Combo ${c.items.length} sản phẩm`), ...(name ? { name } : {}), item_ids: [...c.items], discount_type: c.dtype, tiers, ...(limit.n !== null ? { purchase_limit: limit.n } : {}), ...dated(c.start, c.end) },
+      };
+    }
+    case "listing_combo": {
+      const l = f.listing_combo;
+      const title = l.title.trim();
+      if (!title) return no("Nhập tên listing combo.");
+      if ([...title].length > MAX_TITLE) return no(`Tên listing tối đa ${MAX_TITLE} ký tự.`);
+      if (l.members.length < 2) return no("Chọn từ 2 sản phẩm trở lên làm thành phần của listing combo.");
+      if (l.members.length > MAX_COMBO_MEMBERS) return no(`Listing combo có tối đa ${MAX_COMBO_MEMBERS} sản phẩm thành phần.`);
+      const price = num(l.price);
+      if (price === null || price < MIN_COMBO_PRICE) return no("Nhập giá bán của listing combo (từ 1.000đ).");
+      const stock = intIn(l.stock, 0, 10_000_000, "Tồn kho từ 0 đến 10.000.000.");
+      if (stock.problem) return no(stock.problem);
+      if (stock.n === null) return no("Nhập tồn kho của listing combo.");
+      if (l.images.length > MAX_LISTING_IMAGES) return no(`Tối đa ${MAX_LISTING_IMAGES} ảnh.`);
+      const sku = l.sku.trim();
+      return { problem: null, version: { kind: "listing_combo", label: clip(title), title, image_refs: [...l.images], price, stock: stock.n, ...(sku ? { sku } : {}), member_ids: [...l.members] } };
     }
     case "add_on": {
       const rows = f.add_on.addons.filter((a) => a.itemId);
@@ -317,6 +358,20 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     }
     case "product_discount": {
       const d = f.product_discount;
+      if (d.multi) {
+        const pct = num(d.pct);
+        if (d.targets.length === 0) return no("Chọn ít nhất một sản phẩm để giảm giá.");
+        if (d.targets.length > MAX_TARGETS) return no(`Chọn tối đa ${MAX_TARGETS} sản phẩm.`);
+        if (pct === null || pct <= 0) return no("Nhập % giảm lớn hơn 0.");
+        if (pct > MAX_PCT) return no(PCT_PROBLEM);
+        const buyer = intIn(d.perBuyer, 1, 100, "Giới hạn mỗi người từ 1 đến 100 lượt.");
+        const issue = buyer.problem ?? dateProblem(d.start, d.end, null);
+        if (issue) return no(issue);
+        return {
+          problem: null,
+          version: { kind: "product_discount", label: clip(`Giảm ${fmt(pct, Number.isInteger(pct) ? 0 : 1)}% · ${d.targets.length} sản phẩm`), targets: [...d.targets], discount_pct: pct, ...dated(d.start, d.end), ...(buyer.n !== null ? { per_buyer_limit: buyer.n } : {}) },
+        };
+      }
       const { rows, problem } = varRows(d.rows, d.mode, "discount_pct");
       if (problem) return no(problem);
       const perBuyer = intIn(d.perBuyer, 1, 100, "Giới hạn mỗi người từ 1 đến 100 lượt.");
@@ -367,30 +422,29 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     }
     case "ads": {
       const a = f.ads;
-      if (a.lever === "keywords") {
-        const kws = a.keywords.filter((k) => k.keyword.trim());
-        if (kws.length === 0) return no("Nhập ít nhất một từ khoá.");
-        const out = [];
-        for (const k of kws) {
-          const bid = num(k.bid);
-          if (bid === null || bid <= 0) return no("Nhập giá thầu cho từng từ khoá.");
-          out.push({ keyword: k.keyword.trim(), bid, match: k.match });
-        }
-        return { problem: null, version: { kind: "ads", label: "Từ khoá và giá thầu", lever: "keywords", keywords: out } };
-      }
-      if (!a.campaignKey) return no("Chọn chiến dịch.");
+      const lever = a.lever === "budget" || a.lever === "roas";
+      const keys = lever && a.campaignKeys.length > 0 ? a.campaignKeys : a.campaignKey ? [a.campaignKey] : [];
+      if (keys.length === 0) return no("Chọn chiến dịch.");
+      if (keys.length > MAX_CAMPAIGNS) return no(`Chọn tối đa ${MAX_CAMPAIGNS} chiến dịch.`);
+      const campaign = lever && keys.length > 1 ? { campaign_keys: [...keys] } : { campaign_key: keys[0] };
+      const dates = dateProblem(a.start, a.end, null);
+      if (dates) return no(dates);
+      const when = dated(a.start, a.end);
       if (a.lever === "budget") {
+        if (a.unlimited) return { problem: null, version: { kind: "ads", label: "Ngân sách không giới hạn", lever: "budget", ...campaign, unlimited: true, ...when } };
         const n = num(a.dailyBudget);
-        if (n === null || n <= 0) return no("Nhập ngân sách mỗi ngày.");
-        return { problem: null, version: { kind: "ads", label: clip(`Ngân sách ${kmoney(n)}/ngày`), lever: "budget", campaign_key: a.campaignKey, daily_budget: n } };
+        if (n === null || n <= 0) return no("Nhập ngân sách mỗi ngày hoặc chọn không giới hạn.");
+        if (n < ADS_MIN_BUDGET) return no(ADS_BUDGET_MIN_TEXT);
+        return { problem: null, version: { kind: "ads", label: clip(`Ngân sách ${kmoney(n)}/ngày`), lever: "budget", ...campaign, daily_budget: n, ...when } };
       }
       if (a.lever === "roas") {
+        if (a.roasMode === "system") return { problem: null, version: { kind: "ads", label: "ROAS do hệ thống tối ưu", lever: "roas", ...campaign, roas_mode: "system", ...when } };
         const n = num(a.roasTarget);
         if (n === null || n <= 0) return no("Nhập ROAS mục tiêu.");
-        return { problem: null, version: { kind: "ads", label: clip(`ROAS mục tiêu ${fmt(n, 1)}`), lever: "roas", campaign_key: a.campaignKey, roas_target: n } };
+        return { problem: null, version: { kind: "ads", label: clip(`ROAS mục tiêu ${fmt(n, 1)}`), lever: "roas", ...campaign, roas_mode: "custom", roas_target: n, ...when } };
       }
       const item = a.itemId || id;
-      return { problem: null, version: { kind: "ads", label: a.lever === "add_product" ? "Thêm sản phẩm vào chiến dịch" : "Gỡ sản phẩm khỏi chiến dịch", lever: a.lever, campaign_key: a.campaignKey, item_id: item } };
+      return { problem: null, version: { kind: "ads", label: a.lever === "add_product" ? "Thêm sản phẩm vào chiến dịch" : "Gỡ sản phẩm khỏi chiến dịch", lever: a.lever, campaign_key: a.campaignKey, item_id: item, ...when } };
     }
     case "title": {
       const t = f.title.text.trim();
@@ -416,7 +470,10 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (pct === null || pct < 0 || pct > 50) return no("Hoa hồng từ 0% đến 50%.");
       const samples = Math.round(num(a.samples) ?? 0);
       if (samples < 0 || samples > 50) return no("Số mẫu gửi từ 0 đến 50.");
-      return { problem: null, version: { kind: "affiliate", label: clip(`Hoa hồng ${fmt(pct, 1)}%`), item_id: id, commission_pct: pct, target_campaign: a.campaign === "1", sample_qty: samples, ...opt("sample_ship_fee", a.shipFee) } };
+      if (a.multi && a.targets.length === 0) return no("Chọn ít nhất một sản phẩm.");
+      if (a.multi && a.targets.length > MAX_TARGETS) return no(`Chọn tối đa ${MAX_TARGETS} sản phẩm.`);
+      const who = a.multi ? { targets: [...a.targets] } : { item_id: id };
+      return { problem: null, version: { kind: "affiliate", label: clip(a.multi ? `Hoa hồng ${fmt(pct, 1)}% · ${a.targets.length} sản phẩm` : `Hoa hồng ${fmt(pct, 1)}%`), ...who, commission_pct: pct, target_campaign: a.campaign === "1", sample_qty: samples, ...opt("sample_ship_fee", a.shipFee) } };
     }
     case "price_display": {
       const p = f.price_display;
@@ -441,10 +498,16 @@ export const REFUSAL_TEXT: Readonly<Record<string, string>> = {
   listing_already_live: "Listing đang bán — chỉ đưa lại listing đã ẩn hoặc hết hàng.",
   no_campaign_report: "Chưa có báo cáo của chiến dịch này để tính.",
   combo_price_too_low: "Giá combo quá thấp (dưới 1.000đ) — bạn muốn nhập % giảm?",
+  combo_needs_products: "Combo cần ít nhất một sản phẩm.",
+  combo_tiers_invalid: "Các mức ưu đãi chưa hợp lệ: mỗi mức một số lượng mua từ 2 trở lên và một giá trị lớn hơn 0.",
+  combo_discount_type_invalid: "Kiểu giảm giá phải là %, số tiền hoặc giá đặc biệt.",
+  combo_price_not_below_value: "Giá đặc biệt phải thấp hơn tổng giá bán hiện tại của số sản phẩm đó.",
+  ads_budget_below_min: ADS_BUDGET_MIN_TEXT,
+  listing_combo_members: "Listing combo cần từ 2 sản phẩm thành phần khác nhau.",
   combo_discount_over_max: "Combo giảm tối đa 90% tổng giá bán hiện tại.",
 };
 
-/** P96e: the smallest fixed combo price the builder accepts (mirrors combo.MIN_FIXED_PRICE). */
+/** The smallest special price / listing price the builder accepts (mirrors bundle_tiers.MIN_SPECIAL_PRICE). */
 export const MIN_COMBO_PRICE = 1000;
 
 /** The combo price from a result's details; Ops masks `buyer_*` keys as "•••", so `combo_price` first. */
@@ -627,6 +690,8 @@ const ADS_LEVERS: Readonly<Record<string, string>> = {
   keywords: "Từ khoá và giá thầu",
 };
 
+const COMBO_TYPES: Readonly<Record<string, string>> = { pct: "Giảm giá theo %", amount: "Giảm giá theo số tiền", special_price: "Giảm giá đặc biệt" };
+
 const COMBO_PRICING: Readonly<Record<string, string>> = { fixed_price: "Giá combo", pct: "% giảm trên tổng", amount: "đ giảm trên tổng" };
 
 const n_ = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
@@ -666,12 +731,37 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
       return { type: VOUCHER_TYPES[s_(v["scope"])] ?? "Voucher", facts };
     }
     case "combo": {
+      const ids = Array.isArray(v["item_ids"]) ? (v["item_ids"] as unknown[]) : [];
+      if (ids.length > 0 || Array.isArray(v["tiers"])) {
+        const dtype = s_(v["discount_type"]);
+        if (s_(v["name"])) add("name", "Tên combo", s_(v["name"]));
+        add("items", `Sản phẩm (${fmt(ids.length)})`, ids.slice(0, 3).map(product).join(", ") + (ids.length > 3 ? `… +${fmt(ids.length - 3)}` : ""));
+        add("dtype", "Loại combo", COMBO_TYPES[dtype] ?? dtype);
+        for (const t of Array.isArray(v["tiers"]) ? (v["tiers"] as Record<string, unknown>[]) : []) {
+          const value = n_(t["value"]);
+          add(`tier:${fmt(n_(t["qty"]))}`, `Mua ${fmt(n_(t["qty"]))} sản phẩm`, value === null ? null : dtype === "pct" ? `giảm ${pctText(value)}` : dtype === "amount" ? `giảm ${vnd(value)}` : `chỉ ${vnd(value)}`);
+        }
+        const limit = n_(v["purchase_limit"]);
+        if (limit !== null) add("limit", "Giới hạn đặt hàng", fmt(limit));
+        dates();
+        return { type: "Combo khuyến mãi", facts };
+      }
+      // a combo saved as a fixed basket (before P97): kept readable
       const items = Array.isArray(v["items"]) ? (v["items"] as Record<string, unknown>[]) : [];
       add("items", "Sản phẩm", items.map((i) => `${product(i["item_id"])} × ${fmt(n_(i["qty"]) ?? 1)}`).join(" + "));
       const value = n_(v["value"]);
       const pricing = s_(v["pricing"]);
       add("value", COMBO_PRICING[pricing] ?? "Mức giảm", value === null ? null : pricing === "pct" ? pctText(value) : vnd(value));
-      return { type: v["target"] === "new_listing" ? "Combo · Listing combo mới" : "Combo", facts };
+      return { type: "Combo kiểu cũ (giỏ cố định)", facts };
+    }
+    case "listing_combo": {
+      add("title", "Tên listing", s_(v["title"]));
+      add("price", "Giá bán", vnd(n_(v["price"])));
+      add("stock", "Tồn kho", fmt(n_(v["stock"])));
+      if (s_(v["sku"])) add("sku", "SKU", s_(v["sku"]));
+      const members = Array.isArray(v["member_ids"]) ? (v["member_ids"] as unknown[]) : [];
+      add("members", `Sản phẩm thành phần (${fmt(members.length)})`, members.map(product).join(", "));
+      return { type: "Listing combo mới", facts };
     }
     case "add_on": {
       add("main", "Sản phẩm chính", product(v["main_item_id"]));
@@ -697,6 +787,12 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
     case "product_discount":
     case "price":
     case "flash_sale": {
+      const many = Array.isArray(v["targets"]) ? (v["targets"] as unknown[]) : [];
+      if (many.length > 0) {
+        const off = n_(v["discount_pct"]);
+        add("pct", "Giảm", off === null ? null : pctText(off));
+        add("targets", `Áp cho ${fmt(many.length)} sản phẩm`, many.slice(0, 3).map(product).join(", ") + (many.length > 3 ? `… +${fmt(many.length - 3)}` : ""));
+      }
       for (const r of Array.isArray(v["variations"]) ? (v["variations"] as Record<string, unknown>[]) : []) {
         const key = `v:${s_(r["variation_id"])}`;
         const name = variation(r["variation_id"]);
@@ -730,10 +826,15 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
       const lever = s_(v["lever"]);
       const key = s_(v["campaign_key"]);
       if (key) add("campaign", "Chiến dịch", names.campaigns?.[key] ?? (key === "daily" ? "Tổng chi quảng cáo (theo ngày)" : key));
+      const keys = Array.isArray(v["campaign_keys"]) ? (v["campaign_keys"] as unknown[]) : [];
+      if (keys.length > 0) add("campaigns", `Áp cho ${fmt(keys.length)} chiến dịch`, keys.map((k) => names.campaigns?.[s_(k)] ?? s_(k)).join(", "));
       const budget = n_(v["daily_budget"]);
       if (budget !== null) add("budget", "Ngân sách mới mỗi ngày", vnd(budget));
+      if (v["unlimited"] === true) add("budget", "Ngân sách mới mỗi ngày", "Không giới hạn");
       const roas = n_(v["roas_target"]);
       if (roas !== null) add("roas", "ROAS mục tiêu mới", fmt(roas, 1));
+      if (v["roas_mode"] === "system") add("roas", "ROAS mục tiêu mới", "Do hệ thống tối ưu");
+      dates();
       if (v["item_id"] !== undefined) add("item", "Sản phẩm", product(v["item_id"]));
       for (const k of Array.isArray(v["keywords"]) ? (v["keywords"] as Record<string, unknown>[]) : []) add(`k:${s_(k["keyword"])}`, s_(k["keyword"]), vnd(n_(k["bid"])));
       return { type: `Quảng cáo · ${ADS_LEVERS[lever] ?? lever}`, facts };
@@ -752,6 +853,8 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
     case "affiliate": {
       const pct = n_(v["commission_pct"]);
       add("commission", "Hoa hồng mới", pct === null ? null : pctText(pct));
+      const many = Array.isArray(v["targets"]) ? (v["targets"] as unknown[]) : [];
+      if (many.length > 0) add("targets", `Áp cho ${fmt(many.length)} sản phẩm`, many.slice(0, 3).map(product).join(", ") + (many.length > 3 ? `… +${fmt(many.length - 3)}` : ""));
       add("samples", "Số mẫu gửi", fmt(n_(v["sample_qty"]) ?? 0));
       const fee = n_(v["sample_ship_fee"]);
       if (fee !== null) add("ship", "Phí ship mỗi mẫu", vnd(fee));

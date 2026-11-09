@@ -1105,3 +1105,46 @@ button.sv-head:disabled {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
 }
+
+/* P97 groups of a plan */
+.kh-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.kh-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--qd-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.kh-group__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.kh-group__members {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.kh-group__edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.kh-linkbtn {
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}

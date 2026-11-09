@@ -48,7 +48,9 @@ def _changes(
             {
                 "change_kind": "daily_budget",
                 "target": {"campaign_id": target.get("campaign_id")},
-                "expected": {"daily_budget": inputs["daily_budget"]},
+                "expected": {"daily_budget": inputs.get("daily_budget")}
+                if not inputs.get("unlimited")
+                else {"daily_budget": None, "unlimited": True},
             }
         ]
     if kind == "ads_roas_target":
@@ -56,7 +58,9 @@ def _changes(
             {
                 "change_kind": "roas_target",
                 "target": {"campaign_id": target.get("campaign_id")},
-                "expected": {"roas_target": inputs["roas_target"]},
+                "expected": {"roas_target": inputs.get("roas_target")}
+                if inputs.get("roas_mode") != "system"
+                else {"roas_target": None, "roas_mode": "system"},
             }
         ]
     if vk == "voucher":

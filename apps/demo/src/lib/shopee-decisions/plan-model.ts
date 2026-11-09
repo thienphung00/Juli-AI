@@ -114,7 +114,7 @@ export const stackBreaches = (p: PlanResponse): readonly PlanBreach[] => (p.aggr
 
 /** Cards named by a breach: its owners, else every card stacked on the same orders. */
 function breachCards(p: PlanResponse, b: PlanBreach): PlanCard[] {
-  const ids = new Set<string>(b.card_ids ?? []);
+  const ids = new Set<string>((b.card_ids ?? []).map((id) => id.split("@v")[0]!));
   if (ids.size === 0) for (const s of p.aggregate?.stacked_products ?? []) if (s.stacked_on_same_orders) for (const id of s.cards) ids.add(id);
   return p.cards.filter((c) => ids.has(c.card_id));
 }
@@ -144,7 +144,8 @@ export function productName(p: PlanResponse, productId: string | null): string {
 
 /** Everything the confirm dialog warns about: the aggregate's breaches (floor, spend cap), then any card's own. */
 export function planBreaches(p: PlanResponse): readonly Breach[] {
-  return p.aggregate?.breaches ?? [];
+  // P97 D85.14: the groups are judged on their own; their breaches warn too
+  return [...(p.aggregate?.breaches ?? []), ...(p.groups ?? []).flatMap((g) => g.aggregate?.breaches ?? [])];
 }
 
 const floorLine = (b: Breach): string => {

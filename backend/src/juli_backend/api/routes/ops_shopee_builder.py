@@ -28,6 +28,7 @@ from juli_backend.services.shopee_recommendations import manual
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 BASE = "/shops/{shop_id}/shopee"
 ACTION_CHOOSE = "builder_choose"
+ACTION_GROUP = "builder_group"
 ACTION_EXCLUDE = "exclusion_add"
 ACTION_UNEXCLUDE = "exclusion_undo"
 
@@ -167,6 +168,42 @@ async def ops_choose(
                 "versions": len(out["versions"]),
                 "kinds": [v.kind for v in body.versions],
                 "primary": body.primary,
+            },
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return out
+
+
+@router.post(BASE + "/builder/group", status_code=201)
+async def ops_group(
+    shop_id: uuid.UUID,
+    body: common.GroupBody,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """ "Chạy cùng nhau" by Ops: the cards are sent and grouped in the shop's draft plan."""
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id):
+            out = await common.h_group(
+                session,
+                shop_id,
+                body,
+                manual.Actor("staff", ctx.staff.id, staff_id=ctx.staff.id),
+                now=_now(),
+            )
+        await audit.record(
+            session,
+            ctx.staff.actor,
+            ACTION_GROUP,
+            shop_id=shop_id,
+            after={
+                "saved": [c["code"] for c in out["saved"]],
+                "groups": [g["code"] or g["letter"] for g in out["groups"]],
+                "kinds": [v.kind for v in body.versions],
             },
         )
         await session.commit()

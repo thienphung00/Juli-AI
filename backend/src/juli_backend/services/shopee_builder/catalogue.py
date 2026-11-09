@@ -23,6 +23,7 @@ from juli_backend.services.shopee_analytics.catalog import SKU_PREFIX
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num
 from juli_backend.services.shopee_analytics.loaders import ShopContext
+from juli_backend.services.shopee_builder import picker_table
 from juli_backend.services.shopee_builder.variations import observed_skus
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_recommendations.unit_cost import unit_cost
@@ -101,6 +102,7 @@ def picker(
     limit: int = DEFAULT_LIMIT,
     offset: int = 0,
     view30: PeriodView | None = None,
+    extra: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The picker payload for a 90-day ``view`` ending on ``anchor``. Both GMV columns are the
     ShopMetrics splits (order lines scaled to the shop totals of their own window, D85.2); pass
@@ -132,6 +134,7 @@ def picker(
     for item_id in ids:
         info = ctx.catalog.items.get(item_id)
         status = info.status if info else None
+        path = tuple(getattr(info, "category_path", ()) or ())
         if not is_active(status):
             continue
         excluded = item_id in view.excluded
@@ -168,6 +171,9 @@ def picker(
                 "missing_cost_chip": None if all_costed else "thiếu giá vốn",
                 "excluded": excluded,
                 "exclude_reason": view.excluded.get(item_id),
+                "category": path[-1] if path else None,
+                "category_path": " › ".join(path) if path else None,
+                **(extra or {}).get(item_id, picker_table.blank()),
             }
         )
     keys: Mapping[str, Any] = {

@@ -20,6 +20,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import PlatformDailyMetric
@@ -268,7 +269,8 @@ async def after_ingest(
     try:
         async with session.begin_nested():
             await rebuild_days(session, shop_id, days)
-    except Exception:  # noqa: BLE001 - the ingest must not fail because a derived table did
+    except (SQLAlchemyError, RuntimeError, ArithmeticError, LookupError, TypeError, ValueError):
+        # the ingest must not fail because a derived table did
         logger.warning(
             "shopee_metrics_rebuild_failed",
             extra={"shop_id": str(shop_id), "dataset": dataset, "days": len(days)},

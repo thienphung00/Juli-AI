@@ -145,6 +145,8 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
     if ev0.refusal:
         return None
     mag = magnitude_of(cand, ev0.before, ev0.after)
+    if mag is None and cand.kind == "listing_combo":  # P97 D85.16: price against the members' sum
+        mag = ev0.certain.get("magnitude_pct")
     if mag is None:
         mag = cand.extra.get("magnitude_pct")
     lift = predict_lift(s, cand, env, mag, sim_variant=variant_hints(cand))

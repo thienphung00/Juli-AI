@@ -45,9 +45,16 @@ async def load_campaign_settings(
         shop_id, datasets=[ADS_DAILY], start=window.start, end=window.end, any_item=True
     )
     latest: dict[str, Any] = {}
+    changes: dict[str, int] = {}
+    previous: dict[str, Decimal | None] = {}
+    week_start = window.end - timedelta(days=6)
     for r in sorted(rows, key=lambda r: (r.day, r.captured_at)):
         if r.segment != "all":
             latest[r.segment] = r
+            roas = _d((r.extra or {}).get("roi_two_target"))
+            if r.segment in previous and previous[r.segment] != roas and r.day >= week_start:
+                changes[r.segment] = changes.get(r.segment, 0) + 1
+            previous[r.segment] = roas
     out: dict[str, CampaignSetting] = {}
     for seg, r in latest.items():
         extra = r.extra or {}
@@ -59,6 +66,7 @@ async def load_campaign_settings(
             roas_target=_d(extra.get("roi_two_target")),
             purpose=ctx.purposes.get(seg) or ctx.purposes.get(name),
             campaign_id=None if extra.get("campaign_id") is None else str(extra["campaign_id"]),
+            roas_changes_7d=changes.get(seg, 0),
         )
         out[seg] = setting
         out[name] = setting

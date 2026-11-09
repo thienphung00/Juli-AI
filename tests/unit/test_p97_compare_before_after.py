@@ -1,10 +1,21 @@
 """P97 D85.9: So sánh shows before -> after with its range for seven metrics; a metric the lever
 has no modelled effect on says "không đổi" with the reason and carries no lift. SQLite."""
 
-# ruff: noqa: F811
 from __future__ import annotations
 
-from tests.unit.test_shopee_builder import one, shop  # noqa: F401, F811
+import pytest
+
+from tests.support.shopee_reco import seed_reco_shop
+from tests.unit.test_shopee_builder import one
+
+
+@pytest.fixture
+async def shop(session):
+    """Synthetic reco shop, owned here so the file imports no ``shop`` name (no suppression)."""
+    seeded = await seed_reco_shop(session)
+    await session.commit()
+    return seeded
+
 
 KEYS = ["gmv", "margin", "orders", "aov", "ctor", "ctr", "views"]
 

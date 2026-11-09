@@ -100,19 +100,20 @@ campaign; each product's break-even vs actual ROAS).
 
 | `kind` | fields (bounds) |
 |---|---|
-| `voucher` | `scope` shop\|product\|follower\|livestream (default shop); `item_ids` (product scope only, ≤20); `discount_type` amount\|pct; `value` (pct: >0, ≤90); `min_spend` 0..2e9 (0 allowed); `max_value` (pct cap); `usage_limit`; `per_buyer_limit`; `start`,`end` (≤90 days) |
-| `combo` | `items[2..6]` `{item_id, variation_id?, qty 1-20}` (distinct products); `pricing` pct\|amount\|fixed_price; `value`; `target` bundle_deal\|new_listing; `voucher?` `{discount_type,value,min_spend,max_value}`; `gift_item_id?` |
+| `voucher` | `scope` shop\|product\|follower\|livestream (default shop); `item_ids` (product scope only, ≤100; several = one voucher over a product list, P97 D85.13); `discount_type` amount\|pct; `value` (pct: >0, ≤90); `min_spend` 0..2e9 (0 allowed); `max_value` (pct cap); `usage_limit`; `per_buyer_limit`; `start`,`end` (≤90 days) |
+| `combo` | P97 D85.15, Shopee's form: `name` ≤25; `item_ids[1..100]` (no per-item qty or variation); `discount_type` pct\|amount\|special_price; `tiers[1..5]` `{qty 2-9999, value}` ("Mua N → x", one per qty; pct ≤90); `purchase_limit?` (giới hạn đặt hàng, ≥1); `start`,`end`. Saved as a `bundle_deal` card. Cards saved before P97 as a fixed basket (`combo_multi`) stay readable and carry `legacy`. The inline voucher and the gift are their own kinds |
+| `listing_combo` | P97 D85.16, a new listing: `title` ≤100; `image_refs[≤9]` (file names / ids, never bytes); `price` ≥1000; `stock`; `sku?`; `member_ids[2..20]` (distinct). No history or ranking: the estimate is the cannibalization of the baskets of the last 30 days that hold every member (P10 none … P90 all, P50 half), no new orders; assumption in `details.assumption`. No fill-in yet (recon pending) |
 | `add_on` | `main_item_id`; `addons[1..5]` `{item_id, variation_id?, price xor pct, limit_per_order 1-20}` |
 | `gift` | `gift` `{item_id xor unit_cost, packaging?, label?, qty 1-20}` ("quà không bán" = `unit_cost`, never touches stock); `trigger` `{type:"buy_item",item_id}` or `{type:"min_spend",amount}` |
-| `product_discount` | `item_id`; `variations[]` `{variation_id, discount_pct xor final_price}` (required, ≥1); `start`,`end`; `per_buyer_limit` |
+| `product_discount` | `item_id`; `variations[]` `{variation_id, discount_pct xor final_price}` (required, ≥1); `start`,`end`; `per_buyer_limit`. P97 D85.13: `targets[≤100]` + `discount_pct` instead of `item_id` / `variations` = one % for every variation of each product (one card, a row per target) |
 | `price` | `item_id`; `variations[]` `{variation_id, final_price xor change_pct (-50..100)}` |
 | `flash_sale` | `item_id`; `variations[]` (as discount, required); `units`; `slot_start?`; `slot_hours 1-72` |
 | `variation_set` | `item_id`; `new_variations[1..12]` `{name, price, sku?, pack_count?, stock?}`; `hide_item_ids?` — saved as a `variation_restructure` card; numbers from the set model |
-| `ads` | `lever` budget\|roas\|add_product\|remove_product\|keywords; `campaign_key` (not for keywords); `daily_budget`; `roas_target`; `item_id`; `keywords[]` `{keyword,bid,match broad\|exact}` |
+| `ads` | P97 D85.17, Shopee's edit form: `lever` budget\|roas\|add_product\|remove_product (**keyword bids are gone**); `campaign_key` or `campaign_keys[≤30]` (budget / roas on several campaigns); budget: `daily_budget` (≥ ₫100.000, else refusal "Ngân sách tối thiểu: ₫100.000") xor `unlimited:true`; roas: `roas_mode` system\|custom + `roas_target` (custom only; presets 2.5 / 3.5 / 4.5; a target above 3.5 warns `ads_roas_above_hint`; a second change within 7 days warns `ads_roas_second_change`); `item_id`; `start`,`end` |
 | `title` | `item_id`; `title` ≤100 chars; `keywords[]` (ticked) |
 | `cover_image` | `item_id`; `overlay` `{layout banner_top\|banner_bottom\|corner_tag, price_vnd?, original_price_vnd?, discount_pct?, voucher_text?, pack_text?, badge_text?, hook_text?}` (CoverVariant fields; photo never altered; `hook_text` is drawn only with banner_bottom) |
 | `description_first_line` | `item_id`; `first_line` ≤300 (no line break; saved card limit 500) |
-| `affiliate` | `item_id`; `commission_pct 0-50`; `target_campaign`; `sample_qty 0-50`; `sample_ship_fee` |
+| `affiliate` | `item_id` or `targets[≤100]` (one rate for many products, a bulk fill); `commission_pct 0-50`; `target_campaign`; `sample_qty 0-50`; `sample_ship_fee` |
 | `price_display` | `item_id`; `variation_id?`; `text?` (default: price per unit) |
 | `listing_hide` / `listing_relist` | `item_id`; relist: `stock?` |
 
@@ -395,3 +396,33 @@ stripped, the shop's schedule on the order date, per-order fees split once per o
 payment + PiShip + NTTD from the Income row). `pct_of_buyer_paid` = Σ|gap| / Σ buyer-paid; the contract's
 target is <= 1 % (`within_target`; `null` when nothing is comparable). `worst` = the 5 largest |gap| (order key =
 the first 12 characters of the keyed hash; no buyer field). `409 reco_no_data` without Shopee numbers.
+
+
+## 10. P97 T4: many targets, groups, picker columns
+
+- **Picker rows** (`GET /builder/products`) carry the filter columns of the table picker (D85.12): `category`,
+  `category_path`, `margin_pct` (30 days), `ctor_30d`, `ctor_prev_30d`, `ctor_down`, `has_proposal`, `in_ads`,
+  `in_kol` (`null` / `false` when unknown; a filter never matches an unknown). Filtering is client side over the
+  page (up to 1000 rows).
+- **One card, many targets** (D85.13): an outcome of a many-target version has `targets` (a row per target:
+  `id, kind item|campaign, name, ok, refusal?, dgmv_p50, dorders_p50, dprofit_p50/p10/p90, cost_month, floor_ok,
+  breaches[]`), `targets_mode` `sum` (every target its own change, the card is their sum; P50s add, the range is
+  the root sum of squares of the half-widths; a target with an unknown profit makes the card's profit unknown) or
+  `joint` (a voucher over a product list: the total is the joint evaluation, the rows are "if only this product"),
+  `targets_note`, `fill` `{mode: bulk|per_target, targets}`. Untick = send the version without that target.
+  The saved card carries `targets` (`{id, kind, name, variant}` for the fill queue) and `fill`; each version row of
+  `versions[]` carries its own `targets`.
+- **`POST /builder/group`** (Demo seller / Ops operator, audited as `builder_group`) — "Chạy cùng nhau":
+  `{versions[1..4], members: [index…], days (>=3), start?, acknowledge_breaches, as_of?}` -> `201`
+  `{saved: [{id, code, indexes}], plan, cards, aggregate, groups[], placed[], notice?}`. Versions of the same
+  change (kind, products, campaign) are saved as versions of ONE card, other kinds as their own card; Ops cards
+  are sent first. All join the draft plan in one new group; a version whose exclusive field is taken in the group
+  moves to the next group (never refused). A floor breach is `422 reco_breach_not_acknowledged`.
+- **Plan endpoints** (`…/recommendations/plan/…`, Demo + Ops): `POST groups` (same body as above for cards), `POST
+  groups/{id}/period {days?, start?, clear_start?}`, `POST groups/{id}/members/remove {card_id, version}`, `POST
+  groups/{id}/cancel`, `GET export` (`.xlsx`: Nhóm, Mã nhóm, Mã thẻ, Phiên bản, Mã phiên bản, Loại thay đổi, Tên
+  thẻ, Sản phẩm, Bắt đầu, Kết thúc, Số ngày). `GET plan` has `groups[]` (`letter, name, code <card>-G<letter>,
+  start, end, days >= 3, status, members[], aggregate`) and `aggregate` is then the cards in no group.
+  Add-to-plan of a card that writes a field another card already writes answers with `notice` and puts them in
+  consecutive groups. Confirm approves every member by its group (planned date = the group's start) and queues
+  one fill per approved version (`fill_queue_port.enqueue_for_approval`, group code passed).

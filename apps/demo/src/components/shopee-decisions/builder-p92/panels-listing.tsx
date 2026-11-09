@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 
 import { fmt, vnd } from "../../../lib/shopee-analytics/format";
 import type { AdsCampaigns, CoverOverlay, KeywordTable } from "../../../lib/shopee-decisions/builder-api";
-import { MAX_FIRST_LINE, MAX_TITLE, type Forms } from "../../../lib/shopee-decisions/builder-p92";
-import { LlmOff, NumIn, Pills, Seg, TextIn, setAt, useDraft, type PanelCtx } from "./shared";
+import { ADS_BUDGET_MIN_TEXT, ADS_ROAS_HINT, ADS_ROAS_PRESETS, MAX_FIRST_LINE, MAX_TITLE, num, type Forms } from "../../../lib/shopee-decisions/builder-p92";
+import { LlmOff, NumIn, Pills, Seg, TextIn, useDraft, type PanelCtx } from "./shared";
+import { ProductTargets } from "./targets";
 
 /**
  * Input panels of the listing and marketing strategies: Quảng cáo (4 levers), Tiêu đề (keyword table -> LLM
@@ -19,6 +20,11 @@ const chars = (s: string): number => [...s].length;
 
 // ── Quảng cáo ────────────────────────────────────────────────────────────
 
+/**
+ * Shopee's edit form of a product-ads campaign (recon 2026-11-09, P97 D85.17): Chỉnh sửa ngân sách (không giới hạn
+ * or a daily budget, at least ₫100.000), Mục tiêu ROAS (system or custom; presets 2.5 / 3.5 / 4.5; Shopee asks for
+ * ≤ 3.5), the products and the dates. Keyword bids are not a field of that form.
+ */
 export function AdsPanel({ form, set, ctx }: P<"ads">) {
   const [data, setData] = useState<AdsCampaigns | null>(null);
   const [failed, setFailed] = useState(false);
@@ -34,46 +40,105 @@ export function AdsPanel({ form, set, ctx }: P<"ads">) {
     // The campaigns are per shop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const camp = data?.campaigns.find((c) => c.campaign_key === form.campaignKey);
-  const kws = form.keywords;
+  const campaigns = data?.campaigns ?? [];
+  const lever = form.lever;
+  const manyLever = lever === "budget" || lever === "roas";
+  const chosen = manyLever ? (form.campaignKeys.length > 0 ? form.campaignKeys : form.campaignKey ? [form.campaignKey] : []) : [];
+  const camp = campaigns.find((c) => c.campaign_key === (chosen[0] ?? form.campaignKey));
+  const toggleCampaign = (key: string) => {
+    const next = chosen.includes(key) ? chosen.filter((k) => k !== key) : [...chosen, key];
+    set({ campaignKeys: next, campaignKey: next[0] ?? "" });
+  };
+  const roas = num(form.roasTarget);
   return (
     <div className="p2-panel" data-testid="p2-panel-ads">
       <Pills
         label="Đòn bẩy"
-        onChange={(lever) => set({ lever })}
+        onChange={(l) => set({ lever: l })}
         options={[
-          ["budget", "① Ngân sách mỗi ngày"],
-          ["roas", "② ROAS mục tiêu"],
+          ["budget", "① Ngân sách"],
+          ["roas", "② Mục tiêu ROAS"],
           ["add_product", "③ Thêm sản phẩm"],
           ["remove_product", "③ Bỏ sản phẩm"],
-          ["keywords", "④ Từ khoá và giá thầu"],
         ]}
-        value={form.lever}
+        value={lever}
       />
       {failed ? <p className="sd-error">Chưa tải được chiến dịch quảng cáo.</p> : null}
-      {form.lever !== "keywords" ? (
+      {manyLever ? (
+        <div className="p2-field" data-testid="p2-ads-campaigns">
+          <span className="sd-field__label">Chiến dịch (chọn một hoặc nhiều, cùng một thiết lập)</span>
+          <ul className="p2-camplist">
+            {campaigns.map((c) => (
+              <li key={c.campaign_key}>
+                <label className="p2-check">
+                  <input aria-label={`Chọn chiến dịch ${c.name}`} checked={chosen.includes(c.campaign_key)} onChange={() => toggleCampaign(c.campaign_key)} type="checkbox" /> {c.name}
+                  <span className="sa-hint">
+                    {" "}
+                    · {vnd(c.daily_budget)}/ngày · ROAS mục tiêu {c.roas_target ?? "—"}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
         <label className="p2-field">
           <span className="sd-field__label">Chiến dịch</span>
           <select aria-label="Chiến dịch" className="p2-select" onChange={(e) => set({ campaignKey: e.target.value })} value={form.campaignKey}>
             <option value="">—</option>
-            {(data?.campaigns ?? []).map((c) => (
+            {campaigns.map((c) => (
               <option key={c.campaign_key} value={c.campaign_key}>
                 {c.name}
               </option>
             ))}
           </select>
         </label>
+      )}
+      {lever === "budget" ? (
+        <>
+          <Seg label="Ngân sách" onChange={(v) => set({ unlimited: v === "unlimited" })} options={[["daily", "Ngân sách hàng ngày"], ["unlimited", "Không giới hạn"]]} value={form.unlimited ? "unlimited" : "daily"} />
+          {form.unlimited ? (
+            <p className="sa-hint">Không giới hạn: chi thực tế do ROAS mục tiêu quyết định, Juli không ước tính mức tăng chi.</p>
+          ) : (
+            <NumIn hint={`${ADS_BUDGET_MIN_TEXT}${camp ? ` · hôm nay ${vnd(camp.daily_budget)}/ngày` : ""}`} label="Ngân sách mới mỗi ngày" onChange={(dailyBudget) => set({ dailyBudget })} suffix="đ/ngày" value={form.dailyBudget} />
+          )}
+        </>
       ) : null}
-      {form.lever === "budget" ? <NumIn hint={camp ? `Hôm nay ${vnd(camp.daily_budget)}/ngày` : undefined} label="Ngân sách mới mỗi ngày" onChange={(dailyBudget) => set({ dailyBudget })} suffix="đ/ngày" value={form.dailyBudget} /> : null}
-      {form.lever === "roas" ? <NumIn hint={camp ? `Hôm nay ${camp.roas_target ?? "—"} · ROAS hoà vốn ${camp.break_even_roas ?? "—"}` : undefined} label="ROAS mục tiêu mới" onChange={(roasTarget) => set({ roasTarget })} value={form.roasTarget} /> : null}
-      {form.lever === "add_product" || form.lever === "remove_product" ? (
+      {lever === "roas" ? (
+        <>
+          <Seg label="Mục tiêu ROAS" onChange={(roasMode) => set({ roasMode })} options={[["system", "Hệ thống tối ưu"], ["custom", "Tùy chỉnh"]]} value={form.roasMode} />
+          {form.roasMode === "custom" ? (
+            <>
+              <div className="p2-field">
+                <span className="sd-field__label">Mức gợi ý của Shopee</span>
+                <div className="sb-chips" data-testid="p2-roas-presets">
+                  {ADS_ROAS_PRESETS.map((p) => (
+                    <button aria-pressed={roas === p} className={`sb-pill ${roas === p ? "sb-pill--on" : ""}`} key={p} onClick={() => set({ roasTarget: String(p) })} type="button">
+                      {fmt(p, 1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <NumIn hint={`Shopee gợi ý đặt ≤ ${ADS_ROAS_HINT}${camp ? ` · hôm nay ${camp.roas_target ?? "—"} · ROAS hoà vốn ${camp.break_even_roas ?? "—"}` : ""}`} label="ROAS mục tiêu mới" onChange={(roasTarget) => set({ roasTarget })} value={form.roasTarget} />
+            </>
+          ) : (
+            <p className="sa-hint">Shopee tự đặt mục tiêu ROAS; Juli không ước tính mức chi mới.</p>
+          )}
+          <p className="sa-hint">Đổi ROAS hoặc cách đặt giá thầu từ 2 lần trong một tuần thì tuần đó mất hỗ trợ hiệu suất của Shopee.</p>
+        </>
+      ) : null}
+      {lever === "add_product" || lever === "remove_product" ? (
         <div className="p2-field">
           <span className="sd-field__label">Sản phẩm</span>
           <select aria-label="Sản phẩm trong chiến dịch" className="p2-select" onChange={(e) => set({ itemId: e.target.value })} value={form.itemId || ctx.product.item_id}>
-            {form.lever === "remove_product" && camp ? camp.products.map((p) => <option key={p.item_id} value={p.item_id}>{p.name}</option>) : ctx.products.map((p) => <option key={p.item_id} value={p.item_id}>{p.name}</option>)}
+            {lever === "remove_product" && camp ? camp.products.map((p) => <option key={p.item_id} value={p.item_id}>{p.name}</option>) : ctx.products.map((p) => <option key={p.item_id} value={p.item_id}>{p.name}</option>)}
           </select>
         </div>
       ) : null}
+      <div className="p2-grid">
+        <TextIn label="Bắt đầu" onChange={(start) => set({ start })} type="date" value={form.start} />
+        <TextIn hint="Để trống = không có ngày kết thúc" label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
+      </div>
       {camp && camp.products.length > 0 ? (
         <table className="p2-table" data-testid="p2-ads-products">
           <thead>
@@ -95,31 +160,6 @@ export function AdsPanel({ form, set, ctx }: P<"ads">) {
             ))}
           </tbody>
         </table>
-      ) : null}
-      {form.lever === "keywords" ? (
-        <div className="p2-rows">
-          {kws.map((k, i) => (
-            <div className="p2-row p2-row--wrap" key={i}>
-              <TextIn label={`Từ khoá ${i + 1}`} onChange={(keyword) => set({ keywords: setAt(kws, i, { keyword }) })} value={k.keyword} />
-              <NumIn label={`Giá thầu ${i + 1}`} onChange={(bid) => set({ keywords: setAt(kws, i, { bid }) })} suffix="đ" value={k.bid} />
-              <Seg label={`Kiểu khớp ${i + 1}`} onChange={(match) => set({ keywords: setAt(kws, i, { match }) })} options={[["broad", "Rộng"], ["exact", "Chính xác"]]} value={k.match} />
-              {kws.length > 1 ? (
-                <button aria-label={`Bỏ từ khoá ${i + 1}`} className="sa-btn sa-btn--s" onClick={() => set({ keywords: kws.filter((_, n) => n !== i) })} type="button">
-                  ×
-                </button>
-              ) : null}
-            </div>
-          ))}
-          <button className="sa-btn sa-btn--s" onClick={() => set({ keywords: [...kws, { keyword: "", bid: "", match: "broad" }] })} type="button">
-            + Thêm từ khoá
-          </button>
-          {(Array.isArray(ctx.outcome?.details?.["keywords"]) ? (ctx.outcome!.details!["keywords"] as Readonly<Record<string, unknown>>[]) : []).map((k, i) => (
-            <span className="sa-hint" key={i}>
-              {String(k["keyword"])}: {typeof k["volume"] === "number" ? `${fmt(k["volume"] as number)} lượt tìm/tháng` : "chưa có lượt tìm"}
-              {k["bid_below_cpc_min"] === true ? " · giá thầu thấp hơn CPC tối thiểu" : ""}
-            </span>
-          ))}
-        </div>
       ) : null}
       {data?.daily_cap ? <p className="sa-hint">Trần chi marketing mỗi ngày của shop: {vnd(data.daily_cap)} (Cài đặt › Mục tiêu). Vượt trần chỉ cảnh báo.</p> : null}
     </div>
@@ -387,9 +427,14 @@ export function AffiliatePanel({ form, set, ctx }: P<"affiliate">) {
   const sample = ctx.outcome?.cost?.sample ?? null;
   return (
     <div className="p2-panel" data-testid="p2-panel-aff">
-      <p className="sa-hint">
-        Sản phẩm: <b>{ctx.product.name}</b>
-      </p>
+      <Seg label="Áp dụng cho" onChange={(v) => set({ multi: v === "many", targets: v === "many" && form.targets.length === 0 ? [ctx.product.item_id] : form.targets })} options={[["one", "Sản phẩm đã chọn"], ["many", "Nhiều sản phẩm cùng một mức hoa hồng"]]} value={form.multi ? "many" : "one"} />
+      {form.multi ? (
+        <ProductTargets ctx={ctx} hint="Dùng “Chỉnh sửa hàng loạt” của Shopee: một lượt điền cho cả danh sách." onChange={(targets) => set({ targets })} selected={form.targets} title="Sản phẩm đặt hoa hồng" />
+      ) : (
+        <p className="sa-hint">
+          Sản phẩm: <b>{ctx.product.name}</b>
+        </p>
+      )}
       <div className="p2-grid">
         <NumIn label="Hoa hồng mới" onChange={(commission) => set({ commission })} suffix="%" value={form.commission} />
         <label className="p2-check" data-testid="p2-aff-target">

@@ -17,7 +17,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
@@ -26,6 +26,9 @@ from juli_backend.api.routes.shopee_reco_plan_common import (
     AddCardBody,
     ChangeSetStatus,
     ConfirmBody,
+    CreateGroupBody,
+    GroupMemberBody,
+    GroupPeriodBody,
     MoveCardBody,
     PlanWhatIfBody,
     SetWindowBody,
@@ -52,6 +55,10 @@ ACTION_CONFIRM = "reco_plan_confirm"
 ACTION_REFRESH = "reco_plan_refresh_base"
 ACTION_WINDOW = "reco_plan_window"
 ACTION_SET_WINDOW = "reco_change_set_window"
+ACTION_GROUP = "reco_plan_group"
+ACTION_GROUP_PERIOD = "reco_plan_group_period"
+ACTION_GROUP_REMOVE = "reco_plan_group_remove_member"
+ACTION_GROUP_CANCEL = "reco_plan_group_cancel"
 
 
 def _now() -> datetime:
@@ -253,6 +260,85 @@ async def ops_plan_whatif(
         {"card_id": str(card_id), "keys": sorted(body.inputs)},
         plans.whatif, card_id, body.inputs, actor=_actor(ctx), now=_now(),
     )  # fmt: skip
+
+
+@router.post(BASE + "/plan/groups", status_code=201)
+async def ops_create_group(
+    shop_id: uuid.UUID,
+    body: CreateGroupBody,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    return await _write(
+        session, ctx, shop_id, ACTION_GROUP,
+        {"members": [[str(m.card_id), m.version] for m in body.members], "days": body.days},
+        plans.run_together, [(m.card_id, m.version) for m in body.members],
+        days=body.days, start=body.start, actor=_actor(ctx), now=_now(),
+        acknowledge_breaches=body.acknowledge_breaches,
+    )  # fmt: skip
+
+
+@router.post(BASE + "/plan/groups/{group_id}/period")
+async def ops_group_period(
+    shop_id: uuid.UUID,
+    group_id: uuid.UUID,
+    body: GroupPeriodBody,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    return await _write(
+        session, ctx, shop_id, ACTION_GROUP_PERIOD,
+        {"group_id": str(group_id), "days": body.days},
+        plans.set_group_period, group_id,
+        days=body.days, start=body.start, clear_start=body.clear_start, now=_now(),
+    )  # fmt: skip
+
+
+@router.post(BASE + "/plan/groups/{group_id}/members/remove")
+async def ops_group_remove_member(
+    shop_id: uuid.UUID,
+    group_id: uuid.UUID,
+    body: GroupMemberBody,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    return await _write(
+        session, ctx, shop_id, ACTION_GROUP_REMOVE,
+        {"group_id": str(group_id), "card_id": str(body.card_id), "version": body.version},
+        plans.remove_group_member, group_id, body.card_id, body.version, now=_now(),
+    )  # fmt: skip
+
+
+@router.post(BASE + "/plan/groups/{group_id}/cancel")
+async def ops_group_cancel(
+    shop_id: uuid.UUID,
+    group_id: uuid.UUID,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    return await _write(
+        session, ctx, shop_id, ACTION_GROUP_CANCEL, {"group_id": str(group_id)},
+        plans.cancel_group, group_id, now=_now(),
+    )  # fmt: skip
+
+
+@router.get(BASE + "/plan/export")
+async def ops_export_plan(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id):
+            name, data = await plans.export_workbook(session, shop_id, None, now=_now())
+    except ProposalError as exc:
+        raise refused(exc) from None
+    return Response(
+        data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
 
 
 @router.post(BASE + "/plan/confirm")

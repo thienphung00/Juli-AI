@@ -28,7 +28,7 @@ from juli_backend.services.shopee_recommendations import config
 
 CODE_RE = re.compile(
     rf"^{config.CODE_PREFIX}-(?P<yymm>\d{{4}})-(?P<seq>\d{{{config.CODE_SEQ_DIGITS},}})"
-    rf"(?:-V(?P<version>[1-9]))?$"
+    rf"(?:-V(?P<version>[1-9]))?(?:-G(?P<group>[A-Z]))?$"
 )
 
 
@@ -42,6 +42,21 @@ def version_code(code: str, version: int) -> str:
     if not 1 <= version <= config.MAX_VERSIONS:
         raise ValueError(f"version must be 1..{config.MAX_VERSIONS}")
     return f"{code}-V{version}"
+
+
+def group_code(code: str, letter: str) -> str:
+    """``JC-2611-0007-GA``: a group of the plan, named after its first card (P94 / P97 D85.14)."""
+    if len(letter) != 1 or not letter.isalpha() or not letter.isupper():
+        raise ValueError("a group letter is one capital letter")
+    return f"{code}-G{letter}"
+
+
+def parse_group_code(value: str) -> tuple[str, str] | None:
+    """``(card code, group letter)`` for a group code, else None."""
+    m = CODE_RE.match(value.strip().upper())
+    if m is None or not m["group"] or m["version"]:
+        return None
+    return f"{config.CODE_PREFIX}-{m['yymm']}-{m['seq']}", str(m["group"])
 
 
 def parse_code(value: str) -> tuple[str, int | None] | None:
