@@ -770,3 +770,79 @@ button.p2-prow:hover {
   margin: 4px 0;
   padding-left: 18px;
 }
+
+/* P98 / ADR-122 d.5: the option card (oc) - five lines, "Chi tiết" collapsed, compare columns. */
+.oc {
+  border: 1px solid var(--qd-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--qd-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.oc__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.oc__head [data-testid="oc-weak"] {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.oc .p2-kv {
+  margin: 0;
+}
+
+.oc__detail {
+  border-top: 1px solid var(--qd-line-2);
+  padding-top: 6px;
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+.oc__detail .sa-table {
+  margin-top: 6px;
+}
+
+.oc-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.oc-cards__col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.oc-compare {
+  width: 100%;
+  font-size: 13px;
+}
+
+@media (min-width: 768px) {
+  .oc-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .oc-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .oc-compare {
+    display: block;
+    overflow-x: auto;
+  }
+}

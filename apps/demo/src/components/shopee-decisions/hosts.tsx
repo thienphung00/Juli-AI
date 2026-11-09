@@ -5,6 +5,9 @@ import { useMemo } from "react";
 import { readAuthSession } from "../../lib/supabase-auth";
 import { opsTabShopeeLinks, sellerLinks, viewAsShopeeLinks } from "../../lib/shopee-analytics/links";
 import { DEMO_SHOPEE_BASE, createShopeeApi, opsShopeeBase } from "../../lib/shopee-analytics/client";
+import { createKolApi } from "../../lib/shopee-kol/client";
+import { createBuilderP98Api } from "../../lib/shopee-decisions/builder-p98-api";
+import { kolCandidatesOf } from "../../lib/shopee-decisions/kol-candidates";
 import { DEMO_BUILDER_BASE, createBuilderApi, opsBuilderBase, p92BuilderEnabled } from "../../lib/shopee-decisions/builder-api";
 import { DEMO_RECO_BASE, createRecoApi, opsRecoBase } from "../../lib/shopee-decisions/client";
 import { createPlanApi, planEnabled } from "../../lib/shopee-decisions/plan-client";
@@ -40,6 +43,8 @@ export function sellerRecoHost(options: {
     shopName: options.shopName,
     products: productsOf(createShopeeApi({ base: DEMO_SHOPEE_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl })),
     builder: p92BuilderEnabled() ? createBuilderApi({ base: DEMO_BUILDER_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) : undefined,
+    p98: p92BuilderEnabled() ? createBuilderP98Api({ base: DEMO_BUILDER_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) : undefined,
+    kols: kolCandidatesOf(createKolApi({ base: DEMO_SHOPEE_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl })),
     market: { base: DEMO_BUILDER_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl },
     plan: planEnabled() ? { api: createPlanApi({ base: DEMO_RECO_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) } : undefined,
     href: (view) => withQuery("/decisions", decisionsQuery(view)),
@@ -79,6 +84,8 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
     const reco = createRecoApi({ base: opsRecoBase(shopId), token, fetchImpl, asSeller: kind === "view-as" });
     const products = productsOf(createShopeeApi({ base: opsShopeeBase(shopId), token, fetchImpl }));
     const builder = p92BuilderEnabled() ? createBuilderApi({ base: opsBuilderBase(shopId), token, fetchImpl }) : undefined;
+    const p98 = p92BuilderEnabled() ? createBuilderP98Api({ base: opsBuilderBase(shopId), token, fetchImpl }) : undefined;
+    const kols = kolCandidatesOf(createKolApi({ base: opsShopeeBase(shopId), token, fetchImpl }));
     const market = { base: opsBuilderBase(shopId), token, fetchImpl };
     if (kind === "view-as") {
       return {
@@ -88,6 +95,8 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
         shopName,
         products,
         builder,
+        p98,
+        kols,
         market,
         readOnly: true,
         href: (view) => viewAsTabHref(shopId, "decisions", decisionsQuery(view)),
@@ -100,6 +109,8 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
       shopName,
       products,
       builder,
+      p98,
+      kols,
       market,
       plan: planEnabled() ? { api: createPlanApi({ base: opsRecoBase(shopId), token, fetchImpl }) } : undefined,
       staff: true,

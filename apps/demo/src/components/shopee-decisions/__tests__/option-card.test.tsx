@@ -4,9 +4,10 @@ import { describe, expect, it } from "vitest";
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
 import type { FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { CompareTable, OptionCard, sortByProfit } from "../option-card";
+import { SOURCE_LABELS } from "../option-card/option-card";
 import { OutcomeBody } from "../builder-p92/results";
 
-const col = (over: Partial<FunnelColumn> = {}): FunnelColumn => ({ views: 10000, ctr: 3.5, ctor: 4.2, orders: 100, aov: 200000, gmv: 20000000, profit: 3000000, by_source: { organic: { orders: 60, gmv: 12000000 } }, ...over });
+const col = (over: Partial<FunnelColumn> = {}): FunnelColumn => ({ views: 10000, ctr: 3.5, ctor: 4.2, orders: 100, aov: 200000, gmv: 20000000, profit: 3000000, by_source: { trang_shop: { orders: 60, gmv: 12000000 }, the_san_pham_khac: { orders: 20, gmv: 4000000 } }, ...over });
 
 function result(over: Partial<OptionResult> = {}): OptionResult {
   return {
@@ -91,6 +92,8 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.getByTestId("oc-metric-ctr")).toHaveTextContent("3,50%");
     expect(screen.getByTestId("oc-metric-gmv")).toHaveTextContent("20.000.000đ");
     expect(screen.getByTestId("oc-sources")).toHaveTextContent("60 đơn");
+    expect(screen.getByTestId("oc-sources")).toHaveTextContent("Trang shop");
+    expect(screen.getByTestId("oc-sources")).toHaveTextContent("Thẻ sản phẩm (ngoài Trang shop)");
     expect(screen.getByTestId("oc-notes")).toHaveTextContent("Số liệu 28 ngày gần nhất.");
     fireEvent.click(screen.getByTestId("oc-toggle"));
     expect(screen.queryByTestId("oc-detail")).toBeNull();
@@ -129,5 +132,18 @@ describe("P98 W3-I · builder result block", () => {
     render(<OutcomeBody costLink="/x" outcome={o} />);
     expect(screen.getByTestId("option-card")).toBeInTheDocument();
     expect(screen.queryByTestId("p2-dgmv")).toBeNull();
+  });
+});
+
+describe("P98 W4-C · source labels", () => {
+  it("uses the backend source keys", () => {
+    expect(SOURCE_LABELS).toEqual({
+      the_san_pham_khac: "Thẻ sản phẩm (ngoài Trang shop)",
+      trang_shop: "Trang shop",
+      live: "Live",
+      video: "Video",
+      lien_ket: "Liên kết",
+      chenh_lech_nguon: "Chênh lệch nguồn",
+    });
   });
 });
