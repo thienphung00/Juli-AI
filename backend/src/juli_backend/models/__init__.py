@@ -89,6 +89,7 @@ from juli_backend.models.shopee_metrics import (
     ShopeePlanBaseSnapshot,
     ShopeeProductMetricsDaily,
     ShopeeShopMetricsDaily,
+    ShopeeSourceMetricsDaily,
 )
 from juli_backend.models.shopee_plans import (
     ShopRecoChangeSet,
@@ -187,6 +188,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopeePlanBaseSnapshot,
     ShopeeProductMetricsDaily,
     ShopeeShopMetricsDaily,
+    ShopeeSourceMetricsDaily,
     ShopeeFillJob,
     PlannedChangeImport,
     PlannedChangeRef,

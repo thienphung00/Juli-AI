@@ -73,7 +73,7 @@ def test_migration_113_fits_alembic_and_the_deferred_tail_moved_onto_it():
     assert mig.revision == "113_shopee_orders_and_logs" and len(mig.revision) <= 32
     assert mig.down_revision == "112_shopee_profit_and_history"
     # P90 step 6's 114 went on 113 and took the deferred tail.
-    assert 'down_revision: str | None = "125_reco_plan_groups"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "126_shopee_source_funnel"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_113():
