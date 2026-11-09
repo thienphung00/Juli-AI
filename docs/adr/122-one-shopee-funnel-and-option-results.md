@@ -180,6 +180,14 @@ GMV still rises; AOV's range is a ratio of two percentiles. Options cannot be co
       switching — Δ Đơn 0, AOV and lợi nhuận mỗi đơn change.
     - The second driver of a two-driver option takes 50 % of the lead lift, tagged "ước tính chung".
 
+14. **One Lợi nhuận (owner, 2026-11-09, found by the cross-screen test d.11.2).** The headline profit on
+    every screen (Tổng quan, Phân tích, Sản phẩm, Kế hoạch, the builder "before") is the ShopMetrics
+    profit: the profit of the orders with line detail, scaled to the shop totals (× shop GMV ÷
+    order-line GMV), so it matches the GMV and đơn beside it; tagged "ước tính theo tỉ lệ" when the
+    scale is above 1. The profit waterfall stays as the breakdown, labelled "chi tiết trên N đơn có dữ
+    liệu chi phí (X % GMV)". CTR / CTOR are never rounded as fractions: every screen carries the
+    percent with two decimals (or the full fraction).
+
 ## Consequences
 
 - **Live numbers change.** Options whose driver sits above đơn now move đơn (a minimum-spend voucher
