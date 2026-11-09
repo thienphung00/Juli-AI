@@ -469,6 +469,7 @@ def _summary(
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "chosen_version": (meta or {}).get("chosen_version"),
         "acknowledged_breaches": (meta or {}).get("acknowledged_breaches"),
+        "groups": (meta or {}).get("groups"),
         "measurement": measurement,
         "plan_id": None if p.lever_plan_id is None else str(p.lever_plan_id),
         "plan_code": (plan_codes_ or {}).get(p.lever_plan_id) if p.lever_plan_id else None,
@@ -867,6 +868,7 @@ def recompute_card(
     now: datetime,
     version: int | None = None,
     rebuild_versions: bool = False,
+    keep_parts: bool = False,
 ) -> dict[str, Any] | None:
     """The card evaluated again. ``version`` moves that version's inputs and replaces only that
     version in ``versions``; ``rebuild_versions`` regenerates every alternative (a replacement
@@ -886,6 +888,9 @@ def recompute_card(
         out = build_card(env, cand, now=now)
     if out is None:
         return None
+    parts = out.pop(
+        "_parts", None
+    )  # the plan's joint layer asks for them (keep_parts), nobody stores them
     out["id"] = card["id"]
     out["code"] = card.get("code")
     out["rank"] = card.get("rank")
@@ -914,6 +919,8 @@ def recompute_card(
         out["versions"] = vlist
     out["version"] = number
     versions.annotate_same_notes(out["versions"])
+    if keep_parts and parts:
+        out["_parts"] = parts
     return out
 
 
@@ -1586,6 +1593,7 @@ async def card_by_code(
     ).all()
     chosen_n, chosen_code = await _chosen(session, shop_id, p.id)
     approved = await _approved_with(session, shop_id, p.id)
+    meta = await store.card_meta(session, shop_id, p.id)
     shown = vlist[(chosen_n or 1) - 1] if 0 < (chosen_n or 1) <= len(vlist) else vlist[0]
     verification_ = (await verification_states(session, shop_id, [p.id])).get(p.id)
     history = [
@@ -1622,6 +1630,7 @@ async def card_by_code(
             else None
         ),
         "planned_date": p.planned_start.isoformat() if p.planned_start else None,
+        "groups": (meta or {}).get("groups"),
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "sent_at": p.sent_at.isoformat() if p.sent_at else None,
         "supersedes_code": card.get("supersedes_code"),

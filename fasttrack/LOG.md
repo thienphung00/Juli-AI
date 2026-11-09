@@ -3981,3 +3981,38 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Not run: Postgres integration tests (affiliate lines DB, RLS / grants on 122 and 123), CI. Before deploy:
   CI on Node 20 + Postgres, `alembic upgrade head`, then `scripts/backfill_shopee_metrics.py --all-shopee`,
   Connector 0.3.11 reload and first-capture checks of the TODO(first capture) mappers.
+
+## 2026-11-09 — T4 agent (Claude Opus) — P97 T4: Tự tạo phương án, so sánh và chạy nhiều (branch `fasttrack/p97-t4-builder`)
+
+- **Table picker** (D85.12, `builder-p92/table-picker.tsx`, one component for step ① and every many-target form): search by name or id
+  (accents ignored), ngành hàng, biên, CTOR giảm, có đề xuất, đang chạy QC / KOL, GMV · biên · tồn kho per row, "chọn tất cả theo
+  bộ lọc", paste a list of ids, the selection list with count and ×. Backend: picker rows carry the filter columns
+  (`shopee_builder/picker_table.py`: biên and CTOR from the 30-day view, CTOR against the 30 days before, proposals waiting,
+  ads / affiliate lines). Filtering is client side over up to 1000 rows (no paged endpoint was needed).
+- **One card, many targets** (D85.13): `targets` on giảm giá %, hoa hồng affiliate, ngân sách / ROAS of several campaigns, and a
+  voucher over a product list (`shopee_recommendations/targets.py`, `shopee_builder/multi.py`). Each target is built by the existing
+  evaluators; P50s add, the range is the root sum of squares of the half-widths, a target without a giá vốn makes the card's profit
+  "chưa tính", floor breaches carry their `target`. The saved card has `targets` (variant per target) and `fill` (bulk for affiliate
+  commission and the voucher product list, else one job per target) for T3. `plan_aggregate` evaluates a many-target card by its parts
+  (`Evaluated.parts`). Fix on the way: `mega.evaluate_mega` ignored the per-variation prices of builder cards (plan Δ was 0).
+- **Groups** (D85.14, P94): migration `125_reco_plan_groups` (on 123, see below): `shop_reco_plan_groups`, `shop_reco_plan_group_members`.
+  `plan_groups.py`, `plans.run_together | set_group_period | remove_group_member | cancel_group | export_workbook`; `POST /builder/group`;
+  So sánh ticks + "Chạy cùng nhau"; Kế hoạch shows Nhóm A/B (code `<card>-G<letter>`, period >= 3 days, own aggregate = the plan math over
+  its members) and exports `.xlsx`. A second option on an exclusive field moves to the next group (T2's refusal is gone). Confirm
+  approves each member by its group (planned date = group start), writes `group` / `groups` into the approval snapshot and queues one fill
+  per approved version through `fill_queue_port.enqueue_for_approval`.
+- **Combo** (D85.15): `combo` = Shopee's form (product list, giảm % / số tiền / giá đặc biệt, tiers "Mua N", giới hạn đặt hàng, name <= 25,
+  dates) saved as `bundle_deal` with `tiers` (`bundle_tiers.py`); the engine's tier2 / tier3 cards are unchanged. Old `combo_multi` cards
+  stay readable and carry `legacy`. **Listing combo mới** (D85.16): `listing_combo` kind (`listing_combo.py`), cannibalization of the
+  baskets that hold every member, assumption stated in the card and the UI, no fill.
+- **Ads** (D85.17): budget >= ₫100.000 or unlimited (refusal "Ngân sách tối thiểu: ₫100.000"), ROAS system / custom (presets 2.5 / 3.5 /
+  4.5, warning above 3.5, warning on a second change in 7 days from the daily campaign rows), dates; keyword bids removed from the builder.
+- **Integration with T3**: (1) `services/shopee_recommendations/fill_queue_port.py` is a stub that imports T3's `fill_queue` when it exists
+  and calls `enqueue_for_approval(session, *, shop_id, proposal_id, version, targets=None, group_code=None)`; plan confirm calls it for every
+  approved version (ungrouped cards with `group_code=None`). `service._decide` (single card approve) is T3's hook, untouched.
+  (2) Migration 125 has `down_revision = 123_shopee_metrics_tables`; when 124 lands re-parent 125 onto `124_shopee_fill_jobs`, keep
+  `deferred/101` and the head pins on 125 (`"125_reco_plan_groups"` in the 20 pin tests and `test_tiktok_sync_state_outcome_record`).
+  (3) `kinds.py` gained `listing_combo`; T3's filler skips a kind it has no recon for.
+- **Not done / decisions beyond the contract**: no preview endpoint for the combined before -> after (it shows after "Chạy cùng nhau", in
+  the plan, where it can still be cancelled); a plan's measurement windows are still per product and ignore a group's own period; image
+  upload of a listing combo is references only; filters are client side.

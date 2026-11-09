@@ -94,6 +94,8 @@ from juli_backend.models.shopee_plans import (
     ShopRecoPlan,
     ShopRecoPlanCard,
     ShopRecoPlanCounter,
+    ShopRecoPlanGroup,
+    ShopRecoPlanGroupMember,
 )
 from juli_backend.models.shopee_profit import (
     AdCampaignPurpose,
@@ -178,6 +180,8 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopRecoPlan,
     ShopRecoPlanCard,
     ShopRecoPlanCounter,
+    ShopRecoPlanGroup,
+    ShopRecoPlanGroupMember,
     ShopRecoChangeSet,
     ShopeePlanBaseSnapshot,
     ShopeeProductMetricsDaily,

@@ -439,6 +439,22 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
     ),
     MutationSite(
         "public",
+        "shop_reco_plan_groups",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/plan_groups.py",
+        "g.status = GROUP_CANCELLED",
+        "a group left without a member is cancelled (no DELETE: the row keeps its history)",
+    ),
+    MutationSite(
+        "public",
+        "shop_reco_plan_group_members",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/plan_groups.py",
+        "m.removed_at = now",
+        "taking a version out of a group stamps it (a removed member keeps its row)",
+    ),
+    MutationSite(
+        "public",
         "shop_reco_change_sets",
         "UPDATE",
         "backend/src/juli_backend/services/shopee_recommendations/measure.py",

@@ -585,8 +585,84 @@ async def choose(
     return out
 
 
+async def run_together(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    specs: Sequence[sp.VersionSpec],
+    members: Sequence[int],
+    *,
+    days: int,
+    start: date | None,
+    acknowledge_breaches: bool,
+    actor: manual.Actor,
+    as_of: date | None,
+    now: datetime,
+    audience: str = "ops",
+) -> dict[str, Any]:
+    """ "Chạy cùng nhau" (P97 D85.14): the ticked versions of So sánh become ONE group of the plan.
+
+    Versions of the same change (same kind, products and campaign: two vouchers of the same scope)
+    are saved as versions of one card; every other kind is its own card. All of them go to the draft
+    plan and into one new group with one period; a version whose exclusive field is taken in the
+    group moves to the next group (never refused). Returns the plan and ``saved``."""
+    from juli_backend.services.shopee_recommendations import plans
+    from juli_backend.services.shopee_recommendations import service as reco
+
+    picked = list(dict.fromkeys(members))
+    if not picked or any(not 0 <= i < len(specs) for i in picked):
+        raise manual.ProposalError(manual.ERROR_BAD_VARIANT, 422, "choose versions of the list")
+    ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
+    buckets: dict[tuple[Any, ...], list[tuple[int, dict[str, Any]]]] = {}
+    for i in picked:
+        try:
+            variant = to_variant(specs[i], ctx).variant
+        except SpecRefused as exc:
+            raise manual.ProposalError(
+                manual.ERROR_BAD_VARIANT, 422, manual.refusal(exc.code)["message"]
+            ) from None
+        key = (
+            variant.get("change_kind"),
+            tuple(variant.get("items") or ()),
+            variant.get("campaign_key"),
+        )
+        buckets.setdefault(key, []).append((i, variant))
+    saved: list[dict[str, Any]] = []
+    pairs: list[tuple[uuid.UUID, int]] = []
+    for rows in buckets.values():
+        for chunk in (rows[n : n + manual.MAX_VARIANTS] for n in range(0, len(rows), 4)):
+            out = await manual.create_manual(
+                session,
+                shop_id,
+                [v for _, v in chunk],
+                0,
+                False,
+                actor,
+                now=now,
+                env=ctx.env,
+                acknowledge_breaches=acknowledge_breaches,
+            )
+            card_id = uuid.UUID(out["id"])
+            saved.append({"id": out["id"], "code": out["code"], "indexes": [i for i, _ in chunk]})
+            pairs += [(card_id, n) for n in range(1, len(chunk) + 1)]
+    if actor.kind == "staff":  # Ops' cards are drafts: they must be sent to join the plan
+        await reco.publish(session, shop_id, [uuid.UUID(c["id"]) for c in saved], now=now)
+    out = await plans.run_together(
+        session,
+        shop_id,
+        pairs,
+        days=days,
+        start=start,
+        actor=actor,
+        now=now,
+        acknowledge_breaches=acknowledge_breaches,
+        audience=audience,
+    )
+    return {**out, "saved": saved}
+
+
 __all__ = [
     "NoShopeeData",
+    "run_together",
     "ads_campaigns",
     "best_index",
     "build_context",

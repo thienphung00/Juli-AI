@@ -134,6 +134,26 @@ async def builder_choose(
     return {**out, "card": seller_view(out["card"]), "versions": versions}
 
 
+@router.post("/builder/group", status_code=201)
+async def builder_group(
+    body: common.GroupBody,
+    shop: Shop = Depends(require_writable_shop),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """ "Chạy cùng nhau": the ticked versions become one group (Nhóm) of the draft plan."""
+    shop_id = _shopee(shop)
+    try:
+        out = await common.h_group(
+            session, shop_id, body, manual.Actor("seller", user.id), now=_now(), audience="seller"
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return out
+
+
 @router.post("/builder/drafts/title")
 async def builder_title_drafts(
     body: common.TitleDraftBody,

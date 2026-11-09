@@ -2,7 +2,7 @@ import { configure, fireEvent, screen, waitFor, within } from "@testing-library/
 import { describe, expect, it } from "vitest";
 
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
-import { confirmedPlan, emptyPlan, fakePlan, overCapPlan, plan, planCard, stackedPlan } from "../../../lib/shopee-decisions/__tests__/plan-fixtures";
+import { confirmedPlan, emptyPlan, fakePlan, groupedPlan, overCapPlan, plan, planCard, stackedPlan } from "../../../lib/shopee-decisions/__tests__/plan-fixtures";
 import { fakeReco, summaryOf, voucherCard } from "../../../lib/shopee-decisions/__tests__/fixtures";
 import type { PlanResponse } from "../../../lib/shopee-decisions/plan-types";
 import { DecisionsView } from "../decisions-view";
@@ -221,5 +221,55 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
   it("without a plan backend the screen says it is off", async () => {
     renderReco(<DecisionsView params={params("ke-hoach=1")} />, fakeReco());
     expect(await screen.findByTestId("kh-off")).toBeInTheDocument();
+  });
+});
+
+describe("Kế hoạch · nhóm chạy cùng nhau (P97 D85.14)", () => {
+  it("shows Nhóm A and B with code, period, members and the group's own before -> after", async () => {
+    open(groupedPlan());
+    const box = await screen.findByTestId("kh-groups");
+    expect(within(box).queryByTestId("kh-notice")).toBeNull();
+    const a = within(box).getByTestId("kh-group-A");
+    expect(a).toHaveTextContent("JC-2611-0007-GA");
+    expect(within(a).getByTestId("kh-group-period-A")).toHaveTextContent("10/11 – 16/11 · 7 ngày");
+    expect(within(a).getByTestId("kh-gm-card-voucher@v1")).toHaveTextContent("JC-2611-0007-V1");
+    expect(within(a).getByTestId("kh-gm-card-voucher@v2")).toHaveTextContent("JC-2611-0007-V2");
+    expect(within(a).getByTestId("kh-group-agg-A")).toHaveTextContent("Δ lợi nhuận / tháng · dự kiến");
+    expect(within(box).getByTestId("kh-group-B")).toHaveTextContent("JC-2611-0012-V2");
+    expect(screen.getByTestId("kh-row-card-voucher")).toHaveTextContent("Nhóm A · V1");
+  });
+
+  it("says why an option moved to the next group, when adding it", async () => {
+    open(groupedPlan(), { add: groupedPlan(true) });
+    fireEvent.click(await screen.findByRole("button", { name: "Thêm vào kế hoạch" }));
+    expect(await screen.findByTestId("kh-notice")).toHaveTextContent("Mỗi lần chỉ giữ một giá trị cho giá bán, nên thẻ này chạy ở Nhóm B");
+  });
+
+  it("a group runs at least 3 days; the period, a member and the whole group can be changed", async () => {
+    const api = open(groupedPlan());
+    const a = await screen.findByTestId("kh-group-A");
+    fireEvent.change(within(a).getByLabelText("Số ngày Nhóm A"), { target: { value: "2" } });
+    expect(within(a).getByText("Nhóm chạy ít nhất 3 ngày.")).toBeInTheDocument();
+    expect(within(a).getByRole("button", { name: "Lưu thời gian" })).toBeDisabled();
+    fireEvent.change(within(a).getByLabelText("Số ngày Nhóm A"), { target: { value: "9" } });
+    fireEvent.change(within(a).getByLabelText("Bắt đầu Nhóm A"), { target: { value: "2026-11-12" } });
+    fireEvent.click(within(a).getByRole("button", { name: "Lưu thời gian" }));
+    await waitFor(() => expect(api.calls.find((c) => c.name === "setGroupPeriod")?.args).toEqual(["g-a", { days: 9, start: "2026-11-12" }]));
+    fireEvent.click(within(a).getByRole("button", { name: "Bỏ JC-2611-0007-V2 khỏi Nhóm A" }));
+    await waitFor(() => expect(api.calls.find((c) => c.name === "removeGroupMember")?.args).toEqual(["g-a", { cardId: "card-voucher", version: 2 }]));
+    fireEvent.click(within(await screen.findByTestId("kh-group-B")).getByRole("button", { name: "Bỏ nhóm" }));
+    await waitFor(() => expect(api.calls.find((c) => c.name === "cancelGroup")?.args).toEqual(["g-b"]));
+  });
+
+  it("exports the plan to Excel", async () => {
+    const api = open(groupedPlan());
+    fireEvent.click(await screen.findByTestId("kh-export"));
+    await waitFor(() => expect(api.calls.some((c) => c.name === "exportPlan")).toBe(true));
+  });
+
+  it("a plan with no group shows no group section", async () => {
+    open();
+    await screen.findByTestId("kh-agg");
+    expect(screen.queryByTestId("kh-groups")).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { ShopeeApiError } from "../shopee-analytics/client";
+import type { PlanResponse } from "./plan-types";
 
 /**
  * P92 client of the builder API (`fasttrack/contracts/p92-api.md`): the product picker, variations,
@@ -420,6 +421,12 @@ export interface DescriptionDrafts {
   readonly max_chars: number;
 }
 
+/** "Chạy cùng nhau": the cards saved from the ticked versions and the plan with its groups. */
+export interface GroupResult extends PlanResponse {
+  readonly saved: readonly { readonly id: string; readonly code: string | null; readonly indexes: readonly number[] }[];
+  readonly placed: readonly { readonly card_id: string; readonly code: string | null; readonly version: number; readonly group: string; readonly moved: boolean }[];
+}
+
 export interface BuilderApi {
   products(q?: PickerQuery): Promise<PickerResult>;
   variations(itemId: string): Promise<VariationList>;
@@ -429,6 +436,8 @@ export interface BuilderApi {
   evaluate(versions: readonly BuilderVersion[]): Promise<BuilderEvaluation>;
   compare(versions: readonly BuilderVersion[]): Promise<BuilderEvaluation>;
   choose(body: { readonly versions: readonly BuilderVersion[]; readonly chosen: number; readonly primary?: boolean; readonly acknowledgeBreaches?: boolean }): Promise<ChooseResult>;
+  /** P97 D85.14: the ticked versions run together as one group (Nhóm) of the plan. */
+  group(body: { readonly versions: readonly BuilderVersion[]; readonly members: readonly number[]; readonly days: number; readonly start?: string | null; readonly acknowledgeBreaches?: boolean }): Promise<GroupResult>;
   draftTitle(body: { readonly itemId: string; readonly keywords: readonly string[]; readonly count?: number }): Promise<TitleDrafts>;
   draftCover(body: { readonly itemId: string; readonly count?: number }): Promise<CoverDrafts>;
   draftDescription(body: { readonly itemId: string; readonly count?: number }): Promise<DescriptionDrafts>;
@@ -561,6 +570,14 @@ export function createBuilderApi(options: BuilderClientOptions): BuilderApi {
         versions: b.versions,
         chosen: b.chosen,
         primary: b.primary ?? false,
+        acknowledge_breaches: b.acknowledgeBreaches ?? false,
+      }),
+    group: (b) =>
+      call<GroupResult>("POST", "/builder/group", {
+        versions: b.versions,
+        members: b.members,
+        days: b.days,
+        ...(b.start ? { start: b.start } : {}),
         acknowledge_breaches: b.acknowledgeBreaches ?? false,
       }),
     draftTitle: (b) => call<TitleDrafts>("POST", "/builder/drafts/title", { item_id: b.itemId, keywords: b.keywords, count: b.count ?? 3 }),

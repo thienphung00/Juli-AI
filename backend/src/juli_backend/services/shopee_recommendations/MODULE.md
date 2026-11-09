@@ -140,3 +140,13 @@ the client's text is never edited; approved: kept and left flagged for a person)
 - Read rules except through `services/shopee_analytics` (`load_context`, `rules.for_month`).
 - Re-derive a number `shopee_profit` already computes.
 - Put a key starting with `buyer`, an order ref or a voucher code in a payload.
+
+## P97 T4 additions
+
+| Module | Role |
+|---|---|
+| `targets` | one card, many targets (D85.13): merges single-target cards (money, floors, spend), `targets` + `fill` on the payload |
+| `bundle_tiers` | `bundle_deal` over a product list with tiers "Mua N" (D85.15) |
+| `listing_combo` | a new listing that sells existing products together (D85.16) |
+| `plan_groups` | groups of a plan (D85.14, P94): placing versions, exclusive fields, periods, entries, export rows / `.xlsx` |
+| `fill_queue_port` | the single call into T3's fill queue (`enqueue_for_approval`); a stub until `fill_queue` exists |

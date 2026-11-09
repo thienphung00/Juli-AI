@@ -104,7 +104,7 @@ class Evaluated:
 def evaluate_entry(env: RecoEnv, entry: Entry, *, now: datetime) -> Evaluated | None:
     """The chosen version of the card (with its what-if inputs) on THIS environment."""
     card = service.recompute_card(
-        env, entry.base, dict(entry.overrides), now=now, version=entry.version
+        env, entry.base, dict(entry.overrides), now=now, version=entry.version, keep_parts=True
     )
     if card is None:
         return None

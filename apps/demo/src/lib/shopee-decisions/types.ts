@@ -72,8 +72,40 @@ export interface ProductMeasuring {
   readonly change_set?: unknown;
 }
 
+/** P97 D85.13: one row of a many-target card (a product or an ads campaign), figures per month. */
+export interface CardTarget {
+  readonly id: string;
+  readonly kind: "item" | "campaign" | string;
+  readonly name?: string | null;
+  readonly ok: boolean;
+  readonly refusal?: { readonly code?: string; readonly message?: string } | null;
+  readonly dgmv_p50?: N;
+  readonly dprofit_p50?: N;
+  readonly cost_month?: N;
+  readonly floor_ok?: boolean;
+}
+
+/** P97 D85.14: a group the card was approved in (the P94 snapshot): Nhóm A, its code and period. */
+export interface CardGroupInfo {
+  readonly name: string;
+  readonly letter?: string;
+  readonly code?: string | null;
+  readonly versions: readonly number[];
+  readonly version_codes?: readonly (string | null)[];
+  readonly start?: string;
+  readonly end?: string;
+  readonly days?: number;
+}
+
 export interface CardSummary {
   readonly id: string;
+  /** P97 D85.15: a combo saved as a fixed basket before Shopee's tiers: still readable, marked. */
+  readonly legacy?: { readonly code: string; readonly label: string; readonly note: string } | null;
+  /** P97 D85.13: the targets of a card that applies one setting to many products / campaigns. */
+  readonly targets?: readonly CardTarget[];
+  /** How the Connector fills the card in: one bulk pass, or one job per target. */
+  readonly fill?: { readonly mode: "bulk" | "per_target" | string; readonly targets: number } | null;
+  readonly groups?: readonly CardGroupInfo[] | null;
   /** P91 D-5: `JC-<yymm>-<seq4>`; absent on a card from before migration 116. */
   readonly code?: string | null;
   readonly product_id?: string | null;

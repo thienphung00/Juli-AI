@@ -7,7 +7,7 @@ import { vnd } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { aggRows, cardBreaches, confirmWarnings, cutText, hasBreach, isHard, isStacked, kolRows, kolSummary, mdeText, planProducts, productMde, productName, stackBreaches, stackWarning, tradeoffText, windowText, withoutText } from "../../lib/shopee-decisions/plan-model";
-import type { PlanApi, PlanResponse, WindowProductRow } from "../../lib/shopee-decisions/plan-types";
+import type { PlanApi, PlanGroup, PlanNotice, PlanResponse, WindowProductRow } from "../../lib/shopee-decisions/plan-types";
 import type { Breach, CardList } from "../../lib/shopee-decisions/types";
 import { ackText, breachNoun, breachWarnLines, firstVersionRange, svk } from "../../lib/shopee-decisions/versions";
 import { useNarrow } from "../quyet-dinh/use-narrow";
@@ -55,6 +55,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
   const [error, setError] = useState<string | null>(null);
   const [ack, setAck] = useState<string | null>(null);
   const [doneOnce, setDoneOnce] = useState(false);
+  const [notice, setNotice] = useState<PlanNotice | null>(null);
   const plan = override ?? (loaded.status === "ready" ? loaded.data : null);
   // D85.4: the answer of an action is shown until the refetch lands, then dropped, so a stale
   // override can never hide what the server now says
@@ -68,6 +69,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
     try {
       const p = await call();
       setOverride(p);
+      setNotice(p.notice ?? null);
       after?.(p);
       setTick((t) => t + 1);
     } catch (e) {
@@ -100,6 +102,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
                     try {
                       const next = await api.add(id, null, false);
                       setOverride(next);
+                      setNotice(next.notice ?? null);
                       setTick((t) => t + 1);
                     } catch (e) {
                       if (e instanceof ShopeeApiError && BREACH_CODES.has(e.code) && Array.isArray(e.detail?.["breaches"])) setDialog({ kind: "add", cardId: id, code, breaches: e.detail["breaches"] as Breach[] });
@@ -117,6 +120,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
               busy={busy}
               error={error}
               narrow={narrow}
+              notice={notice}
               onAct={act}
               onConfirm={() => setDialog({ kind: "confirm" })}
               plan={p}
@@ -185,7 +189,7 @@ function Candidates({ cards, inPlan, locked, busy, onAdd }: { readonly cards: Ca
   );
 }
 
-function DraftPlan({ plan, api, narrow, busy, error, ack, onAct, onConfirm }: { readonly plan: PlanResponse; readonly api: PlanApi; readonly narrow: boolean; readonly busy: boolean; readonly error: string | null; readonly ack: string | null; readonly onAct: (call: () => Promise<PlanResponse>) => Promise<void>; readonly onConfirm: () => void }) {
+function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfirm }: { readonly plan: PlanResponse; readonly api: PlanApi; readonly narrow: boolean; readonly busy: boolean; readonly error: string | null; readonly ack: string | null; readonly notice: PlanNotice | null; readonly onAct: (call: () => Promise<PlanResponse>) => Promise<void>; readonly onConfirm: () => void }) {
   const head = plan.plan;
   const done = (head?.status ?? "draft") !== "draft";
   const products = planProducts(plan);
@@ -247,6 +251,12 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, onAct, onConfirm }: { 
                   {r.title ?? r.change_kind} · {productName(plan, r.product_id)}
                 </b>
                 <span className="sa-hint">{r.versions.find((v) => v.version === r.chosen_version)?.label}</span>
+                {(r.groups ?? []).map((g) => (
+                  <TextChip key={`${g.letter}-${g.version}`} tone="info">
+                    Nhóm {g.letter} · V{g.version}
+                  </TextChip>
+                ))}
+                {(r.n_targets ?? 0) > 0 ? <TextChip tone="flat">{r.n_targets} đối tượng</TextChip> : null}
                 {isStacked(plan, r) || cardBreaches(plan, r) ? <TextChip tone="down">{cardBreaches(plan, r) ? "Chạm giá sàn" : "Chạm giá sàn khi xếp chồng"}</TextChip> : null}
               </div>
               <div className="kh-row__vers">
@@ -276,6 +286,8 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, onAct, onConfirm }: { 
         ))}
         {plan.cards.length === 0 ? <p className="sa-hint" data-testid="kh-empty">Kế hoạch trống. Thêm thẻ từ danh sách bên trái hoặc từ thẻ trong Quyết định.</p> : null}
       </div>
+
+      <GroupsSection api={api} busy={busy} done={done} notice={notice} onAct={onAct} plan={plan} />
 
       {warns.map((w, i) => (
         <div className="sd-check sd-check--bad kh-warn" key={i} role="alert">
@@ -355,6 +367,131 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, onAct, onConfirm }: { 
         )}
       </div>
     </section>
+  );
+}
+
+const dm = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
+/** Writes a downloaded file; a no-op where the browser API is missing (tests, old webviews). */
+function saveBlob(blob: Blob, name: string): void {
+  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * "Nhóm A, B ..." (P97 D85.14 / P94): options that run together with one period (at least 3 days). Each group
+ * is judged on its own with the plan math over its members; the groups run one after another. An option that
+ * wants a field another option already holds (giá bán, tên, ngân sách…) moves to the next group, said here.
+ */
+function GroupsSection({ plan, api, busy, done, notice, onAct }: { readonly plan: PlanResponse; readonly api: PlanApi; readonly busy: boolean; readonly done: boolean; readonly notice: PlanNotice | null; readonly onAct: (call: () => Promise<PlanResponse>) => Promise<void> }) {
+  const groups = plan.groups ?? [];
+  const [exportError, setExportError] = useState<string | null>(null);
+  if (groups.length === 0 && !notice) return null;
+  const download = () => {
+    setExportError(null);
+    api.exportPlan!().then(
+      (blob) => saveBlob(blob, `ke-hoach-${plan.plan?.code ?? "nhap"}.xlsx`),
+      () => setExportError("Chưa xuất được kế hoạch ra Excel. Thử lại sau ít phút."),
+    );
+  };
+  return (
+    <div className="kh-groups" data-testid="kh-groups">
+      <div className="sa-card__head">
+        <h3>Nhóm chạy cùng nhau</h3>
+        <span className="sa-hint">Mỗi nhóm một kỳ chạy (ít nhất 3 ngày), các nhóm chạy lần lượt; mỗi nhóm được đo riêng.</span>
+        {api.exportPlan && groups.length > 0 ? (
+          <button className="sa-btn sa-btn--s" data-testid="kh-export" onClick={download} type="button">
+            Xuất Excel
+          </button>
+        ) : null}
+      </div>
+      {notice ? (
+        <div className="sd-check sd-check--warn" data-testid="kh-notice" role="status">
+          <span>
+            <b>Chạy lần lượt:</b> {notice.message}
+          </span>
+        </div>
+      ) : null}
+      {exportError ? <p className="sd-error">{exportError}</p> : null}
+      {groups.map((g) => (
+        <GroupBox api={api} busy={busy || done} g={g} key={`${g.id}|${g.days}|${g.start_fixed ? g.start : ""}`} onAct={onAct} plan={plan} />
+      ))}
+    </div>
+  );
+}
+
+function GroupBox({ g, plan, api, busy, onAct }: { readonly g: PlanGroup; readonly plan: PlanResponse; readonly api: PlanApi; readonly busy: boolean; readonly onAct: (call: () => Promise<PlanResponse>) => Promise<void> }) {
+  const [days, setDays] = useState(String(g.days));
+  const [start, setStart] = useState(g.start_fixed ? g.start : "");
+  const n = Number(days);
+  const problem = !Number.isInteger(n) || n < g.min_days ? `Nhóm chạy ít nhất ${g.min_days} ngày.` : n > 90 ? "Nhóm chạy tối đa 90 ngày." : null;
+  const rows = aggRows({ ...plan, aggregate: g.aggregate });
+  const approved = g.status === "approved";
+  return (
+    <div className="kh-group" data-testid={`kh-group-${g.letter}`}>
+      <div className="kh-group__head">
+        <b>{g.name}</b>
+        {g.code ? <span className="sd-code">{g.code}</span> : null}
+        <span data-testid={`kh-group-period-${g.letter}`}>
+          {dm(g.start)} – {dm(g.end)} · {g.days} ngày
+        </span>
+        {approved ? <TextChip tone="info">Đã duyệt</TextChip> : null}
+      </div>
+      <ul className="kh-group__members">
+        {g.members.map((m) => (
+          <li data-testid={`kh-gm-${m.entry_id}`} key={m.entry_id}>
+            <span className="sd-code">{m.version_code ?? `${m.code}-V${m.version}`}</span> <b>{m.title ?? m.change_kind}</b>
+            {m.n_targets > 0 ? <span className="sa-hint"> · {m.n_targets} đối tượng</span> : null}
+            {api.removeGroupMember ? (
+              <button aria-label={`Bỏ ${m.version_code ?? m.code} khỏi ${g.name}`} className="sa-link kh-linkbtn" disabled={busy} onClick={() => void onAct(() => api.removeGroupMember!(g.id, { cardId: m.card_id, version: m.version }))} type="button">
+                Bỏ khỏi nhóm
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {rows.length > 0 ? (
+        <div className="kh-agg__table" data-testid={`kh-group-agg-${g.letter}`}>
+          {rows.map((r) => (
+            <div className={`kh-agg__row ${r.bad ? "kh-agg__row--bad" : ""}`} key={r.key}>
+              <span>{r.label}</span>
+              <span className="sd-muted">{r.today}</span>
+              <span>
+                <b>{r.after}</b>
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="sa-hint">Chưa tính được số của nhóm này.</p>
+      )}
+      {approved || !api.setGroupPeriod ? null : (
+        <div className="kh-group__edit">
+          <label>
+            <span className="sd-field__label">Số ngày</span>
+            <input aria-label={`Số ngày ${g.name}`} className="p2-text" inputMode="numeric" onChange={(e) => setDays(e.target.value)} type="text" value={days} />
+          </label>
+          <label>
+            <span className="sd-field__label">Bắt đầu</span>
+            <input aria-label={`Bắt đầu ${g.name}`} className="p2-text" onChange={(e) => setStart(e.target.value)} type="date" value={start} />
+          </label>
+          <button className="sa-btn sa-btn--s" disabled={busy || problem !== null} onClick={() => void onAct(() => api.setGroupPeriod!(g.id, { days: n, ...(start ? { start } : { clearStart: true }) }))} type="button">
+            Lưu thời gian
+          </button>
+          {api.cancelGroup ? (
+            <button className="sa-btn sa-btn--s" disabled={busy} onClick={() => void onAct(() => api.cancelGroup!(g.id))} type="button">
+              Bỏ nhóm
+            </button>
+          ) : null}
+          {problem ? <span className="sd-error">{problem}</span> : null}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -6,6 +6,7 @@ import type {
   ChooseResult,
   CoPurchase,
   ExclusionList,
+  GroupResult,
   KeywordTable,
   PickerProduct,
   PickerResult,
@@ -183,6 +184,7 @@ export function fakeBuilder(
     evaluate: BuilderEvaluation | ((v: readonly BuilderVersion[]) => BuilderEvaluation);
     compare: BuilderEvaluation | ((v: readonly BuilderVersion[]) => BuilderEvaluation);
     choose: ChooseResult;
+    group: GroupResult;
   }> = {},
   failWith: Failures = {},
 ): FakeBuilder {
@@ -207,6 +209,12 @@ export function fakeBuilder(
     evaluate: (v) => run("evaluate", pick(data.evaluate, v), v),
     compare: (v) => run("compare", pick(data.compare, v), v),
     choose: (b) => run("choose", data.choose ?? { id: "card-1", code: "JC-2611-0021", status: "sent", origin: "manual", position: 1, versions: [] }, b),
+    group: (b) =>
+      run(
+        "group",
+        data.group ?? ({ plan: null, cards: [], aggregate: null, groups: [], windows: null, change_sets: [], saved: b.members.map((i) => ({ id: `card-${i + 1}`, code: `JC-2611-00${i + 1}`, indexes: [i] })), placed: [] } as GroupResult),
+        b,
+      ),
     draftTitle: (b) =>
       run("draftTitle", { item_id: b.itemId, max_chars: 100, drafts: [{ title: "Túi Zip Thực Phẩm, Túi Zip Đựng Đồ Ăn Combo 3 Hộp", chars: 47, keywords: { covered: ["túi zip thực phẩm"], missing: [] } }] }, b),
     draftCover: (b) => run("draftCover", { concepts: [{ overlay: { layout: "banner_bottom", price_vnd: 25_900, pack_text: "25.900đ / hộp", hook_text: "Combo 10 hộp" }, rationale: "giá mỗi hộp" }], note: "Ảnh thật giữ nguyên; chỉ thêm chữ." }, b),

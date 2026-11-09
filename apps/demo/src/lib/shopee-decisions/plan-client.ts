@@ -64,6 +64,30 @@ export function createPlanApi(options: PlanClientOptions): PlanApi {
     setWindow: (days, productId) => call<PlanResponse>("POST", "/plan/window", { days, ...(productId ? { product_id: productId } : {}) }),
     setChangeSetWindow: (id, days) => call<ChangeSet>("POST", `/change-sets/${encodeURIComponent(id)}/window`, { days }),
     refreshBase: () => call<PlanResponse>("POST", "/plan/refresh-base", {}),
+    createGroup: (members, { days, start, acknowledgeBreaches }) =>
+      call<PlanResponse>("POST", "/plan/groups", {
+        members: members.map((m) => ({ card_id: m.cardId, version: m.version })),
+        days,
+        ...(start ? { start } : {}),
+        acknowledge_breaches: acknowledgeBreaches ?? false,
+      }),
+    setGroupPeriod: (groupId, { days, start, clearStart }) =>
+      call<PlanResponse>("POST", `/plan/groups/${encodeURIComponent(groupId)}/period`, {
+        ...(days !== undefined ? { days } : {}),
+        ...(start ? { start } : {}),
+        ...(clearStart ? { clear_start: true } : {}),
+      }),
+    removeGroupMember: (groupId, m) => call<PlanResponse>("POST", `/plan/groups/${encodeURIComponent(groupId)}/members/remove`, { card_id: m.cardId, version: m.version }),
+    cancelGroup: (groupId) => call<PlanResponse>("POST", `/plan/groups/${encodeURIComponent(groupId)}/cancel`, {}),
+    exportPlan: async () => {
+      const response = await (fetchImpl ?? fetch)(`${base}/plan/export`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}`, ...(shopId ? { "X-Shop-Id": shopId } : {}) },
+        cache: "no-store",
+      });
+      if (!response.ok) throw new ShopeeApiError(response.status, "", "Chưa xuất được kế hoạch ra Excel.");
+      return response.blob();
+    },
     confirm: ({ acknowledgeBreaches, plannedDate, note }) => call<PlanResponse>("POST", "/plan/confirm", { acknowledge_breaches: acknowledgeBreaches, ...(plannedDate ? { planned_date: plannedDate } : {}), ...(note ? { note } : {}) }),
     changeSets: async (query) => {
       const qs = new URLSearchParams();

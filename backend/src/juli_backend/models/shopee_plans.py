@@ -146,6 +146,85 @@ class ShopRecoPlanCard(Base):
     removed_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
+GROUP_DRAFT = "draft"
+GROUP_APPROVED = "approved"
+GROUP_CANCELLED = "cancelled"
+GROUP_STATUSES: tuple[str, ...] = (GROUP_DRAFT, GROUP_APPROVED, GROUP_CANCELLED)
+GROUP_MIN_DAYS, GROUP_MAX_DAYS = 3, 90
+
+
+class ShopRecoPlanGroup(Base):
+    """P97 D85.14 / P94: options of the plan that run together ("Nhóm A", "Nhóm B" ...), with one
+    period -- ``start_date`` (None = right after the previous group ends, the first group from the
+    plan's date) and ``days`` (at least 3). Inside a group the options are evaluated as one bundle
+    on the same orders; the next group runs after it. Migration 125."""
+
+    __tablename__ = "shop_reco_plan_groups"
+    __table_args__ = (
+        CheckConstraint(
+            f"status IN ({_in(GROUP_STATUSES)})", name="ck_shop_reco_plan_groups_status"
+        ),
+        CheckConstraint(
+            f"days BETWEEN {GROUP_MIN_DAYS} AND {GROUP_MAX_DAYS}",
+            name="ck_shop_reco_plan_groups_days",
+        ),
+        Index(
+            "uq_shop_reco_plan_groups_letter",
+            "plan_id",
+            "letter",
+            unique=True,
+            postgresql_where=text("status <> 'cancelled'"),
+            sqlite_where=text("status <> 'cancelled'"),
+        ),
+        Index("ix_shop_reco_plan_groups_shop_plan", "shop_id", "plan_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shop_reco_plans.id"))
+    #: "A", "B" ... in the order the groups run
+    letter: Mapped[str] = mapped_column(String(2))
+    position: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    days: Mapped[int] = mapped_column(SmallInteger, default=7, server_default="7")
+    #: ``<card code>-G<letter>`` of the group's first card, frozen on confirm
+    code: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default=GROUP_DRAFT, server_default=GROUP_DRAFT)
+    created_by: Mapped[dict[str, Any]] = mapped_column(JSONBType, default=dict)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class ShopRecoPlanGroupMember(Base):
+    """One version of one planned card inside a group. A card may sit in several groups with
+    different versions (the second option of an exclusive field runs in the next group); a removed
+    member keeps its row (``removed_at``)."""
+
+    __tablename__ = "shop_reco_plan_group_members"
+    __table_args__ = (
+        CheckConstraint("version BETWEEN 1 AND 4", name="ck_shop_reco_plan_group_members_version"),
+        Index(
+            "uq_shop_reco_plan_group_members_open",
+            "group_id",
+            "plan_card_id",
+            "version",
+            unique=True,
+            postgresql_where=text("removed_at IS NULL"),
+            sqlite_where=text("removed_at IS NULL"),
+        ),
+        Index("ix_shop_reco_plan_group_members_shop_group", "shop_id", "group_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shop_reco_plan_groups.id"))
+    plan_card_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shop_reco_plan_cards.id"))
+    version: Mapped[int] = mapped_column(SmallInteger, default=1, server_default="1")
+    position: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    added_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    removed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
 class ShopRecoPlanCounter(Base):
     __tablename__ = "shop_reco_plan_counters"
     __table_args__ = (CheckConstraint("last_seq >= 0", name="ck_shop_reco_plan_counters_seq"),)

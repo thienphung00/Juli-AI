@@ -748,3 +748,25 @@ button.p2-prow:hover {
     grid-column: 2 / -1;
   }
 }
+
+/* P97 groups ("Chạy cùng nhau") */
+.p2-together {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid var(--qd-line-2);
+  padding-top: 12px;
+}
+
+.p2-together__tick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.p2-together__group ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}

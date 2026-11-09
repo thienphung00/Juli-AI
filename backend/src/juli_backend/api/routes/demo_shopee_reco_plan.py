@@ -23,7 +23,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
@@ -32,6 +32,9 @@ from juli_backend.api.routes.shopee_reco_plan_common import (
     AddCardBody,
     ChangeSetStatus,
     ConfirmBody,
+    CreateGroupBody,
+    GroupMemberBody,
+    GroupPeriodBody,
     MoveCardBody,
     PlanWhatIfBody,
     SetWindowBody,
@@ -223,6 +226,99 @@ async def plan_whatif(
         body.inputs,
         actor=manual.Actor("seller", user.id),
         now=_now(),
+    )
+
+
+@router.post("/plan/groups", status_code=201)
+async def create_group(
+    body: CreateGroupBody,
+    shop: Shop = Depends(require_writable_shop),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """ "Chạy cùng nhau": these versions become one group (Nhóm) with one period."""
+    return await _write(
+        session,
+        plans.run_together,
+        _shopee(shop),
+        [(m.card_id, m.version) for m in body.members],
+        days=body.days,
+        start=body.start,
+        actor=manual.Actor("seller", user.id),
+        now=_now(),
+        acknowledge_breaches=body.acknowledge_breaches,
+        audience="seller",
+    )
+
+
+@router.post("/plan/groups/{group_id}/period")
+async def group_period(
+    group_id: uuid.UUID,
+    body: GroupPeriodBody,
+    shop: Shop = Depends(require_writable_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    return await _write(
+        session,
+        plans.set_group_period,
+        _shopee(shop),
+        group_id,
+        days=body.days,
+        start=body.start,
+        clear_start=body.clear_start,
+        now=_now(),
+        audience="seller",
+    )
+
+
+@router.post("/plan/groups/{group_id}/members/remove")
+async def group_remove_member(
+    group_id: uuid.UUID,
+    body: GroupMemberBody,
+    shop: Shop = Depends(require_writable_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    return await _write(
+        session,
+        plans.remove_group_member,
+        _shopee(shop),
+        group_id,
+        body.card_id,
+        body.version,
+        now=_now(),
+        audience="seller",
+    )
+
+
+@router.post("/plan/groups/{group_id}/cancel")
+async def group_cancel(
+    group_id: uuid.UUID,
+    shop: Shop = Depends(require_writable_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    return await _write(
+        session,
+        plans.cancel_group,
+        _shopee(shop),
+        group_id,
+        now=_now(),
+        audience="seller",
+    )
+
+
+@router.get("/plan/export")
+async def export_plan(
+    shop: Shop = Depends(get_active_shop), session: AsyncSession = Depends(get_session)
+) -> Response:
+    """The plan as an Excel file: group, versions and period, one row per version."""
+    try:
+        name, data = await plans.export_workbook(session, _shopee(shop), None, now=_now())
+    except ProposalError as exc:
+        raise refused(exc) from None
+    return Response(
+        data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
     )
 
 
