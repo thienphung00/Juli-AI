@@ -168,7 +168,8 @@ async def load_env(
         return None
     window = Window(anchor - timedelta(days=config.HISTORY_DAYS - 1), anchor)
     ctx = await loaders.load_context(session, shop_id)
-    view = await service.load_view(session, shop_id, ctx, window)
+    # P98 / ADR-122 d.2: the cards and the builder read the stored funnel, as the screens do
+    view = await service.load_view(session, shop_id, ctx, window, funnel=True)
     env = RecoEnv(ctx=ctx, view=view, as_of=anchor)
     env.campaigns = await load_campaign_settings(session, shop_id, ctx, window)
     env.vouchers = await load_voucher_settings(session, shop_id, window)

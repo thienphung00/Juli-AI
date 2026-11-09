@@ -1,5 +1,6 @@
-"""P97 D85.9: So sánh shows before -> after with its range for seven metrics; a metric the lever
-has no modelled effect on says "không đổi" with the reason and carries no lift. SQLite."""
+"""P97 D85.9 / P98 ADR-122: So sánh shows before -> after for seven metrics, laid out from the one
+``result`` (every column a whole scenario, so the funnel holds in each); a metric the option does
+not move says "không đổi" with the reason and carries no lift. SQLite."""
 
 from __future__ import annotations
 
@@ -33,7 +34,20 @@ def assert_flat_when_unchanged(rows):
                 assert r["after"]["low"] == r["after"]["p50"] == r["after"]["high"] == r["before"]
 
 
-async def test_a_voucher_moves_aov_and_leaves_the_funnel_unchanged_with_reasons(session, shop):
+def assert_funnel_holds(version):
+    """In every column Lượt xem × CTR × CTOR = Đơn and Đơn × AOV = GMV (ADR-122 d.11.1)."""
+    detail = version["result"]["detail"]
+    for name in ("before", "low", "likely", "high"):
+        c = detail[name]
+        if c["views"]:
+            assert c["views"] * c["ctr"] / 100 * c["ctor"] / 100 == pytest.approx(
+                c["orders"], abs=1
+            )
+        if c["orders"]:
+            assert c["orders"] * c["aov"] == pytest.approx(c["gmv"], abs=1)
+
+
+async def test_a_voucher_moves_aov_and_ctor_and_leaves_views_ctr_unchanged(session, shop):
     v = await one(
         session, shop, kind="voucher", discount_type="amount", value=10_000, min_spend=100_000
     )
@@ -41,13 +55,14 @@ async def test_a_voucher_moves_aov_and_leaves_the_funnel_unchanged_with_reasons(
     assert [r["key"] for r in ba["rows"]] == KEYS
     assert [r["label"] for r in ba["rows"]][:2] == ["GMV", "Biên lợi nhuận"]
     gmv, aov = rows["gmv"], rows["aov"]
-    assert gmv["before"] and gmv["after"]["low"] <= gmv["after"]["p50"] <= gmv["after"]["high"]
-    assert aov["unchanged"] is False and aov["after"]["p50"] > aov["before"]
-    assert aov["after"]["low"] <= aov["after"]["p50"] <= aov["after"]["high"]
-    for key in ("orders", "ctor", "ctr", "views"):
-        assert rows[key]["unchanged"] is True, key
-        assert "không bịa" in rows[key]["reason"] or "không tăng số đơn" in rows[key]["reason"]
+    # ADR-122 d.6: a minimum-spend voucher drives AOV and the visible-offer CTOR, so đơn moves
+    assert gmv["before"] and gmv["after"]["p50"] > gmv["before"]
+    assert aov["unchanged"] is False and aov["after"]["p50"] >= aov["before"]
+    assert rows["ctor"]["unchanged"] is False and rows["orders"]["unchanged"] is False
+    for key in ("ctr", "views"):
+        assert rows[key]["unchanged"] is True and "không bịa" in rows[key]["reason"], key
     assert_flat_when_unchanged(rows)
+    assert_funnel_holds(v)
 
 
 async def test_a_title_moves_views_only(session, shop):
@@ -64,9 +79,12 @@ async def test_a_title_moves_views_only(session, shop):
     views = rows["views"]
     if views["before"] is not None:
         assert views["unchanged"] is False and views["after"]["high"] > views["after"]["low"]
-    for key in ("ctor", "ctr", "aov"):
+    # ADR-122 d.10: a title drives Lượt xem + CTR on Thẻ sản phẩm; CTOR / AOV stay
+    assert rows["ctr"]["unchanged"] is False
+    for key in ("ctor", "aov"):
         assert rows[key]["unchanged"] is True and rows[key]["reason"], key
     assert_flat_when_unchanged(rows)
+    assert_funnel_holds(v)
 
 
 async def test_a_price_cut_moves_orders_and_ctor_but_not_views_or_ctr(session, shop):
@@ -83,3 +101,4 @@ async def test_a_price_cut_moves_orders_and_ctor_but_not_views_or_ctr(session, s
     for key in ("views", "ctr"):
         assert rows[key]["unchanged"] is True and "không bịa" in rows[key]["reason"], key
     assert_flat_when_unchanged(rows)
+    assert_funnel_holds(v)

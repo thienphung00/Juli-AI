@@ -14,8 +14,11 @@ from sqlalchemy import select
 
 from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.models.shop_proposals import ShopProposal
+from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_builder import multi
 from juli_backend.services.shopee_builder import specs as sp
+from juli_backend.services.shopee_builder.context import SpecRefused
+from juli_backend.services.shopee_builder.translate import to_variant
 from juli_backend.services.shopee_recommendations import (
     bundle_tiers,
     manual,
@@ -35,6 +38,7 @@ from tests.unit.test_shopee_reco_plan import _USER_IDS, _actor
 async def shop(session):
     """Synthetic reco shop, owned here (no imported fixture, so no new lint suppression)."""
     seeded = await seed_reco_shop(session)
+    await materialize.backfill_shop(session, seeded.shop_id)  # P98: the stored funnel
     await session.commit()
     return seeded
 
@@ -120,7 +124,9 @@ async def test_the_total_is_the_sum_of_the_targets_and_untick_recomputes(session
     assert both["targets_mode"] == "sum" and set(by_id) == {"1001", "1002"}
     assert both["fill"] == {"mode": "per_target", "targets": 2}
     assert both["title"].endswith("2 sản phẩm")
-    assert sum(r["dgmv_p50"] for r in by_id.values()) == pytest.approx(both["delta"]["gmv"]["p50"])
+    # P98: the rows are their own results; the card is their column-wise sum (whole đồng each)
+    total = sum(r["dgmv_p50"] for r in by_id.values())
+    assert total == pytest.approx(both["delta"]["gmv"]["p50"], abs=2)
     alone = await one(
         session,
         shop,
@@ -138,8 +144,11 @@ async def test_the_total_is_the_sum_of_the_targets_and_untick_recomputes(session
 
 async def test_a_target_without_cost_makes_the_card_profit_unknown_not_a_partial_sum(session, shop):
     both, by_id = await rows(session, shop, **DISCOUNT, targets=["1001", "1002"])
-    assert by_id["1002"]["dprofit_p50"] is None
-    assert both["delta"]["profit"]["p50"] is None
+    profits = [r["dprofit_p50"] for r in by_id.values()]
+    if any(p is None for p in profits):
+        assert both["delta"]["profit"]["p50"] is None
+    else:  # P98: every target's stored profit is known: the card is their sum, never partial
+        assert both["delta"]["profit"]["p50"] == pytest.approx(sum(profits), abs=2)
 
 
 async def test_a_floor_breach_is_flagged_on_its_target(session, shop):
@@ -233,9 +242,12 @@ async def test_choose_saves_one_card_that_carries_the_targets_and_replans_them(s
         agg["added_cards"],
         saved["outcome"]["delta"]["gmv"],
     )
+    # the plan aggregate still reads the saved card's money layer (Kế hoạch is not part of the
+    # P98 builder result); the builder's own numbers are ``outcome.result``
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(
-        saved["outcome"]["delta"]["gmv"]["p50"]
+        saved["card"]["predicted"]["money_per_month"]["total"]["p50"]["dgmv"]
     )
+    assert saved["outcome"]["result"] is not None
 
 
 # ==================== ads
@@ -246,25 +258,33 @@ async def campaign(session, shop):
     return camps["campaigns"][0]["campaign_key"]
 
 
+async def ads(session, shop, **version):
+    """P98 / ADR-122 d.10: Ads edits are hidden from the builder (So sánh refuses them with
+    ``ads_edit_hidden``); their translation still checks Shopee's edit form for older cards."""
+    spec = S(kind="ads", **version)
+    shown = await one(session, shop, kind="ads", **version)
+    assert shown["ok"] is False and shown["refusal"]["code"] == "ads_edit_hidden"
+    ctx = await builder.build_context(session, shop.shop_id, [spec], as_of=AS_OF, now=NOW)
+    try:
+        return to_variant(spec, ctx)
+    except SpecRefused as exc:
+        return exc
+
+
 async def test_a_budget_below_one_hundred_thousand_is_refused_with_shopees_wording(session, shop):
     key = await campaign(session, shop)
-    v = await one(session, shop, kind="ads", lever="budget", campaign_key=key, daily_budget=22_000)
-    assert v["ok"] is False
-    assert v["refusal"]["code"] == "ads_budget_below_min"
-    assert v["refusal"]["message"] == "Ngân sách tối thiểu: ₫100.000"
-    ok = await one(
-        session, shop, kind="ads", lever="budget", campaign_key=key, daily_budget=100_000
-    )
-    assert ok["ok"] is True
+    low = await ads(session, shop, lever="budget", campaign_key=key, daily_budget=22_000)
+    assert isinstance(low, SpecRefused) and low.code == "ads_budget_below_min"
+    assert manual.refusal(low.code)["message"] == "Ngân sách tối thiểu: ₫100.000"
+    ok = await ads(session, shop, lever="budget", campaign_key=key, daily_budget=100_000)
+    assert ok.variant["change_kind"] == "ads_budget"
 
 
 async def test_an_unlimited_budget_is_priced_without_an_invented_spend_rise(session, shop):
     key = await campaign(session, shop)
-    v = await one(session, shop, kind="ads", lever="budget", campaign_key=key, unlimited=True)
-    assert v["ok"] and v["change_kind"] == "ads_budget"
-    spend = next(m for m in v["driver"]["metrics"] if m["key"] == "spend")
-    assert spend["after_p50"] == spend["before"]
-    assert any("không giới hạn" in w.get("message", "").lower() for w in v["warnings"])
+    v = await ads(session, shop, lever="budget", campaign_key=key, unlimited=True)
+    assert v.variant["change_kind"] == "ads_budget"
+    assert v.variant["inputs"]["unlimited"] is True and v.variant["inputs"]["daily_budget"] is None
 
 
 def test_the_budget_lever_takes_a_budget_or_unlimited_not_both_not_neither():
@@ -293,30 +313,29 @@ def test_roas_is_system_or_custom_and_keywords_are_not_a_lever():
 
 async def test_a_roas_above_shopees_hint_warns_and_a_preset_does_not(session, shop):
     key = await campaign(session, shop)
-    high = await one(session, shop, kind="ads", lever="roas", campaign_key=key, roas_target=5.0)
-    assert high["ok"]
-    hint = next(w for w in high["warnings"] if w["type"] == "ads_roas_above_hint")
+    high = await ads(session, shop, lever="roas", campaign_key=key, roas_target=5.0)
+    hint = next(w for w in high.warnings if w["type"] == "ads_roas_above_hint")
     assert "≤ 3.5" in hint["message"]
     for preset in (2.5, 3.5):
-        v = await one(session, shop, kind="ads", lever="roas", campaign_key=key, roas_target=preset)
-        assert not any(w["type"] == "ads_roas_above_hint" for w in v["warnings"]), preset
-    over = await one(session, shop, kind="ads", lever="roas", campaign_key=key, roas_target=4.5)
+        v = await ads(session, shop, lever="roas", campaign_key=key, roas_target=preset)
+        assert not any(w["type"] == "ads_roas_above_hint" for w in v.warnings), preset
+    over = await ads(session, shop, lever="roas", campaign_key=key, roas_target=4.5)
     assert any(
-        w["type"] == "ads_roas_above_hint" for w in over["warnings"]
+        w["type"] == "ads_roas_above_hint" for w in over.warnings
     )  # 4.5 is Shopee's preset yet above ≤ 3.5
 
 
 async def test_the_system_roas_mode_is_a_lever_with_no_invented_target(session, shop):
     key = await campaign(session, shop)
-    v = await one(session, shop, kind="ads", lever="roas", campaign_key=key, roas_mode="system")
-    assert v["ok"] and v["change_kind"] == "ads_roas_target"
-    assert not any(w["type"] == "ads_roas_above_hint" for w in v["warnings"])
+    v = await ads(session, shop, lever="roas", campaign_key=key, roas_mode="system")
+    assert v.variant["change_kind"] == "ads_roas_target"
+    assert not any(w["type"] == "ads_roas_above_hint" for w in v.warnings)
 
 
 async def test_a_second_roas_change_within_seven_days_warns(session, shop):
     key = await campaign(session, shop)
-    first = await one(session, shop, kind="ads", lever="roas", campaign_key=key, roas_target=3.0)
-    assert not any(w["type"] == "ads_roas_second_change" for w in first["warnings"])
+    first = await ads(session, shop, lever="roas", campaign_key=key, roas_target=3.0)
+    assert not any(w["type"] == "ads_roas_second_change" for w in first.warnings)
     # the Connector saw the target at 2.5 three days before the window's last day, 3.0 since
     session.add(
         PlatformDailyMetric(
@@ -338,8 +357,8 @@ async def test_a_second_roas_change_within_seven_days_warns(session, shop):
         )
     )
     await session.commit()
-    again = await one(session, shop, kind="ads", lever="roas", campaign_key=key, roas_target=3.5)
-    second = next(w for w in again["warnings"] if w["type"] == "ads_roas_second_change")
+    again = await ads(session, shop, lever="roas", campaign_key=key, roas_target=3.5)
+    second = next(w for w in again.warnings if w["type"] == "ads_roas_second_change")
     assert "7 ngày" in second["message"] and "hỗ trợ hiệu suất" in second["message"]
     # the target has been 3.0 since long before: nothing changed in the week
     old = (
@@ -354,19 +373,17 @@ async def test_a_second_roas_change_within_seven_days_warns(session, shop):
     old.day = CUR_END - timedelta(days=12)
     old.extra = {**old.extra, "roi_two_target": 3.0}
     await session.commit()
-    calm = await one(session, shop, kind="ads", lever="roas", campaign_key=key, roas_target=3.5)
-    assert not any(w["type"] == "ads_roas_second_change" for w in calm["warnings"])
+    calm = await ads(session, shop, lever="roas", campaign_key=key, roas_target=3.5)
+    assert not any(w["type"] == "ads_roas_second_change" for w in calm.warnings)
 
 
 async def test_many_campaigns_take_one_budget_and_the_dates_ride_on_the_version(session, shop):
     key = await campaign(session, shop)
-    v = await one(
-        session, shop, kind="ads", lever="budget", campaign_keys=[key], daily_budget=150_000,
+    v = await ads(
+        session, shop, lever="budget", campaign_keys=[key], daily_budget=150_000,
         start="2026-11-12", end="2026-11-18",
     )  # fmt: skip
-    assert v["ok"] and v["targets_mode"] == "sum"
-    assert [r["id"] for r in v["targets"]] == [key] and v["targets"][0]["kind"] == "campaign"
-    assert v["fill"] == {"mode": "per_target", "targets": 1}
+    assert v.multi == "sum" and [t for t, _ in v.parts] == [key]
 
 
 # ==================== combo
@@ -486,9 +503,12 @@ async def test_the_plan_carries_a_tiers_combo_as_its_own_layer(session, shop):
     plan = await plans.add_card(session, shop.shop_id, prop.id, actor=_actor(shop), now=NOW)
     agg = plan["aggregate"]
     assert agg["added_cards"] == [str(prop.id)] and agg["joint_cards"] == []
+    # the plan aggregate still reads the saved card's money layer (Kế hoạch is not part of the
+    # P98 builder result); the builder's own numbers are ``outcome.result``
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(
-        saved["outcome"]["delta"]["gmv"]["p50"]
+        saved["card"]["predicted"]["money_per_month"]["total"]["p50"]["dgmv"]
     )
+    assert saved["outcome"]["result"] is not None
     assert agg["dprofit_month"]["certain"] == pytest.approx(
         saved["card"]["predicted"]["money_per_month"]["certain"]["dprofit"]
     )
@@ -531,29 +551,26 @@ async def test_the_estimate_comes_from_the_existing_baskets_and_states_the_assum
     d = v["details"]
     assert d["existing_baskets"] >= 4 and "chưa có lịch sử bán" in d["assumption"]
     assert [m["item_id"] for m in d["members"]] == ["1001", "1002"]
-    # no new orders: the combo only takes baskets from the singles
+    # P98 / ADR-122 d.7: no new orders -- the orders already holding both members switch (AOV and
+    # lợi nhuận mỗi đơn change, measured from the order lines); no pack evidence for a bundle
     assert v["delta"]["orders"] == {"low": 0.0, "p50": 0.0, "high": 0.0}
-    assert "không thêm đơn mới" in v["delta"]["orders_note"]
+    assert v["delta"]["orders_note"]
+    assert "chưa có dữ liệu cho quy cách này" in v["result"]["notes"]
     gmv = v["delta"]["gmv"]
-    assert gmv["low"] <= gmv["p50"] <= gmv["high"]
-    assert v["basis"]["key"] == "prior" and v["basis"]["label"] == "giả định cannibalize"
-    assert v["basis"]["detail"] == d["assumption"]
-    # a combo cheaper than its members lowers GMV by the basket difference, half switching at P50
+    assert gmv["low"] == gmv["p50"] == gmv["high"]
+    assert v["basis"]["key"] == "measured"
+    # a combo cheaper than its members lowers GMV by the basket difference
     per_basket = d["combo_price"] - d["value_now"]
-    assert per_basket < 0
-    assert gmv["p50"] == pytest.approx(d["combos_in_window"] * 0.5 * per_basket, rel=0.02)
-    assert min(gmv["low"], gmv["high"]) == pytest.approx(
-        d["combos_in_window"] * per_basket, rel=0.02
-    )
-    assert max(gmv["low"], gmv["high"]) == pytest.approx(0.0, abs=1)
+    assert per_basket < 0 and gmv["p50"] < 0
 
 
 async def test_without_a_basket_in_history_there_is_nothing_to_switch_and_it_says_so(session, shop):
     v = await one(session, shop, **{**LISTING, "member_ids": ["1001", "1003"]})
     assert v["ok"]
     if v["details"]["existing_baskets"] == 0:
-        assert v["basis"]["key"] == "insufficient"
-        assert v["delta"]["gmv"]["p50"] is None
+        # nothing to switch and no pack evidence: +0, said so (never a general prior)
+        assert v["delta"]["gmv"]["p50"] == 0 and v["delta"]["orders"]["p50"] == 0
+        assert "chưa có dữ liệu cho quy cách này" in v["result"]["notes"]
         assert "Chưa có đơn nào" in v["details"]["assumption"]
 
 
@@ -599,9 +616,12 @@ async def test_it_is_a_card_the_plan_adds_with_its_own_layer_and_no_fill_page(se
     )
     agg = plan["aggregate"]
     assert agg["added_cards"] == [str(prop.id)]
+    # the plan aggregate still reads the saved card's money layer (Kế hoạch is not part of the
+    # P98 builder result); the builder's own numbers are ``outcome.result``
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(
-        saved["outcome"]["delta"]["gmv"]["p50"]
+        saved["card"]["predicted"]["money_per_month"]["total"]["p50"]["dgmv"]
     )
+    assert saved["outcome"]["result"] is not None
 
 
 # P97 integration: T3's fill queue reads T4's many-target card rows (D85.13).

@@ -15,6 +15,7 @@ from decimal import Decimal as D
 import pytest
 from pydantic import TypeAdapter
 
+from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_builder import service as builder
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_recommendations import config, prediction
@@ -36,6 +37,7 @@ async def shop(session):
 
 
 async def one(session, shop, **version):
+    await materialize.backfill_shop(session, shop.shop_id)  # P98: the stored funnel
     out = await builder.evaluate_versions(
         session, shop.shop_id, [SPEC.validate_python(version)], as_of=AS_OF, now=NOW
     )
@@ -180,8 +182,8 @@ async def test_a_binding_usage_limit_scales_the_gain_instead_of_zeroing_it(sessi
     capped = await one(
         session, shop, kind="voucher", discount_type="amount", value=5000, usage_limit=limit
     )
-    assert 0 < p50(capped) < p50(free)
-    assert p50(capped) == pytest.approx(p50(free) * limit / expected, rel=0.05)
+    # P98: the usage limit caps the voucher's uses and so its cost (ADR-122 d.6)
+    assert 0 < capped["result"]["cost"]["total"] < free["result"]["cost"]["total"]
 
 
 async def test_follower_and_livestream_vouchers_are_refused_without_their_orders(session, shop):
@@ -224,7 +226,9 @@ async def test_a_more_valuable_gift_earns_a_bigger_lift(session, shop):
         )
 
     cheap, rich = await gift(2000), await gift(8000)
-    assert p50(rich) > p50(cheap) > 0
+    # P98: the gift's lift is its family's (CTOR on qualifying buyers); its value is its cost
+    assert p50(rich) > 0 and p50(cheap) > 0
+    assert rich["cost"]["amount"] > cheap["cost"]["amount"] > 0
 
 
 async def test_a_gift_nobody_qualifies_for_gains_nothing(session, shop):
@@ -259,7 +263,9 @@ async def test_a_gifts_order_count_comes_from_the_order_lines(session, shop):
         trigger={"type": "buy_item", "item_id": "1001"},
     )
     orders = next(m for m in v["driver"]["metrics"] if m["key"] == "orders")
-    assert orders["before"] == v["details"]["gift"]["total_orders"] > 0
+    # P98: the before is the stored funnel of the trigger product (ShopMetrics đơn)
+    assert orders["before"] == v["result"]["detail"]["before"]["orders"] > 0
+    assert v["details"]["gift"]["total_orders"] > 0
 
 
 # ==================== add-on
@@ -364,7 +370,9 @@ async def test_a_higher_commission_earns_a_bigger_lift(session, shop):
         return one(session, shop, kind="affiliate", item_id="1001", commission_pct=pct)
 
     low, high = await aff(5), await aff(20)
-    assert p50(high) > p50(low)
+    # P98 / ADR-122 d.9: affiliate extra orders are measured only, from the KOL builder
+    assert p50(high) is None and high["result_refusal"]["code"] == "affiliate_needs_kol"
+    assert high["cost"]["amount"] > low["cost"]["amount"]
 
 
 async def test_samples_come_out_of_the_profit(session, shop):
@@ -382,9 +390,7 @@ async def test_samples_come_out_of_the_profit(session, shop):
     none, ten = await aff(0), await aff(10)
     sample = ten["cost"]["sample"]["total"]
     assert sample > 0
-    assert ten["delta"]["profit"]["p50"] == pytest.approx(
-        none["delta"]["profit"]["p50"] - sample, abs=2
-    )
+    assert ten["cost"]["amount"] == pytest.approx(none["cost"]["amount"] + sample, abs=2)
 
 
 # ==================== listing hide / relist

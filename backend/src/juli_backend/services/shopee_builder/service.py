@@ -37,10 +37,12 @@ from juli_backend.services.shopee_builder import (
 )
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
+from juli_backend.services.shopee_builder.engine_families import integrate
 from juli_backend.services.shopee_builder.reference import with_reference_lines
 from juli_backend.services.shopee_builder.translate import Translation, to_variant
 from juli_backend.services.shopee_builder.variations import (
     economics,
+    measured_rates,
     observed_skus,
     variation_rows,
     with_orders,
@@ -162,6 +164,11 @@ async def variation_rows_for(
     rows: dict[str, list[dict[str, Any]]] = {}
     for item in items:
         variations, head = snaps.get(item, ([], None))
+        # ADR-122 d.12: Biên cuối beside Biên ở giá bán (the product page's one math, margins.py)
+        product_rates, sku_rates = measured_rates(
+            [(ln, pb) for ln, pb in env.view.pairs if ln.product_id == item],
+            env.view.ads.product_spend.get(item),
+        )
         rows[item] = variation_rows(
             item,
             env.ctx.catalog.items.get(item),
@@ -172,6 +179,8 @@ async def variation_rows_for(
             item_list_price=None if head is None else head.list_price,
             item_current_price=None if head is None else head.current_price,
             observed=seen_skus.get(item),
+            product_rates=product_rates,
+            sku_rates=sku_rates,
         )
         rows[item] = with_orders(rows[item], (ln for ln, _ in env.view.pairs), item)
     return rows
@@ -188,6 +197,8 @@ async def product_variations(
     if not known:
         raise LookupError(item_id)
     out = economics(item_id, env.name(item_id), rows, vat=env.view.vat)
+    # "So sánh phân loại" shows both margins (ADR-122 d.12)
+    out["columns"] = [*out["columns"], "final_margin_pct"]
     out["excluded"] = item_id in env.excluded
     out["exclude_reason"] = env.excluded.get(item_id)
     return out
@@ -373,17 +384,24 @@ async def build_context(
 
 
 def evaluate_version(
-    ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime
+    ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime, shop_id: str = ""
 ) -> tuple[dict[str, Any], Translation | None]:
     """One version -> its outcome (a refused one carries ``ok = false`` and a reason)."""
-    out, tr, _ = _evaluate_version_card(ctx, spec, index, now)
+    out, tr, _ = _evaluate_version_card(ctx, spec, index, now, shop_id)
     return out, tr
 
 
+def hidden_refusal() -> dict[str, str]:
+    """ADR-122 d.10: Ads edits of running campaigns are hidden from the builder."""
+    return {"code": integrate.HIDDEN_CODE, "message": integrate.HIDDEN_TEXT}
+
+
 def _evaluate_version_card(
-    ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime
+    ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime, shop_id: str = ""
 ) -> tuple[dict[str, Any], Translation | None, dict[str, Any] | None]:
     label = spec.label or f"Phương án {index + 1}"
+    if integrate.hidden(spec):
+        return outcome.refused(index, spec.kind, label, hidden_refusal()), None, None
     try:
         tr = to_variant(spec, ctx)
     except SpecRefused as exc:
@@ -395,11 +413,29 @@ def _evaluate_version_card(
     est_card = None
     if tr.estimate is not None:
         est_card, _ = manual.build_variant(ctx.env, tr.estimate, now=now)
+    ev, per_target = integrate.evaluate(ctx, spec, shop_id)
     shaped = outcome.shape(
-        card, tr, ctx, index=index, kind=spec.kind, label=label, estimate_card=est_card
+        card,
+        tr,
+        ctx,
+        index=index,
+        kind=spec.kind,
+        label=label,
+        estimate_card=est_card,
+        result=ev.result_json(),
+        result_refusal=ev.refusal_json(),
+        scope="shop" if ev.base.scope == "shop" else "product",
     )
     if tr.multi is not None:
         _add_targets(shaped, ctx, tr, card, now)
+        results = {t: e for t, e in per_target}
+        for row in shaped["targets"]:
+            e = results.get(str(row.get("id")))
+            row["result"] = None if e is None else e.result_json()
+            row["result_refusal"] = None if e is None else e.refusal_json()
+            if row.get("ok", True) and "dgmv_p50" in row:
+                known, _ = outcome.items_cost_known(ctx, [str(row["id"])])
+                row.update(_target_brief(row["result"], cost_known=known))
     return shaped, tr, card
 
 
@@ -465,6 +501,22 @@ def _add_targets(
         shaped["margin_after_pct"] = margin["after"]["p50"]
 
 
+def _target_brief(result: dict[str, Any] | None, *, cost_known: bool = True) -> dict[str, Any]:
+    """A target row's figures from its own result (P98: the card's money layer no longer
+    produces them), so the rows add up to the version's summed result. A target without a giá
+    vốn has no profit ("chưa tính")."""
+    d = outcome.result_delta(result)
+    if not cost_known:
+        d["profit"] = dict(outcome.NULL_BAND)
+    return {
+        "dgmv_p50": d["gmv"]["p50"],
+        "dorders_p50": d["orders"]["p50"],
+        "dprofit_p50": d["profit"]["p50"],
+        "dprofit_p10": d["profit"]["low"],
+        "dprofit_p90": d["profit"]["high"],
+    }
+
+
 def _row(key: str, label: str, values: list[Any], unit: str) -> dict[str, Any]:
     return {"key": key, "label": label, "unit": unit, "values": values}
 
@@ -526,7 +578,9 @@ async def evaluate_versions(
 ) -> dict[str, Any]:
     """Up to four versions of mixed kinds side by side. Saves nothing."""
     ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
-    evaluated = [_evaluate_version_card(ctx, spec, i, now) for i, spec in enumerate(specs)]
+    evaluated = [
+        _evaluate_version_card(ctx, spec, i, now, str(shop_id)) for i, spec in enumerate(specs)
+    ]
     results = [e[0] for e in evaluated]
     # Name why a version looks like V1 (an input that differs but does not bind), per version
     head = next((e[2] for e in evaluated if e[2] is not None), None)
@@ -540,8 +594,22 @@ async def evaluate_versions(
         "versions": results,
         "table": table_of(results),
         "best_profit_p50": best_index(results),
+        # P98: the versions in the comparison order (per-30-day Δ lợi nhuận, best first)
+        "compare": compare_order(results),
         "saved": False,
     }
+
+
+def compare_order(results: Sequence[dict[str, Any]]) -> list[int]:
+    """Version indexes sorted by the result's per-30-day Δ profit (``engine.compare``); a version
+    without one goes last, in its own order."""
+
+    def key(r: dict[str, Any]) -> tuple[int, float]:
+        res = r.get("result") if r.get("ok") else None
+        v = None if res is None else (res.get("per_30d") or {}).get("profit")
+        return (1, 0.0) if v is None else (0, -float(v))
+
+    return [r["index"] for r in sorted(results, key=key)]
 
 
 async def choose(
@@ -557,6 +625,8 @@ async def choose(
     now: datetime,
 ) -> dict[str, Any]:
     """ "Chọn": save ``specs[chosen]`` as a manual card (the others are its versions)."""
+    if integrate.hidden(specs[chosen]):
+        raise manual.ProposalError(integrate.HIDDEN_CODE, 422, integrate.HIDDEN_TEXT)
     ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
     variants: list[dict[str, Any]] = []
     for i, spec in enumerate(specs):
@@ -581,7 +651,7 @@ async def choose(
         env=ctx.env,
         acknowledge_breaches=acknowledge_breaches,
     )
-    out["outcome"] = evaluate_version(ctx, specs[chosen], chosen, now)[0]
+    out["outcome"] = evaluate_version(ctx, specs[chosen], chosen, now, str(shop_id))[0]
     return out
 
 
@@ -611,6 +681,8 @@ async def run_together(
     picked = list(dict.fromkeys(members))
     if not picked or any(not 0 <= i < len(specs) for i in picked):
         raise manual.ProposalError(manual.ERROR_BAD_VARIANT, 422, "choose versions of the list")
+    if any(integrate.hidden(specs[i]) for i in picked):
+        raise manual.ProposalError(integrate.HIDDEN_CODE, 422, integrate.HIDDEN_TEXT)
     ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
     buckets: dict[tuple[Any, ...], list[tuple[int, dict[str, Any]]]] = {}
     for i in picked:

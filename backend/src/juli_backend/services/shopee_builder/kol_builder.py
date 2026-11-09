@@ -15,6 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.services.shopee_analytics import kol
 from juli_backend.services.shopee_analytics.fmt import num, ratio
 from juli_backend.services.shopee_builder import service
+from juli_backend.services.shopee_builder.engine.contract import OptionResult
+from juli_backend.services.shopee_builder.engine_families import integrate
+from juli_backend.services.shopee_builder.engine_families.facts import (
+    AffiliatePlan,
+    KolChoice,
+    KolFacts,
+)
 from juli_backend.services.shopee_builder.specs_p98 import BuilderInputError, KolRequest, KolSetup
 from juli_backend.services.shopee_recommendations import loader
 from juli_backend.services.shopee_recommendations.env import RecoEnv
@@ -53,16 +60,65 @@ def _product_json(model: kol.KolModel, item: str, name: str) -> dict[str, Any]:
     }
 
 
-def assemble(env: RecoEnv, model: kol.KolModel, req: KolRequest) -> dict[str, Any]:
+def setup_result(
+    env: RecoEnv, model: kol.KolModel, s: KolSetup, shop_id: str = ""
+) -> integrate.Evaluated:
+    """One KOL setup -> the affiliate family (ADR-122 d.9) -> the engine: the cost is exact
+    (commission % × the KOL's GMV on these products + samples); extra orders are measured only."""
+    stat = model.pool.kols[s.kol_key]
+    rates = integrate.kol_rates(
+        s.kol_key,
+        stat.handle,
+        model.rows,
+        s.item_ids,
+        partner_clicks=stat.partner_clicks,
+        partner_orders=stat.partner_orders,
+        days=model.pool.window_days,
+    )
+    unit_cost: dict[str, Decimal] = {}
+    if s.sample is not None:
+        unit = kol.sample_unit_cost(env.ctx, env.view, s.sample.item_id)
+        if unit is not None:
+            unit_cost[s.sample.item_id] = unit.total
+    plan = AffiliatePlan(
+        kols=(
+            KolChoice(
+                kol_key=s.kol_key,
+                handle=stat.handle,
+                item_ids=tuple(s.item_ids),
+                commission_pct=Decimal(str(s.commission_pct)),
+                sample_qty=0 if s.sample is None else s.sample.qty,
+                sample_ship_fee=Decimal(0 if s.sample is None else s.sample.ship_fee),
+                sample_item_id=None if s.sample is None else s.sample.item_id,
+            ),
+        ),
+        label=f"KOL {stat.handle}",
+    )
+    facts = KolFacts(rates={} if rates is None else {s.kol_key: rates}, sample_unit_cost=unit_cost)
+    return integrate.kol_result(
+        env, plan, facts, shop_id=shop_id, seed_payload=s.model_dump(mode="json")
+    )
+
+
+def assemble(
+    env: RecoEnv, model: kol.KolModel, req: KolRequest, shop_id: str = ""
+) -> dict[str, Any]:
     """Pure part: the KOL model of the window + a request -> the validated setups with facts."""
     rows = {(r.kol_key, r.item_id): r for r in model.rows}
     setups: list[dict[str, Any]] = []
+    keyed: list[tuple[str, OptionResult | None]] = []
     for s in req.kols:
-        setups.append(_setup(env, model, rows, s))
+        out = _setup(env, model, rows, s)
+        ev = setup_result(env, model, s, shop_id)
+        out["result"] = ev.result_json()
+        setups.append(out)
+        keyed.append((s.kol_key, ev.result))
     return {
         "as_of": env.as_of.isoformat(),
         "window": model.window,
         "setups": setups,
+        # P98: the setups' KOL keys in the comparison order (per-30-day Δ lợi nhuận)
+        "compare": integrate.compare_keys(keyed),
         "labels": {
             "sample_cost": "số lượng × (giá vốn + đóng gói) + phí ship; không tính phí book KOL",
             "low_data": kol.LOW_DATA_LABEL,
@@ -131,7 +187,7 @@ async def build(
     if env is None:
         raise service.NoShopeeData(str(shop_id))
     model = await kol.load_model(session, shop_id, env.ctx, env.view)
-    return assemble(env, model, req)
+    return assemble(env, model, req, str(shop_id))
 
 
 __all__ = ["assemble", "build"]

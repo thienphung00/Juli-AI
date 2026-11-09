@@ -39,6 +39,7 @@ from juli_backend.services.shopee_builder.engine_families.facts import (
     ComboFacts,
     KolFacts,
     ListingComboFacts,
+    NewComboListing,
     PriceFacts,
     SimpleFacts,
     VoucherFacts,
@@ -89,20 +90,31 @@ def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
             saving = facts.baseline_per_use - facts.per_use
             ppo_after = facts.profit_per_order + saving * use_mid
     elif spec.min_spend > 0:
-        r_lo, r_mid, r_hi = common.REACH
+        # E2: the orders that reach the minimum, measured from the order lines (those within 20 %
+        # below it today) -- the 0 / 20 / 50 % prior only when there are too few orders
+        if facts.reach is not None:
+            moving: tuple[Decimal, ...] = (facts.reach.p10, facts.reach.p50, facts.reach.p90)
+            gaps = tuple(m * facts.reach_gap for m in moving)
+            reach_basis: Basis = "measured"
+        else:
+            # the prior moves a share of the same near orders (never baskets far below)
+            moving = tuple(r * facts.near_share for r in common.REACH)
+            gaps = tuple(m * facts.reach_gap for m in moving)
+            reach_basis = "prior"
         if facts.aov_now:
-            lift = Band(
-                *(r * facts.raise_gap_per_order / facts.aov_now for r in (r_lo, r_mid, r_hi))
-            )
-            drivers.append(DriverEffect("aov", sources, "prior", lift=lift))
+            lift = Band(*(g / facts.aov_now for g in gaps))
+            drivers.append(DriverEffect("aov", sources, reach_basis, lift=lift))
         else:
             notes.append("Chưa có đơn để tính giá trị đơn tăng lên.")
-        drivers.append(
-            DriverEffect("ctor", sources, "prior", lift=band3(common.CTOR_VISIBLE_OFFER))
-        )
+        if facts.qualifying_share + facts.near_share > 0:
+            # the visible discount converts only buyers whose basket can reach the minimum
+            drivers.append(
+                DriverEffect("ctor", sources, "prior", lift=band3(common.CTOR_VISIBLE_OFFER))
+            )
+        elif not drivers:
+            drivers.append(DriverEffect("aov", sources, "prior", lift=point(ZERO)))
         use_lo, use_mid, use_hi = (
-            clamp01((facts.qualifying_share + r * facts.below_share) * facts.usage_rate)
-            for r in (r_lo, r_mid, r_hi)
+            clamp01((facts.qualifying_share + m) * facts.usage_rate) for m in moving
         )
     else:  # tri ân / đánh giá: no minimum, the visible discount converts more clicks
         drivers.append(
@@ -135,14 +147,24 @@ def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
 
 
 def combo_option(spec: sp.ComboSpec, facts: ComboFacts) -> OptionInput:
-    r_lo, r_mid, r_hi = common.REACH
+    # E2: orders within 20 % (at least one unit) under the tier reach it, measured from the order
+    # lines; the 0 / 20 / 50 % prior on them only when there are too few orders
+    moving: tuple[Decimal, ...]
+    if facts.reach is not None:
+        moving = (facts.reach.p10, facts.reach.p50, facts.reach.p90)
+        units = facts.reach_units
+        reach_basis: Basis = "measured"
+    else:
+        moving = tuple(r * facts.near_share for r in common.REACH)
+        units = ONE
+        reach_basis = "prior"
     aov = None
     if facts.aov_now:
-        aov = Band(*(r * facts.near_share * facts.unit_price / facts.aov_now for r in common.REACH))
-    use = Band(*(clamp01(facts.use_share_now + r * facts.near_share) for r in (r_lo, r_mid, r_hi)))
+        aov = Band(*(m * units * facts.unit_price / facts.aov_now for m in moving))
+    use = Band(*(clamp01(facts.use_share_now + m) for m in moving))
     drivers = []
     if aov is not None:
-        drivers.append(DriverEffect("aov", ALL_SOURCES, "prior", lift=aov))
+        drivers.append(DriverEffect("aov", ALL_SOURCES, reach_basis, lift=aov))
     drivers.append(
         DriverEffect("ctor", ALL_SOURCES, "prior", lift=band3(common.CTOR_VISIBLE_OFFER))
     )
@@ -156,15 +178,32 @@ def combo_option(spec: sp.ComboSpec, facts: ComboFacts) -> OptionInput:
 
 
 def listing_combo_option(spec: sp.ListingComboSpec, facts: ListingComboFacts) -> OptionInput:
+    return _listing_combo(_label(spec, spec.title), facts)
+
+
+def new_listing_option(row: NewComboListing, facts: ListingComboFacts) -> OptionInput:
+    """A combo builder row (multi-pack or bundle) as a new combo listing (ADR-122 d.7, E3)."""
+    return _listing_combo(row.label, facts)
+
+
+def _listing_combo(label: str, facts: ListingComboFacts) -> OptionInput:
+    """Orders already holding those quantities switch (AOV / lợi nhuận mỗi đơn change, Δ Đơn 0);
+    extra orders only for a pack size the shop does not sell today, from the matching
+    variation's measured rates (E3); no evidence -> "+0 · chưa có dữ liệu cho quy cách này"."""
     drivers: list[DriverEffect] = []
     note: str | None = None
     if facts.aov_now:
-        delta = facts.switch_share * (facts.new_price - facts.value_now)
+        # a combo not cheaper than what those buyers pay today gives them no reason to switch
+        gap = min(ZERO, facts.new_price - facts.value_now)
+        delta = facts.switch_share * gap
         drivers.append(
             DriverEffect("aov", ALL_SOURCES, "measured", lift=point(_rel(delta, facts.aov_now)))
         )
     pack = facts.pack
-    if pack is not None and pack.window_days > 0:
+    if facts.pack_sold_today:
+        # E3: a pack size the shop already sells: its buyers switch, no extra orders
+        note = common.NOTE_PACK_SOLD
+    elif pack is not None and pack.window_days > 0:
         views = pack.views * Decimal(DEFAULT_HORIZON_DAYS) / Decimal(pack.window_days)
         drivers.append(
             DriverEffect(
@@ -179,12 +218,10 @@ def listing_combo_option(spec: sp.ListingComboSpec, facts: ListingComboFacts) ->
     else:
         note = common.NOTE_NO_PACK_EVIDENCE
     if not drivers:
-        drivers.append(
-            DriverEffect("aov", ALL_SOURCES, "not_estimable", note=common.NOTE_NO_PACK_EVIDENCE)
-        )
+        drivers.append(DriverEffect("aov", ALL_SOURCES, "not_estimable", note=note))
     return OptionInput(
         kind="listing_combo",
-        label=_label(spec, spec.title),
+        label=label,
         drivers=tuple(drivers),
         duration_days=None,
         profit_per_order_after=facts.profit_per_order_after,
@@ -267,7 +304,10 @@ def simple_option(spec: sp.VersionSpec, facts: SimpleFacts) -> OptionInput:
         raise FamilyRefused("kind_not_supported") from None
     drivers: list[DriverEffect] = []
     lead_metric = lead[0]
-    if lead_metric == "aov" and facts.aov is not None:
+    if spec.kind == "listing_hide":
+        # hiding a listing takes away all of its views: the loss is its own last 30 days
+        drivers.append(DriverEffect("views", lead[1], "product_history", lift=point(-ONE)))
+    elif lead_metric == "aov" and facts.aov is not None:
         drivers.append(DriverEffect("aov", lead[1], "measured", lift=facts.aov))
     else:
         drivers.append(DriverEffect(lead_metric, lead[1], facts.lead.basis, lift=facts.lead.band))
@@ -415,6 +455,9 @@ def affiliate_option(plan: AffiliatePlan, facts: KolFacts) -> OptionInput:
         cost += kol.fixed_fee
         if kol.sample_qty > 0 and cashback:
             notes.append(f"{kol.handle}: không gửi mẫu cho {common.CASHBACK_LABEL}.")
+        elif kol.sample_qty > 0 and kol.sample_item_id is not None:
+            unit = facts.sample_unit_cost.get(kol.sample_item_id, ZERO)
+            cost += Decimal(kol.sample_qty) * unit + kol.sample_ship_fee
         elif kol.sample_qty > 0:
             unit = sum((facts.sample_unit_cost.get(i, ZERO) for i in kol.item_ids), ZERO) / max(
                 1, len(kol.item_ids)
