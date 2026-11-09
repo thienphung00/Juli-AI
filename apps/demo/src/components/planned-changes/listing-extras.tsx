@@ -118,3 +118,158 @@ export function ListingSheetExtras({ detail, sheet, fetchImpl }: { readonly deta
     </div>
   );
 }
+
+// ── fill jobs (P97 D85.6): what the Connector opens, fills and captures after an approval ──
+
+const SELLER_CENTRE = "https://banhang.shopee.vn";
+
+export type FillJobStatus = "queued" | "opened" | "filled" | "saved" | "captured" | "failed" | "cancelled";
+
+export interface FillJobRow {
+  readonly id: string;
+  readonly kind: string;
+  readonly version: number;
+  readonly group_code: string | null;
+  readonly status: FillJobStatus;
+  readonly target: Record<string, unknown>;
+  readonly captured_ref: string | null;
+  readonly error: string | null;
+  readonly open_path: string | null;
+}
+
+/** Kinds the queue fills (migration 124); other cards have no checklist. */
+export const FILL_JOB_KINDS: ReadonlySet<string> = new Set([
+  "title",
+  "description_first_line",
+  "min_spend_voucher",
+  "review_voucher",
+  "ads_budget",
+  "ads_roas_target",
+  "affiliate_commission",
+]);
+
+const KIND_LABEL: Record<string, string> = {
+  title: "Tên sản phẩm",
+  description_first_line: "Dòng đầu của mô tả",
+  voucher: "Tạo voucher",
+  ads_edit: "Sửa quảng cáo",
+  affiliate_commission: "Hoa hồng chiến dịch mở",
+};
+
+export const FILL_STATUS_LABEL: Record<FillJobStatus, string> = {
+  queued: "Chờ mở trang",
+  opened: "Đã mở trang",
+  filled: "Đã điền, chờ bạn lưu",
+  saved: "Đã lưu",
+  captured: "Xong",
+  failed: "Lỗi",
+  cancelled: "Đã hủy",
+};
+
+const ERROR_TEXT: Record<string, string> = {
+  budget_below_minimum: "Ngân sách thấp hơn mức tối thiểu ₫100.000 của Shopee nên Juli không điền.",
+  budget_missing: "Thẻ chưa có ngân sách để điền.",
+  roas_missing: "Thẻ chưa có mục tiêu ROAS hợp lệ để điền.",
+  campaign_unknown: "Chưa biết mã chiến dịch quảng cáo; mở chiến dịch trên Seller Centre và làm theo bảng thao tác.",
+  voucher_incomplete: "Voucher thiếu giá trị hoặc số lượng nên Juli không điền.",
+  commission_incomplete: "Thiếu sản phẩm hoặc tỉ lệ hoa hồng nên Juli không điền.",
+  text_not_fillable: "Nội dung quá dài hoặc có xuống dòng nên Juli không điền; dán bằng tay.",
+  password_prompt: "Shopee đang hỏi lại mật khẩu: Connector đã dừng. Hãy tự xác nhận trong Shopee rồi thử lại.",
+};
+
+export function fillJobTitle(job: FillJobRow): string {
+  const base = KIND_LABEL[job.kind] ?? job.kind;
+  const ids = (job.target.product_ids as readonly string[] | undefined) ?? (job.target.item_id ? [String(job.target.item_id)] : []);
+  const campaign = job.target.campaign_id ? ` · chiến dịch ${String(job.target.campaign_id)}` : "";
+  const items = ids.length > 0 ? ` · ${ids.length === 1 ? `sản phẩm ${ids[0]}` : `${ids.length} sản phẩm`}` : "";
+  const group = job.group_code ? ` · Nhóm ${job.group_code}` : "";
+  return `${base}${items}${campaign}${group}${job.version > 1 ? ` · V${job.version}` : ""}`;
+}
+
+/** The page address that hands one job to the Connector: only the job's id travels in it. */
+export function fillJobHref(job: Pick<FillJobRow, "id" | "open_path">): string | null {
+  return job.open_path && job.open_path.startsWith("/") ? `${SELLER_CENTRE}${job.open_path}#${FILL_HASH_KEY}=${job.id}` : null;
+}
+
+/** The fill jobs of an approved card, refreshed while one is still open. Seller view only. */
+export function useFillJobs(cardId: string, active: boolean, fetchImpl?: typeof fetch): { jobs: readonly FillJobRow[]; enabled: boolean } {
+  const { shopKey } = useReco();
+  const [state, setState] = useState<{ jobs: readonly FillJobRow[]; enabled: boolean }>({ jobs: [], enabled: false });
+  useEffect(() => {
+    if (!active || shopKey.startsWith("ops")) return;
+    const token = readAuthSession()?.accessToken;
+    const doFetch = fetchImpl ?? (typeof fetch === "function" ? fetch : null);
+    if (!token || !doFetch) return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = () =>
+      doFetch(`/v1/demo/shopee/fill-jobs?card_id=${encodeURIComponent(cardId)}`, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${token}`, "X-Shop-Id": shopKey },
+        cache: "no-store",
+      })
+        .then((r) => (r.ok ? (r.json() as Promise<{ data?: { enabled?: boolean; jobs?: FillJobRow[] } }>) : null))
+        .then((body) => {
+          if (!live) return;
+          const jobs = Array.isArray(body?.data?.jobs) ? body.data.jobs : [];
+          setState({ jobs, enabled: body?.data?.enabled === true });
+          if (jobs.some((j) => j.status === "queued" || j.status === "opened" || j.status === "filled" || j.status === "saved")) {
+            timer = setTimeout(load, 15_000);
+          }
+        })
+        .catch(() => live && setState({ jobs: [], enabled: false }));
+    void load();
+    return () => {
+      live = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [active, cardId, shopKey, fetchImpl]);
+  return state;
+}
+
+/** The voucher id the Connector captured after the person saved, so nothing has to be typed. */
+export function capturedVoucherId(jobs: readonly FillJobRow[]): string | null {
+  return jobs.find((j) => j.kind === "voucher" && j.captured_ref)?.captured_ref ?? null;
+}
+
+/**
+ * The checklist of an approved card's fill jobs: one row per page, its status, a button that opens
+ * the page for the Connector, and the id it captured. Juli never saves: the person presses Shopee's
+ * own Lưu / Xác nhận on each page.
+ */
+export function FillJobsChecklist({ jobs, enabled }: { readonly jobs: readonly FillJobRow[]; readonly enabled: boolean }) {
+  if (!enabled || jobs.length === 0) return null;
+  const done = jobs.filter((j) => j.status === "captured" || j.status === "saved").length;
+  return (
+    <div className="sd-fill" data-testid="sd-fill-jobs">
+      <h3 className="sa-h3">Connector điền sẵn</h3>
+      <p className="sa-hint" data-testid="sd-fill-count">
+        {done}/{jobs.length} trang đã xong. Connector mở và điền từng trang một; bạn kiểm tra rồi bấm Lưu / Xác nhận của chính Shopee. Juli không bấm thay bạn.
+      </p>
+      <ul className="sd-fill__list">
+        {jobs.map((job) => {
+          const href = job.status === "queued" || job.status === "opened" || job.status === "filled" ? fillJobHref(job) : null;
+          return (
+            <li data-testid={`sd-fill-job-${job.id}`} data-status={job.status} key={job.id}>
+              <span>{fillJobTitle(job)}</span> <TextChip tone={job.status === "failed" ? "warn" : job.status === "captured" ? "pink" : "info"}>{FILL_STATUS_LABEL[job.status]}</TextChip>
+              {href ? (
+                <a className="sa-btn sa-btn--s" data-testid="sd-fill-open" href={href} rel="noopener noreferrer" target="_blank">
+                  Mở trang để điền
+                </a>
+              ) : null}
+              {job.captured_ref ? (
+                <span className="sa-hint" data-testid="sd-fill-captured">
+                  {job.kind === "voucher" ? "Mã voucher" : "Mã"}: {job.captured_ref}
+                </span>
+              ) : null}
+              {job.error ? (
+                <span className="sd-error" data-testid="sd-fill-error">
+                  {ERROR_TEXT[job.error] ?? "Connector không điền được trang này; làm theo bảng thao tác."}
+                </span>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}

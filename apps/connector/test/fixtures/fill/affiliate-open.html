@@ -1,0 +1,17 @@
+<!-- /portal/web-seller-affiliate/open_campaign: product table with a commission column, a filter by
+     product name / ID, "Chỉnh sửa hàng loạt" and the commission dialog (2026-11-09 recon). Synthetic. -->
+<div id="app">
+  <div class="filter"><input type="text" id="filter" placeholder="Tìm theo tên sản phẩm hoặc ID"><button type="button" data-search="#atable">Tìm kiếm</button></div>
+  <div class="bulkbar"><button type="button" data-opens="#bulkmenu" id="bulk">Chỉnh sửa hàng loạt</button>
+    <ul id="bulkmenu" hidden><li data-opens="#comm-dialog" id="item-comm">Chỉnh sửa tỉ lệ hoa hồng</li><li data-opens="#time-dialog">Chỉnh sửa Thời gian</li><li data-forbidden>Loại bỏ</li></ul></div>
+  <table id="atable"><tbody>
+    <tr data-id="1001"><td><input type="checkbox"></td><td>Sản phẩm mẫu một</td><td>ID: 1001</td><td>13%</td></tr>
+    <tr data-id="1002"><td><input type="checkbox"></td><td>Sản phẩm mẫu hai</td><td>ID: 1002</td><td>10%</td></tr>
+    <tr data-id="1003"><td><input type="checkbox"></td><td>Sản phẩm mẫu ba</td><td>ID: 1003</td><td>9%</td></tr>
+  </tbody></table>
+  <div id="comm-dialog" role="dialog" class="eds-modal" hidden>
+    <div class="head">Chỉnh sửa tỉ lệ hoa hồng</div>
+    <div><input type="text" id="pct" placeholder="%"></div>
+    <div class="actions"><button type="button" data-forbidden>Hủy</button><button type="button" id="comm-ok" data-forbidden>Lưu lại</button></div>
+  </div>
+</div>

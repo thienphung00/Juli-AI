@@ -93,8 +93,8 @@ describe("ads_campaign_settings (the Quảng cáo list)", () => {
       reply("ads_homepage", home([entry(7004, { state: "scheduled", type: "product_mpd" }), entry(7005, { type: "product_gms" })], 2)),
     ];
     expect(ongoingAdsCampaigns(responses)).toEqual([
-      { id: "7001", kind: "manual" },
-      { id: "7004", kind: "mpd" },
+      { id: "7001", kind: "manual", name: "Chiến dịch 7001" },
+      { id: "7004", kind: "mpd", name: "Chiến dịch 7004" },
     ]);
   });
 });

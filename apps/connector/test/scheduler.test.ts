@@ -188,8 +188,10 @@ describe("planJobs", () => {
       "vouchers",
       "ads",
       "ads_detail",
+      "ads_products",
       "health",
       "shop_totals",
+      "product_period",
       "orders",
       "order_income",
       "affiliate",
@@ -419,6 +421,22 @@ describe("a daily run", () => {
     expect(ctx.tabs.closed).toContain(tab.id);
     expect(await ctx.scheduler.tick()).toBe("blocked");
     expect(state?.trafficDone ?? []).toEqual([]);
+  });
+
+  it("a stop seen outside the readers (a fill page's password prompt) ends the run, closes its tab, blocks like a login wall and tells Juli", async () => {
+    const ctx = setup();
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.haltFor("login", "/portal/marketing/vouchers/new", "password_prompt");
+    const state = await ctx.read();
+    expect(state?.blocked).toMatchObject({ reason: "login" });
+    expect(state?.blocked!.until).toBeGreaterThan(ctx.clock.now);
+    expect(state?.run).toBeUndefined();
+    expect(ctx.tabs.closed).toContain(tab.id);
+    expect(ctx.events).toEqual([
+      expect.objectContaining({ reader: "fill", page: "/portal/marketing/vouchers/new", status: "login", code: "password_prompt" }),
+    ]);
+    expect(await ctx.scheduler.tick()).toBe("blocked");
   });
 
   it("does not start without a token, with a consent refusal, or on top of a backfill day in flight", async () => {

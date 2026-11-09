@@ -70,6 +70,8 @@ export interface PlannedJob {
   /** ads_detail: the ongoing campaigns to read (filled in when its turn comes) and their kind. */
   campaignIds?: string[];
   campaignKinds?: string[];
+  /** ads_products: the group campaigns' titles (parallel to `campaignIds`). */
+  campaignNames?: string[];
   /** order_income: the completed orders to read (raw ids stay in this browser; filled in at its turn). */
   orderIds?: string[];
   orderSns?: string[];
@@ -111,10 +113,12 @@ export interface ReaderSchedule {
   /** The GMT+7 day the campaign settings were last posted (Connector 0.3.11). */
   adsSettingsDay?: string;
   /** Ongoing / scheduled product campaigns from that list read: the ads_detail work list. */
-  adsCampaigns?: { id: string; kind: string }[];
+  adsCampaigns?: { id: string; kind: string; name?: string }[];
   /** Shop totals (0.3.11): the GMT+7 day they last posted, and the shop whose 30-day backfill is done. */
   totalsDay?: string;
   totalsBackfilledShop?: string;
+  /** Product table (0.3.12): the day it was last read and posted. */
+  productPeriodDay?: string;
   /** Order lines (0.3.11): the day the list was last read and posted. */
   ordersDay?: string;
   /**
@@ -162,6 +166,16 @@ export interface State {
   market?: MarketSchedule;
   /** Requests sent to Seller Centre today (GMT+7), all readers + sync + backfill together. */
   budget?: RequestBudget;
+  /** Fill jobs (P97 D85.6): the page being worked on and the poll bookkeeping. */
+  fill?: FillJobsState;
+}
+
+/** The fill-job runner's bookkeeping. At most one page is open for a job at a time. */
+export interface FillJobsState {
+  active?: { id: string; tabId?: number; openedAt: number; counted: boolean };
+  /** Jobs this browser already opened by itself (never again by the poll; the person re-opens). */
+  autoOpened: string[];
+  lastPoll?: { at: string; status: string };
 }
 
 /** The shared daily request budget's counter. */
@@ -205,6 +219,7 @@ export async function loadState(storage: Storage): Promise<State> {
     "readers",
     "market",
     "budget",
+    "fill",
   ])) as Partial<State>;
   return {
     token: raw.token,
@@ -219,6 +234,7 @@ export async function loadState(storage: Storage): Promise<State> {
     readers: raw.readers,
     market: raw.market,
     budget: raw.budget,
+    fill: raw.fill,
   };
 }
 

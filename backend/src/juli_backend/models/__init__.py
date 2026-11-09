@@ -84,6 +84,7 @@ from juli_backend.models.shop_proposals import (
     ShopProposalExecution,
     ShopProposalResult,
 )
+from juli_backend.models.shopee_fill import ShopeeFillJob
 from juli_backend.models.shopee_metrics import (
     ShopeePlanBaseSnapshot,
     ShopeeProductMetricsDaily,
@@ -182,6 +183,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopeePlanBaseSnapshot,
     ShopeeProductMetricsDaily,
     ShopeeShopMetricsDaily,
+    ShopeeFillJob,
     PlannedChangeImport,
     PlannedChangeRef,
     MarketKeywordMetric,

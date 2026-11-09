@@ -55,6 +55,8 @@ export type ReaderDataset =
   | "shop_health_daily"
   | "market_search"
   | "shop_overview"
+  | "product_period"
+  | "ads_campaign_period"
   | "order_lines"
   | "order_income"
   | "affiliate_order_lines"
@@ -81,6 +83,8 @@ export type ReaderId =
   | "vouchers"
   | "health"
   | "shop_totals"
+  | "product_period"
+  | "ads_products"
   | "orders"
   | "order_income"
   | AffiliateReaderId;
@@ -111,10 +115,14 @@ export const READER_IDS: readonly ReaderId[] = [
   "ads",
   // Connector 0.3.7: right after the list, on the ongoing campaigns the list just named.
   "ads_detail",
+  // Connector 0.3.12 (P97 T3): per-product ads of the group campaigns, right after their edit pages.
+  "ads_products",
   "health",
   // Connector 0.3.11 (P97 T1): shop totals, order lines, per-order income. One page at a time like
   // every reader; the shared request budget below caps all of them together.
   "shop_totals",
+  // Connector 0.3.12 (P97 T3, recorded 2026-11-09): the 30-day product table, once a day.
+  "product_period",
   "orders",
   "order_income",
   ...AFFILIATE_READER_IDS,
@@ -130,6 +138,8 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
   vouchers: true,
   health: true,
   shop_totals: true,
+  product_period: true,
+  ads_products: true,
   orders: true,
   order_income: true,
   affiliate: true,
@@ -173,6 +183,8 @@ export const READER_DATASETS: Record<ReaderId, readonly ReaderDataset[]> = {
   ads_detail: ["ads_campaign_detail"],
   health: ["shop_health_daily"],
   shop_totals: ["shop_overview"],
+  product_period: ["product_period"],
+  ads_products: ["ads_campaign_period"],
   orders: ["order_lines"],
   order_income: ["order_income"],
   affiliate: ["affiliate_order_lines"],
@@ -236,6 +248,17 @@ export const SHOP_TOTALS_BACKFILL_DAYS = 30;
 export const SHOP_TOTALS_REFRESH_DAYS = 7;
 /** Rate limit / 403 / CAPTCHA stops ALL readers for the shop for this long (the CAPTCHA cool-down). */
 export const READER_BLOCK_RATE_MS = READER_BLOCK_CAPTCHA_MS;
+
+/**
+ * Product table (Hiệu quả của sản phẩm, recorded 2026-11-09): the last 30 finished days, ordered by
+ * confirmed sales, 10 a page, at most this many pages a run. One answer holds placed, paid and
+ * confirmed values per item, so one read posts both order types Tổng quan and Quảng cáo need.
+ */
+export const PRODUCT_PERIOD_DAYS = 30;
+export const PRODUCT_PERIOD_PAGE_SIZE = 10;
+export const PRODUCT_PERIOD_MAX_PAGES = 5;
+/** Group-campaign pages whose per-product table is read (the page opened + the others replayed). */
+export const ADS_PRODUCTS_MAX_CAMPAIGNS = 10;
 
 /** Ads: yesterday plus up to this many earlier finished days not read yet (one day per call). */
 export const ADS_CATCHUP_DAYS = 3;
@@ -328,6 +351,33 @@ export const FILL_LABELS = {
 
 export function fillActive(shopId: string | undefined): boolean {
   return FILL_LISTING_ACTIVE && !!shopId && PILOT_SHOP_IDS.includes(shopId);
+}
+
+// -- fill jobs (P97 D85.6): approved cards queued by Juli, opened and filled page by page -------
+//
+// The allowlist is "this token's shop" (a paired Connector), NOT PILOT_SHOP_IDS: Juli serves jobs
+// only for the token's own shop and only while its server flag CONNECTOR_FILL_LISTING is on (the
+// kill switch). Same rules as the listing fill: the Connector types and highlights, the person
+// presses Shopee's own Lưu / Xác nhận / Gửi. A job page open costs READER_PAGE_LOAD_COST against
+// the shared daily request budget; a CAPTCHA / login wall / password prompt stops it.
+
+export const FILL_JOBS_ACTIVE = true;
+export const FILL_JOBS_ALARM = "juli-fill-jobs";
+export const FILL_JOBS_POLL_MINUTES = 3;
+/** Jobs with no progress after this long are given up (the tab may have been closed). */
+export const FILL_JOB_STALE_MS = 6 * 3_600_000;
+/** `#juli-fill=<job id>` -- the job's UUID. */
+export const FILL_JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** The only Seller Centre pages a job may open (path only; a query string is allowed on vouchers). */
+export const FILL_JOB_PAGES = {
+  product_edit: /^\/portal\/product\/(\d{1,20})$/,
+  voucher_new: /^\/portal\/marketing\/vouchers\/new$/,
+  ads_edit: /^\/portal\/marketing\/pas\/product\/(manual|manual-mpd)\/(\d{1,20})$/,
+  affiliate_open: /^\/portal\/web-seller-affiliate\/open_campaign$/,
+} as const;
+/** Fill jobs run for the paired token's shop; the server decides whether anything is served. */
+export function fillJobsActive(shopId: string | undefined): boolean {
+  return FILL_JOBS_ACTIVE && !!shopId;
 }
 
 // -- market search reader (P92 B-10, Connector 0.3.5) -----------------------------------------

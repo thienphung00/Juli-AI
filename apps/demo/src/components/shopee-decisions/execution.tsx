@@ -6,7 +6,7 @@ import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { READBACK_LABEL, countdownOf, readbackOf, readingsOf, stepText, vnWhen, type Readback } from "../../lib/shopee-decisions/model";
 import type { CardDetail, ExecutionSheet, ExecutionStep, SheetPage } from "../../lib/shopee-decisions/types";
-import { ListingSheetExtras } from "../planned-changes/listing-extras";
+import { capturedVoucherId, FILL_JOB_KINDS, FillJobsChecklist, ListingSheetExtras, useFillJobs } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
 import { CopyButton, errorText } from "./ui";
 
@@ -121,13 +121,17 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
   const rb = readbackOf(detail.journey);
   const executed = detail.status === "executed";
   const needsVoucherId = sheet.changes.some((c) => c.change_kind === "voucher");
-  const blocked = !!host.readOnly || busy || (needsVoucherId && voucherId.trim() === "");
+  // P97 D85.6: after the person saves, the Connector captures the new voucher id itself.
+  const fillActive = detail.status === "approved" && FILL_JOB_KINDS.has(detail.change_kind);
+  const fill = useFillJobs(detail.id, fillActive);
+  const captured = capturedVoucherId(fill.jobs);
+  const blocked = !!host.readOnly || busy || (needsVoucherId && voucherId.trim() === "" && !captured);
 
   const markDone = async () => {
     setBusy(true);
     setError(null);
     try {
-      await host.reco.executed(detail.id, { voucherId: needsVoucherId ? voucherId.trim() : null });
+      await host.reco.executed(detail.id, { voucherId: needsVoucherId ? voucherId.trim() || null : null });
       onExecuted();
     } catch (e) {
       setError(errorText(e));
@@ -155,7 +159,12 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
         <>
           <SheetView sheet={sheet} />
           <ListingSheetExtras detail={detail} sheet={sheet} />
-          {needsVoucherId ? (
+          <FillJobsChecklist enabled={fill.enabled} jobs={fill.jobs} />
+          {needsVoucherId && captured ? (
+            <p className="sa-hint" data-testid="sd-voucher-captured">
+              Connector đã lấy mã voucher {captured} sau khi bạn lưu, nên không cần nhập; Juli dùng mã này để đọc lại và xác minh.
+            </p>
+          ) : needsVoucherId ? (
             <label className="sd-voucher-id">
               Mã voucher trên Seller Centre (sau khi tạo)
               <input

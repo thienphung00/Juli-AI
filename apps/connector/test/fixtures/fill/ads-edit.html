@@ -1,0 +1,21 @@
+<!-- /portal/marketing/pas/product/manual/<campaign_id>: the detail page with pencil icons next to
+     the budget and the ROAS target, and the two popups they open (2026-11-09 recon). Synthetic. -->
+<div id="app">
+  <div class="card" id="budget-card"><div class="lbl">Ngân sách</div><div>₫22.000 / ngày</div><button type="button" aria-label="Chỉnh sửa ngân sách" data-opens="#budget-dialog" class="pencil"></button></div>
+  <div class="card" id="roas-card"><div class="lbl">Mục tiêu ROAS</div><div>5.0</div><button type="button" aria-label="Chỉnh sửa mục tiêu ROAS" data-opens="#roas-dialog" class="pencil"></button></div>
+  <div class="card"><div class="lbl">Thời gian</div><div>Không có ngày kết thúc</div><button type="button" aria-label="Chỉnh sửa thời gian" class="pencil" id="time-pencil"></button></div>
+  <div id="budget-dialog" role="dialog" class="eds-modal" hidden>
+    <div class="head">Chỉnh sửa ngân sách</div>
+    <label class="eds-radio"><input type="radio" name="b" value="none"><span>Không giới hạn</span></label>
+    <label class="eds-radio"><input type="radio" name="b" value="daily"><span>Ngân sách hàng ngày</span></label>
+    <input type="text" id="budget" placeholder="₫"><div class="hint">Ngân sách tối thiểu: ₫100.000</div>
+    <div class="actions"><button type="button" data-forbidden>Hủy</button><button type="button" id="budget-ok" data-forbidden>Xác nhận</button></div>
+  </div>
+  <div id="roas-dialog" role="dialog" class="eds-modal" hidden>
+    <div class="head">Mục tiêu ROAS</div>
+    <label class="eds-radio"><input type="radio" name="r" value="system"><span>Tối ưu bởi hệ thống</span></label>
+    <label class="eds-radio"><input type="radio" name="r" value="custom"><span>Tùy chỉnh</span></label>
+    <input type="text" id="roas" placeholder="Nhập ROAS"><div class="hint">Vui lòng đặt ≤ 3.5</div>
+    <div class="actions"><button type="button" data-forbidden>Hủy</button><button type="button" id="roas-ok" data-forbidden>Xác nhận</button></div>
+  </div>
+</div>

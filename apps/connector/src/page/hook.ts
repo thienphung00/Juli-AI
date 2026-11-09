@@ -14,7 +14,8 @@
 // cookies, no other URLs, and sends nothing but those queries: it never clicks, applies or
 // saves anything.
 
-import { CHANNEL, READER_IDS, SELLER_CENTRE_ORIGIN } from "../config";
+import { CHANNEL, FILL_HASH_KEY, READER_IDS, SELLER_CENTRE_ORIGIN } from "../config";
+import { savedVoucherPath, voucherIdFrom } from "../fill/saved";
 import {
   isCapturedEndpoint,
   READER_ENDPOINTS,
@@ -152,6 +153,21 @@ function readerTarget(rawUrl: string, method: string): { endpoint: ReaderEndpoin
   }
 }
 
+// -- a voucher the person saved on a fill-job page (P97 D85.6) ----------------------------------
+
+/** Only on a page opened by a fill job (`#juli-fill=...`): keep the new voucher_id of the create answer. */
+function noteSavedVoucher(rawUrl: string, method: string, body: unknown): void {
+  try {
+    if (method !== "POST" || !location.hash.includes(`${FILL_HASH_KEY}=`)) return;
+    const url = new URL(rawUrl, location.href);
+    if (url.origin !== SELLER_CENTRE_ORIGIN || !savedVoucherPath(url.pathname)) return;
+    const ref = voucherIdFrom(body);
+    if (ref) window.postMessage({ channel: CHANNEL, kind: "fill-saved", ref }, SELLER_CENTRE_ORIGIN);
+  } catch {
+    // not ours to report
+  }
+}
+
 // -- fetch ----------------------------------------------------------------------------
 
 const originalFetch = window.fetch.bind(window);
@@ -173,6 +189,13 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
     if (seen) mydataHeaders = seen;
   }
   const response = await originalFetch(input, init);
+  if (response.ok && method === "POST") {
+    response
+      .clone()
+      .json()
+      .then((body: unknown) => noteSavedVoucher(raw, method, body))
+      .catch(() => undefined);
+  }
   if (reader && response.ok) {
     response
       .clone()
@@ -194,6 +217,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
 
 // -- XMLHttpRequest -------------------------------------------------------------------
 
+const xhrPosts = new WeakMap<XMLHttpRequest, string>();
 const xhrUrls = new WeakMap<XMLHttpRequest, URL>();
 const xhrWatchedHeaders = new WeakMap<XMLHttpRequest, Record<string, string>>();
 const xhrReaders = new WeakMap<
@@ -222,6 +246,7 @@ XMLHttpRequest.prototype.open = function open(
   url: string | URL,
   ...rest: unknown[]
 ): void {
+  if (method.toUpperCase() === "POST") xhrPosts.set(this, String(url));
   const target = method.toUpperCase() === "GET" ? watched(String(url)) : null;
   if (target) {
     xhrUrls.set(this, target);
@@ -236,6 +261,21 @@ XMLHttpRequest.prototype.send = function send(
   this: XMLHttpRequest,
   body?: Document | XMLHttpRequestBodyInit | null,
 ): void {
+  const posted = xhrPosts.get(this);
+  if (posted) {
+    this.addEventListener("load", () => {
+      if (this.status < 200 || this.status >= 300) return;
+      try {
+        noteSavedVoucher(
+          posted,
+          "POST",
+          this.responseType === "json" ? this.response : JSON.parse(typeof this.response === "string" ? this.response : this.responseText),
+        );
+      } catch {
+        // not JSON
+      }
+    });
+  }
   const reader = xhrReaders.get(this);
   if (reader) {
     learn(reader.endpoint, reader.url, parseJson(body), reader.headers);

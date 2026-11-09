@@ -235,7 +235,7 @@ export class Connector {
     const perDate = new Set(["ads", "item_traffic", "affiliate_dashboard", "affiliate_bills"]);
     for (const raw of mapReaderJob(job, responses, capturedAt)) {
       const key =
-        job.id === "shop_totals"
+        job.id === "shop_totals" || job.id === "product_period"
           ? `${raw.dataset}:${raw.orderType}`
           : perDate.has(job.id)
             ? `${raw.dataset}:${raw.date}`

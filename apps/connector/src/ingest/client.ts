@@ -95,6 +95,16 @@ export class GatewayClient {
     return this.call(`/v1/ingest/fill/${encodeURIComponent(code)}`, { method: "GET" }, token);
   }
 
+  /** The open fill jobs of the token's shop (P97 D85.6). Juli serves nothing while its kill switch is off. */
+  fillJobs(token: string): Promise<unknown> {
+    return this.call("/v1/ingest/fill-jobs", { method: "GET" }, token);
+  }
+
+  /** How far one fill job got: opened / filled / saved / captured (with the new id) / failed. */
+  fillJobReport(token: string, jobId: string, body: { status: string; captured_ref?: string; error?: string }): Promise<unknown> {
+    return this.call(`/v1/ingest/fill-jobs/${encodeURIComponent(jobId)}`, { method: "POST", body: JSON.stringify(body) }, token);
+  }
+
   /** The keywords of the shop's products to read on the public search page (P92 B-10). */
   marketKeywords(token: string): Promise<unknown> {
     return this.call("/v1/ingest/market/keywords", { method: "GET" }, token);
