@@ -169,6 +169,17 @@ GMV still rises; AOV's range is a ratio of two percentiles. Options cannot be co
     its pack key (G500001×3), and the footer drops the "giả định 1/3 giá" text (no 1/3 fallback,
     "chưa tính" when giá vốn is missing, as in the builder, P92 B-7.1).
 
+13. **Estimates settled at the wave-2 merge (owner, 2026-11-09).**
+    - *E1 — visible-offer CTOR prior:* 0 % / 1 % / 3 % (low / likely / high), tagged "ước tính chung"
+      until the shop's own measured offers calibrate it (ADR-121).
+    - *E2 — reach to a voucher minimum or a combo tier:* **measured** from the shop's order lines —
+      the share of orders within 20 % below the minimum / tier today; the 0 / 20 / 50 % prior only
+      when there are too few orders to measure (then tagged "ước tính chung").
+    - *E3 — a new combo listing's extra orders:* only pack sizes the shop does **not** sell today add
+      orders (from the matching variation's measured rates); a pack size the shop already sells is
+      switching — Δ Đơn 0, AOV and lợi nhuận mỗi đơn change.
+    - The second driver of a two-driver option takes 50 % of the lead lift, tagged "ước tính chung".
+
 ## Consequences
 
 - **Live numbers change.** Options whose driver sits above đơn now move đơn (a minimum-spend voucher
