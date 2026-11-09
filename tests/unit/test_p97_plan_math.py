@@ -331,7 +331,7 @@ def test_group_codes_name_the_group_after_its_first_card_and_versions_keep_v():
         codes.group_code("JC-2611-0007", "ab")
 
 
-def test_migration_125_is_additive_reversible_and_the_tail():
+def test_migration_125_is_additive_and_reversible():
     import importlib.util
     import sys
 
@@ -363,7 +363,7 @@ def test_migration_125_is_additive_reversible_and_the_tail():
         for column in model.__table__.columns.keys():
             assert f'"{column}"' in src, f"{model.__tablename__}.{column}"
     tail = versions_dir.parent / "deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "125_reco_plan_groups"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "126_shopee_source_funnel"' in tail.read_text("utf-8")
 
 
 def _ev(card_id, product, dgmv):

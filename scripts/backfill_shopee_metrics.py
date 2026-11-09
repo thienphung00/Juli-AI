@@ -4,11 +4,13 @@
     python scripts/backfill_shopee_metrics.py --database-url postgresql://... --all-shopee
         [--from 2026-08-01] [--to 2026-11-09] [--dry-run]
 
-Run once after migration 123 (``shopee_shop_metrics_daily``, ``shopee_product_metrics_daily``) and
+Run once after migration 123 (``shopee_shop_metrics_daily``, ``shopee_product_metrics_daily``),
+once after migration 126 (``shopee_source_metrics_daily``, the funnel per traffic source) and
 whenever the day rows may have drifted (a failed hook is logged; this repairs it). Every day the
 shop has order lines or daily Shopee rows for is recomputed from the raw tables inside the shop's
-tenant scope and upserted, so the script is safe to repeat. Prints counts only -- no order id,
-product name or amount.
+tenant scope and upserted, so the script is safe to repeat; then the daily funnel check runs over
+those days (``shopee_funnel_mismatch`` logs; nothing is corrected). Prints counts only -- no order
+id, product name or amount.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from juli_backend.core.config.runtime import async_database_url
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import Shop
-from juli_backend.services.shopee_analytics import materialize
+from juli_backend.services.shopee_analytics import funnel_check, materialize
 
 
 async def run(args: argparse.Namespace) -> int:
@@ -57,8 +59,9 @@ async def run(args: argparse.Namespace) -> int:
                             print(f"{shop_id}: {len(days)} day(s) would be rebuilt")
                             continue
                         written = await materialize.rebuild_days(session, shop_id, days)
+                        found = await funnel_check.check_days(session, shop_id, days)
                         await session.commit()
-                    print(f"{shop_id}: {written} day(s) rebuilt")
+                    print(f"{shop_id}: {written} day(s) rebuilt, {len(found)} funnel mismatch(es)")
                 except (
                     SQLAlchemyError,
                     ArithmeticError,

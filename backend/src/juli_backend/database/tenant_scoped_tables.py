@@ -176,6 +176,8 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shopee_plan_base_snapshots"): "tenant_direct",
     # P97 D85.6 (migration 124): the fill queue the Connector works through after an approval.
     ("public", "shopee_fill_jobs"): "tenant_direct",
+    # P98 / ADR-122 d.3 (migration 126): the funnel per traffic source, per day (shop and item).
+    ("public", "shopee_source_metrics_daily"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",

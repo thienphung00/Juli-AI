@@ -42,7 +42,7 @@ def test_migration_110_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # ADR-119's 111 (Shopee keywords) went on 110 and took the deferred tail.
     later = (MIGRATIONS / "versions/111_shopee_keywords.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "125_reco_plan_groups"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "126_shopee_source_funnel"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_110():

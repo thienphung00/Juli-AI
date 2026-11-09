@@ -12,6 +12,11 @@ INSERT, UPDATE -- rows are rebuilt by upsert, never deleted):
 - ``shopee_plan_base_snapshots`` -- the base a draft plan was evaluated on (``as_of`` and the
   aggregates the plan math shows), versioned: "Cập nhật số" writes the next version, the highest
   version is the active one.
+- ``shopee_source_metrics_daily`` (P98 / ADR-122 d.3, migration 126) -- the funnel per traffic
+  source: one row per (shop, day, item or NULL = the shop, source). Lượt xem / lượt nhấp from the
+  traffic tables; đơn / GMV / lợi nhuận are ShopMetrics allocated over the sources, so the six
+  sources of a scope add up to its shop (or product) row exactly; ``chenh_lech_nguon`` holds what
+  Shopee does not assign. ``ads_*`` is the "trong đó Quảng cáo" share of ``the_san_pham_khac``.
 
 Written by ``services/shopee_analytics/materialize`` from the raw tables after each ingest write
 and by the backfill CLI (``scripts/backfill_shopee_metrics.py``). Money is VND.
@@ -35,6 +40,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -44,6 +50,15 @@ from juli_backend.orm_base import Base
 ORDER_TYPES: tuple[str, ...] = ("placed", "paid", "confirmed")
 SOURCES: tuple[str, ...] = ("shop_totals", "order_lines", "connector", "file")
 RESIDUAL_ITEM = "__residual__"
+#: ADR-122 d.3 source keys, as ``shopee_builder.engine.contract.SOURCES`` (checked by a test)
+FUNNEL_SOURCES: tuple[str, ...] = (
+    "the_san_pham_khac",
+    "trang_shop",
+    "live",
+    "video",
+    "lien_ket",
+    "chenh_lech_nguon",
+)
 _MONEY = Numeric(18, 2)
 
 
@@ -143,3 +158,58 @@ class ShopeePlanBaseSnapshot(Base):
     base: Mapped[dict[str, Any]] = mapped_column(JSONBType, default=dict)
     created_by: Mapped[dict[str, Any]] = mapped_column(JSONBType, default=dict)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class ShopeeSourceMetricsDaily(Base):
+    """One source of one scope on one day (ADR-122 d.3). ``item_id`` NULL = the shop row; the
+    natural key is (shop, day, item, source), enforced by two partial unique indexes because a
+    NULL never collides in a plain unique constraint."""
+
+    __tablename__ = "shopee_source_metrics_daily"
+    __table_args__ = (
+        CheckConstraint(
+            f"source IN ({_in(FUNNEL_SOURCES)})", name="ck_shopee_source_metrics_daily_source"
+        ),
+        Index(
+            "uq_shopee_source_metrics_daily_shop",
+            "shop_id",
+            "day",
+            "source",
+            unique=True,
+            postgresql_where=text("item_id IS NULL"),
+            sqlite_where=text("item_id IS NULL"),
+        ),
+        Index(
+            "uq_shopee_source_metrics_daily_item",
+            "shop_id",
+            "day",
+            "item_id",
+            "source",
+            unique=True,
+            postgresql_where=text("item_id IS NOT NULL"),
+            sqlite_where=text("item_id IS NOT NULL"),
+        ),
+        Index("ix_shopee_source_metrics_daily_item", "shop_id", "item_id", "day"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    day: Mapped[date] = mapped_column(Date)
+    #: NULL = the shop's row
+    item_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source: Mapped[str] = mapped_column(String(24))
+    #: NULL = the traffic tables have no rows for this source ("chưa có dữ liệu")
+    views: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    clicks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    orders: Mapped[int] = mapped_column(Integer, default=0)
+    gmv: Mapped[Decimal] = mapped_column(_MONEY, default=Decimal(0))
+    #: NULL = a giá vốn is missing ("chưa tính")
+    profit: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    ads_views: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ads_clicks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ads_orders: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ads_gmv: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    ads_spend: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
+    #: the traffic tables' own đơn / GMV for this source were scaled to the ShopMetrics totals
+    scaled_to_totals: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    built_at: Mapped[datetime] = mapped_column(server_default=func.now())
