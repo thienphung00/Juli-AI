@@ -79,7 +79,7 @@ export function TableWrap({ children, label }: { readonly children: ReactNode; r
   );
 }
 
-type ShopeeTab = "san-pham" | "quang-cao" | "tu-khoa" | "don-hang" | "phan-tich" | "de-xuat";
+type ShopeeTab = "san-pham" | "quang-cao" | "tu-khoa" | "don-hang" | "phan-tich" | "de-xuat" | "lech-so-lieu";
 
 export function PageTitle({ shopId, title, active }: { readonly shopId: string; readonly title: string; readonly active: ShopeeTab }) {
   const tab = (key: ShopeeTab, label: string) =>
@@ -107,6 +107,7 @@ export function PageTitle({ shopId, title, active }: { readonly shopId: string; 
         {tab("don-hang", "Đơn hàng")}
         {tab("phan-tich", "Phân tích shop")}
         {tab("de-xuat", "Đề xuất")}
+        {tab("lech-so-lieu", "Lệch số liệu")}
       </nav>
     </div>
   );
