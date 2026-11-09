@@ -928,6 +928,24 @@ class DriftReport(BaseModel):
     observed_at: datetime | None = None
 
 
+class ConnectorEvent(BaseModel):
+    """``POST /v1/ingest/connector-events``: a stop that halted every reader of the shop's
+    Connector (a CAPTCHA, a login wall, HTTP 429 / 403 or "too many requests" wording).
+
+    Metadata only -- which reader, which page (a path), what happened and when. No body, no
+    order, no buyer. Ops reads it from the audit log (``system_connector_stop``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    platform: Literal["shopee", "tiktok"]
+    reader: Annotated[str, StringConstraints(pattern=r"^[a-z_]{1,48}$")]
+    page: Annotated[str, StringConstraints(max_length=120)] = ""
+    status: Literal["captcha", "login", "rate_limit"]
+    code: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_.:\-]{1,40}$")] | None = None
+    occurred_at: datetime | None = None
+    source_version: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._+\-]{1,64}$")]
+
+
 class PairRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

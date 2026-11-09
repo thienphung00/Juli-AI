@@ -546,7 +546,7 @@ Leads over the 9 Nov one-shell plan (branch `cursor/plan-2026-11-09-5df0`), whic
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| T1 Connector 0.3.11: port p96 local (migration 122 KOL lines, ads settings / edit-page reader, seller Connector tab); ads drift on entries without campaign_id; placed + confirmed; KOL id / money scale; readers for shop totals, order lines + income, product period, ads per product | p97 T1 | todo | connector + ingest agents |
+| T1 Connector 0.3.11: port p96 local (migration 122 KOL lines, ads settings / edit-page reader, seller Connector tab); ads drift on entries without campaign_id; placed + confirmed; KOL id / money scale; readers for shop totals, order lines + income, product period, ads per product | p97 T1 | doing: all done and committed on `fasttrack/p97-t1-connector` except product period + ads per product readers (not built) and the first live capture of the new readers (shapes marked TODO); shared request budget + rate-limit stop + `connector-events` added | T1 agent (Opus) |
 | T2 One `ShopMetrics` read model (one GMV basis, window, anchor, AOV); Kế hoạch order-independent and idempotent; So sánh before → after for 7 metrics | p97 T2 | todo | backend agent |
 | T3 Fill-in on approval: queue, auto-open, selects / dates / rows, id capture; Voucher → Combo → Quảng cáo → Affiliate | p97 T3 | todo, waits on voucher recon | connector + backend + demo agents |
 | Recon of shop totals, order list, income pages (for T1 readers) | p97 D85.5 | done 2026-11-09 (recon file); income page needs the main account, per-order income works | orchestrator + owner |

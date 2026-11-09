@@ -19,7 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import DRIFT_DRIFT, DRIFT_OK, IngestDatasetStatus
 from juli_backend.services.ingest.mapping import DATASETS
-from juli_backend.services.ingest.schemas import DriftReport
+from juli_backend.services.ingest.schemas import ConnectorEvent, DriftReport
+from juli_backend.services.ops import audit
 
 logger = logging.getLogger(__name__)
 
@@ -117,5 +118,43 @@ async def report_drift(
             "endpoint": report.endpoint,
             "unexpected": report.unexpected[:20],
             "missing": report.missing[:20],
+        },
+    )
+
+
+#: The audit action of a Connector stop (``system_`` prefix: kind ``system``, 90-day retention).
+ACTION_CONNECTOR_STOP = "system_connector_stop"
+
+
+async def record_connector_event(
+    session: AsyncSession, *, shop_id: uuid.UUID, event: ConnectorEvent, now: datetime
+) -> None:
+    """Keep a Connector stop where Ops looks: the audit log, no table of its own (P97 T1).
+
+    Metadata only; the caller commits."""
+    await audit.record(
+        session,
+        audit.SYSTEM_ACTOR,
+        ACTION_CONNECTOR_STOP,
+        shop_id=shop_id,
+        after={
+            "platform": event.platform,
+            "reader": event.reader,
+            "page": event.page,
+            "status": event.status,
+            "code": event.code,
+            "occurred_at": (event.occurred_at or now).isoformat(),
+            "source_version": event.source_version,
+        },
+        at=now,
+    )
+    logger.warning(
+        "connector_stop",
+        extra={
+            "shop_id": str(shop_id),
+            "reader": event.reader,
+            "status": event.status,
+            "code": event.code,
+            "source_version": event.source_version,
         },
     )

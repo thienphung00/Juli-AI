@@ -3880,3 +3880,62 @@ reconcile --write` re-derived the no-assert corpus figure.
 - ORY ads campaign 160675212 runs below Shopee's ₫100.000/day minimum with ROAS 5.0 (hint ≤ 3.5), 0 views 08-11.
 - Owner: Tự tạo phương án = compare and run many; table picker, one card many targets, P94 groups into P97;
   P50 + range everywhere (D85.10–14, 17).
+
+## 2026-11-06 — Connector 0.3.8 (#2272): ads campaigns, KOL retry, Nhóm A approve (written 2026-11-09)
+
+- Entry missing from the log when it shipped; reconstructed from `git log` of #2272 (`288f9059`).
+- A new Seller Centre field no longer stops Doanh số theo nguồn, and an ads-homepage total row (no campaign
+  id) no longer stops the day's campaigns. Connector 0.3.8 retries a KOL page that did not post when the
+  seller syncs again (the popup's "Đồng bộ" reopens a page whose last outcome was not `done`).
+- Demo: the ads page lists each campaign the way Shopee does; a card that can hold more than one live value
+  approves those versions as Nhóm A (#2273 keeps a single version click as one approval).
+
+## 2026-11-06 — Connector 0.3.9 (#2274): uncapped budget, video CTR (written 2026-11-09)
+
+- Reconstructed from `git log` of #2274 (`960efae5`). An unlimited GMV Max budget was read as
+  `ads:money_scale` and dropped the day's campaigns: the budget field is now left out, a real cost above the
+  ceiling still stops. A video CTR outside 0..1 was read as `not_a_fraction` and dropped Doanh số theo nguồn:
+  it is kept.
+
+## 2026-11-08 — Connector 0.3.10 (#2276): one out-of-range amount no longer drops the dataset (written 2026-11-09)
+
+- Reconstructed from `git log` of #2276 (`86c6f673`, deploy tag `fasttrack-deploy-20261108T0708Z`). A campaign
+  cost above the ceiling, a video CTR above 1, an affiliate amount on a mixed scale, or a campaign with no name
+  was dropping the whole dataset. Those fields are left out; the campaigns, the sales and the KOL rows post.
+
+## 2026-11-09 — T1 agent (Claude Opus) — Connector 0.3.11: P97 T1
+
+- **Port of the p96 local work** (worktree `p96-strategies`, uncommitted, never deployed): migration
+  `122_shopee_affiliate_lines` (table + model + RLS + `tenant_scoped_tables`), the KOL view merging Connector
+  lines (`kol_affiliate.py`, `kol_buyers`), ads campaign settings + the read-only edit-page reader
+  (`/api/pas/` replays guarded by `isReadOnlyPasPath`, <= 20 campaigns a day), ingest row types for ads
+  settings / detail + `shopee_builder/ads_campaigns.py`, and the seller "Juli Connector" settings tab. Of the
+  p96 Ops pairing rewrite only the Shopee-only guard (`not_a_shopee_shop`) and the own-scope `_shop_row` read
+  came across; the local combo-test change was dropped (production has it). The KOL empty-state wording is
+  production's. 0.3.7 comments for this work now say 0.3.11.
+- **Ads (F3):** a homepage entry without `campaign.campaign_id` is skipped and counted
+  (`ads_entries_skipped=N` in the run outcome), not drift. A day is read only when campaigns posted or Shopee
+  answered zero campaigns (an empty list, or only shop-level entries); a day with just the ROAS-target row stays
+  in the plan.
+- **placed + confirmed (D85.3):** the traffic overview is requested and posted on both bases (daily sync and
+  the 30-day backfill: 3 requests a day instead of 2). Ads were already posted on Shopee's Ads basis
+  (`placed`, or `paid` when the page says `use_paid_gmv`); Shopee's ads report has no confirmed variant, so
+  nothing is relabelled.
+- **KOL (F4):** `order_id` accepts a number or a string; the money scale is read from the answer's `dis_` twins,
+  then from the size of the amounts (`scaleFromMagnitude`), then the recorded fallback; the period is read from
+  nested GraphQL variables too.
+- **New readers** (recon `p97-recon-2026-11-09.md`): `shop_totals` (key-metrics + order-performance, one range
+  request each, posted as `shop_overview` for confirmed / placed / paid; 30 days after pairing, then 7 a day),
+  `orders` (the page's own list answers, buyer fields dropped in the page by an allowlist; up to 5 list pages
+  replayed 20-45 s apart; the order number hashed with the shop key like the affiliate lines) and `order_income`
+  (completed orders since the previous run, oldest first, <= 100 a day, one GET each). Product period and ads per
+  product are NOT built in this cut. Shapes the recon did not record (order cards, income components, the
+  multi-day `period` value) are marked `TODO(first capture)` in `totals-map.ts` / `orders-map.ts` / `reader.ts`.
+- **Bot-detection safety (orchestrator addition):** one daily request budget (`DAILY_REQUEST_BUDGET` = 400) shared
+  by the readers, the daily sync and the backfill, checked before every replay; when spent, the rest waits for
+  the next GMT+7 day. CAPTCHA, login wall, HTTP 429 / 403 or "too many requests" wording stops ALL readers for
+  the shop (scheduler, daily sync and backfill) for the CAPTCHA cool-down, and is posted as a connector event to
+  `POST /v1/ingest/connector-events` -> Ops audit log `system_connector_stop` (reader, page, status, code, time;
+  no table, no migration). The popup's "Đồng bộ" lifts a CAPTCHA block but not a rate-limit block.
+- Not verified without a live capture: the three new readers against real Seller Centre answers, the
+  multi-day `period` value for key-metrics, whether the order cards carry `order_sn` and `order_id`.
