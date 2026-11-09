@@ -157,7 +157,17 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
 
   it("confirm: the dialog says which running measurements are cut; confirming issues the plan code", async () => {
     const done = confirmedPlan();
-    const api = open(plan(), { confirm: done });
+    const draft = plan();
+    // the server's refetch after the confirm returns the confirmed plan (D85.4 drops the
+    // action's answer as soon as the refetch lands)
+    let confirmed = false;
+    const api = open(draft, {
+      confirm: () => {
+        confirmed = true;
+        return done;
+      },
+      get: () => (confirmed ? done : draft),
+    });
     fireEvent.click(await screen.findByTestId("kh-confirm"));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("heading")).toHaveTextContent("Xác nhận kế hoạch 3 thẻ?");

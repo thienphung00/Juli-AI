@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { ShopeeApiError } from "../../lib/shopee-analytics/client";
 import { vnd } from "../../lib/shopee-analytics/format";
@@ -47,7 +47,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
   const host = useReco();
   const narrow = useNarrow();
   const [tick, setTick] = useState(0);
-  const [override, setOverride] = useState<PlanResponse | null>(null);
+  const [override, setOverride] = useState<{ readonly tick: number; readonly plan: PlanResponse } | null>(null);
   const loaded = useResource<PlanResponse>(() => api.get(), `${host.shopKey}|plan|${tick}`);
   const cards = useResource<CardList>(() => host.reco.list({ queue: "all" }), `${host.shopKey}|plan-cands|${tick}`);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -56,19 +56,19 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
   const [ack, setAck] = useState<string | null>(null);
   const [doneOnce, setDoneOnce] = useState(false);
   const [notice, setNotice] = useState<PlanNotice | null>(null);
-  const plan = override ?? (loaded.status === "ready" ? loaded.data : null);
   // D85.4: the answer of an action is shown until the refetch lands, then dropped, so a stale
-  // override can never hide what the server now says
-  useEffect(() => {
-    if (loaded.status === "ready") setOverride(null);
-  }, [loaded]);
+  // override can never hide what the server now says. The override is tagged with the tick of
+  // the refetch it stands in for; once that refetch is ready (useResource only reports ready for
+  // the current key) the server's answer wins.
+  const shown = override !== null && override.tick === tick && loaded.status !== "ready" ? override.plan : null;
+  const plan = shown ?? (loaded.status === "ready" ? loaded.data : null);
 
   const act = async (call: () => Promise<PlanResponse>, after?: (p: PlanResponse) => void) => {
     setBusy(true);
     setError(null);
     try {
       const p = await call();
-      setOverride(p);
+      setOverride({ tick: tick + 1, plan: p });
       setNotice(p.notice ?? null);
       after?.(p);
       setTick((t) => t + 1);
@@ -86,7 +86,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
       <NavLink className="sa-link" href={host.href({})}>
         ‹ Quyết định
       </NavLink>
-      <RecoState resource={loaded.status === "ready" || override ? { status: "ready", data: plan! } : loaded}>
+      <RecoState resource={plan ? { status: "ready", data: plan } : loaded}>
         {(p) => (
           <div className="kh-grid">
             {narrow ? null : (
@@ -101,7 +101,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
                     setError(null);
                     try {
                       const next = await api.add(id, null, false);
-                      setOverride(next);
+                      setOverride({ tick: tick + 1, plan: next });
                       setNotice(next.notice ?? null);
                       setTick((t) => t + 1);
                     } catch (e) {

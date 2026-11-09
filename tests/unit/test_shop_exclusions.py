@@ -267,7 +267,12 @@ async def test_product_rows_rankings_and_flags_drop_it_but_the_shop_totals_keep_
     assert overview["gmv"]["excluded_gmv"]["count"] == 1
     ranking = await queries.ranking(session, reco.shop_id, kind="products", **kw)
     assert (before_ranking["row_count"], ranking["row_count"]) == (3, 2)
-    assert ranking["closing"]["few"]["count"] == 2  # only the two listings left are ranked
+    # only the two listings left are ranked: each lands in exactly one bucket (down / up / ít đơn /
+    # others). Which bucket depends on D85.2's đơn scaling (order lines scaled to shop đơn), so the
+    # test pins the total, not the "ít đơn" count.
+    c = ranking["closing"]
+    assert len(ranking["down"]) + len(ranking["up"]) + c["few"]["count"] + c["others"]["count"] == 2
+    assert not any("1001" in str(it["id"]) for it in (*ranking["down"], *ranking["up"]))
     critical = await queries.critical(session, reco.shop_id, **kw)
     ids = {it["id"] for it in [*critical["items"], *critical["in_band"]]}
     assert not any(i.startswith("product:1001:") for i in ids)
