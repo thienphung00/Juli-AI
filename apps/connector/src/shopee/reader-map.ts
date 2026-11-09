@@ -453,6 +453,47 @@ export function roasTarget(body: unknown): { value: number; coldStart?: boolean 
   return result;
 }
 
+/**
+ * What the ads homepage answers for one day said about campaigns (F3, 0.3.11).
+ * `withId`: entries that are real campaigns; `skipped`: entries with no `campaign.campaign_id`
+ * (a GMV Max shop-level entry, a total) -- counted, never drift; `answeredZero`: Shopee answered
+ * with an empty list. `complete`: the day's campaign list was seen (campaigns, only shop-level
+ * entries, or zero campaigns) -- the only case in which the day may count as read.
+ */
+export interface AdsDayAnswer {
+  withId: number;
+  skipped: number;
+  answeredZero: boolean;
+  complete: boolean;
+}
+
+export function adsDayAnswer(responses: ReaderResponse[], day: string): AdsDayAnswer {
+  const homes = dataResponses(responses.filter((r) => r.day === day), "ads_homepage");
+  const ids = new Set<string>();
+  let skipped = 0;
+  let answeredZero = false;
+  for (const response of homes) {
+    const found = findList(payloadOf(response.body), isAdsEntry);
+    for (const entry of found?.list ?? []) {
+      const campaign = isRecord(entry.campaign) ? entry.campaign : {};
+      const id = digits(campaign.campaign_id);
+      if (id === undefined) skipped += 1;
+      else ids.add(id);
+    }
+    // TODO(first capture): confirm an empty answer is `entry_list: []` (or total 0) on a shop with no ads.
+    if (!found && emptyListAnswer(response.body)) answeredZero = true;
+  }
+  return { withId: ids.size, skipped, answeredZero, complete: ids.size > 0 || skipped > 0 || answeredZero };
+}
+
+/** A data answer that holds an empty array (or states `total: 0`) where the entries would be. */
+function emptyListAnswer(body: unknown): boolean {
+  const payload = payloadOf(body);
+  if (!isRecord(payload)) return false;
+  if (Object.values(payload).some((v) => Array.isArray(v) && v.length === 0)) return true;
+  return totalOf(body, payload) === 0;
+}
+
 export function mapAdsDaily(responses: ReaderResponse[]): Mapped[] {
   const days = [...new Set(responses.map((r) => r.day).filter((d): d is string => typeof d === "string"))].sort();
   const posts: Mapped[] = [];
@@ -461,20 +502,15 @@ export function mapAdsDaily(responses: ReaderResponse[]): Mapped[] {
     const rows: Row[] = [];
     const seen = new Set<string>();
     const homes = dataResponses(responses.filter((r) => r.day === day), "ads_homepage");
-    let sawEntry = false;
     for (const response of homes) {
       const found = findList(payloadOf(response.body), isAdsEntry);
       for (const entry of found?.list ?? []) {
-        sawEntry = true;
         const row = adRow(day, entry, issues);
         if (row && !seen.has(row.campaign_id as string)) {
           seen.add(row.campaign_id as string);
           rows.push(row);
         }
       }
-    }
-    if (sawEntry && seen.size === 0 && !issues.missing.includes("entry.campaign.campaign_id")) {
-      issues.missing.push("entry.campaign.campaign_id");
     }
     for (const response of dataResponses(responses.filter((r) => r.day === day), "ads_time_graph")) {
       const target = roasTarget(response.body);

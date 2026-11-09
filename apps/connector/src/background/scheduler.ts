@@ -29,7 +29,8 @@ import {
   TRAFFIC_JOB_TIMEOUT_MS,
   TRAFFIC_MAX_ITEMS,
 } from "../config";
-import { activeItemIds, completedTrafficDays, ongoingAdsCampaigns } from "../shopee/reader-map";
+import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../shopee/reader-map";
+import type { CaptureOutcome } from "./connector";
 import { READER_PAGES, readerPageUrl } from "../shopee/endpoints";
 import { blockedPath, type ReaderJob, type ReaderResponse } from "../shopee/reader";
 import { gmt7Date, lastFinishedDays } from "../shopee/time";
@@ -120,6 +121,18 @@ export function planJobs(args: {
     }
   }
   return jobs;
+}
+
+/**
+ * An ads day is read when its campaigns were posted, or Shopee answered with no campaign of its own
+ * (an empty list, or only shop-level entries). A day that came back with just the ROAS-target row
+ * stays in the plan (F3, 0.3.11).
+ */
+export function adsDayRead(outcome: CaptureOutcome | undefined, responses: ReaderResponse[], day: string): boolean {
+  if (outcome !== "posted" && outcome !== "ignored") return false;
+  const answer = adsDayAnswer(responses, day);
+  if (!answer.complete) return false;
+  return outcome === "posted" || answer.withId === 0;
 }
 
 /** The ids of a fresh product-list read; the previous ids are kept when the read found none. */
@@ -396,16 +409,20 @@ export class ReaderScheduler {
         ...(job.campaignIds ? { campaignIds: job.campaignIds } : {}),
       };
       const posted = await this.deps.sink.postReader(readerJob, responses);
-      const summary = Object.entries(posted)
-        .map(([key, outcome]) => `${key}=${outcome}`)
-        .join(",");
+      const skippedEntries =
+        job.id === "ads" ? (job.days ?? []).reduce((sum, day) => sum + adsDayAnswer(responses, day).skipped, 0) : 0;
+      const summary = [
+        ...Object.entries(posted).map(([key, outcome]) => `${key}=${outcome}`),
+        // Entries without a campaign id (GMV Max shop-level, totals) are counted, never drift.
+        ...(skippedEntries > 0 ? [`ads_entries_skipped=${skippedEntries}`] : []),
+      ].join(",");
       // An ads day is read only when Juli accepted its upload: a failed, queued or empty
       // ("ignored" -- Shopee had not finished the day) answer leaves it in the plan.
       const adsPosted =
         job.id === "ads"
           ? [
               ...(sched.adsPosted ?? []),
-              ...(job.days ?? []).filter((day) => posted[`ads_campaign_daily:${day}`] === "posted"),
+              ...(job.days ?? []).filter((day) => adsDayRead(posted[`ads_campaign_daily:${day}`] as CaptureOutcome | undefined, responses, day)),
             ].slice(-ADS_DONE_KEPT)
           : sched.adsPosted;
       const itemIds = job.id === "products" ? ids(responses, sched.itemIds) : sched.itemIds;

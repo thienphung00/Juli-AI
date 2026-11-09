@@ -288,3 +288,25 @@ describe("planning", () => {
     expect(planJobs(base).map((j) => j.id)).toEqual(["ads", "ads_detail"]);
   });
 });
+
+// F3 (0.3.11): which ads days count as read.
+describe("an ads day is read only when campaigns posted or Shopee answered zero campaigns", async () => {
+  const { adsDayRead } = await import("../src/background/scheduler");
+  const DAY = "2026-11-02";
+  const answer = (body: unknown) => [{ ...reply("ads_homepage", body, { day: DAY }) }];
+  const shopOnly = { code: 0, data: { entry_list: [{ title: "GMV Max shop", campaign: {}, report: { cost: 1 } }] } };
+  const zero = { code: 0, data: { entry_list: [] } };
+
+  it("only the ROAS-target row came back: not read", () => {
+    expect(adsDayRead("posted", [], DAY)).toBe(false);
+  });
+  it("a GMV Max shop-level entry alone is skipped (not drift) and the day is read", () => {
+    expect(adsDayRead("posted", answer(shopOnly), DAY)).toBe(true);
+    expect(adsDayRead("ignored", answer(shopOnly), DAY)).toBe(true);
+  });
+  it("Shopee answered an empty list: read; an unfinished day (nothing) is not", () => {
+    expect(adsDayRead("ignored", answer(zero), DAY)).toBe(true);
+    expect(adsDayRead("ignored", [], DAY)).toBe(false);
+    expect(adsDayRead("rejected", answer(zero), DAY)).toBe(false);
+  });
+});

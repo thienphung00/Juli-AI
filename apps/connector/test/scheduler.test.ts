@@ -125,6 +125,20 @@ function setup(options: { token?: boolean; backfillBusy?: boolean } = {}) {
   return { scheduler, storage, tabs, alarms, posted, clock, flags, read };
 }
 
+/** The ads list's answer for each day (one campaign), as the hook returns it. */
+function adsReplies(days: readonly string[] = []): unknown[] {
+  return days.map((day) => ({
+    endpoint: "ads_homepage",
+    url: "u",
+    status: 200,
+    capturedAt: T0,
+    source: "replay",
+    day,
+    page: 1,
+    body: { code: 0, data: { entry_list: [{ title: "x", campaign: { campaign_id: 1 }, report: { cost: 1 } }] } },
+  }));
+}
+
 /** Drive one page: tab ready, then the hook's answer. */
 async function finishPage(
   ctx: ReturnType<typeof setup>,
@@ -134,7 +148,8 @@ async function finishPage(
   const tab = ctx.tabs.current;
   const job = (await ctx.read())?.run?.jobs[(await ctx.read())?.run?.index ?? 0];
   expect(await ctx.scheduler.onTabReady(tab.id, tab.url)).toBe(true);
-  expect(await ctx.scheduler.onResult(tab.id, { job: job?.id, status, responses })).toBe(true);
+  const answers = job?.id === "ads" && responses.length === 0 ? adsReplies(job.days) : responses;
+  expect(await ctx.scheduler.onResult(tab.id, { job: job?.id, status, responses: answers })).toBe(true);
 }
 
 /** A product_list answer with the given item ids (a normal status), optionally unlisted. */
@@ -302,7 +317,11 @@ describe("a daily run", () => {
       type: "reader-job",
       job: { id: "ads", days: ["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"] },
     });
-    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: [] });
+    await ctx.scheduler.onResult(tab.id, {
+      job: "ads",
+      status: "done",
+      responses: adsReplies(["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"]),
+    });
     ctx.clock.now += GAP;
     await ctx.scheduler.tick();
     await finishPage(ctx); // health
