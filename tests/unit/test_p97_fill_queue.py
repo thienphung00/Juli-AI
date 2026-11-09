@@ -19,6 +19,7 @@ from juli_backend.services.shopee_recommendations import fill_queue
 from juli_backend.services.shopee_recommendations.loader import load_env
 from juli_backend.services.shopee_recommendations.model import Candidate
 from tests.support.api import authenticate, build_app, client_for
+from tests.support.shopee_analytics import voucher_rows
 from tests.support.shopee_reco import AS_OF, seed_reco_shop
 from tests.unit.test_shopee_reco_routes import NOW, _persist, _publish
 
@@ -257,3 +258,22 @@ async def test_the_seller_sees_the_checklist_of_a_card(session, shop):
         cancelled = await client.post(f"/v1/demo/shopee/fill-jobs/{got['jobs'][0]['id']}/cancel")
         assert cancelled.json()["status"] == "cancelled"
     app.dependency_overrides.clear()
+
+
+async def test_the_voucher_list_reader_resolves_the_id_when_the_page_answer_was_missed(
+    session, shop, ext
+):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    (job,) = await _jobs(session, seeded)
+    await ext.post(f"{JOBS}/{job.id}", json={"status": "filled"})
+    suffix = job.payload["code_suffix"]
+    row = voucher_rows(seeded.shop_id)[0]
+    row.program_name = "Voucher mới của Juli"
+    row.extra = {"voucher_id": "70011", "voucher_code": f"ORYV{suffix}"}
+    session.add(row)
+    await session.commit()
+    got = (await ext.get(JOBS)).json()["jobs"]
+    assert got == []  # captured by the list reader: finished
+    await session.refresh(job)
+    assert (job.status, job.captured_ref) == ("captured", "70011")

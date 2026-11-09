@@ -81,6 +81,7 @@ async def list_fill_jobs(
         return {"enabled": False, "jobs": []}
     async with with_shop_scope(session, principal.shop_id):
         jobs = await fill_queue.jobs_for_shop(session, principal.shop_id)
+    await session.commit()
     return {"enabled": True, "jobs": jobs}
 
 
@@ -127,10 +128,9 @@ async def seller_fill_jobs(
 ) -> dict[str, Any]:
     """The fill checklist of one approved card: one row per target page."""
     shop_id = _shopee(shop)
-    return {
-        "enabled": fill_queue.enabled(),
-        "jobs": await fill_queue.jobs_of_card(session, shop_id, card_id),
-    }
+    jobs = await fill_queue.jobs_of_card(session, shop_id, card_id)
+    await session.commit()
+    return {"enabled": fill_queue.enabled(), "jobs": jobs}
 
 
 @seller_router.post("/{job_id}/cancel")

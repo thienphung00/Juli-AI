@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import PlatformDailyMetric
+from juli_backend.models.platform_data import PlatformPromotion
 from juli_backend.models.shop_proposals import ShopProposal
 from juli_backend.models.shopee_fill import (
     OPEN_STATUSES,
@@ -44,6 +45,7 @@ from juli_backend.services.shopee_recommendations import codes, config, store, v
 logger = logging.getLogger(__name__)
 
 ENV_FLAG = "CONNECTOR_FILL_LISTING"  # same switch as fill.py (not imported: fill imports service)
+_REF = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 ERROR_JOB_UNKNOWN = "fill_job_unknown"
 ERROR_JOB_STATE = "fill_job_state"
 ERROR_JOB_BAD = "fill_job_bad"
@@ -478,10 +480,53 @@ def job_json(j: ShopeeFillJob, code: str | None = None, title: str | None = None
     }
 
 
+async def resolve_voucher_captures(session: AsyncSession, shop_id: uuid.UUID) -> int:
+    """Fallback capture (D85.6): the Connector's voucher list reader has posted the new voucher
+    (``extra.voucher_code`` = Seller Centre's fixed prefix + our code suffix): its ``voucher_id``
+    becomes the filled / saved job's ``captured_ref``. Nothing is typed by the person."""
+    pending = (
+        await session.scalars(
+            select(ShopeeFillJob).where(
+                ShopeeFillJob.shop_id == shop_id,
+                ShopeeFillJob.kind == "voucher",
+                ShopeeFillJob.status.in_((STATUS_FILLED, STATUS_SAVED)),
+            )
+        )
+    ).all()
+    if not pending:
+        return 0
+    rows = (
+        await session.scalars(
+            select(PlatformPromotion)
+            .where(PlatformPromotion.shop_id == shop_id, PlatformPromotion.promo_type == "voucher")
+            .order_by(PlatformPromotion.captured_at.desc())
+            .limit(400)
+        )
+    ).all()
+    by_suffix: dict[str, str] = {}
+    for r in rows:
+        extra = r.extra or {}
+        vid, vcode = extra.get("voucher_id"), str(extra.get("voucher_code") or "").upper()
+        if vid is not None and len(vcode) > len(VOUCHER_CODE_PREFIX):
+            by_suffix.setdefault(vcode[len(VOUCHER_CODE_PREFIX) :], str(vid))
+    done = 0
+    for j in pending:
+        found = by_suffix.get(str((j.payload or {}).get("code_suffix") or "").upper())
+        if found and _REF.match(found):
+            j.captured_ref, j.status = found, STATUS_CAPTURED
+            j.updated_at = datetime.now(UTC).replace(tzinfo=None)
+            done += 1
+    if done:
+        await session.flush()
+    return done
+
+
 async def jobs_for_shop(
     session: AsyncSession, shop_id: uuid.UUID, *, limit: int = 20
 ) -> list[dict[str, Any]]:
     """Jobs the Connector may still work on, oldest approval first (the route checks the switch)."""
+    await resolve_voucher_captures(session, shop_id)
+    await resolve_voucher_captures(session, shop_id)
     rows = (
         await session.execute(
             select(ShopeeFillJob, ShopProposal.code, ShopProposal.subject_label)
@@ -498,6 +543,8 @@ async def jobs_of_card(
     session: AsyncSession, shop_id: uuid.UUID, proposal_id: uuid.UUID
 ) -> list[dict[str, Any]]:
     """Every job of a card (the Demo checklist), approval order."""
+    await resolve_voucher_captures(session, shop_id)
+    await resolve_voucher_captures(session, shop_id)
     rows = (
         await session.scalars(
             select(ShopeeFillJob)
@@ -506,9 +553,6 @@ async def jobs_of_card(
         )
     ).all()
     return [job_json(j) for j in rows]
-
-
-_REF = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 async def report(
