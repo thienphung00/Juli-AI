@@ -135,6 +135,11 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
         "Extension drift report for the token's own shop: authenticated by the ingest "
         "token (get_ingest_principal)."
     ),
+    ("POST", "/v1/ingest/connector-events"): (
+        "Connector stop event (P97 T1): authenticated by the ingest token (get_ingest_principal); "
+        "writes metadata only (reader, page, status) to the token's own shop's audit trail, "
+        "capped at 10 an hour."
+    ),
     ("GET", "/v1/ingest/fill/{code}"): (
         "Connector listing fill-in (P91 D-13): authenticated by the ingest token "
         "(get_ingest_principal); read-only, returns the approved text of one card of the "
