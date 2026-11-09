@@ -13,6 +13,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.services.ingest import readers
+from juli_backend.services.shopee_analytics import funnel as funnel_mod
 from juli_backend.services.shopee_analytics import loaders
 from juli_backend.services.shopee_analytics import stored as stored_mod
 from juli_backend.services.shopee_analytics.compute import PeriodData, PeriodView, compute_view
@@ -39,9 +40,20 @@ async def load_period_data(session: AsyncSession, shop_id: uuid.UUID, window: Wi
 
 
 async def load_view(
-    session: AsyncSession, shop_id: uuid.UUID, ctx: ShopContext, window: Window
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    ctx: ShopContext,
+    window: Window,
+    *,
+    funnel: bool = False,
 ) -> PeriodView:
-    return compute_view(ctx, await load_period_data(session, shop_id, window))
+    """The window's view. ``funnel`` True (the screens): Lượt xem / lượt nhấp / CTR / CTOR and the
+    flow tables read the stored source funnel (P98 / ADR-122 d.2); the metrics rebuild keeps the
+    raw tables (False), since it is what writes the funnel."""
+    view = compute_view(ctx, await load_period_data(session, shop_id, window))
+    if funnel:
+        funnel_mod.apply_to_view(view, await funnel_mod.load_rows(session, shop_id, window))
+    return view
 
 
 async def resolve(

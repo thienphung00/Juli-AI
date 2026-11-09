@@ -34,6 +34,7 @@ from typing import Any
 
 from juli_backend.services.shop_diagnosis.confidence import Confidence, volume_label
 from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
+from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num, pct
 from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN
@@ -558,6 +559,8 @@ def build_ranking(
         "platform": "shopee",
         "kind": kind,
         "source": source,
+        # P98 / ADR-122 d.2: lượt xem / CTR / CTOR are the stored funnel's (flow tables of the view)
+        "funnel": funnel.basis_json(now.data.funnel),
         "sub": sub,
         "xep_theo": {
             "key": xep_theo,

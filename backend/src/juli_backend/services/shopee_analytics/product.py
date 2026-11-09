@@ -9,13 +9,14 @@ has not given is ``None`` and listed in ``missing_fields``.
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.catalog import ItemInfo
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_analytics.engine import SRC_REAL
 from juli_backend.services.shopee_analytics.fee_table import fold
 from juli_backend.services.shopee_analytics.fmt import (
     ASSUMED_COST_LABEL,
@@ -24,6 +25,7 @@ from juli_backend.services.shopee_analytics.fmt import (
     pct,
     ratio,
 )
+from juli_backend.services.shopee_analytics.funnel import CTOR_NOTE
 from juli_backend.services.shopee_analytics.loaders import (
     ItemHeader,
     KeywordSeed,
@@ -33,7 +35,11 @@ from juli_backend.services.shopee_analytics.matrix import ads_overlay, product_r
 from juli_backend.services.shopee_analytics.shared import five_for, five_json
 from juli_backend.services.shopee_profit.floor import FloorInputs, compute_floor
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
-from juli_backend.services.shopee_profit.order_profit import OrderLine, ProfitBreakdown
+from juli_backend.services.shopee_profit.order_profit import (
+    OrderLine,
+    ProfitBreakdown,
+    profit_lines,
+)
 
 KEYWORD_ROLE_LABELS = {
     "chinh": "Chính",
@@ -49,8 +55,159 @@ def _lines_of(view: PeriodView, product_id: str) -> list[tuple[OrderLine, Profit
     return [(ln, pb) for ln, pb in view.pairs if ln.product_id == product_id]
 
 
-def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[dict[str, Any]]:
-    """Per SKU (variation): the average unit's waterfall and the floors (contract 6)."""
+PRICE_MARGIN_NAME = "Biên ở giá bán"
+PRICE_MARGIN_LABEL = "chắc chắn"
+FINAL_MARGIN_NAME = "Biên cuối"
+FINAL_MARGIN_LABEL = "ước tính"
+FINAL_FROM_PRODUCT = "theo tỉ lệ của sản phẩm"
+NOT_COUNTED = "chưa tính"
+#: the product page states no assumed giá vốn (ADR-122 d.12, as the builder, P92 B-7.1)
+COST_MISSING_LABEL = "Chưa tính"
+RATES_DAYS = 30
+
+
+@dataclass(frozen=True)
+class CostRates:
+    """Measured shares of what the seller keeps (``revenue``) that go to the shop voucher,
+    affiliate commission and ads (ads allocated by revenue as :func:`sku_waterfall` does)."""
+
+    voucher: Decimal
+    commission: Decimal
+    ads: Decimal
+
+    @property
+    def total(self) -> Decimal:
+        return self.voucher + self.commission + self.ads
+
+    def json(self) -> dict[str, Any]:
+        return {
+            "voucher_pct": pct(pct_points(self.voucher)),
+            "commission_pct": pct(pct_points(self.commission)),
+            "ads_pct": pct(pct_points(self.ads)),
+        }
+
+
+def _rates(view: PeriodView, product_id: str, sku: str | None) -> CostRates | None:
+    """The 30-day rates of one SKU (``sku``) or the whole product (None); None without sales."""
+    lines = [(ln, pb) for ln, pb in _lines_of(view, product_id) if pb.excluded_reason is None]
+    product_paid = sum((pb.revenue for _, pb in lines), ZERO)
+    mine = lines if sku is None else [(ln, pb) for ln, pb in lines if ln.sku == sku]
+    paid = sum((pb.revenue for _, pb in mine), ZERO)
+    if paid <= 0 or product_paid <= 0:
+        return None
+    spend = view.ads.product_spend.get(product_id, ZERO)
+    return CostRates(
+        sum((pb.voucher for _, pb in mine), ZERO) / paid,
+        sum((pb.commission or ZERO for _, pb in mine), ZERO) / paid,
+        (spend * paid / product_paid) / paid,
+    )
+
+
+def _selling_price(
+    snap: ItemHeader | None, variation_id: str | None, items: list[tuple[OrderLine, Any]]
+) -> tuple[Decimal | None, Decimal | None]:
+    """(list, selling) price today: the variation snapshot, else the newest line, else the item."""
+    for v in (snap.snapshot_variations if snap else []) or []:
+        if variation_id and str(v.get("variation_id") or "") == variation_id:
+            now = _dec(v.get("current_price")) or _dec(v.get("list_price"))
+            listed = _dec(v.get("list_price")) or now
+            if now is not None:
+                return listed, now
+    newest = max((ln for ln, _ in items), key=lambda ln: ln.order_date, default=None)
+    if newest is not None:
+        return newest.original_price, newest.deal_price
+    if snap is not None and snap.current_price is not None:
+        return snap.list_price or snap.current_price, snap.current_price
+    return None, None
+
+
+def _dec(value: Any) -> Decimal | None:
+    if value is None:
+        return None
+    d = value if isinstance(value, Decimal) else Decimal(str(value))
+    return d if d > 0 else None
+
+
+def price_margin(
+    view: PeriodView,
+    product_id: str,
+    sku: str,
+    list_price: Decimal | None,
+    selling: Decimal | None,
+    on: date,
+) -> tuple[Decimal | None, str | None]:
+    """ADR-122 d.12 "Biên ở giá bán": ONE order of this cost key at ``selling`` through the shop's
+    fee schedule, giá vốn and đóng gói only (the builder's ``variations.unit_margin``). Only a
+    real giá vốn counts; ``(None, reason)`` otherwise."""
+    cost = view.costs.by_key.get(sku)
+    if cost is None or cost.cogs is None or not view.costs.cogs_is_real(sku):
+        return None, "cost_missing"
+    if selling is None:
+        return None, "price_missing"
+    line = OrderLine(
+        order_id="variation:1",
+        sku=sku,
+        product_id=product_id,
+        order_date=on,
+        qty=1,
+        original_price=max(list_price or selling, selling),
+        deal_price=selling,
+    )
+    pb = profit_lines([line], {sku: cost}, schedule=view.fees.schedule(product_id))[0][1]
+    if pb.contribution is None:
+        return None, ",".join(pb.missing) or "profit_unknown"
+    if pb.revenue <= 0:
+        return None, "no_revenue"
+    return pb.contribution / pb.revenue, None
+
+
+def margins_json(
+    view: PeriodView,
+    rates_view: PeriodView,
+    product_id: str,
+    sku: str,
+    variation_id: str | None,
+    snap: ItemHeader | None,
+    items: list[tuple[OrderLine, Any]],
+) -> dict[str, Any]:
+    """Both margins of one variation (ADR-122 d.12): Biên ở giá bán (chắc chắn) and Biên cuối
+    (ước tính) = it minus the variation's measured 30-day voucher / commission / ads rates, or
+    its product's when the variation has no 30-day history."""
+    listed, selling = _selling_price(snap, variation_id, items)
+    margin, reason = price_margin(view, product_id, sku, listed, selling, view.window.end)
+    own = _rates(rates_view, product_id, sku)
+    rates = own or _rates(rates_view, product_id, None)
+    basis = None if rates is None else ("variation" if own is not None else "product")
+    final = None if margin is None or rates is None else margin - rates.total
+    return {
+        "selling_price": num(selling),
+        "price_margin_pct": pct(pct_points(margin)),
+        "price_margin_name": PRICE_MARGIN_NAME,
+        "price_margin_label": PRICE_MARGIN_LABEL,
+        "price_margin_reason": reason,
+        "final_margin_pct": pct(pct_points(final)),
+        "final_margin_name": FINAL_MARGIN_NAME,
+        "final_margin_label": FINAL_MARGIN_LABEL,
+        "final_margin_basis": basis,
+        "final_margin_note": FINAL_FROM_PRODUCT if basis == "product" else None,
+        "final_margin_rates": None if rates is None else rates.json(),
+    }
+
+
+def sku_waterfall(
+    view: PeriodView,
+    ctx: ShopContext,
+    product_id: str,
+    *,
+    assumed_costs: bool = True,
+    snap: ItemHeader | None = None,
+    rates_view: PeriodView | None = None,
+) -> list[dict[str, Any]]:
+    """Per SKU (variation): the average unit's waterfall and the floors (contract 6).
+
+    ``assumed_costs`` False (the product page, ADR-122 d.12): a SKU without a real giá vốn shows
+    no cost, margin or floor ("chưa tính") instead of the 1/3-of-price fallback; the rows then
+    also carry ``orders`` and both margins (``rates_view`` = the 30-day view for the rates)."""
     by_sku: dict[str, list[tuple[OrderLine, ProfitBreakdown]]] = defaultdict(list)
     for ln, pb in _lines_of(view, product_id):
         by_sku[ln.sku].append((ln, pb))
@@ -70,8 +227,12 @@ def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[d
     for sku, items in sorted(by_sku.items()):
         carrying = [(ln, pb) for ln, pb in items if pb.excluded_reason is None]
         units = sum(ln.qty for ln, _ in carrying)
+        orders = len({ln.order_id for ln, _ in carrying})
         list_price = view.costs.list_price.get(sku)
         cost = view.costs.by_key.get(sku)
+        real = view.costs.cogs_is_real(sku)
+        if not assumed_costs and not real:
+            cost = None
         fee = view.fees.rate(product_id)
         formula = view.fees.schedule(product_id).formula_on(view.window.end)
         paid = sum((pb.revenue for _, pb in carrying), ZERO)
@@ -91,6 +252,7 @@ def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[d
         contribution = sum((pb.contribution or ZERO for _, pb in carrying), ZERO)
         ad_cost = (spend * paid / product_paid) if product_paid > 0 else ZERO
         ad_rate = safe_div(ad_cost, paid) if paid > 0 else None
+        stated = assumed_costs or real  # False = no giá vốn on this page: "chưa tính"
         floor = None
         cap = ctx.rules.max_discount_pct.get(sku)
         if cap is None:
@@ -116,12 +278,25 @@ def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[d
                 breach = "operating"
             if floor.absolute_floor is not None and paid_unit < floor.absolute_floor:
                 breach = "absolute"
+        row: dict[str, Any] = {}
+        if not assumed_costs:
+            row = margins_json(
+                view,
+                rates_view or view,
+                product_id,
+                sku,
+                owners.get(sku, ("", ""))[0] or None,
+                snap,
+                items,
+            )
         out.append(
             {
                 "sku": sku,
                 "variation_id": owners.get(sku, ("", ""))[0] or None,
                 "base_sku": owners.get(sku, ("", ""))[1] or None,
                 "units": units,
+                "orders": orders,
+                **row,
                 "list_price": num(list_price),
                 "waterfall_per_unit": {
                     "list": per_unit(list_total),
@@ -130,13 +305,15 @@ def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[d
                     "combo": per_unit(combo),
                     "net_revenue": per_unit(paid),
                     "platform_fees": per_unit(fees_total),
-                    "cogs": per_unit(cogs_total),
+                    "cogs": per_unit(cogs_total) if stated else None,
                     "packaging": per_unit(pack_total),
                     "commission": per_unit(commission),
-                    "contribution_before_ads": per_unit(contribution),
+                    "contribution_before_ads": per_unit(contribution) if stated else None,
                     "ads": per_unit(ad_cost),
-                    "profit": per_unit(contribution - ad_cost),
-                    "margin_pct": pct(pct_points(safe_div(contribution - ad_cost, paid))),
+                    "profit": per_unit(contribution - ad_cost) if stated else None,
+                    "margin_pct": pct(pct_points(safe_div(contribution - ad_cost, paid)))
+                    if stated
+                    else None,
                     "organic_vs_ads": "unknown (đơn xuất không ghi nguồn quảng cáo)",
                 },
                 "cost": {
@@ -147,9 +324,9 @@ def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[d
                     "pack_count": view.costs.pack_count.get(sku, 1),
                     "pack_source": view.costs.pack_source.get(sku),
                     "bom": sku in view.costs.bom,
-                    "label": ASSUMED_COST_LABEL
-                    if view.costs.cogs_source.get(sku) != SRC_REAL
-                    else None,
+                    "label": None
+                    if real
+                    else (ASSUMED_COST_LABEL if assumed_costs else NOT_COUNTED),
                 },
                 "fee": {
                     "fixed_fee_rate_pct": pct(pct_points(fee.rate)),
@@ -174,6 +351,20 @@ def sku_waterfall(view: PeriodView, ctx: ShopContext, product_id: str) -> list[d
                 },
             }
         )
+    return out
+
+
+def product_funnel_json(view: PeriodView, product_id: str) -> dict[str, Any]:
+    """Where the product's Lượt xem / CTR / CTOR come from (ADR-122 d.2-d.3): its own funnel per
+    source, its all-source funnel (the item-traffic reader has not covered its days), or the
+    traffic tables before the source rows exist."""
+    rows = view.data.funnel
+    out = funnel.basis_json(rows)
+    if rows is not None and rows.available:
+        detail = funnel.base_from_rows(rows, "", item_ids=(product_id,)).source_detail
+        out["source_detail"] = detail
+        if detail == "all_sources":
+            out["note"] = funnel.ALL_SOURCES_NOTE
     return out
 
 
@@ -203,6 +394,8 @@ def kpi_block(now: PeriodView, before: PeriodView, product_id: str) -> dict[str,
         "clicks": clicks,
         "ctr": ratio(safe_div(Decimal(clicks), Decimal(views))) if views and clicks else None,
         "ctor": ratio(safe_div(Decimal(orders or 0), Decimal(clicks))) if clicks else None,
+        "ctor_note": CTOR_NOTE,
+        "funnel": product_funnel_json(now, product_id),
         "aov": num(safe_div(Decimal(str(gmv)), Decimal(orders))) if gmv and orders else None,
         "profit": row["profit"],
         "five_numbers": five,
@@ -525,8 +718,18 @@ def build_product_page(
         "daily": daily_block(now, product_id, *(daily or ([], "none"))),
         "freshness": freshness,
         "cost_and_floor": {
-            "skus": sku_waterfall(now, ctx, product_id),
-            "coverage_label": ASSUMED_COST_LABEL,
+            "skus": sku_waterfall(
+                now,
+                ctx,
+                product_id,
+                assumed_costs=False,
+                snap=snap,
+                rates_view=views["30d"][0] if "30d" in views else now,
+            ),
+            "coverage_label": COST_MISSING_LABEL,
+            "margin_note": "Biên ở giá bán (chắc chắn): một đơn ở giá bán hôm nay sau phí sàn, giá "
+            "vốn, đóng gói. Biên cuối (ước tính): trừ thêm tỉ lệ voucher shop, hoa hồng tiếp thị "
+            "liên kết và quảng cáo đo được trong 30 ngày.",
             "floor_note": "Giá sàn tuyệt đối = (giá vốn + đóng gói + phí cố định/đơn) ÷ (1 − phí "
             "sàn %); "
             "giá sàn vận hành trừ thêm QC %, hoa hồng % và biên mục tiêu %.",

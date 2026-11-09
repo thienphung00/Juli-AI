@@ -438,6 +438,44 @@ function ReputationBlock({ h }: { readonly h: ProductHeader }) {
 
 type VariationRow = ProductHeader["variations"][number];
 
+/** ADR-122 d.12 fields of a SKU row (backend ``product.sku_waterfall``); absent on older answers. */
+export type SkuMargins = SkuCost & {
+  /** Distinct orders holding this SKU in the window (units stay in `units`). */
+  readonly orders?: number | null;
+  readonly price_margin_pct?: number | null;
+  readonly final_margin_pct?: number | null;
+  readonly final_margin_basis?: "variation" | "product" | null;
+  readonly final_margin_note?: string | null;
+};
+
+/** "Đơn N ngày" counts orders; the units go to the hint. Older answers without `orders` show units. */
+export function ordersOf(s: SkuCost): number {
+  const o = (s as SkuMargins).orders;
+  return typeof o === "number" ? o : s.units;
+}
+
+/** The SKU chip: the cost key with its pack (G500001×3) when it differs from the plain SKU. */
+export function skuChip(v: VariationRow, s: SkuCost | undefined): string | null {
+  if (s && s.sku && s.sku !== v.seller_sku && s.sku.includes("×")) return s.sku;
+  return v.seller_sku ?? null;
+}
+
+function MarginLines({ s }: { readonly s: SkuCost }) {
+  const m = s as SkuMargins;
+  const price = m.price_margin_pct ?? null;
+  const final = m.final_margin_pct ?? null;
+  return (
+    <>
+      <span className="sa-block" data-testid="sa-margin-price">
+        {price === null ? "chưa tính" : pp(price, 1)} <span className="sa-hint">Biên ở giá bán · chắc chắn</span>
+      </span>
+      <span className="sa-block" data-testid="sa-margin-final">
+        {final === null ? "chưa tính" : pp(final, 1)} <span className="sa-hint">Biên cuối · ước tính{m.final_margin_basis === "product" ? ` · ${m.final_margin_note ?? "theo tỉ lệ của sản phẩm"}` : ""}</span>
+      </span>
+    </>
+  );
+}
+
 /** The cost row of a catalogue variation: by its id, else by its seller SKU (a pack key such as
  *  "G500002×3" belongs to the variation whose SKU is "G500002"; the packs sort by their own key). */
 export function skuOfVariation(v: VariationRow, skus: readonly SkuCost[]): SkuCost | undefined {
@@ -493,7 +531,7 @@ function Variations({
             <span>Tên · SKU</span>
             <span>Giá niêm yết</span>
             <span>Đơn {period} ngày</span>
-            <span>Biên/đơn</span>
+            <span>Biên ở giá bán · Biên cuối</span>
             <span>Giá sàn vận hành · tuyệt đối</span>
           </div>
           {rows.map((v) => {
@@ -511,12 +549,15 @@ function Variations({
               >
                 <span>
                   <b>{v.name ?? v.seller_sku ?? "Phiên bản"}</b>
-                  {v.seller_sku ? <TextChip tone="pink">{v.seller_sku}</TextChip> : null}
+                  {skuChip(v, s) ? <TextChip tone="pink">{skuChip(v, s)}</TextChip> : null}
                 </span>
                 <span>{s ? vnd(s.list_price) : DASH}</span>
-                <span>{s ? fmt(s.units) : DASH}</span>
+                <span data-testid="sa-var-orders">
+                  {s ? fmt(ordersOf(s)) : DASH}
+                  {s ? <span className="sa-hint sa-block">{fmt(s.units)} sản phẩm</span> : null}
+                </span>
                 <span>
-                  {s ? pp(s.waterfall_per_unit.margin_pct, 1) : DASH}
+                  {s ? <MarginLines s={s} /> : DASH}
                   {s?.cost.label ? <span className="sa-hint sa-block">{s.cost.label}</span> : null}
                 </span>
                 <span>
@@ -530,7 +571,7 @@ function Variations({
       )}
       {host.builder ? <VariationExpand api={host.builder} defaultOpen={openCompare} costLink={host.links.costImport(null, "san-pham")} itemId={h.product_id} /> : null}
       {host.api.marketScope ? <MarketPriceBlock itemId={h.product_id} scope={host.api.marketScope} /> : null}
-      <p className="sa-hint">Giá, tồn lấy từ lần đọc Seller Centre gần nhất · giá vốn từ Cài đặt (hoặc giả định 1/3 giá, có ghi rõ) · đơn từ báo cáo đơn.</p>
+      <p className="sa-hint">Giá, tồn lấy từ lần đọc Seller Centre gần nhất · giá vốn từ Cài đặt (chưa nhập thì biên ghi “chưa tính”) · đơn từ báo cáo đơn · biên cuối trừ voucher shop, hoa hồng và quảng cáo đo được trong 30 ngày.</p>
     </Section>
   );
 }

@@ -11,19 +11,47 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.shopee_metrics import ShopeePlanBaseSnapshot
+from juli_backend.services.shopee_analytics import funnel
+from juli_backend.services.shopee_analytics.fmt import num, ratio
+from juli_backend.services.shopee_analytics.funnel import FunnelRows
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 LABEL = "Số liệu gốc của kế hoạch"
 
 
-def base_json(env: RecoEnv) -> dict[str, Any]:
-    """The aggregates the plan math shows as "hôm nay" (D85.2: from ShopMetrics)."""
+def funnel_json(env: RecoEnv, rows: FunnelRows | None) -> dict[str, Any]:
+    """Lượt xem / lượt nhấp / CTR / CTOR of the plan's base (P98 / ADR-122 d.2): the stored funnel
+    of the base window, CTOR = ShopMetrics đơn ÷ lượt nhấp; the traffic tables (with a note) only
+    while the shop has no source rows yet."""
+    m = env.metrics
+    if rows is not None and rows.available:
+        n = funnel.numbers(funnel.base_from_rows(rows, ""), m.orders)
+    else:
+        views = None if m.views is None else Decimal(m.views)
+        clicks = None if m.clicks is None else Decimal(m.clicks)
+        orders = None if m.orders is None else Decimal(m.orders)
+        n = funnel.FunnelNumbers(views, clicks, orders, funnel.BASIS_FLOWS, funnel.FALLBACK_NOTE)
+    return {
+        "views": num(n.views),
+        "clicks": num(n.clicks),
+        "ctr": ratio(n.ctr),
+        "ctor": ratio(n.ctor),
+        "ctor_note": funnel.CTOR_NOTE,
+        "funnel_basis": n.basis,
+        "funnel_note": n.note,
+    }
+
+
+def base_json(env: RecoEnv, rows: FunnelRows | None = None) -> dict[str, Any]:
+    """The aggregates the plan math shows as "hôm nay" (D85.2: from ShopMetrics; the funnel from
+    the stored source rows, P98)."""
     m = env.metrics
     return {
         "as_of": env.as_of.isoformat(),
@@ -34,6 +62,7 @@ def base_json(env: RecoEnv) -> dict[str, Any]:
         "margin_pct": None if m.margin_pct is None else float(m.margin_pct),
         "chi_per_day": float(env.shop_chi_per_day()),
         "read_from": m.read_from,
+        **funnel_json(env, rows),
     }
 
 
@@ -66,7 +95,7 @@ async def write(
         as_of=env.as_of,
         window_start=env.view.window.start,
         window_end=env.view.window.end,
-        base=base_json(env),
+        base=base_json(env, await funnel.load_rows(session, shop_id, env.view.window)),
         created_by=created_by,
         created_at=now,
     )

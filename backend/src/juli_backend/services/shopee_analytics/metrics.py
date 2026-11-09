@@ -12,8 +12,9 @@ Kế hoạch each picked their own GMV, window and AOV. Now:
   in, scaled the same way.
 - **One AOV** = shop GMV ÷ shop đơn. The Seller Centre AOV (lines, minus the shop voucher) is a
   labelled second line, never the headline.
-- **Funnel** (lượt xem, CTR, CTOR) from the shop flow table; its đơn are the shop đơn, so CTOR x
-  CTR x views x AOV is the headline GMV.
+- **Funnel** (lượt xem, CTR, CTOR) from the stored source funnel when the window has its rows
+  (P98 / ADR-122 d.2, :mod:`.funnel`), else the shop flow table; CTOR = shop đơn ÷ lượt nhấp, so
+  CTOR x CTR x views x AOV is the headline GMV.
 - **One window**: the screens resolve their window from :func:`windows.choose_anchor` (30 days
   ending on the last complete day every live daily dataset posted); the payload names that day.
 
@@ -23,12 +24,18 @@ Pure over a :class:`PeriodView`; no I/O.
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num, pct, ratio
+from juli_backend.services.shopee_analytics.funnel import (
+    BASIS_SOURCES,
+    CTOR_NOTE,
+    base_from_rows,
+    known_total,
+)
 from juli_backend.services.shopee_analytics.loaders import product_totals_for
 from juli_backend.services.shopee_analytics.stored import StoredWindow
 from juli_backend.services.shopee_analytics.windows import Anchor, Window
@@ -101,6 +108,9 @@ class ShopMetrics:
     #: "tables" = summed from the materialized daily rows, "raw" = computed from the raw tables
     read_from: str = "raw"
     sources: dict[str, str] = field(default_factory=dict)
+    #: where views / clicks come from (P98 / ADR-122 d.2): "source_funnel" = the stored funnel
+    #: per source, "flow_tables" = the traffic tables (before the source rows exist)
+    funnel_basis: str = "flow_tables"
 
     # ------------------------------------------------------------------ derived
     @property
@@ -151,6 +161,8 @@ class ShopMetrics:
             "clicks": self.clicks,
             "ctr": ratio(self.ctr),
             "ctor": ratio(self.ctor),
+            "ctor_note": CTOR_NOTE,
+            "funnel_basis": self.funnel_basis,
             "ad_spend": num(self.ad_spend),
             "ads_roas_placed": ratio(self.ads_roas_placed, 2),
             "profit": num(self.profit),
@@ -332,9 +344,20 @@ def metrics_of(view: PeriodView) -> ShopMetrics:
     """What ``view.metrics`` returns: the stored daily rows when every day of the window is
     complete, else the window computed from the raw tables."""
     stored = view.data.stored
-    if stored is not None and stored.usable:
-        return from_stored(view, stored)
-    return shop_metrics(view)
+    base = from_stored(view, stored) if stored is not None and stored.usable else shop_metrics(view)
+    rows = getattr(view.data, "funnel", None)
+    if rows is None or not rows.available:
+        return base
+    # P98 / ADR-122 d.2: lượt xem / lượt nhấp from the stored funnel; CTOR = this đơn ÷ lượt nhấp
+    funnel = base_from_rows(rows, "")
+    views, clicks = known_total(funnel, "views"), known_total(funnel, "clicks")
+    return replace(
+        base,
+        views=None if views is None else int(views),
+        clicks=None if clicks is None else int(clicks),
+        funnel_basis=BASIS_SOURCES,
+        sources={**base.sources, "views": BASIS_SOURCES, "clicks": BASIS_SOURCES},
+    )
 
 
 __all__ = [
