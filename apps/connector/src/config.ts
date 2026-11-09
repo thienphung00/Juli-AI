@@ -55,6 +55,8 @@ export type ReaderDataset =
   | "shop_health_daily"
   | "market_search"
   | "shop_overview"
+  | "product_period"
+  | "ads_campaign_period"
   | "order_lines"
   | "order_income"
   | "affiliate_order_lines"
@@ -81,6 +83,8 @@ export type ReaderId =
   | "vouchers"
   | "health"
   | "shop_totals"
+  | "product_period"
+  | "ads_products"
   | "orders"
   | "order_income"
   | AffiliateReaderId;
@@ -111,10 +115,14 @@ export const READER_IDS: readonly ReaderId[] = [
   "ads",
   // Connector 0.3.7: right after the list, on the ongoing campaigns the list just named.
   "ads_detail",
+  // Connector 0.3.12 (P97 T3): per-product ads of the group campaigns, right after their edit pages.
+  "ads_products",
   "health",
   // Connector 0.3.11 (P97 T1): shop totals, order lines, per-order income. One page at a time like
   // every reader; the shared request budget below caps all of them together.
   "shop_totals",
+  // Connector 0.3.12 (P97 T3, recorded 2026-11-09): the 30-day product table, once a day.
+  "product_period",
   "orders",
   "order_income",
   ...AFFILIATE_READER_IDS,
@@ -130,6 +138,8 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
   vouchers: true,
   health: true,
   shop_totals: true,
+  product_period: true,
+  ads_products: true,
   orders: true,
   order_income: true,
   affiliate: true,
@@ -173,6 +183,8 @@ export const READER_DATASETS: Record<ReaderId, readonly ReaderDataset[]> = {
   ads_detail: ["ads_campaign_detail"],
   health: ["shop_health_daily"],
   shop_totals: ["shop_overview"],
+  product_period: ["product_period"],
+  ads_products: ["ads_campaign_period"],
   orders: ["order_lines"],
   order_income: ["order_income"],
   affiliate: ["affiliate_order_lines"],
@@ -236,6 +248,17 @@ export const SHOP_TOTALS_BACKFILL_DAYS = 30;
 export const SHOP_TOTALS_REFRESH_DAYS = 7;
 /** Rate limit / 403 / CAPTCHA stops ALL readers for the shop for this long (the CAPTCHA cool-down). */
 export const READER_BLOCK_RATE_MS = READER_BLOCK_CAPTCHA_MS;
+
+/**
+ * Product table (Hiệu quả của sản phẩm, recorded 2026-11-09): the last 30 finished days, ordered by
+ * confirmed sales, 10 a page, at most this many pages a run. One answer holds placed, paid and
+ * confirmed values per item, so one read posts both order types Tổng quan and Quảng cáo need.
+ */
+export const PRODUCT_PERIOD_DAYS = 30;
+export const PRODUCT_PERIOD_PAGE_SIZE = 10;
+export const PRODUCT_PERIOD_MAX_PAGES = 5;
+/** Group-campaign pages whose per-product table is read (the page opened + the others replayed). */
+export const ADS_PRODUCTS_MAX_CAMPAIGNS = 10;
 
 /** Ads: yesterday plus up to this many earlier finished days not read yet (one day per call). */
 export const ADS_CATCHUP_DAYS = 3;

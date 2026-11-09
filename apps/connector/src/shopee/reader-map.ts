@@ -9,8 +9,10 @@
 // posted). Strings the contract does not name never leave the browser.
 
 import { ADS_TARGET_DIVISOR, MAX_PLAUSIBLE_AD_VND, MAX_PLAUSIBLE_PRICE_VND, MONEY_DIVISOR } from "../config";
+import { mapAdsProducts } from "./ads-products-map";
 import { mapAffiliateJob } from "./affiliate-map";
 import { mapOrderIncome, mapOrderLines } from "./orders-map";
+import { mapProductPeriod } from "./product-period-map";
 import { mapShopTotals } from "./totals-map";
 import type { Drift, Mapped, Row } from "./map";
 import {
@@ -613,15 +615,18 @@ export function mapAdsSettings(responses: ReaderResponse[], capturedAt: number):
 const DETAIL_KINDS: Record<string, string> = { product_manual: "manual", product_mpd: "mpd" };
 
 /** The ongoing / scheduled product campaigns whose edit page the detail reader opens. */
-export function ongoingAdsCampaigns(responses: ReaderResponse[]): { id: string; kind: string }[] {
-  const out = new Map<string, string>();
+export function ongoingAdsCampaigns(responses: ReaderResponse[]): { id: string; kind: string; name?: string }[] {
+  const out = new Map<string, { kind: string; name?: string }>();
   for (const entry of adsEntries(responses)) {
     const campaign = isRecord(entry.campaign) ? entry.campaign : {};
     const id = digits(campaign.campaign_id);
     const kind = DETAIL_KINDS[String(entry.type ?? "")];
-    if (id !== undefined && kind !== undefined && (entry.state === "ongoing" || entry.state === "scheduled")) out.set(id, kind);
+    const name = text(entry.title, 255);
+    if (id !== undefined && kind !== undefined && (entry.state === "ongoing" || entry.state === "scheduled")) {
+      out.set(id, { kind, ...(name ? { name } : {}) });
+    }
   }
-  return [...out].map(([id, kind]) => ({ id, kind }));
+  return [...out].map(([id, v]) => ({ id, ...v }));
 }
 
 function bound(node: unknown): { value?: number; percentile?: number } {
@@ -893,6 +898,10 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
       return [mapShopHealth(responses, capturedAt)];
     case "shop_totals":
       return mapShopTotals(responses, capturedAt);
+    case "product_period":
+      return mapProductPeriod(responses, capturedAt);
+    case "ads_products":
+      return mapAdsProducts(responses, capturedAt);
     case "orders":
       return [mapOrderLines(responses, capturedAt)];
     case "order_income":

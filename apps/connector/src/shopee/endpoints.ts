@@ -54,6 +54,12 @@ export const READER_ENDPOINTS = {
     path: "/api/v4/accounting/pc/seller_income/income_detail/get_order_income_components",
     capture: true,
   },
+  // -- product table (Connector 0.3.12, recorded 2026-11-09): the 30-day table of Hiệu quả của sản phẩm.
+  // Replayed (GET) page by page from the page's own call, only the range and the page changed.
+  product_performance: { method: "GET", path: "/api/mydata/v4/product/performance/" },
+  // -- group campaigns' per-product table (manual-mpd page): captured as the page loads it and
+  // replayed for the other group campaigns with only `campaign_id` changed (a list read: isReadOnlyPasPath).
+  ads_mpd_products: { method: "POST", path: "/api/pas/v1/product/mpd/list_item_product_performance/", capture: true },
   voucher_list: { method: "GET", path: "/api/marketing/v3/voucher/list/" },
   traffic_details: { method: "GET", path: "/api/mydata/v1/product/traffic/details/" },
   health_overview: { method: "GET", path: "/api/accounthealth/v1/sc/shops/overview" },
@@ -120,6 +126,9 @@ export const READER_PAGES: Record<ReaderId, { path: string }> = {
   ads_detail: { path: "/portal/marketing/pas/product/" },
   health: { path: "/portal/accounthealth" },
   shop_totals: { path: "/datacenter/overview" },
+  product_period: { path: "/datacenter/product/performance" },
+  // The prefix of every group campaign's page; readerPageUrl names the campaign.
+  ads_products: { path: "/portal/marketing/pas/product/manual-mpd/" },
   orders: { path: "/portal/sale/order" },
   // The prefix of every order page; readerPageUrl names the order.
   order_income: { path: "/portal/sale/order/" },
@@ -162,6 +171,7 @@ export function readerPageUrl(job: {
   orderIds?: string[];
 }): string {
   if (job.id === "order_income") return `${READER_PAGES.order_income.path}${job.orderIds?.[0] ?? ""}`;
+  if (job.id === "ads_products") return `${READER_PAGES.ads_products.path}${job.campaignIds?.[0] ?? ""}`;
   if (job.id === "ads_detail") {
     const id = job.campaignIds?.[0] ?? "";
     const kind = job.campaignKinds?.[0] === "mpd" ? "manual-mpd" : "manual";

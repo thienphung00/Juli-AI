@@ -10,6 +10,7 @@
 import {
   ADS_CATCHUP_DAYS,
   ADS_DETAIL_MAX_CAMPAIGNS,
+  ADS_PRODUCTS_MAX_CAMPAIGNS,
   type Dataset,
   HELD_DATASETS,
   ORDER_INCOME_FIRST_RUN_DAYS,
@@ -121,6 +122,8 @@ export function planJobs(args: {
   /** Shop totals (0.3.11): the day they last posted; whether the 30-day backfill is done for this shop. */
   totalsDay?: string;
   totalsBackfilled?: boolean;
+  /** The day the 30-day product table was last read and posted (0.3.12). */
+  productPeriodDay?: string;
   ordersDay?: string;
   /** The day the per-order income was last read. */
   incomeDay?: string;
@@ -153,6 +156,9 @@ export function planJobs(args: {
         const count = args.totalsBackfilled ? SHOP_TOTALS_REFRESH_DAYS : SHOP_TOTALS_BACKFILL_DAYS;
         jobs.push({ id, days: lastFinishedDays(args.nowMs, count) });
       }
+    } else if (id === "product_period") {
+      // The 30-day product table, once a day (one page open; at most PRODUCT_PERIOD_MAX_PAGES requests).
+      if (args.productPeriodDay !== todayDay) jobs.push({ id });
     } else if (id === "orders") {
       if (args.ordersDay !== todayDay) jobs.push({ id });
     } else if (id === "order_income") {
@@ -255,6 +261,7 @@ export class ReaderScheduler {
         adsSettingsDay: sched.adsSettingsDay,
         totalsDay: sched.totalsDay,
         totalsBackfilled: sched.totalsBackfilledShop === shopId,
+        productPeriodDay: sched.productPeriodDay,
         ordersDay: sched.ordersDay,
         incomeDay: sched.incomeDay,
         ...(this.deps.readers ? { readers: this.deps.readers } : {}),
@@ -328,6 +335,16 @@ export class ReaderScheduler {
         return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
       }
       job = { ...job, campaignIds: campaigns.map((c) => c.id), campaignKinds: campaigns.map((c) => c.kind) };
+      run = { ...run, jobs: run.jobs.map((j, i) => (i === run.index ? (job as PlannedJob) : j)) };
+    }
+    if (job.id === "ads_products") {
+      // The group campaigns (manual-mpd pages) the last list read named; the first one's page is opened.
+      const groups = (sched.adsCampaigns ?? []).filter((c) => c.kind === "mpd").slice(0, ADS_PRODUCTS_MAX_CAMPAIGNS);
+      if (groups.length === 0) {
+        const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: "no_group_campaigns" }, index: run.index + 1 };
+        return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
+      }
+      job = { ...job, campaignIds: groups.map((c) => c.id), campaignNames: groups.map((c) => c.name ?? "") };
       run = { ...run, jobs: run.jobs.map((j, i) => (i === run.index ? (job as PlannedJob) : j)) };
     }
     if (job.id === "order_income") {
@@ -523,6 +540,7 @@ export class ReaderScheduler {
         days: job.days,
         ...(job.itemIds ? { itemIds: job.itemIds } : {}),
         ...(job.campaignIds ? { campaignIds: job.campaignIds } : {}),
+        ...(job.campaignNames ? { campaignNames: job.campaignNames } : {}),
         ...(job.orderIds ? { orderIds: job.orderIds } : {}),
         ...(job.orderSns ? { orderSns: job.orderSns } : {}),
       };
@@ -586,6 +604,10 @@ export class ReaderScheduler {
         totalsDay: run.day,
         totalsBackfilledShop: (job.days?.length ?? 0) >= SHOP_TOTALS_BACKFILL_DAYS ? shopId : sched.totalsBackfilledShop,
       };
+    }
+    if (job.id === "product_period") {
+      // Done when the confirmed post (the one Tổng quan reads) landed.
+      return posted["product_period:confirmed"] === "posted" ? { productPeriodDay: run.day } : {};
     }
     if (job.id === "orders") {
       const now = this.deps.now();

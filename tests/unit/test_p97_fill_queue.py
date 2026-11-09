@@ -277,3 +277,38 @@ async def test_the_voucher_list_reader_resolves_the_id_when_the_page_answer_was_
     assert got == []  # captured by the list reader: finished
     await session.refresh(job)
     assert (job.status, job.captured_ref) == ("captured", "70011")
+
+
+# -- Connector 0.3.12 readers: what the new mappers post lands in the period tables ----------------
+
+
+async def test_product_period_and_group_ads_posts_land_in_the_period_tables(session):
+    from datetime import date
+
+    from juli_backend.models.platform_data import PlatformPeriodMetric
+    from tests.unit.test_ingest_gateway import _body, _ingest, _shopee_tenant
+
+    _, other = await _shopee_tenant(session)
+    period = {"start": "2026-10-01", "end": "2026-10-10", "granularity": "period"}
+    item = {"item_id": "1001", "item_name": "Sản phẩm", "sales": 700000, "orders": 8, "units": 9}
+    item |= {"buyers": 7, "ctr": 0.05, "conversion_rate": 0.18, "product_visitors": 45}
+    variation = {"item_id": "1001", "variation_id": "5001", "sales": 400000, "orders": 4}
+    for order_type in ("confirmed", "placed"):
+        body = _body([item, variation], period=period, order_type=order_type)
+        await _ingest(session, other, "product_period", body)
+    ad = {"campaign_name": "Chiến dịch nhóm A", "item_id": "1001", "ordinal": 0}
+    ad |= {"ads_impressions": 2000, "ad_clicks": 80, "ctr": 0.04, "ads_expense": 150000}
+    ad |= {"sales": 900000, "direct_sales": 600000}
+    await _ingest(
+        session, other, "ads_campaign_period", _body([ad], period=period, order_type="placed")
+    )
+    rows = (
+        await session.scalars(
+            select(PlatformPeriodMetric).where(PlatformPeriodMetric.shop_id == other.id)
+        )
+    ).all()
+    by = {(r.dataset, r.order_type, r.item_id, r.variation_id or "") for r in rows}
+    assert ("product_period", "confirmed", "1001", "") in by
+    assert ("product_period", "placed", "1001", "5001") in by
+    assert any(r.dataset == "ads_campaign_period" and r.stream == "ads" for r in rows)
+    assert all(r.period_start == date(2026, 10, 1) for r in rows)

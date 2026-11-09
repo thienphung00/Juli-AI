@@ -22,6 +22,9 @@ import {
   READER_TEMPLATE_WAIT_MS,
   type ReaderId,
   VOUCHER_MAX_ROWS,
+  PRODUCT_PERIOD_DAYS,
+  PRODUCT_PERIOD_MAX_PAGES,
+  PRODUCT_PERIOD_PAGE_SIZE,
   VOUCHER_PAGE_LIMIT_DEFAULT,
 } from "../config";
 import { isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
@@ -51,6 +54,8 @@ export interface ReaderJob {
   campaignIds?: string[];
   /** ads_detail: per campaign, "manual" or "mpd" (which edit page it has). */
   campaignKinds?: string[];
+  /** ads_products: per campaign, its title (the key the daily ads rows use); "" = unknown. */
+  campaignNames?: string[];
   /** order_income: the completed orders to read; the first is the order page the scheduler opened. */
   orderIds?: string[];
   /** order_income: per order, the order number that is hashed (parallel to `orderIds`; "" = unknown). */
@@ -72,6 +77,8 @@ export interface ReaderResponse {
   day?: string;
   /** item_traffic: the item the request was for. */
   itemId?: string;
+  /** ads_products: the campaign's title, when the scheduler knew it. */
+  campaignName?: string;
   /** ads_detail: the campaign the answer is about. */
   campaignId?: string;
   /** order_income: the order the answer is about (raw id: hashed in the service worker, never posted). */
@@ -675,6 +682,109 @@ async function readShopTotals(env: ReaderEnv, days: string[], collected: ReaderR
   await send(env, performance, collected, { period }, true);
 }
 
+/**
+ * Product table of the last 30 finished days (recorded 2026-11-09): the page's own call is the
+ * template; it is replayed for pages 1..PRODUCT_PERIOD_MAX_PAGES with only the range, the page and
+ * the order kept as the recorded request sent them (confirmed sales descending). One answer holds
+ * the placed, paid and confirmed values of every item, so placed needs no second read. Stops at
+ * the page the answer's own `total` says is the last.
+ */
+async function readProductPeriod(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
+  await waitForPage(env, ["product_performance"], collected);
+  const days = lastFinishedDays(env.now(), PRODUCT_PERIOD_DAYS);
+  const first = days[days.length - 1];
+  const last = days[0];
+  if (!first || !last) return;
+  const period = { start: first, end: last };
+  const bounds = rangeBounds(first, last);
+  const template = env.template("product_performance") as Template;
+  let seen = 0;
+  for (let page = 1; page <= PRODUCT_PERIOD_MAX_PAGES; page += 1) {
+    const request = buildReaderRequest(
+      env.origin,
+      "product_performance",
+      template,
+      {
+        query: {
+          ...bounds,
+          period: "past30days",
+          keyword: "",
+          category_type: "shopee",
+          category_id: "-1",
+          page_size: String(PRODUCT_PERIOD_PAGE_SIZE),
+          page_num: String(page),
+          order_type: "confirmed",
+          order_by: "confirmed_sales.desc",
+        },
+      },
+      env.session(),
+    );
+    const response = await send(env, request, collected, { page, period });
+    const result = payloadOf(response.body);
+    const items = isRecord(result) && Array.isArray(result.items) ? result.items : [];
+    seen += items.length;
+    const total = totalOf(response.body, isRecord(result) ? result : undefined);
+    if (items.length < PRODUCT_PERIOD_PAGE_SIZE || (total !== undefined && seen >= total)) break;
+  }
+}
+
+/**
+ * Group campaigns' per-product table (manual-mpd page, recorded 2026-11-09): the page's own answer
+ * for the campaign it opened is kept as loaded; for each other group campaign the same call is
+ * replayed with only `campaign_id` changed. Nothing is clicked (no Xóa, no Thêm sản phẩm).
+ */
+async function readAdsProducts(env: ReaderEnv, ids: string[], names: string[], collected: ReaderResponse[]): Promise<void> {
+  // Capture-only first: the page loads the table itself; a missing session must not discard it.
+  const answered = () => env.template("ads_mpd_products")?.lastResponse !== undefined;
+  if (!(await env.waitFor(() => env.hasSession() || answered(), READER_TEMPLATE_WAIT_MS)) && !answered()) {
+    throw new Stop(fail("needs_data_page", collected, "ads_mpd_products"));
+  }
+  if (!(await env.waitFor(() => env.template("ads_mpd_products") !== undefined, READER_TEMPLATE_WAIT_MS))) {
+    throw new Stop(fail("needs_template", collected, "ads_mpd_products"));
+  }
+  const template = env.template("ads_mpd_products") as Template;
+  const body = isRecord(template.body) ? template.body : {};
+  const opened = ids[0];
+  if (opened && template.lastResponse !== undefined && String(body.campaign_id ?? "") === opened) {
+    collected.push({
+      endpoint: "ads_mpd_products",
+      url: `${env.origin}${READER_ENDPOINTS.ads_mpd_products.path}`,
+      status: 200,
+      body: template.lastResponse,
+      capturedAt: env.now(),
+      source: "page",
+      campaignId: opened,
+      ...(names[0] ? { campaignName: names[0] } : {}),
+      ...bodyPeriod(body),
+    });
+  }
+  if (!isReadOnlyPasPath(READER_ENDPOINTS.ads_mpd_products.path) || !("campaign_id" in body)) return;
+  for (const [index, id] of ids.slice(1).entries()) {
+    const typed = typeof body.campaign_id === "number" ? Number(id) : id;
+    const request = buildReaderRequest(env.origin, "ads_mpd_products", template, { body: { campaign_id: typed } }, env.session());
+    const name = names[index + 1];
+    await send(env, request, collected, { campaignId: id, ...(name ? { campaignName: name } : {}), ...bodyPeriod(body) }, true);
+  }
+}
+
+/** The GMT+7 days a request body's `start_time` / `end_time` (unix seconds, top level or one level in) name. */
+export function bodyPeriod(body: Record<string, unknown>): { period?: { start: string; end: string } } {
+  const read = (node: Record<string, unknown>) => {
+    const start = dayOf(node.start_time ?? node.start_date ?? node.from);
+    const end = dayOf(node.end_time ?? node.end_date ?? node.to);
+    return start && end ? { start, end } : undefined;
+  };
+  const direct = read(body);
+  if (direct) return { period: direct };
+  for (const value of Object.values(body)) {
+    if (isRecord(value)) {
+      const nested = read(value);
+      if (nested) return { period: nested };
+    }
+  }
+  return {};
+}
+
 /** Set the page number (or offset) wherever the page's request body keeps it; false when it has none. */
 export function withListPage(body: unknown, page: number, size: number): unknown | null {
   let done = false;
@@ -1099,6 +1209,12 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         break;
       case "vouchers":
         await readVouchers(env, collected);
+        break;
+      case "product_period":
+        await readProductPeriod(env, collected);
+        break;
+      case "ads_products":
+        await readAdsProducts(env, job.campaignIds ?? [], job.campaignNames ?? [], collected);
         break;
       case "shop_totals":
         await readShopTotals(env, job.days ?? [], collected);
