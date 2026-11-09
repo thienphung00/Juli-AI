@@ -439,11 +439,14 @@ async def test_the_aggregate_is_joint_not_the_sum_of_the_cards(session, shop):
         assert c["contribution"]["dprofit_p50"] == pytest.approx(
             agg["dprofit_month"]["total"]["p50"] - c["without"]["dprofit"]["p50"]
         )
-    # the predicted range is the combined one: P50s add; wider than any one card, narrower than all
+    # D85.4: the two options act on the same product, so the plan carries ONE joint lift (the
+    # larger one) -- not the sum of their P50s
     p = agg["dprofit_month"]
     singles = [c["alone"]["dprofit"] for c in agg["cards"]]
-    pred_p50 = sum(s["p50"] - s["certain"] for s in singles)
-    assert p["predicted"]["p50"] == pytest.approx(pred_p50)
+    each = [s["p50"] - s["certain"] for s in singles]
+    assert p["predicted"]["p50"] in [pytest.approx(x) for x in each]
+    assert p["predicted"]["p50"] != pytest.approx(sum(each))
+    assert any(n.startswith("lift_shared_per_product:") for n in agg["notes"])
     assert p["total"]["p10"] < p["total"]["p50"] < p["total"]["p90"]
     assert agg["range_method"] == "root_sum_of_squares_of_half_widths"
     # cost per day and per month vs the cap, the five numbers, the shop today and after
@@ -829,7 +832,7 @@ def test_migration_117_is_additive_reversible_and_fits_alembic():
     assert "app_current_shop_id()" in src and "GRANT SELECT, INSERT, UPDATE" in src
     assert "planned" in mod.STATUSES and "planned" not in mod._STATUSES_116
     tail = REPO / "backend/src/juli_backend/database/migrations/deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "121_shop_members"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "123_shopee_metrics_tables"' in tail.read_text("utf-8")
 
 
 def test_the_models_match_the_migration_columns():
