@@ -414,6 +414,8 @@ def _version_rows(
                 "items": list(variant.get("items") or []),
                 "extra": dict(variant.get("extra") or {}),
                 **({targets.KEY: list(variant[targets.KEY])} if variant.get(targets.KEY) else {}),
+                # P98: the builder spec ("Chọn"), read back by the plan's option result
+                **({"spec": dict(variant["spec"])} if variant.get("spec") else {}),
                 "title": None if card is None else card["title"],
                 "metrics": None if card is None else metrics_of(card),
             }

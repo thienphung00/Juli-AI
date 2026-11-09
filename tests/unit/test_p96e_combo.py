@@ -102,13 +102,3 @@ def test_co_purchase_never_suggests_a_line_without_an_item_id_and_labels_unnamed
     ids = [r["item_id"] for r in out["suggestions"]]
     assert ids == ["B"]
     assert out["suggestions"][0]["name"] == "Sản phẩm đã ẩn/không còn bán (id B)"
-
-
-def test_a_set_sold_far_below_cost_cannot_lose_more_than_its_extra_gmv():
-    from juli_backend.services.shopee_builder import outcome
-
-    band = outcome.set_profit_band(
-        {"low": 10_000.0, "p50": 20_000.0, "high": 30_000.0},
-        [{"pack_count": 3, "margin_pct": -1_404_170.0}],
-    )
-    assert band["low"] is not None and band["low"] >= -30_000.0

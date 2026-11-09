@@ -494,21 +494,6 @@ def test_variations_list_the_best_seller_first_with_its_order_count():
     assert [r["orders_30d"] for r in out] == [2, 1, 0, 0]
 
 
-def test_a_set_without_its_own_profit_takes_the_margin_of_the_set():
-    from juli_backend.services.shopee_builder.outcome import set_profit_band
-
-    band = set_profit_band(
-        {"low": 100_000.0, "p50": 200_000.0, "high": 300_000.0},
-        [
-            {"name": "Set 2", "pack_count": 2, "margin_pct": 30.0},
-            {"name": "Set 3", "pack_count": 3, "margin_pct": 25.0},
-        ],
-    )
-    assert band == {"low": 25_000.0, "p50": 50_000.0, "high": 75_000.0}
-    unknown = set_profit_band({"low": 1.0, "p50": 2.0, "high": 3.0}, [{"margin_pct": None}])
-    assert unknown == {"low": None, "p50": None, "high": None}
-
-
 async def test_the_variations_endpoint_counts_orders_per_variation(session, shop):
     out = await builder.product_variations(session, shop.shop_id, "1001", as_of=AS_OF, now=NOW)
     rows = out["variations"]

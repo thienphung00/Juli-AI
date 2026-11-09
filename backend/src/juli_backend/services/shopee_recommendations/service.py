@@ -909,7 +909,8 @@ def recompute_card(
         code = vlist[number - 1].get("code")
         old = vlist[number - 1]
         new = versions.version_of(out, number, label, code=code)
-        for key in ("index", "chosen", "change_kind", "items", "extra", multi.KEY):  # manual
+        # the manual fields (P98: and the builder spec the plan reads back)
+        for key in ("index", "chosen", "change_kind", "items", "extra", "spec", multi.KEY):
             if key in old:
                 new[key] = old[key]
         if "title" in old:

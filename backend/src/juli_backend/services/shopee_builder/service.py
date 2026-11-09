@@ -631,7 +631,7 @@ async def choose(
     variants: list[dict[str, Any]] = []
     for i, spec in enumerate(specs):
         try:
-            variants.append(to_variant(spec, ctx).variant)
+            variants.append({**to_variant(spec, ctx).variant, "spec": sp.as_json(spec)})
         except SpecRefused as exc:
             if i == chosen:
                 raise manual.ProposalError(
@@ -687,7 +687,7 @@ async def run_together(
     buckets: dict[tuple[Any, ...], list[tuple[int, dict[str, Any]]]] = {}
     for i in picked:
         try:
-            variant = to_variant(specs[i], ctx).variant
+            variant = {**to_variant(specs[i], ctx).variant, "spec": sp.as_json(specs[i])}
         except SpecRefused as exc:
             raise manual.ProposalError(
                 manual.ERROR_BAD_VARIANT, 422, manual.refusal(exc.code)["message"]

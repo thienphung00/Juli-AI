@@ -4,7 +4,8 @@ The synthetic seller shop is rebuilt into the materialized tables (ShopMetrics +
 then read through Tổng quan, Phân tích, Sản phẩm, the Kế hoạch base and the builder "before" for
 the same shop and window (the readers in ``tests/support/shopee_cross_screen``). Lượt xem, CTR,
 CTOR, Đơn, AOV, GMV and Lợi nhuận must agree. Rolled back at the end. The SQLite twin is
-``tests/unit/test_p98_cross_screen.py`` (which also records the two known gaps as strict xfails).
+``tests/unit/test_p98_cross_screen.py``. Ratios are unrounded and Lợi nhuận is the ShopMetrics
+profit on every screen (ADR-122 d.14).
 """
 
 from __future__ import annotations
@@ -48,10 +49,7 @@ async def test_every_screen_shows_the_same_funnel_numbers_on_postgres(monkeypatc
         await materialize.backfill_shop(session, seeded.shop_id)
         surfaces, _ = await collect_shop(session, seeded.shop_id, CUR_END, days=7)
         for field in FIELDS:
-            # a ratio is rounded to 2 decimals by Tổng quan's strip and Phân tích's cell
-            shown = agreed(
-                surfaces, field, tol=0.005, abs_tol=0.005 if field in ("ctr", "ctor") else 0
-            )
+            shown = agreed(surfaces, field, tol=0.005 if field in ("profit", "aov") else 1e-4)
             assert shown, field
         for field in ("views", "orders", "gmv"):
             assert {"tong_quan", "ke_hoach", "builder_before"} <= set(

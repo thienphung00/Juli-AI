@@ -254,3 +254,49 @@ async def test_a_plan_with_no_estimable_card_still_answers(session, shop, monkey
     assert agg["not_estimable_cards"] == [agg["cards"][0]["card_id"]]
     assert agg["dprofit_month"]["total"]["p50"] == 0.0
     assert agg["after"]["gmv_30d"] == agg["today"]["gmv_30d"]
+
+
+GIFT_SPEC = sp.GiftSpec(
+    kind="gift",
+    gift=sp.GiftItem(unit_cost=5_000),
+    trigger=sp.GiftTrigger(type="min_spend", amount=60_000),
+)
+
+
+async def test_a_chosen_version_keeps_its_spec_so_every_kind_gets_a_result(session, shop):
+    """A card the candidate cannot be turned back into (a gift) still gets its result in the plan:
+    "Chọn" stores the builder spec on each version and the plan reads it back as it is."""
+    from juli_backend.services.shopee_builder import service as builder
+    from juli_backend.services.shopee_recommendations import manual, store
+
+    seeded, env = shop
+    actor = manual.Actor("staff", seeded.user.id, seeded.user.id)
+    saved = await builder.choose(
+        session, seeded.shop_id, [GIFT_SPEC, DISCOUNT], 0, primary=False,
+        acknowledge_breaches=True, actor=actor, as_of=AS_OF, now=NOW,
+    )  # fmt: skip
+    await session.commit()
+    payload = await store.card_payload(session, seeded.shop_id, uuid.UUID(saved["id"]))
+    assert payload is not None
+    assert [v.get("spec") for v in payload["versions"]] == [
+        sp.as_json(GIFT_SPEC),
+        sp.as_json(DISCOUNT),
+    ]
+    agg = await _plan_of_saved(session, seeded, uuid.UUID(saved["id"]))
+    card = agg["cards"][0]
+    assert card["result"]["counted"] is True, card["result"].get("reason")
+    assert agg["not_estimable_cards"] == []
+    per30 = saved["outcome"]["result"]["per_30d"]
+    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
+
+
+async def _plan_of_saved(session, seeded, card_id):
+    from juli_backend.models.shop_proposals import ShopProposal
+
+    prop = await session.get(ShopProposal, card_id)
+    prop.status = "sent"
+    await session.commit()
+    out = await plans.add_card(
+        session, seeded.shop_id, card_id, actor=_actor(seeded), now=NOW, acknowledge_breaches=True
+    )
+    return out["aggregate"]
