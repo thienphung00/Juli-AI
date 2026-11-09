@@ -321,6 +321,28 @@ describe("pagination helpers and the order reader", () => {
     expect(JSON.stringify(outcome.responses)).not.toMatch(/khach_hang_that|Duong Gia|0900000000/);
   });
 
+  it("a failed replay of page 2+ still returns done with the answers already read, plus a partial note", async () => {
+    const h = harness(templates(), (request) => {
+      if (request.endpoint === "order_search") {
+        const page = JSON.parse(request.body!).pagination.page_number as number;
+        if (page === 3) return { status: 500, body: { error: 1 } };
+        return { body: search(page) };
+      }
+      return { body: CARDS };
+    });
+    const outcome = await runReaderJob({ id: "orders" }, h.env);
+    expect(outcome.status).toBe("done");
+    expect(outcome.detail).toBe("partial:order_search:http_500");
+    // page 1 (the page's own) and the complete page 2 stay; the failed page 3 is dropped
+    expect(outcome.responses.map((r) => r.page)).toEqual([1, 1, 2, 2]);
+  });
+
+  it("a CAPTCHA while replaying page 2 still stops everything", async () => {
+    const h = harness(templates(), () => ({ status: 403, body: { error: "captcha" } }));
+    const outcome = await runReaderJob({ id: "orders" }, h.env);
+    expect(outcome.status).not.toBe("done");
+  });
+
   it("without a recognisable page number it reads only what the page loaded", async () => {
     const t = templates();
     t.order_search = { query: {}, body: { filter: { status: 1 } }, lastResponse: search(1) };

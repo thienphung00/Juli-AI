@@ -29,6 +29,16 @@ def _iso(value: Any) -> str | None:
     return value.isoformat() if value is not None else None
 
 
+def _drift_of(row: IngestDatasetStatus | None) -> str:
+    """ "drift" only while the flagged version is still the last one posting: a newer version's
+    accepted post (the gateway refuses only the flagged version) has superseded the flag."""
+    if row is None or row.drift_state != DRIFT_DRIFT:
+        return DRIFT_OK
+    if row.last_source_version is not None and row.drift_source_version != row.last_source_version:
+        return DRIFT_OK
+    return DRIFT_DRIFT
+
+
 async def dataset_status(
     session: AsyncSession, *, shop_id: uuid.UUID, platform: str
 ) -> list[dict[str, Any]]:
@@ -59,7 +69,7 @@ async def dataset_status(
                 "last_row_count": row.last_row_count if row else None,
                 "last_source": row.last_source if row else None,
                 "last_source_version": row.last_source_version if row else None,
-                "drift": (row.drift_state if row else DRIFT_OK),
+                "drift": _drift_of(row),
                 "drift_detail": row.drift_detail if row else None,
                 "drift_source_version": row.drift_source_version if row else None,
                 "drift_at": _iso(row.drift_at) if row else None,

@@ -185,6 +185,11 @@ export function adsDayRead(outcome: CaptureOutcome | undefined, responses: Reade
 }
 
 /** The ids of a fresh product-list read; the previous ids are kept when the read found none. */
+/** The hook's detail as an outcome note: a short endpoint / http-status reason, nothing else. */
+function outcomeNote(detail: unknown): string {
+  return typeof detail === "string" ? detail.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+}
+
 function ids(responses: ReaderResponse[], previous: string[] | undefined): string[] | undefined {
   const fresh = activeItemIds(responses);
   return fresh.length > 0 ? fresh : previous;
@@ -502,7 +507,7 @@ export class ReaderScheduler {
   }
 
   /** A page hook's answer for the job it was sent. True when the tab is the scheduler's own. */
-  onResult(tabId: number, message: { job?: unknown; status?: unknown; responses?: unknown }): Promise<boolean> {
+  onResult(tabId: number, message: { job?: unknown; status?: unknown; detail?: unknown; responses?: unknown }): Promise<boolean> {
     return this.exclusive(async () => {
       const { state, sched } = await this.load();
       const run = sched.run;
@@ -529,8 +534,10 @@ export class ReaderScheduler {
         await this.budgetSpent(sched, { ...run, current: undefined, outcomes: { ...run.outcomes } });
         return true;
       }
+      // The hook's reason, short and free of order ids / buyer data (endpoint + http status only).
+      const note = outcomeNote(message.detail);
       if (status !== "done") {
-        await this.finishJob(sched, run, status);
+        await this.finishJob(sched, run, note ? `${status}:${note}` : status);
         return true;
       }
       const responses = Array.isArray(message.responses) ? (message.responses as ReaderResponse[]) : [];
@@ -576,7 +583,7 @@ export class ReaderScheduler {
       await this.finishJob(
         { ...sched, adsPosted, itemIds, trafficDone, adsSettingsDay, adsCampaigns, ...extra },
         run,
-        summary ? `done:${summary}` : "done",
+        `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}`,
       );
       return true;
     });

@@ -859,7 +859,7 @@ function orderIdsOf(body: unknown): string[] {
  * ORDER_LIST_MAX_PAGES_PER_RUN pages in all. Nothing is replayed when the page's request has no
  * recognisable page number or id list (then only what the page loaded is read).
  */
-async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
+async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<string | undefined> {
   const answered = () => env.template("order_cards")?.lastResponse !== undefined;
   if (!(await env.waitFor(() => env.hasSession() || answered(), READER_TEMPLATE_WAIT_MS)) && !answered()) {
     throw new Stop(fail("needs_data_page", collected, "order_cards"));
@@ -881,28 +881,39 @@ async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<
       });
     }
   }
-  if (!search || !isRecord(search.body) || !isRecord(cards.body)) return;
-  if (!isReadOnlyOrderPath(READER_ENDPOINTS.order_search.path) || !isReadOnlyOrderPath(READER_ENDPOINTS.order_cards.path)) return;
+  if (!search || !isRecord(search.body) || !isRecord(cards.body)) return undefined;
+  if (!isReadOnlyOrderPath(READER_ENDPOINTS.order_search.path) || !isReadOnlyOrderPath(READER_ENDPOINTS.order_cards.path)) return undefined;
   const size = bodyPageSize(search.body) ?? pageSizeOf(search, 40);
   // The cards template still holds the FIRST page's ids: every later page swaps those out.
   const firstIds = orderIdsOf(search.lastResponse);
   const random = env.random ?? Math.random;
   for (let page = 2; page <= ORDER_LIST_MAX_PAGES_PER_RUN; page += 1) {
-    const indexBody = withListPage(search.body, page, size);
-    if (indexBody === null || firstIds.length === 0) return;
-    await env.pause?.(ORDER_LIST_PAGE_GAP_MS + Math.floor(random() * ORDER_LIST_PAGE_GAP_JITTER_MS));
-    const indexRequest = buildReaderRequest(env.origin, "order_search", search, { body: indexBody as Record<string, unknown> }, env.session());
-    const index = await send(env, indexRequest, collected, { page });
-    index.body = trimOrderIndex(index.body);
-    const ids = orderIdsOf(index.body);
-    if (ids.length === 0) return;
-    const cardBody = withOrderIds(cards.body, firstIds, ids);
-    if (cardBody === null) return;
-    const cardRequest = buildReaderRequest(env.origin, "order_cards", cards, { body: cardBody as Record<string, unknown> }, env.session());
-    const answer = await send(env, cardRequest, collected, { page });
-    answer.body = trimOrderCards(answer.body);
-    if (ids.length < size) return;
+    try {
+      const indexBody = withListPage(search.body, page, size);
+      if (indexBody === null || firstIds.length === 0) return undefined;
+      await env.pause?.(ORDER_LIST_PAGE_GAP_MS + Math.floor(random() * ORDER_LIST_PAGE_GAP_JITTER_MS));
+      const indexRequest = buildReaderRequest(env.origin, "order_search", search, { body: indexBody as Record<string, unknown> }, env.session());
+      const index = await send(env, indexRequest, collected, { page });
+      index.body = trimOrderIndex(index.body);
+      const ids = orderIdsOf(index.body);
+      if (ids.length === 0) return undefined;
+      const cardBody = withOrderIds(cards.body, firstIds, ids);
+      if (cardBody === null) return undefined;
+      const cardRequest = buildReaderRequest(env.origin, "order_cards", cards, { body: cardBody as Record<string, unknown> }, env.session());
+      const answer = await send(env, cardRequest, collected, { page });
+      answer.body = trimOrderCards(answer.body);
+      if (ids.length < size) return undefined;
+    } catch (error) {
+      // A failed replay of page >= 2 keeps what was already read: the page's own answers and the
+      // complete pages before it are posted; CAPTCHA / login / rate stops still stop everything.
+      if (error instanceof Stop && error.outcome.status === "error") {
+        for (let i = collected.length - 1; i >= 0; i -= 1) if ((collected[i]!.page ?? 1) >= page) collected.splice(i, 1);
+        return `partial:${error.outcome.detail ?? "error"}`.slice(0, 80);
+      }
+      throw error;
+    }
   }
+  return undefined;
 }
 
 /** Query / body key of the page's own income call whose value is the order it opened. */
@@ -1193,6 +1204,7 @@ export const AFFILIATE_CAPTURES: Partial<Record<ReaderId, readonly ReaderEndpoin
 /** Run one reader job against the open Seller Centre page. Never throws. */
 export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<ReaderOutcome> {
   const collected: ReaderResponse[] = [];
+  let partial: string | undefined;
   try {
     switch (job.id) {
       case "products":
@@ -1220,7 +1232,7 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         await readShopTotals(env, job.days ?? [], collected);
         break;
       case "orders":
-        await readOrders(env, collected);
+        partial = await readOrders(env, collected);
         break;
       case "order_income":
         await readOrderIncome(env, job.orderIds ?? [], collected, job.orderSns);
@@ -1237,7 +1249,7 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         break;
       }
     }
-    return { status: "done", responses: collected };
+    return { status: "done", responses: collected, ...(partial ? { detail: partial } : {}) };
   } catch (error) {
     if (error instanceof Stop) return error.outcome;
     return fail("error", collected, String((error as Error)?.message ?? error).slice(0, 120));
