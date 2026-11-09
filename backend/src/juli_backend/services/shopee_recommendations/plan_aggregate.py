@@ -15,7 +15,18 @@ Cards the stacking does not model (listing, affiliate, add-on, gift, multi-produ
 their own certain layer. This is an approximation and the payload says which cards are in the
 joint layer (``joint_cards``) and which are added (``added_cards``).
 
-**Predicted layer.** Each card's predicted P50 (dGMV, dorders, dprofit) adds to the joint certain
+**Option results (P98 / ADR-122 d.2, d.5).** The numbers the plan shows -- Δ GMV, Δ đơn, Δ lợi
+nhuận and their range -- are the sum of the cards' ``OptionResult`` (the builder's one path: funnel
+base -> family -> engine, ``integrate.evaluate``), each scaled to 30 days; the money layer below no
+longer feeds them. ``result_basis`` is ``"option_result"``. P50s add and the range is the root sum
+of squares of the half-widths of the cards' P10 / P90 columns. A card without a result (refused, not
+estimable, no way to rebuild its spec) is listed as "chưa ước tính được", left out of the sums and
+its exact cost still counts against the cap (the certain layer). An unknown profit makes the plan's
+profit unknown. The "after" funnel is today's views / clicks / đơn plus the cards' deltas, so
+Đơn = Lượt xem x CTR x CTOR and GMV = Đơn x AOV hold exactly.
+
+**Predicted layer (legacy money layer, used only when no results are passed).** Each card's
+predicted P50 (dGMV, dorders, dprofit) adds to the joint certain
 layer. The range is combined by the **root sum of squares of the cards' half-widths**
 (``combine_predicted``): for each quantile q the width ``|P50_i - q_i|`` of every card is squared,
 summed and square-rooted, and taken off (P10, P25) or on (P75, P90) the summed P50. The cards'
@@ -35,7 +46,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from pydantic import ValidationError
 
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_recommendations import (
@@ -57,6 +70,15 @@ from juli_backend.services.shopee_recommendations.mega import (
     evaluate_mega,
 )
 from juli_backend.services.shopee_recommendations.model import Candidate
+
+if TYPE_CHECKING:
+    from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
+
+RESULT_BASIS = "option_result"
+NOT_ESTIMABLE_TEXT = "chưa ước tính được"
+HORIZON_DAYS = 30
+RESULT_QUANTILES = ("p10", "p50", "p90")
+RESULT_METRICS = ("dgmv", "dorders", "dprofit", "dviews", "dclicks")
 
 QUANTILES = ("p10", "p25", "p50", "p75", "p90")
 METRICS = ("dgmv", "dorders", "dprofit")
@@ -133,6 +155,349 @@ def flatten(evs: Sequence[Evaluated]) -> list[Evaluated]:
     return [p for e in evs for p in (e.parts or [e])]
 
 
+# ------------------------------------------------------------------- option results (P98)
+
+
+@dataclass
+class CardResult:
+    """One card (or one target of a many-target card) as an ``OptionResult``, or why it has none."""
+
+    card_id: str
+    result: OptionResult | None
+    reason: str | None = None  # a code; ``None`` with a result = fine
+
+    @property
+    def ok(self) -> bool:
+        r = self.result
+        return r is not None and r.estimable and r.likely is not None
+
+    def delta(self, which: str) -> dict[str, float | None] | None:
+        """The 30-day Δ of the ``low`` / ``likely`` / ``high`` column against ``before``."""
+        r = self.result
+        col: Scenario | None = None if r is None else getattr(r, which)
+        if r is None or col is None:
+            return None
+        k = HORIZON_DAYS / r.days
+
+        def d(name: str) -> float | None:
+            a, b = getattr(col, name), getattr(r.before, name)
+            return None if a is None or b is None else float(a - b) * k
+
+        return {
+            "dgmv": d("gmv"),
+            "dorders": d("orders"),
+            "dprofit": d("profit"),
+            "dviews": d("views"),
+            "dclicks": d("clicks"),
+        }
+
+    def cost_month(self) -> float:
+        r = self.result
+        return 0.0 if r is None else float(r.cost_total) * HORIZON_DAYS / r.days
+
+
+def _voucher_spec(cand: Candidate, today: Any) -> dict[str, Any] | None:
+    i = cand.inputs
+    scope = str(cand.extra.get("voucher_scope") or ("product" if cand.items else "shop"))
+    if scope in ("follower", "livestream"):
+        return None
+    out: dict[str, Any] = {
+        "kind": "voucher",
+        "scope": scope,
+        "item_ids": list(cand.items) if scope == "product" else [],
+        "min_spend": int(i.get("min_spend") or 0),
+    }
+    if i.get("pct") is not None:
+        out.update(discount_type="pct", value=float(i["pct"]))
+        if i.get("max_value"):
+            out["max_value"] = int(i["max_value"])
+    elif i.get("value") is not None:
+        out.update(discount_type="amount", value=float(i["value"]))
+    else:
+        return None
+    if i.get("quantity"):
+        out["usage_limit"] = int(i["quantity"])
+    if i.get("per_user_limit"):
+        out["per_buyer_limit"] = int(i["per_user_limit"])
+    if i.get("days"):
+        out["start"] = today.isoformat()
+        out["end"] = (today + timedelta(days=int(i["days"]) - 1)).isoformat()
+    return out
+
+
+def _combo_spec(cand: Candidate) -> dict[str, Any] | None:
+    i = cand.inputs
+    if not i.get("tiers") or not i.get("discount_type"):
+        return None
+    out: dict[str, Any] = {
+        "kind": "combo",
+        "item_ids": list(cand.items),
+        "discount_type": i["discount_type"],
+        "tiers": [{"qty": t["qty"], "value": t["value"]} for t in i["tiers"]],
+    }
+    if i.get("name"):
+        out["name"] = i["name"]
+    if i.get("limit_per_buyer"):
+        out["purchase_limit"] = int(i["limit_per_buyer"])
+    for key in ("start", "end"):
+        if i.get(key):
+            out[key] = i[key]
+    return out
+
+
+def _listing_combo_spec(cand: Candidate) -> dict[str, Any] | None:
+    i = cand.inputs
+    if not (i.get("title") and i.get("price") and i.get("stock") is not None):
+        return None
+    out: dict[str, Any] = {
+        "kind": "listing_combo",
+        "title": i["title"],
+        "price": int(i["price"]),
+        "stock": int(i["stock"]),
+        "image_refs": list(i.get("image_refs") or []),
+        "member_ids": list(cand.items),
+    }
+    if i.get("sku"):
+        out["sku"] = i["sku"]
+    return out
+
+
+def _item_spec(kind: str, cand: Candidate) -> dict[str, Any] | None:
+    if not cand.items:
+        return None
+    item, i = cand.items[0], cand.inputs
+    if kind == "title" and i.get("title"):
+        return {"kind": "title", "item_id": item, "title": i["title"]}
+    if kind == "description_first_line" and i.get("first_line"):
+        return {"kind": "description_first_line", "item_id": item, "first_line": i["first_line"]}
+    if kind == "listing_hide":
+        return {"kind": "listing_hide", "item_id": item}
+    if kind == "listing_relist":
+        out: dict[str, Any] = {"kind": "listing_relist", "item_id": item}
+        if i.get("stock") is not None:
+            out["stock"] = int(i["stock"])
+        return out
+    return None
+
+
+Variations = Mapping[str, Sequence[Mapping[str, Any]]]
+
+
+def _variation_prices(
+    cand: Candidate, variations: Variations | None, *, price_change: bool
+) -> list[dict[str, Any]] | None:
+    """The card's price as the builder's per-variation rows (variation id from the product's
+    variation list): the per-SKU rows when the card keeps them, else its one slider (giảm %, giá
+    mới % so với giá hiện tại) on every variation of the product. ``None`` when it cannot be
+    matched."""
+    if not cand.items or variations is None:
+        return None
+    known = variations.get(cand.items[0], ())
+    by_sku = {str(v.get("sku_key")): str(v.get("variation_id") or "") for v in known}
+    rows = cand.inputs.get("variations")
+    if not rows:  # a slider card: the same change on each variation
+        if price_change and cand.inputs.get("new_price_pct") is not None:
+            one: dict[str, Any] = {"change_pct": float(cand.inputs["new_price_pct"]) - 100.0}
+        elif not price_change and cand.inputs.get("discount_pct") is not None:
+            one = {"discount_pct": float(cand.inputs["discount_pct"])}
+        else:
+            return None
+        return [{"variation_id": vid, **one} for vid in dict.fromkeys(by_sku.values())] or None
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        vid = by_sku.get(str(row.get("sku")))
+        if vid is None:
+            return None
+        picked: dict[str, Any] = {"variation_id": vid}
+        if row.get("final_price") is not None:
+            picked["final_price"] = int(row["final_price"])
+        elif row.get("discount_pct") is not None and not price_change:
+            picked["discount_pct"] = float(row["discount_pct"])
+        elif row.get("new_price_pct") is not None and price_change:
+            picked["change_pct"] = float(row["new_price_pct"]) - 100.0
+        else:
+            return None
+        out.append(picked)
+    return out
+
+
+def _price_spec(
+    kind: str, cand: Candidate, today: Any, variations: Variations | None
+) -> dict[str, Any] | None:
+    rows = _variation_prices(cand, variations, price_change=kind == "price")
+    if rows is None:
+        return None
+    i = cand.inputs
+    out: dict[str, Any] = {"kind": kind, "item_id": cand.items[0], "variations": rows}
+    if kind == "product_discount":
+        if i.get("days"):
+            out["start"] = today.isoformat()
+            out["end"] = (today + timedelta(days=int(i["days"]) - 1)).isoformat()
+        if i.get("per_buyer_limit"):
+            out["per_buyer_limit"] = int(i["per_buyer_limit"])
+    elif kind == "flash_sale":
+        if not i.get("units"):
+            return None
+        out["units"] = int(i["units"])
+        if i.get("slot_hours"):
+            out["slot_hours"] = int(i["slot_hours"])
+        if i.get("slot_start"):
+            out["slot_start"] = i["slot_start"]
+    return out
+
+
+def spec_of_candidate(
+    cand: Candidate,
+    today: Any,
+    stored: Mapping[str, Any] | None = None,
+    variations: Variations | None = None,
+) -> Any | None:
+    """The builder ``VersionSpec`` of a card's change, or ``None`` when it cannot be rebuilt.
+
+    A version that stored its ``spec`` (the builder's "Chọn") is read back as it is. Otherwise the
+    spec is rebuilt from the candidate for the kinds whose spec is fully determined by it (voucher,
+    combo, title, description, hide, relist); the price levers (giảm giá, đổi giá, Flash Sale) also
+    need the product's variations (``variations``: item id -> the builder's variation rows) to turn
+    the card's SKU keys back into variation ids. Anything else has no result."""
+    from pydantic import TypeAdapter
+
+    from juli_backend.services.shopee_builder import specs as sp
+
+    raw: dict[str, Any] | None
+    if stored:
+        raw = dict(stored)
+    elif cand.kind == "min_spend_voucher":
+        raw = _voucher_spec(cand, today)
+    elif cand.kind == "bundle_deal":
+        raw = _combo_spec(cand)
+    elif cand.kind == "listing_combo":
+        raw = _listing_combo_spec(cand)
+    elif cand.kind in ("product_discount", "price", "flash_sale"):
+        raw = _price_spec(cand.kind, cand, today, variations)
+    else:
+        raw = _item_spec(cand.kind, cand)
+    if raw is None:
+        return None
+    try:
+        return TypeAdapter(sp.VersionSpec).validate_python(raw)
+    except ValidationError:
+        return None
+
+
+def card_result(
+    env: RecoEnv,
+    ev: Evaluated,
+    *,
+    version_row: Mapping[str, Any] | None,
+    variations: Variations | None = None,
+) -> CardResult:
+    """``integrate.evaluate`` of this card's saved version on the plan's environment."""
+    from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
+    from juli_backend.services.shopee_builder.engine_families import integrate
+
+    stored = None if version_row is None else version_row.get("spec")
+    spec = spec_of_candidate(ev.cand, env.as_of, stored, variations)
+    if spec is None:
+        return CardResult(ev.entry.card_id, None, "no_spec")
+    try:
+        done, _ = integrate.evaluate(
+            BuilderContext(
+                env=env,
+                variations={k: [dict(r) for r in v] for k, v in (variations or {}).items()},
+            ),
+            spec,
+        )
+    except (SpecRefused, ValueError, KeyError, ArithmeticError) as exc:
+        return CardResult(ev.entry.card_id, None, f"refused:{type(exc).__name__}")
+    if done.result is None:
+        code = done.refusal.code if done.refusal is not None else "refused"
+        return CardResult(ev.entry.card_id, None, code)
+    out = CardResult(ev.entry.card_id, done.result)
+    if not out.ok:
+        out.reason = "not_estimable"
+    return out
+
+
+def card_results(
+    env: RecoEnv, evs: Sequence[Evaluated], variations: Variations | None = None
+) -> dict[str, CardResult]:
+    """A result per leaf card (a many-target card stands for its single-target parts)."""
+    out: dict[str, CardResult] = {}
+    for e in evs:
+        for leaf in e.parts or [e]:
+            row = None
+            if not e.parts:
+                vlist = versions.versions_of(e.card)
+                row = vlist[e.entry.version - 1] if 0 < e.entry.version <= len(vlist) else None
+            out[leaf.entry.card_id] = card_result(env, leaf, version_row=row, variations=variations)
+    return out
+
+
+def combine_results(results: Sequence[CardResult]) -> dict[str, dict[str, float | None]]:
+    """``{quantile: {metric: value}}`` of the cards that have a result: the 30-day Δ P50s add; P10 /
+    P90 are the sum -/+ the root sum of squares of the cards' half-widths (the cards' errors are
+    independent, as in ``combine_predicted``). A metric one counted card does not know (a profit
+    without giá vốn) is unknown for the plan -- never a partial sum passed off as the whole. No
+    counted card: zeros. P25 / P75 are not part of an ``OptionResult`` and stay ``None``."""
+    ok = [r for r in results if r.ok]
+    cols = [(r.delta("low"), r.delta("likely"), r.delta("high")) for r in ok]
+    out: dict[str, dict[str, float | None]] = {q: {} for q in QUANTILES}
+    for m in RESULT_METRICS:
+        mids = [likely[m] if likely else None for _, likely, _ in cols]
+        if any(v is None for v in mids):
+            for q in QUANTILES:
+                out[q][m] = None
+            continue
+        mid = sum(float(v or 0.0) for v in mids)
+        for q in QUANTILES:
+            out[q][m] = mid if q == "p50" else None
+        for q, idx in (("p10", 0), ("p90", 2)):
+            edge = [(c[idx] or {}).get(m) for c in cols]
+            if any(v is None for v in edge):
+                continue
+            width = math.sqrt(
+                sum(
+                    (float(v or 0.0) - float(mm or 0.0)) ** 2
+                    for v, mm in zip(edge, mids, strict=True)
+                )
+            )
+            out[q][m] = mid - width if q == "p10" else mid + width
+    return out
+
+
+def after_funnel(
+    today: Mapping[str, Any], total: Mapping[str, Mapping[str, float | None]]
+) -> dict[str, Any]:
+    """Today's views / clicks / đơn / GMV plus the plan's P50 Δ, so Đơn = Lượt xem x CTR x CTOR and
+    GMV = Đơn x AOV hold for the "after" (None where today's traffic is unknown)."""
+    p50 = total["p50"]
+    orders = today["orders_30d"] + (p50["dorders"] or 0.0)
+    gmv = today["gmv_30d"] + (p50["dgmv"] or 0.0)
+    views = clicks = ctr = ctor = None
+    tv, tc = today.get("views_30d"), today.get("clicks_30d")
+    if (
+        tv is not None
+        and tc is not None
+        and p50["dviews"] is not None
+        and p50["dclicks"] is not None
+    ):
+        views, clicks = tv + p50["dviews"], tc + p50["dclicks"]
+        ctr = clicks / views if views > 0 else None
+        ctor = orders / clicks if clicks > 0 else None
+    profit = today.get("profit_30d")
+    d_profit = p50["dprofit"]
+    return {
+        "gmv_30d": gmv,
+        "orders_30d": orders,
+        "aov": gmv / orders if orders else None,
+        "views_30d": views,
+        "clicks_30d": clicks,
+        "ctr": ctr,
+        "ctor": ctor,
+        "profit_30d": None if profit is None or d_profit is None else profit + d_profit,
+    }
+
+
 # ------------------------------------------------------------------------------------ pure
 
 
@@ -200,6 +565,9 @@ class Joint:
     added_cards: list[str]
     profit_unknown: list[str]
     notes: list[str] = field(default_factory=list)
+    #: cards with no ``OptionResult`` (left out of the sums; their exact cost is still counted)
+    not_estimable: list[str] = field(default_factory=list)
+    result_basis: str | None = None
 
     @property
     def floor_ok(self) -> bool:
@@ -257,8 +625,12 @@ def joint_lifts(evs: Sequence[Evaluated]) -> tuple[list[Evaluated], list[str]]:
     return keep, sorted(folded)
 
 
-def joint(env: RecoEnv, evs: Sequence[Evaluated]) -> Joint:
-    """The certain layer of these cards stacked on the same orders + the combined prediction."""
+def joint(
+    env: RecoEnv, evs: Sequence[Evaluated], results: Mapping[str, CardResult] | None = None
+) -> Joint:
+    """The certain layer of these cards stacked on the same orders (floor, cost against the cap) +
+    the numbers: the cards' option results when ``results`` is given, else the legacy money
+    layer's prediction."""
     evs = sorted(flatten(evs), key=lambda e: e.entry.card_id)  # never depends on the order added
     line = [e for e in evs if e.is_line and e.card["family"] != "mega_sale"]
     added = [e for e in evs if e not in line]
@@ -292,35 +664,56 @@ def joint(env: RecoEnv, evs: Sequence[Evaluated]) -> Joint:
         breaches.extend(
             {"type": "floor", "card_id": e.entry.card_id, **b} for b in e.card["floor"]["breaches"]
         )
-    counted, folded = joint_lifts(evs)
-    if folded:
-        notes.append("lift_shared_per_product:" + ",".join(folded))
-    predicted = combine_predicted([e.money["predicted"] for e in counted])
-    unknown = [e.entry.card_id for e in evs if e.money["predicted"]["p50"].get("dprofit") is None]
+    not_estimable: list[str] = []
+    if results is not None:
+        mine = [results[e.entry.card_id] for e in evs if e.entry.card_id in results]
+        predicted = combine_results(mine)
+        total = predicted  # an option result's Δ already holds the cost: nothing is added to it
+        not_estimable = [r.card_id for r in mine if not r.ok]
+        unknown = [
+            r.card_id for r in mine if r.ok and (r.delta("likely") or {}).get("dprofit") is None
+        ]
+    else:
+        counted, folded = joint_lifts(evs)
+        if folded:
+            notes.append("lift_shared_per_product:" + ",".join(folded))
+        predicted = combine_predicted([e.money["predicted"] for e in counted])
+        total = total_of(certain, predicted)
+        unknown = [
+            e.entry.card_id for e in evs if e.money["predicted"]["p50"].get("dprofit") is None
+        ]
     return Joint(
         ids=frozenset(e.entry.card_id for e in evs),
         certain=certain,
         predicted=predicted,
-        total=total_of(certain, predicted),
+        total=total,
         breaches=breaches,
         five=five,
         joint_cards=_parents([e.entry.card_id for e in line]),
         added_cards=_parents([e.entry.card_id for e in added]),
         profit_unknown=_parents(unknown),
         notes=notes,
+        not_estimable=_parents(not_estimable),
+        result_basis=None if results is None else RESULT_BASIS,
     )
 
 
 class _Memo:
-    def __init__(self, env: RecoEnv, evs: Sequence[Evaluated]) -> None:
+    def __init__(
+        self,
+        env: RecoEnv,
+        evs: Sequence[Evaluated],
+        results: Mapping[str, CardResult] | None = None,
+    ) -> None:
         self.env = env
+        self.results = results
         self.by_id = {e.entry.card_id: e for e in [*evs, *flatten(evs)]}
         self.cache: dict[frozenset[str], Joint] = {}
 
     def of(self, ids: Sequence[str]) -> Joint:
         key = frozenset(ids)
         if key not in self.cache:
-            self.cache[key] = joint(self.env, [self.by_id[i] for i in sorted(key)])
+            self.cache[key] = joint(self.env, [self.by_id[i] for i in sorted(key)], self.results)
         return self.cache[key]
 
 
@@ -387,12 +780,18 @@ def _cost_block(env: RecoEnv, j: Joint, base: Mapping[str, Any] | None = None) -
 def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """ "Hôm nay": the plan's frozen base when it has one, else ShopMetrics of the env."""
     if base is not None:
+        margin = base["margin_pct"]
         return {
             "as_of": base["as_of"],
             "gmv_30d": base["gmv_30d"],
             "orders_30d": base["orders_30d"],
             "aov": base["aov"],
-            "margin_pct": base["margin_pct"],
+            "margin_pct": margin,
+            "views_30d": base.get("views"),
+            "clicks_30d": base.get("clicks"),
+            "ctr": base.get("ctr"),
+            "ctor": base.get("ctor"),
+            "profit_30d": None if margin is None else base["gmv_30d"] * margin / 100,
         }
     m = env.metrics
     gmv, orders = float(env.shop_gmv_30d), env.shop_orders_30d
@@ -402,6 +801,11 @@ def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any
         "orders_30d": orders,
         "aov": None if m.aov is None else float(m.aov),
         "margin_pct": None if m.margin_pct is None else float(m.margin_pct),
+        "views_30d": m.views,
+        "clicks_30d": m.clicks,
+        "ctr": None if m.ctr is None else float(m.ctr),
+        "ctor": None if m.ctor is None else float(m.ctor),
+        "profit_30d": None if m.profit is None else float(m.profit),
     }
 
 
@@ -413,6 +817,36 @@ def _after(today: Mapping[str, Any], deltas: Mapping[str, float]) -> dict[str, A
         "orders_30d": orders,
         "aov": gmv / orders if orders else None,
         "margin_pct": None if today["margin_pct"] is None else today["margin_pct"] + deltas["bien"],
+    }
+
+
+def _card_result_json(ev: Evaluated, results: Mapping[str, CardResult]) -> dict[str, Any]:
+    """What a card contributes to the sums: its 30-day Δ (P10 / P50 / P90), or "chưa ước tính
+    được" with the reason when it has no result."""
+    leaves = [results[p.entry.card_id] for p in (ev.parts or [ev])]
+    ok = [r for r in leaves if r.ok]
+    if not ok:
+        return {
+            "estimable": False,
+            "counted": False,
+            "message": NOT_ESTIMABLE_TEXT,
+            "reason": next((r.reason for r in leaves if r.reason), "not_estimable"),
+            "delta": None,
+        }
+    comb = combine_results(ok)
+    return {
+        "estimable": True,
+        "counted": True,
+        "partial": len(ok) < len(leaves),
+        "message": None,
+        "reason": None,
+        "basis": max(
+            (r.result.basis for r in ok if r.result is not None),
+            key=("measured", "product_history", "shop", "prior", "not_estimable").index,
+        ),
+        "delta": {
+            q: {m: comb[q][m] for m in ("dgmv", "dorders", "dprofit")} for q in RESULT_QUANTILES
+        },
     }
 
 
@@ -457,6 +891,7 @@ def aggregate(
     *,
     now: datetime,
     base: Mapping[str, Any] | None = None,
+    variations: Variations | None = None,
 ) -> tuple[dict[str, Any], list[Evaluated]]:
     """The plan's aggregate payload and the evaluated cards (chosen version on this env)."""
     evs: list[Evaluated] = []
@@ -476,8 +911,10 @@ def aggregate(
             "cards": [],
             "unavailable_cards": unavailable,
             "range_method": RANGE_METHOD,
+            "result_basis": RESULT_BASIS,
         }, []
-    memo = _Memo(env, evs)
+    results = card_results(env, evs, variations)
+    memo = _Memo(env, evs, results)
     ids = [e.entry.card_id for e in evs]
     full = memo.of(ids)
     floor_breaches, stacked = _breach_view(full, evs)
@@ -530,6 +967,7 @@ def aggregate(
                         "cost_month": contribution["cost_month"],
                     },
                 },
+                "result": _card_result_json(e, results),
                 "floor_ok": e.card["floor"]["ok"],
                 "breaches": [{"type": "floor", **b} for b in e.card["floor"]["breaches"]],
             }
@@ -554,7 +992,11 @@ def aggregate(
         "as_of": env.as_of.isoformat(),
         "n_cards": len(evs),
         "today": today,
-        "after": {**_after(today, deltas), "label": "Dự kiến (P50)"},
+        "after": {
+            **_after(today, deltas),
+            **after_funnel(today, full.total),
+            "label": "Dự kiến (P50)",
+        },
         "deltas_p50": deltas,
         "five_numbers": full.five,
         "dprofit_month": {
@@ -588,6 +1030,8 @@ def aggregate(
         "joint_cards": full.joint_cards,
         "added_cards": full.added_cards,
         "profit_unknown_cards": full.profit_unknown,
+        "not_estimable_cards": full.not_estimable,
+        "result_basis": RESULT_BASIS,
         "unavailable_cards": unavailable,
         "notes": full.notes,
         "range_method": RANGE_METHOD,
@@ -602,11 +1046,17 @@ def _sub(a: float | None, b: float | None) -> float | None:
 
 
 __all__ = [
+    "RESULT_BASIS",
+    "CardResult",
     "Entry",
     "Evaluated",
     "Joint",
+    "after_funnel",
     "aggregate",
+    "card_result",
+    "card_results",
     "combine_predicted",
+    "combine_results",
     "evaluate_entry",
     "flatten",
     "joint",

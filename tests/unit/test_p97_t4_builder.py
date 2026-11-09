@@ -235,19 +235,12 @@ async def test_choose_saves_one_card_that_carries_the_targets_and_replans_them(s
     agg = plan["aggregate"]
     assert agg["n_cards"] == 1 and {p["product_id"] for p in agg["products"]} == {"1001", "1002"}
     assert agg["cards"][0]["card_id"] == str(prop.id)
-    print(
-        agg["notes"],
-        agg["dgmv_month"],
-        agg["joint_cards"],
-        agg["added_cards"],
-        saved["outcome"]["delta"]["gmv"],
-    )
-    # the plan aggregate still reads the saved card's money layer (Kế hoạch is not part of the
-    # P98 builder result); the builder's own numbers are ``outcome.result``
-    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(
-        saved["card"]["predicted"]["money_per_month"]["total"]["p50"]["dgmv"]
-    )
-    assert saved["outcome"]["result"] is not None
+    # P98 W4-B / ADR-122 d.2: the plan reads the option result -- the same numbers the builder
+    # showed for this version (the two targets' results added), per 30 days
+    per30 = saved["outcome"]["result"]["per_30d"]
+    assert agg["result_basis"] == "option_result"
+    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
+    assert agg["dorders_month"]["p50"] == pytest.approx(per30["orders"], abs=1e-6)
 
 
 # ==================== ads
@@ -503,12 +496,9 @@ async def test_the_plan_carries_a_tiers_combo_as_its_own_layer(session, shop):
     plan = await plans.add_card(session, shop.shop_id, prop.id, actor=_actor(shop), now=NOW)
     agg = plan["aggregate"]
     assert agg["added_cards"] == [str(prop.id)] and agg["joint_cards"] == []
-    # the plan aggregate still reads the saved card's money layer (Kế hoạch is not part of the
-    # P98 builder result); the builder's own numbers are ``outcome.result``
-    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(
-        saved["card"]["predicted"]["money_per_month"]["total"]["p50"]["dgmv"]
-    )
-    assert saved["outcome"]["result"] is not None
+    # P98 W4-B / ADR-122 d.2: the plan reads the option result the builder showed (per 30 days)
+    per30 = saved["outcome"]["result"]["per_30d"]
+    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
     assert agg["dprofit_month"]["certain"] == pytest.approx(
         saved["card"]["predicted"]["money_per_month"]["certain"]["dprofit"]
     )
@@ -616,12 +606,9 @@ async def test_it_is_a_card_the_plan_adds_with_its_own_layer_and_no_fill_page(se
     )
     agg = plan["aggregate"]
     assert agg["added_cards"] == [str(prop.id)]
-    # the plan aggregate still reads the saved card's money layer (Kế hoạch is not part of the
-    # P98 builder result); the builder's own numbers are ``outcome.result``
-    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(
-        saved["card"]["predicted"]["money_per_month"]["total"]["p50"]["dgmv"]
-    )
-    assert saved["outcome"]["result"] is not None
+    # P98 W4-B / ADR-122 d.2: the plan reads the option result the builder showed (per 30 days)
+    per30 = saved["outcome"]["result"]["per_30d"]
+    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
 
 
 # P97 integration: T3's fill queue reads T4's many-target card rows (D85.13).
