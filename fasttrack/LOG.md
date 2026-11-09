@@ -3880,3 +3880,31 @@ reconcile --write` re-derived the no-assert corpus figure.
 - ORY ads campaign 160675212 runs below Shopee's ₫100.000/day minimum with ROAS 5.0 (hint ≤ 3.5), 0 views 08-11.
 - Owner: Tự tạo phương án = compare and run many; table picker, one card many targets, P94 groups into P97;
   P50 + range everywhere (D85.10–14, 17).
+
+## 2026-11-09 — backend agent T2 (Claude Opus) — P97 T2: one metrics layer, plan math, So sánh (branch `fasttrack/p97-t2-metrics`)
+
+- **ShopMetrics** (`services/shopee_analytics/metrics.py`, D85.2): headline GMV / đơn = Shopee shop totals, one AOV = GMV ÷
+  đơn (Seller Centre AOV a labelled second line), product splits = order lines scaled to the totals (whole đồng, largest
+  remainder, residual stored). Tổng quan, Phân tích, Sản phẩm (matrix + page + excluded summary), builder catalogue, cards,
+  Kế hoạch "hôm nay" and the Luồng tables' headline read it; the Sản phẩm + luồng product table drops excluded listings.
+  The two AOVs of Tổng quan (F8) are now one number.
+- **Materialized tables** (owner, same day): migration `123_shopee_metrics_tables` (parent temporarily `121_shop_members`;
+  **rebase onto `122_shopee_affiliate_lines` at integration**, then re-parent `deferred/101_write_mode_backfill.py` and the
+  head assertion in `test_tiktok_sync_state_outcome_record.py` onto 123): `shopee_shop_metrics_daily`,
+  `shopee_product_metrics_daily` (+ `__residual__` row so a day's product rows sum to the shop row),
+  `shopee_plan_base_snapshots` (versioned; highest = active). RLS, `juli_app` SELECT / INSERT / UPDATE.
+  `materialize.rebuild_days` recomputes days from the raw tables; one hook call (`after_ingest`) in
+  `services/ingest/gateway.py` after a non-duplicate write (T1 owns that file: keep the call when merging); backfill:
+  `python scripts/backfill_shopee_metrics.py --database-url ... --all-shopee` (or `--shop-id`, `--from`, `--to`, `--dry-run`).
+  A window is read from the tables only when every day of it is complete (Shopee's daily totals + traffic posted);
+  otherwise it is computed from the raw tables as before.
+- **Anchor**: the last day every live daily dataset posted (a dataset more than 3 days behind is stale and ignored), or the
+  last complete materialized day; the Tổng quan payload names it (`shop_metrics.anchor`). This replaces V3's "newest
+  Connector day" (test updated).
+- **Kế hoạch** (D85.4): `as_of` pinned at the first card, versioned snapshot, `POST /plan/refresh-base` + "Cập nhật số";
+  shop voucher on all shop orders; several vouchers = best eligible per order; combo tiers best-per-quantity; one joint lift
+  per product; second option on an exclusive field refused (Vietnamese); remove → re-add restores version + inputs.
+- **So sánh** (D85.9) `before_after` block (7 metrics, P10–P90); **P50** is the headline (aov_p50 / margin_points_p50 replace
+  the P25 keys; P25 stays only as the queue-ranking input).
+- Not done / decisions beyond the contract: see the final report of this task (Luồng per-flow SQL kept; plan freeze covers
+  `as_of` + the headline base; exclusive fields = the plan has no P94 group model).
