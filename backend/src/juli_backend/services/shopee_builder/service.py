@@ -15,14 +15,26 @@ from dataclasses import replace
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.shop_proposals import (
+    STATUS_CHANGES_REQUESTED,
+    STATUS_SENT,
+    ShopProposal,
+)
 from juli_backend.repositories import PlatformItemSnapshotsRepo
 from juli_backend.services.shopee_analytics import loaders, service
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.loaders import ShopContext
 from juli_backend.services.shopee_analytics.windows import Window
-from juli_backend.services.shopee_builder import catalogue, copurchase, outcome, response
+from juli_backend.services.shopee_builder import (
+    catalogue,
+    copurchase,
+    outcome,
+    picker_table,
+    response,
+)
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
 from juli_backend.services.shopee_builder.reference import with_reference_lines
@@ -64,6 +76,20 @@ async def load_view90(
 # ------------------------------------------------------------------------------ B-1: picker
 
 
+async def _items_with_proposals(session: AsyncSession, shop_id: uuid.UUID) -> set[str]:
+    """Products that have a card the seller can still decide on (the picker's "có đề xuất")."""
+    rows = await session.scalars(
+        select(ShopProposal.item_id)
+        .where(
+            ShopProposal.shop_id == shop_id,
+            ShopProposal.status.in_((STATUS_SENT, STATUS_CHANGES_REQUESTED)),
+            ShopProposal.item_id.is_not(None),
+        )
+        .distinct()
+    )
+    return {str(i) for i in rows}
+
+
 async def products(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -79,11 +105,20 @@ async def products(
     view30 = await service.load_view(
         session, shop_id, ctx, Window(anchor - timedelta(days=catalogue.RECENT_DAYS - 1), anchor)
     )
+    prev_end = anchor - timedelta(days=catalogue.RECENT_DAYS)
+    prev30 = await service.load_view(
+        session,
+        shop_id,
+        ctx,
+        Window(prev_end - timedelta(days=catalogue.RECENT_DAYS - 1), prev_end),
+    )
+    waiting = await _items_with_proposals(session, shop_id)
     return catalogue.picker(
         ctx,
         view,
         anchor,
         view30=view30,
+        extra=picker_table.extras(view30, prev30, proposal_items=waiting),
         query=query,
         include_excluded=include_excluded,
         sort=sort,

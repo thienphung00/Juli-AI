@@ -89,7 +89,7 @@
 
 .p2-prow {
   display: grid;
-  grid-template-columns: minmax(0, 2.4fr) repeat(3, minmax(0, 1fr)) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2.4fr) repeat(4, minmax(0, 1fr)) minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -127,6 +127,77 @@ button.p2-prow:hover {
 
 .p2-prow__name b {
   overflow-wrap: anywhere;
+}
+
+/* P97 table picker */
+.p2-picker__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 12px;
+  margin-top: 8px;
+}
+
+.p2-paste textarea {
+  display: block;
+  width: 100%;
+  min-width: 260px;
+  margin: 6px 0;
+  font: inherit;
+}
+
+.p2-prow--check {
+  grid-template-columns: 24px minmax(0, 2.4fr) repeat(4, minmax(0, 1fr)) minmax(0, 1fr);
+  cursor: pointer;
+}
+
+.p2-plist--multi .p2-prow--head {
+  grid-template-columns: 24px minmax(0, 2.4fr) repeat(4, minmax(0, 1fr)) minmax(0, 1fr);
+}
+
+.p2-prow--on {
+  background: var(--qd-pink-bg);
+}
+
+.p2-plist--multi {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.p2-sel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  border-top: 1px solid var(--qd-line-2);
+  padding-top: 8px;
+}
+
+.p2-sel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.p2-sel__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 140px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.p2-sel__x {
+  margin-left: 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 /* variation compare */
@@ -536,6 +607,14 @@ button.p2-prow:hover {
 
   .p2-prow--head {
     display: none;
+  }
+
+  .p2-prow--check {
+    grid-template-columns: 24px repeat(3, minmax(0, 1fr));
+  }
+
+  .p2-prow--check .p2-prow__name {
+    grid-column: 2 / -1;
   }
 
   .p2-prow__name {

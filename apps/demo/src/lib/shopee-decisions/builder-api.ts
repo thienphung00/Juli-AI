@@ -40,6 +40,16 @@ export interface PickerProduct {
   readonly missing_cost_chip: string | null;
   readonly excluded: boolean;
   readonly exclude_reason: string | null;
+  /** P97 D85.12: the table picker's filter columns (absent on an older server = unknown). */
+  readonly category?: string | null;
+  readonly category_path?: string | null;
+  readonly margin_pct?: N;
+  readonly ctor_30d?: N;
+  readonly ctor_prev_30d?: N;
+  readonly ctor_down?: boolean | null;
+  readonly has_proposal?: boolean;
+  readonly in_ads?: boolean;
+  readonly in_kol?: boolean;
 }
 
 export interface PickerResult {
