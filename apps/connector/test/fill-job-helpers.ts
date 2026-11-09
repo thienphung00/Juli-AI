@@ -50,6 +50,22 @@ export const affiliateJob = (over: Record<string, unknown> = {}) =>
     ...over,
   });
 
+export const comboJob = (over: Record<string, unknown> = {}) =>
+  rawJob("combo", {
+    name: "JC-2611-0009 V1",
+    starts_at: "12:00 09-11-2026",
+    ends_at: "23:59 23-11-2026",
+    discount_type: "pct",
+    tiers: [
+      { qty: 2, value: 5 },
+      { qty: 3, value: 8 },
+    ],
+    purchase_limit: 5,
+    product_ids: ["1001", "1003"],
+    open_path: "/portal/marketing/bundle/new",
+    ...over,
+  });
+
 export interface JobHarness {
   deps: JobDeps;
   reports: [string, string, string | undefined][];

@@ -6,7 +6,7 @@ import { FILL_JOB_ID_PATTERN, FILL_JOB_PAGES } from "../config";
 import { DATE_FORMAT } from "./controls";
 import { type FillField, type FillKey } from "./types";
 
-export type JobKind = "title" | "description_first_line" | "voucher" | "ads_edit" | "affiliate_commission";
+export type JobKind = "title" | "description_first_line" | "voucher" | "ads_edit" | "affiliate_commission" | "combo";
 export type JobStatus = "queued" | "opened" | "filled" | "saved" | "captured" | "failed" | "cancelled";
 
 export interface VoucherPayload {
@@ -35,11 +35,25 @@ export interface AffiliatePayload {
   commissionPct: number;
 }
 
+export type ComboType = "pct" | "amount" | "special_price";
+
+export interface ComboPayload {
+  name: string;
+  startsAt: string;
+  endsAt: string;
+  discountType: ComboType;
+  /** Ascending quantity N; value is a percent, an amount off, or the special price for N. */
+  tiers: { qty: number; value: number }[];
+  purchaseLimit?: number;
+  productIds: string[];
+}
+
 export type JobPayload =
   | { kind: "title" | "description_first_line"; fields: FillField[]; itemId: string }
   | { kind: "voucher"; voucher: VoucherPayload }
   | { kind: "ads_edit"; ads: AdsPayload }
-  | { kind: "affiliate_commission"; affiliate: AffiliatePayload };
+  | { kind: "affiliate_commission"; affiliate: AffiliatePayload }
+  | { kind: "combo"; combo: ComboPayload };
 
 export interface FillJob {
   id: string;
@@ -132,6 +146,37 @@ function ads(raw: Record<string, unknown>): AdsPayload | null {
   return out.budget || out.roas ? out : null;
 }
 
+export const MAX_COMBO_TIERS = 5;
+export const MAX_COMBO_NAME = 25;
+export const MAX_PURCHASE_LIMIT = 999_999_999;
+
+function combo(raw: Record<string, unknown>): ComboPayload | null {
+  const name = str(raw.name, MAX_COMBO_NAME);
+  const startsAt = str(raw.starts_at, 16);
+  const endsAt = str(raw.ends_at, 16);
+  const discountType = raw.discount_type === "pct" || raw.discount_type === "amount" || raw.discount_type === "special_price" ? raw.discount_type : undefined;
+  const productIds = ids(raw.product_ids);
+  if (!name || !startsAt || !endsAt || !discountType || !productIds || productIds.length === 0) return null;
+  if (!DATE_FORMAT.test(startsAt) || !DATE_FORMAT.test(endsAt)) return null;
+  const rows = raw.tiers;
+  if (!Array.isArray(rows) || rows.length < 1 || rows.length > MAX_COMBO_TIERS) return null;
+  const tiers: ComboPayload["tiers"] = [];
+  for (const row of rows) {
+    if (!isRecord(row)) return null;
+    const qty = int(row.qty, 2, 9999);
+    const value = int(row.value, 1, discountType === "pct" ? 99 : 1_000_000_000);
+    if (!qty || !value || (tiers.length > 0 && qty <= (tiers[tiers.length - 1] as { qty: number }).qty)) return null;
+    tiers.push({ qty, value });
+  }
+  const out: ComboPayload = { name, startsAt, endsAt, discountType, tiers, productIds };
+  if (raw.purchase_limit !== undefined) {
+    const limit = int(raw.purchase_limit, 1, MAX_PURCHASE_LIMIT);
+    if (!limit) return null;
+    out.purchaseLimit = limit;
+  }
+  return out;
+}
+
 function addressOk(kind: JobKind, openPath: string, payload: JobPayload): boolean {
   let url: URL;
   try {
@@ -151,6 +196,7 @@ function addressOk(kind: JobKind, openPath: string, payload: JobPayload): boolea
     const m = FILL_JOB_PAGES.ads_edit.exec(path);
     return !!m && m[1] === payload.ads.variant && m[2] === payload.ads.campaignId;
   }
+  if (kind === "combo") return payload.kind === "combo" && FILL_JOB_PAGES.bundle_new.test(path) && url.search === "";
   if (kind === "affiliate_commission") return FILL_JOB_PAGES.affiliate_open.test(path);
   return false;
 }
@@ -193,6 +239,9 @@ export function parseFillJob(raw: unknown): FillJob | null {
     const productIds = ids(p.product_ids);
     const pct = num(p.commission_pct);
     payload = productIds && productIds.length > 0 && pct !== undefined && pct > 0 && pct <= 50 ? { kind, affiliate: { productIds, commissionPct: pct } } : null;
+  } else if (kind === "combo") {
+    const c = combo(p);
+    payload = c ? { kind, combo: c } : null;
   }
   if (!payload || !addressOk(kind, openPath, payload)) return null;
   const version = int(raw.version, 1, 9) ?? 1;

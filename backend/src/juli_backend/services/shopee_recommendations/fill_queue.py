@@ -8,7 +8,10 @@ types, highlights and reports. The person presses Shopee's own save. Nothing her
 
 Kinds filled: ``title`` / ``description_first_line`` (product edit page), ``voucher`` (new shop or
 product voucher), ``ads_edit`` (budget / ROAS pencils of one campaign), ``affiliate_commission``
-(bulk edit of the open campaign's commission). Combo is not queued yet (T4 reshapes the spec).
+(bulk edit of the open campaign's commission), ``combo`` (new Combo Khuyến Mãi: type, tiers "Mua N",
+order limit, name, dates, product list; D85.15). A combo saved as a fixed basket (``combo_multi``,
+legacy) is not filled: its job is failed with a Vietnamese reason. Read-back of a combo stays
+``executed_no_readback`` (no bundle list reader exists).
 
 Server-side kill switch: ``CONNECTOR_FILL_LISTING`` (off: nothing is queued or served).
 """
@@ -58,11 +61,6 @@ MAX_VOUCHER_NAME = 100
 ICT = timedelta(hours=7)
 _B36 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-# TODO(P97 T3, combo): ``bundle_deal`` / combo cards are NOT queued. T4 reshapes the combo spec to
-# Shopee's tiers (name <= 25, dates, "Mua N -> x % / d / gia dac biet" rows, order limit, product
-# list). When that lands, add a ``combo`` job kind here and a filler in the Connector
-# (``fill/fillers.ts``) on the ``ensureRows`` / ``pickProducts`` controls already built and tested
-# against ``test/fixtures/fill/combo-tiers.html``; the form is /portal/marketing/bundle/new.
 #: change kinds this queue fills, and the job kind each one becomes
 _KIND_OF = {
     "title": "title",
@@ -72,7 +70,16 @@ _KIND_OF = {
     "ads_budget": "ads_edit",
     "ads_roas_target": "ads_edit",
     "affiliate_commission": "affiliate_commission",
+    "bundle_deal": "combo",
+    "combo_multi": "combo",
 }
+COMBO_OPEN_PATH = "/portal/marketing/bundle/new"
+MAX_COMBO_NAME = 25
+MAX_COMBO_TIERS = 5
+MAX_COMBO_QTY = 9999
+MAX_PURCHASE_LIMIT = 999_999_999
+COMBO_LEGACY_ERROR = "Combo kiểu cũ — tạo lại theo mức ưu đãi của Shopee"
+_COMBO_TYPES = ("pct", "amount", "special_price")
 _TEXT_FIELDS = {
     "title": {
         "key": "title",
@@ -189,6 +196,79 @@ def _voucher_payload(
     }
 
 
+def _combo_tiers(inputs: dict[str, Any]) -> tuple[str, list[dict[str, int]]] | None:
+    """``(discount_type, tiers)`` of a combo card, or None when it is not fillable: quantities
+    ascending and different (2..9999), a percent in 1..99, an amount or a special price above 0
+    (whole dong). Cards the engine generated carry ``tier2_pct`` / ``tier3_pct`` (type percent)."""
+    dtype = str(inputs.get("discount_type") or "pct")
+    raw = inputs.get("tiers")
+    if raw is None:
+        raw = [
+            {"qty": q, "value": inputs[k]}
+            for q, k in ((2, "tier2_pct"), (3, "tier3_pct"))
+            if inputs.get(k) is not None
+        ]
+    if dtype not in _COMBO_TYPES or not isinstance(raw, list):
+        return None
+    tiers: list[dict[str, int]] = []
+    for row in raw:
+        qty = _num(row.get("qty")) if isinstance(row, dict) else None
+        value = _num(row.get("value")) if isinstance(row, dict) else None
+        if qty is None or value is None or qty != int(qty) or value != int(value):
+            return None
+        tiers.append({"qty": int(qty), "value": int(value)})
+    if not 1 <= len(tiers) <= MAX_COMBO_TIERS:
+        return None
+    if any(not 2 <= t["qty"] <= MAX_COMBO_QTY or t["value"] <= 0 for t in tiers):
+        return None
+    if dtype == "pct" and any(t["value"] > 99 for t in tiers):
+        return None
+    qtys = [t["qty"] for t in tiers]
+    return (dtype, tiers) if qtys == sorted(set(qtys)) else None
+
+
+def _combo_window(inputs: dict[str, Any], now: datetime) -> tuple[str, str]:
+    """The card's dates (``YYYY-MM-DD``) as Seller Centre's pickers show them: from 00:00 of the
+    start to 23:59 of the end. Anything missing, past or reversed becomes the default window."""
+    floor_start, default_end = voucher_window(now, config.VOUCHER_DAYS)
+    try:
+        start = datetime.fromisoformat(str(inputs.get("start"))).replace(hour=0, minute=0)
+        end = datetime.fromisoformat(str(inputs.get("end"))).replace(hour=23, minute=59)
+    except ValueError:
+        return floor_start, default_end
+    earliest = datetime.strptime(floor_start, "%H:%M %d-%m-%Y")
+    start = max(start, earliest)
+    if end <= start:
+        return floor_start, default_end
+    return _shopee_time(start), _shopee_time(end)
+
+
+def _combo_payload(
+    card: dict[str, Any], inputs: dict[str, Any], code: str, version: int, now: datetime,
+    product_ids: list[str],
+) -> dict[str, Any] | None:  # fmt: skip
+    parsed = _combo_tiers(inputs)
+    if parsed is None or not product_ids:
+        return None
+    limit = _num(inputs.get("limit_per_buyer"))
+    if limit is not None and not 1 <= limit <= MAX_PURCHASE_LIMIT:
+        return None
+    name = str(inputs.get("name") or "").strip() or f"{code} V{version}"
+    starts, ends = _combo_window(inputs, now)
+    payload: dict[str, Any] = {
+        "open_path": COMBO_OPEN_PATH,
+        "name": name[:MAX_COMBO_NAME],
+        "starts_at": starts,
+        "ends_at": ends,
+        "discount_type": parsed[0],
+        "tiers": parsed[1],
+        "product_ids": product_ids,
+    }
+    if limit is not None:
+        payload["purchase_limit"] = int(limit)
+    return payload
+
+
 async def campaign_id_of(
     session: AsyncSession, shop_id: uuid.UUID, campaign_key: str | None
 ) -> tuple[str | None, str | None]:
@@ -267,7 +347,7 @@ def _card_targets(card: dict[str, Any], kind: str) -> list[dict[str, Any]]:
         return [{"campaign_key": str(r["id"])} for r in rows]
     ids = [str(r["id"]) for r in rows]
     mode = (card.get("fill") or {}).get("mode")
-    if mode == "bulk" or kind in ("voucher", "affiliate_commission"):
+    if mode == "bulk" or kind in ("voucher", "affiliate_commission", "combo"):
         return [{"product_ids": ids}]
     return [{"item_id": i} for i in ids]
 
@@ -354,6 +434,17 @@ async def build_jobs(
                 variant if variant in ("manual", "manual-mpd") else "manual",
             )  # fmt: skip
             job({"campaign_id": cid}, f"ads:{change_kind}:{cid}", payload or {}, error)
+    elif kind == "combo":
+        if change_kind == "combo_multi":
+            job({"product_ids": scope_items}, "combo:legacy", {}, COMBO_LEGACY_ERROR)
+            return jobs
+        cids: list[str] = []
+        for t in given:
+            cids += _ids(t.get("product_ids") or [t.get("item_id")])
+        cids = list(dict.fromkeys(cids or scope_items))[:MAX_PRODUCTS]
+        key = "combo:" + ",".join(cids)[:60]
+        payload = _combo_payload(card, base_inputs, p.code, version, now, cids)
+        job({"product_ids": cids}, key, payload or {}, None if payload else "combo_incomplete")
     elif kind == "affiliate_commission":
         ids: list[str] = []
         for t in given:

@@ -4072,3 +4072,17 @@ reconcile --write` re-derived the no-assert corpus figure.
   passed (2 files cannot load `recharts` here). Demo tsc errors only in files P97 did not touch and caused by the
   borrowed main-checkout node_modules (old `@juli/contracts`, missing packages) — confirm on CI.
 - Not run: Postgres integration tests, RLS / grants on 122–125, CI on Node 20.
+
+## 2026-11-09 — P97 T5 agent (Claude Opus) — combo fill (D85.15)
+
+- Branch `fasttrack/p97-t5-combo-fill` on `c0820c1d`. Backend: `fill_queue` kind `combo` maps T4's
+  `bundle_deal` card (discount_type, tiers or the generated `tier2_pct` / `tier3_pct`, `limit_per_buyer`,
+  name, start / end, scope products) to a payload; validates ascending distinct N (2..9999, at most 5
+  tiers), % in 1..99, dong > 0, one or more products, limit <= 999,999,999; name defaults to
+  `<code> V<n>` (<= 25). Legacy `combo_multi` is a failed job with the Vietnamese reason. The TODO is gone.
+- Connector 0.3.13: `fillCombo` (radio, name, two dates, "Thêm mức ưu đãi" rows, limit, picker without
+  confirming), page allowlist `/portal/marketing/bundle/new`, id capture pattern for a bundle create answer
+  (`bundle_deal_id` / `bundle_id`; a miss leaves nothing). `combo-tiers.html` grew into the whole form;
+  fill-never-clicks covers the three types and 1-3 tiers.
+- No bundle list reader exists and none was built: measurement of a combo stays `executed_no_readback`.
+- Demo: the generic checklist covers combo (kind label and two error texts only).

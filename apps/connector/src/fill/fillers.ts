@@ -7,10 +7,12 @@
 import {
   chooseRadio,
   chooseSelect,
+  ensureCount,
   type Env,
   findDialog,
   findEditPencil,
   findPressable,
+  findRow,
   pickProducts,
   press,
   setDate,
@@ -18,7 +20,7 @@ import {
   setSwitch,
   textBoxesIn,
 } from "./controls";
-import type { AdsPayload, AffiliatePayload, VoucherPayload } from "./job-types";
+import type { AdsPayload, AffiliatePayload, ComboPayload, VoucherPayload } from "./job-types";
 import { normalizeLabel } from "./locate";
 import { writeValue } from "./write";
 
@@ -96,6 +98,59 @@ export async function fillVoucher(env: Env, v: VoucherPayload): Promise<FillOutc
   }
   todo.push("Kiểm tra lại các ô được tô hồng, rồi bấm Xác nhận của Shopee để tạo voucher.");
   return { steps, todo, notes: ["Juli không bấm Xác nhận thay bạn."] };
+}
+
+// -- combo khuyến mãi (bundle deal) ----------------------------------------------------------
+
+export const COMBO_LABELS = {
+  name: "Tên Combo Khuyến Mãi",
+  period: "Thời gian chạy Combo",
+  type: "Loại Combo",
+  tiers: "Mức ưu đãi",
+  addTier: "Thêm mức ưu đãi",
+  limit: "Giới hạn đặt hàng",
+  products: "Thêm sản phẩm",
+} as const;
+
+const COMBO_TYPE_OPTION = { pct: "Giảm giá theo %", amount: "Giảm giá theo số tiền", special_price: "Giảm giá đặc biệt" } as const;
+const COMBO_TIER_TEXT = {
+  pct: (q: number, v: number) => `Mua ${q} giảm ${v}%`,
+  amount: (q: number, v: number) => `Mua ${q} giảm ${dong(v)}`,
+  special_price: (q: number, v: number) => `Mua ${q} chỉ với giá ${dong(v)}`,
+} as const;
+
+export async function fillCombo(env: Env, c: ComboPayload): Promise<FillOutcome> {
+  const steps: Step[] = [];
+  const add = (label: string, ok: boolean, note?: string) => steps.push({ label, ok, ...(note ? { note } : {}) });
+  const L = COMBO_LABELS;
+  // the type first: it decides what the tier rows ask for
+  add(`Loại combo: ${COMBO_TYPE_OPTION[c.discountType]}`, await chooseRadio(env, L.type, COMBO_TYPE_OPTION[c.discountType]));
+  add(`Tên combo: ${c.name}`, setRowText(env, L.name, c.name));
+  const start = setDate(env, L.period, c.startsAt, 0);
+  const end = setDate(env, L.period, c.endsAt, 1);
+  add(`Thời gian: ${c.startsAt} → ${c.endsAt}`, start && end);
+  // each tier row holds two boxes: "Mua [N] sản phẩm" and the percent / amount / price
+  const boxes = () => {
+    const row = findRow(env.doc, L.tiers);
+    return row ? textBoxesIn(row).length : 0;
+  };
+  const enough = await ensureCount(env, L.addTier, () => Math.floor(boxes() / 2), c.tiers.length);
+  for (const [i, t] of c.tiers.entries()) {
+    const ok = enough && setRowText(env, L.tiers, String(t.qty), i * 2) && setRowText(env, L.tiers, String(t.value), i * 2 + 1);
+    add(COMBO_TIER_TEXT[c.discountType](t.qty, t.value), ok);
+  }
+  if (c.purchaseLimit !== undefined) add(`Giới hạn đặt hàng: ${c.purchaseLimit}`, setRowText(env, L.limit, String(c.purchaseLimit)));
+  const picked = await pickProducts(env, L.products, c.productIds);
+  add(
+    `Sản phẩm: ${picked.ticked.length}/${c.productIds.length} đã tick`,
+    picked.missing.length === 0,
+    picked.missing.length ? `Không thấy ID: ${picked.missing.join(", ")}` : undefined,
+  );
+  return {
+    steps,
+    todo: ["Bấm Xác nhận trong hộp chọn sản phẩm.", "Kiểm tra lại các ô được tô hồng, rồi bấm Xác nhận của Shopee để tạo combo."],
+    notes: ["Juli không bấm Xác nhận thay bạn."],
+  };
 }
 
 // -- ads edit ------------------------------------------------------------------------------

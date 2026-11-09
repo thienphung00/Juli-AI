@@ -146,6 +146,8 @@ export const FILL_JOB_KINDS: ReadonlySet<string> = new Set([
   "ads_budget",
   "ads_roas_target",
   "affiliate_commission",
+  "bundle_deal",
+  "combo_multi",
 ]);
 
 const KIND_LABEL: Record<string, string> = {
@@ -154,6 +156,7 @@ const KIND_LABEL: Record<string, string> = {
   voucher: "Tạo voucher",
   ads_edit: "Sửa quảng cáo",
   affiliate_commission: "Hoa hồng chiến dịch mở",
+  combo: "Tạo Combo Khuyến Mãi",
 };
 
 export const FILL_STATUS_LABEL: Record<FillJobStatus, string> = {
@@ -174,6 +177,8 @@ const ERROR_TEXT: Record<string, string> = {
   voucher_incomplete: "Voucher thiếu giá trị hoặc số lượng nên Juli không điền.",
   commission_incomplete: "Thiếu sản phẩm hoặc tỉ lệ hoa hồng nên Juli không điền.",
   text_not_fillable: "Nội dung quá dài hoặc có xuống dòng nên Juli không điền; dán bằng tay.",
+  combo_incomplete: "Combo thiếu mức ưu đãi hợp lệ hoặc danh sách sản phẩm nên Juli không điền.",
+  "Combo kiểu cũ — tạo lại theo mức ưu đãi của Shopee": "Combo kiểu cũ — tạo lại theo mức ưu đãi của Shopee.",
   password_prompt: "Shopee đang hỏi lại mật khẩu: Connector đã dừng. Hãy tự xác nhận trong Shopee rồi thử lại.",
 };
 

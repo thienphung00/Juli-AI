@@ -4,7 +4,7 @@ import { parseJobTrigger, runFillJob } from "../src/fill/job-run";
 import { parseFillJob } from "../src/fill/job-types";
 import { PANEL_ID } from "../src/fill/locate";
 import { wireEds, type Wire } from "./eds-wire";
-import { adsJob, affiliateJob, JOB_ID, jobHarness, rawJob, voucherJob, voucherPayload } from "./fill-job-helpers";
+import { adsJob, affiliateJob, comboJob, JOB_ID, jobHarness, rawJob, voucherJob, voucherPayload } from "./fill-job-helpers";
 import { loadPage } from "./fill-helpers";
 
 let wire: Wire;
@@ -228,3 +228,60 @@ describe("refusals and the password prompt", () => {
 });
 
 export { voucherPayload };
+
+describe("a combo job", () => {
+  const tiersOf = () => Array.from(document.querySelectorAll<HTMLElement>(".tier")).map((t) => Array.from(t.querySelectorAll("input")).map((i) => i.value));
+  const ticked = () => Array.from(document.querySelectorAll<HTMLInputElement>("#ptable input:checked")).map((i) => i.closest("tr")?.getAttribute("data-id"));
+
+  it("accepts a well-formed combo and refuses anything off", () => {
+    expect(parseFillJob(comboJob())?.payload).toMatchObject({ kind: "combo", combo: { discountType: "pct", purchaseLimit: 5, tiers: [{ qty: 2, value: 5 }, { qty: 3, value: 8 }] } });
+    expect(parseFillJob(comboJob({ purchase_limit: undefined }))?.payload).toMatchObject({ combo: { productIds: ["1001", "1003"] } });
+    for (const over of [
+      { name: "x".repeat(26) },
+      { tiers: [] },
+      { tiers: [{ qty: 3, value: 5 }, { qty: 2, value: 8 }] },
+      { tiers: [{ qty: 2, value: 5 }, { qty: 2, value: 8 }] },
+      { tiers: [{ qty: 1, value: 5 }] },
+      { tiers: [{ qty: 2, value: 100 }] },
+      { tiers: [{ qty: 2, value: 0 }], discount_type: "amount" },
+      { tiers: Array.from({ length: 6 }, (_, i) => ({ qty: i + 2, value: 5 })) },
+      { discount_type: "bogus" },
+      { purchase_limit: 1_000_000_000 },
+      { product_ids: [] },
+      { starts_at: "2026-11-09" },
+      { open_path: "/portal/marketing/bundle/new?x=1" },
+      { open_path: "/portal/marketing/bundle/list" },
+    ]) expect(parseFillJob(comboJob(over)), JSON.stringify(over)).toBeNull();
+  });
+
+  it.each([
+    ["pct", 1, [{ qty: 2, value: 10 }], "pct"],
+    ["pct", 2, [{ qty: 2, value: 5 }, { qty: 3, value: 8 }], "pct"],
+    ["amount", 3, [{ qty: 2, value: 5000 }, { qty: 3, value: 9000 }, { qty: 5, value: 20000 }], "amount"],
+    ["special_price", 2, [{ qty: 2, value: 90000 }, { qty: 4, value: 160000 }], "special"],
+  ])("fills a %s combo with %i tier(s), the limit and the products, leaving Xác nhận to the person", async (type, count, tiers, radio) => {
+    loadPage("combo-tiers.html");
+    const h = jobHarness(comboJob({ discount_type: type, tiers }));
+    expect(await runFillJob(h.deps)).toMatchObject({ status: "filled" });
+    expect(checked("ctype")).toBe(radio);
+    expect(val("name")).toBe("JC-2611-0009 V1");
+    expect([val("start"), val("end")]).toEqual(["12:00 09-11-2026", "23:59 23-11-2026"]);
+    expect(tiersOf()).toEqual(tiers.map((t) => [String(t.qty), String(t.value)]));
+    expect(tiersOf()).toHaveLength(count);
+    expect(val("limit")).toBe("5");
+    expect(ticked()).toEqual(["1001", "1003"]);
+    expect(h.reports.map((r) => r[1])).toEqual(["opened", "filled"]);
+    expect(wire.forbidden).toEqual([]);
+    expect(panelText()).toContain("Xác nhận của Shopee");
+  });
+
+  it("leaves the order limit alone when the card has none, and reports the product it cannot find", async () => {
+    loadPage("combo-tiers.html");
+    const h = jobHarness(comboJob({ purchase_limit: undefined, product_ids: ["1001", "9999"] }));
+    expect(await runFillJob(h.deps)).toMatchObject({ status: "partial" });
+    expect(val("limit")).toBe("");
+    expect(ticked()).toEqual(["1001"]);
+    expect(panelText()).toContain("9999");
+    expect(wire.forbidden).toEqual([]);
+  });
+});

@@ -196,8 +196,9 @@ commission, a product title or description), Juli lists it as a **fill job** for
 (the extension asks Juli for the jobs of its own token's shop). The extension then opens the
 matching Seller Centre page in a background tab, one page at a time, and types the approved
 values into the form: the voucher form (name, code, dates, discount, minimum spend, usage
-limits, display, the product picker), the budget or ROAS popup of one ads campaign, or the
-commission box of Chiến dịch mở. It highlights what it typed and shows a checklist.
+limits, display, the product picker), the Combo Khuyến Mãi form (from version 0.3.13: name,
+dates, type, the "Mua N" tiers, order limit, the product picker), the budget or ROAS popup of
+one ads campaign, or the commission box of Chiến dịch mở. It highlights what it typed and shows a checklist.
 
 To do that it **presses ordinary controls** — opens a drop-down, picks an option, chooses a
 radio button, switches a switch, ticks a product row, opens the pencil icon of a budget — and
@@ -208,8 +209,8 @@ opens counts against the same daily request budget as the readers. If the page s
 "enter your Shopee password" box, the extension stops, stops all reading for the shop for
 several hours, tells Juli (reader, page, time; no data) and types nothing.
 
-After the seller saves a new voucher, the extension reads only the new voucher's id from the
-page's own answer and tells Juli, so Juli can check the voucher afterwards. Juli's server can
+After the seller saves a new voucher or combo, the extension reads only its new id (digits) from the
+page's own answer and tells Juli, so Juli can check it afterwards. Juli's server can
 switch all filling off.
 
 ## Retention and deletion

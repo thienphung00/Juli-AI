@@ -6,7 +6,7 @@
 
 import { FILL_HASH_KEY, FILL_JOB_ID_PATTERN } from "../config";
 import { type Env } from "./controls";
-import { fillAds, fillAffiliate, type FillOutcome, fillVoucher } from "./fillers";
+import { fillAds, fillAffiliate, fillCombo, type FillOutcome, fillVoucher } from "./fillers";
 import { type FillJob, type JobReply } from "./job-types";
 import { HALT_TEXT, showJobPanel } from "./job-panel";
 import { findControl } from "./locate";
@@ -82,6 +82,7 @@ async function fillPage(env: Env, job: FillJob): Promise<FillOutcome> {
   if (p.kind === "voucher") return fillVoucher(env, p.voucher);
   if (p.kind === "ads_edit") return fillAds(env, p.ads);
   if (p.kind === "affiliate_commission") return fillAffiliate(env, p.affiliate);
+  if (p.kind === "combo") return fillCombo(env, p.combo);
   return fillText(env, job);
 }
 

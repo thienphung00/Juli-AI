@@ -374,6 +374,7 @@ export const FILL_JOB_PAGES = {
   voucher_new: /^\/portal\/marketing\/vouchers\/new$/,
   ads_edit: /^\/portal\/marketing\/pas\/product\/(manual|manual-mpd)\/(\d{1,20})$/,
   affiliate_open: /^\/portal\/web-seller-affiliate\/open_campaign$/,
+  bundle_new: /^\/portal\/marketing\/bundle\/new$/,
 } as const;
 /** Fill jobs run for the paired token's shop; the server decides whether anything is served. */
 export function fillJobsActive(shopId: string | undefined): boolean {

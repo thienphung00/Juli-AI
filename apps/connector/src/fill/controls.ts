@@ -245,16 +245,20 @@ export function findPressable(env: Env, text: string, within?: Element): HTMLEle
   return inner.length === 1 ? (inner[0] as HTMLElement) : null;
 }
 
-/** Presses `addLabel` until `count` rows (elements matched by `rowSelector`) exist. */
-export async function ensureRows(env: Env, addLabel: string, rowSelector: string, count: number): Promise<boolean> {
-  const rows = () => Array.from(env.doc.querySelectorAll<HTMLElement>(rowSelector)).filter(usable);
-  for (let guard = 0; guard < 12 && rows().length < count; guard += 1) {
-    const before = rows().length;
+/** Presses `addLabel` until `have()` reaches `count`, waiting for each new row to appear. */
+export async function ensureCount(env: Env, addLabel: string, have: () => number, count: number): Promise<boolean> {
+  for (let guard = 0; guard < 12 && have() < count; guard += 1) {
+    const before = have();
     const add = findPressable(env, addLabel);
     if (!add || !press(add)) return false;
-    if (!(await waitFor(env, () => (rows().length > before ? true : null), 1_500))) return false;
+    if (!(await waitFor(env, () => (have() > before ? true : null), 1_500))) return false;
   }
-  return rows().length >= count;
+  return have() >= count;
+}
+
+/** Presses `addLabel` until `count` rows (elements matched by `rowSelector`) exist. */
+export function ensureRows(env: Env, addLabel: string, rowSelector: string, count: number): Promise<boolean> {
+  return ensureCount(env, addLabel, () => Array.from(env.doc.querySelectorAll<HTMLElement>(rowSelector)).filter(usable).length, count);
 }
 
 // -- product picker (modal) ----------------------------------------------------------------
