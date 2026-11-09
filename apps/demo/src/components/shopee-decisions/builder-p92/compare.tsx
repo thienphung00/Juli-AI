@@ -13,6 +13,7 @@ import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions
 import { TextChip } from "../../shopee-analytics/ui";
 import { NavLink, errorText } from "../ui";
 import { BreachDialog } from "../versions";
+import { CompareTable, OptionCard } from "../option-card";
 import { BasisChip, chuaTinh, costText } from "./results";
 
 /**
@@ -273,6 +274,8 @@ export function CompareView({
   const outcomes = result?.versions ?? [];
   const names = namesOf(entries, outcomes);
   const rows = rowsFor(names);
+  // P98 d.5: every version that came back with a `result` is drawn from it alone; the old table is the fallback.
+  const withResult = outcomes.length > 0 && outcomes.every((o) => !o.ok || o.result !== undefined) && outcomes.some((o) => o.ok && o.result !== undefined);
   const facts = entries.map((e) => versionFacts(e.version, names));
   const factsCell = (i: number) => (
     <ul className="p2-units">
@@ -375,7 +378,23 @@ export function CompareView({
           {current.message}
         </p>
       ) : null}
-      {result && !narrow ? (
+      {result && withResult ? (
+        <div data-testid="oc-compare-block">
+          <CompareTable rows={outcomes.flatMap((o, i) => (o.ok && o.result ? [{ id: i + 1, name: `P${i + 1} · ${String(entries[i]?.version.label ?? o.result.label)}`, result: o.result }] : []))} />
+          <div className="oc-cards">
+            {entries.map((e, i) => (
+              <div className="oc-cards__col" key={e.id}>
+                {head(e, i)}
+                {outcomes[i]?.ok && outcomes[i]?.result ? <OptionCard result={outcomes[i]!.result!} testId={`oc-card-${i + 1}`} /> : <span className="sd-error">{outcomes[i] ? refusalText(outcomes[i]!) : DASH}</span>}
+                <button className="sa-btn sa-btn--primary" data-testid={`p2-choose-${i + 1}`} disabled={readOnly || busy || !outcomes[i]?.ok || saved !== null} onClick={() => onChoose(i)} type="button">
+                  Chọn P{i + 1}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {result && !withResult && !narrow ? (
         <div className="p2-cmp" data-testid="p2-cmp-table" style={style}>
           <div className="p2-cmp__corner" />
           {entries.map(head)}
@@ -415,7 +434,7 @@ export function CompareView({
           </div>
         </div>
       ) : null}
-      {result && narrow ? (
+      {result && !withResult && narrow ? (
         <div className="sb-swipe" data-testid="p2-swipe">
           {entries.map((e, i) => (
             <div className="sb-swipe__card" key={e.id}>
