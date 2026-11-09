@@ -59,6 +59,7 @@ from juli_backend.services.shopee_recommendations import (
     codes,
     combo,
     config,
+    fill_queue,
     freshness,
     manual,
     plan_codes,
@@ -1241,6 +1242,10 @@ async def _decide(
                 **({"group": group} if group else {}),
             },
         )
+        await fill_queue.enqueue_after_decision(
+            session, shop_id=shop_id, proposal_id=card_id, picked=picked,
+            final_card=final_card, group_name=str(group["name"]) if group else None, now=now,
+        )  # fmt: skip
         return {
             "id": str(card_id),
             "code": code,
@@ -1437,6 +1442,9 @@ async def mark_executed(
     changes = [dict(c) for c in sheet["changes"]]
     for c in changes:
         if c["change_kind"] == "voucher":
+            voucher_id = voucher_id or await fill_queue.captured_ref_of(
+                session, shop_id, card_id, "voucher"
+            )
             if not voucher_id:
                 raise ProposalError(
                     ERROR_BAD_INPUT, 422, "voucher_id is required to verify a voucher"
