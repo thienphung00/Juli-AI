@@ -30,8 +30,8 @@ async def test_every_screen_shows_the_same_funnel_numbers(session, built, monkey
         "tong_quan", "phan_tich", "san_pham", "ke_hoach", "builder_before",
     }  # fmt: skip
     for field in FIELDS:
-        # Tổng quan's strip and Phân tích's cell round a ratio to 2 decimals (see the xfail below)
-        shown = agreed(surfaces, field, tol=0.005, abs_tol=0.005 if field in ("ctr", "ctor") else 0)
+        # one number per field: ratios unrounded, Lợi nhuận = ShopMetrics (d.14)
+        shown = agreed(surfaces, field, tol=0.005 if field in ("profit", "aov") else 1e-4)
         # the field is not absent everywhere, and the screens that must carry it do
         assert shown, field
     # Đơn, GMV and Lượt xem are carried by at least Tổng quan, Sản phẩm, Kế hoạch and the builder
@@ -41,30 +41,33 @@ async def test_every_screen_shows_the_same_funnel_numbers(session, built, monkey
         )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="found by d.11.2: Tổng quan's KPI strip and Phân tích's ranking cell round CTR / CTOR "
-    "to 2 decimals as fractions (0.0636 -> 0.06) while Sản phẩm / Kế hoạch / the builder keep 6",
-)
 async def test_ctr_and_ctor_carry_full_precision_on_every_screen(session, built, monkeypatch):
     from juli_backend.services.shopee_recommendations import config
 
     monkeypatch.setattr(config, "HISTORY_DAYS", 7)
     surfaces, waterfalls = await collect_shop(session, built.shop_id, CUR_END, days=7)
     for field in ("ctr", "ctor"):
-        agreed(surfaces, field, tol=1e-4)
+        shown = agreed(surfaces, field, tol=1e-4)
+        assert {"tong_quan", "phan_tich"} <= set(shown), field
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="found by d.11.2: Lợi nhuận has two definitions: the ShopMetrics "
-    "profit (Sản phẩm, Kế hoạch) and the waterfall block / Phân tích ranking (delivered lines)",
-)
-async def test_the_waterfall_profit_equals_the_shop_metrics_profit(session, built, monkeypatch):
+async def test_the_headline_profit_is_the_shop_metrics_profit_with_the_waterfall_as_detail(
+    session, built, monkeypatch
+):
+    from juli_backend.services.shopee_analytics import queries
     from juli_backend.services.shopee_recommendations import config
 
     monkeypatch.setattr(config, "HISTORY_DAYS", 7)
     surfaces, waterfalls = await collect_shop(session, built.shop_id, CUR_END, days=7)
     want = next(s for s in surfaces if s.name == "tong_quan").values["profit"]
-    for name, value in waterfalls.items():
-        assert value == pytest.approx(want, rel=0.005), name
+    assert want is not None
+    assert waterfalls["phan_tich_ranking"] == pytest.approx(want, rel=0.005)
+    ov = await queries.overview(session, built.shop_id, period="7d", as_of=CUR_END)
+    block = ov["profit"]
+    assert block["profit_vnd"] == pytest.approx(want, abs=0.01)
+    assert "profit_waterfall_vnd" in block  # the breakdown keeps its own number
+    assert block["profit_detail_label"].startswith("chi tiết trên ")
+    assert "đơn có dữ liệu chi phí" in block["profit_detail_label"]
+    assert block["profit_detail_orders"] == ov["shop_metrics"]["line_orders"]
+    scale = ov["shop_metrics"]["gmv_scale"]
+    assert block["profit_estimated"] is bool(scale is not None and scale > 1)

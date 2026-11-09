@@ -20,6 +20,7 @@ from juli_backend.services.shopee_analytics.fmt import (
     ASSUMED_COST_LABEL,
     ORDER_BASIS,
     delta_pct,
+    frac,
     num,
     pct,
     pct_of,
@@ -123,9 +124,17 @@ def warnings(view: PeriodView) -> list[dict[str, str]]:
     return out
 
 
-def _kpi(now: Decimal | int | None, before: Decimal | int | None) -> dict[str, Any]:
+def _kpi(
+    now: Decimal | int | float | None,
+    before: Decimal | int | float | None,
+    *,
+    fraction: bool = False,
+) -> dict[str, Any]:
+    """``fraction`` keeps a ratio (CTR / CTOR) unrounded instead of ``num``'s 2 decimals."""
     a = None if now is None else Decimal(str(now))
     b = None if before is None else Decimal(str(before))
+    if fraction:
+        return {"value": frac(a), "previous": frac(b), "change_pct": delta_pct(a, b)}
     return {"value": num(a), "previous": num(b), "change_pct": delta_pct(a, b)}
 
 
@@ -230,11 +239,29 @@ def _levers_block(view: PeriodView) -> dict[str, Any]:
     return totals
 
 
-def _profit_block(view: PeriodView) -> dict[str, Any]:
+def _profit_block(view: PeriodView, metrics: ShopMetrics | None = None) -> dict[str, Any]:
     p = view.profit
     cov = view.coverage
+    m = metrics or view.metrics
+    scaled = m.gmv_scale is not None and m.gmv_scale > 1
+    shop_gmv = m.gmv
+    # P98 / ADR-122 d.14: the headline Lợi nhuận is the ShopMetrics one (the number Sản phẩm, Kế
+    # hoạch and the builder show); the waterfall below is its breakdown over the order lines
+    line_share = (
+        pct_of(safe_div(m.line_gmv, shop_gmv)) if shop_gmv is not None and shop_gmv > 0 else None
+    )
     return {
-        "profit_vnd": num(p.profit),
+        "profit_vnd": num(m.profit),
+        "profit_estimated": scaled,
+        "profit_estimate_label": "ước tính theo tỉ lệ" if scaled else None,
+        "profit_waterfall_vnd": num(p.profit),
+        "profit_detail_label": (
+            f"chi tiết trên {m.line_orders} đơn có dữ liệu chi phí ({line_share} % GMV)"
+            if line_share is not None
+            else f"chi tiết trên {m.line_orders} đơn có dữ liệu chi phí"
+        ),
+        "profit_detail_orders": m.line_orders,
+        "profit_detail_gmv_share_pct": line_share,
         "profit_on_covered_vnd": num(p.profit_on_covered),
         "margin_pct": pct(p.margin_pct),
         "margin_basis": "profit ÷ doanh thu thực (sau voucher và combo)",
@@ -398,8 +425,11 @@ def build_overview(
         "kpi_strip": {
             "gmv": _kpi(now.shop_gmv, prev_gmv),
             "views": _kpi(chain.get("views"), prev_chain.get("views")),
-            "ctr": _kpi(chain.get("ctr"), prev_chain.get("ctr")),
-            "ctor": {**_kpi(chain.get("ctor"), prev_chain.get("ctor")), "note": CTOR_NOTE},
+            "ctr": _kpi(chain.get("ctr"), prev_chain.get("ctr"), fraction=True),
+            "ctor": {
+                **_kpi(chain.get("ctor"), prev_chain.get("ctor"), fraction=True),
+                "note": CTOR_NOTE,
+            },
             "aov": _kpi(metrics.aov, prev_metrics.aov if prev_totals_ok else None),
             "orders": _kpi(now.shop_orders, prev_orders),
             "margin_pct": {
@@ -430,7 +460,7 @@ def build_overview(
         "flows": _flows_block(now, before),
         "levers": _levers_block(now),
         "five_numbers": five_json(five, comparable=comparable),
-        "profit": _profit_block(now),
+        "profit": _profit_block(now, metrics),
         "ads": _ads_block(now),
         "vouchers": _vouchers_block(now, ctx),
         "affiliate": _affiliate_block(now),

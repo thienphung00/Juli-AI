@@ -71,8 +71,9 @@ describe("Tổng quan", () => {
       }),
     );
     const profit = await screen.findByTestId("sa-profit");
-    expect(profit).toHaveTextContent("= Lợi nhuận shop");
+    expect(profit).toHaveTextContent("= Lợi nhuận (chi tiết)");
     expect(profit).toHaveTextContent("9.250.000đ");
+    expect(profit).toHaveTextContent("Cùng số với Sản phẩm và Kế hoạch");
     expect(profit).toHaveTextContent("trên 100% doanh thu khách trả");
     expect(screen.queryByTestId("sa-assumed-label")).toBeNull();
   });
