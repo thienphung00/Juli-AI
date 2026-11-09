@@ -57,6 +57,11 @@ MAX_VOUCHER_NAME = 100
 ICT = timedelta(hours=7)
 _B36 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+# TODO(P97 T3, combo): ``bundle_deal`` / combo cards are NOT queued. T4 reshapes the combo spec to
+# Shopee's tiers (name <= 25, dates, "Mua N -> x % / d / gia dac biet" rows, order limit, product
+# list). When that lands, add a ``combo`` job kind here and a filler in the Connector
+# (``fill/fillers.ts``) on the ``ensureRows`` / ``pickProducts`` controls already built and tested
+# against ``test/fixtures/fill/combo-tiers.html``; the form is /portal/marketing/bundle/new.
 #: change kinds this queue fills, and the job kind each one becomes
 _KIND_OF = {
     "title": "title",

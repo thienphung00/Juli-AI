@@ -27,6 +27,7 @@ a service package behind a thin route (`api/routes/demo_shopee_recommendations.p
 | `ranking` | contract 11: hard filters, gap-share score at P25, fallback dGMV/tháng, "đáng thử" slot |
 | `learning`, `impact`, `measure` | calibration, coverage, acceptance statistics; ADR-077 ratio-form DiD; readings at the plan end and the natural-experiment backfill |
 | `sim_priors` | the `juli-sim/priors/v1` loader (schema: `~/juli-sim-pilot/funnel/README.md`) |
+| `fill_queue` | P97 D85.6: `enqueue_for_approval` queues `shopee_fill_jobs` (migration 124) for an approved card version; `jobs_for_shop` / `report` serve the Connector (token's shop only); `captured_ref_of` feeds `mark_executed`. Kill switch `CONNECTOR_FILL_LISTING`. Combo is not queued (TODO, T4's tier spec) |
 | `product_queue` | P91 D-1: the per-product queue of open cards (`shop_proposals.product_queue`), pure `assign`, `requeue_products` / `requeue_shop`, `measuring` (`product_measuring`) |
 | `versions` | P91 D-2: 2-4 versions per card; `ALTERNATIVES` = the one place that says which inputs per change_kind |
 | `codes` | P91 D-5: `JC-<yymm>-<seq4>`, per-shop counter, `backfill_codes` |

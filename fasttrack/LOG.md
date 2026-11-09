@@ -3981,3 +3981,43 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Not run: Postgres integration tests (affiliate lines DB, RLS / grants on 122 and 123), CI. Before deploy:
   CI on Node 20 + Postgres, `alembic upgrade head`, then `scripts/backfill_shopee_metrics.py --all-shopee`,
   Connector 0.3.11 reload and first-capture checks of the TODO(first capture) mappers.
+
+## 2026-11-09 — T3 agent (Claude Opus) — Connector 0.3.12: P97 T3, fill-in on approval (branch `fasttrack/p97-t3-fill`)
+
+- **Queue (D85.6):** migration `124_shopee_fill_jobs` (tenant-direct, RLS, `juli_app` SELECT / INSERT / UPDATE; parent 123;
+  `deferred/101` and the head-pin tests follow 124). `services/shopee_recommendations/fill_queue.py`:
+  `enqueue_for_approval(session, *, shop_id, proposal_id, version, targets=None, group_code=None, card=None, now=None)` (T4
+  calls it for group approvals; idempotent per card, version and target), `service._decide` calls
+  `enqueue_after_decision` once (a queue failure is logged and never undoes the approval), nothing is queued while
+  `CONNECTOR_FILL_LISTING` is off. Kinds: title, description first line, voucher (`min_spend_voucher`, `review_voucher`; shop
+  voucher, or product voucher when targets name products), ads budget / ROAS (campaign id from the card or the newest
+  `ads_campaign_daily` row; a budget under ₫100.000 becomes a failed job with its reason, not a fill), affiliate commission
+  (one bulk job for all products). `voucher_cap` edits an existing voucher and `bundle_deal` waits for T4: not queued.
+  Routes: `GET /v1/ingest/fill-jobs` (the token's shop only, open jobs), `POST /v1/ingest/fill-jobs/{id}` (opened / filled /
+  saved / captured + id / failed, forward only), seller `GET /v1/demo/shopee/fill-jobs?card_id=` and `POST .../{id}/cancel`.
+  `mark_executed` falls back to the captured voucher id; the voucher list reader resolves it too (code suffix match) when the
+  page's create answer was missed.
+- **Connector 0.3.12 fill:** `fill/controls.ts` (radio, eds select, native select, `HH:mm DD-MM-YYYY` date inputs verified by
+  read-back, switch, repeated rows, product picker modal, edit pencils) is the ONLY place that presses, through `press()`, which
+  refuses Lưu / Lưu lại / Xác nhận / Gửi / Cập nhật / Tạo / Đăng / Xóa / Loại bỏ / Hủy / Ẩn / Áp dụng and submit buttons. The
+  product picker's own Xác nhận and every popup's Xác nhận are left to the person. `fillers.ts` (voucher, ads, affiliate),
+  `job-run.ts`, `job-types.ts` (strict validation, page allowlist per kind), `background/fill-jobs.ts` (poll every 3 min, one
+  page at a time, `READER_PAGE_LOAD_COST` (10) requests per page against the shared 400/day budget, the job tab is opened in the
+  background, a job is auto-opened once; the Demo button re-opens). Allowlist is the token's shop, not `PILOT_SHOP_IDS`.
+  `fill-never-clicks.test.ts` now covers every filler (no forbidden event, no forbidden press) and the source rule (exactly one
+  `.click()`, in `press()`).
+- **Safety (D85.19):** the Shopee password prompt stops a fill page (nothing typed, job failed `password_prompt`), the
+  scheduler ends its run and blocks every reader for the login cool-down (6 h, lifted when a data call succeeds), a connector
+  event `fill / login / password_prompt` goes to Ops. Readers already stopped on it (T1).
+- **Readers (task 8, unblocked by the fourth recording):** `product_period` (once a day after the shop totals,
+  `/api/mydata/v4/product/performance/` past30days, confirmed sales descending, 5 pages of 10; placed and confirmed are posted
+  from the same answer because each item holds all three bases) and `ads_products` (each group campaign's manual-mpd table:
+  the page's own answer kept, the other group campaigns replayed with only `campaign_id` changed, posted as
+  `ads_campaign_period` with the campaign title the ads list gave). The daily `item_performance` flag stays off (it is a
+  one-day dataset). Opening `/datacenter/product/performance` is allowed by the budget and the password stop.
+- **Demo:** the execution panel lists each fill job (status chip, "Mở trang để điền", captured id, failure reason) and no
+  longer asks for the voucher id once the Connector captured it.
+- **Not verified without a live page:** every selector (eds classes, popper, modal, pencil icon), that a typed date is accepted
+  by the picker, the voucher create endpoint / answer shape, the mpd list's request body and metric keys, the exact
+  `repeat_*` keys and rate scale of the product table, and the whole auto-open flow in Chrome (service worker alarm, background
+  tab, content script in a MAIN/ISOLATED pair).
