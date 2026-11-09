@@ -91,7 +91,14 @@ const METRICS: readonly { readonly key: keyof FunnelColumn; readonly label: stri
   { key: "profit", label: "Lợi nhuận", fmt: (n) => vnd(n) },
 ];
 
-const SOURCE_LABELS: Readonly<Record<string, string>> = { organic: "Tự nhiên", ads: "Quảng cáo", affiliate: "Liên kết", kol: "KOL", live: "Livestream", video: "Video" };
+export const SOURCE_LABELS: Readonly<Record<string, string>> = {
+  the_san_pham_khac: "Thẻ sản phẩm (ngoài Trang shop)",
+  trang_shop: "Trang shop",
+  live: "Live",
+  video: "Video",
+  lien_ket: "Liên kết",
+  chenh_lech_nguon: "Chênh lệch nguồn",
+};
 
 function columns(r: OptionResult): readonly { readonly name: string; readonly col: FunnelColumn | null }[] {
   return [

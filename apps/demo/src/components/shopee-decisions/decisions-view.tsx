@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { DASH, fmt, sv } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
@@ -11,6 +11,7 @@ import { Empty, Notice, Section, TextChip } from "../shopee-analytics/ui";
 import { BuilderView } from "./builder";
 import { BuilderP92View } from "./builder-p92";
 import { CardPage } from "./card-page";
+import type { KolCandidate } from "./kol-builder";
 import { OpsRecoList } from "./ops-list";
 import { PlanView } from "./plan";
 import { StaffBar } from "./staff-bar";
@@ -138,6 +139,22 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
   );
 }
 
+/** The P92 builder; with the P98 client it also gets the shop's KOL rows for the KOL builder. */
+function BuilderWithP98({ from, productId }: { readonly from: string | null; readonly productId: string | null }) {
+  const host = useReco();
+  const [kols, setKols] = useState<readonly KolCandidate[]>([]);
+  useEffect(() => {
+    let live = true;
+    if (host.p98 && host.kols) host.kols().then((k) => live && setKols(k), () => undefined);
+    return () => {
+      live = false;
+    };
+    // The list is per shop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [host.shopKey]);
+  return <BuilderP92View from={from} kols={kols} p98Api={host.p98} productId={productId} />;
+}
+
 export function DecisionsView({ params }: { readonly params: URLSearchParams }) {
   const host = useReco();
   const planRes = useResource(() => (host.plan ? host.plan.api.get().then((p) => p.cards.length) : Promise.resolve(null)), `${host.shopKey}|plan-count`);
@@ -146,7 +163,7 @@ export function DecisionsView({ params }: { readonly params: URLSearchParams }) 
   const tab = tabOfParam(params.get("tab"));
   if (the) return <CardPage from={params.get("from")} id={the} version={Number(params.get("v")) || null} />;
   if (params.get("ke-hoach")) return <PlanView />;
-  if (params.get("tu-tao")) return host.builder ? <BuilderP92View from={params.get("from")} productId={params.get("sp")} /> : <BuilderView from={params.get("from")} productId={params.get("sp")} />;
+  if (params.get("tu-tao")) return host.builder ? <BuilderWithP98 from={params.get("from")} productId={params.get("sp")} /> : <BuilderView from={params.get("from")} productId={params.get("sp")} />;
   if (host.staff) return <OpsRecoList />;
   return (
     <div className="sa-page" data-testid="sd-list">

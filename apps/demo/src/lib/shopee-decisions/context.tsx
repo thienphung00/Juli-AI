@@ -4,7 +4,9 @@ import { createContext, useContext, type ReactNode } from "react";
 
 import type { MarketScope } from "../shopee-analytics/market-price";
 import type { ShopeeLinks } from "../shopee-analytics/links";
+import type { KolCandidate } from "../../components/shopee-decisions/kol-builder";
 import type { BuilderApi } from "./builder-api";
+import type { BuilderP98Api } from "./builder-p98-api";
 import type { RecoApi } from "./client";
 import type { DecisionTab } from "./model";
 import type { PlanApi } from "./plan-types";
@@ -54,6 +56,10 @@ export interface RecoHost {
   readonly products?: () => Promise<readonly ProductChoice[]>;
   /** P92: the builder API (picker, evaluate / compare / choose, drafts). Absent: the P91 builder runs. */
   readonly builder?: BuilderApi;
+  /** P98: combo / KOL / Quảng cáo builders (same base, token and shop as `builder`); absent: those tabs are not shown. */
+  readonly p98?: BuilderP98Api;
+  /** P98: the shop's KOL rows (from the KOL report) for the KOL builder. */
+  readonly kols?: () => Promise<readonly KolCandidate[]>;
   /** P92 B-10: where the Giá thị trường marker of the builder price panels reads (seller or Ops base). */
   readonly market?: MarketScope;
   /** The draft plan (P91 D-6); absent while the plan backend is not there. */
