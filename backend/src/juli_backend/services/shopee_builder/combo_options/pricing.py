@@ -12,6 +12,11 @@ Rules (``PriceRule.kind``):
 Rounding: to the nearest ``round_to`` (default 1.000đ, never below it). ``ending_9`` instead uses
 the nearest price ending in 9.000 (k x 10.000 - 1.000, e.g. 129.000). Target margin rounds up.
 
+Biên cuối (ADR-122 d.12): when ``Economics.rates`` holds a rate for every member, the combo's
+measured voucher / commission / ad rate (members' rates weighted by their separate price) is taken
+off the margin; target-margin pricing then solves for Biên cuối and the floor check reads it.
+Without rates everything stays on the price-only margin.
+
 A manual price overrides a row (``reprice``): everything but the price is recomputed. Costs: a
 combo is one order: giá vốn is the sum of members' giá vốn x quantity; đóng gói is the largest
 member's (one parcel); VAT flags come from the first member. A member with no giá vốn makes margin
@@ -31,7 +36,7 @@ from juli_backend.services.shopee_builder.combo_options.models import (
     PricedRow,
     PriceRule,
 )
-from juli_backend.services.shopee_builder.variations import unit_margin
+from juli_backend.services.shopee_builder.variations import Rates, unit_margin
 from juli_backend.services.shopee_recommendations.unit_cost import UnitCost
 
 ZERO = Decimal(0)
@@ -83,6 +88,26 @@ def _combined_cost(option: ComboOption) -> UnitCost | None:
     )
 
 
+def combo_rates(option: ComboOption, eco: Economics) -> Rates | None:
+    """The option's measured rates: its members' product rates weighted by price x quantity (by
+    quantity when a price is missing); ``None`` when any member has no rates."""
+    parts = []
+    for m in option.members:
+        r = eco.rates.get(m.item_id)
+        if r is None:
+            return None
+        weight = (m.unit_price * m.quantity) if m.unit_price else Decimal(m.quantity)
+        parts.append((r, weight))
+    total = sum((w for _, w in parts), ZERO)
+    if total <= 0:
+        return None
+    return Rates(
+        sum((r.voucher * w for r, w in parts), ZERO) / total,
+        sum((r.commission * w for r, w in parts), ZERO) / total,
+        sum((r.ads * w for r, w in parts), ZERO) / total,
+    )
+
+
 def _margin(
     option: ComboOption, price: Decimal, eco: Economics
 ) -> tuple[Decimal | None, Decimal | None]:
@@ -101,7 +126,10 @@ def _solve_target(option: ComboOption, target_pct: Decimal, eco: Economics) -> D
     cost = _combined_cost(option)
     if cost is None or not ZERO < target_pct < HUNDRED:
         return None
-    goal = target_pct / HUNDRED
+    rates = combo_rates(option, eco)
+    goal = target_pct / HUNDRED + (rates.total if rates else ZERO)  # Biên cuối when measured
+    if goal >= 1:
+        return None
     lo, hi = Decimal(1), (cost.cogs or ZERO) * 20 + Decimal(1_000_000)
     rate, _ = _margin(option, hi, eco)
     if rate is None or rate < goal:
@@ -130,11 +158,18 @@ def _row(
     margin = profit = None
     if price is not None:
         margin, profit = _margin(option, price, eco)
+    rates = combo_rates(option, eco)
     saving = sep - price if sep is not None and price is not None else None
     margin_pct = (
         (margin * HUNDRED).quantize(Decimal("0.1"), ROUND_HALF_UP) if margin is not None else None
     )
-    below = None if margin_pct is None or floor is None else margin_pct < floor
+    final_pct = (
+        ((margin - rates.total) * HUNDRED).quantize(Decimal("0.1"), ROUND_HALF_UP)
+        if margin is not None and rates is not None
+        else None
+    )
+    checked = final_pct if final_pct is not None else margin_pct  # the floor reads Biên cuối
+    below = None if checked is None or floor is None else checked < floor
     return PricedRow(
         option=option,
         price=price,
@@ -153,6 +188,9 @@ def _row(
         overridden=overridden,
         basis=basis,
         notes=tuple(notes),
+        final_margin_pct=final_pct,
+        final_rates=rates if final_pct is not None else None,
+        floor_basis="final" if final_pct is not None else "price",
     )
 
 
@@ -173,7 +211,8 @@ def _rule_price(option: ComboOption, rule: PriceRule, eco: Economics) -> tuple[D
         ), "giá cố định mỗi hộp"
     if rule.target_margin_pct is None:
         raise PriceRuleError("target_margin needs target_margin_pct")
-    basis = f"biên mục tiêu {rule.target_margin_pct.normalize():f} %"
+    label = "biên cuối" if combo_rates(option, eco) else "biên"
+    basis = f"{label} mục tiêu {rule.target_margin_pct.normalize():f} %"
     raw = _solve_target(option, rule.target_margin_pct, eco)
     return (None if raw is None else round_price(raw, step, ending_9=nine, up=True)), basis
 

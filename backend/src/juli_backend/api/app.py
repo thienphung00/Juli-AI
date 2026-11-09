@@ -38,6 +38,7 @@ from juli_backend.api.routes.demo_run_flows import router as demo_run_flows_rout
 from juli_backend.api.routes.demo_shop_inputs import router as demo_shop_inputs_router
 from juli_backend.api.routes.demo_shopee_analytics import router as demo_shopee_analytics_router
 from juli_backend.api.routes.demo_shopee_builder import router as demo_shopee_builder_router
+from juli_backend.api.routes.demo_shopee_builder_p98 import router as demo_shopee_builder_p98_router
 from juli_backend.api.routes.demo_shopee_market import router as demo_shopee_market_router
 from juli_backend.api.routes.demo_shopee_pages import router as demo_shopee_pages_router
 from juli_backend.api.routes.demo_shopee_reco_manual import router as demo_shopee_reco_manual_router
@@ -164,6 +165,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_shopee_recommendations_router)
     v1_router.include_router(demo_shopee_reco_manual_router)
     v1_router.include_router(demo_shopee_builder_router)
+    v1_router.include_router(demo_shopee_builder_p98_router)
     v1_router.include_router(demo_shopee_market_router)
     v1_router.include_router(demo_shopee_pages_router)
     v1_router.include_router(demo_planned_changes_router)
