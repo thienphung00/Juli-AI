@@ -91,6 +91,12 @@ have to be typed into Seller Centre by hand for every kind except title and desc
     Ops. When the Open Platform app is approved, orders, income, vouchers, combos and ads move to the API and
     the Connector keeps only what the API lacks (traffic sources, affiliate pages).
 
+20. **Metrics are materialized (owner, 2026-11-09).** Migration 123 (after T1's 122): `shopee_shop_metrics_daily`
+    (shop × day × order_type, source tag + complete flag per column), `shopee_product_metrics_daily` (scaled to the
+    shop row, residual stored), `shopee_plan_base_snapshots` (frozen plan base; "Cập nhật số" writes a new one).
+    Rebuilt after every ingest write, backfill CLI for existing shops. ShopMetrics, every tab, cards and Kế hoạch
+    read these tables; the plan-math fixes (D85.4) still apply.
+
 ## Tracks
 
 ### T1 — Connector 0.3.11 + readers (connector + ingest agents)
