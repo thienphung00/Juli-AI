@@ -109,9 +109,9 @@ describe("30-day backfill", () => {
     expect(t.sent[0]!.plan[0]!.params.period).toBe("yesterday");
     expect(t.sent[1]!.plan[0]!.params).toMatchObject({ period: "day" });
     expect(Number(t.sent[1]!.plan[0]!.params.end_time) - Number(t.sent[1]!.plan[0]!.params.start_time)).toBe(86400);
-    expect(t.sent[5]!.plan[1]!.params).toEqual({ period: "day", dt: days[5]!.replaceAll("-", "") });
-    // 2 datasets × 30 days, each post for its own day.
-    expect(t.client.posts).toHaveLength(60);
+    expect(t.sent[5]!.plan[2]!.params).toEqual({ period: "day", dt: days[5]!.replaceAll("-", "") });
+    // 3 requests (confirmed + placed overview, shop traffic) × 30 days, each post for its own day.
+    expect(t.client.posts).toHaveLength(90);
     expect(t.client.posts.filter((p) => p.dataset === "shop_traffic").map((p) => p.body.period.start)).toEqual(days);
     expect(backfillOf(t.storage).status).toBe("done");
     expect(await t.connector.backfillStep()).toBe("done");
@@ -141,7 +141,7 @@ describe("30-day backfill", () => {
     const all = [...first.sent.slice(0, 10), ...second.sent].map((m) => m.day);
     expect(new Set(all).size).toBe(30);
     expect(all).toHaveLength(30);
-    expect(first.client.posts.length + second.client.posts.length).toBe(60);
+    expect(first.client.posts.length + second.client.posts.length).toBe(90);
   });
 
   it("does not send a second day while one is in flight; re-sends after the timeout", async () => {
