@@ -95,6 +95,23 @@ function rowsFor(names: VersionNames): RowDef[] {
       ),
     },
     {
+      key: "targets",
+      label: "Đối tượng",
+      sub: "một thẻ, nhiều đối tượng",
+      cell: (o) =>
+        o.targets && o.targets.length > 0 ? (
+          <>
+            <b>{fmt(o.targets.length)} đối tượng</b>
+            <span>
+              {o.targets.filter((t) => t.breach).length > 0 ? `${fmt(o.targets.filter((t) => t.breach).length)} chạm giá sàn` : "Không đối tượng nào chạm giá sàn"}
+              {o.fill?.mode === "bulk" ? " · điền một lượt" : ""}
+            </span>
+          </>
+        ) : (
+          <span className="sd-muted">{DASH}</span>
+        ),
+    },
+    {
       key: "before-after",
       label: "Trước → sau",
       sub: "7 chỉ số, khoảng P10 – P90; “không đổi” kèm lý do",

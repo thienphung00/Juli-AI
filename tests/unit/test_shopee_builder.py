@@ -75,6 +75,7 @@ def test_every_kind_has_a_model_and_unknown_keys_are_refused():
     assert set(sp.KIND_KEYS) == {
         "voucher",
         "combo",
+        "listing_combo",
         "add_on",
         "gift",
         "product_discount",
@@ -118,24 +119,43 @@ def test_every_kind_has_a_model_and_unknown_keys_are_refused():
             "end": "2026-06-01",
         },
         {"kind": "voucher", "discount_type": "amount", "value": 5000, "min_spend": -1},
-        {"kind": "combo", "items": [{"item_id": "1"}], "pricing": "pct", "value": 5},
         {
             "kind": "combo",
-            "items": [{"item_id": str(n)} for n in range(7)],
-            "pricing": "pct",
-            "value": 5,
+            "item_ids": [],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 5}],
+        },
+        {"kind": "combo", "item_ids": ["1"], "discount_type": "pct", "tiers": []},
+        {
+            "kind": "combo",
+            "item_ids": ["1", "1"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 5}],
         },
         {
             "kind": "combo",
-            "items": [{"item_id": "1"}, {"item_id": "1"}],
-            "pricing": "pct",
-            "value": 5,
+            "item_ids": ["1", "2"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 99}],
         },
         {
             "kind": "combo",
-            "items": [{"item_id": "1"}, {"item_id": "2"}],
-            "pricing": "pct",
-            "value": 99,
+            "item_ids": ["1", "2"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 5}, {"qty": 2, "value": 6}],
+        },
+        {
+            "kind": "combo",
+            "item_ids": ["1", "2"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 1, "value": 5}],
+        },
+        {
+            "kind": "combo",
+            "item_ids": ["1", "2"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 5}],
+            "name": "x" * 26,
         },
         {"kind": "add_on", "main_item_id": "1", "addons": []},
         {
@@ -175,7 +195,9 @@ def test_items_of_lists_every_listing_a_version_names():
         trigger={"type": "buy_item", "item_id": "5"},
     )
     addon = S(kind="add_on", main_item_id="1", addons=[{"item_id": "2", "pct": 5}])
-    combo = S(kind="combo", items=[{"item_id": "3"}, {"item_id": "4"}], pricing="pct", value=5)
+    combo = S(
+        kind="combo", item_ids=["3", "4"], discount_type="pct", tiers=[{"qty": 2, "value": 5}]
+    )
     assert sorted(sp.items_of(gift)) == ["5", "9"] and sp.items_of(addon) == ["1", "2"]
     assert sp.items_of(combo) == ["3", "4"]
 
@@ -530,71 +552,6 @@ async def test_a_voucher_period_follows_the_dates(session, shop):
     assert v["details"]["days"] == 7 and v["break_even"]["period_days"] == 7
 
 
-async def test_a_combo_of_three_products_prices_every_line_and_costs_the_discount(session, shop):
-    await add_baskets(session, shop)
-    v = await one(
-        session,
-        shop,
-        kind="combo",
-        pricing="pct",
-        value=10,
-        items=[{"item_id": "1001", "qty": 1}, {"item_id": "1002", "qty": 2}, {"item_id": "1003"}],
-    )
-    d = v["details"]
-    assert len(d["lines"]) == 3 and d["list_value"] > d["value_now"] > d["buyer_pays"]
-    assert d["savings_pct"] == 10.0
-    assert d["contribution"] > 0 and d["margin_pct"] == v["margin_after_pct"]
-    # B-7.2: the cost of the change is the discount given x the expected combos
-    assert v["cost"]["per_unit"] == d["combo_discount"]
-    assert (
-        v["cost"]["amount"]
-        == v["cost"]["per_unit"] * v["cost"]["expected_units"]
-        >= v["cost"]["per_unit"]
-    )
-    assert v["driver"]["target_metric"] == "aov" and v["basis"]["key"] == "prior"
-    pair = await one(
-        session,
-        shop,
-        kind="combo",
-        pricing="pct",
-        value=10,
-        target="new_listing",
-        items=[{"item_id": "1001"}, {"item_id": "1002"}],
-    )
-    assert (
-        pair["details"]["existing_combo_baskets"] == 4
-        and pair["cost"]["expected_units_basis"] == "history"
-    )
-    assert pair["details"]["target"] == "new_listing"
-
-
-async def test_a_combo_has_three_pricing_modes_a_gift_and_a_floor_line(session, shop):
-    items = [{"item_id": "1001"}, {"item_id": "1002"}]
-    pct = await one(session, shop, kind="combo", items=items, pricing="pct", value=10)
-    amount = await one(session, shop, kind="combo", items=items, pricing="amount", value=15_000)
-    fixed = await one(
-        session, shop, kind="combo", items=items, pricing="fixed_price", value=120_000
-    )
-    assert amount["details"]["combo_discount"] == 15_000
-    assert fixed["details"]["buyer_pays"] == 120_000
-    assert pct["ok"]
-    gift = await one(
-        session, shop, kind="combo", items=items, pricing="pct", value=10, gift_item_id="1003"
-    )
-    assert gift["details"]["gift_cost"] == 16_000
-    deep = await one(session, shop, kind="combo", items=items, pricing="pct", value=70)
-    assert deep["breach"] is True and any(w["type"] == "floor" for w in deep["warnings"])
-    refused = await one(
-        session,
-        shop,
-        kind="combo",
-        pricing="pct",
-        value=10,
-        items=[{"item_id": "1001"}, {"item_id": "9999"}],
-    )
-    assert refused["ok"] is False and refused["refusal"]["code"].startswith("item_no_data")
-
-
 async def test_an_add_on_deal_prices_each_add_on_and_the_attach_rate_that_pays_it_back(
     session, shop
 ):
@@ -779,13 +736,13 @@ async def test_a_variation_set_prices_each_new_variation_and_saves_as_a_restruct
     assert v["delta"]["gmv"]["p50"] is not None and v["basis"]["key"] == "prior"
 
 
-async def test_ads_levers_budget_roas_products_and_keywords(session, shop):
+async def test_ads_levers_budget_roas_and_products(session, shop):
     camps = await builder.ads_campaigns(session, shop.shop_id, as_of=AS_OF, now=NOW)
     key = camps["campaigns"][0]["campaign_key"]
     assert camps["cap_rule"] == "daily_marketing_cap" and camps["daily_cap"] == 500_000
     assert camps["campaigns"][0]["products"] and camps["campaigns"][0]["roas_target"] == 3
     budget = await one(
-        session, shop, kind="ads", lever="budget", campaign_key=key, daily_budget=60_000
+        session, shop, kind="ads", lever="budget", campaign_key=key, daily_budget=150_000
     )
     assert [m["key"] for m in budget["driver"]["metrics"]] == ["spend", "gmv", "roas"]
     spend = budget["driver"]["metrics"][0]
@@ -798,30 +755,23 @@ async def test_ads_levers_budget_roas_products_and_keywords(session, shop):
     )
     assert remove["ok"] and remove["change_kind"] == "ads_remove_product"
     unknown = await one(
-        session, shop, kind="ads", lever="budget", campaign_key="nope", daily_budget=1000
+        session, shop, kind="ads", lever="budget", campaign_key="nope", daily_budget=150_000
     )
     assert unknown["ok"] is False and unknown["refusal"]["code"] == "no_campaign_report"
     missing = await one(session, shop, kind="ads", lever="budget", daily_budget=1000)
     assert missing["refusal"]["code"] == "no_campaign_report"
 
 
-async def test_keyword_bids_are_listed_with_no_invented_estimate(session, shop):
-    v = await one(
-        session,
-        shop,
-        kind="ads",
-        lever="keywords",
-        item_id="1001",
-        keywords=[
-            {"keyword": "găng tay", "bid": 700},
-            {"keyword": "túi rác", "bid": 400, "match": "exact"},
-        ],
-    )
-    assert v["ok"] and v["change_kind"] == "ads_keywords"
-    assert v["basis"]["key"] == "insufficient"
-    assert v["delta"]["gmv"]["p50"] is None and v["delta"]["profit"]["p50"] is None
-    assert [k["keyword"] for k in v["details"]["keywords"]] == ["găng tay", "túi rác"]
-    assert v["details"]["keywords"][1]["match"] == "exact"
+def test_keyword_bids_are_not_a_lever_any_more():
+    """P97 D85.17: Shopee's product-ads form has no keyword / bid field."""
+    with pytest.raises(ValidationError) as refused:
+        S(
+            kind="ads",
+            lever="keywords",
+            item_id="1001",
+            keywords=[{"keyword": "găng tay", "bid": 700}],
+        )
+    assert "keywords" in str(refused.value)
 
 
 async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
@@ -931,7 +881,7 @@ async def test_the_shop_ads_cap_warns_and_never_blocks(session):
     camps = await builder.ads_campaigns(session, seeded.shop_id, as_of=AS_OF, now=NOW)
     key = camps["campaigns"][0]["campaign_key"]
     v = await one(
-        session, seeded, kind="ads", lever="budget", campaign_key=key, daily_budget=90_000
+        session, seeded, kind="ads", lever="budget", campaign_key=key, daily_budget=190_000
     )
     cap = next(w for w in v["warnings"] if w["type"] == "spend_cap")
     assert cap["cap"] == 1_000 and cap["cap_rule"] == "daily_marketing_cap" and v["ok"] is True
@@ -955,9 +905,9 @@ async def test_an_excluded_listing_has_no_builder_entry(session, shop):
         session,
         shop,
         kind="combo",
-        pricing="pct",
-        value=10,
-        items=[{"item_id": "1001"}, {"item_id": "1002"}],
+        discount_type="pct",
+        tiers=[{"qty": 2, "value": 10}],
+        item_ids=["1001", "1002"],
     )
     assert combo["refusal"]["code"] == "item_excluded:1001"
     partner = await one(
@@ -977,9 +927,9 @@ async def test_four_versions_of_mixed_kinds_compare_and_the_best_is_a_safe_one(s
         {"kind": "voucher", "discount_type": "amount", "value": 10_000, "min_spend": 100_000},
         {
             "kind": "combo",
-            "items": [{"item_id": "1001"}, {"item_id": "1002"}],
-            "pricing": "pct",
-            "value": 10,
+            "item_ids": ["1001", "1002"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 10}],
         },
         {
             "kind": "gift",

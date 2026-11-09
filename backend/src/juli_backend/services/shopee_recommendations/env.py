@@ -51,6 +51,8 @@ class CampaignSetting:
     roas_target: Decimal | None = None
     purpose: str | None = None
     campaign_id: str | None = None
+    #: P97 D85.17: times the ROAS target changed in the 7 days up to the window's last day
+    roas_changes_7d: int = 0
 
 
 @dataclass(frozen=True)

@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import { MarketPriceMarker } from "../../shopee-analytics/market-price-marker";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { CoPurchase } from "../../../lib/shopee-decisions/builder-api";
-import { comboPriceOf, kmoney, marginText, newItem, num, voucherChips, type AddonRow, type Forms, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
+import { MAX_COMBO_MEMBERS, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_LISTING_IMAGES, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
 import { NumIn, Pills, ProductSelect, Seg, TextIn, VariationSelect, setAt, type PanelCtx } from "./shared";
+import { ProductTargets } from "./targets";
 
 /**
  * Input panels of the offer strategies (artboard `TuTaoPhuongAnKinds`): Voucher, Combo nhiều sản phẩm, Mua kèm,
@@ -52,6 +53,14 @@ export function VoucherPanel({ form, set, ctx }: P<"voucher">) {
       <p className="sa-hint">
         {form.scope === "product" ? `Voucher sản phẩm: áp cho ${ctx.product.name}. Voucher áp cho cả sản phẩm (mọi phân loại).` : form.scope === "shop" ? "Voucher shop áp cho mọi sản phẩm của shop." : "Voucher người theo dõi / khách mới và livestream / video: chưa có dữ liệu đơn theo loại voucher này để ước tính."}
       </p>
+      {form.scope === "product" ? (
+        <label className="p2-check" data-testid="p2-voucher-many">
+          <input checked={form.items.length > 0} onChange={(e) => set({ items: e.target.checked ? [ctx.product.item_id] : [] })} type="checkbox" /> Áp cho nhiều sản phẩm (danh sách sản phẩm của voucher)
+        </label>
+      ) : null}
+      {form.scope === "product" && form.items.length > 0 ? (
+        <ProductTargets ctx={ctx} hint="Một voucher chung cho cả danh sách: kết quả tính chung, từng dòng là nếu voucher chỉ áp cho riêng sản phẩm đó." onChange={(items) => set({ items })} selected={form.items} title="Sản phẩm của voucher" />
+      ) : null}
       <Seg label="Cách giảm" onChange={(dtype) => set({ dtype })} options={[["amount", "Số tiền (đ)"], ["pct", "Phần trăm (%)"]]} value={form.dtype} />
       <div className="p2-grid">
         <NumIn label="Giá trị" onChange={(value) => set({ value })} suffix={form.dtype === "pct" ? "%" : "đ"} value={form.value} />
@@ -82,8 +91,21 @@ export function VoucherPanel({ form, set, ctx }: P<"voucher">) {
   );
 }
 
-// ── Combo ────────────────────────────────────────────────────────────────
+// ── Combo khuyến mãi ─────────────────────────────────────────────────────
 
+const COMBO_TYPE_OPTIONS = [
+  ["pct", "Giảm giá theo %"],
+  ["amount", "Giảm giá theo số tiền"],
+  ["special_price", "Giảm giá đặc biệt"],
+] as const;
+
+type TierDetail = { readonly units: number; readonly text: string; readonly discount_pct: number | null; readonly margin_pct: number | null; readonly below_floor: boolean };
+
+/**
+ * Combo Khuyến Mãi in Shopee's own form (recon 2026-11-09, P97 D85.15): the product list without quantity or
+ * variation per item, Loại Combo, "Thêm mức ưu đãi" rows "Mua [N] sản phẩm → …", Giới hạn đặt hàng, Tên (≤ 25)
+ * and the dates. The inline voucher and the gift are their own strategies.
+ */
 export function ComboPanel({ form, set, ctx }: P<"combo">) {
   const [co, setCo] = useState<CoPurchase | null>(null);
   useEffect(() => {
@@ -99,45 +121,56 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.product.item_id]);
   const d = details(ctx);
-  const items = form.items;
-  const start = (partner: string) => set({ items: [{ ...items[0]!, itemId: ctx.product.item_id, variationId: items[0]?.variationId ?? "" }, newItem(partner)] });
+  const tiers = form.tiers;
+  const rows = (Array.isArray(d["tiers"]) ? d["tiers"] : []) as TierDetail[];
+  const unit = form.dtype === "pct" ? "%" : "đ";
+  const valueLabel = form.dtype === "pct" ? "Giảm" : form.dtype === "amount" ? "Giảm" : "Chỉ với giá";
+  const updTier = (i: number, patch: Partial<ComboTierRow>) => set({ tiers: setAt(tiers, i, patch) });
+  const addPartner = (partner: string) => set({ items: form.items.includes(partner) ? form.items : [...form.items, partner] });
   return (
     <div className="p2-panel" data-testid="p2-panel-combo">
-      <div className="p2-rows">
-        {items.map((it, i) => (
-          <div className="p2-row" data-testid={`p2-combo-${i + 1}`} key={i}>
+      <TextIn hint={`${[...form.name].length}/${MAX_COMBO_NAME} ký tự`} label="Tên Combo Khuyến Mãi" onChange={(name) => set({ name })} value={form.name} />
+      <ProductTargets ctx={ctx} hint="Chọn các sản phẩm của combo. Khách mua đủ số sản phẩm của một mức, ở bất kỳ sản phẩm nào trong danh sách, là được ưu đãi (Shopee không đặt số lượng riêng cho từng sản phẩm)." onChange={(items) => set({ items })} selected={form.items} title="Sản phẩm của Combo" />
+      <Pills label="Loại Combo" onChange={(dtype) => set({ dtype })} options={COMBO_TYPE_OPTIONS} value={form.dtype} />
+      <div className="p2-rows" data-testid="p2-combo-tiers">
+        {tiers.map((t, i) => (
+          <div className="p2-row p2-row--wrap" data-testid={`p2-tier-${i + 1}`} key={i}>
             <span className="sb-item__n">{i + 1}</span>
-            <ProductSelect label={`Sản phẩm ${i + 1}`} onChange={(id) => set({ items: setAt(items, i, { itemId: id, variationId: "" }) })} products={ctx.products} value={it.itemId} />
-            <VariationSelect api={ctx.api} itemId={it.itemId} label={`Phân loại ${i + 1}`} onChange={(v) => set({ items: setAt(items, i, { variationId: v }) })} value={it.variationId} />
-            <span className="p2-num p2-num--s">
-              <input aria-label={`Số lượng ${i + 1}`} inputMode="numeric" onChange={(e) => set({ items: setAt(items, i, { qty: e.target.value }) })} type="text" value={it.qty} />
-            </span>
-            {items.length > 2 ? (
-              <button aria-label={`Bỏ sản phẩm ${i + 1}`} className="sa-btn sa-btn--s" onClick={() => set({ items: items.filter((_, k) => k !== i) })} type="button">
+            <span>Mua</span>
+            <NumIn label={`Mức ${i + 1} · số sản phẩm`} onChange={(qty) => updTier(i, { qty })} value={t.qty} />
+            <span>sản phẩm →</span>
+            <NumIn label={`Mức ${i + 1} · ${valueLabel.toLowerCase()}`} onChange={(value) => updTier(i, { value })} suffix={unit} value={t.value} />
+            {tiers.length > 1 ? (
+              <button aria-label={`Bỏ mức ${i + 1}`} className="sa-btn sa-btn--s" onClick={() => set({ tiers: tiers.filter((_, k) => k !== i) })} type="button">
                 ×
               </button>
+            ) : null}
+            {rows[i] ? (
+              <span className="sa-hint" data-testid={`p2-tier-calc-${i + 1}`}>
+                {rows[i]!.text}
+                {rows[i]!.discount_pct !== null ? ` · tương đương giảm ${fmt(rows[i]!.discount_pct, 1)}% đơn giá` : ""} · biên {marginText(rows[i]!.margin_pct)}
+                {rows[i]!.below_floor ? " · dưới giá sàn" : ""}
+              </span>
             ) : null}
           </div>
         ))}
       </div>
-      {items.length < 6 ? (
-        <button className="sa-btn sa-btn--s" onClick={() => set({ items: [...items, newItem()] })} type="button">
-          + Thêm sản phẩm (tối đa 6)
+      {tiers.length < MAX_COMBO_TIERS ? (
+        <button className="sa-btn sa-btn--s" data-testid="p2-add-tier" onClick={() => set({ tiers: [...tiers, newTier(String(Math.max(2, ...tiers.map((t) => num(t.qty) ?? 0)) + 1), "")] })} type="button">
+          + Thêm mức ưu đãi
         </button>
       ) : null}
-      <Pills label="Cách đặt giá combo" onChange={(pricing) => set({ pricing })} options={[["fixed_price", "Giá cố định"], ["pct", "% giảm trên tổng"], ["amount", "đ giảm trên tổng"]]} value={form.pricing} />
-      <NumIn label={form.pricing === "fixed_price" ? "Giá combo" : form.pricing === "pct" ? "Mức giảm" : "Số tiền giảm"} onChange={(value) => set({ value })} suffix={form.pricing === "pct" ? "%" : "đ"} value={form.value} />
-      <Seg label="Áp dụng cho" onChange={(target) => set({ target })} options={[["new_listing", "Listing combo mới"], ["bundle_deal", "Combo khuyến mãi của Shopee (bundle deal)"]]} value={form.target} />
-      {dn(d, "list_value") !== null ? (
+      <div className="p2-grid">
+        <NumIn hint="Số combo tối đa mỗi người mua; chưa có dữ liệu theo người mua nên không tính vào kết quả." label="Giới hạn đặt hàng" onChange={(limit) => set({ limit })} value={form.limit} />
+        <TextIn label="Bắt đầu" onChange={(start) => set({ start })} type="date" value={form.start} />
+        <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
+      </div>
+      {dn(d, "avg_unit_price") !== null ? (
         <Calc
           rows={[
-            ["Tổng giá niêm yết", vnd(dn(d, "list_value"))],
-            ["Giá combo", vnd(comboPriceOf(d))],
-            ["Tiết kiệm cho khách", `${vnd(dn(d, "combo_discount"))} (${pp(dn(d, "savings_pct"), 1)})`],
-            ["Giá vốn + đóng gói", vnd((dn(d, "cogs") ?? 0) + (dn(d, "packaging") ?? 0))],
-            ["Phí sàn", vnd(dn(d, "platform_fees"))],
-            ["Lợi nhuận mỗi combo", vnd(dn(d, "contribution"))],
-            ["Biên", marginText(dn(d, "margin_pct"))],
+            ["Đơn giá trung bình các sản phẩm", vnd(dn(d, "avg_unit_price"))],
+            ["Đơn 30 ngày qua đã đủ điều kiện", `${fmt(dn(d, "qualifying_orders"))} / ${fmt(dn(d, "total_orders"))} đơn`],
+            ["Giảm cho các đơn đó", vnd(dn(d, "extra_cost_on_existing_orders"))],
           ]}
           testId="p2-combo-calc"
         />
@@ -146,12 +179,12 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
         <b>Gợi ý ghép · Sản phẩm hay mua cùng {ctx.product.name} (90 ngày)</b>
         {co && co.suggestions.length > 0 ? (
           <ul>
-            {co.suggestions.map((s) => (
-              <li key={s.item_id}>
-                <span>{s.name}</span>
-                <span>{fmt(s.together)} lần</span>
-                <button className="sa-btn sa-btn--s" onClick={() => start(s.item_id)} type="button">
-                  Bắt đầu ›
+            {co.suggestions.map((sg) => (
+              <li key={sg.item_id}>
+                <span>{sg.name}</span>
+                <span>{fmt(sg.together)} lần</span>
+                <button className="sa-btn sa-btn--s" onClick={() => addPartner(sg.item_id)} type="button">
+                  Thêm vào combo ›
                 </button>
               </li>
             ))}
@@ -161,6 +194,61 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
         )}
         <span className="sa-hint">Số lần mua cùng đếm từ các dòng đơn của shop, không có thông tin người mua.</span>
       </div>
+      <p className="sa-hint">Voucher đi kèm và quà tặng là hai chiến lược riêng: thêm ở “Voucher” và “Quà tặng”. Listing bán combo như một sản phẩm mới ở “Listing combo mới”.</p>
+    </div>
+  );
+}
+
+// ── Listing combo mới ────────────────────────────────────────────────────
+
+/**
+ * A new listing that sells existing products together (P97 D85.16). Its estimate starts with no history and no
+ * ranking; demand comes from the singles it contains (some of their buyers switch to the combo), which the
+ * result states. Images are kept as references (file names); Juli does not upload them. No fill-in yet.
+ */
+export function ListingComboPanel({ form, set, ctx }: P<"listing_combo">) {
+  const d = details(ctx);
+  const assumption = typeof d["assumption"] === "string" ? (d["assumption"] as string) : null;
+  const singles = (Array.isArray(d["members"]) ? d["members"] : []) as Readonly<Record<string, unknown>>[];
+  return (
+    <div className="p2-panel" data-testid="p2-panel-listing-combo">
+      <TextIn hint={`${[...form.title].length}/${MAX_TITLE} ký tự`} label="Tên listing combo" onChange={(title) => set({ title })} value={form.title} />
+      <div className="p2-grid">
+        <NumIn label="Giá bán listing combo" onChange={(price) => set({ price })} suffix="đ" value={form.price} />
+        <NumIn label="Tồn kho" onChange={(stock) => set({ stock })} value={form.stock} />
+        <TextIn label="SKU" onChange={(sku) => set({ sku })} value={form.sku} />
+      </div>
+      <div className="p2-field" data-testid="p2-lc-images">
+        <span className="sd-field__label">Ảnh (tối đa {MAX_LISTING_IMAGES})</span>
+        <input
+          accept="image/*"
+          aria-label="Chọn ảnh listing combo"
+          multiple
+          onChange={(e) => set({ images: [...form.images, ...Array.from(e.target.files ?? []).map((f) => f.name)].slice(0, MAX_LISTING_IMAGES) })}
+          type="file"
+        />
+        {form.images.length > 0 ? (
+          <ul className="p2-sel__list">
+            {form.images.map((name, i) => (
+              <li className="sb-pill sb-pill--on" key={`${name}-${i}`}>
+                {name}
+                <button aria-label={`Bỏ ảnh ${name}`} className="p2-sel__x" onClick={() => set({ images: form.images.filter((_, k) => k !== i) })} type="button">
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <span className="sa-hint">Juli chỉ ghi lại tên / mã tham chiếu của ảnh; bạn tải ảnh lên Seller Centre khi tạo listing.</span>
+      </div>
+      <ProductTargets ctx={ctx} hint="Chọn các sản phẩm thành phần (từ 2 sản phẩm)." max={MAX_COMBO_MEMBERS} onChange={(members) => set({ members })} selected={form.members} title="Sản phẩm thành phần" />
+      <p className="sa-hint" data-testid="p2-lc-assumption">
+        {assumption ?? "Giả định: listing mới chưa có lịch sử bán và chưa có thứ hạng tìm kiếm. Một phần khách của các sản phẩm lẻ trong combo chuyển sang mua combo (cannibalize); Juli không cộng số đơn đó như đơn mới."}
+      </p>
+      {singles.length > 0 ? (
+        <Calc rows={singles.map((m): [string, string] => [String(m["name"] ?? m["item_id"]), `${fmt(dn(m, "orders_30d"))} đơn / 30 ngày · ${vnd(dn(m, "price"))}`])} testId="p2-lc-members" />
+      ) : null}
+      <p className="sa-hint">Chưa tự điền vào Seller Centre: form Thêm sản phẩm chưa được ghi lại. Bạn tạo listing thủ công.</p>
     </div>
   );
 }
@@ -320,8 +408,18 @@ function upsert(rows: readonly { variationId: string; value: string }[], id: str
 export function DiscountPanel({ form, set, ctx }: P<"product_discount">) {
   return (
     <div className="p2-panel" data-testid="p2-panel-discount">
-      <Seg label="Nhập giảm theo" onChange={(mode) => set({ mode })} options={[["pct", "Phần trăm (%)"], ["final_price", "Giá cuối (đ)"]]} value={form.mode} />
-      <VarRows ctx={ctx} direction="off" mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
+      <Seg label="Áp dụng cho" onChange={(v) => set({ multi: v === "many", targets: v === "many" && form.targets.length === 0 ? [ctx.product.item_id] : form.targets })} options={[["one", "Sản phẩm đã chọn"], ["many", "Nhiều sản phẩm cùng một mức giảm"]]} value={form.multi ? "many" : "one"} />
+      {form.multi ? (
+        <>
+          <NumIn hint="Một mức giảm cho mọi phân loại của từng sản phẩm; mỗi sản phẩm tính riêng, tổng cộng lại." label="Mức giảm cho tất cả" onChange={(pct) => set({ pct })} suffix="%" value={form.pct} />
+          <ProductTargets ctx={ctx} hint="Chọn các sản phẩm cùng được giảm giá. Bỏ tick ở phần kết quả để loại sản phẩm chạm giá sàn." onChange={(targets) => set({ targets })} selected={form.targets} title="Sản phẩm được giảm giá" />
+        </>
+      ) : (
+        <>
+          <Seg label="Nhập giảm theo" onChange={(mode) => set({ mode })} options={[["pct", "Phần trăm (%)"], ["final_price", "Giá cuối (đ)"]]} value={form.mode} />
+          <VarRows ctx={ctx} direction="off" mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
+        </>
+      )}
       <div className="p2-grid">
         <TextIn label="Bắt đầu" onChange={(start) => set({ start })} type="date" value={form.start} />
         <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />

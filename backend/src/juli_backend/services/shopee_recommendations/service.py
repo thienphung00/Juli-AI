@@ -66,6 +66,7 @@ from juli_backend.services.shopee_recommendations import (
     store,
     versions,
 )
+from juli_backend.services.shopee_recommendations import targets as multi
 from juli_backend.services.shopee_recommendations.cards import build_card
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.generators import generate
@@ -393,6 +394,36 @@ def _version_brief(v: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+LEGACY_COMBO = {
+    "code": "combo_basket",
+    "label": "Combo kiểu cũ (giỏ cố định)",
+    "note": "Combo lưu trước khi Juli theo form Combo Khuyến Mãi của Shopee (danh sách sản phẩm, "
+    "các mức Mua N). Vẫn đọc được; phương án mới dùng form Shopee.",
+}
+
+
+def legacy_of(card: Mapping[str, Any]) -> dict[str, str] | None:
+    """P97 D85.15: a combo saved as a fixed basket (items x quantity, optional inline voucher and
+    gift) is kept readable and marked; new combos are Shopee's tiers."""
+    return dict(LEGACY_COMBO) if card.get("change_kind") == combo.KIND else None
+
+
+def target_rows(card: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """P97 D85.13: a many-target card's rows without the per-target variants."""
+    keys = (
+        "id",
+        "kind",
+        "name",
+        "ok",
+        "refusal",
+        "dgmv_p50",
+        "dprofit_p50",
+        "cost_month",
+        "floor_ok",
+    )
+    return [{k: t.get(k) for k in keys} for t in card.get(multi.KEY) or []]
+
+
 async def measurement_states(
     session: AsyncSession, shop_id: uuid.UUID, card_ids: Sequence[uuid.UUID]
 ) -> dict[str, dict[str, Any]]:
@@ -451,6 +482,9 @@ def _summary(
         "family": card["family"],
         "family_label": card["family_label"],
         "change_kind": card["change_kind"],
+        "legacy": legacy_of(card),
+        "targets": target_rows(card),
+        "fill": card.get("fill"),
         "title": card["title"],
         "reason": card["reason"],
         "section": card.get("wiring_key"),
@@ -845,7 +879,11 @@ def recompute_card(
         raise ProposalError("reco_version_unknown", 422, f"the card has {len(vlist)} version(s)")
     cand = candidate_of_card(card)
     cand.inputs = _merge_inputs(vlist[number - 1].get("inputs") or cand.inputs, inputs)
-    out = build_card(env, cand, now=now)
+    row_targets = vlist[number - 1].get(multi.KEY)
+    if row_targets:  # P97 D85.13: one card, a row per target
+        out = multi.recompute(env, row_targets, inputs, now=now, merge_inputs=_merge_inputs)
+    else:
+        out = build_card(env, cand, now=now)
     if out is None:
         return None
     out["id"] = card["id"]
@@ -865,7 +903,7 @@ def recompute_card(
         code = vlist[number - 1].get("code")
         old = vlist[number - 1]
         new = versions.version_of(out, number, label, code=code)
-        for key in ("index", "chosen", "change_kind", "items", "extra"):  # manual variants
+        for key in ("index", "chosen", "change_kind", "items", "extra", multi.KEY):  # manual
             if key in old:
                 new[key] = old[key]
         if "title" in old:

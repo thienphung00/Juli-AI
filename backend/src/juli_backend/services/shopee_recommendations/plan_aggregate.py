@@ -81,6 +81,8 @@ class Evaluated:
     entry: Entry
     card: dict[str, Any]
     cand: Candidate
+    #: P97 D85.13: the single-target cards of a many-target card; the joint layer works on these
+    parts: list[Evaluated] = field(default_factory=list)
 
     @property
     def product(self) -> str | None:
@@ -89,6 +91,9 @@ class Evaluated:
 
     @property
     def is_line(self) -> bool:
+        # a combo over a product list (tiers "Mua N") is not re-priced line by line: its own layer
+        if self.cand.kind == "bundle_deal" and self.cand.inputs.get("tiers"):
+            return False
         return self.cand.kind in LINE_KINDS
 
     @property
@@ -103,7 +108,29 @@ def evaluate_entry(env: RecoEnv, entry: Entry, *, now: datetime) -> Evaluated | 
     )
     if card is None:
         return None
-    return Evaluated(entry, card, candidate_of_card(card))
+    parts = [
+        Evaluated(
+            Entry(f"{entry.card_id}#{i}", entry.code, entry.base, entry.version, entry.overrides),
+            part,
+            candidate_of_card(part),
+        )
+        for i, part in enumerate(card.pop("_parts", None) or [], start=1)
+    ]
+    return Evaluated(entry, card, candidate_of_card(card), parts)
+
+
+def parent_id(card_id: str) -> str:
+    """The plan card a (possibly single-target part) id belongs to."""
+    return card_id.split("#", 1)[0]
+
+
+def _parents(ids: Sequence[str]) -> list[str]:
+    return list(dict.fromkeys(parent_id(i) for i in ids))
+
+
+def flatten(evs: Sequence[Evaluated]) -> list[Evaluated]:
+    """The cards the joint layer works on: a many-target card stands for its single-target parts."""
+    return [p for e in evs for p in (e.parts or [e])]
 
 
 # ------------------------------------------------------------------------------------ pure
@@ -232,7 +259,7 @@ def joint_lifts(evs: Sequence[Evaluated]) -> tuple[list[Evaluated], list[str]]:
 
 def joint(env: RecoEnv, evs: Sequence[Evaluated]) -> Joint:
     """The certain layer of these cards stacked on the same orders + the combined prediction."""
-    evs = sorted(evs, key=lambda e: e.entry.card_id)  # the total never depends on the order added
+    evs = sorted(flatten(evs), key=lambda e: e.entry.card_id)  # never depends on the order added
     line = [e for e in evs if e.is_line and e.card["family"] != "mega_sale"]
     added = [e for e in evs if e not in line]
     certain = {"dgmv": 0.0, "dprofit": 0.0, "dchi": 0.0}
@@ -277,9 +304,9 @@ def joint(env: RecoEnv, evs: Sequence[Evaluated]) -> Joint:
         total=total_of(certain, predicted),
         breaches=breaches,
         five=five,
-        joint_cards=[e.entry.card_id for e in line],
-        added_cards=[e.entry.card_id for e in added],
-        profit_unknown=unknown,
+        joint_cards=_parents([e.entry.card_id for e in line]),
+        added_cards=_parents([e.entry.card_id for e in added]),
+        profit_unknown=_parents(unknown),
         notes=notes,
     )
 
@@ -287,7 +314,7 @@ def joint(env: RecoEnv, evs: Sequence[Evaluated]) -> Joint:
 class _Memo:
     def __init__(self, env: RecoEnv, evs: Sequence[Evaluated]) -> None:
         self.env = env
-        self.by_id = {e.entry.card_id: e for e in evs}
+        self.by_id = {e.entry.card_id: e for e in [*evs, *flatten(evs)]}
         self.cache: dict[frozenset[str], Joint] = {}
 
     def of(self, ids: Sequence[str]) -> Joint:
@@ -320,19 +347,19 @@ def _breach_view(
         owners = sorted(own.get(str(b.get("sku")), ()))
         out.append({**b, "card_ids": owners, "only_when_stacked": not owners})
     by_product: dict[str, list[Evaluated]] = {}
-    for e in evs:
+    for e in flatten(evs):
         if e.product:
             by_product.setdefault(e.product, []).append(e)
     stacked = [
         {
             "product_id": pid,
-            "cards": [e.entry.card_id for e in group],
-            "codes": [e.entry.code for e in group],
-            "count": len(group),
+            "cards": _parents([e.entry.card_id for e in group]),
+            "codes": list(dict.fromkeys(e.entry.code for e in group)),
+            "count": len(_parents([e.entry.card_id for e in group])),
             "stacked_on_same_orders": sum(1 for e in group if e.is_line) > 1,
         }
         for pid, group in sorted(by_product.items())
-        if len(group) > 1
+        if len(_parents([e.entry.card_id for e in group])) > 1
     ]
     return out, stacked
 
@@ -401,8 +428,8 @@ def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo
     return {
         "product_id": pid,
         "name": env.name(pid),
-        "cards": [e.entry.card_id for e in evs],
-        "codes": [e.entry.code for e in evs],
+        "cards": _parents([e.entry.card_id for e in evs]),
+        "codes": list(dict.fromkeys(e.entry.code for e in evs)),
         "joint": j.brief(),
         "predicted_rel_gmv": rel,
         "base_gmv_30d": base,
@@ -411,7 +438,7 @@ def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo
         "steps": plan_steps.build_steps(
             [
                 {
-                    "card_id": e.entry.card_id,
+                    "card_id": parent_id(e.entry.card_id),
                     "code": e.entry.code,
                     "title": e.card["title"],
                     "change_kind": e.cand.kind,
@@ -509,7 +536,7 @@ def aggregate(
         )
     by_product: dict[str, list[Evaluated]] = {}
     shop_wide: list[Evaluated] = []
-    for e in evs:
+    for e in flatten(evs):
         if e.product:
             by_product.setdefault(e.product, []).append(e)
         else:
@@ -581,6 +608,7 @@ __all__ = [
     "aggregate",
     "combine_predicted",
     "evaluate_entry",
+    "flatten",
     "joint",
     "joint_lifts",
     "total_of",

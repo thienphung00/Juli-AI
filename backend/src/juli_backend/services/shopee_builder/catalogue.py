@@ -134,6 +134,7 @@ def picker(
     for item_id in ids:
         info = ctx.catalog.items.get(item_id)
         status = info.status if info else None
+        path = tuple(getattr(info, "category_path", ()) or ())
         if not is_active(status):
             continue
         excluded = item_id in view.excluded
@@ -170,10 +171,8 @@ def picker(
                 "missing_cost_chip": None if all_costed else "thiếu giá vốn",
                 "excluded": excluded,
                 "exclude_reason": view.excluded.get(item_id),
-                "category": info.category_path[-1] if info and info.category_path else None,
-                "category_path": " › ".join(info.category_path)
-                if info and info.category_path
-                else None,
+                "category": path[-1] if path else None,
+                "category_path": " › ".join(path) if path else None,
                 **(extra or {}).get(item_id, picker_table.blank()),
             }
         )

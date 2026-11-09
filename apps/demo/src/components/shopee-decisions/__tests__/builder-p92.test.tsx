@@ -258,7 +258,7 @@ describe("P92 · các loại khác", () => {
     expect(screen.getByRole("textbox", { name: "Tiêu đề" })).toHaveValue("Túi Zip Thực Phẩm, Túi Zip Đựng Đồ Ăn Combo 3 Hộp");
   });
 
-  it("combo: 2–6 products with co-purchase suggestions, sent with pricing and target", async () => {
+  it("combo (Shopee's form): a product list with co-purchase suggestions and tiers 'Mua N', sent without per-item quantity", async () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
@@ -266,15 +266,34 @@ describe("P92 · các loại khác", () => {
     const suggest = await screen.findByTestId("p2-copurchase");
     await waitFor(() => expect(suggest).toHaveTextContent("Miếng rửa chén C"));
     expect(suggest).toHaveTextContent("41 lần");
-    fireEvent.click(within(suggest).getByRole("button", { name: "Bắt đầu ›" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Mức giảm" }), { target: { value: "20" } });
+    fireEvent.click(within(suggest).getByRole("button", { name: "Thêm vào combo ›" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Mức 1 · giảm" }), { target: { value: "6" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Tên Combo Khuyến Mãi" }), { target: { value: "Combo túi + miếng" } });
     await waitFor(() => {
-      const v = lastVersions(builder, "evaluate")[0] as { kind: string; items: { item_id: string }[]; pricing: string; value: number; target: string };
-      expect(v).toMatchObject({ kind: "combo", pricing: "pct", value: 20, target: "new_listing" });
-      expect(v.items.map((i) => i.item_id)).toEqual([P_ZIP, P_SPONGE]);
+      const v = lastVersions(builder, "evaluate")[0] as { kind: string; item_ids: string[]; discount_type: string; tiers: { qty: number; value: number }[]; name: string };
+      expect(v).toMatchObject({ kind: "combo", discount_type: "pct", name: "Combo túi + miếng", tiers: [{ qty: 2, value: 6 }, { qty: 3, value: 8 }] });
+      expect(v.item_ids).toEqual([P_ZIP, P_SPONGE]);
+      expect(v).not.toHaveProperty("items");
     });
-    fireEvent.click(screen.getByRole("button", { name: "+ Thêm sản phẩm (tối đa 6)" }));
-    expect(screen.getAllByRole("combobox", { name: /^Sản phẩm \d$/ })).toHaveLength(3);
+    fireEvent.click(screen.getByTestId("p2-add-tier"));
+    expect(screen.getByTestId("p2-tier-3")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Giảm giá đặc biệt" }));
+    expect(screen.getByRole("textbox", { name: "Mức 1 · chỉ với giá" })).toBeInTheDocument();
+  });
+
+  it("listing combo: its own kind, the assumption is stated and nothing is filled in", async () => {
+    const builder = fakeBuilder();
+    open(builder);
+    await toKinds(builder);
+    fireEvent.click(screen.getByTestId("p2-kind-listing_combo"));
+    const panel = await screen.findByTestId("p2-panel-listing-combo");
+    expect(within(panel).getByTestId("p2-lc-assumption")).toHaveTextContent("chưa có lịch sử bán");
+    expect(panel).toHaveTextContent("Chưa tự điền vào Seller Centre");
+    fireEvent.change(within(panel).getByRole("textbox", { name: "Tên listing combo" }), { target: { value: "Combo túi zip + miếng rửa" } });
+    fireEvent.change(within(panel).getByRole("textbox", { name: "Giá bán listing combo" }), { target: { value: "120000" } });
+    fireEvent.change(within(panel).getByRole("textbox", { name: "Tồn kho" }), { target: { value: "40" } });
+    fireEvent.click(within(within(panel).getByTestId("p2-targets")).getByRole("checkbox", { name: /Chọn Miếng rửa chén C/ }));
+    await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "listing_combo", title: "Combo túi zip + miếng rửa", price: 120000, stock: 40, member_ids: [P_ZIP, P_SPONGE] }));
   });
 
   it("gift: 'quà không bán' takes a typed cost and a min-spend trigger", async () => {
@@ -368,7 +387,7 @@ describe("P92 · các loại khác", () => {
     fireEvent.click(screen.getByTestId("p2-kind-ads"));
     await screen.findByTestId("p2-panel-ads");
     await waitFor(() => expect(calls(builder, "adsCampaigns")).toHaveLength(1));
-    fireEvent.change(await screen.findByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c1" } });
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
     fireEvent.change(screen.getByRole("textbox", { name: "Ngân sách mới mỗi ngày" }), { target: { value: "200000" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "ads", lever: "budget", campaign_key: "c1", daily_budget: 200000 }));
     fireEvent.click(screen.getByTestId("p2-add"));

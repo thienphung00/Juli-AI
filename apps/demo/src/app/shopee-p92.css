@@ -682,3 +682,69 @@ button.p2-prow:hover {
   color: var(--qd-muted);
   font-size: 13px;
 }
+
+/* P97 many-target card */
+.p2-trows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.p2-trows__list {
+  max-height: 320px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.p2-trow {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--qd-line-2);
+  padding: 6px 4px;
+  font-size: 13px;
+}
+
+.p2-trow--head {
+  color: var(--qd-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.p2-trow--bad {
+  background: var(--qd-pink-bg);
+}
+
+.p2-trow__name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.p2-trow__warn {
+  grid-column: 2 / -1;
+}
+
+.p2-camplist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 767px) {
+  .p2-trow {
+    grid-template-columns: 24px repeat(2, minmax(0, 1fr));
+  }
+
+  .p2-trow--head {
+    display: none;
+  }
+
+  .p2-trow__name {
+    grid-column: 2 / -1;
+  }
+}

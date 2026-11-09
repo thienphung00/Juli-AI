@@ -453,17 +453,6 @@ def test_a_variation_of_the_product_without_orders_is_not_called_unknown():
         },
         {"1": ["S-A"], "2": ["S-2"]},  # S-B has never sold
     )
-    combo = SPEC.validate_python(
-        {
-            "kind": "combo",
-            "items": [{"item_id": "1", "variation_id": "b"}, {"item_id": "2"}],
-            "pricing": "pct",
-            "value": 10,
-        }
-    )
-    with pytest.raises(SpecRefused) as refused:
-        to_variant(combo, ctx)
-    assert refused.value.code == "sku_no_orders:S-B"
     addon = SPEC.validate_python(
         {
             "kind": "add_on",

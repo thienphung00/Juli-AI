@@ -828,12 +828,28 @@ def eval_ads(
         "campaign_id": setting.campaign_id if setting else None,
         "campaign_key": key,
     }
-    if kind == "ads_budget":
+    ads_notes: list[str] = []
+    if kind == "ads_budget" and inputs.get("unlimited"):
+        # P97 D85.17: no daily cap -- spend follows the ROAS target; Juli does not invent a rise
+        before_view = {"daily_budget": num(budget_before), "spend_per_day": num(spend_now)}
+        after_view = {"daily_budget": None, "unlimited": True}
+        ads_notes.append(
+            "Ngân sách không giới hạn: chi thực tế do ROAS mục tiêu quyết định, Juli không "
+            "ước tính mức tăng chi; theo dõi sau khi chạy."
+        )
+    elif kind == "ads_budget":
         b1 = D(inputs["daily_budget"])
         ref = budget_before if budget_before is not None else spend_now
         spend_after = min(b1, spend_now) if b1 < ref else b1
         before_view = {"daily_budget": num(budget_before), "spend_per_day": num(spend_now)}
         after_view = {"daily_budget": num(b1)}
+    elif kind == "ads_roas_target" and inputs.get("roas_mode") == "system":
+        roas_after = None
+        before_view = {"roas_target": num(roas_before)}
+        after_view = {"roas_target": None, "roas_mode": "system"}
+        ads_notes.append(
+            "ROAS tối ưu bởi hệ thống: Shopee tự đặt mục tiêu, Juli không ước tính mức chi mới."
+        )
     elif kind == "ads_roas_target":
         roas_after = D(inputs["roas_target"])
         before_view = {"roas_target": num(roas_before)}
@@ -922,7 +938,7 @@ def eval_ads(
         after=after_view,
         target=target,
         spend_check=_spend_check(env, dspend),
-        notes=["Quảng cáo tính theo đơn đã đặt; không cộng vào tổng đơn đã xác nhận."],
+        notes=["Quảng cáo tính theo đơn đã đặt; không cộng vào tổng đơn đã xác nhận.", *ads_notes],
     )
 
 
@@ -945,7 +961,12 @@ def eval_bundle(
     env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
 ) -> Evaluation:
     """Combo tiers / set size: per tier the bundle's margin and floor check, AOV and units per
-    order; certain cost = the discount on today's orders that already carry that many units."""
+    order; certain cost = the discount on today's orders that already carry that many units.
+    A combo in Shopee's shape (``tiers`` over a product list, P97 D85.15) has its own module."""
+    if inputs.get("tiers"):
+        from juli_backend.services.shopee_recommendations.bundle_tiers import eval_bundle_tiers
+
+        return eval_bundle_tiers(env, cand, inputs, predicted)
     item = cand.item
     if item is None:
         return _refuse("no_item")
@@ -1804,6 +1825,17 @@ def eval_kol(
     return evaluation_of(env, cand, dict(inputs))
 
 
+def eval_listing_combo(
+    env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
+) -> Evaluation:
+    """P97 D85.16: a new listing that sells existing products together; see ``listing_combo``."""
+    from juli_backend.services.shopee_recommendations.listing_combo import (
+        eval_listing_combo as evaluate_listing_combo,
+    )
+
+    return evaluate_listing_combo(env, cand, inputs, predicted)
+
+
 _EVALUATORS = {
     "kol": eval_kol,
     "voucher": eval_voucher,
@@ -1813,6 +1845,7 @@ _EVALUATORS = {
     "add_on": eval_add_on,
     "gift": eval_gift,
     "combo_multi": eval_combo_multi,
+    "listing_combo": eval_listing_combo,
     "affiliate": eval_affiliate,
     "listing": eval_listing,
 }
@@ -1830,7 +1863,12 @@ def evaluator_key(kind: str) -> str:
         return "kol" if kind in ("affiliate_sample", "affiliate_invite") else "affiliate"
     if s.family == "listing":
         return "listing"
-    return {"add_on": "add_on", "gift": "gift", "combo_multi": "combo_multi"}.get(kind, "bundle")
+    return {
+        "add_on": "add_on",
+        "gift": "gift",
+        "combo_multi": "combo_multi",
+        "listing_combo": "listing_combo",
+    }.get(kind, "bundle")
 
 
 def evaluate(

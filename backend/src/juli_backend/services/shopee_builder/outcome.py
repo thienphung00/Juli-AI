@@ -42,6 +42,8 @@ METRIC_LABELS: dict[str, str] = {
 DRIVERS: dict[str, tuple[str, ...]] = {
     "min_spend_voucher": ("aov", "ctor"),
     "combo_multi": ("aov", "ctor"),
+    "bundle_deal": ("aov", "ctor"),
+    "listing_combo": ("aov",),
     "add_on": ("aov",),
     "gift": ("ctor", "orders"),
     "product_discount": ("ctor", "orders"),
@@ -233,6 +235,24 @@ def _cost(card: Mapping[str, Any], tr: Translation, p50_orders: float | None) ->
             expected_units=max(units, 1),
             expected_units_basis="history" if units else "minimum_one",
         )
+    elif kind == "listing_combo":
+        out.update(
+            amount=0,
+            period_days=config.DAYS_PER_MONTH,
+            label="Không có chi phí cố định; phần giảm cho khách nằm trong Δ lợi nhuận",
+        )
+    elif kind == "bundle_deal":
+        # P97 D85.15: what the tiers give on the orders that already qualify, plus the same
+        # discount rate on the extra GMV the lift is expected to bring
+        existing = certain.get("extra_cost_on_existing_orders") or 0
+        gained = (card["predicted"]["money_per_month"]["total"]["p50"]["dgmv"]) or 0
+        rate = (certain.get("tiers") or [{}])[0].get("discount_pct") or 0
+        out.update(
+            amount=round(existing + max(gained, 0) * rate / 100),
+            period_days=config.DAYS_PER_MONTH,
+            label="Giảm cho khách trên các đơn đủ điều kiện hiện có và dự kiến",
+            existing=existing,
+        )
     elif kind == "add_on":
         # P96: the discount on today's attaches and on the attaches the deal is expected to bring
         period = card["predicted"]["money_per_month"].get("period") or {}
@@ -315,7 +335,14 @@ def _break_even(
     if kind == "min_spend_voucher":
         extra, reason = certain.get("break_even_extra_orders"), certain.get("break_even_reason")
         period = int(certain.get("days") or config.VOUCHER_DAYS)
-    elif kind in ("combo_multi", "add_on", "product_discount", "price", "flash_sale"):
+    elif kind in (
+        "combo_multi",
+        "bundle_deal",
+        "add_on",
+        "product_discount",
+        "price",
+        "flash_sale",
+    ):
         extra = certain.get("break_even_extra_orders")
         reason = certain.get("break_even_reason")
         period = _period_days(card) if kind == "product_discount" else config.DAYS_PER_MONTH
@@ -405,6 +432,8 @@ def _driver(
             before = aov.get("before")
             if kind == "combo_multi":
                 before = certain.get("aov_shop_now")
+            elif kind == "listing_combo":
+                before = certain.get("aov_now")
             elif kind == "add_on":
                 before = certain.get("aov_now")
             if before is not None:
@@ -560,6 +589,8 @@ def shape(
         # a basket-size lever moves AOV, not the number of orders
         orders_band = {"low": 0.0, "p50": 0.0, "high": 0.0}
         orders_note = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
+        if card["change_kind"] == "listing_combo":
+            orders_note = "Listing mới chỉ lấy đơn từ các sản phẩm lẻ, không thêm đơn mới."
     basis = basis_of(numbers)
     if card["change_kind"] == "listing_hide" and basis["key"] != "insufficient":
         basis = {  # P96: the loss is the listing's own last 30 days, not an estimate
@@ -567,6 +598,14 @@ def shape(
             "label": BASIS_LABELS["product_history"],
             "detail": "GMV và lợi nhuận 30 ngày qua của sản phẩm: mất khi ẩn sản phẩm.",
             "volume_estimate": False,
+        }
+    if card["change_kind"] == "listing_combo":
+        baskets = card["certain"].get("existing_baskets") or 0
+        basis = {
+            "key": "prior" if baskets else "insufficient",
+            "label": "giả định cannibalize" if baskets else BASIS_LABELS["insufficient"],
+            "detail": card["certain"].get("assumption"),
+            "volume_estimate": bool(baskets),
         }
     if items and all(i in ctx.reference_items for i in items if i):
         basis = {

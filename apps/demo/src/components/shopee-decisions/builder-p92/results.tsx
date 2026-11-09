@@ -6,6 +6,7 @@ import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
 import { bandText, breakEvenText, floorWarningText, marginText, metricValue, refusalText, unitLines, voucherMaxText, voucherUsageText } from "../../../lib/shopee-decisions/builder-p92";
 import { TextChip } from "../../shopee-analytics/ui";
+import { TargetRows } from "./targets";
 
 /**
  * The result block of a version (artboard `TuTaoPhuongAnKinds`): Δ GMV, Δ đơn, Δ lợi nhuận with the low-high
@@ -39,7 +40,7 @@ export function chuaTinh(o: BuilderOutcome): boolean {
   return o.profit_status === "chua_tinh" || o.cost_known === false;
 }
 
-export function ResultBlock({ index, title, state, costLink }: { readonly index: number; readonly title: string; readonly state: ResultState; readonly costLink: string }) {
+export function ResultBlock({ index, title, state, costLink, onUntick }: { readonly index: number; readonly title: string; readonly state: ResultState; readonly costLink: string; readonly onUntick?: (id: string) => void }) {
   return (
     <section className="sa-card p2-result" data-testid="p2-result">
       <div className="sa-card__head">
@@ -59,12 +60,12 @@ export function ResultBlock({ index, title, state, costLink }: { readonly index:
           {state.message}
         </p>
       ) : null}
-      {state.status === "ready" ? <OutcomeBody costLink={costLink} outcome={state.outcome} /> : null}
+      {state.status === "ready" ? <OutcomeBody costLink={costLink} onUntick={onUntick} outcome={state.outcome} /> : null}
     </section>
   );
 }
 
-export function OutcomeBody({ outcome: o, costLink }: { readonly outcome: BuilderOutcome; readonly costLink: string }) {
+export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outcome: BuilderOutcome; readonly costLink: string; readonly onUntick?: (id: string) => void }) {
   if (!o.ok) {
     return (
       <p className="sd-error" role="alert">
@@ -142,6 +143,7 @@ export function OutcomeBody({ outcome: o, costLink }: { readonly outcome: Builde
           </dd>
         </div>
       </dl>
+      <TargetRows onUntick={onUntick} outcome={o} />
       {unitLines(o).length > 0 ? (
         <ul className="p2-units" data-testid="p2-units">
           {unitLines(o).map((l) => (

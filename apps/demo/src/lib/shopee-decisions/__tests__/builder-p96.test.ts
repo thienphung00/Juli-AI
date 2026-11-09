@@ -29,7 +29,7 @@ describe("P96 · client limits match the server (A2, B3, E2, D3, E6)", () => {
     expect(problem("add_on", { ...f, add_on: { addons: [addon] } })).toMatch(/tối đa 90%/);
     expect(problem("product_discount", { ...f, product_discount: { ...f.product_discount, rows: [{ variationId: "v3", value: "95" }] } })).toMatch(/tối đa 90%/);
     expect(problem("price_flash", { ...f, price_flash: { ...f.price_flash, what: "flash_sale", rows: [{ variationId: "v3", value: "95" }] } })).toMatch(/tối đa 90%/);
-    expect(problem("combo", { ...f, combo: { ...f.combo, items: [{ itemId: "a", variationId: "", qty: "1" }, { itemId: "b", variationId: "", qty: "1" }], value: "95" } })).toMatch(/tối đa 90%/);
+    expect(problem("combo", { ...f, combo: { ...f.combo, items: ["a", "b"], tiers: [{ qty: "2", value: "95" }] } })).toMatch(/tối đa 90%/);
   });
 
   it("0 is refused, not clamped to 1: gift qty, add-on limit, pack count, per-buyer of a discount, flash hours", () => {

@@ -220,6 +220,24 @@ export interface BeforeAfter {
   readonly note: string;
 }
 
+/** P97 D85.13: one row of a many-target card: its own figures (monthly, P50 + range) and floor breaches. */
+export interface OutcomeTarget {
+  readonly id: string;
+  readonly kind: "item" | "campaign" | string;
+  readonly name?: string | null;
+  readonly ok: boolean;
+  readonly refusal?: { readonly code?: string; readonly message?: string } | null;
+  readonly dgmv_p50?: N;
+  readonly dorders_p50?: N;
+  readonly dprofit_p50?: N;
+  readonly dprofit_p10?: N;
+  readonly dprofit_p90?: N;
+  readonly cost_month?: N;
+  readonly floor_ok?: boolean;
+  readonly breach?: boolean;
+  readonly breaches?: readonly BuilderWarning[];
+}
+
 export interface BuilderOutcome {
   readonly index: number;
   readonly kind: string;
@@ -288,6 +306,12 @@ export interface BuilderOutcome {
   readonly warnings?: readonly BuilderWarning[];
   readonly breach?: boolean;
   readonly details?: Readonly<Record<string, unknown>>;
+  /** P97 D85.13: the targets of a many-target card: `sum` = each target is its own change, `joint` = one voucher over a list. */
+  readonly targets?: readonly OutcomeTarget[];
+  readonly targets_mode?: "sum" | "joint" | string;
+  readonly targets_note?: string | null;
+  /** How the Connector will fill the card in: one bulk pass where Shopee has a bulk edit, else one job per target. */
+  readonly fill?: { readonly mode: "bulk" | "per_target" | string; readonly targets: number } | null;
 }
 
 export interface TableRowBand {

@@ -41,6 +41,7 @@ from juli_backend.services.shopee_recommendations.evaluate import (
     evaluate,
     evaluator_key,
     new_price,
+    sku_inputs,
     voucher_rule_from,
 )
 from juli_backend.services.shopee_recommendations.kinds import FAMILY_LABELS, spec
@@ -188,8 +189,12 @@ def evaluate_mega(
     # 1) price levers: new deal price per SKU
     price_by_sku: dict[str, Decimal] = {}
     for c in price_children:
+        # a builder card prices its variations one by one (P92 B-4): only the ones it names
+        per_sku = {str(v["sku"]): v for v in c.inputs.get("variations") or [] if v.get("sku")}
         for sku in env.skus_of(c.items[0]):
-            p = new_price(env, c.kind, sku, c.inputs)
+            if per_sku and sku not in per_sku:
+                continue
+            p = new_price(env, c.kind, sku, sku_inputs(env, c.kind, sku, c.inputs, per_sku))
             if p is not None:
                 price_by_sku[sku] = min(p, price_by_sku.get(sku, p))
     tiers: dict[str, dict[int, Decimal]] = {}
