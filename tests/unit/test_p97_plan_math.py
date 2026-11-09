@@ -17,6 +17,8 @@ from juli_backend.models.shopee_metrics import ShopeePlanBaseSnapshot
 from juli_backend.models.shopee_plans import ShopRecoPlan
 from juli_backend.services.shop_inputs import xlsx_io
 from juli_backend.services.shop_proposals import ProposalError
+from juli_backend.services.shopee_analytics import materialize
+from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_recommendations import (
     codes,
     fill_queue_port,
@@ -35,6 +37,7 @@ from tests.unit.test_shopee_reco_plan import _USER_IDS, NOW, VOUCHER, _actor, _m
 @pytest.fixture
 async def shop(session):
     seeded = await seed_reco_shop(session)
+    await materialize.backfill_shop(session, seeded.shop_id)  # the stored funnel (P98)
     await session.commit()
     _USER_IDS[seeded.shop_id] = seeded.user.id
     return seeded, await load_env(session, seeded.shop_id, as_of=AS_OF)
@@ -48,6 +51,19 @@ def _totals(plan_out):
         round(agg["dorders_month"]["p50"], 2),
         round(agg["dprofit_month"]["certain"], 2),
     )
+
+
+async def _builder_result(session, shop_id, env, spec):
+    """The wire result of a builder spec on this environment (the card's number, d.5)."""
+    from juli_backend.services.shopee_builder.context import BuilderContext
+    from juli_backend.services.shopee_builder.engine_families import integrate
+    from juli_backend.services.shopee_builder.service import variation_rows_for
+
+    ctx = BuilderContext(
+        env=env, variations=await variation_rows_for(session, shop_id, env, ["1001"])
+    )
+    done, _ = integrate.evaluate(ctx, spec)
+    return done.result_json()
 
 
 async def _add(session, seeded, cid):
@@ -406,6 +422,8 @@ async def test_the_base_is_frozen_until_the_person_refreshes_it(session, shop):
             )
         )
     await session.commit()
+    await materialize.backfill_shop(session, sid)  # the ingest rebuilds the stored rows (P98)
+    await session.commit()
     again = await plans.get_plan(session, sid, now=NOW)
     assert _totals(again) == _totals(first)
     assert again["aggregate"]["today"] == first["aggregate"]["today"]
@@ -450,9 +468,23 @@ async def test_one_option_shows_the_same_p50_and_range_on_the_card_the_compare_a
     assert "aov_p25" not in row and "margin_points_p25" not in row
     assert "aov_p50" in row and "margin_points_p50" in row
     assert compare["vs_today"][0]["delta"].keys() >= {"aov_p50", "margin_points_p50"}
-    out = await _add(session, seeded, cid)
-    contribution = out["aggregate"]["cards"][0]["contribution"]
-    assert contribution["dprofit_p50"] == pytest.approx(total["p50"]["dprofit"], abs=1)
-    assert out["aggregate"]["dprofit_month"]["total"]["p50"] == pytest.approx(
-        total["p50"]["dprofit"], abs=1
+    # P98 / ADR-122 d.2: the plan reads the option RESULT (the builder's one path), not the money
+    # layer: its Δ lợi nhuận is the result's per-30-day Δ of the same saved version
+    result = await _builder_result(
+        session,
+        seeded.shop_id,
+        env,
+        sp.ProductDiscountSpec(
+            kind="product_discount",
+            item_id="1001",
+            variations=[sp.VariationPrice(variation_id="", discount_pct=15)],
+        ),
     )
+    out = await _add(session, seeded, cid)
+    agg = out["aggregate"]
+    assert agg["result_basis"] == "option_result"
+    contribution = agg["cards"][0]["contribution"]
+    assert contribution["dprofit_p50"] == pytest.approx(result["per_30d"]["profit"], abs=1)
+    assert agg["dprofit_month"]["total"]["p50"] == pytest.approx(result["per_30d"]["profit"], abs=1)
+    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(result["per_30d"]["gmv"], abs=1)
+    assert agg["dorders_month"]["p50"] == pytest.approx(result["per_30d"]["orders"], abs=1e-6)

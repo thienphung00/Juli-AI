@@ -208,6 +208,30 @@ async def _entries(
     return out
 
 
+async def _aggregate(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    env: Any,
+    entries: list[Entry],
+    *,
+    now: datetime,
+    base: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], list[Any]]:
+    """``aggregate`` with the variations of the cards' products: the option results (P98 / ADR-122
+    d.2) rebuild a price lever's builder spec from them."""
+    items = list(
+        dict.fromkeys(
+            i for e in entries for i in (e.base.get("scope") or {}).get("product_ids", [])
+        )
+    )
+    variations: dict[str, list[dict[str, Any]]] = {}
+    if items:
+        from juli_backend.services.shopee_builder.service import variation_rows_for
+
+        variations = await variation_rows_for(session, shop_id, env, items)
+    return aggregate(env, entries, now=now, base=base, variations=variations)
+
+
 def _actor_event(actor: manual.Actor) -> str:
     return ACTOR_SELLER if actor.kind == "seller" else ACTOR_JULI
 
@@ -305,7 +329,9 @@ async def get_plan(
         newest = await analytics_loaders.default_as_of(session, shop_id)
         base_block = plan_base.block(snap, newest)
         base = None if snap is None else snap.base
-        agg, _ = aggregate(
+        agg, _ = await _aggregate(
+            session,
+            shop_id,
             env,
             await _entries(session, shop_id, [(r, p) for r, p in rows if r.id not in grouped]),
             now=now,
@@ -313,7 +339,11 @@ async def get_plan(
         )
         for g in group_rows:
             entries = await plan_groups.entries_of(session, shop_id, by_group.get(g.id, []))
-            group_aggs[g.id] = aggregate(env, entries, now=now, base=base)[0] if entries else None
+            group_aggs[g.id] = (
+                (await _aggregate(session, shop_id, env, entries, now=now, base=base))[0]
+                if entries
+                else None
+            )
         products = [*agg.get("products", []), *_group_products(group_aggs.values())]
         names = {b["product_id"]: b.get("name") for b in products}
         cut = await change_sets.cut_preview(
@@ -937,7 +967,9 @@ async def confirm(
     grouped = plan_groups.grouped_card_ids(by_group)
     plan.planned_date = when
     windows_of = plan_groups.periods(plan, group_rows, today=when)
-    agg, evs = aggregate(
+    agg, evs = await _aggregate(
+        session,
+        shop_id,
         env,
         await _entries(session, shop_id, [(r, p) for r, p in rows if r.id not in grouped]),
         now=now,
@@ -951,7 +983,7 @@ async def confirm(
         entries = await plan_groups.entries_of(session, shop_id, by_group.get(g.id, []))
         if not entries:
             continue
-        gagg, gev = aggregate(env, entries, now=now, base=base)
+        gagg, gev = await _aggregate(session, shop_id, env, entries, now=now, base=base)
         group_aggs[g.letter] = gagg
         group_evs.update({e.entry.card_id: e for e in gev})
         unavailable += gagg.get("unavailable_cards") or []

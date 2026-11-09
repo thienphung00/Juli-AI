@@ -20,6 +20,7 @@ from juli_backend.models.shop_proposals import (
 )
 from juli_backend.models.shopee_plans import ShopRecoPlan
 from juli_backend.services.shop_proposals import ProposalError
+from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     learning,
@@ -50,6 +51,7 @@ _USER_IDS: dict[uuid.UUID, uuid.UUID] = {}
 @pytest.fixture
 async def shop(session):
     seeded = await seed_reco_shop(session)
+    await materialize.backfill_shop(session, seeded.shop_id)  # the stored funnel (P98)
     await session.commit()
     _USER_IDS[seeded.shop_id] = seeded.user.id  # a rollback expires the ORM user: keep the id
     env = await load_env(session, seeded.shop_id, as_of=AS_OF)
@@ -439,14 +441,13 @@ async def test_the_aggregate_is_joint_not_the_sum_of_the_cards(session, shop):
         assert c["contribution"]["dprofit_p50"] == pytest.approx(
             agg["dprofit_month"]["total"]["p50"] - c["without"]["dprofit"]["p50"]
         )
-    # D85.4: the two options act on the same product, so the plan carries ONE joint lift (the
-    # larger one) -- not the sum of their P50s
+    # P98 / ADR-122 d.2: the plan's Δ is the SUM of its cards' option results (P50 exact), not
+    # the money layer and not a single shared lift (D85.4 folding is gone for the result layer)
     p = agg["dprofit_month"]
-    singles = [c["alone"]["dprofit"] for c in agg["cards"]]
-    each = [s["p50"] - s["certain"] for s in singles]
-    assert p["predicted"]["p50"] in [pytest.approx(x) for x in each]
-    assert p["predicted"]["p50"] != pytest.approx(sum(each))
-    assert any(n.startswith("lift_shared_per_product:") for n in agg["notes"])
+    assert agg["result_basis"] == "option_result" and agg["not_estimable_cards"] == []
+    each = [c["result"]["delta"]["p50"]["dprofit"] for c in agg["cards"]]
+    assert p["total"]["p50"] == pytest.approx(sum(each))
+    assert p["predicted"]["p50"] == pytest.approx(sum(each))
     assert p["total"]["p10"] < p["total"]["p50"] < p["total"]["p90"]
     assert agg["range_method"] == "root_sum_of_squares_of_half_widths"
     # cost per day and per month vs the cap, the five numbers, the shop today and after
