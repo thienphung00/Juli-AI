@@ -63,6 +63,7 @@ export function createPlanApi(options: PlanClientOptions): PlanApi {
     whatIf: (cardId, inputs) => call<PlanResponse>("POST", `${card(cardId)}/whatif`, { inputs }),
     setWindow: (days, productId) => call<PlanResponse>("POST", "/plan/window", { days, ...(productId ? { product_id: productId } : {}) }),
     setChangeSetWindow: (id, days) => call<ChangeSet>("POST", `/change-sets/${encodeURIComponent(id)}/window`, { days }),
+    refreshBase: () => call<PlanResponse>("POST", "/plan/refresh-base", {}),
     confirm: ({ acknowledgeBreaches, plannedDate, note }) => call<PlanResponse>("POST", "/plan/confirm", { acknowledge_breaches: acknowledgeBreaches, ...(plannedDate ? { planned_date: plannedDate } : {}), ...(note ? { note } : {}) }),
     changeSets: async (query) => {
       const qs = new URLSearchParams();

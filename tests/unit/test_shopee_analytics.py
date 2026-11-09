@@ -286,8 +286,12 @@ async def test_matrix_rows_carry_flows_levers_and_a_labelled_ads_overlay(session
     by = {r["product_id"]: r for r in body["products"]}
     assert set(by) == {"1001", "1002", "1003"}
     gloves = by["1001"]
-    assert gloves["name"].startswith("Găng tay") and gloves["gmv"] == 700_000
-    assert gloves["gmv_basis"] == "shopee_product_period"
+    assert gloves["name"].startswith("Găng tay")
+    # D85.2: the order lines scaled to the shop totals, so the products add up to the shop GMV
+    assert gloves["gmv_basis"] == "scaled_order_lines"
+    assert sum(r["gmv"] for r in by.values()) == body["sums"]["gmv_shop"] == 7 * 275_000
+    line_total = sum(r["line_gmv"] for r in by.values())
+    assert gloves["gmv"] == pytest.approx(gloves["line_gmv"] * 7 * 275_000 / line_total, abs=1)
     assert gloves["ads"]["basis"]["label"] == "đơn đã đặt"
     # the report window is the window and the report is the spend: 60.000 of 100.000
     assert gloves["ads"]["spend"] == pytest.approx(60_000)
@@ -330,7 +334,10 @@ async def test_product_page_has_header_kpis_nguon_cost_floor_and_keywords(sessio
 
     assert set(page["kpi_by_period"]) == {"7d", "30d", "90d"}
     kpi = page["kpi_by_period"]["7d"]
-    assert kpi["gmv"]["value"] == 700_000 and kpi["five_numbers"]["comparison"]["available"] is True
+    row = await queries.matrix(session, shop_id, period="7d", as_of=CUR_END)
+    mine = next(r for r in row["products"] if r["product_id"] == "1001")
+    assert kpi["gmv"]["value"] == mine["gmv"]  # the product page and the matrix agree
+    assert kpi["five_numbers"]["comparison"]["available"] is True
 
     sku = next(s for s in page["cost_and_floor"]["skus"] if s["sku"] == "G1")
     assert sku["cost"]["cogs_source"] == "real" and sku["cost"]["cogs_per_unit"] == 30_000

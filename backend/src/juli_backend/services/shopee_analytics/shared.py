@@ -7,7 +7,6 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num, pct, pct_of, ratio
-from juli_backend.services.shopee_analytics.loaders import product_totals_for
 from juli_backend.services.shopee_profit.five_numbers import (
     FiveNumbers,
     Snapshot,
@@ -173,20 +172,14 @@ def five_for(
 
 def excluded_summary(view: PeriodView) -> dict[str, Any]:
     """P92 B-1: what the excluded listings sold in the window. The shop totals include it; the
-    product lists do not. Same GMV basis as the product rows (Shopee's product totals when they
-    stand for the window, else the order lines)."""
+    product lists do not. Same GMV basis as the product rows (lines scaled to the shop totals)."""
     if not view.excluded:
         return {"count": 0, "gmv": 0, "orders": 0, "items": []}
-    pf = view.data.product_flows
-    shopee = product_totals_for(pf, view.data.lines)
     items: list[dict[str, Any]] = []
     gmv_sum, orders_sum = ZERO, 0
     for item_id, reason in sorted(view.excluded.items()):
-        total = view.matrix.totals.get(item_id)
-        if item_id in shopee:
-            gmv, orders = shopee[item_id]
-        else:
-            gmv, orders = (total.gmv, total.orders) if total else (ZERO, 0)
+        split = view.metrics.split(item_id)  # the same splits as the product rows (D85.2)
+        gmv, orders = (split.gmv, split.orders) if split else (ZERO, 0)
         gmv_sum += Decimal(str(gmv))
         orders_sum += int(orders or 0)
         items.append(

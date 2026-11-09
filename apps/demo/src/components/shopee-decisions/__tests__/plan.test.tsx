@@ -81,7 +81,27 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Bỏ khỏi kế hoạch" }));
     await waitFor(() => expect(api.calls.find((c) => c.name === "remove")?.args).toEqual(["card-voucher"]));
     fireEvent.click(within(await screen.findByTestId("kh-cand-card-wait")).getByRole("button", { name: "Thêm vào kế hoạch" }));
-    await waitFor(() => expect(api.calls.find((c) => c.name === "add")?.args).toEqual(["card-wait", 1, false]));
+    await waitFor(() => expect(api.calls.find((c) => c.name === "add")?.args).toEqual(["card-wait", null, false]));
+  });
+
+  it("the base is frozen: the screen names its day and only 'Cập nhật số' asks for newer numbers (D85.4)", async () => {
+    const base = { label: "Số liệu gốc của kế hoạch", version: 1, as_of: "2026-11-04", newest_day: "2026-11-06", newer_available: true, refreshed_at: null, note: "Kế hoạch tính trên số liệu đến hết ngày 04/11/2026. Đã có số mới đến 06/11/2026: bấm “Cập nhật số” để tính lại." };
+    const first = plan();
+    const api = open({ ...first, plan: { ...first.plan!, base } });
+    expect(await screen.findByTestId("kh-base-note")).toHaveTextContent("số liệu đến hết ngày 04/11/2026");
+    fireEvent.click(screen.getByTestId("kh-refresh"));
+    await waitFor(() => expect(api.calls.some((c) => c.name === "refreshBase")).toBe(true));
+  });
+
+  it("an action's answer is dropped once the refetch lands, so a stale override never hides the server", async () => {
+    const first = plan();
+    const answer = plan({ cards: first.cards.slice(0, 1) });
+    const api = open(first, { remove: answer });
+    const row = await screen.findByTestId("kh-row-card-voucher");
+    fireEvent.click(within(row).getByRole("button", { name: "Bỏ khỏi kế hoạch" }));
+    await waitFor(() => expect(api.calls.some((c) => c.name === "remove")).toBe(true));
+    // the refetch (api.get) returns `first` again: the screen shows it, not the old answer
+    await waitFor(() => expect(screen.getByTestId("kh-count")).toHaveTextContent("3 thẻ"));
   });
 
   it("adding a card that breaks the floor asks first; 'Vẫn tiếp tục' adds it acknowledged and shows the chip", async () => {
@@ -93,7 +113,7 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     expect(within(dialog).getByRole("heading")).toHaveTextContent("Thêm JC-2611-0009 vào kế hoạch dù chạm giá sàn?");
     fireEvent.click(within(dialog).getByRole("button", { name: "Vẫn tiếp tục" }));
     await waitFor(() => expect(api.calls.filter((c) => c.name === "add")).toHaveLength(2));
-    expect(api.calls.filter((c) => c.name === "add")[1]!.args).toEqual(["card-wait", 1, true]);
+    expect(api.calls.filter((c) => c.name === "add")[1]!.args).toEqual(["card-wait", null, true]);
     expect(await screen.findByTestId("kh-ack")).toHaveTextContent("Đã xác nhận vượt giá sàn");
   });
 

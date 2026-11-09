@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
 import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderApi, BuilderEvaluation, BuilderOutcome, BuilderVersion, ChooseResult } from "../../../lib/shopee-decisions/builder-api";
-import { bandText, baseText, bestBadge, breachesOfOutcome, breakEvenText, marginText, metricValue, refusalText, unitLines, versionFacts, voucherMaxText, voucherUsageText, type Forms, type Kind92, type VersionFact, type VersionNames } from "../../../lib/shopee-decisions/builder-p92";
+import { bandText, baseText, beforeAfterText, bestBadge, breachesOfOutcome, breakEvenText, marginText, metricValue, refusalText, unitLines, versionFacts, voucherMaxText, voucherUsageText, type Forms, type Kind92, type VersionFact, type VersionNames } from "../../../lib/shopee-decisions/builder-p92";
 import type { Breach } from "../../../lib/shopee-decisions/types";
 import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions";
 import { TextChip } from "../../shopee-analytics/ui";
@@ -92,6 +92,24 @@ function rowsFor(names: VersionNames): RowDef[] {
           <b>{costText(o)}</b>
           {o.cost?.label ? <span>{o.cost.label}</span> : null}
         </>
+      ),
+    },
+    {
+      key: "before-after",
+      label: "Trước → sau",
+      sub: "7 chỉ số, khoảng P10 – P90; “không đổi” kèm lý do",
+      cell: (o) => (
+        <ul className="p2-ba" data-testid="p2-before-after">
+          {(o.before_after?.rows ?? []).map((r) => {
+            const t = beforeAfterText(r);
+            return (
+              <li data-testid={`p2-ba-${r.key}`} key={r.key}>
+                <span>{r.label}</span> <b className={t.unchanged ? "sd-muted" : undefined}>{t.main}</b>
+                {t.range ? <span className="p2-ba__range"> ({t.range})</span> : null}
+              </li>
+            );
+          })}
+        </ul>
       ),
     },
     { key: "dgmv", label: "Δ GMV", sub: "trong số ngày của thay đổi", cell: (o) => money(o, "gmv") },

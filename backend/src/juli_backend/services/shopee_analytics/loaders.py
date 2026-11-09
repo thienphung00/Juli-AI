@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 import uuid
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -55,7 +55,14 @@ from juli_backend.services.shopee_analytics.rules_view import (
     read_rules,
     with_sku_aliases,
 )
-from juli_backend.services.shopee_analytics.windows import PeriodChoice, Window, choose_periods
+from juli_backend.services.shopee_analytics.stored import last_complete_day
+from juli_backend.services.shopee_analytics.windows import (
+    Anchor,
+    PeriodChoice,
+    Window,
+    choose_anchor,
+    choose_periods,
+)
 from juli_backend.services.shopee_profit.ads_sources import (
     AdDay,
     AdSpendResult,
@@ -952,15 +959,29 @@ async def load_affiliate(
 ANCHOR_DATASETS = (SHOP_OVERVIEW_DAILY, "traffic_overview", "shop_traffic")
 
 
-async def default_as_of(session: AsyncSession, shop_id: uuid.UUID) -> date | None:
-    """The newest day the shop has Shopee daily numbers for (any of :data:`ANCHOR_DATASETS`),
-    else the last order-line day."""
+async def load_anchor(session: AsyncSession, shop_id: uuid.UUID) -> Anchor | None:
+    """The shared window end (D85.2): the last day every live daily dataset has posted, else the
+    last order-line day."""
     latest = await PlatformDailyMetricsRepo(session).latest_days(shop_id)
-    days = [latest[d] for d in ANCHOR_DATASETS if d in latest]
-    if days:
-        return max(days)
+    found = choose_anchor(latest, ANCHOR_DATASETS)
+    complete = await last_complete_day(session, shop_id)
+    if found is not None and complete is not None:
+        # the materialized rows say which day is complete (D85.2): the window ends there
+        if complete != found.day:
+            return replace(found, day=complete, limited_by="shopee_shop_metrics_daily")
+        return found
+    if found is not None:
+        return found
     bounds = await ShopeeOrderLinesRepo(session).day_bounds(shop_id)
-    return bounds[1] if bounds else None
+    if not bounds:
+        return None
+    return Anchor(bounds[1], bounds[1], None, {}, (), "order_lines")
+
+
+async def default_as_of(session: AsyncSession, shop_id: uuid.UUID) -> date | None:
+    """The window end every screen shares: :func:`load_anchor`'s day."""
+    anchor = await load_anchor(session, shop_id)
+    return None if anchor is None else anchor.day
 
 
 # ---------------------------------------------------------------------------------------

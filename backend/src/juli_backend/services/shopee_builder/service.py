@@ -76,10 +76,14 @@ async def products(
     offset: int = 0,
 ) -> dict[str, Any]:
     ctx, view, anchor = await load_view90(session, shop_id, as_of)
+    view30 = await service.load_view(
+        session, shop_id, ctx, Window(anchor - timedelta(days=catalogue.RECENT_DAYS - 1), anchor)
+    )
     return catalogue.picker(
         ctx,
         view,
         anchor,
+        view30=view30,
         query=query,
         include_excluded=include_excluded,
         sort=sort,

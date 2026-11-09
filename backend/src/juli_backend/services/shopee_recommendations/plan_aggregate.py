@@ -206,8 +206,33 @@ def _window(env: RecoEnv) -> MegaWindow:
     return MegaWindow(start, start + timedelta(days=env.window_days))
 
 
+def joint_lifts(evs: Sequence[Evaluated]) -> tuple[list[Evaluated], list[str]]:
+    """One predicted lift per product (D85.4): the options of one product act on the same buyers,
+    so their P50s are not added. The option with the largest predicted GMV (ties: smallest card
+    id) carries the product's lift; the others keep their certain layer (cost) and add no second
+    lift. Cards with no product (shop-wide) each carry their own. Independent of the order the
+    cards were added. Returns the cards whose prediction counts and the ids that were folded."""
+    by_product: dict[str | None, list[Evaluated]] = {}
+    for e in evs:
+        by_product.setdefault(e.product, []).append(e)
+    keep: list[Evaluated] = []
+    folded: list[str] = []
+    for product, group in by_product.items():
+        if product is None or len(group) == 1:
+            keep.extend(group)
+            continue
+        ranked = sorted(
+            group,
+            key=lambda e: (-abs(e.money["predicted"]["p50"].get("dgmv") or 0.0), e.entry.card_id),
+        )
+        keep.append(ranked[0])
+        folded.extend(e.entry.card_id for e in ranked[1:])
+    return keep, sorted(folded)
+
+
 def joint(env: RecoEnv, evs: Sequence[Evaluated]) -> Joint:
     """The certain layer of these cards stacked on the same orders + the combined prediction."""
+    evs = sorted(evs, key=lambda e: e.entry.card_id)  # the total never depends on the order added
     line = [e for e in evs if e.is_line and e.card["family"] != "mega_sale"]
     added = [e for e in evs if e not in line]
     certain = {"dgmv": 0.0, "dprofit": 0.0, "dchi": 0.0}
@@ -215,7 +240,12 @@ def joint(env: RecoEnv, evs: Sequence[Evaluated]) -> Joint:
     five: dict[str, Any] | None = None
     notes: list[str] = []
     if line:
-        res = evaluate_mega(env, [e.cand for e in line], _window(env), env.daily_cap)
+        # a shop-wide lever (a shop voucher) always reaches every shop order, whatever else is in
+        # the plan (D85.4): its reach never depends on which other options are present
+        shop_wide = any(e.cand.kind in VOUCHER_KINDS for e in line)
+        res = evaluate_mega(
+            env, [e.cand for e in line], _window(env), env.daily_cap, all_orders=shop_wide
+        )
         if res.get("refusal"):  # nothing to stack on: fall back to each card alone
             notes.append(f"joint_unavailable:{res['refusal']}")
             added, line = [*added, *line], []
@@ -235,7 +265,10 @@ def joint(env: RecoEnv, evs: Sequence[Evaluated]) -> Joint:
         breaches.extend(
             {"type": "floor", "card_id": e.entry.card_id, **b} for b in e.card["floor"]["breaches"]
         )
-    predicted = combine_predicted([e.money["predicted"] for e in evs])
+    counted, folded = joint_lifts(evs)
+    if folded:
+        notes.append("lift_shared_per_product:" + ",".join(folded))
+    predicted = combine_predicted([e.money["predicted"] for e in counted])
     unknown = [e.entry.card_id for e in evs if e.money["predicted"]["p50"].get("dprofit") is None]
     return Joint(
         ids=frozenset(e.entry.card_id for e in evs),
@@ -304,9 +337,9 @@ def _breach_view(
     return out, stacked
 
 
-def _cost_block(env: RecoEnv, j: Joint) -> dict[str, Any]:
+def _cost_block(env: RecoEnv, j: Joint, base: Mapping[str, Any] | None = None) -> dict[str, Any]:
     days = Decimal(config.DAYS_PER_MONTH)
-    before = env.shop_chi_per_day()
+    before = Decimal(str(base["chi_per_day"])) if base is not None else env.shop_chi_per_day()
     delta = Decimal(str(j.certain["dchi"])) / days
     after = before + delta
     cap = env.daily_cap
@@ -324,15 +357,24 @@ def _cost_block(env: RecoEnv, j: Joint) -> dict[str, Any]:
     }
 
 
-def _today(env: RecoEnv) -> dict[str, Any]:
+def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """ "Hôm nay": the plan's frozen base when it has one, else ShopMetrics of the env."""
+    if base is not None:
+        return {
+            "as_of": base["as_of"],
+            "gmv_30d": base["gmv_30d"],
+            "orders_30d": base["orders_30d"],
+            "aov": base["aov"],
+            "margin_pct": base["margin_pct"],
+        }
+    m = env.metrics
     gmv, orders = float(env.shop_gmv_30d), env.shop_orders_30d
-    sp = env.view.profit
     return {
         "as_of": env.as_of.isoformat(),
         "gmv_30d": gmv,
         "orders_30d": orders,
-        "aov": gmv / orders if orders else None,
-        "margin_pct": None if sp.margin_rate is None else float(sp.margin_rate) * 100,
+        "aov": None if m.aov is None else float(m.aov),
+        "margin_pct": None if m.margin_pct is None else float(m.margin_pct),
     }
 
 
@@ -383,7 +425,11 @@ def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo
 
 
 def aggregate(
-    env: RecoEnv, entries: Sequence[Entry], *, now: datetime
+    env: RecoEnv,
+    entries: Sequence[Entry],
+    *,
+    now: datetime,
+    base: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[Evaluated]]:
     """The plan's aggregate payload and the evaluated cards (chosen version on this env)."""
     evs: list[Evaluated] = []
@@ -394,7 +440,7 @@ def aggregate(
             unavailable.append(entry.card_id)
         else:
             evs.append(ev)
-    today = _today(env)
+    today = _today(env, base)
     if not evs:
         return {
             "as_of": env.as_of.isoformat(),
@@ -408,7 +454,7 @@ def aggregate(
     ids = [e.entry.card_id for e in evs]
     full = memo.of(ids)
     floor_breaches, stacked = _breach_view(full, evs)
-    cost = _cost_block(env, full)
+    cost = _cost_block(env, full, base)
     breaches: list[dict[str, Any]] = [*floor_breaches]
     if cost["over_cap"]:
         breaches.append(
@@ -536,5 +582,6 @@ __all__ = [
     "combine_predicted",
     "evaluate_entry",
     "joint",
+    "joint_lifts",
     "total_of",
 ]

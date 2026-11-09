@@ -110,7 +110,7 @@ def test_migration_112_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # P90 step 2's 113 went on 112 and took the deferred tail.
     later = LATER_MIGRATION.read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "122_shopee_affiliate_lines"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "123_shopee_metrics_tables"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_112():

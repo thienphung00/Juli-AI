@@ -13,7 +13,6 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num, pct, ratio
-from juli_backend.services.shopee_analytics.loaders import product_totals_for
 from juli_backend.services.shopee_analytics.overview import CHILD_LABELS, LEVER_LABELS
 from juli_backend.services.shopee_analytics.shared import (
     cell_json,
@@ -132,14 +131,14 @@ def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
     total = view.matrix.totals.get(product_id)
     flows = view.flows.products.get(product_id) if view.flows else None
     pf = view.data.product_flows
-    shopee_total = product_totals_for(pf, view.data.lines).get(product_id)
-    gmv = shopee_total[0] if shopee_total else (total.gmv if total else None)
+    split = view.metrics.split(product_id)  # order lines scaled to the shop totals (D85.2)
+    gmv = split.gmv if split else (total.gmv if total else None)
     return {
         "product_id": product_id,
         "name": view.names.get(product_id) or product_id,
         "gmv": num(gmv),
-        "gmv_basis": "shopee_product_period" if shopee_total else "order_lines",
-        "orders": shopee_total[1] if shopee_total else (total.orders if total else None),
+        "gmv_basis": split.basis if split else "order_lines",
+        "orders": split.orders if split else (total.orders if total else None),
         "line_gmv": num(total.gmv if total else None),
         "line_orders": total.orders if total else 0,
         **price_block(view, product_id),
@@ -229,9 +228,8 @@ def build_matrix(
         "sums": {
             "gmv_shopee_products": num(sum_gmv),
             "gmv_shop": num(view.shop_gmv),
-            "note": "Σ GMV sản phẩm khớp Doanh số shop khi file sản phẩm đúng kỳ (không thì lấy từ "
-            "dòng đơn hàng); phần lệch hiện "
-            "ở dòng Chênh lệch nguồn.",
+            "note": "Σ GMV sản phẩm = GMV shop: dòng đơn hàng nhân với (GMV shop ÷ GMV dòng đơn). "
+            "Sản phẩm đã loại khỏi danh sách vẫn nằm trong GMV shop.",
         },
     }
 

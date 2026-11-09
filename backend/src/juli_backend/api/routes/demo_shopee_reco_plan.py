@@ -8,6 +8,8 @@ sets (P91 D-6, D-7, D-8), under ``/v1/demo/shopee/recommendations``.
   confirmed with).
 - ``POST /plan/cards`` (add a card + version) | ``/plan/cards/{id}/remove`` | ``/move`` |
   ``/version`` | ``/whatif`` -- each answers with the re-aggregated plan.
+- ``POST /plan/refresh-base`` -- "Cập nhật số": the base of the draft plan moves to the newest
+  complete day (the only way it moves).
 - ``POST /plan/confirm`` -- never blocked; a breach needs ``acknowledge_breaches``.
 - ``POST /plan/window`` -- the plan's default window (3..90 days) or one product's.
 - ``GET  /change-sets`` | ``POST /change-sets/{id}/window`` -- the unit of measurement.
@@ -131,6 +133,22 @@ async def add_card(
         actor=manual.Actor("seller", user.id),
         now=_now(),
         acknowledge_breaches=body.acknowledge_breaches,
+    )
+
+
+@router.post("/plan/refresh-base")
+async def refresh_base(
+    shop: Shop = Depends(require_writable_shop),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """ "Cập nhật số": move the draft plan's frozen base to the newest complete day (D85.4)."""
+    return await _write(
+        session,
+        plans.refresh_base,
+        _shopee(shop),
+        actor=manual.Actor("seller", user.id),
+        now=_now(),
     )
 
 

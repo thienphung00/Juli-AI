@@ -473,6 +473,7 @@ def test_bug9_unmatched_order_lines_are_not_a_product():
             (_line(product_id="100", order_id="o1"), None),
         ],
         data=SimpleNamespace(product_flows=None, lines=None),
+        metrics=SimpleNamespace(split=lambda i: None),
         lines=[], excluded={}, names={}, window=SimpleNamespace(json=lambda: {}),
     )  # fmt: skip
     info = SimpleNamespace(
@@ -487,12 +488,7 @@ def test_bug9_unmatched_order_lines_are_not_a_product():
     )  # fmt: skip
     import juli_backend.services.shopee_builder.catalogue as cat
 
-    orig = cat.product_totals_for
-    cat.product_totals_for = lambda *_: {}
-    try:
-        out = cat.picker(ctx, view, AS_OF)
-    finally:
-        cat.product_totals_for = orig
+    out = cat.picker(ctx, view, AS_OF)
     assert [p["item_id"] for p in out["products"]] == ["100"]
     assert out["unmatched_orders"] == 1 and out["unmatched_label"] == "Đơn chưa khớp sản phẩm"
 

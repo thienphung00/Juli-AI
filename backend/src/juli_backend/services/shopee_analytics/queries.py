@@ -31,7 +31,7 @@ from juli_backend.services.shopee_analytics.orders import build_orders
 from juli_backend.services.shopee_analytics.overview import build_overview
 from juli_backend.services.shopee_analytics.product import build_product_page
 from juli_backend.services.shopee_analytics.rankings import build_ranking
-from juli_backend.services.shopee_analytics.windows import Window
+from juli_backend.services.shopee_analytics.windows import InvalidWindow, Window
 
 PRODUCT_PERIODS: tuple[str, ...] = ("7d", "30d", "90d")
 
@@ -95,7 +95,8 @@ async def overview(
     ctx, now, before = await _views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    body = build_overview(ctx, now, before)
+    anchor = await service.anchor_for(session, shop_id, as_of)
+    body = build_overview(ctx, now, before, anchor)
     body["period"]["kind"] = period
     body["freshness"] = freshness_json(
         await loaders.load_freshness(session, shop_id), now.window.end
@@ -150,6 +151,24 @@ async def product_price_margin(
             "margin_basis": margin_basis(view, item_id, pp),
         }
     return out
+
+
+async def window_metrics(
+    session: AsyncSession, shop_id: uuid.UUID, *, start: date, end: date
+) -> tuple[dict[str, Any], dict[str, str]] | None:
+    """ShopMetrics for one exact window and the excluded listings (item id -> reason): what the
+    Ops / Demo Sản phẩm + luồng tables put beside their per-flow SQL so their headline is the
+    same number as every other screen (D85.2). None when the shop has no Shopee order data."""
+    ctx = await loaders.load_context(session, shop_id)
+    ctx = replace(ctx, rules=ctx.rules.for_month(f"{end:%Y-%m}"))
+    try:
+        window = await service.resolve(session, shop_id, period="custom", start=start, end=end)
+    except InvalidWindow:
+        return None
+    if window is None:
+        return None
+    view = await service.load_view(session, shop_id, ctx, window)
+    return view.metrics.json(), dict(view.excluded)
 
 
 async def orders(

@@ -46,12 +46,24 @@ async def test_v2_a_thin_previous_period_withholds_every_delta(session, seeded):
     assert "kỳ trước chưa đủ dữ liệu" in body["warnings"][-1]["message"].lower()
 
 
-async def test_v3_the_window_ends_on_the_newest_connector_day(session, seeded):
+async def test_v3_the_window_ends_on_the_last_day_every_live_dataset_posted(session, seeded):
+    """D85.2 (replaces V3's "newest Connector day"): the shared anchor is the last COMPLETE day.
+    A dataset a day or two behind holds the window back and is named; one more than three days
+    behind is a stale upload and no longer counts."""
     assert await loaders.default_as_of(session, seeded.shop_id) == CUR_END
     later = CUR_END + timedelta(days=2)
     session.add(_daily(seeded.shop_id, later, "total", "all", orders=1, gmv=1))
     await session.flush()
-    assert await loaders.default_as_of(session, seeded.shop_id) == later
+    anchor = await loaders.load_anchor(session, seeded.shop_id)
+    assert anchor is not None and anchor.day == CUR_END and anchor.newest == later
+    assert anchor.limited_by == "shop_overview"
+    assert "shop_overview" in anchor.label() and "07/10/2026" in anchor.label()
+    much_later = CUR_END + timedelta(days=6)
+    session.add(_daily(seeded.shop_id, much_later, "total", "all", orders=1, gmv=1))
+    await session.flush()
+    anchor = await loaders.load_anchor(session, seeded.shop_id)
+    assert anchor is not None and anchor.day == much_later
+    assert anchor.stale == ("shop_overview",)
 
 
 def test_v5_a_sku_of_another_listing_is_not_the_header_sku():

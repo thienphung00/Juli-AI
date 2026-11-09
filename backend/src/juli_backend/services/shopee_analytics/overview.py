@@ -8,6 +8,7 @@ basis), vouchers and affiliate. Pure over two :class:`PeriodView`\\ s.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 from typing import Any
 
@@ -24,6 +25,11 @@ from juli_backend.services.shopee_analytics.fmt import (
     ratio,
 )
 from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN, ShopContext
+from juli_backend.services.shopee_analytics.metrics import (
+    AOV_LABEL,
+    AOV_SC_LABEL,
+    ShopMetrics,
+)
 from juli_backend.services.shopee_analytics.shared import (
     cell_json,
     excluded_summary,
@@ -31,6 +37,7 @@ from juli_backend.services.shopee_analytics.shared import (
     five_json,
     flow_table_json,
 )
+from juli_backend.services.shopee_analytics.windows import Anchor
 from juli_backend.services.shopee_profit.flows import (
     FLOW_LABELS,
     Flow,
@@ -120,10 +127,11 @@ def _kpi(now: Decimal | int | None, before: Decimal | int | None) -> dict[str, A
     return {"value": num(a), "previous": num(b), "change_pct": delta_pct(a, b)}
 
 
-def _shop_chain(view: PeriodView) -> dict[str, Any]:
+def _shop_chain(view: PeriodView, metrics: ShopMetrics | None = None) -> dict[str, Any]:
     table = view.flows.shop if view.flows else None
     if table is None:
         return {}
+    m = metrics or view.metrics
     flows = [r for r in table.rows if not r.is_residual]
     views = sum((r.views for r in flows if r.views is not None), 0)
     clicks = sum((r.clicks for r in flows if r.clicks is not None), 0)
@@ -142,7 +150,8 @@ def _shop_chain(view: PeriodView) -> dict[str, Any]:
         "orders": total.orders,
         "ctr": ratio(total.ctr),
         "ctor": ratio(total.ctor),
-        "aov": num(total.aov),
+        # one AOV (D85.2): shop GMV ÷ shop đơn, the same number as the KPI strip and Phân tích
+        "aov": num(m.aov),
         "gmv": num(total.gmv),
         "identity_gmv": num(identity),
         "identity_ok": identity is None or abs(identity - total.gmv) < Decimal("0.01"),
@@ -351,12 +360,15 @@ PREVIOUS_THIN = (
 )
 
 
-def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dict[str, Any]:
+def build_overview(
+    ctx: ShopContext, now: PeriodView, before: PeriodView, anchor: Anchor | None = None
+) -> dict[str, Any]:
     cap = ctx.rules.target("daily_marketing_cap")
     five = five_for(now, before, cap)
     comparable = before.comparable_as_previous
-    chain = _shop_chain(now)
-    prev_chain = _shop_chain(before)
+    metrics, prev_metrics = replace(now.metrics, anchor=anchor), before.metrics
+    chain = _shop_chain(now, metrics)
+    prev_chain = _shop_chain(before, prev_metrics)
     p, pp = now.profit, before.profit
     # A previous window whose order lines are too thin must not feed any delta: its line-derived
     # numbers are fragments (margin +819 points, orders +3,445 %). Shop totals / traffic that come
@@ -376,6 +388,7 @@ def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dic
         "platform": "shopee",
         "order_basis": ORDER_BASIS,
         "period": {"window": now.window.json(), "previous": before.window.json()},
+        "shop_metrics": metrics.json(),
         "data": data_status(now),
         "warnings": warns,
         "kpi_strip": {
@@ -383,7 +396,7 @@ def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dic
             "views": _kpi(chain.get("views"), prev_chain.get("views")),
             "ctr": _kpi(chain.get("ctr"), prev_chain.get("ctr")),
             "ctor": _kpi(chain.get("ctor"), prev_chain.get("ctor")),
-            "aov": _kpi(chain.get("aov"), prev_chain.get("aov")),
+            "aov": _kpi(metrics.aov, prev_metrics.aov if prev_totals_ok else None),
             "orders": _kpi(now.shop_orders, prev_orders),
             "margin_pct": {
                 "value": pct(p.margin_pct),
@@ -401,14 +414,12 @@ def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dic
             "excluded_gmv": excluded_summary(now),
             "shopee_gmv": num(now.shop_gmv),
             "shopee_orders": now.shop_orders,
-            "aov_gmv": num(
-                safe_div(now.shop_gmv, Decimal(now.shop_orders))
-                if now.shop_gmv and now.shop_orders
-                else None
-            ),
-            "aov_seller_centre": num(_aov_seller_centre(now)),
-            "aov_note": "AOV Seller Centre = (GMV − voucher shop) ÷ đơn đã xác nhận (§14); AOV "
-            "chuỗi = GMV ÷ đơn.",
+            "aov_gmv": num(metrics.aov),
+            "aov_label": AOV_LABEL,
+            "aov_seller_centre": num(metrics.aov_seller_centre),
+            "aov_seller_centre_label": AOV_SC_LABEL,
+            "aov_note": "AOV ở mọi màn hình = GMV shop ÷ đơn shop. AOV theo Seller Centre = "
+            "(GMV − voucher shop) ÷ đơn đã xác nhận (§14), chỉ để đối chiếu với Seller Centre.",
             "line_gmv": num(now.line_gmv),
             "line_orders": now.line_orders,
         },
@@ -421,12 +432,3 @@ def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dic
         "affiliate": _affiliate_block(now),
         "targets": {k: (num(v) if v is not None else None) for k, v in targets.items()},
     }
-
-
-def _aov_seller_centre(view: PeriodView) -> Decimal | None:
-    orders = view.line_orders
-    if not orders:
-        return None
-    gmv = sum((ln.order_value for ln, _ in view.pairs), ZERO)
-    voucher = sum((ln.shop_voucher_share for ln, _ in view.pairs), ZERO)
-    return (gmv - voucher) / Decimal(orders)

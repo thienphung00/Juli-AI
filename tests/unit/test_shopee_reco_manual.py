@@ -235,7 +235,7 @@ async def test_compare_isolates_a_refused_variant_and_computes_deltas(shop):
     assert pair["delta"]["dprofit_p50"] == round(b["dprofit_p50"] - a["dprofit_p50"], 4)
     assert len(out["between"]) == 3  # three valid variants -> three pairs
     assert out["today"]["aov"] and out["vs_today"][0]["delta"]["dprofit_p10"] is not None
-    for key in ("dprofit_p10", "dprofit_p90", "dgmv_p50", "dorders_p50", "aov_p25", "cost_month"):
+    for key in ("dprofit_p10", "dprofit_p90", "dgmv_p50", "dorders_p50", "aov_p50", "cost_month"):
         assert key in a
     assert out["best_profit_p50"] in (0, 1, 3)
 

@@ -96,8 +96,8 @@ describe("reading the comparison", () => {
   it("names the trade-off when margin falls and the basket grows, and each variant that breaks a floor", () => {
     const base = compareResult(3);
     const between = [
-      { from: 0, to: 1, delta: { margin_points_p25: -1.2, aov_p25: 15000, dgmv_p50: 300000, dprofit_p50: 30000 } },
-      { from: 0, to: 2, delta: { margin_points_p25: 0.2, aov_p25: 15000, dgmv_p50: 0, dprofit_p50: 0 } },
+      { from: 0, to: 1, delta: { margin_points_p50: -1.2, aov_p50: 15000, dgmv_p50: 300000, dprofit_p50: 30000 } },
+      { from: 0, to: 2, delta: { margin_points_p50: 0.2, aov_p50: 15000, dgmv_p50: 0, dprofit_p50: 0 } },
     ];
     const t = tradeoffs({ ...base, between }, sent);
     expect(t).toEqual(["P2 so với P1: biên giảm 1,2 điểm nhưng AOV tăng 15.000đ, GMV +300.000đ, lợi nhuận +30.000đ trong kỳ tính. Chọn theo việc bạn cần: lợi nhuận hay doanh thu."]);

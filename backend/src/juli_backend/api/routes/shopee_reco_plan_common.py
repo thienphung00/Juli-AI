@@ -19,8 +19,9 @@ MAX_MONEY = 2_000_000_000
 class AddCardBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     card_id: uuid.UUID
-    #: the version that goes into the plan (1-based)
-    chosen_version: int = Field(default=1, ge=1, le=config.MAX_VERSIONS)
+    #: the version that goes into the plan (1-based); omitted = the version the card had when it
+    #: was last removed from this plan, else 1 (remove then re-add restores it, D85.4)
+    chosen_version: int | None = Field(default=None, ge=1, le=config.MAX_VERSIONS)
     #: a floor / spend-cap breach never blocks: it must be acknowledged (else 422 with the list)
     acknowledge_breaches: bool = False
 

@@ -36,7 +36,7 @@ from juli_backend.services.shop_diagnosis.confidence import Confidence, volume_l
 from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num, pct
-from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN, product_totals_for
+from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN
 from juli_backend.services.shopee_analytics.matrix import margin_basis, price_block
 from juli_backend.services.shopee_profit.flows import Flow, FlowSource
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
@@ -225,9 +225,9 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
             fig.gmv or ZERO, ZERO, None, ZERO, spend=fig.spend, extra={"direct_gmv": fig.direct_gmv}
         )
     # all
-    shopee = product_totals_for(view.data.product_flows, view.data.lines).get(pid)
-    gmv = shopee[0] if shopee else sum((ln.order_value for ln, _ in pairs), ZERO)
-    orders = Decimal(shopee[1]) if shopee else Decimal(len({ln.order_id for ln, _ in pairs}))
+    split = view.metrics.split(pid)  # order lines scaled to the shop totals (D85.2)
+    gmv = split.gmv if split else ZERO
+    orders = Decimal(split.orders) if split else ZERO
     if gmv == 0 and orders == 0 and pp is None:
         return None
     carrying = [(ln, pb) for ln, pb in pairs if pb.excluded_reason is None]
@@ -301,8 +301,8 @@ def _cell_products(view: PeriodView, source: str, sub: str | None) -> M:
     discount = sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in view.pairs), ZERO)
     views, clicks = _funnel_sum(view.flows.shop.rows) if view.flows else (None, None)
     return M(
-        view.shop_gmv or ZERO,
-        Decimal(view.shop_orders or 0),
+        view.metrics.gmv or ZERO,
+        Decimal(view.metrics.orders or 0),
         p.covered_margin_profit if p.margin_is_partial else p.profit_on_covered,
         p.buyer_paid_covered,
         discount,

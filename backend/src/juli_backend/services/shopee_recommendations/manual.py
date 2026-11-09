@@ -232,8 +232,8 @@ _METRIC_KEYS = (
     "dprofit_certain",
     "dgmv_p50",
     "dorders_p50",
-    "aov_p25",
-    "margin_points_p25",
+    "aov_p50",
+    "margin_points_p50",
     "cost_month",
     "floor_breaches",
 )
@@ -243,7 +243,7 @@ def metrics_of(card: Mapping[str, Any]) -> dict[str, Any]:
     """The numbers the side-by-side shows (all per month, vs doing nothing)."""
     pm = card["predicted"]["money_per_month"]
     total, certain = pm["total"], pm["certain"]
-    kpi = card["rank_inputs"]["kpi_p25"]
+    kpi = card["rank_inputs"].get("kpi_p50") or card["rank_inputs"]["kpi_p25"]
     spend = card.get("spend") or {}
     return {
         "dprofit_p10": total["p10"]["dprofit"],
@@ -252,8 +252,8 @@ def metrics_of(card: Mapping[str, Any]) -> dict[str, Any]:
         "dprofit_certain": certain["dprofit"],
         "dgmv_p50": total["p50"]["dgmv"],
         "dorders_p50": total["p50"]["dorders"],
-        "aov_p25": kpi.get("aov"),
-        "margin_points_p25": kpi.get("bien"),
+        "aov_p50": kpi.get("aov"),
+        "margin_points_p50": kpi.get("bien"),
         "cost_month": certain["dchi"],
         "floor_breaches": len(card["floor"]["breaches"]),
         "floor_ok": card["floor"]["ok"],

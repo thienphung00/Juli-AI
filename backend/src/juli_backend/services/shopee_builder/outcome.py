@@ -21,6 +21,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from juli_backend.services.shopee_builder import before_after
 from juli_backend.services.shopee_builder.context import BuilderContext
 from juli_backend.services.shopee_builder.traffic import break_even_ctor, scope_traffic
 from juli_backend.services.shopee_builder.translate import Translation
@@ -596,6 +597,15 @@ def shape(
         "refusal": None,
         "title": card["title"],
         "driver": driver,
+        "before_after": before_after.build(
+            numbers,
+            ctx,
+            items,
+            shop_wide=card["change_kind"] == "min_spend_voucher" and not tr.items,
+            basis_known=basis["key"] != "insufficient",
+            cost_known=cost_known,
+            orders_note=orders_note,
+        ),
         "base": _base(numbers, tr, items, driver, margin_before),
         "delta": {
             "gmv": delta_gmv,

@@ -55,10 +55,12 @@ from juli_backend.models.shopee_plans import (
 from juli_backend.services.card_events import keys
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
+from juli_backend.services.shopee_analytics import loaders as analytics_loaders
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     config,
     manual,
+    plan_base,
     plan_codes,
     plan_steps,
     product_queue,
@@ -80,6 +82,7 @@ ERROR_CARD_STATE = "reco_card_not_plannable"
 ERROR_NOT_IN_PLAN = "reco_card_not_in_plan"
 ERROR_BREACH = "reco_breach_not_acknowledged"
 ERROR_DATE = "reco_plan_date_invalid"
+ERROR_EXCLUSIVE = "reco_exclusive_field"
 #: statuses a card may be added to the plan from: the seller can see and decide on it
 ADDABLE = (STATUS_SENT, STATUS_CHANGES_REQUESTED)
 
@@ -97,6 +100,38 @@ class PlanBreachNotAcknowledged(ProposalError):
 
 def _naive(now: datetime) -> datetime:
     return now.replace(tzinfo=None) if now.tzinfo else now
+
+
+#: fields only one value of which can be live at a time (P94 "one live value per exclusive field"):
+#: field key -> (Vietnamese name, change kinds that write it)
+EXCLUSIVE_FIELDS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "price": ("giá bán", ("price", "product_discount", "flash_sale", "program_registration")),
+    "title": ("tên sản phẩm", ("title",)),
+    "cover": ("ảnh bìa", ("cover_image",)),
+    "description": ("dòng đầu mô tả", ("description_first_line",)),
+    "ads_budget": ("ngân sách quảng cáo", ("ads_budget",)),
+    "ads_roas": ("mục tiêu ROAS", ("ads_roas_target",)),
+}
+
+
+def exclusive_key(payload: Mapping[str, Any]) -> tuple[str, str, str] | None:
+    """``(field, subject, Vietnamese field name)`` when the card writes an exclusive field."""
+    kind = str(payload.get("change_kind") or "")
+    scope = payload.get("scope") or {}
+    for key, (label, kinds) in EXCLUSIVE_FIELDS.items():
+        if kind in kinds:
+            ids = scope.get("product_ids") or []
+            subject = str(scope.get("campaign_key") or (ids[0] if ids else ""))
+            return key, subject, label
+    return None
+
+
+async def _env_for(
+    session: AsyncSession, shop_id: uuid.UUID, plan: ShopRecoPlan | None, now: datetime
+) -> Any:
+    """The environment a plan is evaluated on: its pinned ``as_of`` (newest day for a plan that
+    has none yet)."""
+    return await load_env(session, shop_id, as_of=None if plan is None else plan.as_of, now=now)
 
 
 # ----------------------------------------------------------------------------- storage
@@ -256,11 +291,20 @@ async def get_plan(
         return {"plan": None, "cards": [], "aggregate": None, "windows": None, "change_sets": []}
     rows = await _rows(session, shop_id, plan.id)
     agg: dict[str, Any]
+    base_block: dict[str, Any] | None = None
     if plan.status == PLAN_DRAFT:
-        env = await load_env(session, shop_id, now=now)
+        env = await _env_for(session, shop_id, plan, now)
         if env is None:
             raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
-        agg, _ = aggregate(env, await _entries(session, shop_id, rows), now=now)
+        snap = await plan_base.latest(session, shop_id, plan.id)
+        newest = await analytics_loaders.default_as_of(session, shop_id)
+        base_block = plan_base.block(snap, newest)
+        agg, _ = aggregate(
+            env,
+            await _entries(session, shop_id, rows),
+            now=now,
+            base=None if snap is None else snap.base,
+        )
         names = {b["product_id"]: b.get("name") for b in agg.get("products", [])}
         cut = await change_sets.cut_preview(
             session, shop_id, [b["product_id"] for b in agg.get("products", [])],
@@ -297,7 +341,7 @@ async def get_plan(
         )
     sets = await change_sets.sets_for(session, shop_id, plan_id=plan.id)
     out = {
-        "plan": {**_plan_json(plan), "measurement_cut": cut},
+        "plan": {**_plan_json(plan), "measurement_cut": cut, "base": base_block},
         "cards": cards,
         "aggregate": agg,
         "windows": _windows_block(plan, agg) if agg.get("n_cards") else None,
@@ -360,16 +404,38 @@ async def add_card(
     shop_id: uuid.UUID,
     card_id: uuid.UUID,
     *,
-    chosen_version: int = 1,
+    chosen_version: int | None = None,
     actor: manual.Actor,
     now: datetime,
     acknowledge_breaches: bool = False,
 ) -> dict[str, Any]:
-    """ "Thêm vào kế hoạch": the card (this version) joins the draft plan, status ``planned``."""
+    """ "Thêm vào kế hoạch": the card (this version) joins the draft plan, status ``planned``.
+
+    ``chosen_version`` None = the version and what-if inputs the card had when it was last removed
+    from this plan (remove then re-add restores them, D85.4), else version 1."""
     now = _naive(now)
     p, payload = await service._proposal(session, shop_id, card_id)
     if p.status not in ADDABLE:
         raise ProposalError(ERROR_CARD_STATE, 409, f"a {p.status} card cannot be added to a plan")
+    existing = await draft_of(session, shop_id)
+    restored = None
+    if existing is not None:
+        restored = await session.scalar(
+            select(ShopRecoPlanCard)
+            .where(
+                ShopRecoPlanCard.plan_id == existing.id,
+                ShopRecoPlanCard.proposal_id == p.id,
+                ShopRecoPlanCard.removed_at.is_not(None),
+            )
+            .order_by(ShopRecoPlanCard.removed_at.desc(), ShopRecoPlanCard.added_at.desc())
+            .limit(1)
+        )
+    restored_inputs: dict[str, Any] = {}
+    if chosen_version is None:
+        chosen_version = int(restored.chosen_version) if restored is not None else 1
+        restored_inputs = dict(restored.inputs or {}) if restored is not None else {}
+    elif restored is not None and int(restored.chosen_version) == chosen_version:
+        restored_inputs = dict(restored.inputs or {})
     vlist = versions.versions_of({**payload, "code": p.code})
     if not 1 <= chosen_version <= len(vlist):
         raise ProposalError("reco_version_unknown", 422, f"the card has {len(vlist)} version(s)")
@@ -379,10 +445,13 @@ async def add_card(
     current = await _rows(session, shop_id, plan.id)
     if len(current) >= config.PLAN_MAX_CARDS:
         raise ProposalError("reco_plan_full", 409, f"a plan holds at most {config.PLAN_MAX_CARDS}")
-    env = await load_env(session, shop_id, now=now)
+    await _refuse_second_exclusive(session, shop_id, current, p, payload)
+    env = await _env_for(session, shop_id, plan, now)
     if env is None:
         raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
-    entry = Entry(str(p.id), p.code, {**payload, "code": p.code}, chosen_version, {})
+    entry = Entry(
+        str(p.id), p.code, {**payload, "code": p.code}, chosen_version, dict(restored_inputs)
+    )
     ev = evaluate_entry(env, entry, now=now)
     if ev is None:
         raise ProposalError(service.ERROR_BAD_INPUT, 422, "this version cannot be evaluated")
@@ -396,7 +465,7 @@ async def add_card(
         plan_id=plan.id,
         proposal_id=p.id,
         chosen_version=chosen_version,
-        inputs={},
+        inputs=restored_inputs,
         prior_status=p.status,
         position=len(current) + 1,
         added_by=actor.json(),
@@ -408,12 +477,59 @@ async def add_card(
     p.status = STATUS_PLANNED
     p.lever_plan_id = plan.id
     p.updated_at = now
-    plan.as_of = env.as_of
+    if plan.as_of is None:  # the base is pinned when the first card joins (D85.4)
+        plan.as_of = env.as_of
+        await plan_base.write(session, shop_id, plan.id, env, actor.json(), now)
     plan.updated_at = now
     await store.set_meta(session, shop_id, p.id, {"plan_id": str(plan.id)})
     await session.flush()
     if p.item_id:
         await product_queue.requeue_products(session, shop_id, [p.item_id], now)
+    return await get_plan(session, shop_id, plan.id, now=now)
+
+
+async def _refuse_second_exclusive(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    current: list[tuple[ShopRecoPlanCard, ShopProposal]],
+    proposal: ShopProposal,
+    payload: Mapping[str, Any],
+) -> None:
+    """Only one value of an exclusive field (giá, tên, ảnh bìa, ngân sách ...) can be live, so a
+    second option on the same field is refused with a Vietnamese message. The plan has no group
+    model (P94's Nhóm A lives on a single card's approval), so the person removes the other card
+    or runs this one after the plan."""
+    mine = exclusive_key(payload)
+    if mine is None:
+        return
+    for _, other in current:
+        if other.id == proposal.id:
+            continue
+        theirs = exclusive_key(await store.card_payload(session, shop_id, other.id) or {})
+        if theirs is not None and theirs[:2] == mine[:2]:
+            raise ProposalError(
+                ERROR_EXCLUSIVE,
+                422,
+                f"Kế hoạch đã có thẻ {other.code} đổi {mine[2]} của cùng đối tượng. "
+                f"Mỗi lần chỉ giữ một giá trị cho {mine[2]}: hãy bỏ thẻ {other.code} khỏi kế hoạch "
+                "hoặc thêm thẻ này vào kế hoạch sau khi kế hoạch hiện tại chạy xong.",
+            )
+
+
+async def refresh_base(
+    session: AsyncSession, shop_id: uuid.UUID, *, actor: manual.Actor, now: datetime
+) -> dict[str, Any]:
+    """ "Cập nhật số": move the draft plan's base to the newest complete day (the only way the
+    base moves); writes the next snapshot version."""
+    now = _naive(now)
+    plan = await _require_draft(session, shop_id)
+    env = await load_env(session, shop_id, now=now)
+    if env is None:
+        raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
+    plan.as_of = env.as_of
+    plan.updated_at = now
+    await plan_base.write(session, shop_id, plan.id, env, actor.json(), now)
+    await session.flush()
     return await get_plan(session, shop_id, plan.id, now=now)
 
 
@@ -554,7 +670,7 @@ async def whatif(
     payload = await store.card_payload(session, shop_id, p.id) or {}
     service.check_title_input(payload, inputs)
     merged = {**(row.inputs or {}), **inputs}
-    env = await load_env(session, shop_id, now=now)
+    env = await _env_for(session, shop_id, plan, now)
     if env is None:
         raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
     entry = Entry(str(p.id), p.code, {**payload, "code": p.code}, int(row.chosen_version), merged)
@@ -659,10 +775,16 @@ async def confirm(
     when = planned_date or now.date()
     if when < now.date():
         raise ProposalError(ERROR_DATE, 422, "the planned date is in the past")
-    env = await load_env(session, shop_id, now=now)
+    env = await _env_for(session, shop_id, plan, now)
     if env is None:
         raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
-    agg, evs = aggregate(env, await _entries(session, shop_id, rows), now=now)
+    snap = await plan_base.latest(session, shop_id, plan.id)
+    agg, evs = aggregate(
+        env,
+        await _entries(session, shop_id, rows),
+        now=now,
+        base=None if snap is None else snap.base,
+    )
     if agg.get("unavailable_cards"):
         bad = agg["unavailable_cards"]
         raise ProposalError(service.ERROR_BAD_INPUT, 422, f"cards that cannot be evaluated: {bad}")
@@ -838,6 +960,7 @@ __all__ = [
     "list_plans",
     "on_executed",
     "plan_by_code",
+    "refresh_base",
     "remove_card",
     "set_window",
     "switch_version",

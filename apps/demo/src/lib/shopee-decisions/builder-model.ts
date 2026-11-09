@@ -208,7 +208,7 @@ const METRICS: readonly MetricDef[] = [
     key: "bien",
     label: "Biên",
     sub: "lợi nhuận ÷ tiền khách trả",
-    delta: "margin_points_p25",
+    delta: "margin_points_p50",
     good: 1,
     today: (c) => (num(todayOf(c).margin_pct) ? pp(todayOf(c).margin_pct, 1) : DASH),
     cell: (c, d) => {
@@ -221,7 +221,7 @@ const METRICS: readonly MetricDef[] = [
     key: "aov",
     label: "AOV",
     sub: "GMV ÷ số đơn",
-    delta: "aov_p25",
+    delta: "aov_p50",
     good: 1,
     today: (c) => (num(todayOf(c).aov) ? vnd(roundK(todayOf(c).aov as number)) : DASH),
     cell: (c, d) => (num(todayOf(c).aov) ? vnd(roundK((todayOf(c).aov as number) + d)) : DASH),
@@ -322,8 +322,8 @@ export function tradeoffs(result: CompareResult, sent: readonly Sendable[]): str
   for (const x of rows.slice(1)) {
     const between = result.between.find((b) => b.from === ref.row!.index && b.to === x.row!.index);
     if (!between) continue;
-    const dBien = between.delta["margin_points_p25"];
-    const dAov = between.delta["aov_p25"];
+    const dBien = between.delta["margin_points_p50"];
+    const dAov = between.delta["aov_p50"];
     if (num(dBien) && num(dAov) && dBien < 0 && dAov > 0) {
       out.push(
         `P${x.editor + 1} so với P${ref.editor + 1}: biên giảm ${fmt(Math.abs(dBien), 1)} điểm nhưng AOV tăng ${vnd(roundK(dAov))}, GMV ${svk(between.delta["dgmv_p50"])}, lợi nhuận ${svk(between.delta["dprofit_p50"])} trong kỳ tính. Chọn theo việc bạn cần: lợi nhuận hay doanh thu.`,

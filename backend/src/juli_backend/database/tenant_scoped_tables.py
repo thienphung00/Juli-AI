@@ -166,6 +166,11 @@ TABLE_CLASSIFICATION_MAP = {
     # P96 (migration 122): affiliate order lines of the conversion report, stored on their own
     # (the KOL tab no longer needs the order export); same hashed order ref, KOL handle only.
     ("public", "shopee_affiliate_lines"): "tenant_direct",
+    # P97 D85.2 / D85.4 (migration 123): the materialized shop and product metrics per day and
+    # the frozen base of a draft plan.
+    ("public", "shopee_shop_metrics_daily"): "tenant_direct",
+    ("public", "shopee_product_metrics_daily"): "tenant_direct",
+    ("public", "shopee_plan_base_snapshots"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",

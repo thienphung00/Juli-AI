@@ -198,6 +198,7 @@ export function fakePlan(first: PlanResponse = plan(), next: Next = {}): FakePla
     whatIf: (...a) => run("whatIf", ...a),
     setWindow: (...a) => run("setWindow", ...a),
     confirm: (...a) => run("confirm", ...a),
+    refreshBase: (...a) => run("refreshBase", ...a),
     setChangeSetWindow: async (id, days) => {
       calls.push({ name: "setChangeSetWindow", args: [id, days] });
       return first.change_sets[0] ?? ({ id, window_days: days } as never);

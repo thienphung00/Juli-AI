@@ -42,9 +42,8 @@ def _gap(crit: dict[str, Any] | None) -> float | None:
 
 
 def _shop_aov(env: RecoEnv) -> Decimal:
-    orders = len({ln.order_id for ln, _ in env.view.pairs})
-    gmv = sum((ln.order_value for ln, _ in env.view.pairs), ZERO)
-    return gmv / orders if orders else ZERO
+    """The one AOV (D85.2): shop GMV ÷ shop đơn, the number every screen shows."""
+    return env.metrics.aov or ZERO
 
 
 def _mk(

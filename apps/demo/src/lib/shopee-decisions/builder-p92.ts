@@ -1,5 +1,5 @@
 import { DASH, fmt, pp, sv, vnd } from "../shopee-analytics/format";
-import type { Band, BuilderOutcome, BuilderVersion, BuilderWarning, CoverOverlay, PickerProduct, VariationRow } from "./builder-api";
+import type { Band, BeforeAfterRow, BuilderOutcome, BuilderVersion, BuilderWarning, CoverOverlay, PickerProduct, VariationRow } from "./builder-api";
 
 /**
  * Tự tạo phương án (P92): the form state of each strategy, and how it becomes a version of
@@ -511,6 +511,15 @@ export function metricValue(unit: string, n: number | null): string {
   if (unit === "pct") return pp(n, 2);
   if (unit === "ratio") return fmt(n, 1);
   return fmt(Math.round(n));
+}
+
+/** One before -> after row as a person reads it: "1.200.000đ → 1.350.000đ (1.300.000đ – 1.420.000đ)", or
+ * "không đổi" with the reason when the lever has no modelled effect on the metric (D85.9). */
+export function beforeAfterText(row: BeforeAfterRow): { readonly main: string; readonly range: string | null; readonly unchanged: boolean } {
+  const show = (n: number | null) => metricValue(row.unit, n);
+  if (row.unchanged) return { main: `${show(row.before)} · không đổi`, range: row.reason, unchanged: true };
+  if (!row.after || row.after.p50 === null) return { main: `${show(row.before)} → ${DASH}`, range: row.reason ?? "không đủ dữ liệu", unchanged: false };
+  return { main: `${show(row.before)} → ${show(row.after.p50)}`, range: `${show(row.after.low)} – ${show(row.after.high)}`, unchanged: false };
 }
 
 export function breakEvenText(o: BuilderOutcome): string {
