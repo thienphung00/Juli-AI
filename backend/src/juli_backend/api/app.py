@@ -64,6 +64,7 @@ from juli_backend.api.routes.ops_shopee_analytics import router as ops_shopee_an
 from juli_backend.api.routes.ops_shopee_backtest import router as ops_shopee_backtest_router
 from juli_backend.api.routes.ops_shopee_builder import router as ops_shopee_builder_router
 from juli_backend.api.routes.ops_shopee_dashboards import router as ops_shopee_dashboards_router
+from juli_backend.api.routes.ops_shopee_funnel import router as ops_shopee_funnel_router
 from juli_backend.api.routes.ops_shopee_keywords import router as ops_shopee_keywords_router
 from juli_backend.api.routes.ops_shopee_kpi import router as ops_shopee_kpi_router
 from juli_backend.api.routes.ops_shopee_market import router as ops_shopee_market_router
@@ -187,6 +188,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_shopee_kpi_router)
     v1_router.include_router(ops_shopee_dashboards_router)
     v1_router.include_router(ops_shopee_keywords_router)
+    v1_router.include_router(ops_shopee_funnel_router)
     v1_router.include_router(ops_shopee_orders_router)
     v1_router.include_router(ops_shop_inputs_router)
     v1_router.include_router(ops_shopee_analytics_router)
