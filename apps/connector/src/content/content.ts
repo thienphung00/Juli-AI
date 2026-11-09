@@ -24,7 +24,13 @@ window.addEventListener("message", (event: MessageEvent) => {
       .catch(() => undefined);
   } else if (data.kind === "reader-result") {
     void chrome.runtime
-      .sendMessage({ type: "reader-result", job: data.job, status: data.status, responses: data.responses })
+      .sendMessage({
+        type: "reader-result",
+        job: data.job,
+        status: data.status,
+        detail: data.detail,
+        responses: data.responses,
+      })
       .catch(() => undefined);
   }
 });

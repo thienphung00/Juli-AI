@@ -373,10 +373,20 @@ async function runReader(job: ReaderJob): Promise<void> {
     passwordModalVisible,
     mydataHeaders: () => mydataHeaders,
     pathname: () => location.pathname,
+    // The shared daily request budget: what the service worker granted this job.
+    ...(typeof job.budget === "number" ? { budget: { left: job.budget } } : {}),
+    pause: sleep,
   };
   const outcome = await runReaderJob(job, env);
   window.postMessage(
-    { channel: CHANNEL, kind: "reader-result", job: job.id, status: outcome.status, responses: outcome.responses },
+    {
+      channel: CHANNEL,
+      kind: "reader-result",
+      job: job.id,
+      status: outcome.status,
+      detail: outcome.detail,
+      responses: outcome.responses,
+    },
     SELLER_CENTRE_ORIGIN,
   );
 }
@@ -399,7 +409,15 @@ window.addEventListener("message", (event: MessageEvent) => {
 });
 
 function isReaderJob(value: unknown): value is ReaderJob {
-  const job = value as { id?: unknown; days?: unknown; itemIds?: unknown; campaignIds?: unknown } | null;
+  const job = value as {
+    id?: unknown;
+    days?: unknown;
+    itemIds?: unknown;
+    campaignIds?: unknown;
+    orderIds?: unknown;
+    orderSns?: unknown;
+    budget?: unknown;
+  } | null;
   const digitList = (list: unknown) =>
     list === undefined || (Array.isArray(list) && list.every((id) => typeof id === "string" && /^\d{1,32}$/.test(id)));
   return (
@@ -409,6 +427,9 @@ function isReaderJob(value: unknown): value is ReaderJob {
     (READER_IDS as readonly string[]).includes(job.id) &&
     digitList(job.itemIds) &&
     digitList(job.campaignIds) &&
+    digitList(job.orderIds) &&
+    (job.orderSns === undefined || (Array.isArray(job.orderSns) && job.orderSns.every((sn) => typeof sn === "string" && /^[A-Za-z0-9]{0,40}$/.test(sn)))) &&
+    (job.budget === undefined || (typeof job.budget === "number" && Number.isFinite(job.budget) && job.budget >= 0)) &&
     (job.days === undefined || (Array.isArray(job.days) && job.days.every((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))))
   );
 }

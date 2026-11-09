@@ -39,6 +39,21 @@ export const READER_ENDPOINTS = {
   ads_roi_recommend: { method: "POST", path: "/api/pas/v1/setup_helper/get_recommended_roi_two_target/", capture: true },
   ads_budget_edit: { method: "POST", path: "/api/pas/v1/setup_helper/get_budget_data_for_edit/", capture: true },
   ads_expense_stats: { method: "POST", path: "/api/pas/v1/setup_helper/get_campaign_expense_statistics/", capture: true },
+  // -- shop totals (Connector 0.3.11, recon 2026-11-09): Phân tích bán hàng › Tổng quan. Replayed
+  // (GET) for a date range from the page's own call.
+  shop_key_metrics: { method: "GET", path: "/api/mydata/v3/dashboard/key-metrics/" },
+  shop_order_performance: { method: "GET", path: "/api/mydata/dashboard/order-performance/" },
+  // -- order list (recon 2026-11-09): the page's own answers are kept (trimmed in the page: buyer
+  // name, address and phone never leave it); later list pages are replayed from the page's template.
+  order_search: { method: "POST", path: "/api/v3/order/search_order_list_index", capture: true },
+  order_cards: { method: "POST", path: "/api/v3/order/get_order_list_card_list", capture: true },
+  // -- per-order income (recon 2026-11-09): one GET per completed order, captured from the order
+  // page the scheduler opened, replayed for the others with only the order id changed.
+  order_income_components: {
+    method: "GET",
+    path: "/api/v4/accounting/pc/seller_income/income_detail/get_order_income_components",
+    capture: true,
+  },
   voucher_list: { method: "GET", path: "/api/marketing/v3/voucher/list/" },
   traffic_details: { method: "GET", path: "/api/mydata/v1/product/traffic/details/" },
   health_overview: { method: "GET", path: "/api/accounthealth/v1/sc/shops/overview" },
@@ -104,6 +119,10 @@ export const READER_PAGES: Record<ReaderId, { path: string }> = {
   // The prefix of every campaign edit page; readerPageUrl names the campaign.
   ads_detail: { path: "/portal/marketing/pas/product/" },
   health: { path: "/portal/accounthealth" },
+  shop_totals: { path: "/datacenter/overview" },
+  orders: { path: "/portal/sale/order" },
+  // The prefix of every order page; readerPageUrl names the order.
+  order_income: { path: "/portal/sale/order/" },
   affiliate: { path: "/portal/web-seller-affiliate/conversion_report" },
   affiliate_kols: { path: "/portal/web-seller-affiliate/affiliate_analytics" },
   affiliate_dashboard: { path: "/portal/web-seller-affiliate/dashboard" },
@@ -129,8 +148,20 @@ export function isReadOnlyPasPath(pathname: string): boolean {
   return /^(get|query|list)(_|$)/.test(last);
 }
 
+/** The only order-service paths the Connector replays: both are list / search reads. */
+export function isReadOnlyOrderPath(pathname: string): boolean {
+  const last = pathname.replace(/\/+$/, "").split("/").pop() ?? "";
+  return pathname.startsWith("/api/v3/order/") && /^(search_|get_)[a-z_]*list/.test(last);
+}
+
 /** The page a reader job opens: the campaign's own edit page for ads_detail, else the reader's page. */
-export function readerPageUrl(job: { id: ReaderId; campaignIds?: string[]; campaignKinds?: string[] }): string {
+export function readerPageUrl(job: {
+  id: ReaderId;
+  campaignIds?: string[];
+  campaignKinds?: string[];
+  orderIds?: string[];
+}): string {
+  if (job.id === "order_income") return `${READER_PAGES.order_income.path}${job.orderIds?.[0] ?? ""}`;
   if (job.id === "ads_detail") {
     const id = job.campaignIds?.[0] ?? "";
     const kind = job.campaignKinds?.[0] === "mpd" ? "manual-mpd" : "manual";

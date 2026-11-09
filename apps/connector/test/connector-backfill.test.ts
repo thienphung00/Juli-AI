@@ -42,6 +42,11 @@ class FakeClient extends GatewayClient {
   async reportDrift() {
     return {};
   }
+  events: { reader: string; page: string; status: string; code?: string }[] = [];
+  async connectorEvent(_token: string, event: { reader: string; page: string; status: string; code?: string; at: string }) {
+    this.events.push(event);
+    return {};
+  }
 }
 
 interface BackfillMessage {
@@ -199,12 +204,38 @@ describe("30-day backfill", () => {
     expect(await t.connector.backfillResult(message.day, "done", results)).toBe("stopped:session");
     expect(await t.connector.backfillStep()).toBe("stopped");
     expect(backfillLabel(backfillOf(t.storage))).toContain("đăng nhập lại Seller Centre");
+    // P97: a 403 is a verification wall -- it halts every reader for the shop and Ops is told.
+    expect((t.storage.data.readers as { blocked?: { reason: string } }).blocked?.reason).toBe("captcha");
+    expect(t.client.events.map((e) => e.status)).toEqual(["captcha"]);
+  });
+
+  it("stops on a Seller Centre session error (401) until the page loads data again", async () => {
+    const t = setup();
+    await t.connector.backfillStep();
+    const message = t.sent[0]!;
+    const results = answer(message, t.clock.now, { traffic_overview: { status: 401, body: null } }).slice(0, 1);
+    expect(await t.connector.backfillResult(message.day, "done", results)).toBe("stopped:session");
+    expect(await t.connector.backfillStep()).toBe("stopped");
     // A login page (HTML, not JSON) is a session error too.
     const url = `${SC}/api/mydata/traffic/dashboard/overview/?period=day&dt=20261001`;
     await t.connector.pageCapture({ url, body: { code: 0, msg: "ok", result: shopTraffic.result }, capturedAt: t.clock.now });
     expect(await t.connector.backfillStep()).toBe("requested");
     const login = answer(t.sent[1]!, t.clock.now, { traffic_overview: { status: 200, body: null } }).slice(0, 1);
     expect(await t.connector.backfillResult(t.sent[1]!.day, "done", login)).toBe("stopped:session");
+    expect(t.client.events).toEqual([]);
+  });
+
+  it("a 429 halts every reader, tells Juli, and nothing is sent until the cool-down ends", async () => {
+    const t = setup();
+    await t.connector.backfillStep();
+    const message = t.sent[0]!;
+    const results = answer(message, t.clock.now, { traffic_overview: { status: 429, body: {} } }).slice(0, 1);
+    await t.connector.backfillResult(message.day, "done", results);
+    expect(t.client.events.map((e) => [e.status, e.reader])).toEqual([["rate_limit", "backfill"]]);
+    expect(await t.connector.backfillStep()).toBe("stopped");
+    expect(await t.connector.dailySync()).toBe("blocked");
+    t.clock.now += 73 * 3_600_000;
+    expect(await t.connector.dailySync()).not.toBe("blocked");
   });
 
   it("stops on a Juli 401 (token gone) and resumes the same shop after pairing again", async () => {

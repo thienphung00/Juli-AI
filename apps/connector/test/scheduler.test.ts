@@ -8,8 +8,10 @@ import {
   READER_PAGE_GAP_JITTER_MS,
   READER_PAGE_GAP_MS,
   type ReaderDataset,
+  type ReaderId,
 } from "../src/config";
 import {
+  type BlockEvent,
   READER_WATCHDOG_ALARM,
   ReaderScheduler,
   planJobs,
@@ -87,30 +89,36 @@ class FakeAlarms implements SchedulerAlarms {
   }
 }
 
-function setup(options: { token?: boolean; backfillBusy?: boolean } = {}) {
+function setup(options: { token?: boolean; backfillBusy?: boolean; readers?: readonly ReaderId[] } = {}) {
   const storage = new MemoryStorage();
   const tabs = new FakeTabs();
   const alarms = new FakeAlarms();
   const posted: { job: ReaderJob; responses: ReaderResponse[] }[] = [];
+  const events: BlockEvent[] = [];
   const clock = { now: T0 };
   const flags = {
     backfillBusy: options.backfillBusy ?? false,
     /** How each ads day's upload ends (default "posted"), keyed like the real sink. */
     adsOutcome: {} as Record<string, string>,
+    totalsOutcome: "posted",
   };
   const scheduler = new ReaderScheduler({
     storage,
     tabs,
     alarms,
-    readers: CORE_READERS,
+    readers: options.readers ?? CORE_READERS,
     origin: SC,
     version: "0.3.4",
     now: () => clock.now,
     random: () => 0.5,
     backfillBusy: async () => flags.backfillBusy,
     sink: {
+      async reportBlock(event) {
+        events.push(event);
+      },
       async postReader(job, responses) {
         posted.push({ job, responses });
+        if (job.id === "shop_totals") return { "shop_overview:confirmed": flags.totalsOutcome };
         if (job.id === "ads") {
           return Object.fromEntries(
             (job.days ?? []).map((day) => [`ads_campaign_daily:${day}`, flags.adsOutcome[day] ?? "posted"]),
@@ -122,7 +130,7 @@ function setup(options: { token?: boolean; backfillBusy?: boolean } = {}) {
   });
   if (options.token !== false) storage.data.token = TOKEN;
   const read = async () => (await loadState(storage)).readers;
-  return { scheduler, storage, tabs, alarms, posted, clock, flags, read };
+  return { scheduler, storage, tabs, alarms, posted, events, clock, flags, read };
 }
 
 /** The ads list's answer for each day (one campaign), as the hook returns it. */
@@ -181,6 +189,9 @@ describe("planJobs", () => {
       "ads",
       "ads_detail",
       "health",
+      "shop_totals",
+      "orders",
+      "order_income",
       "affiliate",
       "affiliate_kols",
       "affiliate_dashboard",
@@ -256,7 +267,7 @@ describe("a daily run", () => {
     // tab ready -> the job is sent to that tab
     const first = ctx.tabs.current;
     expect(await ctx.scheduler.onTabReady(first.id, first.url)).toBe(true);
-    expect(ctx.tabs.sent).toEqual([{ tabId: first.id, message: { type: "reader-job", job: { id: "products" } } }]);
+    expect(ctx.tabs.sent).toEqual([{ tabId: first.id, message: { type: "reader-job", job: { id: "products", budget: 390 } } }]);
     // a second "ready" from a reload does not send it again
     await ctx.scheduler.onTabReady(first.id, first.url);
     expect(ctx.tabs.sent).toHaveLength(1);
@@ -315,7 +326,7 @@ describe("a daily run", () => {
     await ctx.scheduler.onTabReady(tab.id, tab.url);
     expect(ctx.tabs.sent.at(-1)?.message).toEqual({
       type: "reader-job",
-      job: { id: "ads", days: ["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"] },
+      job: { id: "ads", days: ["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"], budget: expect.any(Number) },
     });
     await ctx.scheduler.onResult(tab.id, {
       job: "ads",
@@ -354,7 +365,7 @@ describe("a daily run", () => {
     expect(tab.url).toBe(`${SC}/datacenter/product/traffic`);
     expect(await ctx.scheduler.onTabReady(tab.id, tab.url)).toBe(true);
     const days = ["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"];
-    expect(ctx.tabs.sent.at(-1)?.message).toEqual({ type: "reader-job", job: { id: "item_traffic", days, itemIds: ["11", "12"] } });
+    expect(ctx.tabs.sent.at(-1)?.message).toEqual({ type: "reader-job", job: { id: "item_traffic", days, itemIds: ["11", "12"], budget: expect.any(Number) } });
 
     // day 2026-11-02 read for both items, 2026-11-01 for one only: only the first is done
     const answer = (day: string, itemId: string) => ({
@@ -661,5 +672,194 @@ describe("P96c: an ads day is read only when its upload landed", () => {
     const before = ctx.tabs.opened.length;
     await ctx.scheduler.tick({ manual: true });
     expect(ctx.tabs.opened.length).toBe(before);
+  });
+});
+
+
+// -- P97 T1: shop totals, orders, income, the shared request budget and the rate-limit stop -------
+
+const P97_READERS = ["shop_totals", "orders", "order_income"] as const;
+
+function orderCard(id: string, completedSeconds: number) {
+  return {
+    endpoint: "order_cards",
+    url: "u",
+    status: 200,
+    capturedAt: T0,
+    source: "page",
+    body: {
+      code: 0,
+      data: {
+        list: [
+          {
+            order_id: id,
+            status: "completed",
+            create_time: completedSeconds - 86_400,
+            complete_time: completedSeconds,
+            items: [{ item_id: 1, quantity: 1, original_price: 10_000, order_price: 10_000 }],
+          },
+        ],
+      },
+    },
+  };
+}
+
+describe("P97: shop totals, order lines and income in the plan", () => {
+  const base = { shopId: PILOT, nowMs: T0, stopped: new Set<never>(), adsDone: [] as string[], readers: P97_READERS };
+
+  it("shop totals: 30 finished days before the shop is backfilled, then the last 7, once a day", () => {
+    const first = planJobs({ ...base }).find((j) => j.id === "shop_totals");
+    expect(first?.days).toHaveLength(30);
+    expect(first?.days?.[0]).toBe("2026-11-02");
+    const refresh = planJobs({ ...base, totalsBackfilled: true }).find((j) => j.id === "shop_totals");
+    expect(refresh?.days).toHaveLength(7);
+    expect(planJobs({ ...base, totalsDay: "2026-11-03" }).some((j) => j.id === "shop_totals")).toBe(false);
+  });
+
+  it("orders and income once a day, income right after orders (it opens nothing with no order waiting)", () => {
+    expect(planJobs({ ...base }).map((j) => j.id)).toEqual(["shop_totals", "orders", "order_income"]);
+    expect(planJobs({ ...base, ordersDay: "2026-11-03" }).map((j) => j.id)).toEqual(["shop_totals", "order_income"]);
+    expect(planJobs({ ...base, incomeDay: "2026-11-03" }).map((j) => j.id)).toEqual(["shop_totals", "orders"]);
+  });
+});
+
+describe("P97: the day's flow, income queue and bookkeeping", () => {
+  it("totals mark the shop backfilled; orders queue only orders completed since the last run; income reads oldest first, <= 100", async () => {
+    const ctx = setup({ readers: P97_READERS });
+    await ctx.scheduler.tick();
+    await finishPage(ctx); // shop_totals (30 days)
+    expect((await ctx.read())?.totalsDay).toBe("2026-11-03");
+    expect((await ctx.read())?.totalsBackfilledShop).toBe(PILOT);
+    ctx.clock.now += GAP;
+    await ctx.scheduler.tick();
+    // first run: orders completed in the last 3 days only (never a historical sweep)
+    const recent = Math.floor(T0 / 1000) - 3600;
+    const old = Math.floor(T0 / 1000) - 10 * 86_400;
+    await finishPage(ctx, "done", [orderCard("2611010AAA", recent), orderCard("2610240BBB", old)]);
+    expect((await ctx.read())?.incomeQueue?.map((o) => o.id)).toEqual(["2611010AAA"]);
+    expect((await ctx.read())?.ordersDay).toBe("2026-11-03");
+    ctx.clock.now += GAP;
+    await ctx.scheduler.tick();
+    expect(ctx.tabs.current.url).toBe(`${SC}/portal/sale/order/2611010AAA`);
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ type: "reader-job", job: { id: "order_income", orderIds: ["2611010AAA"] } });
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses: [] });
+    expect((await ctx.read())?.incomeQueue).toEqual([]);
+    expect((await ctx.read())?.incomeDay).toBe("2026-11-03");
+  });
+
+  it("a day with an unposted totals read is planned again", async () => {
+    const ctx = setup({ readers: ["shop_totals"] });
+    ctx.flags.totalsOutcome = "drift";
+    await ctx.scheduler.tick();
+    await finishPage(ctx);
+    expect((await ctx.read())?.totalsDay).toBeUndefined();
+  });
+
+  it("income takes at most 100 orders, oldest first", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    const queue = Array.from({ length: 150 }, (_, i) => ({ id: `26110${String(1000 + i)}`, completedAt: T0 - 1000 + i }));
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: queue };
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    const job = (ctx.tabs.sent.at(-1)?.message as { job: { orderIds: string[] } }).job;
+    expect(job.orderIds).toHaveLength(100);
+    expect(job.orderIds[0]).toBe("261101000");
+  });
+});
+
+describe("P97: shared daily request budget", () => {
+  it("the job is told what is left; replayed requests are counted, page-made answers are not", async () => {
+    const ctx = setup({ readers: ["shop_totals"] });
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ job: { id: "shop_totals", budget: 390 } });
+    const replay = (n: number) => Array.from({ length: n }, () => ({ endpoint: "shop_key_metrics", url: "u", status: 200, capturedAt: T0, source: "replay", body: { code: 0, data: {} } }));
+    await ctx.scheduler.onResult(tab.id, { job: "shop_totals", status: "done", responses: [...replay(2), { ...replay(1)[0], source: "page" }] });
+    expect(((await loadState(ctx.storage as never)).budget)).toEqual({ day: "2026-11-03", used: 12 });
+  });
+
+  it("when the budget is spent no page is opened and the remaining jobs wait for tomorrow", async () => {
+    const ctx = setup({ readers: ["shop_totals", "orders"] });
+    ctx.storage.data.budget = { day: "2026-11-03", used: 395 };
+    expect(await ctx.scheduler.tick()).toBe("budget_spent");
+    expect(ctx.tabs.opened).toHaveLength(0);
+    expect((await ctx.read())?.lastRun?.outcomes).toEqual({ shop_totals: "waiting_budget", orders: "waiting_budget" });
+    // the next GMT+7 day starts with a fresh budget
+    ctx.clock.now += 24 * 3_600_000;
+    expect(await ctx.scheduler.tick()).toBe("opened");
+  });
+
+  it("a job that runs the budget dry (budget_spent from the page) closes the tab and the rest waits", async () => {
+    const ctx = setup({ readers: ["shop_totals", "orders"] });
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "shop_totals", status: "budget_spent", responses: [] });
+    expect(ctx.tabs.closed).toContain(tab.id);
+    expect((await ctx.read())?.run).toBeUndefined();
+    expect((await ctx.read())?.lastRun?.outcomes).toMatchObject({ shop_totals: "waiting_budget", orders: "waiting_budget" });
+  });
+});
+
+describe("P97: a rate-limit stop halts every reader and is told to Juli", () => {
+  it("blocked_rate: the run stops, the block is rate_limit for the CAPTCHA cool-down, one event is posted", async () => {
+    const ctx = setup({ readers: ["shop_totals", "orders"] });
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "shop_totals", status: "blocked_rate", detail: "http_429", responses: [] } as never);
+    const sched = await ctx.read();
+    expect(sched?.blocked).toMatchObject({ reason: "rate_limit", page: "shop_totals", until: T0 + READER_BLOCK_CAPTCHA_MS });
+    expect(sched?.run).toBeUndefined();
+    expect(ctx.events).toEqual([
+      { reader: "shop_totals", page: "/datacenter/overview", status: "rate_limit", code: "http_429", at: new Date(T0).toISOString() },
+    ]);
+    ctx.clock.now += GAP;
+    expect(await ctx.scheduler.tick()).toBe("blocked");
+    expect(ctx.tabs.opened).toHaveLength(1);
+  });
+
+  it("'Đồng bộ' lifts a CAPTCHA block but not a rate-limit block", async () => {
+    const ctx = setup({ readers: ["shop_totals"] });
+    await saveState(ctx.storage as never, { readers: { adsDone: [], trafficDone: [], blocked: { at: "x", reason: "rate_limit", page: "orders", until: T0 + 1000 } } });
+    await ctx.scheduler.clearBlock();
+    expect((await ctx.read())?.blocked?.reason).toBe("rate_limit");
+    await saveState(ctx.storage as never, { readers: { adsDone: [], trafficDone: [], blocked: { at: "x", reason: "captcha", page: "orders", until: T0 + 1000 } } });
+    await ctx.scheduler.clearBlock();
+    expect((await ctx.read())?.blocked).toBeUndefined();
+  });
+
+  it("CAPTCHA and login walls are told to Juli too", async () => {
+    const ctx = setup({ readers: ["shop_totals"] });
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "shop_totals", status: "blocked_captcha", responses: [] });
+    expect(ctx.events.map((e) => e.status)).toEqual(["captcha"]);
+  });
+
+  it("a failed event post never changes the stop", async () => {
+    const ctx = setup({ readers: ["shop_totals"] });
+    (ctx.scheduler as unknown as { deps: { sink: { reportBlock: () => Promise<void> } } }).deps.sink.reportBlock = async () => {
+      throw new Error("offline");
+    };
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "shop_totals", status: "blocked_rate", responses: [] });
+    expect((await ctx.read())?.blocked?.reason).toBe("rate_limit");
+  });
+});
+
+describe("P97: an empty income queue opens no page", () => {
+  it("the income job is skipped with no_orders", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    expect(await ctx.scheduler.tick()).toBe("finished");
+    expect(ctx.tabs.opened).toHaveLength(0);
+    expect((await ctx.read())?.lastRun?.outcomes).toEqual({ order_income: "no_orders" });
   });
 });

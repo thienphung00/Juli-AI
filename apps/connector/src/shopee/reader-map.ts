@@ -10,6 +10,8 @@
 
 import { ADS_TARGET_DIVISOR, MAX_PLAUSIBLE_AD_VND, MAX_PLAUSIBLE_PRICE_VND, MONEY_DIVISOR } from "../config";
 import { mapAffiliateJob } from "./affiliate-map";
+import { mapOrderIncome, mapOrderLines } from "./orders-map";
+import { mapShopTotals } from "./totals-map";
 import type { Drift, Mapped, Row } from "./map";
 import {
   classify,
@@ -889,6 +891,12 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
       return [mapVoucherList(responses, capturedAt)];
     case "health":
       return [mapShopHealth(responses, capturedAt)];
+    case "shop_totals":
+      return mapShopTotals(responses, capturedAt);
+    case "orders":
+      return [mapOrderLines(responses, capturedAt)];
+    case "order_income":
+      return [mapOrderIncome(responses, capturedAt)];
     default:
       return [];
   }

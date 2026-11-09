@@ -49,7 +49,10 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     create: (name, info) => chrome.alarms.create(name, info),
     clear: (name) => chrome.alarms.clear(name),
   },
-  sink: { postReader: (job, responses) => connector.postReader(job, responses) },
+  sink: {
+    postReader: (job, responses) => connector.postReader(job, responses),
+    reportBlock: (event) => connector.reportBlock(event),
+  },
   backfillBusy: async () => (await connector.backfillInFlight()) || (await market.isBusy()),
   later: (ms, fn) => void setTimeout(fn, ms),
 });
@@ -228,7 +231,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!senderMatches(sender.tab?.url, code, itemId)) return respond(Promise.resolve({ ok: false, reason: "inactive" }));
       return respond(fillRequest({ storage: chrome.storage.local, client: gateway }, code, itemId));
     }
-    if (msg.type === "sync-result") return respond(connector.syncResult(String(msg.status)));
+    if (msg.type === "sync-result") return respond(connector.syncResult(String(msg.status), Number(msg.sent) || 0));
     if (msg.type === "backfill-result") {
       const results = Array.isArray(msg.results) ? (msg.results as RequestResult[]) : [];
       return respond(thenBackfill(connector.backfillResult(String(msg.day), String(msg.status), results)));
