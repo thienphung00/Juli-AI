@@ -767,6 +767,24 @@ describe("P97: the day's flow, income queue and bookkeeping", () => {
     expect((await ctx.read())?.incomeDay).toBe("2026-11-03");
   });
 
+  it("keeps the hook's detail with the outcome (trimmed) and a partial done note", async () => {
+    const ctx = setup({ readers: ["shop_totals"] });
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "shop_totals", status: "error", detail: `order_search:http_500${" x".repeat(100)}`, responses: [] });
+    const outcome = (await ctx.read())?.lastRun?.outcomes.shop_totals as string;
+    expect(outcome.startsWith("error:order_search:http_500")).toBe(true);
+    expect(outcome.length).toBeLessThanOrEqual("error:".length + 80);
+
+    const ctx2 = setup({ readers: ["shop_totals"] });
+    await ctx2.scheduler.tick();
+    const tab2 = ctx2.tabs.current;
+    await ctx2.scheduler.onTabReady(tab2.id, tab2.url);
+    await ctx2.scheduler.onResult(tab2.id, { job: "shop_totals", status: "done", detail: "partial:order_search:http_500", responses: [] });
+    expect(((await ctx2.read())?.lastRun?.outcomes.shop_totals as string).endsWith("|partial:order_search:http_500")).toBe(true);
+  });
+
   it("a day with an unposted totals read is planned again", async () => {
     const ctx = setup({ readers: ["shop_totals"] });
     ctx.flags.totalsOutcome = "drift";

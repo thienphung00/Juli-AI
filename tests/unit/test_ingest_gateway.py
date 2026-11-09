@@ -431,6 +431,35 @@ async def test_status_lists_every_dataset_with_the_last_ingest(session):
     assert status[0]["last_ingest_at"] is None
 
 
+async def test_a_drift_flag_of_an_older_version_reads_ok_once_a_newer_one_posted(session):
+    _, shop = await _shopee_tenant(session)
+    await svc.report_drift(
+        session,
+        shop_id=shop.id,
+        report=svc.DriftReport(
+            platform="shopee",
+            dataset="traffic_overview",
+            state="drift",
+            source_version="0.1.0",
+            endpoint="/x",
+            unexpected=[],
+            missing=["a"],
+        ),
+        now=NOW,
+    )
+    await _ingest(
+        session,
+        shop,
+        "traffic_overview",
+        _body([_source_row("psd_label_product_card")], source_version="0.1.1"),
+    )
+    status = await svc.dataset_status(session, shop_id=shop.id, platform="shopee")
+    entry = next(s for s in status if s["dataset"] == "traffic_overview")
+    assert entry["drift"] == "ok"
+    assert entry["drift_source_version"] == "0.1.0"
+    assert entry["drift_detail"]["missing"] == ["a"]
+
+
 # -- pairing ----------------------------------------------------------------------------
 
 
