@@ -1841,4 +1841,8 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      captured. Voucher → Combo → Quảng cáo → Affiliate, each after a read-only recon of its form.
   7. Local p96 Connector work ships as 0.3.11 on top of production 0.3.10.
   8. So sánh shows before → after for GMV, biên, đơn, AOV, CTOR, CTR, lượt xem.
-  9. Open: headline quantile (recommended P50 + P10–P90 everywhere).
+  9. Headline estimate = P50 with the P10–P90 range on every screen.
+  10. Tự tạo phương án compares and runs many strategies: one table picker, one card with many targets,
+      P94 groups brought into P97 ("Chạy cùng nhau").
+  11. Combo khuyến mãi reshaped to Shopee's tiers; Listing combo mới its own kind; ads levers = Shopee's
+      edit form (budget ≥ ₫100.000, ROAS), keyword bids removed.

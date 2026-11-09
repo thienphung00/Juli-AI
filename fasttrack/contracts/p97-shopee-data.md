@@ -56,8 +56,31 @@ have to be typed into Seller Centre by hand for every kind except title and desc
 9. **So sánh phương án** shows before → after for GMV, biên lợi nhuận, số đơn, AOV, CTOR, CTR, lượt xem,
    each with its range. A lever that has no modelled effect on a metric shows "không đổi" with the reason, not
    an invented lift (e.g. a voucher moves AOV and CTOR; title, cover and ads move lượt xem and CTR).
-10. **Open:** the headline quantile. Today cards show P25 and plans P50. Recommended: P50 headline with the
-    P10–P90 range beside it, the same on card, builder, compare and plan. Owner to confirm.
+10. **Headline estimate = P50** with the P10–P90 range beside it, identical on card, builder, So sánh and
+    Kế hoạch (owner, round 4). Cards stop showing P25.
+11. **Goal of Tự tạo phương án** (owner, round 3): compare many strategies, of the same and of different kinds,
+    and run several at once with little effort. Repetitive strategies take many targets; choosing products
+    is easy and clear.
+12. **One picker for every kind**, Shopee-style table: search by name or ID; filters (ngành hàng, biên, CTOR
+    giảm, có đề xuất, đang chạy QC / KOL); checkbox rows with GMV, biên, tồn kho; "chọn tất cả theo bộ lọc";
+    paste a list of IDs; the selection stays visible with counts and ×.
+13. **One card, many targets.** A strategy applied to many products / SKUs / campaigns is one card with a
+    target list: total plus per-target breakdown, untick a target that breaks a floor. Approval fills them in
+    one pass, using Shopee's own bulk edit where it exists (affiliate commission, product pickers).
+14. **Groups (P94) come into P97.** In So sánh, select several versions or strategies → "Chạy cùng nhau" =
+    Nhóm A with one period; the combined before → after comes from the D85.4 plan math; one approval queues
+    every fill; the Connector works through them one page at a time and shows a checklist of done / waiting.
+15. **Combo khuyến mãi = Shopee's form** (recon): product list without per-item qty or variation; tiers
+    "Mua N → x % / ₫ / giá đặc biệt"; giới hạn đặt hàng; name ≤ 25; dates. Same model as the generated
+    `bundle_deal` cards. The inline voucher and the gift leave the combo and are their own kinds.
+16. **Listing combo mới is its own kind**: title, images, price, stock, SKU; its estimate starts with no
+    history or ranking and takes demand from the singles it contains. Fill-in after the Thêm sản phẩm form is
+    recorded.
+17. **Ads levers = Shopee's edit form**: daily budget (≥ ₫100.000 or unlimited), ROAS (system / custom; warn
+    above Shopee's hint; warn on a second change within 7 days — performance support is lost), products,
+    dates. Keyword bids leave the builder (no such field in Shopee's product-ads form).
+18. **ORY now:** campaign 160675212 (Nước Rửa Chén 500ml) at ₫22.000/day (below ₫100.000) and ROAS 5.0 (hint
+    ≤ 3.5), 0 views on 08-11 → an ads card for Ops today.
 
 ## Tracks
 
@@ -91,7 +114,18 @@ have to be typed into Seller Centre by hand for every kind except title and desc
 | Voucher (recon first): name, code, dates, value / %, max, min spend, usage, per-buyer, scope, products | fills ORY's form; person saves; voucher_id posted; read-back verifies |
 | Combo nhiều sản phẩm, then Quảng cáo, then Affiliate / KOL | same pattern, each after its recon |
 
+### T4 — Tự tạo phương án: compare and run many (demo + backend agents; after T2's plan math)
+
+| Task | AC |
+|---|---|
+| Table picker (D85.12) shared by every kind | 30 products picked by filter in < 5 clicks; paste-IDs works; selection list editable |
+| One card, many targets (D85.13) | per-target rows; untick recomputes; fill uses Shopee bulk edit where it exists |
+| Groups / "Chạy cùng nhau" (D85.14, P94 contract) | mixed kinds in one group; total = plan math; one approval → fill checklist |
+| Combo reshaped to tiers; Listing combo mới as its own kind; inline voucher / gift split out (D85.15–16) | builder combo = generated bundle_deal shape; old saved combos migrate or are marked legacy |
+| Ads levers per D85.17 | budget < ₫100.000 refused with Shopee's text; keyword bids removed |
+| P50 + range everywhere (D85.10) | same number for one option on card, builder, So sánh, Kế hoạch |
+
 ## Not in this cut
 
-TikTok parity (P95), groups beyond what 0.3.8 already approves (P94), the ISV mock shell, the bug-log
-extension, Seller Centre ad-type field limits beyond what the ads recon records.
+TikTok parity (P95), the ISV mock shell, the bug-log extension, Seller Centre ad-type field limits beyond
+what the ads recon records. Recon still to do: Thêm sản phẩm (new listing), Mua kèm, Quà tặng, Flash Sale.

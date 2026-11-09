@@ -3869,3 +3869,14 @@ reconcile --write` re-derived the no-assert corpus figure.
   metrics layer; fill-in covers title and description only; two AOVs on Tổng quan from two sources.
 - Owner order: T1 Connector + readers ∥ T2 metrics layer + plan math, then T3 fill-in on approval
   (voucher → combo → ads → affiliate) after read-only recon in the owner's Chrome. Open: headline quantile.
+
+## 2026-11-09 — orchestrator (Claude Opus) — P97 recon and grill rounds 3–4
+
+- Read-only recon in the owner's Chrome (nothing saved): voucher, combo, ads create + edit, affiliate open +
+  targeted forms → `contracts/p97-recon-2026-11-09.md`.
+- Builder combo targets verified: both "Listing combo mới" and "Combo khuyến mãi của Shopee (bundle deal)" use
+  one fixed-basket form and one estimate (`target` is only a label); neither matches Shopee (tiers "Mua N";
+  new listing = Thêm sản phẩm). Decided D85.15–16.
+- ORY ads campaign 160675212 runs below Shopee's ₫100.000/day minimum with ROAS 5.0 (hint ≤ 3.5), 0 views 08-11.
+- Owner: Tự tạo phương án = compare and run many; table picker, one card many targets, P94 groups into P97;
+  P50 + range everywhere (D85.10–14, 17).

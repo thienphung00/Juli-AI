@@ -549,8 +549,10 @@ Leads over the 9 Nov one-shell plan (branch `cursor/plan-2026-11-09-5df0`), whic
 | T1 Connector 0.3.11: port p96 local (migration 122 KOL lines, ads settings / edit-page reader, seller Connector tab); ads drift on entries without campaign_id; placed + confirmed; KOL id / money scale; readers for shop totals, order lines + income, product period, ads per product | p97 T1 | todo | connector + ingest agents |
 | T2 One `ShopMetrics` read model (one GMV basis, window, anchor, AOV); Kế hoạch order-independent and idempotent; So sánh before → after for 7 metrics | p97 T2 | todo | backend agent |
 | T3 Fill-in on approval: queue, auto-open, selects / dates / rows, id capture; Voucher → Combo → Quảng cáo → Affiliate | p97 T3 | todo, waits on voucher recon | connector + backend + demo agents |
-| Recon (read-only, agent drives owner's Chrome): voucher, combo, ads, affiliate create forms; shop totals, order list, income pages | p97 D85.7 | todo | orchestrator + owner |
-| Open (owner): headline quantile — P50 + P10–P90 everywhere (recommended) or P25 | D85.9 | open | owner |
+| Recon of shop totals, order list, income pages (for T1 readers) | p97 D85.5 | todo | orchestrator + owner |
+| T4 Tự tạo phương án: table picker, one card many targets, groups / Chạy cùng nhau (P94), combo tiers, Listing combo mới, ads levers, P50 + range | p97 T4 | todo, after T2 plan math | demo + backend agents |
+| Recon done 2026-11-09: voucher, combo, ads create + edit, affiliate open + targeted (`contracts/p97-recon-2026-11-09.md`); still to record: Thêm sản phẩm, Mua kèm, Quà tặng, Flash Sale | p97 recon | partly done | orchestrator + owner |
+| ORY ads card: campaign 160675212 below ₫100.000/day minimum, ROAS 5.0 above hint, 0 views 08-11 | D85.18 | todo today | Ops |
 
 ## P2–P6
 
