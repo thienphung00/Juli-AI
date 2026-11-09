@@ -540,6 +540,18 @@ Source: the ORY Ops bug sweep of 2026-11-05 (bug IDs A1–N1 in LOG 2026-11-05 "
 | KOL tab empty for ORY: Connector 0.3.6 reads the 8 affiliate Seller Centre pages and marks order lines (hashed order ids via the paired connector's order-ref key). Display name, avatar and platform user id are dropped in the page | — | done (0.3.6, deployed on fasttrack-deploy-20261106T0300Z) | connector agent |
 | Next (owner order): Ops QA extension (separate from Connector) logging to the backend; Seller Centre ad types (GMV tối đa tự động / ROAS tùy chỉnh, Tìm kiếm, Khám phá, Cửa hàng, nhóm) — needs field limits read from ORY's Seller Centre create forms first | — | todo | — |
 
+## P97 — Shopee data you can trust; Connector fills approved cards (contract p97-shopee-data.md, D85, 2026-11-09)
+
+Leads over the 9 Nov one-shell plan (branch `cursor/plan-2026-11-09-5df0`), which stops after its Monday write-downs.
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| T1 Connector 0.3.11: port p96 local (migration 122 KOL lines, ads settings / edit-page reader, seller Connector tab); ads drift on entries without campaign_id; placed + confirmed; KOL id / money scale; readers for shop totals, order lines + income, product period, ads per product | p97 T1 | todo | connector + ingest agents |
+| T2 One `ShopMetrics` read model (one GMV basis, window, anchor, AOV); Kế hoạch order-independent and idempotent; So sánh before → after for 7 metrics | p97 T2 | todo | backend agent |
+| T3 Fill-in on approval: queue, auto-open, selects / dates / rows, id capture; Voucher → Combo → Quảng cáo → Affiliate | p97 T3 | todo, waits on voucher recon | connector + backend + demo agents |
+| Recon (read-only, agent drives owner's Chrome): voucher, combo, ads, affiliate create forms; shop totals, order list, income pages | p97 D85.7 | todo | orchestrator + owner |
+| Open (owner): headline quantile — P50 + P10–P90 everywhere (recommended) or P25 | D85.9 | open | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

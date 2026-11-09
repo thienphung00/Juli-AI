@@ -1829,3 +1829,16 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   7. Follower / new-buyer and livestream vouchers are refused ("Chưa có dữ liệu đơn theo loại voucher này để ước tính.")
      until order lines record the voucher type.
   8. "Đổi giá niêm yết" % is a ± change, + = price up, labelled "Thay đổi"; past start dates stay allowed.
+- **D85** — Shopee data you can trust before TikTok parity (owner, 2026-11-09, grill after verifying 0.3.10).
+  Full record: [contracts/p97-shopee-data.md](contracts/p97-shopee-data.md).
+  1. Shopee data first; the 9 Nov one-shell plan stops after its Monday write-downs; P94 / P95 wait.
+  2. One GMV basis: headline = Shopee shop totals, splits and Δ from order lines scaled to them; one window
+     and anchor; one AOV (shop GMV ÷ shop orders).
+  3. Connector posts placed and confirmed; Quảng cáo shows placed, everything else confirmed.
+  4. Plan totals independent of which options are present and their order; base frozen per draft plan.
+  5. Connector reads shop totals, order lines + income, product period, ads per product; files are fallback.
+  6. Approval queues a fill job; the Connector opens and fills the create page, the person saves, the new id is
+     captured. Voucher → Combo → Quảng cáo → Affiliate, each after a read-only recon of its form.
+  7. Local p96 Connector work ships as 0.3.11 on top of production 0.3.10.
+  8. So sánh shows before → after for GMV, biên, đơn, AOV, CTOR, CTR, lượt xem.
+  9. Open: headline quantile (recommended P50 + P10–P90 everywhere).

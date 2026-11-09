@@ -3854,3 +3854,18 @@ reconcile --write` re-derived the no-assert corpus figure.
   needs service consent, because the Connector's posts would be refused without it.
 - An invite is membership, not a one-time login. Sign-in does not spend the link.
   After "Tham gia shop", the same person opening the link again gets the shop.
+
+## 2026-11-09 — orchestrator (Claude Opus) — P97 grill: Shopee data before TikTok parity (D85)
+
+- Verified production `86c6f673` (Connector 0.3.10, deploy tag `fasttrack-deploy-20261108T0708Z`). LOG had no
+  entries for 0.3.8–0.3.10 (#2272 ads campaigns + KOL retry + Nhóm A approve, #2274 uncapped budget / video CTR,
+  #2276 post the day when one value is out of range).
+- Worktree `p96-strategies` holds uncommitted Connector work labelled 0.3.7 that production never received
+  (migration 122 affiliate lines, ads settings / edit-page reader, seller Connector tab); production used 0.3.7
+  for #2271. To be ported as 0.3.11 on `fasttrack/p97-shopee-data`.
+- Findings F1–F8 and decisions D85 in `contracts/p97-shopee-data.md`: no Connector reader for shop totals or
+  orders; ads placed vs confirmed mismatch; ads drift on entries without campaign_id; KOL depends on the order
+  export; Kế hoạch re-add resets the option and a shop voucher's reach follows the other options; no single
+  metrics layer; fill-in covers title and description only; two AOVs on Tổng quan from two sources.
+- Owner order: T1 Connector + readers ∥ T2 metrics layer + plan math, then T3 fill-in on approval
+  (voucher → combo → ads → affiliate) after read-only recon in the owner's Chrome. Open: headline quantile.
