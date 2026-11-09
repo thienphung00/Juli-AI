@@ -702,6 +702,19 @@ function dayOf(value: unknown): string | undefined {
   return undefined;
 }
 
+/** [key, value] of every non-object leaf, descending into nested records (not lists) to `depth`. */
+function leafEntries(node: Record<string, unknown>, depth: number): [string, unknown][] {
+  const out: [string, unknown][] = [];
+  for (const [key, value] of Object.entries(node)) {
+    if (isRecord(value)) {
+      if (depth > 0) out.push(...leafEntries(value, depth - 1));
+    } else {
+      out.push([key, value]);
+    }
+  }
+  return out;
+}
+
 /**
  * The days a page asked for, read from its own request: query params or GraphQL variables whose
  * name says start / end (startTime, start_time, purchase_time_s, ...). Undefined when none.
@@ -711,7 +724,8 @@ export function periodOfTemplate(template: Template | undefined): { start: strin
   const fields: [string, unknown][] = Object.entries(template.query);
   const body = isRecord(template.body) ? template.body : undefined;
   const variables = body && isRecord(body.variables) ? body.variables : body;
-  if (variables) fields.push(...Object.entries(variables));
+  // GraphQL variables nest the range (`input.timeRange.startTime`): read the leaves, 4 levels deep.
+  if (variables) fields.push(...leafEntries(variables, 4));
   let start: string | undefined;
   let end: string | undefined;
   for (const [key, value] of fields) {

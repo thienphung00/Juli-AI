@@ -112,6 +112,34 @@ export function scaleFromPairs(rows: Record<string, unknown>[], fields: readonly
   return seen.size === 1 ? [...seen][0] : undefined;
 }
 
+/**
+ * The divisor read from the size of the amounts when no field has a display twin: of the two
+ * units seen (VND, VND x 100 000), the one under which the median amount is a plausible price
+ * (>= AFFILIATE_MIN_PLAUSIBLE_VND and <= MAX_PLAUSIBLE_AD_VND). `undefined` when both or
+ * neither fit (the fallback applies).
+ */
+export function scaleFromMagnitude(rows: Record<string, unknown>[], fields: readonly string[]): number | undefined {
+  const values: number[] = [];
+  for (const row of rows) {
+    for (const field of fields) {
+      const n = nonNeg(row[field]);
+      if (n !== undefined && n > 0) values.push(n);
+    }
+  }
+  if (values.length === 0) return undefined;
+  values.sort((a, b) => a - b);
+  const median = values[Math.floor(values.length / 2)] as number;
+  const fits = (divisor: number) => {
+    const vnd = median / divisor;
+    return vnd >= AFFILIATE_MIN_PLAUSIBLE_VND && vnd <= MAX_PLAUSIBLE_AD_VND;
+  };
+  const plain = fits(1);
+  const scaled = fits(100_000);
+  if (plain && !scaled) return 1;
+  if (scaled && !plain) return 100_000;
+  return undefined;
+}
+
 class Money {
   constructor(readonly divisor: number) {}
 
@@ -130,7 +158,8 @@ function moneyFor(
   pairs: readonly string[],
   _issues: { unexpected: string[] },
 ): Money {
-  const scale = scaleFromPairs(rows, pairs);
+  // 1. the answer's own display twins; 2. the magnitude of what it holds; 3. the recorded fallback.
+  const scale = scaleFromPairs(rows, pairs) ?? scaleFromMagnitude(rows, pairs);
   return new Money(scale ?? AFFILIATE_MONEY_DIVISOR_FALLBACK);
 }
 
@@ -183,7 +212,8 @@ export function mapAffiliateConversions(responses: ReaderResponse[], capturedAt:
   const seen = new Map<string, number>();
   const orderSeen = new Set<string>();
   for (const order of orders) {
-    const orderId = text(order.order_id, 64);
+    // The order id is a number on some answers and a string on others (F4).
+    const orderId = digits(order.order_id) ?? text(order.order_id, 64);
     const orderedAt = wallClock(order.purchase_time);
     if (orderId === undefined || orderedAt === undefined) {
       note(issues.missing, orderId === undefined ? "orders[].order_id" : "orders[].purchase_time");
