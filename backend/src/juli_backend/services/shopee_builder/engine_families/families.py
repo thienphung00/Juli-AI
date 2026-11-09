@@ -1,0 +1,484 @@
+"""One function per family: a builder version (+ the facts it needs) -> ``OptionInput``
+(ADR-122 d.6-d.10). Drivers and sources follow the ADR's tables exactly; only drivers change, and
+each option's own costs go to ``offers`` / ``fixed_cost`` / ``profit_per_order_after``.
+
+Every function is pure: ``facts`` carry the shop's numbers (see ``facts.py``); ``adapters.py``
+builds them from the recommendation environment.
+"""
+
+from __future__ import annotations
+
+import math
+from decimal import Decimal
+
+from juli_backend.services.shopee_builder import specs as sp
+from juli_backend.services.shopee_builder.engine.contract import (
+    ALL_SOURCES,
+    CARD_SOURCES,
+    AddedTraffic,
+    Band,
+    Basis,
+    Driver,
+    DriverEffect,
+    OfferCost,
+    OptionInput,
+    Source,
+)
+from juli_backend.services.shopee_builder.engine_families import common, measure
+from juli_backend.services.shopee_builder.engine_families.common import (
+    FamilyRefused,
+    band3,
+    clamp01,
+    point,
+    scaled,
+)
+from juli_backend.services.shopee_builder.engine_families.facts import (
+    AdsFacts,
+    AdsNewCampaign,
+    AffiliatePlan,
+    ComboFacts,
+    KolFacts,
+    ListingComboFacts,
+    PriceFacts,
+    SimpleFacts,
+    VoucherFacts,
+)
+
+ZERO = Decimal(0)
+ONE = Decimal(1)
+DEFAULT_HORIZON_DAYS = 30
+
+
+def _label(spec: sp.VersionSpec, fallback: str) -> str:
+    return spec.label or fallback
+
+
+def _weakest_basis(bases: list[Basis]) -> Basis:
+    order: tuple[Basis, ...] = ("measured", "product_history", "shop", "prior", "not_estimable")
+    return max(bases, key=order.index)
+
+
+def _rel(delta: Decimal, base: Decimal | None) -> Decimal:
+    return ZERO if not base else delta / base
+
+
+# -- voucher (d.6) -------------------------------------------------------------------------------
+
+_VOUCHER_SOURCES: dict[str, tuple[Source, ...]] = {
+    "shop": ALL_SOURCES,
+    "product": ALL_SOURCES,
+    "follower": ALL_SOURCES,
+    "livestream": ("live",),
+}
+
+
+def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
+    sources = _VOUCHER_SOURCES[spec.scope]
+    reducing = facts.baseline_per_use is not None and facts.per_use < facts.baseline_per_use
+    drivers: list[DriverEffect] = []
+    notes: list[str] = []
+    ppo_after: Decimal | None = None
+    use_lo = use_mid = use_hi = facts.qualifying_share * facts.usage_rate
+    if reducing:
+        drivers.append(
+            DriverEffect(
+                "ctor", sources, "prior", lift=Band(Decimal("-0.03"), Decimal("-0.01"), ZERO)
+            )
+        )
+        if facts.profit_per_order is not None and facts.baseline_per_use is not None:
+            saving = facts.baseline_per_use - facts.per_use
+            ppo_after = facts.profit_per_order + saving * use_mid
+    elif spec.min_spend > 0:
+        r_lo, r_mid, r_hi = common.REACH
+        if facts.aov_now:
+            lift = Band(
+                *(r * facts.raise_gap_per_order / facts.aov_now for r in (r_lo, r_mid, r_hi))
+            )
+            drivers.append(DriverEffect("aov", sources, "prior", lift=lift))
+        else:
+            notes.append("Chưa có đơn để tính giá trị đơn tăng lên.")
+        drivers.append(
+            DriverEffect("ctor", sources, "prior", lift=band3(common.CTOR_VISIBLE_OFFER))
+        )
+        use_lo, use_mid, use_hi = (
+            clamp01((facts.qualifying_share + r * facts.below_share) * facts.usage_rate)
+            for r in (r_lo, r_mid, r_hi)
+        )
+    else:  # tri ân / đánh giá: no minimum, the visible discount converts more clicks
+        drivers.append(
+            DriverEffect("ctor", sources, "prior", lift=band3(common.CTOR_VISIBLE_OFFER))
+        )
+    if spec.scope == "follower":
+        notes.append(common.NOTE_FOLLOWER)
+    if spec.scope == "livestream":
+        notes.append("Voucher livestream chỉ tác động nguồn Live.")
+    kind = "min_spend_voucher" if spec.min_spend > 0 else "review_voucher"
+    return OptionInput(
+        kind=kind,
+        label=_label(spec, "Voucher"),
+        drivers=tuple(drivers),
+        duration_days=spec.days,
+        offers=(
+            OfferCost(
+                facts.per_use,
+                Band(use_lo, use_mid, use_hi),
+                None if spec.usage_limit is None else Decimal(spec.usage_limit),
+                "voucher",
+            ),
+        ),
+        profit_per_order_after=ppo_after,
+        note=" ".join(notes) or None,
+    )
+
+
+# -- combo khuyến mãi and new combo listing (d.7) ------------------------------------------------
+
+
+def combo_option(spec: sp.ComboSpec, facts: ComboFacts) -> OptionInput:
+    r_lo, r_mid, r_hi = common.REACH
+    aov = None
+    if facts.aov_now:
+        aov = Band(*(r * facts.near_share * facts.unit_price / facts.aov_now for r in common.REACH))
+    use = Band(*(clamp01(facts.use_share_now + r * facts.near_share) for r in (r_lo, r_mid, r_hi)))
+    drivers = []
+    if aov is not None:
+        drivers.append(DriverEffect("aov", ALL_SOURCES, "prior", lift=aov))
+    drivers.append(
+        DriverEffect("ctor", ALL_SOURCES, "prior", lift=band3(common.CTOR_VISIBLE_OFFER))
+    )
+    return OptionInput(
+        kind="bundle_deal",
+        label=_label(spec, spec.name or "Combo khuyến mãi"),
+        drivers=tuple(drivers),
+        duration_days=spec.days,
+        offers=(OfferCost(facts.per_use, use, None, "giảm giá combo"),),
+    )
+
+
+def listing_combo_option(spec: sp.ListingComboSpec, facts: ListingComboFacts) -> OptionInput:
+    drivers: list[DriverEffect] = []
+    note: str | None = None
+    if facts.aov_now:
+        delta = facts.switch_share * (facts.new_price - facts.value_now)
+        drivers.append(
+            DriverEffect("aov", ALL_SOURCES, "measured", lift=point(_rel(delta, facts.aov_now)))
+        )
+    pack = facts.pack
+    if pack is not None and pack.window_days > 0:
+        views = pack.views * Decimal(DEFAULT_HORIZON_DAYS) / Decimal(pack.window_days)
+        drivers.append(
+            DriverEffect(
+                "views",
+                CARD_SOURCES,
+                "measured",
+                added=AddedTraffic(
+                    point(views), pack.ctr, pack.ctor, pack.aov, point(ONE), pack.profit_per_order
+                ),
+            )
+        )
+    else:
+        note = common.NOTE_NO_PACK_EVIDENCE
+    if not drivers:
+        drivers.append(
+            DriverEffect("aov", ALL_SOURCES, "not_estimable", note=common.NOTE_NO_PACK_EVIDENCE)
+        )
+    return OptionInput(
+        kind="listing_combo",
+        label=_label(spec, spec.title),
+        drivers=tuple(drivers),
+        duration_days=None,
+        profit_per_order_after=facts.profit_per_order_after,
+        note=note,
+    )
+
+
+# -- price family, listing, basket, gift (d.10) --------------------------------------------------
+
+
+def _price_days(spec: sp.VersionSpec) -> int | None:
+    if isinstance(spec, sp.FlashSaleSpec):
+        return max(1, math.ceil(spec.slot_hours / common.HOURS_PER_DAY))
+    if isinstance(spec, sp.ProductDiscountSpec):
+        return spec.days
+    return None
+
+
+def price_option(
+    spec: sp.PriceSpec | sp.ProductDiscountSpec | sp.FlashSaleSpec, facts: PriceFacts
+) -> OptionInput:
+    """CTOR (the orders response, product history > shop > prior) + AOV (the price factor is
+    certain arithmetic). The engine also adds ΔAOV × contribution rate to profit for an AOV
+    driver, so ``profit_per_order_after`` takes that part out: the price effect counts once."""
+    aov_lift = facts.price_factor - ONE
+    ppo_after = facts.profit_per_order_after
+    if ppo_after is not None and facts.aov_now and facts.contribution_rate is not None:
+        ppo_after = ppo_after - facts.aov_now * aov_lift * facts.contribution_rate
+    kind = {"price": "price", "product_discount": "product_discount", "flash_sale": "flash_sale"}[
+        spec.kind
+    ]
+    return OptionInput(
+        kind=kind,
+        label=_label(
+            spec,
+            {"price": "Đổi giá", "product_discount": "Giảm giá sản phẩm"}.get(
+                spec.kind, "Flash Sale"
+            ),
+        ),
+        drivers=(
+            DriverEffect("ctor", ALL_SOURCES, facts.ctor.basis, lift=facts.ctor.band),
+            DriverEffect("aov", ALL_SOURCES, "measured", lift=point(aov_lift)),
+        ),
+        duration_days=_price_days(spec),
+        profit_per_order_after=ppo_after,
+    )
+
+
+#: kind -> (change_kind, label, lead driver + sources, co-driver + sources, aov kind?)
+_Lever = tuple[Driver, tuple[Source, ...]]
+_SIMPLE: dict[str, tuple[str, str, _Lever, _Lever | None]] = {
+    "title": ("title", "Tiêu đề", ("views", CARD_SOURCES), ("ctr", CARD_SOURCES)),
+    "cover_image": ("cover_image", "Ảnh bìa", ("ctr", CARD_SOURCES), None),
+    "price_display": ("price_display", "Hiển thị giá", ("ctr", CARD_SOURCES), None),
+    "description_first_line": (
+        "description_first_line",
+        "Dòng đầu mô tả",
+        ("ctor", ALL_SOURCES),
+        None,
+    ),
+    "listing_hide": ("listing_hide", "Ẩn sản phẩm", ("views", ALL_SOURCES), None),
+    "listing_relist": ("listing_relist", "Đăng lại sản phẩm", ("views", ALL_SOURCES), None),
+    "add_on": ("add_on", "Mua kèm deal sốc", ("aov", ALL_SOURCES), None),
+    "variation_set": (
+        "variation_set",
+        "Bộ / quy cách nhiều món",
+        ("aov", ALL_SOURCES),
+        ("ctor", ALL_SOURCES),
+    ),
+    "gift": ("gift", "Quà tặng kèm", ("ctor", ALL_SOURCES), None),
+}
+
+
+def simple_option(spec: sp.VersionSpec, facts: SimpleFacts) -> OptionInput:
+    """Title / keywords (views + CTR on Thẻ sản phẩm), cover / price display (CTR), description
+    first line (CTOR), hide / relist (views), basket (AOV, + CTOR for a variation set), gift
+    (CTOR). Evidence for the lead driver comes in ``facts``; a second driver takes
+    ``CO_DRIVER_SHARE`` of it, tagged "prior"."""
+    try:
+        change_kind, label, lead, co = _SIMPLE[spec.kind]
+    except KeyError:
+        raise FamilyRefused("kind_not_supported") from None
+    drivers: list[DriverEffect] = []
+    lead_metric = lead[0]
+    if lead_metric == "aov" and facts.aov is not None:
+        drivers.append(DriverEffect("aov", lead[1], "measured", lift=facts.aov))
+    else:
+        drivers.append(DriverEffect(lead_metric, lead[1], facts.lead.basis, lift=facts.lead.band))
+    if co is not None:
+        drivers.append(
+            DriverEffect(
+                co[0],
+                co[1],
+                "prior",
+                lift=scaled(facts.lead.band, common.CO_DRIVER_SHARE),
+            )
+        )
+    return OptionInput(
+        kind=change_kind,
+        label=_label(spec, label),
+        drivers=tuple(drivers),
+        duration_days=None,
+        profit_per_order_after=facts.profit_per_order_after,
+    )
+
+
+# -- ads, new campaign (d.8) ---------------------------------------------------------------------
+
+
+def ads_option(setup: AdsNewCampaign, facts: AdsFacts) -> OptionInput:
+    """Driver ``views`` on the ad share of Thẻ sản phẩm: spend ÷ the measured CPM; CTR / CTOR /
+    AOV of the ad traffic; the extra share measured on the product's organic orders on days with
+    vs without ads. Anything unmeasured -> ``not_estimable`` with the exact cost (never a prior)."""
+    days = setup.days
+    budget = setup.daily_budget * days
+    notes: list[str] = []
+    spend = budget
+    if setup.roas_target is not None:
+        util = measure.spend_utilisation(facts.campaigns, setup.roas_target)
+        if util is None:
+            notes.append(
+                "Chưa có lịch sử ở ROAS mục tiêu tương tự: chi phí tính theo ngân sách tối đa."
+            )
+        else:
+            spend = budget * util
+    rates = measure.ad_rates(facts.campaigns, setup.item_ids, setup.ad_type)
+    share = measure.on_off_extra_share(facts.days)
+    label = setup.label or "Quảng cáo Hiển thị Sản phẩm"
+    complete = (
+        rates is not None
+        and rates.ctr is not None
+        and rates.ctor is not None
+        and rates.aov is not None
+        and share is not None
+    )
+    if not complete or rates is None or share is None:
+        # cost and break-even only; the ad's own rates (when known) still give the break-even
+        # profit per order
+        added = None
+        if rates is not None and rates.ctr and rates.ctor and rates.aov:
+            added = AddedTraffic(
+                point(ZERO), rates.ctr, rates.ctor, rates.aov, point(ZERO), facts.profit_per_order
+            )
+        return OptionInput(
+            kind="ads_new_campaign",
+            label=label,
+            drivers=(
+                DriverEffect(
+                    "views",
+                    CARD_SOURCES,
+                    "not_estimable",
+                    added=added,
+                    note=common.NOTE_ADS_NOT_ESTIMABLE,
+                ),
+            ),
+            duration_days=days,
+            fixed_cost=spend,
+            note=" ".join(notes) or None,
+        )
+    assert rates.ctr is not None and rates.ctor is not None and rates.aov is not None
+    views = Band(
+        spend / rates.cpm_high * 1000, spend / rates.cpm_mid * 1000, spend / rates.cpm_low * 1000
+    )
+    basis: Basis = "measured"
+    if rates.scope != "product":
+        notes.append("Tỉ lệ quảng cáo lấy từ các chiến dịch cùng loại của shop.")
+    return OptionInput(
+        kind="ads_new_campaign",
+        label=label,
+        drivers=(
+            DriverEffect(
+                "views",
+                CARD_SOURCES,
+                basis,
+                added=AddedTraffic(
+                    views, rates.ctr, rates.ctor, rates.aov, share, facts.profit_per_order
+                ),
+            ),
+        ),
+        duration_days=days,
+        fixed_cost=spend,
+        note=" ".join(notes) or None,
+    )
+
+
+# -- affiliate / KOL (d.9) -----------------------------------------------------------------------
+
+
+def affiliate_option(plan: AffiliatePlan, facts: KolFacts) -> OptionInput:
+    """Per chosen KOL × product the KOL's own views / CTR / CTOR / AOV on ``lien_ket`` (summed
+    into one added traffic, rates weighted by clicks / orders). Extra share measured only; any
+    chosen non-cashback KOL without it makes the option ``not_estimable``. Cost is exact:
+    commission % × the KOL's GMV (or the fixed fee) + samples (qty × (giá vốn + đóng gói) +
+    shipping). Cashback / coupon affiliates carry extra share 0 and never get samples."""
+    days = plan.duration_days or DEFAULT_HORIZON_DAYS
+    cost = ZERO
+    notes: list[str] = []
+    views = clicks = orders = gmv = ZERO
+    views_known = True
+    extra_orders = ZERO
+    unmeasured: list[str] = []
+    for kol in plan.kols:
+        rates = facts.rates.get(kol.kol_key)
+        cashback = measure.is_cashback(kol.handle, facts.extra_cashback_names)
+        if cashback:
+            notes.append(f"{kol.handle}: {common.CASHBACK_LABEL}.")
+        if rates is not None and rates.days > 0:
+            k = Decimal(days) / Decimal(rates.days)
+            if kol.commission_pct is not None:
+                cost += kol.commission_pct / 100 * rates.gmv * k
+            if rates.views is None:
+                views_known = False
+            else:
+                views += rates.views * k
+            clicks += rates.clicks * k
+            orders += rates.orders * k
+            gmv += rates.gmv * k
+            share = (
+                Band(ZERO, ZERO, ZERO)
+                if cashback
+                else measure.kol_extra_share(facts.before_after.get(kol.kol_key))
+            )
+            if share is None:
+                unmeasured.append(kol.handle)
+            else:
+                extra_orders += rates.orders * k * share.p50
+        else:
+            unmeasured.append(kol.handle)
+            views_known = False
+        cost += kol.fixed_fee
+        if kol.sample_qty > 0 and cashback:
+            notes.append(f"{kol.handle}: không gửi mẫu cho {common.CASHBACK_LABEL}.")
+        elif kol.sample_qty > 0:
+            unit = sum((facts.sample_unit_cost.get(i, ZERO) for i in kol.item_ids), ZERO) / max(
+                1, len(kol.item_ids)
+            )
+            cost += Decimal(kol.sample_qty) * unit + kol.sample_ship_fee
+    label = plan.label or "Gửi mẫu / hoa hồng KOL"
+    ctr = None if not views_known or views <= 0 else clicks / views
+    ctor = None if clicks <= 0 else orders / clicks
+    aov = None if orders <= 0 else gmv / orders
+    if unmeasured or ctr is None or ctor is None or aov is None:
+        added = None
+        if ctr and ctor and aov:
+            added = AddedTraffic(point(ZERO), ctr, ctor, aov, point(ZERO), facts.profit_per_order)
+        return OptionInput(
+            kind="affiliate_sample",
+            label=label,
+            drivers=(
+                DriverEffect(
+                    "views",
+                    ("lien_ket",),
+                    "not_estimable",
+                    added=added,
+                    note=common.NOTE_KOL_NOT_ESTIMABLE,
+                ),
+            ),
+            duration_days=plan.duration_days,
+            fixed_cost=cost,
+            note=" ".join(notes) or None,
+        )
+    own_orders = views * ctr * ctor
+    share_mid = clamp01(extra_orders / own_orders) if own_orders > 0 else ZERO
+    # spread: the engine draws the share from a band; use the weakest measured KOL spread
+    lo_hi = [
+        measure.kol_extra_share(facts.before_after.get(k.kol_key))
+        for k in plan.kols
+        if not measure.is_cashback(k.handle, facts.extra_cashback_names)
+    ]
+    spread_lo = min((b.p10 / b.p50 if b and b.p50 > 0 else ONE for b in lo_hi), default=ONE)
+    spread_hi = max((b.p90 / b.p50 if b and b.p50 > 0 else ONE for b in lo_hi), default=ONE)
+    return OptionInput(
+        kind="affiliate_sample",
+        label=label,
+        drivers=(
+            DriverEffect(
+                "views",
+                ("lien_ket",),
+                "measured",
+                added=AddedTraffic(
+                    point(views),
+                    ctr,
+                    ctor,
+                    aov,
+                    Band(
+                        clamp01(share_mid * spread_lo),
+                        share_mid,
+                        clamp01(share_mid * spread_hi),
+                    ),
+                    facts.profit_per_order,
+                ),
+            ),
+        ),
+        duration_days=plan.duration_days,
+        fixed_cost=cost,
+        note=" ".join(notes) or None,
+    )
