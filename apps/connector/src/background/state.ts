@@ -162,6 +162,16 @@ export interface State {
   market?: MarketSchedule;
   /** Requests sent to Seller Centre today (GMT+7), all readers + sync + backfill together. */
   budget?: RequestBudget;
+  /** Fill jobs (P97 D85.6): the page being worked on and the poll bookkeeping. */
+  fill?: FillJobsState;
+}
+
+/** The fill-job runner's bookkeeping. At most one page is open for a job at a time. */
+export interface FillJobsState {
+  active?: { id: string; tabId?: number; openedAt: number; counted: boolean };
+  /** Jobs this browser already opened by itself (never again by the poll; the person re-opens). */
+  autoOpened: string[];
+  lastPoll?: { at: string; status: string };
 }
 
 /** The shared daily request budget's counter. */
@@ -205,6 +215,7 @@ export async function loadState(storage: Storage): Promise<State> {
     "readers",
     "market",
     "budget",
+    "fill",
   ])) as Partial<State>;
   return {
     token: raw.token,
@@ -219,6 +230,7 @@ export async function loadState(storage: Storage): Promise<State> {
     readers: raw.readers,
     market: raw.market,
     budget: raw.budget,
+    fill: raw.fill,
   };
 }
 

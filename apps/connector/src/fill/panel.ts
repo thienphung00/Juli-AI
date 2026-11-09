@@ -33,7 +33,7 @@ export const REFUSAL_TEXT: Record<FillRefusal, string> = {
   error: "Juli chưa lấy được nội dung thẻ. Thử lại sau.",
 };
 
-const STYLE = `
+export const STYLE = `
 :host{all:initial}
 .box{position:fixed;top:72px;right:16px;z-index:2147483000;width:340px;max-height:80vh;overflow:auto;
  font:13px/1.45 system-ui,sans-serif;color:#1f1f24;background:#fff;border:1px solid #e5e0e4;
@@ -55,7 +55,7 @@ li{margin:4px 0}
 
 type Doc = Document;
 
-function el<K extends keyof HTMLElementTagNameMap>(
+export function el<K extends keyof HTMLElementTagNameMap>(
   doc: Doc,
   tag: K,
   props: { cls?: string; text?: string } = {},

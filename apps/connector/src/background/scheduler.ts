@@ -418,6 +418,25 @@ export class ReaderScheduler {
     );
   }
 
+  /**
+   * A stop seen OUTSIDE the readers (a fill job's page asked for the Shopee password again): the
+   * same cool-down as a login wall, the run in progress is ended (its tab closed), and Juli is told.
+   */
+  haltFor(reason: ReaderBlockReason, page: string, detail?: string): Promise<void> {
+    return this.exclusive(async () => {
+      const { sched } = await this.load();
+      const now = this.deps.now();
+      const until =
+        now + (reason === "captcha" ? READER_BLOCK_CAPTCHA_MS : reason === "rate_limit" ? READER_BLOCK_RATE_MS : READER_BLOCK_LOGIN_MS);
+      const blocked = { at: this.iso(), reason, page: sched.run?.jobs[sched.run.index]?.id ?? ("products" as ReaderId), until };
+      if (sched.run) await this.finishRun({ ...sched, blocked }, sched.run, reason);
+      else await this.save({ ...sched, blocked });
+      await this.deps.sink
+        .reportBlock?.({ reader: "fill", page, status: reason, ...(detail ? { code: detail.slice(0, 40) } : {}), at: this.iso() })
+        .catch(() => undefined);
+    });
+  }
+
   /** The content script of a tab reports ready. True when the tab is the scheduler's own. */
   onTabReady(tabId: number, url: string | undefined): Promise<boolean> {
     return this.exclusive(async () => {

@@ -330,6 +330,33 @@ export function fillActive(shopId: string | undefined): boolean {
   return FILL_LISTING_ACTIVE && !!shopId && PILOT_SHOP_IDS.includes(shopId);
 }
 
+// -- fill jobs (P97 D85.6): approved cards queued by Juli, opened and filled page by page -------
+//
+// The allowlist is "this token's shop" (a paired Connector), NOT PILOT_SHOP_IDS: Juli serves jobs
+// only for the token's own shop and only while its server flag CONNECTOR_FILL_LISTING is on (the
+// kill switch). Same rules as the listing fill: the Connector types and highlights, the person
+// presses Shopee's own Lưu / Xác nhận / Gửi. A job page open costs READER_PAGE_LOAD_COST against
+// the shared daily request budget; a CAPTCHA / login wall / password prompt stops it.
+
+export const FILL_JOBS_ACTIVE = true;
+export const FILL_JOBS_ALARM = "juli-fill-jobs";
+export const FILL_JOBS_POLL_MINUTES = 3;
+/** Jobs with no progress after this long are given up (the tab may have been closed). */
+export const FILL_JOB_STALE_MS = 6 * 3_600_000;
+/** `#juli-fill=<job id>` -- the job's UUID. */
+export const FILL_JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** The only Seller Centre pages a job may open (path only; a query string is allowed on vouchers). */
+export const FILL_JOB_PAGES = {
+  product_edit: /^\/portal\/product\/(\d{1,20})$/,
+  voucher_new: /^\/portal\/marketing\/vouchers\/new$/,
+  ads_edit: /^\/portal\/marketing\/pas\/product\/(manual|manual-mpd)\/(\d{1,20})$/,
+  affiliate_open: /^\/portal\/web-seller-affiliate\/open_campaign$/,
+} as const;
+/** Fill jobs run for the paired token's shop; the server decides whether anything is served. */
+export function fillJobsActive(shopId: string | undefined): boolean {
+  return FILL_JOBS_ACTIVE && !!shopId;
+}
+
 // -- market search reader (P92 B-10, Connector 0.3.5) -----------------------------------------
 //
 // Once a week per keyword the Connector opens the PUBLIC Shopee search page for a product's 1-3
