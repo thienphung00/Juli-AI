@@ -100,6 +100,7 @@ from juli_backend.services.ingest.schemas import (
     ShopeeShopHealthDailyRow,
     ShopeeVoucherSettingRow,
 )
+from juli_backend.services.ingest.status import clear_superseded_drift
 from juli_backend.services.ingest.writers import (
     write_ads_log,
     write_affiliate_lines,
@@ -787,6 +788,8 @@ async def ingest(
             start=body.period.start,
             end=body.period.end,
         )
+    if status is not None:
+        clear_superseded_drift(status, body.source_version, now)
     await _record_status(
         session,
         shop_id=shop_id,

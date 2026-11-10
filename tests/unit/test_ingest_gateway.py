@@ -28,6 +28,7 @@ import pytest
 from sqlalchemy import func, select
 
 from juli_backend.models.ingest import (
+    IngestDatasetStatus,
     IngestPairingCode,
     IngestRawPayload,
     IngestToken,
@@ -456,8 +457,68 @@ async def test_a_drift_flag_of_an_older_version_reads_ok_once_a_newer_one_posted
     status = await svc.dataset_status(session, shop_id=shop.id, platform="shopee")
     entry = next(s for s in status if s["dataset"] == "traffic_overview")
     assert entry["drift"] == "ok"
-    assert entry["drift_source_version"] == "0.1.0"
-    assert entry["drift_detail"]["missing"] == ["a"]
+    assert entry["drift_source_version"] is None
+    assert entry["drift_detail"] is None
+    row = (await session.execute(select(IngestDatasetStatus))).scalars().one()
+    assert (row.drift_state, row.drift_detail) == ("ok", None)
+
+
+def _drift(version, state="drift", dataset="traffic_overview", unexpected=()):
+    return svc.DriftReport(
+        platform="shopee",
+        dataset=dataset,
+        state=state,
+        source_version=version,
+        endpoint="/x",
+        unexpected=list(unexpected),
+        missing=[],
+    )
+
+
+async def test_an_older_version_never_clears_or_replaces_a_newer_versions_flag(session):
+    _, shop = await _shopee_tenant(session)
+    await svc.report_drift(
+        session, shop_id=shop.id, report=_drift("0.3.14", unexpected=["ads:money_scale"]), now=NOW
+    )
+    await svc.report_drift(session, shop_id=shop.id, report=_drift("0.3.9", state="ok"), now=NOW)
+    await svc.report_drift(session, shop_id=shop.id, report=_drift("0.3.9"), now=NOW)
+    # an older version posting data (0.3.9 < 0.3.14, and not the flagged one) clears nothing
+    await _ingest(
+        session, shop, "traffic_overview",
+        _body([_source_row("psd_label_product_card")], source_version="0.3.9"),
+    )  # fmt: skip
+    entry = next(
+        s
+        for s in await svc.dataset_status(session, shop_id=shop.id, platform="shopee")
+        if s["dataset"] == "traffic_overview"
+    )
+    assert entry["drift_source_version"] == "0.3.14"
+    assert entry["drift_detail"]["unexpected"] == ["ads:money_scale"]
+
+
+async def test_a_newer_version_posting_clears_the_old_flag_numerically(session):
+    _, shop = await _shopee_tenant(session)
+    await svc.report_drift(
+        session, shop_id=shop.id, report=_drift("0.3.9", unexpected=["ads:money_scale"]), now=NOW
+    )
+    await _ingest(
+        session, shop, "traffic_overview",
+        _body([_source_row("psd_label_product_card")], source_version="0.3.14"),
+    )  # fmt: skip
+    entry = next(
+        s
+        for s in await svc.dataset_status(session, shop_id=shop.id, platform="shopee")
+        if s["dataset"] == "traffic_overview"
+    )
+    assert entry["drift"] == "ok" and entry["drift_detail"] is None
+    # the cleared version cannot re-flag after the newer one has posted
+    await svc.report_drift(session, shop_id=shop.id, report=_drift("0.3.9"), now=NOW)
+    entry = next(
+        s
+        for s in await svc.dataset_status(session, shop_id=shop.id, platform="shopee")
+        if s["dataset"] == "traffic_overview"
+    )
+    assert entry["drift"] == "ok"
 
 
 # -- pairing ----------------------------------------------------------------------------

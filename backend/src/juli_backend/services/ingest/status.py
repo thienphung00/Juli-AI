@@ -10,6 +10,7 @@ Ops reads the same rows to see which shops' connectors need an update.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import datetime
 from typing import Any
@@ -29,12 +30,47 @@ def _iso(value: Any) -> str | None:
     return value.isoformat() if value is not None else None
 
 
+def version_key(version: str | None) -> tuple[tuple[int, ...], str]:
+    """Order of Connector versions ("0.3.14" > "0.3.9"): the numeric parts, then the text."""
+    text = version or ""
+    nums = tuple(int(n) for n in re.findall(r"\d+", text.split("+")[0].split("-")[0]))
+    return nums, text
+
+
+def is_newer(version: str | None, than: str | None) -> bool:
+    return version is not None and than is not None and version_key(version) > version_key(than)
+
+
+def clear_superseded_drift(row: IngestDatasetStatus, posted_version: str, now: datetime) -> bool:
+    """A NEWER Connector version posted the dataset successfully: the older version's drift flag
+    (``unexpected`` / ``missing``) no longer describes the Connector. Clear it; the old detail is
+    kept in the log (no history table). An older or equal version never clears anything."""
+    if row.drift_state != DRIFT_DRIFT or not is_newer(posted_version, row.drift_source_version):
+        return False
+    logger.info(
+        "ingest_drift_superseded",
+        extra={
+            "shop_id": str(row.shop_id),
+            "dataset": row.dataset,
+            "flagged_version": row.drift_source_version,
+            "cleared_by_version": posted_version,
+            "detail": row.drift_detail,
+        },
+    )
+    row.drift_state = DRIFT_OK
+    row.drift_detail = None
+    row.drift_source_version = None
+    row.drift_at = now
+    row.updated_at = now
+    return True
+
+
 def _drift_of(row: IngestDatasetStatus | None) -> str:
     """ "drift" only while the flagged version is still the last one posting: a newer version's
     accepted post (the gateway refuses only the flagged version) has superseded the flag."""
     if row is None or row.drift_state != DRIFT_DRIFT:
         return DRIFT_OK
-    if row.last_source_version is not None and row.drift_source_version != row.last_source_version:
+    if is_newer(row.last_source_version, row.drift_source_version):
         return DRIFT_OK
     return DRIFT_DRIFT
 
@@ -59,6 +95,7 @@ async def dataset_status(
         if spec_platform != platform:
             continue
         row = rows.get(name)
+        flagged = _drift_of(row) == DRIFT_DRIFT
         out.append(
             {
                 "dataset": name,
@@ -70,9 +107,9 @@ async def dataset_status(
                 "last_source": row.last_source if row else None,
                 "last_source_version": row.last_source_version if row else None,
                 "drift": _drift_of(row),
-                "drift_detail": row.drift_detail if row else None,
-                "drift_source_version": row.drift_source_version if row else None,
-                "drift_at": _iso(row.drift_at) if row else None,
+                "drift_detail": row.drift_detail if row and flagged else None,
+                "drift_source_version": row.drift_source_version if row and flagged else None,
+                "drift_at": _iso(row.drift_at) if row and flagged else None,
             }
         )
     return out
@@ -101,6 +138,12 @@ async def report_drift(
             updated_at=now,
         )
         session.add(row)
+    # A report of an older Connector never touches a newer version's flag, and an older version's
+    # drift is stale once a newer one has posted.
+    if is_newer(row.drift_source_version, report.source_version) or is_newer(
+        row.last_source_version, report.source_version
+    ):
+        return
     if report.state == DRIFT_DRIFT:
         row.drift_state = DRIFT_DRIFT
         row.drift_detail = {
