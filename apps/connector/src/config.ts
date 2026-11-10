@@ -229,6 +229,13 @@ export const READER_BLOCK_LOGIN_MS = 6 * 3_600_000;
  * the remaining jobs wait for the next day. Tunable.
  */
 export const DAILY_REQUEST_BUDGET = 400;
+/**
+ * The budget is split (0.3.15): today's readers (orders, traffic, ads, affiliate, daily sync) keep
+ * TODAY_REQUEST_RESERVE requests that the 30-day backfill can never touch, and while a backfill is
+ * running it keeps BACKFILL_REQUEST_SHARE that the readers leave alone, so neither starves the other.
+ */
+export const TODAY_REQUEST_RESERVE = 150;
+export const BACKFILL_REQUEST_SHARE = 100;
 /** A report page makes a handful of calls of its own when it loads: each opened tab is counted as this many. */
 export const READER_PAGE_LOAD_COST = 10;
 /** Order list: at most this many list pages (each = an index call + a card call) per run. */

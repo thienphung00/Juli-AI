@@ -113,3 +113,44 @@ describe("affiliate order lines in the service worker", () => {
     expect(client.posts).toEqual([]);
   });
 });
+
+describe("0.3.15: an empty affiliate answer is a distinct outcome, not 'ignored'", () => {
+  const at = (endpoint: ReaderResponse["endpoint"], body: unknown, period = { start: "2026-11-06", end: "2026-11-06" }): ReaderResponse => ({
+    endpoint,
+    url: "x",
+    status: 200,
+    body,
+    capturedAt: NOW,
+    source: "page",
+    period,
+  });
+
+  it("empty KOL / product / commission lists for a single finished day read as 'empty'; nothing is posted", async () => {
+    const { client, connector } = setup();
+    const jobs = [
+      ["affiliate_kols", at("affiliate_performance", { code: 0, data: { list: [], total: 0 } })],
+      ["affiliate_products", at("affiliate_item_detail", { code: 0, data: { list: [], total: 0 } })],
+      ["affiliate_commissions", at("affiliate_commission_list", { code: 0, data: { commissionList: { pagination: { totalCount: 0 }, list: [] } } })],
+    ] as const;
+    for (const [id, response] of jobs) {
+      const out = await connector.postReader({ id }, [response]);
+      expect(Object.values(out)).toEqual(["empty"]);
+    }
+    expect(client.posts).toEqual([]);
+  });
+
+  it("an answer whose entries the mapper does not recognise stays 'ignored' (not mistaken for a zero)", async () => {
+    const { connector } = setup();
+    const out = await connector.postReader({ id: "affiliate_kols" }, [at("affiliate_performance", { code: 0, data: { rows: [{ x: 1 }] } })]);
+    expect(Object.values(out)).toEqual(["ignored"]);
+  });
+
+  it("a day with real rows posts them (single-day period)", async () => {
+    const { client, connector } = setup();
+    const body = { code: 0, data: { list: [{ affiliate_id: 777001, shopee_username: "kol_one", clicks: 4, orders: 2, gmv: 20_000_000_000, est_commission: 1_600_000_000 }] } };
+    const out = await connector.postReader({ id: "affiliate_kols" }, [at("affiliate_performance", body)]);
+    expect(Object.values(out)).toEqual(["posted"]);
+    expect(client.posts[0]!.body.rows[0]).toMatchObject({ affiliate_id: "777001", sales: 200000, est_commission: 16000 });
+    expect(client.posts[0]!.body.period).toMatchObject({ start: "2026-11-06", end: "2026-11-06" });
+  });
+});

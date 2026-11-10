@@ -38,6 +38,11 @@ export interface Mapped {
   granularity?: "day" | "period";
   /** A `period` post that spans several days starts here (`date` is its last day). */
   periodStart?: string;
+  /**
+   * Shopee answered (a recognised, valid answer) with an empty list for this period: nothing to
+   * post, but not the same as "not read" (Connector 0.3.15). Only the affiliate period mappers set it.
+   */
+  answeredEmpty?: boolean;
 }
 
 export const L1_SOURCES = [

@@ -493,3 +493,33 @@ describe("assisted-execution read-back: the fields the backend verifies", () => 
     expect(row.discount_amount !== undefined || row.discount_percent !== undefined).toBe(true);
   });
 });
+
+describe("0.3.15: ads daily amounts are VND (raw x 100 000), an uncapped budget is dropped without a flag", () => {
+  it("cost / GMV read as VND; a huge unlimited budget is left out and the day still posts", () => {
+    const home = {
+      code: 0,
+      data: {
+        entry_list: [
+          {
+            title: "Chiến dịch A",
+            type: "product_manual",
+            state: "ongoing",
+            campaign: { campaign_id: 7001, daily_budget: 90_000_000_000_000_000, total_budget: 0 },
+            report: { cost: 913_710_000_000, broad_gmv: 4_567_000_000_000, impression: 100, click: 5 },
+          },
+        ],
+      },
+    };
+    const [post] = mapAdsDaily([{ endpoint: "ads_homepage", url: "u", status: 200, capturedAt: 1, source: "replay", day: "2026-11-02", body: home } as never]);
+    expect(post!.drift).toBeNull();
+    expect(post!.rows[0]).toMatchObject({ campaign_id: "7001", campaign_name: "Chiến dịch A", cost: 9_137_100, broad_gmv: 45_670_000 });
+    expect(post!.rows[0]).not.toHaveProperty("daily_budget");
+  });
+
+  it("the campaign name is read from its new location, the old one still works", () => {
+    const entry = (extra: Record<string, unknown>) => ({ type: "product_manual", state: "ongoing", campaign: { campaign_id: 7002, ...(extra.campaign as object) }, report: { cost: 100_000_000 }, ...(extra.top as object) });
+    const run = (e: unknown) => mapAdsDaily([{ endpoint: "ads_homepage", url: "u", status: 200, capturedAt: 1, source: "replay", day: "2026-11-02", body: { code: 0, data: { entry_list: [e] } } } as never])[0]!.rows[0];
+    expect(run(entry({ top: { title: "Cũ" } }))).toMatchObject({ campaign_name: "Cũ" });
+    expect(run(entry({ campaign: { name: "Mới" } }))).toMatchObject({ campaign_name: "Mới" });
+  });
+});

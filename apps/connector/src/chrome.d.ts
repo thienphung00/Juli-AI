@@ -50,7 +50,9 @@ declare namespace chrome {
     interface Tab {
       id?: number;
       url?: string;
+      discarded?: boolean;
     }
+    function update(tabId: number, props: { autoDiscardable?: boolean }): Promise<Tab>;
     function query(info: { url?: string | string[] }): Promise<Tab[]>;
     function sendMessage(tabId: number, message: unknown): Promise<unknown>;
     function create(info: { url: string; active?: boolean }): Promise<Tab>;

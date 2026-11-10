@@ -51,7 +51,7 @@ import {
   type ReaderSchedule,
   addRequests,
   loadState,
-  requestsLeft,
+  readerRequestsLeft,
   saveState,
   type Storage,
   stoppedFor,
@@ -71,7 +71,7 @@ export interface SchedulerTabs {
   close(tabId: number): Promise<void>;
   send(tabId: number, message: unknown): Promise<unknown>;
   /** Whether the tab still exists and its URL (undefined when the host is not visible to us). */
-  inspect(tabId: number): Promise<{ open: boolean; url?: string }>;
+  inspect(tabId: number): Promise<{ open: boolean; url?: string; discarded?: boolean }>;
 }
 
 export interface SchedulerAlarms {
@@ -305,13 +305,18 @@ export class ReaderScheduler {
       if (now - current.openedAt > limit) return this.finishJob(sched, run, "timeout");
       if (current.sentAt === undefined && now - current.openedAt > READER_LOAD_GRACE_MS) {
         const info = await this.deps.tabs.inspect(current.tabId);
-        if (!info.open) return this.finishJob(sched, run, "closed", false);
+        if (!info.open || info.discarded) return this.tabLost(sched, run);
         if (info.url === undefined || !info.url.startsWith(`${this.deps.origin}/`)) {
           // Redirected away from Seller Centre (or to a host we cannot see): a login wall.
           return this.block(sched, run, "login");
         }
         const wall = blockedPath(new URL(info.url).pathname);
         if (wall) return this.block(sched, run, wall);
+      }
+      if (current.sentAt !== undefined && run.jobs[run.index]?.id === "orders") {
+        // The order list answers late: Chrome may have closed or discarded the tab meanwhile (0.3.15).
+        const info = await this.deps.tabs.inspect(current.tabId);
+        if (!info.open || info.discarded) return this.tabLost(sched, run);
       }
       return "waiting";
     }
@@ -365,7 +370,7 @@ export class ReaderScheduler {
     }
     // The shared daily request budget: nothing is opened once it is spent; the rest waits for tomorrow.
     const { state } = await this.load();
-    const left = requestsLeft(state, run.day);
+    const left = readerRequestsLeft(state, run.day);
     if (left <= READER_PAGE_LOAD_COST) return this.budgetSpent(sched, run);
     const tabId = await this.deps.tabs.open(`${this.deps.origin}${readerPageUrl(job)}`);
     if (tabId === undefined) return this.finishJob(sched, run, "open_failed", false);
@@ -373,6 +378,29 @@ export class ReaderScheduler {
     const next = { ...run, current: { tabId, openedAt: this.deps.now() } };
     await this.save({ ...sched, run: next });
     return "opened";
+  }
+
+  /**
+   * The job's tab is gone (closed, or discarded by Chrome) before the page answered. The orders
+   * reader opens its page once more (the owner accepts one extra tab for a moment); every other
+   * reader, and a second loss, ends the job as ``closed``.
+   */
+  private async tabLost(sched: ReaderSchedule, run: ReaderRun): Promise<string> {
+    const job = run.jobs[run.index];
+    const current = run.current;
+    if (job?.id === "orders" && current && !current.reopened) {
+      await this.deps.tabs.close(current.tabId).catch(() => undefined); // a discarded tab is still there
+      const { state } = await this.load();
+      if (readerRequestsLeft(state, run.day) > READER_PAGE_LOAD_COST) {
+        const tabId = await this.deps.tabs.open(`${this.deps.origin}${readerPageUrl(job)}`);
+        if (tabId !== undefined) {
+          await addRequests(this.deps.storage, run.day, READER_PAGE_LOAD_COST);
+          await this.save({ ...sched, run: { ...run, current: { tabId, openedAt: this.deps.now(), reopened: true } } });
+          return "reopened";
+        }
+      }
+    }
+    return this.finishJob(sched, run, "closed", false);
   }
 
   private async finishJob(sched: ReaderSchedule, run: ReaderRun, outcome: string, close = true): Promise<string> {
@@ -495,7 +523,7 @@ export class ReaderScheduler {
             ...(job.orderIds ? { orderIds: job.orderIds } : {}),
             ...(job.orderSns ? { orderSns: job.orderSns } : {}),
             // What is left of today's shared budget for this job's own requests.
-            budget: Math.max(0, requestsLeft((await this.load()).state, run.day)),
+            budget: Math.max(0, readerRequestsLeft((await this.load()).state, run.day)),
           },
         });
       } catch {
@@ -642,7 +670,7 @@ export class ReaderScheduler {
   onTabRemoved(tabId: number): Promise<void> {
     return this.exclusive(async () => {
       const { sched } = await this.load();
-      if (sched.run?.current?.tabId === tabId) await this.finishJob(sched, sched.run, "closed", false);
+      if (sched.run?.current?.tabId === tabId) await this.tabLost(sched, sched.run);
     });
   }
 
