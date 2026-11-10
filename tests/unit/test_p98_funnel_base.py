@@ -120,7 +120,9 @@ def test_a_day_without_source_rows_puts_its_orders_on_the_residual():
     base = base_from_rows(rows, "s")
     assert base.total("orders") == 5 and base.total("gmv") == 290_000
     assert _by(base)[RESIDUAL].orders == 3
-    assert _by(base)[RESIDUAL].profit is None  # D2's profit is "chưa tính"
+    # P99: D2's profit is "chưa tính", so it adds nothing; the window keeps D1's known profit
+    assert _by(base)[RESIDUAL].profit == 0 and _by(base)[RESIDUAL].profit_orders == 0
+    assert base.total("profit_orders") == 2 and (base.profit_days, base.days) == (1, 2)
 
 
 def test_a_source_with_no_traffic_rows_and_no_orders_is_zero_not_unknown():

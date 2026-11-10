@@ -71,6 +71,9 @@ class SourceFunnel:
     gmv: Decimal
     profit: Decimal | None  # None = a giá vốn is missing ("chưa tính")
     ads: AdShare | None = None
+    #: P99: the đơn of the days whose profit is known (``profit`` sums those days only), so
+    #: profit per order = profit ÷ profit_orders
+    profit_orders: Decimal = Decimal(0)
 
     @property
     def ctr(self) -> Decimal | None:
@@ -104,13 +107,17 @@ class FunnelBase:
     contribution_rate: Decimal | None
     #: "all-sources" when product × source rows are missing and one all-source funnel stands in
     source_detail: Literal["per_source", "all_sources"] = "per_source"
+    #: P99: days of the window with a known profit / with any row ("trên N ngày có dữ liệu chi phí")
+    profit_days: int = 0
+    days: int = 0
 
     @property
     def window_days(self) -> int:
         return (self.window_end - self.window_start).days + 1
 
     def total(
-        self, field_name: Literal["orders", "gmv", "views", "clicks", "profit"]
+        self,
+        field_name: Literal["orders", "gmv", "views", "clicks", "profit", "profit_orders"],
     ) -> Decimal | None:
         """The scope's sum. The residual ``chenh_lech_nguon`` carries orders but never traffic (by
         definition Shopee assigns it to no source), so for views / clicks it counts as 0; any other

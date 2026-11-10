@@ -9,7 +9,8 @@ Kế hoạch each picked their own GMV, window and AOV. Now:
 - **Splits** (per product GMV, units, đơn có sản phẩm) come from the order lines **scaled to the
   totals**: ``line GMV x (shop GMV / line GMV)``, allocated in whole đồng by largest remainder so
   the products add up to the shop GMV exactly. Without order lines the product-period totals stand
-  in, scaled the same way.
+  in, scaled the same way -- except on one day of a longer period: then the period is spread
+  over its days by the shop's daily shares (P99, :mod:`.period_spread`), never stamped on the day.
 - **One AOV** = shop GMV ÷ shop đơn. The Seller Centre AOV (lines, minus the shop voucher) is a
   labelled second line, never the headline.
 - **Funnel** (lượt xem, CTR, CTOR) from the stored source funnel when the window has its rows
@@ -24,9 +25,10 @@ Pure over a :class:`PeriodView`; no I/O.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num, pct, ratio
@@ -41,10 +43,15 @@ from juli_backend.services.shopee_analytics.stored import StoredWindow
 from juli_backend.services.shopee_analytics.windows import Anchor, Window
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
 
+if TYPE_CHECKING:
+    from juli_backend.services.shopee_analytics.period_spread import SpreadDay
+
 BASIS_SHOP_TOTALS = "shop_totals"
 BASIS_ORDER_LINES = "order_lines"
 SPLIT_SCALED_LINES = "scaled_order_lines"
 SPLIT_PRODUCT_PERIOD = "scaled_product_period"
+#: P99: a period total spread over its days by the shop's daily shares (:mod:`.period_spread`)
+SPLIT_SPREAD_PERIOD = "spread_product_period"
 SPLIT_LINES = "order_lines"
 
 GMV_LABEL = "GMV shop (Shopee)"
@@ -178,11 +185,32 @@ class ShopMetrics:
         }
 
 
+def _spread_splits(spread: Mapping[str, SpreadDay], gmv: Decimal | None) -> dict[str, ProductSplit]:
+    """A day's splits from its spread period totals (P99): đơn as spread; GMV = the spread
+    period Doanh số, fitted inside the shop's GMV of the day (scaled down, never up, so every
+    product keeps about its period AOV and the rest stays unattributed)."""
+    picked = {i: s for i, s in spread.items() if s.orders is not None and s.gmv is not None}
+    expected = {i: s.gmv for i, s in picked.items() if s.gmv is not None and s.gmv > 0}
+    total = sum(expected.values(), ZERO)
+    target = total if gmv is None else min(max(gmv, ZERO), total)
+    shares = allocate(target, expected) if total > 0 else {}
+    return {
+        i: ProductSplit(i, shares.get(i, ZERO), s.orders or 0, 0, ZERO, 0, SPLIT_SPREAD_PERIOD)
+        for i, s in picked.items()
+        if s.orders or i in expected
+    }
+
+
 def _splits(
-    view: PeriodView, gmv: Decimal | None, orders: int | None
+    view: PeriodView,
+    gmv: Decimal | None,
+    orders: int | None,
+    spread: Mapping[str, SpreadDay] | None = None,
 ) -> tuple[dict[str, ProductSplit], Decimal | None, Decimal | None]:
     """Per product: order lines (all listings, excluded ones too, so the shop adds up) scaled to
-    the shop totals. Returns the splits and the GMV / đơn scale factors."""
+    the shop totals. Returns the splits and the GMV / đơn scale factors. ``spread`` = the day's
+    share of the product period totals (P99), used instead of the totals on a day without
+    order lines."""
     line_gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
     units: dict[str, int] = defaultdict(int)
     order_ids: dict[str, set[str]] = defaultdict(set)
@@ -213,6 +241,8 @@ def _splits(
             for i in line_gmv
         }
         return out, scale, o_scale
+    if spread and any(s.orders is not None for s in spread.values()):
+        return _spread_splits(spread, gmv), None, None
     # no order lines: Shopee's own per-product totals stand in, scaled the same way
     shopee = product_totals_for(view.data.product_flows, view.data.lines)
     if not shopee:
@@ -254,10 +284,16 @@ def _aov_seller_centre(view: PeriodView) -> Decimal | None:
     return (gmv - voucher) / Decimal(orders)
 
 
-def shop_metrics(view: PeriodView, anchor: Anchor | None = None) -> ShopMetrics:
-    """The window's core numbers, once. Every screen's headline comes from here."""
+def shop_metrics(
+    view: PeriodView,
+    anchor: Anchor | None = None,
+    *,
+    spread: Mapping[str, SpreadDay] | None = None,
+) -> ShopMetrics:
+    """The window's core numbers, once. Every screen's headline comes from here. ``spread``: the
+    rebuild's per-day share of longer Shopee periods (P99, :mod:`.period_spread`)."""
     gmv, orders = view.shop_gmv, view.shop_orders
-    splits, scale, _ = _splits(view, gmv, orders)
+    splits, scale, _ = _splits(view, gmv, orders, spread)
     views, clicks = _funnel(view)
     daily = view.data.ads_daily
     p = view.profit
@@ -287,7 +323,13 @@ def shop_metrics(view: PeriodView, anchor: Anchor | None = None) -> ShopMetrics:
         unattributed_gmv=(gmv - sum((x.gmv for x in splits.values()), ZERO))
         if gmv is not None
         else ZERO,
-        sources={"gmv": gmv_tag, "orders": gmv_tag, "splits": "order_lines"},
+        sources={
+            "gmv": gmv_tag,
+            "orders": gmv_tag,
+            "splits": SPLIT_SPREAD_PERIOD
+            if any(s.basis == SPLIT_SPREAD_PERIOD for s in splits.values())
+            else "order_lines",
+        },
     )
 
 
@@ -365,6 +407,7 @@ __all__ = [
     "metrics_of",
     "AOV_LABEL",
     "AOV_SC_LABEL",
+    "SPLIT_SPREAD_PERIOD",
     "ProductSplit",
     "ShopMetrics",
     "allocate",

@@ -15,13 +15,19 @@ are the ShopMetrics row's, allocated over the sources with :func:`metrics.alloca
 source's own traffic-table count is its weight, the shortfall to the totals is the
 ``chenh_lech_nguon`` weight), so the sources add up to the shop / product row exactly. After a
 rebuild the hook runs the daily check (:mod:`funnel_check`), which only logs.
+
+P99: a day that stands on a longer Shopee period (product totals without order lines, or the
+period traffic table) gets its share of that period (:mod:`period_spread`), never the period
+total. ``rebuild_days`` loads the shop's daily series of each period once and passes the day's
+spread to the pure ``day_rows``; the rows say so (product ``source`` = ``spread_period``, shop
+``sources.product_splits`` / ``sources.product_traffic`` = ``spread_product_period``).
 """
 
 from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -41,13 +47,15 @@ from juli_backend.models.shopee_metrics import (
 )
 from juli_backend.models.shopee_profit import ShopeeOrderLine
 from juli_backend.repositories import PlatformDailyMetricsRepo
-from juli_backend.services.shopee_analytics import funnel_check, loaders, service
+from juli_backend.services.shopee_analytics import funnel_check, loaders, period_spread, service
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.metrics import (
     SPLIT_PRODUCT_PERIOD,
+    SPLIT_SPREAD_PERIOD,
     allocate,
     shop_metrics,
 )
+from juli_backend.services.shopee_analytics.period_spread import ShopDay, SpreadDay
 from juli_backend.services.shopee_analytics.stored import ORDER_TYPE
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.flows import FLOW_ORDER, RESIDUAL_KEY, FlowTable
@@ -126,7 +134,8 @@ def split_sources(
     its own count and ``chenh_lech_nguon`` holds the rest; when it assigns more, the flows are
     scaled down and the residual is 0. The sources add up to ``orders`` / ``gmv`` / ``profit``
     exactly (whole đơn; GMV and profit to the đồng, any sub-đồng part on the residual). Profit is
-    split like the allocated GMV; None stays None ("chưa tính")."""
+    split like the allocated GMV; None stays None ("chưa tính"). Residual đơn whose GMV the flows
+    already took weigh at the scope's AOV, so ``chenh_lech_nguon`` never holds 0đ đơn."""
     total_orders = Decimal(orders or 0)
     total_gmv = gmv if gmv is not None else ZERO
     own: dict[str, tuple[int | None, int | None, int, Decimal]] = {}
@@ -140,7 +149,13 @@ def split_sources(
     w_orders[RESIDUAL_KEY] = max(total_orders - sum(w_orders.values(), ZERO), ZERO)
     w_gmv[RESIDUAL_KEY] = max(total_gmv - sum(w_gmv.values(), ZERO), ZERO)
     a_orders = allocate(total_orders, w_orders)
-    a_gmv = allocate(total_gmv, w_gmv)
+    if a_orders[RESIDUAL_KEY] > 0 and w_gmv[RESIDUAL_KEY] <= 0 and total_orders > 0:
+        # đơn the sources leave out carry the scope's AOV, never 0đ (P99): the flows give way
+        kept = (total_gmv * a_orders[RESIDUAL_KEY] / total_orders).quantize(Decimal(1))
+        a_gmv = allocate(total_gmv - kept, {k: w_gmv[k] for k in own})
+        a_gmv[RESIDUAL_KEY] = kept
+    else:
+        a_gmv = allocate(total_gmv, w_gmv)
     a_gmv[RESIDUAL_KEY] = total_gmv - sum((a_gmv[k] for k in own), ZERO)
     a_profit: dict[str, Decimal | None] = {k: None for k in FUNNEL_SOURCES}
     if profit is not None:
@@ -228,9 +243,13 @@ def day_rows(
     day: date,
     traffic_tag: str,
     ads: AdsDay | None = None,
+    spread: Mapping[str, SpreadDay] | None = None,
 ) -> DayRows:
-    """The rows of one day from its (one-day) view. Pure."""
-    m = shop_metrics(view)
+    """The rows of one day from its (one-day) view. Pure. ``spread`` = each product's share of
+    the longer Shopee period the day stands on (:func:`period_spread.day_spread`)."""
+    spread = spread or {}
+    m = shop_metrics(view, spread=spread)
+    traffic_spread = {i: s for i, s in spread.items() if s.traffic_period is not None}
     p = view.profit
     complete = view.data.totals.basis == "daily" and view.data.traffic.basis == "daily"
     sources = {
@@ -241,6 +260,15 @@ def day_rows(
         "ads_spend": traffic_tag,
         "profit": "order_lines",
     }
+    if any(s.basis == SPLIT_SPREAD_PERIOD for s in m.splits.values()):
+        sources["product_splits"] = SPLIT_SPREAD_PERIOD
+    shop_views, shop_clicks = m.views, m.clicks
+    if traffic_spread:
+        sources["product_traffic"] = SPLIT_SPREAD_PERIOD
+        if view.data.traffic.basis == "none":  # the shop table is the products' period flows
+            v = [t.views for t in traffic_spread.values() if t.views is not None]
+            c = [t.clicks for t in traffic_spread.values() if t.clicks is not None]
+            shop_views, shop_clicks = (sum(v) if v else None), (sum(c) if c else None)
     covered = p.buyer_paid_covered
     net_gmv = sum((ln.order_value - ln.shop_voucher_share for ln, _ in view.pairs), ZERO)
     shop = {
@@ -251,9 +279,9 @@ def day_rows(
         "orders": m.orders,
         "aov": _money(m.aov),
         "units": m.units or None,
-        "views": m.views,
+        "views": shop_views,
         "visitors": None,
-        "product_clicks": m.clicks,
+        "product_clicks": shop_clicks,
         "ads_spend": _money(m.ad_spend),
         "ads_gmv": _money(view.data.ads_daily.gmv),
         "profit": _money(m.profit),
@@ -285,6 +313,8 @@ def day_rows(
     for item_id, s in sorted(m.splits.items()):
         flow = view.flows.products.get(item_id) if view.flows else None
         views, clicks = _funnel(flow.rows) if flow else (None, None)
+        if item_id in traffic_spread:
+            views, clicks = traffic_spread[item_id].views, traffic_spread[item_id].clicks
         pp = p.products.get(item_id)
         profit = pp.profit if pp is not None else None
         if profit is not None and m.gmv_scale is not None and view.line_gmv > 0:
@@ -307,8 +337,9 @@ def day_rows(
                 "profit": _money(profit),
                 "line_gmv": _money(s.line_gmv),
                 "line_orders": s.line_orders,
-                "source": "order_lines" if s.basis != SPLIT_PRODUCT_PERIOD else "file",
-                "scaled_to_totals": s.basis in ("scaled_order_lines", SPLIT_PRODUCT_PERIOD),
+                "source": _row_source(s.basis),
+                "scaled_to_totals": s.basis
+                in ("scaled_order_lines", SPLIT_PRODUCT_PERIOD, SPLIT_SPREAD_PERIOD),
             }
         )
     residual = (m.gmv - spent) if m.gmv is not None else ZERO
@@ -348,6 +379,12 @@ def day_rows(
                 ads=_product_ads(view, item_id),
             )
     return DayRows(shop, products, funnel)
+
+
+def _row_source(basis: str) -> str:
+    if basis == SPLIT_SPREAD_PERIOD:
+        return period_spread.ROW_SOURCE
+    return "file" if basis == SPLIT_PRODUCT_PERIOD else "order_lines"
 
 
 def _product_ads(view: PeriodView, item_id: str) -> AdsDay | None:
@@ -430,15 +467,22 @@ async def rebuild_days(session: AsyncSession, shop_id: uuid.UUID, days: Iterable
     if not wanted:
         return 0
     ctx0 = await loaders.load_context(session, shop_id)
+    series: dict[period_spread.Period, dict[date, ShopDay]] = {}  # one read per period
     for day in wanted:
         ctx = replace(ctx0, rules=ctx0.rules.for_month(f"{day:%Y-%m}"))
         view = await service.load_view(session, shop_id, ctx, Window(day, day))
+        shop_days: dict[date, ShopDay] = {}
+        for period in period_spread.periods_to_load(view.data.product_flows, day):
+            if period not in series:
+                series[period] = await period_spread.load_shop_days(session, shop_id, period)
+            shop_days.update(series[period])
         rows = day_rows(
             view,
             shop_id,
             day,
             await _traffic_tag(session, shop_id, day),
             await _ads_day(session, shop_id, day),
+            period_spread.for_view(view, day, shop_days),
         )
         have = set(
             (

@@ -111,7 +111,9 @@ async def collect_shop(
         "orders": orders,
         "aov": None if not orders or gmv is None else gmv / orders,
         "gmv": gmv,
-        "profit": fb.total("profit"),
+        # P99: the base sums only the days with giá vốn ("trên N ngày có dữ liệu chi phí"); it
+        # is the window's profit only when every day has one
+        "profit": fb.total("profit") if fb.profit_days == fb.days else None,
     }
     surfaces = [
         Surface(name, {k: _f(v) for k, v in vals.items()})
