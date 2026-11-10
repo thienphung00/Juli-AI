@@ -520,6 +520,8 @@ export class ReaderScheduler {
             ...(job.days ? { days: job.days } : {}),
             ...(job.itemIds ? { itemIds: job.itemIds } : {}),
             ...(job.campaignIds ? { campaignIds: job.campaignIds } : {}),
+            // The list titles reach the page (0.3.16): before, the reader never saw them.
+            ...(job.campaignNames ? { campaignNames: job.campaignNames.map((n) => n.slice(0, 255)) } : {}),
             ...(job.orderIds ? { orderIds: job.orderIds } : {}),
             ...(job.orderSns ? { orderSns: job.orderSns } : {}),
             // What is left of today's shared budget for this job's own requests.

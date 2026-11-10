@@ -94,6 +94,8 @@ number:
   From version 0.3.15 the extension keeps that background tab from being discarded until the
   page has answered, and if Chrome closes it first it opens the same page once more (so for a
   moment one extra Seller Centre tab may be open). It reads nothing new.
+  From version 0.3.16 the group campaign page's own campaign-name answer (already loaded by
+  the page) is kept so each campaign row carries its real name. No extra request is made.
 
 - **Dữ liệu › Sản phẩm › Hiệu quả của sản phẩm** (`/datacenter/product/performance`, from
   version 0.3.12) — once a day, the product table of the last 30 finished days (at most 5

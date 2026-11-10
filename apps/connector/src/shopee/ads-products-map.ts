@@ -1,18 +1,19 @@
 // Per-product ads of the group campaigns (Connector 0.3.12, P97 T3): the manual-mpd page's table
 // (Hiệu quả) → `ads_campaign_period`, one row per campaign x product over the window the page asked for.
 //
-// Source (recorded 2026-11-09, shape only): POST /api/pas/v1/product/mpd/list_item_product_performance/
-// -- per product: views, clicks, CTR, ads cost, GMV (and selectable metrics). The request body was
-// not captured, so the page's own request is the template (the window comes from its `start_time` /
-// `end_time`) and the money scale is the ads service's (x100 000, like homepage/query).
+// Source (recorded 2026-11-09 and 2026-11-10, shape only): POST /api/pas/v1/product/mpd/list_item_product_performance/
+// request {reference_id:string, campaign_id:number, start_time:number, end_time:number}; response
+// data.result_list[]{item_id:number, name:string (the PRODUCT name: never a campaign name), image,
+// trait_list[], report{broad_gmv, broad_order, click, cost, ctr, impression, product_click,
+// product_impression, page_views, direct_gmv, direct_order, ...}}. No campaign name in this answer.
+// The window comes from the request's `start_time` / `end_time`; money is the ads service's scale (x100 000).
 //
-// TODO(first capture, ORY): (1) the list's wrapper and the product id key (read: `item_id`,
-// `itemid`, `product_id`, or the same inside `item` / `product`); (2) the per-product metric keys
-// (read from `report` like the homepage entries: impression, click, ctr, cost, broad_gmv,
-// direct_gmv, broad_order, direct_order, broad_roi, direct_roi); (3) the campaign title, which the
-// scheduler passes from the ads list (the key the daily ads rows use). Policy as reader-map.ts:
-// a missing product id or window is drift (nothing posted, never guessed). The campaign title is
-// tolerant since 0.3.15 (Shopee moved it): list title -> the answer's own -> the campaign id.
+// Campaign name, in order: the page's POST /api/pas/v1/product/get/ (request {campaign_id:number,
+// reference_id:string}; response data.campaign{campaign_id:number, name:string, type, state, ...}),
+// captured on the same manual-mpd page; else the ads list entry's `title` (homepage/query entry:
+// title:string, campaign{campaign_id:number, daily_budget, total_budget, start_time, ...} with no
+// `type` and no name key; the list is paged, limit 20); else "Chiến dịch <id>" (0.3.15 fallback).
+// A missing product id or window is drift (nothing posted, never guessed).
 
 import { MAX_PLAUSIBLE_AD_VND, MONEY_DIVISOR, SHOPEE_NO_VALUE } from "../config";
 import type { Drift, Mapped, Row } from "./map";
