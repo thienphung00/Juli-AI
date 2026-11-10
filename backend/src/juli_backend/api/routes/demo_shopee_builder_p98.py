@@ -20,12 +20,12 @@ from juli_backend.api.dependencies import get_active_shop
 from juli_backend.api.routes import shopee_builder_common as common
 from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.database import Shop, get_session
-from juli_backend.services.shopee_builder import ads_builder, combo_builder, kol_builder, service
-from juli_backend.services.shopee_builder.specs_p98 import (
-    AdsRequest,
-    BuilderInputError,
-    ComboRequest,
-    KolRequest,
+from juli_backend.services.shopee_builder import (
+    ads_builder,
+    combo_builder,
+    kol_builder,
+    service,
+    specs_p98,
 )
 
 router = APIRouter(prefix="/demo/shopee", tags=["demo-shopee"])
@@ -35,13 +35,13 @@ def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-def _refused(exc: BuilderInputError) -> HTTPException:
+def _refused(exc: specs_p98.BuilderInputError) -> HTTPException:
     return HTTPException(exc.status, detail=common.detail(exc.code, exc.message, **exc.more))
 
 
 @router.post("/builder/combo/options")
 async def combo_options(
-    body: ComboRequest,
+    body: specs_p98.ComboRequest,
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -49,13 +49,13 @@ async def combo_options(
         return await combo_builder.build(session, _shopee(shop), body, now=_now())
     except service.NoShopeeData:
         raise common.no_data() from None
-    except BuilderInputError as exc:
+    except specs_p98.BuilderInputError as exc:
         raise _refused(exc) from None
 
 
 @router.post("/builder/kol/setup")
 async def kol_setup(
-    body: KolRequest,
+    body: specs_p98.KolRequest,
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -63,13 +63,13 @@ async def kol_setup(
         return await kol_builder.build(session, _shopee(shop), body, now=_now())
     except service.NoShopeeData:
         raise common.no_data() from None
-    except BuilderInputError as exc:
+    except specs_p98.BuilderInputError as exc:
         raise _refused(exc) from None
 
 
 @router.post("/builder/ads/setup")
 async def ads_setup(
-    body: AdsRequest,
+    body: specs_p98.AdsRequest,
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -77,5 +77,5 @@ async def ads_setup(
         return await ads_builder.build(session, _shopee(shop), body, now=_now())
     except service.NoShopeeData:
         raise common.no_data() from None
-    except BuilderInputError as exc:
+    except specs_p98.BuilderInputError as exc:
         raise _refused(exc) from None

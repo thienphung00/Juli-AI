@@ -103,13 +103,14 @@ async def collect_shop(
 
     fb = await funnel.load_funnel_base(session, shop_id, window=window)
     n = funnel.numbers(fb, sm["orders"])
+    orders, gmv = fb.total("orders"), fb.total("gmv")
     builder = {
         "views": n.views,
         "ctr": n.ctr,
         "ctor": n.ctor,
-        "orders": fb.total("orders"),
-        "aov": None if not fb.total("orders") else fb.total("gmv") / fb.total("orders"),  # type: ignore[operator]
-        "gmv": fb.total("gmv"),
+        "orders": orders,
+        "aov": None if not orders or gmv is None else gmv / orders,
+        "gmv": gmv,
         "profit": fb.total("profit"),
     }
     surfaces = [
@@ -130,13 +131,18 @@ def agreed(
 ) -> dict[str, float | None]:
     """The field's value per screen that shows it; raises AssertionError listing the gap. The gap
     must be within ``tol`` of the largest value or ``abs_tol`` (for a ratio a screen rounds)."""
-    got = {s.name: s.values[field] for s in surfaces if s.values[field] is not None}
-    if got:
-        lo, hi = min(got.values()), max(got.values())  # type: ignore[type-var]
-        scale = max(abs(hi), abs(lo), 1e-9)  # type: ignore[arg-type]
-        gap = hi - lo  # type: ignore[operator]
+    got: dict[str, float | None] = {}
+    for s in surfaces:
+        value = s.values[field]
+        if value is not None:
+            got[s.name] = float(value)
+    shown = [v for v in got.values() if v is not None]
+    if shown:
+        lo, hi = min(shown), max(shown)
+        scale = max(abs(hi), abs(lo), 1e-9)
+        gap = hi - lo
         assert gap <= tol * scale or gap <= abs_tol, f"{field} differs across screens: {got}"
-    return dict(got)  # type: ignore[arg-type]
+    return got
 
 
 __all__ = ["FIELDS", "Surface", "agreed", "collect_shop"]
