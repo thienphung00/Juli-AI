@@ -79,7 +79,7 @@ function P98Entry({ api, data, from, productId, p98Api, kols }: { readonly api: 
   if (!p98Api) return <Builder data={data} from={from} productId={productId} />;
   return (
     <>
-      <nav aria-label="Loại công cụ" className="sb-pills" data-testid="p98-modes">
+      <nav aria-label="Loại công cụ" className="sb-pills p98-modes" data-testid="p98-modes">
         {MODES.map((m) => (
           <button aria-pressed={mode === m.key} className={`sb-pill ${mode === m.key ? "sb-pill--on" : ""}`} data-testid={`p98-mode-${m.key}`} key={m.key} onClick={() => setMode(m.key)} type="button">
             {m.label}

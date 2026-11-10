@@ -103,6 +103,37 @@ export interface Brief {
   readonly floor_ok: boolean;
 }
 
+/** P99: a card's (or product's) 30-day funnel base; every key may be null. */
+export interface PlanFunnel {
+  readonly gmv_30d?: N;
+  readonly orders_30d?: N;
+  readonly profit_30d?: N;
+  readonly views_30d?: N;
+  readonly clicks_30d?: N;
+  readonly aov?: N;
+  readonly margin_pct?: N;
+  readonly ctr?: N;
+  readonly ctor?: N;
+  readonly label?: string;
+}
+
+/** P99: what a card contributes to the sums: its own base, Δ and cost. */
+export interface PlanCardResult {
+  readonly estimable: boolean;
+  readonly counted: boolean;
+  readonly message: string | null;
+  readonly reason: string | null;
+  readonly delta: Readonly<Record<"p10" | "p50" | "p90", { readonly dgmv: N; readonly dorders: N; readonly dprofit: N }>> | null;
+  readonly cost_month: N;
+  readonly cost_total: N;
+  readonly break_even_orders: N;
+  readonly days: N;
+  readonly horizon: string | null;
+  readonly before: PlanFunnel | null;
+  readonly after: PlanFunnel | null;
+  readonly notes: readonly string[];
+}
+
 /** One card of `aggregate.cards`: its evaluation as part of the plan. */
 export interface PlanEvaluation {
   readonly card_id: string;
@@ -124,6 +155,8 @@ export interface PlanEvaluation {
   readonly without: (Brief & { readonly delta: { readonly dprofit_p50: N; readonly dgmv_p50: N; readonly cost_month: number } }) | null;
   readonly floor_ok: boolean;
   readonly breaches: readonly PlanBreach[];
+  /** P99: the card's own base, Δ and cost (absent on an older server). */
+  readonly result?: PlanCardResult;
 }
 
 /** A plan-level breach: a floor (`sku`, `kind`, `floor`, `min_unit_price`) or the spend cap. */
@@ -188,6 +221,9 @@ export interface ProductBlock {
   readonly cards: readonly string[];
   readonly codes: readonly string[];
   readonly joint: Brief;
+  /** P99: the product's own funnel today / after (absent or null when not computable). */
+  readonly today?: PlanFunnel | null;
+  readonly after?: PlanFunnel | null;
   readonly predicted_rel_gmv: Readonly<Record<string, N>>;
   readonly base_gmv_30d: number;
   readonly orders_per_day: N;

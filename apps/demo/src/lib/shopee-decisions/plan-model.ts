@@ -1,4 +1,4 @@
-import { DASH, fmt, pp, vnd } from "../shopee-analytics/format";
+import { DASH, fmt, pp, vnCount, vnd } from "../shopee-analytics/format";
 import type { Breach, N } from "./types";
 import type { MeasurementCut, PlanBreach, PlanCard, PlanEvaluation, PlanResponse, WindowProductRow } from "./plan-types";
 import { rangeK, roundK, svk } from "./versions";
@@ -17,7 +17,7 @@ const rangeOf = (a: N, b: N, f: (n: number) => string): string => {
   return f(lo) === f(hi) ? f(lo) : `${f(lo)} – ${f(hi)}`;
 };
 const arrow = (d: number): string => (Math.abs(d) < 1e-9 ? "" : d > 0 ? "▲ " : "▼ ");
-const signed = (n: number, unit: string): string => `${n >= 0 ? "+" : MINUS}${fmt(Math.abs(Math.round(n)), 0)} ${unit}`;
+const signed = (n: number, unit: string): string => `${n >= 0 ? "+" : MINUS}${vnCount(Math.abs(n))} ${unit}`;
 
 export interface AggRow {
   readonly key: string;

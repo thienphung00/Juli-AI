@@ -1,4 +1,4 @@
-import { DASH, fmt, pp, sv, vnd } from "../shopee-analytics/format";
+import { DASH, fmt, pp, sv, vnCount, vnd } from "../shopee-analytics/format";
 import type { Band, BeforeAfterRow, BuilderOutcome, BuilderVersion, BuilderWarning, CoverOverlay, PickerProduct, VariationRow } from "./builder-api";
 
 /**
@@ -562,7 +562,7 @@ function reasonOf(text: string | null | undefined, code: string | null | undefin
 export function bandText(b: Band | null | undefined, unit: "vnd" | "orders" = "vnd"): { readonly main: string; readonly range: string } {
   if (!b || b.p50 === null) return { main: DASH, range: "không đủ dữ liệu" };
   if (unit === "orders") {
-    const o = (n: number | null) => (n === null ? DASH : `${n >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round(n)))}`);
+    const o = (n: number | null) => (n === null ? DASH : `${n >= 0 ? "+" : "−"}${vnCount(Math.abs(n))}`);
     return { main: `${o(b.p50)} đơn`, range: `${o(b.low)} – ${o(b.high)}` };
   }
   return { main: sv(b.p50), range: `${sv(b.low)} – ${sv(b.high)}` };

@@ -502,6 +502,33 @@ button.sv-head:disabled {
   color: #fff;
 }
 
+/* P99: the tool tabs (Từng phương án / Combo / KOL / Quảng cáo) sit outside `.sa-page`, where the --qd-*
+   tokens are not defined (the selected tab was white on nothing). They read packages/theme tokens only;
+   selected = background colour on --juli-primary-text (5.8:1), so a theme that flips the pair stays legible. */
+.p98-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--juli-space-2, 8px);
+  margin: var(--juli-space-3, 12px) var(--juli-space-4, 16px) 0;
+}
+
+.p98-modes .sb-pill {
+  border: 1px solid var(--juli-border);
+  background: var(--juli-surface);
+  color: var(--juli-foreground);
+}
+
+.p98-modes .sb-pill--on {
+  border-color: var(--juli-primary-text);
+  background: var(--juli-primary-text);
+  color: var(--juli-background);
+}
+
+.p98-modes .sb-pill:focus-visible {
+  outline: var(--juli-focus-width, 3px) solid var(--juli-focus-ring);
+  outline-offset: 2px;
+}
+
 .sb-pill--dark {
   border-color: var(--qd-ink-2);
   background: var(--qd-ink-2);

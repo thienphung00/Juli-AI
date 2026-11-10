@@ -82,6 +82,11 @@ export function useReco(): RecoHost {
   return host;
 }
 
+/** The host when there is one (a builder tab can render without the plan/choose actions). */
+export function useRecoMaybe(): RecoHost | null {
+  return useContext(Ctx);
+}
+
 /** `?tab=…&the=…` appended to a base path. */
 export function decisionsQuery(view: DecisionView, extra?: URLSearchParams): URLSearchParams {
   const p = new URLSearchParams(extra);

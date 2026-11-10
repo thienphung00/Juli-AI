@@ -1,4 +1,5 @@
 import { ShopeeApiError } from "../shopee-analytics/client";
+import type { BuilderVersion } from "./builder-api";
 import type { OptionResult } from "./option-result";
 
 /**
@@ -162,6 +163,8 @@ export interface AdsSetupRow {
   readonly products: readonly { readonly item_id: string; readonly name: string; readonly measured: boolean; readonly note: string | null; readonly roas_broad?: N; readonly spend?: N }[];
   readonly inputs?: unknown;
   readonly result?: OptionResult | null;
+  /** P99: the `ads_new` version to send to Chọn / Chạy cùng nhau. */
+  readonly spec?: BuilderVersion;
 }
 export interface AdsResponse {
   readonly as_of: string;

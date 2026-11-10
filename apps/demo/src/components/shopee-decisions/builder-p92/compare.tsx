@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
-import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
-import type { BuilderApi, BuilderEvaluation, BuilderOutcome, BuilderVersion, ChooseResult, GroupResult } from "../../../lib/shopee-decisions/builder-api";
+import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
+import type { BuilderApi, BuilderEvaluation, BuilderToday, BuilderOutcome, BuilderVersion, ChooseResult, GroupResult } from "../../../lib/shopee-decisions/builder-api";
 import { aggRows } from "../../../lib/shopee-decisions/plan-model";
 import { bandText, baseText, beforeAfterText, bestBadge, breachesOfOutcome, breakEvenText, marginText, metricValue, refusalText, unitLines, versionFacts, voucherMaxText, voucherUsageText, type Forms, type Kind92, type VersionFact, type VersionNames } from "../../../lib/shopee-decisions/builder-p92";
 import type { Breach } from "../../../lib/shopee-decisions/types";
@@ -363,11 +363,7 @@ export function CompareView({
         <h2 className="sa-h2">So sánh tối đa 4 phương án, loại nào cũng được</h2>
         <span className="sa-hint">{narrow ? "Vuốt ngang để xem từng phương án." : "30 ngày, dự kiến. Cùng bốn con số cho mọi phương án, rồi chỉ số chính của từng loại. Mỗi ô có khoảng thấp – cao. Hoà vốn luôn hiện."}</span>
       </div>
-      {today ? (
-        <p className="sa-hint" data-testid="p2-today">
-          Hôm nay: {fmt(today.orders_30d)} đơn · GMV {vnd(today.gmv_30d)} · biên {pp(today.margin_pct, 1)} · AOV {vnd(today.aov)}
-        </p>
-      ) : null}
+      {today ? <TodayLine today={today} /> : null}
       {current === null ? (
         <p className="sa-hint" role="status">
           Đang tính…
@@ -385,6 +381,7 @@ export function CompareView({
             {entries.map((e, i) => (
               <div className="oc-cards__col" key={e.id}>
                 {head(e, i)}
+                {today?.mixed_scopes && outcomes[i]?.today ? <TodayLine today={outcomes[i]!.today!} testId={`p2-today-${i + 1}`} /> : null}
                 {outcomes[i]?.ok && outcomes[i]?.result ? <OptionCard result={outcomes[i]!.result!} testId={`oc-card-${i + 1}`} /> : <span className="sd-error">{outcomes[i] ? refusalText(outcomes[i]!) : DASH}</span>}
                 <button className="sa-btn sa-btn--primary" data-testid={`p2-choose-${i + 1}`} disabled={readOnly || busy || !outcomes[i]?.ok || saved !== null} onClick={() => onChoose(i)} type="button">
                   Chọn P{i + 1}
@@ -547,6 +544,21 @@ export function CompareView({
   );
 }
 
+
+/** P99: "Hôm nay" on the scope the versions stand on; a mix of scopes shows the shop's figures with a note. */
+export function TodayLine({ today, testId = "p2-today" }: { readonly today: BuilderToday; readonly testId?: string }) {
+  const product = today.scope === "product" && !today.mixed_scopes;
+  const days = today.window?.days;
+  return (
+    <p className="sa-hint" data-testid={testId}>
+      Hôm nay ({product ? `sản phẩm${today.items && today.items.length > 1 ? ` · ${today.items.length} sản phẩm` : ""}` : "cả shop"}
+      {days ? `, ${days} ngày` : ""}): {vnCount(today.orders_30d)} đơn · GMV {vnd(today.gmv_30d)} · biên {pp(today.margin_pct, 1)} · AOV {vnd(today.aov)}
+      {today.mixed_scopes ? (
+        <span data-testid="p2-today-mixed"> · Các phương án khác phạm vi (shop và sản phẩm): đây là số cả shop, số hôm nay riêng của từng phương án nằm ở thẻ của nó.</span>
+      ) : null}
+    </p>
+  );
+}
 
 function TogetherResult({ result, planHref }: { readonly result: GroupResult; readonly planHref: string | null }) {
   return (

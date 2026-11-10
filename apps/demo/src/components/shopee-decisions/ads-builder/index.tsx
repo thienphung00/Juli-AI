@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 
-import type { PickerProduct } from "../../../lib/shopee-decisions/builder-api";
+import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
+import type { BuilderApi, PickerProduct } from "../../../lib/shopee-decisions/builder-api";
+import { useRecoMaybe } from "../../../lib/shopee-decisions/context";
+import type { Breach } from "../../../lib/shopee-decisions/types";
+import { breachWarnLines } from "../../../lib/shopee-decisions/versions";
+import { BreachDialog } from "../versions";
 import type { AdsResponse, BuilderP98Api } from "../../../lib/shopee-decisions/builder-p98-api";
 import { errorText } from "../ui";
 import { Field, ResultCards, num, vnd } from "../builder-p92/p98-shared";
@@ -34,12 +39,47 @@ export function adsProblems(s: Setup, minimum: number): string[] {
   return out;
 }
 
+/** A group runs at least 3 days; a setup without an end date is planned for the 30-day horizon. */
+export function planDays(days: number | null): number {
+  return Math.min(90, Math.max(3, days ?? 30));
+}
+
+type Act = { readonly kind: "choose" | "plan"; readonly index: number };
+
 export function AdsBuilder({ api, products }: { readonly api: BuilderP98Api; readonly products: readonly PickerProduct[] }) {
   const [setups, setSetups] = useState<readonly Setup[]>([blank()]);
   const [data, setData] = useState<AdsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
+  const host = useRecoMaybe();
+  const builder: BuilderApi | undefined = host?.builder;
+  const [acting, setActing] = useState(false);
+  const [done, setDone] = useState<Readonly<Record<string, string>>>({});
+  const [warn, setWarn] = useState<{ readonly act: Act; readonly breaches: readonly Breach[] } | null>(null);
+  const [actError, setActError] = useState<string | null>(null);
+
+  const send = async (act: Act, ack: boolean) => {
+    const row = data?.setups[act.index];
+    if (!builder || !row?.spec) return;
+    setActing(true);
+    setActError(null);
+    try {
+      if (act.kind === "choose") {
+        const out = await builder.choose({ versions: [row.spec], chosen: 0, acknowledgeBreaches: ack });
+        setDone((d) => ({ ...d, [`choose-${act.index}`]: `Đã chuyển sang Quyết định · thẻ thủ công ${out.code ?? out.id}.` }));
+      } else {
+        const out = await builder.group({ versions: [row.spec], members: [0], days: planDays(row.days), start: row.spec["start"] ? String(row.spec["start"]) : null, acknowledgeBreaches: ack });
+        setDone((d) => ({ ...d, [`plan-${act.index}`]: `Đã thêm vào Kế hoạch (${out.saved.map((c) => c.code ?? c.id).join(", ")}). Chưa thực hiện gì.` }));
+      }
+      setWarn(null);
+    } catch (e) {
+      if (e instanceof ShopeeApiError && e.code === "reco_breach_not_acknowledged" && Array.isArray(e.detail?.["breaches"])) setWarn({ act, breaches: e.detail["breaches"] as Breach[] });
+      else setActError(errorText(e));
+    } finally {
+      setActing(false);
+    }
+  };
 
   const patch = (i: number, p: Partial<Setup>) => setSetups((all) => all.map((s, k) => (k === i ? { ...s, ...p } : s)));
   const problems = setups.map((s) => adsProblems(s, ADS_MIN_BUDGET));
@@ -154,8 +194,41 @@ export function AdsBuilder({ api, products }: { readonly api: BuilderP98Api; rea
             </p>
           ))}
           <ResultCards items={data.setups.map((s, i) => ({ title: `Thiết lập ${i + 1} · ${s.campaign_label}`, result: s.result }))} />
+          {builder
+            ? data.setups.map((s, i) => (
+                <div className="sd-actions" data-testid={`ads-act-${i}`} key={i}>
+                  <span className="sa-hint">Thiết lập {i + 1}</span>
+                  <button className="sa-btn" data-testid={`ads-choose-${i}`} disabled={acting || host?.readOnly || !s.spec || `choose-${i}` in done} onClick={() => void send({ kind: "choose", index: i }, false)} type="button">
+                    Chọn
+                  </button>
+                  <button className="sa-btn sa-btn--primary" data-testid={`ads-plan-${i}`} disabled={acting || host?.readOnly || !s.spec || `plan-${i}` in done} onClick={() => void send({ kind: "plan", index: i }, false)} type="button">
+                    Thêm vào kế hoạch
+                  </button>
+                  {done[`choose-${i}`] ?? done[`plan-${i}`] ? (
+                    <span className="sa-hint" data-testid={`ads-done-${i}`} role="status">
+                      {done[`plan-${i}`] ?? done[`choose-${i}`]}
+                    </span>
+                  ) : null}
+                </div>
+              ))
+            : null}
+          {actError ? (
+            <p className="sd-error" role="alert">
+              {actError}
+            </p>
+          ) : null}
         </section>
       ) : null}
+      <BreachDialog
+        busy={acting}
+        closing="Bạn vẫn có thể tiếp tục. Juli ghi lại rằng bạn đã xác nhận, kèm giờ."
+        lines={warn ? breachWarnLines(warn.breaches as Breach[]) : []}
+        onBack={() => setWarn(null)}
+        onGo={() => warn && void send(warn.act, true)}
+        open={warn !== null}
+        sheet={false}
+        title="Tiếp tục dù chạm trần chi?"
+      />
     </div>
   );
 }

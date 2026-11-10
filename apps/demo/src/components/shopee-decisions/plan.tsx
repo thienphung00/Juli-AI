@@ -12,6 +12,7 @@ import type { Breach, CardList } from "../../lib/shopee-decisions/types";
 import { ackText, breachNoun, breachWarnLines, firstVersionRange, svk } from "../../lib/shopee-decisions/versions";
 import { useNarrow } from "../quyet-dinh/use-narrow";
 import { Notice, PageHead, TextChip } from "../shopee-analytics/ui";
+import { CardResult, ProductToday } from "./plan-results";
 import { PlanSteps } from "./plan-steps";
 import { topEntries } from "./top-cards";
 import { NavLink, RecoState, errorText } from "./ui";
@@ -278,6 +279,7 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
                 Đóng góp:{" "}
                 <b className={(r.evaluation?.contribution.dprofit_p50 ?? 0) >= 0 ? "sa-tone--up" : "sa-tone--down"}>{svk(r.evaluation?.contribution.dprofit_p50)}/tháng (giữa khoảng)</b> · Bỏ thẻ này thì: {withoutText(r)}
               </div>
+              <CardResult cardId={r.card_id} plan={plan} />
             </div>
             <button className="sa-btn sa-btn--s" disabled={done || busy} onClick={() => void onAct(() => api.remove(r.card_id))} type="button">
               Bỏ khỏi kế hoạch
@@ -286,6 +288,8 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
         ))}
         {plan.cards.length === 0 ? <p className="sa-hint" data-testid="kh-empty">Kế hoạch trống. Thêm thẻ từ danh sách bên trái hoặc từ thẻ trong Quyết định.</p> : null}
       </div>
+
+      <ProductToday plan={plan} />
 
       <GroupsSection api={api} busy={busy} done={done} notice={notice} onAct={onAct} plan={plan} />
 

@@ -51,7 +51,7 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.getByText("Sau 7 ngày")).toBeInTheDocument();
     expect(screen.queryByTestId("oc-weak")).toBeNull();
     expect(screen.queryByTestId("oc-detail")).toBeNull();
-    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ Lợi nhuận", "Δ GMV", "Δ Đơn", "Tác động", "Chi phí", "Sau 7 ngày"]);
+    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ Lợi nhuận", "Δ GMV", "Δ Đơn", "Tác động", "Chi phí", "Hoà vốn", "Sau 7 ngày"]);
   });
 
   it("null profit reads 'chưa ước tính được' with the note; costless-unknown reads 'chưa tính'", () => {
@@ -60,7 +60,10 @@ describe("P98 W3-I · OptionCard", () => {
     render(<OptionCard result={r} />);
     expect(screen.getByTestId("oc-profit")).toHaveTextContent("chưa ước tính được");
     expect(screen.getByTestId("oc-note")).toHaveTextContent(note);
-    expect(screen.getByTestId("oc-gmv")).toHaveTextContent("—");
+    expect(screen.getByTestId("oc-gmv")).toHaveTextContent("chưa ước tính được");
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("chưa ước tính được");
+    expect(screen.getByTestId("oc-orders")).not.toHaveTextContent("+0");
+    expect(screen.queryByTestId("oc-after")).toBeNull();
   });
 
   it("'chưa tính' when estimable but profit unknown", () => {
@@ -145,5 +148,25 @@ describe("P98 W4-C · source labels", () => {
       lien_ket: "Liên kết",
       chenh_lech_nguon: "Chênh lệch nguồn",
     });
+  });
+});
+
+describe("P99 · OptionCard", () => {
+  it("break-even and the cost-days note are shown on the card; a not-estimable card keeps its cost", () => {
+    const note = "Lợi nhuận mỗi đơn tính trên 20 ngày có dữ liệu chi phí (trong 30 ngày)";
+    const r = result({ estimable: false, notes: [note], delta: { profit: null, gmv: { value: 0, pct: 0 }, orders: { value: 0, pct: 0, note: null } } });
+    render(<OptionCard result={r} />);
+    expect(screen.getByTestId("oc-breakeven")).toHaveTextContent("cần thêm 5 đơn để hoà vốn");
+    expect(screen.getByTestId("oc-cost")).toHaveTextContent("150.000đ");
+    expect(screen.getByTestId("oc-cost-days")).toHaveTextContent(note);
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("chưa ước tính được");
+    expect(screen.getByTestId("oc-orders")).not.toHaveTextContent("+0");
+  });
+
+  it("Δ Đơn is shown as the backend rounded it: one decimal under 10, whole from 10", () => {
+    const { rerender } = render(<OptionCard result={result({ delta: { profit: null, gmv: { value: 1, pct: 1 }, orders: { value: 7.7, pct: 8, note: null } } })} />);
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("+7,7 ·");
+    rerender(<OptionCard result={result({ delta: { profit: null, gmv: { value: 1, pct: 1 }, orders: { value: 13, pct: 8, note: null } } })} />);
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("+13 ·");
   });
 });

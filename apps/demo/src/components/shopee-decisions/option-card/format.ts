@@ -1,4 +1,4 @@
-import { DASH, fmt, vnd } from "../../../lib/shopee-analytics/format";
+import { DASH, fmt, vnCount, vnd } from "../../../lib/shopee-analytics/format";
 
 /** Signed forms of the P98 option card: real minus (U+2212), vi-VN grouping, `null` = "—". */
 
@@ -25,8 +25,7 @@ export function signedPct(n: number | null | undefined): string {
 /** An orders count: 12 → "+12", 0 → "+0", 2.5 → "+2,5". */
 export function signedCount(n: number | null | undefined): string {
   if (!ok(n)) return DASH;
-  const whole = Number.isInteger(n);
-  const s = fmt(Math.abs(n), whole ? 0 : 1);
+  const s = vnCount(Math.abs(n));
   return `${n < 0 && s !== "0" && s !== "0,0" ? MINUS : "+"}${s}`;
 }
 

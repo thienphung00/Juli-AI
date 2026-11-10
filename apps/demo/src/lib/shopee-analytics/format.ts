@@ -42,6 +42,13 @@ export function pp(x: number | null | undefined, d = 1): string {
   return finite(x) ? `${fmt(x, d)}%` : DASH;
 }
 
+/** The backend's `vn.count` house style for extra orders: 1 decimal under 10 (whole when it is whole), whole from 10. Values arrive already rounded; nothing more is added. */
+export function vnCount(n: number | null | undefined): string {
+  if (!finite(n)) return DASH;
+  if (Math.abs(n) >= 10 || Number.isInteger(n)) return fmt(Math.round(n), 0);
+  return fmt(n, 1);
+}
+
 export function count(n: number | null | undefined): string {
   return fmt(n, 0);
 }

@@ -247,6 +247,8 @@ export interface BuilderOutcome {
   readonly ok: boolean;
   /** P98 d.5: the option result (`OptionResult.json()`); when present the card is drawn from it alone. */
   readonly result?: OptionResult;
+  /** P99: this version's own "hôm nay" (same shape as the evaluation's). */
+  readonly today?: BuilderToday;
   readonly refusal?: { readonly code?: string; readonly message?: string } | string | null;
   readonly title?: string;
   readonly card_kind?: string;
@@ -325,18 +327,30 @@ export interface TableRowBand {
   readonly values: readonly unknown[];
 }
 
+/** P99: "hôm nay" on the scope its versions stand on (`shop`, or the versions' own `product` funnel). */
+export interface BuilderToday {
+  readonly as_of?: string;
+  readonly scope?: "shop" | "product" | string;
+  readonly items?: readonly string[];
+  readonly mixed_scopes?: boolean;
+  readonly gmv_30d: N;
+  readonly orders_30d: N;
+  readonly aov: N;
+  readonly margin_pct: N;
+  readonly profit_30d?: N;
+  readonly views_30d?: N;
+  readonly clicks_30d?: N;
+  readonly ctr?: N;
+  readonly ctor?: N;
+  readonly window?: { readonly from: string; readonly to: string; readonly days: number };
+  readonly spend_per_day?: N;
+  readonly spend_cap?: N;
+}
+
 export interface BuilderEvaluation {
   readonly saved: false;
   readonly best_profit_p50: number | null;
-  readonly today: {
-    readonly as_of?: string;
-    readonly gmv_30d: N;
-    readonly orders_30d: N;
-    readonly aov: N;
-    readonly margin_pct: N;
-    readonly spend_per_day?: N;
-    readonly spend_cap?: N;
-  };
+  readonly today: BuilderToday;
   readonly table: { readonly rows: readonly TableRowBand[] };
   readonly versions: readonly BuilderOutcome[];
 }

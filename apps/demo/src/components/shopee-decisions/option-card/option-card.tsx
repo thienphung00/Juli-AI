@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
+import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
 import type { FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TextChip } from "../../shopee-analytics/ui";
 import { countPct, moneyPct, signedMoney, signedPct } from "./format";
@@ -14,10 +14,20 @@ import { countPct, moneyPct, signedMoney, signedPct } from "./format";
 
 export function profitText(r: OptionResult): { readonly main: string; readonly range: string | null; readonly buildUp: string | null } {
   const p = r.delta.profit;
-  if (p === null || p.value === null) return { main: r.estimable ? "chưa tính" : "chưa ước tính được", range: null, buildUp: null };
+  if (!r.estimable || p === null || p.value === null) return { main: r.estimable ? "chưa tính" : "chưa ước tính được", range: null, buildUp: null };
   const range = p.low !== null && p.high !== null ? `(${signedMoney(p.low)} … ${signedMoney(p.high)})` : null;
   const buildUp = r.build_up.length > 0 ? r.build_up.map((b) => b.text).join(" ") : null;
   return { main: moneyPct(p.value, p.pct), range, buildUp };
+}
+
+const NOT_ESTIMABLE = "chưa ước tính được";
+/** P99: the note the engine adds when profit per order stands on the days that have costs. */
+export const COST_DAYS_NOTE = "ngày có dữ liệu chi phí";
+
+/** "cần thêm 12 đơn" / "—". */
+export function breakEvenLine(r: OptionResult): string | null {
+  const n = r.cost.break_even_orders;
+  return n === null || n === undefined ? null : `cần thêm ${vnCount(Math.ceil(n - 1e-6))} đơn để hoà vốn`;
 }
 
 export function OptionCard({ result: r, title, testId = "option-card" }: { readonly result: OptionResult; readonly title?: string; readonly testId?: string }) {
@@ -25,6 +35,11 @@ export function OptionCard({ result: r, title, testId = "option-card" }: { reado
   const orders = r.delta.orders;
   const drivers = r.drivers_pct.map((d) => `${d.label} ${signedPct(d.pct)}`).join(" · ");
   const a = r.after;
+  const ne = !r.estimable;
+  const gmvText = ne ? NOT_ESTIMABLE : moneyPct(r.delta.gmv.value, r.delta.gmv.pct);
+  const ordersText = ne ? NOT_ESTIMABLE : countPct(orders.value, orders.pct);
+  const beLine = breakEvenLine(r);
+  const costNotes = r.notes.filter((n) => n.includes(COST_DAYS_NOTE));
   return (
     <article className="oc" data-testid={testId}>
       <header className="oc__head">
@@ -47,13 +62,13 @@ export function OptionCard({ result: r, title, testId = "option-card" }: { reado
         <div>
           <dt>Δ GMV</dt>
           <dd data-testid="oc-gmv">
-            <b>{moneyPct(r.delta.gmv.value, r.delta.gmv.pct)}</b>
+            <b>{gmvText}</b>
           </dd>
         </div>
         <div>
           <dt>Δ Đơn</dt>
           <dd data-testid="oc-orders">
-            <b>{countPct(orders.value, orders.pct)}</b>
+            <b>{ordersText}</b>
             {orders.note ? <span className="sa-hint" data-testid="oc-note">{orders.note}</span> : null}
           </dd>
         </div>
@@ -69,13 +84,26 @@ export function OptionCard({ result: r, title, testId = "option-card" }: { reado
             <b>{vnd(r.cost.total)}</b> <span>{r.cost.text}</span>
           </dd>
         </div>
-        <div>
-          <dt>{a.label}</dt>
-          <dd data-testid="oc-after">
-            GMV {vnd(a.gmv_before)} → {vnd(a.gmv_after)} · Lợi nhuận {vnd(a.profit_before)} → {vnd(a.profit_after)}
-          </dd>
-        </div>
+        {beLine ? (
+          <div>
+            <dt>Hoà vốn</dt>
+            <dd data-testid="oc-breakeven">{beLine}</dd>
+          </div>
+        ) : null}
+        {ne ? null : (
+          <div>
+            <dt>{a.label}</dt>
+            <dd data-testid="oc-after">
+              GMV {vnd(a.gmv_before)} → {vnd(a.gmv_after)} · Lợi nhuận {vnd(a.profit_before)} → {vnd(a.profit_after)}
+            </dd>
+          </div>
+        )}
       </dl>
+      {costNotes.map((n) => (
+        <p className="sa-hint" data-testid="oc-cost-days" key={n}>
+          {n}
+        </p>
+      ))}
       <OptionDetail result={r} />
     </article>
   );
@@ -219,8 +247,8 @@ export function CompareTable({ rows }: { readonly rows: readonly CompareRow[] })
               <th scope="row">{name ?? r.label}</th>
               <td>{r.after.label}</td>
               <td>{p.main}</td>
-              <td>{moneyPct(r.delta.gmv.value, r.delta.gmv.pct)}</td>
-              <td>{countPct(r.delta.orders.value, r.delta.orders.pct)}</td>
+              <td>{!r.estimable ? NOT_ESTIMABLE : moneyPct(r.delta.gmv.value, r.delta.gmv.pct)}</td>
+              <td>{!r.estimable ? NOT_ESTIMABLE : countPct(r.delta.orders.value, r.delta.orders.pct)}</td>
             </tr>
           );
         })}
