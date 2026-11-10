@@ -103,6 +103,16 @@ async def _next_version(
     return (latest or 0) + 1
 
 
+async def rules_changed(session: AsyncSession, shop_id: uuid.UUID, rule_keys: Sequence[str]) -> int:
+    """P99c: rebuild the shop's stored daily rows when a rule they are computed with changed
+    (giá vốn, đóng gói, pack, VAT, exclusions), in the caller's transaction, so no screen shows
+    profit computed with the old rule. Returns the days rebuilt. Called once per write set."""
+    from juli_backend.services.shopee_analytics import materialize  # analytics imports us
+
+    done = await materialize.after_rules_change(session, shop_id, rule_keys)
+    return done.days
+
+
 async def write_version(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -180,6 +190,7 @@ async def write_rule(
             set_by=actor.set_by,
             set_by_user_id=actor.user_id,
         )
+    await rules_changed(session, shop_id, [rule_key])
     row = await _current_row(session, shop_id, rule_key, scope)
     assert row is not None
     return row
@@ -214,6 +225,8 @@ async def write_versions(
         )
         if row is not None:
             written.append(row)
+    if written:
+        await rules_changed(session, shop_id, sorted({r.rule_key for r in written}))
     return written
 
 
@@ -316,6 +329,7 @@ async def restore_version(
         raise VersionError(str(exc)) from None
     if row is None:
         raise VersionError("Phiên bản này đang là giá trị hiện hành")
+    await rules_changed(session, shop_id, [rule_key])
     return row
 
 

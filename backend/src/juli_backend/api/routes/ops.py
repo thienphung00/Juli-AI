@@ -1019,7 +1019,7 @@ async def ops_delete_rule(
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     """Unset one seller rule; the delete and its audit row commit together."""
-    from juli_backend.services import shop_rules
+    from juli_backend.services import shop_inputs, shop_rules
 
     shop = await _view_shop(session, shop_id)
     before = await _rule_snapshot(session, shop_id, rule_key, scope_ref)
@@ -1030,6 +1030,7 @@ async def ops_delete_rule(
         if not existed:
             await session.rollback()
             raise HTTPException(status_code=404, detail="Rule not set")
+        await shop_inputs.rules_changed(session, shop.id, [rule_key])  # P99c: rows follow
         await audit.record(
             session,
             ctx.staff.actor,

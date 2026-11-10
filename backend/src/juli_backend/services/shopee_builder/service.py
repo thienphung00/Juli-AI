@@ -454,6 +454,7 @@ def _evaluate_version_card(
         result=ev.result_json(),
         result_refusal=ev.refusal_json(),
         scope="shop" if ev.base.scope == "shop" else "product",
+        days=version_dates(spec, None)["days"],  # P99c: cost / break-even on the set dates
     )
     # P99 like with like: the version's own "hôm nay" = the base its result was computed on
     shaped["today"] = integrate.scope_today(ctx.env, ev.base)
@@ -626,8 +627,9 @@ async def evaluate_versions(
         "versions": results,
         "table": table_of(results),
         "best_profit_p50": best_index(results),
-        # P98: the versions in the comparison order (per-30-day Δ lợi nhuận, best first)
+        # P99c: the versions in the comparison order (Δ lợi nhuận per day of the set dates)
         "compare": compare_order(results),
+        "sort_basis": dict(SORT_BASIS),
         "saved": False,
     }
 
@@ -656,14 +658,36 @@ def compare_today(env: RecoEnv, results: Sequence[dict[str, Any]]) -> dict[str, 
     }
 
 
+#: P99c: So sánh ranks by the primary figures -- Δ lợi nhuận over each version's own set dates --
+#: per day of those dates, since versions may cover different days (``sort_basis`` on the wire)
+SORT_BASIS: dict[str, str] = {
+    "key": "delta_profit_per_day",
+    "label": "Δ lợi nhuận mỗi ngày trong các ngày đã đặt",
+    "detail": (
+        "Xếp theo Δ lợi nhuận (khả năng cao) của từng phương án chia cho số ngày của chính nó; "
+        "phương án chưa ước tính được lợi nhuận xếp cuối."
+    ),
+}
+
+
+def profit_per_day(r: Mapping[str, Any]) -> float | None:
+    """Δ lợi nhuận (likely) over the version's own days ÷ those days; ``None`` when unknown."""
+    res = r.get("result") if r.get("ok") else None
+    if res is None or not res.get("days"):
+        return None
+    if r.get("cost_known") is False:
+        return None
+    value = ((res.get("delta") or {}).get("profit") or {}).get("value")
+    return None if value is None else float(value) / int(res["days"])
+
+
 def compare_order(results: Sequence[dict[str, Any]]) -> list[int]:
-    """Version indexes sorted by the result's per-30-day Δ profit (``engine.compare``); a version
-    without one goes last, in its own order."""
+    """Version indexes sorted by Δ lợi nhuận per day of the set dates (``SORT_BASIS``), best
+    first; a version without one goes last, in its own order."""
 
     def key(r: dict[str, Any]) -> tuple[int, float]:
-        res = r.get("result") if r.get("ok") else None
-        v = None if res is None else (res.get("per_30d") or {}).get("profit")
-        return (1, 0.0) if v is None else (0, -float(v))
+        v = profit_per_day(r)
+        return (1, 0.0) if v is None else (0, -v)
 
     return [r["index"] for r in sorted(results, key=key)]
 
