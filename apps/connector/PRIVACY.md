@@ -1,6 +1,6 @@
 # Juli Connector — Privacy policy (DRAFT, not yet reviewed)
 
-_Last updated: 2026-11-09. Draft for the Chrome Web Store (Unlisted) submission;
+_Last updated: 2026-11-10. Draft for the Chrome Web Store (Unlisted) submission;
 to be reviewed before publishing and linked from app-juli.com._
 
 Juli Connector is a browser extension by Juli (app-juli.com) for sellers who use
@@ -91,6 +91,9 @@ number:
   From version 0.3.14, if a later list page of the order list fails, the extension still sends
   the pages it had already read and keeps a short note for the operator (the endpoint and the
   HTTP status, e.g. `partial:order_search:http_500`) — never an order number or buyer data.
+  From version 0.3.15 the extension keeps that background tab from being discarded until the
+  page has answered, and if Chrome closes it first it opens the same page once more (so for a
+  moment one extra Seller Centre tab may be open). It reads nothing new.
 
 - **Dữ liệu › Sản phẩm › Hiệu quả của sản phẩm** (`/datacenter/product/performance`, from
   version 0.3.12) — once a day, the product table of the last 30 finished days (at most 5
