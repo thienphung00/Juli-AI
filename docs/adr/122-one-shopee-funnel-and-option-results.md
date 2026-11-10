@@ -245,3 +245,17 @@ Found by the cross-screen check of the P98 deploy; the decisions above stand, th
 - **Ads and Affiliate show fewer numbers at first** ("chưa ước tính được — cần chạy thử" / "đo sau lần
   gửi mẫu đầu") until ORY's own history measures them; their cost and break-even are always exact.
 - **Plan:** `fasttrack/contracts/p98-plan.md`.
+
+## P99c amendment (2026-11-10, owner)
+
+- **A saved profit rule rebuilds the stored daily rows.** Saving giá vốn, packaging, pack, VAT or
+  exclusion rules (`materialize.PROFIT_RULE_KEYS`) rebuilds every data day of the shop in the same
+  transaction (`materialize.after_rules_change`), so no screen reads profit computed with the old
+  cost. A failed rebuild deletes those days' rows: screens answer `rows_not_materialized` until the
+  backfill CLI runs. Rules have no effective dates, hence all days.
+- **Tự tạo cost / break-even cover the version's own days** (`result.days`, else the set dates,
+  else 30 for an undated version); a figure that cannot be computed for those days is null with
+  `no_result_for_days`, never a 30-day number.
+- **So sánh ranks by Δ lợi nhuận per day of the set dates** (`sort_basis.key =
+  delta_profit_per_day`), unknowns last; the UI keeps the server's order. `per_30d` is a labelled
+  secondary reference only.

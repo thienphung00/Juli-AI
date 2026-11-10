@@ -4086,3 +4086,24 @@ reconcile --write` re-derived the no-assert corpus figure.
   fill-never-clicks covers the three types and 1-3 tiers.
 - No bundle list reader exists and none was built: measurement of a combo stays `executed_no_readback`.
 - Demo: the generic checklist covers combo (kind label and two error texts only).
+
+## 2026-11-10 — orchestrator (Claude Opus) — P99 / P99b / P99c (fix the P98 numbers at the source)
+
+- Owner go after the P98 Chrome verification (handoff `~/juli-fasttrack-HANDOFF-2026-11-10.md`).
+  Decisions: product period totals spread over the period's days by the shop's daily shares
+  (product ≤ shop per day); the Connector keeps the orders tab open / re-opens it once; Kế hoạch =
+  all cards as of today over the next 30 days, each card on its own days (cost too); Tự tạo on its
+  set dates; a window without stored daily rows is an error (409 `rows_not_materialized`); empty
+  affiliate periods left as they are; ads cards read back only (no fill); stale drift flags cleared
+  by a newer Connector; never show wrong information on error / missing data.
+- Lanes (combined on `fasttrack/p99-combo`): connector (0.3.15 tab lifecycle + budget reserve,
+  0.3.16 campaign name from `product/get` — shape read in the owner's Chrome, names/types only),
+  metrics (`period_spread.py`, funnel profit over days with costs), builder/plan (one base / cost /
+  margin, affiliate + ads cards), P99b plan horizon + missing-data states, P99b ingest drift clear +
+  `ads_readback.py`, P99c rule-change rebuild + Tự tạo own-days cost + So sánh sort, UI for all.
+- Checks in the sandbox: see the deploy-approval message; Postgres runs first in `check.sh`.
+- After deploy (owner): VPS backfill (dry run first) — now required, screens need the stored rows;
+  Connector Remove → load 0.3.16 → re-pair → sync.
+- Open: a giá vốn save rebuilds all data days synchronously (watch latency on large shops); ads
+  product table read for ≤10 group campaigns; Ops-only screens show a generic error for 409;
+  confirmed plans stay frozen at confirmation.
