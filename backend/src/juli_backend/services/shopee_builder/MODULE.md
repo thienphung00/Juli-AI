@@ -96,11 +96,23 @@ estimate basis, warnings).
 - Ads on / off days come from the stored funnel's product Thẻ sản phẩm rows (`ads_spend` > 0 = on); product rows
   post ad GMV, not ad orders, so a day's ad orders are its ad GMV ÷ the day's card AOV.
 
+## P99c (2026-11-10)
+
+- The outcome's `cost` / `break_even` cover the version's own days (`result.days`, else the set
+  dates, else 30): a money-layer figure for another period (combo / bundle / gift / Ads /
+  Liên kết month, a 30-day break-even) is replaced by the result's `cost.total` /
+  `cost.break_even_orders` / `break_even_aov` over those days (`source: "result"`, month-scaled
+  parts such as `expected_units` dropped), or is null with `reason` `no_result_for_days`
+  (`source: "none"` / `null`). Both blocks carry `period_days` = those days and `source`.
+- So sánh (`compare`) ranks by Δ lợi nhuận (likely) per day of each version's own days, nulls
+  (no result, unknown profit, unknown giá vốn) last; the response says so in `sort_basis`
+  (`key` `delta_profit_per_day`, `label`, `detail`).
+
 ## P99b (owner 2026-11-10)
 
 - A version's result covers exactly its set dates: `delta` / `cost` are for `result.days`; each
   evaluated version carries `dates` (`from`, `to`, `days`, `set`, `label`). `per_30d` is secondary
-  (`secondary: true`, `label` "Quy đổi 30 ngày (tham khảo)"), still So sánh's sort key.
+  (`secondary: true`, `label` "Quy đổi 30 ngày (tham khảo)"); since P99c it is no longer the sort key.
 - The builder base (`load_env`) and the picker's 90 / 30-day views need the stored daily rows: a data
   day without its row raises `shopee_analytics.stored.RowsNotMaterialized` (409
   `rows_not_materialized`), never the raw tables' unspread split.

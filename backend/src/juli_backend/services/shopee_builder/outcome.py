@@ -99,6 +99,7 @@ REASON_TEXT: dict[str, str] = {
     ),
     "no_qualifying_orders": "Chưa có đơn nào đạt đơn tối thiểu.",
     "no_margin": "Đơn dùng voucher không có lãi nên giỏ hàng lớn hơn không bù được chi phí.",
+    "no_result_for_days": "Chưa tính được cho đúng các ngày đã đặt của phương án này.",
 }
 GENERIC_REASON_TEXT = "Chưa tính được điểm hoà vốn cho thay đổi này."
 
@@ -282,26 +283,93 @@ def _cost(card: Mapping[str, Any], tr: Translation, p50_orders: float | None) ->
     return out
 
 
-def _break_even(
-    card: Mapping[str, Any], ctx: BuilderContext, items: Sequence[str]
+#: the money layer's month-scaled parts that do not hold for other days
+_MONTH_PARTS = ("expected_units", "expected_units_basis", "existing")
+
+
+def _result_cost(result: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    return (result or {}).get("cost") or {}
+
+
+def cost_on_days(
+    cost: Mapping[str, Any], result: Mapping[str, Any] | None, days: int
 ) -> dict[str, Any]:
+    """P99c: the cost covers the version's own days (``result.days`` / ``versions[].dates``). A
+    money-layer figure for another period (a combo / Ads / gift month) is replaced by the result's
+    cost over those days; without a result it is null with a reason -- never a 30-day figure
+    beside the set dates."""
+    out = dict(cost)
+    if out.get("period_days") == days or (out.get("amount") is None and not result):
+        out.update(period_days=days, source="money_layer", reason=None, reason_text=None)
+        return out
+    for part in _MONTH_PARTS:
+        out.pop(part, None)
+    label = str(out.get("label") or "").replace("trong tháng", f"trong {days} ngày")
+    total = _result_cost(result).get("total")
+    if result is not None and total is not None:
+        out.update(amount=total, period_days=days, label=label or None, source="result")
+        out.update(reason=None, reason_text=None)
+        return out
+    out.update(
+        amount=None,
+        period_days=days,
+        label=label or None,
+        source=None,
+        reason="no_result_for_days",
+        reason_text=reason_text("no_result_for_days"),
+    )
+    return out
+
+
+def _break_even_on_days(
+    result: Mapping[str, Any] | None, days: int
+) -> tuple[int | None, str | None]:
+    """Extra orders over the version's own days from its result; ``None`` with the reason."""
+    if result is None:
+        return None, "no_result_for_days"
+    rc = _result_cost(result)
+    extra = rc.get("break_even_orders")
+    if extra is not None:
+        return int(extra), None
+    if not rc.get("total"):
+        return None, "no_extra_cost"
+    return None, "profit_per_order_unknown"
+
+
+def _break_even(
+    card: Mapping[str, Any],
+    ctx: BuilderContext,
+    items: Sequence[str],
+    *,
+    days: int = config.DAYS_PER_MONTH,
+    result: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Break-even over the version's own ``days`` (P99c): a money-layer figure for another period
+    gives way to the result's (or is null with a reason)."""
     kind = card["change_kind"]
     certain = card["certain"]
     extra: int | None = None
     period = config.DAYS_PER_MONTH
     reason: str | None = None
+    source = "money_layer"
     if kind == "min_spend_voucher" and certain.get("break_even_aov") is not None:
         # P96: a basket-size lever pays back through the basket, not through extra orders
         aov = certain["break_even_aov"]
+        needed, why = aov["aov_needed"], aov["reason"]
+        if int(certain.get("days") or config.VOUCHER_DAYS) != days:
+            needed = _result_cost(result).get("break_even_aov")
+            why = None if needed is not None else "no_result_for_days"
+            source = "result" if needed is not None else "none"
         return {
             "applies": True,
             "basis": "aov",
             "extra_orders": None,
             "aov_now": aov["aov_now"],
-            "aov_needed": aov["aov_needed"],
-            "period_days": int(certain.get("days") or config.VOUCHER_DAYS),
-            "reason": aov["reason"],
-            "reason_text": reason_text(aov["reason"]),
+            "aov_needed": needed,
+            "period_days": days,
+            "source": source,
+            "reason": why,
+            "reason_text": reason_text(why),
         }
     if kind == "min_spend_voucher":
         extra, reason = certain.get("break_even_extra_orders"), certain.get("break_even_reason")
@@ -326,6 +394,10 @@ def _break_even(
             "reason": "not_applicable",
             "reason_text": reason_text("not_applicable"),
         }
+    if period != days:  # P99c: never a 30-day break-even beside the set dates
+        extra, reason = _break_even_on_days(result, days)
+        source = "result" if result is not None else "none"
+        period = days
     scope = [] if kind == "min_spend_voucher" and not items else list(items)
     if (
         kind == "gift"
@@ -338,6 +410,7 @@ def _break_even(
         "applies": True,
         "extra_orders": extra,
         "period_days": period,
+        "source": source,
         "reason": reason,
         "reason_text": reason_text(reason),
         **{k: v for k, v in ctor.items() if k != "reason"},
@@ -690,13 +763,16 @@ def shape(
     result: Mapping[str, Any] | None = None,
     result_refusal: Mapping[str, str] | None = None,
     scope: str | None = None,
+    days: int | None = None,
 ) -> dict[str, Any]:
     """The outcome block of one version. ``estimate_card`` carries the evaluators' certain layer
     (costs, profit per order, floor) when the saved card has none of its own (a variation set).
     P98 / ADR-122: ``result`` (``OptionResult.json()``) is the one estimate -- ``before_after``,
     ``delta``, ``driver`` and ``basis`` are laid out from it; the card's money layer no longer
-    produces numbers."""
+    produces numbers. P99c: ``cost`` / ``break_even`` cover the version's own days -- the
+    result's ``days``, else ``days`` (the set dates), else 30 (a version without dates)."""
     numbers = estimate_card or card
+    own_days = int((result or {}).get("days") or days or config.DAYS_PER_MONTH)
     pm = numbers["predicted"]["money_per_month"]
     items = list(dict.fromkeys([*tr.items, *card["scope"]["product_ids"]]))
     cost_known, missing = items_cost_known(ctx, [i for i in items if i])
@@ -743,8 +819,8 @@ def shape(
         "margin_after_pct": margin_after,
         "profit_status": "ok" if cost_known else "chua_tinh",
         "cost_known": cost_known,
-        "cost": _cost(numbers, tr, p50_orders),
-        "break_even": _break_even(numbers, ctx, items),
+        "cost": cost_on_days(_cost(numbers, tr, p50_orders), result, own_days),
+        "break_even": _break_even(numbers, ctx, items, days=own_days, result=result),
         "basis": result_basis(result, basis),
         "warnings": _warnings(numbers, tr, cost_known, missing, delta_profit),
         "breach": bool(card["floor"]["breaches"])
@@ -770,6 +846,7 @@ __all__ = [
     "METRIC_LABELS",
     "REASON_TEXT",
     "basis_of",
+    "cost_on_days",
     "one_margin",
     "reason_text",
     "refused",
