@@ -14,7 +14,7 @@ import {
 import { isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint, readerEndpointOf, readerPageUrl, READER_PAGES } from "../src/shopee/endpoints";
 import { mapAdsProducts } from "../src/shopee/ads-products-map";
 import { mapProductPeriod } from "../src/shopee/product-period-map";
-import { mapReaderJob } from "../src/shopee/reader-map";
+import { campaignTitle, mapReaderJob } from "../src/shopee/reader-map";
 import {
   type FetchedReaderResponse,
   pollingWaitFor,
@@ -282,10 +282,32 @@ describe("group campaigns' products -> ads_campaign_period", () => {
     expect(ingestBody(post!, "0.3.12", NOW).order_type).toBe("placed");
   });
 
+  it("0.3.15: a missing list title is not drift when the campaign id (or the answer's own name) is known", () => {
+    const byId = mapAdsProducts([reply("ads_mpd_products", mpd([adsRow(1001)]), { campaignId: "188757809", source: "page", ...win })], NOW);
+    expect(byId[0]!.drift).toBeNull();
+    expect(byId[0]!.rows[0]).toMatchObject({ campaign_name: "Chiến dịch 188757809", item_id: "1001", ads_expense: 150_000 });
+    const own = mapAdsProducts(
+      [reply("ads_mpd_products", { code: 0, data: { campaign: { name: "Nhóm B" }, list: [adsRow(1001)] } }, { campaignId: "5", source: "page", ...win })],
+      NOW,
+    );
+    expect(own[0]!.drift).toBeNull();
+    expect(own[0]!.rows[0]).toMatchObject({ campaign_name: "Nhóm B" });
+  });
+
+  it("0.3.15: the campaign title is found wherever the ads list now keeps it", () => {
+    const entry = (extra: Record<string, unknown>) => ({ type: "product_mpd", state: "ongoing", campaign: { campaign_id: 77, ...(extra.campaign as object) }, ...Object.fromEntries(Object.entries(extra).filter(([k]) => k !== "campaign")) });
+    expect(campaignTitle(entry({ title: "Cũ" }))).toBe("Cũ");
+    expect(campaignTitle(entry({ campaign: { name: "Lồng" } }))).toBe("Lồng");
+    expect(campaignTitle(entry({ campaign_info: { name: "Info" } }))).toBe("Info");
+    expect(campaignTitle(entry({ ad_name: "Ad" }))).toBe("Ad");
+    expect(campaignTitle(entry({}))).toBeUndefined();
+  });
+
   it("is drift (nothing posted) without a window, a campaign title or a recognisable list", () => {
     const noWindow = mapAdsProducts([reply("ads_mpd_products", mpd([adsRow(1)]), { campaignName: "A" })], NOW);
     expect(noWindow[0]!.drift?.missing).toEqual(["request.window"]);
     expect(noWindow[0]!.rows).toEqual([]);
+    // neither a title nor a campaign id: nothing to key the rows by
     const noName = mapAdsProducts([reply("ads_mpd_products", mpd([adsRow(1)]), win)], NOW);
     expect(noName[0]!.drift?.missing).toEqual(["campaign_name"]);
     const noList = mapAdsProducts([reply("ads_mpd_products", { code: 0, data: { rows: [{ x: 1 }] } }, { campaignName: "A", ...win })], NOW);

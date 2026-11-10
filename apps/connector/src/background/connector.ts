@@ -58,6 +58,8 @@ export type CaptureOutcome =
   /** The gateway does not accept this dataset yet (config HELD_DATASETS): mapped, not sent. */
   | "held"
   | "ignored"
+  /** Shopee answered with an empty list for the period: a real zero, nothing to post (0.3.15). */
+  | "empty"
   | "unpaired"
   | "stopped"
   | "drift"
@@ -168,7 +170,7 @@ export class Connector {
       }
       return "drift";
     }
-    if (mapped.rows.length === 0) return "ignored";
+    if (mapped.rows.length === 0) return mapped.answeredEmpty ? "empty" : "ignored";
     // A raw Shopee order id never leaves the browser: such a row must have been hashed first.
     if (mapped.rows.some((row) => RAW_ORDER_ID in row)) return "rejected";
 

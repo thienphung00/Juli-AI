@@ -11,7 +11,8 @@
 // (read from `report` like the homepage entries: impression, click, ctr, cost, broad_gmv,
 // direct_gmv, broad_order, direct_order, broad_roi, direct_roi); (3) the campaign title, which the
 // scheduler passes from the ads list (the key the daily ads rows use). Policy as reader-map.ts:
-// a missing product id, window or campaign title is drift (nothing posted, never guessed).
+// a missing product id or window is drift (nothing posted, never guessed). The campaign title is
+// tolerant since 0.3.15 (Shopee moved it): list title -> the answer's own -> the campaign id.
 
 import { MAX_PLAUSIBLE_AD_VND, MONEY_DIVISOR, SHOPEE_NO_VALUE } from "../config";
 import type { Drift, Mapped, Row } from "./map";
@@ -63,6 +64,19 @@ function money(value: unknown): number | undefined {
   return vnd <= MAX_PLAUSIBLE_AD_VND ? vnd : undefined;
 }
 
+/** The campaign name some table answers carry next to the list (several places seen on Shopee's ads pages). */
+function ownName(data: unknown): string | undefined {
+  if (!isRecord(data)) return undefined;
+  const campaign = isRecord(data.campaign) ? data.campaign : {};
+  for (const holder of [data, campaign]) {
+    for (const key of ["campaign_name", "title", "name", "ad_name"]) {
+      const value = holder[key];
+      if (typeof value === "string" && value.trim() !== "") return value.trim();
+    }
+  }
+  return undefined;
+}
+
 export function mapAdsProducts(responses: ReaderResponse[], _capturedAt: number): Mapped[] {
   const answers = responses.filter((r) => r.endpoint === "ads_mpd_products" && classify(r.status, r.body) === "ok");
   const posts: Mapped[] = [];
@@ -70,7 +84,10 @@ export function mapAdsProducts(responses: ReaderResponse[], _capturedAt: number)
   const windows = new Map<string, { period: { start: string; end: string }; rows: Row[] }>();
   const issues = { unexpected: [] as string[], missing: [] as string[] };
   for (const answer of answers) {
-    const name = answer.campaignName;
+    // The title from the ads list; failing that the answer's own, failing that the campaign id
+    // (a campaign id is enough to key the rows: the name is only a label).
+    const name =
+      answer.campaignName ?? ownName(payloadOf(answer.body)) ?? (answer.campaignId ? `Chiến dịch ${answer.campaignId}` : undefined);
     if (!answer.period) {
       if (!issues.missing.includes("request.window")) issues.missing.push("request.window");
       continue;

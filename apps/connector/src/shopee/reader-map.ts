@@ -71,6 +71,23 @@ function text(value: unknown, max: number): string | undefined {
   return trimmed ? trimmed.slice(0, max) : undefined;
 }
 
+/**
+ * A campaign's display name on a homepage entry. Seller Centre has moved it before, so every
+ * location seen or plausible is tried, the original `title` first (0.3.15).
+ */
+export function campaignTitle(entry: Record<string, unknown>): string | undefined {
+  const campaign = isRecord(entry.campaign) ? entry.campaign : {};
+  const info = isRecord(entry.campaign_info) ? entry.campaign_info : {};
+  const ad = isRecord(entry.ad) ? entry.ad : {};
+  for (const holder of [entry, campaign, info, ad]) {
+    for (const key of ["title", "name", "campaign_name", "ad_name", "campaign_title"]) {
+      const found = text(holder[key], 255);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
 /** A platform enum sent as a number or a short label. */
 function tag(value: unknown): number | string | undefined {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
@@ -420,7 +437,7 @@ function adRow(day: string, entry: Record<string, unknown>, drift: { missing: st
   if (id === undefined) return null;
   const divisor = MONEY_DIVISOR.ads;
   const row: Row = { date: day, campaign_id: id };
-  put(row, "campaign_name", text(entry.title, 255));
+  put(row, "campaign_name", campaignTitle(entry));
   put(row, "ad_type", tag(entry.type));
   put(row, "ad_subtype", tag(entry.subtype));
   put(row, "state", tag(entry.state));
@@ -578,7 +595,7 @@ export function mapAdsSettings(responses: ReaderResponse[], capturedAt: number):
     }
     const manual = isRecord(entry.manual_product_ads) ? entry.manual_product_ads : {};
     const row: Row = { campaign_id: id };
-    put(row, "campaign_name", text(entry.title, 255));
+    put(row, "campaign_name", campaignTitle(entry));
     put(row, "campaign_type", word(entry.type));
     put(row, "state", word(entry.state));
     put(row, "starts_at", wallClock(campaign.start_time));
@@ -621,7 +638,7 @@ export function ongoingAdsCampaigns(responses: ReaderResponse[]): { id: string; 
     const campaign = isRecord(entry.campaign) ? entry.campaign : {};
     const id = digits(campaign.campaign_id);
     const kind = DETAIL_KINDS[String(entry.type ?? "")];
-    const name = text(entry.title, 255);
+    const name = campaignTitle(entry);
     if (id !== undefined && kind !== undefined && (entry.state === "ongoing" || entry.state === "scheduled")) {
       out.set(id, { kind, ...(name ? { name } : {}) });
     }

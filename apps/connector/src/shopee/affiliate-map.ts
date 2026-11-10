@@ -7,7 +7,7 @@
 
 import { AFFILIATE_MIN_PLAUSIBLE_VND, AFFILIATE_MONEY_DIVISOR_FALLBACK, MAX_PLAUSIBLE_AD_VND } from "../config";
 import type { Drift, Mapped, Row } from "./map";
-import { classify, findList, isConversionOrder, payloadOf, type ReaderResponse } from "./reader";
+import { classify, findList, isConversionOrder, payloadOf, type ReaderResponse, totalOf } from "./reader";
 import { gmt7Date } from "./time";
 
 /** The raw order id's key on a mapped row, until the service worker hashes it. */
@@ -173,6 +173,28 @@ function rate(value: unknown): number | undefined {
   return undefined;
 }
 
+/**
+ * A valid answer that holds an empty list (or states a total of 0) and no list with entries: Shopee
+ * had nothing to report for the period, which is an answer, not a failure to read.
+ */
+export function isEmptyAnswer(body: unknown): boolean {
+  const payload = payloadOf(body);
+  if (Array.isArray(payload)) return payload.length === 0;
+  if (!isRecord(payload)) return false;
+  let sawEmpty = false;
+  const queue: { node: Record<string, unknown>; level: number }[] = [{ node: payload, level: 0 }];
+  while (queue.length > 0) {
+    const { node, level } = queue.shift() as { node: Record<string, unknown>; level: number };
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        if (value.length === 0) sawEmpty = true;
+        else if (value.some(isRecord)) return false; // entries exist: the mapper did not recognise them
+      } else if (isRecord(value) && level < 4) queue.push({ node: value, level: level + 1 });
+    }
+  }
+  return sawEmpty || totalOf(body, payload) === 0;
+}
+
 function empty(dataset: Mapped["dataset"], endpoint: string, date: string, drift: Drift | null): Mapped {
   return { dataset, endpoint, date, orderType: null, granularity: "period", rows: [], drift };
 }
@@ -183,6 +205,7 @@ function post(
   period: { start: string; end: string },
   rows: Row[],
   drift: Drift | null,
+  answeredEmpty = false,
 ): Mapped {
   return {
     dataset,
@@ -193,6 +216,7 @@ function post(
     granularity: "period",
     rows: drift ? [] : rows,
     drift,
+    ...(answeredEmpty && !drift && rows.length === 0 ? { answeredEmpty: true } : {}),
   };
 }
 
@@ -270,7 +294,8 @@ function captured(
   return { response, period: response.period };
 }
 
-const isKol = (o: Record<string, unknown>) => "affiliate_id" in o && ("gmv" in o || "orders" in o);
+const isKol = (o: Record<string, unknown>) =>
+  ("affiliate_id" in o || "affiliateId" in o) && ("gmv" in o || "orders" in o || "est_commission" in o || "clicks" in o);
 
 export function mapAffiliatePartners(responses: ReaderResponse[], capturedAt: number): Mapped {
   const got = captured(responses, "affiliate_performance", "affiliate_partner_period", capturedAt);
@@ -280,7 +305,7 @@ export function mapAffiliatePartners(responses: ReaderResponse[], capturedAt: nu
   const money = moneyFor(list, ["gmv", "est_commission"], issues);
   const rows: Row[] = [];
   for (const kol of list) {
-    const id = digits(kol.affiliate_id);
+    const id = digits(kol.affiliate_id ?? kol.affiliateId);
     if (id === undefined) {
       note(issues.missing, "list[].affiliate_id");
       continue;
@@ -304,7 +329,7 @@ export function mapAffiliatePartners(responses: ReaderResponse[], capturedAt: nu
     if (Object.keys(extra).length) row.extra = extra;
     rows.push(row);
   }
-  return post("affiliate_partner_period", "affiliateplatform/affiliate_performance", got.period, rows, driftOf(issues.unexpected, issues.missing));
+  return post("affiliate_partner_period", "affiliateplatform/affiliate_performance", got.period, rows, driftOf(issues.unexpected, issues.missing), isEmptyAnswer(got.response.body));
 }
 
 // -- 3. Dữ liệu phân tích chính → affiliate_shop_period (one post per day, plus the split) -------
@@ -386,7 +411,7 @@ export function mapAffiliateProducts(responses: ReaderResponse[], capturedAt: nu
     put(row, "roi", roi !== undefined && roi <= 100_000 ? roi : undefined);
     rows.push(row);
   }
-  return post("affiliate_product_period", "affiliateplatform/seller_item_detail", got.period, rows, driftOf(issues.unexpected, issues.missing));
+  return post("affiliate_product_period", "affiliateplatform/seller_item_detail", got.period, rows, driftOf(issues.unexpected, issues.missing), isEmptyAnswer(got.response.body));
 }
 
 // -- 5. Chiến dịch mở rộng → affiliate_shop_campaigns (a snapshot of the capture day) -----------
@@ -402,7 +427,11 @@ export function mapAffiliateCampaigns(responses: ReaderResponse[], capturedAt: n
   for (const campaign of list) {
     const id = digits(campaign.commissionId);
     if (id === undefined) continue;
-    const name = text(campaign.commissionName, 255) ?? `Chiến dịch ${id}`;
+    // Shopee has renamed this field before: every spelling seen or plausible, then the id as the label.
+    const name =
+      ["commissionName", "commission_name", "campaignName", "campaign_name", "name", "title"]
+        .map((key) => text(campaign[key], 255))
+        .find((found) => found !== undefined) ?? `Chiến dịch ${id}`;
     const row: Row = { campaign_id: id, campaign_name: name };
     put(row, "commission_rate", rate(campaign.commissionRate));
     put(row, "status", label(campaign.commissionStatus));
@@ -437,7 +466,7 @@ export function mapAffiliateCommissions(responses: ReaderResponse[], capturedAt:
     put(row, "est_commission", money.of(entry.estCommission));
     rows.push(row);
   }
-  return post("affiliate_commission_period", "affiliateplatform/QueryCommissionList", got.period, rows, driftOf(issues.unexpected, issues.missing));
+  return post("affiliate_commission_period", "affiliateplatform/QueryCommissionList", got.period, rows, driftOf(issues.unexpected, issues.missing), isEmptyAnswer(got.response.body));
 }
 
 // -- 7. Phân tích Nội dung → affiliate_content_period (the summary; the list is not pinned) -----
