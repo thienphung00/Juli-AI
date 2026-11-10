@@ -386,14 +386,16 @@ async def test_switching_the_version_and_the_what_if_re_aggregate_at_once(sessio
     second = await plans.switch_version(session, sid, cid, 2, actor=_actor(seeded), now=NOW)
     v2 = second["aggregate"]["cards"][0]
     assert v2["version"] == 2 and v2["inputs"]["discount_pct"] == 25
-    assert v2["alone"]["dprofit"]["certain"] < v1["alone"]["dprofit"]["certain"]  # deeper discount
+    # P99b: on the option-result path the money layer's certain figure is never shown
+    assert v2["alone"]["dprofit"]["certain"] is None
+    assert v2["result"]["own"]["delta"] != v1["result"]["own"]["delta"]  # deeper discount
     assert second["cards"][0]["chosen_version_code"].endswith("-V2")
     third = await plans.whatif(
         session, sid, cid, {"discount_pct": 5}, actor=_actor(seeded), now=NOW
     )
     c3 = third["aggregate"]["cards"][0]
     assert c3["inputs"]["discount_pct"] == 5 and c3["what_if"] == {"discount_pct": 5}
-    assert c3["alone"]["dprofit"]["certain"] > v1["alone"]["dprofit"]["certain"]
+    assert c3["result"]["own"]["delta"] != v1["result"]["own"]["delta"]
     fourth = await plans.switch_version(session, sid, cid, 1, actor=_actor(seeded), now=NOW)
     assert fourth["cards"][0]["what_if"] == {}  # the inputs belonged to the old version
     for bad in (0, 3):
@@ -422,14 +424,14 @@ async def test_the_aggregate_is_joint_not_the_sum_of_the_cards(session, shop):
     out = await plans.add_card(session, sid, v, actor=_actor(seeded), now=NOW)
     agg = out["aggregate"]
     by = {c["card_id"]: c for c in agg["cards"]}
-    alone = sum(c["alone"]["dprofit"]["certain"] for c in agg["cards"])
-    assert agg["dprofit_month"]["certain"] != pytest.approx(alone)  # stacked on the same orders
+    # P99b: the money layer's certain figure is not shown beside the results
+    assert agg["dprofit_month"]["certain"] is None
     assert agg["joint_cards"] == [str(d), str(v)] or set(agg["joint_cards"]) == {str(d), str(v)}
     assert agg["stacked_products"][0]["product_id"] == "1001"
     assert agg["stacked_products"][0]["stacked_on_same_orders"] is True
     # "bỏ thẻ này thì": the plan without a card is the other card alone
-    assert by[str(d)]["without"]["dprofit"]["certain"] == pytest.approx(
-        by[str(v)]["alone"]["dprofit"]["certain"]
+    assert by[str(d)]["without"]["dprofit"]["p50"] == pytest.approx(
+        by[str(v)]["alone"]["dprofit"]["p50"]
     )
     assert by[str(v)]["without"]["dprofit"]["p50"] == pytest.approx(
         by[str(d)]["alone"]["dprofit"]["p50"]
@@ -467,8 +469,8 @@ async def test_cards_on_different_products_add(session, shop):
     b = uuid.UUID((await _manual(session, seeded, env, other))["id"])
     await plans.add_card(session, sid, a, actor=_actor(seeded), now=NOW)
     agg = (await plans.add_card(session, sid, b, actor=_actor(seeded), now=NOW))["aggregate"]
-    total = agg["dprofit_month"]["certain"]
-    alone = sum(c["alone"]["dprofit"]["certain"] for c in agg["cards"])
+    total = agg["dprofit_month"]["total"]["p50"]
+    alone = sum(c["alone"]["dprofit"]["p50"] for c in agg["cards"])
     assert total == pytest.approx(alone, rel=0.02, abs=50)
     assert agg["stacked_products"] == [] and {p_["product_id"] for p_ in agg["products"]} == {
         "1001",

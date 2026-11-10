@@ -140,29 +140,29 @@ FAMILIES = {
 
 
 def _plan_view(result: dict[str, Any]) -> dict[str, Any]:
-    """An OptionResult's wire block as Kế hoạch states it: per 30 days."""
-    k = 30 / result["days"]
-    per30 = result["per_30d"]
+    """An OptionResult's wire block over its OWN dates (P99b: never normalised to 30 days)."""
+    d = result["delta"]
     return {
         "estimable": result["estimable"],
-        "dgmv": None if not result["estimable"] else per30["gmv"],
-        "dorders": None if not result["estimable"] else pa.round_orders(per30["orders"]),
-        "dprofit": None if not result["estimable"] else per30["profit"],
-        "cost_month": result["cost"]["total"] * k,
+        "dgmv": None if not result["estimable"] else d["gmv"]["value"],
+        "dorders": None if not result["estimable"] else d["orders"]["value"],
+        "dprofit": None if not result["estimable"] else (d["profit"] or {}).get("value"),
+        "cost_total": result["cost"]["total"],
         "days": result["days"],
     }
 
 
 def _card_view(card: dict[str, Any]) -> dict[str, Any]:
+    """The Kế hoạch card's figures for the version's own dates (``result.own``)."""
     r = card["result"]
-    p50 = (r.get("delta") or {}).get("p50") or {}
+    p50 = ((r.get("own") or {}).get("delta") or {}).get("p50") or {}
     return {
         "estimable": r["estimable"],
         "dgmv": p50.get("dgmv"),
         "dorders": p50.get("dorders"),
         "dprofit": p50.get("dprofit"),
-        "cost_month": r["cost_month"],
-        "days": r["days"],
+        "cost_total": r["cost_total"],
+        "days": r["own_days"],
     }
 
 
@@ -172,7 +172,7 @@ def _same(a: dict[str, Any], b: dict[str, Any]) -> None:
         if a[k] is None or b[k] is None or isinstance(a[k], bool):
             assert a[k] == b[k], k
         else:
-            assert a[k] == pytest.approx(b[k], abs=1e-6), k
+            assert a[k] == pytest.approx(b[k], abs=0.51), k  # the wire rounds money to đồng
 
 
 @pytest.mark.parametrize("family", sorted(FAMILIES))
@@ -190,8 +190,12 @@ async def test_tu_tao_the_saved_card_and_ke_hoach_show_one_result(session, shop,
     _same(_plan_view(tu_tao["result"]), _plan_view(card))
     _same(_plan_view(card), _card_view(planned))
     agg = planned["_aggregate"]
-    # one cost: Kế hoạch's cost per month is the OptionResult's, also for the cap
-    assert agg["cost"]["delta_per_month"] == pytest.approx(planned["result"]["cost_month"])
+    # one cost: Kế hoạch's cost is the OptionResult's on the card's days inside the horizon,
+    # and the spend cap reads the same figure (P99b)
+    r = planned["result"]
+    assert agg["cost"]["horizon_spend_delta"] == pytest.approx(r["cost_horizon"])
+    assert r["cost_horizon"] == pytest.approx(r["cost_total"] * r["counted_days"] / r["own_days"])
+    assert agg["horizon"]["from"] == NOW.date().isoformat() and agg["horizon"]["days"] == 30
     if not tu_tao["result"]["estimable"]:
         # shown as "chưa ước tính được" with its cost, left out of the sums
         assert planned["result"]["message"] == pa.NOT_ESTIMABLE_TEXT
@@ -251,12 +255,25 @@ async def test_a_saved_version_keeps_its_own_days(session, shop):
     assert version["spec"]["start"] == AS_OF.isoformat()
     assert version["inputs"]["days"] == 7 and planned["result"]["days"] == 7
     assert saved["outcome"]["result"]["days"] == 7
+    # P99b: of its 7 days (AS_OF .. +6) the 6 from today on fall in the plan's 30 days
+    r = planned["result"]
+    assert r["own_dates"] == {
+        "from": AS_OF.isoformat(),
+        "to": (AS_OF + timedelta(days=6)).isoformat(),
+        "days": 7,
+    }
+    assert r["counted_dates"]["from"] == NOW.date().isoformat() and r["counted_days"] == 6
+    assert r["cost_horizon"] == pytest.approx(r["cost_total"] * 6 / 7)
+    own, inside = r["own"]["delta"]["p50"], r["delta"]["p50"]
+    assert inside["dgmv"] == pytest.approx(own["dgmv"] * 6 / 7)
     # a voucher without dates: the version, its result and Kế hoạch all use the 30-day horizon
     saved, planned = await _save_and_plan(session, seeded, VOUCHER_NO_DATES)
     payload = await store.card_payload(session, seeded.shop_id, uuid.UUID(saved["id"]))
     assert payload is not None
     assert payload["versions"][0]["inputs"]["days"] == 30
-    assert planned["result"]["days"] == 30 and planned["result"]["horizon"] == "first_30_days"
+    assert planned["result"]["days"] == 30
+    assert planned["result"]["result_horizon"] == "first_30_days"
+    assert planned["result"]["counted_days"] == 30  # no dates: it starts with the plan
 
 
 async def test_ke_hoach_adds_a_cards_delta_onto_the_base_it_was_computed_on(session, shop):

@@ -127,8 +127,10 @@ async def test_cards_of_different_products_stay_independent_with_shop_totals(ses
     shop_total = agg["steps_summary"]["shop"]
     assert shop_total["products"] == 2
     assert shop_total["dprofit_p50"] == pytest.approx(agg["dprofit_month"]["total"]["p50"])
-    assert s1["total"]["dprofit_certain"] + s2["total"]["dprofit_certain"] == pytest.approx(
-        shop_total["dprofit_certain"], rel=0.02, abs=100
+    # P99b: no money-layer certain figure on the option-result path
+    assert s1["total"]["dprofit_certain"] is None and shop_total["dprofit_certain"] is None
+    assert s1["total"]["dprofit_p50"] + s2["total"]["dprofit_p50"] == pytest.approx(
+        shop_total["dprofit_p50"], rel=0.02, abs=100
     )
     assert shop_total["margin_pct_after"] is not None
 

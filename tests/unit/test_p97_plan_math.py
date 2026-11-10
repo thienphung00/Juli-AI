@@ -13,8 +13,6 @@ import pytest
 from sqlalchemy import select
 
 from juli_backend.models.shop_proposals import ShopProposal, ShopProposalApproval
-from juli_backend.models.shopee_metrics import ShopeePlanBaseSnapshot
-from juli_backend.models.shopee_plans import ShopRecoPlan
 from juli_backend.services.shop_inputs import xlsx_io
 from juli_backend.services.shop_proposals import ProposalError
 from juli_backend.services.shopee_analytics import materialize
@@ -49,7 +47,7 @@ def _totals(plan_out):
         round(agg["dgmv_month"]["total"]["p50"], 2),
         round(agg["dprofit_month"]["total"]["p50"], 2),
         round(agg["dorders_month"]["p50"], 2),
-        round(agg["dprofit_month"]["certain"], 2),
+        agg["dprofit_month"]["certain"],  # None on the option-result path (P99b)
     )
 
 
@@ -402,14 +400,17 @@ def test_one_joint_lift_per_product_never_a_sum_of_the_options_p50s():
     assert [e.entry.card_id for e in keep3] == ["m"]
 
 
-async def test_the_base_is_frozen_until_the_person_refreshes_it(session, shop):
+async def test_a_draft_plan_is_recomputed_live_on_the_newest_data(session, shop):
+    """P99b (owner 2026-11-10): Kế hoạch is recomputed on today's latest anchor -- an ingest that
+    lands after the first card moves the plan's "hôm nay" at once, no "Cập nhật số" needed."""
     seeded, env = shop
     sid = seeded.shop_id
     a = await _card(session, seeded, env, _discount(15))
     first = await _add(session, seeded, a)
     base = first["plan"]["base"]
-    assert base["version"] == 1 and base["as_of"] == CUR_END.isoformat()
+    assert base["live"] is True and base["as_of"] == CUR_END.isoformat()
     assert base["newer_available"] is False
+    assert first["aggregate"]["horizon"]["from"] == NOW.date().isoformat()
     # an ingest lands: two newer days of Shopee numbers
     for d in (1, 2):
         day = CUR_END + timedelta(days=d)
@@ -425,26 +426,12 @@ async def test_the_base_is_frozen_until_the_person_refreshes_it(session, shop):
     await materialize.backfill_shop(session, sid)  # the ingest rebuilds the stored rows (P98)
     await session.commit()
     again = await plans.get_plan(session, sid, now=NOW)
-    assert _totals(again) == _totals(first)
-    assert again["aggregate"]["today"] == first["aggregate"]["today"]
-    assert again["plan"]["as_of"] == CUR_END.isoformat()
-    assert again["plan"]["base"]["newer_available"] is True
-    assert "Cập nhật số" in again["plan"]["base"]["note"]
-    # editing the plan does not move the base either
-    edited = await plans.whatif(
-        session, sid, a, {"discount_pct": 12}, actor=_actor(seeded), now=NOW
-    )
-    assert edited["plan"]["as_of"] == CUR_END.isoformat()
-    # only "Cập nhật số" does
-    fresh = await plans.refresh_base(session, sid, actor=_actor(seeded), now=NOW)
-    assert fresh["plan"]["as_of"] == (CUR_END + timedelta(days=2)).isoformat()
-    assert (
-        fresh["plan"]["base"]["version"] == 2 and fresh["plan"]["base"]["newer_available"] is False
-    )
-    snaps = (await session.scalars(select(ShopeePlanBaseSnapshot))).all()
-    assert sorted(s.version for s in snaps) == [1, 2]
-    plan = await session.scalar(select(ShopRecoPlan))
-    assert plan.as_of == CUR_END + timedelta(days=2)
+    newest = (CUR_END + timedelta(days=2)).isoformat()
+    assert again["aggregate"]["as_of"] == newest
+    assert again["aggregate"]["today"]["as_of"] == newest
+    assert again["plan"]["base"]["as_of"] == newest
+    assert again["plan"]["base"]["newer_available"] is False
+    assert "Cập nhật số" not in again["plan"]["base"]["note"]
 
 
 async def test_one_option_shows_the_same_p50_and_range_on_the_card_the_compare_and_the_plan(

@@ -104,6 +104,24 @@ async def write(
     return row
 
 
+def live_block(env: RecoEnv, today: date) -> dict[str, Any]:
+    """P99b (owner 2026-11-10): the plan payload's ``base`` for a draft -- the plan is recomputed
+    live on the newest data, so it names that day and never asks for "Cập nhật số"."""
+    return {
+        "label": LABEL,
+        "live": True,
+        "version": None,
+        "as_of": env.as_of.isoformat(),
+        "window": env.view.window.json(),
+        "refreshed_at": None,
+        "newest_day": env.as_of.isoformat(),
+        "newer_available": False,
+        "horizon_from": today.isoformat(),
+        "note": f"Kế hoạch tính trên số liệu mới nhất (đến hết ngày {env.as_of:%d/%m/%Y}), "
+        f"dự kiến cho 30 ngày tới từ hôm nay ({today:%d/%m/%Y}).",
+    }
+
+
 def block(snapshot: ShopeePlanBaseSnapshot | None, newest: date | None) -> dict[str, Any] | None:
     """The plan payload's ``base``: which day the numbers are on and whether newer ones exist."""
     if snapshot is None:

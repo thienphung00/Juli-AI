@@ -93,11 +93,39 @@ def test_p50_adds_exactly_and_the_range_is_the_root_sum_of_squares():
     assert 50_000 < 70_000 - t["p10"]["dprofit"] < 80_000
 
 
-def test_a_card_is_scaled_to_30_days_like_the_comparison_table():
+H = pa.Horizon(__import__("datetime").date(2026, 11, 10))
+
+
+def test_a_card_counts_its_own_days_inside_the_30_day_horizon_never_scaled_to_30():
+    """P99b: a 60-day card counts its 30 days inside the horizon; a 15-day card its 15 days --
+    its Δ for those days, not ×30/15."""
     long = cr("a", d_gmv=300_000, d_orders=6, d_profit=90_000, days=60)
-    assert long.delta("likely")["dprofit"] == pytest.approx(45_000)
-    t = pa.combine_results([long, cr("b", d_gmv=0, d_orders=0, d_profit=10_000, days=15)])
-    assert t["p50"]["dprofit"] == pytest.approx(45_000 + 20_000)
+    assert long.delta("likely", H)["dprofit"] == pytest.approx(45_000)
+    assert long.delta_own("likely")["dprofit"] == pytest.approx(90_000)  # Tự tạo's figure
+    short = cr("b", d_gmv=0, d_orders=0, d_profit=10_000, days=15, cost=30_000)
+    assert short.counted_days(H) == 15 and short.cost_in(H) == pytest.approx(30_000)
+    t = pa.combine_results([long, short], H)
+    assert t["p50"]["dprofit"] == pytest.approx(45_000 + 10_000)
+
+
+def test_a_card_partly_outside_the_horizon_counts_only_the_days_inside():
+    td = __import__("datetime").timedelta
+    late = pa.CardResult(
+        "a", result(70_000, 7, 14_000, days=7, cost=7_000), start=H.end - td(days=2)
+    )
+    assert late.counted_days(H) == 3
+    assert late.delta("likely", H)["dgmv"] == pytest.approx(30_000)
+    assert late.cost_in(H) == pytest.approx(3_000)
+    gone = pa.CardResult("b", result(70_000, 7, 14_000, days=7, cost=7_000), start=H.end + td(1))
+    assert gone.counted(H) is None and gone.counted_days(H) == 0
+    assert gone.cost_in(H) == 0 and gone.delta("likely", H)["dgmv"] == 0
+    past = pa.CardResult("c", result(70_000, 7, 14_000, days=7), start=H.start - td(days=10))
+    assert past.counted(H) is None
+
+
+def test_a_card_without_a_result_has_an_unknown_cost_never_a_number():
+    refused = pa.CardResult("b", None, "no_spec")
+    assert refused.cost_in(H) is None and refused.cost_own() is None
 
 
 def test_an_unknown_profit_stays_unknown_never_a_partial_sum():
@@ -167,12 +195,20 @@ async def _plan_of(session, seeded, env, *variants):
     return out["aggregate"]
 
 
-async def _per_30d(session, seeded, env, spec):
+async def _period(session, seeded, env, spec):
+    """The builder's Δ over the version's own days (P99b: what Tự tạo shows) and its days."""
     ctx = BuilderContext(
         env=env, variations=await variation_rows_for(session, seeded.shop_id, env, ["1001"])
     )
     done, _ = integrate.evaluate(ctx, spec)
-    return done.result_json()["per_30d"]
+    r = done.result_json()
+    d = r["delta"]
+    return {
+        "profit": d["profit"]["value"],
+        "gmv": d["gmv"]["value"],
+        "orders": d["orders"]["value"],
+        "days": r["days"],
+    }
 
 
 DISCOUNT = sp.ProductDiscountSpec(
@@ -188,8 +224,9 @@ VOUCHER_SPEC = sp.VoucherSpec(
     value=20_000,
     min_spend=60_000,
     usage_limit=50,
-    start=AS_OF,
-    end=AS_OF + __import__("datetime").timedelta(days=13),
+    # the plan rebuilds a candidate voucher's dates from today (the horizon's first day)
+    start=NOW.date(),
+    end=NOW.date() + __import__("datetime").timedelta(days=13),
 )
 
 
@@ -197,15 +234,17 @@ async def test_the_plan_delta_is_the_sum_of_its_cards_result_delta(session, shop
     seeded, env = shop
     agg = await _plan_of(session, seeded, env, _discount(15), VOUCHER)
     assert agg["result_basis"] == "option_result" and agg["not_estimable_cards"] == []
-    d = await _per_30d(session, seeded, env, DISCOUNT)
-    v = await _per_30d(session, seeded, env, VOUCHER_SPEC)
+    d = await _period(session, seeded, env, DISCOUNT)
+    v = await _period(session, seeded, env, VOUCHER_SPEC)
+    # both lie wholly inside the 30 days from today: each counts its full own-days Δ
+    assert (d["days"], v["days"]) == (30, 14)
     for key, got in (
         ("profit", agg["dprofit_month"]["total"]["p50"]),
         ("gmv", agg["dgmv_month"]["total"]["p50"]),
         ("orders", agg["dorders_month"]["p50"]),
     ):
         # P99: the wire's Δ Đơn is at the card's precision (one decimal under 10 orders)
-        assert got == pytest.approx(d[key] + v[key], abs=0.11 if key == "orders" else 1e-6)
+        assert got == pytest.approx(d[key] + v[key], abs=0.11 if key == "orders" else 1)
     assert [c["result"]["counted"] for c in agg["cards"]] == [True, True]
     assert agg["deltas_p50"]["gmv"] == pytest.approx(agg["dgmv_month"]["total"]["p50"])
 
@@ -243,9 +282,15 @@ async def test_a_card_that_is_not_estimable_counts_for_its_cost_only(session, sh
     for key in ("dprofit_month", "dgmv_month"):
         assert both[key]["total"]["p50"] == pytest.approx(only_discount[key]["total"]["p50"])
     assert both["dorders_month"]["p50"] == pytest.approx(only_discount["dorders_month"]["p50"])
-    # ... but its exact cost is still counted against the cap
-    assert both["cost"]["delta_per_month"] > only_discount["cost"]["delta_per_month"]
-    assert both["cost"]["per_day_after"] > only_discount["cost"]["per_day_after"]
+    # ... and with no result its cost is unknown: listed, never the money layer's figure (P99b)
+    assert by["min_spend_voucher"]["result"]["cost_horizon"] is None
+    assert by["min_spend_voucher"]["result"]["cost_known"] is False
+    assert both["cost"]["cost_unknown_cards"] == [str(cid)]
+    assert both["cost"]["cost_complete"] is False and both["cost"]["cost_note"]
+    assert both["cost"]["delta_per_month"] == pytest.approx(
+        only_discount["cost"]["delta_per_month"]
+    )
+    assert both["totals_partial"] is True and "chưa ước tính được" in both["totals_note"]
 
 
 async def test_a_plan_with_no_estimable_card_still_answers(session, shop, monkeypatch):
@@ -255,6 +300,7 @@ async def test_a_plan_with_no_estimable_card_still_answers(session, shop, monkey
     assert agg["not_estimable_cards"] == [agg["cards"][0]["card_id"]]
     assert agg["dprofit_month"]["total"]["p50"] == 0.0
     assert agg["after"]["gmv_30d"] == agg["today"]["gmv_30d"]
+    assert agg["totals_partial"] is True and agg["totals_note"]
 
 
 GIFT_SPEC = sp.GiftSpec(

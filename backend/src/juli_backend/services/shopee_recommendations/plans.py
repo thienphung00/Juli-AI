@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -56,7 +56,6 @@ from juli_backend.models.shopee_plans import (
 from juli_backend.services.card_events import keys
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
-from juli_backend.services.shopee_analytics import loaders as analytics_loaders
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     codes,
@@ -80,6 +79,19 @@ from juli_backend.services.shopee_recommendations.plan_aggregate import (
 )
 
 ERROR_UNKNOWN_PLAN = "reco_plan_not_found"
+ADS_NEW_KIND = "ads_new_campaign"
+#: an Ads card nobody has read back yet: a state, never zeros
+ADS_READBACK_NOT_READ: dict[str, Any] = {
+    "state": "not_found",
+    "label": "Chưa đọc kết quả chiến dịch",
+    "reason": "not_read_yet",
+    "reason_text": "Chưa đọc lại số liệu quảng cáo cho thẻ này.",
+    "matched_by": None,
+    "campaign": None,
+    "candidates": [],
+    "started_before_card": None,
+    "actual": None,
+}
 ERROR_NOT_DRAFT = "reco_plan_not_draft"
 ERROR_EMPTY = "reco_plan_empty"
 ERROR_CARD_STATE = "reco_card_not_plannable"
@@ -105,6 +117,15 @@ def _naive(now: datetime) -> datetime:
     return now.replace(tzinfo=None) if now.tzinfo else now
 
 
+#: the shop's calendar (Asia/Ho_Chi_Minh, UTC+7): "today" of the plan's horizon
+SHOP_TZ = timezone(timedelta(hours=7))
+
+
+def plan_today(now: datetime) -> date:
+    """P99b: the first day of the plan's 30-day horizon -- today in the shop's calendar."""
+    return now.astimezone(SHOP_TZ).date() if now.tzinfo else now.date()
+
+
 #: fields only one value of which can be live at a time (P94 "one live value per exclusive field"):
 #: see :data:`plan_groups.EXCLUSIVE_FIELDS`; a second option on one moves to the next group
 EXCLUSIVE_FIELDS = plan_groups.EXCLUSIVE_FIELDS
@@ -119,9 +140,13 @@ def exclusive_key(payload: Mapping[str, Any]) -> tuple[str, str, str] | None:
 async def _env_for(
     session: AsyncSession, shop_id: uuid.UUID, plan: ShopRecoPlan | None, now: datetime
 ) -> Any:
-    """The environment a plan is evaluated on: its pinned ``as_of`` (newest day for a plan that
-    has none yet)."""
-    return await load_env(session, shop_id, as_of=None if plan is None else plan.as_of, now=now)
+    """The environment a plan is evaluated on (P99b, owner 2026-11-10): a draft is recomputed live
+    on the newest data -- never on a stale frozen ``as_of``. A confirmed plan keeps the aggregate
+    it was confirmed with and is not evaluated again."""
+    live = plan is None or plan.status == PLAN_DRAFT
+    return await load_env(
+        session, shop_id, as_of=None if live or plan is None else plan.as_of, now=now
+    )
 
 
 # ----------------------------------------------------------------------------- storage
@@ -216,6 +241,8 @@ async def _aggregate(
     *,
     now: datetime,
     base: Mapping[str, Any] | None,
+    today: date | None = None,
+    default_start: date | None = None,
 ) -> tuple[dict[str, Any], list[Any]]:
     """``aggregate`` with the variations of the cards' products: the option results (P98 / ADR-122
     d.2) rebuild a price lever's builder spec from them."""
@@ -229,7 +256,26 @@ async def _aggregate(
         from juli_backend.services.shopee_builder.service import variation_rows_for
 
         variations = await variation_rows_for(session, shop_id, env, items)
-    return aggregate(env, entries, now=now, base=base, variations=variations)
+    return aggregate(
+        env,
+        entries,
+        now=now,
+        base=base,
+        variations=variations,
+        today=today,
+        default_start=default_start,
+    )
+
+
+def ads_readback_of(meta: Mapping[str, Any]) -> dict[str, Any]:
+    """The Ads card's read-back as the read-back lane stored it (``card_meta["ads_readback"]``),
+    passed through; missing = ``not_found`` / ``not_read_yet`` (never zeros)."""
+    found = meta.get("ads_readback")
+    return (
+        dict(found)
+        if isinstance(found, Mapping) and found.get("state")
+        else dict(ADS_READBACK_NOT_READ)
+    )
 
 
 def _actor_event(actor: manual.Actor) -> str:
@@ -300,7 +346,11 @@ async def get_plan(
 
     ``aggregate`` is the plan math over the cards that are in no group; each group in ``groups``
     carries its own (the same math over its members: one joint lift per product, order independent),
-    so a group is judged on its own period (P94)."""
+    so a group is judged on its own period (P94).
+
+    P99b: a draft is recomputed live on the newest data, as the expected outcome over the next
+    30 days from today (``aggregate.horizon``); the stored base snapshot is no longer used."""
+    today = plan_today(now)
     now = _naive(now)
     plan = await draft_of(session, shop_id) if plan_id is None else None
     if plan_id is not None:
@@ -325,10 +375,8 @@ async def get_plan(
         env = await _env_for(session, shop_id, plan, now)
         if env is None:
             raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
-        snap = await plan_base.latest(session, shop_id, plan.id)
-        newest = await analytics_loaders.default_as_of(session, shop_id)
-        base_block = plan_base.block(snap, newest)
-        base = None if snap is None else snap.base
+        base_block = plan_base.live_block(env, today)
+        base = None
         agg, _ = await _aggregate(
             session,
             shop_id,
@@ -336,14 +384,19 @@ async def get_plan(
             await _entries(session, shop_id, [(r, p) for r, p in rows if r.id not in grouped]),
             now=now,
             base=base,
+            today=today,
         )
+        group_periods = plan_groups.periods(plan, group_rows, today=today)
         for g in group_rows:
             entries = await plan_groups.entries_of(session, shop_id, by_group.get(g.id, []))
-            group_aggs[g.id] = (
-                (await _aggregate(session, shop_id, env, entries, now=now, base=base))[0]
-                if entries
-                else None
-            )
+            group_aggs[g.id] = None
+            if entries:
+                group_aggs[g.id] = (
+                    await _aggregate(
+                        session, shop_id, env, entries, now=now, base=base, today=today,
+                        default_start=group_periods[g.id][0],
+                    )
+                )[0]  # fmt: skip
         products = [*agg.get("products", []), *_group_products(group_aggs.values())]
         names = {b["product_id"]: b.get("name") for b in products}
         cut = await change_sets.cut_preview(
@@ -393,6 +446,9 @@ async def get_plan(
                 "evaluation": blocks.get(str(p.id)) or group_blocks.get(str(p.id)),
             }
         )
+        if payload.get("change_kind") == ADS_NEW_KIND:
+            meta = await store.card_meta(session, shop_id, p.id)
+            cards[-1]["ads_readback"] = ads_readback_of(meta)
     windows_of = plan_groups.periods(plan, group_rows, today=now.date())
     groups: list[dict[str, Any]] = []
     for g in group_rows:
@@ -949,6 +1005,7 @@ async def confirm(
     list otherwise). Every card becomes ``approved`` with the plan id; a card in a group takes the
     group's start as its planned date and the group's code, the others the plan's one date. One
     approval queues the fill of every approved version (D85.6, D85.14)."""
+    today = plan_today(now)
     now = _naive(now)
     plan = await _require_draft(session, shop_id)
     rows = await _rows(session, shop_id, plan.id)
@@ -960,8 +1017,7 @@ async def confirm(
     env = await _env_for(session, shop_id, plan, now)
     if env is None:
         raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
-    snap = await plan_base.latest(session, shop_id, plan.id)
-    base = None if snap is None else snap.base
+    base = None  # P99b: live on the newest data, never the frozen snapshot
     group_rows = await plan_groups.active_groups(session, shop_id, plan.id)
     by_group = await plan_groups.members_by_group(session, shop_id, plan.id)
     grouped = plan_groups.grouped_card_ids(by_group)
@@ -974,6 +1030,7 @@ async def confirm(
         await _entries(session, shop_id, [(r, p) for r, p in rows if r.id not in grouped]),
         now=now,
         base=base,
+        today=today,
     )
     group_aggs: dict[str, dict[str, Any]] = {}
     group_evs: dict[str, Any] = {}
@@ -983,7 +1040,10 @@ async def confirm(
         entries = await plan_groups.entries_of(session, shop_id, by_group.get(g.id, []))
         if not entries:
             continue
-        gagg, gev = await _aggregate(session, shop_id, env, entries, now=now, base=base)
+        gagg, gev = await _aggregate(
+            session, shop_id, env, entries, now=now, base=base, today=today,
+            default_start=windows_of[g.id][0],
+        )  # fmt: skip
         group_aggs[g.letter] = gagg
         group_evs.update({e.entry.card_id: e for e in gev})
         unavailable += gagg.get("unavailable_cards") or []

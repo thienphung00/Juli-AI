@@ -89,9 +89,9 @@ def _margin_pct(five: dict[str, Any] | None, key: str) -> float | None:
 
 
 def _derived_margin(
-    base: tuple[float, float] | None, certain_dprofit: float, certain_dgmv: float
+    base: tuple[float, float] | None, certain_dprofit: float | None, certain_dgmv: float | None
 ) -> float | None:
-    if base is None:
+    if base is None or certain_dprofit is None or certain_dgmv is None:
         return None
     profit, paid = base
     after_paid = paid + certain_dgmv
@@ -131,7 +131,13 @@ def build_steps(
         step_p50 = None if total_p50 is None or prev_p50 is None else round(total_p50 - prev_p50, 2)
         margin_after = _margin_pct(j.five, "pct_after")
         if margin_after is None:
-            margin_after = _derived_margin(base, j.certain["dprofit"], j.certain["dgmv"])
+            # P99b: on the option-result path the step's Δ is the results' P50 (an unknown
+            # stays unknown); the money layer's certain figures only on the legacy path
+            if getattr(j, "result_basis", None):
+                p50 = j.total["p50"]
+                margin_after = _derived_margin(base, p50["dprofit"], p50["dgmv"])
+            else:
+                margin_after = _derived_margin(base, j.certain["dprofit"], j.certain["dgmv"])
         items.append(
             {
                 "index": k + 1,
@@ -146,7 +152,9 @@ def build_steps(
                 "margin_pct_after": margin_after,
                 "dprofit_step_p50": step_p50,
                 "dprofit_total_p50": None if total_p50 is None else round(total_p50, 2),
-                "dprofit_total_certain": round(j.certain["dprofit"], 2),
+                "dprofit_total_certain": _round(
+                    None if getattr(j, "result_basis", None) else j.certain["dprofit"]
+                ),
                 "dgmv_total_p50": _round(j.total["p50"]["dgmv"]),
                 "cost_month_total": round(j.certain["dchi"], 2),
                 "floor_ok": j.floor_ok,

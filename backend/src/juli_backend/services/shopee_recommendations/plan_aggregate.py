@@ -44,7 +44,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -58,7 +58,6 @@ from juli_backend.services.shopee_recommendations import (
     service,
     versions,
 )
-from juli_backend.services.shopee_recommendations.cards import shop_deltas
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.mega import (
     ADS_KINDS,
@@ -158,42 +157,106 @@ def flatten(evs: Sequence[Evaluated]) -> list[Evaluated]:
 # ------------------------------------------------------------------- option results (P98)
 
 
+@dataclass(frozen=True)
+class Horizon:
+    """P99b (owner, 2026-11-10): Kế hoạch is the expected outcome of its cards over the next 30
+    days starting today. A card counts only on its own days inside this horizon."""
+
+    start: date
+    days: int = HORIZON_DAYS
+
+    @property
+    def end(self) -> date:
+        return self.start + timedelta(days=self.days - 1)
+
+    def overlap(self, start: date, end: date) -> tuple[date, date] | None:
+        lo, hi = max(start, self.start), min(end, self.end)
+        return None if hi < lo else (lo, hi)
+
+    def each_day(self) -> list[date]:
+        return [self.start + timedelta(days=i) for i in range(self.days)]
+
+    def json(self) -> dict[str, Any]:
+        return {
+            "from": self.start.isoformat(),
+            "to": self.end.isoformat(),
+            "days": self.days,
+            "label": f"{self.days} ngày tới (từ hôm nay)",
+        }
+
+
 @dataclass
 class CardResult:
-    """One card (or one target of a many-target card) as an ``OptionResult``, or why it has none."""
+    """One card (or one target of a many-target card) as an ``OptionResult``, or why it has none.
+
+    ``start`` is the first day of the card's own dates (the version's spec); ``None`` = a change
+    without dates, which starts with the plan (today) and runs ``result.days`` days."""
 
     card_id: str
     result: OptionResult | None
     reason: str | None = None  # a code; ``None`` with a result = fine
+    start: date | None = None
+    product: str | None = None
 
     @property
     def ok(self) -> bool:
         r = self.result
         return r is not None and r.estimable and r.likely is not None
 
-    def delta(self, which: str) -> dict[str, float | None] | None:
-        """The 30-day Δ of the ``low`` / ``likely`` / ``high`` column against ``before``."""
+    # -- the card's own dates (what Tự tạo shows) ------------------------------------------------
+
+    def own_span(self, h: Horizon) -> tuple[date, date] | None:
+        r = self.result
+        if r is None:
+            return None
+        first = self.start or h.start
+        return first, first + timedelta(days=r.days - 1)
+
+    def counted(self, h: Horizon) -> tuple[date, date] | None:
+        """The card's days inside the horizon; ``None`` = none of them."""
+        span = self.own_span(h)
+        return None if span is None else h.overlap(*span)
+
+    def counted_days(self, h: Horizon) -> int:
+        c = self.counted(h)
+        return 0 if c is None else (c[1] - c[0]).days + 1
+
+    def delta_own(self, which: str) -> dict[str, float | None] | None:
+        """The Δ of the ``low`` / ``likely`` / ``high`` column over the card's OWN days (the
+        builder's figure for the dates it was set on; never scaled to 30 days)."""
         r = self.result
         col: Scenario | None = None if r is None else getattr(r, which)
         if r is None or col is None:
             return None
-        k = HORIZON_DAYS / r.days
 
         def d(name: str) -> float | None:
             a, b = getattr(col, name), getattr(r.before, name)
-            return None if a is None or b is None else float(a - b) * k
+            return None if a is None or b is None else float(a - b)
 
-        return {
-            "dgmv": d("gmv"),
-            "dorders": d("orders"),
-            "dprofit": d("profit"),
-            "dviews": d("views"),
-            "dclicks": d("clicks"),
-        }
+        return {m: d(f) for m, f in RESULT_FIELDS.items()}
 
-    def cost_month(self) -> float:
+    def cost_own(self) -> float | None:
+        return None if self.result is None else float(self.result.cost_total)
+
+    def cost_per_day(self) -> float | None:
         r = self.result
-        return 0.0 if r is None else float(r.cost_total) * HORIZON_DAYS / r.days
+        return None if r is None else float(r.cost_total) / r.days
+
+    def cost_in(self, h: Horizon) -> float | None:
+        """The cost on the card's days inside the horizon (its own cost per day × those days);
+        ``None`` when the card has no result (unknown, never a number from elsewhere)."""
+        per_day = self.cost_per_day()
+        return None if per_day is None else per_day * self.counted_days(h)
+
+    def delta(self, which: str, h: Horizon | None = None) -> dict[str, float | None] | None:
+        """The Δ inside the horizon: the own-days Δ × counted days ÷ own days (a card's effect
+        is spread evenly over its own days). Without a horizon: the own-days Δ."""
+        own = self.delta_own(which)
+        r = self.result
+        if own is None or r is None or h is None:
+            return own
+        k = self.counted_days(h) / r.days
+        return {m: None if v is None else v * k for m, v in own.items()}
 
     def before_30d(self) -> dict[str, float | None] | None:
         """P99: the base this card's Δ was computed on (its scope's stored funnel), per 30 days --
@@ -215,6 +278,40 @@ class CardResult:
             "clicks_30d": f(b.clicks),
             "aov": float(b.gmv / b.orders) if b.orders > 0 else None,
         }
+
+
+RESULT_FIELDS = {
+    "dgmv": "gmv",
+    "dorders": "orders",
+    "dprofit": "profit",
+    "dviews": "views",
+    "dclicks": "clicks",
+}
+COLUMNS = (("p10", "low"), ("p50", "likely"), ("p90", "high"))
+
+
+@dataclass
+class Counted:
+    """What one leaf card contributes to the plan inside the horizon: its own-days Δ spread
+    evenly over its own days, times the days that fall inside the horizon. Cards on the same
+    product add (ADR-122 d.2: each result is computed on the same base, with its own drivers);
+    nothing of the base is added twice -- the base is counted once per scope."""
+
+    card_id: str
+    cols: dict[str, dict[str, float | None]]  # p10 / p50 / p90 -> metric -> Δ in the horizon
+    counted_days: int
+    cost: float | None
+
+
+def count_in_horizon(results: Sequence[CardResult], h: Horizon) -> dict[str, Counted]:
+    """Each estimable leaf's Δ inside the horizon (its counted days only)."""
+    out: dict[str, Counted] = {}
+    for r in results:
+        if not r.ok:
+            continue
+        cols = {q: dict(r.delta(col, h) or {}) for q, col in COLUMNS}
+        out[r.card_id] = Counted(r.card_id, cols, r.counted_days(h), r.cost_in(h))
+    return out
 
 
 def round_orders(x: float | None) -> float | None:
@@ -413,21 +510,29 @@ def spec_of_candidate(
         return None
 
 
+def spec_start(spec: Any) -> date | None:
+    """The first day of a version's own dates (``None`` = no dates: it starts with the plan)."""
+    start = getattr(spec, "start", None)
+    return start if isinstance(start, date) else None
+
+
 def card_result(
     env: RecoEnv,
     ev: Evaluated,
     *,
     version_row: Mapping[str, Any] | None,
     variations: Variations | None = None,
+    today: date | None = None,
 ) -> CardResult:
-    """``integrate.evaluate`` of this card's saved version on the plan's environment."""
+    """``integrate.evaluate`` of this card's saved version on the plan's environment. A spec
+    rebuilt from the candidate (no stored spec) starts ``today`` (the plan's first day)."""
     from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
     from juli_backend.services.shopee_builder.engine_families import integrate
 
     stored = None if version_row is None else version_row.get("spec")
-    spec = spec_of_candidate(ev.cand, env.as_of, stored, variations)
+    spec = spec_of_candidate(ev.cand, today or env.as_of, stored, variations)
     if spec is None:
-        return CardResult(ev.entry.card_id, None, "no_spec")
+        return CardResult(ev.entry.card_id, None, "no_spec", product=ev.product)
     try:
         done, _ = integrate.evaluate(
             BuilderContext(
@@ -437,11 +542,14 @@ def card_result(
             spec,
         )
     except (SpecRefused, ValueError, KeyError, ArithmeticError) as exc:
-        return CardResult(ev.entry.card_id, None, f"refused:{type(exc).__name__}")
+        return CardResult(
+            ev.entry.card_id, None, f"refused:{type(exc).__name__}", product=ev.product
+        )
+    start = spec_start(spec)
     if done.result is None:
         code = done.refusal.code if done.refusal is not None else "refused"
-        return CardResult(ev.entry.card_id, None, code)
-    out = CardResult(ev.entry.card_id, done.result)
+        return CardResult(ev.entry.card_id, None, code, start=start, product=ev.product)
+    out = CardResult(ev.entry.card_id, done.result, start=start, product=ev.product)
     if not out.ok:
         out.reason = "not_estimable"
     return out
@@ -460,7 +568,7 @@ def _part_target(part: Evaluated) -> str | None:
 
 
 def _parts_from_spec(
-    env: RecoEnv, e: Evaluated, variations: Variations | None
+    env: RecoEnv, e: Evaluated, variations: Variations | None, today: date | None = None
 ) -> dict[str, CardResult] | None:
     """P99: the parts of a many-target card from the version's OWN builder spec (expanded per
     target as the builder does), so a saved version keeps its dates and days; ``None`` when the
@@ -472,7 +580,7 @@ def _parts_from_spec(
     spec = (
         None
         if row is None or not row.get("spec")
-        else spec_of_candidate(e.cand, env.as_of, row["spec"])
+        else spec_of_candidate(e.cand, today or env.as_of, row["spec"])
     )
     if spec is None:
         return None
@@ -484,6 +592,7 @@ def _parts_from_spec(
     except (SpecRefused, ValueError, KeyError, ArithmeticError):
         return None
     by_target = dict(targets)
+    start = spec_start(spec)
     out: dict[str, CardResult] = {}
     for part in e.parts:
         done = by_target.get(_part_target(part) or "")
@@ -492,9 +601,9 @@ def _parts_from_spec(
         cid = part.entry.card_id
         if done.result is None:
             code = done.refusal.code if done.refusal is not None else "refused"
-            out[cid] = CardResult(cid, None, code)
+            out[cid] = CardResult(cid, None, code, start=start, product=part.product)
             continue
-        res = CardResult(cid, done.result)
+        res = CardResult(cid, done.result, start=start, product=part.product)
         if not res.ok:
             res.reason = "not_estimable"
         out[cid] = res
@@ -502,7 +611,10 @@ def _parts_from_spec(
 
 
 def card_results(
-    env: RecoEnv, evs: Sequence[Evaluated], variations: Variations | None = None
+    env: RecoEnv,
+    evs: Sequence[Evaluated],
+    variations: Variations | None = None,
+    today: date | None = None,
 ) -> dict[str, CardResult]:
     """A result per leaf card (a many-target card stands for its single-target parts). Every
     leaf is evaluated from the chosen version's stored builder spec when it has one (P99: the
@@ -510,27 +622,33 @@ def card_results(
     out: dict[str, CardResult] = {}
     for e in evs:
         if e.parts:
-            from_spec = _parts_from_spec(env, e, variations)
+            from_spec = _parts_from_spec(env, e, variations, today)
             if from_spec is not None:
                 out.update(from_spec)
                 continue
         for leaf in e.parts or [e]:
             row = None if e.parts else _version_row(e)
-            out[leaf.entry.card_id] = card_result(env, leaf, version_row=row, variations=variations)
+            out[leaf.entry.card_id] = card_result(
+                env, leaf, version_row=row, variations=variations, today=today
+            )
     return out
 
 
-def combine_results(results: Sequence[CardResult]) -> dict[str, dict[str, float | None]]:
-    """``{quantile: {metric: value}}`` of the cards that have a result: the 30-day Δ P50s add; P10 /
-    P90 are the sum -/+ the root sum of squares of the cards' half-widths (the cards' errors are
-    independent, as in ``combine_predicted``). A metric one counted card does not know (a profit
-    without giá vốn) is unknown for the plan -- never a partial sum passed off as the whole. No
-    counted card: zeros. P25 / P75 are not part of an ``OptionResult`` and stay ``None``."""
-    ok = [r for r in results if r.ok]
-    cols = [(r.delta("low"), r.delta("likely"), r.delta("high")) for r in ok]
+def _own_counted(r: CardResult) -> Counted:
+    cols = {q: dict(r.delta_own(col) or {}) for q, col in COLUMNS}
+    days = 0 if r.result is None else r.result.days
+    return Counted(r.card_id, cols, days, r.cost_own())
+
+
+def combine_counted(counted: Sequence[Counted]) -> dict[str, dict[str, float | None]]:
+    """``{quantile: {metric: value}}`` of the counted leaves: the P50s add; P10 / P90 are the sum
+    -/+ the root sum of squares of the leaves' half-widths (independent errors, as in
+    ``combine_predicted``). A metric one counted leaf does not know (a profit without giá vốn) is
+    unknown for the whole -- never a partial sum passed off as the whole. Nothing counted: zeros.
+    P25 / P75 are not part of an ``OptionResult`` and stay ``None``."""
     out: dict[str, dict[str, float | None]] = {q: {} for q in QUANTILES}
     for m in RESULT_METRICS:
-        mids = [likely[m] if likely else None for _, likely, _ in cols]
+        mids = [c.cols["p50"].get(m) for c in counted]
         if any(v is None for v in mids):
             for q in QUANTILES:
                 out[q][m] = None
@@ -538,8 +656,8 @@ def combine_results(results: Sequence[CardResult]) -> dict[str, dict[str, float 
         mid = sum(float(v or 0.0) for v in mids)
         for q in QUANTILES:
             out[q][m] = mid if q == "p50" else None
-        for q, idx in (("p10", 0), ("p90", 2)):
-            edge = [(c[idx] or {}).get(m) for c in cols]
+        for q in ("p10", "p90"):
+            edge = [c.cols[q].get(m) for c in counted]
             if any(v is None for v in edge):
                 continue
             width = math.sqrt(
@@ -550,6 +668,17 @@ def combine_results(results: Sequence[CardResult]) -> dict[str, dict[str, float 
             )
             out[q][m] = mid - width if q == "p10" else mid + width
     return out
+
+
+def combine_results(
+    results: Sequence[CardResult], horizon: Horizon | None = None
+) -> dict[str, dict[str, float | None]]:
+    """The estimable cards' Δ added up: inside ``horizon`` (each card on its own days there) when
+    given, else each over its own days. Cards without a result
+    are left out (the caller lists them)."""
+    if horizon is not None:
+        return combine_counted(list(count_in_horizon(results, horizon).values()))
+    return combine_counted([_own_counted(r) for r in results if r.ok])
 
 
 def after_funnel(
@@ -655,6 +784,12 @@ class Joint:
     #: cards with no ``OptionResult`` (left out of the sums; their exact cost is still counted)
     not_estimable: list[str] = field(default_factory=list)
     result_basis: str | None = None
+    #: P99b: the horizon the results are counted in and what each leaf contributes there
+    horizon: Horizon | None = None
+    counted: dict[str, Counted] = field(default_factory=dict)
+    #: leaves whose cost is unknown (no result): the spend line leaves them out and says so
+    cost_unknown: list[str] = field(default_factory=list)
+    outside_horizon: list[str] = field(default_factory=list)
 
     @property
     def floor_ok(self) -> bool:
@@ -669,14 +804,19 @@ class Joint:
             "total": self.total,
         }
 
+    def certain_or_none(self, key: str) -> float | None:
+        """The money layer's certain figure on the legacy path; ``None`` on the option-result
+        path (P99b: never a number from another basis beside the results)."""
+        return None if self.result_basis else self.certain[key]
+
     def brief(self) -> dict[str, Any]:
         t = self.total
         return {
             "dprofit": {
-                "certain": self.certain["dprofit"],
+                "certain": self.certain_or_none("dprofit"),
                 **{q: t[q]["dprofit"] for q in ("p10", "p50", "p90")},
             },
-            "dgmv": {"certain": self.certain["dgmv"], "p50": t["p50"]["dgmv"]},
+            "dgmv": {"certain": self.certain_or_none("dgmv"), "p50": t["p50"]["dgmv"]},
             "dorders_p50": t["p50"]["dorders"],
             "cost_month": self.certain["dchi"],
             "floor_ok": self.floor_ok,
@@ -713,11 +853,14 @@ def joint_lifts(evs: Sequence[Evaluated]) -> tuple[list[Evaluated], list[str]]:
 
 
 def joint(
-    env: RecoEnv, evs: Sequence[Evaluated], results: Mapping[str, CardResult] | None = None
+    env: RecoEnv,
+    evs: Sequence[Evaluated],
+    results: Mapping[str, CardResult] | None = None,
+    horizon: Horizon | None = None,
 ) -> Joint:
     """The certain layer of these cards stacked on the same orders (floor, cost against the cap) +
-    the numbers: the cards' option results when ``results`` is given, else the legacy money
-    layer's prediction."""
+    the numbers: the cards' option results counted in ``horizon`` (default: 30 days from the
+    env's anchor) when ``results`` is given, else the legacy money layer's prediction."""
     evs = sorted(flatten(evs), key=lambda e: e.entry.card_id)  # never depends on the order added
     line = [e for e in evs if e.is_line and e.card["family"] != "mega_sale"]
     added = [e for e in evs if e not in line]
@@ -752,30 +895,29 @@ def joint(
             {"type": "floor", "card_id": e.entry.card_id, **b} for b in e.card["floor"]["breaches"]
         )
     not_estimable: list[str] = []
+    counted: dict[str, Counted] = {}
+    cost_unknown: list[str] = []
+    outside: list[str] = []
+    h = horizon or Horizon(env.as_of + timedelta(days=1))
     if results is not None:
-        # P99 one cost: a card's cost per month is its OptionResult's (the builder's figure, the
-        # cap reads it too); a card without a result keeps its own certain layer's cost
-        certain["dchi"] = sum(
-            (
-                results[e.entry.card_id].cost_month()
-                if e.entry.card_id in results and results[e.entry.card_id].result is not None
-                else float(e.money["certain"]["dchi"])
-                for e in evs
-            ),
-            0.0,
-        )
+        # P99b one cost: a card's cost is its OptionResult's on its own days inside the horizon
+        # (the cap reads it too); a card without a result has an unknown cost -- left out of the
+        # spend line and listed, never the money layer's figure
         mine = [results[e.entry.card_id] for e in evs if e.entry.card_id in results]
-        predicted = combine_results(mine)
+        costs = [r.cost_in(h) for r in mine]
+        cost_unknown = [r.card_id for r, c in zip(mine, costs, strict=True) if c is None]
+        certain["dchi"] = sum((c for c in costs if c is not None), 0.0)
+        counted = count_in_horizon(mine, h)
+        predicted = combine_counted(list(counted.values()))
         total = predicted  # an option result's Δ already holds the cost: nothing is added to it
         not_estimable = [r.card_id for r in mine if not r.ok]
-        unknown = [
-            r.card_id for r in mine if r.ok and (r.delta("likely") or {}).get("dprofit") is None
-        ]
+        outside = [r.card_id for r in mine if r.result is not None and r.counted(h) is None]
+        unknown = [c.card_id for c in counted.values() if c.cols["p50"].get("dprofit") is None]
     else:
-        counted, folded = joint_lifts(evs)
+        kept, folded = joint_lifts(evs)
         if folded:
             notes.append("lift_shared_per_product:" + ",".join(folded))
-        predicted = combine_predicted([e.money["predicted"] for e in counted])
+        predicted = combine_predicted([e.money["predicted"] for e in kept])
         total = total_of(certain, predicted)
         unknown = [
             e.entry.card_id for e in evs if e.money["predicted"]["p50"].get("dprofit") is None
@@ -793,6 +935,10 @@ def joint(
         notes=notes,
         not_estimable=_parents(not_estimable),
         result_basis=None if results is None else RESULT_BASIS,
+        horizon=None if results is None else h,
+        counted=counted,
+        cost_unknown=_parents(cost_unknown),
+        outside_horizon=_parents(outside),
     )
 
 
@@ -802,16 +948,20 @@ class _Memo:
         env: RecoEnv,
         evs: Sequence[Evaluated],
         results: Mapping[str, CardResult] | None = None,
+        horizon: Horizon | None = None,
     ) -> None:
         self.env = env
         self.results = results
+        self.horizon = horizon
         self.by_id = {e.entry.card_id: e for e in [*evs, *flatten(evs)]}
         self.cache: dict[frozenset[str], Joint] = {}
 
     def of(self, ids: Sequence[str]) -> Joint:
         key = frozenset(ids)
         if key not in self.cache:
-            self.cache[key] = joint(self.env, [self.by_id[i] for i in sorted(key)], self.results)
+            self.cache[key] = joint(
+                self.env, [self.by_id[i] for i in sorted(key)], self.results, self.horizon
+            )
         return self.cache[key]
 
 
@@ -856,13 +1006,17 @@ def _breach_view(
 
 
 def _cost_block(env: RecoEnv, j: Joint, base: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    days = Decimal(config.DAYS_PER_MONTH)
+    """The spend line. On the option-result path (P99b) the cards' cost is their cost on their
+    own days inside the horizon and the cap compares the horizon's spend (today's spend per day
+    × the horizon's days + the cards' cost there) with the cap × those days."""
+    days = Decimal(j.horizon.days if j.horizon is not None else config.DAYS_PER_MONTH)
     before = Decimal(str(base["chi_per_day"])) if base is not None else env.shop_chi_per_day()
-    delta = Decimal(str(j.certain["dchi"])) / days
+    delta_total = Decimal(str(j.certain["dchi"]))
+    delta = delta_total / days
     after = before + delta
     cap = env.daily_cap
-    over = cap is not None and after > cap
-    return {
+    over = cap is not None and after * days > cap * days
+    out: dict[str, Any] = {
         "per_day_before": float(before),
         "per_day_after": float(after),
         "delta_per_day": float(delta),
@@ -873,6 +1027,21 @@ def _cost_block(env: RecoEnv, j: Joint, base: Mapping[str, Any] | None = None) -
         "over_by_per_day": float(after - cap) if over and cap is not None else 0.0,
         "label": "Chi phí = quảng cáo + voucher + khuyến mãi + combo + hoa hồng",
     }
+    if j.horizon is not None:
+        out.update(
+            horizon=j.horizon.json(),
+            horizon_spend_before=float(before * days),
+            horizon_spend_delta=float(delta_total),
+            horizon_spend_after=float(after * days),
+            horizon_cap=None if cap is None else float(cap * days),
+            over_by_horizon=float(after * days - cap * days) if over and cap is not None else 0.0,
+            cost_unknown_cards=list(j.cost_unknown),
+            cost_complete=not j.cost_unknown,
+            cost_note=None
+            if not j.cost_unknown
+            else f"Chưa tính chi phí của {len(j.cost_unknown)} thẻ chưa có kết quả.",
+        )
+    return out
 
 
 def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -907,35 +1076,106 @@ def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any
     }
 
 
-def _after(today: Mapping[str, Any], deltas: Mapping[str, float]) -> dict[str, Any]:
-    orders = today["orders_30d"] + deltas["orders"]
-    gmv = today["gmv_30d"] + deltas["gmv"]
+def _after(today: Mapping[str, Any], deltas: Mapping[str, float | None]) -> dict[str, Any]:
+    def add(a: Any, d: float | None) -> float | None:
+        return None if a is None or d is None else float(a) + d
+
+    orders = add(today["orders_30d"], deltas["orders"])
+    gmv = add(today["gmv_30d"], deltas["gmv"])
     return {
         "gmv_30d": gmv,
         "orders_30d": orders,
-        "aov": gmv / orders if orders else None,
-        "margin_pct": None if today["margin_pct"] is None else today["margin_pct"] + deltas["bien"],
+        "aov": gmv / orders if orders and gmv is not None else None,
+        "margin_pct": add(today["margin_pct"], deltas["bien"]),
     }
 
 
-def _card_result_json(ev: Evaluated, results: Mapping[str, CardResult]) -> dict[str, Any]:
-    """What a card contributes to the sums: its 30-day Δ (P10 / P50 / P90), or "chưa ước tính
-    được" with the reason when it has no result."""
+def result_deltas(env: RecoEnv, total: Mapping[str, Mapping[str, float | None]]) -> dict[str, Any]:
+    """The shop's Δ GMV / đơn / AOV / biên (points) from the plan's P50 (``cards.shop_deltas``
+    math) -- an unknown stays unknown: no money-layer profit stands in for a missing one, no
+    unknown đơn is read as 0 (P99b)."""
+    p50 = total["p50"]
+    gmv, orders = float(env.shop_gmv_30d), float(env.shop_orders_30d)
+    d_gmv, d_orders, d_profit = p50["dgmv"], p50["dorders"], p50["dprofit"]
+    d_aov: float | None = None
+    if d_gmv is not None and d_orders is not None and orders > 0 and orders + d_orders > 0:
+        d_aov = (gmv + d_gmv) / (orders + d_orders) - gmv / orders
+    d_bien: float | None = None
+    sp = env.view.profit
+    m0, base_paid = sp.margin_rate, float(sp.buyer_paid_covered)
+    if d_profit is not None and d_gmv is not None and m0 is not None and base_paid > 0 and gmv:
+        scale = base_paid / gmv
+        paid_after = base_paid + d_gmv * scale
+        if paid_after > 0:
+            d_bien = ((float(m0) * base_paid + d_profit) / paid_after - float(m0)) * 100
+    return {"gmv": d_gmv, "orders": d_orders, "aov": d_aov, "bien": d_bien}
+
+
+OUTSIDE_TEXT = "Ngoài 30 ngày tới: không tính vào kế hoạch."
+NO_COST_TEXT = "Chưa có kết quả: chưa tính được chi phí."
+
+
+def _span_json(span: tuple[date, date] | None) -> dict[str, Any] | None:
+    if span is None:
+        return None
+    return {
+        "from": span[0].isoformat(),
+        "to": span[1].isoformat(),
+        "days": (span[1] - span[0]).days + 1,
+    }
+
+
+def _rounded(cols: Mapping[str, Mapping[str, float | None]]) -> dict[str, dict[str, Any]]:
+    return {
+        q: {
+            m: round_orders(cols[q][m]) if m == "dorders" else cols[q][m]
+            for m in ("dgmv", "dorders", "dprofit")
+        }
+        for q in RESULT_QUANTILES
+    }
+
+
+def _card_result_json(
+    ev: Evaluated, results: Mapping[str, CardResult], full: Joint
+) -> dict[str, Any]:
+    """What a card contributes to the plan (P99b): its Δ / cost over its OWN dates (``own``: the
+    same figures Tự tạo shows for the version) and inside the plan's horizon (``delta`` /
+    ``cost_horizon``: its counted days only). "chưa ước tính được" with the reason and its cost
+    when it has no estimate; ``counted`` False with ``outside_horizon`` when none of its days fall
+    in the next 30 days."""
+    h = full.horizon or Horizon(date.today())
     leaves = [results[p.entry.card_id] for p in (ev.parts or [ev])]
     ok = [r for r in leaves if r.ok]
     have = [r for r in leaves if r.result is not None]
     first = have[0].result if have else None
-    # P99: the card's own base (the funnel "before" its Δ was computed on), cost and dates
+    lead = have[0] if have else None
+    counted_days = max((r.counted_days(h) for r in have), default=0)
+    cost_own = (
+        float(sum((r.result.cost_total for r in have if r.result), Decimal(0))) if have else None
+    )
+    cost_horizon = sum((c for r in have if (c := r.cost_in(h)) is not None), 0.0) if have else None
+    outside = bool(have) and all(r.counted(h) is None for r in have)
+    # P99 / P99b: the card's own base (the funnel "before" its Δ was computed on), its own dates,
+    # its days inside the horizon and its cost on each
     common: dict[str, Any] = {
-        "cost_month": sum((r.cost_month() for r in have), 0.0) if have else None,
-        "cost_total": float(sum((r.result.cost_total for r in have if r.result), Decimal(0)))
-        if have
-        else None,
+        "horizon": h.json(),
+        "own_dates": None if lead is None else _span_json(lead.own_span(h)),
+        "own_days": None if first is None else first.days,
+        "dated": None if lead is None else lead.start is not None,
+        "counted_dates": None if lead is None else _span_json(lead.counted(h)),
+        "counted_days": counted_days if have else None,
+        "outside_horizon": outside,
+        "cost_total": cost_own,
+        "cost_horizon": cost_horizon,
+        # deprecated alias (the horizon is 30 days): the cost inside it
+        "cost_month": cost_horizon,
+        "cost_known": bool(have) and len(have) == len(leaves),
+        "cost_note": None if have and len(have) == len(leaves) else NO_COST_TEXT,
         "break_even_orders": None
         if len(have) != 1 or first is None or first.break_even_orders is None
         else float(math.ceil(float(first.break_even_orders) - 1e-6)),
         "days": None if first is None else first.days,
-        "horizon": None if first is None else first.horizon,
+        "result_horizon": None if first is None else first.horizon,
         "before": _sum_before([r.before_30d() for r in have]) if have else None,
         "notes": [] if first is None else list(first.notes),
     }
@@ -945,30 +1185,36 @@ def _card_result_json(ev: Evaluated, results: Mapping[str, CardResult]) -> dict[
             "counted": False,
             "message": NOT_ESTIMABLE_TEXT,
             "reason": next((r.reason for r in leaves if r.reason), "not_estimable"),
+            "own": None,
             "delta": None,
             "after": None,
             **common,
         }
-    comb = combine_results(ok)
-    delta = {
-        q: {
-            m: round_orders(comb[q][m]) if m == "dorders" else comb[q][m]
-            for m in ("dgmv", "dorders", "dprofit")
-        }
-        for q in RESULT_QUANTILES
-    }
+    own = combine_counted([_own_counted(r) for r in ok])
+    mine = [full.counted[r.card_id] for r in ok if r.card_id in full.counted]
+    inside = combine_counted(mine)
+    partial = len(ok) < len(leaves)
     return {
         "estimable": True,
-        "counted": True,
-        "partial": len(ok) < len(leaves),
-        "message": None,
-        "reason": None,
+        "counted": not outside,
+        "partial": partial,
+        "partial_note": None
+        if not partial
+        else f"{len(leaves) - len(ok)}/{len(leaves)} mục chưa ước tính được, chưa cộng vào.",
+        "message": OUTSIDE_TEXT if outside else None,
+        "reason": "outside_horizon" if outside else None,
         "basis": max(
             (r.result.basis for r in ok if r.result is not None),
             key=("measured", "product_history", "shop", "prior", "not_estimable").index,
         ),
-        "delta": delta,
-        "after": _after_of(common["before"], comb["p50"]),
+        "own": {
+            "dates": common["own_dates"],
+            "days": common["own_days"],
+            "delta": _rounded(own),
+            "cost_total": cost_own,
+        },
+        "delta": _rounded(inside),
+        "after": _after_of(common["before"], inside["p50"]),
         **common,
     }
 
@@ -1018,7 +1264,7 @@ def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo
         gmv = t[q]["dgmv"]
         rel[q] = None if base <= 0 or gmv is None else gmv / base
     stats = plan.stats_for(env, [pid], "orders")
-    today, after = _product_today_after(env, pid, evs, memo.results)
+    today, after = _product_today_after(env, pid, evs, memo.results, memo.horizon)
     return {
         "product_id": pid,
         "name": env.name(pid),
@@ -1053,6 +1299,7 @@ def _product_today_after(
     pid: str,
     evs: Sequence[Evaluated],
     results: Mapping[str, CardResult] | None,
+    horizon: Horizon | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """P99 one base: the product's "hôm nay" is the same stored funnel its cards' results stand on
     (``integrate.base_for`` of the product, the plan's window) with Luồng sản phẩm's margin, and
@@ -1064,7 +1311,7 @@ def _product_today_after(
 
     today = integrate.scope_today(env, integrate.base_for(env, [pid]))
     mine = [results[e.entry.card_id] for e in evs if e.entry.card_id in results]
-    comb = combine_results(mine)
+    comb = combine_results(mine, horizon)
     after = _after_of(today, comb["p50"])
     return today, None if after is None else {**after, "label": "Dự kiến (P50)"}
 
@@ -1076,8 +1323,16 @@ def aggregate(
     now: datetime,
     base: Mapping[str, Any] | None = None,
     variations: Variations | None = None,
+    today: date | None = None,
+    default_start: date | None = None,
 ) -> tuple[dict[str, Any], list[Evaluated]]:
-    """The plan's aggregate payload and the evaluated cards (chosen version on this env)."""
+    """The plan's aggregate payload and the evaluated cards (chosen version on this env).
+
+    P99b: the numbers are the expected outcome over the next 30 days starting ``today``
+    (default ``now``'s date): baseline 30 days + each card's Δ on its own days inside them.
+    ``default_start``: where a change without dates of its own starts (a group's first day; else
+    today)."""
+    horizon = Horizon(today or now.date())
     evs: list[Evaluated] = []
     unavailable: list[str] = []
     for entry in entries:
@@ -1086,19 +1341,29 @@ def aggregate(
             unavailable.append(entry.card_id)
         else:
             evs.append(ev)
-    today = _today(env, base)
+    today_block = _today(env, base)
     if not evs:
         return {
             "as_of": env.as_of.isoformat(),
+            "horizon": horizon.json(),
             "n_cards": 0,
-            "today": today,
+            "empty": True,
+            "empty_note": "Kế hoạch chưa có thẻ nào.",
+            "today": today_block,
+            "after": None,
+            "deltas_p50": None,
+            "cost": None,
             "cards": [],
             "unavailable_cards": unavailable,
             "range_method": RANGE_METHOD,
             "result_basis": RESULT_BASIS,
         }, []
-    results = card_results(env, evs, variations)
-    memo = _Memo(env, evs, results)
+    results = card_results(env, evs, variations, default_start or horizon.start)
+    if default_start is not None:
+        for r in results.values():
+            if r.start is None:
+                r.start = default_start
+    memo = _Memo(env, evs, results, horizon)
     ids = [e.entry.card_id for e in evs]
     full = memo.of(ids)
     floor_breaches, stacked = _breach_view(full, evs)
@@ -1113,7 +1378,7 @@ def aggregate(
                 "over_by_per_day": cost["over_by_per_day"],
             }
         )
-    deltas = shop_deltas(env, full.money(), "p50")
+    deltas = result_deltas(env, full.total)
     cards: list[dict[str, Any]] = []
     for e in evs:
         rest = memo.of([i for i in ids if i != e.entry.card_id]) if len(ids) > 1 else None
@@ -1121,7 +1386,9 @@ def aggregate(
         wb, ab = (rest.brief() if rest else None), alone.brief()
         pb = full.brief()
         contribution = {
-            "dprofit_certain": pb["dprofit"]["certain"] - (wb["dprofit"]["certain"] if wb else 0.0),
+            "dprofit_certain": _sub(
+                pb["dprofit"]["certain"], wb["dprofit"]["certain"] if wb else 0.0
+            ),
             "dprofit_p50": _sub(pb["dprofit"]["p50"], wb["dprofit"]["p50"] if wb else 0.0),
             "dgmv_p50": _sub(pb["dgmv"]["p50"], wb["dgmv"]["p50"] if wb else 0.0),
             "cost_month": pb["cost_month"] - (wb["cost_month"] if wb else 0.0),
@@ -1151,7 +1418,7 @@ def aggregate(
                         "cost_month": contribution["cost_month"],
                     },
                 },
-                "result": _card_result_json(e, results),
+                "result": _card_result_json(e, results, full),
                 "floor_ok": e.card["floor"]["ok"],
                 "breaches": [{"type": "floor", **b} for b in e.card["floor"]["breaches"]],
             }
@@ -1175,21 +1442,23 @@ def aggregate(
     out = {
         "as_of": env.as_of.isoformat(),
         "n_cards": len(evs),
-        "today": today,
+        "horizon": horizon.json(),
+        "live": True,
+        "today": today_block,
         "after": {
-            **_after(today, deltas),
-            **after_funnel(today, full.total),
+            **_after(today_block, deltas),
+            **after_funnel(today_block, full.total),
             "label": "Dự kiến (P50)",
         },
         "deltas_p50": deltas,
         "five_numbers": full.five,
         "dprofit_month": {
-            "certain": full.certain["dprofit"],
+            "certain": full.certain_or_none("dprofit"),
             "predicted": {q: full.predicted[q]["dprofit"] for q in ("p10", "p50", "p90")},
             "total": {q: full.total[q]["dprofit"] for q in ("p10", "p50", "p90")},
         },
         "dgmv_month": {
-            "certain": full.certain["dgmv"],
+            "certain": full.certain_or_none("dgmv"),
             "total": {q: full.total[q]["dgmv"] for q in ("p10", "p50", "p90")},
         },
         "dorders_month": {q: full.total[q]["dorders"] for q in ("p10", "p50", "p90")},
@@ -1204,10 +1473,10 @@ def aggregate(
             "shop": {
                 "products": len(products),
                 "dprofit_p50": full.total["p50"]["dprofit"],
-                "dprofit_certain": full.certain["dprofit"],
+                "dprofit_certain": full.certain_or_none("dprofit"),
                 "dgmv_p50": full.total["p50"]["dgmv"],
-                "margin_pct_before": today["margin_pct"],
-                "margin_pct_after": _after(today, deltas)["margin_pct"],
+                "margin_pct_before": today_block["margin_pct"],
+                "margin_pct_after": _after(today_block, deltas)["margin_pct"],
             },
             "note": "Từng bước chồng lên các bước trước; tổng shop là kết quả chung của kế hoạch.",
         },
@@ -1215,6 +1484,10 @@ def aggregate(
         "added_cards": full.added_cards,
         "profit_unknown_cards": full.profit_unknown,
         "not_estimable_cards": full.not_estimable,
+        "outside_horizon_cards": full.outside_horizon,
+        "cost_unknown_cards": full.cost_unknown,
+        "totals_partial": bool(full.not_estimable or unavailable),
+        "totals_note": _totals_note(full, unavailable),
         "result_basis": RESULT_BASIS,
         "unavailable_cards": unavailable,
         "notes": full.notes,
@@ -1223,6 +1496,18 @@ def aggregate(
         "bình phương.",
     }
     return out, evs
+
+
+def _totals_note(j: Joint, unavailable: Sequence[str]) -> str | None:
+    """Says which cards the totals leave out (never a silent partial sum)."""
+    parts = []
+    if j.not_estimable:
+        parts.append(f"{len(j.not_estimable)} thẻ chưa ước tính được")
+    if unavailable:
+        parts.append(f"{len(unavailable)} thẻ không tính lại được")
+    if not parts:
+        return None
+    return "Tổng chưa gồm " + " và ".join(parts) + "."
 
 
 def _sub(a: float | None, b: float | None) -> float | None:
