@@ -2,7 +2,7 @@
 // Juli password or session), per-dataset stops after drift, the last sync, and a
 // small retry queue of posts that failed on the network.
 
-import { DAILY_REQUEST_BUDGET, type Dataset, type ReaderId } from "../config";
+import { BACKFILL_REQUEST_SHARE, DAILY_REQUEST_BUDGET, TODAY_REQUEST_RESERVE, type Dataset, type ReaderId } from "../config";
 import type { IngestBody, TokenInfo } from "../ingest/client";
 
 export interface Stop {
@@ -84,7 +84,7 @@ export interface ReaderRun {
   startedAt: number;
   jobs: PlannedJob[];
   index: number;
-  current?: { tabId: number; openedAt: number; sentAt?: number };
+  current?: { tabId: number; openedAt: number; sentAt?: number; reopened?: boolean };
   /** No page is opened before this time (ms since epoch): the gap between pages. */
   nextAt?: number;
   /** Per page id: how it ended. */
@@ -188,6 +188,17 @@ export interface RequestBudget {
 export function requestsLeft(state: Pick<State, "budget">, day: string): number {
   const used = state.budget?.day === day ? state.budget.used : 0;
   return Math.max(0, DAILY_REQUEST_BUDGET - used);
+}
+
+/** What the 30-day backfill may still spend today: the budget minus the share reserved for today's readers. */
+export function backfillRequestsLeft(state: Pick<State, "budget">, day: string): number {
+  return Math.max(0, requestsLeft(state, day) - TODAY_REQUEST_RESERVE);
+}
+
+/** What today's readers may still spend: while a backfill runs, its share is left alone. */
+export function readerRequestsLeft(state: Pick<State, "budget" | "backfill">, day: string): number {
+  const share = state.backfill?.status === "running" ? BACKFILL_REQUEST_SHARE : 0;
+  return Math.max(0, requestsLeft(state, day) - share);
 }
 
 /** Count `count` more requests today. Read-modify-write: sync, backfill and the scheduler never overlap. */

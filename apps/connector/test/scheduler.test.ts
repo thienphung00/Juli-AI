@@ -2,6 +2,8 @@ import { PILOT_SHOP_IDS } from "../src/config";
 const PILOT = PILOT_SHOP_IDS[0];
 import { describe, expect, it } from "vitest";
 import {
+  BACKFILL_REQUEST_SHARE,
+  DAILY_REQUEST_BUDGET,
   READER_BLOCK_CAPTCHA_MS,
   READER_JOB_TIMEOUT_MS,
   READER_LOAD_GRACE_MS,
@@ -897,5 +899,75 @@ describe("P97: an empty income queue opens no page", () => {
     expect(await ctx.scheduler.tick()).toBe("finished");
     expect(ctx.tabs.opened).toHaveLength(0);
     expect((await ctx.read())?.lastRun?.outcomes).toEqual({ order_income: "no_orders" });
+  });
+});
+
+describe("0.3.15: the orders reader keeps its tab until the page answers", () => {
+  const ordersReply = { endpoint: "order_list", url: "u", status: 200, capturedAt: T0, source: "page", body: { code: 0, data: {} } };
+
+  it("a tab closed before the page answered is opened once more, and the answer is posted", async () => {
+    const ctx = setup({ readers: ["orders"] });
+    await ctx.scheduler.tick();
+    const first = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(first.id, first.url);
+    await ctx.scheduler.onTabRemoved(first.id); // Chrome / the seller closed it
+    expect(ctx.tabs.opened).toHaveLength(2);
+    const second = ctx.tabs.current;
+    expect(second.id).not.toBe(first.id);
+    expect((await ctx.read())?.run?.current).toMatchObject({ tabId: second.id, reopened: true });
+    expect((await ctx.read())?.run?.current?.sentAt).toBeUndefined();
+    await ctx.scheduler.onTabReady(second.id, second.url);
+    expect(ctx.tabs.sent.at(-1)).toMatchObject({ tabId: second.id, message: { job: { id: "orders" } } });
+    await ctx.scheduler.onResult(second.id, { job: "orders", status: "done", responses: [ordersReply] });
+    expect(ctx.posted.map((p) => p.job.id)).toEqual(["orders"]);
+    expect((await ctx.read())?.lastRun?.outcomes.orders).toMatch(/^done/);
+  });
+
+  it("a tab Chrome discarded after the job was sent is replaced the same way", async () => {
+    const ctx = setup({ readers: ["orders"] });
+    await ctx.scheduler.tick();
+    const first = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(first.id, first.url);
+    ctx.tabs.inspection.set(first.id, { open: true, url: first.url, discarded: true } as never);
+    ctx.clock.now += 5_000;
+    expect(await ctx.scheduler.tick()).toBe("reopened");
+    expect(ctx.tabs.closed).toContain(first.id);
+    expect(ctx.tabs.opened).toHaveLength(2);
+  });
+
+  it("closed twice: the outcome is closed and nothing is posted", async () => {
+    const ctx = setup({ readers: ["orders"] });
+    await ctx.scheduler.tick();
+    const first = ctx.tabs.current;
+    await ctx.scheduler.onTabRemoved(first.id);
+    const second = ctx.tabs.current;
+    await ctx.scheduler.onTabRemoved(second.id);
+    expect(ctx.tabs.opened).toHaveLength(2);
+    expect(ctx.posted).toEqual([]);
+    expect((await ctx.read())?.lastRun?.outcomes.orders).toBe("closed");
+  });
+
+  it("other readers are not re-opened when their tab is closed", async () => {
+    const ctx = setup();
+    await ctx.scheduler.tick();
+    await ctx.scheduler.onTabRemoved(ctx.tabs.current.id);
+    expect(ctx.tabs.opened).toHaveLength(1);
+    expect((await ctx.read())?.run?.outcomes.products).toBe("closed");
+  });
+});
+
+describe("0.3.15: today's readers and the backfill share the daily budget", () => {
+  it("while a backfill runs, the readers leave its share alone", async () => {
+    const ctx = setup({ readers: ["orders"] });
+    ctx.storage.data.backfill = { shopId: PILOT, createdAt: "x", days: ["2026-11-02"], done: [], accepted: {}, attempts: {}, status: "running" };
+    ctx.storage.data.budget = { day: "2026-11-03", used: DAILY_REQUEST_BUDGET - BACKFILL_REQUEST_SHARE - 5 };
+    expect(await ctx.scheduler.tick()).toBe("budget_spent");
+    expect(ctx.tabs.opened).toHaveLength(0);
+  });
+
+  it("without a running backfill the readers may use the whole budget", async () => {
+    const ctx = setup({ readers: ["orders"] });
+    ctx.storage.data.budget = { day: "2026-11-03", used: DAILY_REQUEST_BUDGET - BACKFILL_REQUEST_SHARE - 5 };
+    expect(await ctx.scheduler.tick()).toBe("opened");
   });
 });

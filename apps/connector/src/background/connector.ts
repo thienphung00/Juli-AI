@@ -30,6 +30,7 @@ import {
   type BackfillStopReason,
   enqueue,
   loadState,
+  backfillRequestsLeft,
   requestsLeft,
   saveState,
   type State,
@@ -559,7 +560,7 @@ export class Connector {
       return finished ? "done" : "datasets_stopped";
     }
     // The shared daily request budget: a backfill day waits for tomorrow once today's is spent.
-    if (next.plan.length > requestsLeft(state, this.today())) {
+    if (next.plan.length > backfillRequestsLeft(state, this.today())) {
       await saveState(this.deps.storage, { backfill: { ...backfill, inFlight: undefined } });
       return "budget_spent";
     }

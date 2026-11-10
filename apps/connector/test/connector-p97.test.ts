@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { Connector, type Tabs } from "../src/background/connector";
 import { addRequests, loadState, requestsLeft } from "../src/background/state";
-import { DAILY_REQUEST_BUDGET } from "../src/config";
+import { DAILY_REQUEST_BUDGET, TODAY_REQUEST_RESERVE } from "../src/config";
 import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/ingest/client";
 import { importOrderRefKey, orderRef } from "../src/ingest/order-ref";
 import type { ReaderResponse } from "../src/shopee/reader";
@@ -166,6 +166,30 @@ describe("one request budget for every Seller Centre request", () => {
     await addRequests(storage, "2026-11-09", DAILY_REQUEST_BUDGET - 1);
     expect(await connector.backfillStep()).toBe("budget_spent");
     expect(sent).toEqual([]);
+  });
+});
+
+describe("0.3.15: today's traffic keeps a reserved share of the budget", () => {
+  it("the backfill cannot spend the share reserved for today's readers", async () => {
+    const { storage, connector, sent } = setup();
+    // 400 - 150 reserved = 250 for the backfill; spend all of it, then the next day waits.
+    await addRequests(storage, "2026-11-09", DAILY_REQUEST_BUDGET - TODAY_REQUEST_RESERVE - 1);
+    expect(await connector.backfillStep()).toBe("budget_spent");
+    expect(sent).toEqual([]);
+    expect(requestsLeft(await loadState(storage), "2026-11-09")).toBe(TODAY_REQUEST_RESERVE + 1);
+  });
+
+  it("the daily sync (today) can still use the reserved share", async () => {
+    const { storage, connector } = setup();
+    await addRequests(storage, "2026-11-09", DAILY_REQUEST_BUDGET - TODAY_REQUEST_RESERVE);
+    expect(await connector.dailySync()).toBe("requested");
+  });
+
+  it("a backfill with budget in its share still progresses", async () => {
+    const { storage, connector, sent } = setup();
+    await addRequests(storage, "2026-11-09", 100);
+    expect(await connector.backfillStep()).not.toBe("budget_spent");
+    expect(sent.length).toBeGreaterThan(0);
   });
 });
 

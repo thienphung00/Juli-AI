@@ -35,6 +35,8 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     async open(url) {
       // A background tab: it never takes focus from the seller.
       const tab = await chrome.tabs.create({ url, active: false }).catch(() => undefined);
+      // Chrome must not discard the reader's tab while the page is still answering (0.3.15).
+      if (tab?.id !== undefined) await chrome.tabs.update(tab.id, { autoDiscardable: false }).catch(() => undefined);
       return tab?.id;
     },
     close: (tabId) => chrome.tabs.remove(tabId),
@@ -42,7 +44,7 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     async inspect(tabId) {
       try {
         const tab = await chrome.tabs.get(tabId);
-        return { open: true, url: tab.url };
+        return { open: true, url: tab.url, discarded: tab.discarded === true };
       } catch {
         return { open: false };
       }
