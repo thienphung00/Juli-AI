@@ -5,7 +5,9 @@
         [--from 2026-08-01] [--to 2026-11-09] [--dry-run]
 
 Run once after migration 123 (``shopee_shop_metrics_daily``, ``shopee_product_metrics_daily``),
-once after migration 126 (``shopee_source_metrics_daily``, the funnel per traffic source) and
+once after migration 126 (``shopee_source_metrics_daily``, the funnel per traffic source), once
+after P99 (a Shopee period total is spread over its days instead of stamped on each one; the
+rebuild loads each period's shop series itself, so ``--from`` / ``--to`` clipping is safe) and
 whenever the day rows may have drifted (a failed hook is logged; this repairs it). Every day the
 shop has order lines or daily Shopee rows for is recomputed from the raw tables inside the shop's
 tenant scope and upserted, so the script is safe to repeat; then the daily funnel check runs over
