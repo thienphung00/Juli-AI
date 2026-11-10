@@ -23,10 +23,11 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
+from datetime import timedelta
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_builder import multi
@@ -64,6 +65,7 @@ from juli_backend.services.shopee_builder.engine_families.measure import (
     AdDay,
     KolRates,
 )
+from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 ZERO = Decimal(0)
@@ -113,11 +115,85 @@ def base_for(env: RecoEnv, item_ids: Sequence[str], shop_id: str = "") -> Funnel
     )
 
 
+def _base_total(base: FunnelBase, name: str) -> Decimal | None:
+    """``base.total(name)`` for the totals the metrics side adds (``profit_orders``,
+    ``profit_days``, ``days``); ``None`` while the base does not carry them yet."""
+    total = cast(Callable[[str], Decimal | None], base.total)
+    try:
+        return total(name)
+    except (AttributeError, KeyError, TypeError):
+        return None
+
+
 def profit_per_order(base: FunnelBase) -> Decimal | None:
-    orders, profit = base.total("orders"), base.total("profit")
+    """Profit ÷ the orders of the days whose profit is known (P99: ``profit_orders``; the funnel
+    sums profit over the days with costs, so a day without giá vốn no longer makes it unknown).
+    Before the metrics side carries ``profit_orders`` it is ÷ every order."""
+    profit = base.total("profit")
+    orders = _base_total(base, "profit_orders")
+    if orders is None:
+        orders = base.total("orders")
     if orders is None or profit is None or orders <= 0:
         return None
     return profit / orders
+
+
+def _days_total(base: FunnelBase, name: str) -> int | None:
+    """A day count of the scope (``profit_days`` / ``days``): every source covers the same days,
+    so it is the largest source's count, not their sum."""
+    counts: list[int] = []
+    for s in base.sources:
+        v = getattr(s, name, None)
+        if v is not None:
+            counts.append(int(v))
+    if counts:
+        return max(counts)
+    v = getattr(base, name, None)
+    if v is None:
+        v = _base_total(base, name)
+    return None if v is None else int(v)
+
+
+def profit_coverage_note(base: FunnelBase) -> str | None:
+    """ "Lợi nhuận mỗi đơn trên N ngày có dữ liệu chi phí" when some days of the window had no
+    cost data (P99); ``None`` when every day had it or the base does not say."""
+    known, days = _days_total(base, "profit_days"), _days_total(base, "days")
+    if known is None or days is None or known >= days or base.total("profit") is None:
+        return None
+    return f"Lợi nhuận mỗi đơn tính trên {known} ngày có dữ liệu chi phí (trong {days} ngày)."
+
+
+def scope_today(env: RecoEnv, base: FunnelBase) -> dict[str, Any]:
+    """ "Hôm nay" of an option's own scope (P99, like with like): the stored funnel ``base`` the
+    option's result was computed on (đơn, GMV, lợi nhuận, lượt xem / nhấp of the window) and the
+    scope's one margin (``shop_profit.scope_margin_pct``, Luồng sản phẩm's math). The builder's
+    So sánh, the saved card and Kế hoạch read the same block for the same scope."""
+    orders, gmv = base.total("orders"), base.total("gmv")
+    views, clicks = funnel.known_total(base, "views"), funnel.known_total(base, "clicks")
+    margin = shop_profit.scope_margin_pct(env.view.profit, base.item_ids)
+    return {
+        "scope": base.scope if base.scope == "shop" else "product",
+        "items": list(base.item_ids),
+        "as_of": env.as_of.isoformat(),
+        "window": {
+            "from": base.window_start.isoformat(),
+            "to": base.window_end.isoformat(),
+            "days": base.window_days,
+        },
+        "gmv_30d": None if gmv is None else float(gmv),
+        "orders_30d": None if orders is None else float(orders),
+        "aov": float(gmv / orders) if gmv is not None and orders else None,
+        "margin_pct": None if margin is None else float(margin),
+        "profit_30d": _float(base.total("profit")),
+        "views_30d": _float(views),
+        "clicks_30d": _float(clicks),
+        "ctr": float(clicks / views) if views and clicks is not None else None,
+        "ctor": float(orders / clicks) if clicks and orders is not None else None,
+    }
+
+
+def _float(x: Decimal | None) -> float | None:
+    return None if x is None else float(x)
 
 
 def seed_of(payload: Any) -> int:
@@ -143,7 +219,11 @@ def deterministic(option: OptionInput) -> bool:
 
 
 def run(base: FunnelBase, option: OptionInput, seed: int) -> OptionResult:
-    return engine.run(base, option, seed=seed, n=1 if deterministic(option) else 4000)
+    result = engine.run(base, option, seed=seed, n=1 if deterministic(option) else 4000)
+    note = profit_coverage_note(base)
+    if note is None or note in result.notes:
+        return result
+    return replace(result, notes=(*result.notes, note))
 
 
 # -- one evaluation -------------------------------------------------------------------------------
@@ -199,6 +279,10 @@ def _one(
     ctx: BuilderContext, spec: sp.VersionSpec, shop_id: str, base: FunnelBase | None = None
 ) -> Evaluated:
     base = base or base_for(ctx.env, scope_items(spec), shop_id)
+    if isinstance(spec, sp.AdsNewSpec):  # P99: the Ads tab's new campaign, saved as a version
+        return ads_result(
+            ctx.env, ads_campaign(spec), shop_id=shop_id, seed_payload=spec.model_dump(mode="json")
+        )
     try:
         option = option_for(spec, ctx, extras_for(base))
     except FamilyRefused as exc:
@@ -449,6 +533,21 @@ def ad_days(env: RecoEnv, item_ids: Sequence[str]) -> tuple[AdDay, ...]:
     return tuple(out)
 
 
+def ads_campaign(spec: sp.AdsNewSpec) -> AdsNewCampaign:
+    """A saved new-campaign version as the ads family's input (the same as ``ads_builder``'s
+    setups: no end date = a 30-day horizon from the start)."""
+    end = spec.end or spec.start + timedelta(days=engine.DEFAULT_DAYS - 1)
+    return AdsNewCampaign(
+        item_ids=tuple(spec.item_ids),
+        daily_budget=Decimal(spec.daily_budget),
+        start=spec.start,
+        end=end,
+        roas_target=None if spec.roas_target is None else Decimal(str(spec.roas_target)),
+        ad_type=AD_TYPE,
+        label=spec.name or spec.label,
+    )
+
+
 def ads_result(
     env: RecoEnv, setup: AdsNewCampaign, *, shop_id: str = "", seed_payload: Any = None
 ) -> Evaluated:
@@ -532,6 +631,7 @@ __all__ = [
     "RESIDUAL",
     "Evaluated",
     "ad_days",
+    "ads_campaign",
     "ads_history",
     "ads_result",
     "base_for",
@@ -547,7 +647,9 @@ __all__ = [
     "pack_sold_today",
     "profit_per_order",
     "run",
+    "profit_coverage_note",
     "scope_items",
+    "scope_today",
     "seed_of",
     "sum_results",
 ]

@@ -204,7 +204,8 @@ async def test_the_plan_delta_is_the_sum_of_its_cards_result_delta(session, shop
         ("gmv", agg["dgmv_month"]["total"]["p50"]),
         ("orders", agg["dorders_month"]["p50"]),
     ):
-        assert got == pytest.approx(d[key] + v[key], abs=1e-6)
+        # P99: the wire's Δ Đơn is at the card's precision (one decimal under 10 orders)
+        assert got == pytest.approx(d[key] + v[key], abs=0.11 if key == "orders" else 1e-6)
     assert [c["result"]["counted"] for c in agg["cards"]] == [True, True]
     assert agg["deltas_p50"]["gmv"] == pytest.approx(agg["dgmv_month"]["total"]["p50"])
 

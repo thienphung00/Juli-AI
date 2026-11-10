@@ -24,6 +24,7 @@ from juli_backend.services.shopee_builder.engine_families.facts import (
 from juli_backend.services.shopee_builder.engine_families.families import (
     ads_option,
     affiliate_option,
+    affiliate_rate_option,
     combo_option,
     listing_combo_option,
     new_listing_option,
@@ -104,8 +105,12 @@ def option_for(
         )
     if spec.kind in HIDDEN_SPEC_KINDS:
         raise FamilyRefused("hidden", "Chỉnh sửa chiến dịch quảng cáo đang chạy đã được ẩn.")
-    if isinstance(spec, sp.AffiliateSpec):
-        raise FamilyRefused("affiliate_needs_kol", "Chọn KOL từ bảng KOL để ước tính.")
+    if isinstance(spec, sp.AffiliateSpec) and not spec.targets:
+        # P99: cost (commission × expected Liên kết GMV + samples) and break-even; the extra
+        # orders are measured only (d.9), so the result is "chưa ước tính được" with its cost
+        sample = translate.to_variant(spec, ctx).details.get("sample") if spec.sample_qty else None
+        total = None if not sample or sample.get("total") is None else Decimal(str(sample["total"]))
+        return affiliate_rate_option(spec, adapters.affiliate_rate_facts(spec, env, total))
     # one voucher over a product list is ONE offer on their orders (joint); a sum-mode list is
     # evaluated per target by the caller (``multi.expand``)
     if multi.mode(spec) == multi.SUM:

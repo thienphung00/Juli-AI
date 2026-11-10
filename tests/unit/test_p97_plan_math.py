@@ -487,4 +487,5 @@ async def test_one_option_shows_the_same_p50_and_range_on_the_card_the_compare_a
     assert contribution["dprofit_p50"] == pytest.approx(result["per_30d"]["profit"], abs=1)
     assert agg["dprofit_month"]["total"]["p50"] == pytest.approx(result["per_30d"]["profit"], abs=1)
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(result["per_30d"]["gmv"], abs=1)
-    assert agg["dorders_month"]["p50"] == pytest.approx(result["per_30d"]["orders"], abs=1e-6)
+    # P99: the wire's Δ Đơn is at the card's precision (one decimal under 10 orders)
+    assert agg["dorders_month"]["p50"] == pytest.approx(result["per_30d"]["orders"], abs=0.051)

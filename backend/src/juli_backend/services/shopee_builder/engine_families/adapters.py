@@ -13,6 +13,7 @@ from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.engine.contract import Band, Basis
 from juli_backend.services.shopee_builder.engine_families import common
 from juli_backend.services.shopee_builder.engine_families.facts import (
+    AffiliateRateFacts,
     ComboFacts,
     LiftEvidence,
     ListingComboFacts,
@@ -291,4 +292,20 @@ def price_facts_from_evaluation(
         price_factor=factor,
         contribution_rate=contribution_rate,
         ctor=ctor,
+    )
+
+
+def affiliate_rate_facts(
+    spec: sp.AffiliateSpec, env: RecoEnv, sample_cost: Decimal | None
+) -> AffiliateRateFacts:
+    """P99: the product's Liên kết GMV of the window (its affiliate order lines)."""
+    item = spec.item_id or ""
+    lines = env.lines_for([item])
+    gmv = sum((ln.order_value for ln in lines if ln.product_id == item and ln.affiliate), ZERO)
+    return AffiliateRateFacts(
+        item_id=item,
+        affiliate_gmv=gmv,
+        window_days=env.window_days,
+        sample_cost=sample_cost,
+        sample_qty=spec.sample_qty,
     )

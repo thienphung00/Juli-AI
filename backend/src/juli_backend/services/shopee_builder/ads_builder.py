@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.services.shopee_analytics.fmt import num, ratio
 from juli_backend.services.shopee_builder import service
+from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.engine.contract import OptionResult
 from juli_backend.services.shopee_builder.engine_families import integrate
 from juli_backend.services.shopee_builder.engine_families.facts import AdsNewCampaign
@@ -107,16 +108,33 @@ def campaign_of(s: AdsSetup) -> AdsNewCampaign:
     )
 
 
+def spec_of(s: AdsSetup) -> sp.AdsNewSpec:
+    """A setup as a builder version (``kind = ads_new``): saved like any other version, its result
+    in Kế hoạch is the same ``integrate`` path as here."""
+    return sp.AdsNewSpec(
+        kind="ads_new",
+        campaign=s.campaign,
+        item_ids=list(s.item_ids),
+        daily_budget=s.daily_budget,
+        roas_target=s.roas.target,
+        start=s.start_date,
+        end=s.end_date,
+        name=s.name,
+    )
+
+
 def assemble(env: RecoEnv, req: AdsRequest, shop_id: str = "") -> dict[str, Any]:
     setups: list[dict[str, Any]] = []
     keyed: list[tuple[str, OptionResult | None]] = []
     for i, s in enumerate(req.setups):
         out = _setup(env, s)
         # ADR-122 d.8: views from spend ÷ measured CPM, extra orders measured on / off days only
-        ev = integrate.ads_result(
-            env, campaign_of(s), shop_id=shop_id, seed_payload=s.model_dump(mode="json")
-        )
+        # P99: the version to send to "Chọn" / "Chạy cùng nhau" to add this setup to Kế hoạch;
+        # seeded on it, so the saved version and Kế hoạch draw the same numbers
+        spec = spec_of(s).model_dump(mode="json")
+        ev = integrate.ads_result(env, campaign_of(s), shop_id=shop_id, seed_payload=spec)
         out["result"] = ev.result_json()
+        out["spec"] = spec
         setups.append(out)
         keyed.append((str(i), ev.result))
     return {
@@ -137,4 +155,4 @@ async def build(
     return assemble(env, req, str(shop_id))
 
 
-__all__ = ["assemble", "build", "product_ad_facts"]
+__all__ = ["assemble", "build", "product_ad_facts", "spec_of"]

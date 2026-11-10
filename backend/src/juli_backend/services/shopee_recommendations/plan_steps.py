@@ -101,10 +101,14 @@ def _derived_margin(
 def build_steps(
     cards: Sequence[dict[str, Any]],
     joint_of: Callable[[Sequence[str]], Any],
+    *,
+    base_margin_pct: float | None = None,
 ) -> dict[str, Any]:
     """The ``steps`` block of one product. ``cards``: per card in plan order
     ``{card_id, code, title, change_kind, version_label}``; ``joint_of(ids)`` returns the joint
-    evaluation (``plan_aggregate.Joint``) of those cards."""
+    evaluation (``plan_aggregate.Joint``) of those cards. ``base_margin_pct`` (P99, ADR-122 d.12):
+    the product's Luồng sản phẩm margin; every step's margin is then that margin moved by the
+    stacked change in points, so "hôm nay" reads the same number on every screen."""
     kinds = [c["change_kind"] for c in cards]
     ids = [c["card_id"] for c in cards]
     custom = canonical(kinds) != list(range(len(kinds)))
@@ -149,6 +153,9 @@ def build_steps(
             }
         )
         prev_p50 = total_p50
+    if base_margin_pct is not None:
+        _anchor(items, base_pct, float(base_margin_pct))
+        base_pct = float(base_margin_pct)
     last = items[-1]
     return {
         "order": list(STEP_ORDER),
@@ -164,6 +171,19 @@ def build_steps(
             "floor_ok": last["floor_ok"],
         },
     }
+
+
+def _anchor(items: list[dict[str, Any]], measured: float | None, one: float) -> None:
+    """Move every step's margin from the stacking's own baseline onto the one margin."""
+    if measured is None:
+        if items:
+            items[0]["margin_pct_before"] = one
+        return
+    shift = one - measured
+    for row in items:
+        for key in ("margin_pct_before", "margin_pct_after"):
+            if row[key] is not None:
+                row[key] = round(float(row[key]) + shift, 2)
 
 
 def _round(value: float | None) -> float | None:

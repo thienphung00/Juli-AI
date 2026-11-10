@@ -370,9 +370,12 @@ async def test_a_higher_commission_earns_a_bigger_lift(session, shop):
         return one(session, shop, kind="affiliate", item_id="1001", commission_pct=pct)
 
     low, high = await aff(5), await aff(20)
-    # P98 / ADR-122 d.9: affiliate extra orders are measured only, from the KOL builder
-    assert p50(high) is None and high["result_refusal"]["code"] == "affiliate_needs_kol"
+    # P98 / ADR-122 d.9: affiliate extra orders are measured only; P99: the version still has an
+    # OptionResult with its exact cost (commission × expected Liên kết GMV) and break-even
+    assert p50(high) is None and high["result_refusal"] is None
+    assert high["result"]["estimable"] is False
     assert high["cost"]["amount"] > low["cost"]["amount"]
+    assert high["result"]["cost"]["total"] >= low["result"]["cost"]["total"]
 
 
 async def test_samples_come_out_of_the_profit(session, shop):

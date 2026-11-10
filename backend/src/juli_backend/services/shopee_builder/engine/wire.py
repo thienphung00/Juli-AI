@@ -33,6 +33,15 @@ def _whole(x: Decimal | None) -> float | None:
     return None if x is None else float(round(x))
 
 
+def round_count(x: Decimal | float | None) -> float | None:
+    """Δ Đơn at the precision the card shows (``vn.count``, P99): one decimal under 10 orders,
+    whole orders from 10 up -- so the API never carries 7,6638 đơn."""
+    if x is None:
+        return None
+    v = float(x)
+    return float(round(v)) if abs(v) >= 10 else round(v, 1)
+
+
 def _ratio(delta: Decimal | None, before: Decimal | None) -> float | None:
     if delta is None or before is None or before <= 0:
         return None
@@ -126,7 +135,7 @@ def result_json(r: OptionResult) -> dict[str, Any]:
             "profit": profit,
             "gmv": {"value": _whole(d_gmv), "pct": _ratio(d_gmv, b_gmv)},
             "orders": {
-                "value": _f(d_orders),
+                "value": round_count(d_orders),
                 "pct": _ratio(d_orders, b_orders),
                 "note": note,
             },
@@ -152,7 +161,7 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         "per_30d": {
             "profit": per30(d_profit),
             "gmv": per30(d_gmv),
-            "orders": per30(d_orders),
+            "orders": round_count(per30(d_orders)),
         },
         "detail": {
             "before": _column(r.before),

@@ -343,6 +343,8 @@ class VariationSetSpec(_Base):
 
 
 ADS_MIN_BUDGET = 100_000
+MAX_ADS_NEW_ITEMS = 50
+MAX_ADS_NEW_DAYS = 365
 #: Shopee's own hint for a custom ROAS target ("Vui lòng đặt ≤ 3.5"); higher is allowed with a
 #: warning
 ADS_ROAS_HINT = 3.5
@@ -454,6 +456,40 @@ class AffiliateSpec(_Base):
         return self
 
 
+class AdsNewSpec(_Base):
+    """P99: a NEW Dịch vụ Hiển thị Sản phẩm campaign from the Ads tab (``/builder/ads/setup``) as a
+    version, so it can be saved and added to Kế hoạch: ``group`` (chiến dịch nhóm) or ``single``
+    (chiến dịch đơn, one product), daily budget, ROAS target (``None`` = Shopee-optimised), dates
+    (no end date = the "30 ngày đầu" horizon). Not an edit of a running campaign (``ads``)."""
+
+    kind: Literal["ads_new"]
+    campaign: Literal["group", "single"] = "group"
+    item_ids: list[ItemId] = Field(min_length=1, max_length=MAX_ADS_NEW_ITEMS)
+    daily_budget: Annotated[int, Field(ge=ADS_MIN_BUDGET, le=MAX_MONEY)]
+    roas_target: Annotated[float, Field(gt=0, le=100)] | None = None
+    start: date
+    end: date | None = None
+    name: str | None = Field(default=None, max_length=100)
+
+    @model_validator(mode="after")
+    def _check(self) -> AdsNewSpec:
+        if len(set(self.item_ids)) != len(self.item_ids):
+            raise ValueError("item_ids are different from each other")
+        if self.campaign == "single" and len(self.item_ids) != 1:
+            raise ValueError("a single campaign holds one product")
+        if self.end is not None:
+            days = (self.end - self.start).days + 1
+            if days < 1:
+                raise ValueError("end is on or after start")
+            if days > MAX_ADS_NEW_DAYS:
+                raise ValueError(f"at most {MAX_ADS_NEW_DAYS} days")
+        return self
+
+    @property
+    def days(self) -> int | None:
+        return None if self.end is None else (self.end - self.start).days + 1
+
+
 class PriceDisplaySpec(_Base):
     """Show the price per unit on the cover."""
 
@@ -489,6 +525,7 @@ VersionSpec = Annotated[
     | CoverSpec
     | DescriptionSpec
     | AffiliateSpec
+    | AdsNewSpec
     | PriceDisplaySpec
     | HideSpec
     | RelistSpec,

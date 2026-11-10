@@ -169,3 +169,15 @@ class KolFacts:
     sample_unit_cost: dict[str, Decimal] = field(default_factory=dict)  # item -> giá vốn + đóng gói
     profit_per_order: Decimal | None = None
     extra_cashback_names: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class AffiliateRateFacts:
+    """P99: a product's commission rate (the builder's Liên kết tab, no KOL picked): the product's
+    Liên kết GMV of the window (its affiliate order lines) and the samples' exact cost."""
+
+    item_id: str
+    affiliate_gmv: Decimal  # the window's affiliate-line GMV of the product
+    window_days: int
+    sample_cost: Decimal | None = None  # qty × (giá vốn + đóng gói) + ship; None = chưa tính
+    sample_qty: int = 0

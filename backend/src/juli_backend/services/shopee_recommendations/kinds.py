@@ -162,6 +162,18 @@ KINDS: dict[str, KindSpec] = {
         _ADS,
         prior=(0, 0),
     ),
+    # P99: a NEW Hiển thị Sản phẩm campaign (the builder's Ads tab). Its certain layer is the
+    # spend; no preset prior: extra orders are measured on / off days only (ADR-122 d.8).
+    "ads_new_campaign": KindSpec(
+        "ads_new_campaign",
+        "ads",
+        "Chiến dịch quảng cáo mới",
+        "ads",
+        "item",
+        "none",
+        _ADS,
+        prior=(0, 0),
+    ),
     "ads_add_product": KindSpec(
         "ads_add_product",
         "ads",

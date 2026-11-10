@@ -195,6 +195,35 @@ class CardResult:
         r = self.result
         return 0.0 if r is None else float(r.cost_total) * HORIZON_DAYS / r.days
 
+    def before_30d(self) -> dict[str, float | None] | None:
+        """P99: the base this card's Δ was computed on (its scope's stored funnel), per 30 days --
+        the plan adds the card's Δ onto this, never onto another scope's figures."""
+        r = self.result
+        if r is None:
+            return None
+        k = HORIZON_DAYS / r.days
+        b = r.before
+
+        def f(x: Any) -> float | None:
+            return None if x is None else float(x) * k
+
+        return {
+            "gmv_30d": f(b.gmv),
+            "orders_30d": f(b.orders),
+            "profit_30d": f(b.profit),
+            "views_30d": f(b.views),
+            "clicks_30d": f(b.clicks),
+            "aov": float(b.gmv / b.orders) if b.orders > 0 else None,
+        }
+
+
+def round_orders(x: float | None) -> float | None:
+    """Δ Đơn to the precision the cards show (``engine.wire.round_count``): one decimal under 10
+    orders, whole orders from 10 up."""
+    from juli_backend.services.shopee_builder.engine.wire import round_count
+
+    return round_count(x)
+
 
 def _voucher_spec(cand: Candidate, today: Any) -> dict[str, Any] | None:
     i = cand.inputs
@@ -418,17 +447,75 @@ def card_result(
     return out
 
 
+def _version_row(e: Evaluated) -> Mapping[str, Any] | None:
+    vlist = versions.versions_of(e.card)
+    return vlist[e.entry.version - 1] if 0 < e.entry.version <= len(vlist) else None
+
+
+def _part_target(part: Evaluated) -> str | None:
+    cand = part.cand
+    if cand.campaign_key:
+        return str(cand.campaign_key)
+    return str(cand.items[0]) if cand.items else None
+
+
+def _parts_from_spec(
+    env: RecoEnv, e: Evaluated, variations: Variations | None
+) -> dict[str, CardResult] | None:
+    """P99: the parts of a many-target card from the version's OWN builder spec (expanded per
+    target as the builder does), so a saved version keeps its dates and days; ``None`` when the
+    version stored no spec (the candidates are rebuilt instead)."""
+    from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
+    from juli_backend.services.shopee_builder.engine_families import integrate
+
+    row = _version_row(e)
+    spec = (
+        None
+        if row is None or not row.get("spec")
+        else spec_of_candidate(e.cand, env.as_of, row["spec"])
+    )
+    if spec is None:
+        return None
+    ctx = BuilderContext(
+        env=env, variations={k: [dict(r) for r in v] for k, v in (variations or {}).items()}
+    )
+    try:
+        _, targets = integrate.evaluate(ctx, spec)
+    except (SpecRefused, ValueError, KeyError, ArithmeticError):
+        return None
+    by_target = dict(targets)
+    out: dict[str, CardResult] = {}
+    for part in e.parts:
+        done = by_target.get(_part_target(part) or "")
+        if done is None:
+            return None
+        cid = part.entry.card_id
+        if done.result is None:
+            code = done.refusal.code if done.refusal is not None else "refused"
+            out[cid] = CardResult(cid, None, code)
+            continue
+        res = CardResult(cid, done.result)
+        if not res.ok:
+            res.reason = "not_estimable"
+        out[cid] = res
+    return out
+
+
 def card_results(
     env: RecoEnv, evs: Sequence[Evaluated], variations: Variations | None = None
 ) -> dict[str, CardResult]:
-    """A result per leaf card (a many-target card stands for its single-target parts)."""
+    """A result per leaf card (a many-target card stands for its single-target parts). Every
+    leaf is evaluated from the chosen version's stored builder spec when it has one (P99: the
+    version's own dates / days, never the candidate's defaults)."""
     out: dict[str, CardResult] = {}
     for e in evs:
+        if e.parts:
+            from_spec = _parts_from_spec(env, e, variations)
+            if from_spec is not None:
+                out.update(from_spec)
+                continue
         for leaf in e.parts or [e]:
-            row = None
-            if not e.parts:
-                vlist = versions.versions_of(e.card)
-                row = vlist[e.entry.version - 1] if 0 < e.entry.version <= len(vlist) else None
+            row = None if e.parts else _version_row(e)
             out[leaf.entry.card_id] = card_result(env, leaf, version_row=row, variations=variations)
     return out
 
@@ -666,6 +753,17 @@ def joint(
         )
     not_estimable: list[str] = []
     if results is not None:
+        # P99 one cost: a card's cost per month is its OptionResult's (the builder's figure, the
+        # cap reads it too); a card without a result keeps its own certain layer's cost
+        certain["dchi"] = sum(
+            (
+                results[e.entry.card_id].cost_month()
+                if e.entry.card_id in results and results[e.entry.card_id].result is not None
+                else float(e.money["certain"]["dchi"])
+                for e in evs
+            ),
+            0.0,
+        )
         mine = [results[e.entry.card_id] for e in evs if e.entry.card_id in results]
         predicted = combine_results(mine)
         total = predicted  # an option result's Δ already holds the cost: nothing is added to it
@@ -825,6 +923,22 @@ def _card_result_json(ev: Evaluated, results: Mapping[str, CardResult]) -> dict[
     được" with the reason when it has no result."""
     leaves = [results[p.entry.card_id] for p in (ev.parts or [ev])]
     ok = [r for r in leaves if r.ok]
+    have = [r for r in leaves if r.result is not None]
+    first = have[0].result if have else None
+    # P99: the card's own base (the funnel "before" its Δ was computed on), cost and dates
+    common: dict[str, Any] = {
+        "cost_month": sum((r.cost_month() for r in have), 0.0) if have else None,
+        "cost_total": float(sum((r.result.cost_total for r in have if r.result), Decimal(0)))
+        if have
+        else None,
+        "break_even_orders": None
+        if len(have) != 1 or first is None or first.break_even_orders is None
+        else float(math.ceil(float(first.break_even_orders) - 1e-6)),
+        "days": None if first is None else first.days,
+        "horizon": None if first is None else first.horizon,
+        "before": _sum_before([r.before_30d() for r in have]) if have else None,
+        "notes": [] if first is None else list(first.notes),
+    }
     if not ok:
         return {
             "estimable": False,
@@ -832,8 +946,17 @@ def _card_result_json(ev: Evaluated, results: Mapping[str, CardResult]) -> dict[
             "message": NOT_ESTIMABLE_TEXT,
             "reason": next((r.reason for r in leaves if r.reason), "not_estimable"),
             "delta": None,
+            "after": None,
+            **common,
         }
     comb = combine_results(ok)
+    delta = {
+        q: {
+            m: round_orders(comb[q][m]) if m == "dorders" else comb[q][m]
+            for m in ("dgmv", "dorders", "dprofit")
+        }
+        for q in RESULT_QUANTILES
+    }
     return {
         "estimable": True,
         "counted": True,
@@ -844,9 +967,45 @@ def _card_result_json(ev: Evaluated, results: Mapping[str, CardResult]) -> dict[
             (r.result.basis for r in ok if r.result is not None),
             key=("measured", "product_history", "shop", "prior", "not_estimable").index,
         ),
-        "delta": {
-            q: {m: comb[q][m] for m in ("dgmv", "dorders", "dprofit")} for q in RESULT_QUANTILES
-        },
+        "delta": delta,
+        "after": _after_of(common["before"], comb["p50"]),
+        **common,
+    }
+
+
+def _sum_before(rows: Sequence[dict[str, float | None] | None]) -> dict[str, float | None] | None:
+    """The 30-day bases of a card's leaves added up (a many-target card's products)."""
+    known = [r for r in rows if r is not None]
+    if not known:
+        return None
+    out: dict[str, float | None] = {}
+    for k in ("gmv_30d", "orders_30d", "profit_30d", "views_30d", "clicks_30d"):
+        vals = [r[k] for r in known]
+        out[k] = None if any(v is None for v in vals) else sum(float(v or 0.0) for v in vals)
+    o, g = out["orders_30d"], out["gmv_30d"]
+    out["aov"] = None if not o or g is None else g / o
+    return out
+
+
+def _after_of(
+    before: Mapping[str, float | None] | None, p50: Mapping[str, float | None]
+) -> dict[str, float | None] | None:
+    """``before`` + the P50 Δ (both per 30 days, same scope): Đơn × AOV = GMV holds."""
+    if before is None:
+        return None
+
+    def add(a: float | None, d: float | None) -> float | None:
+        return None if a is None or d is None else a + d
+
+    orders = add(before["orders_30d"], p50.get("dorders"))
+    gmv = add(before["gmv_30d"], p50.get("dgmv"))
+    return {
+        "gmv_30d": gmv,
+        "orders_30d": orders,
+        "profit_30d": add(before["profit_30d"], p50.get("dprofit")),
+        "views_30d": add(before["views_30d"], p50.get("dviews")),
+        "clicks_30d": add(before["clicks_30d"], p50.get("dclicks")),
+        "aov": None if not orders or gmv is None else gmv / orders,
     }
 
 
@@ -859,11 +1018,14 @@ def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo
         gmv = t[q]["dgmv"]
         rel[q] = None if base <= 0 or gmv is None else gmv / base
     stats = plan.stats_for(env, [pid], "orders")
+    today, after = _product_today_after(env, pid, evs, memo.results)
     return {
         "product_id": pid,
         "name": env.name(pid),
         "cards": _parents([e.entry.card_id for e in evs]),
         "codes": list(dict.fromkeys(e.entry.code for e in evs)),
+        "today": today,
+        "after": after,
         "joint": j.brief(),
         "predicted_rel_gmv": rel,
         "base_gmv_30d": base,
@@ -881,8 +1043,30 @@ def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo
                 for e in evs
             ],
             memo.of,
+            base_margin_pct=None if today is None else today["margin_pct"],
         ),
     }
+
+
+def _product_today_after(
+    env: RecoEnv,
+    pid: str,
+    evs: Sequence[Evaluated],
+    results: Mapping[str, CardResult] | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """P99 one base: the product's "hôm nay" is the same stored funnel its cards' results stand on
+    (``integrate.base_for`` of the product, the plan's window) with Luồng sản phẩm's margin, and
+    its "sau" is that base plus its cards' P50 Δ -- a product's Δ is never put on the shop's
+    figures. ``(None, None)`` on the legacy path (no results)."""
+    if results is None:
+        return None, None
+    from juli_backend.services.shopee_builder.engine_families import integrate
+
+    today = integrate.scope_today(env, integrate.base_for(env, [pid]))
+    mine = [results[e.entry.card_id] for e in evs if e.entry.card_id in results]
+    comb = combine_results(mine)
+    after = _after_of(today, comb["p50"])
+    return today, None if after is None else {**after, "label": "Dự kiến (P50)"}
 
 
 def aggregate(

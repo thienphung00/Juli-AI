@@ -332,3 +332,19 @@ def shop_profit(
         missing=dict(missing),
         products=products,
     )
+
+
+def scope_margin_pct(profit: ShopProfit, item_ids: Sequence[str] = ()) -> Decimal | None:
+    """ADR-122 d.12, one margin math on every screen (P99): the shop's margin for ``()``, else the
+    products' :attr:`ProductProfit.margin_pct` math -- (covered contribution - the products' ad
+    spend from the ads report) ÷ covered buyer_paid, summed over the products. Luồng sản phẩm,
+    the builder's product list, its "hôm nay" and Kế hoạch all read this; ``None`` when no
+    product of the scope has covered revenue."""
+    items = tuple(dict.fromkeys(i for i in item_ids if i))
+    if not items:
+        return profit.margin_pct
+    rows = [profit.products[i] for i in items if i in profit.products]
+    if len(rows) == 1:
+        return rows[0].margin_pct
+    covered = sum((p.buyer_paid_covered for p in rows), ZERO)
+    return pct_points(safe_div(sum((p.profit for p in rows), ZERO), covered))

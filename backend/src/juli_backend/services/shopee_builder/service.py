@@ -426,6 +426,8 @@ def _evaluate_version_card(
         result_refusal=ev.refusal_json(),
         scope="shop" if ev.base.scope == "shop" else "product",
     )
+    # P99 like with like: the version's own "hôm nay" = the base its result was computed on
+    shaped["today"] = integrate.scope_today(ctx.env, ev.base)
     if tr.multi is not None:
         _add_targets(shaped, ctx, tr, card, now)
         results = {t: e for t, e in per_target}
@@ -590,13 +592,37 @@ async def evaluate_versions(
             if notes:
                 res["same_as_first_notes"] = notes
     return {
-        "today": today_of(ctx.env),
+        "today": compare_today(ctx.env, results),
         "versions": results,
         "table": table_of(results),
         "best_profit_p50": best_index(results),
         # P98: the versions in the comparison order (per-30-day Δ lợi nhuận, best first)
         "compare": compare_order(results),
         "saved": False,
+    }
+
+
+def compare_today(env: RecoEnv, results: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """So sánh's "Hôm nay" (P99, like with like): when every version stands on the same scope it
+    is that scope's base -- the same funnel "before" the versions' results use (a product's đơn /
+    GMV / AOV / biên, never the shop's beside a product) -- with the shop's spend line; versions of
+    different scopes keep the shop's figures, say ``mixed_scopes`` and each carry ``today``."""
+    shop = {**today_of(env), "scope": "shop", "items": [], "mixed_scopes": False}
+    scopes = {
+        (r["today"]["scope"], tuple(r["today"]["items"]))
+        for r in results
+        if r.get("ok") and r.get("today")
+    }
+    if len(scopes) > 1:
+        return {**shop, "mixed_scopes": True}
+    if not scopes or next(iter(scopes))[0] == "shop":
+        return shop
+    first = next(r["today"] for r in results if r.get("ok") and r.get("today"))
+    return {
+        **first,
+        "spend_per_day": shop["spend_per_day"],
+        "spend_cap": shop["spend_cap"],
+        "mixed_scopes": False,
     }
 
 
@@ -739,6 +765,7 @@ __all__ = [
     "best_index",
     "build_context",
     "choose",
+    "compare_today",
     "co_purchase",
     "evaluate_version",
     "evaluate_versions",

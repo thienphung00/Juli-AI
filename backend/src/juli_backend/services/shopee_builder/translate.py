@@ -17,7 +17,7 @@ from typing import Any
 from juli_backend.services.shopee_builder import multi
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
-from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.shopee_builder.engine import engine
 from juli_backend.services.shopee_recommendations import listing as lst
 
 
@@ -173,7 +173,9 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext, *, _flat: bool = False
             raise SpecRefused("voucher_scope_no_data")
         if spec.discount_type == "amount" and spec.min_spend > 0 and spec.value >= spec.min_spend:
             raise SpecRefused("voucher_value_over_min_spend")
-        days = spec.days or config.VOUCHER_DAYS
+        # P99: the saved version keeps the spec's own days; a voucher without dates is evaluated
+        # on the same 30-day horizon as its OptionResult ("30 ngày đầu"), not the engine's 14
+        days = spec.days or engine.DEFAULT_DAYS
         inputs = _voucher_inputs(spec.discount_type, spec.value, spec.min_spend, spec.max_value)
         if spec.usage_limit is not None:
             inputs["quantity"] = spec.usage_limit
@@ -349,6 +351,8 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext, *, _flat: bool = False
         return _variation_set(spec, ctx)
     if isinstance(spec, sp.AdsSpec):
         return _ads(spec, ctx)
+    if isinstance(spec, sp.AdsNewSpec):
+        return _ads_new(spec, ctx)
     if isinstance(spec, sp.TitleSpec):
         li = env.listings.get(spec.item_id)
         if li is None or not li.title:
@@ -597,6 +601,40 @@ def _ads_warnings(spec: sp.AdsSpec, ctx: BuilderContext) -> list[dict[str, Any]]
             }
         )
     return out
+
+
+def _ads_new(spec: sp.AdsNewSpec, ctx: BuilderContext) -> Translation:
+    """P99: a new Hiển thị Sản phẩm campaign as a card (``ads_new_campaign``): its certain layer
+    is the spend (daily budget × days) against the cap; its numbers are the OptionResult's
+    (measured extra orders only, else "chưa ước tính được — cần chạy thử")."""
+    for item in spec.item_ids:
+        if item in ctx.env.excluded:
+            raise SpecRefused("item_excluded")
+    days = spec.days or engine.DEFAULT_DAYS
+    inputs: dict[str, Any] = {
+        "daily_budget": spec.daily_budget,
+        "roas_target": spec.roas_target,
+        "roas_mode": "system" if spec.roas_target is None else "custom",
+        "campaign": spec.campaign,
+        "days": days,
+        "start": spec.start.isoformat(),
+    }
+    if spec.end:
+        inputs["end"] = spec.end.isoformat()
+    if spec.name:
+        inputs["name"] = spec.name
+    items = list(spec.item_ids)
+    return Translation(
+        {
+            "label": _label(spec, spec.name or "Quảng cáo mới"),
+            "change_kind": "ads_new_campaign",
+            "items": items,
+            "inputs": inputs,
+        },
+        "ads_new_campaign",
+        items=items,
+        details={"days": days, "total_budget": spec.daily_budget * days},
+    )
 
 
 def _ads(spec: sp.AdsSpec, ctx: BuilderContext) -> Translation:

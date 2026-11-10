@@ -188,6 +188,25 @@ GMV still rises; AOV's range is a ratio of two percentiles. Options cannot be co
     liệu chi phí (X % GMV)". CTR / CTOR are never rounded as fractions: every screen carries the
     percent with two decimals (or the full fraction).
 
+## P99 amendment (2026-11-10)
+
+Found by the cross-screen check of the P98 deploy; the decisions above stand, these refine them:
+
+- **d.7:** a new combo listing with no pack evidence **and** no basket that would switch is "chưa ước
+  tính được — chưa có dữ liệu cho quy cách này" (no result numbers), never an all-+0 estimate. With
+  switching baskets the measured AOV effect stays and Δ Đơn is +0 with the note.
+- **d.9:** a commission rate without a chosen KOL (the builder's Liên kết tab) gets an option result:
+  cost = commission % × the product's expected Liên kết GMV + samples, its break-even, extra orders
+  "chưa ước tính được". So it joins So sánh and Kế hoạch like any other option.
+- **d.8:** a new-campaign setup of the Ads tab is a builder version (`ads_new`) and can be added to
+  Kế hoạch; there it is "chưa ước tính được" with its exact cost until measured.
+- **d.2 / d.5 / d.12:** Kế hoạch adds a card's Δ only onto the base it was computed on (each card and
+  each product block carry that base and their "sau"); its cost per month is the card's result cost
+  (the spend cap reads it too); So sánh "Hôm nay" is the versions' own scope; every "hôm nay" margin is
+  `ProductProfit.margin_pct` math (shop: `ShopProfit.margin_pct`). Profit per order counts the orders
+  of the days with costs and says "trên N ngày có dữ liệu chi phí" when some days have none.
+- **d.5:** a voucher without dates is evaluated, saved and planned on the same 30-day horizon.
+
 ## Consequences
 
 - **Live numbers change.** Options whose driver sits above đơn now move đơn (a minimum-spend voucher

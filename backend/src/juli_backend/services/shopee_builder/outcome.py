@@ -26,8 +26,10 @@ from typing import Any
 
 from juli_backend.services.shopee_builder import before_after
 from juli_backend.services.shopee_builder.context import BuilderContext
+from juli_backend.services.shopee_builder.engine import wire
 from juli_backend.services.shopee_builder.traffic import break_even_ctor, scope_traffic
 from juli_backend.services.shopee_builder.translate import Translation
+from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_recommendations import config
 
 METRIC_LABELS: dict[str, str] = {
@@ -376,6 +378,25 @@ def _margin(card: Mapping[str, Any]) -> tuple[float | None, float | None]:
     return None, None
 
 
+def one_margin(
+    ctx: BuilderContext,
+    items: Sequence[str],
+    before: float | None,
+    after: float | None,
+) -> tuple[float | None, float | None]:
+    """ADR-122 d.12 (P99): "hôm nay" is the scope's Luồng sản phẩm margin
+    (``shop_profit.scope_margin_pct``) and "sau" moves it by the change the evaluators measure on
+    the same orders (their after - before, in points). Unknown stays unknown; an add-on's own
+    margin (no before) is left as it is."""
+    if before is None:
+        return before, after
+    one = shop_profit.scope_margin_pct(ctx.env.view.profit, items)
+    if one is None:
+        return before, after
+    moved = None if after is None else round(float(one) + after - before, 1)
+    return float(one), moved
+
+
 def _driver(
     card: Mapping[str, Any],
     ctx: BuilderContext,
@@ -586,6 +607,8 @@ def result_delta(result: Mapping[str, Any] | None) -> dict[str, Any]:
         }
     days = int(result["days"])
     gmv, orders, profit = (_col_delta(result, k) for k in ("gmv", "orders", "profit"))
+    # P99: Δ Đơn at the card's precision (``wire.round_count``), the same as ``result.delta``
+    orders = {k: wire.round_count(v) for k, v in orders.items()}
     note = ((result.get("delta") or {}).get("orders") or {}).get("note")
 
     def per_day(b: Mapping[str, float | None]) -> dict[str, float | None]:
@@ -682,9 +705,12 @@ def shape(
     basis = basis_of(numbers)
     if not cost_known:
         margin_before = margin_after = None
+    old_scope = "shop" if card["change_kind"] == "min_spend_voucher" and not tr.items else "product"
+    margin_before, margin_after = one_margin(
+        ctx, () if (scope or old_scope) == "shop" else items, margin_before, margin_after
+    )
     certain_profit = None if not cost_known else (pm.get("period") or pm)["certain"]["dprofit"]
     driver = _driver(numbers, ctx, items, p50_orders)
-    old_scope = "shop" if card["change_kind"] == "min_spend_voucher" and not tr.items else "product"
     rd = result_delta(result)
     if not cost_known:
         rd["profit"] = dict(NULL_BAND)
@@ -744,6 +770,7 @@ __all__ = [
     "METRIC_LABELS",
     "REASON_TEXT",
     "basis_of",
+    "one_margin",
     "reason_text",
     "refused",
     "shape",

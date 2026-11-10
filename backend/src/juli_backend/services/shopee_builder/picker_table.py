@@ -1,21 +1,20 @@
 """P97 D85.12: the extra columns and filters of the table picker.
 
 One table serves every kind of the builder: besides the catalogue columns (``catalogue.picker``)
-a row carries what the filters need -- ngành hàng, biên (profit / buyer paid of the last 30 days),
-CTOR of the last 30 days against the 30 days before it, whether the product has a proposal waiting,
-and whether it runs Quảng cáo or KOL / Affiliate orders. Everything is read from views the builder
-already loads; a figure that cannot be known is ``None`` (a filter never matches it), never 0.
+a row carries what the filters need -- ngành hàng, biên (Luồng sản phẩm's margin of the last 30
+days), CTOR of the last 30 days against the 30 days before it, whether the product has a proposal
+waiting, and whether it runs Quảng cáo or KOL / Affiliate orders. Everything is read from views the
+builder already loads; a figure that cannot be known is ``None`` (a filter never matches it),
+never 0.
 """
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterable, Mapping
-from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_profit.money import ZERO
+from juli_backend.services.shopee_profit import shop_profit
 
 #: a CTOR that fell by at least this share of the earlier one is "giảm"
 CTOR_DROP_SHARE = 0.05
@@ -35,14 +34,15 @@ def _ctor_by_item(view: PeriodView | None) -> dict[str, float]:
 
 
 def _margin_by_item(view: PeriodView) -> dict[str, float]:
-    profit: dict[str, Decimal] = defaultdict(lambda: ZERO)
-    paid: dict[str, Decimal] = defaultdict(lambda: ZERO)
-    for ln, pb in view.pairs:
-        if pb.profit is None or pb.buyer_paid <= 0:
-            continue
-        profit[ln.product_id] += pb.profit
-        paid[ln.product_id] += pb.buyer_paid
-    return {i: float(profit[i] / paid[i] * 100) for i in paid if paid[i] > 0}
+    """ADR-122 d.12 (P99): the product's margin is Luồng sản phẩm's -- ``ProductProfit.margin_pct``
+    (covered contribution - the product's ad spend from the ads report) ÷ covered buyer_paid,
+    over the same window -- never the display-only line ad split."""
+    out: dict[str, float] = {}
+    for item in view.profit.products:
+        m = shop_profit.scope_margin_pct(view.profit, (item,))
+        if m is not None:
+            out[item] = float(m)
+    return out
 
 
 def extras(

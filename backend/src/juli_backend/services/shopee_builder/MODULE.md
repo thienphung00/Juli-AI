@@ -78,8 +78,16 @@ estimate basis, warnings).
   list (`multi.JOINT`) is one option on the union of the products.
 - Ads edits of running campaigns (`kind = ads`) are hidden: So sánh refuses them with `ads_edit_hidden`, `choose`
   and `run_together` with 422 `ads_edit_hidden`. New campaigns go through `/builder/ads/setup`.
-- The old `affiliate` kind has no result (`result_refusal.code = affiliate_needs_kol`): KOL extra orders are
-  measured only, through `/builder/kol/setup`.
+- P99: the `affiliate` kind (a commission rate, no KOL picked) has a result: cost = commission % × the product's
+  expected Liên kết GMV (window GMV of its affiliate lines scaled to 30 days) + samples, break-even, extra orders
+  "chưa ước tính được — đo sau lần gửi mẫu đầu" (measured per KOL only, through `/builder/kol/setup`).
+- P99 `ads_new` (`specs.AdsNewSpec`): the Ads tab's new campaign as a version (`/builder/ads/setup` returns each
+  setup's `spec`), saved through "Chọn" / "Chạy cùng nhau" as an `ads_new_campaign` card (certain layer = spend);
+  its result is `integrate.ads_result`, seeded on the spec, so the tab, the card and Kế hoạch agree.
+- P99 one base / margin / days: So sánh `today` is the versions' own scope (`integrate.scope_today`: the funnel
+  base their results use, Luồng's margin `shop_profit.scope_margin_pct`); every version carries `today`; the
+  picker's `margin_pct` and the card's `margin_before_pct` are that margin; a voucher without dates keeps the
+  30-day horizon of its result (`inputs.days = 30`); Δ Đơn is rounded like `vn.count` (`wire.round_count`).
 - ADR-122 d.13 in `engine_families`: E2 -- the reach to a voucher minimum / combo tier is the share of orders within
   20 % below it (a tier: at least one unit), measured with >= `MIN_REACH_ORDERS` orders, else the 0 / 20 / 50 % prior
   on those near orders (tagged prior); E3 -- a combo builder row of a pack size the product already has

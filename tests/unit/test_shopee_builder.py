@@ -497,7 +497,9 @@ async def test_two_vouchers_compare_side_by_side_with_typed_numbers(session, sho
     assert da["qualifying_orders"] == db["qualifying_orders"] > 0  # same minimum spend
     assert da["total_orders"] > da["qualifying_orders"]
     assert db["voucher_cost_scenario"] == 2 * da["voucher_cost_scenario"]
-    assert b["cost"]["amount"] == 2 * a["cost"]["amount"] and a["cost"]["period_days"] == 14
+    # P99: a voucher without dates keeps its OptionResult's 30-day horizon ("30 ngày đầu")
+    assert b["cost"]["amount"] == 2 * a["cost"]["amount"] and a["cost"]["period_days"] == 30
+    assert a["result"]["days"] == 30 and a["result"]["horizon"] == "first_30_days"
     # the shop's stored profit is partial (order lines cover 7 of 30 days): "chưa tính", never a
     # second calculation from the order lines
     assert b["result"]["estimable"] and b["margin_after_pct"] is not None
@@ -846,7 +848,9 @@ async def test_affiliate_commission_and_sample_cost(session, shop):
         sample["unit_cost"] == 31_000 and sample["total"] == 3 * 31_000 + 20_000
     )  # giá vốn + đóng gói + ship
     assert v["cost"]["amount"] >= sample["total"]
-    assert v["driver"]["metrics"][0]["key"] == "affiliate_orders"
+    # P99: the affiliate version has an OptionResult -- Lượt xem on Liên kết, cost and break-even
+    assert v["driver"]["metrics"][0]["key"] == "views"
+    assert v["result"]["estimable"] is False and v["result"]["cost"]["total"] >= sample["total"]
     target = await one(
         session, shop, kind="affiliate", item_id="1001", commission_pct=12, target_campaign=True
     )

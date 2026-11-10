@@ -465,5 +465,18 @@ def test_dispatcher_routes_ads_and_affiliate_plans():
     assert o.kind == "ads_new_campaign"
     plan = AffiliatePlan((KolChoice("k1", "kol_one", ("i1",), D(10)),), 30)
     assert option_for(plan, ctx(), FamilyExtras(kol=kol_facts())).kind == "affiliate_sample"
-    with pytest.raises(FamilyRefused):
-        option_for(sp.AffiliateSpec(kind="affiliate", item_id="i", commission_pct=5), ctx())
+    # P99: a commission rate without a KOL is cost + break-even only (extra orders measured only)
+    from juli_backend.services.shopee_builder.engine_families.facts import AffiliateRateFacts
+    from juli_backend.services.shopee_builder.engine_families.families import (
+        affiliate_rate_option,
+    )
+
+    rate = sp.AffiliateSpec(kind="affiliate", item_id="i", commission_pct=5)
+    o = affiliate_rate_option(rate, AffiliateRateFacts("i", D(600_000), 30, D(50_000), 2))
+    assert o.kind == "affiliate_commission"
+    assert [d.basis for d in o.drivers] == ["not_estimable"]
+    assert o.fixed_cost == D("0.05") * D(600_000) + D(50_000)  # commission × GMV + samples
+    r = run(base(), o, n=1)
+    assert not r.estimable and r.cost_total == o.fixed_cost and r.break_even_orders is not None
+    with pytest.raises(FamilyRefused):  # several products: the caller expands them first
+        option_for(sp.AffiliateSpec(kind="affiliate", targets=["i", "j"], commission_pct=5), ctx())

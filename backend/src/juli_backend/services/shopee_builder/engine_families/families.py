@@ -36,6 +36,7 @@ from juli_backend.services.shopee_builder.engine_families.facts import (
     AdsFacts,
     AdsNewCampaign,
     AffiliatePlan,
+    AffiliateRateFacts,
     ComboFacts,
     KolFacts,
     ListingComboFacts,
@@ -48,6 +49,7 @@ from juli_backend.services.shopee_builder.engine_families.facts import (
 ZERO = Decimal(0)
 ONE = Decimal(1)
 DEFAULT_HORIZON_DAYS = 30
+NOT_ESTIMABLE_TEXT = "chưa ước tính được"
 
 
 def _label(spec: sp.VersionSpec, fallback: str) -> str:
@@ -189,7 +191,9 @@ def new_listing_option(row: NewComboListing, facts: ListingComboFacts) -> Option
 def _listing_combo(label: str, facts: ListingComboFacts) -> OptionInput:
     """Orders already holding those quantities switch (AOV / lợi nhuận mỗi đơn change, Δ Đơn 0);
     extra orders only for a pack size the shop does not sell today, from the matching
-    variation's measured rates (E3); no evidence -> "+0 · chưa có dữ liệu cho quy cách này"."""
+    variation's measured rates (E3); no pack evidence -> Δ Đơn "+0 · chưa có dữ liệu cho quy cách
+    này" beside the switching effect, and with no switching basket either the option is "chưa ước
+    tính được" (P99: never an all-+0 estimate)."""
     drivers: list[DriverEffect] = []
     note: str | None = None
     if facts.aov_now:
@@ -217,6 +221,18 @@ def _listing_combo(label: str, facts: ListingComboFacts) -> OptionInput:
         )
     else:
         note = common.NOTE_NO_PACK_EVIDENCE
+        if not facts.switch_share or not facts.aov_now:
+            # P99: no pack evidence and no basket that would switch: nothing is measured, so the
+            # option is "chưa ước tính được" (never a +0 passed off as an estimate)
+            drivers = [
+                DriverEffect(
+                    "views",
+                    CARD_SOURCES,
+                    "not_estimable",
+                    note=f"{NOT_ESTIMABLE_TEXT} — {common.NOTE_NO_PACK_EVIDENCE}",
+                )
+            ]
+            note = None  # the driver's note says it once
     if not drivers:
         drivers.append(DriverEffect("aov", ALL_SOURCES, "not_estimable", note=note))
     return OptionInput(
@@ -520,6 +536,45 @@ def affiliate_option(plan: AffiliatePlan, facts: KolFacts) -> OptionInput:
             ),
         ),
         duration_days=plan.duration_days,
+        fixed_cost=cost,
+        note=" ".join(notes) or None,
+    )
+
+
+# -- affiliate commission of a product, no KOL chosen (P99, d.9) -------------------------------
+
+NOTE_NO_AFFILIATE_ORDERS = (
+    "Chưa có đơn Liên kết trong {days} ngày: hoa hồng chỉ phát sinh khi có đơn."
+)
+
+
+def affiliate_rate_option(spec: sp.AffiliateSpec, facts: AffiliateRateFacts) -> OptionInput:
+    """A commission rate on one product (the builder's Liên kết tab). Extra orders are measured
+    only (d.9), so the result is cost and break-even only ("chưa ước tính được — đo sau lần gửi
+    mẫu đầu"). Cost is exact: commission % × the product's expected Liên kết GMV (its window GMV
+    scaled to the 30-day horizon) + the samples (qty × (giá vốn + đóng gói) + shipping)."""
+    days = DEFAULT_HORIZON_DAYS
+    rate = Decimal(str(spec.commission_pct)) / 100
+    gmv = (
+        facts.affiliate_gmv * Decimal(days) / Decimal(facts.window_days)
+        if facts.window_days > 0
+        else ZERO
+    )
+    cost = rate * gmv + (facts.sample_cost or ZERO)
+    notes: list[str] = []
+    if facts.affiliate_gmv <= 0:
+        notes.append(NOTE_NO_AFFILIATE_ORDERS.format(days=facts.window_days))
+    if facts.sample_qty > 0 and facts.sample_cost is None:
+        notes.append("Chi phí mẫu chưa tính: thiếu giá vốn.")
+    return OptionInput(
+        kind="affiliate_target_campaign" if spec.target_campaign else "affiliate_commission",
+        label=_label(spec, "Liên kết"),
+        drivers=(
+            DriverEffect(
+                "views", ("lien_ket",), "not_estimable", note=common.NOTE_KOL_NOT_ESTIMABLE
+            ),
+        ),
+        duration_days=None,
         fixed_cost=cost,
         note=" ".join(notes) or None,
     )

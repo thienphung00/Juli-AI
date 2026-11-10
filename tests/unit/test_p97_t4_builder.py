@@ -240,7 +240,8 @@ async def test_choose_saves_one_card_that_carries_the_targets_and_replans_them(s
     per30 = saved["outcome"]["result"]["per_30d"]
     assert agg["result_basis"] == "option_result"
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
-    assert agg["dorders_month"]["p50"] == pytest.approx(per30["orders"], abs=1e-6)
+    # P99: the wire's Δ Đơn is at the card's precision (one decimal under 10 orders)
+    assert agg["dorders_month"]["p50"] == pytest.approx(per30["orders"], abs=0.051)
 
 
 # ==================== ads
@@ -558,9 +559,10 @@ async def test_without_a_basket_in_history_there_is_nothing_to_switch_and_it_say
     v = await one(session, shop, **{**LISTING, "member_ids": ["1001", "1003"]})
     assert v["ok"]
     if v["details"]["existing_baskets"] == 0:
-        # nothing to switch and no pack evidence: +0, said so (never a general prior)
-        assert v["delta"]["gmv"]["p50"] == 0 and v["delta"]["orders"]["p50"] == 0
-        assert "chưa có dữ liệu cho quy cách này" in v["result"]["notes"]
+        # P99: nothing to switch and no pack evidence: "chưa ước tính được", never an all-+0
+        assert v["result"]["estimable"] is False
+        assert v["delta"]["gmv"]["p50"] is None and v["delta"]["orders"]["p50"] is None
+        assert any("chưa có dữ liệu cho quy cách này" in n for n in v["result"]["notes"])
         assert "Chưa có đơn nào" in v["details"]["assumption"]
 
 

@@ -803,11 +803,59 @@ def _eval_ads_keywords(env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any])
     )
 
 
+def _eval_ads_new(env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any]) -> Evaluation:
+    """P99: a new Hiển thị Sản phẩm campaign. The certain layer is its spend (the daily budget
+    every day of the run) against the shop's daily cap; GMV and orders are not predicted here --
+    the builder's OptionResult (ADR-122 d.8) carries them, measured or "chưa ước tính được"."""
+    budget = D(inputs.get("daily_budget") or 0)
+    if budget <= 0 or not cand.items:
+        return _refuse("invalid_inputs")
+    days = int(inputs.get("days") or config.DAYS_PER_MONTH)
+    items = list(cand.items)
+    pps = [env.product(i) for i in items]
+    be = [p.break_even_roas for p in pps if p is not None and p.break_even_roas is not None]
+    certain = {
+        "kind": "ads",
+        "basis": {"key": "placed", "label": "đơn đã đặt"},
+        "campaign": inputs.get("name") or "Chiến dịch mới",
+        "new_campaign": True,
+        "spend_per_day_now": num(ZERO),
+        "spend_per_day_after": num(budget),
+        "days": days,
+        "total_budget": num(budget * days),
+        "roas_target": None if inputs.get("roas_target") is None else num(D(inputs["roas_target"])),
+        "break_even_roas": ratio(max(be), 2) if be else None,
+        "items": items,
+    }
+    profit = ProfitModel(
+        effect_days=min(days, config.DAYS_PER_MONTH),
+        extra_cost_per_day=budget,
+        dchi_per_day=budget,
+        base_label="gmv_quang_cao_don_da_dat",
+    )
+    return Evaluation(
+        certain=certain,
+        five=None,
+        breaches=[],
+        profit=profit,
+        before={"campaign": None},
+        after={"campaign": "new", "daily_budget": num(budget), "items": items},
+        target={"item_ids": items},
+        spend_check=_spend_check(env, budget),
+        notes=[
+            "Chiến dịch mới: chi phí = ngân sách ngày × số ngày; "
+            "đơn tăng thêm chỉ tính khi đo được."
+        ],
+    )
+
+
 def eval_ads(
     env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
 ) -> Evaluation:
     if cand.kind == "ads_keywords":
         return _eval_ads_keywords(env, cand, inputs)
+    if cand.kind == "ads_new_campaign":
+        return _eval_ads_new(env, cand, inputs)
     key = cand.campaign_key
     prof = campaign_profile(env, key) if key else None
     if prof is None:
