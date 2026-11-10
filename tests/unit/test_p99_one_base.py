@@ -330,3 +330,37 @@ async def test_one_margin_on_luong_tu_tao_so_sanh_and_ke_hoach(session, shop):
 def test_delta_orders_round_to_the_cards_precision():
     assert pa.round_orders(7.66) == 7.7 and pa.round_orders(-0.04) == -0.0
     assert pa.round_orders(12.4) == 12.0 and pa.round_orders(None) is None
+
+
+def test_the_engine_prices_an_extra_order_on_the_days_with_costs():
+    """The metrics side sums profit over the days with costs only: an extra order is worth that
+    profit ÷ those days' orders (``profit_orders``), in the scenarios and in the break-even."""
+    from datetime import date
+
+    from juli_backend.services.shopee_builder.engine.contract import (
+        Band,
+        DriverEffect,
+        FunnelBase,
+        OptionInput,
+        SourceFunnel,
+    )
+
+    src = SourceFunnel(
+        "the_san_pham_khac", D(1000), D(100), D(10), D(1_000_000), D(300_000), None, D(5)
+    )
+    base = FunnelBase(
+        "s", "products", (ITEM,), date(2026, 10, 1), date(2026, 10, 30), (src,), None,
+        profit_days=15, days=30,
+    )  # fmt: skip
+    lift = Band(D("0.1"), D("0.1"), D("0.1"))
+    option = OptionInput(
+        "title", "x", (DriverEffect("ctor", ("the_san_pham_khac",), "measured", lift=lift),), 30,
+        fixed_cost=D(120_000),
+    )  # fmt: skip
+    r = integrate.run(base, option, seed=1)
+    assert r.likely is not None and r.likely.profit is not None and r.before.profit is not None
+    assert r.likely.orders - r.before.orders == pytest.approx(D(1))
+    assert float(r.likely.profit - r.before.profit) == pytest.approx(60_000 - 120_000)
+    assert float(r.break_even_orders or 0) == pytest.approx(2.0)  # 120.000 ÷ 60.000
+    assert integrate.profit_per_order(base) == D(60_000)
+    assert any("15 ngày có dữ liệu chi phí" in n for n in r.notes)

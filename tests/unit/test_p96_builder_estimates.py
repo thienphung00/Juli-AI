@@ -156,14 +156,23 @@ async def test_a_flash_slot_costs_its_hours_and_its_units(session, shop):
 # ==================== voucher
 
 
-async def test_a_bigger_voucher_earns_a_bigger_lift(session, shop):
+async def test_a_bigger_voucher_costs_more_on_the_same_reach(session, shop):
+    """ADR-122 d.4 / d.6: the columns are whole scenarios ranked by Δ lợi nhuận, so the likely GMV
+    is the GMV of the median-PROFIT outcome, not a GMV ranking. Two vouchers on the same minimum
+    reach the same baskets (same drivers); the bigger one pays twice the discount per use, so it
+    costs more and never earns more profit at the median (P99: with the metrics side's profit of
+    the days with costs the window's profit is known and the ranking is by profit)."""
     small = await one(
         session, shop, kind="voucher", discount_type="amount", value=5000, min_spend=100_000
     )
     big = await one(
         session, shop, kind="voucher", discount_type="amount", value=10_000, min_spend=100_000
     )
-    assert p50(big) > p50(small) > 0
+    assert p50(small) > 0 and p50(big) > 0
+    assert big["result"]["cost"]["total"] > small["result"]["cost"]["total"]
+    sp_, bp = p50(small, "profit"), p50(big, "profit")
+    if sp_ is not None and bp is not None:
+        assert bp < sp_
 
 
 async def test_a_voucher_nobody_qualifies_for_gains_nothing(session, shop):

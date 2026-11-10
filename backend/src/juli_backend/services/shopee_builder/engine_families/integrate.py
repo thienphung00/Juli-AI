@@ -131,7 +131,7 @@ def profit_per_order(base: FunnelBase) -> Decimal | None:
     Before the metrics side carries ``profit_orders`` it is ÷ every order."""
     profit = base.total("profit")
     orders = _base_total(base, "profit_orders")
-    if orders is None:
+    if not orders:  # not carried (a hand-built base: 0) -> every order
         orders = base.total("orders")
     if orders is None or profit is None or orders <= 0:
         return None

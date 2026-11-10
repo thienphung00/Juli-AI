@@ -82,6 +82,7 @@ class _Src:
     capable: bool  # views and clicks > 0: views / CTR / CTOR levers can act
     aov: float | None
     ppo: float | None
+    po: float = 0.0  # the orders the profit stands on (P99: the days with costs)
 
 
 @dataclass
@@ -125,6 +126,9 @@ def _prepare(base: FunnelBase, scale: float) -> list[_Src]:
         o = float(s.orders) * scale
         g = float(s.gmv) * scale
         p = None if s.profit is None else float(s.profit) * scale
+        # P99: profit is summed over the days with costs, so per order it is ÷ those days' orders
+        # (``profit_orders``); a base that does not carry them (0) divides by every order
+        po = float(s.profit_orders) * scale if s.profit_orders > 0 else o
         capable = v is not None and k is not None and v > 0 and k > 0
         out.append(
             _Src(
@@ -136,7 +140,8 @@ def _prepare(base: FunnelBase, scale: float) -> list[_Src]:
                 p,
                 capable,
                 g / o if o > 0 else None,
-                p / o if (p is not None and o > 0) else None,
+                p / po if (p is not None and po > 0) else None,
+                po,
             )
         )
     return out
@@ -567,7 +572,10 @@ def _break_even_ppo(
         return float(option.profit_per_order_after)
     if before.profit is None or before.orders <= 0:
         return None
-    return before.profit / before.orders
+    # P99: today's profit per order over the orders of the days with costs (as ``_prepare``)
+    po = sum(s.po for s in srcs if s.p is not None)
+    p = sum((s.p or 0.0) for s in srcs if s.p is not None)
+    return p / po if po > 0 else before.profit / before.orders
 
 
 def _be_orders(cost: float, ppo: float | None) -> Decimal | None:
