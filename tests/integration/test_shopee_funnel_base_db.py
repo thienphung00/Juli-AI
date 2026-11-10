@@ -51,7 +51,8 @@ async def test_load_funnel_base_matches_tong_quan_on_postgres():
         assert base.total("gmv") == Decimal(str(m["gmv"]))
         assert funnel.known_total(base, "views") == m["views"]
         n = funnel.numbers(base, m["orders"])
-        assert n.views * n.ctr * n.ctor == m["orders"]
+        # CTR and CTOR are 28-digit Decimals: the product is exact to well past a whole order
+        assert (n.views * n.ctr * n.ctor).quantize(Decimal("1e-9")) == m["orders"]
 
         product = await funnel.load_funnel_base(
             session, seeded.shop_id, item_ids=["1001"], window=window
