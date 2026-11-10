@@ -235,24 +235,43 @@ def _plus(a: Any, b: Any) -> Any:
 
 @dataclass
 class _Acc:
-    """One source of one scope over the window: sums; None = no day had a value."""
+    """One source of one scope over the window: sums; None = no day had a value.
+
+    P99: ``profit`` sums the days whose profit is known (None only when no day is), and
+    ``profit_orders`` their đơn, so one day without giá vốn no longer blanks the window's profit;
+    ``profit_days`` / ``days`` count the days with a known profit / with any row."""
 
     views: int | None = None
     clicks: int | None = None
     orders: int = 0
     gmv: Decimal = ZERO
-    profit: Decimal | None = ZERO
+    profit: Decimal | None = None
+    profit_orders: int = 0
     ads: dict[str, Any] = field(default_factory=lambda: dict.fromkeys(_ADS_FIELDS))
+    day_set: set[date] = field(default_factory=set)
+    profit_day_set: set[date] = field(default_factory=set)
 
-    def add(self, orders: int, gmv: Decimal, profit: Decimal | None) -> None:
+    @property
+    def days(self) -> int:
+        return len(self.day_set)
+
+    @property
+    def profit_days(self) -> int:
+        return len(self.profit_day_set)
+
+    def add(self, orders: int, gmv: Decimal, profit: Decimal | None, day: date) -> None:
         self.orders += orders
         self.gmv += gmv
-        self.profit = None if self.profit is None or profit is None else self.profit + profit
+        self.day_set.add(day)
+        if profit is not None:
+            self.profit = (self.profit or ZERO) + profit
+            self.profit_orders += orders
+            self.profit_day_set.add(day)
 
     def add_row(self, r: SourceDay) -> None:
         self.views = _plus(self.views, r.views)
         self.clicks = _plus(self.clicks, r.clicks)
-        self.add(r.orders, r.gmv, r.profit)
+        self.add(r.orders, r.gmv, r.profit, r.day)
         for f, v in zip(
             _ADS_FIELDS,
             (r.ads_views, r.ads_clicks, r.ads_orders, r.ads_gmv, r.ads_spend),
@@ -287,7 +306,7 @@ def _scope(rows: FunnelRows, item_ids: Sequence[str]) -> _Scope:
                 accs[r.source].add_row(r)
         for d in rows.shop_days:
             if d.day not in covered:
-                accs[RESIDUAL].add(d.orders, d.gmv, d.profit)
+                accs[RESIDUAL].add(d.orders, d.gmv, d.profit, d.day)
         return _Scope(accs, "per_source")
     wanted = set(item_ids)
     if all(_item_per_source(rows, i) for i in wanted):
@@ -297,14 +316,14 @@ def _scope(rows: FunnelRows, item_ids: Sequence[str]) -> _Scope:
                 accs[r.source].add_row(r)
         for d in rows.product_days:
             if d.item_id in wanted and (d.item_id, d.day) not in pairs:
-                accs[RESIDUAL].add(d.orders, d.gmv, d.profit)
+                accs[RESIDUAL].add(d.orders, d.gmv, d.profit, d.day)
         return _Scope(accs, "per_source")
     one = _Acc()
     for d in rows.product_days:
         if d.item_id in wanted:
             one.views = _plus(one.views, d.views)
             one.clicks = _plus(one.clicks, d.clicks)
-            one.add(d.orders, d.gmv, d.profit)
+            one.add(d.orders, d.gmv, d.profit, d.day)
             one.ads["spend"] = _plus(one.ads["spend"], d.ads_spend)
     return _Scope({ALL_SOURCES_KEY: one}, "all_sources")
 
@@ -318,10 +337,26 @@ def _ads(acc: _Acc) -> AdShare | None:
     )
 
 
+def _days(scope: _Scope) -> tuple[int, int]:
+    """(days with a known profit, days with any row) over the scope's sources."""
+    known: set[date] = set()
+    seen: set[date] = set()
+    for a in scope.accs.values():
+        known |= a.profit_day_set
+        seen |= a.day_set
+    return len(known), len(seen)
+
+
 def _sources(scope: _Scope) -> tuple[SourceFunnel, ...]:
     has_traffic = any(a.views is not None for k, a in scope.accs.items() if k != RESIDUAL)
+    # a source without a known day adds 0 to a scope that has one; with no known day at all the
+    # scope's profit stays unknown. A source with no rows is 0, as before.
+    any_known = any(a.profit is not None for a in scope.accs.values())
     out: list[SourceFunnel] = []
     for key, a in scope.accs.items():
+        profit = a.profit
+        if profit is None and (any_known or not a.days):
+            profit = ZERO
         views, clicks = a.views, a.clicks
         if key == RESIDUAL:
             views = clicks = None
@@ -334,8 +369,9 @@ def _sources(scope: _Scope) -> tuple[SourceFunnel, ...]:
                 clicks=None if clicks is None else Decimal(clicks),
                 orders=Decimal(a.orders),
                 gmv=a.gmv,
-                profit=a.profit,
+                profit=profit,
                 ads=_ads(a) if key == ADS_SOURCE else None,
+                profit_orders=Decimal(a.profit_orders),
             )
         )
     return tuple(out)
@@ -351,6 +387,7 @@ def base_from_rows(
     """The window's :class:`FunnelBase` for the shop (``item_ids`` empty) or those products.
     Pure. A scope without traffic rows keeps views / clicks ``None`` ("chưa có dữ liệu")."""
     scope = _scope(rows, item_ids)
+    profit_days, days = _days(scope)
     return FunnelBase(
         shop_id=shop_id,
         scope="products" if item_ids else "shop",
@@ -360,6 +397,8 @@ def base_from_rows(
         sources=_sources(scope),
         contribution_rate=contribution_rate,
         source_detail=scope.detail,
+        profit_days=profit_days,
+        days=days,
     )
 
 
