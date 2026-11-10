@@ -7,7 +7,7 @@ import { refusalOf, type ApiRefusal } from "./client";
 export type Resource<T> =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly data: T }
-  | { readonly status: "refused"; readonly refusal: ApiRefusal; readonly message: string };
+  | { readonly status: "refused"; readonly refusal: ApiRefusal; readonly message: string; readonly error?: unknown };
 
 /**
  * Loads one payload when `key` changes. A refusal (not a Shopee shop, no data, unknown product,
@@ -27,6 +27,7 @@ export function useResource<T>(load: () => Promise<T>, key: string): Resource<T>
             status: "refused",
             refusal: refusalOf(error),
             message: error instanceof Error ? error.message : "",
+            error,
           },
         });
       });

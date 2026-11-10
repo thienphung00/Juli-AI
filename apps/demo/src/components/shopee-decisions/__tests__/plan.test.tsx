@@ -28,7 +28,7 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     const row = screen.getByTestId("kh-row-card-voucher");
     expect(row).toHaveTextContent("JC-2611-0007-V1");
     expect(row).toHaveTextContent("Voucher 15.000đ cho đơn ≥ 299.000đ · Găng tay cao su A");
-    expect(row).toHaveTextContent("Đóng góp: +90.000đ/tháng (giữa khoảng) · Bỏ thẻ này thì: lợi nhuận −90.000đ/tháng, GMV −540.000đ, chi phí −90.000đ/tháng");
+    expect(row).toHaveTextContent("Đóng góp: +90.000đ/tháng (giữa khoảng) · Bỏ thẻ này thì: lợi nhuận −90.000đ/tháng, GMV −540.000đ, chi phí −90.000đ (30 ngày tới)");
     expect(within(row).getAllByRole("button", { name: /^V\d$/ })).toHaveLength(3);
     expect(screen.getByTestId("kh-cand-card-wait")).toHaveTextContent("JC-2611-0009");
   });
@@ -84,13 +84,13 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     await waitFor(() => expect(api.calls.find((c) => c.name === "add")?.args).toEqual(["card-wait", null, false]));
   });
 
-  it("the base is frozen: the screen names its day and only 'Cập nhật số' asks for newer numbers (D85.4)", async () => {
-    const base = { label: "Số liệu gốc của kế hoạch", version: 1, as_of: "2026-11-04", newest_day: "2026-11-06", newer_available: true, refreshed_at: null, note: "Kế hoạch tính trên số liệu đến hết ngày 04/11/2026. Đã có số mới đến 06/11/2026: bấm “Cập nhật số” để tính lại." };
+  it("P99b: the base is live: the screen says so and offers no 'Cập nhật số'", async () => {
+    const base = { live: true, as_of: "2026-11-10", window: null, newest_day: "2026-11-10", newer_available: false, horizon_from: "2026-11-11", note: "Số liệu tính lại mỗi lần mở, đến hết ngày 10/11/2026." };
     const first = plan();
-    const api = open({ ...first, plan: { ...first.plan!, base } });
-    expect(await screen.findByTestId("kh-base-note")).toHaveTextContent("số liệu đến hết ngày 04/11/2026");
-    fireEvent.click(screen.getByTestId("kh-refresh"));
-    await waitFor(() => expect(api.calls.some((c) => c.name === "refreshBase")).toBe(true));
+    open({ ...first, plan: { ...first.plan!, base } });
+    expect(await screen.findByTestId("kh-base-note")).toHaveTextContent("tính lại mỗi lần mở");
+    expect(screen.queryByTestId("kh-refresh")).toBeNull();
+    expect(screen.queryByText("Cập nhật số")).toBeNull();
   });
 
   it("an action's answer is dropped once the refetch lands, so a stale override never hides the server", async () => {

@@ -5,6 +5,7 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 
 import { DateField } from "../../date-field";
 import { fmtDate, fmtInt, fmtPct } from "../../../lib/ops/format";
+import { notMaterializedLine, notMaterializedOf } from "../../../lib/shopee-analytics/not-materialized";
 import type { ShopeeOrderType } from "../../../lib/ops/types";
 import { C, card } from "../ops-shell";
 
@@ -161,6 +162,8 @@ export function DayRange({ value, onApply }: { readonly value: { readonly from: 
 /** What a dashboard says when the API answers with an error. */
 export function errorText(e: unknown): string {
   const status = (e as { status?: number }).status;
+  const nm = notMaterializedOf(e);
+  if (nm) return notMaterializedLine(nm);
   if (status === 409) return "Shop này không phải shop Shopee.";
   if (status === 404) return "Không tìm thấy shop.";
   if (status === 403) return "Bạn không có quyền xem dashboard này.";

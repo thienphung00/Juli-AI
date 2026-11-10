@@ -12,7 +12,7 @@ import type { Breach, CardList } from "../../lib/shopee-decisions/types";
 import { ackText, breachNoun, breachWarnLines, firstVersionRange, svk } from "../../lib/shopee-decisions/versions";
 import { useNarrow } from "../quyet-dinh/use-narrow";
 import { Notice, PageHead, TextChip } from "../shopee-analytics/ui";
-import { CardResult, ProductToday } from "./plan-results";
+import { AdsReadbackBlock, CardResult, DataMissingNotice, HorizonLine, PlanTotalsNotes, ProductToday } from "./plan-results";
 import { PlanSteps } from "./plan-steps";
 import { topEntries } from "./top-cards";
 import { NavLink, RecoState, errorText } from "./ui";
@@ -61,7 +61,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
   // override can never hide what the server now says. The override is tagged with the tick of
   // the refetch it stands in for; once that refetch is ready (useResource only reports ready for
   // the current key) the server's answer wins.
-  const shown = override !== null && override.tick === tick && loaded.status !== "ready" ? override.plan : null;
+  const shown = override !== null && override.tick === tick && loaded.status === "loading" ? override.plan : null;
   const plan = shown ?? (loaded.status === "ready" ? loaded.data : null);
 
   const act = async (call: () => Promise<PlanResponse>, after?: (p: PlanResponse) => void) => {
@@ -201,7 +201,15 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
   const cost = plan.aggregate?.cost;
   const shownAck = ack ?? (head?.acknowledged_breaches?.breaches?.length ? ackText(head.acknowledged_breaches.breaches, head.acknowledged_breaches.at) : null);
   const kol = kolSummary(plan);
+  const horizonCap = cost && typeof cost.horizon_spend_after === "number" && typeof cost.horizon_cap === "number" && cost.horizon_cap > 0 && cost.cost_complete !== false ? cost : null;
+  const dayCap = cost && cost.horizon_spend_after === undefined && cost.cap_per_day ? cost : null;
+  const capBar = horizonCap
+    ? { text: `Chi tiêu 30 ngày tới so với trần ${vnd(horizonCap.horizon_cap)}`, pct: Math.min(100, Math.round((horizonCap.horizon_spend_after! / horizonCap.horizon_cap!) * 100)) }
+    : dayCap
+      ? { text: `Chi phí toàn shop mỗi ngày so với trần ${vnd(dayCap.cap_per_day)}`, pct: Math.min(100, Math.round((dayCap.per_day_after / dayCap.cap_per_day!) * 100)) }
+      : null;
   const winLabel = windowText(plan);
+  const missing = plan.aggregate?.data_missing ?? null;
   return (
     <section className="sa-card kh-plan" data-testid="kh-plan">
       <div className="kh-plan__head">
@@ -226,20 +234,19 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
         </Notice>
       ) : null}
 
-      {head?.base && !done ? (
+      <HorizonLine plan={plan} />
+      {missing ? <DataMissingNotice missing={missing} /> : null}
+      {head?.base && !done && !missing ? (
         <div className="kh-base" data-testid="kh-base">
           <span className="sa-hint" data-testid="kh-base-note">
             {head.base.note}
           </span>
-          {api.refreshBase ? (
-            <button className="sa-btn sa-btn--s" data-testid="kh-refresh" disabled={busy} onClick={() => void onAct(() => api.refreshBase!())} type="button">
-              Cập nhật số
-            </button>
-          ) : null}
         </div>
       ) : null}
 
-      <PlanSteps api={api} busy={busy} done={done} onAct={onAct} plan={plan} />
+      <PlanTotalsNotes plan={plan} />
+
+      {missing ? null : <PlanSteps api={api} busy={busy} done={done} onAct={onAct} plan={plan} />}
 
       <div className="kh-rows">
         {plan.cards.map((r) => (
@@ -276,10 +283,17 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
                 ))}
               </div>
               <div className="kh-row__why">
-                Đóng góp:{" "}
-                <b className={(r.evaluation?.contribution.dprofit_p50 ?? 0) >= 0 ? "sa-tone--up" : "sa-tone--down"}>{svk(r.evaluation?.contribution.dprofit_p50)}/tháng (giữa khoảng)</b> · Bỏ thẻ này thì: {withoutText(r)}
+                {typeof r.evaluation?.contribution.dprofit_p50 === "number" ? (
+                  <>
+                    Đóng góp:{" "}
+                    <b className={r.evaluation.contribution.dprofit_p50 >= 0 ? "sa-tone--up" : "sa-tone--down"}>{svk(r.evaluation.contribution.dprofit_p50)}/tháng (giữa khoảng)</b> · Bỏ thẻ này thì: {withoutText(r)}
+                  </>
+                ) : (
+                  <span data-testid="kh-contrib-none">Đóng góp: chưa có dữ liệu{missing ? ` · ${missing.message}` : ""}</span>
+                )}
               </div>
               <CardResult cardId={r.card_id} plan={plan} />
+              <AdsReadbackBlock readback={r.ads_readback} />
             </div>
             <button className="sa-btn sa-btn--s" disabled={done || busy} onClick={() => void onAct(() => api.remove(r.card_id))} type="button">
               Bỏ khỏi kế hoạch
@@ -289,7 +303,7 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
         {plan.cards.length === 0 ? <p className="sa-hint" data-testid="kh-empty">Kế hoạch trống. Thêm thẻ từ danh sách bên trái hoặc từ thẻ trong Quyết định.</p> : null}
       </div>
 
-      <ProductToday plan={plan} />
+      {missing ? null : <ProductToday plan={plan} />}
 
       <GroupsSection api={api} busy={busy} done={done} notice={notice} onAct={onAct} plan={plan} />
 
@@ -342,11 +356,11 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
               </div>
             ))}
           </div>
-          {cost && cost.cap_per_day ? (
+          {capBar ? (
             <div className="kh-cap" data-testid="kh-cap">
-              <span>Chi phí toàn shop mỗi ngày so với trần {vnd(cost.cap_per_day)}</span>
+              <span>{capBar.text}</span>
               <span className="kh-cap__bar">
-                <span className={cost.over_cap ? "kh-cap__fill kh-cap__fill--over" : "kh-cap__fill"} style={{ width: `${Math.min(100, Math.round((cost.per_day_after / cost.cap_per_day) * 100))}%` }} />
+                <span className={cost?.over_cap ? "kh-cap__fill kh-cap__fill--over" : "kh-cap__fill"} style={{ width: `${capBar.pct}%` }} />
               </span>
             </div>
           ) : null}

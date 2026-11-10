@@ -376,13 +376,13 @@ export function CompareView({
       ) : null}
       {result && withResult ? (
         <div data-testid="oc-compare-block">
-          <CompareTable rows={outcomes.flatMap((o, i) => (o.ok && o.result ? [{ id: i + 1, name: `P${i + 1} · ${String(entries[i]?.version.label ?? o.result.label)}`, result: o.result }] : []))} />
+          <CompareTable rows={outcomes.flatMap((o, i) => (o.ok && o.result ? [{ id: i + 1, name: `P${i + 1} · ${String(entries[i]?.version.label ?? o.result.label)}`, result: o.result, dates: o.dates }] : []))} />
           <div className="oc-cards">
             {entries.map((e, i) => (
               <div className="oc-cards__col" key={e.id}>
                 {head(e, i)}
                 {today?.mixed_scopes && outcomes[i]?.today ? <TodayLine today={outcomes[i]!.today!} testId={`p2-today-${i + 1}`} /> : null}
-                {outcomes[i]?.ok && outcomes[i]?.result ? <OptionCard result={outcomes[i]!.result!} testId={`oc-card-${i + 1}`} /> : <span className="sd-error">{outcomes[i] ? refusalText(outcomes[i]!) : DASH}</span>}
+                {outcomes[i]?.ok && outcomes[i]?.result ? <OptionCard dates={outcomes[i]!.dates} result={outcomes[i]!.result!} testId={`oc-card-${i + 1}`} /> : <span className="sd-error">{outcomes[i] ? refusalText(outcomes[i]!) : DASH}</span>}
                 <button className="sa-btn sa-btn--primary" data-testid={`p2-choose-${i + 1}`} disabled={readOnly || busy || !outcomes[i]?.ok || saved !== null} onClick={() => onChoose(i)} type="button">
                   Chọn P{i + 1}
                 </button>

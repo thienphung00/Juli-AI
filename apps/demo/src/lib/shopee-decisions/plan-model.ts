@@ -34,15 +34,15 @@ const toneOf = (good: 1 | -1, d: number): AggRow["tone"] => (Math.abs(d) < 1e-9 
 /** The plan's table, today -> after the plan (the backend's P50), with the P10 - P90 range where it gives one. */
 export function aggRows(p: PlanResponse): AggRow[] {
   const a = p.aggregate;
-  if (!a || a.n_cards === 0 || !a.after || !a.cost || !a.dprofit_month || !a.dgmv_month || !a.dorders_month || !a.floor) return [];
+  if (!a || a.data_missing || a.empty || a.n_cards === 0 || !a.today || !a.after || !a.cost || !a.dprofit_month || !a.dgmv_month || !a.dorders_month || !a.floor) return [];
   const t = a.today;
   const five = a.five_numbers ?? null;
   const rows: AggRow[] = [];
 
   if (five) {
     const d = five.discount;
-    const dDisc = num(d.pct_before) && num(d.pct_after) ? d.pct_after - d.pct_before : 0;
-    rows.push({ key: "disc", label: "① Giảm giá (% GMV niêm yết)", today: pp(d.pct_before, 1), after: pp(d.pct_after, 1), d: pts(dDisc), tone: toneOf(-1, dDisc) });
+    const dDisc = num(d.pct_before) && num(d.pct_after) ? d.pct_after - d.pct_before : null;
+    rows.push({ key: "disc", label: "① Giảm giá (% GMV niêm yết)", today: pp(d.pct_before, 1), after: pp(d.pct_after, 1), d: dDisc === null ? DASH : pts(dDisc), tone: dDisc === null ? "plain" : toneOf(-1, dDisc) });
     const e = five.extra_revenue_per_extra_spend;
     rows.push({
       key: "eff",
@@ -53,22 +53,23 @@ export function aggRows(p: PlanResponse): AggRow[] {
       tone: "plain",
     });
     const m = five.margin;
-    const dBien = num(m.pct_before) && num(m.pct_after) ? m.pct_after - m.pct_before : 0;
-    rows.push({ key: "bien", label: "③ Biên lợi nhuận", today: pp(m.pct_before, 1), after: pp(m.pct_after, 1), d: `${arrow(dBien)}${pts(dBien)}`, tone: toneOf(1, dBien) });
+    const dBien = num(m.pct_before) && num(m.pct_after) ? m.pct_after - m.pct_before : null;
+    rows.push({ key: "bien", label: "③ Biên lợi nhuận", today: pp(m.pct_before, 1), after: pp(m.pct_after, 1), d: dBien === null ? DASH : `${arrow(dBien)}${pts(dBien)}`, tone: dBien === null ? "plain" : toneOf(1, dBien) });
   }
 
   const o = a.dorders_month;
-  const dOrd = num(o.p50) ? o.p50 : a.after.orders_30d - t.orders_30d;
+  // The server's P50 only; never a subtraction of two other numbers (they may be on another basis).
+  const dOrd = num(o.p50) ? o.p50 : null;
   rows.push({
     key: "orders",
     label: "④ Số đơn / 30 ngày",
     today: fmt(t.orders_30d, 0),
     after: rangeOf(num(o.p10) ? t.orders_30d + o.p10 : null, num(o.p90) ? t.orders_30d + o.p90 : null, (x) => fmt(Math.round(x), 0)),
-    d: signed(dOrd, "đơn"),
-    tone: toneOf(1, dOrd),
+    d: dOrd === null ? DASH : signed(dOrd, "đơn"),
+    tone: dOrd === null ? "plain" : toneOf(1, dOrd),
   });
-  const dAov = num(a.after.aov) && num(t.aov) ? a.after.aov - t.aov : 0;
-  rows.push({ key: "aov", label: "⑤ AOV", today: vnd(num(t.aov) ? roundK(t.aov) : null), after: vnd(num(a.after.aov) ? roundK(a.after.aov) : null), d: `${arrow(dAov)}${svk(dAov)}`, tone: toneOf(1, dAov) });
+  const dAov = num(a.after.aov) && num(t.aov) ? a.after.aov - t.aov : null;
+  rows.push({ key: "aov", label: "⑤ AOV", today: vnd(num(t.aov) ? roundK(t.aov) : null), after: vnd(num(a.after.aov) ? roundK(a.after.aov) : null), d: dAov === null ? DASH : `${arrow(dAov)}${svk(dAov)}`, tone: dAov === null ? "plain" : toneOf(1, dAov) });
   const g = a.dgmv_month.total;
   rows.push({
     key: "gmv",
@@ -78,25 +79,56 @@ export function aggRows(p: PlanResponse): AggRow[] {
     d: svk(g.p50),
     tone: "flat",
   });
-  rows.push({
-    key: "chi",
-    label: "Chi phí / tháng",
-    today: vnd(roundK(a.cost.per_month_after - a.cost.delta_per_month)),
-    after: vnd(roundK(a.cost.per_month_after)),
-    d: svk(a.cost.delta_per_month),
-    tone: toneOf(-1, a.cost.delta_per_month),
-  });
   const c = a.cost;
+  const hz = c.horizon_spend_after !== undefined; // P99b: spend over the plan's horizon
+  const known = c.cost_complete !== false;
+  if (hz) {
+    rows.push({
+      key: "chi",
+      label: "Chi phí trong 30 ngày tới",
+      today: vnd(num(c.horizon_spend_before) ? roundK(c.horizon_spend_before) : null),
+      after: known ? vnd(num(c.horizon_spend_after) ? roundK(c.horizon_spend_after) : null) : "chưa biết chi phí",
+      d: known ? svk(c.horizon_spend_delta) : "",
+      tone: known && num(c.horizon_spend_delta) ? toneOf(-1, c.horizon_spend_delta) : "plain",
+    });
+    const cap = c.horizon_cap;
+    rows.push({
+      key: "chiday",
+      label: "Chi tiêu 30 ngày tới so với trần",
+      today: vnd(num(c.horizon_spend_before) ? roundK(c.horizon_spend_before) : null),
+      after: known ? vnd(num(c.horizon_spend_after) ? roundK(c.horizon_spend_after) : null) : "chưa biết chi phí",
+      d: !num(cap) ? "Chưa đặt trần chi" : !known ? `Trần ${vnd(cap)}` : c.over_cap ? `Vượt trần ${vnd(cap)}` : `Trong trần ${vnd(cap)}`,
+      tone: known && c.over_cap ? "down" : "plain",
+      bad: known && c.over_cap,
+    });
+  } else {
+    rows.push({
+      key: "chi",
+      label: "Chi phí / tháng",
+      today: vnd(roundK(c.per_month_after - c.delta_per_month)),
+      after: vnd(roundK(c.per_month_after)),
+      d: svk(c.delta_per_month),
+      tone: toneOf(-1, c.delta_per_month),
+    });
+    rows.push({
+      key: "chiday",
+      label: "Chi phí toàn shop / ngày",
+      today: vnd(roundK(c.per_day_before)),
+      after: vnd(roundK(c.per_day_after)),
+      d: !num(c.cap_per_day) ? "Chưa đặt trần chi" : c.over_cap ? `Vượt trần ${vnd(c.cap_per_day)}` : `Trong trần ${vnd(c.cap_per_day)}`,
+      tone: c.over_cap ? "down" : "up",
+      bad: c.over_cap,
+    });
+  }
+  const sure = a.dprofit_month.certain;
   rows.push({
-    key: "chiday",
-    label: "Chi phí toàn shop / ngày",
-    today: vnd(roundK(c.per_day_before)),
-    after: vnd(roundK(c.per_day_after)),
-    d: !num(c.cap_per_day) ? "Chưa đặt trần chi" : c.over_cap ? `Vượt trần ${vnd(c.cap_per_day)}` : `Trong trần ${vnd(c.cap_per_day)}`,
-    tone: c.over_cap ? "down" : "up",
-    bad: c.over_cap,
+    key: "sure",
+    label: "Δ lợi nhuận / tháng · chắc chắn",
+    today: DASH,
+    after: num(sure) ? `${svk(sure)}/tháng` : `${DASH} (chưa tách được phần chắc chắn)`,
+    d: "",
+    tone: !num(sure) ? "plain" : sure >= 0 ? "up" : "down",
   });
-  rows.push({ key: "sure", label: "Δ lợi nhuận / tháng · chắc chắn", today: DASH, after: `${svk(a.dprofit_month.certain)}/tháng`, d: "", tone: a.dprofit_month.certain >= 0 ? "up" : "down" });
   const q = a.dprofit_month.total;
   rows.push({ key: "exp", label: "Δ lợi nhuận / tháng · dự kiến", today: DASH, after: `${rangeK(q.p10, q.p90)}/tháng`, d: "", tone: num(q.p10) && q.p10 >= 0 ? "up" : num(q.p90) && q.p90 <= 0 ? "down" : "plain" });
   const floorBad = !a.floor.ok;
@@ -213,7 +245,7 @@ export function planProducts(p: PlanResponse): string[] {
 /** Cards of a combo family drag the margin down and the basket up: say so. */
 export function tradeoffText(p: PlanResponse): string | null {
   const a = p.aggregate;
-  if (!a?.after || !a.five_numbers || !p.cards.some((c) => c.change_kind === "combo")) return null;
+  if (!a?.after || !a.today || !a.five_numbers || !p.cards.some((c) => c.change_kind === "combo")) return null;
   const m = a.five_numbers.margin;
   const dBien = num(m.pct_before) && num(m.pct_after) ? m.pct_after - m.pct_before : 0;
   const dAov = num(a.after.aov) && num(a.today.aov) ? a.after.aov - a.today.aov : 0;
@@ -226,7 +258,7 @@ export function withoutText(c: PlanCard): string {
   const w = c.evaluation?.without;
   if (!w) return "kế hoạch chỉ còn thẻ này, bỏ đi là kế hoạch trống";
   const d = w.delta;
-  return `lợi nhuận ${svk(num(d.dprofit_p50) ? -d.dprofit_p50 : null)}/tháng, GMV ${svk(num(d.dgmv_p50) ? -d.dgmv_p50 : null)}, chi phí ${svk(-d.cost_month)}/tháng`;
+  return `lợi nhuận ${svk(num(d.dprofit_p50) ? -d.dprofit_p50 : null)}/tháng, GMV ${svk(num(d.dgmv_p50) ? -d.dgmv_p50 : null)}, chi phí ${svk(num(d.cost_month) ? -d.cost_month : null)} (30 ngày tới)`;
 }
 
 const KOL_KINDS = new Set(["affiliate_sample", "affiliate_invite"]);
@@ -235,7 +267,7 @@ const KOL_KINDS = new Set(["affiliate_sample", "affiliate_invite"]);
 export interface KolPlanSummary {
   readonly samples: number;
   readonly invites: number;
-  readonly sampleCost: number;
+  readonly sampleCost: number | null;
   readonly profit: { readonly p10: number | null; readonly p50: number | null; readonly p90: number | null };
 }
 
@@ -243,7 +275,7 @@ export function kolSummary(p: PlanResponse): KolPlanSummary | null {
   const cards = p.cards.filter((c) => c.change_kind !== null && KOL_KINDS.has(c.change_kind));
   if (cards.length === 0) return null;
   const evs = cards.map((c) => c.evaluation).filter((e): e is PlanEvaluation => e !== null);
-  const sampleCost = evs.reduce((s, e) => s - Math.min(0, e.alone.dprofit.certain), 0);
+  const sampleCost = evs.some((e) => !num(e.alone.dprofit.certain)) ? null : evs.reduce((s, e) => s - Math.min(0, e.alone.dprofit.certain as number), 0);
   const sum = (q: "p10" | "p50" | "p90"): number | null => (evs.some((e) => !num(e.alone.dprofit[q])) ? null : evs.reduce((s, e) => s + (e.alone.dprofit[q] as number), 0));
   const p50 = sum("p50");
   const spread = (q: "p10" | "p90"): number | null => {
@@ -257,7 +289,7 @@ export function kolSummary(p: PlanResponse): KolPlanSummary | null {
 export function kolRows(k: KolPlanSummary): { readonly k: string; readonly v: string }[] {
   return [
     { k: "Số thẻ", v: `${k.samples} Gửi mẫu · ${k.invites} Mời KOL` },
-    { k: "Tổng chi phí mẫu (chắc chắn, chi một lần)", v: vnd(k.sampleCost) },
+    { k: "Tổng chi phí mẫu (chắc chắn, chi một lần)", v: k.sampleCost === null ? `${DASH} (chưa tách được phần chắc chắn)` : vnd(k.sampleCost) },
     { k: "Lợi nhuận ròng sau mẫu, dự kiến", v: `${rangeK(k.profit.p10, k.profit.p90)}/tháng` },
   ];
 }

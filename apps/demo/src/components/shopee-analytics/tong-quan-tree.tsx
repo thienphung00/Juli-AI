@@ -145,7 +145,7 @@ function FlowTable({
   const residual = rows.find((r) => r.is_residual);
   const tsp = real.find((r) => r.key === "the_san_pham_khac");
   const trang = real.find((r) => r.key === "trang_shop");
-  const gap = residual?.gmv ?? 0;
+  const gap: number | null = residual?.gmv ?? null;
   return (
     <div className="sa-flows" data-testid="sa-flows">
       <div className="sa-frow sa-frow--head" aria-hidden="true">
@@ -272,12 +272,12 @@ function FlowTable({
         <span className="sa-fcell sa-fcell--na" />
       </div>
       <p className="sa-hint" data-testid="sa-sum-check">
-        Σ năm luồng {vnd(flows.gmv_sum)} {gap >= 0 ? "+" : "−"} chênh lệch {vnd(Math.abs(gap))} = GMV shop {vnd(total)}
+        Σ năm luồng {vnd(flows.gmv_sum)} {gap === null ? "+ chênh lệch chưa rõ" : `${gap >= 0 ? "+" : "−"} chênh lệch ${vnd(Math.abs(gap))}`} = GMV shop {vnd(total)}
         {flows.adds_up === false ? " (chưa khớp)" : ""}
       </p>
       {tsp && trang ? (
         <p className="sa-hint" data-testid="sa-tsp-note">
-          Shopee tính &ldquo;Thẻ sản phẩm&rdquo; gồm cả Trang shop: tổng Shopee {vnd((tsp.gmv ?? 0) + (trang.gmv ?? 0))} = Thẻ
+          Shopee tính &ldquo;Thẻ sản phẩm&rdquo; gồm cả Trang shop: tổng Shopee {vnd(tsp.gmv != null && trang.gmv != null ? tsp.gmv + trang.gmv : null)} = Thẻ
           sản phẩm (ngoài Trang shop) {vnd(tsp.gmv)} + Trang shop {vnd(trang.gmv)}. Juli tách Trang shop ra để năm luồng cộng
           đúng bằng GMV.
         </p>
@@ -295,7 +295,7 @@ function kidCells(k: CardChild, total: N, rk: (kpi: string, src?: string, sub?: 
     ["CTOR", pc(ratio(k.orders, k.clicks)), "ctor"],
     ["AOV", vnd(ratio(k.gmv, k.orders)), "aov"],
     ["GMV", vnd(k.gmv), "gmv"],
-    ["% GMV", pp(total ? ((k.gmv ?? 0) / total) * 100 : null, 1), "gmv"],
+    ["% GMV", pp(total && k.gmv != null ? (k.gmv / total) * 100 : null, 1), "gmv"],
   ];
   return [
     ...cells.map(([label, value, kpi]) => (

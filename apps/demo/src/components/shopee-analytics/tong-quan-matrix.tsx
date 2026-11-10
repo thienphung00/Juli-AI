@@ -56,9 +56,9 @@ const ratio = (a: N, b: N): N => (typeof a === "number" && typeof b === "number"
 
 function sumFlows(rows: readonly FlowRow[]): { views: N; clicks: N } {
   const flows = rows.filter((r) => !r.is_residual);
-  const views = flows.reduce((t, r) => t + (r.views ?? 0), 0);
-  const clicks = flows.reduce((t, r) => t + (r.clicks ?? 0), 0);
-  return { views: views || null, clicks: clicks || null };
+  // One flow without its figure makes the total unknown (a partial sum would read as the whole).
+  const sum = (pick: (r: FlowRow) => N): N => (flows.length === 0 || flows.some((r) => pick(r) == null) ? null : flows.reduce((t, r) => t + (pick(r) as number), 0) || null);
+  return { views: sum((r) => r.views), clicks: sum((r) => r.clicks) };
 }
 
 export function figuresOf(p: MatrixProduct): Figures {

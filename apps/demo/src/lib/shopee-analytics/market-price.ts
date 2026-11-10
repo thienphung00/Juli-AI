@@ -145,7 +145,7 @@ export async function fetchMarketPrice(scope: MarketScope, itemId: string, q: Ma
   if (!response.ok) {
     const detail = (payload as { detail?: { code?: unknown; message?: unknown } | string } | null)?.detail;
     if (detail && typeof detail === "object") {
-      throw new ShopeeApiError(response.status, typeof detail.code === "string" ? detail.code : "", typeof detail.message === "string" ? detail.message : `HTTP ${response.status}`);
+      throw new ShopeeApiError(response.status, typeof detail.code === "string" ? detail.code : "", typeof detail.message === "string" ? detail.message : `HTTP ${response.status}`, detail as Readonly<Record<string, unknown>>);
     }
     throw new ShopeeApiError(response.status, "", typeof detail === "string" ? detail : `HTTP ${response.status}`);
   }

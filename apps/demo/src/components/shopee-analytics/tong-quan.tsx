@@ -241,14 +241,18 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
       ? p.contribution_before_ads - p.ad_spend.by_product
       : null;
   const missing = Object.entries(p.missing).filter(([, n]) => n > 0);
-  const real = cov.real_pct ?? 0;
-  const assumed = cov.assumed_pct ?? 0;
-  const unknown = cov.unknown_pct ?? 0;
+  // Bar widths may use 0 for a missing share; every printed percentage stays "—" when it is missing.
+  const realN = cov.real_pct ?? null;
+  const assumedN = cov.assumed_pct ?? null;
+  const unknownN = cov.unknown_pct ?? null;
+  const real = realN ?? 0;
+  const assumed = assumedN ?? 0;
+  const unknown = unknownN ?? 0;
   const lines: { k: string; v: string; note: string; tone?: string }[] = [
     {
       k: "Lợi nhuận các sản phẩm",
       v: partial || productProfit === null ? DASH : vnd(productProfit),
-      note: partial ? `Chưa hiện số đồng: còn ${pp(unknown, 1)} doanh thu chưa có giá vốn` : "Σ lợi nhuận từng sản phẩm",
+      note: partial ? `Chưa hiện số đồng: còn ${pp(unknownN, 1)} doanh thu chưa có giá vốn` : "Σ lợi nhuận từng sản phẩm",
     },
     {
       k: "− QC không gắn sản phẩm",
@@ -301,7 +305,7 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
           </span>
           <span className="sa-tone--warn sa-profit__note">
             {partial
-              ? `trên ${pp(real + assumed, 1)} doanh thu có giá vốn`
+              ? `trên ${pp(realN !== null && assumedN !== null ? realN + assumedN : null, 1)} doanh thu có giá vốn`
               : "trên 100% doanh thu khách trả"}
           </span>
           <span aria-hidden="true" className="sa-cov">
@@ -310,8 +314,8 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
             <span className="sa-cov__seg sa-cov__seg--unknown" style={{ width: `${unknown}%` }} />
           </span>
           <span className="sa-profit__cov" data-testid="sa-coverage">
-            Giá vốn thật: <b>{pp(real, 1)}</b> · {p.assumed_cost_label}: <b>{pp(assumed, 1)}</b> · chưa có:{" "}
-            <b>{pp(unknown, 1)}</b>
+            Giá vốn thật: <b>{pp(realN, 1)}</b> · {p.assumed_cost_label}: <b>{pp(assumedN, 1)}</b> · chưa có:{" "}
+            <b>{pp(unknownN, 1)}</b>
           </span>
           {assumed > 0 ? (
             <span className="sa-hint" data-testid="sa-assumed-label">

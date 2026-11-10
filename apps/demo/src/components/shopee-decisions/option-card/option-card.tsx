@@ -3,9 +3,10 @@
 import { useState } from "react";
 
 import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
+import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
 import type { FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TextChip } from "../../shopee-analytics/ui";
-import { countPct, moneyPct, signedMoney, signedPct } from "./format";
+import { countPct, moneyPct, signedCount, signedMoney, signedPct } from "./format";
 
 /**
  * P98 / ADR-122 d.5: the option card — only the lines of the decision, then a collapsed "Chi tiết".
@@ -30,7 +31,22 @@ export function breakEvenLine(r: OptionResult): string | null {
   return n === null || n === undefined ? null : `cần thêm ${vnCount(Math.ceil(n - 1e-6))} đơn để hoà vốn`;
 }
 
-export function OptionCard({ result: r, title, testId = "option-card" }: { readonly result: OptionResult; readonly title?: string; readonly testId?: string }) {
+export const PER_30D_LABEL = "Quy đổi 30 ngày (tham khảo)";
+
+/** The period the primary Δ and cost stand on: the version's set dates, else its first N days. */
+export function datesText(dates: VersionDates | null | undefined, r: OptionResult): string {
+  if (dates?.label) return dates.label;
+  return r.after.label || (r.days ? `${r.days} ngày đầu` : "chưa có ngày");
+}
+
+/** "Quy đổi 30 ngày (tham khảo): Lợi nhuận … · GMV … · Đơn …": secondary, never the primary figure. */
+export function per30Text(r: OptionResult): string | null {
+  const p = r.per_30d;
+  if (!p || (p.profit === null && p.gmv === null && p.orders === null)) return null;
+  return `${p.label ?? PER_30D_LABEL}: Lợi nhuận ${signedMoney(p.profit)} · GMV ${signedMoney(p.gmv)} · Đơn ${signedCount(p.orders)}`;
+}
+
+export function OptionCard({ result: r, title, testId = "option-card", dates }: { readonly result: OptionResult; readonly title?: string; readonly testId?: string; readonly dates?: VersionDates | null }) {
   const profit = profitText(r);
   const orders = r.delta.orders;
   const drivers = r.drivers_pct.map((d) => `${d.label} ${signedPct(d.pct)}`).join(" · ");
@@ -50,6 +66,10 @@ export function OptionCard({ result: r, title, testId = "option-card" }: { reado
           </span>
         ) : null}
       </header>
+      <p className="sa-hint" data-testid="oc-dates">
+        Tính cho: <b>{datesText(dates, r)}</b>
+        {dates && !dates.set ? " (chưa đặt ngày)" : ""}
+      </p>
       <dl className="p2-kv">
         <div>
           <dt>Δ Lợi nhuận</dt>
@@ -99,6 +119,11 @@ export function OptionCard({ result: r, title, testId = "option-card" }: { reado
           </div>
         )}
       </dl>
+      {per30Text(r) ? (
+        <p className="sa-hint" data-secondary="true" data-testid="oc-per30">
+          {per30Text(r)}
+        </p>
+      ) : null}
       {costNotes.map((n) => (
         <p className="sa-hint" data-testid="oc-cost-days" key={n}>
           {n}
@@ -222,6 +247,7 @@ export interface CompareRow {
   readonly id: string | number;
   readonly name?: string;
   readonly result: OptionResult;
+  readonly dates?: VersionDates | null;
 }
 
 /** One row per option: Thời gian, Δ Lợi nhuận, Δ GMV, Δ Đơn (the row's own total), sorted per 30 days. */
@@ -229,7 +255,7 @@ export function CompareTable({ rows }: { readonly rows: readonly CompareRow[] })
   const sorted = sortByProfit(rows);
   return (
     <table className="sa-table oc-compare" data-testid="oc-compare">
-      <caption className="sa-hint">Xếp theo lợi nhuận quy về 30 ngày</caption>
+      <caption className="sa-hint">Số liệu theo ngày đã đặt của từng phương án; xếp theo lợi nhuận quy đổi 30 ngày (tham khảo)</caption>
       <thead>
         <tr>
           <th>Phương án</th>
@@ -237,18 +263,20 @@ export function CompareTable({ rows }: { readonly rows: readonly CompareRow[] })
           <th>Δ Lợi nhuận</th>
           <th>Δ GMV</th>
           <th>Δ Đơn</th>
+          <th>{PER_30D_LABEL}</th>
         </tr>
       </thead>
       <tbody>
-        {sorted.map(({ id, name, result: r }) => {
+        {sorted.map(({ id, name, result: r, dates }) => {
           const p = profitText(r);
           return (
             <tr data-testid={`oc-row-${id}`} key={id}>
               <th scope="row">{name ?? r.label}</th>
-              <td>{r.after.label}</td>
+              <td>{datesText(dates, r)}</td>
               <td>{p.main}</td>
               <td>{!r.estimable ? NOT_ESTIMABLE : moneyPct(r.delta.gmv.value, r.delta.gmv.pct)}</td>
               <td>{!r.estimable ? NOT_ESTIMABLE : countPct(r.delta.orders.value, r.delta.orders.pct)}</td>
+              <td data-secondary="true">{signedMoney(r.per_30d.profit)}</td>
             </tr>
           );
         })}

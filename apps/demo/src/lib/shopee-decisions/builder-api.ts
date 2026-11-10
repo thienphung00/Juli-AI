@@ -240,8 +240,19 @@ export interface OutcomeTarget {
   readonly breaches?: readonly BuilderWarning[];
 }
 
+/** P99b: the dates the builder set for a version; its result covers exactly these days. */
+export interface VersionDates {
+  readonly from: string | null;
+  readonly to: string | null;
+  readonly days: N;
+  readonly set: boolean;
+  /** "01/12 – 10/12 (10 ngày)" or "30 ngày đầu"; null = no dates and no days. */
+  readonly label: string | null;
+}
+
 export interface BuilderOutcome {
   readonly index: number;
+  readonly dates?: VersionDates | null;
   readonly kind: string;
   readonly label: string;
   readonly ok: boolean;

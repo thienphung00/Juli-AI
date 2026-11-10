@@ -59,13 +59,14 @@ export class ShopeeApiError extends Error {
   }
 }
 
-export type ApiRefusal = "not-shopee" | "no-data" | "not-found" | "invalid" | "failed";
+export type ApiRefusal = "not-shopee" | "no-data" | "not-materialized" | "not-found" | "invalid" | "failed";
 
 /** What a refusal means to a screen (the codes of `shopee_analytics_common.refusal`). */
 export function refusalOf(error: unknown): ApiRefusal {
   if (!(error instanceof ShopeeApiError)) return "failed";
   if (error.code === "not_a_shopee_shop") return "not-shopee";
   if (error.code === "no_shopee_data") return "no-data";
+  if (error.code === "rows_not_materialized") return "not-materialized";
   if (error.code === "product_not_found" || error.status === 404) return "not-found";
   if (error.status === 422) return "invalid";
   return "failed";
@@ -92,6 +93,7 @@ function errorOf(status: number, payload: unknown): ShopeeApiError {
       const d = detail as { code?: unknown; message?: unknown };
       if (typeof d.code === "string") code = d.code;
       if (typeof d.message === "string") message = d.message;
+      return new ShopeeApiError(status, code, message, detail as Readonly<Record<string, unknown>>);
     }
   }
   return new ShopeeApiError(status, code, message);

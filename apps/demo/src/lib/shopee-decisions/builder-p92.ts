@@ -655,7 +655,7 @@ export function unitLines(o: BuilderOutcome): readonly string[] {
   const po = d.per_order;
   if (po?.profit && po.profit.p50 !== null) out.push(`Mỗi ${po.basis === "voucher_use" ? "đơn dùng voucher" : "đơn"}: ${sv(po.profit.p50)} lợi nhuận${po.cost !== null && po.cost !== 0 ? `, chi phí ${vnd(po.cost)}` : ""}`);
   const pp_ = d.period?.profit;
-  if (pp_ && pp_.p50 !== null) out.push(`Trong ${fmt(d.period?.days ?? d.days ?? 0, 0)} ngày: ${sv(pp_.p50)} (${sv(pp_.low)} – ${sv(pp_.high)})`);
+  if (pp_ && pp_.p50 !== null) out.push(`Trong ${fmt(d.period?.days ?? d.days ?? null, 0)} ngày: ${sv(pp_.p50)} (${sv(pp_.low)} – ${sv(pp_.high)})`);
   return out;
 }
 
@@ -718,7 +718,7 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
     case "voucher": {
       const value = n_(v["value"]);
       add("value", "Giảm", value === null ? null : v["discount_type"] === "pct" ? pctText(value) : vnd(value));
-      add("min", "Đơn tối thiểu", vnd(n_(v["min_spend"]) ?? 0));
+      add("min", "Đơn tối thiểu", vnd(n_(v["min_spend"])));
       const max = n_(v["max_value"]);
       if (max !== null) add("max", "Giảm tối đa", vnd(max));
       const usage = n_(v["usage_limit"]);
@@ -780,7 +780,7 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
       if (!listing) add("unit_cost", "Chi phí mỗi quà", vnd(n_(g["unit_cost"])));
       const pack = n_(g["packaging"]);
       if (pack !== null) add("packaging", "Đóng gói mỗi quà", vnd(pack));
-      if (t["type"] === "min_spend") add("trigger", "Đơn tối thiểu", vnd(n_(t["amount"]) ?? 0));
+      if (t["type"] === "min_spend") add("trigger", "Đơn tối thiểu", vnd(n_(t["amount"])));
       else add("trigger", "Mua sản phẩm", product(t["item_id"]));
       return { type: listing ? "Quà tặng · Sản phẩm trong danh sách" : "Quà tặng · Quà không bán", facts };
     }
@@ -855,7 +855,7 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
       add("commission", "Hoa hồng mới", pct === null ? null : pctText(pct));
       const many = Array.isArray(v["targets"]) ? (v["targets"] as unknown[]) : [];
       if (many.length > 0) add("targets", `Áp cho ${fmt(many.length)} sản phẩm`, many.slice(0, 3).map(product).join(", ") + (many.length > 3 ? `… +${fmt(many.length - 3)}` : ""));
-      add("samples", "Số mẫu gửi", fmt(n_(v["sample_qty"]) ?? 0));
+      add("samples", "Số mẫu gửi", fmt(n_(v["sample_qty"])));
       const fee = n_(v["sample_ship_fee"]);
       if (fee !== null) add("ship", "Phí ship mỗi mẫu", vnd(fee));
       if (v["target_campaign"] === true) add("target", "Chiến dịch mục tiêu", "có");

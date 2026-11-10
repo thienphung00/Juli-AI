@@ -384,7 +384,7 @@ function Loaded({ rankingData: r, rs, w }: { readonly rankingData: Ranking; read
               >
                 <span>{restOpen ? "▾" : "▸"}</span>
                 <span>Còn lại · {side.closing.length} dòng</span>
-                <b>{sv(side.closing.reduce((t, c) => t + (c.delta ?? 0), 0))}/ngày</b>
+                <b>{side.closing.some((c) => c.delta === null) ? `${DASH} (có dòng chưa có số)` : `${sv(side.closing.reduce((t, c) => t + (c.delta ?? 0), 0))}/ngày`}</b>
               </button>
               {restOpen ? (
                 <div className="sa-rest__list" data-testid="sa-rk-closing">

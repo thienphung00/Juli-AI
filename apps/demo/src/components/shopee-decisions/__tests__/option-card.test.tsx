@@ -48,7 +48,7 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.getByTestId("oc-drivers")).toHaveTextContent("AOV +1,7% · CTOR +1,8%");
     expect(screen.getByTestId("oc-cost")).toHaveTextContent("150.000đ Chi phí 150.000đ · hoà vốn khi thêm ≥ 5 đơn");
     expect(screen.getByTestId("oc-after")).toHaveTextContent("GMV 20.000.000đ → 22.500.000đ · Lợi nhuận 3.000.000đ → 4.234.567đ");
-    expect(screen.getByText("Sau 7 ngày")).toBeInTheDocument();
+    expect(screen.getByTestId("oc-after").previousElementSibling).toHaveTextContent("Sau 7 ngày");
     expect(screen.queryByTestId("oc-weak")).toBeNull();
     expect(screen.queryByTestId("oc-detail")).toBeNull();
     expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ Lợi nhuận", "Δ GMV", "Δ Đơn", "Tác động", "Chi phí", "Hoà vốn", "Sau 7 ngày"]);
@@ -81,7 +81,7 @@ describe("P98 W3-I · OptionCard", () => {
   it("shows the 'ước tính chung' tag only when basis_weak; uses '30 ngày đầu' for first_30_days", () => {
     const { rerender } = render(<OptionCard result={result({ basis: "prior", basis_weak: true, horizon: "first_30_days", after: { days: 30, label: "30 ngày đầu", gmv_before: 1, gmv_after: 2, profit_before: 1, profit_after: 2 } })} />);
     expect(screen.getByTestId("oc-weak")).toHaveTextContent("ước tính chung");
-    expect(screen.getByText("30 ngày đầu")).toBeInTheDocument();
+    expect(screen.getAllByText("30 ngày đầu").length).toBeGreaterThan(0);
     rerender(<OptionCard result={result()} />);
     expect(screen.queryByText("ước tính chung")).toBeNull();
   });
@@ -116,7 +116,7 @@ describe("P98 W3-I · CompareTable", () => {
     render(<CompareTable rows={rows} />);
     const body = screen.getByTestId("oc-compare").querySelector("tbody")!;
     expect(within(body).getAllByRole("row").map((r) => r.getAttribute("data-testid"))).toEqual(["oc-row-c", "oc-row-a", "oc-row-d", "oc-row-b"]);
-    expect(screen.getByText("Xếp theo lợi nhuận quy về 30 ngày")).toBeInTheDocument();
+    expect(screen.getByText(/xếp theo lợi nhuận quy đổi 30 ngày \(tham khảo\)/)).toBeInTheDocument();
   });
 
   it("each row carries its own totals in vi-VN", () => {

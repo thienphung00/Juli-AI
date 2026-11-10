@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { refusalOf } from "../../lib/shopee-analytics/client";
+import { notMaterializedLine, notMaterializedOf } from "../../lib/shopee-analytics/not-materialized";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { statusLabel } from "../../lib/shopee-decisions/model";
 import type { CardStatus } from "../../lib/shopee-decisions/types";
 import type { Resource } from "../../lib/shopee-analytics/use-resource";
-import { TextChip } from "../shopee-analytics/ui";
+import { NotMaterializedNotice, TextChip } from "../shopee-analytics/ui";
 
 /** Small pieces of the Shopee Quyết định screens (classes in `app/shopee-decisions.css`, `sa-*` from the analytics set). */
 
@@ -56,6 +57,7 @@ const COPY = {
   "no-data": { title: "Shop chưa có dữ liệu Shopee", body: "Khi có dữ liệu đầu tiên, đề xuất sẽ hiện ở đây." },
   "not-found": { title: "Không tìm thấy thẻ này", body: "Thẻ có thể đã được rút lại hoặc thay bằng thẻ mới. Quay lại danh sách để xem các thẻ hiện có." },
   invalid: { title: "Thông số không hợp lệ", body: "Kiểm tra lại giá trị vừa nhập." },
+  "not-materialized": { title: "Số liệu kỳ này chưa sẵn sàng", body: "Juli chưa dựng xong số liệu theo ngày của kỳ này nên chưa hiện con số nào. Thử lại sau ít phút." },
   failed: { title: "Chưa tải được đề xuất", body: "Đã có lỗi khi đọc đề xuất. Thử tải lại trang; nếu vẫn lỗi, báo cho đội Juli." },
 } as const;
 
@@ -69,6 +71,7 @@ export function RecoState<T>({ resource, children }: { readonly resource: Resour
     );
   }
   if (resource.status === "refused") {
+    if (resource.refusal === "not-materialized" && notMaterializedOf(resource.error)) return <NotMaterializedNotice error={resource.error} testId="sd-not-materialized" />;
     const copy = COPY[resource.refusal];
     return (
       <section className="sa-card" data-testid={`sd-refusal-${resource.refusal}`} role="alert">
@@ -82,6 +85,8 @@ export function RecoState<T>({ resource, children }: { readonly resource: Resour
 
 /** The sentence of a failed call. */
 export function errorText(error: unknown): string {
+  const nm = notMaterializedOf(error);
+  if (nm) return notMaterializedLine(nm);
   const refusal = refusalOf(error);
   const message = error instanceof Error ? error.message : "";
   if (refusal === "failed" && !message) return "Chưa lưu được. Thử lại sau ít phút.";

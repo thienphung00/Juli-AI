@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { DASH, pp, vnd, type Chip, type Tone } from "../../lib/shopee-analytics/format";
 import type { ApiRefusal } from "../../lib/shopee-analytics/client";
+import { notMaterializedOf } from "../../lib/shopee-analytics/not-materialized";
 import type { Resource } from "../../lib/shopee-analytics/use-resource";
 
 /** Small pieces every Shopee shop screen uses (classes in `app/shopee-analytics.css`). */
@@ -154,11 +155,34 @@ const REFUSAL_COPY: Record<ApiRefusal, { title: string; body: string }> = {
     title: "Kỳ xem không hợp lệ",
     body: "Chọn lại khoảng thời gian (ngày kết thúc phải sau ngày bắt đầu).",
   },
+  "not-materialized": {
+    title: "Số liệu kỳ này chưa sẵn sàng",
+    body: "Juli chưa dựng xong số liệu theo ngày của kỳ này nên chưa hiện con số nào. Thử lại sau ít phút.",
+  },
   failed: {
     title: "Chưa tải được số liệu",
     body: "Đã có lỗi khi đọc số liệu. Thử tải lại trang; nếu vẫn lỗi, báo cho đội Juli.",
   },
 };
+
+/**
+ * P99b: HTTP 409 `rows_not_materialized`. The message, the window and the missing days; no figures, and
+ * nothing cached from an earlier answer (the resource that refused holds no data).
+ */
+export function NotMaterializedNotice({ error, testId = "sa-not-materialized" }: { readonly error: unknown; readonly testId?: string }) {
+  const n = notMaterializedOf(error);
+  if (!n) return null;
+  return (
+    <section className="sa-card" data-testid={testId} role="alert">
+      <h2 className="sa-h2">Số liệu kỳ này chưa sẵn sàng</h2>
+      <p className="sa-hint" data-testid="sa-nm-message">{n.message}</p>
+      <p className="sa-hint" data-testid="sa-nm-detail">
+        {n.window ? `Kỳ ${n.window}` : "Chưa rõ kỳ"}
+        {n.missingDays !== null ? ` · thiếu số liệu ${n.missingDays} ngày${n.firstMissing ? `, từ ${n.firstMissing.slice(8, 10)}/${n.firstMissing.slice(5, 7)}` : ""}` : ""}
+      </p>
+    </section>
+  );
+}
 
 /** The state of a resource that is not ready, or `null` when it is. */
 export function ResourceState<T>({ resource, children }: { readonly resource: Resource<T>; readonly children: (data: T) => ReactNode }) {
@@ -170,6 +194,7 @@ export function ResourceState<T>({ resource, children }: { readonly resource: Re
     );
   }
   if (resource.status === "refused") {
+    if (resource.refusal === "not-materialized" && notMaterializedOf(resource.error)) return <NotMaterializedNotice error={resource.error} />;
     const copy = REFUSAL_COPY[resource.refusal];
     return (
       <section className="sa-card" data-testid={`sa-refusal-${resource.refusal}`} role="alert">

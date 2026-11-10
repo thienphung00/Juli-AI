@@ -380,3 +380,13 @@ Invariants below.
   (`plan-types.ts`, `lib/shopee-kol/types.ts`); the fixtures under `__tests__` use the same shapes.
 - **Routes** are query views of the existing pages: `?tu-tao=1&from=product|quyet-dinh&sp=<id>` and `?ke-hoach=1` on
   `/decisions` (and the Ops / view-as equivalents), `?tab=dx|kl` on the product page, `?tab=kol` on Phân tích.
+
+## P99b (owner 2026-11-10): unknown is a stated reason, never a number
+
+- Kế hoạch is the next 30 days from today, recomputed on every read: `HorizonLine`, per-card counted vs own days,
+  `cost_horizon`, "Chưa biết chi phí" + note, `totals_note`, the empty and `data_missing` states, and the Ads
+  read-back block (`plan-results.tsx`). There is no "Cập nhật số" any more.
+- Tự tạo / So sánh: the primary Δ and cost are for the version's `dates.label`; `per_30d` is only the secondary
+  "Quy đổi 30 ngày (tham khảo)".
+- HTTP 409 `rows_not_materialized` on any Shopee screen is `refusal: "not-materialized"` (`lib/shopee-analytics/not-materialized.ts`,
+  `NotMaterializedNotice`, `errorText`): message + window + missing days, no figures.

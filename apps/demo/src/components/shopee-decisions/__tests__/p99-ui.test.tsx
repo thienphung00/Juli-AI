@@ -128,7 +128,7 @@ describe("P99 Kế hoạch: before -> after per card, product blocks, cost per m
     cost_total: 360_000,
     break_even_orders: 7,
     days: 30,
-    horizon: "first_30_days",
+    result_horizon: "first_30_days",
     before: { gmv_30d: 6_000_000, orders_30d: 550, profit_30d: 1_500_000, aov: 10_909 },
     after: { gmv_30d: 6_600_000, orders_30d: 553.2, profit_30d: 1_590_000, aov: 11_930 },
     notes: ["Lợi nhuận mỗi đơn tính trên 20 ngày có dữ liệu chi phí (trong 30 ngày)"],
@@ -154,7 +154,7 @@ describe("P99 Kế hoạch: before -> after per card, product blocks, cost per m
     expect(screen.getByTestId(`kh-result-${id}`)).toHaveTextContent("GMV 30 ngày 6.000.000đ → 6.600.000đ");
     expect(screen.getByTestId("kh-result-ba")).toHaveTextContent("Đơn 30 ngày 550 → 553");
     expect(screen.getByTestId("kh-result-ba")).toHaveTextContent("Lợi nhuận 30 ngày 1.500.000đ → 1.590.000đ");
-    expect(screen.getByTestId("kh-result-cost")).toHaveTextContent("Chi phí 360.000đ/tháng · cần thêm 7 đơn để hoà vốn · Δ Đơn +3,2");
+    expect(screen.getByTestId("kh-result-cost")).toHaveTextContent("Chi phí trong 30 ngày tới 360.000đ · cần thêm 7 đơn để hoà vốn · Δ Đơn +3,2");
     expect(screen.getByTestId("kh-result-note")).toHaveTextContent("20 ngày có dữ liệu chi phí");
   });
 
@@ -163,7 +163,7 @@ describe("P99 Kế hoạch: before -> after per card, product blocks, cost per m
     render(<CardResult cardId={p.aggregate!.cards[0]!.card_id} plan={p} />);
     expect(screen.getByTestId("kh-result-ne")).toHaveTextContent("chưa ước tính được");
     expect(screen.queryByTestId("kh-result-ba")).toBeNull();
-    expect(screen.getByTestId("kh-result-cost")).toHaveTextContent("360.000đ/tháng");
+    expect(screen.getByTestId("kh-result-cost")).toHaveTextContent("360.000đ");
     expect(screen.getByTestId("kh-result-cost")).not.toHaveTextContent("+0");
   });
 

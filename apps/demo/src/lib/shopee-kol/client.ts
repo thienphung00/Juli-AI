@@ -23,6 +23,7 @@ async function get<T>(options: KolClientOptions, path: string, params: URLSearch
   if (!response.ok) {
     let code = "";
     let message = `HTTP ${response.status}`;
+    let extra: Readonly<Record<string, unknown>> | undefined;
     try {
       const detail = ((await response.json()) as { detail?: unknown }).detail;
       if (typeof detail === "string") message = detail;
@@ -30,11 +31,12 @@ async function get<T>(options: KolClientOptions, path: string, params: URLSearch
         const d = detail as { code?: unknown; message?: unknown };
         if (typeof d.code === "string") code = d.code;
         if (typeof d.message === "string") message = d.message;
+        extra = detail as Readonly<Record<string, unknown>>;
       }
     } catch {
       /* keep the generic sentence */
     }
-    throw new ShopeeApiError(response.status, code, message);
+    throw new ShopeeApiError(response.status, code, message, extra);
   }
   return (await response.json()) as T;
 }

@@ -82,7 +82,7 @@ export function SourcesTab({ id, page, state }: { readonly id: string; readonly 
           {adOn ? "Ẩn lớp Quảng cáo" : "Hiện lớp Quảng cáo (trong đó)"}
         </button>
       }
-      hint={`${page.period.window.days} ngày · ${fmt(totalOrders)} đơn`}
+      hint={`${page.period.window.days} ngày · ${fmt(n.orders)} đơn`}
       testId="sa-tab-ng"
       title="Nguồn của sản phẩm này"
     >
@@ -128,7 +128,7 @@ export function SourcesTab({ id, page, state }: { readonly id: string; readonly 
           <div className="sa-prow sa-prow--total">
             <span className="sa-hint">Tổng · bằng số đơn của sản phẩm</span>
             <b>
-              {fmt(totalOrders)} đơn · 100,0% · {vnd(n.gmv)} · {pp(n.profit?.margin_pct, 1)} biên
+              {fmt(n.orders)} đơn · 100,0% · {vnd(n.gmv)} · {pp(n.profit?.margin_pct, 1)} biên
             </b>
           </div>
           {!has5 ? (
@@ -424,7 +424,7 @@ export function CostTab({ page, sel, onPick }: { readonly page: ProductPage; rea
           {floor && pay !== null && floor.operating !== null ? (
             <div className={`sa-verdict ${floor.breach ? "sa-verdict--bad" : "sa-verdict--ok"}`} data-testid="sa-verdict">
               {floor.breach
-                ? `Khách trả ${vnd(pay)} thấp hơn giá sàn ${floor.breach === "absolute" ? "tuyệt đối" : "vận hành"} ${vnd(((floor.breach === "absolute" ? floor.absolute : floor.operating) ?? 0) - pay)}`
+                ? `Khách trả ${vnd(pay)} thấp hơn giá sàn ${floor.breach === "absolute" ? "tuyệt đối" : "vận hành"} ${vnd(((floor.breach === "absolute" ? floor.absolute : floor.operating) ?? null) === null ? null : ((floor.breach === "absolute" ? floor.absolute : floor.operating) as number) - pay)}`
                 : `Khách trả ${vnd(pay)} cao hơn giá sàn vận hành ${vnd(pay - floor.operating)} · còn đạt biên mục tiêu`}
             </div>
           ) : null}

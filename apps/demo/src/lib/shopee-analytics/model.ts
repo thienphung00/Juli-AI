@@ -135,7 +135,7 @@ export function fiveCards(f: FiveNumbers, target: N | undefined): FiveCard[] {
       key: "eff",
       label: FIVE_LABELS[1],
       value: effValue,
-      chip: !compare ? "—" : giamChi ? `Giảm chi ${vnd(-(e.extra_spend ?? 0))}` : isNum(e.per_vnd) ? `${fmt(e.per_vnd * 100, 0)}%` : "—",
+      chip: !compare ? "—" : giamChi ? `Giảm chi ${vnd(isNum(e.extra_spend) ? -e.extra_spend : null)}` : isNum(e.per_vnd) ? `${fmt(e.per_vnd * 100, 0)}%` : "—",
       tone: !compare ? "flat" : giamChi ? "up" : e.below_one ? "down" : "up",
       sub1: compare ? `ΔGMV ${sv(e.extra_revenue)} ÷ Δchi ${sv(e.extra_spend)}` : "Chưa có kỳ trước để so",
       sub2: !compare ? "" : giamChi ? "Chi giảm hoặc không đổi" : e.below_one ? "Chi thêm nhiều hơn thu thêm" : "Thu thêm nhiều hơn chi thêm",
@@ -187,7 +187,7 @@ export function fiveCards(f: FiveNumbers, target: N | undefined): FiveCard[] {
         !isNum(cap.remaining) || !isNum(cap.cap)
           ? ""
           : cap.remaining >= 0
-            ? `Còn ${vnd(cap.remaining)} (${fmt(100 - (used ?? 0), 0)}%)`
+            ? `Còn ${vnd(cap.remaining)}${used === null ? "" : ` (${fmt(100 - used, 0)}%)`}`
             : `Vượt trần ${vnd(-cap.remaining)}`,
       kpi: "gmv",
       src: "ads",

@@ -71,12 +71,16 @@ export interface PlanHead {
 
 /** The day a draft plan's numbers are on; only "Cập nhật số" moves it. */
 export interface PlanBase {
-  readonly label: string;
-  readonly version: number;
+  /** P99b: a draft is recomputed live on every read; there is no frozen base and no "Cập nhật số". */
+  readonly live?: boolean;
+  readonly label?: string;
+  readonly version?: number;
   readonly as_of: string;
+  readonly window?: unknown;
   readonly newest_day: string | null;
   readonly newer_available: boolean;
-  readonly refreshed_at: string | null;
+  readonly horizon_from?: string | null;
+  readonly refreshed_at?: string | null;
   /** Vietnamese sentence the screen shows as is. */
   readonly note: string;
 }
@@ -96,8 +100,9 @@ export interface PlanVersion {
 
 /** `dprofit` / `dgmv` of one evaluation or of the plan with and without a card. */
 export interface Brief {
-  readonly dprofit: { readonly certain: number } & Quantiles;
-  readonly dgmv: { readonly certain: number; readonly p50: N };
+  /** `certain` is null on the P99 results path ("—", never 0). */
+  readonly dprofit: { readonly certain?: N } & Quantiles;
+  readonly dgmv: { readonly certain?: N; readonly p50: N };
   readonly dorders_p50: N;
   readonly cost_month: number;
   readonly floor_ok: boolean;
@@ -117,6 +122,13 @@ export interface PlanFunnel {
   readonly label?: string;
 }
 
+/** P99b: the dates a card's effect is measured on. */
+export interface DateSpan {
+  readonly from: string;
+  readonly to: string;
+  readonly days: number;
+}
+
 /** P99: what a card contributes to the sums: its own base, Δ and cost. */
 export interface PlanCardResult {
   readonly estimable: boolean;
@@ -124,11 +136,32 @@ export interface PlanCardResult {
   readonly message: string | null;
   readonly reason: string | null;
   readonly delta: Readonly<Record<"p10" | "p50" | "p90", { readonly dgmv: N; readonly dorders: N; readonly dprofit: N }>> | null;
-  readonly cost_month: N;
+  /** Alias of `cost_horizon` (kept by the API; the screen reads `cost_horizon`). */
+  readonly cost_month?: N;
+  /** P99b: the plan's horizon ("30 ngày tới"). */
+  readonly horizon?: DateSpan | null;
+  readonly own_dates?: DateSpan | null;
+  readonly own_days?: N;
+  readonly dated?: boolean;
+  readonly counted_dates?: DateSpan | null;
+  readonly counted_days?: N;
+  readonly outside_horizon?: boolean;
+  /** Cost over the card's own dates / over the horizon; null = chưa biết chi phí. */
   readonly cost_total: N;
+  readonly cost_horizon?: N;
+  readonly cost_known?: boolean;
+  readonly cost_note?: string | null;
+  readonly partial_note?: string | null;
+  readonly own?: {
+    readonly dates?: DateSpan | null;
+    readonly days?: N;
+    readonly delta?: Readonly<Record<"p10" | "p50" | "p90", { readonly dgmv: N; readonly dorders: N; readonly dprofit: N }>> | null;
+    readonly cost_total?: N;
+  } | null;
   readonly break_even_orders: N;
   readonly days: N;
-  readonly horizon: string | null;
+  /** Renamed in P99b: "duration" | "first_30_days". */
+  readonly result_horizon?: string | null;
   readonly before: PlanFunnel | null;
   readonly after: PlanFunnel | null;
   readonly notes: readonly string[];
@@ -150,9 +183,9 @@ export interface PlanEvaluation {
   readonly in_joint_layer: boolean;
   readonly alone: Brief;
   /** What the plan gains from this card: plan minus plan-without-it. */
-  readonly contribution: { readonly dprofit_certain: number; readonly dprofit_p50: N; readonly dgmv_p50: N; readonly cost_month: number };
+  readonly contribution: { readonly dprofit_certain?: N; readonly dprofit_p50: N; readonly dgmv_p50: N; readonly cost_month: N };
   /** The plan without this card ("Bỏ thẻ này thì"); null when it is the only card. */
-  readonly without: (Brief & { readonly delta: { readonly dprofit_p50: N; readonly dgmv_p50: N; readonly cost_month: number } }) | null;
+  readonly without: (Brief & { readonly delta: { readonly dprofit_p50: N; readonly dgmv_p50: N; readonly cost_month: N } }) | null;
   readonly floor_ok: boolean;
   readonly breaches: readonly PlanBreach[];
   /** P99: the card's own base, Δ and cost (absent on an older server). */
@@ -193,6 +226,33 @@ export interface PlanCard {
   readonly n_targets?: number;
   /** Null while the plan could not evaluate the card. */
   readonly evaluation: PlanEvaluation | null;
+  /** P99b: on `ads_new_campaign` cards, what the hand-made campaign actually did. */
+  readonly ads_readback?: AdsReadback | null;
+}
+
+export interface AdsReadbackActual {
+  readonly spend: N;
+  readonly gmv: N;
+  readonly orders: N;
+  readonly roas: N;
+  readonly basis?: string | null;
+  readonly from?: string | null;
+  readonly to?: string | null;
+  readonly days_covered?: N;
+  readonly days_expected?: N;
+  readonly reasons?: Readonly<Partial<Record<"spend" | "gmv" | "orders" | "roas" | "coverage", string>>>;
+}
+
+export interface AdsReadback {
+  readonly state: "matched" | "not_found" | "ambiguous" | (string & {});
+  readonly label?: string | null;
+  readonly reason?: string | null;
+  readonly reason_text?: string | null;
+  readonly matched_by?: string | null;
+  readonly campaign?: { readonly name?: string | null; readonly segment?: string | null; readonly first_day?: string | null; readonly item_ids?: readonly string[] } | null;
+  readonly candidates?: readonly { readonly name?: string | null; readonly segment?: string | null; readonly first_day?: string | null; readonly item_ids?: readonly string[] }[];
+  readonly started_before_card?: boolean | null;
+  readonly actual?: AdsReadbackActual | null;
 }
 
 export interface WindowPreset {
@@ -248,7 +308,7 @@ export interface PlanStep {
   readonly margin_pct_after: N;
   readonly dprofit_step_p50: N;
   readonly dprofit_total_p50: N;
-  readonly dprofit_total_certain: N;
+  readonly dprofit_total_certain?: N;
   readonly dgmv_total_p50: N;
   readonly cost_month_total: N;
   readonly floor_ok: boolean;
@@ -262,7 +322,7 @@ export interface ProductSteps {
     readonly margin_pct_before: N;
     readonly margin_pct_after: N;
     readonly dprofit_p50: N;
-    readonly dprofit_certain: N;
+    readonly dprofit_certain?: N;
     readonly dgmv_p50: N;
   };
 }
@@ -270,7 +330,7 @@ export interface ProductSteps {
 export interface StepsSummary {
   readonly shop: {
     readonly dprofit_p50: N;
-    readonly dprofit_certain: N;
+    readonly dprofit_certain?: N;
     readonly margin_pct_after: N;
     readonly products: number;
   };
@@ -289,11 +349,21 @@ export interface PlanCost {
   readonly per_day_after: number;
   readonly delta_per_day: number;
   readonly per_month_after: number;
+  /** P99b: the plan's cost over the horizon (not "per month"). */
   readonly delta_per_month: number;
   readonly cap_per_day: N;
   readonly over_cap: boolean;
   readonly over_by_per_day: number;
   readonly label: string;
+  readonly horizon?: DateSpan | null;
+  readonly horizon_spend_before?: N;
+  readonly horizon_spend_delta?: N;
+  readonly horizon_spend_after?: N;
+  readonly horizon_cap?: N;
+  readonly over_by_horizon?: N;
+  readonly cost_unknown_cards?: readonly string[];
+  readonly cost_complete?: boolean;
+  readonly cost_note?: string | null;
 }
 
 export interface PlanToday {
@@ -313,18 +383,38 @@ export interface PlanAfter {
   readonly label: string;
 }
 
+/** P99b: the window has no stored daily rows: the aggregate is only this state, no figures. */
+export interface DataMissing {
+  readonly code: string;
+  readonly message: string;
+  readonly window?: { readonly from: string; readonly to: string } | null;
+  readonly missing_days?: number | readonly string[] | null;
+  readonly first_missing?: string | null;
+}
+
 /** `aggregate` of the answer; with no card it is only `as_of`, `n_cards: 0`, `today`, `cards: []`. */
 export interface PlanAggregate {
-  readonly as_of: string;
+  readonly as_of?: string;
   readonly n_cards: number;
-  readonly today: PlanToday;
-  readonly after?: PlanAfter;
-  readonly deltas_p50?: { readonly gmv: number; readonly orders: number; readonly aov: number; readonly bien: number };
+  /** P99b: "30 ngày tới: dd/mm – dd/mm". */
+  readonly horizon?: (DateSpan & { readonly label?: string }) | null;
+  readonly live?: boolean;
+  readonly data_missing?: DataMissing | null;
+  readonly empty?: boolean;
+  readonly empty_note?: string | null;
+  readonly outside_horizon_cards?: readonly string[];
+  readonly cost_unknown_cards?: readonly string[];
+  readonly totals_partial?: boolean;
+  readonly totals_note?: string | null;
+  readonly result_basis?: string | null;
+  readonly today: PlanToday | null;
+  readonly after?: PlanAfter | null;
+  readonly deltas_p50?: { readonly gmv: N; readonly orders: N; readonly aov: N; readonly bien: N } | null;
   readonly five_numbers?: FiveNumbers | null;
-  readonly dprofit_month?: { readonly certain: number; readonly predicted: Quantiles; readonly total: Quantiles };
-  readonly dgmv_month?: { readonly certain: number; readonly total: Quantiles };
+  readonly dprofit_month?: { readonly certain?: N; readonly predicted: Quantiles; readonly total: Quantiles };
+  readonly dgmv_month?: { readonly certain?: N; readonly total: Quantiles };
   readonly dorders_month?: Quantiles;
-  readonly cost?: PlanCost;
+  readonly cost?: PlanCost | null;
   readonly floor?: { readonly ok: boolean; readonly breaches: readonly PlanBreach[] };
   readonly breaches?: readonly PlanBreach[];
   readonly stacked_products?: readonly StackedProduct[];

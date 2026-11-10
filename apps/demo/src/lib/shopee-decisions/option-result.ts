@@ -56,7 +56,8 @@ export interface OptionResult {
     readonly profit_before: number | null;
     readonly profit_after: number | null;
   };
-  readonly per_30d: { readonly profit: number | null; readonly gmv: number | null; readonly orders: number | null };
+  /** P99b: the same Δ rescaled to 30 days; secondary, labelled "Quy đổi 30 ngày (tham khảo)". The primary Δ and cost are for the version's own days. */
+  readonly per_30d: { readonly profit: number | null; readonly gmv: number | null; readonly orders: number | null; readonly secondary?: boolean; readonly label?: string };
   readonly detail: {
     readonly before: FunnelColumn;
     readonly low: FunnelColumn | null;
