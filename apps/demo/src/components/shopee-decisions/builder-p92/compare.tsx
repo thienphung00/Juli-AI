@@ -376,7 +376,7 @@ export function CompareView({
       ) : null}
       {result && withResult ? (
         <div data-testid="oc-compare-block">
-          <CompareTable rows={outcomes.flatMap((o, i) => (o.ok && o.result ? [{ id: i + 1, name: `P${i + 1} · ${String(entries[i]?.version.label ?? o.result.label)}`, result: o.result, dates: o.dates }] : []))} />
+          <CompareTable rows={serverOrder(result?.compare, outcomes.flatMap((o, i) => (o.ok && o.result ? [{ id: i + 1, index: o.index, name: `P${i + 1} · ${String(entries[i]?.version.label ?? o.result.label)}`, result: o.result, dates: o.dates }] : [])))} sortBasis={result?.sort_basis?.label} />
           <div className="oc-cards">
             {entries.map((e, i) => (
               <div className="oc-cards__col" key={e.id}>
@@ -604,4 +604,14 @@ function TogetherResult({ result, planHref }: { readonly result: GroupResult; re
       ) : null}
     </div>
   );
+}
+
+/** Rows in the server's comparison order (`compare` = version indexes); without it, the order given. Never re-sorted here. */
+export function serverOrder<T extends { readonly index: number }>(order: readonly number[] | undefined, rows: readonly T[]): T[] {
+  if (!order || order.length === 0) return [...rows];
+  const pos = (r: T) => {
+    const p = order.indexOf(r.index);
+    return p < 0 ? order.length : p;
+  };
+  return rows.map((r, i) => ({ r, i })).sort((a, b) => pos(a.r) - pos(b.r) || a.i - b.i).map((x) => x.r);
 }

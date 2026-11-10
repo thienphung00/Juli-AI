@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
 import type { FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
-import { CompareTable, OptionCard, sortByProfit } from "../option-card";
+import { CompareTable, OptionCard } from "../option-card";
 import { SOURCE_LABELS } from "../option-card/option-card";
 import { OutcomeBody } from "../builder-p92/results";
 
@@ -111,12 +111,11 @@ describe("P98 W3-I · CompareTable", () => {
     { id: "d", result: result({ label: "D", per_30d: { profit: -50, gmv: 1, orders: 1 } }) },
   ];
 
-  it("sorts by per_30d.profit, nulls last", () => {
-    expect(sortByProfit(rows).map((r) => r.id)).toEqual(["c", "a", "d", "b"]);
-    render(<CompareTable rows={rows} />);
+  it("keeps the server's order (never re-sorts by per_30d) and captions the server's sort basis", () => {
+    render(<CompareTable rows={rows} sortBasis="Δ lợi nhuận mỗi ngày trong các ngày đã đặt" />);
     const body = screen.getByTestId("oc-compare").querySelector("tbody")!;
-    expect(within(body).getAllByRole("row").map((r) => r.getAttribute("data-testid"))).toEqual(["oc-row-c", "oc-row-a", "oc-row-d", "oc-row-b"]);
-    expect(screen.getByText(/xếp theo lợi nhuận quy đổi 30 ngày \(tham khảo\)/)).toBeInTheDocument();
+    expect(within(body).getAllByRole("row").map((r) => r.getAttribute("data-testid"))).toEqual(["oc-row-a", "oc-row-b", "oc-row-c", "oc-row-d"]);
+    expect(screen.getByTestId("oc-sort-basis")).toHaveTextContent("Xếp theo: Δ lợi nhuận mỗi ngày trong các ngày đã đặt");
   });
 
   it("each row carries its own totals in vi-VN", () => {

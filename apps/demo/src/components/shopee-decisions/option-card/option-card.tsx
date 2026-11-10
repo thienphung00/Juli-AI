@@ -228,21 +228,6 @@ export function OptionDetail({ result: r }: { readonly result: OptionResult }) {
   );
 }
 
-/** Rows sorted by `per_30d.profit` descending, null last (stable). */
-export function sortByProfit<T extends { readonly result: OptionResult }>(rows: readonly T[]): T[] {
-  return rows
-    .map((row, i) => ({ row, i }))
-    .sort((x, y) => {
-      const a = x.row.result.per_30d.profit;
-      const b = y.row.result.per_30d.profit;
-      if (a === null && b === null) return x.i - y.i;
-      if (a === null) return 1;
-      if (b === null) return -1;
-      return b - a || x.i - y.i;
-    })
-    .map((x) => x.row);
-}
-
 export interface CompareRow {
   readonly id: string | number;
   readonly name?: string;
@@ -251,11 +236,12 @@ export interface CompareRow {
 }
 
 /** One row per option: Thời gian, Δ Lợi nhuận, Δ GMV, Δ Đơn (the row's own total), sorted per 30 days. */
-export function CompareTable({ rows }: { readonly rows: readonly CompareRow[] }) {
-  const sorted = sortByProfit(rows);
+/** P99c: rows come in the server's order (`compare`); the table never re-sorts them. */
+export function CompareTable({ rows, sortBasis }: { readonly rows: readonly CompareRow[]; readonly sortBasis?: string | null }) {
+  const sorted = rows;
   return (
     <table className="sa-table oc-compare" data-testid="oc-compare">
-      <caption className="sa-hint">Số liệu theo ngày đã đặt của từng phương án; xếp theo lợi nhuận quy đổi 30 ngày (tham khảo)</caption>
+      <caption className="sa-hint" data-testid="oc-sort-basis">{sortBasis ? `Xếp theo: ${sortBasis}` : "Thứ tự do máy chủ xếp"}</caption>
       <thead>
         <tr>
           <th>Phương án</th>

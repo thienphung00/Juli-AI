@@ -11,6 +11,10 @@ import type { AdsReadback, PlanAggregate, PlanCardResult, PlanResponse } from ".
 import { TongQuanView } from "../../shopee-analytics/tong-quan";
 import { renderWith } from "../../shopee-analytics/__tests__/harness";
 import { CompareTable, OptionCard } from "../option-card";
+import { serverOrder } from "../builder-p92/compare";
+import { costText } from "../builder-p92/results";
+import { breakEvenText } from "../../../lib/shopee-decisions/builder-p92";
+import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
 import { DecisionsView } from "../decisions-view";
 import { AdsReadbackBlock, CardResult } from "../plan-results";
 import { params, renderReco } from "./harness";
@@ -269,5 +273,27 @@ describe("P99b 409 rows_not_materialized", () => {
     renderReco(<DecisionsView params={params("ke-hoach=1")} />, fakeReco(), { plan: { api } });
     expect(await screen.findByTestId("sd-refusal-failed")).toBeInTheDocument();
     expect(screen.queryByTestId("kh-agg")).toBeNull();
+  });
+});
+
+describe("P99c cost and break-even on the version's days", () => {
+  const out = (over: Partial<BuilderOutcome>): BuilderOutcome => ({ index: 0, kind: "voucher", label: "V", ok: true, ...over });
+  it("a figure replaced from the result keeps the server's label (trong N ngày)", () => {
+    const o = out({ cost: { amount: 80_000, period_days: 10, source: "result", label: "Chi phí trong 10 ngày", per_unit: 5000 } });
+    expect(costText(o)).toBe("80.000đ");
+  });
+  it("a null cost shows reason_text, never 0đ", () => {
+    const o = out({ cost: { amount: null, period_days: 10, source: null, reason: "no_result_for_days", reason_text: "Chưa có kết quả cho 10 ngày đã đặt." } });
+    expect(costText(o)).toBe("Chưa có kết quả cho 10 ngày đã đặt.");
+  });
+  it("a null break-even shows its reason, not 0 or a 30-day figure", () => {
+    const o = out({ break_even: { applies: true, source: "none", extra_orders: null, period_days: 10, reason: "no_result_for_days", reason_text: "Chưa có kết quả cho 10 ngày đã đặt." } });
+    expect(breakEvenText(o)).toBe("Chưa có kết quả cho 10 ngày đã đặt.");
+    expect(breakEvenText(out({ break_even: { applies: true, source: "result", extra_orders: 7.2, period_days: 10 } }))).toContain("cần thêm ≥ 8 đơn");
+  });
+  it("serverOrder follows compare, and the table shows sort_basis as caption", () => {
+    const rows = [{ index: 0, id: "a" }, { index: 1, id: "b" }, { index: 2, id: "c" }];
+    expect(serverOrder([2, 0, 1], rows).map((r) => r.id)).toEqual(["c", "a", "b"]);
+    expect(serverOrder(undefined, rows).map((r) => r.id)).toEqual(["a", "b", "c"]);
   });
 });

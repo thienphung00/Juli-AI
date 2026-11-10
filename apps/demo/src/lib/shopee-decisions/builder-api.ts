@@ -293,7 +293,12 @@ export interface BuilderOutcome {
   readonly cost_known?: boolean;
   readonly cost?: {
     readonly amount: N;
+    /** P99c: always the version's own days. */
     readonly period_days?: N;
+    /** P99c: where the figure comes from; `reason` / `reason_text` say why it is null. */
+    readonly source?: "money_layer" | "result" | null;
+    readonly reason?: string | null;
+    readonly reason_text?: string | null;
     readonly per_unit?: N;
     readonly label?: string | null;
     readonly low?: N;
@@ -310,6 +315,8 @@ export interface BuilderOutcome {
     readonly aov_now?: N;
     readonly aov_needed?: N;
     readonly extra_orders: N;
+    /** P99c: the version's own days; `source` "none" = no figure (reason e.g. `no_result_for_days`). */
+    readonly source?: "money_layer" | "result" | "none" | null;
     readonly period_days?: N;
     readonly ctor_now?: N;
     readonly ctor_needed?: N;
@@ -364,6 +371,15 @@ export interface BuilderEvaluation {
   readonly today: BuilderToday;
   readonly table: { readonly rows: readonly TableRowBand[] };
   readonly versions: readonly BuilderOutcome[];
+  /** P99c: version indexes in So sánh's order (Δ lợi nhuận per day of the set dates, unknown last). */
+  readonly compare?: readonly number[];
+  readonly sort_basis?: SortBasis;
+}
+
+export interface SortBasis {
+  readonly key: string;
+  readonly label: string;
+  readonly detail?: string | null;
 }
 
 export interface BuilderBreach {

@@ -32,8 +32,10 @@ export function BasisChip({ outcome }: { readonly outcome: BuilderOutcome }) {
 
 export function costText(o: BuilderOutcome): string {
   const c = o.cost;
+  // P99c: a null figure says why (reason_text) — never 0đ and never a 30-day number.
+  if (c && c.amount === null && c.reason_text) return c.reason_text;
   if (!c || c.amount === null) return o.kind === "variation_set" || o.cost_known === false ? DASH : "0đ";
-  const per = c.per_unit && c.expected_units ? ` (${c.expected_units} × ${vnd(c.per_unit)})` : "";
+  const per = c.source !== "result" && c.per_unit && c.expected_units ? ` (${c.expected_units} × ${vnd(c.per_unit)})` : "";
   return `${vnd(c.amount)}${per}`;
 }
 
