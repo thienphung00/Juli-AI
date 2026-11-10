@@ -56,6 +56,7 @@ from juli_backend.models.shopee_plans import (
 from juli_backend.services.card_events import keys
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
+from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     codes,
@@ -267,6 +268,22 @@ async def _aggregate(
     )
 
 
+def missing_aggregate(exc: RowsNotMaterialized, today: date, n_cards: int) -> dict[str, Any]:
+    """The draft plan's aggregate while its window has data days without stored daily rows: the
+    state and the horizon, no figure (P99b)."""
+    return {
+        "data_missing": exc.json(),
+        "horizon": {"from": today.isoformat(), "days": 30},
+        "n_cards": n_cards,
+        "today": None,
+        "after": None,
+        "cost": None,
+        "cards": [],
+        "products": [],
+        "result_basis": None,
+    }
+
+
 def ads_readback_of(meta: Mapping[str, Any]) -> dict[str, Any]:
     """The Ads card's read-back as the read-back lane stored it (``card_meta["ads_readback"]``),
     passed through; missing = ``not_found`` / ``not_read_yet`` (never zeros)."""
@@ -371,8 +388,18 @@ async def get_plan(
     agg: dict[str, Any]
     group_aggs: dict[uuid.UUID, dict[str, Any] | None] = {}
     base_block: dict[str, Any] | None = None
+    missing: RowsNotMaterialized | None = None
     if plan.status == PLAN_DRAFT:
-        env = await _env_for(session, shop_id, plan, now)
+        try:
+            env = await _env_for(session, shop_id, plan, now)
+        except RowsNotMaterialized as exc:  # P99b: the plan shows the state, never numbers
+            env, missing = None, exc
+    if missing is not None:
+        agg = missing_aggregate(missing, today, len(rows))
+        for g in group_rows:
+            group_aggs[g.id] = None
+        cut = []
+    elif plan.status == PLAN_DRAFT:
         if env is None:
             raise ProposalError(service.ERROR_NO_DATA, 409, "shop has no Shopee numbers")
         base_block = plan_base.live_block(env, today)

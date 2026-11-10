@@ -128,10 +128,16 @@ def _base_total(base: FunnelBase, name: str) -> Decimal | None:
 def profit_per_order(base: FunnelBase) -> Decimal | None:
     """Profit ÷ the orders of the days whose profit is known (P99: ``profit_orders``; the funnel
     sums profit over the days with costs, so a day without giá vốn no longer makes it unknown).
-    Before the metrics side carries ``profit_orders`` it is ÷ every order."""
+    A base built from the stored rows (it counts its days) with no order on a day with costs has
+    no profit per order (``None``); only a base that carries no day counts at all divides by
+    every order."""
     profit = base.total("profit")
     orders = _base_total(base, "profit_orders")
-    if not orders:  # not carried (a hand-built base: 0) -> every order
+    if not orders and _days_total(base, "days"):
+        # P99b: the base carries its days, so 0 orders on days with costs means the profit per
+        # order is unknown -- never silently every order of the window
+        return None
+    if not orders:  # a base that does not carry the metrics side's totals at all
         orders = base.total("orders")
     if orders is None or profit is None or orders <= 0:
         return None

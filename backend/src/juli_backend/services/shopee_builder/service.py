@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -64,15 +64,17 @@ class NoShopeeData(LookupError):
 
 
 async def load_view90(
-    session: AsyncSession, shop_id: uuid.UUID, as_of: date | None
+    session: AsyncSession, shop_id: uuid.UUID, as_of: date | None, *, rows: str = "raw"
 ) -> tuple[ShopContext, PeriodView, date]:
+    """The 90-day view (order lines for the price response, co-purchase); ``rows="require"``
+    where its shop numbers are shown (the picker, P99b)."""
     anchor = as_of or await loaders.default_as_of(session, shop_id)
     if anchor is None:
         raise NoShopeeData(str(shop_id))
     ctx = await loaders.load_context(session, shop_id)
     ctx = replace(ctx, rules=ctx.rules.for_month(f"{anchor:%Y-%m}"))
     window = Window(anchor - timedelta(days=HISTORY_DAYS_90 - 1), anchor)
-    view = await service.load_view(session, shop_id, ctx, window)
+    view = await service.load_view(session, shop_id, ctx, window, rows=rows)
     return ctx, view, anchor
 
 
@@ -104,9 +106,14 @@ async def products(
     limit: int = catalogue.DEFAULT_LIMIT,
     offset: int = 0,
 ) -> dict[str, Any]:
-    ctx, view, anchor = await load_view90(session, shop_id, as_of)
+    # P99b: the picker shows these windows' numbers: no stored rows -> the missing-rows state
+    ctx, view, anchor = await load_view90(session, shop_id, as_of, rows="require")
     view30 = await service.load_view(
-        session, shop_id, ctx, Window(anchor - timedelta(days=catalogue.RECENT_DAYS - 1), anchor)
+        session,
+        shop_id,
+        ctx,
+        Window(anchor - timedelta(days=catalogue.RECENT_DAYS - 1), anchor),
+        rows="require",
     )
     prev_end = anchor - timedelta(days=catalogue.RECENT_DAYS)
     prev30 = await service.load_view(
@@ -114,6 +121,7 @@ async def products(
         shop_id,
         ctx,
         Window(prev_end - timedelta(days=catalogue.RECENT_DAYS - 1), prev_end),
+        rows="soft",
     )
     waiting = await _items_with_proposals(session, shop_id)
     return catalogue.picker(
@@ -391,6 +399,27 @@ def evaluate_version(
     return out, tr
 
 
+def version_dates(spec: sp.VersionSpec, result: Mapping[str, Any] | None) -> dict[str, Any]:
+    """P99b: the dates the builder set for this version -- its result covers exactly these days
+    (``result.days``); a version without dates covers the first 30 days from its start."""
+    start, end = getattr(spec, "start", None), getattr(spec, "end", None)
+    days = None if result is None else result.get("days")
+    if isinstance(start, date) and isinstance(end, date):
+        days = (end - start).days + 1
+        label = f"{start:%d/%m} – {end:%d/%m} ({days} ngày)"
+    elif days:
+        label = f"{days} ngày đầu"
+    else:
+        label = None
+    return {
+        "from": start.isoformat() if isinstance(start, date) else None,
+        "to": end.isoformat() if isinstance(end, date) else None,
+        "days": days,
+        "set": isinstance(start, date) and isinstance(end, date),
+        "label": label,
+    }
+
+
 def hidden_refusal() -> dict[str, str]:
     """ADR-122 d.10: Ads edits of running campaigns are hidden from the builder."""
     return {"code": integrate.HIDDEN_CODE, "message": integrate.HIDDEN_TEXT}
@@ -428,6 +457,7 @@ def _evaluate_version_card(
     )
     # P99 like with like: the version's own "hôm nay" = the base its result was computed on
     shaped["today"] = integrate.scope_today(ctx.env, ev.base)
+    shaped["dates"] = version_dates(spec, shaped.get("result"))
     if tr.multi is not None:
         _add_targets(shaped, ctx, tr, card, now)
         results = {t: e for t, e in per_target}

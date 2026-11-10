@@ -78,7 +78,10 @@ async def _views(
     ctx = await loaders.load_context(session, shop_id)
     ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
     now = await service.load_view(session, shop_id, ctx, window, funnel=True)
-    before = await service.load_view(session, shop_id, ctx, window.previous(), funnel=True)
+    # P99b: the comparison window never errors the screen; without stored rows it is withheld
+    before = await service.load_view(
+        session, shop_id, ctx, window.previous(), funnel=True, rows="soft"
+    )
     return ctx, now, before
 
 
@@ -255,7 +258,9 @@ async def product_page(
         assert isinstance(window, Window)
         views[key] = (
             await service.load_view(session, shop_id, ctx, window, funnel=True),
-            await service.load_view(session, shop_id, ctx, window.previous(), funnel=True),
+            await service.load_view(
+                session, shop_id, ctx, window.previous(), funnel=True, rows="soft"
+            ),
         )
     known = (
         item_id in ctx.catalog.items

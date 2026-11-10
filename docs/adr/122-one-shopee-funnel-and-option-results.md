@@ -207,6 +207,31 @@ Found by the cross-screen check of the P98 deploy; the decisions above stand, th
   of the days with costs and says "trên N ngày có dữ liệu chi phí" when some days have none.
 - **d.5:** a voucher without dates is evaluated, saved and planned on the same 30-day horizon.
 
+## P99b amendment (2026-11-10, owner)
+
+- **Kế hoạch = the next 30 days from today.** A draft plan is recomputed live on the newest anchor
+  (no frozen base / ``as_of``; "Cập nhật số" is no longer needed). The horizon is today .. +29 in the
+  shop's calendar (``aggregate.horizon``). Each card counts its own-dates Δ and cost **only on its
+  own days inside the horizon** (Δ per own day × counted days; never ×30/days); a change without
+  dates starts with the plan (a group's first day); a card wholly outside counts 0 and says so
+  (``outside_horizon``). Plan total = baseline 30 days + Σ counted Δ; cards on one product still add
+  (d.2: each result stands on the same base with its own drivers; the base is counted once per
+  scope). The spend cap compares the horizon's spend (spend/day × 30 + the cards' counted cost).
+- **Tự tạo uses the set dates (d.5):** a version's ``delta`` / ``cost`` cover exactly its own days
+  (``dates``); ``per_30d`` is secondary, labelled "Quy đổi 30 ngày (tham khảo)" (still the sort key
+  of So sánh). The plan card repeats the version's own figures as ``result.own``.
+- **No stored daily rows = a state, not numbers (d.2/d.3):** a screen's window (Tổng quan, Sản
+  phẩm, xếp hạng, Luồng, the builder base and picker, Kế hoạch) with a data day lacking its stored
+  row raises ``stored.RowsNotMaterialized`` -> 409 ``rows_not_materialized`` "Chưa có số liệu theo
+  ngày cho khoảng này — đang tính lại"; the raw-table path (the old unspread period split) only
+  feeds the metrics rebuild. A window whose data days all have rows reads the rows even when some
+  are not ``complete``. A comparison window without rows is withheld (not comparable).
+- **Unknown is null with a reason:** a plan card without a result has an unknown cost
+  (``cost_unknown_cards``), never the money layer's; the money layer's "certain" figures are null on
+  the option-result path; profit per order is unknown when the base counts its days and none with
+  costs had an order (no silent ÷ every order); the plan's Δ biên / AOV stay null when the profit /
+  đơn are unknown; ``totals_partial`` / ``totals_note`` name what the totals leave out.
+
 ## Consequences
 
 - **Live numbers change.** Options whose driver sits above đơn now move đơn (a minimum-spend voucher

@@ -12,21 +12,51 @@ from __future__ import annotations
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.models.shopee_metrics import (
     RESIDUAL_ITEM,
     ShopeeProductMetricsDaily,
     ShopeeShopMetricsDaily,
 )
+from juli_backend.models.shopee_profit import ShopeeOrderLine
 from juli_backend.services.shopee_analytics.windows import Window
 
 ORDER_TYPE = "confirmed"
 ZERO = Decimal(0)
+#: the daily Shopee datasets a day's row is built from (``materialize.DAILY_DATASETS``)
+DAILY_DATASETS = ("shop_overview", "traffic_overview", "shop_traffic")
+ROWS_MISSING_CODE = "rows_not_materialized"
+ROWS_MISSING_TEXT = "Chưa có số liệu theo ngày cho khoảng này — đang tính lại."
+
+
+class RowsNotMaterialized(Exception):
+    """P99b (owner 2026-11-10): a window some of whose data days have no stored daily row. The
+    screens show this state instead of numbers -- the raw-table path for a multi-day window is
+    the old unspread period split and is never shown."""
+
+    code = ROWS_MISSING_CODE
+    message = ROWS_MISSING_TEXT
+
+    def __init__(self, window: Window, missing: list[date]) -> None:
+        super().__init__(f"{ROWS_MISSING_CODE}: {window.start}..{window.end}")
+        self.window = window
+        self.missing = missing
+
+    def json(self) -> dict[str, Any]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            "window": {"from": self.window.start.isoformat(), "to": self.window.end.isoformat()},
+            "missing_days": len(self.missing),
+            "first_missing": self.missing[0].isoformat() if self.missing else None,
+        }
 
 
 def _sum(values: list[Decimal | None]) -> Decimal | None:
@@ -74,9 +104,16 @@ class StoredWindow:
     residual_gmv: Decimal = ZERO
     sources: dict[str, str] = field(default_factory=dict)
 
+    #: the days of the window that have a stored row (complete or not)
+    days: frozenset[date] = frozenset()
+
     @property
     def usable(self) -> bool:
         return self.days_complete == self.window.days and self.gmv is not None
+
+    def missing(self, data_days: frozenset[date]) -> list[date]:
+        """The window's data days (order lines or daily Shopee rows) with no stored row."""
+        return sorted(d for d in data_days if d not in self.days)
 
 
 async def load_stored(
@@ -159,7 +196,38 @@ async def load_stored(
         products=products,
         residual_gmv=residual,
         sources=sources,
+        days=frozenset(r.day for r in rows),
     )
+
+
+async def data_days_in(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window
+) -> frozenset[date]:
+    """The days of ``window`` the shop has order lines or daily Shopee rows for -- the days the
+    metrics rebuild writes a stored row for (``materialize.data_days``)."""
+    start = datetime.combine(window.start, time.min)
+    end = datetime.combine(window.end + timedelta(days=1), time.min)
+    lines = await session.execute(
+        select(ShopeeOrderLine.ordered_at).where(
+            ShopeeOrderLine.shop_id == shop_id,
+            ShopeeOrderLine.ordered_at >= start,
+            ShopeeOrderLine.ordered_at < end,
+        )
+    )
+    out = {v.date() for v in lines.scalars().all() if v is not None}
+    daily = await session.execute(
+        select(PlatformDailyMetric.day)
+        .where(
+            PlatformDailyMetric.shop_id == shop_id,
+            PlatformDailyMetric.platform == "shopee",
+            PlatformDailyMetric.dataset.in_(DAILY_DATASETS),
+            PlatformDailyMetric.day >= window.start,
+            PlatformDailyMetric.day <= window.end,
+        )
+        .distinct()
+    )
+    out.update(daily.scalars().all())
+    return frozenset(out)
 
 
 async def last_complete_day(session: AsyncSession, shop_id: uuid.UUID) -> date | None:

@@ -12,9 +12,15 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import HTTPException, Query, status
+from fastapi import FastAPI, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 
-from juli_backend.services.shopee_analytics import InvalidWindow, NoShopeeData, ProductNotFound
+from juli_backend.services.shopee_analytics import (
+    InvalidWindow,
+    NoShopeeData,
+    ProductNotFound,
+    RowsNotMaterialized,
+)
 
 PeriodQ = Annotated[
     str, Query(pattern="^(7d|30d|90d|month|custom)$", description="7d | 30d | 90d | month | custom")
@@ -26,6 +32,9 @@ DateQ = Annotated[date | None, Query()]
 
 
 def refusal(exc: Exception) -> HTTPException:
+    if isinstance(exc, RowsNotMaterialized):
+        # P99b: a window without stored daily rows shows this state, never numbers
+        return HTTPException(status.HTTP_409_CONFLICT, detail=exc.json())
     if isinstance(exc, NoShopeeData):
         return HTTPException(
             status.HTTP_409_CONFLICT,
@@ -46,7 +55,19 @@ def refusal(exc: Exception) -> HTTPException:
     )
 
 
-REFUSALS = (NoShopeeData, ProductNotFound, InvalidWindow, ValueError)
+async def rows_missing_response(request: Request, exc: Exception) -> JSONResponse:
+    """P99b: any Shopee screen (Tổng quan, Sản phẩm, xếp hạng, Luồng, Tự tạo, Kế hoạch) whose
+    window has data days without stored daily rows answers 409 ``rows_not_materialized`` with the
+    Vietnamese message -- never figures from the raw tables."""
+    body = exc.json() if isinstance(exc, RowsNotMaterialized) else {"code": "rows_not_materialized"}
+    return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": body})
+
+
+def install_rows_missing_handler(app: FastAPI) -> None:
+    app.add_exception_handler(RowsNotMaterialized, rows_missing_response)
+
+
+REFUSALS = (RowsNotMaterialized, NoShopeeData, ProductNotFound, InvalidWindow, ValueError)
 
 
 def window_args(

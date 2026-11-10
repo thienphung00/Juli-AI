@@ -500,9 +500,8 @@ async def test_the_plan_carries_a_tiers_combo_as_its_own_layer(session, shop):
     # P98 W4-B / ADR-122 d.2: the plan reads the option result the builder showed (per 30 days)
     per30 = saved["outcome"]["result"]["per_30d"]
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
-    assert agg["dprofit_month"]["certain"] == pytest.approx(
-        saved["card"]["predicted"]["money_per_month"]["certain"]["dprofit"]
-    )
+    # P99b: no money-layer certain figure beside the option results
+    assert agg["dprofit_month"]["certain"] is None
 
 
 # ==================== listing combo

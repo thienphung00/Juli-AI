@@ -85,6 +85,12 @@ class PeriodData:
     #: the window's stored funnel rows (P98 / ADR-122 d.2, ``funnel.FunnelRows``); None = not
     #: loaded (the rebuild path and callers that do not show Lượt xem / CTR / CTOR)
     funnel: Any = None
+    #: P99b: how a window without stored daily rows is treated -- "require" (a screen's window:
+    #: :class:`stored.RowsNotMaterialized`), "soft" (a comparison window: the raw tables, but it
+    #: is not comparable), "raw" (the metrics rebuild and direct callers: the raw tables)
+    rows_policy: str = "raw"
+    #: the window's data days (``stored.data_days_in``); None = not loaded
+    data_days: frozenset[Any] | None = None
 
 
 @dataclass
@@ -347,7 +353,21 @@ class PeriodView:
     def comparable_as_previous(self) -> bool:
         """This (previous) window has enough order lines to compare a period against: the export
         spans it and at least half of its days have orders. Otherwise every delta is withheld."""
+        if self.rows_missing:  # P99b: no stored daily rows -> never compared against
+            return False
         return self.line_orders > 0 and self.data.lines.usable_as_previous
+
+    @property
+    def rows_missing(self) -> bool:
+        """P99b: some data day of this window has no stored daily row (the raw tables would be
+        the old unspread period split)."""
+        d = self.data
+        if d.data_days is None or d.rows_policy == "raw":
+            return False
+        if d.stored is not None and d.stored.usable:
+            return False
+        stored_days = frozenset() if d.stored is None else d.stored.days
+        return any(day not in stored_days for day in d.data_days)
 
 
 def _active_items(ctx: ShopContext) -> dict[str, str]:

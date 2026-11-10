@@ -10,6 +10,7 @@ from juli_backend.api.middleware import (
     RunsListInvalidationMiddleware,
     install_error_boundary,
 )
+from juli_backend.api.routes import shopee_analytics_common
 from juli_backend.api.routes.action_cards import router as action_cards_router
 from juli_backend.api.routes.agent_runs import router as agent_runs_router
 from juli_backend.api.routes.auth_tiktok import router as auth_tiktok_router
@@ -230,6 +231,8 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     # outermost-last) and therefore sees the request before any route or handler runs.
     app.add_middleware(CorrelationIdMiddleware)
     install_error_boundary(app)
+    # P99b: a Shopee window without stored daily rows is a 409 state, not a 500
+    shopee_analytics_common.install_rows_missing_handler(app)
     warm_route_state(app)
 
     return app

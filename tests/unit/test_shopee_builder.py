@@ -1170,6 +1170,8 @@ async def test_the_loader_derives_a_products_own_response_from_90_days_of_orders
             )
         )  # fmt: skip
     await session.commit()
+    await materialize.backfill_shop(session, shop.shop_id)  # P99b: the ingest hook's rows
+    await session.commit()
     spec = S(
         kind="product_discount", item_id="1001",
         variations=[{"variation_id": "", "discount_pct": 30}],

@@ -15,6 +15,7 @@ from juli_backend.services.shopee_builder.engine.vn import DRIVER_LABELS, count,
 
 AOV_ONLY_NOTE = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
 NOT_ESTIMABLE_NOTE = "Chưa ước tính được."
+PER_30D_LABEL = "Quy đổi 30 ngày (tham khảo)"
 
 
 def _f(x: Decimal | None) -> float | None:
@@ -158,10 +159,14 @@ def result_json(r: OptionResult) -> dict[str, Any]:
             "profit_before": _f(r.before.profit),
             "profit_after": None if r.likely is None else _f(r.likely.profit),
         },
+        # P99b: secondary only -- the primary Δ / cost (``delta`` / ``cost``) is for the version's
+        # own days; this is the same Δ rescaled to 30 days (the comparison's sort key)
         "per_30d": {
             "profit": per30(d_profit),
             "gmv": per30(d_gmv),
             "orders": round_count(per30(d_orders)),
+            "secondary": True,
+            "label": PER_30D_LABEL,
         },
         "detail": {
             "before": _column(r.before),

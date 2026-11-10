@@ -46,10 +46,11 @@ async def test_v2_a_thin_previous_period_withholds_every_delta(session, seeded):
     assert "kỳ trước chưa đủ dữ liệu" in body["warnings"][-1]["message"].lower()
 
 
-async def test_v3_the_window_ends_on_the_last_day_every_live_dataset_posted(session, seeded):
+async def test_v3_the_window_ends_on_the_last_day_every_live_dataset_posted(session):
     """D85.2 (replaces V3's "newest Connector day"): the shared anchor is the last COMPLETE day.
     A dataset a day or two behind holds the window back and is named; one more than three days
-    behind is a stale upload and no longer counts."""
+    behind is a stale upload and no longer counts. (The raw datasets' rule: no stored rows.)"""
+    seeded = await seed_shopee_shop(session, materialized=False)
     assert await loaders.default_as_of(session, seeded.shop_id) == CUR_END
     later = CUR_END + timedelta(days=2)
     session.add(_daily(seeded.shop_id, later, "total", "all", orders=1, gmv=1))

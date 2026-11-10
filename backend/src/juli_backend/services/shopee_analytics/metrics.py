@@ -384,9 +384,30 @@ def from_stored(view: PeriodView, stored: StoredWindow) -> ShopMetrics:
 
 def metrics_of(view: PeriodView) -> ShopMetrics:
     """What ``view.metrics`` returns: the stored daily rows when every day of the window is
-    complete, else the window computed from the raw tables."""
+    complete, or (P99b, a screen's window) when every data day of it has a stored row. A screen's
+    window with a data day missing its row raises :class:`stored.RowsNotMaterialized` (the state
+    the screen shows instead of numbers); the raw tables only for the rebuild / direct callers."""
     stored = view.data.stored
-    base = from_stored(view, stored) if stored is not None and stored.usable else shop_metrics(view)
+    data = view.data
+    if stored is not None and stored.usable:
+        base = from_stored(view, stored)
+    elif data.rows_policy != "raw" and data.data_days is not None and not view.rows_missing:
+        # P99b: every data day of the window has its stored row (complete or not): the rows are
+        # the spread daily math, so they are the window -- never the raw unspread split
+        base = (
+            from_stored(view, stored)
+            if stored is not None and stored.gmv is not None
+            else shop_metrics(view)  # no data day at all in the window: nothing to spread
+        )
+    elif data.rows_policy == "require" and view.rows_missing:
+        from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
+
+        held = frozenset() if stored is None else stored.days
+        raise RowsNotMaterialized(
+            data.window, sorted(d for d in (data.data_days or ()) if d not in held)
+        )
+    else:
+        base = shop_metrics(view)
     rows = getattr(view.data, "funnel", None)
     if rows is None or not rows.available:
         return base

@@ -15,6 +15,7 @@ from juli_backend.services.shopee_analytics.product import build_product_page
 from juli_backend.services.shopee_analytics.queries import NoShopeeData, ProductNotFound
 from juli_backend.services.shopee_analytics.rankings import build_ranking
 from juli_backend.services.shopee_analytics.service import load_period_data, load_view, resolve
+from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
 from juli_backend.services.shopee_analytics.windows import (
     PERIOD_KINDS,
     InvalidWindow,
@@ -25,6 +26,7 @@ from juli_backend.services.shopee_analytics.windows import (
 __all__ = [
     "PERIOD_KINDS",
     "InvalidWindow",
+    "RowsNotMaterialized",
     "NoShopeeData",
     "PeriodView",
     "ProductNotFound",

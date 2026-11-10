@@ -46,8 +46,9 @@ async def seed_reco_shop(
     cap: int = 500_000,
     targets: bool = True,
     stock: int = 120,
+    materialized: bool = True,
 ) -> Seeded:
-    seeded = await seed_shopee_shop(session, rules=False)
+    seeded = await seed_shopee_shop(session, rules=False, materialized=False)
     sid = seeded.shop_id
     for sku, cogs in COSTS.items():
         session.add(rule(sid, "sku_cost", sku, cogs))
@@ -85,6 +86,11 @@ async def seed_reco_shop(
             )
         )
     await session.flush()
+    if materialized:  # P99b: the stored daily rows, as the ingest hook builds them
+        from juli_backend.services.shopee_analytics import materialize
+
+        await materialize.backfill_shop(session, sid)
+        await session.flush()
     return seeded
 
 

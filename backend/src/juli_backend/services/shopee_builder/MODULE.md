@@ -95,3 +95,14 @@ estimate basis, warnings).
   variation (the product's CTR / CTOR, views × the variation's share of orders, AOV = the pack price).
 - Ads on / off days come from the stored funnel's product Thẻ sản phẩm rows (`ads_spend` > 0 = on); product rows
   post ad GMV, not ad orders, so a day's ad orders are its ad GMV ÷ the day's card AOV.
+
+## P99b (owner 2026-11-10)
+
+- A version's result covers exactly its set dates: `delta` / `cost` are for `result.days`; each
+  evaluated version carries `dates` (`from`, `to`, `days`, `set`, `label`). `per_30d` is secondary
+  (`secondary: true`, `label` "Quy đổi 30 ngày (tham khảo)"), still So sánh's sort key.
+- The builder base (`load_env`) and the picker's 90 / 30-day views need the stored daily rows: a data
+  day without its row raises `shopee_analytics.stored.RowsNotMaterialized` (409
+  `rows_not_materialized`), never the raw tables' unspread split.
+- Profit per order is unknown (`None`) when the base counts its days and no day with costs had an
+  order -- never every order of the window.

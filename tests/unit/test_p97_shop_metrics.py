@@ -15,6 +15,7 @@ from juli_backend.models.shopee_metrics import (
 )
 from juli_backend.services.shopee_analytics import loaders, materialize, queries, service
 from juli_backend.services.shopee_analytics.metrics import allocate
+from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
 from juli_backend.services.shopee_analytics.windows import choose_anchor
 from tests.support.shopee_analytics import CUR_END, CUR_START, PREV_START, Seeded, seed_shopee_shop
 
@@ -23,7 +24,8 @@ DATASETS = ("shop_overview", "traffic_overview", "shop_traffic")
 
 @pytest.fixture
 async def seeded(session) -> Seeded:
-    return await seed_shopee_shop(session)
+    # the raw tables only: these tests build (or check) the stored rows themselves
+    return await seed_shopee_shop(session, materialized=False)
 
 
 # ---------------------------------------------------------------------------------- pure
@@ -146,17 +148,21 @@ async def test_every_surface_shows_the_same_core_metrics(session, seeded, monkey
     monkeypatch.setattr(config, "HISTORY_DAYS", 7)  # the cards' window = the 7d the others show
 
     kw = {"period": "7d", "as_of": CUR_END}
-    # raw tables first, then from the materialized rows: the same answers either way
-    for materialized in (False, True):
-        if materialized:
-            await materialize.backfill_shop(session, seeded.shop_id)
+    # P99b: before the rows are built every screen shows the missing-rows state, never the raw
+    # tables' figures; once they are built every surface reads the same rows
+    with pytest.raises(RowsNotMaterialized):
+        await queries.overview(session, seeded.shop_id, **kw)
+    with pytest.raises(RowsNotMaterialized):
+        await load_env(session, seeded.shop_id, as_of=CUR_END)
+    for materialized in (True,):
+        await materialize.backfill_shop(session, seeded.shop_id)
         ov = await queries.overview(session, seeded.shop_id, **kw)
         mx = await queries.matrix(session, seeded.shop_id, **kw)
         rk = await queries.ranking(session, seeded.shop_id, **kw)
         rk_aov = await queries.ranking(session, seeded.shop_id, xep_theo="aov", **kw)
         env = await load_env(session, seeded.shop_id, as_of=CUR_END)
         sm = ov["shop_metrics"]
-        assert sm["read_from"] == ("tables" if materialized else "raw")
+        assert materialized and sm["read_from"] == "tables"
         gmv, orders, aov = sm["gmv"], sm["orders"], sm["aov"]
         assert gmv and orders and aov == pytest.approx(gmv / orders, abs=0.01)
         # Tổng quan

@@ -17,6 +17,7 @@ from decimal import Decimal
 import pytest
 
 from juli_backend.services.shopee_analytics import loaders, queries, service
+from juli_backend.services.shopee_analytics import stored as stored_mod
 from juli_backend.services.shopee_analytics.windows import Window
 from tests.support.shopee_analytics import (
     CUR_END,
@@ -290,8 +291,11 @@ async def test_matrix_rows_carry_flows_levers_and_a_labelled_ads_overlay(session
     # D85.2: the order lines scaled to the shop totals, so the products add up to the shop GMV
     assert gloves["gmv_basis"] == "scaled_order_lines"
     assert sum(r["gmv"] for r in by.values()) == body["sums"]["gmv_shop"] == 7 * 275_000
-    line_total = sum(r["line_gmv"] for r in by.values())
-    assert gloves["gmv"] == pytest.approx(gloves["line_gmv"] * 7 * 275_000 / line_total, abs=1)
+    # P99b: the window reads the stored daily rows (each day's lines scaled to that day's shop
+    # total), never a window-level split of the raw tables
+    stored = await stored_mod.load_stored(session, seeded.shop_id, Window(CUR_START, CUR_END))
+    assert stored is not None
+    assert gloves["gmv"] == pytest.approx(float(stored.products["1001"].gmv), abs=1)
     assert gloves["ads"]["basis"]["label"] == "đơn đã đặt"
     # the report window is the window and the report is the spend: 60.000 of 100.000
     assert gloves["ads"]["spend"] == pytest.approx(60_000)

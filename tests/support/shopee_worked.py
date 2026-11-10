@@ -112,6 +112,10 @@ async def seed_worked_example(session: AsyncSession) -> Seeded:
         )
     )
     await session.flush()
+    from juli_backend.services.shopee_analytics import materialize
+
+    await materialize.backfill_shop(session, sid)  # P99b: the stored daily rows, as in production
+    await session.flush()
     return Seeded(sid, user, shop, {ln.order_ref for ln in lines}, lines)
 
 

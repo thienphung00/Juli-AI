@@ -285,7 +285,8 @@ WIRE_KEYS = {
     "cost": "{total, break_even_orders, break_even_aov, text}",
     "after": "{days, label: 'Sau 14 ngày' | '30 ngày đầu', gmv_before, gmv_after, "
     "profit_before, profit_after}",
-    "per_30d": "{profit, gmv, orders}  # the comparison table's sort key (profit)",
+    "per_30d": "{profit, gmv, orders, secondary: True, label}  # P99b: secondary, labelled "
+    "'Quy đổi 30 ngày (tham khảo)'; the comparison's sort key (profit)",
     "detail": "{before, low, likely, high: "
     "{views, ctr, ctor, orders, aov, gmv, profit, by_source}}",
     "notes": "list[str]",
