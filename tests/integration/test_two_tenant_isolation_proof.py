@@ -216,7 +216,9 @@ def _seed_tenant_data(engine: Engine, user_id: uuid.UUID, shop_id: uuid.UUID) ->
             """),
             {
                 "id": str(user_id),
-                "phone": f"+1234567890{user_id.hex[:4]}",
+                # 12 digits of the id: 4 hex chars collided across seeded users and ON CONFLICT
+                # DO NOTHING then skipped the user, failing the shop insert on its foreign key
+                "phone": f"+84{user_id.int % 10**12:012d}",
                 "display_name": f"Test User {user_id.hex[:8]}",
                 "created_at": now,
                 "updated_at": now,
