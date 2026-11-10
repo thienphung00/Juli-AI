@@ -216,3 +216,24 @@ async def test_rebuilding_one_day_gives_the_same_row_as_the_backfill(session, sh
     session.expire_all()
     r = (await _products(session, shop_id, ITEM))[DAYS[9]]
     assert (r.orders, r.gmv, r.views) == before
+
+
+# ------------------------------------------------------------------------------ ads ROAS
+
+
+async def test_the_stored_ads_gmv_goes_with_the_stored_ad_spend(session):
+    """Campaign days (1–7/10) take spend and GMV from the campaign report, the days before from
+    the daily ads table: ROAS 5.0 everywhere, never daily GMV ÷ report spend (10.5)."""
+    from tests.support.shopee_analytics import CUR_END, CUR_START, PREV_START, seed_shopee_shop
+
+    seeded = await seed_shopee_shop(session, rules=True)
+    shop = await _shop(session, seeded.shop_id)
+
+    def roas(start, end):
+        days = [r for d, r in shop.items() if start <= d <= end and r.ads_spend]
+        spend = sum((r.ads_spend for r in days), Decimal(0))
+        gmv = sum((r.ads_gmv for r in days), Decimal(0))
+        return (gmv / spend).quantize(Decimal("0.01"))
+
+    assert roas(CUR_START, CUR_END) == Decimal("5.00")
+    assert roas(PREV_START, CUR_END) == Decimal("5.00")

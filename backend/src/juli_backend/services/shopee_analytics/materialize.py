@@ -243,6 +243,14 @@ def _funnel(rows: Any) -> tuple[int | None, int | None]:
     return (sum(views) if views else None, sum(clicks) if clicks else None)
 
 
+def _ads_gmv(view: PeriodView) -> Decimal:
+    """The ads GMV that goes with the day's ``ads_spend``: both from the same allocation, so the
+    stored ROAS never divides the daily-table GMV by the campaign-report spend."""
+    if view.ads.campaigns:
+        return sum((c.gmv for c in view.ads.campaigns), ZERO)
+    return view.data.ads_daily.gmv
+
+
 def day_rows(
     view: PeriodView,
     shop_id: uuid.UUID,
@@ -289,7 +297,7 @@ def day_rows(
         "visitors": None,
         "product_clicks": shop_clicks,
         "ads_spend": _money(m.ad_spend),
-        "ads_gmv": _money(view.data.ads_daily.gmv),
+        "ads_gmv": _money(_ads_gmv(view)),
         "profit": _money(m.profit),
         "margin_profit": _money(p.covered_margin_profit),
         "buyer_paid_known": _money(covered),
