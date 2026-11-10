@@ -33,7 +33,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,7 +47,13 @@ from juli_backend.models.shopee_metrics import (
 )
 from juli_backend.models.shopee_profit import ShopeeOrderLine
 from juli_backend.repositories import PlatformDailyMetricsRepo
-from juli_backend.services.shopee_analytics import funnel_check, loaders, period_spread, service
+from juli_backend.services.shopee_analytics import (
+    funnel_check,
+    loaders,
+    period_spread,
+    rules_view,
+    service,
+)
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.metrics import (
     SPLIT_PRODUCT_PERIOD,
@@ -601,6 +607,67 @@ async def data_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
     return sorted(out)
 
 
+#: the seller rules the stored rows are computed with (giá vốn, đóng gói, pack, VAT, exclusions):
+#: a change to any of them makes every stored day stale. Targets and discount caps are not in rows.
+PROFIT_RULE_KEYS: frozenset[str] = frozenset(
+    {
+        rules_view.SKU_COST,
+        rules_view.PRODUCT_COST,
+        rules_view.PACKAGING_COST,
+        rules_view.PACK_COUNT,
+        rules_view.PACK_COMPONENTS,
+        rules_view.VAT_RATE,
+        rules_view.PRICES_INCLUDE_VAT,
+        rules_view.COST_INCLUDES_VAT,
+        rules_view.EXCLUDED,
+        rules_view.EXCLUDE_REASON,
+    }
+)
+
+
+@dataclass(frozen=True)
+class RuleRebuild:
+    """What :func:`after_rules_change` did: ``days`` rebuilt, or ``cleared`` (the rebuild failed,
+    the stale rows were removed so the screens say "đang tính lại", never the old profit)."""
+
+    days: int = 0
+    cleared: int = 0
+
+
+async def _clear_days(session: AsyncSession, shop_id: uuid.UUID, days: list[date]) -> None:
+    for model in (ShopeeShopMetricsDaily, ShopeeProductMetricsDaily, ShopeeSourceMetricsDaily):
+        await session.execute(delete(model).where(model.shop_id == shop_id, model.day.in_(days)))
+    await session.flush()
+
+
+async def after_rules_change(
+    session: AsyncSession, shop_id: uuid.UUID, rule_keys: Iterable[str]
+) -> RuleRebuild:
+    """P99c: a saved giá vốn / đóng gói / pack / VAT / exclusion rule makes the stored rows stale
+    (they hold profit computed with the old rule). Rules carry no effective dates (the current
+    value applies to every day), so every data day of the shop is rebuilt, synchronously in the
+    caller's transaction: the new rule and the new rows commit together, no reader ever sees the
+    old profit beside the new rule. A failed rebuild removes those days' rows instead (the screens
+    answer ``rows_not_materialized`` "đang tính lại" until the backfill rebuilds them)."""
+    if not PROFIT_RULE_KEYS.intersection(rule_keys):
+        return RuleRebuild()
+    days = await data_days(session, shop_id)
+    if not days:
+        return RuleRebuild()
+    try:
+        async with session.begin_nested():
+            written = await rebuild_days(session, shop_id, days)
+    except (SQLAlchemyError, RuntimeError, ArithmeticError, LookupError, TypeError, ValueError):
+        logger.warning(
+            "shopee_metrics_rule_rebuild_failed",
+            extra={"shop_id": str(shop_id), "days": len(days)},
+            exc_info=True,
+        )
+        await _clear_days(session, shop_id, days)
+        return RuleRebuild(cleared=len(days))
+    return RuleRebuild(days=written)
+
+
 @dataclass
 class BackfillReport:
     days_found: int
@@ -632,9 +699,12 @@ async def backfill_shop(
 
 
 __all__ = [
+    "PROFIT_RULE_KEYS",
     "AdsDay",
+    "RuleRebuild",
     "SourceSplit",
     "after_ingest",
+    "after_rules_change",
     "backfill_shop",
     "day_rows",
     "rebuild_days",

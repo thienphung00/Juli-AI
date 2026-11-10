@@ -214,6 +214,8 @@ async def delete_shop_rule(
         existed = await shop_rules.delete_rule(
             session, shop.id, rule_key=rule_key, scope_ref=scope_ref
         )
+        if existed:  # P99c: the stored rows follow the rule (the default applies again)
+            await shop_inputs.rules_changed(session, shop.id, [rule_key])
         await session.commit()
     except shop_rules.RuleValidationError as exc:
         await session.rollback()

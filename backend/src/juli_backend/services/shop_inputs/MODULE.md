@@ -25,6 +25,12 @@ append-only history.
 - `affected`: `affected_recommendations` (open `shop_proposals` + active `action_cards` of the
   changed items; shop-wide for a monthly margin / marketing-cap change), `register_recompute_hook`
   / `mark_stale` (the step-8 generator registers; none today).
+- `versions.rules_changed` (P99c): every write set (`write_rule`, `write_versions` -- import, exclusions,
+  restore of a SKU --, `restore_version`, and the routes' rule unset) that touches a rule the stored
+  daily rows are computed with (`shopee_analytics.materialize.PROFIT_RULE_KEYS`: giá vốn, đóng gói,
+  pack, VAT, exclusions) rebuilds every data day of the shop in the same transaction
+  (`materialize.after_rules_change`); a failed rebuild deletes those rows (screens: 409
+  `rows_not_materialized` "đang tính lại") rather than keep the old profit.
 - `overview`: the screen's read model. `xlsx_io`: stdlib writer and reader, size limits.
 
 ## Scope refs
