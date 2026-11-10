@@ -22,6 +22,7 @@ import {
   type ReaderRequest,
   type ReaderResponse,
   runReaderJob,
+  campaignNameFromGet,
   type Template,
 } from "../src/shopee/reader";
 import { Pacer } from "../src/shopee/runner";
@@ -353,6 +354,76 @@ describe("group campaigns' products -> ads_campaign_period", () => {
     h.env.hasSession = () => true;
     const outcome = await runReaderJob({ id: "ads_products", campaignIds: ["1"], campaignNames: ["A"] }, h.env);
     expect(["needs_template", "needs_data_page"]).toContain(outcome.status);
+  });
+
+  // Recorded shapes, 2026-11-10 (synthetic values).
+  const realMpd = (rows: number[]) => ({
+    code: 0,
+    data: {
+      result_list: rows.map((id) => ({
+        item_id: id,
+        name: `Tên sản phẩm ${id}`,
+        image: "abc",
+        trait_list: [],
+        report: { broad_gmv: 900_000 * 100_000, broad_order: 9, click: 80, cost: 150_000 * 100_000, ctr: 0.04, impression: 2000, product_click: 30, product_impression: 500, page_views: 40, direct_gmv: 600_000 * 100_000, direct_order: 6 },
+      })),
+    },
+  });
+  const realGet = (id: number, name: string) => ({
+    code: 0,
+    data: { campaign: { campaign_id: id, name, type: "product_mpd", state: "ongoing", daily_budget: 1, start_time: 1, end_time: 2, total_budget: 0, bidding_strategy: "roi_two", product_placement: "all", product_selection: "manual", roi_two: { target: 5 }, target_broad_roi: 5 } },
+  });
+
+  it("names the opened campaign from the page's product/get (numeric id), not from a product name", async () => {
+    const h = harness(
+      {
+        ads_mpd_products: { query: {}, body: { reference_id: "r", ...pageBody(188757809) }, lastResponse: realMpd([1001]) },
+        ads_product_get: { query: {}, body: { campaign_id: 188757809, reference_id: "r" }, lastResponse: realGet(188757809, "Nhóm Mùa Sale") },
+      },
+      () => ({ body: realMpd([2002]) }),
+      "/portal/marketing/pas/product/manual-mpd/188757809",
+    );
+    const ids = ["188757809", "188757810"];
+    const outcome = await runReaderJob({ id: "ads_products", campaignIds: ids, campaignNames: ["Tiêu đề danh sách A", "Tiêu đề danh sách B"] }, h.env);
+    expect(outcome.responses.map((r) => r.campaignName)).toEqual(["Nhóm Mùa Sale", "Tiêu đề danh sách B"]);
+    const posts = mapReaderJob({ id: "ads_products", campaignIds: ids }, outcome.responses, NOW);
+    expect(posts[0]!.drift).toBeNull();
+    expect(posts[0]!.rows.map((r) => [r.campaign_name, r.item_id])).toEqual([
+      ["Nhóm Mùa Sale", "1001"],
+      ["Tiêu đề danh sách B", "2002"],
+    ]);
+  });
+
+  it("ignores a product/get for another campaign and falls back to the list title, then the id", async () => {
+    const h = harness(
+      {
+        ads_mpd_products: { query: {}, body: pageBody(5), lastResponse: realMpd([1]) },
+        ads_product_get: { query: {}, body: { campaign_id: 9 }, lastResponse: realGet(9, "Khác") },
+      },
+      () => ({ body: realMpd([2]) }),
+      "/portal/marketing/pas/product/manual-mpd/5",
+    );
+    const withTitle = await runReaderJob({ id: "ads_products", campaignIds: ["5"], campaignNames: ["Từ danh sách"] }, h.env);
+    expect(withTitle.responses[0]!.campaignName).toBe("Từ danh sách");
+    const none = await runReaderJob({ id: "ads_products", campaignIds: ["5"], campaignNames: [""] }, h.env);
+    expect(none.responses[0]!.campaignName).toBeUndefined();
+    const posts = mapAdsProducts(none.responses, NOW);
+    expect(posts[0]!.drift).toBeNull();
+    expect(posts[0]!.rows[0]!.campaign_name).toBe("Chiến dịch 5");
+  });
+
+  it("campaignNameFromGet accepts a string campaign id and rejects a missing name", () => {
+    expect(campaignNameFromGet({ code: 0, data: { campaign: { campaign_id: "7", name: " X " } } }, "7")).toBe("X");
+    expect(campaignNameFromGet({ code: 0, data: { campaign: { campaign_id: 7, name: "" } } }, "7")).toBeUndefined();
+  });
+
+  it("maps the recorded result_list shape and never uses the product name as the campaign name", () => {
+    const posts = mapAdsProducts([reply("ads_mpd_products", realMpd([11, 12]), { campaignId: "3", ...win })], NOW);
+    expect(posts[0]!.drift).toBeNull();
+    expect(posts[0]!.rows.map((r) => [r.campaign_name, r.item_id])).toEqual([
+      ["Chiến dịch 3", "11"],
+      ["Chiến dịch 3", "12"],
+    ]);
   });
 
   it("never reads more group campaigns than the cap", () => {

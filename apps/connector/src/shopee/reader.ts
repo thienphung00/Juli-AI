@@ -745,6 +745,11 @@ async function readAdsProducts(env: ReaderEnv, ids: string[], names: string[], c
   const template = env.template("ads_mpd_products") as Template;
   const body = isRecord(template.body) ? template.body : {};
   const opened = ids[0];
+  // The page's own product/get answer names the campaign (recorded 2026-11-10): data.campaign.name.
+  // Capture only (the page makes the call itself); the list title is the fallback.
+  await env.waitFor(() => env.template("ads_product_get")?.lastResponse !== undefined, 4_000);
+  const pageName = opened ? campaignNameFromGet(env.template("ads_product_get")?.lastResponse, opened) : undefined;
+  const openedName = pageName ?? (names[0] ? names[0] : undefined);
   if (opened && template.lastResponse !== undefined && String(body.campaign_id ?? "") === opened) {
     collected.push({
       endpoint: "ads_mpd_products",
@@ -754,7 +759,7 @@ async function readAdsProducts(env: ReaderEnv, ids: string[], names: string[], c
       capturedAt: env.now(),
       source: "page",
       campaignId: opened,
-      ...(names[0] ? { campaignName: names[0] } : {}),
+      ...(openedName ? { campaignName: openedName } : {}),
       ...bodyPeriod(body),
     });
   }
@@ -765,6 +770,18 @@ async function readAdsProducts(env: ReaderEnv, ids: string[], names: string[], c
     const name = names[index + 1];
     await send(env, request, collected, { campaignId: id, ...(name ? { campaignName: name } : {}), ...bodyPeriod(body) }, true);
   }
+}
+
+/**
+ * The campaign name in a captured `product/get` answer (`data.campaign{campaign_id, name}`) when
+ * it is the answer for `campaignId` (numeric or string id). Never a product name.
+ */
+export function campaignNameFromGet(answer: unknown, campaignId: string): string | undefined {
+  const data = payloadOf(answer);
+  const campaign = isRecord(data) && isRecord(data.campaign) ? data.campaign : undefined;
+  if (!campaign || String(campaign.campaign_id ?? "") !== campaignId) return undefined;
+  const name = campaign.name;
+  return typeof name === "string" && name.trim() !== "" ? name.trim().slice(0, 255) : undefined;
 }
 
 /** The GMT+7 days a request body's `start_time` / `end_time` (unix seconds, top level or one level in) name. */
