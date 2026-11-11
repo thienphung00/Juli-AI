@@ -23,7 +23,7 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
 ### S2-A — synthetic shop generator + loader (data-platform)
 - `scripts/sample_shop/`: a deterministic generator (fixed seed) of a minimal Shopee shop: 6
   products (household goods, synthetic brand and names, ORY-like price/AOV/traffic shapes,
-  1–3 variations each), 90 days ending on a given date, every day present. It produces
+  1–3 variations each), 30 days ending on a given date, every day present. It produces
   **Connector-shaped `IngestBody` rows** for the datasets the Shopee screens read (orders +
   income, catalog/snapshot, shop + product + per-source traffic, ads campaign daily, promotions
   incl. one running Combo Khuyến Mãi) plus the shop-input costs, so the shop goes through the
@@ -33,7 +33,7 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
   synthetic `shopee_shop_id` range) and **refuses any target shop it did not create** (no
   credentials, id in the reserved range) and the Fujiwa / sandbox ids by name.
 - Test: Postgres test DB, generate → ingest → materialize → the Shopee analytics read model
-  returns every day, product ≤ shop every day, known-cost profit non-NULL, ads ROAS sane.
+  returns all 30 days, product ≤ shop every day, known-cost profit non-NULL, ads ROAS sane.
 
 ### S2-B — reviewer "sample shop" pin mode (backend, security)
 - New pin mode `sample` beside `sandbox` / `masked`: a pin listed in `REVIEWER_SAMPLE_SHOP_IDS`
@@ -50,5 +50,6 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
 - S2-E prod load: the owner runs the loader against prod after S2-A/B deploy; then pin it.
 
 ## Defaults taken (owner may override)
-- 90 days, no missing days (a clean shop; the missing-day path is shown on ORY, not here).
+- 30 days (owner, 2026-11-11), no missing days (a clean shop; the missing-day path is shown on
+  ORY, not here).
 - Reviewer reaches the shop through the existing reviewer login, as an extra pin.
