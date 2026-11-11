@@ -320,6 +320,23 @@ async def load_income(
 # ---------------------------------------------------------------------------------------
 
 
+def order_day(row: Any) -> tuple[Decimal, Decimal] | None:
+    """P100-A (B.17): a ``shop_overview`` day row's (GMV, đơn), or None when the day's order data
+    never arrived -- no đơn field, or all-zero sales with no visitor and no click at all (Shopee
+    answers 0 for a day it has not computed; a real day without sales still has visitors). A
+    missing day is "chưa có dữ liệu", never a 0-order day."""
+    if row.orders is None:
+        return None
+    gmv, orders = _z(row.gmv), Decimal(str(row.orders))
+    traffic = any(
+        v is not None and Decimal(str(v)) > 0
+        for v in (getattr(row, "visitors", None), getattr(row, "clicks", None))
+    )
+    if orders == 0 and gmv == 0 and not traffic:
+        return None
+    return gmv, orders
+
+
 @dataclass
 class ShopTotals:
     gmv: Decimal | None
@@ -346,8 +363,9 @@ async def load_shop_totals(session: AsyncSession, shop_id: uuid.UUID, window: Wi
     )
     by_day: dict[date, tuple[Decimal, Decimal]] = {}
     for r in rows:
-        if r.segment == "all":
-            by_day[r.day] = (_z(r.gmv), _z(r.orders))
+        got = order_day(r) if r.segment == "all" else None
+        if got is not None:
+            by_day[r.day] = got
     gmv = sum((v[0] for v in by_day.values()), ZERO)
     orders = sum((v[1] for v in by_day.values()), ZERO)
     if len(by_day) == window.days:

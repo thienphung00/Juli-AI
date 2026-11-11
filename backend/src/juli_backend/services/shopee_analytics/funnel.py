@@ -178,6 +178,13 @@ async def load_rows(session: AsyncSession, shop_id: uuid.UUID, window: Window) -
         .scalars()
         .all()
     )
+    # P100-A (B.17): a day whose order data never arrived (shop đơn NULL) is "chưa có dữ liệu":
+    # its source, shop and product rows stay out of every total and rate of the window
+    no_data = {r.day for r in shop if r.orders is None}
+    src = [r for r in src if r.day not in no_data]
+    shop = [r for r in shop if r.day not in no_data]
+    with_data = {r.day for r in shop}
+    prod = [r for r in prod if r.day in with_data]
     return FunnelRows(
         window,
         tuple(
@@ -388,6 +395,8 @@ def base_from_rows(
     Pure. A scope without traffic rows keeps views / clicks ``None`` ("chưa có dữ liệu")."""
     scope = _scope(rows, item_ids)
     profit_days, days = _days(scope)
+    if rows.shop_days:  # P100-A (A.7): the window's days with order data, the same for any scope
+        days = len({d.day for d in rows.shop_days})
     return FunnelBase(
         shop_id=shop_id,
         scope="products" if item_ids else "shop",
