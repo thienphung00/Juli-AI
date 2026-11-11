@@ -72,8 +72,8 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
 
 ## Status 2026-11-11 (end of day)
 - S2-A `e42ddfbf` on `fasttrack/p100-s2-data`: generator + loader; 24 unit pass, 2 Postgres skipped
-  (sandbox blocks Postgres shm). Run `tests/integration/test_sample_shop_postgres.py` on a local DB.
-- S2-B `e2a5a189` on `fasttrack/p100-s2-reviewer`: `sample` pin mode; 265 pass, 32 Postgres skipped.
+  (sandbox) → owner ran both on local Postgres 16: 2/2 pass.
+- S2-B `e2a5a189` on `fasttrack/p100-s2-reviewer`: `sample` pin mode; owner ran `-k reviewer` on local Postgres: 282 pass, 0 skip.
 - New slice **S2-F reviewer Shopee routes**: every `/v1/demo/shopee/*` route is 403 `read_only` for a
   reviewer today. Needs a reviewed sample-only allowlist (some GETs write, e.g. keywords) and a
   simulated Shopee Duyệt (`POST …/recommendations/{id}/approve`) — touches `shopee-decisions/**`,
