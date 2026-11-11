@@ -74,8 +74,10 @@ async def test_tong_quan_san_pham_and_ke_hoach_show_one_shop_profit(session, bui
         f"trên {sp['orders']} đơn có chi phí, {str(sp['gmv_share_pct']).replace('.', ',')} % GMV"
     )
     # it is the profit of the known-cost orders of the window (no scaling to the shop GMV)
-    p = env.view.profit
-    assert sp["profit"] == pytest.approx(float(p.covered_margin_profit), abs=0.01)
+    from juli_backend.services.shopee_analytics.shared import shop_profit_of
+
+    assert sp == shop_profit_of(env.view).json()
+    assert ov["kpi_strip"]["margin_pct"]["value"] == pytest.approx(sp["margin_pct"], abs=0.05)
 
 
 async def test_the_ratio_estimate_is_gone_from_tong_quan(session, built, monkeypatch):
@@ -95,18 +97,21 @@ async def test_one_profit_function_over_a_partial_window(session, built):
     assert window is not None
     view = await service.load_view(session, built.shop_id, ctx, window)
     fig = shop_profit_of(view)
-    assert fig == known_cost_profit(view.profit, view.pairs, view.metrics.gmv)
+    daily = view.data.ads_daily.spend_by_day
+    assert daily, "the seed has daily ads rows"
+    assert fig == known_cost_profit(view.profit, view.pairs, view.metrics.gmv, daily)
+    assert fig.ads_basis == "daily"
 
 
 # ---- the pure function ------------------------------------------------------------------
 
 
-def _line(order: str, product: str, value: int) -> OrderLine:
+def _line(order: str, product: str, value: int, day: int = 1) -> OrderLine:
     return OrderLine(
         order_id=order,
         sku=f"S-{product}",
         product_id=product,
-        order_date=date(2026, 10, 1),
+        order_date=date(2026, 11, day),
         qty=1,
         original_price=Decimal(value),
         deal_price=Decimal(value),
@@ -162,6 +167,9 @@ def test_an_order_with_one_unknown_line_is_not_a_known_cost_order():
     sp = shop_profit(pairs, campaigns=[], product_ad_spend={})
     fig = known_cost_profit(sp, pairs, Decimal(250_000))
     assert fig.orders == 1 and fig.gmv == Decimal(100_000)
+    # ORDER-based: o1's known line A (40k) is out of the profit and the margin base too
+    assert fig.profit == Decimal(40_000)
+    assert fig.buyer_paid == Decimal(100_000) and fig.margin_pct == Decimal("40.0")
 
 
 def test_no_known_cost_gives_no_number_not_zero():
@@ -185,3 +193,46 @@ def test_ads_on_unknown_cost_days_are_not_order_profit():
     fig = known_cost_profit(sp, pairs, Decimal(200_000))
     assert fig.profit == Decimal(35_000)  # 40k − 10k × 50 % covered share
     assert fig.orders == 1 and fig.label == "trên 1 đơn có chi phí, 50,0 % GMV"
+
+
+def test_a_partly_unknown_order_is_out_of_profit_base_and_ads_share():
+    """o1 = A (known) + B (unknown cost) -> the whole order is out; product A's report spend is
+    charged by the known orders' share of A's buyer paid; the window share drives the rest."""
+    pairs = [
+        (_line("o1", "A", 100_000), _pb(100_000, 40_000)),
+        (_line("o1", "B", 100_000), _pb(100_000, None)),
+        (_line("o2", "A", 100_000), _pb(100_000, 30_000)),
+        (_line("o3", "A", 200_000), _pb(200_000, 80_000)),
+    ]
+    sp = shop_profit(
+        pairs,
+        campaigns=[AdCampaign("c", Decimal(20_000))],
+        product_ad_spend={"A": Decimal(8_000)},
+    )
+    fig = known_cost_profit(sp, pairs, Decimal(500_000))
+    assert fig.orders == 2 and fig.buyer_paid == Decimal(300_000)
+    # A: 8k x 300/400; unattributed 12k x 300/500 (window share, no daily spend)
+    assert fig.ads_basis == "window"
+    assert fig.ads_charged == Decimal(6_000) + Decimal(7_200)
+    assert fig.profit == Decimal(110_000) - Decimal(13_200)
+    assert fig.margin_pct == Decimal("32.3")
+    assert fig.label == "trên 2 đơn có chi phí, 60,0 % GMV"
+
+
+def test_daily_spend_is_charged_by_each_days_known_orders():
+    """Day 4: only orders without giá vốn -> its spend is not charged (never order profit);
+    day 5: all known -> charged whole; day 6: spend, no order line -> the window share."""
+    pairs = [
+        (_line("o1", "A", 100_000, day=4), _pb(100_000, None)),
+        (_line("o2", "A", 100_000, day=5), _pb(100_000, 40_000)),
+    ]
+    sp = shop_profit(pairs, campaigns=[AdCampaign("c", Decimal(30_000))], product_ad_spend={})
+    daily = {
+        date(2026, 11, 4): Decimal(10_000),
+        date(2026, 11, 5): Decimal(10_000),
+        date(2026, 11, 6): Decimal(10_000),
+    }
+    fig = known_cost_profit(sp, pairs, Decimal(200_000), daily)
+    assert fig.ads_basis == "daily"
+    assert fig.ads_charged == Decimal(0) + Decimal(10_000) + Decimal(5_000)
+    assert fig.profit == Decimal(25_000)

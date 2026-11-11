@@ -306,14 +306,14 @@ def _cell_products(view: PeriodView, source: str, sub: str | None) -> M:
     if source == "ads":
         d = view.data.ads_daily
         return M(d.gmv, d.orders, None, ZERO, spend=d.spend)
-    p = view.profit
+    fig = shop_profit_of(view)  # P100 B.5: the one known-cost shop profit, every screen
     discount = sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in view.pairs), ZERO)
     views, clicks = _funnel_sum(view.flows.shop.rows) if view.flows else (None, None)
     return M(
         view.metrics.gmv or ZERO,
         Decimal(view.metrics.orders or 0),
-        shop_profit_of(view).profit,  # P100 B.5: the one known-cost shop profit, every screen
-        p.buyer_paid_covered,
+        fig.profit,
+        fig.buyer_paid,  # its margin base (known-cost orders' buyer paid)
         discount,
         sum((pb.list_value for _, pb in view.pairs), ZERO),
         view.ads.total_spend,

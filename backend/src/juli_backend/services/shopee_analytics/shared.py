@@ -24,7 +24,9 @@ def shop_profit_of(view: PeriodView) -> KnownCostProfit:
     """P100 B.5: THE shop profit of the window (the known-cost orders, with their coverage of
     the headline GMV). Tổng quan, Sản phẩm (matrix, the Sản phẩm + luồng headline) and Kế hoạch
     (live "hôm nay" and the frozen base) read only this."""
-    return known_cost_profit(view.profit, view.pairs, view.metrics.gmv)
+    return known_cost_profit(
+        view.profit, view.pairs, view.metrics.gmv, view.data.ads_daily.spend_by_day
+    )
 
 
 def shop_profit_fields(view: PeriodView) -> dict[str, Any]:

@@ -455,6 +455,9 @@ class AdsDaily:
     by_type: dict[str, dict[str, Decimal]]
     days_covered: int
     window_days: int
+    #: P100 B.5: the spend per day (only the days with an ads row); the one shop profit charges
+    #: each day's spend by that day's known-cost orders
+    spend_by_day: dict[date, Decimal] = field(default_factory=dict)
 
     @property
     def complete(self) -> bool:
@@ -475,17 +478,19 @@ async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Wind
         lambda: {"spend": ZERO, "gmv": ZERO, "orders": ZERO}
     )
     days: set[date] = set()
+    by_day: dict[date, Decimal] = defaultdict(lambda: ZERO)
     for r in rows:
         days.add(r.day)
         cost = _z((r.extra or {}).get("ads_expense"))
         spend += cost
+        by_day[r.day] += cost
         gmv += _z(r.gmv)
         orders += _z(r.orders)
         cell = by_type[r.segment]
         cell["spend"] += cost
         cell["gmv"] += _z(r.gmv)
         cell["orders"] += _z(r.orders)
-    return AdsDaily(spend, gmv, orders, dict(by_type), len(days), window.days)
+    return AdsDaily(spend, gmv, orders, dict(by_type), len(days), window.days, dict(by_day))
 
 
 # ---------------------------------------------------------------------------------------

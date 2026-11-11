@@ -389,7 +389,6 @@ def build_overview(
     metrics, prev_metrics = replace(now.metrics, anchor=anchor), before.metrics
     chain = _shop_chain(now, metrics)
     prev_chain = _shop_chain(before, prev_metrics)
-    p, pp = now.profit, before.profit
     # A previous window whose order lines are too thin must not feed any delta: its line-derived
     # numbers are fragments (margin +819 points, orders +3,445 %). Shop totals / traffic that come
     # from Shopee's own daily series stay comparable when that series is complete.
@@ -430,8 +429,9 @@ def build_overview(
                 "label": profit_now.label,
             },
             "margin_pct": {
-                "value": pct(p.margin_pct),
-                "previous": pct(pp.margin_pct) if comparable else None,
+                # P100 B.5: the one shop profit's margin (known-cost orders)
+                "value": pct(profit_now.margin_pct),
+                "previous": pct(profit_before.margin_pct) if comparable else None,
                 "label": "trên "
                 + str(pct_of(safe_div(now.coverage.real + now.coverage.assumed, now.coverage.base)))
                 + " % doanh thu có giá vốn (trong đó giả định "
