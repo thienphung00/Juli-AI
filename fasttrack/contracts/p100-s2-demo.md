@@ -52,3 +52,40 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
 ## Defaults taken (owner may override)
 - 90 days, no missing days (a clean shop; the missing-day path is shown on ORY, not here).
 - Reviewer reaches the shop through the existing reviewer login, as an extra pin.
+
+## S2-A result — synthetic shop generator + loader (2026-11-11)
+
+Code: `scripts/sample_shop/` (`catalog.py` products and id range, `generator.py` pure/deterministic,
+`loader.py` CLI). Owner change applied: **30 days** ending at `--end-date`, every day present.
+
+**Reserved id range.** `shopee_shop_id` 990000000000..990000000999 (12 digits; real Shopee ids
+have at most 10), default `990000000001` (`catalog.SAMPLE_SHOPEE_SHOP_ID*`). The loader writes only
+a shop in this range, platform shopee, with no TikTok credential / ingest token /
+`production_write_shops` row. Fujiwa `2b1da87b-…` and sandbox `1862f13b-…` are refused by id. A
+remote database host needs `--allow-remote-database`. Shop name "Dữ liệu mẫu"; `service` consent.
+
+**Datasets generated (Connector-shaped `IngestBody`, source `extension`, VND, rates as fractions):**
+`item_catalog`, `item_snapshot` (2 captures), `order_lines` + `order_income` (income for orders
+older than 4 days), `shop_overview` / `shop_traffic` / `traffic_overview` (confirmed; plus the ads
+row, placed), `item_traffic_sources` (per product x stream x Thẻ-sản-phẩm child, confirmed),
+`ads_campaign_daily` (2 campaigns, placed) + `ads_campaign_period`, `promotion_daily` and
+`promotions` (one running Combo Khuyến Mãi, 2 tiers: buy 2 -5 %, buy 3 -10 %, the tiers in `extra`
+numbers because the gateway stores none). Giá vốn per variation through `shop_inputs.write_versions`
+(`sku_cost`, scope `item:model`; a "Combo 3" variation carries the single item's cost, the engine
+multiplies by the pack count in the name).
+
+**Run.**
+```
+python -m scripts.sample_shop --end-date 2026-11-10 --dry-run --out /tmp/sample   # JSONL only
+python -m scripts.sample_shop --end-date 2026-11-10 --database-url postgresql://…@127.0.0.1/db
+```
+`--end-date` must not be after today (GMT+7). Re-running finds the shop by its reserved id and
+re-posts identical bodies (all `duplicate`), so it is idempotent. The loader skips the gateway's
+per-post materialize hook and runs `backfill_shop` once at the end (same rows, 13x less work).
+
+**No earlier period.** The sample shop has only 30 days, so "30 ngày trước" is empty. Backend: the
+overview/matrix payloads carry `warnings: [previous_period_thin]` ("Kỳ trước chưa đủ dữ liệu đơn
+hàng để so sánh: các mức tăng / giảm so với kỳ trước được ẩn."), every `kpi_strip.*.previous` and
+`change_pct` is `null`. Nothing errors. The product page's 7-day compare still works (the prior 7
+days are inside the 30). Whether the web shows no arrow or a dash is a front-end behaviour not
+checked here.
