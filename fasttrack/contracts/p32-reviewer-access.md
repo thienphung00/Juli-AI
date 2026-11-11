@@ -346,3 +346,44 @@ kind). No password in the repository, in a log line or in the database.
 3. On the VPS after deploy: `python -m juli_backend.services.reviewer.cli create --email
    shopee-review@app-juli.com --platform shopee --by <you>@app-juli.com`; hand the printed
    password to Shopee in the Services Information form; renew / revoke as needed.
+
+## Amendment P100 S2-B (2026-11-11) — the `sample` pin mode
+
+A third pin mode beside `sandbox` / `masked`, for the synthetic Shopee shop "Dữ liệu mẫu" that
+the S2-A loader creates (contract `p100-s2-demo.md`).
+
+- **Env.** `REVIEWER_SAMPLE_SHOP_IDS` — comma-separated `shops.id`, parsed like
+  `REVIEWER_SHOP_IDS`. It only narrows: an id that is not also in `REVIEWER_SHOP_IDS` /
+  `REVIEWER_SHOP_ID` is ignored, so the list never adds a shop the reviewer can enter.
+- **Rule** (`services/reviewer/sandbox.pin_mode`). A pin is `sample` only when ALL hold: listed;
+  not Fujiwa `2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f` (hard-refused in
+  `config.NEVER_SAMPLE_SHOP_IDS`, whatever the env says); no `tiktok_credentials` row of any
+  capability or status (a NULL capability counts); no `production_write_shops` row; not the
+  newest `sandbox_write` owner's shop; `shops.platform = 'shopee'` with no `tiktok_shop_id` /
+  `tiktok_numeric_shop_id`. Shopee has no platform OAuth in Juli; an `ingest_tokens` row (the
+  loader's / Connector's) can only post data in and does not count. Any failing check → `masked`
+  (P32), with a `reviewer_pin_sample_refused` warning naming the reason (shop id + reason code,
+  no name). Cached per pin for the reviewer identity TTL like the other modes (P69).
+- **Behaviour.** Identity mask off (the names are synthetic); writes off
+  (`writes_disabled_reason = sample_shop`); Duyệt / Thực thi are the masked pin's simulation
+  (`POST /v1/reviewer/decisions/{id}/simulate`); every sandbox-only route answers 403
+  `sandbox_only`; the `reviewer_session` marker and every production-write refusal are unchanged.
+  The pin accepts its real id and its alias in `X-Shop-Id`.
+- **API / UI.** `GET /v1/reviewer/me` `mode` and each `shops[].mode` may be `"sample"`. The demo's
+  banner reads "Tài khoản đối tác · Dữ liệu mẫu · chỉ xem, duyệt chỉ mô phỏng", the shop menu
+  "Shop Shopee Dữ liệu mẫu · chỉ xem" — never "demo". Tests:
+  `tests/unit/test_reviewer_sample_pin.py`, `apps/demo/.../reviewer-sample-shop.test.tsx`.
+- **Owner decision (2026-11-11).** The Shopee ISV reviewer is pinned to the sample shop
+  (default, first) plus the TikTok sandbox; Fujiwa leaves `REVIEWER_SHOP_IDS` (an env change on
+  prod, not code). Prod env after the S2-A load:
+  `REVIEWER_SHOP_IDS=<sample shops.id>,<sandbox shops.id>` and
+  `REVIEWER_SAMPLE_SHOP_IDS=<sample shops.id>`. The masked path stays supported and tested for
+  any deployment that still pins a seller's shop.
+- **Open (not in S2-B).** The Shopee screens' routes (`/v1/demo/shopee/*`) are not on the reviewer
+  allowlist, so a sample pin's Shopee pages answer 403 `read_only` today
+  (`test_shopee_reads_are_not_on_the_reviewer_allowlist_yet`). Some of those GETs write
+  (`GET /v1/demo/shopee/keywords` commits), and Shopee's Duyệt is
+  `POST /v1/demo/shopee/recommendations/{id}/approve`, not the TikTok-card simulation. A
+  reviewed sample-only allowlist plus a Shopee simulated Duyệt is a follow-up slice. The
+  reviewer guide (`lib/reviewer/guide-copy.ts`) still describes Part 1 as "a real seller's
+  shop, names hidden"; `dictionary.md` has no `reviewer.*` key for the new copy yet.

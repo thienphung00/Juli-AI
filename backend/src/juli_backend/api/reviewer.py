@@ -423,7 +423,8 @@ async def _enter_pinned_shop(
     context.pin = pin
     if pin.mask:
         # The identity mask's dictionary (cached per shop); Juli's own sandbox shop is
-        # shown unmasked (D73 Q1/Q2), so it needs none.
+        # shown unmasked (D73 Q1/Q2), and so is the synthetic sample shop (P100 S2-B),
+        # so neither needs one.
         context.dictionary = await reviewer_service.catalog.load_dictionary(session, shop)
     context.shop = shop
     return shop
@@ -436,7 +437,7 @@ class ReviewerShopOption:
     A masked pin is described ONLY by its alias id and its masked display name, built
     here -- not left to the response mask, which uses the SELECTED pin's dictionary and is
     off altogether when the selected pin is the sandbox. Juli's own sandbox shop is shown
-    as it is (D73 Q1/Q2).
+    as it is (D73 Q1/Q2), and so is the synthetic sample shop (P100 S2-B, read-only).
     """
 
     id: str

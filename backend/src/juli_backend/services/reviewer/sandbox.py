@@ -19,6 +19,19 @@ failing closed (D73 Q6):
    checks). Every reviewer request is marked (``integrations.tiktok.reviewer_session``),
    so every production write path refuses inside it.
 3. **Tests**: ``tests/unit/test_reviewer_sandbox_live.py``.
+
+P100 S2-B: a third mode, ``sample`` -- the synthetic Shopee shop ("Dữ liệu mẫu") a loader puts
+in the database. A pin is ``sample`` only when ALL hold (:func:`_sample_refusal`): it is listed
+in ``REVIEWER_SAMPLE_SHOP_IDS`` (and is a pin: ``config.reviewer_sample_shop_ids``); it is not
+in ``config.NEVER_SAMPLE_SHOP_IDS`` (Fujiwa); it holds no TikTok credential row of ANY
+capability (NULL included) and no ``production_write_shops`` row; it is not the sandbox
+credential's shop; it is a Shopee shop with no TikTok shop id. Shopee has no platform OAuth in
+Juli -- a Shopee shop's only credential is an ingest token (``ingest_tokens``), which can post
+data IN and cannot write to Shopee, so it does not count. Any failing check: ``masked``, with a
+``reviewer_pin_sample_refused`` warning naming the reason. ``sample`` turns the identity mask
+off (the names are synthetic) and nothing else: writes stay off, Duyệt / Thực thi are the
+masked pin's simulation, every sandbox-only route refuses (``sandbox`` is False) and layer 2
+stays per request. Tests: ``tests/unit/test_reviewer_sample_pin.py``.
 """
 
 from __future__ import annotations
@@ -37,18 +50,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.security import SandboxWriteOwner, sandbox_write_owners
 from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.models.ingestion import ShopIngestionState
-from juli_backend.models.models import ProductionWriteShop, TikTokCredential
+from juli_backend.models.models import ProductionWriteShop, Shop, TikTokCredential
+from juli_backend.services.reviewer import config
 
 logger = logging.getLogger(__name__)
 
 MODE_SANDBOX = "sandbox"
 MODE_MASKED = "masked"
+#: P100 S2-B: the synthetic Shopee sample shop -- unmasked, read-only, simulated.
+MODE_SAMPLE = "sample"
 
 #: Why reviewer writes are off for a pin (``PinMode.writes_disabled_reason``).
 REASON_NOT_SANDBOX = "not_sandbox_shop"
 REASON_PRODUCTION_READ = "pin_holds_production_read"
 REASON_PRODUCTION_WRITE = "pin_has_production_write_row"
 REASON_SANDBOX_REFUSED = "sandbox_credential_refused"
+#: P100 S2-B: a sample pin's writes are off by design (it is not a platform shop).
+REASON_SAMPLE_SHOP = "sample_shop"
+#: P100 S2-B: why a pin listed in ``REVIEWER_SAMPLE_SHOP_IDS`` is masked instead of sample.
+REASON_SAMPLE_REFUSED_SHOP = "sample_refused_shop"
+REASON_SAMPLE_FACTS_MISSING = "sample_facts_missing"
+REASON_SAMPLE_TIKTOK_CREDENTIAL = "sample_holds_tiktok_credential"
+REASON_SAMPLE_PRODUCTION_WRITE = "sample_has_production_write_row"
+REASON_SAMPLE_SANDBOX_OWNER = "sample_is_sandbox_shop"
+REASON_SAMPLE_NOT_SHOPEE = "sample_not_shopee_shop"
+REASON_SAMPLE_TIKTOK_LINKED = "sample_has_tiktok_shop_id"
 
 
 @dataclass(frozen=True)
@@ -69,34 +95,72 @@ class PinMode:
         return self.mode == MODE_SANDBOX
 
     @property
+    def sample(self) -> bool:
+        return self.mode == MODE_SAMPLE
+
+    @property
     def mask(self) -> bool:
-        """D73 Q1/Q2: the identity mask is off only for Juli's own sandbox shop."""
-        return not self.sandbox
+        """D73 Q1/Q2: the identity mask is off only for Juli's own sandbox shop -- and (P100
+        S2-B) the synthetic sample shop, whose names are synthetic."""
+        return not (self.sandbox or self.sample)
+
+
+@dataclass(frozen=True)
+class PinShopFacts:
+    """P100 S2-B: what the sample check needs from the pinned shop's own rows.
+
+    ``credential_rows`` counts EVERY ``tiktok_credentials`` row of the shop, whatever its
+    capability or status (a NULL capability included).
+    """
+
+    platform: str | None
+    tiktok_linked: bool
+    credential_rows: int
+
+    @classmethod
+    def of(cls, values: dict[str, Any], credential_rows: int) -> PinShopFacts:
+        linked = values.get("tiktok_shop_id") or values.get("tiktok_numeric_shop_id")
+        return cls(
+            platform=values.get("platform"),
+            tiktok_linked=bool(linked),
+            credential_rows=credential_rows,
+        )
 
 
 async def classify_pin(session: AsyncSession, shop_id: uuid.UUID) -> PinMode:
     """The pinned shop's mode. The caller holds the shop's read scope (``enter_reviewer_shop``)."""
     owners = await sandbox_write_owners(session)
     owner = owners[0] if owners else None
-    capabilities: set[str] = {
-        row
-        for row in (
+    rows = list(
+        (
             await session.execute(
                 select(TikTokCredential.capability).where(TikTokCredential.shop_id == shop_id)
             )
         ).scalars()
-        if row is not None
-    }
+    )
     production_write_row = (
         await session.execute(
             select(ProductionWriteShop.shop_id).where(ProductionWriteShop.shop_id == shop_id)
         )
     ).scalar_one_or_none() is not None
+    facts: PinShopFacts | None = None
+    if shop_id in config.reviewer_sample_shop_ids():
+        # Only a sample-listed pin pays this read; every other pin keeps its round trips.
+        found = (
+            await session.execute(
+                select(Shop.platform, Shop.tiktok_shop_id, Shop.tiktok_numeric_shop_id).where(
+                    Shop.id == shop_id
+                )
+            )
+        ).first()
+        if found is not None:
+            facts = PinShopFacts.of(dict(found._mapping), len(rows))
     return pin_mode(
         shop_id,
         sandbox_owner=owner,
-        capabilities=capabilities,
+        capabilities={row for row in rows if row is not None},
         production_write_row=production_write_row,
+        shop=facts,
     )
 
 
@@ -106,14 +170,74 @@ def pin_mode(
     sandbox_owner: SandboxWriteOwner | None,
     capabilities: set[str],
     production_write_row: bool,
+    shop: PinShopFacts | None = None,
 ) -> PinMode:
     """The decision of :func:`classify_pin` from facts already read (P69b: one fused read).
 
     ``sandbox_owner`` is the FIRST (newest) ``sandbox_write`` owner, the one
     ``resolve_sandbox_write_credential`` uses; ``capabilities`` are the pinned shop's own
     credential capabilities; ``production_write_row`` whether it has a
-    ``production_write_shops`` row.
+    ``production_write_shops`` row; ``shop`` the sample check's facts (P100 S2-B; None:
+    unknown, so never ``sample``).
     """
+    base = _platform_pin_mode(
+        shop_id,
+        sandbox_owner=sandbox_owner,
+        capabilities=capabilities,
+        production_write_row=production_write_row,
+    )
+    if shop_id not in config.reviewer_sample_shop_ids():
+        return base
+    refusal = _sample_refusal(
+        shop_id,
+        sandbox_owner=sandbox_owner,
+        capabilities=capabilities,
+        production_write_row=production_write_row,
+        shop=shop,
+    )
+    if refusal is None:
+        return PinMode(MODE_SAMPLE, writes_enabled=False, writes_disabled_reason=REASON_SAMPLE_SHOP)
+    # Fail closed: listed but not provably synthetic -- the P32 mask, never the sandbox's writes.
+    logger.warning(
+        "reviewer_pin_sample_refused", extra={"shop_id": str(shop_id), "reason": refusal}
+    )
+    return PinMode(MODE_MASKED, writes_enabled=False, writes_disabled_reason=refusal)
+
+
+def _sample_refusal(
+    shop_id: uuid.UUID,
+    *,
+    sandbox_owner: SandboxWriteOwner | None,
+    capabilities: set[str],
+    production_write_row: bool,
+    shop: PinShopFacts | None,
+) -> str | None:
+    """Why a sample-listed pin is NOT the sample shop (None: every check holds)."""
+    if shop_id in config.NEVER_SAMPLE_SHOP_IDS:
+        return REASON_SAMPLE_REFUSED_SHOP
+    if shop is None:
+        return REASON_SAMPLE_FACTS_MISSING
+    if shop.credential_rows > 0 or capabilities:
+        return REASON_SAMPLE_TIKTOK_CREDENTIAL
+    if production_write_row:
+        return REASON_SAMPLE_PRODUCTION_WRITE
+    if sandbox_owner is not None and sandbox_owner.shop_id == shop_id:
+        return REASON_SAMPLE_SANDBOX_OWNER
+    if shop.platform != "shopee":
+        return REASON_SAMPLE_NOT_SHOPEE
+    if shop.tiktok_linked:
+        return REASON_SAMPLE_TIKTOK_LINKED
+    return None
+
+
+def _platform_pin_mode(
+    shop_id: uuid.UUID,
+    *,
+    sandbox_owner: SandboxWriteOwner | None,
+    capabilities: set[str],
+    production_write_row: bool,
+) -> PinMode:
+    """``sandbox`` or ``masked`` (P64 / P74-A), before the sample check."""
     owner = sandbox_owner
     reason: str | None = None
     if TikTokCapability.PRODUCTION_READ.value in capabilities:
@@ -255,13 +379,23 @@ def _iso(value: datetime | None) -> str | None:
 
 __all__ = [
     "MODE_MASKED",
+    "MODE_SAMPLE",
     "MODE_SANDBOX",
     "REASON_NOT_SANDBOX",
     "REASON_PRODUCTION_READ",
     "REASON_PRODUCTION_WRITE",
+    "REASON_SAMPLE_FACTS_MISSING",
+    "REASON_SAMPLE_NOT_SHOPEE",
+    "REASON_SAMPLE_PRODUCTION_WRITE",
+    "REASON_SAMPLE_REFUSED_SHOP",
+    "REASON_SAMPLE_SANDBOX_OWNER",
+    "REASON_SAMPLE_SHOP",
+    "REASON_SAMPLE_TIKTOK_CREDENTIAL",
+    "REASON_SAMPLE_TIKTOK_LINKED",
     "REASON_SANDBOX_REFUSED",
     "SYNC_INTERVAL_SECONDS",
     "PinMode",
+    "PinShopFacts",
     "claim_sync_slot",
     "classify_pin",
     "pin_mode",

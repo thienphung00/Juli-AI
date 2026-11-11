@@ -3,6 +3,8 @@
  * dictionary.md `reviewer.*`; nothing here is authored twice.
  */
 
+import type { ReviewerPinMode } from "./session";
+
 /** dictionary.md `reviewer.banner` — the persistent strip on every page. */
 export const REVIEWER_BANNER_COPY =
   "Tài khoản đối tác · dữ liệu shop thật đã ẩn tên · chỉ xem, duyệt chỉ mô phỏng";
@@ -13,6 +15,13 @@ export const REVIEWER_BANNER_COPY =
  */
 export const REVIEWER_SAMPLE_BANNER_COPY =
   "Tài khoản đối tác · thao tác chỉ mô phỏng";
+
+/**
+ * P100 S2-B: the strip on the synthetic Shopee sample shop ("Dữ liệu mẫu"):
+ * names are synthetic, so nothing is hidden; still read-only, Duyệt simulated.
+ */
+export const REVIEWER_SAMPLE_SHOP_BANNER_COPY =
+  "Tài khoản đối tác · Dữ liệu mẫu · chỉ xem, duyệt chỉ mô phỏng";
 
 /** dictionary.md `reviewer.read_only_title` — tooltip of a write control. */
 export const REVIEWER_READ_ONLY_TITLE = "Tài khoản đối tác: thao tác chỉ mô phỏng";
@@ -116,8 +125,11 @@ export const SANDBOX_NO_TRAFFIC_COPY =
  */
 export const REVIEWER_SWITCH_SHOP_PREFIX = "Chuyển sang";
 export const REVIEWER_SANDBOX_SHOP_LABEL = "Shop sandbox TikTok · ghi thật";
+/** P100 S2-B: the shop menu's entry to the synthetic Shopee sample shop. */
+export const REVIEWER_SAMPLE_SHOP_LABEL = "Shop Shopee Dữ liệu mẫu · chỉ xem";
 
-export function reviewerShopLabel(shop: { readonly name: string; readonly mode: "sandbox" | "masked" }): string {
+export function reviewerShopLabel(shop: { readonly name: string; readonly mode: ReviewerPinMode }): string {
   if (shop.mode === "sandbox") return REVIEWER_SANDBOX_SHOP_LABEL;
+  if (shop.mode === "sample") return REVIEWER_SAMPLE_SHOP_LABEL;
   return `${shop.name || "Shop TikTok"} · chỉ xem`;
 }
