@@ -32,7 +32,9 @@ function result(over: Partial<OptionResult> = {}): OptionResult {
     cost: { total: 150000, break_even_orders: 5, break_even_aov: null, text: "Chi phí 150.000đ · hoà vốn khi thêm ≥ 5 đơn" },
     after: { days: 7, label: "Sau 7 ngày", gmv_before: 20000000, gmv_after: 22500000, profit_before: 3000000, profit_after: 4234567 },
     per_30d: { profit: 5000000, gmv: 10000000, orders: 50 },
-    detail: { before: col(), low: col({ orders: 105 }), likely: col({ orders: 112 }), high: col({ orders: 120 }) },
+    roi: { value: 2500000 / 150000, text: "ROI 16,7" },
+    margin: { before_pct: 15, after_pct: 18.82, shift_pts: 3.82 },
+    detail: { before: col(), low: col({ orders: 105 }), likely: col({ orders: 112, views: 10500, ctr: 3.6, ctor: 4.3, aov: 205000 }), high: col({ orders: 120 }) },
     notes: ["Số liệu 28 ngày gần nhất."],
     ...over,
   };
@@ -45,13 +47,26 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.getByTestId("oc-buildup")).toHaveTextContent("+300.000đ từ đơn thêm. −50.000đ giảm giá.");
     expect(screen.getByTestId("oc-gmv")).toHaveTextContent("+2.500.000đ · +12,5%");
     expect(screen.getByTestId("oc-orders")).toHaveTextContent("+12 · +12,0%");
-    expect(screen.getByTestId("oc-drivers")).toHaveTextContent("AOV +1,7% · CTOR +1,8%");
-    expect(screen.getByTestId("oc-cost")).toHaveTextContent("150.000đ Chi phí 150.000đ · hoà vốn khi thêm ≥ 5 đơn");
-    expect(screen.getByTestId("oc-after")).toHaveTextContent("GMV 20.000.000đ → 22.500.000đ · Lợi nhuận 3.000.000đ → 4.234.567đ");
-    expect(screen.getByTestId("oc-after").previousElementSibling).toHaveTextContent("Sau 7 ngày");
+    expect(screen.getByTestId("oc-funnel")).toHaveTextContent("Hiển thị 10.000 → 10.500 · CTR 3,50% → 3,60% · CTOR 4,20% → 4,30% · AOV 200.000đ → 205.000đ");
+    expect(screen.getByTestId("oc-margin")).toHaveTextContent("15,0% → 18,8% (+3,8 điểm)");
+    expect(screen.getByTestId("oc-roi")).toHaveTextContent("16,7");
+    expect(screen.getByTestId("oc-cost")).toHaveTextContent("150.000đ");
+    expect(screen.getByTestId("oc-cost")).not.toHaveTextContent("hoà vốn");
+    expect(screen.getByTestId("oc-breakeven")).toHaveTextContent("cần thêm 5 đơn để hoà vốn");
+    expect(screen.queryByTestId("oc-drivers")).toBeNull();
+    expect(screen.queryByTestId("oc-after")).toBeNull();
+    expect(screen.queryByTestId("oc-per30")).toBeNull();
     expect(screen.queryByTestId("oc-weak")).toBeNull();
     expect(screen.queryByTestId("oc-detail")).toBeNull();
-    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ Lợi nhuận", "Δ GMV", "Δ Đơn", "Tác động", "Chi phí", "Hoà vốn", "Sau 7 ngày"]);
+    // P100-C (B.6): Δ tổng lợi nhuận is the headline; no "Tác động", no "Quy đổi 30 ngày"
+    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ Tổng lợi nhuận", "Δ GMV", "Δ Đơn", "Phễu", "Biên lợi nhuận", "ROI", "Chi phí", "Hoà vốn"]);
+  });
+
+  it("P100-C: one break-even line with orders or AOV; no ROI / margin without them", () => {
+    render(<OptionCard result={result({ cost: { total: 150000, break_even_orders: 5, break_even_aov: 210000, text: "" }, roi: { value: null, text: null }, margin: { before_pct: 15, after_pct: null, shift_pts: null } })} />);
+    expect(screen.getByTestId("oc-breakeven")).toHaveTextContent("cần thêm 5 đơn hoặc AOV ≥ 210.000đ để hoà vốn");
+    expect(screen.queryByTestId("oc-roi")).toBeNull();
+    expect(screen.queryByTestId("oc-margin")).toBeNull();
   });
 
   it("null profit reads 'chưa ước tính được' with the note; costless-unknown reads 'chưa tính'", () => {

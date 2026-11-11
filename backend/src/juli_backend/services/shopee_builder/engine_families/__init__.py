@@ -9,7 +9,7 @@ from decimal import Decimal
 from juli_backend.services.shopee_builder import multi, translate
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext
-from juli_backend.services.shopee_builder.engine.contract import OptionInput
+from juli_backend.services.shopee_builder.engine.contract import Band, OfferCost, OptionInput
 from juli_backend.services.shopee_builder.engine_families import adapters
 from juli_backend.services.shopee_builder.engine_families.common import FamilyRefused, scaled
 from juli_backend.services.shopee_builder.engine_families.facts import (
@@ -85,6 +85,37 @@ def _rebased(
     if after is None or line_ppo is None or base_ppo is None:
         return option
     return replace(option, profit_per_order_after=base_ppo + after - line_ppo)
+
+
+#: P100-C (A.9): the evaluator could not price the gift / add-on (e.g. a giá vốn is missing)
+OFFER_COST_UNKNOWN = "Chưa tính được chi phí ưu đãi (thiếu giá vốn) — chưa có điểm hoà vốn."
+
+
+def _offer_costs(
+    spec: sp.VersionSpec, ctx: BuilderContext, aov_lift: Band
+) -> tuple[OfferCost, ...] | None:
+    """P100-C (A.9): Mua kèm / Quà tặng cost inside the OptionResult, from the evaluator's
+    certain layer (the same numbers the money layer showed). ``()`` = the kind has no per-use
+    cost; ``None`` = it has one the evaluator could not compute."""
+    if not isinstance(spec, sp.AddOnSpec | sp.GiftSpec):
+        return ()
+    from juli_backend.services.shopee_recommendations.evaluate import evaluate
+
+    v = translate.to_variant(spec, ctx).variant
+    cand = Candidate(
+        kind=v["change_kind"],
+        items=tuple(v["items"]),
+        inputs=dict(v["inputs"]),
+        extra=dict(v.get("extra") or {}),
+    )
+    ev = evaluate(ctx.env, cand)
+    if ev.refusal:
+        return None
+    if isinstance(spec, sp.GiftSpec):
+        offer = adapters.gift_offer(ev.certain)
+    else:
+        offer = adapters.add_on_offer(ev.certain, aov_lift)
+    return () if offer is None else (offer,)
 
 
 def option_for(
@@ -167,7 +198,11 @@ def option_for(
             # a gift on a minimum spend converts only the buyers whose basket qualifies
             q = adapters.qualifying_share(env, Decimal(spec.trigger.amount or 0))
             lead = replace(lead, band=scaled(lead.band, q))
-        return simple_option(spec, SimpleFacts(lead))
+        offers = _offer_costs(spec, ctx, lead.band)
+        option = simple_option(spec, SimpleFacts(lead, offers=offers or ()))
+        if offers is None:
+            return replace(option, note=OFFER_COST_UNKNOWN)
+        return option
     raise FamilyRefused("kind_not_supported")
 
 

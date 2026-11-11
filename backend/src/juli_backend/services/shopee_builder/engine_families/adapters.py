@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_builder import specs as sp
-from juli_backend.services.shopee_builder.engine.contract import Band, Basis
+from juli_backend.services.shopee_builder.engine.contract import Band, Basis, OfferCost
 from juli_backend.services.shopee_builder.engine_families import common
+from juli_backend.services.shopee_builder.engine_families.common import FamilyRefused
 from juli_backend.services.shopee_builder.engine_families.facts import (
     AffiliateRateFacts,
     ComboFacts,
@@ -137,7 +138,91 @@ def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
     )
 
 
+#: P100-C: the combo refusals as the seller reads them (codes as ``bundle_tiers``)
+COMBO_REFUSAL_TEXT: dict[str, str] = {
+    "combo_discount_over_max": "Combo giảm tối đa 90% tổng giá bán hiện tại.",
+    "combo_price_not_below_value": (
+        "Giá đặc biệt phải thấp hơn tổng giá bán hiện tại của số sản phẩm đó."
+    ),
+    "combo_price_too_low": "Giá combo quá thấp (dưới 1.000đ) — bạn muốn nhập % giảm?",
+    "combo_tiers_not_increasing": sp.COMBO_TIERS_NOT_INCREASING,
+}
+
+
+def effective_tiers(spec: sp.ComboSpec, unit_price: Decimal) -> tuple[tuple[int, Decimal], ...]:
+    """P100-C (B.9): each tier of each Loại Combo as an effective percent off N × đơn giá (giảm %
+    = itself; giảm số tiền = amount ÷ (N × đơn giá); giá đặc biệt = 1 − giá ÷ (N × đơn giá)),
+    by quantity. Refuses a tier at ≤ 0 % or over the 90 % cap (so never ≥ 100 %) and tiers whose
+    percent does not rise with N."""
+    rows = sorted((Tier(t.qty, Decimal(str(t.value))) for t in spec.tiers), key=lambda t: t.qty)
+    out: list[tuple[int, Decimal]] = []
+    for t in rows:
+        try:
+            eff = effective_pct(spec.discount_type, t, unit_price)
+        except ValueError as exc:
+            code = str(exc)
+            raise FamilyRefused(code, COMBO_REFUSAL_TEXT.get(code, code)) from None
+        if eff <= 0 or eff >= 100:
+            code = "combo_price_not_below_value" if eff <= 0 else "combo_discount_over_max"
+            raise FamilyRefused(code, COMBO_REFUSAL_TEXT[code])
+        if out and eff <= out[-1][1]:
+            code = "combo_tiers_not_increasing"
+            raise FamilyRefused(code, COMBO_REFUSAL_TEXT[code])
+        out.append((t.qty, eff))
+    return tuple(out)
+
+
+def gift_offer(certain: Mapping[str, Any]) -> OfferCost | None:
+    """P100-C (A.9): Quà tặng's cost inside the OptionResult -- giá vốn + đóng gói of the gift(s)
+    on every qualifying order (``eval_gift``'s certain layer)."""
+    gift = certain.get("gift") or {}
+    per, q, n = gift.get("cost_per_gift"), gift.get("qualifying_orders"), gift.get("total_orders")
+    if per is None or not n:
+        return None
+    share = Decimal(str(q or 0)) / Decimal(str(n))
+    return OfferCost(Decimal(str(per)), Band(share, share, share), None, "quà tặng")
+
+
+def add_on_offer(certain: Mapping[str, Any], aov_lift: Band) -> OfferCost | None:
+    """P100-C (A.9): Mua kèm's cost inside the OptionResult -- the add-on discount on every
+    attach, today's and the ones the AOV lift brings. ``per_use`` = the discount of one main
+    order taking the add-on(s); ``use_share`` = today's attach share + lift × AOV ÷ the add-on
+    value per main order."""
+    n = certain.get("main_orders")
+    value = certain.get("attach_value_per_order")
+    rate = certain.get("discount_per_attach_gmv")
+    if not n or not value or rate is None:
+        return None
+    v = Decimal(str(value))
+    per = Decimal(str(rate)) * v
+    if per <= 0:
+        return None
+    now = common.clamp01(Decimal(str(certain.get("discount_cost_on_existing") or 0)) / (per * n))
+    aov = Decimal(str(certain.get("aov_now") or 0))
+    shares = [common.clamp01(now + x * aov / v) for x in (aov_lift.p10, aov_lift.p50, aov_lift.p90)]
+    return OfferCost(per, Band(*sorted(shares)), None, "giảm giá mua kèm")
+
+
+def combo_fee_rate(env: RecoEnv, item_ids: Sequence[str]) -> Decimal:
+    """P100-C (J, verified on a real ORY order): Shopee's % fees (phí cố định, dịch vụ, xử lý giao
+    dịch) are charged on the item total after the combo, so the discount saves them. The mean
+    % rate of the combo's products' fee formulas; 0 when none has one (the gross discount)."""
+    schedule = getattr(env, "schedule", None)  # test fakes carry no fee schedule
+    as_of = getattr(env, "as_of", None)
+    if schedule is None or as_of is None:
+        return ZERO
+    rates = [
+        f.pct_rate_on_buyer_paid
+        for f in (schedule(i).formula_on(as_of) for i in item_ids)
+        if f is not None
+    ]
+    return common.clamp01(sum(rates, ZERO) / len(rates)) if rates else ZERO
+
+
 def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
+    """P100-C (J): the tiers apply ON TOP of the Chương Trình Của Shop price -- ``deal_price`` is
+    the programme price (Giá sau giảm), so N × đơn giá is N × that price (list 100.000 →
+    programme 78.100 → −20 % for 2 = 124.960)."""
     wanted = set(spec.item_ids)
     lines = env.lines_for(list(wanted))
     values = order_values(lines)
@@ -160,11 +245,12 @@ def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
     lowest = tiers[0].qty
     # E2: within 20 % below the tier, and at least one unit (a tier of 2-5 is one unit away)
     floor_units = min(lowest - 1, math.ceil(lowest * (ONE - common.REACH_WINDOW)))
+    eff_of = dict(effective_tiers(spec, avg_price))
     for oid in values:
         u = units.get(oid, 0)
         tier = best_tier(u, tiers)
         if tier is not None:
-            eff = effective_pct(spec.discount_type, tier, avg_price)
+            eff = eff_of[tier.qty]
             discounts.append((u // tier.qty) * tier.qty * avg_price * eff / 100)
         elif u > 0:
             below += 1
@@ -173,12 +259,16 @@ def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
     return ComboFacts(
         aov_now=sum(values.values(), ZERO) / n,
         profit_per_order=profit_per_order(env, set(values)),
-        per_use=sum(discounts, ZERO) / len(discounts) if discounts else ZERO,
+        # nobody at a tier today: an order moving up to the lowest tier gets its discount
+        per_use=sum(discounts, ZERO) / len(discounts)
+        if discounts
+        else lowest * avg_price * eff_of[lowest] / 100,
         use_share_now=Decimal(len(discounts)) / n,
         near_share=Decimal(len(near)) / n,
         unit_price=avg_price,
         reach=measured_reach(len(near), n, below),
         reach_units=Decimal(sum(near)) / len(near) if near else ONE,
+        fee_rate=combo_fee_rate(env, list(spec.item_ids)),
     )
 
 
