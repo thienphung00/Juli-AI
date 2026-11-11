@@ -1357,7 +1357,9 @@ def aggregate(
             "horizon": horizon.json(),
             "n_cards": 0,
             "empty": True,
-            "empty_note": "Kế hoạch chưa có thẻ nào.",
+            # P100 A.8: "no card" only when there is none (cards that cannot be evaluated on
+            # this data are listed in ``unavailable_cards`` instead)
+            "empty_note": None if entries else "Kế hoạch chưa có thẻ nào.",
             "today": today_block,
             "after": None,
             "deltas_p50": None,

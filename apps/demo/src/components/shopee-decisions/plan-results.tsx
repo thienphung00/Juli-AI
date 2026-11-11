@@ -58,7 +58,9 @@ export function PlanTotalsNotes({ plan }: { readonly plan: PlanResponse }) {
   if (!a || a.data_missing) return null;
   return (
     <>
-      {a.empty && a.empty_note ? (
+      {/* P100 A.8: only a plan with no card at all is empty (grouped cards leave the ungrouped
+          aggregate empty while the plan still has cards) */}
+      {a.empty && a.empty_note && plan.cards.length === 0 && (plan.groups?.length ?? 0) === 0 ? (
         <p className="sa-hint" data-testid="kh-empty-note">
           {a.empty_note}
         </p>

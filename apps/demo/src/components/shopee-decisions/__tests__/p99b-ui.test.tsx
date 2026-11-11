@@ -127,6 +127,16 @@ describe("P99b Kế hoạch: empty plan and data_missing", () => {
     expect(screen.queryByTestId("kh-agg")).toBeNull();
   });
 
+  it("P100 A.8: a plan that has cards never says it has none, even when its ungrouped aggregate is empty", async () => {
+    const p = plan();
+    expect(p.cards.length).toBeGreaterThan(0);
+    const aggregate: PlanAggregate = { n_cards: 0, horizon: HORIZON, live: true, today: null, after: null, cost: null, deltas_p50: null, empty: true, empty_note: "Kế hoạch chưa có thẻ nào.", cards: [], unavailable_cards: [], range_method: "x" };
+    open({ ...p, aggregate });
+    expect(await screen.findByTestId("kh-horizon")).toBeInTheDocument();
+    expect(screen.queryByTestId("kh-empty-note")).toBeNull();
+    expect(screen.queryByText("Kế hoạch chưa có thẻ nào.")).toBeNull();
+  });
+
   it("data_missing shows the message and window and no figure at all", async () => {
     const p = plan();
     const aggregate: PlanAggregate = {
