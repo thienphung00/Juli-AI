@@ -312,3 +312,31 @@ Design (scales to many shops — each shop gets its own keywords and profile):
 5. **No Ads account / no access:** fall back to the existing manual JSONL upload (shopeeanalytics);
    the screen says which source each volume came from. Never invent a volume.
 6. Reading is read-only: open the picker's data calls only, never "Tạo", never add keywords.
+
+## J. Read in Seller Centre 2026-11-11 (session 1, read-only, nothing saved)
+
+**Stacking (B.16) — order 260606CCN6JBPX, 06/06/2026, Nước Rửa Chén Ory 500ml × 2:**
+- Chương Trình Của Shop "Giảm giá trực tiếp sản phẩm" (31/03–12/06/2026): Giá gốc ₫100.000 →
+  Giá sau giảm ₫78.100 (22 %GIẢM).
+- Combo "Combo Khuyến mãi" (bundle_deal 443113169043684, Mua 2 giảm 20 %): 2 × 78.100 = 156.200
+  → 124.960 = −20 % **of the programme price**. ⇒ combo tiers apply on top of the discounted price
+  (effective 62,48 % of list).
+- Fees on the post-combo item total: Phí cố định 13.121 = 10,5 % × 124.960; Phí Dịch Vụ 9.873
+  (≈ 7,9 %); Phí xử lý giao dịch 8.158 = 6 % × 135.960 (= 124.960 + buyer shipping 11.000).
+- Shopee Voucher −17.494 reduces only what the buyer pays (118.466); not in seller revenue, not in
+  any fee base. Shop voucher 0 on this order ⇒ "shop-voucher min spend after combo" still unverified.
+- Doanh Thu Đơn Hàng 93.808. Bundle API: `GET /api/marketing/v3/bundle_deal/order/info/?bundle_deal_id=`
+  gives `price_before_bundle`, `item_price` (= programme price), `bundle_item_price` per order.
+- `GET /api/marketing/v3/bundle_deal/list/` (tracking reader, B.12): `bundle_deal_rule`
+  {rule_type (2 = %), min_amount, discount_percentage, discount_value, fix_price,
+  additional_tiers[]}, start_time/end_time (epoch s), status, time_status (3 running, 4 ended).
+  ORY has a running combo "JULI/CBT-1/T11" since 11/11 10:30 (5 % for 2, 10 % for 3).
+
+**Shop+ keyword picker (I) — response shape** (`POST /api/pas/v1/setup_helper/list_recommended_keyword/`
+body `{campaign_type:"shop", reference_id:<uuid per page>, suggest_log_data:{page:"suggest_creation"}}`;
+`search_keyword/` same body plus `keyword`): `{code:0, msg:"OK", data:[{keyword, state:"normal",
+recommended_price, relevance, search_volume, is_recommended, product_suggest_log_data, log_key}]}`,
+50 rows. **`recommended_price` is đ × 100.000** (209960901 → ₫2.100 shown). `relevance` =
+"Chất lượng từ khóa" x/10; `is_recommended` = the thumbs-up icon; `search_volume` = "Tỉ lệ tìm
+kiếm". The searched seed comes back as row 0 ("túi đựng thực phẩm" 17.809, ₫2.100), then 49
+related keywords.
