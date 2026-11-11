@@ -455,6 +455,9 @@ class AdsDaily:
     by_type: dict[str, dict[str, Decimal]]
     days_covered: int
     window_days: int
+    #: P100 B.5: the spend per day (only the days with an ads row); the one shop profit charges
+    #: each day's spend by that day's known-cost orders
+    spend_by_day: dict[date, Decimal] = field(default_factory=dict)
 
     @property
     def complete(self) -> bool:
@@ -475,17 +478,19 @@ async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Wind
         lambda: {"spend": ZERO, "gmv": ZERO, "orders": ZERO}
     )
     days: set[date] = set()
+    by_day: dict[date, Decimal] = defaultdict(lambda: ZERO)
     for r in rows:
         days.add(r.day)
         cost = _z((r.extra or {}).get("ads_expense"))
         spend += cost
+        by_day[r.day] += cost
         gmv += _z(r.gmv)
         orders += _z(r.orders)
         cell = by_type[r.segment]
         cell["spend"] += cost
         cell["gmv"] += _z(r.gmv)
         cell["orders"] += _z(r.orders)
-    return AdsDaily(spend, gmv, orders, dict(by_type), len(days), window.days)
+    return AdsDaily(spend, gmv, orders, dict(by_type), len(days), window.days, dict(by_day))
 
 
 # ---------------------------------------------------------------------------------------
@@ -503,6 +508,9 @@ class ProductFlows:
     flows_basis: PeriodChoice
     totals_basis: PeriodChoice
     source: str  # item_traffic_sources | item_by_source_period | none
+    #: P100 A.6: each product's own funnel (Hiển thị, clicks, đơn) from Shopee's product table
+    #: (``product_period``) over ``totals_basis`` -- the source Sản phẩm + luồng shows
+    traffic: dict[str, Agg] = field(default_factory=dict)
 
 
 def product_totals_for(pf: ProductFlows, lines: OrderLinesLoad) -> dict[str, tuple[Decimal, int]]:
@@ -603,10 +611,12 @@ async def load_product_flows(
     totals_choice = choose_periods(window, {_period_key(p) for p in total_rows})
     totals: dict[str, tuple[Decimal, int]] = {}
     chosen_t = set(totals_choice.periods)
+    traffic: dict[str, Agg] = defaultdict(Agg)
     for p in total_rows:
         if _period_key(p) in chosen_t:
             g, o = totals.get(p.item_id, (ZERO, 0))
             totals[p.item_id] = (g + _z(p.gmv), o + int(_z(p.orders)))
+            traffic[p.item_id].add(p.impressions, p.clicks, p.orders, p.gmv)
     flow_totals = totals
     if source == "item_by_source_period" and set(flows_choice.periods) != chosen_t:
         flow_totals = {}
@@ -624,6 +634,7 @@ async def load_product_flows(
         flows_choice,
         totals_choice,
         source,
+        dict(traffic),
     )
 
 

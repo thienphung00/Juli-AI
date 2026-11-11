@@ -100,7 +100,6 @@ export function FlowTree({ ov, state }: { readonly ov: Overview; readonly state:
       ) : (
         <Empty testId="sa-flows-empty">Chưa có lưu lượng theo nguồn cho kỳ này. Khi báo cáo lưu lượng được tải lên, năm luồng sẽ hiện ở đây.</Empty>
       )}
-      <LeversBlock ov={ov} state={state} />
     </Section>
   );
 }
@@ -308,32 +307,3 @@ function kidCells(k: CardChild, total: N, rk: (kpi: string, src?: string, sub?: 
   ];
 }
 
-function LeversBlock({ ov, state }: { readonly ov: Overview; readonly state: WindowState }) {
-  const { links } = useShopee();
-  const lv = ov.levers;
-  const src: Record<string, string> = { khong_uu_dai: "none", voucher: "voucher", khuyen_mai: "promo", combo: "combo" };
-  return (
-    <div className="sa-levers" data-testid="sa-levers">
-      <div className="sa-subhead">
-        <b>Mức ưu đãi trên mỗi dòng đơn</b>
-        <span className="sa-hint">{lv.note}</span>
-      </div>
-      {lv.rows.map((r) => (
-        <Link
-          className="sa-lever"
-          href={links.ranking({ kpi: "gmv", src: src[r.key] ?? "all", from: "tong-quan" }, state)}
-          key={r.key}
-        >
-          <b>{r.label}</b>
-          <span>{fmt(r.orders)} đơn</span>
-          <span>{vnd(r.gmv)}</span>
-          <span>{pp(r.share_pct, 1)} GMV</span>
-          <span>Biên {pp(r.margin_pct, 1)}</span>
-        </Link>
-      ))}
-      <p className="sa-hint">
-        Σ bốn mức = {vnd(lv.gmv_sum)} {lv.adds_up ? "= GMV theo dòng đơn" : `(GMV theo dòng đơn ${vnd(lv.gmv_total)})`}
-      </p>
-    </div>
-  );
-}

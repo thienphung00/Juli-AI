@@ -7,7 +7,6 @@ import { useShopee } from "../../lib/shopee-analytics/context";
 import {
   DASH,
   chipFromChange,
-  chipPt,
   dayMonth,
   fmt,
   pc,
@@ -16,26 +15,18 @@ import {
   vnd,
   type Chip,
 } from "../../lib/shopee-analytics/format";
-import {
-  CAP_LABEL,
-  fiveCards,
-  freshnessOf,
-  impactsOf,
-  isStale,
-  marginDropText,
-  weakestLink,
-} from "../../lib/shopee-analytics/model";
+import { freshnessOf, impactsOf, isStale, marginDropText, weakestLink } from "../../lib/shopee-analytics/model";
 import { readWindow, type WindowState, windowParams } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { Overview } from "../../lib/shopee-analytics/types";
 import { FlowTree } from "./tong-quan-tree";
 import { ProductMatrix } from "./tong-quan-matrix";
 import { PeriodBar } from "./period-bar";
-import { ChipView, InfoToggle, Notice, PageHead, ResourceState, Section, toneClass } from "./ui";
+import { ChipView, InfoToggle, Notice, PageHead, ResourceState, Section } from "./ui";
 
 /**
- * Tổng quan (artboards TongQuan / TongQuanMobile): the shop in one screen. KPI strip, the five
- * numbers, shop profit with cost coverage, the GMV tree (five flows + Chênh lệch nguồn) and the
+ * Tổng quan (artboards TongQuan / TongQuanMobile): the shop in one screen. KPI strip (P100 B.6:
+ * GMV, lượt xem, CTR, CTOR, AOV, đơn, tổng lợi nhuận), the one shop profit with cost coverage, the GMV tree (five flows + Chênh lệch nguồn) and the
  * product × source matrix. Every number is a link to its Xếp hạng. The mobile layout is the same
  * markup under the stylesheet's narrow breakpoint (tiles 2 columns, rows as cards).
  */
@@ -67,7 +58,6 @@ function Loaded({ ov, state }: { readonly ov: Overview; readonly state: WindowSt
     return links.screen("tong-quan", q);
   };
   const compare = state.compare;
-  const five = fiveCards(ov.five_numbers, target);
   const days = win.days;
   const kpi = ov.kpi_strip;
 
@@ -101,13 +91,9 @@ function Loaded({ ov, state }: { readonly ov: Overview; readonly state: WindowSt
     </Link>
   );
   const per = (v: number | null) => (v === null ? DASH : `${sv(v)}/ngày`);
-  const marginChip = chipPt(kpi.margin_pct.previous, kpi.margin_pct.value);
-  const profitDelta =
-    ov.five_numbers.margin.profit_after !== null && ov.five_numbers.margin.profit_before !== null
-      ? (ov.five_numbers.margin.profit_after - ov.five_numbers.margin.profit_before) / days
-      : null;
   const belowTarget = kpi.margin_pct.value !== null && target !== null && kpi.margin_pct.value < target;
-  const partial = ov.profit.profit_is_partial;
+  // P100 B.5: the one shop profit (known-cost orders) with its coverage line
+  const profitKpi = kpi.profit ?? { value: ov.profit.profit_vnd, previous: null, change_pct: null, label: ov.profit.coverage_label ?? "" };
 
   return (
     <>
@@ -145,19 +131,20 @@ function Loaded({ ov, state }: { readonly ov: Overview; readonly state: WindowSt
           </Notice>
         ))}
 
-      <Section hint="Bấm một ô để xem bảng xếp hạng · ₫/ngày là phần GMV chỉ số đó kéo" title="Sáu chỉ số chính">
+      <Section hint="Bấm một ô để xem bảng xếp hạng · ₫/ngày là phần GMV chỉ số đó kéo" title="Chỉ số chính">
         <div className="sa-tiles">
           {tile("gmv", "GMV", vnd(kpi.gmv.value), chipFromChange(kpi.gmv.change_pct), `Tổng 4 ô: ${per(impacts.gmv)}`, "")}
           {tile("views", "Lượt xem", fmt(kpi.views.value), chipFromChange(kpi.views.change_pct), per(impacts.views), weak === "views" ? "✦ Juli gợi ý" : "")}
           {tile("ctr", "CTR", pc(kpi.ctr.value), chipFromChange(kpi.ctr.change_pct), per(impacts.ctr), weak === "ctr" ? "✦ Juli gợi ý" : "")}
           {tile("ctor", "CTOR", pc(kpi.ctor.value), chipFromChange(kpi.ctor.change_pct), per(impacts.ctor), weak === "ctor" ? "✦ Juli gợi ý" : "")}
           {tile("aov", "AOV", vnd(kpi.aov.value), chipFromChange(kpi.aov.change_pct), per(impacts.aov), weak === "aov" ? "✦ Juli gợi ý" : "")}
+          {tile("orders", "Đơn", fmt(kpi.orders.value), chipFromChange(kpi.orders.change_pct), kpi.orders.value === null || days === 0 ? DASH : `${fmt(Math.round(kpi.orders.value / days))} đơn/ngày`, "")}
           {tile(
-            "bien",
-            "Biên cuối",
-            pp(kpi.margin_pct.value, 1),
-            marginChip,
-            partial && kpi.margin_pct.label ? kpi.margin_pct.label : `Lợi nhuận ${per(profitDelta)}`,
+            "profit",
+            "Tổng lợi nhuận",
+            vnd(profitKpi.value),
+            chipFromChange(profitKpi.change_pct),
+            `Biên ${pp(kpi.margin_pct.value, 1)} · ${profitKpi.label}`,
             belowTarget ? "Dưới mục tiêu" : "",
             belowTarget ? "below" : undefined,
           )}
@@ -170,39 +157,6 @@ function Loaded({ ov, state }: { readonly ov: Overview; readonly state: WindowSt
             </Link>
           </p>
         ) : null}
-        <p className="sa-hint" data-testid="sa-aov-note">
-          AOV ở đây = GMV ÷ đơn ({vnd(ov.gmv.aov_gmv)}); AOV theo Seller Centre (trừ voucher shop) ={" "}
-          {vnd(ov.gmv.aov_seller_centre)}.
-        </p>
-      </Section>
-
-      <Section hint="Cùng định nghĩa ở Tổng quan, Sản phẩm và thẻ · kèm chi marketing so với trần" title="5 con số chính">
-        <div className="sa-five" data-testid="sa-five">
-          {five.map((f) => (
-            <Link
-              className={`sa-five__card ${f.tone === "down" ? "sa-five__card--bad" : ""}`}
-              data-testid={`sa-five-${f.key}`}
-              href={links.ranking({ kpi: f.kpi, src: f.src ?? "all", from: "tong-quan" }, state)}
-              key={f.key}
-            >
-              <span className="sa-tile__label">{f.label}</span>
-              <span className="sa-five__value">{f.value}</span>
-              <span>
-                <span className={`sa-chip sa-chip--${f.tone}`}>{f.chip}</span>
-              </span>
-              <span className="sa-five__sub">{f.sub1}</span>
-              <span className={`sa-five__sub sa-five__sub--b ${toneClass(f.tone)}`}>{f.sub2}</span>
-            </Link>
-          ))}
-        </div>
-        {!ov.five_numbers.comparison.available ? (
-          <Notice tone="info" testId="sa-no-comparison">
-            Kỳ trước chưa có dòng đơn hàng nên chỉ hiện số của kỳ này; Juli không so với một kỳ trống.
-          </Notice>
-        ) : null}
-        <p className="sa-hint">
-          ② = ΔGMV ÷ Δchi · {ov.five_numbers.chi_definition}. {CAP_LABEL}: chi ÷ số ngày của kỳ.
-        </p>
       </Section>
 
       <ProfitBlock ov={ov} />
@@ -267,18 +221,10 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
       tone: "sa-tone--down",
     },
     {
-      k: "= Lợi nhuận (chi tiết)",
-      v: partial ? DASH : vnd(p.profit_waterfall_vnd ?? p.profit_vnd),
-      note: partial
-        ? "Chỉ hiện bằng đồng khi 100% doanh thu có giá vốn"
-        : `${p.profit_detail_label ? `${p.profit_detail_label} · ` : ""}Biên ${pp(p.margin_pct, 1)} = lợi nhuận ÷ doanh thu thực (sau voucher và combo)`,
-    },
-    {
-      k: "Lợi nhuận shop",
-      v: partial ? DASH : vnd(p.profit_vnd),
-      note: p.profit_estimated
-        ? `${p.profit_estimate_label ?? "ước tính theo tỉ lệ"} · cùng số với Sản phẩm và Kế hoạch`
-        : "Cùng số với Sản phẩm và Kế hoạch",
+      // P100 B.5: ONE shop profit -- the known-cost orders, with its coverage line
+      k: "= Lợi nhuận shop",
+      v: vnd(p.profit_vnd),
+      note: `${p.coverage_label ? `${p.coverage_label} · ` : ""}Biên ${pp(p.margin_pct, 1)} · cùng số với Sản phẩm và Kế hoạch`,
     },
   ];
   return (

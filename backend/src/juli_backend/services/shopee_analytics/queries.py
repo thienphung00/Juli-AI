@@ -31,6 +31,7 @@ from juli_backend.services.shopee_analytics.orders import build_orders
 from juli_backend.services.shopee_analytics.overview import build_overview
 from juli_backend.services.shopee_analytics.product import build_product_page
 from juli_backend.services.shopee_analytics.rankings import build_ranking
+from juli_backend.services.shopee_analytics.shared import shop_profit_fields
 from juli_backend.services.shopee_analytics.windows import InvalidWindow, Window
 
 PRODUCT_PERIODS: tuple[str, ...] = ("7d", "30d", "90d")
@@ -171,7 +172,8 @@ async def window_metrics(
     if window is None:
         return None
     view = await service.load_view(session, shop_id, ctx, window, funnel=True)
-    return view.metrics.json(), dict(view.excluded)
+    # P100 B.5: the shop profit is the one known-cost figure, never the scaled stored sum
+    return {**view.metrics.json(), **shop_profit_fields(view)}, dict(view.excluded)
 
 
 async def orders(

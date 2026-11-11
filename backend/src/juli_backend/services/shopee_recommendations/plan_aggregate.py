@@ -50,6 +50,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_recommendations import (
     config,
@@ -1045,9 +1046,14 @@ def _cost_block(env: RecoEnv, j: Joint, base: Mapping[str, Any] | None = None) -
 
 
 def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    """ "Hôm nay": the plan's frozen base when it has one, else ShopMetrics of the env."""
+    """ "Hôm nay": the plan's frozen base when it has one, else ShopMetrics of the env. The shop
+    profit and margin are the one known-cost figure (P100 B.5, ``shared.shop_profit_of``): the
+    same number Tổng quan and Sản phẩm show."""
     if base is not None:
         margin = base["margin_pct"]
+        profit = base.get("profit_30d")
+        if profit is None and "shop_profit" not in base and margin is not None:
+            profit = base["gmv_30d"] * margin / 100  # a base frozen before P100
         return {
             "as_of": base["as_of"],
             "gmv_30d": base["gmv_30d"],
@@ -1058,21 +1064,24 @@ def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any
             "clicks_30d": base.get("clicks"),
             "ctr": base.get("ctr"),
             "ctor": base.get("ctor"),
-            "profit_30d": None if margin is None else base["gmv_30d"] * margin / 100,
+            "profit_30d": profit,
+            "shop_profit": base.get("shop_profit"),
         }
     m = env.metrics
+    fig = shop_profit_of(env.view).json()
     gmv, orders = float(env.shop_gmv_30d), env.shop_orders_30d
     return {
         "as_of": env.as_of.isoformat(),
         "gmv_30d": gmv,
         "orders_30d": orders,
         "aov": None if m.aov is None else float(m.aov),
-        "margin_pct": None if m.margin_pct is None else float(m.margin_pct),
+        "margin_pct": fig["margin_pct"],
         "views_30d": m.views,
         "clicks_30d": m.clicks,
         "ctr": None if m.ctr is None else float(m.ctr),
         "ctor": None if m.ctor is None else float(m.ctor),
-        "profit_30d": None if m.profit is None else float(m.profit),
+        "profit_30d": fig["profit"],
+        "shop_profit": fig,
     }
 
 
@@ -1348,7 +1357,9 @@ def aggregate(
             "horizon": horizon.json(),
             "n_cards": 0,
             "empty": True,
-            "empty_note": "Kế hoạch chưa có thẻ nào.",
+            # P100 A.8: "no card" only when there is none (cards that cannot be evaluated on
+            # this data are listed in ``unavailable_cards`` instead)
+            "empty_note": None if entries else "Kế hoạch chưa có thẻ nào.",
             "today": today_block,
             "after": None,
             "deltas_p50": None,
