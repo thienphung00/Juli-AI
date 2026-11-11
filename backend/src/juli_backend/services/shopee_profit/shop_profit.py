@@ -402,7 +402,7 @@ class KnownCostProfit:
             "orders": self.orders,
             "gmv": _money(self.gmv),
             "gmv_share_pct": None if self.gmv_share_pct is None else float(self.gmv_share_pct),
-            "buyer_paid": _money(self.buyer_paid),
+            "net_revenue": _money(self.buyer_paid),  # no "buyer" key in any payload
             "ads_charged": _money(self.ads_charged),
             "ads_basis": self.ads_basis,
             "label": self.label,
