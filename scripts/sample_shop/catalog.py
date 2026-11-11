@@ -172,3 +172,33 @@ CAMPAIGNS: tuple[tuple[str, str], ...] = (
     ("9200000000001", "Hiên Nhà - Tối đa ROAS - Nhà bếp"),
     ("9200000000002", "Hiên Nhà - Tối đa ROAS - Dụng cụ"),
 )
+
+
+# ---------------------------------------------------------------- decisions (Quyết định) seeds
+#: Indexes into ``PRODUCTS`` of the products the demo decision cards are about. Distinct products,
+#: because a product shows one open card at a time.
+TITLE_PRODUCT = 3  # the running Tiêu đề card: applied 5 days before the end date
+VOUCHER_PRODUCT = 0  # the measured Voucher card
+#: Core keywords ("Chính") the title audit holds the titles against: (product index, keyword).
+#: The title of the first one lacks its keyword (an open Tiêu đề card); the second one's old
+#: title lacked it and the running card's new title carries it.
+KEYWORDS: tuple[tuple[int, str], ...] = (
+    (1, "khăn lau bếp"),
+    (3, "găng tay rửa chén"),
+)
+NEW_TITLE = "Găng tay rửa chén cao su Hiên Nhà dày dặn không mùi, bền chắc, size M L"
+TITLE_APPLIED_DAYS_BEFORE_END = 5
+
+VOUCHER_ID = "9300000000001"
+VOUCHER_NAME = "Hiên Nhà - Voucher 8k đơn từ 150k"
+VOUCHER_VALUE = 8_000
+VOUCHER_MIN_SPEND = 150_000
+VOUCHER_QUANTITY = 60
+#: The voucher starts this many days before the end date and runs ``VOUCHER_DAYS`` days. The
+#: reading needs the 14 days before it, and the 30-day history starts 29 days before the end date.
+VOUCHER_START_DAYS_BEFORE_END = 15
+VOUCHER_DAYS = 7
+#: Share of the qualifying orders that collect and use the voucher.
+VOUCHER_USAGE = 0.3
+#: Share of the orders one unit short of the minimum that add one unit to reach it.
+VOUCHER_TOP_UP = 0.4

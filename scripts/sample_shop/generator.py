@@ -24,8 +24,22 @@ from typing import Any
 from juli_backend.services.ingest import order_ref as order_ref_mod
 from scripts.sample_shop.catalog import (
     CAMPAIGNS,
+    KEYWORDS,
+    NEW_TITLE,
     PRODUCTS,
     SAMPLE_SHOPEE_SHOP_ID,
+    TITLE_APPLIED_DAYS_BEFORE_END,
+    TITLE_PRODUCT,
+    VOUCHER_DAYS,
+    VOUCHER_ID,
+    VOUCHER_MIN_SPEND,
+    VOUCHER_NAME,
+    VOUCHER_PRODUCT,
+    VOUCHER_QUANTITY,
+    VOUCHER_START_DAYS_BEFORE_END,
+    VOUCHER_TOP_UP,
+    VOUCHER_USAGE,
+    VOUCHER_VALUE,
     Product,
     Variation,
 )
@@ -80,12 +94,52 @@ class Post:
     body: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class TitleChange:
+    """A product's title as the seller changed it: ``old`` until ``applied_on``, ``new`` after."""
+
+    item_id: str
+    old: str
+    new: str
+    applied_on: date
+
+
+@dataclass
+class VoucherRun:
+    """The one shop voucher the history holds: settings, the days it ran and what the simulated
+    orders did with it. Results are COUNTED from the orders, never typed in."""
+
+    voucher_id: str
+    name: str
+    item_id: str
+    value: int
+    min_spend: int
+    quantity: int
+    starts_on: date
+    ends_on: date
+    qualifying_orders: int = 0
+    used_orders: int = 0
+    used_sales: int = 0
+
+    @property
+    def usage_rate(self) -> float:
+        return self.used_orders / self.qualifying_orders if self.qualifying_orders else 0.0
+
+    @property
+    def cost(self) -> int:
+        return self.used_orders * self.value
+
+
 @dataclass
 class SampleShop:
     end_date: date
     start_date: date
     shopee_shop_id: str
     posts: list[Post] = field(default_factory=list)
+    #: (item_id, keyword): the "Chính" keywords the loader writes to ``shop_keyword_seeds``
+    keywords: list[tuple[str, str]] = field(default_factory=list)
+    title_change: TitleChange | None = None
+    voucher: VoucherRun | None = None
     #: scope ("item_id:model_id") -> giá vốn per unit, VND
     costs: dict[str, int] = field(default_factory=dict)
     #: the simulated truth the tests check the posts against
@@ -255,6 +309,50 @@ def _fees(ln: _Line) -> tuple[int, int, int]:
     )
 
 
+def _units_value(order: _Order) -> int:
+    return sum(ln.variation.price * ln.qty for ln in order.lines)
+
+
+def _top_up(vrng: random.Random, orders: list[_Order], v: VoucherRun) -> None:
+    """While the voucher runs, a buyer one unit short of its minimum adds that unit (the effect
+    the reading should find: a bigger basket on the voucher's product)."""
+    for o in orders:
+        mine = [ln for ln in o.lines if ln.product.item_id == v.item_id]
+        if not mine:
+            continue
+        total = _units_value(o)
+        unit = mine[0].variation.price
+        if (
+            total < v.min_spend <= total + unit
+            and mine[0].qty < 4
+            and vrng.random() < VOUCHER_TOP_UP
+        ):
+            mine[0].qty += 1
+
+
+def _use_voucher(vrng: random.Random, orders: list[_Order], v: VoucherRun) -> None:
+    """Orders with the voucher's product at or above its minimum qualify; a share of them use it
+    (until the quantity runs out). The voucher value is the shop's cost, split over the lines."""
+    for o in orders:
+        if not any(ln.product.item_id == v.item_id for ln in o.lines):
+            continue
+        total = sum(ln.value for ln in o.lines)
+        if total < v.min_spend:
+            continue
+        v.qualifying_orders += 1
+        # every 1/VOUCHER_USAGE-th qualifying order uses it: a usage rate that does not swing with
+        # a handful of orders
+        q = v.qualifying_orders
+        if v.used_orders >= v.quantity or int(q * VOUCHER_USAGE) == int((q - 1) * VOUCHER_USAGE):
+            continue
+        v.used_orders += 1
+        v.used_sales += total
+        left = v.value
+        for i, ln in enumerate(o.lines):
+            share = left if i == len(o.lines) - 1 else round(v.value * ln.value / total)
+            ln.voucher, left = share, left - share
+
+
 def generate(
     end_date: date,
     *,
@@ -270,6 +368,31 @@ def generate(
         hour=23, minute=30
     )
     shop = SampleShop(end_date, start, sid)
+    shop.keywords = [(PRODUCTS[i].item_id, kw) for i, kw in KEYWORDS]
+    # the decision history needs the 14 days before the voucher: only a full-length history has it
+    with_decisions = days >= DAYS
+    vrng = random.Random(SEED + 7)
+    voucher: VoucherRun | None = None
+    if with_decisions:
+        v_start = end_date - timedelta(days=VOUCHER_START_DAYS_BEFORE_END)
+        voucher = VoucherRun(
+            VOUCHER_ID,
+            VOUCHER_NAME,
+            PRODUCTS[VOUCHER_PRODUCT].item_id,
+            VOUCHER_VALUE,
+            VOUCHER_MIN_SPEND,
+            VOUCHER_QUANTITY,
+            v_start,
+            v_start + timedelta(days=VOUCHER_DAYS),
+        )
+        shop.voucher = voucher
+        old_title = PRODUCTS[TITLE_PRODUCT].name
+        shop.title_change = TitleChange(
+            PRODUCTS[TITLE_PRODUCT].item_id,
+            old_title,
+            NEW_TITLE,
+            end_date - timedelta(days=TITLE_APPLIED_DAYS_BEFORE_END),
+        )
 
     def post(dataset: str, rows: list[dict[str, Any]], s: date, e: date, **kw: Any) -> None:
         shop.posts.extend(_split(dataset, rows, s, e, sid, kw.pop("at", captured), **kw))
@@ -292,8 +415,15 @@ def generate(
         day = start + timedelta(days=idx)
         orders, draw = _simulate_orders(rng, day, idx, min_orders=4)
         combo_on = day >= combo_start
+        v_live = voucher is not None and voucher.starts_on < day <= voucher.ends_on
+        if v_live:
+            assert voucher is not None
+            _top_up(vrng, orders, voucher)
         for o in orders:
             _price_order(rng, o, combo_on)
+        if v_live:
+            assert voucher is not None
+            _use_voucher(vrng, orders, voucher)
         shop_day = _day_rows(rng, day, orders, draw, sold)
         # --- shop-level rows
         gmv = shop_day["gmv"]
@@ -387,21 +517,34 @@ def generate(
 
     # --- posts, in the order a Connector would send them (catalogue first: the order lines'
     #     SKUs resolve to items through it)
-    shop.posts.append(
-        Post(
-            "item_catalog",
-            _body(
-                start,
-                end_date,
-                _catalog_rows(),
-                granularity="period",
-                order_type=None,
-                shopee_shop_id=sid,
-                captured_at=captured,
-            ),
-        )
-    )
     first_capture = datetime.combine(start, datetime.min.time(), tzinfo=GMT7).replace(hour=8)
+    change = shop.title_change
+
+    def catalog_post(names: dict[str, str], at: datetime) -> None:
+        shop.posts.append(
+            Post(
+                "item_catalog",
+                _body(
+                    start,
+                    end_date,
+                    _catalog_rows(names),
+                    granularity="period",
+                    order_type=None,
+                    shopee_shop_id=sid,
+                    captured_at=at,
+                ),
+            )
+        )
+
+    old_names = {p.item_id: p.name for p in PRODUCTS}
+    # the catalogue is read when the history starts; the title change shows in the read after it
+    catalog_post(old_names, first_capture if change else captured)
+    if change is not None:
+        applied_read = datetime.combine(change.applied_on, datetime.min.time(), tzinfo=GMT7)
+        catalog_post(
+            {**old_names, change.item_id: change.new}, applied_read.replace(hour=14, minute=0)
+        )
+        catalog_post({**old_names, change.item_id: change.new}, captured)
     shop.posts.append(
         Post(
             "item_snapshot",
@@ -473,6 +616,8 @@ def generate(
         order_type="confirmed",
         day_of=None,
     )
+    if voucher is not None:
+        _voucher_posts(shop, voucher, sid)
     for p in PRODUCTS:
         for v in p.variations:
             shop.costs[f"{p.item_id}:{v.model_id}"] = v.cost
@@ -840,16 +985,17 @@ def _income_row(o: _Order, day: date) -> dict[str, Any]:
     }
 
 
-def _catalog_rows() -> list[dict[str, Any]]:
+def _catalog_rows(names: dict[str, str]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for p in PRODUCTS:
-        rows.append({"item_id": p.item_id, "item_name": p.name, "status": "normal"})
+        name = names[p.item_id]
+        rows.append({"item_id": p.item_id, "item_name": name, "status": "normal"})
         for v in p.variations:
             rows.append(
                 {
                     "item_id": p.item_id,
                     "variation_id": v.model_id,
-                    "item_name": p.name,
+                    "item_name": name,
                     "variation_name": v.name,
                     "seller_sku": v.sku,
                     "status": "normal",
@@ -920,6 +1066,82 @@ def _period_ads_rows(acc: dict[tuple[int, int], dict[str, float]]) -> list[dict[
     return rows
 
 
+def _local(day: date, hour: int, minute: int = 0) -> datetime:
+    return datetime.combine(day, datetime.min.time(), tzinfo=GMT7).replace(hour=hour, minute=minute)
+
+
+def _voucher_setting_row(v: VoucherRun, *, usage: int, status: str) -> dict[str, Any]:
+    return {
+        "voucher_id": v.voucher_id,
+        "program_name": v.name,
+        "starts_at": _local(v.starts_on, 9, 30).isoformat(),
+        "ends_at": _local(v.ends_on, 23, 59).isoformat(),
+        "status": status,
+        "discount_amount": v.value,
+        "min_spend": v.min_spend,
+        "usage_limit": v.quantity,
+        "current_usage": usage,
+        "distributed_count": v.quantity,
+        "is_seller_absorbed": True,
+        "item_count": 1,
+    }
+
+
+def _voucher_posts(shop: SampleShop, v: VoucherRun, sid: str) -> None:
+    """The voucher as the Connector reads it: its settings on the day it starts and the day after
+    it ends (``voucher_settings``), and its results over the run (``promotions``, type Voucher,
+    with the usage rate and cost COUNTED from the simulated orders)."""
+    for day, hour, usage, status in (
+        (v.starts_on, 12, 0, "Đang diễn ra"),
+        (v.ends_on + timedelta(days=1), 8, v.used_orders, "Đã kết thúc"),
+    ):
+        shop.posts.append(
+            Post(
+                "voucher_settings",
+                _body(
+                    day,
+                    day,
+                    [_voucher_setting_row(v, usage=usage, status=status)],
+                    granularity="period",
+                    order_type=None,
+                    shopee_shop_id=sid,
+                    captured_at=_local(day, hour),
+                ),
+            )
+        )
+    result = {
+        "program_name": v.name,
+        "promo_type": "Voucher",
+        "starts_at": _local(v.starts_on, 9, 30).isoformat(),
+        "ends_at": _local(v.ends_on, 23, 59).isoformat(),
+        "status": "Đã kết thúc",
+        "sales": v.used_sales,
+        "orders": v.used_orders,
+        "units": v.used_orders,
+        "buyers": v.used_orders,
+        "sales_per_buyer": round(v.used_sales / v.used_orders) if v.used_orders else 0,
+        "extra": {
+            "usage_rate": round(v.usage_rate, 4),
+            "voucher_cost": v.cost,
+            "qualifying_orders": v.qualifying_orders,
+        },
+    }
+    shop.posts.append(
+        Post(
+            "promotions",
+            _body(
+                v.starts_on,
+                v.ends_on,
+                [result],
+                granularity="period",
+                order_type="confirmed",
+                shopee_shop_id=sid,
+                captured_at=_local(v.ends_on + timedelta(days=1), 8),
+            ),
+        )
+    )
+
+
 def _combo_row(start: date, end: date, totals: dict[str, int]) -> dict[str, Any]:
     return {
         "program_name": COMBO_NAME,
@@ -942,4 +1164,4 @@ def _combo_row(start: date, end: date, totals: dict[str, int]) -> dict[str, Any]
     }
 
 
-__all__ = ["DAYS", "Post", "SampleShop", "generate"]
+__all__ = ["DAYS", "Post", "SampleShop", "TitleChange", "VoucherRun", "generate"]

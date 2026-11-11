@@ -103,12 +103,15 @@ def test_every_post_passes_the_gateways_own_validation(sample):
 
 
 def test_six_products_with_one_to_three_variations_and_a_running_two_tier_combo(sample):
-    catalog = _rows(sample, "item_catalog")
+    # the catalogue is read three times (start, title change, end): count each variation once
+    catalog = list(
+        {(r["item_id"], r.get("variation_id")): r for r in _rows(sample, "item_catalog")}.values()
+    )
     items = {r["item_id"] for r in catalog}
     assert len(items) == 6
     for item in items:
         assert 1 <= len([r for r in catalog if r["item_id"] == item and r.get("variation_id")]) <= 3
-    promos = _rows(sample, "promotions")
+    promos = [r for r in _rows(sample, "promotions") if r["promo_type"] != "Voucher"]
     assert len(promos) == 1 and promos[0]["promo_type"] == "Combo Khuyến Mãi"
     assert promos[0]["extra"]["tier_count"] == 2
     assert datetime.fromisoformat(promos[0]["ends_at"]).date() > END  # still running
@@ -414,3 +417,113 @@ async def _shop_with_shopee_id(factory, shopee_id: str) -> uuid.UUID:
         )
         await session.commit()
         return shop.id
+
+
+# ================================================== Quyết định: the decision-card history
+
+
+def _post_rows(sample, dataset):
+    return [
+        (p.body["captured_at"], r)
+        for p in sample.posts
+        if p.dataset == dataset
+        for r in p.body["rows"]
+    ]
+
+
+def test_the_title_changes_in_the_catalogue_reads_old_before_and_new_after(sample):
+    change = sample.title_change
+    assert change is not None and change.applied_on == END - timedelta(days=5)
+    assert len(change.new) <= 100 and change.old != change.new
+    names = [
+        (at, r["item_name"])
+        for at, r in _post_rows(sample, "item_catalog")
+        if r["item_id"] == change.item_id and "variation_id" not in r
+    ]
+    assert [n for _, n in names] == [change.old, change.new, change.new]
+    assert names[0][0] < names[1][0] < names[2][0]
+    applied = datetime.fromisoformat(names[1][0]).date()
+    assert applied == change.applied_on
+
+
+def test_the_voucher_is_in_the_settings_and_the_results_and_its_window_closed_before_the_end(
+    sample,
+):
+    v = sample.voucher
+    assert v is not None and v.ends_on < END - timedelta(days=7)
+    settings = _post_rows(sample, "voucher_settings")
+    assert [r["current_usage"] for _, r in settings] == [0, v.used_orders]
+    assert {r["voucher_id"] for _, r in settings} == {v.voucher_id}
+    assert (
+        settings[0][1]["min_spend"] == v.min_spend and settings[0][1]["discount_amount"] == v.value
+    )
+    ((_, result),) = [
+        (at, r) for at, r in _post_rows(sample, "promotions") if r["promo_type"] == "Voucher"
+    ]
+    assert result["orders"] == v.used_orders and result["extra"]["usage_rate"] == round(
+        v.usage_rate, 4
+    )
+    assert result["extra"]["voucher_cost"] == v.cost == v.used_orders * v.value
+
+
+def test_the_orders_in_the_voucher_window_carry_the_voucher_and_nowhere_else(sample):
+    v = sample.voucher
+    assert v is not None and 0 < v.used_orders < v.qualifying_orders
+    lines = [r for _, r in _post_rows(sample, "order_lines")]
+    day = lambda r: date.fromisoformat(r["ordered_at"][:10])  # noqa: E731
+    in_window = [r for r in lines if v.starts_on < day(r) <= v.ends_on]
+    shares = {r["order_ref"]: 0 for r in in_window}
+    for r in in_window:
+        shares[r["order_ref"]] += r["shop_voucher_share"]
+    assert sum(1 for s in shares.values() if s == v.value) >= v.used_orders
+    # the minimum is respected: a used voucher sits on an order of at least min_spend
+    totals: dict[str, int] = defaultdict(int)
+    for r in in_window:
+        totals[r["order_ref"]] += r["original_price"] * r["qty"]
+    assert all(totals[ref] >= v.min_spend for ref, s in shares.items() if s == v.value)
+
+
+def test_the_keywords_the_title_audit_is_held_against_are_for_real_products(sample):
+    from scripts.sample_shop.catalog import PRODUCTS
+
+    assert sample.keywords and {i for i, _ in sample.keywords} <= {p.item_id for p in PRODUCTS}
+
+
+async def test_every_decision_tab_has_a_card_after_the_load_and_a_rerun_adds_none(engine):
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.models.card_events import EVENT_IMPACT_FINAL, CardEvent
+    from juli_backend.services.shopee_recommendations import service
+
+    factory, first = await _load(engine)
+    assert first.decisions is not None and not first.decisions.skipped
+
+    async def cards():
+        async with factory() as session:
+            async with with_shop_scope(session, first.shop_id):
+                out = await service.list_cards(
+                    session, first.shop_id, audience="seller", queue="all", now=NOW
+                )
+                finals = (
+                    (
+                        await session.execute(
+                            select(CardEvent).where(CardEvent.event_type == EVENT_IMPACT_FINAL)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                return out["cards"], finals
+
+    listed, finals = await cards()
+    open_kinds = {c["change_kind"] for c in listed if c["status"] == "sent"}
+    assert {"title", "cover_image", "min_spend_voucher"} <= open_kinds
+    assert [c["change_kind"] for c in listed if c["status"] == "approved"] == ["cover_image"]
+    running = [c for c in listed if c["status"] == "executed"]
+    assert [c["change_kind"] for c in running] == ["title"]
+    assert running[0]["verification"]["state"] == "verified"
+    measured = [c for c in listed if c["status"] == "measured"]
+    assert [c["change_kind"] for c in measured] == ["min_spend_voucher"]
+    assert len(finals) == 1 and finals[0].payload["impact_pct"] is not None
+    again = await loader.load(factory, generate(END), now=NOW)
+    assert again.decisions is not None and again.decisions.skipped
+    assert len((await cards())[0]) == len(listed)

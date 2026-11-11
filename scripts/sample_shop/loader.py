@@ -34,13 +34,14 @@ from urllib.parse import urlparse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from scripts.sample_shop import decisions
 from scripts.sample_shop.catalog import (
     SAMPLE_SHOP_NAME,
     SAMPLE_SHOPEE_SHOP_ID,
     SAMPLE_SHOPEE_SHOP_ID_MAX,
     SAMPLE_SHOPEE_SHOP_ID_MIN,
 )
-from scripts.sample_shop.generator import SampleShop, generate
+from scripts.sample_shop.generator import Post, SampleShop, generate
 
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 #: Fujiwa (a client's real shop) and Juli's TikTok sandbox shop: never written, whatever else holds.
@@ -119,6 +120,7 @@ class LoadReport:
     created: bool
     outcome: Counter[str]
     days_materialized: int
+    decisions: decisions.DecisionsReport | None = None
 
 
 async def ensure_shop(
@@ -212,13 +214,27 @@ async def load(
         await session.commit()
     # The gateway rebuilds the stored daily rows after every post (13 posts x 30 days); the loader
     # skips that hook and rebuilds every day once at the end (`backfill_shop`): the same rows.
+    # the catalogue reads after the first one carry the title change: the seller changes the title
+    # (decisions.run) before the Connector reads the new name
+    catalogs = [i for i, p in enumerate(sample.posts) if p.dataset == "item_catalog"]
+    late_ix = set(catalogs[1:]) if sample.title_change else set()
+    early = [p for i, p in enumerate(sample.posts) if i not in late_ix]
+    late = [p for i, p in enumerate(sample.posts) if i in late_ix]
     with mock.patch.object(materialize, "after_ingest", _no_hook):
-        outcome = await _ingest_all(factory, sample, sid, now)
+        outcome = await _ingest_all(factory, early, sid, now)
     async with factory() as session:
         async with with_shop_scope(session, sid):
             report = await materialize.backfill_shop(session, sid)
         await session.commit()
-    return LoadReport(sid, created, outcome, report.days_written)
+
+    async def ingest_late() -> None:
+        with mock.patch.object(materialize, "after_ingest", _no_hook):
+            outcome.update(await _ingest_all(factory, late, sid, now))
+
+    made = await decisions.run(factory, sample, sid, now=now, ingest_late=ingest_late)
+    if late and made.skipped:  # a re-run: the late posts are duplicates, post them all the same
+        await ingest_late()
+    return LoadReport(sid, created, outcome, report.days_written, made)
 
 
 async def _no_hook(*_args: object, **_kwargs: object) -> None:
@@ -226,13 +242,13 @@ async def _no_hook(*_args: object, **_kwargs: object) -> None:
 
 
 async def _ingest_all(
-    factory: async_sessionmaker[AsyncSession], sample: SampleShop, sid: uuid.UUID, now: datetime
+    factory: async_sessionmaker[AsyncSession], posts: list[Post], sid: uuid.UUID, now: datetime
 ) -> Counter[str]:
     from juli_backend.database.tenant_context import with_shop_scope
     from juli_backend.services import ingest as svc
 
     outcome: Counter[str] = Counter()
-    for post in sample.posts:
+    for post in posts:
         body_dict = dict(post.body)
         captured = datetime.fromisoformat(body_dict["captured_at"])
         if captured.astimezone(UTC).replace(tzinfo=None) > now:

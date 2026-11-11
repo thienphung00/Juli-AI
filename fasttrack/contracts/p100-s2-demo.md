@@ -91,6 +91,30 @@ hàng để so sánh: các mức tăng / giảm so với kỳ trước được 
 days are inside the 30). Whether the web shows no arrow or a dash is a front-end behaviour not
 checked here.
 
+### S2-A follow-up: Quyết định cards (2026-11-11)
+`scripts/sample_shop/decisions.py`, run by the loader after the backfill, only while the shop has
+no proposal (idempotent). Every step uses the app's services with the time it would have happened
+(`manual.create_manual`, `service.decide`, `mark_executed`, `change_sets.set_window`,
+`verification.verify_shop`, `measure.read_change_sets`, `generate_cards`, `publish`); no number is
+written. State after a load on `--end-date` e:
+- **Đo lường, finished**: a Voucher (8k, đơn từ 150k, product 1) built e-16, started e-15; its 7-day
+  window closed e-8. The generator counts the voucher's use from the simulated orders
+  (`shop_voucher_share`, top-up of baskets), posts `voucher_settings` + a `promotions` Voucher row
+  with `usage_rate`/`voucher_cost`; `impact_final` (ratio DiD on the product's daily AOV) is read from
+  the rows. Window is e-15..e-8, not e-22..e-9: the reading needs 14 days before the change and the
+  history has 30. Confidence is "thấp" (`no_controls`: too few comparable products).
+- **Đo lường, counting down**: a Tiêu đề (product 4, fixed string `catalog.NEW_TITLE`) applied e-5,
+  verified from `item_catalog`, 7-day window open. Old/new title are also in two
+  `platform_item_snapshots` rows (the gateway's `item_snapshot` has no title column).
+- **Đang thực hiện**: the engine's Ảnh bìa card on product 6, approved, not done yet.
+- **Đề xuất**: engine cards as of e: Tiêu đề (product 2, keyword seed "khăn lau bếp"), Ảnh bìa
+  (product 5), Voucher (product 3, positive only because the past voucher gives a usage rate), plus
+  other kinds S2-C filters out.
+Front-end gaps for S2-C: `tabOfCard` puts a *verified executed* card in Đo lường and maps status
+`measured` (window closed) to `null`, so the finished voucher is in no tab until `measured` maps to
+`do-luong`; the running title is the one in Đo lường today. Đang thực hiện shows only approved or
+unverified-executed cards, so the "applied title" cannot sit there once its change is read back.
+
 ## Owner decisions 2026-11-11 (after the contract)
 - **Reviewer pins = sample shop (default) + TikTok sandbox. Fujiwa is dropped** from
   `REVIEWER_SHOP_IDS` (prod env change, no code). No client data reaches the ISV reviewer,
