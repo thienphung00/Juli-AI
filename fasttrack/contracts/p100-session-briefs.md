@@ -179,8 +179,12 @@ not-estimable path `engine/engine.py:458`; wire `engine/contract.py:259`; UI
 - Every value comes from a card or listing field; a missing value shows an empty field, never an
   invented claim. Two banners on one position → warning. Seller edits values, position (within
   the type's allowed set), colour (shop profile palette), size S/M/L.
-- Design v3 (three shapes, 12 types, shop-style palette panel) is up for the owner's approval at
-  the link above; Flash sale is listed as "Sau".
+- **Flow v4 (owner, 2026-11-11), step by step, not all at once:** 1 Chọn mẫu (Tối giản / Nổi bật /
+  Khung viền, colours from the shop profile) → 2 Loại ngày (Ngày thường ≤ 3 banners, Mega Sale ≤ 4,
+  Mega Sale adds the top strip) → 3 Thêm banner (one per type, editable values, positions limited by
+  shape) → 4 Kiểm tra: **one vision LLM call** on the final image + banner spec, flags overload,
+  overlap, text too long, empty values, covering the product, and proposes fixes the seller applies →
+  5 Tải ảnh PNG 1200×1200. Design: link above (the check is rule-based in the design only).
 - Public sources give no official Shopee limit on text or frames on covers (only third-party
   blogs); keep text short and re-check Seller Centre's image policy before launch.
 
@@ -264,10 +268,20 @@ the first week and these figures corrected.
 | Keyword cleanup | when titles change, ≤ 1 / week | ~6k / ~3k (200 products: ~15k / ~6k) | ≈ $0,005 – 0,011 | ≤ 5 runs → ≈ $0,03 | same |
 | Shop style profile (vision, ≤ 12 covers) | at connect, re-run on demand | ~20–31k / ~1,5k | ≈ $0,008 (≈ 210 đ) | 1–3 runs → ≈ $0,025 | same |
 | ISV demo shop | pre-generated once; ≤ 1 live title regenerate / product | — | — | one-off ≈ $0,03 + ≤ $0,015 live | same |
+| Banner check (vision, final 1200 px image + spec) | once per banner set, re-run after edits | ~3,5k / ~1k | ≈ $0,002 (≈ 50 đ) | 30 sets × 2 = 60 → ≈ $0,12 | same order |
 | Banner rendering, Remotion | every render | no LLM | $0 | $0 | $0 |
 
-Total: **≈ $0,30 per shop per month typical (≈ 8.000 đ)**; worst case at the caps ≈ $9 (≈
+Total: **≈ $0,40 per shop per month typical (≈ 10.000 đ)**; worst case at the caps ≈ $9 (≈
 235.000 đ), almost all title regenerates — a shop-wide daily cap (e.g. 30 title calls / day)
 would bound it at ≈ $2,2. Background jobs (keywords, style profile) can use the Batch API at half
 price. Existing LLM paths (builder drafts through `shopee_builder/llm.py`, the agent runtime) are
 outside this table.
+
+## I. Open: replace the manual keyword lookups (asked 2026-11-11)
+
+Recommendation given: no open-web search tool for GPT-5.4 nano (web results carry no Shopee search
+volume; per-search fees exceed the call itself; invented volumes are a risk). Instead the Connector
+reads Shopee's own keyword data read-only from the seller's Seller Centre (Quảng cáo Shopee keyword
+suggestions: search volume, suggested bid) for the cleaned seeds; nano gets function tools only over
+Juli's own data (keyword volumes, product attributes, current title). Needs a read-only look at the
+PAS keyword screen to confirm the field names before building (owner's yes required).
