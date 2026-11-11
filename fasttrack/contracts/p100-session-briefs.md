@@ -125,7 +125,8 @@ Still wrong (all are Session 1 work, part 1):
     Banners are rendered deterministically from templates styled by that profile (compositing,
     no generative images). Re-run on demand or when covers change.
 24. Scope confirmed (E, F) **plus Từ khoá cleanup** (G).
-25. *(open — confirm in Session 1)* sub-phrase rule for keywords, see G.4.
+25. Sub-phrases ("an toàn" vs "an toàn da") are settled by the LLM keyword step (G.7): it
+    separates product-type heads from attributes and groups similar words.
 
 ## C. Shopee's real fields (read in Seller Centre 11/11, nothing saved)
 
@@ -178,6 +179,8 @@ not-estimable path `engine/engine.py:458`; wire `engine/contract.py:259`; UI
 - Every value comes from a card or listing field; a missing value shows an empty field, never an
   invented claim. Two banners on one position → warning. Seller edits values, position (within
   the type's allowed set), colour (shop profile palette), size S/M/L.
+- Design v3 (three shapes, 12 types, shop-style palette panel) is up for the owner's approval at
+  the link above; Flash sale is listed as "Sau".
 - Public sources give no official Shopee limit on text or frames on covers (only third-party
   blogs); keep text short and re-check Seller Centre's image policy before launch.
 
@@ -233,4 +236,38 @@ Rules to implement:
 5. **Boilerplate stop-list**: "hàng chính hãng", "có vat", "combo", "chính hãng", "siêu",
    "giá rẻ", "freeship" …
 6. **Brand per title**, not one brand for the shop (ORY vs STAHAUS).
-Tests from synthetic titles in the same shapes (no ORY/Fujiwa data in the repo).
+7. **One LLM call per shop before lookups** (owner, 2026-11-11). Today Từ khoá uses **no LLM**:
+   `decompose` splits titles into patterns (type_function, common_phrase, brand_type,
+   brand_function) and the owner looks the seeds up by hand on shopeeanalytics.com (free account;
+   anonymous = 5 lookups/day) and uploads JSONL weekly (`collection.py`, ADR-119; Juli's servers
+   never fetch the site). New flow: rules 1–6 as a deterministic pre-pass → one GPT-5.4 nano call
+   (structured output, through `OpenAIGate`, consent `llm_processing`, one `llm_call_log` row)
+   with the titles + candidates → JSON {heads (product types), attributes (material, function,
+   benefit: "sinh học", "an toàn da"), similar-word groups, seeds to look up, item_ids}.
+   Validation: every word of a seed appears in some title, or the seed sits in a similar-word
+   group the model tied to a source title and is shown as "từ gần nghĩa" for the owner to tick;
+   item_ids are never dropped. Re-run only when titles change (≤ 1/week). Fewer, cleaner seeds =
+   fewer manual lookups.
+Tests from synthetic titles in the same shapes (no ORY/Fujiwa data in the repo); the LLM is faked
+in tests.
+
+## H. LLM features and cost (estimate, 2026-11-11)
+
+Model GPT-5.4 nano (standing decision): $0.20 / 1M input, $0.02 cached input, $1.25 / 1M output
+(OpenAI model page). Reasoning tokens bill as output; image tokens depend on the detail setting.
+≈ 26.000 đ / USD. Every call writes `llm_call_log`, so the real token counts can be checked after
+the first week and these figures corrected.
+
+| Feature | When | Tokens per call (in / out) | Per call | Typical shop / month | Worst case at the caps |
+|---|---|---|---|---|---|
+| Titles, 3 candidates | on request; "Tạo lại" ≤ 3 / product / day | ~2,5k / ~1,5k | ≈ $0,0024 (≈ 62 đ) | 30 products × 3 calls = 90 → ≈ $0,22 | 30 × 4 / day × 30 = 3.600 → ≈ $8,6 |
+| Keyword cleanup | when titles change, ≤ 1 / week | ~6k / ~3k (200 products: ~15k / ~6k) | ≈ $0,005 – 0,011 | ≤ 5 runs → ≈ $0,03 | same |
+| Shop style profile (vision, ≤ 12 covers) | at connect, re-run on demand | ~20–31k / ~1,5k | ≈ $0,008 (≈ 210 đ) | 1–3 runs → ≈ $0,025 | same |
+| ISV demo shop | pre-generated once; ≤ 1 live title regenerate / product | — | — | one-off ≈ $0,03 + ≤ $0,015 live | same |
+| Banner rendering, Remotion | every render | no LLM | $0 | $0 | $0 |
+
+Total: **≈ $0,30 per shop per month typical (≈ 8.000 đ)**; worst case at the caps ≈ $9 (≈
+235.000 đ), almost all title regenerates — a shop-wide daily cap (e.g. 30 title calls / day)
+would bound it at ≈ $2,2. Background jobs (keywords, style profile) can use the Batch API at half
+price. Existing LLM paths (builder drafts through `shopee_builder/llm.py`, the agent runtime) are
+outside this table.
