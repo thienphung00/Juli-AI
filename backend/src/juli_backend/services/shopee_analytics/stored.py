@@ -106,6 +106,15 @@ class StoredWindow:
 
     #: the days of the window that have a stored row (complete or not)
     days: frozenset[date] = frozenset()
+    #: P100-A (B.17): the stored days whose order data arrived (shop đơn not NULL); only these
+    #: days are in the sums -- a day without order data is "chưa có dữ liệu", never 0
+    data_days: frozenset[date] = frozenset()
+    #: product rows over their shop's đơn / GMV that day (stale period stamps), capped on read
+    capped_rows: int = 0
+
+    @property
+    def days_with_data(self) -> int:
+        return len(self.data_days)
 
     @property
     def usable(self) -> bool:
@@ -136,6 +145,9 @@ async def load_stored(
     )
     if not rows:
         return None
+    all_rows = rows
+    rows = [r for r in rows if r.orders is not None]  # P100-A: the days with order data only
+    shop_day = {r.day: r for r in rows}
     prows = (
         (
             await session.execute(
@@ -152,13 +164,19 @@ async def load_stored(
     )
     products: dict[str, StoredProduct] = {}
     residual = ZERO
+    n_capped = 0
     for p in prows:
+        day = shop_day.get(p.day)
+        if day is None:  # no order data that day: a stale stamp, never part of a window
+            continue
         if p.item_id == RESIDUAL_ITEM:
             residual += p.gmv
             continue
+        orders, gmv = capped(p.orders, p.gmv, day)
+        n_capped += (orders, gmv) != (p.orders, p.gmv)
         acc = products.setdefault(p.item_id, StoredProduct(p.item_id))
-        acc.gmv += p.gmv
-        acc.orders += p.orders
+        acc.gmv += gmv
+        acc.orders += orders
         acc.units += p.units
         acc.line_gmv += p.line_gmv
         acc.line_orders += p.line_orders
@@ -177,7 +195,7 @@ async def load_stored(
     ]
     return StoredWindow(
         window=window,
-        days_stored=len(rows),
+        days_stored=len(all_rows),
         days_complete=sum(1 for r in rows if r.complete),
         gmv=_sum([r.gmv for r in rows]),
         orders=_isum([r.orders for r in rows]),
@@ -186,7 +204,7 @@ async def load_stored(
         clicks=_isum([r.product_clicks for r in rows]),
         ads_spend=_sum([r.ads_spend for r in rows]),
         ads_gmv=_sum([r.ads_gmv for r in rows]),
-        profit=_sum([r.profit for r in rows]),
+        profit=_sum([known_profit(r) for r in rows]),
         margin_profit=_sum([r.margin_profit for r in rows]),
         buyer_paid_known=_sum([r.buyer_paid_known for r in rows]),
         line_gmv=_sum([r.line_gmv for r in rows]),
@@ -196,8 +214,29 @@ async def load_stored(
         products=products,
         residual_gmv=residual,
         sources=sources,
-        days=frozenset(r.day for r in rows),
+        days=frozenset(r.day for r in all_rows),
+        data_days=frozenset(shop_day),
+        capped_rows=n_capped,
     )
+
+
+def known_profit(row: ShopeeShopMetricsDaily) -> Decimal | None:
+    """P100-A (A.2): a stored day's profit, None when the day has orders but no costed line
+    (``buyer_paid_known`` empty): rows built before the fix hold -ads_spend there, never a
+    profit of the day's orders."""
+    if row.orders and not row.buyer_paid_known:
+        return None
+    return row.profit
+
+
+def capped(orders: int, gmv: Decimal, shop: ShopeeShopMetricsDaily) -> tuple[int, Decimal]:
+    """P100-A (A.3): a product never out-sells its shop on a day. Rows built before the P99
+    spread (period totals stamped on one day) are held to the shop's đơn / GMV of that day."""
+    if shop.orders is not None and orders > shop.orders:
+        orders = shop.orders
+    if shop.gmv is not None and gmv > shop.gmv:
+        gmv = shop.gmv
+    return orders, gmv
 
 
 async def data_days_in(

@@ -5,6 +5,7 @@ public search metrics the owner collects on shopeeanalytics.com.
 
 - :mod:`.decompose` -- pure title → keyword-combination decomposer (D81.4 / D81.6);
 - :mod:`.collection` -- the JSON Lines collection format and the raw-capture converter (D81.8);
+- :mod:`.llm_seeds` -- the one model call per shop that refines the candidates (P100-G);
 - :mod:`.seeds` -- ``shop_keyword_seeds`` (client lane, under the shop's scope);
 - :mod:`.metrics` -- ``market_keyword_metrics`` (public lane, as ``juli_ops``);
 - :mod:`.dashboard` -- the board joining the two.

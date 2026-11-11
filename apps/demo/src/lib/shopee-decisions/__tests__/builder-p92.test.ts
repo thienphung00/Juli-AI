@@ -49,6 +49,22 @@ describe("builder-p92 model", () => {
     expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, limit: "0" } }, ctx).problem).toMatch(/Giới hạn đặt hàng/);
   });
 
+  it("combo (P100-C): Thời gian chạy Combo with the hour; tiers must give more for more units", () => {
+    const f = initialForms();
+    const ok = { ...f, combo: { ...f.combo, items: [P_ZIP], start: "2026-11-11", end: "2026-11-12", startHour: "10", endHour: "22" } };
+    const v = buildVersion("combo", ok, ctx).version as unknown as Record<string, unknown>;
+    expect(v).toMatchObject({ start: "2026-11-11", end: "2026-11-12", start_hour: 10, end_hour: 22 });
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, startHour: "", endHour: "" } }, ctx).version).not.toHaveProperty("start_hour");
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, startHour: "24" } }, ctx).problem).toMatch(/0 đến 23/);
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, end: "2026-11-11", startHour: "10", endHour: "9" } }, ctx).problem).toMatch(/Giờ kết thúc/);
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, start: "", startHour: "10" } }, ctx).problem).toMatch(/Chọn ngày/);
+    const down = (dtype: "pct" | "amount" | "special_price", tiers: { qty: string; value: string }[]) => buildVersion("combo", { ...ok, combo: { ...ok.combo, dtype, tiers } }, ctx).problem;
+    expect(down("pct", [{ qty: "2", value: "10" }, { qty: "3", value: "5" }])).toMatch(/mức ưu đãi sau/);
+    expect(down("amount", [{ qty: "2", value: "20000" }, { qty: "4", value: "30000" }])).toMatch(/mức ưu đãi sau/);
+    expect(down("special_price", [{ qty: "2", value: "180000" }, { qty: "3", value: "280000" }])).toMatch(/mức ưu đãi sau/);
+    expect(down("special_price", [{ qty: "2", value: "180000" }, { qty: "3", value: "240000" }])).toBeNull();
+  });
+
   it("listing combo (P97 D85.16): a title, a price, stock and at least two member products", () => {
     const f = initialForms();
     expect(buildVersion("listing_combo", f, ctx).problem).toMatch(/tên listing combo/);

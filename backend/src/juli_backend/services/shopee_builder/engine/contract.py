@@ -287,6 +287,8 @@ WIRE_KEYS = {
     "profit_before, profit_after}",
     "per_30d": "{profit, gmv, orders, secondary: True, label}  # P99b: secondary, labelled "
     "'Quy đổi 30 ngày (tham khảo)'; the comparison's sort key (profit)",
+    "roi": "{value, text}  # P100-C: ΔGMV ÷ cost ('ROI 3,2'); None = no cost / not estimable",
+    "margin": "{before_pct, after_pct, shift_pts}  # P100-C: profit ÷ GMV; shift in points",
     "detail": "{before, low, likely, high: "
     "{views, ctr, ctor, orders, aov, gmv, profit, by_source}}",
     "notes": "list[str]",

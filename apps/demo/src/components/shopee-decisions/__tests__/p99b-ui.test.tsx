@@ -127,6 +127,16 @@ describe("P99b Kế hoạch: empty plan and data_missing", () => {
     expect(screen.queryByTestId("kh-agg")).toBeNull();
   });
 
+  it("P100 A.8: a plan that has cards never says it has none, even when its ungrouped aggregate is empty", async () => {
+    const p = plan();
+    expect(p.cards.length).toBeGreaterThan(0);
+    const aggregate: PlanAggregate = { n_cards: 0, horizon: HORIZON, live: true, today: null, after: null, cost: null, deltas_p50: null, empty: true, empty_note: "Kế hoạch chưa có thẻ nào.", cards: [], unavailable_cards: [], range_method: "x" };
+    open({ ...p, aggregate });
+    expect(await screen.findByTestId("kh-horizon")).toBeInTheDocument();
+    expect(screen.queryByTestId("kh-empty-note")).toBeNull();
+    expect(screen.queryByText("Kế hoạch chưa có thẻ nào.")).toBeNull();
+  });
+
   it("data_missing shows the message and window and no figure at all", async () => {
     const p = plan();
     const aggregate: PlanAggregate = {
@@ -215,10 +225,10 @@ describe("P99b Tự tạo / So sánh: the version's set dates, per_30d secondary
   });
   const dates = { from: "2026-12-01", to: "2026-12-10", days: 10, set: true, label: "01/12 – 10/12 (10 ngày)" };
 
-  it("OptionCard names the set dates and shows per_30d only as the secondary line", () => {
+  it("OptionCard names the set dates; per_30d stays off the card (P100-C, B.6)", () => {
     render(<OptionCard dates={dates} result={res("V1", 300_000)} />);
     expect(screen.getByTestId("oc-dates")).toHaveTextContent("Tính cho: 01/12 – 10/12 (10 ngày)");
-    expect(screen.getByTestId("oc-per30")).toHaveTextContent("Quy đổi 30 ngày (tham khảo): Lợi nhuận +300.000đ");
+    expect(screen.queryByTestId("oc-per30")).toBeNull();
     expect(screen.getByTestId("oc-profit")).toHaveTextContent("+100.000đ");
     expect(screen.getByTestId("oc-profit")).not.toHaveTextContent("300.000");
     expect(screen.getByTestId("oc-cost")).toHaveTextContent("80.000đ");
