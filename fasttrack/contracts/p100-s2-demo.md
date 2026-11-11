@@ -23,7 +23,7 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
 ### S2-A — synthetic shop generator + loader (data-platform)
 - `scripts/sample_shop/`: a deterministic generator (fixed seed) of a minimal Shopee shop: 6
   products (household goods, synthetic brand and names, ORY-like price/AOV/traffic shapes,
-  1–3 variations each), 90 days ending on a given date, every day present. It produces
+  1–3 variations each), 30 days ending on a given date, every day present. It produces
   **Connector-shaped `IngestBody` rows** for the datasets the Shopee screens read (orders +
   income, catalog/snapshot, shop + product + per-source traffic, ads campaign daily, promotions
   incl. one running Combo Khuyến Mãi) plus the shop-input costs, so the shop goes through the
@@ -33,7 +33,7 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
   synthetic `shopee_shop_id` range) and **refuses any target shop it did not create** (no
   credentials, id in the reserved range) and the Fujiwa / sandbox ids by name.
 - Test: Postgres test DB, generate → ingest → materialize → the Shopee analytics read model
-  returns every day, product ≤ shop every day, known-cost profit non-NULL, ads ROAS sane.
+  returns all 30 days, product ≤ shop every day, known-cost profit non-NULL, ads ROAS sane.
 
 ### S2-B — reviewer "sample shop" pin mode (backend, security)
 - New pin mode `sample` beside `sandbox` / `masked`: a pin listed in `REVIEWER_SAMPLE_SHOP_IDS`
@@ -50,5 +50,32 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
 - S2-E prod load: the owner runs the loader against prod after S2-A/B deploy; then pin it.
 
 ## Defaults taken (owner may override)
-- 90 days, no missing days (a clean shop; the missing-day path is shown on ORY, not here).
+- 30 days (owner, 2026-11-11), no missing days (a clean shop; the missing-day path is shown on
+  ORY, not here).
 - Reviewer reaches the shop through the existing reviewer login, as an extra pin.
+
+## Owner decisions 2026-11-11 (after the contract)
+- **Reviewer pins = sample shop (default) + TikTok sandbox. Fujiwa is dropped** from
+  `REVIEWER_SHOP_IDS` (prod env change, no code). No client data reaches the ISV reviewer,
+  masked or not.
+- **Only the tabs that work**: in sample mode the Shopee rail shows Tổng quan · Phân tích · Sản phẩm
+  · Quyết định; Từ khóa, Quảng cáo, Đơn hàng, Luồng are hidden (not greyed out, no "sắp có"). In
+  Tự tạo: **Tiêu đề · Ảnh bìa · Voucher** only (owner, later 2026-11-11: Combo removed); KOL,
+  Quảng cáo, Combo nhiều SKU, Combo Khuyến Mãi hidden. Cài đặt menu: Đổi shop · Đăng xuất. Thực hiện =
+  checklist. Design: https://claude.ai/artifact/HKYu5uqPX4egtX2cHB6bgK (6 boards).
+- New slice **S2-C nav gating** (`lib/app-navigation.ts` sample-mode list + the Tự tạo strategy
+  allowlist), after `p100-c-combo` lands (it edits `panels-offers.tsx`).
+- **Đề xuất shows the same three kinds only** (Tiêu đề, Ảnh bìa, Voucher); every other generated
+  card kind is filtered out in sample mode (part of S2-C). Đang thực hiện and Đo lường must not be
+  empty: S2-A follow-up seeds one running Tiêu đề card (day 5/7) and one measured Voucher card
+  (actual vs expected) in the same synthetic 30 days.
+
+## Status 2026-11-11 (end of day)
+- S2-A `e42ddfbf` on `fasttrack/p100-s2-data`: generator + loader; 24 unit pass, 2 Postgres skipped
+  (sandbox) → owner ran both on local Postgres 16: 2/2 pass.
+- S2-B `e2a5a189` on `fasttrack/p100-s2-reviewer`: `sample` pin mode; owner ran `-k reviewer` on local Postgres: 282 pass, 0 skip.
+- New slice **S2-F reviewer Shopee routes**: every `/v1/demo/shopee/*` route is 403 `read_only` for a
+  reviewer today. Needs a reviewed sample-only allowlist (some GETs write, e.g. keywords) and a
+  simulated Shopee Duyệt (`POST …/recommendations/{id}/approve`) — touches `shopee-decisions/**`,
+  so after Session 1. Also: `lib/reviewer/guide-copy.ts` (still "shop thật, ẩn tên", "Shop TikTok"),
+  `dictionary.md` reviewer keys.
