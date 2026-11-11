@@ -47,7 +47,7 @@ async def collect_shop(
         "orders": strip["orders"]["value"],
         "aov": strip["aov"]["value"],
         "gmv": strip["gmv"]["value"],
-        "profit": sm["profit"],  # ShopMetrics, the one number (D85.2)
+        "profit": sm["profit"],  # P100 B.5: the one known-cost shop profit
     }
     profit_block = ov["profit"]["profit_vnd"]  # the profit block's headline (d.14: ShopMetrics)
 
@@ -98,7 +98,7 @@ async def collect_shop(
         "orders": base["orders_30d"],
         "aov": base["aov"],
         "gmv": base["gmv_30d"],
-        "profit": _f(env.metrics.profit),
+        "profit": base["profit_30d"],  # P100 B.5: the one known-cost shop profit
     }
 
     fb = await funnel.load_funnel_base(session, shop_id, window=window)

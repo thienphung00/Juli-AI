@@ -1504,7 +1504,9 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # P91 integration: +1 no_assert_statement, found drifting when the P91 branches were merged.
     # P92 B-10: +3 no_assert_statement (new tests that only check a refusal, e.g. the
     # market_search dataset's bad card / excluded seed); the later layers did not move.
-    "no_assert_statement": 560,
+    # P100 wave: +2 no_assert_statement (combo tier refusals checked only via
+    # `pytest.raises`); the later layers did not move.
+    "no_assert_statement": 562,
     "and_no_pytest_raises": 132,
     "and_no_mock_assert_called": 117,
     "and_no_unittest_self_assert": 117,

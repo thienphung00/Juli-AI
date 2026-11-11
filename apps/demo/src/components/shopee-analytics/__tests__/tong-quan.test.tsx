@@ -3,21 +3,27 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
-import { fakeApi, matrix, matrixProduct, overview, five } from "../../../lib/shopee-analytics/__tests__/fixtures";
+import { fakeApi, matrix, matrixProduct, overview } from "../../../lib/shopee-analytics/__tests__/fixtures";
 import { TongQuanView } from "../tong-quan";
 import { params, renderWith, textOf } from "./harness";
 
 const q = (href: string | null) => new URLSearchParams((href ?? "").split("?")[1] ?? "");
 
 describe("Tổng quan", () => {
-  it("opens with the six KPI tiles, each linking to Phân tích set to its KPI", async () => {
+  it("opens with the KPI tiles (P100 B.6), each linking to Phân tích set to its KPI", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     expect(await screen.findByTestId("sa-tile-gmv")).toHaveTextContent("50.000.000đ");
     expect(screen.getByTestId("sa-tile-views")).toHaveTextContent("68.000");
     expect(screen.getByTestId("sa-tile-ctr")).toHaveTextContent("4,41%");
     expect(screen.getByTestId("sa-tile-ctor")).toHaveTextContent("8,33%");
     expect(screen.getByTestId("sa-tile-aov")).toHaveTextContent("200.000đ");
-    expect(screen.getByTestId("sa-tile-bien")).toHaveTextContent("20,9%");
+    expect(screen.getByTestId("sa-tile-orders")).toHaveTextContent("250");
+    // P100 B.5: Tổng lợi nhuận is the one shop profit with its coverage line
+    expect(screen.getByTestId("sa-tile-profit")).toHaveTextContent("8.850.000đ");
+    expect(screen.getByTestId("sa-tile-profit")).toHaveTextContent("Biên 20,9%");
+    expect(screen.getByTestId("sa-tile-profit")).toHaveTextContent("trên 240 đơn có chi phí, 96,0 % GMV");
+    expect(q(screen.getByTestId("sa-tile-profit").getAttribute("href")).get("kpi")).toBe("profit");
+    expect(screen.queryByTestId("sa-tile-bien")).toBeNull();
     const href = screen.getByTestId("sa-tile-ctr").getAttribute("href");
     expect(href?.split("?")[0]).toBe("/phan-tich");
     expect(Object.fromEntries(q(href))).toEqual({ kpi: "ctr", src: "all", from: "tong-quan" });
@@ -31,18 +37,14 @@ describe("Tổng quan", () => {
     expect(screen.getByTestId("sa-tile-gmv")).toHaveTextContent("Tổng 4 ô: +");
   });
 
-  it("shows the five numbers in VND and %, plus spend against the cap", async () => {
+  it("P100 B.6: no '5 con số chính', no second AOV, no 'Mức ưu đãi trên mỗi dòng đơn'", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
-    const box = await screen.findByTestId("sa-five");
-    expect(within(box).getByTestId("sa-five-disc")).toHaveTextContent("① % giảm giá");
-    expect(within(box).getByTestId("sa-five-disc")).toHaveTextContent("8,4%");
-    expect(within(box).getByTestId("sa-five-disc")).toHaveTextContent("4.200.000đ tiền giảm");
-    expect(within(box).getByTestId("sa-five-eff")).toHaveTextContent("2,50đ / 1đ chi");
-    expect(within(box).getByTestId("sa-five-bien")).toHaveTextContent("trên 99,4% doanh thu có giá vốn");
-    expect(within(box).getByTestId("sa-five-orders")).toHaveTextContent("250 đơn");
-    expect(within(box).getByTestId("sa-five-aov")).toHaveTextContent("200.000đ");
-    expect(within(box).getByTestId("sa-five-cap")).toHaveTextContent("Trần 1.200.000đ/ngày");
-    expect(q(within(box).getByTestId("sa-five-eff").getAttribute("href")).get("kpi")).toBe("gmv");
+    await screen.findByTestId("sa-tile-gmv");
+    expect(screen.queryByTestId("sa-five")).toBeNull();
+    expect(screen.queryByTestId("sa-aov-note")).toBeNull();
+    expect(screen.queryByTestId("sa-levers")).toBeNull();
+    expect(screen.getByTestId("sa-tong-quan")).not.toHaveTextContent("AOV theo Seller Centre");
+    expect(screen.getByTestId("sa-tong-quan")).not.toHaveTextContent("ước tính theo tỉ lệ");
   });
 
   it("with partial cost coverage shows margin on X %, no profit in đồng, and the real / assumed / unknown split", async () => {
@@ -50,7 +52,10 @@ describe("Tổng quan", () => {
     const profit = await screen.findByTestId("sa-profit");
     expect(within(profit).getByTestId("sa-margin")).toHaveTextContent("20,9%");
     expect(profit).toHaveTextContent("trên 99,4% doanh thu có giá vốn");
-    expect(profit).toHaveTextContent("Chỉ hiện bằng đồng khi 100% doanh thu có giá vốn");
+    // P100 B.5: the one shop profit shows in đồng with its coverage line, even when partial
+    expect(profit).toHaveTextContent("= Lợi nhuận shop");
+    expect(profit).toHaveTextContent("8.850.000đ");
+    expect(profit).toHaveTextContent("trên 240 đơn có chi phí, 96,0 % GMV");
     expect(within(profit).getByTestId("sa-coverage")).toHaveTextContent("Giá vốn thật: 88,0%");
     expect(within(profit).getByTestId("sa-coverage")).toHaveTextContent("giá vốn giả định (1/3 giá): 11,4%");
     expect(within(profit).getByTestId("sa-coverage")).toHaveTextContent("chưa có: 0,6%");
@@ -71,9 +76,9 @@ describe("Tổng quan", () => {
       }),
     );
     const profit = await screen.findByTestId("sa-profit");
-    expect(profit).toHaveTextContent("= Lợi nhuận (chi tiết)");
+    expect(profit).toHaveTextContent("= Lợi nhuận shop");
     expect(profit).toHaveTextContent("9.250.000đ");
-    expect(profit).toHaveTextContent("Cùng số với Sản phẩm và Kế hoạch");
+    expect(profit).toHaveTextContent("cùng số với Sản phẩm và Kế hoạch");
     expect(profit).toHaveTextContent("trên 100% doanh thu khách trả");
     expect(screen.queryByTestId("sa-assumed-label")).toBeNull();
   });
@@ -131,11 +136,6 @@ describe("Tổng quan", () => {
     expect(screen.getByTestId("sa-fresh")).toHaveTextContent("Dữ liệu chưa đủ kỳ");
     expect(screen.getByTestId("sa-warning-order_lines_partial")).toHaveTextContent("File đơn hàng chưa phủ hết kỳ.");
     expect(screen.getByTestId("sa-tile-gmv")).toHaveTextContent("Tính đến 02/11");
-  });
-
-  it("withholds the comparison when the previous period has no order lines", async () => {
-    renderWith(<TongQuanView params={params()} />, fakeApi({ overview: overview({ five_numbers: five({ comparison: { available: false, reason: "no_order_lines_in_previous_period" } }) }) }));
-    expect(await screen.findByTestId("sa-no-comparison")).toBeInTheDocument();
   });
 
   it("period picker: 7 / 30 / 90 ngày, month, custom window and 'so sánh kỳ trước' are links that carry the window", async () => {
@@ -272,6 +272,24 @@ describe("Tổng quan: product × source matrix", () => {
     expect(screen.getByTestId("sa-mrow-B")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Biên dưới mục tiêu · 0/ }));
     expect(screen.getByTestId("sa-matrix-empty")).toBeInTheDocument();
+  });
+
+  it("P100 A.6: per-product Lượt xem / CTR / CTOR come from Shopee's product table, as on Sản phẩm + luồng", async () => {
+    const traffic = { views: 17_220, clicks: 563, orders: 50, source: "product_period", label: "Shopee 11/10–09/11 · 30/30 ngày" };
+    const m = matrix({ products: [matrixProduct("P1", { gmv: 9_000_000, orders: 48, flows: null, traffic })] });
+    renderWith(<TongQuanView params={params()} />, fakeApi({ matrix: m }));
+    const row = await screen.findByTestId("sa-mrow-P1");
+    expect(row).toHaveTextContent("17.220");
+    expect(row).toHaveTextContent("3,27%"); // 563 / 17.220
+    expect(row).toHaveTextContent("8,88%"); // 50 / 563, the same table's orders
+    expect(screen.getByTestId("sa-matrix-traffic-basis")).toHaveTextContent("Shopee 11/10–09/11 · 30/30 ngày");
+  });
+
+  it("without the product table the row falls back to the flows and shows no traffic basis", async () => {
+    const m = matrix({ products: [matrixProduct("P2", { flows: null, traffic: null })] });
+    renderWith(<TongQuanView params={params()} />, fakeApi({ matrix: m }));
+    await screen.findByTestId("sa-mrow-P2");
+    expect(screen.queryByTestId("sa-matrix-traffic-basis")).toBeNull();
   });
 
   it("closes with the gap between the shop GMV and the sum of the products", async () => {

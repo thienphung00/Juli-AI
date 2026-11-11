@@ -166,6 +166,12 @@ def profit_coverage_note(base: FunnelBase) -> str | None:
     known, days = _days_total(base, "profit_days"), _days_total(base, "days")
     if known is None or days is None or known >= days or base.total("profit") is None:
         return None
+    window = getattr(base, "window_days", None)
+    if isinstance(window, int) and window > 0:  # P100-A (A.7): on the window's coverage
+        return (
+            f"Lợi nhuận mỗi đơn tính trên {known} ngày có dữ liệu chi phí "
+            f"(trong {days}/{window} ngày có dữ liệu)."
+        )
     return f"Lợi nhuận mỗi đơn tính trên {known} ngày có dữ liệu chi phí (trong {days} ngày)."
 
 

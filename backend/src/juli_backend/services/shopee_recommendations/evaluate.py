@@ -1328,6 +1328,10 @@ def eval_add_on(
         "main_orders": n_main,
         "aov_now": num(aov),
         "discount_cost_on_existing": num(cost_total),
+        # P100-C: the add-on GMV of one main order taking every add-on (at the add-on price)
+        "attach_value_per_order": num(safe_div(attach_gmv_per_day * window, Decimal(n_main)))
+        if n_main
+        else None,
         # discount per đồng of add-on GMV: the cost of the predicted attaches
         "discount_per_attach_gmv": ratio(safe_div(discount_per_day_if_all, attach_gmv_per_day), 6),
         "break_even_extra_orders": max(

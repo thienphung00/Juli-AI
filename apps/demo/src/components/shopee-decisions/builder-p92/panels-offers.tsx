@@ -124,7 +124,8 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
   const tiers = form.tiers;
   const rows = (Array.isArray(d["tiers"]) ? d["tiers"] : []) as TierDetail[];
   const unit = form.dtype === "pct" ? "%" : "đ";
-  const valueLabel = form.dtype === "pct" ? "Giảm" : form.dtype === "amount" ? "Giảm" : "Chỉ với giá";
+  const valueLabel = form.dtype === "special_price" ? "Chỉ với giá" : "Giảm";
+  const valueSuffix = form.dtype === "pct" ? "%GIẢM" : unit;
   const updTier = (i: number, patch: Partial<ComboTierRow>) => set({ tiers: setAt(tiers, i, patch) });
   const addPartner = (partner: string) => set({ items: form.items.includes(partner) ? form.items : [...form.items, partner] });
   return (
@@ -138,8 +139,8 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
             <span className="sb-item__n">{i + 1}</span>
             <span>Mua</span>
             <NumIn label={`Mức ${i + 1} · số sản phẩm`} onChange={(qty) => updTier(i, { qty })} value={t.qty} />
-            <span>sản phẩm →</span>
-            <NumIn label={`Mức ${i + 1} · ${valueLabel.toLowerCase()}`} onChange={(value) => updTier(i, { value })} suffix={unit} value={t.value} />
+            <span>sản phẩm để được {valueLabel.toLowerCase()}</span>
+            <NumIn label={`Mức ${i + 1} · ${valueLabel.toLowerCase()}`} onChange={(value) => updTier(i, { value })} suffix={valueSuffix} value={t.value} />
             {tiers.length > 1 ? (
               <button aria-label={`Bỏ mức ${i + 1}`} className="sa-btn sa-btn--s" onClick={() => set({ tiers: tiers.filter((_, k) => k !== i) })} type="button">
                 ×
@@ -162,9 +163,14 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
       ) : null}
       <div className="p2-grid">
         <NumIn hint="Số combo tối đa mỗi người mua; chưa có dữ liệu theo người mua nên không tính vào kết quả." label="Giới hạn đặt hàng" onChange={(limit) => set({ limit })} value={form.limit} />
-        <TextIn label="Bắt đầu" onChange={(start) => set({ start })} type="date" value={form.start} />
-        <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
       </div>
+      <fieldset className="p2-grid" data-testid="p2-combo-time">
+        <legend className="sa-hint">Thời gian chạy Combo</legend>
+        <TextIn label="Bắt đầu" onChange={(start) => set({ start })} type="date" value={form.start} />
+        <NumIn hint="0–23, trống = cả ngày" label="Giờ bắt đầu" onChange={(startHour) => set({ startHour })} value={form.startHour ?? ""} />
+        <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
+        <NumIn hint="0–23, trống = cả ngày" label="Giờ kết thúc" onChange={(endHour) => set({ endHour })} value={form.endHour ?? ""} />
+      </fieldset>
       {dn(d, "avg_unit_price") !== null ? (
         <Calc
           rows={[

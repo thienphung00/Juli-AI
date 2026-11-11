@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
-from juli_backend.services.shopee_builder.engine.contract import Band, Basis
+from juli_backend.services.shopee_builder.engine.contract import Band, Basis, OfferCost
 from juli_backend.services.shopee_builder.engine_families.measure import (
     AdCampaignHist,
     AdDay,
@@ -57,6 +57,9 @@ class ComboFacts:
     #: None = too few orders -> the tagged prior on ``near_share``
     reach: Band | None = None
     reach_units: Decimal = Decimal(1)  # mean units those orders are short of the tier
+    #: P100-C (J): Shopee's % fees are on the item total AFTER the combo, so one đồng of combo
+    #: discount costs the seller (1 − fee_rate) đồng; 0 = no fee formula (the gross discount)
+    fee_rate: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True)
@@ -117,6 +120,8 @@ class SimpleFacts:
     lead: LiftEvidence
     aov: Band | None = None
     profit_per_order_after: Decimal | None = None
+    #: P100-C (A.9): the option's own per-use costs (Mua kèm discount, Quà tặng giá vốn)
+    offers: tuple[OfferCost, ...] = ()
 
 
 @dataclass(frozen=True)

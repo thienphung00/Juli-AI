@@ -21,8 +21,10 @@ base -> family -> engine, ``integrate.evaluate``), each scaled to 30 days; the m
 longer feeds them. ``result_basis`` is ``"option_result"``. P50s add and the range is the root sum
 of squares of the half-widths of the cards' P10 / P90 columns. A card without a result (refused, not
 estimable, no way to rebuild its spec) is listed as "chưa ước tính được", left out of the sums and
-its exact cost still counts against the cap (the certain layer). An unknown profit makes the plan's
-profit unknown. The "after" funnel is today's views / clicks / đơn plus the cards' deltas, so
+its exact cost still counts against the cap (the certain layer); the payload counts them
+(``not_estimable_cards``, ``totals_note``). When NO card is estimable the totals are ``None`` and
+``totals_estimable`` is False (P100-C, B.10) -- never the empty sum's 0. An unknown profit makes the
+plan's profit unknown. The "after" funnel is today's views / clicks / đơn plus the cards' deltas, so
 Đơn = Lượt xem x CTR x CTOR and GMV = Đơn x AOV hold exactly.
 
 **Predicted layer (legacy money layer, used only when no results are passed).** Each card's
@@ -50,6 +52,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_recommendations import (
     config,
@@ -687,8 +690,17 @@ def after_funnel(
     """Today's views / clicks / đơn / GMV plus the plan's P50 Δ, so Đơn = Lượt xem x CTR x CTOR and
     GMV = Đơn x AOV hold for the "after" (None where today's traffic is unknown)."""
     p50 = total["p50"]
-    orders = today["orders_30d"] + (p50["dorders"] or 0.0)
-    gmv = today["gmv_30d"] + (p50["dgmv"] or 0.0)
+    if p50["dorders"] is None or p50["dgmv"] is None:
+        # P100-C: an unknown Δ (no card estimable) leaves the "after" unknown, not today's figure
+        return {
+            k: None
+            for k in (
+                "gmv_30d", "orders_30d", "aov", "views_30d", "clicks_30d", "ctr", "ctor",
+                "profit_30d",
+            )
+        }  # fmt: skip
+    orders = today["orders_30d"] + p50["dorders"]
+    gmv = today["gmv_30d"] + p50["dgmv"]
     views = clicks = ctr = ctor = None
     tv, tc = today.get("views_30d"), today.get("clicks_30d")
     if (
@@ -787,6 +799,8 @@ class Joint:
     #: P99b: the horizon the results are counted in and what each leaf contributes there
     horizon: Horizon | None = None
     counted: dict[str, Counted] = field(default_factory=dict)
+    #: P100-C (B.10): every card is "chưa ước tính được" -> the totals are None, not 0
+    none_estimable: bool = False
     #: leaves whose cost is unknown (no result): the spend line leaves them out and says so
     cost_unknown: list[str] = field(default_factory=list)
     outside_horizon: list[str] = field(default_factory=list)
@@ -895,6 +909,7 @@ def joint(
             {"type": "floor", "card_id": e.entry.card_id, **b} for b in e.card["floor"]["breaches"]
         )
     not_estimable: list[str] = []
+    none_estimable = False
     counted: dict[str, Counted] = {}
     cost_unknown: list[str] = []
     outside: list[str] = []
@@ -912,6 +927,12 @@ def joint(
         total = predicted  # an option result's Δ already holds the cost: nothing is added to it
         not_estimable = [r.card_id for r in mine if not r.ok]
         outside = [r.card_id for r in mine if r.result is not None and r.counted(h) is None]
+        none_estimable = bool(mine) and not any(r.ok for r in mine)
+        if none_estimable:
+            # P100-C (B.10): every card is "chưa ước tính được" -- the plan's Δ is unknown, never
+            # the empty sum's 0 (the cards' costs still count, ``certain["dchi"]``)
+            predicted = {q: dict.fromkeys(RESULT_METRICS) for q in QUANTILES}
+            total = predicted
         unknown = [c.card_id for c in counted.values() if c.cols["p50"].get("dprofit") is None]
     else:
         kept, folded = joint_lifts(evs)
@@ -939,6 +960,7 @@ def joint(
         counted=counted,
         cost_unknown=_parents(cost_unknown),
         outside_horizon=_parents(outside),
+        none_estimable=none_estimable,
     )
 
 
@@ -1045,9 +1067,14 @@ def _cost_block(env: RecoEnv, j: Joint, base: Mapping[str, Any] | None = None) -
 
 
 def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    """ "Hôm nay": the plan's frozen base when it has one, else ShopMetrics of the env."""
+    """ "Hôm nay": the plan's frozen base when it has one, else ShopMetrics of the env. The shop
+    profit and margin are the one known-cost figure (P100 B.5, ``shared.shop_profit_of``): the
+    same number Tổng quan and Sản phẩm show."""
     if base is not None:
         margin = base["margin_pct"]
+        profit = base.get("profit_30d")
+        if profit is None and "shop_profit" not in base and margin is not None:
+            profit = base["gmv_30d"] * margin / 100  # a base frozen before P100
         return {
             "as_of": base["as_of"],
             "gmv_30d": base["gmv_30d"],
@@ -1058,21 +1085,24 @@ def _today(env: RecoEnv, base: Mapping[str, Any] | None = None) -> dict[str, Any
             "clicks_30d": base.get("clicks"),
             "ctr": base.get("ctr"),
             "ctor": base.get("ctor"),
-            "profit_30d": None if margin is None else base["gmv_30d"] * margin / 100,
+            "profit_30d": profit,
+            "shop_profit": base.get("shop_profit"),
         }
     m = env.metrics
+    fig = shop_profit_of(env.view).json()
     gmv, orders = float(env.shop_gmv_30d), env.shop_orders_30d
     return {
         "as_of": env.as_of.isoformat(),
         "gmv_30d": gmv,
         "orders_30d": orders,
         "aov": None if m.aov is None else float(m.aov),
-        "margin_pct": None if m.margin_pct is None else float(m.margin_pct),
+        "margin_pct": fig["margin_pct"],
         "views_30d": m.views,
         "clicks_30d": m.clicks,
         "ctr": None if m.ctr is None else float(m.ctr),
         "ctor": None if m.ctor is None else float(m.ctor),
-        "profit_30d": None if m.profit is None else float(m.profit),
+        "profit_30d": fig["profit"],
+        "shop_profit": fig,
     }
 
 
@@ -1348,7 +1378,9 @@ def aggregate(
             "horizon": horizon.json(),
             "n_cards": 0,
             "empty": True,
-            "empty_note": "Kế hoạch chưa có thẻ nào.",
+            # P100 A.8: "no card" only when there is none (cards that cannot be evaluated on
+            # this data are listed in ``unavailable_cards`` instead)
+            "empty_note": None if entries else "Kế hoạch chưa có thẻ nào.",
             "today": today_block,
             "after": None,
             "deltas_p50": None,
@@ -1487,6 +1519,9 @@ def aggregate(
         "outside_horizon_cards": full.outside_horizon,
         "cost_unknown_cards": full.cost_unknown,
         "totals_partial": bool(full.not_estimable or unavailable),
+        #: P100-C (B.10): False when no card is estimable -- the totals are None ("chưa ước tính
+        #: được"), the cards' costs and break-even still show
+        "totals_estimable": not full.none_estimable,
         "totals_note": _totals_note(full, unavailable),
         "result_basis": RESULT_BASIS,
         "unavailable_cards": unavailable,
@@ -1501,6 +1536,11 @@ def aggregate(
 def _totals_note(j: Joint, unavailable: Sequence[str]) -> str | None:
     """Says which cards the totals leave out (never a silent partial sum)."""
     parts = []
+    if j.none_estimable:
+        return (
+            f"Chưa ước tính được: {len(j.not_estimable)} thẻ chưa có kết quả ước tính "
+            "(chỉ có chi phí và điểm hoà vốn)."
+        )
     if j.not_estimable:
         parts.append(f"{len(j.not_estimable)} thẻ chưa ước tính được")
     if unavailable:

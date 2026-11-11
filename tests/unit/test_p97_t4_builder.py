@@ -499,7 +499,14 @@ async def test_the_plan_carries_a_tiers_combo_as_its_own_layer(session, shop):
     assert agg["added_cards"] == [str(prop.id)] and agg["joint_cards"] == []
     # P98 W4-B / ADR-122 d.2: the plan reads the option result the builder showed (per 30 days)
     per30 = saved["outcome"]["result"]["per_30d"]
-    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
+    # P100-C (B.10): the seeded shop has too few orders to measure who moves up to a tier, so
+    # the card is cost + break-even only; the plan says so instead of summing it as 0
+    assert per30["gmv"] is None
+    assert agg["dgmv_month"]["total"]["p50"] is None
+    assert agg["dprofit_month"]["total"]["p50"] is None
+    assert agg["totals_estimable"] is False
+    assert agg["not_estimable_cards"] == [str(prop.id)]
+    assert "chưa ước tính được" in agg["totals_note"].lower()
     # P99b: no money-layer certain figure beside the option results
     assert agg["dprofit_month"]["certain"] is None
 

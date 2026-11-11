@@ -6,7 +6,7 @@ import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/forma
 import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
 import type { FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TextChip } from "../../shopee-analytics/ui";
-import { countPct, moneyPct, signedCount, signedMoney, signedPct } from "./format";
+import { countPct, moneyPct, signedCount, signedMoney } from "./format";
 
 /**
  * P98 / ADR-122 d.5: the option card — only the lines of the decision, then a collapsed "Chi tiết".
@@ -25,10 +25,14 @@ const NOT_ESTIMABLE = "chưa ước tính được";
 /** P99: the note the engine adds when profit per order stands on the days that have costs. */
 export const COST_DAYS_NOTE = "ngày có dữ liệu chi phí";
 
-/** "cần thêm 12 đơn" / "—". */
+/** P100-C: the one break-even line — "cần thêm 12 đơn để hoà vốn", "… hoặc AOV ≥ 210.000đ …". */
 export function breakEvenLine(r: OptionResult): string | null {
   const n = r.cost.break_even_orders;
-  return n === null || n === undefined ? null : `cần thêm ${vnCount(Math.ceil(n - 1e-6))} đơn để hoà vốn`;
+  const aov = r.cost.break_even_aov;
+  const parts: string[] = [];
+  if (n !== null && n !== undefined) parts.push(`cần thêm ${vnCount(Math.ceil(n - 1e-6))} đơn`);
+  if (aov !== null && aov !== undefined) parts.push(`${parts.length ? "hoặc " : "cần "}AOV ≥ ${vnd(aov)}`);
+  return parts.length ? `${parts.join(" ")} để hoà vốn` : null;
 }
 
 export const PER_30D_LABEL = "Quy đổi 30 ngày (tham khảo)";
@@ -39,22 +43,48 @@ export function datesText(dates: VersionDates | null | undefined, r: OptionResul
   return r.after.label || (r.days ? `${r.days} ngày đầu` : "chưa có ngày");
 }
 
-/** "Quy đổi 30 ngày (tham khảo): Lợi nhuận … · GMV … · Đơn …": secondary, never the primary figure. */
+/** "Quy đổi 30 ngày (tham khảo): Lợi nhuận … · GMV … · Đơn …": the comparison's secondary column (P100-C: no longer on the card). */
 export function per30Text(r: OptionResult): string | null {
   const p = r.per_30d;
   if (!p || (p.profit === null && p.gmv === null && p.orders === null)) return null;
   return `${p.label ?? PER_30D_LABEL}: Lợi nhuận ${signedMoney(p.profit)} · GMV ${signedMoney(p.gmv)} · Đơn ${signedCount(p.orders)}`;
 }
 
+const FUNNEL: readonly { readonly key: "views" | "ctr" | "ctor" | "aov"; readonly label: string; readonly fmt: (n: number | null) => string }[] = [
+  { key: "views", label: "Hiển thị", fmt: (n) => fmt(n, 0) },
+  { key: "ctr", label: "CTR", fmt: (n) => pp(n, 2) },
+  { key: "ctor", label: "CTOR", fmt: (n) => pp(n, 2) },
+  { key: "aov", label: "AOV", fmt: (n) => vnd(n) },
+];
+
+/** P100-C (B.6): "Hiển thị 10.000 → 10.200 · CTR 3,50% → 3,60% · CTOR … · AOV …" (before → likely). */
+function funnelText(r: OptionResult): string | null {
+  const b = r.detail.before;
+  const a = r.detail.likely;
+  if (!r.estimable || !a) return null;
+  return FUNNEL.map((m) => `${m.label} ${m.fmt(b[m.key])} → ${m.fmt(a[m.key])}`).join(" · ");
+}
+
+/** P100-C (B.6): "34,1% → 31,0% (−3,1 điểm)" — secondary to Δ tổng lợi nhuận. */
+function marginText(r: OptionResult): string | null {
+  const m = r.margin;
+  if (!m || m.before_pct === null || m.after_pct === null || m.shift_pts === null) return null;
+  const s = fmt(Math.abs(m.shift_pts), 1);
+  const sign = m.shift_pts < 0 && s !== "0,0" ? "−" : "+";
+  return `${pp(m.before_pct, 1)} → ${pp(m.after_pct, 1)} (${sign}${s} điểm)`;
+}
+
 export function OptionCard({ result: r, title, testId = "option-card", dates }: { readonly result: OptionResult; readonly title?: string; readonly testId?: string; readonly dates?: VersionDates | null }) {
   const profit = profitText(r);
   const orders = r.delta.orders;
-  const drivers = r.drivers_pct.map((d) => `${d.label} ${signedPct(d.pct)}`).join(" · ");
-  const a = r.after;
   const ne = !r.estimable;
   const gmvText = ne ? NOT_ESTIMABLE : moneyPct(r.delta.gmv.value, r.delta.gmv.pct);
   const ordersText = ne ? NOT_ESTIMABLE : countPct(orders.value, orders.pct);
   const beLine = breakEvenLine(r);
+  const funnel = funnelText(r);
+  const margin = marginText(r);
+  const roiValue = r.roi?.value;
+  const roi = roiValue === null || roiValue === undefined ? null : fmt(roiValue, 1);
   const costNotes = r.notes.filter((n) => n.includes(COST_DAYS_NOTE));
   return (
     <article className="oc" data-testid={testId}>
@@ -72,7 +102,7 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
       </p>
       <dl className="p2-kv">
         <div>
-          <dt>Δ Lợi nhuận</dt>
+          <dt>Δ Tổng lợi nhuận</dt>
           <dd data-testid="oc-profit">
             <b>{profit.main}</b>
             {profit.range ? <span> {profit.range}</span> : null}
@@ -92,16 +122,28 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
             {orders.note ? <span className="sa-hint" data-testid="oc-note">{orders.note}</span> : null}
           </dd>
         </div>
-        {drivers ? (
+        {funnel ? (
           <div>
-            <dt>Tác động</dt>
-            <dd data-testid="oc-drivers">{drivers}</dd>
+            <dt>Phễu</dt>
+            <dd data-testid="oc-funnel">{funnel}</dd>
+          </div>
+        ) : null}
+        {margin ? (
+          <div>
+            <dt>Biên lợi nhuận</dt>
+            <dd data-testid="oc-margin">{margin}</dd>
+          </div>
+        ) : null}
+        {roi ? (
+          <div>
+            <dt>ROI</dt>
+            <dd data-testid="oc-roi">{roi}</dd>
           </div>
         ) : null}
         <div>
           <dt>Chi phí</dt>
           <dd data-testid="oc-cost">
-            <b>{vnd(r.cost.total)}</b> <span>{r.cost.text}</span>
+            <b>{r.cost.total > 0 ? vnd(r.cost.total) : "Không có chi phí thêm"}</b>
           </dd>
         </div>
         {beLine ? (
@@ -110,20 +152,7 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
             <dd data-testid="oc-breakeven">{beLine}</dd>
           </div>
         ) : null}
-        {ne ? null : (
-          <div>
-            <dt>{a.label}</dt>
-            <dd data-testid="oc-after">
-              GMV {vnd(a.gmv_before)} → {vnd(a.gmv_after)} · Lợi nhuận {vnd(a.profit_before)} → {vnd(a.profit_after)}
-            </dd>
-          </div>
-        )}
       </dl>
-      {per30Text(r) ? (
-        <p className="sa-hint" data-secondary="true" data-testid="oc-per30">
-          {per30Text(r)}
-        </p>
-      ) : null}
       {costNotes.map((n) => (
         <p className="sa-hint" data-testid="oc-cost-days" key={n}>
           {n}
