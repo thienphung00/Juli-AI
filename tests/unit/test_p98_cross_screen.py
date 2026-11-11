@@ -65,9 +65,8 @@ async def test_the_headline_profit_is_the_shop_metrics_profit_with_the_waterfall
     ov = await queries.overview(session, built.shop_id, period="7d", as_of=CUR_END)
     block = ov["profit"]
     assert block["profit_vnd"] == pytest.approx(want, abs=0.01)
-    assert "profit_waterfall_vnd" in block  # the breakdown keeps its own number
-    assert block["profit_detail_label"].startswith("chi tiết trên ")
-    assert "đơn có dữ liệu chi phí" in block["profit_detail_label"]
-    assert block["profit_detail_orders"] == ov["shop_metrics"]["line_orders"]
-    scale = ov["shop_metrics"]["gmv_scale"]
-    assert block["profit_estimated"] is bool(scale is not None and scale > 1)
+    # P100 B.5: one shop profit with its coverage line; no "ước tính theo tỉ lệ" twin
+    assert block["coverage_label"].startswith("trên ")
+    assert "đơn có chi phí" in block["coverage_label"]
+    assert block["known_cost_orders"] == ov["shop_profit"]["orders"]
+    assert "profit_estimated" not in block and "profit_waterfall_vnd" not in block

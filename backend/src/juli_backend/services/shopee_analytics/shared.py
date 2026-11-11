@@ -16,7 +16,28 @@ from juli_backend.services.shopee_profit.five_numbers import (
 )
 from juli_backend.services.shopee_profit.flows import FlowMetrics, FlowTable
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
+from juli_backend.services.shopee_profit.shop_profit import KnownCostProfit, known_cost_profit
 from juli_backend.services.shopee_profit.sources import CellStats
+
+
+def shop_profit_of(view: PeriodView) -> KnownCostProfit:
+    """P100 B.5: THE shop profit of the window (the known-cost orders, with their coverage of
+    the headline GMV). Tổng quan, Sản phẩm (matrix, the Sản phẩm + luồng headline) and Kế hoạch
+    (live "hôm nay" and the frozen base) read only this."""
+    return known_cost_profit(
+        view.profit, view.pairs, view.metrics.gmv, view.data.ads_daily.spend_by_day
+    )
+
+
+def shop_profit_fields(view: PeriodView) -> dict[str, Any]:
+    """The ShopMetrics JSON keys that carry shop profit, overridden with the one figure (the
+    stored ``profit`` is the per-day sum scaled to the shop GMV, which no screen shows)."""
+    fig = shop_profit_of(view)
+    return {
+        "profit": fig.json()["profit"],
+        "margin_pct": fig.json()["margin_pct"],
+        "shop_profit": fig.json(),
+    }
 
 
 def snapshot_of(view: PeriodView, product_id: str | None = None) -> Snapshot:

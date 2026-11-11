@@ -8,6 +8,7 @@ bases and are never mixed into one total: each block states its own basis.
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -20,6 +21,7 @@ from juli_backend.services.shopee_analytics.shared import (
     five_for,
     five_json,
     flow_table_json,
+    shop_profit_of,
 )
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_profit.shop_profit import ProductProfit
@@ -122,6 +124,34 @@ def margin_basis(view: PeriodView, product_id: str, pp: ProductProfit | None) ->
     return BASIS_ACTUAL
 
 
+TRAFFIC_SOURCE = "product_period"
+
+
+def _days_label(a: date, b: date) -> str:
+    return f"{a.day:02d}/{a.month:02d}–{b.day:02d}/{b.month:02d}"
+
+
+def product_traffic(view: PeriodView, product_id: str) -> dict[str, Any] | None:
+    """P100 A.6: the product's own Hiển thị / clicks / đơn from Shopee's product table
+    (``product_period``, the rows Sản phẩm + luồng reads) over the period chosen for the
+    window, with its coverage ("Shopee 11/10–09/11 · 30/30 ngày"); None without such a row.
+    Independent of the per-source flows (whose daily rows may cover too few days)."""
+    pf = view.data.product_flows
+    agg = pf.traffic.get(product_id)
+    if agg is None or (agg.views is None and agg.clicks is None):
+        return None
+    basis = pf.totals_basis
+    periods = ", ".join(_days_label(a, b) for a, b in basis.periods)
+    return {
+        "views": None if agg.views is None else int(agg.views),
+        "clicks": None if agg.clicks is None else int(agg.clicks),
+        "orders": int(agg.orders),
+        "source": TRAFFIC_SOURCE,
+        "basis": basis.json(),
+        "label": f"Shopee {periods} · {basis.covered_days}/{view.window.days} ngày",
+    }
+
+
 def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
     pp = view.profit.products.get(product_id)
     levers = []
@@ -169,6 +199,7 @@ def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
         "levers": levers,
         "ads": ads_overlay(view, product_id, pp),
         "card_children": card_children(view, product_id),
+        "traffic": product_traffic(view, product_id),
     }
 
 
@@ -226,6 +257,8 @@ def build_matrix(
         "idle_products": idle,
         "ads_basis": ADS_BASIS,
         "excluded": excluded_summary(view),
+        # P100 B.5: the one shop profit, the same figure as Tổng quan and Kế hoạch
+        "shop_profit": shop_profit_of(view).json(),
         "sums": {
             "gmv_shopee_products": num(sum_gmv),
             "gmv_shop": num(view.shop_gmv),
