@@ -20,7 +20,14 @@ A buyer searches a combination, not a word: "miếng rửa chén", "nước rử
   is read as one product phrase (``nước rửa chén``) when combined with the brand, a material
   or a size.
 - **common phrase**: any 2-4 word run (no noise, no size) shared by two or more titles,
-  kept only when no longer run has the same titles.
+  kept only when no longer run has the same titles. A run never starts or ends inside a known
+  compound (:data:`COMPOUNDS`: "sinh học", "túi đựng thực phẩm" …), and a shorter run inside a
+  longer kept one ("an toàn" in "an toàn da") is dropped unless it also stands at the end of
+  a chunk in some title or is a product-type head noun.
+- **chunks**: a title is split on ``- – , + : / ( ) |`` first (a comma between digits, "1,5l",
+  stays); no phrase crosses a chunk.
+- **brand per title**: an inferred brand belongs to the titles that start with it, so two
+  brands in one shop do not borrow each other's titles.
 
 Patterns, in priority order (a combination produced by two patterns keeps the first):
 ``brand_type``, ``brand_function``, ``brand_material``, ``type_function_material``,
@@ -43,8 +50,8 @@ MIN_TITLES = 2
 MAX_KEYWORD_LENGTH = 200
 MAX_FUNCTION_OBJECT = 1
 PHRASE_MIN, PHRASE_MAX = 2, 4
-#: Share of titles that must start with the same words for them to be read as the brand.
-BRAND_SHARE = 0.6
+#: Share of titles (at least two) that must start with the same words to read them as a brand.
+BRAND_SHARE = 0.15
 
 PATTERNS: tuple[str, ...] = (
     "brand_type",
@@ -101,7 +108,18 @@ NOISE: tuple[str, ...] = _words(
     """
     chính hãng, freeship, free ship, giá rẻ, giá sỉ, sỉ, sale, hot, hot trend, mới, new, cao
     cấp, siêu rẻ, rẻ, tặng, quà tặng, khuyến mãi, loại 1, hàng, chuẩn, xịn, uy tín, official,
-    store, shop, mall, chất lượng
+    store, shop, mall, chất lượng, có vat, vat, combo, siêu, bán chạy, giá tốt, cam kết,
+    hoàn tiền, bảo hành
+    """
+)
+#: Product-type head nouns beyond TYPES: a function that names the product ("rửa chén").
+HEADS: tuple[str, ...] = _words("rửa chén, rửa bát, rửa mặt, đánh răng, lau sàn, rửa tay")
+#: Known compounds: a phrase may not begin or end in the middle of one.
+COMPOUNDS: tuple[str, ...] = _words(
+    """
+    túi đựng thực phẩm, túi đựng rác, phân hủy sinh học, tự hủy, phân hủy, sinh học, rửa chén,
+    rửa bát, rửa mặt, đánh răng, an toàn, thân thiện, thực phẩm,
+    găng tay, bàn chải, xơ mướp, giữ nhiệt, chống dính
     """
 )
 #: A common phrase never starts or ends on one of these.
@@ -137,9 +155,12 @@ _COUNT_UNITS = {
     "cuon": "cuộn",
     "doi": "đôi",
     "set": "set",
+    "chiec": "chiếc",
 }
 _NUMBER = re.compile(r"^\d+(?:[.,]\d+)?$")
 _NUMBER_UNIT = re.compile(r"^(\d+(?:[.,]\d+)?)([a-z]+)$")
+_MULTIPLIER = re.compile(r"^x\d+$")
+_AFTER_COUNT = frozenset({"lan", "cai", "chiec", "mieng"})
 _YEAR = re.compile(r"^20\d\d$")
 #: A word, or a number that keeps its decimal part and a unit written against it ("1,5l").
 _WORD = re.compile(r"\d+(?:[.,]\d+)*[^\W\d_]*|[^\W_]+", re.UNICODE)
@@ -215,6 +236,7 @@ _MATERIALS = _lexicon(MATERIALS)
 _VERBS = _lexicon(FUNCTION_VERBS)
 _COMPLETE = _lexicon(COMPLETE_FUNCTIONS)
 _NOISE = _lexicon(NOISE)
+_COMPOUNDS = _lexicon(COMPOUNDS)
 
 
 def _match(tokens: Sequence[_Token], at: int, lexicon: list[tuple[_Token, ...]]) -> int:
@@ -252,8 +274,20 @@ class _Parsed:
     facets: list[_Facet]
 
 
+#: Title punctuation that ends a chunk; a comma between digits ("1,5l") is a decimal mark.
+_CHUNK_BREAK = re.compile(r"\s[-–]\s|[–+:/()|\[\]]|(?<!\d),|,(?!\d)")
+
+
 def _clean(title: str) -> list[_Token | None]:
     """Tokens with noise removed (``None`` marks a break a phrase may not cross)."""
+    out: list[_Token | None] = []
+    for chunk in _CHUNK_BREAK.split(title):
+        out.extend(_clean_chunk(chunk))
+        out.append(None)
+    return out
+
+
+def _clean_chunk(title: str) -> list[_Token | None]:
     raw = _tokens(title)
     out: list[_Token | None] = []
     i = 0
@@ -268,6 +302,13 @@ def _clean(title: str) -> list[_Token | None]:
             length, display = size
             out.append(_Token(display, fold(display)))
             i += length
+            continue
+        if raw[i].key == "size" or _MULTIPLIER.match(raw[i].key):
+            # "size L", "size 39", "x2 lần": a variant or count, never a keyword word.
+            out.append(None)
+            i += 1
+            if i < len(raw) and (len(raw[i].key) <= 2 or raw[i].key in _AFTER_COUNT):
+                i += 1
             continue
         if _NUMBER.match(raw[i].key):
             # A bare number with no unit ("1 găng tay", a model or pack count) is not a word a
@@ -329,7 +370,7 @@ def _facets(segment: list[_Token], index: int, brand: tuple[_Token, ...] | None)
             while not complete and end < len(segment) and end - (i + length) < MAX_FUNCTION_OBJECT:
                 if segment[end].key in CONNECTORS or other_facet_at(end):
                     break
-                end += 1
+                end += max(1, _match(segment, end, _COMPOUNDS))
             take("function", end - i)
         elif length := _match(segment, i, _MATERIALS):
             take("material", length)
@@ -351,28 +392,41 @@ def _parse(title: Title, brand: tuple[_Token, ...] | None) -> _Parsed:
     return _Parsed(title.item_id, segments, facets)
 
 
-def _infer_brand(titles: Sequence[Title]) -> tuple[_Token, ...] | None:
-    """The leading 1-2 words most titles share, unless they are a product word."""
+def _infer_brands(titles: Sequence[Title]) -> dict[str, tuple[_Token, ...]]:
+    """item id -> the leading 1-2 words the title shares with enough other titles.
+
+    One brand per title, not per shop: "ORY ..." and "STAHAUS ..." titles in the same shop each
+    keep their own. A lead that is a product word or a size is never a brand.
+    """
     if len(titles) < MIN_TITLES:
-        return None
-    leads: Counter[tuple[str, ...]] = Counter()
-    spelled: dict[tuple[str, ...], tuple[_Token, ...]] = {}
+        return {}
+    leads_of: dict[str, list[tuple[tuple[str, ...], tuple[_Token, ...]]]] = {}
+    count: Counter[tuple[str, ...]] = Counter()
     for title in titles:
         tokens = [t for t in _clean(title.title) if t is not None]
+        leads = []
         for n in (2, 1):
-            if len(tokens) >= n:
-                keys = tuple(t.key for t in tokens[:n])
-                leads[keys] += 1
-                spelled.setdefault(keys, tuple(tokens[:n]))
+            lead = tokens[:n]
+            if len(lead) == n and not _product_word(tokens, n):
+                keys = tuple(t.key for t in lead)
+                leads.append((keys, tuple(lead)))
+                count[keys] += 1
+        leads_of[title.item_id] = leads
     need = max(MIN_TITLES, int(len(titles) * BRAND_SHARE + 0.999))
-    for keys, count in sorted(leads.items(), key=lambda kv: (-len(kv[0]), -kv[1], kv[0])):
-        if count < need:
-            continue
-        seq = spelled[keys]
-        if any(_match(seq, 0, lex) for lex in (_TYPES, _MATERIALS, _VERBS)) or _is_size(seq[0]):
-            continue
-        return seq
-    return None
+    out: dict[str, tuple[_Token, ...]] = {}
+    for item_id, leads in leads_of.items():
+        for keys, seq in leads:  # longest first
+            if count[keys] >= need:
+                out[item_id] = seq
+                break
+    return out
+
+
+def _product_word(tokens: Sequence[_Token], n: int) -> bool:
+    """The first ``n`` words are, or run into, a product word or size (not a brand)."""
+    if _is_size(tokens[0]):
+        return True
+    return any(_match(tokens, at, lex) for at in range(n) for lex in (_TYPES, _MATERIALS, _VERBS))
 
 
 def _brand_tokens(brand: str | None) -> tuple[_Token, ...] | None:
@@ -425,17 +479,40 @@ def _phrases(parsed: Sequence[_Parsed]) -> dict[tuple[str, ...], tuple[set[str],
     """Every 2-4 word run (by key) -> (item ids, first display form)."""
     found: dict[tuple[str, ...], tuple[set[str], tuple[str, ...]]] = {}
     for p in parsed:
-        for segment, start in ((seg, i) for seg in p.segments for i in range(len(seg))):
-            for n in range(PHRASE_MIN, PHRASE_MAX + 1):
-                run = segment[start : start + n]
-                if len(run) < n or any(_is_size(t) for t in run):
-                    break
-                if run[0].key in CONNECTORS or run[-1].key in CONNECTORS:
-                    continue
-                key = tuple(t.key for t in run)
-                items, display = found.setdefault(key, (set(), tuple(t.word for t in run)))
-                items.add(p.item_id)
+        for segment in p.segments:
+            cuts = _compound_interiors(segment)
+            for start in range(len(segment)):
+                _runs_from(segment, start, cuts, p.item_id, found)
     return found
+
+
+def _compound_interiors(segment: Sequence[_Token]) -> frozenset[int]:
+    """Boundary positions that fall inside a known compound (a run may not start/end there)."""
+    inside: set[int] = set()
+    for at in range(len(segment)):
+        length = _match(segment, at, _COMPOUNDS)
+        inside.update(range(at + 1, at + length))
+    return frozenset(inside)
+
+
+def _runs_from(
+    segment: Sequence[_Token],
+    start: int,
+    cuts: frozenset[int],
+    item_id: str,
+    found: dict[tuple[str, ...], tuple[set[str], tuple[str, ...]]],
+) -> None:
+    for n in range(PHRASE_MIN, PHRASE_MAX + 1):
+        run = segment[start : start + n]
+        if len(run) < n or any(_is_size(t) for t in run):
+            break
+        if run[0].key in CONNECTORS or run[-1].key in CONNECTORS:
+            continue
+        if start in cuts or start + n in cuts:
+            continue
+        key = tuple(t.key for t in run)
+        items, _display = found.setdefault(key, (set(), tuple(t.word for t in run)))
+        items.add(item_id)
 
 
 def _maximal(
@@ -456,6 +533,38 @@ def _maximal(
     return keep
 
 
+def _without_sub_phrases(
+    runs: list[tuple[str, ...]], parsed: Sequence[_Parsed]
+) -> list[tuple[str, ...]]:
+    """Drop a run inside a longer kept run unless it stands alone in some title or is a head.
+
+    "an toàn" next to "an toàn da" is a fragment unless some title ends a chunk on "an toàn"
+    (nothing modifies it there) or it is a product-type head noun ("găng tay").
+    """
+    heads = {tuple(t.key for t in entry) for entry in (*_TYPES, *_lexicon(HEADS))}
+    kept = []
+    for run in runs:
+        longer = [
+            other
+            for other in runs
+            if len(other) > len(run)
+            and any(other[i : i + len(run)] == run for i in range(len(other) - len(run) + 1))
+        ]
+        if longer and run not in heads and not _ends_a_chunk(run, parsed):
+            continue
+        kept.append(run)
+    return kept
+
+
+def _ends_a_chunk(run: tuple[str, ...], parsed: Sequence[_Parsed]) -> bool:
+    n = len(run)
+    return any(
+        tuple(t.key for t in seg[-n:]) == run and len(seg) >= n
+        for p in parsed
+        for seg in p.segments
+    )
+
+
 def _inside_combo(padded: str, run_items: set[str], items: dict[str, set[str]]) -> bool:
     """A shared run cut out of a longer combination over the same titles adds nothing."""
     return any(ids == run_items and padded in f" {key} " for key, ids in items.items())
@@ -464,8 +573,10 @@ def _inside_combo(padded: str, run_items: set[str], items: dict[str, set[str]]) 
 def decompose(titles: Sequence[Title], *, brand: str | None = None) -> list[Candidate]:
     """Keyword candidates for one shop's titles; see the module docstring."""
     usable = [t for t in titles if t.title and t.title.strip()]
-    brand_seq = _brand_tokens(brand) or _infer_brand(usable)
-    parsed = [_parse(t, brand_seq) for t in usable]
+    given = _brand_tokens(brand)
+    inferred = {} if given else _infer_brands(usable)
+    parsed = [_parse(t, given or inferred.get(t.item_id)) for t in usable]
+    brand_keys = {" ".join(t.key for t in seq) for seq in ([given] if given else inferred.values())}
 
     items: dict[str, set[str]] = {}
     pattern_of: dict[str, str] = {}
@@ -480,15 +591,14 @@ def decompose(titles: Sequence[Title], *, brand: str | None = None) -> list[Cand
             displays.setdefault(key, Counter())[words] += 1
 
     phrases = _phrases(parsed)
-    brand_key = " ".join(t.key for t in brand_seq) if brand_seq else None
-    for run in _maximal(phrases):
+    for run in _without_sub_phrases(_maximal(phrases), parsed):
         key = " ".join(run)
         run_items, display = phrases[run]
         if key in pattern_of:
             # A combination one title produced, shared verbatim by others: same pattern.
             items[key] |= run_items
             continue
-        if key == brand_key or _inside_combo(f" {key} ", run_items, items):
+        if key in brand_keys or _inside_combo(f" {key} ", run_items, items):
             continue
         pattern_of[key] = "common_phrase"
         items[key] = set(run_items)
