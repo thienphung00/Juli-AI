@@ -113,6 +113,66 @@ SANDBOX_RULE_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
 #: Every route a reviewer reaches only on a writable sandbox pin.
 SANDBOX_ONLY_ENDPOINTS: frozenset[tuple[str, str]] = SANDBOX_RUN_ENDPOINTS | SANDBOX_RULE_ENDPOINTS
 
+#: P100 S2-F (owner, 2026-11-11): the Shopee routes the sample shop's four screens (Tổng quan,
+#: Phân tích, Sản phẩm, Quyết định) and Tự tạo's three strategies (Tiêu đề, Ảnh bìa, Voucher)
+#: need -- admitted ONLY when the selected pin is the synthetic ``sample`` shop (the gate checks
+#: the pin it loaded; the shop entry checks it again). On a masked or sandbox pin, or with no
+#: pin, each is refused 403 ``read_only`` exactly as before (it is NOT on
+#: :data:`ALLOWED_ENDPOINTS`). Each entry was reviewed for writes: none commits, adds or
+#: flushes a row (``tests/unit/test_reviewer_sample_shopee.py`` drives every one and compares
+#: the whole database before / after). Left off on purpose: every route that writes
+#: (``GET /keywords`` and ``GET /fill-jobs`` commit; what-if, request-change, dismiss, "Đã làm",
+#: Tự tạo "Chọn" / "Chạy cùng nhau", the plan writes, exclusions), the hidden pages' routes
+#: (``/keywords``, ``/dashboard/*``, ``/orders``), the plan reads, and the builders the sample
+#: shop does not offer (combo / KOL / ads / co-purchase / campaigns / market range).
+SAMPLE_SHOP_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
+    {
+        # Tổng quan / Phân tích / Sản phẩm: the read model (``services/shopee_analytics``,
+        # ``queries.*`` + ``attach_card_refs`` / ``attach_kol_cards``: SELECTs only).
+        (_GET, _R + "demo_shopee_analytics:shopee_overview"),  # /v1/demo/shopee/overview
+        (_GET, _R + "demo_shopee_analytics:shopee_matrix"),  # …/matrix
+        (_GET, _R + "demo_shopee_analytics:shopee_critical"),  # …/critical
+        (_GET, _R + "demo_shopee_analytics:shopee_ranking"),  # …/ranking
+        (_GET, _R + "demo_shopee_analytics:shopee_product"),  # …/products/{item_id}
+        (_GET, _R + "demo_shopee_analytics:shopee_kols"),  # …/kols (Phân tích › KOL)
+        (_GET, _R + "demo_shopee_analytics:shopee_product_kols"),  # …/products/{item_id}/kols
+        # Sản phẩm: "Giá thị trường" from a stored capture (no outbound fetch).
+        (_GET, _R + "demo_shopee_market:product_market_price"),  # …/products/{item_id}/market-price
+        # Quyết định: the cards (``list_cards`` / ``card_detail``: SELECTs; the product queue
+        # is only re-assigned by the writes, never on read).
+        (_GET, _R + "demo_shopee_recommendations:list_recommendations"),  # …/recommendations
+        (_GET, _R + "demo_shopee_recommendations:recommendation_detail"),  # …/{card_id}
+        # Duyệt: SIMULATED for a reviewer (``simulation.simulate_shopee_approve``): the card is
+        # read, the response looks like an approve, the audit row is the only write.
+        ("POST", _R + "demo_shopee_recommendations:approve_recommendation"),  # …/{card_id}/approve
+        # Tự tạo (Tiêu đề / Ảnh bìa / Voucher): the picker, the variations, the keyword table
+        # (stored keywords + the title's words; no LLM) and the what-if numbers (pure compute
+        # over the read model; nothing is saved until "Chọn", which stays refused).
+        (_GET, _R + "demo_shopee_builder:builder_products"),  # …/builder/products
+        (_GET, _R + "demo_shopee_builder:builder_variations"),  # …/products/{item_id}/variations
+        (_GET, _R + "demo_shopee_builder:builder_keywords"),  # …/products/{item_id}/keywords
+        ("POST", _R + "demo_shopee_builder:builder_evaluate"),  # …/builder/evaluate
+        ("POST", _R + "demo_shopee_builder:builder_compare"),  # …/builder/compare
+    }
+)
+#: P100 S2-F: Tự tạo's live LLM / vision drafts (title, cover concepts, description). On a sample
+#: pin they answer 403 ``sample_llm_off`` (the UI shows "not available"), not ``read_only``; on
+#: any other pin ``read_only`` as before. No cap exists yet for a reviewer's LLM spend.
+#: TODO(P100 S2-D, fasttrack/contracts/p100-s2-demo.md "Later"): pre-generated titles and banners
+#: for the sample shop, plus <= 1 live regenerate per product -- then the title route may come back.
+SAMPLE_SHOP_LLM_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("POST", _R + "demo_shopee_builder:builder_title_drafts"),  # …/builder/drafts/title
+        ("POST", _R + "demo_shopee_builder:builder_cover_drafts"),  # …/builder/drafts/cover
+        ("POST", _R + "demo_shopee_builder:builder_description_drafts"),  # …/drafts/description
+    }
+)
+#: The card kinds a sample-shop reviewer may (simulated-)approve: Tiêu đề, Ảnh bìa, Voucher --
+#: mirrored in ``apps/demo/src/lib/shopee-decisions/sample-scope.ts``.
+SAMPLE_SHOP_CARD_KINDS: frozenset[str] = frozenset(
+    {"title", "cover_image", "min_spend_voucher", "review_voucher", "voucher_cap"}
+)
+
 #: Contract §2. Keyed by the matched endpoint (``module:function``) and method:
 #: unambiguous whatever router prefix a route sits under (FastAPI ≥ 0.13x keeps
 #: only the innermost router's prefix in ``route.path``). A renamed or moved
@@ -162,6 +222,8 @@ _DENIED_DETAIL = {
     "sandbox_only": "Chỉ dùng được với shop sandbox của Juli",
     # P64 (D73): the simulation on a live sandbox pin (the real routes replace it).
     "sandbox_live": "Shop sandbox thực thi thật · không dùng mô phỏng",
+    # P100 S2-F: a live LLM / vision draft on the sample shop (no reviewer cap yet).
+    "sample_llm_off": "Chưa dùng được với dữ liệu mẫu",
 }
 
 
@@ -189,6 +251,9 @@ class ReviewerContext:
     pinned: reviewer_service.pin_cache.PinnedShop | None = field(default=None, repr=False)
     #: P74-A (D77): every configured pin, default first (``shop_id`` is one of them).
     pins: tuple[uuid.UUID, ...] = ()
+    #: P100 S2-F: the request is one of :data:`SAMPLE_SHOP_ENDPOINTS` -- the shop entry refuses
+    #: it unless the pin it enters is the sample shop.
+    sample_only: bool = False
 
     @property
     def mask_enabled(self) -> bool:
@@ -253,6 +318,43 @@ def is_allowed(method: str, endpoint: str | None) -> bool:
     return endpoint is not None and (method.upper(), endpoint) in ALLOWED_ENDPOINTS
 
 
+def _sample_pin_selected(
+    pinned: reviewer_service.pin_cache.PinnedShop | None, shop_id: uuid.UUID | None
+) -> bool:
+    """P100 S2-F: the gate's own load says the selected pin is the sample shop (else False)."""
+    return (
+        shop_id is not None
+        and pinned is not None
+        and pinned.shop_id == shop_id
+        and pinned.pin.sample
+    )
+
+
+async def _audit_refusal(
+    session: AsyncSession,
+    account: ReviewerAccount,
+    *,
+    shop_id: uuid.UUID | None,
+    method: str,
+    endpoint: str | None,
+    path: str | None,
+    reason: str | None = None,
+) -> None:
+    """A refused reviewer request: one ``reviewer_read_refused`` / ``_write_refused`` row."""
+    action = (
+        audit.ACTION_REVIEWER_READ_REFUSED
+        if method in (_GET, "HEAD", "OPTIONS")
+        else audit.ACTION_REVIEWER_WRITE_REFUSED
+    )
+    after: dict[str, Any] = {"platform": account.platform, "method": method, "endpoint": endpoint}
+    if path is not None:
+        after["path"] = path
+    if reason is not None:
+        after["reason"] = reason
+    await audit.record(session, account.actor, action, shop_id=shop_id, after=after)
+    await session.commit()
+
+
 async def reviewer_gate(request: Request, session: AsyncSession, token: VerifiedToken) -> None:
     """Refuse (raise) or admit a reviewer request; see the module docstring."""
     # P64 (D73 Q6 layer 2): before anything else, so even a refused request is marked.
@@ -278,7 +380,23 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
         await session.rollback()
         logger.info("reviewer_denied", extra={"user_id": str(token.user_id), "state": state})
         raise deny(state)
-    if not is_allowed(method, template):
+    key = (method, template)
+    sample_pin = _sample_pin_selected(identity.pinned, shop_id)
+    if sample_pin and key in SAMPLE_SHOP_LLM_ENDPOINTS:
+        # P100 S2-F: no live LLM / vision call on the sample shop (no reviewer cap yet).
+        await _audit_refusal(
+            session,
+            account,
+            shop_id=shop_id,
+            method=method,
+            endpoint=template,
+            path=request.url.path,
+            reason="sample_llm_off",
+        )
+        logger.info("reviewer_sample_llm_refused", extra={"endpoint": template})
+        raise deny("sample_llm_off")
+    sample_route = key in SAMPLE_SHOP_ENDPOINTS
+    if not is_allowed(method, template) and not (sample_route and sample_pin):
         action = (
             audit.ACTION_REVIEWER_READ_REFUSED
             if method in (_GET, "HEAD", "OPTIONS")
@@ -345,6 +463,7 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
                 reviewer_service.config.shop_alias_id(shop_id) if shop_id is not None else None
             ),
             sandbox_only=(method, template) in SANDBOX_ONLY_ENDPOINTS,
+            sample_only=sample_route,
             method=method,
             endpoint=template,
             pinned=identity.pinned,
@@ -371,6 +490,19 @@ async def enter_reviewer_shop(
     if sent == str(context.shop_id) and sent != str(context.alias_id) and context.mask_enabled:
         logger.warning("reviewer_shop_refused", extra={"platform": context.platform})
         raise deny("shop")
+    if context.sample_only and not (context.pin is not None and context.pin.sample):
+        # P100 S2-F: a sample-shop route, and the pin entered is not the sample shop (the
+        # gate admitted it on its own load; checked again here, fail closed).
+        logger.warning("reviewer_sample_route_refused", extra={"platform": context.platform})
+        await _audit_refusal(
+            session,
+            context.account,
+            shop_id=context.shop_id,
+            method=context.method,
+            endpoint=context.endpoint,
+            path=None,
+        )
+        raise deny("read_only")
     if context.sandbox_only and not _sandbox_writable(context):
         # P64 (D73.4): a seller run route on a pin that is not Juli's writable sandbox.
         logger.warning(
@@ -757,6 +889,9 @@ def install(app: FastAPI) -> None:
 
 __all__ = [
     "ALLOWED_ENDPOINTS",
+    "SAMPLE_SHOP_CARD_KINDS",
+    "SAMPLE_SHOP_ENDPOINTS",
+    "SAMPLE_SHOP_LLM_ENDPOINTS",
     "SANDBOX_ONLY_ENDPOINTS",
     "SANDBOX_RULE_ENDPOINTS",
     "SANDBOX_RUN_ENDPOINTS",

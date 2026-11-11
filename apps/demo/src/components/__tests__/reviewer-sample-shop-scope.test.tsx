@@ -10,6 +10,7 @@ import { DecisionsView } from "../shopee-decisions/decisions-view";
 import { ProposalsTab } from "../shopee-decisions/product-proposals";
 import { hostOf, params } from "../shopee-decisions/__tests__/harness";
 import { sampleShopRedirect } from "../../lib/app-navigation";
+import { guideCopy } from "../../lib/reviewer/guide-copy";
 import { StaticReviewerProvider } from "../../lib/reviewer/mode";
 import type { ReviewerRecord, ReviewerShopOption } from "../../lib/reviewer/session";
 import { sellerLinks } from "../../lib/shopee-analytics/links";
@@ -125,11 +126,16 @@ describe("S2-C · card lists", () => {
   const item = (_id: string, product: string) => ({ level: "item" as const, product_ids: [product], sku_ids: [], campaign_key: null });
   const title = summaryOf(voucherCard({ id: "c-title", family: "listing", family_label: "Listing", change_kind: "title", scope: item("c-title", "P-1") }), { status: "sent" });
   const cover = summaryOf(voucherCard({ id: "c-cover", family: "listing", family_label: "Listing", change_kind: "cover_image", scope: item("c-cover", "P-2") }), { status: "approved" });
-  const voucher = summaryOf(voucherCard({ id: "c-voucher", scope: item("c-voucher", "P-3") }), { status: "executed", verification: { state: "verified" } } as Partial<CardSummary>);
+  // the seeded sample shop's finished voucher: measurement window closed -> "measured" (Đo lường)
+  const voucher = summaryOf(voucherCard({ id: "c-voucher", scope: item("c-voucher", "P-3") }), { status: "measured" });
   const ads = summaryOf({ ...adsCard(), id: "c-ads", scope: item("c-ads", "P-4") }, { status: "sent" });
   const promo = summaryOf({ ...promotionCard(), id: "c-promo", scope: item("c-promo", "P-5") }, { status: "approved" });
   const combo = summaryOf(voucherCard({ id: "c-combo", family: "combo", family_label: "Combo", change_kind: "bundle_deal", scope: item("c-combo", "P-6") }), { status: "executed", verification: { state: "verified" } } as Partial<CardSummary>);
-  const all = [title, cover, voucher, ads, promo, combo];
+  // the seeding slice's hidden kinds in Đề xuất
+  const hidden = ["price_display", "affiliate_commission", "ads_purpose"].map((kind, i) =>
+    summaryOf(voucherCard({ id: `c-${kind}`, family: "listing", family_label: "Listing", change_kind: kind, scope: item("x", `H-${i}`) }), { status: "sent" }),
+  );
+  const all = [title, cover, voucher, ads, promo, combo, ...hidden];
 
   const tabs = () => within(screen.getByTestId("sd-tabs")).getAllByRole("link").map((a) => a.textContent);
 
@@ -137,6 +143,7 @@ describe("S2-C · card lists", () => {
     withReviewer(SAMPLE, <DecisionsView params={params()} />, fakeReco({ list: list(all) }));
     expect(await screen.findByTestId("sq-card-c-title")).toBeInTheDocument();
     expect(screen.queryByTestId("sq-card-c-ads")).toBeNull();
+    for (const c of hidden) expect(screen.queryByTestId(`sq-card-${c.id}`)).toBeNull();
     expect(tabs()).toEqual(["Đề xuất · 1", "Đang thực hiện · 1", "Đo lường · 1"]);
     cleanup();
     withReviewer(SAMPLE, <DecisionsView params={params("tab=dang-thuc-hien")} />, fakeReco({ list: list(all) }));
@@ -151,7 +158,7 @@ describe("S2-C · card lists", () => {
   it("a seller sees every card", async () => {
     withReviewer(null, <DecisionsView params={params()} />, fakeReco({ list: list(all) }));
     expect(await screen.findByTestId("sq-card-c-ads")).toBeInTheDocument();
-    expect(tabs()).toEqual(["Đề xuất · 2", "Đang thực hiện · 2", "Đo lường · 2"]);
+    expect(tabs()).toEqual(["Đề xuất · 5", "Đang thực hiện · 2", "Đo lường · 2"]);
   });
 
   it("Sản phẩm › Đề xuất filters the same way", () => {
@@ -166,5 +173,19 @@ describe("S2-C · card lists", () => {
     cleanup();
     render(ui(null));
     expect(screen.getByTestId("sp-intro").textContent).toMatch(/^2 thẻ/);
+  });
+});
+
+describe("S2-F · guide copy on the sample shop", () => {
+  it("speaks of the sample shop in Vietnamese, never a seller's hidden shop, never demo", () => {
+    const sample = guideCopy(true);
+    const text = [sample.title, sample.sheetTitle, sample.intro, ...sample.parts.map((p) => p.title), ...sample.steps.slice(0, 4).flatMap((s) => [s.title, s.body, s.shortTitle, s.shortBody])].join(" ");
+    expect(text).toContain("dữ liệu mẫu");
+    expect(text).not.toMatch(/shop thật|ẩn tên|names and ids hidden|real seller|Shop TikTok|demo/i);
+    expect(sample.steps.map((s) => s.id)).toEqual(guideCopy(false).steps.map((s) => s.id));
+    expect(sample.steps.find((s) => s.id === "home")?.href).toBe("/tong-quan");
+    expect(sample.steps.find((s) => s.id === "switch")?.shortBody).toContain("Đổi shop");
+    // every other pin keeps the P77 guide
+    expect(guideCopy(false).title).toBe("See Juli's live TikTok Shop integration in 8 steps");
   });
 });

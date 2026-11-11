@@ -134,3 +134,77 @@ export function guidePillLabel(done: number, total: number): string {
 export function guideContinueLabel(step: number): string {
   return `Continue with step ${step}`;
 }
+
+/**
+ * P100 S2-F: the guide on the synthetic Shopee sample shop ("Dữ liệu mẫu", pin mode `sample`).
+ * Vietnamese, fewer words. Part 1 reads the sample shop (synthetic names, never a seller's shop),
+ * Part 2 and 3 are the TikTok sandbox as before (the switch step names the sample menu's "Đổi shop"). Same step ids, so the ticks carry over.
+ * Mirrors dictionary.md `reviewer.guide_sample`.
+ */
+type SampleStepId = "home" | "analysis" | "propose" | "switch";
+const SAMPLE_OVERRIDES: Readonly<Record<SampleStepId, Pick<GuideStep, "title" | "body" | "shortTitle" | "shortBody" | "where" | "href">>> = {
+  home: {
+    title: "Tổng quan: GMV, đơn, lượt xem",
+    body: "Shop Shopee dữ liệu mẫu, 30 ngày. Tên và số liệu đều là mẫu.",
+    shortTitle: "Tổng quan",
+    shortBody: "Dữ liệu mẫu, 30 ngày.",
+    where: "Tổng quan",
+    href: "/tong-quan",
+  },
+  analysis: {
+    title: "Phân tích: GMV mất ở đâu",
+    body: "Theo nguồn và theo sản phẩm.",
+    shortTitle: "Phân tích",
+    shortBody: "Theo nguồn và sản phẩm.",
+    where: "Phân tích",
+    href: "/phan-tich",
+  },
+  propose: {
+    title: "Quyết định: bấm “Duyệt”",
+    body: "Tiêu đề, Ảnh bìa, Voucher. Duyệt chỉ mô phỏng, không gửi tới Shopee.",
+    shortTitle: "Quyết định: Duyệt",
+    shortBody: "Chỉ mô phỏng.",
+    where: "Quyết định › Đề xuất",
+    href: "/decisions?tab=de-xuat",
+  },
+  // the sample shop's menu reads "Đổi shop" (P100 S2-C)
+  switch: {
+    title: "Đổi sang shop sandbox",
+    body: "Menu shop góc trên trái › “Đổi shop”.",
+    shortTitle: "Đổi sang shop sandbox",
+    shortBody: "Menu shop › “Đổi shop”.",
+    where: "Menu shop",
+    href: null,
+  },
+};
+
+const isSampleStep = (id: GuideStepId): id is SampleStepId => id in SAMPLE_OVERRIDES;
+
+export const GUIDE_SAMPLE_STEPS: readonly GuideStep[] = GUIDE_STEPS.map((step) =>
+  isSampleStep(step.id) ? { ...step, ...SAMPLE_OVERRIDES[step.id] } : step,
+);
+
+export const GUIDE_SAMPLE_PARTS: typeof GUIDE_PARTS = [
+  { id: "read", chip: "READ", title: "Phần 1 · Shop Shopee dữ liệu mẫu (chỉ xem)", tab: "Xem" },
+  { id: "write", chip: "WRITE", title: "Phần 2 · Shop sandbox TikTok (ghi thật)", tab: "Ghi" },
+  { id: "check", chip: "CHECK", title: "Phần 3 · Đo và hoàn tác", tab: "Kiểm tra" },
+];
+
+export const GUIDE_SAMPLE_TITLE = "Xem Juli trong 8 bước";
+export const GUIDE_SAMPLE_SHEET_TITLE = "Xem dữ liệu mẫu, rồi ghi lên sandbox";
+export const GUIDE_SAMPLE_INTRO = "Phần 1: shop Shopee dữ liệu mẫu, chỉ xem. Phần 2: ghi thật lên shop sandbox TikTok.";
+
+export interface GuideCopy {
+  readonly steps: readonly GuideStep[];
+  readonly parts: typeof GUIDE_PARTS;
+  readonly title: string;
+  readonly sheetTitle: string;
+  readonly intro: string;
+}
+
+/** The guide's copy for the active pin: the sample shop's, else the P77 copy. */
+export function guideCopy(sampleShop: boolean): GuideCopy {
+  return sampleShop
+    ? { steps: GUIDE_SAMPLE_STEPS, parts: GUIDE_SAMPLE_PARTS, title: GUIDE_SAMPLE_TITLE, sheetTitle: GUIDE_SAMPLE_SHEET_TITLE, intro: GUIDE_SAMPLE_INTRO }
+    : { steps: GUIDE_STEPS, parts: GUIDE_PARTS, title: GUIDE_TITLE, sheetTitle: GUIDE_SHEET_TITLE, intro: GUIDE_INTRO };
+}

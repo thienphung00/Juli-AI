@@ -475,15 +475,26 @@ async def test_the_sample_shop_can_be_the_default_pin(session, world, monkeypatc
     assert shops_me.json()["platform"] == "shopee"
 
 
-async def test_shopee_reads_are_not_on_the_reviewer_allowlist_yet(session, world):
-    """Fail closed: the Shopee screens' routes stay refused until a reviewed sample-only list.
-
-    Some of them write (``GET /v1/demo/shopee/keywords`` commits), so they are not added here.
+async def test_shopee_reads_are_admitted_on_the_sample_pin_only(session, world):
+    """P100 S2-F: the reviewed sample-only list (``SAMPLE_SHOP_ENDPOINTS``) admits the Shopee
+    screens' reads on the sample pin; the masked pin still gets 403 ``read_only``. The full
+    proof (every route, no write, simulated Duyệt) is ``test_reviewer_sample_shopee.py``.
     """
-    _seller, sample, _sandbox, reviewer_id = world
+    seller, sample, _sandbox, reviewer_id = world
     async with client_for(build_app(session)) as client:
         overview = await client.get(
             "/v1/demo/shopee/overview", headers=_headers(reviewer_id, sample.shop.id)
         )
-    assert overview.status_code == 403
-    assert overview.headers["x-juli-reviewer-denied"] == "read_only"
+        masked = await client.get(
+            "/v1/demo/shopee/overview", headers=_headers(reviewer_id, shop_alias_id(seller.shop.id))
+        )
+        keywords = await client.get(
+            "/v1/demo/shopee/keywords", headers=_headers(reviewer_id, sample.shop.id)
+        )
+    # This shop holds no Shopee numbers: the route answers itself (409), not the gate.
+    assert "x-juli-reviewer-denied" not in overview.headers, overview.text
+    assert masked.status_code == 403
+    assert masked.headers["x-juli-reviewer-denied"] == "read_only"
+    # ``GET /keywords`` commits: never on the list.
+    assert keywords.status_code == 403
+    assert keywords.headers["x-juli-reviewer-denied"] == "read_only"

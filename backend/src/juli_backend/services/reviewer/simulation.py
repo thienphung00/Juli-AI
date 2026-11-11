@@ -9,6 +9,7 @@ database, a queue or TikTok; the route writes only the audit row.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Mapping
 from typing import Any, Literal
 
@@ -118,4 +119,44 @@ def simulate(card_item: Mapping[str, Any], step: Step) -> dict[str, Any]:
     }
 
 
-__all__ = ["NOTE_DRAFT_AFTER_APPROVAL", "SIMULATED_LABEL", "Step", "simulate"]
+#: P100 S2-F: the Shopee Duyệt on the sample shop -- nothing reaches Shopee or the shop's tables.
+SHOPEE_SIMULATED_LABEL = "Mô phỏng · không gửi tới Shopee"
+
+
+def simulate_shopee_approve(
+    detail: Mapping[str, Any], *, chosen_version: int, chosen_versions: list[int] | None
+) -> dict[str, Any]:
+    """The simulated ``POST /v1/demo/shopee/recommendations/{id}/approve`` (P100 S2-F).
+
+    Pure: given the card as ``GET …/recommendations/{id}`` serves it, the same keys a real
+    approve answers (``id``, ``code``, ``status``, ``approval_id``, ``chosen_version``) plus the
+    simulation marks. The status is ``approved`` -- what a real approve would answer -- and the
+    approval id is derived from the card and version (stable across repeats, never stored).
+    """
+    card_id = str(detail.get("id"))
+    picked = list(dict.fromkeys(chosen_versions or [chosen_version])) or [chosen_version]
+    first = picked[0]
+    return {
+        "id": card_id,
+        "code": detail.get("code"),
+        "status": "approved",
+        "approval_id": str(uuid.uuid5(_SIMULATED_APPROVAL_NS, f"{card_id}:{first}")),
+        "chosen_version": first,
+        "simulated": True,
+        "label": SHOPEE_SIMULATED_LABEL,
+        "enqueued": False,
+        "shopee_write": False,
+    }
+
+
+_SIMULATED_APPROVAL_NS = uuid.UUID("6f1d7a52-3b0e-4f43-9a51-5ad0c0b7e2a1")
+
+
+__all__ = [
+    "NOTE_DRAFT_AFTER_APPROVAL",
+    "SHOPEE_SIMULATED_LABEL",
+    "SIMULATED_LABEL",
+    "Step",
+    "simulate",
+    "simulate_shopee_approve",
+]

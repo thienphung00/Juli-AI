@@ -131,5 +131,5 @@ export const REVIEWER_SAMPLE_SHOP_LABEL = "Shop Shopee Dữ liệu mẫu · ch�
 export function reviewerShopLabel(shop: { readonly name: string; readonly mode: ReviewerPinMode }): string {
   if (shop.mode === "sandbox") return REVIEWER_SANDBOX_SHOP_LABEL;
   if (shop.mode === "sample") return REVIEWER_SAMPLE_SHOP_LABEL;
-  return `${shop.name || "Shop TikTok"} · chỉ xem`;
+  return `${shop.name || "Shop đối tác"} · chỉ xem`;
 }
