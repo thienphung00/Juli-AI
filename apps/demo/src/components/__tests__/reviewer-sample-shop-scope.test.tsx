@@ -176,15 +176,25 @@ describe("S2-C · card lists", () => {
   });
 });
 
-describe("S2-F · guide copy on the sample shop", () => {
-  it("speaks of the sample shop in Vietnamese, never a seller's hidden shop, never demo", () => {
+describe("S2-G · guide copy on the sample shop", () => {
+  // Vietnamese-only letters: none may appear outside the app names the guide quotes.
+  const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
+  const unquoted = (text: string) => text.replace(/“[^”]*”/g, "");
+
+  it("is English like the rest of P77's guide, about the sample shop, never a seller's hidden shop, never demo", () => {
     const sample = guideCopy(true);
-    const text = [sample.title, sample.sheetTitle, sample.intro, ...sample.parts.map((p) => p.title), ...sample.steps.slice(0, 4).flatMap((s) => [s.title, s.body, s.shortTitle, s.shortBody])].join(" ");
-    expect(text).toContain("dữ liệu mẫu");
-    expect(text).not.toMatch(/shop thật|ẩn tên|names and ids hidden|real seller|Shop TikTok|demo/i);
+    const prose = [sample.sheetTitle, sample.intro, ...sample.parts.map((p) => p.title), ...sample.steps.slice(0, 4).flatMap((s) => [s.body, s.shortBody])];
+    for (const line of prose) expect(unquoted(line)).not.toMatch(VIETNAMESE);
+    const text = [sample.title, ...prose, ...sample.steps.slice(0, 4).flatMap((s) => [s.title, s.shortTitle])].join(" ");
+    expect(text).toContain("sample Shopee shop");
+    expect(text).toContain("nothing is sent to Shopee");
+    expect(text).not.toMatch(/shop thật|ẩn tên|names and ids hidden|real seller|Shop TikTok|demo|simulated|mô phỏng/i);
+    expect(sample.steps.find((s) => s.id === "propose")?.body).toContain("“Đang thực hiện”");
     expect(sample.steps.map((s) => s.id)).toEqual(guideCopy(false).steps.map((s) => s.id));
     expect(sample.steps.find((s) => s.id === "home")?.href).toBe("/tong-quan");
     expect(sample.steps.find((s) => s.id === "switch")?.shortBody).toContain("Đổi shop");
+    // Parts 2 and 3 (the TikTok sandbox) keep the P77 copy
+    expect(sample.steps.slice(4)).toEqual(guideCopy(false).steps.slice(4));
     // every other pin keeps the P77 guide
     expect(guideCopy(false).title).toBe("See Juli's live TikTok Shop integration in 8 steps");
   });

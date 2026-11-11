@@ -17,11 +17,12 @@ export const REVIEWER_SAMPLE_BANNER_COPY =
   "Tài khoản đối tác · thao tác chỉ mô phỏng";
 
 /**
- * P100 S2-B: the strip on the synthetic Shopee sample shop ("Dữ liệu mẫu"):
- * names are synthetic, so nothing is hidden; still read-only, Duyệt simulated.
+ * dictionary.md `reviewer.banner_sample_shop` — P100 S2-B / S2-G: the strip on the synthetic
+ * Shopee sample shop ("Dữ liệu mẫu"): names are synthetic, so nothing is hidden; Duyệt, Kế hoạch,
+ * Bỏ qua … are saved in Juli (owner Option A), nothing reaches Shopee.
  */
 export const REVIEWER_SAMPLE_SHOP_BANNER_COPY =
-  "Tài khoản đối tác · Dữ liệu mẫu · chỉ xem, duyệt chỉ mô phỏng";
+  "Tài khoản đối tác · Dữ liệu mẫu · lưu trong Juli, không gửi tới Shopee";
 
 /** dictionary.md `reviewer.read_only_title` — tooltip of a write control. */
 export const REVIEWER_READ_ONLY_TITLE = "Tài khoản đối tác: thao tác chỉ mô phỏng";
@@ -125,8 +126,8 @@ export const SANDBOX_NO_TRAFFIC_COPY =
  */
 export const REVIEWER_SWITCH_SHOP_PREFIX = "Chuyển sang";
 export const REVIEWER_SANDBOX_SHOP_LABEL = "Shop sandbox TikTok · ghi thật";
-/** P100 S2-B: the shop menu's entry to the synthetic Shopee sample shop. */
-export const REVIEWER_SAMPLE_SHOP_LABEL = "Shop Shopee Dữ liệu mẫu · chỉ xem";
+/** P100 S2-B / S2-G: the shop menu's entry to the synthetic Shopee sample shop (it takes Juli's writes). */
+export const REVIEWER_SAMPLE_SHOP_LABEL = "Shop Shopee Dữ liệu mẫu";
 
 export function reviewerShopLabel(shop: { readonly name: string; readonly mode: ReviewerPinMode }): string {
   if (shop.mode === "sandbox") return REVIEWER_SANDBOX_SHOP_LABEL;

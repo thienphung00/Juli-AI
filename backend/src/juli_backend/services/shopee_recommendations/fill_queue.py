@@ -106,6 +106,12 @@ _NEXT = {
 
 
 def enabled() -> bool:
+    """The switch, and never inside a partner reviewer's request (P100 S2-G): a sample-shop
+    reviewer's Duyệt / plan confirm writes Juli's rows only -- no job for the Connector."""
+    from juli_backend.integrations.tiktok import reviewer_session_active
+
+    if reviewer_session_active():
+        return False
     return os.environ.get(ENV_FLAG, "").strip().lower() in {"1", "true", "yes", "on"}
 
 

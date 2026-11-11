@@ -527,3 +527,80 @@ async def test_every_decision_tab_has_a_card_after_the_load_and_a_rerun_adds_non
     again = await loader.load(factory, generate(END), now=NOW)
     assert again.decisions is not None and again.decisions.skipped
     assert len((await cards())[0]) == len(listed)
+
+
+# -- P100 S2-G: the decision seeding lives in the backend (no backend import of scripts/) ---------
+
+
+def test_the_backend_plan_is_the_generators_plan(sample):
+    from juli_backend.services.sample_shop.seed import plan_for
+    from scripts.sample_shop.decisions import plan_of
+
+    assert plan_for(END) == plan_of(sample)
+    assert plan_for(END, days=10).voucher is None
+
+
+def test_the_backend_never_imports_scripts():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "backend" / "src" / "juli_backend"
+    offenders = [
+        str(p.relative_to(root))
+        for p in root.rglob("*.py")
+        if re.search(r"^\s*(from|import)\s+scripts\b", p.read_text(encoding="utf-8"), re.M)
+    ]
+    assert offenders == []
+
+
+async def test_seeding_in_one_transaction_after_the_late_reads_makes_the_loaders_cards(engine):
+    """``seed.seed_all`` (one session, the Connector's later reads already in) gives the cards the
+    loader's step-by-step run gives: the base of a future in-app "Đặt lại dữ liệu mẫu"."""
+    from unittest import mock
+
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.models.card_events import EVENT_IMPACT_FINAL, CardEvent
+    from juli_backend.services.sample_shop.seed import plan_for, seed_all
+    from juli_backend.services.shopee_recommendations import service
+    from scripts.sample_shop import decisions
+
+    async def late_only(*_args, ingest_late, **_kwargs):
+        await ingest_late()
+        return decisions.DecisionsReport(skipped=True)
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    with mock.patch.object(decisions, "run", late_only):
+        report = await loader.load(factory, generate(END), now=NOW)
+    async with factory() as session:
+        async with with_shop_scope(session, report.shop_id):
+            shop = await session.get(Shop, report.shop_id)
+            assert shop is not None
+            made = await seed_all(
+                session, report.shop_id, plan_for(END), user_id=shop.user_id, now=NOW
+            )
+            await session.commit()
+    assert not made.skipped and made.approved == 1 and made.measured == 1
+    async with factory() as session:
+        async with with_shop_scope(session, report.shop_id):
+            listed = (
+                await service.list_cards(
+                    session, report.shop_id, audience="seller", queue="all", now=NOW
+                )
+            )["cards"]
+            finals = (
+                (
+                    await session.execute(
+                        select(CardEvent).where(CardEvent.event_type == EVENT_IMPACT_FINAL)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+    assert {"title", "cover_image", "min_spend_voucher"} <= {
+        c["change_kind"] for c in listed if c["status"] == "sent"
+    }
+    assert [c["change_kind"] for c in listed if c["status"] == "approved"] == ["cover_image"]
+    running = [c for c in listed if c["status"] == "executed"]
+    assert [c["change_kind"] for c in running] == ["title"]
+    assert running[0]["verification"]["state"] == "verified"
+    assert [c["change_kind"] for c in listed if c["status"] == "measured"] == ["min_spend_voucher"]
+    assert len(finals) == 1 and finals[0].payload["impact_pct"] is not None

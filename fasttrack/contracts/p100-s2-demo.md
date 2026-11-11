@@ -147,3 +147,20 @@ unverified-executed cards, so the "applied title" cannot sit there once its chan
   (no fill jobs, no Connector work, no platform API). "Đặt lại dữ liệu mẫu" restores the seeded
   state. LLM drafts stay refused until S2-D. Slice **S2-G**.
 - **Reviewer guide back to English** (P77 stands); the app stays Vietnamese.
+
+## S2-G result (2026-11-11)
+- Option A built: sample-pin route table with reasons (`api/reviewer.py` `SAMPLE_SHOP_ROUTES`,
+  24 reads / 23 writes, `SAMPLE_SHOP_REFUSED` 14 reviewed refusals), real Duyệt, fill queue off in
+  any reviewer request, `reviewer_sample_write` audit. Details: `p32-reviewer-access.md`
+  amendment S2-G.
+- Reviewer guide back to English (`lib/reviewer/guide-copy.ts`, dictionary `reviewer.guide_sample`);
+  banner "Tài khoản đối tác · Dữ liệu mẫu · lưu trong Juli, không gửi tới Shopee", shop menu
+  "Shop Shopee Dữ liệu mẫu".
+- Catalogue + decision seeding moved to `backend/src/juli_backend/services/sample_shop/`
+  (`scripts/sample_shop/catalog.py` re-exports, `decisions.py` is the loader's session wrapper).
+- **Reset blocked on a migration** (juli_app has no DELETE on the decision tables). Options for the
+  owner: (a) a migration granting `juli_app` DELETE + `_delete` policies on the ~14 decision tables,
+  or narrower (b) a SECURITY DEFINER function `sample_shop_reset_decisions(shop_id)` that refuses any
+  shop outside the reserved `shopee_shop_id` range; then the route `POST /v1/reviewer/sample-shop/reset`
+  (sample pin only, 1/min per pin, audited) calls it and `seed.seed_all`.
+

@@ -113,48 +113,102 @@ SANDBOX_RULE_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
 #: Every route a reviewer reaches only on a writable sandbox pin.
 SANDBOX_ONLY_ENDPOINTS: frozenset[tuple[str, str]] = SANDBOX_RUN_ENDPOINTS | SANDBOX_RULE_ENDPOINTS
 
-#: P100 S2-F (owner, 2026-11-11): the Shopee routes the sample shop's four screens (Tổng quan,
-#: Phân tích, Sản phẩm, Quyết định) and Tự tạo's three strategies (Tiêu đề, Ảnh bìa, Voucher)
-#: need -- admitted ONLY when the selected pin is the synthetic ``sample`` shop (the gate checks
-#: the pin it loaded; the shop entry checks it again). On a masked or sandbox pin, or with no
-#: pin, each is refused 403 ``read_only`` exactly as before (it is NOT on
-#: :data:`ALLOWED_ENDPOINTS`). Each entry was reviewed for writes: none commits, adds or
-#: flushes a row (``tests/unit/test_reviewer_sample_shopee.py`` drives every one and compares
-#: the whole database before / after). Left off on purpose: every route that writes
-#: (``GET /keywords`` and ``GET /fill-jobs`` commit; what-if, request-change, dismiss, "Đã làm",
-#: Tự tạo "Chọn" / "Chạy cùng nhau", the plan writes, exclusions), the hidden pages' routes
-#: (``/keywords``, ``/dashboard/*``, ``/orders``), the plan reads, and the builders the sample
-#: shop does not offer (combo / KOL / ads / co-purchase / campaigns / market range).
-SAMPLE_SHOP_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
-    {
-        # Tổng quan / Phân tích / Sản phẩm: the read model (``services/shopee_analytics``,
-        # ``queries.*`` + ``attach_card_refs`` / ``attach_kol_cards``: SELECTs only).
-        (_GET, _R + "demo_shopee_analytics:shopee_overview"),  # /v1/demo/shopee/overview
-        (_GET, _R + "demo_shopee_analytics:shopee_matrix"),  # …/matrix
-        (_GET, _R + "demo_shopee_analytics:shopee_critical"),  # …/critical
-        (_GET, _R + "demo_shopee_analytics:shopee_ranking"),  # …/ranking
-        (_GET, _R + "demo_shopee_analytics:shopee_product"),  # …/products/{item_id}
-        (_GET, _R + "demo_shopee_analytics:shopee_kols"),  # …/kols (Phân tích › KOL)
-        (_GET, _R + "demo_shopee_analytics:shopee_product_kols"),  # …/products/{item_id}/kols
-        # Sản phẩm: "Giá thị trường" from a stored capture (no outbound fetch).
-        (_GET, _R + "demo_shopee_market:product_market_price"),  # …/products/{item_id}/market-price
-        # Quyết định: the cards (``list_cards`` / ``card_detail``: SELECTs; the product queue
-        # is only re-assigned by the writes, never on read).
-        (_GET, _R + "demo_shopee_recommendations:list_recommendations"),  # …/recommendations
-        (_GET, _R + "demo_shopee_recommendations:recommendation_detail"),  # …/{card_id}
-        # Duyệt: SIMULATED for a reviewer (``simulation.simulate_shopee_approve``): the card is
-        # read, the response looks like an approve, the audit row is the only write.
-        ("POST", _R + "demo_shopee_recommendations:approve_recommendation"),  # …/{card_id}/approve
-        # Tự tạo (Tiêu đề / Ảnh bìa / Voucher): the picker, the variations, the keyword table
-        # (stored keywords + the title's words; no LLM) and the what-if numbers (pure compute
-        # over the read model; nothing is saved until "Chọn", which stays refused).
-        (_GET, _R + "demo_shopee_builder:builder_products"),  # …/builder/products
-        (_GET, _R + "demo_shopee_builder:builder_variations"),  # …/products/{item_id}/variations
-        (_GET, _R + "demo_shopee_builder:builder_keywords"),  # …/products/{item_id}/keywords
-        ("POST", _R + "demo_shopee_builder:builder_evaluate"),  # …/builder/evaluate
-        ("POST", _R + "demo_shopee_builder:builder_compare"),  # …/builder/compare
-    }
+#: P100 S2-F / S2-G (owner, 2026-11-11): the Shopee routes a reviewer may use, ONLY when the
+#: selected pin is the synthetic ``sample`` shop (the gate checks the pin it loaded; the shop
+#: entry checks it again). On a masked or sandbox pin, or with no pin, each is refused 403
+#: ``read_only`` exactly as before (none is on :data:`ALLOWED_ENDPOINTS`).
+#:
+#: Each entry is ``(method, endpoint) -> (kind, reason)``. ``read``: writes nothing
+#: (``tests/unit/test_reviewer_sample_shopee.py`` drives every one and compares the whole database
+#: before / after). ``write`` (S2-G, owner Option A): the seller's own route, writing ONLY Juli's
+#: rows of the sample shop (its tenant scope), never anything outbound: no fill job (the queue is
+#: off inside a reviewer session, ``shopee_recommendations.fill_queue.enabled``), no Connector
+#: work, no Shopee / TikTok call, no e-mail, no LLM. Each admitted write is audited
+#: (``reviewer_sample_write``: route, shop; no PII) by the shop entry. Not a blanket bypass: a
+#: route that is not listed here stays refused (:data:`SAMPLE_SHOP_REFUSED` names the reviewed
+#: ones).
+SAMPLE_SHOP_ROUTES: dict[tuple[str, str], tuple[Literal["read", "write"], str]] = {
+    # Tổng quan / Phân tích / Sản phẩm: the read model (``services/shopee_analytics``).
+    (_GET, _R + "demo_shopee_analytics:shopee_overview"): ("read", "Tổng quan"),
+    (_GET, _R + "demo_shopee_analytics:shopee_matrix"): ("read", "Phân tích"),
+    (_GET, _R + "demo_shopee_analytics:shopee_critical"): ("read", "Tổng quan"),
+    (_GET, _R + "demo_shopee_analytics:shopee_ranking"): ("read", "Phân tích"),
+    (_GET, _R + "demo_shopee_analytics:shopee_product"): ("read", "Sản phẩm"),
+    (_GET, _R + "demo_shopee_analytics:shopee_kols"): ("read", "Phân tích › KOL"),
+    (_GET, _R + "demo_shopee_analytics:shopee_product_kols"): ("read", "Sản phẩm › KOL"),
+    # "Giá thị trường" from a stored capture (no outbound fetch).
+    (_GET, _R + "demo_shopee_market:product_market_price"): ("read", "Sản phẩm"),
+    # Quyết định: the cards, the variant compare (pure compute), the plan and change sets.
+    (_GET, _R + "demo_shopee_recommendations:list_recommendations"): ("read", "Quyết định"),
+    (_GET, _R + "demo_shopee_recommendations:recommendation_detail"): ("read", "Quyết định"),
+    ("POST", _R + "demo_shopee_reco_manual:compare_variants"): ("read", "Tự tạo: compare"),
+    (_GET, _R + "demo_shopee_reco_plan:get_plan"): ("read", "Kế hoạch"),
+    (_GET, _R + "demo_shopee_reco_plan:get_aggregate"): ("read", "Kế hoạch"),
+    (_GET, _R + "demo_shopee_reco_plan:list_plans"): ("read", "Kế hoạch"),
+    (_GET, _R + "demo_shopee_reco_plan:plan_by_code"): ("read", "Kế hoạch"),
+    (_GET, _R + "demo_shopee_reco_plan:get_plan_by_id"): ("read", "Kế hoạch"),
+    (_GET, _R + "demo_shopee_reco_plan:export_plan"): ("read", "Kế hoạch: Excel"),
+    (_GET, _R + "demo_shopee_reco_plan:list_change_sets"): ("read", "Đo lường"),
+    # Tự tạo (Tiêu đề / Ảnh bìa / Voucher): picker, variations, keyword table (stored keywords +
+    # the title's words; no LLM), the what-if numbers (pure compute) and the exclusion list.
+    (_GET, _R + "demo_shopee_builder:builder_products"): ("read", "Tự tạo"),
+    (_GET, _R + "demo_shopee_builder:builder_variations"): ("read", "Tự tạo"),
+    (_GET, _R + "demo_shopee_builder:builder_keywords"): ("read", "Tự tạo › Tiêu đề"),
+    ("POST", _R + "demo_shopee_builder:builder_evaluate"): ("read", "Tự tạo"),
+    ("POST", _R + "demo_shopee_builder:builder_compare"): ("read", "Tự tạo"),
+    (_GET, _R + "demo_shopee_builder:list_exclusions"): ("read", "Loại trừ"),
+    # -- S2-G writes: Juli's own rows of the sample shop, nothing outbound ---------------------
+    # Duyệt is the REAL approve (the card moves to Đang thực hiện); only the three strategies'
+    # card kinds (:data:`SAMPLE_SHOP_CARD_KINDS`, checked in the route).
+    ("POST", _R + "demo_shopee_recommendations:approve_recommendation"): ("write", "Duyệt"),
+    ("POST", _R + "demo_shopee_recommendations:recommendation_whatif"): ("write", "what-if"),
+    ("POST", _R + "demo_shopee_recommendations:request_change"): ("write", "Yêu cầu chỉnh"),
+    ("POST", _R + "demo_shopee_recommendations:dismiss_recommendation"): ("write", "Bỏ qua"),
+    ("POST", _R + "demo_shopee_recommendations:recommendation_executed"): ("write", "Đã làm"),
+    ("POST", _R + "demo_shopee_reco_manual:create_manual_card"): ("write", "Tự tạo: Chọn"),
+    ("POST", _R + "demo_shopee_builder:builder_choose"): ("write", "Tự tạo: Chọn"),
+    ("POST", _R + "demo_shopee_builder:builder_group"): ("write", "Tự tạo: Chạy cùng nhau"),
+    ("PUT", _R + "demo_shopee_builder:add_exclusion"): ("write", "Loại trừ"),
+    ("DELETE", _R + "demo_shopee_builder:undo_exclusion"): ("write", "Loại trừ: hoàn tác"),
+    ("POST", _R + "demo_shopee_reco_plan:add_card"): ("write", "Kế hoạch"),
+    ("POST", _R + "demo_shopee_reco_plan:refresh_base"): ("write", "Kế hoạch: Cập nhật số"),
+    ("POST", _R + "demo_shopee_reco_plan:remove_card"): ("write", "Kế hoạch"),
+    ("POST", _R + "demo_shopee_reco_plan:move_card"): ("write", "Kế hoạch"),
+    ("POST", _R + "demo_shopee_reco_plan:switch_version"): ("write", "Kế hoạch"),
+    ("POST", _R + "demo_shopee_reco_plan:plan_whatif"): ("write", "Kế hoạch: what-if"),
+    ("POST", _R + "demo_shopee_reco_plan:create_group"): ("write", "Kế hoạch: Nhóm"),
+    ("POST", _R + "demo_shopee_reco_plan:group_period"): ("write", "Kế hoạch: Nhóm"),
+    ("POST", _R + "demo_shopee_reco_plan:group_remove_member"): ("write", "Kế hoạch: Nhóm"),
+    ("POST", _R + "demo_shopee_reco_plan:group_cancel"): ("write", "Kế hoạch: Nhóm"),
+    ("POST", _R + "demo_shopee_reco_plan:confirm_plan"): ("write", "Kế hoạch: Xác nhận"),
+    ("POST", _R + "demo_shopee_reco_plan:plan_window"): ("write", "Đo lường: cửa sổ"),
+    ("POST", _R + "demo_shopee_reco_plan:change_set_window"): ("write", "Đo lường: cửa sổ"),
+}
+#: Every route the sample pin may reach (reads and writes).
+SAMPLE_SHOP_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(SAMPLE_SHOP_ROUTES)
+#: The S2-G writes: audited one row each (``reviewer_sample_write``) by the shop entry.
+SAMPLE_SHOP_WRITE_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
+    key for key, (kind, _) in SAMPLE_SHOP_ROUTES.items() if kind == "write"
 )
+#: Reviewed and refused on the sample pin (403 ``read_only``, audited), with why. Documentation
+#: and a test pin; a route on neither list is refused all the same.
+SAMPLE_SHOP_REFUSED: dict[tuple[str, str], str] = {
+    (_GET, _R + "ingest_fill:seller_fill_jobs"): "Connector fill queue (commits)",
+    ("POST", _R + "ingest_fill:seller_cancel_fill_job"): "Connector fill queue",
+    (_GET, _R + "demo_shopee_pages:seller_keywords"): "Từ khóa is hidden; the GET commits",
+    (_GET, _R + "demo_shopee_pages:seller_products"): "hidden screen",
+    (_GET, _R + "demo_shopee_pages:seller_flows"): "Luồng is hidden",
+    (_GET, _R + "demo_shopee_pages:seller_ads"): "Quảng cáo is hidden",
+    (_GET, _R + "demo_shopee_pages:seller_promotions"): "hidden screen",
+    (_GET, _R + "demo_shopee_pages:seller_orders"): "Đơn hàng is hidden",
+    (_GET, _R + "demo_shopee_builder:builder_co_purchase"): "Combo is not offered",
+    (_GET, _R + "demo_shopee_builder:builder_campaigns"): "Quảng cáo is not offered",
+    (_GET, _R + "demo_shopee_market:builder_market_range"): "not offered",
+    ("POST", _R + "demo_shopee_builder_p98:combo_options"): "Combo is not offered",
+    ("POST", _R + "demo_shopee_builder_p98:kol_setup"): "KOL is not offered",
+    ("POST", _R + "demo_shopee_builder_p98:ads_setup"): "Quảng cáo is not offered",
+}
+
 #: P100 S2-F: Tự tạo's live LLM / vision drafts (title, cover concepts, description). On a sample
 #: pin they answer 403 ``sample_llm_off`` (the UI shows "not available"), not ``read_only``; on
 #: any other pin ``read_only`` as before. No cap exists yet for a reviewer's LLM spend.
@@ -254,6 +308,12 @@ class ReviewerContext:
     #: P100 S2-F: the request is one of :data:`SAMPLE_SHOP_ENDPOINTS` -- the shop entry refuses
     #: it unless the pin it enters is the sample shop.
     sample_only: bool = False
+    #: P100 S2-G: the request is one of :data:`SAMPLE_SHOP_WRITE_ENDPOINTS` -- audited once by
+    #: the shop entry (``reviewer_sample_write``) when the pin is the sample shop.
+    sample_write: bool = False
+    #: The request path (the write audit names it; ids only, no PII).
+    path: str | None = None
+    sample_write_audited: bool = field(default=False, repr=False)
 
     @property
     def mask_enabled(self) -> bool:
@@ -464,6 +524,8 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
             ),
             sandbox_only=(method, template) in SANDBOX_ONLY_ENDPOINTS,
             sample_only=sample_route,
+            sample_write=key in SAMPLE_SHOP_WRITE_ENDPOINTS,
+            path=request.url.path,
             method=method,
             endpoint=template,
             pinned=identity.pinned,
@@ -503,6 +565,8 @@ async def enter_reviewer_shop(
             path=None,
         )
         raise deny("read_only")
+    if context.sample_write and not context.sample_write_audited:
+        await _audit_sample_write(session, context)
     if context.sandbox_only and not _sandbox_writable(context):
         # P64 (D73.4): a seller run route on a pin that is not Juli's writable sandbox.
         logger.warning(
@@ -522,6 +586,38 @@ async def enter_reviewer_shop(
         )
         raise deny("sandbox_only")
     return shop
+
+
+async def _audit_sample_write(session: AsyncSession, context: ReviewerContext) -> None:
+    """P100 S2-G: one ``reviewer_sample_write`` row for an admitted sample-shop write.
+
+    Joins the route's own transaction (no commit), like the sandbox run actions: committed with
+    the write, gone with its rollback. Written before the route writes anything, so nothing of
+    the route's is flushed as ``juli_ops`` (P72). Route and shop only -- no name, no e-mail body.
+    """
+    assert context.pin is not None and context.pin.sample  # checked by the caller
+    await session.flush()
+    await audit.record(
+        session,
+        context.account.actor,
+        audit.ACTION_REVIEWER_SAMPLE_WRITE,
+        shop_id=context.shop_id,
+        after={
+            "platform": context.platform,
+            "method": context.method,
+            "endpoint": context.endpoint,
+            "path": context.path,
+        },
+    )
+    context.sample_write_audited = True
+    logger.info(
+        "reviewer_sample_write",
+        extra={
+            "platform": context.platform,
+            "method": context.method,
+            "endpoint": context.endpoint,
+        },
+    )
 
 
 async def _enter_pinned_shop(
@@ -892,6 +988,9 @@ __all__ = [
     "SAMPLE_SHOP_CARD_KINDS",
     "SAMPLE_SHOP_ENDPOINTS",
     "SAMPLE_SHOP_LLM_ENDPOINTS",
+    "SAMPLE_SHOP_REFUSED",
+    "SAMPLE_SHOP_ROUTES",
+    "SAMPLE_SHOP_WRITE_ENDPOINTS",
     "SANDBOX_ONLY_ENDPOINTS",
     "SANDBOX_RULE_ENDPOINTS",
     "SANDBOX_RUN_ENDPOINTS",

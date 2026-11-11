@@ -29,9 +29,11 @@ credential's shop; it is a Shopee shop with no TikTok shop id. Shopee has no pla
 Juli -- a Shopee shop's only credential is an ingest token (``ingest_tokens``), which can post
 data IN and cannot write to Shopee, so it does not count. Any failing check: ``masked``, with a
 ``reviewer_pin_sample_refused`` warning naming the reason. ``sample`` turns the identity mask
-off (the names are synthetic) and nothing else: writes stay off, Duyệt / Thực thi are the
-masked pin's simulation, every sandbox-only route refuses (``sandbox`` is False) and layer 2
-stays per request. Tests: ``tests/unit/test_reviewer_sample_pin.py``.
+off (the names are synthetic) and nothing else: platform writes stay off, every sandbox-only
+route refuses (``sandbox`` is False) and layer 2 stays per request. P100 S2-G: the Shopee routes
+the gate admits on a sample pin (``api/reviewer.SAMPLE_SHOP_ROUTES``) include the seller's own
+writes to Juli's rows of that shop (real Duyệt, Kế hoạch, …), never anything outbound. Tests:
+``tests/unit/test_reviewer_sample_pin.py``, ``tests/unit/test_reviewer_sample_shopee.py``.
 """
 
 from __future__ import annotations

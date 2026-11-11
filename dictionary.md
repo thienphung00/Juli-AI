@@ -509,9 +509,9 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: P74-A (D77): the shop menu's entry to the reviewer's other pinned shop. The masked shop (Fujiwa, the default) is read-only with the simulated Duyệt / Thực thi; Juli's sandbox shop writes for real (D73). Shown only with two or more pins. The masked shop's name is "Shop TikTok (ẩn danh)" (never "Demo …").
 
 **`reviewer.banner_sample_shop`**
-- EN: Partner account · Sample data · view only, approvals are simulated
-- VI: Tài khoản đối tác · Dữ liệu mẫu · chỉ xem, duyệt chỉ mô phỏng
-- Definition: P100 S2-B: `reviewer.banner` on the synthetic Shopee sample shop (pin mode `sample`): names are synthetic, so nothing is hidden. The shop menu names it "Shop Shopee Dữ liệu mẫu · chỉ xem". Never "demo".
+- EN: Partner account · Sample data · saved in Juli, nothing sent to Shopee
+- VI: Tài khoản đối tác · Dữ liệu mẫu · lưu trong Juli, không gửi tới Shopee
+- Definition: P100 S2-B, S2-G: `reviewer.banner` on the synthetic Shopee sample shop (pin mode `sample`): names are synthetic, so nothing is hidden. S2-G (owner Option A): the reviewer's Duyệt, Kế hoạch, what-if, Bỏ qua, Đã làm, Tự tạo "Chọn" and Loại trừ are real writes to Juli's own rows of that shop; nothing goes to Shopee (no fill job, no Connector, no platform call, no LLM). The shop menu names it "Shop Shopee Dữ liệu mẫu". Never "demo".
 
 **`reviewer.sample_switch_shop`**
 - EN: Switch shop
@@ -521,7 +521,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`reviewer.simulated_shopee`**
 - EN: Simulation · nothing sent to Shopee
 - VI: Mô phỏng · không gửi tới Shopee
-- Definition: P100 S2-F: `label` of the simulated Shopee Duyệt (`POST /v1/demo/shopee/recommendations/{id}/approve` for a sample-shop reviewer, `services/reviewer/simulation.py` `SHOPEE_SIMULATED_LABEL`): an approve-shaped answer, nothing written to Shopee or the shop's tables, one audit row.
+- Definition: P100 S2-F: `label` of the simulated Shopee Duyệt (`services/reviewer/simulation.py` `SHOPEE_SIMULATED_LABEL`): an approve-shaped answer, nothing written, one audit row. S2-G: the sample shop takes the REAL approve instead; the simulation is kept only as the fail-closed answer for a pin that is not the sample shop (the gate does not admit the route there today).
 
 **`reviewer.sample_llm_off`**
 - EN: Not available with sample data
@@ -529,9 +529,9 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: P100 S2-F: the 403 `sample_llm_off` detail when a sample-shop reviewer asks Tự tạo for live drafts (title, cover, description): no live LLM / vision call without a reviewer cap. S2-D brings pre-generated titles and <= 1 live regenerate per product.
 
 **`reviewer.guide_sample`**
-- VI: title "Xem Juli trong 8 bước" (phone: "Xem dữ liệu mẫu, rồi ghi lên sandbox"); intro "Phần 1: shop Shopee dữ liệu mẫu, chỉ xem. Phần 2: ghi thật lên shop sandbox TikTok."; parts "Phần 1 · Shop Shopee dữ liệu mẫu (chỉ xem)" / "Phần 2 · Shop sandbox TikTok (ghi thật)" / "Phần 3 · Đo và hoàn tác" (tabs Xem / Ghi / Kiểm tra); steps 1-4 "Tổng quan: GMV, đơn, lượt xem" — "Shop Shopee dữ liệu mẫu, 30 ngày. Tên và số liệu đều là mẫu." / "Phân tích: GMV mất ở đâu" — "Theo nguồn và theo sản phẩm." / "Quyết định: bấm “Duyệt”" — "Tiêu đề, Ảnh bìa, Voucher. Duyệt chỉ mô phỏng, không gửi tới Shopee." / "Đổi sang shop sandbox" — "Menu shop góc trên trái › “Đổi shop”."
-- EN: (not shown; the sample-shop guide is Vietnamese)
-- Definition: P100 S2-F: `reviewer.guide` when the active pin is the sample shop (`lib/reviewer/guide-copy.ts` `guideCopy(true)`): never "shop thật", "ẩn tên" or "Shop TikTok" for Part 1, never "demo". Steps 5-8 (the TikTok sandbox) keep the P77 copy; the step ids and ticks are the same.
+- EN: title "See Juli in 8 steps: a sample shop, then a live sandbox" (phone: "Try a sample shop, then write to a sandbox"); intro "Part 1 is a sample Shopee shop with generated data: approvals and plans are saved in Juli, nothing is sent to Shopee. Part 2 writes real changes to a TikTok Shop sandbox shop through the Open API."; parts "Part 1 · A sample Shopee shop (sample data)" / "Part 2 · A TikTok sandbox shop (real writes)" / "Part 3 · Measure and undo" (tabs Read / Write / Check); steps 1-4 "Tổng quan: GMV, orders and traffic" — "A sample Shopee shop with 30 days of generated data. Every name and number is sample data." / "Phân tích: where GMV is lost" — "Traffic sources and products, each broken down by product." / "Quyết định: approve a recommendation" — "Press “Duyệt” on a “Tiêu đề”, “Ảnh bìa” or “Voucher” card: it moves to “Đang thực hiện”. Saved in Juli only, nothing is sent to Shopee." / "Switch to the sandbox shop" — "Open the shop menu at the top left and choose “Đổi shop”." (phone: "Tổng quan: GMV and orders" — "Sample Shopee shop, 30 days of generated data." / "Phân tích: where GMV is lost" — "By traffic source and by product." / "Quyết định: approve a card" — "Saved in Juli only, nothing is sent to Shopee." / "Switch to the sandbox shop" — "Shop menu › “Đổi shop”.")
+- VI: (none — the guide is English, P77; the app names inside it are quoted verbatim: "Tổng quan", "Phân tích", "Quyết định › Đề xuất", "Duyệt", "Đang thực hiện", "Tiêu đề", "Ảnh bìa", "Voucher", "Đổi shop")
+- Definition: P100 S2-F, S2-G: `reviewer.guide` when the active pin is the sample shop (`lib/reviewer/guide-copy.ts` `guideCopy(true)`). S2-G (owner, 2026-11-11 late): back to English like the rest of P77's guide; the app stays Vietnamese. Part 1 never says "real seller's shop", "names and ids hidden" or "Shop TikTok", never "demo". Steps 5-8 (the TikTok sandbox) keep the P77 copy; the step ids and ticks are the same.
 
 ## Phrases
 

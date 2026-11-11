@@ -123,9 +123,15 @@ async def approve_recommendation(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    if reviewer_context(request) is not None:
-        # P100 S2-F: a reviewer reaches this route only on the sample shop -- simulated.
-        return await _simulated_approve(session, request, shop, card_id, body)
+    context = reviewer_context(request)
+    if context is not None:
+        if context.pin is None or not context.pin.sample:
+            # The gate admits a reviewer here only on the sample pin; any other pin keeps the
+            # masked pin's simulation (fail closed: never a real approve).
+            return await _simulated_approve(session, request, shop, card_id, body)
+        # P100 S2-G (owner Option A): on the sample shop Duyệt is the REAL approve (Juli's rows
+        # only; the fill queue is off in a reviewer session), for the three strategies' cards.
+        await _require_sample_kind(session, shop, card_id)
     return await _decide(
         session,
         shop,
@@ -164,14 +170,28 @@ async def dismiss_recommendation(
     )
 
 
+async def _require_sample_kind(session: AsyncSession, shop: Shop, card_id: uuid.UUID) -> None:
+    """P100 S2-G: a sample-shop reviewer approves only Tiêu đề / Ảnh bìa / Voucher cards."""
+    try:
+        detail = await reco.card_detail(session, _shopee(shop), card_id, audience="seller")
+    except ProposalError as exc:
+        await session.rollback()
+        raise refused(exc) from None
+    if detail.get("change_kind") not in SAMPLE_SHOP_CARD_KINDS:
+        await session.rollback()
+        raise deny("read_only")
+
+
 async def _simulated_approve(
     session: AsyncSession, request: Request, shop: Shop, card_id: uuid.UUID, body: ApproveBody
 ) -> dict[str, Any]:
-    """Duyệt for a sample-shop reviewer (P100 S2-F): read the card, answer like an approve,
-    write only the audit row -- nothing to Shopee, no approval, event, meta or fill job."""
+    """The simulated Duyệt (P100 S2-F) for a reviewer on a masked pin: read the card, answer
+    like an approve, write only the audit row -- nothing to Shopee, no approval, event, meta or
+    fill job. The gate does not admit this route on a masked pin today (S2-G: the sample shop
+    takes the real approve); kept so that a pin which is not the sample shop never approves."""
     context = reviewer_context(request)
-    if context is None or context.pin is None or not context.pin.sample:
-        raise deny("read_only")  # the gate admits only the sample pin; fail closed anyway
+    if context is None or context.pin is None or context.pin.sample or context.pin.sandbox:
+        raise deny("read_only")  # fail closed
     shop_id = _shopee(shop)
     try:
         detail = await reco.card_detail(session, shop_id, card_id, audience="seller")

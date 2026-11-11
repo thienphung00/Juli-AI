@@ -387,3 +387,34 @@ the S2-A loader creates (contract `p100-s2-demo.md`).
   reviewed sample-only allowlist plus a Shopee simulated Duyệt is a follow-up slice. The
   reviewer guide (`lib/reviewer/guide-copy.ts`) still describes Part 1 as "a real seller's
   shop, names hidden"; `dictionary.md` has no `reviewer.*` key for the new copy yet.
+
+## Amendment P100 S2-G (2026-11-11) — the sample shop takes Juli's own writes (owner Option A)
+
+- **Route table** (`api/reviewer.py` `SAMPLE_SHOP_ROUTES`: `(method, endpoint) → (read | write,
+  why)`), admitted ONLY on a `sample` pin (gate on its own pin load, re-checked at the shop entry);
+  masked / sandbox / no pin: 403 `read_only` as before. Reads: the 4 screens' analytics, cards,
+  variant compare, plan / plans / export / change-sets reads, Tự tạo picker / variations / keywords
+  / evaluate / compare, the exclusion list. Writes (the seller's own routes, Juli's rows of the
+  sample shop only): Duyệt (the REAL approve, Tiêu đề / Ảnh bìa / Voucher kinds only), what-if,
+  Yêu cầu chỉnh, Bỏ qua, Đã làm, Tự tạo "Chọn" (`/manual`, `/builder/choose`), "Chạy cùng nhau"
+  (`/builder/group`), Loại trừ (PUT / DELETE), every Kế hoạch write (cards add / remove / move /
+  version / what-if, refresh-base, groups, confirm, window) and the change-set window.
+- **Nothing outbound.** `shopee_recommendations.fill_queue.enabled()` is False inside a reviewer
+  request, so no fill job is queued for the Connector (approve, plan confirm, group approval);
+  `GET /fill-jobs` and its cancel stay refused; live LLM / vision drafts stay 403 `sample_llm_off`
+  (until S2-D); no Shopee / TikTok / e-mail path exists on these routes. Reviewed refusals with
+  their reason: `SAMPLE_SHOP_REFUSED` (fill queue, hidden screens' routes incl. the committing
+  `GET /keywords`, the builders the sample shop does not offer).
+- **Audit.** Each admitted write: one `reviewer_sample_write` row (config kind), actor
+  `reviewer:<platform>:<email>`, `shop_id` = the sample shop, `after` = `{platform, method,
+  endpoint, path}` (ids only). It joins the route's transaction (committed with the write).
+- **Simulation.** The Shopee approve's simulation (S2-F) is kept only for a pin that is not the
+  sample shop (fail closed; not admitted by the gate today); a sandbox pin is refused.
+- **Shared shop.** Every reviewer account pinned to the sample shop sees the others' writes.
+- **"Đặt lại dữ liệu mẫu" (reset) — NOT built, needs a migration.** `juli_app` holds no DELETE on
+  the decision tables (`card_events`, `shop_proposal_approvals` / `_executions` / `_results` are
+  append-only; `shop_proposals`, plans, change sets, fill jobs, keyword seeds: SELECT, INSERT,
+  UPDATE), and the change-set unique index (shop, product, executed_on) blocks re-seeding beside the
+  old rows. The seeding itself moved to `services/sample_shop/seed.py` (the loader calls it;
+  `seed_all` proven to rebuild the loader's cards in one transaction). Owner decision pending.
+- Tests: `tests/unit/test_reviewer_sample_shopee.py`, `tests/unit/test_sample_shop.py`.
