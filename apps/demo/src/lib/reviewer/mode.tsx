@@ -42,6 +42,11 @@ export function useSandboxReviewer(): boolean {
   return isSandboxReviewer(useReviewer());
 }
 
+/** P100 S2-C: the active pin is the sample shop — the screens show only what works there. */
+export function useSampleShopReviewer(): boolean {
+  return isSampleShopReviewer(useReviewer());
+}
+
 /** Test seam: render a fixed reviewer without storage or network. */
 export function StaticReviewerProvider({
   reviewer,

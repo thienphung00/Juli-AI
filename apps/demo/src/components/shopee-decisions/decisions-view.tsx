@@ -6,7 +6,9 @@ import { DASH, fmt, sv } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { TABS, isWorthTrying, sectionsFor, statusLabel, tabCounts, tabOfParam, type DecisionTab } from "../../lib/shopee-decisions/model";
+import { sampleShopCards } from "../../lib/shopee-decisions/sample-scope";
 import type { CardList, CardSummary } from "../../lib/shopee-decisions/types";
+import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { Empty, Notice, Section, TextChip } from "../shopee-analytics/ui";
 import { BuilderView } from "./builder";
 import { BuilderP92View } from "./builder-p92";
@@ -91,6 +93,7 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
   const host = useReco();
   const [tick, setTick] = useState(0);
   const [flash, setFlash] = useState<Flash>(NO_FLASH);
+  const sampleShop = useSampleShopReviewer();
   const res = useResource<CardList>(() => host.reco.list({ queue: "all" }), `${host.shopKey}|list|${tick}`);
   return (
     <>
@@ -98,9 +101,11 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
       <FlashNotice flash={flash} />
       <RecoState resource={res}>
         {(data) => {
-          const tops = topEntries(data.cards);
-          const counts = { ...tabCounts(data.cards), "de-xuat": tops.length };
-          const sections = sectionsFor(data.cards, tab);
+          // P100 S2-C: on the sample shop only Tiêu đề / Ảnh bìa / Voucher cards; the tab counts follow.
+          const cards = sampleShopCards(data.cards, sampleShop);
+          const tops = topEntries(cards);
+          const counts = { ...tabCounts(cards), "de-xuat": tops.length };
+          const sections = sectionsFor(cards, tab);
           return (
             <>
               <nav aria-label="Quyết định" className="sa-seg sa-seg--round sa-tabs" data-testid="sd-tabs">
@@ -115,7 +120,7 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
                 tops.length === 0 ? (
                   <Empty testId="sd-empty">{EMPTY[tab]}</Empty>
                 ) : (
-                  <TopCards cards={data.cards} flash={flash} onChanged={() => setTick((t) => t + 1)} onFlash={setFlash} />
+                  <TopCards cards={cards} flash={flash} onChanged={() => setTick((t) => t + 1)} onFlash={setFlash} />
                 )
               ) : sections.length === 0 ? (
                 <Empty testId="sd-empty">{EMPTY[tab]}</Empty>
@@ -130,7 +135,7 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
                   </Section>
                 ))
               )}
-              {host.staff ? <p className="sa-hint">Trạng thái các thẻ: {[...new Set(data.cards.map((c) => statusLabel(c.status)))].join(" · ") || DASH}.</p> : null}
+              {host.staff ? <p className="sa-hint">Trạng thái các thẻ: {[...new Set(cards.map((c) => statusLabel(c.status)))].join(" · ") || DASH}.</p> : null}
             </>
           );
         }}

@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { BuilderApi, BuilderOutcome, PickerResult, PickerProduct } from "../../../lib/shopee-decisions/builder-api";
 import { KINDS_92, MAX_VERSIONS, buildVersion, defaultVariationId, initialForms, kindName92, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
 import { useReco } from "../../../lib/shopee-decisions/context";
+import { SAMPLE_SHOP_BUILDER_KINDS } from "../../../lib/shopee-decisions/sample-scope";
+import { useSampleShopReviewer } from "../../../lib/reviewer/mode";
 import type { BuilderP98Api } from "../../../lib/shopee-decisions/builder-p98-api";
 import { useNarrow } from "../../quyet-dinh/use-narrow";
 import { NavLink, errorText } from "../ui";
@@ -76,6 +78,9 @@ const MODES: readonly { readonly key: Mode; readonly label: string }[] = [
 /** P98 entry points: three extra builders beside the P92 one (shown only when the P98 client is given). */
 function P98Entry({ api, data, from, productId, p98Api, kols }: { readonly api: BuilderApi; readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly p98Api?: BuilderP98Api; readonly kols: readonly KolCandidate[] }) {
   const [mode, setMode] = useState<Mode>("single");
+  // P100 S2-C: the sample shop offers only Tiêu đề · Ảnh bìa · Voucher — no P98 builders.
+  const sampleShop = useSampleShopReviewer();
+  if (sampleShop) return <Builder data={data} from={from} kinds={KINDS_92.filter((k) => SAMPLE_SHOP_BUILDER_KINDS.has(k.key))} productId={productId} />;
   if (!p98Api) return <Builder data={data} from={from} productId={productId} />;
   return (
     <>
@@ -94,7 +99,7 @@ function P98Entry({ api, data, from, productId, p98Api, kols }: { readonly api: 
   );
 }
 
-function Builder({ data, from, productId }: { readonly data: PickerResult; readonly from: string | null; readonly productId: string | null }) {
+function Builder({ data, from, productId, kinds = KINDS_92 }: { readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly kinds?: typeof KINDS_92 }) {
   const host = useReco();
   const api = host.builder!;
   const narrow = useNarrow();
@@ -289,7 +294,7 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
             <span className="sa-hint">Mỗi loại ghi sẵn chỉ số chính mà phương án sẽ được đo</span>
           </div>
           <div className="p2-kinds">
-            {KINDS_92.map((k) => (
+            {kinds.map((k) => (
               <button className="p2-kind" data-testid={`p2-kind-${k.key}`} key={k.key} onClick={() => pickKind(k.key)} type="button">
                 <b>{k.name}</b>
                 <span>Chỉ số chính: {k.drivers}</span>

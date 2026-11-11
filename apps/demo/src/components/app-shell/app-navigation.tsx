@@ -68,19 +68,23 @@ export function LockIcon() {
 export function AppNavigation({
   activePath,
   platform = "tiktok",
+  sampleShop = false,
 }: {
   readonly activePath: string;
   /** Shopee shops get Tổng quan / Phân tích / Sản phẩm / Quyết định (ADR-120 d.2). */
   readonly platform?: NavPlatform;
+  /** P100 S2-C: the reviewer's sample shop — only the four screens that work there. */
+  readonly sampleShop?: boolean;
 }) {
+  const destinations = destinationsFor(platform, { sampleShop });
   return (
     <div className="app-rail">
       <Link aria-label="Juli: Trang chủ" className="app-rail__wordmark" href="/">
         Juli<span aria-hidden="true">.</span>
       </Link>
       <nav aria-label="Điều hướng chính" className="app-nav">
-      <ul className={`app-nav__list${destinationsFor(platform).length > 4 ? " app-nav__list--many" : ""}`}>
-        {destinationsFor(platform).map((destination) => {
+      <ul className={`app-nav__list${destinations.length > 4 ? " app-nav__list--many" : ""}`}>
+        {destinations.map((destination) => {
           if (destination.locked || !destination.href) {
             return (
               <li key={destination.key}>
