@@ -39,6 +39,8 @@ from juli_backend.services.shopee_analytics.shared import (
     five_for,
     five_json,
     flow_table_json,
+    shop_profit_fields,
+    shop_profit_of,
 )
 from juli_backend.services.shopee_analytics.windows import Anchor
 from juli_backend.services.shopee_profit.flows import (
@@ -239,31 +241,19 @@ def _levers_block(view: PeriodView) -> dict[str, Any]:
     return totals
 
 
-def _profit_block(view: PeriodView, metrics: ShopMetrics | None = None) -> dict[str, Any]:
+def _profit_block(view: PeriodView) -> dict[str, Any]:
     p = view.profit
     cov = view.coverage
-    m = metrics or view.metrics
-    scaled = m.gmv_scale is not None and m.gmv_scale > 1
-    shop_gmv = m.gmv
-    # P98 / ADR-122 d.14: the headline Lợi nhuận is the ShopMetrics one (the number Sản phẩm, Kế
-    # hoạch and the builder show); the waterfall below is its breakdown over the order lines
-    line_share = (
-        pct_of(safe_div(m.line_gmv, shop_gmv)) if shop_gmv is not None and shop_gmv > 0 else None
-    )
+    # P100 B.5: ONE shop profit -- the known-cost orders' profit with its coverage line, the
+    # same figure as Sản phẩm and Kế hoạch (``shared.shop_profit_of``); never scaled to the GMV
+    fig = shop_profit_of(view)
     return {
-        "profit_vnd": num(m.profit),
-        "profit_estimated": scaled,
-        "profit_estimate_label": "ước tính theo tỉ lệ" if scaled else None,
-        "profit_waterfall_vnd": num(p.profit),
-        "profit_detail_label": (
-            f"chi tiết trên {m.line_orders} đơn có dữ liệu chi phí ({line_share} % GMV)"
-            if line_share is not None
-            else f"chi tiết trên {m.line_orders} đơn có dữ liệu chi phí"
-        ),
-        "profit_detail_orders": m.line_orders,
-        "profit_detail_gmv_share_pct": line_share,
+        "profit_vnd": fig.json()["profit"],
+        "coverage_label": fig.label,
+        "known_cost_orders": fig.orders,
+        "known_cost_gmv_share_pct": fig.json()["gmv_share_pct"],
         "profit_on_covered_vnd": num(p.profit_on_covered),
-        "margin_pct": pct(p.margin_pct),
+        "margin_pct": fig.json()["margin_pct"],
         "margin_basis": "profit ÷ doanh thu thực (sau voucher và combo)",
         "contribution_before_ads": num(p.contribution),
         "net_revenue": num(p.buyer_paid),
@@ -410,6 +400,7 @@ def build_overview(
     prev_orders = before.shop_orders if prev_totals_ok else None
     if not prev_totals_ok:
         prev_chain = {k: v for k, v in prev_chain.items() if k != "aov"}
+    profit_now, profit_before = shop_profit_of(now), shop_profit_of(before)
     warns = warnings(now)
     if not comparable:
         warns.append({"code": "previous_period_thin", "message": PREVIOUS_THIN})
@@ -418,7 +409,8 @@ def build_overview(
         "platform": "shopee",
         "order_basis": ORDER_BASIS,
         "period": {"window": now.window.json(), "previous": before.window.json()},
-        "shop_metrics": metrics.json(),
+        "shop_metrics": {**metrics.json(), **shop_profit_fields(now)},
+        "shop_profit": profit_now.json(),
         "funnel": funnel.basis_json(now.data.funnel),
         "data": data_status(now),
         "warnings": warns,
@@ -432,6 +424,11 @@ def build_overview(
             },
             "aov": _kpi(metrics.aov, prev_metrics.aov if prev_totals_ok else None),
             "orders": _kpi(now.shop_orders, prev_orders),
+            # P100 B.6: Tổng lợi nhuận, the one shop profit (shop level only, never per source)
+            "profit": {
+                **_kpi(profit_now.profit, profit_before.profit if comparable else None),
+                "label": profit_now.label,
+            },
             "margin_pct": {
                 "value": pct(p.margin_pct),
                 "previous": pct(pp.margin_pct) if comparable else None,
@@ -460,7 +457,7 @@ def build_overview(
         "flows": _flows_block(now, before),
         "levers": _levers_block(now),
         "five_numbers": five_json(five, comparable=comparable),
-        "profit": _profit_block(now, metrics),
+        "profit": _profit_block(now),
         "ads": _ads_block(now),
         "vouchers": _vouchers_block(now, ctx),
         "affiliate": _affiliate_block(now),

@@ -20,6 +20,7 @@ from juli_backend.services.shopee_analytics.shared import (
     five_for,
     five_json,
     flow_table_json,
+    shop_profit_of,
 )
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_profit.shop_profit import ProductProfit
@@ -225,6 +226,8 @@ def build_matrix(
         "idle_products": idle,
         "ads_basis": ADS_BASIS,
         "excluded": excluded_summary(view),
+        # P100 B.5: the one shop profit, the same figure as Tổng quan and Kế hoạch
+        "shop_profit": shop_profit_of(view).json(),
         "sums": {
             "gmv_shopee_products": num(sum_gmv),
             "gmv_shop": num(view.shop_gmv),

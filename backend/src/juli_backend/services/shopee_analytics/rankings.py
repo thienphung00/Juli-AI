@@ -39,6 +39,7 @@ from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, frac, num, pct
 from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN
 from juli_backend.services.shopee_analytics.matrix import margin_basis, price_block
+from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.flows import Flow, FlowSource
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.sources import CellStats
@@ -311,7 +312,7 @@ def _cell_products(view: PeriodView, source: str, sub: str | None) -> M:
     return M(
         view.metrics.gmv or ZERO,
         Decimal(view.metrics.orders or 0),
-        view.metrics.profit,  # P98 d.14: the ShopMetrics profit, as on every other screen
+        shop_profit_of(view).profit,  # P100 B.5: the one known-cost shop profit, every screen
         p.buyer_paid_covered,
         discount,
         sum((pb.list_value for _, pb in view.pairs), ZERO),

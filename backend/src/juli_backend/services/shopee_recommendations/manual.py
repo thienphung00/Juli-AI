@@ -30,6 +30,7 @@ from typing import Any
 from juli_backend.models.shop_proposals import ShopProposal
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
+from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_recommendations import (
     combo,
     config,
@@ -320,6 +321,8 @@ def today_of(env: RecoEnv) -> dict[str, Any]:
         "orders_30d": orders,
         "aov": gmv / orders if orders else None,
         "margin_pct": None if sp.margin_rate is None else float(sp.margin_rate) * 100,
+        # P100 B.5: the one shop profit (Tổng quan / Sản phẩm / Kế hoạch show the same figure)
+        "shop_profit": shop_profit_of(env.view).json(),
         "spend_per_day": float(env.shop_chi_per_day()),
         "spend_cap": None if cap is None else float(cap),
     }

@@ -348,3 +348,85 @@ def scope_margin_pct(profit: ShopProfit, item_ids: Sequence[str] = ()) -> Decima
         return rows[0].margin_pct
     covered = sum((p.buyer_paid_covered for p in rows), ZERO)
     return pct_points(safe_div(sum((p.profit for p in rows), ZERO), covered))
+
+
+NO_KNOWN_COST_LABEL = "chưa có đơn nào có đủ chi phí"
+
+
+def _money(value: Decimal | None) -> int | float | None:
+    """Whole đồng as int, otherwise 2 decimals (the analytics ``fmt.num`` shape)."""
+    if value is None:
+        return None
+    if value == value.to_integral_value():
+        return int(value)
+    return float(value.quantize(Decimal("0.01")))
+
+
+def _vn_pct(value: Decimal) -> str:
+    return f"{value:.1f}".replace(".", ",")
+
+
+@dataclass(frozen=True)
+class KnownCostProfit:
+    """P100 B.5: THE shop profit -- the profit of the orders whose costs are known, with its
+    coverage ("trên N đơn có chi phí, X % GMV"). Tổng quan, Sản phẩm and Kế hoạch all show
+    this one figure (:func:`known_cost_profit`); nothing is scaled to the shop GMV."""
+
+    profit: Decimal | None  # covered contribution - the ads charged to it - other costs
+    margin_pct: Decimal | None  # profit ÷ covered buyer_paid (the same base as ``profit``)
+    orders: int  # orders whose every counted line has its costs
+    gmv: Decimal  # those orders' GMV
+    gmv_share_pct: Decimal | None  # of the shop GMV (1 decimal)
+
+    @property
+    def label(self) -> str:
+        if self.profit is None or self.orders == 0:
+            return NO_KNOWN_COST_LABEL
+        if self.gmv_share_pct is None:
+            return f"trên {self.orders} đơn có chi phí"
+        return f"trên {self.orders} đơn có chi phí, {_vn_pct(self.gmv_share_pct)} % GMV"
+
+    def json(self) -> dict[str, object]:
+        return {
+            "profit": _money(self.profit),
+            "margin_pct": None if self.margin_pct is None else float(self.margin_pct),
+            "orders": self.orders,
+            "gmv": _money(self.gmv),
+            "gmv_share_pct": None if self.gmv_share_pct is None else float(self.gmv_share_pct),
+            "label": self.label,
+        }
+
+
+def known_cost_profit(
+    profit: ShopProfit, pairs: Pairs, shop_gmv: Decimal | None
+) -> KnownCostProfit:
+    """The one shop profit (P100 B.5). A line whose profit is NULL (unknown cost) is left out of
+    the number and counts against the coverage; an order counts as "có chi phí" only when every
+    one of its counted lines (cancelled / undelivered ones are outside the profit base) has its
+    costs. ``profit`` is :attr:`ShopProfit.covered_margin_profit`, so ``margin_pct`` is the
+    same division the margin always was; ``None`` (never 0) without a known-cost order."""
+    unknown: set[str] = set()
+    counted: set[str] = set()
+    for ln, pb in pairs:
+        if pb.excluded_reason is not None:
+            continue
+        counted.add(ln.order_id)
+        if pb.contribution is None:
+            unknown.add(ln.order_id)
+    known = counted - unknown
+    gmv = sum(
+        (ln.order_value for ln, pb in pairs if ln.order_id in known and pb.excluded_reason is None),
+        ZERO,
+    )
+    share = None
+    if shop_gmv is not None and shop_gmv > 0:
+        share = (gmv * 100 / shop_gmv).quantize(Decimal("0.1"))
+    value = profit.covered_margin_profit if known else None
+    margin = profit.margin_pct if value is not None else None
+    return KnownCostProfit(
+        profit=value,
+        margin_pct=None if margin is None else margin.quantize(Decimal("0.1")),
+        orders=len(known),
+        gmv=gmv,
+        gmv_share_pct=share,
+    )

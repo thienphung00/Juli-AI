@@ -21,6 +21,7 @@ from juli_backend.models.shopee_metrics import ShopeePlanBaseSnapshot
 from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.fmt import num, ratio
 from juli_backend.services.shopee_analytics.funnel import FunnelRows
+from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 LABEL = "Số liệu gốc của kế hoạch"
@@ -53,13 +54,16 @@ def base_json(env: RecoEnv, rows: FunnelRows | None = None) -> dict[str, Any]:
     """The aggregates the plan math shows as "hôm nay" (D85.2: from ShopMetrics; the funnel from
     the stored source rows, P98)."""
     m = env.metrics
+    fig = shop_profit_of(env.view).json()  # P100 B.5: the one shop profit
     return {
         "as_of": env.as_of.isoformat(),
         "window": env.view.window.json(),
         "gmv_30d": float(env.shop_gmv_30d),
         "orders_30d": env.shop_orders_30d,
         "aov": None if m.aov is None else float(m.aov),
-        "margin_pct": None if m.margin_pct is None else float(m.margin_pct),
+        "margin_pct": fig["margin_pct"],
+        "profit_30d": fig["profit"],
+        "shop_profit": fig,
         "chi_per_day": float(env.shop_chi_per_day()),
         "read_from": m.read_from,
         **funnel_json(env, rows),
