@@ -60,8 +60,8 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
   masked or not.
 - **Only the tabs that work**: in sample mode the Shopee rail shows Tổng quan · Phân tích · Sản phẩm
   · Quyết định; Từ khóa, Quảng cáo, Đơn hàng, Luồng are hidden (not greyed out, no "sắp có"). In
-  Tự tạo only Combo Khuyến Mãi; Chương Trình Của Shop / Deal Sốc are added when Session 1 finishes
-  them; KOL, Quảng cáo, Combo nhiều SKU are hidden. Cài đặt menu: Đổi shop · Đăng xuất. Thực hiện =
+  Tự tạo: **Tiêu đề · Ảnh bìa · Voucher** only (owner, later 2026-11-11: Combo removed); KOL,
+  Quảng cáo, Combo nhiều SKU, Combo Khuyến Mãi hidden. Cài đặt menu: Đổi shop · Đăng xuất. Thực hiện =
   checklist. Design: https://claude.ai/artifact/HKYu5uqPX4egtX2cHB6bgK (6 boards).
 - New slice **S2-C nav gating** (`lib/app-navigation.ts` sample-mode list + the Tự tạo strategy
-  allowlist), after `p100-c-combo` lands.
+  allowlist), after `p100-c-combo` lands (it edits `panels-offers.tsx`).
