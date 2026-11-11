@@ -277,11 +277,38 @@ would bound it at ≈ $2,2. Background jobs (keywords, style profile) can use th
 price. Existing LLM paths (builder drafts through `shopee_builder/llm.py`, the agent runtime) are
 outside this table.
 
-## I. Open: replace the manual keyword lookups (asked 2026-11-11)
+## I. Replace the manual keyword lookups — Shopee's own keyword data (checked 2026-11-11)
 
-Recommendation given: no open-web search tool for GPT-5.4 nano (web results carry no Shopee search
-volume; per-search fees exceed the call itself; invented volumes are a risk). Instead the Connector
-reads Shopee's own keyword data read-only from the seller's Seller Centre (Quảng cáo Shopee keyword
-suggestions: search volume, suggested bid) for the cleaned seeds; nano gets function tools only over
-Juli's own data (keyword volumes, product attributes, current title). Needs a read-only look at the
-PAS keyword screen to confirm the field names before building (owner's yes required).
+Read in ORY's Seller Centre, nothing created:
+- **Product ads (Dịch vụ Hiển thị Sản phẩm) no longer take keywords**: creation offers only "Tối Đa
+  Doanh Thu ROAS Tối Ưu bởi Hệ Thống" / "Tối đa Doanh thu Tùy chỉnh ROAS" (ROAS ước tính per
+  product, e.g. 6,26 – 11,22). No keyword list there.
+- **Dịch vụ Hiển thị Shop+** (`/portal/marketing/pas/shop/create`) bids on keywords. "Thêm từ khóa"
+  shows, per keyword: **Từ khóa · Chất lượng từ khóa (x/10) · Tỉ lệ tìm kiếm (search volume) ·
+  Giá thầu tham khảo (đ)**.
+  - On open: 50 shop-specific suggestions, `POST /api/pas/v1/setup_helper/list_recommended_keyword/`
+    (e.g. "bao tay cao su" 75.386 · ₫2.964; "túi đựng thực phẩm" 17.809 · ₫2.100; "túi thực phẩm tự
+    hủy sinh học" 862).
+  - Typing a seed ("Nhập từ khóa của bạn tại đây"): the seed's own volume plus 49 related keywords,
+    `POST /api/pas/v1/setup_helper/search_keyword/` (e.g. "túi đựng thực phẩm sinh học" = 100).
+  - Response JSON field names not captured yet — Session 1 reads one response body (with the
+    owner's yes) before writing the reader.
+- Side finding for E.1: PAS home shows "Chi phí Dịch vụ Hiển thị Hôm nay ₫209.445" while Juli shows
+  569.983đ ad spend for 30 days → ad spend is badly under-counted.
+
+Design (scales to many shops — each shop gets its own keywords and profile):
+1. **Per shop, in the seller's own session.** The Connector reader runs inside each seller's Seller
+   Centre, so `list_recommended_keyword` / `search_keyword` return that shop's data; nothing is
+   shared between shops. Rows go to `market_keyword_metrics` (or a shop-scoped table) keyed by
+   `shop_id`, `source = "shopee_pas"`, `collected_on`, under RLS like every tenant table.
+2. **Flow per shop:** titles → rule pre-pass (G.1–6) → one nano call (G.7) → ≤ N seeds →
+   Connector looks each seed up (`search_keyword`, read-only) → volumes + related keywords + bid →
+   nano title call uses them as **function-tool input over Juli's own rows only** (no web search).
+3. **Budget:** keyword lookups share the Connector's `DAILY_REQUEST_BUDGET` with their own slice
+   (like `TODAY_REQUEST_RESERVE` / `BACKFILL_REQUEST_SHARE`); cap seeds per shop per week (e.g. 30),
+   refresh only seeds older than 7 days; spread across days for large catalogues.
+4. **Shop style profile** (B.23) and keyword sets are both per `shop_id`, cached, re-run on demand;
+   LLM calls go through the shop's own consent gate and `llm_call_log`.
+5. **No Ads account / no access:** fall back to the existing manual JSONL upload (shopeeanalytics);
+   the screen says which source each volume came from. Never invent a volume.
+6. Reading is read-only: open the picker's data calls only, never "Tạo", never add keywords.
