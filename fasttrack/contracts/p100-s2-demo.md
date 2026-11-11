@@ -65,3 +65,7 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
   checklist. Design: https://claude.ai/artifact/HKYu5uqPX4egtX2cHB6bgK (6 boards).
 - New slice **S2-C nav gating** (`lib/app-navigation.ts` sample-mode list + the Tự tạo strategy
   allowlist), after `p100-c-combo` lands (it edits `panels-offers.tsx`).
+- **Đề xuất shows the same three kinds only** (Tiêu đề, Ảnh bìa, Voucher); every other generated
+  card kind is filtered out in sample mode (part of S2-C). Đang thực hiện and Đo lường must not be
+  empty: S2-A follow-up seeds one running Tiêu đề card (day 5/7) and one measured Voucher card
+  (actual vs expected) in the same synthetic 30 days.
