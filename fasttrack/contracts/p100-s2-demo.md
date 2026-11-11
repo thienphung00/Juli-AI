@@ -140,3 +140,10 @@ unverified-executed cards, so the "applied title" cannot sit there once its chan
   simulated Shopee Duyệt (`POST …/recommendations/{id}/approve`) — touches `shopee-decisions/**`,
   so after Session 1. Also: `lib/reviewer/guide-copy.ts` (still "shop thật, ẩn tên", "Shop TikTok"),
   `dictionary.md` reviewer keys.
+
+## Owner decisions 2026-11-11 (late)
+- **Option A: the sample shop accepts Juli's own writes** from a sample-mode reviewer (Chọn, Kế
+  hoạch, what-if, Duyệt, Bỏ qua, Đã làm …) — Juli's database only, never anything outbound to Shopee
+  (no fill jobs, no Connector work, no platform API). "Đặt lại dữ liệu mẫu" restores the seeded
+  state. LLM drafts stay refused until S2-D. Slice **S2-G**.
+- **Reviewer guide back to English** (P77 stands); the app stays Vietnamese.
