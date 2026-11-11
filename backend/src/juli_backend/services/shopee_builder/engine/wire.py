@@ -85,6 +85,28 @@ def per_30d_profit(r: OptionResult) -> Decimal | None:
     return None if d is None else d * 30 / r.days
 
 
+def _margin_pct(s: Scenario | None) -> float | None:
+    if s is None or s.profit is None or s.gmv <= 0:
+        return None
+    return float(s.profit / s.gmv) * 100.0
+
+
+def _margin(r: OptionResult) -> dict[str, Any]:
+    """P100-C (B.6): profit ÷ GMV before and after, and the shift in points. A secondary line --
+    the headline is Δ tổng lợi nhuận (a lower margin can still mean more total profit)."""
+    before, after = _margin_pct(r.before), _margin_pct(r.likely)
+    shift = None if before is None or after is None else after - before
+    return {"before_pct": before, "after_pct": after, "shift_pts": shift}
+
+
+def _roi(r: OptionResult, d_gmv: Decimal | None) -> dict[str, Any]:
+    """P100-C (B.4): ROI = ΔGMV ÷ chi phí (incremental). None without a cost or an estimate."""
+    if d_gmv is None or r.cost_total <= 0:
+        return {"value": None, "text": None}
+    v = float(d_gmv / r.cost_total)
+    return {"value": v, "text": "ROI " + f"{v:.1f}".replace(".", ",")}
+
+
 def result_json(r: OptionResult) -> dict[str, Any]:
     d_profit, b_profit = _delta(r, "profit")
     d_gmv, b_gmv = _delta(r, "gmv")
@@ -168,6 +190,8 @@ def result_json(r: OptionResult) -> dict[str, Any]:
             "secondary": True,
             "label": PER_30D_LABEL,
         },
+        "roi": _roi(r, d_gmv),
+        "margin": _margin(r),
         "detail": {
             "before": _column(r.before),
             "low": None if r.low is None else _column(r.low),

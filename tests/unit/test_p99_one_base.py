@@ -278,7 +278,9 @@ async def test_a_saved_version_keeps_its_own_days(session, shop):
 
 async def test_ke_hoach_adds_a_cards_delta_onto_the_base_it_was_computed_on(session, shop):
     seeded, env = shop
-    _, planned = await _save_and_plan(session, seeded, COMBO)
+    # P100-C (B.10): the seeded combo has too few orders to measure its reach (cost only), so an
+    # estimable family carries the check
+    _, planned = await _save_and_plan(session, seeded, VOUCHER)
     agg = planned["_aggregate"]
     block = next(p for p in agg["products"] if p["product_id"] == ITEM)
     base = integrate.scope_today(env, integrate.base_for(env, [ITEM]))

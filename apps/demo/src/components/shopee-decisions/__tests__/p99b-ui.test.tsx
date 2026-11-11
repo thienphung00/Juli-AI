@@ -225,10 +225,10 @@ describe("P99b Tự tạo / So sánh: the version's set dates, per_30d secondary
   });
   const dates = { from: "2026-12-01", to: "2026-12-10", days: 10, set: true, label: "01/12 – 10/12 (10 ngày)" };
 
-  it("OptionCard names the set dates and shows per_30d only as the secondary line", () => {
+  it("OptionCard names the set dates; per_30d stays off the card (P100-C, B.6)", () => {
     render(<OptionCard dates={dates} result={res("V1", 300_000)} />);
     expect(screen.getByTestId("oc-dates")).toHaveTextContent("Tính cho: 01/12 – 10/12 (10 ngày)");
-    expect(screen.getByTestId("oc-per30")).toHaveTextContent("Quy đổi 30 ngày (tham khảo): Lợi nhuận +300.000đ");
+    expect(screen.queryByTestId("oc-per30")).toBeNull();
     expect(screen.getByTestId("oc-profit")).toHaveTextContent("+100.000đ");
     expect(screen.getByTestId("oc-profit")).not.toHaveTextContent("300.000");
     expect(screen.getByTestId("oc-cost")).toHaveTextContent("80.000đ");

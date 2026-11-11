@@ -149,7 +149,7 @@ export interface Forms {
   /** `items`: the products of a product voucher besides the chosen one (P97 D85.13, the picker's selection). */
   readonly voucher: { scope: "shop" | "product" | "follower" | "livestream"; dtype: "amount" | "pct"; value: string; min: string; max: string; usage: string; perBuyer: string; start: string; end: string; items: readonly string[] };
   /** Combo Khuyến Mãi in Shopee's shape (P97 D85.15): a product list, a type, tiers, the order limit, name ≤ 25, dates. */
-  readonly combo: { name: string; items: readonly string[]; dtype: "pct" | "amount" | "special_price"; tiers: readonly ComboTierRow[]; limit: string; start: string; end: string };
+  readonly combo: { name: string; items: readonly string[]; dtype: "pct" | "amount" | "special_price"; tiers: readonly ComboTierRow[]; limit: string; start: string; end: string; startHour?: string; endHour?: string };
   /** A new listing that sells several existing products together (P97 D85.16). */
   readonly listing_combo: { title: string; images: readonly string[]; price: string; stock: string; sku: string; members: readonly string[] };
   readonly add_on: { addons: readonly AddonRow[] };
@@ -212,6 +212,34 @@ function intIn(text: string, min: number, max: number, problem: string): { reado
   if (!Number.isInteger(n) || n < min || n > max) return { n: null, problem };
   return { n, problem: null };
 }
+/** P100-C (B.9): mirrors `specs.COMBO_TIERS_NOT_INCREASING`. */
+const COMBO_TIERS_NOT_INCREASING = "Mỗi mức ưu đãi sau (mua nhiều sản phẩm hơn) cần giảm nhiều hơn mức trước.";
+
+/** P100-C (B.9), as `specs._tiers_increase`: the effective % rises with N — % itself; số tiền ÷ N rises; giá đặc biệt ÷ N falls. */
+function comboTiersIncrease(dtype: "pct" | "amount" | "special_price", tiers: readonly { readonly qty: number; readonly value: number }[]): boolean {
+  const per = [...tiers].sort((a, b) => a.qty - b.qty).map((t) => (dtype === "pct" ? t.value : t.value / t.qty));
+  for (let i = 1; i < per.length; i++) {
+    if (dtype === "special_price" ? !(per[i]! < per[i - 1]!) : !(per[i]! > per[i - 1]!)) return false;
+  }
+  return true;
+}
+
+/** P100-C: "Thời gian chạy Combo" has hour precision (0–23) in Seller Centre; "" = the whole day. */
+function comboHours(c: { start: string; end: string; startHour?: string; endHour?: string }): { problem: string | null; fields: Record<string, number> } {
+  const fields: Record<string, number> = {};
+  for (const [key, text, date] of [["start_hour", c.startHour ?? "", c.start], ["end_hour", c.endHour ?? "", c.end]] as const) {
+    if (text.trim() === "") continue;
+    const h = num(text);
+    if (h === null || !Number.isInteger(h) || h < 0 || h > 23) return { problem: "Giờ là số nguyên từ 0 đến 23.", fields: {} };
+    if (!date) return { problem: "Chọn ngày cho giờ bắt đầu / kết thúc.", fields: {} };
+    fields[key] = h;
+  }
+  if (c.start && c.end && c.start === c.end && fields["start_hour"] !== undefined && fields["end_hour"] !== undefined && fields["end_hour"] <= fields["start_hour"]) {
+    return { problem: "Giờ kết thúc phải sau giờ bắt đầu.", fields: {} };
+  }
+  return { problem: null, fields };
+}
+
 function dateProblem(start: string, end: string, maxDays: number | null): string | null {
   if (!start || !end) return null;
   const a = Date.parse(`${start}T00:00:00Z`);
@@ -294,12 +322,14 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (new Set(tiers.map((t) => t.qty)).size !== tiers.length) return no("Mỗi mức ưu đãi cần một số lượng mua khác nhau.");
       if (tiers.length > MAX_COMBO_TIERS) return no(`Tối đa ${MAX_COMBO_TIERS} mức ưu đãi.`);
       const limit = intIn(c.limit, 1, 999_999_999, "Giới hạn đặt hàng từ 1 đến 999.999.999.");
-      const issue = limit.problem ?? dateProblem(c.start, c.end, null);
+      if (!comboTiersIncrease(c.dtype, tiers)) return no(COMBO_TIERS_NOT_INCREASING);
+      const hours = comboHours(c);
+      const issue = limit.problem ?? hours.problem ?? dateProblem(c.start, c.end, null);
       if (issue) return no(issue);
       const name = c.name.trim();
       return {
         problem: null,
-        version: { kind: "combo", label: clip(name || `Combo ${c.items.length} sản phẩm`), ...(name ? { name } : {}), item_ids: [...c.items], discount_type: c.dtype, tiers, ...(limit.n !== null ? { purchase_limit: limit.n } : {}), ...dated(c.start, c.end) },
+        version: { kind: "combo", label: clip(name || `Combo ${c.items.length} sản phẩm`), ...(name ? { name } : {}), item_ids: [...c.items], discount_type: c.dtype, tiers, ...(limit.n !== null ? { purchase_limit: limit.n } : {}), ...dated(c.start, c.end), ...hours.fields },
       };
     }
     case "listing_combo": {
@@ -743,7 +773,12 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
         }
         const limit = n_(v["purchase_limit"]);
         if (limit !== null) add("limit", "Giới hạn đặt hàng", fmt(limit));
-        dates();
+        const sh = n_(v["start_hour"]);
+        const eh = n_(v["end_hour"]);
+        if (sh !== null || eh !== null) {
+          const at = (d: string, h: number | null) => (d ? `${h !== null ? `${String(h).padStart(2, "0")}:00 ` : ""}${dayText(d)}` : "…");
+          add("dates", "Thời gian chạy Combo", `${at(s_(v["start"]), sh)}–${at(s_(v["end"]), eh)}`);
+        } else dates();
         return { type: "Combo khuyến mãi", facts };
       }
       // a combo saved as a fixed basket (before P97): kept readable
