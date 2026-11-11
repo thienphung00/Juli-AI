@@ -123,6 +123,10 @@ class ComboSpec(_Base):
     purchase_limit: Annotated[int, Field(ge=1, le=MAX_PURCHASE_LIMIT)] | None = None
     start: date | None = None
     end: date | None = None
+    #: P100-C: "Thời gian chạy Combo" has hour precision in Seller Centre (0-23, the hour the
+    #: combo starts / ends on ``start`` / ``end``); None = the whole day
+    start_hour: Annotated[int, Field(ge=0, le=23)] | None = None
+    end_hour: Annotated[int, Field(ge=0, le=23)] | None = None
 
     @model_validator(mode="after")
     def _check(self) -> ComboSpec:
@@ -132,13 +136,51 @@ class ComboSpec(_Base):
             raise ValueError("each tier has its own quantity")
         if self.discount_type == "pct" and any(not 0 < t.value <= 90 for t in self.tiers):
             raise ValueError("a percent discount is above 0 and at most 90")
-        if self.start and self.end and self.end < self.start:
-            raise ValueError("end is before start")
+        if not _tiers_increase(self.discount_type, self.tiers):
+            raise ValueError(COMBO_TIERS_NOT_INCREASING)
+        if (self.start_hour is not None and self.start is None) or (
+            self.end_hour is not None and self.end is None
+        ):
+            raise ValueError("an hour needs its date")
+        if self.start and self.end:
+            if self.end < self.start:
+                raise ValueError("end is before start")
+            if self.hours is not None and self.hours <= 0:
+                raise ValueError("end is before start")
         return self
 
     @property
+    def hours(self) -> int | None:
+        """The running time in hours when both ends carry an hour (Shopee's precision)."""
+        if not (self.start and self.end) or self.start_hour is None or self.end_hour is None:
+            return None
+        return (self.end - self.start).days * 24 + self.end_hour - self.start_hour
+
+    @property
     def days(self) -> int | None:
-        return None if not (self.start and self.end) else (self.end - self.start).days + 1
+        if not (self.start and self.end):
+            return None
+        hours = self.hours
+        if hours is not None:
+            return max(1, -(-hours // 24))
+        return (self.end - self.start).days + 1
+
+
+#: P100-C (B.9): a tier that buys more units gives a strictly bigger effective percent
+COMBO_TIERS_NOT_INCREASING = (
+    "Mỗi mức ưu đãi sau (mua nhiều sản phẩm hơn) cần giảm nhiều hơn mức trước."
+)
+
+
+def _tiers_increase(dtype: str, tiers: list[ComboTier]) -> bool:
+    """The effective percent per tier rises with N, checked without the unit price: % itself;
+    số tiền ÷ N rises (amount ÷ (N × đơn giá)); giá đặc biệt ÷ N falls (1 − giá ÷ (N × đơn giá))."""
+    rows = sorted(tiers, key=lambda t: t.qty)
+    per = [t.value if dtype == "pct" else t.value / t.qty for t in rows]
+    pairs = list(zip(per, per[1:], strict=False))
+    if dtype == "special_price":
+        return all(b < a for a, b in pairs)
+    return all(b > a for a, b in pairs)
 
 
 MAX_LISTING_MEMBERS = 20

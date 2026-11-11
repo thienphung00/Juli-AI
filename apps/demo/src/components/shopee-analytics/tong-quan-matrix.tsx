@@ -62,11 +62,13 @@ function sumFlows(rows: readonly FlowRow[]): { views: N; clicks: N } {
 }
 
 export function figuresOf(p: MatrixProduct): Figures {
-  const { views, clicks } = p.flows ? sumFlows(p.flows.rows) : { views: null, clicks: null };
+  // P100 A.6: Shopee's product table first (what Sản phẩm + luồng shows), the flows' sum otherwise
+  const t = p.traffic;
+  const { views, clicks } = t ? { views: t.views, clicks: t.clicks } : p.flows ? sumFlows(p.flows.rows) : { views: null, clicks: null };
   return {
     views,
     ctr: ratio(clicks, views),
-    ctor: ratio(p.orders, clicks),
+    ctor: ratio(t ? t.orders : p.orders, clicks),
     aov: ratio(p.gmv, p.orders),
     gmv: p.gmv,
     orders: p.orders,
@@ -235,6 +237,7 @@ function MatrixBody(props: BodyProps) {
   const sortLabel = COLS.find((c) => c.key === sort.key)?.label.replace(/^[①②③④⑤] /, "") ?? "";
   const shopGmv = ov.kpi_strip.gmv.value;
   const productSum = matrix.sums.gmv_shopee_products;
+  const trafficLabel = matrix.products.find((p) => p.traffic)?.traffic?.label ?? null;
   const gap = shopGmv !== null && productSum !== null ? shopGmv - productSum : null;
 
   return (
@@ -378,6 +381,11 @@ function MatrixBody(props: BodyProps) {
         </span>
       </div>
       <p className="sa-hint">{matrix.sums.note}</p>
+      {trafficLabel ? (
+        <p className="sa-hint" data-testid="sa-matrix-traffic-basis">
+          Lượt xem, CTR, CTOR từng sản phẩm: bảng sản phẩm của Shopee ({trafficLabel}), cùng nguồn với Sản phẩm + luồng.
+        </p>
+      ) : null}
       <div className="sa-legend">
         <span>
           <i className="sa-swatch sa-swatch--bad" />

@@ -237,8 +237,9 @@ async def load_shop_days(
     )
     orders: dict[date, tuple[int, Decimal]] = {}
     for r in totals:
-        if r.segment == "all":
-            orders[r.day] = (int(r.orders or 0), Decimal(str(r.gmv or 0)))
+        got = loaders.order_day(r) if r.segment == "all" else None
+        if got is not None:  # P100-A: a day whose order data never arrived stays None
+            orders[r.day] = (int(got[1]), got[0])
     views: dict[date, list[int]] = {}
     for r in traffic:
         # Thẻ sản phẩm's total already includes Trang shop: the four streams' "all" rows

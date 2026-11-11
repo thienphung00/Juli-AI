@@ -16,6 +16,8 @@ NOTE_ADS_NOT_ESTIMABLE = "chưa ước tính được — cần chạy thử"
 NOTE_KOL_NOT_ESTIMABLE = "chưa ước tính được — đo sau lần gửi mẫu đầu"
 NOTE_NO_PACK_EVIDENCE = "chưa có dữ liệu cho quy cách này"
 NOTE_FOLLOWER = "chưa biết tỉ lệ người theo dõi"
+#: P100-C (B.10): too few orders to measure who moves up to a tier -> cost and break-even only
+NOTE_COMBO_REACH = "chưa ước tính được — chưa đủ đơn để đo số đơn lên mức combo"
 NOTE_PACK_SOLD = "Shop đang bán quy cách này: khách chuyển sang listing mới, không thêm đơn."
 
 #: Priors tagged "prior" (ước tính chung) until the shop's own results calibrate them (ADR-121).

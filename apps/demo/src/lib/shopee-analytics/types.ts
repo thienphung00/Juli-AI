@@ -27,6 +27,16 @@ export interface Kpi {
   readonly change_pct: N;
 }
 
+/** P100 B.5: the profit of the orders whose costs are known, with its coverage. */
+export interface ShopProfitFigure {
+  readonly profit: N;
+  readonly margin_pct: N;
+  readonly orders: number;
+  readonly gmv: N;
+  readonly gmv_share_pct: N;
+  readonly label: string;
+}
+
 export interface MarginKpi {
   readonly value: N;
   readonly previous: N;
@@ -126,13 +136,12 @@ export interface AdsLabel {
 }
 
 export interface ProfitBlock {
+  /** P100 B.5: the one shop profit (known-cost orders), the same figure as Sản phẩm and Kế hoạch. */
   readonly profit_vnd: N;
-  readonly profit_estimated?: boolean;
-  readonly profit_estimate_label?: string | null;
-  readonly profit_waterfall_vnd?: N;
-  readonly profit_detail_label?: string;
-  readonly profit_detail_orders?: number;
-  readonly profit_detail_gmv_share_pct?: N;
+  /** "trên N đơn có chi phí, X % GMV" */
+  readonly coverage_label?: string;
+  readonly known_cost_orders?: number;
+  readonly known_cost_gmv_share_pct?: N;
   readonly profit_on_covered_vnd: N;
   readonly margin_pct: N;
   readonly margin_basis: string;
@@ -240,8 +249,12 @@ export interface Overview {
     readonly ctor: Kpi;
     readonly aov: Kpi;
     readonly orders: Kpi;
+    /** P100 B.6: Tổng lợi nhuận, the one shop profit with its coverage line. */
+    readonly profit?: Kpi & { readonly label: string };
     readonly margin_pct: MarginKpi;
   };
+  /** P100 B.5: the one shop profit of the window (absent before P100). */
+  readonly shop_profit?: ShopProfitFigure;
   readonly gmv: {
     readonly shopee_gmv: N;
     readonly shopee_orders: N;
@@ -308,10 +321,20 @@ export interface MatrixProduct {
     readonly assumed_cost: boolean;
   } | null;
   readonly flows: ProductFlows | null;
+  /** P100 A.6: the product's own funnel from Shopee's product table (the Sản phẩm + luồng source). */
+  readonly traffic?: ProductTraffic | null;
   readonly levers: readonly LeverRow[];
   readonly ads: ProductAds;
   /** Optional: the Quyết định card the product has, when the card pipeline provides one. */
   readonly card?: CardRef | null;
+}
+
+export interface ProductTraffic {
+  readonly views: N;
+  readonly clicks: N;
+  readonly orders: number;
+  readonly source: string;
+  readonly label: string;
 }
 
 export interface CardRef {

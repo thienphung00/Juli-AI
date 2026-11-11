@@ -149,33 +149,37 @@ def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
 
 
 def combo_option(spec: sp.ComboSpec, facts: ComboFacts) -> OptionInput:
-    # E2: orders within 20 % (at least one unit) under the tier reach it, measured from the order
-    # lines; the 0 / 20 / 50 % prior on them only when there are too few orders
-    moving: tuple[Decimal, ...]
-    if facts.reach is not None:
-        moving = (facts.reach.p10, facts.reach.p50, facts.reach.p90)
-        units = facts.reach_units
-        reach_basis: Basis = "measured"
-    else:
-        moving = tuple(r * facts.near_share for r in common.REACH)
-        units = ONE
-        reach_basis = "prior"
-    aov = None
-    if facts.aov_now:
-        aov = Band(*(m * units * facts.unit_price / facts.aov_now for m in moving))
+    """E2: orders within 20 % (at least one unit) under the tier reach it, measured from the
+    order lines. P100-C (B.10): with too few orders to measure that reach the option is cost and
+    break-even only ("chưa ước tính được") -- the buyers who already qualify get the discount
+    (its cost); no prior reach ("ước tính chung") is ever passed off as an estimate. The cost
+    per use is the discount net of the % fees it saves (J: fees are on the post-combo total)."""
+    label = _label(spec, spec.name or "Combo khuyến mãi")
+    per_use = facts.per_use * (ONE - facts.fee_rate)
+    if facts.reach is None or not facts.aov_now:
+        now = facts.use_share_now
+        return OptionInput(
+            kind="bundle_deal",
+            label=label,
+            drivers=(
+                DriverEffect("aov", ALL_SOURCES, "not_estimable", note=common.NOTE_COMBO_REACH),
+            ),
+            duration_days=spec.days,
+            offers=(OfferCost(per_use, point(now), None, "giảm giá combo"),),
+        )
+    moving = (facts.reach.p10, facts.reach.p50, facts.reach.p90)
+    units = facts.reach_units
+    aov = Band(*(m * units * facts.unit_price / facts.aov_now for m in moving))
     use = Band(*(clamp01(facts.use_share_now + m) for m in moving))
-    drivers = []
-    if aov is not None:
-        drivers.append(DriverEffect("aov", ALL_SOURCES, reach_basis, lift=aov))
-    drivers.append(
-        DriverEffect("ctor", ALL_SOURCES, "prior", lift=band3(common.CTOR_VISIBLE_OFFER))
-    )
     return OptionInput(
         kind="bundle_deal",
-        label=_label(spec, spec.name or "Combo khuyến mãi"),
-        drivers=tuple(drivers),
+        label=label,
+        drivers=(
+            DriverEffect("aov", ALL_SOURCES, "measured", lift=aov),
+            DriverEffect("ctor", ALL_SOURCES, "prior", lift=band3(common.CTOR_VISIBLE_OFFER)),
+        ),
         duration_days=spec.days,
-        offers=(OfferCost(facts.per_use, use, None, "giảm giá combo"),),
+        offers=(OfferCost(per_use, use, None, "giảm giá combo"),),
     )
 
 
@@ -341,6 +345,7 @@ def simple_option(spec: sp.VersionSpec, facts: SimpleFacts) -> OptionInput:
         label=_label(spec, label),
         drivers=tuple(drivers),
         duration_days=None,
+        offers=facts.offers,
         profit_per_order_after=facts.profit_per_order_after,
     )
 

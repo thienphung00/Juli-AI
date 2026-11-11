@@ -298,9 +298,12 @@ async def test_a_plan_with_no_estimable_card_still_answers(session, shop, monkey
     monkeypatch.setattr(pa, "spec_of_candidate", lambda *a, **k: None)
     agg = await _plan_of(session, seeded, env, _discount(15))
     assert agg["not_estimable_cards"] == [agg["cards"][0]["card_id"]]
-    assert agg["dprofit_month"]["total"]["p50"] == 0.0
-    assert agg["after"]["gmv_30d"] == agg["today"]["gmv_30d"]
-    assert agg["totals_partial"] is True and agg["totals_note"]
+    # P100-C (B.10): no estimable card -> the plan's Δ is unknown, never the empty sum's 0
+    assert agg["dprofit_month"]["total"]["p50"] is None
+    assert agg["dgmv_month"]["total"]["p50"] is None
+    assert agg["after"]["gmv_30d"] is None
+    assert agg["totals_estimable"] is False
+    assert agg["totals_partial"] is True and "Chưa ước tính được" in agg["totals_note"]
 
 
 GIFT_SPEC = sp.GiftSpec(

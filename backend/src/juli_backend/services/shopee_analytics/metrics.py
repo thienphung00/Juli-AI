@@ -118,6 +118,18 @@ class ShopMetrics:
     #: where views / clicks come from (P98 / ADR-122 d.2): "source_funnel" = the stored funnel
     #: per source, "flow_tables" = the traffic tables (before the source rows exist)
     funnel_basis: str = "flow_tables"
+    #: P100-A (B.17): the window's days whose order data arrived (the only days in the totals)
+    days_with_data: int | None = None
+
+    def coverage(self) -> dict[str, Any]:
+        """ "N/30 ngày có dữ liệu": the one coverage every surface of this window shows."""
+        days = self.window.days
+        n = self.days_with_data
+        return {
+            "days_with_data": n,
+            "window_days": days,
+            "label": None if n is None else f"{n}/{days} ngày có dữ liệu",
+        }
 
     # ------------------------------------------------------------------ derived
     @property
@@ -182,6 +194,7 @@ class ShopMetrics:
             "read_from": self.read_from,
             "sources": dict(self.sources),
             "split_note": SPLIT_NOTE,
+            "coverage": self.coverage(),
         }
 
 
@@ -252,13 +265,28 @@ def _splits(
     if total <= 0:
         return {}, None, None
     shares = allocate(gmv, weights) if gmv is not None else weights
+    scale = gmv / total if gmv is not None else None
     out = {
         i: ProductSplit(
-            i, shares[i], int(shopee[i][1]), 0, weights[i], int(shopee[i][1]), SPLIT_PRODUCT_PERIOD
+            i,
+            shares[i],
+            _period_orders(int(shopee[i][1]), scale, orders),
+            0,
+            weights[i],
+            int(shopee[i][1]),
+            SPLIT_PRODUCT_PERIOD,
         )
         for i in weights
     }
-    return out, (gmv / total if gmv is not None else None), None
+    return out, scale, None
+
+
+def _period_orders(period_orders: int, scale: Decimal | None, shop_orders: int | None) -> int:
+    """P100-A (A.3): a product's đơn from a Shopee period that is not the window's -- scaled like
+    its GMV (the window's share of the period, so its AOV stays the period's) and never more
+    than the shop's đơn. The period total used to be stamped on the window unscaled."""
+    got = period_orders if scale is None else _round(Decimal(period_orders) * scale)
+    return got if shop_orders is None else min(got, shop_orders)
 
 
 def _round(value: Decimal) -> int:
@@ -297,7 +325,9 @@ def shop_metrics(
     views, clicks = _funnel(view)
     daily = view.data.ads_daily
     p = view.profit
-    profit = p.profit if p.profit is not None else p.profit_on_covered
+    profit: Decimal | None = p.profit if p.profit is not None else p.profit_on_covered
+    if p.profit is None and p.buyer_paid_covered <= 0 and (orders or p.buyer_paid > 0):
+        profit = None  # P100-A (A.2): orders whose cost is unknown have no profit, never 0
     if profit is not None and scale is not None and view.line_gmv > 0:
         profit = profit * scale
     totals_ok = view.data.totals.gmv is not None and gmv == view.data.totals.gmv
@@ -323,6 +353,7 @@ def shop_metrics(
         unattributed_gmv=(gmv - sum((x.gmv for x in splits.values()), ZERO))
         if gmv is not None
         else ZERO,
+        days_with_data=_raw_days(view) if orders is not None else 0,
         sources={
             "gmv": gmv_tag,
             "orders": gmv_tag,
@@ -331,6 +362,15 @@ def shop_metrics(
             else "order_lines",
         },
     )
+
+
+def _raw_days(view: PeriodView) -> int:
+    """The raw tables' count of days with order data: Shopee's daily totals, else the days with
+    order lines (a period file covers the window)."""
+    t = view.data.totals
+    if t.basis in ("daily", "period"):
+        return view.window.days
+    return max(t.days_covered, view.data.lines.days_with_orders)
 
 
 def from_stored(view: PeriodView, stored: StoredWindow) -> ShopMetrics:
@@ -379,6 +419,7 @@ def from_stored(view: PeriodView, stored: StoredWindow) -> ShopMetrics:
         unattributed_gmv=stored.residual_gmv,
         read_from="tables",
         sources=dict(stored.sources),
+        days_with_data=stored.days_with_data,
     )
 
 

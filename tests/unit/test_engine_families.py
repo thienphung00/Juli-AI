@@ -174,17 +174,27 @@ def combo_spec():
 
 
 def combo_facts():
-    return ComboFacts(D(100_000), D(20_000), D(4000), D("0.15"), D("0.3"), D(50_000))
+    # P100-C (B.10): a combo estimates only with a measured reach (no 0 / 20 / 50 % prior)
+    return ComboFacts(
+        D(100_000),
+        D(20_000),
+        D(4000),
+        D("0.15"),
+        D("0.3"),
+        D(50_000),
+        reach=Band(D("0.05"), D("0.1"), D("0.15")),
+    )
 
 
 def test_combo_drivers_and_cost_on_every_tier_order():
     o = combo_option(combo_spec(), combo_facts())
     assert [d.metric for d in o.drivers] == ["aov", "ctor"]
+    assert o.drivers[0].basis == "measured"
     assert all(d.sources == ALL_SOURCES for d in o.drivers)
     offer = o.offers[0]
     assert offer.per_use == D(4000)
-    assert offer.use_share.p10 == D("0.15")  # orders that already bought that many are counted
-    assert offer.use_share.p90 == D("0.15") + D("0.5") * D("0.3")
+    assert offer.use_share.p10 == D("0.15") + D("0.05")  # today's tier orders + who moves up
+    assert offer.use_share.p90 == D("0.15") + D("0.15")
 
 
 def test_combo_end_to_end():

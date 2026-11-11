@@ -350,6 +350,8 @@ def kpi_block(now: PeriodView, before: PeriodView, product_id: str) -> dict[str,
         clicks = sum((r.clicks or 0) for r in flows) or None
     gmv, orders = row["gmv"], row["orders"]
     comparable = before.comparable_as_previous
+    if not comparable:  # P100-A (A.3): never a previous figure the period cannot be compared to
+        prev = {**prev, "gmv": None, "orders": None}
     five = five_json(five_for(now, before, None, product_id), comparable=comparable)
     return {
         "gmv": {
@@ -370,6 +372,7 @@ def kpi_block(now: PeriodView, before: PeriodView, product_id: str) -> dict[str,
         "aov": num(safe_div(Decimal(str(gmv)), Decimal(orders))) if gmv and orders else None,
         "profit": row["profit"],
         "five_numbers": five,
+        "coverage": now.metrics.coverage(),
         "basis": {
             "gmv": row["gmv_basis"],
             "flows": now.data.product_flows.flows_basis.json(),
