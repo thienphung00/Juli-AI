@@ -219,6 +219,7 @@ def build_matrix(
         "platform": "shopee",
         "order_basis": {"key": "confirmed", "label": "Đơn đã xác nhận"},
         "window": view.window.json(),
+        "coverage": view.metrics.coverage(),
         "sort": sort,
         "products": rows,
         "product_count": total,

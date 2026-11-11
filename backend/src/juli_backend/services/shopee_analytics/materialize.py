@@ -330,7 +330,9 @@ def day_rows(
         if item_id in traffic_spread:
             views, clicks = traffic_spread[item_id].views, traffic_spread[item_id].clicks
         pp = p.products.get(item_id)
-        profit = pp.profit if pp is not None else None
+        # P100-A (A.2): a product with an order whose cost is unknown has no day profit (NULL,
+        # out of the funnel's profit coverage), never the known part or 0
+        profit = pp.profit if pp is not None and not (pp.buyer_paid > 0 and pp.is_partial) else None
         if profit is not None and m.gmv_scale is not None and view.line_gmv > 0:
             profit = profit * m.gmv_scale
         product_profit[item_id] = profit
@@ -596,8 +598,16 @@ async def after_ingest(
 
 
 async def data_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
-    """Every day the shop has order lines or daily Shopee rows for."""
+    """Every day the shop has order lines or daily Shopee rows for, plus (P100-A, A.3) every day
+    that already has a stored row: a day built by an ingest hook over a range but holding no data
+    of its own (rows stamped before the P99 spread) is rewritten too, never left stale."""
     out: set[date] = set()
+    built = await session.execute(
+        select(ShopeeProductMetricsDaily.day)
+        .where(ShopeeProductMetricsDaily.shop_id == shop_id)
+        .distinct()
+    )
+    out.update(built.scalars().all())
     lines = await session.execute(
         select(ShopeeOrderLine.ordered_at).where(ShopeeOrderLine.shop_id == shop_id)
     )
