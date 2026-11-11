@@ -45,7 +45,7 @@ from juli_backend.models.shopee_metrics import (
     ShopeeShopMetricsDaily,
     ShopeeSourceMetricsDaily,
 )
-from juli_backend.services.shopee_analytics.stored import ORDER_TYPE
+from juli_backend.services.shopee_analytics.stored import ORDER_TYPE, capped, known_profit
 from juli_backend.services.shopee_analytics.windows import Window, resolve_window
 from juli_backend.services.shopee_builder.engine.contract import (
     RESIDUAL,
@@ -183,8 +183,10 @@ async def load_rows(session: AsyncSession, shop_id: uuid.UUID, window: Window) -
     no_data = {r.day for r in shop if r.orders is None}
     src = [r for r in src if r.day not in no_data]
     shop = [r for r in shop if r.day not in no_data]
-    with_data = {r.day for r in shop}
+    with_data = {r.day: r for r in shop}
     prod = [r for r in prod if r.day in with_data]
+    # a product never out-sells its shop on a day (stale pre-P99 period stamps, A.3)
+    held = {id(r): capped(r.orders or 0, r.gmv or ZERO, with_data[r.day]) for r in prod}
     return FunnelRows(
         window,
         tuple(
@@ -211,7 +213,7 @@ async def load_rows(session: AsyncSession, shop_id: uuid.UUID, window: Window) -
                 None,
                 r.orders or 0,
                 r.gmv or ZERO,
-                None if (r.detail or {}).get("profit_partial") else r.profit,
+                None if (r.detail or {}).get("profit_partial") else known_profit(r),
             )
             for r in shop
         ),
@@ -219,8 +221,8 @@ async def load_rows(session: AsyncSession, shop_id: uuid.UUID, window: Window) -
             ScopeDay(
                 r.day,
                 r.item_id,
-                r.orders or 0,
-                r.gmv or ZERO,
+                held[id(r)][0],
+                held[id(r)][1],
                 r.profit,
                 r.views,
                 r.clicks,

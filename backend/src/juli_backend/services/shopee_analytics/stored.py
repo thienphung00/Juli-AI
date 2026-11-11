@@ -164,7 +164,7 @@ async def load_stored(
     )
     products: dict[str, StoredProduct] = {}
     residual = ZERO
-    capped = 0
+    n_capped = 0
     for p in prows:
         day = shop_day.get(p.day)
         if day is None:  # no order data that day: a stale stamp, never part of a window
@@ -172,8 +172,8 @@ async def load_stored(
         if p.item_id == RESIDUAL_ITEM:
             residual += p.gmv
             continue
-        orders, gmv = _capped(p.orders, p.gmv, day)
-        capped += (orders, gmv) != (p.orders, p.gmv)
+        orders, gmv = capped(p.orders, p.gmv, day)
+        n_capped += (orders, gmv) != (p.orders, p.gmv)
         acc = products.setdefault(p.item_id, StoredProduct(p.item_id))
         acc.gmv += gmv
         acc.orders += orders
@@ -204,7 +204,7 @@ async def load_stored(
         clicks=_isum([r.product_clicks for r in rows]),
         ads_spend=_sum([r.ads_spend for r in rows]),
         ads_gmv=_sum([r.ads_gmv for r in rows]),
-        profit=_sum([r.profit for r in rows]),
+        profit=_sum([known_profit(r) for r in rows]),
         margin_profit=_sum([r.margin_profit for r in rows]),
         buyer_paid_known=_sum([r.buyer_paid_known for r in rows]),
         line_gmv=_sum([r.line_gmv for r in rows]),
@@ -216,11 +216,20 @@ async def load_stored(
         sources=sources,
         days=frozenset(r.day for r in all_rows),
         data_days=frozenset(shop_day),
-        capped_rows=capped,
+        capped_rows=n_capped,
     )
 
 
-def _capped(orders: int, gmv: Decimal, shop: ShopeeShopMetricsDaily) -> tuple[int, Decimal]:
+def known_profit(row: ShopeeShopMetricsDaily) -> Decimal | None:
+    """P100-A (A.2): a stored day's profit, None when the day has orders but no costed line
+    (``buyer_paid_known`` empty): rows built before the fix hold -ads_spend there, never a
+    profit of the day's orders."""
+    if row.orders and not row.buyer_paid_known:
+        return None
+    return row.profit
+
+
+def capped(orders: int, gmv: Decimal, shop: ShopeeShopMetricsDaily) -> tuple[int, Decimal]:
     """P100-A (A.3): a product never out-sells its shop on a day. Rows built before the P99
     spread (period totals stamped on one day) are held to the shop's đơn / GMV of that day."""
     if shop.orders is not None and orders > shop.orders:

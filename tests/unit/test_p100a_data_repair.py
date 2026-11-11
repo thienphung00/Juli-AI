@@ -240,3 +240,49 @@ async def test_a_previous_window_that_cannot_be_compared_shows_no_previous_numbe
     assert block["gmv"]["previous"] is None and block["gmv"]["change_pct"] is None
     assert block["coverage"]["label"] == "8/10 ngày có dữ liệu"
     assert build_matrix(now)["coverage"]["days_with_data"] == 8
+
+
+async def test_a_zero_order_shop_day_never_keeps_the_period_counts_of_a_product(session, shop_id):
+    """The prod shape (days before the Connector's daily totals): the shop's day says 0 đơn / 0đ
+    while a product's period file covers the day; the product row used to keep the period's đơn
+    unscaled (GMV 0)."""
+    day = REAL_ZERO
+    session.add(
+        period_row(
+            shop_id, "product_period", day - timedelta(days=20), day + timedelta(days=9),
+            item_id="9003", gmv=Decimal(2_000_000), orders=Decimal(83),
+        )
+    )  # fmt: skip
+    await session.flush()
+    await materialize.rebuild_days(session, shop_id, [day])
+    row = (await _product_rows(session, shop_id, "9003")).get(day)
+    assert row is None or row.orders == 0
+    # a row stored before the fix is read as the shop's 0, not 83
+    await session.execute(
+        ShopeeProductMetricsDaily.__table__.update()
+        .where(
+            ShopeeProductMetricsDaily.shop_id == shop_id,
+            ShopeeProductMetricsDaily.day == day,
+            ShopeeProductMetricsDaily.item_id == "__residual__",
+        )
+        .values(item_id="9003", orders=83, gmv=Decimal(0), source="file")
+    )
+    session.expire_all()
+    sw = await stored.load_stored(session, shop_id, Window(day, day))
+    assert sw is not None and sw.products["9003"].orders == 0
+    rows = await funnel.load_rows(session, shop_id, Window(day, day))
+    assert all(d.orders == 0 for d in rows.product_days if d.item_id == "9003")
+
+
+async def test_a_stored_day_with_orders_and_no_costed_line_is_no_profit_on_read(session, shop_id):
+    """Rows built before the fix hold profit = -ads_spend on such a day."""
+    await session.execute(
+        ShopeeShopMetricsDaily.__table__.update()
+        .where(ShopeeShopMetricsDaily.shop_id == shop_id, ShopeeShopMetricsDaily.day == NO_LINES)
+        .values(profit=Decimal("-35670.55"), buyer_paid_known=None)
+    )
+    session.expire_all()
+    sw = await stored.load_stored(session, shop_id, Window(NO_LINES, NO_LINES))
+    assert sw is not None and sw.orders == SHOP_ORDERS and sw.profit is None
+    rows = await funnel.load_rows(session, shop_id, Window(NO_LINES, NO_LINES))
+    assert all(d.profit is None for d in rows.shop_days)
