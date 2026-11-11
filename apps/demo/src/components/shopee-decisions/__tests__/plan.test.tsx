@@ -129,11 +129,17 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     expect(screen.queryByTestId("kh-hard")).toBeNull();
     fireEvent.click(within(win).getByRole("radio", { name: /7 ngày cho cả kế hoạch/ }));
     await waitFor(() => expect(api.calls.find((c) => c.name === "setWindow")?.args).toEqual([7]));
-    fireEvent.click(within(win).getByRole("button", { name: "Tăng số ngày" }));
+    // every control is disabled while a call is in flight: wait for it to be enabled, or a slow
+    // runner drops the click (deploy fasttrack-deploy-20261111T1203Z saw [11] instead of [null])
+    const clickEnabled = async (el: HTMLElement) => {
+      await waitFor(() => expect(el).toBeEnabled());
+      fireEvent.click(el);
+    };
+    await clickEnabled(within(win).getByRole("button", { name: "Tăng số ngày" }));
     await waitFor(() => expect(api.calls.filter((c) => c.name === "setWindow").at(-1)!.args).toEqual([11]));
-    fireEvent.click(within(win).getByRole("radio", { name: /Tự động theo sản phẩm/ }));
+    await clickEnabled(within(win).getByRole("radio", { name: /Tự động theo sản phẩm/ }));
     await waitFor(() => expect(api.calls.filter((c) => c.name === "setWindow").at(-1)!.args).toEqual([null]));
-    fireEvent.click(within(screen.getByTestId("kh-set-GT-A")).getByRole("button", { name: "14 ngày" }));
+    await clickEnabled(within(screen.getByTestId("kh-set-GT-A")).getByRole("button", { name: "14 ngày" }));
     await waitFor(() => expect(api.calls.filter((c) => c.name === "setWindow").at(-1)!.args).toEqual([14, "GT-A"]));
   });
 
