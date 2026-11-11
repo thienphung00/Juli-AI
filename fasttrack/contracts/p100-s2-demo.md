@@ -54,6 +54,67 @@ ORY; synthetic data only in the repo; the owner runs every prod command).
   ORY, not here).
 - Reviewer reaches the shop through the existing reviewer login, as an extra pin.
 
+## S2-A result — synthetic shop generator + loader (2026-11-11)
+
+Code: `scripts/sample_shop/` (`catalog.py` products and id range, `generator.py` pure/deterministic,
+`loader.py` CLI). Owner change applied: **30 days** ending at `--end-date`, every day present.
+
+**Reserved id range.** `shopee_shop_id` 990000000000..990000000999 (12 digits; real Shopee ids
+have at most 10), default `990000000001` (`catalog.SAMPLE_SHOPEE_SHOP_ID*`). The loader writes only
+a shop in this range, platform shopee, with no TikTok credential / ingest token /
+`production_write_shops` row. Fujiwa `2b1da87b-…` and sandbox `1862f13b-…` are refused by id. A
+remote database host needs `--allow-remote-database`. Shop name "Dữ liệu mẫu"; `service` consent.
+
+**Datasets generated (Connector-shaped `IngestBody`, source `extension`, VND, rates as fractions):**
+`item_catalog`, `item_snapshot` (2 captures), `order_lines` + `order_income` (income for orders
+older than 4 days), `shop_overview` / `shop_traffic` / `traffic_overview` (confirmed; plus the ads
+row, placed), `item_traffic_sources` (per product x stream x Thẻ-sản-phẩm child, confirmed),
+`ads_campaign_daily` (2 campaigns, placed) + `ads_campaign_period`, `promotion_daily` and
+`promotions` (one running Combo Khuyến Mãi, 2 tiers: buy 2 -5 %, buy 3 -10 %, the tiers in `extra`
+numbers because the gateway stores none). Giá vốn per variation through `shop_inputs.write_versions`
+(`sku_cost`, scope `item:model`; a "Combo 3" variation carries the single item's cost, the engine
+multiplies by the pack count in the name).
+
+**Run.**
+```
+python -m scripts.sample_shop --end-date 2026-11-10 --dry-run --out /tmp/sample   # JSONL only
+python -m scripts.sample_shop --end-date 2026-11-10 --database-url postgresql://…@127.0.0.1/db
+```
+`--end-date` must not be after today (GMT+7). Re-running finds the shop by its reserved id and
+re-posts identical bodies (all `duplicate`), so it is idempotent. The loader skips the gateway's
+per-post materialize hook and runs `backfill_shop` once at the end (same rows, 13x less work).
+
+**No earlier period.** The sample shop has only 30 days, so "30 ngày trước" is empty. Backend: the
+overview/matrix payloads carry `warnings: [previous_period_thin]` ("Kỳ trước chưa đủ dữ liệu đơn
+hàng để so sánh: các mức tăng / giảm so với kỳ trước được ẩn."), every `kpi_strip.*.previous` and
+`change_pct` is `null`. Nothing errors. The product page's 7-day compare still works (the prior 7
+days are inside the 30). Whether the web shows no arrow or a dash is a front-end behaviour not
+checked here.
+
+### S2-A follow-up: Quyết định cards (2026-11-11)
+`scripts/sample_shop/decisions.py`, run by the loader after the backfill, only while the shop has
+no proposal (idempotent). Every step uses the app's services with the time it would have happened
+(`manual.create_manual`, `service.decide`, `mark_executed`, `change_sets.set_window`,
+`verification.verify_shop`, `measure.read_change_sets`, `generate_cards`, `publish`); no number is
+written. State after a load on `--end-date` e:
+- **Đo lường, finished**: a Voucher (8k, đơn từ 150k, product 1) built e-16, started e-15; its 7-day
+  window closed e-8. The generator counts the voucher's use from the simulated orders
+  (`shop_voucher_share`, top-up of baskets), posts `voucher_settings` + a `promotions` Voucher row
+  with `usage_rate`/`voucher_cost`; `impact_final` (ratio DiD on the product's daily AOV) is read from
+  the rows. Window is e-15..e-8, not e-22..e-9: the reading needs 14 days before the change and the
+  history has 30. Confidence is "thấp" (`no_controls`: too few comparable products).
+- **Đo lường, counting down**: a Tiêu đề (product 4, fixed string `catalog.NEW_TITLE`) applied e-5,
+  verified from `item_catalog`, 7-day window open. Old/new title are also in two
+  `platform_item_snapshots` rows (the gateway's `item_snapshot` has no title column).
+- **Đang thực hiện**: the engine's Ảnh bìa card on product 6, approved, not done yet.
+- **Đề xuất**: engine cards as of e: Tiêu đề (product 2, keyword seed "khăn lau bếp"), Ảnh bìa
+  (product 5), Voucher (product 3, positive only because the past voucher gives a usage rate), plus
+  other kinds S2-C filters out.
+Front-end gaps for S2-C: `tabOfCard` puts a *verified executed* card in Đo lường and maps status
+`measured` (window closed) to `null`, so the finished voucher is in no tab until `measured` maps to
+`do-luong`; the running title is the one in Đo lường today. Đang thực hiện shows only approved or
+unverified-executed cards, so the "applied title" cannot sit there once its change is read back.
+
 ## Owner decisions 2026-11-11 (after the contract)
 - **Reviewer pins = sample shop (default) + TikTok sandbox. Fujiwa is dropped** from
   `REVIEWER_SHOP_IDS` (prod env change, no code). No client data reaches the ISV reviewer,
