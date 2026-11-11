@@ -32,6 +32,13 @@ from tests.support.postgres import owner_sync_engine, requires_postgres
 
 pytestmark = [requires_postgres, pytest.mark.migration_heavy]
 
+
+@pytest.fixture(scope="module", autouse=True)
+def _database_at_head(owner_engine):
+    """Its own database (``tests/conftest.py`` lists the module): migrated by ``owner_engine``."""
+    yield
+
+
 SECRET = "reviewer-sample-writes-secret-0123456789"
 END = date(2026, 11, 10)
 NOW = datetime(2026, 11, 11, 3, 0)

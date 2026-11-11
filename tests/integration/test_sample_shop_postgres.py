@@ -13,6 +13,7 @@ from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -31,6 +32,13 @@ from scripts.sample_shop.generator import DAYS, generate
 from tests.support.postgres import requires_postgres
 
 pytestmark = [requires_postgres]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _database_at_head(owner_engine):
+    """Its own database (``tests/conftest.py`` lists the module): migrated by ``owner_engine``."""
+    yield
+
 
 END = date(2026, 11, 10)
 NOW = datetime(2026, 11, 11, 3, 0)

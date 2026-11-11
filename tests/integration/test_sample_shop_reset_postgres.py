@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 from datetime import date, datetime
 
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -19,6 +20,13 @@ from scripts.sample_shop.generator import generate
 from tests.support.postgres import requires_postgres
 
 pytestmark = [requires_postgres]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _database_at_head(owner_engine):
+    """Its own database (``tests/conftest.py`` lists the module): migrated by ``owner_engine``."""
+    yield
+
 
 END = date(2026, 11, 10)
 NOW = datetime(2026, 11, 11, 3, 0)
