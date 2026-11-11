@@ -340,6 +340,11 @@
    "aov_seller_centre": 84105.26,
    "aov_seller_centre_label": "AOV theo Seller Centre (GMV trừ voucher shop ÷ đơn)",
    "clicks": 980,
+   "coverage": {
+    "days_with_data": 14,
+    "label": "14/30 ngày có dữ liệu",
+    "window_days": 30
+   },
    "ctor": 0.071429,
    "ctor_note": "CTOR = đơn (theo Tổng quan) ÷ lượt nhấp",
    "ctr": 0.063636,
@@ -350,11 +355,22 @@
    "gmv_scale": 2.401747,
    "line_gmv": 1603000,
    "line_orders": 19,
-   "margin_pct": 27.4,
+   "margin_pct": 37.1,
    "orders": 70,
-   "profit": 378583.78,
+   "profit": 570822,
    "profit_is_partial": true,
    "read_from": "tables",
+   "shop_profit": {
+    "ads_basis": "daily",
+    "ads_charged": 100000,
+    "gmv": 1549000,
+    "gmv_share_pct": 40.2,
+    "label": "trên 18 đơn có chi phí, 40,2 % GMV",
+    "margin_pct": 37.1,
+    "net_revenue": 1539000,
+    "orders": 18,
+    "profit": 570822
+   },
    "sources": {
     "ads_spend": "file",
     "clicks": "source_funnel",
@@ -873,6 +889,11 @@
    "aov_seller_centre": 88538.46,
    "aov_seller_centre_label": "AOV theo Seller Centre (GMV trừ voucher shop ÷ đơn)",
    "clicks": 490,
+   "coverage": {
+    "days_with_data": 7,
+    "label": "7/7 ngày có dữ liệu",
+    "window_days": 7
+   },
    "ctor": 0.071429,
    "ctor_note": "CTOR = đơn (theo Tổng quan) ÷ lượt nhấp",
    "ctr": 0.063636,
@@ -883,11 +904,22 @@
    "gmv_scale": 1.665225,
    "line_gmv": 1156000,
    "line_orders": 13,
-   "margin_pct": 38.3,
+   "margin_pct": 35.4,
    "orders": 35,
-   "profit": 492921.02,
+   "profit": 386889,
    "profit_is_partial": true,
    "read_from": "tables",
+   "shop_profit": {
+    "ads_basis": "daily",
+    "ads_charged": 100000,
+    "gmv": 1102000,
+    "gmv_share_pct": 57.2,
+    "label": "trên 12 đơn có chi phí, 57,2 % GMV",
+    "margin_pct": 35.4,
+    "net_revenue": 1092000,
+    "orders": 12,
+    "profit": 386889
+   },
    "sources": {
     "ads_spend": "file",
     "clicks": "source_funnel",
