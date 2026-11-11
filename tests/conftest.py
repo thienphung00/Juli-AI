@@ -369,6 +369,13 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: P90 step 4 seeds two Shopee tenants and writes rule versions as
         # juli_app (the versioned import: history + projection in one transaction).
         "test_shop_inputs_db.py",
+        # Reason 2 again: P100 S2 loads THE sample shop (one fixed reserved shopee_shop_id, the
+        # loader re-uses it and skips the cards once seeded). On a shared database a module that
+        # approves a card (sample writes) leaves it approved for the next (end to end), and the
+        # reset module deletes the shop's rows under both.
+        "test_sample_shop_postgres.py",
+        "test_reviewer_sample_writes_postgres.py",
+        "test_sample_shop_reset_postgres.py",
     }
 )
 
