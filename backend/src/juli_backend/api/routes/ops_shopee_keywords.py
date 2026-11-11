@@ -7,8 +7,10 @@ Mounted beside ``api/routes/ops.py`` under ``/v1/ops`` with the same auth depend
   combinations, latest metrics, weekly volume, related keywords, coverage, and products with
   no keyword above ``min_volume`` (title-proposal candidates).
 - ``POST /v1/ops/shops/{id}/shopee/keywords/seeds/generate`` (Vận hành) -- "Tạo từ khóa từ
-  tiêu đề": decompose the shop's item titles into ``shop_keyword_seeds``. Audited
-  ``keyword_seeds_generate``.
+  tiêu đề": decompose the shop's item titles into ``shop_keyword_seeds`` and, when the shop's
+  gated model is available, refine them with one call (P100-G; "từ gần nghĩa" come back in
+  ``near_keywords`` and are stored disabled). Audited ``keyword_seeds_generate`` with a
+  ``titles_hash``: the same titles after a model run are not sent again.
 - ``PUT  /v1/ops/shops/{id}/shopee/keywords/seeds/{seed_id}`` (Vận hành) -- keep or drop one
   combination (``enabled``). Audited ``keyword_seed_toggle``.
 - ``POST /v1/ops/market/keyword-metrics`` (Vận hành) -- the owner's weekly upload of
@@ -35,6 +37,8 @@ from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services import shop_keywords
 from juli_backend.services.ops import audit
+from juli_backend.services.shop_keywords import llm_seeds
+from juli_backend.services.shopee_builder import llm
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 
@@ -89,8 +93,26 @@ async def ops_generate_keyword_seeds(
     await _shopee_shop(session, shop_id)
     brand = ((body.brand or "").strip() or None) if body else None
     async with with_shop_scope(session, shop_id):
+        titles = await shop_keywords.seeds.shop_titles(session, shop_id, PLATFORM)
+    digest = llm_seeds.titles_hash(titles, brand)
+    if await _already_refined(session, shop_id, digest):
+        return {"skipped": "titles_unchanged", "titles": len(titles), "titles_hash": digest}
+    async with with_shop_scope(session, shop_id):
+        client: llm.LLMClient | None = None
+        reason: str | None = None
+        try:
+            client = await llm.gated_client(session, shop_id)
+        except llm.LLMUnavailable as exc:
+            reason = exc.reason
         result = await shop_keywords.generate(
-            session, shop_id, PLATFORM, brand=brand, staff_id=ctx.staff.id, now=_now()
+            session,
+            shop_id,
+            PLATFORM,
+            brand=brand,
+            staff_id=ctx.staff.id,
+            now=_now(),
+            client=client,
+            llm_reason=reason,
         )
     after = {
         "titles": result.titles,
@@ -98,12 +120,25 @@ async def ops_generate_keyword_seeds(
         "created": result.created,
         "updated": result.updated,
         "brand_given": brand is not None,
+        "titles_hash": result.titles_hash,
+        "llm_used": result.llm_used,
+        "llm_reason": result.llm_reason,
+        "near": len(result.near),
     }
     await audit.record(
         session, ctx.staff.actor, ACTION_SEEDS_GENERATE, shop_id=shop_id, after=after
     )
     await session.commit()
-    return after
+    return {**after, "near_keywords": list(result.near)}
+
+
+async def _already_refined(session: AsyncSession, shop_id: uuid.UUID, digest: str) -> bool:
+    """The last generation used the model on these very titles: nothing to ask again."""
+    entries = await audit.list_entries(session, shop_id=shop_id, limit=50)
+    for entry in entries:
+        if entry.action == ACTION_SEEDS_GENERATE and isinstance(entry.after, dict):
+            return bool(entry.after.get("llm_used")) and entry.after.get("titles_hash") == digest
+    return False
 
 
 @router.put("/shops/{shop_id}/shopee/keywords/seeds/{seed_id}")
