@@ -164,3 +164,14 @@ unverified-executed cards, so the "applied title" cannot sit there once its chan
   shop outside the reserved `shopee_shop_id` range; then the route `POST /v1/reviewer/sample-shop/reset`
   (sample pin only, 1/min per pin, audited) calls it and `seed.seed_all`.
 
+## Reset: owner decision (c), 2026-11-11
+- No migration, no route, no banner button: `juli_app` keeps no DELETE (append-only tables stay so).
+- Operator command on the owner connection: `python -m scripts.sample_shop --reset --database-url
+  "$DATABASE_DIRECT_URL" --allow-remote-database` previews (per-table counts, rolled back); add
+  `--yes` to delete and re-seed (`scripts/sample_shop/reset.py`, then the normal load).
+- Tables come from the live catalogue (every `shop_id` table + `shop_id`-less FK children), FK-safe
+  order, one transaction, only the one shop; refused unless `check_target` passes (reserved range,
+  no credential, never Fujiwa/sandbox). Kept: `shops` row (id stays in `REVIEWER_SHOP_IDS`),
+  consent, membership + invites, `ops_audit_log`, settings, pseudonym keys, subscription, LLM log.
+- Run before each Shopee review. Tests: `tests/unit/test_sample_shop_reset.py` (plan + ORM schema),
+  `tests/integration/test_sample_shop_reset_postgres.py` (wipe → reload restores the cards).

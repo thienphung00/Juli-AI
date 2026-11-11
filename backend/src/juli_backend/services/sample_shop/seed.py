@@ -1,8 +1,9 @@
 """Quyết định for the sample shop: cards in every tab, made through the app's own services.
 
-Moved from ``scripts/sample_shop/decisions.py`` (P100 S2-G) so the API's "Đặt lại dữ liệu mẫu"
-(:mod:`juli_backend.services.sample_shop.reset`) re-seeds exactly what the loader seeds, without
-importing ``scripts/``. The loader keeps its own session handling and calls the steps below.
+Moved from ``scripts/sample_shop/decisions.py`` (P100 S2-G) so any backend caller re-seeds exactly
+what the loader seeds, without importing ``scripts/``. The reset itself is an operator command
+(``python -m scripts.sample_shop --reset``, owner decision (c)): no API route.
+The loader keeps its own session handling and calls the steps below.
 
 The history ends on the plan's ``end_date``. The steps replay what a seller and the Connector would
 have done on the way there, each with the time it would have happened (the services all take

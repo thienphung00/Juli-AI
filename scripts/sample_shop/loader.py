@@ -15,6 +15,9 @@ refusals raised as :class:`SampleShopRefused` before anything is written:
 
 Re-running is idempotent: the shop is found by its reserved id, every write is an upsert.
 No LLM, no network.
+
+``--reset`` (``scripts/sample_shop/reset.py``) first deletes the rows reviewers' actions left
+(preview unless ``--yes``), keeping the shop row, consent and the audit log, then loads as above.
 """
 
 from __future__ import annotations
@@ -34,7 +37,7 @@ from urllib.parse import urlparse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from scripts.sample_shop import decisions
+from scripts.sample_shop import decisions, reset
 from scripts.sample_shop.catalog import (
     SAMPLE_SHOP_NAME,
     SAMPLE_SHOPEE_SHOP_ID,
@@ -307,6 +310,12 @@ def main(argv: list[str] | None = None, *, clock: Callable[[], datetime] | None 
     parser.add_argument("--database-url", help="a LOCAL Postgres (the gateway runs in-process)")
     parser.add_argument("--shop-id", type=uuid.UUID, help="re-use a shop the loader created")
     parser.add_argument("--allow-remote-database", action="store_true")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="delete the sample shop's rows, then re-seed (preview without --yes)",
+    )
+    parser.add_argument("--yes", action="store_true", help="with --reset: commit the delete")
     args = parser.parse_args(argv)
 
     now = (clock or (lambda: datetime.now(UTC).replace(tzinfo=None)))()
@@ -324,10 +333,25 @@ def main(argv: list[str] | None = None, *, clock: Callable[[], datetime] | None 
         return 0
     if not args.database_url:
         parser.error("choose --dry-run or --database-url")
+    if args.yes and not args.reset:
+        parser.error("--yes only goes with --reset")
     try:
         require_local(args.database_url, args.allow_remote_database)
+        if args.reset:
+            wiped = asyncio.run(
+                _run_reset(args.database_url, sample.shopee_shop_id, args.shop_id, args.yes)
+            )
+            for table, rows in sorted(wiped.deleted.items()):
+                print(f"{table:<48}{rows:>7} rows")
+            if not wiped.committed:
+                print(
+                    f"preview: {wiped.total} rows of shop {wiped.shop_id} would be deleted; "
+                    "rolled back. Re-run with --yes to reset."
+                )
+                return 0
+            print(f"deleted {wiped.total} rows of shop {wiped.shop_id}; re-seeding")
         report = asyncio.run(_run(args.database_url, sample, args.shop_id, now))
-    except SampleShopRefused as exc:
+    except (SampleShopRefused, reset.ResetRefused) as exc:
         print(f"refused: {exc}")
         return 2
     print(
@@ -350,6 +374,31 @@ async def _run(
         return await load(
             async_sessionmaker(engine, expire_on_commit=False), sample, shop_id=shop_id, now=now
         )
+    finally:
+        await engine.dispose()
+
+
+async def _run_reset(
+    database_url: str, shopee_shop_id: str, shop_id: uuid.UUID | None, commit: bool
+) -> reset.ResetReport:
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from juli_backend.core.config.runtime import async_database_url
+    from juli_backend.database import Shop
+
+    engine = create_async_engine(async_database_url(database_url))
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        if shop_id is None:
+            async with factory() as session:
+                shop_id = await session.scalar(
+                    select(Shop.id).where(Shop.shopee_shop_id == shopee_shop_id)
+                )
+            if shop_id is None:
+                raise SampleShopRefused(f"no shop with shopee_shop_id {shopee_shop_id} to reset")
+        if shop_id in FORBIDDEN_SHOP_IDS:
+            raise SampleShopRefused(f"shop {shop_id} is never written by the sample loader")
+        return await reset.wipe(factory, shop_id, commit=commit)
     finally:
         await engine.dispose()
 
