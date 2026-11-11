@@ -321,10 +321,20 @@ export interface MatrixProduct {
     readonly assumed_cost: boolean;
   } | null;
   readonly flows: ProductFlows | null;
+  /** P100 A.6: the product's own funnel from Shopee's product table (the Sản phẩm + luồng source). */
+  readonly traffic?: ProductTraffic | null;
   readonly levers: readonly LeverRow[];
   readonly ads: ProductAds;
   /** Optional: the Quyết định card the product has, when the card pipeline provides one. */
   readonly card?: CardRef | null;
+}
+
+export interface ProductTraffic {
+  readonly views: N;
+  readonly clicks: N;
+  readonly orders: number;
+  readonly source: string;
+  readonly label: string;
 }
 
 export interface CardRef {

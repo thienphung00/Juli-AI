@@ -508,6 +508,9 @@ class ProductFlows:
     flows_basis: PeriodChoice
     totals_basis: PeriodChoice
     source: str  # item_traffic_sources | item_by_source_period | none
+    #: P100 A.6: each product's own funnel (Hiển thị, clicks, đơn) from Shopee's product table
+    #: (``product_period``) over ``totals_basis`` -- the source Sản phẩm + luồng shows
+    traffic: dict[str, Agg] = field(default_factory=dict)
 
 
 def product_totals_for(pf: ProductFlows, lines: OrderLinesLoad) -> dict[str, tuple[Decimal, int]]:
@@ -608,10 +611,12 @@ async def load_product_flows(
     totals_choice = choose_periods(window, {_period_key(p) for p in total_rows})
     totals: dict[str, tuple[Decimal, int]] = {}
     chosen_t = set(totals_choice.periods)
+    traffic: dict[str, Agg] = defaultdict(Agg)
     for p in total_rows:
         if _period_key(p) in chosen_t:
             g, o = totals.get(p.item_id, (ZERO, 0))
             totals[p.item_id] = (g + _z(p.gmv), o + int(_z(p.orders)))
+            traffic[p.item_id].add(p.impressions, p.clicks, p.orders, p.gmv)
     flow_totals = totals
     if source == "item_by_source_period" and set(flows_choice.periods) != chosen_t:
         flow_totals = {}
@@ -629,6 +634,7 @@ async def load_product_flows(
         flows_choice,
         totals_choice,
         source,
+        dict(traffic),
     )
 
 

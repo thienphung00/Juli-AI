@@ -236,3 +236,33 @@ def test_daily_spend_is_charged_by_each_days_known_orders():
     assert fig.ads_basis == "daily"
     assert fig.ads_charged == Decimal(0) + Decimal(10_000) + Decimal(5_000)
     assert fig.profit == Decimal(25_000)
+
+
+async def test_tong_quan_product_traffic_is_shopees_product_table(session, built):
+    """P100 A.6: Tổng quan's per-product Lượt xem / clicks read ``product_period`` (the rows Sản
+    phẩm + luồng shows), not the per-source flows, with the period's coverage."""
+    from sqlalchemy import update
+
+    from juli_backend.models.platform_data import PlatformPeriodMetric
+    from juli_backend.services.shopee_analytics.loaders import PRODUCT_PERIOD
+
+    await session.execute(
+        update(PlatformPeriodMetric)
+        .where(
+            PlatformPeriodMetric.shop_id == built.shop_id,
+            PlatformPeriodMetric.dataset == PRODUCT_PERIOD,
+            PlatformPeriodMetric.item_id == "1001",
+        )
+        .values(impressions=Decimal(17_220), clicks=Decimal(563))
+    )
+    await session.flush()
+    mx = await queries.matrix(session, built.shop_id, period="7d", as_of=CUR_END)
+    rows = {r["product_id"]: r for r in mx["products"]}
+    traffic = rows["1001"]["traffic"]
+    assert traffic["views"] == 17_220 and traffic["clicks"] == 563 and traffic["orders"] == 8
+    assert traffic["source"] == PRODUCT_PERIOD
+    assert traffic["label"] == "Shopee 01/10–07/10 · 7/7 ngày"
+    # the per-source flows stay what they were (item_by_source_period: 5.000 + 300 views)
+    assert rows["1001"]["flows"] is not None
+    # a product whose table row has no Hiển thị / clicks keeps the flows (no traffic block)
+    assert rows["1002"]["traffic"] is None

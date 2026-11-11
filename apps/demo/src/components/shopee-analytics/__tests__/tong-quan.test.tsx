@@ -274,6 +274,24 @@ describe("Tổng quan: product × source matrix", () => {
     expect(screen.getByTestId("sa-matrix-empty")).toBeInTheDocument();
   });
 
+  it("P100 A.6: per-product Lượt xem / CTR / CTOR come from Shopee's product table, as on Sản phẩm + luồng", async () => {
+    const traffic = { views: 17_220, clicks: 563, orders: 50, source: "product_period", label: "Shopee 11/10–09/11 · 30/30 ngày" };
+    const m = matrix({ products: [matrixProduct("P1", { gmv: 9_000_000, orders: 48, flows: null, traffic })] });
+    renderWith(<TongQuanView params={params()} />, fakeApi({ matrix: m }));
+    const row = await screen.findByTestId("sa-mrow-P1");
+    expect(row).toHaveTextContent("17.220");
+    expect(row).toHaveTextContent("3,27%"); // 563 / 17.220
+    expect(row).toHaveTextContent("8,88%"); // 50 / 563, the same table's orders
+    expect(screen.getByTestId("sa-matrix-traffic-basis")).toHaveTextContent("Shopee 11/10–09/11 · 30/30 ngày");
+  });
+
+  it("without the product table the row falls back to the flows and shows no traffic basis", async () => {
+    const m = matrix({ products: [matrixProduct("P2", { flows: null, traffic: null })] });
+    renderWith(<TongQuanView params={params()} />, fakeApi({ matrix: m }));
+    await screen.findByTestId("sa-mrow-P2");
+    expect(screen.queryByTestId("sa-matrix-traffic-basis")).toBeNull();
+  });
+
   it("closes with the gap between the shop GMV and the sum of the products", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     expect(await screen.findByTestId("sa-matrix-gap")).toHaveTextContent("+24.000.000đ");
