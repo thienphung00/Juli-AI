@@ -65,7 +65,7 @@ export const SHOPEE_DESTINATIONS: readonly AppDestination[] = [
     locked: false,
   },
   { key: "keywords", label: "Từ khóa", icon: "keywords", href: "/tu-khoa", locked: false },
-  { key: "ads", label: "Quảng cáo", icon: "ads", href: "/quang-cao", locked: false },
+  { key: "ads", label: "Dịch vụ hiển thị", icon: "ads", href: "/quang-cao", locked: false },
   { key: "orders", label: "Đơn hàng", icon: "orders", href: "/don-hang", locked: false },
   { key: "flows", label: "Luồng", icon: "flows", href: "/luong-san-pham", locked: false },
 ];

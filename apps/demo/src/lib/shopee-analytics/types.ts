@@ -140,6 +140,16 @@ export interface ProfitBlock {
   readonly profit_vnd: N;
   /** "trên N đơn có chi phí, X % GMV" */
   readonly coverage_label?: string;
+  /** P100 B.5: the bridge on the known-cost basis; its lines add up exactly to `profit`. */
+  readonly bridge?: {
+    readonly product_profit: N;
+    readonly ads_unattributed: N;
+    readonly other_marketing: N;
+    readonly profit: N;
+    readonly ads_charged: N;
+    readonly ads_total: N;
+    readonly ads_label: string;
+  };
   readonly known_cost_orders?: number;
   readonly known_cost_gmv_share_pct?: N;
   readonly profit_on_covered_vnd: N;

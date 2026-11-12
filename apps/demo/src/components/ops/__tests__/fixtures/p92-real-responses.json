@@ -11,13 +11,34 @@
     "cost": 420000.0,
     "cost_per_order": 15000.0,
     "gmv": 2100000.0,
-    "label": "GMV tối đa ROAS tùy chỉnh",
+    "label": "Sản phẩm · GMV tối đa ROAS tùy chỉnh",
     "orders": 28.0,
     "roas": 5.0
    }
   ],
   "campaigns": [],
   "campaigns_available": false,
+  "campaigns_note": "Theo chiến dịch: chỉ các ngày Connector đọc được; tổng chi cả kỳ nằm ở Theo loại.",
+  "coverage": {
+   "day_sources": {
+    "2026-09-24": "daily_report",
+    "2026-09-25": "daily_report",
+    "2026-09-26": "daily_report",
+    "2026-09-27": "daily_report",
+    "2026-09-28": "daily_report",
+    "2026-09-29": "daily_report",
+    "2026-09-30": "daily_report",
+    "2026-10-01": "daily_report",
+    "2026-10-02": "daily_report",
+    "2026-10-03": "daily_report",
+    "2026-10-04": "daily_report",
+    "2026-10-05": "daily_report",
+    "2026-10-06": "daily_report",
+    "2026-10-07": "daily_report"
+   },
+   "days_with_data": 14,
+   "window_days": 30
+  },
   "daily": [
    {
     "by_type": [
@@ -211,7 +232,7 @@
       "cost": 210000.0,
       "cost_per_order": 15000.0,
       "gmv": 1050000.0,
-      "label": "GMV tối đa ROAS tùy chỉnh",
+      "label": "Sản phẩm · GMV tối đa ROAS tùy chỉnh",
       "orders": 14.0,
       "roas": 5.0
      }
@@ -230,7 +251,7 @@
       "cost": 210000.0,
       "cost_per_order": 15000.0,
       "gmv": 1050000.0,
-      "label": "GMV tối đa ROAS tùy chỉnh",
+      "label": "Sản phẩm · GMV tối đa ROAS tùy chỉnh",
       "orders": 14.0,
       "roas": 5.0
      }

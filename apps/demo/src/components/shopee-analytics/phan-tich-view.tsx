@@ -33,7 +33,7 @@ const FILTERS: readonly (readonly [string, string])[] = [
   ["ctor", "CTR và CTOR"],
   ["aov", "AOV"],
   ["bien", "Biên và giá sàn"],
-  ["ads", "Quảng cáo"],
+  ["ads", "Dịch vụ hiển thị"],
 ];
 
 function filterOf(item: CriticalItem): string {
@@ -70,7 +70,7 @@ function kpiLabel(item: CriticalItem): string {
 
 function sourceLabel(item: CriticalItem): string {
   if (item.flow_label) return item.flow_label;
-  if (item.reference.type === "break_even") return "Quảng cáo (đơn đã đặt)";
+  if (item.reference.type === "break_even") return "Dịch vụ hiển thị (đơn đã đặt)";
   if (item.reference.type === "floor") return `SKU ${item.reference.sku ?? ""}`.trim();
   return item.level === "shop" ? "Cả shop" : "Tất cả";
 }

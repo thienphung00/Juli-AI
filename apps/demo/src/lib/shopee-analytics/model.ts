@@ -214,7 +214,7 @@ export function freshnessOf(data: Overview["data"], window: WindowJson): SourceF
     ["order_lines", "Đơn hàng", data.order_lines.days_with_orders],
     ["shop_totals", "Doanh số shop", data.shop_totals.days_covered],
     ["traffic", "Lưu lượng theo nguồn", data.traffic.days_covered],
-    ["ads_daily", "Quảng cáo", data.ads_daily.days_covered],
+    ["ads_daily", "Dịch vụ hiển thị", data.ads_daily.days_covered],
   ];
   return rows.map(([key, label, covered]) => ({ key, label, covered, days, ok: covered >= days }));
 }
