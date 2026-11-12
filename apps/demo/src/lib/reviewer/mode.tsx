@@ -29,8 +29,22 @@ export function isSandboxReviewer(reviewer: ReviewerRecord | null): boolean {
   return reviewer?.mode === "sandbox" && reviewer.sample !== true;
 }
 
+/**
+ * P100 S2-B: the reviewer is on the synthetic Shopee sample shop ("Dữ liệu mẫu",
+ * mode "sample"): names shown, read-only, Duyệt / Thực thi simulated as on a
+ * masked shop. Not the no-pin bundled sample (`reviewer.sample`).
+ */
+export function isSampleShopReviewer(reviewer: ReviewerRecord | null): boolean {
+  return reviewer?.mode === "sample" && reviewer.sample !== true;
+}
+
 export function useSandboxReviewer(): boolean {
   return isSandboxReviewer(useReviewer());
+}
+
+/** P100 S2-C: the active pin is the sample shop — the screens show only what works there. */
+export function useSampleShopReviewer(): boolean {
+  return isSampleShopReviewer(useReviewer());
 }
 
 /** Test seam: render a fixed reviewer without storage or network. */

@@ -102,6 +102,8 @@ async def reviewer_me(
         # None: no pinned shop (D42 amendment) -- the UI shows the sample shop.
         "shop": shop_body,
         # P64 (D73): "sandbox" (live, unmasked) | "masked" (P32 read-only) | None (no pin).
+        # P100 S2-B: "sample" (the synthetic Shopee sample shop: unmasked, read-only,
+        # simulated Duyệt / Thực thi like "masked").
         "mode": mode,
         "writes_enabled": writes_enabled,
         # P74-A (D77): the shops the reviewer may switch to (``X-Shop-Id``), default first.

@@ -12,7 +12,7 @@
  * unknown, read_only, unavailable) or 503 (unconfigured).
  */
 
-import { parseReviewerShops, type ReviewerShopOption } from "./session";
+import { parseReviewerPinMode, parseReviewerShops, type ReviewerPinMode, type ReviewerShopOption } from "./session";
 import type { SimulationResult, SimulationStep } from "./simulation-types";
 
 export type ReviewerDenial = "expired" | "revoked" | "unknown" | "read_only" | "unavailable" | "unconfigured";
@@ -23,8 +23,8 @@ export interface ReviewerMe {
   readonly expiresAt: string | null;
   /** null: no pinned shop — sample mode (P32-D). */
   readonly shop: { readonly id: string; readonly name: string } | null;
-  /** P64 (D73): "sandbox" (live, unmasked) | "masked" | null. */
-  readonly mode?: "sandbox" | "masked";
+  /** P64 (D73): "sandbox" (live, unmasked) | "masked" | P100 S2-B "sample" | absent. */
+  readonly mode?: ReviewerPinMode;
   readonly writesEnabled?: boolean;
   /** P74-A (D77): every pinned shop, default first (empty with no pin). */
   readonly shops?: readonly ReviewerShopOption[];
@@ -83,6 +83,7 @@ export async function fetchReviewerMe(
   if (body?.reviewer !== true) return { status: "not_reviewer" };
   const shop = body.shop as { id?: unknown; name?: unknown } | null | undefined;
   if (shop !== null && (!shop || typeof shop.id !== "string" || !shop.id)) return { status: "error" };
+  const mode = parseReviewerPinMode(body.mode);
   return {
     status: "reviewer",
     me: {
@@ -90,7 +91,7 @@ export async function fetchReviewerMe(
       platform: typeof body.platform === "string" ? body.platform : "",
       expiresAt: typeof body.expires_at === "string" ? body.expires_at : null,
       shop: shop === null ? null : { id: shop.id as string, name: typeof shop.name === "string" ? shop.name : "" },
-      ...(body.mode === "sandbox" || body.mode === "masked" ? { mode: body.mode } : {}),
+      ...(mode ? { mode } : {}),
       ...(body.writes_enabled === true ? { writesEnabled: true } : {}),
       ...(parseReviewerShops(body.shops).length > 0 ? { shops: parseReviewerShops(body.shops) } : {}),
     },

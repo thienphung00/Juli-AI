@@ -5,10 +5,11 @@ import {
   REVIEWER_BANNER_COPY,
   REVIEWER_RESET_LABEL,
   REVIEWER_SAMPLE_BANNER_COPY,
+  REVIEWER_SAMPLE_SHOP_BANNER_COPY,
   reviewerExpiryCopy,
   sandboxBannerText,
 } from "../../lib/reviewer/copy";
-import { isSandboxReviewer } from "../../lib/reviewer/mode";
+import { isSampleShopReviewer, isSandboxReviewer } from "../../lib/reviewer/mode";
 import type { ReviewerRecord } from "../../lib/reviewer/session";
 
 /**
@@ -16,7 +17,8 @@ import type { ReviewerRecord } from "../../lib/reviewer/session";
  * on every page of the seller shell, including the run-focus layout. With no
  * pinned shop (P32-D) it says "dữ liệu mẫu": the pages show the sample shop,
  * and (P32-E) carries "Đặt lại dữ liệu mẫu", which starts every simulated
- * decision, run and rule over.
+ * decision, run and rule over. P100 S2-B: on the synthetic Shopee sample shop
+ * (mode "sample") it says "Dữ liệu mẫu" — nothing is hidden, still read-only.
  */
 export function ReviewerBanner({
   reviewer,
@@ -34,7 +36,11 @@ export function ReviewerBanner({
       </p>
     );
   }
-  const bannerCopy = reviewer.sample ? REVIEWER_SAMPLE_BANNER_COPY : REVIEWER_BANNER_COPY;
+  const bannerCopy = reviewer.sample
+    ? REVIEWER_SAMPLE_BANNER_COPY
+    : isSampleShopReviewer(reviewer)
+      ? REVIEWER_SAMPLE_SHOP_BANNER_COPY
+      : REVIEWER_BANNER_COPY;
   return (
     <p className="demo-notice reviewer-banner" data-testid="reviewer-banner" role="status">
       <strong>{bannerCopy}</strong>

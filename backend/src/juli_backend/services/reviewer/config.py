@@ -12,6 +12,11 @@ classified on its own (``sandbox.classify_pin``): a seller's shop is masked and
 read-only, Juli's own sandbox shop is live. D77: Fujiwa (masked) first, the sandbox
 shop second.
 ``REVIEWER_MASK_TERMS`` -- extra brand words to hide, comma-separated.
+``REVIEWER_SAMPLE_SHOP_IDS`` (P100 S2-B) -- the pins that may be the synthetic Shopee sample
+shop ("Dữ liệu mẫu", mode ``sample``: unmasked, read-only, simulated Duyệt / Thực thi). Parsed
+like ``REVIEWER_SHOP_IDS``; it only NARROWS: an id that is not also a pin is ignored, so the
+list never adds a shop the reviewer can enter. Listing is necessary, not sufficient --
+``sandbox.pin_mode`` still checks the shop itself and falls back to ``masked``.
 """
 
 from __future__ import annotations
@@ -30,22 +35,41 @@ def _parse(raw: str) -> uuid.UUID | None:
         return None
 
 
+#: P100 S2-B: shops that are never the unmasked sample shop, whatever the env says (Fujiwa, a
+#: real seller's shop). The one place this id is a literal; the seller paths still never see it.
+NEVER_SAMPLE_SHOP_IDS: frozenset[uuid.UUID] = frozenset(
+    {uuid.UUID("2b1da87b-d0a8-46a6-b3c6-2132be0b5f4f")}
+)
+
+
+def _parse_list(raw: str) -> list[uuid.UUID]:
+    """Valid, distinct ids of a comma list, in order; an unparsable entry is skipped."""
+    found: list[uuid.UUID] = []
+    for entry in raw.split(","):
+        value = _parse(entry) if entry.strip() else None
+        if value is not None and value not in found:
+            found.append(value)
+    return found
+
+
 def reviewer_shop_ids() -> tuple[uuid.UUID, ...]:
     """Every pinned shop, default first (P74-A, D77); empty: no pin (sample mode).
 
     ``REVIEWER_SHOP_IDS`` when it holds at least one valid id, else ``REVIEWER_SHOP_ID``.
     An unparsable entry is skipped (never widens anything); a repeated id counts once.
     """
-    pins: list[uuid.UUID] = []
-    for raw in os.getenv("REVIEWER_SHOP_IDS", "").split(","):
-        found = _parse(raw) if raw.strip() else None
-        if found is not None and found not in pins:
-            pins.append(found)
+    pins = _parse_list(os.getenv("REVIEWER_SHOP_IDS", ""))
     if pins:
         return tuple(pins)
     single = os.getenv("REVIEWER_SHOP_ID", "").strip()
     found = _parse(single) if single else None
     return (found,) if found is not None else ()
+
+
+def reviewer_sample_shop_ids() -> frozenset[uuid.UUID]:
+    """The pins listed in ``REVIEWER_SAMPLE_SHOP_IDS`` (P100 S2-B); never an id that is no pin."""
+    listed = _parse_list(os.getenv("REVIEWER_SAMPLE_SHOP_IDS", ""))
+    return frozenset(listed).intersection(reviewer_shop_ids())
 
 
 def reviewer_shop_id() -> uuid.UUID | None:

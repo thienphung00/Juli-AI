@@ -37,7 +37,9 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
 - `config` — `reviewer_shop_ids` (P74-A, D77: `REVIEWER_SHOP_IDS`, comma-separated, default
   first; else `REVIEWER_SHOP_ID`), `reviewer_shop_id` (the default pin), `select_pin` (the pin an
   `X-Shop-Id` names by alias or real id, else the default -- selection only; the shop entry
-  decides acceptance), `shop_alias_id`, `extra_mask_terms` (`REVIEWER_MASK_TERMS`).
+  decides acceptance), `shop_alias_id`, `extra_mask_terms` (`REVIEWER_MASK_TERMS`), `reviewer_sample_shop_ids`
+  (P100 S2-B: `REVIEWER_SAMPLE_SHOP_IDS` ∩ the pins -- never adds a pin), `NEVER_SAMPLE_SHOP_IDS`
+  (Fujiwa, refused as sample whatever the env says).
 - `simulation` — `simulate(card_item, step)`; imports no TikTok code.
 - `sandbox` (fast track P64, D73) — the live sandbox pin: `classify_pin` → `PinMode`
   (`sandbox` only when the pin IS the sandbox credential's shop and holds no `production_read`
@@ -48,7 +50,11 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
   writes through `SandboxWriteClientFactory` (`services/agent/composition`). P70 (owner,
   2026-10-28): "Hoàn tác" (`start_run_revert`) is on the same list, for a run the reviewer
   started only; the revert run stops at the same confirmation and writes through the same
-  sandbox leg.
+  sandbox leg. P100 S2-B: a third mode `sample` (the synthetic Shopee shop "Dữ liệu mẫu"):
+  listed in `REVIEWER_SAMPLE_SHOP_IDS`, not Fujiwa, no `tiktok_credentials` row of any
+  capability, no `production_write_shops` row, not the sandbox credential's shop, `platform`
+  shopee with no TikTok shop id (an ingest token is fine: it cannot write to Shopee). Mask off,
+  writes off, simulation as for masked; any failing check → masked + `reviewer_pin_sample_refused`.
 - `brands` — P86: pure brand-word helpers for the mask's free-text pass: `derive_from_titles`
   (recurring capitalised words across product titles; computed by `catalog` from the titles it
   already reads, stored in `MaskDictionary.catalog_brands`), `GENERIC_WORDS` guard list, `fold`

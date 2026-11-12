@@ -74,6 +74,15 @@ REVIEWER_SANDBOX_ACTIONS: frozenset[str] = frozenset(
         ACTION_REVIEWER_SANDBOX_CREATE_PROMOTION,
     }
 )
+#: P100 S2-G (owner Option A): a reviewer's write on the synthetic Shopee sample shop -- Juli's
+#: own rows only, nothing outbound. Config kind (365 days), like the sandbox actions: it changed
+#: the shop's data.
+ACTION_REVIEWER_SAMPLE_WRITE = "reviewer_sample_write"
+#: P100 S2-G: "Đặt lại dữ liệu mẫu" (the sample shop's decision state back to the seed).
+ACTION_REVIEWER_SAMPLE_RESET = "reviewer_sample_reset"
+REVIEWER_SAMPLE_ACTIONS: frozenset[str] = frozenset(
+    {ACTION_REVIEWER_SAMPLE_WRITE, ACTION_REVIEWER_SAMPLE_RESET}
+)
 #: The provisioning command (config kind: an account was created / changed).
 ACTION_REVIEWER_ACCOUNT_CREATE = "reviewer_account_create"
 ACTION_REVIEWER_ACCOUNT_RENEW = "reviewer_account_renew"
