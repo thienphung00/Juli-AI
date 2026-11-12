@@ -113,7 +113,7 @@ describe("S2-C · Tự tạo strategies", () => {
       withReviewer(reviewer, <BuilderP92View from="quyet-dinh" p98Api={p98} productId={null} />, fakeReco(), { builder: fakeBuilder() });
       expect(await screen.findByTestId("p98-modes")).toBeInTheDocument();
       const kinds = await toKinds();
-      expect(within(kinds).getAllByRole("button")).toHaveLength(14);
+      expect(within(kinds).getAllByRole("button")).toHaveLength(13); // P100 w2: Mua kèm + Quà tặng are one "Deal Sốc" kind
       cleanup();
     }
   });

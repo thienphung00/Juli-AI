@@ -25,7 +25,7 @@ export const KINDS: readonly (readonly [BuilderKind, string])[] = [
   ["gift", "Quà tặng"],
   ["voucher", "Voucher"],
   ["disc", "Giảm giá"],
-  ["ads", "Quảng cáo"],
+  ["ads", "Dịch vụ hiển thị"],
   ["title", "Tiêu đề"],
 ];
 

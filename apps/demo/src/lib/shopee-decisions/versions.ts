@@ -471,7 +471,7 @@ export { vnWhen };
 /** Groups of the product's Đề xuất tab, in the artboard's order, with its names (`SanPhamDeXuat.dc.html` FAMILIES). */
 export const PRODUCT_GROUPS: readonly (readonly [string, string])[] = [
   ["listing", "Tên, từ khoá, ảnh bìa"],
-  ["ads", "Quảng cáo"],
+  ["ads", "Dịch vụ hiển thị"],
   ["promotion", "Khuyến mãi, giá"],
   ["voucher", "Voucher"],
   ["combo", "Combo"],

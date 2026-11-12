@@ -72,7 +72,7 @@ const MODES: readonly { readonly key: Mode; readonly label: string }[] = [
   { key: "single", label: "Từng phương án" },
   { key: "combo", label: "Combo nhiều SKU" },
   { key: "kol", label: "KOL" },
-  { key: "ads", label: "Quảng cáo" },
+  { key: "ads", label: "Dịch vụ hiển thị" },
 ];
 
 /** P98 entry points: three extra builders beside the P92 one (shown only when the P98 client is given). */

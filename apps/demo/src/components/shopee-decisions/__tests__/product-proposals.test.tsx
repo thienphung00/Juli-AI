@@ -11,7 +11,7 @@ import { ProposalsTab } from "../product-proposals";
 
 const FAM: Record<string, [Family, string]> = {
   listing: ["listing", "Tên, từ khoá, ảnh bìa"],
-  ads: ["ads", "Quảng cáo"],
+  ads: ["ads", "Dịch vụ hiển thị"],
   promotion: ["promotion", "Khuyến mãi / giá"],
   voucher: ["voucher", "Voucher"],
   combo: ["combo", "Combo / mua kèm"],
@@ -43,7 +43,7 @@ describe("Sản phẩm › Đề xuất", () => {
     tab();
     expect(screen.getByTestId("sp-intro")).toHaveTextContent("4 thẻ đang mở, nhóm theo họ đề xuất. Quyết định chỉ hiện thẻ số 1 của sản phẩm; các thẻ còn lại xếp hàng và lên Quyết định ngay khi thẻ trước đóng, được thực hiện hoặc được thêm vào kế hoạch.");
     const heads = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
-    expect(heads).toEqual(["Tên, từ khoá, ảnh bìa", "Quảng cáo", "Voucher", "Combo"]);
+    expect(heads).toEqual(["Tên, từ khoá, ảnh bìa", "Dịch vụ hiển thị", "Voucher", "Combo"]);
     const top = screen.getByTestId("sp-card-c-voucher");
     expect(top).toHaveTextContent("JC-2611-0007");
     expect(top).toHaveTextContent("#1 · Đang ở Quyết định");

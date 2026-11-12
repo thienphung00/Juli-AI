@@ -96,7 +96,7 @@ describe("Tự tạo phương án · So sánh phương án", () => {
   it("Quảng cáo and Tiêu đề are compared in their card; the title counts to 100", async () => {
     open();
     await screen.findByTestId("sb-table");
-    fireEvent.click(screen.getByRole("button", { name: "Quảng cáo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dịch vụ hiển thị" }));
     expect(screen.getByTestId("sb-ads")).toHaveTextContent("Loại này so sánh theo phiên bản ngay trong thẻ (−20% / +20% / +50%)");
     fireEvent.click(screen.getByRole("button", { name: "Tiêu đề" }));
     const box = screen.getByRole("textbox", { name: /Tiêu đề \(tối đa 100 ký tự\)/ });
