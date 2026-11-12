@@ -191,6 +191,13 @@ def option_for(
                 + facts.profit_per_order_after
                 - facts.profit_per_order,
             )
+        if values and env.window_days > 0:
+            units = sum((Decimal(ln.qty) for ln in lines if ln.product_id in items), Decimal(0))
+            facts = replace(
+                facts,
+                units_per_order=units / Decimal(len(values)),
+                orders_per_day=Decimal(len(values)) / Decimal(env.window_days),
+            )
         return price_option(spec, facts)
     if spec.kind in _SIMPLE_KINDS:
         lead = adapters.lift_evidence(spec.kind, items, env)

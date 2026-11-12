@@ -403,8 +403,8 @@ class ProductDiscountSpec(_Base):
     end: date | None = None
     start_hour: Annotated[int, Field(ge=0, le=23)] | None = None
     end_hour: Annotated[int, Field(ge=0, le=23)] | None = None
-    #: "Số lượng sản phẩm khuyến mãi" (None = "Không giới hạn"): shown on the checklist; the
-    #: estimate does not cap the discounted units yet
+    #: "Số lượng sản phẩm khuyến mãi" (None = "Không giới hạn"): caps the discounted units in the
+    #: estimate (families._promo_reach) and is shown on the checklist
     promo_qty: Annotated[int, Field(ge=1, le=10_000_000)] | None = None
     per_buyer_limit: Annotated[int, Field(ge=1, le=100)] | None = None
 
