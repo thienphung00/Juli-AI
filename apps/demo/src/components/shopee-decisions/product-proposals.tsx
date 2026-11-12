@@ -6,7 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 import type { ShopeeLinks } from "../../lib/shopee-analytics/links";
 import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import type { RecoApi } from "../../lib/shopee-decisions/client";
+import { sampleShopCards } from "../../lib/shopee-decisions/sample-scope";
 import type { CardSummary, CardVersion } from "../../lib/shopee-decisions/types";
+import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { sm, srange, unitsOf } from "../../lib/shopee-decisions/units";
 import { PRODUCT_GROUPS, firstVersionRange, isOpen, queueLabel, rangeTone, versionFlag, versionsOf, CLOSED_STATUSES } from "../../lib/shopee-decisions/versions";
 import { TextChip } from "../shopee-analytics/ui";
@@ -27,7 +29,7 @@ export function openCardsOf(cards: readonly CardSummary[]): CardSummary[] {
 }
 
 export function ProposalsTab({
-  cards,
+  cards: allCards,
   links,
   reco,
   builderHref,
@@ -39,6 +41,9 @@ export function ProposalsTab({
   readonly builderHref: string;
   readonly historyHref: string;
 }) {
+  // P100 S2-C: on the sample shop only Tiêu đề / Ảnh bìa / Voucher cards.
+  const sampleShop = useSampleShopReviewer();
+  const cards = useMemo(() => sampleShopCards(allCards, sampleShop), [allCards, sampleShop]);
   const open = useMemo(() => openCardsOf(cards), [cards]);
   const [view, setView] = useState<View>("family");
   const [expanded, setExpanded] = useState<readonly string[]>(() => open.slice(0, 1).map((c) => c.id));

@@ -23,10 +23,11 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
+from juli_backend.api.reviewer import SAMPLE_SHOP_CARD_KINDS, deny, reviewer_context
 from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.api.routes.shopee_recommendations_common import (
     ApproveBody,
@@ -39,6 +40,8 @@ from juli_backend.api.routes.shopee_recommendations_common import (
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.services import shopee_recommendations as reco
+from juli_backend.services.ops import audit
+from juli_backend.services.reviewer import simulation
 from juli_backend.services.shop_proposals import ProposalError
 
 router = APIRouter(prefix="/demo/shopee/recommendations", tags=["demo-shopee"])
@@ -115,10 +118,20 @@ async def recommendation_whatif(
 async def approve_recommendation(
     card_id: uuid.UUID,
     body: ApproveBody,
+    request: Request,
     shop: Shop = Depends(require_writable_shop),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    context = reviewer_context(request)
+    if context is not None:
+        if context.pin is None or not context.pin.sample:
+            # The gate admits a reviewer here only on the sample pin; any other pin keeps the
+            # masked pin's simulation (fail closed: never a real approve).
+            return await _simulated_approve(session, request, shop, card_id, body)
+        # P100 S2-G (owner Option A): on the sample shop Duyệt is the REAL approve (Juli's rows
+        # only; the fill queue is off in a reviewer session), for the three strategies' cards.
+        await _require_sample_kind(session, shop, card_id)
     return await _decide(
         session,
         shop,
@@ -155,6 +168,57 @@ async def dismiss_recommendation(
     return await _decide(
         session, shop, card_id, user, "dismiss", reason_code=body.reason_code, note=body.note
     )
+
+
+async def _require_sample_kind(session: AsyncSession, shop: Shop, card_id: uuid.UUID) -> None:
+    """P100 S2-G: a sample-shop reviewer approves only Tiêu đề / Ảnh bìa / Voucher cards."""
+    try:
+        detail = await reco.card_detail(session, _shopee(shop), card_id, audience="seller")
+    except ProposalError as exc:
+        await session.rollback()
+        raise refused(exc) from None
+    if detail.get("change_kind") not in SAMPLE_SHOP_CARD_KINDS:
+        await session.rollback()
+        raise deny("read_only")
+
+
+async def _simulated_approve(
+    session: AsyncSession, request: Request, shop: Shop, card_id: uuid.UUID, body: ApproveBody
+) -> dict[str, Any]:
+    """The simulated Duyệt (P100 S2-F) for a reviewer on a masked pin: read the card, answer
+    like an approve, write only the audit row -- nothing to Shopee, no approval, event, meta or
+    fill job. The gate does not admit this route on a masked pin today (S2-G: the sample shop
+    takes the real approve); kept so that a pin which is not the sample shop never approves."""
+    context = reviewer_context(request)
+    if context is None or context.pin is None or context.pin.sample or context.pin.sandbox:
+        raise deny("read_only")  # fail closed
+    shop_id = _shopee(shop)
+    try:
+        detail = await reco.card_detail(session, shop_id, card_id, audience="seller")
+    except ProposalError as exc:
+        await session.rollback()
+        raise refused(exc) from None
+    if detail.get("change_kind") not in SAMPLE_SHOP_CARD_KINDS:
+        raise deny("read_only")  # only Tiêu đề / Ảnh bìa / Voucher on the sample shop
+    result = simulation.simulate_shopee_approve(
+        detail, chosen_version=body.chosen_version, chosen_versions=body.chosen_versions
+    )
+    # The read above ran in the shop's tenant scope; the audit row is the only write.
+    await audit.record(
+        session,
+        context.account.actor,
+        audit.ACTION_REVIEWER_SIMULATED_APPROVE,
+        shop_id=shop_id,
+        after={
+            "platform": context.platform,
+            "card_id": str(card_id),
+            "change_kind": detail.get("change_kind"),
+            "chosen_version": result["chosen_version"],
+            "shopee": True,
+        },
+    )
+    await session.commit()
+    return result
 
 
 async def _decide(

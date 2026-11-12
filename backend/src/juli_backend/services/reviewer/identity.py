@@ -295,11 +295,14 @@ async def _read_user_and_pin_fused(
         if owner_shop is not None
         else None
     )
+    # P100 S2-B: every credential row counts for the sample check (a NULL capability too).
+    credential_rows = list(capabilities or [])
     pin = sandbox.pin_mode(
         pin_shop_id,
         sandbox_owner=owner,
-        capabilities={c for c in (capabilities or []) if c is not None},
+        capabilities={c for c in credential_rows if c is not None},
         production_write_row=bool(production_write_row),
+        shop=sandbox.PinShopFacts.of(shop_values, len(credential_rows)),
     )
     return user_values, shop_values, pin
 

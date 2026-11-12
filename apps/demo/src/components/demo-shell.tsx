@@ -4,7 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { REVIEWER_READ_ONLY_TITLE, REVIEWER_SANDBOX_READ_ONLY_TITLE } from "../lib/reviewer/copy";
-import { isSandboxReviewer } from "../lib/reviewer/mode";
+import { isSampleShopReviewer, isSandboxReviewer } from "../lib/reviewer/mode";
+import { sampleShopRedirect } from "../lib/app-navigation";
 import { installAuthRefresh } from "../lib/auth-refresh";
 import { ReviewerGuideProvider, useGuideMark } from "../lib/reviewer/guide-context";
 import { ReviewerProvider, clearReviewerSignIn, useReviewer } from "../lib/reviewer/reviewer-context";
@@ -73,6 +74,13 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   const reviewer = useReviewer();
   const entry = useLandingEntry();
   const markGuide = useGuideMark();
+  // P100 S2-C: the sample shop shows only the screens that work there; a hidden page goes to Tổng quan.
+  const sampleShop = isSampleShopReviewer(reviewer);
+  const sampleRedirect = sampleShop ? sampleShopRedirect(pathname) : null;
+
+  useEffect(() => {
+    if (sampleRedirect) router.replace(sampleRedirect);
+  }, [sampleRedirect, router]);
 
   // Đăng nhập (issue #1907) stays a real link to Supabase Auth, resolved on
   // mount (never during SSR) with the same builder the landing door uses.
@@ -151,7 +159,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
 
   return (
     <div className="app-shell">
-      <AppNavigation activePath={pathname} platform={platform} />
+      <AppNavigation activePath={pathname} platform={platform} sampleShop={sampleShop} />
       <div className="app-shell__main">
         <ShopHeader
           googleHref={googleHref}
@@ -161,6 +169,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
           reviewer={reviewer !== null}
           platform={platform}
           reviewerShops={reviewer?.shops ?? []}
+          sampleShop={sampleShop}
           state={state}
         />
         {reviewer ? <ReviewerBanner onReset={handleResetSample} reviewer={reviewer} /> : null}
@@ -172,7 +181,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
         {state.status === "ready" ? <TermStrip shopId={state.shop.id} token={state.token} /> : null}
         {state.status === "ready" && !reviewer ? <PermissionStrip shopId={state.shop.id} token={state.token} /> : null}
         <div className="app-shell__split">
-          <main className="app-content">{page}</main>
+          <main className="app-content">{sampleRedirect ? null : page}</main>
           <ReviewerGuide onSwitchToSandbox={guideSwitch} />
         </div>
       </div>

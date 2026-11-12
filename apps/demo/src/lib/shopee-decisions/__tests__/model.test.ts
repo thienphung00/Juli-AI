@@ -13,6 +13,7 @@ import {
   sectionsFor,
   sureRows,
   tabCounts,
+  statusLabel,
   tabOfCard,
 } from "../model";
 import { ABSOLUTE_BREACH, JOURNEY_EXECUTED, JOURNEY_VERIFIED, OPERATING_BREACH, adsCard, breachedVoucherCard, megaCard, promotionCard, summaryOf, voucherCard, voucherCardB } from "./fixtures";
@@ -33,6 +34,9 @@ describe("sections and tabs", () => {
     expect(tabOfCard({ status: "executed", verification: { state: "pending" } })).toBe("dang-thuc-hien");
     expect(tabOfCard({ status: "executed", verification: { state: "verified" } })).toBe("do-luong");
     expect(tabOfCard({ status: "rejected" })).toBeNull();
+    // P100 S2-C: a card whose measurement window closed stays in Đo lường with its result.
+    expect(tabOfCard({ status: "measured" })).toBe("do-luong");
+    expect(statusLabel("measured")).toBe("Đã đo xong");
     const counts = tabCounts([mk(), mk(voucherCard(), { status: "approved" }), mk(voucherCard(), { status: "expired" })]);
     expect(counts).toEqual({ "de-xuat": 1, "dang-thuc-hien": 1, "do-luong": 0 });
   });

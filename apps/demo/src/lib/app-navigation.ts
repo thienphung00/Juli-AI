@@ -72,8 +72,35 @@ export const SHOPEE_DESTINATIONS: readonly AppDestination[] = [
 
 export type NavPlatform = "tiktok" | "shopee";
 
-export function destinationsFor(platform: NavPlatform): readonly AppDestination[] {
-  return platform === "shopee" ? SHOPEE_DESTINATIONS : APP_DESTINATIONS;
+/**
+ * P100 S2-C (owner, 2026-11-11): on the reviewer's sample shop ("Dữ liệu mẫu") the rail shows only
+ * the screens that work there. The other Shopee pages are hidden (not greyed out, no "sắp có") and a
+ * direct link to one goes to Tổng quan (`sampleShopRedirect`). The API refuses their routes on its
+ * own (S2-F allowlist) — this list is presentation only.
+ */
+export const SAMPLE_SHOP_DESTINATION_KEYS: readonly AppDestinationIcon[] = ["overview", "analytics", "products", "decisions"];
+
+export const SAMPLE_SHOP_HOME_HREF = "/tong-quan";
+
+export const SAMPLE_SHOP_DESTINATIONS: readonly AppDestination[] = SHOPEE_DESTINATIONS.filter((d) =>
+  SAMPLE_SHOP_DESTINATION_KEYS.includes(d.key),
+);
+
+export function destinationsFor(platform: NavPlatform, options: { readonly sampleShop?: boolean } = {}): readonly AppDestination[] {
+  if (platform !== "shopee") return APP_DESTINATIONS;
+  return options.sampleShop ? SAMPLE_SHOP_DESTINATIONS : SHOPEE_DESTINATIONS;
+}
+
+/**
+ * Where a sample-shop reviewer is sent instead of `pathname`, or null to stay: the hidden Shopee
+ * pages and Cài đặt (not in its avatar menu) go to Tổng quan.
+ */
+export function sampleShopRedirect(pathname: string): string | null {
+  const hidden = [
+    ...SHOPEE_DESTINATIONS.filter((d) => !SAMPLE_SHOP_DESTINATION_KEYS.includes(d.key)).map((d) => d.href),
+    SETTINGS_HREF,
+  ];
+  return hidden.some((href) => isDestinationActive(pathname, href)) ? SAMPLE_SHOP_HOME_HREF : null;
 }
 
 export function isDestinationOn(pathname: string, destination: AppDestination): boolean {

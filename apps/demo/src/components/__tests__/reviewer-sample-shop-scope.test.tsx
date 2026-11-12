@@ -1,0 +1,201 @@
+import { cleanup, configure, fireEvent, render, screen, within } from "@testing-library/react";
+import type { ReactElement } from "react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { AppNavigation } from "../app-shell/app-navigation";
+import { SAMPLE_SHOP_SWITCH_LABEL, ShopHeader } from "../app-shell/shop-header";
+import { BuilderP92View } from "../shopee-decisions/builder-p92";
+import { DecisionsView } from "../shopee-decisions/decisions-view";
+import { ProposalsTab } from "../shopee-decisions/product-proposals";
+import { hostOf, params } from "../shopee-decisions/__tests__/harness";
+import { sampleShopRedirect } from "../../lib/app-navigation";
+import { guideCopy } from "../../lib/reviewer/guide-copy";
+import { StaticReviewerProvider } from "../../lib/reviewer/mode";
+import type { ReviewerRecord, ReviewerShopOption } from "../../lib/reviewer/session";
+import { sellerLinks } from "../../lib/shopee-analytics/links";
+import { P_ZIP, fakeBuilder } from "../../lib/shopee-decisions/__tests__/builder-fixtures";
+import { adsCard, fakeReco, promotionCard, summaryOf, voucherCard } from "../../lib/shopee-decisions/__tests__/fixtures";
+import type { BuilderP98Api } from "../../lib/shopee-decisions/builder-p98-api";
+import { RecoHostProvider, type RecoHost } from "../../lib/shopee-decisions/context";
+import type { RecoApi } from "../../lib/shopee-decisions/client";
+import type { CardList, CardSummary } from "../../lib/shopee-decisions/types";
+
+/**
+ * P100 S2-C: on the reviewer's sample shop ("Dữ liệu mẫu") the screens show only what works there —
+ * the rail's four Shopee screens, the avatar menu's Đổi shop / Đăng xuất, Tự tạo's Tiêu đề / Ảnh bìa /
+ * Voucher and only cards of those kinds. A seller (and any other reviewer mode) is unchanged.
+ */
+
+configure({ asyncUtilTimeout: 4000 });
+
+const SAMPLE: ReviewerRecord = { platform: "shopee", expiresAt: "2026-11-25T00:00:00Z", mode: "sample" };
+const MASKED: ReviewerRecord = { platform: "shopee", expiresAt: "2026-11-25T00:00:00Z", mode: "masked" };
+const SAMPLE_PIN: ReviewerShopOption = { id: "s-1", name: "Dữ liệu mẫu", mode: "sample", writesEnabled: false };
+const SANDBOX_PIN: ReviewerShopOption = { id: "sbx-1", name: "SANDBOX_VN", mode: "sandbox", writesEnabled: true };
+const p98 = { combo: vi.fn(), kol: vi.fn(), ads: vi.fn() } as unknown as BuilderP98Api;
+
+beforeEach(() => window.localStorage.clear());
+afterEach(() => cleanup());
+
+function withReviewer(reviewer: ReviewerRecord | null, ui: ReactElement, reco: RecoApi = fakeReco(), over: Partial<RecoHost> = {}) {
+  return render(
+    <StaticReviewerProvider reviewer={reviewer}>
+      <RecoHostProvider host={hostOf(reco, over)}>{ui}</RecoHostProvider>
+    </StaticReviewerProvider>,
+  );
+}
+
+const railLabels = () => within(screen.getByRole("navigation", { name: "Điều hướng chính" })).getAllByRole("listitem").map((li) => li.textContent);
+
+describe("S2-C · rail and redirect", () => {
+  it("the sample shop's rail lists only Tổng quan · Phân tích · Sản phẩm · Quyết định", () => {
+    render(<AppNavigation activePath="/tong-quan" platform="shopee" sampleShop />);
+    expect(railLabels()).toEqual(["Tổng quan", "Phân tích", "Sản phẩm", "Quyết định"]);
+    expect(document.body.textContent).not.toMatch(/sắp có|demo/i);
+  });
+
+  it("a seller's Shopee rail keeps all 8 tabs", () => {
+    render(<AppNavigation activePath="/tong-quan" platform="shopee" />);
+    expect(railLabels()).toHaveLength(8);
+  });
+
+  it("a hidden page (and Cài đặt) goes to Tổng quan; the four screens stay", () => {
+    for (const path of ["/tu-khoa", "/quang-cao", "/don-hang", "/luong-san-pham", "/luong-san-pham/x", "/settings"]) {
+      expect(sampleShopRedirect(path)).toBe("/tong-quan");
+    }
+    for (const path of ["/tong-quan", "/phan-tich", "/xep-hang", "/san-pham/BEP-S5", "/decisions", "/"]) {
+      expect(sampleShopRedirect(path)).toBeNull();
+    }
+  });
+});
+
+describe("S2-C · avatar menu", () => {
+  const state = { status: "ready", token: "t", shop: { id: "s-1", name: "Dữ liệu mẫu" }, envelope: { report: { shop_name: "Dữ liệu mẫu" }, built_at: null } };
+
+  it("the sample shop's menu holds only Đổi shop and Đăng xuất", async () => {
+    const onSwitchShop = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    render(<ShopHeader googleHref="x" onRefreshDemo={vi.fn()} onSignOut={vi.fn()} onSwitchShop={onSwitchShop} platform="shopee" reviewer reviewerShops={[SAMPLE_PIN, SANDBOX_PIN]} sampleShop state={state as any} />);
+    await userEvent.click(screen.getByRole("button", { name: /Menu shop/ }));
+    const items = within(screen.getByRole("list")).getAllByRole("listitem").map((li) => li.textContent);
+    expect(items).toEqual([SAMPLE_SHOP_SWITCH_LABEL, "Đăng xuất"]);
+    await userEvent.click(screen.getByText("Đổi shop"));
+    expect(onSwitchShop).toHaveBeenCalledWith(SANDBOX_PIN);
+  });
+
+  it("another reviewer mode keeps Cài đặt and the labelled switch", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    render(<ShopHeader googleHref="x" onRefreshDemo={vi.fn()} onSignOut={vi.fn()} onSwitchShop={vi.fn()} platform="shopee" reviewer reviewerShops={[SANDBOX_PIN, SAMPLE_PIN]} state={{ ...state, shop: { id: "sbx-1", name: "SANDBOX_VN" } } as any} />);
+    await userEvent.click(screen.getByRole("button", { name: /Menu shop/ }));
+    expect(screen.getByText("Cài đặt")).toBeInTheDocument();
+    expect(screen.getByTestId("reviewer-switch-shop").textContent).toMatch(/^Chuyển sang /);
+  });
+});
+
+describe("S2-C · Tự tạo strategies", () => {
+  async function toKinds() {
+    fireEvent.click(await screen.findByTestId(`p2-prod-${P_ZIP}`));
+    fireEvent.click(await screen.findByTestId("p2-vnext"));
+    return screen.findByTestId("p2-kinds");
+  }
+
+  it("the sample shop offers Tiêu đề · Ảnh bìa · Voucher only, and no P98 builders", async () => {
+    withReviewer(SAMPLE, <BuilderP92View from="quyet-dinh" p98Api={p98} productId={null} />, fakeReco(), { builder: fakeBuilder() });
+    const kinds = await toKinds();
+    expect(screen.queryByTestId("p98-modes")).toBeNull();
+    expect(within(kinds).getAllByRole("button").map((b) => b.getAttribute("data-testid"))).toEqual(["p2-kind-voucher", "p2-kind-title", "p2-kind-cover_image"]);
+    expect(within(kinds).queryByText("Combo khuyến mãi")).toBeNull();
+  });
+
+  it("a seller (and a masked reviewer) keeps every strategy and the P98 builders", async () => {
+    for (const reviewer of [null, MASKED]) {
+      withReviewer(reviewer, <BuilderP92View from="quyet-dinh" p98Api={p98} productId={null} />, fakeReco(), { builder: fakeBuilder() });
+      expect(await screen.findByTestId("p98-modes")).toBeInTheDocument();
+      const kinds = await toKinds();
+      expect(within(kinds).getAllByRole("button")).toHaveLength(14);
+      cleanup();
+    }
+  });
+});
+
+describe("S2-C · card lists", () => {
+  function list(cards: CardSummary[]): CardList {
+    return { platform: "shopee", xep_theo: "diem", queue: "all", cards, counts: { family: {}, section: {}, total: cards.length } };
+  }
+  const item = (_id: string, product: string) => ({ level: "item" as const, product_ids: [product], sku_ids: [], campaign_key: null });
+  const title = summaryOf(voucherCard({ id: "c-title", family: "listing", family_label: "Listing", change_kind: "title", scope: item("c-title", "P-1") }), { status: "sent" });
+  const cover = summaryOf(voucherCard({ id: "c-cover", family: "listing", family_label: "Listing", change_kind: "cover_image", scope: item("c-cover", "P-2") }), { status: "approved" });
+  // the seeded sample shop's finished voucher: measurement window closed -> "measured" (Đo lường)
+  const voucher = summaryOf(voucherCard({ id: "c-voucher", scope: item("c-voucher", "P-3") }), { status: "measured" });
+  const ads = summaryOf({ ...adsCard(), id: "c-ads", scope: item("c-ads", "P-4") }, { status: "sent" });
+  const promo = summaryOf({ ...promotionCard(), id: "c-promo", scope: item("c-promo", "P-5") }, { status: "approved" });
+  const combo = summaryOf(voucherCard({ id: "c-combo", family: "combo", family_label: "Combo", change_kind: "bundle_deal", scope: item("c-combo", "P-6") }), { status: "executed", verification: { state: "verified" } } as Partial<CardSummary>);
+  // the seeding slice's hidden kinds in Đề xuất
+  const hidden = ["price_display", "affiliate_commission", "ads_purpose"].map((kind, i) =>
+    summaryOf(voucherCard({ id: `c-${kind}`, family: "listing", family_label: "Listing", change_kind: kind, scope: item("x", `H-${i}`) }), { status: "sent" }),
+  );
+  const all = [title, cover, voucher, ads, promo, combo, ...hidden];
+
+  const tabs = () => within(screen.getByTestId("sd-tabs")).getAllByRole("link").map((a) => a.textContent);
+
+  it("the sample shop lists only Tiêu đề / Ảnh bìa / Voucher cards; the counts match", async () => {
+    withReviewer(SAMPLE, <DecisionsView params={params()} />, fakeReco({ list: list(all) }));
+    expect(await screen.findByTestId("sq-card-c-title")).toBeInTheDocument();
+    expect(screen.queryByTestId("sq-card-c-ads")).toBeNull();
+    for (const c of hidden) expect(screen.queryByTestId(`sq-card-${c.id}`)).toBeNull();
+    expect(tabs()).toEqual(["Đề xuất · 1", "Đang thực hiện · 1", "Đo lường · 1"]);
+    cleanup();
+    withReviewer(SAMPLE, <DecisionsView params={params("tab=dang-thuc-hien")} />, fakeReco({ list: list(all) }));
+    expect(await screen.findByTestId("sd-card-c-cover")).toBeInTheDocument();
+    expect(screen.queryByTestId("sd-card-c-promo")).toBeNull();
+    cleanup();
+    withReviewer(SAMPLE, <DecisionsView params={params("tab=do-luong")} />, fakeReco({ list: list(all) }));
+    expect(await screen.findByTestId("sd-card-c-voucher")).toBeInTheDocument();
+    expect(screen.queryByTestId("sd-card-c-combo")).toBeNull();
+  });
+
+  it("a seller sees every card", async () => {
+    withReviewer(null, <DecisionsView params={params()} />, fakeReco({ list: list(all) }));
+    expect(await screen.findByTestId("sq-card-c-ads")).toBeInTheDocument();
+    expect(tabs()).toEqual(["Đề xuất · 5", "Đang thực hiện · 2", "Đo lường · 2"]);
+  });
+
+  it("Sản phẩm › Đề xuất filters the same way", () => {
+    const mine = [title, { ...ads, product_id: "P-1", product_queue: 2 }];
+    const ui = (reviewer: ReviewerRecord | null) => (
+      <StaticReviewerProvider reviewer={reviewer}>
+        <ProposalsTab builderHref="/b" cards={mine} historyHref="/h" links={sellerLinks} reco={fakeReco()} />
+      </StaticReviewerProvider>
+    );
+    render(ui(SAMPLE));
+    expect(screen.getByTestId("sp-intro").textContent).toMatch(/^1 thẻ/);
+    cleanup();
+    render(ui(null));
+    expect(screen.getByTestId("sp-intro").textContent).toMatch(/^2 thẻ/);
+  });
+});
+
+describe("S2-G · guide copy on the sample shop", () => {
+  // Vietnamese-only letters: none may appear outside the app names the guide quotes.
+  const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
+  const unquoted = (text: string) => text.replace(/“[^”]*”/g, "");
+
+  it("is English like the rest of P77's guide, about the sample shop, never a seller's hidden shop, never demo", () => {
+    const sample = guideCopy(true);
+    const prose = [sample.sheetTitle, sample.intro, ...sample.parts.map((p) => p.title), ...sample.steps.slice(0, 4).flatMap((s) => [s.body, s.shortBody])];
+    for (const line of prose) expect(unquoted(line)).not.toMatch(VIETNAMESE);
+    const text = [sample.title, ...prose, ...sample.steps.slice(0, 4).flatMap((s) => [s.title, s.shortTitle])].join(" ");
+    expect(text).toContain("sample Shopee shop");
+    expect(text).toContain("nothing is sent to Shopee");
+    expect(text).not.toMatch(/shop thật|ẩn tên|names and ids hidden|real seller|Shop TikTok|demo|simulated|mô phỏng/i);
+    expect(sample.steps.find((s) => s.id === "propose")?.body).toContain("“Đang thực hiện”");
+    expect(sample.steps.map((s) => s.id)).toEqual(guideCopy(false).steps.map((s) => s.id));
+    expect(sample.steps.find((s) => s.id === "home")?.href).toBe("/tong-quan");
+    expect(sample.steps.find((s) => s.id === "switch")?.shortBody).toContain("Đổi shop");
+    // Parts 2 and 3 (the TikTok sandbox) keep the P77 copy
+    expect(sample.steps.slice(4)).toEqual(guideCopy(false).steps.slice(4));
+    // every other pin keeps the P77 guide
+    expect(guideCopy(false).title).toBe("See Juli's live TikTok Shop integration in 8 steps");
+  });
+});

@@ -9,20 +9,17 @@ import {
   GUIDE_DONE_LABEL,
   GUIDE_DURATION,
   GUIDE_EYEBROW,
-  GUIDE_INTRO,
-  GUIDE_PARTS,
-  GUIDE_SHEET_TITLE,
   GUIDE_START_OVER,
-  GUIDE_STEPS,
   GUIDE_STEPS_LABEL,
-  GUIDE_TITLE,
   guideContinueLabel,
+  guideCopy,
   guidePillLabel,
   guideProgress,
   type GuidePart,
   type GuideStep,
 } from "../../lib/reviewer/guide-copy";
 import { useReviewerGuide } from "../../lib/reviewer/guide-context";
+import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { useNarrow } from "../quyet-dinh/use-narrow";
 
 /**
@@ -96,6 +93,8 @@ function StepRow({
 
 export function ReviewerGuide({ onSwitchToSandbox }: { readonly onSwitchToSandbox?: () => void }) {
   const guide = useReviewerGuide();
+  // P100 S2-F: on the sample shop the guide speaks of the sample shop, not a seller's shop.
+  const copy = guideCopy(useSampleShopReviewer());
   const narrow = useNarrow();
   const [tab, setTab] = useState<GuidePart>("read");
   const pillRef = useRef<HTMLButtonElement>(null);
@@ -122,11 +121,11 @@ export function ReviewerGuide({ onSwitchToSandbox }: { readonly onSwitchToSandbo
   if (!enabled) return null;
 
   const done = guide.state.done;
-  const total = GUIDE_STEPS.length;
-  const count = GUIDE_STEPS.filter((step) => done.includes(step.id)).length;
-  const nextIndex = GUIDE_STEPS.findIndex((step) => !done.includes(step.id));
+  const total = copy.steps.length;
+  const count = copy.steps.filter((step) => done.includes(step.id)).length;
+  const nextIndex = copy.steps.findIndex((step) => !done.includes(step.id));
   const finished = nextIndex === -1;
-  const nextStep = finished ? null : GUIDE_STEPS[nextIndex];
+  const nextStep = finished ? null : copy.steps[nextIndex];
 
   const collapse = () => {
     focusPill.current = true;
@@ -202,7 +201,7 @@ export function ReviewerGuide({ onSwitchToSandbox }: { readonly onSwitchToSandbo
   if (!open) return pill;
 
   if (narrow) {
-    const steps = GUIDE_STEPS.filter((step) => step.part === tab);
+    const steps = copy.steps.filter((step) => step.part === tab);
     return (
       <>
         <div aria-hidden="true" className="rg-scrim" />
@@ -220,7 +219,7 @@ export function ReviewerGuide({ onSwitchToSandbox }: { readonly onSwitchToSandbo
             <div className="rg-head__text">
               <p className="rg-eyebrow">{GUIDE_EYEBROW}</p>
               <h2 className="rg-title rg-title--sheet" id="rg-sheet-title">
-                {GUIDE_SHEET_TITLE}
+                {copy.sheetTitle}
               </h2>
             </div>
             <button aria-label={GUIDE_CLOSE_LABEL} className="rg-icon-btn" onClick={collapse} ref={closeRef} type="button">
@@ -232,7 +231,7 @@ export function ReviewerGuide({ onSwitchToSandbox }: { readonly onSwitchToSandbo
             {progress}
           </div>
           <div className="rg-tabs">
-            {GUIDE_PARTS.map((part) => (
+            {copy.parts.map((part) => (
               <button
                 aria-pressed={tab === part.id}
                 className="rg-tab"
@@ -250,7 +249,7 @@ export function ReviewerGuide({ onSwitchToSandbox }: { readonly onSwitchToSandbo
                 compact
                 done={done.includes(step.id)}
                 key={step.id}
-                n={GUIDE_STEPS.indexOf(step) + 1}
+                n={copy.steps.indexOf(step) + 1}
                 onSwitch={onSwitchToSandbox}
                 onToggle={() => guide.toggle(step.id)}
                 step={step}
@@ -269,14 +268,14 @@ export function ReviewerGuide({ onSwitchToSandbox }: { readonly onSwitchToSandbo
         <div className="rg-head__text">
           <p className="rg-eyebrow">{GUIDE_EYEBROW}</p>
           <h2 className="rg-title" id="rg-title">
-            {GUIDE_TITLE}
+            {copy.title}
           </h2>
         </div>
         <button aria-label={GUIDE_COLLAPSE_LABEL} className="rg-icon-btn" onClick={collapse} type="button">
           <CloseIcon />
         </button>
       </div>
-      <p className="rg-intro">{GUIDE_INTRO}</p>
+      <p className="rg-intro">{copy.intro}</p>
       <div className="rg-progress">
         <div className="rg-progress__row">
           <span className="rg-progress__label">{guideProgress(count, total)}</span>
@@ -284,19 +283,19 @@ export function ReviewerGuide({ onSwitchToSandbox }: { readonly onSwitchToSandbo
         </div>
         {progress}
       </div>
-      {GUIDE_PARTS.map((part) => (
+      {copy.parts.map((part) => (
         <section aria-label={part.title} className="rg-part" key={part.id}>
           <div className="rg-part__head">
             <span className={`rg-chip rg-chip--${part.id}`}>{part.chip}</span>
             <span className="rg-part__title">{part.title}</span>
           </div>
           <ul className="rg-steps">
-            {GUIDE_STEPS.filter((step) => step.part === part.id).map((step) => (
+            {copy.steps.filter((step) => step.part === part.id).map((step) => (
               <StepRow
                 compact={false}
                 done={done.includes(step.id)}
                 key={step.id}
-                n={GUIDE_STEPS.indexOf(step) + 1}
+                n={copy.steps.indexOf(step) + 1}
                 onSwitch={onSwitchToSandbox}
                 onToggle={() => guide.toggle(step.id)}
                 step={step}
