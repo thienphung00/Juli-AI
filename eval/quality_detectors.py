@@ -1506,7 +1506,10 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # market_search dataset's bad card / excluded seed); the later layers did not move.
     # P100 wave: +2 no_assert_statement (combo tier refusals checked only via
     # `pytest.raises`); the later layers did not move.
-    "no_assert_statement": 562,
+    # P100 wave 2 + S2 (#2279-#2281): +9 no_assert_statement (Shopee field refusals checked
+    # via `pytest.raises`); the two assertion-free S2 tests gained assertions, so the later
+    # layers did not move.
+    "no_assert_statement": 571,
     "and_no_pytest_raises": 132,
     "and_no_mock_assert_called": 117,
     "and_no_unittest_self_assert": 117,
