@@ -146,7 +146,12 @@ def test_the_checks_refuse_bad_rows(owner_engine, two_tenants, kwargs):
 def test_a_style_profile_belongs_to_the_shop(owner_engine, two_tenants):
     a, _ = two_tenants
     with owner_engine.begin() as conn:
-        _insert(conn, a.shop_id, spec_type="style_profile", item=None)
+        row_id = _insert(conn, a.shop_id, spec_type="style_profile", item=None)
+        stored = conn.execute(
+            text("SELECT shop_id, item_id FROM public.card_content_specs WHERE id = :id"),
+            {"id": row_id},
+        ).one()
+    assert stored.shop_id == a.shop_id and stored.item_id is None
 
 
 def test_the_purge_sweep_finds_the_table(owner_engine):

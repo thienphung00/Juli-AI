@@ -12,6 +12,7 @@ import os
 from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal
+from urllib.parse import urlparse
 
 import pytest
 from sqlalchemy import select
@@ -113,4 +114,6 @@ async def test_sample_shop_end_to_end_on_postgres():
 
 
 def test_the_postgres_run_is_never_pointed_at_a_remote_host():
-    loader.require_local(os.environ["DATABASE_URL"], False)
+    url = os.environ["DATABASE_URL"]
+    loader.require_local(url, False)  # raises SampleShopRefused on a remote host
+    assert urlparse(url).hostname in loader.LOCAL_HOSTS
