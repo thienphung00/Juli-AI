@@ -83,6 +83,11 @@ AD_TYPE_LABELS = {
     "ads_auto_bid": "Sản phẩm · GMV tối đa tự động đấu thầu",
     "ads_shop": "Dịch vụ hiển thị Shop+",
     "ads_gmvmax_shop": "Sản phẩm · GMV Max-Shop",
+    # P100: days read by the Connector carry its campaign_type, not the daily report's type.
+    # Matched on ORY's numbers: product_mpd = the Chiến Dịch Nhóm campaign, product_manual = a
+    # one-product campaign with manual bidding.
+    "product_mpd": "Sản phẩm · Chiến dịch nhóm",
+    "product_manual": "Sản phẩm · Đặt giá thầu thủ công",
     "other": "Khác",
 }
 PROMO_LABELS = {

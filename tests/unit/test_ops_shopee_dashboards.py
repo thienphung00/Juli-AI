@@ -258,3 +258,11 @@ async def test_a_user_without_an_ops_role_is_refused(session, monkeypatch):
         response = await client.get(f"/v1/ops/shops/{shop_id}/shopee/flows")
     app.dependency_overrides.clear()
     assert response.status_code in (401, 403)
+
+
+def test_connector_campaign_types_have_a_vietnamese_label():
+    """P100: days the Connector read carry its campaign_type; ORY's DVHT table showed the raw
+    keys ``product_manual`` / ``product_mpd`` beside the daily report's labelled types."""
+    for key in ("product_manual", "product_mpd"):
+        label = dash.AD_TYPE_LABELS[key]
+        assert label != key and label.startswith("Sản phẩm · ")
