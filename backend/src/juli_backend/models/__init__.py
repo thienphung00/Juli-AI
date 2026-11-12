@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models."""
 
+from juli_backend.models.card_content_specs import CardContentSpec
 from juli_backend.models.card_events import CardEvent
 from juli_backend.models.card_groups import CardGroup, CardGroupMember
 from juli_backend.models.consent import DataUseConsent, PooledContributorSet
@@ -158,6 +159,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     CardGroupMember,
     TrialSignup,
     CardEvent,
+    CardContentSpec,
     DataUseConsent,
     PooledContributorSet,
     ShopPseudonymKey,

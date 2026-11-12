@@ -103,7 +103,7 @@ def test_migration_122_fits_alembic_and_123_follows_it():
     # P97 T2's 123_shopee_metrics_tables sits on 122 and took the deferred tail.
     nxt = (MIGRATION.parent / "123_shopee_metrics_tables.py").read_text("utf-8")
     assert 'down_revision: str | None = "122_shopee_affiliate_lines"' in nxt
-    assert 'down_revision: str | None = "126_shopee_source_funnel"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "127_card_content_specs"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_122():

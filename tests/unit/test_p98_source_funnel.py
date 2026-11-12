@@ -286,7 +286,7 @@ async def test_the_check_never_raises(session, seeded, monkeypatch, caplog):
 # ---------------------------------------------------------------------------- migration
 
 
-def test_migration_126_is_additive_reversible_and_the_tail():
+def test_migration_126_is_additive_and_reversible():
     from juli_backend.database.tenant_scoped_tables import TABLE_CLASSIFICATION_MAP
 
     versions = REPO / "backend/src/juli_backend/database/migrations/versions"
@@ -315,7 +315,7 @@ def test_migration_126_is_additive_reversible_and_the_tail():
     for source in SOURCES:
         assert f"'{source}'" in src
     tail = versions.parent / "deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "126_shopee_source_funnel"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "127_card_content_specs"' in tail.read_text("utf-8")
 
 
 async def test_product_sources_come_from_the_daily_item_traffic_and_sum_to_the_product_row(

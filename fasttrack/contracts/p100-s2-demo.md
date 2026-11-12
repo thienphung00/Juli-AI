@@ -175,3 +175,125 @@ unverified-executed cards, so the "applied title" cannot sit there once its chan
   consent, membership + invites, `ops_audit_log`, settings, pseudonym keys, subscription, LLM log.
 - Run before each Shopee review. Tests: `tests/unit/test_sample_shop_reset.py` (plan + ORM schema),
   `tests/integration/test_sample_shop_reset_postgres.py` (wipe → reload restores the cards).
+
+## E.7 card specs: proposed shapes (Session 2 → Session 1, 2026-11-12)
+
+Session 1 asked Session 2 to propose these shapes; S1 builds E.7 on them unchanged, and S2-D (the
+sample shop) fills them. Sources: briefs B.20, B.22, B.23 and D; banner kinds and fields come from the
+design canvas `catalog()` (https://claude.ai/artifact/4SuySBPc5VbTQFU1SMK1wx), which stays the
+authority for the kind list.
+
+### Where they live: one additive table (migration `127_card_content_specs`, the next head after 126)
+Why not a JSON key on an existing row: `juli_app` may UPDATE only `shop_proposals.status` (column
+grant, migration 109); the card's `proposed` payload is frozen in append-only `card_events`; and a new
+`card_events.event_type` would need the CHECK changed, which is a migration too. So it is one table,
+**append-only** (the same discipline as card events), with no UPDATE or DELETE grant:
+
+```
+card_content_specs
+  id            uuid pk
+  shop_id       uuid fk shops      -- RLS: shop_isolation like every shop table; juli_app SELECT, INSERT
+  spec_type     varchar(16)        -- CHECK IN ('title', 'banner', 'style_profile')
+  proposal_id   uuid fk shop_proposals NULL   -- the card (NULL for style_profile)
+  item_id       varchar(64) NULL              -- the product (NULL for style_profile)
+  schema_version smallint          -- the JSON shape below, starting at 1
+  inputs_hash   char(64)           -- sha256 of the canonical JSON inputs: a cache hit is provable
+  spec          jsonb              -- the shape for spec_type, below
+  source        varchar(16)        -- CHECK IN ('llm', 'seller', 'seeded')  ('seeded' = sample shop)
+  llm_call_id   uuid NULL          -- the llm_call_log row, when source = 'llm'
+  created_by_user_id uuid NULL
+  created_at    timestamptz
+  index (shop_id, spec_type, item_id, created_at desc)      -- title quota per product
+  index (shop_id, spec_type, proposal_id, created_at desc)  -- latest per card; style_profile: proposal_id NULL
+```
+- **Latest wins**: the newest row for (card, type) is the current title or banner spec; for the style
+  profile it is the newest row for (shop, type). History stays for audit and learning.
+- **"Tạo lại" limit**: count the `source='llm'` title rows per (shop, item_id) in the GMT+7 day:
+  ≤ 3 on the real app. The first generation counts toward the 3; `seeded` and `seller` rows never count. The sample shop allows ≤ 1 live row in total per product, on top of the
+  `seeded` rows.
+- A seller edit is a new row with `source='seller'` (the same inputs_hash, a new `spec`), so
+  regenerating never overwrites an edit silently.
+- Fallback with **no migration**, if S1 prefers it: the style profile becomes a `shop_rules` key
+  `style_profile` (JSON, versioned by `shop_rule_versions`); titles and banners then have no
+  per-card home and live in the client until E.7. I don't recommend it.
+
+### spec_type = 'title' (B.20, B.22), schema_version 1
+```json
+{
+  "inputs": {"current_title": "…", "keywords": [{"keyword": "…", "role": "chinh|phu",
+             "searches": 1234}], "banned_terms": ["…"], "max_chars": 100},
+  "candidates": [{"title": "…", "chars": 87, "keywords_placed": ["…"], "keywords_late": [],
+                  "note": "…"}],
+  "chosen": null,
+  "model": "gpt-5.4-nano"
+}
+```
+- There are exactly 3 candidates from one gated call (`gated_client`). `inputs_hash` = sha256 of
+  canonical `inputs`, which is the value wave 1 G logs as `titles_hash` in `ops_audit_log.after`.
+- `chosen` is the index the seller picked, or null. Choosing writes a `source='seller'` row.
+- Every candidate is ≤ `max_chars` and is checked against `banned_terms` before it is stored; a
+  candidate that fails is dropped, never cut.
+
+### spec_type = 'banner' (B.20, D), schema_version 1
+```json
+{
+  "template": "toi_gian|noi_bat|khung_vien",
+  "day_mode": "ngay_thuong|mega_sale",
+  "size_px": 1200,
+  "banners": [{
+    "shape": "ngang|goc|the",
+    "kind": "mega|pct|genuine|freeship|combo|voucher|gift|addon|unit|quy_cach|…",
+    "values": {"<field>": 149000},          // typed raw: money = integer đ, % = number, text = text
+    "sources": {"<field>": {"card_id": "uuid|null", "field": "change_after.inputs.value"}},
+    "position": "top|top_left|top_right|middle_right|bottom_right",
+    "colour": "#RRGGBB",
+    "size": "S|M|L"
+  }],
+  "checks": [{"code": "overlap|overload|text_long|empty_value|covers_product",
+              "banner": 0, "fix": "…"}],
+  "check_call_id": null
+}
+```
+- Positions by shape: `ngang` → `top`; `goc` → `top_left`, `top_right`; `the` → `middle_right`,
+  `bottom_right`. `bottom_left` is never allowed.
+- Counts: `ngay_thuong` ≤ 3 banners; `mega_sale` ≤ 4 plus the top strip (a `ngang` `mega`).
+- `values` are typed raw values, never pre-formatted text such as "149K". The display text is derived
+  at render time, so a format change never rewrites a stored spec.
+- `values` come only from card or listing fields named in `sources`. A missing value stays
+  `null` and shows as an empty field, never an invented claim.
+- `colour` must be in the shop's `style_profile.palette`.
+- Two banners on one position is a `checks` warning, not a refusal.
+- `checks` are filled by the one vision call on the final image (step 4 Kiểm tra) and re-run after
+  edits; before that they are the rule-based checks.
+- Kinds `gift` and `addon` cite the card "Mua Để Nhận Quà" or "Mua Kèm Deal Sốc" once w2-offers
+  lands; the engine families stay `gift` / `add_on`.
+
+### spec_type = 'style_profile' (B.23), schema_version 1 (proposal_id and item_id NULL)
+```json
+{
+  "palette": ["#RRGGBB", "#RRGGBB", "#RRGGBB"],
+  "primary": "#RRGGBB", "accent": "#RRGGBB",
+  "type_feel": "geometric|rounded|serif|handwritten|condensed",
+  "radius": "none|small|large|pill",
+  "text_density": "low|medium|high",
+  "positions_used": ["top_left", "bottom_right"],
+  "covers_seen": [{"item_id": "…", "image_id": "…", "image_sha256": "…"}]
+}
+```
+- `palette` holds 3 to 5 colours. The profile comes from one vision call over ≤ 12 covers at
+  connect.
+- `inputs_hash` = sha256 of the sorted `covers_seen` image ids or bytes, never the URL: a CDN URL can
+  change for the same image. A changed cover changes the hash; the profile can be re-run on demand.
+
+### S2-D (sample shop) on these shapes
+- The loader and `--reset` write `source='seeded'` rows:
+  - one `style_profile` (a fixed palette for "Hiên Nhà");
+  - a `title` spec with 3 fixed candidates for each of the 6 products;
+  - a `banner` spec on the open voucher card and the cover cards.
+  No LLM call at load.
+- A sample-pin reviewer may make ≤ 1 live title regenerate per product. It is refused after that
+  (`sample_llm_quota`), and the reset brings the quota back.
+- **Accepted by S1 on 2026-11-12, with 4 amendments (folded in above): the second index, typed
+  `values`, explicit quota counting, image-id hash.** Migration `127_card_content_specs` is Session 2's,
+  on a branch from `fasttrack/optimize-product`. S1 builds E.7 on it unchanged; S1 wave 2 has no
+  migration, and if that changes S1 takes 128.
