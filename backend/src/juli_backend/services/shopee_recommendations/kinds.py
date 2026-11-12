@@ -23,7 +23,7 @@ FAMILIES: tuple[str, ...] = (
     "mega_sale",
 )
 FAMILY_LABELS: dict[str, str] = {
-    "ads": "Quảng cáo",
+    "ads": "Dịch vụ hiển thị",
     "promotion": "Khuyến mãi / giá",
     "voucher": "Voucher",
     "sale": "Flash Sale / chương trình Shopee",

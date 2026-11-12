@@ -39,7 +39,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
 from juli_backend.services.shopee_profit.order_profit import AdsPool, OrderLine, ProfitBreakdown
@@ -376,7 +376,11 @@ ADS_SHARE_WINDOW = "window"  # by their share of the window's buyer paid (no dai
 class KnownCostProfit:
     """P100 B.5: THE shop profit -- the profit of the ORDERS whose costs are all known, with its
     coverage ("trên N đơn có chi phí, X % GMV"). Tổng quan, Sản phẩm, Phân tích and Kế hoạch all
-    show this one figure (:func:`known_cost_profit`); nothing is scaled to the shop GMV."""
+    show this one figure (:func:`known_cost_profit`); nothing is scaled to the shop GMV.
+
+    The bridge on Tổng quan adds up exactly: ``product_profit`` (known orders' contribution minus
+    the ads charged to the products) - ``ads_unattributed_charged`` - ``other_marketing_charged``
+    = ``profit``, each part a whole đồng."""
 
     profit: Decimal | None  # known orders' contribution - their ads share - their other costs
     margin_pct: Decimal | None  # profit ÷ those orders' buyer paid (1 decimal)
@@ -386,6 +390,10 @@ class KnownCostProfit:
     buyer_paid: Decimal = ZERO  # those orders' buyer paid (the margin base)
     ads_charged: Decimal = ZERO  # the ad spend charged to them
     ads_basis: str = ADS_SHARE_WINDOW
+    product_profit: Decimal | None = None  # bridge: contribution - ads charged to products
+    ads_unattributed_charged: Decimal = ZERO  # bridge: "QC không gắn sản phẩm" charged
+    other_marketing_charged: Decimal = ZERO  # bridge: "chi marketing khác" charged
+    ads_total: Decimal = ZERO  # all the ad spend of the window (charged or not)
 
     @property
     def label(self) -> str:
@@ -394,6 +402,14 @@ class KnownCostProfit:
         if self.gmv_share_pct is None:
             return f"trên {self.orders} đơn có chi phí"
         return f"trên {self.orders} đơn có chi phí, {_vn_pct(self.gmv_share_pct)} % GMV"
+
+    @property
+    def ads_label(self) -> str:
+        """What the ads line charged (B.5): the spend of the days with known-cost orders."""
+        charged, total = _vn_money(self.ads_charged), _vn_money(self.ads_total)
+        if self.ads_basis == ADS_SHARE_DAILY:
+            return f"QC tính trên ngày có đơn có chi phí: {charged}đ / tổng chi QC {total}đ"
+        return f"QC tính theo tỷ lệ doanh thu đơn có chi phí: {charged}đ / tổng chi QC {total}đ"
 
     def json(self) -> dict[str, object]:
         return {
@@ -406,7 +422,24 @@ class KnownCostProfit:
             "ads_charged": _money(self.ads_charged),
             "ads_basis": self.ads_basis,
             "label": self.label,
+            "bridge": {
+                "product_profit": _money(self.product_profit),
+                "ads_unattributed": _money(self.ads_unattributed_charged),
+                "other_marketing": _money(self.other_marketing_charged),
+                "profit": _money(self.profit),
+                "ads_charged": _money(self.ads_charged),
+                "ads_total": _money(self.ads_total),
+                "ads_label": self.ads_label,
+            },
         }
+
+
+def _vn_money(value: Decimal) -> str:
+    return f"{int(value.quantize(Decimal(1), rounding=ROUND_HALF_UP)):,}".replace(",", ".")
+
+
+def _whole(value: Decimal) -> Decimal:
+    return value.quantize(Decimal(1), rounding=ROUND_HALF_UP)
 
 
 def known_cost_profit(
@@ -420,12 +453,13 @@ def known_cost_profit(
     costs; every line of any other order is left out of the profit, the margin base and the ads
     share, and counts against the coverage. ``None`` (never 0) without a known-cost order.
 
-    Ads: each product's report spend is charged by the known orders' share of that product's
-    buyer paid. The spend not tied to a product (and nothing else) follows ``daily_spend``
-    when given (:data:`ADS_SHARE_DAILY`): each day's part of it is charged by the known orders'
-    share of that day's buyer paid -- a day whose orders all lack costs charges nothing (prod
-    04/11-09/11: those days' ads are never order profit), a day with spend but no order line
-    falls back to the window share. Without ``daily_spend`` the window share is used
+    Ads, with ``daily_spend`` (:data:`ADS_SHARE_DAILY`, the one per-day spend of
+    :mod:`.ads_days`): each day's spend is charged by that day's known-cost GMV share -- a day
+    whose orders all lack costs charges nothing, and a day with no order line at all (no order
+    data) contributes no profit and no ads charge. The charged total is then split between the
+    products' report spend and the spend not tied to a product in the window's proportion, so
+    the bridge adds up. Without ``daily_spend`` each product's report spend follows the known
+    orders' share of that product's buyer paid and the rest the window share
     (:data:`ADS_SHARE_WINDOW`). Other marketing costs always follow the window share."""
     counted = [(ln, pb) for ln, pb in pairs if pb.excluded_reason is None]
     unknown = {ln.order_id for ln, pb in counted if pb.contribution is None}
@@ -437,34 +471,47 @@ def known_cost_profit(
     gmv = sum((ln.order_value for ln, _ in known), ZERO)
     share = safe_div(paid_known, paid_all) or ZERO
 
-    paid_by_product: dict[str, Decimal] = defaultdict(lambda: ZERO)
-    for ln, pb in known:
-        paid_by_product[ln.product_id] += pb.revenue
-    ads = ZERO
-    for pid, pp in profit.products.items():
-        part = safe_div(paid_by_product.get(pid, ZERO), pp.buyer_paid)
-        if part is not None:
-            ads += pp.ad_spend * part
-    unattributed = profit.unattributed_ad_spend
     spend_days = {d: s for d, s in (daily_spend or {}).items() if s > 0}
     spend_total = sum(spend_days.values(), ZERO)
-    basis = ADS_SHARE_WINDOW
+    product_total = profit.product_ad_spend
+    unattributed_total = profit.unattributed_ad_spend
     if spend_total > 0:
         basis = ADS_SHARE_DAILY
         day_all: dict[date, Decimal] = defaultdict(lambda: ZERO)
         day_known: dict[date, Decimal] = defaultdict(lambda: ZERO)
-        for ln, pb in counted:
-            day_all[ln.order_date] += pb.revenue
+        for ln, _ in counted:
+            day_all[ln.order_date] += ln.order_value
             if ln.order_id not in unknown:
-                day_known[ln.order_date] += pb.revenue
+                day_known[ln.order_date] += ln.order_value
+        charged = ZERO
         for d, spent in spend_days.items():
             day_share = safe_div(day_known.get(d, ZERO), day_all.get(d, ZERO))
-            ads += unattributed * spent / spend_total * (share if day_share is None else day_share)
+            charged += spent * (day_share or ZERO)  # no order data that day: no charge
+        ads_total = spend_total
+        pool = product_total + unattributed_total
+        ads_products = charged * product_total / pool if pool > 0 else ZERO
+        ads_unattributed = charged - ads_products
     else:
-        ads += unattributed * share
+        basis = ADS_SHARE_WINDOW
+        paid_by_product: dict[str, Decimal] = defaultdict(lambda: ZERO)
+        for ln, pb in known:
+            paid_by_product[ln.product_id] += pb.revenue
+        ads_products = ZERO
+        for pid, pp in profit.products.items():
+            part = safe_div(paid_by_product.get(pid, ZERO), pp.buyer_paid)
+            if part is not None:
+                ads_products += pp.ad_spend * part
+        ads_unattributed = unattributed_total * share
+        ads_total = profit.total_ad_spend
+    other = profit.other_marketing_costs * share
+    ads = ads_products + ads_unattributed
     value = None
+    product_profit = None
     if known_orders:
-        value = contribution - ads - profit.other_marketing_costs * share
+        # whole đồng per bridge line, so the lines add up exactly to the figure every screen shows
+        product_profit = _whole(contribution - ads_products)
+        ads_unattributed, other = _whole(ads_unattributed), _whole(other)
+        value = product_profit - ads_unattributed - other
     margin = None if value is None else pct_points(safe_div(value, paid_known))
     gmv_share = None
     if shop_gmv is not None and shop_gmv > 0:
@@ -478,4 +525,8 @@ def known_cost_profit(
         buyer_paid=paid_known,
         ads_charged=ads,
         ads_basis=basis,
+        product_profit=product_profit,
+        ads_unattributed_charged=ads_unattributed,
+        other_marketing_charged=other,
+        ads_total=ads_total,
     )

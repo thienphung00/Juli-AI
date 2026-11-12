@@ -221,7 +221,7 @@ def test_a_partly_unknown_order_is_out_of_profit_base_and_ads_share():
 
 def test_daily_spend_is_charged_by_each_days_known_orders():
     """Day 4: only orders without giá vốn -> its spend is not charged (never order profit);
-    day 5: all known -> charged whole; day 6: spend, no order line -> the window share."""
+    day 5: all known -> charged whole; day 6: spend, no order line (no order data) -> no charge."""
     pairs = [
         (_line("o1", "A", 100_000, day=4), _pb(100_000, None)),
         (_line("o2", "A", 100_000, day=5), _pb(100_000, 40_000)),
@@ -234,8 +234,9 @@ def test_daily_spend_is_charged_by_each_days_known_orders():
     }
     fig = known_cost_profit(sp, pairs, Decimal(200_000), daily)
     assert fig.ads_basis == "daily"
-    assert fig.ads_charged == Decimal(0) + Decimal(10_000) + Decimal(5_000)
-    assert fig.profit == Decimal(25_000)
+    assert fig.ads_charged == Decimal(10_000)
+    assert fig.profit == Decimal(30_000)
+    assert fig.ads_total == Decimal(30_000)
 
 
 async def test_tong_quan_product_traffic_is_shopees_product_table(session, built):

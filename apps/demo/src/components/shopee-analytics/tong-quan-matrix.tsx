@@ -495,7 +495,7 @@ function ProductSources({
         </p>
       ) : null}
       {sub(
-        "Quảng cáo (trong đó)",
+        "DVHT (trong đó)",
         `${p.ads.basis.label} · chi ${vnd(p.ads.spend)} · ROAS ${fmt(p.ads.roas_broad, 1)}`,
         [
           ["GMV", vnd(p.ads.gmv_placed), rk("gmv", "ads"), null],
@@ -506,8 +506,8 @@ function ProductSources({
       )}
       <p className="sa-hint">
         {price
-          ? "Bốn mức ưu đãi cộng lại 100% đơn. Quảng cáo nằm trong đó, không cộng thêm. Lượt xem, CTR, CTOR không tách theo ưu đãi."
-          : "Năm luồng cộng lại 100% đơn cùng một dòng “Chênh lệch nguồn”. Quảng cáo nằm trong các luồng, không cộng thêm."}
+          ? "Bốn mức ưu đãi cộng lại 100% đơn. Dịch vụ hiển thị nằm trong đó, không cộng thêm. Lượt xem, CTR, CTOR không tách theo ưu đãi."
+          : "Năm luồng cộng lại 100% đơn cùng một dòng “Chênh lệch nguồn”. Dịch vụ hiển thị nằm trong các luồng, không cộng thêm."}
       </p>
       <Link className="sa-link" href={links.product(p.product_id, { tab: "ng", from: "tong-quan" }, state)}>
         Mở sản phẩm ›

@@ -33,7 +33,9 @@ from typing import Any
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.services.shopee_analytics.loaders import load_ad_days
 from juli_backend.services.shopee_analytics.queries import product_price_margin, window_metrics
+from juli_backend.services.shopee_analytics.windows import Window
 
 PLATFORM = "shopee"
 ORDER_TYPES = ("placed", "paid", "confirmed")
@@ -57,7 +59,7 @@ STREAM_LABELS = {
     "seller_video": "Video",
     "seller_live": "Live",
     "affiliate": "Tiếp thị liên kết",
-    "ads": "Dịch vụ Hiển thị",
+    "ads": "Dịch vụ hiển thị",
 }
 SEGMENT_LABELS = {
     "search": "Tìm kiếm",
@@ -77,10 +79,10 @@ SEGMENT_LABELS = {
     "aff_video": "Affiliate Video",
 }
 AD_TYPE_LABELS = {
-    "ads_roas_custom": "GMV tối đa ROAS tùy chỉnh",
-    "ads_auto_bid": "GMV tối đa tự động đấu thầu",
-    "ads_shop": "Quảng cáo cửa hàng",
-    "ads_gmvmax_shop": "Product Ads (GMV Max-Shop)",
+    "ads_roas_custom": "Sản phẩm · GMV tối đa ROAS tùy chỉnh",
+    "ads_auto_bid": "Sản phẩm · GMV tối đa tự động đấu thầu",
+    "ads_shop": "Dịch vụ hiển thị Shop+",
+    "ads_gmvmax_shop": "Sản phẩm · GMV Max-Shop",
     "other": "Khác",
 }
 PROMO_LABELS = {
@@ -568,17 +570,6 @@ def _total(rows: list[Any], index: int) -> Decimal | None:
 # ``ads_expense`` lives in ``extra`` as a number (VND); anything else counts as no spend.
 # ``segment <> 'all'``: ads rows carry the ad type as the segment; an ``all`` row would be
 # the total of the types and must not be added to them.
-_ADS_DAILY = """
-SELECT day, segment, sum(gmv), sum(orders),
-       sum(CASE WHEN jsonb_typeof(extra -> 'ads_expense') = 'number'
-                THEN (extra ->> 'ads_expense')::numeric END),
-       sum(impressions), sum(clicks)
-FROM platform_daily_metrics
-WHERE shop_id = :shop AND platform = 'shopee' AND dataset = 'traffic_overview'
-  AND stream = 'ads' AND segment <> 'all' AND item_id = '' AND order_type = :ot
-  AND day BETWEEN :a AND :b
-GROUP BY day, segment ORDER BY day
-"""
 _ADS_MONTHLY_DAILY = """
 SELECT date_trunc('month', day)::date, segment, sum(gmv), sum(orders),
        sum(CASE WHEN jsonb_typeof(extra -> 'ads_expense') = 'number'
@@ -676,18 +667,28 @@ async def ads(
     window: DateRange,
     order_type: str = DEFAULT_ADS_ORDER_TYPE,
 ) -> dict[str, Any]:
-    daily_rows = await _rows(
-        session, _ADS_DAILY, shop=shop_id, ot=order_type, a=window.start, b=window.end
-    )
+    # P100 A.5: ONE ad spend per day -- the Connector's day, else the daily report, else the CSV
+    # period report spread over its days; a day with none is absent ("chưa có dữ liệu"), not 0
+    ad_days = await load_ad_days(session, shop_id, Window(window.start, window.end))
+    daily_rows = [
+        (day, kind, t.gmv, t.orders, t.spend, None, None)
+        for day, figure in sorted(ad_days.items())
+        for kind, t in sorted(figure.by_type.items())
+    ] or [
+        (day, "period", f.gmv, f.orders, f.spend, None, None) for day, f in sorted(ad_days.items())
+    ]
     types: dict[str, list[Any]] = defaultdict(lambda: [Decimal(0), Decimal(0), None])
     daily: dict[str, dict[str, list[Any]]] = defaultdict(lambda: defaultdict(lambda: [0, 0, None]))
-    for day, ad_type, gmv, orders, cost, _impr, _clicks in daily_rows:
+    for day, ad_type, day_gmv, day_orders, day_cost, _impr, _clicks in daily_rows:
         slot = types[ad_type]
-        slot[0] += Decimal(gmv or 0)
-        slot[1] += Decimal(orders or 0)
-        if cost is not None:
-            slot[2] = (slot[2] or Decimal(0)) + Decimal(cost)
-        daily[day.isoformat()][ad_type] = [gmv, orders, cost]
+        slot[0] += Decimal(day_gmv or 0)
+        slot[1] += Decimal(day_orders or 0)
+        if day_cost is not None:
+            slot[2] = (slot[2] or Decimal(0)) + Decimal(day_cost)
+        cell = daily[day.isoformat()][ad_type]
+        cell[0], cell[1] = (cell[0] or 0) + (day_gmv or 0), (cell[1] or 0) + (day_orders or 0)
+        if day_cost is not None:
+            cell[2] = (cell[2] or 0) + day_cost
     by_type = [
         {
             "ad_type": ad_type,
@@ -699,6 +700,7 @@ async def ads(
     total_cost = sum((Decimal(v[2]) for v in types.values() if v[2] is not None), Decimal(0))
     total_gmv = sum((v[0] for v in types.values()), Decimal(0))
     total_orders = sum((v[1] for v in types.values()), Decimal(0))
+    day_sources = {d.isoformat(): f.source for d, f in sorted(ad_days.items())}
 
     h0 = _months_back(window.end, HISTORY_MONTHS)
     monthly_daily = await _rows(
@@ -769,6 +771,13 @@ async def ads(
         "monthly": monthly,
         "campaigns": campaigns,
         "campaigns_available": bool(campaigns),
+        "campaigns_note": "Theo chiến dịch: chỉ các ngày Connector đọc được; "
+        "tổng chi cả kỳ nằm ở Theo loại.",
+        "coverage": {
+            "days_with_data": len(ad_days),
+            "window_days": (window.end - window.start).days + 1,
+            "day_sources": day_sources,
+        },
         "alerts": alerts,
         "alert_rule": {"floor": float(ROAS_FLOOR), "min_days": ROAS_ALERT_MIN_DAYS},
         "has_data": bool(daily_rows) or bool(campaigns),

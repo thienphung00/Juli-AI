@@ -190,10 +190,9 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
   const p = ov.profit;
   const cov = p.cost_coverage;
   const partial = p.profit_is_partial;
-  const productProfit =
-    !partial && p.contribution_before_ads !== null && p.ad_spend.by_product !== null
-      ? p.contribution_before_ads - p.ad_spend.by_product
-      : null;
+  // P100 B.5: every line of the bridge is the known-cost basis the one shop profit is on
+  const bridge = p.bridge ?? null;
+  const productProfit = bridge ? bridge.product_profit : null;
   const missing = Object.entries(p.missing).filter(([, n]) => n > 0);
   // Bar widths may use 0 for a missing share; every printed percentage stays "—" when it is missing.
   const realN = cov.real_pct ?? null;
@@ -205,18 +204,20 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
   const lines: { k: string; v: string; note: string; tone?: string }[] = [
     {
       k: "Lợi nhuận các sản phẩm",
-      v: partial || productProfit === null ? DASH : vnd(productProfit),
-      note: partial ? `Chưa hiện số đồng: còn ${pp(unknownN, 1)} doanh thu chưa có giá vốn` : "Σ lợi nhuận từng sản phẩm",
+      v: productProfit === null ? DASH : vnd(productProfit),
+      note: partial
+        ? `Chỉ các đơn có đủ chi phí (còn ${pp(unknownN, 1)} doanh thu chưa có giá vốn)`
+        : "Σ lợi nhuận từng sản phẩm, các đơn có đủ chi phí",
     },
     {
       k: "− QC không gắn sản phẩm",
-      v: p.ad_spend.unattributed === null ? DASH : `−${vnd(p.ad_spend.unattributed)}`,
-      note: `${p.ad_spend.unattributed_label} (đơn đã đặt)`,
+      v: !bridge || bridge.ads_unattributed === null ? DASH : `−${vnd(bridge.ads_unattributed)}`,
+      note: bridge ? bridge.ads_label : `${p.ad_spend.unattributed_label} (đơn đã đặt)`,
       tone: "sa-tone--down",
     },
     {
       k: "− Chi marketing khác",
-      v: p.other_marketing_costs === null ? DASH : `−${vnd(p.other_marketing_costs)}`,
+      v: !bridge || bridge.other_marketing === null ? DASH : `−${vnd(bridge.other_marketing)}`,
       note: "Giải thưởng trò chơi, không nằm trên đơn",
       tone: "sa-tone--down",
     },
@@ -239,9 +240,12 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
             </div>
           ))}
           <p className="sa-hint" data-testid="sa-ad-check">
-            Kiểm tra: QC các sản phẩm {vnd(p.ad_spend.by_product)} + QC không gắn sản phẩm{" "}
-            {vnd(p.ad_spend.unattributed)} = tổng chi QC {vnd(p.ad_spend.total)}{" "}
-            {p.ad_spend.consistent ? "✓" : "(chi phí theo sản phẩm lớn hơn tổng chiến dịch)"}
+            Kiểm tra: lợi nhuận các sản phẩm {vnd(bridge?.product_profit)} − QC không gắn sản phẩm{" "}
+            {vnd(bridge?.ads_unattributed)} − chi marketing khác {vnd(bridge?.other_marketing)} ={" "}
+            {vnd(p.profit_vnd)}
+            {bridge && bridge.product_profit !== null && bridge.ads_unattributed !== null && bridge.other_marketing !== null && bridge.product_profit - bridge.ads_unattributed - bridge.other_marketing === p.profit_vnd ? " ✓" : ""}. Tổng chi QC cả kỳ {vnd(p.ad_spend.total)} (QC các sản phẩm{" "}
+            {vnd(p.ad_spend.by_product)} + QC không gắn sản phẩm {vnd(p.ad_spend.unattributed)})
+            {p.ad_spend.consistent ? "" : " — chi phí theo sản phẩm lớn hơn tổng chiến dịch"}
           </p>
         </div>
         <div className="sa-profit__panel">

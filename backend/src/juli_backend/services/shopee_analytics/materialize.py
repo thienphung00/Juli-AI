@@ -244,10 +244,9 @@ def _funnel(rows: Any) -> tuple[int | None, int | None]:
 
 
 def _ads_gmv(view: PeriodView) -> Decimal:
-    """The ads GMV that goes with the day's ``ads_spend``: both from the same allocation, so the
-    stored ROAS never divides the daily-table GMV by the campaign-report spend."""
-    if view.ads.campaigns:
-        return sum((c.gmv for c in view.ads.campaigns), ZERO)
+    """The ads GMV that goes with the day's ``ads_spend``: both from the one per-day figure
+    (:func:`loaders.load_ad_days`), so the stored ROAS never divides one source's GMV by another's
+    spend (P100 A.5)."""
     return view.data.ads_daily.gmv
 
 
@@ -265,13 +264,16 @@ def day_rows(
     m = shop_metrics(view, spread=spread)
     traffic_spread = {i: s for i, s in spread.items() if s.traffic_period is not None}
     p = view.profit
+    ad_source = view.data.ads_daily.source_by_day.get(day)
     complete = view.data.totals.basis == "daily" and view.data.traffic.basis == "daily"
     sources = {
         "gmv": "shop_totals" if view.data.totals.basis == "daily" else "order_lines",
         "orders": "shop_totals" if view.data.totals.basis == "daily" else "order_lines",
         "views": traffic_tag,
         "product_clicks": traffic_tag,
-        "ads_spend": traffic_tag,
+        # P100 A.5: the day's ad spend names its own source (connector / daily_report /
+        # period_spread); a day with none is NULL below, never 0
+        "ads_spend": ad_source or "none",
         "profit": "order_lines",
     }
     if any(s.basis == SPLIT_SPREAD_PERIOD for s in m.splits.values()):
@@ -296,8 +298,8 @@ def day_rows(
         "views": shop_views,
         "visitors": None,
         "product_clicks": shop_clicks,
-        "ads_spend": _money(m.ad_spend),
-        "ads_gmv": _money(_ads_gmv(view)),
+        "ads_spend": _money(m.ad_spend) if ad_source else None,
+        "ads_gmv": _money(_ads_gmv(view)) if ad_source else None,
         "profit": _money(m.profit),
         "margin_profit": _money(p.covered_margin_profit),
         "buyer_paid_known": _money(covered),
