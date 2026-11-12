@@ -727,8 +727,8 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
         return None
     days = Decimal(env.window_days)
     figs = env.view.ads.product_figures
-    before_ads = ZERO
-    direct = ZERO
+    weighted = ZERO
+    weight = ZERO
     for item, spend in alloc.products.items():
         fig = figs.get(item)
         pp = env.product(item)
@@ -739,10 +739,13 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
             safe_div(pp.contribution, pp.buyer_paid_covered) if pp.buyer_paid_covered > 0 else None
         )
         d = fig.direct_gmv * min(share, ONE)
-        direct += d
-        before_ads += d * (rate if rate is not None and rate > 0 else ZERO)
-    if direct <= 0:
-        direct = alloc.direct_gmv
+        weight += d
+        weighted += d * (rate if rate is not None and rate > 0 else ZERO)
+    # P100 A.5: the campaign's spend and direct revenue are both scaled to the one daily spend,
+    # so ROAS is read from the campaign itself; the products only weight the contribution rate
+    # (their figures may sit on the report's own scale, which no longer equals the daily one)
+    direct = alloc.direct_gmv if alloc.direct_gmv > 0 else weight
+    before_ads = direct * (weighted / weight) if weight > 0 else ZERO
     return {
         "alloc": alloc,
         "spend_per_day": alloc.spend / days,
