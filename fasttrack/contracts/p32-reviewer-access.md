@@ -401,8 +401,8 @@ the S2-A loader creates (contract `p100-s2-demo.md`).
   version / what-if, refresh-base, groups, confirm, window) and the change-set window.
 - **Nothing outbound.** `shopee_recommendations.fill_queue.enabled()` is False inside a reviewer
   request, so no fill job is queued for the Connector (approve, plan confirm, group approval);
-  `GET /fill-jobs` and its cancel stay refused; live LLM / vision drafts stay 403 `sample_llm_off`
-  (until S2-D); no Shopee / TikTok / e-mail path exists on these routes. Reviewed refusals with
+  `GET /fill-jobs` and its cancel stay refused; the live cover / description drafts stay 403
+  `sample_llm_off`; the title drafts are a sample write since S2-D (see below); no Shopee / TikTok / e-mail path exists on these routes. Reviewed refusals with
   their reason: `SAMPLE_SHOP_REFUSED` (fill queue, hidden screens' routes incl. the committing
   `GET /keywords`, the builders the sample shop does not offer).
 - **Audit.** Each admitted write: one `reviewer_sample_write` row (config kind), actor
@@ -418,3 +418,17 @@ the S2-A loader creates (contract `p100-s2-demo.md`).
   old rows. The seeding itself moved to `services/sample_shop/seed.py` (the loader calls it;
   `seed_all` proven to rebuild the loader's cards in one transaction). Owner decision pending.
 - Tests: `tests/unit/test_reviewer_sample_shopee.py`, `tests/unit/test_sample_shop.py`.
+
+### Amendment S2-D (2026-11-12): Tiêu đề drafts on the sample shop
+- `POST /v1/demo/shopee/builder/drafts/title` moved from `SAMPLE_SHOP_LLM_ENDPOINTS` to
+  `SAMPLE_SHOP_ROUTES` (write, audited `reviewer_sample_write`), sample pin only; every other pin
+  keeps `read_only`.
+- A plain request serves the newest stored title spec (`card_content_specs`, migration 127): the
+  loader's `seeded` titles, through the same screen as a live draft (`drafts.screen_titles`), with no
+  LLM client built.
+- `regenerate: true` runs ONE live draft per product (`content_specs.SAMPLE_LIVE_TITLES_PER_PRODUCT`),
+  stored as a `source='llm'` row by the reviewer's user, counted under a per-product advisory lock.
+  A second one is 403 `sample_llm_quota` ("Dữ liệu mẫu: đã dùng lượt viết lại bằng AI cho sản phẩm
+  này"), audited as `reviewer_write_refused` with that reason, with no model call.
+- `--reset` deletes the rows (owner connection) and the re-load seeds them again: the quota resets.
+  Worst case per review cycle: 6 live title calls (one per product).

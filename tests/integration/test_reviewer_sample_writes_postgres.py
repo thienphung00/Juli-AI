@@ -188,3 +188,60 @@ async def test_the_sample_reviewers_writes_run_as_juli_app_on_the_sample_shop_on
     assert approval.shop_id == shop and approval.decided_by_user_id == reviewer
     assert jobs == 0
     assert [a.after["method"] for a in audited][-3:] == ["POST", "PUT", "DELETE"]
+
+
+async def test_the_sample_title_drafts_run_as_juli_app_and_the_quota_holds(app, world, monkeypatch):
+    """P100 S2-D under RLS as ``juli_app``: the seeded titles answer with no model call; one live
+    draft (a fake model) is stored as ``source='llm'`` by the reviewer (INSERT only, the shop's
+    scope, the advisory lock); the second one is 403 ``sample_llm_quota`` and calls no model."""
+    from httpx import ASGITransport, AsyncClient
+
+    from juli_backend.api.routes import shopee_builder_common
+    from juli_backend.services.sample_shop.catalog import PRODUCTS
+
+    class FakeModel:
+        model = "fake-model"
+        calls = 0
+
+        async def complete_json(self, **_: object) -> dict[str, object]:
+            FakeModel.calls += 1
+            return {"drafts": [{"title": "Nước rửa chén Hiên Nhà sinh học chai 500ml hương chanh"}]}
+
+    async def get_client(_session, _shop_id):
+        return FakeModel()
+
+    monkeypatch.setattr(shopee_builder_common, "get_client", get_client)
+    shop, reviewer = world["shop"], world["reviewer"]
+    headers = _headers(reviewer, shop)
+    url = "/v1/demo/shopee/builder/drafts/title"
+    body = {"item_id": PRODUCTS[0].item_id, "count": 3, "as_of": END.isoformat()}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        seeded = await client.post(url, json=body, headers=headers)
+        live = await client.post(url, json={**body, "regenerate": True}, headers=headers)
+        again = await client.post(url, json={**body, "regenerate": True}, headers=headers)
+    assert set(app.state.test_roles) == {"juli_app"}
+    assert seeded.status_code == 200, seeded.text
+    assert seeded.json()["source"] == "seeded" and len(seeded.json()["drafts"]) == 3
+    assert live.status_code == 200, live.text
+    assert live.json()["source"] == "llm" and live.json()["live_left"] == 0
+    assert (
+        again.status_code == 403 and again.headers["x-juli-reviewer-denied"] == "sample_llm_quota"
+    )
+    assert FakeModel.calls == 1
+    with owner_sync_engine() as owner, owner.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT shop_id, created_by_user_id FROM public.card_content_specs "
+                "WHERE source = 'llm' AND item_id = :i"
+            ),
+            {"i": PRODUCTS[0].item_id},
+        ).all()
+        refused = conn.execute(
+            text(
+                "SELECT after FROM public.ops_audit_log WHERE action = 'reviewer_write_refused' "
+                "AND shop_id = :s"
+            ),
+            {"s": shop},
+        ).all()
+    assert [(r.shop_id, r.created_by_user_id) for r in rows] == [(shop, reviewer)]
+    assert [r.after["reason"] for r in refused] == ["sample_llm_quota"]

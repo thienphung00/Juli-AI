@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { fmt, vnd } from "../../../lib/shopee-analytics/format";
 import type { AdsCampaigns, CoverOverlay, KeywordTable } from "../../../lib/shopee-decisions/builder-api";
@@ -188,7 +188,14 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
     // One keyword table per product.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.product.item_id]);
-  const [draft, run] = useDraft(() => ctx.api.draftTitle({ itemId: ctx.product.item_id, keywords: form.ticked, count: 3 }));
+  // P100 S2-D: the sample shop answers with pre-written titles ("seeded") and allows one live AI
+  // draft per product (`live_left`); `regen` asks for that one. Other shops never send it.
+  const regen = useRef(false);
+  const [draft, run] = useDraft(() => ctx.api.draftTitle({ itemId: ctx.product.item_id, keywords: form.ticked, count: 3, regenerate: regen.current }));
+  const write = (again: boolean) => {
+    regen.current = again;
+    run();
+  };
   const n = chars(form.text);
   const cov = coverage(form.text, form.ticked);
   const toggle = (k: string) => set({ ticked: form.ticked.includes(k) ? form.ticked.filter((x) => x !== k) : [...form.ticked, k].slice(0, 12) });
@@ -235,9 +242,14 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
         </p>
       ))}
       <div className="sd-actions">
-        <button className="sa-btn sa-btn--primary" data-testid="p2-title-draft" disabled={form.ticked.length === 0 || draft.status === "busy"} onClick={run} type="button">
+        <button className="sa-btn sa-btn--primary" data-testid="p2-title-draft" disabled={form.ticked.length === 0 || draft.status === "busy"} onClick={() => write(false)} type="button">
           Viết 3 tiêu đề bằng từ khoá đã chọn
         </button>
+        {draft.status === "ready" && draft.data.source === "seeded" && (draft.data.live_left ?? 0) > 0 ? (
+          <button className="sa-btn" data-testid="p2-title-regenerate" disabled={form.ticked.length === 0} onClick={() => write(true)} type="button">
+            Viết lại bằng AI (còn {draft.data.live_left} lần)
+          </button>
+        ) : null}
         {form.ticked.length === 0 ? <span className="sa-hint">Tick ít nhất một từ khoá.</span> : null}
       </div>
       {draft.status === "busy" ? (
@@ -266,6 +278,11 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
           ))}
           {draft.data.drafts.length === 0 ? <li className="sa-hint">Không có bản nháp nào đạt kiểm tra.</li> : null}
         </ul>
+      ) : null}
+      {draft.status === "ready" && draft.data.source === "seeded" ? (
+        <p className="sa-hint" data-testid="p2-title-seeded">
+          Dữ liệu mẫu: tiêu đề viết sẵn, đã qua cùng bước kiểm tra như bản AI.
+        </p>
       ) : null}
       <label className="p2-field p2-field--wide">
         <span className="sd-field__label">Sửa tự do · tiêu đề (tối đa {MAX_TITLE} ký tự)</span>

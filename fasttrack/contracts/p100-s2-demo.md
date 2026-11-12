@@ -297,3 +297,25 @@ card_content_specs
   `values`, explicit quota counting, image-id hash.** Migration `127_card_content_specs` is Session 2's,
   on a branch from `fasttrack/optimize-product`. S1 builds E.7 on it unchanged; S1 wave 2 has no
   migration, and if that changes S1 takes 128.
+
+## S2-D result (2026-11-12), on migration 127
+- Seeded rows (`backend/src/juli_backend/services/sample_shop/content_specs.py`), written by the
+  loader and `seed.seed_all` after the cards (`seed.seed_content`; on a re-load of a shop loaded
+  before S2-D too), all `source='seeded'`, no LLM call, a no-op once present:
+  - one `style_profile`: palette `#2F6B4F` / `#F4EFE6` / `#E07A3F`, rounded, large radius, low text
+    density; `covers_seen` = the catalogue's cover ids (`image_sha256` null: the sample covers have
+    no bytes); `inputs_hash` = sha256 of the sorted image ids;
+  - one `title` spec per product, 3 fixed candidates (facts only; the two keyword products carry
+    their "Chính" keyword). A test holds every one to `drafts.screen_titles` against the loaded
+    product's facts;
+  - one `banner` spec per open (sent / approved) voucher or cover card: a `goc` `voucher` banner
+    (top right, accent) with `value` / `min_spend` read from the card (`sources` =
+    `change.after.<field>`), and a `the` `quy_cach` banner (bottom right, primary) when the listing
+    states a size (`item.name` or `item.variations.name`); no size, no banner. `checks` empty
+    (rule-based; the vision check is E.7's).
+- Title route on the sample pin: seeded first, `regenerate` = the one live draft per product, then
+  `sample_llm_quota` (details: `p32-reviewer-access.md` amendment S2-D). The UI shows "Viết lại
+  bằng AI (còn 1 lần)" under seeded titles only (`panels-listing.tsx`); other shops never send
+  `regenerate` and are unchanged.
+- `llm_call_id` stays null on the live row: the builder's gated client does not expose the
+  `llm_call_log` id yet (E.7 can add it). Banners have no reader until E.7's UI.

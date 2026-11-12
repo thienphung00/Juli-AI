@@ -167,6 +167,9 @@ SAMPLE_SHOP_ROUTES: dict[tuple[str, str], tuple[Literal["read", "write"], str]] 
     ("POST", _R + "demo_shopee_recommendations:recommendation_executed"): ("write", "Đã làm"),
     ("POST", _R + "demo_shopee_reco_manual:create_manual_card"): ("write", "Tự tạo: Chọn"),
     ("POST", _R + "demo_shopee_builder:builder_choose"): ("write", "Tự tạo: Chọn"),
+    # P100 S2-D: the seeded titles (no LLM), then <= 1 live draft per product, stored in
+    # ``card_content_specs`` so the route can count it (``sample_llm_quota`` after that).
+    ("POST", _R + "demo_shopee_builder:builder_title_drafts"): ("write", "Tự tạo › Tiêu đề: viết"),
     ("POST", _R + "demo_shopee_builder:builder_group"): ("write", "Tự tạo: Chạy cùng nhau"),
     ("PUT", _R + "demo_shopee_builder:add_exclusion"): ("write", "Loại trừ"),
     ("DELETE", _R + "demo_shopee_builder:undo_exclusion"): ("write", "Loại trừ: hoàn tác"),
@@ -209,14 +212,13 @@ SAMPLE_SHOP_REFUSED: dict[tuple[str, str], str] = {
     ("POST", _R + "demo_shopee_builder_p98:ads_setup"): "Quảng cáo is not offered",
 }
 
-#: P100 S2-F: Tự tạo's live LLM / vision drafts (title, cover concepts, description). On a sample
-#: pin they answer 403 ``sample_llm_off`` (the UI shows "not available"), not ``read_only``; on
-#: any other pin ``read_only`` as before. No cap exists yet for a reviewer's LLM spend.
-#: TODO(P100 S2-D, fasttrack/contracts/p100-s2-demo.md "Later"): pre-generated titles and banners
-#: for the sample shop, plus <= 1 live regenerate per product -- then the title route may come back.
+#: P100 S2-F: Tự tạo's live LLM / vision drafts (cover concepts, description). On a sample pin
+#: they answer 403 ``sample_llm_off`` (the UI shows "not available"), not ``read_only``; on any
+#: other pin ``read_only`` as before. P100 S2-D moved the title drafts to
+#: :data:`SAMPLE_SHOP_ROUTES`: the seeded titles, then one live draft per product (the route
+#: counts it; ``sample_llm_quota`` after that).
 SAMPLE_SHOP_LLM_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
     {
-        ("POST", _R + "demo_shopee_builder:builder_title_drafts"),  # …/builder/drafts/title
         ("POST", _R + "demo_shopee_builder:builder_cover_drafts"),  # …/builder/drafts/cover
         ("POST", _R + "demo_shopee_builder:builder_description_drafts"),  # …/drafts/description
     }
@@ -278,6 +280,8 @@ _DENIED_DETAIL = {
     "sandbox_live": "Shop sandbox thực thi thật · không dùng mô phỏng",
     # P100 S2-F: a live LLM / vision draft on the sample shop (no reviewer cap yet).
     "sample_llm_off": "Chưa dùng được với dữ liệu mẫu",
+    # P100 S2-D: the sample shop's one live title draft for this product is used.
+    "sample_llm_quota": "Dữ liệu mẫu: đã dùng lượt viết lại bằng AI cho sản phẩm này",
 }
 
 
@@ -586,6 +590,30 @@ async def enter_reviewer_shop(
         )
         raise deny("sandbox_only")
     return shop
+
+
+async def refuse_sample_llm_quota(session: AsyncSession, context: ReviewerContext) -> HTTPException:
+    """P100 S2-D: the sample shop's live title quota is used -- audit it, answer 403.
+
+    Joins the route's transaction like :func:`_audit_sample_write` (the route commits); flushed
+    first, so nothing of the route's is flushed as ``juli_ops`` (P72).
+    """
+    await session.flush()
+    await audit.record(
+        session,
+        context.account.actor,
+        audit.ACTION_REVIEWER_WRITE_REFUSED,
+        shop_id=context.shop_id,
+        after={
+            "platform": context.platform,
+            "method": context.method,
+            "endpoint": context.endpoint,
+            "path": context.path,
+            "reason": "sample_llm_quota",
+        },
+    )
+    logger.info("reviewer_sample_llm_quota", extra={"endpoint": context.endpoint})
+    return deny("sample_llm_quota")
 
 
 async def _audit_sample_write(session: AsyncSession, context: ReviewerContext) -> None:
@@ -1007,6 +1035,7 @@ __all__ = [
     "enter_reviewer_shop",
     "install",
     "is_allowed",
+    "refuse_sample_llm_quota",
     "reviewer_context",
     "reviewer_gate",
     "reviewer_started_run",

@@ -258,6 +258,29 @@ describe("P92 · các loại khác", () => {
     expect(screen.getByRole("textbox", { name: "Tiêu đề" })).toHaveValue("Túi Zip Thực Phẩm, Túi Zip Đựng Đồ Ăn Combo 3 Hộp");
   });
 
+  it("sample shop: pre-written titles offer one live AI rewrite, which sends regenerate and is then gone", async () => {
+    const builder = fakeBuilder();
+    const sent: (boolean | undefined)[] = [];
+    const answer = (source: "seeded" | "llm", left: number, title: string) => ({ item_id: P_ZIP, max_chars: 100, source, live_left: left, drafts: [{ title, chars: title.length, keywords: { covered: ["túi zip thực phẩm"], missing: [] } }] });
+    builder.draftTitle = (b) => {
+      sent.push(b.regenerate);
+      return Promise.resolve(b.regenerate ? answer("llm", 0, "Túi Zip Thực Phẩm Hộp Mới") : answer("seeded", 1, "Túi Zip Thực Phẩm Viết Sẵn"));
+    };
+    open(builder);
+    await toKinds(builder);
+    fireEvent.click(screen.getByTestId("p2-kind-title"));
+    await screen.findByTestId("p2-kw-table");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Chọn từ khoá túi zip thực phẩm" }));
+    fireEvent.click(screen.getByTestId("p2-title-draft"));
+    expect(await screen.findByTestId("p2-title-drafts")).toHaveTextContent("Túi Zip Thực Phẩm Viết Sẵn");
+    expect(screen.getByTestId("p2-title-seeded")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("p2-title-regenerate"));
+    await waitFor(() => expect(screen.getByTestId("p2-title-drafts")).toHaveTextContent("Túi Zip Thực Phẩm Hộp Mới"));
+    expect(sent).toEqual([false, true]);
+    expect(screen.queryByTestId("p2-title-regenerate")).toBeNull();
+    expect(screen.queryByTestId("p2-title-seeded")).toBeNull();
+  });
+
   it("combo (Shopee's form): a product list with co-purchase suggestions and tiers 'Mua N', sent without per-item quantity", async () => {
     const builder = fakeBuilder();
     open(builder);

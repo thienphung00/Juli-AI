@@ -439,6 +439,10 @@ export interface TitleDrafts {
   readonly drafts: readonly TitleDraft[];
   readonly dropped?: readonly { readonly text: string; readonly reason: string }[];
   readonly warnings?: readonly unknown[];
+  /** P100 S2-D, sample shop only: "seeded" (pre-written) or "llm" (the live draft). */
+  readonly source?: "seeded" | "llm" | "seller";
+  /** P100 S2-D, sample shop only: live AI drafts left for this product. */
+  readonly live_left?: number;
 }
 
 export interface CoverOverlay {
@@ -482,7 +486,7 @@ export interface BuilderApi {
   choose(body: { readonly versions: readonly BuilderVersion[]; readonly chosen: number; readonly primary?: boolean; readonly acknowledgeBreaches?: boolean }): Promise<ChooseResult>;
   /** P97 D85.14: the ticked versions run together as one group (Nhóm) of the plan. */
   group(body: { readonly versions: readonly BuilderVersion[]; readonly members: readonly number[]; readonly days: number; readonly start?: string | null; readonly acknowledgeBreaches?: boolean }): Promise<GroupResult>;
-  draftTitle(body: { readonly itemId: string; readonly keywords: readonly string[]; readonly count?: number }): Promise<TitleDrafts>;
+  draftTitle(body: { readonly itemId: string; readonly keywords: readonly string[]; readonly count?: number; readonly regenerate?: boolean }): Promise<TitleDrafts>;
   draftCover(body: { readonly itemId: string; readonly count?: number }): Promise<CoverDrafts>;
   draftDescription(body: { readonly itemId: string; readonly count?: number }): Promise<DescriptionDrafts>;
   exclusions(): Promise<ExclusionList>;
@@ -624,7 +628,8 @@ export function createBuilderApi(options: BuilderClientOptions): BuilderApi {
         ...(b.start ? { start: b.start } : {}),
         acknowledge_breaches: b.acknowledgeBreaches ?? false,
       }),
-    draftTitle: (b) => call<TitleDrafts>("POST", "/builder/drafts/title", { item_id: b.itemId, keywords: b.keywords, count: b.count ?? 3 }),
+    draftTitle: (b) =>
+      call<TitleDrafts>("POST", "/builder/drafts/title", { item_id: b.itemId, keywords: b.keywords, count: b.count ?? 3, ...(b.regenerate ? { regenerate: true } : {}) }),
     draftCover: (b) => call<CoverDrafts>("POST", "/builder/drafts/cover", { item_id: b.itemId, count: b.count ?? 3 }),
     draftDescription: (b) => call<DescriptionDrafts>("POST", "/builder/drafts/description", { item_id: b.itemId, count: b.count ?? 3 }),
     exclusions: () => call<ExclusionList>("GET", "/exclusions"),

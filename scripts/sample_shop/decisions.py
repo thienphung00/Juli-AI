@@ -31,6 +31,7 @@ from juli_backend.services.sample_shop.seed import (
     has_proposals,
     propose,
     read_back,
+    seed_content,
     seed_history,
     seed_keywords,
     write_title_snapshots,
@@ -77,7 +78,11 @@ async def run(
     async with factory() as session:
         async with with_shop_scope(session, shop_id):
             if await has_proposals(session, shop_id):
+                # Cards already there (a re-load): only the S2-D content a shop loaded before it
+                # lacks (a no-op once seeded).
                 report.skipped = True
+                await seed_content(session, shop_id, now=now, report=report)
+                await session.commit()
                 return report
             shop = await session.get(Shop, shop_id)
             assert shop is not None
@@ -98,6 +103,10 @@ async def run(
     async with factory() as session:
         async with with_shop_scope(session, shop_id):
             await approve_cover(session, shop_id, user_id=user_id, now=now, report=report)
+            await session.commit()
+    async with factory() as session:
+        async with with_shop_scope(session, shop_id):
+            await seed_content(session, shop_id, now=now, report=report)
             await session.commit()
     return report
 

@@ -11,10 +11,16 @@ API. Contract: `fasttrack/contracts/p100-s2-demo.md`.
   (voucher, title change, keywords). `scripts/sample_shop/catalog.py` re-exports it.
 - `seed` — `plan_for(end_date)` → `SeedPlan` (plain values); the steps that make the Quyết định
   cards through the app's own services (`seed_keywords`, `seed_history`, `read_back`, `propose`,
-  `approve_cover`), each on the caller's session, no commit; `seed_all` runs them in one
-  transaction for a shop whose data rows are already in place.
+  `approve_cover`, `seed_content`), each on the caller's session, no commit; `seed_all` runs them
+  in one transaction for a shop whose data rows are already in place.
+- `content_specs` (P100 S2-D) — the pre-written `card_content_specs` rows (`seed_content_specs`:
+  style profile, 3 titles per product, banners on the open voucher / cover cards) and the title
+  route's sample helpers (`latest_title`, `live_titles_used`, `llm_title_row`,
+  `SAMPLE_LIVE_TITLES_PER_PRODUCT`).
 
 ## Rules
-- No LLM, no network, no platform call: arithmetic and fixed strings only.
+- No LLM, no network, no platform call: arithmetic and fixed strings only. (The one live title
+  draft a sample reviewer may run is the route's call, `api/routes/shopee_builder_common.py`;
+  this package only stores and counts it.)
 - Writes only the shop it is handed; the callers guarantee it is a sample shop (the loader's
   `check_target`).
