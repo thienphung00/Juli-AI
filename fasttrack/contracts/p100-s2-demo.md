@@ -203,11 +203,13 @@ card_content_specs
   llm_call_id   uuid NULL          -- the llm_call_log row, when source = 'llm'
   created_by_user_id uuid NULL
   created_at    timestamptz
-  index (shop_id, spec_type, item_id, created_at desc)
+  index (shop_id, spec_type, item_id, created_at desc)      -- title quota per product
+  index (shop_id, spec_type, proposal_id, created_at desc)  -- latest per card; style_profile: proposal_id NULL
 ```
-- **Latest wins**: the current spec of (card, type) is the newest row; history stays for audit and learning.
+- **Latest wins**: the newest row for (card, type) is the current title or banner spec; for the style
+  profile it is the newest row for (shop, type). History stays for audit and learning.
 - **"Tạo lại" limit**: count the `source='llm'` title rows per (shop, item_id) in the GMT+7 day:
-  ≤ 3 on the real app. The sample shop allows ≤ 1 live row in total per product, on top of the
+  ≤ 3 on the real app. The first generation counts toward the 3; `seeded` and `seller` rows never count. The sample shop allows ≤ 1 live row in total per product, on top of the
   `seeded` rows.
 - A seller edit is a new row with `source='seller'` (the same inputs_hash, a new `spec`), so
   regenerating never overwrites an edit silently.
@@ -241,7 +243,7 @@ card_content_specs
   "banners": [{
     "shape": "ngang|goc|the",
     "kind": "mega|pct|genuine|freeship|combo|voucher|gift|addon|unit|quy_cach|…",
-    "values": {"<field>": "<value or null>"},
+    "values": {"<field>": 149000},          // typed raw: money = integer đ, % = number, text = text
     "sources": {"<field>": {"card_id": "uuid|null", "field": "change_after.inputs.value"}},
     "position": "top|top_left|top_right|middle_right|bottom_right",
     "colour": "#RRGGBB",
@@ -255,6 +257,8 @@ card_content_specs
 - Positions by shape: `ngang` → `top`; `goc` → `top_left`, `top_right`; `the` → `middle_right`,
   `bottom_right`. `bottom_left` is never allowed.
 - Counts: `ngay_thuong` ≤ 3 banners; `mega_sale` ≤ 4 plus the top strip (a `ngang` `mega`).
+- `values` are typed raw values, never pre-formatted text such as "149K". The display text is derived
+  at render time, so a format change never rewrites a stored spec.
 - `values` come only from card or listing fields named in `sources`. A missing value stays
   `null` and shows as an empty field, never an invented claim.
 - `colour` must be in the shop's `style_profile.palette`.
@@ -273,13 +277,13 @@ card_content_specs
   "radius": "none|small|large|pill",
   "text_density": "low|medium|high",
   "positions_used": ["top_left", "bottom_right"],
-  "covers_seen": [{"item_id": "…", "cover_url_hash": "…"}]
+  "covers_seen": [{"item_id": "…", "image_id": "…", "image_sha256": "…"}]
 }
 ```
 - `palette` holds 3 to 5 colours. The profile comes from one vision call over ≤ 12 covers at
   connect.
-- `inputs_hash` = sha256 of the sorted `covers_seen`. When the covers change the hash changes, and
-  the profile can be re-run on demand.
+- `inputs_hash` = sha256 of the sorted `covers_seen` image ids or bytes, never the URL: a CDN URL can
+  change for the same image. A changed cover changes the hash; the profile can be re-run on demand.
 
 ### S2-D (sample shop) on these shapes
 - The loader and `--reset` write `source='seeded'` rows:
@@ -289,4 +293,7 @@ card_content_specs
   No LLM call at load.
 - A sample-pin reviewer may make ≤ 1 live title regenerate per product. It is refused after that
   (`sample_llm_quota`), and the reset brings the quota back.
-- S2-D waits for S1 to accept these shapes; S1 owns migration 127 unless S1 hands it to S2.
+- **Accepted by S1 on 2026-11-12, with 4 amendments (folded in above): the second index, typed
+  `values`, explicit quota counting, image-id hash.** Migration `127_card_content_specs` is Session 2's,
+  on a branch from `fasttrack/optimize-product`. S1 builds E.7 on it unchanged; S1 wave 2 has no
+  migration, and if that changes S1 takes 128.
