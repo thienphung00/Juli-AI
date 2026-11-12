@@ -10,6 +10,10 @@ const product = pickerProducts().products[0]!;
 const ctx = { product, variations: variationList().variations.slice(0, 2) };
 const f = initialForms();
 const problem = (kind: Parameters<typeof buildVersion>[0], forms: Forms, c = ctx) => buildVersion(kind, forms, c).problem;
+/** The Deal Sốc form (P100 wave 2) with `patch` on top of its defaults, as the type `add_on`. */
+const deal = (patch: Partial<Forms["deal_soc"]>): Forms => ({ ...f, deal_soc: { ...f.deal_soc, ...patch } });
+/** The same, as Mua Để Nhận Quà with `gift` on top of its defaults. */
+const giftDeal = (gift: Partial<Forms["deal_soc"]["gift"]>, patch: Partial<Forms["deal_soc"]> = {}): Forms => deal({ type: "gift", gift: { ...f.deal_soc.gift, ...gift }, ...patch });
 
 describe("P96 · client limits match the server (A2, B3, E2, D3, E6)", () => {
   it("voucher: per-buyer 0, cap 0, usage 0, end before start, > 90 days and value ≥ minimum are refused", () => {
@@ -26,25 +30,27 @@ describe("P96 · client limits match the server (A2, B3, E2, D3, E6)", () => {
 
   it("percent above 90 is refused for add-on, product discount and flash sale (the server caps them at 90)", () => {
     const addon = { itemId: "p2", variationId: "", mode: "pct" as const, value: "95", limit: "1" };
-    expect(problem("add_on", { ...f, add_on: { addons: [addon] } })).toMatch(/tối đa 90%/);
+    expect(problem("deal_soc", deal({ addons: [addon] }))).toMatch(/tối đa 90%/);
     expect(problem("product_discount", { ...f, product_discount: { ...f.product_discount, rows: [{ variationId: "v3", value: "95" }] } })).toMatch(/tối đa 90%/);
     expect(problem("price_flash", { ...f, price_flash: { ...f.price_flash, what: "flash_sale", rows: [{ variationId: "v3", value: "95" }] } })).toMatch(/tối đa 90%/);
     expect(problem("combo", { ...f, combo: { ...f.combo, items: ["a", "b"], tiers: [{ qty: "2", value: "95" }] } })).toMatch(/tối đa 90%/);
   });
 
   it("0 is refused, not clamped to 1: gift qty, add-on limit, pack count, per-buyer of a discount, flash hours", () => {
-    expect(problem("gift", { ...f, gift: { ...f.gift, giftItemId: "p2", qty: "0" } })).toMatch(/Số lượng quà/);
+    expect(problem("deal_soc", giftDeal({ giftItemId: "p2", qty: "0" }))).toMatch(/Số quà tặng/);
+    expect(problem("deal_soc", giftDeal({ giftItemId: "p2", qty: "50" }))).toMatch(/dưới 50/);
+    expect(buildVersion("deal_soc", giftDeal({ giftItemId: "p2", qty: "49" }), ctx).version).toMatchObject({ kind: "gift", gift: { qty: 49 } });
     const addon = { itemId: "p2", variationId: "", mode: "pct" as const, value: "15", limit: "0" };
-    expect(problem("add_on", { ...f, add_on: { addons: [addon] } })).toMatch(/Giới hạn mỗi đơn/);
+    expect(problem("deal_soc", deal({ addons: [addon] }))).toMatch(/Giới hạn mỗi đơn/);
     expect(problem("variation_set", { ...f, variation_set: { rows: [{ name: "Set 3", price: "270000", sku: "", packCount: "0", stock: "" }] } })).toMatch(/Số lượng trong gói/);
-    expect(problem("product_discount", { ...f, product_discount: { ...f.product_discount, rows: [{ variationId: "v3", value: "10" }], perBuyer: "0" } })).toMatch(/Giới hạn mỗi người/);
+    expect(problem("product_discount", { ...f, product_discount: { ...f.product_discount, rows: [{ variationId: "v3", value: "10" }], perBuyer: "0" } })).toMatch(/Giới hạn đặt hàng/);
     expect(problem("price_flash", { ...f, price_flash: { ...f.price_flash, what: "flash_sale", rows: [{ variationId: "v3", value: "10" }], slotHours: "0" } })).toMatch(/Số giờ/);
   });
 
   it("a gift that is not sold needs a name", () => {
-    const g = { ...f.gift, source: "unsold" as const, unitCost: "10000", label: "" };
-    expect(problem("gift", { ...f, gift: g })).toBe("Nhập tên quà.");
-    expect(buildVersion("gift", { ...f, gift: { ...g, label: "Túi vải" } }, ctx).version).toMatchObject({ gift: { label: "Túi vải" } });
+    const g = { source: "unsold" as const, unitCost: "10000", label: "" };
+    expect(problem("deal_soc", giftDeal(g))).toBe("Nhập tên quà.");
+    expect(buildVersion("deal_soc", giftDeal({ ...g, label: "Túi vải" }), ctx).version).toMatchObject({ gift: { label: "Túi vải" } });
   });
 });
 
@@ -110,7 +116,7 @@ describe("P96 · variations (A4, C2, J4)", () => {
 
   it("an empty variation id is omitted from add-on rows and price rows", () => {
     const addon = { itemId: "p2", variationId: "", mode: "pct" as const, value: "15", limit: "1" };
-    const v = buildVersion("add_on", { ...f, add_on: { addons: [addon] } }, ctx).version as unknown as { addons: Record<string, unknown>[] };
+    const v = buildVersion("deal_soc", deal({ addons: [addon] }), ctx).version as unknown as { addons: Record<string, unknown>[] };
     expect(v.addons[0]).not.toHaveProperty("variation_id");
   });
 
@@ -118,5 +124,49 @@ describe("P96 · variations (A4, C2, J4)", () => {
     expect(problem("price_display", { ...f, price_display: { ...f.price_display, what: "listing_relist" } })).toMatch(/đã ẩn hoặc hết hàng/);
     const soldOut = { ...ctx, product: { ...product, stock: 0 } };
     expect(buildVersion("price_display", { ...f, price_display: { ...f.price_display, what: "listing_relist" } }, soldOut).version).toMatchObject({ kind: "listing_relist" });
+  });
+});
+
+describe("P100 wave 2 · Deal Sốc, one form with two types (brief C, B.14)", () => {
+  const addon = { itemId: "p2", variationId: "", mode: "price" as const, value: "20000", limit: "1" };
+
+  it("Mua Kèm Deal Sốc: name, dates with hours, Giới hạn sản phẩm mua kèm (≤ 100) become the add_on version", () => {
+    const form = deal({ name: "Mua kèm tháng 12", start: "2026-12-01", end: "2026-12-10", startHour: "9", endHour: "21", addonLimit: "50", addons: [addon] });
+    expect(buildVersion("deal_soc", form, ctx).version).toMatchObject({ kind: "add_on", name: "Mua kèm tháng 12", label: "Mua kèm tháng 12", start: "2026-12-01", end: "2026-12-10", start_hour: 9, end_hour: 21, addon_limit: 50, main_item_id: product.item_id });
+    expect(problem("deal_soc", deal({ addons: [addon], addonLimit: "101" }))).toMatch(/Giới hạn sản phẩm mua kèm từ 1 đến 100/);
+    expect(problem("deal_soc", deal({ addons: [addon], addonLimit: "0" }))).toMatch(/Giới hạn sản phẩm mua kèm/);
+  });
+
+  it("Mua Để Nhận Quà: Mua ₫X để nhận N quà tặng becomes a min_spend gift; the type switch picks the server kind", () => {
+    const v = buildVersion("deal_soc", giftDeal({ giftItemId: "p2", minSpend: "200000", qty: "3" }, { name: "Quà tháng 12" }), ctx).version;
+    expect(v).toMatchObject({ kind: "gift", name: "Quà tháng 12", trigger: { type: "min_spend", amount: 200000 }, gift: { item_id: "p2", qty: 3 } });
+    expect(problem("deal_soc", giftDeal({ giftItemId: "p2", minSpend: "" }))).toMatch(/số tiền mua/);
+    expect(buildVersion("deal_soc", deal({ type: "add_on", addons: [addon] }), ctx).version).toMatchObject({ kind: "add_on" });
+  });
+
+  it("the window needs an end after the start (≥ 1 hour), hours 0-23 and a date for each hour; the name is ≤ 150 characters", () => {
+    expect(problem("deal_soc", deal({ addons: [addon], start: "2026-12-01", end: "2026-12-01", startHour: "10", endHour: "10" }))).toMatch(/tối thiểu 1 giờ/);
+    expect(problem("deal_soc", deal({ addons: [addon], start: "2026-12-02", end: "2026-12-01" }))).toMatch(/kết thúc/);
+    expect(problem("deal_soc", deal({ addons: [addon], startHour: "24", start: "2026-12-01" }))).toMatch(/0 đến 23/);
+    expect(problem("deal_soc", deal({ addons: [addon], startHour: "9" }))).toMatch(/Chọn ngày/);
+    expect(problem("deal_soc", deal({ addons: [addon], name: "x".repeat(151) }))).toMatch(/150/);
+  });
+});
+
+describe("P100 wave 2 · Chương Trình Của Shop (brief C, B.14)", () => {
+  const d = { ...f.product_discount, rows: [{ variationId: "v3", value: "10" }] };
+  const disc = (patch: Partial<typeof d>): Forms => ({ ...f, product_discount: { ...d, ...patch } });
+
+  it("carries Tên chương trình khuyến mãi, the hours, Số lượng sản phẩm khuyến mãi and Giới hạn đặt hàng", () => {
+    const form = disc({ name: "Sale 12.12", start: "2026-12-12", end: "2026-12-14", startHour: "0", endHour: "23", promoQty: "200", perBuyer: "2" });
+    expect(buildVersion("product_discount", form, ctx).version).toMatchObject({ kind: "product_discount", name: "Sale 12.12", label: "Sale 12.12", start_hour: 0, end_hour: 23, promo_qty: 200, per_buyer_limit: 2, variations: [{ variation_id: "v3", discount_pct: 10 }] });
+    expect(buildVersion("product_discount", disc({}), ctx).version).not.toHaveProperty("promo_qty");
+  });
+
+  it("runs at most 180 days, hours counted; promo quantity from 1", () => {
+    expect(problem("product_discount", disc({ start: "2026-01-01", end: "2026-07-01" }))).toMatch(/tối đa 180 ngày/);
+    expect(problem("product_discount", disc({ start: "2026-01-01", end: "2026-06-29" }))).toBeNull();
+    expect(problem("product_discount", disc({ promoQty: "0" }))).toMatch(/Số lượng sản phẩm khuyến mãi/);
+    expect(problem("product_discount", disc({ start: "2026-12-01", end: "2026-12-01", startHour: "8", endHour: "8" }))).toMatch(/tối thiểu 1 giờ/);
   });
 });

@@ -300,7 +300,8 @@ describe("P92 · các loại khác", () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-gift"));
+    fireEvent.click(screen.getByTestId("p2-kind-deal_soc"));
+    fireEvent.click(await screen.findByRole("radio", { name: "Mua Để Nhận Quà" }));
     fireEvent.click(await screen.findByRole("button", { name: "Quà không bán" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Chi phí mỗi quà" }), { target: { value: "6500" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Quà không bán · tên" }), { target: { value: "Móc dán tường" } });
@@ -312,7 +313,7 @@ describe("P92 · các loại khác", () => {
     open(builder);
     await toKinds(builder);
     fireEvent.click(screen.getByTestId("p2-kind-product_discount"));
-    fireEvent.change(await screen.findByRole("textbox", { name: "Giảm · Combo 3 hộp" }), { target: { value: "8" } });
+    fireEvent.change(await screen.findByRole("textbox", { name: "% GIẢM · Combo 3 hộp" }), { target: { value: "8" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "product_discount", item_id: P_ZIP, variations: [{ variation_id: "v3", discount_pct: 8 }] }));
     fireEvent.click(screen.getByRole("button", { name: "+ Thêm vào So sánh phương án" }));
     fireEvent.click(screen.getByTestId("p2-kind-price_flash"));
@@ -338,7 +339,7 @@ describe("P92 · các loại khác", () => {
     await toKinds(builder);
     fireEvent.click(screen.getByTestId("p2-kind-product_discount"));
     expect(screen.queryByTestId("market-marker")).toBeNull();
-    fireEvent.change(await screen.findByRole("textbox", { name: "Giảm · Combo 3 hộp" }), { target: { value: "8" } });
+    fireEvent.change(await screen.findByRole("textbox", { name: "% GIẢM · Combo 3 hộp" }), { target: { value: "8" } });
     expect(await screen.findByTestId("market-marker")).toHaveTextContent("trung vị 28.000đ · trung bình 28.900đ")
     expect(screen.getByTestId("market-marker")).toHaveTextContent("bản nháp 26.680đ (−4,7% so với trung vị)")
     expect(screen.queryByTestId("market-bar")).toBeNull();

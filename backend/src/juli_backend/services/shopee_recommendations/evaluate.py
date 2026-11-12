@@ -1151,7 +1151,7 @@ def eval_bundle(
 
 
 MAX_ADDONS = 5
-MAX_GIFT_QTY = 20
+MAX_GIFT_QTY = 49  # P100 wave 2: Shopee allows N below 50 gifts (was 20)
 
 
 def _addon_specs(cand: Candidate, inputs: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -1421,14 +1421,19 @@ def eval_gift(
         label = env.name(str(gift))
     gift_cost *= qty
     by_order: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    after_offers: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for ln in lines:
         by_order[ln.order_id] += ln.order_value
+        # P100 (B.11): the minimum spend is met on the basket after the programme price
+        # (``deal_price``) and the combo discount; Shopee's own rule for a gift is not
+        # confirmed in Seller Centre yet (brief J verified the combo, not the gift)
+        after_offers[ln.order_id] += ln.order_value - ln.bundle_discount
     if trigger.get("type") == "buy_item":
         item_orders = {ln.order_id for ln in lines if ln.product_id == main}
         qualifying = [o for o in by_order if o in item_orders]
     else:
         min_spend = D(trigger.get("amount", 0))
-        qualifying = [o for o, v in by_order.items() if v >= min_spend]
+        qualifying = [o for o, v in after_offers.items() if v >= min_spend]
     total_cost = gift_cost * len(qualifying)
     pairs = profit_lines(lines, env.costs, schedule=env.schedule(main or ""))
     contrib = [

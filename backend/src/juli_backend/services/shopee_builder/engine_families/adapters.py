@@ -99,8 +99,12 @@ def measured_reach(near: int, n: int, below: int) -> Band | None:
 
 
 def qualifying_share(env: RecoEnv, minimum: Decimal) -> Decimal:
-    """Share of the shop's orders at / over ``minimum`` (a gift on a minimum spend)."""
-    values = order_values(env.lines_for(None))
+    """Share of the shop's orders at / over ``minimum`` (a gift on a minimum spend), the basket
+    counted after the programme price and the combo discount (P100 B.11; the gift's own rule is
+    not confirmed in Seller Centre yet)."""
+    values: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for ln in env.lines_for(None):
+        values[ln.order_id] += ln.order_value - getattr(ln, "bundle_discount", ZERO)
     if not values:
         return ZERO
     return Decimal(sum(1 for v in values.values() if v >= minimum)) / len(values)
@@ -375,6 +379,12 @@ def price_facts_from_evaluation(
     ]
     ratio_w = sum((o for o, _ in ratios), ZERO)
     factor = sum((o * x for o, x in ratios), ZERO) / ratio_w if ratio_w > 0 else ONE
+    before, after = avg("profit_per_order_before"), avg("profit_per_order_after")
+    discount: Decimal | None = None
+    if before is not None and after is not None:
+        discount = max(ZERO, before - after)  # net of the % fees the lower price saves
+    elif aov_now and factor < ONE:
+        discount = aov_now * (ONE - factor)  # profit unknown: the gross discount on a basket
     return PriceFacts(
         aov_now=aov_now,
         profit_per_order=avg("profit_per_order_before"),
@@ -382,6 +392,7 @@ def price_facts_from_evaluation(
         price_factor=factor,
         contribution_rate=contribution_rate,
         ctor=ctor,
+        discount_per_order=discount,
     )
 
 

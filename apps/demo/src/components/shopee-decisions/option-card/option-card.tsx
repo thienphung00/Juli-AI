@@ -6,7 +6,7 @@ import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/forma
 import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
 import type { FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TextChip } from "../../shopee-analytics/ui";
-import { countPct, moneyPct, signedCount, signedMoney } from "./format";
+import { countPct, moneyPct, signedMoney } from "./format";
 
 /**
  * P98 / ADR-122 d.5: the option card — only the lines of the decision, then a collapsed "Chi tiết".
@@ -35,19 +35,10 @@ export function breakEvenLine(r: OptionResult): string | null {
   return parts.length ? `${parts.join(" ")} để hoà vốn` : null;
 }
 
-export const PER_30D_LABEL = "Quy đổi 30 ngày (tham khảo)";
-
 /** The period the primary Δ and cost stand on: the version's set dates, else its first N days. */
 export function datesText(dates: VersionDates | null | undefined, r: OptionResult): string {
   if (dates?.label) return dates.label;
   return r.after.label || (r.days ? `${r.days} ngày đầu` : "chưa có ngày");
-}
-
-/** "Quy đổi 30 ngày (tham khảo): Lợi nhuận … · GMV … · Đơn …": the comparison's secondary column (P100-C: no longer on the card). */
-export function per30Text(r: OptionResult): string | null {
-  const p = r.per_30d;
-  if (!p || (p.profit === null && p.gmv === null && p.orders === null)) return null;
-  return `${p.label ?? PER_30D_LABEL}: Lợi nhuận ${signedMoney(p.profit)} · GMV ${signedMoney(p.gmv)} · Đơn ${signedCount(p.orders)}`;
 }
 
 const FUNNEL: readonly { readonly key: "views" | "ctr" | "ctor" | "aov"; readonly label: string; readonly fmt: (n: number | null) => string }[] = [
@@ -264,7 +255,7 @@ export interface CompareRow {
   readonly dates?: VersionDates | null;
 }
 
-/** One row per option: Thời gian, Δ Lợi nhuận, Δ GMV, Δ Đơn (the row's own total), sorted per 30 days. */
+/** One row per option: Thời gian, Δ Lợi nhuận, Δ GMV, Δ Đơn (the row's own total). P100 B.6: no "Quy đổi 30 ngày" column. */
 /** P99c: rows come in the server's order (`compare`); the table never re-sorts them. */
 export function CompareTable({ rows, sortBasis }: { readonly rows: readonly CompareRow[]; readonly sortBasis?: string | null }) {
   const sorted = rows;
@@ -278,7 +269,6 @@ export function CompareTable({ rows, sortBasis }: { readonly rows: readonly Comp
           <th>Δ Lợi nhuận</th>
           <th>Δ GMV</th>
           <th>Δ Đơn</th>
-          <th>{PER_30D_LABEL}</th>
         </tr>
       </thead>
       <tbody>
@@ -291,7 +281,6 @@ export function CompareTable({ rows, sortBasis }: { readonly rows: readonly Comp
               <td>{p.main}</td>
               <td>{!r.estimable ? NOT_ESTIMABLE : moneyPct(r.delta.gmv.value, r.delta.gmv.pct)}</td>
               <td>{!r.estimable ? NOT_ESTIMABLE : countPct(r.delta.orders.value, r.delta.orders.pct)}</td>
-              <td data-secondary="true">{signedMoney(r.per_30d.profit)}</td>
             </tr>
           );
         })}

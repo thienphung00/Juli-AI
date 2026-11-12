@@ -42,7 +42,7 @@ class Translation:
 
 
 def _label(spec: sp.VersionSpec, fallback: str) -> str:
-    return spec.label or fallback
+    return spec.label or getattr(spec, "name", None) or fallback
 
 
 def _voucher_inputs(
