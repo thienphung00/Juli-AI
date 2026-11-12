@@ -13,8 +13,10 @@ tokens, SQLite), with TikTok / network / Celery / LLM tripwires armed:
 - Duyệt is the REAL approve: the card moves to Đang thực hiện; a card outside Tiêu đề / Ảnh bìa /
   Voucher is refused;
 - the same routes on a masked pin, the sandbox pin and with no pin answer 403 ``read_only``;
-- the live LLM / vision drafts answer 403 ``sample_llm_off``; the Connector's fill-job routes and
-  the hidden screens' routes stay refused.
+- the live cover / description drafts answer 403 ``sample_llm_off`` (P100 S2-D: the title drafts
+  are a sample write -- the seeded titles, then one live draft per product,
+  the S2-D tests at the end); the Connector's fill-job routes and the hidden
+  screens' routes stay refused.
 """
 
 from __future__ import annotations
@@ -24,10 +26,12 @@ from datetime import datetime, timedelta
 from typing import Any, cast
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from juli_backend.api import reviewer as reviewer_gate
+from juli_backend.api.routes import shopee_builder_common
 from juli_backend.integrations.tiktok import TikTokCapability
+from juli_backend.models.card_content_specs import SOURCE_LLM, CardContentSpec
 from juli_backend.models.ops import OpsAuditLog
 from juli_backend.repositories import TikTokCredentialRepo
 from juli_backend.services import shopee_recommendations as reco
@@ -39,6 +43,7 @@ from juli_backend.services.shopee_recommendations.model import Candidate
 from tests.support import reviewer as rv
 from tests.support.api import build_app, client_for
 from tests.support.builders import utc_now_naive
+from tests.support.sample_content import passing_titles, seed_title_spec
 from tests.support.shopee_reco import AS_OF, seed_reco_shop
 from tests.unit.test_reviewer_no_write import Tripwire, _routes, _snapshot
 
@@ -95,6 +100,7 @@ WRITE_TEMPLATES: dict[tuple[str, str], str] = {
     ): "demo_shopee_recommendations:recommendation_executed",
     ("POST", f"{REC}/manual"): "demo_shopee_reco_manual:create_manual_card",
     ("POST", f"{DEMO}/builder/choose"): "demo_shopee_builder:builder_choose",
+    ("POST", f"{DEMO}/builder/drafts/title"): "demo_shopee_builder:builder_title_drafts",
     ("POST", f"{DEMO}/builder/group"): "demo_shopee_builder:builder_group",
     ("PUT", f"{DEMO}/exclusions/{{item_id}}"): "demo_shopee_builder:add_exclusion",
     ("DELETE", f"{DEMO}/exclusions/{{item_id}}"): "demo_shopee_builder:undo_exclusion",
@@ -142,7 +148,6 @@ REFUSED_TEMPLATES: dict[tuple[str, str], str] = {
     ("POST", f"{DEMO}/builder/ads/setup"): "demo_shopee_builder_p98:ads_setup",
 }
 LLM_TEMPLATES: dict[tuple[str, str], str] = {
-    ("POST", f"{DEMO}/builder/drafts/title"): "demo_shopee_builder:builder_title_drafts",
     ("POST", f"{DEMO}/builder/drafts/cover"): "demo_shopee_builder:builder_cover_drafts",
     (
         "POST",
@@ -574,6 +579,15 @@ async def test_every_sample_write_changes_only_the_sample_shops_rows(
             client, "POST", f"{REC}/{{card_id}}/dismiss", f"{REC}/{ads}/dismiss",
             {"reason_code": None, "note": None},
         )  # fmt: skip
+        # P100 S2-D: Tiêu đề drafts -- the seeded titles (no LLM client is built)
+        titles = await passing_titles(session, sid, ITEM, as_of=AS_OF, now=NOW)
+        await seed_title_spec(session, sid, ITEM, titles, now=NOW)
+        drafted = await send(
+            client, "POST", f"{DEMO}/builder/drafts/title", f"{DEMO}/builder/drafts/title",
+            {"item_id": ITEM, "count": 3, "as_of": AS_OF.isoformat()},
+        )  # fmt: skip
+        assert drafted["source"] == "seeded" and drafted["live_left"] == 1
+        assert [d["title"] for d in drafted["drafts"]] == titles
         # Loại trừ, and back
         await send(
             client, "PUT", f"{DEMO}/exclusions/{{item_id}}", f"{DEMO}/exclusions/{ITEM}",
@@ -798,4 +812,124 @@ async def test_llm_drafts_are_unavailable_on_the_sample_shop(session, world, tri
     assert [n for n in before if before[n] != after[n]] == []
     assert not tripwire.hits
     refused = await _refusals(session, "reviewer_write_refused")
-    assert len(refused) == 3 and {r.after["reason"] for r in refused} == {"sample_llm_off"}
+    assert len(refused) == 2 and {r.after["reason"] for r in refused} == {"sample_llm_off"}
+
+
+# -- P100 S2-D: Tiêu đề drafts -- the pre-written titles, then one live draft per product --------
+#
+# A plain request serves the newest stored title spec through the same screen as a live draft (no
+# LLM client, no content row written); ``regenerate`` runs ONE live draft per product, stored as
+# ``source='llm'``; a second one is 403 ``sample_llm_quota``, audited, with no model call; a ticked
+# keyword the stored titles lack drops them (422); a masked pin keeps refusing the route.
+
+TITLE_URL = f"{DEMO}/builder/drafts/title"
+
+
+class FakeModel:
+    """A stand-in for the gated client: counts calls, answers with the given titles."""
+
+    model = "fake-model"
+
+    def __init__(self, titles: list[str]) -> None:
+        self.titles = titles
+        self.calls = 0
+
+    async def complete_json(self, **_: Any) -> dict[str, Any]:
+        self.calls += 1
+        return {"drafts": [{"title": t, "note": "live"} for t in self.titles]}
+
+
+async def _spec_count(session) -> int:
+    return int(await session.scalar(select(func.count()).select_from(CardContentSpec)) or 0)
+
+
+def _title_body(**extra: Any) -> dict[str, Any]:
+    return {"item_id": ITEM, "count": 3, "as_of": AS_OF.isoformat(), **extra}
+
+
+async def test_the_seeded_titles_need_no_model_and_store_nothing(session, world, tripwire):
+    _seller, sample, _sandbox, reviewer_id, _ids = world
+    titles = await passing_titles(session, sample.shop_id, ITEM, as_of=AS_OF, now=NOW)
+    await seed_title_spec(session, sample.shop_id, ITEM, titles, now=NOW)
+    before = await _spec_count(session)
+    async with client_for(build_app(session)) as client:
+        response = await client.post(
+            TITLE_URL, json=_title_body(), headers=_headers(reviewer_id, sample.shop_id)
+        )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["source"] == "seeded" and data["model"] == "seeded" and data["live_left"] == 1
+    assert [d["title"] for d in data["drafts"]] == titles
+    assert all(d["chars"] == len(d["title"]) for d in data["drafts"])
+    assert await _spec_count(session) == before
+    assert not tripwire.hits
+    assert len(await _audits(session, "reviewer_sample_write")) == 1
+
+
+async def test_one_live_draft_per_product_then_the_quota_refuses(session, world, monkeypatch):
+    _seller, sample, _sandbox, reviewer_id, _ids = world
+    sid = sample.shop_id
+    titles = await passing_titles(session, sid, ITEM, as_of=AS_OF, now=NOW)
+    await seed_title_spec(session, sid, ITEM, titles[:1], now=NOW)
+    fake = FakeModel(titles[1:])
+
+    async def get_client(_session, _shop_id):
+        return fake
+
+    monkeypatch.setattr(shopee_builder_common, "get_client", get_client)
+    headers = _headers(reviewer_id, sid)
+    async with client_for(build_app(session)) as client:
+        live = await client.post(TITLE_URL, json=_title_body(regenerate=True), headers=headers)
+        assert live.status_code == 200, live.text
+        assert live.json()["source"] == "llm" and live.json()["live_left"] == 0
+        assert [d["title"] for d in live.json()["drafts"]] == titles[1:]
+        again = await client.post(TITLE_URL, json=_title_body(regenerate=True), headers=headers)
+        assert again.status_code == 403, again.text
+        assert again.headers["x-juli-reviewer-denied"] == "sample_llm_quota"
+        assert "đã dùng lượt viết lại" in again.json()["detail"]
+        latest = await client.post(TITLE_URL, json=_title_body(), headers=headers)
+    assert fake.calls == 1
+    rows = (
+        (await session.execute(select(CardContentSpec).where(CardContentSpec.source == SOURCE_LLM)))
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1 and rows[0].shop_id == sid and rows[0].item_id == ITEM
+    assert rows[0].created_by_user_id == reviewer_id
+    assert [c["title"] for c in rows[0].spec["candidates"]] == titles[1:]
+    # The plain request now serves the newest spec (the live one) and offers no second draft.
+    assert latest.status_code == 200 and latest.json()["source"] == "llm"
+    assert latest.json()["live_left"] == 0
+    refused = await _audits(session, "reviewer_write_refused")
+    assert [r.after["reason"] for r in refused] == ["sample_llm_quota"]
+
+
+async def test_a_ticked_keyword_the_stored_titles_lack_drops_them(session, world, tripwire):
+    _seller, sample, _sandbox, reviewer_id, _ids = world
+    titles = await passing_titles(session, sample.shop_id, ITEM, as_of=AS_OF, now=NOW)
+    await seed_title_spec(session, sample.shop_id, ITEM, titles, now=NOW)
+    async with client_for(build_app(session)) as client:
+        response = await client.post(
+            TITLE_URL,
+            json=_title_body(keywords=["từ khoá không có"]),
+            headers=_headers(reviewer_id, sample.shop_id),
+        )
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["code"] == "llm_no_valid_draft"
+    assert not tripwire.hits
+
+
+@pytest.mark.parametrize("regenerate", [False, True])
+async def test_a_masked_pin_keeps_refusing_the_title_drafts(session, world, tripwire, regenerate):
+    from juli_backend.services.reviewer.config import shop_alias_id
+
+    seller, _sample, _sandbox, reviewer_id, _ids = world
+    async with client_for(build_app(session)) as client:
+        response = await client.post(
+            TITLE_URL,
+            json=_title_body(regenerate=regenerate),
+            headers=_headers(reviewer_id, shop_alias_id(seller.shop.id)),
+        )
+    assert response.status_code == 403
+    assert response.headers["x-juli-reviewer-denied"] == "read_only"
+    assert not tripwire.hits

@@ -607,3 +607,87 @@ async def test_seeding_in_one_transaction_after_the_late_reads_makes_the_loaders
     assert running[0]["verification"]["state"] == "verified"
     assert [c["change_kind"] for c in listed if c["status"] == "measured"] == ["min_spend_voucher"]
     assert len(finals) == 1 and finals[0].payload["impact_pct"] is not None
+
+
+# -- P100 S2-D: the pre-written titles, banners and style profile ---------------------------------
+
+
+async def test_the_load_seeds_the_card_content_and_every_title_passes_the_live_screen(engine):
+    """One style profile, 3 titles per product, a banner per open voucher / cover card -- all
+    ``seeded``, no LLM; each stored title passes ``drafts.screen_titles`` against the product's
+    facts with its "Chính" keyword ticked; a re-load adds none."""
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.models.card_content_specs import (
+        SOURCE_SEEDED,
+        SPEC_BANNER,
+        SPEC_STYLE_PROFILE,
+        SPEC_TITLE,
+        CardContentSpec,
+    )
+    from juli_backend.services.sample_shop.catalog import KEYWORDS, PRODUCTS
+    from juli_backend.services.shopee_builder import drafts
+    from juli_backend.services.shopee_builder import service as builder
+    from juli_backend.services.shopee_recommendations import store
+
+    factory, first = await _load(engine)
+    assert first.decisions is not None and first.decisions.content_specs == 1 + 6 + 3
+
+    async def specs():
+        async with factory() as session:
+            async with with_shop_scope(session, first.shop_id):
+                return (await session.execute(select(CardContentSpec))).scalars().all()
+
+    rows = await specs()
+    assert {r.source for r in rows} == {SOURCE_SEEDED} and {r.shop_id for r in rows} == {
+        first.shop_id
+    }
+    assert all(r.llm_call_id is None and len(r.inputs_hash) == 64 for r in rows)
+    by_type: dict[str, list[CardContentSpec]] = defaultdict(list)
+    for r in rows:
+        by_type[r.spec_type].append(r)
+    (profile,) = by_type[SPEC_STYLE_PROFILE]
+    assert profile.item_id is None and profile.proposal_id is None
+    palette = set(profile.spec["palette"])
+    assert 3 <= len(palette) <= 5
+    assert {c["item_id"] for c in profile.spec["covers_seen"]} == {p.item_id for p in PRODUCTS}
+
+    titles = {r.item_id: r for r in by_type[SPEC_TITLE]}
+    assert set(titles) == {p.item_id for p in PRODUCTS}
+    kws = {PRODUCTS[i].item_id: kw for i, kw in KEYWORDS}
+    async with factory() as session:
+        async with with_shop_scope(session, first.shop_id):
+            for item_id, row in titles.items():
+                _, facts = await builder.draft_facts(
+                    session, first.shop_id, item_id, as_of=END, now=NOW
+                )
+                ticked = [kws[item_id]] if item_id in kws else []
+                items = [{"title": c["title"]} for c in row.spec["candidates"]]
+                passed, dropped = drafts.screen_titles(items, facts, ticked)
+                assert len(passed) == 3, (item_id, dropped)
+            open_cards = {
+                p.id: c["change_kind"]
+                for p, c in await store.list_cards(
+                    session, first.shop_id, statuses=["sent", "approved"]
+                )
+                if c["change_kind"] in ("cover_image", "min_spend_voucher")
+            }
+
+    banners = by_type[SPEC_BANNER]
+    assert {r.proposal_id for r in banners} == set(open_cards)
+    positions = {"ngang": {"top"}, "goc": {"top_left", "top_right"},
+                 "the": {"middle_right", "bottom_right"}}  # fmt: skip
+    for r in banners:
+        assert r.spec["size_px"] == 1200 and len(r.spec["banners"]) <= 3
+        for b in r.spec["banners"]:
+            assert b["position"] in positions[b["shape"]] and b["colour"] in palette
+            assert set(b["sources"]) == set(b["values"])
+            assert all(v is not None for v in b["values"].values())
+        if open_cards[r.proposal_id] == "min_spend_voucher":
+            (voucher,) = [b for b in r.spec["banners"] if b["kind"] == "voucher"]
+            assert isinstance(voucher["values"]["value"], int)
+            assert isinstance(voucher["values"]["min_spend"], int)
+            assert all(s["card_id"] == str(r.proposal_id) for s in voucher["sources"].values())
+
+    again = await loader.load(factory, generate(END), now=NOW)
+    assert again.decisions is not None and again.decisions.content_specs == 0
+    assert len(await specs()) == len(rows)

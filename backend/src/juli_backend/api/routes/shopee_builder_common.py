@@ -5,11 +5,13 @@ tenant scope, audit and the seller's view)."""
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import date, datetime
 from typing import Annotated, Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.services import shop_inputs
@@ -71,6 +73,9 @@ class TitleDraftBody(BaseModel):
     )
     count: int = Field(default=3, ge=drafts.MIN_DRAFTS, le=drafts.MAX_DRAFTS)
     as_of: date | None = None
+    #: P100 S2-D: on the sample shop, False serves the pre-written titles and True runs the one
+    #: live draft a product allows. Every other shop ignores it (every call is live).
+    regenerate: bool = False
 
 
 class DraftBody(BaseModel):
@@ -308,6 +313,94 @@ async def h_title_drafts(
     except drafts.NoValidDraft as exc:
         raise no_valid_draft(exc) from None
     return {"item_id": body.item_id, "current_title": facts.title, "model": client.model, **out}
+
+
+async def h_sample_title_drafts(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    body: TitleDraftBody,
+    *,
+    user_id: uuid.UUID | None,
+    now: datetime,
+    refuse_quota: Callable[[], Awaitable[HTTPException]],
+) -> dict[str, Any]:
+    """P100 S2-D: Tiêu đề drafts on the sample shop -- the seeded titles first (no LLM call),
+    then at most ``SAMPLE_LIVE_TITLES_PER_PRODUCT`` live draft per product; after that
+    ``refuse_quota()`` (403 ``sample_llm_quota``). Every title passes ``drafts.screen_titles``."""
+    from juli_backend.services.sample_shop import content_specs as cs
+
+    try:
+        _, facts = await builder.draft_facts(
+            session, shop_id, body.item_id, as_of=body.as_of, now=now
+        )
+    except builder.NoShopeeData:
+        raise no_data() from None
+    except LookupError:
+        raise not_found(body.item_id) from None
+    kws = [k.strip() for k in body.keywords if k.strip()][: drafts.MAX_KEYWORDS]
+    stored = None if body.regenerate else await cs.latest_title(session, shop_id, body.item_id)
+    if stored is not None:
+        items = [
+            {"title": c.get("title", ""), "note": c.get("note", "")}
+            for c in (stored.spec or {}).get("candidates", [])
+        ]
+        try:
+            out = drafts.title_result(*drafts.screen_titles(items, facts, kws))
+        except drafts.NoValidDraft as exc:
+            raise no_valid_draft(exc) from None
+        used = await cs.live_titles_used(session, shop_id, body.item_id)
+        return {
+            "item_id": body.item_id,
+            "current_title": facts.title,
+            "model": (stored.spec or {}).get("model"),
+            "source": stored.source,
+            "live_left": max(0, cs.SAMPLE_LIVE_TITLES_PER_PRODUCT - used),
+            **out,
+        }
+    await lock_product(session, shop_id, body.item_id)
+    if await cs.live_titles_used(session, shop_id, body.item_id) >= (
+        cs.SAMPLE_LIVE_TITLES_PER_PRODUCT
+    ):
+        raise await refuse_quota()
+    client = await get_client(session, shop_id)
+    try:
+        out = await drafts.draft_titles(client, facts, kws, count=body.count)
+    except llm.LLMUnavailable as exc:
+        raise llm_off(exc) from None
+    except drafts.NoValidDraft as exc:
+        raise no_valid_draft(exc) from None
+    session.add(
+        cs.llm_title_row(
+            shop_id,
+            body.item_id,
+            current_title=facts.title,
+            keywords=kws,
+            drafts=out["drafts"],
+            model=client.model,
+            user_id=user_id,
+            now=now,
+        )
+    )
+    await session.flush()
+    return {
+        "item_id": body.item_id,
+        "current_title": facts.title,
+        "model": client.model,
+        "source": "llm",
+        "live_left": 0,
+        **out,
+    }
+
+
+async def lock_product(session: AsyncSession, shop_id: uuid.UUID, item_id: str) -> None:
+    """Serialise the quota check per (shop, product) for this transaction (Postgres only)."""
+    bind = session.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+        {"k": f"sample_title:{shop_id}:{item_id}"},
+    )
 
 
 async def h_cover_drafts(

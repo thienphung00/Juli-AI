@@ -17,6 +17,8 @@ have done on the way there, each with the time it would have happened (the servi
   before the end date and read back from ``item_catalog`` (the new name); its 7-day window is open.
 - **Đang thực hiện**: one approved "Ảnh bìa" card the seller has not done yet.
 - **Đề xuất**: the engine's own cards (``generate_cards`` as of ``now``), sent to the shop.
+- **Nội dung** (P100 S2-D): the pre-written titles, banners and style profile
+  (``content_specs.seed_content_specs``), after the cards they belong to.
 
 No LLM call: the engine computes with arithmetic, the title is a fixed string. Every step takes
 the caller's session and leaves the commit to the caller.
@@ -103,6 +105,8 @@ class DecisionsReport:
     measured: int = 0
     counting: int = 0
     approved: int = 0
+    #: P100 S2-D: seeded ``card_content_specs`` rows (style profile + titles + banners)
+    content_specs: int = 0
     proposed: Counter[str] = field(default_factory=Counter)
     notes: list[str] = field(default_factory=list)
 
@@ -364,6 +368,16 @@ async def approve_cover(
     report.notes.append("no cover card to approve")
 
 
+async def seed_content(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime, report: DecisionsReport
+) -> None:
+    """Step 6 (P100 S2-D): the seeded titles, banners and style profile (no LLM call)."""
+    from juli_backend.services.sample_shop.content_specs import seed_content_specs
+
+    made = await seed_content_specs(session, shop_id, now=now)
+    report.content_specs += made.style_profile + made.titles + made.banners
+
+
 async def seed_all(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -388,6 +402,7 @@ async def seed_all(
     await session.flush()
     await approve_cover(session, shop_id, user_id=user_id, now=now, report=report)
     await session.flush()
+    await seed_content(session, shop_id, now=now, report=report)
     return report
 
 
@@ -407,6 +422,7 @@ __all__ = [
     "propose",
     "read_back",
     "seed_all",
+    "seed_content",
     "seed_history",
     "seed_keywords",
     "utc_at",
