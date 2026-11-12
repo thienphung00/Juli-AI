@@ -269,6 +269,7 @@ def basket(order, price, bundle=0):
 
 
 def test_a_gift_minimum_is_met_after_the_combo_discount():
+    # owner 2026-11-12 (option B): the "Mua ₫X" minimum is the price paid, after discounts
     lines = [basket("o1", 210_000, 20_000), basket("o2", 210_000), basket("o3", 150_000)]
     env = SimpleNamespace(lines_for=lambda items: lines)
     # 190.000 / 210.000 / 150.000 after the combo: only the second reaches 200.000
