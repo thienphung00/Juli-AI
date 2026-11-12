@@ -111,6 +111,10 @@ class PriceFacts:
     price_factor: Decimal  # price after / price before (1 = unchanged)
     contribution_rate: Decimal | None
     ctor: LiftEvidence
+    #: P100 wave 2 (B.14): what the programme price takes off the profit of one order -- the cost
+    #: of Chương Trình Của Shop, given on every order (the ones that would have happened anyway
+    #: and the new ones); None when it cannot be stated
+    discount_per_order: Decimal | None = None
 
 
 @dataclass(frozen=True)

@@ -93,6 +93,63 @@ class VoucherSpec(_Base):
         return None if not (self.start and self.end) else (self.end - self.start).days + 1
 
 
+#: P100 wave 2: Shopee's programme forms (Chương Trình Của Shop, Deal Sốc) take a name, a start and
+#: an end with hour precision; the limits below are the ones Seller Centre showed (brief C)
+MAX_PROGRAMME_NAME = 150
+MAX_DISCOUNT_DAYS = 180
+MIN_PROGRAMME_HOURS = 1
+MAX_ADDON_LIMIT = 100
+MAX_GIFT_QTY = 49
+TIME_WINDOW_BACKWARDS = "Thời gian kết thúc phải sau thời gian bắt đầu."
+TIME_WINDOW_TOO_SHORT = "Thời gian chạy tối thiểu 1 giờ."
+TIME_WINDOW_NEEDS_DATE = "Chọn ngày cho giờ bắt đầu / kết thúc."
+
+
+def window_hours(
+    start: date | None, start_hour: int | None, end: date | None, end_hour: int | None
+) -> int | None:
+    """The running time in hours when both ends carry an hour (Shopee's precision)."""
+    if not (start and end) or start_hour is None or end_hour is None:
+        return None
+    return (end - start).days * 24 + end_hour - start_hour
+
+
+def window_days(
+    start: date | None, start_hour: int | None, end: date | None, end_hour: int | None
+) -> int | None:
+    if not (start and end):
+        return None
+    hours = window_hours(start, start_hour, end, end_hour)
+    if hours is not None:
+        return max(1, -(-hours // 24))
+    return (end - start).days + 1
+
+
+def check_window(
+    start: date | None,
+    start_hour: int | None,
+    end: date | None,
+    end_hour: int | None,
+    *,
+    max_days: int | None = None,
+) -> None:
+    """Dates and hours of one programme: an hour needs its date, the end is after the start by at
+    least one hour (when both carry an hour), and at most ``max_days`` days long."""
+    if (start_hour is not None and start is None) or (end_hour is not None and end is None):
+        raise ValueError(TIME_WINDOW_NEEDS_DATE)
+    if start and end:
+        if end < start:
+            raise ValueError(TIME_WINDOW_BACKWARDS)
+        hours = window_hours(start, start_hour, end, end_hour)
+        if hours is not None and hours <= 0:
+            raise ValueError(TIME_WINDOW_BACKWARDS)
+        if hours is not None and hours < MIN_PROGRAMME_HOURS:
+            raise ValueError(TIME_WINDOW_TOO_SHORT)
+        days = window_days(start, start_hour, end, end_hour)
+        if max_days is not None and days is not None and days > max_days:
+            raise ValueError(f"Chương trình chạy tối đa {max_days} ngày.")
+
+
 COMBO_TYPES = ("pct", "amount", "special_price")
 MAX_COMBO_TIERS = 5
 MAX_COMBO_NAME = 25
@@ -225,18 +282,33 @@ class AddOn(BaseModel):
 
 
 class AddOnSpec(_Base):
-    """1 main product with 1-5 add-ons, each at an add-on price (or % off) and a per-order limit."""
+    """Mua Kèm Deal Sốc (one of the two Loại Deal Sốc, P100 wave 2): Tên chương trình, Thời gian
+    bắt đầu / kết thúc, Giới hạn sản phẩm mua kèm (at most 100 add-ons per main product), Sản Phẩm
+    Chính and Sản Phẩm Mua Kèm with a price (or % off) per add-on. The older P92 card (a main
+    product, 1-5 add-ons, no name or dates) still loads: every new field is optional."""
 
     kind: Literal["add_on"]
+    name: str | None = Field(default=None, max_length=MAX_PROGRAMME_NAME)
     main_item_id: ItemId
     addons: list[AddOn] = Field(min_length=1, max_length=MAX_ADDONS)
+    #: "Giới hạn sản phẩm mua kèm": the most add-ons a buyer can take with the main product
+    addon_limit: Annotated[int, Field(ge=1, le=MAX_ADDON_LIMIT)] | None = None
+    start: date | None = None
+    end: date | None = None
+    start_hour: Annotated[int, Field(ge=0, le=23)] | None = None
+    end_hour: Annotated[int, Field(ge=0, le=23)] | None = None
 
     @model_validator(mode="after")
     def _check(self) -> AddOnSpec:
         ids = [a.item_id for a in self.addons]
         if len(set(ids)) != len(ids) or self.main_item_id in ids:
             raise ValueError("add-ons are different from each other and from the main product")
+        check_window(self.start, self.start_hour, self.end, self.end_hour)
         return self
+
+    @property
+    def days(self) -> int | None:
+        return window_days(self.start, self.start_hour, self.end, self.end_hour)
 
 
 class GiftItem(BaseModel):
@@ -247,7 +319,7 @@ class GiftItem(BaseModel):
     unit_cost: Annotated[int, Field(ge=0, le=MAX_MONEY)] | None = None
     packaging: Annotated[int, Field(ge=0, le=MAX_MONEY)] | None = None
     label: str | None = Field(default=None, max_length=80)
-    qty: Annotated[int, Field(ge=1, le=20)] = 1
+    qty: Annotated[int, Field(ge=1, le=MAX_GIFT_QTY)] = 1
 
     @model_validator(mode="after")
     def _one(self) -> GiftItem:
@@ -272,9 +344,27 @@ class GiftTrigger(BaseModel):
 
 
 class GiftSpec(_Base):
+    """Mua Để Nhận Quà (the other Loại Deal Sốc): Tên chương trình, Thời gian bắt đầu / kết thúc,
+    Điều kiện nhận quà "Mua ₫[X] để nhận [N] quà tặng" (N below 50 = ``gift.qty``), the gift
+    products. Older cards (no name or dates) still load."""
+
     kind: Literal["gift"]
+    name: str | None = Field(default=None, max_length=MAX_PROGRAMME_NAME)
     gift: GiftItem
     trigger: GiftTrigger
+    start: date | None = None
+    end: date | None = None
+    start_hour: Annotated[int, Field(ge=0, le=23)] | None = None
+    end_hour: Annotated[int, Field(ge=0, le=23)] | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> GiftSpec:
+        check_window(self.start, self.start_hour, self.end, self.end_hour)
+        return self
+
+    @property
+    def days(self) -> int | None:
+        return window_days(self.start, self.start_hour, self.end, self.end_hour)
 
 
 class VariationPrice(BaseModel):
@@ -296,18 +386,26 @@ class VariationPrice(BaseModel):
 
 
 class ProductDiscountSpec(_Base):
-    """Giảm giá per variation (% or final price), dates, per-buyer limit.
+    """Chương Trình Của Shop (Shopee's discount programme, P100 wave 2): Tên chương trình khuyến
+    mãi, Thời gian khuyến mãi with hour precision (at most 180 days), per variation Giá sau giảm or
+    % GIẢM, Số lượng sản phẩm khuyến mãi and Giới hạn đặt hàng. The key stays ``product_discount``.
 
     P97 D85.13: ``targets`` + ``discount_pct`` apply one % to every variation of each product in
     the list (Shopee's bulk discount): one card, a total and a row per target."""
 
     kind: Literal["product_discount"]
+    name: str | None = Field(default=None, max_length=MAX_PROGRAMME_NAME)
     item_id: ItemId | None = None
     targets: list[ItemId] = Field(default_factory=list, max_length=MAX_TARGETS)
     discount_pct: Annotated[float, Field(gt=0, le=90)] | None = None
     variations: list[VariationPrice] = Field(default_factory=list, max_length=40)
     start: date | None = None
     end: date | None = None
+    start_hour: Annotated[int, Field(ge=0, le=23)] | None = None
+    end_hour: Annotated[int, Field(ge=0, le=23)] | None = None
+    #: "Số lượng sản phẩm khuyến mãi" (None = "Không giới hạn"): shown on the checklist; the
+    #: estimate does not cap the discounted units yet
+    promo_qty: Annotated[int, Field(ge=1, le=10_000_000)] | None = None
     per_buyer_limit: Annotated[int, Field(ge=1, le=100)] | None = None
 
     @model_validator(mode="after")
@@ -326,13 +424,20 @@ class ProductDiscountSpec(_Base):
                 raise ValueError("discount_pct belongs to a many-target discount")
         if any(v.change_pct is not None for v in self.variations):
             raise ValueError("change_pct belongs to a price change, use discount_pct / final_price")
-        if self.start and self.end and self.end < self.start:
-            raise ValueError("end is before start")
+        # the 180-day limit is Shopee's; cards saved before it (no name, no hours) stay loadable
+        shopee_form = bool(self.name) or self.start_hour is not None or self.end_hour is not None
+        check_window(
+            self.start,
+            self.start_hour,
+            self.end,
+            self.end_hour,
+            max_days=MAX_DISCOUNT_DAYS if shopee_form else None,
+        )
         return self
 
     @property
     def days(self) -> int | None:
-        return None if not (self.start and self.end) else (self.end - self.start).days + 1
+        return window_days(self.start, self.start_hour, self.end, self.end_hour)
 
 
 class PriceSpec(_Base):

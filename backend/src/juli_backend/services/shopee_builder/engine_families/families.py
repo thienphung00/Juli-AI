@@ -53,7 +53,7 @@ NOT_ESTIMABLE_TEXT = "chưa ước tính được"
 
 
 def _label(spec: sp.VersionSpec, fallback: str) -> str:
-    return spec.label or fallback
+    return spec.label or getattr(spec, "name", None) or fallback
 
 
 def _weakest_basis(bases: list[Basis]) -> Basis:
@@ -268,6 +268,15 @@ def price_option(
     then moves GMV only through the AOV driver, so the price effect counts once."""
     aov_lift = facts.price_factor - ONE
     ppo_after = facts.profit_per_order_after
+    offers: tuple[OfferCost, ...] = ()
+    cost = facts.discount_per_order
+    if spec.kind == "product_discount" and cost is not None and cost > 0:
+        # P100 wave 2 (B.14): the discount is a cost inside the OptionResult, like the combo's --
+        # given on every order after the change (today's buyers included, they get it too). It
+        # leaves the per-order profit so it counts once; ROI and break-even read it.
+        offers = (OfferCost(cost, point(ONE), None, "giảm giá chương trình"),)
+        if ppo_after is not None:
+            ppo_after = ppo_after + cost
     kind = {"price": "price", "product_discount": "product_discount", "flash_sale": "flash_sale"}[
         spec.kind
     ]
@@ -275,7 +284,7 @@ def price_option(
         kind=kind,
         label=_label(
             spec,
-            {"price": "Đổi giá", "product_discount": "Giảm giá sản phẩm"}.get(
+            {"price": "Đổi giá", "product_discount": "Chương Trình Của Shop"}.get(
                 spec.kind, "Flash Sale"
             ),
         ),
@@ -284,6 +293,7 @@ def price_option(
             DriverEffect("aov", ALL_SOURCES, "measured", lift=point(aov_lift)),
         ),
         duration_days=_price_days(spec),
+        offers=offers,
         profit_per_order_after=ppo_after,
     )
 
@@ -302,14 +312,14 @@ _SIMPLE: dict[str, tuple[str, str, _Lever, _Lever | None]] = {
     ),
     "listing_hide": ("listing_hide", "Ẩn sản phẩm", ("views", ALL_SOURCES), None),
     "listing_relist": ("listing_relist", "Đăng lại sản phẩm", ("views", ALL_SOURCES), None),
-    "add_on": ("add_on", "Mua kèm deal sốc", ("aov", ALL_SOURCES), None),
+    "add_on": ("add_on", "Deal Sốc · Mua Kèm Deal Sốc", ("aov", ALL_SOURCES), None),
     "variation_set": (
         "variation_set",
         "Bộ / quy cách nhiều món",
         ("aov", ALL_SOURCES),
         ("ctor", ALL_SOURCES),
     ),
-    "gift": ("gift", "Quà tặng kèm", ("ctor", ALL_SOURCES), None),
+    "gift": ("gift", "Deal Sốc · Mua Để Nhận Quà", ("ctor", ALL_SOURCES), None),
 }
 
 
@@ -344,7 +354,7 @@ def simple_option(spec: sp.VersionSpec, facts: SimpleFacts) -> OptionInput:
         kind=change_kind,
         label=_label(spec, label),
         drivers=tuple(drivers),
-        duration_days=None,
+        duration_days=getattr(spec, "days", None) if spec.kind in ("add_on", "gift") else None,
         offers=facts.offers,
         profit_per_order_after=facts.profit_per_order_after,
     )

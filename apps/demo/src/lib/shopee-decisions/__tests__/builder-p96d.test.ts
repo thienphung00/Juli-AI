@@ -52,8 +52,8 @@ describe("P96d · each version names its type and inputs", () => {
       ]),
     });
     expect(versionFacts({ kind: "gift", gift: { unit_cost: 10000, qty: 1, label: "Túi vải" }, trigger: { type: "min_spend", amount: 150000 } }, names)).toMatchObject({
-      type: "Quà tặng · Quà không bán",
-      facts: expect.arrayContaining([{ key: "gift", label: "Quà", value: "Túi vải × 1" }, { key: "trigger", label: "Đơn tối thiểu", value: "150.000đ" }]),
+      type: "Deal Sốc · Mua Để Nhận Quà",
+      facts: expect.arrayContaining([{ key: "gift", label: "Quà", value: "Túi vải × 1" }, { key: "trigger", label: "Điều kiện nhận quà", value: "Mua 150.000đ để nhận 1 quà tặng" }]),
     });
     // a combo saved as a fixed basket (before P97) stays readable and is named as such
     const legacy = versionFacts({ kind: "combo", items: [{ item_id: "p1", qty: 1 }, { item_id: "p2", qty: 2 }], pricing: "pct", value: 10 }, names);

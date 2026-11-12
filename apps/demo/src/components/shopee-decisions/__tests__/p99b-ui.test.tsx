@@ -203,7 +203,7 @@ describe("P99b Ads read-back", () => {
   });
 });
 
-describe("P99b Tự tạo / So sánh: the version's set dates, per_30d secondary", () => {
+describe("P99b Tự tạo / So sánh: the version's set dates, no per_30d column", () => {
   const col = { views: null, ctr: null, ctor: null, orders: 0, aov: null, gmv: 0, profit: null, by_source: {} };
   const res = (label: string, p30: number | null): OptionResult => ({
     kind: "voucher",
@@ -237,12 +237,12 @@ describe("P99b Tự tạo / So sánh: the version's set dates, per_30d secondary
     render(<OptionCard dates={{ from: null, to: null, days: 30, set: false, label: "30 ngày đầu" }} result={res("V1", 300_000)} />);
     expect(screen.getByTestId("oc-dates")).toHaveTextContent("30 ngày đầu (chưa đặt ngày)");
   });
-  it("a null per_30d profit is — in the table, not 0", () => {
+  it("the comparison table has no Quy đổi 30 ngày column (P100 B.6)", () => {
     render(<CompareTable rows={[{ id: 1, name: "P1", result: res("V1", null), dates }]} />);
     const row = screen.getByTestId("oc-row-1");
     expect(row).toHaveTextContent("01/12 – 10/12 (10 ngày)");
-    expect(row.querySelector("[data-secondary]")).toHaveTextContent("—");
-    expect(screen.getByText("Quy đổi 30 ngày (tham khảo)")).toBeInTheDocument();
+    expect(row.querySelector("[data-secondary]")).toBeNull();
+    expect(screen.queryByText(/Quy đổi 30 ngày/)).toBeNull();
   });
 });
 

@@ -5,13 +5,13 @@ import { useEffect, useState } from "react";
 import { MarketPriceMarker } from "../../shopee-analytics/market-price-marker";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { CoPurchase } from "../../../lib/shopee-decisions/builder-api";
-import { MAX_COMBO_MEMBERS, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_LISTING_IMAGES, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
+import { DEAL_SOC_TYPES, MAX_ADDONS, MAX_ADDON_LIMIT, MAX_COMBO_MEMBERS, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_GIFT_QTY, MAX_LISTING_IMAGES, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
 import { NumIn, Pills, ProductSelect, Seg, TextIn, VariationSelect, setAt, type PanelCtx } from "./shared";
 import { ProductTargets } from "./targets";
 
 /**
- * Input panels of the offer strategies (artboard `TuTaoPhuongAnKinds`): Voucher, Combo nhiều sản phẩm, Mua kèm,
- * Quà tặng, Giảm giá, Giá bán + Flash sale, Phân loại / set. Typed numbers only (no sliders). The figures the
+ * Input panels of the offer strategies (artboard `TuTaoPhuongAnKinds`): Voucher, Combo nhiều sản phẩm, Deal Sốc,
+ * Chương Trình Của Shop, Giá bán + Flash sale, Phân loại / set. Typed numbers only (no sliders). The figures the
  * server computed for the version (`details`) are shown next to the inputs.
  */
 
@@ -259,9 +259,42 @@ export function ListingComboPanel({ form, set, ctx }: P<"listing_combo">) {
   );
 }
 
-// ── Mua kèm ──────────────────────────────────────────────────────────────
+// ── Deal Sốc ─────────────────────────────────────────────────────────────
 
-export function AddOnPanel({ form, set, ctx }: P<"add_on">) {
+type TimeForm = { readonly start: string; readonly end: string; readonly startHour: string; readonly endHour: string };
+
+/** "Thời gian …" with hour precision (0–23, empty = the whole day), as Seller Centre's programme forms. */
+function TimeWindow({ legend, testId, form, set }: { readonly legend: string; readonly testId: string; readonly form: TimeForm; readonly set: (patch: Partial<TimeForm>) => void }) {
+  return (
+    <fieldset className="p2-grid" data-testid={testId}>
+      <legend className="sa-hint">{legend}</legend>
+      <TextIn label="Bắt đầu" onChange={(start) => set({ start })} type="date" value={form.start} />
+      <NumIn hint="0–23, trống = cả ngày" label="Giờ bắt đầu" onChange={(startHour) => set({ startHour })} value={form.startHour} />
+      <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
+      <NumIn hint="0–23, trống = cả ngày" label="Giờ kết thúc" onChange={(endHour) => set({ endHour })} value={form.endHour} />
+    </fieldset>
+  );
+}
+
+/**
+ * Deal Sốc in Shopee's one form (P100 wave 2, brief C): "Loại Deal Sốc" = Mua Kèm Deal Sốc | Mua Để Nhận Quà, then
+ * Tên chương trình, Thời gian bắt đầu / kết thúc (at least 1 hour) and the type's own fields. The version keeps the
+ * kinds `add_on` / `gift` the engine already prices (cost inside the result).
+ */
+export function DealSocPanel({ form, set, ctx }: P<"deal_soc">) {
+  const gift = form.gift;
+  const setGift = (patch: Partial<GiftForm>) => set({ gift: { ...gift, ...patch } });
+  return (
+    <div className="p2-panel" data-testid="p2-panel-dealsoc">
+      <Pills label="Loại Deal Sốc" onChange={(type) => set({ type })} options={DEAL_SOC_TYPES} value={form.type} />
+      <TextIn hint={`${[...form.name].length}/${MAX_PROGRAMME_NAME} ký tự`} label="Tên chương trình" onChange={(name) => set({ name })} value={form.name} />
+      <TimeWindow form={form} legend="Thời gian bắt đầu / kết thúc" set={(patch) => set(patch)} testId="p2-dealsoc-time" />
+      {form.type === "add_on" ? <AddOnFields ctx={ctx} form={form} set={set} /> : <GiftFields ctx={ctx} form={gift} set={setGift} />}
+    </div>
+  );
+}
+
+function AddOnFields({ form, set, ctx }: P<"deal_soc">) {
   const d = details(ctx);
   const lines = (Array.isArray(d["addons"]) ? d["addons"] : []) as Readonly<Record<string, unknown>>[];
   const rows = form.addons;
@@ -269,8 +302,9 @@ export function AddOnPanel({ form, set, ctx }: P<"add_on">) {
   return (
     <div className="p2-panel" data-testid="p2-panel-addon">
       <p className="sa-hint">
-        Sản phẩm chính: <b>{ctx.product.name}</b>
+        Sản Phẩm Chính: <b>{ctx.product.name}</b> (mỗi chương trình tính cho một sản phẩm chính)
       </p>
+      <NumIn hint={`Tối đa ${MAX_ADDON_LIMIT} sản phẩm mua kèm cho mỗi sản phẩm chính; trống = không đặt.`} label="Giới hạn sản phẩm mua kèm" onChange={(addonLimit) => set({ addonLimit })} value={form.addonLimit} />
       <div className="p2-rows">
         {rows.map((a, i) => (
           <div className="p2-row p2-row--wrap" data-testid={`p2-addon-${i + 1}`} key={i}>
@@ -294,9 +328,9 @@ export function AddOnPanel({ form, set, ctx }: P<"add_on">) {
           </div>
         ))}
       </div>
-      {rows.length < 5 ? (
+      {rows.length < MAX_ADDONS ? (
         <button className="sa-btn sa-btn--s" onClick={() => set({ addons: [...rows, { itemId: "", variationId: "", mode: "pct", value: "15", limit: "1" }] })} type="button">
-          + Thêm sản phẩm mua kèm
+          + Thêm Sản Phẩm Mua Kèm
         </button>
       ) : null}
       {lines.length > 0 ? (
@@ -313,12 +347,18 @@ export function AddOnPanel({ form, set, ctx }: P<"add_on">) {
   );
 }
 
-// ── Quà tặng ─────────────────────────────────────────────────────────────
-
-export function GiftPanel({ form, set, ctx }: P<"gift">) {
+function GiftFields({ form, set, ctx }: { readonly form: GiftForm; readonly set: (patch: Partial<GiftForm>) => void; readonly ctx: PanelCtx }) {
   const g = (ctx.outcome?.details?.["gift"] ?? {}) as Readonly<Record<string, unknown>>;
   return (
     <div className="p2-panel" data-testid="p2-panel-gift">
+      <p className="sa-hint">
+        Sản Phẩm Chính: <b>{ctx.product.name}</b> (điều kiện mua tính trên đơn của shop)
+      </p>
+      <fieldset className="p2-grid" data-testid="p2-gift-condition">
+        <legend className="sa-hint">Điều kiện nhận quà</legend>
+        <NumIn label="Mua" onChange={(minSpend) => set({ minSpend })} suffix="₫" value={form.minSpend} />
+        <NumIn hint={`Nhận dưới 50 quà tặng (tối đa ${MAX_GIFT_QTY})`} label="Để nhận (quà tặng)" onChange={(qty) => set({ qty })} value={form.qty} />
+      </fieldset>
       <Seg label="Quà tặng là" onChange={(source) => set({ source })} options={[["listing", "Sản phẩm trong danh sách"], ["unsold", "Quà không bán"]]} value={form.source} />
       {form.source === "listing" ? (
         <div className="p2-field">
@@ -333,17 +373,7 @@ export function GiftPanel({ form, set, ctx }: P<"gift">) {
       )}
       <div className="p2-grid">
         <NumIn label="Đóng gói mỗi quà" onChange={(packaging) => set({ packaging })} suffix="đ" value={form.packaging} />
-        <NumIn label="Số lượng quà" onChange={(qty) => set({ qty })} value={form.qty} />
       </div>
-      <Seg label="Điều kiện nhận quà" onChange={(trigger) => set({ trigger })} options={[["buy_item", "Mua sản phẩm X"], ["min_spend", "Đơn từ mức tối thiểu"]]} value={form.trigger} />
-      {form.trigger === "min_spend" ? (
-        <NumIn label="Đơn tối thiểu" onChange={(minSpend) => set({ minSpend })} suffix="đ" value={form.minSpend} />
-      ) : (
-        <div className="p2-field">
-          <span className="sd-field__label">Sản phẩm phải mua</span>
-          <ProductSelect allowEmpty={false} label="Sản phẩm phải mua" onChange={(triggerItemId) => set({ triggerItemId })} products={ctx.products} value={form.triggerItemId || ctx.product.item_id} />
-        </div>
-      )}
       {dn(g, "cost_per_gift") !== null ? (
         <Calc
           rows={[
@@ -377,7 +407,7 @@ export function pctLabel(mode: "pct" | "final_price", direction: "off" | "change
   return direction === "change" ? "Thay đổi" : "Giảm";
 }
 
-function VarRows({ ctx, rows, mode, direction, onRow }: { readonly ctx: PanelCtx; readonly direction: "off" | "change"; readonly rows: readonly { readonly variationId: string; readonly value: string }[]; readonly mode: "pct" | "final_price"; readonly onRow: (id: string, value: string) => void }) {
+function VarRows({ ctx, rows, mode, direction, onRow, labels }: { readonly labels?: { readonly pct: string; readonly final: string }; readonly ctx: PanelCtx; readonly direction: "off" | "change"; readonly rows: readonly { readonly variationId: string; readonly value: string }[]; readonly mode: "pct" | "final_price"; readonly onRow: (id: string, value: string) => void }) {
   const skus = (Array.isArray(ctx.outcome?.details?.["skus"]) ? ctx.outcome!.details!["skus"] : []) as Readonly<Record<string, unknown>>[];
   return (
     <div className="p2-rows" data-testid="p2-varrows">
@@ -390,7 +420,7 @@ function VarRows({ ctx, rows, mode, direction, onRow }: { readonly ctx: PanelCtx
               <b>{v.name}</b>
               <span className="sa-hint">giá hiện tại {vnd(v.selling_price)}</span>
             </span>
-            <NumIn label={`${pctLabel(mode, direction)} · ${v.name}`} onChange={(x) => onRow(v.variation_id, x)} suffix={mode === "pct" ? "%" : "đ"} value={val} />
+            <NumIn label={`${labels ? (mode === "pct" ? labels.pct : labels.final) : pctLabel(mode, direction)} · ${v.name}`} onChange={(x) => onRow(v.variation_id, x)} suffix={mode === "pct" ? "%" : "đ"} value={val} />
             {mode === "pct" && direction === "change" ? <span className="sa-hint">−5 = giảm 5%, +5 = tăng 5%</span> : null}
             {sku ? (
               <span className="sa-hint" data-testid={`p2-sku-${i + 1}`}>
@@ -411,25 +441,34 @@ function upsert(rows: readonly { variationId: string; value: string }[], id: str
   return rows.some((r) => r.variationId === id) ? rows.map((r) => (r.variationId === id ? { ...r, value } : r)) : [...rows, { variationId: id, value }];
 }
 
+/** Shopee's own labels of the programme's price columns: "Giá sau giảm" or "% GIẢM". */
+const PROGRAMME_LABELS = { pct: "% GIẢM", final: "Giá sau giảm" } as const;
+
+/**
+ * Chương Trình Của Shop in Shopee's form (P100 wave 2, brief C): Tên chương trình khuyến mãi, Thời gian khuyến mãi (hours,
+ * at most 180 days), per variation Giá sau giảm or % GIẢM, Số lượng sản phẩm khuyến mãi (empty = Không giới hạn) and
+ * Giới hạn đặt hàng. A variation left empty is not in the programme (Shopee's Bật / Tắt).
+ */
 export function DiscountPanel({ form, set, ctx }: P<"product_discount">) {
   return (
     <div className="p2-panel" data-testid="p2-panel-discount">
+      <TextIn hint={`${[...form.name].length}/${MAX_PROGRAMME_NAME} ký tự, người mua không thấy`} label="Tên chương trình khuyến mãi" onChange={(name) => set({ name })} value={form.name} />
       <Seg label="Áp dụng cho" onChange={(v) => set({ multi: v === "many", targets: v === "many" && form.targets.length === 0 ? [ctx.product.item_id] : form.targets })} options={[["one", "Sản phẩm đã chọn"], ["many", "Nhiều sản phẩm cùng một mức giảm"]]} value={form.multi ? "many" : "one"} />
       {form.multi ? (
         <>
-          <NumIn hint="Một mức giảm cho mọi phân loại của từng sản phẩm; mỗi sản phẩm tính riêng, tổng cộng lại." label="Mức giảm cho tất cả" onChange={(pct) => set({ pct })} suffix="%" value={form.pct} />
+          <NumIn hint="Một mức giảm cho mọi phân loại của từng sản phẩm; mỗi sản phẩm tính riêng, tổng cộng lại." label="% GIẢM cho tất cả" onChange={(pct) => set({ pct })} suffix="%" value={form.pct} />
           <ProductTargets ctx={ctx} hint="Chọn các sản phẩm cùng được giảm giá. Bỏ tick ở phần kết quả để loại sản phẩm chạm giá sàn." onChange={(targets) => set({ targets })} selected={form.targets} title="Sản phẩm được giảm giá" />
         </>
       ) : (
         <>
-          <Seg label="Nhập giảm theo" onChange={(mode) => set({ mode })} options={[["pct", "Phần trăm (%)"], ["final_price", "Giá cuối (đ)"]]} value={form.mode} />
-          <VarRows ctx={ctx} direction="off" mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
+          <Seg label="Nhập giảm theo" onChange={(mode) => set({ mode })} options={[["pct", "% GIẢM"], ["final_price", "Giá sau giảm (₫)"]]} value={form.mode} />
+          <VarRows ctx={ctx} direction="off" labels={PROGRAMME_LABELS} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
         </>
       )}
+      <TimeWindow form={form} legend="Thời gian khuyến mãi" set={(patch) => set(patch)} testId="p2-discount-time" />
       <div className="p2-grid">
-        <TextIn label="Bắt đầu" onChange={(start) => set({ start })} type="date" value={form.start} />
-        <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
-        <NumIn label="Giới hạn mỗi người" onChange={(perBuyer) => set({ perBuyer })} value={form.perBuyer} />
+        <NumIn hint="Trống = Không giới hạn; chưa giới hạn số lượng trong ước tính." label="Số lượng sản phẩm khuyến mãi" onChange={(promoQty) => set({ promoQty })} value={form.promoQty} />
+        <NumIn hint="Giới hạn mua tối đa của mỗi khách hàng." label="Giới hạn đặt hàng" onChange={(perBuyer) => set({ perBuyer })} value={form.perBuyer} />
       </div>
     </div>
   );
