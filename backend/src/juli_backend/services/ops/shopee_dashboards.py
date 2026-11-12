@@ -715,7 +715,7 @@ async def ads(
     monthly = []
     for month in sorted(merged):
         cells = merged[month]
-        parts = [
+        parts: list[dict[str, Any]] = [
             {
                 "ad_type": seg,
                 "label": AD_TYPE_LABELS.get(seg, seg),
@@ -763,10 +763,10 @@ async def ads(
             {
                 "day": day,
                 "by_type": [
-                    {"ad_type": t, **_ad_cell(v[0], v[1], v[2])} for t, v in sorted(parts.items())
+                    {"ad_type": t, **_ad_cell(v[0], v[1], v[2])} for t, v in sorted(dt.items())
                 ],
             }
-            for day, parts in sorted(daily.items())
+            for day, dt in sorted(daily.items())
         ],
         "monthly": monthly,
         "campaigns": campaigns,
