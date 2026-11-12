@@ -377,7 +377,7 @@ def test_migration_125_is_additive_and_reversible():
         for column in model.__table__.columns.keys():
             assert f'"{column}"' in src, f"{model.__tablename__}.{column}"
     tail = versions_dir.parent / "deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "126_shopee_source_funnel"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "127_card_content_specs"' in tail.read_text("utf-8")
 
 
 def _ev(card_id, product, dgmv):
