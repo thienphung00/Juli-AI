@@ -11,8 +11,7 @@ export type Kind92 =
   | "voucher"
   | "combo"
   | "listing_combo"
-  | "add_on"
-  | "gift"
+  | "deal_soc"
   | "product_discount"
   | "price_flash"
   | "variation_set"
@@ -40,18 +39,24 @@ export const MAX_COMBO_TIERS = 5;
 export const MAX_COMBO_MEMBERS = 20;
 export const MAX_LISTING_IMAGES = 9;
 export const MAX_CAMPAIGNS = 30;
+/** Shopee's programme forms (P100 wave 2, brief C), mirrored by `specs.py`. */
+export const MAX_PROGRAMME_NAME = 150;
+export const MAX_DISCOUNT_DAYS = 180;
+export const MAX_ADDONS = 5;
+export const MAX_ADDON_LIMIT = 100;
+/** "Mua ₫[X] để nhận [N] quà tặng": N is below 50. */
+export const MAX_GIFT_QTY = 49;
 
 /** The 13 strategies, each with the driver metric(s) it is measured by (B-3, artboard `kinds`). */
 export const KINDS_92: readonly { readonly key: Kind92; readonly name: string; readonly drivers: string }[] = [
   { key: "voucher", name: "Voucher", drivers: "AOV · CTOR" },
   { key: "combo", name: "Combo khuyến mãi", drivers: "AOV · CTOR" },
   { key: "listing_combo", name: "Listing combo mới", drivers: "đơn · bán chéo" },
-  { key: "add_on", name: "Mua kèm", drivers: "AOV" },
-  { key: "gift", name: "Quà tặng", drivers: "CTOR · đơn" },
-  { key: "product_discount", name: "Giảm giá", drivers: "CTOR · đơn" },
+  { key: "deal_soc", name: "Deal Sốc", drivers: "AOV · CTOR · đơn" },
+  { key: "product_discount", name: "Chương Trình Của Shop", drivers: "CTOR · đơn" },
   { key: "price_flash", name: "Giá bán + Flash sale", drivers: "CTOR · đơn" },
   { key: "variation_set", name: "Phân loại / set", drivers: "AOV · CTOR" },
-  { key: "ads", name: "Quảng cáo", drivers: "chi · GMV · ROAS" },
+  { key: "ads", name: "Dịch vụ hiển thị", drivers: "chi · GMV · ROAS" },
   { key: "title", name: "Tiêu đề", drivers: "lượt xem · CTR" },
   { key: "cover_image", name: "Ảnh bìa", drivers: "CTR" },
   { key: "description_first_line", name: "Mô tả", drivers: "CTOR" },
@@ -66,13 +71,13 @@ export const SERVER_KIND_NAMES: Readonly<Record<string, string>> = {
   voucher: "Voucher",
   combo: "Combo khuyến mãi",
   listing_combo: "Listing combo mới",
-  add_on: "Mua kèm",
-  gift: "Quà tặng",
-  product_discount: "Giảm giá",
+  add_on: "Deal Sốc · Mua Kèm Deal Sốc",
+  gift: "Deal Sốc · Mua Để Nhận Quà",
+  product_discount: "Chương Trình Của Shop",
   price: "Giá bán",
   flash_sale: "Flash sale",
   variation_set: "Phân loại / set",
-  ads: "Quảng cáo",
+  ads: "Dịch vụ hiển thị",
   title: "Tiêu đề",
   cover_image: "Ảnh bìa",
   description_first_line: "Mô tả",
@@ -134,6 +139,22 @@ export interface AddonRow {
   readonly value: string;
   readonly limit: string;
 }
+/** The two Loại Deal Sốc of Shopee's one form; the server keeps them as the kinds `add_on` / `gift`. */
+export type DealSocType = "add_on" | "gift";
+export const DEAL_SOC_TYPES: readonly (readonly [DealSocType, string])[] = [
+  ["add_on", "Mua Kèm Deal Sốc"],
+  ["gift", "Mua Để Nhận Quà"],
+];
+/** Mua Để Nhận Quà: the gift products, the cost of a gift Shopee does not sell, "Mua ₫[X] để nhận [N] quà tặng". */
+export interface GiftForm {
+  readonly source: "listing" | "unsold";
+  readonly giftItemId: string;
+  readonly unitCost: string;
+  readonly label: string;
+  readonly packaging: string;
+  readonly qty: string;
+  readonly minSpend: string;
+}
 export interface VarValue {
   readonly variationId: string;
   readonly value: string;
@@ -152,10 +173,11 @@ export interface Forms {
   readonly combo: { name: string; items: readonly string[]; dtype: "pct" | "amount" | "special_price"; tiers: readonly ComboTierRow[]; limit: string; start: string; end: string; startHour?: string; endHour?: string };
   /** A new listing that sells several existing products together (P97 D85.16). */
   readonly listing_combo: { title: string; images: readonly string[]; price: string; stock: string; sku: string; members: readonly string[] };
-  readonly add_on: { addons: readonly AddonRow[] };
-  readonly gift: { source: "listing" | "unsold"; giftItemId: string; unitCost: string; label: string; packaging: string; qty: string; trigger: "buy_item" | "min_spend"; triggerItemId: string; minSpend: string };
+  /** Deal Sốc (P100 wave 2): one form, `type` = Loại Deal Sốc; Tên chương trình and Thời gian bắt đầu / kết thúc are shared. */
+  readonly deal_soc: { type: DealSocType; name: string; start: string; end: string; startHour: string; endHour: string; addonLimit: string; addons: readonly AddonRow[]; gift: GiftForm };
   /** `multi`: one % for every product in `targets` (Shopee's bulk discount, P97 D85.13). */
-  readonly product_discount: { mode: "pct" | "final_price"; rows: readonly VarValue[]; start: string; end: string; perBuyer: string; multi: boolean; targets: readonly string[]; pct: string };
+  /** Chương Trình Của Shop: Tên chương trình khuyến mãi, Thời gian khuyến mãi (hours), Số lượng sản phẩm khuyến mãi (empty = Không giới hạn), Giới hạn đặt hàng. */
+  readonly product_discount: { mode: "pct" | "final_price"; rows: readonly VarValue[]; name: string; start: string; end: string; startHour: string; endHour: string; promoQty: string; perBuyer: string; multi: boolean; targets: readonly string[]; pct: string };
   readonly price_flash: { what: "price" | "flash_sale"; mode: "pct" | "final_price"; rows: readonly VarValue[]; units: string; slotStart: string; slotHours: string };
   readonly variation_set: { rows: readonly NewVariation[] };
   /** Shopee's edit form (P97 D85.17): budget (≥ ₫100.000 or unlimited), ROAS (system / custom), products, dates; `campaignKeys` = many campaigns. */
@@ -174,9 +196,18 @@ export function initialForms(): Forms {
     voucher: { scope: "product", dtype: "amount", value: "5000", min: "100000", max: "", usage: "", perBuyer: "", start: "", end: "", items: [] },
     combo: { name: "", items: [], dtype: "pct", tiers: [newTier("2", "5"), newTier("3", "8")], limit: "", start: "", end: "" },
     listing_combo: { title: "", images: [], price: "", stock: "", sku: "", members: [] },
-    add_on: { addons: [{ itemId: "", variationId: "", mode: "pct", value: "15", limit: "1" }] },
-    gift: { source: "listing", giftItemId: "", unitCost: "", label: "", packaging: "", qty: "1", trigger: "min_spend", triggerItemId: "", minSpend: "150000" },
-    product_discount: { mode: "pct", rows: [], start: "", end: "", perBuyer: "", multi: false, targets: [], pct: "10" },
+    deal_soc: {
+      type: "add_on",
+      name: "",
+      start: "",
+      end: "",
+      startHour: "",
+      endHour: "",
+      addonLimit: "",
+      addons: [{ itemId: "", variationId: "", mode: "pct", value: "15", limit: "1" }],
+      gift: { source: "listing", giftItemId: "", unitCost: "", label: "", packaging: "", qty: "1", minSpend: "150000" },
+    },
+    product_discount: { mode: "pct", rows: [], name: "", start: "", end: "", startHour: "", endHour: "", promoQty: "", perBuyer: "", multi: false, targets: [], pct: "10" },
     price_flash: { what: "price", mode: "pct", rows: [], units: "50", slotStart: "", slotHours: "2" },
     variation_set: { rows: [{ name: "", price: "", sku: "", packCount: "", stock: "" }] },
     ads: { lever: "budget", campaignKey: "", campaignKeys: [], dailyBudget: "", unlimited: false, roasMode: "custom", roasTarget: "", itemId: "", start: "", end: "" },
@@ -224,8 +255,12 @@ function comboTiersIncrease(dtype: "pct" | "amount" | "special_price", tiers: re
   return true;
 }
 
-/** P100-C: "Thời gian chạy Combo" has hour precision (0–23) in Seller Centre; "" = the whole day. */
-function comboHours(c: { start: string; end: string; startHour?: string; endHour?: string }): { problem: string | null; fields: Record<string, number> } {
+/**
+ * P100: "Thời gian chạy Combo" / "Thời gian khuyến mãi" / Deal Sốc "Thời gian bắt đầu / kết thúc" have hour
+ * precision (0–23) in Seller Centre; "" = the whole day. `maxDays` = the programme's longest run (180 for
+ * Chương Trình Của Shop); null = no limit.
+ */
+function windowHours(c: { start: string; end: string; startHour?: string; endHour?: string }, maxDays: number | null = null): { problem: string | null; fields: Record<string, number> } {
   const fields: Record<string, number> = {};
   for (const [key, text, date] of [["start_hour", c.startHour ?? "", c.start], ["end_hour", c.endHour ?? "", c.end]] as const) {
     if (text.trim() === "") continue;
@@ -235,11 +270,20 @@ function comboHours(c: { start: string; end: string; startHour?: string; endHour
     fields[key] = h;
   }
   if (c.start && c.end && c.start === c.end && fields["start_hour"] !== undefined && fields["end_hour"] !== undefined && fields["end_hour"] <= fields["start_hour"]) {
-    return { problem: "Giờ kết thúc phải sau giờ bắt đầu.", fields: {} };
+    return { problem: "Giờ kết thúc phải sau giờ bắt đầu (chạy tối thiểu 1 giờ).", fields: {} };
+  }
+  if (maxDays !== null && c.start && c.end) {
+    const a = Date.parse(`${c.start}T00:00:00Z`);
+    const b = Date.parse(`${c.end}T00:00:00Z`);
+    if (Number.isFinite(a) && Number.isFinite(b) && b >= a) {
+      const dayCount = Math.round((b - a) / 86_400_000);
+      const hours = fields["start_hour"] !== undefined && fields["end_hour"] !== undefined ? dayCount * 24 + fields["end_hour"] - fields["start_hour"] : null;
+      const days = hours !== null ? Math.max(1, Math.ceil(hours / 24)) : dayCount + 1;
+      if (days > maxDays) return { problem: `Chương trình chạy tối đa ${maxDays} ngày.`, fields: {} };
+    }
   }
   return { problem: null, fields };
 }
-
 function dateProblem(start: string, end: string, maxDays: number | null): string | null {
   if (!start || !end) return null;
   const a = Date.parse(`${start}T00:00:00Z`);
@@ -323,7 +367,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if (tiers.length > MAX_COMBO_TIERS) return no(`Tối đa ${MAX_COMBO_TIERS} mức ưu đãi.`);
       const limit = intIn(c.limit, 1, 999_999_999, "Giới hạn đặt hàng từ 1 đến 999.999.999.");
       if (!comboTiersIncrease(c.dtype, tiers)) return no(COMBO_TIERS_NOT_INCREASING);
-      const hours = comboHours(c);
+      const hours = windowHours(c);
       const issue = limit.problem ?? hours.problem ?? dateProblem(c.start, c.end, null);
       if (issue) return no(issue);
       const name = c.name.trim();
@@ -348,23 +392,33 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       const sku = l.sku.trim();
       return { problem: null, version: { kind: "listing_combo", label: clip(title), title, image_refs: [...l.images], price, stock: stock.n, ...(sku ? { sku } : {}), member_ids: [...l.members] } };
     }
-    case "add_on": {
-      const rows = f.add_on.addons.filter((a) => a.itemId);
-      if (rows.length === 0) return no("Chọn ít nhất một sản phẩm mua kèm.");
-      const addons: Record<string, unknown>[] = [];
-      for (const a of rows) {
-        const n = num(a.value);
-        if (n === null || n <= 0) return no("Nhập giá mua kèm hoặc % giảm.");
-        if (a.mode === "pct" && n > MAX_PCT) return no(PCT_PROBLEM);
-        const limit = intIn(a.limit.trim() === "" ? "1" : a.limit, 1, 20, "Giới hạn mỗi đơn từ 1 đến 20.");
+    case "deal_soc": {
+      const d = f.deal_soc;
+      const name = d.name.trim();
+      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
+      const win = windowHours(d);
+      const dates = win.problem ?? dateProblem(d.start, d.end, null);
+      if (dates) return no(dates);
+      const common = { ...(name ? { name } : {}), ...dated(d.start, d.end), ...win.fields };
+      if (d.type === "add_on") {
+        const rows = d.addons.filter((a) => a.itemId);
+        if (rows.length === 0) return no("Chọn ít nhất một sản phẩm mua kèm.");
+        if (rows.length > MAX_ADDONS) return no(`Mua kèm có tối đa ${MAX_ADDONS} sản phẩm.`);
+        const limit = intIn(d.addonLimit, 1, MAX_ADDON_LIMIT, `Giới hạn sản phẩm mua kèm từ 1 đến ${MAX_ADDON_LIMIT}.`);
         if (limit.problem) return no(limit.problem);
-        addons.push({ item_id: a.itemId, ...vid(a.variationId), [a.mode === "price" ? "price" : "pct"]: n, limit_per_order: limit.n ?? 1 });
+        const addons: Record<string, unknown>[] = [];
+        for (const a of rows) {
+          const n = num(a.value);
+          if (n === null || n <= 0) return no("Nhập giá mua kèm hoặc % giảm.");
+          if (a.mode === "pct" && n > MAX_PCT) return no(PCT_PROBLEM);
+          const perOrder = intIn(a.limit.trim() === "" ? "1" : a.limit, 1, 20, "Giới hạn mỗi đơn từ 1 đến 20.");
+          if (perOrder.problem) return no(perOrder.problem);
+          addons.push({ item_id: a.itemId, ...vid(a.variationId), [a.mode === "price" ? "price" : "pct"]: n, limit_per_order: perOrder.n ?? 1 });
+        }
+        return { problem: null, version: { kind: "add_on", label: clip(name || `Mua kèm ${addons.length} sản phẩm`), main_item_id: id, addons, ...(limit.n !== null ? { addon_limit: limit.n } : {}), ...common } };
       }
-      return { problem: null, version: { kind: "add_on", label: clip(`Mua kèm ${addons.length} sản phẩm`), main_item_id: id, addons } };
-    }
-    case "gift": {
-      const g = f.gift;
-      const q = intIn(g.qty.trim() === "" ? "1" : g.qty, 1, 20, "Số lượng quà từ 1 đến 20.");
+      const g = d.gift;
+      const q = intIn(g.qty.trim() === "" ? "1" : g.qty, 1, MAX_GIFT_QTY, `Số quà tặng từ 1 đến ${MAX_GIFT_QTY} (Shopee: dưới 50).`);
       if (q.problem) return no(q.problem);
       const qty = q.n ?? 1;
       let gift: Record<string, unknown>;
@@ -377,39 +431,37 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
         if (!g.label.trim()) return no("Nhập tên quà.");
         gift = { unit_cost: cost, qty, label: clip(g.label.trim()), ...opt("packaging", g.packaging) };
       }
-      let trigger: Record<string, unknown>;
-      if (g.trigger === "buy_item") trigger = { type: "buy_item", item_id: g.triggerItemId || id };
-      else {
-        const amount = num(g.minSpend);
-        if (amount === null || amount < 0) return no("Nhập đơn tối thiểu để nhận quà.");
-        trigger = { type: "min_spend", amount };
-      }
-      return { problem: null, version: { kind: "gift", label: clip(g.trigger === "min_spend" ? `Quà đơn ≥ ${kmoney(num(g.minSpend) ?? 0)}` : "Quà khi mua sản phẩm"), gift, trigger } };
+      const amount = num(g.minSpend);
+      if (amount === null || amount <= 0) return no("Nhập số tiền mua để nhận quà (điều kiện nhận quà).");
+      return { problem: null, version: { kind: "gift", label: clip(name || `Mua ${kmoney(amount)} nhận ${qty} quà`), gift, trigger: { type: "min_spend", amount }, ...common } };
     }
     case "product_discount": {
       const d = f.product_discount;
+      const name = d.name.trim();
+      if ([...name].length > MAX_PROGRAMME_NAME) return no(`Tên chương trình tối đa ${MAX_PROGRAMME_NAME} ký tự.`);
+      const win = windowHours(d, MAX_DISCOUNT_DAYS);
+      const promo = intIn(d.promoQty, 1, 10_000_000, "Số lượng sản phẩm khuyến mãi từ 1 trở lên (để trống = Không giới hạn).");
+      const buyer = intIn(d.perBuyer, 1, 100, "Giới hạn đặt hàng từ 1 đến 100.");
+      const issue = win.problem ?? dateProblem(d.start, d.end, null) ?? promo.problem ?? buyer.problem;
+      const common = { ...(name ? { name } : {}), ...dated(d.start, d.end), ...win.fields, ...(promo.n !== null ? { promo_qty: promo.n } : {}), ...(buyer.n !== null ? { per_buyer_limit: buyer.n } : {}) };
       if (d.multi) {
         const pct = num(d.pct);
         if (d.targets.length === 0) return no("Chọn ít nhất một sản phẩm để giảm giá.");
         if (d.targets.length > MAX_TARGETS) return no(`Chọn tối đa ${MAX_TARGETS} sản phẩm.`);
-        if (pct === null || pct <= 0) return no("Nhập % giảm lớn hơn 0.");
+        if (pct === null || pct <= 0) return no("Nhập % GIẢM lớn hơn 0.");
         if (pct > MAX_PCT) return no(PCT_PROBLEM);
-        const buyer = intIn(d.perBuyer, 1, 100, "Giới hạn mỗi người từ 1 đến 100 lượt.");
-        const issue = buyer.problem ?? dateProblem(d.start, d.end, null);
         if (issue) return no(issue);
         return {
           problem: null,
-          version: { kind: "product_discount", label: clip(`Giảm ${fmt(pct, Number.isInteger(pct) ? 0 : 1)}% · ${d.targets.length} sản phẩm`), targets: [...d.targets], discount_pct: pct, ...dated(d.start, d.end), ...(buyer.n !== null ? { per_buyer_limit: buyer.n } : {}) },
+          version: { kind: "product_discount", label: clip(name || `Giảm ${fmt(pct, Number.isInteger(pct) ? 0 : 1)}% · ${d.targets.length} sản phẩm`), targets: [...d.targets], discount_pct: pct, ...common },
         };
       }
       const { rows, problem } = varRows(d.rows, d.mode, "discount_pct");
       if (problem) return no(problem);
-      const perBuyer = intIn(d.perBuyer, 1, 100, "Giới hạn mỗi người từ 1 đến 100 lượt.");
-      const more = perBuyer.problem ?? dateProblem(d.start, d.end, null);
-      if (more) return no(more);
+      if (issue) return no(issue);
       return {
         problem: null,
-        version: { kind: "product_discount", label: clip(d.mode === "pct" ? `Giảm ${d.rows.map((r) => num(r.value)).find((n) => n) ?? ""}%` : "Giảm về giá mới"), item_id: id, variations: rows, ...dated(d.start, d.end), ...(perBuyer.n !== null ? { per_buyer_limit: perBuyer.n } : {}) },
+        version: { kind: "product_discount", label: clip(name || (d.mode === "pct" ? `Giảm ${d.rows.map((r) => num(r.value)).find((n) => n) ?? ""}%` : "Giảm về giá mới")), item_id: id, variations: rows, ...common },
       };
     }
     case "price_flash": {
@@ -738,10 +790,13 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
   const add = (key: string, label: string, value: string | null) => {
     if (value !== null && value !== "") facts.push({ key, label, value });
   };
-  const dates = () => {
+  const dates = (label = "Thời gian") => {
     const start = s_(v["start"]);
     const end = s_(v["end"]);
-    if (start || end) add("dates", "Thời gian", `${start ? dayText(start) : "…"}–${end ? dayText(end) : "…"}`);
+    const sh = n_(v["start_hour"]);
+    const eh = n_(v["end_hour"]);
+    const at = (d: string, h: number | null) => (d ? `${h !== null ? `${String(h).padStart(2, "0")}:00 ` : ""}${dayText(d)}` : "…");
+    if (start || end) add("dates", label, `${at(start, sh)}–${at(end, eh)}`);
   };
   const kind = String(v.kind);
   switch (kind) {
@@ -799,25 +854,31 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
       return { type: "Listing combo mới", facts };
     }
     case "add_on": {
-      add("main", "Sản phẩm chính", product(v["main_item_id"]));
+      if (s_(v["name"])) add("name", "Tên chương trình", s_(v["name"]));
+      add("main", "Sản Phẩm Chính", product(v["main_item_id"]));
+      const addonLimit = n_(v["addon_limit"]);
+      if (addonLimit !== null) add("addon_limit", "Giới hạn sản phẩm mua kèm", fmt(addonLimit));
+      dates("Thời gian bắt đầu / kết thúc");
       for (const a of Array.isArray(v["addons"]) ? (v["addons"] as Record<string, unknown>[]) : []) {
         const price = n_(a["price"]);
         const pct = n_(a["pct"]);
-        add(`a:${s_(a["item_id"])}`, `Mua kèm · ${product(a["item_id"])}`, `${price !== null ? vnd(price) : pct !== null ? `−${pctText(pct)}` : DASH} · tối đa ${fmt(n_(a["limit_per_order"]) ?? 1)}/đơn`);
+        add(`a:${s_(a["item_id"])}`, `Sản Phẩm Mua Kèm · ${product(a["item_id"])}`, `${price !== null ? vnd(price) : pct !== null ? `−${pctText(pct)}` : DASH} · tối đa ${fmt(n_(a["limit_per_order"]) ?? 1)}/đơn`);
       }
-      return { type: "Mua kèm", facts };
+      return { type: SERVER_KIND_NAMES["add_on"]!, facts };
     }
     case "gift": {
       const g = (v["gift"] ?? {}) as Record<string, unknown>;
       const t = (v["trigger"] ?? {}) as Record<string, unknown>;
       const listing = g["item_id"] !== undefined;
+      if (s_(v["name"])) add("name", "Tên chương trình", s_(v["name"]));
+      dates("Thời gian bắt đầu / kết thúc");
       add("gift", "Quà", `${listing ? product(g["item_id"]) : s_(g["label"]) || "Quà"} × ${fmt(n_(g["qty"]) ?? 1)}`);
       if (!listing) add("unit_cost", "Chi phí mỗi quà", vnd(n_(g["unit_cost"])));
       const pack = n_(g["packaging"]);
       if (pack !== null) add("packaging", "Đóng gói mỗi quà", vnd(pack));
-      if (t["type"] === "min_spend") add("trigger", "Đơn tối thiểu", vnd(n_(t["amount"])));
-      else add("trigger", "Mua sản phẩm", product(t["item_id"]));
-      return { type: listing ? "Quà tặng · Sản phẩm trong danh sách" : "Quà tặng · Quà không bán", facts };
+      if (t["type"] === "min_spend") add("trigger", "Điều kiện nhận quà", `Mua ${vnd(n_(t["amount"]))} để nhận ${fmt(n_(g["qty"]) ?? 1)} quà tặng`);
+      else add("trigger", "Mua sản phẩm", product(t["item_id"])); // a card saved before Deal Sốc
+      return { type: SERVER_KIND_NAMES["gift"]!, facts };
     }
     case "product_discount":
     case "price":
@@ -835,8 +896,8 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
         const change = n_(r["change_pct"]);
         const off = n_(r["discount_pct"]);
         if (change !== null) add(key, `Thay đổi · ${name}`, signedPct(change));
-        else if (final !== null) add(key, `${kind === "flash_sale" ? "Giá flash sale" : kind === "price" ? "Giá mới" : "Giá cuối"} · ${name}`, vnd(final));
-        else if (off !== null) add(key, `Giảm · ${name}`, pctText(off));
+        else if (final !== null) add(key, `${kind === "flash_sale" ? "Giá flash sale" : kind === "price" ? "Giá mới" : "Giá sau giảm"} · ${name}`, vnd(final));
+        else if (off !== null) add(key, `${kind === "product_discount" ? "% GIẢM" : "Giảm"} · ${name}`, pctText(off));
       }
       if (kind === "flash_sale") {
         add("units", "Số lượng (suất)", fmt(n_(v["units"])));
@@ -844,9 +905,12 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
         if (s_(v["slot_start"])) add("slot", "Khung giờ bắt đầu", s_(v["slot_start"]).replace("T", " "));
       }
       if (kind === "product_discount") {
+        if (s_(v["name"])) add("name", "Tên chương trình khuyến mãi", s_(v["name"]));
+        const promo = n_(v["promo_qty"]);
+        if (promo !== null) add("promo_qty", "Số lượng sản phẩm khuyến mãi", fmt(promo));
         const perBuyer = n_(v["per_buyer_limit"]);
-        if (perBuyer !== null) add("per_buyer", "Giới hạn mỗi người", fmt(perBuyer));
-        dates();
+        if (perBuyer !== null) add("per_buyer", "Giới hạn đặt hàng", fmt(perBuyer));
+        dates("Thời gian khuyến mãi");
       }
       return { type: SERVER_KIND_NAMES[kind] ?? kind, facts };
     }

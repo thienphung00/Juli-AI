@@ -71,12 +71,23 @@ def _int_or_none(value: Decimal | None) -> int | None:
     return None if value is None else int(value)
 
 
+def _day_sources(source_by_day: dict[Any, str]) -> dict[str, int]:
+    """How many days of the window each ad-spend source answered (P100 A.5)."""
+    out: dict[str, int] = {}
+    for source in source_by_day.values():
+        out[source] = out.get(source, 0) + 1
+    return out
+
+
 def data_status(view: PeriodView) -> dict[str, Any]:
     d = view.data
     return {
         "shop_totals": {"basis": d.totals.basis, "days_covered": d.totals.days_covered},
         "traffic": {"basis": d.traffic.basis, "days_covered": d.traffic.days_covered},
-        "ads_daily": {"days_covered": d.ads_daily.days_covered},
+        "ads_daily": {
+            "days_covered": d.ads_daily.days_covered,
+            "sources": _day_sources(d.ads_daily.source_by_day),
+        },
         "ads_report": d.ads_reports.campaign_choice.json(),
         "product_flows": {
             "source": d.product_flows.source,
@@ -250,6 +261,8 @@ def _profit_block(view: PeriodView) -> dict[str, Any]:
     return {
         "profit_vnd": fig.json()["profit"],
         "coverage_label": fig.label,
+        # P100 B.5: the bridge on the known-cost basis; its lines add up exactly to profit_vnd
+        "bridge": fig.json()["bridge"],
         "known_cost_orders": fig.orders,
         "known_cost_gmv_share_pct": fig.json()["gmv_share_pct"],
         "profit_on_covered_vnd": num(p.profit_on_covered),
@@ -306,6 +319,9 @@ def _ads_block(view: PeriodView) -> dict[str, Any]:
         "orders_placed": num(daily.orders if daily.days_covered else None),
         "roas": ratio(safe_div(daily.gmv, daily.spend), 2) if daily.spend else None,
         "spend_per_day": num(safe_div(ads.total_spend, Decimal(view.window.days))),
+        "days_covered": daily.days_covered,  # days with no source are "chưa có dữ liệu", not 0
+        "window_days": daily.window_days,
+        "day_sources": _day_sources(daily.source_by_day),
         "allocation": {
             "basis": ads.basis,
             "label": ads.label,

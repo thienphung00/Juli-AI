@@ -103,7 +103,7 @@ export function PageTitle({ shopId, title, active }: { readonly shopId: string; 
       </div>
       <nav aria-label="Dashboard Shopee" style={{ display: "flex", gap: 18, fontSize: 14 }}>
         {tab("san-pham", "Sản phẩm + luồng")}
-        {tab("quang-cao", "Quảng cáo + khuyến mãi")}
+        {tab("quang-cao", "Dịch vụ hiển thị + khuyến mãi")}
         {tab("tu-khoa", "Từ khóa")}
         {tab("don-hang", "Đơn hàng")}
         {tab("phan-tich", "Phân tích shop")}

@@ -85,7 +85,7 @@ export function FlowTree({ ov, state }: { readonly ov: Overview; readonly state:
           onClick={() => setAdOn((v) => !v)}
           type="button"
         >
-          {adOn ? "Ẩn Quảng cáo (trong đó)" : "Hiện Quảng cáo (trong đó)"}
+          {adOn ? "Ẩn DVHT (trong đó)" : "Hiện DVHT (trong đó)"}
         </button>
       </div>
 
@@ -196,7 +196,7 @@ function FlowTable({
         <div className="sa-frow sa-frow--ad" data-testid="sa-ads-row">
           <span className="sa-frow__name">
             <span>
-              <i>trong đó Quảng cáo</i>
+              <i>trong đó DVHT</i>
               <span className="sa-hint sa-block">
                 {ov.ads.basis.label} · ROAS {fmt(ov.ads.roas, 1)} · chi {vnd(ov.ads.spend)}
               </span>

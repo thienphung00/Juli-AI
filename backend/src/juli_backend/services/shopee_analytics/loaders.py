@@ -63,6 +63,13 @@ from juli_backend.services.shopee_analytics.windows import (
     choose_anchor,
     choose_periods,
 )
+from juli_backend.services.shopee_profit.ads_days import (
+    SOURCE_CONNECTOR,
+    SOURCE_DAILY_REPORT,
+    DayAds,
+    TypeFigure,
+    resolve_ad_days,
+)
 from juli_backend.services.shopee_profit.ads_sources import (
     AdDay,
     AdSpendResult,
@@ -476,13 +483,60 @@ class AdsDaily:
     #: P100 B.5: the spend per day (only the days with an ads row); the one shop profit charges
     #: each day's spend by that day's known-cost orders
     spend_by_day: dict[date, Decimal] = field(default_factory=dict)
+    #: P100 A.5: where each day's figure came from (``ads_days.SOURCE_*``); a day with no source
+    #: is absent from both maps -- "chưa có dữ liệu", never 0
+    source_by_day: dict[date, str] = field(default_factory=dict)
 
     @property
     def complete(self) -> bool:
         return self.days_covered == self.window_days
 
 
-async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Window) -> AdsDaily:
+async def _connector_ad_days(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window
+) -> dict[date, DayAds]:
+    """The Connector's finished days (``ads_campaign_daily``): spend / GMV / orders summed over
+    the campaigns, one row per campaign-day (the placed-orders row when a day has both bases)."""
+    rows = await PlatformDailyMetricsRepo(session).window(
+        shop_id,
+        datasets=["ads_campaign_daily"],
+        start=window.start,
+        end=window.end,
+        streams=["ads"],
+    )
+    chosen: dict[tuple[date, str], Any] = {}
+    covered: set[date] = set()
+    for r in rows:
+        covered.add(r.day)  # the shop-level row (segment "all") proves the day was read
+        if r.segment == "all":
+            continue
+        key = (r.day, r.segment)
+        if key not in chosen or r.order_type == PLACED:
+            chosen[key] = r
+    per_day: dict[date, dict[str, list[Decimal]]] = {d: {} for d in covered}
+    for (day, _segment), r in chosen.items():
+        extra = r.extra or {}
+        kind = str(extra.get("ad_type") or "connector")
+        cell = per_day[day].setdefault(kind, [ZERO, ZERO, ZERO])
+        cell[0] += _z(extra.get("cost"))
+        cell[1] += _z(r.gmv)
+        cell[2] += _z(r.orders)
+    return {
+        day: DayAds(
+            sum((c[0] for c in cells.values()), ZERO),
+            sum((c[1] for c in cells.values()), ZERO),
+            sum((c[2] for c in cells.values()), ZERO),
+            SOURCE_CONNECTOR,
+            {k: TypeFigure(c[0], c[1], c[2]) for k, c in cells.items()},
+        )
+        for day, cells in per_day.items()
+    }
+
+
+async def _daily_report_ad_days(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window
+) -> dict[date, DayAds]:
+    """The daily CSV report (``traffic_overview`` ads stream): one row per ad type and day."""
     rows = await PlatformDailyMetricsRepo(session).window(
         shop_id,
         datasets=[TRAFFIC_DAILY],
@@ -491,24 +545,102 @@ async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Wind
         streams=["ads"],
         order_types=[PLACED],
     )
+    per_day: dict[date, dict[str, list[Decimal]]] = defaultdict(dict)
+    totals: dict[date, list[Decimal]] = {}
+    for r in rows:
+        cost = _z((r.extra or {}).get("ads_expense"))
+        if r.segment == "all":  # Shopee's own total of the types: only when the types are missing
+            totals[r.day] = [cost, _z(r.gmv), _z(r.orders)]
+            continue
+        cell = per_day[r.day].setdefault(r.segment, [ZERO, ZERO, ZERO])
+        cell[0] += cost
+        cell[1] += _z(r.gmv)
+        cell[2] += _z(r.orders)
+    out: dict[date, DayAds] = {}
+    for day, cells in per_day.items():
+        out[day] = DayAds(
+            sum((c[0] for c in cells.values()), ZERO),
+            sum((c[1] for c in cells.values()), ZERO),
+            sum((c[2] for c in cells.values()), ZERO),
+            SOURCE_DAILY_REPORT,
+            {k: TypeFigure(c[0], c[1], c[2]) for k, c in cells.items()},
+        )
+    for day, t in totals.items():
+        if day not in out:
+            out[day] = DayAds(t[0], t[1], t[2], SOURCE_DAILY_REPORT, {"all": TypeFigure(*t)})
+    return out
+
+
+async def _period_ad_windows(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window
+) -> list[AdWindow]:
+    """The CSV period reports over the window (a group campaign's own total row dropped from a
+    report that also has its per-product rows: the total is their sum)."""
+    rows = list(
+        await PlatformPeriodMetricsRepo(session).overlapping(
+            shop_id,
+            datasets=["ads_campaign_period"],
+            start=window.start,
+            end=window.end,
+            order_types=[PLACED],
+        )
+    )
+    with_products = {(p.segment, _period_key(p)) for p in rows if p.item_id}
+    return [
+        AdWindow(
+            campaign=p.platform_source or "",
+            start=p.period_start,
+            end=p.period_end,
+            spend=_z((p.extra or {}).get("ads_expense")),
+            item_id=p.item_id or None,
+            gmv=p.gmv,
+            orders=p.orders,
+            order_basis=p.order_type,
+        )
+        for p in rows
+        if p.item_id or (p.segment, _period_key(p)) not in with_products
+    ]
+
+
+async def load_ad_days(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window
+) -> dict[date, DayAds]:
+    """P100 A.5: the window's ONE ad spend per day (Connector day, else the daily report, else
+    the period report spread over its days; no source = no entry, never 0)."""
+    return resolve_ad_days(
+        await _connector_ad_days(session, shop_id, window),
+        await _daily_report_ad_days(session, shop_id, window),
+        await _period_ad_windows(session, shop_id, window),
+        window.start,
+        window.end,
+    )
+
+
+async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Window) -> AdsDaily:
+    days = await load_ad_days(session, shop_id, window)
     spend = gmv = orders = ZERO
     by_type: dict[str, dict[str, Decimal]] = defaultdict(
         lambda: {"spend": ZERO, "gmv": ZERO, "orders": ZERO}
     )
-    days: set[date] = set()
-    by_day: dict[date, Decimal] = defaultdict(lambda: ZERO)
-    for r in rows:
-        days.add(r.day)
-        cost = _z((r.extra or {}).get("ads_expense"))
-        spend += cost
-        by_day[r.day] += cost
-        gmv += _z(r.gmv)
-        orders += _z(r.orders)
-        cell = by_type[r.segment]
-        cell["spend"] += cost
-        cell["gmv"] += _z(r.gmv)
-        cell["orders"] += _z(r.orders)
-    return AdsDaily(spend, gmv, orders, dict(by_type), len(days), window.days, dict(by_day))
+    for figure in days.values():
+        spend += figure.spend
+        gmv += figure.gmv
+        orders += figure.orders
+        for kind, t in figure.by_type.items():
+            cell = by_type[kind]
+            cell["spend"] += t.spend or ZERO
+            cell["gmv"] += t.gmv
+            cell["orders"] += t.orders
+    return AdsDaily(
+        spend,
+        gmv,
+        orders,
+        dict(by_type),
+        len(days),
+        window.days,
+        {d: f.spend for d, f in days.items()},
+        {d: f.source for d, f in days.items()},
+    )
 
 
 # ---------------------------------------------------------------------------------------
@@ -785,31 +917,7 @@ async def load_resolved_ad_spend(
         for r in daily
         if r.segment != "all"
     ]
-    rows = [
-        p
-        for p in await PlatformPeriodMetricsRepo(session).overlapping(
-            shop_id,
-            datasets=["ads_campaign_period"],
-            start=window.start,
-            end=window.end,
-            order_types=[PLACED],
-        )
-    ]
-    with_products = {(p.segment, _period_key(p)) for p in rows if p.item_id}
-    windows = [
-        AdWindow(
-            campaign=p.platform_source or "",
-            start=p.period_start,
-            end=p.period_end,
-            spend=_z((p.extra or {}).get("ads_expense")),
-            item_id=p.item_id or None,
-            gmv=p.gmv,
-            orders=p.orders,
-            order_basis=p.order_type,
-        )
-        for p in rows
-        if p.item_id or (p.segment, _period_key(p)) not in with_products
-    ]
+    windows = await _period_ad_windows(session, shop_id, window)
     return resolve_ad_spend(days, windows, window.start, window.end, covered_days=covered)
 
 

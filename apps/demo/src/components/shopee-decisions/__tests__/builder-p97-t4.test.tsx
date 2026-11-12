@@ -58,7 +58,7 @@ describe("P97 D85.13 · một thẻ, nhiều đối tượng", () => {
     open(b);
     await toKind("product_discount");
     fireEvent.click(await screen.findByRole("button", { name: "Nhiều sản phẩm cùng một mức giảm" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Mức giảm cho tất cả" }), { target: { value: "12" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "% GIẢM cho tất cả" }), { target: { value: "12" } });
     const picker = within(screen.getByTestId("p2-targets"));
     fireEvent.click(picker.getByRole("checkbox", { name: /Chọn Găng tay cao su A/ }));
     await waitFor(() => expect(evals(b).at(-1)).toMatchObject({ kind: "product_discount", discount_pct: 12, targets: [P_ZIP, P_GLOVE] }));

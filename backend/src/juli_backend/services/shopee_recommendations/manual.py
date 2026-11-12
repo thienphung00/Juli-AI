@@ -87,7 +87,7 @@ _REFUSAL_TEXT = {
     "too_many_addons": "Mua kèm có tối đa 5 sản phẩm.",
     "addon_duplicate": "Các sản phẩm mua kèm phải khác nhau và khác sản phẩm chính.",
     "addon_price_invalid": "Giá mua kèm phải lớn hơn 0 và không cao hơn giá hiện tại.",
-    "gift_qty_invalid": "Số lượng quà từ 1 đến 20.",
+    "gift_qty_invalid": "Số lượng quà từ 1 đến 49.",
     "no_price": "Chưa có giá hiện tại của phân loại đã chọn để tính.",
     # P96
     "voucher_scope_no_data": "Chưa có dữ liệu đơn theo loại voucher này để ước tính.",

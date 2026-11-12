@@ -23,7 +23,7 @@ describe("sections and tabs", () => {
   it("groups a tab's cards by family in the fixed order, empty families left out", () => {
     const cards = [mk(megaCard()), mk(voucherCard()), mk(adsCard()), mk(promotionCard()), mk(voucherCard(), { id: "v2" })];
     const sections = sectionsFor(cards, "de-xuat");
-    expect(sections.map((s) => s.title)).toEqual(["Quảng cáo", "Khuyến mãi", "Voucher", "Mega sale"]);
+    expect(sections.map((s) => s.title)).toEqual(["Dịch vụ hiển thị", "Khuyến mãi", "Voucher", "Mega sale"]);
     // ranking order inside a section is the API's order
     expect(sections[2]!.cards.map((c) => c.id)).toEqual(["card-voucher", "v2"]);
   });

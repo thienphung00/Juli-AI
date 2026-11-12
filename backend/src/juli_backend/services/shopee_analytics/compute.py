@@ -143,10 +143,14 @@ def allocate_ads(
 ) -> AdsAllocation:
     rows: list[AdsRow] = reports.campaign_rows
     daily_total: Decimal | None
-    if resolved is not None and resolved.total > 0:
-        daily_total = resolved.total  # Connector days first, CSV windows for the rest
+    if daily.days_covered > 0 and daily.spend > 0:
+        # P100 A.5: the one per-day spend (Connector day, else the daily report, else the period
+        # report spread over its days); days with no source are not in it
+        daily_total = daily.spend
+    elif resolved is not None and resolved.total > 0:
+        daily_total = resolved.total
     else:
-        daily_total = daily.spend if daily.complete else None
+        daily_total = None
     by_campaign: dict[str, list[AdsRow]] = defaultdict(list)
     for r in rows:
         by_campaign[r.key].append(r)
@@ -230,8 +234,8 @@ def allocate_ads(
         k = daily_total / prorated_total
         basis = "daily_scaled"
         source = (
-            "chi phí đã chốt (Connector theo ngày, ngày còn lại theo báo cáo CSV)"
-            if resolved is not None and resolved.total > 0
+            "một chi phí mỗi ngày (Connector theo ngày, ngày còn lại theo báo cáo CSV)"
+            if daily.days_covered > 0 and daily.spend > 0
             else "chi phí quảng cáo theo ngày"
         )
         label = (

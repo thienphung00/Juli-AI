@@ -53,7 +53,7 @@ NOT_ESTIMABLE_TEXT = "chưa ước tính được"
 
 
 def _label(spec: sp.VersionSpec, fallback: str) -> str:
-    return spec.label or fallback
+    return spec.label or getattr(spec, "name", None) or fallback
 
 
 def _weakest_basis(bases: list[Basis]) -> Basis:
@@ -266,8 +266,22 @@ def price_option(
     """CTOR (the orders response, product history > shop > prior) + AOV (the price factor is
     certain arithmetic). ``profit_per_order_after`` carries the price effect on profit; the engine
     then moves GMV only through the AOV driver, so the price effect counts once."""
-    aov_lift = facts.price_factor - ONE
+    reach, cap_orders = _promo_reach(spec, facts)
+    aov_lift = (facts.price_factor - ONE) * reach
+    ctor_band = facts.ctor.band
+    if reach < ONE:
+        ctor_band = Band(ctor_band.p10 * reach, ctor_band.p50 * reach, ctor_band.p90 * reach)
     ppo_after = facts.profit_per_order_after
+    offers: tuple[OfferCost, ...] = ()
+    cost = facts.discount_per_order
+    if spec.kind == "product_discount" and cost is not None and cost > 0:
+        # P100 wave 2 (B.14): the discount is a cost inside the OptionResult, like the combo's --
+        # given on every order after the change (today's buyers included, they get it too). It
+        # leaves the per-order profit so it counts once; ROI and break-even read it. The promo
+        # quantity caps the orders that get it (owner 2026-11-12).
+        offers = (OfferCost(cost, point(ONE), cap_orders, "giảm giá chương trình"),)
+        if ppo_after is not None:
+            ppo_after = ppo_after + cost
     kind = {"price": "price", "product_discount": "product_discount", "flash_sale": "flash_sale"}[
         spec.kind
     ]
@@ -275,16 +289,46 @@ def price_option(
         kind=kind,
         label=_label(
             spec,
-            {"price": "Đổi giá", "product_discount": "Giảm giá sản phẩm"}.get(
+            {"price": "Đổi giá", "product_discount": "Chương Trình Của Shop"}.get(
                 spec.kind, "Flash Sale"
             ),
         ),
         drivers=(
-            DriverEffect("ctor", ALL_SOURCES, facts.ctor.basis, lift=facts.ctor.band),
+            DriverEffect("ctor", ALL_SOURCES, facts.ctor.basis, lift=ctor_band),
             DriverEffect("aov", ALL_SOURCES, "measured", lift=point(aov_lift)),
         ),
         duration_days=_price_days(spec),
+        offers=offers,
         profit_per_order_after=ppo_after,
+        note=_promo_note(spec, cap_orders) if reach < ONE else None,
+    )
+
+
+def _promo_reach(
+    spec: sp.PriceSpec | sp.ProductDiscountSpec | sp.FlashSaleSpec, facts: PriceFacts
+) -> tuple[Decimal, Decimal | None]:
+    """P100 wave 2 (owner 2026-11-12): "Số lượng sản phẩm khuyến mãi" caps the discounted units.
+    Returns (the share of the programme the units cover, the cap in orders): the discount cost
+    stops at the cap and the lift only runs while the promo price lasts. No quantity = 1, None."""
+    if not isinstance(spec, sp.ProductDiscountSpec) or spec.promo_qty is None:
+        return ONE, None
+    upo = facts.units_per_order if facts.units_per_order and facts.units_per_order > 0 else ONE
+    cap_orders = Decimal(spec.promo_qty) / upo
+    days = spec.days
+    if not days or not facts.orders_per_day or facts.orders_per_day <= 0:
+        return ONE, cap_orders
+    expected = facts.orders_per_day * Decimal(days)
+    return min(ONE, cap_orders / expected), cap_orders
+
+
+def _promo_note(
+    spec: sp.PriceSpec | sp.ProductDiscountSpec | sp.FlashSaleSpec, cap: Decimal | None
+) -> str | None:
+    if not isinstance(spec, sp.ProductDiscountSpec) or cap is None:
+        return None
+    return (
+        f"Số lượng sản phẩm khuyến mãi ({spec.promo_qty}) hết sau khoảng {int(cap)} đơn: "
+        "ước tính chỉ tính phần thời gian còn giá khuyến mãi."
     )
 
 
@@ -302,14 +346,14 @@ _SIMPLE: dict[str, tuple[str, str, _Lever, _Lever | None]] = {
     ),
     "listing_hide": ("listing_hide", "Ẩn sản phẩm", ("views", ALL_SOURCES), None),
     "listing_relist": ("listing_relist", "Đăng lại sản phẩm", ("views", ALL_SOURCES), None),
-    "add_on": ("add_on", "Mua kèm deal sốc", ("aov", ALL_SOURCES), None),
+    "add_on": ("add_on", "Deal Sốc · Mua Kèm Deal Sốc", ("aov", ALL_SOURCES), None),
     "variation_set": (
         "variation_set",
         "Bộ / quy cách nhiều món",
         ("aov", ALL_SOURCES),
         ("ctor", ALL_SOURCES),
     ),
-    "gift": ("gift", "Quà tặng kèm", ("ctor", ALL_SOURCES), None),
+    "gift": ("gift", "Deal Sốc · Mua Để Nhận Quà", ("ctor", ALL_SOURCES), None),
 }
 
 
@@ -344,7 +388,7 @@ def simple_option(spec: sp.VersionSpec, facts: SimpleFacts) -> OptionInput:
         kind=change_kind,
         label=_label(spec, label),
         drivers=tuple(drivers),
-        duration_days=None,
+        duration_days=getattr(spec, "days", None) if spec.kind in ("add_on", "gift") else None,
         offers=facts.offers,
         profit_per_order_after=facts.profit_per_order_after,
     )

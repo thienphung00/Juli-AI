@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { DASH, fmt, pp, vnd } from "../../lib/shopee-analytics/format";
-import { fiveCards } from "../../lib/shopee-analytics/model";
 import {
   CHILD_NAME,
   KPI_NAME,
@@ -21,7 +20,7 @@ import type { ProductHeader, ProductPage, ProductVersion, SkuCost } from "../../
 import { MarketPriceBlock } from "./market-price-block";
 import { VariationExpand } from "../shopee-decisions/builder-p92/variations";
 import { CostTab, HistoryTab, KeywordsTab, PerformanceTab, SourcesTab } from "./product-tabs";
-import { Empty, Notice, PillLink, ResourceState, Section, TextChip, toneClass } from "./ui";
+import { Empty, Notice, PillLink, ResourceState, Section, TextChip } from "./ui";
 import type { WindowState } from "../../lib/shopee-analytics/params";
 import { readWindow } from "../../lib/shopee-analytics/params";
 
@@ -81,7 +80,6 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
   const row = params.get("row");
   const from = params.get("from");
   const card = params.get("card");
-  const period = page.period.selected as "7d" | "30d" | "90d";
   const skus = page.cost_and_floor.skus;
   const [selSku, setSelSku] = useState<string | null>(skus[0]?.sku ?? null);
   const sel = skus.find((s) => s.sku === selSku) ?? skus[0] ?? null;
@@ -110,7 +108,6 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
       ? `Mở từ Xếp hạng · ${KPI_NAME[kpi] ?? kpi} × ${(sub && CHILD_NAME[sub]) || SOURCE_NAME[src ?? "all"] || src}${row ? ` · dòng ${row}` : ""}`
       : null;
 
-  const five = fiveCards(page.kpi_by_period[period]?.five_numbers ?? Object.values(page.kpi_by_period)[0]!.five_numbers, null);
   const cards = [page.nguon.card].filter(Boolean);
 
   return (
@@ -138,25 +135,6 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
       </div>
 
       <Variations h={h} skus={skus} selSku={sel?.sku ?? null} onPick={setSelSku} period={page.period.window.days} openCompare={params.get("cmp") === "1"} />
-
-      <Section hint={`${page.period.window.days} ngày · so với ${page.period.previous.days} ngày trước · cùng định nghĩa với Tổng quan và thẻ`} testId="sa-sp-five" title="5 con số chính">
-        <div className="sa-five sa-five--5">
-          {five.map((f) => (
-            <div className="sa-five__card" data-testid={`sa-sp-five-${f.key}`} key={f.key}>
-              <span className="sa-tile__label">{f.label}</span>
-              <span className="sa-five__value">{f.value}</span>
-              <span>
-                <span className={`sa-chip sa-chip--${f.tone}`}>{f.chip}</span>
-              </span>
-              <span className="sa-five__sub">{f.sub1}</span>
-              <span className={`sa-five__sub sa-five__sub--b ${toneClass(f.tone)}`}>{f.sub2}</span>
-            </div>
-          ))}
-        </div>
-        {!page.kpi_by_period[period]?.five_numbers.comparison.available ? (
-          <Notice tone="info">Kỳ trước chưa có dòng đơn của sản phẩm này, nên chỉ hiện số của kỳ này.</Notice>
-        ) : null}
-      </Section>
 
       {banner ? (
         <Notice tone="info" testId="sa-from-banner">

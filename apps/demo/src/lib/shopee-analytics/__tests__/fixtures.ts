@@ -171,6 +171,7 @@ export function overview(p: Partial<Overview> = {}): Overview {
     profit: {
       profit_vnd: 8_850_000,
       coverage_label: "trên 240 đơn có chi phí, 96,0 % GMV",
+      bridge: { product_profit: 9_500_000, ads_unattributed: 300_000, other_marketing: 350_000, profit: 8_850_000, ads_charged: 3_100_000, ads_total: 4_000_000, ads_label: "QC tính trên ngày có đơn có chi phí: 3.100.000đ / tổng chi QC 4.000.000đ" },
       known_cost_orders: 240,
       known_cost_gmv_share_pct: 96,
       profit_on_covered_vnd: 8_900_000,

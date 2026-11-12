@@ -334,7 +334,8 @@ def period_rows(shop_id: uuid.UUID) -> list[PlatformPeriodMetric]:
             )
         )
     # a group campaign: head row + one row per product (spend sums to the campaign)
-    spend = {"1001": 60_000, "1002": 25_000, "1003": 15_000}
+    # P100 A.5: the campaign report agrees with the daily report (7 x 30.000đ = 210.000đ)
+    spend = {"1001": 126_000, "1002": 52_500, "1003": 31_500}
     for item, cost in spend.items():
         rows.append(
             period_row(
@@ -366,10 +367,10 @@ def period_rows(shop_id: uuid.UUID) -> list[PlatformPeriodMetric]:
             platform_source="Chiến dịch nhóm",
             segment="cgroup1",
             orders=Decimal(6),
-            gmv=Decimal(500_000),
+            gmv=Decimal(1_050_000),
             impressions=Decimal(3000),
             clicks=Decimal(90),
-            extra={"ads_expense": 100_000, "direct_sales": 400_000, "running": True},
+            extra={"ads_expense": 210_000, "direct_sales": 840_000, "running": True},
         )
     )
     rows.append(

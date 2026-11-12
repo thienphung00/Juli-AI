@@ -60,7 +60,9 @@ describe("Tổng quan", () => {
     expect(within(profit).getByTestId("sa-coverage")).toHaveTextContent("giá vốn giả định (1/3 giá): 11,4%");
     expect(within(profit).getByTestId("sa-coverage")).toHaveTextContent("chưa có: 0,6%");
     expect(within(profit).getByTestId("sa-assumed-label")).toHaveTextContent("11,4% doanh thu dùng giá vốn giả định (1/3 giá)");
-    expect(within(profit).getByTestId("sa-ad-check")).toHaveTextContent("QC các sản phẩm 3.400.000đ + QC không gắn sản phẩm 600.000đ = tổng chi QC 4.000.000đ ✓");
+    expect(within(profit).getByTestId("sa-ad-check")).toHaveTextContent("lợi nhuận các sản phẩm 9.500.000đ − QC không gắn sản phẩm 300.000đ − chi marketing khác 350.000đ = 8.850.000đ ✓");
+    expect(within(profit).getByTestId("sa-ad-check")).toHaveTextContent("Tổng chi QC cả kỳ 4.000.000đ");
+    expect(profit).toHaveTextContent("QC tính trên ngày có đơn có chi phí: 3.100.000đ / tổng chi QC 4.000.000đ");
     expect(profit).not.toHaveTextContent("8.900.000đ");
   });
 
@@ -112,10 +114,10 @@ describe("Tổng quan", () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     const user = userEvent.setup();
     const row = await screen.findByTestId("sa-ads-row");
-    expect(row).toHaveTextContent("trong đó Quảng cáo");
+    expect(row).toHaveTextContent("trong đó DVHT");
     expect(row).toHaveTextContent("đơn đã đặt");
     expect(row).toHaveTextContent("16.000.000đ");
-    await user.click(screen.getByRole("button", { name: "Ẩn Quảng cáo (trong đó)" }));
+    await user.click(screen.getByRole("button", { name: "Ẩn DVHT (trong đó)" }));
     expect(screen.queryByTestId("sa-ads-row")).toBeNull();
   });
 
@@ -131,7 +133,7 @@ describe("Tổng quan", () => {
       fakeApi({ overview: { ...ov, data: { ...ov.data, ads_daily: { days_covered: 24 }, order_lines: { ...ov.data.order_lines, covers_window: false, days_with_orders: 27 } }, warnings: [{ code: "order_lines_partial", message: "File đơn hàng chưa phủ hết kỳ." }] } }),
     );
     const stale = await screen.findByTestId("sa-stale");
-    expect(stale).toHaveTextContent("Quảng cáo: 24/30 ngày");
+    expect(stale).toHaveTextContent("Dịch vụ hiển thị: 24/30 ngày");
     expect(stale).toHaveTextContent("Đơn hàng: 27/30 ngày");
     expect(screen.getByTestId("sa-fresh")).toHaveTextContent("Dữ liệu chưa đủ kỳ");
     expect(screen.getByTestId("sa-warning-order_lines_partial")).toHaveTextContent("File đơn hàng chưa phủ hết kỳ.");

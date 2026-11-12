@@ -188,7 +188,7 @@ describe("Quảng cáo + khuyến mãi", () => {
     render(<OpsShopeeAds api={api} me={ME} shopId={SHOP_ID} />);
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("ROAS 1,20 thấp hơn 1,50 trong 6 ngày liên tục");
-    const row = screen.getByRole("table", { name: "Quảng cáo theo loại" }).querySelector("tbody tr")!;
+    const row = screen.getByRole("table", { name: "Dịch vụ hiển thị theo loại" }).querySelector("tbody tr")!;
     expect(row).toHaveTextContent("600.000");
     expect(row).toHaveTextContent("1,20");
     expect(row).toHaveTextContent("50.000");

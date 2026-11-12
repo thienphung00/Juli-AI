@@ -13,7 +13,7 @@ export const FAMILY_ORDER: readonly Family[] = ["listing", "ads", "promotion", "
 
 export const FAMILY_TITLE: Readonly<Record<Family, string>> = {
   listing: "Tên, từ khoá, ảnh bìa",
-  ads: "Quảng cáo",
+  ads: "Dịch vụ hiển thị",
   promotion: "Khuyến mãi",
   voucher: "Voucher",
   sale: "Sale",

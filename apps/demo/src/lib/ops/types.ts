@@ -893,6 +893,14 @@ export interface ShopeeAds {
   readonly monthly: ({ readonly month: string; readonly by_type: ShopeeAdType[] } & ShopeeAdCell)[];
   readonly campaigns: ShopeeAdCampaign[];
   readonly campaigns_available: boolean;
+  /** P100 A.5: the by-campaign table only has the Connector days; the total is by type. */
+  readonly campaigns_note?: string;
+  /** P100 A.5: days with an ad-spend figure and where each day came from. */
+  readonly coverage?: {
+    readonly days_with_data: number;
+    readonly window_days: number;
+    readonly day_sources: Record<string, string>;
+  };
   readonly alerts: { readonly ad_type: string; readonly label: string; readonly days: number; readonly from: string; readonly to: string; readonly roas: number | null; readonly floor: number }[];
   readonly alert_rule: { readonly floor: number; readonly min_days: number };
   readonly has_data: boolean;

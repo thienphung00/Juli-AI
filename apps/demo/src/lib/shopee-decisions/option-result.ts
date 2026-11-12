@@ -56,7 +56,7 @@ export interface OptionResult {
     readonly profit_before: number | null;
     readonly profit_after: number | null;
   };
-  /** P99b: the same Δ rescaled to 30 days; secondary, labelled "Quy đổi 30 ngày (tham khảo)". The primary Δ and cost are for the version's own days. */
+  /** P99b: the same Δ rescaled to 30 days. P100 B.6: no longer shown anywhere in the UI; the server still sorts by it (the comparison order), so the field stays on the wire. */
   readonly per_30d: { readonly profit: number | null; readonly gmv: number | null; readonly orders: number | null; readonly secondary?: boolean; readonly label?: string };
   /** P100-C (B.4): ROI = ΔGMV ÷ chi phí (incremental); value/text null without a cost or an estimate. Optional for results stored before P100-C. */
   readonly roi?: { readonly value: number | null; readonly text: string | null };

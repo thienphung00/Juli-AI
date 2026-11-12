@@ -15,7 +15,7 @@ describe("navigation for a Shopee shop", () => {
       "Sản phẩm",
       "Quyết định",
       "Từ khóa",
-      "Quảng cáo",
+      "Dịch vụ hiển thị",
       "Đơn hàng",
       "Luồng",
     ]);
@@ -32,7 +32,7 @@ describe("navigation for a Shopee shop", () => {
     expect(within(nav).getByRole("link", { name: "Quyết định" })).toHaveAttribute("href", "/decisions");
     // P92 B-8: the four read-only pages from Ops.
     expect(within(nav).getByRole("link", { name: "Từ khóa" })).toHaveAttribute("href", "/tu-khoa");
-    expect(within(nav).getByRole("link", { name: "Quảng cáo" })).toHaveAttribute("href", "/quang-cao");
+    expect(within(nav).getByRole("link", { name: "Dịch vụ hiển thị" })).toHaveAttribute("href", "/quang-cao");
     expect(within(nav).getByRole("link", { name: "Đơn hàng" })).toHaveAttribute("href", "/don-hang");
     expect(within(nav).getByRole("link", { name: "Luồng" })).toHaveAttribute("href", "/luong-san-pham");
     expect(within(nav).getByRole("list")).toHaveClass("app-nav__list--many");

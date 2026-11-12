@@ -727,8 +727,8 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
         return None
     days = Decimal(env.window_days)
     figs = env.view.ads.product_figures
-    before_ads = ZERO
-    direct = ZERO
+    weighted = ZERO
+    weight = ZERO
     for item, spend in alloc.products.items():
         fig = figs.get(item)
         pp = env.product(item)
@@ -739,10 +739,13 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
             safe_div(pp.contribution, pp.buyer_paid_covered) if pp.buyer_paid_covered > 0 else None
         )
         d = fig.direct_gmv * min(share, ONE)
-        direct += d
-        before_ads += d * (rate if rate is not None and rate > 0 else ZERO)
-    if direct <= 0:
-        direct = alloc.direct_gmv
+        weight += d
+        weighted += d * (rate if rate is not None and rate > 0 else ZERO)
+    # P100 A.5: the campaign's spend and direct revenue are both scaled to the one daily spend,
+    # so ROAS is read from the campaign itself; the products only weight the contribution rate
+    # (their figures may sit on the report's own scale, which no longer equals the daily one)
+    direct = alloc.direct_gmv if alloc.direct_gmv > 0 else weight
+    before_ads = direct * (weighted / weight) if weight > 0 else ZERO
     return {
         "alloc": alloc,
         "spend_per_day": alloc.spend / days,
@@ -1151,7 +1154,7 @@ def eval_bundle(
 
 
 MAX_ADDONS = 5
-MAX_GIFT_QTY = 20
+MAX_GIFT_QTY = 49  # P100 wave 2: Shopee allows N below 50 gifts (was 20)
 
 
 def _addon_specs(cand: Candidate, inputs: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -1421,14 +1424,19 @@ def eval_gift(
         label = env.name(str(gift))
     gift_cost *= qty
     by_order: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    after_offers: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for ln in lines:
         by_order[ln.order_id] += ln.order_value
+        # P100 (B.11): the minimum spend is met on the basket after the programme price
+        # (``deal_price``) and the combo discount; Shopee's own rule for a gift is not
+        # confirmed in Seller Centre yet (brief J verified the combo, not the gift)
+        after_offers[ln.order_id] += ln.order_value - ln.bundle_discount
     if trigger.get("type") == "buy_item":
         item_orders = {ln.order_id for ln in lines if ln.product_id == main}
         qualifying = [o for o in by_order if o in item_orders]
     else:
         min_spend = D(trigger.get("amount", 0))
-        qualifying = [o for o, v in by_order.items() if v >= min_spend]
+        qualifying = [o for o, v in after_offers.items() if v >= min_spend]
     total_cost = gift_cost * len(qualifying)
     pairs = profit_lines(lines, env.costs, schedule=env.schedule(main or ""))
     contrib = [

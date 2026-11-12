@@ -40,7 +40,7 @@ STEP_LABELS: dict[str, str] = {
     "giam_gia": "Giảm giá",
     "voucher": "Voucher",
     "combo": "Combo / mua kèm / quà tặng",
-    "ads": "Quảng cáo",
+    "ads": "Dịch vụ hiển thị",
     "other": "Khác",
 }
 _PRICE_KINDS = frozenset({"price", "flash_sale", "program_registration"})

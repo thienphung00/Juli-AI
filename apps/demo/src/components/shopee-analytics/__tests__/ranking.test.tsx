@@ -30,7 +30,7 @@ describe("Phân tích › theo sản phẩm (was Xếp hạng)", () => {
   it("source chips: the five flows, ads (trong đó) and the four levers; Thẻ sản phẩm has a sub-row of six children", async () => {
     renderWith(<RankingSection params={params("kpi=ctr&src=the_san_pham&sub=search")} />, fakeApi());
     await screen.findByTestId("sa-rk-table");
-    for (const name of ["Tất cả", "Thẻ sản phẩm", "Trang shop", "Live", "Video", "Tiếp thị liên kết", "Quảng cáo (trong đó)", "Không ưu đãi", "Voucher", "Khuyến mãi", "Combo"]) {
+    for (const name of ["Tất cả", "Thẻ sản phẩm", "Trang shop", "Live", "Video", "Tiếp thị liên kết", "DVHT (trong đó)", "Không ưu đãi", "Voucher", "Khuyến mãi", "Combo"]) {
       expect(screen.getAllByRole("link", { name }).length).toBeGreaterThan(0);
     }
     const subs = screen.getByTestId("sa-subchips");
@@ -144,7 +144,7 @@ describe("Phân tích › theo sản phẩm (was Xếp hạng)", () => {
     const r = ranking({ kind: "campaigns", source: "ads", ads_basis: { key: "placed", label: "đơn đã đặt" }, ads_note: "Quảng cáo tính theo đơn đã đặt." });
     renderWith(<RankingSection params={params("kpi=gmv&src=ads")} />, fakeApi({ ranking: r }));
     expect(await screen.findByTestId("sa-ads-note")).toHaveTextContent("đơn đã đặt");
-    expect(screen.getByRole("heading", { level: 2, name: "Theo sản phẩm · GMV · Quảng cáo" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Theo sản phẩm · GMV · Dịch vụ hiển thị" })).toBeInTheDocument();
   });
 
   it("an empty direction says so", async () => {

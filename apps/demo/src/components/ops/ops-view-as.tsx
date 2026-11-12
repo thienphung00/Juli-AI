@@ -258,7 +258,7 @@ export function OpsViewAs({
                     ["products", "Sản phẩm"],
                     ["decisions", "Quyết định"],
                     ["keywords", "Từ khóa"],
-                    ["ads", "Quảng cáo"],
+                    ["ads", "Dịch vụ hiển thị"],
                     ["orders", "Đơn hàng"],
                     ["flows", "Luồng"],
                     ["rules", "Quy tắc"],

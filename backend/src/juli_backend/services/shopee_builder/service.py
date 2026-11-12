@@ -406,7 +406,13 @@ def version_dates(spec: sp.VersionSpec, result: Mapping[str, Any] | None) -> dic
     days = None if result is None else result.get("days")
     if isinstance(start, date) and isinstance(end, date):
         days = (end - start).days + 1
-        label = f"{start:%d/%m} – {end:%d/%m} ({days} ngày)"
+        spec_days = getattr(spec, "days", None)
+        if isinstance(spec_days, int):  # P100: an hour-precise window (combo, Shopee programmes)
+            days = spec_days
+        sh, eh = getattr(spec, "start_hour", None), getattr(spec, "end_hour", None)
+        left = f"{start:%d/%m}" + ("" if sh is None else f" {sh:02d}:00")
+        right = f"{end:%d/%m}" + ("" if eh is None else f" {eh:02d}:00")
+        label = f"{left} – {right} ({days} ngày)"
     elif days:
         label = f"{days} ngày đầu"
     else:

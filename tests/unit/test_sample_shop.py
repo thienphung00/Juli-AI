@@ -470,7 +470,10 @@ def test_the_orders_in_the_voucher_window_carry_the_voucher_and_nowhere_else(sam
     v = sample.voucher
     assert v is not None and 0 < v.used_orders < v.qualifying_orders
     lines = [r for _, r in _post_rows(sample, "order_lines")]
-    day = lambda r: date.fromisoformat(r["ordered_at"][:10])  # noqa: E731
+
+    def day(r):
+        return date.fromisoformat(r["ordered_at"][:10])
+
     in_window = [r for r in lines if v.starts_on < day(r) <= v.ends_on]
     shares = {r["order_ref"]: 0 for r in in_window}
     for r in in_window:

@@ -11,7 +11,7 @@ import type { BuilderP98Api } from "../../../lib/shopee-decisions/builder-p98-ap
 import { useNarrow } from "../../quyet-dinh/use-narrow";
 import { NavLink, errorText } from "../ui";
 import { CompareView, type Entry } from "./compare";
-import { AddOnPanel, ComboPanel, DiscountPanel, GiftPanel, ListingComboPanel, PriceFlashPanel, SetPanel, VoucherPanel } from "./panels-offers";
+import { ComboPanel, DealSocPanel, DiscountPanel, ListingComboPanel, PriceFlashPanel, SetPanel, VoucherPanel } from "./panels-offers";
 import { AdsPanel, AffiliatePanel, CoverPanel, DescPanel, PriceDisplayPanel, TitlePanel } from "./panels-listing";
 import { ProductPicker, ProductStrip, Steps, VariationStep, VariationStrip } from "./picker";
 import { ResultBlock, type ResultState } from "./results";
@@ -72,7 +72,7 @@ const MODES: readonly { readonly key: Mode; readonly label: string }[] = [
   { key: "single", label: "Từng phương án" },
   { key: "combo", label: "Combo nhiều SKU" },
   { key: "kol", label: "KOL" },
-  { key: "ads", label: "Quảng cáo" },
+  { key: "ads", label: "Dịch vụ hiển thị" },
 ];
 
 /** P98 entry points: three extra builders beside the P92 one (shown only when the P98 client is given). */
@@ -364,10 +364,8 @@ function Panel({ kind, forms, setForm, ctx }: { readonly kind: Kind92; readonly 
       return <ComboPanel ctx={ctx} form={forms.combo} set={(p) => setForm("combo", p)} />;
     case "listing_combo":
       return <ListingComboPanel ctx={ctx} form={forms.listing_combo} set={(p) => setForm("listing_combo", p)} />;
-    case "add_on":
-      return <AddOnPanel ctx={ctx} form={forms.add_on} set={(p) => setForm("add_on", p)} />;
-    case "gift":
-      return <GiftPanel ctx={ctx} form={forms.gift} set={(p) => setForm("gift", p)} />;
+    case "deal_soc":
+      return <DealSocPanel ctx={ctx} form={forms.deal_soc} set={(p) => setForm("deal_soc", p)} />;
     case "product_discount":
       return <DiscountPanel ctx={ctx} form={forms.product_discount} set={(p) => setForm("product_discount", p)} />;
     case "price_flash":
