@@ -646,3 +646,24 @@ def test_campaign_rows_carry_the_campaign_key_and_no_rows_means_the_card_scope()
     card = {"targets": [{"id": "k1", "kind": "campaign"}, {"id": "k2", "kind": "campaign"}]}
     assert _card_targets(card, "ads_edit") == [{"campaign_key": "k1"}, {"campaign_key": "k2"}]
     assert _card_targets({}, "voucher") == []
+
+
+async def test_a_tiers_combo_sheet_has_only_text_steps(session, shop):
+    """P100: the card page renders each step's before/after as text. The machine-readable
+    `tiers` list ([{units, value}]) once became a step of its own and crashed the seller card
+    (React #31 on ORY's JC-2611-0101); the "Mức ưu đãi N" lines already carry the tiers."""
+    await add_baskets(session, shop)
+    _USER_IDS[shop.shop_id] = shop.user.id
+    actor = manual.Actor("staff", shop.user.id, shop.user.id)
+    saved = await builder.choose(
+        session, shop.shop_id,
+        [S(kind="combo", item_ids=ITEMS, discount_type="pct", tiers=TIERS)], 0,
+        primary=False, acknowledge_breaches=True, actor=actor, as_of=AS_OF, now=NOW,
+    )  # fmt: skip
+    sheet = saved["card"]["execution_sheet"]
+    for step in sheet["steps"] + sheet["revert_steps"]:
+        for side in ("before", "after"):
+            assert not isinstance(step[side], (list, dict)), (step["field"], step[side])
+    fields = [s["field"] for s in sheet["steps"]]
+    assert "tiers" not in fields
+    assert "Mức ưu đãi 1" in fields and "Mức ưu đãi 2" in fields

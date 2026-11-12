@@ -287,6 +287,8 @@ def build_sheet(
         steps.append(_step(n, "Thời gian áp dụng", None, f"{after.get('days')} ngày", None))
     elif s.family == "ads":
         for k, v in after.items():
+            if isinstance(v, (list, dict)):
+                continue
             n += 1
             steps.append(_step(n, k, before.get(k), v, None))
     elif s.family == "listing":
@@ -315,6 +317,9 @@ def build_sheet(
             )
     else:  # combo
         for k, v in after.items():
+            if isinstance(v, (list, dict)):
+                # machine-readable twin (combo `tiers`): the "Mức ưu đãi N" lines already say it
+                continue
             n += 1
             steps.append(_step(n, k, before.get(k), v, None))
     changes = (
