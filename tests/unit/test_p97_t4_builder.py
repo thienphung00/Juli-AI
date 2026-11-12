@@ -90,7 +90,7 @@ async def test_the_proposals_column_follows_the_cards_waiting_for_a_decision(ses
 
 # ==================== targets
 
-DISCOUNT = {"kind": "product_discount", "discount_pct": 10}
+DISCOUNT = {"kind": "product_discount", "discount_pct": 20}
 
 
 async def rows(session, shop, **version):
@@ -132,7 +132,7 @@ async def test_the_total_is_the_sum_of_the_targets_and_untick_recomputes(session
         shop,
         kind="product_discount",
         item_id="1001",
-        variations=[{"variation_id": "", "discount_pct": 10}],
+        variations=[{"variation_id": "", "discount_pct": 20}],
     )
     assert by_id["1001"]["dgmv_p50"] == pytest.approx(alone["delta"]["gmv"]["p50"])
     # untick 1002: the card becomes 1001 alone
@@ -241,7 +241,9 @@ async def test_choose_saves_one_card_that_carries_the_targets_and_replans_them(s
     assert agg["result_basis"] == "option_result"
     assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
     # P99: the wire's Δ Đơn is at the card's precision (one decimal under 10 orders)
-    assert agg["dorders_month"]["p50"] == pytest.approx(per30["orders"], abs=0.051)
+    # (and a whole order from 10 up, so the plan's unrounded figure sits within half an order)
+    tol = 0.051 if abs(per30["orders"]) < 10 else 0.5
+    assert agg["dorders_month"]["p50"] == pytest.approx(per30["orders"], abs=tol)
 
 
 # ==================== ads
@@ -667,3 +669,24 @@ async def test_a_tiers_combo_sheet_has_only_text_steps(session, shop):
     fields = [s["field"] for s in sheet["steps"]]
     assert "tiers" not in fields
     assert "Mức ưu đãi 1" in fields and "Mức ưu đãi 2" in fields
+
+
+async def test_a_programme_price_not_below_today_is_refused_with_the_smallest_real_discount(
+    session, shop
+):
+    """P100: %GIẢM is off Giá gốc (seed: list 100.000đ, buyers pay 90.000đ). 10% lands on today's
+    price -- no discount at all -- yet the engine once modelled it as one (ORY: a deeper running
+    programme made 10% a price RISE with a CTOR uplift and no cost). Refuse and name the floor."""
+    v = await one(
+        session, shop, kind="product_discount", item_id="1001",
+        variations=[{"variation_id": "", "discount_pct": 10}],
+    )  # fmt: skip
+    assert v["ok"] is False
+    assert v["refusal"]["code"].startswith("discount_not_below_current:1001:90000:90000:")
+    assert "90.000đ" in v["refusal"]["message"] and "11%" in v["refusal"]["message"]
+    real = await one(
+        session, shop, kind="product_discount", item_id="1001",
+        variations=[{"variation_id": "", "discount_pct": 20}],
+    )  # fmt: skip
+    assert real["ok"] is True
+    assert real["cost"]["amount"] > 0  # the discount is a cost (B.11 / B.14)

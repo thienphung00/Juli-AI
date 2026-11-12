@@ -258,7 +258,7 @@ FAMILIES = [
     {
         "kind": "product_discount",
         "item_id": "1001",
-        "variations": [{"variation_id": "", "discount_pct": 10}],
+        "variations": [{"variation_id": "", "discount_pct": 20}],
     },
     {"kind": "title", "item_id": "1001", "title": "Găng tay tự hủy sinh học hộp 100 chiếc"},
     {"kind": "cover_image", "item_id": "1001", "overlay": {"layout": "banner_bottom"}},
@@ -308,7 +308,7 @@ async def test_the_compare_order_follows_per_30_day_profit(session, shop):
 
 async def test_several_targets_sum_their_own_results(session, shop):
     out = await evaluate(
-        session, shop, {"kind": "product_discount", "discount_pct": 10, "targets": ["1001", "1002"]}
+        session, shop, {"kind": "product_discount", "discount_pct": 20, "targets": ["1001", "1002"]}
     )
     v = out["versions"][0]
     rows = v["targets"]
