@@ -467,7 +467,7 @@ export function DiscountPanel({ form, set, ctx }: P<"product_discount">) {
       )}
       <TimeWindow form={form} legend="Thời gian khuyến mãi" set={(patch) => set(patch)} testId="p2-discount-time" />
       <div className="p2-grid">
-        <NumIn hint="Trống = Không giới hạn; chưa giới hạn số lượng trong ước tính." label="Số lượng sản phẩm khuyến mãi" onChange={(promoQty) => set({ promoQty })} value={form.promoQty} />
+        <NumIn hint="Trống = Không giới hạn. Ước tính dừng giảm giá khi hết số lượng này." label="Số lượng sản phẩm khuyến mãi" onChange={(promoQty) => set({ promoQty })} value={form.promoQty} />
         <NumIn hint="Giới hạn mua tối đa của mỗi khách hàng." label="Giới hạn đặt hàng" onChange={(perBuyer) => set({ perBuyer })} value={form.perBuyer} />
       </div>
     </div>

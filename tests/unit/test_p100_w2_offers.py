@@ -144,6 +144,34 @@ def evaluation(rows):
     return SimpleNamespace(certain={"skus": rows})
 
 
+def test_promo_quantity_caps_the_discounted_orders_and_the_lift():
+    # owner 2026-11-12: "Số lượng sản phẩm khuyến mãi" caps the discounted units in the estimate.
+    # 2 units an order, 10 orders a day over 10 days = 100 orders; 60 units last 30 orders (30 %)
+    window = dict(start=date(2026, 12, 1), end=date(2026, 12, 10))
+    facts = price_facts(discount_per_order=D(8_000), units_per_order=D(2), orders_per_day=D(10))
+    free = price_option(discount(**window), facts)
+    capped = price_option(discount(promo_qty=60, **window), facts)
+    assert free.offers[0].use_cap is None and free.note is None
+    assert capped.offers[0].use_cap == D(30)
+    ctor_free, aov_free = free.drivers
+    ctor_cap, aov_cap = capped.drivers
+    assert ctor_cap.lift.p50 == ctor_free.lift.p50 * D("0.3")
+    assert aov_cap.lift.p50 == aov_free.lift.p50 * D("0.3")
+    assert "60" in capped.note and "30 đơn" in capped.note
+    a = run(base(), free, seed=7, n=400)
+    c = run(base(), capped, seed=7, n=400)
+    assert 0 < c.cost_total < a.cost_total
+
+
+def test_a_promo_quantity_larger_than_the_programme_needs_changes_nothing():
+    window = dict(start=date(2026, 12, 1), end=date(2026, 12, 10))
+    facts = price_facts(discount_per_order=D(8_000), units_per_order=D(1), orders_per_day=D(10))
+    free = price_option(discount(**window), facts)
+    big = price_option(discount(promo_qty=10_000, **window), facts)
+    assert big.drivers == free.drivers and big.note is None
+    assert big.offers[0].use_cap == D(10_000)
+
+
 def test_discount_per_order_is_the_profit_lost_net_of_fees_else_the_gross_discount():
     row = {
         "orders": 10,
@@ -241,6 +269,7 @@ def basket(order, price, bundle=0):
 
 
 def test_a_gift_minimum_is_met_after_the_combo_discount():
+    # owner 2026-11-12 (option B): the "Mua ₫X" minimum is the price paid, after discounts
     lines = [basket("o1", 210_000, 20_000), basket("o2", 210_000), basket("o3", 150_000)]
     env = SimpleNamespace(lines_for=lambda items: lines)
     # 190.000 / 210.000 / 150.000 after the combo: only the second reaches 200.000
