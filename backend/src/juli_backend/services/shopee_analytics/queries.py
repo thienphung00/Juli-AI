@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformItemSnapshotsRepo
 from juli_backend.services.shopee_analytics import kol, loaders, service
+from juli_backend.services.shopee_analytics import kol_compare as kol_compare_mod
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.critical import build_critical
 from juli_backend.services.shopee_analytics.fmt import pct
@@ -296,6 +297,27 @@ async def product_page(
 # ---------------------------------------------------------------------------- KOL (P91 D-9)
 
 
+async def _kol_view_model(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    period: str,
+    month: str | None,
+    start: date | None,
+    end: date | None,
+    as_of: date | None,
+) -> tuple[PeriodView, kol.KolModel]:
+    window = await service.resolve(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+    )
+    if window is None:
+        raise NoShopeeData(str(shop_id))
+    ctx = await loaders.load_context(session, shop_id)
+    ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
+    view = await service.load_view(session, shop_id, ctx, window)
+    return view, await kol.load_model(session, shop_id, ctx, view)
+
+
 async def _kol_model(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -306,15 +328,10 @@ async def _kol_model(
     end: date | None,
     as_of: date | None,
 ) -> kol.KolModel:
-    window = await service.resolve(
+    _, model = await _kol_view_model(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    if window is None:
-        raise NoShopeeData(str(shop_id))
-    ctx = await loaders.load_context(session, shop_id)
-    ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
-    view = await service.load_view(session, shop_id, ctx, window)
-    return await kol.load_model(session, shop_id, ctx, view)
+    return model
 
 
 async def kol_table(
@@ -355,3 +372,26 @@ async def kol_product_tab(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     return kol.product_tab(model, item_id)
+
+
+async def kol_compare(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    group: str = "channel",
+    period: str = "30d",
+    month: str | None = None,
+    start: date | None = None,
+    end: date | None = None,
+    as_of: date | None = None,
+) -> dict[str, Any]:
+    """Phân tích › KOL › So sánh: the KOL rows by kênh / loại chiến dịch / KOL, and Affiliate vs
+    Ads vs the shop's own flows for the same window (P100)."""
+    if group not in kol_compare_mod.GROUPS:
+        raise ValueError(f"group must be one of {list(kol_compare_mod.GROUPS)}")
+    view, model = await _kol_view_model(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+    )
+    body = kol_compare_mod.compare(view, model, group)
+    body["window"] = {**body["window"], "kind": period}
+    return body

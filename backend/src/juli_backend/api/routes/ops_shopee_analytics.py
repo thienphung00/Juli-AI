@@ -12,6 +12,7 @@ nothing is written.
 - ``GET /v1/ops/shops/{id}/shopee/analytics/ranking``
 - ``GET /v1/ops/shops/{id}/shopee/analytics/products/{item_id}``
 - ``GET /v1/ops/shops/{id}/shopee/analytics/kols`` and ``.../products/{item_id}/kols`` (P91 D-9)
+- ``GET /v1/ops/shops/{id}/shopee/analytics/kols/compare?group=channel|campaign_type|kol`` (P100)
 
 A shop that is not on Shopee answers 409 ``not_a_shopee_shop``.
 """
@@ -204,6 +205,33 @@ async def ops_shopee_kols(
                 **window_args(period, month, start, end, as_of),
             )
             return await reco.attach_kol_cards(session, shop_id, body, audience="ops")
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+KolGroupQ = Annotated[str, Query(pattern="^(channel|campaign_type|kol)$")]
+
+
+@router.get(f"{BASE}/kols/compare")
+async def ops_shopee_kols_compare(
+    shop_id: uuid.UUID,
+    group: KolGroupQ = "channel",
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: FromQ = None,
+    end: ToQ = None,
+    as_of: DateQ = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Phân tích › KOL › So sánh: by kênh / loại chiến dịch / KOL, and Affiliate vs Ads vs
+    the shop's own flows (P100)."""
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await queries.kol_compare(
+                session, shop_id, group=group, **window_args(period, month, start, end, as_of)
+            )
     except REFUSALS as exc:
         raise refusal(exc) from None
 
