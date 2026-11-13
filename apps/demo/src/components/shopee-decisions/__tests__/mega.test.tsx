@@ -31,7 +31,7 @@ describe("thẻ mega sale", () => {
     expect(within(screen.getByTestId("sd-sku-BEP-S5-CB")).getByText("Trên giá sàn")).toBeInTheDocument();
     expect(within(screen.getByTestId("sd-sku-BEP-S5-LX")).getByText("Dưới giá sàn")).toBeInTheDocument();
     expect(table).toHaveTextContent("121.176đ");
-    expect(screen.getByTestId("sd-mega-cap")).toHaveTextContent("Chi dự kiến 1.300.000đ/ngày, trong trần 1.500.000đ");
+    expect(screen.getByTestId("sd-mega-cap")).toHaveTextContent("Chi 1.300.000đ/ngày, trong trần 1.500.000đ");
   });
 
   it("removing a child recomputes the whole card and the approval carries the removal", async () => {

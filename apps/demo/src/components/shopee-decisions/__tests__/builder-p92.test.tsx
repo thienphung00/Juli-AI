@@ -137,7 +137,6 @@ describe("P92 · chọn sản phẩm và phân loại", () => {
     expect(within(table).getByTestId("p2-vcmp-v3")).toHaveTextContent("29.000đ/đơn vị");
     expect(within(table).getByTestId("p2-vcmp-v3")).toHaveTextContent("16,0%");
     expect(within(table).getByTestId("p2-vcmp-v10")).toHaveTextContent("chưa tính");
-    expect(table).toHaveTextContent("mọi chỉ số khác (lượt xem, CTR, CTOR, đơn, AOV) là của cả sản phẩm");
   });
 });
 
@@ -183,7 +182,7 @@ describe("P92 · voucher 5k/100k và 10k/100k", () => {
     expect(within(block).getByTestId("p2-dprofit")).toHaveTextContent("−157.000đ – +282.000đ");
     expect(within(block).getByTestId("p2-margin")).toHaveTextContent("12,7%");
     expect(within(block).getByTestId("p2-basis")).toHaveTextContent("từ lịch sử sản phẩm");
-    expect(screen.getByTestId("p2-voucher-qualify")).toHaveTextContent("90 / 210 đơn (43%) của 30 ngày qua có giá trị từ 100.000đ trở lên");
+    expect(screen.getByTestId("p2-voucher-qualify")).toHaveTextContent("90 / 210 (43%)");
   });
 });
 
@@ -310,7 +309,7 @@ describe("P92 · các loại khác", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Chọn từ khoá túi zip thực phẩm" }));
     fireEvent.click(screen.getByTestId("p2-title-draft"));
     const drafts = await screen.findByTestId("p2-title-drafts");
-    expect(drafts).toHaveTextContent("phủ 1/1 từ khoá đã chọn");
+    expect(drafts).toHaveTextContent("phủ 1/1 từ khoá");
     fireEvent.click(within(drafts).getByRole("button", { name: "Dùng" }));
     expect(screen.getByRole("textbox", { name: "Tiêu đề" })).toHaveValue("Túi Zip Thực Phẩm, Túi Zip Đựng Đồ Ăn Combo 3 Hộp");
   });
@@ -330,12 +329,10 @@ describe("P92 · các loại khác", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Chọn từ khoá túi zip thực phẩm" }));
     fireEvent.click(screen.getByTestId("p2-title-draft"));
     expect(await screen.findByTestId("p2-title-drafts")).toHaveTextContent("Túi Zip Thực Phẩm Viết Sẵn");
-    expect(screen.getByTestId("p2-title-seeded")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("p2-title-regenerate"));
     await waitFor(() => expect(screen.getByTestId("p2-title-drafts")).toHaveTextContent("Túi Zip Thực Phẩm Hộp Mới"));
     expect(sent).toEqual([false, true]);
     expect(screen.queryByTestId("p2-title-regenerate")).toBeNull();
-    expect(screen.queryByTestId("p2-title-seeded")).toBeNull();
   });
 
   it("combo (Shopee's form): a product list with co-purchase suggestions and tiers 'Mua N', sent without per-item quantity", async () => {
@@ -416,7 +413,6 @@ describe("P92 · các loại khác", () => {
     chooseKind("price_flash");
     // P96 (G3): a list-price change is ± (+ = price up), so the field is "Thay đổi", not "Giảm".
     expect(screen.queryByRole("textbox", { name: "Giảm · Combo 3 hộp" })).not.toBeInTheDocument();
-    expect(screen.getByText("−5 = giảm 5%, +5 = tăng 5%")).toBeInTheDocument();
     fireEvent.change(await screen.findByRole("textbox", { name: "Thay đổi · Combo 3 hộp" }), { target: { value: "-10" } });
     await waitFor(() => expect(urls.some((u) => u.endsWith("price=78300"))).toBe(true));
     expect(screen.getByTestId("market-marker")).toBeInTheDocument();

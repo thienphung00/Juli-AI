@@ -91,7 +91,7 @@ export function StepPhuongAn(p: StepPhuongAnProps) {
           </div>
         </div>
         <section aria-label={`Kết quả P${index + 1}`} className="sa-card p2-result" data-testid="p2-result">
-          {state.status === "idle" ? <p className="sa-hint">{state.problem ?? "Nhập thông số để xem kết quả."}</p> : null}
+          {state.status === "idle" ? <p className="sa-hint">{state.problem ?? "—"}</p> : null}
           {state.status === "busy" ? (
             <p className="sa-hint" role="status">
               Đang tính…

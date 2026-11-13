@@ -49,7 +49,7 @@ describe("Tổng quan (P100 board)", () => {
   it("names the ad base of each Quảng cáo figure and never mixes them", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     await screen.findByTestId("sa-channels");
-    expect(screen.getByTestId("sa-base-ads")).toHaveTextContent("Tổng quan lưu lượng");
+    expect(screen.getByTestId("sa-base-ads")).toHaveTextContent("Lưu lượng");
     expect(screen.getByTestId("sa-base-ads_product")).toHaveTextContent("Báo cáo DVHT");
     expect(screen.getByTestId("sa-base-ads_shop")).toHaveTextContent("Báo cáo DVHT");
     expect(screen.getByTestId("sa-channel-ads")).toHaveTextContent("8,08 tr đ");

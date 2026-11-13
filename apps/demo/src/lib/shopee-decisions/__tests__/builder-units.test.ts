@@ -43,9 +43,9 @@ describe("builder outcome units", () => {
   });
 
   it("names expected usage against the limit and whether the max discount binds", () => {
-    expect(voucherUsageText(outcome())).toBe("Dự kiến dùng 6 / 20 lượt · chưa chạm giới hạn");
+    expect(voucherUsageText(outcome())).toBe("Dùng 6 / 20 lượt · chưa chạm giới hạn");
     const capped = outcome({ voucher: { ...outcome().voucher!, usage: { expected_uses: 9, used: 5, limit: 5, capped: true, headroom: 0 } } });
-    expect(voucherUsageText(capped)).toBe("Dự kiến dùng 5 / 5 lượt · chạm giới hạn");
+    expect(voucherUsageText(capped)).toBe("Dùng 5 / 5 lượt · chạm giới hạn");
     expect(voucherMaxText(outcome())).toBe("Mức giảm tối đa chạm ở 2/10 đơn đủ điều kiện");
     expect(voucherUsageText(outcome({ voucher: null }))).toBeNull();
   });

@@ -148,7 +148,7 @@ function useFinalCard(detail: CardDetail, chosen: number): { readonly card: Card
   return {
     card,
     sheet: approved?.execution_sheet ?? card.execution_sheet,
-    note: differs && recomputed?.failed ? "Bảng thao tác theo thẻ gốc: chưa tính lại được theo giá trị bạn đã duyệt. Hỏi đội Juli nếu số khác với bạn đã chọn." : null,
+    note: differs && recomputed?.failed ? "Chưa tính lại bảng thao tác theo giá trị đã duyệt" : null,
   };
 }
 
@@ -369,16 +369,12 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 
   const approveOff = !canDecide || busy || stale || detail.stale || calc === "error" || refused || (title && count.over) || (title && count.n === 0);
   const hint = isKol
-    ? kolInvite
-      ? "Không có giá sàn hay trần chi cần kiểm: chỉ có hoa hồng."
-      : "Chi phí mẫu chi một lần; hoa hồng chỉ trả khi có đơn."
+    ? ""
     : title && count.over
     ? `Rút bớt ${count.n - MAX_TITLE_CHARS} ký tự để duyệt.`
     : breaches.length > 0
-      ? `${name} ${breachNoun(breaches)}: vẫn duyệt được, Juli sẽ hiện cảnh báo trước.`
-      : edited
-        ? "Duyệt giá trị bạn đã chỉnh. Juli ghi lại thay đổi của bạn."
-        : "Duyệt cả phiên bản như đang hiển thị.";
+      ? `${name} ${breachNoun(breaches)}`
+      : "";
   const measuring = detail.product_measuring ?? null;
   const left = measuringDaysLeft(measuring, host.now?.() ?? new Date());
   const queueTotal = open.length;
@@ -387,7 +383,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
     <>
       {isKol ? (
         <h1 className="sa-h1" data-testid="kol-title">
-          {kolInvite ? "Mời KOL chưa nhận mẫu: chọn sản phẩm mời bán, không tốn chi phí mẫu" : "Gửi mẫu cho KOL: chọn sản phẩm và số mẫu đáng gửi nhất"}
+          {kolInvite ? "Mời KOL chưa nhận mẫu" : "Gửi mẫu cho KOL"}
         </h1>
       ) : null}
       <header className="sa-head">
@@ -426,11 +422,11 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         <p className="sa-hint" data-testid="sd-queue-line">
           {detail.product_queue ? <b>{queueLabel(detail.product_queue)}</b> : null}
           {detail.product_queue ? " · " : ""}
-          {detail.family_label} · cập nhật {dmy(shown.as_of)} · {fmt(versions.length, 0)} phiên bản{detail.product_queue && queueTotal > 0 ? ` · thẻ ${detail.product_queue} trong ${queueTotal} thẻ của sản phẩm này` : ""}
+          {detail.family_label} · cập nhật {dmy(shown.as_of)} · {fmt(versions.length, 0)} phiên bản{detail.product_queue && queueTotal > 0 ? ` · ${queueTotal} thẻ` : ""}
         </p>
         {kolBlock ? (
           <p className="sa-hint" data-testid="kol-basis">
-            Dữ liệu của KOL 30 ngày: {kolBasis(kolBlock)}
+            KOL 30 ngày: {kolBasis(kolBlock)}
           </p>
         ) : null}
       </header>
@@ -476,7 +472,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         </p>
       ) : null}
 
-      {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”. Juli sẽ đọc lại trên Seller Centre để xác minh." })} sheet={final.sheet} /> : null}
+      {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”" })} sheet={final.sheet} /> : null}
 
       {!isMega ? <VersionsTable card={detail.card} locked={!adjustable} multi={multi} noToday={isKol} onPick={pick} onToggle={multi ? toggleGroup : undefined} picked={picked} rows={isKol ? kolVersionRows(versions, kolInvite) : undefined} sel={sel} subLabel={isKol ? (kolInvite ? "không có chi phí mẫu" : "so với không gửi") : undefined} todayText={todayText(shown)} versions={versions} /> : null}
 
@@ -490,7 +486,6 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
             <>
               <div className="sa-card__head">
                 <h2 className="sa-h2">Thay đổi đề xuất</h2>
-                <span className="sa-hint">Juli không tự sửa Seller Centre: bạn làm theo bảng thao tác sau khi duyệt.</span>
               </div>
               <div className="sa-chips">
                 {shown.execution_sheet.steps.map((s) => (
@@ -589,9 +584,11 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
           <button className="sa-btn" disabled={!canDismiss || busy} onClick={() => setDialog("dismiss")} type="button">
             Bỏ qua
           </button>
-          <span className={`sa-hint ${breaches.length > 0 ? "sd-hint--warn" : ""} ${title && count.over ? "sd-hint--bad" : ""}`} data-testid="sd-approve-hint">
-            {hint}
-          </span>
+          {hint ? (
+            <span className={`sa-hint ${breaches.length > 0 ? "sd-hint--warn" : ""} ${title && count.over ? "sd-hint--bad" : ""}`} data-testid="sd-approve-hint">
+              {hint}
+            </span>
+          ) : null}
         </section>
       ) : null}
 
@@ -606,13 +603,13 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         open={warn !== null}
         title={`${warn?.mode === "plan" ? `Thêm ${name} vào kế hoạch` : `Duyệt ${name}`} dù ${warn ? breachNoun(warn.breaches) : "chạm giá sàn"}?`}
       />
-      <DismissDialog busy={busy} error={dialog === "dismiss" ? error : null} onCancel={() => setDialog(null)} onSubmit={(c) => void run("dismissed", { text: "Đã bỏ qua thẻ. Juli không đổi gì trên shop của bạn." }, () => host.reco.dismiss(detail.id, c))} open={dialog === "dismiss"} />
+      <DismissDialog busy={busy} error={dialog === "dismiss" ? error : null} onCancel={() => setDialog(null)} onSubmit={(c) => void run("dismissed", { text: "Đã bỏ qua thẻ" }, () => host.reco.dismiss(detail.id, c))} open={dialog === "dismiss"} />
       <RequestChangeDialog
         busy={busy}
         error={dialog === "request" ? error : null}
         onCancel={() => setDialog(null)}
         onSubmit={(note) =>
-          void run("requested", { text: `Đã gửi yêu cầu chỉnh với các giá trị bạn đang xem${viewing ? ` (${viewing})` : ""}. Đội Juli tính lại và gửi thẻ mới trong 1 ngày làm việc.` }, () =>
+          void run("requested", { text: `Đã gửi yêu cầu chỉnh với các giá trị bạn đang xem${viewing ? ` (${viewing})` : ""}.` }, () =>
             host.reco.requestChange(detail.id, viewing ? `${note}\n\nGiá trị đang xem: ${viewing}` : note),
           )
         }

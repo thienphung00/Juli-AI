@@ -98,10 +98,10 @@ describe("Sản phẩm › Tiếp thị liên kết (SanPhamLienKet.dc.html)", (
 describe("Thẻ Gửi mẫu / Mời KOL (CardKOL.dc.html)", () => {
   it("Gửi mẫu: versions are products / sample counts, sample cost as a formula, no 'Hôm nay' column", async () => {
     renderReco(<CardPage from={null} id="card-kol-1" />, fakeReco({ detail: kolDetail(false) }));
-    expect(await screen.findByTestId("kol-title")).toHaveTextContent("Gửi mẫu cho KOL: chọn sản phẩm và số mẫu đáng gửi nhất");
+    expect(await screen.findByTestId("kol-title")).toHaveTextContent("Gửi mẫu cho KOL");
     expect(screen.getByText("KOL · KOL mẫu A")).toBeInTheDocument();
     expect(screen.getByText("Ít dữ liệu")).toBeInTheDocument();
-    expect(screen.getByTestId("kol-basis")).toHaveTextContent("Dữ liệu của KOL 30 ngày: KOL mẫu A có 9 đơn của sản phẩm này trong 30 ngày, ROI Shopee (chỉ hoa hồng) 9,8");
+    expect(screen.getByTestId("kol-basis")).toHaveTextContent("KOL 30 ngày: KOL mẫu A · 9 đơn · ROI Shopee 9,8");
     const table = screen.getByTestId("sv-table");
     expect(within(table).queryByText("Hôm nay")).toBeNull();
     expect(screen.getByTestId("sv-product-1")).toHaveTextContent("Găng tay cao su A");
@@ -116,7 +116,6 @@ describe("Thẻ Gửi mẫu / Mời KOL (CardKOL.dc.html)", () => {
     expect(screen.getByTestId("sv-roi-1")).toHaveTextContent("−10%");
     expect(screen.getByTestId("sv-payback-1")).toHaveTextContent("≥ 4 đơn");
     expect(screen.getByTestId("kol-sample-formula")).toHaveTextContent("Chi phí mẫu = 3 × (giá vốn + đóng gói 49.000đ) + ship 25.000đ = 172.000đ");
-    expect(screen.getByText("Chi phí mẫu chi một lần; hoa hồng chỉ trả khi có đơn.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Xem KOL trong Phân tích ›" })).toHaveAttribute("href", "/phan-tich?tab=kol");
   });
 
@@ -136,10 +135,9 @@ describe("Thẻ Gửi mẫu / Mời KOL (CardKOL.dc.html)", () => {
     const plan = fakePlan();
     const reco = fakeReco({ detail: kolDetail(true) });
     renderReco(<CardPage from={null} id="card-kol-1" />, reco, { plan: { api: plan } });
-    expect(await screen.findByTestId("kol-title")).toHaveTextContent("Mời KOL chưa nhận mẫu: chọn sản phẩm mời bán, không tốn chi phí mẫu");
+    expect(await screen.findByTestId("kol-title")).toHaveTextContent("Mời KOL chưa nhận mẫu");
     expect(screen.queryByRole("button", { name: "Tăng số mẫu" })).toBeNull();
     expect(screen.queryByTestId("sv-qty-1")).toBeNull();
-    expect(screen.getByText("Không có giá sàn hay trần chi cần kiểm: chỉ có hoa hồng.")).toBeInTheDocument();
     expect(screen.getByTestId("sv-sample-1")).toHaveTextContent("—");
     fireEvent.click(screen.getByRole("button", { name: "Duyệt V1" }));
     expect(await screen.findByTestId("sd-outcome")).toHaveTextContent("Đội Juli gửi lời mời và bạn xác nhận. Phép đo theo cặp KOL × sản phẩm, trước và sau ngày gửi.");

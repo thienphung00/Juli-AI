@@ -15,13 +15,13 @@ import { countPct, moneyPct, perDayText, periodLabel, resultDays, signedMoney } 
 
 export function profitText(r: OptionResult): { readonly main: string; readonly range: string | null; readonly buildUp: string | null } {
   const p = r.delta.profit;
-  if (!r.estimable || p === null || p.value === null) return { main: r.estimable ? "chưa tính" : "chưa ước tính được", range: null, buildUp: null };
+  if (!r.estimable || p === null || p.value === null) return { main: "—", range: null, buildUp: null };
   const range = p.low !== null && p.high !== null ? `(${signedMoney(p.low)} … ${signedMoney(p.high)})` : null;
   const buildUp = r.build_up.length > 0 ? r.build_up.map((b) => b.text).join(" ") : null;
   return { main: moneyPct(p.value, p.pct), range, buildUp };
 }
 
-const NOT_ESTIMABLE = "chưa ước tính được";
+const NOT_ESTIMABLE = "—";
 /** P99: the note the engine adds when profit per order stands on the days that have costs. */
 export const COST_DAYS_NOTE = "ngày có dữ liệu chi phí";
 
@@ -119,7 +119,7 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
         <b>{title ?? r.label}</b>
         {r.basis_weak ? (
           <span data-testid="oc-weak">
-            <TextChip tone="warn">ước tính chung</TextChip>
+            <TextChip tone="warn">chung</TextChip>
           </span>
         ) : null}
       </header>

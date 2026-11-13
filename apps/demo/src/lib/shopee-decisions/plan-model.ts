@@ -254,7 +254,7 @@ export function tradeoffText(p: PlanResponse): string | null {
   const dBien = num(m.pct_before) && num(m.pct_after) ? m.pct_after - m.pct_before : 0;
   const dAov = num(a.after.aov) && num(a.today.aov) ? a.after.aov - a.today.aov : 0;
   if (!(dBien < 0 && dAov > 0)) return null;
-  return `thêm combo làm biên cả kế hoạch giảm ${fmt(Math.abs(dBien), 1)} điểm (còn ${pp(m.pct_after, 1)}) nhưng AOV tăng ${vnd(roundK(dAov))} và lợi nhuận dự kiến vẫn tăng. Bỏ combo thì biên cao hơn, AOV thấp hơn.`;
+  return `thêm combo: biên cả kế hoạch −${fmt(Math.abs(dBien), 1)} điểm (còn ${pp(m.pct_after, 1)}), AOV +${vnd(roundK(dAov))}`;
 }
 
 /** "Bỏ thẻ này thì": the plan without the card, against the plan with it (the backend's `without.delta`). */

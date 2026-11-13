@@ -17,7 +17,6 @@ describe("thẻ voucher · phép thử 'nếu đổi'", () => {
     expect(sure).toHaveTextContent("chi thêm 63.000đ");
     expect(screen.getByTestId("sd-sure-bien")).toHaveTextContent("26,9%");
     expect(screen.getByTestId("sd-sure-bien")).toHaveTextContent("25,6%");
-    expect(screen.getByTestId("sd-sure")).toHaveTextContent("② chỉ có ở “Dự kiến”");
     expect(screen.getByTestId("sd-exp-eff")).toHaveTextContent("1,40đ – 3,20đ / 1đ chi");
     expect(screen.getByTestId("sd-breakeven")).toHaveTextContent("Hoà vốn: chi thêm 63.000đ cần ≥ 3 đơn thêm");
     expect(screen.getByTestId("sd-floor")).toHaveTextContent("Trên giá sàn");
@@ -77,7 +76,7 @@ describe("giá sàn: cảnh báo, không khoá", () => {
     const button = await screen.findByRole("button", { name: "Duyệt V1" });
     expect(button).toBeEnabled();
     expect(screen.getByTestId("sd-floor")).toHaveTextContent("khách trả 175.000đ thấp hơn giá sàn vận hành 181.979đ (thiếu 6.979đ)");
-    expect(screen.getByTestId("sd-approve-hint")).toHaveTextContent("V1 chạm giá sàn: vẫn duyệt được, Juli sẽ hiện cảnh báo trước.");
+    expect(screen.getByTestId("sd-approve-hint")).toHaveTextContent("V1 chạm giá sàn");
     fireEvent.click(button);
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByRole("heading")).toHaveTextContent("Duyệt V1 dù chạm giá sàn?");
@@ -185,7 +184,7 @@ describe("quyết định của seller", () => {
     expect(note).toContain("Giảm số lượng còn 30");
     expect(note).toContain("Giá trị đang xem:");
     expect(note).toContain("đơn tối thiểu 200.000đ");
-    expect(await screen.findByTestId("sd-outcome")).toHaveTextContent("Đội Juli tính lại và gửi thẻ mới trong 1 ngày làm việc");
+    expect(await screen.findByTestId("sd-outcome")).toHaveTextContent("Đã gửi yêu cầu chỉnh");
   });
 
   it("dismisses with an ADR-107 reason, or with none", async () => {

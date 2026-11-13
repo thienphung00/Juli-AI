@@ -149,7 +149,7 @@ function CardBlock({ card, expanded, onToggle, links, reco }: { readonly card: C
           </span>
         </span>
         <span className="sp-card__d">
-          <span className="sa-hint">Δ lợi nhuận (V1, dự kiến)</span>
+          <span className="sa-hint">Δ lợi nhuận (V1)</span>
           <b className={toneClass(rangeTone(q.p10, q.p90))}>{firstVersionRange(card)}</b>
         </span>
         {briefs.length > 0 ? (

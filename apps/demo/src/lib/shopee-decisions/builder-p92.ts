@@ -551,7 +551,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
 export const REFUSAL_TEXT: Readonly<Record<string, string>> = {
   sku_no_orders: "Phân loại này chưa có đơn trong kỳ (có thể hết hàng) — chọn phân loại khác.",
   sku_unknown: "Phân loại này không thuộc sản phẩm đã chọn.",
-  voucher_scope_no_data: "Chưa có dữ liệu đơn theo loại voucher này để ước tính.",
+  voucher_scope_no_data: "Chưa có dữ liệu đơn theo loại voucher này.",
   voucher_value_over_min_spend: "Giá trị voucher phải nhỏ hơn đơn tối thiểu.",
   sku_duplicate: "SKU trùng với một phân loại đang có.",
   listing_already_live: "Listing đang bán — chỉ đưa lại listing đã ẩn hoặc hết hàng.",
@@ -681,17 +681,17 @@ export function breachesOfOutcome(o: BuilderOutcome): readonly BuilderWarning[] 
   return (o.warnings ?? []).filter((w) => w.type === "floor" || w.type === "spend_cap");
 }
 
-export const BASIS_LABELS: readonly string[] = ["từ lịch sử sản phẩm", "của shop", "ước tính chung", "không đủ dữ liệu"];
+export const BASIS_LABELS: readonly string[] = ["từ lịch sử sản phẩm", "của shop", "chung", "không đủ dữ liệu"];
 
 
-/** "Dự kiến dùng 6 / 20 lượt · chưa chạm giới hạn" of a voucher outcome (null for other kinds). */
+/** "Dùng 6 / 20 lượt · chưa chạm giới hạn" of a voucher outcome (null for other kinds). */
 export function voucherUsageText(o: BuilderOutcome): string | null {
   const u = o.voucher?.usage;
   if (!u) return null;
   const used = u.used === null ? DASH : fmt(u.used, Number.isInteger(u.used) || u.used >= 10 ? 0 : 1);
   const limit = u.limit === null ? "không giới hạn" : fmt(u.limit, 0);
   const state = u.limit === null ? "" : u.capped ? " · chạm giới hạn" : " · chưa chạm giới hạn";
-  return `Dự kiến dùng ${used} / ${limit} lượt${state}`;
+  return `Dùng ${used} / ${limit} lượt${state}`;
 }
 
 /** The max-discount line: whether the cap binds and how often (percent vouchers only). */

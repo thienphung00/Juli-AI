@@ -38,7 +38,7 @@ const NAMES: Readonly<Record<ChannelKey, string>> = {
   ads_shop: "DVHT Shop+",
   affiliate: "Tiếp thị liên kết",
 };
-const AD_BASE: Readonly<Record<AdBase, string>> = { traffic_overview: "Tổng quan lưu lượng", ads_report: "Báo cáo DVHT" };
+const AD_BASE: Readonly<Record<AdBase, string>> = { traffic_overview: "Lưu lượng", ads_report: "Báo cáo DVHT" };
 /** The Phân tích `channel` a row opens (none for the two parents that hold several). */
 const CHANNEL_OF: Partial<Record<ChannelKey, string>> = {
   organic_card: "the_san_pham",

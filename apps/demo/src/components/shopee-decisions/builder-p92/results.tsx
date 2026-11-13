@@ -53,7 +53,7 @@ export function ResultBlock({ index, title, state, costLink, onUntick }: { reado
           Kết quả P{index + 1} · {title}
         </h2>
       </div>
-      {state.status === "idle" ? <p className="sa-hint">{state.problem ?? "Nhập thông số để xem kết quả."}</p> : null}
+      {state.status === "idle" ? <p className="sa-hint">{state.problem ?? "—"}</p> : null}
       {state.status === "busy" ? (
         <p className="sa-hint" role="status">
           Đang tính…
@@ -85,7 +85,6 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
       </div>
     );
   }
-  const insufficient = o.basis?.key === "insufficient";
   const unknown = chuaTinh(o);
   const gmv = bandText(o.delta?.gmv);
   const orders = bandText(o.delta?.orders, "orders");
@@ -148,7 +147,7 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
           </dd>
         </div>
         <div>
-          <dt>Cơ sở ước tính</dt>
+          <dt>Cơ sở</dt>
           <dd data-testid="p2-basis">
             <BasisChip outcome={o} />
             {o.basis?.detail ? <span>{o.basis.detail}</span> : null}
@@ -167,18 +166,17 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
         <p className="p2-usage" data-testid="p2-usage">
           <b>{voucherUsageText(o)}</b>
           {voucherMaxText(o) ? ` · ${voucherMaxText(o)}` : ""}
-          {o.voucher?.per_user.limit ? ` · Giới hạn ${fmt(o.voucher.per_user.limit, 0)} lượt/người mua chưa tính vào kết quả` : ""}
+          {o.voucher?.per_user.limit ? ` · Giới hạn ${fmt(o.voucher.per_user.limit, 0)} lượt/người mua` : ""}
         </p>
       ) : null}
-      {insufficient ? <p className="sa-hint">Chưa có lần thử nào của sản phẩm hay của shop để so: Juli chỉ cho biết chi phí và mức đơn cần thêm. Chạy thử rồi đo.</p> : null}
       <div className="p2-drivers" data-testid="p2-drivers">
-        <b>Chỉ số chính</b> <span className="sa-hint">(đo sau khi chạy · CTOR = đơn ÷ lượt nhấp)</span>
+        <b>Chỉ số chính</b>
         <ul>
           {(o.driver?.metrics ?? []).map((m) => (
             <li key={m.key}>
               <span>{m.label}</span>
               <span>
-                {metricValue(m.unit, m.before)} → {m.after_p50 === null ? "chưa ước tính" : metricValue(m.unit, m.after_p50)}
+                {metricValue(m.unit, m.before)} → {m.after_p50 === null ? "—" : metricValue(m.unit, m.after_p50)}
               </span>
             </li>
           ))}
@@ -213,7 +211,7 @@ export type VerdictTone = "up" | "down" | "flat";
 /** "Có lãi" when the change adds profit, "Lỗ phần thêm 150.000đ" when it loses; flat when not estimable. */
 export function verdictOf(r: OptionResult): { readonly text: string; readonly tone: VerdictTone } {
   const v = r.delta.profit?.value;
-  if (!r.estimable || v === null || v === undefined) return { text: "chưa ước tính được", tone: "flat" };
+  if (!r.estimable || v === null || v === undefined) return { text: "—", tone: "flat" };
   return v >= 0 ? { text: "Có lãi", tone: "up" } : { text: `Lỗ phần thêm ${vnd(Math.round(-v))}`, tone: "down" };
 }
 
@@ -278,7 +276,7 @@ export function VersionResult({ outcome: o, result: r, name }: { readonly outcom
     rows.push({ key: "profit", label: "Lợi nhuận sau quảng cáo", text: arrow(a.profit_after_ads.now === null ? DASH : vnd(a.profit_after_ads.now), a.profit_after_ads.after === null ? null : vnd(a.profit_after_ads.after)) });
     rows.push({ key: "roas", label: "ROAS Shopee", text: arrow(a.roas_shopee.now === null ? DASH : fmt(a.roas_shopee.now, 1), a.roas_shopee.after === null ? null : fmt(a.roas_shopee.after, 1)) });
   } else {
-    rows.push({ key: "orders", label: "Δ đơn", text: r.estimable ? signedCount(r.delta.orders.value) : "chưa ước tính được" });
+    rows.push({ key: "orders", label: "Δ đơn", text: r.estimable ? signedCount(r.delta.orders.value) : "—" });
     rows.push({ key: "cost", label: "Chi phí", text: r.cost.total > 0 ? vnd(r.cost.total) : r.cost.total < 0 ? `Giảm ${vnd(-r.cost.total)}` : "Không có chi phí thêm" });
     if (r.roi?.value !== null && r.roi?.value !== undefined) rows.push({ key: "roi", label: "ROI", text: fmt(r.roi.value, 1) });
     const m = r.margin;

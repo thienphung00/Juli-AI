@@ -11,7 +11,7 @@ import type { CardList, CardSummary, Family } from "../../lib/shopee-decisions/t
 import { ackText } from "../../lib/shopee-decisions/versions";
 import { MetricChip } from "../metrics/metric-chip";
 import { Notice, TextChip } from "../shopee-analytics/ui";
-import { DataMissingNotice, PlanTotalsNotes } from "./plan-results";
+import { DataMissingNotice } from "./plan-results";
 import { mil } from "../shopee-analytics/tong-quan";
 import { PlanSteps } from "./plan-steps";
 import { rangeText } from "./top-cards";
@@ -32,7 +32,7 @@ export function PlanView(props: PlanFrameProps = {}) {
   if (!api) {
     return (
       <div className="sa-page" data-testid="kh-off">
-        <Notice tone="info">Kế hoạch chưa bật cho shop này.</Notice>
+        <Notice tone="info">Kế hoạch chưa bật</Notice>
       </div>
     );
   }
@@ -269,7 +269,6 @@ function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, on
 
       <MonthBars api={api} plan={plan} />
       {missing ? <DataMissingNotice missing={missing} /> : null}
-      <PlanTotalsNotes plan={plan} />
 
       {missing ? null : <PlanSteps api={api} busy={busy} done={done} onAct={onAct} plan={plan} />}
 
@@ -567,7 +566,7 @@ function WindowBox({ plan, api, busy, onAct }: { readonly plan: PlanResponse; re
       {anyHard ? (
         <div className="sd-check sd-check--warn" data-testid="kh-hard">
           <span>
-            <b>Khó kết luận.</b> Có nhóm đặt cửa sổ ngắn hơn mức đề xuất cho sản phẩm đó. Vẫn được chọn, nhưng nhiều khả năng kết quả sẽ không đủ để kết luận.
+            <b>Khó kết luận.</b>
           </span>
         </div>
       ) : null}

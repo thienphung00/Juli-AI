@@ -76,17 +76,17 @@ describe("P98 W3-I · OptionCard", () => {
     const note = "Chưa ước tính được.";
     const r = result({ estimable: false, delta: { profit: null, gmv: { value: null, pct: null }, orders: { value: 0, pct: null, note } }, build_up: [], after: { days: 7, label: "Sau 7 ngày", gmv_before: 1, gmv_after: null, profit_before: null, profit_after: null } });
     render(<OptionCard result={r} />);
-    expect(screen.getByTestId("oc-profit")).toHaveTextContent("chưa ước tính được");
+    expect(screen.getByTestId("oc-profit")).toHaveTextContent("—");
     expect(screen.getByTestId("oc-note")).toHaveTextContent(note);
-    expect(screen.getByTestId("oc-gmv")).toHaveTextContent("chưa ước tính được");
-    expect(screen.getByTestId("oc-orders")).toHaveTextContent("chưa ước tính được");
+    expect(screen.getByTestId("oc-gmv")).toHaveTextContent("—");
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("—");
     expect(screen.getByTestId("oc-orders")).not.toHaveTextContent("+0");
     expect(screen.queryByTestId("oc-after")).toBeNull();
   });
 
   it("'chưa tính' when estimable but profit unknown", () => {
     render(<OptionCard result={result({ delta: { profit: null, gmv: { value: 1000, pct: 1 }, orders: { value: 1, pct: 1, note: null } } })} />);
-    expect(screen.getByTestId("oc-profit")).toHaveTextContent("chưa tính");
+    expect(screen.getByTestId("oc-profit")).toHaveTextContent("—");
   });
 
   it("AOV-only: +0 orders and the note", () => {
@@ -98,7 +98,7 @@ describe("P98 W3-I · OptionCard", () => {
 
   it("shows the 'ước tính chung' tag only when basis_weak; uses '30 ngày đầu' for first_30_days", () => {
     const { rerender } = render(<OptionCard result={result({ basis: "prior", basis_weak: true, horizon: "first_30_days", after: { days: 30, label: "30 ngày đầu", gmv_before: 1, gmv_after: 2, profit_before: 1, profit_after: 2 } })} />);
-    expect(screen.getByTestId("oc-weak")).toHaveTextContent("ước tính chung");
+    expect(screen.getByTestId("oc-weak")).toHaveTextContent("chung");
     expect(screen.getAllByText("30 ngày đầu").length).toBeGreaterThan(0);
     rerender(<OptionCard result={result()} />);
     expect(screen.queryByText("ước tính chung")).toBeNull();
@@ -176,7 +176,7 @@ describe("P99 · OptionCard", () => {
     expect(screen.getByTestId("oc-breakeven")).toHaveTextContent("cần thêm 5 đơn để hoà vốn");
     expect(screen.getByTestId("oc-cost")).toHaveTextContent("150.000đ");
     expect(screen.getByTestId("oc-cost-days")).toHaveTextContent(note);
-    expect(screen.getByTestId("oc-orders")).toHaveTextContent("chưa ước tính được");
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("—");
     expect(screen.getByTestId("oc-orders")).not.toHaveTextContent("+0");
   });
 
@@ -223,9 +223,9 @@ describe("P100 B.15 · Dịch vụ hiển thị edit on the OptionCard", () => {
   it("says chưa ước tính được when the edit has no history, and loses money as lỗ", () => {
     const none = { ...ads, cpa: { now: 60000, after: null }, verdict: { now: "lo" as const, after: null }, verdict_text: { now: "lỗ", after: null }, profit_after_ads: { now: -900000, after: null }, roas_shopee: { now: 6, after: null }, incremental: { share: null, orders_all: null, orders_extra: null } };
     render(<OptionCard result={result({ kind: "ads_roas_target", estimable: false, ads: none })} />);
-    expect(screen.getByTestId("oc-ads-cpa")).toHaveTextContent("60.000đ → chưa ước tính được");
-    expect(screen.getByTestId("oc-ads-verdict")).toHaveTextContent("lỗ → chưa ước tính được");
-    expect(screen.getByTestId("oc-ads-profit")).toHaveTextContent("−900.000đ → chưa ước tính được");
+    expect(screen.getByTestId("oc-ads-cpa")).toHaveTextContent("60.000đ → —");
+    expect(screen.getByTestId("oc-ads-verdict")).toHaveTextContent("lỗ → —");
+    expect(screen.getByTestId("oc-ads-profit")).toHaveTextContent("−900.000đ → —");
   });
 
   it("other kinds carry no Ads block", () => {

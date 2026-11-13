@@ -72,7 +72,7 @@ describe("P97 D85.13 · một thẻ, nhiều đối tượng", () => {
     const rows = await screen.findByTestId("p2-trows");
     expect(within(rows).getByTestId(`p2-trow-${P_GLOVE}`)).toHaveTextContent("Chạm giá sàn");
     expect(within(rows).getByTestId(`p2-trow-${P_ZIP}`)).not.toHaveTextContent("Chạm giá sàn");
-    expect(screen.getByTestId("p2-fill-mode")).toHaveTextContent("2 lượt điền, mỗi đối tượng một lượt");
+    expect(screen.getByTestId("p2-fill-mode")).toHaveTextContent("Số lượt điền: 2");
   });
 
   it("unticking the target that breaks the floor evaluates the card again without it", async () => {
@@ -95,7 +95,7 @@ describe("P97 D85.13 · một thẻ, nhiều đối tượng", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Nhiều sản phẩm cùng một mức hoa hồng" }));
     fireEvent.click(within(screen.getByTestId("p2-targets")).getByRole("checkbox", { name: /Chọn Miếng rửa chén C/ }));
     await waitFor(() => expect(evals(b).at(-1)).toMatchObject({ kind: "affiliate", targets: [P_ZIP, P_SPONGE] }));
-    expect(await screen.findByTestId("p2-fill-mode")).toHaveTextContent("một lượt bằng chỉnh sửa hàng loạt");
+    expect(await screen.findByTestId("p2-fill-mode")).toHaveTextContent("Điền hàng loạt");
   });
 
   it("a product voucher sends its product list", async () => {

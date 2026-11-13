@@ -141,7 +141,7 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     const p = plan();
     const short = plan({ plan: { ...p.plan!, window_days: 7 }, windows: { ...p.windows!, plan_default_days: 7, plan_default_source: "plan", per_product: p.windows!.per_product.map((x) => ({ ...x, days: 7, source: "plan", hard: true })) } });
     open(short);
-    expect(await screen.findByTestId("kh-hard")).toHaveTextContent("Khó kết luận. Có nhóm đặt cửa sổ ngắn hơn mức đề xuất");
+    expect(await screen.findByTestId("kh-hard")).toHaveTextContent("Khó kết luận");
     expect(screen.getByTestId("kh-set-GT-A")).toHaveTextContent("Dưới mức đề xuất (28 ngày): khó kết luận, chỉ thấy ≥ 45%");
   });
 

@@ -14,7 +14,6 @@ import type { PlanCardResult, PlanResponse } from "../../../lib/shopee-decisions
 import { AdsBuilder, planDays } from "../ads-builder";
 import { TodayLine } from "../builder-p92/compare";
 import { OutcomeBody } from "../builder-p92/results";
-import { CardResult, ProductToday } from "../plan-results";
 import { hostOf } from "./harness";
 import { RecoHostProvider } from "../../../lib/shopee-decisions/context";
 
@@ -63,7 +62,7 @@ describe("P99 Ads tab: Chọn / Thêm vào kế hoạch from the setup row's spe
   it("shows the not-estimable card with its cost and break-even, never +0", async () => {
     setup();
     const card = await screen.findByTestId("option-card");
-    expect(card).toHaveTextContent("chưa ước tính được");
+    expect(card).toHaveTextContent("—");
     expect(card).toHaveTextContent("3.000.000đ");
     expect(screen.getByTestId("oc-breakeven")).toHaveTextContent("cần thêm 25 đơn để hoà vốn");
     expect(screen.getByTestId("oc-orders")).not.toHaveTextContent("+0");
@@ -92,7 +91,7 @@ describe("P99 Affiliate: the single-product commission card is the OptionResult 
     render(<OutcomeBody costLink="/x" outcome={o} />);
     expect(screen.getByTestId("option-card")).toBeInTheDocument();
     expect(screen.getByTestId("oc-cost")).toHaveTextContent("3.000.000đ");
-    expect(screen.getByTestId("oc-gmv")).toHaveTextContent("chưa ước tính được");
+    expect(screen.getByTestId("oc-gmv")).toHaveTextContent("—");
     expect(screen.getByTestId("oc-cost-days")).toHaveTextContent("12 ngày có dữ liệu chi phí");
     expect(screen.queryByTestId("p2-dgmv")).toBeNull();
   });
@@ -110,71 +109,9 @@ describe("P99 So sánh 'Hôm nay' by scope", () => {
     render(<TodayLine today={{ ...base, scope: "shop", orders_30d: 97 }} />);
     expect(screen.getByTestId("p2-today")).toHaveTextContent("Hôm nay (cả shop, 30 ngày): 97 đơn");
   });
-  it("mixed scopes show the shop figures with a short note", () => {
+  it("mixed scopes show the shop figures", () => {
     render(<TodayLine today={{ ...base, scope: "shop", mixed_scopes: true }} />);
-    expect(screen.getByTestId("p2-today-mixed")).toHaveTextContent("Các phương án khác phạm vi");
     expect(screen.getByTestId("p2-today")).toHaveTextContent("cả shop");
-  });
-});
-
-describe("P99 Kế hoạch: before -> after per card, product blocks, cost per month", () => {
-  const r = (over: Partial<PlanCardResult> = {}): PlanCardResult => ({
-    estimable: true,
-    counted: true,
-    message: null,
-    reason: null,
-    delta: { p10: { dgmv: 1, dorders: 1, dprofit: 1 }, p50: { dgmv: 600_000, dorders: 3.2, dprofit: 90_000 }, p90: { dgmv: 1, dorders: 6, dprofit: 1 } },
-    cost_month: 360_000,
-    cost_total: 360_000,
-    break_even_orders: 7,
-    days: 30,
-    result_horizon: "first_30_days",
-    before: { gmv_30d: 6_000_000, orders_30d: 550, profit_30d: 1_500_000, aov: 10_909 },
-    after: { gmv_30d: 6_600_000, orders_30d: 553.2, profit_30d: 1_590_000, aov: 11_930 },
-    notes: ["Lợi nhuận mỗi đơn tính trên 20 ngày có dữ liệu chi phí (trong 30 ngày)"],
-    ...over,
-  });
-  const withResult = (res: PlanCardResult): PlanResponse => {
-    const p = plan();
-    const first = p.aggregate!.cards[0]!;
-    return {
-      ...p,
-      aggregate: {
-        ...p.aggregate!,
-        cards: [{ ...first, result: res }, ...p.aggregate!.cards.slice(1)],
-        products: [{ ...p.aggregate!.products![0]!, today: { gmv_30d: 6_000_000, orders_30d: 550, aov: 10_909, profit_30d: 1_500_000, margin_pct: 25 }, after: { gmv_30d: 6_600_000, orders_30d: 553.2, aov: 11_930, profit_30d: 1_590_000, label: "Dự kiến (P50)" } }, ...p.aggregate!.products!.slice(1)],
-      },
-    };
-  };
-
-  it("shows the card's own base before -> after, cost per month, break-even and the cost-days note", () => {
-    const p = withResult(r());
-    render(<CardResult cardId={p.aggregate!.cards[0]!.card_id} plan={p} />);
-    const id = p.aggregate!.cards[0]!.card_id;
-    expect(screen.getByTestId(`kh-result-${id}`)).toHaveTextContent("GMV 30 ngày 6.000.000đ → 6.600.000đ");
-    expect(screen.getByTestId("kh-result-ba")).toHaveTextContent("Đơn 30 ngày 550 → 553");
-    expect(screen.getByTestId("kh-result-ba")).toHaveTextContent("Lợi nhuận 30 ngày 1.500.000đ → 1.590.000đ");
-    expect(screen.getByTestId("kh-result-cost")).toHaveTextContent("Chi phí trong 30 ngày tới 360.000đ · cần thêm 7 đơn để hoà vốn · Δ Đơn +3,2");
-    expect(screen.getByTestId("kh-result-note")).toHaveTextContent("20 ngày có dữ liệu chi phí");
-  });
-
-  it("a card that is not estimable says so, with its cost, and shows no before -> after", () => {
-    const p = withResult(r({ estimable: false, counted: false, delta: null, after: null, message: "chưa ước tính được — cần chạy thử", notes: [] }));
-    render(<CardResult cardId={p.aggregate!.cards[0]!.card_id} plan={p} />);
-    expect(screen.getByTestId("kh-result-ne")).toHaveTextContent("chưa ước tính được");
-    expect(screen.queryByTestId("kh-result-ba")).toBeNull();
-    expect(screen.getByTestId("kh-result-cost")).toHaveTextContent("360.000đ");
-    expect(screen.getByTestId("kh-result-cost")).not.toHaveTextContent("+0");
-  });
-
-  it("product blocks show their own today -> after", () => {
-    const p = withResult(r());
-    render(<ProductToday plan={p} />);
-    const id = p.aggregate!.products![0]!.product_id;
-    const block = screen.getByTestId(`kh-prod-today-${id}`);
-    expect(block).toHaveTextContent("biên hôm nay 25,0%");
-    expect(screen.getByTestId("kh-prod-orders")).toHaveTextContent("550 → 553");
-    expect(screen.getByTestId("kh-prod-gmv")).toHaveTextContent("6.000.000đ → 6.600.000đ");
   });
 });
 

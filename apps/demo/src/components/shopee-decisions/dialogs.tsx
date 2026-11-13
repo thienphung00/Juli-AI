@@ -45,7 +45,7 @@ export function DismissDialog({ open, busy, error, onCancel, onSubmit }: { reado
         <h3 className="qv-dialog__title" id={`${id}-t`}>
           Bỏ qua thẻ này?
         </h3>
-        <p className="qv-dialog__body">Thẻ rời khỏi Đề xuất. Juli không đổi gì trên shop của bạn.</p>
+        <p className="qv-dialog__body">Thẻ rời khỏi Đề xuất.</p>
         <fieldset className="qv-reasons">
           <legend>
             Vì sao? <span>(không bắt buộc)</span>
@@ -90,7 +90,7 @@ export function RequestChangeDialog({ open, busy, error, viewing, onCancel, onSu
         <h3 className="qv-dialog__title" id={`${id}-t`}>
           Yêu cầu chỉnh thẻ này
         </h3>
-        <p className="qv-dialog__body">Đội Juli tính lại và gửi thẻ mới trong 1 ngày làm việc. Các giá trị bạn đang xem được gửi kèm.</p>
+        <p className="qv-dialog__body">Các giá trị bạn đang xem được gửi kèm.</p>
         {viewing ? (
           <p className="sd-viewing" data-testid="sd-request-viewing">
             Giá trị đang xem: {viewing}

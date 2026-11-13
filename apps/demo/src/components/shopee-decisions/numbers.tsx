@@ -57,17 +57,13 @@ export function NumbersTable({ card }: { readonly card: Card }) {
       </div>
       <div className="sd-num__band" data-testid="sd-sure" role="row">
         <b>Chắc chắn</b>
-        <span>
-          tính lại từ {typeof orders === "number" ? fmt(orders, 0) : "—"} đơn thật, giả định khách mua như cũ · ② chỉ có ở “Dự kiến”, ở đây là số đơn hoà vốn
-        </span>
+        <span>{typeof orders === "number" ? fmt(orders, 0) : "—"} đơn thật</span>
       </div>
       <Rows rows={sure} testPrefix="sd-sure" />
       <div className="sd-num__band sd-num__band--exp" data-testid="sd-expected" role="row">
-        <b>Dự kiến</b>
-        <span>khoảng có thể xảy ra khi khách đổi hành vi (từ thấp đến cao), không phải cam kết</span>
+        <b>Khoảng</b>
       </div>
       <Rows rows={expected} testPrefix="sd-exp" />
-      <p className="sd-num__foot">{five.chi_definition}. ③ tính trên doanh thu khách trả; ② = ΔGMV ÷ Δchi.</p>
     </section>
   );
 }

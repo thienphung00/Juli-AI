@@ -110,7 +110,7 @@ describe("P98 combo builder", () => {
     fireEvent.click(await screen.findByTestId("combo-build"));
     const table = await screen.findByTestId("combo-table");
     expect(table).toHaveTextContent("Biên ở giá bán (chắc chắn)");
-    expect(table).toHaveTextContent("Biên cuối (ước tính)");
+    expect(table).toHaveTextContent("Biên cuối");
     expect(table).toHaveTextContent("16,5%");
     expect(table).toHaveTextContent("9,5%");
     expect(table).toHaveTextContent("không tự đồng bộ");

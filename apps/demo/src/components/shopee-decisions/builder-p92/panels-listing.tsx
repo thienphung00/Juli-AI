@@ -260,20 +260,15 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
             <li key={i}>
               <span>{d.title}</span>
               <span className="sa-hint">
-                {d.chars}/{draft.data.max_chars} · phủ {d.keywords?.covered.length ?? 0}/{form.ticked.length} từ khoá đã chọn
+                {d.chars}/{draft.data.max_chars} · phủ {d.keywords?.covered.length ?? 0}/{form.ticked.length} từ khoá
               </span>
               <button className="sa-btn sa-btn--s" onClick={() => set({ text: d.title })} type="button">
                 Dùng
               </button>
             </li>
           ))}
-          {draft.data.drafts.length === 0 ? <li className="sa-hint">Không có bản nháp nào đạt kiểm tra.</li> : null}
+          {draft.data.drafts.length === 0 ? <li className="sa-hint">—</li> : null}
         </ul>
-      ) : null}
-      {draft.status === "ready" && draft.data.source === "seeded" ? (
-        <p className="sa-hint" data-testid="p2-title-seeded">
-          Dữ liệu mẫu: tiêu đề viết sẵn, đã qua cùng bước kiểm tra như bản AI.
-        </p>
       ) : null}
       <label className="p2-field p2-field--wide">
         <span className="sd-field__label">Sửa tự do · tiêu đề (tối đa {MAX_TITLE} ký tự)</span>
@@ -290,7 +285,6 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
         ))}
       </div>
       {n > MAX_TITLE ? <p className="sv-title__over">Quá {n - MAX_TITLE} ký tự: không thêm được.</p> : null}
-      <p className="sa-hint">Điền bằng Connector có ở bước thực hiện, sau khi bạn chọn phương án và duyệt thẻ: Juli điền tiêu đề đã chọn lên Seller Centre, bạn kiểm tra và lưu. Tiêu đề chỉ dùng thông tin shop đã nhập; không thêm chứng nhận hay thành phần shop chưa cung cấp.</p>
     </div>
   );
 }
@@ -357,7 +351,6 @@ export function CoverPanel({ form, set, ctx }: P<"cover_image">) {
               <CoverPreview overlay={c.overlay} />
               <span className="sa-hint">
                 Phương án {String.fromCharCode(65 + i)}
-                {c.rationale ? ` · ${c.rationale}` : ""}
               </span>
               <button aria-pressed={o === c.overlay} className="sa-btn sa-btn--s" onClick={() => set({ overlay: { ...c.overlay } })} type="button">
                 Chọn {String.fromCharCode(65 + i)}
@@ -366,8 +359,7 @@ export function CoverPanel({ form, set, ctx }: P<"cover_image">) {
           ))}
         </ul>
       ) : null}
-      {draft.status === "ready" && draft.data.note ? <p className="sa-hint">{draft.data.note}</p> : null}
-      {o ? (
+            {o ? (
         <div className="p2-grid" data-testid="p2-cover-edit">
           <Pills label="Kiểu lớp chữ" onChange={(layout) => edit({ layout })} options={LAYOUTS} value={o.layout as (typeof LAYOUTS)[number][0]} />
           <TextIn label="Nhãn" onChange={(badge_text) => edit({ badge_text })} value={o.badge_text ?? ""} />
@@ -376,7 +368,6 @@ export function CoverPanel({ form, set, ctx }: P<"cover_image">) {
           {o.layout === "banner_bottom" ? <TextIn label="Dòng 2" onChange={(hook_text) => edit({ hook_text })} value={o.hook_text ?? ""} /> : null}
         </div>
       ) : null}
-      <p className="sa-hint">Juli đề xuất 2–4 lớp chữ từ số của sản phẩm (giá mỗi đơn vị, % giảm, voucher, lợi ích) và công cụ ảnh bìa vẽ chúng lên ảnh thật. Ảnh gốc không bị sửa; chữ lợi ích chỉ dùng điều shop đã nhập. Bạn tự đổi ảnh bìa ở Seller Centre.</p>
     </div>
   );
 }
@@ -424,7 +415,6 @@ export function DescPanel({ form, set, ctx }: P<"description_first_line">) {
       <span className={`sa-chip sa-chip--${n > MAX_FIRST_LINE ? "down" : "up"}`} data-testid="p2-desc-count">
         {n}/{MAX_FIRST_LINE}
       </span>
-      <p className="sa-hint">Chỉ thay dòng đầu của mô tả; phần còn lại giữ nguyên. Không thêm chứng nhận, độ an toàn hay thành phần shop chưa cung cấp.</p>
     </div>
   );
 }
@@ -437,7 +427,7 @@ export function AffiliatePanel({ form, set, ctx }: P<"affiliate">) {
     <div className="p2-panel" data-testid="p2-panel-aff">
       <Seg label="Áp dụng cho" onChange={(v) => set({ multi: v === "many", targets: v === "many" && form.targets.length === 0 ? [ctx.product.item_id] : form.targets })} options={[["one", "Sản phẩm đã chọn"], ["many", "Nhiều sản phẩm cùng một mức hoa hồng"]]} value={form.multi ? "many" : "one"} />
       {form.multi ? (
-        <ProductTargets ctx={ctx} hint="Dùng “Chỉnh sửa hàng loạt” của Shopee: một lượt điền cho cả danh sách." onChange={(targets) => set({ targets })} selected={form.targets} title="Sản phẩm đặt hoa hồng" />
+        <ProductTargets ctx={ctx} onChange={(targets) => set({ targets })} selected={form.targets} title="Sản phẩm đặt hoa hồng" />
       ) : (
         <p className="sa-hint">
           Sản phẩm: <b>{ctx.product.name}</b>
@@ -456,7 +446,6 @@ export function AffiliatePanel({ form, set, ctx }: P<"affiliate">) {
           Mỗi mẫu = giá vốn + đóng gói + ship = {vnd(sample.unit_cost)} · {sample.qty} mẫu = {vnd(sample.total)}
         </p>
       ) : null}
-      <p className="sa-hint">Hoa hồng áp cho mọi đơn qua affiliate của sản phẩm; chi phí mẫu tính vào phương án.</p>
     </div>
   );
 }
@@ -467,7 +456,7 @@ export function PriceDisplayPanel({ form, set, ctx }: P<"price_display">) {
   const unit = ctx.variations.length === 1 && ctx.variations[0]!.price_per_unit !== null ? ctx.variations[0]!.price_per_unit : null;
   return (
     <div className="p2-panel" data-testid="p2-panel-price">
-      <p className="sa-hint">{unit !== null ? `Giá mỗi đơn vị: ${vnd(unit)} trên ảnh bìa và tên phân loại.` : "Giá mỗi đơn vị lấy từ số lượng trong tên phân loại."}</p>
+      <p className="sa-hint">{unit !== null ? `Giá mỗi đơn vị: ${vnd(unit)}` : "Giá mỗi đơn vị: —"}</p>
       <TextIn label="Dòng hiển thị (để trống = giá mỗi đơn vị)" onChange={(text) => set({ text })} value={form.text} />
     </div>
   );

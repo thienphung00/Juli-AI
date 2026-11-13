@@ -190,11 +190,11 @@ export function measuringDaysLeft(m: ProductMeasuring | null | undefined, now: D
   return diff >= 0 ? diff + 1 : 0;
 }
 
-/** The sentence under "Sản phẩm đang đo": the running measurement is cut when this product changes again (D-7). */
+/** The window under "Sản phẩm đang đo". */
 export function measuringNote(m: ProductMeasuring | null | undefined): string {
   const cs = (m?.change_set ?? null) as { readonly window_days?: number; readonly days?: number } | null;
   const days = cs?.window_days ?? cs?.days;
-  return `Thay đổi trước đang được đo${num(days) ? ` (cửa sổ ${fmt(days, 0)} ngày)` : ""}. Duyệt hoặc thêm thẻ này vào kế hoạch vẫn được: phép đo đang chạy bị cắt hôm đó, giữ là “đo được N ngày” nếu đã đủ ${MIN_MEASURE_DAYS} ngày, còn lại là “không kết luận”.`;
+  return num(days) ? `Cửa sổ ${fmt(days, 0)} ngày` : "";
 }
 
 /** "Δ lợi nhuận V1 +60.000đ – +210.000đ/tháng" from the list's version brief or the card's first version. */
@@ -288,7 +288,7 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
     rowFrom(
       "orders",
       "④ Số đơn",
-      "dự kiến, theo mô hình",
+      "theo mô hình",
       first?.exp[3]?.before ?? null,
       cellOf((p) => {
         const o = ordersText(p.c);
@@ -337,7 +337,7 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
     ),
     rowFrom(
       "exp",
-      "Δ lợi nhuận · dự kiến",
+      "Δ lợi nhuận",
       "khoảng, theo mô hình tăng đơn",
       null,
       cellOf((p) => {
@@ -387,7 +387,7 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
           if (!s || !num(s.shop_chi_per_day_after)) return { v: DASH, d: "", tone: "muted", bad: false };
           const over = s.over_cap === true;
           const cap = num(s.cap) ? (over ? `vượt trần ${vnd(s.cap)}/ngày` : `trong trần ${vnd(s.cap)}/ngày`) : "chưa đặt trần";
-          return { v: `${over ? "✕" : "✓"} Chi marketing dự kiến ${vnd(s.shop_chi_per_day_after)}/ngày · ${cap}`, d: "", tone: over ? "down" : "plain", bad: over };
+          return { v: `${over ? "✕" : "✓"} Chi marketing ${vnd(s.shop_chi_per_day_after)}/ngày · ${cap}`, d: "", tone: over ? "down" : "plain", bad: over };
         }),
       ),
     );
@@ -409,13 +409,13 @@ function voucherRows(per: readonly (Per | { readonly v: CardVersion; readonly c:
     rowFrom(
       "usage",
       "Số lượt dùng",
-      "dự kiến dùng / giới hạn",
+      "dùng / giới hạn",
       null,
       cellOf2(cell, (d) => {
         const u = d.usage;
         const used = num(u.used) ? fmt(u.used, Number.isInteger(u.used) || u.used >= 10 ? 0 : 1) : DASH;
         const limit = num(u.limit) ? fmt(u.limit, 0) : "không giới hạn";
-        return { v: `Dự kiến dùng ${used} / ${limit} lượt`, d: num(u.limit) ? (u.capped ? "chạm giới hạn" : "chưa chạm giới hạn") : "", tone: u.capped ? "down" : "plain", bad: false };
+        return { v: `Dùng ${used} / ${limit} lượt`, d: num(u.limit) ? (u.capped ? "chạm giới hạn" : "chưa chạm giới hạn") : "", tone: u.capped ? "down" : "plain", bad: false };
       }),
     ),
     rowFrom(
