@@ -19,6 +19,15 @@ Rules (owner 2026-11-13):
 - No running card -> no running goal (``goal_*`` is ``None``, never 0). An unknown Δ (``None``)
   is not counted; a card with no estimate adds nothing.
 - ``mtd_*`` is the month to date up to ``anchor`` (the newest data day by default).
+- **Per product** (``product_id``): the cards counted are the running cards of THAT product
+  (``card["product_id"]``); shop-wide cards (no product, or a card over several products) count at
+  the Shop level only, so product uplifts + the shop-wide uplift = the shop uplift. The product
+  baseline is the product's own 30-day level frozen in the earliest executed plan's aggregate
+  (``aggregate.products[].today``: the plan's per-product rows); a product with no row there (or
+  no executed plan) takes its level from the stored data of the 30 days before that plan (before
+  today without one). ``None`` when neither exists, so there is no goal, never a 0.
+- Any period: :func:`range_plans` is the one computation; the month is a thin wrapper over it
+  (goal = baseline per day x days + the running cards' uplift on the days inside the range).
 """
 
 from __future__ import annotations
@@ -27,7 +36,7 @@ import calendar
 import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -54,6 +63,14 @@ def _cards_of(out: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     for g in out.get("groups") or []:
         cards += list((g.get("aggregate") or {}).get("cards") or [])
     return cards
+
+
+def cards_of_product(
+    cards: Iterable[Mapping[str, Any]], product_id: str | None
+) -> list[Mapping[str, Any]]:
+    """The cards of one product; ``None`` = every card (the Shop level). A shop-wide card (no
+    product) belongs to the Shop level only."""
+    return [c for c in cards if product_id is None or c.get("product_id") == product_id]
 
 
 def _days_in(span_from: date, span_to: date, first: date, last: date) -> int:
@@ -94,16 +111,219 @@ async def _executed(session: AsyncSession, shop_id: uuid.UUID) -> list[ShopRecoP
     )
 
 
-async def _mtd(
-    session: AsyncSession, shop_id: uuid.UUID, anchor: date, view: PeriodView | None
+async def _view_of(session: AsyncSession, shop_id: uuid.UUID, window: Window) -> PeriodView:
+    ctx = await loaders.load_context(session, shop_id)
+    ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
+    return await service.load_view(session, shop_id, ctx, window, funnel=True)
+
+
+async def _product_figures(
+    session: AsyncSession, shop_id: uuid.UUID, view: PeriodView, window: Window, product_id: str
 ) -> tuple[Any, Any]:
+    """(GMV, lợi nhuận) of one product over the view's window -- the figures Tổng quan's Sản phẩm
+    level shows (funnel base total, the product's profit)."""
+    from juli_backend.services.shopee_analytics import funnel
+
+    rows = view.data.funnel
+    if rows is None:
+        rows = await funnel.load_rows(session, shop_id, window)
+    base = funnel.base_from_rows(rows, str(shop_id), item_ids=(product_id,))
+    pp = view.profit.products.get(product_id)
+    return base.total("gmv"), None if pp is None else pp.profit
+
+
+async def _actual(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    first: date,
+    to: date,
+    view: PeriodView | None,
+    product_id: str | None = None,
+) -> tuple[Any, Any]:
+    """(GMV, lợi nhuận) of ``first``..``to`` -- ``view`` when the caller already loaded it."""
+    if to < first:  # the range starts after the newest data day: nothing happened yet
+        return None, None
+    window = Window(first, to)
     if view is None:
-        ctx = await loaders.load_context(session, shop_id)
-        ctx = replace(ctx, rules=ctx.rules.for_month(f"{anchor:%Y-%m}"))
-        view = await service.load_view(
-            session, shop_id, ctx, Window(anchor.replace(day=1), anchor), funnel=True
-        )
+        view = await _view_of(session, shop_id, window)
+    if product_id is not None:
+        return await _product_figures(session, shop_id, view, window, product_id)
     return view.shop_gmv, shop_profit_of(view).profit
+
+
+def _product_row(out: Mapping[str, Any] | None, product_id: str) -> Mapping[str, Any] | None:
+    """The plan aggregate's per-product "today" row of ``product_id`` (own or a group's)."""
+    if out is None:
+        return None
+    aggs = [out.get("aggregate") or {}] + [
+        g.get("aggregate") or {} for g in out.get("groups") or []
+    ]
+    for agg in aggs:
+        for p in agg.get("products") or []:
+            if p.get("product_id") == product_id and p.get("today"):
+                return p["today"]
+    return None
+
+
+async def _product_level(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    product_id: str,
+    row: Mapping[str, Any] | None,
+    before: date,
+) -> Mapping[str, Any] | None:
+    """The product's 30-day level ``{gmv_30d, profit_30d}``: the plan's per-product row, else the
+    stored data of the ``HORIZON_DAYS`` days before ``before``."""
+    if row is not None:
+        return row
+    last = before - timedelta(days=1)
+    try:
+        window = Window(last - timedelta(days=HORIZON_DAYS - 1), last)
+        view = await _view_of(session, shop_id, window)
+        gmv, profit = await _product_figures(session, shop_id, view, window, product_id)
+    except RowsNotMaterialized:
+        return None
+    return {
+        "gmv_30d": None if gmv is None else float(gmv),
+        "profit_30d": None if profit is None else float(profit),
+    }
+
+
+async def range_plans(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    first: date,
+    last: date,
+    *,
+    now: datetime,
+    actual_to: date | None = None,
+    view: PeriodView | None = None,
+    draft_payload: Mapping[str, Any] | None = None,
+    scopes: tuple[str, ...] = SCOPES,
+    product_id: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """The plan figures of ``first``..``last`` (any period) for each of ``scopes``.
+
+    ``product_id`` None = the whole shop.
+
+    ``goal = baseline + uplift``: the baseline is the per-day "today" level x the days of the
+    range, the uplift the running cards' own-days Δ on the days that fall inside the range (so
+    the goal is the sum over days of baseline-per-day + the uplift per day on that day).
+    ``actual_to`` = the last day with data (default ``last``); ``view`` = a view of
+    ``first``..``actual_to`` the caller already loaded. ``today_marker`` (fraction of the range
+    elapsed) only when today is inside the range; ``ahead`` = actual >= the pro-rated goal."""
+    for sc in scopes:
+        if sc not in SCOPES:
+            raise ValueError(f"unknown scope {sc!r}")
+    if last < first:
+        raise ValueError("last must not be before first")
+    days = (last - first).days + 1
+    actual_to = min(actual_to or last, last)
+    today = plans.plan_today(now)
+    in_range = first <= today <= last
+    elapsed = (today - first).days + 1 if in_range else days
+    marker = elapsed / days if in_range else None
+
+    running_cards: list[Mapping[str, Any]] = []
+    baseline: Mapping[str, Any] | None = None
+    first_out: Mapping[str, Any] | None = None
+    first_day: date | None = None
+    for plan in await _executed(session, shop_id):
+        out = await plans.get_plan(session, shop_id, plan.id, now=now, audience="seller")
+        running_cards += _cards_of(out)
+        if baseline is None:
+            baseline = (out.get("aggregate") or {}).get("today")
+            first_out = out
+            stamp = plan.confirmed_at or plan.created_at
+            first_day = plans.plan_today(stamp) if stamp is not None else None
+    dout: Mapping[str, Any] | None = None
+    draft_cards: list[Mapping[str, Any]] = []
+    draft_today: Mapping[str, Any] | None = None
+    if SCOPE_RUNNING_DRAFT in scopes:
+        dout = draft_payload
+        if dout is None:
+            dout = await plans.get_plan(session, shop_id, None, now=now, audience="seller")
+        draft_cards = _cards_of(dout)
+        draft_today = (dout.get("aggregate") or {}).get("today")
+    if product_id is not None:
+        running_cards = cards_of_product(running_cards, product_id)
+        draft_cards = cards_of_product(draft_cards, product_id)
+        row = _product_row(first_out, product_id) or _product_row(dout, product_id)
+        baseline = draft_today = await _product_level(
+            session, shop_id, product_id, row, first_day or today
+        )
+    actual_gmv, actual_profit = await _actual(session, shop_id, first, actual_to, view, product_id)
+
+    def level(base: Mapping[str, Any] | None, key: str) -> float | None:
+        v = None if base is None else base.get(key)
+        return None if v is None else float(v) / HORIZON_DAYS * days
+
+    def ahead(actual: Any, goal: float | None) -> bool | None:
+        if goal is None or actual is None:
+            return None
+        return float(actual) >= goal * elapsed / days
+
+    answers: dict[str, dict[str, Any]] = {}
+    for sc in scopes:
+        cards = running_cards + (draft_cards if sc == SCOPE_RUNNING_DRAFT else [])
+        up_gmv, up_profit, n_cards = uplift_in_month(cards, first, last)
+        base = baseline if baseline is not None else draft_today
+        b_gmv, b_profit = level(base, "gmv_30d"), level(base, "profit_30d")
+
+        def goal(b: float | None, up: float, n: int = n_cards) -> float | None:
+            return None if n == 0 or b is None else b + up
+
+        g_gmv, g_profit = goal(b_gmv, up_gmv), goal(b_profit, up_profit)
+        answers[sc] = {
+            "scope": sc,
+            "product_id": product_id,
+            "from": first.isoformat(),
+            "to": last.isoformat(),
+            "days": days,
+            "day": elapsed,
+            "today_marker": marker,
+            "cards": n_cards,
+            "baseline_gmv": num(b_gmv),
+            "baseline_profit": num(b_profit),
+            "uplift_gmv": num(up_gmv),
+            "uplift_profit": num(up_profit),
+            "goal_gmv": num(g_gmv),
+            "goal_profit": num(g_profit),
+            "actual_gmv": num(actual_gmv),
+            "actual_profit": num(actual_profit),
+            "ahead_gmv": ahead(actual_gmv, g_gmv),
+            "ahead_profit": ahead(actual_profit, g_profit),
+        }
+    return answers
+
+
+async def range_plan(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    first: date,
+    last: date,
+    *,
+    scope: str,
+    now: datetime,
+    actual_to: date | None = None,
+    view: PeriodView | None = None,
+    product_id: str | None = None,
+) -> dict[str, Any]:
+    """The plan figures of ``first``..``last`` for one ``scope`` (see :func:`range_plans`);
+    ``product_id`` None = the whole shop."""
+    return (
+        await range_plans(
+            session,
+            shop_id,
+            first,
+            last,
+            now=now,
+            actual_to=actual_to,
+            view=view,
+            scopes=(scope,),
+            product_id=product_id,
+        )
+    )[scope]
 
 
 async def month_plans(
@@ -116,68 +336,44 @@ async def month_plans(
     draft_payload: Mapping[str, Any] | None = None,
     scopes: tuple[str, ...] = SCOPES,
 ) -> dict[str, dict[str, Any]]:
-    """The month figures of Kế hoạch for each of ``scopes``, keyed by scope; the single place the
-    numbers are computed (see the module docstring). ``anchor`` = the day the month is read on
-    (default: the newest data day); ``mtd_view`` = a month-to-date view the caller already loaded
-    (same window); ``draft_payload`` = the draft's ``plans.get_plan`` answer, when the caller
-    has it."""
-    for sc in scopes:
-        if sc not in SCOPES:
-            raise ValueError(f"unknown scope {sc!r}")
+    """The month figures of Kế hoạch for each of ``scopes``, keyed by scope: :func:`range_plans`
+    over the calendar month of ``anchor`` (default: the newest data day), month to date up to
+    ``anchor``. ``mtd_view`` = a month-to-date view the caller already loaded."""
     if anchor is None:
         window = await service.resolve(session, shop_id)
         anchor = window.end if window is not None else plans.plan_today(now)
-    first = anchor.replace(day=1)
     days_in_month = calendar.monthrange(anchor.year, anchor.month)[1]
+    first = anchor.replace(day=1)
     last = first.replace(day=days_in_month)
-
-    running_cards: list[Mapping[str, Any]] = []
-    baseline: Mapping[str, Any] | None = None
-    for plan in await _executed(session, shop_id):
-        out = await plans.get_plan(session, shop_id, plan.id, now=now, audience="seller")
-        running_cards += _cards_of(out)
-        if baseline is None:
-            baseline = (out.get("aggregate") or {}).get("today")
-    draft_cards: list[Mapping[str, Any]] = []
-    draft_today: Mapping[str, Any] | None = None
-    if SCOPE_RUNNING_DRAFT in scopes:
-        dout = draft_payload
-        if dout is None:
-            dout = await plans.get_plan(session, shop_id, None, now=now, audience="seller")
-        draft_cards = _cards_of(dout)
-        draft_today = (dout.get("aggregate") or {}).get("today")
-    mtd_gmv, mtd_profit = await _mtd(session, shop_id, anchor, mtd_view)
-
-    def level(base: Mapping[str, Any] | None, key: str) -> float | None:
-        v = None if base is None else base.get(key)
-        return None if v is None else float(v) / HORIZON_DAYS * days_in_month
-
-    answers: dict[str, dict[str, Any]] = {}
-    for sc in scopes:
-        cards = running_cards + (draft_cards if sc == SCOPE_RUNNING_DRAFT else [])
-        up_gmv, up_profit, n_cards = uplift_in_month(cards, first, last)
-        base = baseline if baseline is not None else draft_today
-        b_gmv, b_profit = level(base, "gmv_30d"), level(base, "profit_30d")
-
-        def goal(b: float | None, up: float, n: int = n_cards) -> float | None:
-            return None if n == 0 or b is None else b + up
-
-        answers[sc] = {
+    rng = await range_plans(
+        session,
+        shop_id,
+        first,
+        last,
+        now=now,
+        actual_to=anchor,
+        view=mtd_view,
+        draft_payload=draft_payload,
+        scopes=scopes,
+    )
+    return {
+        sc: {
             "scope": sc,
             "month": f"{anchor:%Y-%m}",
             "day": anchor.day,
             "days_in_month": days_in_month,
-            "cards": n_cards,
-            "baseline_gmv": num(b_gmv),
-            "baseline_profit": num(b_profit),
-            "uplift_gmv": num(up_gmv),
-            "uplift_profit": num(up_profit),
-            "goal_gmv": num(goal(b_gmv, up_gmv)),
-            "goal_profit": num(goal(b_profit, up_profit)),
-            "mtd_gmv": num(mtd_gmv),
-            "mtd_profit": num(mtd_profit),
+            "cards": r["cards"],
+            "baseline_gmv": r["baseline_gmv"],
+            "baseline_profit": r["baseline_profit"],
+            "uplift_gmv": r["uplift_gmv"],
+            "uplift_profit": r["uplift_profit"],
+            "goal_gmv": r["goal_gmv"],
+            "goal_profit": r["goal_profit"],
+            "mtd_gmv": r["actual_gmv"],
+            "mtd_profit": r["actual_profit"],
         }
-    return answers
+        for sc, r in rng.items()
+    }
 
 
 async def month_plan(
@@ -217,7 +413,10 @@ __all__ = [
     "SCOPE_RUNNING",
     "SCOPE_RUNNING_DRAFT",
     "month_plan",
+    "cards_of_product",
     "month_plans",
     "plan_with_month",
+    "range_plan",
+    "range_plans",
     "uplift_in_month",
 ]

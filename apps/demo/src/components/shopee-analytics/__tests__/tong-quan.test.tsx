@@ -19,50 +19,107 @@ describe("Tổng quan (P100 board)", () => {
     expect(screen.queryByTestId("sa-product-pick")).toBeNull();
   });
 
-  it("the finding is number-led: each channel's share of GMV, no sentence", async () => {
+  it("the finding is number-led: GMV and CTR Thẻ sản phẩm change vs the previous period", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
-    expect(await screen.findByTestId("sa-finding")).toHaveTextContent("Organic 28% GMV · Quảng cáo 63% · Tiếp thị liên kết 9%");
+    expect(await screen.findByTestId("sa-finding")).toHaveTextContent("GMV ▲ 17 % · CTR Thẻ sản phẩm ▼ 9,4 %");
   });
 
-  it("shop level rows: Organic (Thẻ sản phẩm, Shop), Quảng cáo (DVHT Sản phẩm, DVHT Shop+), Tiếp thị liên kết", async () => {
+  it("shop level rows: Organic (Thẻ sản phẩm, Trang shop, Video, Live), Quảng cáo (DVHT Sản phẩm, DVHT Shop+), Tiếp thị liên kết", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     await screen.findByTestId("sa-channels");
-    expect(keys()).toEqual(["organic", "organic_card", "organic_shop", "ads", "ads_product", "ads_shop", "affiliate"]);
+    expect(keys()).toEqual(["organic", "organic_card", "organic_shop", "organic_video", "organic_live", "ads", "ads_product", "ads_shop", "affiliate"]);
     const organic = screen.getByTestId("sa-channel-organic");
     expect(organic).toHaveTextContent("3,61 tr đ");
-    expect(organic).toHaveTextContent("14");
+    expect(organic).toHaveTextContent("28,0%"); // % GMV
     const aff = screen.getByTestId("sa-channel-affiliate");
     expect(aff).toHaveTextContent("Tiếp thị liên kết");
     expect(aff).toHaveTextContent("10,0%"); // CTOR; Lượt xem and CTR are dashes
     expect(within(aff).getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByTestId("sa-cell-ads_product-share")).toHaveTextContent("—"); // ads-report base: no share
+  });
+
+  it("each cell shows its change vs the previous period under the value", async () => {
+    renderWith(<TongQuanView params={params()} />, fakeApi());
+    await screen.findByTestId("sa-channels");
+    expect(screen.getByTestId("sa-cell-organic-gmv")).toHaveTextContent("▲ 20 %"); // 3,61 vs 3,0 tr
+    expect(screen.getByTestId("sa-cell-organic_card-ctr")).toHaveTextContent("▼ 9,4 %");
+    expect(screen.getByTestId("sa-cell-organic_shop-gmv").textContent).not.toMatch(/[▲▼]/); // no previous data
   });
 
   it("names the ad base of each Quảng cáo figure and never mixes them", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     await screen.findByTestId("sa-channels");
     expect(screen.getByTestId("sa-base-ads")).toHaveTextContent("Tổng quan lưu lượng");
-    expect(screen.getByTestId("sa-base-ads_product")).toHaveTextContent("Báo cáo QC");
-    expect(screen.getByTestId("sa-base-ads_shop")).toHaveTextContent("Báo cáo QC");
+    expect(screen.getByTestId("sa-base-ads_product")).toHaveTextContent("Báo cáo DVHT");
+    expect(screen.getByTestId("sa-base-ads_shop")).toHaveTextContent("Báo cáo DVHT");
     expect(screen.getByTestId("sa-channel-ads")).toHaveTextContent("8,08 tr đ");
     expect(screen.getByTestId("sa-channel-ads_product")).toHaveTextContent("10,03 tr đ");
   });
 
-  it("KPI tiles: GMV with đơn, Lợi nhuận, Chi phí quảng cáo, Chi phí tiếp thị liên kết", async () => {
+  it("KPI tiles: GMV, Lợi nhuận, Tổng chi phí with its three lines, ROI in points; each with its change", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     expect(await screen.findByTestId("sa-tile-gmv")).toHaveTextContent("12,89 tr đ");
-    expect(screen.getByTestId("sa-tile-gmv")).toHaveTextContent("85 đơn");
-    expect(screen.getByTestId("sa-tile-profit")).toHaveTextContent("2,10 tr đ");
-    expect(screen.getByTestId("sa-tile-ads")).toHaveTextContent("2,57 tr đ");
-    expect(screen.getByTestId("sa-tile-ads")).toHaveTextContent("Báo cáo QC");
-    expect(screen.getByTestId("sa-tile-affiliate")).toHaveTextContent("96.000đ");
+    expect(screen.getByTestId("sa-shift-gmv")).toHaveTextContent("▲ 17 %");
+    expect(screen.getByTestId("sa-tile-profit")).toHaveTextContent("2,70 tr đ");
+    const cost = screen.getByTestId("sa-tile-cost");
+    expect(cost).toHaveTextContent("500.000đ");
+    expect(screen.getByTestId("sa-cost-ads")).toHaveTextContent("Quảng cáo");
+    expect(screen.getByTestId("sa-cost-ads")).toHaveTextContent("Báo cáo DVHT");
+    expect(screen.getByTestId("sa-cost-affiliate")).toHaveTextContent("96.000đ");
+    expect(screen.getByTestId("sa-cost-offers")).toHaveTextContent("154.000đ");
+    expect(screen.getByTestId("sa-tile-roi")).toHaveTextContent("5,4");
+    expect(screen.getByTestId("sa-tile-roi")).not.toHaveTextContent("%5,4");
+    expect(screen.getByTestId("sa-shift-roi")).toHaveTextContent("▲ 23 %");
   });
 
-  it("keeps the deep links: GMV tile and the Shop / Quảng cáo / Tiếp thị liên kết rows open Phân tích", async () => {
+  it("GMV composition: Organic / Quảng cáo / Tiếp thị liên kết with % and value", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
+    const comp = await screen.findByTestId("sa-composition");
+    expect(within(comp).getByTestId("sa-comp-organic")).toHaveTextContent("28%");
+    expect(within(comp).getByTestId("sa-comp-ads")).toHaveTextContent("63%");
+    expect(within(comp).getByTestId("sa-comp-affiliate")).toHaveTextContent("1,20 tr đ");
+  });
+
+  it("every tile, composition item and cell links to Phân tích with metric / channel / period", async () => {
+    renderWith(<TongQuanView params={params("ky=7d")} />, fakeApi());
+    const q = (el: HTMLElement) => new URLSearchParams((el.getAttribute("href") ?? "").split("?")[1]);
     const tile = await screen.findByTestId("sa-tile-gmv");
     expect(tile.getAttribute("href")).toContain("/phan-tich");
-    const link = within(screen.getByTestId("sa-channel-affiliate")).getByRole("link");
-    expect(new URLSearchParams((link.getAttribute("href") ?? "").split("?")[1]).get("src")).toBe("lien_ket");
+    expect(q(tile).get("metric")).toBe("gmv");
+    expect(q(tile).get("ky")).toBe("7d");
+    expect(q(screen.getByTestId("sa-tile-roi")).get("metric")).toBe("margin");
+    expect(q(screen.getByTestId("sa-comp-affiliate")).get("channel")).toBe("lien_ket");
+    const cell = q(screen.getByTestId("sa-cell-organic_video-ctr"));
+    expect([cell.get("metric"), cell.get("channel")]).toEqual(["ctr", "video"]);
+    expect(q(screen.getByTestId("sa-cell-ads_shop-orders")).get("channel")).toBe("ads_shop");
+    const row = within(screen.getByTestId("sa-channel-affiliate")).getAllByRole("link")[0] as HTMLElement;
+    expect(q(row).get("channel")).toBe("lien_ket");
+  });
+
+  it("the picker has 7 / 30 / 90 ngày and Tùy chọn, no Tháng này; Tùy chọn opens the date fields", async () => {
+    renderWith(<TongQuanView params={params()} />, fakeApi());
+    const bar = await screen.findByTestId("sa-period");
+    for (const label of ["7 ngày", "30 ngày", "90 ngày", "Tùy chọn"]) expect(within(bar).getByText(label)).toBeInTheDocument();
+    expect(bar).not.toHaveTextContent(/Tháng này|So sánh kỳ trước/);
+    expect(screen.getByTestId("sa-range")).toHaveTextContent("11/10–09/11");
+    expect(screen.queryByTestId("sa-period-form")).toBeNull();
+    await userEvent.click(screen.getByTestId("sa-period-custom"));
+    expect(screen.getByTestId("sa-period-form")).toBeInTheDocument();
+    expect(screen.getByLabelText("Từ ngày")).toBeInTheDocument();
+  });
+
+  it("Trung bình / ngày (cach=tb) divides the summed figures, keeps the rates and ROI, and is carried to Phân tích", async () => {
+    renderWith(<TongQuanView params={params("cach=tb")} />, fakeApi());
+    await screen.findByTestId("sa-channels");
+    expect(screen.getByTestId("sa-tile-gmv")).toHaveTextContent("GMV / ngày");
+    expect(screen.getByTestId("sa-tile-gmv")).toHaveTextContent("429.667đ"); // 12,89 tr / 30
+    expect(screen.getByTestId("sa-tile-roi")).toHaveTextContent("5,4");
+    expect(screen.getByTestId("sa-cell-organic-ctr")).toHaveTextContent("5,8%"); // rates unchanged
+    expect(within(screen.getByTestId("sa-channels")).getByText(/^GMV \/ ngày$/)).toBeInTheDocument();
+    const q = (el: HTMLElement) => new URLSearchParams((el.getAttribute("href") ?? "").split("?")[1]);
+    expect(q(screen.getByTestId("sa-tile-gmv")).get("cach")).toBe("tb");
+    expect(q(screen.getByRole("link", { name: "Tổng" })).get("cach")).toBeNull();
+    expect(screen.getByRole("link", { name: "7 ngày" }).getAttribute("href")).toContain("cach=tb");
   });
 
   it("Sản phẩm level: picker, product-level rows, no Shop+ row", async () => {
@@ -74,8 +131,10 @@ describe("Tổng quan (P100 board)", () => {
     expect(within(pick).getAllByRole("option")).toHaveLength(2);
     await waitFor(() => expect(api.calls.some((c) => c.startsWith("channelSplit:") && c.includes('"productId":"1001"'))).toBe(true));
     await waitFor(() => expect(screen.queryByTestId("sa-channel-ads_shop")).toBeNull());
-    expect(keys()).toEqual(["organic", "organic_card", "organic_shop", "ads", "affiliate"]);
-    expect(screen.getByTestId("sa-base-ads")).toHaveTextContent("Báo cáo QC");
+    expect(keys()).toEqual(["organic", "organic_card", "organic_shop", "organic_video", "organic_live", "ads", "affiliate"]);
+    expect(screen.getByTestId("sa-base-ads")).toHaveTextContent("Báo cáo DVHT");
+    const href = (screen.getByTestId("sa-cell-organic-gmv").getAttribute("href") ?? "").split("?")[1];
+    expect(new URLSearchParams(href).get("product")).toBe("1001");
     expect(screen.getByTestId("sa-product-open").getAttribute("href")).toContain("1001");
     // the weakest metric of the chosen product is marked in the header
     expect(screen.getByText("CTR").getAttribute("data-weak")).toBe("true");
@@ -83,11 +142,10 @@ describe("Tổng quan (P100 board)", () => {
     await waitFor(() => expect(api.calls.some((c) => c.includes('"productId":"1002"'))).toBe(true));
   });
 
-  it("Kế hoạch toggle shows the month card: MTD vs goal, green when ahead of pace, today marker", async () => {
-    // day 13/30 = 43 %: GMV 5 / 10 = 50 % (ahead), profit 0,7 / 3 = 23 % (behind)
+  it("Kế hoạch card is titled by the period: actual vs goal, green when ahead, today marker only when today is inside", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     const card = await screen.findByTestId("sa-plan");
-    expect(card).toHaveTextContent("Tháng 11");
+    expect(card).toHaveTextContent("Kế hoạch · 01/11 – 30/11");
     expect(card).toHaveTextContent("13/30 ngày");
     expect(screen.getByTestId("sa-plan-gmv")).toHaveTextContent("5,00 tr đ / 10,00 tr đ");
     expect(screen.getByTestId("sa-plan-gmv-fill").getAttribute("data-ahead")).toBe("true");
@@ -96,6 +154,14 @@ describe("Tổng quan (P100 board)", () => {
     await userEvent.click(screen.getByTestId("sa-plan-toggle"));
     expect(screen.queryByTestId("sa-plan")).toBeNull();
     expect(screen.getByTestId("sa-plan-toggle")).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("a past period has no today marker", async () => {
+    const base = channelSplit();
+    renderWith(<TongQuanView params={params()} />, fakeApi({ split: { ...base, plan: { ...base.plan!, today_marker: null, day: 30 } } }));
+    await screen.findByTestId("sa-plan-gmv-fill");
+    expect(screen.queryByTestId("sa-plan-gmv-today")).toBeNull();
+    expect(screen.getByTestId("sa-plan")).toHaveTextContent("30/30 ngày");
   });
 
   it("with no goal the bar has no goal value and no explanation text", async () => {
@@ -129,7 +195,8 @@ describe("Tổng quan helpers", () => {
     expect(mil(12_890_000)).toBe("12,89 tr đ");
     expect(mil(96_000)).toBe("96.000đ");
     expect(mil(null)).toBe("—");
-    expect(findingOf(channelSplit())).toBe("Organic 28% GMV · Quảng cáo 63% · Tiếp thị liên kết 9%");
+    expect(findingOf(channelSplit())).toBe("GMV ▲ 17 % · CTR Thẻ sản phẩm ▼ 9,4 %");
+    expect(findingOf({ ...channelSplit(), kpis_prev: null })).toBe("CTR Thẻ sản phẩm ▼ 9,4 %");
     expect(aheadOfPace({ now: 5, goal: 10 }, 13, 30)).toBe(true);
     expect(aheadOfPace({ now: 3, goal: 10 }, 13, 30)).toBe(false);
     expect(aheadOfPace({ now: 3, goal: null }, 13, 30)).toBe(false);

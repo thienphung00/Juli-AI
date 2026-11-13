@@ -74,7 +74,7 @@ describe("Xem như shop on a Shopee shop", () => {
     expect(href.startsWith(`/ops/shops/${SHOP_ID}/xem?`)).toBe(true);
     const p = new URLSearchParams(href.split("?")[1]);
     expect(p.get("trang")).toBe("phan-tich");
-    expect(p.get("kpi")).toBe("gmv");
+    expect(p.get("metric")).toBe("gmv");
     expect(p.get("from")).toBe("tong-quan");
   });
 

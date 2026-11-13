@@ -2438,3 +2438,79 @@ body:has(.sa-page) {
     font-size: 0.8rem;
   }
 }
+
+/* ── Tổng quan (board TongQuanPct): change figures, cost lines, composition ── */
+
+.sa-tq__line {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-tq__comp {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sa-tq__comp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.sa-tq__bar {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--qd-line-3);
+}
+
+.sa-tq__seg--organic {
+  background: var(--juli-success);
+}
+
+.sa-tq__seg--ads {
+  background: var(--qd-ink);
+}
+
+.sa-tq__seg--affiliate {
+  background: var(--juli-chart-neutral);
+}
+
+.sa-tq__comp-items {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sa-page a.sa-tq__comp-item,
+.sa-page a.sa-tq__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.sa-tq__comp-item {
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-tq__row {
+  grid-template-columns: minmax(160px, 1.5fr) repeat(7, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .sa-tq__comp-items {
+    grid-template-columns: 1fr;
+  }
+
+  .sa-tq__row {
+    grid-template-columns: minmax(110px, 1.3fr) repeat(7, minmax(0, 1fr));
+  }
+}

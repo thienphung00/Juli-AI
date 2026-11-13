@@ -12,7 +12,6 @@ from sqlalchemy import select
 
 from juli_backend.models.shopee_plans import PLAN_DRAFT, PLAN_EXECUTED, ShopRecoPlan
 from juli_backend.services.shopee_analytics import materialize
-from juli_backend.services.shopee_analytics.channel_split import plan_block_of
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_recommendations import fill_queue_port, month_plan, plans
 from juli_backend.services.shopee_recommendations.loader import load_env
@@ -114,11 +113,109 @@ async def test_tong_quan_and_the_ke_hoach_total_come_from_the_same_function(
 
     seeded, _ = shop
     await _executed_plan_and_draft(session, seeded, monkeypatch)
-    split = await cs._plan_block(session, seeded.shop_id, None, AS_OF)
+    first, last = date(2026, 10, 1), date(2026, 10, 31)
+    rng = await month_plan.range_plan(
+        session, seeded.shop_id, first, last, scope="running", now=NOW, actual_to=AS_OF
+    )
     screen = await month_plan.plan_with_month(session, seeded.shop_id, now=NOW, audience="seller")
     running = screen["month"]["running"]
-    assert split == plan_block_of(running)  # Tổng quan's block IS the Kế hoạch "Đang chạy" total
-    assert split["gmv"]["goal"] == running["goal_gmv"] and split["gmv"]["goal"] is not None
-    assert split["profit"]["now"] == running["mtd_profit"]
+    assert rng["goal_gmv"] == running["goal_gmv"] and rng["goal_gmv"] is not None
+    assert rng["actual_profit"] == running["mtd_profit"]
+    block = cs.plan_block_of(rng)
+    assert block["gmv"]["goal"] == running["goal_gmv"] and block["days"] == 31
     assert screen["month"]["with_draft"]["cards"] == 2
     assert screen["month"]["with_draft"]["goal_gmv"] != running["goal_gmv"]
+
+
+async def test_range_plan_sums_baseline_per_day_and_the_uplift_on_the_days_in_range(
+    session, shop, monkeypatch
+):
+    seeded, _ = shop
+    await _executed_plan_and_draft(session, seeded, monkeypatch)  # card: 15-24 Oct
+    week = await month_plan.range_plan(
+        session, seeded.shop_id, date(2026, 10, 1), date(2026, 10, 7), scope="running", now=NOW,
+        actual_to=AS_OF,
+    )  # fmt: skip
+    assert week["days"] == 7 and week["cards"] == 0 and week["goal_gmv"] is None  # card not in it
+    month = await month_plan.range_plan(
+        session, seeded.shop_id, date(2026, 10, 1), date(2026, 10, 31), scope="running", now=NOW,
+        actual_to=AS_OF,
+    )  # fmt: skip
+    ten = await month_plan.range_plan(
+        session, seeded.shop_id, date(2026, 10, 15), date(2026, 10, 24), scope="running", now=NOW,
+    )  # fmt: skip
+    assert ten["uplift_gmv"] == month["uplift_gmv"]  # all of the card's days are inside both
+    assert ten["baseline_gmv"] * 31 == pytest.approx(month["baseline_gmv"] * 10)
+    assert ten["goal_gmv"] == pytest.approx(ten["baseline_gmv"] + ten["uplift_gmv"])
+
+
+async def test_today_marker_only_when_the_range_includes_today_and_ahead_is_pro_rated(
+    session, shop, monkeypatch
+):
+    seeded, _ = shop
+    await _executed_plan_and_draft(session, seeded, monkeypatch)
+    today = NOW.date()
+    past = await month_plan.range_plan(
+        session, seeded.shop_id, date(2026, 10, 1), date(2026, 10, 31), scope="running", now=NOW,
+        actual_to=AS_OF,
+    )  # fmt: skip
+    if date(2026, 10, 1) <= today <= date(2026, 10, 31):
+        assert past["today_marker"] == pytest.approx(past["day"] / 31)
+    else:
+        assert past["today_marker"] is None and past["day"] == 31
+    gone = await month_plan.range_plan(
+        session, seeded.shop_id, date(2026, 9, 1), date(2026, 9, 30), scope="running", now=NOW,
+        actual_to=date(2026, 9, 30),
+    )  # fmt: skip
+    assert gone["today_marker"] is None and gone["day"] == 30
+    assert gone["ahead_gmv"] is None or gone["ahead_gmv"] == (
+        gone["actual_gmv"] >= gone["goal_gmv"]
+    )
+
+
+def _card(product, dgmv, dprofit, frm="2026-10-10", to="2026-10-19", days=10):
+    return {
+        "product_id": product,
+        "result": {
+            "own": {
+                "dates": {"from": frm, "to": to},
+                "days": days,
+                "delta": {"p50": {"dgmv": dgmv, "dprofit": dprofit}},
+            }
+        },
+    }
+
+
+def test_product_uplifts_plus_shop_wide_uplift_make_the_shop_uplift():
+    cards = [_card("A", 1000.0, 100.0), _card("B", 500.0, 50.0), _card(None, 200.0, 20.0)]
+    first, last = date(2026, 10, 1), date(2026, 10, 31)
+    shop = month_plan.uplift_in_month(month_plan.cards_of_product(cards, None), first, last)
+    a = month_plan.uplift_in_month(month_plan.cards_of_product(cards, "A"), first, last)
+    b = month_plan.uplift_in_month(month_plan.cards_of_product(cards, "B"), first, last)
+    wide = month_plan.uplift_in_month([c for c in cards if c["product_id"] is None], first, last)
+    assert a[:2] == (1000.0, 100.0) and b[:2] == (500.0, 50.0)  # no shop-wide card in a product
+    assert shop[0] == pytest.approx(a[0] + b[0] + wide[0]) and shop[2] == 3
+    assert shop[1] == pytest.approx(a[1] + b[1] + wide[1])
+
+
+async def test_range_plan_at_product_level_counts_only_that_products_cards(
+    session, shop, monkeypatch
+):
+    seeded, _ = shop
+    await _executed_plan_and_draft(session, seeded, monkeypatch)  # one running card on ITEM
+    first, last = date(2026, 10, 1), date(2026, 10, 31)
+    whole = await month_plan.range_plan(
+        session, seeded.shop_id, first, last, scope="running", now=NOW, actual_to=AS_OF
+    )
+    mine = await month_plan.range_plan(
+        session, seeded.shop_id, first, last, scope="running", now=NOW, actual_to=AS_OF,
+        product_id=ITEM,
+    )  # fmt: skip
+    other = await month_plan.range_plan(
+        session, seeded.shop_id, first, last, scope="running", now=NOW, actual_to=AS_OF,
+        product_id="not-this-one",
+    )  # fmt: skip
+    assert mine["product_id"] == ITEM and mine["cards"] == 1
+    assert mine["uplift_gmv"] == whole["uplift_gmv"]  # the only card is this product's
+    assert other["cards"] == 0 and other["uplift_gmv"] == 0 and other["goal_gmv"] is None
+    assert mine["actual_gmv"] is not None and mine["actual_gmv"] <= whole["actual_gmv"]

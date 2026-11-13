@@ -675,7 +675,7 @@ export interface ProductPage {
 }
 
 /** P100 Tổng quan: `GET …/channel-split` (backend `services/shopee_analytics/channel_split.py`). */
-export type ChannelKey = "organic" | "organic_card" | "organic_shop" | "ads" | "ads_product" | "ads_shop" | "affiliate";
+export type ChannelKey = "organic" | "organic_card" | "organic_shop" | "organic_video" | "organic_live" | "ads" | "ads_product" | "ads_shop" | "affiliate";
 export type AdBase = "traffic_overview" | "ads_report";
 
 export interface ChannelRow {
@@ -690,23 +690,57 @@ export interface ChannelRow {
   readonly gmv: number | null;
   readonly orders: number | null;
   readonly ad_base: AdBase | null;
+  /** Share of the total GMV on the traffic-overview base (a fraction); null for ads-report rows. */
+  readonly share?: number | null;
+  /** The same cells over the previous period of the same length (null = no previous data). */
+  readonly prev?: ChannelCells | null;
+}
+
+export interface ChannelCells {
+  readonly views: number | null;
+  readonly clicks: number | null;
+  readonly ctr: number | null;
+  readonly ctor: number | null;
+  readonly aov: number | null;
+  readonly gmv: number | null;
+  readonly orders: number | null;
+  readonly share?: number | null;
 }
 
 export interface PlanBar {
   readonly now: number | null;
   readonly goal: number | null;
-  /** The pre-plan month level and the running cards' Δ inside the month (goal = baseline + uplift). */
+  /** The pre-plan level of the period and the running cards' Δ inside it (goal = baseline + uplift). */
   readonly baseline?: number | null;
   readonly uplift?: number | null;
+  /** Actual >= the pro-rated goal (null without a goal). */
+  readonly ahead?: boolean | null;
 }
 
-/** Month to date against the month goal built from the running Kế hoạch cards. */
+/** Actual against the goal built from the running Kế hoạch cards, over the selected period. */
 export interface PlanMonth {
-  readonly month: string;
+  readonly from: string;
+  readonly to: string;
+  readonly days: number;
+  /** Days elapsed (= `days` when today is not inside the period). */
   readonly day: number;
-  readonly days_in_month: number;
+  /** Fraction of the period elapsed; null unless the period includes today. */
+  readonly today_marker: number | null;
   readonly gmv: PlanBar;
   readonly profit: PlanBar;
+}
+
+export interface ChannelKpis {
+  readonly gmv: number | null;
+  readonly orders: number | null;
+  readonly profit: number | null;
+  readonly cost_total: number | null;
+  /** Quảng cáo (ads report), Tiếp thị liên kết, Ưu đãi. */
+  readonly cost_ads: number | null;
+  readonly cost_affiliate: number | null;
+  readonly cost_offers: number | null;
+  /** Lợi nhuận ÷ Tổng chi phí, in points (5.4). */
+  readonly roi: number | null;
 }
 
 export interface ChannelSplit {
@@ -714,15 +748,11 @@ export interface ChannelSplit {
   readonly product_id: string | null;
   readonly from: string;
   readonly to: string;
+  readonly days?: number;
   readonly updated_at: string | null;
   readonly rows: readonly ChannelRow[];
-  readonly kpis: {
-    readonly gmv: number | null;
-    readonly orders: number | null;
-    readonly profit: number | null;
-    readonly ads_cost: number | null;
-    readonly affiliate_cost: number | null;
-  };
+  readonly kpis: ChannelKpis;
+  readonly kpis_prev?: ChannelKpis | null;
   readonly plan?: PlanMonth | null;
 }
 

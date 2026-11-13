@@ -10,9 +10,11 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
   Video, Tiếp thị liên kết (``lien_ket``) and the residual ``chenh_lech_nguon``.
 - **Quảng cáo, traffic-overview base** = the "trong đó Quảng cáo" overlay of Thẻ sản phẩm
   (``AdShare``: views, clicks, placed orders, GMV). It sits inside the sources, never beside them.
-- **Organic = sources - Quảng cáo - Tiếp thị liên kết.** Thẻ sản phẩm (organic) = Thẻ sản phẩm +
-  Live + Video + residual - the ads overlay; Shop (organic) = the ``trang_shop`` segment, pulled
-  out of Thẻ sản phẩm. The two children add up to Organic.
+- **Organic = sources - Quảng cáo - Tiếp thị liên kết.** Its four children add up to it: Thẻ sản
+  phẩm (organic) = Thẻ sản phẩm + residual - the ads overlay; Trang shop = the ``trang_shop``
+  segment; Video; Live.
+- Every row carries ``prev`` (the same cells over the previous period of the same length) and
+  ``share`` (of the total GMV on the traffic-overview base; ``None`` for ads-report rows).
 - **Quảng cáo children, ads-report base** (never added to the traffic-overview figure): DVHT Sản
   phẩm = every ad type of the ads report except ``ads_shop``; DVHT Shop+ = ``ads_shop``. The
   report has no views / clicks, so those stay ``None``. At Sản phẩm level there is no Shop+ row
@@ -138,38 +140,39 @@ def split_rows(
     src = _by_source(base)
     product_level = base.scope == "products"
     card, shop_page, aff = src.get(CARD), src.get(SHOP_PAGE), src.get(AFFILIATE)
-    others = [src[k] for k in (LIVE, VIDEO, RESIDUAL) if k in src]
     ads: AdShare | None = card.ads if card is not None else None
     if ads is None and product_level and ads_known:
         ads = AdShare(Decimal(0), Decimal(0), None, Decimal(0), Decimal(0))
 
     def card_part(field: str) -> Decimal | None:
-        """Thẻ sản phẩm + Live + Video + residual, before the ads overlay comes off."""
-        parts = [card, *others]
-        return _sum([getattr(s, field) for s in parts if s is not None])
+        """Thẻ sản phẩm + residual, before the ads overlay comes off."""
+        parts = [x for x in (card, src.get(RESIDUAL)) if x is not None]
+        return _sum([getattr(x, field) for x in parts])
 
-    card_views = card_part("views")
-    card_clicks = card_part("clicks")
-    card_orders = card_part("orders")
-    card_gmv = card_part("gmv")
     a = ads
     org_card = _row(
         "organic_card",
         "organic",
-        _minus(card_views, a.views) if a else None,
-        _minus(card_clicks, a.clicks) if a else None,
-        _minus(card_orders, a.orders) if a else None,
-        _minus(card_gmv, a.gmv) if a else None,
+        _minus(card_part("views"), a.views) if a else None,
+        _minus(card_part("clicks"), a.clicks) if a else None,
+        _minus(card_part("orders"), a.orders) if a else None,
+        _minus(card_part("gmv"), a.gmv) if a else None,
     )
-    org_shop = _row(
-        "organic_shop",
-        "organic",
-        shop_page.views if shop_page else None,
-        shop_page.clicks if shop_page else None,
-        shop_page.orders if shop_page else None,
-        shop_page.gmv if shop_page else None,
-    )
-    kids = (org_card, org_shop)
+
+    def child(key: str, s: SourceFunnel | None) -> dict[str, Any]:
+        return _row(
+            key,
+            "organic",
+            s.views if s else None,
+            s.clicks if s else None,
+            s.orders if s else None,
+            s.gmv if s else None,
+        )
+
+    org_shop = child("organic_shop", shop_page)
+    org_video = child("organic_video", src.get(VIDEO))
+    org_live = child("organic_live", src.get(LIVE))
+    kids = (org_card, org_shop, org_video, org_live)
 
     def organic(field: str) -> Decimal | None:
         values = [None if k[field] is None else Decimal(str(k[field])) for k in kids]
@@ -181,6 +184,10 @@ def split_rows(
     rows = [_row("organic", None, org_views, org_clicks, org_orders, org_gmv), org_card]
     if not product_level or shop_page is not None:
         rows.append(org_shop)
+    if not product_level or VIDEO in src:
+        rows.append(org_video)
+    if not product_level or LIVE in src:
+        rows.append(org_live)
     base_name = "ads_report" if product_level else "traffic_overview"
     rows.append(
         _row(
@@ -207,11 +214,22 @@ def split_rows(
             aff.gmv if aff else None,
         )
     )
+    return with_share(rows, base.total("gmv"))
+
+
+def with_share(rows: list[dict[str, Any]], total: Decimal | None) -> list[dict[str, Any]]:
+    """Each row's ``share`` of the total GMV (traffic-overview base); ``None`` for ads-report rows
+    and when the total is unknown or 0."""
+    for r in rows:
+        ok = total is not None and total > 0 and r["gmv"] is not None
+        r["share"] = (
+            frac(Decimal(str(r["gmv"])) / total) if ok and r["ad_base"] != "ads_report" else None
+        )
     return rows
 
 
 def _ad_row(key: str, cell: Mapping[str, Decimal] | None) -> dict[str, Any]:
-    row = _row(
+    return _row(
         key,
         "ads",
         None,
@@ -220,7 +238,6 @@ def _ad_row(key: str, cell: Mapping[str, Decimal] | None) -> dict[str, Any]:
         None if cell is None else cell["gmv"],
         "ads_report",
     )
-    return row
 
 
 def weakest_metric(values: Mapping[str, Mapping[str, float | None]], product_id: str) -> str | None:
@@ -300,6 +317,41 @@ def _affiliate_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
     return sum(known, Decimal(0)) if known else None
 
 
+def _offers_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
+    """Ưu đãi: the voucher + Chương Trình Của Shop (khuyến mãi / flash sale) + combo / Deal Sốc
+    discounts of the window's order lines -- the same three the profit computation takes off
+    (``five_numbers``: promo + voucher + combo). ``None`` without order lines."""
+    pairs = [(ln, pb) for ln, pb in view.pairs if product_id is None or ln.product_id == product_id]
+    if not pairs:
+        return None
+    return sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in pairs), Decimal(0))
+
+
+def kpis_of(
+    gmv: Decimal | None,
+    orders: Decimal | None,
+    profit: Decimal | None,
+    cost_ads: Decimal | None,
+    cost_affiliate: Decimal | None,
+    cost_offers: Decimal | None,
+) -> dict[str, Any]:
+    """Tổng quan's KPIs: Tổng chi phí = Quảng cáo (ads report) + Tiếp thị liên kết + Ưu đãi (the
+    known ones; ``None`` when none is known); ROI = Lợi nhuận ÷ Tổng chi phí (``None`` when the
+    cost is 0 or unknown)."""
+    total = _sum([cost_ads, cost_affiliate, cost_offers])
+    roi = None if profit is None else _div(profit, total)
+    return {
+        "gmv": num(gmv),
+        "orders": num(orders),
+        "profit": num(profit),
+        "cost_total": num(total),
+        "cost_ads": num(cost_ads),
+        "cost_affiliate": num(cost_affiliate),
+        "cost_offers": num(cost_offers),
+        "roi": frac(roi, 4),
+    }
+
+
 def _kpis(view: PeriodView, base: FunnelBase, product_id: str | None) -> dict[str, Any]:
     if product_id is None:
         profit = shop_profit_of(view).profit
@@ -308,59 +360,87 @@ def _kpis(view: PeriodView, base: FunnelBase, product_id: str | None) -> dict[st
         pp = view.profit.products.get(product_id)
         profit = None if pp is None else pp.profit
         ads_cost = None if pp is None else pp.ad_spend
+    return kpis_of(
+        base.total("gmv"),
+        base.total("orders"),
+        profit,
+        ads_cost,
+        _affiliate_cost(view, product_id),
+        _offers_cost(view, product_id),
+    )
+
+
+def plan_block_of(r: Mapping[str, Any]) -> dict[str, Any]:
+    """The Tổng quan ``plan`` block of a ``month_plan.range_plan`` answer."""
+
+    def bar(key: str) -> dict[str, Any]:
+        return {
+            "now": r[f"actual_{key}"],
+            "goal": r[f"goal_{key}"],
+            "baseline": r[f"baseline_{key}"],
+            "uplift": r[f"uplift_{key}"],
+            "ahead": r[f"ahead_{key}"],
+        }
+
     return {
-        "gmv": num(base.total("gmv")),
-        "orders": num(base.total("orders")),
-        "profit": num(profit),
-        "ads_cost": num(ads_cost),
-        "affiliate_cost": num(_affiliate_cost(view, product_id)),
+        "product_id": r.get("product_id"),
+        "from": r["from"],
+        "to": r["to"],
+        "days": r["days"],
+        "day": r["day"],
+        "today_marker": r["today_marker"],
+        "gmv": bar("gmv"),
+        "profit": bar("profit"),
     }
 
 
 async def _plan_block(
     session: AsyncSession,
     shop_id: uuid.UUID,
-    mtd_view: PeriodView | None,
-    anchor: date,
+    view: PeriodView | None,
+    window: Window,
+    product_id: str | None = None,
 ) -> dict[str, Any] | None:
-    """The month card: month to date vs the goals built from the RUNNING cards of Kế hoạch --
-    the one computation ``month_plan.month_plan(scope="running")`` shared with the Kế hoạch
-    screen (no goal when no card is running). ``now`` is the month to date up to ``anchor``."""
+    """The Kế hoạch card of the selected period: actual vs the goal built from the RUNNING cards
+    of Kế hoạch (``month_plan.range_plan``; no goal when no card is running)."""
     from juli_backend.services.shopee_recommendations import month_plan
 
     try:
-        m = await month_plan.month_plan(
+        r = await month_plan.range_plan(
             session,
             shop_id,
+            window.start,
+            window.end,
             scope=month_plan.SCOPE_RUNNING,
             now=datetime.now(UTC),
-            anchor=anchor,
-            mtd_view=mtd_view,
+            view=view,
+            product_id=product_id,
         )
     except RowsNotMaterialized:
         return None
-    return plan_block_of(m)
+    return plan_block_of(r)
 
 
-def plan_block_of(m: Mapping[str, Any]) -> dict[str, Any]:
-    """The Tổng quan ``plan`` block of a ``month_plan`` answer."""
-    return {
-        "month": m["month"],
-        "day": m["day"],
-        "days_in_month": m["days_in_month"],
-        "gmv": {
-            "now": m["mtd_gmv"],
-            "goal": m["goal_gmv"],
-            "baseline": m["baseline_gmv"],
-            "uplift": m["uplift_gmv"],
-        },
-        "profit": {
-            "now": m["mtd_profit"],
-            "goal": m["goal_profit"],
-            "baseline": m["baseline_profit"],
-            "uplift": m["uplift_profit"],
-        },
-    }
+async def _figures(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    view: PeriodView,
+    window: Window,
+    product_id: str | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    rows = view.data.funnel
+    if rows is None:
+        rows = await funnel.load_rows(session, shop_id, window)
+    ids = (product_id,) if product_id else ()
+    base = funnel.base_from_rows(rows, str(shop_id), item_ids=ids)
+    shop_card = _by_source(funnel.base_from_rows(rows, str(shop_id))).get(CARD)
+    ads_known = shop_card is not None and shop_card.ads is not None
+    ad_types = view.data.ads_daily.by_type
+    body = split_rows(base, ad_types=None if product_id else ad_types, ads_known=ads_known)
+    return body, _kpis(view, base, product_id)
+
+
+_CELLS = ("views", "clicks", "ctr", "ctor", "aov", "gmv", "orders")
 
 
 async def channel_split(
@@ -379,37 +459,30 @@ async def channel_split(
     )
     assert loaded is not None
     ctx, view, window = loaded
-    rows = view.data.funnel
-    if rows is None:
-        rows = await funnel.load_rows(session, shop_id, window)
-    ids = (product_id,) if product_id else ()
-    base = funnel.base_from_rows(rows, str(shop_id), item_ids=ids)
-    ad_types = view.data.ads_daily.by_type
-    shop_card = _by_source(funnel.base_from_rows(rows, str(shop_id))).get(CARD)
-    ads_known = shop_card is not None and shop_card.ads is not None
-    body_rows = split_rows(base, ad_types=None if product_id else ad_types, ads_known=ads_known)
-    anchor = window.end
-    mtd_start = anchor.replace(day=1)
-    month_view: PeriodView | None = None
-    if window.start != mtd_start:
-        try:
-            month_view = await service.load_view(
-                session, shop_id, ctx, Window(mtd_start, anchor), funnel=True
-            )
-        except RowsNotMaterialized:
-            month_view = None
-    mtd_view = (
-        month_view if month_view is not None else (view if window.start == mtd_start else None)
-    )
-    plan = await _plan_block(session, shop_id, mtd_view, anchor)
+    body_rows, kpis = await _figures(session, shop_id, view, window, product_id)
+    prev_rows: dict[str, dict[str, Any]] = {}
+    prev_kpis: dict[str, Any] | None = None
+    prev_window = window.previous()
+    try:
+        prev_view = await service.load_view(session, shop_id, ctx, prev_window, funnel=True)
+        p_rows, prev_kpis = await _figures(session, shop_id, prev_view, prev_window, product_id)
+        prev_rows = {r["key"]: r for r in p_rows}
+    except RowsNotMaterialized:
+        prev_kpis = None
+    for r in body_rows:
+        before = prev_rows.get(r["key"])
+        r["prev"] = None if before is None else {k: before[k] for k in (*_CELLS, "share")}
+    plan = await _plan_block(session, shop_id, view, window, product_id)
     return {
         "level": "product" if product_id else "shop",
         "product_id": product_id,
         "from": window.start.isoformat(),
         "to": window.end.isoformat(),
+        "days": window.days,
         "updated_at": await _updated_at(session, shop_id),
         "rows": body_rows,
-        "kpis": _kpis(view, base, product_id),
+        "kpis": kpis,
+        "kpis_prev": prev_kpis,
         "plan": plan,
     }
 
