@@ -193,6 +193,51 @@ class OfferCost:
 
 
 @dataclass(frozen=True)
+class AdsEvaluation:
+    """P100 B.15: an edit of a running Dịch vụ hiển thị campaign, judged on its own measured
+    history over the option's days. ``*_now`` = the campaign as it runs today, ``*_after`` = with
+    the edit (``None`` = chưa ước tính được). Orders are the campaign's direct ad orders adjusted
+    for the shop's cancel rate; GMV is Shopee's placed-order ad GMV (ROAS Shopee, reference only).
+    ``break_even_cpa`` = profit per order before ads of the campaign's products. The engine's Δ
+    total profit / ROI come from the INCREMENTAL orders only (``incremental_share``)."""
+
+    lever: str
+    campaign: str
+    days: int
+    spend_basis: str  # not_capped | budget_capped | roas_history | product_rows | not_estimable
+    spend_text: str
+    spend_now: Decimal
+    spend_after: Decimal | None
+    orders_now: Decimal
+    orders_after: Decimal | None
+    gmv_now: Decimal
+    gmv_after: Decimal | None
+    break_even_cpa: Decimal | None
+    incremental_share: Band | None = None
+    cancel_rate: Decimal | None = None
+
+    @staticmethod
+    def _cpa(spend: Decimal | None, orders: Decimal | None) -> Decimal | None:
+        if spend is None or orders is None or orders <= 0:
+            return None
+        return spend / orders
+
+    @property
+    def cpa_now(self) -> Decimal | None:
+        return self._cpa(self.spend_now, self.orders_now)
+
+    @property
+    def cpa_after(self) -> Decimal | None:
+        return self._cpa(self.spend_after, self.orders_after)
+
+    def profit_after_ads(self, spend: Decimal | None, orders: Decimal | None) -> Decimal | None:
+        """ad orders × (break-even CPA − CPA) = ad orders × break-even CPA − spend."""
+        if spend is None or orders is None or self.break_even_cpa is None:
+            return None
+        return orders * self.break_even_cpa - spend
+
+
+@dataclass(frozen=True)
 class OptionInput:
     """One option ready for the engine: 1-2 drivers, its costs, its duration."""
 
@@ -205,6 +250,8 @@ class OptionInput:
     #: profit per order after the change for the base's orders (a price change); None = unchanged
     profit_per_order_after: Decimal | None = None
     note: str | None = None
+    #: P100 B.15: an Ads edit's CPA / break-even CPA facts, carried to the result unchanged
+    ads: AdsEvaluation | None = None
 
 
 # -- what the engine returns ---------------------------------------------------------------------
@@ -255,6 +302,7 @@ class OptionResult:
     break_even_orders: Decimal | None
     break_even_aov: Decimal | None
     notes: tuple[str, ...] = ()
+    ads: AdsEvaluation | None = None  # P100 B.15 (Ads edits only)
 
     def json(self) -> dict[str, object]:
         """The wire shape, mirrored exactly by ``apps/demo/.../option-result.ts``. Implemented in
@@ -292,4 +340,9 @@ WIRE_KEYS = {
     "detail": "{before, low, likely, high: "
     "{views, ctr, ctor, orders, aov, gmv, profit, by_source}}",
     "notes": "list[str]",
+    "ads": "{lever, campaign, days, spend_basis, spend_text, spend: {now, after}, orders: {now, "
+    "after}, cpa: {now, after}, break_even_cpa, verdict: {now, after}  # 'co_lai' | 'lo' | None, "
+    "verdict_text: {now, after}, profit_after_ads: {now, after}, roas_shopee: {now, after}, "
+    "incremental: {share, orders_all, orders_extra}, cancel_rate_pct} | None  # P100 B.15: "
+    "Ads edits of a running campaign only",
 }

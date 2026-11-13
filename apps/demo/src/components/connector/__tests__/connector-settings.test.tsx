@@ -15,6 +15,19 @@ function fakeFetch(tokens: unknown[] = []) {
       return new Response(JSON.stringify({ code: FAKE_CODE, expires_at: "2026-11-06T04:10:00Z", ttl_seconds: 600 }), { status: 201 });
     }
     if (url === "/v1/ingest/tokens" && method === "GET") return new Response(JSON.stringify({ data: tokens }), { status: 200 });
+    if (url === "/v1/ingest/shop-status" && method === "GET") {
+      return new Response(
+        JSON.stringify({
+          platform: "shopee",
+          datasets: [
+            { dataset: "shop_overview", last_ingest_at: "2026-11-12T03:00:00Z", last_period_end: "2026-11-11", drift: "ok" },
+            { dataset: "ads_campaign_daily", last_ingest_at: "2026-11-12T03:00:00Z", last_period_end: "2026-11-11", drift: "drift" },
+            { dataset: "orders_export", last_ingest_at: "2026-11-01T03:00:00Z", last_period_end: "2026-10-31", drift: "ok" },
+          ],
+        }),
+        { status: 200 },
+      );
+    }
     if (url.startsWith("/v1/ingest/tokens/") && method === "DELETE") return new Response(null, { status: 204 });
     return new Response("{}", { status: 404 });
   });
@@ -46,6 +59,18 @@ describe("Cài đặt › Juli Connector", () => {
     await waitFor(() =>
       expect((fetchImpl.mock.calls as unknown as [string, RequestInit][]).some(([u, i]) => u === "/v1/ingest/tokens/tk1" && i?.method === "DELETE")).toBe(true),
     );
+  });
+
+  it("says which page to open and shows what Juli received, page by page (0.3.17)", async () => {
+    render(<ConnectorSettings auth={{ token: "t", shopId: "s1", fetchImpl: fakeFetch() as unknown as typeof fetch }} shopName="ORY" />);
+    expect(screen.getByText("Phân Tích Bán Hàng › Truy cập")).toBeInTheDocument();
+    const table = await screen.findByTestId("connector-received");
+    expect(table).toHaveTextContent("Tiếp Thị Liên Kết");
+    expect(screen.getByTestId("received-shop_overview")).toHaveTextContent("Tổng quan shop theo ngày");
+    expect(screen.getByTestId("received-shop_overview")).toHaveTextContent("Nhận lúc");
+    expect(screen.getByTestId("received-ads_campaign_daily")).toHaveTextContent("Tạm dừng");
+    expect(screen.getByTestId("received-affiliate_order_lines")).toHaveTextContent("Chưa nhận");
+    expect(table).not.toHaveTextContent("orders_export"); // not the Connector's
   });
 
   it("the tab exists only for a Shopee shop", () => {

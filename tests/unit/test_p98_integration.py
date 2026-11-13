@@ -6,6 +6,7 @@ synthetic reco shop (``tests/support/shopee_reco``, SQLite, invented figures) en
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal as D
 from types import SimpleNamespace
@@ -107,7 +108,8 @@ def test_e2_nobody_near_a_minimum_gains_nothing():
 
 def test_e2_the_combo_reach_is_measured_on_orders_within_reach_of_the_tier():
     lines = [line(f"a{i}", 1, 50_000) for i in range(20)]  # one unit under tier 2
-    lines += [line(f"b{i}", 2, 50_000) for i in range(10)]  # already at tier 2
+    # already at tier 2, under a past combo (B.10: reach is measured once the shop ran one)
+    lines += [replace(line(f"b{i}", 2, 50_000), bundle_discount=D(10_000)) for i in range(10)]
     lines += [line(f"c{i}", 1, 30_000, item="other") for i in range(5)]
     spec = sp.ComboSpec(
         kind="combo", item_ids=["i1"], discount_type="pct", tiers=[sp.ComboTier(qty=2, value=10)]
@@ -166,14 +168,14 @@ def test_e3_pack_sold_today_reads_the_variation_pack_counts():
     assert integrate.pack_sold_today(rows, 1, 5) is False
 
 
-# ==================== hidden Ads edits
+# ==================== Ads edits (P100 B.15)
 
 
-def test_the_ads_edit_kinds_are_refused_hidden_by_the_family():
+def test_an_ads_edit_without_its_history_is_refused_by_the_family():
     spec = sp.AdsSpec(kind="ads", lever="budget", campaign_key="c", daily_budget=150_000)
     with pytest.raises(FamilyRefused) as refused:
         option_for(spec, BuilderContext(env=cast(Any, SimpleNamespace())))
-    assert refused.value.hidden and integrate.hidden(spec)
+    assert refused.value.code == "no_campaign_report"
 
 
 def test_a_stable_seed_per_version():
@@ -258,7 +260,7 @@ FAMILIES = [
     {
         "kind": "product_discount",
         "item_id": "1001",
-        "variations": [{"variation_id": "", "discount_pct": 10}],
+        "variations": [{"variation_id": "", "discount_pct": 20}],
     },
     {"kind": "title", "item_id": "1001", "title": "Găng tay tự hủy sinh học hộp 100 chiếc"},
     {"kind": "cover_image", "item_id": "1001", "overlay": {"layout": "banner_bottom"}},
@@ -308,7 +310,7 @@ async def test_the_compare_order_follows_per_30_day_profit(session, shop):
 
 async def test_several_targets_sum_their_own_results(session, shop):
     out = await evaluate(
-        session, shop, {"kind": "product_discount", "discount_pct": 10, "targets": ["1001", "1002"]}
+        session, shop, {"kind": "product_discount", "discount_pct": 20, "targets": ["1001", "1002"]}
     )
     v = out["versions"][0]
     rows = v["targets"]
@@ -318,12 +320,32 @@ async def test_several_targets_sum_their_own_results(session, shop):
     assert_one_calculation(v)
 
 
-async def test_an_ads_edit_is_refused_with_a_clear_code(session, shop):
+async def test_an_ads_edit_of_an_unknown_campaign_names_the_missing_report(session, shop):
+    """P100 B.15: no ``ads_edit_hidden`` any more; a campaign the shop has no report of is
+    refused with the evaluator's own code."""
     out = await evaluate(
-        session, shop, {"kind": "ads", "lever": "budget", "campaign_key": "x", "daily_budget": 1}
+        session,
+        shop,
+        {"kind": "ads", "lever": "budget", "campaign_key": "x", "daily_budget": 200_000},
     )
     v = out["versions"][0]
-    assert v["ok"] is False and v["refusal"]["code"] == "ads_edit_hidden"
+    assert v["ok"] is False and v["refusal"]["code"] == "no_campaign_report"
+
+
+async def test_an_ads_edit_of_a_running_campaign_has_its_result(session, shop):
+    camps = await builder.ads_campaigns(session, shop.shop_id, as_of=AS_OF, now=NOW)
+    key = camps["campaigns"][0]["campaign_key"]
+    out = await evaluate(
+        session,
+        shop,
+        {"kind": "ads", "lever": "budget", "campaign_key": key, "daily_budget": 120_000},
+        {"kind": "ads", "lever": "budget", "campaign_key": key, "daily_budget": 300_000},
+    )
+    for v in out["versions"]:
+        assert v["ok"] and v["result"]["kind"] == "ads_budget", v.get("refusal")
+        ads = v["result"]["ads"]
+        assert ads["spend"]["now"] > 0 and ads["cpa"]["now"] is not None
+    assert len(out["compare"]) == 2  # So sánh ranks them like any other kind
 
 
 async def test_the_variations_route_carries_both_margins(session, shop):
@@ -373,6 +395,23 @@ async def test_combo_rows_carry_a_result_and_the_compare_order(seller):
         r = row["result"]
         assert r["kind"] == "listing_combo" and r["horizon"] == "first_30_days"
         assert_funnel_holds(r)
+
+
+async def test_the_routes_no_longer_answer_422_for_an_ads_edit(seller, session, shop):
+    """P100 B.15: "Chọn" and "Chạy cùng nhau" take an edit of a running campaign."""
+    camps = await builder.ads_campaigns(session, shop.shop_id, as_of=AS_OF, now=NOW)
+    version = {
+        "kind": "ads",
+        "lever": "budget",
+        "campaign_key": camps["campaigns"][0]["campaign_key"],
+        "daily_budget": 150_000,
+    }
+    common = {"versions": [version], "acknowledge_breaches": True, "as_of": AS_OF.isoformat()}
+    chosen = await seller.post(f"{B}/choose", json={**common, "chosen": 0})
+    assert chosen.status_code == 201, chosen.text
+    assert chosen.json()["outcome"]["result"]["ads"]["lever"] == "budget"
+    grouped = await seller.post(f"{B}/group", json={**common, "members": [0], "days": 7})
+    assert grouped.status_code == 201, grouped.text
 
 
 async def test_ads_and_kol_setups_carry_a_result(seller):

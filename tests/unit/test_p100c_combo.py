@@ -409,3 +409,35 @@ def test_option_for_gift_without_a_cost_says_so(monkeypatch):
     )
     o = option_for(spec, _ctx(monkeypatch, {}, refusal="gift_cost_unknown"))
     assert o.offers == () and o.note == OFFER_COST_UNKNOWN
+
+
+# -- B.10 (owner, 2026-11-13): no combo history -> reach not estimable, not the E2 upper bound ---
+
+
+def _one_unit_orders(n, bundle=D(0)):
+    return [
+        OrderLine(
+            f"o{i}", "i1-sku", "i1", date(2026, 6, 6), 1, D(100_000), D(100_000), D(0), bundle
+        )
+        for i in range(n)
+    ]
+
+
+def test_a_shop_that_never_ran_a_combo_gets_cost_and_break_even_only():
+    # every order holds one unit: E2 would call all of them "reaching" Mua 2 (an upper bound)
+    f = adapters.combo_facts(combo("pct", [(2, 10)]), fake_env(_one_unit_orders(40)))
+    assert f.reach is None
+    o = combo_option(combo("pct", [(2, 10)]), f)
+    assert o.drivers[0].basis == "not_estimable"
+    assert "chưa chạy combo" in o.drivers[0].note
+
+
+def test_a_shop_with_past_combo_orders_keeps_the_measured_reach():
+    lines = _one_unit_orders(39) + [
+        OrderLine(
+            "c1", "i1-sku", "i1", date(2026, 6, 6), 2, D(100_000), D(100_000), D(0), D(20_000)
+        )
+    ]
+    f = adapters.combo_facts(combo("pct", [(2, 10)]), fake_env(lines))
+    assert f.reach is not None
+    assert combo_option(combo("pct", [(2, 10)]), f).drivers[0].basis == "measured"

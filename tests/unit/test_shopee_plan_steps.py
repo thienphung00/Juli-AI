@@ -137,7 +137,7 @@ async def test_cards_of_different_products_stay_independent_with_shop_totals(ses
 
 async def test_a_combo_step_without_the_stacking_model_still_gets_a_margin(session, shop):
     seeded, env = shop
-    d = uuid.UUID((await _manual(session, seeded, env, _discount(10)))["id"])
+    d = uuid.UUID((await _manual(session, seeded, env, _discount(20)))["id"])
     c = uuid.UUID((await _manual(session, seeded, env, _combo()))["id"])
     await _add(session, seeded, d)
     out = await _add(session, seeded, c)

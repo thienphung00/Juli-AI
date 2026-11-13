@@ -753,6 +753,13 @@ async def test_routes_end_to_end_pair_ingest_status_rotate_revoke(session):
     async with client_for(app) as seller:
         listed = await seller.get("/v1/ingest/tokens")
         assert token not in listed.text
+        # Cài đặt › Juli Connector shows what Juli received per dataset (0.3.17), no token.
+        status = await seller.get("/v1/ingest/shop-status")
+        assert status.status_code == 200, status.text
+        entries = {d["dataset"]: d for d in status.json()["datasets"]}
+        assert status.json()["platform"] == "shopee" and entries
+        assert any(d["drift"] == "drift" for d in entries.values())
+        assert token not in status.text
         first_id = paired.json()["token_id"]
         assert (await seller.delete(f"/v1/ingest/tokens/{first_id}")).status_code == 204
         assert (await seller.delete(f"/v1/ingest/tokens/{uuid.uuid4()}")).status_code == 404

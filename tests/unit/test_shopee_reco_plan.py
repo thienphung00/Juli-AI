@@ -374,7 +374,7 @@ async def test_one_draft_per_shop_and_only_open_undecided_cards_can_be_planned(s
 async def test_switching_the_version_and_the_what_if_re_aggregate_at_once(session, shop):
     seeded, env = shop
     out = await manual.create_manual(
-        session, seeded.shop_id, [_discount(10), _discount(25)], 0, False, _actor(seeded),
+        session, seeded.shop_id, [_discount(15), _discount(25)], 0, False, _actor(seeded),
         now=NOW, env=env, acknowledge_breaches=True,
     )  # fmt: skip
     cid = uuid.UUID(out["id"])
@@ -382,7 +382,7 @@ async def test_switching_the_version_and_the_what_if_re_aggregate_at_once(sessio
     sid = seeded.shop_id
     first = await plans.add_card(session, sid, cid, actor=_actor(seeded), now=NOW)
     v1 = first["aggregate"]["cards"][0]
-    assert v1["version"] == 1 and v1["inputs"]["discount_pct"] == 10
+    assert v1["version"] == 1 and v1["inputs"]["discount_pct"] == 15
     second = await plans.switch_version(session, sid, cid, 2, actor=_actor(seeded), now=NOW)
     v2 = second["aggregate"]["cards"][0]
     assert v2["version"] == 2 and v2["inputs"]["discount_pct"] == 25
@@ -391,10 +391,10 @@ async def test_switching_the_version_and_the_what_if_re_aggregate_at_once(sessio
     assert v2["result"]["own"]["delta"] != v1["result"]["own"]["delta"]  # deeper discount
     assert second["cards"][0]["chosen_version_code"].endswith("-V2")
     third = await plans.whatif(
-        session, sid, cid, {"discount_pct": 5}, actor=_actor(seeded), now=NOW
+        session, sid, cid, {"discount_pct": 18}, actor=_actor(seeded), now=NOW
     )
     c3 = third["aggregate"]["cards"][0]
-    assert c3["inputs"]["discount_pct"] == 5 and c3["what_if"] == {"discount_pct": 5}
+    assert c3["inputs"]["discount_pct"] == 18 and c3["what_if"] == {"discount_pct": 18}
     assert c3["result"]["own"]["delta"] != v1["result"]["own"]["delta"]
     fourth = await plans.switch_version(session, sid, cid, 1, actor=_actor(seeded), now=NOW)
     assert fourth["cards"][0]["what_if"] == {}  # the inputs belonged to the old version

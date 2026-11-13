@@ -134,6 +134,19 @@ async def create_pairing_code(
     }
 
 
+@router.get("/shop-status")
+async def get_shop_ingest_status(
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """The seller's Cài đặt › Juli Connector page (Connector 0.3.17, owner 2026-11-13): what Juli
+    has received per dataset (last upload, the day the numbers reach, stopped after a Seller
+    Centre change), the same entries the extension's popup reads with its own token."""
+    platform = getattr(shop, "platform", None) or "shopee"
+    datasets = await ingest_service.dataset_status(session, shop_id=shop.id, platform=platform)
+    return {"platform": platform, "datasets": datasets}
+
+
 @router.get("/tokens")
 async def list_ingest_tokens(
     shop: Shop = Depends(get_active_shop),

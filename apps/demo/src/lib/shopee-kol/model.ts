@@ -129,7 +129,7 @@ export interface RowText {
 export function rowText(r: KolRow): RowText {
   return {
     handle: r.handle,
-    channel: r.channel,
+    channel: r.channel_label ?? r.channel,
     few: r.low_data,
     fewLabel: r.low_data_label ?? "Ít dữ liệu",
     product: r.product_name,

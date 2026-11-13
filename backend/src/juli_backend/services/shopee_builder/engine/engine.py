@@ -224,7 +224,8 @@ def _scenario(
         ps.append(p)
     if added is not None and eff.added_idx is not None:
         i = eff.added_idx
-        av = eff.added_views
+        # P100 B.15: an Ads edit can take traffic away (a lower budget): never below zero views
+        av = max(eff.added_views, -(vs[i] or 0.0))
         oa = av * float(added.ctr) * float(added.ctor) * eff.added_share
         vs[i] = (vs[i] or 0.0) + av
         ks[i] = (ks[i] or 0.0) + av * float(added.ctr)
@@ -356,6 +357,8 @@ def _build_up(
         parts["offer"] = (-draw.offer_cost, text)
     if fixed > 1e-9:
         parts["fixed"] = (-fixed, f"− chi phí cố định {vnd(fixed)}")
+    elif fixed < -1e-9:  # P100 B.15: an Ads edit that spends less saves that spend
+        parts["fixed"] = (-fixed, f"+ chi phí giảm {vnd(-fixed)}")
     if len(parts) > 3 and "price" in parts:
         amt, _ = parts.pop("price")
         e_amt, _ = parts.get("extra_orders", (0.0, ""))
@@ -489,6 +492,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
                 cost, 0.0, 0.0, srcs, aov_idx, before_draw.aov_orders, cr, has_aov
             ),
             notes=tuple(notes),
+            ads=option.ads,
         )
 
     rng = random.Random(seed)
@@ -501,7 +505,10 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
                 continue
             if d.added is not None:
                 eff.added_idx = cs[0]
-                eff.added_views = max(0.0, _draw(rng, d.added.views))
+                drawn = _draw(rng, d.added.views)
+                # a removal (every band end <= 0, P100 B.15) stays a removal; else no negatives
+                lower = d.added.views.p90 <= 0
+                eff.added_views = min(0.0, drawn) if lower else max(0.0, drawn)
                 eff.added_share = _clamp01(_draw(rng, d.added.extra_share))
             elif d.lift is not None:
                 m = max(0.0, 1.0 + _draw(rng, d.lift))
@@ -560,6 +567,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             has_aov,
         ),
         notes=tuple(notes),
+        ads=option.ads,
     )
 
 

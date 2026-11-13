@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { vnd } from "../../shopee-analytics/format";
 import { sellerLinks, viewAsShopeeLinks, opsTabShopeeLinks } from "../../shopee-analytics/links";
 import { shopSubline } from "../../../components/app-shell/shop-header";
 import {
@@ -10,6 +11,7 @@ import {
   rankingLinkOf,
   readbackOf,
   readingsOf,
+  stepText,
   sectionsFor,
   sureRows,
   tabCounts,
@@ -164,5 +166,20 @@ describe("links", () => {
     expect(shopSubline({ platform: "shopee" })).toBe("Shopee");
     expect(shopSubline({})).toBe("TikTok Shop");
     expect(shopSubline({ platform: "shopee", skuCount: 12 })).toBe("Shopee · 12 SKU");
+  });
+});
+
+describe("stepText (P100: a stored sheet step can carry a structured value)", () => {
+  it("renders combo tiers as text instead of handing React an object", () => {
+    const tiers = [{ units: 2, value: 5 }, { units: 3, value: 8 }];
+    expect(stepText(tiers)).toBe("units: 2, value: 5 · units: 3, value: 8");
+    expect(stepText({ units: 2, value: 5 })).toBe("units: 2, value: 5");
+    expect(stepText([])).toBe("—");
+  });
+
+  it("keeps numbers and strings as before", () => {
+    expect(stepText(150000, "VND")).toBe(vnd(150000));
+    expect(stepText("Giảm giá theo %")).toBe("Giảm giá theo %");
+    expect(stepText(null)).toBe("—");
   });
 });

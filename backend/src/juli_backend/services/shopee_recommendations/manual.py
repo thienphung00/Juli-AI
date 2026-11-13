@@ -98,8 +98,23 @@ _REFUSAL_TEXT = {
 }
 
 
+def _vnd(raw: str) -> str:
+    return f"{int(raw):,}".replace(",", ".") + "đ"
+
+
 def refusal(code: str) -> dict[str, str]:
     head = code.split(":", 1)[0]
+    if head == "discount_not_below_current":
+        # discount_not_below_current:{item}:{today}:{after}:{min_pct or ""}
+        _, _, today, after, min_pct = (code.split(":") + [""] * 5)[:5]
+        hint = f" Nhập %GIẢM từ {min_pct}% trở lên để giảm thật." if min_pct else ""
+        return {
+            "code": code,
+            "message": (
+                f"Giá sau giảm {_vnd(after)} không thấp hơn giá khách đang trả {_vnd(today)}: "
+                "sản phẩm đang có chương trình giảm sâu hơn (%GIẢM tính trên giá gốc)." + hint
+            ),
+        }
     return {"code": code, "message": _REFUSAL_TEXT.get(head, code)}
 
 

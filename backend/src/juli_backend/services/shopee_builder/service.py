@@ -426,17 +426,10 @@ def version_dates(spec: sp.VersionSpec, result: Mapping[str, Any] | None) -> dic
     }
 
 
-def hidden_refusal() -> dict[str, str]:
-    """ADR-122 d.10: Ads edits of running campaigns are hidden from the builder."""
-    return {"code": integrate.HIDDEN_CODE, "message": integrate.HIDDEN_TEXT}
-
-
 def _evaluate_version_card(
     ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime, shop_id: str = ""
 ) -> tuple[dict[str, Any], Translation | None, dict[str, Any] | None]:
     label = spec.label or f"Phương án {index + 1}"
-    if integrate.hidden(spec):
-        return outcome.refused(index, spec.kind, label, hidden_refusal()), None, None
     try:
         tr = to_variant(spec, ctx)
     except SpecRefused as exc:
@@ -711,8 +704,6 @@ async def choose(
     now: datetime,
 ) -> dict[str, Any]:
     """ "Chọn": save ``specs[chosen]`` as a manual card (the others are its versions)."""
-    if integrate.hidden(specs[chosen]):
-        raise manual.ProposalError(integrate.HIDDEN_CODE, 422, integrate.HIDDEN_TEXT)
     ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
     variants: list[dict[str, Any]] = []
     for i, spec in enumerate(specs):
@@ -767,8 +758,6 @@ async def run_together(
     picked = list(dict.fromkeys(members))
     if not picked or any(not 0 <= i < len(specs) for i in picked):
         raise manual.ProposalError(manual.ERROR_BAD_VARIANT, 422, "choose versions of the list")
-    if any(integrate.hidden(specs[i]) for i in picked):
-        raise manual.ProposalError(integrate.HIDDEN_CODE, 422, integrate.HIDDEN_TEXT)
     ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
     buckets: dict[tuple[Any, ...], list[tuple[int, dict[str, Any]]]] = {}
     for i in picked:

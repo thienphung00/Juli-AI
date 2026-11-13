@@ -78,7 +78,12 @@ async def list_shops(
             )
             for option in await reviewer_shop_options(session, reviewer)
         ]
-    shops = await ShopsRepo(session).list(user.id)
+    # `get_current_user` commits after loading the user, which ends the user GUC, and no
+    # shop scope exists yet on this route: a plain `list` read the membership-aware `shops`
+    # policy (migration 121) with no `app.current_user_id` and returned [] for every seller
+    # (a member of ORY saw the sample shop, 2026-11-12). Same scoped read as `get_active_shop`.
+    shops = await ShopsRepo(session).list_for_authorization(user.id)
+    shops.sort(key=lambda s: (s.created_at, str(s.id)))  # a stable "first shop" for the picker
     return shops[offset : offset + limit]
 
 

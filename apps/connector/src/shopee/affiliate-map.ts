@@ -269,7 +269,9 @@ export function mapAffiliateConversions(responses: ReaderResponse[], capturedAt:
       put(row, "affiliate_account", text(order.shopee_username, 120));
       put(row, "mcn", text(order.linked_mcn_name, 120));
       put(row, "campaign_type", label(item.campaign_type));
-      put(row, "channel", label(order.traffic_type));
+      // The "Kênh" Seller Centre shows; the bare traffic_type code (0 outside / 1 inside Shopee)
+      // only when neither label came back.
+      put(row, "channel", text(order.internal_source, 64) ?? text(order.last_external_source, 64) ?? label(order.traffic_type));
       put(row, "deduction_status", label(item.ams_deduction_status));
       put(row, "deduction_method", label(item.ams_deduction_method));
       put(row, "deducted_at", wallClock(item.ams_deduction_time));
@@ -278,6 +280,24 @@ export function mapAffiliateConversions(responses: ReaderResponse[], capturedAt:
   }
   if (answers.length === 0) return empty("affiliate_order_lines", "affiliateplatform/conversion", period.end, null);
   return post("affiliate_order_lines", "affiliateplatform/conversion", period, rows, driftOf(issues.unexpected, issues.missing));
+}
+
+/** One post per purchase window read (the 30-day window, then any history window): Juli takes at
+ *  most 31 days per post, so windows are never merged. Answers without a period go with the first. */
+export function mapConversionWindows(responses: ReaderResponse[], capturedAt: number): Mapped[] {
+  const groups = new Map<string, ReaderResponse[]>();
+  const others = responses.filter((r) => r.endpoint !== "affiliate_conversion");
+  for (const response of responses) {
+    if (response.endpoint !== "affiliate_conversion") continue;
+    const key = response.period ? `${response.period.start}|${response.period.end}` : "";
+    groups.set(key, [...(groups.get(key) ?? []), response]);
+  }
+  if (groups.size <= 1) return [mapAffiliateConversions(responses, capturedAt)];
+  const undated = groups.get("") ?? [];
+  groups.delete("");
+  return [...groups.values()].map((group, index) =>
+    mapAffiliateConversions([...group, ...(index === 0 ? undated : []), ...others], capturedAt),
+  );
 }
 
 // -- 2. Phân tích Tăng đơn cùng KOL → affiliate_partner_period ---------------------------------
@@ -536,7 +556,7 @@ export function mapAffiliateBills(responses: ReaderResponse[], capturedAt: numbe
 export function mapAffiliateJob(id: string, responses: ReaderResponse[], capturedAt: number): Mapped[] | null {
   switch (id) {
     case "affiliate":
-      return [mapAffiliateConversions(responses, capturedAt)];
+      return mapConversionWindows(responses, capturedAt);
     case "affiliate_kols":
       return [mapAffiliatePartners(responses, capturedAt)];
     case "affiliate_dashboard":

@@ -11,6 +11,7 @@ from juli_backend.services.shopee_builder.engine.contract import Band, Basis, Of
 from juli_backend.services.shopee_builder.engine_families.measure import (
     AdCampaignHist,
     AdDay,
+    CampaignDay,
     KolBeforeAfter,
     KolRates,
 )
@@ -54,8 +55,10 @@ class ComboFacts:
     near_share: Decimal  # share of orders within 20 % (at least one unit) under the lowest tier
     unit_price: Decimal  # mean unit price of the listed products
     #: ADR-122 d.13 E2: the share of ALL orders that reach the tier, measured (the near orders);
-    #: None = too few orders -> the tagged prior on ``near_share``
+    #: None = too few orders, or the shop has never run a combo (P100 B.10) -> not estimable
     reach: Band | None = None
+    #: why ``reach`` is None, shown on the not-estimable AOV driver (P100 B.10)
+    reach_note: str | None = None
     reach_units: Decimal = Decimal(1)  # mean units those orders are short of the tier
     #: P100-C (J): Shopee's % fees are on the item total AFTER the combo, so one đồng of combo
     #: discount costs the seller (1 − fee_rate) đồng; 0 = no fee formula (the gross discount)
@@ -154,6 +157,49 @@ class AdsFacts:
     campaigns: tuple[AdCampaignHist, ...] = ()
     days: tuple[AdDay, ...] = ()
     profit_per_order: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class ProductAdRow:
+    """P100 B.15: one product's line of a campaign's ads report (placed orders) over the report's
+    own period (``days``): what that product took of the campaign."""
+
+    campaign_key: str
+    item_id: str
+    spend: Decimal
+    impressions: Decimal
+    clicks: Decimal
+    orders: Decimal
+    gmv: Decimal
+    direct_gmv: Decimal
+    days: int
+
+    @property
+    def direct_orders(self) -> Decimal:
+        return self.orders * self.direct_gmv / self.gmv if self.gmv > 0 else Decimal(0)
+
+
+@dataclass(frozen=True)
+class AdsEditFacts:
+    """P100 B.15: a running campaign's own measured history for an edit of it.
+
+    ``campaign`` = its window totals (None = no spend in the window); ``daily`` = its days from
+    the Connector (spend vs that day's budget); ``product_rows`` = the per-product lines of the
+    ads reports (every campaign; the edit picks its own); ``days`` = the products' card orders on
+    days with / without ads; ``campaigns`` = every campaign (ROAS-target utilisation);
+    ``profit_per_order_before_ads`` = the break-even CPA; ``cancel_rate`` = the shop's share of
+    placed orders that never get confirmed (None = unknown: placed orders are used as they are).
+    """
+
+    campaign: AdCampaignHist | None
+    name: str
+    daily_budget: Decimal | None = None
+    daily: tuple[CampaignDay, ...] = ()
+    product_rows: tuple[ProductAdRow, ...] = ()
+    days: tuple[AdDay, ...] = ()
+    campaigns: tuple[AdCampaignHist, ...] = ()
+    profit_per_order_before_ads: Decimal | None = None
+    cancel_rate: Decimal | None = None
 
 
 @dataclass(frozen=True)

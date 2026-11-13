@@ -18,6 +18,7 @@ from juli_backend.services.shopee_builder import multi
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
 from juli_backend.services.shopee_builder.engine import engine
+from juli_backend.services.shopee_recommendations import evaluate
 from juli_backend.services.shopee_recommendations import listing as lst
 
 
@@ -80,8 +81,28 @@ def _variation_inputs(
             row["discount_pct"] = v.discount_pct
         else:
             row["new_price_pct"] = 100 + float(v.change_pct or 0)
+        if discount:
+            _refuse_unless_below_today(ctx, item_id, key, row)
         out.append(row)
     return out
+
+
+def _refuse_unless_below_today(
+    ctx: BuilderContext, item_id: str, key: str, row: dict[str, Any]
+) -> None:
+    """P100: %GIẢM of Chương Trình Của Shop / Flash Sale is taken off Giá gốc. A product already
+    in a deeper programme (ORY: Giảm giá trực tiếp sản phẩm 15/06-12/12) then gets a price ABOVE
+    what buyers pay today; the engine modelled that as a price rise with a discount's CTOR uplift
+    and no cost. Refuse with today's price and the smallest %GIẢM that lowers it."""
+    current = ctx.env.current_price(key)
+    listed = ctx.env.list_price(key)
+    after = evaluate.new_price(ctx.env, "product_discount", key, row)
+    if current is None or after is None or after < current:
+        return
+    min_pct = ""
+    if listed and listed > current:
+        min_pct = str(int((1 - current / listed) * 100) + 1)
+    raise SpecRefused(f"discount_not_below_current:{item_id}:{int(current)}:{int(after)}:{min_pct}")
 
 
 def _sold_sku(ctx: BuilderContext, item_id: str, variation_id: str) -> str | None:

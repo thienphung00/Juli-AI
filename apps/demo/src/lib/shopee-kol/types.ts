@@ -28,8 +28,10 @@ export interface KolRow {
   /** Hashed affiliate key (the raw id is never stored). */
   readonly kol_key: string;
   readonly handle: string;
-  /** "Shopee Video" · "Facebook" · "TikTok" … */
+  /** The raw value: a text ("Shopee Video" · "Facebook" · "TikTok" …) or the Connector's legacy `traffic_type` code ("0" / "1" / "2"). */
   readonly channel: string;
+  /** P100: the seller's word for `channel` ("1" -> "Trong Shopee (Video/Live)"). Older payloads lack it. */
+  readonly channel_label?: string | null;
   readonly item_id: string;
   readonly product_name: string;
   readonly orders: number;
@@ -66,6 +68,8 @@ export interface KolRow {
   readonly low_data_label: string | null;
   readonly mcn: boolean | null;
   readonly campaign_type: string | null;
+  /** P100: "5" -> "Chiến dịch mở"; text as it came. */
+  readonly campaign_type_label?: string | null;
   readonly card: KolCardRef | null;
 }
 
@@ -93,6 +97,11 @@ export interface KolLabels {
   readonly low_data_threshold: number;
 }
 
+export interface KolOption {
+  readonly value: string | null;
+  readonly label: string | null;
+}
+
 export interface KolReport {
   readonly window: { readonly start?: string; readonly end?: string; readonly days?: number; readonly [k: string]: unknown };
   readonly rows: readonly KolRow[];
@@ -101,6 +110,9 @@ export interface KolReport {
   /** Always built from ALL rows, so a filter never hides its own options. */
   readonly filters: {
     readonly channels: readonly string[];
+    /** P100: the same channels with their labels. */
+    readonly channel_options?: readonly KolOption[];
+    readonly campaign_types?: readonly KolOption[];
     readonly products: readonly { readonly item_id: string; readonly name: string }[];
     readonly kols: readonly { readonly kol_key: string; readonly handle: string }[];
   };
@@ -138,6 +150,85 @@ export interface KolQuery {
 export interface KolApi {
   report(query?: KolQuery): Promise<KolReport>;
   productReport(itemId: string, window?: WindowQuery): Promise<KolProductReport>;
+  /** P100 `GET {base}/kols/compare?group=`; absent on hosts without it. */
+  compare?(group: KolCompareGroup, window?: WindowQuery): Promise<KolCompareReport>;
+}
+
+// ── So sánh (P100): GET {base}/kols/compare?group=channel|campaign_type|kol ──
+
+export type KolCompareGroup = "channel" | "campaign_type" | "kol";
+
+export interface KolBasis {
+  readonly key: string;
+  /** "Theo báo cáo chuyển đổi KOL" · "Theo nguồn lưu lượng" · "Theo báo cáo quảng cáo (đơn đã đặt)". */
+  readonly label: string;
+}
+
+/** One group: the sum of its KOL × sản phẩm × kênh rows. Money in VND; `*_pct` in percent points. */
+export interface KolCompareRow {
+  readonly key: string;
+  readonly label: string;
+  readonly orders: number;
+  readonly units: number;
+  readonly gmv: number;
+  /** Commission Shopee charges (incl. its 8 %). */
+  readonly cost: number;
+  readonly cost_pct_gmv: N;
+  /** null: a sample was sent whose cost cannot be computed. */
+  readonly sample_cost: N;
+  readonly net_profit: number;
+  readonly profit_after_samples: number;
+  readonly profit_orders: number;
+  readonly profit_per_order: N;
+  /** A fraction. */
+  readonly roi_incl_samples: N;
+  readonly kols: number;
+  readonly products: number;
+  readonly share_gmv_pct: N;
+  readonly low_data: boolean;
+  readonly low_data_label: string | null;
+}
+
+/** One row of the stream strip; a figure no source gives is null with `reason` / `profit_reason`. */
+export interface KolStreamRow {
+  readonly key: "affiliate" | "ads" | "organic";
+  readonly label: string;
+  readonly gmv: N;
+  readonly orders: N;
+  readonly basis: KolBasis;
+  readonly cost: N;
+  readonly cost_basis: KolBasis | null;
+  readonly cost_pct_gmv: N;
+  readonly profit_after_cost: N;
+  readonly profit_reason: string | null;
+  readonly reason: string | null;
+  readonly note: string | null;
+  /** Affiliate only: the conversion report's own GMV / orders, which the cost % stands on. */
+  readonly conversion_report?: { readonly gmv: N; readonly orders: number };
+}
+
+export interface KolCompareReport {
+  readonly window: { readonly from?: string; readonly to?: string; readonly days?: number; readonly [k: string]: unknown };
+  readonly group: KolCompareGroup;
+  readonly group_label: string;
+  readonly rows: readonly KolCompareRow[];
+  readonly total: KolCompareRow;
+  readonly streams: {
+    readonly rows: readonly KolStreamRow[];
+    readonly shop_gmv: N;
+    readonly shop_orders: number | null;
+    readonly note: string;
+  };
+  readonly basis: KolBasis;
+  readonly labels: {
+    readonly cost: string;
+    readonly net_profit: string;
+    readonly profit_per_order: string;
+    readonly roi_formula: string;
+    readonly low_data: string;
+    readonly low_data_threshold: number;
+    readonly share_gmv: string;
+  };
 }
 
 /**

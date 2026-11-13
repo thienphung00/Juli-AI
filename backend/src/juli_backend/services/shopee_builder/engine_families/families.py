@@ -150,10 +150,11 @@ def voucher_option(spec: sp.VoucherSpec, facts: VoucherFacts) -> OptionInput:
 
 def combo_option(spec: sp.ComboSpec, facts: ComboFacts) -> OptionInput:
     """E2: orders within 20 % (at least one unit) under the tier reach it, measured from the
-    order lines. P100-C (B.10): with too few orders to measure that reach the option is cost and
-    break-even only ("chưa ước tính được") -- the buyers who already qualify get the discount
-    (its cost); no prior reach ("ước tính chung") is ever passed off as an estimate. The cost
-    per use is the discount net of the % fees it saves (J: fees are on the post-combo total)."""
+    order lines -- only once the shop has run a combo (P100 B.10, owner 2026-11-13). With no
+    combo history, or too few orders to measure that reach, the option is cost and break-even
+    only ("chưa ước tính được"): the buyers who already qualify get the discount (its cost); no
+    prior reach ("ước tính chung") is ever passed off as an estimate. The cost per use is the
+    discount net of the % fees it saves (J: fees are on the post-combo total)."""
     label = _label(spec, spec.name or "Combo khuyến mãi")
     per_use = facts.per_use * (ONE - facts.fee_rate)
     if facts.reach is None or not facts.aov_now:
@@ -162,7 +163,12 @@ def combo_option(spec: sp.ComboSpec, facts: ComboFacts) -> OptionInput:
             kind="bundle_deal",
             label=label,
             drivers=(
-                DriverEffect("aov", ALL_SOURCES, "not_estimable", note=common.NOTE_COMBO_REACH),
+                DriverEffect(
+                    "aov",
+                    ALL_SOURCES,
+                    "not_estimable",
+                    note=facts.reach_note or common.NOTE_COMBO_REACH,
+                ),
             ),
             duration_days=spec.days,
             offers=(OfferCost(per_use, point(now), None, "giảm giá combo"),),

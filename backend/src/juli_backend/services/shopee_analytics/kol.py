@@ -48,6 +48,11 @@ from juli_backend.services.shop_inputs.kol_samples import Shipment, UnitCost
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.engine import ShopLine, profit_pairs
 from juli_backend.services.shopee_analytics.fmt import num
+from juli_backend.services.shopee_analytics.kol_labels import (
+    campaign_type_label,
+    channel_label,
+    options,
+)
 from juli_backend.services.shopee_analytics.kol_rates import (
     SRC_REPORT,
     RateBook,
@@ -244,6 +249,7 @@ class KolRow:
             "kol_key": self.kol_key,
             "handle": self.handle,
             "channel": self.channel,
+            "channel_label": channel_label(self.channel),
             "item_id": self.item_id,
             "product_name": self.product_name,
             "orders": self.orders,
@@ -275,6 +281,7 @@ class KolRow:
             "low_data_label": LOW_DATA_LABEL if self.low_data else None,
             "mcn": self.mcn,
             "campaign_type": self.campaign_type,
+            "campaign_type_label": campaign_type_label(self.campaign_type),
             "card": None,
         }
 
@@ -730,6 +737,11 @@ def table(
         "totals": _totals(keep),
         "filters": {
             "channels": sorted({r.channel for r in model.rows}),
+            # P100: the same values with the seller's label ("1" -> Trong Shopee (Video/Live))
+            "channel_options": options((r.channel for r in model.rows), channel_label),
+            "campaign_types": options(
+                (r.campaign_type for r in model.rows if r.campaign_type), campaign_type_label
+            ),
             "products": [
                 {"item_id": i, "name": n} for i, n in sorted(products.items(), key=lambda t: t[1])
             ],

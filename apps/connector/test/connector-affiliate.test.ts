@@ -81,7 +81,7 @@ describe("affiliate order lines in the service worker", () => {
   it("the order id is replaced by order_ref with the shop's key before the post; the raw id never leaves", async () => {
     const { client, connector } = setup();
     const outcomes = await connector.postReader({ id: "affiliate" }, [conversion()]);
-    expect(outcomes).toEqual({ affiliate_order_lines: "posted" });
+    expect(outcomes).toEqual({ "affiliate_order_lines:2026-11-05": "posted" }); // 0.3.17: one key per purchase window
     expect(client.posts).toHaveLength(1);
     const body = client.posts[0]!.body;
     expect(body.period).toEqual({ start: "2026-10-07", end: "2026-11-05", granularity: "period" });
@@ -98,7 +98,7 @@ describe("affiliate order lines in the service worker", () => {
       throw new GatewayError(503, "order_ref_key_not_configured");
     };
     const outcomes = await connector.postReader({ id: "affiliate" }, [conversion()]);
-    expect(outcomes).toEqual({ affiliate_order_lines: "rejected" });
+    expect(outcomes).toEqual({ "affiliate_order_lines:2026-11-05": "rejected" });
     expect(client.posts).toEqual([]);
     expect((await loadState(storage)).lastError?.code).toBe("order_ref_key_unavailable");
   });

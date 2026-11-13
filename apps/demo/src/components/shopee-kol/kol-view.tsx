@@ -8,6 +8,7 @@ import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { rowText, tilesOf } from "../../lib/shopee-kol/model";
 import type { KolReport, KolRow } from "../../lib/shopee-kol/types";
 import { Empty, Notice, ResourceState, TextChip } from "../shopee-analytics/ui";
+import { KolCompare } from "./kol-compare";
 
 /**
  * Phân tích › KOL (`PhanTichKOL.dc.html`): who sells what, at what profit, and whom to send a sample.
@@ -66,12 +67,13 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
           {dq.lines_without_commission > 0 ? `${dq.lines_without_commission} dòng chưa có hoa hồng.` : ""}
         </Notice>
       ) : null}
+      <KolCompare />
       <div className="kol-filters">
         <div className="sb-tabs">
           <span className="sa-hint">Kênh:</span>
-          {[ALL, ...report.filters.channels].map((c) => (
-            <button aria-pressed={channel === c} className={`sb-pill ${channel === c ? "sb-pill--on" : ""}`} key={c} onClick={() => onChannel(c)} type="button">
-              {c}
+          {[{ value: ALL, label: ALL }, ...channelOptions(report)].map((c) => (
+            <button aria-pressed={channel === c.value} className={`sb-pill ${channel === c.value ? "sb-pill--on" : ""}`} key={c.value} onClick={() => onChannel(c.value)} type="button">
+              {c.label}
             </button>
           ))}
         </div>
@@ -117,6 +119,12 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
       <span hidden>{links.critical()}</span>
     </>
   );
+}
+
+/** The channel pills: the raw value goes to the server, the seller reads its label (P100). */
+function channelOptions(report: KolReport): { value: string; label: string }[] {
+  const labelled = new Map((report.filters.channel_options ?? []).map((o) => [o.value, o.label]));
+  return report.filters.channels.map((c) => ({ value: c, label: labelled.get(c) ?? c }));
 }
 
 function KolRowView({ row }: { readonly row: KolRow }) {

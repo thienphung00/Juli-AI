@@ -235,7 +235,8 @@ export class Connector {
   async postReader(job: ReaderJob, responses: ReaderResponse[]): Promise<Record<string, CaptureOutcome>> {
     const capturedAt = responses.reduce((latest, r) => Math.max(latest, r.capturedAt), 0) || this.deps.now();
     const outcomes: Record<string, CaptureOutcome> = {};
-    const perDate = new Set(["ads", "item_traffic", "affiliate_dashboard", "affiliate_bills"]);
+    // "affiliate": one post per purchase window (0.3.17 history), keyed by the window's end.
+    const perDate = new Set(["ads", "item_traffic", "affiliate", "affiliate_dashboard", "affiliate_bills"]);
     for (const raw of mapReaderJob(job, responses, capturedAt)) {
       const key =
         job.id === "shop_totals" || job.id === "product_period"

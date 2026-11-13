@@ -17,6 +17,21 @@ BASE_URL = "https://banhang.shopee.vn"
 SAVE_HINT = "Bấm nút Lưu / Áp dụng / Xác nhận của chính Shopee; Juli không bấm thay bạn."
 
 
+def _tiers_text(value: Any) -> str | None:
+    """A combo's tiers as one line: "Mua 2 giảm 3 % · Mua 3 giảm 5 %"; None when unreadable."""
+    rows = value if isinstance(value, list) else [value]
+    parts: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        units = row.get("units") or row.get("qty")
+        off = row.get("value", row.get("discount_pct"))
+        if units is None or off is None:
+            continue
+        parts.append(f"Mua {units} giảm {off} %")
+    return " · ".join(parts) or None
+
+
 def _step(
     order: int, field: str, before: Any, after: Any, unit: str | None = None
 ) -> dict[str, Any]:
@@ -287,6 +302,8 @@ def build_sheet(
         steps.append(_step(n, "Thời gian áp dụng", None, f"{after.get('days')} ngày", None))
     elif s.family == "ads":
         for k, v in after.items():
+            if isinstance(v, (list, dict)):
+                continue
             n += 1
             steps.append(_step(n, k, before.get(k), v, None))
     elif s.family == "listing":
@@ -314,7 +331,16 @@ def build_sheet(
                 }
             )
     else:  # combo
+        text_keys = {k for k, v in after.items() if not isinstance(v, (list, dict))}
         for k, v in after.items():
+            if isinstance(v, (list, dict)):
+                # Structured value (combo `tiers` [{units, value}]): a step only when no text line
+                # carries the tiers already, and then as text -- never a raw list (React #31).
+                if text_keys:
+                    continue
+                v = _tiers_text(v)
+                if not v:
+                    continue
             n += 1
             steps.append(_step(n, k, before.get(k), v, None))
     changes = (

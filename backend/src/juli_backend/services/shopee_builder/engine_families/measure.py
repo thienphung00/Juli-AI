@@ -36,6 +36,8 @@ class AdCampaignHist:
     days: int = 0
     daily_budget: Decimal | None = None
     roas_target: Decimal | None = None
+    #: P100 B.15: Shopee's ad GMV (placed orders, all attributed), for "ROAS Shopee"
+    gmv: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -106,6 +108,75 @@ def spend_utilisation(
     return None if ratio is None else common.clamp01(ratio)
 
 
+def spend_utilisation_system(campaigns: Iterable[AdCampaignHist]) -> Decimal | None:
+    """Share of the daily budget Shopee spent on campaigns whose ROAS Shopee optimises itself
+    (no target); ``None`` = no such campaign with a daily budget."""
+    spent = budget = ZERO
+    for c in campaigns:
+        if c.roas_target is not None or c.daily_budget is None or c.days <= 0:
+            continue
+        spent += c.spend
+        budget += c.daily_budget * c.days
+    ratio = _div(spent, budget)
+    return None if ratio is None else common.clamp01(ratio)
+
+
+# -- ads edits (P100 B.15): is the campaign held back by its daily budget? -----------------------
+
+#: A day that spent at least this share of its daily budget was capped by the budget.
+CAPPED_SHARE = Decimal("0.95")
+
+
+@dataclass(frozen=True)
+class CampaignDay:
+    """One day of a running campaign (``ads_campaign_daily``): its spend and that day's budget
+    (``None`` = không giới hạn)."""
+
+    spend: Decimal
+    daily_budget: Decimal | None
+
+
+@dataclass(frozen=True)
+class BudgetState:
+    """How the campaign spends against its budget: ``rate`` = spend per running day today;
+    ``capped`` = it spends (nearly) its whole budget on most days; ``uncapped_rate`` = its mean
+    spend on the days the budget did not hold it back (None = too few such days)."""
+
+    rate: Decimal
+    capped: bool
+    uncapped_rate: Decimal | None
+    running_days: int
+
+
+def budget_state(
+    spend: Decimal, window_days: int, budget: Decimal | None, days: Sequence[CampaignDay] = ()
+) -> BudgetState | None:
+    """From the campaign's own days when the Connector posted them, else from the window's total
+    against today's budget. ``None`` = the campaign spent nothing in the window."""
+    running = [d for d in days if d.spend > 0]
+    if running:
+        n = len(running)
+        rate = spend / n if spend > 0 else sum((d.spend for d in running), ZERO) / n
+        capped_days = [
+            d for d in running if d.daily_budget and d.spend >= CAPPED_SHARE * d.daily_budget
+        ]
+        free = [d for d in running if d not in capped_days]
+        free_rate = (
+            sum((d.spend for d in free), ZERO) / len(free)
+            if len(free) >= common.MIN_MEASURE_DAYS
+            else None
+        )
+        capped = 2 * len(capped_days) >= n
+        if free_rate is None and not capped:
+            free_rate = rate  # held back on a few days only: today's rate is its own rate
+        return BudgetState(rate, capped, free_rate, n)
+    if spend <= 0 or window_days <= 0:
+        return None
+    rate = spend / window_days
+    capped = budget is not None and budget > 0 and rate >= CAPPED_SHARE * budget
+    return BudgetState(rate, capped, None if capped else rate, window_days)
+
+
 @dataclass(frozen=True)
 class AdDay:
     """One day of the product: its organic Thẻ sản phẩm orders and whether an ad ran for it."""
@@ -141,6 +212,29 @@ def on_off_extra_share(days: Sequence[AdDay]) -> Band | None:
     mid = common.clamp01(diff / per_on)
     hi = common.clamp01((diff + common.Z90 * se) / per_on)
     return Band(lo, mid, hi)
+
+
+def incremental_share(days: Sequence[AdDay]) -> Band | None:
+    """P100 B.15: the share of the ad's orders that would not have happened without it -- the
+    products' card orders per day (organic + ad) with ads minus without (a Welch difference),
+    over the ad orders per on-day. ``None`` = fewer than ``MIN_MEASURE_DAYS`` on or off days, or
+    no ad orders. (``on_off_extra_share`` compares the organic orders only.)"""
+    on = [d for d in days if d.on]
+    off = [d for d in days if not d.on]
+    if len(on) < common.MIN_MEASURE_DAYS or len(off) < common.MIN_MEASURE_DAYS:
+        return None
+    per_on = sum((d.ad_orders for d in on), ZERO) / len(on)
+    if per_on <= 0:
+        return None
+    m_on, v_on = _mean_var([d.organic_orders + d.ad_orders for d in on])
+    m_off, v_off = _mean_var([d.organic_orders + d.ad_orders for d in off])
+    diff = m_on - m_off
+    se = (v_on / len(on) + v_off / len(off)).sqrt()
+    return Band(
+        common.clamp01((diff - common.Z90 * se) / per_on),
+        common.clamp01(diff / per_on),
+        common.clamp01((diff + common.Z90 * se) / per_on),
+    )
 
 
 # -- affiliate: a KOL's own rates and its before / after -----------------------------------------

@@ -455,10 +455,14 @@ export function vnWhen(iso: string | null | undefined): string {
   return `${get("day")}/${get("month")} ${get("hour")}:${get("minute")}`;
 }
 
-export function stepText(v: string | number | null | undefined, unit?: string | null): string {
+export function stepText(v: unknown, unit?: string | null): string {
   if (v === null || v === undefined || v === "") return DASH;
   if (typeof v === "number") return unit === "VND" ? vnd(v) : unit === "%" ? `${fmt(v, 0)}%` : `${fmt(v, 0)}${unit ? ` ${unit}` : ""}`;
-  return v;
+  if (typeof v === "string") return v;
+  // P100: a stored sheet can still carry a structured value (combo `tiers`: [{units, value}]);
+  // React cannot render an object, so it becomes text instead of crashing the card page.
+  if (Array.isArray(v)) return v.length === 0 ? DASH : v.map((x) => stepText(x)).join(" · ");
+  return text(v) ?? DASH;
 }
 
 /** Statuses Ops can take a card off the list from ("Gỡ thẻ"); a planned card leaves its draft plan first. */

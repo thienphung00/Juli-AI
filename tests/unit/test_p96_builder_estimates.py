@@ -119,7 +119,7 @@ async def test_a_discount_runs_its_own_days_and_its_cost_follows_them(session, s
             shop,
             kind="product_discount",
             item_id="1001",
-            variations=[{"variation_id": "", "discount_pct": 10}],
+            variations=[{"variation_id": "", "discount_pct": 20}],
             start=start,
             end=end,
         )
