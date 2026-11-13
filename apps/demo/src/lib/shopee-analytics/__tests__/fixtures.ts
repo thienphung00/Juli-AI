@@ -554,31 +554,37 @@ const row = (key: ChannelRow["key"], parent: ChannelRow["parent"], p: Partial<Ch
   ...p,
 });
 
-/** Synthetic channel split in the ORY shape (Organic = sources − ads − affiliate). */
+/** Synthetic channel split in the ORY shape (Organic = sources − ads − affiliate), with the previous period. */
 export function channelSplit(p: Partial<ChannelSplit> = {}): ChannelSplit {
   const product = p.level === "product";
+  const total = 12_890_000;
+  const sh = (gmv: number) => gmv / total;
   const rows: ChannelRow[] = [
-    row("organic", null, { views: 5200, clicks: 300, ctr: 0.0577, ctor: 0.0467, aov: 258_000, gmv: 3_610_000, orders: 14 }),
-    row("organic_card", "organic", { views: 4300, clicks: 195, ctr: 0.0453, ctor: 0.0359, aov: 391_000, gmv: 2_940_000, orders: 7.5 }),
-    row("organic_shop", "organic", { views: 900, clicks: 105, ctr: 0.1167, ctor: 0.0619, aov: 103_000, gmv: 670_000, orders: 6.5 }),
-    row("ads", null, { views: 2000, clicks: 120, ctr: 0.06, ctor: 0.5083, aov: 132_459, gmv: 8_080_000, orders: 61, ad_base: product ? "ads_report" : "traffic_overview" }),
+    row("organic", null, { views: 5200, clicks: 300, ctr: 0.0577, ctor: 0.0467, aov: 258_000, gmv: 3_610_000, orders: 14, share: sh(3_610_000), prev: { views: 5000, clicks: 280, ctr: 0.056, ctor: 0.05, aov: 250_000, gmv: 3_000_000, orders: 12, share: 0.25 } }),
+    row("organic_card", "organic", { views: 4300, clicks: 195, ctr: 0.0453, ctor: 0.0359, aov: 400_000, gmv: 2_800_000, orders: 7, share: sh(2_800_000), prev: { views: 4000, clicks: 180, ctr: 0.05, ctor: 0.04, aov: 380_000, gmv: 2_500_000, orders: 6.5, share: 0.2 } }),
+    row("organic_shop", "organic", { views: 900, clicks: 105, ctr: 0.1167, ctor: 0.0619, aov: 103_000, gmv: 670_000, orders: 6.5, share: sh(670_000) }),
+    row("organic_video", "organic", { views: 100, clicks: 5, ctr: 0.05, ctor: 0.2, aov: 140_000, gmv: 140_000, orders: 1, share: sh(140_000) }),
+    row("organic_live", "organic", { views: 0, clicks: 0, gmv: 0, orders: 0, share: 0 }),
+    row("ads", null, { views: 2000, clicks: 120, ctr: 0.06, ctor: 0.5083, aov: 132_459, gmv: 8_080_000, orders: 61, share: sh(8_080_000), ad_base: product ? "ads_report" : "traffic_overview", prev: { views: 1800, clicks: 100, ctr: 0.055, ctor: 0.5, aov: 130_000, gmv: 8_800_000, orders: 66, share: 0.7 } }),
     ...(product
       ? []
       : [
           row("ads_product", "ads", { aov: 135_541, gmv: 10_030_000, orders: 74, ad_base: "ads_report" }),
           row("ads_shop", "ads", { aov: 175_000, gmv: 350_000, orders: 2, ad_base: "ads_report" }),
         ]),
-    row("affiliate", null, { clicks: 100, ctor: 0.1, aov: 119_512, gmv: 1_200_000, orders: 10 }),
+    row("affiliate", null, { clicks: 100, ctor: 0.1, aov: 119_512, gmv: 1_200_000, orders: 10, share: sh(1_200_000) }),
   ];
   return {
     level: "shop",
     product_id: null,
     from: "2026-10-11",
     to: "2026-11-09",
+    days: 30,
     updated_at: "2026-11-09T09:30:00",
     rows,
-    kpis: { gmv: 12_890_000, orders: 85, profit: 2_100_000, ads_cost: 2_570_000, affiliate_cost: 96_000 },
-    plan: { month: "2026-11", day: 13, days_in_month: 30, gmv: { now: 5_000_000, goal: 10_000_000 }, profit: { now: 700_000, goal: 3_000_000 } },
+    kpis: { gmv: total, orders: 85, profit: 2_700_000, cost_total: 500_000, cost_ads: 250_000, cost_affiliate: 96_000, cost_offers: 154_000, roi: 5.4 },
+    kpis_prev: { gmv: 11_000_000, orders: 80, profit: 2_000_000, cost_total: 450_000, cost_ads: 240_000, cost_affiliate: 80_000, cost_offers: 130_000, roi: 4.4 },
+    plan: { from: "2026-11-01", to: "2026-11-30", days: 30, day: 13, today_marker: 13 / 30, gmv: { now: 5_000_000, goal: 10_000_000, ahead: true }, profit: { now: 700_000, goal: 3_000_000, ahead: false } },
     ...p,
   };
 }

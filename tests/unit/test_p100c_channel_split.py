@@ -9,7 +9,11 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from juli_backend.services.shopee_analytics.channel_split import split_rows, weakest_metric
+from juli_backend.services.shopee_analytics.channel_split import (
+    kpis_of,
+    split_rows,
+    weakest_metric,
+)
 from juli_backend.services.shopee_analytics.funnel import FunnelRows, SourceDay, base_from_rows
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_builder.engine.contract import SOURCES
@@ -48,6 +52,12 @@ def _rows(**kw):
     return FunnelRows(W, tuple(out))
 
 
+_TYPES = {
+    "ads_roas_custom": {"gmv": D(9_000_000), "orders": D(70), "spend": D(2_000_000)},
+    "ads_shop": {"gmv": D(350_000), "orders": D(2), "spend": D(120_000)},
+}
+
+
 def _by_key(rows):
     return {r["key"]: r for r in rows}
 
@@ -56,11 +66,33 @@ def test_organic_is_sources_minus_ads_minus_affiliate_and_children_add_up():
     base = base_from_rows(_rows(), "s")
     r = _by_key(split_rows(base, ad_types=None))
     assert r["organic"]["gmv"] == 3_610_000 and r["organic"]["orders"] == 14
-    assert r["organic_card"]["gmv"] + r["organic_shop"]["gmv"] == r["organic"]["gmv"]
+    kids = ("organic_card", "organic_shop", "organic_video", "organic_live")
+    assert sum(r[k]["gmv"] for k in kids) == r["organic"]["gmv"]
     assert r["organic_shop"]["gmv"] == 670_000  # the shop_page segment
-    assert r["organic_card"]["gmv"] == 10_880_000 + 140_000 - 8_080_000
+    assert r["organic_card"]["gmv"] == 10_880_000 - 8_080_000  # 2,80 tr: Video is its own child
+    assert r["organic_video"]["gmv"] == 140_000 and r["organic_live"]["gmv"] == 0
     assert r["ads"]["gmv"] == 8_080_000 and r["ads"]["ad_base"] == "traffic_overview"
     assert r["organic"]["gmv"] + r["ads"]["gmv"] + r["affiliate"]["gmv"] == 12_890_000
+
+
+def test_shares_of_the_three_channels_add_up_to_the_whole_on_the_traffic_base():
+    r = _by_key(split_rows(base_from_rows(_rows(), "s"), ad_types=_TYPES))
+    top = r["organic"]["share"] + r["ads"]["share"] + r["affiliate"]["share"]
+    assert round(top, 4) == 1.0
+    assert round(r["organic"]["share"], 3) == round(3_610_000 / 12_890_000, 3)
+    assert r["organic_video"]["share"] == round(140_000 / 12_890_000, 6)
+    assert r["ads_product"]["share"] is None and r["ads_shop"]["share"] is None  # other base
+
+
+def test_roi_is_profit_over_the_total_cost_and_unknown_without_a_cost():
+    k = kpis_of(D(12_890_000), D(85), D(2_700_000), D(500_000), D(0), D(0))
+    assert k["cost_total"] == 500_000 and k["roi"] == 5.4
+    k = kpis_of(D(1), D(1), D(100), D(200), D(100), D(300))
+    assert k["cost_total"] == 600 and k["roi"] == round(100 / 600, 4)
+    assert kpis_of(D(1), D(1), D(100), D(0), D(0), D(0))["roi"] is None
+    unknown = kpis_of(D(1), D(1), D(100), None, None, None)
+    assert unknown["cost_total"] is None and unknown["roi"] is None
+    assert kpis_of(D(1), D(1), None, D(5), None, None)["roi"] is None
 
 
 def test_affiliate_has_no_views_but_clicks_ctor_and_aov():
@@ -141,7 +173,11 @@ async def test_the_seller_route_answers_both_levels_and_the_picker(session):
     body = shop.json()
     assert body["level"] == "shop" and body["product_id"] is None
     assert [r["key"] for r in body["rows"]][:2] == ["organic", "organic_card"]
-    assert set(body["kpis"]) == {"gmv", "orders", "profit", "ads_cost", "affiliate_cost"}
+    assert set(body["kpis"]) == {
+        "gmv", "orders", "profit", "cost_total", "cost_ads", "cost_affiliate", "cost_offers", "roi",
+    }  # fmt: skip
+    assert body["days"] == 7 and "kpis_prev" in body
+    assert all("prev" in r and "share" in r for r in body["rows"])
     assert picker.status_code == 200 and picker.json()["products"]
     assert prod.status_code == 200, prod.text
     assert prod.json()["level"] == "product"
