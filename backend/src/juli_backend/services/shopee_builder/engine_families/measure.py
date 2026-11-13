@@ -193,32 +193,12 @@ def _mean_var(xs: Sequence[Decimal]) -> tuple[Decimal, Decimal]:
     return m, var
 
 
-def on_off_extra_share(days: Sequence[AdDay]) -> Band | None:
-    """The share of the ad's direct orders that are extra: the product's organic card orders per
-    day with ads minus without (a Welch difference), over the ad's direct orders per on-day.
-    ``None`` = fewer than ``MIN_MEASURE_DAYS`` on or off days, or no ad orders to share."""
-    on = [d for d in days if d.on]
-    off = [d for d in days if not d.on]
-    if len(on) < common.MIN_MEASURE_DAYS or len(off) < common.MIN_MEASURE_DAYS:
-        return None
-    per_on = sum((d.ad_orders for d in on), ZERO) / len(on)
-    if per_on <= 0:
-        return None
-    m_on, v_on = _mean_var([d.organic_orders for d in on])
-    m_off, v_off = _mean_var([d.organic_orders for d in off])
-    diff = m_on - m_off
-    se = (v_on / len(on) + v_off / len(off)).sqrt()
-    lo = common.clamp01((diff - common.Z90 * se) / per_on)
-    mid = common.clamp01(diff / per_on)
-    hi = common.clamp01((diff + common.Z90 * se) / per_on)
-    return Band(lo, mid, hi)
-
-
 def incremental_share(days: Sequence[AdDay]) -> Band | None:
     """P100 B.15: the share of the ad's orders that would not have happened without it -- the
     products' card orders per day (organic + ad) with ads minus without (a Welch difference),
-    over the ad orders per on-day. ``None`` = fewer than ``MIN_MEASURE_DAYS`` on or off days, or
-    no ad orders. (``on_off_extra_share`` compares the organic orders only.)"""
+    over the ad orders per on-day. Organic orders that do not move on ad days still give a
+    non-zero share (the ad's own orders are the lift). ``None`` = fewer than ``MIN_MEASURE_DAYS``
+    on or off days, or no ad orders."""
     on = [d for d in days if d.on]
     off = [d for d in days if not d.on]
     if len(on) < common.MIN_MEASURE_DAYS or len(off) < common.MIN_MEASURE_DAYS:

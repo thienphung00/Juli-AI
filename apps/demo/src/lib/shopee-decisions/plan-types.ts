@@ -518,8 +518,27 @@ export interface ChangeSet {
 }
 
 /** The answer of `GET plan` and of every plan write. */
+/** One scope of Kế hoạch's month figures (`month_plan.month_plans`): goal = baseline + uplift. */
+export interface PlanMonthTotals {
+  readonly scope: "running" | "running+draft";
+  readonly month: string;
+  readonly day: number;
+  readonly days_in_month: number;
+  readonly cards: number;
+  readonly baseline_gmv: number | null;
+  readonly baseline_profit: number | null;
+  readonly uplift_gmv: number | null;
+  readonly uplift_profit: number | null;
+  readonly goal_gmv: number | null;
+  readonly goal_profit: number | null;
+  readonly mtd_gmv: number | null;
+  readonly mtd_profit: number | null;
+}
+
 export interface PlanResponse {
   readonly plan: PlanHead | null;
+  /** The two totals of the month: "Đang chạy" (executed plans) and "Nếu áp dụng nháp" (+ the draft). */
+  readonly month?: { readonly running: PlanMonthTotals; readonly with_draft: PlanMonthTotals } | null;
   readonly cards: readonly PlanCard[];
   readonly aggregate: PlanAggregate | null;
   /** P97 D85.14: the groups of the plan; `aggregate` is then the cards that are in no group. */

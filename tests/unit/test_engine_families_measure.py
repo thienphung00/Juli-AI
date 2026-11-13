@@ -11,9 +11,9 @@ from juli_backend.services.shopee_builder.engine_families.measure import (
     AdDay,
     KolBeforeAfter,
     ad_rates,
+    incremental_share,
     is_cashback,
     kol_extra_share,
-    on_off_extra_share,
     spend_utilisation,
 )
 
@@ -49,15 +49,17 @@ def test_spend_utilisation_from_similar_roas_only():
     assert spend_utilisation(cs, D("5")) is None
 
 
-def test_on_off_extra_share_measured_and_clamped():
+def test_incremental_share_measured_and_clamped():
     days = [AdDay(False, D(5 + i % 2)) for i in range(8)]
-    days += [AdDay(True, D(8 + i % 2), D(6)) for i in range(8)]
-    s = on_off_extra_share(days)
-    assert s.p10 <= s.p50 <= s.p90 and D("0.4") < s.p50 < D("0.6")  # (+3 organic) / 6 ad orders
-    flat = [AdDay(False, D(5)) for _ in range(6)] + [AdDay(True, D(5), D(6)) for _ in range(6)]
-    assert on_off_extra_share(flat).p50 == 0
-    assert on_off_extra_share(days[:3] + days[8:12]) is None  # too few off days
-    assert on_off_extra_share([AdDay(False, D(1))] * 6 + [AdDay(True, D(2), D(0))] * 6) is None
+    days += [AdDay(True, D(5 + i % 2), D(6)) for i in range(8)]
+    s = incremental_share(days)
+    assert s.p10 <= s.p50 <= s.p90 and s.p50 == 1  # organic flat on ad days: all 6 ad orders extra
+    flat = [AdDay(False, D(5), D(0)) for _ in range(6)] + [
+        AdDay(True, D(0), D(5)) for _ in range(6)
+    ]
+    assert incremental_share(flat).p50 == 0  # ads only replaced organic orders
+    assert incremental_share(days[:3] + days[8:12]) is None  # too few off days
+    assert incremental_share([AdDay(False, D(1))] * 6 + [AdDay(True, D(2), D(0))] * 6) is None
 
 
 def test_kol_extra_share_needs_days_and_orders():

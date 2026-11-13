@@ -24,12 +24,11 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
 
 from __future__ import annotations
 
-import calendar
 import statistics
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -318,24 +317,49 @@ def _kpis(view: PeriodView, base: FunnelBase, product_id: str | None) -> dict[st
     }
 
 
-def _plan_block(
-    ctx: Any, view: PeriodView, month_view: PeriodView | None, anchor: date
-) -> dict[str, Any]:
-    """Month to date vs the month goal of Cài đặt › Mục tiêu (the Kế hoạch goals): GMV goal =
-    ``monthly_gmv_target``; Lợi nhuận goal = that GMV goal x the month's margin target (``None``
-    when either is unset). ``now`` is the month-to-date figure up to ``anchor``."""
-    month = f"{anchor:%Y-%m}"
-    rules = ctx.rules.for_month(month)
-    gmv_goal = rules.target("gmv_month")
-    margin = rules.target("margin_pct")
-    profit_goal = None if gmv_goal is None or margin is None else gmv_goal * margin / 100
-    mtd = month_view if month_view is not None else view
+async def _plan_block(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    mtd_view: PeriodView | None,
+    anchor: date,
+) -> dict[str, Any] | None:
+    """The month card: month to date vs the goals built from the RUNNING cards of Kế hoạch --
+    the one computation ``month_plan.month_plan(scope="running")`` shared with the Kế hoạch
+    screen (no goal when no card is running). ``now`` is the month to date up to ``anchor``."""
+    from juli_backend.services.shopee_recommendations import month_plan
+
+    try:
+        m = await month_plan.month_plan(
+            session,
+            shop_id,
+            scope=month_plan.SCOPE_RUNNING,
+            now=datetime.now(UTC),
+            anchor=anchor,
+            mtd_view=mtd_view,
+        )
+    except RowsNotMaterialized:
+        return None
+    return plan_block_of(m)
+
+
+def plan_block_of(m: Mapping[str, Any]) -> dict[str, Any]:
+    """The Tổng quan ``plan`` block of a ``month_plan`` answer."""
     return {
-        "month": month,
-        "day": anchor.day,
-        "days_in_month": calendar.monthrange(anchor.year, anchor.month)[1],
-        "gmv": {"now": num(mtd.shop_gmv), "goal": num(gmv_goal)},
-        "profit": {"now": num(shop_profit_of(mtd).profit), "goal": num(profit_goal)},
+        "month": m["month"],
+        "day": m["day"],
+        "days_in_month": m["days_in_month"],
+        "gmv": {
+            "now": m["mtd_gmv"],
+            "goal": m["goal_gmv"],
+            "baseline": m["baseline_gmv"],
+            "uplift": m["uplift_gmv"],
+        },
+        "profit": {
+            "now": m["mtd_profit"],
+            "goal": m["goal_profit"],
+            "baseline": m["baseline_profit"],
+            "uplift": m["uplift_profit"],
+        },
     }
 
 
@@ -374,11 +398,10 @@ async def channel_split(
             )
         except RowsNotMaterialized:
             month_view = None
-    plan = (
-        _plan_block(ctx, view, month_view, anchor)
-        if month_view or window.start == mtd_start
-        else None
+    mtd_view = (
+        month_view if month_view is not None else (view if window.start == mtd_start else None)
     )
+    plan = await _plan_block(session, shop_id, mtd_view, anchor)
     return {
         "level": "product" if product_id else "shop",
         "product_id": product_id,

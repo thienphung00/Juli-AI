@@ -1212,3 +1212,16 @@ button.sv-head:disabled {
   background: transparent;
   cursor: pointer;
 }
+
+.kh-month {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+}
+
+.kh-month__col {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+}

@@ -97,6 +97,8 @@ estimate basis, warnings).
   orders only: Δ ad orders × `measure.incremental_share` (card orders per day with vs without ads ÷ ad orders per
   on-day), each worth the profit per order before ads, minus Δ spend (negative for a cut: the engine keeps a removal's
   views <= 0 and the build-up says "+ chi phí giảm"). No on / off history -> not estimable with the cost.
+- `ads_new_campaign` (`families.ads_option`) uses the same `measure.incremental_share` as the ads edits (P100: card
+  orders per day with vs without ads, organic + ad, over the ad orders per on-day); `on_off_extra_share` is removed.
 - `RecoEnv.cancel_rate` = 1 − confirmed ÷ placed orders of Tổng quan's `shop_overview` days that have both bases
   (`loaders.load_cancel_rate`, loaded with the env); None -> the ad orders stay placed orders and the card says so.
 - P99: the `affiliate` kind (a commission rate, no KOL picked) has a result: cost = commission % × the product's

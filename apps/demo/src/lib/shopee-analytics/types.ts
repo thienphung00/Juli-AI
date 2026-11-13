@@ -695,9 +695,12 @@ export interface ChannelRow {
 export interface PlanBar {
   readonly now: number | null;
   readonly goal: number | null;
+  /** The pre-plan month level and the running cards' Δ inside the month (goal = baseline + uplift). */
+  readonly baseline?: number | null;
+  readonly uplift?: number | null;
 }
 
-/** Month to date against the month goal of Cài đặt › Mục tiêu. */
+/** Month to date against the month goal built from the running Kế hoạch cards. */
 export interface PlanMonth {
   readonly month: string;
   readonly day: number;

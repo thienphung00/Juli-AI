@@ -7,13 +7,14 @@ import { vnd } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { aggRows, cardBreaches, confirmWarnings, cutText, hasBreach, isHard, isStacked, kolRows, kolSummary, mdeText, planProducts, productMde, productName, stackBreaches, stackWarning, tradeoffText, windowText, withoutText } from "../../lib/shopee-decisions/plan-model";
-import type { PlanApi, PlanGroup, PlanNotice, PlanResponse, WindowProductRow } from "../../lib/shopee-decisions/plan-types";
+import type { PlanApi, PlanGroup, PlanMonthTotals, PlanNotice, PlanResponse, WindowProductRow } from "../../lib/shopee-decisions/plan-types";
 import type { Breach, CardList } from "../../lib/shopee-decisions/types";
 import { ackText, breachNoun, breachWarnLines, firstVersionRange, svk } from "../../lib/shopee-decisions/versions";
 import { useNarrow } from "../quyet-dinh/use-narrow";
 import { Notice, PageHead, TextChip } from "../shopee-analytics/ui";
 import { perDayText } from "./option-card/format";
 import { AdsReadbackBlock, CardResult, DataMissingNotice, HorizonLine, PlanTotalsNotes, ProductToday } from "./plan-results";
+import { mil } from "../shopee-analytics/tong-quan";
 import { PlanSteps } from "./plan-steps";
 import { topEntries } from "./top-cards";
 import { NavLink, RecoState, errorText } from "./ui";
@@ -191,6 +192,29 @@ function Candidates({ cards, inPlan, locked, busy, onAdd }: { readonly cards: Ca
   );
 }
 
+/** Kế hoạch's two month totals (same function as Tổng quan's card): labels and numbers only. */
+function MonthTotals({ plan }: { readonly plan: PlanResponse }) {
+  const m = plan.month;
+  if (!m) return null;
+  const col = (label: string, key: string, t: PlanMonthTotals) => (
+    <div className="kh-month__col" data-testid={`kh-month-${key}`}>
+      <b>{label}</b>
+      <span>
+        GMV <b data-testid={`kh-month-${key}-gmv`}>{t.goal_gmv === null ? "—" : mil(t.goal_gmv)}</b>
+      </span>
+      <span>
+        Lợi nhuận <b data-testid={`kh-month-${key}-profit`}>{t.goal_profit === null ? "—" : mil(t.goal_profit)}</b>
+      </span>
+    </div>
+  );
+  return (
+    <div className="kh-month" data-testid="kh-month">
+      {col("Đang chạy", "running", m.running)}
+      {col("Nếu áp dụng nháp", "draft", m.with_draft)}
+    </div>
+  );
+}
+
 function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfirm }: { readonly plan: PlanResponse; readonly api: PlanApi; readonly narrow: boolean; readonly busy: boolean; readonly error: string | null; readonly ack: string | null; readonly notice: PlanNotice | null; readonly onAct: (call: () => Promise<PlanResponse>) => Promise<void>; readonly onConfirm: () => void }) {
   const head = plan.plan;
   const done = (head?.status ?? "draft") !== "draft";
@@ -235,6 +259,7 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
         </Notice>
       ) : null}
 
+      <MonthTotals plan={plan} />
       <HorizonLine plan={plan} />
       {missing ? <DataMissingNotice missing={missing} /> : null}
       {head?.base && !done && !missing ? (
@@ -255,6 +280,7 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
             <div className="kh-row__main">
               <div className="kh-row__top">
                 <span className="sd-code">{r.chosen_version_code ?? `${r.code}-V${r.chosen_version}`}</span>
+                {head?.status === "executed" ? <TextChip tone="up">Đang chạy</TextChip> : head?.status === "draft" ? <TextChip tone="flat">Nháp</TextChip> : null}
                 {done && (r.plan_code ?? head?.code) ? <span className="sd-code">{r.plan_code ?? head?.code}</span> : null}
                 <b>
                   {r.title ?? r.change_kind} · {productName(plan, r.product_id)}

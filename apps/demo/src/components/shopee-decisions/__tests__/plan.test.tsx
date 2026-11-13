@@ -33,6 +33,15 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     expect(screen.getByTestId("kh-cand-card-wait")).toHaveTextContent("JC-2611-0009");
   });
 
+  it("shows the two month totals (Đang chạy / Nếu áp dụng nháp) and marks each card Nháp", async () => {
+    const totals = (goal_gmv: number | null, goal_profit: number | null, cards: number) => ({ scope: "running" as const, month: "2026-11", day: 13, days_in_month: 30, cards, baseline_gmv: 10_000_000, baseline_profit: 1_000_000, uplift_gmv: 0, uplift_profit: 0, goal_gmv, goal_profit, mtd_gmv: 4_000_000, mtd_profit: 400_000 });
+    open({ ...plan(), month: { running: totals(null, null, 0), with_draft: totals(12_500_000, 1_300_000, 3) } });
+    expect(await screen.findByTestId("kh-month-running-gmv")).toHaveTextContent("—");
+    expect(screen.getByTestId("kh-month-draft-gmv")).toHaveTextContent("12,50 tr đ");
+    expect(screen.getByTestId("kh-month-draft-profit")).toHaveTextContent("1,30 tr đ");
+    expect(within(screen.getByTestId("kh-row-card-voucher")).getByText("Nháp")).toBeInTheDocument();
+  });
+
   it("the whole plan, today -> after: five numbers, GMV, costs against the cap, certain and predicted profit, floor", async () => {
     open();
     const agg = await screen.findByTestId("kh-agg");

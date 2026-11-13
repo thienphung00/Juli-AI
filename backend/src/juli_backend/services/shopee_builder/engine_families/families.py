@@ -405,8 +405,9 @@ def simple_option(spec: sp.VersionSpec, facts: SimpleFacts) -> OptionInput:
 
 def ads_option(setup: AdsNewCampaign, facts: AdsFacts) -> OptionInput:
     """Driver ``views`` on the ad share of Thẻ sản phẩm: spend ÷ the measured CPM; CTR / CTOR /
-    AOV of the ad traffic; the extra share measured on the product's organic orders on days with
-    vs without ads. Anything unmeasured -> ``not_estimable`` with the exact cost (never a prior)."""
+    AOV of the ad traffic; the extra share = the products' card orders (organic + ad) per day with
+    ads minus without, over the ad orders (``measure.incremental_share``).
+    Anything unmeasured -> ``not_estimable`` with the exact cost (never a prior)."""
     days = setup.days
     budget = setup.daily_budget * days
     notes: list[str] = []
@@ -420,7 +421,7 @@ def ads_option(setup: AdsNewCampaign, facts: AdsFacts) -> OptionInput:
         else:
             spend = budget * util
     rates = measure.ad_rates(facts.campaigns, setup.item_ids, setup.ad_type)
-    share = measure.on_off_extra_share(facts.days)
+    share = measure.incremental_share(facts.days)
     label = setup.label or "Quảng cáo Hiển thị Sản phẩm"
     complete = (
         rates is not None
