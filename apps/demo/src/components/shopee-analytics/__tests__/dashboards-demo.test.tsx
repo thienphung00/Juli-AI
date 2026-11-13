@@ -69,7 +69,7 @@ describe("the seller's Demo pages from Ops", () => {
     expect(screen.queryByLabelText(/Tải lên kết quả tra cứu/)).toBeNull();
     expect(screen.queryByLabelText(/Giữ từ khóa/)).toBeNull();
     expect(screen.queryByLabelText("Danh sách cần tra")).toBeNull();
-    expect(screen.getByTestId("dashboard-tu-khoa")).toHaveTextContent("Chỉ xem");
+    expect(screen.getByTestId("dashboard-tu-khoa")).not.toHaveTextContent("Chỉ xem");
   });
 
   it("Quảng cáo + khuyến mãi reads /dashboard/ads and /dashboard/promotions", async () => {
@@ -106,11 +106,11 @@ describe("the seller's Demo pages from Ops", () => {
     await waitFor(() => expect(calls.some((c) => c.url.includes("/orders") && c.url.includes("status=cancelled"))).toBe(true));
   });
 
-  it("links the four pages to each other on the seller routes", async () => {
+  it("links the five Dữ liệu shop sub-tabs to each other on the seller routes", async () => {
     render(<SellerDashboardPage kind="tu-khoa" />);
     const tabs = await screen.findByTestId("dashboard-tabs");
     const hrefs = within(tabs).getAllByRole("link").map((a) => a.getAttribute("href"));
-    expect(hrefs).toEqual(["/tu-khoa", "/quang-cao", "/don-hang", "/luong-san-pham"]);
+    expect(hrefs).toEqual(["/san-pham", "/tu-khoa", "/quang-cao", "/don-hang", "/luong-san-pham"]);
     expect(within(tabs).getByRole("link", { name: "Từ khóa" })).toHaveAttribute("aria-current", "page");
   });
 

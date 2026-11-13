@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppNavigation } from "../app-shell/app-navigation";
 import { SAMPLE_SHOP_SWITCH_LABEL, ShopHeader } from "../app-shell/shop-header";
+import { DataShopTabs } from "../shopee-analytics/data-shop-tabs";
 import { BuilderP92View } from "../shopee-decisions/builder-p92";
 import { DecisionsView } from "../shopee-decisions/decisions-view";
 import { ProposalsTab } from "../shopee-decisions/product-proposals";
@@ -49,15 +50,31 @@ function withReviewer(reviewer: ReviewerRecord | null, ui: ReactElement, reco: R
 const railLabels = () => within(screen.getByRole("navigation", { name: "Điều hướng chính" })).getAllByRole("listitem").map((li) => li.textContent);
 
 describe("S2-C · rail and redirect", () => {
-  it("the sample shop's rail lists only Tổng quan · Phân tích · Sản phẩm · Quyết định", () => {
+  it("the sample shop's rail lists only Tổng quan · Phân tích · Quyết định (Sản phẩm sits under Dữ liệu shop)", () => {
     render(<AppNavigation activePath="/tong-quan" platform="shopee" sampleShop />);
-    expect(railLabels()).toEqual(["Tổng quan", "Phân tích", "Sản phẩm", "Quyết định"]);
+    expect(railLabels()).toEqual(["Tổng quan", "Phân tích", "Quyết định", "Dữ liệu shop"]);
     expect(document.body.textContent).not.toMatch(/sắp có|demo/i);
   });
 
-  it("a seller's Shopee rail keeps all 8 tabs", () => {
+  it("a seller's Shopee rail keeps all 4 tabs", () => {
     render(<AppNavigation activePath="/tong-quan" platform="shopee" />);
-    expect(railLabels()).toHaveLength(8);
+    expect(railLabels()).toHaveLength(4);
+  });
+
+  it("on the sample shop Dữ liệu shop shows only the Sản phẩm sub-tab", () => {
+    render(
+      <StaticReviewerProvider reviewer={SAMPLE}>
+        <DataShopTabs active="san-pham" links={sellerLinks} />
+      </StaticReviewerProvider>,
+    );
+    expect(within(screen.getByTestId("dashboard-tabs")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Sản phẩm"]);
+    cleanup();
+    render(
+      <StaticReviewerProvider reviewer={null}>
+        <DataShopTabs active="tu-khoa" links={sellerLinks} />
+      </StaticReviewerProvider>,
+    );
+    expect(within(screen.getByTestId("dashboard-tabs")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Sản phẩm", "Từ khóa", "Dịch vụ hiển thị", "Đơn hàng", "Luồng"]);
   });
 
   it("a hidden page (and Cài đặt) goes to Tổng quan; the four screens stay", () => {

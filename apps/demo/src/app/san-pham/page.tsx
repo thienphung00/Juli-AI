@@ -1,6 +1,14 @@
 import { SellerShopeePage } from "../../components/shopee-analytics/hosts";
+import { SellerDataShopTabs } from "../../components/shopee-analytics/data-shop-tabs";
 
-/** Sản phẩm: the shop's products, each opening its product page. */
+/** Dữ liệu shop › Sản phẩm: the shop's products, each opening its product page. */
 export default function SanPhamPage() {
-  return <SellerShopeePage screen="san-pham" />;
+  return (
+    <>
+      <div className="sa-page">
+        <SellerDataShopTabs active="san-pham" />
+      </div>
+      <SellerShopeePage screen="san-pham" />
+    </>
+  );
 }
