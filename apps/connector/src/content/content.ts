@@ -80,8 +80,8 @@ function startJob(): void {
       const answer = await send({ type: "fill-job-request", jobId });
       return answer?.ok && answer.value ? (answer.value as JobReply) : { ok: false, reason: "error" };
     },
-    report: async (jobId, status, error) => {
-      await send({ type: "fill-job-report", jobId, status, ...(error ? { error } : {}) });
+    report: async (jobId, status, error, progress) => {
+      await send({ type: "fill-job-report", jobId, status, ...(error ? { error } : {}), ...(progress ? { progress } : {}) });
     },
     halt: async (jobId) => {
       await send({ type: "fill-job-halt", jobId });

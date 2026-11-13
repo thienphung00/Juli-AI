@@ -162,10 +162,11 @@ describe("progress and the password prompt", () => {
   it("passes progress on and frees the slot when the id is captured", async () => {
     const s = setup();
     await s.jobs.poll();
+    await s.jobs.report(JOB_ID, "opened", { progress: { filled: 3, total: 4 } });
     await s.jobs.report(JOB_ID, "filled");
     expect((await loadState(s.storage)).fill?.active?.id).toBe(JOB_ID);
     await s.jobs.report(JOB_ID, "captured", { capturedRef: "88001" });
-    expect(s.reports.map((r) => r.body)).toEqual([{ status: "filled" }, { status: "captured", captured_ref: "88001" }]);
+    expect(s.reports.map((r) => r.body)).toEqual([{ status: "opened", progress: { filled: 3, total: 4 } }, { status: "filled" }, { status: "captured", captured_ref: "88001" }]);
     expect((await loadState(s.storage)).fill?.active).toBeUndefined();
   });
 

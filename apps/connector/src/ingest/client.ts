@@ -101,7 +101,7 @@ export class GatewayClient {
   }
 
   /** How far one fill job got: opened / filled / saved / captured (with the new id) / failed. */
-  fillJobReport(token: string, jobId: string, body: { status: string; captured_ref?: string; error?: string }): Promise<unknown> {
+  fillJobReport(token: string, jobId: string, body: { status: string; captured_ref?: string; error?: string; progress?: { filled: number; total: number } }): Promise<unknown> {
     return this.call(`/v1/ingest/fill-jobs/${encodeURIComponent(jobId)}`, { method: "POST", body: JSON.stringify(body) }, token);
   }
 

@@ -1,6 +1,8 @@
 import { five } from "../../shopee-analytics/__tests__/fixtures";
 import type { RecoApi } from "../client";
 import type {
+  ExecutionStates,
+  MeasurementStates,
   Card,
   CardByCode,
   CardDetail,
@@ -363,6 +365,8 @@ export function fakeReco(
     compare: CompareResult | ((variants: readonly unknown[]) => CompareResult);
     manual: ManualResult;
     byCode: CardByCode;
+    execution: ExecutionStates;
+    measurements: MeasurementStates;
   }> = {},
   failWith?: Partial<Record<keyof RecoApi, Error>>,
 ): FakeReco {
@@ -392,6 +396,8 @@ export function fakeReco(
     rerunStale: (...a) => run("rerunStale", { replaced: 1 }, ...a),
     learning: (...a) => run("learning", { calibration: null, acceptance: null, sim: null }, ...a),
     learningRun: (...a) => run("learningRun", {}, ...a),
+    executionStates: (...a) => run("executionStates", data.execution ?? { platform: "shopee", connector: { version: null, last_check_at: null, connected: false, seller_centre_open: null }, cards: [], counts: {} }, ...a),
+    measurements: (...a) => run("measurements", data.measurements ?? { platform: "shopee", cards: [] }, ...a),
   };
 }
 

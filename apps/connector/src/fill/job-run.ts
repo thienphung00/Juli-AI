@@ -12,6 +12,12 @@ import { HALT_TEXT, showJobPanel } from "./job-panel";
 import { findControl } from "./locate";
 import { highlight, readValue, targetValue, writeValue } from "./write";
 
+/** How many of the page's steps are in (Thực hiện shows "3/4 đã điền"). */
+export interface FillProgress {
+  filled: number;
+  total: number;
+}
+
 export interface JobTrigger {
   jobId: string;
 }
@@ -29,7 +35,7 @@ export interface JobDeps {
   loc: { pathname: string; hash: string };
   ask(jobId: string): Promise<JobReply>;
   /** Progress to Juli through the service worker. */
-  report(jobId: string, status: "opened" | "filled" | "failed", error?: string): Promise<void>;
+  report(jobId: string, status: "opened" | "filled" | "failed", error?: string, progress?: FillProgress): Promise<void>;
   /** Shopee asked for the password again: the service worker stops everything for the shop. */
   halt(jobId: string): Promise<void>;
   /** The password prompt text is on the page (never typed into). */
@@ -112,7 +118,9 @@ export async function runFillJob(deps: JobDeps): Promise<JobResult> {
   }
   const all = result.steps.length > 0 && result.steps.every((s) => s.ok);
   showJobPanel(deps.doc, { outcome: all ? "filled" : "partial", job, result });
-  if (all) await deps.report(job.id, "filled");
+  const progress: FillProgress = { filled: result.steps.filter((s) => s.ok).length, total: result.steps.length };
+  if (all) await deps.report(job.id, "filled", undefined, progress);
+  else if (progress.total > 0) await deps.report(job.id, "opened", undefined, progress);
   return { status: all ? "filled" : "partial", steps: result.steps.length };
 }
 

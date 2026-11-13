@@ -151,6 +151,8 @@ SAMPLE_SHOP_ROUTES: dict[tuple[str, str], tuple[Literal["read", "write"], str]] 
     (_GET, _R + "demo_shopee_reco_plan:get_plan_by_id"): ("read", "Kế hoạch"),
     (_GET, _R + "demo_shopee_reco_plan:export_plan"): ("read", "Kế hoạch: Excel"),
     (_GET, _R + "demo_shopee_reco_plan:list_change_sets"): ("read", "Đo lường"),
+    (_GET, _R + "demo_shopee_reco_execution:get_execution"): ("read", "Thực hiện"),
+    (_GET, _R + "demo_shopee_reco_execution:get_measurements"): ("read", "Đo lường"),
     # Tự tạo (Tiêu đề / Ảnh bìa / Voucher): picker, variations, keyword table (stored keywords +
     # the title's words; no LLM), the what-if numbers (pure compute) and the exclusion list.
     (_GET, _R + "demo_shopee_builder:builder_products"): ("read", "Tự tạo"),
