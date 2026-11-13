@@ -163,13 +163,11 @@ describe("S2-C · card lists", () => {
     for (const c of hidden) expect(screen.queryByTestId(`sq-card-${c.id}`)).toBeNull();
     expect(tabs()).toEqual(["Đề xuất · 1", "Thực hiện · 1", "Đo lường · 1"]);
     cleanup();
-    withReviewer(SAMPLE, <DecisionsView params={params("tab=dang-thuc-hien")} />, fakeReco({ list: list(all) }));
-    expect(await screen.findByTestId("sd-card-c-cover")).toBeInTheDocument();
-    expect(screen.queryByTestId("sd-card-c-promo")).toBeNull();
+    withReviewer(SAMPLE, <DecisionsView params={params("tab=thuc-hien")} />, fakeReco({ list: list(all) }));
+    expect(await screen.findByTestId("sd-thuc-hien")).toBeInTheDocument();
     cleanup();
     withReviewer(SAMPLE, <DecisionsView params={params("tab=do-luong")} />, fakeReco({ list: list(all) }));
-    expect(await screen.findByTestId("sd-card-c-voucher")).toBeInTheDocument();
-    expect(screen.queryByTestId("sd-card-c-combo")).toBeNull();
+    expect(await screen.findByTestId("sd-do-luong")).toBeInTheDocument();
   });
 
   it("a seller sees every card", async () => {

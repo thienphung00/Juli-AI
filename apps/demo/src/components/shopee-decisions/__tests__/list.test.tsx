@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { DecisionsView } from "../decisions-view";
@@ -108,14 +108,13 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     expect(screen.getAllByTestId(/^sq-card-/)).toHaveLength(3);
   });
 
-  it("the other tabs list their own cards by family; an empty tab says so", async () => {
-    const cards = [...queueCards(), summaryOf(voucherCard(), { id: "card-approved", status: "approved", title: "Voucher đã duyệt" }), summaryOf(voucherCard(), { id: "card-rejected", status: "rejected", title: "Voucher đã bỏ qua" })];
-    renderReco(<DecisionsView params={params("tab=dang-thuc-hien")} />, fakeReco({ list: list(cards) }));
-    await screen.findByText("Voucher đã duyệt");
-    expect(screen.getByTestId("sd-section-voucher")).toBeInTheDocument();
+  it("Thực hiện and Đo lường render their own views (P100)", async () => {
+    renderReco(<DecisionsView params={params("tab=thuc-hien")} />, fakeReco({ list: list(queueCards()) }));
+    expect(await screen.findByTestId("sd-thuc-hien")).toBeInTheDocument();
     expect(screen.queryByTestId("sq-card-card-voucher")).toBeNull();
-    renderReco(<DecisionsView params={params("tab=do-luong")} />, fakeReco({ list: list(cards) }));
-    await waitFor(() => expect(screen.getAllByTestId("sd-empty")).toHaveLength(1));
+    cleanup();
+    renderReco(<DecisionsView params={params("tab=do-luong")} />, fakeReco({ list: list(queueCards()) }));
+    expect(await screen.findByTestId("sd-do-luong")).toBeInTheDocument();
   });
 
   it("a refusal is a state of its own, not an empty list", async () => {
