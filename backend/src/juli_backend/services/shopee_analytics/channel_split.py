@@ -222,9 +222,13 @@ def with_share(rows: list[dict[str, Any]], total: Decimal | None) -> list[dict[s
     """Each row's ``share`` of the total GMV (traffic-overview base); ``None`` for ads-report rows
     and when the total is unknown or 0."""
     for r in rows:
-        ok = total is not None and total > 0 and r["gmv"] is not None
         r["share"] = (
-            frac(Decimal(str(r["gmv"])) / total) if ok and r["ad_base"] != "ads_report" else None
+            frac(Decimal(str(r["gmv"])) / total)
+            if total is not None
+            and total > 0
+            and r["gmv"] is not None
+            and r["ad_base"] != "ads_report"
+            else None
         )
     return rows
 
