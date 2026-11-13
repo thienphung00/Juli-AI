@@ -255,11 +255,11 @@ async def campaign(session, shop):
 
 
 async def ads(session, shop, **version):
-    """P98 / ADR-122 d.10: Ads edits are hidden from the builder (So sánh refuses them with
-    ``ads_edit_hidden``); their translation still checks Shopee's edit form for older cards."""
+    """P100 B.15: Ads edits are evaluated in the builder (no ``ads_edit_hidden`` any more); the
+    translation checks Shopee's edit form."""
     spec = S(kind="ads", **version)
     shown = await one(session, shop, kind="ads", **version)
-    assert shown["ok"] is False and shown["refusal"]["code"] == "ads_edit_hidden"
+    assert (shown.get("refusal") or {}).get("code") != "ads_edit_hidden"
     ctx = await builder.build_context(session, shop.shop_id, [spec], as_of=AS_OF, now=NOW)
     try:
         return to_variant(spec, ctx)

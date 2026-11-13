@@ -45,16 +45,12 @@ HOURS_PER_DAY = 24
 
 
 class FamilyRefused(ValueError):
-    """The version cannot become an option; ``code`` is stable (``hidden``: builder hides it)."""
+    """The version cannot become an option; ``code`` is stable."""
 
     def __init__(self, code: str, text: str = "") -> None:
         super().__init__(code)
         self.code = code
         self.text = text
-
-    @property
-    def hidden(self) -> bool:
-        return self.code == "hidden"
 
 
 def dec(value: object) -> Decimal:

@@ -11,8 +11,10 @@ from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext
 from juli_backend.services.shopee_builder.engine.contract import Band, OfferCost, OptionInput
 from juli_backend.services.shopee_builder.engine_families import adapters
+from juli_backend.services.shopee_builder.engine_families.ads_edit import ads_edit_option
 from juli_backend.services.shopee_builder.engine_families.common import FamilyRefused, scaled
 from juli_backend.services.shopee_builder.engine_families.facts import (
+    AdsEditFacts,
     AdsFacts,
     AdsNewCampaign,
     AffiliatePlan,
@@ -34,8 +36,6 @@ from juli_backend.services.shopee_builder.engine_families.families import (
 )
 from juli_backend.services.shopee_recommendations.model import Candidate
 
-#: The builder hides Ads edits (budget, ROAS, pause, keywords, add / remove product): ADR-122 d.10.
-HIDDEN_SPEC_KINDS = ("ads",)
 _SIMPLE_KINDS = (
     "title",
     "cover_image",
@@ -55,6 +55,8 @@ class FamilyExtras:
 
     pack: PackEvidence | None = None  # listing_combo: the matching pack variation, measured
     ads: AdsFacts | None = None  # ads new campaign: past campaigns + the product's on / off days
+    #: P100 B.15: an edit of a running campaign -- its own history (``integrate.ads_edit_facts``)
+    ads_edit: AdsEditFacts | None = None
     kol: KolFacts | None = None  # affiliate: KOL rows, before / after, sample unit cost
     contribution_rate: Decimal | None = None  # FunnelBase.contribution_rate (price AOV term)
     profit_per_order: Decimal | None = None  # the FunnelBase's profit ÷ orders (switching)
@@ -123,7 +125,7 @@ def option_for(
     ctx: BuilderContext,
     extras: FamilyExtras | None = None,
 ) -> OptionInput:
-    """The one entry. Raises :class:`FamilyRefused` (``hidden`` for the Ads edit kinds)."""
+    """The one entry. Raises :class:`FamilyRefused` when the version cannot become an option."""
     ex = extras or FamilyExtras()
     env = ctx.env
     if isinstance(spec, AdsNewCampaign):
@@ -134,8 +136,6 @@ def option_for(
         return new_listing_option(
             spec, adapters.new_listing_facts(spec, env, ex.pack, ex.profit_per_order)
         )
-    if spec.kind in HIDDEN_SPEC_KINDS:
-        raise FamilyRefused("hidden", "Chỉnh sửa chiến dịch quảng cáo đang chạy đã được ẩn.")
     if isinstance(spec, sp.AffiliateSpec) and not spec.targets:
         # P99: cost (commission × expected Liên kết GMV + samples) and break-even; the extra
         # orders are measured only (d.9), so the result is "chưa ước tính được" with its cost
@@ -146,6 +146,10 @@ def option_for(
     # evaluated per target by the caller (``multi.expand``)
     if multi.mode(spec) == multi.SUM:
         raise FamilyRefused("multi_target", "Đánh giá từng sản phẩm riêng.")
+    if isinstance(spec, sp.AdsSpec):  # P100 B.15: an edit of a running campaign
+        if ex.ads_edit is None:
+            raise FamilyRefused("no_campaign_report", "Chưa có số liệu của chiến dịch này.")
+        return ads_edit_option(spec, ex.ads_edit)
     if isinstance(spec, sp.VoucherSpec):
         vf = adapters.voucher_facts(spec, env)
         return _rebased(voucher_option(spec, vf), vf.profit_per_order, ex.profit_per_order)
@@ -214,7 +218,6 @@ def option_for(
 
 
 __all__ = [
-    "HIDDEN_SPEC_KINDS",
     "FamilyExtras",
     "FamilyRefused",
     "NewComboListing",

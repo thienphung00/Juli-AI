@@ -36,6 +36,7 @@ from juli_backend.services.shopee_builder.context import BuilderContext
 from juli_backend.services.shopee_builder.engine import engine
 from juli_backend.services.shopee_builder.engine.contract import (
     RESIDUAL,
+    AdsEvaluation,
     Band,
     Basis,
     BuildUpPart,
@@ -47,42 +48,33 @@ from juli_backend.services.shopee_builder.engine.contract import (
 )
 from juli_backend.services.shopee_builder.engine.vn import count, vnd
 from juli_backend.services.shopee_builder.engine_families import (
-    HIDDEN_SPEC_KINDS,
     FamilyExtras,
     FamilyRefused,
     option_for,
 )
 from juli_backend.services.shopee_builder.engine_families.facts import (
+    AdsEditFacts,
     AdsFacts,
     AdsNewCampaign,
     AffiliatePlan,
     KolFacts,
     NewComboListing,
     PackEvidence,
+    ProductAdRow,
 )
 from juli_backend.services.shopee_builder.engine_families.measure import (
     AdCampaignHist,
     AdDay,
+    CampaignDay,
     KolRates,
 )
 from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 ZERO = Decimal(0)
-#: The builder's refusal code for the hidden Ads edit kinds (ADR-122 d.10).
-HIDDEN_CODE = "ads_edit_hidden"
-HIDDEN_TEXT = (
-    "Chỉnh sửa chiến dịch quảng cáo đang chạy đã được ẩn khỏi trình tạo phương án. "
-    "Dùng “Quảng cáo mới” để so sánh một chiến dịch Hiển thị Sản phẩm mới."
-)
 #: Ad type of a Dịch vụ Hiển thị Sản phẩm campaign, past or new (``measure.ad_rates``).
 AD_TYPE = "product_search"
 _BASIS_ORDER: tuple[Basis, ...] = ("measured", "product_history", "shop", "prior", "not_estimable")
-
-
-def hidden(spec: Any) -> bool:
-    """The builder hides this kind (Ads edits of running campaigns)."""
-    return getattr(spec, "kind", None) in HIDDEN_SPEC_KINDS
 
 
 # -- base ----------------------------------------------------------------------------------------
@@ -270,8 +262,6 @@ def evaluate(
     """One version: ``(its evaluation, one evaluation per target)``. The per-target list is
     empty for a single-target version. Raises nothing: a refusal is carried."""
     base = base_for(ctx.env, scope_items(spec), shop_id)
-    if hidden(spec):
-        return Evaluated(base, None, FamilyRefused(HIDDEN_CODE, HIDDEN_TEXT)), []
     mode = multi.mode(spec)
     targets: list[tuple[str, Evaluated]] = []
     if mode is not None:
@@ -295,6 +285,8 @@ def _one(
         return ads_result(
             ctx.env, ads_campaign(spec), shop_id=shop_id, seed_payload=spec.model_dump(mode="json")
         )
+    if isinstance(spec, sp.AdsSpec):  # P100 B.15: an edit of a running campaign
+        return ads_edit_result(ctx, spec, shop_id)
     try:
         option = option_for(spec, ctx, extras_for(base))
     except FamilyRefused as exc:
@@ -415,6 +407,56 @@ def sum_results(results: Sequence[OptionResult], label: str) -> OptionResult:
         else sum((b or ZERO for b in be), ZERO),
         break_even_aov=None,
         notes=tuple(notes),
+        ads=_sum_ads([r.ads for r in results]),
+    )
+
+
+def _sum_ads(evals: Sequence[AdsEvaluation | None]) -> AdsEvaluation | None:
+    """Several campaigns under one budget / ROAS edit (P100 B.15): spend / orders / GMV added;
+    break-even CPA and the incremental share weighted by today's ad orders."""
+    done = [a for a in evals if a is not None]
+    if not done or len(done) != len(evals):
+        return None
+    if len(done) == 1:
+        return done[0]
+
+    def total(name: str) -> Decimal | None:
+        vals = [getattr(a, name) for a in done]
+        return None if any(v is None for v in vals) else sum(vals, ZERO)
+
+    weight = sum((a.orders_now for a in done), ZERO)
+
+    def weighted(vals: Sequence[Decimal | None]) -> Decimal | None:
+        if weight <= 0 or any(v is None for v in vals):
+            return None
+        return sum(((v or ZERO) * a.orders_now for v, a in zip(vals, done, strict=True)), ZERO) / (
+            weight
+        )
+
+    shares = [a.incremental_share for a in done]
+    share = None
+    if all(b is not None for b in shares):
+        lo = weighted([b.p10 if b else None for b in shares])
+        mid = weighted([b.p50 if b else None for b in shares])
+        hi = weighted([b.p90 if b else None for b in shares])
+        share = None if lo is None or mid is None or hi is None else Band(lo, mid, hi)
+    bases = {a.spend_basis for a in done}
+    texts = list(dict.fromkeys(f"{a.campaign}: {a.spend_text}" for a in done))
+    return AdsEvaluation(
+        lever=done[0].lever,
+        campaign=", ".join(a.campaign for a in done),
+        days=max(a.days for a in done),
+        spend_basis=done[0].spend_basis if len(bases) == 1 else "mixed",
+        spend_text=" ".join(texts),
+        spend_now=sum((a.spend_now for a in done), ZERO),
+        spend_after=total("spend_after"),
+        orders_now=weight,
+        orders_after=total("orders_after"),
+        gmv_now=sum((a.gmv_now for a in done), ZERO),
+        gmv_after=total("gmv_after"),
+        break_even_cpa=weighted([a.break_even_cpa for a in done]),
+        incremental_share=share,
+        cancel_rate=done[0].cancel_rate,
     )
 
 
@@ -514,6 +556,7 @@ def ads_history(env: RecoEnv) -> tuple[AdCampaignHist, ...]:
                 days=days,
                 daily_budget=None if setting is None else setting.daily_budget,
                 roas_target=None if setting is None else setting.roas_target,
+                gmv=c.gmv,
             )
         )
     return tuple(out)
@@ -572,6 +615,95 @@ def ads_result(
     ctx = BuilderContext(env=env)
     option = option_for(setup, ctx, FamilyExtras(ads=facts))
     return Evaluated(base, run(base, option, seed_of(seed_payload or repr(setup))))
+
+
+def profit_per_order_before_ads(base: FunnelBase) -> Decimal | None:
+    """P100 B.15: the break-even CPA -- profit per order of the scope BEFORE ads: the stored
+    profit is after the ad spend (the one shop profit), so the spend per order is added back."""
+    ppo = profit_per_order(base)
+    if ppo is None:
+        return None
+    orders = base.total("orders")
+    spend = sum(
+        ((s.ads.spend or ZERO) for s in base.sources if s.ads is not None and s.ads.spend),
+        ZERO,
+    )
+    if not orders or orders <= 0:
+        return ppo
+    return ppo + spend / orders
+
+
+def product_ad_rows(env: RecoEnv) -> tuple[ProductAdRow, ...]:
+    """The per-product lines of the window's ads reports (campaign × product, placed orders)."""
+    out: list[ProductAdRow] = []
+    for r in env.view.data.ads_reports.campaign_rows:
+        if not r.item_id:
+            continue
+        start, end = r.period
+        out.append(
+            ProductAdRow(
+                campaign_key=r.key,
+                item_id=r.item_id,
+                spend=r.spend,
+                impressions=r.impressions,
+                clicks=r.clicks,
+                orders=r.orders,
+                gmv=r.gmv,
+                direct_gmv=r.direct_gmv,
+                days=(end - start).days + 1,
+            )
+        )
+    return tuple(out)
+
+
+def ads_edit_facts(
+    ctx: BuilderContext, spec: sp.AdsSpec, shop_id: str = ""
+) -> tuple[AdsEditFacts, FunnelBase]:
+    """P100 B.15: the edited campaign's own history and the base its result stands on (the
+    campaign's products, + the product being added; the shop when the products are unknown)."""
+    env = ctx.env
+    key = spec.campaign_key or ""
+    setting = env.setting_for(key)
+    allocs = env.view.ads.campaigns
+    alloc = next((a for a in allocs if a.key == key), None)
+    if alloc is None and setting is not None:
+        alloc = next((a for a in allocs if a.key == setting.key or a.name == setting.name), None)
+    campaigns = ads_history(env)
+    camp = None if alloc is None else next((c for c in campaigns if c.key == alloc.key), None)
+    rows = product_ad_rows(env)
+    own_key = alloc.key if alloc is not None else key
+    items = list(alloc.products) if alloc is not None else []
+    items += [r.item_id for r in rows if r.campaign_key == own_key]
+    if spec.lever == "add_product" and spec.item_id:
+        items.append(spec.item_id)
+    item_ids = tuple(dict.fromkeys(i for i in items if i))
+    base = base_for(env, item_ids, shop_id)
+    day_items = (spec.item_id,) if spec.lever in ("add_product", "remove_product") else item_ids
+    name = alloc.name if alloc is not None else (setting.name if setting is not None else key)
+    facts = AdsEditFacts(
+        campaign=camp,
+        name=name,
+        daily_budget=None if setting is None else setting.daily_budget,
+        daily=()
+        if setting is None
+        else tuple(CampaignDay(spend, budget) for spend, budget in setting.days),
+        product_rows=rows,
+        days=ad_days(env, [i for i in day_items if i]),
+        campaigns=campaigns,
+        profit_per_order_before_ads=profit_per_order_before_ads(base),
+        cancel_rate=env.cancel_rate,
+    )
+    return facts, base
+
+
+def ads_edit_result(ctx: BuilderContext, spec: sp.AdsSpec, shop_id: str = "") -> Evaluated:
+    facts, base = ads_edit_facts(ctx, spec, shop_id)
+    extras = replace(extras_for(base), ads_edit=facts)
+    try:
+        option = option_for(spec, ctx, extras)
+    except FamilyRefused as exc:
+        return Evaluated(base, None, exc)
+    return Evaluated(base, run(base, option, seed_of(spec.model_dump(mode="json"))))
 
 
 def kol_rates(
@@ -638,11 +770,11 @@ def compare_keys(results: Sequence[tuple[str, OptionResult | None]]) -> list[str
 
 __all__ = [
     "AD_TYPE",
-    "HIDDEN_CODE",
-    "HIDDEN_TEXT",
     "RESIDUAL",
     "Evaluated",
     "ad_days",
+    "ads_edit_facts",
+    "ads_edit_result",
     "ads_campaign",
     "ads_history",
     "ads_result",
@@ -652,12 +784,13 @@ __all__ = [
     "deterministic",
     "evaluate",
     "extras_for",
-    "hidden",
     "kol_rates",
     "kol_result",
     "pack_evidence",
     "pack_sold_today",
+    "product_ad_rows",
     "profit_per_order",
+    "profit_per_order_before_ads",
     "run",
     "profit_coverage_note",
     "scope_items",

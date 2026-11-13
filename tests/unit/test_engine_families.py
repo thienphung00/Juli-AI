@@ -461,11 +461,11 @@ def test_cashback_affiliate_extra_share_zero_and_no_samples():
 # -- dispatcher ----------------------------------------------------------------------------------
 
 
-def test_ads_edit_kinds_are_hidden():
+def test_ads_edit_needs_its_campaign_history():
     spec = sp.AdsSpec(kind="ads", lever="budget", campaign_key="c", daily_budget=200_000)
     with pytest.raises(FamilyRefused) as e:
         option_for(spec, ctx())
-    assert e.value.hidden and e.value.code == "hidden"
+    assert e.value.code == "no_campaign_report"
 
 
 def test_dispatcher_routes_ads_and_affiliate_plans():

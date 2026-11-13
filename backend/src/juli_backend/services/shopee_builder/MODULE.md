@@ -76,8 +76,29 @@ estimate basis, warnings).
 - Several targets (`multi.SUM`): one result per `multi.expand`ed version, the version's result is their column-wise
   sum (`integrate.sum_results`); each target row carries its own `result` and its figures. One voucher over a product
   list (`multi.JOINT`) is one option on the union of the products.
-- Ads edits of running campaigns (`kind = ads`) are hidden: So sánh refuses them with `ads_edit_hidden`, `choose`
-  and `run_together` with 422 `ads_edit_hidden`. New campaigns go through `/builder/ads/setup`.
+- P100 B.15 (owner 2026-11-13): Ads edits of running campaigns (`kind = ads`, "Dịch vụ hiển thị" in Tự tạo phương
+  án: create, compare and edit) are evaluated like every other kind -- So sánh, `choose` and `run_together` (the
+  hide and its 422 `ads_edit_hidden` are gone). `integrate.ads_edit_result` builds `facts.AdsEditFacts` from the
+  campaign's own history (`ads_history`, the Connector's campaign days on `CampaignSetting.days`, the per-product
+  ads-report lines `product_ad_rows`, the products' on / off days, `RecoEnv.cancel_rate`) and
+  `engine_families.ads_edit.ads_edit_option` turns the lever into an `OptionInput`:
+  `budget` -- the new daily budget is the input; spend follows it only up to what the campaign spends when its
+  budget does not hold it back (`measure.budget_state`: >= 95 % of the budget on most days = capped); a capped
+  campaign spends the new budget (said as the maximum); `unlimited` on a capped campaign is not estimable.
+  `roas` -- daily budget × `measure.spend_utilisation` at a similar target (`spend_utilisation_system` for
+  Shopee-optimised), else cost (the unused budget) and break-even only. `remove_product` -- the campaign loses the
+  product's share of spend / impressions / clicks / direct orders / GMV (its report lines); `add_product` -- the
+  product's own past ad spend and CPA, capped by the unused budget; never advertised / capped campaign -> not
+  estimable. Orders after = spend after ÷ the measured CPA. The result carries `ads` (`contract.AdsEvaluation`,
+  wire `ads`): CPA now / after on direct ad orders × (1 − cancel rate), break-even CPA =
+  `integrate.profit_per_order_before_ads` (the stored profit is after ads, so the ad spend per order is added back),
+  verdict "có lãi" when CPA < break-even else "lỗ", profit after ads = ad orders × (break-even CPA − CPA), Shopee
+  ROAS (ad GMV ÷ spend, placed orders) as reference. Δ total profit / ROI come from the engine on the INCREMENTAL
+  orders only: Δ ad orders × `measure.incremental_share` (card orders per day with vs without ads ÷ ad orders per
+  on-day), each worth the profit per order before ads, minus Δ spend (negative for a cut: the engine keeps a removal's
+  views <= 0 and the build-up says "+ chi phí giảm"). No on / off history -> not estimable with the cost.
+- `RecoEnv.cancel_rate` = 1 − confirmed ÷ placed orders of Tổng quan's `shop_overview` days that have both bases
+  (`loaders.load_cancel_rate`, loaded with the env); None -> the ad orders stay placed orders and the card says so.
 - P99: the `affiliate` kind (a commission rate, no KOL picked) has a result: cost = commission % × the product's
   expected Liên kết GMV (window GMV of its affiliate lines scaled to 30 days) + samples, break-even, extra orders
   "chưa ước tính được — đo sau lần gửi mẫu đầu" (measured per KOL only, through `/builder/kol/setup`).

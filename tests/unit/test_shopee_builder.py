@@ -753,7 +753,7 @@ async def test_ads_levers_budget_roas_and_products(session, shop):
     key = camps["campaigns"][0]["campaign_key"]
     assert camps["cap_rule"] == "daily_marketing_cap" and camps["daily_cap"] == 500_000
     assert camps["campaigns"][0]["products"] and camps["campaigns"][0]["roas_target"] == 3
-    # ADR-122 d.10: edits of running campaigns are hidden from the builder, with a clear code
+    # P100 B.15 (owner 2026-11-13): edits of running campaigns are evaluated in Tự tạo phương án
     item = camps["campaigns"][0]["products"][0]["item_id"]
     for version in (
         {"lever": "budget", "campaign_key": key, "daily_budget": 150_000},
@@ -761,8 +761,11 @@ async def test_ads_levers_budget_roas_and_products(session, shop):
         {"lever": "remove_product", "campaign_key": key, "item_id": item},
     ):
         v = await one(session, shop, kind="ads", **version)
-        assert v["ok"] is False and v["refusal"]["code"] == "ads_edit_hidden"
-        assert "ẩn" in v["refusal"]["message"]
+        assert v["ok"] is True and v.get("refusal") is None, v.get("refusal")
+        assert v["result_refusal"] is None, v["result_refusal"]
+        ads = v["result"]["ads"]
+        assert ads is not None and ads["lever"] == version["lever"]
+        assert ads["spend"]["now"] is not None and ads["spend_text"]
 
 
 def test_keyword_bids_are_not_a_lever_any_more():
@@ -881,8 +884,9 @@ async def test_a_listing_without_cost_can_be_built_and_shows_chua_tinh(session, 
     assert next(r for r in table["rows"] if r["key"] == "delta_profit")["values"][0]["p50"] is None
 
 
-async def test_an_ads_edit_cannot_be_chosen_either(session, shop):
-    """ADR-122 d.10: the hidden Ads edits are refused by "Chọn" too, not only by So sánh."""
+async def test_an_ads_edit_can_be_chosen(session, shop):
+    """P100 B.15: "Chọn" saves an edit of a running campaign as a card, its outcome carries the
+    campaign's CPA facts (no 422 ``ads_edit_hidden`` any more)."""
     camps = await builder.ads_campaigns(session, shop.shop_id, as_of=AS_OF, now=NOW)
     spec = S(
         kind="ads",
@@ -890,19 +894,19 @@ async def test_an_ads_edit_cannot_be_chosen_either(session, shop):
         campaign_key=camps["campaigns"][0]["campaign_key"],
         daily_budget=190_000,
     )
-    with pytest.raises(manual.ProposalError) as refused:
-        await builder.choose(
-            session,
-            shop.shop_id,
-            [spec],
-            0,
-            primary=False,
-            acknowledge_breaches=True,
-            actor=manual.Actor("seller", shop.user.id),
-            as_of=AS_OF,
-            now=NOW,
-        )
-    assert refused.value.code == "ads_edit_hidden" and refused.value.status == 422
+    out = await builder.choose(
+        session,
+        shop.shop_id,
+        [spec],
+        0,
+        primary=False,
+        acknowledge_breaches=True,
+        actor=manual.Actor("seller", shop.user.id),
+        as_of=AS_OF,
+        now=NOW,
+    )
+    assert out["card"]["change_kind"] == "ads_budget"
+    assert out["outcome"]["ok"] and out["outcome"]["result"]["ads"]["lever"] == "budget"
 
 
 async def test_an_excluded_listing_has_no_builder_entry(session, shop):
