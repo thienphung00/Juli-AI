@@ -469,7 +469,6 @@ export function PriceDisplayPanel({ form, set, ctx }: P<"price_display">) {
     <div className="p2-panel" data-testid="p2-panel-price">
       <p className="sa-hint">{unit !== null ? `Giá mỗi đơn vị: ${vnd(unit)} trên ảnh bìa và tên phân loại.` : "Giá mỗi đơn vị lấy từ số lượng trong tên phân loại."}</p>
       <TextIn label="Dòng hiển thị (để trống = giá mỗi đơn vị)" onChange={(text) => set({ text })} value={form.text} />
-      <p className="sa-hint">Đây là thay đổi theo kế hoạch: Juli ghi lại, bạn tự đổi ở Seller Centre.</p>
     </div>
   );
 }

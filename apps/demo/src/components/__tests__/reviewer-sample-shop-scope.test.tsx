@@ -104,7 +104,7 @@ describe("S2-C · Tự tạo strategies", () => {
     withReviewer(SAMPLE, <BuilderP92View from="quyet-dinh" p98Api={p98} productId={null} />, fakeReco(), { builder: fakeBuilder() });
     const kinds = await toKinds();
     expect(screen.queryByTestId("p98-modes")).toBeNull();
-    expect(within(kinds).getAllByRole("button").map((b) => b.getAttribute("data-testid"))).toEqual(["p2-kind-voucher", "p2-kind-title", "p2-kind-cover_image"]);
+    expect(within(kinds).getAllByRole("button").map((b) => b.getAttribute("data-testid")).filter((t) => t?.startsWith("p2-kind-"))).toEqual(["p2-kind-voucher", "p2-kind-title", "p2-kind-cover_image"]);
     expect(within(kinds).queryByText("Combo khuyến mãi")).toBeNull();
   });
 
@@ -113,7 +113,7 @@ describe("S2-C · Tự tạo strategies", () => {
       withReviewer(reviewer, <BuilderP92View from="quyet-dinh" p98Api={p98} productId={null} />, fakeReco(), { builder: fakeBuilder() });
       expect(await screen.findByTestId("p98-modes")).toBeInTheDocument();
       const kinds = await toKinds();
-      expect(within(kinds).getAllByRole("button")).toHaveLength(13); // P100 w2: Mua kèm + Quà tặng are one "Deal Sốc" kind
+      expect(within(kinds).getAllByRole("button").filter((b) => b.getAttribute("data-testid")?.startsWith("p2-kind-"))).toHaveLength(12); // P100 w2: Mua kèm + Quà tặng are one "Deal Sốc" kind; P100 canvas: Listing combo mới removed
       cleanup();
     }
   });

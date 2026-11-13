@@ -96,7 +96,7 @@ function P98Entry({ api, data, from, productId, p98Api, kols }: { readonly api: 
           </button>
         ))}
       </nav>
-      {mode === "single" ? <Builder data={data} from={from} productId={productId} /> : null}
+      {mode === "single" ? <Builder data={data} from={from} onNewCampaign={() => setMode("ads")} productId={productId} /> : null}
       {mode === "combo" ? <ComboBuilder api={p98Api} products={data.products} variationsApi={api} /> : null}
       {mode === "kol" ? <KolBuilder api={p98Api} kols={kols} products={data.products} /> : null}
       {mode === "ads" ? <AdsBuilder api={p98Api} products={data.products} /> : null}
@@ -104,7 +104,7 @@ function P98Entry({ api, data, from, productId, p98Api, kols }: { readonly api: 
   );
 }
 
-function Builder({ data, from, productId, kinds = KINDS_92 }: { readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly kinds?: typeof KINDS_92 }) {
+function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign }: { readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly kinds?: typeof KINDS_92; readonly onNewCampaign?: () => void }) {
   const host = useReco();
   const api = host.builder!;
   const narrow = useNarrow();
@@ -149,7 +149,7 @@ function Builder({ data, from, productId, kinds = KINDS_92 }: { readonly data: P
 
   const built = useMemo(() => (kind && product ? buildVersion(kind, forms, { product, variations: chosen }) : { version: null, problem: null }), [kind, forms, product, chosen]);
   const key = built.version ? JSON.stringify(built.version) : "";
-  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, products, aov, outcome: result?.state.status === "ready" && result.key === key ? result.state.outcome : null, narrow, costLink, market: host.market ?? null } : null;
+  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, products, aov, outcome: result?.state.status === "ready" && result.key === key ? result.state.outcome : null, narrow, costLink, market: host.market ?? null, ...(onNewCampaign ? { onNewCampaign } : {}) } : null;
 
   useEffect(() => {
     if (step !== "phuong-an" || !built.version) return;
