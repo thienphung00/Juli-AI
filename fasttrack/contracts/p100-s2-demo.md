@@ -319,3 +319,25 @@ card_content_specs
   `regenerate` and are unchanged.
 - `llm_call_id` stays null on the live row: the builder's gated client does not expose the
   `llm_call_log` id yet (E.7 can add it). Banners have no reader until E.7's UI.
+
+## S2-D2 result (2026-11-13): fixes from the prod check, and more strategies
+Found on prod after S2-D's deploy (reviewer session in Chrome, 2026-11-13):
+- The live title draft answered 503 "LLM tắt": the sample shop held `service` consent only. The
+  loader now grants `service` and `llm_processing` (`loader.SAMPLE_CONSENT_SCOPES`), and adds any
+  missing scope to an existing shop on re-load.
+- Four of the six products had no "Chính" keyword, so Tự tạo › Tiêu đề could not be used on them
+  (the draft button needs a ticked keyword). `catalog.KEYWORDS` now holds one per product (their
+  current titles already carry it, so no new Tiêu đề card), every seeded candidate carries its
+  product's keyword, and a re-load adds the missing keywords.
+- `/` showed the TikTok Trang chủ on the sample shop; `sampleShopRedirect` sends it to Tổng quan.
+
+Owner decision 2026-11-13 (option B): the real shop is the working standard; inside its four
+screens the sample shop copies the seller app instead of offering a hand-picked list. Built on
+`fasttrack/optimize-product` 9aeacca0 (S1's PR #2284: B.15 edits of running Dịch vụ hiển thị
+campaigns). Tự tạo shows every kind and tool tab, the lists show every card, Duyệt takes any kind;
+only the safety layer stays sample-specific. Details in `p32-reviewer-access.md`, amendment S2-D2.
+A test evaluates and saves Combo, Deal Sốc (Mua kèm, quà tặng), a new and an edited Dịch vụ hiển
+thị campaign and Affiliate on the loaded sample shop.
+
+After deploy: run `--reset --yes` once. The re-seed rewrites the title specs with the new
+candidates, which a plain re-load does not do.

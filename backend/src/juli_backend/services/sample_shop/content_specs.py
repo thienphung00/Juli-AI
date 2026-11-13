@@ -50,8 +50,8 @@ PALETTE = ("#2F6B4F", "#F4EFE6", "#E07A3F")
 PRIMARY, BACKGROUND, ACCENT = PALETTE
 
 #: Three candidates per product (index into ``PRODUCTS``). Facts only: names, sizes, scents and
-#: pack counts the catalogue states. The keyword products (``catalog.KEYWORDS``) carry their
-#: keyword.
+#: pack counts the catalogue states. Every candidate carries its product's keyword
+#: (``catalog.KEYWORDS``, one per product since S2-D2).
 TITLE_CANDIDATES: dict[int, tuple[str, str, str]] = {
     0: (
         "Nước rửa chén sinh học Hiên Nhà chai 500ml hương chanh, hương trà xanh",
@@ -65,7 +65,7 @@ TITLE_CANDIDATES: dict[int, tuple[str, str, str]] = {
     ),
     2: (
         "Túi đựng rác tự hủy sinh học Hiên Nhà cuộn 30 túi, size M 45x55cm, size L 55x65cm",
-        "Túi rác tự hủy sinh học Hiên Nhà cuộn 30 túi, có size M và size L",
+        "Túi đựng rác tự hủy sinh học Hiên Nhà cuộn 30 túi, có size M và size L",
         "Cuộn 30 túi đựng rác tự hủy sinh học Hiên Nhà, size M 45x55cm và L 55x65cm",
     ),
     3: (
@@ -75,12 +75,12 @@ TITLE_CANDIDATES: dict[int, tuple[str, str, str]] = {
     ),
     4: (
         "Hộp đựng thực phẩm thủy tinh Hiên Nhà nắp kín, hộp 640ml, hộp 1040ml, bộ 3 hộp",
-        "Hộp thủy tinh đựng thực phẩm Hiên Nhà nắp kín, có hộp 640ml và 1040ml",
+        "Hộp đựng thực phẩm Hiên Nhà thủy tinh nắp kín, có hộp 640ml và 1040ml",
         "Bộ 3 hộp đựng thực phẩm thủy tinh Hiên Nhà nắp kín, hộp 640ml và 1040ml",
     ),
     5: (
         "Hiên Nhà bình xịt vệ sinh đa năng chai 500ml",
-        "Chai xịt vệ sinh đa năng Hiên Nhà 500ml",
+        "Bình xịt vệ sinh Hiên Nhà đa năng chai 500ml",
         "Bình xịt vệ sinh đa năng Hiên Nhà, chai 500ml",
     ),
 }

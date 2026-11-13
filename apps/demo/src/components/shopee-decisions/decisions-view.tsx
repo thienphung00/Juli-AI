@@ -6,9 +6,7 @@ import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { TABS, filterCards, metricOfParam, metricsOfCard, tabCounts, tabOfParam, xemOfParams, type DecisionTab } from "../../lib/shopee-decisions/model";
-import { sampleShopCards } from "../../lib/shopee-decisions/sample-scope";
 import type { CardList, CardSummary } from "../../lib/shopee-decisions/types";
-import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { METRIC_NAME, METRIC_ORDER, type MetricKey } from "../../lib/metrics";
 import { MetricChip } from "../metrics/metric-chip";
 import { Empty } from "../shopee-analytics/ui";
@@ -147,7 +145,6 @@ function ShopShell({ params }: { readonly params: URLSearchParams }) {
   const xem = xemOfParams(params);
   const metric = metricOfParam(params.get("metric"));
   const product = params.get("product");
-  const sample = useSampleShopReviewer();
   const [tick, setTick] = useState(0);
   const [flash, setFlash] = useState<Flash>(NO_FLASH);
   const list = useResource<CardList>(() => host.reco.list({ queue: "all" }), `${host.shopKey}|list|${tick}`);
@@ -158,7 +155,7 @@ function ShopShell({ params }: { readonly params: URLSearchParams }) {
   if (prodRes.status === "ready") for (const p of prodRes.data) names[p.id] = p.name;
   const inPlan = new Set((plan?.cards ?? []).map((c) => c.card_id));
   const planCount = plan?.cards ? plan.cards.length : null;
-  const cardsAll = list.status === "ready" ? sampleShopCards(list.data.cards, sample) : [];
+  const cardsAll = list.status === "ready" ? list.data.cards : [];
   const tops = topEntries(cardsAll).map((e) => e.top);
   const counts = { ...tabCounts(cardsAll), "de-xuat": tops.length };
   const shown = filterCards(tops, metric, product);
