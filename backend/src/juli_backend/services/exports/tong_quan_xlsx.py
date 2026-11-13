@@ -236,7 +236,7 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
 
 # ----------------------------------------------------------------------------- Theo kênh
 
-CH_FIRST, CH_TOTAL = 4, 7  # rows: Organic, Quảng cáo, TTLK = 4..6; Tổng = 7
+CH_FIRST, CH_OFFER, CH_TOTAL = 4, 7, 8  # rows: Organic, Quảng cáo, TTLK = 4..6; Ưu đãi; Tổng
 CH_HEADER = ["Kênh", "GMV (đ)", "% GMV", "Thay đổi", "Đơn", "AOV (đ)", "Chi phí (đ)", "ROI"]
 CH_LABELS = {**CHANNEL_LABELS, "ads": "Quảng cáo (Lưu lượng / Báo cáo DVHT)"}
 
@@ -255,13 +255,15 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, 4, _change_vs(f"B{r}", data.prev.channel(key).gmv), PCT)
         put(ws, r, 5, ch.orders, INT)
         put(ws, r, 7, ch.cost, MONEY)
+    put(ws, CH_OFFER, 1, "Ưu đãi")
+    put(ws, CH_OFFER, 7, data.now.offer_cost, MONEY)
     put(ws, CH_TOTAL, 1, "Tổng", bold=True)
     for c, fmt in ((2, MONEY), (5, INT), (7, MONEY)):
         L = col(c)
         put(ws, CH_TOTAL, c, f"=SUM({L}{CH_FIRST}:{L}{last})", fmt, bold=True)
     put(ws, CH_TOTAL, 4, _change_vs(f"B{CH_TOTAL}", prev_total), PCT)
     put(ws, CH_TOTAL, 8, f"='{SHEET_OVERVIEW}'!B{OV['roi']}", POINTS)
-    for r in range(CH_FIRST, CH_TOTAL + 1):
+    for r in (*range(CH_FIRST, CH_OFFER), CH_TOTAL):
         put(ws, r, 3, f'=IFERROR(B{r}/B${CH_TOTAL},"")', PCT)
         put(ws, r, 6, f'=IFERROR(B{r}/E{r},"")', MONEY)
     widths(ws, {1: 38}, 14)

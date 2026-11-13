@@ -84,15 +84,16 @@ def test_overview_cells_and_formulas():
 def test_channel_sheet_rows_columns_and_totals():
     ws = tq.build(_data())[tq.SHEET_CHANNEL]
     assert [c.value for c in ws[3]] == tq.CH_HEADER
-    assert [ws.cell(r, 1).value for r in range(4, 8)] == [
-        "Organic", "Quảng cáo (Lưu lượng / Báo cáo DVHT)", "Tiếp thị liên kết", "Tổng",
+    assert [ws.cell(r, 1).value for r in range(4, 9)] == [
+        "Organic", "Quảng cáo (Lưu lượng / Báo cáo DVHT)", "Tiếp thị liên kết", "Ưu đãi", "Tổng",
     ]  # fmt: skip
+    assert ws["G7"].value == 30_000 and all(ws.cell(7, c).value is None for c in (2, 3, 5, 6, 8))
     assert ws["B5"].value == 2_000_000 and ws["G5"].value == 400_000 and ws["E6"].value == 2
-    assert ws["C4"].value == '=IFERROR(B4/B$7,"")' and ws["F4"].value == '=IFERROR(B4/E4,"")'
-    assert ws["B7"].value == "=SUM(B4:B6)" and ws["G7"].value == "=SUM(G4:G6)"
+    assert ws["C4"].value == '=IFERROR(B4/B$8,"")' and ws["F4"].value == '=IFERROR(B4/E4,"")'
+    assert ws["B8"].value == "=SUM(B4:B7)" and ws["G8"].value == "=SUM(G4:G7)"
     assert ws["D5"].value == '=IFERROR(B5/1800000.0-1,"")'  # the previous value is in the formula
-    assert ws["D7"].value == '=IFERROR(B7/4950000.0-1,"")'
-    assert ws["H7"].value == "='Tổng quan'!B12" and ws["H4"].value is None
+    assert ws["D8"].value == '=IFERROR(B8/4950000.0-1,"")'
+    assert ws["H8"].value == "='Tổng quan'!B12" and ws["H4"].value is None
 
 
 def test_day_totals_equal_the_channel_sheet():
