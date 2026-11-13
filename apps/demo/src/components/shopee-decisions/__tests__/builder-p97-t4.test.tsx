@@ -108,7 +108,8 @@ describe("P97 D85.17 · quảng cáo theo form của Shopee", () => {
     const b = fakeBuilder();
     open(b);
     await toKind("ads");
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
+    await screen.findByRole("option", { name: /GMV Max/ });
+    fireEvent.change(screen.getByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c1" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Ngân sách mới mỗi ngày" }), { target: { value: "22000" } });
     expect(await screen.findByText("Ngân sách tối thiểu: ₫100.000")).toBeInTheDocument();
     expect(evals(b)).toHaveLength(0);
@@ -120,11 +121,12 @@ describe("P97 D85.17 · quảng cáo theo form của Shopee", () => {
     const b = fakeBuilder();
     open(b);
     await toKind("ads");
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
+    await screen.findByRole("option", { name: /GMV Max/ });
+    fireEvent.change(screen.getByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c1" } });
     fireEvent.click(screen.getByRole("button", { name: "Không giới hạn" }));
     await waitFor(() => expect(evals(b).at(-1)).toMatchObject({ lever: "budget", unlimited: true }));
     expect(evals(b).at(-1)!["daily_budget"]).toBeUndefined();
-    fireEvent.click(screen.getByRole("radio", { name: "② Mục tiêu ROAS" }));
+    fireEvent.click(screen.getByRole("tab", { name: "ROAS mục tiêu" }));
     const presets = within(await screen.findByTestId("p2-roas-presets"));
     expect(presets.getAllByRole("button").map((x) => x.textContent)).toEqual(["2,5", "3,5", "4,5"]);
     fireEvent.click(presets.getByRole("button", { name: "3,5" }));
@@ -142,28 +144,11 @@ describe("P97 D85.17 · quảng cáo theo form của Shopee", () => {
     open(b);
     await toKind("ads");
     expect(screen.queryByRole("button", { name: /Từ khoá và giá thầu/ })).toBeNull();
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
-    fireEvent.click(screen.getByRole("radio", { name: "② Mục tiêu ROAS" }));
+    await screen.findByRole("option", { name: /GMV Max/ });
+    fireEvent.change(screen.getByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c1" } });
+    fireEvent.click(screen.getByRole("tab", { name: "ROAS mục tiêu" }));
     fireEvent.change(await screen.findByRole("textbox", { name: "ROAS mục tiêu mới" }), { target: { value: "5" } });
     expect(await screen.findByText(/Vui lòng đặt ≤ 3.5/)).toBeInTheDocument();
-    expect(screen.getByText(/mất hỗ trợ hiệu suất của Shopee/, { selector: "span" })).toBeInTheDocument();
-  });
-
-  it("two campaigns take one budget as campaign_keys", async () => {
-    const b = fakeBuilder({ evaluate: manyTargets });
-    const base = b.adsCampaigns;
-    b.adsCampaigns = async () => {
-      const r = await base();
-      const first = r.campaigns[0]!;
-      return { ...r, campaigns: [first, { ...first, campaign_key: "c2", name: "Chiến dịch nhóm · Găng tay" }] };
-    };
-    open(b);
-    await toKind("ads");
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch Chiến dịch nhóm/ }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Ngân sách mới mỗi ngày" }), { target: { value: "150000" } });
-    await waitFor(() => expect(evals(b).at(-1)).toMatchObject({ lever: "budget", campaign_keys: ["c1", "c2"], daily_budget: 150_000 }));
-    expect(evals(b).at(-1)!["campaign_key"]).toBeUndefined();
   });
 });
 

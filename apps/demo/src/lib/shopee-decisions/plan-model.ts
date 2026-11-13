@@ -1,6 +1,7 @@
 import { DASH, fmt, pp, vnCount, vnd } from "../shopee-analytics/format";
 import type { Breach, N } from "./types";
 import type { MeasurementCut, PlanBreach, PlanCard, PlanEvaluation, PlanResponse, WindowProductRow } from "./plan-types";
+import { perDayText } from "../../components/shopee-decisions/option-card/format";
 import { rangeK, roundK, svk } from "./versions";
 
 /** What the Kế hoạch screen says about a {@link PlanResponse} (artboard copy, Vietnamese). */
@@ -28,6 +29,9 @@ export interface AggRow {
   readonly tone: "up" | "down" | "flat" | "plain";
   readonly bad?: boolean;
 }
+
+/** P100: the plan's Δ are totals over its 30-day horizon; the secondary line is the same total per day. */
+const perDay30 = (total: number): string => perDayText(total, 30) ?? "";
 
 const toneOf = (good: 1 | -1, d: number): AggRow["tone"] => (Math.abs(d) < 1e-9 ? "flat" : d * good > 0 ? "up" : "down");
 
@@ -76,7 +80,7 @@ export function aggRows(p: PlanResponse): AggRow[] {
     label: "GMV / 30 ngày",
     today: vnd(roundK(t.gmv_30d)),
     after: rangeOf(num(g.p10) ? t.gmv_30d + g.p10 : null, num(g.p90) ? t.gmv_30d + g.p90 : null, (x) => vnd(roundK(x))),
-    d: svk(g.p50),
+    d: num(g.p50) ? `${svk(g.p50)} · ${perDay30(g.p50)}` : svk(g.p50),
     tone: "flat",
   });
   const c = a.cost;
@@ -123,14 +127,14 @@ export function aggRows(p: PlanResponse): AggRow[] {
   const sure = a.dprofit_month.certain;
   rows.push({
     key: "sure",
-    label: "Δ lợi nhuận / tháng · chắc chắn",
+    label: "Δ lợi nhuận cả 30 ngày · chắc chắn",
     today: DASH,
-    after: num(sure) ? `${svk(sure)}/tháng` : `${DASH} (chưa tách được phần chắc chắn)`,
-    d: "",
+    after: num(sure) ? svk(sure) : `${DASH} (chưa tách được phần chắc chắn)`,
+    d: num(sure) ? perDay30(sure) : "",
     tone: !num(sure) ? "plain" : sure >= 0 ? "up" : "down",
   });
   const q = a.dprofit_month.total;
-  rows.push({ key: "exp", label: "Δ lợi nhuận / tháng · dự kiến", today: DASH, after: `${rangeK(q.p10, q.p90)}/tháng`, d: "", tone: num(q.p10) && q.p10 >= 0 ? "up" : num(q.p90) && q.p90 <= 0 ? "down" : "plain" });
+  rows.push({ key: "exp", label: "Δ lợi nhuận cả 30 ngày · dự kiến", today: DASH, after: rangeK(q.p10, q.p90), d: num(q.p50) ? perDay30(q.p50) : "", tone: num(q.p10) && q.p10 >= 0 ? "up" : num(q.p90) && q.p90 <= 0 ? "down" : "plain" });
   const floorBad = !a.floor.ok;
   rows.push({ key: "floor", label: "Giá sàn", today: DASH, after: floorBad ? "✕ Có thẻ chạm giá sàn khi xếp chồng" : "✓ Mọi thẻ trên giá sàn vận hành", d: "", tone: floorBad ? "down" : "up", bad: floorBad });
   return rows;
@@ -258,7 +262,7 @@ export function withoutText(c: PlanCard): string {
   const w = c.evaluation?.without;
   if (!w) return "kế hoạch chỉ còn thẻ này, bỏ đi là kế hoạch trống";
   const d = w.delta;
-  return `lợi nhuận ${svk(num(d.dprofit_p50) ? -d.dprofit_p50 : null)}/tháng, GMV ${svk(num(d.dgmv_p50) ? -d.dgmv_p50 : null)}, chi phí ${svk(num(d.cost_month) ? -d.cost_month : null)} (30 ngày tới)`;
+  return `lợi nhuận ${svk(num(d.dprofit_p50) ? -d.dprofit_p50 : null)} cả 30 ngày (${num(d.dprofit_p50) ? perDay30(-d.dprofit_p50) : DASH}), GMV ${svk(num(d.dgmv_p50) ? -d.dgmv_p50 : null)} cả 30 ngày (${num(d.dgmv_p50) ? perDay30(-d.dgmv_p50) : DASH}), chi phí ${svk(num(d.cost_month) ? -d.cost_month : null)} (30 ngày tới)`;
 }
 
 const KOL_KINDS = new Set(["affiliate_sample", "affiliate_invite"]);

@@ -411,7 +411,8 @@ describe("P92 · các loại khác", () => {
     fireEvent.click(screen.getByTestId("p2-kind-ads"));
     await screen.findByTestId("p2-panel-ads");
     await waitFor(() => expect(calls(builder, "adsCampaigns")).toHaveLength(1));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
+    await screen.findByRole("option", { name: /GMV Max/ });
+    fireEvent.change(screen.getByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c1" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Ngân sách mới mỗi ngày" }), { target: { value: "200000" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "ads", lever: "budget", campaign_key: "c1", daily_budget: 200000 }));
     fireEvent.click(screen.getByTestId("p2-add"));

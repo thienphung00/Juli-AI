@@ -6,7 +6,7 @@ import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/forma
 import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
 import type { AdsEditFacts, FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TextChip } from "../../shopee-analytics/ui";
-import { countPct, moneyPct, signedMoney } from "./format";
+import { countPct, moneyPct, perDayText, periodLabel, resultDays, signedMoney } from "./format";
 
 /**
  * P98 / ADR-122 d.5: the option card — only the lines of the decision, then a collapsed "Chi tiết".
@@ -68,7 +68,7 @@ function marginText(r: OptionResult): string | null {
 const arrow = (now: string, after: string | null): string => (after === null || after === now ? now : `${now} → ${after}`);
 const money = (n: number | null): string => (n === null ? NOT_ESTIMABLE : vnd(n));
 
-/** P100 B.15: the Dịch vụ hiển thị lines — CPA → CPA mới, CPA hoà vốn, kết luận, lợi nhuận sau quảng cáo, ROAS Shopee (tham khảo). */
+/** P100 B.15: the Dịch vụ hiển thị lines — CPA → CPA mới, CPA hoà vốn, kết luận, lợi nhuận sau quảng cáo, ROAS Shopee. */
 export function adsLines(a: AdsEditFacts): readonly { readonly key: string; readonly label: string; readonly text: string }[] {
   const roas = (n: number | null): string => (n === null ? DASH : fmt(n, 1));
   const verdict = (v: string | null): string => v ?? NOT_ESTIMABLE;
@@ -77,14 +77,13 @@ export function adsLines(a: AdsEditFacts): readonly { readonly key: string; read
     { key: "be", label: "CPA hoà vốn", text: a.break_even_cpa === null ? "chưa tính (thiếu giá vốn)" : vnd(a.break_even_cpa) },
     { key: "verdict", label: "Kết luận", text: a.break_even_cpa === null ? "chưa tính" : arrow(verdict(a.verdict_text.now), a.cpa.after === null ? NOT_ESTIMABLE : verdict(a.verdict_text.after)) },
     { key: "profit", label: "Lợi nhuận sau quảng cáo", text: arrow(money(a.profit_after_ads.now), a.profit_after_ads.after === null ? NOT_ESTIMABLE : vnd(a.profit_after_ads.after)) },
-    { key: "roas", label: "ROAS Shopee (tham khảo)", text: arrow(roas(a.roas_shopee.now), a.roas_shopee.after === null ? null : roas(a.roas_shopee.after)) },
+    { key: "roas", label: "ROAS Shopee", text: arrow(roas(a.roas_shopee.now), a.roas_shopee.after === null ? null : roas(a.roas_shopee.after)) },
   ];
   return lines;
 }
 
 function AdsBlock({ ads: a }: { readonly ads: AdsEditFacts }) {
-  const inc = a.incremental;
-  return (
+    return (
     <div className="oc__ads" data-testid="oc-ads">
       <dl className="p2-kv">
         {adsLines(a).map((l) => (
@@ -94,19 +93,6 @@ function AdsBlock({ ads: a }: { readonly ads: AdsEditFacts }) {
           </div>
         ))}
       </dl>
-      <p className="sa-hint" data-testid="oc-ads-spend">
-        {a.spend_text}
-      </p>
-      {inc.orders_all !== null && inc.orders_extra !== null && inc.share !== null ? (
-        <p className="sa-hint" data-testid="oc-ads-incremental">
-          Δ đơn quảng cáo {fmt(inc.orders_all, 1)}, trong đó đơn tăng thêm thật {fmt(inc.orders_extra, 1)} ({pp(inc.share, 0)}, đo theo ngày có / không quảng cáo): Δ tổng lợi nhuận và ROI chỉ tính phần tăng thêm.
-        </p>
-      ) : null}
-      {a.cancel_rate_pct !== null ? (
-        <p className="sa-hint" data-testid="oc-ads-cancel">
-          Đơn quảng cáo đã trừ tỉ lệ huỷ của shop ({pp(a.cancel_rate_pct, 1)}).
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -122,6 +108,10 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
   const margin = marginText(r);
   const roiValue = r.roi?.value;
   const roi = roiValue === null || roiValue === undefined ? null : fmt(roiValue, 1);
+  const days = resultDays(r);
+  const period = periodLabel(days);
+  const profitPerDay = r.estimable ? perDayText(r.delta.profit?.value, days) : null;
+  const gmvPerDay = r.estimable ? perDayText(r.delta.gmv.value, days) : null;
   const costNotes = r.notes.filter((n) => n.includes(COST_DAYS_NOTE));
   return (
     <article className="oc" data-testid={testId}>
@@ -139,17 +129,19 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
       </p>
       <dl className="p2-kv">
         <div>
-          <dt>Δ Tổng lợi nhuận</dt>
+          <dt>Δ lợi nhuận {period}</dt>
           <dd data-testid="oc-profit">
             <b>{profit.main}</b>
             {profit.range ? <span> {profit.range}</span> : null}
+            {profitPerDay ? <span className="sa-hint" data-testid="oc-profit-perday">{profitPerDay}</span> : null}
             {profit.buildUp ? <span className="sa-hint" data-testid="oc-buildup">{profit.buildUp}</span> : null}
           </dd>
         </div>
         <div>
-          <dt>Δ GMV</dt>
+          <dt>Δ GMV {period}</dt>
           <dd data-testid="oc-gmv">
             <b>{gmvText}</b>
+            {gmvPerDay ? <span className="sa-hint" data-testid="oc-gmv-perday">{gmvPerDay}</span> : null}
           </dd>
         </div>
         <div>
@@ -313,8 +305,8 @@ export function CompareTable({ rows, sortBasis }: { readonly rows: readonly Comp
         <tr>
           <th>Phương án</th>
           <th>Thời gian</th>
-          <th>Δ Lợi nhuận</th>
-          <th>Δ GMV</th>
+          <th>Δ lợi nhuận cả kỳ</th>
+          <th>Δ GMV cả kỳ</th>
           <th>Δ Đơn</th>
         </tr>
       </thead>
@@ -325,8 +317,14 @@ export function CompareTable({ rows, sortBasis }: { readonly rows: readonly Comp
             <tr data-testid={`oc-row-${id}`} key={id}>
               <th scope="row">{name ?? r.label}</th>
               <td>{datesText(dates, r)}</td>
-              <td>{p.main}</td>
-              <td>{!r.estimable ? NOT_ESTIMABLE : moneyPct(r.delta.gmv.value, r.delta.gmv.pct)}</td>
+              <td>
+                {p.main}
+                {r.estimable && perDayText(r.delta.profit?.value, resultDays(r)) ? <span className="sa-hint" data-testid="oc-row-profit-perday"> {perDayText(r.delta.profit?.value, resultDays(r))}</span> : null}
+              </td>
+              <td>
+                {!r.estimable ? NOT_ESTIMABLE : moneyPct(r.delta.gmv.value, r.delta.gmv.pct)}
+                {r.estimable && perDayText(r.delta.gmv.value, resultDays(r)) ? <span className="sa-hint"> {perDayText(r.delta.gmv.value, resultDays(r))}</span> : null}
+              </td>
               <td>{!r.estimable ? NOT_ESTIMABLE : countPct(r.delta.orders.value, r.delta.orders.pct)}</td>
             </tr>
           );
