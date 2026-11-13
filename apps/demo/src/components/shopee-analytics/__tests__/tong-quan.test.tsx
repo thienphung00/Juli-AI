@@ -108,17 +108,18 @@ describe("Tổng quan (P100 board)", () => {
     expect(screen.getByLabelText("Từ ngày")).toBeInTheDocument();
   });
 
-  it("Trung bình / ngày divides the summed figures and keeps the rates and ROI", async () => {
-    renderWith(<TongQuanView params={params()} />, fakeApi());
+  it("Trung bình / ngày (cach=tb) divides the summed figures, keeps the rates and ROI, and is carried to Phân tích", async () => {
+    renderWith(<TongQuanView params={params("cach=tb")} />, fakeApi());
     await screen.findByTestId("sa-channels");
-    await userEvent.click(screen.getByRole("button", { name: "Trung bình / ngày" }));
     expect(screen.getByTestId("sa-tile-gmv")).toHaveTextContent("GMV / ngày");
     expect(screen.getByTestId("sa-tile-gmv")).toHaveTextContent("429.667đ"); // 12,89 tr / 30
     expect(screen.getByTestId("sa-tile-roi")).toHaveTextContent("5,4");
     expect(screen.getByTestId("sa-cell-organic-ctr")).toHaveTextContent("5,8%"); // rates unchanged
     expect(within(screen.getByTestId("sa-channels")).getByText(/^GMV \/ ngày$/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Tổng" }));
-    expect(screen.getByTestId("sa-tile-gmv")).toHaveTextContent("12,89 tr đ");
+    const q = (el: HTMLElement) => new URLSearchParams((el.getAttribute("href") ?? "").split("?")[1]);
+    expect(q(screen.getByTestId("sa-tile-gmv")).get("cach")).toBe("tb");
+    expect(q(screen.getByRole("link", { name: "Tổng" })).get("cach")).toBeNull();
+    expect(screen.getByRole("link", { name: "7 ngày" }).getAttribute("href")).toContain("cach=tb");
   });
 
   it("Sản phẩm level: picker, product-level rows, no Shop+ row", async () => {

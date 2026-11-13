@@ -108,8 +108,9 @@ export function compositionOf(split: ChannelSplit): readonly { key: "organic" | 
 }
 
 /** Phân tích, pre-filtered; `channel` / `product` omitted when they do not apply. */
-export function analysisHref(links: ShopeeLinks, f: { metric: MetricKey; channel?: string | null; product?: string | null }, state: WindowState): string {
+export function analysisHref(links: ShopeeLinks, f: { metric: MetricKey; channel?: string | null; product?: string | null; mode?: ValueMode }, state: WindowState): string {
   const p = windowParams(state);
+  if (f.mode === "avg") p.set("cach", "tb");
   p.set("metric", f.metric);
   p.set("from", "tong-quan");
   if (f.channel) p.set("channel", f.channel);
@@ -123,7 +124,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const [level, setLevel] = useState<Level>("shop");
   const [productId, setProductId] = useState<string | null>(null);
   const [plan, setPlan] = useState(true);
-  const [mode, setMode] = useState<ValueMode>("total");
+  const mode: ValueMode = params.get("cach") === "tb" ? "avg" : "total";
   const queryKey = JSON.stringify(state.query);
   const products = useResource(() => host.api.channelSplitProducts(state.query), `${host.shopKey}|cs-products|${queryKey}`);
   const pid = level === "product" ? productId : null;
@@ -136,7 +137,12 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
     setProductId((cur) => cur ?? list[0]?.product_id ?? null);
   };
   const ready = split.status === "ready" ? split.data : null;
-  const hrefFor = (next: WindowState) => host.links.screen("tong-quan", windowParams(next));
+  const modeHref = (m: ValueMode, next: WindowState = state) => {
+    const q = windowParams(next);
+    if (m === "avg") q.set("cach", "tb");
+    return host.links.screen("tong-quan", q);
+  };
+  const hrefFor = (next: WindowState) => modeHref(mode, next);
   const finding = ready ? findingOf(ready) : "";
 
   return (
@@ -200,12 +206,12 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
       <div className="sa-row">
         <PeriodBar hrefFor={hrefFor} state={state} window={ready ? { from: ready.from, to: ready.to, days: daysOf(ready) } : null} />
         <div aria-label="Cách xem số" className="sa-seg sa-seg--round" data-testid="sa-mode" role="group">
-          <button aria-pressed={mode === "total"} className={`sa-seg__item${mode === "total" ? " sa-seg__item--on" : ""}`} onClick={() => setMode("total")} type="button">
+          <Link aria-current={mode === "total" ? "true" : undefined} className={`sa-seg__item${mode === "total" ? " sa-seg__item--on" : ""}`} href={modeHref("total")}>
             Tổng
-          </button>
-          <button aria-pressed={mode === "avg"} className={`sa-seg__item${mode === "avg" ? " sa-seg__item--on" : ""}`} onClick={() => setMode("avg")} type="button">
+          </Link>
+          <Link aria-current={mode === "avg" ? "true" : undefined} className={`sa-seg__item${mode === "avg" ? " sa-seg__item--on" : ""}`} href={modeHref("avg")}>
             Trung bình / ngày
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -231,7 +237,7 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
   const k = data.kpis;
   const p = data.kpis_prev ?? null;
   const money = (v: number | null | undefined) => mil(inMode(v, days, mode));
-  const href = (metric: MetricKey) => analysisHref(links, { metric, product }, state);
+  const href = (metric: MetricKey) => analysisHref(links, { metric, product, mode }, state);
   const tile = (key: string, label: string, value: string, shiftPct: number | null, metric: MetricKey, good: 1 | -1, lines?: ReactNode): ReactNode => (
     <Link className="sa-tile" data-testid={`sa-tile-${key}`} href={href(metric)} key={key}>
       <span className="sa-tile__top">
@@ -292,7 +298,7 @@ function Composition({ data, mode, product, state }: { readonly data: ChannelSpl
       </div>
       <div className="sa-tq__comp-items">
         {items.map((i) => (
-          <Link className="sa-tq__comp-item" data-testid={`sa-comp-${i.key}`} href={analysisHref(links, { metric: "gmv", channel: CHANNEL_OF[i.key], product }, state)} key={i.key}>
+          <Link className="sa-tq__comp-item" data-testid={`sa-comp-${i.key}`} href={analysisHref(links, { metric: "gmv", channel: CHANNEL_OF[i.key], product, mode }, state)} key={i.key}>
             <span>{NAMES[i.key]}</span>
             <b>{i.share === null ? DASH : pc(i.share, 0)}</b>
             <span>{mil(inMode(i.gmv, days, mode))}</span>
@@ -348,7 +354,7 @@ function ChannelTable({ data, mode, product, state, weakest }: { readonly data: 
         return (
           <div className={`sa-tq__row${r.parent ? " sa-tq__row--child" : ""}`} data-testid={`sa-channel-${r.key}`} key={r.key} role="row">
             <span className="sa-tq__name" role="cell">
-              <Link href={analysisHref(links, { metric: "gmv", channel, product }, state)}>{NAMES[r.key]}</Link>
+              <Link href={analysisHref(links, { metric: "gmv", channel, product, mode }, state)}>{NAMES[r.key]}</Link>
               {r.ad_base ? (
                 <span className="sa-tq__src" data-testid={`sa-base-${r.key}`}>
                   {AD_BASE[r.ad_base]}
@@ -359,7 +365,7 @@ function ChannelTable({ data, mode, product, state, weakest }: { readonly data: 
               const v = cellValue(r, cell, days, mode);
               const before = r.prev ? cellValue(r.prev, cell, days, mode) : null;
               return (
-                <Link className="sa-tq__cell" data-testid={`sa-cell-${r.key}-${cell}`} href={analysisHref(links, { metric, channel, product }, state)} key={cell} role="cell">
+                <Link className="sa-tq__cell" data-testid={`sa-cell-${r.key}-${cell}`} href={analysisHref(links, { metric, channel, product, mode }, state)} key={cell} role="cell">
                   <span>{cellText(cell, v)}</span>
                   {v === null ? null : <Shift pct={change(v, before)} />}
                 </Link>
