@@ -50,7 +50,7 @@ function withReviewer(reviewer: ReviewerRecord | null, ui: ReactElement, reco: R
 const railLabels = () => within(screen.getByRole("navigation", { name: "Điều hướng chính" })).getAllByRole("listitem").map((li) => li.textContent);
 
 describe("S2-C · rail and redirect", () => {
-  it("the sample shop's rail lists only Tổng quan · Phân tích · Quyết định (Sản phẩm sits under Dữ liệu shop)", () => {
+  it("the sample shop's rail lists Tổng quan · Phân tích · Quyết định · Dữ liệu shop", () => {
     render(<AppNavigation activePath="/tong-quan" platform="shopee" sampleShop />);
     expect(railLabels()).toEqual(["Tổng quan", "Phân tích", "Quyết định", "Dữ liệu shop"]);
     expect(document.body.textContent).not.toMatch(/sắp có|demo/i);
@@ -173,7 +173,7 @@ describe("S2-G · guide copy on the sample shop", () => {
     expect(text).toContain("sample Shopee shop");
     expect(text).toContain("nothing is sent to Shopee");
     expect(text).not.toMatch(/shop thật|ẩn tên|names and ids hidden|real seller|Shop TikTok|demo|simulated|mô phỏng/i);
-    expect(sample.steps.find((s) => s.id === "propose")?.body).toContain("“Đang thực hiện”");
+    expect(sample.steps.find((s) => s.id === "propose")?.body).toContain("“Thực hiện”");
     expect(sample.steps.map((s) => s.id)).toEqual(guideCopy(false).steps.map((s) => s.id));
     expect(sample.steps.find((s) => s.id === "home")?.href).toBe("/tong-quan");
     expect(sample.steps.find((s) => s.id === "switch")?.shortBody).toContain("Đổi shop");

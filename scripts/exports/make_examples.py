@@ -107,7 +107,10 @@ def _verify(tq_data, kh_data, both) -> None:
         assert abs(sum(d.gmv[ch] or 0 for d in tq_data.days) - (now.channel(ch).gmv or 0)) < 1, ch
     assert abs(sum(d.ads_cost or 0 for d in tq_data.days) - (now.ads_cost or 0)) < 1
     print("profit by day vs period:", sum(d.profit or 0 for d in tq_data.days), now.profit)
-    shop_sum = lambda attr: sum(getattr(r.now, attr) or 0 for r in tq_data.products)  # noqa: E731
+
+    def shop_sum(attr: str) -> float:
+        return sum(getattr(r.now, attr) or 0 for r in tq_data.products)
+
     assert (
         abs(shop_sum("gmv") - (now.gmv or 0)) < 1
         and abs(shop_sum("profit") - (now.profit or 0)) < 1

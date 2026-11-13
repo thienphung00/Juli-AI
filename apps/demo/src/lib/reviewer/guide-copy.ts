@@ -162,7 +162,7 @@ const SAMPLE_OVERRIDES: Readonly<Record<SampleStepId, Pick<GuideStep, "title" | 
   },
   propose: {
     title: "Quyết định: approve a recommendation",
-    body: "Press “Duyệt” on a “Tiêu đề”, “Ảnh bìa” or “Voucher” card: it moves to “Đang thực hiện”. Saved in Juli only, nothing is sent to Shopee.",
+    body: "Press “Duyệt” on any card: it moves to “Thực hiện”. Saved in Juli only, nothing is sent to Shopee.",
     shortTitle: "Quyết định: approve a card",
     shortBody: "Saved in Juli only, nothing is sent to Shopee.",
     where: "Quyết định › Đề xuất",
