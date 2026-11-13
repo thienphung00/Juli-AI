@@ -75,6 +75,8 @@ export interface PlannedJob {
   /** order_income: the completed orders to read (raw ids stay in this browser; filled in at its turn). */
   orderIds?: string[];
   orderSns?: string[];
+  /** affiliate: older purchase windows to read once (0.3.17). */
+  history?: { start: string; end: string }[];
 }
 
 /** One scheduled run: the pages in order, one open tab at a time (persisted: the worker may restart). */
@@ -129,6 +131,8 @@ export interface ReaderSchedule {
   /** Orders completing before this time (ms) were queued already: only later ones are added. */
   incomeSince?: number;
   incomeDay?: string;
+  /** The shop whose 6-month affiliate conversion history was posted (0.3.17): read once per shop. */
+  affiliateHistoryShop?: string;
 }
 
 /** The market search run's bookkeeping (P92 B-10), kept apart from the Seller Centre readers'. */

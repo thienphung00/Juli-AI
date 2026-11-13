@@ -60,8 +60,16 @@ export interface ReaderJob {
   orderIds?: string[];
   /** order_income: per order, the order number that is hashed (parallel to `orderIds`; "" = unknown). */
   orderSns?: string[];
+  /** affiliate: older purchase windows to read once (the 6-month history), each ≤ 31 days. */
+  history?: ConversionWindow[];
   /** Requests this job may still send (the shared daily budget's remainder). */
   budget?: number;
+}
+
+/** A GMT+7 purchase window of the conversion report, both ends included. */
+export interface ConversionWindow {
+  start: string;
+  end: string;
 }
 
 export interface ReaderResponse {
@@ -992,6 +1000,10 @@ const CONVERSION_ORDER_KEYS = [
   "shopee_username",
   "linked_mcn_name",
   "traffic_type",
+  // The channel Seller Centre shows ("Kênh"): a Shopee surface (internal_source, e.g. Shopeevideo)
+  // or the outside one (last_external_source, e.g. Facebook / Zalo / Code Sharing). Labels only.
+  "internal_source",
+  "last_external_source",
   "items",
 ] as const;
 const CONVERSION_ITEM_KEYS = [
@@ -1122,7 +1134,20 @@ export function periodOfTemplate(template: Template | undefined): { start: strin
   return undefined;
 }
 
-async function readAffiliateConversions(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
+/** The purchase windows the conversion report is read for: the last finished 30 days, then any
+ *  history windows the job carries (each ≤ 31 days, Juli's period cap), newest first. */
+export function conversionWindows(nowMs: number, history: readonly ConversionWindow[] = []): ConversionWindow[] {
+  const days = lastFinishedDays(nowMs, AFFILIATE_WINDOW_DAYS);
+  if (days.length === 0) return [...history];
+  const sorted = [...days].sort();
+  return [{ start: sorted[0] as string, end: sorted[sorted.length - 1] as string }, ...history];
+}
+
+async function readAffiliateConversions(
+  env: ReaderEnv,
+  collected: ReaderResponse[],
+  history: readonly ConversionWindow[] = [],
+): Promise<void> {
   // The conversion page's own call is the template. It often carries no SPC_CDS query,
   // so waiting on the session first ended the job as needs_data_page with nothing posted.
   const seen = () => env.template("affiliate_conversion") !== undefined;
@@ -1131,15 +1156,23 @@ async function readAffiliateConversions(env: ReaderEnv, collected: ReaderRespons
   }
   await env.waitFor(seen, READER_TEMPLATE_WAIT_MS / 2);
   const template = env.template("affiliate_conversion");
-  const days = lastFinishedDays(env.now(), AFFILIATE_WINDOW_DAYS);
-  if (days.length === 0) return;
-  const sorted = [...days].sort();
-  const period = { start: sorted[0] as string, end: sorted[sorted.length - 1] as string };
+  const size = template ? pageSizeOf(template, AFFILIATE_PAGE_SIZE_DEFAULT) : AFFILIATE_PAGE_SIZE_DEFAULT;
+  for (const period of conversionWindows(env.now(), history)) {
+    await readConversionWindow(env, collected, template, size, period);
+  }
+}
+
+async function readConversionWindow(
+  env: ReaderEnv,
+  collected: ReaderResponse[],
+  template: ReturnType<ReaderEnv["template"]>,
+  size: number,
+  period: ConversionWindow,
+): Promise<void> {
   const window = {
     purchase_time_s: String(gmt7DateStart(period.start)),
     purchase_time_e: String(gmt7DateStart(period.end) + 86_399),
   };
-  const size = template ? pageSizeOf(template, AFFILIATE_PAGE_SIZE_DEFAULT) : AFFILIATE_PAGE_SIZE_DEFAULT;
   let rows = 0;
   for (let page = 1; rows < AFFILIATE_MAX_ROWS; page += 1) {
     const request = buildReaderRequest(
@@ -1258,7 +1291,7 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         await readHealth(env, collected);
         break;
       case "affiliate":
-        await readAffiliateConversions(env, collected);
+        await readAffiliateConversions(env, collected, job.history);
         break;
       default: {
         const captures = AFFILIATE_CAPTURES[job.id];

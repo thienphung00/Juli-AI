@@ -9,6 +9,8 @@
 
 import {
   ADS_CATCHUP_DAYS,
+  AFFILIATE_HISTORY_WINDOWS,
+  AFFILIATE_WINDOW_DAYS,
   ADS_DETAIL_MAX_CAMPAIGNS,
   ADS_PRODUCTS_MAX_CAMPAIGNS,
   type Dataset,
@@ -127,6 +129,8 @@ export function planJobs(args: {
   ordersDay?: string;
   /** The day the per-order income was last read. */
   incomeDay?: string;
+  /** The shop whose affiliate history is posted already (0.3.17). */
+  affiliateHistoryShop?: string;
   held?: ReadonlySet<ReaderDataset>;
   readers?: readonly ReaderId[];
 }): PlannedJob[] {
@@ -165,11 +169,28 @@ export function planJobs(args: {
       // Planned every day, right after "orders" (which fills the queue in the same run); its turn
       // opens nothing when no completed order is waiting.
       if (args.incomeDay !== todayDay) jobs.push({ id });
+    } else if (id === "affiliate" && args.shopId && args.affiliateHistoryShop !== args.shopId) {
+      jobs.push({ id, history: affiliateHistoryWindows(args.nowMs) });
     } else {
       jobs.push({ id });
     }
   }
   return jobs;
+}
+
+/**
+ * The once-per-shop affiliate history (0.3.17): AFFILIATE_HISTORY_WINDOWS windows of 30 days
+ * right before the regular 30-day window, newest first, each ≤ 31 days (Juli's period cap).
+ */
+export function affiliateHistoryWindows(nowMs: number): { start: string; end: string }[] {
+  const recent = lastFinishedDays(nowMs, AFFILIATE_WINDOW_DAYS + AFFILIATE_WINDOW_DAYS * AFFILIATE_HISTORY_WINDOWS);
+  const older = [...recent].sort().reverse().slice(AFFILIATE_WINDOW_DAYS);
+  const windows: { start: string; end: string }[] = [];
+  for (let i = 0; i < older.length; i += AFFILIATE_WINDOW_DAYS) {
+    const chunk = older.slice(i, i + AFFILIATE_WINDOW_DAYS);
+    windows.push({ start: chunk[chunk.length - 1] as string, end: chunk[0] as string });
+  }
+  return windows;
 }
 
 /**
@@ -269,6 +290,7 @@ export class ReaderScheduler {
         productPeriodDay: sched.productPeriodDay,
         ordersDay: sched.ordersDay,
         incomeDay: sched.incomeDay,
+        affiliateHistoryShop: sched.affiliateHistoryShop,
         ...(this.deps.readers ? { readers: this.deps.readers } : {}),
       });
       // A same-day re-run opens pages that still have missing days. A manual
@@ -524,6 +546,7 @@ export class ReaderScheduler {
             ...(job.campaignNames ? { campaignNames: job.campaignNames.map((n) => n.slice(0, 255)) } : {}),
             ...(job.orderIds ? { orderIds: job.orderIds } : {}),
             ...(job.orderSns ? { orderSns: job.orderSns } : {}),
+            ...(job.history ? { history: job.history } : {}),
             // What is left of today's shared budget for this job's own requests.
             budget: Math.max(0, readerRequestsLeft((await this.load()).state, run.day)),
           },
@@ -580,6 +603,7 @@ export class ReaderScheduler {
         ...(job.campaignNames ? { campaignNames: job.campaignNames } : {}),
         ...(job.orderIds ? { orderIds: job.orderIds } : {}),
         ...(job.orderSns ? { orderSns: job.orderSns } : {}),
+        ...(job.history ? { history: job.history } : {}),
       };
       const posted = await this.deps.sink.postReader(readerJob, responses);
       const skippedEntries =
@@ -664,6 +688,13 @@ export class ReaderScheduler {
     if (job.id === "order_income") {
       const sent = new Set(job.orderIds ?? []);
       return { incomeDay: run.day, incomeQueue: (sched.incomeQueue ?? []).filter((o) => !sent.has(o.id)) };
+    }
+    if (job.id === "affiliate" && job.history && shopId) {
+      // The history is done once every window posted (or Shopee answered it empty); a failed
+      // window keeps it planned for tomorrow's run.
+      const lines = Object.entries(posted).filter(([key]) => key.startsWith("affiliate_order_lines"));
+      const ok = lines.length > 0 && lines.every(([, outcome]) => outcome === "posted" || outcome === "empty");
+      return ok ? { affiliateHistoryShop: shopId } : {};
     }
     return {};
   }

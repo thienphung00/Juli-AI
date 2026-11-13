@@ -293,6 +293,10 @@ export const VOUCHER_PAGE_LIMIT_DEFAULT = 20;
  * period may not exceed the gateway's 31 days.
  */
 export const AFFILIATE_WINDOW_DAYS = 30;
+/** Connector 0.3.17: once per shop, the conversion report is also read for the ~6 months before
+ *  that window, in 30-day windows (Juli takes ≤ 31 days per post), so affiliate cost and
+ *  performance can be compared over time. Seller Centre kept ≥ 6 months on 2026-11-13. */
+export const AFFILIATE_HISTORY_WINDOWS = 6;
 export const AFFILIATE_MAX_ROWS = 2_000;
 export const AFFILIATE_PAGE_SIZE_DEFAULT = 20;
 /**
