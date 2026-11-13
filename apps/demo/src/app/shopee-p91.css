@@ -1225,3 +1225,41 @@ button.sv-head:disabled {
   align-items: baseline;
   gap: 4px 16px;
 }
+
+/* P100 Đề xuất: Thẻ rows, filters, Kế hoạch nháp month bars and table */
+.dx-xem { margin: 8px 0 12px; }
+.dx-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.dx-filters a { text-decoration: none; }
+.dx-all--on { background: var(--sa-ink, #121214); color: #fff; }
+.dx-prod { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.dx-prod select { min-height: 40px; border-radius: 8px; border: 1px solid var(--sa-line, #d9d9df); padding: 0 10px; font: inherit; }
+.dx-card { display: flex; flex-direction: column; gap: 10px; }
+.dx-card--in { border: 2px solid #f86ba5; }
+.dx-card__top { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.dx-card__group { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--sa-muted, #6b6b74); }
+.dx-card__title { margin: 4px 0; font-size: 17px; }
+.dx-card__product { font-size: 14px; color: var(--sa-muted, #6b6b74); }
+.dx-card__delta { text-align: right; }
+.dx-card__label, .dx-card__perday { font-size: 13px; color: var(--sa-muted, #6b6b74); }
+.dx-card__big { font-size: 20px; font-weight: 700; }
+.dx-card__chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; }
+.dx-month { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 16px; }
+.dx-month__head { display: flex; justify-content: space-between; }
+.dx-bar { display: grid; grid-template-columns: 90px 1fr auto; gap: 12px; align-items: center; }
+.dx-bar__track { position: relative; height: 14px; border-radius: 999px; background: #eee; }
+.dx-bar__run { position: absolute; left: 0; top: 0; height: 14px; border-radius: 999px; background: #71717a; }
+.dx-bar__add { position: absolute; top: 0; height: 14px; border-radius: 0 999px 999px 0; background: #f86ba5; }
+.dx-month__legend { display: flex; gap: 12px; align-items: center; font-size: 13px; }
+.dx-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+.dx-dot--run { background: #71717a; }
+.dx-dot--add { background: #f86ba5; }
+.dx-table { display: flex; flex-direction: column; }
+.dx-table__row { display: grid; grid-template-columns: 48px 2fr 1.2fr 1.3fr 1.3fr auto; gap: 12px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--sa-line, #e4e4ea); }
+.dx-table__row--head { font-size: 13px; color: var(--sa-muted, #6b6b74); font-weight: 600; }
+.dx-table__row--total { font-weight: 700; }
+.dx-table__card { display: flex; flex-direction: column; gap: 4px; }
+.dx-table__sub { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--sa-muted, #6b6b74); }
+.dx-table__big { font-weight: 700; }
+.dx-table__small { font-size: 13px; color: var(--sa-muted, #6b6b74); }
+.dx-table__act { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+@media (max-width: 720px) { .dx-table__row { grid-template-columns: 1fr; } .dx-bar { grid-template-columns: 1fr; } }

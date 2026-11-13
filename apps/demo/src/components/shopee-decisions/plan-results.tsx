@@ -10,7 +10,7 @@ import { COST_DAYS_NOTE } from "./option-card/option-card";
  * Everything is read from the wire; `null` is "chưa ước tính được" or "—", never 0.
  */
 
-const NOT_ESTIMABLE = "chưa ước tính được";
+const NOT_ESTIMABLE = "—";
 
 const money = (n: number | null | undefined): string => (n === null || n === undefined ? DASH : vnd(n));
 const orders = (n: number | null | undefined): string => (n === null || n === undefined ? DASH : vnCount(n));
@@ -58,22 +58,9 @@ export function PlanTotalsNotes({ plan }: { readonly plan: PlanResponse }) {
   if (!a || a.data_missing) return null;
   return (
     <>
-      {/* P100 A.8: only a plan with no card at all is empty (grouped cards leave the ungrouped
-          aggregate empty while the plan still has cards) */}
-      {a.empty && a.empty_note && plan.cards.length === 0 && (plan.groups?.length ?? 0) === 0 ? (
-        <p className="sa-hint" data-testid="kh-empty-note">
-          {a.empty_note}
-        </p>
-      ) : null}
       {a.totals_partial && a.totals_note ? (
         <p className="sd-check sd-check--warn" data-testid="kh-totals-note" role="note">
           {a.totals_note}
-        </p>
-      ) : null}
-      {a.cost?.cost_complete === false || (a.cost_unknown_cards?.length ?? 0) > 0 ? (
-        <p className="sa-hint" data-testid="kh-cost-unknown">
-          Chưa biết chi phí{(a.cost_unknown_cards?.length ?? 0) > 0 ? ` của ${a.cost_unknown_cards!.length} thẻ` : ""}
-          {a.cost?.cost_note ? `. ${a.cost.cost_note}` : ""}
         </p>
       ) : null}
     </>
@@ -246,7 +233,7 @@ export function ProductToday({ plan }: { readonly plan: PlanResponse }) {
               </li>
             ))}
           </ul>
-          {p.after ? <span className="sa-hint">{p.after.label ?? "Dự kiến (P50)"}</span> : <span className="sa-hint">{NOT_ESTIMABLE}</span>}
+          {p.after ? <span className="sa-hint">{p.after.label ?? DASH}</span> : <span className="sa-hint">{NOT_ESTIMABLE}</span>}
         </section>
       ))}
     </div>

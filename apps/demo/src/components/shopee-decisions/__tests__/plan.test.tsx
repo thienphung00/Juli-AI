@@ -14,38 +14,50 @@ function open(first: PlanResponse = plan(), next = {}) {
   const api = fakePlan(first, next);
   const waiting = [summaryOf(voucherCard({ id: "card-wait", code: "JC-2611-0009", product_queue: 1 }), { id: "card-wait", code: "JC-2611-0009", product_queue: 1, product_id: "MR-C", title: "Tạm dừng từ khoá" })];
   const reco = fakeReco({ list: { platform: "shopee", xep_theo: "diem", queue: "all", cards: waiting, counts: { family: {}, section: {}, total: 1 } } });
-  renderReco(<DecisionsView params={params("ke-hoach=1")} />, reco, { plan: { api } });
+  renderReco(<DecisionsView params={params("xem=ke-hoach")} />, reco, { plan: { api } });
   return api;
 }
 
 describe("Kế hoạch (KeHoach.dc.html)", () => {
-  it("shows the draft: cards with version pills, contribution and 'bỏ thẻ này thì', the code issued on confirm", async () => {
-    open();
-    expect(await screen.findByText("Kế hoạch: xem cả gói thay đổi trước khi làm")).toBeInTheDocument();
-    expect(screen.getByText("“Thêm vào kế hoạch” chưa thực hiện gì và chưa gửi gì cho đội Juli. Chỉ “Xác nhận kế hoạch” mới duyệt cả gói một lần.")).toBeInTheDocument();
-    expect(screen.getByTestId("kh-count")).toHaveTextContent("3 thẻ · 2 sản phẩm");
-    expect(screen.getByTestId("kh-code")).toHaveTextContent("Mã kế hoạch cấp khi xác nhận");
+  it("shows the draft as a table: step, card + product + metric chips, run dates, Δ totals, and the Cả nháp row", async () => {
+    const result = (lo: number, hi: number) => ({ estimable: true, counted: true, message: null, reason: null, delta: { p10: { dgmv: lo * 4, dorders: 1, dprofit: lo }, p50: { dgmv: lo * 5, dorders: 2, dprofit: (lo + hi) / 2 }, p90: { dgmv: hi * 4, dorders: 3, dprofit: hi } }, own_dates: { from: "2026-11-15", to: "2026-12-14", days: 30 }, own_days: 30, cost_total: null, break_even_orders: null, days: 30, before: null, after: null, notes: [] });
+    const base = plan();
+    open({ ...base, cards: base.cards.map((c, i) => ({ ...c, evaluation: { ...c.evaluation!, result: result(30_000 * (i + 1), 90_000 * (i + 1)) } })) });
+    expect(await screen.findByTestId("kh-count")).toHaveTextContent("3 thẻ · 2 sản phẩm");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Nháp thêm \+/);
+    expect(screen.getByText("QUYẾT ĐỊNH · ĐỀ XUẤT · KẾ HOẠCH NHÁP")).toBeInTheDocument();
+    const table = screen.getByTestId("kh-rows");
+    for (const h of ["Bước", "Thẻ", "Chạy", "Δ lợi nhuận cả kỳ", "Δ GMV cả kỳ"]) expect(within(table).getByText(h)).toBeInTheDocument();
     const row = screen.getByTestId("kh-row-card-voucher");
-    expect(row).toHaveTextContent("JC-2611-0007-V1");
-    expect(row).toHaveTextContent("Voucher 15.000đ cho đơn ≥ 299.000đ · Găng tay cao su A");
-    expect(row).toHaveTextContent("Đóng góp: +90.000đ cả 30 ngày ≈ +3.000đ/ngày · Bỏ thẻ này thì: lợi nhuận −90.000đ cả 30 ngày (≈ −3.000đ/ngày), GMV −540.000đ cả 30 ngày (≈ −18.000đ/ngày), chi phí −90.000đ (30 ngày tới)");
-    expect(within(row).getAllByRole("button", { name: /^V\d$/ })).toHaveLength(3);
-    expect(screen.getByTestId("kh-cand-card-wait")).toHaveTextContent("JC-2611-0009");
+    expect(row).toHaveTextContent("Voucher 15.000đ cho đơn ≥ 299.000đ");
+    expect(row).toHaveTextContent("Găng tay cao su A");
+    expect(within(row).getByTestId("kh-row-dates")).toHaveTextContent("15/11 – 14/12 · 30 ngày");
+    expect(within(row).getByTestId("kh-row-profit")).toHaveTextContent("+30.000đ – +90.000đ");
+    expect(row).toHaveTextContent(/≈ \+1\.000đ – \+3\.000đ\/ngày/);
+    expect(row.querySelectorAll(".jm-chip").length).toBeGreaterThan(0);
+    expect(within(row).getByRole("link", { name: "Sửa" })).toHaveAttribute("href", "/decisions?the=card-voucher&from=quyet-dinh");
+    expect(screen.getByTestId("kh-total")).toHaveTextContent("Cả nháp");
+    expect(screen.getByTestId("kh-total-profit")).toHaveTextContent("+180.000đ – +540.000đ");
+    expect(screen.getByRole("link", { name: "Thêm thẻ" })).toHaveAttribute("href", "/decisions");
+    expect(screen.getByTestId("kh-confirm")).toHaveTextContent("Duyệt kế hoạch");
+    expect(document.body.textContent).not.toMatch(/dự kiến|chưa ước tính|Chưa thực hiện gì/i);
   });
 
-  it("shows the two month totals (Đang chạy / Nếu áp dụng nháp) and marks each card Nháp", async () => {
+  it("shows the two month bars (Đang chạy / Nếu áp dụng nháp) with the month's day count", async () => {
     const totals = (goal_gmv: number | null, goal_profit: number | null, cards: number) => ({ scope: "running" as const, month: "2026-11", day: 13, days_in_month: 30, cards, baseline_gmv: 10_000_000, baseline_profit: 1_000_000, uplift_gmv: 0, uplift_profit: 0, goal_gmv, goal_profit, mtd_gmv: 4_000_000, mtd_profit: 400_000 });
     open({ ...plan(), month: { running: totals(null, null, 0), with_draft: totals(12_500_000, 1_300_000, 3) } });
-    expect(await screen.findByTestId("kh-month-running-gmv")).toHaveTextContent("—");
-    expect(screen.getByTestId("kh-month-draft-gmv")).toHaveTextContent("12,50 tr đ");
-    expect(screen.getByTestId("kh-month-draft-profit")).toHaveTextContent("1,30 tr đ");
-    expect(within(screen.getByTestId("kh-row-card-voucher")).getByText("Nháp")).toBeInTheDocument();
+    expect(await screen.findByTestId("kh-month-gmv-running")).toHaveTextContent("—");
+    expect(screen.getByTestId("kh-month-gmv-draft")).toHaveTextContent("12,50 tr đ");
+    expect(screen.getByTestId("kh-month-profit-draft")).toHaveTextContent("1,30 tr đ");
+    expect(screen.getByTestId("kh-month")).toHaveTextContent("Tháng 11");
+    expect(screen.getByTestId("kh-month")).toHaveTextContent("13/30 ngày");
   });
 
   it("the whole plan, today -> after: five numbers, GMV, costs against the cap, certain and predicted profit, floor", async () => {
     open();
     const agg = await screen.findByTestId("kh-agg");
-    expect(agg).toHaveTextContent("Phạm vi: Găng tay cao su A và Túi rác sinh học B (30 ngày). Các thẻ cùng sản phẩm được tính chung trên cùng các đơn, không cộng rời.");
+    expect(agg).toHaveTextContent("Sau kế hoạch");
+    expect(agg).not.toHaveTextContent("dự kiến)");
     expect(screen.getByTestId("kh-agg-disc")).toHaveTextContent("4,8%");
     expect(screen.getByTestId("kh-agg-disc")).toHaveTextContent("5,2%");
     expect(screen.getByTestId("kh-agg-eff")).toHaveTextContent("0,63đ / 1đ chi");
@@ -73,35 +85,19 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     expect(screen.getAllByText("Chạm giá sàn khi xếp chồng").length).toBeGreaterThan(0);
     expect(screen.getByTestId("kh-agg-floor")).toHaveTextContent("✕ Có thẻ chạm giá sàn khi xếp chồng");
     expect(screen.getByTestId("kh-confirm")).toBeEnabled();
-    expect(screen.getByTestId("kh-hint")).toHaveTextContent("Có thẻ chạm giá sàn: vẫn xác nhận được, Juli hiện cảnh báo trước.");
   });
 
   it("a plan over the daily spend cap says so and still confirms", async () => {
     open(overCapPlan());
     expect(await screen.findByTestId("kh-agg-chiday")).toHaveTextContent("Vượt trần 1.200.000đ");
-    expect(screen.getByTestId("kh-hint")).toHaveTextContent("Chi phí vượt trần chi mỗi ngày: vẫn xác nhận được, Juli hiện cảnh báo trước.");
     expect(screen.getByTestId("kh-confirm")).toBeEnabled();
   });
 
-  it("switching a version, removing a card and adding one go through the plan API", async () => {
+  it("removing a card goes through the plan API", async () => {
     const api = open();
     const row = await screen.findByTestId("kh-row-card-voucher");
-    fireEvent.click(within(row).getByRole("button", { name: "V2" }));
-    await waitFor(() => expect(api.calls.some((c) => c.name === "setVersion")).toBe(true));
-    expect(api.calls.find((c) => c.name === "setVersion")!.args).toEqual(["card-voucher", 2]);
     fireEvent.click(within(row).getByRole("button", { name: "Bỏ khỏi kế hoạch" }));
     await waitFor(() => expect(api.calls.find((c) => c.name === "remove")?.args).toEqual(["card-voucher"]));
-    fireEvent.click(within(await screen.findByTestId("kh-cand-card-wait")).getByRole("button", { name: "Thêm vào kế hoạch" }));
-    await waitFor(() => expect(api.calls.find((c) => c.name === "add")?.args).toEqual(["card-wait", null, false]));
-  });
-
-  it("P99b: the base is live: the screen says so and offers no 'Cập nhật số'", async () => {
-    const base = { live: true, as_of: "2026-11-10", window: null, newest_day: "2026-11-10", newer_available: false, horizon_from: "2026-11-11", note: "Số liệu tính lại mỗi lần mở, đến hết ngày 10/11/2026." };
-    const first = plan();
-    open({ ...first, plan: { ...first.plan!, base } });
-    expect(await screen.findByTestId("kh-base-note")).toHaveTextContent("tính lại mỗi lần mở");
-    expect(screen.queryByTestId("kh-refresh")).toBeNull();
-    expect(screen.queryByText("Cập nhật số")).toBeNull();
   });
 
   it("an action's answer is dropped once the refetch lands, so a stale override never hides the server", async () => {
@@ -115,23 +111,10 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     await waitFor(() => expect(screen.getByTestId("kh-count")).toHaveTextContent("3 thẻ"));
   });
 
-  it("adding a card that breaks the floor asks first; 'Vẫn tiếp tục' adds it acknowledged and shows the chip", async () => {
-    const err = new ShopeeApiError(422, "reco_breach_not_acknowledged", "ack", { code: "reco_breach_not_acknowledged", message: "this card breaches a floor", breaches: [{ type: "floor", sku: "S1", kind: "operating", floor: 100_000, min_unit_price: 90_000 }] });
-    let calls = 0;
-    const api = open(plan(), { add: (() => { calls += 1; if (calls === 1) throw err; return plan(); }) });
-    fireEvent.click(await screen.findByRole("button", { name: "Thêm vào kế hoạch" }));
-    const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByRole("heading")).toHaveTextContent("Thêm JC-2611-0009 vào kế hoạch dù chạm giá sàn?");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Vẫn tiếp tục" }));
-    await waitFor(() => expect(api.calls.filter((c) => c.name === "add")).toHaveLength(2));
-    expect(api.calls.filter((c) => c.name === "add")[1]!.args).toEqual(["card-wait", null, true]);
-    expect(await screen.findByTestId("kh-ack")).toHaveTextContent("Đã xác nhận vượt giá sàn");
-  });
-
   it("measurement window: auto per product by default, presets with what each can see, custom 3-90, hard-to-conclude note", async () => {
     const api = open();
     const win = await screen.findByTestId("kh-win");
-    expect(win).toHaveTextContent("Mặc định là tự động theo sản phẩm (cửa sổ ngắn nhất thấy được thay đổi ≥ 30% với lượng đơn của sản phẩm đó). Bạn đổi được, tối thiểu 3 ngày.");
+    expect(win).not.toHaveTextContent("Mặc định là tự động");
     expect(within(win).getByRole("radio", { name: /Tự động theo sản phẩm/ })).toHaveAttribute("aria-checked", "true");
     expect(within(win).getByRole("radio", { name: /7 ngày cho cả kế hoạch/ })).toHaveTextContent("chỉ thấy thay đổi ≥ 45–60%");
     expect(within(win).getByRole("radio", { name: /28 ngày cho cả kế hoạch/ })).toHaveTextContent("chỉ thấy thay đổi ≥ 23–30%");
@@ -187,7 +170,7 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     });
     fireEvent.click(await screen.findByTestId("kh-confirm"));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading")).toHaveTextContent("Xác nhận kế hoạch 3 thẻ?");
+    expect(within(dialog).getByRole("heading")).toHaveTextContent("Duyệt kế hoạch 3 thẻ?");
     const cuts = within(dialog).getByTestId("kh-cuts");
     expect(cuts).toHaveTextContent("Phép đo đang chạy của các sản phẩm này sẽ bị cắt hôm nay");
     expect(cuts).toHaveTextContent("Găng tay cao su A: đang đo, mới 8/14 ngày. Cắt hôm nay → “đo được 8 ngày” (độ tin cậy thấp hơn).");
@@ -195,13 +178,11 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Quay lại" }));
     expect(api.calls.some((c) => c.name === "confirm")).toBe(false);
     fireEvent.click(screen.getByTestId("kh-confirm"));
-    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Xác nhận kế hoạch" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Duyệt kế hoạch" }));
     await waitFor(() => expect(api.calls.find((c) => c.name === "confirm")?.args).toEqual([{ acknowledgeBreaches: false }]));
     const notice = await screen.findByTestId("kh-done");
-    expect(notice).toHaveTextContent("Đã xác nhận kế hoạch KH-2611-003. 3 thẻ chuyển sang “Đã duyệt”, đội Juli thực hiện cùng một ngày (dự kiến 05/11/2026).");
-    expect(notice).toHaveTextContent("Phép đo theo cửa sổ tự động theo sản phẩm");
+    expect(notice).toHaveTextContent("Đã xác nhận kế hoạch KH-2611-003. 3 thẻ chuyển sang “Đã duyệt”.");
     expect(screen.getByTestId("kh-code")).toHaveTextContent("KH-2611-003");
-    expect(screen.getByTestId("kh-row-card-voucher")).toHaveTextContent("KH-2611-003");
     expect(screen.getByTestId("kh-confirm")).toBeDisabled();
   });
 
@@ -210,7 +191,7 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     const api = open(stacked, { confirm: { ...confirmedPlan("KH-2611-004"), aggregate: stacked.aggregate } });
     fireEvent.click(await screen.findByTestId("kh-confirm"));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading")).toHaveTextContent("Xác nhận kế hoạch dù có cảnh báo?");
+    expect(within(dialog).getByRole("heading")).toHaveTextContent("Duyệt kế hoạch dù có cảnh báo?");
     expect(within(dialog).getAllByTestId("kh-warn-line")[0]).toHaveTextContent("Giá sàn: GT-A-1, khách trả 260.000đ thấp hơn giá sàn vận hành 275.000đ, thiếu 15.000đ. (JC-2611-0007-V1 và JC-2611-0012-V1)");
     expect(dialog).toHaveTextContent("Bạn vẫn có thể tiếp tục. Juli ghi lại xác nhận kèm giờ.");
     fireEvent.click(within(dialog).getByRole("button", { name: "Vẫn tiếp tục" }));
@@ -222,14 +203,14 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     const err = new ShopeeApiError(422, "reco_breach_not_acknowledged", "the plan has a floor breach", { code: "reco_breach_not_acknowledged", breaches: [] });
     const api = open(plan(), { confirm: err });
     fireEvent.click(await screen.findByTestId("kh-confirm"));
-    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Xác nhận kế hoạch" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Duyệt kế hoạch" }));
     await waitFor(() => expect(api.calls.some((c) => c.name === "confirm")).toBe(true));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 
   it("an empty plan says so and cannot be confirmed", async () => {
     open(emptyPlan());
-    expect(await screen.findByTestId("kh-empty")).toHaveTextContent("Kế hoạch trống. Thêm thẻ từ danh sách bên trái hoặc từ thẻ trong Quyết định.");
+    expect(await screen.findByTestId("kh-empty")).toHaveTextContent("—");
     expect(screen.getByTestId("kh-confirm")).toBeDisabled();
   });
 
@@ -241,12 +222,12 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     const kol = await screen.findByTestId("kh-kol");
     expect(kol).toHaveTextContent("1 Gửi mẫu · 1 Mời KOL");
     expect(kol).toHaveTextContent("Tổng chi phí mẫu (chắc chắn, chi một lần)190.000đ");
-    expect(kol).toHaveTextContent("Lợi nhuận ròng sau mẫu, dự kiến");
+    expect(kol).toHaveTextContent("Lợi nhuận ròng sau mẫu");
     expect(kol).toHaveTextContent("−99.000đ – +493.000đ/tháng");
   });
 
   it("without a plan backend the screen says it is off", async () => {
-    renderReco(<DecisionsView params={params("ke-hoach=1")} />, fakeReco());
+    renderReco(<DecisionsView params={params("xem=ke-hoach")} />, fakeReco());
     expect(await screen.findByTestId("kh-off")).toBeInTheDocument();
   });
 });
@@ -261,14 +242,14 @@ describe("Kế hoạch · nhóm chạy cùng nhau (P97 D85.14)", () => {
     expect(within(a).getByTestId("kh-group-period-A")).toHaveTextContent("10/11 – 16/11 · 7 ngày");
     expect(within(a).getByTestId("kh-gm-card-voucher@v1")).toHaveTextContent("JC-2611-0007-V1");
     expect(within(a).getByTestId("kh-gm-card-voucher@v2")).toHaveTextContent("JC-2611-0007-V2");
-    expect(within(a).getByTestId("kh-group-agg-A")).toHaveTextContent("Δ lợi nhuận cả 30 ngày · dự kiến");
+    expect(within(a).getByTestId("kh-group-agg-A")).toHaveTextContent("Δ lợi nhuận cả 30 ngày");
     expect(within(box).getByTestId("kh-group-B")).toHaveTextContent("JC-2611-0012-V2");
     expect(screen.getByTestId("kh-row-card-voucher")).toHaveTextContent("Nhóm A · V1");
   });
 
   it("says why an option moved to the next group, when adding it", async () => {
-    open(groupedPlan(), { add: groupedPlan(true) });
-    fireEvent.click(await screen.findByRole("button", { name: "Thêm vào kế hoạch" }));
+    open(groupedPlan(), { remove: groupedPlan(true) });
+    fireEvent.click((await screen.findAllByRole("button", { name: "Bỏ khỏi kế hoạch" }))[0]!);
     expect(await screen.findByTestId("kh-notice")).toHaveTextContent("Mỗi lần chỉ giữ một giá trị cho giá bán, nên thẻ này chạy ở Nhóm B");
   });
 

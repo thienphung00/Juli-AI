@@ -33,6 +33,9 @@ export interface DecisionView {
   readonly productId?: string | null;
   /** P91: the Kế hoạch panel. */
   readonly plan?: boolean;
+  /** P100: Phân tích's `metric` and `product` filters on the Đề xuất list. */
+  readonly metric?: string | null;
+  readonly product?: string | null;
 }
 
 /**
@@ -95,6 +98,8 @@ export function decisionsQuery(view: DecisionView, extra?: URLSearchParams): URL
   if (view.from) p.set("from", view.from);
   if (view.builder) p.set("tu-tao", "1");
   if (view.productId) p.set("sp", view.productId);
-  if (view.plan) p.set("ke-hoach", "1");
+  if (view.plan) p.set("xem", "ke-hoach");
+  if (view.metric) p.set("metric", view.metric);
+  if (view.product) p.set("product", view.product);
   return p;
 }

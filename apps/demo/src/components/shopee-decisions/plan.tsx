@@ -1,37 +1,31 @@
-"use client";
+import { useId, useMemo, useState, type ReactNode } from "react";
 
-import { useId, useMemo, useState } from "react";
-
-import { ShopeeApiError } from "../../lib/shopee-analytics/client";
-import { vnd } from "../../lib/shopee-analytics/format";
+import { DASH, dayMonth, vnd } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
-import { aggRows, cardBreaches, confirmWarnings, cutText, hasBreach, isHard, isStacked, kolRows, kolSummary, mdeText, planProducts, productMde, productName, stackBreaches, stackWarning, tradeoffText, windowText, withoutText } from "../../lib/shopee-decisions/plan-model";
-import type { PlanApi, PlanGroup, PlanMonthTotals, PlanNotice, PlanResponse, WindowProductRow } from "../../lib/shopee-decisions/plan-types";
-import type { Breach, CardList } from "../../lib/shopee-decisions/types";
-import { ackText, breachNoun, breachWarnLines, firstVersionRange, svk } from "../../lib/shopee-decisions/versions";
-import { useNarrow } from "../quyet-dinh/use-narrow";
-import { Notice, PageHead, TextChip } from "../shopee-analytics/ui";
-import { perDayText } from "./option-card/format";
-import { AdsReadbackBlock, CardResult, DataMissingNotice, HorizonLine, PlanTotalsNotes, ProductToday } from "./plan-results";
+import { metricsOfCard } from "../../lib/shopee-decisions/model";
+import { aggRows, cardBreaches, confirmWarnings, cutText, isHard, isStacked, kolRows, kolSummary, mdeText, planProducts, productMde, productName, stackBreaches, stackWarning, windowText } from "../../lib/shopee-decisions/plan-model";
+import type { DateSpan, PlanApi, PlanGroup, PlanNotice, PlanResponse, WindowProductRow } from "../../lib/shopee-decisions/plan-types";
+import type { CardList, CardSummary, Family } from "../../lib/shopee-decisions/types";
+import { ackText } from "../../lib/shopee-decisions/versions";
+import { MetricChip } from "../metrics/metric-chip";
+import { Notice, TextChip } from "../shopee-analytics/ui";
+import { DataMissingNotice, PlanTotalsNotes } from "./plan-results";
 import { mil } from "../shopee-analytics/tong-quan";
 import { PlanSteps } from "./plan-steps";
-import { topEntries } from "./top-cards";
+import { rangeText } from "./top-cards";
 import { NavLink, RecoState, errorText } from "./ui";
-import { BreachDialog } from "./versions";
 
 /**
- * Kế hoạch (`KeHoach.dc.html`, mobile `KeHoachMobile.dc.html`): "Thêm vào kế hoạch" executes nothing
- * and sends nothing to the team; the plan shows the whole package (cards of one product are evaluated
- * together on the same orders), the measurement window per product (D-8), and only "Xác nhận kế hoạch"
- * approves it in one go. A floor or spend-cap breach never blocks: the dialog warns, "Vẫn tiếp tục" is
- * recorded. The numbers come from the plan API (`plan-types.ts` mirrors the backend answer).
+ * Đề xuất › Kế hoạch nháp (P100): month bars, the table of the cards in the draft with their Δ totals,
+ * the group-run and window settings, and "Duyệt kế hoạch". Adding a card executes nothing; only
+ * "Duyệt kế hoạch" approves the draft in one go. A floor or spend-cap breach never blocks: the dialog
+ * warns, "Vẫn tiếp tục" is recorded. The numbers come from the plan API (`plan-types.ts`).
  */
 
-const BREACH_CODES = new Set(["reco_breach_not_acknowledged"]);
 const toneClass = (t: string): string => (t === "up" ? "sa-tone--up" : t === "down" ? "sa-tone--down" : "");
 
-export function PlanView() {
+export function PlanView(props: PlanFrameProps = {}) {
   const host = useReco();
   const api = host.plan?.api;
   if (!api) {
@@ -41,18 +35,29 @@ export function PlanView() {
       </div>
     );
   }
-  return <PlanScreen api={api} />;
+  return <PlanScreen api={api} {...props} />;
 }
 
-type Dialog = null | { readonly kind: "confirm" } | { readonly kind: "add"; readonly cardId: string; readonly code: string; readonly breaches: readonly Breach[] };
+type Dialog = null | { readonly kind: "confirm" };
 
-function PlanScreen({ api }: { readonly api: PlanApi }) {
+export interface PlanFrameProps {
+  readonly frame?: (title: string, children: ReactNode) => ReactNode;
+  readonly onChanged?: () => void;
+  readonly counts?: unknown;
+}
+
+const NO_FRAME = (_t: string, children: ReactNode): ReactNode => <div className="sa-page kh">{children}</div>;
+
+/** "Tháng 11" of a plan month ("2026-11"). */
+const monthName = (m: string): string => `Tháng ${Number(m.slice(5, 7)) || m}`;
+
+function PlanScreen({ api, frame = NO_FRAME, onChanged }: { readonly api: PlanApi } & PlanFrameProps) {
   const host = useReco();
-  const narrow = useNarrow();
   const [tick, setTick] = useState(0);
   const [override, setOverride] = useState<{ readonly tick: number; readonly plan: PlanResponse } | null>(null);
   const loaded = useResource<PlanResponse>(() => api.get(), `${host.shopKey}|plan|${tick}`);
   const cards = useResource<CardList>(() => host.reco.list({ queue: "all" }), `${host.shopKey}|plan-cands|${tick}`);
+  const products = useResource(() => (host.products ? host.products() : Promise.resolve([])), `${host.shopKey}|plan-products`);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,9 +65,7 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
   const [doneOnce, setDoneOnce] = useState(false);
   const [notice, setNotice] = useState<PlanNotice | null>(null);
   // D85.4: the answer of an action is shown until the refetch lands, then dropped, so a stale
-  // override can never hide what the server now says. The override is tagged with the tick of
-  // the refetch it stands in for; once that refetch is ready (useResource only reports ready for
-  // the current key) the server's answer wins.
+  // override can never hide what the server now says.
   const shown = override !== null && override.tick === tick && loaded.status === "loading" ? override.plan : null;
   const plan = shown ?? (loaded.status === "ready" ? loaded.data : null);
 
@@ -75,61 +78,23 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
       setNotice(p.notice ?? null);
       after?.(p);
       setTick((t) => t + 1);
+      onChanged?.();
     } catch (e) {
       setError(errorText(e));
     } finally {
       setBusy(false);
     }
   };
+  const byId = new Map((cards.status === "ready" ? cards.data.cards : []).map((c) => [c.id, c]));
+  const names = new Map((products.status === "ready" ? products.data : []).map((p) => [p.id, p.name]));
+  const draft = plan ? draftRows(plan) : null;
+  const title = plan && draft ? `Nháp thêm ${draft.profit} lợi nhuận${plan.month ? ` ${monthName(plan.month.with_draft.month).toLowerCase()}` : ""}` : "Kế hoạch nháp";
 
-  return (
-    <div className="sa-page kh" data-testid="kh-page">
-      <PageHead eyebrow="QUYẾT ĐỊNH · KẾ HOẠCH" title="Kế hoạch: xem cả gói thay đổi trước khi làm" />
-      <p className="sa-hint">“Thêm vào kế hoạch” chưa thực hiện gì và chưa gửi gì cho đội Juli. Chỉ “Xác nhận kế hoạch” mới duyệt cả gói một lần.</p>
-      <NavLink className="sa-link" href={host.href({})}>
-        ‹ Quyết định
-      </NavLink>
+  return frame(
+    title,
+    <div className="kh" data-testid="kh-page">
       <RecoState resource={plan ? { status: "ready", data: plan } : loaded}>
-        {(p) => (
-          <div className="kh-grid">
-            {narrow ? null : (
-              <Candidates
-                busy={busy}
-                cards={cards.status === "ready" ? cards.data : null}
-                inPlan={new Set(p.cards.map((c) => c.card_id))}
-                locked={(p.plan?.status ?? "draft") !== "draft"}
-                onAdd={(id, code) =>
-                  void (async () => {
-                    setBusy(true);
-                    setError(null);
-                    try {
-                      const next = await api.add(id, null, false);
-                      setOverride({ tick: tick + 1, plan: next });
-                      setNotice(next.notice ?? null);
-                      setTick((t) => t + 1);
-                    } catch (e) {
-                      if (e instanceof ShopeeApiError && BREACH_CODES.has(e.code) && Array.isArray(e.detail?.["breaches"])) setDialog({ kind: "add", cardId: id, code, breaches: e.detail["breaches"] as Breach[] });
-                      else setError(errorText(e));
-                    } finally {
-                      setBusy(false);
-                    }
-                  })()
-                }
-              />
-            )}
-            <DraftPlan
-              ack={ack}
-              api={api}
-              busy={busy}
-              error={error}
-              narrow={narrow}
-              notice={notice}
-              onAct={act}
-              onConfirm={() => setDialog({ kind: "confirm" })}
-              plan={p}
-            />
-          </div>
-        )}
+        {(p) => <DraftPlan ack={ack} api={api} busy={busy} byId={byId} error={error} names={names} notice={notice} onAct={act} onConfirm={() => setDialog({ kind: "confirm" })} plan={p} />}
       </RecoState>
       {plan ? (
         <ConfirmDialog
@@ -138,13 +103,6 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
           onBack={() => setDialog(null)}
           onGo={() => {
             if (!dialog) return;
-            if (dialog.kind === "add") {
-              void act(() => api.add(dialog.cardId, null, true), () => {
-                setAck(ackText(dialog.breaches, new Date().toISOString()));
-                setDialog(null);
-              });
-              return;
-            }
             const warned = confirmWarnings(plan);
             void act(() => api.confirm({ acknowledgeBreaches: warned.length > 0 }), (p) => {
               if (warned.length > 0) setAck(ackText(p.plan?.acknowledged_breaches?.breaches ?? plan.aggregate?.breaches ?? [{ type: "floor" }], p.plan?.acknowledged_breaches?.at ?? new Date().toISOString()));
@@ -153,76 +111,102 @@ function PlanScreen({ api }: { readonly api: PlanApi }) {
             });
           }}
           plan={plan}
-          sheet={narrow}
+          sheet={false}
         />
       ) : null}
       {doneOnce && (plan?.plan?.status ?? "draft") !== "draft" ? <span hidden data-testid="kh-done-flag" /> : null}
-    </div>
+    </div>,
   );
 }
 
-function Candidates({ cards, inPlan, locked, busy, onAdd }: { readonly cards: CardList | null; readonly inPlan: ReadonlySet<string>; readonly locked: boolean; readonly busy: boolean; readonly onAdd: (id: string, code: string) => void }) {
-  const entries = cards ? topEntries(cards.cards).map((e) => e.top) : [];
-  const all = entries.every((c) => inPlan.has(c.id));
+/** One table row of Kế hoạch nháp: what the card runs on and its Δ totals over its own days. */
+export interface DraftRow {
+  readonly card: PlanResponse["cards"][number];
+  readonly dates: DateSpan | null;
+  readonly days: number | null;
+  readonly profit: { readonly p10: number | null; readonly p90: number | null };
+  readonly gmv: { readonly p10: number | null; readonly p90: number | null };
+}
+
+const numOrNull = (n: unknown): number | null => (typeof n === "number" && Number.isFinite(n) ? n : null);
+
+export function rowsOfPlan(plan: PlanResponse): DraftRow[] {
+  return plan.cards.map((card) => {
+    const r = plan.aggregate?.cards.find((c) => c.card_id === card.card_id)?.result ?? card.evaluation?.result;
+    const alone = card.evaluation?.alone;
+    const dates = r?.own_dates ?? r?.counted_dates ?? r?.horizon ?? null;
+    const days = numOrNull(r?.own_days) ?? numOrNull(r?.counted_days) ?? dates?.days ?? null;
+    return {
+      card,
+      dates,
+      days,
+      profit: { p10: numOrNull(r?.delta?.p10.dprofit) ?? numOrNull(alone?.dprofit.p10), p90: numOrNull(r?.delta?.p90.dprofit) ?? numOrNull(alone?.dprofit.p90) },
+      gmv: { p10: numOrNull(r?.delta?.p10.dgmv), p90: numOrNull(r?.delta?.p90.dgmv) },
+    };
+  });
+}
+
+const sumRange = (rows: readonly { readonly p10: number | null; readonly p90: number | null }[]): { readonly p10: number | null; readonly p90: number | null } => {
+  if (rows.length === 0 || rows.some((r) => r.p10 === null || r.p90 === null)) return { p10: null, p90: null };
+  return { p10: rows.reduce((a, r) => a + Math.min(r.p10!, r.p90!), 0), p90: rows.reduce((a, r) => a + Math.max(r.p10!, r.p90!), 0) };
+};
+
+/** The draft's total Δ lợi nhuận / Δ GMV over the cards' own days, as text ranges. */
+function draftRows(plan: PlanResponse): { readonly profit: string; readonly gmv: string } {
+  const rows = rowsOfPlan(plan);
+  return { profit: rangeText(sumRange(rows.map((r) => r.profit))), gmv: rangeText(sumRange(rows.map((r) => r.gmv))) };
+}
+
+/** Month bars: "Đang chạy" grey, the draft's addition pink (same totals as Tổng quan). */
+function MonthBars({ plan }: { readonly plan: PlanResponse }) {
+  const m = plan.month;
+  if (!m) return null;
+  const bar = (label: string, key: string, run: number | null, withDraft: number | null) => {
+    const top = Math.max(run ?? 0, withDraft ?? 0);
+    const runPct = top > 0 && run !== null ? Math.min(100, Math.max(0, (run / top) * 100)) : 0;
+    const addPct = top > 0 && withDraft !== null && run !== null ? Math.min(100 - runPct, Math.max(0, ((withDraft - run) / top) * 100)) : 0;
+    return (
+      <div className="dx-bar" data-testid={`kh-month-${key}`}>
+        <div className="dx-bar__label">{label}</div>
+        <div className="dx-bar__track">
+          <div className="dx-bar__run" style={{ width: `${runPct}%` }} />
+          <div className="dx-bar__add" style={{ left: `${runPct}%`, width: `${addPct}%` }} />
+        </div>
+        <div className="dx-bar__nums">
+          <span>Đang chạy</span> <b data-testid={`kh-month-${key}-running`}>{run === null ? DASH : mil(run)}</b> → <b data-testid={`kh-month-${key}-draft`}>{withDraft === null ? DASH : mil(withDraft)}</b>
+        </div>
+      </div>
+    );
+  };
   return (
-    <section className="sa-card kh-cands" data-testid="kh-cands">
-      <h2 className="sa-h2">Thẻ đang chờ trong Quyết định</h2>
-      <p className="sa-hint">Mỗi sản phẩm một thẻ. Thêm một thẻ vào kế hoạch thì thẻ kế tiếp của sản phẩm đó lên Quyết định ngay.</p>
-      {entries.map((c) => {
-        const ip = inPlan.has(c.id);
-        return (
-          <div className={`kh-cand ${ip ? "kh-cand--in" : ""}`} data-testid={`kh-cand-${c.id}`} key={c.id}>
-            <div>
-              <span className="sd-code">{c.code ?? c.id}</span> <span>{c.family_label}</span>
-            </div>
-            <span className="sa-hint">
-              {c.versions?.length ?? 1} phiên bản{c.versions?.[0]?.label ? ` · V1 ${c.versions[0].label}` : ""}
-            </span>
-            <div className="kh-cand__act">
-              <b>{firstVersionRange(c)}</b>
-              <button className="sa-btn sa-btn--s" disabled={ip || locked || busy} onClick={() => onAdd(c.id, c.code ?? c.id)} type="button">
-                {ip ? "Đã trong kế hoạch" : "Thêm vào kế hoạch"}
-              </button>
-            </div>
-          </div>
-        );
-      })}
-      {entries.length === 0 || all ? <p className="sa-hint">Mọi thẻ chờ đã nằm trong kế hoạch.</p> : null}
+    <section aria-label={monthName(m.with_draft.month)} className="dx-month" data-testid="kh-month">
+      <div className="dx-month__head">
+        <b>{monthName(m.with_draft.month)}</b>
+        <span>
+          {m.with_draft.day}/{m.with_draft.days_in_month} ngày
+        </span>
+      </div>
+      {bar("GMV", "gmv", m.running.goal_gmv, m.with_draft.goal_gmv)}
+      {bar("Lợi nhuận", "profit", m.running.goal_profit, m.with_draft.goal_profit)}
+      <div className="dx-month__legend">
+        <span className="dx-dot dx-dot--run" />
+        Đang chạy
+        <span className="dx-dot dx-dot--add" />
+        Nếu áp dụng nháp
+      </div>
     </section>
   );
 }
 
-/** Kế hoạch's two month totals (same function as Tổng quan's card): labels and numbers only. */
-function MonthTotals({ plan }: { readonly plan: PlanResponse }) {
-  const m = plan.month;
-  if (!m) return null;
-  const col = (label: string, key: string, t: PlanMonthTotals) => (
-    <div className="kh-month__col" data-testid={`kh-month-${key}`}>
-      <b>{label}</b>
-      <span>
-        GMV <b data-testid={`kh-month-${key}-gmv`}>{t.goal_gmv === null ? "—" : mil(t.goal_gmv)}</b>
-      </span>
-      <span>
-        Lợi nhuận <b data-testid={`kh-month-${key}-profit`}>{t.goal_profit === null ? "—" : mil(t.goal_profit)}</b>
-      </span>
-    </div>
-  );
-  return (
-    <div className="kh-month" data-testid="kh-month">
-      {col("Đang chạy", "running", m.running)}
-      {col("Nếu áp dụng nháp", "draft", m.with_draft)}
-    </div>
-  );
-}
+const dmSpan = (d: DateSpan | null): string => (d ? `${dayMonth(d.from)} – ${dayMonth(d.to)}` : DASH);
 
-function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfirm }: { readonly plan: PlanResponse; readonly api: PlanApi; readonly narrow: boolean; readonly busy: boolean; readonly error: string | null; readonly ack: string | null; readonly notice: PlanNotice | null; readonly onAct: (call: () => Promise<PlanResponse>) => Promise<void>; readonly onConfirm: () => void }) {
+function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, onConfirm }: { readonly plan: PlanResponse; readonly api: PlanApi; readonly byId: ReadonlyMap<string, CardSummary>; readonly names: ReadonlyMap<string, string>; readonly busy: boolean; readonly error: string | null; readonly ack: string | null; readonly notice: PlanNotice | null; readonly onAct: (call: () => Promise<PlanResponse>) => Promise<void>; readonly onConfirm: () => void }) {
+  const host = useReco();
   const head = plan.plan;
   const done = (head?.status ?? "draft") !== "draft";
   const products = planProducts(plan);
   const warns = stackBreaches(plan).map((b) => stackWarning(plan, b));
   const rows = aggRows(plan);
-  const trade = tradeoffText(plan);
-  const breaching = hasBreach(plan);
   const cost = plan.aggregate?.cost;
   const shownAck = ack ?? (head?.acknowledged_breaches?.breaches?.length ? ackText(head.acknowledged_breaches.breaches, head.acknowledged_breaches.at) : null);
   const kol = kolSummary(plan);
@@ -233,19 +217,23 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
     : dayCap
       ? { text: `Chi phí toàn shop mỗi ngày so với trần ${vnd(dayCap.cap_per_day)}`, pct: Math.min(100, Math.round((dayCap.per_day_after / dayCap.cap_per_day!) * 100)) }
       : null;
-  const winLabel = windowText(plan);
   const missing = plan.aggregate?.data_missing ?? null;
+  const table = rowsOfPlan(plan);
+  const total = { profit: sumRange(table.map((r) => r.profit)), gmv: sumRange(table.map((r) => r.gmv)) };
+  const horizon = plan.aggregate?.horizon ?? null;
+  const perDay = (q: { readonly p10: number | null; readonly p90: number | null }, days: number | null): string | null => (days && days > 0 && q.p10 !== null && q.p90 !== null ? `≈ ${rangeText(q, days)}/ngày` : null);
   return (
-    <section className="sa-card kh-plan" data-testid="kh-plan">
+    <section className="kh-plan" data-testid="kh-plan">
       <div className="kh-plan__head">
-        <h2 className="sa-h2">Kế hoạch nháp</h2>
-        <TextChip tone={done ? "info" : "flat"}>{done ? "Đã xác nhận" : "Chưa thực hiện"}</TextChip>
+        <TextChip tone={done ? "info" : "flat"}>{done ? "Đã xác nhận" : "Nháp"}</TextChip>
         <span className="sa-hint" data-testid="kh-count">
           {plan.cards.length} thẻ · {products.length} sản phẩm
         </span>
-        <span className="sd-code" data-testid="kh-code">
-          {head?.code ?? "Mã kế hoạch cấp khi xác nhận"}
-        </span>
+        {head?.code ? (
+          <span className="sd-code" data-testid="kh-code">
+            {head.code}
+          </span>
+        ) : null}
         {shownAck ? (
           <b className="sd-ack" data-testid="kh-ack">
             {shownAck}
@@ -255,82 +243,93 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
 
       {done ? (
         <Notice tone="info" testId="kh-done">
-          <b>Đã xác nhận kế hoạch {head?.code}.</b> {plan.cards.length} thẻ chuyển sang “Đã duyệt”, đội Juli thực hiện cùng một ngày{head?.planned_date ? ` (dự kiến ${head.planned_date.slice(8, 10)}/${head.planned_date.slice(5, 7)}/${head.planned_date.slice(0, 4)})` : ""}. {narrow ? "" : "Các phiên bản không chọn đóng cùng thẻ. "}Phép đo theo cửa sổ {winLabel} bắt đầu từ ngày thực hiện.
+          <b>Đã xác nhận kế hoạch {head?.code}.</b> {plan.cards.length} thẻ chuyển sang “Đã duyệt”.
         </Notice>
       ) : null}
 
-      <MonthTotals plan={plan} />
-      <HorizonLine plan={plan} />
+      <MonthBars plan={plan} />
       {missing ? <DataMissingNotice missing={missing} /> : null}
-      {head?.base && !done && !missing ? (
-        <div className="kh-base" data-testid="kh-base">
-          <span className="sa-hint" data-testid="kh-base-note">
-            {head.base.note}
-          </span>
-        </div>
-      ) : null}
-
       <PlanTotalsNotes plan={plan} />
 
       {missing ? null : <PlanSteps api={api} busy={busy} done={done} onAct={onAct} plan={plan} />}
 
-      <div className="kh-rows">
-        {plan.cards.map((r) => (
-          <div className={`kh-row ${isStacked(plan, r) ? "kh-row--bad" : ""}`} data-testid={`kh-row-${r.card_id}`} key={r.card_id}>
-            <div className="kh-row__main">
-              <div className="kh-row__top">
-                <span className="sd-code">{r.chosen_version_code ?? `${r.code}-V${r.chosen_version}`}</span>
-                {head?.status === "executed" ? <TextChip tone="up">Đang chạy</TextChip> : head?.status === "draft" ? <TextChip tone="flat">Nháp</TextChip> : null}
-                {done && (r.plan_code ?? head?.code) ? <span className="sd-code">{r.plan_code ?? head?.code}</span> : null}
-                <b>
-                  {r.title ?? r.change_kind} · {productName(plan, r.product_id)}
-                </b>
-                <span className="sa-hint">{r.versions.find((v) => v.version === r.chosen_version)?.label}</span>
-                {(r.groups ?? []).map((g) => (
-                  <TextChip key={`${g.letter}-${g.version}`} tone="info">
-                    Nhóm {g.letter} · V{g.version}
-                  </TextChip>
-                ))}
-                {(r.n_targets ?? 0) > 0 ? <TextChip tone="flat">{r.n_targets} đối tượng</TextChip> : null}
-                {isStacked(plan, r) || cardBreaches(plan, r) ? <TextChip tone="down">{cardBreaches(plan, r) ? "Chạm giá sàn" : "Chạm giá sàn khi xếp chồng"}</TextChip> : null}
+      <div aria-label="Thẻ trong nháp" className="dx-table" data-testid="kh-rows" role="table">
+        <div className="dx-table__row dx-table__row--head" role="row">
+          <div>Bước</div>
+          <div>Thẻ</div>
+          <div>Chạy</div>
+          <div>Δ lợi nhuận cả kỳ</div>
+          <div>Δ GMV cả kỳ</div>
+          <div />
+        </div>
+        {table.map((r, i) => {
+          const c = r.card;
+          const sum = byId.get(c.card_id);
+          const chips = metricsOfCard(sum ?? { family: (c.family ?? "listing") as Family, change_kind: c.change_kind ?? "", section: null, metric: { key: "", critical_id: null, critical_kpi: null, flow: null, at_stake_per_day: null } });
+          const pid = c.product_id;
+          return (
+            <div className={`dx-table__row ${isStacked(plan, c) ? "kh-row--bad" : ""}`} data-testid={`kh-row-${c.card_id}`} key={c.card_id} role="row">
+              <div>{i + 1}</div>
+              <div className="dx-table__card">
+                <b>{c.title ?? c.change_kind}</b>
+                <span className="dx-table__sub">
+                  {pid ? (names.get(pid) ?? productName(plan, pid)) : null}
+                  {chips.map((m) => (
+                    <MetricChip key={m} metric={m} />
+                  ))}
+                  {(c.groups ?? []).map((g) => (
+                    <TextChip key={`${g.letter}-${g.version}`} tone="info">
+                      Nhóm {g.letter} · V{g.version}
+                    </TextChip>
+                  ))}
+                  {isStacked(plan, c) || cardBreaches(plan, c) ? <TextChip tone="down">{cardBreaches(plan, c) ? "Chạm giá sàn" : "Chạm giá sàn khi xếp chồng"}</TextChip> : null}
+                </span>
               </div>
-              <div className="kh-row__vers">
-                <span className="sa-hint">Phiên bản:</span>
-                {r.versions.map((v) => (
-                  <button
-                    aria-pressed={v.version === r.chosen_version}
-                    className={`sb-pill ${v.version === r.chosen_version ? "sb-pill--on" : ""}`}
-                    disabled={done || busy || v.status === "refused"}
-                    key={v.version}
-                    onClick={() => void onAct(() => api.setVersion(r.card_id, v.version))}
-                    type="button"
-                  >
-                    V{v.version}
-                  </button>
-                ))}
+              <div data-testid="kh-row-dates">
+                {dmSpan(r.dates)}
+                {r.days ? ` · ${r.days} ngày` : ""}
               </div>
-              <div className="kh-row__why">
-                {typeof r.evaluation?.contribution.dprofit_p50 === "number" ? (
-                  <>
-                    Đóng góp:{" "}
-                    <b className={r.evaluation.contribution.dprofit_p50 >= 0 ? "sa-tone--up" : "sa-tone--down"}>{svk(r.evaluation.contribution.dprofit_p50)} cả 30 ngày</b> <span className="sa-hint">{perDayText(r.evaluation.contribution.dprofit_p50, 30)}</span> · Bỏ thẻ này thì: {withoutText(r)}
-                  </>
-                ) : (
-                  <span data-testid="kh-contrib-none">Đóng góp: chưa có dữ liệu{missing ? ` · ${missing.message}` : ""}</span>
-                )}
+              <div>
+                <div className="dx-table__big" data-testid="kh-row-profit">
+                  {rangeText(r.profit)}
+                </div>
+                <div className="dx-table__small">{perDay(r.profit, r.days)}</div>
               </div>
-              <CardResult cardId={r.card_id} plan={plan} />
-              <AdsReadbackBlock readback={r.ads_readback} />
+              <div>
+                <div className="dx-table__big" data-testid="kh-row-gmv">
+                  {rangeText(r.gmv)}
+                </div>
+                <div className="dx-table__small">{perDay(r.gmv, r.days)}</div>
+              </div>
+              <div className="dx-table__act">
+                <NavLink className="sa-link" href={host.href({ the: c.card_id, from: "quyet-dinh" })}>
+                  Sửa
+                </NavLink>
+                <button className="sa-btn sa-btn--s" disabled={done || busy} onClick={() => void onAct(() => api.remove(c.card_id))} type="button">
+                  Bỏ khỏi kế hoạch
+                </button>
+              </div>
             </div>
-            <button className="sa-btn sa-btn--s" disabled={done || busy} onClick={() => void onAct(() => api.remove(r.card_id))} type="button">
-              Bỏ khỏi kế hoạch
-            </button>
+          );
+        })}
+        {table.length === 0 ? <p className="sa-hint" data-testid="kh-empty">—</p> : null}
+        {table.length > 0 ? (
+          <div className="dx-table__row dx-table__row--total" data-testid="kh-total" role="row">
+            <div />
+            <div>
+              <b>Cả nháp</b>
+            </div>
+            <div>{dmSpan(horizon)}</div>
+            <div className="dx-table__big" data-testid="kh-total-profit">
+              {rangeText(total.profit)}
+            </div>
+            <div className="dx-table__big" data-testid="kh-total-gmv">
+              {rangeText(total.gmv)}
+            </div>
+            <div />
           </div>
-        ))}
-        {plan.cards.length === 0 ? <p className="sa-hint" data-testid="kh-empty">Kế hoạch trống. Thêm thẻ từ danh sách bên trái hoặc từ thẻ trong Quyết định.</p> : null}
+        ) : null}
       </div>
-
-      {missing ? null : <ProductToday plan={plan} />}
 
       <GroupsSection api={api} busy={busy} done={done} notice={notice} onAct={onAct} plan={plan} />
 
@@ -342,11 +341,6 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
           </span>
         </div>
       ))}
-      {trade ? (
-        <div className="sb-trade" data-testid="kh-trade">
-          <b>Đánh đổi:</b> {trade}
-        </div>
-      ) : null}
 
       {kol ? (
         <div className="kh-kol" data-testid="kh-kol">
@@ -362,20 +356,17 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
 
       {rows.length > 0 ? (
         <div className="kh-agg" data-testid="kh-agg">
-          <h3>{narrow ? "Cả kế hoạch: hôm nay → sau" : "Cả kế hoạch: hôm nay → sau kế hoạch"}</h3>
-          <p className="sa-hint">Phạm vi: {products.map((id) => productName(plan, id)).join(" và ")} (30 ngày). Các thẻ cùng sản phẩm được tính chung trên cùng các đơn, không cộng rời.</p>
+          <h3>Cả kế hoạch: hôm nay → sau kế hoạch</h3>
           <div className="kh-agg__table">
-            {narrow ? null : (
-              <div className="kh-agg__row kh-agg__row--head">
-                <span>Chỉ số</span>
-                <span>Hôm nay</span>
-                <span>Sau kế hoạch (dự kiến)</span>
-              </div>
-            )}
+            <div className="kh-agg__row kh-agg__row--head">
+              <span>Chỉ số</span>
+              <span>Hôm nay</span>
+              <span>Sau kế hoạch</span>
+            </div>
             {rows.map((r) => (
               <div className={`kh-agg__row ${r.bad ? "kh-agg__row--bad" : ""}`} data-testid={`kh-agg-${r.key}`} key={r.key}>
                 <span>{r.label}</span>
-                <span className="sd-muted">{narrow ? `${r.today} →` : r.today}</span>
+                <span className="sd-muted">{r.today}</span>
                 <span>
                   <b className={r.key === "sure" || r.key === "exp" ? toneClass(r.tone) : ""}>{r.after}</b>
                   {r.d ? <span className={`sv-cell__d sv-cell__d--${r.tone === "plain" ? "flat" : r.tone}`}>{r.d}</span> : null}
@@ -402,14 +393,12 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
         </p>
       ) : null}
       <div className="sd-actions">
+        <NavLink className="sa-btn" href={host.href({})} testId="kh-add-more">
+          Thêm thẻ
+        </NavLink>
         <button className="sa-btn sa-btn--primary" data-testid="kh-confirm" disabled={plan.cards.length === 0 || done || busy} onClick={onConfirm} type="button">
-          Xác nhận kế hoạch
+          Duyệt kế hoạch
         </button>
-        {done ? null : (
-          <span className={`sa-hint ${breaching ? "sd-hint--warn" : ""}`} data-testid="kh-hint">
-            {plan.aggregate?.floor?.ok === false ? "Có thẻ chạm giá sàn: vẫn xác nhận được, Juli hiện cảnh báo trước." : plan.aggregate?.cost?.over_cap ? "Chi phí vượt trần chi mỗi ngày: vẫn xác nhận được, Juli hiện cảnh báo trước." : "Bấm để xem phép đo nào sẽ bị cắt trước khi xác nhận."}
-          </span>
-        )}
       </div>
     </section>
   );
@@ -448,7 +437,6 @@ function GroupsSection({ plan, api, busy, done, notice, onAct }: { readonly plan
     <div className="kh-groups" data-testid="kh-groups">
       <div className="sa-card__head">
         <h3>Nhóm chạy cùng nhau</h3>
-        <span className="sa-hint">Mỗi nhóm một kỳ chạy (ít nhất 3 ngày), các nhóm chạy lần lượt; mỗi nhóm được đo riêng.</span>
         {api.exportPlan && groups.length > 0 ? (
           <button className="sa-btn sa-btn--s" data-testid="kh-export" onClick={download} type="button">
             Xuất Excel
@@ -513,7 +501,7 @@ function GroupBox({ g, plan, api, busy, onAct }: { readonly g: PlanGroup; readon
           ))}
         </div>
       ) : (
-        <p className="sa-hint">Chưa tính được số của nhóm này.</p>
+        <p className="sa-hint">{DASH}</p>
       )}
       {approved || !api.setGroupPeriod ? null : (
         <div className="kh-group__edit">
@@ -552,14 +540,12 @@ function WindowBox({ plan, api, busy, onAct }: { readonly plan: PlanResponse; re
     <div className="kh-win" data-testid="kh-win">
       <div className="sa-card__head">
         <h3>Đo trong bao lâu</h3>
-        <span className="sa-hint">Mặc định là tự động theo sản phẩm (cửa sổ ngắn nhất thấy được thay đổi ≥ 30% với lượng đơn của sản phẩm đó). Bạn đổi được, tối thiểu {w.min_days} ngày.</span>
       </div>
       <div className="kh-win__opts" role="radiogroup" aria-label="Cửa sổ đo">
         <button aria-checked={auto} className={`kh-opt ${auto ? "kh-opt--on" : ""}`} disabled={busy} onClick={() => setDays(null)} role="radio" type="button">
           <span>
             <b>Tự động theo sản phẩm</b> <TextChip tone="pink">Đề xuất</TextChip>
           </span>
-          <span className="sa-hint">mỗi sản phẩm một cửa sổ ngắn nhất thấy được thay đổi ≥ 30%</span>
         </button>
         {w.presets.map((n) => (
           <button aria-checked={days === n} className={`kh-opt ${days === n ? "kh-opt--on" : ""}`} disabled={busy} key={n} onClick={() => setDays(n)} role="radio" type="button">
@@ -590,9 +576,8 @@ function WindowBox({ plan, api, busy, onAct }: { readonly plan: PlanResponse; re
           </span>
         </div>
       ) : null}
-      <p className="sa-hint">Với cửa sổ dài hơn 7 ngày, Juli vẫn đưa kết quả sơ bộ ở ngày 7.</p>
       <div className="kh-sets">
-        <span className="sd-field__label">Riêng từng nhóm thay đổi (cùng sản phẩm, cùng ngày thực hiện)</span>
+        <span className="sd-field__label">Từng sản phẩm</span>
         {w.per_product.map((r) => {
           const mde = productMde(r);
           const rec = r.recommended_days;
@@ -631,34 +616,17 @@ function WindowBox({ plan, api, busy, onAct }: { readonly plan: PlanResponse; re
 
 function ConfirmDialog({ dialog, plan, busy, sheet, onBack, onGo }: { readonly dialog: Dialog; readonly plan: PlanResponse; readonly busy: boolean; readonly sheet: boolean; readonly onBack: () => void; readonly onGo: () => void }) {
   const id = useId();
-  const warned = useMemo(() => (dialog?.kind === "confirm" ? confirmWarnings(plan) : dialog?.kind === "add" ? breachWarnLines(dialog.breaches) : []), [dialog, plan]);
+  const warned = useMemo(() => (dialog?.kind === "confirm" ? confirmWarnings(plan) : []), [dialog, plan]);
   if (!dialog) return null;
-  if (dialog.kind === "add") {
-    return (
-      <BreachDialog
-        busy={busy}
-        closing="Bạn vẫn có thể tiếp tục. Juli ghi lại xác nhận kèm giờ."
-        goLabel="Vẫn tiếp tục"
-        lines={warned}
-        onBack={onBack}
-        onGo={onGo}
-        open
-        sheet={sheet}
-        title={`Thêm ${dialog.code} vào kế hoạch dù ${breachNoun(dialog.breaches)}?`}
-      />
-    );
-  }
   const blocked = warned.length > 0;
   const cutsHere = (plan.plan?.measurement_cut ?? []).filter((c) => planProducts(plan).includes(c.product_id));
   return (
     <div className={`qv-overlay ${sheet ? "sv-overlay--sheet" : ""}`} data-testid="kh-dialog">
       <div aria-labelledby={`${id}-t`} aria-modal="true" className={`qv-dialog ${sheet ? "sv-warn--sheet" : ""}`} role="dialog">
         <h3 className="qv-dialog__title" id={`${id}-t`}>
-          {blocked ? "Xác nhận kế hoạch dù có cảnh báo?" : `Xác nhận kế hoạch ${plan.cards.length} thẻ?`}
+          {blocked ? "Duyệt kế hoạch dù có cảnh báo?" : `Duyệt kế hoạch ${plan.cards.length} thẻ?`}
         </h3>
-        <p className="qv-dialog__body">
-          Các thẻ chuyển sang “Đã duyệt” và đội Juli thực hiện cùng một ngày. Mã kế hoạch cấp khi xác nhận. Cửa sổ đo: {windowText(plan)}.
-        </p>
+        <p className="qv-dialog__body">Cửa sổ đo: {windowText(plan)}.</p>
         {blocked ? (
           <div className="sv-warn__lines" role="alert">
             <b>Cảnh báo</b>
@@ -683,7 +651,7 @@ function ConfirmDialog({ dialog, plan, busy, sheet, onBack, onGo }: { readonly d
             Quay lại
           </button>
           <button className="qv-btn qv-btn--primary" disabled={busy} onClick={onGo} type="button">
-            {blocked ? "Vẫn tiếp tục" : "Xác nhận kế hoạch"}
+            {blocked ? "Vẫn tiếp tục" : "Duyệt kế hoạch"}
           </button>
         </div>
       </div>

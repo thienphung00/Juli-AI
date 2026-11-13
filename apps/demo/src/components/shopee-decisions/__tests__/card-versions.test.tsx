@@ -51,14 +51,13 @@ describe("CardVersions · nhiều phiên bản của một thay đổi", () => {
     renderReco(<CardPage from={null} id="card-voucher" />, reco);
     fireEvent.click(await screen.findByTestId("sv-ver-2"));
     expect(screen.getByText("Phép thử “nếu đổi” cho V2")).toBeInTheDocument();
-    expect(screen.getByText("Chỉ V2 thay đổi, các phiên bản khác giữ nguyên.")).toBeInTheDocument();
     fireEvent.change(slider("Đơn tối thiểu"), { target: { value: "250000" } });
     await waitFor(() => expect(reco.calls.some((c) => c.name === "whatif")).toBe(true));
     expect(reco.calls.find((c) => c.name === "whatif")!.args).toEqual(["card-voucher", { min_spend: 250000 }, 2]);
-    expect(await screen.findByText("Đã chỉnh so với đề xuất (whatif_adjusted)")).toBeInTheDocument();
+    expect(await screen.findByText("Đã chỉnh")).toBeInTheDocument();
     expect(screen.getByTestId("sv-ver-1")).toHaveTextContent("JC-2611-0007-V1");
     fireEvent.click(await screen.findByRole("button", { name: "Về mặc định" }));
-    await waitFor(() => expect(screen.queryByText("Đã chỉnh so với đề xuất (whatif_adjusted)")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("Đã chỉnh")).toBeNull());
   });
 
   it("a version that could not be priced is shown and cannot be chosen", async () => {
@@ -115,7 +114,7 @@ describe("CardVersions · nhiều phiên bản của một thay đổi", () => {
     expect(plan.calls.find((c) => c.name === "add")!.args).toEqual(["card-voucher", 2, false]);
     const outcome = await screen.findByTestId("sd-outcome");
     expect(outcome).toHaveTextContent("Đã thêm JC-2611-0007-V2 vào kế hoạch. Chưa thực hiện gì.");
-    expect(within(outcome).getByRole("link", { name: "Xem kế hoạch ›" })).toHaveAttribute("href", "/decisions?ke-hoach=1");
+    expect(within(outcome).getByRole("link", { name: "Xem kế hoạch ›" })).toHaveAttribute("href", "/decisions?xem=ke-hoach");
   });
 
   it("adding a breaching version warns first; 'Vẫn tiếp tục' adds it acknowledged", async () => {

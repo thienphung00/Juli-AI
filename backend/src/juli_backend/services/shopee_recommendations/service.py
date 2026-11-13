@@ -504,6 +504,8 @@ def _summary(
             "effect_days": pm["days"],
         },
         "floor_ok": card["floor"]["ok"],
+        # P100: what the card costs over its effect days; the list shows "Chi phí" only when > 0.
+        "cost": (card.get("certain") or {}).get("extra_cost"),
         "plan": card["measurement_plan"]["label"],
         "stale": bool((meta or {}).get("stale")) or stale_why is not None,
         "stale_reason": (meta or {}).get("stale_reason") or stale_why,

@@ -161,7 +161,7 @@ describe("S2-C · card lists", () => {
     expect(await screen.findByTestId("sq-card-c-title")).toBeInTheDocument();
     expect(screen.queryByTestId("sq-card-c-ads")).toBeNull();
     for (const c of hidden) expect(screen.queryByTestId(`sq-card-${c.id}`)).toBeNull();
-    expect(tabs()).toEqual(["Đề xuất · 1", "Đang thực hiện · 1", "Đo lường · 1"]);
+    expect(tabs()).toEqual(["Đề xuất · 1", "Thực hiện · 1", "Đo lường · 1"]);
     cleanup();
     withReviewer(SAMPLE, <DecisionsView params={params("tab=dang-thuc-hien")} />, fakeReco({ list: list(all) }));
     expect(await screen.findByTestId("sd-card-c-cover")).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe("S2-C · card lists", () => {
   it("a seller sees every card", async () => {
     withReviewer(null, <DecisionsView params={params()} />, fakeReco({ list: list(all) }));
     expect(await screen.findByTestId("sq-card-c-ads")).toBeInTheDocument();
-    expect(tabs()).toEqual(["Đề xuất · 5", "Đang thực hiện · 2", "Đo lường · 2"]);
+    expect(tabs()).toEqual(["Đề xuất · 5", "Thực hiện · 2", "Đo lường · 2"]);
   });
 
   it("Sản phẩm › Đề xuất filters the same way", () => {

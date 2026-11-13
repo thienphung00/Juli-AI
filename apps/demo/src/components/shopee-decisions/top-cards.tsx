@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 
-import { fmt } from "../../lib/shopee-analytics/format";
+import { DASH, fmt, vnd } from "../../lib/shopee-analytics/format";
+import { kindLabel, metricsOfCard } from "../../lib/shopee-decisions/model";
+import { MetricChip } from "../metrics/metric-chip";
 import { useReco } from "../../lib/shopee-decisions/context";
 import type { CardSummary } from "../../lib/shopee-decisions/types";
-import { firstVersionRange, isOpen, measuringDaysLeft, measuringNote, rangeTone } from "../../lib/shopee-decisions/versions";
+import { isOpen, rangeTone } from "../../lib/shopee-decisions/versions";
 import { Notice, TextChip } from "../shopee-analytics/ui";
 import { ShopeeApiError } from "../../lib/shopee-analytics/client";
 import type { Breach } from "../../lib/shopee-decisions/types";
 import { breachNoun, breachWarnLines } from "../../lib/shopee-decisions/versions";
-import { DismissDialog } from "./dialogs";
 import { BreachDialog } from "./versions";
-import { NavLink, StatusChip, errorText } from "./ui";
+import { NavLink, errorText } from "./ui";
 
 /**
  * Quyết định · Đề xuất (`QuyetDinhHangDoi.dc.html`): one card per product, the one with
@@ -50,68 +51,80 @@ export function topEntries(cards: readonly CardSummary[]): TopEntry[] {
 
 type Notice_ = { readonly text: string; readonly tone: "plain" | "ok" | "info"; readonly planLink?: boolean };
 
-function ProductCard({ entry, justUp, canAct, onSkip, onPlan }: { readonly entry: TopEntry; readonly justUp: string | null; readonly canAct: boolean; readonly onSkip: (e: TopEntry) => void; readonly onPlan: (e: TopEntry) => void }) {
+const MINUS = "−";
+const money = (n: number): string => `${n < 0 ? MINUS : "+"}${vnd(Math.abs(Math.round(n)))}`;
+
+/** "+a – b đ" of a quantile pair; "—" without both ends. */
+export function rangeText(q: { readonly p10: number | null; readonly p90: number | null }, days = 1): string {
+  if (q.p10 === null || q.p90 === null) return DASH;
+  const lo = Math.min(q.p10, q.p90) / days;
+  const hi = Math.max(q.p10, q.p90) / days;
+  return Math.round(lo) === Math.round(hi) ? money(lo) : `${money(lo)} – ${money(hi)}`;
+}
+
+/** The card's own days (the Δ totals stand on them). */
+export const cardDays = (c: Pick<CardSummary, "predicted_summary">): number => Math.max(1, c.predicted_summary.effect_days || 30);
+
+export function CardRow({ card, name, inPlan, canAct, busy, onPlan }: { readonly card: CardSummary; readonly name?: string | null; readonly inPlan: boolean; readonly canAct: boolean; readonly busy: boolean; readonly onPlan: (c: CardSummary, add: boolean) => void }) {
   const host = useReco();
-  const c = entry.top;
-  const left = measuringDaysLeft(c.product_measuring ?? null, host.now?.() ?? new Date());
-  const q = c.predicted_summary.dprofit_month;
+  const days = cardDays(card);
+  const q = card.predicted_summary.dprofit_month;
   const tone = rangeTone(q.p10, q.p90);
-  const nVersions = c.versions?.length ?? 1;
-  const code = c.code ?? c.id;
+  const g = card.predicted_summary.dgmv_month;
+  const href = host.href({ the: card.id, from: "quyet-dinh" });
   return (
-    <article className="sq-card" data-testid={`sq-card-${c.id}`}>
-      <div className="sq-card__head">
-        <span className="sd-code">{code}</span>
-        {c.product_id ? <span className="sa-chip sa-chip--outline">SP · {c.product_id}</span> : null}
-        <h2 className="sq-card__title">
-          <NavLink href={host.href({ the: c.id, from: "quyet-dinh" })}>{c.title}</NavLink>
-        </h2>
-        {justUp ? <TextChip tone="pink">{justUp}</TextChip> : null}
-        {c.origin === "manual" ? <TextChip tone="info">Thủ công</TextChip> : null}
-        <StatusChip status={c.status} />
-        {c.stale ? <TextChip tone="warn">Đang cập nhật</TextChip> : null}
-        {!c.floor_ok ? <TextChip tone="down">Chạm giá sàn</TextChip> : null}
-      </div>
-      <div className="sq-card__sum">
-        <span>
-          {c.family_label} · {nVersions} phiên bản
-        </span>
-        <b className={tone === "up" ? "sa-tone--up" : tone === "down" ? "sa-tone--down" : ""}>Δ lợi nhuận V1 {firstVersionRange(c)}</b>
-      </div>
-      {left > 0 ? (
-        <div className="sd-measuring" data-testid="sq-measuring" role="status">
-          <b>Sản phẩm đang đo: còn {left} ngày</b>
-          <span>{measuringNote(c.product_measuring ?? null)}</span>
-        </div>
-      ) : null}
-      <div className="sd-next" data-testid="sq-next">
-        <b>Tiếp theo cho sản phẩm này:</b>
-        {entry.next ? (
-          <>
-            <span className="sd-code">{entry.next.code ?? entry.next.id}</span>
+    <article className={`sq-card dx-card ${inPlan ? "dx-card--in" : ""}`} data-testid={`sq-card-${card.id}`}>
+      <div className="dx-card__top">
+        <div className="dx-card__main">
+          <div className="dx-card__group">
             <span>
-              {entry.next.family_label} · {entry.next.title}
+              {[card.family_label, kindLabel(card)].filter(Boolean).join(" · ")}
             </span>
-          </>
-        ) : (
-          <span>Không còn thẻ xếp hàng.</span>
-        )}
-        <span className="sd-next__q" data-testid="sq-queue">
-          #1 · còn {fmt(entry.behind, 0)} thẻ xếp hàng
-        </span>
+            {inPlan ? <TextChip tone="pink">Trong kế hoạch nháp</TextChip> : null}
+            {card.stale ? <TextChip tone="warn">Đang cập nhật</TextChip> : null}
+            {!card.floor_ok ? <TextChip tone="down">Chạm giá sàn</TextChip> : null}
+          </div>
+          <h2 className="dx-card__title">
+            <NavLink href={href}>{card.title}</NavLink>
+          </h2>
+          {card.product_id ? <div className="dx-card__product">{name ?? card.product_id}</div> : null}
+        </div>
+        <div className="dx-card__delta">
+          <div className="dx-card__label">Δ lợi nhuận cả {fmt(days, 0)} ngày</div>
+          <div className={`dx-card__big ${tone === "up" ? "sa-tone--up" : tone === "down" ? "sa-tone--down" : ""}`} data-testid="dx-dprofit">
+            {rangeText(q)}
+          </div>
+          <div className="dx-card__perday" data-testid="dx-perday">
+            ≈ {rangeText(q, days)}/ngày
+          </div>
+        </div>
+      </div>
+      <div className="dx-card__chips">
+        {metricsOfCard(card).map((m) => (
+          <MetricChip key={m} metric={m} />
+        ))}
+        <span data-testid="dx-dgmv">Δ GMV {rangeText(g)}</span>
+        {typeof card.cost === "number" && card.cost > 0 ? (
+          <span data-testid="dx-cost">
+            · <b>Chi phí:</b> {vnd(Math.round(card.cost))}
+          </span>
+        ) : null}
       </div>
       <div className="sd-actions">
-        <NavLink className="sa-btn sa-btn--primary" href={host.href({ the: c.id, from: "quyet-dinh" })}>
-          Mở thẻ để chọn phiên bản
+        <NavLink className="sa-btn sa-btn--s" href={href}>
+          Xem &amp; sửa
+        </NavLink>
+        <NavLink className="sa-btn sa-btn--s" href={host.href({ builder: true, productId: card.product_id ?? null, from: "quyet-dinh" })}>
+          So sánh
         </NavLink>
         {host.plan ? (
-          <button className="sa-btn" data-testid="sq-plan" disabled={!canAct} onClick={() => onPlan(entry)} type="button">
-            Thêm vào kế hoạch
+          <button className="sa-btn sa-btn--s" data-testid="sq-plan" disabled={!canAct || busy} onClick={() => onPlan(card, !inPlan)} type="button">
+            {inPlan ? "Bỏ khỏi kế hoạch" : "Thêm vào kế hoạch"}
           </button>
         ) : null}
-        <button className="sa-btn" disabled={!canAct} onClick={() => onSkip(entry)} type="button">
-          Bỏ qua
-        </button>
+        <NavLink className="sa-btn sa-btn--s sa-btn--primary" href={href}>
+          Duyệt
+        </NavLink>
       </div>
     </article>
   );
@@ -142,60 +155,32 @@ export function FlashNotice({ flash }: { readonly flash: Flash }) {
   ) : null;
 }
 
-export function TopCards({ cards, flash, onFlash, onChanged }: { readonly cards: readonly CardSummary[]; readonly flash: Flash; readonly onFlash: (f: Flash) => void; readonly onChanged: () => void }) {
+export function TopCards({ cards, names, inPlan, flash, onFlash, onChanged }: { readonly cards: readonly CardSummary[]; readonly names: Readonly<Record<string, string>>; readonly inPlan: ReadonlySet<string>; readonly flash: Flash; readonly onFlash: (f: Flash) => void; readonly onChanged: () => void }) {
   const host = useReco();
-  const entries = topEntries(cards);
-  const [skip, setSkip] = useState<TopEntry | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const justUp = flash.justUp;
-  const [planning, setPlanning] = useState<{ readonly entry: TopEntry; readonly breaches: readonly Breach[] } | null>(null);
-  const addToPlan = async (entry: TopEntry, acknowledge: boolean) => {
+  const [planning, setPlanning] = useState<{ readonly card: CardSummary; readonly breaches: readonly Breach[] } | null>(null);
+  const canAct = !host.readOnly && !host.staff;
+  const toggle = async (card: CardSummary, add: boolean, acknowledge: boolean) => {
     const plan = host.plan;
     if (!plan) return;
     setBusy(true);
     try {
-      await plan.api.add(entry.top.id, null, acknowledge);
-      const gone = entry.top.code ?? entry.top.id;
-      const nx = entry.next;
-      onFlash({
-        notice: { text: `Đã thêm ${gone}-V1 vào kế hoạch (chưa thực hiện). ${nx ? `${nx.code ?? nx.id} đã lên Quyết định.` : ""}`.trim(), tone: "ok", planLink: true },
-        justUp: nx ? { ...justUp, [nx.id]: `Vừa lên thay thẻ ${gone} (đã vào kế hoạch)` } : justUp,
-      });
+      if (add) await plan.api.add(card.id, null, acknowledge);
+      else await plan.api.remove(card.id);
+      onFlash({ notice: null, justUp: flash.justUp });
       setPlanning(null);
       onChanged();
     } catch (e) {
-      if (e instanceof ShopeeApiError && e.code.startsWith("reco_breach") && Array.isArray(e.detail?.["breaches"])) setPlanning({ entry, breaches: e.detail["breaches"] as Breach[] });
-      else onFlash({ notice: { text: errorText(e), tone: "plain" }, justUp });
-    } finally {
-      setBusy(false);
-    }
-  };
-  const canAct = !host.readOnly && !host.staff;
-  const dismiss = async (choice: { readonly reasonCode: string | null; readonly note: string | null }) => {
-    if (!skip) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await host.reco.dismiss(skip.top.id, choice);
-      const gone = skip.top.code ?? skip.top.id;
-      const nx = skip.next;
-      onFlash({
-        notice: { text: `Đã bỏ qua ${gone}. ${nx ? `${nx.code ?? nx.id} đã lên Quyết định thay thế.` : "Không còn thẻ cho sản phẩm này."}`, tone: "plain" },
-        justUp: nx ? { ...justUp, [nx.id]: `Vừa lên thay thẻ ${gone} (đã bỏ qua)` } : justUp,
-      });
-      setSkip(null);
-      onChanged();
-    } catch (e) {
-      setError(errorText(e));
+      if (e instanceof ShopeeApiError && e.code.startsWith("reco_breach") && Array.isArray(e.detail?.["breaches"])) setPlanning({ card, breaches: e.detail["breaches"] as Breach[] });
+      else onFlash({ notice: { text: errorText(e), tone: "plain" }, justUp: flash.justUp });
     } finally {
       setBusy(false);
     }
   };
   return (
     <>
-      {entries.map((e) => (
-        <ProductCard canAct={canAct} entry={e} justUp={justUp[e.top.id] ?? null} key={e.top.id} onPlan={(x) => void addToPlan(x, false)} onSkip={setSkip} />
+      {cards.map((c) => (
+        <CardRow name={c.product_id ? names[c.product_id] : null} busy={busy} canAct={canAct} card={c} inPlan={inPlan.has(c.id)} key={c.id} onPlan={(x, add) => void toggle(x, add, false)} />
       ))}
       <BreachDialog
         busy={busy}
@@ -203,11 +188,10 @@ export function TopCards({ cards, flash, onFlash, onChanged }: { readonly cards:
         goLabel="Vẫn tiếp tục"
         lines={planning ? breachWarnLines(planning.breaches) : []}
         onBack={() => setPlanning(null)}
-        onGo={() => planning && void addToPlan(planning.entry, true)}
+        onGo={() => planning && void toggle(planning.card, true, true)}
         open={planning !== null}
-        title={planning ? `Thêm ${planning.entry.top.code ?? planning.entry.top.id} vào kế hoạch dù ${breachNoun(planning.breaches)}?` : ""}
+        title={planning ? `Thêm ${planning.card.code ?? planning.card.id} vào kế hoạch dù ${breachNoun(planning.breaches)}?` : ""}
       />
-      <DismissDialog busy={busy} error={error} onCancel={() => setSkip(null)} onSubmit={(c) => void dismiss(c)} open={skip !== null} />
     </>
   );
 }

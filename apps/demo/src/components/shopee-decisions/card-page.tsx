@@ -33,7 +33,7 @@ import {
 } from "../../lib/shopee-decisions/versions";
 import { Notice, TextChip } from "../shopee-analytics/ui";
 import { DismissDialog, RequestChangeDialog, WithdrawDialog } from "./dialogs";
-import { ExecutionPanel, READ_ONLY_TITLE } from "./execution";
+import { ExecutionPanel } from "./execution";
 import { MegaPanel } from "./mega";
 import { Checks, NumbersTable } from "./numbers";
 import { NavLink, RecoState, StatusChip, errorText } from "./ui";
@@ -431,12 +431,8 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         {kolBlock ? (
           <p className="sa-hint" data-testid="kol-basis">
             Dữ liệu của KOL 30 ngày: {kolBasis(kolBlock)}
-            {kolBlock.low_data ? `. Cặp KOL × sản phẩm này dưới ${kolBlock.orders_threshold} đơn nên ước tính được kéo về trung bình shop, khoảng rộng.` : `. Từ ${kolBlock.orders_threshold} đơn của cặp KOL × sản phẩm, ước tính kéo nhẹ về trung bình shop.`}
           </p>
         ) : null}
-        <p className="sa-hint">
-          Tính trên {fmt(shown.window.days, 0)} ngày đến {shown.window.to.slice(8, 10)}/{shown.window.to.slice(5, 7)} · {shown.order_basis.label} · Kế hoạch đo: {shown.measurement_plan.label}
-        </p>
       </header>
 
       {(detail.targets ?? []).length > 0 ? <TargetsBlock fill={detail.fill ?? null} targets={detail.targets ?? []} /> : null}
@@ -470,15 +466,9 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 
       {detail.stale ? (
         <Notice tone="warn" testId="sd-stale">
-          <b>Đang cập nhật.</b> Số liệu hoặc thông số shop vừa đổi nên thẻ này đang được tính lại; số bên dưới là số của lần tính trước{detail.computed_at ? ` (${vnWhenFull(detail.computed_at)})` : ""}. Bạn sẽ duyệt được khi số mới sẵn sàng.
+          <b>Đang cập nhật</b>{detail.computed_at ? ` · ${vnWhenFull(detail.computed_at)}` : ""}
         </Notice>
-      ) : detail.computed_at ? (
-        <p className="sa-hint" data-testid="sd-computed-at">
-          Cập nhật lúc {vnWhenFull(detail.computed_at)}
-        </p>
       ) : null}
-      {detail.status === "draft" ? <Notice tone="info">Nháp: shop chưa thấy thẻ này.</Notice> : null}
-      {detail.status === "changes_requested" ? <Notice tone="info">Shop đã yêu cầu chỉnh thẻ này. Đội Juli tính lại và gửi thẻ mới.</Notice> : null}
       {final.note ? <Notice tone="warn">{final.note}</Notice> : null}
       {ack ? (
         <p className="sd-ack-line" data-testid="sd-ack-card">
@@ -536,7 +526,6 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
             <dt>Phiên bản đang chọn</dt>
             <dd data-testid="sd-selected">
               <b>{vcode}</b>{" "}
-              <span className="sa-hint">{isKol ? "Khoảng đơn dự kiến rộng vì KOL ít dữ liệu: Juli kéo ước tính về mức trung bình của shop. Sau khi gửi, đo theo cặp KOL × sản phẩm, trước và sau ngày gửi." : "Mã này được ghi vào quyết định (chosen_version) và nhật ký thẻ."}</span>
             </dd>
           </dl>
         </section>
@@ -546,8 +535,8 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         <section className="sa-card" data-testid="sd-inputs">
           <div className="sa-card__head">
             <h2 className="sa-h2">{isMega ? "Các thay đổi trong chiến dịch" : `Phép thử “nếu đổi” cho ${name}`}</h2>
-            <span className="sa-hint">{adjustable ? (isMega ? "Mỗi lần đổi, mọi con số tính lại." : `Chỉ ${name} thay đổi, các phiên bản khác giữ nguyên.`) : `Giá trị ${detail.status === "rejected" ? "của thẻ" : "đã duyệt"}: ${viewing || DASH}`}</span>
-            {adjustable && edited && !host.readOnly ? <TextChip tone="pink">Đã chỉnh so với đề xuất (whatif_adjusted)</TextChip> : null}
+            {adjustable ? null : <span className="sa-hint">{`Giá trị ${detail.status === "rejected" ? "của thẻ" : "đã duyệt"}: ${viewing || DASH}`}</span>}
+            {adjustable && edited && !host.readOnly ? <TextChip tone="pink">Đã chỉnh</TextChip> : null}
             {adjustable && edited && !host.readOnly ? (
               <button className="sa-btn sa-btn--s" disabled={!seller} onClick={reset} type="button">
                 Về mặc định
@@ -605,11 +594,6 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
           </span>
         </section>
       ) : null}
-      {host.readOnly && adjustable ? (
-        <p className="sa-hint" title={READ_ONLY_TITLE}>
-          {READ_ONLY_TITLE}. Chỉ thử “nếu đổi” được, không ghi lại.
-        </p>
-      ) : null}
 
       {host.staff ? <StaffActions detail={detail} onChanged={onChanged} /> : null}
 
@@ -641,13 +625,12 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 
 /** Juli Ops: send a draft to the shop, or take a card off the list ("Gỡ thẻ", with a reason). */
 /** P97 D85.13: the targets of a card that applies one setting to many products / campaigns. */
-function TargetsBlock({ targets, fill }: { readonly targets: readonly CardTarget[]; readonly fill: { readonly mode: string; readonly targets: number } | null }) {
+function TargetsBlock({ targets }: { readonly targets: readonly CardTarget[]; readonly fill?: { readonly mode: string; readonly targets: number } | null }) {
   const mon = (n: number | null | undefined): string => (n === null || n === undefined ? "—" : svk(n));
   return (
     <section className="sa-card" data-testid="sd-targets">
       <div className="sa-card__head">
         <h2 className="sa-h2">Áp dụng cho {fmt(targets.length, 0)} {targets[0]?.kind === "campaign" ? "chiến dịch" : "sản phẩm"}</h2>
-        <span className="sa-hint">{fill ? (fill.mode === "bulk" ? "Khi duyệt: điền một lượt bằng chỉnh sửa hàng loạt của Shopee." : `Khi duyệt: ${fmt(fill.targets, 0)} lượt điền, mỗi đối tượng một lượt.`) : null}</span>
       </div>
       <ul className="p2-trows__list">
         {targets.map((t) => (
