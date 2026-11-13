@@ -10,6 +10,13 @@ import type { ChannelProducts, ChannelSplit, Critical, KolSection, Matrix, Metri
 
 export const DEMO_SHOPEE_BASE = "/v1/demo/shopee" as const;
 
+/** The Excel report routes (P100): beside the analytics routes, not under them. */
+export const DEMO_EXPORTS_BASE = "/v1/demo/shopee/exports" as const;
+
+export function opsExportsBase(shopId: string): string {
+  return `/v1/ops/shops/${encodeURIComponent(shopId)}/shopee/exports`;
+}
+
 export function opsShopeeBase(shopId: string): string {
   return `/v1/ops/shops/${encodeURIComponent(shopId)}/shopee/analytics`;
 }
@@ -49,6 +56,8 @@ export interface ShopeeApi {
   /** P100 Tổng quan: the channel table of the shop, or of one product. */
   channelSplit(q: WindowQuery, productId?: string | null): Promise<ChannelSplit>;
   channelSplitProducts(q: WindowQuery): Promise<ChannelProducts>;
+  /** P100: Tổng quan as an Excel file (the period and level on screen); absent = no download. */
+  exportTongQuan?(q: WindowQuery & { readonly productId?: string | null }): Promise<Blob>;
   ranking(q: RankingQuery): Promise<Ranking>;
   /** P100 Phân tích: one metric by luồng and by sản phẩm, now vs the previous period. */
   metricView(q: MetricViewQuery): Promise<MetricView>;
@@ -119,10 +128,13 @@ export interface ShopeeClientOptions {
   /** Seller scope only: the acting shop (`X-Shop-Id`). */
   readonly shopId?: string;
   readonly fetchImpl?: typeof fetch;
+  /** Where the Excel reports are served (`DEMO_EXPORTS_BASE` or `opsExportsBase(shopId)`); default `${base}/exports`. */
+  readonly exportsBase?: string;
 }
 
 export function createShopeeApi(options: ShopeeClientOptions): ShopeeApi {
   const { base, token, shopId, fetchImpl } = options;
+  const exportsBase = options.exportsBase ?? `${base}/exports`;
   async function get<T>(path: string, params: URLSearchParams): Promise<T> {
     const doFetch = fetchImpl ?? fetch;
     const qs = params.toString();
@@ -159,6 +171,17 @@ export function createShopeeApi(options: ShopeeClientOptions): ShopeeApi {
       return get<ChannelSplit>("/channel-split", p);
     },
     channelSplitProducts: (q) => get<ChannelProducts>("/channel-split/products", windowParams(q)),
+    exportTongQuan: async (q) => {
+      const p = windowParams(q);
+      if (q.productId) p.set("product_id", q.productId);
+      const response = await (fetchImpl ?? fetch)(`${exportsBase}/tong-quan.xlsx?${p.toString()}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}`, ...(shopId ? { "X-Shop-Id": shopId } : {}) },
+        cache: "no-store",
+      });
+      if (!response.ok) throw new ShopeeApiError(response.status, "", "Chưa tải được tệp Excel.");
+      return response.blob();
+    },
     ranking: (q) => {
       const p = windowParams(q);
       p.set("kind", q.kind ?? "products");

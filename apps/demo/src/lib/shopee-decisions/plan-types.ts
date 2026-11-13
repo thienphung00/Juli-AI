@@ -570,8 +570,8 @@ export interface PlanApi {
   setGroupPeriod?(groupId: string, patch: { readonly days?: number; readonly start?: string | null; readonly clearStart?: boolean }): Promise<PlanResponse>;
   removeGroupMember?(groupId: string, member: GroupMemberRef): Promise<PlanResponse>;
   cancelGroup?(groupId: string): Promise<PlanResponse>;
-  /** The plan as an Excel file: group, versions, period (one row per version). */
-  exportPlan?(): Promise<Blob>;
+  /** P100: Kế hoạch of a month ("YYYY-MM") as an Excel file; absent = no download. */
+  exportKeHoach?(month: string | null): Promise<Blob>;
   /** `version` null = the version and what-if the card had when it was last removed from the plan (else V1). */
   add(cardId: string, version: number | null, acknowledgeBreaches?: boolean): Promise<PlanResponse>;
   remove(cardId: string): Promise<PlanResponse>;

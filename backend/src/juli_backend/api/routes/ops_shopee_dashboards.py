@@ -33,8 +33,8 @@ FromDay = Annotated[date | None, Query(alias="from")]
 ToDay = Annotated[date | None, Query(alias="to")]
 
 
-async def _shopee_shop(session: AsyncSession, shop_id: uuid.UUID) -> None:
-    """404 for an unknown shop, 409 unless it is a Shopee shop.
+async def _shopee_shop(session: AsyncSession, shop_id: uuid.UUID) -> str:
+    """404 for an unknown shop, 409 unless it is a Shopee shop; returns the shop's name.
 
     The platform comes from the Ops listing, not from a read under ``shops.user_id``: since
     P93 that user may be a removed member, and ``shops`` RLS then hides the shop from them.
@@ -46,6 +46,7 @@ async def _shopee_shop(session: AsyncSession, shop_id: uuid.UUID) -> None:
             status_code=409,
             detail={"code": "not_a_shopee_shop", "message": "this shop is not on Shopee"},
         )
+    return listing.shop_name
 
 
 def _window(start: date | None, end: date | None, latest: date | None) -> dash.DateRange:

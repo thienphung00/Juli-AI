@@ -269,10 +269,12 @@ describe("Kế hoạch · nhóm chạy cùng nhau (P97 D85.14)", () => {
     await waitFor(() => expect(api.calls.find((c) => c.name === "cancelGroup")?.args).toEqual(["g-b"]));
   });
 
-  it("exports the plan to Excel", async () => {
-    const api = open(groupedPlan());
+  it("Tải Excel downloads Kế hoạch of the month on screen", async () => {
+    const totals = (goal_gmv: number | null, goal_profit: number | null, cards: number) => ({ scope: "running" as const, month: "2026-11", day: 13, days_in_month: 30, cards, baseline_gmv: 10_000_000, baseline_profit: 1_000_000, uplift_gmv: 0, uplift_profit: 0, goal_gmv, goal_profit, mtd_gmv: 4_000_000, mtd_profit: 400_000 });
+    const api = open({ ...groupedPlan(), month: { running: totals(null, null, 0), with_draft: totals(12_500_000, 1_300_000, 3) } });
     fireEvent.click(await screen.findByTestId("kh-export"));
-    await waitFor(() => expect(api.calls.some((c) => c.name === "exportPlan")).toBe(true));
+    expect(screen.getByTestId("kh-export")).toHaveTextContent("Tải Excel");
+    await waitFor(() => expect(api.calls.find((c) => c.name === "exportKeHoach")?.args).toEqual(["2026-11"]));
   });
 
   it("a plan with no group shows no group section", async () => {

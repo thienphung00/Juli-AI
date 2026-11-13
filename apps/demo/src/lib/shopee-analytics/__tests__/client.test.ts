@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { DEMO_SHOPEE_BASE, ShopeeApiError, createShopeeApi, opsShopeeBase, refusalOf } from "../client";
+import { DEMO_SHOPEE_BASE, ShopeeApiError, createShopeeApi, opsExportsBase, opsShopeeBase, refusalOf } from "../client";
+import { createPlanApi } from "../../shopee-decisions/plan-client";
 
 function respond(body: unknown, status = 200): typeof fetch {
   return vi.fn(async () => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })) as unknown as typeof fetch;
@@ -63,5 +64,27 @@ describe("Shopee read API client", () => {
     expect(refusalOf(await api({ detail: { code: "invalid_period", message: "x" } }, 422).overview({ period: "30d" }).catch((e: unknown) => e))).toBe("invalid");
     expect(refusalOf(await api({}, 500).overview({ period: "30d" }).catch((e: unknown) => e))).toBe("failed");
     expect(refusalOf(new Error("boom"))).toBe("failed");
+  });
+
+  it("downloads the Tổng quan and Kế hoạch workbooks from the seller and Ops export routes", async () => {
+    const f = vi.fn(async () => new Response(new Blob(["PK"]), { status: 200 })) as unknown as typeof fetch;
+    const seller = createShopeeApi({ base: DEMO_SHOPEE_BASE, token: "t", shopId: "s1", fetchImpl: f });
+    const ops = createShopeeApi({ base: opsShopeeBase("a b"), exportsBase: opsExportsBase("a b"), token: "t", fetchImpl: f });
+    const blob = await seller.exportTongQuan!({ period: "custom", from: "2026-10-01", to: "2026-10-20", productId: "1001" });
+    await ops.exportTongQuan!({ period: "30d" });
+    await createPlanApi({ base: "/x", exportsBase: opsExportsBase("a b"), token: "t", fetchImpl: f }).exportKeHoach!("2026-11");
+    const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][];
+    expect(blob).toBeInstanceOf(Blob);
+    expect(calls.map((c) => c[0])).toEqual([
+      "/v1/demo/shopee/exports/tong-quan.xlsx?period=custom&from=2026-10-01&to=2026-10-20&product_id=1001",
+      "/v1/ops/shops/a%20b/shopee/exports/tong-quan.xlsx?period=30d",
+      "/v1/ops/shops/a%20b/shopee/exports/ke-hoach.xlsx?month=2026-11",
+    ]);
+    expect(calls[0]![1].headers).toMatchObject({ Authorization: "Bearer t", "X-Shop-Id": "s1" });
+  });
+
+  it("a refused download throws", async () => {
+    const f = vi.fn(async () => new Response("{}", { status: 409 })) as unknown as typeof fetch;
+    await expect(createShopeeApi({ base: DEMO_SHOPEE_BASE, token: "t", shopId: "s", fetchImpl: f }).exportTongQuan!({ period: "30d" })).rejects.toBeInstanceOf(ShopeeApiError);
   });
 });

@@ -1,5 +1,6 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
 
+import { saveBlob, keHoachFileName } from "../../lib/shopee-analytics/download";
 import { DASH, dayMonth, vnd } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
@@ -158,7 +159,9 @@ function draftRows(plan: PlanResponse): { readonly profit: string; readonly gmv:
 }
 
 /** Month bars: "Đang chạy" grey, the draft's addition pink (same totals as Tổng quan). */
-function MonthBars({ plan }: { readonly plan: PlanResponse }) {
+function MonthBars({ plan, api }: { readonly plan: PlanResponse; readonly api: PlanApi }) {
+  const host = useReco();
+  const [failed, setFailed] = useState(false);
   const m = plan.month;
   if (!m) return null;
   const bar = (label: string, key: string, run: number | null, withDraft: number | null) => {
@@ -185,6 +188,23 @@ function MonthBars({ plan }: { readonly plan: PlanResponse }) {
         <span>
           {m.with_draft.day}/{m.with_draft.days_in_month} ngày
         </span>
+        {api.exportKeHoach ? (
+          <button
+            className="sa-btn sa-btn--s"
+            data-testid="kh-export"
+            onClick={() => {
+              setFailed(false);
+              api.exportKeHoach!(m.with_draft.month).then(
+                (blob) => saveBlob(blob, keHoachFileName(host.shopName || "Shop", m.with_draft.month)),
+                () => setFailed(true),
+              );
+            }}
+            type="button"
+          >
+            Tải Excel
+          </button>
+        ) : null}
+        {failed ? <span className="sd-error">Chưa tải được tệp Excel</span> : null}
       </div>
       {bar("GMV", "gmv", m.running.goal_gmv, m.with_draft.goal_gmv)}
       {bar("Lợi nhuận", "profit", m.running.goal_profit, m.with_draft.goal_profit)}
@@ -247,7 +267,7 @@ function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, on
         </Notice>
       ) : null}
 
-      <MonthBars plan={plan} />
+      <MonthBars api={api} plan={plan} />
       {missing ? <DataMissingNotice missing={missing} /> : null}
       <PlanTotalsNotes plan={plan} />
 
@@ -406,17 +426,6 @@ function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, on
 
 const dm = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-/** Writes a downloaded file; a no-op where the browser API is missing (tests, old webviews). */
-function saveBlob(blob: Blob, name: string): void {
-  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return;
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 /**
  * "Nhóm A, B ..." (P97 D85.14 / P94): options that run together with one period (at least 3 days). Each group
  * is judged on its own with the plan math over its members; the groups run one after another. An option that
@@ -424,24 +433,11 @@ function saveBlob(blob: Blob, name: string): void {
  */
 function GroupsSection({ plan, api, busy, done, notice, onAct }: { readonly plan: PlanResponse; readonly api: PlanApi; readonly busy: boolean; readonly done: boolean; readonly notice: PlanNotice | null; readonly onAct: (call: () => Promise<PlanResponse>) => Promise<void> }) {
   const groups = plan.groups ?? [];
-  const [exportError, setExportError] = useState<string | null>(null);
   if (groups.length === 0 && !notice) return null;
-  const download = () => {
-    setExportError(null);
-    api.exportPlan!().then(
-      (blob) => saveBlob(blob, `ke-hoach-${plan.plan?.code ?? "nhap"}.xlsx`),
-      () => setExportError("Chưa xuất được kế hoạch ra Excel. Thử lại sau ít phút."),
-    );
-  };
   return (
     <div className="kh-groups" data-testid="kh-groups">
       <div className="sa-card__head">
         <h3>Nhóm chạy cùng nhau</h3>
-        {api.exportPlan && groups.length > 0 ? (
-          <button className="sa-btn sa-btn--s" data-testid="kh-export" onClick={download} type="button">
-            Xuất Excel
-          </button>
-        ) : null}
       </div>
       {notice ? (
         <div className="sd-check sd-check--warn" data-testid="kh-notice" role="status">
@@ -450,7 +446,6 @@ function GroupsSection({ plan, api, busy, done, notice, onAct }: { readonly plan
           </span>
         </div>
       ) : null}
-      {exportError ? <p className="sd-error">{exportError}</p> : null}
       {groups.map((g) => (
         <GroupBox api={api} busy={busy || done} g={g} key={`${g.id}|${g.days}|${g.start_fixed ? g.start : ""}`} onAct={onAct} plan={plan} />
       ))}

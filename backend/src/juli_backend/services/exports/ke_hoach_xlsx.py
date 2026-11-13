@@ -128,6 +128,7 @@ def daily_targets(data: KeHoachData) -> list[dict[str, float | date | None]]:
             "base_gmv": data.baseline_gmv / n,
             "base_profit": data.baseline_profit / n,
         }
+        sums: dict[str, float] = {}
         for key, pick in (("run", _running), ("draft", lambda c: c.status == DRAFT)):
             g = p = 0.0
             for c in data.cards:
@@ -138,10 +139,12 @@ def daily_targets(data: KeHoachData) -> list[dict[str, float | date | None]]:
                     g += (c.gmv_mid or 0.0) / days
                     p += (c.profit_mid or 0.0) / days
             row[f"{key}_gmv"], row[f"{key}_profit"] = g, p
-        row["goal_gmv"] = data.baseline_gmv / n + float(row["run_gmv"] or 0.0)
-        row["goal_profit"] = data.baseline_profit / n + float(row["run_profit"] or 0.0)
-        row["goal_gmv_draft"] = float(row["goal_gmv"]) + float(row["draft_gmv"] or 0.0)
-        row["goal_profit_draft"] = float(row["goal_profit"]) + float(row["draft_profit"] or 0.0)
+            sums[f"{key}_gmv"], sums[f"{key}_profit"] = g, p
+        goal_gmv = data.baseline_gmv / n + sums["run_gmv"]
+        goal_profit = data.baseline_profit / n + sums["run_profit"]
+        row["goal_gmv"], row["goal_profit"] = goal_gmv, goal_profit
+        row["goal_gmv_draft"] = goal_gmv + sums["draft_gmv"]
+        row["goal_profit_draft"] = goal_profit + sums["draft_profit"]
         out.append(row)
     return out
 
@@ -170,12 +173,12 @@ def _cards(wb: Workbook, data: KeHoachData) -> int:
         put(ws, r, _idx("end"), c.end, DATE)
         K, L = C["start"], C["end"]
         put(ws, r, _idx("days"), f'=IF(AND({K}{r}<>"",{L}{r}<>""),{L}{r}-{K}{r}+1,"")', INT)
-        for name, v in (
+        for name, amount in (
             ("cost", c.cost), ("g_lo", c.gmv_low), ("g_mid", c.gmv_mid), ("g_hi", c.gmv_high),
             ("p_lo", c.profit_low), ("p_mid", c.profit_mid), ("p_hi", c.profit_high),
             ("orders", c.orders), ("actual", c.actual_profit),
         ):  # fmt: skip
-            put(ws, r, _idx(name), v, INT if name == "orders" else MONEY)
+            put(ws, r, _idx(name), amount, INT if name == "orders" else MONEY)
         put(ws, r, _idx("g_day"), f"=IFERROR({C['g_mid']}{r}/{C['days']}{r},0)", MONEY)
         put(ws, r, _idx("p_day"), f"=IFERROR({C['p_mid']}{r}/{C['days']}{r},0)", MONEY)
         put(ws, r, _idx("roi"), f'=IFERROR({C["p_mid"]}{r}/{C["cost"]}{r},"")', POINTS)

@@ -111,6 +111,9 @@ class TongQuanData:
     #: sheet's Tổng row equals the shop
     products: list[ProductRow] = field(default_factory=list)
     platform: str = "Shopee"
+    #: set at the Sản phẩm level: the sheets then hold this product only
+    product_name: str | None = None
+    product_id: str | None = None
 
 
 def _d(x: date) -> str:
@@ -118,15 +121,17 @@ def _d(x: date) -> str:
 
 
 def title_of(data: TongQuanData) -> str:
+    level = f" · {data.product_name}" if data.product_name else ""
     return (
-        f"TỔNG QUAN — {data.shop_name} ({data.platform}) · {_d(data.start)}–{_d(data.end)}"
+        f"TỔNG QUAN — {data.shop_name} ({data.platform}){level} · {_d(data.start)}–{_d(data.end)}"
         f" · so với {_d(data.prev_start)}–{_d(data.prev_end)}"
     )
 
 
 def file_name(data: TongQuanData) -> str:
     name = data.shop_name.replace(" ", "")
-    return f"Juli_TongQuan_{name}_{data.start:%d%m%Y}_{data.end:%d%m%Y}.xlsx"
+    sku = f"_{data.product_id}" if data.product_id else ""
+    return f"Juli_TongQuan_{name}{sku}_{data.start:%d%m%Y}_{data.end:%d%m%Y}.xlsx"
 
 
 def _change(ref_now: str, ref_prev: str) -> str:
@@ -401,10 +406,10 @@ def _products(wb: Workbook, data: TongQuanData) -> None:
     total, last = r + 1, max(r, P_FIRST)
     put(ws, total, 1, "Tổng", bold=True)
     for c0 in (P_NOW, P_PREV):
-        for n in ("g_org", "g_ads", "g_aff", "o_org", "o_ads", "o_aff", "views", "clicks",
-                  "profit", "c_ads", "c_aff", "c_offer"):  # fmt: skip
-            L = col(c0 + PB[n])
-            put(ws, total, c0 + PB[n], f"=SUM({L}{P_FIRST}:{L}{last})", MONEY, bold=True)
+        for key in ("g_org", "g_ads", "g_aff", "o_org", "o_ads", "o_aff", "views", "clicks",
+                    "profit", "c_ads", "c_aff", "c_offer"):  # fmt: skip
+            L = col(c0 + PB[key])
+            put(ws, total, c0 + PB[key], f"=SUM({L}{P_FIRST}:{L}{last})", MONEY, bold=True)
         _product_formulas(ws, total, c0)
     _changes(ws, total)
     for c in (P_PLAN, P_PLAN + 1, P_PLAN + 3, P_PLAN + 4):

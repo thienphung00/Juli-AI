@@ -122,6 +122,23 @@ describe("Tổng quan (P100 board)", () => {
     expect(screen.getByRole("link", { name: "7 ngày" }).getAttribute("href")).toContain("cach=tb");
   });
 
+  it("Tải Excel downloads the period and level on screen: the shop, then the chosen product", async () => {
+    const api = fakeApi();
+    renderWith(<TongQuanView params={params()} />, api);
+    await screen.findByTestId("sa-channels");
+    expect(screen.getByTestId("sa-export")).toHaveTextContent("Tải Excel");
+    await userEvent.click(screen.getByTestId("sa-export"));
+    await waitFor(() => expect(api.calls.some((c) => c.startsWith("exportTongQuan:"))).toBe(true));
+    const sent = (): Record<string, unknown>[] => api.calls.filter((c) => c.startsWith("exportTongQuan:")).map((c) => JSON.parse(c.slice("exportTongQuan:".length)));
+    expect(sent()[0]).toMatchObject({ period: "30d", productId: null });
+    await userEvent.click(screen.getByRole("button", { name: "Sản phẩm" }));
+    await screen.findByTestId("sa-product-pick");
+    await waitFor(() => expect(api.calls.some((c) => c.startsWith("channelSplit:") && c.includes('"productId":"1001"'))).toBe(true));
+    await userEvent.click(await screen.findByTestId("sa-export"));
+    await waitFor(() => expect(sent()).toHaveLength(2));
+    expect(sent()[1]).toMatchObject({ period: "30d", productId: "1001" });
+  });
+
   it("Sản phẩm level: picker, product-level rows, no Shop+ row", async () => {
     const api = fakeApi();
     renderWith(<TongQuanView params={params()} />, api);

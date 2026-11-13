@@ -1,6 +1,5 @@
 """P100 exports: the two workbook builders put the source values in the right cells and the
-formulas point at the right ranges (synthetic numbers only). openpyxl is not a backend dependency
-yet, so the module skips without it."""
+formulas point at the right ranges (synthetic numbers only)."""
 
 from __future__ import annotations
 
@@ -8,12 +7,10 @@ from datetime import date, timedelta
 
 import pytest
 
-openpyxl = pytest.importorskip("openpyxl")
-
-from juli_backend.services.exports import ke_hoach_xlsx as kh  # noqa: E402
-from juli_backend.services.exports import tong_quan_xlsx as tq  # noqa: E402
-from juli_backend.services.exports.collect import _residual  # noqa: E402
-from juli_backend.services.shopee_recommendations import month_plan  # noqa: E402
+from juli_backend.services.exports import ke_hoach_xlsx as kh
+from juli_backend.services.exports import tong_quan_xlsx as tq
+from juli_backend.services.exports.collect import _residual
+from juli_backend.services.shopee_recommendations import month_plan
 
 START = date(2026, 10, 12)
 
