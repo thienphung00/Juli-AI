@@ -1,10 +1,30 @@
-body { font: 13px/1.45 system-ui, sans-serif; width: 320px; margin: 0; padding: 12px 14px; color: #1f2328; }
-h1 { font-size: 15px; margin: 0 0 10px; }
+body { font: 13px/1.45 system-ui, sans-serif; width: 360px; margin: 0; padding: 12px 14px; color: #1f2328; }
+h1 { font-size: 15px; margin: 0 0 8px; }
+h2 { font-size: 13px; margin: 14px 0 4px; }
 label { display: block; font-weight: 600; margin-bottom: 4px; }
 input { width: 100%; box-sizing: border-box; padding: 6px 8px; font: inherit; letter-spacing: 0.08em; text-transform: uppercase; }
-button { margin-top: 8px; padding: 6px 10px; font: inherit; cursor: pointer; }
-button.secondary { background: none; border: 1px solid #c9ced6; }
+button { margin-top: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
+button.secondary { background: none; border: 1px solid #c9ced6; margin-top: 14px; }
+a { color: #0969da; }
+p { margin: 4px 0; }
 #pair-error { color: #b42318; min-height: 1em; margin: 6px 0 0; }
 .hint { color: #57606a; font-size: 12px; }
-ul { padding-left: 18px; margin: 6px 0; }
+.meta { color: #57606a; font-size: 12px; }
 #consent { color: #b42318; }
+.card { border: 1px solid #f0c36d; background: #fff8e6; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+.card.ok { border-color: #a7d8b5; background: #effaf2; }
+.card.busy { border-color: #b6d4fe; background: #eef5ff; }
+.card.muted { border-color: #d0d7de; background: #f6f8fa; }
+ul { padding-left: 18px; margin: 6px 0; }
+.pages { list-style: none; padding: 0; }
+.pages li { border-top: 1px solid #eaeef2; padding: 6px 0; }
+.pages .title { font-weight: 600; }
+.pages .pulls { color: #57606a; font-size: 12px; }
+.tag { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 10px; margin-top: 2px; }
+.tag.ok { background: #dafbe1; color: #116329; }
+.tag.busy { background: #ddf4ff; color: #0550ae; }
+.tag.wait { background: #fff8c5; color: #7d4e00; }
+.tag.warn { background: #ffebe9; color: #a40e26; }
+.tag.muted { background: #eaeef2; color: #57606a; }
+details { margin-top: 12px; }
+summary { cursor: pointer; font-weight: 600; }

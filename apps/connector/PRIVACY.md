@@ -61,7 +61,10 @@ number:
     Shopee login handle. **The order id is replaced in the browser by a keyed hash**
     (with a key Juli gives the extension for this shop only) before anything is sent; the
     creator's display name, avatar and platform user id and any buyer information are
-    dropped in the page and never sent;
+    dropped in the page and never sent. From version 0.3.17 the channel is the label the
+    page shows (e.g. Shopee Video, Facebook, Zalo, Code Sharing), and once per shop the same
+    report is also read for the 6 months before that window, 30 days at a time (the same
+    fields; nothing else);
   - *Phân tích Tăng đơn cùng KOL*, *Dữ liệu phân tích chính*, *Phân tích sản phẩm*,
     *Phân tích chiến dịch*, *Phân tích Nội dung* — totals per creator (public handle),
     per day, per product, per commission campaign and for content: clicks, orders, sales,
