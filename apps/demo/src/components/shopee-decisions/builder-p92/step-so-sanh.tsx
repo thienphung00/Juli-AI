@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
 import { DASH, fmt, vnd } from "../../../lib/shopee-analytics/format";
-import type { BuilderApi, BuilderEvaluation, BuilderOutcome, ChooseResult } from "../../../lib/shopee-decisions/builder-api";
+import type { BuilderApi, BuilderEvaluation, BuilderOutcome, ChooseResult, GroupResult } from "../../../lib/shopee-decisions/builder-api";
 import { breachesOfOutcome } from "../../../lib/shopee-decisions/builder-p92";
 import type { OptionResult } from "../../../lib/shopee-decisions/option-result";
 import type { Breach } from "../../../lib/shopee-decisions/types";
@@ -12,7 +12,7 @@ import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions
 import { NavLink, errorText } from "../ui";
 import { BreachDialog } from "../versions";
 import { perDayText, periodLabel, resultDays, signedCount, signedMoney } from "../option-card/format";
-import type { Entry } from "./compare";
+import { GROUP_MIN_DAYS, TogetherResult, type Entry } from "./compare";
 import { verdictOf } from "./results";
 
 /**
@@ -87,6 +87,11 @@ export function StepSoSanh(p: StepSoSanhProps) {
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ readonly index: number; readonly result: ChooseResult; readonly ack: string | null } | null>(null);
   const [warn, setWarn] = useState<readonly Breach[] | null>(null);
+  const [ticked, setTicked] = useState<readonly number[]>([]);
+  const [daysText, setDaysText] = useState("7");
+  const [startText, setStartText] = useState("");
+  const [together, setTogether] = useState<GroupResult | null>(null);
+  const [togetherWarn, setTogetherWarn] = useState<readonly Breach[] | null>(null);
 
   useEffect(() => {
     if (versions.length === 0) return;
@@ -137,6 +142,24 @@ export function StepSoSanh(p: StepSoSanhProps) {
     const b = o ? (breachesOfOutcome(o) as Breach[]) : [];
     if (b.length > 0) setWarn(b);
     else void save(false, []);
+  };
+  const tickedNow = ticked.filter((i) => i < entries.length && outcomes[i]?.ok);
+  const toggleTick = (i: number) => setTicked((t) => (t.includes(i) ? t.filter((x) => x !== i) : [...t, i].sort((a, b) => a - b)));
+  const daysNum = Number(daysText);
+  const daysProblem = !Number.isInteger(daysNum) || daysNum < GROUP_MIN_DAYS ? `Nhóm chạy ít nhất ${GROUP_MIN_DAYS} ngày.` : daysNum > 90 ? "Nhóm chạy tối đa 90 ngày." : null;
+  const runTogether = async (ack: boolean) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const out = await api.group({ versions, members: tickedNow, days: daysNum, start: startText || null, acknowledgeBreaches: ack });
+      setTogetherWarn(null);
+      setTogether(out);
+    } catch (e) {
+      if (e instanceof ShopeeApiError && e.code === "reco_breach_not_acknowledged" && Array.isArray(e.detail?.["breaches"])) setTogetherWarn(e.detail["breaches"] as Breach[]);
+      else setErr(errorText(e));
+    } finally {
+      setBusy(false);
+    }
   };
   const others = rows.filter((x) => x.i !== mainIndex).map((x) => x.name);
   const saveDisabled = p.readOnly || busy || saved !== null || !outcomes[mainIndex]?.ok;
@@ -229,6 +252,35 @@ export function StepSoSanh(p: StepSoSanhProps) {
           </div>
         </>
       ) : null}
+      {current?.status === "ready" ? (
+        <div className="sa-card p2-together" data-testid="p2-together">
+          <h3 className="sa-h2">Chạy cùng nhau</h3>
+          <div className="p4-main">
+            {rows.map((x) => (
+              <label className="p2-together__tick" key={x.i}>
+                <input aria-label={`Chạy cùng nhau ${x.name}`} checked={ticked.includes(x.i)} disabled={!outcomes[x.i]?.ok || together !== null} onChange={() => toggleTick(x.i)} type="checkbox" /> {x.name}
+              </label>
+            ))}
+          </div>
+          <div className="p2-grid">
+            <label className="p2-field">
+              <span className="sd-field__label">Số ngày chạy (ít nhất {GROUP_MIN_DAYS})</span>
+              <input aria-label="Số ngày của nhóm" className="p2-text" inputMode="numeric" onChange={(e) => setDaysText(e.target.value)} type="text" value={daysText} />
+              {daysProblem ? <span className="sd-error">{daysProblem}</span> : null}
+            </label>
+            <label className="p2-field">
+              <span className="sd-field__label">Bắt đầu</span>
+              <input aria-label="Ngày bắt đầu của nhóm" className="p2-text" onChange={(e) => setStartText(e.target.value)} type="date" value={startText} />
+            </label>
+          </div>
+          <div className="sd-actions">
+            <button className="sa-btn sa-btn--primary" data-testid="p2-together-go" disabled={p.readOnly || busy || tickedNow.length < 1 || daysProblem !== null || together !== null} onClick={() => void runTogether(false)} type="button">
+              Chạy cùng nhau ({tickedNow.length} phương án)
+            </button>
+          </div>
+          {together ? <TogetherResult planHref={p.planHref} result={together} /> : null}
+        </div>
+      ) : null}
       <div className="sa-card p4-save">
         <div className="p4-main" role="radiogroup" aria-label="Phương án chính">
           {rows.map((x) => (
@@ -276,6 +328,16 @@ export function StepSoSanh(p: StepSoSanhProps) {
           </div>
         ) : null}
       </div>
+      <BreachDialog
+        busy={busy}
+        closing="Bạn vẫn có thể chạy cùng nhau. Juli ghi lại rằng bạn đã xác nhận, kèm giờ."
+        lines={togetherWarn ? breachWarnLines(togetherWarn as Breach[]) : []}
+        onBack={() => setTogetherWarn(null)}
+        onGo={() => void runTogether(true)}
+        open={togetherWarn !== null}
+        sheet={p.narrow}
+        title="Chạy cùng nhau dù chạm giá sàn?"
+      />
       <BreachDialog
         busy={busy}
         closing="Bạn vẫn có thể lưu. Juli ghi lại rằng bạn đã xác nhận, kèm giờ, trên thẻ."

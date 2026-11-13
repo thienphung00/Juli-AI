@@ -210,6 +210,26 @@ describe("P100 step ④ So sánh & lưu", () => {
     expect(onBack).toHaveBeenCalled();
   });
 
+  it("Chạy cùng nhau sits under the table, before the main-version row, and sends one group call", async () => {
+    const api = { ...compareApi(three()), group: vi.fn().mockResolvedValue({ saved: [{ id: "c1", code: "JC-9", indexes: [0, 1] }], groups: [], placed: [] }) };
+    renderStep4(api);
+    await screen.findByTestId("p4-table");
+    const together = screen.getByTestId("p2-together");
+    expect(screen.getByTestId("p4-table").compareDocumentPosition(together) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(together.compareDocumentPosition(screen.getByTestId("p4-save")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("p2-together-go")).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Chạy cùng nhau P1" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Chạy cùng nhau P2" }));
+    fireEvent.change(screen.getByLabelText("Số ngày của nhóm"), { target: { value: "2" } });
+    expect(screen.getByText("Nhóm chạy ít nhất 3 ngày.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Số ngày của nhóm"), { target: { value: "5" } });
+    expect(screen.getByTestId("p2-together-go")).toHaveTextContent("(2 phương án)");
+    fireEvent.click(screen.getByTestId("p2-together-go"));
+    await waitFor(() => expect(api.group).toHaveBeenCalledTimes(1));
+    expect(api.group.mock.calls[0]![0]).toMatchObject({ members: [0, 1], days: 5, acknowledgeBreaches: false });
+    expect(await screen.findByTestId("p2-together-result")).toHaveTextContent("JC-9");
+  });
+
   it("without the checkbox primary is false", async () => {
     const api = compareApi(three());
     renderStep4(api);
