@@ -239,3 +239,24 @@ async def test_the_compare_routes_for_seller_and_ops(session, monkeypatch, shop)
     assert camp.status_code == 200 and camp.json()["group_label"] == "Loại chiến dịch"
     for ref in shop.order_refs:
         assert ref not in seller.text and ref not in got.text
+
+
+def test_campaign_code_5_is_an_open_campaign_when_picking_the_rate():
+    # The Connector posts the conversion report's campaign type as a code; "5" = Seller Open
+    # Campaign (Seller Centre, 2026-11-13). Without the report's own cost the open rate wins.
+    from datetime import date as _date
+    from decimal import Decimal as _D
+
+    from juli_backend.services.shopee_analytics.kol_rates import (
+        SRC_OPEN,
+        SRC_TARGETED,
+        RateBook,
+        TermsRow,
+    )
+
+    book = RateBook(
+        targeted={"i1": [TermsRow(_date(2026, 10, 1), _D("0.12"), True, "t")]},
+        open_rate={"i1": _D("0.02")},
+    )
+    assert book.rate("i1", _date(2026, 10, 5), "5") == (_D("0.02"), SRC_OPEN)
+    assert book.rate("i1", _date(2026, 10, 5), "1") == (_D("0.12"), SRC_TARGETED)
