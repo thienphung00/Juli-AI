@@ -9,11 +9,12 @@ their placed-order label; every profit figure carries its assumed-cost share.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated, Any
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from juli_backend.services.shopee_analytics import (
     InvalidWindow,
@@ -82,3 +83,37 @@ def window_args(
     period: str, month: str | None, start: date | None, end: date | None, as_of: date | None
 ) -> dict[str, Any]:
     return {"period": period, "month": month, "start": start, "end": end, "as_of": as_of}
+
+
+XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def xlsx_response(name: str, data: bytes) -> Response:
+    """A workbook as a download (the file name is URL-encoded, RFC 5987)."""
+    return Response(
+        data,
+        media_type=XLSX_TYPE,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"},
+    )
+
+
+async def export_tong_quan(session: Any, shop_id: Any, shop_name: str, **args: Any) -> Response:
+    """The Tổng quan workbook of the period / level the screen shows (a pure read)."""
+    from juli_backend.services.exports import collect, tong_quan_xlsx
+
+    data = await collect.collect_tong_quan(
+        session, shop_id, shop_name=shop_name, now=datetime.now(UTC), **args
+    )
+    return xlsx_response(tong_quan_xlsx.file_name(data), tong_quan_xlsx.build_bytes(data))
+
+
+async def export_ke_hoach(
+    session: Any, shop_id: Any, shop_name: str, month: str | None
+) -> Response:
+    """The Kế hoạch workbook of ``month`` (a pure read)."""
+    from juli_backend.services.exports import collect, ke_hoach_xlsx
+
+    data = await collect.collect_ke_hoach(
+        session, shop_id, shop_name=shop_name, now=datetime.now(UTC), month=month
+    )
+    return xlsx_response(ke_hoach_xlsx.file_name(data), ke_hoach_xlsx.build_bytes(data))

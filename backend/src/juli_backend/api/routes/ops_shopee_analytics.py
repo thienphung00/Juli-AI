@@ -13,6 +13,7 @@ nothing is written.
 - ``GET /v1/ops/shops/{id}/shopee/analytics/products/{item_id}``
 - ``GET /v1/ops/shops/{id}/shopee/analytics/kols`` and ``.../products/{item_id}/kols`` (P91 D-9)
 - ``GET /v1/ops/shops/{id}/shopee/analytics/kols/compare?group=channel|campaign_type|kol`` (P100)
+- ``GET /v1/ops/shops/{id}/shopee/exports/tong-quan.xlsx`` and ``.../ke-hoach.xlsx`` (P100)
 
 A shop that is not on Shopee answers 409 ``not_a_shopee_shop``.
 """
@@ -23,7 +24,7 @@ import uuid
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, viewer
@@ -34,6 +35,8 @@ from juli_backend.api.routes.shopee_analytics_common import (
     MonthQ,
     PeriodQ,
     PlanPeriodQ,
+    export_ke_hoach,
+    export_tong_quan,
     refusal,
     window_args,
 )
@@ -357,5 +360,46 @@ async def ops_shopee_kol_section(
             return await metric_view.kol_section(
                 session, shop_id, audience="ops", **window_args(period, month, start, end, as_of)
             )
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+EXPORTS = "/shops/{shop_id}/shopee/exports"
+
+
+@router.get(f"{EXPORTS}/tong-quan.xlsx")
+async def ops_shopee_export_tong_quan(
+    shop_id: uuid.UUID,
+    period: PlanPeriodQ = "30d",
+    month: MonthQ = None,
+    start: FromQ = None,
+    end: ToQ = None,
+    as_of: DateQ = None,
+    product_id: Annotated[str | None, Query(max_length=64)] = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    name = await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await export_tong_quan(
+                session, shop_id, name, product_id=product_id,
+                **window_args(period, month, start, end, as_of),
+            )  # fmt: skip
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get(f"{EXPORTS}/ke-hoach.xlsx")
+async def ops_shopee_export_ke_hoach(
+    shop_id: uuid.UUID,
+    month: MonthQ = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    name = await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await export_ke_hoach(session, shop_id, name, month)
     except REFUSALS as exc:
         raise refusal(exc) from None

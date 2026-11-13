@@ -537,6 +537,10 @@ export function fakeApi(
     channelSplit: (q, productId) =>
       answer("channelSplit", productId ? (data.splitProduct ?? channelSplit({ level: "product", product_id: productId })) : (data.split ?? channelSplit()), { ...q, productId: productId ?? null }),
     channelSplitProducts: (q) => answer("channelSplitProducts", data.splitProducts ?? channelProducts(), q),
+    exportTongQuan: async (q) => {
+      calls.push(`exportTongQuan:${JSON.stringify({ ...q, productId: q.productId ?? null })}`);
+      return new Blob(["PK"]);
+    },
     ranking: (q) => answer("ranking", data.ranking ?? ranking(), q),
     metricView: (q) => answer("metricView", data.metricView ?? metricView({ metric: q.metric }), q),
     kolSection: (q) => answer("kolSection", data.kolSection ?? kolSection(), q),

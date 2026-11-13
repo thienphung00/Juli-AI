@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
+import { saveBlob, tongQuanFileName } from "../../lib/shopee-analytics/download";
 import { DASH, dayMonth, fmt, pc, vnCount, vnd } from "../../lib/shopee-analytics/format";
 import { readWindow, type WindowState, windowParams } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
@@ -129,6 +130,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const [level, setLevel] = useState<Level>("shop");
   const [productId, setProductId] = useState<string | null>(null);
   const [plan, setPlan] = useState(true);
+  const [exportFailed, setExportFailed] = useState(false);
   const mode: ValueMode = params.get("cach") === "tb" ? "avg" : "total";
   const queryKey = JSON.stringify(state.query);
   const products = useResource(() => host.api.channelSplitProducts(state.query), `${host.shopKey}|cs-products|${queryKey}`);
@@ -164,6 +166,23 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
               Cập nhật {updatedText(ready)}
             </span>
           ) : null}
+          {ready && host.api.exportTongQuan ? (
+            <button
+              className="sa-btn sa-btn--s"
+              data-testid="sa-export"
+              onClick={() => {
+                setExportFailed(false);
+                host.api.exportTongQuan!({ ...state.query, productId: pid }).then(
+                  (blob) => saveBlob(blob, tongQuanFileName(host.shopName || "Shop", ready.from, ready.to, pid)),
+                  () => setExportFailed(true),
+                );
+              }}
+              type="button"
+            >
+              Tải Excel
+            </button>
+          ) : null}
+          {exportFailed ? <span className="sa-fresh">Chưa tải được tệp Excel</span> : null}
         </div>
         <p className="sa-tq__finding" data-testid="sa-finding">
           {finding}

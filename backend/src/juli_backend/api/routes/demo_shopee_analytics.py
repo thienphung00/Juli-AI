@@ -13,6 +13,8 @@ request runs under that shop's tenant scope).
 - ``GET /demo/shopee/products/{item_id}/kols`` -- the product's Tiếp thị liên kết tab.
 - ``GET /demo/shopee/kols/compare`` -- Phân tích › KOL › So sánh: by kênh / loại chiến dịch / KOL,
   and Affiliate vs Ads vs the shop's own flows (P100).
+- ``GET /demo/shopee/exports/tong-quan.xlsx`` / ``.../exports/ke-hoach.xlsx?month=`` -- the two
+  Excel reports (P100): the period + level of Tổng quan, the month of Kế hoạch.
 
 Read-only. A shop that is not on Shopee answers 409 ``not_a_shopee_shop``; a shop without Shopee
 numbers 409 ``no_shopee_data``. The logic is ``services/shopee_analytics``.
@@ -24,7 +26,7 @@ import uuid
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
@@ -34,6 +36,8 @@ from juli_backend.api.routes.shopee_analytics_common import (
     MonthQ,
     PeriodQ,
     PlanPeriodQ,
+    export_ke_hoach,
+    export_tong_quan,
     refusal,
     window_args,
 )
@@ -343,5 +347,41 @@ async def shopee_kol_section(
         return await metric_view.kol_section(
             session, shop_id, audience="seller", **window_args(period, month, start, end, as_of)
         )
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get("/exports/tong-quan.xlsx")
+async def shopee_export_tong_quan(
+    period: PlanPeriodQ = "30d",
+    month: MonthQ = None,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
+    as_of: DateQ = None,
+    product_id: Annotated[str | None, Query(max_length=64)] = None,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Tổng quan as an Excel file: the period and level (shop / one product) of the screen."""
+    shop_id = _shopee(shop)
+    try:
+        return await export_tong_quan(
+            session, shop_id, shop.shop_name, product_id=product_id,
+            **window_args(period, month, start, end, as_of),
+        )  # fmt: skip
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get("/exports/ke-hoach.xlsx")
+async def shopee_export_ke_hoach(
+    month: MonthQ = None,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Kế hoạch as an Excel file: the month's cards and goals."""
+    shop_id = _shopee(shop)
+    try:
+        return await export_ke_hoach(session, shop_id, shop.shop_name, month)
     except REFUSALS as exc:
         raise refusal(exc) from None

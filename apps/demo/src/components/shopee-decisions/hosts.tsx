@@ -4,7 +4,7 @@ import { useMemo } from "react";
 
 import { readAuthSession } from "../../lib/supabase-auth";
 import { opsTabShopeeLinks, sellerLinks, viewAsShopeeLinks } from "../../lib/shopee-analytics/links";
-import { DEMO_SHOPEE_BASE, createShopeeApi, opsShopeeBase } from "../../lib/shopee-analytics/client";
+import { DEMO_EXPORTS_BASE, DEMO_SHOPEE_BASE, createShopeeApi, opsExportsBase, opsShopeeBase } from "../../lib/shopee-analytics/client";
 import { createKolApi } from "../../lib/shopee-kol/client";
 import { createBuilderP98Api } from "../../lib/shopee-decisions/builder-p98-api";
 import { kolCandidatesOf } from "../../lib/shopee-decisions/kol-candidates";
@@ -46,7 +46,7 @@ export function sellerRecoHost(options: {
     p98: p92BuilderEnabled() ? createBuilderP98Api({ base: DEMO_BUILDER_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) : undefined,
     kols: kolCandidatesOf(createKolApi({ base: DEMO_SHOPEE_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl })),
     market: { base: DEMO_BUILDER_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl },
-    plan: planEnabled() ? { api: createPlanApi({ base: DEMO_RECO_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) } : undefined,
+    plan: planEnabled() ? { api: createPlanApi({ base: DEMO_RECO_BASE, exportsBase: DEMO_EXPORTS_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl }) } : undefined,
     href: (view) => withQuery("/decisions", decisionsQuery(view)),
     navigate: options.navigate,
   };
@@ -112,7 +112,7 @@ export function useOpsRecoHost(shopId: string, kind: "view-as" | "tab", shopName
       p98,
       kols,
       market,
-      plan: planEnabled() ? { api: createPlanApi({ base: opsRecoBase(shopId), token, fetchImpl }) } : undefined,
+      plan: planEnabled() ? { api: createPlanApi({ base: opsRecoBase(shopId), exportsBase: opsExportsBase(shopId), token, fetchImpl }) } : undefined,
       staff: true,
       href: (view) => withQuery(`/ops/shops/${encodeURIComponent(shopId)}/shopee/de-xuat`, decisionsQuery(view)),
     };

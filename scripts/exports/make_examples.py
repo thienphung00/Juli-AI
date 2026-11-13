@@ -6,9 +6,6 @@ app's functions (``services/exports/collect``) and writes both .xlsx files plus 
 source numbers next to each.
 
     PYTHONPATH=backend/src:. python -m scripts.exports.make_examples --out DIR
-
-Needs openpyxl (not yet a backend dependency: add it to backend/pyproject.toml and constraints.txt
-when the download route is built).
 """
 
 from __future__ import annotations
@@ -159,6 +156,12 @@ async def run(out: Path, end: date) -> dict[str, Path]:
             tq_data = await collect_tong_quan(session, sid, shop_name=name, now=now)
             kh_data = await collect_ke_hoach(session, sid, shop_name=name, now=now)
             both = await month_plan.month_plans(session, sid, now=now)
+            rp = await month_plan.range_plan(
+                session, sid, tq_data.start, tq_data.end, scope="running", now=now
+            )
+    for k in ("baseline_gmv", "goal_gmv", "baseline_profit", "goal_profit"):
+        got, want = getattr(tq_data.now, k), rp[k]
+        assert (got is None) == (want is None) and (got is None or abs(got - want) < 1), k
     _verify(tq_data, kh_data, both)
     paths: dict[str, Path] = {}
     for data, mod, label in (

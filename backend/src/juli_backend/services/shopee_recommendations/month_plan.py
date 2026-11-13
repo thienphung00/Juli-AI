@@ -57,7 +57,7 @@ SCOPE_RUNNING_DRAFT = "running+draft"
 SCOPES = (SCOPE_RUNNING, SCOPE_RUNNING_DRAFT)
 
 
-def _cards_of(out: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+def plan_cards(out: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     """The cards' evaluation blocks of a plan payload: its own aggregate plus each group's."""
     cards = list((out.get("aggregate") or {}).get("cards") or [])
     for g in out.get("groups") or []:
@@ -202,7 +202,7 @@ async def running_range(
     cards: list[Mapping[str, Any]] = []
     for plan in await _executed(session, shop_id):
         out = await plans.get_plan(session, shop_id, plan.id, now=now, audience="seller")
-        cards += _cards_of(out)
+        cards += plan_cards(out)
     spans: list[tuple[date, date]] = []
     for c in cards_of_product(cards, product_id):
         d = ((c.get("result") or {}).get("own") or {}).get("dates")
@@ -225,8 +225,12 @@ async def range_plans(
     draft_payload: Mapping[str, Any] | None = None,
     scopes: tuple[str, ...] = SCOPES,
     product_id: str | None = None,
+    daily: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """The plan figures of ``first``..``last`` (any period) for each of ``scopes``.
+
+    ``daily`` adds ``"daily"``: one ``{day, baseline_*, goal_*}`` per day of the range (the
+    baseline spread evenly, the uplift on the day it falls), so the days add up to the range.
 
     ``product_id`` None = the whole shop.
 
@@ -254,7 +258,7 @@ async def range_plans(
     first_day: date | None = None
     for plan in await _executed(session, shop_id):
         out = await plans.get_plan(session, shop_id, plan.id, now=now, audience="seller")
-        running_cards += _cards_of(out)
+        running_cards += plan_cards(out)
         if baseline is None:
             baseline = (out.get("aggregate") or {}).get("today")
             first_out = out
@@ -267,7 +271,7 @@ async def range_plans(
         dout = draft_payload
         if dout is None:
             dout = await plans.get_plan(session, shop_id, None, now=now, audience="seller")
-        draft_cards = _cards_of(dout)
+        draft_cards = plan_cards(dout)
         draft_today = (dout.get("aggregate") or {}).get("today")
     if product_id is not None:
         running_cards = cards_of_product(running_cards, product_id)
@@ -298,7 +302,28 @@ async def range_plans(
             return None if n == 0 or b is None else b + up
 
         g_gmv, g_profit = goal(b_gmv, up_gmv), goal(b_profit, up_profit)
+        per_day: list[dict[str, Any]] = []
+        for k in range(days if daily else 0):
+            d_gmv, d_profit, _n = uplift_in_month(
+                cards, first + timedelta(days=k), first + timedelta(days=k)
+            )
+            per_day.append(
+                {
+                    "day": (first + timedelta(days=k)).isoformat(),
+                    "baseline_gmv": None if b_gmv is None else num(b_gmv / days),
+                    "baseline_profit": None if b_profit is None else num(b_profit / days),
+                    "goal_gmv": None
+                    if g_gmv is None or b_gmv is None
+                    else num(b_gmv / days + d_gmv),
+                    "goal_profit": (
+                        None
+                        if g_profit is None or b_profit is None
+                        else num(b_profit / days + d_profit)
+                    ),
+                }
+            )
         answers[sc] = {
+            **({"daily": per_day} if daily else {}),
             "scope": sc,
             "product_id": product_id,
             "from": first.isoformat(),
@@ -332,6 +357,7 @@ async def range_plan(
     actual_to: date | None = None,
     view: PeriodView | None = None,
     product_id: str | None = None,
+    daily: bool = False,
 ) -> dict[str, Any]:
     """The plan figures of ``first``..``last`` for one ``scope`` (see :func:`range_plans`);
     ``product_id`` None = the whole shop."""
@@ -346,6 +372,7 @@ async def range_plan(
             view=view,
             scopes=(scope,),
             product_id=product_id,
+            daily=daily,
         )
     )[scope]
 
@@ -437,6 +464,7 @@ __all__ = [
     "SCOPE_RUNNING",
     "SCOPE_RUNNING_DRAFT",
     "month_plan",
+    "plan_cards",
     "cards_of_product",
     "month_plans",
     "plan_with_month",

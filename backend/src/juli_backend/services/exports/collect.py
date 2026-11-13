@@ -6,21 +6,16 @@ Nothing is computed here that a service already computes: the channel table come
 rows from the stored funnel rows (``funnel.load_rows``: the shopee metrics tables) and the ads
 report's ``spend_by_day``.
 
-Kế hoạch baseline and goal for a period / day / product (rule, owner 2026-11-13): the plan
-aggregate's own "today" level of the EARLIEST executed plan (the pre-plan level, a 30-day figure)
-is the baseline, per day = level / 30 (``HORIZON_DAYS``); goal = baseline + the P50 Δ of the
-running cards (the cards of executed plans) on their days inside the period (``month_plan.
-uplift_in_month``: a card's own-days Δ spread evenly over its own days). A product's baseline is
-its row of that aggregate (``aggregate.products[].today``) when the plan has one, else its
-pre-plan 30-day level read from the data (funnel GMV, ``profit.products`` profit) on the
-aggregate's own window; its uplift is that of the running cards of that product. Cards with no
-product go to the "Cả shop" row, which also carries the shop baseline minus the products', so the
-product targets add up to the shop target. No running card -> no goal (``None``).
+Baseline and goal (Tổng quan, shop / product / day, and the Kế hoạch month): the app's own
+``month_plan.range_plan`` / ``month_plans`` of the exported period and level, so a figure in the
+file is the figure of the screen's Kế hoạch card / Kế hoạch totals. No running card -> no goal.
 """
 
 from __future__ import annotations
 
+import calendar
 import uuid
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -30,7 +25,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.models.shopee_plans import PLAN_DRAFT, PLAN_EXECUTED
 from juli_backend.services.exports import ke_hoach_xlsx as kh
 from juli_backend.services.exports import tong_quan_xlsx as tq
-from juli_backend.services.shopee_analytics import channel_split, funnel, loaders, service
+from juli_backend.services.shopee_analytics import (
+    RowsNotMaterialized,
+    channel_split,
+    funnel,
+    loaders,
+    service,
+)
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.order_profit import OrderStatus
@@ -42,9 +43,7 @@ from juli_backend.services.shopee_recommendations import (
     plans,
 )
 from juli_backend.services.shopee_recommendations import service as reco_service
-from juli_backend.services.shopee_recommendations.plan_aggregate import HORIZON_DAYS
 
-PERIOD_DAYS = 30
 _CHANNEL_FIELDS = ("views", "clicks", "orders", "gmv", "cost")
 METRIC_LABELS = {
     "views": "Lượt xem", "ctr": "CTR", "ctor": "CTOR", "aov": "AOV", "orders": "Đơn",
@@ -59,64 +58,6 @@ KEY_OF_ROW = {"organic": "organic", "ads": "ads", "affiliate": "affiliate"}
 
 def _f(x: Any) -> float | None:
     return None if x is None else float(x)
-
-
-# ----------------------------------------------------------------------------- running plans
-
-
-class Running:
-    """The running cards (executed plans) and the pre-plan baseline of the earliest one."""
-
-    def __init__(self, cards: list[dict[str, Any]], today: dict[str, Any] | None,
-                 products: dict[str, dict[str, Any]], as_of: date | None) -> None:  # fmt: skip
-        self.cards = cards
-        self.today = today
-        self.products = products
-        self.as_of = as_of
-
-    @classmethod
-    async def load(cls, session: AsyncSession, shop_id: uuid.UUID, now: datetime) -> Running:
-        cards: list[dict[str, Any]] = []
-        today: dict[str, Any] | None = None
-        products: dict[str, dict[str, Any]] = {}
-        as_of: date | None = None
-        for plan in await month_plan._executed(session, shop_id):
-            out = await plans.get_plan(session, shop_id, plan.id, now=now, audience="seller")
-            cards += month_plan._cards_of(out)
-            if today is None:
-                agg = out.get("aggregate") or {}
-                today = agg.get("today")
-                products = {p["product_id"]: p.get("today") or {} for p in agg.get("products", [])}
-                as_of = date.fromisoformat(agg["as_of"]) if agg.get("as_of") else None
-        return cls(cards, today, products, as_of)
-
-    def uplift(self, first: date, last: date, product: str | None | bool = False):
-        """(Δ GMV, Δ lợi nhuận, cards counted) of the running cards on first..last; ``product``
-        False = every card, None = the cards with no product, an id = that product's cards."""
-        pick = [
-            c for c in self.cards
-            if product is False or (c.get("product_id") or None) == product
-        ]  # fmt: skip
-        return month_plan.uplift_in_month(pick, first, last)
-
-    def level(self, key: str) -> float | None:
-        v = None if self.today is None else self.today.get(key)
-        return None if v is None else float(v)
-
-
-def _targets(
-    base_gmv: float | None, base_profit: float | None, up: tuple[float, float, int], days: int
-) -> dict[str, float | None]:
-    """baseline / goal for ``days`` days from a 30-day level and an uplift."""
-    k = days / HORIZON_DAYS
-    bg = None if base_gmv is None else base_gmv * k
-    bp = None if base_profit is None else base_profit * k
-    n = up[2]
-    return {
-        "baseline_gmv": bg, "baseline_profit": bp,
-        "goal_gmv": None if n == 0 or bg is None else bg + up[0],
-        "goal_profit": None if n == 0 or bp is None else bp + up[1],
-    }  # fmt: skip
 
 
 # ----------------------------------------------------------------------------- period reads
@@ -151,15 +92,16 @@ def _offer_cost(view: PeriodView, product: str | None = None, day: date | None =
     return total
 
 
-def _aff_cost_day(view: PeriodView, day: date) -> float | None:
+def _aff_cost_day(view: PeriodView, day: date, product: str | None = None) -> float | None:
     known = [
         ln.commission for ln, _ in view.pairs
         if ln.affiliate and ln.order_date == day and ln.commission is not None
+        and (product is None or ln.product_id == product)
     ]  # fmt: skip
     return float(sum(known)) if known else None
 
 
-def _figures(split: dict[str, Any], offer: float) -> tq.Figures:
+def _figures(split: dict[str, Any]) -> tq.Figures:
     """One scope's Figures from a ``channel_split`` answer."""
     by = {r["key"]: r for r in split["rows"]}
     k = split["kpis"]
@@ -168,11 +110,12 @@ def _figures(split: dict[str, Any], offer: float) -> tq.Figures:
         r = by.get(key) or {}
         channels[key] = tq.Channel(
             _f(r.get("views")), _f(r.get("clicks")), _f(r.get("orders")), _f(r.get("gmv")),
-            {"ads": _f(k["ads_cost"]), "affiliate": _f(k["affiliate_cost"])}.get(key),
+            {"ads": _f(k["cost_ads"]), "affiliate": _f(k["cost_affiliate"])}.get(key),
         )  # fmt: skip
     return tq.Figures(
         channels=channels, gmv=_f(k["gmv"]), orders=_f(k["orders"]), profit=_f(k["profit"]),
-        ads_cost=_f(k["ads_cost"]), aff_cost=_f(k["affiliate_cost"]), offer_cost=offer,
+        ads_cost=_f(k["cost_ads"]), aff_cost=_f(k["cost_affiliate"]),
+        offer_cost=_f(k["cost_offers"]),
     )  # fmt: skip
 
 
@@ -200,125 +143,142 @@ def _residual(shop: tq.Figures, parts: list[tq.Figures]) -> tq.Figures:
     )  # fmt: skip
 
 
-async def _product_base(
-    session: AsyncSession, shop_id: uuid.UUID, running: Running, ids: list[str]
-) -> dict[str, tuple[float | None, float | None]]:
-    """Pre-plan 30-day (GMV, profit) of each product: the aggregate's row, else the data."""
-    out: dict[str, tuple[float | None, float | None]] = {}
-    missing = [i for i in ids if not running.products.get(i)]
-    for i in ids:
-        row = running.products.get(i)
-        if row:
-            out[i] = (_f(row.get("gmv_30d")), _f(row.get("profit_30d")))
-    if missing and running.as_of is not None:
-        w = Window(running.as_of - timedelta(days=PERIOD_DAYS - 1), running.as_of)
-        view, rows = await _view(session, shop_id, w)
-        for i in missing:
-            base = funnel.base_from_rows(rows, str(shop_id), item_ids=(i,))
-            pp = view.profit.products.get(i)
-            out[i] = (_f(base.total("gmv")), None if pp is None else _f(pp.profit))
-    return out
+def _gmv_of(listing: dict[str, Any], product_id: str) -> float:
+    for p in listing["products"]:
+        if p["product_id"] == product_id:
+            return float(p.get("gmv") or 0)
+    return 0.0
+
+
+def _residual_plan(shop: tq.Figures, parts: list[tq.Figures]) -> dict[str, Any]:
+    """The "Cả shop" row's baseline / goal: the shop's minus the products' (a product without a
+    goal takes none), so each column adds up to the shop."""
+
+    def sub(total: float | None, vals: list[float | None]) -> float | None:
+        return None if total is None else total - sum(v for v in vals if v is not None)
+
+    return {
+        k: sub(getattr(shop, k), [getattr(p, k) for p in parts])
+        for k in ("baseline_gmv", "goal_gmv", "baseline_profit", "goal_profit")
+    }
+
+
+def _plan_of(r: dict[str, Any]) -> dict[str, Any]:
+    return {k: _f(r.get(k)) for k in ("baseline_gmv", "goal_gmv", "baseline_profit", "goal_profit")}
+
+
+async def _plan(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window, view: PeriodView, now: datetime,
+    product_id: str | None = None, daily: bool = False,
+) -> dict[str, Any]:  # fmt: skip
+    """The running-plan figures of the period and level: exactly the Kế hoạch card's."""
+    return await month_plan.range_plan(
+        session, shop_id, window.start, window.end, scope=month_plan.SCOPE_RUNNING, now=now,
+        view=view, product_id=product_id, daily=daily,
+    )  # fmt: skip
+
+
+def _day_scope(rows: funnel.FunnelRows, day: date, product: str | None) -> funnel.FunnelRows:
+    return replace(
+        rows, window=Window(day, day),
+        sources=tuple(s for s in rows.sources if s.day == day),
+        shop_days=tuple(s for s in rows.shop_days if s.day == day),
+        product_days=tuple(s for s in rows.product_days if s.day == day),
+    )  # fmt: skip
 
 
 async def collect_tong_quan(
     session: AsyncSession, shop_id: uuid.UUID, *, shop_name: str, now: datetime,
+    period: str = "30d", month: str | None = None, start: date | None = None,
+    end: date | None = None, as_of: date | None = None, product_id: str | None = None,
     platform: str = "Shopee",
 ) -> tq.TongQuanData:  # fmt: skip
-    anchor_window = await service.resolve(session, shop_id)
-    assert anchor_window is not None
-    end = anchor_window.end
-    cur = Window(end - timedelta(days=PERIOD_DAYS - 1), end)
-    prv = Window(cur.start - timedelta(days=PERIOD_DAYS), cur.start - timedelta(days=1))
-    running = await Running.load(session, shop_id, now)
-    base_gmv, base_profit = running.level("gmv_30d"), running.level("profit_30d")
+    """The Tổng quan numbers of the period (the screen's period parameters) and level (the shop,
+    or ``product_id``). Every figure is the screen's: ``channel_split`` for the channels and KPIs,
+    ``month_plan.range_plan`` for the baseline / goal of the shop, of each product and of each
+    day."""
+    window = await service.resolve(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+    )
+    if window is None:
+        raise ValueError("no data")
+    cur, prv = window, window.previous()
+    kw: dict[str, Any] = {"period": "custom", "start": cur.start, "end": cur.end}
+    kw_prev: dict[str, Any] = {"period": "custom", "start": prv.start, "end": prv.end}
+    view, frows = await _view(session, shop_id, cur)
+    try:
+        pview: PeriodView | None = (await _view(session, shop_id, prv))[0]
+    except RowsNotMaterialized:  # no stored days before the period: nothing to compare with
+        pview = None
 
-    figures: dict[str, tq.Figures] = {}
-    product_figures: dict[str, dict[str, tq.Figures]] = {"now": {}, "prev": {}}
-    names: dict[str, str] = {}
-    views: dict[str, tuple[PeriodView, funnel.FunnelRows]] = {}
-    for tag, w in (("now", cur), ("prev", prv)):
-        kw = {"period": "custom", "start": w.start, "end": w.end}
-        views[tag] = await _view(session, shop_id, w)
-        split = await channel_split.channel_split(session, shop_id, **kw)
-        figures[tag] = _figures(split, _offer_cost(views[tag][0]))
-        listing = await channel_split.channel_split_products(session, shop_id, **kw)
-        for p in listing["products"]:
-            names[p["product_id"]] = p["name"]
-            ps = await channel_split.channel_split(
-                session, shop_id, product_id=p["product_id"], **kw
-            )
-            product_figures[tag][p["product_id"]] = _figures(
-                ps, _offer_cost(views[tag][0], p["product_id"])
-            )
-    with_cards = {c["product_id"] for c in running.cards if c.get("product_id")}
-    ids = sorted({*product_figures["now"], *product_figures["prev"], *with_cards})
-    for tag in ("now", "prev"):
-        for i in ids:
-            product_figures[tag].setdefault(i, tq.Figures())
+    listing = await channel_split.channel_split_products(session, shop_id, **kw)
+    names = {p["product_id"]: p["name"] for p in listing["products"]}
+    if pview is not None:
+        prev_listing = await channel_split.channel_split_products(session, shop_id, **kw_prev)
+        names.update({p["product_id"]: p["name"] for p in prev_listing["products"]})
 
-    shop_up = running.uplift(cur.start, cur.end)
-    n_running = shop_up[2]
-    now_fig = replace(figures["now"], **_targets(base_gmv, base_profit, shop_up, PERIOD_DAYS))
-    pbase = await _product_base(session, shop_id, running, ids)
+    async def figures(v: PeriodView | None, k: dict[str, Any], pid: str | None) -> tq.Figures:
+        if v is None:
+            return tq.Figures()
+        split = await channel_split.channel_split(session, shop_id, product_id=pid, **k)
+        return _figures(split)
+
+    shop_now = await figures(view, kw, None)
+    shop_prev = await figures(pview, kw_prev, None)
+    shop_plan = await _plan(session, shop_id, cur, view, now, daily=product_id is None)
+    shop_now = replace(shop_now, **_plan_of(shop_plan))
+
     rows: list[tq.ProductRow] = []
-    for i in sorted(ids, key=lambda x: -(product_figures["now"][x].gmv or 0)):
-        up = (*running.uplift(cur.start, cur.end, i)[:2], n_running)
-        bg, bp = pbase.get(i, (None, None))
-        product_figures["now"][i] = replace(
-            product_figures["now"][i], **_targets(bg, bp, up, PERIOD_DAYS)
-        )
-        rows.append(
-            tq.ProductRow(i, names.get(i, i), product_figures["now"][i], product_figures["prev"][i])
-        )
-    shop_row = tq.ProductRow(
-        tq.SHOP_ROW_LABEL, "",
-        _residual(now_fig, [r.now for r in rows]),
-        _residual(figures["prev"], [r.prev for r in rows]),
-    )  # fmt: skip
-    sb = sum(v[0] for v in pbase.values() if v[0] is not None)
-    sp = sum(v[1] for v in pbase.values() if v[1] is not None)
-    shop_row.now = replace(
-        shop_row.now,
-        **_targets(
-            None if base_gmv is None else base_gmv - sb,
-            None if base_profit is None else base_profit - sp,
-            (*running.uplift(cur.start, cur.end, None)[:2], n_running), PERIOD_DAYS,
-        ),
-    )  # fmt: skip
-    rows.append(shop_row)
+    ids = [product_id] if product_id else sorted(names, key=lambda i: -_gmv_of(listing, i))
+    plans_of: dict[str, dict[str, Any]] = {}
+    for i in ids:
+        plans_of[i] = await _plan(session, shop_id, cur, view, now, product_id=i,
+                                  daily=i == product_id)  # fmt: skip
+        now_fig = replace(await figures(view, kw, i), **_plan_of(plans_of[i]))
+        rows.append(tq.ProductRow(i, names.get(i, i), now_fig, await figures(pview, kw_prev, i)))
+    if product_id:  # the Sản phẩm level: the file's period figures are the product's
+        shop_now, shop_prev = rows[0].now, rows[0].prev
+    else:
+        rest = tq.ProductRow(
+            tq.SHOP_ROW_LABEL, "", _residual(shop_now, [r.now for r in rows]),
+            _residual(shop_prev, [r.prev for r in rows]),
+        )  # fmt: skip
+        rest.now = replace(rest.now, **_residual_plan(shop_now, [r.now for r in rows]))
+        rows.append(rest)
 
-    view, frows = views["now"]
+    day_plan = {d["day"]: d for d in (plans_of[product_id] if product_id else shop_plan)["daily"]}
     shop_days = {d.day: d for d in frows.shop_days}
+    prod_days = {d.day: d for d in frows.product_days if d.item_id == product_id}
     spend = view.data.ads_daily.spend_by_day
     days: list[tq.DayRow] = []
-    for k in range(PERIOD_DAYS):
+    for k in range(cur.days):
         d = cur.start + timedelta(days=k)
-        one = replace(
-            frows, window=Window(d, d),
-            sources=tuple(s for s in frows.sources if s.day == d),
-            shop_days=tuple(s for s in frows.shop_days if s.day == d),
-            product_days=tuple(s for s in frows.product_days if s.day == d),
-        )  # fmt: skip
+        one = _day_scope(frows, d, product_id)
+        ids_ = (product_id,) if product_id else ()
         by = {
-            r["key"]: r for r in channel_split.split_rows(funnel.base_from_rows(one, str(shop_id)))
+            r["key"]: r
+            for r in channel_split.split_rows(
+                funnel.base_from_rows(one, str(shop_id), item_ids=ids_)
+            )
         }
-        sd = shop_days.get(d)
-        t = _targets(base_gmv, base_profit, running.uplift(d, d), 1)
+        sd = prod_days.get(d) if product_id else shop_days.get(d)
+        t = day_plan.get(d.isoformat(), {})
         days.append(
             tq.DayRow(
                 d,
                 {key: _f(by[key]["gmv"]) for key in tq.CHANNELS},
                 {key: _f(by[key]["orders"]) for key in tq.CHANNELS},
-                _f(spend.get(d)),
-                _aff_cost_day(view, d),
-                _offer_cost(view, day=d),
+                _f(sd.ads_spend) if product_id and sd else None if product_id else _f(spend.get(d)),
+                _aff_cost_day(view, d, product_id),
+                _offer_cost(view, product_id, d),
                 None if sd is None else _f(sd.profit),
-                **t,
+                **_plan_of(t),
             )  # fmt: skip
         )
     return tq.TongQuanData(
-        shop_name, cur.start, cur.end, prv.start, prv.end, now_fig, figures["prev"], days, rows,
-        platform,
+        shop_name, cur.start, cur.end, prv.start, prv.end, shop_now, shop_prev, days, rows,
+        platform, product_name=names.get(product_id, product_id) if product_id else None,
+        product_id=product_id,
     )  # fmt: skip
 
 
@@ -326,7 +286,7 @@ async def collect_tong_quan(
 
 
 def _card_row(
-    card: dict[str, Any], plan_code: str | None, status: str, ev: dict[str, Any] | None,
+    card: Mapping[str, Any], plan_code: str | None, status: str, ev: Mapping[str, Any] | None,
     names: dict[str, str],
 ) -> kh.CardRow:  # fmt: skip
     kind = card.get("change_kind") or ""
@@ -364,15 +324,26 @@ def _card_row(
 
 async def collect_ke_hoach(
     session: AsyncSession, shop_id: uuid.UUID, *, shop_name: str, now: datetime,
-    platform: str = "Shopee",
+    month: str | None = None, platform: str = "Shopee",
 ) -> kh.KeHoachData:  # fmt: skip
+    """The Kế hoạch workbook's numbers of ``month`` (YYYY-MM; default the newest data month),
+    month to date up to the newest data day inside it."""
     window = await service.resolve(session, shop_id)
-    assert window is not None
-    anchor = window.end
-    first = anchor.replace(day=1)
+    if window is None:
+        raise ValueError("no data")
+    if month is None:
+        first = window.end.replace(day=1)
+    else:
+        first = date(int(month[:4]), int(month[5:7]), 1)
+    if first > window.end:
+        raise ValueError("month after the newest data day")
+    last = first.replace(day=calendar.monthrange(first.year, first.month)[1])
+    anchor = min(window.end, last)
     both = await month_plan.month_plans(session, shop_id, now=now, anchor=anchor)
     run = both[month_plan.SCOPE_RUNNING]
-    listing = await channel_split.channel_split_products(session, shop_id, period="30d")
+    listing = await channel_split.channel_split_products(
+        session, shop_id, period="custom", start=first, end=anchor
+    )
     names = {p["product_id"]: p["name"] for p in listing["products"]}
     # actual per day of the month so far: the stored daily rows
     view, rows = await _view(session, shop_id, Window(first, anchor))
@@ -389,7 +360,7 @@ async def collect_ke_hoach(
             now=now, audience="seller",
         )  # fmt: skip
         evs = {
-            plan_groups.split_entry_id(c["card_id"])[0]: c for c in month_plan._cards_of(payload)
+            plan_groups.split_entry_id(c["card_id"])[0]: c for c in month_plan.plan_cards(payload)
         }
         sets = {str(cid): s for s in payload.get("change_sets", []) for cid in s["card_ids"]}
         for c in payload["cards"]:
@@ -439,4 +410,4 @@ async def collect_ke_hoach(
     )  # fmt: skip
 
 
-__all__ = ["Running", "collect_ke_hoach", "collect_tong_quan"]
+__all__ = ["collect_ke_hoach", "collect_tong_quan"]
