@@ -522,6 +522,15 @@ async def plan_with_month(
     out = await plans.get_plan(session, shop_id, None, now=now, audience=audience)
     try:
         both = await month_plans(session, shop_id, now=now, draft_payload=out)
+        if both[SCOPE_RUNNING]["cards"] == 0:
+            # No running card has a day in the data's month (e.g. the executed plan runs in the
+            # next one): show the month the running cards fall in, never an empty "Đang chạy".
+            span = await running_range(session, shop_id, None, now=now)
+            if span is not None:
+                window = await service.resolve(session, shop_id)
+                data_end = window.end if window is not None else plans.plan_today(now)
+                month = span[0] if span[0] > data_end else span[1]
+                both = await month_plans(session, shop_id, now=now, draft_payload=out, anchor=month)
         out["month"] = {"running": both[SCOPE_RUNNING], "with_draft": both[SCOPE_RUNNING_DRAFT]}
     except RowsNotMaterialized:
         out["month"] = None

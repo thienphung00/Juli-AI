@@ -2519,3 +2519,39 @@ body:has(.sa-page) {
     grid-template-columns: minmax(110px, 1.3fr) repeat(7, minmax(0, 1fr));
   }
 }
+
+/* ── P100 UI fix: phone widths. Tables scroll sideways (first column sticky); the product list wraps. ── */
+
+.sa-tq__table {
+  overflow-x: auto;
+}
+
+@media (max-width: 720px) {
+  .sa-tq__table > .sa-tq__row {
+    grid-template-columns: 128px repeat(7, minmax(88px, 1fr));
+    min-width: 860px;
+  }
+
+  .sa-tq__table > .sa-tq__row > :first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--qd-surface, var(--background, #fff));
+  }
+
+  .sa-plist {
+    grid-template-columns: 36px minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .sa-plist > :nth-child(n + 3) {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  .sa-plist .sa-pm {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+}

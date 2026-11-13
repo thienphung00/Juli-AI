@@ -116,7 +116,7 @@ function Row({ c, name, readOnly, onDone }: { readonly c: ExecutionCard; readonl
             </NavLink>
           ) : null}
           {c.state === "cho_dien" || c.state === "da_dien" ? (
-            href && !readOnly ? (
+            readOnly ? null : href ? (
               <a className="sa-btn sa-btn--primary" href={href} rel="noopener noreferrer" target="_blank">
                 Mở Seller Centre
               </a>
@@ -172,9 +172,11 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
                 {k.seller_centre_open ? "Seller Centre đang mở · " : ""}
                 {k.last_check_at ? `đối chiếu lần cuối ${hhmm(k.last_check_at)}` : "chưa đối chiếu"}
               </span>
-              <button className="sa-btn sd-th-bar__sync" disabled={readOnly || !k.connected || !!k.reconcile_pending || asking} onClick={() => void reconcile()} type="button">
-                Đối chiếu ngay
-              </button>
+              {readOnly ? null : (
+                <button className="sa-btn sd-th-bar__sync" disabled={!k.connected || !!k.reconcile_pending || asking} onClick={() => void reconcile()} type="button">
+                  Đối chiếu ngay
+                </button>
+              )}
             </section>
             <ul className="sd-th-list">
               {data.cards.map((c) => (

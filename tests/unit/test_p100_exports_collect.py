@@ -151,3 +151,25 @@ async def test_no_running_card_leaves_the_sku_goals_empty(session, shop):
     )
     assert data.skus
     assert all(k.revenue_goal is None and k.units_goal is None for k in data.skus)
+
+
+async def test_tong_quan_export_reads_each_window_once_not_per_product(session, shop, monkeypatch):
+    """Speed guard: the per-product loop reuses the loaded views (the channel split of a loaded
+    view), so the number of period views read does not grow with the number of products."""
+    from juli_backend.services.shopee_analytics import service as analytics_service
+
+    seeded, _ = shop
+    await _running_from(session, seeded, monkeypatch, date(2026, 10, 2))
+    real = analytics_service.load_view
+    calls: list[int] = []
+
+    async def counting(*a, **kw):
+        calls.append(1)
+        return await real(*a, **kw)
+
+    monkeypatch.setattr(analytics_service, "load_view", counting)
+    data = await collect_tong_quan(session, seeded.shop_id, shop_name="Shop", now=NOW, as_of=AS_OF)
+    products = len([r for r in data.products if r.name])
+    assert products >= 1
+    # current + previous window, plus the baseline windows of the per-product plan levels
+    assert len(calls) <= 4 + products

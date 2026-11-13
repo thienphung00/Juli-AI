@@ -21,13 +21,13 @@ function withSkus(extra: Record<string, Record<string, unknown>>): ProductPage {
 const page = (p: ProductPage) => renderWith(<ProductPageView id="BEP-S5" params={params("tab=ng")} />, fakeApi({ product: p }));
 
 describe("Sản phẩm: Phiên bản sản phẩm (ADR-122 d.12)", () => {
-  it("shows Biên ở giá bán (chắc chắn) and Biên cuối (ước tính) from the backend", async () => {
+  it("shows Biên ở giá bán (chắc chắn) and Biên cuối from the backend", async () => {
     page(withSkus({ "BEP-S5-CB": { orders: 12, price_margin_pct: 22.5, final_margin_pct: 14.1, final_margin_basis: "variation" } }));
     const row = within(await screen.findByTestId("sa-variations")).getByTestId("sa-var-BEP-S5-CB");
     expect(within(row).getByTestId("sa-margin-price")).toHaveTextContent("22,5%");
     expect(within(row).getByTestId("sa-margin-price")).toHaveTextContent("Biên ở giá bán");
     expect(within(row).getByTestId("sa-margin-final")).toHaveTextContent("14,1%");
-    expect(within(row).getByTestId("sa-margin-final")).toHaveTextContent("Biên cuối · ước tính");
+    expect(within(row).getByTestId("sa-margin-final")).toHaveTextContent("Biên cuối");
   });
 
   it("a variation on its product's rates says so; a missing giá vốn reads chưa tính", async () => {
@@ -86,5 +86,16 @@ describe("So sánh phân loại: Biên cuối (W2-G's final_margin_pct)", () => 
     const table = await screen.findByTestId("p2-vcmp");
     expect(within(table).queryByTestId("p2-vcmp-final")).toBeNull();
     expect(within(table).getByTestId("p2-vcmp-v3")).not.toHaveTextContent("Biên cuối");
+  });
+});
+
+describe("Biên label", () => {
+  it("never prints the word ước tính under Biên", async () => {
+    const { PriceMargin } = await import("../ui");
+    const { container } = render(<PriceMargin margin={21.5} p={{ price_min: 100000, price_max: 100000, margin_basis: "ước tính" }} />);
+    expect(container.textContent).toContain("Biên");
+    expect(container.textContent).not.toMatch(/ước tính/);
+    const real = render(<PriceMargin margin={21.5} p={{ price_min: 100000, price_max: 100000, margin_basis: "theo đơn thực tế" }} />);
+    expect(real.container.textContent).toContain("theo đơn thực tế");
   });
 });

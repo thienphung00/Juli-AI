@@ -448,7 +448,7 @@ function MarginLines({ s }: { readonly s: SkuCost }) {
         {price === null ? "chưa tính" : pp(price, 1)} <span className="sa-hint">Biên ở giá bán · chắc chắn</span>
       </span>
       <span className="sa-block" data-testid="sa-margin-final">
-        {final === null ? "chưa tính" : pp(final, 1)} <span className="sa-hint">Biên cuối · ước tính{m.final_margin_basis === "product" ? ` · ${m.final_margin_note ?? "theo tỉ lệ của sản phẩm"}` : ""}</span>
+        {final === null ? "chưa tính" : pp(final, 1)} <span className="sa-hint">Biên cuối{m.final_margin_basis === "product" ? ` · ${m.final_margin_note ?? "theo tỉ lệ của sản phẩm"}` : ""}</span>
       </span>
     </>
   );

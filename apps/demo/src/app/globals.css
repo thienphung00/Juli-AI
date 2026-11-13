@@ -7287,3 +7287,17 @@ h4 {
 @media (max-width: 900px) {
   .jp-grid--ch, .jp-grid--pr, .jp-grid--kol { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── P100 UI fix: phone gutter + room for the reviewer pill ── */
+
+@media (max-width: 767px) {
+  .app-shell__split > .app-content {
+    box-sizing: border-box;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .app-shell:has(.rg-pill--phone) .app-content {
+    padding-bottom: 168px; /* pill (48) + its offset above the bottom bar (96) + air */
+  }
+}

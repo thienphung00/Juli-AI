@@ -62,7 +62,8 @@ describe("Thực hiện", () => {
     unmount();
     renderReco(<ThucHienView />, fakeReco({ execution: states([exec({ card_id: "b", state: "da_dien", completed: 2 })]) }), { readOnly: true });
     expect(await screen.findByRole("button", { name: "Đã làm" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Mở Seller Centre" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Mở Seller Centre" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Mở Seller Centre" })).toBeNull();
   });
 
   it("formats values by field", () => {
@@ -137,7 +138,7 @@ describe("Đối chiếu ngay", () => {
     await waitFor(() => expect(reco.calls.filter((c) => c.name === "executionStates").length).toBe(2));
   });
 
-  it("is disabled when the Connector is not connected, a command is pending, or the host is read-only", async () => {
+  it("is disabled when the Connector is not connected or a command is pending, and hidden on a read-only host", async () => {
     const off = renderReco(<ThucHienView />, fakeReco({ execution: line({ connected: false }) }));
     expect(await screen.findByRole("button", { name: "Đối chiếu ngay" })).toBeDisabled();
     off.unmount();
@@ -145,6 +146,7 @@ describe("Đối chiếu ngay", () => {
     expect(await screen.findByRole("button", { name: "Đối chiếu ngay" })).toBeDisabled();
     pending.unmount();
     renderReco(<ThucHienView />, fakeReco({ execution: line({}) }), { readOnly: true });
-    expect(await screen.findByRole("button", { name: "Đối chiếu ngay" })).toBeDisabled();
+    await screen.findByTestId("sd-th-bar");
+    expect(screen.queryByRole("button", { name: "Đối chiếu ngay" })).toBeNull();
   });
 });

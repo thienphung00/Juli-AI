@@ -189,7 +189,7 @@ describe("Sản phẩm: the listing header", () => {
     // ADR-122 d.12: the realised margin (12,4%) left this table; it shows Biên ở giá bán and Biên cuối,
     // "chưa tính" when the answer has neither (product-margins.test.tsx covers the values)
     expect(cb).toHaveTextContent("Biên ở giá bán · chắc chắn");
-    expect(cb).toHaveTextContent("Biên cuối · ước tính");
+    expect(cb).toHaveTextContent("Biên cuối");
     expect(cb).toHaveTextContent("181.979đ");
     expect(within(table).getByTestId("sa-var-BEP-S5-QT")).toHaveTextContent("giá vốn giả định (1/3 giá)");
   });

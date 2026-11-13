@@ -447,6 +447,19 @@ async def _figures(
     return body, _kpis(view, base, product_id)
 
 
+async def split_figures(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    view: PeriodView,
+    window: Window,
+    product_id: str | None = None,
+) -> dict[str, Any]:
+    """``{"rows", "kpis"}`` of ``channel_split`` for a view the caller already loaded (no second
+    read of the window, no previous period, no plan block): what a per-product loop needs."""
+    body_rows, kpis = await _figures(session, shop_id, view, window, product_id)
+    return {"rows": body_rows, "kpis": kpis}
+
+
 _CELLS = ("views", "clicks", "ctr", "ctor", "aov", "gmv", "orders")
 
 

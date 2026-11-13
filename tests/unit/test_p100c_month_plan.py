@@ -243,3 +243,52 @@ async def test_period_plan_falls_back_to_30_days_without_a_usable_span(session, 
         session, seeded.shop_id, period="plan", as_of=AS_OF, product_id="other"
     )
     assert nope["plan_range"] is None and nope["days"] == 30
+
+
+async def test_ke_hoach_shows_the_running_totals_when_the_draft_is_empty(
+    session, shop, monkeypatch
+):
+    """An executed plan and NO draft: Kế hoạch's "Đang chạy" and "Nếu áp dụng nháp" are both the
+    running total (the one Tổng quan shows), never empty."""
+    seeded, _ = shop
+
+    async def spy(_session, **kw):
+        return None
+
+    monkeypatch.setattr(fill_queue_port, "enqueue_for_approval", spy)
+    await _save_and_plan(session, seeded, _voucher(date(2026, 10, 15), 10))
+    await plans.confirm(
+        session, seeded.shop_id, actor=_actor(seeded), now=NOW, acknowledge_breaches=True
+    )
+    plan = await session.scalar(select(ShopRecoPlan).where(ShopRecoPlan.status != PLAN_DRAFT))
+    plan.status = PLAN_EXECUTED
+    await session.commit()
+    screen = await month_plan.plan_with_month(session, seeded.shop_id, now=NOW, audience="seller")
+    run, with_draft = screen["month"]["running"], screen["month"]["with_draft"]
+    assert run["goal_gmv"] is not None and run["goal_profit"] is not None
+    assert with_draft["goal_gmv"] == run["goal_gmv"]
+    assert with_draft["goal_profit"] == run["goal_profit"]
+
+
+async def test_ke_hoach_month_follows_the_running_cards_when_the_data_month_has_none(
+    session, shop, monkeypatch
+):
+    """The running plan's days all fall after the data's month: the month bars show the month of
+    the running cards, so "Đang chạy" is never empty while Tổng quan shows the plan."""
+    seeded, _ = shop
+
+    async def spy(_session, **kw):
+        return None
+
+    monkeypatch.setattr(fill_queue_port, "enqueue_for_approval", spy)
+    await _save_and_plan(session, seeded, _voucher(date(2026, 11, 5), 10))
+    await plans.confirm(
+        session, seeded.shop_id, actor=_actor(seeded), now=NOW, acknowledge_breaches=True
+    )
+    plan = await session.scalar(select(ShopRecoPlan).where(ShopRecoPlan.status != PLAN_DRAFT))
+    plan.status = PLAN_EXECUTED
+    await session.commit()
+    screen = await month_plan.plan_with_month(session, seeded.shop_id, now=NOW, audience="seller")
+    run = screen["month"]["running"]
+    assert run["month"] == "2026-11" and run["cards"] == 1
+    assert screen["month"]["with_draft"]["goal_gmv"] == run["goal_gmv"]

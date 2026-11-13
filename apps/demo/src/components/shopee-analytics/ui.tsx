@@ -227,7 +227,7 @@ export function PriceMargin({ p, margin }: { readonly p: { readonly price_min?: 
       <span className="sa-pm__margin">
         <span className="sa-fcell__label">Biên</span>
         <b>{basis === "chưa tính" || margin == null ? "chưa tính" : pp(margin, 1)}</b>
-        <span className="sa-hint">{basis}</span>
+        {basis === "ước tính" ? null : <span className="sa-hint">{basis}</span>}
       </span>
     </span>
   );

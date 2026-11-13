@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { DecisionsView } from "../decisions-view";
+import { DecisionsView, findingOf } from "../decisions-view";
 import { fakePlan } from "../../../lib/shopee-decisions/__tests__/plan-fixtures";
 import { adsCard, fakeReco, megaCard, promotionCard, summaryOf, versionedVoucher, voucherCard } from "../../../lib/shopee-decisions/__tests__/fixtures";
 import type { CardList, CardSummary } from "../../../lib/shopee-decisions/types";
@@ -154,5 +154,15 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     fireEvent.click(within(other).getByRole("button", { name: "Thêm vào kế hoạch" }));
     await waitFor(() => expect(plan.calls.some((c) => c.name === "add")).toBe(true));
     expect(plan.calls.find((c) => c.name === "add")!.args).toEqual(["card-other", null, false]);
+  });
+});
+
+describe("Đề xuất heading", () => {
+  it("drops the profit part, never a dash, when the total is unknown", () => {
+    const [top] = queueCards();
+    const unknown = { ...top!, predicted_summary: { ...top!.predicted_summary, dprofit_month: { ...top!.predicted_summary.dprofit_month, p10: null, p90: null } } } as CardSummary;
+    expect(findingOf([unknown], null)).toBe("1 thẻ");
+    expect(findingOf([top!], null)).toMatch(/^1 thẻ · .+ lợi nhuận cả \d+ ngày$/);
+    expect(findingOf([unknown], null)).not.toMatch(/—/);
   });
 });
