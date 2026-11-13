@@ -62,7 +62,15 @@ async def get_fill_flag(
 jobs_router = APIRouter(prefix="/ingest/fill-jobs", tags=["ingest"])
 
 
+class JobProgress(BaseModel):
+    """Connector 0.3.18: how many of the page's steps are in."""
+
+    filled: int = Field(ge=0, le=999)
+    total: int = Field(ge=1, le=999)
+
+
 class JobReport(BaseModel):
+    progress: JobProgress | None = None
     status: str = Field(pattern="^(opened|filled|saved|captured|failed)$")
     captured_ref: str | None = Field(default=None, max_length=64)
     error: str | None = Field(default=None, max_length=64)
@@ -105,6 +113,7 @@ async def report_fill_job(
                 status=body.status,
                 captured_ref=body.captured_ref,
                 error=body.error,
+                progress=None if body.progress is None else body.progress.model_dump(),
             )
     except ProposalError as exc:
         await session.rollback()

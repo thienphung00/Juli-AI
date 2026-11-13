@@ -69,12 +69,14 @@ export const comboJob = (over: Record<string, unknown> = {}) =>
 export interface JobHarness {
   deps: JobDeps;
   reports: [string, string, string | undefined][];
+  progress: ({ filled: number; total: number } | undefined)[];
   halted: string[];
   clock: { t: number };
 }
 
 export function jobHarness(raw: Record<string, unknown> | JobReply, over: { prompt?: () => boolean; hash?: string; path?: string } = {}): JobHarness {
   const reports: JobHarness["reports"] = [];
+  const progress: JobHarness["progress"] = [];
   const halted: string[] = [];
   const clock = { t: 0 };
   const reply: JobReply = "ok" in raw ? (raw as JobReply) : (() => {
@@ -86,8 +88,9 @@ export function jobHarness(raw: Record<string, unknown> | JobReply, over: { prom
     doc: document,
     loc: { pathname: path, hash: over.hash ?? `#juli-fill=${JOB_ID}` },
     ask: async () => reply,
-    report: async (id, status, error) => {
+    report: async (id, status, error, extra) => {
       reports.push([id, status, error]);
+      progress.push(extra);
     },
     halt: async (id) => {
       halted.push(id);
@@ -98,5 +101,5 @@ export function jobHarness(raw: Record<string, unknown> | JobReply, over: { prom
     },
     now: () => clock.t,
   };
-  return { deps, reports, halted, clock };
+  return { deps, reports, progress, halted, clock };
 }

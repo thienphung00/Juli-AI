@@ -687,9 +687,11 @@ async def report(
     status: str,
     captured_ref: str | None = None,
     error: str | None = None,
+    progress: dict[str, int] | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """The Connector's progress on one job (own shop only)."""
+    """The Connector's progress on one job (own shop only). ``progress`` (``{filled, total}``,
+    Connector 0.3.18) is kept in ``payload["progress"]`` for Thực hiện's "3/4 đã điền"."""
     j = await session.scalar(
         select(ShopeeFillJob).where(ShopeeFillJob.id == job_id, ShopeeFillJob.shop_id == shop_id)
     )
@@ -699,6 +701,13 @@ async def report(
         raise ProposalError(ERROR_JOB_BAD, 422)
     if status not in _NEXT.get(j.status, set()) and status != j.status:
         raise ProposalError(ERROR_JOB_STATE, 409, f"{j.status} -> {status}")
+    if progress is not None:
+        if progress["filled"] > progress["total"]:
+            raise ProposalError(ERROR_JOB_BAD, 422)
+        j.payload = {
+            **(j.payload or {}),
+            "progress": {"filled": progress["filled"], "total": progress["total"]},
+        }
     j.status = status
     if captured_ref is not None:
         j.captured_ref = captured_ref

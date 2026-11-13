@@ -80,6 +80,8 @@ READ_TEMPLATES: dict[tuple[str, str], str] = {
     ("GET", f"{REC}/plans/{{plan_id}}"): "demo_shopee_reco_plan:get_plan_by_id",
     ("GET", f"{REC}/plan/export"): "demo_shopee_reco_plan:export_plan",
     ("GET", f"{REC}/change-sets"): "demo_shopee_reco_plan:list_change_sets",
+    ("GET", f"{REC}/execution"): "demo_shopee_reco_execution:get_execution",
+    ("GET", f"{REC}/measurements"): "demo_shopee_reco_execution:get_measurements",
     ("GET", f"{DEMO}/builder/products"): "demo_shopee_builder:builder_products",
     (
         "GET",

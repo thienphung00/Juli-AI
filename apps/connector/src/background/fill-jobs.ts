@@ -136,7 +136,7 @@ export class FillJobs {
   }
 
   /** Progress from the page (or the capture of the new id). */
-  async report(jobId: string, status: "opened" | "filled" | "saved" | "captured" | "failed", extra: { capturedRef?: string; error?: string } = {}): Promise<void> {
+  async report(jobId: string, status: "opened" | "filled" | "saved" | "captured" | "failed", extra: { capturedRef?: string; error?: string; progress?: { filled: number; total: number } } = {}): Promise<void> {
     const token = (await loadState(this.deps.storage)).token;
     if (!token || !fillJobsActive(token.shop_id)) return;
     try {
@@ -144,6 +144,7 @@ export class FillJobs {
         status,
         ...(extra.capturedRef ? { captured_ref: extra.capturedRef } : {}),
         ...(extra.error ? { error: extra.error.slice(0, 64) } : {}),
+        ...(extra.progress ? { progress: extra.progress } : {}),
       });
     } catch {
       // Juli unreachable or the job moved on: nothing changes on the page; the checklist catches up.

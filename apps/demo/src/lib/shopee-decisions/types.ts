@@ -637,3 +637,78 @@ export interface CardByCode {
   readonly verification: { readonly state: string | null };
   readonly selected_version?: CardVersion;
 }
+
+// ── Thực hiện / Đo lường (P100 redesign; `execution_state.py`) ────────────────
+
+export type ExecutionState = "cho_dien" | "da_dien" | "khop" | "lech";
+
+export interface ExecutionCard {
+  readonly card_id: string;
+  readonly code: string | null;
+  readonly title: string;
+  readonly family: Family;
+  readonly family_label: string;
+  readonly change_kind: string;
+  readonly product_id: string | null;
+  readonly state: ExecutionState;
+  /** Steps done of Đã duyệt · Connector điền · Bạn lưu · Khớp Seller Centre (1..4). */
+  readonly completed: number;
+  /** The step that went wrong (index), on `lech`. */
+  readonly bad: number | null;
+  readonly fields: { readonly filled: number; readonly total: number };
+  readonly jobs: { readonly total: number; readonly filled: number; readonly saved: number; readonly failed: number };
+  readonly noun: string;
+  readonly not_seen: boolean;
+  readonly mismatch: { readonly field: string | null; readonly observed: unknown; readonly expected: unknown } | null;
+  readonly executed_at: string | null;
+  readonly verified_at: string | null;
+  readonly measure_start: string | null;
+  readonly measure_days: number | null;
+  readonly open_job: { readonly id: string; readonly open_path: string } | null;
+}
+
+export interface ConnectorLine {
+  readonly version: string | null;
+  readonly last_check_at: string | null;
+  readonly connected: boolean;
+  readonly seller_centre_open: boolean | null;
+}
+
+export interface ExecutionStates {
+  readonly platform: string;
+  readonly connector: ConnectorLine;
+  readonly cards: readonly ExecutionCard[];
+  readonly counts: Readonly<Record<string, number>>;
+}
+
+export type MeasureVerdict = "dang_do" | "duoi_khoang" | "trong_khoang" | "vuot_khoang" | "chua_ket_luan";
+
+export interface MeasurementCard {
+  readonly card_id: string;
+  readonly code: string | null;
+  readonly title: string;
+  readonly family: Family;
+  readonly family_label: string;
+  readonly change_kind: string;
+  readonly product_id: string | null;
+  readonly started: string;
+  readonly ends: string | null;
+  readonly days: number | null;
+  readonly days_measured: number;
+  readonly done: boolean;
+  readonly verdict: MeasureVerdict;
+  /** A fraction (0.08 = +8 %). */
+  readonly impact_pct: number | null;
+  readonly lift: { readonly p10: N; readonly p50: N; readonly p90: N };
+  /** The card's Δ lợi nhuận over the period, in đồng. */
+  readonly band: { readonly p10: N; readonly p50: N; readonly p90: N };
+  readonly actual: N;
+  readonly metrics: readonly { readonly metric: string; readonly change_pct: number }[];
+  readonly partial: boolean;
+  readonly label: string | null;
+}
+
+export interface MeasurementStates {
+  readonly platform: string;
+  readonly cards: readonly MeasurementCard[];
+}
