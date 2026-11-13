@@ -809,6 +809,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/recommendations/execution/reconcile",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/demo/shopee/recommendations/manual",
       "methods": [
         "POST"
@@ -2084,6 +2092,14 @@
       "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/execution",
       "methods": [
         "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/execution/reconcile",
+      "methods": [
+        "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": false
