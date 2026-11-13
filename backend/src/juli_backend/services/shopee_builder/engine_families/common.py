@@ -18,6 +18,9 @@ NOTE_NO_PACK_EVIDENCE = "chưa có dữ liệu cho quy cách này"
 NOTE_FOLLOWER = "chưa biết tỉ lệ người theo dõi"
 #: P100-C (B.10): too few orders to measure who moves up to a tier -> cost and break-even only
 NOTE_COMBO_REACH = "chưa ước tính được — chưa đủ đơn để đo số đơn lên mức combo"
+NOTE_COMBO_NO_HISTORY = (
+    "chưa ước tính được — shop chưa chạy combo, chưa đo được số đơn sẽ mua thêm để lên mức combo"
+)
 NOTE_PACK_SOLD = "Shop đang bán quy cách này: khách chuyển sang listing mới, không thêm đơn."
 
 #: Priors tagged "prior" (ước tính chung) until the shop's own results calibrate them (ADR-121).

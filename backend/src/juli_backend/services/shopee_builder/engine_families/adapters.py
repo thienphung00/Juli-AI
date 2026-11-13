@@ -260,6 +260,11 @@ def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
             below += 1
             if u >= floor_units:
                 near.append(lowest - u)
+    # P100 B.10 (owner, 2026-11-13): E2 counts every order one unit under a "mua 2" tier as
+    # reaching it -- an upper bound (ORY: 45 of 46 orders, AOV +91,6 %), not a measurement. The
+    # reach is measured only once the shop's own orders show a combo discount (it has run one);
+    # before that the option is cost + break-even only ("chưa ước tính được").
+    ran_combo = any(getattr(ln, "bundle_discount", ZERO) > 0 for ln in env.lines_for(None))
     return ComboFacts(
         aov_now=sum(values.values(), ZERO) / n,
         profit_per_order=profit_per_order(env, set(values)),
@@ -270,7 +275,8 @@ def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
         use_share_now=Decimal(len(discounts)) / n,
         near_share=Decimal(len(near)) / n,
         unit_price=avg_price,
-        reach=measured_reach(len(near), n, below),
+        reach=measured_reach(len(near), n, below) if ran_combo else None,
+        reach_note=common.NOTE_COMBO_REACH if ran_combo else common.NOTE_COMBO_NO_HISTORY,
         reach_units=Decimal(sum(near)) / len(near) if near else ONE,
         fee_rate=combo_fee_rate(env, list(spec.item_ids)),
     )

@@ -54,8 +54,10 @@ class ComboFacts:
     near_share: Decimal  # share of orders within 20 % (at least one unit) under the lowest tier
     unit_price: Decimal  # mean unit price of the listed products
     #: ADR-122 d.13 E2: the share of ALL orders that reach the tier, measured (the near orders);
-    #: None = too few orders -> the tagged prior on ``near_share``
+    #: None = too few orders, or the shop has never run a combo (P100 B.10) -> not estimable
     reach: Band | None = None
+    #: why ``reach`` is None, shown on the not-estimable AOV driver (P100 B.10)
+    reach_note: str | None = None
     reach_units: Decimal = Decimal(1)  # mean units those orders are short of the tier
     #: P100-C (J): Shopee's % fees are on the item total AFTER the combo, so one đồng of combo
     #: discount costs the seller (1 − fee_rate) đồng; 0 = no fee formula (the gross discount)

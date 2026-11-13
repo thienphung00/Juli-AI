@@ -6,6 +6,7 @@ synthetic reco shop (``tests/support/shopee_reco``, SQLite, invented figures) en
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal as D
 from types import SimpleNamespace
@@ -107,7 +108,8 @@ def test_e2_nobody_near_a_minimum_gains_nothing():
 
 def test_e2_the_combo_reach_is_measured_on_orders_within_reach_of_the_tier():
     lines = [line(f"a{i}", 1, 50_000) for i in range(20)]  # one unit under tier 2
-    lines += [line(f"b{i}", 2, 50_000) for i in range(10)]  # already at tier 2
+    # already at tier 2, under a past combo (B.10: reach is measured once the shop ran one)
+    lines += [replace(line(f"b{i}", 2, 50_000), bundle_discount=D(10_000)) for i in range(10)]
     lines += [line(f"c{i}", 1, 30_000, item="other") for i in range(5)]
     spec = sp.ComboSpec(
         kind="combo", item_ids=["i1"], discount_type="pct", tiers=[sp.ComboTier(qty=2, value=10)]
