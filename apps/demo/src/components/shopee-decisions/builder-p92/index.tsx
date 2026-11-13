@@ -5,8 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { BuilderApi, BuilderOutcome, PickerResult, PickerProduct } from "../../../lib/shopee-decisions/builder-api";
 import { KINDS_92, MAX_VERSIONS, buildVersion, defaultVariationId, initialForms, kindName92, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
 import { useReco } from "../../../lib/shopee-decisions/context";
-import { SAMPLE_SHOP_BUILDER_KINDS, SAMPLE_SHOP_MODES } from "../../../lib/shopee-decisions/sample-scope";
-import { useSampleShopReviewer } from "../../../lib/reviewer/mode";
 import type { BuilderP98Api } from "../../../lib/shopee-decisions/builder-p98-api";
 import { useNarrow } from "../../quyet-dinh/use-narrow";
 import { NavLink, errorText } from "../ui";
@@ -78,21 +76,18 @@ const MODES: readonly { readonly key: Mode; readonly label: string }[] = [
 /** P98 entry points: three extra builders beside the P92 one (shown only when the P98 client is given). */
 function P98Entry({ api, data, from, productId, p98Api, kols }: { readonly api: BuilderApi; readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly p98Api?: BuilderP98Api; readonly kols: readonly KolCandidate[] }) {
   const [mode, setMode] = useState<Mode>("single");
-  // P100 S2-C/S2-D2: the sample shop offers only its allowlisted kinds and tool tabs (sample-scope.ts).
-  const sampleShop = useSampleShopReviewer();
-  const sampleKinds = sampleShop ? KINDS_92.filter((k) => SAMPLE_SHOP_BUILDER_KINDS.has(k.key)) : undefined;
-  const modes = sampleShop ? MODES.filter((m) => SAMPLE_SHOP_MODES.has(m.key)) : MODES;
-  if (!p98Api || modes.length < 2) return <Builder data={data} from={from} kinds={sampleKinds} productId={productId} />;
+  // P100 S2-D2 (owner option B): the sample shop gets the real Tự tạo -- every kind and tool tab.
+  if (!p98Api) return <Builder data={data} from={from} productId={productId} />;
   return (
     <>
       <nav aria-label="Loại công cụ" className="sb-pills p98-modes" data-testid="p98-modes">
-        {modes.map((m) => (
+        {MODES.map((m) => (
           <button aria-pressed={mode === m.key} className={`sb-pill ${mode === m.key ? "sb-pill--on" : ""}`} data-testid={`p98-mode-${m.key}`} key={m.key} onClick={() => setMode(m.key)} type="button">
             {m.label}
           </button>
         ))}
       </nav>
-      {mode === "single" ? <Builder data={data} from={from} kinds={sampleKinds} productId={productId} /> : null}
+      {mode === "single" ? <Builder data={data} from={from} productId={productId} /> : null}
       {mode === "combo" ? <ComboBuilder api={p98Api} products={data.products} variationsApi={api} /> : null}
       {mode === "kol" ? <KolBuilder api={p98Api} kols={kols} products={data.products} /> : null}
       {mode === "ads" ? <AdsBuilder api={p98Api} products={data.products} /> : null}

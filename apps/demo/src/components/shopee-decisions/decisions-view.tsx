@@ -6,9 +6,7 @@ import { DASH, fmt, sv } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { TABS, isWorthTrying, sectionsFor, statusLabel, tabCounts, tabOfParam, type DecisionTab } from "../../lib/shopee-decisions/model";
-import { sampleShopCards } from "../../lib/shopee-decisions/sample-scope";
 import type { CardList, CardSummary } from "../../lib/shopee-decisions/types";
-import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { Empty, Notice, Section, TextChip } from "../shopee-analytics/ui";
 import { BuilderView } from "./builder";
 import { BuilderP92View } from "./builder-p92";
@@ -93,7 +91,6 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
   const host = useReco();
   const [tick, setTick] = useState(0);
   const [flash, setFlash] = useState<Flash>(NO_FLASH);
-  const sampleShop = useSampleShopReviewer();
   const res = useResource<CardList>(() => host.reco.list({ queue: "all" }), `${host.shopKey}|list|${tick}`);
   return (
     <>
@@ -101,8 +98,7 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
       <FlashNotice flash={flash} />
       <RecoState resource={res}>
         {(data) => {
-          // P100 S2-C: on the sample shop only Tiêu đề / Ảnh bìa / Voucher cards; the tab counts follow.
-          const cards = sampleShopCards(data.cards, sampleShop);
+          const cards = data.cards;
           const tops = topEntries(cards);
           const counts = { ...tabCounts(cards), "de-xuat": tops.length };
           const sections = sectionsFor(cards, tab);

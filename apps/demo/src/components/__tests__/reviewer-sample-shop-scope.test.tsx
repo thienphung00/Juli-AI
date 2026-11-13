@@ -22,9 +22,9 @@ import type { RecoApi } from "../../lib/shopee-decisions/client";
 import type { CardList, CardSummary } from "../../lib/shopee-decisions/types";
 
 /**
- * P100 S2-C: on the reviewer's sample shop ("Dữ liệu mẫu") the screens show only what works there —
- * the rail's four Shopee screens, the avatar menu's Đổi shop / Đăng xuất, Tự tạo's Tiêu đề / Ảnh bìa /
- * Voucher and only cards of those kinds. A seller (and any other reviewer mode) is unchanged.
+ * P100 S2-C: on the reviewer's sample shop ("Dữ liệu mẫu") the rail holds the four Shopee screens and
+ * the avatar menu Đổi shop / Đăng xuất. S2-D2 (owner option B): inside those screens the sample shop is
+ * the real seller app — every Tự tạo strategy and tool tab, every card. A seller is unchanged.
  */
 
 configure({ asyncUtilTimeout: 4000 });
@@ -93,96 +93,52 @@ describe("S2-C · avatar menu", () => {
   });
 });
 
-describe("S2-C · Tự tạo strategies", () => {
+describe("S2-D2 · the sample shop is the real seller app", () => {
   async function toKinds() {
     fireEvent.click(await screen.findByTestId(`p2-prod-${P_ZIP}`));
     fireEvent.click(await screen.findByTestId("p2-vnext"));
     return screen.findByTestId("p2-kinds");
   }
 
-  it("the sample shop offers only its strategies (S2-C + S2-D2) and the Dịch vụ hiển thị tab", async () => {
-    withReviewer(SAMPLE, <BuilderP92View from="quyet-dinh" p98Api={p98} productId={null} />, fakeReco(), { builder: fakeBuilder() });
-    const modes = await screen.findByTestId("p98-modes");
-    expect(within(modes).getAllByRole("button").map((b) => b.getAttribute("data-testid"))).toEqual(["p98-mode-single", "p98-mode-ads"]);
-    const kinds = await toKinds();
-    expect(within(kinds).getAllByRole("button").map((b) => b.getAttribute("data-testid"))).toEqual([
-      "p2-kind-voucher",
-      "p2-kind-combo",
-      "p2-kind-deal_soc",
-      "p2-kind-title",
-      "p2-kind-cover_image",
-      "p2-kind-affiliate",
-    ]);
-    expect(within(kinds).queryByText("Chương Trình Của Shop")).toBeNull();
-  });
-
-  it("a seller (and a masked reviewer) keeps every strategy and the P98 builders", async () => {
-    for (const reviewer of [null, MASKED]) {
+  it("Tự tạo offers every strategy and tool tab (Dịch vụ hiển thị included), like a seller", async () => {
+    for (const reviewer of [SAMPLE, null, MASKED]) {
       withReviewer(reviewer, <BuilderP92View from="quyet-dinh" p98Api={p98} productId={null} />, fakeReco(), { builder: fakeBuilder() });
-      expect(await screen.findByTestId("p98-modes")).toBeInTheDocument();
+      const modes = await screen.findByTestId("p98-modes");
+      expect(within(modes).getAllByRole("button").map((b) => b.getAttribute("data-testid"))).toEqual(["p98-mode-single", "p98-mode-combo", "p98-mode-kol", "p98-mode-ads"]);
       const kinds = await toKinds();
       expect(within(kinds).getAllByRole("button")).toHaveLength(13); // P100 w2: Mua kèm + Quà tặng are one "Deal Sốc" kind
+      expect(within(kinds).getByTestId("p2-kind-ads")).toBeInTheDocument(); // P100 B.15: edit a running campaign
       cleanup();
     }
   });
-});
 
-describe("S2-C · card lists", () => {
   function list(cards: CardSummary[]): CardList {
     return { platform: "shopee", xep_theo: "diem", queue: "all", cards, counts: { family: {}, section: {}, total: cards.length } };
   }
   const item = (_id: string, product: string) => ({ level: "item" as const, product_ids: [product], sku_ids: [], campaign_key: null });
   const title = summaryOf(voucherCard({ id: "c-title", family: "listing", family_label: "Listing", change_kind: "title", scope: item("c-title", "P-1") }), { status: "sent" });
-  const cover = summaryOf(voucherCard({ id: "c-cover", family: "listing", family_label: "Listing", change_kind: "cover_image", scope: item("c-cover", "P-2") }), { status: "approved" });
-  // the seeded sample shop's finished voucher: measurement window closed -> "measured" (Đo lường)
-  const voucher = summaryOf(voucherCard({ id: "c-voucher", scope: item("c-voucher", "P-3") }), { status: "measured" });
   const ads = summaryOf({ ...adsCard(), id: "c-ads", scope: item("c-ads", "P-4") }, { status: "sent" });
   const promo = summaryOf({ ...promotionCard(), id: "c-promo", scope: item("c-promo", "P-5") }, { status: "approved" });
-  const combo = summaryOf(voucherCard({ id: "c-combo", family: "combo", family_label: "Combo", change_kind: "bundle_deal", scope: item("c-combo", "P-6") }), { status: "executed", verification: { state: "verified" } } as Partial<CardSummary>);
-  // S2-D2: Affiliate is offered on the sample shop
-  const affiliate = summaryOf(voucherCard({ id: "c-affiliate_commission", family: "listing", family_label: "Listing", change_kind: "affiliate_commission", scope: item("x", "A-1") }), { status: "sent" });
-  // the seeding slice's hidden kinds in Đề xuất
-  const hidden = ["price_display", "ads_purpose"].map((kind, i) =>
-    summaryOf(voucherCard({ id: `c-${kind}`, family: "listing", family_label: "Listing", change_kind: kind, scope: item("x", `H-${i}`) }), { status: "sent" }),
-  );
-  const all = [title, cover, voucher, ads, promo, combo, affiliate, ...hidden];
-
+  const all = [title, ads, promo];
   const tabs = () => within(screen.getByTestId("sd-tabs")).getAllByRole("link").map((a) => a.textContent);
 
-  it("the sample shop lists only its strategies' cards; the counts match", async () => {
-    withReviewer(SAMPLE, <DecisionsView params={params()} />, fakeReco({ list: list(all) }));
-    expect(await screen.findByTestId("sq-card-c-title")).toBeInTheDocument();
-    expect(screen.getByTestId("sq-card-c-affiliate_commission")).toBeInTheDocument();
-    expect(screen.queryByTestId("sq-card-c-ads")).toBeNull(); // a running-campaign edit (ads_budget)
-    for (const c of hidden) expect(screen.queryByTestId(`sq-card-${c.id}`)).toBeNull();
-    expect(tabs()).toEqual(["Đề xuất · 2", "Đang thực hiện · 1", "Đo lường · 2"]);
-    cleanup();
-    withReviewer(SAMPLE, <DecisionsView params={params("tab=dang-thuc-hien")} />, fakeReco({ list: list(all) }));
-    expect(await screen.findByTestId("sd-card-c-cover")).toBeInTheDocument();
-    expect(screen.queryByTestId("sd-card-c-promo")).toBeNull();
-    cleanup();
-    withReviewer(SAMPLE, <DecisionsView params={params("tab=do-luong")} />, fakeReco({ list: list(all) }));
-    expect(await screen.findByTestId("sd-card-c-voucher")).toBeInTheDocument();
-    expect(screen.getByTestId("sd-card-c-combo")).toBeInTheDocument();
+  it("Quyết định lists every card on the sample shop, a running-campaign edit included", async () => {
+    for (const reviewer of [SAMPLE, null]) {
+      withReviewer(reviewer, <DecisionsView params={params()} />, fakeReco({ list: list(all) }));
+      expect(await screen.findByTestId("sq-card-c-ads")).toBeInTheDocument();
+      expect(screen.getByTestId("sq-card-c-title")).toBeInTheDocument();
+      expect(tabs()).toEqual(["Đề xuất · 2", "Đang thực hiện · 1", "Đo lường · 0"]);
+      cleanup();
+    }
   });
 
-  it("a seller sees every card", async () => {
-    withReviewer(null, <DecisionsView params={params()} />, fakeReco({ list: list(all) }));
-    expect(await screen.findByTestId("sq-card-c-ads")).toBeInTheDocument();
-    expect(tabs()).toEqual(["Đề xuất · 5", "Đang thực hiện · 2", "Đo lường · 2"]);
-  });
-
-  it("Sản phẩm › Đề xuất filters the same way", () => {
+  it("Sản phẩm › Đề xuất lists every card on the sample shop", () => {
     const mine = [title, { ...promo, status: "sent" as const, product_id: "P-1", product_queue: 2 }];
-    const ui = (reviewer: ReviewerRecord | null) => (
-      <StaticReviewerProvider reviewer={reviewer}>
+    render(
+      <StaticReviewerProvider reviewer={SAMPLE}>
         <ProposalsTab builderHref="/b" cards={mine} historyHref="/h" links={sellerLinks} reco={fakeReco()} />
-      </StaticReviewerProvider>
+      </StaticReviewerProvider>,
     );
-    render(ui(SAMPLE));
-    expect(screen.getByTestId("sp-intro").textContent).toMatch(/^1 thẻ/);
-    cleanup();
-    render(ui(null));
     expect(screen.getByTestId("sp-intro").textContent).toMatch(/^2 thẻ/);
   });
 });

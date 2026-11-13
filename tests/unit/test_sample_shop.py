@@ -714,9 +714,9 @@ async def test_the_sample_shop_holds_the_llm_consent_and_a_reload_restores_it(en
 
 
 async def test_the_s2_d2_strategies_evaluate_on_the_sample_shop(engine):
-    """P100 S2-D2: Combo Khuyến Mãi, Deal Sốc (Mua kèm / Mua để nhận quà), a new Dịch vụ hiển thị
-    Sản phẩm campaign and Affiliate each give the reviewer a result on the sample shop's data."""
-    from juli_backend.api.reviewer import SAMPLE_SHOP_CARD_KINDS
+    """P100 S2-D2 (owner option B): the real Tự tạo works on the sample shop's data -- Combo Khuyến
+    Mãi, Deal Sốc (Mua kèm / Mua để nhận quà), Dịch vụ hiển thị (a new campaign and an edit of a
+    running one, P100 B.15) and Affiliate each give a result, and "Chọn" saves a card."""
     from juli_backend.database.tenant_context import with_shop_scope
     from juli_backend.services.sample_shop.catalog import PRODUCTS
     from juli_backend.services.shopee_builder import service as builder
@@ -728,6 +728,9 @@ async def test_the_s2_d2_strategies_evaluate_on_the_sample_shop(engine):
     a, b = PRODUCTS[0].item_id, PRODUCTS[1].item_id
     async with factory() as session:
         async with with_shop_scope(session, report.shop_id):
+            camps = await builder.ads_campaigns(session, report.shop_id, as_of=END, now=NOW)
+            assert camps["campaigns"], "the sample shop has running Dịch vụ hiển thị campaigns"
+            key = camps["campaigns"][0]["campaign_key"]
             versions = {
                 "combo": {
                     "kind": "combo",
@@ -752,8 +755,15 @@ async def test_the_s2_d2_strategies_evaluate_on_the_sample_shop(engine):
                     "daily_budget": 100_000,
                     "start": END.isoformat(),
                 },
+                "ads_edit": {
+                    "kind": "ads",
+                    "lever": "budget",
+                    "campaign_key": key,
+                    "daily_budget": 300_000,
+                },
                 "affiliate": {"kind": "affiliate", "item_id": a, "commission_pct": 8},
             }
+            saved_kinds: dict[str, str] = {}
             for name, version in versions.items():
                 out = await builder.evaluate_versions(
                     session, report.shop_id, [S(**version)], as_of=END, now=NOW
@@ -761,12 +771,13 @@ async def test_the_s2_d2_strategies_evaluate_on_the_sample_shop(engine):
                 v = out["versions"][0]
                 assert v["ok"], (name, v.get("refusal"))
                 assert v["result"] is not None and v["result"]["days"] >= 1, name
-                # "Chọn" saves a card the sample pin may approve (SAMPLE_SHOP_CARD_KINDS)
+                # "Chọn" saves the card the reviewer then approves, like a real seller
                 async with session.begin_nested() as nested:
                     saved = await builder.choose(
                         session, report.shop_id, [S(**version)], 0, primary=False,
                         acknowledge_breaches=True, actor=actor, as_of=END, now=NOW,
                     )  # fmt: skip
-                    kind = saved["card"]["change_kind"]
-                    assert kind in SAMPLE_SHOP_CARD_KINDS, (name, kind)
+                    saved_kinds[name] = saved["card"]["change_kind"]
                     await nested.rollback()
+            assert saved_kinds["ads_edit"] == "ads_budget"
+            assert saved_kinds["ads_new"] == "ads_new_campaign"

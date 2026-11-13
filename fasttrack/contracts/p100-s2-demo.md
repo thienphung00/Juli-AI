@@ -331,12 +331,13 @@ Found on prod after S2-D's deploy (reviewer session in Chrome, 2026-11-13):
   product's keyword, and a re-load adds the missing keywords.
 - `/` showed the TikTok Trang chủ on the sample shop; `sampleShopRedirect` sends it to Tổng quan.
 
-Owner decision 2026-11-13: the sample shop also offers Combo Khuyến Mãi, Deal Sốc (Mua kèm, Mua để
-nhận quà), Affiliate (commission) and a new Dịch vụ hiển thị Sản phẩm campaign (the "Dịch vụ hiển
-thị" tool tab). The builder's single "Dịch vụ hiển thị" kind edits a running campaign, which is
-refused for every shop (`ads_edit_hidden`), so it is not offered. Details in `p32-reviewer-access.md`,
-amendment S2-D2. A test evaluates and saves each of the five on the loaded sample shop and checks
-the card kind is on the allowlist.
+Owner decision 2026-11-13 (option B): the real shop is the working standard; inside its four
+screens the sample shop copies the seller app instead of offering a hand-picked list. Built on
+`fasttrack/optimize-product` 9aeacca0 (S1's PR #2284: B.15 edits of running Dịch vụ hiển thị
+campaigns). Tự tạo shows every kind and tool tab, the lists show every card, Duyệt takes any kind;
+only the safety layer stays sample-specific. Details in `p32-reviewer-access.md`, amendment S2-D2.
+A test evaluates and saves Combo, Deal Sốc (Mua kèm, quà tặng), a new and an edited Dịch vụ hiển
+thị campaign and Affiliate on the loaded sample shop.
 
 After deploy: run `--reset --yes` once. The re-seed rewrites the title specs with the new
 candidates, which a plain re-load does not do.

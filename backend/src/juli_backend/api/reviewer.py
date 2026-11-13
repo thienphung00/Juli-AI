@@ -154,16 +154,21 @@ SAMPLE_SHOP_ROUTES: dict[tuple[str, str], tuple[Literal["read", "write"], str]] 
     (_GET, _R + "demo_shopee_builder:builder_products"): ("read", "Tự tạo"),
     (_GET, _R + "demo_shopee_builder:builder_variations"): ("read", "Tự tạo"),
     (_GET, _R + "demo_shopee_builder:builder_keywords"): ("read", "Tự tạo › Tiêu đề"),
-    # P100 S2-D2: the stored co-purchase pairs (Deal Sốc › Mua kèm) and the Dịch vụ hiển thị tab's
-    # new-campaign setups (pure compute on stored rows): the sample shop's own rows, no outbound.
+    # P100 S2-D2 (owner option B, 2026-11-13): the rest of the real Tự tạo -- every builder kind
+    # and tool tab the seller has (Combo, Deal Sốc, Affiliate, KOL, Dịch vụ hiển thị: a new campaign
+    # and edits of a running one). All pure compute on the sample shop's stored rows; no outbound.
     (_GET, _R + "demo_shopee_builder:builder_co_purchase"): ("read", "Tự tạo › Deal Sốc"),
+    (_GET, _R + "demo_shopee_builder:builder_campaigns"): ("read", "Tự tạo › Dịch vụ hiển thị"),
+    (_GET, _R + "demo_shopee_market:builder_market_range"): ("read", "Tự tạo › giá thị trường"),
     ("POST", _R + "demo_shopee_builder_p98:ads_setup"): ("read", "Tự tạo › Dịch vụ hiển thị"),
+    ("POST", _R + "demo_shopee_builder_p98:combo_options"): ("read", "Tự tạo › Combo"),
+    ("POST", _R + "demo_shopee_builder_p98:kol_setup"): ("read", "Tự tạo › KOL"),
     ("POST", _R + "demo_shopee_builder:builder_evaluate"): ("read", "Tự tạo"),
     ("POST", _R + "demo_shopee_builder:builder_compare"): ("read", "Tự tạo"),
     (_GET, _R + "demo_shopee_builder:list_exclusions"): ("read", "Loại trừ"),
     # -- S2-G writes: Juli's own rows of the sample shop, nothing outbound ---------------------
-    # Duyệt is the REAL approve (the card moves to Đang thực hiện); only the three strategies'
-    # card kinds (:data:`SAMPLE_SHOP_CARD_KINDS`, checked in the route).
+    # Duyệt is the REAL approve (the card moves to Đang thực hiện), any card kind the real app
+    # approves (owner option B): Juli's rows only; the fill queue is off in a reviewer session.
     ("POST", _R + "demo_shopee_recommendations:approve_recommendation"): ("write", "Duyệt"),
     ("POST", _R + "demo_shopee_recommendations:recommendation_whatif"): ("write", "what-if"),
     ("POST", _R + "demo_shopee_recommendations:request_change"): ("write", "Yêu cầu chỉnh"),
@@ -208,10 +213,6 @@ SAMPLE_SHOP_REFUSED: dict[tuple[str, str], str] = {
     (_GET, _R + "demo_shopee_pages:seller_ads"): "Quảng cáo is hidden",
     (_GET, _R + "demo_shopee_pages:seller_promotions"): "hidden screen",
     (_GET, _R + "demo_shopee_pages:seller_orders"): "Đơn hàng is hidden",
-    (_GET, _R + "demo_shopee_market:builder_market_range"): "not offered",
-    ("POST", _R + "demo_shopee_builder_p98:combo_options"): "Combo is not offered",
-    ("POST", _R + "demo_shopee_builder_p98:kol_setup"): "KOL is not offered",
-    (_GET, _R + "demo_shopee_builder:builder_campaigns"): "running-campaign edits are hidden",
 }
 
 #: P100 S2-F: Tự tạo's live LLM / vision drafts (cover concepts, description). On a sample pin
@@ -225,26 +226,7 @@ SAMPLE_SHOP_LLM_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
         ("POST", _R + "demo_shopee_builder:builder_description_drafts"),  # …/drafts/description
     }
 )
-#: The card kinds a sample-shop reviewer may (simulated-)approve -- mirrored in
-#: ``apps/demo/src/lib/shopee-decisions/sample-scope.ts``. S2-C: Tiêu đề, Ảnh bìa, Voucher.
-#: P100 S2-D2 (owner, 2026-11-13): also Combo Khuyến Mãi, Deal Sốc (Mua kèm, Mua để nhận quà),
-#: Affiliate and a NEW Dịch vụ hiển thị Sản phẩm campaign (``ads_new_campaign``; edits of a running
-#: campaign are hidden for every shop, ``ads_edit_hidden``) -- the change_kinds the builder saves.
-SAMPLE_SHOP_CARD_KINDS: frozenset[str] = frozenset(
-    {
-        "title",
-        "cover_image",
-        "min_spend_voucher",
-        "review_voucher",
-        "voucher_cap",
-        "bundle_deal",
-        "add_on",
-        "gift",
-        "ads_new_campaign",
-        "affiliate_commission",
-        "affiliate_target_campaign",
-    }
-)
+
 
 #: Contract §2. Keyed by the matched endpoint (``module:function``) and method:
 #: unambiguous whatever router prefix a route sits under (FastAPI ≥ 0.13x keeps
@@ -1030,7 +1012,6 @@ def install(app: FastAPI) -> None:
 
 __all__ = [
     "ALLOWED_ENDPOINTS",
-    "SAMPLE_SHOP_CARD_KINDS",
     "SAMPLE_SHOP_ENDPOINTS",
     "SAMPLE_SHOP_LLM_ENDPOINTS",
     "SAMPLE_SHOP_REFUSED",
