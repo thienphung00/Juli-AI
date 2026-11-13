@@ -184,6 +184,36 @@ def test_ads_campaigns_add_up_to_the_shop_ads_row_and_roas_is_sane(sample):
     assert sum(r["ads_expense"] for r in period) == sum(r["ads_expense"] for r in shop.values())
 
 
+def test_the_ads_report_carries_doanh_so_truc_tiep_per_product(sample):
+    """P100 S2-D3 (prod check 2026-11-13): Seller Centre's ads report has "Doanh số trực tiếp" per
+    product row; without it every product read "Quảng cáo 0đ" and ROAS thực tế 0,0 while Tổng
+    quan said 35 % of GMV came from ads."""
+    period = _rows(sample, "ads_campaign_period")
+    assert period
+    for r in period:
+        assert 0 < r["direct_sales"] <= r["sales"], r
+        assert 0 <= r["direct_conversions"] <= r["conversions"], r
+        assert r["direct_roas"] == round(r["direct_sales"] / r["ads_expense"], 2), r
+    # the daily campaign rows and the period report use the same direct share
+    daily_direct = sum(r["direct_gmv"] for r in _rows(sample, "ads_campaign_daily"))
+    period_direct = sum(r["direct_sales"] for r in period)
+    assert abs(period_direct - daily_direct) <= len(period) + 30
+
+
+def test_every_product_has_a_cover_image_the_demo_app_serves(sample):
+    """P100 S2-D3: a cover is a real image URL (served from apps/demo/public), not a bare id."""
+    from pathlib import Path
+
+    from scripts.sample_shop.catalog import PRODUCTS
+
+    public = Path(__file__).resolve().parents[2] / "apps" / "demo" / "public"
+    covers = {r["item_id"]: r["image"] for r in _rows(sample, "item_snapshot") if r.get("image")}
+    assert set(covers) == {p.item_id for p in PRODUCTS}
+    for item, url in covers.items():
+        assert url.startswith("/sample-shop/") and url.endswith(".svg"), (item, url)
+        assert (public / url.lstrip("/")).is_file(), url
+
+
 def test_units_and_shapes_follow_what_the_connector_posts(sample):
     shop = _rows(sample, "shop_overview")
     for r in shop:
@@ -781,3 +811,45 @@ async def test_the_s2_d2_strategies_evaluate_on_the_sample_shop(engine):
                     await nested.rollback()
             assert saved_kinds["ads_edit"] == "ads_budget"
             assert saved_kinds["ads_new"] == "ads_new_campaign"
+
+
+async def test_every_advertised_product_shows_its_own_ads_figures(engine):
+    """P100 S2-D3 (prod check 2026-11-13): with "Doanh số trực tiếp" in the ads report, each
+    advertised product has a ROAS thực tế above 0 in Dịch vụ hiển thị, and an edit that really
+    changes the budget gives a result with a Δ lợi nhuận (not "thiếu phí hoặc giá vốn")."""
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.services.sample_shop.catalog import PRODUCTS
+    from juli_backend.services.shopee_builder import service as builder
+    from tests.unit.test_shopee_builder import S
+
+    factory, report = await _load(engine)
+    advertised = {p.item_id for p in PRODUCTS if p.campaign is not None}
+    assert advertised
+    async with factory() as session:
+        async with with_shop_scope(session, report.shop_id):
+            camps = await builder.ads_campaigns(session, report.shop_id, as_of=END, now=NOW)
+            seen = {
+                p["item_id"]: p["roas_direct"] for c in camps["campaigns"] for p in c["products"]
+            }
+            assert advertised <= set(seen), seen
+            assert all(seen[i] is not None and float(seen[i]) > 0 for i in advertised), seen
+            camp = camps["campaigns"][0]
+            current = camp.get("daily_budget") or 300_000
+            out = await builder.evaluate_versions(
+                session,
+                report.shop_id,
+                [
+                    S(
+                        kind="ads",
+                        lever="budget",
+                        campaign_key=camp["campaign_key"],
+                        daily_budget=int(float(current)) + 150_000,
+                    )
+                ],
+                as_of=END,
+                now=NOW,
+            )
+            v = out["versions"][0]
+            assert v["ok"], v.get("refusal")
+            warnings = [w["type"] for w in v["result"].get("warnings", [])]
+            assert "profit_unknown" not in warnings, v["result"]

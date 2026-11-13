@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 
 import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
+import { shopeeImageSrc } from "../../../lib/shopee-analytics/image-src";
 import type { ChannelSplitProduct, PickerProduct, WeakestMetric } from "../../../lib/shopee-decisions/builder-api";
 import { METRIC_LABELS } from "../../../lib/shopee-decisions/builder-p92";
 import { NavLink } from "../ui";
@@ -26,7 +27,7 @@ export function weakestText(m: WeakestMetric | null | undefined): string {
 export function ProductCard({ product, split, on, onPick }: { readonly product: PickerProduct; readonly split: ChannelSplitProduct | undefined; readonly on: boolean; readonly onPick: () => void }) {
   const margin = split?.margin ?? null;
   const metric = split?.weakest_metric ?? null;
-  const image = split?.image_url ?? null;
+  const image = shopeeImageSrc(split?.image_url);
   return (
     <button aria-pressed={on} className={`p2-pcard ${on ? "p2-pcard--on" : ""}`} data-testid={`p2-prod-${product.item_id}`} onClick={onPick} type="button">
       <span className="p2-pcard__top">

@@ -77,6 +77,9 @@ STREAM_SHARE = {"product_card": 0.80, "video": 0.08, "affiliate": 0.12}
 STREAM_CTR_FACTOR = {"product_card": 1.0, "video": 1.5, "affiliate": 1.7}
 STREAM_CVR_FACTOR = {"product_card": 1.0, "video": 0.8, "affiliate": 1.1}
 ADS_SUB_SOURCE = "Quảng cáo GMV tối đa ROAS tùy chỉnh cho sản phẩm"
+#: "Doanh số trực tiếp" / "Doanh số": the clicked product's own share of an ad's GMV
+#: (the daily campaign rows and the period report use the same share)
+DIRECT_SHARE = 0.7
 HOUR_WEIGHTS = (1, 1, 0, 0, 0, 1, 2, 3, 4, 4, 5, 5, 4, 4, 4, 4, 4, 5, 6, 8, 9, 8, 5, 3)
 COMBO_START_DAY = 10
 COMBO_NAME = "Combo Hiên Nhà - Mua 2 giảm 5%, mua 3 giảm 10%"
@@ -885,8 +888,8 @@ def _day_rows(
                     "broad_gmv": c["gmv"],
                     "broad_order": c["orders"],
                     "broad_roi": round(c["gmv"] / c["spend"], 2) if c["spend"] else 0,
-                    "direct_gmv": round(c["gmv"] * 0.7),
-                    "direct_order": max(round(c["orders"] * 0.7), 1 if c["orders"] else 0),
+                    "direct_gmv": round(c["gmv"] * DIRECT_SHARE),
+                    "direct_order": max(round(c["orders"] * DIRECT_SHARE), 1 if c["orders"] else 0),
                 }
             )
         return out
@@ -1016,7 +1019,7 @@ def _snapshot_rows(sold: list[int], *, early: bool) -> list[dict[str, Any]]:
         rows.append(
             {
                 "item_id": p.item_id,
-                "image": f"sample_{p.parent_sku.lower()}_cover",
+                "image": p.cover_url,
                 "create_time": created,
                 "price_min": min(prices),
                 "price_max": max(prices),
@@ -1049,6 +1052,8 @@ def _period_ads_rows(acc: dict[tuple[int, int], dict[str, float]]) -> list[dict[
     rows = []
     for (ci, pi), a in sorted(acc.items()):
         spend = int(a["spend"])
+        # "Doanh số trực tiếp": the clicked product only, the same share as the daily rows
+        direct = round(a["gmv"] * DIRECT_SHARE)
         rows.append(
             {
                 "campaign_name": CAMPAIGNS[ci][1],
@@ -1058,9 +1063,12 @@ def _period_ads_rows(acc: dict[tuple[int, int], dict[str, float]]) -> list[dict[
                 "ad_clicks": int(a["clicks"]),
                 "ctr": round(a["clicks"] / a["impressions"], 4) if a["impressions"] else 0,
                 "conversions": int(a["orders"]),
+                "direct_conversions": round(int(a["orders"]) * DIRECT_SHARE),
                 "sales": int(a["gmv"]),
+                "direct_sales": direct,
                 "ads_expense": spend,
                 "ads_roas": round(a["gmv"] / spend, 2) if spend else 0,
+                "direct_roas": round(direct / spend, 2) if spend else 0,
             }
         )
     return rows
