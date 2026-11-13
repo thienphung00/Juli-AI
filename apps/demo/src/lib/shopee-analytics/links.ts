@@ -11,9 +11,9 @@ export type DashboardKind = "tu-khoa" | "quang-cao" | "don-hang" | "luong-san-ph
 
 export const DASHBOARD_LABEL: Readonly<Record<DashboardKind, string>> = {
   "tu-khoa": "Từ khóa",
-  "quang-cao": "Dịch vụ hiển thị + khuyến mãi",
+  "quang-cao": "Dịch vụ hiển thị",
   "don-hang": "Đơn hàng",
-  "luong-san-pham": "Sản phẩm + luồng",
+  "luong-san-pham": "Luồng",
 };
 
 export const DASHBOARD_KINDS: readonly DashboardKind[] = ["tu-khoa", "quang-cao", "don-hang", "luong-san-pham"];
