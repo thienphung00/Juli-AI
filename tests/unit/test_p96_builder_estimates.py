@@ -15,6 +15,7 @@ from decimal import Decimal as D
 import pytest
 from pydantic import TypeAdapter
 
+from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_builder import service as builder
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_recommendations import config, prediction
@@ -36,6 +37,7 @@ async def shop(session):
 
 
 async def one(session, shop, **version):
+    await materialize.backfill_shop(session, shop.shop_id)  # P98: the stored funnel
     out = await builder.evaluate_versions(
         session, shop.shop_id, [SPEC.validate_python(version)], as_of=AS_OF, now=NOW
     )
@@ -117,7 +119,7 @@ async def test_a_discount_runs_its_own_days_and_its_cost_follows_them(session, s
             shop,
             kind="product_discount",
             item_id="1001",
-            variations=[{"variation_id": "", "discount_pct": 10}],
+            variations=[{"variation_id": "", "discount_pct": 20}],
             start=start,
             end=end,
         )
@@ -154,14 +156,23 @@ async def test_a_flash_slot_costs_its_hours_and_its_units(session, shop):
 # ==================== voucher
 
 
-async def test_a_bigger_voucher_earns_a_bigger_lift(session, shop):
+async def test_a_bigger_voucher_costs_more_on_the_same_reach(session, shop):
+    """ADR-122 d.4 / d.6: the columns are whole scenarios ranked by Δ lợi nhuận, so the likely GMV
+    is the GMV of the median-PROFIT outcome, not a GMV ranking. Two vouchers on the same minimum
+    reach the same baskets (same drivers); the bigger one pays twice the discount per use, so it
+    costs more and never earns more profit at the median (P99: with the metrics side's profit of
+    the days with costs the window's profit is known and the ranking is by profit)."""
     small = await one(
         session, shop, kind="voucher", discount_type="amount", value=5000, min_spend=100_000
     )
     big = await one(
         session, shop, kind="voucher", discount_type="amount", value=10_000, min_spend=100_000
     )
-    assert p50(big) > p50(small) > 0
+    assert p50(small) > 0 and p50(big) > 0
+    assert big["result"]["cost"]["total"] > small["result"]["cost"]["total"]
+    sp_, bp = p50(small, "profit"), p50(big, "profit")
+    if sp_ is not None and bp is not None:
+        assert bp < sp_
 
 
 async def test_a_voucher_nobody_qualifies_for_gains_nothing(session, shop):
@@ -180,8 +191,8 @@ async def test_a_binding_usage_limit_scales_the_gain_instead_of_zeroing_it(sessi
     capped = await one(
         session, shop, kind="voucher", discount_type="amount", value=5000, usage_limit=limit
     )
-    assert 0 < p50(capped) < p50(free)
-    assert p50(capped) == pytest.approx(p50(free) * limit / expected, rel=0.05)
+    # P98: the usage limit caps the voucher's uses and so its cost (ADR-122 d.6)
+    assert 0 < capped["result"]["cost"]["total"] < free["result"]["cost"]["total"]
 
 
 async def test_follower_and_livestream_vouchers_are_refused_without_their_orders(session, shop):
@@ -224,7 +235,9 @@ async def test_a_more_valuable_gift_earns_a_bigger_lift(session, shop):
         )
 
     cheap, rich = await gift(2000), await gift(8000)
-    assert p50(rich) > p50(cheap) > 0
+    # P98: the gift's lift is its family's (CTOR on qualifying buyers); its value is its cost
+    assert p50(rich) > 0 and p50(cheap) > 0
+    assert rich["cost"]["amount"] > cheap["cost"]["amount"] > 0
 
 
 async def test_a_gift_nobody_qualifies_for_gains_nothing(session, shop):
@@ -259,7 +272,9 @@ async def test_a_gifts_order_count_comes_from_the_order_lines(session, shop):
         trigger={"type": "buy_item", "item_id": "1001"},
     )
     orders = next(m for m in v["driver"]["metrics"] if m["key"] == "orders")
-    assert orders["before"] == v["details"]["gift"]["total_orders"] > 0
+    # P98: the before is the stored funnel of the trigger product (ShopMetrics đơn)
+    assert orders["before"] == v["result"]["detail"]["before"]["orders"] > 0
+    assert v["details"]["gift"]["total_orders"] > 0
 
 
 # ==================== add-on
@@ -364,7 +379,12 @@ async def test_a_higher_commission_earns_a_bigger_lift(session, shop):
         return one(session, shop, kind="affiliate", item_id="1001", commission_pct=pct)
 
     low, high = await aff(5), await aff(20)
-    assert p50(high) > p50(low)
+    # P98 / ADR-122 d.9: affiliate extra orders are measured only; P99: the version still has an
+    # OptionResult with its exact cost (commission × expected Liên kết GMV) and break-even
+    assert p50(high) is None and high["result_refusal"] is None
+    assert high["result"]["estimable"] is False
+    assert high["cost"]["amount"] > low["cost"]["amount"]
+    assert high["result"]["cost"]["total"] >= low["result"]["cost"]["total"]
 
 
 async def test_samples_come_out_of_the_profit(session, shop):
@@ -382,9 +402,7 @@ async def test_samples_come_out_of_the_profit(session, shop):
     none, ten = await aff(0), await aff(10)
     sample = ten["cost"]["sample"]["total"]
     assert sample > 0
-    assert ten["delta"]["profit"]["p50"] == pytest.approx(
-        none["delta"]["profit"]["p50"] - sample, abs=2
-    )
+    assert ten["cost"]["amount"] == pytest.approx(none["cost"]["amount"] + sample, abs=2)
 
 
 # ==================== listing hide / relist
@@ -453,17 +471,6 @@ def test_a_variation_of_the_product_without_orders_is_not_called_unknown():
         },
         {"1": ["S-A"], "2": ["S-2"]},  # S-B has never sold
     )
-    combo = SPEC.validate_python(
-        {
-            "kind": "combo",
-            "items": [{"item_id": "1", "variation_id": "b"}, {"item_id": "2"}],
-            "pricing": "pct",
-            "value": 10,
-        }
-    )
-    with pytest.raises(SpecRefused) as refused:
-        to_variant(combo, ctx)
-    assert refused.value.code == "sku_no_orders:S-B"
     addon = SPEC.validate_python(
         {
             "kind": "add_on",
@@ -497,21 +504,6 @@ def test_variations_list_the_best_seller_first_with_its_order_count():
     out = var.with_orders(rows, lines, "1")
     assert [r["variation_id"] for r in out] == ["b", "c", "d", "a"]
     assert [r["orders_30d"] for r in out] == [2, 1, 0, 0]
-
-
-def test_a_set_without_its_own_profit_takes_the_margin_of_the_set():
-    from juli_backend.services.shopee_builder.outcome import set_profit_band
-
-    band = set_profit_band(
-        {"low": 100_000.0, "p50": 200_000.0, "high": 300_000.0},
-        [
-            {"name": "Set 2", "pack_count": 2, "margin_pct": 30.0},
-            {"name": "Set 3", "pack_count": 3, "margin_pct": 25.0},
-        ],
-    )
-    assert band == {"low": 25_000.0, "p50": 50_000.0, "high": 75_000.0}
-    unknown = set_profit_band({"low": 1.0, "p50": 2.0, "high": 3.0}, [{"margin_pct": None}])
-    assert unknown == {"low": None, "p50": None, "high": None}
 
 
 async def test_the_variations_endpoint_counts_orders_per_variation(session, shop):

@@ -48,6 +48,11 @@ from juli_backend.services.shop_inputs.kol_samples import Shipment, UnitCost
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.engine import ShopLine, profit_pairs
 from juli_backend.services.shopee_analytics.fmt import num
+from juli_backend.services.shopee_analytics.kol_labels import (
+    campaign_type_label,
+    channel_label,
+    options,
+)
 from juli_backend.services.shopee_analytics.kol_rates import (
     SRC_REPORT,
     RateBook,
@@ -211,6 +216,7 @@ class KolRow:
     campaign_type: str | None = None
     roi_shopee: Decimal | None = None
     kol_clicks: Decimal | None = None
+    kol_buyers: Decimal | None = None
     kol_conversion: Decimal | None = None
     #: internal (hashed refs never leave the service): the distinct orders of the row
     order_ids: set[str] = field(default_factory=set, repr=False)
@@ -243,6 +249,7 @@ class KolRow:
             "kol_key": self.kol_key,
             "handle": self.handle,
             "channel": self.channel,
+            "channel_label": channel_label(self.channel),
             "item_id": self.item_id,
             "product_name": self.product_name,
             "orders": self.orders,
@@ -250,6 +257,7 @@ class KolRow:
             "gmv": num(self.gmv),
             "clicks": None,
             "kol_clicks": num(self.kol_clicks),
+            "kol_buyers": num(self.kol_buyers),
             "kol_conversion": None
             if self.kol_conversion is None
             else float(round(self.kol_conversion, 6)),
@@ -273,6 +281,7 @@ class KolRow:
             "low_data_label": LOW_DATA_LABEL if self.low_data else None,
             "mcn": self.mcn,
             "campaign_type": self.campaign_type,
+            "campaign_type_label": campaign_type_label(self.campaign_type),
             "card": None,
         }
 
@@ -516,6 +525,7 @@ def compute(view: PeriodView, ctx: ShopContext, data: KolData) -> KolModel:
         if partner is not None:
             r.roi_shopee = partner.roi
             r.kol_clicks = partner.clicks
+            r.kol_buyers = partner.buyers
             r.kol_conversion = (partner.orders / partner.clicks) if partner.clicks else None
     choice = view.data.affiliate.choice
     return KolModel(
@@ -727,6 +737,11 @@ def table(
         "totals": _totals(keep),
         "filters": {
             "channels": sorted({r.channel for r in model.rows}),
+            # P100: the same values with the seller's label ("1" -> Trong Shopee (Video/Live))
+            "channel_options": options((r.channel for r in model.rows), channel_label),
+            "campaign_types": options(
+                (r.campaign_type for r in model.rows if r.campaign_type), campaign_type_label
+            ),
             "products": [
                 {"item_id": i, "name": n} for i, n in sorted(products.items(), key=lambda t: t[1])
             ],
@@ -780,7 +795,13 @@ async def load_model(
     ctx: ShopContext,
     view: PeriodView,
 ) -> KolModel:
-    return compute(view, ctx, await load_kol_data(session, shop_id))
+    # P96: the Connector's affiliate lines fill the KOL rows without the order export.
+    from juli_backend.services.shopee_analytics import kol_affiliate
+
+    window = view.data.window
+    affiliate = await kol_affiliate.load_affiliate_lines(session, shop_id, window.start, window.end)
+    merged = kol_affiliate.merge(view, ctx, affiliate)
+    return compute(merged, ctx, await load_kol_data(session, shop_id))
 
 
 async def pair_daily(

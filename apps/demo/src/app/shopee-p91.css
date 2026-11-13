@@ -502,6 +502,33 @@ button.sv-head:disabled {
   color: #fff;
 }
 
+/* P99: the tool tabs (Từng phương án / Combo / KOL / Quảng cáo) sit outside `.sa-page`, where the --qd-*
+   tokens are not defined (the selected tab was white on nothing). They read packages/theme tokens only;
+   selected = background colour on --juli-primary-text (5.8:1), so a theme that flips the pair stays legible. */
+.p98-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--juli-space-2, 8px);
+  margin: var(--juli-space-3, 12px) var(--juli-space-4, 16px) 0;
+}
+
+.p98-modes .sb-pill {
+  border: 1px solid var(--juli-border);
+  background: var(--juli-surface);
+  color: var(--juli-foreground);
+}
+
+.p98-modes .sb-pill--on {
+  border-color: var(--juli-primary-text);
+  background: var(--juli-primary-text);
+  color: var(--juli-background);
+}
+
+.p98-modes .sb-pill:focus-visible {
+  outline: var(--juli-focus-width, 3px) solid var(--juli-focus-ring);
+  outline-offset: 2px;
+}
+
 .sb-pill--dark {
   border-color: var(--qd-ink-2);
   background: var(--qd-ink-2);
@@ -1003,10 +1030,10 @@ button.sv-head:disabled {
 
 .kol-row {
   display: grid;
-  grid-template-columns: 170px 130px 50px 40px 100px 70px 80px 100px 110px 100px 120px 90px 110px 90px 160px;
+  grid-template-columns: 170px 130px 50px 40px 100px 70px 80px 80px 100px 110px 100px 120px 90px 110px 90px 160px;
   align-items: center;
   gap: 8px;
-  min-width: 1500px;
+  min-width: 1590px;
   border-bottom: 1px solid var(--qd-line-2);
   padding: 8px 12px;
   font-size: 13px;
@@ -1040,6 +1067,43 @@ button.sv-head:disabled {
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
+}
+
+/* ── Phân tích › KOL › So sánh (P100) ──────────────────────────────── */
+
+.kolcmp {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kolcmp__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kolcmp__row {
+  display: grid;
+  grid-template-columns: 200px 50px 110px 100px 70px 100px 110px 90px 80px 40px 80px;
+  align-items: center;
+  gap: 8px;
+  min-width: 1100px;
+  border-bottom: 1px solid var(--qd-line-2);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.kolcmp__row--total {
+  font-weight: 700;
+}
+
+.kolcmp__strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* ── Cài đặt › Mẫu KOL ──────────────────────────────────────────────── */
@@ -1104,4 +1168,47 @@ button.sv-head:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
+}
+
+/* P97 groups of a plan */
+.kh-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.kh-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--qd-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.kh-group__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.kh-group__members {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.kh-group__edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.kh-linkbtn {
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }

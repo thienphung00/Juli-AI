@@ -10,6 +10,7 @@ from juli_backend.api.middleware import (
     RunsListInvalidationMiddleware,
     install_error_boundary,
 )
+from juli_backend.api.routes import shopee_analytics_common
 from juli_backend.api.routes.action_cards import router as action_cards_router
 from juli_backend.api.routes.agent_runs import router as agent_runs_router
 from juli_backend.api.routes.auth_tiktok import router as auth_tiktok_router
@@ -38,6 +39,7 @@ from juli_backend.api.routes.demo_run_flows import router as demo_run_flows_rout
 from juli_backend.api.routes.demo_shop_inputs import router as demo_shop_inputs_router
 from juli_backend.api.routes.demo_shopee_analytics import router as demo_shopee_analytics_router
 from juli_backend.api.routes.demo_shopee_builder import router as demo_shopee_builder_router
+from juli_backend.api.routes.demo_shopee_builder_p98 import router as demo_shopee_builder_p98_router
 from juli_backend.api.routes.demo_shopee_market import router as demo_shopee_market_router
 from juli_backend.api.routes.demo_shopee_pages import router as demo_shopee_pages_router
 from juli_backend.api.routes.demo_shopee_reco_manual import router as demo_shopee_reco_manual_router
@@ -47,7 +49,9 @@ from juli_backend.api.routes.demo_shopee_recommendations import (
 )
 from juli_backend.api.routes.executions import router as executions_router
 from juli_backend.api.routes.ingest import router as ingest_router
+from juli_backend.api.routes.ingest_fill import jobs_router as ingest_fill_jobs_router
 from juli_backend.api.routes.ingest_fill import router as ingest_fill_router
+from juli_backend.api.routes.ingest_fill import seller_router as demo_fill_jobs_router
 from juli_backend.api.routes.ingest_market import router as ingest_market_router
 from juli_backend.api.routes.ingest_order_ref import router as ingest_order_ref_router
 from juli_backend.api.routes.me import router as me_router
@@ -61,6 +65,7 @@ from juli_backend.api.routes.ops_shopee_analytics import router as ops_shopee_an
 from juli_backend.api.routes.ops_shopee_backtest import router as ops_shopee_backtest_router
 from juli_backend.api.routes.ops_shopee_builder import router as ops_shopee_builder_router
 from juli_backend.api.routes.ops_shopee_dashboards import router as ops_shopee_dashboards_router
+from juli_backend.api.routes.ops_shopee_funnel import router as ops_shopee_funnel_router
 from juli_backend.api.routes.ops_shopee_keywords import router as ops_shopee_keywords_router
 from juli_backend.api.routes.ops_shopee_kpi import router as ops_shopee_kpi_router
 from juli_backend.api.routes.ops_shopee_market import router as ops_shopee_market_router
@@ -162,6 +167,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_shopee_recommendations_router)
     v1_router.include_router(demo_shopee_reco_manual_router)
     v1_router.include_router(demo_shopee_builder_router)
+    v1_router.include_router(demo_shopee_builder_p98_router)
     v1_router.include_router(demo_shopee_market_router)
     v1_router.include_router(demo_shopee_pages_router)
     v1_router.include_router(demo_planned_changes_router)
@@ -183,12 +189,15 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_shopee_kpi_router)
     v1_router.include_router(ops_shopee_dashboards_router)
     v1_router.include_router(ops_shopee_keywords_router)
+    v1_router.include_router(ops_shopee_funnel_router)
     v1_router.include_router(ops_shopee_orders_router)
     v1_router.include_router(ops_shop_inputs_router)
     v1_router.include_router(ops_shopee_analytics_router)
     v1_router.include_router(shop_invites_router)
     # Fast track P24 (D31.3 / D31.4): the ingest gateway and Juli Connector pairing.
     v1_router.include_router(ingest_fill_router)
+    v1_router.include_router(ingest_fill_jobs_router)
+    v1_router.include_router(demo_fill_jobs_router)
     v1_router.include_router(ingest_market_router)
     v1_router.include_router(ingest_order_ref_router)
     v1_router.include_router(ingest_router)
@@ -222,6 +231,8 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     # outermost-last) and therefore sees the request before any route or handler runs.
     app.add_middleware(CorrelationIdMiddleware)
     install_error_boundary(app)
+    # P99b: a Shopee window without stored daily rows is a 409 state, not a 500
+    shopee_analytics_common.install_rows_missing_handler(app)
     warm_route_state(app)
 
     return app

@@ -8,14 +8,15 @@ const Y_START = Date.UTC(2026, 9, 10, 17, 0, 0) / 1000;
 describe("daily sync plan", () => {
   it("asks for yesterday's shop-level calls; item readers wait for D31.6", () => {
     const plan = buildSyncPlan(NOW, new Set());
-    expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "shop_traffic"]);
+    expect(plan.map((p) => p.dataset)).toEqual(["traffic_overview", "traffic_overview", "shop_traffic"]);
+    expect(plan[1]?.params).toMatchObject({ order_type: "placed" });
     expect(plan[0]?.params).toEqual({
       start_time: String(Y_START),
       end_time: String(Y_START + 86399),
       period: "yesterday",
       order_type: "confirmed",
     });
-    expect(plan[1]?.useTemplate).toBe(true);
+    expect(plan[2]?.useTemplate).toBe(true);
   });
 
   it("skips stopped datasets and adds item pages when enabled", () => {
@@ -33,7 +34,7 @@ describe("daily sync plan", () => {
   });
 
   it("adds the session params the page uses; a template must be 'yesterday'", () => {
-    const [overview, traffic] = buildSyncPlan(NOW, new Set());
+    const [overview, , traffic] = buildSyncPlan(NOW, new Set());
     const url = requestUrl("https://banhang.shopee.vn", overview!, { SPC_CDS: "s", SPC_CDS_VER: "2" });
     expect(url).toContain("/api/mydata/v1/product/traffic/overview/?start_time=");
     expect(url).toContain("SPC_CDS=s&SPC_CDS_VER=2");

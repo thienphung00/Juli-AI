@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformItemSnapshotsRepo
 from juli_backend.services.shopee_analytics import kol, loaders, service
+from juli_backend.services.shopee_analytics import kol_compare as kol_compare_mod
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.critical import build_critical
 from juli_backend.services.shopee_analytics.fmt import pct
@@ -31,7 +32,8 @@ from juli_backend.services.shopee_analytics.orders import build_orders
 from juli_backend.services.shopee_analytics.overview import build_overview
 from juli_backend.services.shopee_analytics.product import build_product_page
 from juli_backend.services.shopee_analytics.rankings import build_ranking
-from juli_backend.services.shopee_analytics.windows import Window
+from juli_backend.services.shopee_analytics.shared import shop_profit_fields
+from juli_backend.services.shopee_analytics.windows import InvalidWindow, Window
 
 PRODUCT_PERIODS: tuple[str, ...] = ("7d", "30d", "90d")
 
@@ -77,8 +79,11 @@ async def _views(
         raise NoShopeeData(str(shop_id))
     ctx = await loaders.load_context(session, shop_id)
     ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
-    now = await service.load_view(session, shop_id, ctx, window)
-    before = await service.load_view(session, shop_id, ctx, window.previous())
+    now = await service.load_view(session, shop_id, ctx, window, funnel=True)
+    # P99b: the comparison window never errors the screen; without stored rows it is withheld
+    before = await service.load_view(
+        session, shop_id, ctx, window.previous(), funnel=True, rows="soft"
+    )
     return ctx, now, before
 
 
@@ -95,7 +100,8 @@ async def overview(
     ctx, now, before = await _views(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    body = build_overview(ctx, now, before)
+    anchor = await service.anchor_for(session, shop_id, as_of)
+    body = build_overview(ctx, now, before, anchor)
     body["period"]["kind"] = period
     body["freshness"] = freshness_json(
         await loaders.load_freshness(session, shop_id), now.window.end
@@ -150,6 +156,25 @@ async def product_price_margin(
             "margin_basis": margin_basis(view, item_id, pp),
         }
     return out
+
+
+async def window_metrics(
+    session: AsyncSession, shop_id: uuid.UUID, *, start: date, end: date
+) -> tuple[dict[str, Any], dict[str, str]] | None:
+    """ShopMetrics for one exact window and the excluded listings (item id -> reason): what the
+    Ops / Demo Sản phẩm + luồng tables put beside their per-flow SQL so their headline is the
+    same number as every other screen (D85.2). None when the shop has no Shopee order data."""
+    ctx = await loaders.load_context(session, shop_id)
+    ctx = replace(ctx, rules=ctx.rules.for_month(f"{end:%Y-%m}"))
+    try:
+        window = await service.resolve(session, shop_id, period="custom", start=start, end=end)
+    except InvalidWindow:
+        return None
+    if window is None:
+        return None
+    view = await service.load_view(session, shop_id, ctx, window, funnel=True)
+    # P100 B.5: the shop profit is the one known-cost figure, never the scaled stored sum
+    return {**view.metrics.json(), **shop_profit_fields(view)}, dict(view.excluded)
 
 
 async def orders(
@@ -235,8 +260,10 @@ async def product_page(
         window = await service.resolve(session, shop_id, period=key, as_of=anchor)
         assert isinstance(window, Window)
         views[key] = (
-            await service.load_view(session, shop_id, ctx, window),
-            await service.load_view(session, shop_id, ctx, window.previous()),
+            await service.load_view(session, shop_id, ctx, window, funnel=True),
+            await service.load_view(
+                session, shop_id, ctx, window.previous(), funnel=True, rows="soft"
+            ),
         )
     known = (
         item_id in ctx.catalog.items
@@ -270,6 +297,27 @@ async def product_page(
 # ---------------------------------------------------------------------------- KOL (P91 D-9)
 
 
+async def _kol_view_model(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    period: str,
+    month: str | None,
+    start: date | None,
+    end: date | None,
+    as_of: date | None,
+) -> tuple[PeriodView, kol.KolModel]:
+    window = await service.resolve(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+    )
+    if window is None:
+        raise NoShopeeData(str(shop_id))
+    ctx = await loaders.load_context(session, shop_id)
+    ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
+    view = await service.load_view(session, shop_id, ctx, window)
+    return view, await kol.load_model(session, shop_id, ctx, view)
+
+
 async def _kol_model(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -280,15 +328,10 @@ async def _kol_model(
     end: date | None,
     as_of: date | None,
 ) -> kol.KolModel:
-    window = await service.resolve(
+    _, model = await _kol_view_model(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
-    if window is None:
-        raise NoShopeeData(str(shop_id))
-    ctx = await loaders.load_context(session, shop_id)
-    ctx = replace(ctx, rules=ctx.rules.for_month(f"{window.end:%Y-%m}"))
-    view = await service.load_view(session, shop_id, ctx, window)
-    return await kol.load_model(session, shop_id, ctx, view)
+    return model
 
 
 async def kol_table(
@@ -329,3 +372,26 @@ async def kol_product_tab(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
     return kol.product_tab(model, item_id)
+
+
+async def kol_compare(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    group: str = "channel",
+    period: str = "30d",
+    month: str | None = None,
+    start: date | None = None,
+    end: date | None = None,
+    as_of: date | None = None,
+) -> dict[str, Any]:
+    """Phân tích › KOL › So sánh: the KOL rows by kênh / loại chiến dịch / KOL, and Affiliate vs
+    Ads vs the shop's own flows for the same window (P100)."""
+    if group not in kol_compare_mod.GROUPS:
+        raise ValueError(f"group must be one of {list(kol_compare_mod.GROUPS)}")
+    view, model = await _kol_view_model(
+        session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
+    )
+    body = kol_compare_mod.compare(view, model, group)
+    body["window"] = {**body["window"], "kind": period}
+    return body

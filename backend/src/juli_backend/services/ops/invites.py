@@ -1,13 +1,14 @@
 """P9-B handover (D25.7) and P93 shop team: "Mời seller" → the person signs in and joins the shop.
 
-- Staff (Vận hành+) create an invite for an e-mail: a one-time token (only its
-  sha256 is stored), 7-day expiry, and whether to ask the seller to let the
-  team keep Vận hành access. An older pending invite of the SAME e-mail is
-  revoked; invites to other people stay valid (one person per link). An e-mail
-  that is already a member is refused (``already_member``).
+- Staff (Vận hành+) create an invite for an e-mail: the token (only its sha256
+  is stored) is valid for 7 days until that person joins. An older pending invite
+  of the SAME e-mail is revoked; invites to other people stay valid (one person
+  per link). An e-mail that is already a member is refused (``already_member``).
 - The person opens the link on the seller app, signs in with THAT e-mail
-  (verified by Supabase; compared case-insensitively) and accepts. P93: they are
-  ADDED to the shop team (``shop_members``); nobody already on it loses the shop.
+  (verified by Supabase; compared case-insensitively) and presses "Tham gia shop".
+  Joining is membership, not a one-time login: the same link opened again by that
+  person still returns the shop. P93: they are ADDED to the shop team
+  (``shop_members``); nobody already on it loses the shop.
   Only a shop with no member yet (a contract shop's login-less owner, or every
   member removed) still does the P9-B handover for its first person: ``user_id``
   moves to them through ``ops_transfer_shop`` (SECURITY DEFINER, juli_ops only).
@@ -61,9 +62,10 @@ def hash_token(token: str) -> str:
 
 def accept_url(token: str) -> str:
     base = os.environ.get("OPS_INVITE_ACCEPT_BASE_URL", "").strip() or DEFAULT_ACCEPT_BASE
-    # The e-mailed link must carry the one-time invite token (only its sha256 is
-    # stored; it works once, for 7 days, and only for the invited signed-in e-mail).
-    # It never reaches an API URL: the seller app posts it in a JSON body.
+    # The e-mailed link carries the invite token (only its sha256 is stored). It
+    # works for the invited e-mail for 7 days, and still opens the shop after that
+    # person has pressed "Tham gia shop". It never reaches an API URL: the seller
+    # app posts it in a JSON body.
     return f"{base.rstrip('/')}{ACCEPT_PATH}#{token}"
 
 
@@ -166,6 +168,19 @@ async def create_invite(
     return CreatedInvite(invite=row, email_sent=sent, accept_url=None if sent else link)
 
 
+def _email_matches(row: OpsShopInvite, user: User) -> bool:
+    return (user.email or "").strip().lower() == row.email
+
+
+def _joined_by(row: OpsShopInvite, user: User) -> bool:
+    """This person already pressed "Tham gia shop" on this link."""
+    return (
+        row.accepted_at is not None
+        and row.accepted_user_id == user.id
+        and _email_matches(row, user)
+    )
+
+
 async def _usable(session: AsyncSession, token: str, user: User, now: datetime) -> OpsShopInvite:
     if not isinstance(token, str) or len(token) < 20:
         raise InviteError("invalid_token", "invalid invite")
@@ -181,12 +196,16 @@ async def _usable(session: AsyncSession, token: str, user: User, now: datetime) 
         )
     if row is None or row.revoked_at is not None:
         raise InviteError("invalid_token", "invalid invite")
+    if not _email_matches(row, user):
+        raise InviteError("wrong_account", "sign in with the invited e-mail")
+    # The member who joined can open the link again. Expiry and "already used"
+    # apply only before that person has joined.
+    if _joined_by(row, user):
+        return row
     if row.accepted_at is not None:
         raise InviteError("already_accepted", "this invite was already used")
     if row.expires_at <= now:
         raise InviteError("expired", "this invite has expired")
-    if (user.email or "").strip().lower() != row.email:
-        raise InviteError("wrong_account", "sign in with the invited e-mail")
     return row
 
 
@@ -199,6 +218,8 @@ async def preview_invite(
         "shop_name": shop.shop_name if shop else "",
         "keep_ops_access_asked": row.keep_ops_access,
         "expires_at": row.expires_at.isoformat(),
+        "already_joined": _joined_by(row, user),
+        "shop_id": str(row.shop_id),
     }
 
 
@@ -241,6 +262,14 @@ async def accept_invite(
     """
     moment = now or utc_now_naive()
     row = await _usable(session, token, user, moment)
+    if _joined_by(row, user):
+        return {
+            "shop_id": str(row.shop_id),
+            "kept_ops_access": bool(row.seller_kept_ops_access),
+            "joined_team": True,
+            "took_shop": False,
+            "already_joined": True,
+        }
     kept = bool(keep_ops_access and row.keep_ops_access)
     listing = await find_shop(session, row.shop_id)
     if listing is None:
@@ -304,4 +333,5 @@ async def accept_invite(
         "kept_ops_access": kept,
         "joined_team": True,
         "took_shop": handover,
+        "already_joined": False,
     }

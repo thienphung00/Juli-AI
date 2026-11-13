@@ -134,3 +134,79 @@ export function guidePillLabel(done: number, total: number): string {
 export function guideContinueLabel(step: number): string {
   return `Continue with step ${step}`;
 }
+
+/**
+ * P100 S2-F / S2-G: the guide on the synthetic Shopee sample shop ("Dữ liệu mẫu", pin mode
+ * `sample`). English like the rest of the guide (P77 stands; the app itself stays Vietnamese).
+ * Part 1 is the sample shop (generated data, never a seller's shop); Parts 2 and 3 are the TikTok
+ * sandbox as before (the switch step names the sample menu's "Đổi shop"). Same step ids, so the
+ * ticks carry over. Mirrors dictionary.md `reviewer.guide_sample`.
+ */
+type SampleStepId = "home" | "analysis" | "propose" | "switch";
+const SAMPLE_OVERRIDES: Readonly<Record<SampleStepId, Pick<GuideStep, "title" | "body" | "shortTitle" | "shortBody" | "where" | "href">>> = {
+  home: {
+    title: "Tổng quan: GMV, orders and traffic",
+    body: "A sample Shopee shop with 30 days of generated data. Every name and number is sample data.",
+    shortTitle: "Tổng quan: GMV and orders",
+    shortBody: "Sample Shopee shop, 30 days of generated data.",
+    where: "Tổng quan",
+    href: "/tong-quan",
+  },
+  analysis: {
+    title: "Phân tích: where GMV is lost",
+    body: "Traffic sources and products, each broken down by product.",
+    shortTitle: "Phân tích: where GMV is lost",
+    shortBody: "By traffic source and by product.",
+    where: "Phân tích",
+    href: "/phan-tich",
+  },
+  propose: {
+    title: "Quyết định: approve a recommendation",
+    body: "Press “Duyệt” on a “Tiêu đề”, “Ảnh bìa” or “Voucher” card: it moves to “Đang thực hiện”. Saved in Juli only, nothing is sent to Shopee.",
+    shortTitle: "Quyết định: approve a card",
+    shortBody: "Saved in Juli only, nothing is sent to Shopee.",
+    where: "Quyết định › Đề xuất",
+    href: "/decisions?tab=de-xuat",
+  },
+  // the sample shop's menu reads "Đổi shop" (P100 S2-C)
+  switch: {
+    title: "Switch to the sandbox shop",
+    body: "Open the shop menu at the top left and choose “Đổi shop”.",
+    shortTitle: "Switch to the sandbox shop",
+    shortBody: "Shop menu › “Đổi shop”.",
+    where: "Shop menu",
+    href: null,
+  },
+};
+
+const isSampleStep = (id: GuideStepId): id is SampleStepId => id in SAMPLE_OVERRIDES;
+
+export const GUIDE_SAMPLE_STEPS: readonly GuideStep[] = GUIDE_STEPS.map((step) =>
+  isSampleStep(step.id) ? { ...step, ...SAMPLE_OVERRIDES[step.id] } : step,
+);
+
+export const GUIDE_SAMPLE_PARTS: typeof GUIDE_PARTS = [
+  { id: "read", chip: "READ", title: "Part 1 · A sample Shopee shop (sample data)", tab: "Read" },
+  { id: "write", chip: "WRITE", title: "Part 2 · A TikTok sandbox shop (real writes)", tab: "Write" },
+  { id: "check", chip: "CHECK", title: "Part 3 · Measure and undo", tab: "Check" },
+];
+
+export const GUIDE_SAMPLE_TITLE = "See Juli in 8 steps: a sample shop, then a live sandbox";
+export const GUIDE_SAMPLE_SHEET_TITLE = "Try a sample shop, then write to a sandbox";
+export const GUIDE_SAMPLE_INTRO =
+  "Part 1 is a sample Shopee shop with generated data: approvals and plans are saved in Juli, nothing is sent to Shopee. Part 2 writes real changes to a TikTok Shop sandbox shop through the Open API.";
+
+export interface GuideCopy {
+  readonly steps: readonly GuideStep[];
+  readonly parts: typeof GUIDE_PARTS;
+  readonly title: string;
+  readonly sheetTitle: string;
+  readonly intro: string;
+}
+
+/** The guide's copy for the active pin: the sample shop's, else the P77 copy. */
+export function guideCopy(sampleShop: boolean): GuideCopy {
+  return sampleShop
+    ? { steps: GUIDE_SAMPLE_STEPS, parts: GUIDE_SAMPLE_PARTS, title: GUIDE_SAMPLE_TITLE, sheetTitle: GUIDE_SAMPLE_SHEET_TITLE, intro: GUIDE_SAMPLE_INTRO }
+    : { steps: GUIDE_STEPS, parts: GUIDE_PARTS, title: GUIDE_TITLE, sheetTitle: GUIDE_SHEET_TITLE, intro: GUIDE_INTRO };
+}

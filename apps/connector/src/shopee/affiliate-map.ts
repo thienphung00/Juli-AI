@@ -7,7 +7,7 @@
 
 import { AFFILIATE_MIN_PLAUSIBLE_VND, AFFILIATE_MONEY_DIVISOR_FALLBACK, MAX_PLAUSIBLE_AD_VND } from "../config";
 import type { Drift, Mapped, Row } from "./map";
-import { classify, findList, isConversionOrder, payloadOf, type ReaderResponse } from "./reader";
+import { classify, findList, isConversionOrder, payloadOf, type ReaderResponse, totalOf } from "./reader";
 import { gmt7Date } from "./time";
 
 /** The raw order id's key on a mapped row, until the service worker hashes it. */
@@ -112,19 +112,43 @@ export function scaleFromPairs(rows: Record<string, unknown>[], fields: readonly
   return seen.size === 1 ? [...seen][0] : undefined;
 }
 
+/**
+ * The divisor read from the size of the amounts when no field has a display twin: of the two
+ * units seen (VND, VND x 100 000), the one under which the median amount is a plausible price
+ * (>= AFFILIATE_MIN_PLAUSIBLE_VND and <= MAX_PLAUSIBLE_AD_VND). `undefined` when both or
+ * neither fit (the fallback applies).
+ */
+export function scaleFromMagnitude(rows: Record<string, unknown>[], fields: readonly string[]): number | undefined {
+  const values: number[] = [];
+  for (const row of rows) {
+    for (const field of fields) {
+      const n = nonNeg(row[field]);
+      if (n !== undefined && n > 0) values.push(n);
+    }
+  }
+  if (values.length === 0) return undefined;
+  values.sort((a, b) => a - b);
+  const median = values[Math.floor(values.length / 2)] as number;
+  const fits = (divisor: number) => {
+    const vnd = median / divisor;
+    return vnd >= AFFILIATE_MIN_PLAUSIBLE_VND && vnd <= MAX_PLAUSIBLE_AD_VND;
+  };
+  const plain = fits(1);
+  const scaled = fits(100_000);
+  if (plain && !scaled) return 1;
+  if (scaled && !plain) return 100_000;
+  return undefined;
+}
+
 class Money {
-  constructor(
-    readonly divisor: number,
-    private readonly issues: { unexpected: string[] },
-  ) {}
+  constructor(readonly divisor: number) {}
 
   of(value: unknown): number | undefined {
     const n = nonNeg(value);
     if (n === undefined) return undefined;
     const vnd = Math.round((n / this.divisor) * 100) / 100;
-    if (vnd !== 0 && (vnd < AFFILIATE_MIN_PLAUSIBLE_VND || vnd > MAX_PLAUSIBLE_AD_VND)) {
-      note(this.issues.unexpected, "affiliate:money_scale");
-    }
+    // One odd amount must not drop the KOL page. Leave that field out; keep the row.
+    if (vnd !== 0 && (vnd < AFFILIATE_MIN_PLAUSIBLE_VND || vnd > MAX_PLAUSIBLE_AD_VND)) return undefined;
     return vnd;
   }
 }
@@ -132,11 +156,11 @@ class Money {
 function moneyFor(
   rows: Record<string, unknown>[],
   pairs: readonly string[],
-  issues: { unexpected: string[] },
+  _issues: { unexpected: string[] },
 ): Money {
-  const scale = scaleFromPairs(rows, pairs);
-  if (scale === null) note(issues.unexpected, "affiliate:money_scale");
-  return new Money(scale ?? AFFILIATE_MONEY_DIVISOR_FALLBACK, issues);
+  // 1. the answer's own display twins; 2. the magnitude of what it holds; 3. the recorded fallback.
+  const scale = scaleFromPairs(rows, pairs) ?? scaleFromMagnitude(rows, pairs);
+  return new Money(scale ?? AFFILIATE_MONEY_DIVISOR_FALLBACK);
 }
 
 /** A ratio sent as 0..1, as a percent (0..100) or in basis points (0..10 000) → 0..1. */
@@ -149,6 +173,28 @@ function rate(value: unknown): number | undefined {
   return undefined;
 }
 
+/**
+ * A valid answer that holds an empty list (or states a total of 0) and no list with entries: Shopee
+ * had nothing to report for the period, which is an answer, not a failure to read.
+ */
+export function isEmptyAnswer(body: unknown): boolean {
+  const payload = payloadOf(body);
+  if (Array.isArray(payload)) return payload.length === 0;
+  if (!isRecord(payload)) return false;
+  let sawEmpty = false;
+  const queue: { node: Record<string, unknown>; level: number }[] = [{ node: payload, level: 0 }];
+  while (queue.length > 0) {
+    const { node, level } = queue.shift() as { node: Record<string, unknown>; level: number };
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        if (value.length === 0) sawEmpty = true;
+        else if (value.some(isRecord)) return false; // entries exist: the mapper did not recognise them
+      } else if (isRecord(value) && level < 4) queue.push({ node: value, level: level + 1 });
+    }
+  }
+  return sawEmpty || totalOf(body, payload) === 0;
+}
+
 function empty(dataset: Mapped["dataset"], endpoint: string, date: string, drift: Drift | null): Mapped {
   return { dataset, endpoint, date, orderType: null, granularity: "period", rows: [], drift };
 }
@@ -159,6 +205,7 @@ function post(
   period: { start: string; end: string },
   rows: Row[],
   drift: Drift | null,
+  answeredEmpty = false,
 ): Mapped {
   return {
     dataset,
@@ -169,6 +216,7 @@ function post(
     granularity: "period",
     rows: drift ? [] : rows,
     drift,
+    ...(answeredEmpty && !drift && rows.length === 0 ? { answeredEmpty: true } : {}),
   };
 }
 
@@ -188,7 +236,8 @@ export function mapAffiliateConversions(responses: ReaderResponse[], capturedAt:
   const seen = new Map<string, number>();
   const orderSeen = new Set<string>();
   for (const order of orders) {
-    const orderId = text(order.order_id, 64);
+    // The order id is a number on some answers and a string on others (F4).
+    const orderId = digits(order.order_id) ?? text(order.order_id, 64);
     const orderedAt = wallClock(order.purchase_time);
     if (orderId === undefined || orderedAt === undefined) {
       note(issues.missing, orderId === undefined ? "orders[].order_id" : "orders[].purchase_time");
@@ -220,7 +269,9 @@ export function mapAffiliateConversions(responses: ReaderResponse[], capturedAt:
       put(row, "affiliate_account", text(order.shopee_username, 120));
       put(row, "mcn", text(order.linked_mcn_name, 120));
       put(row, "campaign_type", label(item.campaign_type));
-      put(row, "channel", label(order.traffic_type));
+      // The "Kênh" Seller Centre shows; the bare traffic_type code (0 outside / 1 inside Shopee)
+      // only when neither label came back.
+      put(row, "channel", text(order.internal_source, 64) ?? text(order.last_external_source, 64) ?? label(order.traffic_type));
       put(row, "deduction_status", label(item.ams_deduction_status));
       put(row, "deduction_method", label(item.ams_deduction_method));
       put(row, "deducted_at", wallClock(item.ams_deduction_time));
@@ -229,6 +280,24 @@ export function mapAffiliateConversions(responses: ReaderResponse[], capturedAt:
   }
   if (answers.length === 0) return empty("affiliate_order_lines", "affiliateplatform/conversion", period.end, null);
   return post("affiliate_order_lines", "affiliateplatform/conversion", period, rows, driftOf(issues.unexpected, issues.missing));
+}
+
+/** One post per purchase window read (the 30-day window, then any history window): Juli takes at
+ *  most 31 days per post, so windows are never merged. Answers without a period go with the first. */
+export function mapConversionWindows(responses: ReaderResponse[], capturedAt: number): Mapped[] {
+  const groups = new Map<string, ReaderResponse[]>();
+  const others = responses.filter((r) => r.endpoint !== "affiliate_conversion");
+  for (const response of responses) {
+    if (response.endpoint !== "affiliate_conversion") continue;
+    const key = response.period ? `${response.period.start}|${response.period.end}` : "";
+    groups.set(key, [...(groups.get(key) ?? []), response]);
+  }
+  if (groups.size <= 1) return [mapAffiliateConversions(responses, capturedAt)];
+  const undated = groups.get("") ?? [];
+  groups.delete("");
+  return [...groups.values()].map((group, index) =>
+    mapAffiliateConversions([...group, ...(index === 0 ? undated : []), ...others], capturedAt),
+  );
 }
 
 // -- 2. Phân tích Tăng đơn cùng KOL → affiliate_partner_period ---------------------------------
@@ -245,7 +314,8 @@ function captured(
   return { response, period: response.period };
 }
 
-const isKol = (o: Record<string, unknown>) => "affiliate_id" in o && ("gmv" in o || "orders" in o);
+const isKol = (o: Record<string, unknown>) =>
+  ("affiliate_id" in o || "affiliateId" in o) && ("gmv" in o || "orders" in o || "est_commission" in o || "clicks" in o);
 
 export function mapAffiliatePartners(responses: ReaderResponse[], capturedAt: number): Mapped {
   const got = captured(responses, "affiliate_performance", "affiliate_partner_period", capturedAt);
@@ -255,7 +325,7 @@ export function mapAffiliatePartners(responses: ReaderResponse[], capturedAt: nu
   const money = moneyFor(list, ["gmv", "est_commission"], issues);
   const rows: Row[] = [];
   for (const kol of list) {
-    const id = digits(kol.affiliate_id);
+    const id = digits(kol.affiliate_id ?? kol.affiliateId);
     if (id === undefined) {
       note(issues.missing, "list[].affiliate_id");
       continue;
@@ -279,7 +349,7 @@ export function mapAffiliatePartners(responses: ReaderResponse[], capturedAt: nu
     if (Object.keys(extra).length) row.extra = extra;
     rows.push(row);
   }
-  return post("affiliate_partner_period", "affiliateplatform/affiliate_performance", got.period, rows, driftOf(issues.unexpected, issues.missing));
+  return post("affiliate_partner_period", "affiliateplatform/affiliate_performance", got.period, rows, driftOf(issues.unexpected, issues.missing), isEmptyAnswer(got.response.body));
 }
 
 // -- 3. Dữ liệu phân tích chính → affiliate_shop_period (one post per day, plus the split) -------
@@ -361,7 +431,7 @@ export function mapAffiliateProducts(responses: ReaderResponse[], capturedAt: nu
     put(row, "roi", roi !== undefined && roi <= 100_000 ? roi : undefined);
     rows.push(row);
   }
-  return post("affiliate_product_period", "affiliateplatform/seller_item_detail", got.period, rows, driftOf(issues.unexpected, issues.missing));
+  return post("affiliate_product_period", "affiliateplatform/seller_item_detail", got.period, rows, driftOf(issues.unexpected, issues.missing), isEmptyAnswer(got.response.body));
 }
 
 // -- 5. Chiến dịch mở rộng → affiliate_shop_campaigns (a snapshot of the capture day) -----------
@@ -376,11 +446,12 @@ export function mapAffiliateCampaigns(responses: ReaderResponse[], capturedAt: n
   const rows: Row[] = [];
   for (const campaign of list) {
     const id = digits(campaign.commissionId);
-    const name = text(campaign.commissionName, 255);
-    if (id === undefined || name === undefined) {
-      note(issues.missing, id === undefined ? "shopCampaigns[].commissionId" : "shopCampaigns[].commissionName");
-      continue;
-    }
+    if (id === undefined) continue;
+    // Shopee has renamed this field before: every spelling seen or plausible, then the id as the label.
+    const name =
+      ["commissionName", "commission_name", "campaignName", "campaign_name", "name", "title"]
+        .map((key) => text(campaign[key], 255))
+        .find((found) => found !== undefined) ?? `Chiến dịch ${id}`;
     const row: Row = { campaign_id: id, campaign_name: name };
     put(row, "commission_rate", rate(campaign.commissionRate));
     put(row, "status", label(campaign.commissionStatus));
@@ -415,7 +486,7 @@ export function mapAffiliateCommissions(responses: ReaderResponse[], capturedAt:
     put(row, "est_commission", money.of(entry.estCommission));
     rows.push(row);
   }
-  return post("affiliate_commission_period", "affiliateplatform/QueryCommissionList", got.period, rows, driftOf(issues.unexpected, issues.missing));
+  return post("affiliate_commission_period", "affiliateplatform/QueryCommissionList", got.period, rows, driftOf(issues.unexpected, issues.missing), isEmptyAnswer(got.response.body));
 }
 
 // -- 7. Phân tích Nội dung → affiliate_content_period (the summary; the list is not pinned) -----
@@ -485,7 +556,7 @@ export function mapAffiliateBills(responses: ReaderResponse[], capturedAt: numbe
 export function mapAffiliateJob(id: string, responses: ReaderResponse[], capturedAt: number): Mapped[] | null {
   switch (id) {
     case "affiliate":
-      return [mapAffiliateConversions(responses, capturedAt)];
+      return mapConversionWindows(responses, capturedAt);
     case "affiliate_kols":
       return [mapAffiliatePartners(responses, capturedAt)];
     case "affiliate_dashboard":

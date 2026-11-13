@@ -186,18 +186,19 @@ describe("Sản phẩm: the listing header", () => {
     const table = await screen.findByTestId("sa-variations");
     const cb = within(table).getByTestId("sa-var-BEP-S5-CB");
     expect(cb).toHaveTextContent("Cơ bản");
-    expect(cb).toHaveTextContent("12,4%");
+    // ADR-122 d.12: the realised margin (12,4%) left this table; it shows Biên ở giá bán and Biên cuối,
+    // "chưa tính" when the answer has neither (product-margins.test.tsx covers the values)
+    expect(cb).toHaveTextContent("Biên ở giá bán · chắc chắn");
+    expect(cb).toHaveTextContent("Biên cuối · ước tính");
     expect(cb).toHaveTextContent("181.979đ");
     expect(within(table).getByTestId("sa-var-BEP-S5-QT")).toHaveTextContent("giá vốn giả định (1/3 giá)");
   });
 
-  it("five numbers for the selected period, same labels as Tổng quan", async () => {
+  it("P100 B.6: no '5 con số chính' block on the product page", async () => {
     page();
-    const box = await screen.findByTestId("sa-sp-five");
-    for (const label of ["① % giảm giá", "② Doanh thu thêm / chi thêm", "③ Biên lợi nhuận cuối", "④ Số đơn", "⑤ AOV"]) {
-      expect(box).toHaveTextContent(label);
-    }
-    expect(within(box).getByTestId("sa-sp-five-bien")).toHaveTextContent("= 1.400.000đ lợi nhuận");
+    await screen.findByTestId("sa-san-pham");
+    expect(screen.queryByTestId("sa-sp-five")).toBeNull();
+    expect(screen.queryByText("5 con số chính")).toBeNull();
   });
 
   it("back link and banner follow where the person came from", async () => {
@@ -238,7 +239,7 @@ describe("Sản phẩm: tabs", () => {
 
   it("Hiệu suất: the chain by period, with period links and an honest note about the daily series", async () => {
     page("tab=hs");
-    const tab = await screen.findByTestId("sa-tab-hs");
+    const tab = await screen.findByTestId("sa-san-pham");
     expect(tab).toHaveTextContent("Lượt xem");
     expect(tab).toHaveTextContent("7.500");
     expect(tab).toHaveTextContent("4,67%");
@@ -274,17 +275,17 @@ describe("Sản phẩm: tabs", () => {
     expect(within(await screen.findByTestId("sa-tab-ng")).queryByTestId("sa-four-flows")).toBeNull();
   });
 
-  it("Nguồn: the four price levers and the ads overlay with its placed-order label (hideable)", async () => {
+  it("Nguồn: the ads overlay with its placed-order label (hideable)", async () => {
     page("tab=ng");
     const user = userEvent.setup();
     const tab = await screen.findByTestId("sa-tab-ng");
-    for (const key of ["khong_uu_dai", "voucher", "khuyen_mai", "combo"]) {
-      expect(within(tab).getByTestId(`sa-ng-lever-${key}`)).toBeInTheDocument();
-    }
+    // P100 B.6: the per-line "Mức ưu đãi" rows are gone
+    expect(within(tab).queryByText("Mức ưu đãi trên mỗi dòng đơn")).toBeNull();
+    expect(within(tab).queryByTestId("sa-ng-lever-combo")).toBeNull();
     const ads = within(tab).getByTestId("sa-ng-ads");
     expect(ads).toHaveTextContent("đơn đã đặt");
     expect(ads).toHaveTextContent("Không cộng thêm vào tổng".replace("Không cộng thêm vào tổng", "không cộng thêm vào tổng"));
-    await user.click(within(tab).getByRole("button", { name: "Ẩn lớp Quảng cáo" }));
+    await user.click(within(tab).getByRole("button", { name: "Ẩn lớp DVHT" }));
     expect(within(tab).queryByTestId("sa-ng-ads")).toBeNull();
   });
 

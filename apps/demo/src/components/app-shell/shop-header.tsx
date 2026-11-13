@@ -34,6 +34,9 @@ import { vnClock } from "../../lib/vn-format";
  * (AC-9.1, → `/auth/email`) and Làm mới dữ liệu mẫu.
  */
 
+/** P100 S2-C: the sample shop's one switch entry (to the other pin). */
+export const SAMPLE_SHOP_SWITCH_LABEL = "Đổi shop";
+
 export function shopInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return "J";
@@ -74,6 +77,8 @@ export interface ShopHeaderProps {
   readonly onSwitchShop?: (shop: ReviewerShopOption) => void;
   /** The acting shop's marketplace ("Shopee" in the sub-line); TikTok when omitted. */
   readonly platform?: ShopPlatform;
+  /** P100 S2-C: the reviewer's sample shop — the menu holds only Đổi shop and Đăng xuất. */
+  readonly sampleShop?: boolean;
 }
 
 function shopNameOf(state: ShopReportState): string | null {
@@ -103,6 +108,7 @@ export function ShopHeader({
   reviewerShops = [],
   onSwitchShop,
   platform = "tiktok",
+  sampleShop = false,
 }: ShopHeaderProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
@@ -163,11 +169,13 @@ export function ShopHeader({
         </div>
         <div className="shop-menu" hidden={!open} id={menuId}>
           <ul className="shop-menu__list">
-            <li>
-              <Link className="shop-menu__item" href={SETTINGS_HREF} onClick={close}>
-                {SETTINGS_LABEL}
-              </Link>
-            </li>
+            {sampleShop ? null : (
+              <li>
+                <Link className="shop-menu__item" href={SETTINGS_HREF} onClick={close}>
+                  {SETTINGS_LABEL}
+                </Link>
+              </li>
+            )}
             {signedIn ? (
               <>
                 {reviewer ? null : (
@@ -188,7 +196,7 @@ export function ShopHeader({
                       }}
                       type="button"
                     >
-                      {`${REVIEWER_SWITCH_SHOP_PREFIX} ${reviewerShopLabel(shop)}`}
+                      {sampleShop && switchTargets.length === 1 ? SAMPLE_SHOP_SWITCH_LABEL : `${REVIEWER_SWITCH_SHOP_PREFIX} ${reviewerShopLabel(shop)}`}
                     </button>
                   </li>
                 ))}

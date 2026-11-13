@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models."""
 
+from juli_backend.models.card_content_specs import CardContentSpec
 from juli_backend.models.card_events import CardEvent
 from juli_backend.models.card_groups import CardGroup, CardGroupMember
 from juli_backend.models.consent import DataUseConsent, PooledContributorSet
@@ -84,11 +85,20 @@ from juli_backend.models.shop_proposals import (
     ShopProposalExecution,
     ShopProposalResult,
 )
+from juli_backend.models.shopee_fill import ShopeeFillJob
+from juli_backend.models.shopee_metrics import (
+    ShopeePlanBaseSnapshot,
+    ShopeeProductMetricsDaily,
+    ShopeeShopMetricsDaily,
+    ShopeeSourceMetricsDaily,
+)
 from juli_backend.models.shopee_plans import (
     ShopRecoChangeSet,
     ShopRecoPlan,
     ShopRecoPlanCard,
     ShopRecoPlanCounter,
+    ShopRecoPlanGroup,
+    ShopRecoPlanGroupMember,
 )
 from juli_backend.models.shopee_profit import (
     AdCampaignPurpose,
@@ -96,6 +106,7 @@ from juli_backend.models.shopee_profit import (
     PlatformFeeFormula,
     PlatformItemSnapshot,
     ProductImageAsset,
+    ShopeeAffiliateLine,
     ShopeeOrderIncome,
     ShopeeOrderLine,
     ShopHealthDaily,
@@ -148,6 +159,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     CardGroupMember,
     TrialSignup,
     CardEvent,
+    CardContentSpec,
     DataUseConsent,
     PooledContributorSet,
     ShopPseudonymKey,
@@ -172,7 +184,14 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopRecoPlan,
     ShopRecoPlanCard,
     ShopRecoPlanCounter,
+    ShopRecoPlanGroup,
+    ShopRecoPlanGroupMember,
     ShopRecoChangeSet,
+    ShopeePlanBaseSnapshot,
+    ShopeeProductMetricsDaily,
+    ShopeeShopMetricsDaily,
+    ShopeeSourceMetricsDaily,
+    ShopeeFillJob,
     PlannedChangeImport,
     PlannedChangeRef,
     MarketKeywordMetric,
@@ -182,6 +201,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ProductImageAsset,
     ShopeeOrderIncome,
     ShopeeOrderLine,
+    ShopeeAffiliateLine,
     PlatformFeeFormula,
     AdCampaignPurpose,
     ShopHealthDaily,

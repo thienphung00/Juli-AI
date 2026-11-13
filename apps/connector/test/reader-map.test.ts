@@ -5,6 +5,7 @@ import {
   activeItemIds,
   campaignCounts,
   completedTrafficDays,
+  adsDayAnswer,
   mapAdsDaily,
   mapItemTraffic,
   mapProductList,
@@ -207,16 +208,27 @@ describe("ads", () => {
     expect(roasTarget({ code: 0, data: { report_by_time: [{ roi_target_setting: { value: 0 } }] } })).toBeNull();
   });
 
-  it("an entry without a campaign id is drift; an implausible budget is a money-scale stop", () => {
+  it("a list with no campaign id is skipped and counted, not drift; a summary row beside a campaign is skipped; an uncapped budget is dropped and a huge cost stops the scale", () => {
     const noId = { code: 0, data: { entry_list: [{ title: "x", campaign: {}, report: {} }] } };
-    expect(mapAdsDaily([response("ads_homepage", noId, { day: DAY })])[0]!.drift?.missing).toEqual([
-      "entry.campaign.campaign_id",
-    ]);
+    const [shopOnly] = mapAdsDaily([response("ads_homepage", noId, { day: DAY })]);
+    expect(shopOnly!.drift).toBeNull();
+    expect(shopOnly!.rows).toEqual([]);
+    expect(adsDayAnswer([response("ads_homepage", noId, { day: DAY })], DAY)).toMatchObject({ withId: 0, skipped: 1, complete: true });
+    const mixed = JSON.parse(JSON.stringify(adsHome)) as typeof adsHome;
+    mixed.data.entry_list.push({ title: "tổng", campaign: {}, report: { cost: 1 } } as (typeof mixed.data.entry_list)[number]);
+    expect(mapAdsDaily([response("ads_homepage", mixed, { day: DAY })])[0]!.drift).toBeNull();
     const scaled = JSON.parse(JSON.stringify(adsHome));
     scaled.data.entry_list[0].campaign.daily_budget = 20_000_000_000_000_000;
     const [post] = mapAdsDaily([response("ads_homepage", scaled, { day: DAY })]);
-    expect(post!.drift?.unexpected).toEqual(["ads:money_scale"]);
-    expect(post!.rows).toEqual([]);
+    expect(post!.drift).toBeNull();
+    expect(post!.rows[0]).not.toHaveProperty("daily_budget");
+    expect(post!.rows[0]).toMatchObject({ campaign_id: "7001", cost: 50000 });
+    const hugeCost = JSON.parse(JSON.stringify(adsHome));
+    hugeCost.data.entry_list[0].report.cost = 20_000_000_000_000_000;
+    const [kept] = mapAdsDaily([response("ads_homepage", hugeCost, { day: DAY })]);
+    expect(kept!.drift).toBeNull();
+    expect(kept!.rows[0]).toMatchObject({ campaign_id: "7001", impression: 1000 });
+    expect(kept!.rows[0]).not.toHaveProperty("cost");
   });
 
   it("negative or non-numeric report values are dropped, not posted", () => {
@@ -479,5 +491,35 @@ describe("assisted-execution read-back: the fields the backend verifies", () => 
     expect(row).toHaveProperty("starts_at");
     expect(row).toHaveProperty("ends_at");
     expect(row.discount_amount !== undefined || row.discount_percent !== undefined).toBe(true);
+  });
+});
+
+describe("0.3.15: ads daily amounts are VND (raw x 100 000), an uncapped budget is dropped without a flag", () => {
+  it("cost / GMV read as VND; a huge unlimited budget is left out and the day still posts", () => {
+    const home = {
+      code: 0,
+      data: {
+        entry_list: [
+          {
+            title: "Chiến dịch A",
+            type: "product_manual",
+            state: "ongoing",
+            campaign: { campaign_id: 7001, daily_budget: 90_000_000_000_000_000, total_budget: 0 },
+            report: { cost: 913_710_000_000, broad_gmv: 4_567_000_000_000, impression: 100, click: 5 },
+          },
+        ],
+      },
+    };
+    const [post] = mapAdsDaily([{ endpoint: "ads_homepage", url: "u", status: 200, capturedAt: 1, source: "replay", day: "2026-11-02", body: home } as never]);
+    expect(post!.drift).toBeNull();
+    expect(post!.rows[0]).toMatchObject({ campaign_id: "7001", campaign_name: "Chiến dịch A", cost: 9_137_100, broad_gmv: 45_670_000 });
+    expect(post!.rows[0]).not.toHaveProperty("daily_budget");
+  });
+
+  it("the campaign name is read from its new location, the old one still works", () => {
+    const entry = (extra: Record<string, unknown>) => ({ type: "product_manual", state: "ongoing", campaign: { campaign_id: 7002, ...(extra.campaign as object) }, report: { cost: 100_000_000 }, ...(extra.top as object) });
+    const run = (e: unknown) => mapAdsDaily([{ endpoint: "ads_homepage", url: "u", status: 200, capturedAt: 1, source: "replay", day: "2026-11-02", body: { code: 0, data: { entry_list: [e] } } } as never])[0]!.rows[0];
+    expect(run(entry({ top: { title: "Cũ" } }))).toMatchObject({ campaign_name: "Cũ" });
+    expect(run(entry({ campaign: { name: "Mới" } }))).toMatchObject({ campaign_name: "Mới" });
   });
 });

@@ -1,6 +1,6 @@
 # Juli Connector — Privacy policy (DRAFT, not yet reviewed)
 
-_Last updated: 2026-11-06. Draft for the Chrome Web Store (Unlisted) submission;
+_Last updated: 2026-11-10. Draft for the Chrome Web Store (Unlisted) submission;
 to be reviewed before publishing and linked from app-juli.com._
 
 Juli Connector is a browser extension by Juli (app-juli.com) for sellers who use
@@ -39,21 +39,32 @@ number:
 - **Marketing › Quảng cáo** (`/portal/marketing/pas/index`) — per campaign and per
   finished day: title, type, state, budgets, ROAS target and the report numbers
   (impressions, clicks, cost, sales and orders, ranks, voucher amounts), and the
-  ROAS target in force that day;
+  ROAS target in force that day; and, once a day, each campaign's settings: run
+  dates, budgets, ROAS target, bidding and placement, the advertised product id and
+  which settings Shopee lets the seller change (no images);
+- **Marketing › Quảng cáo › a running campaign's edit page**
+  (`/portal/marketing/pas/product/manual/<id>`) — for the shop's ongoing or
+  scheduled product campaigns: the products in the campaign (ids, stock, price
+  range), Shopee's ROAS estimate, suggested and allowed ROAS targets, the allowed
+  daily budget (minimum, maximum, suggested) and spend so far. The extension only
+  reads: it never changes, saves, pauses or creates a campaign;
 - **Marketing › Voucher của shop** (`/portal/marketing/vouchers/list`) — each
   voucher's code, name, dates, discount, minimum spend, usage limit and how many
   times it has been used or handed out (not who used it);
 - **Hiệu suất tài khoản** (`/portal/accounthealth`) — the shop's account-health
   metrics, their targets and whether each is met;
 - **Tăng Đơn Cùng KOL** (affiliate marketing, `/portal/web-seller-affiliate/...`, from
-  version 0.3.6) — the shop's own affiliate results as these pages show them:
+  version 0.3.6; every paired shop from 0.3.7) — the shop's own affiliate results as these pages show them:
   - *Báo cáo chuyển đổi* (conversion report): per affiliate order line of the last 30
     days, the product and variation, price, quantity, order value, refund, the programme's
     cost, status and times, the campaign type and channel, and the creator's public
     Shopee login handle. **The order id is replaced in the browser by a keyed hash**
     (with a key Juli gives the extension for this shop only) before anything is sent; the
     creator's display name, avatar and platform user id and any buyer information are
-    dropped in the page and never sent;
+    dropped in the page and never sent. From version 0.3.17 the channel is the label the
+    page shows (e.g. Shopee Video, Facebook, Zalo, Code Sharing), and once per shop the same
+    report is also read for the 6 months before that window, 30 days at a time (the same
+    fields; nothing else);
   - *Phân tích Tăng đơn cùng KOL*, *Dữ liệu phân tích chính*, *Phân tích sản phẩm*,
     *Phân tích chiến dịch*, *Phân tích Nội dung* — totals per creator (public handle),
     per day, per product, per commission campaign and for content: clicks, orders, sales,
@@ -65,9 +76,53 @@ number:
   the conversion report, asks for the next pages of the same list). It never sends any
   request that changes something and never clicks anything.
 
-These are **aggregated shop and product numbers**. The extension does not read
+- **Dữ liệu › Phân tích bán hàng › Tổng quan** (`/datacenter/overview`, from version 0.3.11) —
+  the shop's daily totals for the last 30 days (then the last 7 each day): sales, orders and
+  sales per order on the placed, paid and confirmed basis, visits, visitors, product clicks,
+  and cancelled / returned orders and sales. Shop-level numbers only;
+- **Bán hàng › Đơn hàng** (`/portal/sale/order`, from version 0.3.11) — the order lines of
+  the newest orders (at most 5 list pages a day): order time, status, SKU, variation name,
+  quantity, prices, discounts, vouchers and shipping paid by the buyer. **The buyer's name,
+  username, address, phone number, notes and tracking number are dropped in the page and never
+  sent, and the order number is replaced in the browser by a keyed hash** (a key Juli gives the
+  extension for this shop only) before anything is sent;
+- **an order's page** (`/portal/sale/order/<id>`, from version 0.3.11) — for orders that
+  completed since the previous day (at most 100 a day, never older ones), the fees and payout
+  Shopee shows for that order (fixed and service fees, payment fee, PiShip, shipping, voucher
+  and the final amount). Amounts only; the order number is hashed as above. The extension keeps
+  the numbers of those orders in its local storage until they have been read.
+  From version 0.3.14, if a later list page of the order list fails, the extension still sends
+  the pages it had already read and keeps a short note for the operator (the endpoint and the
+  HTTP status, e.g. `partial:order_search:http_500`) — never an order number or buyer data.
+  From version 0.3.15 the extension keeps that background tab from being discarded until the
+  page has answered, and if Chrome closes it first it opens the same page once more (so for a
+  moment one extra Seller Centre tab may be open). It reads nothing new.
+  From version 0.3.16 the group campaign page's own campaign-name answer (already loaded by
+  the page) is kept so each campaign row carries its real name. No extra request is made.
+
+- **Dữ liệu › Sản phẩm › Hiệu quả của sản phẩm** (`/datacenter/product/performance`, from
+  version 0.3.12) — once a day, the product table of the last 30 finished days (at most 5
+  pages of 10): per product and variation, sales, orders, units, buyers, impressions, clicks,
+  visitors, bounce, add-to-cart and repeat-purchase numbers. Aggregate numbers only; product
+  images are not kept. If Seller Centre shows its "enter your Shopee password" box on this
+  page, the extension stops all reading for the shop and types nothing;
+- **Marketing › Quảng cáo › a running group campaign's page**
+  (`/portal/marketing/pas/product/manual-mpd/<id>`, from version 0.3.12) — the table the page
+  loads of that campaign's products: views, clicks, ad cost and sales per product. It only
+  reads that table; it never presses "Xóa" or "Thêm sản phẩm".
+
+These are **aggregated shop and product numbers** and order amounts. The extension does not read
 buyer names, addresses, phone numbers, messages, orders' personal details,
 payment data, passwords or cookies.
+
+## Request budget and stopping
+
+All requests the extension sends to Seller Centre — the readers, the daily sync and the
+backfill together — are capped at 400 a day per shop, at least 2 seconds apart (order list
+pages 20-45 seconds apart), one page at a time. If Seller Centre shows a CAPTCHA, a login
+page, answers HTTP 429 or 403, or says there are too many requests, the extension stops
+**all** reading for that shop for days and tells Juli which reader, which page, what happened
+and when (no data), so the operator can see it.
 
 ## What it sends, and where
 
@@ -144,6 +199,30 @@ and presses Shopee's own Save. If the page does not look as expected the extensi
 fills nothing and shows the text with copy buttons instead. For a new cover image
 it only shows a download link; for a variation change it shows a checklist beside
 the page.
+
+## Filling in pages Juli prepared (from version 0.3.12, every paired shop)
+
+When the seller approves a card in Juli (a voucher, an ads budget or ROAS target, an affiliate
+commission, a product title or description), Juli lists it as a **fill job** for that shop only
+(the extension asks Juli for the jobs of its own token's shop). The extension then opens the
+matching Seller Centre page in a background tab, one page at a time, and types the approved
+values into the form: the voucher form (name, code, dates, discount, minimum spend, usage
+limits, display, the product picker), the Combo Khuyến Mãi form (from version 0.3.13: name,
+dates, type, the "Mua N" tiers, order limit, the product picker), the budget or ROAS popup of
+one ads campaign, or the commission box of Chiến dịch mở. It highlights what it typed and shows a checklist.
+
+To do that it **presses ordinary controls** — opens a drop-down, picks an option, chooses a
+radio button, switches a switch, ticks a product row, opens the pencil icon of a budget — and
+**never presses anything that saves, sends, confirms, deletes or cancels** (Lưu, Lưu lại, Xác
+nhận, Gửi, Cập nhật, Tạo, Đăng, Xóa, Loại bỏ, Hủy, Ẩn, Áp dụng): the seller checks the page and
+presses Shopee's own button. It does not send campaign invitations to creators. Each page it
+opens counts against the same daily request budget as the readers. If the page shows Shopee's
+"enter your Shopee password" box, the extension stops, stops all reading for the shop for
+several hours, tells Juli (reader, page, time; no data) and types nothing.
+
+After the seller saves a new voucher or combo, the extension reads only its new id (digits) from the
+page's own answer and tells Juli, so Juli can check it afterwards. Juli's server can
+switch all filling off.
 
 ## Retention and deletion
 

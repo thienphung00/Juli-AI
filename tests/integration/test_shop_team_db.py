@@ -353,3 +353,30 @@ def test_owner_without_a_row_keeps_access_until_the_backfill_and_the_backfill_is
     ]
     assert asyncio.run(_visible_shops(removed_owner.user_id)) == []
     assert asyncio.run(_visible_shops(pre.user_id)) == [pre.shop_id]
+
+
+async def test_get_v1_shops_lists_the_shop_for_an_invited_member(owner_engine):
+    """GET /v1/shops runs after ``get_current_user`` committed (no user GUC left): it must
+    read under the user's scope, or the membership-aware policy hides every shop and an
+    invited member lands on the sample shop (ORY, 2026-11-12)."""
+    from starlette.requests import Request
+
+    from juli_backend.api.routes.shops import list_shops
+
+    shop = _tenant(owner_engine, "listed", email=_unique("owner"))
+    member = _tenant(owner_engine, "member", email=None)
+    stranger = _tenant(owner_engine, "stranger", email=None)
+    await _invite_accept(owner_engine, shop.shop_id, member.user_id, _unique("member"))
+
+    async def listed(user_id) -> list[uuid.UUID]:
+        request = Request({"type": "http", "method": "GET", "path": "/v1/shops", "headers": []})
+        async with app_session() as session:
+            rows = await list_shops(
+                request, user=User(id=user_id), session=session, limit=50, offset=0
+            )
+            return [r.id for r in rows]
+
+    member_ids = await listed(member.user_id)
+    assert shop.shop_id in member_ids
+    assert member.shop_id in member_ids  # their own shop as well
+    assert shop.shop_id not in await listed(stranger.user_id)

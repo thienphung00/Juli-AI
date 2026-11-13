@@ -372,6 +372,15 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
     ),
     MutationSite(
         "public",
+        "shopee_affiliate_lines",
+        "UPDATE",
+        "backend/src/juli_backend/services/ingest/writers.py",
+        "stmt.on_conflict_do_update(",
+        "a later conversion report moves a stored affiliate line's status, refund and commission "
+        "(migration 122, P96)",
+    ),
+    MutationSite(
+        "public",
         "shopee_order_income",
         "UPDATE",
         "backend/src/juli_backend/services/ingest/income.py",
@@ -427,6 +436,22 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "row.removed_at = now",
         "removing a card from the draft plan stamps it (the chosen version and what-if inputs "
         "change in place too)",
+    ),
+    MutationSite(
+        "public",
+        "shop_reco_plan_groups",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/plan_groups.py",
+        "g.status = GROUP_CANCELLED",
+        "a group left without a member is cancelled (no DELETE: the row keeps its history)",
+    ),
+    MutationSite(
+        "public",
+        "shop_reco_plan_group_members",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/plan_groups.py",
+        "m.removed_at = now",
+        "taking a version out of a group stamps it (a removed member keeps its row)",
     ),
     MutationSite(
         "public",

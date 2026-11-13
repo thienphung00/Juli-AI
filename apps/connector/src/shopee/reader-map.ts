@@ -9,7 +9,11 @@
 // posted). Strings the contract does not name never leave the browser.
 
 import { ADS_TARGET_DIVISOR, MAX_PLAUSIBLE_AD_VND, MAX_PLAUSIBLE_PRICE_VND, MONEY_DIVISOR } from "../config";
+import { mapAdsProducts } from "./ads-products-map";
 import { mapAffiliateJob } from "./affiliate-map";
+import { mapOrderIncome, mapOrderLines } from "./orders-map";
+import { mapProductPeriod } from "./product-period-map";
+import { mapShopTotals } from "./totals-map";
 import type { Drift, Mapped, Row } from "./map";
 import {
   classify,
@@ -55,10 +59,33 @@ function money(value: unknown, divisor: number): number | undefined {
   return n === undefined ? undefined : Math.round((n / divisor) * 100) / 100;
 }
 
+/** Money in VND, or undefined when the scaled amount is above the ceiling (an uncapped budget). */
+function cappedMoney(value: unknown, divisor: number): number | undefined {
+  const n = money(value, divisor);
+  return n !== undefined && n <= MAX_PLAUSIBLE_AD_VND ? n : undefined;
+}
+
 function text(value: unknown, max: number): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed ? trimmed.slice(0, max) : undefined;
+}
+
+/**
+ * A campaign's display name on a homepage entry. Seller Centre has moved it before, so every
+ * location seen or plausible is tried, the original `title` first (0.3.15).
+ */
+export function campaignTitle(entry: Record<string, unknown>): string | undefined {
+  const campaign = isRecord(entry.campaign) ? entry.campaign : {};
+  const info = isRecord(entry.campaign_info) ? entry.campaign_info : {};
+  const ad = isRecord(entry.ad) ? entry.ad : {};
+  for (const holder of [entry, campaign, info, ad]) {
+    for (const key of ["title", "name", "campaign_name", "ad_name", "campaign_title"]) {
+      const found = text(holder[key], 255);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
 }
 
 /** A platform enum sent as a number or a short label. */
@@ -405,23 +432,24 @@ const AD_REPORT_KNOWN = new Set<string>([...AD_COUNTS, ...AD_RATIOS, ...AD_MONEY
 function adRow(day: string, entry: Record<string, unknown>, drift: { missing: string[]; unexpected: string[] }): Row | null {
   const campaign = isRecord(entry.campaign) ? entry.campaign : {};
   const id = digits(campaign.campaign_id);
-  if (id === undefined) {
-    if (!drift.missing.includes("entry.campaign.campaign_id")) drift.missing.push("entry.campaign.campaign_id");
-    return null;
-  }
+  // A homepage total / summary sits in the same list with a report and no campaign id.
+  // Skipping it keeps the real campaigns; an empty list of campaigns is drift below.
+  if (id === undefined) return null;
   const divisor = MONEY_DIVISOR.ads;
   const row: Row = { date: day, campaign_id: id };
-  put(row, "campaign_name", text(entry.title, 255));
+  put(row, "campaign_name", campaignTitle(entry));
   put(row, "ad_type", tag(entry.type));
   put(row, "ad_subtype", tag(entry.subtype));
   put(row, "state", tag(entry.state));
-  put(row, "daily_budget", money(campaign.daily_budget, divisor));
-  put(row, "total_budget", money(campaign.total_budget, divisor));
+  // GMV Max with no cap sends a huge daily/total budget. That is not spend: drop the field.
+  // A real day's cost above the ceiling is still a wrong scale and stops the dataset.
+  put(row, "daily_budget", cappedMoney(campaign.daily_budget, divisor));
+  put(row, "total_budget", cappedMoney(campaign.total_budget, divisor));
   put(row, "roi_two_target", adsTarget(campaign.roi_two_target));
   const report = isRecord(entry.report) ? entry.report : {};
   for (const key of AD_COUNTS) put(row, key, nonNeg(report[key]));
   for (const key of AD_RATIOS) put(row, key, nonNeg(report[key]));
-  for (const key of AD_MONEY) put(row, key, money(report[key], divisor));
+  for (const key of AD_MONEY) put(row, key, cappedMoney(report[key], divisor));
   const extra: Row = {};
   for (const [key, value] of Object.entries(report)) {
     if (AD_REPORT_KNOWN.has(key) || !/^[A-Za-z0-9_.-]{1,64}$/.test(key)) continue;
@@ -429,11 +457,6 @@ function adRow(day: string, entry: Record<string, unknown>, drift: { missing: st
     if (n !== undefined && Object.keys(extra).length < 20) extra[key] = n;
   }
   if (Object.keys(extra).length) row.extra = extra;
-  const budget = nonNeg(campaign.daily_budget) ?? 0;
-  const cost = nonNeg(report.cost) ?? 0;
-  if (Math.max(budget, cost) / divisor > MAX_PLAUSIBLE_AD_VND) {
-    if (!drift.unexpected.includes("ads:money_scale")) drift.unexpected.push("ads:money_scale");
-  }
   return row;
 }
 
@@ -449,6 +472,47 @@ export function roasTarget(body: unknown): { value: number; coldStart?: boolean 
     result = { value, coldStart: flag(setting.is_cold_start) };
   }
   return result;
+}
+
+/**
+ * What the ads homepage answers for one day said about campaigns (F3, 0.3.11).
+ * `withId`: entries that are real campaigns; `skipped`: entries with no `campaign.campaign_id`
+ * (a GMV Max shop-level entry, a total) -- counted, never drift; `answeredZero`: Shopee answered
+ * with an empty list. `complete`: the day's campaign list was seen (campaigns, only shop-level
+ * entries, or zero campaigns) -- the only case in which the day may count as read.
+ */
+export interface AdsDayAnswer {
+  withId: number;
+  skipped: number;
+  answeredZero: boolean;
+  complete: boolean;
+}
+
+export function adsDayAnswer(responses: ReaderResponse[], day: string): AdsDayAnswer {
+  const homes = dataResponses(responses.filter((r) => r.day === day), "ads_homepage");
+  const ids = new Set<string>();
+  let skipped = 0;
+  let answeredZero = false;
+  for (const response of homes) {
+    const found = findList(payloadOf(response.body), isAdsEntry);
+    for (const entry of found?.list ?? []) {
+      const campaign = isRecord(entry.campaign) ? entry.campaign : {};
+      const id = digits(campaign.campaign_id);
+      if (id === undefined) skipped += 1;
+      else ids.add(id);
+    }
+    // TODO(first capture): confirm an empty answer is `entry_list: []` (or total 0) on a shop with no ads.
+    if (!found && emptyListAnswer(response.body)) answeredZero = true;
+  }
+  return { withId: ids.size, skipped, answeredZero, complete: ids.size > 0 || skipped > 0 || answeredZero };
+}
+
+/** A data answer that holds an empty array (or states `total: 0`) where the entries would be. */
+function emptyListAnswer(body: unknown): boolean {
+  const payload = payloadOf(body);
+  if (!isRecord(payload)) return false;
+  if (Object.values(payload).some((v) => Array.isArray(v) && v.length === 0)) return true;
+  return totalOf(body, payload) === 0;
 }
 
 export function mapAdsDaily(responses: ReaderResponse[]): Mapped[] {
@@ -490,6 +554,182 @@ export function mapAdsDaily(responses: ReaderResponse[]): Mapped[] {
     });
   }
   return posts;
+}
+
+// -- ad campaign settings and edit pages (Connector 0.3.11) --------------------------------
+
+/** A ROAS value of the setup helpers: x100 000 like the targets (a value above 1 000), else plain. */
+function roas(value: unknown): number | undefined {
+  const n = nonNeg(value);
+  if (n === undefined) return undefined;
+  return n > 1_000 ? Math.round((n / ADS_TARGET_DIVISOR) * 100) / 100 : n;
+}
+
+/** A short platform word (state, type, placement ...), else undefined. */
+function word(value: unknown): string | undefined {
+  const t = text(value, 32);
+  return t !== undefined && /^[A-Za-z0-9_]{1,32}$/.test(t) ? t : undefined;
+}
+
+function adsEntries(responses: ReaderResponse[]): Record<string, unknown>[] {
+  const entries: Record<string, unknown>[] = [];
+  for (const response of dataResponses(responses, "ads_homepage")) {
+    entries.push(...(findList(payloadOf(response.body), isAdsEntry)?.list ?? []));
+  }
+  return entries;
+}
+
+/** Each campaign's settings as the list shows them (the newest answer wins); null with no list. */
+export function mapAdsSettings(responses: ReaderResponse[], capturedAt: number): Mapped | null {
+  const entries = adsEntries(responses);
+  if (entries.length === 0) return null;
+  const divisor = MONEY_DIVISOR.ads;
+  const issues = { unexpected: [] as string[], missing: [] as string[] };
+  const rows = new Map<string, Row>();
+  for (const entry of entries) {
+    const campaign = isRecord(entry.campaign) ? entry.campaign : {};
+    const id = digits(campaign.campaign_id);
+    if (id === undefined) {
+      if (!issues.missing.includes("entry.campaign.campaign_id")) issues.missing.push("entry.campaign.campaign_id");
+      continue;
+    }
+    const manual = isRecord(entry.manual_product_ads) ? entry.manual_product_ads : {};
+    const row: Row = { campaign_id: id };
+    put(row, "campaign_name", campaignTitle(entry));
+    put(row, "campaign_type", word(entry.type));
+    put(row, "state", word(entry.state));
+    put(row, "starts_at", wallClock(campaign.start_time));
+    put(row, "ends_at", wallClock(campaign.end_time)); // 0 = no end: left out
+    put(row, "daily_budget", money(campaign.daily_budget, divisor));
+    put(row, "total_budget", money(campaign.total_budget, divisor));
+    put(row, "roi_two_target", adsTarget(campaign.roi_two_target));
+    put(row, "item_id", digits(manual.item_id));
+    put(row, "product_placement", word(manual.product_placement));
+    put(row, "bidding_strategy", word(manual.bidding_strategy));
+    put(row, "enhanced_bid_price", nonNeg(manual.enhanced_bid_price));
+    row.editable = Array.isArray(entry.editable_list)
+      ? entry.editable_list.map(word).filter((w): w is string => w !== undefined).slice(0, 10)
+      : [];
+    row.is_group = entry.group_image !== undefined && entry.group_image !== null && entry.group_image !== "";
+    const biggest = Math.max(nonNeg(campaign.daily_budget) ?? 0, nonNeg(campaign.total_budget) ?? 0);
+    if (biggest / divisor > MAX_PLAUSIBLE_AD_VND && !issues.unexpected.includes("ads_settings:money_scale")) {
+      issues.unexpected.push("ads_settings:money_scale");
+    }
+    rows.set(id, row);
+  }
+  const drift = driftOf(issues.unexpected, issues.missing);
+  return {
+    dataset: "ads_campaign_settings",
+    endpoint: "homepage/query",
+    date: todayOf(capturedAt),
+    orderType: null,
+    granularity: "period",
+    rows: drift ? [] : [...rows.values()],
+    drift,
+  };
+}
+
+const DETAIL_KINDS: Record<string, string> = { product_manual: "manual", product_mpd: "mpd" };
+
+/** The ongoing / scheduled product campaigns whose edit page the detail reader opens. */
+export function ongoingAdsCampaigns(responses: ReaderResponse[]): { id: string; kind: string; name?: string }[] {
+  const out = new Map<string, { kind: string; name?: string }>();
+  for (const entry of adsEntries(responses)) {
+    const campaign = isRecord(entry.campaign) ? entry.campaign : {};
+    const id = digits(campaign.campaign_id);
+    const kind = DETAIL_KINDS[String(entry.type ?? "")];
+    const name = campaignTitle(entry);
+    if (id !== undefined && kind !== undefined && (entry.state === "ongoing" || entry.state === "scheduled")) {
+      out.set(id, { kind, ...(name ? { name } : {}) });
+    }
+  }
+  return [...out].map(([id, v]) => ({ id, ...v }));
+}
+
+function bound(node: unknown): { value?: number; percentile?: number } {
+  if (!isRecord(node)) return { value: roas(node) };
+  return { value: roas(node.value), percentile: nonNeg(node.percentile) };
+}
+
+/** One row per campaign from its edit page's four read answers. */
+export function mapAdsDetail(responses: ReaderResponse[], capturedAt: number): Mapped {
+  const divisor = MONEY_DIVISOR.ads;
+  const issues = { unexpected: [] as string[], missing: [] as string[] };
+  const rows = new Map<string, Row>();
+  const rowOf = (id: string): Row => {
+    const found = rows.get(id);
+    if (found) return found;
+    const row: Row = { campaign_id: id };
+    rows.set(id, row);
+    return row;
+  };
+  for (const response of responses) {
+    const id = response.campaignId;
+    if (id === undefined || !/^\d{1,32}$/.test(id) || classify(response.status, response.body) !== "ok") continue;
+    const data = payloadOf(response.body);
+    if (!isRecord(data)) continue;
+    const row = rowOf(id);
+    if (response.endpoint === "ads_product_get") {
+      const campaign = isRecord(data.campaign) ? data.campaign : {};
+      const roi = isRecord(campaign.roi_two) ? campaign.roi_two : {};
+      const estimate = isRecord(roi.estimate) ? roi.estimate : {};
+      put(row, "product_selection", word(campaign.product_selection));
+      put(row, "display_location", word(campaign.display_location));
+      put(row, "rapid_boost", flag(roi.rapid_boost) ?? flag(campaign.rapid_boost));
+      const ads = Array.isArray(data.ads_list) ? data.ads_list.filter(isRecord) : [];
+      row.item_ids = ads.map((a) => digits(a.item_id)).filter((x): x is string => x !== undefined).slice(0, 100);
+      row.item_count = ads.length;
+      row.out_of_stock_count = ads.filter((a) => nonNeg(a.stock) === 0).length;
+      const lows = ads.map((a) => money(a.price_lower_bound, divisor)).filter((x): x is number => x !== undefined);
+      const highs = ads.map((a) => money(a.price_upper_bound, divisor)).filter((x): x is number => x !== undefined);
+      if (lows.length) row.price_low = Math.min(...lows);
+      if (highs.length) row.price_high = Math.max(...highs);
+      put(row, "roas_estimate_low", roas(estimate.lower_bound));
+      put(row, "roas_estimate_high", roas(estimate.upper_bound));
+      if (Math.max(...highs, 0) > MAX_PLAUSIBLE_PRICE_VND && !issues.unexpected.includes("ads_detail:money_scale")) {
+        issues.unexpected.push("ads_detail:money_scale");
+      }
+    } else if (response.endpoint === "ads_roi_recommend") {
+      const exact = bound(data.exact);
+      const low = bound(data.lower_bound);
+      const high = bound(data.upper_bound);
+      put(row, "roas_recommended", roas(data.recommended_target_roi));
+      put(row, "roas_exact", exact.value);
+      put(row, "roas_exact_percentile", exact.percentile);
+      put(row, "roas_low", low.value);
+      put(row, "roas_low_percentile", low.percentile);
+      put(row, "roas_high", high.value);
+      put(row, "roas_high_percentile", high.percentile);
+      put(row, "roas_min", roas(data.hard_lower_bound));
+      put(row, "roas_max", roas(data.hard_upper_bound));
+      put(row, "gmv_order_uplift", nonNeg(data.gmv_order_uplift));
+      put(row, "roas_daily_edits", nonNeg(data.roi_two_target_daily_edit_count));
+    } else if (response.endpoint === "ads_budget_edit") {
+      const daily = isRecord(data.daily_budget) ? data.daily_budget : {};
+      put(row, "budget_min", money(daily.min, divisor));
+      put(row, "budget_max", money(daily.max, divisor));
+      put(row, "budget_recommended", money(daily.recommended, divisor));
+      put(row, "budget_low_threshold", money(daily.low_threshold, divisor));
+      put(row, "budget_multiple", money(daily.multiple, divisor));
+      put(row, "budget_allow_decrease", flag(daily.is_allow_decrease));
+      put(row, "budget_previous_expense", money(daily.previous_expense, divisor));
+    } else if (response.endpoint === "ads_expense_stats") {
+      put(row, "total_expense", money(data.total_expense, divisor));
+      put(row, "today_expense", money(data.today_expense, divisor));
+      put(row, "max_7d_expense", money(data.max_seven_day_expense, divisor));
+      put(row, "avg_7d_expense", money(data.avg_seven_day_expense, divisor));
+    }
+  }
+  const drift = driftOf(issues.unexpected, issues.missing);
+  return {
+    dataset: "ads_campaign_detail",
+    endpoint: "product/get",
+    date: todayOf(capturedAt),
+    orderType: null,
+    granularity: "period",
+    rows: drift ? [] : [...rows.values()],
+    drift,
+  };
 }
 
 // -- vouchers ------------------------------------------------------------------------------
@@ -663,12 +903,26 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
     }
     case "item_traffic":
       return mapItemTraffic(responses);
-    case "ads":
-      return mapAdsDaily(responses);
+    case "ads": {
+      const settings = mapAdsSettings(responses, capturedAt);
+      return [...mapAdsDaily(responses), ...(settings ? [settings] : [])];
+    }
+    case "ads_detail":
+      return [mapAdsDetail(responses, capturedAt)];
     case "vouchers":
       return [mapVoucherList(responses, capturedAt)];
     case "health":
       return [mapShopHealth(responses, capturedAt)];
+    case "shop_totals":
+      return mapShopTotals(responses, capturedAt);
+    case "product_period":
+      return mapProductPeriod(responses, capturedAt);
+    case "ads_products":
+      return mapAdsProducts(responses, capturedAt);
+    case "orders":
+      return [mapOrderLines(responses, capturedAt)];
+    case "order_income":
+      return [mapOrderIncome(responses, capturedAt)];
     default:
       return [];
   }

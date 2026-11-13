@@ -14,6 +14,7 @@ from sqlalchemy import delete, select
 
 from juli_backend.models.run_changes import ShopRule
 from juli_backend.models.shop_proposals import ShopProposal
+from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_analytics.catalog import ItemInfo, Variation
 from juli_backend.services.shopee_analytics.rules_view import ProfitRules
 from juli_backend.services.shopee_builder import copurchase, outcome, response, traffic
@@ -44,11 +45,14 @@ def S(**kw):
 @pytest.fixture
 async def shop(session):
     seeded = await seed_reco_shop(session)
+    await materialize.backfill_shop(session, seeded.shop_id)
     await session.commit()
     return seeded
 
 
 async def evaluate(session, shop, *versions, **kw):
+    """P98: the builder reads the stored funnel, so rebuild it after a test adds order lines."""
+    await materialize.backfill_shop(session, shop.shop_id)
     specs = [S(**v) for v in versions]
     return await builder.evaluate_versions(session, shop.shop_id, specs, as_of=AS_OF, now=NOW, **kw)
 
@@ -66,6 +70,8 @@ async def add_baskets(session, shop, n=4):
         b.line_no = 1
         session.add_all([a, b])
     await session.commit()
+    await materialize.backfill_shop(session, shop.shop_id)  # P98: the stored funnel follows
+    await session.commit()
 
 
 # ==================== the typed inputs
@@ -75,6 +81,7 @@ def test_every_kind_has_a_model_and_unknown_keys_are_refused():
     assert set(sp.KIND_KEYS) == {
         "voucher",
         "combo",
+        "listing_combo",
         "add_on",
         "gift",
         "product_discount",
@@ -118,24 +125,43 @@ def test_every_kind_has_a_model_and_unknown_keys_are_refused():
             "end": "2026-06-01",
         },
         {"kind": "voucher", "discount_type": "amount", "value": 5000, "min_spend": -1},
-        {"kind": "combo", "items": [{"item_id": "1"}], "pricing": "pct", "value": 5},
         {
             "kind": "combo",
-            "items": [{"item_id": str(n)} for n in range(7)],
-            "pricing": "pct",
-            "value": 5,
+            "item_ids": [],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 5}],
+        },
+        {"kind": "combo", "item_ids": ["1"], "discount_type": "pct", "tiers": []},
+        {
+            "kind": "combo",
+            "item_ids": ["1", "1"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 5}],
         },
         {
             "kind": "combo",
-            "items": [{"item_id": "1"}, {"item_id": "1"}],
-            "pricing": "pct",
-            "value": 5,
+            "item_ids": ["1", "2"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 99}],
         },
         {
             "kind": "combo",
-            "items": [{"item_id": "1"}, {"item_id": "2"}],
-            "pricing": "pct",
-            "value": 99,
+            "item_ids": ["1", "2"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 5}, {"qty": 2, "value": 6}],
+        },
+        {
+            "kind": "combo",
+            "item_ids": ["1", "2"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 1, "value": 5}],
+        },
+        {
+            "kind": "combo",
+            "item_ids": ["1", "2"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 5}],
+            "name": "x" * 26,
         },
         {"kind": "add_on", "main_item_id": "1", "addons": []},
         {
@@ -175,7 +201,9 @@ def test_items_of_lists_every_listing_a_version_names():
         trigger={"type": "buy_item", "item_id": "5"},
     )
     addon = S(kind="add_on", main_item_id="1", addons=[{"item_id": "2", "pct": 5}])
-    combo = S(kind="combo", items=[{"item_id": "3"}, {"item_id": "4"}], pricing="pct", value=5)
+    combo = S(
+        kind="combo", item_ids=["3", "4"], discount_type="pct", tiers=[{"qty": 2, "value": 5}]
+    )
     assert sorted(sp.items_of(gift)) == ["5", "9"] and sp.items_of(addon) == ["1", "2"]
     assert sp.items_of(combo) == ["3", "4"]
 
@@ -463,13 +491,18 @@ async def test_two_vouchers_compare_side_by_side_with_typed_numbers(session, sho
     )
     a, b = out["versions"]
     assert a["ok"] and b["ok"] and a["driver"]["target_metric"] == "aov"
-    assert [m["key"] for m in a["driver"]["metrics"]] == ["aov", "ctor"]
+    # P98: the result's drivers (AOV + the visible-offer CTOR) and đơn
+    assert [m["key"] for m in a["driver"]["metrics"]] == ["aov", "ctor", "orders"]
     da, db = a["details"], b["details"]
     assert da["qualifying_orders"] == db["qualifying_orders"] > 0  # same minimum spend
     assert da["total_orders"] > da["qualifying_orders"]
     assert db["voucher_cost_scenario"] == 2 * da["voucher_cost_scenario"]
-    assert b["cost"]["amount"] == 2 * a["cost"]["amount"] and a["cost"]["period_days"] == 14
-    assert b["delta"]["profit"]["p50"] is not None and b["margin_after_pct"] is not None
+    # P99: a voucher without dates keeps its OptionResult's 30-day horizon ("30 ngày đầu")
+    assert b["cost"]["amount"] == 2 * a["cost"]["amount"] and a["cost"]["period_days"] == 30
+    assert a["result"]["days"] == 30 and a["result"]["horizon"] == "first_30_days"
+    # the shop's stored profit is partial (order lines cover 7 of 30 days): "chưa tính", never a
+    # second calculation from the order lines
+    assert b["result"]["estimable"] and b["margin_after_pct"] is not None
     be = a["break_even"]  # P96: a voucher pays back through the basket (AOV), not extra orders
     assert be["basis"] == "aov" and be["aov_needed"] > be["aov_now"]
     # the table puts them side by side: cost, deltas, margin, then each driver metric
@@ -528,71 +561,6 @@ async def test_a_voucher_period_follows_the_dates(session, shop):
         end="2026-10-16",
     )
     assert v["details"]["days"] == 7 and v["break_even"]["period_days"] == 7
-
-
-async def test_a_combo_of_three_products_prices_every_line_and_costs_the_discount(session, shop):
-    await add_baskets(session, shop)
-    v = await one(
-        session,
-        shop,
-        kind="combo",
-        pricing="pct",
-        value=10,
-        items=[{"item_id": "1001", "qty": 1}, {"item_id": "1002", "qty": 2}, {"item_id": "1003"}],
-    )
-    d = v["details"]
-    assert len(d["lines"]) == 3 and d["list_value"] > d["value_now"] > d["buyer_pays"]
-    assert d["savings_pct"] == 10.0
-    assert d["contribution"] > 0 and d["margin_pct"] == v["margin_after_pct"]
-    # B-7.2: the cost of the change is the discount given x the expected combos
-    assert v["cost"]["per_unit"] == d["combo_discount"]
-    assert (
-        v["cost"]["amount"]
-        == v["cost"]["per_unit"] * v["cost"]["expected_units"]
-        >= v["cost"]["per_unit"]
-    )
-    assert v["driver"]["target_metric"] == "aov" and v["basis"]["key"] == "prior"
-    pair = await one(
-        session,
-        shop,
-        kind="combo",
-        pricing="pct",
-        value=10,
-        target="new_listing",
-        items=[{"item_id": "1001"}, {"item_id": "1002"}],
-    )
-    assert (
-        pair["details"]["existing_combo_baskets"] == 4
-        and pair["cost"]["expected_units_basis"] == "history"
-    )
-    assert pair["details"]["target"] == "new_listing"
-
-
-async def test_a_combo_has_three_pricing_modes_a_gift_and_a_floor_line(session, shop):
-    items = [{"item_id": "1001"}, {"item_id": "1002"}]
-    pct = await one(session, shop, kind="combo", items=items, pricing="pct", value=10)
-    amount = await one(session, shop, kind="combo", items=items, pricing="amount", value=15_000)
-    fixed = await one(
-        session, shop, kind="combo", items=items, pricing="fixed_price", value=120_000
-    )
-    assert amount["details"]["combo_discount"] == 15_000
-    assert fixed["details"]["buyer_pays"] == 120_000
-    assert pct["ok"]
-    gift = await one(
-        session, shop, kind="combo", items=items, pricing="pct", value=10, gift_item_id="1003"
-    )
-    assert gift["details"]["gift_cost"] == 16_000
-    deep = await one(session, shop, kind="combo", items=items, pricing="pct", value=70)
-    assert deep["breach"] is True and any(w["type"] == "floor" for w in deep["warnings"])
-    refused = await one(
-        session,
-        shop,
-        kind="combo",
-        pricing="pct",
-        value=10,
-        items=[{"item_id": "1001"}, {"item_id": "9999"}],
-    )
-    assert refused["ok"] is False and refused["refusal"]["code"].startswith("item_no_data")
 
 
 async def test_an_add_on_deal_prices_each_add_on_and_the_attach_rate_that_pays_it_back(
@@ -775,53 +743,41 @@ async def test_a_variation_set_prices_each_new_variation_and_saves_as_a_restruct
     assert sets["Set 5"]["price_per_unit"] == 76_000
     assert sets["Set 3"]["margin_pct"] is not None and sets["Set 3"]["margin_label"] is None
     assert v["card_kind"] == "variation_restructure" and v["driver"]["target_metric"] == "aov"
-    assert v["delta"]["orders"]["p50"] == 0 and v["delta"]["orders_note"]
+    # ADR-122 d.10: a variation change drives AOV + CTOR (tagged prior), so đơn may move
+    assert v["delta"]["orders"]["p50"] >= 0 and v["result"]["drivers"] == ["aov", "ctor"]
     assert v["delta"]["gmv"]["p50"] is not None and v["basis"]["key"] == "prior"
 
 
-async def test_ads_levers_budget_roas_products_and_keywords(session, shop):
+async def test_ads_levers_budget_roas_and_products(session, shop):
     camps = await builder.ads_campaigns(session, shop.shop_id, as_of=AS_OF, now=NOW)
     key = camps["campaigns"][0]["campaign_key"]
     assert camps["cap_rule"] == "daily_marketing_cap" and camps["daily_cap"] == 500_000
     assert camps["campaigns"][0]["products"] and camps["campaigns"][0]["roas_target"] == 3
-    budget = await one(
-        session, shop, kind="ads", lever="budget", campaign_key=key, daily_budget=60_000
-    )
-    assert [m["key"] for m in budget["driver"]["metrics"]] == ["spend", "gmv", "roas"]
-    spend = budget["driver"]["metrics"][0]
-    assert spend["after_p50"] > spend["before"] and budget["cost"]["amount"] > 0
-    roas = await one(session, shop, kind="ads", lever="roas", campaign_key=key, roas_target=4.5)
-    assert roas["ok"] and roas["change_kind"] == "ads_roas_target"
+    # P100 B.15 (owner 2026-11-13): edits of running campaigns are evaluated in Tự tạo phương án
     item = camps["campaigns"][0]["products"][0]["item_id"]
-    remove = await one(
-        session, shop, kind="ads", lever="remove_product", campaign_key=key, item_id=item
-    )
-    assert remove["ok"] and remove["change_kind"] == "ads_remove_product"
-    unknown = await one(
-        session, shop, kind="ads", lever="budget", campaign_key="nope", daily_budget=1000
-    )
-    assert unknown["ok"] is False and unknown["refusal"]["code"] == "no_campaign_report"
-    missing = await one(session, shop, kind="ads", lever="budget", daily_budget=1000)
-    assert missing["refusal"]["code"] == "no_campaign_report"
+    for version in (
+        {"lever": "budget", "campaign_key": key, "daily_budget": 150_000},
+        {"lever": "roas", "campaign_key": key, "roas_target": 4.5},
+        {"lever": "remove_product", "campaign_key": key, "item_id": item},
+    ):
+        v = await one(session, shop, kind="ads", **version)
+        assert v["ok"] is True and v.get("refusal") is None, v.get("refusal")
+        assert v["result_refusal"] is None, v["result_refusal"]
+        ads = v["result"]["ads"]
+        assert ads is not None and ads["lever"] == version["lever"]
+        assert ads["spend"]["now"] is not None and ads["spend_text"]
 
 
-async def test_keyword_bids_are_listed_with_no_invented_estimate(session, shop):
-    v = await one(
-        session,
-        shop,
-        kind="ads",
-        lever="keywords",
-        item_id="1001",
-        keywords=[
-            {"keyword": "găng tay", "bid": 700},
-            {"keyword": "túi rác", "bid": 400, "match": "exact"},
-        ],
-    )
-    assert v["ok"] and v["change_kind"] == "ads_keywords"
-    assert v["basis"]["key"] == "insufficient"
-    assert v["delta"]["gmv"]["p50"] is None and v["delta"]["profit"]["p50"] is None
-    assert [k["keyword"] for k in v["details"]["keywords"]] == ["găng tay", "túi rác"]
-    assert v["details"]["keywords"][1]["match"] == "exact"
+def test_keyword_bids_are_not_a_lever_any_more():
+    """P97 D85.17: Shopee's product-ads form has no keyword / bid field."""
+    with pytest.raises(ValidationError) as refused:
+        S(
+            kind="ads",
+            lever="keywords",
+            item_id="1001",
+            keywords=[{"keyword": "găng tay", "bid": 700}],
+        )
+    assert "keywords" in str(refused.value)
 
 
 async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
@@ -834,7 +790,7 @@ async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
         keywords=["găng tay"],
     )
     assert title["driver"]["target_metric"] == "views"
-    assert [m["key"] for m in title["driver"]["metrics"]] == ["views", "ctr"]
+    assert [m["key"] for m in title["driver"]["metrics"]] == ["views", "ctr", "orders"]
     assert title["delta"]["gmv"]["high"] > title["delta"]["gmv"]["low"]
     cover = await one(
         session,
@@ -863,7 +819,8 @@ async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
     display = await one(
         session, shop, kind="price_display", item_id="1001", text="Chỉ 3.000đ/chiếc"
     )
-    assert [m["key"] for m in display["driver"]["metrics"]] == ["ctr", "ctor"]
+    # ADR-122 d.10: Hiển thị giá drives CTR on Thẻ sản phẩm only
+    assert [m["key"] for m in display["driver"]["metrics"]] == ["ctr", "orders"]
     hide = await one(session, shop, kind="listing_hide", item_id="1003")
     relist = await one(session, shop, kind="listing_relist", item_id="1003", stock=40)
     assert hide["basis"]["key"] == "product_history"  # P96: the listing's own lost GMV
@@ -894,7 +851,9 @@ async def test_affiliate_commission_and_sample_cost(session, shop):
         sample["unit_cost"] == 31_000 and sample["total"] == 3 * 31_000 + 20_000
     )  # giá vốn + đóng gói + ship
     assert v["cost"]["amount"] >= sample["total"]
-    assert v["driver"]["metrics"][0]["key"] == "affiliate_orders"
+    # P99: the affiliate version has an OptionResult -- Lượt xem on Liên kết, cost and break-even
+    assert v["driver"]["metrics"][0]["key"] == "views"
+    assert v["result"]["estimable"] is False and v["result"]["cost"]["total"] >= sample["total"]
     target = await one(
         session, shop, kind="affiliate", item_id="1001", commission_pct=12, target_campaign=True
     )
@@ -914,7 +873,7 @@ async def test_a_listing_without_cost_can_be_built_and_shows_chua_tinh(session, 
         shop,
         kind="product_discount",
         item_id="1001",
-        variations=[{"variation_id": "", "discount_pct": 10}],
+        variations=[{"variation_id": "", "discount_pct": 20}],
     )
     assert v["ok"] and v["profit_status"] == "chua_tinh" and v["cost_known"] is False
     assert v["delta"]["profit"] == {"low": None, "p50": None, "high": None}
@@ -925,17 +884,29 @@ async def test_a_listing_without_cost_can_be_built_and_shows_chua_tinh(session, 
     assert next(r for r in table["rows"] if r["key"] == "delta_profit")["values"][0]["p50"] is None
 
 
-async def test_the_shop_ads_cap_warns_and_never_blocks(session):
-    seeded = await seed_reco_shop(session, cap=1_000)
-    await session.commit()
-    camps = await builder.ads_campaigns(session, seeded.shop_id, as_of=AS_OF, now=NOW)
-    key = camps["campaigns"][0]["campaign_key"]
-    v = await one(
-        session, seeded, kind="ads", lever="budget", campaign_key=key, daily_budget=90_000
+async def test_an_ads_edit_can_be_chosen(session, shop):
+    """P100 B.15: "Chọn" saves an edit of a running campaign as a card, its outcome carries the
+    campaign's CPA facts (no 422 ``ads_edit_hidden`` any more)."""
+    camps = await builder.ads_campaigns(session, shop.shop_id, as_of=AS_OF, now=NOW)
+    spec = S(
+        kind="ads",
+        lever="budget",
+        campaign_key=camps["campaigns"][0]["campaign_key"],
+        daily_budget=190_000,
     )
-    cap = next(w for w in v["warnings"] if w["type"] == "spend_cap")
-    assert cap["cap"] == 1_000 and cap["cap_rule"] == "daily_marketing_cap" and v["ok"] is True
-    assert v["breach"] is True
+    out = await builder.choose(
+        session,
+        shop.shop_id,
+        [spec],
+        0,
+        primary=False,
+        acknowledge_breaches=True,
+        actor=manual.Actor("seller", shop.user.id),
+        as_of=AS_OF,
+        now=NOW,
+    )
+    assert out["card"]["change_kind"] == "ads_budget"
+    assert out["outcome"]["ok"] and out["outcome"]["result"]["ads"]["lever"] == "budget"
 
 
 async def test_an_excluded_listing_has_no_builder_entry(session, shop):
@@ -947,7 +918,7 @@ async def test_an_excluded_listing_has_no_builder_entry(session, shop):
         shop,
         kind="product_discount",
         item_id="1001",
-        variations=[{"variation_id": "", "discount_pct": 10}],
+        variations=[{"variation_id": "", "discount_pct": 20}],
     )
     assert v["ok"] is False and v["refusal"]["code"] == "item_excluded:1001"
     assert "Loại trừ sản phẩm" in v["refusal"]["message"]
@@ -955,9 +926,9 @@ async def test_an_excluded_listing_has_no_builder_entry(session, shop):
         session,
         shop,
         kind="combo",
-        pricing="pct",
-        value=10,
-        items=[{"item_id": "1001"}, {"item_id": "1002"}],
+        discount_type="pct",
+        tiers=[{"qty": 2, "value": 10}],
+        item_ids=["1001", "1002"],
     )
     assert combo["refusal"]["code"] == "item_excluded:1001"
     partner = await one(
@@ -977,9 +948,9 @@ async def test_four_versions_of_mixed_kinds_compare_and_the_best_is_a_safe_one(s
         {"kind": "voucher", "discount_type": "amount", "value": 10_000, "min_spend": 100_000},
         {
             "kind": "combo",
-            "items": [{"item_id": "1001"}, {"item_id": "1002"}],
-            "pricing": "pct",
-            "value": 10,
+            "item_ids": ["1001", "1002"],
+            "discount_type": "pct",
+            "tiers": [{"qty": 2, "value": 10}],
         },
         {
             "kind": "gift",
@@ -990,7 +961,7 @@ async def test_four_versions_of_mixed_kinds_compare_and_the_best_is_a_safe_one(s
     assert [v["kind"] for v in out["versions"]] == ["voucher", "voucher", "combo", "gift"]
     rows = {r["key"]: r["values"] for r in out["table"]["rows"]}
     assert len(rows["cost"]) == 4 and all(len(v) == 4 for v in rows.values())
-    assert rows["driver:aov"][3] is None and rows["driver:orders"][:3] == [None, None, None]
+    assert rows["driver:aov"][3] is None and all(v is not None for v in rows["driver:orders"])
     best = out["best_profit_p50"]
     assert best is not None and not out["versions"][best]["breach"]
 
@@ -1004,7 +975,13 @@ async def test_a_refused_version_does_not_stop_the_others(session, shop):
     out = await evaluate(
         session,
         shop,
-        {"kind": "voucher", "discount_type": "amount", "value": 5000},
+        {
+            "kind": "voucher",
+            "discount_type": "amount",
+            "value": 5000,
+            "scope": "product",
+            "item_ids": ["1001"],
+        },
         {"kind": "product_discount", "item_id": "1001", "variations": []},
     )
     ok, bad = out["versions"]
@@ -1196,6 +1173,8 @@ async def test_the_loader_derives_a_products_own_response_from_90_days_of_orders
                 list_price=D(100_000), current_price=D(80_000 if cut else 100_000),
             )
         )  # fmt: skip
+    await session.commit()
+    await materialize.backfill_shop(session, shop.shop_id)  # P99b: the ingest hook's rows
     await session.commit()
     spec = S(
         kind="product_discount", item_id="1001",

@@ -7,7 +7,6 @@ import { useShopee } from "../../lib/shopee-analytics/context";
 import {
   DASH,
   chipFromChange,
-  chipPt,
   dayMonth,
   fmt,
   pc,
@@ -16,26 +15,18 @@ import {
   vnd,
   type Chip,
 } from "../../lib/shopee-analytics/format";
-import {
-  CAP_LABEL,
-  fiveCards,
-  freshnessOf,
-  impactsOf,
-  isStale,
-  marginDropText,
-  weakestLink,
-} from "../../lib/shopee-analytics/model";
+import { freshnessOf, impactsOf, isStale, marginDropText, weakestLink } from "../../lib/shopee-analytics/model";
 import { readWindow, type WindowState, windowParams } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { Overview } from "../../lib/shopee-analytics/types";
 import { FlowTree } from "./tong-quan-tree";
 import { ProductMatrix } from "./tong-quan-matrix";
 import { PeriodBar } from "./period-bar";
-import { ChipView, InfoToggle, Notice, PageHead, ResourceState, Section, toneClass } from "./ui";
+import { ChipView, InfoToggle, Notice, PageHead, ResourceState, Section } from "./ui";
 
 /**
- * Tổng quan (artboards TongQuan / TongQuanMobile): the shop in one screen. KPI strip, the five
- * numbers, shop profit with cost coverage, the GMV tree (five flows + Chênh lệch nguồn) and the
+ * Tổng quan (artboards TongQuan / TongQuanMobile): the shop in one screen. KPI strip (P100 B.6:
+ * GMV, lượt xem, CTR, CTOR, AOV, đơn, tổng lợi nhuận), the one shop profit with cost coverage, the GMV tree (five flows + Chênh lệch nguồn) and the
  * product × source matrix. Every number is a link to its Xếp hạng. The mobile layout is the same
  * markup under the stylesheet's narrow breakpoint (tiles 2 columns, rows as cards).
  */
@@ -67,7 +58,6 @@ function Loaded({ ov, state }: { readonly ov: Overview; readonly state: WindowSt
     return links.screen("tong-quan", q);
   };
   const compare = state.compare;
-  const five = fiveCards(ov.five_numbers, target);
   const days = win.days;
   const kpi = ov.kpi_strip;
 
@@ -101,13 +91,9 @@ function Loaded({ ov, state }: { readonly ov: Overview; readonly state: WindowSt
     </Link>
   );
   const per = (v: number | null) => (v === null ? DASH : `${sv(v)}/ngày`);
-  const marginChip = chipPt(kpi.margin_pct.previous, kpi.margin_pct.value);
-  const profitDelta =
-    ov.five_numbers.margin.profit_after !== null && ov.five_numbers.margin.profit_before !== null
-      ? (ov.five_numbers.margin.profit_after - ov.five_numbers.margin.profit_before) / days
-      : null;
   const belowTarget = kpi.margin_pct.value !== null && target !== null && kpi.margin_pct.value < target;
-  const partial = ov.profit.profit_is_partial;
+  // P100 B.5: the one shop profit (known-cost orders) with its coverage line
+  const profitKpi = kpi.profit ?? { value: ov.profit.profit_vnd, previous: null, change_pct: null, label: ov.profit.coverage_label ?? "" };
 
   return (
     <>
@@ -145,19 +131,20 @@ function Loaded({ ov, state }: { readonly ov: Overview; readonly state: WindowSt
           </Notice>
         ))}
 
-      <Section hint="Bấm một ô để xem bảng xếp hạng · ₫/ngày là phần GMV chỉ số đó kéo" title="Sáu chỉ số chính">
+      <Section hint="Bấm một ô để xem bảng xếp hạng · ₫/ngày là phần GMV chỉ số đó kéo" title="Chỉ số chính">
         <div className="sa-tiles">
           {tile("gmv", "GMV", vnd(kpi.gmv.value), chipFromChange(kpi.gmv.change_pct), `Tổng 4 ô: ${per(impacts.gmv)}`, "")}
           {tile("views", "Lượt xem", fmt(kpi.views.value), chipFromChange(kpi.views.change_pct), per(impacts.views), weak === "views" ? "✦ Juli gợi ý" : "")}
           {tile("ctr", "CTR", pc(kpi.ctr.value), chipFromChange(kpi.ctr.change_pct), per(impacts.ctr), weak === "ctr" ? "✦ Juli gợi ý" : "")}
           {tile("ctor", "CTOR", pc(kpi.ctor.value), chipFromChange(kpi.ctor.change_pct), per(impacts.ctor), weak === "ctor" ? "✦ Juli gợi ý" : "")}
           {tile("aov", "AOV", vnd(kpi.aov.value), chipFromChange(kpi.aov.change_pct), per(impacts.aov), weak === "aov" ? "✦ Juli gợi ý" : "")}
+          {tile("orders", "Đơn", fmt(kpi.orders.value), chipFromChange(kpi.orders.change_pct), kpi.orders.value === null || days === 0 ? DASH : `${fmt(Math.round(kpi.orders.value / days))} đơn/ngày`, "")}
           {tile(
-            "bien",
-            "Biên cuối",
-            pp(kpi.margin_pct.value, 1),
-            marginChip,
-            partial && kpi.margin_pct.label ? kpi.margin_pct.label : `Lợi nhuận ${per(profitDelta)}`,
+            "profit",
+            "Tổng lợi nhuận",
+            vnd(profitKpi.value),
+            chipFromChange(profitKpi.change_pct),
+            `Biên ${pp(kpi.margin_pct.value, 1)} · ${profitKpi.label}`,
             belowTarget ? "Dưới mục tiêu" : "",
             belowTarget ? "below" : undefined,
           )}
@@ -170,39 +157,6 @@ function Loaded({ ov, state }: { readonly ov: Overview; readonly state: WindowSt
             </Link>
           </p>
         ) : null}
-        <p className="sa-hint" data-testid="sa-aov-note">
-          AOV ở đây = GMV ÷ đơn ({vnd(ov.gmv.aov_gmv)}); AOV theo Seller Centre (trừ voucher shop) ={" "}
-          {vnd(ov.gmv.aov_seller_centre)}.
-        </p>
-      </Section>
-
-      <Section hint="Cùng định nghĩa ở Tổng quan, Sản phẩm và thẻ · kèm chi marketing so với trần" title="5 con số chính">
-        <div className="sa-five" data-testid="sa-five">
-          {five.map((f) => (
-            <Link
-              className={`sa-five__card ${f.tone === "down" ? "sa-five__card--bad" : ""}`}
-              data-testid={`sa-five-${f.key}`}
-              href={links.ranking({ kpi: f.kpi, src: f.src ?? "all", from: "tong-quan" }, state)}
-              key={f.key}
-            >
-              <span className="sa-tile__label">{f.label}</span>
-              <span className="sa-five__value">{f.value}</span>
-              <span>
-                <span className={`sa-chip sa-chip--${f.tone}`}>{f.chip}</span>
-              </span>
-              <span className="sa-five__sub">{f.sub1}</span>
-              <span className={`sa-five__sub sa-five__sub--b ${toneClass(f.tone)}`}>{f.sub2}</span>
-            </Link>
-          ))}
-        </div>
-        {!ov.five_numbers.comparison.available ? (
-          <Notice tone="info" testId="sa-no-comparison">
-            Kỳ trước chưa có dòng đơn hàng nên chỉ hiện số của kỳ này; Juli không so với một kỳ trống.
-          </Notice>
-        ) : null}
-        <p className="sa-hint">
-          ② = ΔGMV ÷ Δchi · {ov.five_numbers.chi_definition}. {CAP_LABEL}: chi ÷ số ngày của kỳ.
-        </p>
       </Section>
 
       <ProfitBlock ov={ov} />
@@ -236,38 +190,42 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
   const p = ov.profit;
   const cov = p.cost_coverage;
   const partial = p.profit_is_partial;
-  const productProfit =
-    !partial && p.contribution_before_ads !== null && p.ad_spend.by_product !== null
-      ? p.contribution_before_ads - p.ad_spend.by_product
-      : null;
+  // P100 B.5: every line of the bridge is the known-cost basis the one shop profit is on
+  const bridge = p.bridge ?? null;
+  const productProfit = bridge ? bridge.product_profit : null;
   const missing = Object.entries(p.missing).filter(([, n]) => n > 0);
-  const real = cov.real_pct ?? 0;
-  const assumed = cov.assumed_pct ?? 0;
-  const unknown = cov.unknown_pct ?? 0;
+  // Bar widths may use 0 for a missing share; every printed percentage stays "—" when it is missing.
+  const realN = cov.real_pct ?? null;
+  const assumedN = cov.assumed_pct ?? null;
+  const unknownN = cov.unknown_pct ?? null;
+  const real = realN ?? 0;
+  const assumed = assumedN ?? 0;
+  const unknown = unknownN ?? 0;
   const lines: { k: string; v: string; note: string; tone?: string }[] = [
     {
       k: "Lợi nhuận các sản phẩm",
-      v: partial || productProfit === null ? DASH : vnd(productProfit),
-      note: partial ? `Chưa hiện số đồng: còn ${pp(unknown, 1)} doanh thu chưa có giá vốn` : "Σ lợi nhuận từng sản phẩm",
+      v: productProfit === null ? DASH : vnd(productProfit),
+      note: partial
+        ? `Chỉ các đơn có đủ chi phí (còn ${pp(unknownN, 1)} doanh thu chưa có giá vốn)`
+        : "Σ lợi nhuận từng sản phẩm, các đơn có đủ chi phí",
     },
     {
       k: "− QC không gắn sản phẩm",
-      v: p.ad_spend.unattributed === null ? DASH : `−${vnd(p.ad_spend.unattributed)}`,
-      note: `${p.ad_spend.unattributed_label} (đơn đã đặt)`,
+      v: !bridge || bridge.ads_unattributed === null ? DASH : `−${vnd(bridge.ads_unattributed)}`,
+      note: bridge ? bridge.ads_label : `${p.ad_spend.unattributed_label} (đơn đã đặt)`,
       tone: "sa-tone--down",
     },
     {
       k: "− Chi marketing khác",
-      v: p.other_marketing_costs === null ? DASH : `−${vnd(p.other_marketing_costs)}`,
+      v: !bridge || bridge.other_marketing === null ? DASH : `−${vnd(bridge.other_marketing)}`,
       note: "Giải thưởng trò chơi, không nằm trên đơn",
       tone: "sa-tone--down",
     },
     {
+      // P100 B.5: ONE shop profit -- the known-cost orders, with its coverage line
       k: "= Lợi nhuận shop",
-      v: partial ? DASH : vnd(p.profit_vnd),
-      note: partial
-        ? "Chỉ hiện bằng đồng khi 100% doanh thu có giá vốn"
-        : `Biên ${pp(p.margin_pct, 1)} = lợi nhuận ÷ doanh thu thực (sau voucher và combo)`,
+      v: vnd(p.profit_vnd),
+      note: `${p.coverage_label ? `${p.coverage_label} · ` : ""}Biên ${pp(p.margin_pct, 1)} · cùng số với Sản phẩm và Kế hoạch`,
     },
   ];
   return (
@@ -282,9 +240,12 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
             </div>
           ))}
           <p className="sa-hint" data-testid="sa-ad-check">
-            Kiểm tra: QC các sản phẩm {vnd(p.ad_spend.by_product)} + QC không gắn sản phẩm{" "}
-            {vnd(p.ad_spend.unattributed)} = tổng chi QC {vnd(p.ad_spend.total)}{" "}
-            {p.ad_spend.consistent ? "✓" : "(chi phí theo sản phẩm lớn hơn tổng chiến dịch)"}
+            Kiểm tra: lợi nhuận các sản phẩm {vnd(bridge?.product_profit)} − QC không gắn sản phẩm{" "}
+            {vnd(bridge?.ads_unattributed)} − chi marketing khác {vnd(bridge?.other_marketing)} ={" "}
+            {vnd(p.profit_vnd)}
+            {bridge && bridge.product_profit !== null && bridge.ads_unattributed !== null && bridge.other_marketing !== null && bridge.product_profit - bridge.ads_unattributed - bridge.other_marketing === p.profit_vnd ? " ✓" : ""}. Tổng chi QC cả kỳ {vnd(p.ad_spend.total)} (QC các sản phẩm{" "}
+            {vnd(p.ad_spend.by_product)} + QC không gắn sản phẩm {vnd(p.ad_spend.unattributed)})
+            {p.ad_spend.consistent ? "" : " — chi phí theo sản phẩm lớn hơn tổng chiến dịch"}
           </p>
         </div>
         <div className="sa-profit__panel">
@@ -294,7 +255,7 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
           </span>
           <span className="sa-tone--warn sa-profit__note">
             {partial
-              ? `trên ${pp(real + assumed, 1)} doanh thu có giá vốn`
+              ? `trên ${pp(realN !== null && assumedN !== null ? realN + assumedN : null, 1)} doanh thu có giá vốn`
               : "trên 100% doanh thu khách trả"}
           </span>
           <span aria-hidden="true" className="sa-cov">
@@ -303,8 +264,8 @@ function ProfitBlock({ ov }: { readonly ov: Overview }) {
             <span className="sa-cov__seg sa-cov__seg--unknown" style={{ width: `${unknown}%` }} />
           </span>
           <span className="sa-profit__cov" data-testid="sa-coverage">
-            Giá vốn thật: <b>{pp(real, 1)}</b> · {p.assumed_cost_label}: <b>{pp(assumed, 1)}</b> · chưa có:{" "}
-            <b>{pp(unknown, 1)}</b>
+            Giá vốn thật: <b>{pp(realN, 1)}</b> · {p.assumed_cost_label}: <b>{pp(assumedN, 1)}</b> · chưa có:{" "}
+            <b>{pp(unknownN, 1)}</b>
           </span>
           {assumed > 0 ? (
             <span className="sa-hint" data-testid="sa-assumed-label">

@@ -1,11 +1,8 @@
-"""Juli Ops contract-client shops (owner decisions 2026-11-02, ADR-118).
+"""Juli Ops shop connection (contract shops removed).
 
-- "Thêm shop hợp đồng" creates a Shopee shop whose owner has no e-mail and no phone
-  (no sign-in resolves to it), stamped with staff access; audited.
-- "Bật" (no body) grants the four Terms scopes once, method ``contract_paper``,
-  ``granted_by`` the staff member; a second press grants nothing and writes no audit.
-- Ops never enables consent for a shop with a seller login (409), a viewer can do
-  neither (403), and the ingest gate opens only after "Bật".
+- ``POST /v1/ops/contract-shops`` answers 410. Ops no longer creates a login-less shop.
+- "Bật" still grants consent only for a shop with no seller login (409 otherwise).
+- "Tạo mã kết nối" and the token list work for every shop once service consent is on.
 
 Synthetic fixtures only.
 """
@@ -16,10 +13,8 @@ import uuid
 
 from sqlalchemy import select
 
-from juli_backend.models.consent import DataUseConsent
-from juli_backend.models.models import Shop, User
 from juli_backend.models.ops import OpsAuditLog
-from juli_backend.services.consent import TERMS_SCOPES, has_consent
+from juli_backend.services.consent import has_consent
 from tests.support.builders import make_shop, make_user
 
 
@@ -51,7 +46,7 @@ async def _actions(session, shop_id) -> list[str]:
     return sorted(rows.scalars())
 
 
-async def test_an_operator_adds_a_contract_shop_and_enables_consent_once(session, monkeypatch):
+async def test_adding_a_contract_shop_is_gone(session, monkeypatch):
     from tests.support.api import client_for
 
     app = await _ops_client(session, monkeypatch, "operator")
@@ -60,41 +55,9 @@ async def test_an_operator_adds_a_contract_shop_and_enables_consent_once(session
             "/v1/ops/contract-shops",
             json={"shop_name": "Synthetic contract shop", "shopee_shop_id": "123456"},
         )
-        assert made.status_code == 201, made.text
-        shop_id = made.json()["shop"]["id"]
-        before = await client.get(f"/v1/ops/shops/{shop_id}/consent")
-        first = await client.post(f"/v1/ops/shops/{shop_id}/consent")
-        second = await client.post(f"/v1/ops/shops/{shop_id}/consent")
     app.dependency_overrides.clear()
-
-    shop = await session.get(Shop, uuid.UUID(shop_id))
-    assert shop is not None and shop.platform == "shopee" and shop.shopee_shop_id == "123456"
-    owner = await session.get(User, shop.user_id)
-    assert owner is not None
-    assert owner.email is None and owner.phone is None and owner.terms_accepted_at is None
-    assert owner.staff_access_consent_at is not None
-
-    assert before.json() == {
-        "scopes": dict.fromkeys(TERMS_SCOPES, False),
-        "enabled": False,
-        "contract_client": True,
-    }
-    assert first.status_code == 200, first.text
-    assert first.json()["enabled"] is True
-    assert first.json()["granted"] == list(TERMS_SCOPES)
-    assert second.json()["granted"] == []
-
-    grants = (
-        (await session.execute(select(DataUseConsent).where(DataUseConsent.shop_id == shop.id)))
-        .scalars()
-        .all()
-    )
-    assert sorted(g.scope for g in grants) == sorted(TERMS_SCOPES)
-    assert {g.method for g in grants} == {"contract_paper"}
-    assert all(g.evidence_ref.startswith("ops_contract_consent_enable:") for g in grants)
-    assert "pooled_training" not in {g.scope for g in grants}
-    assert await has_consent(session, shop.id, "service")
-    assert await _actions(session, shop.id) == ["consent_enable", "contract_shop_create"]
+    assert made.status_code == 410
+    assert made.json()["detail"]["code"] == "contract_shop_removed"
 
 
 async def test_ops_never_enables_consent_for_a_seller_shop(session, monkeypatch):
@@ -114,7 +77,7 @@ async def test_ops_never_enables_consent_for_a_seller_shop(session, monkeypatch)
     assert not await has_consent(session, shop_id, "service")
 
 
-async def test_a_viewer_can_read_but_not_add_or_enable(session, monkeypatch):
+async def test_a_viewer_cannot_add_a_contract_shop(session, monkeypatch):
     from tests.support.api import client_for
 
     app = await _ops_client(session, monkeypatch, "viewer")
@@ -124,46 +87,39 @@ async def test_a_viewer_can_read_but_not_add_or_enable(session, monkeypatch):
     assert added.status_code == 403
 
 
-async def test_a_bad_shop_id_or_a_taken_one_is_refused(session, monkeypatch):
-    from tests.support.api import client_for
-
-    app = await _ops_client(session, monkeypatch, "operator")
-    async with client_for(app) as client:
-        bad = await client.post(
-            "/v1/ops/contract-shops", json={"shop_name": "Shop", "shopee_shop_id": "abc"}
-        )
-        first = await client.post(
-            "/v1/ops/contract-shops", json={"shop_name": "Shop A", "shopee_shop_id": "777"}
-        )
-        taken = await client.post(
-            "/v1/ops/contract-shops", json={"shop_name": "Shop B", "shopee_shop_id": "777"}
-        )
-    app.dependency_overrides.clear()
-    assert bad.status_code == 422
-    assert first.status_code == 201
-    assert taken.status_code == 409
-
-
 async def test_a_pairing_code_comes_after_consent_and_its_token_can_be_revoked(
     session, monkeypatch
 ):
+    from juli_backend.database.tenant_context import with_shop_scope
     from juli_backend.repositories import utc_now_naive
     from juli_backend.services import ingest as ingest_service
+    from juli_backend.services.consent import grant_consent
     from tests.support.api import client_for
 
+    seller = await make_user(session, email="connector@example.com")
+    shop = await make_shop(session, seller, platform="shopee", tiktok_shop_id=None)
+    shop_id = str(shop.id)
+    async with with_shop_scope(session, shop.id):
+        await grant_consent(
+            session,
+            shop.id,
+            scope="service",
+            method="in_app_click",
+            terms_version="test",
+            evidence_ref="test",
+            granted_by="seller",
+            granted_at=utc_now_naive(),
+        )
+    await session.commit()
     app = await _ops_client(session, monkeypatch, "operator")
     async with client_for(app) as client:
-        made = await client.post("/v1/ops/contract-shops", json={"shop_name": "Synthetic"})
-        shop_id = made.json()["shop"]["id"]
-        early = await client.post(f"/v1/ops/shops/{shop_id}/pairing-codes")
-        await client.post(f"/v1/ops/shops/{shop_id}/consent")
         issued = await client.post(f"/v1/ops/shops/{shop_id}/pairing-codes")
         assert issued.status_code == 201, issued.text
         code = issued.json()["code"]
         token = await ingest_service.redeem_pairing_code(
             session,
             code=code,
-            platform="shopee",
+            platform=shop.platform,
             platform_shop_id=None,
             client_label="loader",
             now=utc_now_naive(),
@@ -174,8 +130,6 @@ async def test_a_pairing_code_comes_after_consent_and_its_token_can_be_revoked(
         after = await client.get(f"/v1/ops/shops/{shop_id}/ingest-tokens")
     app.dependency_overrides.clear()
 
-    assert early.status_code == 409
-    assert early.json()["detail"]["code"] == "consent_required"
     assert issued.json()["ttl_seconds"] == 600 and len(code.replace("-", "")) == 10
     assert [t["active"] for t in listed.json()["data"]] == [True]
     assert "token" not in listed.json()["data"][0]
@@ -190,15 +144,18 @@ async def test_a_pairing_code_comes_after_consent_and_its_token_can_be_revoked(
     assert all(code not in str(row) for row in rows.scalars())
 
 
-async def test_no_pairing_code_or_token_list_for_a_seller_shop(session, monkeypatch):
+async def test_a_seller_shop_lists_connections_before_it_has_any(session, monkeypatch):
     from tests.support.api import client_for
 
     seller = await make_user(session, email="seller2@example.com")
-    shop_id = (await make_shop(session, seller)).id
+    shop_id = (await make_shop(session, seller, platform="shopee", tiktok_shop_id=None)).id
     await session.commit()
     app = await _ops_client(session, monkeypatch, "operator")
     async with client_for(app) as client:
         code = await client.post(f"/v1/ops/shops/{shop_id}/pairing-codes")
         tokens = await client.get(f"/v1/ops/shops/{shop_id}/ingest-tokens")
     app.dependency_overrides.clear()
-    assert code.status_code == 409 and tokens.status_code == 409
+    assert code.status_code == 409
+    assert code.json()["detail"]["code"] == "consent_required"
+    assert tokens.status_code == 200
+    assert tokens.json()["data"] == []

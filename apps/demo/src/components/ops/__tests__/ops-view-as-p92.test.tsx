@@ -83,12 +83,12 @@ describe("Xem như shop: the four pages from Ops (B-8)", () => {
     const { fn } = opsFetch();
     render(<OpsViewAs api={{ viewSession: async () => SHOPEE_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
     await screen.findByTestId("view-as-banner");
-    for (const name of ["Từ khóa", "Quảng cáo", "Đơn hàng", "Luồng"]) expect(await screen.findByRole("button", { name })).toBeInTheDocument();
+    for (const name of ["Từ khóa", "Dịch vụ hiển thị", "Đơn hàng", "Luồng"]) expect(await screen.findByRole("button", { name })).toBeInTheDocument();
   });
 
   it.each([
     ["tu-khoa", "keywords", "Từ khóa", `${OPS}/keywords`],
-    ["quang-cao", "ads", "Quảng cáo", `${OPS}/ads`],
+    ["quang-cao", "ads", "Dịch vụ hiển thị", `${OPS}/ads`],
     ["don-hang", "orders", "Đơn hàng", `${OPS}/orders`],
     ["luong-san-pham", "flows", "Luồng", `${OPS}/flows`],
   ])("trang=%s reads the Ops base (bearer only, GET only) and is read-only", async (slug, _tab, nav, path) => {

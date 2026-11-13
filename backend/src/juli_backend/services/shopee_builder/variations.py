@@ -14,6 +14,11 @@ show:
   keeps. ``None`` with ``margin_label`` "chưa tính" when the seller has not stated a giá vốn: the
   1/3-of-price fallback is never used here (P92 B-7.1).
 
+- ``final_margin_pct`` / ``final_margin_basis`` (ADR-122 d.12, "Biên cuối", ước tính) --
+  ``margin_pct`` (Biên ở giá bán, chắc chắn) less the 30-day rates of shop voucher, affiliate
+  commission and ad cost measured on the variation's own orders (``"variation"``), else on its
+  product's (``"product"``); ``None`` / ``None`` when there is no margin or no history at all.
+
 Pure: the caller passes what it loaded.
 """
 
@@ -26,6 +31,7 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics.catalog import ItemInfo
 from juli_backend.services.shopee_analytics.fmt import num, pct
+from juli_backend.services.shopee_analytics.margins import Rates, final_margin, measured_rates
 from juli_backend.services.shopee_analytics.rules_view import ProfitRules
 from juli_backend.services.shopee_profit.fees import FeeSchedule
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
@@ -40,6 +46,35 @@ PACK_SOURCE_LABELS = {
     "single": "mặc định 1",
 }
 DEFAULT_NAME = "Mặc định"
+
+
+HUNDRED = Decimal(100)
+BASIS_VARIATION = "variation"
+BASIS_PRODUCT = "product"
+
+
+def with_final_margin(
+    rows: Sequence[Mapping[str, Any]],
+    product_rates: Rates | None,
+    sku_rates: Mapping[str, Rates] | None = None,
+) -> list[dict[str, Any]]:
+    """Each row gains ``final_margin_pct`` (Biên cuối, ước tính), ``final_margin_basis`` and
+    ``final_rates``; a row without history of its own takes the product's rates."""
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        own = (sku_rates or {}).get(row.get("sku_key") or "")
+        rates = own or product_rates
+        value = final_margin(row.get("margin_pct"), rates)
+        basis = None if value is None else (BASIS_VARIATION if own else BASIS_PRODUCT)
+        out.append(
+            {
+                **row,
+                "final_margin_pct": value,
+                "final_margin_basis": basis,
+                "final_rates": None if value is None or rates is None else rates.json(),
+            }
+        )
+    return out
 
 
 def cost_key(item_id: str, variation_id: str, seller_sku: str | None, cost: UnitCost) -> str:
@@ -124,9 +159,12 @@ def variation_rows(
     item_list_price: Decimal | None = None,
     item_current_price: Decimal | None = None,
     observed: Mapping[str, str] | None = None,
+    product_rates: Rates | None = None,
+    sku_rates: Mapping[str, Rates] | None = None,
 ) -> list[dict[str, Any]]:
     """The variations of one product (one row without variations). ``observed`` = variation id ->
-    the SKU text on the order lines (:func:`observed_skus`), used where the catalogue has none."""
+    the SKU text on the order lines (:func:`observed_skus`), used where the catalogue has none.
+    ``product_rates`` / ``sku_rates`` (:func:`measured_rates`) add Biên cuối to every row."""
     snaps = {str(s.get("variation_id") or ""): s for s in snapshot_variations}
     base_list = _dec(item_list_price) or _dec(info.list_price if info else None)
     base_now = _dec(item_current_price) or _dec(info.current_price if info else None)
@@ -181,7 +219,7 @@ def variation_rows(
                 "stock": snap.get("stock"),
             }
         )
-    return rows
+    return with_final_margin(rows, product_rates, sku_rates)
 
 
 def with_orders(
@@ -235,6 +273,8 @@ def economics(
         "name": name,
         "variations": rows,
         "columns": ["list_price", "selling_price", "price_per_unit", "margin_pct"],
+        "final_margin_note": "Biên cuối (ước tính) = biên ở giá bán trừ tỉ lệ voucher shop, "
+        "hoa hồng liên kết và chi phí quảng cáo đo trong 30 ngày",
         "margin_basis": "Biên của một đơn gồm 1 đơn vị bán của phân loại này, sau phí sàn, "
         "giá vốn, đóng gói" + (" và VAT" if vat.get("basis") == "after_vat" else ""),
         "vat": dict(vat),
@@ -244,10 +284,16 @@ def economics(
 
 __all__ = [
     "NOT_COUNTED",
+    "Rates",
     "cost_key",
     "economics",
+    "final_margin",
+    "measured_rates",
     "observed_skus",
     "unit_margin",
     "variation_rows",
+    "with_final_margin",
     "with_orders",
 ]
+
+__all__ = ["Rates", "final_margin", "measured_rates"]  # re-exported (ADR-122 d.12 one math)

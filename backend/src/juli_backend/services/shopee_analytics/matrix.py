@@ -8,12 +8,12 @@ bases and are never mixed into one total: each block states its own basis.
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num, pct, ratio
-from juli_backend.services.shopee_analytics.loaders import product_totals_for
 from juli_backend.services.shopee_analytics.overview import CHILD_LABELS, LEVER_LABELS
 from juli_backend.services.shopee_analytics.shared import (
     cell_json,
@@ -21,6 +21,7 @@ from juli_backend.services.shopee_analytics.shared import (
     five_for,
     five_json,
     flow_table_json,
+    shop_profit_of,
 )
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_profit.shop_profit import ProductProfit
@@ -123,6 +124,34 @@ def margin_basis(view: PeriodView, product_id: str, pp: ProductProfit | None) ->
     return BASIS_ACTUAL
 
 
+TRAFFIC_SOURCE = "product_period"
+
+
+def _days_label(a: date, b: date) -> str:
+    return f"{a.day:02d}/{a.month:02d}–{b.day:02d}/{b.month:02d}"
+
+
+def product_traffic(view: PeriodView, product_id: str) -> dict[str, Any] | None:
+    """P100 A.6: the product's own Hiển thị / clicks / đơn from Shopee's product table
+    (``product_period``, the rows Sản phẩm + luồng reads) over the period chosen for the
+    window, with its coverage ("Shopee 11/10–09/11 · 30/30 ngày"); None without such a row.
+    Independent of the per-source flows (whose daily rows may cover too few days)."""
+    pf = view.data.product_flows
+    agg = pf.traffic.get(product_id)
+    if agg is None or (agg.views is None and agg.clicks is None):
+        return None
+    basis = pf.totals_basis
+    periods = ", ".join(_days_label(a, b) for a, b in basis.periods)
+    return {
+        "views": None if agg.views is None else int(agg.views),
+        "clicks": None if agg.clicks is None else int(agg.clicks),
+        "orders": int(agg.orders),
+        "source": TRAFFIC_SOURCE,
+        "basis": basis.json(),
+        "label": f"Shopee {periods} · {basis.covered_days}/{view.window.days} ngày",
+    }
+
+
 def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
     pp = view.profit.products.get(product_id)
     levers = []
@@ -132,14 +161,14 @@ def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
     total = view.matrix.totals.get(product_id)
     flows = view.flows.products.get(product_id) if view.flows else None
     pf = view.data.product_flows
-    shopee_total = product_totals_for(pf, view.data.lines).get(product_id)
-    gmv = shopee_total[0] if shopee_total else (total.gmv if total else None)
+    split = view.metrics.split(product_id)  # order lines scaled to the shop totals (D85.2)
+    gmv = split.gmv if split else (total.gmv if total else None)
     return {
         "product_id": product_id,
         "name": view.names.get(product_id) or product_id,
         "gmv": num(gmv),
-        "gmv_basis": "shopee_product_period" if shopee_total else "order_lines",
-        "orders": shopee_total[1] if shopee_total else (total.orders if total else None),
+        "gmv_basis": split.basis if split else "order_lines",
+        "orders": split.orders if split else (total.orders if total else None),
         "line_gmv": num(total.gmv if total else None),
         "line_orders": total.orders if total else 0,
         **price_block(view, product_id),
@@ -170,6 +199,7 @@ def product_row(view: PeriodView, product_id: str) -> dict[str, Any]:
         "levers": levers,
         "ads": ads_overlay(view, product_id, pp),
         "card_children": card_children(view, product_id),
+        "traffic": product_traffic(view, product_id),
     }
 
 
@@ -220,18 +250,20 @@ def build_matrix(
         "platform": "shopee",
         "order_basis": {"key": "confirmed", "label": "Đơn đã xác nhận"},
         "window": view.window.json(),
+        "coverage": view.metrics.coverage(),
         "sort": sort,
         "products": rows,
         "product_count": total,
         "idle_products": idle,
         "ads_basis": ADS_BASIS,
         "excluded": excluded_summary(view),
+        # P100 B.5: the one shop profit, the same figure as Tổng quan and Kế hoạch
+        "shop_profit": shop_profit_of(view).json(),
         "sums": {
             "gmv_shopee_products": num(sum_gmv),
             "gmv_shop": num(view.shop_gmv),
-            "note": "Σ GMV sản phẩm khớp Doanh số shop khi file sản phẩm đúng kỳ (không thì lấy từ "
-            "dòng đơn hàng); phần lệch hiện "
-            "ở dòng Chênh lệch nguồn.",
+            "note": "Σ GMV sản phẩm = GMV shop: dòng đơn hàng nhân với (GMV shop ÷ GMV dòng đơn). "
+            "Sản phẩm đã loại khỏi danh sách vẫn nằm trong GMV shop.",
         },
     }
 

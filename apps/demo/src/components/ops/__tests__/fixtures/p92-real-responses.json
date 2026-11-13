@@ -11,13 +11,34 @@
     "cost": 420000.0,
     "cost_per_order": 15000.0,
     "gmv": 2100000.0,
-    "label": "GMV tối đa ROAS tùy chỉnh",
+    "label": "Sản phẩm · GMV tối đa ROAS tùy chỉnh",
     "orders": 28.0,
     "roas": 5.0
    }
   ],
   "campaigns": [],
   "campaigns_available": false,
+  "campaigns_note": "Theo chiến dịch: chỉ các ngày Connector đọc được; tổng chi cả kỳ nằm ở Theo loại.",
+  "coverage": {
+   "day_sources": {
+    "2026-09-24": "daily_report",
+    "2026-09-25": "daily_report",
+    "2026-09-26": "daily_report",
+    "2026-09-27": "daily_report",
+    "2026-09-28": "daily_report",
+    "2026-09-29": "daily_report",
+    "2026-09-30": "daily_report",
+    "2026-10-01": "daily_report",
+    "2026-10-02": "daily_report",
+    "2026-10-03": "daily_report",
+    "2026-10-04": "daily_report",
+    "2026-10-05": "daily_report",
+    "2026-10-06": "daily_report",
+    "2026-10-07": "daily_report"
+   },
+   "days_with_data": 14,
+   "window_days": 30
+  },
   "daily": [
    {
     "by_type": [
@@ -211,7 +232,7 @@
       "cost": 210000.0,
       "cost_per_order": 15000.0,
       "gmv": 1050000.0,
-      "label": "GMV tối đa ROAS tùy chỉnh",
+      "label": "Sản phẩm · GMV tối đa ROAS tùy chỉnh",
       "orders": 14.0,
       "roas": 5.0
      }
@@ -230,7 +251,7 @@
       "cost": 210000.0,
       "cost_per_order": 15000.0,
       "gmv": 1050000.0,
-      "label": "GMV tối đa ROAS tùy chỉnh",
+      "label": "Sản phẩm · GMV tối đa ROAS tùy chỉnh",
       "orders": 14.0,
       "roas": 5.0
      }
@@ -331,6 +352,75 @@
    }
   ],
   "has_data": true,
+  "metrics": {
+   "ad_spend": 420000,
+   "ads_roas_placed": 5.0,
+   "anchor": null,
+   "aov": 55000,
+   "aov_label": "AOV = GMV shop ÷ đơn shop",
+   "aov_seller_centre": 84105.26,
+   "aov_seller_centre_label": "AOV theo Seller Centre (GMV trừ voucher shop ÷ đơn)",
+   "clicks": 980,
+   "coverage": {
+    "days_with_data": 14,
+    "label": "14/30 ngày có dữ liệu",
+    "window_days": 30
+   },
+   "ctor": 0.071429,
+   "ctor_note": "CTOR = đơn (theo Tổng quan) ÷ lượt nhấp",
+   "ctr": 0.063636,
+   "funnel_basis": "source_funnel",
+   "gmv": 3850000,
+   "gmv_basis": "shop_totals",
+   "gmv_label": "GMV shop (Shopee)",
+   "gmv_scale": 2.401747,
+   "line_gmv": 1603000,
+   "line_orders": 19,
+   "margin_pct": 20.2,
+   "orders": 70,
+   "profit": 310822,
+   "profit_is_partial": true,
+   "read_from": "tables",
+   "shop_profit": {
+    "ads_basis": "daily",
+    "ads_charged": 360000,
+    "bridge": {
+     "ads_charged": 360000,
+     "ads_label": "QC tính trên ngày có đơn có chi phí: 360.000đ / tổng chi QC 420.000đ",
+     "ads_total": 420000,
+     "ads_unattributed": 274286,
+     "other_marketing": 0,
+     "product_profit": 585108,
+     "profit": 310822
+    },
+    "gmv": 1549000,
+    "gmv_share_pct": 40.2,
+    "label": "trên 18 đơn có chi phí, 40,2 % GMV",
+    "margin_pct": 20.2,
+    "net_revenue": 1539000,
+    "orders": 18,
+    "profit": 310822
+   },
+   "sources": {
+    "ads_spend": "daily_report",
+    "clicks": "source_funnel",
+    "gmv": "shop_totals",
+    "orders": "shop_totals",
+    "product_clicks": "file",
+    "product_traffic": "spread_product_period",
+    "profit": "order_lines",
+    "views": "source_funnel"
+   },
+   "split_note": "Sản phẩm: dòng đơn hàng nhân với (GMV shop ÷ GMV dòng đơn) nên cộng lại đúng bằng GMV shop.",
+   "unattributed_gmv": 275000,
+   "units": 53,
+   "views": 15400,
+   "window": {
+    "days": 30,
+    "from": "2026-09-08",
+    "to": "2026-10-07"
+   }
+  },
   "monthly": [
    {
     "month": "2026-09-01",
@@ -813,8 +903,82 @@
   }
  },
  "products": {
+  "excluded": {
+   "count": 0,
+   "gmv": null,
+   "item_ids": []
+  },
   "has_data": true,
   "items_total": 3,
+  "metrics": {
+   "ad_spend": 210000,
+   "ads_roas_placed": 5.0,
+   "anchor": null,
+   "aov": 55000,
+   "aov_label": "AOV = GMV shop ÷ đơn shop",
+   "aov_seller_centre": 88538.46,
+   "aov_seller_centre_label": "AOV theo Seller Centre (GMV trừ voucher shop ÷ đơn)",
+   "clicks": 490,
+   "coverage": {
+    "days_with_data": 7,
+    "label": "7/7 ngày có dữ liệu",
+    "window_days": 7
+   },
+   "ctor": 0.071429,
+   "ctor_note": "CTOR = đơn (theo Tổng quan) ÷ lượt nhấp",
+   "ctr": 0.063636,
+   "funnel_basis": "source_funnel",
+   "gmv": 1925000,
+   "gmv_basis": "shop_totals",
+   "gmv_label": "GMV shop (Shopee)",
+   "gmv_scale": 1.665225,
+   "line_gmv": 1156000,
+   "line_orders": 13,
+   "margin_pct": 28.1,
+   "orders": 35,
+   "profit": 306889,
+   "profit_is_partial": true,
+   "read_from": "tables",
+   "shop_profit": {
+    "ads_basis": "daily",
+    "ads_charged": 180000,
+    "bridge": {
+     "ads_charged": 180000,
+     "ads_label": "QC tính trên ngày có đơn có chi phí: 180.000đ / tổng chi QC 210.000đ",
+     "ads_total": 210000,
+     "ads_unattributed": 94286,
+     "other_marketing": 0,
+     "product_profit": 401175,
+     "profit": 306889
+    },
+    "gmv": 1102000,
+    "gmv_share_pct": 57.2,
+    "label": "trên 12 đơn có chi phí, 57,2 % GMV",
+    "margin_pct": 28.1,
+    "net_revenue": 1092000,
+    "orders": 12,
+    "profit": 306889
+   },
+   "sources": {
+    "ads_spend": "daily_report",
+    "clicks": "source_funnel",
+    "gmv": "shop_totals",
+    "orders": "shop_totals",
+    "product_clicks": "file",
+    "product_traffic": "spread_product_period",
+    "profit": "order_lines",
+    "views": "source_funnel"
+   },
+   "split_note": "Sản phẩm: dòng đơn hàng nhân với (GMV shop ÷ GMV dòng đơn) nên cộng lại đúng bằng GMV shop.",
+   "unattributed_gmv": 0,
+   "units": 28,
+   "views": 7700,
+   "window": {
+    "days": 7,
+    "from": "2026-10-01",
+    "to": "2026-10-07"
+   }
+  },
   "order_type": "confirmed",
   "period": {
    "from": "2026-10-01",

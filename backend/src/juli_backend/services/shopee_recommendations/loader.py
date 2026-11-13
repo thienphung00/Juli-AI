@@ -45,9 +45,22 @@ async def load_campaign_settings(
         shop_id, datasets=[ADS_DAILY], start=window.start, end=window.end, any_item=True
     )
     latest: dict[str, Any] = {}
+    changes: dict[str, int] = {}
+    previous: dict[str, Decimal | None] = {}
+    per_day: dict[str, dict[Any, tuple[Decimal, Decimal | None]]] = {}
+    week_start = window.end - timedelta(days=6)
     for r in sorted(rows, key=lambda r: (r.day, r.captured_at)):
         if r.segment != "all":
             latest[r.segment] = r
+            extra = r.extra or {}
+            per_day.setdefault(r.segment, {})[r.day] = (
+                _d(extra.get("cost")) or Decimal(0),
+                _d(extra.get("daily_budget")),
+            )
+            roas = _d((r.extra or {}).get("roi_two_target"))
+            if r.segment in previous and previous[r.segment] != roas and r.day >= week_start:
+                changes[r.segment] = changes.get(r.segment, 0) + 1
+            previous[r.segment] = roas
     out: dict[str, CampaignSetting] = {}
     for seg, r in latest.items():
         extra = r.extra or {}
@@ -59,6 +72,8 @@ async def load_campaign_settings(
             roas_target=_d(extra.get("roi_two_target")),
             purpose=ctx.purposes.get(seg) or ctx.purposes.get(name),
             campaign_id=None if extra.get("campaign_id") is None else str(extra["campaign_id"]),
+            roas_changes_7d=changes.get(seg, 0),
+            days=tuple(v for _, v in sorted(per_day.get(seg, {}).items())),
         )
         out[seg] = setting
         out[name] = setting
@@ -160,9 +175,11 @@ async def load_env(
         return None
     window = Window(anchor - timedelta(days=config.HISTORY_DAYS - 1), anchor)
     ctx = await loaders.load_context(session, shop_id)
-    view = await service.load_view(session, shop_id, ctx, window)
+    # P98 / ADR-122 d.2: the cards and the builder read the stored funnel, as the screens do
+    view = await service.load_view(session, shop_id, ctx, window, funnel=True)
     env = RecoEnv(ctx=ctx, view=view, as_of=anchor)
     env.campaigns = await load_campaign_settings(session, shop_id, ctx, window)
+    env.cancel_rate = await loaders.load_cancel_rate(session, shop_id, window)
     env.vouchers = await load_voucher_settings(session, shop_id, window)
     env.usage_rate = usage_rate_of(view)
     env.locked = await store.locked_products(session, shop_id, now)

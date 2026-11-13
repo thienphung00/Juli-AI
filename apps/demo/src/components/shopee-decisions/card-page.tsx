@@ -7,7 +7,7 @@ import { DASH, fmt, vnd } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { WITHDRAWABLE, changedInputs, describeInputs, maxInputsFor, rankingLinkOf, stepText } from "../../lib/shopee-decisions/model";
-import type { Breach, Card, CardDetail, CardSummary, CardVersion, ExecutionSheet } from "../../lib/shopee-decisions/types";
+import type { Breach, Card, CardDetail, CardSummary, CardTarget, CardVersion, ExecutionSheet } from "../../lib/shopee-decisions/types";
 import {
   MAX_TITLE_CHARS,
   ackOf,
@@ -19,9 +19,11 @@ import {
   isOpen,
   isRefused,
   isTitleKind,
+  oneLiveValue,
   measuringDaysLeft,
   measuringNote,
   queueLabel,
+  svk,
   titleCount,
   titleOf,
   versionCode,
@@ -186,6 +188,8 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   const [versions, setVersions] = useState<readonly CardVersion[]>(baseVersions);
   const [megaFresh, setMegaFresh] = useState<Card | null>(null);
   const [sel, setSel] = useState(() => (initial && initial >= 1 && initial <= baseVersions.length ? initial - 1 : adjustable ? Math.max(0, baseVersions.findIndex((v) => !isRefused(v))) : chosen));
+  const multi = adjustable && !oneLiveValue(detail.change_kind);
+  const [picked, setPicked] = useState<readonly number[]>(() => [sel]);
   const [patches, setPatches] = useState<Readonly<Record<number, Patch>>>({});
   const [calc, setCalc] = useState<"idle" | "busy" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -240,8 +244,18 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   };
   const pick = (index: number) => {
     setSel(index);
+    setPicked([index]);
     setError(null);
     setCalc("idle");
+  };
+  const toggleGroup = (index: number) => {
+    setPicked((cur) => {
+      if (!cur.includes(index)) return [...cur, index].sort((a, b) => a - b);
+      if (cur.length === 1) return cur;
+      const next = cur.filter((i) => i !== index);
+      if (!next.includes(sel)) setSel(next[0] ?? index);
+      return next;
+    });
   };
   const reset = () => {
     const index = sel;
@@ -315,8 +329,19 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
       ack: acknowledged.length > 0 ? ackText(acknowledged, new Date().toISOString()) : undefined,
     };
   };
+  const chosenVersions = (multi ? picked : [sel]).flatMap((i) => {
+    const version = versions[i]?.version;
+    return typeof version === "number" ? [version] : [];
+  });
   const approve = (acknowledge: boolean, shownBreaches: readonly Breach[]) =>
-    run("approved", approveOutcome(acknowledge ? shownBreaches : []), () => host.reco.approve(detail.id, { inputs: sendInputs, chosenVersion: v.version, acknowledgeBreaches: acknowledge }));
+    run("approved", approveOutcome(acknowledge ? shownBreaches : []), () =>
+      host.reco.approve(detail.id, {
+        inputs: sendInputs,
+        chosenVersion: v.version,
+        ...(chosenVersions.length > 1 ? { chosenVersions } : {}),
+        acknowledgeBreaches: acknowledge,
+      }),
+    );
   const onApprove = () => {
     planning.current = false;
     if (breaches.length > 0) setWarn({ breaches, mode: "approve" });
@@ -385,6 +410,18 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
           {isKol ? <h2 className="sa-h2">{detail.title}</h2> : <h1 className="sa-h1 sa-h1--title">{detail.title}</h1>}
           <StatusChip status={detail.status} />
           {detail.bundle ? <TextChip tone="info">Đo như một gói</TextChip> : null}
+          {detail.legacy ? (
+            <span data-testid="sd-legacy" title={detail.legacy.note}>
+              <TextChip tone="warn">{detail.legacy.label}</TextChip>
+            </span>
+          ) : null}
+          {(detail.groups ?? []).map((g) => (
+            <span className="sd-code" data-testid={`sd-group-${g.letter ?? g.name}`} key={`${g.letter ?? g.name}-${(g.versions ?? []).join("-")}`}>
+              Nhóm {g.letter ?? g.name}
+              {g.code ? ` · ${g.code}` : ""}
+              {g.start && g.end ? ` · ${g.start.slice(8, 10)}/${g.start.slice(5, 7)} – ${g.end.slice(8, 10)}/${g.end.slice(5, 7)}` : ""}
+            </span>
+          ))}
         </div>
         <p className="sa-hint" data-testid="sd-queue-line">
           {detail.product_queue ? <b>{queueLabel(detail.product_queue)}</b> : null}
@@ -401,6 +438,8 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
           Tính trên {fmt(shown.window.days, 0)} ngày đến {shown.window.to.slice(8, 10)}/{shown.window.to.slice(5, 7)} · {shown.order_basis.label} · Kế hoạch đo: {shown.measurement_plan.label}
         </p>
       </header>
+
+      {(detail.targets ?? []).length > 0 ? <TargetsBlock fill={detail.fill ?? null} targets={detail.targets ?? []} /> : null}
 
       {detail.product_id && (next || detail.product_queue) ? (
         <div className="sd-next" data-testid="sd-next">
@@ -449,7 +488,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 
       {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”. Juli sẽ đọc lại trên Seller Centre để xác minh." })} sheet={final.sheet} /> : null}
 
-      {!isMega ? <VersionsTable card={detail.card} locked={!adjustable} noToday={isKol} onPick={pick} rows={isKol ? kolVersionRows(versions, kolInvite) : undefined} sel={sel} subLabel={isKol ? (kolInvite ? "không có chi phí mẫu" : "so với không gửi") : undefined} todayText={todayText(shown)} versions={versions} /> : null}
+      {!isMega ? <VersionsTable card={detail.card} locked={!adjustable} multi={multi} noToday={isKol} onPick={pick} onToggle={multi ? toggleGroup : undefined} picked={picked} rows={isKol ? kolVersionRows(versions, kolInvite) : undefined} sel={sel} subLabel={isKol ? (kolInvite ? "không có chi phí mẫu" : "so với không gửi") : undefined} todayText={todayText(shown)} versions={versions} /> : null}
 
       {refused ? (
         <Notice tone="warn" testId="sd-refused">
@@ -601,6 +640,39 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
 }
 
 /** Juli Ops: send a draft to the shop, or take a card off the list ("Gỡ thẻ", with a reason). */
+/** P97 D85.13: the targets of a card that applies one setting to many products / campaigns. */
+function TargetsBlock({ targets, fill }: { readonly targets: readonly CardTarget[]; readonly fill: { readonly mode: string; readonly targets: number } | null }) {
+  const mon = (n: number | null | undefined): string => (n === null || n === undefined ? "—" : svk(n));
+  return (
+    <section className="sa-card" data-testid="sd-targets">
+      <div className="sa-card__head">
+        <h2 className="sa-h2">Áp dụng cho {fmt(targets.length, 0)} {targets[0]?.kind === "campaign" ? "chiến dịch" : "sản phẩm"}</h2>
+        <span className="sa-hint">{fill ? (fill.mode === "bulk" ? "Khi duyệt: điền một lượt bằng chỉnh sửa hàng loạt của Shopee." : `Khi duyệt: ${fmt(fill.targets, 0)} lượt điền, mỗi đối tượng một lượt.`) : null}</span>
+      </div>
+      <ul className="p2-trows__list">
+        {targets.map((t) => (
+          <li className={`p2-trow ${t.ok && t.floor_ok !== false ? "" : "p2-trow--bad"}`} data-testid={`sd-target-${t.id}`} key={t.id}>
+            <span />
+            <span className="p2-trow__name">
+              <b>{t.name ?? t.id}</b>
+              <span className="sa-hint">{t.id}</span>
+            </span>
+            {t.ok ? (
+              <>
+                <span>{mon(t.dgmv_p50)}</span>
+                <span>{t.dprofit_p50 === null || t.dprofit_p50 === undefined ? "chưa tính" : mon(t.dprofit_p50)}</span>
+                <span>{t.floor_ok === false ? "Chạm giá sàn" : mon(t.cost_month)}</span>
+              </>
+            ) : (
+              <span className="sd-error p2-trow__warn">{t.refusal?.message ?? "Chưa tính được đối tượng này."}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function StaffActions({ detail, onChanged }: { readonly detail: CardDetail; readonly onChanged: (o: Outcome) => void }) {
   const host = useReco();
   const [busy, setBusy] = useState(false);

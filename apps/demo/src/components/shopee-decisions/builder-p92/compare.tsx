@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
-import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
-import type { BuilderApi, BuilderEvaluation, BuilderOutcome, BuilderVersion, ChooseResult } from "../../../lib/shopee-decisions/builder-api";
-import { bandText, baseText, bestBadge, breachesOfOutcome, breakEvenText, marginText, metricValue, refusalText, unitLines, versionFacts, voucherMaxText, voucherUsageText, type Forms, type Kind92, type VersionFact, type VersionNames } from "../../../lib/shopee-decisions/builder-p92";
+import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
+import type { BuilderApi, BuilderEvaluation, BuilderToday, BuilderOutcome, BuilderVersion, ChooseResult, GroupResult } from "../../../lib/shopee-decisions/builder-api";
+import { aggRows } from "../../../lib/shopee-decisions/plan-model";
+import { bandText, baseText, beforeAfterText, bestBadge, breachesOfOutcome, breakEvenText, marginText, metricValue, refusalText, unitLines, versionFacts, voucherMaxText, voucherUsageText, type Forms, type Kind92, type VersionFact, type VersionNames } from "../../../lib/shopee-decisions/builder-p92";
 import type { Breach } from "../../../lib/shopee-decisions/types";
 import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions";
 import { TextChip } from "../../shopee-analytics/ui";
 import { NavLink, errorText } from "../ui";
 import { BreachDialog } from "../versions";
+import { CompareTable, OptionCard } from "../option-card";
 import { BasisChip, chuaTinh, costText } from "./results";
 
 /**
@@ -31,6 +33,9 @@ export interface Entry {
 }
 
 type Load = { readonly key: string; readonly state: { readonly status: "ready"; readonly result: BuilderEvaluation } | { readonly status: "error"; readonly message: string } };
+
+/** P97 D85.14: a group needs at least this many days (P94). */
+const GROUP_MIN_DAYS = 3;
 
 interface Saved {
   readonly index: number;
@@ -92,6 +97,41 @@ function rowsFor(names: VersionNames): RowDef[] {
           <b>{costText(o)}</b>
           {o.cost?.label ? <span>{o.cost.label}</span> : null}
         </>
+      ),
+    },
+    {
+      key: "targets",
+      label: "Đối tượng",
+      sub: "một thẻ, nhiều đối tượng",
+      cell: (o) =>
+        o.targets && o.targets.length > 0 ? (
+          <>
+            <b>{fmt(o.targets.length)} đối tượng</b>
+            <span>
+              {o.targets.filter((t) => t.breach).length > 0 ? `${fmt(o.targets.filter((t) => t.breach).length)} chạm giá sàn` : "Không đối tượng nào chạm giá sàn"}
+              {o.fill?.mode === "bulk" ? " · điền một lượt" : ""}
+            </span>
+          </>
+        ) : (
+          <span className="sd-muted">{DASH}</span>
+        ),
+    },
+    {
+      key: "before-after",
+      label: "Trước → sau",
+      sub: "7 chỉ số, khoảng P10 – P90; “không đổi” kèm lý do",
+      cell: (o) => (
+        <ul className="p2-ba" data-testid="p2-before-after">
+          {(o.before_after?.rows ?? []).map((r) => {
+            const t = beforeAfterText(r);
+            return (
+              <li data-testid={`p2-ba-${r.key}`} key={r.key}>
+                <span>{r.label}</span> <b className={t.unchanged ? "sd-muted" : undefined}>{t.main}</b>
+                {t.range ? <span className="p2-ba__range"> ({t.range})</span> : null}
+              </li>
+            );
+          })}
+        </ul>
       ),
     },
     { key: "dgmv", label: "Δ GMV", sub: "trong số ngày của thay đổi", cell: (o) => money(o, "gmv") },
@@ -211,6 +251,11 @@ export function CompareView({
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState<Saved | null>(null);
   const [primary, setPrimary] = useState(false);
+  const [ticked, setTicked] = useState<readonly number[]>([]);
+  const [daysText, setDaysText] = useState("7");
+  const [startText, setStartText] = useState("");
+  const [together, setTogether] = useState<GroupResult | null>(null);
+  const [togetherWarn, setTogetherWarn] = useState<readonly Breach[] | null>(null);
 
   useEffect(() => {
     if (versions.length === 0) return;
@@ -229,6 +274,8 @@ export function CompareView({
   const outcomes = result?.versions ?? [];
   const names = namesOf(entries, outcomes);
   const rows = rowsFor(names);
+  // P98 d.5: every version that came back with a `result` is drawn from it alone; the old table is the fallback.
+  const withResult = outcomes.length > 0 && outcomes.every((o) => !o.ok || o.result !== undefined) && outcomes.some((o) => o.ok && o.result !== undefined);
   const facts = entries.map((e) => versionFacts(e.version, names));
   const factsCell = (i: number) => (
     <ul className="p2-units">
@@ -262,12 +309,34 @@ export function CompareView({
     else void choose(index, false, []);
   };
 
+  const tickedNow = ticked.filter((i) => i < entries.length && outcomes[i]?.ok);
+  const toggleTick = (i: number) => setTicked((t) => (t.includes(i) ? t.filter((x) => x !== i) : [...t, i].sort((a, b) => a - b)));
+  const daysNum = Number(daysText);
+  const daysProblem = !Number.isInteger(daysNum) || daysNum < GROUP_MIN_DAYS ? `Nhóm chạy ít nhất ${GROUP_MIN_DAYS} ngày.` : daysNum > 90 ? "Nhóm chạy tối đa 90 ngày." : null;
+  const runTogether = async (ack: boolean) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const out = await api.group({ versions, members: tickedNow, days: daysNum, start: startText || null, acknowledgeBreaches: ack });
+      setTogetherWarn(null);
+      setTogether(out);
+    } catch (e) {
+      if (e instanceof ShopeeApiError && e.code === "reco_breach_not_acknowledged" && Array.isArray(e.detail?.["breaches"])) setTogetherWarn(e.detail["breaches"] as Breach[]);
+      else setErr(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const today = result?.today;
   const best = result?.best_profit_p50 ?? null;
   const style = { ["--p2-cols" as string]: entries.length } as React.CSSProperties;
   const head = (e: Entry, i: number) => (
     <div className="p2-cmp__head" data-testid={`p2-head-${i + 1}`} key={e.id}>
       <b>P{i + 1}</b>
+      <label className="p2-together__tick">
+        <input aria-label={`Chạy cùng nhau P${i + 1}`} checked={ticked.includes(i)} disabled={!outcomes[i]?.ok || together !== null} onChange={() => toggleTick(i)} type="checkbox" /> Chạy cùng nhau
+      </label>
       <TextChip tone="pink">{facts[i]?.type ?? String(e.version.kind)}</TextChip>
       <span>{String(e.version.label ?? "")}</span>
       {best === i && outcomes[i] ? <TextChip tone="up">{bestBadge(outcomes[i]!)}</TextChip> : null}
@@ -294,11 +363,7 @@ export function CompareView({
         <h2 className="sa-h2">So sánh tối đa 4 phương án, loại nào cũng được</h2>
         <span className="sa-hint">{narrow ? "Vuốt ngang để xem từng phương án." : "30 ngày, dự kiến. Cùng bốn con số cho mọi phương án, rồi chỉ số chính của từng loại. Mỗi ô có khoảng thấp – cao. Hoà vốn luôn hiện."}</span>
       </div>
-      {today ? (
-        <p className="sa-hint" data-testid="p2-today">
-          Hôm nay: {fmt(today.orders_30d)} đơn · GMV {vnd(today.gmv_30d)} · biên {pp(today.margin_pct, 1)} · AOV {vnd(today.aov)}
-        </p>
-      ) : null}
+      {today ? <TodayLine today={today} /> : null}
       {current === null ? (
         <p className="sa-hint" role="status">
           Đang tính…
@@ -309,7 +374,24 @@ export function CompareView({
           {current.message}
         </p>
       ) : null}
-      {result && !narrow ? (
+      {result && withResult ? (
+        <div data-testid="oc-compare-block">
+          <CompareTable rows={serverOrder(result?.compare, outcomes.flatMap((o, i) => (o.ok && o.result ? [{ id: i + 1, index: o.index, name: `P${i + 1} · ${String(entries[i]?.version.label ?? o.result.label)}`, result: o.result, dates: o.dates }] : [])))} sortBasis={result?.sort_basis?.label} />
+          <div className="oc-cards">
+            {entries.map((e, i) => (
+              <div className="oc-cards__col" key={e.id}>
+                {head(e, i)}
+                {today?.mixed_scopes && outcomes[i]?.today ? <TodayLine today={outcomes[i]!.today!} testId={`p2-today-${i + 1}`} /> : null}
+                {outcomes[i]?.ok && outcomes[i]?.result ? <OptionCard dates={outcomes[i]!.dates} result={outcomes[i]!.result!} testId={`oc-card-${i + 1}`} /> : <span className="sd-error">{outcomes[i] ? refusalText(outcomes[i]!) : DASH}</span>}
+                <button className="sa-btn sa-btn--primary" data-testid={`p2-choose-${i + 1}`} disabled={readOnly || busy || !outcomes[i]?.ok || saved !== null} onClick={() => onChoose(i)} type="button">
+                  Chọn P{i + 1}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {result && !withResult && !narrow ? (
         <div className="p2-cmp" data-testid="p2-cmp-table" style={style}>
           <div className="p2-cmp__corner" />
           {entries.map(head)}
@@ -349,7 +431,7 @@ export function CompareView({
           </div>
         </div>
       ) : null}
-      {result && narrow ? (
+      {result && !withResult && narrow ? (
         <div className="sb-swipe" data-testid="p2-swipe">
           {entries.map((e, i) => (
             <div className="sb-swipe__card" key={e.id}>
@@ -375,6 +457,32 @@ export function CompareView({
         <p className="sa-hint">
           Có sản phẩm chưa có giá vốn: lợi nhuận và biên “chưa tính”. <Link href={costLink}>Nhập giá vốn ở Cài đặt › Thông số shop ›</Link>
         </p>
+      ) : null}
+      {result ? (
+        <div className="p2-together" data-testid="p2-together">
+          <h3 className="sa-h2">Chạy cùng nhau</h3>
+          <p className="sa-hint">
+            Tick từ 2 phương án trở lên (loại nào cũng được) để chạy cùng một kỳ. Juli tính chung trên cùng các đơn: khách nhận ưu đãi tốt nhất mà giỏ hàng đủ điều kiện, không cộng hai lần. Hai phương án cùng đổi một thứ của cùng đối tượng (giá bán, tên, ngân sách…) không chạy chung được: phương án sau chuyển sang nhóm kế tiếp.
+          </p>
+          <div className="p2-grid">
+            <label className="p2-field">
+              <span className="sd-field__label">Số ngày chạy (ít nhất {GROUP_MIN_DAYS})</span>
+              <input aria-label="Số ngày của nhóm" className="p2-text" inputMode="numeric" onChange={(e) => setDaysText(e.target.value)} type="text" value={daysText} />
+              {daysProblem ? <span className="sd-error">{daysProblem}</span> : null}
+            </label>
+            <label className="p2-field">
+              <span className="sd-field__label">Bắt đầu (để trống = ngày xác nhận kế hoạch)</span>
+              <input aria-label="Ngày bắt đầu của nhóm" className="p2-text" onChange={(e) => setStartText(e.target.value)} type="date" value={startText} />
+            </label>
+          </div>
+          <div className="sd-actions">
+            <button className="sa-btn sa-btn--primary" data-testid="p2-together-go" disabled={readOnly || busy || tickedNow.length < 1 || daysProblem !== null || together !== null} onClick={() => void runTogether(false)} type="button">
+              Chạy cùng nhau ({tickedNow.length} phương án)
+            </button>
+            <span className="sa-hint">Thêm vào Kế hoạch ở dạng một nhóm; chưa làm gì cho đến khi bạn xác nhận kế hoạch.</span>
+          </div>
+          {together ? <TogetherResult planHref={planHref} result={together} /> : null}
+        </div>
       ) : null}
       <label className="sb-check">
         <input checked={primary} onChange={() => setPrimary((p) => !p)} type="checkbox" /> Đưa lên Quyết định ngay (đặt làm thẻ số 1 của sản phẩm)
@@ -414,6 +522,16 @@ export function CompareView({
       <p className="sa-hint">“Chọn” tạo thẻ thủ công trong Quyết định (mã JC, cửa sổ đo, kế hoạch). Juli không ghi gì lên Seller Centre: bạn tự lưu ở đó.</p>
       <BreachDialog
         busy={busy}
+        closing="Bạn vẫn có thể chạy cùng nhau. Juli ghi lại rằng bạn đã xác nhận, kèm giờ."
+        lines={togetherWarn ? breachWarnLines(togetherWarn as Breach[]) : []}
+        onBack={() => setTogetherWarn(null)}
+        onGo={() => void runTogether(true)}
+        open={togetherWarn !== null}
+        sheet={narrow}
+        title="Chạy cùng nhau dù chạm giá sàn?"
+      />
+      <BreachDialog
+        busy={busy}
         closing="Bạn vẫn có thể chọn. Juli ghi lại rằng bạn đã xác nhận, kèm giờ, trên thẻ."
         lines={warn ? breachWarnLines(warn.breaches) : []}
         onBack={() => setWarn(null)}
@@ -424,4 +542,76 @@ export function CompareView({
       />
     </section>
   );
+}
+
+
+/** P99: "Hôm nay" on the scope the versions stand on; a mix of scopes shows the shop's figures with a note. */
+export function TodayLine({ today, testId = "p2-today" }: { readonly today: BuilderToday; readonly testId?: string }) {
+  const product = today.scope === "product" && !today.mixed_scopes;
+  const days = today.window?.days;
+  return (
+    <p className="sa-hint" data-testid={testId}>
+      Hôm nay ({product ? `sản phẩm${today.items && today.items.length > 1 ? ` · ${today.items.length} sản phẩm` : ""}` : "cả shop"}
+      {days ? `, ${days} ngày` : ""}): {vnCount(today.orders_30d)} đơn · GMV {vnd(today.gmv_30d)} · biên {pp(today.margin_pct, 1)} · AOV {vnd(today.aov)}
+      {today.mixed_scopes ? (
+        <span data-testid="p2-today-mixed"> · Các phương án khác phạm vi (shop và sản phẩm): đây là số cả shop, số hôm nay riêng của từng phương án nằm ở thẻ của nó.</span>
+      ) : null}
+    </p>
+  );
+}
+
+function TogetherResult({ result, planHref }: { readonly result: GroupResult; readonly planHref: string | null }) {
+  return (
+    <div className="sa-notice sa-notice--info p2-together__result" data-testid="p2-together-result" role="status">
+      <b>
+        Đã thêm {result.groups?.length ?? 0} nhóm vào Kế hoạch từ {result.saved.length} thẻ thủ công ({result.saved.map((c) => c.code ?? c.id).join(", ")}).
+      </b>
+      {result.notice ? (
+        <p className="sd-check sd-check--warn" data-testid="p2-together-notice">
+          {result.notice.message}
+        </p>
+      ) : null}
+      {(result.groups ?? []).map((g) => {
+        const rows = aggRows({ ...result, aggregate: g.aggregate });
+        return (
+          <div className="p2-together__group" data-testid={`p2-together-${g.letter}`} key={g.id}>
+            <b>
+              {g.name} · {g.code ?? "mã cấp khi xác nhận"} · {g.start.slice(8, 10)}/{g.start.slice(5, 7)} – {g.end.slice(8, 10)}/{g.end.slice(5, 7)} ({g.days} ngày)
+            </b>
+            <ul>
+              {g.members.map((m) => (
+                <li key={m.entry_id}>
+                  <span className="sd-code">{m.version_code ?? `${m.code}-V${m.version}`}</span> {m.version_label ?? m.title}
+                </li>
+              ))}
+            </ul>
+            {rows.length > 0 ? (
+              <ul className="p2-ba" data-testid={`p2-together-ba-${g.letter}`}>
+                {rows.map((r) => (
+                  <li key={r.key}>
+                    <span>{r.label}</span> {r.today} → <b>{r.after}</b>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        );
+      })}
+      {planHref ? (
+        <NavLink className="sa-link" href={planHref}>
+          Mở Kế hoạch để sửa nhóm hoặc xác nhận ›
+        </NavLink>
+      ) : null}
+    </div>
+  );
+}
+
+/** Rows in the server's comparison order (`compare` = version indexes); without it, the order given. Never re-sorted here. */
+export function serverOrder<T extends { readonly index: number }>(order: readonly number[] | undefined, rows: readonly T[]): T[] {
+  if (!order || order.length === 0) return [...rows];
+  const pos = (r: T) => {
+    const p = order.indexOf(r.index);
+    return p < 0 ? order.length : p;
+  };
+  return rows.map((r, i) => ({ r, i })).sort((a, b) => pos(a.r) - pos(b.r) || a.i - b.i).map((x) => x.r);
 }

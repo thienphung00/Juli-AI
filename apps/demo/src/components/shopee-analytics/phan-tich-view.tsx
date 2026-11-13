@@ -33,7 +33,7 @@ const FILTERS: readonly (readonly [string, string])[] = [
   ["ctor", "CTR và CTOR"],
   ["aov", "AOV"],
   ["bien", "Biên và giá sàn"],
-  ["ads", "Quảng cáo"],
+  ["ads", "Dịch vụ hiển thị"],
 ];
 
 function filterOf(item: CriticalItem): string {
@@ -70,7 +70,7 @@ function kpiLabel(item: CriticalItem): string {
 
 function sourceLabel(item: CriticalItem): string {
   if (item.flow_label) return item.flow_label;
-  if (item.reference.type === "break_even") return "Quảng cáo (đơn đã đặt)";
+  if (item.reference.type === "break_even") return "Dịch vụ hiển thị (đơn đã đặt)";
   if (item.reference.type === "floor") return `SKU ${item.reference.sku ?? ""}`.trim();
   return item.level === "shop" ? "Cả shop" : "Tất cả";
 }
@@ -182,7 +182,8 @@ function Loaded({ critical: c, params, state }: { readonly critical: Critical; r
   const shown = c.items.filter((it) => filter === "all" || filterOf(it) === filter);
   // The "trong dải bình thường" list follows the same filter as the items that need attention.
   const inBand = c.in_band.filter((it) => filter === "all" || filterOf(it) === filter);
-  const sumDay = shown.reduce((t, it) => t + (it.at_stake_per_day ?? 0), 0);
+  // A missing amount is "chưa có số", never 0: one unknown item makes the sum unknown.
+  const sumDay: number | null = shown.some((it) => it.at_stake_per_day == null) ? null : shown.reduce((t, it) => t + (it.at_stake_per_day as number), 0);
   const withCard = shown.filter((it) => it.card);
   const firstCard = withCard[0]?.card;
   const href = (next: WindowState) => links.screen("phan-tich", periodQuery(params, next));
@@ -214,7 +215,7 @@ function Loaded({ critical: c, params, state }: { readonly critical: Critical; r
         <div className="sa-juli" data-testid="sa-at-stake">
           <span>
             <b className="sa-tone--pink">✦ Juli gợi ý</b> · Tổng ₫ có nguy cơ:{" "}
-            <b className="sa-tone--down">{sv(-sumDay)}/ngày</b> ({sv(-sumDay * 30)}/tháng)
+            <b className="sa-tone--down">{sumDay === null ? DASH : `${sv(-sumDay)}/ngày`}</b> ({sumDay === null ? DASH : `${sv(-sumDay * 30)}/tháng`})
           </span>
           {firstCard ? (
             <Link className="sa-btn sa-btn--primary" href={links.card(firstCard.id, "phan-tich")}>
@@ -292,8 +293,8 @@ function Loaded({ critical: c, params, state }: { readonly critical: Critical; r
                 <span className="sa-hint2">{it.cause.text}</span>
               </div>
               <div className="sa-crow__stake">
-                <b className="sa-tone--down">{sv(-(it.at_stake_per_day ?? 0))}/ngày</b>
-                <span className="sa-hint">{sv(-(it.at_stake_per_month ?? 0))}/tháng</span>
+                <b className="sa-tone--down">{it.at_stake_per_day == null ? DASH : `${sv(-it.at_stake_per_day)}/ngày`}</b>
+                <span className="sa-hint">{it.at_stake_per_month == null ? DASH : `${sv(-it.at_stake_per_month)}/tháng`}</span>
                 {it.card ? (
                   <Link className="sa-rec sa-rec--s" href={links.card(it.card.id, "phan-tich", it.id)}>
                     Xem đề xuất ›

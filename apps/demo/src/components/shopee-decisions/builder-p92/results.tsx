@@ -6,6 +6,8 @@ import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
 import { bandText, breakEvenText, floorWarningText, marginText, metricValue, refusalText, unitLines, voucherMaxText, voucherUsageText } from "../../../lib/shopee-decisions/builder-p92";
 import { TextChip } from "../../shopee-analytics/ui";
+import { OptionCard } from "../option-card";
+import { TargetRows } from "./targets";
 
 /**
  * The result block of a version (artboard `TuTaoPhuongAnKinds`): Δ GMV, Δ đơn, Δ lợi nhuận with the low-high
@@ -30,8 +32,10 @@ export function BasisChip({ outcome }: { readonly outcome: BuilderOutcome }) {
 
 export function costText(o: BuilderOutcome): string {
   const c = o.cost;
+  // P99c: a null figure says why (reason_text) — never 0đ and never a 30-day number.
+  if (c && c.amount === null && c.reason_text) return c.reason_text;
   if (!c || c.amount === null) return o.kind === "variation_set" || o.cost_known === false ? DASH : "0đ";
-  const per = c.per_unit && c.expected_units ? ` (${c.expected_units} × ${vnd(c.per_unit)})` : "";
+  const per = c.source !== "result" && c.per_unit && c.expected_units ? ` (${c.expected_units} × ${vnd(c.per_unit)})` : "";
   return `${vnd(c.amount)}${per}`;
 }
 
@@ -39,7 +43,7 @@ export function chuaTinh(o: BuilderOutcome): boolean {
   return o.profit_status === "chua_tinh" || o.cost_known === false;
 }
 
-export function ResultBlock({ index, title, state, costLink }: { readonly index: number; readonly title: string; readonly state: ResultState; readonly costLink: string }) {
+export function ResultBlock({ index, title, state, costLink, onUntick }: { readonly index: number; readonly title: string; readonly state: ResultState; readonly costLink: string; readonly onUntick?: (id: string) => void }) {
   return (
     <section className="sa-card p2-result" data-testid="p2-result">
       <div className="sa-card__head">
@@ -59,17 +63,25 @@ export function ResultBlock({ index, title, state, costLink }: { readonly index:
           {state.message}
         </p>
       ) : null}
-      {state.status === "ready" ? <OutcomeBody costLink={costLink} outcome={state.outcome} /> : null}
+      {state.status === "ready" ? <OutcomeBody costLink={costLink} onUntick={onUntick} outcome={state.outcome} /> : null}
     </section>
   );
 }
 
-export function OutcomeBody({ outcome: o, costLink }: { readonly outcome: BuilderOutcome; readonly costLink: string }) {
+export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outcome: BuilderOutcome; readonly costLink: string; readonly onUntick?: (id: string) => void }) {
   if (!o.ok) {
     return (
       <p className="sd-error" role="alert">
         {refusalText(o)}
       </p>
+    );
+  }
+  if (o.result) {
+    return (
+      <div className="p2-result__body">
+        <OptionCard dates={o.dates} result={o.result} />
+        <WarningLines outcome={o} />
+      </div>
     );
   }
   const insufficient = o.basis?.key === "insufficient";
@@ -142,6 +154,7 @@ export function OutcomeBody({ outcome: o, costLink }: { readonly outcome: Builde
           </dd>
         </div>
       </dl>
+      <TargetRows onUntick={onUntick} outcome={o} />
       {unitLines(o).length > 0 ? (
         <ul className="p2-units" data-testid="p2-units">
           {unitLines(o).map((l) => (
@@ -173,6 +186,14 @@ export function OutcomeBody({ outcome: o, costLink }: { readonly outcome: Builde
       <p className="p2-be" data-testid="p2-breakeven">
         <b>Hoà vốn:</b> {breakEvenText(o)}
       </p>
+      <WarningLines outcome={o} />
+    </div>
+  );
+}
+
+function WarningLines({ outcome: o }: { readonly outcome: BuilderOutcome }) {
+  return (
+    <>
       {(o.warnings ?? []).map((w, i) => (
         <div className={`sd-check ${w.type === "floor" || w.type === "spend_cap" ? "sd-check--bad" : ""}`} key={i} role="alert">
           <span>
@@ -180,6 +201,6 @@ export function OutcomeBody({ outcome: o, costLink }: { readonly outcome: Builde
           </span>
         </div>
       ))}
-    </div>
+    </>
   );
 }

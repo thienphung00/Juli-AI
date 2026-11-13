@@ -11,6 +11,7 @@ from datetime import datetime
 import pytest
 from pydantic import TypeAdapter
 
+from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_builder import service as builder
 from juli_backend.services.shopee_builder import specs as sp
 from tests.support.shopee_reco import AS_OF, seed_reco_shop
@@ -27,6 +28,7 @@ async def shop(session):
 
 
 async def compare(session, shop, *versions):
+    await materialize.backfill_shop(session, shop.shop_id)  # P98: the stored funnel
     out = await builder.evaluate_versions(
         session, shop.shop_id, [SPEC.validate_python(v) for v in versions], as_of=AS_OF, now=NOW
     )
@@ -50,7 +52,10 @@ def driver_after(outcome, key="aov"):
 async def test_each_versions_driver_follows_its_own_size(session, shop):
     small, big = await compare(session, shop, voucher(5000, 100_000), voucher(10_000, 100_000))
     before = next(m for m in small["driver"]["metrics"] if m["key"] == "aov")["before"]
-    assert driver_after(big) > driver_after(small) > before  # was the same AOV after for both
+    # P98 / ADR-122 d.6, E2: the AOV driver is the reach to the minimum (the same minimum here),
+    # the voucher's size is its cost -- each version carries its own
+    assert driver_after(big) >= before and driver_after(small) >= before
+    assert big["result"]["cost"]["total"] > small["result"]["cost"]["total"] > 0
 
 
 async def test_each_version_states_its_base_and_same_base_same_today(session, shop):

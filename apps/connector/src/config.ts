@@ -49,9 +49,16 @@ export type ReaderDataset =
   | "item_snapshot"
   | "item_traffic_sources"
   | "ads_campaign_daily"
+  | "ads_campaign_settings"
+  | "ads_campaign_detail"
   | "voucher_settings"
   | "shop_health_daily"
   | "market_search"
+  | "shop_overview"
+  | "product_period"
+  | "ads_campaign_period"
+  | "order_lines"
+  | "order_income"
   | "affiliate_order_lines"
   | "affiliate_partner_period"
   | "affiliate_shop_period"
@@ -72,10 +79,16 @@ export type ReaderId =
   | "products"
   | "item_traffic"
   | "ads"
+  | "ads_detail"
   | "vouchers"
   | "health"
+  | "shop_totals"
+  | "product_period"
+  | "ads_products"
+  | "orders"
+  | "order_income"
   | AffiliateReaderId;
-/** The affiliate ("Tăng Đơn Cùng KOL") pages, one reader per page (Connector 0.3.6). */
+/** The affiliate ("Tăng Đơn Cùng KOL") pages, one reader per page (Connector 0.3.6, every paired shop in 0.3.7). */
 export type AffiliateReaderId =
   | "affiliate"
   | "affiliate_kols"
@@ -100,7 +113,18 @@ export const READER_IDS: readonly ReaderId[] = [
   "products",
   "vouchers",
   "ads",
+  // Connector 0.3.7: right after the list, on the ongoing campaigns the list just named.
+  "ads_detail",
+  // Connector 0.3.12 (P97 T3): per-product ads of the group campaigns, right after their edit pages.
+  "ads_products",
   "health",
+  // Connector 0.3.11 (P97 T1): shop totals, order lines, per-order income. One page at a time like
+  // every reader; the shared request budget below caps all of them together.
+  "shop_totals",
+  // Connector 0.3.12 (P97 T3, recorded 2026-11-09): the 30-day product table, once a day.
+  "product_period",
+  "orders",
+  "order_income",
   ...AFFILIATE_READER_IDS,
   "item_traffic",
 ];
@@ -110,8 +134,14 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
   products: true,
   item_traffic: true,
   ads: true,
+  ads_detail: true,
   vouchers: true,
   health: true,
+  shop_totals: true,
+  product_period: true,
+  ads_products: true,
+  orders: true,
+  order_income: true,
   affiliate: true,
   affiliate_kols: true,
   affiliate_dashboard: true,
@@ -126,14 +156,14 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
 export const SCHEDULER_ACTIVE = true;
 
 /**
- * Juli shop ids the readers and the scheduler run for. "*" = every paired shop: this build is
- * the Unlisted pilot build (STORE_LISTING.md), so every shop that can pair is a pilot shop.
- * Replace "*" with explicit ids before the extension is listed publicly; an empty list turns
+ * Juli shop ids the readers and the scheduler run for. "*" = every paired shop.
+ * Connector 0.3.7: the report readers, including the eight Tăng Đơn Cùng KOL pages,
+ * run for every shop that has paired. Listing fill-in and market search stay on the
+ * explicit id only (`fillActive` / `marketActive` ignore "*"). An empty list turns
  * every reader off.
  */
-// Owner 2026-11-04: ORY only (Juli Ops shop "ORY") until its first live run is confirmed
-// (request bodies, money units). Widen to "*" (every paired shop) only after that.
-export const PILOT_SHOP_IDS: readonly string[] = ["d73a240b-a00a-4306-9b3e-9fdf75d72aaf"];
+export const ORY_SHOP_ID = "d73a240b-a00a-4306-9b3e-9fdf75d72aaf";
+export const PILOT_SHOP_IDS: readonly string[] = [ORY_SHOP_ID, "*"];
 
 export function readerActive(id: ReaderId, shopId: string | undefined): boolean {
   if (!READERS_ACTIVE[id] || !shopId) return false;
@@ -149,8 +179,14 @@ export const READER_DATASETS: Record<ReaderId, readonly ReaderDataset[]> = {
   products: ["item_catalog", "item_snapshot"],
   item_traffic: ["item_traffic_sources"],
   vouchers: ["voucher_settings"],
-  ads: ["ads_campaign_daily"],
+  ads: ["ads_campaign_daily", "ads_campaign_settings"],
+  ads_detail: ["ads_campaign_detail"],
   health: ["shop_health_daily"],
+  shop_totals: ["shop_overview"],
+  product_period: ["product_period"],
+  ads_products: ["ads_campaign_period"],
+  orders: ["order_lines"],
+  order_income: ["order_income"],
   affiliate: ["affiliate_order_lines"],
   affiliate_kols: ["affiliate_partner_period"],
   affiliate_dashboard: ["affiliate_shop_period"],
@@ -185,10 +221,58 @@ export const READER_POLL_MS = 500;
 /** Cool-downs after a stop: a CAPTCHA is left alone for days; a login wall is retried sooner. */
 export const READER_BLOCK_CAPTCHA_MS = 72 * 3_600_000;
 export const READER_BLOCK_LOGIN_MS = 6 * 3_600_000;
+
+// -- request budget and rate-limit stop (P97 T1, owner concern: no bot detection on the sub-account) --
+/**
+ * ONE budget for every request the Connector sends to Seller Centre in a GMT+7 day: the readers,
+ * the daily mydata sync and the backfill all count. Checked before every replay; when it is spent
+ * the remaining jobs wait for the next day. Tunable.
+ */
+export const DAILY_REQUEST_BUDGET = 400;
+/**
+ * The budget is split (0.3.15): today's readers (orders, traffic, ads, affiliate, daily sync) keep
+ * TODAY_REQUEST_RESERVE requests that the 30-day backfill can never touch, and while a backfill is
+ * running it keeps BACKFILL_REQUEST_SHARE that the readers leave alone, so neither starves the other.
+ */
+export const TODAY_REQUEST_RESERVE = 150;
+export const BACKFILL_REQUEST_SHARE = 100;
+/** A report page makes a handful of calls of its own when it loads: each opened tab is counted as this many. */
+export const READER_PAGE_LOAD_COST = 10;
+/** Order list: at most this many list pages (each = an index call + a card call) per run. */
+export const ORDER_LIST_MAX_PAGES_PER_RUN = 5;
+/** Extra wait before an order-list page after the first (ms, plus jitter): 20-45 s like page gaps. */
+export const ORDER_LIST_PAGE_GAP_MS = 20_000;
+export const ORDER_LIST_PAGE_GAP_JITTER_MS = 25_000;
+/** Per-order income: only orders completed since the last run, oldest first, at most this many a day. */
+export const ORDER_INCOME_MAX_PER_DAY = 100;
+/** On the first run only orders completed in the last this-many days are queued (never a sweep). */
+export const ORDER_INCOME_FIRST_RUN_DAYS = 3;
+/** Completed orders waiting for their income read are kept at most this long / this many. */
+export const ORDER_INCOME_QUEUE_MAX = 300;
+export const ORDER_INCOME_QUEUE_DAYS = 14;
+/** Shop totals: the 30 days after pairing, then the last 7 each day (placed / paid settle late). */
+export const SHOP_TOTALS_BACKFILL_DAYS = 30;
+export const SHOP_TOTALS_REFRESH_DAYS = 7;
+/** Rate limit / 403 / CAPTCHA stops ALL readers for the shop for this long (the CAPTCHA cool-down). */
+export const READER_BLOCK_RATE_MS = READER_BLOCK_CAPTCHA_MS;
+
+/**
+ * Product table (Hiệu quả của sản phẩm, recorded 2026-11-09): the last 30 finished days, ordered by
+ * confirmed sales, 10 a page, at most this many pages a run. One answer holds placed, paid and
+ * confirmed values per item, so one read posts both order types Tổng quan and Quảng cáo need.
+ */
+export const PRODUCT_PERIOD_DAYS = 30;
+export const PRODUCT_PERIOD_PAGE_SIZE = 10;
+export const PRODUCT_PERIOD_MAX_PAGES = 5;
+/** Group-campaign pages whose per-product table is read (the page opened + the others replayed). */
+export const ADS_PRODUCTS_MAX_CAMPAIGNS = 10;
+
 /** Ads: yesterday plus up to this many earlier finished days not read yet (one day per call). */
 export const ADS_CATCHUP_DAYS = 3;
 export const ADS_MAX_ROWS_PER_DAY = 300;
 export const ADS_PAGE_LIMIT_DEFAULT = 20;
+/** Ads edit pages (Connector 0.3.7): at most this many ongoing / scheduled campaigns a day. */
+export const ADS_DETAIL_MAX_CAMPAIGNS = 20;
 /**
  * Per-product traffic sources (/datacenter/product/traffic): yesterday plus up to this many
  * earlier finished days not read yet; one request per item per day, so a job is capped.
@@ -209,6 +293,10 @@ export const VOUCHER_PAGE_LIMIT_DEFAULT = 20;
  * period may not exceed the gateway's 31 days.
  */
 export const AFFILIATE_WINDOW_DAYS = 30;
+/** Connector 0.3.17: once per shop, the conversion report is also read for the ~6 months before
+ *  that window, in 30-day windows (Juli takes ≤ 31 days per post), so affiliate cost and
+ *  performance can be compared over time. Seller Centre kept ≥ 6 months on 2026-11-13. */
+export const AFFILIATE_HISTORY_WINDOWS = 6;
 export const AFFILIATE_MAX_ROWS = 2_000;
 export const AFFILIATE_PAGE_SIZE_DEFAULT = 20;
 /**
@@ -274,6 +362,34 @@ export const FILL_LABELS = {
 
 export function fillActive(shopId: string | undefined): boolean {
   return FILL_LISTING_ACTIVE && !!shopId && PILOT_SHOP_IDS.includes(shopId);
+}
+
+// -- fill jobs (P97 D85.6): approved cards queued by Juli, opened and filled page by page -------
+//
+// The allowlist is "this token's shop" (a paired Connector), NOT PILOT_SHOP_IDS: Juli serves jobs
+// only for the token's own shop and only while its server flag CONNECTOR_FILL_LISTING is on (the
+// kill switch). Same rules as the listing fill: the Connector types and highlights, the person
+// presses Shopee's own Lưu / Xác nhận / Gửi. A job page open costs READER_PAGE_LOAD_COST against
+// the shared daily request budget; a CAPTCHA / login wall / password prompt stops it.
+
+export const FILL_JOBS_ACTIVE = true;
+export const FILL_JOBS_ALARM = "juli-fill-jobs";
+export const FILL_JOBS_POLL_MINUTES = 3;
+/** Jobs with no progress after this long are given up (the tab may have been closed). */
+export const FILL_JOB_STALE_MS = 6 * 3_600_000;
+/** `#juli-fill=<job id>` -- the job's UUID. */
+export const FILL_JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** The only Seller Centre pages a job may open (path only; a query string is allowed on vouchers). */
+export const FILL_JOB_PAGES = {
+  product_edit: /^\/portal\/product\/(\d{1,20})$/,
+  voucher_new: /^\/portal\/marketing\/vouchers\/new$/,
+  ads_edit: /^\/portal\/marketing\/pas\/product\/(manual|manual-mpd)\/(\d{1,20})$/,
+  affiliate_open: /^\/portal\/web-seller-affiliate\/open_campaign$/,
+  bundle_new: /^\/portal\/marketing\/bundle\/new$/,
+} as const;
+/** Fill jobs run for the paired token's shop; the server decides whether anything is served. */
+export function fillJobsActive(shopId: string | undefined): boolean {
+  return FILL_JOBS_ACTIVE && !!shopId;
 }
 
 // -- market search reader (P92 B-10, Connector 0.3.5) -----------------------------------------

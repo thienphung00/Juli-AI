@@ -29,13 +29,13 @@ describe("Phân tích › KOL (PhanTichKOL.dc.html)", () => {
     expect(await screen.findByText("Ai bán gì, lãi bao nhiêu, và nên gửi mẫu cho ai")).toBeInTheDocument();
     expect(screen.getByText("PHÂN TÍCH · KOL")).toBeInTheDocument();
     expect(screen.getByTestId("kol-chip")).toHaveTextContent("Shopee · Shop gia dụng · 30 ngày");
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["KOL · kênh", "Sản phẩm", "Đơn", "SL", "GMV", "Lượt nhấp của KOL", "Chuyển đổi của KOL", "Hoa hồng", "Lợi nhuận ròng", "Chi phí mẫu", "Lợi nhuận sau mẫu", "ROI gồm mẫu", "ROI Shopee (chỉ hoa hồng)", "Hoàn vốn mẫu", "Thẻ"]);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["KOL · kênh", "Sản phẩm", "Đơn", "SL", "GMV", "Lượt nhấp của KOL", "Chuyển đổi của KOL", "Người mua của KOL", "Hoa hồng", "Lợi nhuận ròng", "Chi phí mẫu", "Lợi nhuận sau mẫu", "ROI gồm mẫu", "ROI Shopee (chỉ hoa hồng)", "Hoàn vốn mẫu", "Thẻ"]);
     const a = screen.getByTestId("kol-row-k1-GT-A");
     const cells = within(a).getAllByRole("cell").map((c) => c.textContent);
     expect(cells[0]).toContain("KOL mẫu A");
     expect(cells[0]).toContain("Shopee Video");
     expect(cells[0]).toContain("Ít dữ liệu");
-    expect(cells.slice(2, 14)).toEqual(["9", "14", "1.246.000đ", "310", "2,9%", "100.000đ", "285.000đ", "172.000đ", "113.000đ", "42%", "9,8", "≥ 6 đơn"]);
+    expect(cells.slice(2, 15)).toEqual(["9", "14", "1.246.000đ", "310", "2,9%", "—", "100.000đ", "285.000đ", "172.000đ", "113.000đ", "42%", "9,8", "≥ 6 đơn"]);
     expect(within(a).getByRole("link", { name: "Gửi mẫu ›" })).toHaveAttribute("href", "/decisions?the=card-kol-1&from=kol");
     expect(within(screen.getByTestId("kol-row-k2-TR-B")).queryByText("Ít dữ liệu")).toBeNull();
     expect(within(screen.getByTestId("kol-row-k2-TR-B")).getByText("Chưa có thẻ")).toBeInTheDocument();

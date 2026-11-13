@@ -8,9 +8,11 @@ basis), vouchers and affiliate. Pure over two :class:`PeriodView`\\ s.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import (
     ADS_BASIS,
@@ -18,19 +20,29 @@ from juli_backend.services.shopee_analytics.fmt import (
     ASSUMED_COST_LABEL,
     ORDER_BASIS,
     delta_pct,
+    frac,
     num,
     pct,
     pct_of,
     ratio,
 )
+from juli_backend.services.shopee_analytics.funnel import CTOR_NOTE
 from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN, ShopContext
+from juli_backend.services.shopee_analytics.metrics import (
+    AOV_LABEL,
+    AOV_SC_LABEL,
+    ShopMetrics,
+)
 from juli_backend.services.shopee_analytics.shared import (
     cell_json,
     excluded_summary,
     five_for,
     five_json,
     flow_table_json,
+    shop_profit_fields,
+    shop_profit_of,
 )
+from juli_backend.services.shopee_analytics.windows import Anchor
 from juli_backend.services.shopee_profit.flows import (
     FLOW_LABELS,
     Flow,
@@ -59,12 +71,23 @@ def _int_or_none(value: Decimal | None) -> int | None:
     return None if value is None else int(value)
 
 
+def _day_sources(source_by_day: dict[Any, str]) -> dict[str, int]:
+    """How many days of the window each ad-spend source answered (P100 A.5)."""
+    out: dict[str, int] = {}
+    for source in source_by_day.values():
+        out[source] = out.get(source, 0) + 1
+    return out
+
+
 def data_status(view: PeriodView) -> dict[str, Any]:
     d = view.data
     return {
         "shop_totals": {"basis": d.totals.basis, "days_covered": d.totals.days_covered},
         "traffic": {"basis": d.traffic.basis, "days_covered": d.traffic.days_covered},
-        "ads_daily": {"days_covered": d.ads_daily.days_covered},
+        "ads_daily": {
+            "days_covered": d.ads_daily.days_covered,
+            "sources": _day_sources(d.ads_daily.source_by_day),
+        },
         "ads_report": d.ads_reports.campaign_choice.json(),
         "product_flows": {
             "source": d.product_flows.source,
@@ -114,26 +137,34 @@ def warnings(view: PeriodView) -> list[dict[str, str]]:
     return out
 
 
-def _kpi(now: Decimal | int | None, before: Decimal | int | None) -> dict[str, Any]:
+def _kpi(
+    now: Decimal | int | float | None,
+    before: Decimal | int | float | None,
+    *,
+    fraction: bool = False,
+) -> dict[str, Any]:
+    """``fraction`` keeps a ratio (CTR / CTOR) unrounded instead of ``num``'s 2 decimals."""
     a = None if now is None else Decimal(str(now))
     b = None if before is None else Decimal(str(before))
+    if fraction:
+        return {"value": frac(a), "previous": frac(b), "change_pct": delta_pct(a, b)}
     return {"value": num(a), "previous": num(b), "change_pct": delta_pct(a, b)}
 
 
-def _shop_chain(view: PeriodView) -> dict[str, Any]:
+def _shop_chain(view: PeriodView, metrics: ShopMetrics | None = None) -> dict[str, Any]:
     table = view.flows.shop if view.flows else None
     if table is None:
         return {}
-    flows = [r for r in table.rows if not r.is_residual]
-    views = sum((r.views for r in flows if r.views is not None), 0)
-    clicks = sum((r.clicks for r in flows if r.clicks is not None), 0)
+    m = metrics or view.metrics
+    # P98 / ADR-122 d.2: lượt xem / lượt nhấp of the stored funnel (ShopMetrics carries them) and
+    # CTOR = ShopMetrics đơn ÷ lượt nhấp, so Lượt xem × CTR × CTOR = Đơn of the KPI strip
     total = FlowMetrics(
         "shop",
         "Cả shop",
-        views or None,
-        clicks or None,
-        table.total_orders or 0,
-        table.total_gmv or ZERO,
+        m.views,
+        m.clicks,
+        m.orders if m.orders is not None else (table.total_orders or 0),
+        m.gmv if m.gmv is not None else (table.total_gmv or ZERO),
     )
     identity = total.gmv_by_identity()
     return {
@@ -142,12 +173,15 @@ def _shop_chain(view: PeriodView) -> dict[str, Any]:
         "orders": total.orders,
         "ctr": ratio(total.ctr),
         "ctor": ratio(total.ctor),
-        "aov": num(total.aov),
+        # one AOV (D85.2): shop GMV ÷ shop đơn, the same number as the KPI strip and Phân tích
+        "aov": num(m.aov),
         "gmv": num(total.gmv),
         "identity_gmv": num(identity),
         "identity_ok": identity is None or abs(identity - total.gmv) < Decimal("0.01"),
         "note": "Lượt xem cộng các luồng (Live / Video đếm phiên / video); CTR không so giữa các "
         "luồng.",
+        "ctor_note": CTOR_NOTE,
+        "funnel_basis": m.funnel_basis,
     }
 
 
@@ -221,10 +255,18 @@ def _levers_block(view: PeriodView) -> dict[str, Any]:
 def _profit_block(view: PeriodView) -> dict[str, Any]:
     p = view.profit
     cov = view.coverage
+    # P100 B.5: ONE shop profit -- the known-cost orders' profit with its coverage line, the
+    # same figure as Sản phẩm and Kế hoạch (``shared.shop_profit_of``); never scaled to the GMV
+    fig = shop_profit_of(view)
     return {
-        "profit_vnd": num(p.profit),
+        "profit_vnd": fig.json()["profit"],
+        "coverage_label": fig.label,
+        # P100 B.5: the bridge on the known-cost basis; its lines add up exactly to profit_vnd
+        "bridge": fig.json()["bridge"],
+        "known_cost_orders": fig.orders,
+        "known_cost_gmv_share_pct": fig.json()["gmv_share_pct"],
         "profit_on_covered_vnd": num(p.profit_on_covered),
-        "margin_pct": pct(p.margin_pct),
+        "margin_pct": fig.json()["margin_pct"],
         "margin_basis": "profit ÷ doanh thu thực (sau voucher và combo)",
         "contribution_before_ads": num(p.contribution),
         "net_revenue": num(p.buyer_paid),
@@ -277,6 +319,9 @@ def _ads_block(view: PeriodView) -> dict[str, Any]:
         "orders_placed": num(daily.orders if daily.days_covered else None),
         "roas": ratio(safe_div(daily.gmv, daily.spend), 2) if daily.spend else None,
         "spend_per_day": num(safe_div(ads.total_spend, Decimal(view.window.days))),
+        "days_covered": daily.days_covered,  # days with no source are "chưa có dữ liệu", not 0
+        "window_days": daily.window_days,
+        "day_sources": _day_sources(daily.source_by_day),
         "allocation": {
             "basis": ads.basis,
             "label": ads.label,
@@ -351,13 +396,15 @@ PREVIOUS_THIN = (
 )
 
 
-def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dict[str, Any]:
+def build_overview(
+    ctx: ShopContext, now: PeriodView, before: PeriodView, anchor: Anchor | None = None
+) -> dict[str, Any]:
     cap = ctx.rules.target("daily_marketing_cap")
     five = five_for(now, before, cap)
     comparable = before.comparable_as_previous
-    chain = _shop_chain(now)
-    prev_chain = _shop_chain(before)
-    p, pp = now.profit, before.profit
+    metrics, prev_metrics = replace(now.metrics, anchor=anchor), before.metrics
+    chain = _shop_chain(now, metrics)
+    prev_chain = _shop_chain(before, prev_metrics)
     # A previous window whose order lines are too thin must not feed any delta: its line-derived
     # numbers are fragments (margin +819 points, orders +3,445 %). Shop totals / traffic that come
     # from Shopee's own daily series stay comparable when that series is complete.
@@ -368,6 +415,7 @@ def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dic
     prev_orders = before.shop_orders if prev_totals_ok else None
     if not prev_totals_ok:
         prev_chain = {k: v for k, v in prev_chain.items() if k != "aov"}
+    profit_now, profit_before = shop_profit_of(now), shop_profit_of(before)
     warns = warnings(now)
     if not comparable:
         warns.append({"code": "previous_period_thin", "message": PREVIOUS_THIN})
@@ -376,18 +424,30 @@ def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dic
         "platform": "shopee",
         "order_basis": ORDER_BASIS,
         "period": {"window": now.window.json(), "previous": before.window.json()},
+        "shop_metrics": {**metrics.json(), **shop_profit_fields(now)},
+        "shop_profit": profit_now.json(),
+        "funnel": funnel.basis_json(now.data.funnel),
         "data": data_status(now),
         "warnings": warns,
         "kpi_strip": {
             "gmv": _kpi(now.shop_gmv, prev_gmv),
             "views": _kpi(chain.get("views"), prev_chain.get("views")),
-            "ctr": _kpi(chain.get("ctr"), prev_chain.get("ctr")),
-            "ctor": _kpi(chain.get("ctor"), prev_chain.get("ctor")),
-            "aov": _kpi(chain.get("aov"), prev_chain.get("aov")),
+            "ctr": _kpi(chain.get("ctr"), prev_chain.get("ctr"), fraction=True),
+            "ctor": {
+                **_kpi(chain.get("ctor"), prev_chain.get("ctor"), fraction=True),
+                "note": CTOR_NOTE,
+            },
+            "aov": _kpi(metrics.aov, prev_metrics.aov if prev_totals_ok else None),
             "orders": _kpi(now.shop_orders, prev_orders),
+            # P100 B.6: Tổng lợi nhuận, the one shop profit (shop level only, never per source)
+            "profit": {
+                **_kpi(profit_now.profit, profit_before.profit if comparable else None),
+                "label": profit_now.label,
+            },
             "margin_pct": {
-                "value": pct(p.margin_pct),
-                "previous": pct(pp.margin_pct) if comparable else None,
+                # P100 B.5: the one shop profit's margin (known-cost orders)
+                "value": pct(profit_now.margin_pct),
+                "previous": pct(profit_before.margin_pct) if comparable else None,
                 "label": "trên "
                 + str(pct_of(safe_div(now.coverage.real + now.coverage.assumed, now.coverage.base)))
                 + " % doanh thu có giá vốn (trong đó giả định "
@@ -401,14 +461,12 @@ def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dic
             "excluded_gmv": excluded_summary(now),
             "shopee_gmv": num(now.shop_gmv),
             "shopee_orders": now.shop_orders,
-            "aov_gmv": num(
-                safe_div(now.shop_gmv, Decimal(now.shop_orders))
-                if now.shop_gmv and now.shop_orders
-                else None
-            ),
-            "aov_seller_centre": num(_aov_seller_centre(now)),
-            "aov_note": "AOV Seller Centre = (GMV − voucher shop) ÷ đơn đã xác nhận (§14); AOV "
-            "chuỗi = GMV ÷ đơn.",
+            "aov_gmv": num(metrics.aov),
+            "aov_label": AOV_LABEL,
+            "aov_seller_centre": num(metrics.aov_seller_centre),
+            "aov_seller_centre_label": AOV_SC_LABEL,
+            "aov_note": "AOV ở mọi màn hình = GMV shop ÷ đơn shop. AOV theo Seller Centre = "
+            "(GMV − voucher shop) ÷ đơn đã xác nhận (§14), chỉ để đối chiếu với Seller Centre.",
             "line_gmv": num(now.line_gmv),
             "line_orders": now.line_orders,
         },
@@ -421,12 +479,3 @@ def build_overview(ctx: ShopContext, now: PeriodView, before: PeriodView) -> dic
         "affiliate": _affiliate_block(now),
         "targets": {k: (num(v) if v is not None else None) for k, v in targets.items()},
     }
-
-
-def _aov_seller_centre(view: PeriodView) -> Decimal | None:
-    orders = view.line_orders
-    if not orders:
-        return None
-    gmv = sum((ln.order_value for ln, _ in view.pairs), ZERO)
-    voucher = sum((ln.shop_voucher_share for ln, _ in view.pairs), ZERO)
-    return (gmv - voucher) / Decimal(orders)

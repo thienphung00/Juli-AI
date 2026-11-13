@@ -14,10 +14,12 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api import reviewer as reviewer_gate
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
+from juli_backend.api.reviewer import reviewer_context
 from juli_backend.api.routes import shopee_builder_common as common
 from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.core.security import get_current_user
@@ -134,13 +136,49 @@ async def builder_choose(
     return {**out, "card": seller_view(out["card"]), "versions": versions}
 
 
+@router.post("/builder/group", status_code=201)
+async def builder_group(
+    body: common.GroupBody,
+    shop: Shop = Depends(require_writable_shop),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """ "Chạy cùng nhau": the ticked versions become one group (Nhóm) of the draft plan."""
+    shop_id = _shopee(shop)
+    try:
+        out = await common.h_group(
+            session, shop_id, body, manual.Actor("seller", user.id), now=_now(), audience="seller"
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return out
+
+
 @router.post("/builder/drafts/title")
 async def builder_title_drafts(
     body: common.TitleDraftBody,
+    request: Request,
     shop: Shop = Depends(require_writable_shop),
+    user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     shop_id = _shopee(shop)
+    context = reviewer_context(request)
+    if context is not None and context.pin is not None and context.pin.sample:
+        # P100 S2-D: the gate admits a reviewer here only on the sample pin (any other pin is
+        # refused before this route). Seeded titles first, then one live draft per product.
+
+        async def refuse_quota() -> HTTPException:
+            return await reviewer_gate.refuse_sample_llm_quota(session, context)
+
+        try:
+            return await common.h_sample_title_drafts(
+                session, shop_id, body, user_id=user.id, now=_now(), refuse_quota=refuse_quota
+            )
+        finally:
+            await session.commit()  # the sample-write audit, the live row, the gate's log row
     client = await common.get_client(session, shop_id)
     try:
         out = await common.h_title_drafts(session, shop_id, body, client, now=_now())

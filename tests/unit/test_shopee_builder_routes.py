@@ -134,8 +134,10 @@ async def test_demo_picker_variations_co_purchase_and_campaigns(session, reco, s
     v = var.json()
     row = v["variations"][0]
     assert v["item_id"] == "1001" and v["columns"] == [
-        "list_price", "selling_price", "price_per_unit", "margin_pct",
+        "list_price", "selling_price", "price_per_unit", "margin_pct", "final_margin_pct",
     ]  # fmt: skip
+    # ADR-122 d.12: So sánh phân loại shows Biên cuối beside Biên ở giá bán
+    assert "final_margin_pct" in v["variations"][0]
     assert (row["list_price"], row["selling_price"], row["pack_count"]) == (100_000, 90_000, 1)
     assert row["margin_pct"] is not None and row["margin_label"] is None
     assert v["excluded"] is False and v["vat"]["basis"] == "before_vat"
@@ -248,6 +250,102 @@ async def test_ops_builder_reads_and_compares_as_viewer_and_saves_as_operator_au
     (row,) = (await session.scalars(select(OpsAuditLog))).all()
     assert row.action == "builder_choose" and row.after["kinds"] == ["voucher", "gift"]
     assert row.after["card_id"] == out["id"]
+
+
+# ==================== P97 D85.14: "Chạy cùng nhau" -> one group of the plan
+
+PRICE_15 = {
+    "kind": "product_discount",
+    "item_id": "1001",
+    "variations": [{"variation_id": "", "discount_pct": 15}],
+}
+PRICE_20 = {
+    "kind": "product_discount",
+    "item_id": "1001",
+    "variations": [{"variation_id": "", "discount_pct": 20}],
+}
+PLAN = "/v1/demo/shopee/recommendations/plan"
+
+
+async def test_run_together_saves_the_cards_and_one_group_and_the_second_price_goes_next(
+    session, reco, seller
+):
+    voucher_b = {**VOUCHER, "value": 8000}
+    r = await seller.post(
+        f"{B}/group",
+        json=body(VOUCHER, voucher_b, PRICE_15, PRICE_20, members=[0, 1, 2, 3], days=4)
+        | {"acknowledge_breaches": True},
+    )
+    assert r.status_code == 201, r.text
+    out = r.json()
+    # two vouchers are two versions of ONE card; the two prices are two versions of another
+    assert len(out["saved"]) == 2 and [c["indexes"] for c in out["saved"]] == [[0, 1], [2, 3]]
+    by = {g["letter"]: g for g in out["groups"]}
+    assert sorted(by) == ["A", "B"]
+    members_a = {(m["code"], m["version"]) for m in by["A"]["members"]}
+    voucher_code, price_code = out["saved"][0]["code"], out["saved"][1]["code"]
+    assert members_a == {(voucher_code, 1), (voucher_code, 2), (price_code, 1)}
+    assert [(m["code"], m["version"]) for m in by["B"]["members"]] == [(price_code, 2)]
+    assert by["A"]["days"] == 4 and by["B"]["start"] > by["A"]["end"]
+    assert out["notice"]["type"] == "moved_to_group" and "giá bán" in out["notice"]["message"]
+    assert "alpha" not in str(out["groups"][0]["aggregate"]["products"])  # seller view
+    await renew(session, reco)
+    got = (await seller.get(PLAN)).json()
+    assert [g["letter"] for g in got["groups"]] == ["A", "B"]
+    assert {tuple(x.values()) for c in got["cards"] for x in c["groups"]} >= {("A", 1), ("B", 2)}
+    export = await seller.get(f"{PLAN}/export")
+    assert export.status_code == 200 and export.content[:2] == b"PK"
+    assert "spreadsheetml" in export.headers["content-type"]
+    gid = by["A"]["id"]
+    await renew(session, reco)
+    shorter = await seller.post(f"{PLAN}/groups/{gid}/period", json={"days": 2})
+    assert shorter.status_code == 422 and "ít nhất 3 ngày" in shorter.json()["detail"]["message"]
+    await renew(session, reco)
+    longer = await seller.post(f"{PLAN}/groups/{gid}/period", json={"days": 9})
+    assert longer.status_code == 200 and longer.json()["groups"][0]["days"] == 9
+    await renew(session, reco)
+    cancel = await seller.post(f"{PLAN}/groups/{by['B']['id']}/cancel")
+    assert cancel.status_code == 200 and [g["letter"] for g in cancel.json()["groups"]] == ["A"]
+
+
+async def test_run_together_rejects_a_bad_pick_and_a_breach_needs_the_acknowledgement(
+    session, reco, seller
+):
+    bad = await seller.post(f"{B}/group", json=body(VOUCHER, members=[3]))
+    assert bad.status_code == 422
+    await renew(session, reco)
+    breach = await seller.post(f"{B}/group", json=body(DEEP, VOUCHER, members=[0, 1]))
+    detail = breach.json()["detail"]
+    assert breach.status_code == 422 and detail["code"] == "reco_breach_not_acknowledged"
+    assert detail["breaches"][0]["type"] == "floor"
+
+
+async def test_ops_run_together_sends_the_cards_audited_and_reads_as_viewer(
+    session, reco, monkeypatch
+):
+    base = f"/v1/ops/shops/{reco.shop_id}/shopee"
+    viewer = await _ops_client(session, monkeypatch, "viewer")
+    async with client_for(viewer) as client:
+        denied = await client.post(f"{base}/builder/group", json=body(VOUCHER, members=[0]))
+        assert denied.status_code == 403
+    viewer.dependency_overrides.clear()
+    operator = await _ops_client(session, monkeypatch, "operator")
+    async with client_for(operator) as client:
+        r = await client.post(f"{base}/builder/group", json=body(VOUCHER, GIFT, members=[0, 1]))
+        assert r.status_code == 201, r.text
+        plan = await client.get(f"{base}/recommendations/plan")
+        assert [g["letter"] for g in plan.json()["groups"]] == ["A"]
+        export = await client.get(f"{base}/recommendations/plan/export")
+        assert export.status_code == 200 and export.content[:2] == b"PK"
+    operator.dependency_overrides.clear()
+    out = r.json()
+    assert len(out["saved"]) == 2 and len(out["groups"][0]["members"]) == 2
+    rows = [
+        x for x in (await session.scalars(select(OpsAuditLog))).all() if x.action == "builder_group"
+    ]
+    assert len(rows) == 1 and rows[0].after["kinds"] == ["voucher", "gift"]
+    cards = (await session.scalars(select(ShopProposal))).all()
+    assert {c.status for c in cards} == {"planned"}  # sent by Ops, then planned in the group
 
 
 # ==================== the drafts

@@ -7,6 +7,8 @@ import {
   READER_RUN_PERIOD_MINUTES,
   READER_RUN_START_JITTER_MINUTES,
   READER_RUN_START_MIN_MINUTES,
+  FILL_JOBS_ALARM,
+  FILL_JOBS_POLL_MINUTES,
   SELLER_CENTRE_ORIGIN,
   SYNC_PERIOD_MINUTES,
   SYNC_START_JITTER_MINUTES,
@@ -18,6 +20,7 @@ import type { MarketPlan } from "../shopee/market";
 import { MARKET_RUN_ALARM, MARKET_WATCHDOG_ALARM, MarketScheduler } from "./market";
 import { Connector } from "./connector";
 import { fillRequest, senderMatches } from "./fill";
+import { FillJobs } from "./fill-jobs";
 import { READER_RUN_ALARM, READER_WATCHDOG_ALARM, ReaderScheduler } from "./scheduler";
 
 const ALARM = "juli-daily-sync";
@@ -32,6 +35,8 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     async open(url) {
       // A background tab: it never takes focus from the seller.
       const tab = await chrome.tabs.create({ url, active: false }).catch(() => undefined);
+      // Chrome must not discard the reader's tab while the page is still answering (0.3.15).
+      if (tab?.id !== undefined) await chrome.tabs.update(tab.id, { autoDiscardable: false }).catch(() => undefined);
       return tab?.id;
     },
     close: (tabId) => chrome.tabs.remove(tabId),
@@ -39,7 +44,7 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     async inspect(tabId) {
       try {
         const tab = await chrome.tabs.get(tabId);
-        return { open: true, url: tab.url };
+        return { open: true, url: tab.url, discarded: tab.discarded === true };
       } catch {
         return { open: false };
       }
@@ -49,8 +54,11 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
     create: (name, info) => chrome.alarms.create(name, info),
     clear: (name) => chrome.alarms.clear(name),
   },
-  sink: { postReader: (job, responses) => connector.postReader(job, responses) },
-  backfillBusy: async () => (await connector.backfillInFlight()) || (await market.isBusy()),
+  sink: {
+    postReader: (job, responses) => connector.postReader(job, responses),
+    reportBlock: (event) => connector.reportBlock(event),
+  },
+  backfillBusy: async () => (await connector.backfillInFlight()) || (await market.isBusy()) || (await fillJobs.isBusy()),
   later: (ms, fn) => void setTimeout(fn, ms),
 });
 
@@ -105,6 +113,34 @@ const connector: Connector = new Connector({
   },
 });
 
+// Fill jobs (P97 D85.6): approved cards queued by Juli, one page at a time, ordinary pace.
+const fillJobs = new FillJobs({
+  storage: chrome.storage.local,
+  client: gateway,
+  now: () => Date.now(),
+  tabs: {
+    async openPage(url) {
+      const tab = await chrome.tabs.create({ url, active: false }).catch(() => undefined);
+      return tab?.id;
+    },
+    async inspect(tabId) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        return { open: true, url: tab.url };
+      } catch {
+        return { open: false };
+      }
+    },
+  },
+  busy: async () => (await scheduler.isBusy()) || (await market.isBusy()) || (await connector.backfillInFlight()),
+  halt: (reason, page, detail) => scheduler.haltFor(reason, page, detail),
+});
+
+async function ensureFillAlarm(): Promise<void> {
+  if (await chrome.alarms.get(FILL_JOBS_ALARM)) return;
+  await chrome.alarms.create(FILL_JOBS_ALARM, { delayInMinutes: 1, periodInMinutes: FILL_JOBS_POLL_MINUTES });
+}
+
 async function ensureAlarm(): Promise<void> {
   if (await chrome.alarms.get(ALARM)) return;
   await chrome.alarms.create(ALARM, {
@@ -131,10 +167,14 @@ async function ensureMarketAlarm(): Promise<void> {
   });
 }
 
-chrome.runtime.onInstalled.addListener(() => void ensureAlarm().then(ensureReaderAlarm).then(ensureMarketAlarm));
-chrome.runtime.onStartup.addListener(() => void ensureAlarm().then(ensureReaderAlarm).then(ensureMarketAlarm));
+chrome.runtime.onInstalled.addListener(() => void ensureAlarm().then(ensureReaderAlarm).then(ensureMarketAlarm).then(ensureFillAlarm));
+chrome.runtime.onStartup.addListener(() => void ensureAlarm().then(ensureReaderAlarm).then(ensureMarketAlarm).then(ensureFillAlarm));
 
 chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === FILL_JOBS_ALARM) {
+    void fillJobs.poll();
+    return;
+  }
   if (alarm.name === MARKET_RUN_ALARM || alarm.name === MARKET_WATCHDOG_ALARM) {
     void market.tick();
     return;
@@ -228,7 +268,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!senderMatches(sender.tab?.url, code, itemId)) return respond(Promise.resolve({ ok: false, reason: "inactive" }));
       return respond(fillRequest({ storage: chrome.storage.local, client: gateway }, code, itemId));
     }
-    if (msg.type === "sync-result") return respond(connector.syncResult(String(msg.status)));
+    if (msg.type === "fill-job-request") {
+      return respond(fillJobs.jobFor(sender.tab?.url, String(msg.jobId ?? "")));
+    }
+    if (msg.type === "fill-job-report") {
+      const status = String(msg.status ?? "");
+      if (!["opened", "filled", "saved", "captured", "failed"].includes(status)) return respond(Promise.resolve("ignored"));
+      const ref = typeof msg.capturedRef === "string" && /^\d{1,20}$/.test(msg.capturedRef) ? msg.capturedRef : undefined;
+      return respond(
+        fillJobs.report(String(msg.jobId ?? ""), status as "opened" | "filled" | "saved" | "captured" | "failed", {
+          ...(ref ? { capturedRef: ref } : {}),
+          ...(typeof msg.error === "string" ? { error: msg.error } : {}),
+        }),
+      );
+    }
+    if (msg.type === "fill-job-halt") {
+      return respond(fillJobs.halt(String(msg.jobId ?? ""), new URL(sender.tab?.url ?? SELLER_CENTRE_ORIGIN).pathname));
+    }
+    if (msg.type === "sync-result") return respond(connector.syncResult(String(msg.status), Number(msg.sent) || 0));
     if (msg.type === "backfill-result") {
       const results = Array.isArray(msg.results) ? (msg.results as RequestResult[]) : [];
       return respond(thenBackfill(connector.backfillResult(String(msg.day), String(msg.status), results)));

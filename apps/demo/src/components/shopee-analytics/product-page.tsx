@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { DASH, fmt, pp, vnd } from "../../lib/shopee-analytics/format";
-import { fiveCards } from "../../lib/shopee-analytics/model";
 import {
   CHILD_NAME,
   KPI_NAME,
@@ -21,7 +20,7 @@ import type { ProductHeader, ProductPage, ProductVersion, SkuCost } from "../../
 import { MarketPriceBlock } from "./market-price-block";
 import { VariationExpand } from "../shopee-decisions/builder-p92/variations";
 import { CostTab, HistoryTab, KeywordsTab, PerformanceTab, SourcesTab } from "./product-tabs";
-import { Empty, Notice, PillLink, ResourceState, Section, TextChip, toneClass } from "./ui";
+import { Empty, Notice, PillLink, ResourceState, Section, TextChip } from "./ui";
 import type { WindowState } from "../../lib/shopee-analytics/params";
 import { readWindow } from "../../lib/shopee-analytics/params";
 
@@ -81,7 +80,6 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
   const row = params.get("row");
   const from = params.get("from");
   const card = params.get("card");
-  const period = page.period.selected as "7d" | "30d" | "90d";
   const skus = page.cost_and_floor.skus;
   const [selSku, setSelSku] = useState<string | null>(skus[0]?.sku ?? null);
   const sel = skus.find((s) => s.sku === selSku) ?? skus[0] ?? null;
@@ -110,7 +108,6 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
       ? `Mở từ Xếp hạng · ${KPI_NAME[kpi] ?? kpi} × ${(sub && CHILD_NAME[sub]) || SOURCE_NAME[src ?? "all"] || src}${row ? ` · dòng ${row}` : ""}`
       : null;
 
-  const five = fiveCards(page.kpi_by_period[period]?.five_numbers ?? Object.values(page.kpi_by_period)[0]!.five_numbers, null);
   const cards = [page.nguon.card].filter(Boolean);
 
   return (
@@ -138,25 +135,6 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
       </div>
 
       <Variations h={h} skus={skus} selSku={sel?.sku ?? null} onPick={setSelSku} period={page.period.window.days} openCompare={params.get("cmp") === "1"} />
-
-      <Section hint={`${page.period.window.days} ngày · so với ${page.period.previous.days} ngày trước · cùng định nghĩa với Tổng quan và thẻ`} testId="sa-sp-five" title="5 con số chính">
-        <div className="sa-five sa-five--5">
-          {five.map((f) => (
-            <div className="sa-five__card" data-testid={`sa-sp-five-${f.key}`} key={f.key}>
-              <span className="sa-tile__label">{f.label}</span>
-              <span className="sa-five__value">{f.value}</span>
-              <span>
-                <span className={`sa-chip sa-chip--${f.tone}`}>{f.chip}</span>
-              </span>
-              <span className="sa-five__sub">{f.sub1}</span>
-              <span className={`sa-five__sub sa-five__sub--b ${toneClass(f.tone)}`}>{f.sub2}</span>
-            </div>
-          ))}
-        </div>
-        {!page.kpi_by_period[period]?.five_numbers.comparison.available ? (
-          <Notice tone="info">Kỳ trước chưa có dòng đơn của sản phẩm này, nên chỉ hiện số của kỳ này.</Notice>
-        ) : null}
-      </Section>
 
       {banner ? (
         <Notice tone="info" testId="sa-from-banner">
@@ -438,6 +416,44 @@ function ReputationBlock({ h }: { readonly h: ProductHeader }) {
 
 type VariationRow = ProductHeader["variations"][number];
 
+/** ADR-122 d.12 fields of a SKU row (backend ``product.sku_waterfall``); absent on older answers. */
+export type SkuMargins = SkuCost & {
+  /** Distinct orders holding this SKU in the window (units stay in `units`). */
+  readonly orders?: number | null;
+  readonly price_margin_pct?: number | null;
+  readonly final_margin_pct?: number | null;
+  readonly final_margin_basis?: "variation" | "product" | null;
+  readonly final_margin_note?: string | null;
+};
+
+/** "Đơn N ngày" counts orders; the units go to the hint. Older answers without `orders` show units. */
+export function ordersOf(s: SkuCost): number {
+  const o = (s as SkuMargins).orders;
+  return typeof o === "number" ? o : s.units;
+}
+
+/** The SKU chip: the cost key with its pack (G500001×3) when it differs from the plain SKU. */
+export function skuChip(v: VariationRow, s: SkuCost | undefined): string | null {
+  if (s && s.sku && s.sku !== v.seller_sku && s.sku.includes("×")) return s.sku;
+  return v.seller_sku ?? null;
+}
+
+function MarginLines({ s }: { readonly s: SkuCost }) {
+  const m = s as SkuMargins;
+  const price = m.price_margin_pct ?? null;
+  const final = m.final_margin_pct ?? null;
+  return (
+    <>
+      <span className="sa-block" data-testid="sa-margin-price">
+        {price === null ? "chưa tính" : pp(price, 1)} <span className="sa-hint">Biên ở giá bán · chắc chắn</span>
+      </span>
+      <span className="sa-block" data-testid="sa-margin-final">
+        {final === null ? "chưa tính" : pp(final, 1)} <span className="sa-hint">Biên cuối · ước tính{m.final_margin_basis === "product" ? ` · ${m.final_margin_note ?? "theo tỉ lệ của sản phẩm"}` : ""}</span>
+      </span>
+    </>
+  );
+}
+
 /** The cost row of a catalogue variation: by its id, else by its seller SKU (a pack key such as
  *  "G500002×3" belongs to the variation whose SKU is "G500002"; the packs sort by their own key). */
 export function skuOfVariation(v: VariationRow, skus: readonly SkuCost[]): SkuCost | undefined {
@@ -493,7 +509,7 @@ function Variations({
             <span>Tên · SKU</span>
             <span>Giá niêm yết</span>
             <span>Đơn {period} ngày</span>
-            <span>Biên/đơn</span>
+            <span>Biên ở giá bán · Biên cuối</span>
             <span>Giá sàn vận hành · tuyệt đối</span>
           </div>
           {rows.map((v) => {
@@ -511,12 +527,15 @@ function Variations({
               >
                 <span>
                   <b>{v.name ?? v.seller_sku ?? "Phiên bản"}</b>
-                  {v.seller_sku ? <TextChip tone="pink">{v.seller_sku}</TextChip> : null}
+                  {skuChip(v, s) ? <TextChip tone="pink">{skuChip(v, s)}</TextChip> : null}
                 </span>
                 <span>{s ? vnd(s.list_price) : DASH}</span>
-                <span>{s ? fmt(s.units) : DASH}</span>
+                <span data-testid="sa-var-orders">
+                  {s ? fmt(ordersOf(s)) : DASH}
+                  {s ? <span className="sa-hint sa-block">{fmt(s.units)} sản phẩm</span> : null}
+                </span>
                 <span>
-                  {s ? pp(s.waterfall_per_unit.margin_pct, 1) : DASH}
+                  {s ? <MarginLines s={s} /> : DASH}
                   {s?.cost.label ? <span className="sa-hint sa-block">{s.cost.label}</span> : null}
                 </span>
                 <span>
@@ -530,7 +549,7 @@ function Variations({
       )}
       {host.builder ? <VariationExpand api={host.builder} defaultOpen={openCompare} costLink={host.links.costImport(null, "san-pham")} itemId={h.product_id} /> : null}
       {host.api.marketScope ? <MarketPriceBlock itemId={h.product_id} scope={host.api.marketScope} /> : null}
-      <p className="sa-hint">Giá, tồn lấy từ lần đọc Seller Centre gần nhất · giá vốn từ Cài đặt (hoặc giả định 1/3 giá, có ghi rõ) · đơn từ báo cáo đơn.</p>
+      <p className="sa-hint">Giá, tồn lấy từ lần đọc Seller Centre gần nhất · giá vốn từ Cài đặt (chưa nhập thì biên ghi “chưa tính”) · đơn từ báo cáo đơn · biên cuối trừ voucher shop, hoa hồng và quảng cáo đo được trong 30 ngày.</p>
     </Section>
   );
 }

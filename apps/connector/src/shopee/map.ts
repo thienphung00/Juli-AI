@@ -38,6 +38,11 @@ export interface Mapped {
   granularity?: "day" | "period";
   /** A `period` post that spans several days starts here (`date` is its last day). */
   periodStart?: string;
+  /**
+   * Shopee answered (a recognised, valid answer) with an empty list for this period: nothing to
+   * post, but not the same as "not read" (Connector 0.3.15). Only the affiliate period mappers set it.
+   */
+  answeredEmpty?: boolean;
 }
 
 export const L1_SOURCES = [
@@ -214,11 +219,11 @@ function orderTypeOf(params: URLSearchParams): OrderType {
   return value === "placed" || value === "paid" ? value : "confirmed";
 }
 
-function scaleDrift(prefix: string, row: Row, drift: Drift): void {
-  for (const [key, value] of Object.entries(row)) {
-    if (RATE_FIELDS.has(key) && typeof value === "number" && (value < 0 || value > 1)) {
-      drift.unexpected.push(`${prefix}${key}:not_a_fraction`);
-    }
+function scaleDrift(_prefix: string, row: Row, _drift: Drift): void {
+  // A rate outside 0..1 must not drop the day's sales. The counts stay; Juli derives the rate.
+  for (const key of Object.keys(row)) {
+    const value = row[key];
+    if (RATE_FIELDS.has(key) && typeof value === "number" && (value < 0 || value > 1)) delete row[key];
   }
 }
 
@@ -237,10 +242,11 @@ const VIEWS_OF: Record<string, string> = {
 };
 
 /**
- * Shopee's rate can exceed 1 for real (e.g. 2 clicks on 1 video view = ctr 2 on 2026-10-12): when
- * the value equals the block's own count ratio it is a fraction above one, not a percentage. It is
- * moved to `extra.<field>_above_one` (the gateway's rate fields are 0..1; Juli derives rates from
- * the counts anyway). A value that matches the ratio x 100 stays and is reported as drift.
+ * Shopee's rate can exceed 1 for real (e.g. 2 clicks on 1 video view = ctr 2). The gateway only
+ * stores 0..1, and Juli derives the rate from the counts, so an out-of-range rate must not stop
+ * the day. A value equal to the count ratio is `extra.<field>_above_one`. A value equal to that
+ * ratio times 100 is a percentage and is stored as the fraction. Anything else is
+ * `extra.<field>_raw` (live case: `result.video.ctr:not_a_fraction` on 6 Nov 2026).
  */
 function keepRatesAboveOne(block: string, row: Row, extra: Row): void {
   for (const [field, [num, den]] of Object.entries(RATE_PARTS)) {
@@ -248,12 +254,23 @@ function keepRatesAboveOne(block: string, row: Row, extra: Row): void {
     if (typeof value !== "number" || value <= 1) continue;
     const top = row[num];
     const bottom = row[den || VIEWS_OF[block] || ""];
-    if (typeof top !== "number" || typeof bottom !== "number" || bottom <= 0) continue;
-    const ratio = top / bottom;
-    if (Math.abs(value - ratio) <= Math.max(0.01, ratio * 0.02)) {
+    const ratio =
+      typeof top === "number" && typeof bottom === "number" && bottom > 0 ? top / bottom : undefined;
+    const close = (candidate: number) =>
+      ratio !== undefined && Math.abs(value - candidate) <= Math.max(0.01, candidate * 0.02);
+    if (ratio !== undefined && close(ratio)) {
       extra[`${field}_above_one`] = value;
-      delete row[field];
+    } else if (ratio !== undefined && close(ratio * 100)) {
+      const fraction = Math.round((value / 100) * 10_000) / 10_000;
+      if (fraction <= 1) {
+        row[field] = fraction;
+        continue;
+      }
+      extra[`${field}_raw`] = value;
+    } else {
+      extra[`${field}_raw`] = value;
     }
+    delete row[field];
   }
 }
 
@@ -267,9 +284,8 @@ export function mapTrafficOverview(result: unknown, date: string): { rows: Row[]
   const drift: Drift = { unexpected: [], missing: [] };
   if (!isObject(result)) return { rows: [], drift: { unexpected: [], missing: ["result"] } };
   const rows: Row[] = [];
-  for (const key of Object.keys(result)) {
-    if (key !== "overview" && !(key in SOURCE_KEYS)) drift.unexpected.push(`result.${key}`);
-  }
+  // A block Seller Centre added later is ignored. Stopping the whole day on it
+  // dropped Doanh số theo nguồn while the known sources were still readable.
   for (const [key, enumValue] of Object.entries(SOURCE_KEYS)) {
     const block = result[key];
     if (!isObject(block) || !isObject(block.total)) {
@@ -288,7 +304,9 @@ export function mapTrafficOverview(result: unknown, date: string): { rows: Row[]
         continue; // comparison vs the previous period: derivable, not stored
       }
       if (!known.has(field)) {
-        drift.unexpected.push(`result.${key}.${field}`);
+        // A new metric stays in extra so the known totals still post.
+        const number = toNumber(value);
+        if (number !== undefined) addExtra(extra, field, number);
         continue;
       }
       if (field === "source") continue;

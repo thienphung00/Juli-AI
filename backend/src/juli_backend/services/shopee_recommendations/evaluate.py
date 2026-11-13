@@ -727,8 +727,8 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
         return None
     days = Decimal(env.window_days)
     figs = env.view.ads.product_figures
-    before_ads = ZERO
-    direct = ZERO
+    weighted = ZERO
+    weight = ZERO
     for item, spend in alloc.products.items():
         fig = figs.get(item)
         pp = env.product(item)
@@ -739,10 +739,13 @@ def campaign_profile(env: RecoEnv, campaign_key: str) -> dict[str, Any] | None:
             safe_div(pp.contribution, pp.buyer_paid_covered) if pp.buyer_paid_covered > 0 else None
         )
         d = fig.direct_gmv * min(share, ONE)
-        direct += d
-        before_ads += d * (rate if rate is not None and rate > 0 else ZERO)
-    if direct <= 0:
-        direct = alloc.direct_gmv
+        weight += d
+        weighted += d * (rate if rate is not None and rate > 0 else ZERO)
+    # P100 A.5: the campaign's spend and direct revenue are both scaled to the one daily spend,
+    # so ROAS is read from the campaign itself; the products only weight the contribution rate
+    # (their figures may sit on the report's own scale, which no longer equals the daily one)
+    direct = alloc.direct_gmv if alloc.direct_gmv > 0 else weight
+    before_ads = direct * (weighted / weight) if weight > 0 else ZERO
     return {
         "alloc": alloc,
         "spend_per_day": alloc.spend / days,
@@ -803,11 +806,59 @@ def _eval_ads_keywords(env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any])
     )
 
 
+def _eval_ads_new(env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any]) -> Evaluation:
+    """P99: a new Hiển thị Sản phẩm campaign. The certain layer is its spend (the daily budget
+    every day of the run) against the shop's daily cap; GMV and orders are not predicted here --
+    the builder's OptionResult (ADR-122 d.8) carries them, measured or "chưa ước tính được"."""
+    budget = D(inputs.get("daily_budget") or 0)
+    if budget <= 0 or not cand.items:
+        return _refuse("invalid_inputs")
+    days = int(inputs.get("days") or config.DAYS_PER_MONTH)
+    items = list(cand.items)
+    pps = [env.product(i) for i in items]
+    be = [p.break_even_roas for p in pps if p is not None and p.break_even_roas is not None]
+    certain = {
+        "kind": "ads",
+        "basis": {"key": "placed", "label": "đơn đã đặt"},
+        "campaign": inputs.get("name") or "Chiến dịch mới",
+        "new_campaign": True,
+        "spend_per_day_now": num(ZERO),
+        "spend_per_day_after": num(budget),
+        "days": days,
+        "total_budget": num(budget * days),
+        "roas_target": None if inputs.get("roas_target") is None else num(D(inputs["roas_target"])),
+        "break_even_roas": ratio(max(be), 2) if be else None,
+        "items": items,
+    }
+    profit = ProfitModel(
+        effect_days=min(days, config.DAYS_PER_MONTH),
+        extra_cost_per_day=budget,
+        dchi_per_day=budget,
+        base_label="gmv_quang_cao_don_da_dat",
+    )
+    return Evaluation(
+        certain=certain,
+        five=None,
+        breaches=[],
+        profit=profit,
+        before={"campaign": None},
+        after={"campaign": "new", "daily_budget": num(budget), "items": items},
+        target={"item_ids": items},
+        spend_check=_spend_check(env, budget),
+        notes=[
+            "Chiến dịch mới: chi phí = ngân sách ngày × số ngày; "
+            "đơn tăng thêm chỉ tính khi đo được."
+        ],
+    )
+
+
 def eval_ads(
     env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
 ) -> Evaluation:
     if cand.kind == "ads_keywords":
         return _eval_ads_keywords(env, cand, inputs)
+    if cand.kind == "ads_new_campaign":
+        return _eval_ads_new(env, cand, inputs)
     key = cand.campaign_key
     prof = campaign_profile(env, key) if key else None
     if prof is None:
@@ -828,12 +879,28 @@ def eval_ads(
         "campaign_id": setting.campaign_id if setting else None,
         "campaign_key": key,
     }
-    if kind == "ads_budget":
+    ads_notes: list[str] = []
+    if kind == "ads_budget" and inputs.get("unlimited"):
+        # P97 D85.17: no daily cap -- spend follows the ROAS target; Juli does not invent a rise
+        before_view = {"daily_budget": num(budget_before), "spend_per_day": num(spend_now)}
+        after_view = {"daily_budget": None, "unlimited": True}
+        ads_notes.append(
+            "Ngân sách không giới hạn: chi thực tế do ROAS mục tiêu quyết định, Juli không "
+            "ước tính mức tăng chi; theo dõi sau khi chạy."
+        )
+    elif kind == "ads_budget":
         b1 = D(inputs["daily_budget"])
         ref = budget_before if budget_before is not None else spend_now
         spend_after = min(b1, spend_now) if b1 < ref else b1
         before_view = {"daily_budget": num(budget_before), "spend_per_day": num(spend_now)}
         after_view = {"daily_budget": num(b1)}
+    elif kind == "ads_roas_target" and inputs.get("roas_mode") == "system":
+        roas_after = None
+        before_view = {"roas_target": num(roas_before)}
+        after_view = {"roas_target": None, "roas_mode": "system"}
+        ads_notes.append(
+            "ROAS tối ưu bởi hệ thống: Shopee tự đặt mục tiêu, Juli không ước tính mức chi mới."
+        )
     elif kind == "ads_roas_target":
         roas_after = D(inputs["roas_target"])
         before_view = {"roas_target": num(roas_before)}
@@ -922,7 +989,7 @@ def eval_ads(
         after=after_view,
         target=target,
         spend_check=_spend_check(env, dspend),
-        notes=["Quảng cáo tính theo đơn đã đặt; không cộng vào tổng đơn đã xác nhận."],
+        notes=["Quảng cáo tính theo đơn đã đặt; không cộng vào tổng đơn đã xác nhận.", *ads_notes],
     )
 
 
@@ -945,7 +1012,12 @@ def eval_bundle(
     env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
 ) -> Evaluation:
     """Combo tiers / set size: per tier the bundle's margin and floor check, AOV and units per
-    order; certain cost = the discount on today's orders that already carry that many units."""
+    order; certain cost = the discount on today's orders that already carry that many units.
+    A combo in Shopee's shape (``tiers`` over a product list, P97 D85.15) has its own module."""
+    if inputs.get("tiers"):
+        from juli_backend.services.shopee_recommendations.bundle_tiers import eval_bundle_tiers
+
+        return eval_bundle_tiers(env, cand, inputs, predicted)
     item = cand.item
     if item is None:
         return _refuse("no_item")
@@ -1082,7 +1154,7 @@ def eval_bundle(
 
 
 MAX_ADDONS = 5
-MAX_GIFT_QTY = 20
+MAX_GIFT_QTY = 49  # P100 wave 2: Shopee allows N below 50 gifts (was 20)
 
 
 def _addon_specs(cand: Candidate, inputs: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -1259,6 +1331,10 @@ def eval_add_on(
         "main_orders": n_main,
         "aov_now": num(aov),
         "discount_cost_on_existing": num(cost_total),
+        # P100-C: the add-on GMV of one main order taking every add-on (at the add-on price)
+        "attach_value_per_order": num(safe_div(attach_gmv_per_day * window, Decimal(n_main)))
+        if n_main
+        else None,
         # discount per đồng of add-on GMV: the cost of the predicted attaches
         "discount_per_attach_gmv": ratio(safe_div(discount_per_day_if_all, attach_gmv_per_day), 6),
         "break_even_extra_orders": max(
@@ -1348,14 +1424,19 @@ def eval_gift(
         label = env.name(str(gift))
     gift_cost *= qty
     by_order: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    after_offers: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for ln in lines:
         by_order[ln.order_id] += ln.order_value
+        # P100 (B.11): the minimum spend is met on the basket after the programme price
+        # (``deal_price``) and the combo discount; Shopee's own rule for a gift is not
+        # confirmed in Seller Centre yet (brief J verified the combo, not the gift)
+        after_offers[ln.order_id] += ln.order_value - ln.bundle_discount
     if trigger.get("type") == "buy_item":
         item_orders = {ln.order_id for ln in lines if ln.product_id == main}
         qualifying = [o for o in by_order if o in item_orders]
     else:
         min_spend = D(trigger.get("amount", 0))
-        qualifying = [o for o, v in by_order.items() if v >= min_spend]
+        qualifying = [o for o, v in after_offers.items() if v >= min_spend]
     total_cost = gift_cost * len(qualifying)
     pairs = profit_lines(lines, env.costs, schedule=env.schedule(main or ""))
     contrib = [
@@ -1804,6 +1885,17 @@ def eval_kol(
     return evaluation_of(env, cand, dict(inputs))
 
 
+def eval_listing_combo(
+    env: RecoEnv, cand: Candidate, inputs: Mapping[str, Any], predicted: PredictedRange | None
+) -> Evaluation:
+    """P97 D85.16: a new listing that sells existing products together; see ``listing_combo``."""
+    from juli_backend.services.shopee_recommendations.listing_combo import (
+        eval_listing_combo as evaluate_listing_combo,
+    )
+
+    return evaluate_listing_combo(env, cand, inputs, predicted)
+
+
 _EVALUATORS = {
     "kol": eval_kol,
     "voucher": eval_voucher,
@@ -1813,6 +1905,7 @@ _EVALUATORS = {
     "add_on": eval_add_on,
     "gift": eval_gift,
     "combo_multi": eval_combo_multi,
+    "listing_combo": eval_listing_combo,
     "affiliate": eval_affiliate,
     "listing": eval_listing,
 }
@@ -1830,7 +1923,12 @@ def evaluator_key(kind: str) -> str:
         return "kol" if kind in ("affiliate_sample", "affiliate_invite") else "affiliate"
     if s.family == "listing":
         return "listing"
-    return {"add_on": "add_on", "gift": "gift", "combo_multi": "combo_multi"}.get(kind, "bundle")
+    return {
+        "add_on": "add_on",
+        "gift": "gift",
+        "combo_multi": "combo_multi",
+        "listing_combo": "listing_combo",
+    }.get(kind, "bundle")
 
 
 def evaluate(

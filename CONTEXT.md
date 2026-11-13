@@ -578,6 +578,32 @@ _Avoid_: treating outputs as decision-grade, persisting experiment rows into Ana
 The intended future way to estimate Juli's effect on client GMV: compose **Juli → Product/LIVE mediators** and **mediators → GMV** elasticities. Requires shipped workflows plus enough history; calibration-grade until promotion gates exist. Hop detail: [ADR-032](docs/adr/032-fujiwa-t1-gmv-experiment-scope.md).
 _Avoid_: direct Juli→GMV as the only story, Value calculator assumption tabs as measured Juli impact
 
+## Shopee option estimates
+
+**Option result**:
+The three numbers every builder option (Voucher, Combo, Ads, Affiliate, …) is judged and compared on: **Δ GMV, Δ Orders, Δ Profit**, each with a low / likely / high range, always derived through the Shopee funnel **Orders = Views × CTR × CTOR**, **GMV = Orders × AOV**, **Profit = Orders × profit per order − the change's fixed cost** — never estimated directly (P98 grill C1, 2026-11-09). CTOR = orders ÷ clicks, as everywhere in the app.
+_Avoid_: a GMV or profit delta with no funnel behind it, "uplift" without saying which result
+
+**Driver metric**:
+The one or two funnel metrics an option acts on — from Views, CTR, CTOR, AOV — named on the option and the only metrics whose "after" differs from "before". **Orders move only when a driver sits above orders in the funnel (Views, CTR, CTOR)**; an AOV-only option changes GMV and Profit with Δ Orders = 0 by construction. The option's own costs (discount paid, commission, samples, ad spend) are not drivers: they enter profit per order or the fixed cost (P98 grill C1).
+_Avoid_: listing a driver the model does not move, a metric changing without being a driver
+
+**Shopee funnel base**:
+The one stored funnel every Shopee screen and backend calculation reads (P98 grill C2, [ADR-122](docs/adr/122-one-shopee-funnel-and-option-results.md)): the materialized daily tables hold Đơn / GMV / lợi nhuận from ShopMetrics and Lượt xem / lượt nhấp from the traffic tables on the same rows; **CTR = lượt nhấp ÷ lượt xem, CTOR = đơn (ShopMetrics) ÷ lượt nhấp**, both from window sums, so Lượt xem × CTR × CTOR = Đơn exactly.
+_Avoid_: CTOR from the traffic table's own order count, averaging daily ratios, a screen recomputing a factor from another source
+
+**Source funnel**:
+The Shopee funnel base kept per traffic source — Thẻ sản phẩm (ngoài Trang shop), Trang shop, Live, Video, Liên kết, plus the residual Chênh lệch nguồn — with đơn per source scaled to ShopMetrics so the sources sum to Tổng quan; Quảng cáo is a "trong đó" share of Thẻ sản phẩm (P98 grill C2b, ADR-122 d.3). An option changes only the source(s) its drivers act on.
+_Avoid_: a shop-level funnel spreading an option over every source, adding Quảng cáo to the sources
+
+**Biên ở giá bán / Biên cuối**:
+The two margins of a Shopee variation (ADR-122 d.12). **Biên ở giá bán** (chắc chắn) = one order at today's selling price after the fee schedule, giá vốn and packaging. **Biên cuối** (ước tính) = that minus the variation's measured 30-day voucher, affiliate commission and ad-cost rates (the product's rates when the variation has no history). The combo builder prices and floor-checks on Biên cuối and shows both.
+_Avoid_: "biên thực tế", one unlabelled margin, comparing a realized 30-day margin with a price-only margin
+
+**Cashback affiliate**:
+A Shopee affiliate partner that is a cashback or coupon site (e.g. accesstradevn, shopbackvn_) rather than a content creator: its orders mostly come from buyers who would have bought anyway, so they never count as extra orders, and it is never suggested samples (P98 grill C7, ADR-122 d.9).
+_Avoid_: treating every affiliate partner as a KOL, counting cashback orders as uplift
+
 ## Security baseline
 
 **Default-deny data boundary**:

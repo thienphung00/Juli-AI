@@ -2,7 +2,7 @@ import { configure, fireEvent, screen, waitFor, within } from "@testing-library/
 import { describe, expect, it } from "vitest";
 
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
-import { confirmedPlan, emptyPlan, fakePlan, overCapPlan, plan, planCard, stackedPlan } from "../../../lib/shopee-decisions/__tests__/plan-fixtures";
+import { confirmedPlan, emptyPlan, fakePlan, groupedPlan, overCapPlan, plan, planCard, stackedPlan } from "../../../lib/shopee-decisions/__tests__/plan-fixtures";
 import { fakeReco, summaryOf, voucherCard } from "../../../lib/shopee-decisions/__tests__/fixtures";
 import type { PlanResponse } from "../../../lib/shopee-decisions/plan-types";
 import { DecisionsView } from "../decisions-view";
@@ -28,7 +28,7 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     const row = screen.getByTestId("kh-row-card-voucher");
     expect(row).toHaveTextContent("JC-2611-0007-V1");
     expect(row).toHaveTextContent("Voucher 15.000đ cho đơn ≥ 299.000đ · Găng tay cao su A");
-    expect(row).toHaveTextContent("Đóng góp: +90.000đ/tháng (giữa khoảng) · Bỏ thẻ này thì: lợi nhuận −90.000đ/tháng, GMV −540.000đ, chi phí −90.000đ/tháng");
+    expect(row).toHaveTextContent("Đóng góp: +90.000đ/tháng (giữa khoảng) · Bỏ thẻ này thì: lợi nhuận −90.000đ/tháng, GMV −540.000đ, chi phí −90.000đ (30 ngày tới)");
     expect(within(row).getAllByRole("button", { name: /^V\d$/ })).toHaveLength(3);
     expect(screen.getByTestId("kh-cand-card-wait")).toHaveTextContent("JC-2611-0009");
   });
@@ -81,7 +81,27 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Bỏ khỏi kế hoạch" }));
     await waitFor(() => expect(api.calls.find((c) => c.name === "remove")?.args).toEqual(["card-voucher"]));
     fireEvent.click(within(await screen.findByTestId("kh-cand-card-wait")).getByRole("button", { name: "Thêm vào kế hoạch" }));
-    await waitFor(() => expect(api.calls.find((c) => c.name === "add")?.args).toEqual(["card-wait", 1, false]));
+    await waitFor(() => expect(api.calls.find((c) => c.name === "add")?.args).toEqual(["card-wait", null, false]));
+  });
+
+  it("P99b: the base is live: the screen says so and offers no 'Cập nhật số'", async () => {
+    const base = { live: true, as_of: "2026-11-10", window: null, newest_day: "2026-11-10", newer_available: false, horizon_from: "2026-11-11", note: "Số liệu tính lại mỗi lần mở, đến hết ngày 10/11/2026." };
+    const first = plan();
+    open({ ...first, plan: { ...first.plan!, base } });
+    expect(await screen.findByTestId("kh-base-note")).toHaveTextContent("tính lại mỗi lần mở");
+    expect(screen.queryByTestId("kh-refresh")).toBeNull();
+    expect(screen.queryByText("Cập nhật số")).toBeNull();
+  });
+
+  it("an action's answer is dropped once the refetch lands, so a stale override never hides the server", async () => {
+    const first = plan();
+    const answer = plan({ cards: first.cards.slice(0, 1) });
+    const api = open(first, { remove: answer });
+    const row = await screen.findByTestId("kh-row-card-voucher");
+    fireEvent.click(within(row).getByRole("button", { name: "Bỏ khỏi kế hoạch" }));
+    await waitFor(() => expect(api.calls.some((c) => c.name === "remove")).toBe(true));
+    // the refetch (api.get) returns `first` again: the screen shows it, not the old answer
+    await waitFor(() => expect(screen.getByTestId("kh-count")).toHaveTextContent("3 thẻ"));
   });
 
   it("adding a card that breaks the floor asks first; 'Vẫn tiếp tục' adds it acknowledged and shows the chip", async () => {
@@ -93,7 +113,7 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     expect(within(dialog).getByRole("heading")).toHaveTextContent("Thêm JC-2611-0009 vào kế hoạch dù chạm giá sàn?");
     fireEvent.click(within(dialog).getByRole("button", { name: "Vẫn tiếp tục" }));
     await waitFor(() => expect(api.calls.filter((c) => c.name === "add")).toHaveLength(2));
-    expect(api.calls.filter((c) => c.name === "add")[1]!.args).toEqual(["card-wait", 1, true]);
+    expect(api.calls.filter((c) => c.name === "add")[1]!.args).toEqual(["card-wait", null, true]);
     expect(await screen.findByTestId("kh-ack")).toHaveTextContent("Đã xác nhận vượt giá sàn");
   });
 
@@ -109,11 +129,17 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     expect(screen.queryByTestId("kh-hard")).toBeNull();
     fireEvent.click(within(win).getByRole("radio", { name: /7 ngày cho cả kế hoạch/ }));
     await waitFor(() => expect(api.calls.find((c) => c.name === "setWindow")?.args).toEqual([7]));
-    fireEvent.click(within(win).getByRole("button", { name: "Tăng số ngày" }));
+    // every control is disabled while a call is in flight: wait for it to be enabled, or a slow
+    // runner drops the click (deploy fasttrack-deploy-20261111T1203Z saw [11] instead of [null])
+    const clickEnabled = async (el: HTMLElement) => {
+      await waitFor(() => expect(el).toBeEnabled());
+      fireEvent.click(el);
+    };
+    await clickEnabled(within(win).getByRole("button", { name: "Tăng số ngày" }));
     await waitFor(() => expect(api.calls.filter((c) => c.name === "setWindow").at(-1)!.args).toEqual([11]));
-    fireEvent.click(within(win).getByRole("radio", { name: /Tự động theo sản phẩm/ }));
+    await clickEnabled(within(win).getByRole("radio", { name: /Tự động theo sản phẩm/ }));
     await waitFor(() => expect(api.calls.filter((c) => c.name === "setWindow").at(-1)!.args).toEqual([null]));
-    fireEvent.click(within(screen.getByTestId("kh-set-GT-A")).getByRole("button", { name: "14 ngày" }));
+    await clickEnabled(within(screen.getByTestId("kh-set-GT-A")).getByRole("button", { name: "14 ngày" }));
     await waitFor(() => expect(api.calls.filter((c) => c.name === "setWindow").at(-1)!.args).toEqual([14, "GT-A"]));
   });
 
@@ -137,7 +163,17 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
 
   it("confirm: the dialog says which running measurements are cut; confirming issues the plan code", async () => {
     const done = confirmedPlan();
-    const api = open(plan(), { confirm: done });
+    const draft = plan();
+    // the server's refetch after the confirm returns the confirmed plan (D85.4 drops the
+    // action's answer as soon as the refetch lands)
+    let confirmed = false;
+    const api = open(draft, {
+      confirm: () => {
+        confirmed = true;
+        return done;
+      },
+      get: () => (confirmed ? done : draft),
+    });
     fireEvent.click(await screen.findByTestId("kh-confirm"));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("heading")).toHaveTextContent("Xác nhận kế hoạch 3 thẻ?");
@@ -201,5 +237,55 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
   it("without a plan backend the screen says it is off", async () => {
     renderReco(<DecisionsView params={params("ke-hoach=1")} />, fakeReco());
     expect(await screen.findByTestId("kh-off")).toBeInTheDocument();
+  });
+});
+
+describe("Kế hoạch · nhóm chạy cùng nhau (P97 D85.14)", () => {
+  it("shows Nhóm A and B with code, period, members and the group's own before -> after", async () => {
+    open(groupedPlan());
+    const box = await screen.findByTestId("kh-groups");
+    expect(within(box).queryByTestId("kh-notice")).toBeNull();
+    const a = within(box).getByTestId("kh-group-A");
+    expect(a).toHaveTextContent("JC-2611-0007-GA");
+    expect(within(a).getByTestId("kh-group-period-A")).toHaveTextContent("10/11 – 16/11 · 7 ngày");
+    expect(within(a).getByTestId("kh-gm-card-voucher@v1")).toHaveTextContent("JC-2611-0007-V1");
+    expect(within(a).getByTestId("kh-gm-card-voucher@v2")).toHaveTextContent("JC-2611-0007-V2");
+    expect(within(a).getByTestId("kh-group-agg-A")).toHaveTextContent("Δ lợi nhuận / tháng · dự kiến");
+    expect(within(box).getByTestId("kh-group-B")).toHaveTextContent("JC-2611-0012-V2");
+    expect(screen.getByTestId("kh-row-card-voucher")).toHaveTextContent("Nhóm A · V1");
+  });
+
+  it("says why an option moved to the next group, when adding it", async () => {
+    open(groupedPlan(), { add: groupedPlan(true) });
+    fireEvent.click(await screen.findByRole("button", { name: "Thêm vào kế hoạch" }));
+    expect(await screen.findByTestId("kh-notice")).toHaveTextContent("Mỗi lần chỉ giữ một giá trị cho giá bán, nên thẻ này chạy ở Nhóm B");
+  });
+
+  it("a group runs at least 3 days; the period, a member and the whole group can be changed", async () => {
+    const api = open(groupedPlan());
+    const a = await screen.findByTestId("kh-group-A");
+    fireEvent.change(within(a).getByLabelText("Số ngày Nhóm A"), { target: { value: "2" } });
+    expect(within(a).getByText("Nhóm chạy ít nhất 3 ngày.")).toBeInTheDocument();
+    expect(within(a).getByRole("button", { name: "Lưu thời gian" })).toBeDisabled();
+    fireEvent.change(within(a).getByLabelText("Số ngày Nhóm A"), { target: { value: "9" } });
+    fireEvent.change(within(a).getByLabelText("Bắt đầu Nhóm A"), { target: { value: "2026-11-12" } });
+    fireEvent.click(within(a).getByRole("button", { name: "Lưu thời gian" }));
+    await waitFor(() => expect(api.calls.find((c) => c.name === "setGroupPeriod")?.args).toEqual(["g-a", { days: 9, start: "2026-11-12" }]));
+    fireEvent.click(within(a).getByRole("button", { name: "Bỏ JC-2611-0007-V2 khỏi Nhóm A" }));
+    await waitFor(() => expect(api.calls.find((c) => c.name === "removeGroupMember")?.args).toEqual(["g-a", { cardId: "card-voucher", version: 2 }]));
+    fireEvent.click(within(await screen.findByTestId("kh-group-B")).getByRole("button", { name: "Bỏ nhóm" }));
+    await waitFor(() => expect(api.calls.find((c) => c.name === "cancelGroup")?.args).toEqual(["g-b"]));
+  });
+
+  it("exports the plan to Excel", async () => {
+    const api = open(groupedPlan());
+    fireEvent.click(await screen.findByTestId("kh-export"));
+    await waitFor(() => expect(api.calls.some((c) => c.name === "exportPlan")).toBe(true));
+  });
+
+  it("a plan with no group shows no group section", async () => {
+    open();
+    await screen.findByTestId("kh-agg");
+    expect(screen.queryByTestId("kh-groups")).toBeNull();
   });
 });

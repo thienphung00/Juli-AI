@@ -14,7 +14,8 @@
 // cookies, no other URLs, and sends nothing but those queries: it never clicks, applies or
 // saves anything.
 
-import { CHANNEL, READER_IDS, SELLER_CENTRE_ORIGIN } from "../config";
+import { CHANNEL, FILL_HASH_KEY, READER_IDS, SELLER_CENTRE_ORIGIN } from "../config";
+import { bundleIdFrom, savedBundlePath, savedVoucherPath, voucherIdFrom } from "../fill/saved";
 import {
   isCapturedEndpoint,
   READER_ENDPOINTS,
@@ -152,6 +153,21 @@ function readerTarget(rawUrl: string, method: string): { endpoint: ReaderEndpoin
   }
 }
 
+// -- a voucher the person saved on a fill-job page (P97 D85.6) ----------------------------------
+
+/** Only on a page opened by a fill job (`#juli-fill=...`): keep the new voucher_id / combo id of the create answer. */
+function noteSavedVoucher(rawUrl: string, method: string, body: unknown): void {
+  try {
+    if (method !== "POST" || !location.hash.includes(`${FILL_HASH_KEY}=`)) return;
+    const url = new URL(rawUrl, location.href);
+    if (url.origin !== SELLER_CENTRE_ORIGIN) return;
+    const ref = savedVoucherPath(url.pathname) ? voucherIdFrom(body) : savedBundlePath(url.pathname) ? bundleIdFrom(body) : null;
+    if (ref) window.postMessage({ channel: CHANNEL, kind: "fill-saved", ref }, SELLER_CENTRE_ORIGIN);
+  } catch {
+    // not ours to report
+  }
+}
+
 // -- fetch ----------------------------------------------------------------------------
 
 const originalFetch = window.fetch.bind(window);
@@ -173,6 +189,13 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
     if (seen) mydataHeaders = seen;
   }
   const response = await originalFetch(input, init);
+  if (response.ok && method === "POST") {
+    response
+      .clone()
+      .json()
+      .then((body: unknown) => noteSavedVoucher(raw, method, body))
+      .catch(() => undefined);
+  }
   if (reader && response.ok) {
     response
       .clone()
@@ -194,6 +217,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
 
 // -- XMLHttpRequest -------------------------------------------------------------------
 
+const xhrPosts = new WeakMap<XMLHttpRequest, string>();
 const xhrUrls = new WeakMap<XMLHttpRequest, URL>();
 const xhrWatchedHeaders = new WeakMap<XMLHttpRequest, Record<string, string>>();
 const xhrReaders = new WeakMap<
@@ -222,6 +246,7 @@ XMLHttpRequest.prototype.open = function open(
   url: string | URL,
   ...rest: unknown[]
 ): void {
+  if (method.toUpperCase() === "POST") xhrPosts.set(this, String(url));
   const target = method.toUpperCase() === "GET" ? watched(String(url)) : null;
   if (target) {
     xhrUrls.set(this, target);
@@ -236,6 +261,21 @@ XMLHttpRequest.prototype.send = function send(
   this: XMLHttpRequest,
   body?: Document | XMLHttpRequestBodyInit | null,
 ): void {
+  const posted = xhrPosts.get(this);
+  if (posted) {
+    this.addEventListener("load", () => {
+      if (this.status < 200 || this.status >= 300) return;
+      try {
+        noteSavedVoucher(
+          posted,
+          "POST",
+          this.responseType === "json" ? this.response : JSON.parse(typeof this.response === "string" ? this.response : this.responseText),
+        );
+      } catch {
+        // not JSON
+      }
+    });
+  }
   const reader = xhrReaders.get(this);
   if (reader) {
     learn(reader.endpoint, reader.url, parseJson(body), reader.headers);
@@ -373,10 +413,20 @@ async function runReader(job: ReaderJob): Promise<void> {
     passwordModalVisible,
     mydataHeaders: () => mydataHeaders,
     pathname: () => location.pathname,
+    // The shared daily request budget: what the service worker granted this job.
+    ...(typeof job.budget === "number" ? { budget: { left: job.budget } } : {}),
+    pause: sleep,
   };
   const outcome = await runReaderJob(job, env);
   window.postMessage(
-    { channel: CHANNEL, kind: "reader-result", job: job.id, status: outcome.status, responses: outcome.responses },
+    {
+      channel: CHANNEL,
+      kind: "reader-result",
+      job: job.id,
+      status: outcome.status,
+      detail: outcome.detail,
+      responses: outcome.responses,
+    },
     SELLER_CENTRE_ORIGIN,
   );
 }
@@ -399,14 +449,29 @@ window.addEventListener("message", (event: MessageEvent) => {
 });
 
 function isReaderJob(value: unknown): value is ReaderJob {
-  const job = value as { id?: unknown; days?: unknown; itemIds?: unknown } | null;
+  const job = value as {
+    id?: unknown;
+    days?: unknown;
+    itemIds?: unknown;
+    campaignIds?: unknown;
+    campaignNames?: unknown;
+    orderIds?: unknown;
+    orderSns?: unknown;
+    budget?: unknown;
+  } | null;
+  const digitList = (list: unknown) =>
+    list === undefined || (Array.isArray(list) && list.every((id) => typeof id === "string" && /^\d{1,32}$/.test(id)));
   return (
     typeof job === "object" &&
     job !== null &&
     typeof job.id === "string" &&
     (READER_IDS as readonly string[]).includes(job.id) &&
-    (job.itemIds === undefined ||
-      (Array.isArray(job.itemIds) && job.itemIds.every((id) => typeof id === "string" && /^\d{1,32}$/.test(id)))) &&
+    digitList(job.itemIds) &&
+    digitList(job.campaignIds) &&
+    (job.campaignNames === undefined || (Array.isArray(job.campaignNames) && job.campaignNames.every((n) => typeof n === "string"))) &&
+    digitList(job.orderIds) &&
+    (job.orderSns === undefined || (Array.isArray(job.orderSns) && job.orderSns.every((sn) => typeof sn === "string" && /^[A-Za-z0-9]{0,40}$/.test(sn)))) &&
+    (job.budget === undefined || (typeof job.budget === "number" && Number.isFinite(job.budget) && job.budget >= 0)) &&
     (job.days === undefined || (Array.isArray(job.days) && job.days.every((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))))
   );
 }

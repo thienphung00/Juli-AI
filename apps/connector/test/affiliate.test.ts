@@ -13,6 +13,7 @@ import {
   mapAffiliateProducts,
   mapAffiliateShop,
   RAW_ORDER_ID,
+  scaleFromMagnitude,
   scaleFromPairs,
 } from "../src/shopee/affiliate-map";
 import { isCapturedEndpoint, READER_PAGES, readerEndpointOf, type ReaderEndpoint } from "../src/shopee/endpoints";
@@ -196,15 +197,15 @@ describe("conversion report reader", () => {
     expect(body.period).toEqual({ start: "2026-10-06", end: "2026-11-05", granularity: "period" });
   });
 
-  it("a money scale the display twins contradict is drift: nothing is posted", () => {
+  it("a money scale the display twins contradict still posts the order and drops the odd amount", () => {
     const bad = structuredClone(CONVERSION_PAGE);
     (bad.data.list[0]!.items[0] as Record<string, unknown>).item_price = 999;
     const mapped = mapAffiliateConversions(
       [{ endpoint: "affiliate_conversion", url: "x", status: 200, body: bad, capturedAt: NOW, source: "replay", period: { start: "2026-10-06", end: "2026-11-05" } }],
       NOW,
     );
-    expect(mapped.drift?.unexpected).toContain("affiliate:money_scale");
-    expect(mapped.rows).toEqual([]);
+    expect(mapped.drift).toBeNull();
+    expect(mapped.rows.length).toBeGreaterThan(0);
   });
 });
 
@@ -269,6 +270,17 @@ describe("captured affiliate pages", () => {
     expect(periodOfTemplate(template)).toEqual({ start: "2026-10-06", end: "2026-11-04" });
   });
 
+  it("nested GraphQL variables (input.timeRange.startTime) give the period too", () => {
+    const template: Template = {
+      query: {},
+      body: {
+        operationName: "QueryCommissionList",
+        variables: { input: { timeRange: { startTime: gmt7DateStart("2026-10-06"), endTime: gmt7DateStart("2026-11-04") + 86_399 }, pageNum: 1 } },
+      },
+    };
+    expect(periodOfTemplate(template)).toEqual({ start: "2026-10-06", end: "2026-11-04" });
+  });
+
   it("seller_daily: one post per day plus the direct / indirect split of the page's period", () => {
     const daily = {
       code: 0,
@@ -329,10 +341,81 @@ describe("money scale helpers", () => {
     expect(scaleFromPairs([{ gmv: 5 }], ["gmv"])).toBeUndefined();
   });
 
+  it("with no display twin the scale comes from the size of the amounts (F4)", () => {
+    expect(scaleFromMagnitude([{ gmv: 12_636_000_000 }], ["gmv"])).toBe(100_000);
+    expect(scaleFromMagnitude([{ gmv: 126360 }, { gmv: 82620 }], ["gmv"])).toBe(1);
+    expect(scaleFromMagnitude([{ gmv: 0 }], ["gmv"])).toBeUndefined();
+    expect(scaleFromMagnitude([{ gmv: 2_000_000_000 }], ["gmv"])).toBeUndefined(); // fits both: fallback applies
+  });
+
+  it("conversion rows without display twins: plain VND is read as VND, not divided again", () => {
+    const { dis_item_price: _a, dis_actual_amount: _b, dis_refunded_amount: _c, ...bare } = ITEM;
+    const plain = { ...bare, item_price: 126_360, actual_amount: 126_360, refunded_amount: 0 };
+    const page = { code: 0, data: { list: [order("261105GDSAEB5W", "kol", [plain])] } };
+    const mapped = mapAffiliateConversions([{ endpoint: "affiliate_conversion", url: "u", status: 200, capturedAt: NOW, source: "replay", body: page, period: { start: "2026-11-05", end: "2026-11-05" } } as ReaderResponse], NOW);
+    expect(mapped.drift).toBeNull();
+    expect(mapped.rows[0]).toMatchObject({ price: 126360, order_value: 126360 });
+  });
+
+  it("order_id as a number is kept (and hashed to the same ref as its string)", () => {
+    const numeric = { ...order("0", "kol", [ITEM]), order_id: 2611051234567 };
+    const page = { code: 0, data: { list: [numeric] } };
+    const mapped = mapAffiliateConversions([{ endpoint: "affiliate_conversion", url: "u", status: 200, capturedAt: NOW, source: "replay", body: page, period: { start: "2026-11-05", end: "2026-11-05" } } as ReaderResponse], NOW);
+    expect(mapped.drift).toBeNull();
+    expect(mapped.rows[0]![RAW_ORDER_ID]).toBe("2611051234567");
+  });
+
   it("order_ref matches the Ops upload page's function (same key, same id)", async () => {
     const key = await importOrderRefKey("00112233445566778899aabbccddeeff");
     const a = await orderRef(" 261105gdsaeb5w ", key);
     expect(a).toMatch(/^[0-9a-f]{32}$/);
     expect(await orderRef("261105GDSAEB5W", key)).toBe(a);
+  });
+});
+
+describe("0.3.15: the posted amounts are VND whichever scale the answer uses", () => {
+  const at = (endpoint: ReaderEndpoint, body: unknown): ReaderResponse => ({ endpoint, url: "x", status: 200, body, capturedAt: NOW, source: "page", period: { start: "2026-11-06", end: "2026-11-06" } });
+  const kol = (gmv: number, commission: number, twins: boolean) => ({
+    affiliate_id: 1,
+    orders: 2,
+    gmv,
+    est_commission: commission,
+    ...(twins ? { dis_gmv: "₫126.360", dis_est_commission: "₫10.109" } : {}),
+  });
+  const sales = (list: unknown[]) => mapAffiliatePartners([at("affiliate_performance", { code: 0, data: { list } })], NOW).rows[0];
+
+  it("raw x 100 000 and plain VND give the same VND, with and without display twins", () => {
+    expect(sales([kol(12_636_000_000, 1_010_880_000, true)])).toMatchObject({ sales: 126360, est_commission: 10108.8 });
+    expect(sales([kol(12_636_000_000, 1_010_880_000, false)])).toMatchObject({ sales: 126360, est_commission: 10108.8 });
+    expect(sales([kol(126_360, 10_109, true)])).toMatchObject({ sales: 126360, est_commission: 10109 });
+    expect(sales([kol(126_360, 10_109, false)])).toMatchObject({ sales: 126360, est_commission: 10109 });
+  });
+
+  it("products and commissions too", () => {
+    const item = (m: number) => ({ item_id: 5, gmv: 126_360 * m, price: 63_180 * m, spend: 10_109 * m, orders: 1 });
+    for (const m of [1, 100_000]) {
+      const row = mapAffiliateProducts([at("affiliate_item_detail", { code: 0, data: { list: [item(m)] } })], NOW).rows[0];
+      expect(row).toMatchObject({ sales: 126360, price: 63180, est_commission: 10109 });
+      const c = mapAffiliateCommissions([at("affiliate_commission_list", { data: { commissionList: { list: [{ commissionId: 1, orderAmount: 126_360 * m, estCommission: 10_109 * m }] } } })], NOW).rows[0];
+      expect(c).toMatchObject({ sales: 126360, est_commission: 10109 });
+    }
+  });
+
+  it("no pair and a magnitude that fits both units falls back to x 100 000 (documented, reported, not drift)", () => {
+    // 50 000 000 raw is 50 000 000 VND or 500 VND: undecided. Never a drift; the fallback is the service's usual scale.
+    expect(scaleFromMagnitude([{ gmv: 50_000_000 }], ["gmv"])).toBeUndefined();
+    const mapped = mapAffiliatePartners([at("affiliate_performance", { code: 0, data: { list: [{ affiliate_id: 1, orders: 1, gmv: 50_000_000 }] } })], NOW);
+    expect(mapped.drift).toBeNull();
+    expect(mapped.rows[0]).toMatchObject({ sales: 500 });
+  });
+
+  it("the campaign name is found under any spelling Shopee used, else the id labels it", () => {
+    const camp = (extra: Record<string, unknown>) =>
+      mapAffiliateCampaigns([at("affiliate_shop_campaign", { data: { shopCampaigns: [{ commissionId: "5001", commissionRate: 8, ...extra }] } })], NOW).rows[0];
+    expect(camp({ commissionName: "A" })).toMatchObject({ campaign_name: "A" });
+    expect(camp({ campaignName: "B" })).toMatchObject({ campaign_name: "B" });
+    expect(camp({ name: "C" })).toMatchObject({ campaign_name: "C" });
+    expect(camp({})).toMatchObject({ campaign_name: "Chiến dịch 5001" });
+    expect(mapAffiliateCampaigns([at("affiliate_shop_campaign", { data: { shopCampaigns: [{ commissionId: "5001" }] } })], NOW).drift).toBeNull();
   });
 });

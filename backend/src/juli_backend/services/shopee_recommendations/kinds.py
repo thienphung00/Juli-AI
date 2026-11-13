@@ -23,7 +23,7 @@ FAMILIES: tuple[str, ...] = (
     "mega_sale",
 )
 FAMILY_LABELS: dict[str, str] = {
-    "ads": "Quảng cáo",
+    "ads": "Dịch vụ hiển thị",
     "promotion": "Khuyến mãi / giá",
     "voucher": "Voucher",
     "sale": "Flash Sale / chương trình Shopee",
@@ -97,6 +97,8 @@ _EDIT = Page(
 )
 _COMBO = Page("Marketing › Combo khuyến mãi", None, verified=False)
 _ADD_ON = Page("Marketing › Mua kèm deal sốc", None, verified=False)
+#: Thêm sản phẩm (a new listing): the form is not recorded yet, so no fill (P97 D85.16)
+_NEW_LISTING = Page("Sản phẩm › Thêm sản phẩm", "/portal/product/new", verified=False)
 _PROGRAMME = Page("Marketing › Chương trình của Shopee", None, verified=False)
 #: Keyword roles are Juli's own key list (ADR-120 d.11), kept in Juli Ops, not in Seller Centre.
 _JULI_KEYWORDS = Page("Juli › Từ khoá của sản phẩm", None, verified=False)
@@ -156,6 +158,18 @@ KINDS: dict[str, KindSpec] = {
         "Từ khoá và giá thầu quảng cáo",
         "ads",
         "campaign",
+        "none",
+        _ADS,
+        prior=(0, 0),
+    ),
+    # P99: a NEW Hiển thị Sản phẩm campaign (the builder's Ads tab). Its certain layer is the
+    # spend; no preset prior: extra orders are measured on / off days only (ADR-122 d.8).
+    "ads_new_campaign": KindSpec(
+        "ads_new_campaign",
+        "ads",
+        "Chiến dịch quảng cáo mới",
+        "ads",
+        "item",
         "none",
         _ADS,
         prior=(0, 0),
@@ -493,6 +507,17 @@ KINDS: dict[str, KindSpec] = {
         _PROGRAMME,
         prior=(0.05, 0.30),
         sliders=(_S("budget_cap_per_day", "Trần chi / ngày", "vnd", 0, 1_000_000_000, 10_000),),
+    ),
+    # P97 D85.16: a new listing that sells existing products together (``listing_combo.py``)
+    "listing_combo": KindSpec(
+        "listing_combo",
+        "combo",
+        "Listing combo mới",
+        "other",
+        "item",
+        "aov",
+        _NEW_LISTING,
+        prior=(0.0, 0.0),
     ),
     # p91 D-3: a combo of 2-3 different products (calculator in ``combo.py``)
     "combo_multi": KindSpec(

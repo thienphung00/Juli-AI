@@ -30,11 +30,13 @@ from typing import Any
 from juli_backend.models.shop_proposals import ShopProposal
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
+from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_recommendations import (
     combo,
     config,
     product_queue,
     store,
+    targets,
     versions,
 )
 from juli_backend.services.shopee_recommendations.cards import build_card
@@ -57,6 +59,8 @@ MANUAL_KINDS: tuple[str, ...] = tuple(k for k, s in KINDS.items() if s.family !=
 
 _REFUSAL_TEXT = {
     **combo.REFUSALS,
+    "ads_budget_below_min": "Ngân sách tối thiểu: ₫100.000",
+    "no_target": "Chưa có đối tượng nào để áp dụng.",
     "unknown_kind": "Loại thay đổi không hợp lệ.",
     "no_item": "Chưa chọn sản phẩm.",
     "item_unknown": "Sản phẩm chưa có đơn trong kỳ phân tích.",
@@ -83,7 +87,7 @@ _REFUSAL_TEXT = {
     "too_many_addons": "Mua kèm có tối đa 5 sản phẩm.",
     "addon_duplicate": "Các sản phẩm mua kèm phải khác nhau và khác sản phẩm chính.",
     "addon_price_invalid": "Giá mua kèm phải lớn hơn 0 và không cao hơn giá hiện tại.",
-    "gift_qty_invalid": "Số lượng quà từ 1 đến 20.",
+    "gift_qty_invalid": "Số lượng quà từ 1 đến 49.",
     "no_price": "Chưa có giá hiện tại của phân loại đã chọn để tính.",
     # P96
     "voucher_scope_no_data": "Chưa có dữ liệu đơn theo loại voucher này để ước tính.",
@@ -94,8 +98,23 @@ _REFUSAL_TEXT = {
 }
 
 
+def _vnd(raw: str) -> str:
+    return f"{int(raw):,}".replace(",", ".") + "đ"
+
+
 def refusal(code: str) -> dict[str, str]:
     head = code.split(":", 1)[0]
+    if head == "discount_not_below_current":
+        # discount_not_below_current:{item}:{today}:{after}:{min_pct or ""}
+        _, _, today, after, min_pct = (code.split(":") + [""] * 5)[:5]
+        hint = f" Nhập %GIẢM từ {min_pct}% trở lên để giảm thật." if min_pct else ""
+        return {
+            "code": code,
+            "message": (
+                f"Giá sau giảm {_vnd(after)} không thấp hơn giá khách đang trả {_vnd(today)}: "
+                "sản phẩm đang có chương trình giảm sâu hơn (%GIẢM tính trên giá gốc)." + hint
+            ),
+        }
     return {"code": code, "message": _REFUSAL_TEXT.get(head, code)}
 
 
@@ -178,6 +197,8 @@ def build_variant(
     kind = str(variant.get("change_kind", ""))
     if kind not in MANUAL_KINDS:
         return None, refusal("unknown_kind")
+    if targets.is_multi(variant):  # P97 D85.13: one card, a row per target
+        return targets.build_multi(env, variant, now=now, build_one=build_variant)
     try:
         cand = candidate_of(variant)
         named = [
@@ -220,6 +241,10 @@ def build_variant(
         return None, refusal("no_order_lines")
     if kind == combo.KIND:
         card["title"] = combo_title(env, cand)
+    joint = variant.get("joint_targets")
+    if joint:  # one voucher over a product list: the list is the fill's bulk target
+        card[targets.KEY] = [{"id": str(i), "kind": "item"} for i in joint]
+        card["fill"] = {"mode": "bulk", "targets": len(joint)}
     return card, None
 
 
@@ -232,8 +257,8 @@ _METRIC_KEYS = (
     "dprofit_certain",
     "dgmv_p50",
     "dorders_p50",
-    "aov_p25",
-    "margin_points_p25",
+    "aov_p50",
+    "margin_points_p50",
     "cost_month",
     "floor_breaches",
 )
@@ -243,7 +268,7 @@ def metrics_of(card: Mapping[str, Any]) -> dict[str, Any]:
     """The numbers the side-by-side shows (all per month, vs doing nothing)."""
     pm = card["predicted"]["money_per_month"]
     total, certain = pm["total"], pm["certain"]
-    kpi = card["rank_inputs"]["kpi_p25"]
+    kpi = card["rank_inputs"].get("kpi_p50") or card["rank_inputs"]["kpi_p25"]
     spend = card.get("spend") or {}
     return {
         "dprofit_p10": total["p10"]["dprofit"],
@@ -252,8 +277,8 @@ def metrics_of(card: Mapping[str, Any]) -> dict[str, Any]:
         "dprofit_certain": certain["dprofit"],
         "dgmv_p50": total["p50"]["dgmv"],
         "dorders_p50": total["p50"]["dorders"],
-        "aov_p25": kpi.get("aov"),
-        "margin_points_p25": kpi.get("bien"),
+        "aov_p50": kpi.get("aov"),
+        "margin_points_p50": kpi.get("bien"),
         "cost_month": certain["dchi"],
         "floor_breaches": len(card["floor"]["breaches"]),
         "floor_ok": card["floor"]["ok"],
@@ -311,6 +336,8 @@ def today_of(env: RecoEnv) -> dict[str, Any]:
         "orders_30d": orders,
         "aov": gmv / orders if orders else None,
         "margin_pct": None if sp.margin_rate is None else float(sp.margin_rate) * 100,
+        # P100 B.5: the one shop profit (Tổng quan / Sản phẩm / Kế hoạch show the same figure)
+        "shop_profit": shop_profit_of(env.view).json(),
         "spend_per_day": float(env.shop_chi_per_day()),
         "spend_cap": None if cap is None else float(cap),
     }
@@ -404,6 +431,9 @@ def _version_rows(
                 "change_kind": variant.get("change_kind"),
                 "items": list(variant.get("items") or []),
                 "extra": dict(variant.get("extra") or {}),
+                **({targets.KEY: list(variant[targets.KEY])} if variant.get(targets.KEY) else {}),
+                # P98: the builder spec ("Chọn"), read back by the plan's option result
+                **({"spec": dict(variant["spec"])} if variant.get("spec") else {}),
                 "title": None if card is None else card["title"],
                 "metrics": None if card is None else metrics_of(card),
             }

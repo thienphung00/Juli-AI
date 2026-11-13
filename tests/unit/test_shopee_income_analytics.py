@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from juli_backend.models.run_changes import ShopRule
 from juli_backend.models.shopee_profit import ShopeeOrderIncome
-from juli_backend.services.shopee_analytics import loaders, queries
+from juli_backend.services.shopee_analytics import loaders, materialize, queries
 from juli_backend.services.shopee_analytics.windows import Window
 from tests.support.shopee_analytics import CUR_END, CUR_START, Seeded, seed_shopee_shop
 
@@ -119,6 +119,9 @@ async def test_a_vat_inclusive_shop_with_a_rate_per_sku_reports_profit_after_vat
     await _flag(session, seeded, "prices_include_vat", True)
     for sku in ("G1", "N1", "T1"):
         await _flag(session, seeded, "vat_rate", 8, sku)
+    # the stored daily rows carry the profit: they are rebuilt after a rule change (P99b: a
+    # screen reads the rows; nothing rebuilds them on a rule change yet -- see the P99b report)
+    await materialize.backfill_shop(session, seeded.shop_id)
     body = await _overview(session, seeded)
     assert body["profit"]["vat"]["basis"] == "after_vat"
     assert body["profit"]["net_revenue"] < plain["profit"]["net_revenue"]

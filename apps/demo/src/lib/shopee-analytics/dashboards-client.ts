@@ -134,6 +134,7 @@ function errorOf(status: number, payload: unknown): ShopeeApiError {
       const d = detail as { code?: unknown; message?: unknown };
       if (typeof d.code === "string") code = d.code;
       if (typeof d.message === "string") message = d.message;
+      return new ShopeeApiError(status, code, message, detail as Readonly<Record<string, unknown>>);
     }
   }
   return new ShopeeApiError(status, code, message);

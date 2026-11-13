@@ -8,6 +8,7 @@ Dates are the platform's calendar day (Shopee VN, GMT+7).
 from __future__ import annotations
 
 import calendar
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Literal
@@ -122,3 +123,59 @@ def choose_periods(window: Window, available: set[tuple[date, date]]) -> PeriodC
     if best is not None and window.overlap_days(*best) * 2 >= window.days:
         return PeriodChoice((best,), "approx", window.overlap_days(*best))
     return PeriodChoice((), "none", 0)
+
+
+#: A daily dataset more than this many days behind the newest one is stale (an old file upload):
+#: it no longer holds the shared window back, and the screens say its totals are partial.
+ANCHOR_LAG_TOLERANCE_DAYS = 3
+
+
+@dataclass(frozen=True)
+class Anchor:
+    """The one window end every Shopee screen shares (D85.2): the last complete day that every
+    live daily dataset has posted. ``limited_by`` names the dataset that trails the newest one
+    (None when they agree); ``stale`` lists datasets too old to count."""
+
+    day: date
+    newest: date
+    limited_by: str | None
+    datasets: Mapping[str, date]
+    stale: tuple[str, ...] = ()
+    source: str = "auto"  # auto | requested | order_lines
+
+    def json(self) -> dict[str, object]:
+        return {
+            "day": self.day.isoformat(),
+            "newest_day": self.newest.isoformat(),
+            "limited_by": self.limited_by,
+            "stale_datasets": list(self.stale),
+            "datasets": {k: v.isoformat() for k, v in sorted(self.datasets.items())},
+            "source": self.source,
+            "label": self.label(),
+        }
+
+    def label(self) -> str:
+        text = f"Số liệu tính đến hết ngày {self.day:%d/%m/%Y}"
+        if self.source == "requested":
+            return text + " (ngày bạn chọn)."
+        if self.limited_by:
+            return (
+                text + f", ngày cuối cùng mọi nguồn đã có đủ; nguồn {self.limited_by} chậm hơn "
+                f"nguồn mới nhất ({self.newest:%d/%m})."
+            )
+        return text + ", ngày cuối cùng mọi nguồn đã có đủ."
+
+
+def choose_anchor(latest: Mapping[str, date], datasets: Sequence[str]) -> Anchor | None:
+    """The last complete day across ``datasets`` (those the shop has day rows for): the oldest of
+    their newest days, ignoring a dataset that trails the freshest by more than
+    :data:`ANCHOR_LAG_TOLERANCE_DAYS`. None when the shop has none of them."""
+    seen = {d: latest[d] for d in datasets if d in latest}
+    if not seen:
+        return None
+    newest = max(seen.values())
+    live = {d: day for d, day in seen.items() if (newest - day).days <= ANCHOR_LAG_TOLERANCE_DAYS}
+    stale = tuple(sorted(d for d in seen if d not in live))
+    day = min(live.values())
+    limited = None if day == newest else min((d for d, v in live.items() if v == day), default=None)
+    return Anchor(day, newest, limited, dict(seen), stale)

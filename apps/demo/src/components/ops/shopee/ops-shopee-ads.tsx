@@ -43,7 +43,7 @@ export function OpsShopeeAds({ me, shopId, api = opsApi }: { readonly me: OpsMe;
     <OpsPage>
       <OpsHeader me={me} shopId={shopId} />
       <main style={{ padding: "22px 28px 40px", display: "flex", flexDirection: "column", gap: 16 }}>
-        <PageTitle active="quang-cao" shopId={shopId} title="Shopee · Quảng cáo + khuyến mãi" />
+        <PageTitle active="quang-cao" shopId={shopId} title="Shopee · Dịch vụ hiển thị (Quảng cáo) + khuyến mãi" />
         <ShopeeAdsBody api={api} shopId={shopId} />
       </main>
     </OpsPage>
@@ -114,15 +114,15 @@ function AdsSection({ ads }: { readonly ads: ShopeeAds }) {
           <b>{a.label}</b>: ROAS {fmtRoas(a.roas)} thấp hơn {fmtRoas(a.floor)} trong {a.days} ngày liên tục ({fmtDate(a.from)} – {fmtDate(a.to)}).
         </div>
       ))}
-      <Section hint={`${fmtRange(ads.range)} · ${ORDER_TYPE_LABEL[ads.order_type]}`} title="Quảng cáo theo loại">
+      <Section hint={`${fmtRange(ads.range)} · ${ORDER_TYPE_LABEL[ads.order_type]}${ads.coverage ? ` · ${ads.coverage.days_with_data}/${ads.coverage.window_days} ngày có dữ liệu` : ""}`} title="Dịch vụ hiển thị theo loại">
         {!ads.has_data ? (
           <Empty>Chưa có dữ liệu quảng cáo cho khoảng ngày này.</Empty>
         ) : (
           <>
-            <TableWrap label="Quảng cáo theo loại">
+            <TableWrap label="Dịch vụ hiển thị theo loại">
               <thead>
                 <tr>
-                  <th style={TH_LEFT}>Loại quảng cáo</th>
+                  <th style={TH_LEFT}>Loại DVHT</th>
                   <th style={TH}>Chi phí</th>
                   <th style={TH}>Đơn</th>
                   <th style={TH}>GMV</th>
@@ -157,7 +157,7 @@ function AdsSection({ ads }: { readonly ads: ShopeeAds }) {
             <h3 style={{ margin: "6px 0 0", fontSize: 14 }}>Chi phí theo tháng</h3>
             {monthChart.length > 0 ? <StackedBars data={monthChart} label="Chi phí quảng cáo theo tháng" series={series} /> : <Empty>Chưa có lịch sử theo tháng.</Empty>}
             {ads.monthly.length > 0 ? (
-              <TableWrap label="Quảng cáo theo tháng">
+              <TableWrap label="Dịch vụ hiển thị theo tháng">
                 <thead>
                   <tr>
                     <th style={TH_LEFT}>Tháng</th>
@@ -187,9 +187,45 @@ function AdsSection({ ads }: { readonly ads: ShopeeAds }) {
           </>
         )}
       </Section>
-      <Section title="Theo chiến dịch">
-        {ads.campaigns_available && ads.campaigns.length > 0 ? null : (
-          <Empty>Chưa có dữ liệu theo chiến dịch: file báo cáo chiến dịch quảng cáo chưa được nạp. Bảng trên là số theo loại quảng cáo.</Empty>
+      <Section hint={`${ads.campaigns_note ?? ""} Cùng các cột trang Dịch vụ hiển thị của Shopee: chi phí, lượt hiển thị, lượt nhấp, đơn và GMV broad, ROAS = GMV ÷ chi phí.`.trim()} title="Theo chiến dịch">
+        {ads.campaigns_available && ads.campaigns.length > 0 ? (
+          <TableWrap label="Chiến dịch Dịch vụ hiển thị">
+            <thead>
+              <tr>
+                <th style={TH_LEFT}>Chiến dịch</th>
+                <th style={TH}>Chi phí</th>
+                <th style={TH}>Hiển thị</th>
+                <th style={TH}>Nhấp</th>
+                <th style={TH}>CTR</th>
+                <th style={TH}>Đơn</th>
+                <th style={TH}>GMV</th>
+                <th style={TH}>ROAS</th>
+                <th style={TH}>Ngân sách/ngày</th>
+                <th style={TH}>ROAS mục tiêu</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ads.campaigns.map((c) => (
+                <tr key={c.campaign_id}>
+                  <td style={TD_LEFT}>
+                    {c.name}
+                    {c.state ? <span style={{ color: C.muted2 }}> · {c.state}</span> : null}
+                  </td>
+                  <td style={TD}>{fmtVnd(c.cost)}</td>
+                  <td style={TD}>{fmtCount(c.impressions)}</td>
+                  <td style={TD}>{fmtCount(c.clicks)}</td>
+                  <td style={TD}>{c.ctr === null ? "—" : `${(c.ctr * 100).toFixed(2)}%`}</td>
+                  <td style={TD}>{fmtCount(c.orders)}</td>
+                  <td style={TD}>{fmtVnd(c.gmv)}</td>
+                  <td style={TD}>{fmtRoas(c.roas)}</td>
+                  <td style={TD}>{fmtVnd(c.daily_budget)}</td>
+                  <td style={TD}>{fmtRoas(c.roi_target)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </TableWrap>
+        ) : (
+          <Empty>Chưa có chiến dịch từ Juli Connector. Bấm Đồng bộ hôm qua khi trang Dịch vụ hiển thị của Shopee đã mở.</Empty>
         )}
       </Section>
     </>

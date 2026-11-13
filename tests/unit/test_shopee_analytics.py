@@ -17,6 +17,7 @@ from decimal import Decimal
 import pytest
 
 from juli_backend.services.shopee_analytics import loaders, queries, service
+from juli_backend.services.shopee_analytics import stored as stored_mod
 from juli_backend.services.shopee_analytics.windows import Window
 from tests.support.shopee_analytics import (
     CUR_END,
@@ -224,7 +225,7 @@ async def test_ads_are_labelled_placed_and_product_spend_plus_unattributed_is_th
     assert ads["basis"] == {"key": "placed", "label": "đơn đã đặt"}
     assert "không cộng vào tổng đơn đã xác nhận" in ads["note"]
     spend = body["profit"]["ad_spend"]
-    assert spend["total"] == 100_000 == ads["spend"]  # the CSV report answers: no Connector day
+    assert spend["total"] == 210_000 == ads["spend"]  # P100 A.5: the daily CSV report (7 x 30.000đ)
     assert spend["by_product"] + spend["unattributed"] == pytest.approx(spend["total"], abs=1)
     assert spend["consistent"] is True
 
@@ -237,7 +238,7 @@ async def test_nhóm_product_spend_sums_to_the_campaign_in_the_allocation(sessio
     assert set(camp.products) == {"1001", "1002", "1003"}
     # the report window IS the window here: nothing is prorated, the daily total is the scale
     assert view.ads.exact_window is True
-    assert view.ads.total_spend == Decimal(100_000)  # group total row not counted twice
+    assert view.ads.total_spend == Decimal(210_000)  # group total row not counted twice
 
 
 async def test_ads_never_enter_the_flow_rows(session, seeded):
@@ -286,8 +287,15 @@ async def test_matrix_rows_carry_flows_levers_and_a_labelled_ads_overlay(session
     by = {r["product_id"]: r for r in body["products"]}
     assert set(by) == {"1001", "1002", "1003"}
     gloves = by["1001"]
-    assert gloves["name"].startswith("Găng tay") and gloves["gmv"] == 700_000
-    assert gloves["gmv_basis"] == "shopee_product_period"
+    assert gloves["name"].startswith("Găng tay")
+    # D85.2: the order lines scaled to the shop totals, so the products add up to the shop GMV
+    assert gloves["gmv_basis"] == "scaled_order_lines"
+    assert sum(r["gmv"] for r in by.values()) == body["sums"]["gmv_shop"] == 7 * 275_000
+    # P99b: the window reads the stored daily rows (each day's lines scaled to that day's shop
+    # total), never a window-level split of the raw tables
+    stored = await stored_mod.load_stored(session, seeded.shop_id, Window(CUR_START, CUR_END))
+    assert stored is not None
+    assert gloves["gmv"] == pytest.approx(float(stored.products["1001"].gmv), abs=1)
     assert gloves["ads"]["basis"]["label"] == "đơn đã đặt"
     # the report window is the window and the report is the spend: 60.000 of 100.000
     assert gloves["ads"]["spend"] == pytest.approx(60_000)
@@ -330,7 +338,10 @@ async def test_product_page_has_header_kpis_nguon_cost_floor_and_keywords(sessio
 
     assert set(page["kpi_by_period"]) == {"7d", "30d", "90d"}
     kpi = page["kpi_by_period"]["7d"]
-    assert kpi["gmv"]["value"] == 700_000 and kpi["five_numbers"]["comparison"]["available"] is True
+    row = await queries.matrix(session, shop_id, period="7d", as_of=CUR_END)
+    mine = next(r for r in row["products"] if r["product_id"] == "1001")
+    assert kpi["gmv"]["value"] == mine["gmv"]  # the product page and the matrix agree
+    assert kpi["five_numbers"]["comparison"]["available"] is True
 
     sku = next(s for s in page["cost_and_floor"]["skus"] if s["sku"] == "G1")
     assert sku["cost"]["cogs_source"] == "real" and sku["cost"]["cogs_per_unit"] == 30_000

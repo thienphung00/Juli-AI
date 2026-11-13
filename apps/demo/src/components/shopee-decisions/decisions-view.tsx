@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { DASH, fmt, sv } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { TABS, isWorthTrying, sectionsFor, statusLabel, tabCounts, tabOfParam, type DecisionTab } from "../../lib/shopee-decisions/model";
+import { sampleShopCards } from "../../lib/shopee-decisions/sample-scope";
 import type { CardList, CardSummary } from "../../lib/shopee-decisions/types";
+import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { Empty, Notice, Section, TextChip } from "../shopee-analytics/ui";
 import { BuilderView } from "./builder";
 import { BuilderP92View } from "./builder-p92";
 import { CardPage } from "./card-page";
+import type { KolCandidate } from "./kol-builder";
 import { OpsRecoList } from "./ops-list";
 import { PlanView } from "./plan";
 import { StaffBar } from "./staff-bar";
@@ -90,6 +93,7 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
   const host = useReco();
   const [tick, setTick] = useState(0);
   const [flash, setFlash] = useState<Flash>(NO_FLASH);
+  const sampleShop = useSampleShopReviewer();
   const res = useResource<CardList>(() => host.reco.list({ queue: "all" }), `${host.shopKey}|list|${tick}`);
   return (
     <>
@@ -97,9 +101,11 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
       <FlashNotice flash={flash} />
       <RecoState resource={res}>
         {(data) => {
-          const tops = topEntries(data.cards);
-          const counts = { ...tabCounts(data.cards), "de-xuat": tops.length };
-          const sections = sectionsFor(data.cards, tab);
+          // P100 S2-C: on the sample shop only Tiêu đề / Ảnh bìa / Voucher cards; the tab counts follow.
+          const cards = sampleShopCards(data.cards, sampleShop);
+          const tops = topEntries(cards);
+          const counts = { ...tabCounts(cards), "de-xuat": tops.length };
+          const sections = sectionsFor(cards, tab);
           return (
             <>
               <nav aria-label="Quyết định" className="sa-seg sa-seg--round sa-tabs" data-testid="sd-tabs">
@@ -114,7 +120,7 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
                 tops.length === 0 ? (
                   <Empty testId="sd-empty">{EMPTY[tab]}</Empty>
                 ) : (
-                  <TopCards cards={data.cards} flash={flash} onChanged={() => setTick((t) => t + 1)} onFlash={setFlash} />
+                  <TopCards cards={cards} flash={flash} onChanged={() => setTick((t) => t + 1)} onFlash={setFlash} />
                 )
               ) : sections.length === 0 ? (
                 <Empty testId="sd-empty">{EMPTY[tab]}</Empty>
@@ -129,13 +135,29 @@ function ListBody({ tab, from }: { readonly tab: DecisionTab; readonly from: str
                   </Section>
                 ))
               )}
-              {host.staff ? <p className="sa-hint">Trạng thái các thẻ: {[...new Set(data.cards.map((c) => statusLabel(c.status)))].join(" · ") || DASH}.</p> : null}
+              {host.staff ? <p className="sa-hint">Trạng thái các thẻ: {[...new Set(cards.map((c) => statusLabel(c.status)))].join(" · ") || DASH}.</p> : null}
             </>
           );
         }}
       </RecoState>
     </>
   );
+}
+
+/** The P92 builder; with the P98 client it also gets the shop's KOL rows for the KOL builder. */
+function BuilderWithP98({ from, productId }: { readonly from: string | null; readonly productId: string | null }) {
+  const host = useReco();
+  const [kols, setKols] = useState<readonly KolCandidate[]>([]);
+  useEffect(() => {
+    let live = true;
+    if (host.p98 && host.kols) host.kols().then((k) => live && setKols(k), () => undefined);
+    return () => {
+      live = false;
+    };
+    // The list is per shop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [host.shopKey]);
+  return <BuilderP92View from={from} kols={kols} p98Api={host.p98} productId={productId} />;
 }
 
 export function DecisionsView({ params }: { readonly params: URLSearchParams }) {
@@ -146,7 +168,7 @@ export function DecisionsView({ params }: { readonly params: URLSearchParams }) 
   const tab = tabOfParam(params.get("tab"));
   if (the) return <CardPage from={params.get("from")} id={the} version={Number(params.get("v")) || null} />;
   if (params.get("ke-hoach")) return <PlanView />;
-  if (params.get("tu-tao")) return host.builder ? <BuilderP92View from={params.get("from")} productId={params.get("sp")} /> : <BuilderView from={params.get("from")} productId={params.get("sp")} />;
+  if (params.get("tu-tao")) return host.builder ? <BuilderWithP98 from={params.get("from")} productId={params.get("sp")} /> : <BuilderView from={params.get("from")} productId={params.get("sp")} />;
   if (host.staff) return <OpsRecoList />;
   return (
     <div className="sa-page" data-testid="sd-list">

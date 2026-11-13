@@ -2,16 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { BuilderOutcome, PickerResult, PickerProduct } from "../../../lib/shopee-decisions/builder-api";
-import { KINDS_92, MAX_VERSIONS, buildVersion, defaultVariationId, initialForms, kindName92, newItem, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
+import type { BuilderApi, BuilderOutcome, PickerResult, PickerProduct } from "../../../lib/shopee-decisions/builder-api";
+import { KINDS_92, MAX_VERSIONS, buildVersion, defaultVariationId, initialForms, kindName92, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
 import { useReco } from "../../../lib/shopee-decisions/context";
+import { SAMPLE_SHOP_BUILDER_KINDS } from "../../../lib/shopee-decisions/sample-scope";
+import { useSampleShopReviewer } from "../../../lib/reviewer/mode";
+import type { BuilderP98Api } from "../../../lib/shopee-decisions/builder-p98-api";
 import { useNarrow } from "../../quyet-dinh/use-narrow";
 import { NavLink, errorText } from "../ui";
 import { CompareView, type Entry } from "./compare";
-import { AddOnPanel, ComboPanel, DiscountPanel, GiftPanel, PriceFlashPanel, SetPanel, VoucherPanel } from "./panels-offers";
+import { ComboPanel, DealSocPanel, DiscountPanel, ListingComboPanel, PriceFlashPanel, SetPanel, VoucherPanel } from "./panels-offers";
 import { AdsPanel, AffiliatePanel, CoverPanel, DescPanel, PriceDisplayPanel, TitlePanel } from "./panels-listing";
 import { ProductPicker, ProductStrip, Steps, VariationStep, VariationStrip } from "./picker";
 import { ResultBlock, type ResultState } from "./results";
+import { AdsBuilder } from "../ads-builder";
+import { ComboBuilder } from "../combo-builder";
+import { KolBuilder, type KolCandidate } from "../kol-builder";
 import type { PanelCtx } from "./shared";
 import { useVariationList } from "./variations";
 
@@ -26,7 +32,7 @@ type Step = "pick" | "variation" | "kinds" | "panel" | "compare";
 
 type PickerState = { readonly status: "loading" } | { readonly status: "error"; readonly message: string } | { readonly status: "ready"; readonly data: PickerResult };
 
-export function BuilderP92View({ from, productId }: { readonly from: string | null; readonly productId: string | null }) {
+export function BuilderP92View({ from, productId, p98Api, kols = [] }: { readonly from: string | null; readonly productId: string | null; readonly p98Api?: BuilderP98Api; readonly kols?: readonly KolCandidate[] }) {
   const host = useReco();
   const api = host.builder!;
   const [state, setState] = useState<PickerState>({ status: "loading" });
@@ -58,10 +64,42 @@ export function BuilderP92View({ from, productId }: { readonly from: string | nu
       </div>
     );
   }
-  return <Builder data={state.data} from={from} productId={productId} />;
+  return <P98Entry api={api} data={state.data} from={from} kols={kols} p98Api={p98Api} productId={productId} />;
 }
 
-function Builder({ data, from, productId }: { readonly data: PickerResult; readonly from: string | null; readonly productId: string | null }) {
+type Mode = "single" | "combo" | "kol" | "ads";
+const MODES: readonly { readonly key: Mode; readonly label: string }[] = [
+  { key: "single", label: "Từng phương án" },
+  { key: "combo", label: "Combo nhiều SKU" },
+  { key: "kol", label: "KOL" },
+  { key: "ads", label: "Dịch vụ hiển thị" },
+];
+
+/** P98 entry points: three extra builders beside the P92 one (shown only when the P98 client is given). */
+function P98Entry({ api, data, from, productId, p98Api, kols }: { readonly api: BuilderApi; readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly p98Api?: BuilderP98Api; readonly kols: readonly KolCandidate[] }) {
+  const [mode, setMode] = useState<Mode>("single");
+  // P100 S2-C: the sample shop offers only Tiêu đề · Ảnh bìa · Voucher — no P98 builders.
+  const sampleShop = useSampleShopReviewer();
+  if (sampleShop) return <Builder data={data} from={from} kinds={KINDS_92.filter((k) => SAMPLE_SHOP_BUILDER_KINDS.has(k.key))} productId={productId} />;
+  if (!p98Api) return <Builder data={data} from={from} productId={productId} />;
+  return (
+    <>
+      <nav aria-label="Loại công cụ" className="sb-pills p98-modes" data-testid="p98-modes">
+        {MODES.map((m) => (
+          <button aria-pressed={mode === m.key} className={`sb-pill ${mode === m.key ? "sb-pill--on" : ""}`} data-testid={`p98-mode-${m.key}`} key={m.key} onClick={() => setMode(m.key)} type="button">
+            {m.label}
+          </button>
+        ))}
+      </nav>
+      {mode === "single" ? <Builder data={data} from={from} productId={productId} /> : null}
+      {mode === "combo" ? <ComboBuilder api={p98Api} products={data.products} variationsApi={api} /> : null}
+      {mode === "kol" ? <KolBuilder api={p98Api} kols={kols} products={data.products} /> : null}
+      {mode === "ads" ? <AdsBuilder api={p98Api} products={data.products} /> : null}
+    </>
+  );
+}
+
+function Builder({ data, from, productId, kinds = KINDS_92 }: { readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly kinds?: typeof KINDS_92 }) {
   const host = useReco();
   const api = host.builder!;
   const narrow = useNarrow();
@@ -86,9 +124,9 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
   const effective = useMemo<readonly string[]>(() => selIds ?? (first !== undefined ? [first] : []), [selIds, first]);
   const chosen = useMemo(() => (list ? list.variations.filter((v) => allVars || effective.includes(v.variation_id)) : []), [list, allVars, effective]);
 
-  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, products, aov, outcome: result?.state.status === "ready" ? result.state.outcome : null, narrow, costLink, market: host.market ?? null } : null;
   const built = useMemo(() => (kind && product ? buildVersion(kind, forms, { product, variations: chosen }) : { version: null, problem: null }), [kind, forms, product, chosen]);
   const key = built.version ? JSON.stringify(built.version) : "";
+  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, products, aov, outcome: result?.state.status === "ready" && result.key === key ? result.state.outcome : null, narrow, costLink, market: host.market ?? null } : null;
 
   useEffect(() => {
     if (step !== "panel" || !built.version) return;
@@ -133,7 +171,8 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
     setResult(null);
     setForms((f) => {
       let next = f;
-      if (k === "combo" && !f.combo.items[0]?.itemId) next = { ...next, combo: { ...f.combo, items: [newItem(product.item_id, chosen[0]?.variation_id ?? ""), ...f.combo.items.slice(1)] } };
+      if (k === "combo" && f.combo.items.length === 0) next = { ...next, combo: { ...f.combo, items: [product.item_id] } };
+      if (k === "listing_combo" && f.listing_combo.members.length === 0) next = { ...next, listing_combo: { ...f.listing_combo, members: [product.item_id] } };
       if (k === "ads" && !f.ads.itemId) next = { ...next, ads: { ...f.ads, itemId: product.item_id } };
       return next;
     });
@@ -144,7 +183,20 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
     const fresh = initialForms();
     setForms((f) => ({ ...f, [kind]: fresh[kind] }));
     setResult(null);
-    if (kind === "combo" && product) setForm("combo", { items: [newItem(product.item_id, chosen[0]?.variation_id ?? ""), newItem()] });
+    if (kind === "combo" && product) setForm("combo", { items: [product.item_id] });
+    if (kind === "listing_combo" && product) setForm("listing_combo", { members: [product.item_id] });
+  };
+  /** P97 D85.13: unticking a target in the result takes it out of the form; the version is then evaluated again. */
+  const untick = (id: string) => {
+    if (!kind) return;
+    if (kind === "product_discount") setForm("product_discount", { targets: forms.product_discount.targets.filter((t) => t !== id) });
+    else if (kind === "affiliate") setForm("affiliate", { targets: forms.affiliate.targets.filter((t) => t !== id) });
+    else if (kind === "voucher") setForm("voucher", { items: forms.voucher.items.filter((t) => t !== id) });
+    else if (kind === "combo") setForm("combo", { items: forms.combo.items.filter((t) => t !== id) });
+    else if (kind === "ads") {
+      const next = forms.ads.campaignKeys.filter((t) => t !== id);
+      setForm("ads", { campaignKeys: next, campaignKey: next[0] ?? "" });
+    }
   };
   const addEntry = () => {
     if (!built.version || !kind) return;
@@ -242,7 +294,7 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
             <span className="sa-hint">Mỗi loại ghi sẵn chỉ số chính mà phương án sẽ được đo</span>
           </div>
           <div className="p2-kinds">
-            {KINDS_92.map((k) => (
+            {kinds.map((k) => (
               <button className="p2-kind" data-testid={`p2-kind-${k.key}`} key={k.key} onClick={() => pickKind(k.key)} type="button">
                 <b>{k.name}</b>
                 <span>Chỉ số chính: {k.drivers}</span>
@@ -267,7 +319,7 @@ function Builder({ data, from, productId }: { readonly data: PickerResult; reado
               <Panel ctx={ctx} forms={forms} kind={kind} setForm={setForm} />
             </section>
             <div className="p2-side">
-              <ResultBlock costLink={costLink} index={editing !== null ? editing : entries.length} state={shown} title={kindName92(kind)} />
+              <ResultBlock costLink={costLink} index={editing !== null ? editing : entries.length} onUntick={untick} state={shown} title={kindName92(kind)} />
               <div className="sd-actions">
                 <button className="sa-btn sa-btn--primary" data-testid="p2-add" disabled={!built.version || (editing === null && entries.length >= MAX_VERSIONS) || shown.status !== "ready" || !shown.outcome.ok} onClick={addEntry} type="button">
                   {editing !== null ? `Cập nhật P${editing + 1}` : "+ Thêm vào So sánh phương án"}
@@ -310,10 +362,10 @@ function Panel({ kind, forms, setForm, ctx }: { readonly kind: Kind92; readonly 
       return <VoucherPanel ctx={ctx} form={forms.voucher} set={(p) => setForm("voucher", p)} />;
     case "combo":
       return <ComboPanel ctx={ctx} form={forms.combo} set={(p) => setForm("combo", p)} />;
-    case "add_on":
-      return <AddOnPanel ctx={ctx} form={forms.add_on} set={(p) => setForm("add_on", p)} />;
-    case "gift":
-      return <GiftPanel ctx={ctx} form={forms.gift} set={(p) => setForm("gift", p)} />;
+    case "listing_combo":
+      return <ListingComboPanel ctx={ctx} form={forms.listing_combo} set={(p) => setForm("listing_combo", p)} />;
+    case "deal_soc":
+      return <DealSocPanel ctx={ctx} form={forms.deal_soc} set={(p) => setForm("deal_soc", p)} />;
     case "product_discount":
       return <DiscountPanel ctx={ctx} form={forms.product_discount} set={(p) => setForm("product_discount", p)} />;
     case "price_flash":

@@ -74,15 +74,14 @@ export function SourcesTab({ id, page, state }: { readonly id: string; readonly 
   const [adOn, setAdOn] = useState(true);
   const rk = (kpi: string, src: string) => links.ranking({ kpi, src, focus: id, from: "san-pham" }, state);
   const ads = page.ads;
-  const levers = n.levers;
   return (
     <Section
       aside={
         <button aria-pressed={adOn} className={`sa-toggle ${adOn ? "sa-toggle--on" : ""}`} onClick={() => setAdOn(!adOn)} type="button">
-          {adOn ? "Ẩn lớp Quảng cáo" : "Hiện lớp Quảng cáo (trong đó)"}
+          {adOn ? "Ẩn lớp DVHT" : "Hiện lớp DVHT (trong đó)"}
         </button>
       }
-      hint={`${page.period.window.days} ngày · ${fmt(totalOrders)} đơn`}
+      hint={`${page.period.window.days} ngày · ${fmt(n.orders)} đơn`}
       testId="sa-tab-ng"
       title="Nguồn của sản phẩm này"
     >
@@ -128,7 +127,7 @@ export function SourcesTab({ id, page, state }: { readonly id: string; readonly 
           <div className="sa-prow sa-prow--total">
             <span className="sa-hint">Tổng · bằng số đơn của sản phẩm</span>
             <b>
-              {fmt(totalOrders)} đơn · 100,0% · {vnd(n.gmv)} · {pp(n.profit?.margin_pct, 1)} biên
+              {fmt(n.orders)} đơn · 100,0% · {vnd(n.gmv)} · {pp(n.profit?.margin_pct, 1)} biên
             </b>
           </div>
           {!has5 ? (
@@ -142,38 +141,10 @@ export function SourcesTab({ id, page, state }: { readonly id: string; readonly 
         <Empty testId="sa-ng-noflows">Chưa có lưu lượng theo nguồn cho sản phẩm này trong kỳ.</Empty>
       )}
 
-      <h3 className="sa-h3">Mức ưu đãi trên mỗi dòng đơn</h3>
-      <div className="sa-prow sa-prow--head">
-        <span>Loại ưu đãi</span>
-        <span>Đơn</span>
-        <span>Tỉ lệ đơn</span>
-        <span>GMV</span>
-        <span>Biên</span>
-        <span>→ đề xuất</span>
-      </div>
-      {levers.map((l) => {
-        const srcKey = { khong_uu_dai: "none", voucher: "voucher", khuyen_mai: "promo", combo: "combo" }[l.key] ?? "all";
-        return (
-          <div className="sa-prow" data-testid={`sa-ng-lever-${l.key}`} key={l.key}>
-            <Link className="sa-prow__name" href={rk("gmv", srcKey)}>
-              <b>{l.label}</b>
-            </Link>
-            <b>{fmt(l.orders)}</b>
-            <span className="sa-prow__share">
-              <Bar pct={totalOrders ? (l.orders / totalOrders) * 100 : null} />
-              <b>{pp(totalOrders ? (l.orders / totalOrders) * 100 : null, 1)}</b>
-            </span>
-            <span>{vnd(l.gmv)}</span>
-            <span>{pp(l.margin_pct, 1)}</span>
-            <span className="sa-hint">Chưa có đề xuất</span>
-          </div>
-        );
-      })}
-
       {adOn ? (
         <div className="sa-adbox" data-testid="sa-ng-ads">
           <div className="sa-subhead">
-            <h3 className="sa-h3">Quảng cáo · lớp phủ</h3>
+            <h3 className="sa-h3">DVHT · lớp phủ</h3>
             <TextChip tone="pink">{ads.basis.label}</TextChip>
             <span className="sa-hint">{ads.note}</span>
           </div>
@@ -200,7 +171,7 @@ export function SourcesTab({ id, page, state }: { readonly id: string; readonly 
               </b>
             </div>
           </div>
-          <p className="sa-hint">Quảng cáo nằm trong các luồng (chủ yếu Thẻ sản phẩm), không cộng thêm vào tổng.</p>
+          <p className="sa-hint">Dịch vụ hiển thị nằm trong các luồng (chủ yếu Thẻ sản phẩm), không cộng thêm vào tổng.</p>
         </div>
       ) : null}
     </Section>
@@ -273,7 +244,7 @@ export function KeywordsTab({ page }: { readonly id: string; readonly page: Prod
             <span>Độ khó</span>
             <span>CPC</span>
             <span>Vị trí trong tiêu đề</span>
-            <span>Quảng cáo theo từ khoá</span>
+            <span>DVHT theo từ khoá</span>
           </div>
           {chinh.map((k) => kwRow(k, "Chính", "pink"))}
           {phu.map((k) => kwRow(k, "Phụ", "flat"))}
@@ -310,7 +281,7 @@ function wfRows(sku: SkuCost) {
     ["− Đóng gói", w.packaging, "neg"],
     ["− Hoa hồng liên kết", w.commission, "neg"],
     ["= Đóng góp trước quảng cáo", w.contribution_before_ads, "total"],
-    ["− Quảng cáo", w.ads, "neg"],
+    ["− DVHT", w.ads, "neg"],
     ["= Lợi nhuận", w.profit, "total"],
   ];
   return rows;
@@ -424,7 +395,7 @@ export function CostTab({ page, sel, onPick }: { readonly page: ProductPage; rea
           {floor && pay !== null && floor.operating !== null ? (
             <div className={`sa-verdict ${floor.breach ? "sa-verdict--bad" : "sa-verdict--ok"}`} data-testid="sa-verdict">
               {floor.breach
-                ? `Khách trả ${vnd(pay)} thấp hơn giá sàn ${floor.breach === "absolute" ? "tuyệt đối" : "vận hành"} ${vnd(((floor.breach === "absolute" ? floor.absolute : floor.operating) ?? 0) - pay)}`
+                ? `Khách trả ${vnd(pay)} thấp hơn giá sàn ${floor.breach === "absolute" ? "tuyệt đối" : "vận hành"} ${vnd(((floor.breach === "absolute" ? floor.absolute : floor.operating) ?? null) === null ? null : ((floor.breach === "absolute" ? floor.absolute : floor.operating) as number) - pay)}`
                 : `Khách trả ${vnd(pay)} cao hơn giá sàn vận hành ${vnd(pay - floor.operating)} · còn đạt biên mục tiêu`}
             </div>
           ) : null}

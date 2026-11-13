@@ -31,6 +31,7 @@ from juli_backend.models.platform_data import (
 )
 from juli_backend.services.ops import contract_shops
 from juli_backend.services.ops import shopee_dashboards as dash
+from juli_backend.services.shopee_analytics import materialize
 from tests.integration.two_tenant import RUNTIME_ROLE
 from tests.support.postgres import requires_postgres
 
@@ -236,6 +237,8 @@ async def test_dashboards_aggregate_under_rls_and_keep_children_out_of_totals():
         other = await _make_shop(session)
         async with with_shop_scope(session, mine):
             await _seed(session, mine)
+            # P99b: the screens read the stored daily rows; ingest builds them (after_ingest)
+            await materialize.backfill_shop(session, mine)
             await session.commit()
         async with with_shop_scope(session, other):
             await _seed(session, other)

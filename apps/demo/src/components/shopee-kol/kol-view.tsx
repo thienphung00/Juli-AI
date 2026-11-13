@@ -8,6 +8,7 @@ import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { rowText, tilesOf } from "../../lib/shopee-kol/model";
 import type { KolReport, KolRow } from "../../lib/shopee-kol/types";
 import { Empty, Notice, ResourceState, TextChip } from "../shopee-analytics/ui";
+import { KolCompare } from "./kol-compare";
 
 /**
  * Phân tích › KOL (`PhanTichKOL.dc.html`): who sells what, at what profit, and whom to send a sample.
@@ -66,12 +67,13 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
           {dq.lines_without_commission > 0 ? `${dq.lines_without_commission} dòng chưa có hoa hồng.` : ""}
         </Notice>
       ) : null}
+      <KolCompare />
       <div className="kol-filters">
         <div className="sb-tabs">
           <span className="sa-hint">Kênh:</span>
-          {[ALL, ...report.filters.channels].map((c) => (
-            <button aria-pressed={channel === c} className={`sb-pill ${channel === c ? "sb-pill--on" : ""}`} key={c} onClick={() => onChannel(c)} type="button">
-              {c}
+          {[{ value: ALL, label: ALL }, ...channelOptions(report)].map((c) => (
+            <button aria-pressed={channel === c.value} className={`sb-pill ${channel === c.value ? "sb-pill--on" : ""}`} key={c.value} onClick={() => onChannel(c.value)} type="button">
+              {c.label}
             </button>
           ))}
         </div>
@@ -86,7 +88,7 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
       </div>
       <div className="kol-table" data-testid="kol-table" role="table">
         <div className="kol-row kol-row--head" role="row">
-          {["KOL · kênh", "Sản phẩm", "Đơn", "SL", "GMV", "Lượt nhấp của KOL", "Chuyển đổi của KOL", "Hoa hồng", "Lợi nhuận ròng", "Chi phí mẫu", "Lợi nhuận sau mẫu", "ROI gồm mẫu", "ROI Shopee (chỉ hoa hồng)", "Hoàn vốn mẫu", "Thẻ"].map((h) => (
+          {["KOL · kênh", "Sản phẩm", "Đơn", "SL", "GMV", "Lượt nhấp của KOL", "Chuyển đổi của KOL", "Người mua của KOL", "Hoa hồng", "Lợi nhuận ròng", "Chi phí mẫu", "Lợi nhuận sau mẫu", "ROI gồm mẫu", "ROI Shopee (chỉ hoa hồng)", "Hoàn vốn mẫu", "Thẻ"].map((h) => (
             <span key={h} role="columnheader">
               {h}
             </span>
@@ -98,7 +100,7 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
         {rows.length === 0 ? (
           <Empty testId="kol-empty">
             {channel === ALL && item === ALL
-              ? "Chưa có đơn Tiếp thị liên kết theo KOL trong kỳ này. Số KOL lấy từ báo cáo chuyển đổi Affiliate của Shopee (tải tệp lên); Juli Connector chưa đọc báo cáo này."
+              ? "Chưa có đơn Tiếp thị liên kết theo KOL trong kỳ này. Tải lên báo cáo chuyển đổi Affiliate của Shopee, hoặc bấm Đồng bộ hôm qua trong Juli Connector khi trang Tăng Đơn Cùng KOL đã mở."
               : "Không có dòng nào khớp bộ lọc."}
           </Empty>
         ) : null}
@@ -110,13 +112,19 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
         <div>
           <b>ROI Shopee (chỉ hoa hồng)</b>{" "}
           <span className="sa-hint">
-            {report.labels.roi_shopee_note} Chỉ tính hoa hồng, không có giá vốn, phí sàn và mẫu nên thường trông tốt hơn. “{report.labels.low_data}” là cặp KOL × sản phẩm có dưới {threshold} đơn: số chỉ để tham khảo. Lượt nhấp và chuyển đổi là của cả KOL trong file xuất Shopee, không riêng sản phẩm này.
+            {report.labels.roi_shopee_note} Chỉ tính hoa hồng, không có giá vốn, phí sàn và mẫu nên thường trông tốt hơn. “{report.labels.low_data}” là cặp KOL × sản phẩm có dưới {threshold} đơn: số chỉ để tham khảo. Lượt nhấp, chuyển đổi và người mua là của cả KOL trên Shopee, không riêng sản phẩm này.
           </span>
         </div>
       </div>
       <span hidden>{links.critical()}</span>
     </>
   );
+}
+
+/** The channel pills: the raw value goes to the server, the seller reads its label (P100). */
+function channelOptions(report: KolReport): { value: string; label: string }[] {
+  const labelled = new Map((report.filters.channel_options ?? []).map((o) => [o.value, o.label]));
+  return report.filters.channels.map((c) => ({ value: c, label: labelled.get(c) ?? c }));
 }
 
 function KolRowView({ row }: { readonly row: KolRow }) {
@@ -137,6 +145,7 @@ function KolRowView({ row }: { readonly row: KolRow }) {
       <span role="cell">{t.gmv}</span>
       <span role="cell">{t.clicks}</span>
       <span role="cell">{t.conversion}</span>
+      <span role="cell">{t.buyers}</span>
       <span role="cell">{t.commission}</span>
       <span role="cell">{t.net}</span>
       <span role="cell">{t.sample}</span>

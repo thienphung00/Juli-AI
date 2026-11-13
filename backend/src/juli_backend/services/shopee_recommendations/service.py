@@ -59,6 +59,7 @@ from juli_backend.services.shopee_recommendations import (
     codes,
     combo,
     config,
+    fill_queue,
     freshness,
     manual,
     plan_codes,
@@ -66,6 +67,7 @@ from juli_backend.services.shopee_recommendations import (
     store,
     versions,
 )
+from juli_backend.services.shopee_recommendations import targets as multi
 from juli_backend.services.shopee_recommendations.cards import build_card
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.generators import generate
@@ -393,6 +395,36 @@ def _version_brief(v: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+LEGACY_COMBO = {
+    "code": "combo_basket",
+    "label": "Combo kiểu cũ (giỏ cố định)",
+    "note": "Combo lưu trước khi Juli theo form Combo Khuyến Mãi của Shopee (danh sách sản phẩm, "
+    "các mức Mua N). Vẫn đọc được; phương án mới dùng form Shopee.",
+}
+
+
+def legacy_of(card: Mapping[str, Any]) -> dict[str, str] | None:
+    """P97 D85.15: a combo saved as a fixed basket (items x quantity, optional inline voucher and
+    gift) is kept readable and marked; new combos are Shopee's tiers."""
+    return dict(LEGACY_COMBO) if card.get("change_kind") == combo.KIND else None
+
+
+def target_rows(card: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """P97 D85.13: a many-target card's rows without the per-target variants."""
+    keys = (
+        "id",
+        "kind",
+        "name",
+        "ok",
+        "refusal",
+        "dgmv_p50",
+        "dprofit_p50",
+        "cost_month",
+        "floor_ok",
+    )
+    return [{k: t.get(k) for k in keys} for t in card.get(multi.KEY) or []]
+
+
 async def measurement_states(
     session: AsyncSession, shop_id: uuid.UUID, card_ids: Sequence[uuid.UUID]
 ) -> dict[str, dict[str, Any]]:
@@ -438,6 +470,7 @@ def _summary(
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "chosen_version": (meta or {}).get("chosen_version"),
         "acknowledged_breaches": (meta or {}).get("acknowledged_breaches"),
+        "groups": (meta or {}).get("groups"),
         "measurement": measurement,
         "plan_id": None if p.lever_plan_id is None else str(p.lever_plan_id),
         "plan_code": (plan_codes_ or {}).get(p.lever_plan_id) if p.lever_plan_id else None,
@@ -451,6 +484,9 @@ def _summary(
         "family": card["family"],
         "family_label": card["family_label"],
         "change_kind": card["change_kind"],
+        "legacy": legacy_of(card),
+        "targets": target_rows(card),
+        "fill": card.get("fill"),
         "title": card["title"],
         "reason": card["reason"],
         "section": card.get("wiring_key"),
@@ -833,6 +869,7 @@ def recompute_card(
     now: datetime,
     version: int | None = None,
     rebuild_versions: bool = False,
+    keep_parts: bool = False,
 ) -> dict[str, Any] | None:
     """The card evaluated again. ``version`` moves that version's inputs and replaces only that
     version in ``versions``; ``rebuild_versions`` regenerates every alternative (a replacement
@@ -845,9 +882,16 @@ def recompute_card(
         raise ProposalError("reco_version_unknown", 422, f"the card has {len(vlist)} version(s)")
     cand = candidate_of_card(card)
     cand.inputs = _merge_inputs(vlist[number - 1].get("inputs") or cand.inputs, inputs)
-    out = build_card(env, cand, now=now)
+    row_targets = vlist[number - 1].get(multi.KEY)
+    if row_targets:  # P97 D85.13: one card, a row per target
+        out = multi.recompute(env, row_targets, inputs, now=now, merge_inputs=_merge_inputs)
+    else:
+        out = build_card(env, cand, now=now)
     if out is None:
         return None
+    parts = out.pop(
+        "_parts", None
+    )  # the plan's joint layer asks for them (keep_parts), nobody stores them
     out["id"] = card["id"]
     out["code"] = card.get("code")
     out["rank"] = card.get("rank")
@@ -865,7 +909,8 @@ def recompute_card(
         code = vlist[number - 1].get("code")
         old = vlist[number - 1]
         new = versions.version_of(out, number, label, code=code)
-        for key in ("index", "chosen", "change_kind", "items", "extra"):  # manual variants
+        # the manual fields (P98: and the builder spec the plan reads back)
+        for key in ("index", "chosen", "change_kind", "items", "extra", "spec", multi.KEY):
             if key in old:
                 new[key] = old[key]
         if "title" in old:
@@ -876,6 +921,8 @@ def recompute_card(
         out["versions"] = vlist
     out["version"] = number
     versions.annotate_same_notes(out["versions"])
+    if keep_parts and parts:
+        out["_parts"] = parts
     return out
 
 
@@ -1068,22 +1115,33 @@ async def decide(
     reason_code: str | None = None,
     note: str | None = None,
     chosen_version: int = 1,
+    chosen_versions: list[int] | None = None,
     acknowledge_breaches: bool = False,
 ) -> dict[str, Any]:
     """The client's decision in the app: ``approve`` one version of the card (``chosen_version``,
     default 1; optionally with adjusted what-if inputs), ``request_change`` or ``dismiss``
-    (ADR-107 reason, optional). The chosen version is recorded on the approval snapshot and in
-    the card events."""
+    (ADR-107 reason, optional). ``chosen_versions`` (P94) approves several versions as Nhóm A
+    when the card can have more than one live value. The chosen version is recorded on the
+    approval snapshot and in the card events."""
     now = _naive(now)
     p, card = await _proposal(session, shop_id, card_id)
     code = p.code
     subject = _subject_of(card, card_id)
     result = await _decide(
         session, shop_id, card_id, p, card, subject, decision, user_id, now, inputs,
-        reason_code, note, chosen_version, code, acknowledge_breaches,
+        reason_code, note, chosen_version, code, acknowledge_breaches, chosen_versions,
     )  # fmt: skip
     await _requeue(session, p, now)
     return result
+
+
+_EXCLUSIVE_KINDS = frozenset({"title", "price", "cover", "description", "main_image", "discount"})
+
+
+def _one_live_value(card: dict[str, Any]) -> bool:
+    """P94: title, price, cover, one discount, one budget or ROAS cannot share a group."""
+    kind = str(card.get("change_kind") or "")
+    return kind in _EXCLUSIVE_KINDS or "budget" in kind or "roas" in kind
 
 
 async def _decide(
@@ -1102,20 +1160,33 @@ async def _decide(
     chosen_version: int,
     code: str | None,
     acknowledge_breaches: bool = False,
+    chosen_versions: list[int] | None = None,
 ) -> dict[str, Any]:
     if decision == "approve":
         vlist = versions.versions_of(card)
-        if not 1 <= chosen_version <= len(vlist):
+        picked = list(dict.fromkeys(chosen_versions or [chosen_version]))
+        if not picked:
+            picked = [chosen_version]
+        for version in picked:
+            if not 1 <= version <= len(vlist):
+                raise ProposalError(
+                    "reco_version_unknown", 422, f"the card has {len(vlist)} version(s)"
+                )
+            if vlist[version - 1].get("status") == versions.STATUS_REFUSED:
+                raise ProposalError(
+                    "reco_version_unavailable",
+                    422,
+                    f"version {version} is {vlist[version - 1].get('status')} "
+                    "and cannot be approved",
+                )
+        if len(picked) > 1 and _one_live_value(card):
             raise ProposalError(
-                "reco_version_unknown", 422, f"the card has {len(vlist)} version(s)"
-            )
-        chosen = vlist[chosen_version - 1]
-        if chosen.get("status") == versions.STATUS_REFUSED:
-            raise ProposalError(
-                "reco_version_unavailable",
+                "reco_group_exclusive",
                 422,
-                f"version {chosen_version} is {chosen.get('status')} and cannot be approved",
+                "this card can keep only one live value; approve the next option as the next group",
             )
+        chosen_version = picked[0]
+        chosen = vlist[chosen_version - 1]
         final_card = versions.overlay(card, chosen) if chosen_version != 1 else card
         if inputs:
             final_card = (
@@ -1143,6 +1214,16 @@ async def _decide(
             {"by": str(user_id), "at": now.isoformat(), "breaches": breaches} if breaches else None
         )
         vcode = chosen.get("code") or (code and codes.version_code(code, chosen_version))
+        group = None
+        if len(picked) > 1:
+            group = {
+                "name": "A",
+                "versions": picked,
+                "version_codes": [
+                    (vlist[n - 1].get("code") or (code and codes.version_code(code, n)))
+                    for n in picked
+                ],
+            }
         snapshot_extra = {
             "code": code,
             "chosen_version": chosen_version,
@@ -1150,6 +1231,7 @@ async def _decide(
             "chosen_inputs": final_card["inputs"],
             "chosen_change": final_card["change"],
             "acknowledged_breaches": acknowledged,
+            **({"group": group} if group else {}),
         }
         approval = await proposals.record_approval(
             session,
@@ -1181,6 +1263,7 @@ async def _decide(
                 "code": code,
                 "chosen_version": chosen_version,
                 "chosen_version_code": vcode,
+                **({"group": group} if group else {}),
                 "acknowledged_breaches": acknowledged,
                 "final": final if (inputs or chosen_version != 1) else None,
                 "approved_with": {
@@ -1202,14 +1285,20 @@ async def _decide(
                 "approved_at": now.isoformat(),
                 "chosen_version": chosen_version,
                 "acknowledged_breaches": acknowledged,
+                **({"group": group} if group else {}),
             },
         )
+        await fill_queue.enqueue_after_decision(
+            session, shop_id=shop_id, proposal_id=card_id, picked=picked,
+            final_card=final_card, group_name=str(group["name"]) if group else None, now=now,
+        )  # fmt: skip
         return {
             "id": str(card_id),
             "code": code,
             "status": p.status,
             "approval_id": str(approval.id),
             "chosen_version": chosen_version,
+            **({"group": group} if group else {}),
         }
     if decision == "request_change":
         approval = await proposals.record_approval(
@@ -1399,6 +1488,9 @@ async def mark_executed(
     changes = [dict(c) for c in sheet["changes"]]
     for c in changes:
         if c["change_kind"] == "voucher":
+            voucher_id = voucher_id or await fill_queue.captured_ref_of(
+                session, shop_id, card_id, "voucher"
+            )
             if not voucher_id:
                 raise ProposalError(
                     ERROR_BAD_INPUT, 422, "voucher_id is required to verify a voucher"
@@ -1510,6 +1602,7 @@ async def card_by_code(
     ).all()
     chosen_n, chosen_code = await _chosen(session, shop_id, p.id)
     approved = await _approved_with(session, shop_id, p.id)
+    meta = await store.card_meta(session, shop_id, p.id)
     shown = vlist[(chosen_n or 1) - 1] if 0 < (chosen_n or 1) <= len(vlist) else vlist[0]
     verification_ = (await verification_states(session, shop_id, [p.id])).get(p.id)
     history = [
@@ -1546,6 +1639,7 @@ async def card_by_code(
             else None
         ),
         "planned_date": p.planned_start.isoformat() if p.planned_start else None,
+        "groups": (meta or {}).get("groups"),
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "sent_at": p.sent_at.isoformat() if p.sent_at else None,
         "supersedes_code": card.get("supersedes_code"),

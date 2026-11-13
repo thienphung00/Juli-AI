@@ -69,3 +69,25 @@ GMV, commission, net profit, sample cost (Mẫu KOL), profit after samples, ROI 
 payback orders, `low_data` below 10 pair orders. Clicks exist per creator only (`kol_clicks`). `KolPool`
 carries the same facts for the KOL cards. Entry points `queries.kol_table` / `queries.kol_product_tab`;
 `kol.pair_daily` is the KOL x product daily series the measurement reads.
+
+## ShopMetrics and the materialized daily tables (P97 D85.2)
+
+- `metrics.py` -- `ShopMetrics`: headline GMV / đơn = Shopee shop totals, one AOV = GMV ÷ đơn
+  (Seller Centre AOV a labelled second line), views / CTR / CTOR, ads, profit, biên, and the product
+  splits (order lines scaled to the totals, whole đồng, residual kept). `view.metrics` is what every
+  screen reads: the stored daily rows when every day of the window is complete, else the raw tables.
+- `stored.py` (read), `materialize.py` (build) -- `shopee_shop_metrics_daily` /
+  `shopee_product_metrics_daily` (migration 123). `after_ingest` is the gateway hook;
+  `scripts/backfill_shopee_metrics.py` backfills a shop.
+- `windows.choose_anchor` / `loaders.load_anchor` -- the one window end: the last day every live daily
+  dataset posted (or the last complete materialized day); the payload names it.
+
+## Missing days and unknown costs (P100-A, B.17)
+
+- A day whose order data never arrived (`shop_overview` without đơn, or all-zero with no visitor
+  and no click: `loaders.order_day`) is NULL in `shopee_shop_metrics_daily`, never 0. Window sums
+  (`stored.load_stored`), the funnel base (`funnel.load_rows`) and the spread series leave it out;
+  `ShopMetrics.coverage()` says "N/30 ngày có dữ liệu" on Tổng quan, Sản phẩm and Luồng.
+- A day with orders and no costed line has a NULL profit (shop and product), never 0.
+- A product row never counts more đơn / GMV than its shop's day; rows on days without order data
+  (stale pre-P99 stamps) are ignored on read and rewritten by the backfill.

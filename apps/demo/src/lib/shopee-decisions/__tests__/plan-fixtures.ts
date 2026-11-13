@@ -149,6 +149,64 @@ export function plan(over: Partial<PlanResponse> = {}): PlanResponse {
   };
 }
 
+/** P97 D85.14: the voucher (V1, V2) and the promo run together as Nhóm A; the second price waits in Nhóm B. */
+export function groupedPlan(withNotice = false): PlanResponse {
+  const base = plan();
+  const aggregate = { ...base.aggregate!, n_cards: 3 };
+  const member = (card_id: string, code: string, version: number, title: string, change_kind: string) => ({
+    card_id,
+    plan_card_id: `pc-${card_id}`,
+    entry_id: `${card_id}@v${version}`,
+    code,
+    version,
+    version_code: `${code}-V${version}`,
+    version_label: title,
+    title,
+    change_kind,
+    family: change_kind,
+    product_id: "GT-A",
+    n_targets: 0,
+  });
+  return {
+    ...base,
+    cards: base.cards.map((c) => (c.card_id === "card-voucher" ? { ...c, groups: [{ letter: "A", version: 1 }, { letter: "A", version: 2 }] } : c.card_id === "card-promo" ? { ...c, groups: [{ letter: "B", version: 2 }] } : c)),
+    notice: !withNotice ? null : { type: "moved_to_group", group: "B", message: "Thẻ JC-2611-0012 cũng đổi giá bán của cùng đối tượng với thẻ JC-2611-0007. Mỗi lần chỉ giữ một giá trị cho giá bán, nên thẻ này chạy ở Nhóm B, sau nhóm có thẻ kia." },
+    aggregate: { ...base.aggregate!, n_cards: 0, cards: [], products: [] },
+    groups: [
+      {
+        id: "g-a",
+        letter: "A",
+        name: "Nhóm A",
+        position: 1,
+        code: "JC-2611-0007-GA",
+        status: "draft",
+        days: 7,
+        start: "2026-11-10",
+        end: "2026-11-16",
+        start_fixed: false,
+        min_days: 3,
+        members: [member("card-voucher", "JC-2611-0007", 1, "Voucher 15.000đ", "voucher"), member("card-voucher", "JC-2611-0007", 2, "Voucher 20.000đ", "voucher")],
+        aggregate,
+      },
+      {
+        id: "g-b",
+        letter: "B",
+        name: "Nhóm B",
+        position: 2,
+        code: "JC-2611-0012-GB",
+        status: "draft",
+        days: 3,
+        start: "2026-11-17",
+        end: "2026-11-19",
+        start_fixed: false,
+        min_days: 3,
+        members: [member("card-promo", "JC-2611-0012", 2, "Khuyến mãi 12%", "product_discount")],
+        aggregate,
+      },
+    ],
+  };
+}
+
 /** The plan with the two cards of GT-A stacking under the floor (each fine alone). */
 export function stackedPlan(): PlanResponse {
   const p = plan();
@@ -198,6 +256,15 @@ export function fakePlan(first: PlanResponse = plan(), next: Next = {}): FakePla
     whatIf: (...a) => run("whatIf", ...a),
     setWindow: (...a) => run("setWindow", ...a),
     confirm: (...a) => run("confirm", ...a),
+    refreshBase: (...a) => run("refreshBase", ...a),
+    createGroup: (...a) => run("createGroup", ...a),
+    setGroupPeriod: (...a) => run("setGroupPeriod", ...a),
+    removeGroupMember: (...a) => run("removeGroupMember", ...a),
+    cancelGroup: (...a) => run("cancelGroup", ...a),
+    exportPlan: async () => {
+      calls.push({ name: "exportPlan", args: [] });
+      return new Blob(["PK"]);
+    },
     setChangeSetWindow: async (id, days) => {
       calls.push({ name: "setChangeSetWindow", args: [id, days] });
       return first.change_sets[0] ?? ({ id, window_days: days } as never);

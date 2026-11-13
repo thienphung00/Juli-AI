@@ -4,7 +4,10 @@
 block the compare table and the builder panel show:
 
 - ``driver`` -- the metric(s) the strategy moves, CTOR naming (orders / clicks);
-- ``delta`` -- Δ GMV, Δ orders, Δ profit per month as ``{low, p50, high}`` (P10 / P50 / P90);
+- ``result`` -- ``OptionResult.json()`` (P98 / ADR-122), the one estimate; ``delta``,
+  ``before_after``, ``driver`` and ``basis`` are laid out from it;
+- ``delta`` -- Δ GMV, Δ orders, Δ profit over the result's days as ``{low, p50, high}`` (the
+  result's low / likely / high columns);
 - ``margin_after_pct`` -- the margin after the change;
 - ``cost`` -- the cost of the change (combo: the discount given to buyers x expected combos);
 - ``break_even`` -- extra orders AND the CTOR they take ("≥ 18 đơn, CTOR ≥ 2,71 %");
@@ -21,9 +24,12 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from juli_backend.services.shopee_builder import before_after
 from juli_backend.services.shopee_builder.context import BuilderContext
+from juli_backend.services.shopee_builder.engine import wire
 from juli_backend.services.shopee_builder.traffic import break_even_ctor, scope_traffic
 from juli_backend.services.shopee_builder.translate import Translation
+from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_recommendations import config
 
 METRIC_LABELS: dict[str, str] = {
@@ -41,6 +47,8 @@ METRIC_LABELS: dict[str, str] = {
 DRIVERS: dict[str, tuple[str, ...]] = {
     "min_spend_voucher": ("aov", "ctor"),
     "combo_multi": ("aov", "ctor"),
+    "bundle_deal": ("aov", "ctor"),
+    "listing_combo": ("aov",),
     "add_on": ("aov",),
     "gift": ("ctor", "orders"),
     "product_discount": ("ctor", "orders"),
@@ -91,6 +99,7 @@ REASON_TEXT: dict[str, str] = {
     ),
     "no_qualifying_orders": "Chưa có đơn nào đạt đơn tối thiểu.",
     "no_margin": "Đơn dùng voucher không có lãi nên giỏ hàng lớn hơn không bù được chi phí.",
+    "no_result_for_days": "Chưa tính được cho đúng các ngày đã đặt của phương án này.",
 }
 GENERIC_REASON_TEXT = "Chưa tính được điểm hoà vốn cho thay đổi này."
 
@@ -109,42 +118,8 @@ def _sorted_band(lo: Any, mid: Any, hi: Any) -> dict[str, float | None]:
     return {"low": lo, "p50": mid, "high": hi}
 
 
-def _band(total: Mapping[str, Any], key: str) -> dict[str, float | None]:
-    return _sorted_band(total["p10"][key], total["p50"][key], total["p90"][key])
-
-
 def _band_of(block: Mapping[str, Any], key: str) -> dict[str, float | None]:
     return _sorted_band(block["p10"][key], block["p50"][key], block["p90"][key])
-
-
-def _per_day(card: Mapping[str, Any], cost_known: bool) -> dict[str, Any] | None:
-    block = card["predicted"]["money_per_month"].get("per_day")
-    if not block:
-        return None
-    total = block["total"]
-    profit = _band_of(total, "dprofit")
-    return {
-        "gmv": _band_of(total, "dgmv"),
-        "orders": _band_of(total, "dorders"),
-        "profit": profit if cost_known else {"low": None, "p50": None, "high": None},
-        "cost": block["certain"]["dchi"],
-    }
-
-
-def _period(card: Mapping[str, Any], cost_known: bool) -> dict[str, Any] | None:
-    block = card["predicted"]["money_per_month"].get("period")
-    if not block:
-        return None
-    total = block["total"]
-    return {
-        "days": block["days"],
-        "gmv": _band_of(total, "dgmv"),
-        "orders": _band_of(total, "dorders"),
-        "profit": _band_of(total, "dprofit")
-        if cost_known
-        else {"low": None, "p50": None, "high": None},
-        "cost": block["certain"]["dchi"],
-    }
 
 
 def _per_order(card: Mapping[str, Any], cost_known: bool) -> dict[str, Any] | None:
@@ -191,7 +166,7 @@ def basis_of(card: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _items_cost_known(ctx: BuilderContext, items: Sequence[str]) -> tuple[bool, list[str]]:
+def items_cost_known(ctx: BuilderContext, items: Sequence[str]) -> tuple[bool, list[str]]:
     """Every listing the version touches has a real giá vốn (per its SKUs' cost source)."""
     env = ctx.env
     missing = []
@@ -231,6 +206,24 @@ def _cost(card: Mapping[str, Any], tr: Translation, p50_orders: float | None) ->
             label="Mức giảm cho khách × số combo dự kiến trong tháng",
             expected_units=max(units, 1),
             expected_units_basis="history" if units else "minimum_one",
+        )
+    elif kind == "listing_combo":
+        out.update(
+            amount=0,
+            period_days=config.DAYS_PER_MONTH,
+            label="Không có chi phí cố định; phần giảm cho khách nằm trong Δ lợi nhuận",
+        )
+    elif kind == "bundle_deal":
+        # P97 D85.15: what the tiers give on the orders that already qualify, plus the same
+        # discount rate on the extra GMV the lift is expected to bring
+        existing = certain.get("extra_cost_on_existing_orders") or 0
+        gained = (card["predicted"]["money_per_month"]["total"]["p50"]["dgmv"]) or 0
+        rate = (certain.get("tiers") or [{}])[0].get("discount_pct") or 0
+        out.update(
+            amount=round(existing + max(gained, 0) * rate / 100),
+            period_days=config.DAYS_PER_MONTH,
+            label="Giảm cho khách trên các đơn đủ điều kiện hiện có và dự kiến",
+            existing=existing,
         )
     elif kind == "add_on":
         # P96: the discount on today's attaches and on the attaches the deal is expected to bring
@@ -290,31 +283,105 @@ def _cost(card: Mapping[str, Any], tr: Translation, p50_orders: float | None) ->
     return out
 
 
-def _break_even(
-    card: Mapping[str, Any], ctx: BuilderContext, items: Sequence[str]
+#: the money layer's month-scaled parts that do not hold for other days
+_MONTH_PARTS = ("expected_units", "expected_units_basis", "existing")
+
+
+def _result_cost(result: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    return (result or {}).get("cost") or {}
+
+
+def cost_on_days(
+    cost: Mapping[str, Any], result: Mapping[str, Any] | None, days: int
 ) -> dict[str, Any]:
+    """P99c: the cost covers the version's own days (``result.days`` / ``versions[].dates``). A
+    money-layer figure for another period (a combo / Ads / gift month) is replaced by the result's
+    cost over those days; without a result it is null with a reason -- never a 30-day figure
+    beside the set dates."""
+    out = dict(cost)
+    if out.get("period_days") == days or (out.get("amount") is None and not result):
+        out.update(period_days=days, source="money_layer", reason=None, reason_text=None)
+        return out
+    for part in _MONTH_PARTS:
+        out.pop(part, None)
+    label = str(out.get("label") or "").replace("trong tháng", f"trong {days} ngày")
+    total = _result_cost(result).get("total")
+    if result is not None and total is not None:
+        out.update(amount=total, period_days=days, label=label or None, source="result")
+        out.update(reason=None, reason_text=None)
+        return out
+    out.update(
+        amount=None,
+        period_days=days,
+        label=label or None,
+        source=None,
+        reason="no_result_for_days",
+        reason_text=reason_text("no_result_for_days"),
+    )
+    return out
+
+
+def _break_even_on_days(
+    result: Mapping[str, Any] | None, days: int
+) -> tuple[int | None, str | None]:
+    """Extra orders over the version's own days from its result; ``None`` with the reason."""
+    if result is None:
+        return None, "no_result_for_days"
+    rc = _result_cost(result)
+    extra = rc.get("break_even_orders")
+    if extra is not None:
+        return int(extra), None
+    if not rc.get("total"):
+        return None, "no_extra_cost"
+    return None, "profit_per_order_unknown"
+
+
+def _break_even(
+    card: Mapping[str, Any],
+    ctx: BuilderContext,
+    items: Sequence[str],
+    *,
+    days: int = config.DAYS_PER_MONTH,
+    result: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Break-even over the version's own ``days`` (P99c): a money-layer figure for another period
+    gives way to the result's (or is null with a reason)."""
     kind = card["change_kind"]
     certain = card["certain"]
     extra: int | None = None
     period = config.DAYS_PER_MONTH
     reason: str | None = None
+    source = "money_layer"
     if kind == "min_spend_voucher" and certain.get("break_even_aov") is not None:
         # P96: a basket-size lever pays back through the basket, not through extra orders
         aov = certain["break_even_aov"]
+        needed, why = aov["aov_needed"], aov["reason"]
+        if int(certain.get("days") or config.VOUCHER_DAYS) != days:
+            needed = _result_cost(result).get("break_even_aov")
+            why = None if needed is not None else "no_result_for_days"
+            source = "result" if needed is not None else "none"
         return {
             "applies": True,
             "basis": "aov",
             "extra_orders": None,
             "aov_now": aov["aov_now"],
-            "aov_needed": aov["aov_needed"],
-            "period_days": int(certain.get("days") or config.VOUCHER_DAYS),
-            "reason": aov["reason"],
-            "reason_text": reason_text(aov["reason"]),
+            "aov_needed": needed,
+            "period_days": days,
+            "source": source,
+            "reason": why,
+            "reason_text": reason_text(why),
         }
     if kind == "min_spend_voucher":
         extra, reason = certain.get("break_even_extra_orders"), certain.get("break_even_reason")
         period = int(certain.get("days") or config.VOUCHER_DAYS)
-    elif kind in ("combo_multi", "add_on", "product_discount", "price", "flash_sale"):
+    elif kind in (
+        "combo_multi",
+        "bundle_deal",
+        "add_on",
+        "product_discount",
+        "price",
+        "flash_sale",
+    ):
         extra = certain.get("break_even_extra_orders")
         reason = certain.get("break_even_reason")
         period = _period_days(card) if kind == "product_discount" else config.DAYS_PER_MONTH
@@ -327,6 +394,10 @@ def _break_even(
             "reason": "not_applicable",
             "reason_text": reason_text("not_applicable"),
         }
+    if period != days:  # P99c: never a 30-day break-even beside the set dates
+        extra, reason = _break_even_on_days(result, days)
+        source = "result" if result is not None else "none"
+        period = days
     scope = [] if kind == "min_spend_voucher" and not items else list(items)
     if (
         kind == "gift"
@@ -339,6 +410,7 @@ def _break_even(
         "applies": True,
         "extra_orders": extra,
         "period_days": period,
+        "source": source,
         "reason": reason,
         "reason_text": reason_text(reason),
         **{k: v for k, v in ctor.items() if k != "reason"},
@@ -379,6 +451,25 @@ def _margin(card: Mapping[str, Any]) -> tuple[float | None, float | None]:
     return None, None
 
 
+def one_margin(
+    ctx: BuilderContext,
+    items: Sequence[str],
+    before: float | None,
+    after: float | None,
+) -> tuple[float | None, float | None]:
+    """ADR-122 d.12 (P99): "hôm nay" is the scope's Luồng sản phẩm margin
+    (``shop_profit.scope_margin_pct``) and "sau" moves it by the change the evaluators measure on
+    the same orders (their after - before, in points). Unknown stays unknown; an add-on's own
+    margin (no before) is left as it is."""
+    if before is None:
+        return before, after
+    one = shop_profit.scope_margin_pct(ctx.env.view.profit, items)
+    if one is None:
+        return before, after
+    moved = None if after is None else round(float(one) + after - before, 1)
+    return float(one), moved
+
+
 def _driver(
     card: Mapping[str, Any],
     ctx: BuilderContext,
@@ -404,6 +495,8 @@ def _driver(
             before = aov.get("before")
             if kind == "combo_multi":
                 before = certain.get("aov_shop_now")
+            elif kind == "listing_combo":
+                before = certain.get("aov_now")
             elif kind == "add_on":
                 before = certain.get("aov_now")
             if before is not None:
@@ -532,6 +625,132 @@ def _warnings(
     return out
 
 
+NULL_BAND: dict[str, float | None] = {"low": None, "p50": None, "high": None}
+#: OptionResult basis -> the builder's basis block (P98: one estimate path)
+RESULT_BASIS: dict[str, tuple[str, str, str]] = {
+    "measured": ("measured", "đo từ số liệu của shop", "Đo từ đơn và phễu của chính shop."),
+    "product_history": (
+        "product_history",
+        BASIS_LABELS["product_history"],
+        "Đơn của chính sản phẩm khi từng giảm giá trước đây.",
+    ),
+    "shop": ("shop", BASIS_LABELS["shop"], "Kết quả đã đo của các sản phẩm khác trong shop."),
+    "prior": ("prior", BASIS_LABELS["prior"], "Mức ước tính chung, chưa có đủ lịch sử của shop."),
+    "not_estimable": (
+        "insufficient",
+        BASIS_LABELS["insufficient"],
+        "Chưa ước tính được: chỉ có chi phí và điểm hoà vốn.",
+    ),
+}
+_DRIVER_UNITS = {"views": "count", "ctr": "pct", "ctor": "pct", "aov": "vnd", "orders": "count"}
+
+
+def _col_delta(result: Mapping[str, Any], key: str) -> dict[str, float | None]:
+    """Δ of one metric in the low / likely / high columns of ``result`` (the same numbers as
+    ``before_after`` and ``result.delta``: GMV / profit whole đồng as the wire rounds them)."""
+    detail = result.get("detail") or {}
+    before = (detail.get("before") or {}).get(key)
+    out: dict[str, float | None] = {}
+    for q, col in (("low", "low"), ("p50", "likely"), ("high", "high")):
+        c = detail.get(col) or {}
+        a = c.get(key)
+        if a is None or before is None:
+            out[q] = None
+            continue
+        d = float(a) - float(before)
+        out[q] = float(round(d)) if key in ("gmv", "profit") else d
+    return out
+
+
+def result_delta(result: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The outcome's ``delta`` from ONE result (P98: the money layer no longer produces it)."""
+    if result is None or not result.get("estimable"):
+        days = None if result is None else result.get("days")
+        return {
+            "gmv": dict(NULL_BAND),
+            "orders": dict(NULL_BAND),
+            "profit": dict(NULL_BAND),
+            "orders_note": None
+            if result is None
+            else ((result.get("delta") or {}).get("orders") or {}).get("note"),
+            "per": "period",
+            "days": days,
+            "per_day": None,
+            "period": None,
+        }
+    days = int(result["days"])
+    gmv, orders, profit = (_col_delta(result, k) for k in ("gmv", "orders", "profit"))
+    # P99: Δ Đơn at the card's precision (``wire.round_count``), the same as ``result.delta``
+    orders = {k: wire.round_count(v) for k, v in orders.items()}
+    note = ((result.get("delta") or {}).get("orders") or {}).get("note")
+
+    def per_day(b: Mapping[str, float | None]) -> dict[str, float | None]:
+        return {k: None if v is None else v / days for k, v in b.items()}
+
+    cost = (result.get("cost") or {}).get("total")
+    return {
+        "gmv": gmv,
+        "orders": orders,
+        "profit": profit,
+        "orders_note": note,
+        "per": "period",
+        "days": days,
+        "per_day": {
+            "gmv": per_day(gmv),
+            "orders": per_day(orders),
+            "profit": per_day(profit),
+            "cost": None if cost is None else cost / days,
+        },
+        "period": {"days": days, "gmv": gmv, "orders": orders, "profit": profit, "cost": cost},
+    }
+
+
+def result_driver(result: Mapping[str, Any] | None, old: Mapping[str, Any]) -> dict[str, Any]:
+    """The driver block from the result's own columns (before -> likely) for its drivers + đơn."""
+    if result is None:
+        return dict(old)
+    detail = result.get("detail") or {}
+    before, likely = detail.get("before") or {}, detail.get("likely")
+    rows = []
+    for key in [*result.get("drivers", []), "orders"]:
+        rows.append(
+            {
+                "key": key,
+                "label": METRIC_LABELS[key],
+                "unit": _DRIVER_UNITS[key],
+                "before": before.get(key),
+                "after_p50": None if likely is None else likely.get(key),
+            }
+        )
+    return {
+        "metrics": rows,
+        "target_metric": (result.get("drivers") or [old.get("target_metric")])[0],
+        "relative_lift": old.get("relative_lift"),
+        "drivers_pct": result.get("drivers_pct") or [],
+    }
+
+
+def result_basis(result: Mapping[str, Any] | None, old: Mapping[str, Any]) -> dict[str, Any]:
+    if result is None:
+        return {
+            "key": "insufficient",
+            "label": BASIS_LABELS["insufficient"],
+            "detail": "Chưa ước tính được cho phương án này.",
+            "volume_estimate": False,
+        }
+    key, label, detail = RESULT_BASIS[str(result.get("basis"))]
+    if not result.get("estimable"):
+        key, label, detail = RESULT_BASIS["not_estimable"]
+    return {
+        "key": key,
+        "label": label,
+        "detail": detail,
+        "volume_estimate": bool(result.get("estimable")),
+        "weak": bool(result.get("basis_weak")),
+        "previous": old.get("key"),
+    }
+
+
 def shape(
     card: Mapping[str, Any],
     tr: Translation,
@@ -541,51 +760,37 @@ def shape(
     kind: str,
     label: str,
     estimate_card: Mapping[str, Any] | None = None,
+    result: Mapping[str, Any] | None = None,
+    result_refusal: Mapping[str, str] | None = None,
+    scope: str | None = None,
+    days: int | None = None,
 ) -> dict[str, Any]:
-    """The outcome block of one version. ``estimate_card`` carries the numbers when the saved card
-    has none of its own (a variation set)."""
+    """The outcome block of one version. ``estimate_card`` carries the evaluators' certain layer
+    (costs, profit per order, floor) when the saved card has none of its own (a variation set).
+    P98 / ADR-122: ``result`` (``OptionResult.json()``) is the one estimate -- ``before_after``,
+    ``delta``, ``driver`` and ``basis`` are laid out from it; the card's money layer no longer
+    produces numbers. P99c: ``cost`` / ``break_even`` cover the version's own days -- the
+    result's ``days``, else ``days`` (the set dates), else 30 (a version without dates)."""
     numbers = estimate_card or card
+    own_days = int((result or {}).get("days") or days or config.DAYS_PER_MONTH)
     pm = numbers["predicted"]["money_per_month"]
-    # P96: the bands cover the change's own days (``period``, up to 90), not a month capped at 30
-    total = (pm.get("period") or pm)["total"]
     items = list(dict.fromkeys([*tr.items, *card["scope"]["product_ids"]]))
-    cost_known, missing = _items_cost_known(ctx, [i for i in items if i])
+    cost_known, missing = items_cost_known(ctx, [i for i in items if i])
     p50_orders = pm["total"]["p50"]["dorders"]  # per month: the driver and combo cost read it
     margin_before, margin_after = _margin(numbers)
-    delta_profit = _band(total, "dprofit")
-    orders_band = _band(total, "dorders")
-    orders_note = None
-    if numbers["predicted"]["lift"]["metric"] == "aov":
-        # a basket-size lever moves AOV, not the number of orders
-        orders_band = {"low": 0.0, "p50": 0.0, "high": 0.0}
-        orders_note = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
     basis = basis_of(numbers)
-    if card["change_kind"] == "listing_hide" and basis["key"] != "insufficient":
-        basis = {  # P96: the loss is the listing's own last 30 days, not an estimate
-            "key": "product_history",
-            "label": BASIS_LABELS["product_history"],
-            "detail": "GMV và lợi nhuận 30 ngày qua của sản phẩm: mất khi ẩn sản phẩm.",
-            "volume_estimate": False,
-        }
-    if items and all(i in ctx.reference_items for i in items if i):
-        basis = {
-            "key": "insufficient",
-            "label": BASIS_LABELS["insufficient"],
-            "detail": "Sản phẩm chưa có đơn trong kỳ: chỉ tính chi phí và hoà vốn trên một đơn mẫu "
-            "theo giá hiện tại, không dự kiến số đơn hay doanh thu.",
-            "volume_estimate": False,
-        }
-    delta_gmv = _band(total, "dgmv")
-    if basis["key"] == "insufficient":  # no volume could be predicted: null, not a flat 0
-        null = {"low": None, "p50": None, "high": None}
-        delta_gmv, orders_band, delta_profit = dict(null), dict(null), dict(null)
-    if cost_known and tr.card_kind == "variation_restructure" and delta_profit["p50"] is None:
-        delta_profit = set_profit_band(delta_gmv, tr.details.get("new_variations") or [])
     if not cost_known:
-        delta_profit = {"low": None, "p50": None, "high": None}
         margin_before = margin_after = None
+    old_scope = "shop" if card["change_kind"] == "min_spend_voucher" and not tr.items else "product"
+    margin_before, margin_after = one_margin(
+        ctx, () if (scope or old_scope) == "shop" else items, margin_before, margin_after
+    )
     certain_profit = None if not cost_known else (pm.get("period") or pm)["certain"]["dprofit"]
     driver = _driver(numbers, ctx, items, p50_orders)
+    rd = result_delta(result)
+    if not cost_known:
+        rd["profit"] = dict(NULL_BAND)
+    delta_profit = rd["profit"]
     return {
         "index": index,
         "kind": kind,
@@ -595,19 +800,18 @@ def shape(
         "ok": True,
         "refusal": None,
         "title": card["title"],
-        "driver": driver,
+        "driver": result_driver(result, driver),
+        "result": None if result is None else dict(result),
+        "result_refusal": None if result_refusal is None else dict(result_refusal),
+        "before_after": before_after.from_result(
+            result,
+            scope=scope or old_scope,
+            reason=None if result_refusal is None else result_refusal.get("message"),
+        ),
         "base": _base(numbers, tr, items, driver, margin_before),
         "delta": {
-            "gmv": delta_gmv,
-            "orders": orders_band,
-            "profit": delta_profit,
+            **rd,
             "certain_profit": certain_profit,
-            "orders_note": orders_note,
-            # the figures above cover ``days`` days (the change's own, up to 30), not a month
-            "per": "period",
-            "days": pm.get("period", {}).get("days", pm["days"]),
-            "per_day": _per_day(numbers, cost_known),
-            "period": _period(numbers, cost_known),
             "per_order": _per_order(numbers, cost_known),
         },
         "voucher": (numbers.get("certain") or {}).get("voucher_detail"),
@@ -615,31 +819,13 @@ def shape(
         "margin_after_pct": margin_after,
         "profit_status": "ok" if cost_known else "chua_tinh",
         "cost_known": cost_known,
-        "cost": _cost(numbers, tr, p50_orders),
-        "break_even": _break_even(numbers, ctx, items),
-        "basis": basis,
+        "cost": cost_on_days(_cost(numbers, tr, p50_orders), result, own_days),
+        "break_even": _break_even(numbers, ctx, items, days=own_days, result=result),
+        "basis": result_basis(result, basis),
         "warnings": _warnings(numbers, tr, cost_known, missing, delta_profit),
         "breach": bool(card["floor"]["breaches"])
         or bool((card.get("spend") or {}).get("over_cap")),
         "details": {**card["certain"], **tr.details},
-    }
-
-
-def set_profit_band(
-    delta_gmv: Mapping[str, float | None], new_variations: Sequence[Mapping[str, Any]]
-) -> dict[str, float | None]:
-    """P96: a set's Δ profit from its own margin when the estimate card has none -- the extra GMV
-    is set revenue at the margin computed for the biggest new set (``translate._variation_set``)."""
-    known = [v for v in new_variations if v.get("margin_pct") is not None]
-    if not known:
-        return {"low": None, "p50": None, "high": None}
-    rate = max(known, key=lambda v: v.get("pack_count") or 1)["margin_pct"] / 100
-    # P96e: ΔGMV is at today's prices and a set's goods cost no more than that, so a set sold
-    # far below cost loses at most its extra GMV -- not margin % x GMV (−1.404.170 % x ...).
-    rate = max(rate, -1.0)
-    return {
-        k: None if delta_gmv.get(k) is None else round(float(delta_gmv[k] or 0) * rate, 2)
-        for k in ("low", "p50", "high")
     }
 
 
@@ -660,6 +846,8 @@ __all__ = [
     "METRIC_LABELS",
     "REASON_TEXT",
     "basis_of",
+    "cost_on_days",
+    "one_margin",
     "reason_text",
     "refused",
     "shape",

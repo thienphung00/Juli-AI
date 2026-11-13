@@ -3,6 +3,8 @@
 // stopped; the daily sync → sent to an open Seller Centre tab; token rotation.
 
 import {
+  READER_BLOCK_CAPTCHA_MS,
+  READER_BLOCK_RATE_MS,
   BACKFILL_DAYS,
   BACKFILL_IN_FLIGHT_TIMEOUT_MS,
   BACKFILL_MAX_DAY_ATTEMPTS,
@@ -17,15 +19,19 @@ import { mapMarketSearch } from "../shopee/market";
 import { importOrderRefKey, orderRef } from "../ingest/order-ref";
 import { RAW_ORDER_ID } from "../shopee/affiliate-map";
 import { mapReaderJob } from "../shopee/reader-map";
-import type { ReaderJob, ReaderResponse } from "../shopee/reader";
+import { classify, type ReaderJob, type ReaderResponse } from "../shopee/reader";
 import { isDataAnswer, type RequestResult } from "../shopee/runner";
 import { buildBackfillDayPlan, buildSyncPlan } from "../shopee/sync";
-import { lastFinishedDays, yesterdayRange } from "../shopee/time";
+import { gmt7Date, lastFinishedDays, yesterdayRange } from "../shopee/time";
+import type { BlockEvent } from "./scheduler";
 import {
+  addRequests,
   type Backfill,
   type BackfillStopReason,
   enqueue,
   loadState,
+  backfillRequestsLeft,
+  requestsLeft,
   saveState,
   type State,
   type Storage,
@@ -52,6 +58,8 @@ export type CaptureOutcome =
   /** The gateway does not accept this dataset yet (config HELD_DATASETS): mapped, not sent. */
   | "held"
   | "ignored"
+  /** Shopee answered with an empty list for the period: a real zero, nothing to post (0.3.15). */
+  | "empty"
   | "unpaired"
   | "stopped"
   | "drift"
@@ -162,7 +170,7 @@ export class Connector {
       }
       return "drift";
     }
-    if (mapped.rows.length === 0) return "ignored";
+    if (mapped.rows.length === 0) return mapped.answeredEmpty ? "empty" : "ignored";
     // A raw Shopee order id never leaves the browser: such a row must have been hashed first.
     if (mapped.rows.some((row) => RAW_ORDER_ID in row)) return "rejected";
 
@@ -227,9 +235,15 @@ export class Connector {
   async postReader(job: ReaderJob, responses: ReaderResponse[]): Promise<Record<string, CaptureOutcome>> {
     const capturedAt = responses.reduce((latest, r) => Math.max(latest, r.capturedAt), 0) || this.deps.now();
     const outcomes: Record<string, CaptureOutcome> = {};
-    const perDate = new Set(["ads", "item_traffic", "affiliate_dashboard", "affiliate_bills"]);
+    // "affiliate": one post per purchase window (0.3.17 history), keyed by the window's end.
+    const perDate = new Set(["ads", "item_traffic", "affiliate", "affiliate_dashboard", "affiliate_bills"]);
     for (const raw of mapReaderJob(job, responses, capturedAt)) {
-      const key = perDate.has(job.id) ? `${raw.dataset}:${raw.date}` : raw.dataset;
+      const key =
+        job.id === "shop_totals" || job.id === "product_period"
+          ? `${raw.dataset}:${raw.orderType}`
+          : perDate.has(job.id)
+            ? `${raw.dataset}:${raw.date}`
+            : raw.dataset;
       const mapped = await this.hashOrderIds(raw);
       outcomes[key] = mapped ? await this.submit(mapped, capturedAt) : "rejected";
     }
@@ -301,6 +315,40 @@ export class Connector {
     }
   }
 
+  private today(): string {
+    return gmt7Date(Math.floor(this.deps.now() / 1000));
+  }
+
+  /** A CAPTCHA / login wall / rate-limit stop is in force: no request of any kind goes to Seller Centre. */
+  private async halted(state: State): Promise<boolean> {
+    return (state.readers?.blocked?.until ?? 0) > this.deps.now();
+  }
+
+  /**
+   * 429 / 403 / CAPTCHA seen by the daily sync or the backfill stops ALL readers for the shop with
+   * the scheduler's own cool-down, and is told to Juli (a connector event) so Ops can see it.
+   */
+  private async haltAll(reason: "captcha" | "rate_limit", reader: string, page: string, code: string): Promise<void> {
+    const state = await this.state();
+    const sched = state.readers ?? { adsDone: [], trafficDone: [] };
+    const until = this.deps.now() + (reason === "captcha" ? READER_BLOCK_CAPTCHA_MS : READER_BLOCK_RATE_MS);
+    await saveState(this.deps.storage, {
+      readers: { ...sched, blocked: { at: this.iso(), reason, page: "products", until } },
+    });
+    await this.reportBlock({ reader, page, status: reason, code, at: this.iso() });
+  }
+
+  /** Tell Juli a stop happened (reader, page, status, time). Best effort: a failed post changes nothing. */
+  async reportBlock(event: BlockEvent): Promise<void> {
+    const state = await this.state();
+    if (!state.token) return;
+    try {
+      await this.deps.client.connectorEvent(state.token.token, event, this.deps.version);
+    } catch (error) {
+      if (!(await this.onAuthError(error))) await this.onRefusal(error);
+    }
+  }
+
   /**
    * The daily alarm (or a Seller Centre tab opening while a sync is pending):
    * ask an open Seller Centre tab to re-issue yesterday's calls. No tab → wait.
@@ -311,6 +359,7 @@ export class Connector {
     if (state.consentBlocked) return "consent_required";
     const day = yesterdayRange(this.deps.now()).date;
     if (state.lastSync?.day === day && state.lastSync.status === "done") return "already_synced";
+    if (await this.halted(state)) return "blocked";
     if (await this.deps.busy?.()) {
       // A scheduled reader run holds the Seller Centre pace budget: try again when a tab reports ready.
       await saveState(this.deps.storage, { pendingSync: true });
@@ -323,6 +372,8 @@ export class Connector {
       return "no_tab";
     }
     const plan = buildSyncPlan(this.deps.now(), stoppedFor(state, this.deps.version));
+    // The shared daily request budget is checked before the plan goes out.
+    if (plan.length > requestsLeft(state, this.today())) return "budget_spent";
     await saveState(this.deps.storage, {
       pendingSync: false,
       lastSync: { day, at: this.iso(), status: "requested" },
@@ -331,8 +382,9 @@ export class Connector {
     return "requested";
   }
 
-  async syncResult(status: string): Promise<void> {
+  async syncResult(status: string, sent = 0): Promise<void> {
     const state = await this.state();
+    await addRequests(this.deps.storage, this.today(), sent);
     const day = yesterdayRange(this.deps.now()).date;
     await saveState(this.deps.storage, {
       lastSync: { day, at: this.iso(), status },
@@ -476,6 +528,7 @@ export class Connector {
     const now = this.deps.now();
     if (backfill.inFlight && now - backfill.inFlight.at < BACKFILL_IN_FLIGHT_TIMEOUT_MS) return "in_flight";
     if (backfill.needsDataPage) return "needs_data_page";
+    if (await this.halted(state)) return "blocked";
     if (await this.deps.busy?.()) return "busy";
     if ((backfill.notBefore ?? 0) > now) {
       await saveState(this.deps.storage, { backfill });
@@ -509,6 +562,11 @@ export class Connector {
       });
       return finished ? "done" : "datasets_stopped";
     }
+    // The shared daily request budget: a backfill day waits for tomorrow once today's is spent.
+    if (next.plan.length > backfillRequestsLeft(state, this.today())) {
+      await saveState(this.deps.storage, { backfill: { ...backfill, inFlight: undefined } });
+      return "budget_spent";
+    }
     const tab = (await this.deps.tabs.sellerCentreTabs())[0];
     if (tab === undefined) {
       await saveState(this.deps.storage, { backfill: { ...backfill, inFlight: undefined } });
@@ -535,6 +593,7 @@ export class Connector {
     const current = state.backfill;
     if (!current || current.inFlight?.day !== day) return "stale";
     let backfill: Backfill = { ...current, inFlight: undefined };
+    await addRequests(this.deps.storage, this.today(), results.length);
     if (status !== "done") {
       // needs_data_page: the tab has not loaded a data page yet; the page's next data call resumes.
       await saveState(this.deps.storage, { backfill: { ...backfill, needsDataPage: status === "needs_data_page" } });
@@ -569,7 +628,17 @@ export class Connector {
         continue;
       }
       backfill = keepAccepted();
-      if (result.status === 401 || result.status === 403 || (ok2xx && !hasCode)) {
+      if (result.status === 429 || result.status === 403) {
+        // Rate limit / refusal: every reader stops, not just this day (P97).
+        const verdict = classify(result.status, result.body) === "captcha" ? "captcha" : "rate_limit";
+        await this.haltAll(verdict, "backfill", new URL(result.url, "https://banhang.shopee.vn").pathname, `http_${result.status}`);
+        return this.stopBackfill(backfill, result.status === 403 ? "session" : "shopee_error", {
+          day,
+          dataset: result.dataset,
+          code: `http_${result.status}`,
+        });
+      }
+      if (result.status === 401 || (ok2xx && !hasCode)) {
         // Refused, or a login page instead of JSON: the Seller Centre session is gone.
         return this.stopBackfill(backfill, "session", { day, dataset: result.dataset, code: `http_${result.status}` });
       }

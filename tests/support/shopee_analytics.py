@@ -416,7 +416,11 @@ def voucher_rows(shop_id: uuid.UUID) -> list[PlatformPromotion]:
     ]
 
 
-async def seed_shopee_shop(session: AsyncSession, *, rules: bool = False) -> Seeded:
+async def seed_shopee_shop(
+    session: AsyncSession, *, rules: bool = False, materialized: bool = True
+) -> Seeded:
+    """The synthetic Shopee shop. ``materialized`` (P99b): its stored daily rows are built, as the
+    ingest hook does in production -- a screen's window without them is the missing-rows state."""
     user = await make_user(session)
     shop = await make_shop(session, user, platform="shopee", shop_name="Synthetic Shopee Shop")
     shop_id = shop.id
@@ -457,6 +461,11 @@ async def seed_shopee_shop(session: AsyncSession, *, rules: bool = False) -> See
                 )
             )
     await session.flush()
+    if materialized:
+        from juli_backend.services.shopee_analytics import materialize
+
+        await materialize.backfill_shop(session, shop_id)
+        await session.flush()
     return Seeded(shop_id, user, shop, {ln.order_ref for ln in lines}, lines)
 
 

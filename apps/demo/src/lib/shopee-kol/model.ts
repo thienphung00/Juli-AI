@@ -114,6 +114,7 @@ export interface RowText {
   /** The creator's clicks from the Shopee export (the pair's own clicks are not known). */
   readonly clicks: string;
   readonly conversion: string;
+  readonly buyers: string;
   readonly commission: string;
   readonly net: string;
   readonly sample: string;
@@ -128,7 +129,7 @@ export interface RowText {
 export function rowText(r: KolRow): RowText {
   return {
     handle: r.handle,
-    channel: r.channel,
+    channel: r.channel_label ?? r.channel,
     few: r.low_data,
     fewLabel: r.low_data_label ?? "Ít dữ liệu",
     product: r.product_name,
@@ -137,6 +138,7 @@ export function rowText(r: KolRow): RowText {
     gmv: vnd(roundK(r.gmv)),
     clicks: num(r.kol_clicks) ? fmt(r.kol_clicks, 0) : DASH,
     conversion: num(r.kol_conversion) ? pc(r.kol_conversion, 1) : DASH,
+    buyers: num(r.kol_buyers) ? fmt(r.kol_buyers, 0) : DASH,
     commission: vnd(roundK(r.commission)),
     net: vnd(roundK(r.net_profit)),
     sample: num(r.sample_cost) ? (r.sample_cost > 0 ? vnd(r.sample_cost) : DASH) : r.sample_qty > 0 ? "chưa tính được" : DASH,

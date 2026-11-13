@@ -231,25 +231,15 @@ def title_user(facts: ProductFacts, keywords: Sequence[str], n: int) -> str:
     )
 
 
-async def draft_titles(
-    client: LLMClient,
-    facts: ProductFacts,
-    keywords: Sequence[str],
-    *,
-    count: int = 3,
-) -> dict[str, Any]:
-    """2-4 titles (≤100 characters) that hold every ticked keyword."""
-    count = max(MIN_DRAFTS, min(count, MAX_DRAFTS))
-    kws = [k.strip() for k in keywords if k.strip()][:MAX_KEYWORDS]
-    raw = await client.complete_json(
-        system=title_system(facts),
-        user=title_user(facts, kws, count),
-        schema_name="shopee_titles",
-        schema=TITLE_SCHEMA,
-    )
-    items = raw.get("drafts")
-    if not isinstance(items, list):
-        raise LLMUnavailable(REASON_BAD_OUTPUT, "drafts missing")
+def screen_titles(
+    items: Sequence[object], facts: ProductFacts, kws: Sequence[str]
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """The titles of ``items`` that pass every check, and the dropped ones with the reason.
+
+    One screen for every title Juli shows: the model's drafts and the sample shop's pre-written
+    ones (P100 S2-D) -- a stored title is held to the same rules as a fresh one.
+    """
+    kws = list(kws)
     allowed = facts.allowed_text(kws)
     dropped: list[dict[str, str]] = []
     out: list[dict[str, Any]] = []
@@ -291,6 +281,33 @@ async def draft_titles(
         )
         if len(out) == MAX_DRAFTS:
             break
+    return out, dropped
+
+
+async def draft_titles(
+    client: LLMClient,
+    facts: ProductFacts,
+    keywords: Sequence[str],
+    *,
+    count: int = 3,
+) -> dict[str, Any]:
+    """2-4 titles (≤100 characters) that hold every ticked keyword."""
+    count = max(MIN_DRAFTS, min(count, MAX_DRAFTS))
+    kws = [k.strip() for k in keywords if k.strip()][:MAX_KEYWORDS]
+    raw = await client.complete_json(
+        system=title_system(facts),
+        user=title_user(facts, kws, count),
+        schema_name="shopee_titles",
+        schema=TITLE_SCHEMA,
+    )
+    items = raw.get("drafts")
+    if not isinstance(items, list):
+        raise LLMUnavailable(REASON_BAD_OUTPUT, "drafts missing")
+    return title_result(*screen_titles(items, facts, kws))
+
+
+def title_result(out: list[dict[str, Any]], dropped: list[dict[str, str]]) -> dict[str, Any]:
+    """The title drafts answer (``NoValidDraft`` when nothing passed the screen)."""
     if not out:
         raise NoValidDraft(dropped)
     return {
@@ -583,5 +600,7 @@ __all__ = [
     "draft_overlays",
     "draft_titles",
     "numbers_problem",
+    "screen_titles",
+    "title_result",
     "unsupported_claims",
 ]

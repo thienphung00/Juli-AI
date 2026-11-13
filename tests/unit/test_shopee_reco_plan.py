@@ -20,6 +20,7 @@ from juli_backend.models.shop_proposals import (
 )
 from juli_backend.models.shopee_plans import ShopRecoPlan
 from juli_backend.services.shop_proposals import ProposalError
+from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     learning,
@@ -50,6 +51,7 @@ _USER_IDS: dict[uuid.UUID, uuid.UUID] = {}
 @pytest.fixture
 async def shop(session):
     seeded = await seed_reco_shop(session)
+    await materialize.backfill_shop(session, seeded.shop_id)  # the stored funnel (P98)
     await session.commit()
     _USER_IDS[seeded.shop_id] = seeded.user.id  # a rollback expires the ORM user: keep the id
     env = await load_env(session, seeded.shop_id, as_of=AS_OF)
@@ -372,7 +374,7 @@ async def test_one_draft_per_shop_and_only_open_undecided_cards_can_be_planned(s
 async def test_switching_the_version_and_the_what_if_re_aggregate_at_once(session, shop):
     seeded, env = shop
     out = await manual.create_manual(
-        session, seeded.shop_id, [_discount(10), _discount(25)], 0, False, _actor(seeded),
+        session, seeded.shop_id, [_discount(15), _discount(25)], 0, False, _actor(seeded),
         now=NOW, env=env, acknowledge_breaches=True,
     )  # fmt: skip
     cid = uuid.UUID(out["id"])
@@ -380,18 +382,20 @@ async def test_switching_the_version_and_the_what_if_re_aggregate_at_once(sessio
     sid = seeded.shop_id
     first = await plans.add_card(session, sid, cid, actor=_actor(seeded), now=NOW)
     v1 = first["aggregate"]["cards"][0]
-    assert v1["version"] == 1 and v1["inputs"]["discount_pct"] == 10
+    assert v1["version"] == 1 and v1["inputs"]["discount_pct"] == 15
     second = await plans.switch_version(session, sid, cid, 2, actor=_actor(seeded), now=NOW)
     v2 = second["aggregate"]["cards"][0]
     assert v2["version"] == 2 and v2["inputs"]["discount_pct"] == 25
-    assert v2["alone"]["dprofit"]["certain"] < v1["alone"]["dprofit"]["certain"]  # deeper discount
+    # P99b: on the option-result path the money layer's certain figure is never shown
+    assert v2["alone"]["dprofit"]["certain"] is None
+    assert v2["result"]["own"]["delta"] != v1["result"]["own"]["delta"]  # deeper discount
     assert second["cards"][0]["chosen_version_code"].endswith("-V2")
     third = await plans.whatif(
-        session, sid, cid, {"discount_pct": 5}, actor=_actor(seeded), now=NOW
+        session, sid, cid, {"discount_pct": 18}, actor=_actor(seeded), now=NOW
     )
     c3 = third["aggregate"]["cards"][0]
-    assert c3["inputs"]["discount_pct"] == 5 and c3["what_if"] == {"discount_pct": 5}
-    assert c3["alone"]["dprofit"]["certain"] > v1["alone"]["dprofit"]["certain"]
+    assert c3["inputs"]["discount_pct"] == 18 and c3["what_if"] == {"discount_pct": 18}
+    assert c3["result"]["own"]["delta"] != v1["result"]["own"]["delta"]
     fourth = await plans.switch_version(session, sid, cid, 1, actor=_actor(seeded), now=NOW)
     assert fourth["cards"][0]["what_if"] == {}  # the inputs belonged to the old version
     for bad in (0, 3):
@@ -420,14 +424,14 @@ async def test_the_aggregate_is_joint_not_the_sum_of_the_cards(session, shop):
     out = await plans.add_card(session, sid, v, actor=_actor(seeded), now=NOW)
     agg = out["aggregate"]
     by = {c["card_id"]: c for c in agg["cards"]}
-    alone = sum(c["alone"]["dprofit"]["certain"] for c in agg["cards"])
-    assert agg["dprofit_month"]["certain"] != pytest.approx(alone)  # stacked on the same orders
+    # P99b: the money layer's certain figure is not shown beside the results
+    assert agg["dprofit_month"]["certain"] is None
     assert agg["joint_cards"] == [str(d), str(v)] or set(agg["joint_cards"]) == {str(d), str(v)}
     assert agg["stacked_products"][0]["product_id"] == "1001"
     assert agg["stacked_products"][0]["stacked_on_same_orders"] is True
     # "bỏ thẻ này thì": the plan without a card is the other card alone
-    assert by[str(d)]["without"]["dprofit"]["certain"] == pytest.approx(
-        by[str(v)]["alone"]["dprofit"]["certain"]
+    assert by[str(d)]["without"]["dprofit"]["p50"] == pytest.approx(
+        by[str(v)]["alone"]["dprofit"]["p50"]
     )
     assert by[str(v)]["without"]["dprofit"]["p50"] == pytest.approx(
         by[str(d)]["alone"]["dprofit"]["p50"]
@@ -439,11 +443,13 @@ async def test_the_aggregate_is_joint_not_the_sum_of_the_cards(session, shop):
         assert c["contribution"]["dprofit_p50"] == pytest.approx(
             agg["dprofit_month"]["total"]["p50"] - c["without"]["dprofit"]["p50"]
         )
-    # the predicted range is the combined one: P50s add; wider than any one card, narrower than all
+    # P98 / ADR-122 d.2: the plan's Δ is the SUM of its cards' option results (P50 exact), not
+    # the money layer and not a single shared lift (D85.4 folding is gone for the result layer)
     p = agg["dprofit_month"]
-    singles = [c["alone"]["dprofit"] for c in agg["cards"]]
-    pred_p50 = sum(s["p50"] - s["certain"] for s in singles)
-    assert p["predicted"]["p50"] == pytest.approx(pred_p50)
+    assert agg["result_basis"] == "option_result" and agg["not_estimable_cards"] == []
+    each = [c["result"]["delta"]["p50"]["dprofit"] for c in agg["cards"]]
+    assert p["total"]["p50"] == pytest.approx(sum(each))
+    assert p["predicted"]["p50"] == pytest.approx(sum(each))
     assert p["total"]["p10"] < p["total"]["p50"] < p["total"]["p90"]
     assert agg["range_method"] == "root_sum_of_squares_of_half_widths"
     # cost per day and per month vs the cap, the five numbers, the shop today and after
@@ -463,8 +469,8 @@ async def test_cards_on_different_products_add(session, shop):
     b = uuid.UUID((await _manual(session, seeded, env, other))["id"])
     await plans.add_card(session, sid, a, actor=_actor(seeded), now=NOW)
     agg = (await plans.add_card(session, sid, b, actor=_actor(seeded), now=NOW))["aggregate"]
-    total = agg["dprofit_month"]["certain"]
-    alone = sum(c["alone"]["dprofit"]["certain"] for c in agg["cards"])
+    total = agg["dprofit_month"]["total"]["p50"]
+    alone = sum(c["alone"]["dprofit"]["p50"] for c in agg["cards"])
     assert total == pytest.approx(alone, rel=0.02, abs=50)
     assert agg["stacked_products"] == [] and {p_["product_id"] for p_ in agg["products"]} == {
         "1001",
@@ -829,7 +835,7 @@ def test_migration_117_is_additive_reversible_and_fits_alembic():
     assert "app_current_shop_id()" in src and "GRANT SELECT, INSERT, UPDATE" in src
     assert "planned" in mod.STATUSES and "planned" not in mod._STATUSES_116
     tail = REPO / "backend/src/juli_backend/database/migrations/deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "121_shop_members"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "127_card_content_specs"' in tail.read_text("utf-8")
 
 
 def test_the_models_match_the_migration_columns():

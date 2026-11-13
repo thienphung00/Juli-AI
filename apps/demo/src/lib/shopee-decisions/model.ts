@@ -13,7 +13,7 @@ export const FAMILY_ORDER: readonly Family[] = ["listing", "ads", "promotion", "
 
 export const FAMILY_TITLE: Readonly<Record<Family, string>> = {
   listing: "Tên, từ khoá, ảnh bìa",
-  ads: "Quảng cáo",
+  ads: "Dịch vụ hiển thị",
   promotion: "Khuyến mãi",
   voucher: "Voucher",
   sale: "Sale",
@@ -47,6 +47,10 @@ export function tabOfCard(card: Pick<CardSummary, "status" | "verification">): D
       const v = card.verification?.state;
       return v === "pending" || v === "mismatch" || v === "not_seen" ? "dang-thuc-hien" : "do-luong";
     }
+    // P100 S2-C: the API says "measured" once the measurement window has closed (the result is
+    // final, `services/shopee_recommendations/service.py` `_summary`). Đo lường shows the result.
+    case "measured":
+      return "do-luong";
     default:
       return null;
   }
@@ -58,6 +62,7 @@ export const STATUS_LABEL: Readonly<Record<string, string>> = {
   changes_requested: "Đã yêu cầu chỉnh",
   approved: "Đã duyệt · chờ làm",
   executed: "Đã làm",
+  measured: "Đã đo xong",
   rejected: "Đã từ chối",
   expired: "Hết hạn",
   withdrawn: "Đã rút lại",
@@ -450,10 +455,14 @@ export function vnWhen(iso: string | null | undefined): string {
   return `${get("day")}/${get("month")} ${get("hour")}:${get("minute")}`;
 }
 
-export function stepText(v: string | number | null | undefined, unit?: string | null): string {
+export function stepText(v: unknown, unit?: string | null): string {
   if (v === null || v === undefined || v === "") return DASH;
   if (typeof v === "number") return unit === "VND" ? vnd(v) : unit === "%" ? `${fmt(v, 0)}%` : `${fmt(v, 0)}${unit ? ` ${unit}` : ""}`;
-  return v;
+  if (typeof v === "string") return v;
+  // P100: a stored sheet can still carry a structured value (combo `tiers`: [{units, value}]);
+  // React cannot render an object, so it becomes text instead of crashing the card page.
+  if (Array.isArray(v)) return v.length === 0 ? DASH : v.map((x) => stepText(x)).join(" · ");
+  return text(v) ?? DASH;
 }
 
 /** Statuses Ops can take a card off the list from ("Gỡ thẻ"); a planned card leaves its draft plan first. */

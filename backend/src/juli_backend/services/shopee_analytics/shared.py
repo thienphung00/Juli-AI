@@ -7,7 +7,7 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num, pct, pct_of, ratio
-from juli_backend.services.shopee_analytics.loaders import product_totals_for
+from juli_backend.services.shopee_analytics.funnel import CTOR_NOTE
 from juli_backend.services.shopee_profit.five_numbers import (
     FiveNumbers,
     Snapshot,
@@ -16,7 +16,28 @@ from juli_backend.services.shopee_profit.five_numbers import (
 )
 from juli_backend.services.shopee_profit.flows import FlowMetrics, FlowTable
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
+from juli_backend.services.shopee_profit.shop_profit import KnownCostProfit, known_cost_profit
 from juli_backend.services.shopee_profit.sources import CellStats
+
+
+def shop_profit_of(view: PeriodView) -> KnownCostProfit:
+    """P100 B.5: THE shop profit of the window (the known-cost orders, with their coverage of
+    the headline GMV). Tổng quan, Sản phẩm (matrix, the Sản phẩm + luồng headline) and Kế hoạch
+    (live "hôm nay" and the frozen base) read only this."""
+    return known_cost_profit(
+        view.profit, view.pairs, view.metrics.gmv, view.data.ads_daily.spend_by_day
+    )
+
+
+def shop_profit_fields(view: PeriodView) -> dict[str, Any]:
+    """The ShopMetrics JSON keys that carry shop profit, overridden with the one figure (the
+    stored ``profit`` is the per-day sum scaled to the shop GMV, which no screen shows)."""
+    fig = shop_profit_of(view)
+    return {
+        "profit": fig.json()["profit"],
+        "margin_pct": fig.json()["margin_pct"],
+        "shop_profit": fig.json(),
+    }
 
 
 def snapshot_of(view: PeriodView, product_id: str | None = None) -> Snapshot:
@@ -66,6 +87,7 @@ def flow_table_json(table: FlowTable) -> dict[str, Any]:
         "orders_sum": table.orders_sum,
         "adds_up": table.total_gmv is None or table.gmv_sum == table.total_gmv,
         "has_residual": table.residual is not None,
+        "ctor_note": CTOR_NOTE,
     }
 
 
@@ -173,20 +195,14 @@ def five_for(
 
 def excluded_summary(view: PeriodView) -> dict[str, Any]:
     """P92 B-1: what the excluded listings sold in the window. The shop totals include it; the
-    product lists do not. Same GMV basis as the product rows (Shopee's product totals when they
-    stand for the window, else the order lines)."""
+    product lists do not. Same GMV basis as the product rows (lines scaled to the shop totals)."""
     if not view.excluded:
         return {"count": 0, "gmv": 0, "orders": 0, "items": []}
-    pf = view.data.product_flows
-    shopee = product_totals_for(pf, view.data.lines)
     items: list[dict[str, Any]] = []
     gmv_sum, orders_sum = ZERO, 0
     for item_id, reason in sorted(view.excluded.items()):
-        total = view.matrix.totals.get(item_id)
-        if item_id in shopee:
-            gmv, orders = shopee[item_id]
-        else:
-            gmv, orders = (total.gmv, total.orders) if total else (ZERO, 0)
+        split = view.metrics.split(item_id)  # the same splits as the product rows (D85.2)
+        gmv, orders = (split.gmv, split.orders) if split else (ZERO, 0)
         gmv_sum += Decimal(str(gmv))
         orders_sum += int(orders or 0)
         items.append(

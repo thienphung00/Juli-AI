@@ -12,6 +12,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
+from typing import TYPE_CHECKING, Any, cast
 
 from juli_backend.services.shopee_analytics.engine import (
     CostCoverage,
@@ -59,6 +60,9 @@ from juli_backend.services.shopee_profit.sources import SourceMatrix, build_sour
 from juli_backend.services.shopee_profit.vat import vat_label
 from juli_backend.services.shopee_profit.vouchers import VoucherJoin
 
+if TYPE_CHECKING:
+    from juli_backend.services.shopee_analytics.metrics import ShopMetrics
+
 SHOP_KEY = "__shop__"
 
 
@@ -76,6 +80,17 @@ class PeriodData:
     affiliate: AffiliateLoad
     ad_spend: AdSpendResult | None = None  # services/shopee_profit/ads_sources (Step 6)
     voucher_join: VoucherJoin | None = None
+    #: the materialized daily rows of the window (P97 D85.2); None = not loaded / not built
+    stored: Any = None
+    #: the window's stored funnel rows (P98 / ADR-122 d.2, ``funnel.FunnelRows``); None = not
+    #: loaded (the rebuild path and callers that do not show Lượt xem / CTR / CTOR)
+    funnel: Any = None
+    #: P99b: how a window without stored daily rows is treated -- "require" (a screen's window:
+    #: :class:`stored.RowsNotMaterialized`), "soft" (a comparison window: the raw tables, but it
+    #: is not comparable), "raw" (the metrics rebuild and direct callers: the raw tables)
+    rows_policy: str = "raw"
+    #: the window's data days (``stored.data_days_in``); None = not loaded
+    data_days: frozenset[Any] | None = None
 
 
 @dataclass
@@ -128,10 +143,14 @@ def allocate_ads(
 ) -> AdsAllocation:
     rows: list[AdsRow] = reports.campaign_rows
     daily_total: Decimal | None
-    if resolved is not None and resolved.total > 0:
-        daily_total = resolved.total  # Connector days first, CSV windows for the rest
+    if daily.days_covered > 0 and daily.spend > 0:
+        # P100 A.5: the one per-day spend (Connector day, else the daily report, else the period
+        # report spread over its days); days with no source are not in it
+        daily_total = daily.spend
+    elif resolved is not None and resolved.total > 0:
+        daily_total = resolved.total
     else:
-        daily_total = daily.spend if daily.complete else None
+        daily_total = None
     by_campaign: dict[str, list[AdsRow]] = defaultdict(list)
     for r in rows:
         by_campaign[r.key].append(r)
@@ -215,8 +234,8 @@ def allocate_ads(
         k = daily_total / prorated_total
         basis = "daily_scaled"
         source = (
-            "chi phí đã chốt (Connector theo ngày, ngày còn lại theo báo cáo CSV)"
-            if resolved is not None and resolved.total > 0
+            "một chi phí mỗi ngày (Connector theo ngày, ngày còn lại theo báo cáo CSV)"
+            if daily.days_covered > 0 and daily.spend > 0
             else "chi phí quảng cáo theo ngày"
         )
         label = (
@@ -311,6 +330,16 @@ class PeriodView:
     item_prices: dict[str, tuple[Decimal | None, Decimal | None]] = field(default_factory=dict)
     #: active, non-excluded catalogue listings (item id -> name), sold or not (P92 B-9).
     active_items: dict[str, str] = field(default_factory=dict)
+    _metrics: Any = field(default=None, repr=False, compare=False)
+
+    @property
+    def metrics(self) -> ShopMetrics:
+        """The window's core numbers (D85.2), computed once per view: every screen reads this."""
+        if self._metrics is None:
+            from juli_backend.services.shopee_analytics.metrics import metrics_of
+
+            self._metrics = metrics_of(self)
+        return cast("ShopMetrics", self._metrics)
 
     @property
     def window(self) -> Window:
@@ -328,7 +357,21 @@ class PeriodView:
     def comparable_as_previous(self) -> bool:
         """This (previous) window has enough order lines to compare a period against: the export
         spans it and at least half of its days have orders. Otherwise every delta is withheld."""
+        if self.rows_missing:  # P99b: no stored daily rows -> never compared against
+            return False
         return self.line_orders > 0 and self.data.lines.usable_as_previous
+
+    @property
+    def rows_missing(self) -> bool:
+        """P99b: some data day of this window has no stored daily row (the raw tables would be
+        the old unspread period split)."""
+        d = self.data
+        if d.data_days is None or d.rows_policy == "raw":
+            return False
+        if d.stored is not None and d.stored.usable:
+            return False
+        stored_days = frozenset() if d.stored is None else d.stored.days
+        return any(day not in stored_days for day in d.data_days)
 
 
 def _active_items(ctx: ShopContext) -> dict[str, str]:

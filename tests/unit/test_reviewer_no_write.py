@@ -305,6 +305,7 @@ async def test_every_route_as_reviewer_writes_nothing(
         "rest": "anything",
         "number": "1",  # P91 D-13: .../planned-changes/versions/{number}
         "workflow_key": "optimize_product_2",
+        "job_id": str(uuid.uuid4()),  # P97 D85.6: POST /v1/ingest/fill-jobs/{job_id}
     }
     headers = {
         "Authorization": f"Bearer {rv.token(reviewer_id)}",

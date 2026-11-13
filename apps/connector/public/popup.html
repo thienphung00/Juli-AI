@@ -15,13 +15,30 @@
       <p class="hint">Trong Juli, mở Cài đặt › Kết nối Shopee và chọn “Tạo mã kết nối”. Mã dùng một lần, hết hạn sau 10 phút.</p>
     </form>
     <section id="paired" hidden>
-      <p>Đã kết nối. Hết hạn: <span id="token-expiry"></span></p>
-      <p>Đồng bộ gần nhất: <span id="last-sync"></span></p>
+      <p class="meta">Đã kết nối · hết hạn <span id="token-expiry"></span></p>
+
+      <div id="todo" class="card" hidden>
+        <p id="todo-text"></p>
+        <button id="todo-open" type="button" hidden></button>
+      </div>
       <p id="consent" role="alert" hidden></p>
-      <p id="backfill" class="hint" hidden></p>
-      <p id="readers" class="hint" hidden></p>
-      <ul id="datasets"></ul>
+
+      <h2>Đồng bộ hôm qua</h2>
+      <p class="hint">Cần một tab Seller Centre đang mở trang <a id="sync-page" href="#"></a>. Tiện ích dùng đăng nhập của trang đó, chỉ đọc, không sửa gì.</p>
+      <p id="sync-pulls" class="hint"></p>
+      <p>Lần gần nhất: <span id="last-sync"></span></p>
       <button id="sync-now" type="button">Đồng bộ hôm qua</button>
+
+      <h2>Các trang báo cáo tiện ích tự đọc mỗi ngày</h2>
+      <p id="readers" class="hint"></p>
+      <p id="backfill" class="hint" hidden></p>
+      <ul id="pages" class="pages"></ul>
+
+      <details>
+        <summary>Juli đã nhận gì</summary>
+        <ul id="datasets"></ul>
+      </details>
+
       <button id="unpair" type="button" class="secondary">Ngắt kết nối trên trình duyệt này</button>
     </section>
     <script src="popup.js"></script>

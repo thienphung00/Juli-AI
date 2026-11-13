@@ -95,6 +95,16 @@ export class GatewayClient {
     return this.call(`/v1/ingest/fill/${encodeURIComponent(code)}`, { method: "GET" }, token);
   }
 
+  /** The open fill jobs of the token's shop (P97 D85.6). Juli serves nothing while its kill switch is off. */
+  fillJobs(token: string): Promise<unknown> {
+    return this.call("/v1/ingest/fill-jobs", { method: "GET" }, token);
+  }
+
+  /** How far one fill job got: opened / filled / saved / captured (with the new id) / failed. */
+  fillJobReport(token: string, jobId: string, body: { status: string; captured_ref?: string; error?: string }): Promise<unknown> {
+    return this.call(`/v1/ingest/fill-jobs/${encodeURIComponent(jobId)}`, { method: "POST", body: JSON.stringify(body) }, token);
+  }
+
   /** The keywords of the shop's products to read on the public search page (P92 B-10). */
   marketKeywords(token: string): Promise<unknown> {
     return this.call("/v1/ingest/market/keywords", { method: "GET" }, token);
@@ -107,6 +117,30 @@ export class GatewayClient {
 
   post(token: string, dataset: Dataset, body: IngestBody): Promise<unknown> {
     return this.call(`/v1/ingest/shopee/${dataset}`, { method: "POST", body: JSON.stringify(body) }, token);
+  }
+
+  /** A stop that halts every reader (CAPTCHA, login wall, 429 / 403): reader, page, status, time. */
+  connectorEvent(
+    token: string,
+    event: { reader: string; page: string; status: string; code?: string; at: string },
+    version: string,
+  ): Promise<unknown> {
+    return this.call(
+      "/v1/ingest/connector-events",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          platform: "shopee",
+          reader: event.reader,
+          page: event.page.slice(0, 120),
+          status: event.status,
+          ...(event.code ? { code: event.code.slice(0, 40) } : {}),
+          occurred_at: event.at,
+          source_version: version,
+        }),
+      },
+      token,
+    );
   }
 
   reportDrift(

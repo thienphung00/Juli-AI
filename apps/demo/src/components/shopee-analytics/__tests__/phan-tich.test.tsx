@@ -78,7 +78,7 @@ describe("Phân tích", () => {
     renderWith(<PhanTichPageView params={params()} />, fakeApi());
     const user = userEvent.setup();
     await screen.findByTestId("sa-critical-list");
-    await user.click(screen.getByRole("button", { name: "Quảng cáo" }));
+    await user.click(screen.getByRole("button", { name: "Dịch vụ hiển thị" }));
     expect(screen.getAllByTestId(/^sa-item-/)).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "AOV" }));
     expect(screen.getByTestId("sa-critical-empty")).toHaveTextContent("Không có chỉ số cần chú ý ở nhóm này");
@@ -137,7 +137,7 @@ describe("Phân tích", () => {
     renderWith(<PhanTichPageView params={params()} />, fakeApi());
     const user = userEvent.setup();
     await screen.findByRole("heading", { level: 1, name: "3 chỉ số cần chú ý" });
-    await user.click(screen.getByRole("button", { name: "Quảng cáo" }));
+    await user.click(screen.getByRole("button", { name: "Dịch vụ hiển thị" }));
     expect(screen.getByRole("heading", { level: 1, name: "1 chỉ số cần chú ý" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "AOV" }));
     expect(screen.getByRole("heading", { level: 1, name: "0 chỉ số cần chú ý" })).toBeInTheDocument();

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { vnd } from "../../shopee-analytics/format";
 import { sellerLinks, viewAsShopeeLinks, opsTabShopeeLinks } from "../../shopee-analytics/links";
 import { shopSubline } from "../../../components/app-shell/shop-header";
 import {
@@ -10,9 +11,11 @@ import {
   rankingLinkOf,
   readbackOf,
   readingsOf,
+  stepText,
   sectionsFor,
   sureRows,
   tabCounts,
+  statusLabel,
   tabOfCard,
 } from "../model";
 import { ABSOLUTE_BREACH, JOURNEY_EXECUTED, JOURNEY_VERIFIED, OPERATING_BREACH, adsCard, breachedVoucherCard, megaCard, promotionCard, summaryOf, voucherCard, voucherCardB } from "./fixtures";
@@ -22,7 +25,7 @@ describe("sections and tabs", () => {
   it("groups a tab's cards by family in the fixed order, empty families left out", () => {
     const cards = [mk(megaCard()), mk(voucherCard()), mk(adsCard()), mk(promotionCard()), mk(voucherCard(), { id: "v2" })];
     const sections = sectionsFor(cards, "de-xuat");
-    expect(sections.map((s) => s.title)).toEqual(["Quảng cáo", "Khuyến mãi", "Voucher", "Mega sale"]);
+    expect(sections.map((s) => s.title)).toEqual(["Dịch vụ hiển thị", "Khuyến mãi", "Voucher", "Mega sale"]);
     // ranking order inside a section is the API's order
     expect(sections[2]!.cards.map((c) => c.id)).toEqual(["card-voucher", "v2"]);
   });
@@ -33,6 +36,9 @@ describe("sections and tabs", () => {
     expect(tabOfCard({ status: "executed", verification: { state: "pending" } })).toBe("dang-thuc-hien");
     expect(tabOfCard({ status: "executed", verification: { state: "verified" } })).toBe("do-luong");
     expect(tabOfCard({ status: "rejected" })).toBeNull();
+    // P100 S2-C: a card whose measurement window closed stays in Đo lường with its result.
+    expect(tabOfCard({ status: "measured" })).toBe("do-luong");
+    expect(statusLabel("measured")).toBe("Đã đo xong");
     const counts = tabCounts([mk(), mk(voucherCard(), { status: "approved" }), mk(voucherCard(), { status: "expired" })]);
     expect(counts).toEqual({ "de-xuat": 1, "dang-thuc-hien": 1, "do-luong": 0 });
   });
@@ -160,5 +166,20 @@ describe("links", () => {
     expect(shopSubline({ platform: "shopee" })).toBe("Shopee");
     expect(shopSubline({})).toBe("TikTok Shop");
     expect(shopSubline({ platform: "shopee", skuCount: 12 })).toBe("Shopee · 12 SKU");
+  });
+});
+
+describe("stepText (P100: a stored sheet step can carry a structured value)", () => {
+  it("renders combo tiers as text instead of handing React an object", () => {
+    const tiers = [{ units: 2, value: 5 }, { units: 3, value: 8 }];
+    expect(stepText(tiers)).toBe("units: 2, value: 5 · units: 3, value: 8");
+    expect(stepText({ units: 2, value: 5 })).toBe("units: 2, value: 5");
+    expect(stepText([])).toBe("—");
+  });
+
+  it("keeps numbers and strings as before", () => {
+    expect(stepText(150000, "VND")).toBe(vnd(150000));
+    expect(stepText("Giảm giá theo %")).toBe("Giảm giá theo %");
+    expect(stepText(null)).toBe("—");
   });
 });

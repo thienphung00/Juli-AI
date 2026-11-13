@@ -41,6 +41,7 @@ from juli_backend.repositories import (
 from juli_backend.services.shopee_analytics import loaders
 from juli_backend.services.shopee_analytics.catalog import Catalog
 from juli_backend.services.shopee_recommendations import (
+    ads_readback,
     change_sets,
     config,
     impact,
@@ -314,6 +315,9 @@ async def _read_card(
     shop-wide change (``kèm thay đổi toàn shop``) -- read, flagged, not calibrated per kind."""
     report.cards_considered += 1
     metric = card["metric"]["key"]
+    if card.get("change_kind") == ads_readback.KIND:  # read back from the ads data, not a DiD
+        report.skip("ads_readback")
+        return CardReading(skipped="ads_readback")
     if plan_days is None:
         report.skip("khong_ket_luan")
         return CardReading(skipped="khong_ket_luan")
@@ -827,6 +831,7 @@ async def run_learning(
     card_obs = await read_cards(session, shop_id, now.date(), report)
     card_obs += await read_change_sets(session, shop_id, now.date(), report)
     await read_plan_totals(session, shop_id, now.date(), report)
+    await ads_readback.refresh_shop(session, shop_id, now.date())  # P99b: new-campaign read-back
     old = await store.load_observations(session, shop_id)
     natural = [o for o in old if o.source == "natural"] if include_natural else []
     prior_cards = {o.ref: o for o in old if o.source == "card"}

@@ -1,0 +1,40 @@
+<!-- Shape of /portal/marketing/vouchers/new as the 2026-11-09 recon recorded it (eds-react controls:
+     text inputs, radios, a select, minute-precision date pickers, a switch, the product picker
+     modal). Synthetic. Behaviour comes from test/eds-wire.ts; nothing here submits. -->
+<div id="app" data-usecase="1">
+  <div class="row"><div class="lbl">*Tên chương trình giảm giá</div><div><input type="text" id="name" placeholder="Nhập vào"><span>0/100</span></div></div>
+  <div class="row"><div class="lbl">*Mã voucher</div><div><span>ORYV</span><input type="text" id="code" placeholder="A-Z, 0-9; tối đa 5 ký tự"></div></div>
+  <div class="row"><div class="lbl">*Thời gian sử dụng mã</div>
+    <div class="eds-date-picker"><input type="text" id="start" placeholder="Chọn ngày giờ bắt đầu"> <input type="text" id="end" placeholder="Chọn ngày giờ kết thúc"></div>
+    <label><input type="checkbox" id="early"> <span>Cho phép lưu mã trước</span></label></div>
+  <div class="row"><div class="lbl">Loại Voucher</div>
+    <label class="eds-radio"><input type="radio" name="vtype" value="promo"><span>Khuyến Mãi</span></label>
+    <label class="eds-radio"><input type="radio" name="vtype" value="coin"><span>Hoàn Xu</span></label></div>
+  <div class="row"><div class="lbl">Mã giảm giá thông minh</div><button type="button" role="switch" class="eds-switch" aria-checked="false" id="smart"></button></div>
+  <div class="row"><div class="lbl">Loại giảm giá | Mức giảm</div>
+    <div class="eds-selector" id="dtype" data-options="Theo số tiền|Theo phần trăm"><span class="eds-selector__inner">Chọn</span></div>
+    <input type="text" id="dvalue" placeholder="Nhập vào"></div>
+  <div class="row" id="maxrow"><div class="lbl">Mức giảm tối đa</div>
+    <label class="eds-radio"><input type="radio" name="max" value="limit"><span>Giới hạn</span></label>
+    <label class="eds-radio"><input type="radio" name="max" value="none"><span>Không giới hạn</span></label>
+    <input type="text" id="maxvalue" placeholder="₫"></div>
+  <div class="row"><div class="lbl">Giá trị đơn hàng tối thiểu</div><input type="text" id="minspend" placeholder="₫"></div>
+  <div class="row"><div class="lbl">Tổng lượt sử dụng tối đa</div><input type="text" id="total"></div>
+  <div class="row"><div class="lbl">Lượt sử dụng tối đa/Người mua</div><input type="text" id="perbuyer" value="1"></div>
+  <div class="row"><div class="lbl">Thiết lập hiển thị</div>
+    <label class="eds-radio"><input type="radio" name="disp" value="multi"><span>Hiển thị nhiều nơi</span></label>
+    <label class="eds-radio"><input type="radio" name="disp" value="code"><span>Chia sẻ thông qua mã</span></label>
+    <label class="eds-radio"><input type="radio" name="disp" value="private"><span>Không công khai</span></label></div>
+  <div class="row" id="prodrow"><div class="lbl">Sản phẩm được áp dụng</div><div><input type="hidden" id="chosen"><button type="button" data-opens="#picker">Thêm sản phẩm</button></div></div>
+  <div class="actions"><button type="button" id="cancel" data-forbidden>Hủy</button><button type="button" id="submit" data-forbidden>Xác nhận</button></div>
+  <div id="picker" role="dialog" class="eds-modal" hidden>
+    <div class="head">Chọn sản phẩm</div>
+    <div><input type="text" id="psearch" placeholder="Tìm theo Tên sản phẩm hoặc ID"><button type="button" data-search="#ptable">Tìm kiếm</button></div>
+    <table id="ptable"><tbody>
+      <tr data-id="1001"><td><input type="checkbox"></td><td>Sản phẩm mẫu một</td><td>ID: 1001</td></tr>
+      <tr data-id="1002"><td><input type="checkbox"></td><td>Sản phẩm mẫu hai</td><td>ID: 1002</td></tr>
+      <tr data-id="1003"><td><input type="checkbox"></td><td>Sản phẩm mẫu ba</td><td>ID: 1003</td></tr>
+    </tbody></table>
+    <div class="actions"><button type="button" data-forbidden id="pconfirm">Xác nhận</button><button type="button" data-forbidden>Hủy</button></div>
+  </div>
+</div>

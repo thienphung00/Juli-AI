@@ -8,7 +8,8 @@ Two kinds of caller:
 - the EXTENSION (or another source) holding an ingest token
   (``Authorization: Bearer jci_...``): ``POST /v1/ingest/pair`` (no token yet:
   the pairing code), ``POST /v1/ingest/token/rotate``, ``GET`` / ``POST
-  /v1/ingest/status`` and ``POST /v1/ingest/{platform}/{dataset}``.
+  /v1/ingest/status``, ``POST /v1/ingest/connector-events`` (a stop that halted every
+  reader: metadata for Ops, P97) and ``POST /v1/ingest/{platform}/{dataset}``.
 
 An ingest token is accepted by these routes only; it is not a Supabase JWT, so
 every other route refuses it. Errors carry a stable ``code`` for the client.
@@ -131,6 +132,19 @@ async def create_pairing_code(
         "expires_at": issued.expires_at.isoformat() + "Z",
         "ttl_seconds": int(ingest_service.PAIRING_CODE_TTL.total_seconds()),
     }
+
+
+@router.get("/shop-status")
+async def get_shop_ingest_status(
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """The seller's Cài đặt › Juli Connector page (Connector 0.3.17, owner 2026-11-13): what Juli
+    has received per dataset (last upload, the day the numbers reach, stopped after a Seller
+    Centre change), the same entries the extension's popup reads with its own token."""
+    platform = getattr(shop, "platform", None) or "shopee"
+    datasets = await ingest_service.dataset_status(session, shop_id=shop.id, platform=platform)
+    return {"platform": platform, "datasets": datasets}
 
 
 @router.get("/tokens")
@@ -277,6 +291,29 @@ async def post_status(
         raise _error(status.HTTP_404_NOT_FOUND, "unknown_dataset") from None
     await session.commit()
     return {"dataset": report.dataset, "drift": report.state}
+
+
+@router.post("/connector-events", status_code=status.HTTP_202_ACCEPTED)
+async def post_connector_event(
+    request: Request,
+    principal: ingest_service.IngestPrincipal = Depends(get_ingest_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """The Connector stopped every reader (CAPTCHA, login wall, 429 / 403): metadata for Ops."""
+    try:
+        event = ingest_service.ConnectorEvent.model_validate(await _json_body(request))
+    except ValidationError as exc:
+        raise _validation_error(exc) from None
+    if event.platform != principal.platform:
+        raise _error(status.HTTP_403_FORBIDDEN, "platform_not_allowed")
+    # A stuck client must not flood the audit log: a few stops an hour are all a real one makes.
+    await _rate_limited(f"connector-event:{principal.shop_id}", (10, 3600))
+    async with with_shop_scope(session, principal.shop_id):
+        await ingest_service.record_connector_event(
+            session, shop_id=principal.shop_id, event=event, now=utc_now_naive()
+        )
+    await session.commit()
+    return {"recorded": True}
 
 
 @router.post("/{platform}/{dataset}")

@@ -108,6 +108,10 @@ async def _series_shop(session, *, uplift: float):
                 )
                 n += 1
     await session.commit()
+    from juli_backend.services.shopee_analytics import materialize
+
+    await materialize.backfill_shop(session, sid)  # P99b: the stored daily rows, as in production
+    await session.commit()
     return user, shop, sid
 
 

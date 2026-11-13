@@ -255,3 +255,33 @@ describe("quyết định của seller", () => {
     expect(await screen.findByRole("button", { name: "Bỏ qua" })).toBeEnabled();
   });
 });
+
+describe("thẻ nhiều đối tượng, combo cũ và nhóm (P97)", () => {
+  it("shows the targets of a many-target card with the fill mode, a floor breach flagged on its target", async () => {
+    const detail = detailOf(voucherCard(), {
+      targets: [
+        { id: "GT-A", kind: "item", name: "Găng tay cao su A", ok: true, dgmv_p50: -25_000, dprofit_p50: 12_000, cost_month: 25_000, floor_ok: true },
+        { id: "TR-B", kind: "item", name: "Túi rác sinh học B", ok: true, dgmv_p50: -6_000, dprofit_p50: null, cost_month: 6_000, floor_ok: false },
+        { id: "KX-C", kind: "item", name: "Khăn giấy C", ok: false, refusal: { code: "no_order_lines", message: "Sản phẩm chưa có đơn trong kỳ." } },
+      ],
+      fill: { mode: "per_target", targets: 3 },
+    });
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail }));
+    const box = await screen.findByTestId("sd-targets");
+    expect(box).toHaveTextContent("Áp dụng cho 3 sản phẩm");
+    expect(box).toHaveTextContent("Khi duyệt: 3 lượt điền, mỗi đối tượng một lượt.");
+    expect(within(screen.getByTestId("sd-target-TR-B")).getByText("Chạm giá sàn")).toBeInTheDocument();
+    expect(screen.getByTestId("sd-target-TR-B")).toHaveTextContent("chưa tính");
+    expect(screen.getByTestId("sd-target-KX-C")).toHaveTextContent("Sản phẩm chưa có đơn trong kỳ.");
+  });
+
+  it("marks a combo saved as a fixed basket as legacy, and shows the groups a card was approved in", async () => {
+    const detail = detailOf(voucherCard(), {
+      legacy: { code: "combo_basket", label: "Combo kiểu cũ (giỏ cố định)", note: "Vẫn đọc được." },
+      groups: [{ name: "A", letter: "A", code: "JC-2611-0007-GA", versions: [1, 2], start: "2026-11-10", end: "2026-11-16", days: 7 }],
+    });
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail }));
+    expect(await screen.findByTestId("sd-legacy")).toHaveTextContent("Combo kiểu cũ (giỏ cố định)");
+    expect(screen.getByTestId("sd-group-A")).toHaveTextContent("Nhóm A · JC-2611-0007-GA · 10/11 – 16/11");
+  });
+});

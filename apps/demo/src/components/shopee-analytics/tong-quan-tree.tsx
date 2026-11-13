@@ -85,7 +85,7 @@ export function FlowTree({ ov, state }: { readonly ov: Overview; readonly state:
           onClick={() => setAdOn((v) => !v)}
           type="button"
         >
-          {adOn ? "Ẩn Quảng cáo (trong đó)" : "Hiện Quảng cáo (trong đó)"}
+          {adOn ? "Ẩn DVHT (trong đó)" : "Hiện DVHT (trong đó)"}
         </button>
       </div>
 
@@ -100,7 +100,6 @@ export function FlowTree({ ov, state }: { readonly ov: Overview; readonly state:
       ) : (
         <Empty testId="sa-flows-empty">Chưa có lưu lượng theo nguồn cho kỳ này. Khi báo cáo lưu lượng được tải lên, năm luồng sẽ hiện ở đây.</Empty>
       )}
-      <LeversBlock ov={ov} state={state} />
     </Section>
   );
 }
@@ -145,7 +144,7 @@ function FlowTable({
   const residual = rows.find((r) => r.is_residual);
   const tsp = real.find((r) => r.key === "the_san_pham_khac");
   const trang = real.find((r) => r.key === "trang_shop");
-  const gap = residual?.gmv ?? 0;
+  const gap: number | null = residual?.gmv ?? null;
   return (
     <div className="sa-flows" data-testid="sa-flows">
       <div className="sa-frow sa-frow--head" aria-hidden="true">
@@ -197,7 +196,7 @@ function FlowTable({
         <div className="sa-frow sa-frow--ad" data-testid="sa-ads-row">
           <span className="sa-frow__name">
             <span>
-              <i>trong đó Quảng cáo</i>
+              <i>trong đó DVHT</i>
               <span className="sa-hint sa-block">
                 {ov.ads.basis.label} · ROAS {fmt(ov.ads.roas, 1)} · chi {vnd(ov.ads.spend)}
               </span>
@@ -272,12 +271,12 @@ function FlowTable({
         <span className="sa-fcell sa-fcell--na" />
       </div>
       <p className="sa-hint" data-testid="sa-sum-check">
-        Σ năm luồng {vnd(flows.gmv_sum)} {gap >= 0 ? "+" : "−"} chênh lệch {vnd(Math.abs(gap))} = GMV shop {vnd(total)}
+        Σ năm luồng {vnd(flows.gmv_sum)} {gap === null ? "+ chênh lệch chưa rõ" : `${gap >= 0 ? "+" : "−"} chênh lệch ${vnd(Math.abs(gap))}`} = GMV shop {vnd(total)}
         {flows.adds_up === false ? " (chưa khớp)" : ""}
       </p>
       {tsp && trang ? (
         <p className="sa-hint" data-testid="sa-tsp-note">
-          Shopee tính &ldquo;Thẻ sản phẩm&rdquo; gồm cả Trang shop: tổng Shopee {vnd((tsp.gmv ?? 0) + (trang.gmv ?? 0))} = Thẻ
+          Shopee tính &ldquo;Thẻ sản phẩm&rdquo; gồm cả Trang shop: tổng Shopee {vnd(tsp.gmv != null && trang.gmv != null ? tsp.gmv + trang.gmv : null)} = Thẻ
           sản phẩm (ngoài Trang shop) {vnd(tsp.gmv)} + Trang shop {vnd(trang.gmv)}. Juli tách Trang shop ra để năm luồng cộng
           đúng bằng GMV.
         </p>
@@ -295,7 +294,7 @@ function kidCells(k: CardChild, total: N, rk: (kpi: string, src?: string, sub?: 
     ["CTOR", pc(ratio(k.orders, k.clicks)), "ctor"],
     ["AOV", vnd(ratio(k.gmv, k.orders)), "aov"],
     ["GMV", vnd(k.gmv), "gmv"],
-    ["% GMV", pp(total ? ((k.gmv ?? 0) / total) * 100 : null, 1), "gmv"],
+    ["% GMV", pp(total && k.gmv != null ? (k.gmv / total) * 100 : null, 1), "gmv"],
   ];
   return [
     ...cells.map(([label, value, kpi]) => (
@@ -308,32 +307,3 @@ function kidCells(k: CardChild, total: N, rk: (kpi: string, src?: string, sub?: 
   ];
 }
 
-function LeversBlock({ ov, state }: { readonly ov: Overview; readonly state: WindowState }) {
-  const { links } = useShopee();
-  const lv = ov.levers;
-  const src: Record<string, string> = { khong_uu_dai: "none", voucher: "voucher", khuyen_mai: "promo", combo: "combo" };
-  return (
-    <div className="sa-levers" data-testid="sa-levers">
-      <div className="sa-subhead">
-        <b>Mức ưu đãi trên mỗi dòng đơn</b>
-        <span className="sa-hint">{lv.note}</span>
-      </div>
-      {lv.rows.map((r) => (
-        <Link
-          className="sa-lever"
-          href={links.ranking({ kpi: "gmv", src: src[r.key] ?? "all", from: "tong-quan" }, state)}
-          key={r.key}
-        >
-          <b>{r.label}</b>
-          <span>{fmt(r.orders)} đơn</span>
-          <span>{vnd(r.gmv)}</span>
-          <span>{pp(r.share_pct, 1)} GMV</span>
-          <span>Biên {pp(r.margin_pct, 1)}</span>
-        </Link>
-      ))}
-      <p className="sa-hint">
-        Σ bốn mức = {vnd(lv.gmv_sum)} {lv.adds_up ? "= GMV theo dòng đơn" : `(GMV theo dòng đơn ${vnd(lv.gmv_total)})`}
-      </p>
-    </div>
-  );
-}

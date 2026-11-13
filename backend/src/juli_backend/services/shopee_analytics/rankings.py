@@ -34,10 +34,12 @@ from typing import Any
 
 from juli_backend.services.shop_diagnosis.confidence import Confidence, volume_label
 from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
+from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.compute import PeriodView
-from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, num, pct
-from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN, product_totals_for
+from juli_backend.services.shopee_analytics.fmt import ADS_BASIS, ADS_BASIS_NOTE, frac, num, pct
+from juli_backend.services.shopee_analytics.loaders import CARD_CHILDREN
 from juli_backend.services.shopee_analytics.matrix import margin_basis, price_block
+from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.flows import Flow, FlowSource
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.sources import CellStats
@@ -143,6 +145,13 @@ def _measure(m: M | None, key: str, days: int) -> Decimal | None:
     return None
 
 
+RATIO_MEASURES = frozenset({"ctr", "ctor"})  # fractions kept unrounded (P98 d.14)
+
+
+def _ratio(value: Any) -> int | float | None:
+    return frac(value)
+
+
 def _dec(value: Any) -> Decimal | None:
     return None if value is None else Decimal(str(value))
 
@@ -225,9 +234,9 @@ def _product_m(view: PeriodView, pid: str, source: str, sub: str | None) -> M | 
             fig.gmv or ZERO, ZERO, None, ZERO, spend=fig.spend, extra={"direct_gmv": fig.direct_gmv}
         )
     # all
-    shopee = product_totals_for(view.data.product_flows, view.data.lines).get(pid)
-    gmv = shopee[0] if shopee else sum((ln.order_value for ln, _ in pairs), ZERO)
-    orders = Decimal(shopee[1]) if shopee else Decimal(len({ln.order_id for ln, _ in pairs}))
+    split = view.metrics.split(pid)  # order lines scaled to the shop totals (D85.2)
+    gmv = split.gmv if split else ZERO
+    orders = Decimal(split.orders) if split else ZERO
     if gmv == 0 and orders == 0 and pp is None:
         return None
     carrying = [(ln, pb) for ln, pb in pairs if pb.excluded_reason is None]
@@ -297,14 +306,14 @@ def _cell_products(view: PeriodView, source: str, sub: str | None) -> M:
     if source == "ads":
         d = view.data.ads_daily
         return M(d.gmv, d.orders, None, ZERO, spend=d.spend)
-    p = view.profit
+    fig = shop_profit_of(view)  # P100 B.5: the one known-cost shop profit, every screen
     discount = sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in view.pairs), ZERO)
     views, clicks = _funnel_sum(view.flows.shop.rows) if view.flows else (None, None)
     return M(
-        view.shop_gmv or ZERO,
-        Decimal(view.shop_orders or 0),
-        p.covered_margin_profit if p.margin_is_partial else p.profit_on_covered,
-        p.buyer_paid_covered,
+        view.metrics.gmv or ZERO,
+        Decimal(view.metrics.orders or 0),
+        fig.profit,
+        fig.buyer_paid,  # its margin base (known-cost orders' buyer paid)
         discount,
         sum((pb.list_value for _, pb in view.pairs), ZERO),
         view.ads.total_spend,
@@ -421,12 +430,13 @@ def _row_json(r: _Out, xep: str, days_now: int, days_before: int, ordered: bool)
     if (a is None or b is None) and xep not in ADDITIVE:
         delta = None  # a ratio missing on one side has no change, not a change from zero
     extra = {k: (num(v) if isinstance(v, Decimal) else v) for k, v in r.extra.items()}
+    out = _ratio if xep in RATIO_MEASURES else num
     return {
         "id": r.id,
         "label": r.label,
-        "now": num(a),
-        "before": num(b),
-        "delta": num(delta),
+        "now": out(a),
+        "before": out(b),
+        "delta": out(delta),
         "quantity": {
             "orders_now": num(r.now.orders) if r.now else 0,
             "orders_before": num(r.before.orders) if r.before else 0,
@@ -530,7 +540,11 @@ def rank(
             }
     return {
         "supported": True,
-        "cell": {"now": num(cell_a), "before": num(cell_b), "delta": num(cell_delta)},
+        "cell": {
+            "now": (_ratio if xep in RATIO_MEASURES else num)(cell_a),
+            "before": (_ratio if xep in RATIO_MEASURES else num)(cell_b),
+            "delta": (_ratio if xep in RATIO_MEASURES else num)(cell_delta),
+        },
         "down": down,
         "up": up,
         "closing": closing,
@@ -558,6 +572,8 @@ def build_ranking(
         "platform": "shopee",
         "kind": kind,
         "source": source,
+        # P98 / ADR-122 d.2: lượt xem / CTR / CTOR are the stored funnel's (flow tables of the view)
+        "funnel": funnel.basis_json(now.data.funnel),
         "sub": sub,
         "xep_theo": {
             "key": xep_theo,

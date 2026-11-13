@@ -1,6 +1,5 @@
 """What the builder reads once per request: the recommendation environment (30-day history) plus
-the 90-day view, the variations of the products the versions name and, for ads keywords, the
-keyword facts."""
+the 90-day view and the variations of the products the versions name."""
 
 from __future__ import annotations
 
@@ -25,8 +24,6 @@ class BuilderContext:
     #: item id -> the variation rows (``variations.variation_rows``)
     variations: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     view90: PeriodView | None = None
-    #: keyword (folded) -> {volume, difficulty, cpc_min, cpc_max, ads: {...}} for ads keyword levers
-    keyword_facts: dict[str, dict[str, Any]] = field(default_factory=dict)
     #: items with no order in the window, evaluated on one reference order per variation
     reference_items: set[str] = field(default_factory=set)
 

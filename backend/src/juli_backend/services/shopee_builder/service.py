@@ -10,30 +10,45 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.shop_proposals import (
+    STATUS_CHANGES_REQUESTED,
+    STATUS_SENT,
+    ShopProposal,
+)
 from juli_backend.repositories import PlatformItemSnapshotsRepo
 from juli_backend.services.shopee_analytics import loaders, service
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.loaders import ShopContext
 from juli_backend.services.shopee_analytics.windows import Window
-from juli_backend.services.shopee_builder import catalogue, copurchase, outcome, response
+from juli_backend.services.shopee_builder import (
+    catalogue,
+    copurchase,
+    outcome,
+    picker_table,
+    response,
+)
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
+from juli_backend.services.shopee_builder.engine_families import integrate
 from juli_backend.services.shopee_builder.reference import with_reference_lines
-from juli_backend.services.shopee_builder.translate import Translation, lst_fold, to_variant
+from juli_backend.services.shopee_builder.translate import Translation, to_variant
 from juli_backend.services.shopee_builder.variations import (
     economics,
+    measured_rates,
     observed_skus,
     variation_rows,
     with_orders,
 )
 from juli_backend.services.shopee_recommendations import loader, manual
+from juli_backend.services.shopee_recommendations import targets as multi_targets
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.voucher_notes import same_result_notes
 
@@ -49,19 +64,35 @@ class NoShopeeData(LookupError):
 
 
 async def load_view90(
-    session: AsyncSession, shop_id: uuid.UUID, as_of: date | None
+    session: AsyncSession, shop_id: uuid.UUID, as_of: date | None, *, rows: str = "raw"
 ) -> tuple[ShopContext, PeriodView, date]:
+    """The 90-day view (order lines for the price response, co-purchase); ``rows="require"``
+    where its shop numbers are shown (the picker, P99b)."""
     anchor = as_of or await loaders.default_as_of(session, shop_id)
     if anchor is None:
         raise NoShopeeData(str(shop_id))
     ctx = await loaders.load_context(session, shop_id)
     ctx = replace(ctx, rules=ctx.rules.for_month(f"{anchor:%Y-%m}"))
     window = Window(anchor - timedelta(days=HISTORY_DAYS_90 - 1), anchor)
-    view = await service.load_view(session, shop_id, ctx, window)
+    view = await service.load_view(session, shop_id, ctx, window, rows=rows)
     return ctx, view, anchor
 
 
 # ------------------------------------------------------------------------------ B-1: picker
+
+
+async def _items_with_proposals(session: AsyncSession, shop_id: uuid.UUID) -> set[str]:
+    """Products that have a card the seller can still decide on (the picker's "có đề xuất")."""
+    rows = await session.scalars(
+        select(ShopProposal.item_id)
+        .where(
+            ShopProposal.shop_id == shop_id,
+            ShopProposal.status.in_((STATUS_SENT, STATUS_CHANGES_REQUESTED)),
+            ShopProposal.item_id.is_not(None),
+        )
+        .distinct()
+    )
+    return {str(i) for i in rows}
 
 
 async def products(
@@ -75,11 +106,30 @@ async def products(
     limit: int = catalogue.DEFAULT_LIMIT,
     offset: int = 0,
 ) -> dict[str, Any]:
-    ctx, view, anchor = await load_view90(session, shop_id, as_of)
+    # P99b: the picker shows these windows' numbers: no stored rows -> the missing-rows state
+    ctx, view, anchor = await load_view90(session, shop_id, as_of, rows="require")
+    view30 = await service.load_view(
+        session,
+        shop_id,
+        ctx,
+        Window(anchor - timedelta(days=catalogue.RECENT_DAYS - 1), anchor),
+        rows="require",
+    )
+    prev_end = anchor - timedelta(days=catalogue.RECENT_DAYS)
+    prev30 = await service.load_view(
+        session,
+        shop_id,
+        ctx,
+        Window(prev_end - timedelta(days=catalogue.RECENT_DAYS - 1), prev_end),
+        rows="soft",
+    )
+    waiting = await _items_with_proposals(session, shop_id)
     return catalogue.picker(
         ctx,
         view,
         anchor,
+        view30=view30,
+        extra=picker_table.extras(view30, prev30, proposal_items=waiting),
         query=query,
         include_excluded=include_excluded,
         sort=sort,
@@ -122,6 +172,11 @@ async def variation_rows_for(
     rows: dict[str, list[dict[str, Any]]] = {}
     for item in items:
         variations, head = snaps.get(item, ([], None))
+        # ADR-122 d.12: Biên cuối beside Biên ở giá bán (the product page's one math, margins.py)
+        product_rates, sku_rates = measured_rates(
+            [(ln, pb) for ln, pb in env.view.pairs if ln.product_id == item],
+            env.view.ads.product_spend.get(item),
+        )
         rows[item] = variation_rows(
             item,
             env.ctx.catalog.items.get(item),
@@ -132,6 +187,8 @@ async def variation_rows_for(
             item_list_price=None if head is None else head.list_price,
             item_current_price=None if head is None else head.current_price,
             observed=seen_skus.get(item),
+            product_rates=product_rates,
+            sku_rates=sku_rates,
         )
         rows[item] = with_orders(rows[item], (ln for ln, _ in env.view.pairs), item)
     return rows
@@ -148,6 +205,8 @@ async def product_variations(
     if not known:
         raise LookupError(item_id)
     out = economics(item_id, env.name(item_id), rows, vat=env.view.vat)
+    # "So sánh phân loại" shows both margins (ADR-122 d.12)
+    out["columns"] = [*out["columns"], "final_margin_pct"]
     out["excluded"] = item_id in env.excluded
     out["exclude_reason"] = env.excluded.get(item_id)
     return out
@@ -265,66 +324,6 @@ def _stored_campaigns(env: RecoEnv, keys: set[str], names: set[str]) -> list[dic
 # --------------------------------------------------------------- context for the versions
 
 
-def _keyword_name(campaign_label: str) -> str:
-    return campaign_label.split("›", 1)[1].strip() if "›" in campaign_label else ""
-
-
-def _own_keyword_report(env: RecoEnv, item_id: str | None) -> dict[str, dict[str, Any]]:
-    """The shop's ads keyword report (placed orders) per keyword, for one product when given."""
-    acc: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"spend": 0.0, "clicks": 0.0, "orders": 0.0, "gmv": 0.0}
-    )
-    for row in env.view.data.ads_reports.keyword_rows:
-        if item_id and row.item_id != item_id:
-            continue
-        kw = lst_fold(_keyword_name(row.campaign))
-        if not kw:
-            continue
-        a = acc[kw]
-        a["spend"] += float(row.spend)
-        a["clicks"] += float(row.clicks)
-        a["orders"] += float(row.orders)
-        a["gmv"] += float(row.gmv)
-    for a in acc.values():
-        a["roas"] = round(a["gmv"] / a["spend"], 2) if a["spend"] else None
-    return dict(acc)
-
-
-async def _keyword_facts(
-    session: AsyncSession, env: RecoEnv, specs: Sequence[sp.VersionSpec]
-) -> dict[str, dict[str, Any]]:
-    wanted: dict[str, str | None] = {}
-    for spec in specs:
-        if isinstance(spec, sp.AdsSpec) and spec.lever == "keywords":
-            for k in spec.keywords:
-                wanted[k.keyword] = spec.item_id
-    if not wanted:
-        return {}
-    metrics: dict[str, Any] = {}
-    try:
-        async with session.begin_nested():
-            metrics = await loaders.load_keyword_market(session, list(wanted))
-    except Exception:  # the public market lane may be closed to this role: facts stay empty
-        metrics = {}
-    out: dict[str, dict[str, Any]] = {}
-    for kw, item in wanted.items():
-        folded = lst_fold(kw)
-        m = metrics.get(kw)
-        facts: dict[str, Any] = {}
-        if m is not None:
-            facts = {
-                "volume": m.volume,
-                "difficulty": None if m.difficulty is None else float(m.difficulty),
-                "cpc_min": None if m.cpc_min is None else float(m.cpc_min),
-                "cpc_max": None if m.cpc_max is None else float(m.cpc_max),
-            }
-        own = _own_keyword_report(env, item).get(folded)
-        if own is not None:
-            facts["ads"] = own
-        out[folded] = facts
-    return out
-
-
 async def _responses(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -386,7 +385,6 @@ async def build_context(
             view90,
             {i for spec in specs if spec.kind in PRICE_SCALED for i in sp.items_of(spec)},
         )
-    ctx.keyword_facts = await _keyword_facts(session, env, specs)
     return ctx
 
 
@@ -394,15 +392,42 @@ async def build_context(
 
 
 def evaluate_version(
-    ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime
+    ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime, shop_id: str = ""
 ) -> tuple[dict[str, Any], Translation | None]:
     """One version -> its outcome (a refused one carries ``ok = false`` and a reason)."""
-    out, tr, _ = _evaluate_version_card(ctx, spec, index, now)
+    out, tr, _ = _evaluate_version_card(ctx, spec, index, now, shop_id)
     return out, tr
 
 
+def version_dates(spec: sp.VersionSpec, result: Mapping[str, Any] | None) -> dict[str, Any]:
+    """P99b: the dates the builder set for this version -- its result covers exactly these days
+    (``result.days``); a version without dates covers the first 30 days from its start."""
+    start, end = getattr(spec, "start", None), getattr(spec, "end", None)
+    days = None if result is None else result.get("days")
+    if isinstance(start, date) and isinstance(end, date):
+        days = (end - start).days + 1
+        spec_days = getattr(spec, "days", None)
+        if isinstance(spec_days, int):  # P100: an hour-precise window (combo, Shopee programmes)
+            days = spec_days
+        sh, eh = getattr(spec, "start_hour", None), getattr(spec, "end_hour", None)
+        left = f"{start:%d/%m}" + ("" if sh is None else f" {sh:02d}:00")
+        right = f"{end:%d/%m}" + ("" if eh is None else f" {eh:02d}:00")
+        label = f"{left} – {right} ({days} ngày)"
+    elif days:
+        label = f"{days} ngày đầu"
+    else:
+        label = None
+    return {
+        "from": start.isoformat() if isinstance(start, date) else None,
+        "to": end.isoformat() if isinstance(end, date) else None,
+        "days": days,
+        "set": isinstance(start, date) and isinstance(end, date),
+        "label": label,
+    }
+
+
 def _evaluate_version_card(
-    ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime
+    ctx: BuilderContext, spec: sp.VersionSpec, index: int, now: datetime, shop_id: str = ""
 ) -> tuple[dict[str, Any], Translation | None, dict[str, Any] | None]:
     label = spec.label or f"Phương án {index + 1}"
     try:
@@ -416,10 +441,112 @@ def _evaluate_version_card(
     est_card = None
     if tr.estimate is not None:
         est_card, _ = manual.build_variant(ctx.env, tr.estimate, now=now)
+    ev, per_target = integrate.evaluate(ctx, spec, shop_id)
     shaped = outcome.shape(
-        card, tr, ctx, index=index, kind=spec.kind, label=label, estimate_card=est_card
+        card,
+        tr,
+        ctx,
+        index=index,
+        kind=spec.kind,
+        label=label,
+        estimate_card=est_card,
+        result=ev.result_json(),
+        result_refusal=ev.refusal_json(),
+        scope="shop" if ev.base.scope == "shop" else "product",
+        days=version_dates(spec, None)["days"],  # P99c: cost / break-even on the set dates
     )
+    # P99 like with like: the version's own "hôm nay" = the base its result was computed on
+    shaped["today"] = integrate.scope_today(ctx.env, ev.base)
+    shaped["dates"] = version_dates(spec, shaped.get("result"))
+    if tr.multi is not None:
+        _add_targets(shaped, ctx, tr, card, now)
+        results = {t: e for t, e in per_target}
+        for row in shaped["targets"]:
+            e = results.get(str(row.get("id")))
+            row["result"] = None if e is None else e.result_json()
+            row["result_refusal"] = None if e is None else e.refusal_json()
+            if row.get("ok", True) and "dgmv_p50" in row:
+                known, _ = outcome.items_cost_known(ctx, [str(row["id"])])
+                row.update(_target_brief(row["result"], cost_known=known))
     return shaped, tr, card
+
+
+def _add_targets(
+    shaped: dict[str, Any],
+    ctx: BuilderContext,
+    tr: Translation,
+    card: dict[str, Any],
+    now: datetime,
+) -> None:
+    """P97 D85.13: the total above is the card; below it a row per target (what untick changes) and
+    how the fill works (one bulk pass where Shopee has a bulk edit, else one job per target)."""
+    rows: list[dict[str, Any]]
+    if tr.multi == "joint":
+        rows = []
+        for tid, part in tr.parts:
+            one, why = manual.build_variant(ctx.env, part.variant, now=now)
+            name = ctx.env.name(tid)
+            rows.append(
+                {
+                    "id": tid,
+                    "kind": "item",
+                    "name": name,
+                    "ok": False,
+                    "refusal": why,
+                    "breaches": [],
+                }
+                if one is None
+                else {
+                    "id": tid,
+                    "kind": "item",
+                    "name": name,
+                    "ok": True,
+                    "refusal": None,
+                    **multi_targets.brief(one),
+                    "breaches": [dict(b) for b in one["floor"]["breaches"]],
+                    "breach": bool(one["floor"]["breaches"]),
+                }
+            )
+        rows += [{**r, "ok": False, "breaches": []} for r in tr.details.get("refused_targets", [])]
+        shaped["targets_note"] = (
+            "Một voucher chung cho cả danh sách: tổng là kết quả chung. Mỗi dòng là mức voucher "
+            "này mang lại nếu chỉ áp cho riêng sản phẩm đó."
+        )
+    else:
+        rows = []
+        for r in card[multi_targets.KEY]:
+            own = [dict(b) for b in card["floor"]["breaches"] if b.get("target") == r["id"]]
+            rows.append(
+                {k: v for k, v in r.items() if k != "variant"}
+                | {"breaches": own, "breach": bool(own)}
+            )
+    shaped["targets"] = rows
+    shaped["targets_mode"] = tr.multi
+    shaped["fill"] = card.get("fill") or {
+        "mode": "bulk" if tr.multi == "joint" else multi_targets.fill_mode(card["change_kind"]),
+        "targets": len(rows),
+    }
+    ba = shaped.get("before_after") or {}
+    margin = next((r for r in ba.get("rows", []) if r["key"] == "margin"), None)
+    if shaped.get("margin_after_pct") is None and margin and margin.get("after"):
+        shaped["margin_before_pct"] = margin["before"]
+        shaped["margin_after_pct"] = margin["after"]["p50"]
+
+
+def _target_brief(result: dict[str, Any] | None, *, cost_known: bool = True) -> dict[str, Any]:
+    """A target row's figures from its own result (P98: the card's money layer no longer
+    produces them), so the rows add up to the version's summed result. A target without a giá
+    vốn has no profit ("chưa tính")."""
+    d = outcome.result_delta(result)
+    if not cost_known:
+        d["profit"] = dict(outcome.NULL_BAND)
+    return {
+        "dgmv_p50": d["gmv"]["p50"],
+        "dorders_p50": d["orders"]["p50"],
+        "dprofit_p50": d["profit"]["p50"],
+        "dprofit_p10": d["profit"]["low"],
+        "dprofit_p90": d["profit"]["high"],
+    }
 
 
 def _row(key: str, label: str, values: list[Any], unit: str) -> dict[str, Any]:
@@ -483,7 +610,9 @@ async def evaluate_versions(
 ) -> dict[str, Any]:
     """Up to four versions of mixed kinds side by side. Saves nothing."""
     ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
-    evaluated = [_evaluate_version_card(ctx, spec, i, now) for i, spec in enumerate(specs)]
+    evaluated = [
+        _evaluate_version_card(ctx, spec, i, now, str(shop_id)) for i, spec in enumerate(specs)
+    ]
     results = [e[0] for e in evaluated]
     # Name why a version looks like V1 (an input that differs but does not bind), per version
     head = next((e[2] for e in evaluated if e[2] is not None), None)
@@ -493,12 +622,73 @@ async def evaluate_versions(
             if notes:
                 res["same_as_first_notes"] = notes
     return {
-        "today": today_of(ctx.env),
+        "today": compare_today(ctx.env, results),
         "versions": results,
         "table": table_of(results),
         "best_profit_p50": best_index(results),
+        # P99c: the versions in the comparison order (Δ lợi nhuận per day of the set dates)
+        "compare": compare_order(results),
+        "sort_basis": dict(SORT_BASIS),
         "saved": False,
     }
+
+
+def compare_today(env: RecoEnv, results: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """So sánh's "Hôm nay" (P99, like with like): when every version stands on the same scope it
+    is that scope's base -- the same funnel "before" the versions' results use (a product's đơn /
+    GMV / AOV / biên, never the shop's beside a product) -- with the shop's spend line; versions of
+    different scopes keep the shop's figures, say ``mixed_scopes`` and each carry ``today``."""
+    shop = {**today_of(env), "scope": "shop", "items": [], "mixed_scopes": False}
+    scopes = {
+        (r["today"]["scope"], tuple(r["today"]["items"]))
+        for r in results
+        if r.get("ok") and r.get("today")
+    }
+    if len(scopes) > 1:
+        return {**shop, "mixed_scopes": True}
+    if not scopes or next(iter(scopes))[0] == "shop":
+        return shop
+    first = next(r["today"] for r in results if r.get("ok") and r.get("today"))
+    return {
+        **first,
+        "spend_per_day": shop["spend_per_day"],
+        "spend_cap": shop["spend_cap"],
+        "mixed_scopes": False,
+    }
+
+
+#: P99c: So sánh ranks by the primary figures -- Δ lợi nhuận over each version's own set dates --
+#: per day of those dates, since versions may cover different days (``sort_basis`` on the wire)
+SORT_BASIS: dict[str, str] = {
+    "key": "delta_profit_per_day",
+    "label": "Δ lợi nhuận mỗi ngày trong các ngày đã đặt",
+    "detail": (
+        "Xếp theo Δ lợi nhuận (khả năng cao) của từng phương án chia cho số ngày của chính nó; "
+        "phương án chưa ước tính được lợi nhuận xếp cuối."
+    ),
+}
+
+
+def profit_per_day(r: Mapping[str, Any]) -> float | None:
+    """Δ lợi nhuận (likely) over the version's own days ÷ those days; ``None`` when unknown."""
+    res = r.get("result") if r.get("ok") else None
+    if res is None or not res.get("days"):
+        return None
+    if r.get("cost_known") is False:
+        return None
+    value = ((res.get("delta") or {}).get("profit") or {}).get("value")
+    return None if value is None else float(value) / int(res["days"])
+
+
+def compare_order(results: Sequence[dict[str, Any]]) -> list[int]:
+    """Version indexes sorted by Δ lợi nhuận per day of the set dates (``SORT_BASIS``), best
+    first; a version without one goes last, in its own order."""
+
+    def key(r: dict[str, Any]) -> tuple[int, float]:
+        v = profit_per_day(r)
+        return (1, 0.0) if v is None else (0, -v)
+
+    return [r["index"] for r in sorted(results, key=key)]
 
 
 async def choose(
@@ -518,7 +708,7 @@ async def choose(
     variants: list[dict[str, Any]] = []
     for i, spec in enumerate(specs):
         try:
-            variants.append(to_variant(spec, ctx).variant)
+            variants.append({**to_variant(spec, ctx).variant, "spec": sp.as_json(spec)})
         except SpecRefused as exc:
             if i == chosen:
                 raise manual.ProposalError(
@@ -538,16 +728,93 @@ async def choose(
         env=ctx.env,
         acknowledge_breaches=acknowledge_breaches,
     )
-    out["outcome"] = evaluate_version(ctx, specs[chosen], chosen, now)[0]
+    out["outcome"] = evaluate_version(ctx, specs[chosen], chosen, now, str(shop_id))[0]
     return out
+
+
+async def run_together(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    specs: Sequence[sp.VersionSpec],
+    members: Sequence[int],
+    *,
+    days: int,
+    start: date | None,
+    acknowledge_breaches: bool,
+    actor: manual.Actor,
+    as_of: date | None,
+    now: datetime,
+    audience: str = "ops",
+) -> dict[str, Any]:
+    """ "Chạy cùng nhau" (P97 D85.14): the ticked versions of So sánh become ONE group of the plan.
+
+    Versions of the same change (same kind, products and campaign: two vouchers of the same scope)
+    are saved as versions of one card; every other kind is its own card. All of them go to the draft
+    plan and into one new group with one period; a version whose exclusive field is taken in the
+    group moves to the next group (never refused). Returns the plan and ``saved``."""
+    from juli_backend.services.shopee_recommendations import plans
+    from juli_backend.services.shopee_recommendations import service as reco
+
+    picked = list(dict.fromkeys(members))
+    if not picked or any(not 0 <= i < len(specs) for i in picked):
+        raise manual.ProposalError(manual.ERROR_BAD_VARIANT, 422, "choose versions of the list")
+    ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
+    buckets: dict[tuple[Any, ...], list[tuple[int, dict[str, Any]]]] = {}
+    for i in picked:
+        try:
+            variant = {**to_variant(specs[i], ctx).variant, "spec": sp.as_json(specs[i])}
+        except SpecRefused as exc:
+            raise manual.ProposalError(
+                manual.ERROR_BAD_VARIANT, 422, manual.refusal(exc.code)["message"]
+            ) from None
+        key = (
+            variant.get("change_kind"),
+            tuple(variant.get("items") or ()),
+            variant.get("campaign_key"),
+        )
+        buckets.setdefault(key, []).append((i, variant))
+    saved: list[dict[str, Any]] = []
+    pairs: list[tuple[uuid.UUID, int]] = []
+    for rows in buckets.values():
+        for chunk in (rows[n : n + manual.MAX_VARIANTS] for n in range(0, len(rows), 4)):
+            out = await manual.create_manual(
+                session,
+                shop_id,
+                [v for _, v in chunk],
+                0,
+                False,
+                actor,
+                now=now,
+                env=ctx.env,
+                acknowledge_breaches=acknowledge_breaches,
+            )
+            card_id = uuid.UUID(out["id"])
+            saved.append({"id": out["id"], "code": out["code"], "indexes": [i for i, _ in chunk]})
+            pairs += [(card_id, n) for n in range(1, len(chunk) + 1)]
+    if actor.kind == "staff":  # Ops' cards are drafts: they must be sent to join the plan
+        await reco.publish(session, shop_id, [uuid.UUID(c["id"]) for c in saved], now=now)
+    out = await plans.run_together(
+        session,
+        shop_id,
+        pairs,
+        days=days,
+        start=start,
+        actor=actor,
+        now=now,
+        acknowledge_breaches=acknowledge_breaches,
+        audience=audience,
+    )
+    return {**out, "saved": saved}
 
 
 __all__ = [
     "NoShopeeData",
+    "run_together",
     "ads_campaigns",
     "best_index",
     "build_context",
     "choose",
+    "compare_today",
     "co_purchase",
     "evaluate_version",
     "evaluate_versions",

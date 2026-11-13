@@ -138,10 +138,13 @@ describe("classify and finders", () => {
     expect(classify(401, null)).toBe("login");
     expect(classify(403, { error: 90309999 })).toBe("captcha");
     expect(classify(403, null)).toBe("captcha");
-    expect(classify(403, { error: 123 })).toBe("error");
+    expect(classify(403, { error: 123 })).toBe("rate"); // P97: any other 403 stops every reader too
     expect(classify(200, { error: "error_not_login", msg: "" })).toBe("login");
     expect(classify(200, { code: 5, msg: "invalid param" })).toBe("error");
-    expect(classify(429, {})).toBe("error");
+    expect(classify(429, {})).toBe("rate");
+    expect(classify(200, { code: 429, msg: "" })).toBe("rate");
+    expect(classify(200, { code: 7, msg: "Too many requests, please try again later" })).toBe("rate");
+    expect(classify(200, { code: 7, msg: "Thao tác quá nhanh, thử lại sau" })).toBe("rate");
     expect(classify(500, {})).toBe("error");
   });
 

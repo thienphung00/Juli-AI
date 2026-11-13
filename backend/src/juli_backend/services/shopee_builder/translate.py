@@ -14,9 +14,11 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
+from juli_backend.services.shopee_builder import multi
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
-from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.shopee_builder.engine import engine
+from juli_backend.services.shopee_recommendations import evaluate
 from juli_backend.services.shopee_recommendations import listing as lst
 
 
@@ -34,10 +36,14 @@ class Translation:
     items: list[str] = field(default_factory=list)
     #: P96: typed warnings ({type, code, message}) beside the free-text notes
     warnings: list[dict[str, Any]] = field(default_factory=list)
+    #: P97 D85.13: the single-target translations of a many-target version, ``(target id, tr)``
+    parts: list[tuple[str, Translation]] = field(default_factory=list)
+    #: P97 D85.13: ``sum`` / ``joint`` when the version names several targets
+    multi: str | None = None
 
 
 def _label(spec: sp.VersionSpec, fallback: str) -> str:
-    return spec.label or fallback
+    return spec.label or getattr(spec, "name", None) or fallback
 
 
 def _voucher_inputs(
@@ -75,8 +81,28 @@ def _variation_inputs(
             row["discount_pct"] = v.discount_pct
         else:
             row["new_price_pct"] = 100 + float(v.change_pct or 0)
+        if discount:
+            _refuse_unless_below_today(ctx, item_id, key, row)
         out.append(row)
     return out
+
+
+def _refuse_unless_below_today(
+    ctx: BuilderContext, item_id: str, key: str, row: dict[str, Any]
+) -> None:
+    """P100: %GIẢM of Chương Trình Của Shop / Flash Sale is taken off Giá gốc. A product already
+    in a deeper programme (ORY: Giảm giá trực tiếp sản phẩm 15/06-12/12) then gets a price ABOVE
+    what buyers pay today; the engine modelled that as a price rise with a discount's CTOR uplift
+    and no cost. Refuse with today's price and the smallest %GIẢM that lowers it."""
+    current = ctx.env.current_price(key)
+    listed = ctx.env.list_price(key)
+    after = evaluate.new_price(ctx.env, "product_discount", key, row)
+    if current is None or after is None or after < current:
+        return
+    min_pct = ""
+    if listed and listed > current:
+        min_pct = str(int((1 - current / listed) * 100) + 1)
+    raise SpecRefused(f"discount_not_below_current:{item_id}:{int(current)}:{int(after)}:{min_pct}")
 
 
 def _sold_sku(ctx: BuilderContext, item_id: str, variation_id: str) -> str | None:
@@ -94,7 +120,72 @@ def _core_keywords(ctx: BuilderContext, item_id: str) -> list[str]:
     return [k.keyword for k in li.core()] if li is not None else []
 
 
-def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
+def _multi(spec: sp.VersionSpec, ctx: BuilderContext, mode: str) -> Translation:
+    """P97 D85.13: a version that names several targets. ``sum``: each target is built as its own
+    single-target version and the variant carries the list; ``joint``: one voucher over a product
+    list is the ordinary voucher variant, the list only rides along for the rows and the fill."""
+    singles = multi.expand(spec, ctx)
+    kind = multi.target_kind(spec)
+    parts: list[tuple[str, Translation]] = []
+    entries: list[dict[str, Any]] = []
+    refused: list[dict[str, Any]] = []
+    first_code: str | None = None
+    for tid, single in singles:
+        name = multi.target_name(ctx, spec, tid)
+        try:
+            tr = to_variant(single, ctx)
+        except SpecRefused as exc:
+            first_code = first_code or exc.code
+            refused.append({"id": tid, "kind": kind, "name": name, "refusal": _refusal(exc.code)})
+            continue
+        parts.append((tid, tr))
+        entries.append({"id": tid, "kind": kind, "name": name, "variant": tr.variant})
+    if not parts:
+        raise SpecRefused(first_code or "no_target")
+    if mode == multi.JOINT:
+        whole = to_variant(spec, ctx, _flat=True)
+        whole.variant["joint_targets"] = [e["id"] for e in entries]
+        whole.parts, whole.multi = parts, mode
+        whole.details = {**whole.details, "refused_targets": refused}
+        return whole
+    head = parts[0][1]
+    variant = {
+        **head.variant,
+        "items": list(dict.fromkeys(i for _, t in parts for i in t.variant.get("items") or [])),
+        "targets": entries,
+        "refused_targets": refused,
+    }
+    details: dict[str, Any] = {"refused_targets": refused}
+    samples = [t.details["sample"] for _, t in parts if t.details.get("sample")]
+    if samples:
+        totals = [s["total"] for s in samples if s.get("total") is not None]
+        details["sample"] = {
+            **samples[0],
+            "qty": sum(s["qty"] for s in samples),
+            "total": sum(totals) if len(totals) == len(samples) else None,
+        }
+    return Translation(
+        variant,
+        head.card_kind,
+        notes=list(dict.fromkeys(n for _, t in parts for n in t.notes)),
+        details=details,
+        items=list(dict.fromkeys(i for _, t in parts for i in t.items)),
+        warnings=[w for _, t in parts[:1] for w in t.warnings],
+        parts=parts,
+        multi=mode,
+    )
+
+
+def _refusal(code: str) -> dict[str, str]:
+    from juli_backend.services.shopee_recommendations import manual
+
+    return manual.refusal(code)
+
+
+def to_variant(spec: sp.VersionSpec, ctx: BuilderContext, *, _flat: bool = False) -> Translation:
+    mode = None if _flat else multi.mode(spec)
+    if mode is not None:
+        return _multi(spec, ctx, mode)
     env = ctx.env
     if isinstance(spec, sp.VoucherSpec):
         if spec.scope in ("follower", "livestream"):
@@ -103,7 +194,9 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
             raise SpecRefused("voucher_scope_no_data")
         if spec.discount_type == "amount" and spec.min_spend > 0 and spec.value >= spec.min_spend:
             raise SpecRefused("voucher_value_over_min_spend")
-        days = spec.days or config.VOUCHER_DAYS
+        # P99: the saved version keeps the spec's own days; a voucher without dates is evaluated
+        # on the same 30-day horizon as its OptionResult ("30 ngày đầu"), not the engine's 14
+        days = spec.days or engine.DEFAULT_DAYS
         inputs = _voucher_inputs(spec.discount_type, spec.value, spec.min_spend, spec.max_value)
         if spec.usage_limit is not None:
             inputs["quantity"] = spec.usage_limit
@@ -125,38 +218,50 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
             details={"voucher_scope": spec.scope, "days": days},
         )
     if isinstance(spec, sp.ComboSpec):
-        lines = []
-        for line in spec.items:
-            entry: dict[str, Any] = {"item_id": line.item_id, "qty": line.qty}
-            key = _sold_sku(ctx, line.item_id, line.variation_id)
-            if key is not None:
-                entry["sku"] = key
-            lines.append(entry)
-        extra: dict[str, Any] = {
-            "combo_items": lines,
-            "discount_type": spec.pricing,
-            "discount_value": int(spec.value) if spec.value == int(spec.value) else spec.value,
+        inputs = {
+            "discount_type": spec.discount_type,
+            "tiers": [
+                {"qty": t.qty, "value": int(t.value) if t.value == int(t.value) else t.value}
+                for t in sorted(spec.tiers, key=lambda t: t.qty)
+            ],
         }
-        if spec.voucher is not None:
-            extra["voucher"] = _voucher_inputs(
-                spec.voucher.discount_type,
-                spec.voucher.value,
-                spec.voucher.min_spend,
-                spec.voucher.max_value,
-            )
-        if spec.gift_item_id:
-            extra["gift_item"] = spec.gift_item_id
+        if spec.name:
+            inputs["name"] = spec.name
+        if spec.purchase_limit:
+            inputs["limit_per_buyer"] = spec.purchase_limit
+        if spec.start:
+            inputs["start"] = spec.start.isoformat()
+        if spec.end:
+            inputs["end"] = spec.end.isoformat()
         return Translation(
             {
-                "label": _label(spec, "Combo"),
-                "change_kind": "combo_multi",
-                "items": [line.item_id for line in spec.items],
-                "extra": extra,
-                "inputs": {"combo_target": spec.target},
+                "label": _label(spec, "Combo khuyến mãi"),
+                "change_kind": "bundle_deal",
+                "items": list(spec.item_ids),
+                "inputs": inputs,
             },
-            "combo_multi",
-            items=[line.item_id for line in spec.items],
-            details={"target": spec.target},
+            "bundle_deal",
+            items=list(spec.item_ids),
+            details={"days": spec.days},
+        )
+    if isinstance(spec, sp.ListingComboSpec):
+        inputs = {
+            "title": spec.title,
+            "price": spec.price,
+            "stock": spec.stock,
+            "image_refs": list(spec.image_refs),
+        }
+        if spec.sku:
+            inputs["sku"] = spec.sku
+        return Translation(
+            {
+                "label": _label(spec, spec.title),
+                "change_kind": "listing_combo",
+                "items": list(spec.member_ids),
+                "inputs": inputs,
+            },
+            "listing_combo",
+            items=list(spec.member_ids),
         )
     if isinstance(spec, sp.AddOnSpec):
         addons = []
@@ -209,11 +314,10 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
             items=[*items, *([spec.gift.item_id] if spec.gift.item_id else [])],
         )
     if isinstance(spec, sp.ProductDiscountSpec):
+        item = spec.item_id or ""
         if not spec.variations:
             raise SpecRefused("variations_required")
-        inputs = {
-            "variations": _variation_inputs(ctx, spec.item_id, spec.variations, discount=True)
-        }
+        inputs = {"variations": _variation_inputs(ctx, item, spec.variations, discount=True)}
         if spec.days:
             inputs["days"] = spec.days
         if spec.per_buyer_limit:
@@ -222,11 +326,11 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
             {
                 "label": _label(spec, "Giảm giá"),
                 "change_kind": "product_discount",
-                "items": [spec.item_id],
+                "items": [item],
                 "inputs": inputs,
             },
             "product_discount",
-            items=[spec.item_id],
+            items=[item],
         )
     if isinstance(spec, sp.PriceSpec):
         return Translation(
@@ -268,6 +372,8 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
         return _variation_set(spec, ctx)
     if isinstance(spec, sp.AdsSpec):
         return _ads(spec, ctx)
+    if isinstance(spec, sp.AdsNewSpec):
+        return _ads_new(spec, ctx)
     if isinstance(spec, sp.TitleSpec):
         li = env.listings.get(spec.item_id)
         if li is None or not li.title:
@@ -305,22 +411,23 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
             items=[spec.item_id],
         )
     if isinstance(spec, sp.AffiliateSpec):
+        item = spec.item_id or ""
         kind = "affiliate_target_campaign" if spec.target_campaign else "affiliate_commission"
         details: dict[str, Any] = {}
         aff_inputs: dict[str, Any] = {"commission_pct": spec.commission_pct}
         if spec.sample_qty:
-            details["sample"] = _sample_cost(ctx, spec)
+            details["sample"] = _sample_cost(ctx, spec, item)
             if details["sample"]["total"] is not None:  # P96: samples come out of the profit
                 aff_inputs["sample_cost"] = details["sample"]["total"]
         return Translation(
             {
                 "label": _label(spec, "Liên kết"),
                 "change_kind": kind,
-                "items": [spec.item_id],
+                "items": [item],
                 "inputs": aff_inputs,
             },
             kind,
-            items=[spec.item_id],
+            items=[item],
             details=details,
         )
     if isinstance(spec, sp.HideSpec):
@@ -354,15 +461,15 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext) -> Translation:
     raise SpecRefused("unknown_kind")
 
 
-def _sample_cost(ctx: BuilderContext, spec: sp.AffiliateSpec) -> dict[str, Any]:
+def _sample_cost(ctx: BuilderContext, spec: sp.AffiliateSpec, item_id: str) -> dict[str, Any]:
     """P91 D-9 / D-11: a sample costs giá vốn + đóng gói (+ the shipping of the parcel)."""
     from juli_backend.services.shopee_recommendations.unit_cost import gift_cost_of, unit_cost
 
-    rows = ctx.rows(spec.item_id)
+    rows = ctx.rows(item_id)
     best = max(rows, key=lambda r: r["selling_price"] or 0, default=None)
     cost = unit_cost(
         ctx.env.rules,
-        spec.item_id,
+        item_id,
         best["variation_id"] if best else "",
         seller_sku=best["sku"] if best else None,
         variation_name=best["name"] if best else None,
@@ -488,56 +595,110 @@ def _variation_set(spec: sp.VariationSetSpec, ctx: BuilderContext) -> Translatio
     )
 
 
+def _ads_warnings(spec: sp.AdsSpec, ctx: BuilderContext) -> list[dict[str, Any]]:
+    """Shopee's own cautions of the edit form (recon 2026-11-09): a custom ROAS above the hint, and
+    a second ROAS change within a week (that week's performance support is lost)."""
+    out: list[dict[str, Any]] = []
+    if spec.lever != "roas":
+        return out
+    if spec.roas_target is not None and spec.roas_target > sp.ADS_ROAS_HINT:
+        out.append(
+            {
+                "type": "ads_roas_above_hint",
+                "code": "ads_roas_above_hint",
+                "hint": sp.ADS_ROAS_HINT,
+                "message": f"Vui lòng đặt ≤ {sp.ADS_ROAS_HINT:g} (gợi ý của Shopee): ROAS mục "
+                "tiêu càng cao, quảng cáo càng ít được hiển thị.",
+            }
+        )
+    setting = ctx.env.setting_for(spec.campaign_key) if spec.campaign_key else None
+    if setting is not None and setting.roas_changes_7d >= 1:
+        out.append(
+            {
+                "type": "ads_roas_second_change",
+                "code": "ads_roas_second_change",
+                "message": "Chiến dịch này đã đổi ROAS trong 7 ngày qua. Đổi ROAS hoặc cách đặt "
+                "giá thầu từ 2 lần trong một tuần thì tuần đó mất hỗ trợ hiệu suất của Shopee.",
+            }
+        )
+    return out
+
+
+def _ads_new(spec: sp.AdsNewSpec, ctx: BuilderContext) -> Translation:
+    """P99: a new Hiển thị Sản phẩm campaign as a card (``ads_new_campaign``): its certain layer
+    is the spend (daily budget × days) against the cap; its numbers are the OptionResult's
+    (measured extra orders only, else "chưa ước tính được — cần chạy thử")."""
+    for item in spec.item_ids:
+        if item in ctx.env.excluded:
+            raise SpecRefused("item_excluded")
+    days = spec.days or engine.DEFAULT_DAYS
+    inputs: dict[str, Any] = {
+        "daily_budget": spec.daily_budget,
+        "roas_target": spec.roas_target,
+        "roas_mode": "system" if spec.roas_target is None else "custom",
+        "campaign": spec.campaign,
+        "days": days,
+        "start": spec.start.isoformat(),
+    }
+    if spec.end:
+        inputs["end"] = spec.end.isoformat()
+    if spec.name:
+        inputs["name"] = spec.name
+    items = list(spec.item_ids)
+    return Translation(
+        {
+            "label": _label(spec, spec.name or "Quảng cáo mới"),
+            "change_kind": "ads_new_campaign",
+            "items": items,
+            "inputs": inputs,
+        },
+        "ads_new_campaign",
+        items=items,
+        details={"days": days, "total_budget": spec.daily_budget * days},
+    )
+
+
 def _ads(spec: sp.AdsSpec, ctx: BuilderContext) -> Translation:
     base: dict[str, Any] = {"label": _label(spec, "Quảng cáo"), "campaign_key": spec.campaign_key}
+    schedule = {k: v.isoformat() for k, v in (("start", spec.start), ("end", spec.end)) if v}
     if spec.lever in ("budget", "roas") and not spec.campaign_key:
         raise SpecRefused("no_campaign_report")
+    warnings = _ads_warnings(spec, ctx)
     if spec.lever == "budget":
+        if spec.daily_budget is not None and spec.daily_budget < sp.ADS_MIN_BUDGET:
+            raise SpecRefused("ads_budget_below_min")
+        inputs: dict[str, Any] = (
+            {"daily_budget": None, "unlimited": True}
+            if spec.unlimited
+            else {"daily_budget": spec.daily_budget}
+        )
         return Translation(
-            {
-                **base,
-                "change_kind": "ads_budget",
-                "items": [],
-                "inputs": {"daily_budget": spec.daily_budget},
-            },
+            {**base, "change_kind": "ads_budget", "items": [], "inputs": {**inputs, **schedule}},
             "ads_budget",
+            warnings=warnings,
         )
     if spec.lever == "roas":
+        inputs = (
+            {"roas_mode": "system"}
+            if spec.roas_mode == "system"
+            else {"roas_target": spec.roas_target, "roas_mode": "custom"}
+        )
         return Translation(
             {
                 **base,
                 "change_kind": "ads_roas_target",
                 "items": [],
-                "inputs": {"roas_target": spec.roas_target},
+                "inputs": {**inputs, **schedule},
             },
             "ads_roas_target",
+            warnings=warnings,
         )
-    if spec.lever in ("add_product", "remove_product"):
-        if not spec.campaign_key:
-            raise SpecRefused("no_campaign_report")
-        kind = "ads_add_product" if spec.lever == "add_product" else "ads_remove_product"
-        return Translation(
-            {**base, "change_kind": kind, "items": [spec.item_id], "inputs": {}},
-            kind,
-            items=[spec.item_id] if spec.item_id else [],
-        )
-    keywords = [
-        {
-            "keyword": k.keyword,
-            "bid": k.bid,
-            "match": k.match,
-            **{f: v for f, v in (ctx.keyword_facts.get(lst_fold(k.keyword)) or {}).items()},
-        }
-        for k in spec.keywords
-    ]
+    if not spec.campaign_key:
+        raise SpecRefused("no_campaign_report")
+    kind = "ads_add_product" if spec.lever == "add_product" else "ads_remove_product"
     return Translation(
-        {
-            **base,
-            "change_kind": "ads_keywords",
-            "items": [spec.item_id] if spec.item_id else [],
-            "inputs": {"keywords": keywords},
-        },
-        "ads_keywords",
+        {**base, "change_kind": kind, "items": [spec.item_id], "inputs": schedule},
+        kind,
         items=[spec.item_id] if spec.item_id else [],
     )
 

@@ -1,4 +1,6 @@
+import type { OptionResult } from "./option-result";
 import { ShopeeApiError } from "../shopee-analytics/client";
+import type { PlanResponse } from "./plan-types";
 
 /**
  * P92 client of the builder API (`fasttrack/contracts/p92-api.md`): the product picker, variations,
@@ -40,6 +42,16 @@ export interface PickerProduct {
   readonly missing_cost_chip: string | null;
   readonly excluded: boolean;
   readonly exclude_reason: string | null;
+  /** P97 D85.12: the table picker's filter columns (absent on an older server = unknown). */
+  readonly category?: string | null;
+  readonly category_path?: string | null;
+  readonly margin_pct?: N;
+  readonly ctor_30d?: N;
+  readonly ctor_prev_30d?: N;
+  readonly ctor_down?: boolean | null;
+  readonly has_proposal?: boolean;
+  readonly in_ads?: boolean;
+  readonly in_kol?: boolean;
 }
 
 export interface PickerResult {
@@ -191,15 +203,69 @@ export interface BuilderWarning {
   readonly [extra: string]: unknown;
 }
 
+/** P97 D85.9: one of the seven before -> after rows of So sánh. `after` is P10 / P50 / P90. */
+export interface BeforeAfterRow {
+  readonly key: "gmv" | "margin" | "orders" | "aov" | "ctor" | "ctr" | "views";
+  readonly label: string;
+  readonly unit: "vnd" | "pct" | "count";
+  readonly before: number | null;
+  readonly after: { readonly low: number | null; readonly p50: number | null; readonly high: number | null } | null;
+  /** The lever has no modelled effect on this metric: `reason` says why; the range is the before. */
+  readonly unchanged: boolean;
+  readonly reason: string | null;
+}
+
+export interface BeforeAfter {
+  readonly scope: "shop" | "product";
+  readonly rows: readonly BeforeAfterRow[];
+  readonly range: string;
+  readonly note: string;
+}
+
+/** P97 D85.13: one row of a many-target card: its own figures (monthly, P50 + range) and floor breaches. */
+export interface OutcomeTarget {
+  readonly id: string;
+  readonly kind: "item" | "campaign" | string;
+  readonly name?: string | null;
+  readonly ok: boolean;
+  readonly refusal?: { readonly code?: string; readonly message?: string } | null;
+  readonly dgmv_p50?: N;
+  readonly dorders_p50?: N;
+  readonly dprofit_p50?: N;
+  readonly dprofit_p10?: N;
+  readonly dprofit_p90?: N;
+  readonly cost_month?: N;
+  readonly floor_ok?: boolean;
+  readonly breach?: boolean;
+  readonly breaches?: readonly BuilderWarning[];
+}
+
+/** P99b: the dates the builder set for a version; its result covers exactly these days. */
+export interface VersionDates {
+  readonly from: string | null;
+  readonly to: string | null;
+  readonly days: N;
+  readonly set: boolean;
+  /** "01/12 – 10/12 (10 ngày)" or "30 ngày đầu"; null = no dates and no days. */
+  readonly label: string | null;
+}
+
 export interface BuilderOutcome {
   readonly index: number;
+  readonly dates?: VersionDates | null;
   readonly kind: string;
   readonly label: string;
   readonly ok: boolean;
+  /** P98 d.5: the option result (`OptionResult.json()`); when present the card is drawn from it alone. */
+  readonly result?: OptionResult;
+  /** P99: this version's own "hôm nay" (same shape as the evaluation's). */
+  readonly today?: BuilderToday;
   readonly refusal?: { readonly code?: string; readonly message?: string } | string | null;
   readonly title?: string;
   readonly card_kind?: string;
   readonly change_kind?: string;
+  /** P97 D85.9: GMV, biên, đơn, AOV, CTOR, CTR, lượt xem: before -> after with the range. */
+  readonly before_after?: BeforeAfter;
   readonly driver?: {
     readonly metrics: readonly DriverMetric[];
     readonly target_metric?: string | null;
@@ -227,7 +293,12 @@ export interface BuilderOutcome {
   readonly cost_known?: boolean;
   readonly cost?: {
     readonly amount: N;
+    /** P99c: always the version's own days. */
     readonly period_days?: N;
+    /** P99c: where the figure comes from; `reason` / `reason_text` say why it is null. */
+    readonly source?: "money_layer" | "result" | null;
+    readonly reason?: string | null;
+    readonly reason_text?: string | null;
     readonly per_unit?: N;
     readonly label?: string | null;
     readonly low?: N;
@@ -244,6 +315,8 @@ export interface BuilderOutcome {
     readonly aov_now?: N;
     readonly aov_needed?: N;
     readonly extra_orders: N;
+    /** P99c: the version's own days; `source` "none" = no figure (reason e.g. `no_result_for_days`). */
+    readonly source?: "money_layer" | "result" | "none" | null;
     readonly period_days?: N;
     readonly ctor_now?: N;
     readonly ctor_needed?: N;
@@ -257,6 +330,12 @@ export interface BuilderOutcome {
   readonly warnings?: readonly BuilderWarning[];
   readonly breach?: boolean;
   readonly details?: Readonly<Record<string, unknown>>;
+  /** P97 D85.13: the targets of a many-target card: `sum` = each target is its own change, `joint` = one voucher over a list. */
+  readonly targets?: readonly OutcomeTarget[];
+  readonly targets_mode?: "sum" | "joint" | string;
+  readonly targets_note?: string | null;
+  /** How the Connector will fill the card in: one bulk pass where Shopee has a bulk edit, else one job per target. */
+  readonly fill?: { readonly mode: "bulk" | "per_target" | string; readonly targets: number } | null;
 }
 
 export interface TableRowBand {
@@ -266,20 +345,41 @@ export interface TableRowBand {
   readonly values: readonly unknown[];
 }
 
+/** P99: "hôm nay" on the scope its versions stand on (`shop`, or the versions' own `product` funnel). */
+export interface BuilderToday {
+  readonly as_of?: string;
+  readonly scope?: "shop" | "product" | string;
+  readonly items?: readonly string[];
+  readonly mixed_scopes?: boolean;
+  readonly gmv_30d: N;
+  readonly orders_30d: N;
+  readonly aov: N;
+  readonly margin_pct: N;
+  readonly profit_30d?: N;
+  readonly views_30d?: N;
+  readonly clicks_30d?: N;
+  readonly ctr?: N;
+  readonly ctor?: N;
+  readonly window?: { readonly from: string; readonly to: string; readonly days: number };
+  readonly spend_per_day?: N;
+  readonly spend_cap?: N;
+}
+
 export interface BuilderEvaluation {
   readonly saved: false;
   readonly best_profit_p50: number | null;
-  readonly today: {
-    readonly as_of?: string;
-    readonly gmv_30d: N;
-    readonly orders_30d: N;
-    readonly aov: N;
-    readonly margin_pct: N;
-    readonly spend_per_day?: N;
-    readonly spend_cap?: N;
-  };
+  readonly today: BuilderToday;
   readonly table: { readonly rows: readonly TableRowBand[] };
   readonly versions: readonly BuilderOutcome[];
+  /** P99c: version indexes in So sánh's order (Δ lợi nhuận per day of the set dates, unknown last). */
+  readonly compare?: readonly number[];
+  readonly sort_basis?: SortBasis;
+}
+
+export interface SortBasis {
+  readonly key: string;
+  readonly label: string;
+  readonly detail?: string | null;
 }
 
 export interface BuilderBreach {
@@ -339,6 +439,10 @@ export interface TitleDrafts {
   readonly drafts: readonly TitleDraft[];
   readonly dropped?: readonly { readonly text: string; readonly reason: string }[];
   readonly warnings?: readonly unknown[];
+  /** P100 S2-D, sample shop only: "seeded" (pre-written) or "llm" (the live draft). */
+  readonly source?: "seeded" | "llm" | "seller";
+  /** P100 S2-D, sample shop only: live AI drafts left for this product. */
+  readonly live_left?: number;
 }
 
 export interface CoverOverlay {
@@ -365,6 +469,12 @@ export interface DescriptionDrafts {
   readonly max_chars: number;
 }
 
+/** "Chạy cùng nhau": the cards saved from the ticked versions and the plan with its groups. */
+export interface GroupResult extends PlanResponse {
+  readonly saved: readonly { readonly id: string; readonly code: string | null; readonly indexes: readonly number[] }[];
+  readonly placed: readonly { readonly card_id: string; readonly code: string | null; readonly version: number; readonly group: string; readonly moved: boolean }[];
+}
+
 export interface BuilderApi {
   products(q?: PickerQuery): Promise<PickerResult>;
   variations(itemId: string): Promise<VariationList>;
@@ -374,7 +484,9 @@ export interface BuilderApi {
   evaluate(versions: readonly BuilderVersion[]): Promise<BuilderEvaluation>;
   compare(versions: readonly BuilderVersion[]): Promise<BuilderEvaluation>;
   choose(body: { readonly versions: readonly BuilderVersion[]; readonly chosen: number; readonly primary?: boolean; readonly acknowledgeBreaches?: boolean }): Promise<ChooseResult>;
-  draftTitle(body: { readonly itemId: string; readonly keywords: readonly string[]; readonly count?: number }): Promise<TitleDrafts>;
+  /** P97 D85.14: the ticked versions run together as one group (Nhóm) of the plan. */
+  group(body: { readonly versions: readonly BuilderVersion[]; readonly members: readonly number[]; readonly days: number; readonly start?: string | null; readonly acknowledgeBreaches?: boolean }): Promise<GroupResult>;
+  draftTitle(body: { readonly itemId: string; readonly keywords: readonly string[]; readonly count?: number; readonly regenerate?: boolean }): Promise<TitleDrafts>;
   draftCover(body: { readonly itemId: string; readonly count?: number }): Promise<CoverDrafts>;
   draftDescription(body: { readonly itemId: string; readonly count?: number }): Promise<DescriptionDrafts>;
   exclusions(): Promise<ExclusionList>;
@@ -508,7 +620,16 @@ export function createBuilderApi(options: BuilderClientOptions): BuilderApi {
         primary: b.primary ?? false,
         acknowledge_breaches: b.acknowledgeBreaches ?? false,
       }),
-    draftTitle: (b) => call<TitleDrafts>("POST", "/builder/drafts/title", { item_id: b.itemId, keywords: b.keywords, count: b.count ?? 3 }),
+    group: (b) =>
+      call<GroupResult>("POST", "/builder/group", {
+        versions: b.versions,
+        members: b.members,
+        days: b.days,
+        ...(b.start ? { start: b.start } : {}),
+        acknowledge_breaches: b.acknowledgeBreaches ?? false,
+      }),
+    draftTitle: (b) =>
+      call<TitleDrafts>("POST", "/builder/drafts/title", { item_id: b.itemId, keywords: b.keywords, count: b.count ?? 3, ...(b.regenerate ? { regenerate: true } : {}) }),
     draftCover: (b) => call<CoverDrafts>("POST", "/builder/drafts/cover", { item_id: b.itemId, count: b.count ?? 3 }),
     draftDescription: (b) => call<DescriptionDrafts>("POST", "/builder/drafts/description", { item_id: b.itemId, count: b.count ?? 3 }),
     exclusions: () => call<ExclusionList>("GET", "/exclusions"),

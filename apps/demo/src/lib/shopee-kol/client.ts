@@ -1,5 +1,5 @@
 import { ShopeeApiError, windowParams, type WindowQuery } from "../shopee-analytics/client";
-import type { KolApi, KolProductReport, KolQuery, KolReport } from "./types";
+import type { KolApi, KolCompareReport, KolProductReport, KolQuery, KolReport } from "./types";
 
 export interface KolClientOptions {
   /** `DEMO_SHOPEE_BASE` or `opsShopeeBase(shopId)`; the reports are `<base>/kols` and `<base>/products/{item_id}/kols`. */
@@ -23,6 +23,7 @@ async function get<T>(options: KolClientOptions, path: string, params: URLSearch
   if (!response.ok) {
     let code = "";
     let message = `HTTP ${response.status}`;
+    let extra: Readonly<Record<string, unknown>> | undefined;
     try {
       const detail = ((await response.json()) as { detail?: unknown }).detail;
       if (typeof detail === "string") message = detail;
@@ -30,11 +31,12 @@ async function get<T>(options: KolClientOptions, path: string, params: URLSearch
         const d = detail as { code?: unknown; message?: unknown };
         if (typeof d.code === "string") code = d.code;
         if (typeof d.message === "string") message = d.message;
+        extra = detail as Readonly<Record<string, unknown>>;
       }
     } catch {
       /* keep the generic sentence */
     }
-    throw new ShopeeApiError(response.status, code, message);
+    throw new ShopeeApiError(response.status, code, message, extra);
   }
   return (await response.json()) as T;
 }
@@ -51,5 +53,10 @@ export function createKolApi(options: KolClientOptions): KolApi {
       return get<KolReport>(options, "/kols", p);
     },
     productReport: (itemId, window = DEFAULT_WINDOW) => get<KolProductReport>(options, `/products/${encodeURIComponent(itemId)}/kols`, windowParams(window)),
+    compare: (group, window = DEFAULT_WINDOW) => {
+      const p = windowParams(window);
+      p.set("group", group);
+      return get<KolCompareReport>(options, "/kols/compare", p);
+    },
   };
 }

@@ -45,12 +45,13 @@ from juli_backend.services.ingest.rate_limit import (
 )
 from juli_backend.services.ingest.schemas import (
     MAX_BODY_BYTES,
+    ConnectorEvent,
     DriftReport,
     IngestBody,
     PairRequest,
 )
 from juli_backend.services.ingest.shops import connect_shopee_shop
-from juli_backend.services.ingest.status import dataset_status, report_drift
+from juli_backend.services.ingest.status import dataset_status, record_connector_event, report_drift
 
 __all__ = [
     "DATASETS",
@@ -61,6 +62,7 @@ __all__ = [
     "SHOPEE_L1_TO_STREAM",
     "STREAM_LABELS",
     "TOKEN_TTL",
+    "ConnectorEvent",
     "DriftReport",
     "InMemoryRateGate",
     "IngestBody",
@@ -76,6 +78,7 @@ __all__ = [
     "create_pairing_code",
     "dataset_spec",
     "dataset_status",
+    "record_connector_event",
     "get_ingest_rate_gate",
     "ingest",
     "list_tokens",

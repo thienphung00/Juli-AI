@@ -204,6 +204,11 @@ UNAUTHENTICATED_ALLOWLIST = {
     "/v1/ingest/order-ref-key",
     "/v1/ingest/fill/{code}",
     "/v1/ingest/{platform}/{dataset}",
+    # Connector stop report (CAPTCHA / login wall / 429): metadata for Ops, same ingest token.
+    "/v1/ingest/connector-events",
+    # P97 D85.6: the Connector's fill queue, its token's shop only (list + report progress).
+    "/v1/ingest/fill-jobs",
+    "/v1/ingest/fill-jobs/{job_id}",
     # Fast track P33-F (D43): the public free-trial sign-up from app-juli.com/dang-ky.
     # A visitor has no session by definition; bounded by validation, a honeypot and
     # per-IP / per-e-mail / site-wide limits counted in the ops-only table.

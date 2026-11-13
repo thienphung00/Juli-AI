@@ -7,6 +7,10 @@ of another's. Nothing here commits; the route commits after the audit row.
 Re-generating never undoes the operator's trim: a combination already stored keeps its
 ``enabled`` flag and gets the new pattern and item ids; a new one starts enabled. A stored
 combination the titles no longer produce stays as it is (the operator disables it).
+
+With a model client, one call per shop refines the decomposer's candidates
+(:mod:`.llm_seeds`); the "từ gần nghĩa" it returns are stored disabled for the owner to tick.
+Without one, or when the model is unavailable, the deterministic candidates are stored as before.
 """
 
 from __future__ import annotations
@@ -21,8 +25,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.platform_data import ITEM_LEVEL_VARIATION, PlatformItem
 from juli_backend.models.shop_keywords import ShopKeywordSeed
+from juli_backend.services.shop_keywords import llm_seeds
 from juli_backend.services.shop_keywords.collection import normalize_keyword
-from juli_backend.services.shop_keywords.decompose import Title, decompose
+from juli_backend.services.shop_keywords.decompose import Candidate, Title, decompose
+from juli_backend.services.shopee_builder.llm import LLMClient, LLMUnavailable
 
 MAX_BRAND = 100
 
@@ -37,6 +43,10 @@ class GenerateResult:
     candidates: int
     created: int
     updated: int
+    titles_hash: str = ""
+    llm_used: bool = False
+    llm_reason: str | None = None
+    near: tuple[str, ...] = ()
 
 
 async def shop_titles(session: AsyncSession, shop_id: uuid.UUID, platform: str) -> list[Title]:
@@ -73,31 +83,70 @@ async def generate(
     brand: str | None,
     staff_id: uuid.UUID | None,
     now: datetime,
+    client: LLMClient | None = None,
+    llm_reason: str | None = None,
 ) -> GenerateResult:
-    """Decompose the shop's titles and upsert the combinations (no commit)."""
+    """Decompose the shop's titles and upsert the combinations (no commit).
+
+    ``client`` is the shop's gated model client; ``llm_reason`` says why there is none.
+    """
     titles = await shop_titles(session, shop_id, platform)
     candidates = decompose(titles, brand=brand)
+    refined: llm_seeds.Refinement | None = None
+    if client is not None and candidates:
+        try:
+            refined = await llm_seeds.refine(client, titles, candidates)
+        except LLMUnavailable as exc:
+            llm_reason = exc.reason
+    elif client is None and llm_reason is None:
+        llm_reason = "no_client"
+    stored: list[tuple[Candidate, bool]] = [(c, True) for c in candidates]
+    near: tuple[str, ...] = ()
+    if refined is not None:
+        stored = [(c, True) for c in refined.seeds] + [(c, False) for c in refined.near]
+        near = tuple(c.keyword for c in refined.near)
+    created, updated = await _upsert(session, shop_id, platform, stored, staff_id, now)
+    return GenerateResult(
+        len(titles),
+        len(stored),
+        created,
+        updated,
+        titles_hash=llm_seeds.titles_hash(titles, brand),
+        llm_used=refined is not None,
+        llm_reason=None if refined is not None else llm_reason,
+        near=near,
+    )
+
+
+async def _upsert(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    platform: str,
+    stored: list[tuple[Candidate, bool]],
+    staff_id: uuid.UUID | None,
+    now: datetime,
+) -> tuple[int, int]:
     existing = {s.keyword: s for s in await list_seeds(session, shop_id, platform)}
     created = updated = 0
-    for candidate in candidates:
+    for candidate, enabled in stored:
         keyword = normalize_keyword(candidate.keyword)
         item_ids = list(candidate.item_ids)
         seed = existing.get(keyword)
         if seed is None:
-            session.add(
-                ShopKeywordSeed(
-                    id=uuid.uuid4(),
-                    shop_id=shop_id,
-                    platform=platform,
-                    keyword=keyword,
-                    pattern=candidate.pattern,
-                    item_ids=item_ids,
-                    enabled=True,
-                    created_by=staff_id,
-                    created_at=now,
-                    updated_at=now,
-                )
+            row = ShopKeywordSeed(
+                id=uuid.uuid4(),
+                shop_id=shop_id,
+                platform=platform,
+                keyword=keyword,
+                pattern=candidate.pattern,
+                item_ids=item_ids,
+                enabled=enabled,
+                created_by=staff_id,
+                created_at=now,
+                updated_at=now,
             )
+            session.add(row)
+            existing[keyword] = row
             created += 1
         elif seed.pattern != candidate.pattern or list(seed.item_ids) != item_ids:
             seed.pattern = candidate.pattern
@@ -105,7 +154,7 @@ async def generate(
             seed.updated_at = now
             updated += 1
     await session.flush()
-    return GenerateResult(len(titles), len(candidates), created, updated)
+    return created, updated
 
 
 async def set_enabled(

@@ -1,0 +1,247 @@
+"""P100 S2-G on real Postgres under RLS, through the real app as ``juli_app``.
+
+The unit twin is ``tests/unit/test_reviewer_sample_shopee.py`` (SQLite, no RLS). Here the loader
+puts the synthetic sample shop in the database, a reviewer is pinned to it as the ``sample`` pin,
+and the reviewer's own writes (owner Option A) run as ``juli_app`` in the shop's tenant scope:
+
+- Duyệt on an open Tiêu đề / Ảnh bìa / Voucher card is the REAL approve (an approval row by the
+  reviewer's user, the card ``approved``) and queues no fill job although the switch is on;
+- Loại trừ and its undo, a plan card add: answered, the sample shop's rows only;
+- each admitted write leaves one ``reviewer_sample_write`` audit row (written as ``juli_ops``
+  inside the request's transaction before the route writes -- the P72 trap).
+"""
+
+from __future__ import annotations
+
+import os
+import uuid
+from datetime import UTC, date, datetime, timedelta
+
+import jwt as pyjwt
+import pytest
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from juli_backend.core.config.runtime import async_database_url
+from juli_backend.services.reviewer import accounts as reviewer_accounts
+from juli_backend.services.reviewer import catalog as reviewer_catalog
+from juli_backend.services.reviewer import pin_cache
+from scripts.sample_shop import loader
+from scripts.sample_shop.generator import generate
+from tests.support.postgres import owner_sync_engine, requires_postgres
+
+pytestmark = [requires_postgres, pytest.mark.migration_heavy]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _database_at_head(owner_engine):
+    """Its own database (``tests/conftest.py`` lists the module): migrated by ``owner_engine``."""
+    yield
+
+
+SECRET = "reviewer-sample-writes-secret-0123456789"
+END = date(2026, 11, 10)
+NOW = datetime(2026, 11, 11, 3, 0)
+REC = "/v1/demo/shopee/recommendations"
+
+
+def _now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+@pytest.fixture
+async def world():
+    engine = create_async_engine(async_database_url(os.environ["DATABASE_URL"]))
+    try:
+        report = await loader.load(
+            async_sessionmaker(engine, expire_on_commit=False), generate(END), now=NOW
+        )
+    finally:
+        await engine.dispose()
+    reviewer_id = uuid.uuid4()
+    with owner_sync_engine() as owner, owner.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO public.ops_reviewer_accounts (id, user_id, email, role, platform, "
+                "expires_at, created_by) VALUES (:id, :u, :e, 'reviewer', 'shopee', :exp, "
+                "'owner@app-juli.com')"
+            ),
+            {
+                "id": uuid.uuid4(),
+                "u": reviewer_id,
+                "e": f"shopee-review-{reviewer_id.hex[:6]}@app-juli.com",
+                "exp": _now() + timedelta(days=30),
+            },
+        )
+    return {"shop": report.shop_id, "reviewer": reviewer_id}
+
+
+@pytest.fixture
+def app(world, monkeypatch):
+    from juli_backend.api.app import create_app
+    from juli_backend.database import get_session
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", SECRET)
+    monkeypatch.setenv("REVIEWER_SHOP_IDS", str(world["shop"]))
+    monkeypatch.setenv("REVIEWER_SAMPLE_SHOP_IDS", str(world["shop"]))
+    monkeypatch.setenv("REVIEWER_ACCOUNT_CACHE_SECONDS", "0")
+    monkeypatch.setenv("CONNECTOR_FILL_LISTING", "1")
+    reviewer_accounts.forget_cached()
+    reviewer_catalog.forget_cached()
+    pin_cache.forget_cached()
+    application = create_app()
+    roles: list[str] = []
+
+    async def _session():
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        engine = create_async_engine(async_database_url(os.environ["DATABASE_URL"]))
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SET ROLE juli_app"))
+                roles.append((await conn.execute(text("SELECT current_user"))).scalar_one())
+                await conn.commit()
+                session = AsyncSession(
+                    bind=conn, expire_on_commit=False, join_transaction_mode="rollback_only"
+                )
+                try:
+                    yield session
+                finally:
+                    await session.close()
+                    await conn.commit()
+        finally:
+            await engine.dispose()
+
+    application.dependency_overrides[get_session] = _session
+    application.state.test_roles = roles
+    return application
+
+
+def _headers(user_id: uuid.UUID, shop: uuid.UUID) -> dict[str, str]:
+    token = pyjwt.encode(
+        {
+            "sub": str(user_id),
+            "aud": "authenticated",
+            "exp": datetime.now(UTC) + timedelta(hours=1),
+            "email": "shopee-review@app-juli.com",
+            "email_verified": True,
+            "session_id": f"pg-{uuid.uuid4().hex[:6]}",
+            "app_metadata": {"juli_role": "reviewer", "juli_platform": "shopee"},
+        },
+        SECRET,
+        algorithm="HS256",
+    )
+    return {"Authorization": f"Bearer {token}", "X-Shop-Id": str(shop)}
+
+
+async def test_the_sample_reviewers_writes_run_as_juli_app_on_the_sample_shop_only(app, world):
+    from httpx import ASGITransport, AsyncClient
+
+    shop, reviewer = world["shop"], world["reviewer"]
+    headers = _headers(reviewer, shop)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        me = await client.get("/v1/reviewer/me", headers=headers)
+        assert me.status_code == 200 and me.json()["mode"] == "sample", me.text
+        listed = await client.get(f"{REC}?queue=all", headers=headers)
+        assert listed.status_code == 200, listed.text
+        card = next(
+            c
+            for c in listed.json()["cards"]
+            if c["status"] == "sent" and c["change_kind"] in {"title", "cover_image"}
+        )
+        approved = await client.post(
+            f"{REC}/{card['id']}/approve",
+            json={"chosen_version": 1, "acknowledge_breaches": True},
+            headers=headers,
+        )
+        excluded = await client.put(
+            "/v1/demo/shopee/exclusions/9100000000003", json={"reason": "khac"}, headers=headers
+        )
+        undone = await client.delete("/v1/demo/shopee/exclusions/9100000000003", headers=headers)
+        detail = await client.get(f"{REC}/{card['id']}", headers=headers)
+    assert os.environ["DATABASE_URL"].startswith("postgresql")
+    assert app.state.test_roles and set(app.state.test_roles) == {"juli_app"}
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "approved" and "simulated" not in approved.json()
+    assert detail.json()["status"] == "approved"  # Đang thực hiện
+    assert excluded.status_code == 200, excluded.text
+    assert undone.status_code == 204, undone.text
+    with owner_sync_engine() as owner, owner.connect() as conn:
+        approval = conn.execute(
+            text(
+                "SELECT shop_id, decided_by_user_id FROM public.shop_proposal_approvals "
+                "WHERE proposal_id = :p ORDER BY decided_at DESC LIMIT 1"
+            ),
+            {"p": uuid.UUID(card["id"])},
+        ).one()
+        jobs = conn.execute(
+            text("SELECT count(*) FROM public.shopee_fill_jobs WHERE proposal_id = :p"),
+            {"p": uuid.UUID(card["id"])},
+        ).scalar_one()
+        audited = conn.execute(
+            text(
+                "SELECT shop_id, after FROM public.ops_audit_log "
+                "WHERE action = 'reviewer_sample_write' AND shop_id = :s ORDER BY at"
+            ),
+            {"s": shop},
+        ).all()
+    assert approval.shop_id == shop and approval.decided_by_user_id == reviewer
+    assert jobs == 0
+    assert [a.after["method"] for a in audited][-3:] == ["POST", "PUT", "DELETE"]
+
+
+async def test_the_sample_title_drafts_run_as_juli_app_and_the_quota_holds(app, world, monkeypatch):
+    """P100 S2-D under RLS as ``juli_app``: the seeded titles answer with no model call; one live
+    draft (a fake model) is stored as ``source='llm'`` by the reviewer (INSERT only, the shop's
+    scope, the advisory lock); the second one is 403 ``sample_llm_quota`` and calls no model."""
+    from httpx import ASGITransport, AsyncClient
+
+    from juli_backend.api.routes import shopee_builder_common
+    from juli_backend.services.sample_shop.catalog import PRODUCTS
+
+    class FakeModel:
+        model = "fake-model"
+        calls = 0
+
+        async def complete_json(self, **_: object) -> dict[str, object]:
+            FakeModel.calls += 1
+            return {"drafts": [{"title": "Nước rửa chén Hiên Nhà sinh học chai 500ml hương chanh"}]}
+
+    async def get_client(_session, _shop_id):
+        return FakeModel()
+
+    monkeypatch.setattr(shopee_builder_common, "get_client", get_client)
+    shop, reviewer = world["shop"], world["reviewer"]
+    headers = _headers(reviewer, shop)
+    url = "/v1/demo/shopee/builder/drafts/title"
+    body = {"item_id": PRODUCTS[0].item_id, "count": 3, "as_of": END.isoformat()}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        seeded = await client.post(url, json=body, headers=headers)
+        live = await client.post(url, json={**body, "regenerate": True}, headers=headers)
+        again = await client.post(url, json={**body, "regenerate": True}, headers=headers)
+    assert set(app.state.test_roles) == {"juli_app"}
+    assert seeded.status_code == 200, seeded.text
+    assert seeded.json()["source"] == "seeded" and len(seeded.json()["drafts"]) == 3
+    assert live.status_code == 200, live.text
+    assert live.json()["source"] == "llm" and live.json()["live_left"] == 0
+    assert (
+        again.status_code == 403 and again.headers["x-juli-reviewer-denied"] == "sample_llm_quota"
+    )
+    assert FakeModel.calls == 1
+    with owner_sync_engine() as owner, owner.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT shop_id, created_by_user_id FROM public.card_content_specs "
+                "WHERE source = 'llm' AND item_id = :i"
+            ),
+            {"i": PRODUCTS[0].item_id},
+        ).all()
+        refused = conn.execute(
+            text(
+                "SELECT after FROM public.ops_audit_log WHERE action = 'reviewer_write_refused' "
+                "AND shop_id = :s"
+            ),
+            {"s": shop},
+        ).all()
+    assert [(r.shop_id, r.created_by_user_id) for r in rows] == [(shop, reviewer)]
+    assert [r.after["reason"] for r in refused] == ["sample_llm_quota"]

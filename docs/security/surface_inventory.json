@@ -441,12 +441,28 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/builder/ads/setup",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/shopee/builder/choose",
       "methods": [
         "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/builder/combo/options",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
     },
     {
       "path": "/v1/demo/shopee/builder/compare",
@@ -482,6 +498,22 @@
     },
     {
       "path": "/v1/demo/shopee/builder/evaluate",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/builder/group",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/builder/kol/setup",
       "methods": [
         "POST"
       ],
@@ -588,6 +620,22 @@
       "path": "/v1/demo/shopee/exclusions/{item_id}",
       "methods": [
         "PUT"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/fill-jobs",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/fill-jobs/{job_id}/cancel",
+      "methods": [
+        "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": false
@@ -769,6 +817,54 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/demo/shopee/recommendations/plan/export",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/plan/groups",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/plan/groups/{group_id}/cancel",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/plan/groups/{group_id}/members/remove",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/plan/groups/{group_id}/period",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/plan/refresh-base",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/demo/shopee/recommendations/plan/window",
       "methods": [
         "POST"
@@ -865,9 +961,33 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/ingest/connector-events",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ingest/fill",
       "methods": [
         "GET"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ingest/fill-jobs",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ingest/fill-jobs/{job_id}",
+      "methods": [
+        "POST"
       ],
       "requires_auth": false,
       "tenant_scoped": false
@@ -1601,6 +1721,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/builder/group",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/builder/products",
       "methods": [
         "GET"
@@ -1681,6 +1809,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/funnel-check",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/keywords",
       "methods": [
         "GET"
@@ -1724,6 +1860,14 @@
       "path": "/v1/ops/shops/{shop_id}/shopee/orders/upload",
       "methods": [
         "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/prediction-coverage",
+      "methods": [
+        "GET"
       ],
       "requires_auth": true,
       "tenant_scoped": false
@@ -1898,6 +2042,54 @@
     },
     {
       "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/plan/confirm",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/plan/export",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/plan/groups",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/plan/groups/{group_id}/cancel",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/plan/groups/{group_id}/members/remove",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/plan/groups/{group_id}/period",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/plan/refresh-base",
       "methods": [
         "POST"
       ],

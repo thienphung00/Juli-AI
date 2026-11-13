@@ -41,6 +41,7 @@ from juli_backend.services.shopee_recommendations.evaluate import (
     evaluate,
     evaluator_key,
     new_price,
+    sku_inputs,
     voucher_rule_from,
 )
 from juli_backend.services.shopee_recommendations.kinds import FAMILY_LABELS, spec
@@ -123,6 +124,14 @@ def _profit(env: RecoEnv, lines: Sequence[OrderLine]) -> list[tuple[OrderLine, P
 
 
 def _apply_voucher(lines: list[OrderLine], rule: Any) -> tuple[list[OrderLine], set[str], Decimal]:
+    return _apply_best_voucher(lines, [rule])
+
+
+def _apply_best_voucher(
+    lines: list[OrderLine], rules: Sequence[Any]
+) -> tuple[list[OrderLine], set[str], Decimal]:
+    """Each order takes the best voucher its basket qualifies for (P94: best eligible voucher);
+    ties go to the first rule. With one rule this is the plain voucher."""
     by_order: dict[str, list[OrderLine]] = defaultdict(list)
     for ln in lines:
         by_order[ln.order_id].append(ln)
@@ -131,7 +140,7 @@ def _apply_voucher(lines: list[OrderLine], rule: Any) -> tuple[list[OrderLine], 
     total = ZERO
     for oid, group in by_order.items():
         subtotal = sum((ln.order_value for ln in group), ZERO)
-        discount = rule.discount_for(subtotal)
+        discount = max((r.discount_for(subtotal) for r in rules), default=ZERO)
         if discount > 0:
             qual.add(oid)
         total += discount
@@ -152,8 +161,13 @@ def evaluate_mega(
     children: Sequence[Candidate],
     window: MegaWindow,
     budget_cap_per_day: Decimal | None,
+    *,
+    all_orders: bool = False,
 ) -> dict[str, Any]:
-    """The stacked certain layer of a mega_sale. Returns the pieces ``build_mega_card`` freezes."""
+    """The stacked certain layer of a mega_sale. Returns the pieces ``build_mega_card`` freezes.
+
+    ``all_orders``: a shop-wide lever (a shop voucher) is in the stack, so the scope is every
+    order of the shop and not only the orders holding the children's products (P97 D85.4)."""
     days = window.days
     scale = Decimal(days) / Decimal(env.window_days)
     child_items = sorted({i for c in children for i in c.items})
@@ -164,7 +178,7 @@ def evaluate_mega(
         c for c in children if c.kind not in PRICE_KINDS + BUNDLE_KINDS + VOUCHER_KINDS
     ]
 
-    scope_items = child_items or None
+    scope_items = None if all_orders else (child_items or None)
     raw_lines = env.lines_for(scope_items)
     if not raw_lines:
         return {"refusal": "no_order_lines"}
@@ -175,14 +189,20 @@ def evaluate_mega(
     # 1) price levers: new deal price per SKU
     price_by_sku: dict[str, Decimal] = {}
     for c in price_children:
+        # a builder card prices its variations one by one (P92 B-4): only the ones it names
+        per_sku = {str(v["sku"]): v for v in c.inputs.get("variations") or [] if v.get("sku")}
         for sku in env.skus_of(c.items[0]):
-            p = new_price(env, c.kind, sku, c.inputs)
+            if per_sku and sku not in per_sku:
+                continue
+            p = new_price(env, c.kind, sku, sku_inputs(env, c.kind, sku, c.inputs, per_sku))
             if p is not None:
                 price_by_sku[sku] = min(p, price_by_sku.get(sku, p))
     tiers: dict[str, dict[int, Decimal]] = {}
-    for c in bundle_children:
+    for c in sorted(bundle_children, key=lambda c: (c.items, sorted(c.inputs.items(), key=str))):
         for sku in env.skus_of(c.items[0]):
-            tiers[sku] = _tiers(c.inputs, c.kind)
+            merged = tiers.setdefault(sku, {})
+            for qty, off in _tiers(c.inputs, c.kind).items():
+                merged[qty] = max(off, merged.get(qty, off))  # coexisting offers: best tier wins
     free_lines: list[OrderLine] = []
     for ln in base_lines:
         new = price_by_sku.get(ln.sku)
@@ -200,14 +220,19 @@ def evaluate_mega(
     phi = ZERO
     voucher_cost = ZERO
     if voucher_children:
-        v = voucher_children[0]
-        rule = voucher_rule_from({**v.inputs, "quantity": v.inputs.get("quantity")})
-        vou_lines, qualifying, voucher_cost = _apply_voucher(list(free_lines), rule)
+        rules = [
+            voucher_rule_from({**v.inputs, "quantity": v.inputs.get("quantity")})
+            for v in sorted(
+                voucher_children, key=lambda c: (c.items, str(sorted(c.inputs.items(), key=str)))
+            )
+        ]
+        vou_lines, qualifying, voucher_cost = _apply_best_voucher(list(free_lines), rules)
         q_expected = Decimal(len(qualifying)) * scale
         u = env.usage_rate if env.usage_rate is not None else ONE
         used = q_expected * u
-        if rule.usage_limit is not None:
-            used = min(used, Decimal(rule.usage_limit))
+        limits = [r.usage_limit for r in rules]
+        if all(x is not None for x in limits):
+            used = min(used, Decimal(sum(x for x in limits if x is not None)))
         phi = used / q_expected if q_expected > 0 else ZERO
     base_pairs = _profit(env, base_lines)
     free_pairs = _profit(env, free_lines)
@@ -616,6 +641,7 @@ def build_mega_card(
         },
         "rank_inputs": {
             "kpi_p25": _kpi_deltas(env, money),
+            "kpi_p50": _kpi_deltas(env, money, "p50"),
             "dgmv_p25": money["total"]["p25"]["dgmv"],
             "dprofit_p50": dprofit_p50,
             "floor_breach": bool(res["breaches"]),
@@ -631,10 +657,10 @@ def build_mega_card(
     return card
 
 
-def _kpi_deltas(env: RecoEnv, money: dict[str, Any]) -> dict[str, float]:
+def _kpi_deltas(env: RecoEnv, money: dict[str, Any], quantile: str = "p25") -> dict[str, float]:
     from juli_backend.services.shopee_recommendations.cards import shop_deltas
 
-    return shop_deltas(env, money)
+    return shop_deltas(env, money, quantile)
 
 
 def children_from_card(card: Mapping[str, Any]) -> list[Candidate]:

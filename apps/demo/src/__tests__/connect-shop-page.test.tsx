@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ConnectShopPage from "../app/auth/connect-shop/page";
@@ -44,6 +44,9 @@ describe("Connect-shop route", () => {
       await screen.findByRole("heading", { name: "Kết nối TikTok Shop" }),
     ).toBeInTheDocument();
 
+    // The heading is the loading state. The shop list fetch starts in the
+    // following effect, which CI can still be waiting to run.
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect((init.headers as Record<string, string>).Authorization).toBe(
       `Bearer ${VALID_JWT}`,

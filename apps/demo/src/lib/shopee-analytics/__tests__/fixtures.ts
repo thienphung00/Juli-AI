@@ -141,6 +141,7 @@ export function overview(p: Partial<Overview> = {}): Overview {
       ctor: { value: 0.0833, previous: 0.0801, change_pct: 4.0 },
       aov: { value: 200_000, previous: 195_000, change_pct: 2.6 },
       orders: { value: 250, previous: 230, change_pct: 8.7 },
+      profit: { value: 8_850_000, previous: 8_500_000, change_pct: 4.1, label: "trên 240 đơn có chi phí, 96,0 % GMV" },
       margin_pct: { value: 20.9, previous: 22.1, label: "trên 99,4 % doanh thu có giá vốn (trong đó giả định 12,0 %)" },
     },
     gmv: {
@@ -166,8 +167,13 @@ export function overview(p: Partial<Overview> = {}): Overview {
       note: "Mỗi dòng đơn một ưu đãi: combo > khuyến mãi > voucher > không ưu đãi.",
     },
     five_numbers: five(),
+    shop_profit: { profit: 8_850_000, margin_pct: 20.9, orders: 240, gmv: 48_000_000, gmv_share_pct: 96, label: "trên 240 đơn có chi phí, 96,0 % GMV" },
     profit: {
-      profit_vnd: null,
+      profit_vnd: 8_850_000,
+      coverage_label: "trên 240 đơn có chi phí, 96,0 % GMV",
+      bridge: { product_profit: 9_500_000, ads_unattributed: 300_000, other_marketing: 350_000, profit: 8_850_000, ads_charged: 3_100_000, ads_total: 4_000_000, ads_label: "QC tính trên ngày có đơn có chi phí: 3.100.000đ / tổng chi QC 4.000.000đ" },
+      known_cost_orders: 240,
+      known_cost_gmv_share_pct: 96,
       profit_on_covered_vnd: 8_900_000,
       margin_pct: 20.9,
       margin_basis: "profit ÷ doanh thu thực (sau voucher và combo)",

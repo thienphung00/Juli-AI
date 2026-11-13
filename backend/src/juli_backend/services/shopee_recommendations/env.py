@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.loaders import ShopContext
+from juli_backend.services.shopee_analytics.metrics import ShopMetrics
 from juli_backend.services.shopee_profit.fees import FeeSchedule
 from juli_backend.services.shopee_profit.floor import FloorInputs, FloorResult, compute_floor
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
@@ -50,6 +51,11 @@ class CampaignSetting:
     roas_target: Decimal | None = None
     purpose: str | None = None
     campaign_id: str | None = None
+    #: P97 D85.17: times the ROAS target changed in the 7 days up to the window's last day
+    roas_changes_7d: int = 0
+    #: P100 B.15: the campaign's days of the window, oldest first: (spend, that day's daily
+    #: budget; None = không giới hạn) -- is the budget holding it back?
+    days: tuple[tuple[Decimal, Decimal | None], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -74,6 +80,9 @@ class RecoEnv:
     as_of: date
     campaigns: dict[str, CampaignSetting] = field(default_factory=dict)
     vouchers: list[VoucherSetting] = field(default_factory=list)
+    #: P100 B.15: share of the window's placed orders never confirmed (Tổng quan placed vs
+    #: confirmed, ``loaders.load_cancel_rate``); None = unknown (ads orders stay placed orders)
+    cancel_rate: Decimal | None = None
     #: product id -> why it may not get a new card (an open plan / a mega_sale window).
     locked: dict[str, str] = field(default_factory=dict)
     #: usage rate u of the shop's comparable past vouchers (None = unknown -> default 1, flagged)
@@ -278,12 +287,17 @@ class RecoEnv:
 
     # ---------------------------------------------------------------- shop-level figures
     @property
+    def metrics(self) -> ShopMetrics:
+        """The window's core numbers (D85.2): the same read model as every analytics screen."""
+        return self.view.metrics
+
+    @property
     def shop_gmv_30d(self) -> Decimal:
-        return self.view.shop_gmv or ZERO
+        return self.metrics.gmv or ZERO
 
     @property
     def shop_orders_30d(self) -> int:
-        return int(self.view.shop_orders or 0)
+        return int(self.metrics.orders or 0)
 
     def shop_chi_per_day(self) -> Decimal:
         """Marketing spend per day in the window: ads + voucher + khuyen mai + combo + commission

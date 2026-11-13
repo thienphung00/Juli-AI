@@ -1,0 +1,31 @@
+<!-- Shape of /portal/marketing/bundle/new (Combo Khuyến Mãi) as the 2026-11-09 recon recorded it:
+     name, two date pickers, Loại Combo radios, tier rows added with "Thêm mức ưu đãi" ("Mua [N] sản
+     phẩm ..." + a value), Giới hạn đặt hàng, the product picker. Synthetic. Behaviour comes from
+     test/eds-wire.ts; nothing here submits. -->
+<div id="app">
+  <div class="row"><div class="lbl">*Tên Combo Khuyến Mãi</div><div><input type="text" id="name" placeholder="Nhập vào"><span>0/25</span></div></div>
+  <div class="row"><div class="lbl">*Thời gian chạy Combo</div>
+    <div class="eds-date-picker"><input type="text" id="start" placeholder="Chọn ngày giờ bắt đầu"> <input type="text" id="end" placeholder="Chọn ngày giờ kết thúc"></div></div>
+  <div class="row"><div class="lbl">Loại Combo</div>
+    <label class="eds-radio"><input type="radio" name="ctype" value="pct"><span>Giảm giá theo %</span></label>
+    <label class="eds-radio"><input type="radio" name="ctype" value="amount"><span>Giảm giá theo số tiền</span></label>
+    <label class="eds-radio"><input type="radio" name="ctype" value="special"><span>Giảm giá đặc biệt</span></label></div>
+  <div class="row"><div class="lbl">Mức ưu đãi</div>
+    <div>
+      <div id="tiers"><div class="tier"><span>Mua</span> <input type="text" class="n"> <span>sản phẩm để được giảm</span> <input type="text" class="x"></div></div>
+      <button type="button" data-add-row="#tiers">Thêm mức ưu đãi</button>
+    </div></div>
+  <div class="row"><div class="lbl">Giới hạn đặt hàng</div><input type="text" id="limit" placeholder="Nhập vào"></div>
+  <div class="row" id="prodrow"><div class="lbl">Sản phẩm của Combo</div><div><button type="button" data-opens="#picker">Thêm sản phẩm</button></div></div>
+  <div class="actions"><button type="button" id="cancel" data-forbidden>Hủy</button><button type="button" data-forbidden id="save">Xác nhận</button></div>
+  <div id="picker" role="dialog" class="eds-modal" hidden>
+    <div class="head">Chọn sản phẩm</div>
+    <div><input type="text" id="psearch" placeholder="Tìm theo Tên sản phẩm hoặc ID"><button type="button" data-search="#ptable">Tìm kiếm</button></div>
+    <table id="ptable"><tbody>
+      <tr data-id="1001"><td><input type="checkbox"></td><td>Sản phẩm mẫu một</td><td>ID: 1001</td></tr>
+      <tr data-id="1002"><td><input type="checkbox"></td><td>Sản phẩm mẫu hai</td><td>ID: 1002</td></tr>
+      <tr data-id="1003"><td><input type="checkbox"></td><td>Sản phẩm mẫu ba</td><td>ID: 1003</td></tr>
+    </tbody></table>
+    <div class="actions"><button type="button" data-forbidden id="pconfirm">Xác nhận</button><button type="button" data-forbidden>Hủy</button></div>
+  </div>
+</div>

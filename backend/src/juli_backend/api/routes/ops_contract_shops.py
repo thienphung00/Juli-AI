@@ -1,16 +1,14 @@
 """Juli Ops: contract-client shops (owner decisions 2026-11-02, ADR-118).
 
-- ``POST /v1/ops/contract-shops`` (Vận hành) -- "Thêm shop hợp đồng": a Shopee shop
-  with no seller login (name + the Seller Centre shop id). Audited
-  ``contract_shop_create``.
-- ``GET  /v1/ops/shops/{id}/consent`` (Xem+) -- which Terms scopes are open and whether
-  the shop is a contract client (only those get the button).
-- ``POST /v1/ops/shops/{id}/consent`` (Vận hành) -- "Bật": no body, no fields. Grants
-  every Terms scope not yet open; a shop with a seller login is refused (409).
-  Audited ``consent_enable``.
-- ``POST /v1/ops/shops/{id}/pairing-codes`` (Vận hành) -- "Tạo mã kết nối": a
-  10-minute, single-use code for the Juli Connector or ``load_shopee_exports.py
-  --api-url``; 409 before "Bật". Audited ``pairing_code_create`` (never the code).
+- ``POST /v1/ops/contract-shops`` (Vận hành) -- removed. Answers 410
+  ``contract_shop_removed``. Shops are created by the seller connecting, not by Ops.
+- ``GET  /v1/ops/shops/{id}/consent`` (Xem+) -- which Terms scopes are open.
+- ``POST /v1/ops/shops/{id}/consent`` (Vận hành) -- "Bật" remains only for a shop
+  whose owner has no sign-in (409 otherwise). The Ops screen no longer offers it.
+- ``POST /v1/ops/shops/{id}/pairing-codes`` (Vận hành) -- "Tạo mã kết nối" for every
+  shop: a 10-minute, single-use code for the Juli Connector or
+  ``load_shopee_exports.py --api-url``; 409 ``consent_required`` until service
+  consent is on. Audited ``pairing_code_create`` (never the code).
 - ``GET /v1/ops/shops/{id}/ingest-tokens`` (Xem+) and ``DELETE
   /v1/ops/shops/{id}/ingest-tokens/{token_id}`` (Vận hành, "Thu hồi") -- the connected
   sources; never the token or its hash. Audited ``ingest_token_revoke``.
@@ -26,7 +24,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, _shop, operator, viewer
@@ -36,10 +33,22 @@ from juli_backend.services.ops import audit, contract_shops
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 
-ACTION_CONTRACT_SHOP_CREATE = "contract_shop_create"
 ACTION_CONSENT_ENABLE = "consent_enable"
 ACTION_PAIRING_CODE_CREATE = "pairing_code_create"
 ACTION_INGEST_TOKEN_REVOKE = "ingest_token_revoke"
+
+CONTRACT_SHOP_REMOVED = HTTPException(
+    status_code=410,
+    detail={
+        "code": "contract_shop_removed",
+        "message": "Thêm shop hợp đồng đã gỡ. Kết nối dữ liệu nằm trong trang của từng shop.",
+    },
+)
+
+NOT_A_SHOPEE_SHOP = HTTPException(
+    status_code=409,
+    detail={"code": "not_a_shopee_shop", "message": "Juli Connector chỉ dùng cho shop Shopee."},
+)
 
 NOT_A_CONTRACT_SHOP = HTTPException(
     status_code=409,
@@ -74,32 +83,9 @@ async def ops_create_contract_shop(
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shopee_id = (body.shopee_shop_id or "").strip() or None
-    try:
-        shop = await contract_shops.create_contract_shop(
-            session, shop_name=body.shop_name, shopee_shop_id=shopee_id, now=_now()
-        )
-        after = {"shop_name": shop.shop_name, "platform": shop.platform}
-        await audit.record(
-            session, ctx.staff.actor, ACTION_CONTRACT_SHOP_CREATE, shop_id=shop.id, after=after
-        )
-        await session.commit()
-    except ValueError as exc:
-        await session.rollback()
-        raise HTTPException(
-            status_code=422, detail={"code": "invalid_shop", "message": str(exc)}
-        ) from None
-    except IntegrityError:
-        await session.rollback()
-        raise HTTPException(status_code=409, detail={"code": "shopee_shop_taken"}) from None
-    return {
-        "shop": {
-            "id": str(shop.id),
-            "shop_name": shop.shop_name,
-            "platform": shop.platform,
-            "shopee_shop_id": shop.shopee_shop_id,
-        }
-    }
+    """Contract shops are removed. The route stays so old clients get a clear answer."""
+    del body, ctx, session
+    raise CONTRACT_SHOP_REMOVED
 
 
 @router.get("/shops/{shop_id}/consent")
@@ -157,9 +143,9 @@ async def ops_create_pairing_code(
         issued = await contract_shops.issue_pairing_code(
             session, shop_id, listing.owner_user_id, created_by=ctx.user.id, now=_now()
         )
-    except contract_shops.NotAContractShop:
+    except contract_shops.NotAShopeeShop:
         await session.rollback()
-        raise NOT_A_CONTRACT_SHOP from None
+        raise NOT_A_SHOPEE_SHOP from None
     except contract_shops.ConsentNotEnabled:
         await session.rollback()
         raise HTTPException(status_code=409, detail={"code": "consent_required"}) from None
@@ -188,11 +174,7 @@ async def ops_list_ingest_tokens(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     listing = await _shop(session, shop_id)
-    try:
-        tokens = await contract_shops.list_tokens(session, shop_id, listing.owner_user_id)
-    except contract_shops.NotAContractShop:
-        await session.rollback()
-        raise NOT_A_CONTRACT_SHOP from None
+    tokens = await contract_shops.list_tokens(session, shop_id, listing.owner_user_id)
     await session.commit()
     now = _now()
     grace = ingest_service.ROTATION_GRACE
@@ -222,13 +204,9 @@ async def ops_revoke_ingest_token(
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     listing = await _shop(session, shop_id)
-    try:
-        found = await contract_shops.revoke_token(
-            session, shop_id, listing.owner_user_id, token_id, now=_now()
-        )
-    except contract_shops.NotAContractShop:
-        await session.rollback()
-        raise NOT_A_CONTRACT_SHOP from None
+    found = await contract_shops.revoke_token(
+        session, shop_id, listing.owner_user_id, token_id, now=_now()
+    )
     if not found:
         await session.rollback()
         raise HTTPException(status_code=404, detail={"code": "token_not_found"})

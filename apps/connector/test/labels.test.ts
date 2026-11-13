@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isPageMessage } from "../src/content/messages";
-import { CHANNEL, SELLER_CENTRE_ORIGIN, PILOT_SHOP_IDS, readerActive, schedulerActive } from "../src/config";
+import { CHANNEL, SELLER_CENTRE_ORIGIN, fillActive, marketActive, ORY_SHOP_ID, PILOT_SHOP_IDS, readerActive, schedulerActive } from "../src/config";
 import { readersLabel } from "../src/popup/labels";
 
 const NOW = Date.UTC(2026, 10, 3, 3, 0, 0);
@@ -16,15 +16,18 @@ describe("readersLabel", () => {
 });
 
 describe("feature flags", () => {
-  it("the pilot build turns the readers on for any paired shop, and never without a shop", () => {
-    const pilot = PILOT_SHOP_IDS[0];
-    expect(PILOT_SHOP_IDS).not.toContain("*");
-    expect(readerActive("ads", pilot)).toBe(true);
-    expect(readerActive("ads", "another-shop")).toBe(false);
+  it("0.3.7 runs the report readers, including KOL, for every paired shop", () => {
+    expect(PILOT_SHOP_IDS).toContain("*");
+    expect(readerActive("ads", ORY_SHOP_ID)).toBe(true);
+    expect(readerActive("affiliate_kols", "another-shop")).toBe(true);
+    expect(readerActive("affiliate", "another-shop")).toBe(true);
+    expect(schedulerActive("another-shop")).toBe(true);
     expect(readerActive("ads", undefined)).toBe(false);
-    expect(schedulerActive(pilot)).toBe(true);
-    expect(schedulerActive("another-shop")).toBe(false);
     expect(schedulerActive(undefined)).toBe(false);
+    expect(fillActive(ORY_SHOP_ID)).toBe(true);
+    expect(fillActive("another-shop")).toBe(false);
+    expect(marketActive(ORY_SHOP_ID)).toBe(true);
+    expect(marketActive("another-shop")).toBe(false);
   });
 });
 

@@ -12,6 +12,9 @@ import {
   AFFILIATE_PAGE_SIZE_DEFAULT,
   AFFILIATE_WINDOW_DAYS,
   ADS_PAGE_LIMIT_DEFAULT,
+  ORDER_LIST_MAX_PAGES_PER_RUN,
+  ORDER_LIST_PAGE_GAP_JITTER_MS,
+  ORDER_LIST_PAGE_GAP_MS,
   PRODUCT_MAX_PAGES,
   TRAFFIC_MAX_CONSECUTIVE_ERRORS,
   TRAFFIC_MAX_REQUESTS_PER_JOB,
@@ -19,11 +22,15 @@ import {
   READER_TEMPLATE_WAIT_MS,
   type ReaderId,
   VOUCHER_MAX_ROWS,
+  PRODUCT_PERIOD_DAYS,
+  PRODUCT_PERIOD_MAX_PAGES,
+  PRODUCT_PERIOD_PAGE_SIZE,
   VOUCHER_PAGE_LIMIT_DEFAULT,
 } from "../config";
-import { READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
+import { isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
+import { trimOrderCards, trimOrderIndex } from "./orders-map";
 import type { Pacer } from "./runner";
-import { gmt7DateStart, lastFinishedDays } from "./time";
+import { gmt7Date, gmt7DateStart, lastFinishedDays } from "./time";
 
 /** What the hook learned from the page's own call to an endpoint (kept in page memory only). */
 export interface Template {
@@ -43,6 +50,26 @@ export interface ReaderJob {
   days?: string[];
   /** item_traffic: the item ids to read for each day. */
   itemIds?: string[];
+  /** ads_detail: the ongoing campaigns to read; the first is the page the scheduler opened. */
+  campaignIds?: string[];
+  /** ads_detail: per campaign, "manual" or "mpd" (which edit page it has). */
+  campaignKinds?: string[];
+  /** ads_products: per campaign, its title (the key the daily ads rows use); "" = unknown. */
+  campaignNames?: string[];
+  /** order_income: the completed orders to read; the first is the order page the scheduler opened. */
+  orderIds?: string[];
+  /** order_income: per order, the order number that is hashed (parallel to `orderIds`; "" = unknown). */
+  orderSns?: string[];
+  /** affiliate: older purchase windows to read once (the 6-month history), each ≤ 31 days. */
+  history?: ConversionWindow[];
+  /** Requests this job may still send (the shared daily budget's remainder). */
+  budget?: number;
+}
+
+/** A GMT+7 purchase window of the conversion report, both ends included. */
+export interface ConversionWindow {
+  start: string;
+  end: string;
 }
 
 export interface ReaderResponse {
@@ -58,6 +85,14 @@ export interface ReaderResponse {
   day?: string;
   /** item_traffic: the item the request was for. */
   itemId?: string;
+  /** ads_products: the campaign's title, when the scheduler knew it. */
+  campaignName?: string;
+  /** ads_detail: the campaign the answer is about. */
+  campaignId?: string;
+  /** order_income: the order the answer is about (raw id: hashed in the service worker, never posted). */
+  orderId?: string;
+  /** order_income: that order's number (the id that is hashed), when the queue knew it. */
+  orderSn?: string;
   source: "replay" | "page";
   /** Ads: the request asked for paid (not placed) orders. */
   usePaidGmv?: boolean;
@@ -71,6 +106,10 @@ export type ReaderStatus =
   | "needs_template"
   | "blocked_captcha"
   | "blocked_login"
+  /** HTTP 429 / 403 / a Shopee message that says "too many requests": stops every reader. */
+  | "blocked_rate"
+  /** The shared daily request budget is spent: the job stops, the rest waits for tomorrow. */
+  | "budget_spent"
   | "error";
 
 export interface ReaderOutcome {
@@ -112,6 +151,11 @@ export interface ReaderEnv {
   mydataHeaders?: () => Record<string, string> | undefined;
   /** The tab's current path (a client-side redirect to a login or verification page). */
   pathname?: () => string;
+  /** Requests left in this job's allowance; every request sent takes one (no budget = unlimited). */
+  budget?: { left: number };
+  /** A real wait (order-list pages are spaced 20-45 s apart); absent in tests that do not care. */
+  pause?: (ms: number) => Promise<void>;
+  random?: () => number;
 }
 
 // -- request building ----------------------------------------------------------------------
@@ -184,7 +228,10 @@ export function payloadOf(body: unknown): unknown {
   return body;
 }
 
-type Verdict = "ok" | "login" | "captcha" | "error";
+type Verdict = "ok" | "login" | "captcha" | "rate" | "error";
+
+/** Shopee wording (or code) that means "slow down": it stops every reader, like a CAPTCHA. */
+const RATE_WORDS = /rate.?limit|too many|frequen|try again later|quá nhiều|thử lại sau|tần suất|thao tác quá/i;
 
 /** Shopee's anti-fraud refusal: HTTP 403 with this error code (a CAPTCHA / verification is due). */
 const ANTI_FRAUD_CODE = 90309999;
@@ -192,8 +239,11 @@ const LOGIN_WORDS = /login|logged|sign.?in|session|auth|expired/i;
 
 export function classify(status: number, body: unknown): Verdict {
   if (status === 401) return "login";
+  if (status === 429) return "rate";
   if (status === 403) {
-    if (isRecord(body) && body.error !== undefined && Number(body.error) !== ANTI_FRAUD_CODE) return "error";
+    // The anti-fraud code is a verification page; any other 403 is treated as a rate stop too
+    // (P97: nothing is retried against a refusal).
+    if (isRecord(body) && body.error !== undefined && Number(body.error) !== ANTI_FRAUD_CODE) return "rate";
     return "captcha";
   }
   if (status < 200 || status >= 300) return "error";
@@ -201,6 +251,7 @@ export function classify(status: number, body: unknown): Verdict {
   const code = body.code ?? body.error;
   if (code === undefined || code === 0 || code === "0" || code === null) return "ok";
   const text = `${String(body.msg ?? "")} ${String(body.message ?? "")} ${typeof code === "string" ? code : ""}`;
+  if (Number(code) === 429 || RATE_WORDS.test(text)) return "rate";
   return LOGIN_WORDS.test(text) ? "login" : "error";
 }
 
@@ -289,6 +340,11 @@ async function send(
   if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_login", collected, "password_modal"));
   const wall = env.captchaVisible?.() ? "captcha" : blockedPath(env.pathname?.() ?? "");
   if (wall) throw new Stop(fail(wall === "captcha" ? "blocked_captcha" : "blocked_login", collected, "page"));
+  // The shared daily budget is checked before EVERY replay.
+  if (env.budget) {
+    if (env.budget.left <= 0) throw new Stop(fail("budget_spent", collected, request.endpoint));
+    env.budget.left -= 1;
+  }
   await env.pacer.beforeRequest();
   let status = 0;
   let body: unknown = null;
@@ -316,6 +372,7 @@ async function send(
   const verdict = classify(status, body);
   if (verdict === "captcha") throw new Stop(fail("blocked_captcha", collected, `http_${status}`));
   if (verdict === "login") throw new Stop(fail("blocked_login", collected, `http_${status}`));
+  if (verdict === "rate") throw new Stop(fail("blocked_rate", collected, `http_${status}`));
   if (verdict === "error" && tolerateError) return result;
   if (verdict === "error") throw new Stop(fail("error", collected, `${request.endpoint}:http_${status}`));
   return result;
@@ -395,6 +452,29 @@ async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse
   const limitNumber = Number(homeBody.limit);
   const limit = Number.isInteger(limitNumber) && limitNumber > 0 ? limitNumber : ADS_PAGE_LIMIT_DEFAULT;
   const usePaidGmv = homeBody.use_paid_gmv === true;
+  if (days.length === 0) {
+    // Connector 0.3.11: no day left to read, but the list's settings are refreshed once a day.
+    // Read with yesterday's bounds and NO day tag, so no daily post is made from it.
+    const bounds = dayBounds(gmt7Date(Math.floor(env.now() / 1000) - 86_400));
+    let rows = 0;
+    for (let offset = 0; offset < ADS_MAX_ROWS_PER_DAY; offset += limit) {
+      const request = buildReaderRequest(
+        env.origin,
+        "ads_homepage",
+        home,
+        { body: { ...bounds, offset, limit, use_paid_gmv: usePaidGmv } },
+        env.session(),
+        ADS_HOMEPAGE_FALLBACK,
+      );
+      const response = await send(env, request, collected, { page: offset / limit + 1, usePaidGmv });
+      const found = findList(payloadOf(response.body), isAdsEntry);
+      rows += found?.list.length ?? 0;
+      if (!found || found.list.length < limit) break;
+      const total = totalOf(response.body, found.parent);
+      if (total !== undefined && rows >= total) break;
+    }
+    return;
+  }
   for (const day of days) {
     const bounds = dayBounds(day);
     let rows = 0;
@@ -417,6 +497,51 @@ async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse
     if (graph) {
       const request = buildReaderRequest(env.origin, "ads_time_graph", graph, { body: bounds }, env.session());
       await send(env, request, collected, { day });
+    }
+  }
+}
+
+/** The four read calls of a campaign edit page (Connector 0.3.11). */
+export const ADS_DETAIL_ENDPOINTS: readonly ReaderEndpoint[] = [
+  "ads_product_get",
+  "ads_roi_recommend",
+  "ads_budget_edit",
+  "ads_expense_stats",
+];
+
+/**
+ * One campaign edit page and the other ongoing campaigns' same answers. The page the scheduler
+ * opened is `ids[0]`: its own answers are kept as the page loaded them. For every other id each
+ * read call is replayed with only `campaign_id` changed (paced, one at a time). A call whose path
+ * is not a read (isReadOnlyPasPath), or whose request has no `campaign_id`, is never replayed.
+ */
+async function readAdsDetail(env: ReaderEnv, ids: string[], collected: ReaderResponse[]): Promise<void> {
+  await waitForPage(env, ["ads_product_get"], collected);
+  for (const endpoint of ADS_DETAIL_ENDPOINTS.slice(1)) await env.waitFor(() => env.template(endpoint) !== undefined, 8_000);
+  const opened = ids[0];
+  for (const endpoint of ADS_DETAIL_ENDPOINTS) {
+    const template = env.template(endpoint);
+    const body = isRecord(template?.body) ? template.body : {};
+    if (opened && template?.lastResponse !== undefined && String(body.campaign_id ?? "") === opened) {
+      collected.push({
+        endpoint,
+        url: `${env.origin}${READER_ENDPOINTS[endpoint].path}`,
+        status: 200,
+        body: template.lastResponse,
+        capturedAt: env.now(),
+        source: "page",
+        campaignId: opened,
+      });
+    }
+  }
+  for (const id of ids.slice(1)) {
+    for (const endpoint of ADS_DETAIL_ENDPOINTS) {
+      const template = env.template(endpoint);
+      if (!isRecord(template?.body) || !("campaign_id" in template.body)) continue;
+      if (!isReadOnlyPasPath(READER_ENDPOINTS[endpoint].path)) continue;
+      const typed = typeof template.body.campaign_id === "number" ? Number(id) : id;
+      const request = buildReaderRequest(env.origin, endpoint, template, { body: { campaign_id: typed } }, env.session());
+      await send(env, request, collected, { campaignId: id }, true);
     }
   }
 }
@@ -520,6 +645,343 @@ async function readHealth(env: ReaderEnv, collected: ReaderResponse[]): Promise<
   }
 }
 
+
+// -- shop totals, order list, per-order income (Connector 0.3.11, P97 T1) ---------------------------
+
+/** Range bounds of a finished-day range as a mydata picker sends them (end = last day's start + 86 399). */
+function rangeBounds(first: string, last: string): { start_time: string; end_time: string } {
+  return { start_time: String(gmt7DateStart(first)), end_time: String(gmt7DateStart(last) + 86_399) };
+}
+
+/**
+ * Shop totals: the page's own key-metrics call is the template; it is replayed once for the whole
+ * range (daily `points` come back for a range) and once for order-performance. Two requests.
+ * TODO(first capture): the exact `period` value for a custom range (past7days / past30days are
+ * what the page's picker offers; start_time / end_time carry the real bounds).
+ */
+async function readShopTotals(env: ReaderEnv, days: string[], collected: ReaderResponse[]): Promise<void> {
+  await waitForPage(env, ["shop_key_metrics"], collected);
+  const sorted = [...days].sort();
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  if (!first || !last) return;
+  const period = { start: first, end: last };
+  const label = sorted.length > 8 ? "past30days" : sorted.length > 1 ? "past7days" : "yesterday";
+  const bounds = rangeBounds(first, last);
+  const metrics = buildReaderRequest(
+    env.origin,
+    "shop_key_metrics",
+    env.template("shop_key_metrics"),
+    { query: { ...bounds, period: label } },
+    env.session(),
+  );
+  await send(env, metrics, collected, { period });
+  // The cancelled / returned split is on the same page; its own call is the template when seen.
+  await env.waitFor(() => env.template("shop_order_performance") !== undefined, 8_000);
+  const learned = env.template("shop_order_performance");
+  const template: Template = { query: learned?.query ?? {}, headers: learned?.headers ?? env.mydataHeaders?.() };
+  const performance = buildReaderRequest(
+    env.origin,
+    "shop_order_performance",
+    template,
+    { query: { ...bounds, period: label, order_type: "confirmed" } },
+    env.session(),
+  );
+  await send(env, performance, collected, { period }, true);
+}
+
+/**
+ * Product table of the last 30 finished days (recorded 2026-11-09): the page's own call is the
+ * template; it is replayed for pages 1..PRODUCT_PERIOD_MAX_PAGES with only the range, the page and
+ * the order kept as the recorded request sent them (confirmed sales descending). One answer holds
+ * the placed, paid and confirmed values of every item, so placed needs no second read. Stops at
+ * the page the answer's own `total` says is the last.
+ */
+async function readProductPeriod(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
+  await waitForPage(env, ["product_performance"], collected);
+  const days = lastFinishedDays(env.now(), PRODUCT_PERIOD_DAYS);
+  const first = days[days.length - 1];
+  const last = days[0];
+  if (!first || !last) return;
+  const period = { start: first, end: last };
+  const bounds = rangeBounds(first, last);
+  const template = env.template("product_performance") as Template;
+  let seen = 0;
+  for (let page = 1; page <= PRODUCT_PERIOD_MAX_PAGES; page += 1) {
+    const request = buildReaderRequest(
+      env.origin,
+      "product_performance",
+      template,
+      {
+        query: {
+          ...bounds,
+          period: "past30days",
+          keyword: "",
+          category_type: "shopee",
+          category_id: "-1",
+          page_size: String(PRODUCT_PERIOD_PAGE_SIZE),
+          page_num: String(page),
+          order_type: "confirmed",
+          order_by: "confirmed_sales.desc",
+        },
+      },
+      env.session(),
+    );
+    const response = await send(env, request, collected, { page, period });
+    const result = payloadOf(response.body);
+    const items = isRecord(result) && Array.isArray(result.items) ? result.items : [];
+    seen += items.length;
+    const total = totalOf(response.body, isRecord(result) ? result : undefined);
+    if (items.length < PRODUCT_PERIOD_PAGE_SIZE || (total !== undefined && seen >= total)) break;
+  }
+}
+
+/**
+ * Group campaigns' per-product table (manual-mpd page, recorded 2026-11-09): the page's own answer
+ * for the campaign it opened is kept as loaded; for each other group campaign the same call is
+ * replayed with only `campaign_id` changed. Nothing is clicked (no Xóa, no Thêm sản phẩm).
+ */
+async function readAdsProducts(env: ReaderEnv, ids: string[], names: string[], collected: ReaderResponse[]): Promise<void> {
+  // Capture-only first: the page loads the table itself; a missing session must not discard it.
+  const answered = () => env.template("ads_mpd_products")?.lastResponse !== undefined;
+  if (!(await env.waitFor(() => env.hasSession() || answered(), READER_TEMPLATE_WAIT_MS)) && !answered()) {
+    throw new Stop(fail("needs_data_page", collected, "ads_mpd_products"));
+  }
+  if (!(await env.waitFor(() => env.template("ads_mpd_products") !== undefined, READER_TEMPLATE_WAIT_MS))) {
+    throw new Stop(fail("needs_template", collected, "ads_mpd_products"));
+  }
+  const template = env.template("ads_mpd_products") as Template;
+  const body = isRecord(template.body) ? template.body : {};
+  const opened = ids[0];
+  // The page's own product/get answer names the campaign (recorded 2026-11-10): data.campaign.name.
+  // Capture only (the page makes the call itself); the list title is the fallback.
+  await env.waitFor(() => env.template("ads_product_get")?.lastResponse !== undefined, 4_000);
+  const pageName = opened ? campaignNameFromGet(env.template("ads_product_get")?.lastResponse, opened) : undefined;
+  const openedName = pageName ?? (names[0] ? names[0] : undefined);
+  if (opened && template.lastResponse !== undefined && String(body.campaign_id ?? "") === opened) {
+    collected.push({
+      endpoint: "ads_mpd_products",
+      url: `${env.origin}${READER_ENDPOINTS.ads_mpd_products.path}`,
+      status: 200,
+      body: template.lastResponse,
+      capturedAt: env.now(),
+      source: "page",
+      campaignId: opened,
+      ...(openedName ? { campaignName: openedName } : {}),
+      ...bodyPeriod(body),
+    });
+  }
+  if (!isReadOnlyPasPath(READER_ENDPOINTS.ads_mpd_products.path) || !("campaign_id" in body)) return;
+  for (const [index, id] of ids.slice(1).entries()) {
+    const typed = typeof body.campaign_id === "number" ? Number(id) : id;
+    const request = buildReaderRequest(env.origin, "ads_mpd_products", template, { body: { campaign_id: typed } }, env.session());
+    const name = names[index + 1];
+    await send(env, request, collected, { campaignId: id, ...(name ? { campaignName: name } : {}), ...bodyPeriod(body) }, true);
+  }
+}
+
+/**
+ * The campaign name in a captured `product/get` answer (`data.campaign{campaign_id, name}`) when
+ * it is the answer for `campaignId` (numeric or string id). Never a product name.
+ */
+export function campaignNameFromGet(answer: unknown, campaignId: string): string | undefined {
+  const data = payloadOf(answer);
+  const campaign = isRecord(data) && isRecord(data.campaign) ? data.campaign : undefined;
+  if (!campaign || String(campaign.campaign_id ?? "") !== campaignId) return undefined;
+  const name = campaign.name;
+  return typeof name === "string" && name.trim() !== "" ? name.trim().slice(0, 255) : undefined;
+}
+
+/** The GMT+7 days a request body's `start_time` / `end_time` (unix seconds, top level or one level in) name. */
+export function bodyPeriod(body: Record<string, unknown>): { period?: { start: string; end: string } } {
+  const read = (node: Record<string, unknown>) => {
+    const start = dayOf(node.start_time ?? node.start_date ?? node.from);
+    const end = dayOf(node.end_time ?? node.end_date ?? node.to);
+    return start && end ? { start, end } : undefined;
+  };
+  const direct = read(body);
+  if (direct) return { period: direct };
+  for (const value of Object.values(body)) {
+    if (isRecord(value)) {
+      const nested = read(value);
+      if (nested) return { period: nested };
+    }
+  }
+  return {};
+}
+
+/** Set the page number (or offset) wherever the page's request body keeps it; false when it has none. */
+export function withListPage(body: unknown, page: number, size: number): unknown | null {
+  let done = false;
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (!isRecord(node)) return node;
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node)) {
+      if (/^(page_number|page_no|page_num|pageNumber|page)$/.test(key) && typeof value === "number") {
+        out[key] = page;
+        done = true;
+      } else if (/^(offset|from)$/.test(key) && typeof value === "number") {
+        out[key] = (page - 1) * size;
+        done = true;
+      } else out[key] = walk(value);
+    }
+    return out;
+  };
+  const next = walk(body);
+  return done ? next : null;
+}
+
+/** Replace the list of order ids in the cards request body; null when no list of those ids is found. */
+export function withOrderIds(body: unknown, previous: readonly string[], next: readonly string[]): unknown | null {
+  if (previous.length === 0) return null;
+  const known = new Set(previous);
+  let done = false;
+  const idOf = (item: unknown): string | undefined => {
+    if (typeof item === "number" || typeof item === "string") return String(item);
+    if (isRecord(item)) return String(item.order_id ?? item.order_sn ?? "");
+    return undefined;
+  };
+  const rebuild = (sample: unknown, id: string): unknown => {
+    if (isRecord(sample)) return { ...sample, ...("order_id" in sample ? { order_id: Number.isNaN(Number(id)) ? id : Number(id) } : { order_sn: id }) };
+    return typeof sample === "number" ? Number(id) : id;
+  };
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) {
+      const ids = node.map(idOf);
+      if (node.length > 0 && ids.every((id) => id !== undefined && known.has(id))) {
+        done = true;
+        return next.map((id) => rebuild(node[0], id));
+      }
+      return node.map(walk);
+    }
+    if (!isRecord(node)) return node;
+    return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, walk(value)]));
+  };
+  const out = walk(body);
+  return done ? out : null;
+}
+
+/** `page_size` / `limit` wherever the page's request body keeps it. */
+function bodyPageSize(body: unknown): number | undefined {
+  if (!isRecord(body)) return undefined;
+  for (const [key, value] of Object.entries(body)) {
+    if (/^(page_size|pageSize|limit)$/.test(key) && typeof value === "number" && value > 0) return value;
+    const nested = bodyPageSize(value);
+    if (nested !== undefined) return nested;
+  }
+  return undefined;
+}
+
+function orderIdsOf(body: unknown): string[] {
+  const found = findList(payloadOf(body), (o) => "order_id" in o || "order_sn" in o);
+  return (found?.list ?? []).map((o) => String(o.order_id ?? o.order_sn));
+}
+
+/**
+ * The order list: the page's OWN first answers are kept (trimmed in the page); pages 2..N are
+ * replayed from the page's request templates, a pause of 20-45 s before each, at most
+ * ORDER_LIST_MAX_PAGES_PER_RUN pages in all. Nothing is replayed when the page's request has no
+ * recognisable page number or id list (then only what the page loaded is read).
+ */
+async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<string | undefined> {
+  const answered = () => env.template("order_cards")?.lastResponse !== undefined;
+  if (!(await env.waitFor(() => env.hasSession() || answered(), READER_TEMPLATE_WAIT_MS)) && !answered()) {
+    throw new Stop(fail("needs_data_page", collected, "order_cards"));
+  }
+  await env.waitFor(() => answered() && env.template("order_search")?.lastResponse !== undefined, READER_TEMPLATE_WAIT_MS);
+  const search = env.template("order_search");
+  const cards = env.template("order_cards");
+  if (cards?.lastResponse === undefined) throw new Stop(fail("needs_template", collected, "order_cards"));
+  for (const [endpoint, template] of [["order_search", search], ["order_cards", cards]] as const) {
+    if (template?.lastResponse !== undefined) {
+      collected.push({
+        endpoint,
+        url: `${env.origin}${READER_ENDPOINTS[endpoint].path}`,
+        status: 200,
+        body: trimCaptured(endpoint, template.lastResponse),
+        capturedAt: env.now(),
+        source: "page",
+        page: 1,
+      });
+    }
+  }
+  if (!search || !isRecord(search.body) || !isRecord(cards.body)) return undefined;
+  if (!isReadOnlyOrderPath(READER_ENDPOINTS.order_search.path) || !isReadOnlyOrderPath(READER_ENDPOINTS.order_cards.path)) return undefined;
+  const size = bodyPageSize(search.body) ?? pageSizeOf(search, 40);
+  // The cards template still holds the FIRST page's ids: every later page swaps those out.
+  const firstIds = orderIdsOf(search.lastResponse);
+  const random = env.random ?? Math.random;
+  for (let page = 2; page <= ORDER_LIST_MAX_PAGES_PER_RUN; page += 1) {
+    try {
+      const indexBody = withListPage(search.body, page, size);
+      if (indexBody === null || firstIds.length === 0) return undefined;
+      await env.pause?.(ORDER_LIST_PAGE_GAP_MS + Math.floor(random() * ORDER_LIST_PAGE_GAP_JITTER_MS));
+      const indexRequest = buildReaderRequest(env.origin, "order_search", search, { body: indexBody as Record<string, unknown> }, env.session());
+      const index = await send(env, indexRequest, collected, { page });
+      index.body = trimOrderIndex(index.body);
+      const ids = orderIdsOf(index.body);
+      if (ids.length === 0) return undefined;
+      const cardBody = withOrderIds(cards.body, firstIds, ids);
+      if (cardBody === null) return undefined;
+      const cardRequest = buildReaderRequest(env.origin, "order_cards", cards, { body: cardBody as Record<string, unknown> }, env.session());
+      const answer = await send(env, cardRequest, collected, { page });
+      answer.body = trimOrderCards(answer.body);
+      if (ids.length < size) return undefined;
+    } catch (error) {
+      // A failed replay of page >= 2 keeps what was already read: the page's own answers and the
+      // complete pages before it are posted; CAPTCHA / login / rate stops still stop everything.
+      if (error instanceof Stop && error.outcome.status === "error") {
+        for (let i = collected.length - 1; i >= 0; i -= 1) if ((collected[i]!.page ?? 1) >= page) collected.splice(i, 1);
+        return `partial:${error.outcome.detail ?? "error"}`.slice(0, 80);
+      }
+      throw error;
+    }
+  }
+  return undefined;
+}
+
+/** Query / body key of the page's own income call whose value is the order it opened. */
+function orderKeyIn(template: Template, orderId: string): { where: "query" | "body"; key: string } | null {
+  for (const [key, value] of Object.entries(template.query)) if (value === orderId) return { where: "query", key };
+  if (isRecord(template.body)) {
+    for (const [key, value] of Object.entries(template.body)) if (String(value) === orderId) return { where: "body", key };
+  }
+  return null;
+}
+
+/**
+ * Per-order income: the order page the scheduler opened is `ids[0]`: its own answer is kept; for
+ * every other id the same GET is replayed with only the order id changed (one request each, at the
+ * normal pace). A call whose template shows no order id is never replayed.
+ */
+async function readOrderIncome(env: ReaderEnv, ids: string[], collected: ReaderResponse[], sns: string[] = []): Promise<void> {
+  const snOf = (index: number) => (sns[index] ? { orderSn: sns[index] } : {});
+  await waitForPage(env, ["order_income_components"], collected);
+  const template = env.template("order_income_components") as Template;
+  const opened = ids[0];
+  if (opened && template.lastResponse !== undefined) {
+    collected.push({
+      endpoint: "order_income_components",
+      url: `${env.origin}${READER_ENDPOINTS.order_income_components.path}`,
+      status: 200,
+      body: template.lastResponse,
+      capturedAt: env.now(),
+      source: "page",
+      orderId: opened,
+      ...snOf(0),
+    });
+  }
+  const where = opened ? orderKeyIn(template, opened) : null;
+  if (!where) return;
+  for (const [offset, id] of ids.slice(1).entries()) {
+    const overrides = where.where === "query" ? { query: { [where.key]: id } } : { body: { [where.key]: id } };
+    const request = buildReaderRequest(env.origin, "order_income_components", template, overrides, env.session());
+    // An income answer that is not data (a refused order) is skipped; a rate stop still stops all.
+    await send(env, request, collected, { orderId: id, ...snOf(offset + 1) }, true);
+  }
+}
+
 // -- affiliate ("Tăng Đơn Cùng KOL") ---------------------------------------------------------
 //
 // HARD RULE: no `*Mutation` is ever sent or replayed, and nothing is clicked. The conversion
@@ -538,6 +1000,10 @@ const CONVERSION_ORDER_KEYS = [
   "shopee_username",
   "linked_mcn_name",
   "traffic_type",
+  // The channel Seller Centre shows ("Kênh"): a Shopee surface (internal_source, e.g. Shopeevideo)
+  // or the outside one (last_external_source, e.g. Facebook / Zalo / Code Sharing). Labels only.
+  "internal_source",
+  "last_external_source",
   "items",
 ] as const;
 const CONVERSION_ITEM_KEYS = [
@@ -605,6 +1071,9 @@ export function trimConversionBody(body: unknown): unknown {
 export function trimCaptured(endpoint: ReaderEndpoint, body: unknown): unknown {
   if (endpoint === "affiliate_performance") return mapList(body, PERFORMANCE_KEYS);
   if (endpoint === "affiliate_conversion") return trimConversionBody(body);
+  // Order list: buyer name, address and phone are dropped IN THE PAGE (allowlist).
+  if (endpoint === "order_search") return trimOrderIndex(body);
+  if (endpoint === "order_cards") return trimOrderCards(body);
   return body;
 }
 
@@ -628,6 +1097,19 @@ function dayOf(value: unknown): string | undefined {
   return undefined;
 }
 
+/** [key, value] of every non-object leaf, descending into nested records (not lists) to `depth`. */
+function leafEntries(node: Record<string, unknown>, depth: number): [string, unknown][] {
+  const out: [string, unknown][] = [];
+  for (const [key, value] of Object.entries(node)) {
+    if (isRecord(value)) {
+      if (depth > 0) out.push(...leafEntries(value, depth - 1));
+    } else {
+      out.push([key, value]);
+    }
+  }
+  return out;
+}
+
 /**
  * The days a page asked for, read from its own request: query params or GraphQL variables whose
  * name says start / end (startTime, start_time, purchase_time_s, ...). Undefined when none.
@@ -637,7 +1119,8 @@ export function periodOfTemplate(template: Template | undefined): { start: strin
   const fields: [string, unknown][] = Object.entries(template.query);
   const body = isRecord(template.body) ? template.body : undefined;
   const variables = body && isRecord(body.variables) ? body.variables : body;
-  if (variables) fields.push(...Object.entries(variables));
+  // GraphQL variables nest the range (`input.timeRange.startTime`): read the leaves, 4 levels deep.
+  if (variables) fields.push(...leafEntries(variables, 4));
   let start: string | undefined;
   let end: string | undefined;
   for (const [key, value] of fields) {
@@ -651,19 +1134,45 @@ export function periodOfTemplate(template: Template | undefined): { start: strin
   return undefined;
 }
 
-async function readAffiliateConversions(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
-  await waitForPage(env, [], collected);
-  await env.waitFor(() => env.template("affiliate_conversion") !== undefined, READER_TEMPLATE_WAIT_MS / 2);
-  const template = env.template("affiliate_conversion");
-  const days = lastFinishedDays(env.now(), AFFILIATE_WINDOW_DAYS);
-  if (days.length === 0) return;
+/** The purchase windows the conversion report is read for: the last finished 30 days, then any
+ *  history windows the job carries (each ≤ 31 days, Juli's period cap), newest first. */
+export function conversionWindows(nowMs: number, history: readonly ConversionWindow[] = []): ConversionWindow[] {
+  const days = lastFinishedDays(nowMs, AFFILIATE_WINDOW_DAYS);
+  if (days.length === 0) return [...history];
   const sorted = [...days].sort();
-  const period = { start: sorted[0] as string, end: sorted[sorted.length - 1] as string };
+  return [{ start: sorted[0] as string, end: sorted[sorted.length - 1] as string }, ...history];
+}
+
+async function readAffiliateConversions(
+  env: ReaderEnv,
+  collected: ReaderResponse[],
+  history: readonly ConversionWindow[] = [],
+): Promise<void> {
+  // The conversion page's own call is the template. It often carries no SPC_CDS query,
+  // so waiting on the session first ended the job as needs_data_page with nothing posted.
+  const seen = () => env.template("affiliate_conversion") !== undefined;
+  if (!(await env.waitFor(() => env.hasSession() || seen(), READER_TEMPLATE_WAIT_MS))) {
+    throw new Stop(fail("needs_data_page", collected, "affiliate_conversion"));
+  }
+  await env.waitFor(seen, READER_TEMPLATE_WAIT_MS / 2);
+  const template = env.template("affiliate_conversion");
+  const size = template ? pageSizeOf(template, AFFILIATE_PAGE_SIZE_DEFAULT) : AFFILIATE_PAGE_SIZE_DEFAULT;
+  for (const period of conversionWindows(env.now(), history)) {
+    await readConversionWindow(env, collected, template, size, period);
+  }
+}
+
+async function readConversionWindow(
+  env: ReaderEnv,
+  collected: ReaderResponse[],
+  template: ReturnType<ReaderEnv["template"]>,
+  size: number,
+  period: ConversionWindow,
+): Promise<void> {
   const window = {
     purchase_time_s: String(gmt7DateStart(period.start)),
     purchase_time_e: String(gmt7DateStart(period.end) + 86_399),
   };
-  const size = template ? pageSizeOf(template, AFFILIATE_PAGE_SIZE_DEFAULT) : AFFILIATE_PAGE_SIZE_DEFAULT;
   let rows = 0;
   for (let page = 1; rows < AFFILIATE_MAX_ROWS; page += 1) {
     const request = buildReaderRequest(
@@ -690,9 +1199,13 @@ async function readAffiliateCaptured(
   endpoints: readonly ReaderEndpoint[],
   collected: ReaderResponse[],
 ): Promise<void> {
-  await waitForPage(env, [], collected);
-  const answered = () => endpoints.every((endpoint) => env.template(endpoint)?.lastResponse !== undefined);
-  await env.waitFor(answered, READER_TEMPLATE_WAIT_MS);
+  // Capture-only: the page's own answer is enough. A missing SPC_CDS must not discard it.
+  const answered = () => endpoints.some((endpoint) => env.template(endpoint)?.lastResponse !== undefined);
+  if (!(await env.waitFor(() => env.hasSession() || answered(), READER_TEMPLATE_WAIT_MS)) && !answered()) {
+    throw new Stop(fail("needs_data_page", collected, endpoints.join(",")));
+  }
+  const every = () => endpoints.every((endpoint) => env.template(endpoint)?.lastResponse !== undefined);
+  await env.waitFor(every, READER_TEMPLATE_WAIT_MS);
   await env.waitFor(() => env.template("affiliate_latest_date")?.lastResponse !== undefined, 2_000);
   const latest = env.template("affiliate_latest_date")?.lastResponse;
   const latestDay = latestReportDay(latest);
@@ -741,6 +1254,7 @@ export const AFFILIATE_CAPTURES: Partial<Record<ReaderId, readonly ReaderEndpoin
 /** Run one reader job against the open Seller Centre page. Never throws. */
 export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<ReaderOutcome> {
   const collected: ReaderResponse[] = [];
+  let partial: string | undefined;
   try {
     switch (job.id) {
       case "products":
@@ -752,14 +1266,32 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
       case "ads":
         await readAds(env, job.days ?? [], collected);
         break;
+      case "ads_detail":
+        await readAdsDetail(env, job.campaignIds ?? [], collected);
+        break;
       case "vouchers":
         await readVouchers(env, collected);
+        break;
+      case "product_period":
+        await readProductPeriod(env, collected);
+        break;
+      case "ads_products":
+        await readAdsProducts(env, job.campaignIds ?? [], job.campaignNames ?? [], collected);
+        break;
+      case "shop_totals":
+        await readShopTotals(env, job.days ?? [], collected);
+        break;
+      case "orders":
+        partial = await readOrders(env, collected);
+        break;
+      case "order_income":
+        await readOrderIncome(env, job.orderIds ?? [], collected, job.orderSns);
         break;
       case "health":
         await readHealth(env, collected);
         break;
       case "affiliate":
-        await readAffiliateConversions(env, collected);
+        await readAffiliateConversions(env, collected, job.history);
         break;
       default: {
         const captures = AFFILIATE_CAPTURES[job.id];
@@ -767,7 +1299,7 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         break;
       }
     }
-    return { status: "done", responses: collected };
+    return { status: "done", responses: collected, ...(partial ? { detail: partial } : {}) };
   } catch (error) {
     if (error instanceof Stop) return error.outcome;
     return fail("error", collected, String((error as Error)?.message ?? error).slice(0, 120));

@@ -1,0 +1,244 @@
+"""The six synthetic products (household goods, an invented brand) and the id ranges.
+
+Nothing here is a real shop's name, price or id: the brand "Hiên Nhà" and every product are made
+up for the demo client. Prices are VND, as the Connector posts them.
+
+P100 S2-G: moved here from ``scripts/sample_shop/catalog.py`` (which re-exports it) so the API's
+"Đặt lại dữ liệu mẫu" can re-seed the decision cards without importing ``scripts/``.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+#: Seller Centre shop ids of sample shops. Real Shopee ids are at most 10 digits, so a 12-digit id
+#: starting 99 never collides with one. The loader creates and writes ONLY shops in this range.
+SAMPLE_SHOPEE_SHOP_ID_MIN = 990_000_000_000
+SAMPLE_SHOPEE_SHOP_ID_MAX = 990_000_000_999
+SAMPLE_SHOPEE_SHOP_ID = SAMPLE_SHOPEE_SHOP_ID_MIN + 1
+SAMPLE_SHOP_NAME = "Dữ liệu mẫu"
+
+#: Item / model ids are synthetic too (13 digits, 91 prefix).
+ITEM_ID_BASE = 9_100_000_000_000
+
+
+@dataclass(frozen=True)
+class Variation:
+    """``cost`` is the giá vốn of ONE single item: the profit engine multiplies it by the pack
+    count a "Combo N" name states, so the Combo 3 variation carries the single bottle's cost."""
+
+    model_id: str
+    name: str
+    sku: str
+    price: int
+    cost: int
+    stock: int
+
+
+@dataclass(frozen=True)
+class Product:
+    item_id: str
+    name: str
+    parent_sku: str
+    variations: tuple[Variation, ...]
+    variation_weights: tuple[int, ...]
+    #: weights of 1, 2, 3, 4 units per line
+    qty_weights: tuple[int, ...]
+    base_views: int
+    ctr: float
+    cvr: float
+    in_combo: bool
+    #: index of the ad campaign that promotes the product (None = not advertised)
+    campaign: int | None
+    sold_before: int
+
+
+def _v(
+    item: int, n: int, name: str, price: int, cost_pct: float, stock: int, code: str
+) -> Variation:
+    return Variation(
+        model_id=str(ITEM_ID_BASE + item * 100 + n),
+        name=name,
+        sku=f"{code}-{n}",
+        price=price,
+        cost=round(price * cost_pct / 500) * 500,
+        stock=stock,
+    )
+
+
+PRODUCTS: tuple[Product, ...] = (
+    Product(
+        str(ITEM_ID_BASE + 1),
+        "Nước rửa chén sinh học Hiên Nhà chai 500ml",
+        "HN-NRC",
+        (
+            _v(1, 1, "500ml hương chanh", 59_000, 0.46, 640, "HN-NRC"),
+            _v(1, 2, "500ml hương trà xanh", 59_000, 0.46, 520, "HN-NRC"),
+            _v(1, 3, "Combo 3 chai", 165_000, 0.46 * 59 / 165, 210, "HN-NRC"),
+        ),
+        (5, 3, 2),
+        (45, 40, 12, 3),
+        1450,
+        0.040,
+        0.050,
+        True,
+        0,
+        2_100,
+    ),
+    Product(
+        str(ITEM_ID_BASE + 2),
+        "Khăn lau đa năng Hiên Nhà set 5 khăn",
+        "HN-KLD",
+        (
+            _v(2, 1, "Bộ 5 khăn xám", 79_000, 0.42, 480, "HN-KLD"),
+            _v(2, 2, "Bộ 5 khăn pastel", 79_000, 0.42, 430, "HN-KLD"),
+        ),
+        (3, 2),
+        (55, 32, 10, 3),
+        1100,
+        0.038,
+        0.048,
+        True,
+        0,
+        1_650,
+    ),
+    Product(
+        str(ITEM_ID_BASE + 3),
+        "Túi đựng rác tự hủy sinh học Hiên Nhà cuộn 30 túi",
+        "HN-TDR",
+        (
+            _v(3, 1, "Size M 45x55cm", 49_000, 0.47, 700, "HN-TDR"),
+            _v(3, 2, "Size L 55x65cm", 59_000, 0.47, 600, "HN-TDR"),
+        ),
+        (3, 2),
+        (40, 38, 17, 5),
+        1250,
+        0.042,
+        0.050,
+        True,
+        0,
+        2_800,
+    ),
+    Product(
+        str(ITEM_ID_BASE + 4),
+        "Găng tay cao su Hiên Nhà dày dặn không mùi",
+        "HN-GTC",
+        (
+            _v(4, 1, "Size M", 69_000, 0.45, 390, "HN-GTC"),
+            _v(4, 2, "Size L", 69_000, 0.45, 370, "HN-GTC"),
+        ),
+        (1, 1),
+        (62, 28, 8, 2),
+        800,
+        0.036,
+        0.046,
+        False,
+        1,
+        980,
+    ),
+    Product(
+        str(ITEM_ID_BASE + 5),
+        "Hộp đựng thực phẩm thủy tinh Hiên Nhà nắp kín",
+        "HN-HDT",
+        (
+            _v(5, 1, "Hộp 640ml", 169_000, 0.50, 260, "HN-HDT"),
+            _v(5, 2, "Hộp 1040ml", 219_000, 0.50, 220, "HN-HDT"),
+            _v(5, 3, "Bộ 3 hộp", 459_000, 0.50, 90, "HN-HDT"),
+        ),
+        (4, 3, 1),
+        (74, 20, 5, 1),
+        600,
+        0.034,
+        0.040,
+        False,
+        1,
+        640,
+    ),
+    Product(
+        str(ITEM_ID_BASE + 6),
+        "Bình xịt vệ sinh đa năng Hiên Nhà chai 500ml",
+        "HN-BXV",
+        (_v(6, 1, "500ml", 89_000, 0.43, 330, "HN-BXV"),),
+        (1,),
+        (58, 30, 9, 3),
+        450,
+        0.032,
+        0.044,
+        False,
+        None,
+        520,
+    ),
+)
+
+#: Ad campaigns: id, title, the products they promote lives in ``Product.campaign``.
+CAMPAIGNS: tuple[tuple[str, str], ...] = (
+    ("9200000000001", "Hiên Nhà - Tối đa ROAS - Nhà bếp"),
+    ("9200000000002", "Hiên Nhà - Tối đa ROAS - Dụng cụ"),
+)
+
+
+# ---------------------------------------------------------------- decisions (Quyết định) seeds
+#: Indexes into ``PRODUCTS`` of the products the demo decision cards are about. Distinct products,
+#: because a product shows one open card at a time.
+TITLE_PRODUCT = 3  # the running Tiêu đề card: applied 5 days before the end date
+VOUCHER_PRODUCT = 0  # the measured Voucher card
+#: Core keywords ("Chính") the title audit holds the titles against: (product index, keyword).
+#: The title of the first one lacks its keyword (an open Tiêu đề card); the second one's old
+#: title lacked it and the running card's new title carries it.
+KEYWORDS: tuple[tuple[int, str], ...] = (
+    (1, "khăn lau bếp"),
+    (3, "găng tay rửa chén"),
+)
+NEW_TITLE = "Găng tay rửa chén cao su Hiên Nhà dày dặn không mùi, bền chắc, size M L"
+TITLE_APPLIED_DAYS_BEFORE_END = 5
+
+VOUCHER_ID = "9300000000001"
+VOUCHER_NAME = "Hiên Nhà - Voucher 8k đơn từ 150k"
+VOUCHER_VALUE = 8_000
+VOUCHER_MIN_SPEND = 150_000
+VOUCHER_QUANTITY = 60
+#: The voucher starts this many days before the end date and runs ``VOUCHER_DAYS`` days. The
+#: reading needs the 14 days before it, and the 30-day history starts 29 days before the end date.
+VOUCHER_START_DAYS_BEFORE_END = 15
+VOUCHER_DAYS = 7
+#: Share of the qualifying orders that collect and use the voucher.
+VOUCHER_USAGE = 0.3
+#: Share of the orders one unit short of the minimum that add one unit to reach it.
+VOUCHER_TOP_UP = 0.4
+
+
+def in_reserved_range(shopee_shop_id: str | None) -> bool:
+    """Whether a Seller Centre shop id is one of the sample shops' reserved ids."""
+    return (
+        shopee_shop_id is not None
+        and shopee_shop_id.isdigit()
+        and SAMPLE_SHOPEE_SHOP_ID_MIN <= int(shopee_shop_id) <= SAMPLE_SHOPEE_SHOP_ID_MAX
+    )
+
+
+__all__ = [
+    "CAMPAIGNS",
+    "ITEM_ID_BASE",
+    "KEYWORDS",
+    "NEW_TITLE",
+    "PRODUCTS",
+    "Product",
+    "SAMPLE_SHOPEE_SHOP_ID",
+    "SAMPLE_SHOPEE_SHOP_ID_MAX",
+    "SAMPLE_SHOPEE_SHOP_ID_MIN",
+    "SAMPLE_SHOP_NAME",
+    "TITLE_APPLIED_DAYS_BEFORE_END",
+    "TITLE_PRODUCT",
+    "VOUCHER_DAYS",
+    "VOUCHER_ID",
+    "VOUCHER_MIN_SPEND",
+    "VOUCHER_NAME",
+    "VOUCHER_PRODUCT",
+    "VOUCHER_QUANTITY",
+    "VOUCHER_START_DAYS_BEFORE_END",
+    "VOUCHER_TOP_UP",
+    "VOUCHER_USAGE",
+    "VOUCHER_VALUE",
+    "Variation",
+    "in_reserved_range",
+]

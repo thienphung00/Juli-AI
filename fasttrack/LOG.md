@@ -3827,6 +3827,14 @@ reconcile --write` re-derived the no-assert corpus figure.
   Local Postgres runs in Asia/Ho_Chi_Minh — `test_p61e` fails locally only; CI is UTC.
 - Open: Shopee ads rebuild (assisted edit), Ops QA extension, shop totals have no Connector reader.
 
+## 2026-11-06 — Connector 0.3.7: KOL and the other report readers for every paired shop
+
+- 0.3.6 already reads the eight Tăng Đơn Cùng KOL pages, but only for the one compiled
+  ORY shop id. 0.3.7 keeps that reader set and turns it on for every shop that has
+  paired (`PILOT_SHOP_IDS` includes `*`). Listing fill-in and market search stay on
+  ORY's explicit id. Chrome shows 0.3.7 only after `pnpm --filter @juli/connector build`
+  and a reload of `apps/connector/dist`.
+
 ## 2026-11-06 — P96e deploy gate (combo profit) unblocked
 
 - P96e (`7e8ea9ba`) is on `fasttrack/optimize-product`: combo profit is per combo, prices under
@@ -3847,3 +3855,263 @@ reconcile --write` re-derived the no-assert corpus figure.
   the Juli Connector. No compiled shop id. A shared field gate plus a Shopee gate and a TikTok
   gate. The Connector fills Seller Centre for both platforms, used by a developer or a seller
   paired to the shop. Monday locks the gates, the mock shapes, and the bug-log fields.
+## 2026-11-06 — Kết nối dữ liệu on every shop; invite stays after Tham gia shop
+
+- Contract shops are no longer created from Ops (`POST /v1/ops/contract-shops` is 410).
+  "Kết nối dữ liệu" / "Tạo mã kết nối" is on every shop's settings page. A code still
+  needs service consent, because the Connector's posts would be refused without it.
+- An invite is membership, not a one-time login. Sign-in does not spend the link.
+  After "Tham gia shop", the same person opening the link again gets the shop.
+
+## 2026-11-09 — orchestrator (Claude Opus) — P97 grill: Shopee data before TikTok parity (D85)
+
+- Verified production `86c6f673` (Connector 0.3.10, deploy tag `fasttrack-deploy-20261108T0708Z`). LOG had no
+  entries for 0.3.8–0.3.10 (#2272 ads campaigns + KOL retry + Nhóm A approve, #2274 uncapped budget / video CTR,
+  #2276 post the day when one value is out of range).
+- Worktree `p96-strategies` holds uncommitted Connector work labelled 0.3.7 that production never received
+  (migration 122 affiliate lines, ads settings / edit-page reader, seller Connector tab); production used 0.3.7
+  for #2271. To be ported as 0.3.11 on `fasttrack/p97-shopee-data`.
+- Findings F1–F8 and decisions D85 in `contracts/p97-shopee-data.md`: no Connector reader for shop totals or
+  orders; ads placed vs confirmed mismatch; ads drift on entries without campaign_id; KOL depends on the order
+  export; Kế hoạch re-add resets the option and a shop voucher's reach follows the other options; no single
+  metrics layer; fill-in covers title and description only; two AOVs on Tổng quan from two sources.
+- Owner order: T1 Connector + readers ∥ T2 metrics layer + plan math, then T3 fill-in on approval
+  (voucher → combo → ads → affiliate) after read-only recon in the owner's Chrome. Open: headline quantile.
+
+## 2026-11-09 — orchestrator (Claude Opus) — P97 recon and grill rounds 3–4
+
+- Read-only recon in the owner's Chrome (nothing saved): voucher, combo, ads create + edit, affiliate open +
+  targeted forms → `contracts/p97-recon-2026-11-09.md`.
+- Builder combo targets verified: both "Listing combo mới" and "Combo khuyến mãi của Shopee (bundle deal)" use
+  one fixed-basket form and one estimate (`target` is only a label); neither matches Shopee (tiers "Mua N";
+  new listing = Thêm sản phẩm). Decided D85.15–16.
+- ORY ads campaign 160675212 runs below Shopee's ₫100.000/day minimum with ROAS 5.0 (hint ≤ 3.5), 0 views 08-11.
+- Owner: Tự tạo phương án = compare and run many; table picker, one card many targets, P94 groups into P97;
+  P50 + range everywhere (D85.10–14, 17).
+
+## 2026-11-06 — Connector 0.3.8 (#2272): ads campaigns, KOL retry, Nhóm A approve (written 2026-11-09)
+
+- Entry missing from the log when it shipped; reconstructed from `git log` of #2272 (`288f9059`).
+- A new Seller Centre field no longer stops Doanh số theo nguồn, and an ads-homepage total row (no campaign
+  id) no longer stops the day's campaigns. Connector 0.3.8 retries a KOL page that did not post when the
+  seller syncs again (the popup's "Đồng bộ" reopens a page whose last outcome was not `done`).
+- Demo: the ads page lists each campaign the way Shopee does; a card that can hold more than one live value
+  approves those versions as Nhóm A (#2273 keeps a single version click as one approval).
+
+## 2026-11-06 — Connector 0.3.9 (#2274): uncapped budget, video CTR (written 2026-11-09)
+
+- Reconstructed from `git log` of #2274 (`960efae5`). An unlimited GMV Max budget was read as
+  `ads:money_scale` and dropped the day's campaigns: the budget field is now left out, a real cost above the
+  ceiling still stops. A video CTR outside 0..1 was read as `not_a_fraction` and dropped Doanh số theo nguồn:
+  it is kept.
+
+## 2026-11-08 — Connector 0.3.10 (#2276): one out-of-range amount no longer drops the dataset (written 2026-11-09)
+
+- Reconstructed from `git log` of #2276 (`86c6f673`, deploy tag `fasttrack-deploy-20261108T0708Z`). A campaign
+  cost above the ceiling, a video CTR above 1, an affiliate amount on a mixed scale, or a campaign with no name
+  was dropping the whole dataset. Those fields are left out; the campaigns, the sales and the KOL rows post.
+
+## 2026-11-09 — T1 agent (Claude Opus) — Connector 0.3.11: P97 T1
+
+- **Port of the p96 local work** (worktree `p96-strategies`, uncommitted, never deployed): migration
+  `122_shopee_affiliate_lines` (table + model + RLS + `tenant_scoped_tables`), the KOL view merging Connector
+  lines (`kol_affiliate.py`, `kol_buyers`), ads campaign settings + the read-only edit-page reader
+  (`/api/pas/` replays guarded by `isReadOnlyPasPath`, <= 20 campaigns a day), ingest row types for ads
+  settings / detail + `shopee_builder/ads_campaigns.py`, and the seller "Juli Connector" settings tab. Of the
+  p96 Ops pairing rewrite only the Shopee-only guard (`not_a_shopee_shop`) and the own-scope `_shop_row` read
+  came across; the local combo-test change was dropped (production has it). The KOL empty-state wording is
+  production's. 0.3.7 comments for this work now say 0.3.11.
+- **Ads (F3):** a homepage entry without `campaign.campaign_id` is skipped and counted
+  (`ads_entries_skipped=N` in the run outcome), not drift. A day is read only when campaigns posted or Shopee
+  answered zero campaigns (an empty list, or only shop-level entries); a day with just the ROAS-target row stays
+  in the plan.
+- **placed + confirmed (D85.3):** the traffic overview is requested and posted on both bases (daily sync and
+  the 30-day backfill: 3 requests a day instead of 2). Ads were already posted on Shopee's Ads basis
+  (`placed`, or `paid` when the page says `use_paid_gmv`); Shopee's ads report has no confirmed variant, so
+  nothing is relabelled.
+- **KOL (F4):** `order_id` accepts a number or a string; the money scale is read from the answer's `dis_` twins,
+  then from the size of the amounts (`scaleFromMagnitude`), then the recorded fallback; the period is read from
+  nested GraphQL variables too.
+- **New readers** (recon `p97-recon-2026-11-09.md`): `shop_totals` (key-metrics + order-performance, one range
+  request each, posted as `shop_overview` for confirmed / placed / paid; 30 days after pairing, then 7 a day),
+  `orders` (the page's own list answers, buyer fields dropped in the page by an allowlist; up to 5 list pages
+  replayed 20-45 s apart; the order number hashed with the shop key like the affiliate lines) and `order_income`
+  (completed orders since the previous run, oldest first, <= 100 a day, one GET each). Product period and ads per
+  product are NOT built in this cut. Shapes the recon did not record (order cards, income components, the
+  multi-day `period` value) are marked `TODO(first capture)` in `totals-map.ts` / `orders-map.ts` / `reader.ts`.
+- **Bot-detection safety (orchestrator addition):** one daily request budget (`DAILY_REQUEST_BUDGET` = 400) shared
+  by the readers, the daily sync and the backfill, checked before every replay; when spent, the rest waits for
+  the next GMT+7 day. CAPTCHA, login wall, HTTP 429 / 403 or "too many requests" wording stops ALL readers for
+  the shop (scheduler, daily sync and backfill) for the CAPTCHA cool-down, and is posted as a connector event to
+  `POST /v1/ingest/connector-events` -> Ops audit log `system_connector_stop` (reader, page, status, code, time;
+  no table, no migration). The popup's "Đồng bộ" lifts a CAPTCHA block but not a rate-limit block.
+- Not verified without a live capture: the three new readers against real Seller Centre answers, the
+  multi-day `period` value for key-metrics, whether the order cards carry `order_sn` and `order_id`.
+## 2026-11-09 — backend agent T2 (Claude Opus) — P97 T2: one metrics layer, plan math, So sánh (branch `fasttrack/p97-t2-metrics`)
+
+- **ShopMetrics** (`services/shopee_analytics/metrics.py`, D85.2): headline GMV / đơn = Shopee shop totals, one AOV = GMV ÷
+  đơn (Seller Centre AOV a labelled second line), product splits = order lines scaled to the totals (whole đồng, largest
+  remainder, residual stored). Tổng quan, Phân tích, Sản phẩm (matrix + page + excluded summary), builder catalogue, cards,
+  Kế hoạch "hôm nay" and the Luồng tables' headline read it; the Sản phẩm + luồng product table drops excluded listings.
+  The two AOVs of Tổng quan (F8) are now one number.
+- **Materialized tables** (owner, same day): migration `123_shopee_metrics_tables` (parent temporarily `121_shop_members`;
+  **rebase onto `122_shopee_affiliate_lines` at integration**, then re-parent `deferred/101_write_mode_backfill.py` and the
+  head assertion in `test_tiktok_sync_state_outcome_record.py` onto 123): `shopee_shop_metrics_daily`,
+  `shopee_product_metrics_daily` (+ `__residual__` row so a day's product rows sum to the shop row),
+  `shopee_plan_base_snapshots` (versioned; highest = active). RLS, `juli_app` SELECT / INSERT / UPDATE.
+  `materialize.rebuild_days` recomputes days from the raw tables; one hook call (`after_ingest`) in
+  `services/ingest/gateway.py` after a non-duplicate write (T1 owns that file: keep the call when merging); backfill:
+  `python scripts/backfill_shopee_metrics.py --database-url ... --all-shopee` (or `--shop-id`, `--from`, `--to`, `--dry-run`).
+  A window is read from the tables only when every day of it is complete (Shopee's daily totals + traffic posted);
+  otherwise it is computed from the raw tables as before.
+- **Anchor**: the last day every live daily dataset posted (a dataset more than 3 days behind is stale and ignored), or the
+  last complete materialized day; the Tổng quan payload names it (`shop_metrics.anchor`). This replaces V3's "newest
+  Connector day" (test updated).
+- **Kế hoạch** (D85.4): `as_of` pinned at the first card, versioned snapshot, `POST /plan/refresh-base` + "Cập nhật số";
+  shop voucher on all shop orders; several vouchers = best eligible per order; combo tiers best-per-quantity; one joint lift
+  per product; second option on an exclusive field refused (Vietnamese); remove → re-add restores version + inputs.
+- **So sánh** (D85.9) `before_after` block (7 metrics, P10–P90); **P50** is the headline (aov_p50 / margin_points_p50 replace
+  the P25 keys; P25 stays only as the queue-ranking input).
+- Not done / decisions beyond the contract: see the final report of this task (Luồng per-flow SQL kept; plan freeze covers
+  `as_of` + the headline base; exclusive fields = the plan has no P94 group model).
+
+## 2026-11-09 — orchestrator (Claude Opus) — P97 T1 + T2 merged into fasttrack/p97-shopee-data
+
+- Merged `fasttrack/p97-t1-connector` (Connector 0.3.11, migration 122) and `fasttrack/p97-t2-metrics`
+  (ShopMetrics, migration 123, plan math, So sánh). 123 re-parented onto 122; deferred/101 and the head tests
+  follow 123; migration-pin test conflicts resolved to 123; tenant table map and docs kept from both sides.
+- Gate on the merged tree (local, SQLite, Node 26 — project expects Node 20, no Postgres):
+  connector vitest 23 files / 331 passed, tsc clean; backend tests/unit filtered to the touched areas
+  2018 passed / 64 skipped / 2 failed → fixed `test_p96_kol_affiliate_lines` (chain now 121 → 122 → 123),
+  remaining `test_backup_dump_policy` fails on the sandbox's /tmp write; ruff clean; mypy 227 files clean.
+  Demo: tsc errors only in files P97 did not touch (stale linked node_modules); vitest 101/108 files pass,
+  the 7 failing files are localStorage-under-Node-26, missing `recharts` / `@juli/tiktok-events`.
+- Not run: Postgres integration tests (affiliate lines DB, RLS / grants on 122 and 123), CI. Before deploy:
+  CI on Node 20 + Postgres, `alembic upgrade head`, then `scripts/backfill_shopee_metrics.py --all-shopee`,
+  Connector 0.3.11 reload and first-capture checks of the TODO(first capture) mappers.
+
+## 2026-11-09 — T3 agent (Claude Opus) — Connector 0.3.12: P97 T3, fill-in on approval (branch `fasttrack/p97-t3-fill`)
+
+- **Queue (D85.6):** migration `124_shopee_fill_jobs` (tenant-direct, RLS, `juli_app` SELECT / INSERT / UPDATE; parent 123;
+  `deferred/101` and the head-pin tests follow 124). `services/shopee_recommendations/fill_queue.py`:
+  `enqueue_for_approval(session, *, shop_id, proposal_id, version, targets=None, group_code=None, card=None, now=None)` (T4
+  calls it for group approvals; idempotent per card, version and target), `service._decide` calls
+  `enqueue_after_decision` once (a queue failure is logged and never undoes the approval), nothing is queued while
+  `CONNECTOR_FILL_LISTING` is off. Kinds: title, description first line, voucher (`min_spend_voucher`, `review_voucher`; shop
+  voucher, or product voucher when targets name products), ads budget / ROAS (campaign id from the card or the newest
+  `ads_campaign_daily` row; a budget under ₫100.000 becomes a failed job with its reason, not a fill), affiliate commission
+  (one bulk job for all products). `voucher_cap` edits an existing voucher and `bundle_deal` waits for T4: not queued.
+  Routes: `GET /v1/ingest/fill-jobs` (the token's shop only, open jobs), `POST /v1/ingest/fill-jobs/{id}` (opened / filled /
+  saved / captured + id / failed, forward only), seller `GET /v1/demo/shopee/fill-jobs?card_id=` and `POST .../{id}/cancel`.
+  `mark_executed` falls back to the captured voucher id; the voucher list reader resolves it too (code suffix match) when the
+  page's create answer was missed.
+- **Connector 0.3.12 fill:** `fill/controls.ts` (radio, eds select, native select, `HH:mm DD-MM-YYYY` date inputs verified by
+  read-back, switch, repeated rows, product picker modal, edit pencils) is the ONLY place that presses, through `press()`, which
+  refuses Lưu / Lưu lại / Xác nhận / Gửi / Cập nhật / Tạo / Đăng / Xóa / Loại bỏ / Hủy / Ẩn / Áp dụng and submit buttons. The
+  product picker's own Xác nhận and every popup's Xác nhận are left to the person. `fillers.ts` (voucher, ads, affiliate),
+  `job-run.ts`, `job-types.ts` (strict validation, page allowlist per kind), `background/fill-jobs.ts` (poll every 3 min, one
+  page at a time, `READER_PAGE_LOAD_COST` (10) requests per page against the shared 400/day budget, the job tab is opened in the
+  background, a job is auto-opened once; the Demo button re-opens). Allowlist is the token's shop, not `PILOT_SHOP_IDS`.
+  `fill-never-clicks.test.ts` now covers every filler (no forbidden event, no forbidden press) and the source rule (exactly one
+  `.click()`, in `press()`).
+- **Safety (D85.19):** the Shopee password prompt stops a fill page (nothing typed, job failed `password_prompt`), the
+  scheduler ends its run and blocks every reader for the login cool-down (6 h, lifted when a data call succeeds), a connector
+  event `fill / login / password_prompt` goes to Ops. Readers already stopped on it (T1).
+- **Readers (task 8, unblocked by the fourth recording):** `product_period` (once a day after the shop totals,
+  `/api/mydata/v4/product/performance/` past30days, confirmed sales descending, 5 pages of 10; placed and confirmed are posted
+  from the same answer because each item holds all three bases) and `ads_products` (each group campaign's manual-mpd table:
+  the page's own answer kept, the other group campaigns replayed with only `campaign_id` changed, posted as
+  `ads_campaign_period` with the campaign title the ads list gave). The daily `item_performance` flag stays off (it is a
+  one-day dataset). Opening `/datacenter/product/performance` is allowed by the budget and the password stop.
+- **Demo:** the execution panel lists each fill job (status chip, "Mở trang để điền", captured id, failure reason) and no
+  longer asks for the voucher id once the Connector captured it.
+- **Not verified without a live page:** every selector (eds classes, popper, modal, pencil icon), that a typed date is accepted
+  by the picker, the voucher create endpoint / answer shape, the mpd list's request body and metric keys, the exact
+  `repeat_*` keys and rate scale of the product table, and the whole auto-open flow in Chrome (service worker alarm, background
+  tab, content script in a MAIN/ISOLATED pair).
+## 2026-11-09 — T4 agent (Claude Opus) — P97 T4: Tự tạo phương án, so sánh và chạy nhiều (branch `fasttrack/p97-t4-builder`)
+
+- **Table picker** (D85.12, `builder-p92/table-picker.tsx`, one component for step ① and every many-target form): search by name or id
+  (accents ignored), ngành hàng, biên, CTOR giảm, có đề xuất, đang chạy QC / KOL, GMV · biên · tồn kho per row, "chọn tất cả theo
+  bộ lọc", paste a list of ids, the selection list with count and ×. Backend: picker rows carry the filter columns
+  (`shopee_builder/picker_table.py`: biên and CTOR from the 30-day view, CTOR against the 30 days before, proposals waiting,
+  ads / affiliate lines). Filtering is client side over up to 1000 rows (no paged endpoint was needed).
+- **One card, many targets** (D85.13): `targets` on giảm giá %, hoa hồng affiliate, ngân sách / ROAS of several campaigns, and a
+  voucher over a product list (`shopee_recommendations/targets.py`, `shopee_builder/multi.py`). Each target is built by the existing
+  evaluators; P50s add, the range is the root sum of squares of the half-widths, a target without a giá vốn makes the card's profit
+  "chưa tính", floor breaches carry their `target`. The saved card has `targets` (variant per target) and `fill` (bulk for affiliate
+  commission and the voucher product list, else one job per target) for T3. `plan_aggregate` evaluates a many-target card by its parts
+  (`Evaluated.parts`). Fix on the way: `mega.evaluate_mega` ignored the per-variation prices of builder cards (plan Δ was 0).
+- **Groups** (D85.14, P94): migration `125_reco_plan_groups` (on 123, see below): `shop_reco_plan_groups`, `shop_reco_plan_group_members`.
+  `plan_groups.py`, `plans.run_together | set_group_period | remove_group_member | cancel_group | export_workbook`; `POST /builder/group`;
+  So sánh ticks + "Chạy cùng nhau"; Kế hoạch shows Nhóm A/B (code `<card>-G<letter>`, period >= 3 days, own aggregate = the plan math over
+  its members) and exports `.xlsx`. A second option on an exclusive field moves to the next group (T2's refusal is gone). Confirm
+  approves each member by its group (planned date = group start), writes `group` / `groups` into the approval snapshot and queues one fill
+  per approved version through `fill_queue_port.enqueue_for_approval`.
+- **Combo** (D85.15): `combo` = Shopee's form (product list, giảm % / số tiền / giá đặc biệt, tiers "Mua N", giới hạn đặt hàng, name <= 25,
+  dates) saved as `bundle_deal` with `tiers` (`bundle_tiers.py`); the engine's tier2 / tier3 cards are unchanged. Old `combo_multi` cards
+  stay readable and carry `legacy`. **Listing combo mới** (D85.16): `listing_combo` kind (`listing_combo.py`), cannibalization of the
+  baskets that hold every member, assumption stated in the card and the UI, no fill.
+- **Ads** (D85.17): budget >= ₫100.000 or unlimited (refusal "Ngân sách tối thiểu: ₫100.000"), ROAS system / custom (presets 2.5 / 3.5 /
+  4.5, warning above 3.5, warning on a second change in 7 days from the daily campaign rows), dates; keyword bids removed from the builder.
+- **Integration with T3**: (1) `services/shopee_recommendations/fill_queue_port.py` is a stub that imports T3's `fill_queue` when it exists
+  and calls `enqueue_for_approval(session, *, shop_id, proposal_id, version, targets=None, group_code=None)`; plan confirm calls it for every
+  approved version (ungrouped cards with `group_code=None`). `service._decide` (single card approve) is T3's hook, untouched.
+  (2) Migration 125 has `down_revision = 123_shopee_metrics_tables`; when 124 lands re-parent 125 onto `124_shopee_fill_jobs`, keep
+  `deferred/101` and the head pins on 125 (`"125_reco_plan_groups"` in the 20 pin tests and `test_tiktok_sync_state_outcome_record`).
+  (3) `kinds.py` gained `listing_combo`; T3's filler skips a kind it has no recon for.
+- **Not done / decisions beyond the contract**: no preview endpoint for the combined before -> after (it shows after "Chạy cùng nhau", in
+  the plan, where it can still be cancelled); a plan's measurement windows are still per product and ignore a group's own period; image
+  upload of a listing combo is references only; filters are client side.
+
+## 2026-11-09 — orchestrator (Claude Opus) — P97 T3 + T4 merged into fasttrack/p97-shopee-data
+
+- Merged `fasttrack/p97-t3-fill` (Connector 0.3.12, migration 124 fill jobs, product-period and ads-per-product
+  readers) and `fasttrack/p97-t4-builder` (picker, many targets, groups, combo tiers, listing combo, ads levers,
+  migration 125). 125 re-parented onto 124; deferred/101 and head-pin tests on 125.
+- Integration fixes: the fill queue reads a many-target card's `targets` rows (bulk = one product list; refused
+  rows skipped) when the caller passes none; `fill_queue_port` passes dict targets. Five new suppressions removed
+  (ratchet): the P97 compare test owns its `shop` fixture; the three broad excepts name SQLAlchemyError,
+  RuntimeError, ArithmeticError, LookupError, TypeError, ValueError. Test-quality figures re-derived
+  (9196 → 9364 functions, 859 → 877 modules, zero-assertion count unchanged).
+- Gate (local, SQLite, Node 26 — project expects Node 20, no Postgres): connector vitest 27 files / 436 passed;
+  backend tests/unit filtered to the touched areas 2260 passed / 66 skipped, then ratchet + test-quality + P97
+  modules re-run green after the fixes; ruff clean; mypy 237 files clean. Demo vitest on the P97 screens 409
+  passed (2 files cannot load `recharts` here). Demo tsc errors only in files P97 did not touch and caused by the
+  borrowed main-checkout node_modules (old `@juli/contracts`, missing packages) — confirm on CI.
+- Not run: Postgres integration tests, RLS / grants on 122–125, CI on Node 20.
+
+## 2026-11-09 — P97 T5 agent (Claude Opus) — combo fill (D85.15)
+
+- Branch `fasttrack/p97-t5-combo-fill` on `c0820c1d`. Backend: `fill_queue` kind `combo` maps T4's
+  `bundle_deal` card (discount_type, tiers or the generated `tier2_pct` / `tier3_pct`, `limit_per_buyer`,
+  name, start / end, scope products) to a payload; validates ascending distinct N (2..9999, at most 5
+  tiers), % in 1..99, dong > 0, one or more products, limit <= 999,999,999; name defaults to
+  `<code> V<n>` (<= 25). Legacy `combo_multi` is a failed job with the Vietnamese reason. The TODO is gone.
+- Connector 0.3.13: `fillCombo` (radio, name, two dates, "Thêm mức ưu đãi" rows, limit, picker without
+  confirming), page allowlist `/portal/marketing/bundle/new`, id capture pattern for a bundle create answer
+  (`bundle_deal_id` / `bundle_id`; a miss leaves nothing). `combo-tiers.html` grew into the whole form;
+  fill-never-clicks covers the three types and 1-3 tiers.
+- No bundle list reader exists and none was built: measurement of a combo stays `executed_no_readback`.
+- Demo: the generic checklist covers combo (kind label and two error texts only).
+
+## 2026-11-10 — orchestrator (Claude Opus) — P99 / P99b / P99c (fix the P98 numbers at the source)
+
+- Owner go after the P98 Chrome verification (handoff `~/juli-fasttrack-HANDOFF-2026-11-10.md`).
+  Decisions: product period totals spread over the period's days by the shop's daily shares
+  (product ≤ shop per day); the Connector keeps the orders tab open / re-opens it once; Kế hoạch =
+  all cards as of today over the next 30 days, each card on its own days (cost too); Tự tạo on its
+  set dates; a window without stored daily rows is an error (409 `rows_not_materialized`); empty
+  affiliate periods left as they are; ads cards read back only (no fill); stale drift flags cleared
+  by a newer Connector; never show wrong information on error / missing data.
+- Lanes (combined on `fasttrack/p99-combo`): connector (0.3.15 tab lifecycle + budget reserve,
+  0.3.16 campaign name from `product/get` — shape read in the owner's Chrome, names/types only),
+  metrics (`period_spread.py`, funnel profit over days with costs), builder/plan (one base / cost /
+  margin, affiliate + ads cards), P99b plan horizon + missing-data states, P99b ingest drift clear +
+  `ads_readback.py`, P99c rule-change rebuild + Tự tạo own-days cost + So sánh sort, UI for all.
+- Checks in the sandbox: see the deploy-approval message; Postgres runs first in `check.sh`.
+- After deploy (owner): VPS backfill (dry run first) — now required, screens need the stored rows;
+  Connector Remove → load 0.3.16 → re-pair → sync.
+- Open: a giá vốn save rebuilds all data days synchronously (watch latency on large shops); ads
+  product table read for ≤10 group campaigns; Ops-only screens show a generic error for 409;
+  confirmed plans stay frozen at confirmation.

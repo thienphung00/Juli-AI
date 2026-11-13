@@ -21,6 +21,10 @@ export function VersionsTable({
   sel,
   onPick,
   locked,
+  /** P94: several versions of a non-exclusive card approve together as Nhóm A. */
+  multi = false,
+  picked,
+  onToggle,
   todayText,
   rows: given,
   noToday = false,
@@ -31,6 +35,11 @@ export function VersionsTable({
   readonly sel: number;
   readonly onPick: (index: number) => void;
   readonly locked: boolean;
+  readonly multi?: boolean;
+  /** Selected column indexes when `multi` (includes `sel`). */
+  readonly picked?: readonly number[];
+  /** Adds or removes a column from Nhóm A without changing which column is open. */
+  readonly onToggle?: (index: number) => void;
   readonly todayText: string;
   /** Other rows than the card's own table (KOL cards). */
   readonly rows?: readonly TableRow[];
@@ -47,7 +56,11 @@ export function VersionsTable({
         <h3 className="sa-h2" data-testid="sv-count">
           {n} phiên bản của cùng một thay đổi
         </h3>
-        <span className="sa-hint">V1 là bản Juli đề xuất. Chọn một cột để duyệt; thanh trượt bên dưới chỉ chỉnh phiên bản đang chọn. Các số tính theo cùng một công thức, so với hôm nay.</span>
+        <span className="sa-hint">
+          {multi
+            ? "Chọn một hoặc nhiều cột để duyệt cùng nhau (Nhóm A). Cột đang mở là cột thanh trượt chỉnh."
+            : "V1 là bản Juli đề xuất. Chọn một cột để duyệt; thanh trượt bên dưới chỉ chỉnh phiên bản đang chọn. Các số tính theo cùng một công thức, so với hôm nay."}
+        </span>
       </div>
       <div className="sv-scroll">
         <div className={`sv-grid ${noToday ? "sv-grid--notoday" : ""}`} role="radiogroup" aria-label="Phiên bản" style={style}>
@@ -63,6 +76,7 @@ export function VersionsTable({
           )}
           {versions.map((v, i) => {
             const on = i === sel;
+            const inGroup = (picked ?? [sel]).includes(i);
             const tag = versionTag(v, i);
             const bad = tag.tone === "down";
             return (
@@ -83,6 +97,25 @@ export function VersionsTable({
                 </span>
                 <span className="sv-head__label">{v.label ?? versionName(v)}</span>
                 <span className="sv-head__code">{versionCode(card, v)}</span>
+                {multi && onToggle ? (
+                  <span
+                    aria-checked={inGroup}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onToggle(i);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== " " && event.key !== "Enter") return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onToggle(i);
+                    }}
+                    role="checkbox"
+                    tabIndex={0}
+                  >
+                    {inGroup ? "Trong nhóm" : "Thêm vào nhóm"}
+                  </span>
+                ) : null}
               </button>
             );
           })}

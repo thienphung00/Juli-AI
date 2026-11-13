@@ -140,6 +140,11 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shop_reco_plans"): "tenant_direct",
     ("public", "shop_reco_plan_cards"): "tenant_direct",
     ("public", "shop_reco_plan_counters"): "tenant_direct",
+    # P97 D85.14 / P94 (migration 125): the groups of a plan ("Nhóm A, B ...") and their members.
+    ("public", "shop_reco_plan_groups"): "tenant_direct",
+    ("public", "shop_reco_plan_group_members"): "tenant_direct",
+    # P100 E.7 (migration 127): append-only title / banner / style-profile specs of a card or shop.
+    ("public", "card_content_specs"): "tenant_direct",
     ("public", "shop_reco_change_sets"): "tenant_direct",
     ("public", "planned_change_imports"): "tenant_direct",
     ("public", "planned_change_refs"): "tenant_direct",
@@ -163,6 +168,18 @@ TABLE_CLASSIFICATION_MAP = {
     # P91 D-12 (migration 119): what Shopee actually charged and paid per order (the income
     # export), keyed by the same hashed order ref as the order lines.
     ("public", "shopee_order_income"): "tenant_direct",
+    # P96 (migration 122): affiliate order lines of the conversion report, stored on their own
+    # (the KOL tab no longer needs the order export); same hashed order ref, KOL handle only.
+    ("public", "shopee_affiliate_lines"): "tenant_direct",
+    # P97 D85.2 / D85.4 (migration 123): the materialized shop and product metrics per day and
+    # the frozen base of a draft plan.
+    ("public", "shopee_shop_metrics_daily"): "tenant_direct",
+    ("public", "shopee_product_metrics_daily"): "tenant_direct",
+    ("public", "shopee_plan_base_snapshots"): "tenant_direct",
+    # P97 D85.6 (migration 124): the fill queue the Connector works through after an approval.
+    ("public", "shopee_fill_jobs"): "tenant_direct",
+    # P98 / ADR-122 d.3 (migration 126): the funnel per traffic source, per day (shop and item).
+    ("public", "shopee_source_metrics_daily"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",

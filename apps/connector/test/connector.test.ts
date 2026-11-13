@@ -87,7 +87,7 @@ describe("captured responses", () => {
     const { connector, client, storage } = setup();
     storage.data.token = TOKEN;
     const drifted = JSON.parse(JSON.stringify(overview));
-    drifted.result.product_card.total.brand_new = 1;
+    drifted.result.live.total.source = "psd_label_live_v2";
     expect(await connector.handleCapture({ url: URL_OK, body: drifted, capturedAt: NOW })).toBe("drift");
     expect(client.drifts).toHaveLength(1);
     expect(await connector.handleCapture({ url: URL_OK, body: overview, capturedAt: NOW })).toBe("stopped");

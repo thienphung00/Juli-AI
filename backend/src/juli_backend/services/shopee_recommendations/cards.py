@@ -145,6 +145,8 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
     if ev0.refusal:
         return None
     mag = magnitude_of(cand, ev0.before, ev0.after)
+    if mag is None and cand.kind == "listing_combo":  # P97 D85.16: price against the members' sum
+        mag = ev0.certain.get("magnitude_pct")
     if mag is None:
         mag = cand.extra.get("magnitude_pct")
     lift = predict_lift(s, cand, env, mag, sim_variant=variant_hints(cand))
@@ -234,7 +236,8 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
         "execution_sheet": sheet,
         "notes": ev.notes,
         "rank_inputs": {
-            "kpi_p25": deltas,
+            "kpi_p25": deltas,  # ranking only (D83); screens show the P50 below
+            "kpi_p50": shop_deltas(env, money, "p50"),
             "dgmv_p25": money["total"]["p25"]["dgmv"],
             "dprofit_p50": dprofit_p50,
             "floor_breach": bool(ev.breaches),

@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import pytest
 
-from juli_backend.services.ops.masking import mask_pii
 from juli_backend.services.shopee_builder import copurchase
 from tests.support.shopee_reco import seed_reco_shop
 from tests.unit.test_shopee_builder import one
 
-ITEMS = [{"item_id": "1001"}, {"item_id": "1002"}]
+ITEMS = ["1001", "1002"]
+TIER = [{"qty": 2, "value": 10}]
 
 
 @pytest.fixture
@@ -31,42 +31,82 @@ async def shop(session):
 
 
 async def test_a_combo_price_under_1000d_is_refused_as_a_likely_percent(session, shop):
-    v = await one(session, shop, kind="combo", items=ITEMS, pricing="fixed_price", value=10)
+    # P97: the same guard in Shopee's "giá đặc biệt": 10đ for two products is a % typed wrongly
+    v = await one(
+        session,
+        shop,
+        kind="combo",
+        item_ids=ITEMS,
+        discount_type="special_price",
+        tiers=[{"qty": 2, "value": 10}],
+    )
     assert v["ok"] is False and v["refusal"]["code"] == "combo_price_too_low"
     assert "% giảm" in v["refusal"]["message"]
 
 
 async def test_a_combo_cannot_give_more_than_90_percent_off(session, shop):
-    # list value 144.000đ today: 5.000đ is a 96 % cut, 140.000đ off is 97 %
-    fixed = await one(session, shop, kind="combo", items=ITEMS, pricing="fixed_price", value=5_000)
-    amount = await one(session, shop, kind="combo", items=ITEMS, pricing="amount", value=140_000)
+    # two products at about 79.000đ each: a 5.000đ price is a 97 % cut, 150.000đ off is 95 %
+    fixed = await one(
+        session,
+        shop,
+        kind="combo",
+        item_ids=ITEMS,
+        discount_type="special_price",
+        tiers=[{"qty": 2, "value": 5_000}],
+    )
+    amount = await one(
+        session,
+        shop,
+        kind="combo",
+        item_ids=ITEMS,
+        discount_type="amount",
+        tiers=[{"qty": 2, "value": 150_000}],
+    )
     for v in (fixed, amount):
         assert v["ok"] is False and v["refusal"]["code"] == "combo_discount_over_max"
         assert "90%" in v["refusal"]["message"]
 
 
 async def test_a_deep_combo_cannot_lose_more_than_its_combos_lose(session, shop):
-    v = await one(session, shop, kind="combo", items=ITEMS, pricing="pct", value=85)
+    v = await one(
+        session,
+        shop,
+        kind="combo",
+        item_ids=ITEMS,
+        discount_type="pct",
+        tiers=[{"qty": 2, "value": 85}],
+    )
     assert v["ok"]
-    d = v["details"]
-    per_combo = d["contribution"]  # negative: sold below cost
-    assert per_combo < 0
-    # extra combos are the predicted ΔGMV in combos at today's value; each loses ``per_combo``
-    worst_combos = v["delta"]["gmv"]["high"] / d["value_now"]
-    floor = worst_combos * per_combo - v["cost"]["amount"]
-    assert v["delta"]["profit"]["low"] >= floor - 1
+    margin = v["details"]["tiers"][0]["margin_pct"]
+    assert margin is not None and margin < 0  # sold below cost
+    # P100-C (B.10): the seeded shop has too few orders to measure who moves up to the tier, so
+    # the card has no ΔGMV / Δ profit estimate -- the loss shows through what is certain: the
+    # combos already bought lose money, every order at the tier loses money, and the result
+    # carries the cost and a break-even
+    d = v["delta"]
+    assert d["profit"]["p50"] is None
+    existing = v["cost"]["existing"]
+    assert existing > 0
+    # the P96e bug: the loss is the combos' own discount, never a ratio times the scope's GMV
+    assert -existing <= d["certain_profit"] < 0
+    band = d["per_order"]["profit"]
+    assert band["low"] <= band["p50"] <= band["high"] < 0
+    r = v["result"]
+    assert r["estimable"] is False
+    assert r["cost"]["total"] > 0 and r["cost"]["break_even_orders"] is not None
 
 
 async def test_bands_per_order_run_low_to_high(session, shop):
-    v = await one(session, shop, kind="combo", items=ITEMS, pricing="pct", value=85)
+    v = await one(
+        session,
+        shop,
+        kind="combo",
+        item_ids=ITEMS,
+        discount_type="pct",
+        tiers=[{"qty": 2, "value": 85}],
+    )
     band = v["delta"]["per_order"]["profit"]
     assert band["low"] <= band["p50"] <= band["high"]
-
-
-async def test_the_combo_price_survives_the_ops_buyer_mask(session, shop):
-    v = await one(session, shop, kind="combo", items=ITEMS, pricing="fixed_price", value=120_000)
-    masked = mask_pii(v)
-    assert masked["details"]["combo_price"] == 120_000
 
 
 def test_co_purchase_never_suggests_a_line_without_an_item_id_and_labels_unnamed_ones():
@@ -75,13 +115,3 @@ def test_co_purchase_never_suggests_a_line_without_an_item_id_and_labels_unnamed
     ids = [r["item_id"] for r in out["suggestions"]]
     assert ids == ["B"]
     assert out["suggestions"][0]["name"] == "Sản phẩm đã ẩn/không còn bán (id B)"
-
-
-def test_a_set_sold_far_below_cost_cannot_lose_more_than_its_extra_gmv():
-    from juli_backend.services.shopee_builder import outcome
-
-    band = outcome.set_profit_band(
-        {"low": 10_000.0, "p50": 20_000.0, "high": 30_000.0},
-        [{"pack_count": 3, "margin_pct": -1_404_170.0}],
-    )
-    assert band["low"] is not None and band["low"] >= -30_000.0

@@ -33,7 +33,9 @@ from typing import Any
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.services.shopee_analytics.queries import product_price_margin
+from juli_backend.services.shopee_analytics.loaders import load_ad_days
+from juli_backend.services.shopee_analytics.queries import product_price_margin, window_metrics
+from juli_backend.services.shopee_analytics.windows import Window
 
 PLATFORM = "shopee"
 ORDER_TYPES = ("placed", "paid", "confirmed")
@@ -57,7 +59,7 @@ STREAM_LABELS = {
     "seller_video": "Video",
     "seller_live": "Live",
     "affiliate": "Tiếp thị liên kết",
-    "ads": "Dịch vụ Hiển thị",
+    "ads": "Dịch vụ hiển thị",
 }
 SEGMENT_LABELS = {
     "search": "Tìm kiếm",
@@ -77,10 +79,15 @@ SEGMENT_LABELS = {
     "aff_video": "Affiliate Video",
 }
 AD_TYPE_LABELS = {
-    "ads_roas_custom": "GMV tối đa ROAS tùy chỉnh",
-    "ads_auto_bid": "GMV tối đa tự động đấu thầu",
-    "ads_shop": "Quảng cáo cửa hàng",
-    "ads_gmvmax_shop": "Product Ads (GMV Max-Shop)",
+    "ads_roas_custom": "Sản phẩm · GMV tối đa ROAS tùy chỉnh",
+    "ads_auto_bid": "Sản phẩm · GMV tối đa tự động đấu thầu",
+    "ads_shop": "Dịch vụ hiển thị Shop+",
+    "ads_gmvmax_shop": "Sản phẩm · GMV Max-Shop",
+    # P100: days read by the Connector carry its campaign_type, not the daily report's type.
+    # Matched on ORY's numbers: product_mpd = the Chiến Dịch Nhóm campaign, product_manual = a
+    # one-product campaign with manual bidding.
+    "product_mpd": "Sản phẩm · Chiến dịch nhóm",
+    "product_manual": "Sản phẩm · Đặt giá thầu thủ công",
     "other": "Khác",
 }
 PROMO_LABELS = {
@@ -345,10 +352,13 @@ async def flows(
                 "shop_page_gmv": cells.get(("product_card", "shop_page"), [None])[0],
             }
         )
+    shared = await window_metrics(session, shop_id, start=window.start, end=window.end)
     return {
         "range": window.json(),
         "order_type": order_type,
         **body,
+        # D85.2: the headline GMV / đơn / AOV is the shared ShopMetrics, not this table's sum
+        "metrics": None if shared is None else shared[0],
         "monthly": monthly,
         "shop_monthly": await shop_monthly(session, shop_id, order_type, h0, window.end),
         "has_data": bool(rows),
@@ -463,6 +473,11 @@ async def products(
     )
     if not funnel_rows:
         return empty
+    shared = await window_metrics(session, shop_id, start=chosen.start, end=chosen.end)
+    excluded = shared[1] if shared else {}
+    left_out = [r for r in funnel_rows if r[0] in excluded]
+    # D85.2 / P92 B-1: excluded listings stay in the shop totals and leave the product table
+    funnel_rows = [r for r in funnel_rows if r[0] not in excluded]
     funnel_rows.sort(key=lambda r: -(r[7] or 0))
     totals = _funnel(("", *[_total(funnel_rows, i) for i in range(1, 10)]))
     shown = funnel_rows[:limit]
@@ -524,6 +539,12 @@ async def products(
         **empty,
         "items_total": len(funnel_rows),
         "totals": totals,
+        "metrics": None if shared is None else shared[0],
+        "excluded": {
+            "count": len(left_out),
+            "gmv": _total(left_out, 7),
+            "item_ids": sorted(r[0] for r in left_out),
+        },
         "products": [
             {
                 "item_id": row[0],
@@ -554,17 +575,6 @@ def _total(rows: list[Any], index: int) -> Decimal | None:
 # ``ads_expense`` lives in ``extra`` as a number (VND); anything else counts as no spend.
 # ``segment <> 'all'``: ads rows carry the ad type as the segment; an ``all`` row would be
 # the total of the types and must not be added to them.
-_ADS_DAILY = """
-SELECT day, segment, sum(gmv), sum(orders),
-       sum(CASE WHEN jsonb_typeof(extra -> 'ads_expense') = 'number'
-                THEN (extra ->> 'ads_expense')::numeric END),
-       sum(impressions), sum(clicks)
-FROM platform_daily_metrics
-WHERE shop_id = :shop AND platform = 'shopee' AND dataset = 'traffic_overview'
-  AND stream = 'ads' AND segment <> 'all' AND item_id = '' AND order_type = :ot
-  AND day BETWEEN :a AND :b
-GROUP BY day, segment ORDER BY day
-"""
 _ADS_MONTHLY_DAILY = """
 SELECT date_trunc('month', day)::date, segment, sum(gmv), sum(orders),
        sum(CASE WHEN jsonb_typeof(extra -> 'ads_expense') = 'number'
@@ -574,6 +584,26 @@ WHERE shop_id = :shop AND platform = 'shopee' AND dataset = 'traffic_overview'
   AND stream = 'ads' AND segment <> 'all' AND item_id = '' AND order_type = :ot
   AND day BETWEEN :a AND :b
 GROUP BY 1, segment
+"""
+# Connector ``ads_campaign_daily``: one Shopee ads-homepage row per campaign per day.
+# ``cost`` / budget / ROAS target live in ``extra``; GMV and orders are the broad figures.
+_ADS_CAMPAIGNS = """
+SELECT segment,
+       max(platform_source),
+       sum(gmv), sum(orders), sum(impressions), sum(clicks),
+       sum(CASE WHEN jsonb_typeof(extra -> 'cost') = 'number'
+                THEN (extra ->> 'cost')::numeric END),
+       max(extra ->> 'state'),
+       max(CASE WHEN jsonb_typeof(extra -> 'daily_budget') = 'number'
+                THEN (extra ->> 'daily_budget')::numeric END),
+       max(CASE WHEN jsonb_typeof(extra -> 'roi_two_target') = 'number'
+                THEN (extra ->> 'roi_two_target')::numeric END)
+FROM platform_daily_metrics
+WHERE shop_id = :shop AND platform = 'shopee' AND dataset = 'ads_campaign_daily'
+  AND segment <> 'all' AND order_type = :ot
+  AND day BETWEEN :a AND :b
+GROUP BY segment
+ORDER BY 7 DESC NULLS LAST, 2
 """
 _ADS_MONTHLY_PERIOD = """
 SELECT period_start, period_end, 'ads', segment, gmv, orders,
@@ -642,18 +672,28 @@ async def ads(
     window: DateRange,
     order_type: str = DEFAULT_ADS_ORDER_TYPE,
 ) -> dict[str, Any]:
-    daily_rows = await _rows(
-        session, _ADS_DAILY, shop=shop_id, ot=order_type, a=window.start, b=window.end
-    )
+    # P100 A.5: ONE ad spend per day -- the Connector's day, else the daily report, else the CSV
+    # period report spread over its days; a day with none is absent ("chưa có dữ liệu"), not 0
+    ad_days = await load_ad_days(session, shop_id, Window(window.start, window.end))
+    daily_rows = [
+        (day, kind, t.gmv, t.orders, t.spend, None, None)
+        for day, figure in sorted(ad_days.items())
+        for kind, t in sorted(figure.by_type.items())
+    ] or [
+        (day, "period", f.gmv, f.orders, f.spend, None, None) for day, f in sorted(ad_days.items())
+    ]
     types: dict[str, list[Any]] = defaultdict(lambda: [Decimal(0), Decimal(0), None])
     daily: dict[str, dict[str, list[Any]]] = defaultdict(lambda: defaultdict(lambda: [0, 0, None]))
-    for day, ad_type, gmv, orders, cost, _impr, _clicks in daily_rows:
+    for day, ad_type, day_gmv, day_orders, day_cost, _impr, _clicks in daily_rows:
         slot = types[ad_type]
-        slot[0] += Decimal(gmv or 0)
-        slot[1] += Decimal(orders or 0)
-        if cost is not None:
-            slot[2] = (slot[2] or Decimal(0)) + Decimal(cost)
-        daily[day.isoformat()][ad_type] = [gmv, orders, cost]
+        slot[0] += Decimal(day_gmv or 0)
+        slot[1] += Decimal(day_orders or 0)
+        if day_cost is not None:
+            slot[2] = (slot[2] or Decimal(0)) + Decimal(day_cost)
+        cell = daily[day.isoformat()][ad_type]
+        cell[0], cell[1] = (cell[0] or 0) + (day_gmv or 0), (cell[1] or 0) + (day_orders or 0)
+        if day_cost is not None:
+            cell[2] = (cell[2] or 0) + day_cost
     by_type = [
         {
             "ad_type": ad_type,
@@ -665,6 +705,7 @@ async def ads(
     total_cost = sum((Decimal(v[2]) for v in types.values() if v[2] is not None), Decimal(0))
     total_gmv = sum((v[0] for v in types.values()), Decimal(0))
     total_orders = sum((v[1] for v in types.values()), Decimal(0))
+    day_sources = {d.isoformat(): f.source for d, f in sorted(ad_days.items())}
 
     h0 = _months_back(window.end, HISTORY_MONTHS)
     monthly_daily = await _rows(
@@ -679,7 +720,7 @@ async def ads(
     monthly = []
     for month in sorted(merged):
         cells = merged[month]
-        parts = [
+        parts: list[dict[str, Any]] = [
             {
                 "ad_type": seg,
                 "label": AD_TYPE_LABELS.get(seg, seg),
@@ -698,6 +739,26 @@ async def ads(
             }
         )
     alerts = roas_alerts([(d, t, g, c) for d, t, g, _o, c, _i, _k in daily_rows])
+    campaign_rows = await _rows(
+        session, _ADS_CAMPAIGNS, shop=shop_id, ot=order_type, a=window.start, b=window.end
+    )
+    campaigns = [_campaign(row) for row in campaign_rows]
+    # When the traffic-overview ads slice is missing, the homepage campaigns are the ads screen.
+    if campaigns and not by_type:
+        camp_gmv = sum((Decimal(c["gmv"] or 0) for c in campaigns), Decimal(0))
+        camp_orders = sum((Decimal(c["orders"] or 0) for c in campaigns), Decimal(0))
+        camp_cost = sum(
+            (Decimal(c["cost"] or 0) for c in campaigns if c["cost"] is not None),
+            Decimal(0),
+        )
+        total_gmv, total_orders, total_cost = camp_gmv, camp_orders, camp_cost
+        by_type = [
+            {
+                "ad_type": "campaign",
+                "label": "Chiến dịch",
+                **_ad_cell(camp_gmv, camp_orders, camp_cost or None),
+            }
+        ]
     return {
         "range": window.json(),
         "order_type": order_type,
@@ -707,18 +768,43 @@ async def ads(
             {
                 "day": day,
                 "by_type": [
-                    {"ad_type": t, **_ad_cell(v[0], v[1], v[2])} for t, v in sorted(parts.items())
+                    {"ad_type": t, **_ad_cell(v[0], v[1], v[2])} for t, v in sorted(dt.items())
                 ],
             }
-            for day, parts in sorted(daily.items())
+            for day, dt in sorted(daily.items())
         ],
         "monthly": monthly,
-        # No campaign-level export is loaded yet (ads-campaign files): an explicit empty state.
-        "campaigns": [],
-        "campaigns_available": False,
+        "campaigns": campaigns,
+        "campaigns_available": bool(campaigns),
+        "campaigns_note": "Theo chiến dịch: chỉ các ngày Connector đọc được; "
+        "tổng chi cả kỳ nằm ở Theo loại.",
+        "coverage": {
+            "days_with_data": len(ad_days),
+            "window_days": (window.end - window.start).days + 1,
+            "day_sources": day_sources,
+        },
         "alerts": alerts,
         "alert_rule": {"floor": float(ROAS_FLOOR), "min_days": ROAS_ALERT_MIN_DAYS},
-        "has_data": bool(daily_rows),
+        "has_data": bool(daily_rows) or bool(campaigns),
+    }
+
+
+def _campaign(row: Any) -> dict[str, Any]:
+    """One Shopee ads-homepage campaign over the window: broad GMV / orders, cost in đồng."""
+    _segment, name, gmv, orders, impressions, clicks, cost, state, budget, roi_target = row
+    cell = _ad_cell(gmv, orders, cost)
+    impr = Decimal(impressions) if impressions is not None else None
+    clk = Decimal(clicks) if clicks is not None else None
+    return {
+        "campaign_id": str(_segment),
+        "name": name or "Chiến dịch",
+        "state": state,
+        "impressions": _num(impr),
+        "clicks": _num(clk),
+        "ctr": _ratio(clk, impr),
+        "daily_budget": _num(budget),
+        "roi_target": _num(roi_target),
+        **cell,
     }
 
 

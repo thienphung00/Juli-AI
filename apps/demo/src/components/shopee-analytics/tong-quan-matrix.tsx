@@ -56,17 +56,19 @@ const ratio = (a: N, b: N): N => (typeof a === "number" && typeof b === "number"
 
 function sumFlows(rows: readonly FlowRow[]): { views: N; clicks: N } {
   const flows = rows.filter((r) => !r.is_residual);
-  const views = flows.reduce((t, r) => t + (r.views ?? 0), 0);
-  const clicks = flows.reduce((t, r) => t + (r.clicks ?? 0), 0);
-  return { views: views || null, clicks: clicks || null };
+  // One flow without its figure makes the total unknown (a partial sum would read as the whole).
+  const sum = (pick: (r: FlowRow) => N): N => (flows.length === 0 || flows.some((r) => pick(r) == null) ? null : flows.reduce((t, r) => t + (pick(r) as number), 0) || null);
+  return { views: sum((r) => r.views), clicks: sum((r) => r.clicks) };
 }
 
 export function figuresOf(p: MatrixProduct): Figures {
-  const { views, clicks } = p.flows ? sumFlows(p.flows.rows) : { views: null, clicks: null };
+  // P100 A.6: Shopee's product table first (what Sản phẩm + luồng shows), the flows' sum otherwise
+  const t = p.traffic;
+  const { views, clicks } = t ? { views: t.views, clicks: t.clicks } : p.flows ? sumFlows(p.flows.rows) : { views: null, clicks: null };
   return {
     views,
     ctr: ratio(clicks, views),
-    ctor: ratio(p.orders, clicks),
+    ctor: ratio(t ? t.orders : p.orders, clicks),
     aov: ratio(p.gmv, p.orders),
     gmv: p.gmv,
     orders: p.orders,
@@ -235,6 +237,7 @@ function MatrixBody(props: BodyProps) {
   const sortLabel = COLS.find((c) => c.key === sort.key)?.label.replace(/^[①②③④⑤] /, "") ?? "";
   const shopGmv = ov.kpi_strip.gmv.value;
   const productSum = matrix.sums.gmv_shopee_products;
+  const trafficLabel = matrix.products.find((p) => p.traffic)?.traffic?.label ?? null;
   const gap = shopGmv !== null && productSum !== null ? shopGmv - productSum : null;
 
   return (
@@ -378,6 +381,11 @@ function MatrixBody(props: BodyProps) {
         </span>
       </div>
       <p className="sa-hint">{matrix.sums.note}</p>
+      {trafficLabel ? (
+        <p className="sa-hint" data-testid="sa-matrix-traffic-basis">
+          Lượt xem, CTR, CTOR từng sản phẩm: bảng sản phẩm của Shopee ({trafficLabel}), cùng nguồn với Sản phẩm + luồng.
+        </p>
+      ) : null}
       <div className="sa-legend">
         <span>
           <i className="sa-swatch sa-swatch--bad" />
@@ -487,7 +495,7 @@ function ProductSources({
         </p>
       ) : null}
       {sub(
-        "Quảng cáo (trong đó)",
+        "DVHT (trong đó)",
         `${p.ads.basis.label} · chi ${vnd(p.ads.spend)} · ROAS ${fmt(p.ads.roas_broad, 1)}`,
         [
           ["GMV", vnd(p.ads.gmv_placed), rk("gmv", "ads"), null],
@@ -498,8 +506,8 @@ function ProductSources({
       )}
       <p className="sa-hint">
         {price
-          ? "Bốn mức ưu đãi cộng lại 100% đơn. Quảng cáo nằm trong đó, không cộng thêm. Lượt xem, CTR, CTOR không tách theo ưu đãi."
-          : "Năm luồng cộng lại 100% đơn cùng một dòng “Chênh lệch nguồn”. Quảng cáo nằm trong các luồng, không cộng thêm."}
+          ? "Bốn mức ưu đãi cộng lại 100% đơn. Dịch vụ hiển thị nằm trong đó, không cộng thêm. Lượt xem, CTR, CTOR không tách theo ưu đãi."
+          : "Năm luồng cộng lại 100% đơn cùng một dòng “Chênh lệch nguồn”. Dịch vụ hiển thị nằm trong các luồng, không cộng thêm."}
       </p>
       <Link className="sa-link" href={links.product(p.product_id, { tab: "ng", from: "tong-quan" }, state)}>
         Mở sản phẩm ›

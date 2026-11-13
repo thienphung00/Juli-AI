@@ -711,6 +711,89 @@ class ShopeeAdsCampaignDailyRow(RowBase):
         return (self.date, self.campaign_id)
 
 
+_PasWord = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_]{1,32}$")]
+
+
+class ShopeeAdsCampaignSettingRow(PeriodRowBase):
+    """``shopee.ads_campaign_settings``: one ad campaign's settings as the Quảng cáo list showed
+    them on the capture day (Connector 0.3.7, ``/api/pas/v1/homepage/query/`` ``entry_list``). A
+    settings snapshot, not a result: the builder's "Chiến dịch đang chạy" reads it. Money in VND
+    (the ads service's x100 000 already divided out), ROAS targets as plain ratios."""
+
+    campaign_id: _Digits
+    campaign_name: Annotated[str, StringConstraints(min_length=1, max_length=255)] | None = None
+    #: product_manual / product_gms / product_mpd / shop_manual ...
+    campaign_type: Tag | None = None
+    #: ongoing / scheduled / paused / ended / closed / deleted ...
+    state: Tag | None = None
+    starts_at: datetime | None = None
+    #: None = no end date.
+    ends_at: datetime | None = None
+    daily_budget: Money | None = None
+    total_budget: Money | None = None
+    roi_two_target: Ratio | None = None
+    item_id: ItemId | None = None
+    #: all / search_product ...
+    product_placement: Tag | None = None
+    #: roi_two (custom ROAS) / manual ...
+    bidding_strategy: Tag | None = None
+    #: The list's ``enhanced_bid_price`` as sent (unit not verified yet).
+    enhanced_bid_price: Count | None = None
+    #: What Shopee lets the seller change now: status / budget / time / roi_two_target.
+    editable: list[_PasWord] = Field(default_factory=list, max_length=10)
+    is_group: bool | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.campaign_id,)
+
+
+class ShopeeAdsCampaignDetailRow(PeriodRowBase):
+    """``shopee.ads_campaign_detail``: an ongoing / scheduled campaign's edit page on the capture
+    day (Connector 0.3.7: ``product/get``, ``setup_helper/get_recommended_roi_two_target``,
+    ``setup_helper/get_budget_data_for_edit``, ``setup_helper/get_campaign_expense_statistics``).
+    The limits Shopee applies to an edit, so the builder proposes only what can be saved."""
+
+    campaign_id: _Digits
+    product_selection: Tag | None = None
+    display_location: Tag | None = None
+    rapid_boost: bool | None = None
+    item_ids: list[ItemId] = Field(default_factory=list, max_length=100)
+    item_count: Count | None = None
+    out_of_stock_count: Count | None = None
+    price_low: Money | None = None
+    price_high: Money | None = None
+    #: Shopee's own ROAS estimate for the campaign (``roi_two.estimate``).
+    roas_estimate_low: Ratio | None = None
+    roas_estimate_high: Ratio | None = None
+    #: The suggested targets (exact / lower / upper) with their competitiveness percentiles.
+    roas_recommended: Ratio | None = None
+    roas_exact: Ratio | None = None
+    roas_exact_percentile: Ratio | None = None
+    roas_low: Ratio | None = None
+    roas_low_percentile: Ratio | None = None
+    roas_high: Ratio | None = None
+    roas_high_percentile: Ratio | None = None
+    #: The hard bounds a custom ROAS target must stay within.
+    roas_min: Ratio | None = None
+    roas_max: Ratio | None = None
+    gmv_order_uplift: Ratio | None = None
+    roas_daily_edits: Count | None = None
+    budget_min: Money | None = None
+    budget_max: Money | None = None
+    budget_recommended: Money | None = None
+    budget_low_threshold: Money | None = None
+    budget_multiple: Money | None = None
+    budget_allow_decrease: bool | None = None
+    budget_previous_expense: Money | None = None
+    total_expense: Money | None = None
+    today_expense: Money | None = None
+    max_7d_expense: Money | None = None
+    avg_7d_expense: Money | None = None
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.campaign_id,)
+
+
 class ShopeeVoucherSettingRow(PeriodRowBase):
     """``shopee.voucher_settings``: one shop voucher's settings and live usage on the day
     the connector read ``/api/marketing/v3/voucher/list/`` (the post's one-day period).
@@ -843,6 +926,24 @@ class DriftReport(BaseModel):
         default_factory=list, max_length=100
     )
     observed_at: datetime | None = None
+
+
+class ConnectorEvent(BaseModel):
+    """``POST /v1/ingest/connector-events``: a stop that halted every reader of the shop's
+    Connector (a CAPTCHA, a login wall, HTTP 429 / 403 or "too many requests" wording).
+
+    Metadata only -- which reader, which page (a path), what happened and when. No body, no
+    order, no buyer. Ops reads it from the audit log (``system_connector_stop``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    platform: Literal["shopee", "tiktok"]
+    reader: Annotated[str, StringConstraints(pattern=r"^[a-z_]{1,48}$")]
+    page: Annotated[str, StringConstraints(max_length=120)] = ""
+    status: Literal["captcha", "login", "rate_limit"]
+    code: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_.:\-]{1,40}$")] | None = None
+    occurred_at: datetime | None = None
+    source_version: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._+\-]{1,64}$")]
 
 
 class PairRequest(BaseModel):

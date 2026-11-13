@@ -155,7 +155,7 @@ export function TopCards({ cards, flash, onFlash, onChanged }: { readonly cards:
     if (!plan) return;
     setBusy(true);
     try {
-      await plan.api.add(entry.top.id, 1, acknowledge);
+      await plan.api.add(entry.top.id, null, acknowledge);
       const gone = entry.top.code ?? entry.top.id;
       const nx = entry.next;
       onFlash({
