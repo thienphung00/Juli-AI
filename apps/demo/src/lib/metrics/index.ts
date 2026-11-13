@@ -30,8 +30,8 @@ export const IS_RATE: Readonly<Record<MetricKey, boolean>> = {
 };
 
 /** Period presets (no "Tháng này": a calendar month is a Tùy chọn range). */
-export type PeriodPreset = "7" | "30" | "90" | "custom";
-export const PERIOD_LABEL: Readonly<Record<PeriodPreset, string>> = { "7": "7 ngày", "30": "30 ngày", "90": "90 ngày", custom: "Tùy chọn" };
+export type PeriodPreset = "7" | "30" | "90" | "custom" | "plan";
+export const PERIOD_LABEL: Readonly<Record<PeriodPreset, string>> = { "7": "7 ngày", "30": "30 ngày", "90": "90 ngày", custom: "Tùy chọn", plan: "Cả kế hoạch" };
 
 /** Tổng | Trung bình / ngày. */
 export type ValueMode = "total" | "avg";

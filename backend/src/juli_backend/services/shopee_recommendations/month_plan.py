@@ -189,6 +189,30 @@ async def _product_level(
     }
 
 
+async def running_range(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    product_id: str | None = None,
+    *,
+    now: datetime,
+) -> tuple[date, date] | None:
+    """ "Cả kế hoạch": the earliest start and the latest end of the RUNNING (executed-plan) cards'
+    own dates -- every running card at the Shop level, that product's at the Sản phẩm level.
+    ``None`` when no running card has dates."""
+    cards: list[Mapping[str, Any]] = []
+    for plan in await _executed(session, shop_id):
+        out = await plans.get_plan(session, shop_id, plan.id, now=now, audience="seller")
+        cards += _cards_of(out)
+    spans: list[tuple[date, date]] = []
+    for c in cards_of_product(cards, product_id):
+        d = ((c.get("result") or {}).get("own") or {}).get("dates")
+        if d:
+            spans.append((date.fromisoformat(d["from"]), date.fromisoformat(d["to"])))
+    if not spans:
+        return None
+    return min(a for a, _ in spans), max(b for _, b in spans)
+
+
 async def range_plans(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -418,5 +442,6 @@ __all__ = [
     "plan_with_month",
     "range_plan",
     "range_plans",
+    "running_range",
     "uplift_in_month",
 ]

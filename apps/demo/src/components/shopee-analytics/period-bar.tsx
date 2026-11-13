@@ -21,10 +21,13 @@ export function PeriodBar({
   state,
   window: win,
   hrefFor,
+  planRange,
 }: {
   readonly state: WindowState;
   readonly window: WindowJson | null;
   readonly previous?: WindowJson | null;
+  /** Opt-in "Cả kế hoạch": undefined = not offered; null = offered but disabled (no running card). */
+  readonly planRange?: { readonly from: string; readonly to: string } | null;
   readonly hrefFor: (next: WindowState) => string;
 }) {
   const q = state.query;
@@ -61,6 +64,20 @@ export function PeriodBar({
           {PERIOD_LABEL.custom}
         </button>
       </div>
+      {planRange === undefined ? null : planRange === null ? (
+        <span aria-disabled="true" className="sa-seg__item sa-seg__item--off" data-testid="sa-period-plan">
+          {PERIOD_LABEL.plan}
+        </span>
+      ) : (
+        <Link
+          aria-current={q.period === "plan" ? "true" : undefined}
+          className={`sa-seg__item${q.period === "plan" ? " sa-seg__item--on" : ""}`}
+          data-testid="sa-period-plan"
+          href={hrefFor({ ...state, query: { period: "plan" } })}
+        >
+          {PERIOD_LABEL.plan}
+        </Link>
+      )}
       {open || isCustom ? (
         <span className="sa-period__form" data-testid="sa-period-form">
           <label>

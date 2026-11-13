@@ -118,6 +118,11 @@ export function analysisHref(links: ShopeeLinks, f: { metric: MetricKey; channel
   return links.screen("phan-tich", p);
 }
 
+/** The window other screens receive: "Cả kế hoạch" travels as the dates it resolved to. */
+export function linkWindow(state: WindowState, data: { readonly from: string; readonly to: string } | null): WindowState {
+  return state.query.period === "plan" && data ? { ...state, query: { period: "custom", from: data.from, to: data.to } } : state;
+}
+
 export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const host = useShopee();
   const state = useMemo(() => readWindow(params), [params]);
@@ -184,7 +189,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
               ))}
             </select>
             {productId ? (
-              <Link className="sa-link" data-testid="sa-product-open" href={host.links.product(productId, { from: "tong-quan" }, state)}>
+              <Link className="sa-link" data-testid="sa-product-open" href={host.links.product(productId, { from: "tong-quan" }, linkWindow(state, ready))}>
                 Mở sản phẩm ›
               </Link>
             ) : null}
@@ -204,7 +209,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
       </div>
 
       <div className="sa-row">
-        <PeriodBar hrefFor={hrefFor} state={state} window={ready ? { from: ready.from, to: ready.to, days: daysOf(ready) } : null} />
+        <PeriodBar hrefFor={hrefFor} planRange={ready ? (ready.plan_range ?? null) : undefined} state={state} window={ready ? { from: ready.from, to: ready.to, days: daysOf(ready) } : null} />
         <div aria-label="Cách xem số" className="sa-seg sa-seg--round" data-testid="sa-mode" role="group">
           <Link aria-current={mode === "total" ? "true" : undefined} className={`sa-seg__item${mode === "total" ? " sa-seg__item--on" : ""}`} href={modeHref("total")}>
             Tổng
@@ -219,9 +224,9 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
         {(data) => (
           <>
             {plan && data.plan ? <PlanCard plan={data.plan} /> : null}
-            <Tiles data={data} mode={mode} product={pid} state={state} />
-            <Composition data={data} mode={mode} product={pid} state={state} />
-            <ChannelTable data={data} mode={mode} product={pid} state={state} weakest={level === "product" ? (chosen?.weakest_metric ?? null) : null} />
+            <Tiles data={data} mode={mode} product={pid} state={linkWindow(state, data)} />
+            <Composition data={data} mode={mode} product={pid} state={linkWindow(state, data)} />
+            <ChannelTable data={data} mode={mode} product={pid} state={linkWindow(state, data)} weakest={level === "product" ? (chosen?.weakest_metric ?? null) : null} />
           </>
         )}
       </ResourceState>

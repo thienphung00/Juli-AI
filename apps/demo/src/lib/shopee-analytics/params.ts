@@ -121,6 +121,7 @@ const PERIOD_URL: Readonly<Record<string, PeriodKind>> = {
   "90d": "90d",
   thang: "month",
   "tuy-chon": "custom",
+  "ke-hoach": "plan",
 };
 const PERIOD_KEY: Readonly<Record<PeriodKind, string>> = {
   "7d": "7d",
@@ -128,6 +129,7 @@ const PERIOD_KEY: Readonly<Record<PeriodKind, string>> = {
   "90d": "90d",
   month: "thang",
   custom: "tuy-chon",
+  plan: "ke-hoach",
 };
 
 export const WINDOW_KEYS = ["ky", "thang", "tu", "den", "cmp"] as const;
@@ -185,6 +187,8 @@ export function periodLabel(q: WindowQuery): string {
       return "90 ngày";
     case "month":
       return q.month ? `Tháng ${q.month.slice(5)}/${q.month.slice(0, 4)}` : "Tháng";
+    case "plan":
+      return "Cả kế hoạch";
     default:
       return "Tuỳ chọn";
   }

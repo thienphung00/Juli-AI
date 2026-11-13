@@ -14,7 +14,7 @@ export function opsShopeeBase(shopId: string): string {
   return `/v1/ops/shops/${encodeURIComponent(shopId)}/shopee/analytics`;
 }
 
-export type PeriodKind = "7d" | "30d" | "90d" | "month" | "custom";
+export type PeriodKind = "7d" | "30d" | "90d" | "month" | "custom" | "plan";
 
 /** The window the API resolves (ending on the newest day with data unless `asOf`). */
 export interface WindowQuery {

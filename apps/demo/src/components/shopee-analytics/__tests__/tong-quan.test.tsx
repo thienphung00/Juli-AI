@@ -108,6 +108,33 @@ describe("Tổng quan (P100 board)", () => {
     expect(screen.getByLabelText("Từ ngày")).toBeInTheDocument();
   });
 
+  it("Cả kế hoạch: offered after Tùy chọn, enabled with the span, links ky=ke-hoach", async () => {
+    const base = channelSplit();
+    renderWith(<TongQuanView params={params()} />, fakeApi({ split: { ...base, plan_range: { from: "2026-10-15", to: "2026-10-24" } } }));
+    const plan = await screen.findByTestId("sa-period-plan");
+    expect(plan).toHaveTextContent("Cả kế hoạch");
+    expect(plan.getAttribute("href")).toContain("ky=ke-hoach");
+    const labels = Array.from(screen.getByTestId("sa-period").querySelectorAll(".sa-seg__item")).map((e) => e.textContent);
+    expect(labels).toEqual(["7 ngày", "30 ngày", "90 ngày", "Tùy chọn", "Cả kế hoạch"]);
+  });
+
+  it("Cả kế hoạch is disabled without a running card", async () => {
+    renderWith(<TongQuanView params={params()} />, fakeApi({ split: { ...channelSplit(), plan_range: null } }));
+    const plan = await screen.findByTestId("sa-period-plan");
+    expect(plan).toHaveAttribute("aria-disabled", "true");
+    expect(plan.getAttribute("href")).toBeNull();
+  });
+
+  it("with ky=ke-hoach the resolved dates show as the range and links to other screens carry them as dates", async () => {
+    const base = channelSplit();
+    const split = { ...base, from: "2026-10-15", to: "2026-11-09", plan_range: { from: "2026-10-15", to: "2026-11-20" } };
+    renderWith(<TongQuanView params={params("ky=ke-hoach")} />, fakeApi({ split }));
+    expect(await screen.findByTestId("sa-range")).toHaveTextContent("15/10–09/11");
+    expect(screen.getByTestId("sa-period-plan").getAttribute("aria-current")).toBe("true");
+    const q = new URLSearchParams((screen.getByTestId("sa-tile-gmv").getAttribute("href") ?? "").split("?")[1]);
+    expect([q.get("ky"), q.get("tu"), q.get("den")]).toEqual(["tuy-chon", "2026-10-15", "2026-11-09"]);
+  });
+
   it("Trung bình / ngày (cach=tb) divides the summed figures, keeps the rates and ROI, and is carried to Phân tích", async () => {
     renderWith(<TongQuanView params={params("cach=tb")} />, fakeApi());
     await screen.findByTestId("sa-channels");

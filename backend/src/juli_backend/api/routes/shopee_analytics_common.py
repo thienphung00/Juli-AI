@@ -25,6 +25,14 @@ from juli_backend.services.shopee_analytics import (
 PeriodQ = Annotated[
     str, Query(pattern="^(7d|30d|90d|month|custom)$", description="7d | 30d | 90d | month | custom")
 ]
+#: Tổng quan's "Cả kế hoạch" adds ``plan``: the running cards' span (channel-split only)
+PlanPeriodQ = Annotated[
+    str,
+    Query(
+        pattern="^(7d|30d|90d|month|custom|plan)$",
+        description="7d | 30d | 90d | month | custom | plan",
+    ),
+]
 MonthQ = Annotated[
     str | None, Query(pattern=r"^\d{4}-\d{2}$", description="YYYY-MM with period=month")
 ]

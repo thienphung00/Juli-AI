@@ -219,3 +219,27 @@ async def test_range_plan_at_product_level_counts_only_that_products_cards(
     assert mine["uplift_gmv"] == whole["uplift_gmv"]  # the only card is this product's
     assert other["cards"] == 0 and other["uplift_gmv"] == 0 and other["goal_gmv"] is None
     assert mine["actual_gmv"] is not None and mine["actual_gmv"] <= whole["actual_gmv"]
+
+
+async def test_running_range_is_the_span_of_the_running_cards(session, shop, monkeypatch):
+    seeded, _ = shop
+    assert await month_plan.running_range(session, seeded.shop_id, now=NOW) is None  # none running
+    await _executed_plan_and_draft(session, seeded, monkeypatch)  # running 15-24 Oct; draft 20-24
+    span = (date(2026, 10, 15), date(2026, 10, 24))
+    assert await month_plan.running_range(session, seeded.shop_id, now=NOW) == span
+    assert await month_plan.running_range(session, seeded.shop_id, ITEM, now=NOW) == span
+    assert await month_plan.running_range(session, seeded.shop_id, "other", now=NOW) is None
+
+
+async def test_period_plan_falls_back_to_30_days_without_a_usable_span(session, shop, monkeypatch):
+    from juli_backend.services.shopee_analytics import channel_split as cs
+
+    seeded, _ = shop
+    await _executed_plan_and_draft(session, seeded, monkeypatch)
+    # the span starts after the newest data day (AS_OF): the 30-day window answers instead
+    out = await cs.channel_split(session, seeded.shop_id, period="plan", as_of=AS_OF)
+    assert out["days"] == 30 and out["plan_range"] == {"from": "2026-10-15", "to": "2026-10-24"}
+    nope = await cs.channel_split(
+        session, seeded.shop_id, period="plan", as_of=AS_OF, product_id="other"
+    )
+    assert nope["plan_range"] is None and nope["days"] == 30

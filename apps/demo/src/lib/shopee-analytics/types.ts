@@ -749,6 +749,8 @@ export interface ChannelSplit {
   readonly from: string;
   readonly to: string;
   readonly days?: number;
+  /** The running cards' span (earliest start - latest end) at this level; null without a running card. */
+  readonly plan_range?: { readonly from: string; readonly to: string } | null;
   readonly updated_at: string | null;
   readonly rows: readonly ChannelRow[];
   readonly kpis: ChannelKpis;

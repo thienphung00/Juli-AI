@@ -33,6 +33,7 @@ from juli_backend.api.routes.shopee_analytics_common import (
     DateQ,
     MonthQ,
     PeriodQ,
+    PlanPeriodQ,
     refusal,
     window_args,
 )
@@ -263,7 +264,7 @@ async def ops_shopee_product_kols(
 @router.get(f"{BASE}/channel-split")
 async def ops_shopee_channel_split(
     shop_id: uuid.UUID,
-    period: PeriodQ = "30d",
+    period: PlanPeriodQ = "30d",
     month: MonthQ = None,
     start: FromQ = None,
     end: ToQ = None,

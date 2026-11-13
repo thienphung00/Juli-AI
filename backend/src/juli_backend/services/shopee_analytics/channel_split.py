@@ -59,6 +59,7 @@ CARD, SHOP_PAGE, LIVE, VIDEO, AFFILIATE = (
     "video",
     "lien_ket",
 )
+PLAN_PERIOD = "plan"
 MIN_PRODUCTS_FOR_MEDIAN = 3
 MAX_PRODUCTS = 200
 _METRICS = ("views", "ctr", "ctor", "aov")
@@ -400,6 +401,7 @@ async def _plan_block(
     view: PeriodView | None,
     window: Window,
     product_id: str | None = None,
+    plan_last: date | None = None,
 ) -> dict[str, Any] | None:
     """The Kế hoạch card of the selected period: actual vs the goal built from the RUNNING cards
     of Kế hoạch (``month_plan.range_plan``; no goal when no card is running)."""
@@ -410,9 +412,10 @@ async def _plan_block(
             session,
             shop_id,
             window.start,
-            window.end,
+            plan_last or window.end,
             scope=month_plan.SCOPE_RUNNING,
             now=datetime.now(UTC),
+            actual_to=window.end,
             view=view,
             product_id=product_id,
         )
@@ -454,6 +457,18 @@ async def channel_split(
     as_of: date | None = None,
     product_id: str | None = None,
 ) -> dict[str, Any]:
+    from juli_backend.services.shopee_recommendations import month_plan
+
+    now = datetime.now(UTC)
+    span = await month_plan.running_range(session, shop_id, product_id, now=now)
+    plan_last: date | None = None
+    if period == PLAN_PERIOD:
+        # "Cả kế hoạch": the running cards' span, cut at the newest data day (no rows beyond it)
+        anchor = as_of or await loaders.default_as_of(session, shop_id)
+        if span is not None and anchor is not None and span[0] <= anchor:
+            period, start, end, plan_last = "custom", span[0], min(span[1], anchor), span[1]
+        else:
+            period = "30d"
     loaded = await _load(
         session, shop_id, period=period, month=month, start=start, end=end, as_of=as_of
     )
@@ -472,13 +487,16 @@ async def channel_split(
     for r in body_rows:
         before = prev_rows.get(r["key"])
         r["prev"] = None if before is None else {k: before[k] for k in (*_CELLS, "share")}
-    plan = await _plan_block(session, shop_id, view, window, product_id)
+    plan = await _plan_block(session, shop_id, view, window, product_id, plan_last)
     return {
         "level": "product" if product_id else "shop",
         "product_id": product_id,
         "from": window.start.isoformat(),
         "to": window.end.isoformat(),
         "days": window.days,
+        "plan_range": None
+        if span is None
+        else {"from": span[0].isoformat(), "to": span[1].isoformat()},
         "updated_at": await _updated_at(session, shop_id),
         "rows": body_rows,
         "kpis": kpis,
