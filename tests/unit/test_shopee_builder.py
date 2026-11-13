@@ -873,7 +873,7 @@ async def test_a_listing_without_cost_can_be_built_and_shows_chua_tinh(session, 
         shop,
         kind="product_discount",
         item_id="1001",
-        variations=[{"variation_id": "", "discount_pct": 10}],
+        variations=[{"variation_id": "", "discount_pct": 20}],
     )
     assert v["ok"] and v["profit_status"] == "chua_tinh" and v["cost_known"] is False
     assert v["delta"]["profit"] == {"low": None, "p50": None, "high": None}
@@ -918,7 +918,7 @@ async def test_an_excluded_listing_has_no_builder_entry(session, shop):
         shop,
         kind="product_discount",
         item_id="1001",
-        variations=[{"variation_id": "", "discount_pct": 10}],
+        variations=[{"variation_id": "", "discount_pct": 20}],
     )
     assert v["ok"] is False and v["refusal"]["code"] == "item_excluded:1001"
     assert "Loại trừ sản phẩm" in v["refusal"]["message"]

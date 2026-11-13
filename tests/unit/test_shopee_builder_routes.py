@@ -254,10 +254,10 @@ async def test_ops_builder_reads_and_compares_as_viewer_and_saves_as_operator_au
 
 # ==================== P97 D85.14: "Chạy cùng nhau" -> one group of the plan
 
-PRICE_10 = {
+PRICE_15 = {
     "kind": "product_discount",
     "item_id": "1001",
-    "variations": [{"variation_id": "", "discount_pct": 10}],
+    "variations": [{"variation_id": "", "discount_pct": 15}],
 }
 PRICE_20 = {
     "kind": "product_discount",
@@ -273,7 +273,7 @@ async def test_run_together_saves_the_cards_and_one_group_and_the_second_price_g
     voucher_b = {**VOUCHER, "value": 8000}
     r = await seller.post(
         f"{B}/group",
-        json=body(VOUCHER, voucher_b, PRICE_10, PRICE_20, members=[0, 1, 2, 3], days=4)
+        json=body(VOUCHER, voucher_b, PRICE_15, PRICE_20, members=[0, 1, 2, 3], days=4)
         | {"acknowledge_breaches": True},
     )
     assert r.status_code == 201, r.text
