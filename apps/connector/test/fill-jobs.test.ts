@@ -25,20 +25,23 @@ class MemoryStorage {
   }
 }
 
-function setup(over: { jobs?: unknown[]; enabled?: boolean; busy?: boolean; listError?: number; tabOpen?: boolean } = {}) {
+function setup(over: { jobs?: unknown[]; enabled?: boolean; busy?: boolean; listError?: number; tabOpen?: boolean; beat?: { open: boolean; commands?: unknown[] } } = {}) {
   const storage = new MemoryStorage();
   storage.data.token = TOKEN;
   const opened: string[] = [];
   const reports: { id: string; body: Record<string, unknown> }[] = [];
   const halts: unknown[][] = [];
+  const beats: { scOpen?: boolean; ack?: string }[] = [];
+  const reconciled: number[] = [];
   const clock = { t: NOW };
   const state = { jobs: over.jobs ?? [voucherJob()], enabled: over.enabled ?? true, tabOpen: over.tabOpen ?? true };
   const jobs = new FillJobs({
     storage,
     client: {
-      fillJobs: async () => {
+      fillJobs: async (_t: string, query?: { scOpen?: boolean; ack?: string }) => {
         if (over.listError) throw new GatewayError(over.listError, "x");
-        return { enabled: state.enabled, jobs: state.jobs };
+        if (query && (query.scOpen !== undefined || query.ack)) beats.push(query);
+        return { enabled: state.enabled, jobs: state.jobs, commands: over.beat?.commands ?? [] };
       },
       fillJobReport: async (_t: string, id: string, body: Record<string, unknown>) => {
         reports.push({ id, body });
@@ -53,12 +56,22 @@ function setup(over: { jobs?: unknown[]; enabled?: boolean; busy?: boolean; list
       },
       inspect: async () => ({ open: state.tabOpen }),
     },
+    ...(over.beat
+      ? {
+          heartbeat: {
+            sellerCentreOpen: async () => over.beat!.open,
+            reconcile: async () => {
+              reconciled.push(1);
+            },
+          },
+        }
+      : {}),
     busy: async () => over.busy === true,
     halt: async (...args) => {
       halts.push(args);
     },
   });
-  return { jobs, storage, opened, reports, halts, clock, state };
+  return { jobs, storage, opened, reports, halts, clock, state, beats, reconciled };
 }
 
 describe("the poll", () => {
@@ -199,5 +212,39 @@ describe("noticing a saved voucher", () => {
     expect(bundleIdFrom({ bundle_id: "77" })).toBe("77");
     expect(bundleIdFrom({ bundle_id: "7 7; x" })).toBeNull();
     expect(bundleIdFrom({ data: { list: [] } })).toBeNull();
+  });
+});
+
+describe("heartbeat and the reconcile command (0.3.18)", () => {
+  it("tells Juli whether a Seller Centre tab is open, with every poll", async () => {
+    const s = setup({ beat: { open: true } });
+    await s.jobs.poll();
+    expect(s.beats[0]).toEqual({ scOpen: true });
+    const closed = setup({ beat: { open: false } });
+    await closed.jobs.poll();
+    expect(closed.beats[0]).toEqual({ scOpen: false });
+  });
+
+  it("sends nothing extra without a heartbeat dependency", async () => {
+    const s = setup();
+    await s.jobs.poll();
+    expect(s.beats).toEqual([]);
+  });
+
+  it("runs a reconcile command once, then acknowledges it on the next poll", async () => {
+    const s = setup({ beat: { open: true, commands: [{ type: "reconcile", id: "reconcile:2026-11-13T09:00:00Z" }] } });
+    await s.jobs.poll();
+    expect(s.reconciled).toHaveLength(1);
+    await s.jobs.poll();
+    expect(s.reconciled).toHaveLength(1); // the same command id never runs twice
+    expect(s.beats[1]).toEqual({ scOpen: true, ack: "reconcile:2026-11-13T09:00:00Z" });
+    await s.jobs.poll();
+    expect(s.beats[2]).toEqual({ scOpen: true });
+  });
+
+  it("ignores commands it does not know", async () => {
+    const s = setup({ beat: { open: true, commands: [{ type: "wipe", id: "x" }, { type: "reconcile" }] } });
+    await s.jobs.poll();
+    expect(s.reconciled).toEqual([]);
   });
 });

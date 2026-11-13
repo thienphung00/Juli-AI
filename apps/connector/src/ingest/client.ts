@@ -96,8 +96,11 @@ export class GatewayClient {
   }
 
   /** The open fill jobs of the token's shop (P97 D85.6). Juli serves nothing while its kill switch is off. */
-  fillJobs(token: string): Promise<unknown> {
-    return this.call("/v1/ingest/fill-jobs", { method: "GET" }, token);
+  fillJobs(token: string, query: { scOpen?: boolean; ack?: string } = {}): Promise<unknown> {
+    const qs = new URLSearchParams();
+    if (query.scOpen !== undefined) qs.set("sc_open", query.scOpen ? "true" : "false");
+    if (query.ack) qs.set("ack", query.ack);
+    return this.call(`/v1/ingest/fill-jobs${qs.size ? `?${qs.toString()}` : ""}`, { method: "GET" }, token);
   }
 
   /** How far one fill job got: opened / filled / saved / captured (with the new id) / failed. */

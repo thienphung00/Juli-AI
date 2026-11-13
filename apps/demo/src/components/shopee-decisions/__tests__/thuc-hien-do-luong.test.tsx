@@ -30,7 +30,7 @@ describe("Thực hiện", () => {
     expect(bar).toHaveTextContent("Juli Connector 0.3.18");
     expect(bar).toHaveTextContent("Seller Centre đang mở");
     expect(bar).toHaveTextContent("09:05");
-    expect(within(bar).getByRole("button", { name: "Đối chiếu ngay" })).toBeDisabled();
+    expect(within(bar).getByRole("button", { name: "Đối chiếu ngay" })).toBeEnabled();
     expect(screen.getByTestId("sd-th-state-a")).toHaveTextContent("Chờ điền");
     expect(screen.getByTestId("sd-th-detail-a")).toHaveTextContent("0/1 đã điền");
     expect(screen.getByTestId("sd-th-state-b")).toHaveTextContent("Đã điền · chờ bạn lưu");
@@ -123,5 +123,28 @@ describe("Đo lường", () => {
     expect(s.from).toBeCloseTo(50);
     expect(s.to).toBeCloseTo(100);
     expect(scaleOf({ band: { p10: null, p50: null, p90: null }, actual: null })).toBeNull();
+  });
+});
+
+describe("Đối chiếu ngay", () => {
+  const line = (over: Partial<ExecutionStates["connector"]>): ExecutionStates => ({ ...states([]), connector: { ...states([]).connector, ...over } });
+
+  it("asks the Connector through the host API and reloads", async () => {
+    const reco = fakeReco({ execution: line({}) });
+    renderReco(<ThucHienView />, reco);
+    fireEvent.click(await screen.findByRole("button", { name: "Đối chiếu ngay" }));
+    await waitFor(() => expect(reco.calls.some((c) => c.name === "reconcile")).toBe(true));
+    await waitFor(() => expect(reco.calls.filter((c) => c.name === "executionStates").length).toBe(2));
+  });
+
+  it("is disabled when the Connector is not connected, a command is pending, or the host is read-only", async () => {
+    const off = renderReco(<ThucHienView />, fakeReco({ execution: line({ connected: false }) }));
+    expect(await screen.findByRole("button", { name: "Đối chiếu ngay" })).toBeDisabled();
+    off.unmount();
+    const pending = renderReco(<ThucHienView />, fakeReco({ execution: line({ reconcile_pending: true }) }));
+    expect(await screen.findByRole("button", { name: "Đối chiếu ngay" })).toBeDisabled();
+    pending.unmount();
+    renderReco(<ThucHienView />, fakeReco({ execution: line({}) }), { readOnly: true });
+    expect(await screen.findByRole("button", { name: "Đối chiếu ngay" })).toBeDisabled();
   });
 });

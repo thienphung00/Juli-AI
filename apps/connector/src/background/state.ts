@@ -180,6 +180,9 @@ export interface FillJobsState {
   /** Jobs this browser already opened by itself (never again by the poll; the person re-opens). */
   autoOpened: string[];
   lastPoll?: { at: string; status: string };
+  /** The last Juli command this browser ran ("Đối chiếu ngay"), and the one still to acknowledge. */
+  lastCommand?: string;
+  doneCommand?: string;
 }
 
 /** The shared daily request budget's counter. */

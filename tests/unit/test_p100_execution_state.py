@@ -331,3 +331,176 @@ async def test_the_connector_progress_is_stored_and_shown(session, shop):
     out = await es.execution_states(session, seeded.shop_id, now=NOW)
     (row,) = [c for c in out["cards"] if c["card_id"] == str(ids[1])]
     assert (row["state"], row["fields"]) == (es.STATE_FILLED, {"filled": 1, "total": 2})
+
+
+# ------------------------------------------------------------------ automatic Đã làm
+
+
+async def _walk(session, shop_id, job_id, *statuses):
+    for status in statuses:
+        await fq.fill_queue.report(session, shop_id, job_id, status=status)
+
+
+async def _status(session, card_id):
+    await session.commit()
+    return (await session.get(ShopProposal, card_id)).status
+
+
+async def test_saved_on_every_page_marks_the_card_executed_once(session, shop):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[1])
+    job = (
+        await session.scalars(select(ShopeeFillJob).where(ShopeeFillJob.proposal_id == ids[1]))
+    ).one()
+    for status in ("opened", "filled"):
+        await fq.fill_queue.report(session, seeded.shop_id, job.id, status=status)
+    assert await _status(session, ids[1]) == "approved"  # filled is not saved
+    await fq.fill_queue.report(session, seeded.shop_id, job.id, status="saved")
+    assert await _status(session, ids[1]) == "executed"
+    events = (
+        await session.scalars(
+            select(CardEvent).where(
+                CardEvent.card_id == ids[1], CardEvent.event_type == EVENT_EXECUTED
+            )
+        )
+    ).all()
+    assert len(events) == 1 and events[0].payload["auto"] is True
+    # a second saved report (same status is allowed) does not execute again
+    await fq.fill_queue.report(session, seeded.shop_id, job.id, status="saved")
+    await session.commit()
+    events = (
+        await session.scalars(
+            select(CardEvent).where(
+                CardEvent.card_id == ids[1], CardEvent.event_type == EVENT_EXECUTED
+            )
+        )
+    ).all()
+    assert len(events) == 1
+
+
+async def test_auto_execute_waits_for_every_page_of_the_card(session, shop):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[1])
+    job = (
+        await session.scalars(select(ShopeeFillJob).where(ShopeeFillJob.proposal_id == ids[1]))
+    ).one()
+    extra = ShopeeFillJob(
+        shop_id=seeded.shop_id,
+        proposal_id=ids[1],
+        version=job.version,
+        kind=job.kind,
+        target={"campaign_id": "2"},
+        target_key="other",
+        seq=9,
+        payload=dict(job.payload),
+        status="queued",
+    )
+    session.add(extra)
+    await session.commit()
+    await _walk(session, seeded.shop_id, job.id, "opened", "filled", "saved")
+    assert await _status(session, ids[1]) == "approved"
+    await session.execute(
+        update(ShopeeFillJob).where(ShopeeFillJob.id == extra.id).values(status="filled")
+    )
+    await session.commit()
+    await fq.fill_queue.report(session, seeded.shop_id, extra.id, status="saved")
+    assert await _status(session, ids[1]) == "executed"
+
+
+async def test_a_mismatch_after_the_automatic_execution_reads_lech(session, shop):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[1])
+    job = (
+        await session.scalars(select(ShopeeFillJob).where(ShopeeFillJob.proposal_id == ids[1]))
+    ).one()
+    await _walk(session, seeded.shop_id, job.id, "opened", "filled", "saved")
+    executed = (
+        await session.scalars(
+            select(CardEvent).where(
+                CardEvent.card_id == ids[1], CardEvent.event_type == EVENT_EXECUTED
+            )
+        )
+    ).first()
+    await _event(
+        session,
+        seeded.shop_id,
+        ids[1],
+        EVENT_MISMATCH,
+        executed.occurred_at + timedelta(hours=48),
+        {"expected": {"daily_budget": 80_000}, "observed": {"daily_budget": 100_000}},
+    )
+    await session.commit()
+    out = await es.execution_states(session, seeded.shop_id, now=NOW)
+    (row,) = [c for c in out["cards"] if c["card_id"] == str(ids[1])]
+    assert row["state"] == es.STATE_MISMATCH
+
+
+async def test_a_reviewer_request_never_auto_executes(session, shop):
+    from juli_backend.integrations.tiktok.reviewer_scope import reviewer_session
+
+    seeded, ids = shop
+    await _approve(session, seeded, ids[1])
+    job = (
+        await session.scalars(select(ShopeeFillJob).where(ShopeeFillJob.proposal_id == ids[1]))
+    ).one()
+    with reviewer_session():
+        await _walk(session, seeded.shop_id, job.id, "opened", "filled", "saved")
+    assert await _status(session, ids[1]) == "approved"
+
+
+# ------------------------------------------------------------------ heartbeat and command
+
+
+async def test_the_poll_heartbeat_and_the_reconcile_command(session, shop):
+    from juli_backend.services.shopee_recommendations import connector_state as cs
+
+    seeded, _ = shop
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW)
+    assert out["seller_centre_open"] is None and out["connected"] is False
+    await cs.record_heartbeat(session, seeded.shop_id, seller_centre_open=True, ack=None, now=NOW)
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(minutes=2))
+    assert (out["seller_centre_open"], out["connected"]) == (True, True)
+    stale = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(hours=1))
+    assert stale["seller_centre_open"] is None
+    asked = await cs.request_reconcile(session, seeded.shop_id, now=NOW)
+    again = await cs.request_reconcile(session, seeded.shop_id, now=NOW + timedelta(minutes=1))
+    assert asked["command_id"] == again["command_id"]
+    assert await cs.commands(session, seeded.shop_id, now=NOW) == [
+        {"type": "reconcile", "id": asked["command_id"]}
+    ]
+    await cs.record_heartbeat(
+        session, seeded.shop_id, seller_centre_open=False, ack="other", now=NOW
+    )
+    assert len(await cs.commands(session, seeded.shop_id, now=NOW)) == 1
+    await cs.record_heartbeat(
+        session, seeded.shop_id, seller_centre_open=None, ack=asked["command_id"], now=NOW
+    )
+    assert await cs.commands(session, seeded.shop_id, now=NOW) == []
+    again = await cs.request_reconcile(session, seeded.shop_id, now=NOW)  # closed: a new one opens
+    assert again["command_id"] != asked["command_id"]
+
+
+async def test_reconcile_over_http_reaches_the_connector_and_reviewers_are_refused(session, shop):
+    from juli_backend.integrations.tiktok.reviewer_scope import reviewer_session
+
+    seeded, _ = shop
+    headers = await fq._token(session, seeded)
+    app = build_app(session)
+    authenticate(app, user=seeded.user, shop=seeded.shop)
+    async with client_for(app) as client:
+        r = await client.post("/v1/demo/shopee/recommendations/execution/reconcile")
+        assert r.status_code == 200
+        url = "/v1/ingest/fill-jobs"
+        got = (await client.get(url, params={"sc_open": "true"}, headers=headers)).json()
+        assert [c["type"] for c in got["commands"]] == ["reconcile"]
+        cid = got["commands"][0]["id"]
+        done = (await client.get(url, params={"ack": cid}, headers=headers)).json()
+        assert done["commands"] == []
+    app.dependency_overrides.clear()
+    from juli_backend.services.shop_proposals import ProposalError
+    from juli_backend.services.shopee_recommendations import connector_state as cs
+
+    with reviewer_session(), pytest.raises(ProposalError):
+        await cs.request_reconcile(session, seeded.shop_id, now=NOW)
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW)
+    assert out["seller_centre_open"] is True

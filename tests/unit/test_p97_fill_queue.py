@@ -15,6 +15,7 @@ from juli_backend.models.shopee_fill import ShopeeFillJob
 from juli_backend.services import ingest as ingest_service
 from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.ingest import pairing
+from juli_backend.services.shop_proposals import ProposalError
 from juli_backend.services.shopee_recommendations import fill_queue
 from juli_backend.services.shopee_recommendations.loader import load_env
 from juli_backend.services.shopee_recommendations.model import Candidate
@@ -225,7 +226,7 @@ async def test_the_flag_off_serves_nothing(session, shop, ext, monkeypatch):
     seeded, ids = shop
     await _approve(session, seeded, ids[0])
     monkeypatch.delenv("CONNECTOR_FILL_LISTING")
-    assert (await ext.get(JOBS)).json() == {"enabled": False, "jobs": []}
+    assert (await ext.get(JOBS)).json() == {"enabled": False, "jobs": [], "commands": []}
 
 
 async def test_the_captured_voucher_id_is_what_mark_executed_verifies(session, shop, ext):
@@ -234,9 +235,13 @@ async def test_the_captured_voucher_id_is_what_mark_executed_verifies(session, s
     (job,) = await _jobs(session, seeded)
     await ext.post(f"{JOBS}/{job.id}", json={"status": "filled"})
     await ext.post(f"{JOBS}/{job.id}", json={"status": "captured", "captured_ref": "88001"})
-    out = await reco.mark_executed(session, seeded.shop_id, ids[0], now=NOW, user_id=seeded.user.id)
     await session.commit()
-    assert out is not None  # no voucher_id typed: the captured one was used
+    # P100: the captured id on a fully saved card executes it by itself, with that id (no typing);
+    # the "Đã làm" button after that is refused as already done.
+    status = (await session.get(ShopProposal, ids[0])).status
+    assert status == "executed"
+    with pytest.raises(ProposalError):
+        await reco.mark_executed(session, seeded.shop_id, ids[0], now=NOW, user_id=seeded.user.id)
     from juli_backend.models.card_events import CardEvent
 
     ev = (

@@ -25,13 +25,13 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.models.platform_data import PlatformPromotion
-from juli_backend.models.shop_proposals import ShopProposal
+from juli_backend.models.shop_proposals import ShopProposal, ShopProposalApproval
 from juli_backend.models.shopee_fill import (
     OPEN_STATUSES,
     STATUS_CANCELLED,
@@ -715,7 +715,67 @@ async def report(
         j.error = (error or "failed")[:64]
     j.updated_at = (now or datetime.now(UTC)).replace(tzinfo=None)
     await session.flush()
+    if status in (STATUS_SAVED, STATUS_CAPTURED):
+        await auto_execute(session, shop_id, j.proposal_id, now=j.updated_at)
     return job_json(j)
+
+
+async def auto_execute(
+    session: AsyncSession, shop_id: uuid.UUID, proposal_id: uuid.UUID, *, now: datetime
+) -> bool:
+    """The Connector saw Shopee accept the save of EVERY page of the card: record "Đã làm" itself
+    (the same ``mark_executed`` as the button, so the read-back starts) and let the existing
+    read-back decide khớp / lệch; the measurement clock starts at the match. Idempotent (a card
+    that is no longer ``approved`` is left alone), a voucher still waiting for its captured id
+    waits for the next report, and it never runs inside a reviewer request."""
+    if not enabled():
+        return False
+    from juli_backend.services.shopee_recommendations import service
+
+    latest = await session.scalar(
+        select(func.max(ShopeeFillJob.version)).where(
+            ShopeeFillJob.shop_id == shop_id, ShopeeFillJob.proposal_id == proposal_id
+        )
+    )
+    jobs = (
+        await session.scalars(
+            select(ShopeeFillJob).where(
+                ShopeeFillJob.shop_id == shop_id,
+                ShopeeFillJob.proposal_id == proposal_id,
+                ShopeeFillJob.version == latest,
+                ShopeeFillJob.status != STATUS_CANCELLED,
+            )
+        )
+    ).all()
+    if not jobs or any(j.status not in (STATUS_SAVED, STATUS_CAPTURED) for j in jobs):
+        return False
+    approver = await session.scalar(
+        select(ShopProposalApproval.decided_by_user_id)
+        .where(
+            ShopProposalApproval.shop_id == shop_id,
+            ShopProposalApproval.proposal_id == proposal_id,
+            ShopProposalApproval.decision == "approved",
+            ShopProposalApproval.decided_by_user_id.is_not(None),
+        )
+        .order_by(ShopProposalApproval.decided_at.desc())
+        .limit(1)
+    )
+    if approver is None:  # an execution is recorded under a person: the one who approved
+        return False
+    try:
+        async with session.begin_nested():
+            await service.mark_executed(
+                session,
+                shop_id,
+                proposal_id,
+                now=now,
+                user_id=approver,
+                payload_extra={"auto": True, "source": "connector"},
+            )
+    except ProposalError as exc:  # already executed (bad state) or a voucher id still missing
+        logger.info("fill_auto_execute_skipped", extra={"code": exc.code})
+        return False
+    return True
 
 
 async def cancel(session: AsyncSession, shop_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, Any]:
