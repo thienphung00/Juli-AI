@@ -1,7 +1,9 @@
-# P95 — TikTok Shop parity on Demo: estimate only (recorded 2026-11-05, NOT scheduled)
+# P95 — TikTok Shop parity on Demo (recorded 2026-11-05, scheduled 2026-11-06)
 
-Owner: record, do not implement — Shopee and the current client come first. Revisit after the Shopee pilot is
-stable.
+Scheduled by `contracts/plan-2026-11-09.md`. The "do not implement" line is withdrawn. Shops are
+dynamic: TikTok data comes from the partner endpoints of whichever shop connected, Shopee data
+from imported files plus the Juli Connector. No shop id is compiled into the product. The phases
+below still size the work. P0's probe is a platform capability, not a Fujiwa-only path.
 
 ## Ask
 Bring the Shopee P90–P92 features (analytics Tổng quan / Phân tích / Sản phẩm / Xếp hạng, Quyết định cards with
@@ -34,15 +36,15 @@ TikTok sandbox for the reviewer, and let sellers create Đề xuất themselves 
 ## Phases (agent-days)
 | Phase | Work | Size |
 |---|---|---|
-| P0 | Probe: real scope names, Fujiwa's granted scopes, analytics breakdown and settlement fee fields, GMV Max API path/permission | 2 |
-| P1 | TikTok adapter: platform-generic loader interface, order lines + fee actuals, flows, fee table fallback, 90-day backfill for Fujiwa | 8–10 |
+| P0 | Probe: real scope names, analytics breakdown and settlement fee fields, GMV Max API path/permission. The result is a platform capability. The first connected shop is the probe subject, not a compiled-in id. | 2 |
+| P1 | TikTok adapter: platform-generic loader interface, order lines + fee actuals, flows, fee table fallback, 90-day backfill for each connected shop | 8–10 |
 | P2 | Analytics screens on TikTok (lift `_shopee` gates, nav, empty states for ads/keywords) | 4–5 |
 | P3 | Cards / versions / plans / measurement for TikTok (kinds, generators for promotion / price / listing / affiliate, coexistence or retirement of legacy action_cards) | 7–9 |
 | P4 | Seller builder + Đề xuất creation on Demo for TikTok | 3–4 |
 | P5 | Ads / GMV Max (blocked on Business API access) | 5–8 |
 | P6 | Reviewer sandbox on the new screens (pin, seeded data, platform "tiktok" reviewer accounts, masking audit) | 3–4 |
-Total ≈ 25–35 agent-days. Order: P0 → P1 → P2 (Fujiwa sees analytics first) → P3 → P4 → P6; P5 in parallel once
-access is confirmed.
+Total ≈ 25–35 agent-days. Order: P0 → P1 → P2 (any connected TikTok shop sees analytics) → P3 → P4 → P6; P5 in parallel once
+access is confirmed. Field visibility is the shared gate plus the Shopee gate and the TikTok gate in `plan-2026-11-09.md`.
 
 ## Risks
 Unverified scope names and re-consent prompts; no ads API; thin sandbox data (D73: honest empty states, never
