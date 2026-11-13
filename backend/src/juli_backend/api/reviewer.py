@@ -132,6 +132,8 @@ SAMPLE_SHOP_ROUTES: dict[tuple[str, str], tuple[Literal["read", "write"], str]] 
     (_GET, _R + "demo_shopee_analytics:shopee_overview"): ("read", "Tổng quan"),
     (_GET, _R + "demo_shopee_analytics:shopee_matrix"): ("read", "Phân tích"),
     (_GET, _R + "demo_shopee_analytics:shopee_critical"): ("read", "Tổng quan"),
+    (_GET, _R + "demo_shopee_analytics:shopee_channel_split"): ("read", "Tổng quan"),
+    (_GET, _R + "demo_shopee_analytics:shopee_channel_split_products"): ("read", "Tổng quan"),
     (_GET, _R + "demo_shopee_analytics:shopee_ranking"): ("read", "Phân tích"),
     (_GET, _R + "demo_shopee_analytics:shopee_product"): ("read", "Sản phẩm"),
     (_GET, _R + "demo_shopee_analytics:shopee_kols"): ("read", "Phân tích › KOL"),

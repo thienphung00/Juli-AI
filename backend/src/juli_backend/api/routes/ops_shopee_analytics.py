@@ -39,7 +39,7 @@ from juli_backend.api.routes.shopee_analytics_common import (
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services import shopee_recommendations as reco
-from juli_backend.services.shopee_analytics import queries
+from juli_backend.services.shopee_analytics import channel_split, queries
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 
@@ -256,5 +256,51 @@ async def ops_shopee_product_kols(
                 session, shop_id, item_id, **window_args(period, month, start, end, as_of)
             )
             return await reco.attach_kol_cards(session, shop_id, body, audience="ops")
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get(f"{BASE}/channel-split")
+async def ops_shopee_channel_split(
+    shop_id: uuid.UUID,
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: FromQ = None,
+    end: ToQ = None,
+    as_of: DateQ = None,
+    product_id: Annotated[str | None, Query(max_length=64)] = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await channel_split.channel_split(
+                session,
+                shop_id,
+                product_id=product_id,
+                **window_args(period, month, start, end, as_of),
+            )
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get(f"{BASE}/channel-split/products")
+async def ops_shopee_channel_split_products(
+    shop_id: uuid.UUID,
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: FromQ = None,
+    end: ToQ = None,
+    as_of: DateQ = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await channel_split.channel_split_products(
+                session, shop_id, **window_args(period, month, start, end, as_of)
+            )
     except REFUSALS as exc:
         raise refusal(exc) from None

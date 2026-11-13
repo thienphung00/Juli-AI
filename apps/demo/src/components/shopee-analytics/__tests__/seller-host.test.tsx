@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { critical, matrix, overview, product, ranking } from "../../../lib/shopee-analytics/__tests__/fixtures";
+import { channelProducts, channelSplit, critical, matrix, overview, product, ranking } from "../../../lib/shopee-analytics/__tests__/fixtures";
 import type { ShopReportState } from "../../../lib/shop-report/shop-report-context";
 import { SellerShopeePage, SellerShopeeProductPage } from "../hosts";
 
@@ -29,6 +29,8 @@ beforeEach(() => {
       const path = url.split("?")[0]!;
       const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200 });
       if (path.endsWith("/overview")) return json(overview());
+      if (path.endsWith("/channel-split/products")) return json(channelProducts());
+      if (path.endsWith("/channel-split")) return json(channelSplit());
       if (path.endsWith("/matrix")) return json(matrix());
       if (path.endsWith("/critical")) return json(critical());
       if (path.endsWith("/ranking")) return json(ranking());
@@ -42,8 +44,8 @@ describe("the seller routes of the Shopee screens", () => {
   it("/tong-quan reads the seller API with bearer and X-Shop-Id", async () => {
     render(<SellerShopeePage screen="tong-quan" />);
     expect(await screen.findByTestId("sa-tile-gmv")).toBeInTheDocument();
-    const first = calls.find((c) => c.url.startsWith("/v1/demo/shopee/overview"))!;
-    expect(first.url).toBe("/v1/demo/shopee/overview?period=30d");
+    const first = calls.find((c) => c.url.startsWith("/v1/demo/shopee/channel-split?"))!;
+    expect(first.url).toBe("/v1/demo/shopee/channel-split?period=30d");
     expect(first.headers.authorization).toBe("Bearer tok");
     expect(first.headers["x-shop-id"]).toBe("shop-9");
   });
@@ -71,7 +73,7 @@ describe("the seller routes of the Shopee screens", () => {
     search = "ky=7d";
     render(<SellerShopeePage screen="tong-quan" />);
     await screen.findByTestId("sa-tile-gmv");
-    expect(calls[0]!.url).toBe("/v1/demo/shopee/overview?period=7d");
+    expect(calls.some((c) => c.url === "/v1/demo/shopee/channel-split?period=7d")).toBe(true);
   });
 
   it("without a signed-in shop it asks for one and calls nothing", async () => {

@@ -1,5 +1,5 @@
 import type { MarketScope } from "./market-price";
-import type { Critical, Matrix, Overview, ProductPage, Ranking } from "./types";
+import type { ChannelProducts, ChannelSplit, Critical, Matrix, Overview, ProductPage, Ranking } from "./types";
 
 /**
  * The one client of the Shopee shop read APIs. The SAME screens run for the seller
@@ -40,6 +40,9 @@ export interface ShopeeApi {
   overview(q: WindowQuery): Promise<Overview>;
   matrix(q: MatrixQuery): Promise<Matrix>;
   critical(q: WindowQuery): Promise<Critical>;
+  /** P100 Tổng quan: the channel table of the shop, or of one product. */
+  channelSplit(q: WindowQuery, productId?: string | null): Promise<ChannelSplit>;
+  channelSplitProducts(q: WindowQuery): Promise<ChannelProducts>;
   ranking(q: RankingQuery): Promise<Ranking>;
   product(itemId: string, period: "7d" | "30d" | "90d"): Promise<ProductPage>;
   /** P92 B-10: where the "Giá thị trường" call goes (same token and shop as this client). */
@@ -140,6 +143,12 @@ export function createShopeeApi(options: ShopeeClientOptions): ShopeeApi {
       return get<Matrix>("/matrix", p);
     },
     critical: (q) => get<Critical>("/critical", windowParams(q)),
+    channelSplit: (q, productId) => {
+      const p = windowParams(q);
+      if (productId) p.set("product_id", productId);
+      return get<ChannelSplit>("/channel-split", p);
+    },
+    channelSplitProducts: (q) => get<ChannelProducts>("/channel-split/products", windowParams(q)),
     ranking: (q) => {
       const p = windowParams(q);
       p.set("kind", q.kind ?? "products");

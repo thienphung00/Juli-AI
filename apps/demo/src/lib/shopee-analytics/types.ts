@@ -673,3 +673,72 @@ export interface ProductPage {
   /** Optional: item_traffic_sources present → the Nguồn tab shows 5 flows. */
   readonly item_traffic_sources?: unknown;
 }
+
+/** P100 Tổng quan: `GET …/channel-split` (backend `services/shopee_analytics/channel_split.py`). */
+export type ChannelKey = "organic" | "organic_card" | "organic_shop" | "ads" | "ads_product" | "ads_shop" | "affiliate";
+export type AdBase = "traffic_overview" | "ads_report";
+
+export interface ChannelRow {
+  readonly key: ChannelKey;
+  readonly parent: ChannelKey | null;
+  readonly views: number | null;
+  readonly clicks: number | null;
+  /** Fractions (0.1 = 10 %). */
+  readonly ctr: number | null;
+  readonly ctor: number | null;
+  readonly aov: number | null;
+  readonly gmv: number | null;
+  readonly orders: number | null;
+  readonly ad_base: AdBase | null;
+}
+
+export interface PlanBar {
+  readonly now: number | null;
+  readonly goal: number | null;
+}
+
+/** Month to date against the month goal of Cài đặt › Mục tiêu. */
+export interface PlanMonth {
+  readonly month: string;
+  readonly day: number;
+  readonly days_in_month: number;
+  readonly gmv: PlanBar;
+  readonly profit: PlanBar;
+}
+
+export interface ChannelSplit {
+  readonly level: "shop" | "product";
+  readonly product_id: string | null;
+  readonly from: string;
+  readonly to: string;
+  readonly updated_at: string | null;
+  readonly rows: readonly ChannelRow[];
+  readonly kpis: {
+    readonly gmv: number | null;
+    readonly orders: number | null;
+    readonly profit: number | null;
+    readonly ads_cost: number | null;
+    readonly affiliate_cost: number | null;
+  };
+  readonly plan?: PlanMonth | null;
+}
+
+export type WeakestMetric = "views" | "ctr" | "ctor" | "aov" | "orders";
+
+export interface ChannelProduct {
+  readonly product_id: string;
+  readonly name: string;
+  readonly image_url: string | null;
+  readonly gmv: number | null;
+  readonly margin: number | null;
+  readonly organic_gmv: number | null;
+  readonly ads_gmv: number | null;
+  readonly affiliate_gmv: number | null;
+  readonly weakest_metric: WeakestMetric | null;
+}
+
+export interface ChannelProducts {
+  readonly from: string;
+  readonly to: string;
+  readonly products: readonly ChannelProduct[];
+}
