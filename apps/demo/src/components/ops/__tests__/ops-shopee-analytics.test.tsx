@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { critical, matrix, overview, product, ranking } from "../../../lib/shopee-analytics/__tests__/fixtures";
+import { channelProducts, channelSplit, critical, matrix, overview, product, ranking } from "../../../lib/shopee-analytics/__tests__/fixtures";
 import { AUTH_SESSION_STORAGE_KEY } from "../../../lib/supabase-auth";
 import { OpsShopeeAnalytics } from "../shopee/ops-shopee-analytics";
 import { OpsViewAs } from "../ops-view-as";
@@ -33,6 +33,8 @@ function opsFetch() {
     const path = url.split("?")[0]!;
     const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
     if (path === `${BASE}/overview`) return json(overview());
+    if (path === `${BASE}/channel-split/products`) return json(channelProducts());
+    if (path === `${BASE}/channel-split`) return json(channelSplit());
     if (path === `${BASE}/matrix`) return json(matrix());
     if (path === `${BASE}/critical`) return json(critical());
     if (path === `${BASE}/ranking`) return json(ranking());
@@ -50,12 +52,13 @@ describe("Xem như shop on a Shopee shop", () => {
     render(<OpsViewAs api={{ viewSession: async () => SHOPEE_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
     await screen.findByTestId("sa-tile-gmv");
     for (const name of ["Tổng quan", "Phân tích", "Sản phẩm", "Quyết định", "Quy tắc"]) {
-      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+      // the Tổng quan level toggle also has a "Sản phẩm" button
+      expect(screen.getAllByRole("button", { name }).length).toBeGreaterThan(0);
     }
     for (const name of ["Trang chủ", "Juli"]) expect(screen.queryByRole("button", { name })).toBeNull();
     expect(screen.getByRole("button", { name: "Tổng quan" })).toHaveAttribute("aria-current", "page");
-    const first = calls.find((c) => c.url.startsWith(`${BASE}/overview`))!;
-    expect(first.url).toBe(`${BASE}/overview?period=30d`);
+    const first = calls.find((c) => c.url.startsWith(`${BASE}/channel-split?`))!;
+    expect(first.url).toBe(`${BASE}/channel-split?period=30d`);
     expect(first.headers.authorization).toBe("Bearer t");
     expect(first.headers["x-shop-id"]).toBeUndefined();
     expect(calls.every((c) => !c.url.startsWith("/v1/demo/shopee"))).toBe(true);
@@ -64,15 +67,13 @@ describe("Xem như shop on a Shopee shop", () => {
   it("links between the screens stay inside the view-as page", async () => {
     const { fn } = opsFetch();
     render(<OpsViewAs api={{ viewSession: async () => SHOPEE_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
-    const tile = await screen.findByTestId("sa-tile-ctr");
+    const tile = await screen.findByTestId("sa-tile-gmv");
     const href = tile.getAttribute("href")!;
     expect(href.startsWith(`/ops/shops/${SHOP_ID}/xem?`)).toBe(true);
     const p = new URLSearchParams(href.split("?")[1]);
     expect(p.get("trang")).toBe("phan-tich");
-    expect(p.get("kpi")).toBe("ctr");
+    expect(p.get("kpi")).toBe("gmv");
     expect(p.get("from")).toBe("tong-quan");
-    const row = await screen.findByTestId("sa-mrow-BEP-S5");
-    expect(within(row).getByRole("link", { name: /→/ }).getAttribute("href")).toContain("trang=quyet-dinh");
   });
 
   it("opens the Phân tích of the Shopee shop, not the TikTok one", async () => {
@@ -135,7 +136,7 @@ describe("Ops analytics tab (/ops/shops/{id}/shopee/phan-tich)", () => {
     const tabs = screen.getByTestId("sa-screen-tabs");
     for (const name of ["Tổng quan", "Phân tích", "Sản phẩm"]) expect(within(tabs).getByRole("link", { name })).toBeInTheDocument();
     expect(new URLSearchParams(within(tabs).getByRole("link", { name: "Phân tích" }).getAttribute("href")!.split("?")[1]).get("man")).toBe("phan-tich");
-    expect(calls[0]!.url).toBe(`${BASE}/overview?period=30d`);
+    expect(calls.some((c) => c.url === `${BASE}/channel-split?period=30d`)).toBe(true);
   });
 
   it("shows the screen named by ?man=", async () => {

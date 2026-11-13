@@ -38,7 +38,7 @@ from juli_backend.api.routes.shopee_analytics_common import (
 )
 from juli_backend.database import Shop, get_session
 from juli_backend.services import shopee_recommendations as reco
-from juli_backend.services.shopee_analytics import queries
+from juli_backend.services.shopee_analytics import channel_split, queries
 
 router = APIRouter(prefix="/demo/shopee", tags=["demo-shopee"])
 
@@ -247,5 +247,48 @@ async def shopee_product_kols(
             session, shop_id, item_id, **window_args(period, month, start, end, as_of)
         )
         return await reco.attach_kol_cards(session, shop_id, body, audience="seller")
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get("/channel-split")
+async def shopee_channel_split(
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
+    as_of: DateQ = None,
+    product_id: Annotated[str | None, Query(max_length=64)] = None,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """P100 Tổng quan: Organic / Quảng cáo / Tiếp thị liên kết of the shop or one product."""
+    shop_id = _shopee(shop)
+    try:
+        return await channel_split.channel_split(
+            session,
+            shop_id,
+            product_id=product_id,
+            **window_args(period, month, start, end, as_of),
+        )
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get("/channel-split/products")
+async def shopee_channel_split_products(
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
+    as_of: DateQ = None,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    shop_id = _shopee(shop)
+    try:
+        return await channel_split.channel_split_products(
+            session, shop_id, **window_args(period, month, start, end, as_of)
+        )
     except REFUSALS as exc:
         raise refusal(exc) from None

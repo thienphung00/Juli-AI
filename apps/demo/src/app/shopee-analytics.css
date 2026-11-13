@@ -2270,3 +2270,171 @@ body:has(.sa-page) {
     position: static;
   }
 }
+
+/* ── Tổng quan (P100 board): channel table, Kế hoạch card ─────────────── */
+
+.sa-tq__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 999px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sa-tq__knob {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--qd-line-3);
+}
+
+.sa-tq__knob::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.sa-tq__switch--on .sa-tq__knob {
+  background: var(--qd-ink);
+}
+
+.sa-tq__switch--on .sa-tq__knob::after {
+  left: 18px;
+}
+
+.sa-tq__select {
+  min-width: 260px;
+  max-width: 100%;
+  height: 36px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  font: inherit;
+  padding: 0 10px;
+}
+
+.sa-tq__finding {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-tq__tiles {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.sa-tq__src {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--qd-ink-3, var(--qd-ink));
+  margin-left: 8px;
+}
+
+.sa-tq__table {
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-tq__row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.6fr) repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--qd-line-3);
+}
+
+.sa-tq__row--head {
+  border-top: 0;
+  font-size: 0.8rem;
+  color: var(--qd-ink-3, var(--qd-ink));
+}
+
+.sa-tq__row--child {
+  border-top: 0;
+  padding: 4px 0;
+}
+
+.sa-tq__row .sa-tq__name {
+  font-weight: 600;
+}
+
+.sa-tq__row--child .sa-tq__name {
+  padding-left: 16px;
+  font-weight: 400;
+}
+
+.sa-tq__weak {
+  color: var(--juli-destructive);
+  font-weight: 700;
+}
+
+.sa-tq__plan {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sa-tq__plan-head,
+.sa-tq__goal-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sa-tq__track {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--qd-line-3);
+}
+
+.sa-tq__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 14px;
+  border-radius: 999px;
+}
+
+.sa-tq__fill--ahead {
+  background: var(--juli-success);
+}
+
+.sa-tq__fill--behind {
+  background: var(--juli-chart-neutral);
+}
+
+.sa-tq__today {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 20px;
+  background: var(--qd-ink);
+}
+
+@media (max-width: 720px) {
+  .sa-tq__tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sa-tq__row {
+    grid-template-columns: minmax(120px, 1.4fr) repeat(6, minmax(0, 1fr));
+    font-size: 0.8rem;
+  }
+}

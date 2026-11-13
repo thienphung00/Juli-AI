@@ -1,5 +1,8 @@
 import type { ShopeeApi } from "../client";
 import type {
+  ChannelProducts,
+  ChannelRow,
+  ChannelSplit,
   Critical,
   FiveNumbers,
   FlowRow,
@@ -515,7 +518,7 @@ export function product(p: Partial<ProductPage> = {}): ProductPage {
 
 /** A fake API: every method resolves with the given payload (or rejects). */
 export function fakeApi(
-  data: Partial<{ overview: Overview; matrix: Matrix; critical: Critical; ranking: Ranking; product: ProductPage }> = {},
+  data: Partial<{ overview: Overview; matrix: Matrix; critical: Critical; ranking: Ranking; product: ProductPage; split: ChannelSplit; splitProduct: ChannelSplit; splitProducts: ChannelProducts }> = {},
   failWith?: Error,
 ): ShopeeApi & { calls: string[] } {
   const calls: string[] = [];
@@ -529,7 +532,65 @@ export function fakeApi(
     overview: (q) => answer("overview", data.overview ?? overview(), q),
     matrix: (q) => answer("matrix", data.matrix ?? matrix(), q),
     critical: (q) => answer("critical", data.critical ?? critical(), q),
+    channelSplit: (q, productId) =>
+      answer("channelSplit", productId ? (data.splitProduct ?? channelSplit({ level: "product", product_id: productId })) : (data.split ?? channelSplit()), { ...q, productId: productId ?? null }),
+    channelSplitProducts: (q) => answer("channelSplitProducts", data.splitProducts ?? channelProducts(), q),
     ranking: (q) => answer("ranking", data.ranking ?? ranking(), q),
     product: (id, period) => answer("product", data.product ?? product(), { id, period }),
+  };
+}
+
+const row = (key: ChannelRow["key"], parent: ChannelRow["parent"], p: Partial<ChannelRow> = {}): ChannelRow => ({
+  key,
+  parent,
+  views: null,
+  clicks: null,
+  ctr: null,
+  ctor: null,
+  aov: null,
+  gmv: null,
+  orders: null,
+  ad_base: null,
+  ...p,
+});
+
+/** Synthetic channel split in the ORY shape (Organic = sources − ads − affiliate). */
+export function channelSplit(p: Partial<ChannelSplit> = {}): ChannelSplit {
+  const product = p.level === "product";
+  const rows: ChannelRow[] = [
+    row("organic", null, { views: 5200, clicks: 300, ctr: 0.0577, ctor: 0.0467, aov: 258_000, gmv: 3_610_000, orders: 14 }),
+    row("organic_card", "organic", { views: 4300, clicks: 195, ctr: 0.0453, ctor: 0.0359, aov: 391_000, gmv: 2_940_000, orders: 7.5 }),
+    row("organic_shop", "organic", { views: 900, clicks: 105, ctr: 0.1167, ctor: 0.0619, aov: 103_000, gmv: 670_000, orders: 6.5 }),
+    row("ads", null, { views: 2000, clicks: 120, ctr: 0.06, ctor: 0.5083, aov: 132_459, gmv: 8_080_000, orders: 61, ad_base: product ? "ads_report" : "traffic_overview" }),
+    ...(product
+      ? []
+      : [
+          row("ads_product", "ads", { aov: 135_541, gmv: 10_030_000, orders: 74, ad_base: "ads_report" }),
+          row("ads_shop", "ads", { aov: 175_000, gmv: 350_000, orders: 2, ad_base: "ads_report" }),
+        ]),
+    row("affiliate", null, { clicks: 100, ctor: 0.1, aov: 119_512, gmv: 1_200_000, orders: 10 }),
+  ];
+  return {
+    level: "shop",
+    product_id: null,
+    from: "2026-10-11",
+    to: "2026-11-09",
+    updated_at: "2026-11-09T09:30:00",
+    rows,
+    kpis: { gmv: 12_890_000, orders: 85, profit: 2_100_000, ads_cost: 2_570_000, affiliate_cost: 96_000 },
+    plan: { month: "2026-11", day: 13, days_in_month: 30, gmv: { now: 5_000_000, goal: 10_000_000 }, profit: { now: 700_000, goal: 3_000_000 } },
+    ...p,
+  };
+}
+
+export function channelProducts(p: Partial<ChannelProducts> = {}): ChannelProducts {
+  return {
+    from: "2026-10-11",
+    to: "2026-11-09",
+    products: [
+      { product_id: "1001", name: "Combo găng tay 100 hộp", image_url: null, gmv: 7_000_000, margin: 18.5, organic_gmv: 2_000_000, ads_gmv: 4_500_000, affiliate_gmv: 500_000, weakest_metric: "ctr" },
+      { product_id: "1002", name: "Khăn giấy rút", image_url: null, gmv: 3_000_000, margin: null, organic_gmv: 2_500_000, ads_gmv: 0, affiliate_gmv: 500_000, weakest_metric: null },
+    ],
+    ...p,
   };
 }
