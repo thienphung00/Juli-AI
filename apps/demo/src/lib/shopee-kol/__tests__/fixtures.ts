@@ -61,6 +61,7 @@ export function reportOf(all: readonly KolRow[], q: KolQuery = {}): KolReport {
     totals: { rows: keep.length, kols: new Set(keep.map((r) => r.kol_key)).size, orders: sum((r) => r.orders), units: sum((r) => r.units), gmv: sum((r) => r.gmv), commission: comm, net_profit: net, sample_cost: sample, profit_after_samples: net - sample, roi_incl_samples: roi },
     filters: {
       channels: [...new Set(all.map((r) => r.channel))].sort(),
+      channel_options: [...new Map(all.map((r) => [r.channel, r.channel_label ?? r.channel])).entries()].map(([value, label]) => ({ value, label })),
       products: [...new Map(all.map((r) => [r.item_id, r.product_name])).entries()].map(([item_id, name]) => ({ item_id, name })),
       kols: [...new Map(all.map((r) => [r.kol_key, r.handle])).entries()].map(([kol_key, handle]) => ({ kol_key, handle })),
     },

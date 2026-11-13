@@ -48,6 +48,9 @@ SOURCE_LABELS = {
     SRC_NONE: "Chưa biết mức hoa hồng",
 }
 _OPEN_WORDS = ("mở rộng", "mo rong", "open")
+#: The Connector posts the conversion report's campaign type as a code: "5" = Seller Open
+#: Campaign (checked in Seller Centre on ORY, 2026-11-13).
+_OPEN_CODES = frozenset({"5"})
 
 
 def _ymd(value: Any) -> date | None:
@@ -91,7 +94,8 @@ class RateBook:
         self, item_id: str, on: date | None = None, campaign_type: str | None = None
     ) -> tuple[Decimal | None, str]:
         """``(rate, source)`` with the order of authority above (without the report)."""
-        open_first = any(w in (campaign_type or "").casefold() for w in _OPEN_WORDS)
+        kind = (campaign_type or "").strip()
+        open_first = kind in _OPEN_CODES or any(w in kind.casefold() for w in _OPEN_WORDS)
         order = (SRC_OPEN, SRC_TARGETED) if open_first else (SRC_TARGETED, SRC_OPEN)
         for src in order:
             r = (
