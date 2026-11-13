@@ -561,6 +561,22 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/channel-split",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/channel-split/products",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/shopee/critical",
       "methods": [
         "GET"
@@ -625,6 +641,22 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/demo/shopee/exports/ke-hoach.xlsx",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/exports/tong-quan.xlsx",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/shopee/fill-jobs",
       "methods": [
         "GET"
@@ -649,6 +681,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/kol-section",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/shopee/kols",
       "methods": [
         "GET"
@@ -657,7 +697,23 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/kols/compare",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/shopee/matrix",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/metric-view",
       "methods": [
         "GET"
       ],
@@ -745,12 +801,28 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/recommendations/execution",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/shopee/recommendations/manual",
       "methods": [
         "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/recommendations/measurements",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
     },
     {
       "path": "/v1/demo/shopee/recommendations/plan",
@@ -1028,6 +1100,14 @@
       "path": "/v1/ingest/pairing-codes",
       "methods": [
         "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/ingest/shop-status",
+      "methods": [
+        "GET"
       ],
       "requires_auth": true,
       "tenant_scoped": true
@@ -1609,7 +1689,31 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/channel-split",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/channel-split/products",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/analytics/critical",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/kol-section",
       "methods": [
         "GET"
       ],
@@ -1625,7 +1729,23 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/kols/compare",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/analytics/matrix",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/analytics/metric-view",
       "methods": [
         "GET"
       ],
@@ -1793,6 +1913,22 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/exports/ke-hoach.xlsx",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/exports/tong-quan.xlsx",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/fee-backtest",
       "methods": [
         "GET"
@@ -1945,6 +2081,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/execution",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/generate",
       "methods": [
         "POST"
@@ -1980,6 +2124,14 @@
       "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/manual",
       "methods": [
         "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/measurements",
+      "methods": [
+        "GET"
       ],
       "requires_auth": true,
       "tenant_scoped": false
