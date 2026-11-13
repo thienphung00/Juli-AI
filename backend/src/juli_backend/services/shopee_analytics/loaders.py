@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 import uuid
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
@@ -399,6 +400,45 @@ async def load_shop_totals(session: AsyncSession, shop_id: uuid.UUID, window: Wi
     if by_day:
         return ShopTotals(gmv, _int(orders), "partial_daily", len(by_day), window.days)
     return ShopTotals(None, None, "none", 0, window.days)
+
+
+def cancel_rate_of(rows: Iterable[Any]) -> Decimal | None:
+    """P100 B.15: the shop's share of placed orders that are never confirmed (cancelled, unpaid),
+    from Tổng quan's ``shop_overview`` day rows on both bases: 1 − confirmed ÷ placed over the
+    days that have both. ``None`` = no such day, or no placed order."""
+    placed: dict[date, Decimal] = {}
+    confirmed: dict[date, Decimal] = {}
+    for r in rows:
+        if r.segment != "all":
+            continue
+        got = order_day(r)
+        if got is None:
+            continue
+        if r.order_type == PLACED:
+            placed[r.day] = got[1]
+        elif r.order_type == CONFIRMED:
+            confirmed[r.day] = got[1]
+    both = placed.keys() & confirmed.keys()
+    p = sum((placed[d] for d in both), ZERO)
+    if p <= 0:
+        return None
+    c = sum((confirmed[d] for d in both), ZERO)
+    return min(max(ZERO, 1 - c / p), Decimal(1))
+
+
+async def load_cancel_rate(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window
+) -> Decimal | None:
+    """:func:`cancel_rate_of` over the window's stored ``shop_overview`` rows."""
+    rows = await PlatformDailyMetricsRepo(session).window(
+        shop_id,
+        datasets=[SHOP_OVERVIEW_DAILY],
+        start=window.start,
+        end=window.end,
+        streams=["total"],
+        order_types=[PLACED, CONFIRMED],
+    )
+    return cancel_rate_of(rows)
 
 
 @dataclass

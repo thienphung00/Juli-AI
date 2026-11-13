@@ -53,6 +53,9 @@ class CampaignSetting:
     campaign_id: str | None = None
     #: P97 D85.17: times the ROAS target changed in the 7 days up to the window's last day
     roas_changes_7d: int = 0
+    #: P100 B.15: the campaign's days of the window, oldest first: (spend, that day's daily
+    #: budget; None = không giới hạn) -- is the budget holding it back?
+    days: tuple[tuple[Decimal, Decimal | None], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -77,6 +80,9 @@ class RecoEnv:
     as_of: date
     campaigns: dict[str, CampaignSetting] = field(default_factory=dict)
     vouchers: list[VoucherSetting] = field(default_factory=list)
+    #: P100 B.15: share of the window's placed orders never confirmed (Tổng quan placed vs
+    #: confirmed, ``loaders.load_cancel_rate``); None = unknown (ads orders stay placed orders)
+    cancel_rate: Decimal | None = None
     #: product id -> why it may not get a new card (an open plan / a mega_sale window).
     locked: dict[str, str] = field(default_factory=dict)
     #: usage rate u of the shop's comparable past vouchers (None = unknown -> default 1, flagged)

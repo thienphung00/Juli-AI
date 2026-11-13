@@ -10,7 +10,11 @@ import math
 from decimal import Decimal
 from typing import Any
 
-from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
+from juli_backend.services.shopee_builder.engine.contract import (
+    AdsEvaluation,
+    OptionResult,
+    Scenario,
+)
 from juli_backend.services.shopee_builder.engine.vn import DRIVER_LABELS, count, vnd
 
 AOV_ONLY_NOTE = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
@@ -131,7 +135,12 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         note = None
 
     n_cost = r.cost_total
-    parts = [f"Chi phí {vnd(n_cost)}" if n_cost > 0 else "Không có chi phí thêm"]
+    if n_cost > 0:
+        parts = [f"Chi phí {vnd(n_cost)}"]
+    elif n_cost < 0:  # P100 B.15: an Ads edit that spends less
+        parts = [f"Chi phí giảm {vnd(-n_cost)}"]
+    else:
+        parts = ["Không có chi phí thêm"]
     be = []
     if r.break_even_orders is not None:
         be.append(f"thêm ≥ {count(_ceil(r.break_even_orders))} đơn")
@@ -199,6 +208,63 @@ def result_json(r: OptionResult) -> dict[str, Any]:
             "high": None if r.high is None else _column(r.high),
         },
         "notes": list(r.notes),
+        "ads": ads_json(r.ads),
+    }
+
+
+VERDICT_TEXT = {"co_lai": "có lãi", "lo": "lỗ"}
+
+
+def _verdict(cpa: Decimal | None, break_even: Decimal | None) -> str | None:
+    """P100 B.15: CPA below the break-even CPA -> "có lãi", else "lỗ"."""
+    if cpa is None or break_even is None:
+        return None
+    return "co_lai" if cpa < break_even else "lo"
+
+
+def ads_json(a: AdsEvaluation | None) -> dict[str, Any] | None:
+    """P100 B.15: the Ads edit's own lines (CPA → CPA mới, CPA hoà vốn, kết luận, lợi nhuận sau
+    quảng cáo, ROAS Shopee tham khảo) and the incremental part of its Δ orders."""
+    if a is None:
+        return None
+    cpa_now, cpa_after = a.cpa_now, a.cpa_after
+    v_now, v_after = _verdict(cpa_now, a.break_even_cpa), _verdict(cpa_after, a.break_even_cpa)
+
+    def roas(gmv: Decimal | None, spend: Decimal | None) -> float | None:
+        return None if gmv is None or not spend or spend <= 0 else float(gmv / spend)
+
+    all_delta = None if a.orders_after is None else a.orders_after - a.orders_now
+    share = a.incremental_share
+    extra = None if all_delta is None or share is None else all_delta * share.p50
+    return {
+        "lever": a.lever,
+        "campaign": a.campaign,
+        "days": a.days,
+        "spend_basis": a.spend_basis,
+        "spend_text": a.spend_text,
+        "spend": {"now": _whole(a.spend_now), "after": _whole(a.spend_after)},
+        "orders": {"now": round_count(a.orders_now), "after": round_count(a.orders_after)},
+        "cpa": {"now": _whole(cpa_now), "after": _whole(cpa_after)},
+        "break_even_cpa": _whole(a.break_even_cpa),
+        "verdict": {"now": v_now, "after": v_after},
+        "verdict_text": {
+            "now": None if v_now is None else VERDICT_TEXT[v_now],
+            "after": None if v_after is None else VERDICT_TEXT[v_after],
+        },
+        "profit_after_ads": {
+            "now": _whole(a.profit_after_ads(a.spend_now, a.orders_now)),
+            "after": _whole(a.profit_after_ads(a.spend_after, a.orders_after)),
+        },
+        "roas_shopee": {
+            "now": roas(a.gmv_now, a.spend_now),
+            "after": roas(a.gmv_after, a.spend_after),
+        },
+        "incremental": {
+            "share": None if share is None else _pct(share.p50),
+            "orders_all": round_count(all_delta),
+            "orders_extra": round_count(extra),
+        },
+        "cancel_rate_pct": _pct(a.cancel_rate),
     }
 
 
