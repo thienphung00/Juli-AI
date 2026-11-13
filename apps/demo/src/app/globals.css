@@ -7227,3 +7227,33 @@ h4 {
   outline: var(--juli-focus-width) solid var(--juli-focus-ring);
   outline-offset: 2px;
 }
+
+/* P100 shared metric chips and period-over-period change (components/metrics). */
+:root {
+  --jm-views-bg: #e4ecfc; --jm-views-fg: #1d4ed8;
+  --jm-ctr-bg: #dcf3ef; --jm-ctr-fg: #0f766e;
+  --jm-ctor-bg: #ede9fe; --jm-ctor-fg: #6d28d9;
+  --jm-aov-bg: #fdf0dc; --jm-aov-fg: #92400e;
+  --jm-orders-bg: #e3f5e9; --jm-orders-fg: #15803d;
+  --jm-gmv-bg: #ececf0; --jm-gmv-fg: #121214;
+  --jm-margin-bg: #fdeef4; --jm-margin-fg: #9d2d5c;
+}
+.jm-chip { display: inline-block; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+.jm-chip--views { background: var(--jm-views-bg); color: var(--jm-views-fg); }
+.jm-chip--ctr { background: var(--jm-ctr-bg); color: var(--jm-ctr-fg); }
+.jm-chip--ctor { background: var(--jm-ctor-bg); color: var(--jm-ctor-fg); }
+.jm-chip--aov { background: var(--jm-aov-bg); color: var(--jm-aov-fg); }
+.jm-chip--orders { background: var(--jm-orders-bg); color: var(--jm-orders-fg); }
+.jm-chip--gmv { background: var(--jm-gmv-bg); color: var(--jm-gmv-fg); }
+.jm-chip--margin { background: var(--jm-margin-bg); color: var(--jm-margin-fg); }
+.jm-chip--on.jm-chip--views { background: var(--jm-views-fg); color: #fff; }
+.jm-chip--on.jm-chip--ctr { background: var(--jm-ctr-fg); color: #fff; }
+.jm-chip--on.jm-chip--ctor { background: var(--jm-ctor-fg); color: #fff; }
+.jm-chip--on.jm-chip--aov { background: var(--jm-aov-fg); color: #fff; }
+.jm-chip--on.jm-chip--orders { background: var(--jm-orders-fg); color: #fff; }
+.jm-chip--on.jm-chip--gmv { background: var(--jm-gmv-fg); color: #fff; }
+.jm-chip--on.jm-chip--margin { background: var(--jm-margin-fg); color: #fff; }
+.jm-shift { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.jm-shift--up { color: #15803d; }
+.jm-shift--down { color: #b42318; }
+.jm-shift--flat { color: #6b6b74; font-weight: 400; }
