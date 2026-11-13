@@ -1,5 +1,5 @@
 import { ShopeeApiError, windowParams, type WindowQuery } from "../shopee-analytics/client";
-import type { KolApi, KolProductReport, KolQuery, KolReport } from "./types";
+import type { KolApi, KolCompareReport, KolProductReport, KolQuery, KolReport } from "./types";
 
 export interface KolClientOptions {
   /** `DEMO_SHOPEE_BASE` or `opsShopeeBase(shopId)`; the reports are `<base>/kols` and `<base>/products/{item_id}/kols`. */
@@ -53,5 +53,10 @@ export function createKolApi(options: KolClientOptions): KolApi {
       return get<KolReport>(options, "/kols", p);
     },
     productReport: (itemId, window = DEFAULT_WINDOW) => get<KolProductReport>(options, `/products/${encodeURIComponent(itemId)}/kols`, windowParams(window)),
+    compare: (group, window = DEFAULT_WINDOW) => {
+      const p = windowParams(window);
+      p.set("group", group);
+      return get<KolCompareReport>(options, "/kols/compare", p);
+    },
   };
 }
