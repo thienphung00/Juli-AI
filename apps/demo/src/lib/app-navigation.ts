@@ -93,10 +93,11 @@ export function destinationsFor(platform: NavPlatform, options: { readonly sampl
 
 /**
  * Where a sample-shop reviewer is sent instead of `pathname`, or null to stay: the hidden Shopee
- * pages and Cài đặt (not in its avatar menu) go to Tổng quan.
+ * pages, Cài đặt (not in its avatar menu) and `/` (the TikTok Trang chủ; P100 S2-D2) go to Tổng quan.
  */
 export function sampleShopRedirect(pathname: string): string | null {
   const hidden = [
+    "/",
     ...SHOPEE_DESTINATIONS.filter((d) => !SAMPLE_SHOP_DESTINATION_KEYS.includes(d.key)).map((d) => d.href),
     SETTINGS_HREF,
   ];

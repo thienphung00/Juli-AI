@@ -55,6 +55,9 @@ FORBIDDEN_SHOP_IDS = frozenset(
     }
 )
 COST_REASON = "Dữ liệu mẫu: giá vốn tổng hợp"
+#: P100 S2-D2: ``service`` for the data, ``llm_processing`` so the one live AI title draft per
+#: product (S2-D) passes the LLM gate. Synthetic data only; granted by the Juli operator.
+SAMPLE_CONSENT_SCOPES: tuple[str, ...] = ("service", "llm_processing")
 
 
 class SampleShopRefused(Exception):
@@ -133,7 +136,10 @@ async def ensure_shop(
     shop_id: uuid.UUID | None = None,
     now: datetime,
 ) -> tuple[uuid.UUID, bool]:
-    """The sample shop's id (created with its user and ``service`` consent when absent)."""
+    """The sample shop's id (created with its user and :data:`SAMPLE_CONSENT_SCOPES` when absent).
+
+    An existing shop gets any scope it lacks (an older load had ``service`` only).
+    """
     from juli_backend.database import Shop, User
     from juli_backend.services.consent import has_consent
     from juli_backend.services.ingest import connect_shopee_shop
@@ -153,8 +159,14 @@ async def ensure_shop(
                 shopee_shop_id=existing.shopee_shop_id,
                 has_credentials=await _has_credentials(session, existing.id),
             )
-            if not await has_consent(session, existing.id, "service"):
-                await _grant(session, existing.id, now)
+            missing = [
+                scope
+                for scope in SAMPLE_CONSENT_SCOPES
+                if not await has_consent(session, existing.id, scope)
+            ]
+            for scope in missing:
+                await _grant(session, existing.id, now, scope=scope)
+            if missing:
                 await session.commit()
             return existing.id, False
         if shop_id is not None:
@@ -165,18 +177,19 @@ async def ensure_shop(
         shop = await connect_shopee_shop(
             session, user_id=user.id, shop_name=SAMPLE_SHOP_NAME, shopee_shop_id=shopee_shop_id
         )
-        await _grant(session, shop.id, now)
+        for scope in SAMPLE_CONSENT_SCOPES:
+            await _grant(session, shop.id, now, scope=scope)
         await session.commit()
         return shop.id, True
 
 
-async def _grant(session: AsyncSession, shop_id: uuid.UUID, now: datetime) -> None:
+async def _grant(session: AsyncSession, shop_id: uuid.UUID, now: datetime, *, scope: str) -> None:
     from juli_backend.services.consent import grant_consent
 
     await grant_consent(
         session,
         shop_id,
-        scope="service",
+        scope=scope,
         method="contract_paper",
         terms_version="sample-shop",
         evidence_ref="synthetic sample shop; no client data",

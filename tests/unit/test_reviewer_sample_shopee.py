@@ -87,6 +87,12 @@ READ_TEMPLATES: dict[tuple[str, str], str] = {
     ("POST", f"{DEMO}/builder/evaluate"): "demo_shopee_builder:builder_evaluate",
     ("POST", f"{DEMO}/builder/compare"): "demo_shopee_builder:builder_compare",
     ("GET", f"{DEMO}/exclusions"): "demo_shopee_builder:list_exclusions",
+    # P100 S2-D2: Deal Sốc › Mua kèm reads its stored pairs; the Dịch vụ hiển thị tab computes.
+    (
+        "GET",
+        f"{DEMO}/builder/products/{{item_id}}/co-purchase",
+    ): "demo_shopee_builder:builder_co_purchase",
+    ("POST", f"{DEMO}/builder/ads/setup"): "demo_shopee_builder_p98:ads_setup",
 }
 #: P100 S2-G: each sample-shop WRITE endpoint (Juli's own rows of the sample shop only).
 WRITE_TEMPLATES: dict[tuple[str, str], str] = {
@@ -136,16 +142,11 @@ REFUSED_TEMPLATES: dict[tuple[str, str], str] = {
     ("GET", f"{DEMO}/orders"): "demo_shopee_pages:seller_orders",
     (
         "GET",
-        f"{DEMO}/builder/products/{{item_id}}/co-purchase",
-    ): "demo_shopee_builder:builder_co_purchase",
-    ("GET", f"{DEMO}/builder/ads/campaigns"): "demo_shopee_builder:builder_campaigns",
-    (
-        "GET",
         f"{DEMO}/builder/products/{{item_id}}/market-range",
     ): "demo_shopee_market:builder_market_range",
     ("POST", f"{DEMO}/builder/combo/options"): "demo_shopee_builder_p98:combo_options",
     ("POST", f"{DEMO}/builder/kol/setup"): "demo_shopee_builder_p98:kol_setup",
-    ("POST", f"{DEMO}/builder/ads/setup"): "demo_shopee_builder_p98:ads_setup",
+    ("GET", f"{DEMO}/builder/ads/campaigns"): "demo_shopee_builder:builder_campaigns",
 }
 LLM_TEMPLATES: dict[tuple[str, str], str] = {
     ("POST", f"{DEMO}/builder/drafts/cover"): "demo_shopee_builder:builder_cover_drafts",
@@ -236,6 +237,8 @@ async def world(session, monkeypatch):
                 campaign_key="cgroup1",
                 wiring_key="views",
             ),
+            # still outside the sample shop's strategies after S2-D2 (Chương Trình Của Shop)
+            Candidate("product_discount", ("1001",), {"discount_pct": 15}, wiring_key="ctor"),
         ),
         1,
     ):
@@ -305,6 +308,14 @@ def _body(method: str, template: str) -> dict[str, Any] | None:
         return {"versions": [VOUCHER, TITLE], "as_of": AS_OF.isoformat()}
     if template.endswith("/evaluate"):
         return {"versions": [VOUCHER], "as_of": AS_OF.isoformat()}
+    if template.endswith("/builder/ads/setup"):
+        setup = {
+            "campaign": "single",
+            "item_ids": ["1002"],
+            "daily_budget": 100_000,
+            "start_date": AS_OF.isoformat(),
+        }
+        return {"setups": [setup], "as_of": AS_OF.isoformat()}
     if template.endswith("/recommendations/compare"):
         second = {**MANUAL_VOUCHER, "inputs": {**MANUAL_VOUCHER["inputs"], "value": 5000}}
         return {"variants": [MANUAL_VOUCHER, second], "as_of": AS_OF.isoformat()}
@@ -397,8 +408,9 @@ def test_the_sample_table_is_pinned_to_real_routes_and_kept_apart():
     assert not sample & reviewer_gate.ALLOWED_ENDPOINTS
     assert not llm & reviewer_gate.ALLOWED_ENDPOINTS
     assert not (sample & llm) and not (sample & refused) and not (refused & llm)
-    # A read is a GET or one of the three pure computations.
+    # A read is a GET or one of the four pure computations.
     assert sorted(t for m, t in READ_TEMPLATES if m != "GET") == [
+        f"{DEMO}/builder/ads/setup",
         f"{DEMO}/builder/compare",
         f"{DEMO}/builder/evaluate",
         f"{REC}/compare",
@@ -633,12 +645,12 @@ async def test_duyet_on_the_sample_shop_is_the_real_approve(session, world, trip
     assert not tripwire.hits
 
 
-async def test_approve_refuses_a_card_outside_the_three_strategies(session, world):
+async def test_approve_refuses_a_card_outside_the_sample_strategies(session, world):
     _seller, sample, _sandbox, reviewer_id, ids = world
     before = await _snapshot(session, reviewer_id=reviewer_id)
     async with client_for(build_app(session)) as client:
         ads = await client.post(
-            f"{REC}/{ids['ads_budget']}/approve",
+            f"{REC}/{ids['product_discount']}/approve",
             json={"chosen_version": 1},
             headers=_headers(reviewer_id, sample.shop_id),
         )
@@ -649,6 +661,7 @@ async def test_approve_refuses_a_card_outside_the_three_strategies(session, worl
         )
     assert ads.status_code == 403 and ads.headers["x-juli-reviewer-denied"] == "read_only"
     assert unknown.status_code == 404
+    assert "product_discount" not in reviewer_gate.SAMPLE_SHOP_CARD_KINDS
     after = await _snapshot(session, reviewer_id=reviewer_id)
     assert [n for n in before if before[n] != after[n]] == []
     assert await _audits(session, "reviewer_sample_write") == []  # rolled back with the refusal
@@ -933,3 +946,17 @@ async def test_a_masked_pin_keeps_refusing_the_title_drafts(session, world, trip
     assert response.status_code == 403
     assert response.headers["x-juli-reviewer-denied"] == "read_only"
     assert not tripwire.hits
+
+
+def test_the_sample_card_kinds_match_the_front_end_scope():
+    """P100 S2-D2: ``sample-scope.ts`` mirrors :data:`SAMPLE_SHOP_CARD_KINDS` (one allowlist)."""
+    import re
+    from pathlib import Path
+
+    ts = Path("apps/demo/src/lib/shopee-decisions/sample-scope.ts").read_text(encoding="utf-8")
+    blocks = re.findall(r"cardKinds: \[([^\]]*)\]", ts)
+    blocks += re.findall(r"SAMPLE_SHOP_EXTRA_CARD_KINDS: readonly string\[\] = \[([^\]]*)\]", ts)
+    kinds = {k for block in blocks for k in re.findall(r'"([a-z_]+)"', block)}
+    assert kinds == set(reviewer_gate.SAMPLE_SHOP_CARD_KINDS)
+    assert {"bundle_deal", "add_on", "gift", "ads_new_campaign", "affiliate_commission"} <= kinds
+    assert "ads_budget" not in kinds  # running-campaign edits are hidden for every shop

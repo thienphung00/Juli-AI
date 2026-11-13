@@ -154,6 +154,10 @@ SAMPLE_SHOP_ROUTES: dict[tuple[str, str], tuple[Literal["read", "write"], str]] 
     (_GET, _R + "demo_shopee_builder:builder_products"): ("read", "Tự tạo"),
     (_GET, _R + "demo_shopee_builder:builder_variations"): ("read", "Tự tạo"),
     (_GET, _R + "demo_shopee_builder:builder_keywords"): ("read", "Tự tạo › Tiêu đề"),
+    # P100 S2-D2: the stored co-purchase pairs (Deal Sốc › Mua kèm) and the Dịch vụ hiển thị tab's
+    # new-campaign setups (pure compute on stored rows): the sample shop's own rows, no outbound.
+    (_GET, _R + "demo_shopee_builder:builder_co_purchase"): ("read", "Tự tạo › Deal Sốc"),
+    ("POST", _R + "demo_shopee_builder_p98:ads_setup"): ("read", "Tự tạo › Dịch vụ hiển thị"),
     ("POST", _R + "demo_shopee_builder:builder_evaluate"): ("read", "Tự tạo"),
     ("POST", _R + "demo_shopee_builder:builder_compare"): ("read", "Tự tạo"),
     (_GET, _R + "demo_shopee_builder:list_exclusions"): ("read", "Loại trừ"),
@@ -204,12 +208,10 @@ SAMPLE_SHOP_REFUSED: dict[tuple[str, str], str] = {
     (_GET, _R + "demo_shopee_pages:seller_ads"): "Quảng cáo is hidden",
     (_GET, _R + "demo_shopee_pages:seller_promotions"): "hidden screen",
     (_GET, _R + "demo_shopee_pages:seller_orders"): "Đơn hàng is hidden",
-    (_GET, _R + "demo_shopee_builder:builder_co_purchase"): "Combo is not offered",
-    (_GET, _R + "demo_shopee_builder:builder_campaigns"): "Quảng cáo is not offered",
     (_GET, _R + "demo_shopee_market:builder_market_range"): "not offered",
     ("POST", _R + "demo_shopee_builder_p98:combo_options"): "Combo is not offered",
     ("POST", _R + "demo_shopee_builder_p98:kol_setup"): "KOL is not offered",
-    ("POST", _R + "demo_shopee_builder_p98:ads_setup"): "Quảng cáo is not offered",
+    (_GET, _R + "demo_shopee_builder:builder_campaigns"): "running-campaign edits are hidden",
 }
 
 #: P100 S2-F: Tự tạo's live LLM / vision drafts (cover concepts, description). On a sample pin
@@ -223,10 +225,25 @@ SAMPLE_SHOP_LLM_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
         ("POST", _R + "demo_shopee_builder:builder_description_drafts"),  # …/drafts/description
     }
 )
-#: The card kinds a sample-shop reviewer may (simulated-)approve: Tiêu đề, Ảnh bìa, Voucher --
-#: mirrored in ``apps/demo/src/lib/shopee-decisions/sample-scope.ts``.
+#: The card kinds a sample-shop reviewer may (simulated-)approve -- mirrored in
+#: ``apps/demo/src/lib/shopee-decisions/sample-scope.ts``. S2-C: Tiêu đề, Ảnh bìa, Voucher.
+#: P100 S2-D2 (owner, 2026-11-13): also Combo Khuyến Mãi, Deal Sốc (Mua kèm, Mua để nhận quà),
+#: Affiliate and a NEW Dịch vụ hiển thị Sản phẩm campaign (``ads_new_campaign``; edits of a running
+#: campaign are hidden for every shop, ``ads_edit_hidden``) -- the change_kinds the builder saves.
 SAMPLE_SHOP_CARD_KINDS: frozenset[str] = frozenset(
-    {"title", "cover_image", "min_spend_voucher", "review_voucher", "voucher_cap"}
+    {
+        "title",
+        "cover_image",
+        "min_spend_voucher",
+        "review_voucher",
+        "voucher_cap",
+        "bundle_deal",
+        "add_on",
+        "gift",
+        "ads_new_campaign",
+        "affiliate_commission",
+        "affiliate_target_campaign",
+    }
 )
 
 #: Contract §2. Keyed by the matched endpoint (``module:function``) and method:

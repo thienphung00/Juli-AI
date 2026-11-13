@@ -432,3 +432,20 @@ the S2-A loader creates (contract `p100-s2-demo.md`).
   này"), audited as `reviewer_write_refused` with that reason, with no model call.
 - `--reset` deletes the rows (owner connection) and the re-load seeds them again: the quota resets.
   Worst case per review cycle: 6 live title calls (one per product).
+
+### Amendment S2-D2 (2026-11-13): more strategies on the sample shop
+- Owner decision 2026-11-13: the sample shop also offers Combo Khuyến Mãi, Deal Sốc (Mua kèm, Mua
+  để nhận quà), Affiliate and a NEW Dịch vụ hiển thị Sản phẩm campaign. `SAMPLE_SHOP_CARD_KINDS`
+  adds `bundle_deal`, `add_on`, `gift`, `affiliate_commission`, `affiliate_target_campaign` and
+  `ads_new_campaign` (mirrored in `sample-scope.ts`; a test holds the two lists equal).
+- Two new reads in `SAMPLE_SHOP_ROUTES`, sample pin only: `GET …/builder/products/{item_id}/co-purchase`
+  (stored co-purchase pairs) and `POST …/builder/ads/setup` (the Dịch vụ hiển thị tab's
+  new-campaign setups: pure compute, no write). Both are in the read test that compares the whole
+  database before and after.
+- Not offered: edits of a running campaign (`kind = ads`: `ads_budget`, `ads_roas_target`,
+  `ads_add_product`, `ads_remove_product`). The builder refuses them for every shop
+  (`ads_edit_hidden`), so `GET …/builder/ads/campaigns` stays refused on the sample pin. Also not
+  offered: Chương Trình Của Shop, price / Flash sale, Listing combo, Phân loại, Mô tả, Hiển thị giá,
+  and the P98 Combo nhiều SKU and KOL tabs. There is no DVHT Shop (Shop+) option in the builder.
+- The sample shop is granted `llm_processing` by the loader (`SAMPLE_CONSENT_SCOPES`), so S2-D's one
+  live title draft passes the LLM gate; a shop loaded before S2-D2 gets the grant on its next load.
