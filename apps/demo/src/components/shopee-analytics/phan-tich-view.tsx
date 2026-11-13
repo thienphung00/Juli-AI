@@ -3,359 +3,231 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { METRIC_NAME, METRIC_ORDER, shift, type MetricKey, type ValueMode } from "../../lib/metrics";
 import { useShopee } from "../../lib/shopee-analytics/context";
-import { DASH, fmt, pc, pp, sv, vnd } from "../../lib/shopee-analytics/format";
-import { readWindow, srcOfFlowKey, windowParams, type WindowState } from "../../lib/shopee-analytics/params";
+import {
+  CHANNEL_LABEL,
+  type SortKey,
+  impactText,
+  readMetricParams,
+  sortRows,
+  valueText,
+} from "../../lib/shopee-analytics/metric-view";
+import { readWindow, windowParams, type WindowState } from "../../lib/shopee-analytics/params";
+import type { KolSection as KolSectionData, MetricView, MetricViewRow } from "../../lib/shopee-analytics/types";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
-import type { Critical, CriticalItem, N } from "../../lib/shopee-analytics/types";
-import { KolView } from "../shopee-kol/kol-view";
+import { MetricChip, Shift } from "../metrics/metric-chip";
+import { KolSection } from "../shopee-kol/kol-section";
 import { PeriodBar } from "./period-bar";
-import { RankingSection } from "./ranking-view";
-import { Empty, Ini, InfoToggle, Notice, PageHead, PriceMargin, ResourceState, initialsOf } from "./ui";
+import { Empty, PageHead, ResourceState, Ini, initialsOf } from "./ui";
 
 /**
- * Phân tích (artboard PhanTich): the critical list ranked by the đồng each item has at stake. An
- * item is one metric of one scope held against ONE reference (the flow's normal band, a target,
- * the floor price, ROAS break-even or the shop median), drawn as a band chart; the cause is the
- * funnel stage plus one sentence; each item links to its row in the product table below and to its
- * card. Items inside their reference fold into "Trong dải bình thường" and are not counted in the
- * total at stake. P96b (owner, 2026-11-06): the product table that was Xếp hạng is a section of this
- * page ("Theo sản phẩm"), and a product whose GMV per day fell against the previous window is an item.
+ * Phân tích (board B): one metric at a time. Header finding, period + Tổng | Trung bình / ngày,
+ * the seven metric chips, "Theo luồng", "Theo sản phẩm" and the KOL section. Each row ends in the
+ * next step: "Đề xuất (n) ›" (Quyết định › Đề xuất filtered by metric / product) or "Tự tạo ›".
+ * URL: `metric`, `channel`, `product`, `cach=tb` (Trung bình / ngày) and the window.
  */
 
-const STAGES = ["Lượt xem", "CTR", "CTOR", "AOV", "Biên"] as const;
-const STAGE_INDEX: Record<string, number> = { views: 0, ctr: 1, ctor: 2, aov: 3 };
+/** Params that belong to this screen: kept when the window changes. */
+const WINDOW_KEYS = new Set(["ky", "thang", "tu", "den", "cmp", "focus", "from", "card", "tab"]);
 
-const FILTERS: readonly (readonly [string, string])[] = [
-  ["all", "Tất cả"],
-  ["gmv", "Doanh số"],
-  ["views", "Lượt xem"],
-  ["ctor", "CTR và CTOR"],
-  ["aov", "AOV"],
-  ["bien", "Biên và giá sàn"],
-  ["ads", "Dịch vụ hiển thị"],
-];
-
-function filterOf(item: CriticalItem): string {
-  if (item.kpi === "gmv" || item.kpi === "orders") return "gmv";
-  if (item.kpi === "views") return "views";
-  if (item.kpi === "ctr" || item.kpi === "ctor") return "ctor";
-  if (item.kpi === "aov") return "aov";
-  if (item.kpi === "roas") return "ads";
-  return "bien";
-}
-
-function valueText(item: CriticalItem, v: N): string {
-  if (v === null) return DASH;
-  if (item.kpi === "ctr" || item.kpi === "ctor") return pc(v);
-  if (item.kpi === "bien" && item.reference.type === "target") return pp(v, 1);
-  if (item.kpi === "roas") return fmt(v, 1);
-  if (item.kpi === "orders") return fmt(v);
-  return vnd(v);
-}
-
-function kpiLabel(item: CriticalItem): string {
-  const base: Record<string, string> = {
-    views: "Lượt xem",
-    ctr: "CTR",
-    ctor: "CTOR",
-    aov: "AOV",
-    bien: item.reference.type === "floor" ? "Giá sau voucher" : "Biên cuối",
-    roas: "ROAS trực tiếp",
-    gmv: item.reference.type === "previous" ? "GMV / ngày so với kỳ trước" : "GMV theo mục tiêu tháng",
-    orders: "Số đơn theo mục tiêu tháng",
-  };
-  return base[item.kpi] ?? item.kpi;
-}
-
-function sourceLabel(item: CriticalItem): string {
-  if (item.flow_label) return item.flow_label;
-  if (item.reference.type === "break_even") return "Dịch vụ hiển thị (đơn đã đặt)";
-  if (item.reference.type === "floor") return `SKU ${item.reference.sku ?? ""}`.trim();
-  return item.level === "shop" ? "Cả shop" : "Tất cả";
-}
-
-function deviationText(item: CriticalItem): string {
-  const ref = item.reference;
-  const cur = item.current;
-  if (cur === null) return DASH;
-  switch (ref.type) {
-    case "band":
-      return ref.low == null ? DASH : `Thấp hơn dải ${fmt((ref.low - cur) * 100, 2)} điểm`;
-    case "target":
-      return ref.value == null
-        ? DASH
-        : item.kpi === "bien"
-          ? `Thấp hơn mục tiêu ${fmt(ref.value - cur, 1)} điểm`
-          : `Thấp hơn mục tiêu ${vnd(ref.value - cur)}`;
-    case "floor":
-      return ref.value == null ? DASH : `Thấp hơn giá sàn ${vnd(ref.value - cur)}`;
-    case "break_even":
-      return ref.value == null ? DASH : `Thấp hơn hoà vốn ${fmt(ref.value - cur, 1)}`;
-    case "previous":
-      return ref.value == null ? DASH : `Thấp hơn kỳ trước ${vnd(ref.value - cur)}/ngày`;
-    default:
-      return ref.value == null ? DASH : `Thấp hơn trung vị ${item.kpi === "ctr" || item.kpi === "ctor" ? `${fmt((ref.value - cur) * 100, 2)} điểm` : vnd(ref.value - cur)}`;
-  }
-}
-
-function refText(item: CriticalItem): string {
-  const r = item.reference;
-  const v = (n: N | undefined) => (n == null ? DASH : valueText(item, n));
-  if (r.type === "band") return `Dải bình thường ${v(r.low)}–${v(r.high)} (${r.label})`;
-  if (r.type === "previous") return `${r.label}: ${v(r.value)}/ngày`;
-  return `${r.label}: ${v(r.value)}`;
-}
-
-/** Positions (percent) of the dot, the band and the reference tick on the item's own axis. */
-export function chartOf(item: CriticalItem) {
-  const r = item.reference;
-  const pts = [item.current, r.value, r.low, r.high].filter((x): x is number => typeof x === "number");
-  if (pts.length === 0) return null;
-  const mn = Math.min(...pts);
-  const mx = Math.max(...pts);
-  const pad = (mx - mn) * 0.25 || Math.abs(mx) * 0.1 || 1;
-  const lo = Math.max(0, mn - pad);
-  const hi = mx + pad;
-  const pos = (x: number) => Math.max(0, Math.min(100, ((x - lo) / (hi - lo)) * 100));
-  return {
-    dot: item.current === null ? null : Math.max(2, Math.min(98, pos(item.current))),
-    band: r.low != null && r.high != null ? { left: pos(r.low), width: pos(r.high) - pos(r.low) } : null,
-    tick: r.type !== "band" && r.value != null ? pos(r.value) : null,
-  };
-}
-
-function ItemChart({ item, small }: { readonly item: CriticalItem; readonly small?: boolean }) {
-  const c = chartOf(item);
-  if (!c) return null;
-  return (
-    <div className="sa-band" data-testid={`sa-band-${item.id}`}>
-      <span className="sa-band__rail" />
-      {c.band ? <span className="sa-band__range" style={{ left: `${c.band.left}%`, width: `${c.band.width}%` }} /> : null}
-      {c.tick !== null && !small ? <span className="sa-band__tick" style={{ left: `${c.tick}%` }} /> : null}
-      {c.dot !== null ? <span className={`sa-band__dot ${small ? "sa-band__dot--ok" : ""}`} style={{ left: `${c.dot}%` }} /> : null}
-    </div>
-  );
-}
-
-/** The window keys a period link replaces; everything else (kpi, src, sub, xep, …) is kept. */
-const WINDOW_KEYS = new Set(["ky", "thang", "tu", "den", "cmp", "focus", "from", "card"]);
-
-/** Phân tích at another window, keeping the product table's KPI / source / measure. */
+/** Phân tích at another window, keeping metric / channel / product / mode. */
 export function periodQuery(params: URLSearchParams, next: WindowState): URLSearchParams {
   const p = new URLSearchParams();
   params.forEach((v, k) => {
-    if (!WINDOW_KEYS.has(k) && k !== "tab") p.append(k, v);
+    if (!WINDOW_KEYS.has(k)) p.append(k, v);
   });
   windowParams(next).forEach((v, k) => p.set(k, v));
+  return p;
+}
+
+/** The screen's own params, normalised (old `kpi` / `src` / `focus` become `metric` / `channel` / `product`). */
+function nextQuery(params: URLSearchParams, patch: Record<string, string | null>): URLSearchParams {
+  const cur = readMetricParams(params);
+  const p = new URLSearchParams();
+  windowParams(readWindow(params)).forEach((v, k) => p.set(k, v));
+  const put = (k: string, v: string | null) => v && p.set(k, v);
+  const val = (k: string, d: string | null) => (k in patch ? patch[k] : d);
+  put("metric", val("metric", cur.metric));
+  put("channel", val("channel", cur.channel));
+  put("product", val("product", cur.product));
+  put("cach", val("cach", cur.mode === "avg" ? "tb" : null));
   return p;
 }
 
 export function PhanTichPageView({ params }: { readonly params: URLSearchParams }) {
   const host = useShopee();
   const state = useMemo(() => readWindow(params), [params]);
-  const key = `${host.shopKey}|ct|${JSON.stringify(state.query)}`;
-  const data = useResource(() => host.api.critical(state.query), key);
-  if (host.kol && params.get("tab") === "kol") return <KolView />;
+  const sel = useMemo(() => readMetricParams(params), [params]);
+  const key = `${host.shopKey}|pt|${JSON.stringify(state.query)}|${sel.metric}|${sel.channel}|${sel.product}`;
+  const data = useResource(
+    () => host.api.metricView({ ...state.query, metric: sel.metric, channel: sel.channel, productId: sel.product }),
+    key,
+  );
+  const kol = useResource<KolSectionData>(() => host.api.kolSection(state.query), `${host.shopKey}|ptk|${JSON.stringify(state.query)}`);
+  const href = (patch: Record<string, string | null>) => host.links.screen("phan-tich", nextQuery(params, patch));
   return (
     <div className="sa-page" data-testid="sa-phan-tich">
-      {host.kol ? (
-        <nav aria-label="Phân tích" className="sa-seg sa-seg--round sa-tabs" data-testid="sa-pt-tabs">
-          <Link className="sa-seg__item sa-seg__item--on" href={host.links.critical()}>
-            Điểm cần xem
-          </Link>
-          <Link className="sa-seg__item" href={host.links.screen("phan-tich", new URLSearchParams({ tab: "kol" }))}>
-            KOL
-          </Link>
-        </nav>
-      ) : null}
-      <ResourceState resource={data}>{(c) => <Loaded critical={c} params={params} state={state} />}</ResourceState>
-      <RankingSection params={params} />
+      <ResourceState resource={data}>
+        {(v) => (
+          <>
+            <Head sel={sel.metric} view={v} />
+            <div className="jp-bar">
+              <PeriodBar hrefFor={(next) => host.links.screen("phan-tich", periodQuery(nextQuery(params, {}), next))} previous={null} state={state} window={{ from: v.from, to: v.to, days: v.days }} />
+              <ModeSwitch href={href} mode={sel.mode} />
+            </div>
+            <MetricChips href={href} sel={sel.metric} total={v.total} />
+            <ByChannel href={href} state={state} mode={sel.mode} sel={sel} view={v} />
+            <ByProduct mode={sel.mode} sel={sel} state={state} view={v} />
+          </>
+        )}
+      </ResourceState>
+      <ResourceState resource={kol}>
+        {(k) => (
+          <KolSection
+            builderHref={(r) => host.links.builder("quyet-dinh", r.item_id)}
+            data={k}
+            decisionsHref={(r) => host.links.decisions({ product: r.item_id }, state)}
+            mode={sel.mode}
+          />
+        )}
+      </ResourceState>
     </div>
   );
 }
 
-function Loaded({ critical: c, params, state }: { readonly critical: Critical; readonly params: URLSearchParams; readonly state: WindowState }) {
-  const { links } = useShopee();
-  const [filter, setFilter] = useState("all");
-  const [okOpen, setOkOpen] = useState(false);
-  const shown = c.items.filter((it) => filter === "all" || filterOf(it) === filter);
-  // The "trong dải bình thường" list follows the same filter as the items that need attention.
-  const inBand = c.in_band.filter((it) => filter === "all" || filterOf(it) === filter);
-  // A missing amount is "chưa có số", never 0: one unknown item makes the sum unknown.
-  const sumDay: number | null = shown.some((it) => it.at_stake_per_day == null) ? null : shown.reduce((t, it) => t + (it.at_stake_per_day as number), 0);
-  const withCard = shown.filter((it) => it.card);
-  const firstCard = withCard[0]?.card;
-  const href = (next: WindowState) => links.screen("phan-tich", periodQuery(params, next));
+/** "CTR ▼ 12 % · Thẻ sản phẩm · 3 sản phẩm kéo xuống": the number first. */
+function Head({ sel, view }: { readonly sel: MetricKey; readonly view: MetricView }) {
+  const s = shift(view.total.change);
+  const worst = [...view.channels].filter((c) => typeof c.impact === "number" && c.impact < 0).sort((a, b) => (a.impact ?? 0) - (b.impact ?? 0))[0];
+  const down = view.products.filter((p) => typeof p.impact === "number" && p.impact < 0).length;
+  const parts = [`${METRIC_NAME[sel]}${s ? ` ${s.text}` : ""}`];
+  if (worst) parts.push(CHANNEL_LABEL[worst.key] ?? worst.key);
+  if (down > 0) parts.push(`${down} sản phẩm kéo xuống`);
   return (
-    <>
-      <PageHead
-        chips={
-          <span className="sa-chip sa-chip--outline">
-            {c.window.days} ngày · so với {c.window.days} ngày trước
-          </span>
-        }
-        eyebrow="PHÂN TÍCH"
-        info={
-          <InfoToggle>
-            Một chỉ số được xếp &ldquo;cần chú ý&rdquo; khi nằm ngoài dải bình thường của luồng, thấp hơn mục tiêu, dưới giá sàn
-            (hoặc ROAS dưới điểm hoà vốn), hoặc thấp hơn trung vị của shop. {c.ranking_rule}
-          </InfoToggle>
-        }
-        title={`${shown.length} chỉ số cần chú ý`}
-      />
-      <PeriodBar hrefFor={href} previous={null} state={state} window={c.window} />
-      {c.notes.map((n) => (
-        <Notice key={n.code} testId={`sa-note-${n.code}`} tone="info">
-          {n.message}
-        </Notice>
+    <PageHead
+      chips={
+        <span className="sa-chip sa-chip--outline">
+          {view.days} ngày · so với {view.days} ngày trước
+        </span>
+      }
+      eyebrow="PHÂN TÍCH"
+      title={parts.join(" · ")}
+    />
+  );
+}
+
+function ModeSwitch({ mode, href }: { readonly mode: ValueMode; readonly href: (patch: Record<string, string | null>) => string }) {
+  return (
+    <div aria-label="Cách tính" className="sa-seg sa-seg--round jp-mode" role="group">
+      <Link aria-current={mode === "total" ? "true" : undefined} className={`sa-seg__item${mode === "total" ? " sa-seg__item--on" : ""}`} href={href({ cach: null })}>
+        Tổng
+      </Link>
+      <Link aria-current={mode === "avg" ? "true" : undefined} className={`sa-seg__item${mode === "avg" ? " sa-seg__item--on" : ""}`} href={href({ cach: "tb" })}>
+        Trung bình / ngày
+      </Link>
+    </div>
+  );
+}
+
+function MetricChips({ sel, href, total }: { readonly sel: MetricKey; readonly href: (patch: Record<string, string | null>) => string; readonly total: MetricViewRow }) {
+  return (
+    <div aria-label="Chỉ số" className="jp-chips" role="group">
+      {METRIC_ORDER.map((m) => (
+        <Link aria-current={m === sel ? "true" : undefined} className="jp-chip-link" data-testid={`pt-chip-${m}`} href={href({ metric: m, channel: null })} key={m}>
+          <MetricChip metric={m} on={m === sel}>
+            <span>{METRIC_NAME[m]}</span>
+            {m === sel ? <Shift pct={total.change} /> : null}
+          </MetricChip>
+        </Link>
       ))}
+    </div>
+  );
+}
 
-      {c.items.length > 0 ? (
-        <div className="sa-juli" data-testid="sa-at-stake">
-          <span>
-            <b className="sa-tone--pink">✦ Juli gợi ý</b> · Tổng ₫ có nguy cơ:{" "}
-            <b className="sa-tone--down">{sumDay === null ? DASH : `${sv(-sumDay)}/ngày`}</b> ({sumDay === null ? DASH : `${sv(-sumDay * 30)}/tháng`})
-          </span>
-          {firstCard ? (
-            <Link className="sa-btn sa-btn--primary" href={links.card(firstCard.id, "phan-tich")}>
-              Xem {withCard.length} đề xuất ›
-            </Link>
-          ) : (
-            <span className="sa-hint">Chưa có đề xuất cho các mục này</span>
-          )}
-        </div>
-      ) : null}
+function Cta({ row, metric, product, channel, state }: { readonly state: WindowState; readonly row: MetricViewRow; readonly metric: MetricKey; readonly product: string | null; readonly channel: string | null }) {
+  const { links } = useShopee();
+  return row.cards > 0 ? (
+    <Link className="jp-cta jp-cta--on" href={links.decisions({ metric, product, channel }, state)}>
+      Đề xuất ({row.cards}) ›
+    </Link>
+  ) : (
+    <Link className="jp-cta" href={links.builder("quyet-dinh", product)}>
+      Tự tạo ›
+    </Link>
+  );
+}
 
-      <div className="sa-chips">
-        <span className="sa-hint">Chỉ số</span>
-        {FILTERS.map(([k, label]) => (
-          <button
-            aria-pressed={filter === k}
-            className={`sa-pill ${filter === k ? "sa-pill--on" : ""}`}
-            key={k}
-            onClick={() => setFilter(k)}
-            type="button"
-          >
-            {label}
-          </button>
-        ))}
-        <span className="sa-hint sa-row__end">Xếp theo ₫ có nguy cơ, nhiều → ít</span>
+function ByChannel({ view, sel, mode, href, state }: { readonly state: WindowState; readonly view: MetricView; readonly sel: ReturnType<typeof readMetricParams>; readonly mode: ValueMode; readonly href: (patch: Record<string, string | null>) => string }) {
+  const m = sel.metric;
+  const days = view.days;
+  return (
+    <section aria-label="Theo luồng" className="sa-card jp-section" data-testid="pt-channels">
+      <h2 className="sa-h2">Theo luồng</h2>
+      <div className="jp-grid jp-grid--ch jp-grid--head">
+        <span>Luồng</span>
+        <span>Kỳ này</span>
+        <span>Kỳ trước</span>
+        <span>Thay đổi</span>
+        <span>GMV ảnh hưởng</span>
+        <span />
       </div>
-
-      <section className="sa-card" data-testid="sa-critical-list">
-        <div className="sa-crow sa-crow--head">
-          <span>Mục · nguồn · chỉ số</span>
-          <span>Hiện trạng</span>
-          <span>Lệch so với</span>
-          <span>Nguyên nhân</span>
-          <span className="sa-right">₫ có nguy cơ</span>
+      {view.channels.map((r) => (
+        <div className={`jp-grid jp-grid--ch${sel.channel === r.key ? " jp-grid--on" : ""}`} data-testid={`pt-channel-${r.key}`} key={r.key}>
+          <Link className="jp-name" href={href({ channel: sel.channel === r.key ? null : r.key })}>
+            {CHANNEL_LABEL[r.key] ?? r.key}
+            {r.ad_base ? <span className="jp-tag">Báo cáo DVHT</span> : null}
+          </Link>
+          <b>{valueText(m, r.now, days, mode)}</b>
+          <span>{valueText(m, r.prev, days, mode)}</span>
+          <Shift pct={r.change} />
+          <span>{impactText(r, days, mode)}</span>
+          <Cta channel={r.key} metric={m} state={state} product={sel.product} row={r} />
         </div>
-        {shown.map((it, i) => {
-          const stage = STAGE_INDEX[it.cause.stage] ?? 4;
-          const rankKpi = it.ranking_link.kpi === "roas" ? "gmv" : it.ranking_link.kpi;
-          const rankSrc = it.ranking_link.src === "all" ? "all" : srcOfFlowKey(it.ranking_link.src);
-          return (
-            <div className="sa-crow" data-testid={`sa-item-${it.id}`} id={it.id} key={it.id}>
-              <div className="sa-crow__who">
-                <span className="sa-crow__rank">{it.rank ?? i + 1}</span>
-                <Ini text={initialsOf(it.name ?? "Cả shop")} />
-                <span>
-                  <span className="sa-mname__t">{it.name ?? "Cả shop"}</span>
-                  {it.product_id && it.margin_basis ? <PriceMargin margin={it.margin_pct} p={it} /> : null}
-                  <span className="sa-tags">
-                    <span className="sa-tag2">{sourceLabel(it)}</span>
-                    <span className="sa-tag2">{kpiLabel(it)}</span>
-                    {it.money_basis === "placed" ? <span className="sa-tag2">đơn đã đặt</span> : null}
-                    {it.assumed_cost ? <span className="sa-tag2">giá vốn giả định (1/3 giá)</span> : null}
-                  </span>
-                </span>
-              </div>
-              <div>
-                <span className="sa-crow__value sa-tone--down">{valueText(it, it.current)}</span>
-                {it.deviation_pct !== null ? (
-                  <span className="sa-chip sa-chip--down">▼ {fmt(Math.abs(it.deviation_pct), 1)}% so với {it.reference.type === "band" ? "dải" : "mức tham chiếu"}</span>
-                ) : null}
-              </div>
-              <div className="sa-crow__dev">
-                <ItemChart item={it} />
-                <span className="sa-tone--down sa-crow__devtxt">{deviationText(it)}</span>
-                <span className="sa-hint">{refText(it)}</span>
-              </div>
-              <div className="sa-crow__cause">
-                <span className="sa-stages">
-                  {STAGES.map((s, j) => (
-                    <span className={`sa-stage ${j === stage ? "sa-stage--on" : ""}`} key={s}>
-                      {s}
-                    </span>
-                  ))}
-                </span>
-                <span className="sa-hint2">{it.cause.text}</span>
-              </div>
-              <div className="sa-crow__stake">
-                <b className="sa-tone--down">{it.at_stake_per_day == null ? DASH : `${sv(-it.at_stake_per_day)}/ngày`}</b>
-                <span className="sa-hint">{it.at_stake_per_month == null ? DASH : `${sv(-it.at_stake_per_month)}/tháng`}</span>
-                {it.card ? (
-                  <Link className="sa-rec sa-rec--s" href={links.card(it.card.id, "phan-tich", it.id)}>
-                    Xem đề xuất ›
-                  </Link>
-                ) : (
-                  <span className="sa-hint">Chưa có đề xuất</span>
-                )}
-                <Link
-                  className="sa-link"
-                  href={links.ranking(
-                    { kpi: rankKpi, src: rankSrc, focus: it.ranking_link.focus, from: "phan-tich", card: it.card?.id ?? null },
-                    state,
-                  )}
-                >
-                  Xem theo sản phẩm ›
-                </Link>
-              </div>
-            </div>
-          );
-        })}
-        {shown.length === 0 ? (
-          <Empty testId="sa-critical-empty">
-            {c.items.length === 0
-              ? "Chưa có chỉ số nào cần chú ý trong kỳ này. Mọi chỉ số đang trong dải bình thường hoặc chưa đủ dữ liệu để so."
-              : "Không có chỉ số cần chú ý ở nhóm này. Chọn “Tất cả” để xem các nhóm khác."}
-          </Empty>
-        ) : null}
-      </section>
+      ))}
+    </section>
+  );
+}
 
-      <section className="sa-card sa-card--soft" data-testid="sa-in-band">
-        <div className="sa-card__head">
-          <h2 className="sa-h2">Trong dải bình thường</h2>
-          <span className="sa-hint">{inBand.length} mục · không tính vào ₫ có nguy cơ</span>
-          <button aria-expanded={okOpen} className="sa-link sa-card__aside" onClick={() => setOkOpen(!okOpen)} type="button">
-            {okOpen ? "Thu gọn" : "Xem thêm"}
-          </button>
+function ByProduct({ view, sel, mode, state }: { readonly state: WindowState; readonly view: MetricView; readonly sel: ReturnType<typeof readMetricParams>; readonly mode: ValueMode }) {
+  const { links } = useShopee();
+  const m = sel.metric;
+  const [sortBy, setSortBy] = useState<SortKey>("impact");
+  const rows = sortRows(view.products, sortBy);
+  return (
+    <section aria-label="Theo sản phẩm" className="sa-card jp-section" data-testid="pt-products">
+      <div className="jp-section__head">
+        <h2 className="sa-h2">Theo sản phẩm</h2>
+        <label className="jp-sort">
+          Xếp theo
+          <select aria-label="Xếp theo" onChange={(e) => setSortBy(e.target.value as SortKey)} value={sortBy}>
+            <option value="impact">GMV ảnh hưởng</option>
+            <option value="change">Thay đổi</option>
+          </select>
+        </label>
+      </div>
+      <div className="jp-grid jp-grid--pr jp-grid--head">
+        <span>Sản phẩm</span>
+        <span>Kỳ này</span>
+        <span>Kỳ trước</span>
+        <span>Thay đổi</span>
+        <span>GMV ảnh hưởng</span>
+        <span />
+      </div>
+      {rows.map((p) => (
+        <div className="jp-grid jp-grid--pr" data-testid={`pt-product-${p.product_id}`} key={p.product_id}>
+          <Link className="jp-who jp-prod" href={links.product(p.product_id)}>
+            <Ini text={initialsOf(p.name)} />
+            <span className="jp-clip">{p.name}</span>
+          </Link>
+          <b>{valueText(m, p.now, view.days, mode)}</b>
+          <span>{valueText(m, p.prev, view.days, mode)}</span>
+          <Shift pct={p.change} />
+          <span>{impactText(p, view.days, mode)}</span>
+          <Cta channel={sel.channel} metric={m} state={state} product={p.product_id} row={p} />
         </div>
-        {okOpen
-          ? inBand.map((it) => (
-              <div className="sa-orow" data-testid={`sa-ok-${it.id}`} key={it.id}>
-                <span className="sa-crow__who">
-                  <Ini text={initialsOf(it.name ?? "Cả shop")} />
-                  <span>
-                    <span className="sa-mname__t">{it.name ?? "Cả shop"}</span>
-                    <span className="sa-hint sa-block">
-                      {sourceLabel(it)} · {kpiLabel(it)}
-                    </span>
-                  </span>
-                </span>
-                <b>{valueText(it, it.current)}</b>
-                <ItemChart item={it} small />
-                <span className="sa-hint2">Trong mức tham chiếu; không tính vào ₫ có nguy cơ.</span>
-              </div>
-            ))
-          : null}
-        {okOpen && inBand.length === 0 ? <Empty>Chưa có mục nào trong dải.</Empty> : null}
-      </section>
-      <p className="sa-hint">
-        Thanh xám là dải bình thường của luồng; vạch đen là mục tiêu, giá sàn, điểm hoà vốn hoặc trung vị shop; chấm là hiện
-        trạng.
-      </p>
-    </>
+      ))}
+      {rows.length === 0 ? <Empty testId="pt-products-empty">—</Empty> : null}
+    </section>
   );
 }

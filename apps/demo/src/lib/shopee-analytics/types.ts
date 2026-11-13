@@ -745,3 +745,70 @@ export interface ChannelProducts {
   readonly to: string;
   readonly products: readonly ChannelProduct[];
 }
+
+// ── P100 Phân tích (board B) ─────────────────────────────────────────────────
+
+/** One row of the metric view: the value now and in the previous period of the same length. */
+export interface MetricViewRow {
+  readonly key: string;
+  readonly now: N;
+  readonly prev: N;
+  /** Relative change (0.12 = +12 %). */
+  readonly change: N;
+  /** Signed ₫: the GMV gap this metric's change explains (negative = lost). */
+  readonly impact: N;
+  /** Open Đề xuất cards that move this metric for the row. */
+  readonly cards: number;
+  readonly ad_base?: string | null;
+}
+
+export interface MetricViewProduct extends MetricViewRow {
+  readonly product_id: string;
+  readonly name: string;
+}
+
+export interface MetricView {
+  readonly metric: string;
+  readonly channel: string | null;
+  readonly product_id: string | null;
+  readonly from: string;
+  readonly to: string;
+  readonly days: number;
+  readonly prev_from: string;
+  readonly prev_to: string;
+  /** The whole scope (shop, or the asked luồng / product); margin has none. */
+  readonly total: MetricViewRow;
+  readonly channels: readonly MetricViewRow[];
+  readonly products: readonly MetricViewProduct[];
+}
+
+export interface KolSectionRow {
+  readonly kol_key: string;
+  readonly handle: string;
+  readonly channel: string;
+  readonly channel_label: string | null;
+  readonly item_id: string;
+  readonly product_name: string;
+  readonly clicks: N;
+  readonly orders: number;
+  readonly gmv: N;
+  readonly commission: N;
+  readonly profit: N;
+  readonly prev_gmv: N;
+  readonly prev_profit: N;
+  readonly change: N;
+  readonly cards: number;
+}
+
+export interface KolSection {
+  readonly days: number;
+  readonly totals: {
+    readonly clicks: N;
+    readonly orders: N;
+    readonly gmv: N;
+    readonly video_gmv: N;
+    readonly live_gmv: N;
+    readonly other_gmv: N;
+  };
+  readonly rows: readonly KolSectionRow[];
+}

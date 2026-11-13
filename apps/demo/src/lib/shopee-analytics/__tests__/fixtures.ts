@@ -4,6 +4,8 @@ import type {
   ChannelRow,
   ChannelSplit,
   Critical,
+  KolSection,
+  MetricView,
   FiveNumbers,
   FlowRow,
   LeverRow,
@@ -518,7 +520,7 @@ export function product(p: Partial<ProductPage> = {}): ProductPage {
 
 /** A fake API: every method resolves with the given payload (or rejects). */
 export function fakeApi(
-  data: Partial<{ overview: Overview; matrix: Matrix; critical: Critical; ranking: Ranking; product: ProductPage; split: ChannelSplit; splitProduct: ChannelSplit; splitProducts: ChannelProducts }> = {},
+  data: Partial<{ overview: Overview; matrix: Matrix; critical: Critical; ranking: Ranking; product: ProductPage; split: ChannelSplit; splitProduct: ChannelSplit; splitProducts: ChannelProducts; metricView: MetricView; kolSection: KolSection }> = {},
   failWith?: Error,
 ): ShopeeApi & { calls: string[] } {
   const calls: string[] = [];
@@ -536,6 +538,8 @@ export function fakeApi(
       answer("channelSplit", productId ? (data.splitProduct ?? channelSplit({ level: "product", product_id: productId })) : (data.split ?? channelSplit()), { ...q, productId: productId ?? null }),
     channelSplitProducts: (q) => answer("channelSplitProducts", data.splitProducts ?? channelProducts(), q),
     ranking: (q) => answer("ranking", data.ranking ?? ranking(), q),
+    metricView: (q) => answer("metricView", data.metricView ?? metricView({ metric: q.metric }), q),
+    kolSection: (q) => answer("kolSection", data.kolSection ?? kolSection(), q),
     product: (id, period) => answer("product", data.product ?? product(), { id, period }),
   };
 }
@@ -590,6 +594,50 @@ export function channelProducts(p: Partial<ChannelProducts> = {}): ChannelProduc
     products: [
       { product_id: "1001", name: "Combo găng tay 100 hộp", image_url: null, gmv: 7_000_000, margin: 18.5, organic_gmv: 2_000_000, ads_gmv: 4_500_000, affiliate_gmv: 500_000, weakest_metric: "ctr" },
       { product_id: "1002", name: "Khăn giấy rút", image_url: null, gmv: 3_000_000, margin: null, organic_gmv: 2_500_000, ads_gmv: 0, affiliate_gmv: 500_000, weakest_metric: null },
+    ],
+    ...p,
+  };
+}
+
+const mrow = (key: string, p: Partial<MetricView["channels"][number]> = {}): MetricView["channels"][number] => ({ key, now: null, prev: null, change: null, impact: null, cards: 0, ...p });
+
+/** Synthetic Phân tích metric view (CTR): Thẻ sản phẩm and two products fell. */
+export function metricView(p: Partial<MetricView> = {}): MetricView {
+  return {
+    metric: "ctr",
+    channel: null,
+    product_id: null,
+    from: "2026-10-04",
+    to: "2026-11-02",
+    days: 30,
+    prev_from: "2026-09-04",
+    prev_to: "2026-10-03",
+    total: mrow("total", { now: 0.04, prev: 0.05, change: -0.2, impact: -3_000_000, cards: 3 }),
+    channels: [
+      mrow("the_san_pham", { now: 0.04, prev: 0.05, change: -0.2, impact: -2_000_000, cards: 3 }),
+      mrow("trang_shop", { now: 0.08, prev: 0.07, change: 0.14, impact: 100_000 }),
+      mrow("video", { now: 0.03, prev: 0.03, change: 0, impact: 0 }),
+      mrow("live"),
+      mrow("ads_product", { ad_base: "ads_report", cards: 1 }),
+      mrow("ads_shop", { ad_base: "ads_report" }),
+      mrow("lien_ket"),
+    ],
+    products: [
+      { ...mrow("GL-001", { now: 0.03, prev: 0.05, change: -0.4, impact: -1_500_000, cards: 2 }), product_id: "GL-001", name: "Găng tay cao su A" },
+      { ...mrow("XM-003", { now: 0.06, prev: 0.05, change: 0.2, impact: 400_000 }), product_id: "XM-003", name: "Xà phòng B" },
+      { ...mrow("BEP-S5", { now: 0.045, prev: 0.05, change: -0.1, impact: -200_000 }), product_id: "BEP-S5", name: "Bếp S5" },
+    ],
+    ...p,
+  };
+}
+
+export function kolSection(p: Partial<KolSection> = {}): KolSection {
+  return {
+    days: 30,
+    totals: { clicks: 100, orders: 10, gmv: 1_200_000, video_gmv: 1_030_000, live_gmv: 80_000, other_gmv: 90_000 },
+    rows: [
+      { kol_key: "k1", handle: "@kol_mot", channel: "Shopee Video", channel_label: "Shopee Video", item_id: "GL-001", product_name: "Găng tay cao su A", clicks: 60, orders: 6, gmv: 900_000, commission: 90_000, profit: 150_000, prev_gmv: 700_000, prev_profit: 100_000, change: 0.28, cards: 1 },
+      { kol_key: "k2", handle: "@kol_hai", channel: "Shopee Live", channel_label: "Shopee Live", item_id: "XM-003", product_name: "Xà phòng B", clicks: 40, orders: 4, gmv: 300_000, commission: 40_000, profit: -20_000, prev_gmv: null, prev_profit: null, change: null, cards: 0 },
     ],
     ...p,
   };

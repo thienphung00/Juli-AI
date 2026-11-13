@@ -62,6 +62,8 @@ READ_TEMPLATES: dict[tuple[str, str], str] = {
         "GET",
         f"{DEMO}/channel-split/products",
     ): "demo_shopee_analytics:shopee_channel_split_products",
+    ("GET", f"{DEMO}/metric-view"): "demo_shopee_analytics:shopee_metric_view",
+    ("GET", f"{DEMO}/kol-section"): "demo_shopee_analytics:shopee_kol_section",
     ("GET", f"{DEMO}/ranking"): "demo_shopee_analytics:shopee_ranking",
     ("GET", f"{DEMO}/products/{{item_id}}"): "demo_shopee_analytics:shopee_product",
     ("GET", f"{DEMO}/kols"): "demo_shopee_analytics:shopee_kols",

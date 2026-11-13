@@ -7,7 +7,6 @@ import { sellerLinks } from "../../../lib/shopee-analytics/links";
 import { fakeReco } from "../../../lib/shopee-decisions/__tests__/fixtures";
 import { fakePlan } from "../../../lib/shopee-decisions/__tests__/plan-fixtures";
 import { fakeKol, fakeSamples, kolDetail, ROWS, row } from "../../../lib/shopee-kol/__tests__/fixtures";
-import { PhanTichPageView } from "../../shopee-analytics/phan-tich-view";
 import { ProductPageView } from "../../shopee-analytics/product-page";
 import { CardPage } from "../../shopee-decisions/card-page";
 import { renderReco } from "../../shopee-decisions/__tests__/harness";
@@ -62,23 +61,6 @@ describe("Phân tích › KOL (PhanTichKOL.dc.html)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Facebook" }));
     fireEvent.click(await screen.findByRole("button", { name: "Găng tay cao su A" }));
     expect(await screen.findByTestId("kol-empty")).toHaveTextContent("Không có dòng nào khớp bộ lọc.");
-  });
-
-  it("is a tab of Phân tích only when the host has KOL data", async () => {
-    const first = render(
-      <ShopeeHostProvider host={host()}>
-        <PhanTichPageView params={new URLSearchParams()} />
-      </ShopeeHostProvider>,
-    );
-    const tabs = await screen.findByTestId("sa-pt-tabs");
-    expect(within(tabs).getByRole("link", { name: "KOL" })).toHaveAttribute("href", "/phan-tich?tab=kol");
-    first.unmount();
-    render(
-      <ShopeeHostProvider host={host()}>
-        <PhanTichPageView params={new URLSearchParams("tab=kol")} />
-      </ShopeeHostProvider>,
-    );
-    expect(await screen.findByTestId("kol-page")).toBeInTheDocument();
   });
 });
 
