@@ -26,6 +26,25 @@ export interface FunnelColumn {
   readonly by_source: Readonly<Record<string, Readonly<Record<string, number | null>>>>;
 }
 
+/** P100 B.15: an edit of a running Dịch vụ hiển thị campaign — the campaign's own CPA facts (`*.now` today, `*.after` with the edit; null = chưa ước tính được). */
+export interface AdsEditFacts {
+  readonly lever: "budget" | "roas" | "add_product" | "remove_product" | string;
+  readonly campaign: string;
+  readonly days: number;
+  readonly spend_basis: string;
+  readonly spend_text: string;
+  readonly spend: { readonly now: number | null; readonly after: number | null };
+  readonly orders: { readonly now: number | null; readonly after: number | null };
+  readonly cpa: { readonly now: number | null; readonly after: number | null };
+  readonly break_even_cpa: number | null;
+  readonly verdict: { readonly now: "co_lai" | "lo" | null; readonly after: "co_lai" | "lo" | null };
+  readonly verdict_text: { readonly now: string | null; readonly after: string | null };
+  readonly profit_after_ads: { readonly now: number | null; readonly after: number | null };
+  readonly roas_shopee: { readonly now: number | null; readonly after: number | null };
+  readonly incremental: { readonly share: number | null; readonly orders_all: number | null; readonly orders_extra: number | null };
+  readonly cancel_rate_pct: number | null;
+}
+
 export interface OptionResult {
   readonly kind: string;
   readonly label: string;
@@ -69,4 +88,6 @@ export interface OptionResult {
     readonly high: FunnelColumn | null;
   };
   readonly notes: readonly string[];
+  /** P100 B.15: Ads edits only (null / absent for every other kind and for results stored before). */
+  readonly ads?: AdsEditFacts | null;
 }

@@ -184,3 +184,50 @@ describe("P99 · OptionCard", () => {
     expect(screen.getByTestId("oc-orders")).toHaveTextContent("+13 ·");
   });
 });
+
+describe("P100 B.15 · Dịch vụ hiển thị edit on the OptionCard", () => {
+  const ads = {
+    lever: "budget",
+    campaign: "Chiến dịch A",
+    days: 30,
+    spend_basis: "not_capped",
+    spend_text: "Ngân sách mới 80.000đ/ngày thấp hơn mức chiến dịch thực chi (100.000đ/ngày): chi tiêu bằng ngân sách mới.",
+    spend: { now: 3000000, after: 2400000 },
+    orders: { now: 90, after: 72 },
+    cpa: { now: 33333, after: 33333 },
+    break_even_cpa: 50000,
+    verdict: { now: "co_lai" as const, after: "co_lai" as const },
+    verdict_text: { now: "có lãi", after: "có lãi" },
+    profit_after_ads: { now: 1500000, after: 1200000 },
+    roas_shopee: { now: 6, after: 6 },
+    incremental: { share: 50, orders_all: -18, orders_extra: -9 },
+    cancel_rate_pct: 10,
+  };
+
+  it("shows CPA → CPA mới, CPA hoà vốn, kết luận, lợi nhuận sau quảng cáo and ROAS Shopee", () => {
+    render(<OptionCard result={result({ kind: "ads_budget", ads, cost: { total: -600000, break_even_orders: null, break_even_aov: null, text: "Chi phí giảm 600.000đ" } })} />);
+    expect(screen.getByTestId("oc-ads-cpa")).toHaveTextContent("33.333đ → 33.333đ");
+    expect(screen.getByTestId("oc-ads-be")).toHaveTextContent("50.000đ");
+    expect(screen.getByTestId("oc-ads-verdict")).toHaveTextContent("có lãi");
+    expect(screen.getByTestId("oc-ads-profit")).toHaveTextContent("1.500.000đ → 1.200.000đ");
+    expect(screen.getByTestId("oc-ads-roas")).toHaveTextContent("6,0");
+    expect(screen.getByTestId("oc-ads-spend")).toHaveTextContent("thấp hơn mức chiến dịch thực chi");
+    expect(screen.getByTestId("oc-ads-incremental")).toHaveTextContent("đơn tăng thêm thật −9");
+    expect(screen.getByTestId("oc-ads-cancel")).toHaveTextContent("10,0%");
+    expect(screen.getByTestId("oc-cost")).toHaveTextContent("Giảm 600.000đ");
+  });
+
+  it("says chưa ước tính được when the edit has no history, and loses money as lỗ", () => {
+    const none = { ...ads, cpa: { now: 60000, after: null }, verdict: { now: "lo" as const, after: null }, verdict_text: { now: "lỗ", after: null }, profit_after_ads: { now: -900000, after: null }, roas_shopee: { now: 6, after: null }, incremental: { share: null, orders_all: null, orders_extra: null } };
+    render(<OptionCard result={result({ kind: "ads_roas_target", estimable: false, ads: none })} />);
+    expect(screen.getByTestId("oc-ads-cpa")).toHaveTextContent("60.000đ → chưa ước tính được");
+    expect(screen.getByTestId("oc-ads-verdict")).toHaveTextContent("lỗ → chưa ước tính được");
+    expect(screen.getByTestId("oc-ads-profit")).toHaveTextContent("−900.000đ → chưa ước tính được");
+    expect(screen.queryByTestId("oc-ads-incremental")).toBeNull();
+  });
+
+  it("other kinds carry no Ads block", () => {
+    render(<OptionCard result={result()} />);
+    expect(screen.queryByTestId("oc-ads")).toBeNull();
+  });
+});

@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
 import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
-import type { FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
+import type { AdsEditFacts, FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TextChip } from "../../shopee-analytics/ui";
 import { countPct, moneyPct, signedMoney } from "./format";
 
@@ -63,6 +63,52 @@ function marginText(r: OptionResult): string | null {
   const s = fmt(Math.abs(m.shift_pts), 1);
   const sign = m.shift_pts < 0 && s !== "0,0" ? "−" : "+";
   return `${pp(m.before_pct, 1)} → ${pp(m.after_pct, 1)} (${sign}${s} điểm)`;
+}
+
+const arrow = (now: string, after: string | null): string => (after === null || after === now ? now : `${now} → ${after}`);
+const money = (n: number | null): string => (n === null ? NOT_ESTIMABLE : vnd(n));
+
+/** P100 B.15: the Dịch vụ hiển thị lines — CPA → CPA mới, CPA hoà vốn, kết luận, lợi nhuận sau quảng cáo, ROAS Shopee (tham khảo). */
+export function adsLines(a: AdsEditFacts): readonly { readonly key: string; readonly label: string; readonly text: string }[] {
+  const roas = (n: number | null): string => (n === null ? DASH : fmt(n, 1));
+  const verdict = (v: string | null): string => v ?? NOT_ESTIMABLE;
+  const lines = [
+    { key: "cpa", label: "CPA → CPA mới", text: `${money(a.cpa.now)} → ${money(a.cpa.after)}` },
+    { key: "be", label: "CPA hoà vốn", text: a.break_even_cpa === null ? "chưa tính (thiếu giá vốn)" : vnd(a.break_even_cpa) },
+    { key: "verdict", label: "Kết luận", text: a.break_even_cpa === null ? "chưa tính" : arrow(verdict(a.verdict_text.now), a.cpa.after === null ? NOT_ESTIMABLE : verdict(a.verdict_text.after)) },
+    { key: "profit", label: "Lợi nhuận sau quảng cáo", text: arrow(money(a.profit_after_ads.now), a.profit_after_ads.after === null ? NOT_ESTIMABLE : vnd(a.profit_after_ads.after)) },
+    { key: "roas", label: "ROAS Shopee (tham khảo)", text: arrow(roas(a.roas_shopee.now), a.roas_shopee.after === null ? null : roas(a.roas_shopee.after)) },
+  ];
+  return lines;
+}
+
+function AdsBlock({ ads: a }: { readonly ads: AdsEditFacts }) {
+  const inc = a.incremental;
+  return (
+    <div className="oc__ads" data-testid="oc-ads">
+      <dl className="p2-kv">
+        {adsLines(a).map((l) => (
+          <div key={l.key}>
+            <dt>{l.label}</dt>
+            <dd data-testid={`oc-ads-${l.key}`}>{l.text}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="sa-hint" data-testid="oc-ads-spend">
+        {a.spend_text}
+      </p>
+      {inc.orders_all !== null && inc.orders_extra !== null && inc.share !== null ? (
+        <p className="sa-hint" data-testid="oc-ads-incremental">
+          Δ đơn quảng cáo {fmt(inc.orders_all, 1)}, trong đó đơn tăng thêm thật {fmt(inc.orders_extra, 1)} ({pp(inc.share, 0)}, đo theo ngày có / không quảng cáo): Δ tổng lợi nhuận và ROI chỉ tính phần tăng thêm.
+        </p>
+      ) : null}
+      {a.cancel_rate_pct !== null ? (
+        <p className="sa-hint" data-testid="oc-ads-cancel">
+          Đơn quảng cáo đã trừ tỉ lệ huỷ của shop ({pp(a.cancel_rate_pct, 1)}).
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export function OptionCard({ result: r, title, testId = "option-card", dates }: { readonly result: OptionResult; readonly title?: string; readonly testId?: string; readonly dates?: VersionDates | null }) {
@@ -134,7 +180,7 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
         <div>
           <dt>Chi phí</dt>
           <dd data-testid="oc-cost">
-            <b>{r.cost.total > 0 ? vnd(r.cost.total) : "Không có chi phí thêm"}</b>
+            <b>{r.cost.total > 0 ? vnd(r.cost.total) : r.cost.total < 0 ? `Giảm ${vnd(-r.cost.total)}` : "Không có chi phí thêm"}</b>
           </dd>
         </div>
         {beLine ? (
@@ -144,6 +190,7 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
           </div>
         ) : null}
       </dl>
+      {r.ads ? <AdsBlock ads={r.ads} /> : null}
       {costNotes.map((n) => (
         <p className="sa-hint" data-testid="oc-cost-days" key={n}>
           {n}
