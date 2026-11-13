@@ -16,7 +16,7 @@ from tests.support.shopee_analytics import CUR_END, seed_shopee_shop
 DEMO = "/v1/demo/shopee/exports"
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PARAMS = {"period": "7d", "as_of": CUR_END.isoformat()}
-TQ_SHEETS = [tq.SHEET_OVERVIEW, tq.SHEET_CHANNEL, tq.SHEET_DAY, tq.SHEET_PRODUCT]
+TQ_SHEETS = [tq.SHEET_OVERVIEW, tq.SHEET_CHANNEL, tq.SHEET_DAY, tq.SHEET_PRODUCT, tq.SHEET_SKU]
 
 
 def _attachment(response) -> str:

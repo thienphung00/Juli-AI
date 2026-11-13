@@ -73,6 +73,34 @@ def cards_of_product(
     return [c for c in cards if product_id is None or c.get("product_id") == product_id]
 
 
+def card_sku_scope(card: Mapping[str, Any]) -> frozenset[str] | None:
+    """The SKUs a plan card is scoped to: the SKU rows of its chosen version (a per-SKU price /
+    discount card keeps them), else its what-if rows. ``None`` = a product-level card (every SKU
+    of the product)."""
+    chosen = next(
+        (v for v in card.get("versions") or [] if v.get("version") == card.get("chosen_version")),
+        None,
+    )
+    for source in ((chosen or {}).get("inputs"), card.get("what_if")):
+        rows = (source or {}).get("variations")
+        skus = {str(r["sku"]) for r in rows or [] if isinstance(r, Mapping) and r.get("sku")}
+        if skus:
+            return frozenset(skus)
+    return None
+
+
+def _scopes_of(out: Mapping[str, Any]) -> dict[str, frozenset[str] | None]:
+    """``card_sku_scope`` of each card of a plan payload, by card id."""
+    return {str(c["card_id"]): card_sku_scope(c) for c in out.get("cards") or []}
+
+
+def _scope_of_block(
+    scopes: Mapping[str, frozenset[str] | None], block: Mapping[str, Any]
+) -> frozenset[str] | None:
+    cid = str(block.get("card_id"))
+    return scopes.get(cid) or scopes.get(cid.split("#")[0])
+
+
 def _days_in(span_from: date, span_to: date, first: date, last: date) -> int:
     lo, hi = max(span_from, first), min(span_to, last)
     return 0 if hi < lo else (hi - lo).days + 1
@@ -253,12 +281,16 @@ async def range_plans(
     marker = elapsed / days if in_range else None
 
     running_cards: list[Mapping[str, Any]] = []
+    card_scope: dict[int, frozenset[str] | None] = {}  # id(card block) -> its SKU scope
     baseline: Mapping[str, Any] | None = None
     first_out: Mapping[str, Any] | None = None
     first_day: date | None = None
     for plan in await _executed(session, shop_id):
         out = await plans.get_plan(session, shop_id, plan.id, now=now, audience="seller")
-        running_cards += plan_cards(out)
+        blocks = plan_cards(out)
+        sku_scopes = _scopes_of(out)
+        card_scope.update({id(b): _scope_of_block(sku_scopes, b) for b in blocks})
+        running_cards += blocks
         if baseline is None:
             baseline = (out.get("aggregate") or {}).get("today")
             first_out = out
@@ -272,7 +304,10 @@ async def range_plans(
         if dout is None:
             dout = await plans.get_plan(session, shop_id, None, now=now, audience="seller")
         draft_cards = plan_cards(dout)
+        dscopes = _scopes_of(dout)
+        card_scope.update({id(b): _scope_of_block(dscopes, b) for b in draft_cards})
         draft_today = (dout.get("aggregate") or {}).get("today")
+    base_window: tuple[date, date] | None = None
     if product_id is not None:
         running_cards = cards_of_product(running_cards, product_id)
         draft_cards = cards_of_product(draft_cards, product_id)
@@ -280,6 +315,16 @@ async def range_plans(
         baseline = draft_today = await _product_level(
             session, shop_id, product_id, row, first_day or today
         )
+        source = first_out or dout
+        as_of = ((source or {}).get("aggregate") or {}).get("today", {}).get("as_of")
+        if row is None:  # the product's level was read from the 30 days before the plan
+            last_day = (first_day or today) - timedelta(days=1)
+            base_window = (last_day - timedelta(days=HORIZON_DAYS - 1), last_day)
+        elif as_of:
+            end_day = date.fromisoformat(str(as_of)[:10])
+            base_window = (end_day - timedelta(days=HORIZON_DAYS - 1), end_day)
+        else:
+            base_window = None
     actual_gmv, actual_profit = await _actual(session, shop_id, first, actual_to, view, product_id)
 
     def level(base: Mapping[str, Any] | None, key: str) -> float | None:
@@ -322,8 +367,32 @@ async def range_plans(
                     ),
                 }
             )
+        per_card: list[dict[str, Any]] = []
+        if product_id is not None:
+            for c in cards:
+                u_gmv, u_profit, n_one = uplift_in_month([c], first, last)
+                if n_one:
+                    skus = card_scope.get(id(c))
+                    per_card.append(
+                        {
+                            "card_id": c.get("card_id"),
+                            "uplift_gmv": u_gmv,
+                            "uplift_profit": u_profit,
+                            "sku_ids": None if skus is None else sorted(skus),
+                        }
+                    )
         answers[sc] = {
             **({"daily": per_day} if daily else {}),
+            **(
+                {
+                    "baseline_window": None
+                    if base_window is None
+                    else {"from": base_window[0].isoformat(), "to": base_window[1].isoformat()},
+                    "card_uplifts": per_card,
+                }
+                if product_id is not None
+                else {}
+            ),
             "scope": sc,
             "product_id": product_id,
             "from": first.isoformat(),

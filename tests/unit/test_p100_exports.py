@@ -68,76 +68,68 @@ def test_overview_cells_and_formulas():
     assert ws["A1"].value == (
         "TỔNG QUAN — Dữ liệu mẫu (Shopee) · 12/10/2026–10/11/2026 · so với 12/09/2026–11/10/2026"
     )
-    assert [c.value for c in ws[3]][:4] == ["Chỉ số", "Kỳ này", "Kỳ trước", "Thay đổi"]
-    assert ws["B4"].value == 5_500_000 and ws["C4"].value == pytest.approx(4_950_000)
+    assert [c.value for c in ws[3]][:5] == ["Chỉ số", "Kỳ này", "Thay đổi", "Mục tiêu", "% đạt"]
+    assert ws.max_column == 5 and ws["A8"].value == "Chi phí quảng cáo (Báo cáo DVHT) (đ)"
+    assert ws["B4"].value == 5_500_000
     assert ws["B6"].value == '=IFERROR(B4/B5,"")'
     assert ws["B11"].value == "=SUM(B8:B10)"
     assert ws["B12"].value == '=IFERROR(B7/B11,"")' and ws["B12"].number_format == "0.0"
-    assert ws["D4"].value == '=IFERROR(B4/C4-1,"")' and ws["D4"].number_format == "0.0%"
-    assert (ws["E4"].value, ws["F4"].value, ws["G4"].value) == (5_000_000, 5_600_000, "=B4")
-    assert ws["H4"].value == '=IFERROR(G4/F4,"")'
-    assert ws["F7"].value == 850_000 and ws["H7"].value == '=IFERROR(G7/F7,"")'
+    assert ws["C4"].value == '=IFERROR(B4/4950000.0-1,"")' and ws["C4"].number_format == "0.0%"
+    assert (ws["D4"].value, ws["E4"].value) == (5_600_000, '=IFERROR(B4/D4,"")')
+    assert ws["D7"].value == 850_000 and ws["E7"].value == '=IFERROR(B7/D7,"")'
     assert wb.calculation.fullCalcOnLoad is True
     assert ws["A4"].font.name == "Arial" and ws["A3"].font.bold
 
 
 def test_channel_sheet_rows_columns_and_totals():
     ws = tq.build(_data())[tq.SHEET_CHANNEL]
-    assert [ws.cell(r, 1).value for r in range(5, 9)] == [
-        "Organic",
-        "Quảng cáo",
-        "Tiếp thị liên kết",
-        "Tổng",
-    ]
-    assert ws["B5"].value == 1000 and ws["G6"].value == 2_000_000 and ws["J6"].value == 400_000
-    assert ws["B7"].value is None  # TTLK has no views
-    assert ws["D5"].value == '=IFERROR(C5/B5,"")' and ws["F5"].value == '=IFERROR(E5/C5,"")'
-    assert ws["H5"].value == '=IFERROR(G5/E5,"")' and ws["I5"].value == '=IFERROR(G5/G$8,"")'
-    assert ws["G8"].value == "=SUM(G5:G7)" and ws["J8"].value == "=SUM(J5:J7)"
-    assert ws["P6"].value == pytest.approx(1_800_000)  # Kỳ trước GMV, block K..S
-    assert ws["T5"].value == '=IFERROR(G5/P5-1,"")' and ws["U5"].value == '=IFERROR(E5/N5-1,"")'
+    assert [c.value for c in ws[3]] == tq.CH_HEADER
+    assert [ws.cell(r, 1).value for r in range(4, 9)] == [
+        "Organic", "Quảng cáo (Lưu lượng / Báo cáo DVHT)", "Tiếp thị liên kết", "Ưu đãi", "Tổng",
+    ]  # fmt: skip
+    assert ws["G7"].value == 30_000 and all(ws.cell(7, c).value is None for c in (2, 3, 5, 6, 8))
+    assert ws["B5"].value == 2_000_000 and ws["G5"].value == 400_000 and ws["E6"].value == 2
+    assert ws["C4"].value == '=IFERROR(B4/B$8,"")' and ws["F4"].value == '=IFERROR(B4/E4,"")'
+    assert ws["B8"].value == "=SUM(B4:B7)" and ws["G8"].value == "=SUM(G4:G7)"
+    assert ws["D5"].value == '=IFERROR(B5/1800000.0-1,"")'  # the previous value is in the formula
+    assert ws["D8"].value == '=IFERROR(B8/4950000.0-1,"")'
+    assert ws["H8"].value == "='Tổng quan'!B12" and ws["H4"].value is None
 
 
 def test_day_totals_equal_the_channel_sheet():
     wb = tq.build(_data())
     days, ch = wb[tq.SHEET_DAY], wb[tq.SHEET_CHANNEL]
     first, last, total = tq.DAY_FIRST, tq.DAY_FIRST + 29, tq.DAY_FIRST + 30
+    assert [c.value for c in days[3]] == tq.DAY_HEADER
     assert days.cell(total, 1).value == "Tổng"
-    for letter in "BCDFGHJKLMNOPQ":
+    for letter in "BCDEFGHIJ":
         assert days[f"{letter}{total}"].value == f"=SUM({letter}{first}:{letter}{last})"
-    assert days["E4"].value == "=SUM(B4:D4)" and days["I4"].value == "=SUM(F4:H4)"
+    assert days["E4"].value == "=SUM(B4:D4)"
     gmv = [sum(days.cell(r, c).value for r in range(first, last + 1)) for c in (2, 3, 4)]
-    orders = [sum(days.cell(r, c).value for r in range(first, last + 1)) for c in (6, 7, 8)]
-    assert gmv == [pytest.approx(ch.cell(r, 7).value) for r in (5, 6, 7)]
-    assert orders == [pytest.approx(ch.cell(r, 5).value) for r in (5, 6, 7)]
-    assert sum(days.cell(r, 10).value for r in range(first, last + 1)) == pytest.approx(
-        ch["J6"].value
-    )
-    assert sum(days.cell(r, 15).value for r in range(first, last + 1)) == pytest.approx(5_100_000)
+    assert gmv == [pytest.approx(ch.cell(r, 2).value) for r in (4, 5, 6)]
+    orders = sum(days.cell(r, 6).value for r in range(first, last + 1))
+    assert orders == pytest.approx(18)
+    cost = sum(days.cell(r, 7).value for r in range(first, last + 1))
+    assert cost == pytest.approx(450_000 + 30_000)  # quảng cáo + TTLK + ưu đãi
+    assert sum(days.cell(r, 9).value for r in range(first, last + 1)) == pytest.approx(5_100_000)
 
 
-def test_product_sheet_total_equals_the_shop_and_targets_have_a_place():
+def test_product_sheet_total_equals_the_shop():
     d = _data()
     ws = tq.build(d)[tq.SHEET_PRODUCT]
+    assert [c.value for c in ws[3]][:13] == tq.P_HEADER
     total = tq.P_FIRST + 3
     assert ws.cell(tq.P_FIRST + 2, 1).value == "Cả shop" and ws.cell(total, 1).value == "Tổng"
-    g = tq.col(tq.P_NOW + tq.PB["g_ads"])
-    assert ws[f"{g}{total}"].value == f"=SUM({g}{tq.P_FIRST}:{g}{total - 1})"
-    for key in ("g_org", "g_ads", "g_aff", "views", "clicks", "profit", "c_ads", "c_offer"):
-        c = tq.P_NOW + tq.PB[key]
-        vals = [ws.cell(r, c).value for r in range(tq.P_FIRST, total)]
-        shop = {
-            "g_org": d.now.channel("organic").gmv, "g_ads": d.now.channel("ads").gmv,
-            "g_aff": d.now.channel("affiliate").gmv, "profit": d.now.profit,
-            "c_ads": d.now.ads_cost, "c_offer": d.now.offer_cost,
-        }  # fmt: skip
-        if key in shop:
-            assert sum(v for v in vals if v is not None) == pytest.approx(shop[key])
-    assert (
-        ws.cell(tq.P_FIRST, tq.P_PLAN).value == 1.0
-        and ws.cell(tq.P_FIRST, tq.P_PLAN + 1).value == 2.0
+    for letter in "NOPQGEH":
+        assert ws[f"{letter}{total}"].value == f"=SUM({letter}{tq.P_FIRST}:{letter}{total - 1})"
+    assert ws["N4"].value == d.products[0].now.channel("organic").gmv
+    assert sum(ws.cell(r, 15).value for r in range(4, total)) == pytest.approx(
+        d.now.channel("ads").gmv
     )
-    assert ws.cell(total, tq.P_PLAN + 2).value.startswith("=IFERROR(")
+    assert ws["C4"].value == "=SUM(N4:P4)" and ws["J4"].value == '=IFERROR(N4/C4,"")'
+    assert ws["M4"].value == '=IFERROR(G4/Q4,"")' and ws["E4"].value == 2.0
+    assert ws["D4"].value.startswith("=IFERROR(C4/") and ws["F4"].value == '=IFERROR(C4/E4,"")'
+    assert all(ws.column_dimensions[x].hidden for x in "NOPQ")
 
 
 def test_residual_row_is_shop_minus_products_and_keeps_none():
@@ -155,8 +147,7 @@ def test_residual_row_is_shop_minus_products_and_keeps_none():
 def _card(code, status, plan, start, end, gmv, profit, **kw) -> kh.CardRow:
     return kh.CardRow(
         code, plan, status, "Ưu đãi", "Voucher", "V1", "111", "Sản phẩm A", "AOV", start, end,
-        cost=1000.0, gmv_low=gmv * 0.5, gmv_mid=gmv, gmv_high=gmv * 2, profit_low=profit * 0.5,
-        profit_mid=profit, profit_high=profit * 2, orders=3.0, **kw,
+        cost=1000.0, gmv_mid=gmv, profit_mid=profit, **kw,
     )  # fmt: skip
 
 
@@ -177,7 +168,7 @@ def _kh_data() -> kh.KeHoachData:
             date(2026, 11, 7),
             777.0,
             7.0,
-            actual_profit=1.0,
+            result="+1 đ · Trong khoảng",
         ),
     ]
     first = date(2026, 11, 1)
@@ -214,15 +205,12 @@ def test_month_sums_equal_month_plans_goals_for_both_scopes():
 
 def test_card_sheet_values_formulas_and_totals():
     ws = kh.build(_kh_data())[kh.SHEET_CARDS]
-    assert [c.value for c in ws[3]][:4] == ["STT", "Mã thẻ", "Mã kế hoạch", "Trạng thái"]
-    assert ws["B4"].value == "A" and ws["D6"].value == "Nháp" and ws["C7"].value is None
-    assert ws["P4"].value == 1_400_000 and ws["O4"].value == 700_000 and ws["Q4"].value == 2_800_000
-    assert ws["M4"].value == '=IF(AND(K4<>"",L4<>""),L4-K4+1,"")'
-    assert ws["V4"].value == "=IFERROR(P4/M4,0)" and ws["W4"].value == "=IFERROR(S4/M4,0)"
-    assert ws["X4"].value == '=IFERROR(S4/N4,"")' and ws["X4"].number_format == "0.0"
-    assert 'IF(Y4="","",IF(Y4<R4' in ws["Z4"].value
-    assert ws["P8"].value == "=SUM(P4:P7)" and ws["N8"].value == "=SUM(N4:N7)"
-    assert ws["K4"].number_format == "dd/mm/yyyy"
+    assert [c.value for c in ws[3]][:14] == kh.CARD_HEADER
+    assert ws["B4"].value == "A" and ws["C6"].value == "Nháp" and ws["O7"].value is None
+    assert ws["K4"].value == 1_400_000 and ws["J4"].value == 1000
+    assert ws["M4"].value == '=IFERROR(L4/J4,"")' and ws["M4"].number_format == "0.0"
+    assert ws["K8"].value == "=SUM(K4:K7)" and ws["J8"].value == "=SUM(J4:J7)"
+    assert ws["H4"].number_format == "dd/mm/yyyy" and ws.column_dimensions["O"].hidden
 
 
 def test_goal_sheet_formulas_reference_the_card_ranges():
@@ -232,19 +220,67 @@ def test_goal_sheet_formulas_reference_the_card_ranges():
     assert ws.cell(f, 1).value == date(2026, 11, 1) and ws.cell(f + 29, 1).value == date(
         2026, 11, 30
     )
-    assert ws.cell(f, 2).value == pytest.approx(57_000_000 / 30)
-    run = ws.cell(f, 3).value
-    assert (
-        "SUMPRODUCT(" in run and "'Đề xuất'!$K$4:$K$7<=$A22" in run and "'Đề xuất'!$V$4:$V$7" in run
+    assert ws.cell(f, 10).value == pytest.approx(57_000_000 / 30)  # hidden: GMV nền
+    run = ws.cell(f, 11).value
+    assert "SUMPRODUCT(" in run and "'Đề xuất'!$H$4:$H$7<=$A18" in run
+    assert "'Đề xuất'!$K$4:$K$7/('Đề xuất'!$I$4:$I$7-'Đề xuất'!$H$4:$H$7+1)" in run
+    assert '<>"Nháp"' in run and "'Đề xuất'!$O$4:$O$7" in run
+    assert '="Nháp"' in ws.cell(f, 12).value and "'Đề xuất'!$L$4:$L$7" in ws.cell(f, 14).value
+    assert ws.cell(f, 2).value == f"=J{f}+K{f}"  # GMV mục tiêu of the day
+    assert ws.cell(f, 4).value == f"=SUM(B${f}:B{f})"
+    assert ws.cell(f + 1, 5).value == f'=IF(C{f + 1}="","",SUM(C${f}:C{f + 1}))'
+    assert ws.cell(f, 3).value == 1_900_000 and ws.cell(f + 15, 3).value is None
+    assert [ws.cell(3 + i, 1).value for i in range(5)][0] == "GMV nền"
+    assert ws["B3"].value == f"=SUM(J{f}:J{f + 29})" and ws["B4"].value == f"=SUM(B{f}:B{f + 29})"
+    assert ws["B5"].value == f"=B4+SUM(L{f}:L{f + 29})"
+    assert ws["A6"].value == "GMV thực tế đến 10/11/2026"
+    assert f"MATCH(DATE(2026,11,10),$A{f}:$A{f + 29},0)" in ws["B7"].value
+    assert "INDEX(D" in ws["B7"].value and "INDEX(H" in ws["B14"].value
+    assert [c.value for c in ws[kh.DAY_HEADER_FIRST]][:9] == [
+        "Ngày", "GMV mục tiêu", "GMV thực tế", "Lũy kế mục tiêu", "Lũy kế thực tế",
+        "Lợi nhuận mục tiêu", "Lợi nhuận thực tế", "Lũy kế mục tiêu", "Lũy kế thực tế",
+    ]  # fmt: skip
+
+
+def test_split_goal_sends_a_scoped_cards_uplift_only_to_its_skus():
+    from juli_backend.services.exports import sku as skumod
+
+    a, b, c = ("p", "A", "1"), ("p", "B", "2"), ("p", "C", "3")
+    base = {a: 50.0, b: 30.0, c: 20.0}
+    cards = [
+        {"uplift_gmv": 100.0, "sku_ids": None},
+        {"uplift_gmv": 80.0, "sku_ids": ["B", "C"]},
+    ]
+    out = skumod.split_goal([a, b, c], base, 1000.0, cards, "uplift_gmv")
+    assert out is not None
+    assert sum(out.values()) == pytest.approx(1000 + 100 + 80)
+    assert out[a] == pytest.approx(500 + 50)
+    assert out[b] == pytest.approx(300 + 30 + 80 * 0.6)
+    assert out[c] == pytest.approx(200 + 20 + 80 * 0.4)
+    assert skumod.split_goal([a], {a: None}, 10.0, [], "uplift_gmv") is None  # unknown profit
+
+
+def test_sku_sheet_columns_and_formulas():
+    data = _data()
+    data.skus = [
+        tq.SkuRow("S1", "Đỏ", "SP", 10, 8, 1000, 900, 100, 90, 5, 6),
+        tq.SkuRow("S2", None, "SP", None, 3, None, 300, None, None, 2, None),
+    ]
+    ws = tq.build(data)[tq.SHEET_SKU]
+    assert [c.value for c in ws[3]] == tq.SKU_HEADER and len(tq.SKU_HEADER) == 16
+    assert ws["P4"].value == '=IF(O4="","",MAX(0,O4-N4))' and ws["D6"].value == "=SUM(D4:D5)"
+    assert ws["A6"].value == "Tổng"
+
+
+def test_result_text_is_the_actual_and_the_verdict_of_the_measurement_row():
+    from juli_backend.services.exports.collect import _result_text
+    from juli_backend.services.shopee_recommendations import execution_state as es
+
+    assert _result_text({"actual": 320000, "verdict": es.VERDICT_INSIDE}) == (
+        "+320.000 đ · Trong khoảng"
     )
-    assert '<>"Nháp"' in run and "'Đề xuất'!$C$4:$C$7" in run
-    assert '="Nháp"' in ws.cell(f, 4).value and "'Đề xuất'!$W$4:$W$7" in ws.cell(f, 12).value
-    assert ws.cell(f, 5).value == f"=B{f}+C{f}" and ws.cell(f, 6).value == f"=B{f}+C{f}+D{f}"
-    assert ws.cell(f, 7).value == 1_900_000 and ws.cell(f + 15, 7).value is None
-    assert ws.cell(f + 1, 8).value == f"=SUM(E${f}:E{f + 1})"
     assert (
-        ws["A8"].value == "GMV thực tế đến 10/11/2026" and ws["B3"].value == f"=SUM(B{f}:B{f + 29})"
+        _result_text({"actual": -1500.4, "verdict": es.VERDICT_BELOW}) == "-1.500 đ · Dưới khoảng"
     )
-    assert ws["B5"].value == "=B3+B4" and ws["B7"].value == "=B5+B6"
-    assert f"MATCH(DATE(2026,11,10),$A{f}:$A{f + 29},0)" in ws["B9"].value
-    assert "INDEX(H" in ws["B9"].value and "INDEX(P" in ws["B17"].value
+    assert _result_text({"actual": None, "verdict": es.VERDICT_RUNNING}) == "Đang đo"
+    assert _result_text({"actual": None, "verdict": es.VERDICT_NONE}) is None
