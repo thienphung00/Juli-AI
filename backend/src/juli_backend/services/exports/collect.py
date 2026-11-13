@@ -38,6 +38,7 @@ from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.order_profit import OrderStatus
 from juli_backend.services.shopee_recommendations import (
     change_sets,
+    execution_state,
     kinds,
     month_plan,
     plan_groups,
@@ -278,7 +279,7 @@ async def collect_tong_quan(
         )
     skus = await _sku_rows(
         session, shop_id, view, cur, plans_of, list(ids), names,
-        period=period, month=month,
+        period=period, month=month, now=now,
     )  # fmt: skip
     return tq.TongQuanData(
         shop_name, cur.start, cur.end, prv.start, prv.end, shop_now, shop_prev, days, rows,
@@ -290,7 +291,7 @@ async def collect_tong_quan(
 async def _sku_rows(
     session: AsyncSession, shop_id: uuid.UUID, view: PeriodView, window: Window,
     plans_of: dict[str, dict[str, Any]], product_ids: list[str], names: dict[str, str], *,
-    period: str, month: str | None,
+    period: str, month: str | None, now: datetime,
 ) -> list[tq.SkuRow]:  # fmt: skip
     """The "Theo SKU" rows (``exports/sku``): actuals of the period, stock at its end, goals split
     from each product's own Kế hoạch figures."""
@@ -319,14 +320,21 @@ async def _sku_rows(
     stock = await skumod.stock_at(session, shop_id, product_ids, window.end)
     period_end = window.end
     if period == "month" and month:
-        period_end = date(int(month[:4]), int(month[5:7]), 1)
-        period_end = period_end.replace(
-            day=calendar.monthrange(period_end.year, period_end.month)[1]
-        )
+        first = date(int(month[:4]), int(month[5:7]), 1)
+        period_end = first.replace(day=calendar.monthrange(first.year, first.month)[1])
+    finished = period_end <= window.end
+    plans_full = None
+    if not finished:  # the goal of the whole period (the month's end is still ahead)
+        plans_full = {
+            pid: await month_plan.range_plan(
+                session, shop_id, window.start, period_end, scope=month_plan.SCOPE_RUNNING,
+                now=now, view=view, product_id=pid, actual_to=window.end,
+            )
+            for pid in product_ids
+        }  # fmt: skip
     rows = skumod.build_rows(
         product_ids=product_ids, names=names, now=now_figs, base=base, plans=plans_of, stock=stock,
-        catalog_variations=catalog_variations, days_left=max((period_end - window.end).days, 0),
-        period_days=(period_end - window.start).days + 1,
+        catalog_variations=catalog_variations, finished=finished, plans_full=plans_full,
     )  # fmt: skip
     return [
         tq.SkuRow(
@@ -380,8 +388,24 @@ def _card_row(
         end=date.fromisoformat(dates["to"]) if dates.get("to") else None,
         cost=_f(own.get("cost_total")),
         gmv_mid=q("p50", "dgmv"), profit_mid=q("p50", "dprofit"),
-        orders=q("p50", "dorders"),
     )  # fmt: skip
+
+
+VERDICT_TEXT = {
+    execution_state.VERDICT_RUNNING: "Đang đo",
+    execution_state.VERDICT_INSIDE: "Trong khoảng",
+    execution_state.VERDICT_BELOW: "Dưới khoảng",
+    execution_state.VERDICT_ABOVE: "Vượt khoảng",
+}
+
+
+def _result_text(row: Mapping[str, Any]) -> str | None:
+    """ "<Δ lợi nhuận thực tế> · <kết luận>" of one Đo lường row (``execution_state``'s own actual
+    and verdict); ``None`` when it has neither."""
+    actual, verdict = row.get("actual"), VERDICT_TEXT.get(row.get("verdict"))
+    money = None if actual is None else f"{round(float(actual)):+,}".replace(",", ".") + " đ"
+    parts = [p for p in (money, verdict) if p]
+    return " · ".join(parts) or None
 
 
 async def collect_ke_hoach(
@@ -461,6 +485,12 @@ async def collect_ke_hoach(
         row.gmv_mid = _f(pm["dgmv_month"]["p50"])
         row.profit_mid = _f(pm["dprofit_month"]["p50"])
         out.append(row)
+    measured = {
+        c["code"]: _result_text(c)
+        for c in (await execution_state.measurement_states(session, shop_id, now=now))["cards"]
+    }
+    for row in out:
+        row.result = measured.get(row.code)
     return kh.KeHoachData(
         shop_name, first, anchor,
         float(run["baseline_gmv"] or 0), float(run["baseline_profit"] or 0),

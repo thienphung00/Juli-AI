@@ -12,6 +12,8 @@ in the BASELINE WINDOW -- the 30 days ``range_plan`` reports as ``baseline_windo
 frozen "today" window); each running card's uplift goes to the SKUs the card is scoped to
 (``month_plan.card_sku_scope``; product-level cards: every SKU of the product) by their baseline
 shares among them. Units goal = revenue goal / the SKU's average selling price in that window.
+Cần bán đến cuối kỳ = max(0, units goal of the whole period - units sold so far), 0 for a finished
+period.
 """
 
 from __future__ import annotations
@@ -197,6 +199,33 @@ class Row:
     need: float | None = None
 
 
+def _goals(
+    plan: Mapping[str, Any], ordered: Sequence[SkuKey], base_figs: Mapping[SkuKey, Fig]
+) -> tuple[dict[SkuKey, float] | None, dict[SkuKey, float] | None]:
+    """(revenue goal, profit goal) of each SKU of one product from its Kế hoạch figures."""
+    if plan.get("goal_gmv") is None or not base_figs or not ordered:
+        return None, None
+    rev = split_goal(
+        ordered,
+        {k: float(f.revenue) for k, f in base_figs.items()}
+        | {k: 0.0 for k in ordered if k not in base_figs},
+        float(plan["baseline_gmv"] or 0),
+        plan.get("card_uplifts") or [],
+        "uplift_gmv",
+    )
+    if plan.get("baseline_profit") is None:
+        return rev, None
+    prof = split_goal(
+        ordered,
+        {k: f.profit for k, f in base_figs.items()}
+        | {k: 0.0 for k in ordered if k not in base_figs},
+        float(plan["baseline_profit"]),
+        plan.get("card_uplifts") or [],
+        "uplift_profit",
+    )
+    return rev, prof
+
+
 def build_rows(
     *,
     product_ids: Sequence[str],
@@ -206,45 +235,30 @@ def build_rows(
     plans: Mapping[str, Mapping[str, Any]],
     stock: Stock,
     catalog_variations: Mapping[str, Sequence[tuple[str, str | None, str | None]]],
-    days_left: int,
-    period_days: int,
+    finished: bool,
+    plans_full: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> list[Row]:
     """The rows (one per SKU of each product, in ``product_ids`` order). ``base`` = per product the
     SKU figures of its baseline window; ``catalog_variations`` = per product its listed
-    (variation id, name, seller SKU) for the SKUs that only have stock."""
+    (variation id, name, seller SKU) for the SKUs that only have stock. ``plans_full`` = the
+    products' Kế hoạch figures of the WHOLE period (``plans`` when the period is not finished):
+    Cần bán đến cuối kỳ = max(0, units goal of the whole period - units sold so far), 0 when the
+    period is ``finished``."""
     rows: list[Row] = []
     for pid in product_ids:
         keys = {k for k in now if k[0] == pid} | set(base.get(pid, {}))
-        plan = plans.get(pid) or {}
-        goal_on = plan.get("goal_gmv") is not None
         base_figs = base.get(pid, {})
         sold = {k[2] for k in keys if k[2]}
-        for vid, vname, seller in catalog_variations.get(pid, ()):
+        for vid, _vname, seller in catalog_variations.get(pid, ()):
             if vid not in sold and (stock.of(pid, vid, only_sku=False) or 0) > 0:
                 keys.add((pid, seller or vid, vid))
         ordered = sorted(keys, key=lambda k: (-float(now[k].revenue) if k in now else 0.0, k[1]))
-        rev_goal = prof_goal = None
-        if goal_on and base_figs and ordered:
-            rev_goal = split_goal(
-                ordered,
-                {k: float(f.revenue) for k, f in base_figs.items()}
-                | {k: 0.0 for k in ordered if k not in base_figs},
-                float(plan["baseline_gmv"] or 0),
-                plan.get("card_uplifts") or [],
-                "uplift_gmv",
-            )
-            prof_goal = split_goal(
-                ordered,
-                {k: f.profit for k, f in base_figs.items()}
-                | {k: 0.0 for k in ordered if k not in base_figs},
-                float(plan["baseline_profit"] or 0)
-                if plan.get("baseline_profit") is not None
-                else 0.0,
-                plan.get("card_uplifts") or [],
-                "uplift_profit",
-            )
-            if plan.get("baseline_profit") is None:
-                prof_goal = None
+        rev_goal, prof_goal = _goals(plans.get(pid) or {}, ordered, base_figs)
+        rev_full = (
+            _goals((plans_full or {}).get(pid) or {}, ordered, base_figs)[0]
+            if plans_full is not None
+            else rev_goal
+        )
         only_sku = len(ordered) == 1
         for k in ordered:
             fig = now.get(k)
@@ -260,13 +274,15 @@ def build_rows(
             r.revenue = float(fig.revenue) if fig else 0.0
             r.profit = fig.profit if fig else None
             r.stock = stock.of(pid, k[2], only_sku=only_sku)
+            price = bfig.avg_price if bfig else None
             if rev_goal is not None:
                 r.revenue_goal = rev_goal[k]
-                price = bfig.avg_price if bfig else None
                 r.units_goal = None if not price else rev_goal[k] / price
             if prof_goal is not None:
                 r.profit_goal = prof_goal[k]
-            if r.units_goal is not None:
-                r.need = r.units_goal * (days_left / period_days) if period_days else 0.0
+            if finished:
+                r.need = 0.0
+            elif rev_full is not None and price:
+                r.need = max(0.0, rev_full[k] / price - r.units)
             rows.append(r)
     return rows

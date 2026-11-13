@@ -21,7 +21,6 @@ from openpyxl import Workbook
 from juli_backend.services.exports._style import (
     DATE,
     FONT,
-    INT,
     MONEY,
     PCT,
     POINTS,
@@ -43,17 +42,12 @@ MEASURING = "Đang đo"
 MEASURED = "Đã đo"
 
 CARD_HEADER = [
-    "STT", "Mã thẻ", "Mã kế hoạch", "Trạng thái", "Nhóm", "Loại", "Phương án", "Mã SP",
-    "Sản phẩm", "Chỉ số tác động", "Ngày bắt đầu", "Ngày kết thúc", "Số ngày",
-    "Chi phí cả kỳ (đ)", "Δ GMV kỳ vọng (đ)", "Δ lợi nhuận kỳ vọng (đ)", "Δ đơn",
-    "Δ GMV / ngày (đ)", "Δ lợi nhuận / ngày (đ)", "ROI", "Δ lợi nhuận thực tế (đ)",
+    "STT", "Mã thẻ", "Trạng thái", "Nhóm", "Phương án", "Sản phẩm", "Chỉ số tác động", "Bắt đầu",
+    "Kết thúc", "Chi phí (đ)", "Δ GMV (đ)", "Δ lợi nhuận (đ)", "ROI", "Kết quả",
 ]  # fmt: skip
-C = {  # column letter of each card column
-    n: col(i) for i, n in enumerate(
-        ["stt", "code", "plan", "status", "group", "kind", "version", "item", "name", "metrics",
-         "start", "end", "days", "cost", "g_mid", "p_mid",
-         "orders", "g_day", "p_day", "roi", "actual"], start=1)
-}  # fmt: skip
+CARD_NAMES = ["stt", "code", "status", "group", "version", "name", "metrics", "start", "end",
+              "cost", "g_mid", "p_mid", "roi", "result"]  # fmt: skip
+C = {n: col(i) for i, n in enumerate([*CARD_NAMES, "plan"], start=1)}  # "plan" = hidden helper
 CARD_FIRST = 4
 
 
@@ -73,8 +67,8 @@ class CardRow:
     cost: float | None = None
     gmv_mid: float | None = None
     profit_mid: float | None = None
-    orders: float | None = None
-    actual_profit: float | None = None
+    #: "<Δ lợi nhuận thực tế> · <kết luận>" of the stored measurement; ``None`` = not measured
+    result: str | None = None
 
 
 @dataclass
@@ -154,41 +148,32 @@ def _cards(wb: Workbook, data: KeHoachData) -> int:
         ws, 1, 1,
         f"ĐỀ XUẤT — {data.shop_name} ({data.platform}) · Tháng {data.month_first:%m/%Y}",
     ).font = TITLE  # fmt: skip
-    header(ws, 3, CARD_HEADER)
+    header(ws, 3, [*CARD_HEADER, "Mã kế hoạch"])
     r = CARD_FIRST - 1
     for r, c in enumerate(data.cards, start=CARD_FIRST):
         put(ws, r, 1, r - CARD_FIRST + 1)
         for name, v in (
-            ("code", c.code), ("plan", c.plan_code), ("status", c.status), ("group", c.group),
-            ("kind", c.kind), ("version", c.version), ("item", c.product_id),
-            ("name", c.product_name), ("metrics", c.metrics),
+            ("code", c.code), ("status", c.status), ("group", c.group), ("version", c.version),
+            ("name", c.product_name), ("metrics", c.metrics), ("result", c.result),
+            ("plan", c.plan_code),
         ):  # fmt: skip
             put(ws, r, _idx(name), v)
         put(ws, r, _idx("start"), c.start, DATE)
         put(ws, r, _idx("end"), c.end, DATE)
-        K, L = C["start"], C["end"]
-        put(ws, r, _idx("days"), f'=IF(AND({K}{r}<>"",{L}{r}<>""),{L}{r}-{K}{r}+1,"")', INT)
-        for name, amount in (
-            ("cost", c.cost), ("g_mid", c.gmv_mid), ("p_mid", c.profit_mid),
-            ("orders", c.orders), ("actual", c.actual_profit),
-        ):  # fmt: skip
-            put(ws, r, _idx(name), amount, INT if name == "orders" else MONEY)
-        put(ws, r, _idx("g_day"), f"=IFERROR({C['g_mid']}{r}/{C['days']}{r},0)", MONEY)
-        put(ws, r, _idx("p_day"), f"=IFERROR({C['p_mid']}{r}/{C['days']}{r},0)", MONEY)
+        for name, amount in (("cost", c.cost), ("g_mid", c.gmv_mid), ("p_mid", c.profit_mid)):
+            put(ws, r, _idx(name), amount, MONEY)
         put(ws, r, _idx("roi"), f'=IFERROR({C["p_mid"]}{r}/{C["cost"]}{r},"")', POINTS)
     last = max(r, CARD_FIRST - 1)
     total = last + 1
     put(ws, total, 1, "Tổng", bold=True)
-    for name in ("cost", "g_mid", "p_mid", "orders", "g_day", "p_day", "actual"):  # fmt: skip
+    for name in ("cost", "g_mid", "p_mid"):
         L = C[name]
         put(
-            ws, total, _idx(name), f"=SUM({L}{CARD_FIRST}:{L}{max(last, CARD_FIRST)})",
-            INT if name == "orders" else MONEY, bold=True,
+            ws, total, _idx(name), f"=SUM({L}{CARD_FIRST}:{L}{max(last, CARD_FIRST)})", MONEY,
+            bold=True,
         )  # fmt: skip
-    widths(
-        ws,
-        [6, 14, 14, 11, 10, 28, 24, 16, 36, 16, 12, 12, 8, 14, 14, 14, 9, 14, 14, 8, 14],
-    )  # fmt: skip
+    widths(ws, [6, 14, 11, 10, 24, 36, 16, 12, 12, 14, 14, 14, 8, 30, 14])
+    ws.column_dimensions[C["plan"]].hidden = True
     finish(ws, "C4")
     return last
 
@@ -201,12 +186,14 @@ def _idx(name: str) -> int:
 
 # ----------------------------------------------------------------------------- Mục tiêu
 
-DAY_HEADER_FIRST = 21  # header row of the daily table
-SCOPE_GMV, SCOPE_PROFIT = 2, 10  # first column of the GMV block (B..I) / Lợi nhuận block (J..Q)
-BLOCK_HEADER = [
-    "nền", "Δ đang chạy", "Δ nháp", "Mục tiêu", "Mục tiêu + nháp", "thực tế", "Lũy kế mục tiêu",
-    "Lũy kế thực tế",
-]  # fmt: skip
+DAY_HEADER_FIRST = 17  # header row of the daily table
+TOP = {"gmv": 3, "profit": 10}  # first row of the GMV / Lợi nhuận top block
+SCOPE_NAME = {"gmv": "GMV", "profit": "Lợi nhuận"}
+#: visible daily columns: first column of the GMV block (B..E) and the Lợi nhuận block (F..I);
+#: each block = mục tiêu, thực tế, lũy kế mục tiêu, lũy kế thực tế
+SCOPE_COL = {"gmv": 2, "profit": 6}
+#: hidden helper columns the targets are built from: nền, Δ đang chạy, Δ nháp of each scope
+HELP_COL = {"gmv": 10, "profit": 13}
 
 
 def _rng(letter: str, last: int) -> str:
@@ -225,82 +212,83 @@ def _goal(wb: Workbook, data: KeHoachData, last_card: int) -> None:
     last_card = max(last_card, CARD_FIRST)
     start, end = _rng(C["start"], last_card), _rng(C["end"], last_card)
     status, plan = _rng(C["status"], last_card), _rng(C["plan"], last_card)
-    day_of = {"gmv": _rng(C["g_day"], last_card), "profit": _rng(C["p_day"], last_card)}
+    delta = {"gmv": _rng(C["g_mid"], last_card), "profit": _rng(C["p_mid"], last_card)}
 
     def sumproduct(a: str, kind: str, scope: str) -> str:
+        """Σ over the cards running on day ``a`` of their Δ / their days (computed here from
+        Bắt đầu / Kết thúc)."""
         who = f'({plan}<>"")*({status}<>"{DRAFT}")' if kind == "run" else f'({status}="{DRAFT}")'
-        return f"=SUMPRODUCT(({start}<={a})*({end}>={a})*{who}*{day_of[scope]})"
+        per_day = f"{delta[scope]}/({end}-{start}+1)"
+        return f"=SUMPRODUCT(({start}<={a})*({end}>={a})*{who}*{per_day})"
 
-    header(ws, DAY_HEADER_FIRST - 1, ["GMV (đ)"], SCOPE_GMV)
-    header(ws, DAY_HEADER_FIRST - 1, ["Lợi nhuận (đ)"], SCOPE_PROFIT)
-    ws.merge_cells(
-        start_row=DAY_HEADER_FIRST - 1,
-        start_column=SCOPE_GMV,
-        end_row=DAY_HEADER_FIRST - 1,
-        end_column=SCOPE_GMV + 7,
-    )
-    ws.merge_cells(
-        start_row=DAY_HEADER_FIRST - 1,
-        start_column=SCOPE_PROFIT,
-        end_row=DAY_HEADER_FIRST - 1,
-        end_column=SCOPE_PROFIT + 7,
-    )
+    group_row = DAY_HEADER_FIRST - 1
+    for scope, c0 in SCOPE_COL.items():
+        header(ws, group_row, [SCOPE_NAME[scope] + " (đ)"], c0)
+        ws.merge_cells(start_row=group_row, start_column=c0, end_row=group_row, end_column=c0 + 3)
     header(ws, DAY_HEADER_FIRST, ["Ngày"])
-    for c0, scope in ((SCOPE_GMV, "GMV"), (SCOPE_PROFIT, "Lợi nhuận")):
-        labels = [f"{scope} {BLOCK_HEADER[0]}", f"Δ {scope} đang chạy", f"Δ {scope} nháp",
-                  f"Mục tiêu {scope}", f"Mục tiêu {scope} + nháp", f"{scope} thực tế",
-                  f"Lũy kế mục tiêu {scope}", f"Lũy kế thực tế {scope}"]  # fmt: skip
-        header(ws, DAY_HEADER_FIRST, labels, c0)
-    actual = {"gmv": data.actual_gmv, "profit": data.actual_profit}
     base = {"gmv": data.baseline_gmv, "profit": data.baseline_profit}
+    actual = {"gmv": data.actual_gmv, "profit": data.actual_profit}
+    for scope, c0 in SCOPE_COL.items():
+        name = SCOPE_NAME[scope]
+        header(
+            ws, DAY_HEADER_FIRST,
+            [f"{name} mục tiêu", f"{name} thực tế", "Lũy kế mục tiêu", "Lũy kế thực tế"], c0,
+        )  # fmt: skip
+        h0 = HELP_COL[scope]
+        header(ws, DAY_HEADER_FIRST, [f"{name} nền", f"Δ {name} đang chạy", f"Δ {name} nháp"], h0)
+        goal_l, act_l, cum_g, cum_a = (col(c0 + k) for k in range(4))
+        nền, run, dr = (col(h0 + k) for k in range(3))
+        for i, d in enumerate(data.month_days):
+            r = f + i
+            put(ws, r, h0, base[scope] / n, MONEY)
+            put(ws, r, h0 + 1, sumproduct(f"$A{r}", "run", scope), MONEY)
+            put(ws, r, h0 + 2, sumproduct(f"$A{r}", "draft", scope), MONEY)
+            put(ws, r, c0, f"={nền}{r}+{run}{r}", MONEY)
+            put(ws, r, c0 + 1, actual[scope].get(d), MONEY)
+            put(ws, r, c0 + 2, f"=SUM({goal_l}${f}:{goal_l}{r})", MONEY)
+            put(ws, r, c0 + 3, f'=IF({act_l}{r}="","",SUM({act_l}${f}:{act_l}{r}))', MONEY)
     for i, d in enumerate(data.month_days):
-        r = f + i
-        put(ws, r, 1, d, DATE)
-        for c0, scope in ((SCOPE_GMV, "gmv"), (SCOPE_PROFIT, "profit")):
-            b, run, dr, goal, goal_d, act, cum_g, cum_a = (col(c0 + k) for k in range(8))
-            put(ws, r, c0, base[scope] / n, MONEY)
-            put(ws, r, c0 + 1, sumproduct(f"$A{r}", "run", scope), MONEY)
-            put(ws, r, c0 + 2, sumproduct(f"$A{r}", "draft", scope), MONEY)
-            put(ws, r, c0 + 3, f"={b}{r}+{run}{r}", MONEY)
-            put(ws, r, c0 + 4, f"={b}{r}+{run}{r}+{dr}{r}", MONEY)
-            put(ws, r, c0 + 5, actual[scope].get(d), MONEY)
-            put(ws, r, c0 + 6, f"=SUM({goal}${f}:{goal}{r})", MONEY)
-            put(ws, r, c0 + 7, f'=IF({act}{r}="","",SUM({act}${f}:{act}{r}))', MONEY)
+        put(ws, f + i, 1, d, DATE)
     total = last + 1
     put(ws, total, 1, "Tổng", bold=True)
-    for c0 in (SCOPE_GMV, SCOPE_PROFIT):
-        for k in range(6):
+    for scope, c0 in SCOPE_COL.items():
+        for k in (0, 1):
             L = col(c0 + k)
             put(ws, total, c0 + k, f"=SUM({L}{f}:{L}{last})", MONEY, bold=True)
-    # the header block of the month
+    # the top blocks of the month
     ld = data.last_data_day
     at = f"DATE({ld.year},{ld.month},{ld.day})"
-    for block, (scope_name, c0) in enumerate((("GMV", SCOPE_GMV), ("Lợi nhuận", SCOPE_PROFIT))):
-        cols = [col(c0 + k) for k in range(8)]
-        top = 3 + block * 8
+    for scope, top in TOP.items():
+        name, c0, h0 = SCOPE_NAME[scope], SCOPE_COL[scope], HELP_COL[scope]
+        dr_c = col(h0 + 2)
+
+        def rng(k: int, c0: int = c0) -> str:
+            return f"{col(c0 + k)}{f}:{col(c0 + k)}{last}"
+
         lines = [
-            (f"{scope_name} nền", f"=SUM({cols[0]}{f}:{cols[0]}{last})", MONEY),
-            (f"Δ {scope_name} đang chạy", f"=SUM({cols[1]}{f}:{cols[1]}{last})", MONEY),
-            (f"Mục tiêu {scope_name} (đang chạy)", f"=B{top}+B{top + 1}", MONEY),
-            (f"Δ {scope_name} nháp", f"=SUM({cols[2]}{f}:{cols[2]}{last})", MONEY),
-            (f"Mục tiêu {scope_name} nếu áp dụng nháp", f"=B{top + 2}+B{top + 3}", MONEY),
+            (f"{name} nền", f"=SUM({col(h0)}{f}:{col(h0)}{last})", MONEY),
+            (f"Mục tiêu {name} (đang chạy)", f"=SUM({rng(0)})", MONEY),
             (
-                f"{scope_name} thực tế đến {ld:%d/%m/%Y}",
-                f"=SUM({cols[5]}{f}:{cols[5]}{last})",
-                MONEY,
+                f"Mục tiêu {name} nếu áp dụng nháp",
+                f"=B{top + 1}+SUM({dr_c}{f}:{dr_c}{last})", MONEY,
             ),
+            (f"{name} thực tế đến {ld:%d/%m/%Y}", f"=SUM({rng(1)})", MONEY),
             (
                 "% đạt so với mục tiêu đến ngày",
-                f'=IFERROR(B{top + 5}/INDEX({cols[6]}{f}:{cols[6]}{last},'
-                f'MATCH({at},$A{f}:$A{last},0)),"")',
-                PCT,
+                f'=IFERROR(B{top + 3}/INDEX({rng(2)},MATCH({at},$A{f}:$A{last},0)),"")', PCT,
             ),
         ]  # fmt: skip
         for i, (label, formula, fmt) in enumerate(lines):
             put(ws, top + i, 1, label)
             put(ws, top + i, 2, formula, fmt)
     widths(ws, {1: 44}, 15)
+    _hide(ws, *(col(c) for h in HELP_COL.values() for c in range(h, h + 3)))
     finish(ws, f"B{DAY_HEADER_FIRST + 1}")
+
+
+def _hide(ws, *letters: str) -> None:
+    for letter in letters:
+        ws.column_dimensions[letter].hidden = True
 
 
 def build(data: KeHoachData) -> Workbook:
