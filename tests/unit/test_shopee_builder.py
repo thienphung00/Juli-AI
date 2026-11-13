@@ -1191,3 +1191,31 @@ async def test_the_loader_derives_a_products_own_response_from_90_days_of_orders
     # the seller already sells at 90.000; 70.000 is a 22 % cut and the range is the product's own
     lift = out["driver"]["relative_lift"]
     assert lift["p10"] > 0 and lift["p90"] > lift["p10"]
+
+
+def test_removed_kinds_cannot_be_created_from_the_builder_but_their_specs_still_parse():
+    """P100: hide, relist and listing combo left the builder; stored cards of them still rebuild."""
+    from pydantic import ValidationError
+
+    from juli_backend.api.routes import shopee_builder_common as common
+
+    hide = {"kind": "listing_hide", "item_id": "1003"}
+    relist = {"kind": "listing_relist", "item_id": "1003"}
+    combo = {
+        "kind": "listing_combo",
+        "title": "Combo",
+        "price": 120000,
+        "stock": 5,
+        "member_ids": ["1001", "1002"],
+    }
+    for body in (common.EvaluateBody, common.ChooseBody, common.GroupBody):
+        for raw in (hide, relist, combo):
+            extra = {"members": [0]} if body is common.GroupBody else {}
+            with pytest.raises(ValidationError):
+                body.model_validate({"versions": [raw], **extra})
+    with pytest.raises(ValidationError):
+        common.CompareBody.model_validate({"versions": [hide, relist]})
+    assert common.EvaluateBody.model_validate(
+        {"versions": [{"kind": "price_display", "item_id": "1003"}]}
+    )
+    assert S(**hide).kind == "listing_hide"

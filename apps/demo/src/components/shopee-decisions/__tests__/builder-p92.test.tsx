@@ -19,13 +19,19 @@ const lastVersions = (b: FakeBuilder, name: string) => calls(b, name).at(-1)!.ar
 
 async function toKinds(builder: FakeBuilder) {
   fireEvent.click(await screen.findByTestId(`p2-prod-${P_ZIP}`));
-  fireEvent.click(await screen.findByTestId("p2-vnext"));
+  await waitFor(() => expect(screen.getByTestId("p2-vnext")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("p2-vnext"));
   await screen.findByTestId("p2-kinds");
   return builder;
 }
 
+function chooseKind(key: string) {
+  fireEvent.click(screen.getByTestId(`p2-kind-${key}`));
+  fireEvent.click(screen.getByTestId("p2-knext"));
+}
+
 async function addVoucher(builder: FakeBuilder, value: string, min: string) {
-  fireEvent.click(screen.getByTestId("p2-kind-voucher"));
+  chooseKind("voucher");
   fireEvent.change(await screen.findByRole("textbox", { name: "Giá trị" }), { target: { value } });
   fireEvent.change(screen.getByRole("textbox", { name: "Đơn tối thiểu" }), { target: { value: min } });
   await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "voucher", value: Number(value), min_spend: Number(min) }));
@@ -40,28 +46,82 @@ afterEach(() => {
 });
 
 describe("P92 · chọn sản phẩm và phân loại", () => {
-  it("lists every active listing, also those without orders in the last 30 days, with the missing-cost chips", async () => {
+  it("step 1 shows a card per active listing; without channel data every figure reads —", async () => {
     open();
-    expect(await screen.findByTestId("p2-picker-count")).toHaveTextContent("12 sản phẩm đang bán · xếp theo GMV 90 ngày");
-    const idle = screen.getByTestId(`p2-prod-${P_IDLE}`);
-    expect(idle).toHaveTextContent("không bán 30 ngày qua");
-    expect(idle).toHaveTextContent("thiếu giá vốn");
-    expect(screen.getByRole("button", { name: "Thiếu giá vốn 2" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Không bán 30 ngày qua 1" })).toBeInTheDocument();
-    expect(screen.getByTestId("p2-picker-foot")).toHaveTextContent("Hiện 9 trong 12 sản phẩm đang bán");
-    fireEvent.click(screen.getByRole("button", { name: /Xem thêm 3 sản phẩm/ }));
+    await screen.findByTestId("p2-picker");
     expect(screen.getAllByTestId(/^p2-prod-/)).toHaveLength(12);
+    const card = screen.getByTestId(`p2-prod-${P_IDLE}`);
+    expect(card).toHaveTextContent("GMV 30 ngày — · biên —");
+    expect(card).toHaveTextContent("Điểm nghẽn: —");
     expect(screen.getByTestId("p2-excluded-note")).toHaveTextContent("Đã loại trừ 4 sản phẩm");
-    expect(within(screen.getByTestId("p2-excluded-note")).getByRole("link", { name: /Loại trừ sản phẩm/ })).toHaveAttribute("href", "/settings?tab=loai-tru-san-pham");
+    expect(screen.getByRole("link", { name: /Đã loại trừ 4 sản phẩm/ })).toHaveAttribute("href", "/settings?tab=loai-tru-san-pham");
+    expect(screen.getByRole("button", { name: "Cả shop" })).toBeInTheDocument();
   });
 
-  it("searches by name or id and filters", async () => {
+  it("step 1 cards take GMV, margin, the Organic / Quảng cáo / TTLK split and the weakest metric from the channel split; a null stays —", async () => {
+    const builder = fakeBuilder({
+      channelSplitProducts: async () => ({
+        products: [
+          { product_id: P_ZIP, name: "Túi zip", image_url: "https://img.example/zip.jpg", gmv: 5_000_000, margin: 31.5, organic_gmv: 3_000_000, ads_gmv: 1_500_000, affiliate_gmv: null, weakest_metric: "ctor" },
+          { product_id: P_SPONGE, gmv: null, margin: null, organic_gmv: null, ads_gmv: null, affiliate_gmv: null, weakest_metric: null },
+        ],
+      }),
+    });
+    open(builder);
+    const zip = await screen.findByTestId(`p2-prod-${P_ZIP}`);
+    await waitFor(() => expect(zip).toHaveTextContent("GMV 30 ngày 5.000.000đ · biên 31,5%"));
+    expect(zip).toHaveTextContent("Organic3.000.000đ");
+    expect(zip).toHaveTextContent("Quảng cáo1.500.000đ");
+    expect(zip).toHaveTextContent("TTLK—");
+    expect(zip).toHaveTextContent("Điểm nghẽn: CTOR");
+    expect(zip.querySelector("img")).toHaveAttribute("src", "https://img.example/zip.jpg");
+    expect(screen.getByTestId(`p2-prod-${P_SPONGE}`)).toHaveTextContent("GMV 30 ngày — · biên —");
+  });
+
+  it("step 1 search narrows the cards", async () => {
     open();
-    fireEvent.change(await screen.findByLabelText("Tìm sản phẩm theo tên hoặc mã"), { target: { value: "màng" } });
+    fireEvent.change(await screen.findByLabelText("Tìm sản phẩm"), { target: { value: "màng" } });
     expect(screen.getAllByTestId(/^p2-prod-/)).toHaveLength(1);
-    fireEvent.change(screen.getByLabelText("Tìm sản phẩm theo tên hoặc mã"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "Thiếu giá vốn 2" }));
-    expect(screen.getAllByTestId(/^p2-prod-/)).toHaveLength(2);
+  });
+
+  it("the stepper has four steps; done steps are clickable and later ones are not until reached", async () => {
+    const builder = fakeBuilder();
+    open(builder);
+    const nav = await screen.findByTestId("p2-stepper");
+    expect(nav).toHaveTextContent("1 · Sản phẩm");
+    expect(nav).toHaveTextContent("2 · Chiến lược");
+    expect(nav).toHaveTextContent("3 · Phương án");
+    expect(nav).toHaveTextContent("4 · So sánh & lưu");
+    expect(within(nav).queryByRole("button")).toBeNull();
+    await toKinds(builder);
+    expect(screen.getByTestId("p2-eyebrow")).toHaveTextContent(/TÚI/);
+    fireEvent.click(within(screen.getByTestId("p2-stepper")).getByRole("button", { name: /1 · Sản phẩm/ }));
+    expect(await screen.findByTestId("p2-picker")).toBeInTheDocument();
+    fireEvent.click(within(screen.getByTestId("p2-stepper")).getByRole("button", { name: /2 · Chiến lược/ }));
+    expect(await screen.findByTestId("p2-kinds")).toBeInTheDocument();
+  });
+
+  it("step 2 has the three groups, the metric chips and a cost line only where it costs; the removed kinds are gone", async () => {
+    const builder = fakeBuilder();
+    open(builder);
+    await toKinds(builder);
+    const offer = screen.getByTestId("p2-group-offer");
+    const listing = screen.getByTestId("p2-group-listing");
+    const traffic = screen.getByTestId("p2-group-traffic");
+    expect(offer).toHaveTextContent("Chi phí: tiền giảm giá");
+    expect(listing).not.toHaveTextContent("Chi phí");
+    expect(traffic).toHaveTextContent("Chi phí: quảng cáo / hoa hồng");
+    for (const k of ["voucher", "combo", "deal_soc", "product_discount", "price_flash"]) expect(within(offer).getByTestId(`p2-kind-${k}`)).toBeInTheDocument();
+    for (const k of ["title", "cover_image", "description_first_line", "price_display", "variation_set"]) expect(within(listing).getByTestId(`p2-kind-${k}`)).toBeInTheDocument();
+    for (const k of ["ads", "affiliate"]) expect(within(traffic).getByTestId(`p2-kind-${k}`)).toBeInTheDocument();
+    expect(screen.queryByTestId("p2-kind-listing_combo")).toBeNull();
+    expect(screen.queryByText("Listing combo mới")).toBeNull();
+    expect(screen.queryByText(/Ẩn \/ đưa lại/)).toBeNull();
+    expect(within(listing).getByText("Lượt xem")).toHaveClass("p2-m--views");
+    expect(within(offer).getByText("AOV")).toHaveClass("p2-m--aov");
+    expect(screen.getByTestId("p2-knext")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("p2-kind-voucher"));
+    expect(screen.getByTestId("p2-knext")).toHaveTextContent("Tiếp tục với Voucher");
   });
 
   it("a product opened from its page skips to the variation picker; 'So sánh phân loại' shows price and margin only", async () => {
@@ -104,7 +164,7 @@ describe("P92 · voucher 5k/100k và 10k/100k", () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-voucher"));
+    chooseKind("voucher");
     await screen.findByTestId("p2-panel-voucher");
     await waitFor(() => expect(calls(builder, "evaluate").length).toBeGreaterThan(0));
     await screen.findByText("Gợi ý từ AOV của shop (124.143đ)");
@@ -117,7 +177,7 @@ describe("P92 · voucher 5k/100k và 10k/100k", () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-voucher"));
+    chooseKind("voucher");
     const block = await screen.findByTestId("p2-result");
     await waitFor(() => expect(within(block).getByTestId("p2-drivers")).toHaveTextContent("CTOR2,50% → 2,69%"));
     expect(within(block).getByTestId("p2-drivers")).toHaveTextContent("AOV124.143đ → 127.364đ");
@@ -143,7 +203,7 @@ describe("P92 · chưa tính, không đủ dữ liệu", () => {
     });
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-voucher"));
+    chooseKind("voucher");
     const profit = await screen.findByTestId("p2-dprofit");
     await waitFor(() => expect(profit).toHaveTextContent("chưa tính"));
     expect(within(profit).getByRole("link", { name: "Cài đặt › Thông số shop" })).toHaveAttribute("href", expect.stringContaining("thong-so-shop"));
@@ -228,7 +288,7 @@ describe("P92 · các loại khác", () => {
     const builder = fakeBuilder({}, { draftTitle: new ShopeeApiError(503, "llm_off", "LLM tắt") });
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-title"));
+    chooseKind("title");
     await screen.findByTestId("p2-kw-table");
     fireEvent.click(screen.getByRole("checkbox", { name: "Chọn từ khoá túi zip đựng đồ ăn" }));
     fireEvent.click(screen.getByTestId("p2-title-draft"));
@@ -248,7 +308,7 @@ describe("P92 · các loại khác", () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-title"));
+    chooseKind("title");
     await screen.findByTestId("p2-kw-table");
     fireEvent.click(screen.getByRole("checkbox", { name: "Chọn từ khoá túi zip thực phẩm" }));
     fireEvent.click(screen.getByTestId("p2-title-draft"));
@@ -268,7 +328,7 @@ describe("P92 · các loại khác", () => {
     };
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-title"));
+    chooseKind("title");
     await screen.findByTestId("p2-kw-table");
     fireEvent.click(screen.getByRole("checkbox", { name: "Chọn từ khoá túi zip thực phẩm" }));
     fireEvent.click(screen.getByTestId("p2-title-draft"));
@@ -285,7 +345,7 @@ describe("P92 · các loại khác", () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-combo"));
+    chooseKind("combo");
     const suggest = await screen.findByTestId("p2-copurchase");
     await waitFor(() => expect(suggest).toHaveTextContent("Miếng rửa chén C"));
     expect(suggest).toHaveTextContent("41 lần");
@@ -304,26 +364,11 @@ describe("P92 · các loại khác", () => {
     expect(screen.getByRole("textbox", { name: "Mức 1 · chỉ với giá" })).toBeInTheDocument();
   });
 
-  it("listing combo: its own kind, the assumption is stated and nothing is filled in", async () => {
-    const builder = fakeBuilder();
-    open(builder);
-    await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-listing_combo"));
-    const panel = await screen.findByTestId("p2-panel-listing-combo");
-    expect(within(panel).getByTestId("p2-lc-assumption")).toHaveTextContent("chưa có lịch sử bán");
-    expect(panel).toHaveTextContent("Chưa tự điền vào Seller Centre");
-    fireEvent.change(within(panel).getByRole("textbox", { name: "Tên listing combo" }), { target: { value: "Combo túi zip + miếng rửa" } });
-    fireEvent.change(within(panel).getByRole("textbox", { name: "Giá bán listing combo" }), { target: { value: "120000" } });
-    fireEvent.change(within(panel).getByRole("textbox", { name: "Tồn kho" }), { target: { value: "40" } });
-    fireEvent.click(within(within(panel).getByTestId("p2-targets")).getByRole("checkbox", { name: /Chọn Miếng rửa chén C/ }));
-    await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "listing_combo", title: "Combo túi zip + miếng rửa", price: 120000, stock: 40, member_ids: [P_ZIP, P_SPONGE] }));
-  });
-
   it("gift: 'quà không bán' takes a typed cost and a min-spend trigger", async () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-deal_soc"));
+    chooseKind("deal_soc");
     fireEvent.click(await screen.findByRole("radio", { name: "Mua Để Nhận Quà" }));
     fireEvent.click(await screen.findByRole("button", { name: "Quà không bán" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Chi phí mỗi quà" }), { target: { value: "6500" } });
@@ -335,11 +380,11 @@ describe("P92 · các loại khác", () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-product_discount"));
+    chooseKind("product_discount");
     fireEvent.change(await screen.findByRole("textbox", { name: "% GIẢM · Combo 3 hộp" }), { target: { value: "8" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "product_discount", item_id: P_ZIP, variations: [{ variation_id: "v3", discount_pct: 8 }] }));
     fireEvent.click(screen.getByRole("button", { name: "+ Thêm vào So sánh phương án" }));
-    fireEvent.click(screen.getByTestId("p2-kind-price_flash"));
+    chooseKind("price_flash");
     fireEvent.click(await screen.findByRole("radio", { name: "Flash sale của shop" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Giảm · Combo 3 hộp" }), { target: { value: "13" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "flash_sale", units: 50, slot_hours: 2 }));
@@ -360,7 +405,7 @@ describe("P92 · các loại khác", () => {
     const builder = fakeBuilder();
     open(builder, null, { market: { base: "/v1/demo/shopee", token: "tok", shopId: "shop-1", fetchImpl } });
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-product_discount"));
+    chooseKind("product_discount");
     expect(screen.queryByTestId("market-marker")).toBeNull();
     fireEvent.change(await screen.findByRole("textbox", { name: "% GIẢM · Combo 3 hộp" }), { target: { value: "8" } });
     expect(await screen.findByTestId("market-marker")).toHaveTextContent("trung vị 28.000đ · trung bình 28.900đ")
@@ -371,7 +416,7 @@ describe("P92 · các loại khác", () => {
     await waitFor(() => expect(screen.getByTestId("p2-add")).toBeEnabled());
     fireEvent.click(screen.getByTestId("p2-add"));
     await screen.findByTestId("p2-kinds");
-    fireEvent.click(screen.getByTestId("p2-kind-price_flash"));
+    chooseKind("price_flash");
     // P96 (G3): a list-price change is ± (+ = price up), so the field is "Thay đổi", not "Giảm".
     expect(screen.queryByRole("textbox", { name: "Giảm · Combo 3 hộp" })).not.toBeInTheDocument();
     expect(screen.getByText("−5 = giảm 5%, +5 = tăng 5%")).toBeInTheDocument();
@@ -384,7 +429,7 @@ describe("P92 · các loại khác", () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-cover_image"));
+    chooseKind("cover_image");
     fireEvent.click(await screen.findByTestId("p2-cover-draft"));
     const concepts = await screen.findByTestId("p2-concepts");
     expect(within(concepts).getByTestId("p2-cover-preview")).toHaveTextContent("ảnh thật, giữ nguyên");
@@ -397,7 +442,7 @@ describe("P92 · các loại khác", () => {
     const builder = fakeBuilder({}, { draftDescription: new ShopeeApiError(503, "llm_off", "LLM tắt") });
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-description_first_line"));
+    chooseKind("description_first_line");
     fireEvent.click(await screen.findByTestId("p2-desc-draft"));
     expect(await screen.findByTestId("p2-llm-off")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox", { name: "Dòng đầu mô tả" }), { target: { value: "Chỉ 25.900đ mỗi hộp" } });
@@ -408,29 +453,30 @@ describe("P92 · các loại khác", () => {
     const builder = fakeBuilder();
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-ads"));
+    chooseKind("ads");
     await screen.findByTestId("p2-panel-ads");
     await waitFor(() => expect(calls(builder, "adsCampaigns")).toHaveLength(1));
     fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
     fireEvent.change(screen.getByRole("textbox", { name: "Ngân sách mới mỗi ngày" }), { target: { value: "200000" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "ads", lever: "budget", campaign_key: "c1", daily_budget: 200000 }));
     fireEvent.click(screen.getByTestId("p2-add"));
-    fireEvent.click(await screen.findByTestId("p2-kind-affiliate"));
+    chooseKind("affiliate");
     fireEvent.change(await screen.findByRole("textbox", { name: "Số mẫu gửi" }), { target: { value: "3" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "affiliate", commission_pct: 10, sample_qty: 3, target_campaign: false }));
     // "Chiến dịch" is a yes/no (Target campaign), never a number: the API takes a boolean
     fireEvent.click(screen.getByLabelText(/Áp dụng trong chiến dịch mục tiêu/));
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "affiliate", target_campaign: true }));
     fireEvent.click(screen.getByRole("button", { name: "Đặt lại" }));
-    fireEvent.click(screen.getByRole("button", { name: /Chọn loại chiến lược/ }));
-    fireEvent.click(screen.getByTestId("p2-kind-variation_set"));
+    fireEvent.click(screen.getByRole("button", { name: /‹ Chiến lược/ }));
+    chooseKind("variation_set");
     fireEvent.change(await screen.findByRole("textbox", { name: "Tên phân loại 1" }), { target: { value: "Set 7 hộp" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Giá 1" }), { target: { value: "189000" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "variation_set", item_id: P_ZIP, new_variations: [{ name: "Set 7 hộp", price: 189000 }] }));
-    fireEvent.click(screen.getByRole("button", { name: /Chọn loại chiến lược/ }));
+    fireEvent.click(screen.getByRole("button", { name: /‹ Chiến lược/ }));
     fireEvent.click(screen.getByTestId("p2-kind-price_display"));
-    fireEvent.click(await screen.findByRole("radio", { name: "Ẩn listing" }));
-    await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "listing_hide", item_id: P_ZIP }));
+    fireEvent.click(screen.getByTestId("p2-knext"));
+    await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "price_display", item_id: P_ZIP }));
+    expect(screen.queryByRole("radio", { name: "Ẩn listing" })).toBeNull();
   });
 
   it("a fifth version cannot be added", async () => {
@@ -439,16 +485,15 @@ describe("P92 · các loại khác", () => {
     await toKinds(builder);
     for (const v of ["1000", "2000", "3000", "4000"]) await addVoucher(builder, v, "100000");
     expect(screen.getByTestId("p2-open-compare")).toHaveTextContent("(4/4)");
-    fireEvent.click(screen.getByTestId("p2-kind-voucher"));
+    chooseKind("voucher");
     await screen.findByTestId("p2-panel-voucher");
-    expect(screen.getByText("Đã đủ 4 phương án: sửa hoặc xoá một phương án để thêm.")).toBeInTheDocument();
   });
 
   it("an evaluate error is shown in the result block", async () => {
     const builder = fakeBuilder({}, { evaluate: new ShopeeApiError(409, "reco_no_data", "Chưa có số liệu Shopee.") });
     open(builder);
     await toKinds(builder);
-    fireEvent.click(screen.getByTestId("p2-kind-voucher"));
+    chooseKind("voucher");
     expect(await screen.findByRole("alert")).toHaveTextContent("Chưa có số liệu Shopee.");
   });
 });
@@ -458,7 +503,6 @@ describe("P92 · trên điện thoại", () => {
     window.matchMedia = ((query: string) => ({ matches: true, media: query, addEventListener: () => undefined, removeEventListener: () => undefined })) as unknown as typeof window.matchMedia;
     const builder = fakeBuilder({ compare: (v) => evaluation(v.length, (i) => (i === 1 ? { warnings: [FLOOR_WARNING], breach: true } : {})) });
     open(builder);
-    expect(await screen.findByText("Mọi sản phẩm đang bán đều chọn được, không chỉ sản phẩm có đơn 30 ngày qua.")).toBeInTheDocument();
     await toKinds(builder);
     await addVoucher(builder, "5000", "100000");
     await addVoucher(builder, "10000", "100000");

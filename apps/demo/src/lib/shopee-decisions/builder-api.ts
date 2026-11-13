@@ -475,7 +475,28 @@ export interface GroupResult extends PlanResponse {
   readonly placed: readonly { readonly card_id: string; readonly code: string | null; readonly version: number; readonly group: string; readonly moved: boolean }[];
 }
 
+/** One product of the step-1 cards (`GET …/channel-split/products`, built by the Tổng quan backend; any field may be null). */
+export type WeakestMetric = "views" | "ctr" | "ctor" | "aov" | "orders";
+export interface ChannelSplitProduct {
+  readonly product_id: string;
+  readonly name?: string | null;
+  readonly image_url?: string | null;
+  readonly gmv?: N;
+  readonly margin?: N;
+  readonly organic_gmv?: N;
+  readonly ads_gmv?: N;
+  readonly affiliate_gmv?: N;
+  readonly weakest_metric?: WeakestMetric | null;
+}
+export interface ChannelSplitProducts {
+  readonly from?: string;
+  readonly to?: string;
+  readonly products: readonly ChannelSplitProduct[];
+}
+
 export interface BuilderApi {
+  /** Optional: an older client or a mock without it leaves the cards with "—". */
+  channelSplitProducts?(period?: string): Promise<ChannelSplitProducts>;
   products(q?: PickerQuery): Promise<PickerResult>;
   variations(itemId: string): Promise<VariationList>;
   coPurchase(itemId: string): Promise<CoPurchase>;
@@ -597,7 +618,10 @@ export function createBuilderApi(options: BuilderClientOptions): BuilderApi {
     return payload as T;
   }
   const item = (id: string) => encodeURIComponent(id);
+  // Seller: /channel-split/products; Ops: /analytics/channel-split/products.
+  const splitPath = base.includes("/ops/") ? "/analytics/channel-split/products" : "/channel-split/products";
   return {
+    channelSplitProducts: (period = "30d") => call<ChannelSplitProducts>("GET", splitPath, undefined, new URLSearchParams({ period })),
     products: (q = {}) => {
       const p = new URLSearchParams();
       if (q.q) p.set("q", q.q);

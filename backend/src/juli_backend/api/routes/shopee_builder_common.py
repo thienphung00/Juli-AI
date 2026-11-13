@@ -10,7 +10,7 @@ from datetime import date, datetime
 from typing import Annotated, Any
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +24,19 @@ SORT_PATTERN = "^(" + "|".join(catalogue.SORTS) + ")$"
 ItemPath = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[^\s:]+$")]
 
 
-class EvaluateBody(BaseModel):
+class _BuilderVersions(BaseModel):
+    """The builder takes no spec of a removed kind (Ẩn / đưa lại listing, Listing combo mới)."""
+
+    @field_validator("versions", check_fields=False)
+    @classmethod
+    def _no_removed_kinds(cls, versions: list[specs.VersionSpec]) -> list[specs.VersionSpec]:
+        for v in versions:
+            if v.kind in specs.REMOVED_BUILDER_KINDS:
+                raise ValueError(f"the builder no longer offers {v.kind}")
+        return versions
+
+
+class EvaluateBody(_BuilderVersions):
     """1-4 versions of mixed kinds (``kind`` picks the model, see ``shopee_builder.specs``)."""
 
     model_config = ConfigDict(extra="forbid")
@@ -32,7 +44,7 @@ class EvaluateBody(BaseModel):
     as_of: date | None = None
 
 
-class CompareBody(BaseModel):
+class CompareBody(_BuilderVersions):
     model_config = ConfigDict(extra="forbid")
     versions: list[specs.VersionSpec] = Field(
         min_length=specs.MIN_VERSIONS_COMPARE, max_length=specs.MAX_VERSIONS
@@ -40,7 +52,7 @@ class CompareBody(BaseModel):
     as_of: date | None = None
 
 
-class ChooseBody(BaseModel):
+class ChooseBody(_BuilderVersions):
     """ "Chọn": the chosen version becomes a manual card, the others are its versions."""
 
     model_config = ConfigDict(extra="forbid")
@@ -52,7 +64,7 @@ class ChooseBody(BaseModel):
     as_of: date | None = None
 
 
-class GroupBody(BaseModel):
+class GroupBody(_BuilderVersions):
     """ "Chạy cùng nhau": the ticked versions (indexes into ``versions``) become one group of the
     plan with one period (at least 3 days)."""
 

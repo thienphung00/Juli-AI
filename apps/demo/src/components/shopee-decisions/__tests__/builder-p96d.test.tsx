@@ -15,6 +15,7 @@ const lastVersions = (b: FakeBuilder, name: string) => calls(b, name).at(-1)!.ar
 
 async function addVoucher(builder: FakeBuilder, value: string, min: string) {
   fireEvent.click(screen.getByTestId("p2-kind-voucher"));
+  fireEvent.click(screen.getByTestId("p2-knext"));
   fireEvent.change(await screen.findByRole("textbox", { name: "Giá trị" }), { target: { value } });
   fireEvent.change(screen.getByRole("textbox", { name: "Đơn tối thiểu" }), { target: { value: min } });
   await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "voucher", value: Number(value), min_spend: Number(min) }));
@@ -29,7 +30,8 @@ describe("P96d · compare names the versions", () => {
     const builder = fakeBuilder({ compare: (v) => evaluation(v.length, losing) });
     renderReco(<BuilderP92View from="quyet-dinh" productId={null} />, fakeReco(), { builder });
     fireEvent.click(await screen.findByTestId(`p2-prod-${P_ZIP}`));
-    fireEvent.click(await screen.findByTestId("p2-vnext"));
+    await waitFor(() => expect(screen.getByTestId("p2-vnext")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("p2-vnext"));
     await screen.findByTestId("p2-kinds");
     await addVoucher(builder, "5000", "100000");
     await addVoucher(builder, "10000", "100000");

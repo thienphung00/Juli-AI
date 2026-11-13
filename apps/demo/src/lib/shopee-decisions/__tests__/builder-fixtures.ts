@@ -185,6 +185,7 @@ export function fakeBuilder(
     compare: BuilderEvaluation | ((v: readonly BuilderVersion[]) => BuilderEvaluation);
     choose: ChooseResult;
     group: GroupResult;
+    channelSplitProducts: () => Promise<import("../builder-api").ChannelSplitProducts>;
   }> = {},
   failWith: Failures = {},
 ): FakeBuilder {
@@ -197,6 +198,7 @@ export function fakeBuilder(
   const pick = (f: BuilderEvaluation | ((v: readonly BuilderVersion[]) => BuilderEvaluation) | undefined, v: readonly BuilderVersion[]) => (typeof f === "function" ? f(v) : (f ?? evaluation(v.length)));
   return {
     calls,
+    ...(data.channelSplitProducts ? { channelSplitProducts: data.channelSplitProducts } : {}),
     products: (...a) => run("products", data.products ?? pickerProducts(), ...a),
     variations: (id) => run("variations", data.variations ?? variationList(id), id),
     coPurchase: (id) => run("coPurchase", coPurchase(), id),

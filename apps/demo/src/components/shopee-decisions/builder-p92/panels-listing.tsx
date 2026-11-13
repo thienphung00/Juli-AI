@@ -474,20 +474,11 @@ export function AffiliatePanel({ form, set, ctx }: P<"affiliate">) {
 
 export function PriceDisplayPanel({ form, set, ctx }: P<"price_display">) {
   const unit = ctx.variations.length === 1 && ctx.variations[0]!.price_per_unit !== null ? ctx.variations[0]!.price_per_unit : null;
-  // A listing that is selling (stock above 0) cannot be "brought back"; the picker lists active listings only.
-  const live = ctx.product.stock !== null && ctx.product.stock > 0;
   return (
     <div className="p2-panel" data-testid="p2-panel-price">
-      <Pills disabled={live ? ["listing_relist"] : []} label="Việc cần làm" onChange={(what) => set({ what })} options={[["price_display", "Hiển thị giá mỗi đơn vị"], ["listing_hide", "Ẩn listing"], ["listing_relist", "Đưa lại listing"]]} value={form.what} />
-      {live ? <p className="sa-hint">“Đưa lại listing” chỉ dùng cho listing đã ẩn hoặc hết hàng.</p> : null}
-      {form.what === "price_display" ? (
-        <>
-          <p className="sa-hint">{unit !== null ? `Giá mỗi đơn vị: ${vnd(unit)} trên ảnh bìa và tên phân loại.` : "Giá mỗi đơn vị lấy từ số lượng trong tên phân loại."}</p>
-          <TextIn label="Dòng hiển thị (để trống = giá mỗi đơn vị)" onChange={(text) => set({ text })} value={form.text} />
-        </>
-      ) : null}
-      {form.what === "listing_relist" ? <NumIn label="Tồn khi đưa lại" onChange={(stock) => set({ stock })} value={form.stock} /> : null}
-      <p className="sa-hint">Đây là thay đổi theo kế hoạch: Juli ghi lại, bạn tự ẩn / đưa lại ở Seller Centre. Chỉ số theo dõi: lượt xem.</p>
+      <p className="sa-hint">{unit !== null ? `Giá mỗi đơn vị: ${vnd(unit)} trên ảnh bìa và tên phân loại.` : "Giá mỗi đơn vị lấy từ số lượng trong tên phân loại."}</p>
+      <TextIn label="Dòng hiển thị (để trống = giá mỗi đơn vị)" onChange={(text) => set({ text })} value={form.text} />
+      <p className="sa-hint">Đây là thay đổi theo kế hoạch: Juli ghi lại, bạn tự đổi ở Seller Centre.</p>
     </div>
   );
 }

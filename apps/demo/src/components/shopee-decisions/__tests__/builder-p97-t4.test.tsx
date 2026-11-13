@@ -42,9 +42,11 @@ const evals = (b: FakeBuilder) => b.calls.filter((c) => c.name === "evaluate").m
 
 async function toKind(kind: string) {
   fireEvent.click(await screen.findByTestId(`p2-prod-${P_ZIP}`));
-  fireEvent.click(await screen.findByTestId("p2-vnext"));
+  await waitFor(() => expect(screen.getByTestId("p2-vnext")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("p2-vnext"));
   await screen.findByTestId("p2-kinds");
   fireEvent.click(screen.getByTestId(`p2-kind-${kind}`));
+  fireEvent.click(screen.getByTestId("p2-knext"));
 }
 
 afterEach(() => {
@@ -170,6 +172,7 @@ describe("P97 D85.17 · quảng cáo theo form của Shopee", () => {
 
 async function addVoucher(value: string) {
   fireEvent.click(screen.getByTestId("p2-kind-voucher"));
+  fireEvent.click(screen.getByTestId("p2-knext"));
   fireEvent.change(await screen.findByRole("textbox", { name: "Giá trị" }), { target: { value } });
   await waitFor(() => expect(screen.getByTestId("p2-add")).toBeEnabled());
   fireEvent.click(screen.getByTestId("p2-add"));
@@ -178,7 +181,8 @@ async function addVoucher(value: string) {
 
 async function toCompare(builder: FakeBuilder) {
   fireEvent.click(await screen.findByTestId(`p2-prod-${P_ZIP}`));
-  fireEvent.click(await screen.findByTestId("p2-vnext"));
+  await waitFor(() => expect(screen.getByTestId("p2-vnext")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("p2-vnext"));
   await screen.findByTestId("p2-kinds");
   await addVoucher("5000");
   await addVoucher("10000");

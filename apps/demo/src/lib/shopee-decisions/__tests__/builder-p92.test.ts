@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { P_SPONGE, P_ZIP, pickerProducts, variationList } from "./builder-fixtures";
-import { bandText, breakEvenText, buildVersion, initialForms, kmoney, num, voucherChips } from "../builder-p92";
+import { bandText, breakEvenText, KINDS_92, buildVersion, initialForms, kmoney, num, voucherChips } from "../builder-p92";
 import { outcome } from "./builder-fixtures";
 
 const ctx = { product: pickerProducts().products[0]!, variations: variationList().variations.slice(0, 2) };
@@ -65,14 +65,11 @@ describe("builder-p92 model", () => {
     expect(down("special_price", [{ qty: "2", value: "180000" }, { qty: "3", value: "240000" }])).toBeNull();
   });
 
-  it("listing combo (P97 D85.16): a title, a price, stock and at least two member products", () => {
-    const f = initialForms();
-    expect(buildVersion("listing_combo", f, ctx).problem).toMatch(/tên listing combo/);
-    const base = { ...f, listing_combo: { ...f.listing_combo, title: "Combo túi zip + miếng rửa", price: "120000", stock: "50", sku: "CB-01", images: ["a.jpg"], members: [P_ZIP, P_SPONGE] } };
-    expect(buildVersion("listing_combo", base, ctx).version).toMatchObject({ kind: "listing_combo", title: "Combo túi zip + miếng rửa", price: 120000, stock: 50, sku: "CB-01", image_refs: ["a.jpg"], member_ids: [P_ZIP, P_SPONGE] });
-    expect(buildVersion("listing_combo", { ...base, listing_combo: { ...base.listing_combo, members: [P_ZIP] } }, ctx).problem).toMatch(/từ 2 sản phẩm/);
-    expect(buildVersion("listing_combo", { ...base, listing_combo: { ...base.listing_combo, price: "10" } }, ctx).problem).toMatch(/từ 1.000đ/);
-    expect(buildVersion("listing_combo", { ...base, listing_combo: { ...base.listing_combo, stock: "" } }, ctx).problem).toMatch(/tồn kho/);
+  it("the removed kinds (listing combo, hide, relist) are not builder kinds any more", () => {
+    expect(KINDS_92.map((k) => k.key)).not.toContain("listing_combo");
+    expect(KINDS_92.map((k) => k.key)).toHaveLength(12);
+    expect(Object.keys(initialForms())).not.toContain("listing_combo");
+    expect(buildVersion("price_display", initialForms(), ctx).version).toMatchObject({ kind: "price_display" });
   });
 
   it("title and first line keep their limits", () => {
