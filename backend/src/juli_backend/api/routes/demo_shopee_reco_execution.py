@@ -53,7 +53,7 @@ async def post_reconcile(
     """ "Đối chiếu ngay": ask the Connector to read Seller Centre now (its next poll picks it up).
     Refused inside a reviewer request."""
     try:
-        out = await connector_state.request_reconcile(session, _shopee(shop), "shopee", now=_now())
+        out = await connector_state.request_reconcile(session, _shopee(shop), now=_now())
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None

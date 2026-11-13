@@ -101,12 +101,11 @@ async def list_fill_jobs(
             await connector_state.record_heartbeat(
                 session,
                 principal.shop_id,
-                principal.platform,
                 seller_centre_open=sc_open,
                 ack=ack,
                 now=_utc_now(),
             )
-        pending = await connector_state.commands(session, principal.shop_id, principal.platform)
+        pending = await connector_state.commands(session, principal.shop_id, now=_utc_now())
         jobs = (
             await fill_queue.jobs_for_shop(session, principal.shop_id)
             if fill_queue.enabled()

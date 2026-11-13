@@ -58,7 +58,7 @@ async def ops_reconcile(
     await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
-            out = await connector_state.request_reconcile(session, shop_id, "shopee", now=_now())
+            out = await connector_state.request_reconcile(session, shop_id, now=_now())
         await audit.record(session, ctx.staff.actor, "reco_reconcile", shop_id=shop_id, after=out)
         await session.commit()
     except ProposalError as exc:

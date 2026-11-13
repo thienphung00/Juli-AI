@@ -457,29 +457,27 @@ async def test_the_poll_heartbeat_and_the_reconcile_command(session, shop):
     seeded, _ = shop
     out = await es.connector_status(session, seeded.shop_id, "shopee", NOW)
     assert out["seller_centre_open"] is None and out["connected"] is False
-    await cs.record_heartbeat(
-        session, seeded.shop_id, "shopee", seller_centre_open=True, ack=None, now=NOW
-    )
+    await cs.record_heartbeat(session, seeded.shop_id, seller_centre_open=True, ack=None, now=NOW)
     out = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(minutes=2))
     assert (out["seller_centre_open"], out["connected"]) == (True, True)
     stale = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(hours=1))
     assert stale["seller_centre_open"] is None
-    asked = await cs.request_reconcile(session, seeded.shop_id, "shopee", now=NOW)
-    again = await cs.request_reconcile(
-        session, seeded.shop_id, "shopee", now=NOW + timedelta(minutes=1)
-    )
+    asked = await cs.request_reconcile(session, seeded.shop_id, now=NOW)
+    again = await cs.request_reconcile(session, seeded.shop_id, now=NOW + timedelta(minutes=1))
     assert asked["command_id"] == again["command_id"]
-    assert await cs.commands(session, seeded.shop_id, "shopee") == [
+    assert await cs.commands(session, seeded.shop_id, now=NOW) == [
         {"type": "reconcile", "id": asked["command_id"]}
     ]
     await cs.record_heartbeat(
-        session, seeded.shop_id, "shopee", seller_centre_open=False, ack="other", now=NOW
+        session, seeded.shop_id, seller_centre_open=False, ack="other", now=NOW
     )
-    assert len(await cs.commands(session, seeded.shop_id, "shopee")) == 1
+    assert len(await cs.commands(session, seeded.shop_id, now=NOW)) == 1
     await cs.record_heartbeat(
-        session, seeded.shop_id, "shopee", seller_centre_open=None, ack=asked["command_id"], now=NOW
+        session, seeded.shop_id, seller_centre_open=None, ack=asked["command_id"], now=NOW
     )
-    assert await cs.commands(session, seeded.shop_id, "shopee") == []
+    assert await cs.commands(session, seeded.shop_id, now=NOW) == []
+    again = await cs.request_reconcile(session, seeded.shop_id, now=NOW)  # closed: a new one opens
+    assert again["command_id"] != asked["command_id"]
 
 
 async def test_reconcile_over_http_reaches_the_connector_and_reviewers_are_refused(session, shop):
@@ -489,23 +487,20 @@ async def test_reconcile_over_http_reaches_the_connector_and_reviewers_are_refus
     headers = await fq._token(session, seeded)
     app = build_app(session)
     authenticate(app, user=seeded.user, shop=seeded.shop)
-    async with client_for(app) as seller:
-        r = await seller.post("/v1/demo/shopee/recommendations/execution/reconcile")
+    async with client_for(app) as client:
+        r = await client.post("/v1/demo/shopee/recommendations/execution/reconcile")
         assert r.status_code == 200
-    app.dependency_overrides.clear()
-    app = build_app(session)
-    async with client_for(app) as ext:
-        ext.headers.update(headers)
-        got = (await ext.get("/v1/ingest/fill-jobs", params={"sc_open": "true"})).json()
+        url = "/v1/ingest/fill-jobs"
+        got = (await client.get(url, params={"sc_open": "true"}, headers=headers)).json()
         assert [c["type"] for c in got["commands"]] == ["reconcile"]
         cid = got["commands"][0]["id"]
-        done = (await ext.get("/v1/ingest/fill-jobs", params={"ack": cid})).json()
+        done = (await client.get(url, params={"ack": cid}, headers=headers)).json()
         assert done["commands"] == []
     app.dependency_overrides.clear()
     from juli_backend.services.shop_proposals import ProposalError
     from juli_backend.services.shopee_recommendations import connector_state as cs
 
     with reviewer_session(), pytest.raises(ProposalError):
-        await cs.request_reconcile(session, seeded.shop_id, "shopee", now=NOW)
+        await cs.request_reconcile(session, seeded.shop_id, now=NOW)
     out = await es.connector_status(session, seeded.shop_id, "shopee", NOW)
     assert out["seller_centre_open"] is True

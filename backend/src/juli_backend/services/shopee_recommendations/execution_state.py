@@ -297,7 +297,7 @@ async def connector_status(
         fresh = (
             now - _naive(datetime.fromisoformat(last.replace("Z", "+00:00"))) <= _CONNECTOR_FRESH
         )
-    beat = await connector_state.read(session, shop_id, platform, now=now)
+    beat = await connector_state.read(session, shop_id, now=now)
     return {
         "version": newest,
         "last_check_at": last,
