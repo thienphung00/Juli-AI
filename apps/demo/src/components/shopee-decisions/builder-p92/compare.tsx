@@ -35,7 +35,7 @@ export interface Entry {
 type Load = { readonly key: string; readonly state: { readonly status: "ready"; readonly result: BuilderEvaluation } | { readonly status: "error"; readonly message: string } };
 
 /** P97 D85.14: a group needs at least this many days (P94). */
-const GROUP_MIN_DAYS = 3;
+export const GROUP_MIN_DAYS = 3;
 
 interface Saved {
   readonly index: number;
@@ -560,7 +560,7 @@ export function TodayLine({ today, testId = "p2-today" }: { readonly today: Buil
   );
 }
 
-function TogetherResult({ result, planHref }: { readonly result: GroupResult; readonly planHref: string | null }) {
+export function TogetherResult({ result, planHref }: { readonly result: GroupResult; readonly planHref: string | null }) {
   return (
     <div className="sa-notice sa-notice--info p2-together__result" data-testid="p2-together-result" role="status">
       <b>
