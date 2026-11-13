@@ -83,6 +83,8 @@ export interface RecoApi {
   executionStates(): Promise<ExecutionStates>;
   /** Đo lường: executed cards with days measured, the Δ lợi nhuận band and the verdict. */
   measurements(): Promise<MeasurementStates>;
+  /** "Đối chiếu ngay": ask the Connector to read Seller Centre now (refused for reviewers). */
+  reconcile(): Promise<{ readonly requested: boolean }>;
 }
 
 function errorOf(status: number, payload: unknown): ShopeeApiError {
@@ -190,5 +192,6 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
     learningRun: () => call<Record<string, unknown>>("POST", "/learning/run", {}),
     executionStates: () => call<ExecutionStates>("GET", "/execution"),
     measurements: () => call<MeasurementStates>("GET", "/measurements"),
+    reconcile: () => call<{ requested: boolean }>("POST", "/execution/reconcile", {}),
   };
 }

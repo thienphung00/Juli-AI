@@ -670,6 +670,7 @@ export interface ConnectorLine {
   readonly last_check_at: string | null;
   readonly connected: boolean;
   readonly seller_centre_open: boolean | null;
+  readonly reconcile_pending?: boolean;
 }
 
 export interface ExecutionStates {

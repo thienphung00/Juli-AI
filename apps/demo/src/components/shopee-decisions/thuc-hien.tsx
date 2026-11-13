@@ -144,6 +144,16 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
   const [tick, setTick] = useState(0);
   const res = useResource(() => host.reco.executionStates(), `${host.shopKey}|thuc-hien|${tick}`);
   const names = useResource(async () => new Map((await (host.products?.() ?? Promise.resolve([]))).map((p) => [p.id, p.name])), `${host.shopKey}|products`);
+  const [asking, setAsking] = useState(false);
+  const reconcile = async () => {
+    setAsking(true);
+    try {
+      await host.reco.reconcile();
+      setTick((t) => t + 1);
+    } finally {
+      setAsking(false);
+    }
+  };
   const count = res.status === "ready" ? res.data.cards.length : null;
   useEffect(() => {
     if (count !== null) onCount?.(count);
@@ -162,7 +172,7 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
                 {k.seller_centre_open ? "Seller Centre đang mở · " : ""}
                 {k.last_check_at ? `đối chiếu lần cuối ${hhmm(k.last_check_at)}` : "chưa đối chiếu"}
               </span>
-              <button className="sa-btn sd-th-bar__sync" disabled type="button">
+              <button className="sa-btn sd-th-bar__sync" disabled={readOnly || !k.connected || !!k.reconcile_pending || asking} onClick={() => void reconcile()} type="button">
                 Đối chiếu ngay
               </button>
             </section>

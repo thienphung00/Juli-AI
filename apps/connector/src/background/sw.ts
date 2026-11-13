@@ -132,6 +132,15 @@ const fillJobs = new FillJobs({
       }
     },
   },
+  heartbeat: {
+    sellerCentreOpen: async () => (await chrome.tabs.query({ url: `${SELLER_CENTRE_ORIGIN}/*` })).length > 0,
+    // "Đối chiếu ngay" from the Juli app: the same run as the popup's sync button.
+    reconcile: async () => {
+      await Promise.all([scheduler.clearBlock(), market.clearBlock()]);
+      await connector.syncNow();
+      void scheduler.tick({ manual: true });
+    },
+  },
   busy: async () => (await scheduler.isBusy()) || (await market.isBusy()) || (await connector.backfillInFlight()),
   halt: (reason, page, detail) => scheduler.haltFor(reason, page, detail),
 });

@@ -18,6 +18,12 @@ export interface FillJobsDeps {
     openPage(url: string): Promise<number | undefined>;
     inspect(tabId: number): Promise<{ open: boolean; url?: string }>;
   };
+  /** Connector 0.3.18: what the poll tells Juli (a Seller Centre tab is open) and the one command it
+   * can receive ("Đối chiếu ngay": run the readers now). Absent: no heartbeat, no command. */
+  heartbeat?: {
+    sellerCentreOpen(): Promise<boolean>;
+    reconcile(): Promise<void>;
+  };
   /** Another run (readers, backfill, market) holds the pace: wait. */
   busy(): Promise<boolean>;
   /** A stop for the whole shop (cool-down like a login wall + a connector event for Ops). */
@@ -75,11 +81,31 @@ export class FillJobs {
     return !!active && this.deps.now() - active.openedAt < FILL_JOB_BUSY_MS;
   }
 
+  /** The poll doubles as the heartbeat: say whether a Seller Centre tab is open, acknowledge the last
+   * command, and run a new "reconcile" command at once (once per command id). Never throws. */
+  private async beat(token: string): Promise<void> {
+    const hb = this.deps.heartbeat;
+    if (!hb) return;
+    try {
+      const fill = await this.fill();
+      const raw = (await this.deps.client.fillJobs(token, { scOpen: await hb.sellerCentreOpen(), ...(fill.doneCommand ? { ack: fill.doneCommand } : {}) })) as { commands?: { type?: unknown; id?: unknown }[] } | null;
+      if (fill.doneCommand) await this.setFill({ doneCommand: undefined });
+      for (const c of Array.isArray(raw?.commands) ? raw.commands : []) {
+        if (c.type !== "reconcile" || typeof c.id !== "string" || c.id.length > 64 || c.id === fill.lastCommand) continue;
+        await this.setFill({ lastCommand: c.id, doneCommand: c.id });
+        await hb.reconcile();
+      }
+    } catch {
+      // Juli unreachable: the next poll tries again.
+    }
+  }
+
   /** The alarm: open the next queued job's page, unless something says wait. */
   async poll(): Promise<string> {
     const state = await loadState(this.deps.storage);
     const token = state.token;
     if (!token || !fillJobsActive(token.shop_id)) return "inactive";
+    await this.beat(token.token);
     const now = this.deps.now();
     if ((state.readers?.blocked?.until ?? 0) > now) return this.noted("blocked");
     if (state.consentBlocked) return this.noted("consent_required");

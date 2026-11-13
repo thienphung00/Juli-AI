@@ -397,6 +397,7 @@ export function fakeReco(
     learning: (...a) => run("learning", { calibration: null, acceptance: null, sim: null }, ...a),
     learningRun: (...a) => run("learningRun", {}, ...a),
     executionStates: (...a) => run("executionStates", data.execution ?? { platform: "shopee", connector: { version: null, last_check_at: null, connected: false, seller_centre_open: null }, cards: [], counts: {} }, ...a),
+    reconcile: (...a) => run("reconcile", { requested: true }, ...a),
     measurements: (...a) => run("measurements", data.measurements ?? { platform: "shopee", cards: [] }, ...a),
   };
 }

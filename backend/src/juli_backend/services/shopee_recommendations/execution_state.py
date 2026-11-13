@@ -45,7 +45,7 @@ from juli_backend.models.shopee_fill import (
 )
 from juli_backend.services.card_events import verification
 from juli_backend.services.ingest import status as ingest_status
-from juli_backend.services.shopee_recommendations import service, store
+from juli_backend.services.shopee_recommendations import connector_state, service, store
 
 STATE_WAITING = "cho_dien"
 STATE_FILLED = "da_dien"
@@ -283,7 +283,7 @@ async def connector_status(
     session: AsyncSession, shop_id: uuid.UUID, platform: str, now: datetime
 ) -> dict[str, Any]:
     """The Connector line of the Thực hiện bar, from the dataset status the extension already feeds.
-    ``seller_centre_open`` is not reported by the Connector today (None)."""
+    ``seller_centre_open`` comes from the Connector's poll heartbeat (None when it is stale)."""
     rows = await ingest_status.dataset_status(session, shop_id=shop_id, platform=platform)
     seen = [r for r in rows if r.get("last_ingest_at")]
     last = max((r["last_ingest_at"] for r in seen), default=None)
@@ -297,11 +297,13 @@ async def connector_status(
         fresh = (
             now - _naive(datetime.fromisoformat(last.replace("Z", "+00:00"))) <= _CONNECTOR_FRESH
         )
+    beat = await connector_state.read(session, shop_id, platform, now=now)
     return {
         "version": newest,
         "last_check_at": last,
-        "connected": fresh,
-        "seller_centre_open": None,
+        "connected": fresh or beat["alive"],
+        "seller_centre_open": beat["seller_centre_open"],
+        "reconcile_pending": beat["reconcile_pending"],
     }
 
 

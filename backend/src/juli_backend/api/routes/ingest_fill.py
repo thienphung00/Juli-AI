@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,9 +24,14 @@ from juli_backend.database import Shop, get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services import ingest as ingest_service
 from juli_backend.services.shop_proposals import ProposalError
-from juli_backend.services.shopee_recommendations import fill, fill_queue
+from juli_backend.services.shopee_recommendations import connector_state, fill, fill_queue
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
 
 router = APIRouter(prefix="/ingest/fill", tags=["ingest"])
 
@@ -78,6 +84,8 @@ class JobReport(BaseModel):
 
 @jobs_router.get("")
 async def list_fill_jobs(
+    sc_open: bool | None = Query(default=None),
+    ack: str | None = Query(default=None, max_length=64),
     principal: ingest_service.IngestPrincipal = Depends(get_ingest_principal),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -85,12 +93,29 @@ async def list_fill_jobs(
     ``CONNECTOR_FILL_LISTING``). The Connector opens one page at a time."""
     if principal.platform != "shopee":
         raise HTTPException(status_code=403, detail={"code": "platform_not_allowed"})
-    if not fill_queue.enabled():
-        return {"enabled": False, "jobs": []}
+    # Connector 0.3.18: the poll is also its heartbeat (Seller Centre tab open, command ack) and
+    # carries the one command Juli can give it. Only when the Connector sends them.
+    beat = sc_open is not None or ack is not None
     async with with_shop_scope(session, principal.shop_id):
-        jobs = await fill_queue.jobs_for_shop(session, principal.shop_id)
+        if beat:
+            await connector_state.record_heartbeat(
+                session,
+                principal.shop_id,
+                principal.platform,
+                seller_centre_open=sc_open,
+                ack=ack,
+                now=_utc_now(),
+            )
+        pending = await connector_state.commands(session, principal.shop_id, principal.platform)
+        jobs = (
+            await fill_queue.jobs_for_shop(session, principal.shop_id)
+            if fill_queue.enabled()
+            else []
+        )
     await session.commit()
-    return {"enabled": True, "jobs": jobs}
+    if not fill_queue.enabled():
+        return {"enabled": False, "jobs": [], "commands": pending}
+    return {"enabled": True, "jobs": jobs, "commands": pending}
 
 
 @jobs_router.post("/{job_id}")
