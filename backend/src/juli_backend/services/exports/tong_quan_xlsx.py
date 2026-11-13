@@ -1,7 +1,8 @@
 """The Tổng quan export: a pure builder, plain dataclasses in, an openpyxl Workbook / bytes out.
 
 Sheets: "Tổng quan" (the shop's numbers, this period vs the previous, with the Kế hoạch baseline
-and goal), "Theo kênh" (Organic / Quảng cáo / Tiếp thị liên kết), "Theo ngày", "Theo sản phẩm".
+and goal), "Theo kênh" (Organic / Quảng cáo / Tiếp thị liên kết), "Theo ngày", "Theo sản phẩm",
+"Theo SKU".
 
 Every number is an input; the ratios (AOV, CTR, CTOR, % GMV, ROI, Thay đổi, % đạt) and the
 totals are Excel formulas over the cells of the sheet, so the file recomputes when a figure is
@@ -40,6 +41,7 @@ SHEET_OVERVIEW = "Tổng quan"
 SHEET_CHANNEL = "Theo kênh"
 SHEET_DAY = "Theo ngày"
 SHEET_PRODUCT = "Theo sản phẩm"
+SHEET_SKU = "Theo SKU"
 
 
 @dataclass
@@ -98,6 +100,23 @@ class ProductRow:
 
 
 @dataclass
+class SkuRow:
+    """One SKU of the "Theo SKU" sheet; ``None`` = unknown (the cell stays empty)."""
+
+    sku: str
+    variation: str | None
+    product_name: str
+    units_goal: float | None = None
+    units: float | None = None
+    revenue_goal: float | None = None
+    revenue: float | None = None
+    profit_goal: float | None = None
+    profit: float | None = None
+    stock: float | None = None
+    need: float | None = None  # units still to sell until the end of the period
+
+
+@dataclass
 class TongQuanData:
     shop_name: str
     start: date
@@ -114,6 +133,7 @@ class TongQuanData:
     #: set at the Sản phẩm level: the sheets then hold this product only
     product_name: str | None = None
     product_id: str | None = None
+    skus: list[SkuRow] = field(default_factory=list)
 
 
 def _d(x: date) -> str:
@@ -422,12 +442,57 @@ def _products(wb: Workbook, data: TongQuanData) -> None:
     finish(ws, "C5")
 
 
+# ----------------------------------------------------------------------------- Theo SKU
+
+SKU_HEADER = [
+    "Mã SKU", "Phân loại", "Sản phẩm", "Số lượng bán mục tiêu", "Số lượng bán thực tế", "% đạt",
+    "Doanh thu mục tiêu", "Doanh thu thực tế", "% đạt", "Lợi nhuận mục tiêu",
+    "Lợi nhuận thực tế", "% đạt", "Biên", "Tồn kho", "Cần bán đến cuối kỳ", "Cần nhập",
+]  # fmt: skip
+SKU_FIRST = 4
+
+
+def _skus(wb: Workbook, data: TongQuanData) -> None:
+    ws = wb.create_sheet(SHEET_SKU)
+    put(ws, 1, 1, title_of(data)).font = TITLE
+    header(ws, 3, SKU_HEADER)
+    r = SKU_FIRST - 1
+    for r, k in enumerate(data.skus, start=SKU_FIRST):
+        put(ws, r, 1, k.sku)
+        put(ws, r, 2, k.variation)
+        put(ws, r, 3, k.product_name)
+        for c, v, fmt in (
+            (4, k.units_goal, INT), (5, k.units, INT), (7, k.revenue_goal, MONEY),
+            (8, k.revenue, MONEY), (10, k.profit_goal, MONEY), (11, k.profit, MONEY),
+            (14, k.stock, INT), (15, k.need, INT),
+        ):  # fmt: skip
+            put(ws, r, c, v, fmt)
+        _sku_formulas(ws, r)
+    total, last = r + 1, max(r, SKU_FIRST)
+    put(ws, total, 1, "Tổng", bold=True)
+    for c, fmt in ((4, INT), (5, INT), (7, MONEY), (8, MONEY), (10, MONEY), (11, MONEY),
+                   (14, INT), (15, INT)):  # fmt: skip
+        L = col(c)
+        put(ws, total, c, f"=SUM({L}{SKU_FIRST}:{L}{last})", fmt, bold=True)
+    _sku_formulas(ws, total)
+    widths(ws, {1: 18, 2: 22, 3: 38}, 15)
+    finish(ws, "D4")
+
+
+def _sku_formulas(ws, r: int) -> None:
+    for c, a, g in ((6, "E", "D"), (9, "H", "G"), (12, "K", "J")):
+        put(ws, r, c, f'=IF(AND({g}{r}<>"",{g}{r}<>0),{a}{r}/{g}{r},"")', PCT)
+    put(ws, r, 13, f'=IF(AND(K{r}<>"",H{r}<>0),K{r}/H{r},"")', PCT)
+    put(ws, r, 16, f'=IF(O{r}="","",MAX(0,O{r}-N{r}))', INT)
+
+
 def build(data: TongQuanData) -> Workbook:
     wb = new_workbook()
     _overview(wb, data)
     _channels(wb, data)
     _days(wb, data)
     _products(wb, data)
+    _skus(wb, data)
     for ws in wb.worksheets:
         for row in ws.iter_rows():
             for c in row:

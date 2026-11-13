@@ -45,15 +45,14 @@ MEASURED = "Đã đo"
 CARD_HEADER = [
     "STT", "Mã thẻ", "Mã kế hoạch", "Trạng thái", "Nhóm", "Loại", "Phương án", "Mã SP",
     "Sản phẩm", "Chỉ số tác động", "Ngày bắt đầu", "Ngày kết thúc", "Số ngày",
-    "Chi phí cả kỳ (đ)", "Δ GMV thấp (đ)", "Δ GMV kỳ vọng (đ)", "Δ GMV cao (đ)",
-    "Δ lợi nhuận thấp (đ)", "Δ lợi nhuận kỳ vọng (đ)", "Δ lợi nhuận cao (đ)", "Δ đơn",
-    "Δ GMV / ngày (đ)", "Δ lợi nhuận / ngày (đ)", "ROI", "Δ lợi nhuận thực tế (đ)", "Kết luận",
+    "Chi phí cả kỳ (đ)", "Δ GMV kỳ vọng (đ)", "Δ lợi nhuận kỳ vọng (đ)", "Δ đơn",
+    "Δ GMV / ngày (đ)", "Δ lợi nhuận / ngày (đ)", "ROI", "Δ lợi nhuận thực tế (đ)",
 ]  # fmt: skip
 C = {  # column letter of each card column
     n: col(i) for i, n in enumerate(
         ["stt", "code", "plan", "status", "group", "kind", "version", "item", "name", "metrics",
-         "start", "end", "days", "cost", "g_lo", "g_mid", "g_hi", "p_lo", "p_mid", "p_hi",
-         "orders", "g_day", "p_day", "roi", "actual", "verdict"], start=1)
+         "start", "end", "days", "cost", "g_mid", "p_mid",
+         "orders", "g_day", "p_day", "roi", "actual"], start=1)
 }  # fmt: skip
 CARD_FIRST = 4
 
@@ -72,12 +71,8 @@ class CardRow:
     start: date | None
     end: date | None
     cost: float | None = None
-    gmv_low: float | None = None
     gmv_mid: float | None = None
-    gmv_high: float | None = None
-    profit_low: float | None = None
     profit_mid: float | None = None
-    profit_high: float | None = None
     orders: float | None = None
     actual_profit: float | None = None
 
@@ -174,24 +169,17 @@ def _cards(wb: Workbook, data: KeHoachData) -> int:
         K, L = C["start"], C["end"]
         put(ws, r, _idx("days"), f'=IF(AND({K}{r}<>"",{L}{r}<>""),{L}{r}-{K}{r}+1,"")', INT)
         for name, amount in (
-            ("cost", c.cost), ("g_lo", c.gmv_low), ("g_mid", c.gmv_mid), ("g_hi", c.gmv_high),
-            ("p_lo", c.profit_low), ("p_mid", c.profit_mid), ("p_hi", c.profit_high),
+            ("cost", c.cost), ("g_mid", c.gmv_mid), ("p_mid", c.profit_mid),
             ("orders", c.orders), ("actual", c.actual_profit),
         ):  # fmt: skip
             put(ws, r, _idx(name), amount, INT if name == "orders" else MONEY)
         put(ws, r, _idx("g_day"), f"=IFERROR({C['g_mid']}{r}/{C['days']}{r},0)", MONEY)
         put(ws, r, _idx("p_day"), f"=IFERROR({C['p_mid']}{r}/{C['days']}{r},0)", MONEY)
         put(ws, r, _idx("roi"), f'=IFERROR({C["p_mid"]}{r}/{C["cost"]}{r},"")', POINTS)
-        a, lo, hi = f"{C['actual']}{r}", f"{C['p_lo']}{r}", f"{C['p_hi']}{r}"
-        put(
-            ws, r, _idx("verdict"),
-            f'=IF({a}="","",IF({a}<{lo},"Dưới khoảng",IF({a}>{hi},"Vượt khoảng","Trong khoảng")))',
-        )  # fmt: skip
     last = max(r, CARD_FIRST - 1)
     total = last + 1
     put(ws, total, 1, "Tổng", bold=True)
-    for name in ("cost", "g_lo", "g_mid", "g_hi", "p_lo", "p_mid", "p_hi", "orders", "g_day",
-                 "p_day", "actual"):  # fmt: skip
+    for name in ("cost", "g_mid", "p_mid", "orders", "g_day", "p_day", "actual"):  # fmt: skip
         L = C[name]
         put(
             ws, total, _idx(name), f"=SUM({L}{CARD_FIRST}:{L}{max(last, CARD_FIRST)})",
@@ -199,8 +187,7 @@ def _cards(wb: Workbook, data: KeHoachData) -> int:
         )  # fmt: skip
     widths(
         ws,
-        [6, 14, 14, 11, 10, 28, 24, 16, 36, 16, 12, 12, 8, 14, 14, 14, 14, 14, 14, 14, 9, 14, 14, 8,
-         14, 14],
+        [6, 14, 14, 11, 10, 28, 24, 16, 36, 16, 12, 12, 8, 14, 14, 14, 9, 14, 14, 8, 14],
     )  # fmt: skip
     finish(ws, "C4")
     return last

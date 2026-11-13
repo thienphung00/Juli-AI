@@ -86,7 +86,13 @@ async def test_export_goal_equals_range_plan_for_the_shop_and_a_product(session,
     assert [r.product_id for r in one.products] == [ITEM] and one.product_id == ITEM
     assert sum(d.goal_gmv for d in one.days) == pytest.approx(pplan["goal_gmv"])
     wb = tq.build(one)
-    assert wb.sheetnames == [tq.SHEET_OVERVIEW, tq.SHEET_CHANNEL, tq.SHEET_DAY, tq.SHEET_PRODUCT]
+    assert wb.sheetnames == [
+        tq.SHEET_OVERVIEW,
+        tq.SHEET_CHANNEL,
+        tq.SHEET_DAY,
+        tq.SHEET_PRODUCT,
+        tq.SHEET_SKU,
+    ]
     assert ITEM in tq.file_name(one)
 
 
@@ -114,3 +120,34 @@ async def test_ke_hoach_export_month_equals_month_plans(session, shop, monkeypat
     assert kh.build(data).sheetnames == [kh.SHEET_CARDS, kh.SHEET_GOAL]
     with pytest.raises(ValueError):
         await collect_ke_hoach(session, sid, shop_name="Mẫu", now=NOW, month="2027-01")
+
+
+async def test_sku_sheet_goals_sum_to_the_product_goal_and_actuals_to_the_product(
+    session, shop, monkeypatch
+):
+    seeded, _ = shop
+    await _running_from(session, seeded, monkeypatch, date(2026, 10, 3))
+    kw = {"period": "custom", "start": FIRST, "end": AS_OF}
+    data = await collect_tong_quan(
+        session, seeded.shop_id, shop_name="Mẫu", now=NOW, product_id=ITEM, **kw
+    )
+    pplan = await month_plan.range_plan(
+        session, seeded.shop_id, FIRST, AS_OF, scope=month_plan.SCOPE_RUNNING, now=NOW,
+        product_id=ITEM,
+    )  # fmt: skip
+    assert data.skus and all(k.product_name == data.product_name for k in data.skus)
+    assert sum(k.revenue_goal or 0 for k in data.skus) == pytest.approx(pplan["goal_gmv"])
+    assert sum(k.profit_goal or 0 for k in data.skus) == pytest.approx(pplan["goal_profit"])
+    # actuals: the lines of the product (cancelled / returned left out)
+    assert sum(k.revenue or 0 for k in data.skus) > 0
+    assert all(k.need == 0 for k in data.skus if k.units_goal is not None)  # a finished period
+    tq.build(data)
+
+
+async def test_no_running_card_leaves_the_sku_goals_empty(session, shop):
+    seeded, _ = shop
+    data = await collect_tong_quan(
+        session, seeded.shop_id, shop_name="Mẫu", now=NOW, period="custom", start=FIRST, end=AS_OF
+    )
+    assert data.skus
+    assert all(k.revenue_goal is None and k.units_goal is None for k in data.skus)

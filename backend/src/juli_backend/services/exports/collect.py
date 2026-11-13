@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.shopee_plans import PLAN_DRAFT, PLAN_EXECUTED
 from juli_backend.services.exports import ke_hoach_xlsx as kh
+from juli_backend.services.exports import sku as skumod
 from juli_backend.services.exports import tong_quan_xlsx as tq
 from juli_backend.services.shopee_analytics import (
     RowsNotMaterialized,
@@ -275,11 +276,74 @@ async def collect_tong_quan(
                 **_plan_of(t),
             )  # fmt: skip
         )
+    skus = await _sku_rows(
+        session, shop_id, view, cur, plans_of, list(ids), names,
+        period=period, month=month,
+    )  # fmt: skip
     return tq.TongQuanData(
         shop_name, cur.start, cur.end, prv.start, prv.end, shop_now, shop_prev, days, rows,
         platform, product_name=names.get(product_id, product_id) if product_id else None,
-        product_id=product_id,
+        product_id=product_id, skus=skus,
     )  # fmt: skip
+
+
+async def _sku_rows(
+    session: AsyncSession, shop_id: uuid.UUID, view: PeriodView, window: Window,
+    plans_of: dict[str, dict[str, Any]], product_ids: list[str], names: dict[str, str], *,
+    period: str, month: str | None,
+) -> list[tq.SkuRow]:  # fmt: skip
+    """The "Theo SKU" rows (``exports/sku``): actuals of the period, stock at its end, goals split
+    from each product's own Kế hoạch figures."""
+    now_figs = await skumod.sku_figures(session, shop_id, view, window)
+    base: dict[str, dict[skumod.SkuKey, skumod.Fig]] = {}
+    cache: dict[tuple[str, str], dict[skumod.SkuKey, skumod.Fig]] = {}
+    for pid in product_ids:
+        bw = (plans_of.get(pid) or {}).get("baseline_window")
+        if not bw or (plans_of[pid].get("goal_gmv") is None):
+            continue
+        key = (bw["from"], bw["to"])
+        if key not in cache:
+            w = Window(date.fromisoformat(bw["from"]), date.fromisoformat(bw["to"]))
+            try:
+                bview, _ = await _view(session, shop_id, w)
+                cache[key] = await skumod.sku_figures(session, shop_id, bview, w)
+            except RowsNotMaterialized:
+                cache[key] = {}
+        base[pid] = {k: f for k, f in cache[key].items() if k[0] == pid}
+    ctx = await loaders.load_context(session, shop_id)
+    catalog_variations = {
+        pid: [(v.variation_id, v.name, v.seller_sku) for v in info.variations]
+        for pid in product_ids
+        if (info := ctx.catalog.items.get(pid)) is not None
+    }
+    stock = await skumod.stock_at(session, shop_id, product_ids, window.end)
+    period_end = window.end
+    if period == "month" and month:
+        period_end = date(int(month[:4]), int(month[5:7]), 1)
+        period_end = period_end.replace(
+            day=calendar.monthrange(period_end.year, period_end.month)[1]
+        )
+    rows = skumod.build_rows(
+        product_ids=product_ids, names=names, now=now_figs, base=base, plans=plans_of, stock=stock,
+        catalog_variations=catalog_variations, days_left=max((period_end - window.end).days, 0),
+        period_days=(period_end - window.start).days + 1,
+    )  # fmt: skip
+    return [
+        tq.SkuRow(
+            r.sku,
+            r.variation,
+            r.product_name,
+            r.units_goal,
+            r.units,
+            r.revenue_goal,
+            r.revenue,
+            r.profit_goal,
+            r.profit,
+            r.stock,
+            r.need,
+        )
+        for r in rows
+    ]
 
 
 # ----------------------------------------------------------------------------- Kế hoạch
@@ -315,9 +379,7 @@ def _card_row(
         start=date.fromisoformat(dates["from"]) if dates.get("from") else None,
         end=date.fromisoformat(dates["to"]) if dates.get("to") else None,
         cost=_f(own.get("cost_total")),
-        gmv_low=q("p10", "dgmv"), gmv_mid=q("p50", "dgmv"), gmv_high=q("p90", "dgmv"),
-        profit_low=q("p10", "dprofit"), profit_mid=q("p50", "dprofit"),
-        profit_high=q("p90", "dprofit"),
+        gmv_mid=q("p50", "dgmv"), profit_mid=q("p50", "dprofit"),
         orders=q("p50", "dorders"),
     )  # fmt: skip
 
@@ -396,12 +458,8 @@ async def collect_ke_hoach(
         pm = c["predicted_summary"]
         row = _card_row(c, None, kh.MEASURED if closed else kh.MEASURING, None, names)
         row.start, row.end = s.executed_on, end
-        row.gmv_low, row.gmv_mid, row.gmv_high = (
-            _f(pm["dgmv_month"][p]) for p in ("p10", "p50", "p90")
-        )
-        row.profit_low, row.profit_mid, row.profit_high = (
-            _f(pm["dprofit_month"][p]) for p in ("p10", "p50", "p90")
-        )
+        row.gmv_mid = _f(pm["dgmv_month"]["p50"])
+        row.profit_mid = _f(pm["dprofit_month"]["p50"])
         out.append(row)
     return kh.KeHoachData(
         shop_name, first, anchor,
