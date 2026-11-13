@@ -88,6 +88,8 @@ export interface PanelCtx {
   readonly costLink: string;
   /** Where the Giá thị trường marker reads; null while the host has none. */
   readonly market: MarketScope | null;
+  /** Step ③ ads: "+ Tạo chiến dịch mới" in the campaign select (absent = option hidden). */
+  readonly onNewCampaign?: () => void;
 }
 
 export function ProductSelect({ label, value, onChange, products, allowEmpty = true }: { readonly label: string; readonly value: string; readonly onChange: (id: string) => void; readonly products: readonly PickerProduct[]; readonly allowEmpty?: boolean }) {

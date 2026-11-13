@@ -28,7 +28,7 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     const row = screen.getByTestId("kh-row-card-voucher");
     expect(row).toHaveTextContent("JC-2611-0007-V1");
     expect(row).toHaveTextContent("Voucher 15.000đ cho đơn ≥ 299.000đ · Găng tay cao su A");
-    expect(row).toHaveTextContent("Đóng góp: +90.000đ/tháng (giữa khoảng) · Bỏ thẻ này thì: lợi nhuận −90.000đ/tháng, GMV −540.000đ, chi phí −90.000đ (30 ngày tới)");
+    expect(row).toHaveTextContent("Đóng góp: +90.000đ cả 30 ngày ≈ +3.000đ/ngày · Bỏ thẻ này thì: lợi nhuận −90.000đ cả 30 ngày (≈ −3.000đ/ngày), GMV −540.000đ cả 30 ngày (≈ −18.000đ/ngày), chi phí −90.000đ (30 ngày tới)");
     expect(within(row).getAllByRole("button", { name: /^V\d$/ })).toHaveLength(3);
     expect(screen.getByTestId("kh-cand-card-wait")).toHaveTextContent("JC-2611-0009");
   });
@@ -47,8 +47,10 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     expect(screen.getByTestId("kh-agg-orders")).toHaveTextContent("209 – 220");
     expect(screen.getByTestId("kh-agg-orders")).toHaveTextContent("+9 đơn");
     expect(screen.getByTestId("kh-agg-chiday")).toHaveTextContent("Trong trần 1.200.000đ");
-    expect(screen.getByTestId("kh-agg-sure")).toHaveTextContent("−246.000đ/tháng");
-    expect(screen.getByTestId("kh-agg-exp")).toHaveTextContent("+30.000đ – +420.000đ/tháng");
+    expect(screen.getByTestId("kh-agg-sure")).toHaveTextContent("−246.000đ");
+    expect(screen.getByTestId("kh-agg-exp")).toHaveTextContent("+30.000đ – +420.000đ");
+    expect(screen.getByTestId("kh-agg-exp")).toHaveTextContent("/ngày");
+    expect(screen.getByTestId("kh-agg-exp")).not.toHaveTextContent("/tháng");
     expect(screen.getByTestId("kh-agg-floor")).toHaveTextContent("✓ Mọi thẻ trên giá sàn vận hành");
     expect(screen.getByTestId("kh-cap")).toHaveTextContent("Chi phí toàn shop mỗi ngày so với trần 1.200.000đ");
   });
@@ -250,7 +252,7 @@ describe("Kế hoạch · nhóm chạy cùng nhau (P97 D85.14)", () => {
     expect(within(a).getByTestId("kh-group-period-A")).toHaveTextContent("10/11 – 16/11 · 7 ngày");
     expect(within(a).getByTestId("kh-gm-card-voucher@v1")).toHaveTextContent("JC-2611-0007-V1");
     expect(within(a).getByTestId("kh-gm-card-voucher@v2")).toHaveTextContent("JC-2611-0007-V2");
-    expect(within(a).getByTestId("kh-group-agg-A")).toHaveTextContent("Δ lợi nhuận / tháng · dự kiến");
+    expect(within(a).getByTestId("kh-group-agg-A")).toHaveTextContent("Δ lợi nhuận cả 30 ngày · dự kiến");
     expect(within(box).getByTestId("kh-group-B")).toHaveTextContent("JC-2611-0012-V2");
     expect(screen.getByTestId("kh-row-card-voucher")).toHaveTextContent("Nhóm A · V1");
   });

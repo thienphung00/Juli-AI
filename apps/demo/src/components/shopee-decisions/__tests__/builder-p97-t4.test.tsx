@@ -39,14 +39,18 @@ function open(builder: FakeBuilder) {
 }
 
 const evals = (b: FakeBuilder) => b.calls.filter((c) => c.name === "evaluate").map((c) => (c.args[0] as Record<string, unknown>[])[0]!);
+function chooseKind(key: string) {
+  if (!screen.queryByTestId("p2-kinds")) fireEvent.click(screen.getByRole("button", { name: "Đổi chiến lược" }));
+  fireEvent.click(screen.getByTestId(`p2-kind-${key}`));
+  fireEvent.click(screen.getByTestId("p2-knext"));
+}
 
 async function toKind(kind: string) {
   fireEvent.click(await screen.findByTestId(`p2-prod-${P_ZIP}`));
   await waitFor(() => expect(screen.getByTestId("p2-vnext")).toBeEnabled());
   fireEvent.click(screen.getByTestId("p2-vnext"));
   await screen.findByTestId("p2-kinds");
-  fireEvent.click(screen.getByTestId(`p2-kind-${kind}`));
-  fireEvent.click(screen.getByTestId("p2-knext"));
+  chooseKind(kind);
 }
 
 afterEach(() => {
@@ -110,7 +114,8 @@ describe("P97 D85.17 · quảng cáo theo form của Shopee", () => {
     const b = fakeBuilder();
     open(b);
     await toKind("ads");
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
+    await screen.findByRole("option", { name: /GMV Max/ });
+    fireEvent.change(screen.getByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c1" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Ngân sách mới mỗi ngày" }), { target: { value: "22000" } });
     expect(await screen.findByText("Ngân sách tối thiểu: ₫100.000")).toBeInTheDocument();
     expect(evals(b)).toHaveLength(0);
@@ -122,11 +127,12 @@ describe("P97 D85.17 · quảng cáo theo form của Shopee", () => {
     const b = fakeBuilder();
     open(b);
     await toKind("ads");
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
+    await screen.findByRole("option", { name: /GMV Max/ });
+    fireEvent.change(screen.getByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c1" } });
     fireEvent.click(screen.getByRole("button", { name: "Không giới hạn" }));
     await waitFor(() => expect(evals(b).at(-1)).toMatchObject({ lever: "budget", unlimited: true }));
     expect(evals(b).at(-1)!["daily_budget"]).toBeUndefined();
-    fireEvent.click(screen.getByRole("radio", { name: "② Mục tiêu ROAS" }));
+    fireEvent.click(screen.getByRole("tab", { name: "ROAS mục tiêu" }));
     const presets = within(await screen.findByTestId("p2-roas-presets"));
     expect(presets.getAllByRole("button").map((x) => x.textContent)).toEqual(["2,5", "3,5", "4,5"]);
     fireEvent.click(presets.getByRole("button", { name: "3,5" }));
@@ -144,108 +150,19 @@ describe("P97 D85.17 · quảng cáo theo form của Shopee", () => {
     open(b);
     await toKind("ads");
     expect(screen.queryByRole("button", { name: /Từ khoá và giá thầu/ })).toBeNull();
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
-    fireEvent.click(screen.getByRole("radio", { name: "② Mục tiêu ROAS" }));
+    await screen.findByRole("option", { name: /GMV Max/ });
+    fireEvent.change(screen.getByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c1" } });
+    fireEvent.click(screen.getByRole("tab", { name: "ROAS mục tiêu" }));
     fireEvent.change(await screen.findByRole("textbox", { name: "ROAS mục tiêu mới" }), { target: { value: "5" } });
     expect(await screen.findByText(/Vui lòng đặt ≤ 3.5/)).toBeInTheDocument();
-    expect(screen.getByText(/mất hỗ trợ hiệu suất của Shopee/, { selector: "span" })).toBeInTheDocument();
-  });
-
-  it("two campaigns take one budget as campaign_keys", async () => {
-    const b = fakeBuilder({ evaluate: manyTargets });
-    const base = b.adsCampaigns;
-    b.adsCampaigns = async () => {
-      const r = await base();
-      const first = r.campaigns[0]!;
-      return { ...r, campaigns: [first, { ...first, campaign_key: "c2", name: "Chiến dịch nhóm · Găng tay" }] };
-    };
-    open(b);
-    await toKind("ads");
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch Chiến dịch nhóm/ }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Ngân sách mới mỗi ngày" }), { target: { value: "150000" } });
-    await waitFor(() => expect(evals(b).at(-1)).toMatchObject({ lever: "budget", campaign_keys: ["c1", "c2"], daily_budget: 150_000 }));
-    expect(evals(b).at(-1)!["campaign_key"]).toBeUndefined();
   });
 });
 
 
 async function addVoucher(value: string) {
-  fireEvent.click(screen.getByTestId("p2-kind-voucher"));
-  fireEvent.click(screen.getByTestId("p2-knext"));
+  chooseKind("voucher");
   fireEvent.change(await screen.findByRole("textbox", { name: "Giá trị" }), { target: { value } });
   await waitFor(() => expect(screen.getByTestId("p2-add")).toBeEnabled());
   fireEvent.click(screen.getByTestId("p2-add"));
-  await screen.findByTestId("p2-kinds");
+  await waitFor(() => expect(screen.getByTestId("p3-next")).toBeEnabled());
 }
-
-async function toCompare(builder: FakeBuilder) {
-  fireEvent.click(await screen.findByTestId(`p2-prod-${P_ZIP}`));
-  await waitFor(() => expect(screen.getByTestId("p2-vnext")).toBeEnabled());
-  fireEvent.click(screen.getByTestId("p2-vnext"));
-  await screen.findByTestId("p2-kinds");
-  await addVoucher("5000");
-  await addVoucher("10000");
-  fireEvent.click(screen.getByTestId("p2-open-compare"));
-  await screen.findByTestId("p2-cmp-table");
-  return builder;
-}
-
-const groupResult = (over: Partial<GroupResult> = {}): GroupResult => ({ ...groupedPlan(true), saved: [{ id: "c1", code: "JC-2611-0007", indexes: [0, 1] }], placed: [], ...over });
-
-describe("P97 D85.14 · So sánh -> Chạy cùng nhau", () => {
-  it("tick two versions, one period of at least 3 days, one call; the group and its combined numbers come back", async () => {
-    const builder = fakeBuilder({ compare: (v) => evaluation(v.length), group: groupResult() });
-    open(builder);
-    await toCompare(builder);
-    expect(screen.getByTestId("p2-together-go")).toBeDisabled();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Chạy cùng nhau P1" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Chạy cùng nhau P2" }));
-    expect(screen.getByTestId("p2-together-go")).toHaveTextContent("(2 phương án)");
-    fireEvent.change(screen.getByLabelText("Số ngày của nhóm"), { target: { value: "2" } });
-    expect(screen.getByText("Nhóm chạy ít nhất 3 ngày.")).toBeInTheDocument();
-    expect(screen.getByTestId("p2-together-go")).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Số ngày của nhóm"), { target: { value: "5" } });
-    fireEvent.click(screen.getByTestId("p2-together-go"));
-    const done = await screen.findByTestId("p2-together-result");
-    const call = builder.calls.find((c) => c.name === "group")!.args[0] as { members: number[]; days: number; acknowledgeBreaches: boolean; versions: unknown[] };
-    expect(call).toMatchObject({ members: [0, 1], days: 5, acknowledgeBreaches: false });
-    expect(call.versions).toHaveLength(2);
-    expect(done).toHaveTextContent("Đã thêm 2 nhóm vào Kế hoạch từ 1 thẻ thủ công (JC-2611-0007)");
-    expect(within(done).getByTestId("p2-together-notice")).toHaveTextContent("chạy ở Nhóm B");
-    const a = within(done).getByTestId("p2-together-A");
-    expect(a).toHaveTextContent("Nhóm A · JC-2611-0007-GA · 10/11 – 16/11 (7 ngày)");
-    expect(a).toHaveTextContent("JC-2611-0007-V1");
-    expect(within(a).getByTestId("p2-together-ba-A")).toHaveTextContent("Số đơn");
-  });
-
-  it("a floor breach opens the warning and the same call is sent again with the acknowledgement", async () => {
-    const builder = fakeBuilder({ compare: (v) => evaluation(v.length), group: groupResult() });
-    const real = builder.group.bind(builder);
-    let first = true;
-    builder.group = (b) => {
-      if (first) {
-        first = false;
-        builder.calls.push({ name: "group", args: [b] });
-        return Promise.reject(new ShopeeApiError(422, "reco_breach_not_acknowledged", "ack", { code: "reco_breach_not_acknowledged", breaches: [{ type: "floor", sku: "S1", kind: "operating", floor: 100000, min_unit_price: 90000 }] }));
-      }
-      return real(b);
-    };
-    open(builder);
-    await toCompare(builder);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Chạy cùng nhau P1" }));
-    fireEvent.click(screen.getByTestId("p2-together-go"));
-    const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByRole("heading")).toHaveTextContent("Chạy cùng nhau dù chạm giá sàn?");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Vẫn tiếp tục" }));
-    await screen.findByTestId("p2-together-result");
-    expect(builder.calls.filter((c) => c.name === "group").map((c) => (c.args[0] as { acknowledgeBreaches: boolean }).acknowledgeBreaches)).toEqual([false, true]);
-  });
-
-  it("a version the server could not price cannot be ticked", async () => {
-    const builder = fakeBuilder({ compare: (v) => evaluation(v.length, (i) => (i === 1 ? { ok: false, refusal: { code: "x", message: "Chưa tính được." } } : {})) });
-    open(builder);
-    await toCompare(builder);
-    expect(screen.getByRole("checkbox", { name: "Chạy cùng nhau P2" })).toBeDisabled();
-  });
-});

@@ -46,6 +46,9 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.getByTestId("oc-profit")).toHaveTextContent("+1.234.567đ · +5,5% (+500.000đ … +2.000.000đ)");
     expect(screen.getByTestId("oc-buildup")).toHaveTextContent("+300.000đ từ đơn thêm. −50.000đ giảm giá.");
     expect(screen.getByTestId("oc-gmv")).toHaveTextContent("+2.500.000đ · +12,5%");
+    // P100: Δ are the totals of the version's 7 days, the per-day figure is secondary
+    expect(screen.getByTestId("oc-profit-perday")).toHaveTextContent("≈ +176.367đ/ngày");
+    expect(screen.getByTestId("oc-gmv-perday")).toHaveTextContent("≈ +357.143đ/ngày");
     expect(screen.getByTestId("oc-orders")).toHaveTextContent("+12 · +12,0%");
     expect(screen.getByTestId("oc-funnel")).toHaveTextContent("Hiển thị 10.000 → 10.500 · CTR 3,50% → 3,60% · CTOR 4,20% → 4,30% · AOV 200.000đ → 205.000đ");
     expect(screen.getByTestId("oc-margin")).toHaveTextContent("15,0% → 18,8% (+3,8 điểm)");
@@ -59,7 +62,7 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.queryByTestId("oc-weak")).toBeNull();
     expect(screen.queryByTestId("oc-detail")).toBeNull();
     // P100-C (B.6): Δ tổng lợi nhuận is the headline; no "Tác động", no "Quy đổi 30 ngày"
-    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ Tổng lợi nhuận", "Δ GMV", "Δ Đơn", "Phễu", "Biên lợi nhuận", "ROI", "Chi phí", "Hoà vốn"]);
+    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ lợi nhuận cả 7 ngày", "Δ GMV cả 7 ngày", "Δ Đơn", "Phễu", "Biên lợi nhuận", "ROI", "Chi phí", "Hoà vốn"]);
   });
 
   it("P100-C: one break-even line with orders or AOV; no ROI / margin without them", () => {
@@ -211,9 +214,9 @@ describe("P100 B.15 · Dịch vụ hiển thị edit on the OptionCard", () => {
     expect(screen.getByTestId("oc-ads-verdict")).toHaveTextContent("có lãi");
     expect(screen.getByTestId("oc-ads-profit")).toHaveTextContent("1.500.000đ → 1.200.000đ");
     expect(screen.getByTestId("oc-ads-roas")).toHaveTextContent("6,0");
-    expect(screen.getByTestId("oc-ads-spend")).toHaveTextContent("thấp hơn mức chiến dịch thực chi");
-    expect(screen.getByTestId("oc-ads-incremental")).toHaveTextContent("đơn tăng thêm thật −9");
-    expect(screen.getByTestId("oc-ads-cancel")).toHaveTextContent("10,0%");
+    expect(screen.queryByTestId("oc-ads-spend")).toBeNull();
+    expect(screen.queryByTestId("oc-ads-incremental")).toBeNull();
+    expect(screen.queryByTestId("oc-ads-cancel")).toBeNull();
     expect(screen.getByTestId("oc-cost")).toHaveTextContent("Giảm 600.000đ");
   });
 
@@ -223,7 +226,6 @@ describe("P100 B.15 · Dịch vụ hiển thị edit on the OptionCard", () => {
     expect(screen.getByTestId("oc-ads-cpa")).toHaveTextContent("60.000đ → chưa ước tính được");
     expect(screen.getByTestId("oc-ads-verdict")).toHaveTextContent("lỗ → chưa ước tính được");
     expect(screen.getByTestId("oc-ads-profit")).toHaveTextContent("−900.000đ → chưa ước tính được");
-    expect(screen.queryByTestId("oc-ads-incremental")).toBeNull();
   });
 
   it("other kinds carry no Ads block", () => {

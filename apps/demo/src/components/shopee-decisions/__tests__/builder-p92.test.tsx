@@ -26,6 +26,7 @@ async function toKinds(builder: FakeBuilder) {
 }
 
 function chooseKind(key: string) {
+  if (!screen.queryByTestId("p2-kinds")) fireEvent.click(screen.getByRole("button", { name: "Đổi chiến lược" }));
   fireEvent.click(screen.getByTestId(`p2-kind-${key}`));
   fireEvent.click(screen.getByTestId("p2-knext"));
 }
@@ -37,7 +38,7 @@ async function addVoucher(builder: FakeBuilder, value: string, min: string) {
   await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "voucher", value: Number(value), min_spend: Number(min) }));
   await waitFor(() => expect(screen.getByTestId("p2-add")).toBeEnabled());
   fireEvent.click(screen.getByTestId("p2-add"));
-  await screen.findByTestId("p2-kinds");
+  await waitFor(() => expect(screen.getByTestId("p3-next")).toBeEnabled());
 }
 
 afterEach(() => {
@@ -149,15 +150,12 @@ describe("P92 · voucher 5k/100k và 10k/100k", () => {
     const first = lastVersions(builder, "evaluate")[0]!;
     expect(first).toMatchObject({ kind: "voucher", scope: "product", item_ids: [P_ZIP], discount_type: "amount", value: 5000, min_spend: 100000, label: "5k / 100k" });
     await addVoucher(builder, "10000", "100000");
-    fireEvent.click(screen.getByTestId("p2-open-compare"));
-    await screen.findByTestId("p2-cmp-table");
+    fireEvent.click(screen.getByTestId("p3-next"));
+    await screen.findByTestId("p4-table");
     expect(lastVersions(builder, "compare")).toHaveLength(2);
     expect(lastVersions(builder, "compare").map((v) => v["value"])).toEqual([5000, 10000]);
-    expect(screen.getByTestId("p2-dgmv-1")).toHaveTextContent("+2.714.000đ");
-    expect(screen.getByTestId("p2-row-dgmv")).toHaveTextContent("+2.714.000đ");
-    expect(screen.getByTestId("p2-row-breakeven")).toHaveTextContent("cần thêm ≥ 18 đơn, tức CTOR ≥ 2,71% (hôm nay 2,50%), để lợi nhuận không giảm.");
-    expect(screen.getByTestId("p2-row-drivers")).toHaveTextContent("CTOR");
-    expect(screen.getByTestId("p2-row-basis")).toHaveTextContent("từ lịch sử sản phẩm");
+    expect(screen.getByTestId("p4-row-1")).toBeInTheDocument();
+    expect(screen.getByTestId("p4-row-2")).toBeInTheDocument();
   });
 
   it("chips from the shop AOV fill the value and minimum", async () => {
@@ -218,27 +216,26 @@ describe("P92 · chọn phương án", () => {
     await toKinds(builder);
     await addVoucher(builder, "5000", "100000");
     await addVoucher(builder, "10000", "100000");
-    fireEvent.click(screen.getByTestId("p2-open-compare"));
-    await screen.findByTestId("p2-cmp-table");
+    fireEvent.click(screen.getByTestId("p3-next"));
+    await screen.findByTestId("p4-table");
   }
 
   it("a breach opens the P91 warning; 'Quay lại' chooses nothing; 'Vẫn tiếp tục' chooses with acknowledge_breaches", async () => {
     const builder = fakeBuilder({ compare: (v) => evaluation(v.length, (i) => (i === 1 ? { warnings: [FLOOR_WARNING], breach: true } : {})) });
     await twoVersions(builder);
-    expect(screen.getByTestId("p2-warn-2")).toHaveTextContent("Chạm giá sàn");
-    expect(screen.getByTestId("p2-warn-1")).toHaveTextContent("Trên giá sàn");
-    fireEvent.click(screen.getByTestId("p2-choose-2"));
+    fireEvent.click(screen.getByRole("radio", { name: "P2 là phương án chính" }));
+    fireEvent.click(screen.getByTestId("p4-save"));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByRole("heading")).toHaveTextContent("Chọn P2 dù chạm giá sàn?");
+    expect(within(dialog).getByRole("heading")).toHaveTextContent("Lưu P2 dù chạm giá sàn?");
     fireEvent.click(within(dialog).getByRole("button", { name: "Quay lại" }));
     expect(calls(builder, "choose")).toHaveLength(0);
-    fireEvent.click(screen.getByTestId("p2-choose-2"));
+    fireEvent.click(screen.getByTestId("p4-save"));
     fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Vẫn tiếp tục" }));
-    const done = await screen.findByTestId("p2-chosen");
+    const done = await screen.findByTestId("p4-saved");
     const body = calls(builder, "choose")[0]!.args[0] as { chosen: number; acknowledgeBreaches: boolean; versions: unknown[] };
     expect(body).toMatchObject({ chosen: 1, acknowledgeBreaches: true });
     expect(body.versions).toHaveLength(2);
-    expect(done).toHaveTextContent("Đã chuyển P2 sang Quyết định · thẻ thủ công JC-2611-0021 · nguồn: thủ công");
+    expect(done).toHaveTextContent("Đã lưu · JC-2611-0021 · P2 là phương án chính");
     expect(screen.getByTestId("p2-ack")).toHaveTextContent(/Đã xác nhận vượt giá sàn · \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
   });
 
@@ -255,11 +252,11 @@ describe("P92 · chọn phương án", () => {
       return real(b);
     };
     await twoVersions(builder);
-    fireEvent.click(screen.getByTestId("p2-choose-1"));
+    fireEvent.click(screen.getByTestId("p4-save"));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog).toHaveTextContent("Giá sàn: S1, khách trả 90.000đ thấp hơn sàn vận hành 100.000đ, thiếu 10.000đ (chưa lỗ).");
     fireEvent.click(within(dialog).getByRole("button", { name: "Vẫn tiếp tục" }));
-    await screen.findByTestId("p2-chosen");
+    await screen.findByTestId("p4-saved");
     const sent = calls(builder, "choose").map((c) => (c.args[0] as { acknowledgeBreaches: boolean }).acknowledgeBreaches);
     expect(sent).toEqual([false, true]);
   });
@@ -270,16 +267,16 @@ describe("P92 · chọn phương án", () => {
     await toKinds(builder);
     await addVoucher(builder, "5000", "100000");
     await addVoucher(builder, "10000", "100000");
-    fireEvent.click(screen.getByTestId("p2-open-compare"));
-    await screen.findByTestId("p2-cmp-table");
-    expect(screen.getByTestId("p2-choose-1")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("p3-next"));
+    await screen.findByTestId("p4-table");
+    expect(screen.getByTestId("p4-save")).toBeDisabled();
   });
 
   it("a refused version says why and cannot be chosen", async () => {
     const builder = fakeBuilder({ compare: (v) => evaluation(v.length, (i) => (i === 1 ? { ok: false, refusal: { code: "x", message: "Các sản phẩm trong combo phải khác nhau." } } : {})) });
     await twoVersions(builder);
-    expect(screen.getByTestId("p2-cost-2")).toHaveTextContent("Các sản phẩm trong combo phải khác nhau.");
-    expect(screen.getByTestId("p2-choose-2")).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: "P2 là phương án chính" }));
+    expect(screen.getByTestId("p4-save")).toBeDisabled();
   });
 });
 
@@ -383,7 +380,7 @@ describe("P92 · các loại khác", () => {
     chooseKind("product_discount");
     fireEvent.change(await screen.findByRole("textbox", { name: "% GIẢM · Combo 3 hộp" }), { target: { value: "8" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "product_discount", item_id: P_ZIP, variations: [{ variation_id: "v3", discount_pct: 8 }] }));
-    fireEvent.click(screen.getByRole("button", { name: "+ Thêm vào So sánh phương án" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Thêm phương án" }));
     chooseKind("price_flash");
     fireEvent.click(await screen.findByRole("radio", { name: "Flash sale của shop" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Giảm · Combo 3 hộp" }), { target: { value: "13" } });
@@ -415,7 +412,7 @@ describe("P92 · các loại khác", () => {
     await waitFor(() => expect(urls.some((u) => u === `/v1/demo/shopee/builder/products/${P_ZIP}/market-range?variation_id=v3&price=80040`)).toBe(true));
     await waitFor(() => expect(screen.getByTestId("p2-add")).toBeEnabled());
     fireEvent.click(screen.getByTestId("p2-add"));
-    await screen.findByTestId("p2-kinds");
+    await waitFor(() => expect(screen.getByTestId("p3-next")).toBeEnabled());
     chooseKind("price_flash");
     // P96 (G3): a list-price change is ± (+ = price up), so the field is "Thay đổi", not "Giảm".
     expect(screen.queryByRole("textbox", { name: "Giảm · Combo 3 hộp" })).not.toBeInTheDocument();
@@ -456,7 +453,8 @@ describe("P92 · các loại khác", () => {
     chooseKind("ads");
     await screen.findByTestId("p2-panel-ads");
     await waitFor(() => expect(calls(builder, "adsCampaigns")).toHaveLength(1));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chọn chiến dịch GMV Max/ }));
+    await screen.findByRole("option", { name: /GMV Max/ });
+    fireEvent.change(screen.getByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c1" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Ngân sách mới mỗi ngày" }), { target: { value: "200000" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "ads", lever: "budget", campaign_key: "c1", daily_budget: 200000 }));
     fireEvent.click(screen.getByTestId("p2-add"));
@@ -467,14 +465,11 @@ describe("P92 · các loại khác", () => {
     fireEvent.click(screen.getByLabelText(/Áp dụng trong chiến dịch mục tiêu/));
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "affiliate", target_campaign: true }));
     fireEvent.click(screen.getByRole("button", { name: "Đặt lại" }));
-    fireEvent.click(screen.getByRole("button", { name: /‹ Chiến lược/ }));
     chooseKind("variation_set");
     fireEvent.change(await screen.findByRole("textbox", { name: "Tên phân loại 1" }), { target: { value: "Set 7 hộp" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Giá 1" }), { target: { value: "189000" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "variation_set", item_id: P_ZIP, new_variations: [{ name: "Set 7 hộp", price: 189000 }] }));
-    fireEvent.click(screen.getByRole("button", { name: /‹ Chiến lược/ }));
-    fireEvent.click(screen.getByTestId("p2-kind-price_display"));
-    fireEvent.click(screen.getByTestId("p2-knext"));
+    chooseKind("price_display");
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "price_display", item_id: P_ZIP }));
     expect(screen.queryByRole("radio", { name: "Ẩn listing" })).toBeNull();
   });
@@ -484,7 +479,7 @@ describe("P92 · các loại khác", () => {
     open(builder);
     await toKinds(builder);
     for (const v of ["1000", "2000", "3000", "4000"]) await addVoucher(builder, v, "100000");
-    expect(screen.getByTestId("p2-open-compare")).toHaveTextContent("(4/4)");
+    expect(screen.getByTestId("p3-next")).toHaveTextContent("So sánh 4 phương án");
     chooseKind("voucher");
     await screen.findByTestId("p2-panel-voucher");
   });
@@ -499,18 +494,17 @@ describe("P92 · các loại khác", () => {
 });
 
 describe("P92 · trên điện thoại", () => {
-  it("compares as swipe cards and the warning is a bottom sheet", async () => {
+  it("the breach warning is a bottom sheet", async () => {
     window.matchMedia = ((query: string) => ({ matches: true, media: query, addEventListener: () => undefined, removeEventListener: () => undefined })) as unknown as typeof window.matchMedia;
     const builder = fakeBuilder({ compare: (v) => evaluation(v.length, (i) => (i === 1 ? { warnings: [FLOOR_WARNING], breach: true } : {})) });
     open(builder);
     await toKinds(builder);
     await addVoucher(builder, "5000", "100000");
     await addVoucher(builder, "10000", "100000");
-    fireEvent.click(screen.getByTestId("p2-open-compare"));
-    const swipe = await screen.findByTestId("p2-swipe");
-    expect(screen.queryByTestId("p2-cmp-table")).toBeNull();
-    expect(within(swipe).getAllByText(/^P\d$/)).toHaveLength(2);
-    fireEvent.click(screen.getByTestId("p2-choose-2"));
+    fireEvent.click(screen.getByTestId("p3-next"));
+    await screen.findByTestId("p4-table");
+    fireEvent.click(screen.getByRole("radio", { name: "P2 là phương án chính" }));
+    fireEvent.click(screen.getByTestId("p4-save"));
     expect((await screen.findByRole("alertdialog")).className).toContain("sv-warn--sheet");
   });
 });

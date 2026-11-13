@@ -10,13 +10,15 @@ import { useSampleShopReviewer } from "../../../lib/reviewer/mode";
 import type { BuilderP98Api } from "../../../lib/shopee-decisions/builder-p98-api";
 import { useNarrow } from "../../quyet-dinh/use-narrow";
 import { NavLink, errorText } from "../ui";
-import { CompareView, type Entry } from "./compare";
+import type { Entry } from "./compare";
 import { ComboPanel, DealSocPanel, DiscountPanel, PriceFlashPanel, SetPanel, VoucherPanel } from "./panels-offers";
 import { AdsPanel, AffiliatePanel, CoverPanel, DescPanel, PriceDisplayPanel, TitlePanel } from "./panels-listing";
 import { Stepper, VariationChoice } from "./picker";
 import { StepChienLuoc } from "./step-chien-luoc";
+import { StepPhuongAn } from "./step-phuong-an";
+import { StepSoSanh } from "./step-so-sanh";
 import { StepSanPham, type ChannelMap } from "./step-san-pham";
-import { ResultBlock, type ResultState } from "./results";
+import type { ResultState } from "./results";
 import { AdsBuilder } from "../ads-builder";
 import { ComboBuilder } from "../combo-builder";
 import { KolBuilder, type KolCandidate } from "../kol-builder";
@@ -235,7 +237,10 @@ function Builder({ data, from, productId, kinds = KINDS_92 }: { readonly data: P
     if (editing !== null) setEntries((all) => all.map((e, i) => (i === editing ? { ...e, kind, forms, version: built.version!, names } : e)));
     else setEntries((all) => [...all, { id: nextId.current++, kind, forms, version: built.version!, names }]);
     setEditing(null);
-    setStep("chien-luoc");
+    setResult(null);
+    setForms((f) => ({ ...f, [kind]: initialForms()[kind] }));
+    if (kind === "combo") setForm("combo", { items: [product!.item_id] });
+    if (kind === "ads") setForm("ads", { itemId: product!.item_id });
   };
   const editEntry = (i: number) => {
     const e = entries[i];
@@ -277,19 +282,6 @@ function Builder({ data, from, productId, kinds = KINDS_92 }: { readonly data: P
         </div>
       ) : null}
 
-      {(step === "chien-luoc" || step === "phuong-an") && entries.length > 0 ? (
-        <div className="p2-tray" data-testid="p2-tray">
-          {entries.map((e, i) => (
-            <span className="sb-pill sb-pill--on" key={e.id}>
-              P{i + 1} · {String(e.version.label ?? kindName92(e.kind))}
-            </span>
-          ))}
-          <button className="sa-btn sa-btn--primary sa-btn--s" data-testid="p2-open-compare" onClick={() => setStep("so-sanh")} type="button">
-            So sánh phương án ({entries.length}/{MAX_VERSIONS}) ›
-          </button>
-        </div>
-      ) : null}
-
       {step === "san-pham" ? (
         <StepSanPham
           canNext={canNext}
@@ -318,35 +310,35 @@ function Builder({ data, from, productId, kinds = KINDS_92 }: { readonly data: P
       {product && step === "chien-luoc" ? <StepChienLuoc kinds={kindSet} onBack={() => setStep("san-pham")} onNext={() => kind && pickKind(kind)} onSelect={(k) => setKind(k)} selected={kind} /> : null}
 
       {product && step === "phuong-an" && kind && ctx ? (
-        <>
-          <div className="p2-panelhead">
-            <button className="sa-link p2-linkbtn" onClick={() => setStep("chien-luoc")} type="button">
-              ‹ Chiến lược
-            </button>
-            <h2 className="sa-h2">{kindName92(kind)}</h2>
-            <span className="sa-hint">P{editing !== null ? editing + 1 : entries.length + 1}</span>
-          </div>
-          <div className="p2-split">
-            <section className="sa-card p2-inputs" data-testid="p2-inputs">
-              <Panel ctx={ctx} forms={forms} kind={kind} setForm={setForm} />
-            </section>
-            <div className="p2-side">
-              <ResultBlock costLink={costLink} index={editing !== null ? editing : entries.length} onUntick={untick} state={shown} title={kindName92(kind)} />
-              <div className="sd-actions">
-                <button className="sa-btn sa-btn--primary" data-testid="p2-add" disabled={!built.version || (editing === null && entries.length >= MAX_VERSIONS) || shown.status !== "ready" || !shown.outcome.ok} onClick={addEntry} type="button">
-                  {editing !== null ? `Cập nhật P${editing + 1}` : "+ Thêm vào So sánh phương án"}
-                </button>
-                <button className="sa-btn" onClick={reset} type="button">
-                  Đặt lại
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+        <StepPhuongAn
+          canAdd={!!built.version && (editing !== null || entries.length < MAX_VERSIONS)}
+          costLink={costLink}
+          ctx={ctx}
+          editing={editing}
+          entries={entries}
+          entriesCount={entries.length}
+          forms={forms}
+          index={editing !== null ? editing : entries.length}
+          kind={kind}
+          kindLabel={kindName92(kind)}
+          onAdd={addEntry}
+          onBack={() => setStep("chien-luoc")}
+          onNext={() => setStep("so-sanh")}
+          onRemove={removeEntry}
+          onReset={reset}
+          onSelect={editEntry}
+          onUntick={untick}
+          productName={shopWide ? "Cả shop" : product.name}
+          setForm={setForm}
+          state={shown}
+        >
+          <Panel ctx={ctx} forms={forms} kind={kind} setForm={setForm} />
+        </StepPhuongAn>
       ) : null}
 
       {step === "so-sanh" && entries.length > 0 ? (
-        <CompareView
+        <StepSoSanh
+          productName={shopWide ? "Cả shop" : (product?.name ?? "")}
           api={api}
           costLink={costLink}
           entries={entries}

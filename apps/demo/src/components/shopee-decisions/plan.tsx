@@ -12,6 +12,7 @@ import type { Breach, CardList } from "../../lib/shopee-decisions/types";
 import { ackText, breachNoun, breachWarnLines, firstVersionRange, svk } from "../../lib/shopee-decisions/versions";
 import { useNarrow } from "../quyet-dinh/use-narrow";
 import { Notice, PageHead, TextChip } from "../shopee-analytics/ui";
+import { perDayText } from "./option-card/format";
 import { AdsReadbackBlock, CardResult, DataMissingNotice, HorizonLine, PlanTotalsNotes, ProductToday } from "./plan-results";
 import { PlanSteps } from "./plan-steps";
 import { topEntries } from "./top-cards";
@@ -286,7 +287,7 @@ function DraftPlan({ plan, api, narrow, busy, error, ack, notice, onAct, onConfi
                 {typeof r.evaluation?.contribution.dprofit_p50 === "number" ? (
                   <>
                     Đóng góp:{" "}
-                    <b className={r.evaluation.contribution.dprofit_p50 >= 0 ? "sa-tone--up" : "sa-tone--down"}>{svk(r.evaluation.contribution.dprofit_p50)}/tháng (giữa khoảng)</b> · Bỏ thẻ này thì: {withoutText(r)}
+                    <b className={r.evaluation.contribution.dprofit_p50 >= 0 ? "sa-tone--up" : "sa-tone--down"}>{svk(r.evaluation.contribution.dprofit_p50)} cả 30 ngày</b> <span className="sa-hint">{perDayText(r.evaluation.contribution.dprofit_p50, 30)}</span> · Bỏ thẻ này thì: {withoutText(r)}
                   </>
                 ) : (
                   <span data-testid="kh-contrib-none">Đóng góp: chưa có dữ liệu{missing ? ` · ${missing.message}` : ""}</span>

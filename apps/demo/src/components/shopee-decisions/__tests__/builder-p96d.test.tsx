@@ -6,22 +6,26 @@ import { fakeReco } from "../../../lib/shopee-decisions/__tests__/fixtures";
 import { BuilderP92View } from "../builder-p92";
 import { renderReco } from "./harness";
 
-/** P96d (owner report 2026-11-06): the compare table names each version's type and inputs and marks what differs. */
+/** P96d: step 4 names each version by its label. */
 
 configure({ asyncUtilTimeout: 4000 });
 
 const calls = (b: FakeBuilder, name: string) => b.calls.filter((c) => c.name === name);
 const lastVersions = (b: FakeBuilder, name: string) => calls(b, name).at(-1)!.args[0] as Record<string, unknown>[];
+function chooseKind(key: string) {
+  if (!screen.queryByTestId("p2-kinds")) fireEvent.click(screen.getByRole("button", { name: "Đổi chiến lược" }));
+  fireEvent.click(screen.getByTestId(`p2-kind-${key}`));
+  fireEvent.click(screen.getByTestId("p2-knext"));
+}
 
 async function addVoucher(builder: FakeBuilder, value: string, min: string) {
-  fireEvent.click(screen.getByTestId("p2-kind-voucher"));
-  fireEvent.click(screen.getByTestId("p2-knext"));
+  chooseKind("voucher");
   fireEvent.change(await screen.findByRole("textbox", { name: "Giá trị" }), { target: { value } });
   fireEvent.change(screen.getByRole("textbox", { name: "Đơn tối thiểu" }), { target: { value: min } });
   await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "voucher", value: Number(value), min_spend: Number(min) }));
   await waitFor(() => expect(screen.getByTestId("p2-add")).toBeEnabled());
   fireEvent.click(screen.getByTestId("p2-add"));
-  await screen.findByTestId("p2-kinds");
+  await waitFor(() => expect(screen.getByTestId("p3-next")).toBeEnabled());
 }
 
 describe("P96d · compare names the versions", () => {
@@ -35,17 +39,10 @@ describe("P96d · compare names the versions", () => {
     await screen.findByTestId("p2-kinds");
     await addVoucher(builder, "5000", "100000");
     await addVoucher(builder, "10000", "100000");
-    fireEvent.click(screen.getByTestId("p2-open-compare"));
-    await screen.findByTestId("p2-cmp-table");
-
-    const head1 = screen.getByTestId("p2-head-1");
-    expect(head1).toHaveTextContent("Voucher sản phẩm");
-    const facts = screen.getByTestId("p2-row-facts");
-    expect(within(screen.getByTestId("p2-facts-1")).getByText("5.000đ")).not.toHaveClass("p2-cmp__diff");
-    expect(within(screen.getByTestId("p2-facts-2")).getByText("10.000đ")).toHaveClass("p2-cmp__diff");
-    expect(within(screen.getByTestId("p2-facts-2")).getByText("100.000đ")).not.toHaveClass("p2-cmp__diff");
-    expect(facts).toHaveTextContent("Túi zip thực phẩm D");
-    expect(screen.getByTestId("p2-head-2")).toHaveTextContent("lỗ ít nhất");
-    expect(screen.queryByText("lợi nhuận tốt nhất")).toBeNull();
+    fireEvent.click(screen.getByTestId("p3-next"));
+    await screen.findByTestId("p4-table");
+    expect(screen.getByTestId("p4-bar-1")).toHaveTextContent("P1 · 5k / 100k");
+    expect(screen.getByTestId("p4-bar-2")).toHaveTextContent("P2 · 10k / 100k");
+    expect(screen.getAllByTestId(/^p4-row-/)).toHaveLength(2);
   });
 });
