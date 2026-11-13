@@ -2,6 +2,7 @@ import { parseServerIso } from "../vn-format";
 import { DASH, chipFromChange, chipPt, fmt, pp, sv, vnd, type Chip, type Tone } from "../shopee-analytics/format";
 import { FIVE_LABELS } from "../shopee-analytics/model";
 import type { RankingLink } from "../shopee-analytics/links";
+import { METRIC_ORDER, type MetricKey } from "../metrics";
 import type { Card, CardStatus, CardSummary, Family, FloorBreach, JourneyEvent, MoneyAt, N, SliderRow } from "./types";
 
 /** Derivations the Shopee Quyết định screens share: sections, tabs, the two layers of numbers, floors, read-back. */
@@ -22,16 +23,94 @@ export const FAMILY_TITLE: Readonly<Record<Family, string>> = {
   mega_sale: "Mega sale",
 };
 
-export type DecisionTab = "de-xuat" | "dang-thuc-hien" | "do-luong";
+export type DecisionTab = "de-xuat" | "thuc-hien" | "do-luong";
 
 export const TABS: readonly (readonly [DecisionTab, string])[] = [
   ["de-xuat", "Đề xuất"],
-  ["dang-thuc-hien", "Đang thực hiện"],
+  ["thuc-hien", "Thực hiện"],
   ["do-luong", "Đo lường"],
 ];
 
 export function tabOfParam(raw: string | null | undefined): DecisionTab {
-  return raw === "dang-thuc-hien" || raw === "do-luong" ? raw : "de-xuat";
+  if (raw === "thuc-hien" || raw === "dang-thuc-hien") return "thuc-hien";
+  return raw === "do-luong" ? raw : "de-xuat";
+}
+
+/** Đề xuất has two views: the cards, and the draft plan (`?xem=ke-hoach`; the old `?ke-hoach=1` maps here). */
+export type XemView = "the" | "ke-hoach";
+
+export function xemOfParams(params: URLSearchParams): XemView {
+  return params.get("xem") === "ke-hoach" || params.get("ke-hoach") ? "ke-hoach" : "the";
+}
+
+const METRIC_KEYS: readonly MetricKey[] = METRIC_ORDER;
+
+const KIND_LABEL: Readonly<Record<string, string>> = {
+  title: "Tiêu đề",
+  description_first_line: "Mô tả",
+  cover_image: "Ảnh bìa",
+  price_display: "Hiển thị giá",
+  listing_hide: "Ẩn / hiện",
+  listing_status: "Trạng thái",
+  min_spend_voucher: "Voucher đơn tối thiểu",
+  voucher: "Voucher",
+  product_discount: "Giảm giá sản phẩm",
+  promotion: "Khuyến mãi",
+  combo_multi: "Combo",
+  bundle_deal: "Mua kèm",
+  add_on: "Mua kèm",
+  ads_budget: "Ngân sách",
+  daily_budget: "Ngân sách",
+  ads_pause: "Tạm dừng",
+  affiliate_sample: "Gửi mẫu",
+  affiliate_invite: "Mời KOL",
+  mega_sale: "Mega sale",
+};
+
+/** The kind of a card in one or two words ("Tiêu đề", "Ảnh bìa"); empty when unknown. */
+export function kindLabel(card: Pick<CardSummary, "change_kind">): string {
+  return KIND_LABEL[card.change_kind] ?? "";
+}
+
+/** `?metric=` of Phân tích, when it names a metric. */
+export function metricOfParam(raw: string | null | undefined): MetricKey | null {
+  return raw && (METRIC_KEYS as readonly string[]).includes(raw) ? (raw as MetricKey) : null;
+}
+
+const METRICS_OF_KIND: Readonly<Record<string, readonly MetricKey[]>> = {
+  title: ["views", "ctr"],
+  description_first_line: ["views", "ctr"],
+  cover_image: ["ctr"],
+  price_display: ["ctr", "ctor"],
+  listing_hide: ["views"],
+  listing_status: ["views"],
+};
+const METRICS_OF_FAMILY: Readonly<Record<Family, readonly MetricKey[]>> = {
+  listing: ["ctr", "ctor"],
+  ads: ["views", "ctr"],
+  promotion: ["ctor", "orders"],
+  voucher: ["ctor", "aov"],
+  sale: ["ctor", "orders"],
+  combo: ["aov", "orders"],
+  affiliate: ["orders", "gmv"],
+  mega_sale: ["views", "orders"],
+};
+const METRIC_OF_KPI: Readonly<Record<string, MetricKey>> = { views: "views", ctr: "ctr", ctor: "ctor", aov: "aov", orders: "orders", gmv: "gmv", bien: "margin", disc: "margin", margin: "margin", sale: "orders" };
+
+/** The one metric a card answers: same mapping as Phân tích's "Đề xuất (n)" count (critical_kpi, else wiring key; unknown -> gmv). */
+export function primaryMetricOf(card: Pick<CardSummary, "section" | "metric">): MetricKey {
+  return METRIC_OF_KPI[card.metric?.critical_kpi ?? ""] ?? METRIC_OF_KPI[card.section ?? ""] ?? "gmv";
+}
+
+/** The metrics a card moves (chips): its primary metric first, then what its kind or family also moves. */
+export function metricsOfCard(card: Pick<CardSummary, "family" | "change_kind" | "section" | "metric">): MetricKey[] {
+  const rest = METRICS_OF_KIND[card.change_kind] ?? METRICS_OF_FAMILY[card.family] ?? [];
+  return [...new Set([primaryMetricOf(card), ...rest])].slice(0, 3);
+}
+
+/** Cards of the `metric` / `product` URL filters. */
+export function filterCards(cards: readonly CardSummary[], metric: MetricKey | null, product: string | null): CardSummary[] {
+  return cards.filter((c) => (!metric || primaryMetricOf(c) === metric) && (!product || (c.scope?.product_ids ?? []).includes(product) || c.product_id === product));
 }
 
 /** Which tab lists a card; `null` = closed (không còn trong danh sách). */
@@ -42,10 +121,10 @@ export function tabOfCard(card: Pick<CardSummary, "status" | "verification">): D
     case "changes_requested":
       return "de-xuat";
     case "approved":
-      return "dang-thuc-hien";
+      return "thuc-hien";
     case "executed": {
       const v = card.verification?.state;
-      return v === "pending" || v === "mismatch" || v === "not_seen" ? "dang-thuc-hien" : "do-luong";
+      return v === "pending" || v === "mismatch" || v === "not_seen" ? "thuc-hien" : "do-luong";
     }
     // P100 S2-C: the API says "measured" once the measurement window has closed (the result is
     // final, `services/shopee_recommendations/service.py` `_summary`). Đo lường shows the result.
@@ -86,7 +165,7 @@ export function sectionsFor(cards: readonly CardSummary[], tab: DecisionTab): Fa
 }
 
 export function tabCounts(cards: readonly CardSummary[]): Readonly<Record<DecisionTab, number>> {
-  const out: Record<DecisionTab, number> = { "de-xuat": 0, "dang-thuc-hien": 0, "do-luong": 0 };
+  const out: Record<DecisionTab, number> = { "de-xuat": 0, "thuc-hien": 0, "do-luong": 0 };
   for (const c of cards) {
     const t = tabOfCard(c);
     if (t) out[t] += 1;

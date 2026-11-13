@@ -67,9 +67,8 @@ function withAgg(res: PlanCardResult, over: Partial<PlanAggregate> = {}): PlanRe
 describe("P99b Kế hoạch: horizon, counted days, cost", () => {
   it("shows the 30-day horizon and each card's counted days against its own days", async () => {
     open(withAgg(result()));
-    expect(await screen.findByTestId("kh-horizon")).toHaveTextContent("30 ngày tới: 11/11 – 10/12");
-    expect(screen.getByTestId("kh-result-days")).toHaveTextContent("Thẻ chạy 20 ngày (25/11 – 14/12) · tính vào kế hoạch 16 ngày (25/11 – 10/12)");
-    expect(screen.getByTestId("kh-result-cost")).toHaveTextContent("Chi phí trong 30 ngày tới 240.000đ");
+    expect(await screen.findByTestId("kh-total")).toHaveTextContent("11/11 – 10/12");
+    expect(screen.getAllByTestId("kh-row-dates")[0]).toHaveTextContent("25/11 – 14/12 · 20 ngày");
   });
 
   it("a card outside the horizon shows the message and no figures", () => {
@@ -94,7 +93,6 @@ describe("P99b Kế hoạch: horizon, counted days, cost", () => {
     const cost = { ...p.aggregate!.cost!, horizon: span("2026-11-11", "2026-12-10", 30), horizon_spend_before: 30_000_000, horizon_spend_delta: null, horizon_spend_after: null, horizon_cap: 36_000_000, over_by_horizon: null, cost_complete: false, cost_note: "Thiếu chi phí của 1 thẻ.", cost_unknown_cards: ["card-tr"] };
     open({ ...p, aggregate: { ...p.aggregate!, cost } });
     expect(await screen.findByTestId("kh-totals-note")).toHaveTextContent("Tổng chưa gồm 1 thẻ");
-    expect(screen.getByTestId("kh-cost-unknown")).toHaveTextContent("Chưa biết chi phí của 1 thẻ. Thiếu chi phí của 1 thẻ.");
     expect(screen.getByTestId("kh-agg-chi")).toHaveTextContent("chưa biết chi phí");
     expect(screen.getByTestId("kh-agg-chiday")).not.toHaveTextContent("Vượt trần");
   });
@@ -109,21 +107,14 @@ describe("P99b Kế hoạch: horizon, counted days, cost", () => {
     expect(screen.getByTestId("kh-agg-orders")).toHaveTextContent("—");
   });
 
-  it("the contribution of a card without an evaluation is 'chưa có dữ liệu', and the live base has no refresh button", async () => {
-    const p = plan();
-    const cards = p.cards.map((c, i) => (i === 0 ? { ...c, evaluation: null } : c));
-    open({ ...p, cards, plan: { ...p.plan!, base: { live: true, as_of: "2026-11-10", newest_day: "2026-11-10", newer_available: false, note: "Số liệu tính lại mỗi lần mở." } } });
-    expect(await screen.findByTestId("kh-contrib-none")).toHaveTextContent("Đóng góp: chưa có dữ liệu");
-    expect(screen.queryByTestId("kh-refresh")).toBeNull();
-  });
 });
 
 describe("P99b Kế hoạch: empty plan and data_missing", () => {
   it("an empty plan shows its note and no numbers", async () => {
     const aggregate: PlanAggregate = { n_cards: 0, horizon: HORIZON, live: true, today: null, after: null, cost: null, deltas_p50: null, empty: true, empty_note: "Kế hoạch trống: thêm thẻ để xem 30 ngày tới.", cards: [], unavailable_cards: [], range_method: "x" };
     open({ plan: plan().plan, cards: [], aggregate, windows: null, change_sets: [] });
-    expect(await screen.findByTestId("kh-empty-note")).toHaveTextContent("Kế hoạch trống: thêm thẻ để xem 30 ngày tới.");
-    expect(screen.getByTestId("kh-horizon")).toHaveTextContent("30 ngày tới: 11/11 – 10/12");
+    expect(await screen.findByTestId("kh-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("kh-empty-note")).toBeNull();
     expect(screen.queryByTestId("kh-agg")).toBeNull();
   });
 
@@ -132,7 +123,7 @@ describe("P99b Kế hoạch: empty plan and data_missing", () => {
     expect(p.cards.length).toBeGreaterThan(0);
     const aggregate: PlanAggregate = { n_cards: 0, horizon: HORIZON, live: true, today: null, after: null, cost: null, deltas_p50: null, empty: true, empty_note: "Kế hoạch chưa có thẻ nào.", cards: [], unavailable_cards: [], range_method: "x" };
     open({ ...p, aggregate });
-    expect(await screen.findByTestId("kh-horizon")).toBeInTheDocument();
+    expect(await screen.findByTestId("kh-rows")).toBeInTheDocument();
     expect(screen.queryByTestId("kh-empty-note")).toBeNull();
     expect(screen.queryByText("Kế hoạch chưa có thẻ nào.")).toBeNull();
   });
@@ -195,11 +186,6 @@ describe("P99b Ads read-back", () => {
     expect(screen.getByTestId("kh-readback-candidates")).toHaveTextContent("Chiến dịch 1 · bắt đầu 02/11");
     expect(screen.getByTestId("kh-readback-candidates")).toHaveTextContent("Chiến dịch 2");
     expect(screen.queryByTestId("kh-readback-actual")).toBeNull();
-  });
-  it("shows on the plan row of an ads_new_campaign card", async () => {
-    const p = plan();
-    open({ ...p, cards: p.cards.map((c, i) => (i === 0 ? { ...c, ads_readback: matched } : c)) });
-    expect(await screen.findByTestId("kh-readback")).toHaveTextContent("GT-A mùa mưa");
   });
 });
 

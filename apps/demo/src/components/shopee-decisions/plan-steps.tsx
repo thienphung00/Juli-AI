@@ -11,7 +11,7 @@ import { TextChip } from "../shopee-analytics/ui";
  * re-evaluates the rest. `null` is "chưa tính", never 0.
  */
 
-const NOT_COUNTED = "chưa tính";
+const NOT_COUNTED = "—";
 const num = (n: number | null | undefined, f: (x: number) => string): string => (n === null || n === undefined ? NOT_COUNTED : f(n));
 
 export function productsWithSteps(plan: PlanResponse): readonly ProductBlock[] {
@@ -59,7 +59,6 @@ export function PlanSteps({ plan, api, busy, done, onAct }: { readonly plan: Pla
   return (
     <div data-testid="kh-steps">
       <h3 className="sa-h2">Từng bước, gối lên nhau</h3>
-      <p className="sa-hint">Mỗi bước được tính trên giá, giỏ hàng và phí của các bước trước. Đổi thứ tự hoặc bỏ một bước thì các bước sau tính lại. Chưa thực hiện gì cho đến khi xác nhận kế hoạch.</p>
       {products.map((p) => {
         const steps = p.steps!;
         return (
@@ -125,7 +124,7 @@ export function PlanSteps({ plan, api, busy, done, onAct }: { readonly plan: Pla
       })}
       {shop ? (
         <p data-testid="kh-steps-shop">
-          <b>Cả shop ({shop.products} sản phẩm):</b> Δ lợi nhuận dự kiến {num(shop.dprofit_p50, sv)} · chắc chắn {num(shop.dprofit_certain, sv)} · biên sau {shop.margin_pct_after === null ? DASH : pp(shop.margin_pct_after)}
+          <b>Cả shop ({shop.products} sản phẩm):</b> Δ lợi nhuận {num(shop.dprofit_p50, sv)} · chắc chắn {num(shop.dprofit_certain, sv)} · biên sau {shop.margin_pct_after === null ? DASH : pp(shop.margin_pct_after)}
         </p>
       ) : null}
     </div>

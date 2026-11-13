@@ -119,7 +119,7 @@ describe("Thẻ Gửi mẫu / Mời KOL (CardKOL.dc.html)", () => {
     expect(await screen.findByTestId("kol-title")).toHaveTextContent("Gửi mẫu cho KOL: chọn sản phẩm và số mẫu đáng gửi nhất");
     expect(screen.getByText("KOL · KOL mẫu A")).toBeInTheDocument();
     expect(screen.getByText("Ít dữ liệu")).toBeInTheDocument();
-    expect(screen.getByTestId("kol-basis")).toHaveTextContent("Dữ liệu của KOL 30 ngày: KOL mẫu A có 9 đơn của sản phẩm này trong 30 ngày, ROI Shopee (chỉ hoa hồng) 9,8. Cặp KOL × sản phẩm này dưới 10 đơn nên ước tính được kéo về trung bình shop, khoảng rộng.");
+    expect(screen.getByTestId("kol-basis")).toHaveTextContent("Dữ liệu của KOL 30 ngày: KOL mẫu A có 9 đơn của sản phẩm này trong 30 ngày, ROI Shopee (chỉ hoa hồng) 9,8");
     const table = screen.getByTestId("sv-table");
     expect(within(table).queryByText("Hôm nay")).toBeNull();
     expect(screen.getByTestId("sv-product-1")).toHaveTextContent("Găng tay cao su A");

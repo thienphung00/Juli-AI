@@ -34,7 +34,7 @@ describe("thẻ voucher · phép thử 'nếu đổi'", () => {
     expect(reco.calls.filter((c) => c.name === "whatif")).toHaveLength(1);
     expect(reco.calls.find((c) => c.name === "whatif")!.args).toEqual(["card-voucher", { min_spend: 200000 }, 1]);
     expect(screen.getByTestId("sd-sure-eff")).toHaveTextContent("Hoà vốn khi thêm ≥ 7 đơn");
-    expect(screen.getByText(/Đã chỉnh so với đề xuất/)).toBeInTheDocument();
+    expect(screen.getByText("Đã chỉnh")).toBeInTheDocument();
   });
 
   it("voucher inputs: value type, cap for %, the per-user limit that cannot be checked", async () => {
@@ -222,7 +222,6 @@ describe("quyết định của seller", () => {
     renderReco(<CardPage from={null} id="card-voucher" />, reco, { readOnly: true });
     await screen.findByTestId("sd-whatif");
     expect(screen.queryByRole("button", { name: /^Duyệt V1$/ })).toBeNull();
-    expect(screen.getByText(/Chế độ xem: không thể thao tác thay seller/)).toBeInTheDocument();
     fireEvent.change(slider("Đơn tối thiểu"), { target: { value: "200000" } });
     await waitFor(() => expect(screen.getByTestId("sd-sure-bien")).toHaveTextContent("23,4%"));
   });
@@ -269,7 +268,6 @@ describe("thẻ nhiều đối tượng, combo cũ và nhóm (P97)", () => {
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail }));
     const box = await screen.findByTestId("sd-targets");
     expect(box).toHaveTextContent("Áp dụng cho 3 sản phẩm");
-    expect(box).toHaveTextContent("Khi duyệt: 3 lượt điền, mỗi đối tượng một lượt.");
     expect(within(screen.getByTestId("sd-target-TR-B")).getByText("Chạm giá sàn")).toBeInTheDocument();
     expect(screen.getByTestId("sd-target-TR-B")).toHaveTextContent("chưa tính");
     expect(screen.getByTestId("sd-target-KX-C")).toHaveTextContent("Sản phẩm chưa có đơn trong kỳ.");

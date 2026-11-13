@@ -138,6 +138,8 @@ export interface CardSummary {
     readonly effect_days: number;
   };
   readonly floor_ok: boolean;
+  /** What the card costs over its effect days; the list shows "Chi phí" only when this is above 0. */
+  readonly cost?: number | null;
   readonly plan: string;
   readonly stale: boolean;
   /** Why it is stale (`engine_version_changed` | `inputs_changed` | …): the card shows "đang cập nhật". */

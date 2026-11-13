@@ -42,14 +42,14 @@ describe("Kế hoạch: từng bước (P92 B-10)", () => {
     expect(render(<PlanSteps api={api()} busy={false} done={false} onAct={async () => undefined} plan={{ ...planOf(items), aggregate: null }} />).container).toBeEmptyDOMElement();
   });
 
-  it("shows margin and Δ profit after each step, 'chưa tính' for null, the total and the shop totals", () => {
+  it("shows margin and Δ profit after each step, '—' for null, the total and the shop totals", () => {
     render(<PlanSteps api={api()} busy={false} done={false} onAct={async () => undefined} plan={planOf(items)} />);
     const first = screen.getByTestId("kh-step-c-disc");
     expect(first).toHaveTextContent("31,2% → 27,9%");
     expect(first.querySelector("[data-testid=kh-step-dstep]")).toHaveTextContent("−120.000đ");
     const second = screen.getByTestId("kh-step-c-vou");
-    expect(second).toHaveTextContent("27,9% → chưa tính");
-    expect(second.querySelector("[data-testid=kh-step-dtotal]")).toHaveTextContent("chưa tính");
+    expect(second).toHaveTextContent("27,9% → —");
+    expect(second.querySelector("[data-testid=kh-step-dtotal]")).toHaveTextContent("—");
     expect(second).toHaveTextContent("Chạm giá sàn");
     expect(screen.getByTestId("kh-steps-total-p50")).toHaveTextContent("+310.000đ");
     expect(screen.getByTestId("kh-steps-total-p50")).toHaveTextContent("chắc chắn −80.000đ");

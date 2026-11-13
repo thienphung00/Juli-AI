@@ -134,7 +134,7 @@ export function aggRows(p: PlanResponse): AggRow[] {
     tone: !num(sure) ? "plain" : sure >= 0 ? "up" : "down",
   });
   const q = a.dprofit_month.total;
-  rows.push({ key: "exp", label: "Δ lợi nhuận cả 30 ngày · dự kiến", today: DASH, after: rangeK(q.p10, q.p90), d: num(q.p50) ? perDay30(q.p50) : "", tone: num(q.p10) && q.p10 >= 0 ? "up" : num(q.p90) && q.p90 <= 0 ? "down" : "plain" });
+  rows.push({ key: "exp", label: "Δ lợi nhuận cả 30 ngày", today: DASH, after: rangeK(q.p10, q.p90), d: num(q.p50) ? perDay30(q.p50) : "", tone: num(q.p10) && q.p10 >= 0 ? "up" : num(q.p90) && q.p90 <= 0 ? "down" : "plain" });
   const floorBad = !a.floor.ok;
   rows.push({ key: "floor", label: "Giá sàn", today: DASH, after: floorBad ? "✕ Có thẻ chạm giá sàn khi xếp chồng" : "✓ Mọi thẻ trên giá sàn vận hành", d: "", tone: floorBad ? "down" : "up", bad: floorBad });
   return rows;
@@ -294,6 +294,6 @@ export function kolRows(k: KolPlanSummary): { readonly k: string; readonly v: st
   return [
     { k: "Số thẻ", v: `${k.samples} Gửi mẫu · ${k.invites} Mời KOL` },
     { k: "Tổng chi phí mẫu (chắc chắn, chi một lần)", v: k.sampleCost === null ? `${DASH} (chưa tách được phần chắc chắn)` : vnd(k.sampleCost) },
-    { k: "Lợi nhuận ròng sau mẫu, dự kiến", v: `${rangeK(k.profit.p10, k.profit.p90)}/tháng` },
+    { k: "Lợi nhuận ròng sau mẫu", v: `${rangeK(k.profit.p10, k.profit.p90)}/tháng` },
   ];
 }
