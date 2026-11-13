@@ -432,3 +432,25 @@ the S2-A loader creates (contract `p100-s2-demo.md`).
   này"), audited as `reviewer_write_refused` with that reason, with no model call.
 - `--reset` deletes the rows (owner connection) and the re-load seeds them again: the quota resets.
   Worst case per review cycle: 6 live title calls (one per product).
+
+### Amendment S2-D2 (2026-11-13): the sample shop is the real seller app inside its four screens
+- Owner decision 2026-11-13 (option B): the real shop is the working standard. Inside Tổng quan,
+  Phân tích, Sản phẩm and Quyết định the sample shop gets every working feature of the seller app,
+  copied rather than re-implemented: the whole Tự tạo (every builder kind and the Combo nhiều SKU,
+  KOL and Dịch vụ hiển thị tool tabs), new Dịch vụ hiển thị campaigns and edits of running ones
+  (P100 B.15: `ads_budget`, `ads_roas_target`, `ads_add_product`, `ads_remove_product`), and every
+  card in the lists. Từ khóa, Dịch vụ hiển thị (page), Đơn hàng and Luồng stay hidden.
+- No sample-only kind list any more: `SAMPLE_SHOP_CARD_KINDS` and the front end's `sample-scope.ts`
+  are gone, and Duyệt on the sample pin approves any card kind, as for a seller (Juli's rows only;
+  the fill queue is off in a reviewer session, so nothing reaches the Connector or Shopee). The
+  masked pin's simulated approve no longer checks the kind either (it writes the audit row only).
+- New reads in `SAMPLE_SHOP_ROUTES`, sample pin only, each pure compute on the shop's stored rows:
+  `GET …/builder/products/{item_id}/co-purchase`, `GET …/builder/products/{item_id}/market-range`,
+  `GET …/builder/ads/campaigns`, `POST …/builder/ads/setup`, `POST …/builder/combo/options` and
+  `POST …/builder/kol/setup`. All are in the read test that compares the whole database before and
+  after. `SAMPLE_SHOP_REFUSED` keeps the Connector fill queue and the hidden screens.
+- What stays sample-only is the safety layer: the route allowlist itself (a new seller route is
+  refused until it is reviewed for outbound effects and added), no outbound call, the LLM quota
+  (`SAMPLE_SHOP_LLM_ENDPOINTS`, one live title draft per product), the write audit, and the loader.
+- The sample shop is granted `llm_processing` by the loader (`SAMPLE_CONSENT_SCOPES`), so S2-D's one
+  live title draft passes the LLM gate; a shop loaded before S2-D2 gets the grant on its next load.

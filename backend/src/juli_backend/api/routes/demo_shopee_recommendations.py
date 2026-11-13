@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
-from juli_backend.api.reviewer import SAMPLE_SHOP_CARD_KINDS, deny, reviewer_context
+from juli_backend.api.reviewer import deny, reviewer_context
 from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.api.routes.shopee_recommendations_common import (
     ApproveBody,
@@ -130,8 +130,8 @@ async def approve_recommendation(
             # masked pin's simulation (fail closed: never a real approve).
             return await _simulated_approve(session, request, shop, card_id, body)
         # P100 S2-G (owner Option A): on the sample shop Duyệt is the REAL approve (Juli's rows
-        # only; the fill queue is off in a reviewer session), for the three strategies' cards.
-        await _require_sample_kind(session, shop, card_id)
+        # only; the fill queue is off in a reviewer session). S2-D2 (owner option B): any card
+        # kind, as for a real seller.
     return await _decide(
         session,
         shop,
@@ -170,18 +170,6 @@ async def dismiss_recommendation(
     )
 
 
-async def _require_sample_kind(session: AsyncSession, shop: Shop, card_id: uuid.UUID) -> None:
-    """P100 S2-G: a sample-shop reviewer approves only Tiêu đề / Ảnh bìa / Voucher cards."""
-    try:
-        detail = await reco.card_detail(session, _shopee(shop), card_id, audience="seller")
-    except ProposalError as exc:
-        await session.rollback()
-        raise refused(exc) from None
-    if detail.get("change_kind") not in SAMPLE_SHOP_CARD_KINDS:
-        await session.rollback()
-        raise deny("read_only")
-
-
 async def _simulated_approve(
     session: AsyncSession, request: Request, shop: Shop, card_id: uuid.UUID, body: ApproveBody
 ) -> dict[str, Any]:
@@ -198,8 +186,6 @@ async def _simulated_approve(
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None
-    if detail.get("change_kind") not in SAMPLE_SHOP_CARD_KINDS:
-        raise deny("read_only")  # only Tiêu đề / Ảnh bìa / Voucher on the sample shop
     result = simulation.simulate_shopee_approve(
         detail, chosen_version=body.chosen_version, chosen_versions=body.chosen_versions
     )

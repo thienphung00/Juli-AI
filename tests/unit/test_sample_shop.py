@@ -691,3 +691,93 @@ async def test_the_load_seeds_the_card_content_and_every_title_passes_the_live_s
     again = await loader.load(factory, generate(END), now=NOW)
     assert again.decisions is not None and again.decisions.content_specs == 0
     assert len(await specs()) == len(rows)
+
+
+async def test_the_sample_shop_holds_the_llm_consent_and_a_reload_restores_it(engine):
+    """P100 S2-D2: the one live AI title draft passes the LLM gate (``llm_processing``); a shop
+    loaded before S2-D2 (``service`` only) gets the grant on its next load."""
+    from juli_backend.services.consent import has_consent
+    from juli_backend.services.consent.grants import revoke_consent
+
+    factory, first = await _load(engine)
+    async with factory() as session:
+        for scope in loader.SAMPLE_CONSENT_SCOPES:
+            assert await has_consent(session, first.shop_id, scope), scope
+        await revoke_consent(session, first.shop_id, "llm_processing", revoked_at=NOW)
+        await session.commit()
+        assert not await has_consent(session, first.shop_id, "llm_processing")
+    again = await loader.load(factory, generate(END), now=NOW)
+    assert again.shop_id == first.shop_id and not again.created
+    async with factory() as session:
+        assert await has_consent(session, first.shop_id, "llm_processing")
+        assert await has_consent(session, first.shop_id, "service")
+
+
+async def test_the_s2_d2_strategies_evaluate_on_the_sample_shop(engine):
+    """P100 S2-D2 (owner option B): the real Tự tạo works on the sample shop's data -- Combo Khuyến
+    Mãi, Deal Sốc (Mua kèm / Mua để nhận quà), Dịch vụ hiển thị (a new campaign and an edit of a
+    running one, P100 B.15) and Affiliate each give a result, and "Chọn" saves a card."""
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.services.sample_shop.catalog import PRODUCTS
+    from juli_backend.services.shopee_builder import service as builder
+    from juli_backend.services.shopee_recommendations.manual import Actor
+    from tests.unit.test_shopee_builder import S
+
+    factory, report = await _load(engine)
+    actor = Actor("seller", uuid.uuid4())
+    a, b = PRODUCTS[0].item_id, PRODUCTS[1].item_id
+    async with factory() as session:
+        async with with_shop_scope(session, report.shop_id):
+            camps = await builder.ads_campaigns(session, report.shop_id, as_of=END, now=NOW)
+            assert camps["campaigns"], "the sample shop has running Dịch vụ hiển thị campaigns"
+            key = camps["campaigns"][0]["campaign_key"]
+            versions = {
+                "combo": {
+                    "kind": "combo",
+                    "item_ids": [a, b],
+                    "discount_type": "pct",
+                    "tiers": [{"qty": 2, "value": 5}, {"qty": 3, "value": 8}],
+                },
+                "add_on": {
+                    "kind": "add_on",
+                    "main_item_id": a,
+                    "addons": [{"item_id": b, "pct": 10}],
+                },
+                "gift": {
+                    "kind": "gift",
+                    "gift": {"unit_cost": 5000},
+                    "trigger": {"type": "buy_item", "item_id": a},
+                },
+                "ads_new": {
+                    "kind": "ads_new",
+                    "campaign": "single",
+                    "item_ids": [a],
+                    "daily_budget": 100_000,
+                    "start": END.isoformat(),
+                },
+                "ads_edit": {
+                    "kind": "ads",
+                    "lever": "budget",
+                    "campaign_key": key,
+                    "daily_budget": 300_000,
+                },
+                "affiliate": {"kind": "affiliate", "item_id": a, "commission_pct": 8},
+            }
+            saved_kinds: dict[str, str] = {}
+            for name, version in versions.items():
+                out = await builder.evaluate_versions(
+                    session, report.shop_id, [S(**version)], as_of=END, now=NOW
+                )
+                v = out["versions"][0]
+                assert v["ok"], (name, v.get("refusal"))
+                assert v["result"] is not None and v["result"]["days"] >= 1, name
+                # "Chọn" saves the card the reviewer then approves, like a real seller
+                async with session.begin_nested() as nested:
+                    saved = await builder.choose(
+                        session, report.shop_id, [S(**version)], 0, primary=False,
+                        acknowledge_breaches=True, actor=actor, as_of=END, now=NOW,
+                    )  # fmt: skip
+                    saved_kinds[name] = saved["card"]["change_kind"]
+                    await nested.rollback()
+            assert saved_kinds["ads_edit"] == "ads_budget"
+            assert saved_kinds["ads_new"] == "ads_new_campaign"

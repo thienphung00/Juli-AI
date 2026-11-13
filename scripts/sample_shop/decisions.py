@@ -78,9 +78,11 @@ async def run(
     async with factory() as session:
         async with with_shop_scope(session, shop_id):
             if await has_proposals(session, shop_id):
-                # Cards already there (a re-load): only the S2-D content a shop loaded before it
-                # lacks (a no-op once seeded).
+                # Cards already there (a re-load): only what a shop loaded before lacks -- the
+                # S2-D2 keywords (one per product; existing ones kept) and the S2-D content
+                # (both a no-op once seeded).
                 report.skipped = True
+                await seed_keywords(session, shop_id, plan, now)
                 await seed_content(session, shop_id, now=now, report=report)
                 await session.commit()
                 return report

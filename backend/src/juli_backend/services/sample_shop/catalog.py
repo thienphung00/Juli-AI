@@ -183,11 +183,16 @@ CAMPAIGNS: tuple[tuple[str, str], ...] = (
 TITLE_PRODUCT = 3  # the running Tiêu đề card: applied 5 days before the end date
 VOUCHER_PRODUCT = 0  # the measured Voucher card
 #: Core keywords ("Chính") the title audit holds the titles against: (product index, keyword).
-#: The title of the first one lacks its keyword (an open Tiêu đề card); the second one's old
-#: title lacked it and the running card's new title carries it.
+#: The title of product 1 lacks its keyword (an open Tiêu đề card); product 3's old title lacked
+#: it and the running card's new title carries it. P100 S2-D2: every product has one, so Tự tạo ›
+#: Tiêu đề has a keyword to tick on each (the others' current titles already carry theirs).
 KEYWORDS: tuple[tuple[int, str], ...] = (
+    (0, "nước rửa chén"),
     (1, "khăn lau bếp"),
+    (2, "túi đựng rác"),
     (3, "găng tay rửa chén"),
+    (4, "hộp đựng thực phẩm"),
+    (5, "bình xịt vệ sinh"),
 )
 NEW_TITLE = "Găng tay rửa chén cao su Hiên Nhà dày dặn không mùi, bền chắc, size M L"
 TITLE_APPLIED_DAYS_BEFORE_END = 5
