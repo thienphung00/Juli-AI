@@ -402,7 +402,8 @@ VERDICT_TEXT = {
 def _result_text(row: Mapping[str, Any]) -> str | None:
     """ "<Δ lợi nhuận thực tế> · <kết luận>" of one Đo lường row (``execution_state``'s own actual
     and verdict); ``None`` when it has neither."""
-    actual, verdict = row.get("actual"), VERDICT_TEXT.get(row.get("verdict"))
+    actual, verdict_key = row.get("actual"), row.get("verdict")
+    verdict = VERDICT_TEXT.get(verdict_key) if isinstance(verdict_key, str) else None
     money = None if actual is None else f"{round(float(actual)):+,}".replace(",", ".") + " đ"
     parts = [p for p in (money, verdict) if p]
     return " · ".join(parts) or None

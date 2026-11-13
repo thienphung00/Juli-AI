@@ -67,14 +67,14 @@ describe("Shopee read API client", () => {
   });
 
   it("downloads the Tổng quan and Kế hoạch workbooks from the seller and Ops export routes", async () => {
-    const f = vi.fn(async () => new Response(new Blob(["PK"]), { status: 200 })) as unknown as typeof fetch;
+    const f = vi.fn(async () => new Response(new Uint8Array([0x50, 0x4b]), { status: 200 })) as unknown as typeof fetch;
     const seller = createShopeeApi({ base: DEMO_SHOPEE_BASE, token: "t", shopId: "s1", fetchImpl: f });
     const ops = createShopeeApi({ base: opsShopeeBase("a b"), exportsBase: opsExportsBase("a b"), token: "t", fetchImpl: f });
     const blob = await seller.exportTongQuan!({ period: "custom", from: "2026-10-01", to: "2026-10-20", productId: "1001" });
     await ops.exportTongQuan!({ period: "30d" });
     await createPlanApi({ base: "/x", exportsBase: opsExportsBase("a b"), token: "t", fetchImpl: f }).exportKeHoach!("2026-11");
     const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][];
-    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.size).toBe(2); // the workbook bytes, whatever Blob class the runtime uses
     expect(calls.map((c) => c[0])).toEqual([
       "/v1/demo/shopee/exports/tong-quan.xlsx?period=custom&from=2026-10-01&to=2026-10-20&product_id=1001",
       "/v1/ops/shops/a%20b/shopee/exports/tong-quan.xlsx?period=30d",
