@@ -169,6 +169,16 @@ async def test_filters_by_family_and_section_and_the_xep_theo_switch(session, sh
     assert (await seller.get(DEMO, params={"family": "nope"})).status_code == 422
 
 
+async def test_the_list_summary_carries_the_cost_key(session, shop, seller):
+    """P100: the summary carries `cost`; the list shows "Chi phí" only when it is above 0."""
+    seeded, _, _ = shop
+    await _publish(session, seeded)
+    cards = (await seller.get(DEMO)).json()["cards"]
+    assert cards and all("cost" in c for c in cards)
+    voucher = [c for c in cards if c["change_kind"] == "min_spend_voucher"]
+    assert voucher and voucher[0]["cost"] is not None
+
+
 async def test_the_detail_has_certain_predicted_five_numbers_floor_plan_and_sheet(
     session, shop, seller
 ):

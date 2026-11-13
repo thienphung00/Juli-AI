@@ -77,6 +77,8 @@ describe("a voucher job", () => {
     expect([val("minspend"), val("total"), val("perbuyer")]).toEqual(["90000", "50", "1"]);
     expect(checked("disp")).toBe("multi");
     expect(h.reports.map((r) => r[1])).toEqual(["opened", "filled"]);
+    const done = h.progress[1]!;
+    expect(done.filled).toBe(done.total);
     expect(wire.forbidden).toEqual([]);
     expect(panelText()).toContain("Juli đã điền");
     expect(panelText()).toContain("Xác nhận của Shopee");
@@ -120,7 +122,9 @@ describe("a voucher job", () => {
     const h = jobHarness(voucherJob());
     const out = await runFillJob(h.deps);
     expect(out.status).toBe("partial");
-    expect(h.reports.map((r) => r[1])).toEqual(["opened"]);
+    expect(h.reports.map((r) => r[1])).toEqual(["opened", "opened"]);
+    const last = h.progress[h.progress.length - 1]!;
+    expect(last.filled).toBeLessThan(last.total);
     expect(panelText()).toContain("một phần");
   });
 });

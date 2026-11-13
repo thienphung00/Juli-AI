@@ -144,7 +144,6 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
     <section className="sa-card sd-exec" data-testid="sd-execution">
       <div className="sa-card__head">
         <h2 className="sa-h2">{executed ? "Đã làm trên Seller Centre" : "Làm trên Seller Centre"}</h2>
-        <span className="sa-hint">Juli không bấm lưu thay bạn: bạn sửa theo bảng dưới, bấm Lưu của chính Shopee, rồi báo &ldquo;Đã làm&rdquo;.</span>
       </div>
       {executed ? (
         <>

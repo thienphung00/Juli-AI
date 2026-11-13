@@ -197,7 +197,7 @@ const METRICS: readonly MetricDef[] = [
   {
     key: "profit",
     label: "Lợi nhuận",
-    sub: "Δ trong số ngày của thay đổi, khoảng dự kiến",
+    sub: "Δ trong số ngày của thay đổi",
     delta: "dprofit_p50",
     good: 1,
     today: () => DASH,

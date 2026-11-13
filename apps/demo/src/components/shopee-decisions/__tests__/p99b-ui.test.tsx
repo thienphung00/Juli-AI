@@ -16,7 +16,6 @@ import { costText } from "../builder-p92/results";
 import { breakEvenText } from "../../../lib/shopee-decisions/builder-p92";
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
 import { DecisionsView } from "../decisions-view";
-import { AdsReadbackBlock, CardResult } from "../plan-results";
 import { params, renderReco } from "./harness";
 
 configure({ asyncUtilTimeout: 4000 });
@@ -67,35 +66,15 @@ function withAgg(res: PlanCardResult, over: Partial<PlanAggregate> = {}): PlanRe
 describe("P99b Kế hoạch: horizon, counted days, cost", () => {
   it("shows the 30-day horizon and each card's counted days against its own days", async () => {
     open(withAgg(result()));
-    expect(await screen.findByTestId("kh-horizon")).toHaveTextContent("30 ngày tới: 11/11 – 10/12");
-    expect(screen.getByTestId("kh-result-days")).toHaveTextContent("Thẻ chạy 20 ngày (25/11 – 14/12) · tính vào kế hoạch 16 ngày (25/11 – 10/12)");
-    expect(screen.getByTestId("kh-result-cost")).toHaveTextContent("Chi phí trong 30 ngày tới 240.000đ");
+    expect(await screen.findByTestId("kh-total")).toHaveTextContent("11/11 – 10/12");
+    expect(screen.getAllByTestId("kh-row-dates")[0]).toHaveTextContent("25/11 – 14/12 · 20 ngày");
   });
 
-  it("a card outside the horizon shows the message and no figures", () => {
-    const p = withAgg(result({ counted: false, reason: "outside_horizon", outside_horizon: true, message: "Ngoài 30 ngày tới: không tính vào kế hoạch.", delta: null, after: null, counted_days: 0, counted_dates: null }));
-    render(<CardResult cardId={p.aggregate!.cards[0]!.card_id} plan={p} />);
-    expect(screen.getByTestId("kh-result-outside")).toHaveTextContent("Ngoài 30 ngày tới: không tính vào kế hoạch.");
-    expect(screen.queryByTestId("kh-result-ba")).toBeNull();
-    expect(screen.getByTestId("kh-result-days")).not.toHaveTextContent("tính vào kế hoạch");
-    expect(screen.getByTestId("kh-result-cost")).not.toHaveTextContent("Δ Đơn");
-  });
-
-  it("an unknown cost reads 'Chưa biết chi phí' with its note, never 0đ", () => {
-    const p = withAgg(result({ cost_known: false, cost_horizon: null, cost_total: null, cost_note: "Chưa có chi phí quảng cáo của chiến dịch này." }));
-    render(<CardResult cardId={p.aggregate!.cards[0]!.card_id} plan={p} />);
-    const t = screen.getByTestId("kh-result-cost");
-    expect(t).toHaveTextContent("Chưa biết chi phí · Chưa có chi phí quảng cáo của chiến dịch này.");
-    expect(t).not.toHaveTextContent("0đ");
-  });
-
-  it("totals_note shows when the totals are partial; unknown plan cost is said, not summed", async () => {
+  it("unknown plan cost is said, not summed", async () => {
     const p = withAgg(result(), { totals_partial: true, totals_note: "Tổng chưa gồm 1 thẻ chưa ước tính được.", cost_unknown_cards: ["card-tr"] });
     const cost = { ...p.aggregate!.cost!, horizon: span("2026-11-11", "2026-12-10", 30), horizon_spend_before: 30_000_000, horizon_spend_delta: null, horizon_spend_after: null, horizon_cap: 36_000_000, over_by_horizon: null, cost_complete: false, cost_note: "Thiếu chi phí của 1 thẻ.", cost_unknown_cards: ["card-tr"] };
     open({ ...p, aggregate: { ...p.aggregate!, cost } });
-    expect(await screen.findByTestId("kh-totals-note")).toHaveTextContent("Tổng chưa gồm 1 thẻ");
-    expect(screen.getByTestId("kh-cost-unknown")).toHaveTextContent("Chưa biết chi phí của 1 thẻ. Thiếu chi phí của 1 thẻ.");
-    expect(screen.getByTestId("kh-agg-chi")).toHaveTextContent("chưa biết chi phí");
+    expect(await screen.findByTestId("kh-agg-chi")).toHaveTextContent("chưa biết chi phí");
     expect(screen.getByTestId("kh-agg-chiday")).not.toHaveTextContent("Vượt trần");
   });
 
@@ -109,21 +88,14 @@ describe("P99b Kế hoạch: horizon, counted days, cost", () => {
     expect(screen.getByTestId("kh-agg-orders")).toHaveTextContent("—");
   });
 
-  it("the contribution of a card without an evaluation is 'chưa có dữ liệu', and the live base has no refresh button", async () => {
-    const p = plan();
-    const cards = p.cards.map((c, i) => (i === 0 ? { ...c, evaluation: null } : c));
-    open({ ...p, cards, plan: { ...p.plan!, base: { live: true, as_of: "2026-11-10", newest_day: "2026-11-10", newer_available: false, note: "Số liệu tính lại mỗi lần mở." } } });
-    expect(await screen.findByTestId("kh-contrib-none")).toHaveTextContent("Đóng góp: chưa có dữ liệu");
-    expect(screen.queryByTestId("kh-refresh")).toBeNull();
-  });
 });
 
 describe("P99b Kế hoạch: empty plan and data_missing", () => {
   it("an empty plan shows its note and no numbers", async () => {
     const aggregate: PlanAggregate = { n_cards: 0, horizon: HORIZON, live: true, today: null, after: null, cost: null, deltas_p50: null, empty: true, empty_note: "Kế hoạch trống: thêm thẻ để xem 30 ngày tới.", cards: [], unavailable_cards: [], range_method: "x" };
     open({ plan: plan().plan, cards: [], aggregate, windows: null, change_sets: [] });
-    expect(await screen.findByTestId("kh-empty-note")).toHaveTextContent("Kế hoạch trống: thêm thẻ để xem 30 ngày tới.");
-    expect(screen.getByTestId("kh-horizon")).toHaveTextContent("30 ngày tới: 11/11 – 10/12");
+    expect(await screen.findByTestId("kh-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("kh-empty-note")).toBeNull();
     expect(screen.queryByTestId("kh-agg")).toBeNull();
   });
 
@@ -132,7 +104,7 @@ describe("P99b Kế hoạch: empty plan and data_missing", () => {
     expect(p.cards.length).toBeGreaterThan(0);
     const aggregate: PlanAggregate = { n_cards: 0, horizon: HORIZON, live: true, today: null, after: null, cost: null, deltas_p50: null, empty: true, empty_note: "Kế hoạch chưa có thẻ nào.", cards: [], unavailable_cards: [], range_method: "x" };
     open({ ...p, aggregate });
-    expect(await screen.findByTestId("kh-horizon")).toBeInTheDocument();
+    expect(await screen.findByTestId("kh-rows")).toBeInTheDocument();
     expect(screen.queryByTestId("kh-empty-note")).toBeNull();
     expect(screen.queryByText("Kế hoạch chưa có thẻ nào.")).toBeNull();
   });
@@ -153,53 +125,10 @@ describe("P99b Kế hoạch: empty plan and data_missing", () => {
       data_missing: { code: "rows_not_materialized", message: "Chưa có số liệu theo ngày của kỳ này.", window: { from: "2026-10-12", to: "2026-11-10" }, missing_days: 3, first_missing: "2026-11-08" },
     };
     open({ ...p, cards: p.cards.map((c) => ({ ...c, evaluation: null })), aggregate });
-    expect(await screen.findByTestId("kh-dm-message")).toHaveTextContent("Chưa có số liệu theo ngày của kỳ này.");
-    expect(screen.getByTestId("kh-dm-detail")).toHaveTextContent("Kỳ 12/10–10/11 · thiếu 3 ngày, từ 08/11");
+    expect(await screen.findByTestId("kh-dm-detail")).toHaveTextContent("Kỳ 12/10–10/11 · thiếu 3 ngày, từ 08/11");
     expect(screen.queryByTestId("kh-agg")).toBeNull();
     expect(screen.queryByTestId("kh-prod-today")).toBeNull();
     expect(screen.queryByTestId("kh-base")).toBeNull();
-  });
-});
-
-describe("P99b Ads read-back", () => {
-  const matched: AdsReadback = {
-    state: "matched",
-    label: "Đã khớp chiến dịch",
-    reason: null,
-    reason_text: null,
-    matched_by: "name",
-    campaign: { name: "GT-A mùa mưa", segment: "product", first_day: "2026-11-02", item_ids: ["1"] },
-    candidates: [],
-    started_before_card: false,
-    actual: { spend: 450_000, gmv: 2_400_000, orders: 12, roas: null, basis: "daily", from: "2026-11-02", to: "2026-11-09", days_covered: 6, days_expected: 8, reasons: { roas: "Chưa có doanh thu quảng cáo đủ ngày", coverage: "Thiếu 2 ngày" } },
-  };
-  it("matched: campaign name, the four actuals, a null with its reason, coverage", () => {
-    render(<AdsReadbackBlock readback={matched} />);
-    expect(screen.getByTestId("kh-readback-name")).toHaveTextContent("GT-A mùa mưa");
-    expect(screen.getByTestId("kh-readback-spend")).toHaveTextContent("450.000đ");
-    expect(screen.getByTestId("kh-readback-gmv")).toHaveTextContent("2.400.000đ");
-    expect(screen.getByTestId("kh-readback-orders")).toHaveTextContent("12");
-    expect(screen.getByTestId("kh-readback-roas")).toHaveTextContent("chưa có dữ liệu · Chưa có doanh thu quảng cáo đủ ngày");
-    expect(screen.getByTestId("kh-readback-roas")).not.toHaveTextContent("0");
-    expect(screen.getByTestId("kh-readback-coverage")).toHaveTextContent("Có số liệu 6/8 ngày (02/11 – 09/11) · Thiếu 2 ngày");
-  });
-  it("matched without actuals says so", () => {
-    render(<AdsReadbackBlock readback={{ ...matched, actual: null }} />);
-    expect(screen.getByTestId("kh-readback-none")).toHaveTextContent("Chưa có dữ liệu thực tế");
-  });
-  it("not_found and ambiguous: label, reason text, candidates", () => {
-    const { rerender } = render(<AdsReadbackBlock readback={{ state: "not_found", label: "Chưa tìm thấy chiến dịch", reason: "not_read_yet", reason_text: "Connector chưa đọc chiến dịch này.", campaign: null, candidates: [], actual: null }} />);
-    expect(screen.getByTestId("kh-readback-label")).toHaveTextContent("Chưa tìm thấy chiến dịch");
-    expect(screen.getByTestId("kh-readback-reason")).toHaveTextContent("Connector chưa đọc chiến dịch này.");
-    rerender(<AdsReadbackBlock readback={{ state: "ambiguous", label: "Có nhiều chiến dịch", reason_text: "Hai chiến dịch cùng sản phẩm.", campaign: null, candidates: [{ name: "Chiến dịch 1", first_day: "2026-11-02" }, { name: "Chiến dịch 2" }], actual: null }} />);
-    expect(screen.getByTestId("kh-readback-candidates")).toHaveTextContent("Chiến dịch 1 · bắt đầu 02/11");
-    expect(screen.getByTestId("kh-readback-candidates")).toHaveTextContent("Chiến dịch 2");
-    expect(screen.queryByTestId("kh-readback-actual")).toBeNull();
-  });
-  it("shows on the plan row of an ads_new_campaign card", async () => {
-    const p = plan();
-    open({ ...p, cards: p.cards.map((c, i) => (i === 0 ? { ...c, ads_readback: matched } : c)) });
-    expect(await screen.findByTestId("kh-readback")).toHaveTextContent("GT-A mùa mưa");
   });
 });
 

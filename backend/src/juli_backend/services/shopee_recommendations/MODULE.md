@@ -151,3 +151,10 @@ the client's text is never edited; approved: kept and left flagged for a person)
 | `listing_combo` | a new listing that sells existing products together (D85.16) |
 | `plan_groups` | groups of a plan (D85.14, P94): placing versions, exclusive fields, periods, entries, export rows / `.xlsx` |
 | `fill_queue_port` | the single call into T3's fill queue (`enqueue_for_approval`); a stub until `fill_queue` exists |
+
+## month_plan (P100 canvas)
+
+`month_plan.month_plans` / `month_plan` is the ONE computation of Kế hoạch's month figures (goal_gmv,
+goal_profit, baseline_*, uplift_*, mtd_*, day, days_in_month) for scope `running` (executed plans) or
+`running+draft`. Tổng quan's month card (`channel_split._plan_block`, scope running) and the Kế hoạch screen
+(`GET /plan` answer's `month`, both scopes) read only this. Rules are in the module docstring.

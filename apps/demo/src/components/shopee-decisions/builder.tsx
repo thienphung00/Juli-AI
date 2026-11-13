@@ -220,11 +220,6 @@ function Builder({ from, narrow, productId, products }: { readonly from: string 
       <div>
         {narrow ? <div className="sa-eyebrow">TỰ TẠO PHƯƠNG ÁN</div> : null}
         <h1 className="sa-h1">Tự đặt ưu đãi, xem số trước khi quyết định</h1>
-        <p className="sa-hint">
-          {narrow
-            ? "Thêm tối đa 4 phương án rồi so sánh. Chưa lưu gì cho đến khi bấm “Lưu thành đề xuất”."
-            : "Nhập thay đổi bạn muốn thử, thêm tối đa 4 phương án để đặt cạnh nhau. Chưa lưu gì cho đến khi bấm “Lưu thành đề xuất”. Số tính bằng cùng công thức với thẻ Juli đề xuất."}
-        </p>
       </div>
 
       <div className="sb-grid">
@@ -358,7 +353,7 @@ function Builder({ from, narrow, productId, products }: { readonly from: string 
           <section className="sa-card" data-testid="sb-compare">
             <div className="sa-card__head">
               <h2 className="sa-h2">So sánh phương án</h2>
-              <span className="sa-hint">{narrow ? "Vuốt ngang để xem từng phương án." : "30 ngày, dự kiến. Mỗi ô: giá trị, chênh lệch so với hôm nay, và so với P1 (phương án gốc)."}</span>
+              <span className="sa-hint">30 ngày</span>
             </div>
             {cmp.status === "busy" ? (
               <p className="sa-hint" role="status">
@@ -468,9 +463,8 @@ function Builder({ from, narrow, productId, products }: { readonly from: string 
               <Notice tone="info" testId="sb-saved">
                 <b>Đã lưu {saved.code}</b> · {narrow ? "thủ công" : "nguồn: thủ công"} · {saved.versions} phiên bản ({saved.code}-V1{saved.versions > 1 ? ` … -V${saved.versions}` : ""}), mở bằng V1.{" "}
                 <span data-testid="sb-saved-queue">{saved.queueText}</span>
-                {saved.draft ? " Thẻ ở trạng thái nháp: Ops gửi cho shop trong danh sách đề xuất." : ""}
+                {saved.draft ? " Thẻ nháp" : ""}
                 {saved.ack ? <b className="sd-ack"> {saved.ack}</b> : null}
-                {narrow ? null : " Người tạo được ghi cùng thẻ. Thẻ thủ công được duyệt, thực hiện và đo như thẻ Juli đề xuất, nhưng kết quả được tính riêng khi Juli học."}
               </Notice>
             ) : null}
           </section>

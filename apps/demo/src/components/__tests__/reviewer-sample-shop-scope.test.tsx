@@ -20,6 +20,7 @@ import type { BuilderP98Api } from "../../lib/shopee-decisions/builder-p98-api";
 import { RecoHostProvider, type RecoHost } from "../../lib/shopee-decisions/context";
 import type { RecoApi } from "../../lib/shopee-decisions/client";
 import type { CardList, CardSummary } from "../../lib/shopee-decisions/types";
+import { DataShopTabs } from "../shopee-analytics/data-shop-tabs";
 
 /**
  * P100 S2-C: on the reviewer's sample shop ("Dữ liệu mẫu") the rail holds the four Shopee screens and
@@ -49,18 +50,34 @@ function withReviewer(reviewer: ReviewerRecord | null, ui: ReactElement, reco: R
 const railLabels = () => within(screen.getByRole("navigation", { name: "Điều hướng chính" })).getAllByRole("listitem").map((li) => li.textContent);
 
 describe("S2-C · rail and redirect", () => {
-  it("the sample shop's rail lists only Tổng quan · Phân tích · Sản phẩm · Quyết định", () => {
+  it("the sample shop's rail lists Tổng quan · Phân tích · Quyết định · Dữ liệu shop", () => {
     render(<AppNavigation activePath="/tong-quan" platform="shopee" sampleShop />);
-    expect(railLabels()).toEqual(["Tổng quan", "Phân tích", "Sản phẩm", "Quyết định"]);
+    expect(railLabels()).toEqual(["Tổng quan", "Phân tích", "Quyết định", "Dữ liệu shop"]);
     expect(document.body.textContent).not.toMatch(/sắp có|demo/i);
   });
 
-  it("a seller's Shopee rail keeps all 8 tabs", () => {
+  it("a seller's Shopee rail keeps all 4 tabs", () => {
     render(<AppNavigation activePath="/tong-quan" platform="shopee" />);
-    expect(railLabels()).toHaveLength(8);
+    expect(railLabels()).toHaveLength(4);
   });
 
-  it("a hidden page, Cài đặt and / (the TikTok Trang chủ) go to Tổng quan; the four screens stay", () => {
+  it("on the sample shop Dữ liệu shop shows only the Sản phẩm sub-tab", () => {
+    render(
+      <StaticReviewerProvider reviewer={SAMPLE}>
+        <DataShopTabs active="san-pham" links={sellerLinks} />
+      </StaticReviewerProvider>,
+    );
+    expect(within(screen.getByTestId("dashboard-tabs")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Sản phẩm"]);
+    cleanup();
+    render(
+      <StaticReviewerProvider reviewer={null}>
+        <DataShopTabs active="tu-khoa" links={sellerLinks} />
+      </StaticReviewerProvider>,
+    );
+    expect(within(screen.getByTestId("dashboard-tabs")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Sản phẩm", "Từ khóa", "Dịch vụ hiển thị", "Đơn hàng", "Luồng"]);
+  });
+
+  it("a hidden page (and Cài đặt) goes to Tổng quan; the four screens stay", () => {
     for (const path of ["/", "/tu-khoa", "/quang-cao", "/don-hang", "/luong-san-pham", "/luong-san-pham/x", "/settings"]) {
       expect(sampleShopRedirect(path)).toBe("/tong-quan");
     }
@@ -106,7 +123,7 @@ describe("S2-D2 · the sample shop is the real seller app", () => {
       const modes = await screen.findByTestId("p98-modes");
       expect(within(modes).getAllByRole("button").map((b) => b.getAttribute("data-testid"))).toEqual(["p98-mode-single", "p98-mode-combo", "p98-mode-kol", "p98-mode-ads"]);
       const kinds = await toKinds();
-      expect(within(kinds).getAllByRole("button")).toHaveLength(13); // P100 w2: Mua kèm + Quà tặng are one "Deal Sốc" kind
+      expect(within(kinds).getAllByRole("button").filter((b) => b.getAttribute("data-testid")?.startsWith("p2-kind-"))).toHaveLength(12); // P100 w2: Mua kèm + Quà tặng are one "Deal Sốc" kind; P100 canvas: Listing combo mới removed
       expect(within(kinds).getByTestId("p2-kind-ads")).toBeInTheDocument(); // P100 B.15: edit a running campaign
       cleanup();
     }
@@ -127,7 +144,7 @@ describe("S2-D2 · the sample shop is the real seller app", () => {
       withReviewer(reviewer, <DecisionsView params={params()} />, fakeReco({ list: list(all) }));
       expect(await screen.findByTestId("sq-card-c-ads")).toBeInTheDocument();
       expect(screen.getByTestId("sq-card-c-title")).toBeInTheDocument();
-      expect(tabs()).toEqual(["Đề xuất · 2", "Đang thực hiện · 1", "Đo lường · 0"]);
+      expect(tabs()).toEqual(["Đề xuất · 2", "Thực hiện · 1", "Đo lường · 0"]);
       cleanup();
     }
   });
@@ -156,7 +173,7 @@ describe("S2-G · guide copy on the sample shop", () => {
     expect(text).toContain("sample Shopee shop");
     expect(text).toContain("nothing is sent to Shopee");
     expect(text).not.toMatch(/shop thật|ẩn tên|names and ids hidden|real seller|Shop TikTok|demo|simulated|mô phỏng/i);
-    expect(sample.steps.find((s) => s.id === "propose")?.body).toContain("“Đang thực hiện”");
+    expect(sample.steps.find((s) => s.id === "propose")?.body).toContain("“Thực hiện”");
     expect(sample.steps.map((s) => s.id)).toEqual(guideCopy(false).steps.map((s) => s.id));
     expect(sample.steps.find((s) => s.id === "home")?.href).toBe("/tong-quan");
     expect(sample.steps.find((s) => s.id === "switch")?.shortBody).toContain("Đổi shop");

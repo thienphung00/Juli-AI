@@ -41,7 +41,7 @@ from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services.ops import audit
 from juli_backend.services.shop_proposals import ProposalError
-from juli_backend.services.shopee_recommendations import change_sets, manual, plans
+from juli_backend.services.shopee_recommendations import change_sets, manual, month_plan, plans
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 BASE = "/shops/{shop_id}/shopee/recommendations"
@@ -112,7 +112,7 @@ async def ops_get_plan(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    return await _read(session, shop_id, plans.get_plan, now=_now(), audience="ops")
+    return await _read(session, shop_id, month_plan.plan_with_month, now=_now(), audience="ops")
 
 
 @router.get(BASE + "/plan/aggregate")

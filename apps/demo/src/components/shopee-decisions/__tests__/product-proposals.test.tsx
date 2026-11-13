@@ -50,7 +50,7 @@ describe("Sản phẩm › Đề xuất", () => {
     expect(screen.getByTestId("sp-card-c-combo")).toHaveTextContent("#2 · Xếp hàng");
     expect(screen.getByTestId("sp-card-c-title")).toHaveTextContent("#4 · Xếp hàng");
     expect(top).toHaveTextContent("2 phiên bản: V1 · V2");
-    expect(top).toHaveTextContent("Δ lợi nhuận (V1, dự kiến)");
+    expect(top).toHaveTextContent("Δ lợi nhuận (V1)");
     expect(top).toHaveTextContent("−1.400đ – +7.900đ/ngày (trong 30 ngày: −43.000đ – +237.000đ)");
     expect(screen.queryByTestId("sp-card-c-old")).toBeNull();
     expect(screen.getByTestId("sp-dots")).toHaveTextContent("Hàng đợi:1234");

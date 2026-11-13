@@ -119,12 +119,6 @@ describe("P96 · variations (A4, C2, J4)", () => {
     const v = buildVersion("deal_soc", deal({ addons: [addon] }), ctx).version as unknown as { addons: Record<string, unknown>[] };
     expect(v.addons[0]).not.toHaveProperty("variation_id");
   });
-
-  it("'Đưa lại listing' is refused for a listing that is selling", () => {
-    expect(problem("price_display", { ...f, price_display: { ...f.price_display, what: "listing_relist" } })).toMatch(/đã ẩn hoặc hết hàng/);
-    const soldOut = { ...ctx, product: { ...product, stock: 0 } };
-    expect(buildVersion("price_display", { ...f, price_display: { ...f.price_display, what: "listing_relist" } }, soldOut).version).toMatchObject({ kind: "listing_relist" });
-  });
 });
 
 describe("P100 wave 2 · Deal Sốc, one form with two types (brief C, B.14)", () => {

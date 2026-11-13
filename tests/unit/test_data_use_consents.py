@@ -81,8 +81,9 @@ def test_revision_fits_alembic_and_keeps_the_deferred_chain_the_tail():
     mig = _migration_module()
     assert mig.revision == "103_data_use_consents" and len(mig.revision) <= 32
     assert mig.down_revision == "102_shops_tiktok_numeric_id"
-    # Migration 107 (Ops pooled-prior filter) is now the parent of the deferred tail.
-    assert 'down_revision: str | None = "127_card_content_specs"' in BACKFILL.read_text("utf-8")
+    # The deferred tail hangs off the newest numbered migration (not a pinned head string).
+    newest = sorted(p.stem for p in (MIGRATIONS / "versions").glob("[0-9][0-9][0-9]_*.py"))[-1]
+    assert f'down_revision: str | None = "{newest}"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_app_role_may_only_select_insert_and_revoke():

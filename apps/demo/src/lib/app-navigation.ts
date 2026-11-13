@@ -11,7 +11,7 @@ import { ACTIONS_DESTINATION_LABEL } from "./destination-copy";
  * and carries `JULI_LOCKED_HINT` as its tooltip.
  */
 
-export type AppDestinationIcon = "home" | "decisions" | "analytics" | "juli" | "overview" | "products" | "keywords" | "ads" | "orders" | "flows";
+export type AppDestinationIcon = "home" | "decisions" | "analytics" | "juli" | "overview" | "products" | "keywords" | "ads" | "orders" | "flows" | "data";
 
 export interface AppDestination {
   readonly key: AppDestinationIcon;
@@ -39,10 +39,12 @@ export const APP_DESTINATIONS: readonly AppDestination[] = [
   { key: "juli", label: "Juli", icon: "juli", href: null, locked: true },
 ];
 
+/** The other four Dữ liệu shop sub-tabs (Sản phẩm is the entry's own href). */
+const DATA_SHOP_SUB_HREFS: readonly string[] = ["/tu-khoa", "/quang-cao", "/don-hang", "/luong-san-pham"];
+
 /**
- * Shopee shops (ADR-120 decision 2): Tổng quan / Phân tích / Sản phẩm / Quyết định, in that
- * order, then (P92 B-8) the four read-only pages the seller has from Juli Ops: Từ khóa / Quảng cáo /
- * Đơn hàng / Luồng; Cài đặt stays in the avatar menu. Tổng quan replaces Trang chủ, and there is no locked
+ * Shopee shops (ADR-120 decision 2): Tổng quan / Phân tích / Quyết định / Dữ liệu shop (P100 redesign; its
+ * sub-tabs Sản phẩm · Từ khóa · Dịch vụ hiển thị · Đơn hàng · Luồng keep their routes); Cài đặt stays in the avatar menu. Tổng quan replaces Trang chủ, and there is no locked
  * Juli entry. Isolated here so TikTok shops keep `APP_DESTINATIONS` untouched; the P81 app-shell
  * rework may fold the two lists into one.
  */
@@ -56,7 +58,6 @@ export const SHOPEE_DESTINATIONS: readonly AppDestination[] = [
   },
   // P96b: /xep-hang redirects to /phan-tich (its product table); the entry stays lit for an old link.
   { key: "analytics", label: "Phân tích", icon: "analytics", href: "/phan-tich", locked: false, alsoActive: ["/xep-hang"] },
-  { key: "products", label: "Sản phẩm", icon: "products", href: "/san-pham", locked: false },
   {
     key: "decisions",
     label: ACTIONS_DESTINATION_LABEL,
@@ -64,10 +65,8 @@ export const SHOPEE_DESTINATIONS: readonly AppDestination[] = [
     href: "/decisions",
     locked: false,
   },
-  { key: "keywords", label: "Từ khóa", icon: "keywords", href: "/tu-khoa", locked: false },
-  { key: "ads", label: "Dịch vụ hiển thị", icon: "ads", href: "/quang-cao", locked: false },
-  { key: "orders", label: "Đơn hàng", icon: "orders", href: "/don-hang", locked: false },
-  { key: "flows", label: "Luồng", icon: "flows", href: "/luong-san-pham", locked: false },
+  // P100 redesign: Sản phẩm / Từ khóa / Dịch vụ hiển thị / Đơn hàng / Luồng are sub-tabs of one entry.
+  { key: "data", label: "Dữ liệu shop", icon: "data", href: "/san-pham", locked: false, alsoActive: DATA_SHOP_SUB_HREFS },
 ];
 
 export type NavPlatform = "tiktok" | "shopee";
@@ -78,7 +77,7 @@ export type NavPlatform = "tiktok" | "shopee";
  * direct link to one goes to Tổng quan (`sampleShopRedirect`). The API refuses their routes on its
  * own (S2-F allowlist) — this list is presentation only.
  */
-export const SAMPLE_SHOP_DESTINATION_KEYS: readonly AppDestinationIcon[] = ["overview", "analytics", "products", "decisions"];
+export const SAMPLE_SHOP_DESTINATION_KEYS: readonly AppDestinationIcon[] = ["overview", "analytics", "decisions", "data"];
 
 export const SAMPLE_SHOP_HOME_HREF = "/tong-quan";
 
@@ -96,9 +95,11 @@ export function destinationsFor(platform: NavPlatform, options: { readonly sampl
  * pages, Cài đặt (not in its avatar menu) and `/` (the TikTok Trang chủ; P100 S2-D2) go to Tổng quan.
  */
 export function sampleShopRedirect(pathname: string): string | null {
+  // Dữ liệu shop: only its Sản phẩm sub-tab works on the sample shop; the other four go home.
   const hidden = [
     "/",
     ...SHOPEE_DESTINATIONS.filter((d) => !SAMPLE_SHOP_DESTINATION_KEYS.includes(d.key)).map((d) => d.href),
+    ...DATA_SHOP_SUB_HREFS,
     SETTINGS_HREF,
   ];
   return hidden.some((href) => isDestinationActive(pathname, href)) ? SAMPLE_SHOP_HOME_HREF : null;

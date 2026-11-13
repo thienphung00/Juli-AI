@@ -69,7 +69,6 @@ export function KolBuilder({ api, products, kols }: { readonly api: BuilderP98Ap
   return (
     <div className="sa-page" data-testid="kol-builder">
       <h2 className="sa-h1">Thiết lập KOL</h2>
-      <p className="sa-hint">Chọn KOL từ báo cáo KOL, sản phẩm, hoa hồng và hàng mẫu. Juli tính chi phí và điểm hoà vốn; không tự gửi gì cho KOL.</p>
       <section className="sa-card">
         <h3 className="sa-h2">① Chọn KOL</h3>
         <div className="sb-pills">

@@ -10,7 +10,6 @@ import type { Band, BeforeAfterRow, BuilderOutcome, BuilderVersion, BuilderWarni
 export type Kind92 =
   | "voucher"
   | "combo"
-  | "listing_combo"
   | "deal_soc"
   | "product_discount"
   | "price_flash"
@@ -47,11 +46,10 @@ export const MAX_ADDON_LIMIT = 100;
 /** "Mua ₫[X] để nhận [N] quà tặng": N is below 50. */
 export const MAX_GIFT_QTY = 49;
 
-/** The 13 strategies, each with the driver metric(s) it is measured by (B-3, artboard `kinds`). */
+/** The 12 strategies, each with the driver metric(s) it is measured by (B-3, artboard `kinds`). */
 export const KINDS_92: readonly { readonly key: Kind92; readonly name: string; readonly drivers: string }[] = [
   { key: "voucher", name: "Voucher", drivers: "AOV · CTOR" },
   { key: "combo", name: "Combo khuyến mãi", drivers: "AOV · CTOR" },
-  { key: "listing_combo", name: "Listing combo mới", drivers: "đơn · bán chéo" },
   { key: "deal_soc", name: "Deal Sốc", drivers: "AOV · CTOR · đơn" },
   { key: "product_discount", name: "Chương Trình Của Shop", drivers: "CTOR · đơn" },
   { key: "price_flash", name: "Giá bán + Flash sale", drivers: "CTOR · đơn" },
@@ -172,7 +170,6 @@ export interface Forms {
   /** Combo Khuyến Mãi in Shopee's shape (P97 D85.15): a product list, a type, tiers, the order limit, name ≤ 25, dates. */
   readonly combo: { name: string; items: readonly string[]; dtype: "pct" | "amount" | "special_price"; tiers: readonly ComboTierRow[]; limit: string; start: string; end: string; startHour?: string; endHour?: string };
   /** A new listing that sells several existing products together (P97 D85.16). */
-  readonly listing_combo: { title: string; images: readonly string[]; price: string; stock: string; sku: string; members: readonly string[] };
   /** Deal Sốc (P100 wave 2): one form, `type` = Loại Deal Sốc; Tên chương trình and Thời gian bắt đầu / kết thúc are shared. */
   readonly deal_soc: { type: DealSocType; name: string; start: string; end: string; startHour: string; endHour: string; addonLimit: string; addons: readonly AddonRow[]; gift: GiftForm };
   /** `multi`: one % for every product in `targets` (Shopee's bulk discount, P97 D85.13). */
@@ -186,7 +183,7 @@ export interface Forms {
   readonly cover_image: { overlay: CoverOverlay | null };
   readonly description_first_line: { text: string };
   readonly affiliate: { commission: string; campaign: string; samples: string; shipFee: string; multi: boolean; targets: readonly string[] };
-  readonly price_display: { what: "price_display" | "listing_hide" | "listing_relist"; text: string; stock: string };
+  readonly price_display: { what: "price_display"; text: string; stock: string };
 }
 
 export const newTier = (qty = "2", value = ""): ComboTierRow => ({ qty, value });
@@ -195,7 +192,6 @@ export function initialForms(): Forms {
   return {
     voucher: { scope: "product", dtype: "amount", value: "5000", min: "100000", max: "", usage: "", perBuyer: "", start: "", end: "", items: [] },
     combo: { name: "", items: [], dtype: "pct", tiers: [newTier("2", "5"), newTier("3", "8")], limit: "", start: "", end: "" },
-    listing_combo: { title: "", images: [], price: "", stock: "", sku: "", members: [] },
     deal_soc: {
       type: "add_on",
       name: "",
@@ -376,22 +372,6 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
         version: { kind: "combo", label: clip(name || `Combo ${c.items.length} sản phẩm`), ...(name ? { name } : {}), item_ids: [...c.items], discount_type: c.dtype, tiers, ...(limit.n !== null ? { purchase_limit: limit.n } : {}), ...dated(c.start, c.end), ...hours.fields },
       };
     }
-    case "listing_combo": {
-      const l = f.listing_combo;
-      const title = l.title.trim();
-      if (!title) return no("Nhập tên listing combo.");
-      if ([...title].length > MAX_TITLE) return no(`Tên listing tối đa ${MAX_TITLE} ký tự.`);
-      if (l.members.length < 2) return no("Chọn từ 2 sản phẩm trở lên làm thành phần của listing combo.");
-      if (l.members.length > MAX_COMBO_MEMBERS) return no(`Listing combo có tối đa ${MAX_COMBO_MEMBERS} sản phẩm thành phần.`);
-      const price = num(l.price);
-      if (price === null || price < MIN_COMBO_PRICE) return no("Nhập giá bán của listing combo (từ 1.000đ).");
-      const stock = intIn(l.stock, 0, 10_000_000, "Tồn kho từ 0 đến 10.000.000.");
-      if (stock.problem) return no(stock.problem);
-      if (stock.n === null) return no("Nhập tồn kho của listing combo.");
-      if (l.images.length > MAX_LISTING_IMAGES) return no(`Tối đa ${MAX_LISTING_IMAGES} ảnh.`);
-      const sku = l.sku.trim();
-      return { problem: null, version: { kind: "listing_combo", label: clip(title), title, image_refs: [...l.images], price, stock: stock.n, ...(sku ? { sku } : {}), member_ids: [...l.members] } };
-    }
     case "deal_soc": {
       const d = f.deal_soc;
       const name = d.name.trim();
@@ -559,9 +539,6 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     }
     case "price_display": {
       const p = f.price_display;
-      if (p.what === "listing_hide") return { problem: null, version: { kind: "listing_hide", label: "Ẩn listing", item_id: id } };
-      if (p.what === "listing_relist" && ctx.product.stock !== null && ctx.product.stock > 0) return no(REFUSAL_TEXT.listing_already_live);
-      if (p.what === "listing_relist") return { problem: null, version: { kind: "listing_relist", label: "Đưa lại listing", item_id: id, ...opt("stock", p.stock) } };
       const v = ctx.variations[0];
       return { problem: null, version: { kind: "price_display", label: "Hiển thị giá mỗi đơn vị", item_id: id, ...(v && ctx.variations.length === 1 ? { variation_id: v.variation_id } : {}), ...(p.text.trim() ? { text: p.text.trim() } : {}) } };
     }
@@ -574,7 +551,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
 export const REFUSAL_TEXT: Readonly<Record<string, string>> = {
   sku_no_orders: "Phân loại này chưa có đơn trong kỳ (có thể hết hàng) — chọn phân loại khác.",
   sku_unknown: "Phân loại này không thuộc sản phẩm đã chọn.",
-  voucher_scope_no_data: "Chưa có dữ liệu đơn theo loại voucher này để ước tính.",
+  voucher_scope_no_data: "Chưa có dữ liệu đơn theo loại voucher này.",
   voucher_value_over_min_spend: "Giá trị voucher phải nhỏ hơn đơn tối thiểu.",
   sku_duplicate: "SKU trùng với một phân loại đang có.",
   listing_already_live: "Listing đang bán — chỉ đưa lại listing đã ẩn hoặc hết hàng.",
@@ -704,17 +681,17 @@ export function breachesOfOutcome(o: BuilderOutcome): readonly BuilderWarning[] 
   return (o.warnings ?? []).filter((w) => w.type === "floor" || w.type === "spend_cap");
 }
 
-export const BASIS_LABELS: readonly string[] = ["từ lịch sử sản phẩm", "của shop", "ước tính chung", "không đủ dữ liệu"];
+export const BASIS_LABELS: readonly string[] = ["từ lịch sử sản phẩm", "của shop", "chung", "không đủ dữ liệu"];
 
 
-/** "Dự kiến dùng 6 / 20 lượt · chưa chạm giới hạn" of a voucher outcome (null for other kinds). */
+/** "Dùng 6 / 20 lượt · chưa chạm giới hạn" of a voucher outcome (null for other kinds). */
 export function voucherUsageText(o: BuilderOutcome): string | null {
   const u = o.voucher?.usage;
   if (!u) return null;
   const used = u.used === null ? DASH : fmt(u.used, Number.isInteger(u.used) || u.used >= 10 ? 0 : 1);
   const limit = u.limit === null ? "không giới hạn" : fmt(u.limit, 0);
   const state = u.limit === null ? "" : u.capped ? " · chạm giới hạn" : " · chưa chạm giới hạn";
-  return `Dự kiến dùng ${used} / ${limit} lượt${state}`;
+  return `Dùng ${used} / ${limit} lượt${state}`;
 }
 
 /** The max-discount line: whether the cap binds and how often (percent vouchers only). */
@@ -989,3 +966,58 @@ export function bestBadge(o: BuilderOutcome): string {
   const p = o.delta?.profit?.p50 ?? null;
   return p !== null && p < 0 ? "lỗ ít nhất" : "lợi nhuận tốt nhất";
 }
+
+// ── step ② Chiến lược: the three groups of the canvas (Flow2) ─────────────────────────────
+
+export type MetricKey = "views" | "ctr" | "ctor" | "aov" | "orders";
+
+/** One colour per metric, the same on every group and on step ① ("Điểm nghẽn"): see `.p2-m--*` in shopee-p92.css. */
+export const METRIC_LABELS: Readonly<Record<MetricKey, string>> = { views: "Lượt xem", ctr: "CTR", ctor: "CTOR", aov: "AOV", orders: "Đơn" };
+
+export interface StrategyGroup {
+  readonly key: "offer" | "listing" | "traffic";
+  readonly title: string;
+  readonly metrics: readonly MetricKey[];
+  /** "Chi phí: …" is shown only for the groups that cost money. */
+  readonly cost: string | null;
+  readonly kinds: readonly { readonly key: Kind92; readonly what: string }[];
+}
+
+export const STRATEGY_GROUPS: readonly StrategyGroup[] = [
+  {
+    key: "offer",
+    title: "Ưu đãi",
+    metrics: ["aov", "ctor"],
+    cost: "tiền giảm giá",
+    kinds: [
+      { key: "voucher", what: "Đơn gần mức tối thiểu mua thêm" },
+      { key: "combo", what: "Mua nhiều giảm nhiều" },
+      { key: "deal_soc", what: "Mua kèm hoặc mua để nhận quà" },
+      { key: "product_discount", what: "Giảm giá theo %" },
+      { key: "price_flash", what: "Giá mới hoặc khung giờ" },
+    ],
+  },
+  {
+    key: "listing",
+    title: "Listing",
+    metrics: ["views", "ctr", "ctor"],
+    cost: null,
+    kinds: [
+      { key: "title", what: "Từ khoá khách tìm" },
+      { key: "cover_image", what: "Ảnh đầu tiên trong kết quả" },
+      { key: "description_first_line", what: "Dòng đầu mô tả" },
+      { key: "price_display", what: "Ghi đơn giá lên ảnh bìa" },
+      { key: "variation_set", what: "Thêm Set 3, Set 5 trong listing" },
+    ],
+  },
+  {
+    key: "traffic",
+    title: "Truy cập",
+    metrics: ["views", "orders"],
+    cost: "quảng cáo / hoa hồng",
+    kinds: [
+      { key: "ads", what: "Tạo, so sánh, sửa chiến dịch" },
+      { key: "affiliate", what: "Hoa hồng, chọn KOL, gửi mẫu" },
+    ],
+  },
+];

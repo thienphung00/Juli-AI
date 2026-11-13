@@ -7227,3 +7227,63 @@ h4 {
   outline: var(--juli-focus-width) solid var(--juli-focus-ring);
   outline-offset: 2px;
 }
+
+/* P100 shared metric chips and period-over-period change (components/metrics). */
+:root {
+  --jm-views-bg: #e4ecfc; --jm-views-fg: #1d4ed8;
+  --jm-ctr-bg: #dcf3ef; --jm-ctr-fg: #0f766e;
+  --jm-ctor-bg: #ede9fe; --jm-ctor-fg: #6d28d9;
+  --jm-aov-bg: #fdf0dc; --jm-aov-fg: #92400e;
+  --jm-orders-bg: #e3f5e9; --jm-orders-fg: #15803d;
+  --jm-gmv-bg: #ececf0; --jm-gmv-fg: #121214;
+  --jm-margin-bg: #fdeef4; --jm-margin-fg: #9d2d5c;
+}
+.jm-chip { display: inline-block; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+.jm-chip--views { background: var(--jm-views-bg); color: var(--jm-views-fg); }
+.jm-chip--ctr { background: var(--jm-ctr-bg); color: var(--jm-ctr-fg); }
+.jm-chip--ctor { background: var(--jm-ctor-bg); color: var(--jm-ctor-fg); }
+.jm-chip--aov { background: var(--jm-aov-bg); color: var(--jm-aov-fg); }
+.jm-chip--orders { background: var(--jm-orders-bg); color: var(--jm-orders-fg); }
+.jm-chip--gmv { background: var(--jm-gmv-bg); color: var(--jm-gmv-fg); }
+.jm-chip--margin { background: var(--jm-margin-bg); color: var(--jm-margin-fg); }
+.jm-chip--on.jm-chip--views { background: var(--jm-views-fg); color: #fff; }
+.jm-chip--on.jm-chip--ctr { background: var(--jm-ctr-fg); color: #fff; }
+.jm-chip--on.jm-chip--ctor { background: var(--jm-ctor-fg); color: #fff; }
+.jm-chip--on.jm-chip--aov { background: var(--jm-aov-fg); color: #fff; }
+.jm-chip--on.jm-chip--orders { background: var(--jm-orders-fg); color: #fff; }
+.jm-chip--on.jm-chip--gmv { background: var(--jm-gmv-fg); color: #fff; }
+.jm-chip--on.jm-chip--margin { background: var(--jm-margin-fg); color: #fff; }
+.jm-shift { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.jm-shift--up { color: #15803d; }
+.jm-shift--down { color: #b42318; }
+.jm-shift--flat { color: #6b6b74; font-weight: 400; }
+
+/* P100 Phân tích (board B) */
+.jp-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+.jp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.jp-chip-link { text-decoration: none; }
+.jp-chip-link .jm-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; font-size: 15px; }
+.jp-section { display: flex; flex-direction: column; gap: 4px; }
+.jp-section__head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; padding-bottom: 6px; }
+.jp-sort { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6b6b74; }
+.jp-sort select { height: 36px; border: 1px solid #d9d9df; border-radius: 8px; padding: 0 8px; font: inherit; color: #121214; background: #fff; }
+.jp-grid { display: grid; gap: 8px; align-items: center; min-height: 44px; border-bottom: 1px solid #f1f1f4; font-size: 14px; font-variant-numeric: tabular-nums; }
+.jp-grid--head { min-height: 0; padding-bottom: 6px; border-bottom: 1px solid #ececf0; font-size: 13px; color: #6b6b74; }
+.jp-grid--ch { grid-template-columns: 220px 120px 120px 110px minmax(0, 1fr) 150px; }
+.jp-grid--pr { grid-template-columns: minmax(0, 1fr) 110px 110px 100px 140px 150px; }
+.jp-grid--kol { grid-template-columns: minmax(0, 1fr) 110px 90px 70px 100px 100px 110px 90px 150px; }
+.jp-grid--on { background: #fdf5f8; }
+.jp-name { text-decoration: none; display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: #121214; cursor: pointer; text-align: left; }
+.jp-tag { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #fdeef4; color: #9d2d5c; }
+.jp-who { display: flex; align-items: center; gap: 10px; min-width: 0; color: #121214; text-decoration: none; }
+.jp-who > span:last-child { min-width: 0; }
+.jp-clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jp-dim { color: #6b6b74; }
+.jp-up { color: #15803d; font-weight: 600; }
+.jp-down { color: #b42318; font-weight: 600; }
+.jp-kol-totals { display: flex; flex-wrap: wrap; gap: 16px; font-size: 14px; }
+.jp-cta { justify-self: end; display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #d9d9df; color: #121214; font-weight: 600; font-size: 13px; text-decoration: none; }
+.jp-cta--on { background: #121214; color: #fff; border-color: #121214; }
+@media (max-width: 900px) {
+  .jp-grid--ch, .jp-grid--pr, .jp-grid--kol { grid-template-columns: 1fr 1fr; }
+}

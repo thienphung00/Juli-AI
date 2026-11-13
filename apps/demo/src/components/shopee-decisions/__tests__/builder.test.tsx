@@ -31,7 +31,6 @@ describe("Tự tạo phương án · So sánh phương án", () => {
   it("opens on one combo of the product, with the artboard's copy, and prices it through compare (sent twice, shown once)", async () => {
     const { reco } = open();
     expect(await screen.findByText("Tự đặt ưu đãi, xem số trước khi quyết định")).toBeInTheDocument();
-    expect(screen.getByText(/Nhập thay đổi bạn muốn thử, thêm tối đa 4 phương án để đặt cạnh nhau/)).toBeInTheDocument();
     expect(screen.getByTestId("sb-count")).toHaveTextContent("1/4");
     await screen.findByTestId("sb-table");
     const sent = lastCompare(reco);
@@ -177,7 +176,7 @@ describe("Tự tạo phương án · So sánh phương án", () => {
     renderReco(<BuilderView from={null} productId={null} />, reco, { staff: true, products });
     await screen.findByTestId("sb-table");
     fireEvent.click(screen.getByTestId("sb-save-btn"));
-    expect(await screen.findByTestId("sb-saved")).toHaveTextContent("Thẻ ở trạng thái nháp");
+    expect(await screen.findByTestId("sb-saved")).toHaveTextContent("Thẻ nháp");
   });
 });
 
@@ -186,11 +185,9 @@ describe("Tự tạo phương án · trên điện thoại", () => {
     window.matchMedia = ((query: string) => ({ matches: true, media: query, addEventListener: () => undefined, removeEventListener: () => undefined })) as unknown as typeof window.matchMedia;
     const reco = fakeReco({ compare: compareResult(3) });
     open(reco);
-    expect(await screen.findByText("Thêm tối đa 4 phương án rồi so sánh. Chưa lưu gì cho đến khi bấm “Lưu thành đề xuất”.")).toBeInTheDocument();
     await screen.findByTestId("sb-swipe");
     expect(screen.queryByTestId("sb-table")).toBeNull();
     expect(screen.getByRole("button", { name: "+ Thêm" })).toBeInTheDocument();
-    expect(screen.getByText("Vuốt ngang để xem từng phương án.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "+ Thêm" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Thêm" }));
     await waitFor(() => expect(within(screen.getByTestId("sb-swipe")).getAllByText(/^P\d$/)).toHaveLength(3));

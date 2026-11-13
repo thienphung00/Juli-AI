@@ -28,6 +28,7 @@ const ICON_PATHS: Record<AppDestinationIcon, string> = {
   keywords: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4",
   ads: "M3 11v3l11 5V6zM14 9a4 4 0 0 1 0 6M6 14l1 5",
   orders: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6",
+  data: "M3 7.5 12 3l9 4.5v9L12 21l-9-4.5zM3 7.5l9 4.5 9-4.5M12 12v9",
   flows: "M4 6h10M4 12h16M4 18h7M17 4l3 2-3 2M14 16l3 2-3 2",
   juli: "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6",
 };

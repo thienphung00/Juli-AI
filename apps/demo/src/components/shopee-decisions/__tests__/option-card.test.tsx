@@ -46,6 +46,9 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.getByTestId("oc-profit")).toHaveTextContent("+1.234.567đ · +5,5% (+500.000đ … +2.000.000đ)");
     expect(screen.getByTestId("oc-buildup")).toHaveTextContent("+300.000đ từ đơn thêm. −50.000đ giảm giá.");
     expect(screen.getByTestId("oc-gmv")).toHaveTextContent("+2.500.000đ · +12,5%");
+    // P100: Δ are the totals of the version's 7 days, the per-day figure is secondary
+    expect(screen.getByTestId("oc-profit-perday")).toHaveTextContent("≈ +176.367đ/ngày");
+    expect(screen.getByTestId("oc-gmv-perday")).toHaveTextContent("≈ +357.143đ/ngày");
     expect(screen.getByTestId("oc-orders")).toHaveTextContent("+12 · +12,0%");
     expect(screen.getByTestId("oc-funnel")).toHaveTextContent("Hiển thị 10.000 → 10.500 · CTR 3,50% → 3,60% · CTOR 4,20% → 4,30% · AOV 200.000đ → 205.000đ");
     expect(screen.getByTestId("oc-margin")).toHaveTextContent("15,0% → 18,8% (+3,8 điểm)");
@@ -59,7 +62,7 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.queryByTestId("oc-weak")).toBeNull();
     expect(screen.queryByTestId("oc-detail")).toBeNull();
     // P100-C (B.6): Δ tổng lợi nhuận is the headline; no "Tác động", no "Quy đổi 30 ngày"
-    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ Tổng lợi nhuận", "Δ GMV", "Δ Đơn", "Phễu", "Biên lợi nhuận", "ROI", "Chi phí", "Hoà vốn"]);
+    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ lợi nhuận cả 7 ngày", "Δ GMV cả 7 ngày", "Δ Đơn", "Phễu", "Biên lợi nhuận", "ROI", "Chi phí", "Hoà vốn"]);
   });
 
   it("P100-C: one break-even line with orders or AOV; no ROI / margin without them", () => {
@@ -73,17 +76,17 @@ describe("P98 W3-I · OptionCard", () => {
     const note = "Chưa ước tính được.";
     const r = result({ estimable: false, delta: { profit: null, gmv: { value: null, pct: null }, orders: { value: 0, pct: null, note } }, build_up: [], after: { days: 7, label: "Sau 7 ngày", gmv_before: 1, gmv_after: null, profit_before: null, profit_after: null } });
     render(<OptionCard result={r} />);
-    expect(screen.getByTestId("oc-profit")).toHaveTextContent("chưa ước tính được");
+    expect(screen.getByTestId("oc-profit")).toHaveTextContent("—");
     expect(screen.getByTestId("oc-note")).toHaveTextContent(note);
-    expect(screen.getByTestId("oc-gmv")).toHaveTextContent("chưa ước tính được");
-    expect(screen.getByTestId("oc-orders")).toHaveTextContent("chưa ước tính được");
+    expect(screen.getByTestId("oc-gmv")).toHaveTextContent("—");
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("—");
     expect(screen.getByTestId("oc-orders")).not.toHaveTextContent("+0");
     expect(screen.queryByTestId("oc-after")).toBeNull();
   });
 
   it("'chưa tính' when estimable but profit unknown", () => {
     render(<OptionCard result={result({ delta: { profit: null, gmv: { value: 1000, pct: 1 }, orders: { value: 1, pct: 1, note: null } } })} />);
-    expect(screen.getByTestId("oc-profit")).toHaveTextContent("chưa tính");
+    expect(screen.getByTestId("oc-profit")).toHaveTextContent("—");
   });
 
   it("AOV-only: +0 orders and the note", () => {
@@ -95,7 +98,7 @@ describe("P98 W3-I · OptionCard", () => {
 
   it("shows the 'ước tính chung' tag only when basis_weak; uses '30 ngày đầu' for first_30_days", () => {
     const { rerender } = render(<OptionCard result={result({ basis: "prior", basis_weak: true, horizon: "first_30_days", after: { days: 30, label: "30 ngày đầu", gmv_before: 1, gmv_after: 2, profit_before: 1, profit_after: 2 } })} />);
-    expect(screen.getByTestId("oc-weak")).toHaveTextContent("ước tính chung");
+    expect(screen.getByTestId("oc-weak")).toHaveTextContent("chung");
     expect(screen.getAllByText("30 ngày đầu").length).toBeGreaterThan(0);
     rerender(<OptionCard result={result()} />);
     expect(screen.queryByText("ước tính chung")).toBeNull();
@@ -173,7 +176,7 @@ describe("P99 · OptionCard", () => {
     expect(screen.getByTestId("oc-breakeven")).toHaveTextContent("cần thêm 5 đơn để hoà vốn");
     expect(screen.getByTestId("oc-cost")).toHaveTextContent("150.000đ");
     expect(screen.getByTestId("oc-cost-days")).toHaveTextContent(note);
-    expect(screen.getByTestId("oc-orders")).toHaveTextContent("chưa ước tính được");
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("—");
     expect(screen.getByTestId("oc-orders")).not.toHaveTextContent("+0");
   });
 
@@ -211,19 +214,18 @@ describe("P100 B.15 · Dịch vụ hiển thị edit on the OptionCard", () => {
     expect(screen.getByTestId("oc-ads-verdict")).toHaveTextContent("có lãi");
     expect(screen.getByTestId("oc-ads-profit")).toHaveTextContent("1.500.000đ → 1.200.000đ");
     expect(screen.getByTestId("oc-ads-roas")).toHaveTextContent("6,0");
-    expect(screen.getByTestId("oc-ads-spend")).toHaveTextContent("thấp hơn mức chiến dịch thực chi");
-    expect(screen.getByTestId("oc-ads-incremental")).toHaveTextContent("đơn tăng thêm thật −9");
-    expect(screen.getByTestId("oc-ads-cancel")).toHaveTextContent("10,0%");
+    expect(screen.queryByTestId("oc-ads-spend")).toBeNull();
+    expect(screen.queryByTestId("oc-ads-incremental")).toBeNull();
+    expect(screen.queryByTestId("oc-ads-cancel")).toBeNull();
     expect(screen.getByTestId("oc-cost")).toHaveTextContent("Giảm 600.000đ");
   });
 
   it("says chưa ước tính được when the edit has no history, and loses money as lỗ", () => {
     const none = { ...ads, cpa: { now: 60000, after: null }, verdict: { now: "lo" as const, after: null }, verdict_text: { now: "lỗ", after: null }, profit_after_ads: { now: -900000, after: null }, roas_shopee: { now: 6, after: null }, incremental: { share: null, orders_all: null, orders_extra: null } };
     render(<OptionCard result={result({ kind: "ads_roas_target", estimable: false, ads: none })} />);
-    expect(screen.getByTestId("oc-ads-cpa")).toHaveTextContent("60.000đ → chưa ước tính được");
-    expect(screen.getByTestId("oc-ads-verdict")).toHaveTextContent("lỗ → chưa ước tính được");
-    expect(screen.getByTestId("oc-ads-profit")).toHaveTextContent("−900.000đ → chưa ước tính được");
-    expect(screen.queryByTestId("oc-ads-incremental")).toBeNull();
+    expect(screen.getByTestId("oc-ads-cpa")).toHaveTextContent("60.000đ → —");
+    expect(screen.getByTestId("oc-ads-verdict")).toHaveTextContent("lỗ → —");
+    expect(screen.getByTestId("oc-ads-profit")).toHaveTextContent("−900.000đ → —");
   });
 
   it("other kinds carry no Ads block", () => {

@@ -15,7 +15,6 @@ import { TablePicker } from "./table-picker";
 export function ProductTargets({ ctx, selected, onChange, title, hint, max = MAX_TARGETS }: { readonly ctx: PanelCtx; readonly selected: readonly string[]; readonly onChange: (ids: readonly string[]) => void; readonly title: string; readonly hint?: string; readonly max?: number }) {
   return (
     <div className="p2-targets" data-testid="p2-targets">
-      {hint ? <p className="sa-hint">{hint}</p> : null}
       <TablePicker max={max} mode="multi" onChange={onChange} products={ctx.products} selected={selected} title={title} />
     </div>
   );
@@ -40,8 +39,7 @@ export function TargetRows({ outcome, onUntick, disabled }: { readonly outcome: 
       <b>
         {joint ? "Từng sản phẩm" : "Từng đối tượng"} ({fmt(rows.length)})
       </b>
-      {outcome.targets_note ? <p className="sa-hint">{outcome.targets_note}</p> : null}
-      {bad > 0 ? (
+            {bad > 0 ? (
         <p className="sd-check sd-check--bad" role="alert">
           <span>
             <b>Chạm giá sàn:</b> {fmt(bad)} đối tượng. Bỏ tick đối tượng đó để tính lại, hoặc giữ và xác nhận khi chọn.
@@ -84,7 +82,7 @@ export function TargetRows({ outcome, onUntick, disabled }: { readonly outcome: 
       </ul>
       {outcome.fill ? (
         <p className="sa-hint" data-testid="p2-fill-mode">
-          {outcome.fill.mode === "bulk" ? "Khi duyệt: điền một lượt bằng chỉnh sửa hàng loạt của Shopee." : `Khi duyệt: ${fmt(outcome.fill.targets)} lượt điền, mỗi đối tượng một lượt.`}
+          {outcome.fill.mode === "bulk" ? "Điền hàng loạt: 1 lượt" : `Số lượt điền: ${fmt(outcome.fill.targets)}`}
         </p>
       ) : null}
     </div>

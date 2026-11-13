@@ -13,7 +13,7 @@ type Variations = Readonly<Record<string, readonly VariationRow[]>>;
 
 /** Text a spreadsheet pastes: header row + one line per option, tab separated. */
 export function comboTable(rows: readonly ComboRow[]): string {
-  const head = ["Tên phân loại", "SKU", "Giá", "Giá/hộp", "Tiết kiệm so với mua lẻ", "Biên ở giá bán (chắc chắn)", "Biên cuối (ước tính)", "Lợi nhuận/đơn", "Tồn kho gợi ý"];
+  const head = ["Tên phân loại", "SKU", "Giá", "Giá/hộp", "Tiết kiệm so với mua lẻ", "Biên ở giá bán", "Biên cuối", "Lợi nhuận/đơn", "Tồn kho gợi ý"];
   const lines = rows.map((r) =>
     [r.option_name, r.sku ?? "", r.price ?? "", r.price_per_box ?? "", r.saving ?? "", r.margin_pct ?? "", r.final_margin_pct ?? "", r.profit_per_order ?? "", r.suggested_stock ?? ""].join("\t"),
   );
@@ -121,7 +121,6 @@ export function ComboBuilder({ api, variationsApi, products }: { readonly api: B
   return (
     <div className="sa-page" data-testid="combo-builder">
       <h2 className="sa-h1">Tạo combo nhiều SKU</h2>
-      <p className="sa-hint">Chọn sản phẩm và phân loại, chọn cỡ gói, xem số phương án trước khi tạo bảng. Bảng chỉ để sao chép: Juli không tự đăng lên Shopee.</p>
 
       <section className="sa-card">
         <h3 className="sa-h2">① Sản phẩm và phân loại</h3>
@@ -257,7 +256,7 @@ export function ComboBuilder({ api, variationsApi, products }: { readonly api: B
                   <th>Giá/hộp</th>
                   <th>Tiết kiệm so với mua lẻ</th>
                   <th>Biên ở giá bán (chắc chắn)</th>
-                  <th>Biên cuối (ước tính)</th>
+                  <th>Biên cuối</th>
                   <th>Lợi nhuận/đơn</th>
                   <th>Tồn kho gợi ý</th>
                 </tr>

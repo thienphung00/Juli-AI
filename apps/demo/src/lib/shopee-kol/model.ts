@@ -29,7 +29,7 @@ const ro = (x: number) => String(Math.max(0, Math.round(x)));
 
 /** What the estimate stands on, from the numbers the card has: the pair's orders and whether that is "Ít dữ liệu". */
 export function kolBasis(k: KolBlock): string {
-  return `${k.handle} có ${fmt(k.pair_orders, 0)} đơn của sản phẩm này trong 30 ngày${k.roi_shopee === null ? "" : `, ROI Shopee (chỉ hoa hồng) ${fmt(k.roi_shopee, 1)}`}`;
+  return `${k.handle} · ${fmt(k.pair_orders, 0)} đơn${k.roi_shopee === null ? "" : ` · ROI Shopee ${fmt(k.roi_shopee, 1)}`}`;
 }
 
 /** Rows of the versions table of a KOL card (`CardKOL.dc.html`): no "Hôm nay" column. */

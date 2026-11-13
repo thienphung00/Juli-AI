@@ -37,3 +37,24 @@ export function moneyPct(value: number | null | undefined, pct: number | null | 
 export function countPct(value: number | null | undefined, pct: number | null | undefined): string {
   return ok(pct) ? `${signedCount(value)} · ${signedPct(pct)}` : signedCount(value);
 }
+
+/** P100: the one place Δ lợi nhuận / Δ GMV become a per-day figure — the period total divided by the version's days. */
+export function perDayOf(total: number | null | undefined, days: number | null | undefined): number | null {
+  return ok(total) && ok(days) && days > 0 ? total / days : null;
+}
+
+/** "≈ +5.000đ/ngày" (null without a total or days). */
+export function perDayText(total: number | null | undefined, days: number | null | undefined): string | null {
+  const p = perDayOf(total, days);
+  return p === null ? null : `≈ ${signedMoney(p)}/ngày`;
+}
+
+/** "cả 30 ngày" — the period every Δ total stands on. */
+export function periodLabel(days: number | null | undefined): string {
+  return ok(days) && days > 0 ? `cả ${vnCount(days)} ngày` : "cả kỳ";
+}
+
+/** The days an option result's Δ stands on. */
+export function resultDays(r: { readonly days: number; readonly after?: { readonly days: number } }): number {
+  return r.after?.days || r.days;
+}

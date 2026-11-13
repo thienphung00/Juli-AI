@@ -42,6 +42,9 @@ from juli_backend.api.routes.demo_shopee_builder import router as demo_shopee_bu
 from juli_backend.api.routes.demo_shopee_builder_p98 import router as demo_shopee_builder_p98_router
 from juli_backend.api.routes.demo_shopee_market import router as demo_shopee_market_router
 from juli_backend.api.routes.demo_shopee_pages import router as demo_shopee_pages_router
+from juli_backend.api.routes.demo_shopee_reco_execution import (
+    router as demo_shopee_reco_execution_router,
+)
 from juli_backend.api.routes.demo_shopee_reco_manual import router as demo_shopee_reco_manual_router
 from juli_backend.api.routes.demo_shopee_reco_plan import router as demo_shopee_reco_plan_router
 from juli_backend.api.routes.demo_shopee_recommendations import (
@@ -70,6 +73,9 @@ from juli_backend.api.routes.ops_shopee_keywords import router as ops_shopee_key
 from juli_backend.api.routes.ops_shopee_kpi import router as ops_shopee_kpi_router
 from juli_backend.api.routes.ops_shopee_market import router as ops_shopee_market_router
 from juli_backend.api.routes.ops_shopee_orders import router as ops_shopee_orders_router
+from juli_backend.api.routes.ops_shopee_reco_execution import (
+    router as ops_shopee_reco_execution_router,
+)
 from juli_backend.api.routes.ops_shopee_reco_manual import router as ops_shopee_reco_manual_router
 from juli_backend.api.routes.ops_shopee_reco_plan import router as ops_shopee_reco_plan_router
 from juli_backend.api.routes.ops_shopee_recommendations import (
@@ -164,6 +170,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_shopee_analytics_router)
     # P91 D-6: the plan routes (/plan, /plans, /change-sets) go before the {card_id} routes
     v1_router.include_router(demo_shopee_reco_plan_router)
+    v1_router.include_router(demo_shopee_reco_execution_router)
     v1_router.include_router(demo_shopee_recommendations_router)
     v1_router.include_router(demo_shopee_reco_manual_router)
     v1_router.include_router(demo_shopee_builder_router)
@@ -178,6 +185,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_billing_router)
     v1_router.include_router(ops_proposals_router)
     v1_router.include_router(ops_shopee_reco_plan_router)
+    v1_router.include_router(ops_shopee_reco_execution_router)
     v1_router.include_router(ops_shopee_recommendations_router)
     v1_router.include_router(ops_shopee_reco_manual_router)
     v1_router.include_router(ops_shopee_builder_router)

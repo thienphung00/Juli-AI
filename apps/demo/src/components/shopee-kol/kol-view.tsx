@@ -107,13 +107,10 @@ function Body({ report, channel, item, onChannel, onItem }: { readonly report: K
       </div>
       <div className="kol-legend">
         <div>
-          <b>ROI gồm mẫu (Juli)</b> <span className="sa-hint">{report.labels.roi_formula}. Dưới 0% là KOL chưa hoàn vốn mẫu.</span>
+          <b>ROI gồm mẫu (Juli)</b> <span className="sa-hint">{report.labels.roi_formula}</span>
         </div>
         <div>
           <b>ROI Shopee (chỉ hoa hồng)</b>{" "}
-          <span className="sa-hint">
-            {report.labels.roi_shopee_note} Chỉ tính hoa hồng, không có giá vốn, phí sàn và mẫu nên thường trông tốt hơn. “{report.labels.low_data}” là cặp KOL × sản phẩm có dưới {threshold} đơn: số chỉ để tham khảo. Lượt nhấp, chuyển đổi và người mua là của cả KOL trên Shopee, không riêng sản phẩm này.
-          </span>
         </div>
       </div>
       <span hidden>{links.critical()}</span>

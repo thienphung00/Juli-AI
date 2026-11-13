@@ -132,6 +132,15 @@ const fillJobs = new FillJobs({
       }
     },
   },
+  heartbeat: {
+    sellerCentreOpen: async () => (await chrome.tabs.query({ url: `${SELLER_CENTRE_ORIGIN}/*` })).length > 0,
+    // "Đối chiếu ngay" from the Juli app: the same run as the popup's sync button.
+    reconcile: async () => {
+      await Promise.all([scheduler.clearBlock(), market.clearBlock()]);
+      await connector.syncNow();
+      void scheduler.tick({ manual: true });
+    },
+  },
   busy: async () => (await scheduler.isBusy()) || (await market.isBusy()) || (await connector.backfillInFlight()),
   halt: (reason, page, detail) => scheduler.haltFor(reason, page, detail),
 });
@@ -199,6 +208,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   void scheduler.onTabRemoved(tabId);
   void market.onTabRemoved(tabId);
 });
+
+function progressOf(raw: unknown): { filled: number; total: number } | undefined {
+  const p = raw as { filled?: unknown; total?: unknown } | null;
+  if (!p || !Number.isInteger(p.filled) || !Number.isInteger(p.total)) return undefined;
+  const filled = p.filled as number;
+  const total = p.total as number;
+  return filled >= 0 && total >= 1 && total <= 999 && filled <= total ? { filled, total } : undefined;
+}
 
 function fromSellerCentreTab(sender: chrome.runtime.MessageSender): boolean {
   return sender.id === chrome.runtime.id && !!sender.tab?.url?.startsWith(`${SELLER_CENTRE_ORIGIN}/`);
@@ -279,6 +296,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         fillJobs.report(String(msg.jobId ?? ""), status as "opened" | "filled" | "saved" | "captured" | "failed", {
           ...(ref ? { capturedRef: ref } : {}),
           ...(typeof msg.error === "string" ? { error: msg.error } : {}),
+          ...(progressOf(msg.progress) ? { progress: progressOf(msg.progress)! } : {}),
         }),
       );
     }

@@ -132,8 +132,14 @@ SAMPLE_SHOP_ROUTES: dict[tuple[str, str], tuple[Literal["read", "write"], str]] 
     (_GET, _R + "demo_shopee_analytics:shopee_overview"): ("read", "Tổng quan"),
     (_GET, _R + "demo_shopee_analytics:shopee_matrix"): ("read", "Phân tích"),
     (_GET, _R + "demo_shopee_analytics:shopee_critical"): ("read", "Tổng quan"),
+    (_GET, _R + "demo_shopee_analytics:shopee_channel_split"): ("read", "Tổng quan"),
+    (_GET, _R + "demo_shopee_analytics:shopee_channel_split_products"): ("read", "Tổng quan"),
+    (_GET, _R + "demo_shopee_analytics:shopee_export_tong_quan"): ("read", "Tổng quan: Excel"),
+    (_GET, _R + "demo_shopee_analytics:shopee_export_ke_hoach"): ("read", "Kế hoạch: Excel"),
     (_GET, _R + "demo_shopee_analytics:shopee_ranking"): ("read", "Phân tích"),
     (_GET, _R + "demo_shopee_analytics:shopee_product"): ("read", "Sản phẩm"),
+    (_GET, _R + "demo_shopee_analytics:shopee_metric_view"): ("read", "Phân tích"),
+    (_GET, _R + "demo_shopee_analytics:shopee_kol_section"): ("read", "Phân tích"),
     (_GET, _R + "demo_shopee_analytics:shopee_kols"): ("read", "Phân tích › KOL"),
     (_GET, _R + "demo_shopee_analytics:shopee_product_kols"): ("read", "Sản phẩm › KOL"),
     # "Giá thị trường" from a stored capture (no outbound fetch).
@@ -149,6 +155,8 @@ SAMPLE_SHOP_ROUTES: dict[tuple[str, str], tuple[Literal["read", "write"], str]] 
     (_GET, _R + "demo_shopee_reco_plan:get_plan_by_id"): ("read", "Kế hoạch"),
     (_GET, _R + "demo_shopee_reco_plan:export_plan"): ("read", "Kế hoạch: Excel"),
     (_GET, _R + "demo_shopee_reco_plan:list_change_sets"): ("read", "Đo lường"),
+    (_GET, _R + "demo_shopee_reco_execution:get_execution"): ("read", "Thực hiện"),
+    (_GET, _R + "demo_shopee_reco_execution:get_measurements"): ("read", "Đo lường"),
     # Tự tạo (Tiêu đề / Ảnh bìa / Voucher): picker, variations, keyword table (stored keywords +
     # the title's words; no LLM), the what-if numbers (pure compute) and the exclusion list.
     (_GET, _R + "demo_shopee_builder:builder_products"): ("read", "Tự tạo"),

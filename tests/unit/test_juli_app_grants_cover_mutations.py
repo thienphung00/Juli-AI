@@ -360,6 +360,23 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "seed.enabled = enabled",
         "the operator keeps or drops one combination",
     ),
+    # -- P100 (migration 128): the Juli Connector heartbeat and its command queue ----
+    MutationSite(
+        "public",
+        "shopee_connector_state",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/connector_state.py",
+        "row.heartbeat_at = now",
+        "every Connector fill poll refreshes the shop's heartbeat and Seller Centre flag",
+    ),
+    MutationSite(
+        "public",
+        "shopee_connector_commands",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/connector_state.py",
+        "cmd.status, cmd.sent_at = COMMAND_SENT, now",
+        "the poll hands a pending Đối chiếu ngay command to the Connector, the ack closes it",
+    ),
     # -- P90 / P91 (migrations 115-120): tenant-direct tables the Shopee recommendations write ----
     MutationSite(
         "public",

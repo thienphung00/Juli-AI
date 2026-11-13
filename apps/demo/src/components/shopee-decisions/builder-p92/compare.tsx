@@ -35,7 +35,7 @@ export interface Entry {
 type Load = { readonly key: string; readonly state: { readonly status: "ready"; readonly result: BuilderEvaluation } | { readonly status: "error"; readonly message: string } };
 
 /** P97 D85.14: a group needs at least this many days (P94). */
-const GROUP_MIN_DAYS = 3;
+export const GROUP_MIN_DAYS = 3;
 
 interface Saved {
   readonly index: number;
@@ -85,13 +85,11 @@ function rowsFor(names: VersionNames): RowDef[] {
     {
       key: "base",
       label: "Phạm vi",
-      sub: "các đơn mà số “hôm nay” dựa trên",
       cell: (o) => <span>{baseText(o, names) ?? DASH}</span>,
     },
     {
       key: "cost",
       label: "Chi phí của thay đổi",
-      sub: "ở mức dùng dự kiến",
       cell: (o) => (
         <>
           <b>{costText(o)}</b>
@@ -119,7 +117,6 @@ function rowsFor(names: VersionNames): RowDef[] {
     {
       key: "before-after",
       label: "Trước → sau",
-      sub: "7 chỉ số, khoảng P10 – P90; “không đổi” kèm lý do",
       cell: (o) => (
         <ul className="p2-ba" data-testid="p2-before-after">
           {(o.before_after?.rows ?? []).map((r) => {
@@ -152,7 +149,7 @@ function rowsFor(names: VersionNames): RowDef[] {
     {
       key: "usage",
       label: "Số lượt dùng",
-      sub: "dự kiến / giới hạn · mức giảm tối đa",
+      sub: "giới hạn · mức giảm tối đa",
       cell: (o) => (
         <>
           <b>{voucherUsageText(o) ?? DASH}</b>
@@ -163,7 +160,6 @@ function rowsFor(names: VersionNames): RowDef[] {
     {
       key: "same",
       label: "Vì sao giống P1",
-      sub: "đầu vào khác nhưng kết quả không đổi",
       cell: (o) => (o.same_as_first_notes && o.same_as_first_notes.length > 0 ? <span>{o.same_as_first_notes.join(" ")}</span> : <span className="sd-muted">{DASH}</span>),
     },
     {
@@ -180,26 +176,24 @@ function rowsFor(names: VersionNames): RowDef[] {
           </>
         ),
     },
-    { key: "breakeven", label: "Hoà vốn", sub: "để lợi nhuận không giảm", cell: (o) => <span>{breakEvenText(o)}</span> },
+    { key: "breakeven", label: "Hoà vốn", cell: (o) => <span>{breakEvenText(o)}</span> },
     {
       key: "drivers",
       label: "Chỉ số chính",
-      sub: "đo sau khi chạy · CTOR = đơn ÷ lượt nhấp",
       cell: (o) => (
         <ul className="p2-cmp__drivers">
           {(o.driver?.metrics ?? []).map((m) => (
             <li key={m.key}>
-              <span>{m.label}</span> {metricValue(m.unit, m.before)} → {m.after_p50 === null ? "chưa ước tính" : metricValue(m.unit, m.after_p50)}
+              <span>{m.label}</span> {metricValue(m.unit, m.before)} → {m.after_p50 === null ? "—" : metricValue(m.unit, m.after_p50)}
             </li>
           ))}
         </ul>
       ),
     },
-    { key: "basis", label: "Cơ sở ước tính", sub: "cho từng phương án", cell: (o) => <BasisChip outcome={o} /> },
+    { key: "basis", label: "Cơ sở", cell: (o) => <BasisChip outcome={o} /> },
     {
       key: "warn",
       label: "Cảnh báo",
-      sub: "chỉ báo, không chặn",
       cell: (o) => {
         const b = breachesOfOutcome(o);
         return b.length > 0 ? (
@@ -361,7 +355,7 @@ export function CompareView({
     <section className="sa-card p2-compare" data-testid="p2-compare">
       <div className="sa-card__head">
         <h2 className="sa-h2">So sánh tối đa 4 phương án, loại nào cũng được</h2>
-        <span className="sa-hint">{narrow ? "Vuốt ngang để xem từng phương án." : "30 ngày, dự kiến. Cùng bốn con số cho mọi phương án, rồi chỉ số chính của từng loại. Mỗi ô có khoảng thấp – cao. Hoà vốn luôn hiện."}</span>
+        <span className="sa-hint">30 ngày</span>
       </div>
       {today ? <TodayLine today={today} /> : null}
       {current === null ? (
@@ -455,15 +449,12 @@ export function CompareView({
       ) : null}
       {result?.versions.some((o) => o.ok && o.cost_known === false) ? (
         <p className="sa-hint">
-          Có sản phẩm chưa có giá vốn: lợi nhuận và biên “chưa tính”. <Link href={costLink}>Nhập giá vốn ở Cài đặt › Thông số shop ›</Link>
+          Giá vốn: <Link href={costLink}>chưa nhập ›</Link>
         </p>
       ) : null}
       {result ? (
         <div className="p2-together" data-testid="p2-together">
           <h3 className="sa-h2">Chạy cùng nhau</h3>
-          <p className="sa-hint">
-            Tick từ 2 phương án trở lên (loại nào cũng được) để chạy cùng một kỳ. Juli tính chung trên cùng các đơn: khách nhận ưu đãi tốt nhất mà giỏ hàng đủ điều kiện, không cộng hai lần. Hai phương án cùng đổi một thứ của cùng đối tượng (giá bán, tên, ngân sách…) không chạy chung được: phương án sau chuyển sang nhóm kế tiếp.
-          </p>
           <div className="p2-grid">
             <label className="p2-field">
               <span className="sd-field__label">Số ngày chạy (ít nhất {GROUP_MIN_DAYS})</span>
@@ -471,7 +462,7 @@ export function CompareView({
               {daysProblem ? <span className="sd-error">{daysProblem}</span> : null}
             </label>
             <label className="p2-field">
-              <span className="sd-field__label">Bắt đầu (để trống = ngày xác nhận kế hoạch)</span>
+              <span className="sd-field__label">Bắt đầu</span>
               <input aria-label="Ngày bắt đầu của nhóm" className="p2-text" onChange={(e) => setStartText(e.target.value)} type="date" value={startText} />
             </label>
           </div>
@@ -479,7 +470,6 @@ export function CompareView({
             <button className="sa-btn sa-btn--primary" data-testid="p2-together-go" disabled={readOnly || busy || tickedNow.length < 1 || daysProblem !== null || together !== null} onClick={() => void runTogether(false)} type="button">
               Chạy cùng nhau ({tickedNow.length} phương án)
             </button>
-            <span className="sa-hint">Thêm vào Kế hoạch ở dạng một nhóm; chưa làm gì cho đến khi bạn xác nhận kế hoạch.</span>
           </div>
           {together ? <TogetherResult planHref={planHref} result={together} /> : null}
         </div>
@@ -515,11 +505,10 @@ export function CompareView({
               · kế hoạch thêm ở <NavLink className="sa-link" href={planHref}>Kế hoạch ›</NavLink>
             </>
           ) : null}
-          {staffDraft || saved.result.status === "draft" ? " · Thẻ ở trạng thái nháp: Ops gửi cho shop trong danh sách đề xuất." : ""}
+          {staffDraft || saved.result.status === "draft" ? " · Thẻ nháp" : ""}
           {saved.ack ? <b className="sd-ack" data-testid="p2-ack"> {saved.ack}</b> : null}
         </div>
       ) : null}
-      <p className="sa-hint">“Chọn” tạo thẻ thủ công trong Quyết định (mã JC, cửa sổ đo, kế hoạch). Juli không ghi gì lên Seller Centre: bạn tự lưu ở đó.</p>
       <BreachDialog
         busy={busy}
         closing="Bạn vẫn có thể chạy cùng nhau. Juli ghi lại rằng bạn đã xác nhận, kèm giờ."
@@ -553,14 +542,11 @@ export function TodayLine({ today, testId = "p2-today" }: { readonly today: Buil
     <p className="sa-hint" data-testid={testId}>
       Hôm nay ({product ? `sản phẩm${today.items && today.items.length > 1 ? ` · ${today.items.length} sản phẩm` : ""}` : "cả shop"}
       {days ? `, ${days} ngày` : ""}): {vnCount(today.orders_30d)} đơn · GMV {vnd(today.gmv_30d)} · biên {pp(today.margin_pct, 1)} · AOV {vnd(today.aov)}
-      {today.mixed_scopes ? (
-        <span data-testid="p2-today-mixed"> · Các phương án khác phạm vi (shop và sản phẩm): đây là số cả shop, số hôm nay riêng của từng phương án nằm ở thẻ của nó.</span>
-      ) : null}
     </p>
   );
 }
 
-function TogetherResult({ result, planHref }: { readonly result: GroupResult; readonly planHref: string | null }) {
+export function TogetherResult({ result, planHref }: { readonly result: GroupResult; readonly planHref: string | null }) {
   return (
     <div className="sa-notice sa-notice--info p2-together__result" data-testid="p2-together-result" role="status">
       <b>

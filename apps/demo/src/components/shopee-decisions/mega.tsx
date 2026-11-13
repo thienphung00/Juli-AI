@@ -97,7 +97,7 @@ export function MegaPanel({ card, patch, editable, disabled, onChange }: { reado
         <dl>
           <dt>Tổng tiền giảm</dt>
           <dd>{vnd(c.total_discount ?? null)}</dd>
-          <dt>Số đơn dự kiến trong kỳ</dt>
+          <dt>Số đơn trong kỳ</dt>
           <dd>{typeof c.orders_in_window_expected === "number" ? fmt(c.orders_in_window_expected, 0) : DASH}</dd>
           {(c.by_lever ?? []).map((l) => (
             <div className="sd-mega__lever" key={l.lever}>
@@ -124,7 +124,7 @@ export function MegaPanel({ card, patch, editable, disabled, onChange }: { reado
         />
         {c.spend ? (
           <span className={c.spend.over_budget ? "sd-error" : "sa-hint"}>
-            Chi dự kiến {vnd(c.spend.mega_chi_per_day)}/ngày{typeof cap === "number" ? `, ${c.spend.over_budget ? "vượt" : "trong"} trần ${vnd(cap)}` : ", chưa đặt trần"}.
+            Chi {vnd(c.spend.mega_chi_per_day)}/ngày{typeof cap === "number" ? `, ${c.spend.over_budget ? "vượt" : "trong"} trần ${vnd(cap)}` : ", chưa đặt trần"}
           </span>
         ) : null}
       </div>

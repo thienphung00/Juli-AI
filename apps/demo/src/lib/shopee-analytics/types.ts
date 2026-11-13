@@ -673,3 +673,174 @@ export interface ProductPage {
   /** Optional: item_traffic_sources present → the Nguồn tab shows 5 flows. */
   readonly item_traffic_sources?: unknown;
 }
+
+/** P100 Tổng quan: `GET …/channel-split` (backend `services/shopee_analytics/channel_split.py`). */
+export type ChannelKey = "organic" | "organic_card" | "organic_shop" | "organic_video" | "organic_live" | "ads" | "ads_product" | "ads_shop" | "affiliate";
+export type AdBase = "traffic_overview" | "ads_report";
+
+export interface ChannelRow {
+  readonly key: ChannelKey;
+  readonly parent: ChannelKey | null;
+  readonly views: number | null;
+  readonly clicks: number | null;
+  /** Fractions (0.1 = 10 %). */
+  readonly ctr: number | null;
+  readonly ctor: number | null;
+  readonly aov: number | null;
+  readonly gmv: number | null;
+  readonly orders: number | null;
+  readonly ad_base: AdBase | null;
+  /** Share of the total GMV on the traffic-overview base (a fraction); null for ads-report rows. */
+  readonly share?: number | null;
+  /** The same cells over the previous period of the same length (null = no previous data). */
+  readonly prev?: ChannelCells | null;
+}
+
+export interface ChannelCells {
+  readonly views: number | null;
+  readonly clicks: number | null;
+  readonly ctr: number | null;
+  readonly ctor: number | null;
+  readonly aov: number | null;
+  readonly gmv: number | null;
+  readonly orders: number | null;
+  readonly share?: number | null;
+}
+
+export interface PlanBar {
+  readonly now: number | null;
+  readonly goal: number | null;
+  /** The pre-plan level of the period and the running cards' Δ inside it (goal = baseline + uplift). */
+  readonly baseline?: number | null;
+  readonly uplift?: number | null;
+  /** Actual >= the pro-rated goal (null without a goal). */
+  readonly ahead?: boolean | null;
+}
+
+/** Actual against the goal built from the running Kế hoạch cards, over the selected period. */
+export interface PlanMonth {
+  readonly from: string;
+  readonly to: string;
+  readonly days: number;
+  /** Days elapsed (= `days` when today is not inside the period). */
+  readonly day: number;
+  /** Fraction of the period elapsed; null unless the period includes today. */
+  readonly today_marker: number | null;
+  readonly gmv: PlanBar;
+  readonly profit: PlanBar;
+}
+
+export interface ChannelKpis {
+  readonly gmv: number | null;
+  readonly orders: number | null;
+  readonly profit: number | null;
+  readonly cost_total: number | null;
+  /** Quảng cáo (ads report), Tiếp thị liên kết, Ưu đãi. */
+  readonly cost_ads: number | null;
+  readonly cost_affiliate: number | null;
+  readonly cost_offers: number | null;
+  /** Lợi nhuận ÷ Tổng chi phí, in points (5.4). */
+  readonly roi: number | null;
+}
+
+export interface ChannelSplit {
+  readonly level: "shop" | "product";
+  readonly product_id: string | null;
+  readonly from: string;
+  readonly to: string;
+  readonly days?: number;
+  /** The running cards' span (earliest start - latest end) at this level; null without a running card. */
+  readonly plan_range?: { readonly from: string; readonly to: string } | null;
+  readonly updated_at: string | null;
+  readonly rows: readonly ChannelRow[];
+  readonly kpis: ChannelKpis;
+  readonly kpis_prev?: ChannelKpis | null;
+  readonly plan?: PlanMonth | null;
+}
+
+export type WeakestMetric = "views" | "ctr" | "ctor" | "aov" | "orders";
+
+export interface ChannelProduct {
+  readonly product_id: string;
+  readonly name: string;
+  readonly image_url: string | null;
+  readonly gmv: number | null;
+  readonly margin: number | null;
+  readonly organic_gmv: number | null;
+  readonly ads_gmv: number | null;
+  readonly affiliate_gmv: number | null;
+  readonly weakest_metric: WeakestMetric | null;
+}
+
+export interface ChannelProducts {
+  readonly from: string;
+  readonly to: string;
+  readonly products: readonly ChannelProduct[];
+}
+
+// ── P100 Phân tích (board B) ─────────────────────────────────────────────────
+
+/** One row of the metric view: the value now and in the previous period of the same length. */
+export interface MetricViewRow {
+  readonly key: string;
+  readonly now: N;
+  readonly prev: N;
+  /** Relative change (0.12 = +12 %). */
+  readonly change: N;
+  /** Signed ₫: the GMV gap this metric's change explains (negative = lost). */
+  readonly impact: N;
+  /** Open Đề xuất cards that move this metric for the row. */
+  readonly cards: number;
+  readonly ad_base?: string | null;
+}
+
+export interface MetricViewProduct extends MetricViewRow {
+  readonly product_id: string;
+  readonly name: string;
+}
+
+export interface MetricView {
+  readonly metric: string;
+  readonly channel: string | null;
+  readonly product_id: string | null;
+  readonly from: string;
+  readonly to: string;
+  readonly days: number;
+  readonly prev_from: string;
+  readonly prev_to: string;
+  /** The whole scope (shop, or the asked luồng / product); margin has none. */
+  readonly total: MetricViewRow;
+  readonly channels: readonly MetricViewRow[];
+  readonly products: readonly MetricViewProduct[];
+}
+
+export interface KolSectionRow {
+  readonly kol_key: string;
+  readonly handle: string;
+  readonly channel: string;
+  readonly channel_label: string | null;
+  readonly item_id: string;
+  readonly product_name: string;
+  readonly clicks: N;
+  readonly orders: number;
+  readonly gmv: N;
+  readonly commission: N;
+  readonly profit: N;
+  readonly prev_gmv: N;
+  readonly prev_profit: N;
+  readonly change: N;
+  readonly cards: number;
+}
+
+export interface KolSection {
+  readonly days: number;
+  readonly totals: {
+    readonly clicks: N;
+    readonly orders: N;
+    readonly gmv: N;
+    readonly video_gmv: N;
+    readonly live_gmv: N;
+    readonly other_gmv: N;
+  };
+  readonly rows: readonly KolSectionRow[];
+}

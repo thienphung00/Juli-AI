@@ -43,13 +43,13 @@ export type VariationMargins = VariationRow & {
   readonly final_margin_basis?: "variation" | "product" | null;
 };
 
-/** Biên cuối (ước tính) when the server sends it; nothing when the field is absent. */
+/** Biên cuối when the server sends it; nothing when the field is absent. */
 function FinalMargin({ v }: { readonly v: VariationRow }) {
   const m = v as VariationMargins;
   if (m.final_margin_pct === undefined) return null;
   return (
     <span className="sa-block" data-testid="p2-vcmp-final">
-      {m.final_margin_pct === null ? "chưa tính" : pp(m.final_margin_pct, 1)} <span className="sa-hint">Biên cuối · ước tính{m.final_margin_basis === "product" ? " · theo tỉ lệ của sản phẩm" : ""}</span>
+      {m.final_margin_pct === null ? "chưa tính" : pp(m.final_margin_pct, 1)} <span className="sa-hint">Biên cuối</span>
     </span>
   );
 }
@@ -71,7 +71,7 @@ function MarginCell({ v, costLink }: { readonly v: VariationRow; readonly costLi
   return (
     <span>
       <span className="sa-block">
-        <b>{pp(v.margin_pct, 1)}</b> <span className="sa-hint">Biên ở giá bán · chắc chắn</span>
+        <b>{pp(v.margin_pct, 1)}</b> <span className="sa-hint">Biên ở giá bán</span>
       </span>
       <FinalMargin v={v} />
     </span>
@@ -109,8 +109,6 @@ export function VariationCompare({ data, costLink }: { readonly data: VariationL
           </div>
         ))}
       </div>
-      <p className="sa-hint">Chỉ giá và biên của từng phân loại; mọi chỉ số khác (lượt xem, CTR, CTOR, đơn, AOV) là của cả sản phẩm. Giá mỗi đơn vị lấy số lượng từ tên phân loại; nếu tên không có số, lấy từ cột “số lượng trong gói” của Thông số shop.</p>
-      {data.margin_basis ? <p className="sa-hint">{data.margin_basis}.</p> : null}
     </div>
   );
 }

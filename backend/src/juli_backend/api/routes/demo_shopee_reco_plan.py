@@ -46,7 +46,7 @@ from juli_backend.api.routes.shopee_recommendations_common import refused
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.services.shop_proposals import ProposalError
-from juli_backend.services.shopee_recommendations import change_sets, manual, plans
+from juli_backend.services.shopee_recommendations import change_sets, manual, month_plan, plans
 
 router = APIRouter(prefix="/demo/shopee/recommendations", tags=["demo-shopee"])
 
@@ -60,7 +60,9 @@ async def get_plan(
     shop: Shop = Depends(get_active_shop), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
     try:
-        return await plans.get_plan(session, _shopee(shop), now=_now(), audience="seller")
+        return await month_plan.plan_with_month(
+            session, _shopee(shop), now=_now(), audience="seller"
+        )
     except ProposalError as exc:
         raise refused(exc) from None
 

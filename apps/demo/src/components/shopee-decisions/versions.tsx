@@ -56,11 +56,6 @@ export function VersionsTable({
         <h3 className="sa-h2" data-testid="sv-count">
           {n} phiên bản của cùng một thay đổi
         </h3>
-        <span className="sa-hint">
-          {multi
-            ? "Chọn một hoặc nhiều cột để duyệt cùng nhau (Nhóm A). Cột đang mở là cột thanh trượt chỉnh."
-            : "V1 là bản Juli đề xuất. Chọn một cột để duyệt; thanh trượt bên dưới chỉ chỉnh phiên bản đang chọn. Các số tính theo cùng một công thức, so với hôm nay."}
-        </span>
       </div>
       <div className="sv-scroll">
         <div className={`sv-grid ${noToday ? "sv-grid--notoday" : ""}`} role="radiogroup" aria-label="Phiên bản" style={style}>
@@ -238,7 +233,6 @@ export function TitleBox({ current, value, disabled, onChange, name }: { readonl
         </span>
         <span className={c.over ? "sv-title__over" : "sa-hint"}>{c.note}</span>
       </div>
-      <p className="sa-hint">Giới hạn 100 ký tự áp dụng cho mọi tiêu đề Juli đề xuất (cắt ở ranh giới từ) và cho tiêu đề bạn tự nhập. Trên 100: không lưu, không duyệt.</p>
     </div>
   );
 }

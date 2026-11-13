@@ -518,8 +518,27 @@ export interface ChangeSet {
 }
 
 /** The answer of `GET plan` and of every plan write. */
+/** One scope of Kế hoạch's month figures (`month_plan.month_plans`): goal = baseline + uplift. */
+export interface PlanMonthTotals {
+  readonly scope: "running" | "running+draft";
+  readonly month: string;
+  readonly day: number;
+  readonly days_in_month: number;
+  readonly cards: number;
+  readonly baseline_gmv: number | null;
+  readonly baseline_profit: number | null;
+  readonly uplift_gmv: number | null;
+  readonly uplift_profit: number | null;
+  readonly goal_gmv: number | null;
+  readonly goal_profit: number | null;
+  readonly mtd_gmv: number | null;
+  readonly mtd_profit: number | null;
+}
+
 export interface PlanResponse {
   readonly plan: PlanHead | null;
+  /** The two totals of the month: "Đang chạy" (executed plans) and "Nếu áp dụng nháp" (+ the draft). */
+  readonly month?: { readonly running: PlanMonthTotals; readonly with_draft: PlanMonthTotals } | null;
   readonly cards: readonly PlanCard[];
   readonly aggregate: PlanAggregate | null;
   /** P97 D85.14: the groups of the plan; `aggregate` is then the cards that are in no group. */
@@ -551,8 +570,8 @@ export interface PlanApi {
   setGroupPeriod?(groupId: string, patch: { readonly days?: number; readonly start?: string | null; readonly clearStart?: boolean }): Promise<PlanResponse>;
   removeGroupMember?(groupId: string, member: GroupMemberRef): Promise<PlanResponse>;
   cancelGroup?(groupId: string): Promise<PlanResponse>;
-  /** The plan as an Excel file: group, versions, period (one row per version). */
-  exportPlan?(): Promise<Blob>;
+  /** P100: Kế hoạch of a month ("YYYY-MM") as an Excel file; absent = no download. */
+  exportKeHoach?(month: string | null): Promise<Blob>;
   /** `version` null = the version and what-if the card had when it was last removed from the plan (else V1). */
   add(cardId: string, version: number | null, acknowledgeBreaches?: boolean): Promise<PlanResponse>;
   remove(cardId: string): Promise<PlanResponse>;

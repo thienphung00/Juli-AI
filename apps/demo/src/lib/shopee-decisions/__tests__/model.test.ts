@@ -32,15 +32,15 @@ describe("sections and tabs", () => {
 
   it("puts approved cards in Đang thực hiện and verified executed cards in Đo lường", () => {
     expect(tabOfCard({ status: "sent" })).toBe("de-xuat");
-    expect(tabOfCard({ status: "approved" })).toBe("dang-thuc-hien");
-    expect(tabOfCard({ status: "executed", verification: { state: "pending" } })).toBe("dang-thuc-hien");
+    expect(tabOfCard({ status: "approved" })).toBe("thuc-hien");
+    expect(tabOfCard({ status: "executed", verification: { state: "pending" } })).toBe("thuc-hien");
     expect(tabOfCard({ status: "executed", verification: { state: "verified" } })).toBe("do-luong");
     expect(tabOfCard({ status: "rejected" })).toBeNull();
     // P100 S2-C: a card whose measurement window closed stays in Đo lường with its result.
     expect(tabOfCard({ status: "measured" })).toBe("do-luong");
     expect(statusLabel("measured")).toBe("Đã đo xong");
     const counts = tabCounts([mk(), mk(voucherCard(), { status: "approved" }), mk(voucherCard(), { status: "expired" })]);
-    expect(counts).toEqual({ "de-xuat": 1, "dang-thuc-hien": 1, "do-luong": 0 });
+    expect(counts).toEqual({ "de-xuat": 1, "thuc-hien": 1, "do-luong": 0 });
   });
 });
 
@@ -181,5 +181,34 @@ describe("stepText (P100: a stored sheet step can carry a structured value)", ()
     expect(stepText(150000, "VND")).toBe(vnd(150000));
     expect(stepText("Giảm giá theo %")).toBe("Giảm giá theo %");
     expect(stepText(null)).toBe("—");
+  });
+});
+
+describe("P100 Đề xuất: URL params and card metrics", () => {
+  it("tab: thuc-hien, the old dang-thuc-hien, do-luong, else de-xuat", async () => {
+    const { tabOfParam } = await import("../model");
+    expect(tabOfParam("thuc-hien")).toBe("thuc-hien");
+    expect(tabOfParam("dang-thuc-hien")).toBe("thuc-hien");
+    expect(tabOfParam("do-luong")).toBe("do-luong");
+    expect(tabOfParam(null)).toBe("de-xuat");
+  });
+
+  it("xem: ke-hoach from ?xem= or the old ?ke-hoach=1", async () => {
+    const { xemOfParams, metricOfParam } = await import("../model");
+    expect(xemOfParams(new URLSearchParams("xem=ke-hoach"))).toBe("ke-hoach");
+    expect(xemOfParams(new URLSearchParams("ke-hoach=1"))).toBe("ke-hoach");
+    expect(xemOfParams(new URLSearchParams(""))).toBe("the");
+    expect(metricOfParam("ctr")).toBe("ctr");
+    expect(metricOfParam("nope")).toBeNull();
+  });
+
+  it("primaryMetricOf follows Phân tích's mapping", async () => {
+    const { primaryMetricOf } = await import("../model");
+    const m = (kpi: string | null, section: string | null) => primaryMetricOf({ section, metric: { key: "x", critical_id: null, critical_kpi: kpi, flow: null, at_stake_per_day: null } });
+    expect(m("ctr", null)).toBe("ctr");
+    expect(m("bien", null)).toBe("margin");
+    expect(m(null, "sale")).toBe("orders");
+    expect(m(null, "lien_ket")).toBe("gmv");
+    expect(m(null, null)).toBe("gmv");
   });
 });

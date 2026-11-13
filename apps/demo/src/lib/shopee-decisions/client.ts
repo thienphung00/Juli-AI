@@ -1,5 +1,5 @@
 import { ShopeeApiError } from "../shopee-analytics/client";
-import type { Card, CardByCode, CardDetail, CardList, CompareResult, DecideResult, ExecutedResult, GenerateReport, LearningOverview, ManualInput, ManualResult, VariantInput } from "./types";
+import type { Card, CardByCode, CardDetail, CardList, CompareResult, DecideResult, ExecutedResult, ExecutionStates, GenerateReport, LearningOverview, ManualInput, ManualResult, MeasurementStates, VariantInput } from "./types";
 
 /**
  * The one client of the Shopee recommendation cards. The SAME screens run for the seller
@@ -79,6 +79,12 @@ export interface RecoApi {
   rerunStale(): Promise<Readonly<Record<string, number>>>;
   learning(): Promise<LearningOverview>;
   learningRun(): Promise<Readonly<Record<string, unknown>>>;
+  /** Thực hiện: approved cards with their state and the Connector line. */
+  executionStates(): Promise<ExecutionStates>;
+  /** Đo lường: executed cards with days measured, the Δ lợi nhuận band and the verdict. */
+  measurements(): Promise<MeasurementStates>;
+  /** "Đối chiếu ngay": ask the Connector to read Seller Centre now (refused for reviewers). */
+  reconcile(): Promise<{ readonly requested: boolean }>;
 }
 
 function errorOf(status: number, payload: unknown): ShopeeApiError {
@@ -184,5 +190,8 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
     rerunStale: () => call<Record<string, number>>("POST", "/rerun-stale", {}),
     learning: () => call<LearningOverview>("GET", "/learning"),
     learningRun: () => call<Record<string, unknown>>("POST", "/learning/run", {}),
+    executionStates: () => call<ExecutionStates>("GET", "/execution"),
+    measurements: () => call<MeasurementStates>("GET", "/measurements"),
+    reconcile: () => call<{ requested: boolean }>("POST", "/execution/reconcile", {}),
   };
 }

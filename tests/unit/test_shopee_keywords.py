@@ -78,7 +78,7 @@ def test_migration_111_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # ADR-120's 112 (Shopee profit and history) went on 111 and took the deferred tail.
     later = (MIGRATIONS / "versions/112_shopee_profit_and_history.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "127_card_content_specs"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "128_connector_state"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_111_and_its_upgrade_only_adds():

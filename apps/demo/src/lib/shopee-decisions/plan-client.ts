@@ -11,6 +11,8 @@ export interface PlanClientOptions {
   readonly token: string;
   readonly shopId?: string;
   readonly fetchImpl?: typeof fetch;
+  /** Where the Excel reports are served (`DEMO_EXPORTS_BASE` or `opsExportsBase(shopId)`). */
+  readonly exportsBase?: string;
 }
 
 /** The plan UI is on; `NEXT_PUBLIC_P91_PLAN=0` switches it off (kept as a kill switch). */
@@ -79,13 +81,14 @@ export function createPlanApi(options: PlanClientOptions): PlanApi {
       }),
     removeGroupMember: (groupId, m) => call<PlanResponse>("POST", `/plan/groups/${encodeURIComponent(groupId)}/members/remove`, { card_id: m.cardId, version: m.version }),
     cancelGroup: (groupId) => call<PlanResponse>("POST", `/plan/groups/${encodeURIComponent(groupId)}/cancel`, {}),
-    exportPlan: async () => {
-      const response = await (fetchImpl ?? fetch)(`${base}/plan/export`, {
+    exportKeHoach: async (month) => {
+      const qs = month ? `?month=${encodeURIComponent(month)}` : "";
+      const response = await (fetchImpl ?? fetch)(`${options.exportsBase ?? "/v1/demo/shopee/exports"}/ke-hoach.xlsx${qs}`, {
         method: "GET",
         headers: { Authorization: `Bearer ${token}`, ...(shopId ? { "X-Shop-Id": shopId } : {}) },
         cache: "no-store",
       });
-      if (!response.ok) throw new ShopeeApiError(response.status, "", "Chưa xuất được kế hoạch ra Excel.");
+      if (!response.ok) throw new ShopeeApiError(response.status, "", "Chưa tải được tệp Excel.");
       return response.blob();
     },
     confirm: ({ acknowledgeBreaches, plannedDate, note }) => call<PlanResponse>("POST", "/plan/confirm", { acknowledge_breaches: acknowledgeBreaches, ...(plannedDate ? { planned_date: plannedDate } : {}), ...(note ? { note } : {}) }),

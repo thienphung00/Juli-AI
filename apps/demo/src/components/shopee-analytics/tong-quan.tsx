@@ -1,290 +1,444 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
-import {
-  DASH,
-  chipFromChange,
-  dayMonth,
-  fmt,
-  pc,
-  pp,
-  sv,
-  vnd,
-  type Chip,
-} from "../../lib/shopee-analytics/format";
-import { freshnessOf, impactsOf, isStale, marginDropText, weakestLink } from "../../lib/shopee-analytics/model";
+import { saveBlob, tongQuanFileName } from "../../lib/shopee-analytics/download";
+import { DASH, dayMonth, fmt, pc, vnCount, vnd } from "../../lib/shopee-analytics/format";
 import { readWindow, type WindowState, windowParams } from "../../lib/shopee-analytics/params";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
-import type { Overview } from "../../lib/shopee-analytics/types";
-import { FlowTree } from "./tong-quan-tree";
-import { ProductMatrix } from "./tong-quan-matrix";
+import type { ShopeeLinks } from "../../lib/shopee-analytics/links";
+import type { AdBase, ChannelCells, ChannelKey, ChannelProduct, ChannelRow, ChannelSplit, PlanBar, PlanMonth, WeakestMetric } from "../../lib/shopee-analytics/types";
+import { METRIC_NAME, inMode, roiText, shift, type MetricKey, type ValueMode } from "../../lib/metrics";
+import { MetricChip, Shift } from "../metrics/metric-chip";
 import { PeriodBar } from "./period-bar";
-import { ChipView, InfoToggle, Notice, PageHead, ResourceState, Section } from "./ui";
+import { ResourceState } from "./ui";
 
 /**
- * Tổng quan (artboards TongQuan / TongQuanMobile): the shop in one screen. KPI strip (P100 B.6:
- * GMV, lượt xem, CTR, CTOR, AOV, đơn, tổng lợi nhuận), the one shop profit with cost coverage, the GMV tree (five flows + Chênh lệch nguồn) and the
- * product × source matrix. Every number is a link to its Xếp hạng. The mobile layout is the same
- * markup under the stylesheet's narrow breakpoint (tiles 2 columns, rows as cards).
+ * Tổng quan (canvas board TongQuanPct): the shop in one screen. Header finding, Shop | Sản phẩm,
+ * the Kế hoạch switch, the period picker with Tổng | Trung bình / ngày, the Kế hoạch card of the
+ * period, KPI tiles (GMV · Lợi nhuận · Tổng chi phí · ROI), the GMV composition (Organic / Quảng
+ * cáo / Tiếp thị liên kết) and the channel table. Every figure carries its change against the
+ * previous period of the same length and opens Phân tích pre-filtered (`metric`, `channel`,
+ * `product`, period). Host-driven: the same screen runs for the seller, Ops and the sample shop.
+ * Labels and numbers only: no captions.
  */
+
+export type Level = "shop" | "product";
+
+const NAMES: Readonly<Record<ChannelKey, string>> = {
+  organic: "Organic",
+  organic_card: "Thẻ sản phẩm",
+  organic_shop: "Trang shop",
+  organic_video: "Video",
+  organic_live: "Live",
+  ads: "Quảng cáo",
+  ads_product: "DVHT Sản phẩm",
+  ads_shop: "DVHT Shop+",
+  affiliate: "Tiếp thị liên kết",
+};
+const AD_BASE: Readonly<Record<AdBase, string>> = { traffic_overview: "Lưu lượng", ads_report: "Báo cáo DVHT" };
+/** The Phân tích `channel` a row opens (none for the two parents that hold several). */
+const CHANNEL_OF: Partial<Record<ChannelKey, string>> = {
+  organic_card: "the_san_pham",
+  organic_shop: "trang_shop",
+  organic_video: "video",
+  organic_live: "live",
+  ads_product: "ads_product",
+  ads_shop: "ads_shop",
+  affiliate: "lien_ket",
+};
+type Cell = "views" | "ctr" | "ctor" | "aov" | "gmv" | "share" | "orders";
+const COLUMNS: readonly (readonly [Cell, string, MetricKey, WeakestMetric | null])[] = [
+  ["views", "Lượt xem", "views", "views"],
+  ["ctr", "CTR", "ctr", "ctr"],
+  ["ctor", "CTOR", "ctor", "ctor"],
+  ["aov", "AOV", "aov", "aov"],
+  ["gmv", "GMV", "gmv", null],
+  ["share", "% GMV", "gmv", null],
+  ["orders", "Đơn", "orders", "orders"],
+];
+const RATE_CELLS: ReadonlySet<Cell> = new Set(["ctr", "ctor", "aov", "share"]);
+
+/** 12890000 → "12,89 tr đ"; under a million the full amount. */
+export function mil(n: number | null | undefined): string {
+  if (n === null || n === undefined || !Number.isFinite(n)) return DASH;
+  return Math.abs(n) >= 1_000_000 ? `${fmt(n / 1_000_000, 2)} tr đ` : vnd(n);
+}
+
+function updatedText(split: ChannelSplit): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(split.updated_at ?? "");
+  if (m) return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`;
+  const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(split.to);
+  return d ? `${d[3]}/${d[2]}/${d[1]}` : DASH;
+}
+
+export function daysOf(split: ChannelSplit): number {
+  if (split.days) return split.days;
+  const a = Date.parse(split.from);
+  const b = Date.parse(split.to);
+  return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 86_400_000) + 1 : 0;
+}
+
+/** Change of a figure against the previous period (a fraction), null without both. */
+export function change(now: number | null | undefined, before: number | null | undefined): number | null {
+  if (now === null || now === undefined || before === null || before === undefined || !Number.isFinite(now) || !Number.isFinite(before) || before === 0) return null;
+  return (now - before) / Math.abs(before);
+}
+
+const pctText = (p: number | null): string => shift(p)?.text ?? "";
+
+/** "GMV ▲ 12% · CTR Thẻ sản phẩm ▼ 3,4%": the two changes worth a glance, number-led. */
+export function findingOf(split: ChannelSplit): string {
+  const parts: string[] = [];
+  const gmv = change(split.kpis.gmv, split.kpis_prev?.gmv);
+  if (gmv !== null) parts.push(`GMV ${pctText(gmv)}`);
+  const card = split.rows.find((r) => r.key === "organic_card");
+  const ctr = change(card?.ctr, card?.prev?.ctr);
+  if (ctr !== null) parts.push(`CTR ${NAMES.organic_card} ${pctText(ctr)}`);
+  return parts.join(" · ");
+}
+
+/** The composition of GMV: each channel's share of the total GMV. */
+export function compositionOf(split: ChannelSplit): readonly { key: "organic" | "ads" | "affiliate"; share: number | null; gmv: number | null; prev: number | null }[] {
+  return (["organic", "ads", "affiliate"] as const).map((key) => {
+    const r = split.rows.find((x) => x.key === key);
+    return { key, share: r?.share ?? null, gmv: r?.gmv ?? null, prev: r?.prev?.gmv ?? null };
+  });
+}
+
+/** Phân tích, pre-filtered; `channel` / `product` omitted when they do not apply. */
+export function analysisHref(links: ShopeeLinks, f: { metric: MetricKey; channel?: string | null; product?: string | null; mode?: ValueMode }, state: WindowState): string {
+  const p = windowParams(state);
+  if (f.mode === "avg") p.set("cach", "tb");
+  p.set("metric", f.metric);
+  p.set("from", "tong-quan");
+  if (f.channel) p.set("channel", f.channel);
+  if (f.product) p.set("product", f.product);
+  return links.screen("phan-tich", p);
+}
+
+/** The window other screens receive: "Cả kế hoạch" travels as the dates it resolved to. */
+export function linkWindow(state: WindowState, data: { readonly from: string; readonly to: string } | null): WindowState {
+  return state.query.period === "plan" && data ? { ...state, query: { period: "custom", from: data.from, to: data.to } } : state;
+}
+
 export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const host = useShopee();
   const state = useMemo(() => readWindow(params), [params]);
-  const key = `${host.shopKey}|ov|${JSON.stringify(state.query)}`;
-  const overview = useResource(() => host.api.overview(state.query), key);
+  const [level, setLevel] = useState<Level>("shop");
+  const [productId, setProductId] = useState<string | null>(null);
+  const [plan, setPlan] = useState(true);
+  const [exportFailed, setExportFailed] = useState(false);
+  const mode: ValueMode = params.get("cach") === "tb" ? "avg" : "total";
+  const queryKey = JSON.stringify(state.query);
+  const products = useResource(() => host.api.channelSplitProducts(state.query), `${host.shopKey}|cs-products|${queryKey}`);
+  const pid = level === "product" ? productId : null;
+  const split = useResource(() => host.api.channelSplit(state.query, pid), `${host.shopKey}|cs|${queryKey}|${pid ?? ""}`);
+  const list: readonly ChannelProduct[] = products.status === "ready" ? products.data.products : [];
+  const chosen = list.find((p) => p.product_id === productId) ?? null;
+
+  const toProduct = () => {
+    setLevel("product");
+    setProductId((cur) => cur ?? list[0]?.product_id ?? null);
+  };
+  const ready = split.status === "ready" ? split.data : null;
+  const modeHref = (m: ValueMode, next: WindowState = state) => {
+    const q = windowParams(next);
+    if (m === "avg") q.set("cach", "tb");
+    return host.links.screen("tong-quan", q);
+  };
+  const hrefFor = (next: WindowState) => modeHref(mode, next);
+  const finding = ready ? findingOf(ready) : "";
+
   return (
     <div className="sa-page" data-testid="sa-tong-quan">
-      <ResourceState resource={overview}>{(ov) => <Loaded ov={ov} state={state} />}</ResourceState>
+      <header className="sa-head">
+        <div className="sa-eyebrow">{ready ? `TỔNG QUAN · ${daysOf(ready)} NGÀY` : "TỔNG QUAN"}</div>
+        <div className="sa-head__line">
+          <h1 className="sa-h1">{host.shopName || "Shop"}</h1>
+          <span className="sa-chip" data-testid="sa-platform">
+            Shopee
+          </span>
+          {ready ? (
+            <span className="sa-fresh" data-testid="sa-fresh">
+              Cập nhật {updatedText(ready)}
+            </span>
+          ) : null}
+          {ready && host.api.exportTongQuan ? (
+            <button
+              className="sa-btn sa-btn--s"
+              data-testid="sa-export"
+              onClick={() => {
+                setExportFailed(false);
+                host.api.exportTongQuan!({ ...state.query, productId: pid }).then(
+                  (blob) => saveBlob(blob, tongQuanFileName(host.shopName || "Shop", ready.from, ready.to, pid)),
+                  () => setExportFailed(true),
+                );
+              }}
+              type="button"
+            >
+              Tải Excel
+            </button>
+          ) : null}
+          {exportFailed ? <span className="sa-fresh">Chưa tải được tệp Excel</span> : null}
+        </div>
+        <p className="sa-tq__finding" data-testid="sa-finding">
+          {finding}
+        </p>
+      </header>
+
+      <div className="sa-row">
+        <div aria-label="Cấp xem" className="sa-seg sa-seg--round" data-testid="sa-level" role="group">
+          <button aria-pressed={level === "shop"} className={`sa-seg__item${level === "shop" ? " sa-seg__item--on" : ""}`} onClick={() => setLevel("shop")} type="button">
+            Shop
+          </button>
+          <button aria-pressed={level === "product"} className={`sa-seg__item${level === "product" ? " sa-seg__item--on" : ""}`} onClick={toProduct} type="button">
+            Sản phẩm
+          </button>
+        </div>
+        {level === "product" ? (
+          <>
+            <select aria-label="Sản phẩm" className="sa-tq__select" data-testid="sa-product-pick" onChange={(e) => setProductId(e.target.value || null)} value={productId ?? ""}>
+              {list.map((p) => (
+                <option key={p.product_id} value={p.product_id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {productId ? (
+              <Link className="sa-link" data-testid="sa-product-open" href={host.links.product(productId, { from: "tong-quan" }, linkWindow(state, ready))}>
+                Mở sản phẩm ›
+              </Link>
+            ) : null}
+          </>
+        ) : null}
+        <button
+          aria-checked={plan}
+          className={`sa-tq__switch${plan ? " sa-tq__switch--on" : ""}`}
+          data-testid="sa-plan-toggle"
+          onClick={() => setPlan((v) => !v)}
+          role="switch"
+          type="button"
+        >
+          <span aria-hidden="true" className="sa-tq__knob" />
+          Kế hoạch
+        </button>
+      </div>
+
+      <div className="sa-row">
+        <PeriodBar hrefFor={hrefFor} planRange={ready ? (ready.plan_range ?? null) : undefined} state={state} window={ready ? { from: ready.from, to: ready.to, days: daysOf(ready) } : null} />
+        <div aria-label="Cách xem số" className="sa-seg sa-seg--round" data-testid="sa-mode" role="group">
+          <Link aria-current={mode === "total" ? "true" : undefined} className={`sa-seg__item${mode === "total" ? " sa-seg__item--on" : ""}`} href={modeHref("total")}>
+            Tổng
+          </Link>
+          <Link aria-current={mode === "avg" ? "true" : undefined} className={`sa-seg__item${mode === "avg" ? " sa-seg__item--on" : ""}`} href={modeHref("avg")}>
+            Trung bình / ngày
+          </Link>
+        </div>
+      </div>
+
+      <ResourceState resource={split}>
+        {(data) => (
+          <>
+            {plan && data.plan ? <PlanCard plan={data.plan} /> : null}
+            <Tiles data={data} mode={mode} product={pid} state={linkWindow(state, data)} />
+            <Composition data={data} mode={mode} product={pid} state={linkWindow(state, data)} />
+            <ChannelTable data={data} mode={mode} product={pid} state={linkWindow(state, data)} weakest={level === "product" ? (chosen?.weakest_metric ?? null) : null} />
+          </>
+        )}
+      </ResourceState>
     </div>
   );
 }
 
-function Loaded({ ov, state }: { readonly ov: Overview; readonly state: WindowState }) {
-  const host = useShopee();
-  const { links } = host;
-  const win = ov.period.window;
-  const stale = isStale(ov.data, win);
-  const impacts = impactsOf(ov.kpi_strip, win.days);
-  const weak = weakestLink(impacts);
-  const target = ov.targets.margin_pct ?? null;
-  const cap = ov.targets.daily_marketing_cap ?? null;
-  const dropText = marginDropText(ov.kpi_strip);
-  const asOf = `Dữ liệu đến ${dayMonth(win.to)} · nguồn Seller Centre`;
-  const hrefFor = (next: WindowState) => {
-    const q = windowParams(next);
-    return links.screen("tong-quan", q);
-  };
-  const compare = state.compare;
-  const days = win.days;
-  const kpi = ov.kpi_strip;
+const suffix = (mode: ValueMode) => (mode === "avg" ? " / ngày" : "");
 
-  const tile = (
-    key: string,
-    label: string,
-    value: string,
-    chip: Chip,
-    impact: string,
-    flag: string,
-    sub?: string,
-  ) => (
-    <Link
-      className={`sa-tile ${flag ? "sa-tile--hint" : ""} ${sub === "below" ? "sa-tile--bad" : ""}`}
-      data-testid={`sa-tile-${key}`}
-      href={links.ranking({ kpi: key, src: "all", from: "tong-quan" }, state)}
-      key={key}
-    >
+function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; readonly mode: ValueMode; readonly product: string | null; readonly state: WindowState }) {
+  const { links } = useShopee();
+  const days = daysOf(data);
+  const k = data.kpis;
+  const p = data.kpis_prev ?? null;
+  const money = (v: number | null | undefined) => mil(inMode(v, days, mode));
+  const href = (metric: MetricKey) => analysisHref(links, { metric, product, mode }, state);
+  const tile = (key: string, label: string, value: string, shiftPct: number | null, metric: MetricKey, good: 1 | -1, lines?: ReactNode): ReactNode => (
+    <Link className="sa-tile" data-testid={`sa-tile-${key}`} href={href(metric)} key={key}>
       <span className="sa-tile__top">
         <span className="sa-tile__label">{label}</span>
-        {flag ? <span className="sa-tile__flag">{flag}</span> : null}
       </span>
       <span className="sa-tile__value">{value}</span>
-      {compare ? (
-        <span>
-          <ChipView chip={chip} />
-        </span>
-      ) : null}
-      <span className={`sa-tile__impact ${impact.startsWith("−") ? "sa-tone--down" : impact.startsWith("+") ? "sa-tone--up" : ""}`}>{impact}</span>
-      {stale ? <span className="sa-tile__stale">Tính đến {dayMonth(win.to)}</span> : null}
+      <Shift good={good} pct={shiftPct} testId={`sa-shift-${key}`} />
+      {lines}
     </Link>
   );
-  const per = (v: number | null) => (v === null ? DASH : `${sv(v)}/ngày`);
-  const belowTarget = kpi.margin_pct.value !== null && target !== null && kpi.margin_pct.value < target;
-  // P100 B.5: the one shop profit (known-cost orders) with its coverage line
-  const profitKpi = kpi.profit ?? { value: ov.profit.profit_vnd, previous: null, change_pct: null, label: ov.profit.coverage_label ?? "" };
-
+  const line = (key: string, label: string, v: number | null, before: number | null | undefined, tag?: string) => (
+    <span className="sa-tq__line" data-testid={`sa-cost-${key}`} key={key}>
+      <span>
+        {label}
+        {tag ? <span className="sa-tq__src"> {tag}</span> : null}
+      </span>
+      <span>{money(v)}</span>
+      <Shift good={-1} pct={change(v, before)} />
+    </span>
+  );
   return (
-    <>
-      <PageHead
-        chips={
-          <span className={`sa-fresh ${stale ? "sa-fresh--stale" : ""}`} data-testid="sa-fresh">
-            {stale ? `Dữ liệu chưa đủ kỳ: số mới nhất đến ${dayMonth(win.to)}` : asOf}
-          </span>
-        }
-        eyebrow="TỔNG QUAN"
-        info={
-          <InfoToggle>
-            GMV = lượt xem × CTR × CTOR × AOV. Năm luồng (Thẻ sản phẩm ngoài Trang shop, Trang shop, Live, Video,
-            Tiếp thị liên kết) cộng lại đúng bằng GMV shop; phần lệch hiện ở dòng Chênh lệch nguồn. Đơn tính theo
-            đơn đã xác nhận; quảng cáo tính theo đơn đã đặt và là phần &quot;trong đó&quot;, không cộng thêm.
-          </InfoToggle>
-        }
-        title={`${host.shopName || "Shop"}${dropText ? `: ${dropText}` : ": tổng quan"}`}
-      />
-
-      <div className="sa-row">
-        <PeriodBar hrefFor={hrefFor} previous={ov.period.previous} state={state} window={win} />
-        <span className="sa-hint sa-row__end">
-          Mục tiêu biên: <b>{target === null ? "chưa đặt" : pp(target, 0)}</b> · Trần chi marketing:{" "}
-          <b>{cap === null ? "chưa đặt" : `${vnd(cap)}/ngày`}</b>
-        </span>
-      </div>
-
-      {stale ? <StaleBlock ov={ov} /> : null}
-      {ov.warnings
-        .filter((w) => !["ads_estimated"].includes(w.code))
-        .map((w) => (
-          <Notice key={w.code} testId={`sa-warning-${w.code}`}>
-            {w.message}
-          </Notice>
-        ))}
-
-      <Section hint="Bấm một ô để xem bảng xếp hạng · ₫/ngày là phần GMV chỉ số đó kéo" title="Chỉ số chính">
-        <div className="sa-tiles">
-          {tile("gmv", "GMV", vnd(kpi.gmv.value), chipFromChange(kpi.gmv.change_pct), `Tổng 4 ô: ${per(impacts.gmv)}`, "")}
-          {tile("views", "Lượt xem", fmt(kpi.views.value), chipFromChange(kpi.views.change_pct), per(impacts.views), weak === "views" ? "✦ Juli gợi ý" : "")}
-          {tile("ctr", "CTR", pc(kpi.ctr.value), chipFromChange(kpi.ctr.change_pct), per(impacts.ctr), weak === "ctr" ? "✦ Juli gợi ý" : "")}
-          {tile("ctor", "CTOR", pc(kpi.ctor.value), chipFromChange(kpi.ctor.change_pct), per(impacts.ctor), weak === "ctor" ? "✦ Juli gợi ý" : "")}
-          {tile("aov", "AOV", vnd(kpi.aov.value), chipFromChange(kpi.aov.change_pct), per(impacts.aov), weak === "aov" ? "✦ Juli gợi ý" : "")}
-          {tile("orders", "Đơn", fmt(kpi.orders.value), chipFromChange(kpi.orders.change_pct), kpi.orders.value === null || days === 0 ? DASH : `${fmt(Math.round(kpi.orders.value / days))} đơn/ngày`, "")}
-          {tile(
-            "profit",
-            "Tổng lợi nhuận",
-            vnd(profitKpi.value),
-            chipFromChange(profitKpi.change_pct),
-            `Biên ${pp(kpi.margin_pct.value, 1)} · ${profitKpi.label}`,
-            belowTarget ? "Dưới mục tiêu" : "",
-            belowTarget ? "below" : undefined,
-          )}
-        </div>
-        {(ov.gmv.excluded_gmv ?? 0) > 0 ? (
-          <p className="sa-hint" data-testid="sa-excluded-gmv">
-            <b>GMV</b> trong đó{" "}
-            <Link data-testid="sa-excluded-gmv-link" href={links.exclusions()}>
-              {vnd(ov.gmv.excluded_gmv)} từ sản phẩm đã loại trừ
-            </Link>
-          </p>
-        ) : null}
-      </Section>
-
-      <ProfitBlock ov={ov} />
-      <FlowTree ov={ov} state={state} />
-      <ProductMatrix ov={ov} state={state} />
-    </>
+    <div className="sa-tiles sa-tq__tiles" data-testid="sa-tiles">
+      {tile("gmv", `GMV${suffix(mode)}`, money(k.gmv), change(k.gmv, p?.gmv), "gmv", 1)}
+      {tile("profit", `Lợi nhuận${suffix(mode)}`, money(k.profit), change(k.profit, p?.profit), "margin", 1)}
+      {tile(
+        "cost",
+        `Tổng chi phí${suffix(mode)}`,
+        money(k.cost_total),
+        change(k.cost_total, p?.cost_total),
+        "margin",
+        -1,
+        <>
+          {line("ads", "Quảng cáo", k.cost_ads, p?.cost_ads, AD_BASE.ads_report)}
+          {line("affiliate", "Tiếp thị liên kết", k.cost_affiliate, p?.cost_affiliate)}
+          {line("offers", "Ưu đãi", k.cost_offers, p?.cost_offers)}
+        </>,
+      )}
+      {tile("roi", "ROI", roiText(k.roi), change(k.roi, p?.roi), "margin", 1)}
+    </div>
   );
 }
 
-function StaleBlock({ ov }: { readonly ov: Overview }) {
-  const sources = freshnessOf(ov.data, ov.period.window);
+function Composition({ data, mode, product, state }: { readonly data: ChannelSplit; readonly mode: ValueMode; readonly product: string | null; readonly state: WindowState }) {
+  const { links } = useShopee();
+  const days = daysOf(data);
+  const items = compositionOf(data);
+  if (items.every((i) => i.share === null)) return null;
   return (
-    <section className="sa-stale" data-testid="sa-stale" role="status">
-      <b>⚠ Dữ liệu chưa đủ cho cả kỳ: số hôm nay có thể thiếu</b>
-      <div className="sa-stale__chips">
-        {sources.map((s) => (
-          <span className={`sa-chip ${s.ok ? "sa-chip--up" : "sa-chip--warn"}`} key={s.key}>
-            {s.label}: {s.covered}/{s.days} ngày
-          </span>
+    <section className="sa-card sa-tq__comp" data-testid="sa-composition">
+      <div className="sa-tq__comp-head">
+        <MetricChip metric="gmv" />
+        <span>{mil(inMode(data.kpis.gmv, days, mode))}</span>
+      </div>
+      <div className="sa-tq__bar" aria-hidden="true">
+        {items.map((i) => (
+          <span className={`sa-tq__seg sa-tq__seg--${i.key}`} key={i.key} style={{ width: `${Math.max(0, (i.share ?? 0) * 100)}%` }} />
         ))}
       </div>
-      <span className="sa-hint">
-        Các con số bên dưới tính trên những ngày đã có dữ liệu. Đề xuất mới chỉ tạo khi dữ liệu đã cập nhật.
-      </span>
+      <div className="sa-tq__comp-items">
+        {items.map((i) => (
+          <Link className="sa-tq__comp-item" data-testid={`sa-comp-${i.key}`} href={analysisHref(links, { metric: "gmv", channel: CHANNEL_OF[i.key], product, mode }, state)} key={i.key}>
+            <span>{NAMES[i.key]}</span>
+            <b>{i.share === null ? DASH : pc(i.share, 0)}</b>
+            <span>{mil(inMode(i.gmv, days, mode))}</span>
+            <Shift pct={change(i.gmv, i.prev)} />
+          </Link>
+        ))}
+      </div>
     </section>
   );
 }
 
-function ProfitBlock({ ov }: { readonly ov: Overview }) {
-  const host = useShopee();
-  const p = ov.profit;
-  const cov = p.cost_coverage;
-  const partial = p.profit_is_partial;
-  // P100 B.5: every line of the bridge is the known-cost basis the one shop profit is on
-  const bridge = p.bridge ?? null;
-  const productProfit = bridge ? bridge.product_profit : null;
-  const missing = Object.entries(p.missing).filter(([, n]) => n > 0);
-  // Bar widths may use 0 for a missing share; every printed percentage stays "—" when it is missing.
-  const realN = cov.real_pct ?? null;
-  const assumedN = cov.assumed_pct ?? null;
-  const unknownN = cov.unknown_pct ?? null;
-  const real = realN ?? 0;
-  const assumed = assumedN ?? 0;
-  const unknown = unknownN ?? 0;
-  const lines: { k: string; v: string; note: string; tone?: string }[] = [
-    {
-      k: "Lợi nhuận các sản phẩm",
-      v: productProfit === null ? DASH : vnd(productProfit),
-      note: partial
-        ? `Chỉ các đơn có đủ chi phí (còn ${pp(unknownN, 1)} doanh thu chưa có giá vốn)`
-        : "Σ lợi nhuận từng sản phẩm, các đơn có đủ chi phí",
-    },
-    {
-      k: "− QC không gắn sản phẩm",
-      v: !bridge || bridge.ads_unattributed === null ? DASH : `−${vnd(bridge.ads_unattributed)}`,
-      note: bridge ? bridge.ads_label : `${p.ad_spend.unattributed_label} (đơn đã đặt)`,
-      tone: "sa-tone--down",
-    },
-    {
-      k: "− Chi marketing khác",
-      v: !bridge || bridge.other_marketing === null ? DASH : `−${vnd(bridge.other_marketing)}`,
-      note: "Giải thưởng trò chơi, không nằm trên đơn",
-      tone: "sa-tone--down",
-    },
-    {
-      // P100 B.5: ONE shop profit -- the known-cost orders, with its coverage line
-      k: "= Lợi nhuận shop",
-      v: vnd(p.profit_vnd),
-      note: `${p.coverage_label ? `${p.coverage_label} · ` : ""}Biên ${pp(p.margin_pct, 1)} · cùng số với Sản phẩm và Kế hoạch`,
-    },
-  ];
+function cellValue(r: ChannelRow | ChannelCells, c: Cell, days: number, mode: ValueMode): number | null {
+  const raw = r[c] ?? null;
+  return RATE_CELLS.has(c) ? raw : inMode(raw, days, mode);
+}
+
+function cellText(c: Cell, v: number | null): string {
+  if (v === null) return DASH;
+  switch (c) {
+    case "views":
+      return fmt(v, v < 100 && !Number.isInteger(v) ? 1 : 0);
+    case "ctr":
+    case "ctor":
+      return pc(v, 1);
+    case "share":
+      return pc(v, 1);
+    case "aov":
+      return vnd(v);
+    case "gmv":
+      return mil(v);
+    default:
+      return vnCount(v);
+  }
+}
+
+function ChannelTable({ data, mode, product, state, weakest }: { readonly data: ChannelSplit; readonly mode: ValueMode; readonly product: string | null; readonly state: WindowState; readonly weakest: WeakestMetric | null }) {
+  const { links } = useShopee();
+  const days = daysOf(data);
+  const perDay = (c: Cell) => !RATE_CELLS.has(c) && mode === "avg";
   return (
-    <Section hint={`Biên = ${p.margin_basis}`} testId="sa-profit" title="Lợi nhuận shop">
-      <div className="sa-profit">
-        <div className="sa-profit__lines">
-          {lines.map((l) => (
-            <div className="sa-profit__line" key={l.k}>
-              <span className="sa-profit__k">{l.k}</span>
-              <span className="sa-hint">{l.note}</span>
-              <span className={`sa-profit__v ${l.tone ?? ""}`}>{l.v}</span>
-            </div>
-          ))}
-          <p className="sa-hint" data-testid="sa-ad-check">
-            Kiểm tra: lợi nhuận các sản phẩm {vnd(bridge?.product_profit)} − QC không gắn sản phẩm{" "}
-            {vnd(bridge?.ads_unattributed)} − chi marketing khác {vnd(bridge?.other_marketing)} ={" "}
-            {vnd(p.profit_vnd)}
-            {bridge && bridge.product_profit !== null && bridge.ads_unattributed !== null && bridge.other_marketing !== null && bridge.product_profit - bridge.ads_unattributed - bridge.other_marketing === p.profit_vnd ? " ✓" : ""}. Tổng chi QC cả kỳ {vnd(p.ad_spend.total)} (QC các sản phẩm{" "}
-            {vnd(p.ad_spend.by_product)} + QC không gắn sản phẩm {vnd(p.ad_spend.unattributed)})
-            {p.ad_spend.consistent ? "" : " — chi phí theo sản phẩm lớn hơn tổng chiến dịch"}
-          </p>
+    <section className="sa-tq__table" data-testid="sa-channels" role="table">
+      <div className="sa-tq__row sa-tq__row--head" role="row">
+        <span role="columnheader">Luồng</span>
+        {COLUMNS.map(([cell, label, , weak]) => (
+          <span className={weak !== null && weak === weakest ? "sa-tq__weak" : undefined} data-weak={weak !== null && weak === weakest ? "true" : undefined} key={cell} role="columnheader">
+            {label}
+            {perDay(cell) ? " / ngày" : ""}
+          </span>
+        ))}
+      </div>
+      {data.rows.map((r) => {
+        const channel = CHANNEL_OF[r.key];
+        return (
+          <div className={`sa-tq__row${r.parent ? " sa-tq__row--child" : ""}`} data-testid={`sa-channel-${r.key}`} key={r.key} role="row">
+            <span className="sa-tq__name" role="cell">
+              <Link href={analysisHref(links, { metric: "gmv", channel, product, mode }, state)}>{NAMES[r.key]}</Link>
+              {r.ad_base ? (
+                <span className="sa-tq__src" data-testid={`sa-base-${r.key}`}>
+                  {AD_BASE[r.ad_base]}
+                </span>
+              ) : null}
+            </span>
+            {COLUMNS.map(([cell, , metric]) => {
+              const v = cellValue(r, cell, days, mode);
+              const before = r.prev ? cellValue(r.prev, cell, days, mode) : null;
+              return (
+                <Link className="sa-tq__cell" data-testid={`sa-cell-${r.key}-${cell}`} href={analysisHref(links, { metric, channel, product, mode }, state)} key={cell} role="cell">
+                  <span>{cellText(cell, v)}</span>
+                  {v === null ? null : <Shift pct={change(v, before)} />}
+                </Link>
+              );
+            })}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+/** Ahead of pace = the share of the goal reached is at least the share of the period elapsed. */
+export function aheadOfPace(bar: PlanBar, day: number, days: number): boolean {
+  if (bar.ahead !== undefined && bar.ahead !== null) return bar.ahead;
+  return bar.goal !== null && bar.goal > 0 && bar.now !== null && days > 0 && bar.now / bar.goal >= day / days;
+}
+
+function PlanCard({ plan }: { readonly plan: PlanMonth }) {
+  const marker = plan.today_marker === null ? null : Math.min(100, plan.today_marker * 100);
+  const bar = (label: string, key: string, b: PlanBar) => {
+    const hasGoal = b.goal !== null && b.goal > 0;
+    const pct = hasGoal && b.now !== null ? Math.max(0, Math.min(100, (b.now / (b.goal as number)) * 100)) : 0;
+    const ahead = aheadOfPace(b, plan.day, plan.days);
+    return (
+      <div className="sa-tq__goal" data-testid={`sa-plan-${key}`} key={key}>
+        <div className="sa-tq__goal-top">
+          <span>{label}</span>
+          <span>{hasGoal ? `${mil(b.now)} / ${mil(b.goal)}` : mil(b.now)}</span>
         </div>
-        <div className="sa-profit__panel">
-          <span className="sa-tile__label">Biên lợi nhuận cuối</span>
-          <span className={`sa-profit__margin ${ov.targets.margin_pct != null && p.margin_pct !== null && p.margin_pct < ov.targets.margin_pct ? "sa-tone--down" : ""}`} data-testid="sa-margin">
-            {pp(p.margin_pct, 1)}
-          </span>
-          <span className="sa-tone--warn sa-profit__note">
-            {partial
-              ? `trên ${pp(realN !== null && assumedN !== null ? realN + assumedN : null, 1)} doanh thu có giá vốn`
-              : "trên 100% doanh thu khách trả"}
-          </span>
-          <span aria-hidden="true" className="sa-cov">
-            <span className="sa-cov__seg sa-cov__seg--real" style={{ width: `${real}%` }} />
-            <span className="sa-cov__seg sa-cov__seg--assumed" style={{ width: `${assumed}%` }} />
-            <span className="sa-cov__seg sa-cov__seg--unknown" style={{ width: `${unknown}%` }} />
-          </span>
-          <span className="sa-profit__cov" data-testid="sa-coverage">
-            Giá vốn thật: <b>{pp(realN, 1)}</b> · {p.assumed_cost_label}: <b>{pp(assumedN, 1)}</b> · chưa có:{" "}
-            <b>{pp(unknownN, 1)}</b>
-          </span>
-          {assumed > 0 ? (
-            <span className="sa-hint" data-testid="sa-assumed-label">
-              {pp(p.assumed_cost_share_pct, 1)} doanh thu dùng {p.assumed_cost_label}; biên chưa ngoại suy sang
-              phần chưa có giá vốn.
-            </span>
-          ) : null}
-          {missing.length > 0 ? (
-            <span className="sa-hint">
-              Thiếu: {missing.map(([k, n]) => `${k} (${fmt(n)} dòng)`).join(" · ")}
-            </span>
-          ) : null}
-          {host.readOnly ? null : (
-            <Link className="sa-link" href={host.links.costImport(null, "tong-quan")}>
-              Nhập giá vốn ở Cài đặt ›
-            </Link>
-          )}
+        <div className="sa-tq__track">
+          {hasGoal ? <span className={`sa-tq__fill ${ahead ? "sa-tq__fill--ahead" : "sa-tq__fill--behind"}`} data-ahead={ahead ? "true" : "false"} data-testid={`sa-plan-${key}-fill`} style={{ width: `${pct}%` }} /> : null}
+          {hasGoal && marker !== null ? <span aria-hidden="true" className="sa-tq__today" data-testid={`sa-plan-${key}-today`} style={{ left: `${marker}%` }} /> : null}
         </div>
       </div>
-    </Section>
+    );
+  };
+  return (
+    <section className="sa-card sa-tq__plan" data-testid="sa-plan">
+      <div className="sa-tq__plan-head">
+        <b>
+          Kế hoạch · {dayMonth(plan.from)} – {dayMonth(plan.to)}
+        </b>
+        <span>
+          {plan.day}/{plan.days} ngày
+        </span>
+      </div>
+      {bar(METRIC_NAME.gmv, "gmv", plan.gmv)}
+      {bar("Lợi nhuận", "profit", plan.profit)}
+    </section>
   );
 }

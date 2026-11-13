@@ -13,6 +13,7 @@ nothing is written.
 - ``GET /v1/ops/shops/{id}/shopee/analytics/products/{item_id}``
 - ``GET /v1/ops/shops/{id}/shopee/analytics/kols`` and ``.../products/{item_id}/kols`` (P91 D-9)
 - ``GET /v1/ops/shops/{id}/shopee/analytics/kols/compare?group=channel|campaign_type|kol`` (P100)
+- ``GET /v1/ops/shops/{id}/shopee/exports/tong-quan.xlsx`` and ``.../ke-hoach.xlsx`` (P100)
 
 A shop that is not on Shopee answers 409 ``not_a_shopee_shop``.
 """
@@ -23,7 +24,7 @@ import uuid
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, viewer
@@ -33,13 +34,16 @@ from juli_backend.api.routes.shopee_analytics_common import (
     DateQ,
     MonthQ,
     PeriodQ,
+    PlanPeriodQ,
+    export_ke_hoach,
+    export_tong_quan,
     refusal,
     window_args,
 )
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services import shopee_recommendations as reco
-from juli_backend.services.shopee_analytics import queries
+from juli_backend.services.shopee_analytics import channel_split, metric_view, queries
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 
@@ -256,5 +260,146 @@ async def ops_shopee_product_kols(
                 session, shop_id, item_id, **window_args(period, month, start, end, as_of)
             )
             return await reco.attach_kol_cards(session, shop_id, body, audience="ops")
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get(f"{BASE}/channel-split")
+async def ops_shopee_channel_split(
+    shop_id: uuid.UUID,
+    period: PlanPeriodQ = "30d",
+    month: MonthQ = None,
+    start: FromQ = None,
+    end: ToQ = None,
+    as_of: DateQ = None,
+    product_id: Annotated[str | None, Query(max_length=64)] = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await channel_split.channel_split(
+                session,
+                shop_id,
+                product_id=product_id,
+                **window_args(period, month, start, end, as_of),
+            )
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get(f"{BASE}/channel-split/products")
+async def ops_shopee_channel_split_products(
+    shop_id: uuid.UUID,
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: FromQ = None,
+    end: ToQ = None,
+    as_of: DateQ = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await channel_split.channel_split_products(
+                session, shop_id, **window_args(period, month, start, end, as_of)
+            )
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+MetricQ = Annotated[str, Query(pattern="^(views|ctr|ctor|aov|orders|gmv|margin)$")]
+
+
+@router.get(f"{BASE}/metric-view")
+async def ops_shopee_metric_view(
+    shop_id: uuid.UUID,
+    metric: MetricQ = "gmv",
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: FromQ = None,
+    end: ToQ = None,
+    as_of: DateQ = None,
+    channel: Annotated[str | None, Query(max_length=32)] = None,
+    product_id: Annotated[str | None, Query(max_length=64)] = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await metric_view.metric_view(
+                session,
+                shop_id,
+                metric=metric,
+                audience="ops",
+                channel=channel,
+                product_id=product_id,
+                **window_args(period, month, start, end, as_of),
+            )
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get(f"{BASE}/kol-section")
+async def ops_shopee_kol_section(
+    shop_id: uuid.UUID,
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: FromQ = None,
+    end: ToQ = None,
+    as_of: DateQ = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await metric_view.kol_section(
+                session, shop_id, audience="ops", **window_args(period, month, start, end, as_of)
+            )
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+EXPORTS = "/shops/{shop_id}/shopee/exports"
+
+
+@router.get(f"{EXPORTS}/tong-quan.xlsx")
+async def ops_shopee_export_tong_quan(
+    shop_id: uuid.UUID,
+    period: PlanPeriodQ = "30d",
+    month: MonthQ = None,
+    start: FromQ = None,
+    end: ToQ = None,
+    as_of: DateQ = None,
+    product_id: Annotated[str | None, Query(max_length=64)] = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    name = await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await export_tong_quan(
+                session, shop_id, name, product_id=product_id,
+                **window_args(period, month, start, end, as_of),
+            )  # fmt: skip
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get(f"{EXPORTS}/ke-hoach.xlsx")
+async def ops_shopee_export_ke_hoach(
+    shop_id: uuid.UUID,
+    month: MonthQ = None,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    name = await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id, transaction_ends_after=True):
+            return await export_ke_hoach(session, shop_id, name, month)
     except REFUSALS as exc:
         raise refusal(exc) from None

@@ -248,7 +248,6 @@ export function TablePicker(props: TablePickerProps) {
             </button>
           </>
         ) : null}
-        {mode === "single" ? " · Danh sách gồm mọi sản phẩm Juli biết (danh mục từ Connector và các dòng đơn), kể cả sản phẩm không có đơn 30 ngày qua." : null}
       </p>
       {mode === "multi" ? (
         <SelectionList
@@ -258,15 +257,13 @@ export function TablePicker(props: TablePickerProps) {
           onRemove={(id) => change(removeId(selected, id))}
           selected={selected}
         />
-      ) : (
-        <p className="sa-hint">Sản phẩm “thiếu giá vốn” vẫn chọn được; lợi nhuận và biên hiện “chưa tính” cho đến khi nhập giá vốn ở Cài đặt › Thông số shop.</p>
-      )}
+      ) : null}
       {mode === "single" && (props.excludedHidden ?? 0) > 0 ? (
         <p className="sa-hint" data-testid="p2-excluded-note">
-          Đã loại trừ {props.excludedHidden} sản phẩm (ngừng bán, quà tặng, hàng phân phối, khác): không hiện ở đây, không có thẻ hay cờ Phân tích. Tổng GMV và lợi nhuận vẫn gồm đơn của chúng.{" "}
+          Đã loại trừ {props.excludedHidden} sản phẩm{" "}
           {props.exclusionsHref ? (
             <Link className="sa-link" href={props.exclusionsHref}>
-              Quản lý ở Cài đặt › Loại trừ sản phẩm ›
+              Loại trừ sản phẩm ›
             </Link>
           ) : null}
         </p>
@@ -287,7 +284,7 @@ function SelectionList({ selected, byId, onRemove, onClear, max }: { readonly se
         ) : null}
       </div>
       {selected.length === 0 ? (
-        <p className="sa-hint">Chưa chọn sản phẩm nào.</p>
+        <p className="sa-hint">—</p>
       ) : (
         <ul className="p2-sel__list">
           {selected.map((id) => (

@@ -25,10 +25,9 @@ describe("Sản phẩm: Phiên bản sản phẩm (ADR-122 d.12)", () => {
     page(withSkus({ "BEP-S5-CB": { orders: 12, price_margin_pct: 22.5, final_margin_pct: 14.1, final_margin_basis: "variation" } }));
     const row = within(await screen.findByTestId("sa-variations")).getByTestId("sa-var-BEP-S5-CB");
     expect(within(row).getByTestId("sa-margin-price")).toHaveTextContent("22,5%");
-    expect(within(row).getByTestId("sa-margin-price")).toHaveTextContent("Biên ở giá bán · chắc chắn");
+    expect(within(row).getByTestId("sa-margin-price")).toHaveTextContent("Biên ở giá bán");
     expect(within(row).getByTestId("sa-margin-final")).toHaveTextContent("14,1%");
     expect(within(row).getByTestId("sa-margin-final")).toHaveTextContent("Biên cuối · ước tính");
-    expect(within(row).getByTestId("sa-margin-final")).not.toHaveTextContent("theo tỉ lệ của sản phẩm");
   });
 
   it("a variation on its product's rates says so; a missing giá vốn reads chưa tính", async () => {
@@ -39,7 +38,6 @@ describe("Sản phẩm: Phiên bản sản phẩm (ADR-122 d.12)", () => {
       }),
     );
     const table = await screen.findByTestId("sa-variations");
-    expect(within(within(table).getByTestId("sa-var-BEP-S5-CB")).getByTestId("sa-margin-final")).toHaveTextContent("theo tỉ lệ của sản phẩm");
     const qt = within(table).getByTestId("sa-var-BEP-S5-QT");
     expect(within(qt).getByTestId("sa-margin-price")).toHaveTextContent("chưa tính");
     expect(within(qt).getByTestId("sa-margin-final")).toHaveTextContent("chưa tính");
@@ -74,10 +72,9 @@ describe("So sánh phân loại: Biên cuối (W2-G's final_margin_pct)", () => 
     render(<VariationCompare costLink="/x" data={{ ...data, variations: rows }} />);
     const v3 = screen.getByTestId("p2-vcmp-v3");
     expect(v3).toHaveTextContent("16,0%");
-    expect(v3).toHaveTextContent("Biên ở giá bán · chắc chắn");
+    expect(v3).toHaveTextContent("Biên ở giá bán");
     expect(within(v3).getByTestId("p2-vcmp-final")).toHaveTextContent("9,5%");
     expect(within(screen.getByTestId("p2-vcmp-v5")).getByTestId("p2-vcmp-final")).toHaveTextContent("chưa tính");
-    expect(within(screen.getByTestId("p2-vcmp-v5")).getByTestId("p2-vcmp-final")).toHaveTextContent("theo tỉ lệ của sản phẩm");
   });
 
   it("is null-safe: without the field only today's margin shows", async () => {

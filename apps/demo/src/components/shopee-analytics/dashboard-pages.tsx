@@ -1,15 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { Suspense, useMemo } from "react";
 
 import { useShopReport } from "../../lib/shop-report/shop-report-context";
-import { DASHBOARD_KINDS, DASHBOARD_LABEL, sellerLinks, type DashboardKind, type ShopeeLinks } from "../../lib/shopee-analytics/links";
+import { DASHBOARD_LABEL, sellerLinks, type DashboardKind, type ShopeeLinks } from "../../lib/shopee-analytics/links";
 import { DEMO_DASHBOARDS_BASE, createDashboardsApi, type DashboardsApi } from "../../lib/shopee-analytics/dashboards-client";
 import { ShopeeAdsBody } from "../ops/shopee/ops-shopee-ads";
 import { ShopeeKeywordsBody } from "../ops/shopee/ops-shopee-keywords";
 import { ShopeeProductsBody } from "../ops/shopee/ops-shopee-products";
 import { ShopeeOrdersBody } from "../ops/shopee/shopee-orders-board";
+import { DataShopTabs } from "./data-shop-tabs";
 import { Notice, PageHead } from "./ui";
 
 /**
@@ -25,25 +25,6 @@ export const DASHBOARD_ROUTE: Readonly<Record<DashboardKind, string>> = {
   "don-hang": "/don-hang",
   "luong-san-pham": "/luong-san-pham",
 };
-
-const LEDE: Readonly<Record<DashboardKind, string>> = {
-  "tu-khoa": "Từ khóa ghép từ tiêu đề sản phẩm của shop, với lượt tìm, CPC và độ khó theo lần tra gần nhất.",
-  "quang-cao": "Chi phí, đơn và ROAS theo loại quảng cáo, và các chương trình khuyến mãi của shop.",
-  "don-hang": "Từng đơn của shop với đòn bẩy đã dùng, trạng thái và thu nhập mỗi đơn. Mã đơn là khoá băm, không có thông tin người mua.",
-  "luong-san-pham": "GMV theo luồng truy cập và phễu của từng sản phẩm trong một kỳ.",
-};
-
-function DashboardTabs({ active, links }: { readonly active: DashboardKind; readonly links: ShopeeLinks }) {
-  return (
-    <nav aria-label="Dashboard Shopee" className="sa-seg sa-seg--round sa-tabs" data-testid="dashboard-tabs">
-      {DASHBOARD_KINDS.map((k) => (
-        <Link aria-current={active === k ? "page" : undefined} className={`sa-seg__item ${active === k ? "sa-seg__item--on" : ""}`} href={links.dashboard(k)} key={k}>
-          {DASHBOARD_LABEL[k]}
-        </Link>
-      ))}
-    </nav>
-  );
-}
 
 /** The page body for one kind, read through `api` (the shop id is only a request key for Ops). */
 export function DashboardPage({
@@ -62,8 +43,7 @@ export function DashboardPage({
   return (
     <div className="sx-dash" data-testid={`dashboard-${kind}`}>
       <PageHead eyebrow={`SHOPEE · ${DASHBOARD_LABEL[kind].toUpperCase()}`} title={shopName ? `${shopName}: ${DASHBOARD_LABEL[kind].toLowerCase()}` : DASHBOARD_LABEL[kind]} />
-      <p className="sa-hint">{LEDE[kind]} Chỉ xem.</p>
-      <DashboardTabs active={kind} links={links} />
+      <DataShopTabs active={kind} links={links} />
       <div className="sx-dash__body">
         {kind === "tu-khoa" ? <ShopeeKeywordsBody api={api} canEdit={false} seller shopId={shopId} /> : null}
         {kind === "quang-cao" ? <ShopeeAdsBody api={api} shopId={shopId} /> : null}

@@ -45,6 +45,10 @@ KIND_KEYS = (
     "listing_relist",
 )
 
+#: P100: no longer creatable from the builder. Stored decisions of these kinds are still read and
+#: shown; the specs stay so those can be rebuilt. The builder routes refuse them.
+REMOVED_BUILDER_KINDS = ("listing_combo", "listing_hide", "listing_relist")
+
 ItemId = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[^\s:]+$")]
 VariationId = Annotated[str, Field(max_length=64, pattern=r"^[^\s:]*$")]
 Money = Annotated[int, Field(ge=0, le=MAX_MONEY)]
@@ -706,6 +710,7 @@ def as_json(spec: BaseModel) -> dict[str, Any]:
 
 __all__ = [
     "KIND_KEYS",
+    "REMOVED_BUILDER_KINDS",
     "MAX_VERSIONS",
     "MIN_VERSIONS_COMPARE",
     "VOUCHER_SCOPES",

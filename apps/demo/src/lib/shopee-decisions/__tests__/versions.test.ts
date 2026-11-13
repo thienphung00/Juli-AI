@@ -103,7 +103,7 @@ describe("the side-by-side table", () => {
   it("has the artboard's rows, one cell per version, and flags the breaching column", () => {
     const card = versionedVoucher();
     const rows = versionTable(card, card.versions!);
-    expect(rows.map((r) => r.label)).toEqual(["① Giảm giá", "② Hiệu quả chi", "③ Biên lợi nhuận", "④ Số đơn", "⑤ AOV", "Chi phí", "Δ lợi nhuận · chắc chắn", "Δ lợi nhuận · dự kiến", "Giá sàn", "Trần chi"]);
+    expect(rows.map((r) => r.label)).toEqual(["① Giảm giá", "② Hiệu quả chi", "③ Biên lợi nhuận", "④ Số đơn", "⑤ AOV", "Chi phí", "Δ lợi nhuận · chắc chắn", "Δ lợi nhuận", "Giá sàn", "Trần chi"]);
     expect(rows.every((r) => r.cells.length === 3)).toBe(true);
     const floor = rows.find((r) => r.key === "floor")!;
     expect(floor.cells[0]!.v).toBe("✓ Trên giá sàn vận hành");
@@ -113,7 +113,7 @@ describe("the side-by-side table", () => {
     expect(exp.cells[0]!.v).toBe("−1.400đ – +7.900đ/ngày");
     expect(exp.cells[0]!.d).toContain("30 ngày: −43.000đ – +237.000đ");
     expect(rows.find((r) => r.key === "sure")!.cells[0]!.v).toBe("−2.100đ/ngày");
-    expect(rows.find((r) => r.key === "cap")!.cells[0]!.v).toBe("✓ Chi marketing dự kiến 1.112.311đ/ngày · trong trần 1.200.000đ/ngày");
+    expect(rows.find((r) => r.key === "cap")!.cells[0]!.v).toBe("✓ Chi marketing 1.112.311đ/ngày · trong trần 1.200.000đ/ngày");
   });
 
   it("a voucher shows usage against its limit, the per-buyer limit, the max discount and why versions match; flows are per day and per order", () => {
@@ -146,7 +146,7 @@ describe("the side-by-side table", () => {
     const card = { ...base, versions, certain: versions[0]!.certain, predicted: versions[0]!.predicted };
     const rows = versionTable(card, versions);
     const by = (k: string) => rows.find((r) => r.key === k)!;
-    expect(by("usage").cells.map((c) => c.v)).toEqual(["Dự kiến dùng 6 / 10 lượt", "Dự kiến dùng 6 / 20 lượt", "Dự kiến dùng 6 / 5 lượt"]);
+    expect(by("usage").cells.map((c) => c.v)).toEqual(["Dùng 6 / 10 lượt", "Dùng 6 / 20 lượt", "Dùng 6 / 5 lượt"]);
     expect(by("usage").cells.map((c) => c.d)).toEqual(["chưa chạm giới hạn", "chưa chạm giới hạn", "chạm giới hạn"]);
     expect(by("same").cells[1]!.v).toContain("Giới hạn 20 lượt không đổi kết quả");
     expect(by("peruser").cells[0]!.v).toBe("1 lượt/người");
