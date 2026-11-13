@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { channelProducts, channelSplit, critical, matrix, overview, product, ranking } from "../../../lib/shopee-analytics/__tests__/fixtures";
+import { channelProducts, channelSplit, critical, kolSection, matrix, metricView, overview, product, ranking } from "../../../lib/shopee-analytics/__tests__/fixtures";
 import { AUTH_SESSION_STORAGE_KEY } from "../../../lib/supabase-auth";
 import { OpsShopeeAnalytics } from "../shopee/ops-shopee-analytics";
 import { OpsViewAs } from "../ops-view-as";
@@ -38,6 +38,8 @@ function opsFetch() {
     if (path === `${BASE}/matrix`) return json(matrix());
     if (path === `${BASE}/critical`) return json(critical());
     if (path === `${BASE}/ranking`) return json(ranking());
+    if (path === `${BASE}/metric-view`) return json(metricView());
+    if (path === `${BASE}/kol-section`) return json(kolSection());
     if (path.startsWith(`${BASE}/products/`)) return json(product());
     return new Response(JSON.stringify({ detail: "none" }), { status: 404 });
   });
@@ -81,10 +83,10 @@ describe("Xem như shop on a Shopee shop", () => {
     const { fn, calls } = opsFetch();
     render(<OpsViewAs api={{ viewSession: async () => SHOPEE_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
     expect(await screen.findByTestId("sa-phan-tich")).toBeInTheDocument();
-    await waitFor(() => expect(calls.some((c) => c.url.startsWith(`${BASE}/critical`))).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.url.startsWith(`${BASE}/metric-view`))).toBe(true));
   });
 
-  it("opens a product by ?id=, and an old trang=xep-hang link opens Phân tích with its product table", async () => {
+  it("opens a product by ?id=, and an old trang=xep-hang link opens Phân tích on that metric", async () => {
     search = "trang=san-pham&id=BEP-S5&tab=cp";
     const { fn, calls } = opsFetch();
     const { unmount } = render(<OpsViewAs api={{ viewSession: async () => SHOPEE_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
@@ -93,10 +95,10 @@ describe("Xem như shop on a Shopee shop", () => {
     unmount();
     search = "trang=xep-hang&kpi=ctr&src=live";
     render(<OpsViewAs api={{ viewSession: async () => SHOPEE_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
-    expect(await screen.findByTestId("sa-ranking")).toBeInTheDocument();
+    expect(await screen.findByTestId("pt-products")).toBeInTheDocument();
     expect(screen.getByTestId("sa-phan-tich")).toBeInTheDocument();
-    // L1: the CTR table ranks by CTR, not by ₫ GMV/ngày
-    await waitFor(() => expect(calls.some((c) => c.url.includes("/ranking?") && c.url.includes("source=live") && c.url.includes("xep_theo=ctr"))).toBe(true));
+    // the old kpi / src names open the CTR view of Live
+    await waitFor(() => expect(calls.some((c) => c.url.includes("/metric-view?") && c.url.includes("metric=ctr") && c.url.includes("channel=live"))).toBe(true));
     await waitFor(() => expect(replaced.some((h) => h.includes("trang=phan-tich") && h.includes("kpi=ctr") && h.includes("src=live"))).toBe(true));
   });
 
@@ -105,7 +107,7 @@ describe("Xem như shop on a Shopee shop", () => {
     const { fn, calls } = opsFetch();
     render(<OpsViewAs api={{ viewSession: async () => SHOPEE_SESSION }} baseFetch={fn} me={ME} shopId={SHOP_ID} />);
     await screen.findByTestId("sa-phan-tich");
-    await waitFor(() => expect(calls.some((c) => c.url.startsWith(`${BASE}/critical`))).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.url.startsWith(`${BASE}/metric-view`))).toBe(true));
     expect(calls.some((c) => c.url.includes("/view/analysis"))).toBe(false);
   });
 

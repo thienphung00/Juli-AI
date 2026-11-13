@@ -1,194 +1,117 @@
-import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { fakeApi, critical } from "../../../lib/shopee-analytics/__tests__/fixtures";
-import { PhanTichPageView, chartOf } from "../phan-tich-view";
-import { params, renderWith, textOf } from "./harness";
+import { fakeApi, kolSection, metricView } from "../../../lib/shopee-analytics/__tests__/fixtures";
+import { readMetricParams, sortRows } from "../../../lib/shopee-analytics/metric-view";
+import { PhanTichPageView, periodQuery } from "../phan-tich-view";
+import { params, renderWith } from "./harness";
 
 const q = (href: string | null) => new URLSearchParams((href ?? "").split("?")[1] ?? "");
 
-describe("Phân tích", () => {
-  it("lists the critical items ranked by ₫ at stake, biggest first", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    expect(await screen.findByRole("heading", { level: 1, name: "3 chỉ số cần chú ý" })).toBeInTheDocument();
-    const ids = screen.getAllByTestId(/^sa-item-/).map((e) => e.getAttribute("data-testid"));
-    expect(ids).toEqual(["sa-item-flow:the_san_pham_khac:ctor", "sa-item-product:GL-001:bien", "sa-item-product:XM-003:roas"]);
-    const first = screen.getByTestId("sa-item-flow:the_san_pham_khac:ctor");
-    expect(first).toHaveTextContent("−300.000đ/ngày");
-    expect(first).toHaveTextContent("−9.000.000đ/tháng");
+describe("Phân tích (board B)", () => {
+  it("leads with the number: metric, change, weakest luồng, products pulling down", async () => {
+    renderWith(<PhanTichPageView params={params("metric=ctr")} />, fakeApi());
+    expect(await screen.findByRole("heading", { level: 1, name: "CTR ▼ 20 % · Thẻ sản phẩm · 2 sản phẩm kéo xuống" })).toBeInTheDocument();
   });
 
-  it("totals the ₫ at stake per day and per month", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    const bar = await screen.findByTestId("sa-at-stake");
-    expect(bar).toHaveTextContent("Tổng ₫ có nguy cơ: −470.000đ/ngày (−14.100.000đ/tháng)");
-  });
-
-  it("each item draws the band chart, the deviation and the funnel stage of its cause", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    const flow = await screen.findByTestId("sa-item-flow:the_san_pham_khac:ctor");
-    expect(within(flow).getByTestId("sa-band-flow:the_san_pham_khac:ctor")).toBeInTheDocument();
-    expect(flow).toHaveTextContent("Thấp hơn dải 1,00 điểm");
-    expect(flow).toHaveTextContent("Dải bình thường 8,00%–9,00%");
-    expect(flow).toHaveTextContent("Khách bấm vào nhưng ít đặt đơn.");
-    const stages = flow.querySelectorAll(".sa-stage--on");
-    expect(stages).toHaveLength(1);
-    expect(stages[0]).toHaveTextContent("CTOR");
-
-    const margin = screen.getByTestId("sa-item-product:GL-001:bien");
-    expect(margin).toHaveTextContent("8,0%");
-    expect(margin).toHaveTextContent("Thấp hơn mục tiêu 2,0 điểm");
-    expect(margin).toHaveTextContent("giá vốn giả định (1/3 giá)");
-    expect(margin.querySelector(".sa-stage--on")).toHaveTextContent("Biên");
-
-    const roas = screen.getByTestId("sa-item-product:XM-003:roas");
-    expect(roas).toHaveTextContent("đơn đã đặt");
-    expect(roas).toHaveTextContent("Thấp hơn hoà vốn 0,9");
-  });
-
-  it("links to its row in the product table (kpi, src, focus, from=phan-tich, card) and to the card", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    const flow = await screen.findByTestId("sa-item-flow:the_san_pham_khac:ctor");
-    const rank = within(flow).getByRole("link", { name: "Xem theo sản phẩm ›" });
-    expect(rank.getAttribute("href")?.split("?")[0]).toBe("/phan-tich");
-    expect(Object.fromEntries(q(rank.getAttribute("href")))).toEqual({ kpi: "ctor", src: "the_san_pham", focus: "the_san_pham_khac", from: "phan-tich", card: "c_xm_disc" });
-    const card = within(flow).getByRole("link", { name: "Xem đề xuất ›" });
-    expect(Object.fromEntries(q(card.getAttribute("href")))).toEqual({ the: "c_xm_disc", from: "phan-tich", row: "flow:the_san_pham_khac:ctor" });
-    const margin = screen.getByTestId("sa-item-product:GL-001:bien");
-    expect(within(margin).getByText("Chưa có đề xuất")).toBeInTheDocument();
-    expect(Object.fromEntries(q(within(margin).getByRole("link", { name: "Xem theo sản phẩm ›" }).getAttribute("href")))).toEqual({ kpi: "bien", src: "all", focus: "GL-001", from: "phan-tich" });
-  });
-
-  it("a ROAS item opens the ads ranking (kpi roas is not a ranking tab)", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    const roas = await screen.findByTestId("sa-item-product:XM-003:roas");
-    const href = within(roas).getByRole("link", { name: "Xem theo sản phẩm ›" }).getAttribute("href");
-    expect(q(href).get("kpi")).toBe("gmv");
-    expect(q(href).get("src")).toBe("ads");
-  });
-
-  it("offers the first card in the Juli bar", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    const bar = await screen.findByTestId("sa-at-stake");
-    expect(within(bar).getByRole("link", { name: "Xem 1 đề xuất ›" }).getAttribute("href")).toContain("the=c_xm_disc");
-  });
-
-  it("filters by metric group", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    const user = userEvent.setup();
-    await screen.findByTestId("sa-critical-list");
-    await user.click(screen.getByRole("button", { name: "Dịch vụ hiển thị" }));
-    expect(screen.getAllByTestId(/^sa-item-/)).toHaveLength(1);
-    await user.click(screen.getByRole("button", { name: "AOV" }));
-    expect(screen.getByTestId("sa-critical-empty")).toHaveTextContent("Không có chỉ số cần chú ý ở nhóm này");
-    await user.click(screen.getByRole("button", { name: "Biên và giá sàn" }));
-    expect(screen.getAllByTestId(/^sa-item-/)).toHaveLength(1);
-  });
-
-  it("folds items inside their reference into 'Trong dải bình thường' and keeps them out of the total", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    const user = userEvent.setup();
-    const box = await screen.findByTestId("sa-in-band");
-    expect(box).toHaveTextContent("1 mục · không tính vào ₫ có nguy cơ");
-    expect(screen.queryByTestId("sa-ok-flow:video:ctr")).toBeNull();
-    await user.click(within(box).getByRole("button", { name: "Xem thêm" }));
-    expect(screen.getByTestId("sa-ok-flow:video:ctr")).toBeInTheDocument();
-    expect(screen.getByTestId("sa-at-stake")).toHaveTextContent("−470.000đ/ngày");
-  });
-
-  it("V12: the in-band list follows the active filter (Biên và giá sàn hides the CTR row)", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    const user = userEvent.setup();
-    const box = await screen.findByTestId("sa-in-band");
-    await user.click(within(box).getByRole("button", { name: "Xem thêm" }));
-    expect(screen.getByTestId("sa-ok-flow:video:ctr")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Biên và giá sàn" }));
-    expect(screen.queryByTestId("sa-ok-flow:video:ctr")).toBeNull();
-    expect(screen.getByTestId("sa-in-band")).toHaveTextContent("0 mục");
-    await user.click(screen.getByRole("button", { name: "CTR và CTOR" }));
-    expect(screen.getByTestId("sa-ok-flow:video:ctr")).toBeInTheDocument();
-  });
-
-  it("shows the notes (missing target, assumed cost, missing history) as they come", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi({ critical: critical({ notes: [{ code: "margin_target_missing", message: "Chưa đặt mục tiêu biên." }, { code: "band_missing:live", message: "Chưa đủ lịch sử để lập dải bình thường cho Live." }] }) }));
-    expect(await screen.findByTestId("sa-note-margin_target_missing")).toHaveTextContent("Chưa đặt mục tiêu biên.");
-    expect(screen.getByTestId("sa-note-band_missing:live")).toBeInTheDocument();
-  });
-
-  it("empty: no item says so, with no total bar", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi({ critical: critical({ items: [], in_band: [], total_at_stake_per_day: 0, notes: [] }) }));
-    expect(await screen.findByTestId("sa-critical-empty")).toHaveTextContent("Chưa có chỉ số nào cần chú ý");
-    expect(screen.queryByTestId("sa-at-stake")).toBeNull();
-  });
-
-  it("the band chart puts the dot on the item's own axis", () => {
-    const item = critical().items[0]!;
-    const c = chartOf(item)!;
-    expect(c.band).not.toBeNull();
-    expect(c.tick).toBeNull();
-    expect(c.dot!).toBeLessThan(c.band!.left);
-    const target = chartOf(critical().items[1]!)!;
-    expect(target.tick).not.toBeNull();
-    expect(target.band).toBeNull();
-  });
-
-  it("M3: the heading counts the items of the active filter", async () => {
-    renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    const user = userEvent.setup();
-    await screen.findByRole("heading", { level: 1, name: "3 chỉ số cần chú ý" });
-    await user.click(screen.getByRole("button", { name: "Dịch vụ hiển thị" }));
-    expect(screen.getByRole("heading", { level: 1, name: "1 chỉ số cần chú ý" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "AOV" }));
-    expect(screen.getByRole("heading", { level: 1, name: "0 chỉ số cần chú ý" })).toBeInTheDocument();
-  });
-
-  it("M1: a product that fell against the previous window is an item, under 'Doanh số'", async () => {
-    const base = critical().items[0]!;
-    const drop = {
-      ...base,
-      id: "product:26107129526:gmv:previous",
-      kind: "below_previous",
-      level: "product" as const,
-      product_id: "26107129526",
-      name: "Combo 3, 5,10 Hộp 100 Găng Tay",
-      flow: null,
-      flow_label: null,
-      kpi: "gmv",
-      current: 257_958,
-      reference: { type: "previous" as const, label: "GMV / ngày kỳ trước", value: 390_150 },
-      deviation_pct: -33.9,
-      at_stake_per_day: 132_192,
-      at_stake_per_month: 3_965_760,
-      cause: { stage: "ctor", text: "CTOR giảm so với kỳ trước: khách bấm vào nhưng ít đặt đơn." },
-      ranking_link: { kpi: "gmv", src: "all", focus: "26107129526" },
-      rank: 1,
-      card: null,
-    };
-    renderWith(<PhanTichPageView params={params()} />, fakeApi({ critical: critical({ items: [drop], in_band: [] }) }));
-    const item = await screen.findByTestId("sa-item-product:26107129526:gmv:previous");
-    expect(item).toHaveTextContent("GMV / ngày so với kỳ trước");
-    expect(item).toHaveTextContent("Thấp hơn kỳ trước 132.192đ/ngày");
-    expect(item).toHaveTextContent("GMV / ngày kỳ trước: 390.150đ/ngày");
-    expect(item).toHaveTextContent("−132.192đ/ngày");
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Doanh số" }));
-    expect(screen.getByTestId("sa-item-product:26107129526:gmv:previous")).toBeInTheDocument();
-  });
-
-  it("holds the product table (what Xếp hạng was) and a period link keeps its KPI and source", async () => {
+  it("asks the API for the metric, luồng and product of the URL, and the old kpi / src names still work", async () => {
     const api = fakeApi();
-    renderWith(<PhanTichPageView params={params("kpi=ctr&src=live")} />, api);
-    expect(await screen.findByTestId("sa-rk-table")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Theo sản phẩm · CTR · Live" })).toBeInTheDocument();
-    expect(api.calls.some((c) => c.startsWith("ranking:") && c.includes('"xepTheo":"ctr"'))).toBe(true);
-    const seven = screen.getAllByRole("link", { name: "7 ngày" })[0]!;
-    expect(Object.fromEntries(q(seven.getAttribute("href")))).toEqual({ kpi: "ctr", src: "live", ky: "7d" });
+    renderWith(<PhanTichPageView params={params("metric=aov&channel=video&product=GL-001&ky=7d")} />, api);
+    await screen.findByTestId("pt-channels");
+    expect(api.calls.some((c) => c.startsWith("metricView:") && c.includes('"metric":"aov"') && c.includes('"channel":"video"') && c.includes('"productId":"GL-001"') && c.includes('"period":"7d"'))).toBe(true);
+    expect(readMetricParams(params("kpi=bien&src=ads&focus=X1"))).toEqual({ metric: "margin", channel: "ads_product", product: "X1", mode: "total" });
+    expect(readMetricParams(params("metric=nope&channel=zzz"))).toMatchObject({ metric: "gmv", channel: null });
   });
 
-  it("never draws a buyer field", async () => {
-    const { container } = renderWith(<PhanTichPageView params={params()} />, fakeApi());
-    await screen.findByTestId("sa-critical-list");
-    expect(textOf(container).toLowerCase()).not.toContain("buyer");
+  it("shows all seven metric chips, the selected one with its shift, each linking to its own metric", async () => {
+    renderWith(<PhanTichPageView params={params("metric=ctr")} />, fakeApi());
+    for (const m of ["views", "ctr", "ctor", "aov", "orders", "gmv", "margin"]) expect(await screen.findByTestId(`pt-chip-${m}`)).toBeInTheDocument();
+    const ctr = screen.getByTestId("pt-chip-ctr");
+    expect(ctr).toHaveAttribute("aria-current", "true");
+    expect(ctr).toHaveTextContent("▼ 20 %");
+    expect(q(screen.getByTestId("pt-chip-aov").getAttribute("href")).get("metric")).toBe("aov");
+    expect(screen.getByTestId("pt-chip-gmv")).not.toHaveTextContent("%");
+  });
+
+  it("Theo luồng: this period, previous, change, GMV affected, DVHT rows name their source", async () => {
+    renderWith(<PhanTichPageView params={params("metric=ctr")} />, fakeApi());
+    const row = await screen.findByTestId("pt-channel-the_san_pham");
+    expect(row).toHaveTextContent("Thẻ sản phẩm4,00%5,00%▼ 20 %−2,00 trĐề xuất (3) ›");
+    expect(screen.getByTestId("pt-channel-ads_product")).toHaveTextContent("DVHT Sản phẩmBáo cáo DVHT");
+    expect(screen.getByTestId("pt-channel-live")).toHaveTextContent("Live——");
+    expect(screen.getByTestId("pt-channel-live")).toHaveTextContent("Tự tạo ›");
+  });
+
+  it("CTAs: Đề xuất (n) opens Quyết định filtered by metric and product; Tự tạo opens the builder with the product", async () => {
+    renderWith(<PhanTichPageView params={params("metric=ctr&ky=7d")} />, fakeApi());
+    const withCards = within(await screen.findByTestId("pt-product-GL-001")).getByRole("link", { name: "Đề xuất (2) ›" });
+    const p = q(withCards.getAttribute("href"));
+    expect(withCards.getAttribute("href")).toMatch(/^\/decisions\?/);
+    expect([p.get("tab"), p.get("metric"), p.get("product"), p.get("ky")]).toEqual(["de-xuat", "ctr", "GL-001", "7d"]);
+    const none = within(screen.getByTestId("pt-product-XM-003")).getByRole("link", { name: "Tự tạo ›" });
+    const b = q(none.getAttribute("href"));
+    expect([b.get("tu-tao"), b.get("sp")]).toEqual(["1", "XM-003"]);
+  });
+
+  it("Theo sản phẩm sorts by GMV affected (biggest loss first) or by the change", async () => {
+    renderWith(<PhanTichPageView params={params("metric=ctr")} />, fakeApi());
+    const ids = () => screen.getAllByTestId(/^pt-product-/).map((e) => e.getAttribute("data-testid"));
+    await screen.findByTestId("pt-products");
+    expect(ids()).toEqual(["pt-product-GL-001", "pt-product-BEP-S5", "pt-product-XM-003"]);
+    fireEvent.change(screen.getByRole("combobox", { name: "Xếp theo" }), { target: { value: "change" } });
+    await waitFor(() => expect(ids()[0]).toBe("pt-product-GL-001"));
+    const rows = metricView().products;
+    expect(sortRows(rows, "change").map((r) => r.product_id)).toEqual(["GL-001", "BEP-S5", "XM-003"]);
+  });
+
+  it("Trung bình / ngày divides the sums by the days and leaves rates alone", async () => {
+    const api = fakeApi({
+      metricView: metricView({
+        metric: "gmv",
+        total: { key: "total", now: 3_000_000, prev: 6_000_000, change: -0.5, impact: -3_000_000, cards: 0 },
+        channels: [{ key: "video", now: 3_000_000, prev: 6_000_000, change: -0.5, impact: -3_000_000, cards: 0 }],
+        products: [],
+      }),
+    });
+    const { unmount } = renderWith(<PhanTichPageView params={params("metric=gmv&cach=tb")} />, api);
+    const row = await screen.findByTestId("pt-channel-video");
+    expect(row).toHaveTextContent("100.000đ200.000đ▼ 50 %−100.000đ");
+    expect(screen.getByRole("link", { name: "Trung bình / ngày" })).toHaveAttribute("aria-current", "true");
+    unmount();
+    renderWith(<PhanTichPageView params={params("metric=ctr&cach=tb")} />, fakeApi());
+    expect(await screen.findByTestId("pt-channel-the_san_pham")).toHaveTextContent("4,00%5,00%");
+  });
+
+  it("the mode link keeps the metric and the window", async () => {
+    renderWith(<PhanTichPageView params={params("metric=ctor&ky=90d")} />, fakeApi());
+    const avg = q((await screen.findByRole("link", { name: "Trung bình / ngày" })).getAttribute("href"));
+    expect([avg.get("metric"), avg.get("ky"), avg.get("cach")]).toEqual(["ctor", "90d", "tb"]);
+  });
+
+  it("the KOL section is always there: totals, split, rows with change and CTA", async () => {
+    renderWith(<PhanTichPageView params={params()} />, fakeApi({ kolSection: kolSection() }));
+    const totals = await screen.findByTestId("pt-kol-totals");
+    expect(totals).toHaveTextContent("Lượt nhấp 100Đơn 10GMV 1,20 trVideo KOL 1,03 trLive KOL 80.000đKhác 90.000đ");
+    const row = screen.getByTestId("pt-kol-k1-GL-001");
+    expect(row).toHaveTextContent("@kol_mot");
+    expect(row).toHaveTextContent("+150.000đ");
+    expect(row).toHaveTextContent("▲ 28 %");
+    expect(within(row).getByRole("link", { name: "Đề xuất (1) ›" })).toBeInTheDocument();
+    const second = screen.getByTestId("pt-kol-k2-XM-003");
+    expect(second).toHaveTextContent("−20.000đ");
+    expect(within(second).getByRole("link", { name: "Tự tạo ›" })).toBeInTheDocument();
+  });
+
+  it("has no critical list, legend, notices or KOL tab", async () => {
+    const { container } = renderWith(<PhanTichPageView params={params("tab=kol")} />, fakeApi());
+    await screen.findByTestId("pt-products");
+    expect(screen.queryByTestId("sa-critical-list")).toBeNull();
+    expect(screen.queryByTestId("sa-pt-tabs")).toBeNull();
+    expect(container.querySelector(".sa-notice, .sa-info")).toBeNull();
+  });
+
+  it("period links keep metric, luồng and product", () => {
+    const p = periodQuery(params("metric=aov&channel=video&product=P1&cach=tb&ky=7d"), { query: { period: "90d" }, compare: true });
+    expect([p.get("metric"), p.get("channel"), p.get("product"), p.get("cach"), p.get("ky")]).toEqual(["aov", "video", "P1", "tb", "90d"]);
   });
 });

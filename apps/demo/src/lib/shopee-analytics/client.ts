@@ -1,5 +1,5 @@
 import type { MarketScope } from "./market-price";
-import type { ChannelProducts, ChannelSplit, Critical, Matrix, Overview, ProductPage, Ranking } from "./types";
+import type { ChannelProducts, ChannelSplit, Critical, KolSection, Matrix, MetricView, Overview, ProductPage, Ranking } from "./types";
 
 /**
  * The one client of the Shopee shop read APIs. The SAME screens run for the seller
@@ -36,6 +36,12 @@ export interface MatrixQuery extends WindowQuery {
   readonly limit?: number;
 }
 
+export interface MetricViewQuery extends WindowQuery {
+  readonly metric: string;
+  readonly channel?: string | null;
+  readonly productId?: string | null;
+}
+
 export interface ShopeeApi {
   overview(q: WindowQuery): Promise<Overview>;
   matrix(q: MatrixQuery): Promise<Matrix>;
@@ -44,6 +50,10 @@ export interface ShopeeApi {
   channelSplit(q: WindowQuery, productId?: string | null): Promise<ChannelSplit>;
   channelSplitProducts(q: WindowQuery): Promise<ChannelProducts>;
   ranking(q: RankingQuery): Promise<Ranking>;
+  /** P100 Phân tích: one metric by luồng and by sản phẩm, now vs the previous period. */
+  metricView(q: MetricViewQuery): Promise<MetricView>;
+  /** P100 Phân tích: Tiếp thị liên kết theo KOL (always on, no flag). */
+  kolSection(q: WindowQuery): Promise<KolSection>;
   product(itemId: string, period: "7d" | "30d" | "90d"): Promise<ProductPage>;
   /** P92 B-10: where the "Giá thị trường" call goes (same token and shop as this client). */
   readonly marketScope?: MarketScope;
@@ -157,6 +167,14 @@ export function createShopeeApi(options: ShopeeClientOptions): ShopeeApi {
       p.set("xep_theo", q.xepTheo ?? "gmv_per_day");
       return get<Ranking>("/ranking", p);
     },
+    metricView: (q) => {
+      const p = windowParams(q);
+      p.set("metric", q.metric);
+      if (q.channel) p.set("channel", q.channel);
+      if (q.productId) p.set("product_id", q.productId);
+      return get<MetricView>("/metric-view", p);
+    },
+    kolSection: (q) => get<KolSection>("/kol-section", windowParams(q)),
     product: (itemId, period) =>
       get<ProductPage>(`/products/${encodeURIComponent(itemId)}`, new URLSearchParams({ period })),
     marketScope: { base, token, shopId, fetchImpl },

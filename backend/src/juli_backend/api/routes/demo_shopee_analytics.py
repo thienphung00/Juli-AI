@@ -38,7 +38,7 @@ from juli_backend.api.routes.shopee_analytics_common import (
 )
 from juli_backend.database import Shop, get_session
 from juli_backend.services import shopee_recommendations as reco
-from juli_backend.services.shopee_analytics import channel_split, queries
+from juli_backend.services.shopee_analytics import channel_split, metric_view, queries
 
 router = APIRouter(prefix="/demo/shopee", tags=["demo-shopee"])
 
@@ -289,6 +289,58 @@ async def shopee_channel_split_products(
     try:
         return await channel_split.channel_split_products(
             session, shop_id, **window_args(period, month, start, end, as_of)
+        )
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+MetricQ = Annotated[str, Query(pattern="^(views|ctr|ctor|aov|orders|gmv|margin)$")]
+
+
+@router.get("/metric-view")
+async def shopee_metric_view(
+    metric: MetricQ = "gmv",
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
+    as_of: DateQ = None,
+    channel: Annotated[str | None, Query(max_length=32)] = None,
+    product_id: Annotated[str | None, Query(max_length=64)] = None,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """P100 Phân tích: one metric by luồng and by sản phẩm, now vs the previous period."""
+    shop_id = _shopee(shop)
+    try:
+        return await metric_view.metric_view(
+            session,
+            shop_id,
+            metric=metric,
+            audience="seller",
+            channel=channel,
+            product_id=product_id,
+            **window_args(period, month, start, end, as_of),
+        )
+    except REFUSALS as exc:
+        raise refusal(exc) from None
+
+
+@router.get("/kol-section")
+async def shopee_kol_section(
+    period: PeriodQ = "30d",
+    month: MonthQ = None,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
+    as_of: DateQ = None,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """P100 Phân tích: Tiếp thị liên kết theo KOL, with the previous period."""
+    shop_id = _shopee(shop)
+    try:
+        return await metric_view.kol_section(
+            session, shop_id, audience="seller", **window_args(period, month, start, end, as_of)
         )
     except REFUSALS as exc:
         raise refusal(exc) from None

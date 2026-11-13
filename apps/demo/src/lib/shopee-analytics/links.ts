@@ -38,6 +38,13 @@ export interface RankingLink {
   readonly huong?: string | null;
 }
 
+/** P100: Phân tích for one metric / luồng / sản phẩm, and Quyết định › Đề xuất filtered the same way. */
+export interface MetricLink {
+  readonly metric?: string | null;
+  readonly channel?: string | null;
+  readonly product?: string | null;
+}
+
 export interface ProductLink {
   readonly tab?: string | null;
   readonly kpi?: string | null;
@@ -57,6 +64,10 @@ export interface ShopeeLinks {
   product(id: string, link?: ProductLink, window?: WindowState): string;
   /** P96b: Phân tích with its product table set to this KPI / source (Xếp hạng is gone). */
   ranking(link?: RankingLink, window?: WindowState): string;
+  /** P100: Phân tích with `metric`, `channel`, `product` set (and the window). */
+  analysis(link?: MetricLink, window?: WindowState): string;
+  /** P100: Quyết định › Đề xuất filtered by `metric`, `product`, `channel`. */
+  decisions(link?: MetricLink, window?: WindowState): string;
   /** A Quyết định card (`from` says which screen the person comes from). */
   card(cardId: string, from: string, row?: string | null): string;
   /** Cài đặt › Thông số shop: the cost import for a SKU. */
@@ -77,6 +88,7 @@ function put(p: URLSearchParams, key: string, value: string | null | undefined):
 export function createLinks(host: {
   readonly screen: (screen: ShopeeScreen, query: URLSearchParams, productId?: string) => string;
   readonly card: (cardId: string, from: string, row?: string | null) => string;
+  readonly decisions: (query: URLSearchParams) => string;
   readonly costImport: (sku: string | null, from: string) => string;
   readonly builder: (from: "product" | "quyet-dinh", productId?: string | null) => string;
   readonly exclusions: () => string;
@@ -115,6 +127,20 @@ export function createLinks(host: {
       put(p, "huong", l.huong);
       return host.screen("phan-tich", withWindow(p, w));
     },
+    analysis: (l = {}, w) => {
+      const p = new URLSearchParams();
+      put(p, "metric", l.metric);
+      put(p, "channel", l.channel);
+      put(p, "product", l.product);
+      return host.screen("phan-tich", withWindow(p, w));
+    },
+    decisions: (l = {}, w) => {
+      const p = new URLSearchParams({ tab: "de-xuat" });
+      put(p, "metric", l.metric);
+      put(p, "channel", l.channel);
+      put(p, "product", l.product);
+      return host.decisions(withWindow(p, w));
+    },
     card: host.card,
     costImport: host.costImport,
     builder: host.builder,
@@ -149,6 +175,7 @@ export const sellerLinks: ShopeeLinks = createLinks({
     put(p, "row", row);
     return `/decisions?${p.toString()}`;
   },
+  decisions: (query) => `/decisions?${query.toString()}`,
   // Cài đặt › Thông số shop (Step 4's import, opens on its first step): `tab=thong-so-shop` is the
   // one parameter /settings reads; `from` and `sku` say where the person came from.
   costImport: (sku, from) => {
@@ -188,6 +215,11 @@ export function viewAsShopeeLinks(shopId: string, sellerCardHref?: ShopeeLinks["
         put(p, "row", row);
         return `${base}?${p.toString()}`;
       }),
+    decisions: (query) => {
+      const p = new URLSearchParams({ trang: "quyet-dinh" });
+      query.forEach((v, k) => p.set(k, v));
+      return `${base}?${p.toString()}`;
+    },
     costImport: () => `${base}?trang=quy-tac`,
     exclusions: () => `${base}?trang=loai-tru`,
     dashboard: (kind) => `${base}?trang=${kind}`,
@@ -215,6 +247,7 @@ export function opsTabShopeeLinks(shopId: string): ShopeeLinks {
       put(p, "row", row);
       return `/ops/shops/${encodeURIComponent(shopId)}/shopee/de-xuat?${p.toString()}`;
     },
+    decisions: (query) => `/ops/shops/${encodeURIComponent(shopId)}/shopee/de-xuat?${query.toString()}`,
     costImport: () => `/ops/shops/${encodeURIComponent(shopId)}`,
     exclusions: () => `/ops/shops/${encodeURIComponent(shopId)}#loai-tru-san-pham`,
     dashboard: (kind) => `/ops/shops/${encodeURIComponent(shopId)}/shopee/${OPS_TAB_SLUG[kind]}`,

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { channelProducts, channelSplit, critical, matrix, overview, product, ranking } from "../../../lib/shopee-analytics/__tests__/fixtures";
+import { channelProducts, channelSplit, critical, kolSection, matrix, metricView, overview, product, ranking } from "../../../lib/shopee-analytics/__tests__/fixtures";
 import type { ShopReportState } from "../../../lib/shop-report/shop-report-context";
 import { SellerShopeePage, SellerShopeeProductPage } from "../hosts";
 
@@ -34,6 +34,8 @@ beforeEach(() => {
       if (path.endsWith("/matrix")) return json(matrix());
       if (path.endsWith("/critical")) return json(critical());
       if (path.endsWith("/ranking")) return json(ranking());
+      if (path.endsWith("/metric-view")) return json(metricView());
+      if (path.endsWith("/kol-section")) return json(kolSection());
       if (path.includes("/products/")) return json(product());
       return new Response("{}", { status: 404 });
     }),
@@ -50,16 +52,17 @@ describe("the seller routes of the Shopee screens", () => {
     expect(first.headers["x-shop-id"]).toBe("shop-9");
   });
 
-  it("/phan-tich (with its product table), /san-pham and /san-pham/[itemId]", async () => {
+  it("/phan-tich (metric view, KOL section), /san-pham and /san-pham/[itemId]", async () => {
     const { unmount } = render(<SellerShopeePage screen="phan-tich" />);
     expect(await screen.findByTestId("sa-phan-tich")).toBeInTheDocument();
     unmount();
     // P96b: what was /xep-hang is Phân tích's product table (next.config redirects /xep-hang here)
     search = "kpi=ctr&src=live";
     const r = render(<SellerShopeePage screen="phan-tich" />);
-    expect(await screen.findByTestId("sa-ranking")).toBeInTheDocument();
+    expect(await screen.findByTestId("pt-products")).toBeInTheDocument();
     expect(screen.getByTestId("sa-phan-tich")).toBeInTheDocument();
-    await waitFor(() => expect(calls.some((c) => c.url.includes("/ranking?") && c.url.includes("xep_theo=ctr"))).toBe(true));
+    await waitFor(() => expect(calls.some((c) => c.url.includes("/metric-view?") && c.url.includes("metric=ctr") && c.url.includes("channel=live"))).toBe(true));
+    expect(calls.some((c) => c.url.startsWith("/v1/demo/shopee/kol-section"))).toBe(true);
     r.unmount();
     const l = render(<SellerShopeePage screen="san-pham" />);
     expect(await screen.findByTestId("sa-product-list")).toBeInTheDocument();
