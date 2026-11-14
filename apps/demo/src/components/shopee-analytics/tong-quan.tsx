@@ -153,7 +153,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const finding = ready ? findingOf(ready) : "";
 
   return (
-    <div className="sa-page" data-testid="sa-tong-quan">
+    <div className="sa-page sa-p100" data-testid="sa-tong-quan">
       <header className="sa-head">
         <div className="sa-eyebrow">{ready ? `TỔNG QUAN · ${daysOf(ready)} NGÀY` : "TỔNG QUAN"}</div>
         <div className="sa-head__line">
@@ -322,7 +322,7 @@ function Composition({ data, mode, product, state }: { readonly data: ChannelSpl
       </div>
       <div className="sa-tq__comp-items">
         {items.map((i) => (
-          <Link className="sa-tq__comp-item" data-testid={`sa-comp-${i.key}`} href={analysisHref(links, { metric: "gmv", channel: CHANNEL_OF[i.key], product, mode }, state)} key={i.key}>
+          <Link className={`sa-tq__comp-item sa-tq__comp-item--${i.key}`} data-testid={`sa-comp-${i.key}`} href={analysisHref(links, { metric: "gmv", channel: CHANNEL_OF[i.key], product, mode }, state)} key={i.key}>
             <span>{NAMES[i.key]}</span>
             <b>{i.share === null ? DASH : pc(i.share, 0)}</b>
             <span>{mil(inMode(i.gmv, days, mode))}</span>
@@ -418,7 +418,10 @@ function PlanCard({ plan }: { readonly plan: PlanMonth }) {
       <div className="sa-tq__goal" data-testid={`sa-plan-${key}`} key={key}>
         <div className="sa-tq__goal-top">
           <span>{label}</span>
-          <span>{hasGoal ? `${mil(b.now)} / ${mil(b.goal)}` : mil(b.now)}</span>
+          <span className="sa-tq__goal-val">
+            <b>{mil(b.now)}</b>
+            {hasGoal ? ` / ${mil(b.goal)}` : ""}
+          </span>
         </div>
         <div className="sa-tq__track">
           {hasGoal ? <span className={`sa-tq__fill ${ahead ? "sa-tq__fill--ahead" : "sa-tq__fill--behind"}`} data-ahead={ahead ? "true" : "false"} data-testid={`sa-plan-${key}-fill`} style={{ width: `${pct}%` }} /> : null}
