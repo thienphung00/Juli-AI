@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { useReco } from "../../lib/shopee-decisions/context";
 import type { CardDetail, ExecutionSheet } from "../../lib/shopee-decisions/types";
+import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { readAuthSession } from "../../lib/supabase-auth";
 import { TextChip } from "../shopee-analytics/ui";
 
@@ -69,7 +70,10 @@ export function useConnectorFillFlag(active: boolean, fetchImpl?: typeof fetch):
 
 export function ListingSheetExtras({ detail, sheet, fetchImpl }: { readonly detail: DetailWithCode; readonly sheet: ExecutionSheet; readonly fetchImpl?: typeof fetch }) {
   const kind = detail.change_kind;
-  const itemLink = sheet.page.item_deep_link ?? null;
+  // P100 S2-D4: the reviewer's sample shop has no Juli Connector and synthetic item ids, so no
+  // "Điền bằng Connector" and no Seller Centre page link there.
+  const sample = useSampleShopReviewer();
+  const itemLink = sample ? null : (sheet.page.item_deep_link ?? null);
   const code = detail.code ?? null;
   const planned = (detail.card as { readonly planned?: Planned }).planned;
   const eligible = CONNECTOR_KINDS.has(kind) && !!itemLink && !!code && detail.status === "approved";

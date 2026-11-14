@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { DASH, fmt, pp, vnd } from "../../lib/shopee-analytics/format";
 import { shopeeImageSrc } from "../../lib/shopee-analytics/image-src";
@@ -52,6 +53,9 @@ export function ProductPageView({ id, params }: { readonly id: string; readonly 
     </div>
   );
 }
+
+/** Where a snapshot price / stock came from; the reviewer's sample shop has no Juli Connector (P100 S2-D4). */
+const SNAPSHOT_SOURCE = { seller: "Seller Centre qua Juli Connector", sample: "Seller Centre" } as const;
 
 function when(iso: string | null | undefined): string {
   if (!iso) return DASH;
@@ -180,6 +184,7 @@ function Hero({
   readonly firstCard: string | null;
   readonly w: WindowState;
 }) {
+  const sample = useSampleShopReviewer();
   const versions = useMemo(() => {
     // The backend sends newest first; the stepper runs oldest -> newest and opens on the latest.
     const v = (h.versions ?? [])
@@ -282,9 +287,11 @@ function Hero({
           </dd>
         </dl>
         <div className="sa-hero__links">
+          {sample ? null : (
           <a className="sa-link" href={`${SELLER_CENTRE_ITEM}/${encodeURIComponent(id)}`} rel="noopener noreferrer" target="_blank">
             Mở trong Seller Centre ↗
           </a>
+          )}
           {firstCard ? (
             <Link className="sa-link" href={links.card(firstCard, "san-pham")}>
               Xem {cards} đề xuất ›
@@ -313,6 +320,7 @@ function statusLabel(s: string): string {
 }
 
 function PriceBlock({ h, sel, readOnly, costImportHref }: { readonly h: ProductHeader; readonly sel: SkuCost | null; readonly readOnly: boolean; readonly costImportHref: string }) {
+  const sample = useSampleShopReviewer();
   const floor = sel?.floor ?? null;
   const missingCost = !floor || (floor.absolute === null && floor.operating === null);
   const pay = floor?.net_revenue_per_unit ?? null;
@@ -356,7 +364,7 @@ function PriceBlock({ h, sel, readOnly, costImportHref }: { readonly h: ProductH
         </Link>
       ) : null}
       <div className="sa-fresh-line" data-testid="sa-price-fresh">
-        Cập nhật {when(h.price.captured_at)} · nguồn: {h.price.source === "snapshot" ? "Seller Centre qua Juli Connector" : h.price.source === "last_order_line" ? "dòng đơn gần nhất (chưa có ảnh chụp sản phẩm)" : "chưa có"}
+        Cập nhật {when(h.price.captured_at)} · nguồn: {h.price.source === "snapshot" ? SNAPSHOT_SOURCE[sample ? "sample" : "seller"] : h.price.source === "last_order_line" ? "dòng đơn gần nhất (chưa có ảnh chụp sản phẩm)" : "chưa có"}
       </div>
     </Section>
   );
@@ -393,6 +401,7 @@ function StockBlock({ h, page }: { readonly h: ProductHeader; readonly page: Pro
 }
 
 function ReputationBlock({ h }: { readonly h: ProductHeader }) {
+  const sample = useSampleShopReviewer();
   const r = h.reputation;
   return (
     <Section hint="Toàn sản phẩm" testId="sa-reputation" title="Uy tín">
@@ -410,7 +419,7 @@ function ReputationBlock({ h }: { readonly h: ProductHeader }) {
           <b>{fmt(r.likes)}</b>
         </div>
       </div>
-      <div className="sa-fresh-line">Cập nhật {when(h.price.captured_at)} · nguồn: Seller Centre qua Juli Connector</div>
+      <div className="sa-fresh-line">Cập nhật {when(h.price.captured_at)} · nguồn: {SNAPSHOT_SOURCE[sample ? "sample" : "seller"]}</div>
     </Section>
   );
 }

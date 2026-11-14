@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { DASH, pp, vnd, type Chip, type Tone } from "../../lib/shopee-analytics/format";
 import type { ApiRefusal } from "../../lib/shopee-analytics/client";
 import { shopeeImageSrc } from "../../lib/shopee-analytics/image-src";
+import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { notMaterializedOf } from "../../lib/shopee-analytics/not-materialized";
 import type { Resource } from "../../lib/shopee-analytics/use-resource";
 
@@ -148,6 +149,8 @@ export function PillLink({ href, active, children, label }: { readonly href: str
   );
 }
 
+const SAMPLE_NO_DATA = { title: "Shop chưa có dữ liệu Shopee", body: "Số liệu sẽ hiện ở đây khi có dữ liệu." } as const;
+
 const REFUSAL_COPY: Record<ApiRefusal, { title: string; body: string }> = {
   "not-shopee": {
     title: "Shop này không phải shop Shopee",
@@ -196,6 +199,7 @@ export function NotMaterializedNotice({ error, testId = "sa-not-materialized" }:
 
 /** The state of a resource that is not ready, or `null` when it is. */
 export function ResourceState<T>({ resource, children }: { readonly resource: Resource<T>; readonly children: (data: T) => ReactNode }) {
+  const sample = useSampleShopReviewer();
   if (resource.status === "loading") {
     return (
       <p className="sa-loading" role="status">
@@ -205,7 +209,8 @@ export function ResourceState<T>({ resource, children }: { readonly resource: Re
   }
   if (resource.status === "refused") {
     if (resource.refusal === "not-materialized" && notMaterializedOf(resource.error)) return <NotMaterializedNotice error={resource.error} />;
-    const copy = REFUSAL_COPY[resource.refusal];
+    // P100 S2-D4: the reviewer's sample shop has no Juli Connector, so its copy never names it.
+    const copy = sample && resource.refusal === "no-data" ? SAMPLE_NO_DATA : REFUSAL_COPY[resource.refusal];
     return (
       <section className="sa-card" data-testid={`sa-refusal-${resource.refusal}`} role="alert">
         <h2 className="sa-h2">{copy.title}</h2>
