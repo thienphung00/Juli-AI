@@ -43,6 +43,30 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     expect(document.body.textContent).not.toMatch(/Tiếp theo cho sản phẩm này|ước tính|Dự kiến/);
   });
 
+  it("Duyệt approves a one-version card in place: same approve call as Duyệt V1, then the Thực hiện notice and a reload", async () => {
+    const reco = fakeReco({ list: list(queueCards()) });
+    renderReco(<DecisionsView params={params()} />, reco);
+    const row = await screen.findByTestId("sq-card-card-other");
+    expect(within(row).queryByRole("link", { name: "Duyệt" })).toBeNull();
+    fireEvent.click(within(row).getByTestId("sq-approve"));
+    await waitFor(() => expect(reco.calls.some((c) => c.name === "approve")).toBe(true));
+    const call = reco.calls.find((c) => c.name === "approve")!;
+    expect(call.args[0]).toBe("card-other");
+    expect(call.args[1]).toMatchObject({ chosenVersion: 1, acknowledgeBreaches: false });
+    expect(await screen.findByTestId("sq-notice")).toHaveTextContent("Đã duyệt JC-2611-0003 · chuyển sang Thực hiện");
+    await waitFor(() => expect(reco.calls.filter((c) => c.name === "list").length).toBeGreaterThan(1));
+  });
+
+  it("a card with several versions keeps Duyệt as a link to its version picker; a read-only host keeps the link too", async () => {
+    renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }));
+    const multi = await screen.findByTestId("sq-card-card-voucher");
+    expect(within(multi).queryByTestId("sq-approve")).toBeNull();
+    cleanup();
+    renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }), { readOnly: true });
+    const row = await screen.findByTestId("sq-card-card-other");
+    expect(within(row).getByRole("link", { name: "Duyệt" })).toBeInTheDocument();
+  });
+
   it("asks the whole queue once (queue=all)", async () => {
     const reco = fakeReco({ list: list(queueCards()) });
     renderReco(<DecisionsView params={params()} />, reco);
