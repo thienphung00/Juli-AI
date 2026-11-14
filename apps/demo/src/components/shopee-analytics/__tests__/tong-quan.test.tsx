@@ -10,6 +10,20 @@ import { params, renderWith } from "./harness";
 const keys = () => screen.getAllByTestId(/^sa-channel-/).map((el) => el.getAttribute("data-testid")?.replace("sa-channel-", ""));
 
 describe("Tổng quan (P100 board)", () => {
+  it("P100 B.5: each section shows the last day of the data it uses", async () => {
+    const split = channelSplit({ data_through: { kpis: "2026-11-12", channels: "2026-11-09", plan: "2026-11-13" } });
+    renderWith(<TongQuanView params={params()} />, fakeApi({ split }));
+    expect(await screen.findByTestId("sa-through-kpis")).toHaveTextContent(/^Số liệu đến 12\/11$/);
+    expect(screen.getByTestId("sa-through-channels")).toHaveTextContent(/^Số liệu đến 09\/11$/);
+  });
+
+  it("P100 B.5: no data_through, no label", async () => {
+    renderWith(<TongQuanView params={params()} />, fakeApi({ split: channelSplit({ data_through: { kpis: null, channels: null, plan: null } }) }));
+    await screen.findByTestId("sa-channels");
+    expect(screen.queryByTestId("sa-through-kpis")).toBeNull();
+    expect(screen.queryByTestId("sa-through-channels")).toBeNull();
+  });
+
   it("header: shop, platform tag, last data time; Shop is the default level", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi());
     expect(await screen.findByTestId("sa-fresh")).toHaveTextContent("Cập nhật 09/11/2026 09:30");

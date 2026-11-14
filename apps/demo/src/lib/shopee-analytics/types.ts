@@ -759,6 +759,8 @@ export interface ChannelSplit {
   readonly kpis: ChannelKpis;
   readonly kpis_prev?: ChannelKpis | null;
   readonly plan?: PlanMonth | null;
+  /** P100 B.5: per section, the last complete day of the data it uses (ISO; null = none). */
+  readonly data_through?: { readonly kpis: string | null; readonly channels: string | null; readonly plan: string | null } | null;
 }
 
 export type WeakestMetric = "views" | "ctr" | "ctor" | "aov" | "orders";
@@ -816,6 +818,8 @@ export interface MetricView {
   readonly total: MetricViewRow;
   readonly channels: readonly MetricViewRow[];
   readonly products: readonly MetricViewProduct[];
+  /** P100 B.5: per section, the last complete day of the data it uses (ISO; null = none). */
+  readonly data_through?: { readonly channels: string | null; readonly products: string | null } | null;
 }
 
 export interface KolSectionRow {
