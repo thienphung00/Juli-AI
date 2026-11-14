@@ -50,7 +50,7 @@ from juli_backend.services.shopee_analytics.fmt import frac, num
 from juli_backend.services.shopee_analytics.queries import NoShopeeData
 from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
 from juli_backend.services.shopee_analytics.windows import Window
-from juli_backend.services.shopee_builder.engine.contract import FunnelBase, SourceFunnel
+from juli_backend.services.shopee_builder.engine.contract import AdShare, FunnelBase, SourceFunnel
 from juli_backend.services.shopee_recommendations import store
 from juli_backend.services.shopee_recommendations.kol_cards import KOL_KINDS
 from juli_backend.services.shopee_recommendations.refs import (
@@ -196,31 +196,42 @@ def _src_cell(s: SourceFunnel | None) -> Cell | None:
     return None if s is None else Cell(s.views, s.clicks, s.orders, s.gmv)
 
 
-def card_organic(base: FunnelBase, *, ads_known: bool) -> Cell | None:
-    """Thẻ sản phẩm without the ads overlay (None when the overlay is unknown at shop level)."""
-    src = _by_source(base)
-    card = src.get(channel_split.CARD)
-    if card is None:
-        return None
-    ads = card.ads
-    if ads is None:
-        if base.scope == "products" and ads_known:
-            return _src_cell(card)
-        return None
+Report = Mapping[str, Decimal | None]
 
-    def sub(a: Decimal | None, b: Decimal | None) -> Decimal | None:
-        return None if a is None or b is None else a - b
 
-    return Cell(
-        sub(card.views, ads.views),
-        sub(card.clicks, ads.clicks),
-        sub(card.orders, ads.orders),
-        sub(card.gmv, ads.gmv),
+def _overlay(
+    base: FunnelBase, *, ads_known: bool, product_ads: Report | None
+) -> tuple[Cell | None, Cell | None]:
+    """(Thẻ sản phẩm organic, Quảng cáo) through :func:`channel_split.overlay_cells`, the
+    Tổng quan rule, so both screens show the same cells (None when the overlay is unknown at
+    shop level)."""
+    card = _by_source(base).get(channel_split.CARD)
+    ads = card.ads if card is not None else None
+    if ads is None and base.scope == "products" and ads_known:
+        ads = AdShare(Decimal(0), Decimal(0), None, Decimal(0), Decimal(0))
+    organic, overlay = channel_split.overlay_cells(channel_split.card_total(base), ads, product_ads)
+    return (
+        None if organic is None else Cell(*organic),
+        None if overlay is None else Cell(*overlay),
     )
 
 
-def channel_cell(base: FunnelBase, channel: str | None, *, ads_known: bool = True) -> Cell | None:
-    """A base's cell for one luồng, or all of it (``channel`` None / "all")."""
+def card_organic(
+    base: FunnelBase, *, ads_known: bool, product_ads: Report | None = None
+) -> Cell | None:
+    """Thẻ sản phẩm without the ads overlay (None when the overlay is unknown at shop level)."""
+    return _overlay(base, ads_known=ads_known, product_ads=product_ads)[0]
+
+
+def channel_cell(
+    base: FunnelBase,
+    channel: str | None,
+    *,
+    ads_known: bool = True,
+    product_ads: Report | None = None,
+) -> Cell | None:
+    """A base's cell for one luồng, or all of it (``channel`` None / "all"). ``product_ads``:
+    the shop's DVHT Sản phẩm report figures (shop level), for the one-basis ads rule."""
     if channel in (None, "all"):
         return Cell(
             funnel.known_total(base, "views"),
@@ -229,7 +240,7 @@ def channel_cell(base: FunnelBase, channel: str | None, *, ads_known: bool = Tru
             base.total("gmv"),
         )
     if channel == "the_san_pham":
-        return card_organic(base, ads_known=ads_known)
+        return card_organic(base, ads_known=ads_known, product_ads=product_ads)
     src = _by_source(base)
     if channel in _SOURCE_OF_CHANNEL:
         cell = _src_cell(src.get(_SOURCE_OF_CHANNEL[channel]))
@@ -237,9 +248,7 @@ def channel_cell(base: FunnelBase, channel: str | None, *, ads_known: bool = Tru
             return replace(cell, views=None)
         return cell
     if channel == "ads":
-        card = src.get(channel_split.CARD)
-        a = card.ads if card else None
-        return None if a is None else Cell(a.views, a.clicks, a.orders, a.gmv)
+        return _overlay(base, ads_known=False, product_ads=product_ads)[1]
     return Cell(
         funnel.known_total(base, "views"),
         funnel.known_total(base, "clicks"),
@@ -248,10 +257,16 @@ def channel_cell(base: FunnelBase, channel: str | None, *, ads_known: bool = Tru
     )
 
 
-def _ad_cell(cell: Mapping[str, Decimal | None] | None) -> Cell | None:
+def _ad_cell(cell: Report | None) -> Cell | None:
+    """A DVHT row on the ads report's basis, as Tổng quan: views = impressions, clicks."""
     if cell is None:
         return None
-    return Cell(None, None, Decimal(cell["orders"] or 0), Decimal(cell["gmv"] or 0))
+    return Cell(
+        cell.get("impressions"),
+        cell.get("clicks"),
+        Decimal(cell["orders"] or 0),
+        Decimal(cell["gmv"] or 0),
+    )
 
 
 # -- cards ---------------------------------------------------------------------------------
@@ -317,13 +332,18 @@ def assemble(
     c_now = funnel.base_from_rows(now, shop_key, item_ids=scope_ids)
     c_before = funnel.base_from_rows(before, shop_key, item_ids=scope_ids)
     channels: list[dict[str, Any]] = []
+    # the shop's DVHT Sản phẩm report figures: the one-basis ads rule at shop level only
+    pn, sn = (None, None) if product_id else channel_split._ad_report(ad_types_now)
+    pb, sb = (None, None) if product_id else channel_split._ad_report(ad_types_before)
+    kw_now: dict[str, Any] = {"ads_known": ads_known_now, "product_ads": pn}
+    kw_before: dict[str, Any] = {"ads_known": ads_known_before, "product_ads": pb}
     for key in ("the_san_pham", "trang_shop", "video", "live"):
         channels.append(
             row_of(
                 key,
                 metric,
-                _no_margin(channel_cell(c_now, key, ads_known=ads_known_now), metric),
-                _no_margin(channel_cell(c_before, key, ads_known=ads_known_before), metric),
+                _no_margin(channel_cell(c_now, key, **kw_now), metric),
+                _no_margin(channel_cell(c_before, key, **kw_before), metric),
                 cards=by_channel.get(key, 0),
             )
         )
@@ -331,8 +351,6 @@ def assemble(
         ads_p = (channel_cell(c_now, "ads"), channel_cell(c_before, "ads"))
         ads_rows: list[tuple[str, Cell | None, Cell | None]] = [("ads_product", *ads_p)]
     else:
-        pn, sn = channel_split._ad_report(ad_types_now)
-        pb, sb = channel_split._ad_report(ad_types_before)
         ads_rows = [
             ("ads_product", _ad_cell(pn), _ad_cell(pb)),
             ("ads_shop", _ad_cell(sn), _ad_cell(sb)),
@@ -385,8 +403,8 @@ def assemble(
     total = row_of(
         "total",
         metric,
-        _no_margin(channel_cell(c_now, channel, ads_known=ads_known_now), metric),
-        _no_margin(channel_cell(c_before, channel, ads_known=ads_known_before), metric),
+        _no_margin(channel_cell(c_now, channel, **kw_now), metric),
+        _no_margin(channel_cell(c_before, channel, **kw_before), metric),
         cards=sum(by_product.values()),
     )
     return {

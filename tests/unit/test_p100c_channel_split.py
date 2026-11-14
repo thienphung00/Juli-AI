@@ -323,6 +323,10 @@ def test_connector_shop_campaign_types_are_dvht_shop_plus():
 
 
 def _card_day(ads_views, ads_clicks):
+    return base_from_rows(FunnelRows(W, _card_rows(ads_views, ads_clicks)), "s")
+
+
+def _card_rows(ads_views, ads_clicks):
     out = []
     for s in SOURCES:
         if s == "the_san_pham_khac":
@@ -335,7 +339,7 @@ def _card_day(ads_views, ads_clicks):
             )  # fmt: skip
         else:
             out.append(SourceDay(DAY, None, s, None, None, 0, D(0), D(0)))
-    return base_from_rows(FunnelRows(W, tuple(out)), "s")
+    return tuple(out)
 
 
 _REPORT = {
@@ -382,3 +386,35 @@ def test_p100b_no_report_counts_leave_the_ads_clicks_unknown():
     r = _by_key(split_rows(_card_day(2000, None), ad_types=types))
     assert r["ads"]["views"] == 2000 and r["ads"]["clicks"] is None and r["ads"]["ctr"] is None
     assert r["organic_card"]["clicks"] is None
+
+
+def test_p100b_phan_tich_and_tong_quan_show_the_same_cells_for_the_same_window():
+    """One basis on both screens: Thẻ sản phẩm (organic) and the two DVHT rows have the same
+    views, clicks, CTR and CTOR in Phân tích (metric_view) as in Tổng quan (split_rows)."""
+    from juli_backend.services.shopee_analytics import metric_view
+
+    for ads_views, ads_clicks in ((2000, None), (None, None), (2000, 120)):
+        base = _card_day(ads_views, ads_clicks)
+        rows = FunnelRows(W, _card_rows(ads_views, ads_clicks))
+        tq = _by_key(split_rows(base, ad_types=_REPORT))
+        pairs = {
+            "the_san_pham": "organic_card",
+            "ads_product": "ads_product",
+            "ads_shop": "ads_shop",
+        }
+        for metric in ("views", "ctr", "ctor"):
+            out = metric_view.assemble(
+                metric, now=rows, before=rows, shop_key="s", ad_types_now=_REPORT,
+                ad_types_before=_REPORT, item_ids=[], names={}, margin_now={}, margin_before={},
+            )  # fmt: skip
+            pt = {c["key"]: c for c in out["channels"]}
+            for pt_key, tq_key in pairs.items():
+                got, want = pt[pt_key]["now"], tq[tq_key][metric]
+                assert (got is None) == (want is None), (ads_views, ads_clicks, metric, pt_key)
+                if want is not None:
+                    assert abs(float(got) - float(want)) < 1e-6, (
+                        ads_views,
+                        ads_clicks,
+                        metric,
+                        pt_key,
+                    )
