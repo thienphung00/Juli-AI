@@ -64,7 +64,7 @@ export function StepPhuongAn(p: StepPhuongAnProps) {
             {rows.map((r) => (
               <li key={r.key}>
                 <button aria-current={r.on ? "true" : undefined} className={`p3-version ${r.on ? "p3-version--on" : ""}`} data-testid={`p3-version-${r.i + 1}`} onClick={() => p.onSelect?.(r.i)} type="button">
-                  <b>P{r.i + 1}</b> <span>{r.label}</span>
+                  <b>P{r.i + 1}</b> <span className="p3-version__label" title={r.label}>{r.label}</span>
                 </button>
                 {p.onRemove ? (
                   <button aria-label={`Xoá P${r.i + 1}`} className="sa-link p2-linkbtn" onClick={() => p.onRemove?.(r.i)} type="button">
@@ -76,7 +76,7 @@ export function StepPhuongAn(p: StepPhuongAnProps) {
             {pending ? (
               <li>
                 <span className="p3-version p3-version--on" data-testid={`p3-version-${index + 1}`}>
-                  <b>P{index + 1}</b> <span>{outcome?.label ?? ""}</span>
+                  <b>P{index + 1}</b> <span className="p3-version__label" title={outcome?.label ?? ""}>{outcome?.label ?? ""}</span>
                 </span>
               </li>
             ) : null}

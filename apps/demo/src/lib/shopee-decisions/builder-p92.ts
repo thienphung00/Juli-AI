@@ -512,7 +512,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       const t = f.title.text.trim();
       if (!t) return no("Nhập hoặc chọn một tiêu đề.");
       if ([...t].length > MAX_TITLE) return no(`Tiêu đề tối đa ${MAX_TITLE} ký tự.`);
-      return { problem: null, version: { kind: "title", label: "Tiêu đề mới", item_id: id, title: t, keywords: [...f.title.ticked] } };
+      return { problem: null, version: { kind: "title", label: clip(t), item_id: id, title: t, keywords: [...f.title.ticked] } };
     }
     case "cover_image": {
       const o = f.cover_image.overlay;

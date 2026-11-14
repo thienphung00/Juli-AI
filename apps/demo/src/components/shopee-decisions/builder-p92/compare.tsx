@@ -332,7 +332,7 @@ export function CompareView({
         <input aria-label={`Chạy cùng nhau P${i + 1}`} checked={ticked.includes(i)} disabled={!outcomes[i]?.ok || together !== null} onChange={() => toggleTick(i)} type="checkbox" /> Chạy cùng nhau
       </label>
       <TextChip tone="pink">{facts[i]?.type ?? String(e.version.kind)}</TextChip>
-      <span>{String(e.version.label ?? "")}</span>
+      <span className="p2-cmp__vlabel" title={String(e.version.label ?? "")}>{String(e.version.label ?? "")}</span>
       {best === i && outcomes[i] ? <TextChip tone="up">{bestBadge(outcomes[i]!)}</TextChip> : null}
       <span className="p2-cmp__tools">
         <button className="sa-link p2-linkbtn" onClick={() => onEdit(i)} type="button">

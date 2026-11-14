@@ -1062,7 +1062,7 @@ button.p2-tab {
 .p3-rows td { padding: 6px 0; border-top: 1px solid var(--qd-line, #ececf0); font-size: 13px; }
 .p3-rows td:last-child { text-align: right; font-weight: 600; }
 .p4-bars__title { font-size: 12px; color: var(--qd-muted, #71717a); margin-bottom: 8px; }
-.p4-bar { display: grid; grid-template-columns: 180px 1fr 140px; gap: 12px; align-items: center; margin: 6px 0; }
+.p4-bar { display: grid; grid-template-columns: 200px minmax(0, 1fr) 140px; gap: 12px; align-items: center; margin: 6px 0; }
 .p4-bar__track { position: relative; height: 24px; }
 .p4-bar__zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #a1a1aa; }
 .p4-bar__fill { position: absolute; top: 0; height: 24px; }
@@ -1072,4 +1072,17 @@ button.p2-tab {
 .p4-main { display: grid; gap: 4px; }
 .p4-save { display: grid; gap: 10px; }
 .p4-table-wrap { overflow-x: auto; }
+.p4-table { table-layout: fixed; width: 100%; min-width: 760px; }
+.p4-table th, .p4-table td { text-align: left; vertical-align: middle; }
+.p4-table .p4-num { text-align: right; font-variant-numeric: tabular-nums; }
+.p4-col--name { width: 64px; }
+.p4-col--gmv { width: 16%; }
+.p4-col--cost { width: 17%; }
+.p4-col--orders { width: 11%; }
+.p4-col--cpa { width: 14%; }
+.p4-col--roi { width: 8%; }
+.p4-bar__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) { .p4-bar { grid-template-columns: 1fr; } .p3-tiles { grid-template-columns: 1fr; } }
+
+.p3-version__label, .p2-cmp__vlabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p3-version { min-width: 0; }

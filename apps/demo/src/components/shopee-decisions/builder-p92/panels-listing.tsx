@@ -190,7 +190,6 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
   const n = chars(form.text);
   const cov = coverage(form.text, form.ticked);
   const toggle = (k: string) => set({ ticked: form.ticked.includes(k) ? form.ticked.filter((x) => x !== k) : [...form.ticked, k].slice(0, 12) });
-  const missingSources = (table?.sources ?? []).filter((s) => !s.present && s.reason);
   return (
     <div className="p2-panel" data-testid="p2-panel-title">
       {tableErr ? <p className="sd-error">Chưa tải được bảng từ khoá.</p> : null}
@@ -199,7 +198,7 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
           Tiêu đề hiện tại ({table.title_chars}/{table.max_title_chars}): {table.title}
         </p>
       ) : null}
-      {table ? (
+      {table && table.keywords.length > 0 ? (
         <table className="p2-table" data-testid="p2-kw-table">
           <thead>
             <tr>
@@ -227,11 +226,11 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
           </tbody>
         </table>
       ) : null}
-      {missingSources.map((s) => (
-        <p className="sa-hint" key={s.key}>
-          {s.label}: {s.reason}
+      {table && table.keywords.length === 0 ? (
+        <p className="sa-hint" data-testid="p2-kw-empty">
+          Chưa có từ khoá
         </p>
-      ))}
+      ) : null}
       <div className="sd-actions">
         <button className="sa-btn sa-btn--primary" data-testid="p2-title-draft" disabled={form.ticked.length === 0 || draft.status === "busy"} onClick={() => write(false)} type="button">
           Viết 3 tiêu đề bằng từ khoá đã chọn

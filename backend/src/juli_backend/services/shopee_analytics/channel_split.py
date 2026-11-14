@@ -50,6 +50,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     FunnelBase,
     SourceFunnel,
 )
+from juli_backend.services.shopee_profit import shop_profit
 
 SHOP_PLUS_KIND = "ads_shop"
 CARD, SHOP_PAGE, LIVE, VIDEO, AFFILIATE = (
@@ -638,7 +639,7 @@ async def channel_split_products(
             aff_fb = _product_affiliate(view, item)
             if aff_fb is not None:
                 aff_gmv = aff_fb["gmv"]
-        pp = view.profit.products.get(item)
+        margin = shop_profit.scope_margin_pct(view.profit, (item,))
         header = snaps[item].header if item in snaps else None
         images = list(header.image_urls) if header and header.image_urls else []
         products.append(
@@ -647,7 +648,7 @@ async def channel_split_products(
                 "name": view.names.get(item) or (header.title if header else None) or item,
                 "image_url": images[0] if images else None,
                 "gmv": num(total),
-                "margin": None if pp is None or pp.margin_pct is None else float(pp.margin_pct),
+                "margin": None if margin is None else float(margin),
                 "organic_gmv": num(
                     None
                     if total is None or ads_gmv is None

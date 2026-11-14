@@ -486,3 +486,16 @@ async def test_the_gated_client_parses_the_structured_answer_and_maps_every_fail
         with pytest.raises(llm.LLMUnavailable) as out:
             await _client(bad).complete_json(system="s", user="u", schema_name="n", schema={})
         assert out.value.reason == llm.REASON_BAD_OUTPUT
+
+
+def test_tiny_discounts_are_not_put_on_a_cover_concept():
+    tiny = {"variation_id": "v", "name": "Hộp", "list_price": 100_000, "selling_price": 99_000}
+    real = {"variation_id": "v", "name": "Hộp", "list_price": 100_000, "selling_price": 90_000}
+    facts = drafts.ProductFacts(item_id="1", title="x", variations=(tiny,))
+    concept = {"layout": "corner_tag"}
+    overlay, _ = drafts._build_overlay(facts, tiny, concept, "")
+    assert overlay is not None and "discount_pct" not in overlay
+    assert overlay["price_vnd"] == 99_000 and "original_price_vnd" not in overlay
+    assert facts.discount_pcts() == set()
+    overlay, _ = drafts._build_overlay(facts, real, concept, "")
+    assert overlay is not None and overlay["discount_pct"] == 10

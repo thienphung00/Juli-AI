@@ -227,3 +227,20 @@ async def test_the_ops_route_mirrors_the_seller_route(session, monkeypatch):
     app.dependency_overrides.clear()
     assert shop.status_code == 200 and picker.status_code == 200
     assert shop.json()["level"] == "shop"
+
+
+async def test_picker_margin_is_the_builders_one_scope_margin(session):
+    """Step 1's product card shows the margin the builder result calls "hôm nay"."""
+    from juli_backend.services.shopee_analytics import channel_split as cs
+    from juli_backend.services.shopee_profit.shop_profit import scope_margin_pct
+
+    seeded = await seed_shopee_shop(session, rules=True)
+    await session.commit()
+    out = await cs.channel_split_products(session, seeded.shop.id, period="7d", as_of=CUR_END)
+    _ctx, view, _w = await cs._load(
+        session, seeded.shop.id, period="7d", month=None, start=None, end=None, as_of=CUR_END
+    )
+    assert out["products"]
+    for p in out["products"]:
+        one = scope_margin_pct(view.profit, (p["product_id"],))
+        assert p["margin"] == (None if one is None else float(one))
