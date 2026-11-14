@@ -3,6 +3,7 @@
 // recon did not record (order cards, income components) are marked TODO(first capture) in the
 // mappers and pinned here only as far as the mappers promise.
 import { describe, expect, it } from "vitest";
+import { ORDER_LIST_MAX_PAGES_PER_RUN } from "../src/config";
 import { ingestBody } from "../src/ingest/client";
 import { RAW_ORDER_ID } from "../src/shopee/affiliate-map";
 import { completedOrders, mapOrderIncome, mapOrderLines, orderStatusOf, trimOrderCards, trimOrderIndex } from "../src/shopee/orders-map";
@@ -301,7 +302,7 @@ describe("pagination helpers and the order reader", () => {
     order_cards: { query: {}, body: { order_param_list: [{ order_id: 11 }, { order_id: 12 }] }, lastResponse: CARDS },
   });
 
-  it("keeps the page's own first answers (trimmed) and replays at most 5 pages, 20-45 s apart", async () => {
+  it("keeps the page's own first answers (trimmed) and stops by date after at least 5 pages, 20-45 s apart", async () => {
     const h = harness(templates(), (request) => {
       if (request.endpoint === "order_search") {
         const page = JSON.parse(request.body!).pagination.page_number as number;
@@ -309,9 +310,9 @@ describe("pagination helpers and the order reader", () => {
       }
       return { body: CARDS };
     });
-    const outcome = await runReaderJob({ id: "orders" }, h.env);
+    const outcome = await runReaderJob({ id: "orders", sinceDay: "2026-11-08" }, h.env);
     expect(outcome.status).toBe("done");
-    // page 1 from the page itself + pages 2..5: 4 index calls + 4 card calls
+    // every card was placed 07/11, before sinceDay: never fewer than the 0.3.18 depth (pages 1..5)
     expect(h.sent).toHaveLength(8);
     expect(h.pauses).toHaveLength(4);
     expect(h.pauses.every((ms) => ms >= 20_000 && ms <= 45_000)).toBe(true);
@@ -319,6 +320,31 @@ describe("pagination helpers and the order reader", () => {
     // the replayed card request carries the NEW ids
     expect(JSON.parse(h.sent[1]!.body!).order_param_list).toEqual([{ order_id: 21 }, { order_id: 22 }]);
     expect(JSON.stringify(outcome.responses)).not.toMatch(/khach_hang_that|Duong Gia|0900000000/);
+  });
+
+  it("0.3.19: catches up by date: reads past 5 pages until an order older than sinceDay, else to the cap", async () => {
+    const handler = (request: { endpoint: string; body?: string }) => {
+      if (request.endpoint === "order_search") {
+        const page = JSON.parse(request.body!).pagination.page_number as number;
+        return { body: search(page) };
+      }
+      const ids = JSON.parse(request.body!).order_param_list.map((o: { order_id: number }) => o.order_id) as number[];
+      const page = Math.floor(ids[0]! / 10);
+      // page n holds orders placed n days before 12/11
+      const day = new Date(Date.UTC(2026, 10, 12 - page)).toISOString().slice(0, 10);
+      return { body: { code: 0, data: { list: ids.map((id) => card(String(id).padStart(8, "9"), "completed", [LINE_B], { create_time: ts(day) })) } } };
+    };
+    // sinceDay 04/11: page 8 holds 04/11, page 9 holds 03/11 -> stop after page 9
+    const byDate = harness(templates(), handler);
+    const outcome = await runReaderJob({ id: "orders", sinceDay: "2026-11-04" }, byDate.env);
+    expect(outcome.status).toBe("done");
+    expect(outcome.detail).toBeUndefined();
+    expect(byDate.sent).toHaveLength(2 * 8);
+    // far back: the cap ends it and says so (the scheduler reads further back next run)
+    const capped = harness(templates(), handler);
+    const far = await runReaderJob({ id: "orders", sinceDay: "2026-01-01" }, capped.env);
+    expect(far.detail).toBe("partial:page_cap");
+    expect(capped.sent).toHaveLength(2 * (ORDER_LIST_MAX_PAGES_PER_RUN - 1));
   });
 
   it("a failed replay of page 2+ still returns done with the answers already read, plus a partial note", async () => {

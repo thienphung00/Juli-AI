@@ -146,6 +146,39 @@ export class GatewayClient {
     );
   }
 
+  /**
+   * The scheduler's last tick (0.3.19): what woke it, how it ended, and per report page how it
+   * went (outcome notes are endpoint + HTTP status only). Metadata only, never a body.
+   */
+  connectorTick(
+    token: string,
+    report: { kind: string; trigger: string; result: string; day: string; at: string; outcomes?: Record<string, string> },
+    version: string,
+  ): Promise<unknown> {
+    const outcomes = Object.fromEntries(
+      Object.entries(report.outcomes ?? {})
+        .slice(0, 40)
+        .map(([reader, outcome]) => [reader.slice(0, 48), String(outcome).slice(0, 160)]),
+    );
+    return this.call(
+      "/v1/ingest/connector-ticks",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          platform: "shopee",
+          kind: report.kind,
+          trigger: report.trigger.slice(0, 32),
+          result: report.result.slice(0, 80),
+          day: report.day,
+          occurred_at: report.at,
+          outcomes,
+          source_version: version,
+        }),
+      },
+      token,
+    );
+  }
+
   reportDrift(
     token: string,
     dataset: Dataset,

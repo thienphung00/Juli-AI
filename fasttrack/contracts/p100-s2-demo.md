@@ -362,3 +362,28 @@ Chrome check on prod after `fasttrack-deploy-20261113T1020Z` (51c950eb) and `--r
 - UI/mobile findings went to S1 (`fasttrack/p100-ui-fix`).
 
 After deploy: `--reset --yes` once (the period ads rows and the image URLs are re-posted).
+
+## S2-D4: the voucher card under "one card, one number", and no Connector (2026-11-14)
+
+Deploy `fasttrack-deploy-20261114T0828Z` failed on the sample-shop tests. #2289's 0d743ddc ranks
+`generate_cards` on the stored engine result's P50 (`result_store`), and on the sample shop both
+`min_spend_voucher` candidates (HN-KLD and HN-TDR, 10.000đ from 200.000đ) came out at a P50 below
+0, so `negative_profit_p50` dropped them. Owner decision 2A: keep the filter and the tests; change
+the sample shop's data.
+
+- **Data, not the engine.** The engine costs a minimum-spend voucher as
+  `(share already over the minimum + share that reaches it) × usage rate × value`. The usage rate
+  is measured from the shop's past voucher (`VOUCHER_USAGE`). At 0.3 the deadweight on orders that
+  already qualify ate the lift. `VOUCHER_USAGE` is now 0.15 (measured 0.125), and HN-KLD is now
+  85.000đ (was 79.000đ), so its AOV is no longer flagged low and HN-TDR carries the one voucher
+  card: P50 +7.9k at the test end date, 1 + 6 + 3 content specs as before.
+- **Every load:** probed for end dates 2026-11-14 … 11-27 (the prod reset uses today). Each date
+  keeps at least one `min_spend_voucher` with a P50 above 0.
+- **No Juli Connector on the sample shop** (owner): on a sample-shop reviewer the UI shows no
+  Connector bar or status, no "Connector điền" step ("Bạn điền"), no "Mở Seller Centre" / "Mở trang
+  sửa sản phẩm" / "Điền bằng Connector" / sheet page links, no fill-queue checklist (the pin refuses
+  `seller_fill_jobs` anyway, and the UI no longer calls it), and no "qua Juli Connector" source
+  captions. Thực hiện works without it: "Đã làm" (an admitted sample write) shows on a "Chờ điền"
+  row too. A seller's screens are unchanged.
+
+After deploy: `--reset --yes` once (new catalog price and voucher usage).

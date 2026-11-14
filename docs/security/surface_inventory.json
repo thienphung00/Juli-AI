@@ -1025,6 +1025,22 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/demo/shopee/stock",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/stock/{sku_key}/tracking",
+      "methods": [
+        "PUT"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/executions",
       "methods": [
         "POST"
@@ -1042,6 +1058,14 @@
     },
     {
       "path": "/v1/ingest/connector-events",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ingest/connector-ticks",
       "methods": [
         "POST"
       ],
@@ -2697,6 +2721,14 @@
         "POST"
       ],
       "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/stock-alert/unsubscribe",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": false,
       "tenant_scoped": false
     },
     {

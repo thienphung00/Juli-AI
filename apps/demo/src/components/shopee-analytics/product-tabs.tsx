@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { DASH, chipFromChange, fmt, pc, pp, sv, vnd } from "../../lib/shopee-analytics/format";
 import { srcOfFlowKey, type WindowState } from "../../lib/shopee-analytics/params";
@@ -69,6 +70,7 @@ export function SourcesTab({ id, page, state }: { readonly id: string; readonly 
   const flows = n.flows;
   const totalOrders = n.orders ?? 0;
   const has5 = page.item_traffic_sources != null || flows?.trang_shop_available === true;
+  const sample = useSampleShopReviewer();
   const rows = flows ? flows.rows.filter((r) => !r.is_residual) : [];
   const residual = flows?.rows.find((r) => r.is_residual);
   const [adOn, setAdOn] = useState(true);
@@ -132,8 +134,14 @@ export function SourcesTab({ id, page, state }: { readonly id: string; readonly 
           </div>
           {!has5 ? (
             <Notice tone="info" testId="sa-four-flows">
-              Sản phẩm này có 4 luồng (trang_shop_available: false): Thẻ sản phẩm gồm cả Trang shop. Năm luồng chỉ có khi
-              Connector đã đọc lưu lượng theo sản phẩm (item_traffic_sources).
+              {sample ? (
+                "Sản phẩm này có 4 luồng: Thẻ sản phẩm gồm cả Trang shop."
+              ) : (
+                <>
+                  Sản phẩm này có 4 luồng (trang_shop_available: false): Thẻ sản phẩm gồm cả Trang shop. Năm luồng chỉ có khi
+                  Connector đã đọc lưu lượng theo sản phẩm (item_traffic_sources).
+                </>
+              )}
             </Notice>
           ) : null}
         </>

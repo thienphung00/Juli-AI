@@ -18,14 +18,16 @@ from __future__ import annotations
 import re
 import uuid
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.repositories import (
     AdCampaignPurposesReadRepo,
     MarketKeywordMetricsReadRepo,
@@ -517,7 +519,9 @@ class AdsDaily:
     spend: Decimal
     gmv: Decimal
     orders: Decimal
-    by_type: dict[str, dict[str, Decimal]]
+    #: per ad type: spend / gmv / orders (placed) and, P100 B.4c, impressions / clicks (None =
+    #: a covered day of the type had no count)
+    by_type: dict[str, dict[str, Decimal | None]]
     days_covered: int
     window_days: int
     #: P100 B.5: the spend per day (only the days with an ads row); the one shop profit charges
@@ -526,6 +530,8 @@ class AdsDaily:
     #: P100 A.5: where each day's figure came from (``ads_days.SOURCE_*``); a day with no source
     #: is absent from both maps -- "chưa có dữ liệu", never 0
     source_by_day: dict[date, str] = field(default_factory=dict)
+    #: P100 B.3: the window's days with no ad figure ("chưa có dữ liệu", never 0 or borrowed)
+    missing_days: tuple[date, ...] = ()
 
     @property
     def complete(self) -> bool:
@@ -553,24 +559,13 @@ async def _connector_ad_days(
         key = (r.day, r.segment)
         if key not in chosen or r.order_type == PLACED:
             chosen[key] = r
-    per_day: dict[date, dict[str, list[Decimal]]] = {d: {} for d in covered}
+    per_day: dict[date, dict[str, list[Decimal | None]]] = {d: {} for d in covered}
     for (day, _segment), r in chosen.items():
         extra = r.extra or {}
         kind = str(extra.get("ad_type") or "connector")
-        cell = per_day[day].setdefault(kind, [ZERO, ZERO, ZERO])
-        cell[0] += _z(extra.get("cost"))
-        cell[1] += _z(r.gmv)
-        cell[2] += _z(r.orders)
-    return {
-        day: DayAds(
-            sum((c[0] for c in cells.values()), ZERO),
-            sum((c[1] for c in cells.values()), ZERO),
-            sum((c[2] for c in cells.values()), ZERO),
-            SOURCE_CONNECTOR,
-            {k: TypeFigure(c[0], c[1], c[2]) for k, c in cells.items()},
-        )
-        for day, cells in per_day.items()
-    }
+        cell = per_day[day].setdefault(kind, [ZERO, ZERO, ZERO, ZERO, ZERO])
+        _add_type_cell(cell, _z(extra.get("cost")), r)
+    return {day: _type_day(cells, SOURCE_CONNECTOR) for day, cells in per_day.items()}
 
 
 async def _daily_report_ad_days(
@@ -585,30 +580,50 @@ async def _daily_report_ad_days(
         streams=["ads"],
         order_types=[PLACED],
     )
-    per_day: dict[date, dict[str, list[Decimal]]] = defaultdict(dict)
-    totals: dict[date, list[Decimal]] = {}
+    per_day: dict[date, dict[str, list[Decimal | None]]] = defaultdict(dict)
+    totals: dict[date, dict[str, list[Decimal | None]]] = {}
     for r in rows:
         cost = _z((r.extra or {}).get("ads_expense"))
         if r.segment == "all":  # Shopee's own total of the types: only when the types are missing
-            totals[r.day] = [cost, _z(r.gmv), _z(r.orders)]
+            totals[r.day] = {"all": [ZERO, ZERO, ZERO, ZERO, ZERO]}
+            _add_type_cell(totals[r.day]["all"], cost, r)
             continue
-        cell = per_day[r.day].setdefault(r.segment, [ZERO, ZERO, ZERO])
-        cell[0] += cost
-        cell[1] += _z(r.gmv)
-        cell[2] += _z(r.orders)
-    out: dict[date, DayAds] = {}
-    for day, cells in per_day.items():
-        out[day] = DayAds(
-            sum((c[0] for c in cells.values()), ZERO),
-            sum((c[1] for c in cells.values()), ZERO),
-            sum((c[2] for c in cells.values()), ZERO),
-            SOURCE_DAILY_REPORT,
-            {k: TypeFigure(c[0], c[1], c[2]) for k, c in cells.items()},
-        )
+        cell = per_day[r.day].setdefault(r.segment, [ZERO, ZERO, ZERO, ZERO, ZERO])
+        _add_type_cell(cell, cost, r)
+    out: dict[date, DayAds] = {
+        day: _type_day(cells, SOURCE_DAILY_REPORT) for day, cells in per_day.items()
+    }
     for day, t in totals.items():
         if day not in out:
-            out[day] = DayAds(t[0], t[1], t[2], SOURCE_DAILY_REPORT, {"all": TypeFigure(*t)})
+            out[day] = _type_day(t, SOURCE_DAILY_REPORT)
     return out
+
+
+def is_shop_plus(ad_type: str | None) -> bool:
+    """DVHT Shop+: the daily file report's ``ads_shop`` segment, or a Connector campaign type
+    ``shop_*`` (``shop_manual`` ...); every other ad type is DVHT Sản phẩm."""
+    kind = (ad_type or "").strip().lower()
+    return kind == "ads_shop" or kind.startswith("shop")
+
+
+def _add_type_cell(cell: list[Decimal | None], cost: Decimal, r: Any) -> None:
+    """Add one ads row to a type's ``[spend, gmv, orders, impressions, clicks]`` of a day; a row
+    without impressions / clicks makes the type's day figure unknown (``None``)."""
+    cell[0] = _z(cell[0]) + cost
+    cell[1] = _z(cell[1]) + _z(r.gmv)
+    cell[2] = _z(cell[2]) + _z(r.orders)
+    for i, value in ((3, r.impressions), (4, r.clicks)):
+        cell[i] = None if value is None or cell[i] is None else _z(cell[i]) + value
+
+
+def _type_day(cells: Mapping[str, list[Decimal | None]], source: str) -> DayAds:
+    return DayAds(
+        sum((_z(c[0]) for c in cells.values()), ZERO),
+        sum((_z(c[1]) for c in cells.values()), ZERO),
+        sum((_z(c[2]) for c in cells.values()), ZERO),
+        source,
+        {k: TypeFigure(_z(c[0]), _z(c[1]), _z(c[2]), c[3], c[4]) for k, c in cells.items()},
+    )
 
 
 async def _period_ad_windows(
@@ -642,25 +657,39 @@ async def _period_ad_windows(
     ]
 
 
+async def _connector_ads_until(session: AsyncSession, shop_id: uuid.UUID) -> date | None:
+    """The shop's newest Connector ads day (``ads_campaign_daily``), any window."""
+    day: date | None = await session.scalar(
+        select(func.max(PlatformDailyMetric.day)).where(
+            PlatformDailyMetric.shop_id == shop_id,
+            PlatformDailyMetric.dataset == "ads_campaign_daily",
+            PlatformDailyMetric.stream == "ads",
+        )
+    )
+    return day
+
+
 async def load_ad_days(
     session: AsyncSession, shop_id: uuid.UUID, window: Window
 ) -> dict[date, DayAds]:
     """P100 A.5: the window's ONE ad spend per day (Connector day, else the daily report, else
-    the period report spread over its days; no source = no entry, never 0)."""
+    the period report spread over its days; no source = no entry, never 0). P100 B.3: a day
+    after the newest Connector ads read is missing, not the period report's average."""
     return resolve_ad_days(
         await _connector_ad_days(session, shop_id, window),
         await _daily_report_ad_days(session, shop_id, window),
         await _period_ad_windows(session, shop_id, window),
         window.start,
         window.end,
+        connector_until=await _connector_ads_until(session, shop_id),
     )
 
 
-async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Window) -> AdsDaily:
-    days = await load_ad_days(session, shop_id, window)
+def ads_daily_of(days: Mapping[date, DayAds], window: Window) -> AdsDaily:
+    """The window's :class:`AdsDaily` from its per-day figures (pure)."""
     spend = gmv = orders = ZERO
-    by_type: dict[str, dict[str, Decimal]] = defaultdict(
-        lambda: {"spend": ZERO, "gmv": ZERO, "orders": ZERO}
+    by_type: dict[str, dict[str, Decimal | None]] = defaultdict(
+        lambda: {"spend": ZERO, "gmv": ZERO, "orders": ZERO, "impressions": ZERO, "clicks": ZERO}
     )
     for figure in days.values():
         spend += figure.spend
@@ -668,9 +697,16 @@ async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Wind
         orders += figure.orders
         for kind, t in figure.by_type.items():
             cell = by_type[kind]
-            cell["spend"] += t.spend or ZERO
-            cell["gmv"] += t.gmv
-            cell["orders"] += t.orders
+            cell["spend"] = _z(cell["spend"]) + (t.spend or ZERO)
+            cell["gmv"] = _z(cell["gmv"]) + t.gmv
+            cell["orders"] = _z(cell["orders"]) + t.orders
+            # P100 B.4c: one day of the type without the count makes the window's unknown
+            for key, value in (("impressions", t.impressions), ("clicks", t.clicks)):
+                have = cell[key]
+                cell[key] = None if value is None or have is None else have + value
+    missing = tuple(
+        d for i in range(window.days) if (d := window.start + timedelta(days=i)) not in days
+    )
     return AdsDaily(
         spend,
         gmv,
@@ -680,7 +716,12 @@ async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Wind
         window.days,
         {d: f.spend for d, f in days.items()},
         {d: f.source for d, f in days.items()},
+        missing,
     )
+
+
+async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Window) -> AdsDaily:
+    return ads_daily_of(await load_ad_days(session, shop_id, window), window)
 
 
 # ---------------------------------------------------------------------------------------
@@ -1129,18 +1170,31 @@ async def load_affiliate(
     return AffiliateLoad(out, dict(pc), choice, stats)
 
 
-#: Daily datasets that say "Shopee numbers exist for this day". ``shop_overview`` comes from the
-#: Seller Centre file upload only; the Connector's daily sync writes ``traffic_overview`` and
-#: ``shop_traffic``, so anchoring on ``shop_overview`` alone pinned every window to the last file
-#: upload (02/11) while the Connector had synced to 04/11.
+#: Daily datasets that say "Shopee numbers exist for this day". P100 B.2: the last complete day
+#: is the last day with ``shop_overview`` (Shopee's own daily totals; the Connector's
+#: ``shop_totals`` reader posts it daily). ``traffic_overview`` is read only from an open
+#: Truy cập tab, so requiring it too pinned the window days behind; a day without traffic keeps
+#: its traffic figures ``None``. The traffic datasets anchor only a shop with no shop_overview.
 ANCHOR_DATASETS = (SHOP_OVERVIEW_DAILY, "traffic_overview", "shop_traffic")
+ANCHOR_FALLBACK_DATASETS = ("traffic_overview", "shop_traffic")
+
+
+def choose_shop_anchor(latest: Mapping[str, date]) -> Anchor | None:
+    """The anchor of :func:`load_anchor` from each dataset's newest day: the last
+    ``shop_overview`` day (``limited_by`` = shop_overview when another dataset is newer), else
+    the traffic datasets' :func:`choose_anchor`."""
+    if SHOP_OVERVIEW_DAILY not in latest:
+        return choose_anchor(latest, ANCHOR_FALLBACK_DATASETS)
+    seen = {d: latest[d] for d in ANCHOR_DATASETS if d in latest}
+    day, newest = latest[SHOP_OVERVIEW_DAILY], max(seen.values())
+    return Anchor(day, newest, SHOP_OVERVIEW_DAILY if day < newest else None, seen)
 
 
 async def load_anchor(session: AsyncSession, shop_id: uuid.UUID) -> Anchor | None:
-    """The shared window end (D85.2): the last day every live daily dataset has posted, else the
-    last order-line day."""
+    """The shared window end (D85.2, P100 B.2): the last day with ``shop_overview``, else the
+    traffic datasets' last common day, else the last order-line day."""
     latest = await PlatformDailyMetricsRepo(session).latest_days(shop_id)
-    found = choose_anchor(latest, ANCHOR_DATASETS)
+    found = choose_shop_anchor(latest)
     complete = await last_complete_day(session, shop_id)
     if found is not None and complete is not None:
         # the materialized rows say which day is complete (D85.2): the window ends there

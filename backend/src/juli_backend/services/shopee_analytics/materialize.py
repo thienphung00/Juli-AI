@@ -265,7 +265,9 @@ def day_rows(
     traffic_spread = {i: s for i, s in spread.items() if s.traffic_period is not None}
     p = view.profit
     ad_source = view.data.ads_daily.source_by_day.get(day)
-    complete = view.data.totals.basis == "daily" and view.data.traffic.basis == "daily"
+    # P100 B.2: a day is complete when Shopee posted its daily totals (shop_overview); a day
+    # without traffic_overview keeps views / clicks None, it no longer holds the window back
+    complete = view.data.totals.basis == "daily"
     sources = {
         "gmv": "shop_totals" if view.data.totals.basis == "daily" else "order_lines",
         "orders": "shop_totals" if view.data.totals.basis == "daily" else "order_lines",
@@ -415,33 +417,76 @@ def _product_ads(view: PeriodView, item_id: str) -> AdsDay | None:
     return AdsDay(None, None, None, fig.direct_gmv if fig else None, spend)
 
 
-async def _ads_day(session: AsyncSession, shop_id: uuid.UUID, day: date) -> AdsDay | None:
-    rows = await PlatformDailyMetricsRepo(session).window(
-        shop_id,
-        datasets=[loaders.TRAFFIC_DAILY],
-        start=day,
-        end=day,
-        streams=["ads"],
-        order_types=[loaders.PLACED],
-    )
+def _whole_of(rows: list[Any]) -> list[Any]:
+    """The day's ads total of one order type: Shopee's own ``all`` row, else its types."""
+    total = [r for r in rows if r.segment == "all"]
+    return total or rows
+
+
+def _sum_attr(rows: Iterable[Any], attr: str) -> Decimal | None:
+    values = [getattr(r, attr) for r in rows if getattr(r, attr) is not None]
+    return sum(values, ZERO) if values else None
+
+
+def _ratio(confirmed: Decimal | None, placed: Decimal | None) -> Decimal | None:
+    return None if confirmed is None or placed is None or placed <= 0 else confirmed / placed
+
+
+def ads_overlay(rows: list[Any], card_rows: list[Any]) -> AdsDay | None:
+    """The day's "trong đó Quảng cáo" overlay of Thẻ sản phẩm (pure).
+
+    ``rows``: the day's ``traffic_overview`` ads-stream rows (both order types); ``card_rows``:
+    its product-card ``all`` rows (both order types).
+
+    P100 B.4b -- **one order basis, confirmed** (the sources' ShopMetrics basis): the confirmed
+    ads row when Shopee posted one; else the placed row put on the confirmed basis by the card's
+    own confirmed ÷ placed ratio (orders by orders, GMV by GMV); else the placed figure as read.
+    Views / clicks are the overlay's own (traffic-overview base), never borrowed from another
+    report: when they are missing the Quảng cáo row takes both from the ads report at read time
+    (:func:`channel_split.split_rows`), so its CTR stays on one basis. A type row is never added
+    to the day's own total row."""
     if not rows:
         return None
-
-    def total(attr: str) -> Decimal | None:
-        values = [getattr(r, attr) for r in rows if getattr(r, attr) is not None]
-        return sum(values, ZERO) if values else None
+    confirmed = _whole_of([r for r in rows if r.order_type == loaders.CONFIRMED])
+    placed = _whole_of([r for r in rows if r.order_type == loaders.PLACED])
+    seen = confirmed or placed
 
     def whole(value: Decimal | None) -> int | None:
         return None if value is None else int(value)
 
-    spend = sum((Decimal(str((r.extra or {}).get("ads_expense") or 0)) for r in rows), ZERO)
-    return AdsDay(
-        whole(total("impressions")),
-        whole(total("clicks")),
-        whole(total("orders")),
-        total("gmv"),
-        spend,
+    views, clicks = _sum_attr(seen, "impressions"), _sum_attr(seen, "clicks")
+    if confirmed:
+        orders, gmv = _sum_attr(confirmed, "orders"), _sum_attr(confirmed, "gmv")
+    else:
+        orders, gmv = _sum_attr(placed, "orders"), _sum_attr(placed, "gmv")
+        card_c = [r for r in card_rows if r.order_type == loaders.CONFIRMED]
+        card_p = [r for r in card_rows if r.order_type == loaders.PLACED]
+        k_orders = _ratio(_sum_attr(card_c, "orders"), _sum_attr(card_p, "orders"))
+        k_gmv = _ratio(_sum_attr(card_c, "gmv"), _sum_attr(card_p, "gmv"))
+        if orders is not None and k_orders is not None:
+            orders = (orders * k_orders).quantize(Decimal(1))
+        if gmv is not None and k_gmv is not None:
+            gmv = gmv * k_gmv
+    spend_rows = placed or confirmed
+    spend = sum((Decimal(str((r.extra or {}).get("ads_expense") or 0)) for r in spend_rows), ZERO)
+    return AdsDay(whole(views), whole(clicks), whole(orders), gmv, spend)
+
+
+async def _ads_day(session: AsyncSession, shop_id: uuid.UUID, day: date) -> AdsDay | None:
+    repo = PlatformDailyMetricsRepo(session)
+    rows = await repo.window(
+        shop_id,
+        datasets=[loaders.TRAFFIC_DAILY],
+        start=day,
+        end=day,
+        streams=["ads", "product_card"],
+        order_types=[loaders.PLACED, loaders.CONFIRMED],
     )
+    ads = [r for r in rows if r.stream == "ads" and not r.item_id]
+    card = [r for r in rows if r.stream == "product_card" and r.segment == "all" and not r.item_id]
+    if not ads:
+        return None
+    return ads_overlay(ads, card)
 
 
 async def _traffic_tag(session: AsyncSession, shop_id: uuid.UUID, day: date) -> str:

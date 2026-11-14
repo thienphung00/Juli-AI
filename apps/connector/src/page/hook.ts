@@ -458,6 +458,8 @@ function isReaderJob(value: unknown): value is ReaderJob {
     orderIds?: unknown;
     orderSns?: unknown;
     budget?: unknown;
+    sinceDay?: unknown;
+    historyDays?: unknown;
   } | null;
   const digitList = (list: unknown) =>
     list === undefined || (Array.isArray(list) && list.every((id) => typeof id === "string" && /^\d{1,32}$/.test(id)));
@@ -471,6 +473,9 @@ function isReaderJob(value: unknown): value is ReaderJob {
     (job.campaignNames === undefined || (Array.isArray(job.campaignNames) && job.campaignNames.every((n) => typeof n === "string"))) &&
     digitList(job.orderIds) &&
     (job.orderSns === undefined || (Array.isArray(job.orderSns) && job.orderSns.every((sn) => typeof sn === "string" && /^[A-Za-z0-9]{0,40}$/.test(sn)))) &&
+    (job.historyDays === undefined ||
+      (Array.isArray(job.historyDays) && job.historyDays.every((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)))) &&
+    (job.sinceDay === undefined || (typeof job.sinceDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(job.sinceDay))) &&
     (job.budget === undefined || (typeof job.budget === "number" && Number.isFinite(job.budget) && job.budget >= 0)) &&
     (job.days === undefined || (Array.isArray(job.days) && job.days.every((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))))
   );

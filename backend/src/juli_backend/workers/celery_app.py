@@ -234,6 +234,13 @@ celery_app.conf.update(
             "task": "juli_backend.card_change_verification",
             "schedule": crontab(hour="1,7,13,19", minute=17),
         },
+        # P100 Part S: the stock e-mail of every Shopee shop whose stock_alert_status is on /
+        # preview, once per local day (send log unique per shop and day). 00:00 UTC = 07:00
+        # GMT+7, after the Connector's 06:30 stock read. Default queue.
+        "stock-alert-daily": {
+            "task": "juli_backend.stock_alert_daily",
+            "schedule": crontab(hour=0, minute=0),
+        },
     },
 )
 

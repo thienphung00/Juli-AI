@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { saveBlob, tongQuanFileName } from "../../lib/shopee-analytics/download";
@@ -12,8 +12,10 @@ import type { ShopeeLinks } from "../../lib/shopee-analytics/links";
 import type { AdBase, ChannelCells, ChannelKey, ChannelProduct, ChannelRow, ChannelSplit, PlanBar, PlanMonth, WeakestMetric } from "../../lib/shopee-analytics/types";
 import { METRIC_NAME, inMode, roiText, shift, type MetricKey, type ValueMode } from "../../lib/metrics";
 import { MetricChip, Shift } from "../metrics/metric-chip";
+import { stockFilterOf } from "../../lib/shopee-analytics/stock";
 import { PeriodBar } from "./period-bar";
-import { Ini, ResourceState, initialsOf } from "./ui";
+import { StockPanel } from "./stock-panel";
+import { DataThrough, Ini, ResourceState, initialsOf } from "./ui";
 
 /**
  * Tổng quan (canvas board TongQuanPct): the shop in one screen. Header finding, Shop | Sản phẩm,
@@ -127,7 +129,8 @@ export function linkWindow(state: WindowState, data: { readonly from: string; re
 export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const host = useShopee();
   const state = useMemo(() => readWindow(params), [params]);
-  const [level, setLevel] = useState<Level>("shop");
+  const stockKeys = useMemo(() => stockFilterOf(params), [params]);
+  const [level, setLevel] = useState<Level>(params.get("cap") === "san-pham" ? "product" : "shop");
   const [productId, setProductId] = useState<string | null>(null);
   const [plan, setPlan] = useState(true);
   const [exportFailed, setExportFailed] = useState(false);
@@ -138,6 +141,12 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const split = useResource(() => host.api.channelSplit(state.query, pid), `${host.shopKey}|cs|${queryKey}|${pid ?? ""}`);
   const list: readonly ChannelProduct[] = products.status === "ready" ? products.data.products : [];
   const chosen = list.find((p) => p.product_id === productId) ?? null;
+  // the e-mail's "Mở Juli" link opens Sản phẩm (`cap=san-pham`): pick its first SKU's product
+  useEffect(() => {
+    if (level !== "product" || productId !== null || !list.length) return;
+    const wanted = stockKeys[0]?.split(":")[0];
+    setProductId(list.find((p) => p.product_id === wanted)?.product_id ?? list[0].product_id);
+  }, [level, productId, list, stockKeys]);
 
   const toProduct = () => {
     setLevel("product");
@@ -243,13 +252,14 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
       <ResourceState resource={split}>
         {(data) => (
           <>
-            {plan && data.plan ? <PlanCard plan={data.plan} /> : null}
+            {plan && data.plan ? <PlanCard plan={data.plan} through={data.data_through?.plan} /> : null}
             <Tiles data={data} mode={mode} product={pid} state={linkWindow(state, data)} />
             <Composition data={data} mode={mode} product={pid} state={linkWindow(state, data)} />
             <ChannelTable data={data} mode={mode} product={pid} state={linkWindow(state, data)} weakest={level === "product" ? (chosen?.weakest_metric ?? null) : null} />
           </>
         )}
       </ResourceState>
+      {level === "product" ? <StockPanel keys={stockKeys} productId={productId} /> : null}
     </div>
   );
 }
@@ -284,24 +294,27 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
     </span>
   );
   return (
-    <div className="sa-tiles sa-tq__tiles" data-testid="sa-tiles">
-      {tile("gmv", `GMV${suffix(mode)}`, money(k.gmv), change(k.gmv, p?.gmv), "gmv", 1)}
-      {tile("profit", `Lợi nhuận${suffix(mode)}`, money(k.profit), change(k.profit, p?.profit), "margin", 1)}
-      {tile(
-        "cost",
-        `Tổng chi phí${suffix(mode)}`,
-        money(k.cost_total),
-        change(k.cost_total, p?.cost_total),
-        "margin",
-        -1,
-        <>
-          {line("ads", "Quảng cáo", k.cost_ads, p?.cost_ads, AD_BASE.ads_report)}
-          {line("affiliate", "Tiếp thị liên kết", k.cost_affiliate, p?.cost_affiliate)}
-          {line("offers", "Ưu đãi", k.cost_offers, p?.cost_offers)}
-        </>,
-      )}
-      {tile("roi", "ROI", roiText(k.roi), change(k.roi, p?.roi), "margin", 1)}
-    </div>
+    <>
+      <DataThrough day={data.data_through?.kpis} testId="sa-through-kpis" />
+      <div className="sa-tiles sa-tq__tiles" data-testid="sa-tiles">
+        {tile("gmv", `GMV${suffix(mode)}`, money(k.gmv), change(k.gmv, p?.gmv), "gmv", 1)}
+        {tile("profit", `Lợi nhuận${suffix(mode)}`, money(k.profit), change(k.profit, p?.profit), "margin", 1)}
+        {tile(
+          "cost",
+          `Tổng chi phí${suffix(mode)}`,
+          money(k.cost_total),
+          change(k.cost_total, p?.cost_total),
+          "margin",
+          -1,
+          <>
+            {line("ads", "Quảng cáo", k.cost_ads, p?.cost_ads, AD_BASE.ads_report)}
+            {line("affiliate", "Tiếp thị liên kết", k.cost_affiliate, p?.cost_affiliate)}
+            {line("offers", "Ưu đãi", k.cost_offers, p?.cost_offers)}
+          </>,
+        )}
+        {tile("roi", "ROI", roiText(k.roi), change(k.roi, p?.roi), "margin", 1)}
+      </div>
+    </>
   );
 }
 
@@ -366,7 +379,9 @@ function ChannelTable({ data, mode, product, state, weakest }: { readonly data: 
   return (
     <section className="sa-tq__table" data-testid="sa-channels" role="table">
       <div className="sa-tq__row sa-tq__row--head" role="row">
-        <span role="columnheader">Luồng</span>
+        <span role="columnheader">
+          Luồng <DataThrough day={data.data_through?.channels} testId="sa-through-channels" />
+        </span>
         {COLUMNS.map(([cell, label, , weak]) => (
           <span className={weak !== null && weak === weakest ? "sa-tq__weak" : undefined} data-weak={weak !== null && weak === weakest ? "true" : undefined} key={cell} role="columnheader">
             {label}
@@ -409,7 +424,7 @@ export function aheadOfPace(bar: PlanBar, day: number, days: number): boolean {
   return bar.goal !== null && bar.goal > 0 && bar.now !== null && days > 0 && bar.now / bar.goal >= day / days;
 }
 
-function PlanCard({ plan }: { readonly plan: PlanMonth }) {
+function PlanCard({ plan, through }: { readonly plan: PlanMonth; readonly through?: string | null }) {
   const marker = plan.today_marker === null ? null : Math.min(100, plan.today_marker * 100);
   const bar = (label: string, key: string, b: PlanBar) => {
     const hasGoal = b.goal !== null && b.goal > 0;
@@ -440,6 +455,7 @@ function PlanCard({ plan }: { readonly plan: PlanMonth }) {
         <span>
           {plan.day}/{plan.days} ngày
         </span>
+        <DataThrough day={through} testId="sa-through-plan" />
       </div>
       {bar(METRIC_NAME.gmv, "gmv", plan.gmv)}
       {bar("Lợi nhuận", "profit", plan.profit)}

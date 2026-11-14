@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { DASH, fmt } from "../../lib/shopee-analytics/format";
+import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { READBACK_LABEL, countdownOf, readbackOf, readingsOf, stepText, vnWhen, type Readback } from "../../lib/shopee-decisions/model";
 import type { CardDetail, ExecutionSheet, ExecutionStep, SheetPage } from "../../lib/shopee-decisions/types";
@@ -22,6 +23,15 @@ import { CopyButton, errorText } from "./ui";
 export const READ_ONLY_TITLE = "Chế độ xem: không thể thao tác thay seller";
 
 export function PageLink({ page }: { readonly page: SheetPage }) {
+  // P100 S2-D4: the sample shop is not in Seller Centre, so its sheet names the page without a link.
+  const sample = useSampleShopReviewer();
+  if (sample) {
+    return (
+      <span className="sd-page" data-testid="sd-page">
+        <b>{page.label}</b>
+      </span>
+    );
+  }
   return (
     <span className="sd-page" data-testid="sd-page">
       <b>{page.label}</b>
@@ -77,12 +87,14 @@ export function SheetView({ sheet, reverse = false }: { readonly sheet: Executio
 const READBACK_TONE = { pending: "warn", verified: "up", mismatch: "down", not_seen: "warn", none: "flat" } as const;
 
 function ReadbackBlock({ rb, deadline }: { readonly rb: Readback; readonly deadline: number }) {
+  const sample = useSampleShopReviewer();
   if (rb.state === "none") return null;
   return (
     <div className={`sd-readback sd-readback--${rb.state}`} data-testid="sd-readback">
       <TextChip tone={READBACK_TONE[rb.state]}>{READBACK_LABEL[rb.state]}</TextChip>
       <span>
-        {rb.state === "pending" ? `Juli đọc lại ở lần chạy kế tiếp của Connector; chưa thấy sau ${deadline} giờ sẽ báo cho Ops.` : null}
+        {rb.state === "pending" && sample ? "Juli đọc lại Seller Centre để xác minh." : null}
+        {rb.state === "pending" && !sample ? `Juli đọc lại ở lần chạy kế tiếp của Connector; chưa thấy sau ${deadline} giờ sẽ báo cho Ops.` : null}
         {rb.state === "verified" ? `Giá trị đọc được: ${rb.observed ?? DASH} · lúc ${vnWhen(rb.observedAt)}. Đồng hồ đo lường chạy từ lúc này.` : null}
         {rb.state === "mismatch" ? `Giá trị đọc được: ${rb.observed ?? DASH}, khác giá trị đã đề xuất. Kiểm tra lại trên Seller Centre hoặc báo cho Ops.` : null}
         {rb.state === "not_seen" ? `Chưa thấy thay đổi trên Seller Centre sau ${deadline} giờ. Kiểm tra bạn đã bấm Lưu chưa.` : null}
@@ -122,7 +134,9 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
   const executed = detail.status === "executed";
   const needsVoucherId = sheet.changes.some((c) => c.change_kind === "voucher");
   // P97 D85.6: after the person saves, the Connector captures the new voucher id itself.
-  const fillActive = detail.status === "approved" && FILL_JOB_KINDS.has(detail.change_kind);
+  // P100 S2-D4: no Connector (so no fill queue, which the sample pin refuses) on the reviewer's sample shop.
+  const sample = useSampleShopReviewer();
+  const fillActive = !sample && detail.status === "approved" && FILL_JOB_KINDS.has(detail.change_kind);
   const fill = useFillJobs(detail.id, fillActive);
   const captured = capturedVoucherId(fill.jobs);
   const blocked = !!host.readOnly || busy || (needsVoucherId && voucherId.trim() === "" && !captured);

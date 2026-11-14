@@ -849,6 +849,8 @@ def test_beat_schedule_has_exactly_the_expected_entries():
         "processed-events-retention",
         # ADR-117 step 3 (D81): the daily Shopee KPI run for contract shops.
         "shopee-kpi-daily",
+        # P100 Part S: the 07:00 GMT+7 stock-out e-mail.
+        "stock-alert-daily",
     }
 
 

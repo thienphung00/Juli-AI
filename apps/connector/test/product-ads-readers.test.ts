@@ -186,7 +186,9 @@ describe("the product table reader", () => {
     });
     const outcome = await runReaderJob({ id: "product_period" }, h.env);
     expect(outcome.status).toBe("done");
-    expect(h.sent).toHaveLength(PRODUCT_PERIOD_MAX_PAGES);
+    // 0.3.19: every row the answer's total names (43 rows = 5 pages), the cap is only a safety net
+    expect(h.sent).toHaveLength(5);
+    expect(PRODUCT_PERIOD_MAX_PAGES).toBeGreaterThanOrEqual(100);
     const q = new URL(h.sent[0]!.url).searchParams;
     expect(Object.fromEntries(q)).toMatchObject({
       period: "past30days",
@@ -203,6 +205,16 @@ describe("the product table reader", () => {
     expect(Number(q.get("end_time"))).toBe(gmt7DateStart("2026-11-08") + 86_399);
     expect(h.sent.every((r) => r.method === "GET")).toBe(true);
     expect(outcome.responses[0]!.period).toEqual({ start: "2026-10-10", end: "2026-11-08" });
+  });
+
+  it("0.3.19: pages through all rows, past the old 5-page cap", async () => {
+    const h = harness({ product_performance: template }, (request) => {
+      const n = Number(new URL(request.url).searchParams.get("page_num"));
+      return { body: page(Array.from({ length: 10 }, (_, i) => item(n * 100 + i)), 237) };
+    });
+    const outcome = await runReaderJob({ id: "product_period" }, h.env);
+    expect(outcome.status).toBe("done");
+    expect(h.sent).toHaveLength(24);
   });
 
   it("stops at the last page the answer's total names, and on a short page", async () => {

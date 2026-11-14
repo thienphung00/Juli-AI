@@ -323,8 +323,8 @@ class TestTheMigrationMatchesTheModel:
         # `120_planned_changes`, P93 `121_shop_members`, P96 `122_shopee_affiliate_lines`,
         # P97 `123_shopee_metrics_tables`, `124_shopee_fill_jobs`, `125_reco_plan_groups`;
         # P98 `126_shopee_source_funnel`; P100 E.7 `127_card_content_specs`;
-        # P100 Thực hiện `128_connector_state`.
-        assert heads == ["128_connector_state"], heads
+        # P100 Thực hiện `128_connector_state`; P100 stock alert `129_stock_alert`.
+        assert heads == ["129_stock_alert"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema

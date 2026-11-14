@@ -9,18 +9,28 @@ import {
   READER_LOAD_GRACE_MS,
   READER_PAGE_GAP_JITTER_MS,
   READER_PAGE_GAP_MS,
+  ORDERS_JOB_TIMEOUT_MS,
+  SAMPLE_SHOP_IDS,
+  ADS_HISTORY_DAY_COST,
+  TODAY_REQUEST_RESERVE,
   type ReaderDataset,
   type ReaderId,
 } from "../src/config";
 import {
   type BlockEvent,
+  nextStockAt,
+  ordersSinceDay,
+  READER_KICK_ALARM,
   READER_WATCHDOG_ALARM,
+  stockDueAt,
+  type TickReport,
   ReaderScheduler,
   planJobs,
   type SchedulerAlarms,
   type SchedulerTabs,
 } from "../src/background/scheduler";
 import { loadState, saveState } from "../src/background/state";
+import { lastFinishedDays } from "../src/shopee/time";
 import type { ReaderJob, ReaderResponse } from "../src/shopee/reader";
 
 const SC = "https://banhang.shopee.vn";
@@ -91,7 +101,7 @@ class FakeAlarms implements SchedulerAlarms {
   }
 }
 
-function setup(options: { token?: boolean; backfillBusy?: boolean; readers?: readonly ReaderId[] } = {}) {
+function setup(options: { token?: boolean; backfillBusy?: boolean; readers?: readonly ReaderId[]; stockRun?: boolean } = {}) {
   const storage = new MemoryStorage();
   const tabs = new FakeTabs();
   const alarms = new FakeAlarms();
@@ -109,6 +119,7 @@ function setup(options: { token?: boolean; backfillBusy?: boolean; readers?: rea
     tabs,
     alarms,
     readers: options.readers ?? CORE_READERS,
+    stockRun: options.stockRun ?? false,
     origin: SC,
     version: "0.3.4",
     now: () => clock.now,
@@ -123,7 +134,7 @@ function setup(options: { token?: boolean; backfillBusy?: boolean; readers?: rea
         if (job.id === "shop_totals") return { "shop_overview:confirmed": flags.totalsOutcome };
         if (job.id === "ads") {
           return Object.fromEntries(
-            (job.days ?? []).map((day) => [`ads_campaign_daily:${day}`, flags.adsOutcome[day] ?? "posted"]),
+            [...(job.days ?? []), ...(job.historyDays ?? [])].map((day) => [`ads_campaign_daily:${day}`, flags.adsOutcome[day] ?? "posted"]),
           );
         }
         return { [job.id]: "posted" };
@@ -193,6 +204,7 @@ describe("planJobs", () => {
       "ads_products",
       "health",
       "shop_totals",
+      "traffic",
       "product_period",
       "orders",
       "order_income",
@@ -262,6 +274,7 @@ describe("planJobs", () => {
 describe("a daily run", () => {
   it("opens one background tab per page, one at a time, with a gap, and closes each", async () => {
     const ctx = setup();
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], adsHistory: { shopId: PILOT, createdAt: "x", days: [], done: [], status: "done" } };
     expect(await ctx.scheduler.tick()).toBe("opened");
     expect(ctx.tabs.opened.map((t) => t.url)).toEqual([`${SC}/portal/product/list/all`]);
     expect(ctx.alarms.active.has(READER_WATCHDOG_ALARM)).toBe(true);
@@ -271,7 +284,7 @@ describe("a daily run", () => {
     // tab ready -> the job is sent to that tab
     const first = ctx.tabs.current;
     expect(await ctx.scheduler.onTabReady(first.id, first.url)).toBe(true);
-    expect(ctx.tabs.sent).toEqual([{ tabId: first.id, message: { type: "reader-job", job: { id: "products", budget: 390 } } }]);
+    expect(ctx.tabs.sent).toEqual([{ tabId: first.id, message: { type: "reader-job", job: { id: "products", budget: DAILY_REQUEST_BUDGET - 10 } } }]);
     // a second "ready" from a reload does not send it again
     await ctx.scheduler.onTabReady(first.id, first.url);
     expect(ctx.tabs.sent).toHaveLength(1);
@@ -319,6 +332,8 @@ describe("a daily run", () => {
 
   it("the ads job carries its days; a read ads day is not planned again tomorrow", async () => {
     const ctx = setup();
+    // the 90-day ads history is covered on its own below
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], adsHistory: { shopId: PILOT, createdAt: "x", days: [], done: [], status: "done" } };
     await ctx.scheduler.tick();
     await finishPage(ctx);
     ctx.clock.now += GAP;
@@ -814,7 +829,7 @@ describe("P97: shared daily request budget", () => {
     await ctx.scheduler.tick();
     const tab = ctx.tabs.current;
     await ctx.scheduler.onTabReady(tab.id, tab.url);
-    expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ job: { id: "shop_totals", budget: 390 } });
+    expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ job: { id: "shop_totals", budget: DAILY_REQUEST_BUDGET - 10 } });
     const replay = (n: number) => Array.from({ length: n }, () => ({ endpoint: "shop_key_metrics", url: "u", status: 200, capturedAt: T0, source: "replay", body: { code: 0, data: {} } }));
     await ctx.scheduler.onResult(tab.id, { job: "shop_totals", status: "done", responses: [...replay(2), { ...replay(1)[0], source: "page" }] });
     expect(((await loadState(ctx.storage as never)).budget)).toEqual({ day: "2026-11-03", used: 12 });
@@ -822,7 +837,7 @@ describe("P97: shared daily request budget", () => {
 
   it("when the budget is spent no page is opened and the remaining jobs wait for tomorrow", async () => {
     const ctx = setup({ readers: ["shop_totals", "orders"] });
-    ctx.storage.data.budget = { day: "2026-11-03", used: 395 };
+    ctx.storage.data.budget = { day: "2026-11-03", used: DAILY_REQUEST_BUDGET - 5 };
     expect(await ctx.scheduler.tick()).toBe("budget_spent");
     expect(ctx.tabs.opened).toHaveLength(0);
     expect((await ctx.read())?.lastRun?.outcomes).toEqual({ shop_totals: "waiting_budget", orders: "waiting_budget" });
@@ -969,5 +984,279 @@ describe("0.3.15: today's readers and the backfill share the daily budget", () =
     const ctx = setup({ readers: ["orders"] });
     ctx.storage.data.budget = { day: "2026-11-03", used: DAILY_REQUEST_BUDGET - BACKFILL_REQUEST_SHARE - 5 };
     expect(await ctx.scheduler.tick()).toBe("opened");
+  });
+});
+
+describe("0.3.19: the 06:30 stock read", () => {
+  // 2026-11-03 06:00 GMT+7 = 2026-11-02 23:00 UTC
+  const BEFORE = Date.UTC(2026, 10, 2, 23, 0, 0);
+  const snapshotPosted = { item_snapshot: "posted", item_catalog: "posted" };
+
+  function stockSetup(readers: readonly ReaderId[] = ["products", "vouchers"]) {
+    const ctx = setup({ readers, stockRun: true });
+    ctx.clock.now = BEFORE;
+    return ctx;
+  }
+
+  it("the alarm time is the next 06:30 GMT+7", () => {
+    expect(new Date(nextStockAt(BEFORE)).toISOString()).toBe("2026-11-02T23:30:00.000Z");
+    expect(new Date(nextStockAt(Date.UTC(2026, 10, 2, 23, 30, 0))).toISOString()).toBe("2026-11-03T23:30:00.000Z");
+    expect(new Date(stockDueAt("2026-11-03")).toISOString()).toBe("2026-11-02T23:30:00.000Z");
+  });
+
+  it("from 06:30 a run of ONLY the product list goes first; the daily run follows, without the list again", async () => {
+    const ctx = stockSetup();
+    // before 06:30: the daily run (no stock run yet)
+    expect(await ctx.scheduler.due()).toBe(true);
+    ctx.clock.now = BEFORE + 31 * 60_000; // 06:31
+    expect(await ctx.scheduler.tick({ trigger: "stock_alarm" })).toBe("stock:opened");
+    expect(ctx.tabs.current.url).toBe(`${SC}/portal/product/list/all`);
+    const run = (await ctx.read())?.run;
+    expect(run?.kind).toBe("stock");
+    expect(run?.jobs.map((j) => j.id)).toEqual(["products"]);
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    const sink = ctx.posted;
+    // the sink of this harness answers { products: "posted" }: make the snapshot land
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async (job: ReaderJob, responses: ReaderResponse[]) => {
+      sink.push({ job, responses });
+      return snapshotPosted;
+    };
+    await ctx.scheduler.onResult(tab.id, { job: "products", status: "done", responses: [productList(["11", "12"], 1)] });
+    const after = await ctx.read();
+    expect(after?.run).toBeUndefined();
+    expect(after?.stock).toMatchObject({ day: "2026-11-03", attempts: 1, outcome: "done:item_snapshot=posted,item_catalog=posted" });
+    expect(after?.productsAt).toBe(ctx.clock.now);
+    // the daily run is not marked done by the stock run; it is kicked a minute later
+    expect(after?.lastRunDay).toBeUndefined();
+    expect(ctx.alarms.active.get(READER_KICK_ALARM)).toEqual({ delayInMinutes: 1 });
+    expect(after?.kick?.reason).toBe("after_stock");
+    ctx.clock.now += GAP;
+    expect(await ctx.scheduler.tick({ trigger: "kick" })).toBe("opened");
+    expect((await ctx.read())?.run?.jobs.map((j) => j.id)).toEqual(["vouchers"]);
+    expect((await ctx.read())?.lastTick).toMatchObject({ trigger: "after_stock", result: "opened" });
+  });
+
+  it("uses the whole daily budget (not only the readers' part while a backfill runs)", async () => {
+    const ctx = stockSetup();
+    ctx.clock.now = BEFORE + 40 * 60_000;
+    ctx.storage.data.backfill = { shopId: PILOT, createdAt: "x", days: ["2026-11-02"], done: [], accepted: {}, attempts: {}, status: "running" };
+    ctx.storage.data.budget = { day: "2026-11-03", used: DAILY_REQUEST_BUDGET - BACKFILL_REQUEST_SHARE - 5 };
+    expect(await ctx.scheduler.tick()).toBe("stock:opened");
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ job: { id: "products", budget: BACKFILL_REQUEST_SHARE + 5 - 10 } });
+  });
+
+  it("Chrome closed at 06:30: the next start finds it due; two failed tries a day at most", async () => {
+    const ctx = stockSetup(["products"]);
+    ctx.clock.now = BEFORE + 3 * 3_600_000; // 09:00
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], lastRunDay: "2026-11-03" };
+    expect(await ctx.scheduler.due()).toBe(true);
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      expect(await ctx.scheduler.tick({ trigger: "kick" })).toBe("stock:opened");
+      const tab = ctx.tabs.current;
+      await ctx.scheduler.onTabReady(tab.id, tab.url);
+      await ctx.scheduler.onResult(tab.id, { job: "products", status: "needs_data_page" });
+      expect((await ctx.read())?.stock).toMatchObject({ attempts: attempt, outcome: "needs_data_page" });
+    }
+    expect(await ctx.scheduler.due()).toBe(false);
+    expect(await ctx.scheduler.tick()).toBe("done_today");
+  });
+});
+
+describe("0.3.19: ticks are recorded, retried and told to Juli", () => {
+  function reporting(options: Parameters<typeof setup>[0] = {}) {
+    const ctx = setup(options);
+    const reports: TickReport[] = [];
+    (ctx.scheduler as unknown as { deps: { sink: { reportTick: unknown } } }).deps.sink.reportTick = async (report: TickReport) => {
+      reports.push(report);
+    };
+    return { ...ctx, reports };
+  }
+
+  it("every tick from rest is kept with its trigger and result; a skip is told to Juli once a day", async () => {
+    const ctx = reporting({ backfillBusy: true });
+    expect(await ctx.scheduler.tick({ trigger: "daily_alarm" })).toBe("backfill_busy");
+    expect(await ctx.scheduler.tick({ trigger: "kick" })).toBe("backfill_busy");
+    const sched = await ctx.read();
+    expect(sched?.tickLog?.map((t) => [t.trigger, t.result])).toEqual([
+      ["daily_alarm", "backfill_busy"],
+      ["retry", "backfill_busy"],
+    ]);
+    // a busy backfill no longer means "wait for tomorrow": a one-off start in 5 minutes
+    expect(ctx.alarms.active.get(READER_KICK_ALARM)).toEqual({ delayInMinutes: 5 });
+    expect(ctx.reports.map((r) => [r.kind, r.result])).toEqual([["skip", "backfill_busy"]]);
+  });
+
+  it("a finished run is told to Juli with each page's outcome", async () => {
+    const ctx = reporting({ readers: ["vouchers"] });
+    await ctx.scheduler.tick({ trigger: "pair" });
+    await finishPage(ctx);
+    expect(ctx.reports).toEqual([
+      { kind: "run", trigger: "daily", result: "finished", day: "2026-11-03", at: expect.any(String), outcomes: { vouchers: "done:vouchers=posted" } },
+    ]);
+  });
+
+  it("pairing asks for a start a minute later, and says why", async () => {
+    const ctx = setup();
+    await ctx.scheduler.requestKick("pair");
+    expect(ctx.alarms.active.get(READER_KICK_ALARM)).toEqual({ delayInMinutes: 1 });
+    expect(await ctx.scheduler.tick({ trigger: "kick" })).toBe("opened");
+    expect((await ctx.read())?.lastTick).toMatchObject({ trigger: "pair", result: "opened" });
+    expect((await ctx.read())?.kick).toBeUndefined();
+  });
+
+  it("due(): paired and today's run not done; never for the reviewer sample shop", async () => {
+    const ctx = setup();
+    expect(await ctx.scheduler.due()).toBe(true);
+    ctx.storage.data.token = { ...TOKEN, shop_id: SAMPLE_SHOP_IDS[0] };
+    expect(await ctx.scheduler.due()).toBe(false);
+    expect(await ctx.scheduler.tick()).toBe("off");
+    expect(ctx.tabs.opened).toHaveLength(0);
+  });
+});
+
+describe("0.3.19: the traffic page and the orders catch-up in the plan", () => {
+  const base = { shopId: PILOT, nowMs: T0, stopped: new Set<never>(), adsDone: [] as string[] };
+
+  it("traffic: yesterday and up to three earlier days not posted yet", () => {
+    expect(planJobs({ ...base, readers: ["traffic"] })).toEqual([
+      { id: "traffic", days: ["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"] },
+    ]);
+    expect(planJobs({ ...base, readers: ["traffic"], trafficOverviewDone: ["2026-11-02", "2026-11-01", "2026-10-31"] })).toEqual([
+      { id: "traffic", days: ["2026-10-30"] },
+    ]);
+    expect(planJobs({ ...base, readers: ["traffic"], trafficOverviewDone: ["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"] })).toEqual([]);
+  });
+
+  it("orders read back 14 days the first time, then from the last complete read minus 3 days, at most 30", () => {
+    expect(ordersSinceDay("2026-11-03", undefined)).toBe("2026-10-20");
+    expect(ordersSinceDay("2026-11-03", "2026-11-02")).toBe("2026-10-30");
+    expect(ordersSinceDay("2026-11-03", "2026-09-01")).toBe("2026-10-04");
+    expect(planJobs({ ...base, readers: ["orders"], ordersCoveredDay: "2026-11-02" })).toEqual([{ id: "orders", sinceDay: "2026-10-30" }]);
+  });
+
+  it("the product list is not read again when today's stock read already has it", () => {
+    expect(planJobs({ ...base, readers: ["products", "vouchers"], productsFresh: true }).map((j) => j.id)).toEqual(["vouchers"]);
+  });
+
+  it("the traffic job opens Truy cập, carries its days, and a posted confirmed day is not read again", async () => {
+    const ctx = setup({ readers: ["traffic"] });
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async (job: ReaderJob) => ({
+      "traffic_overview:2026-11-02:confirmed": "posted",
+      "traffic_overview:2026-11-02:placed": "posted",
+      "shop_traffic:2026-11-02": "posted",
+      "traffic_overview:2026-11-01:confirmed": "ignored",
+      job: job.id,
+    });
+    expect(await ctx.scheduler.tick()).toBe("opened");
+    expect(ctx.tabs.current.url).toBe(`${SC}/datacenter/traffic/overview`);
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ job: { id: "traffic", days: ["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"] } });
+    await ctx.scheduler.onResult(tab.id, { job: "traffic", status: "done", responses: [] });
+    expect((await ctx.read())?.trafficOverviewDone).toEqual(["2026-11-02"]);
+  });
+
+  it("orders: a complete by-date read moves the start forward; a page-cap read does not", async () => {
+    const ctx = setup({ readers: ["orders"] });
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_lines: "posted" });
+    await ctx.scheduler.tick();
+    let tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ job: { id: "orders", sinceDay: "2026-10-20" } });
+    await ctx.scheduler.onResult(tab.id, { job: "orders", status: "done", detail: "partial:page_cap", responses: [] });
+    expect((await ctx.read())?.ordersCoveredDay).toBeUndefined();
+    ctx.clock.now += 24 * 3_600_000;
+    await ctx.scheduler.tick();
+    tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "orders", status: "done", responses: [] });
+    expect((await ctx.read())?.ordersCoveredDay).toBe("2026-11-04");
+  });
+
+  it("the orders job gets the long timeout (it pages for up to ~30 minutes)", async () => {
+    const ctx = setup({ readers: ["orders", "vouchers"] });
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    ctx.clock.now += READER_JOB_TIMEOUT_MS + 1;
+    expect(await ctx.scheduler.tick()).toBe("waiting");
+    ctx.clock.now += ORDERS_JOB_TIMEOUT_MS;
+    expect(await ctx.scheduler.tick()).toBe("timeout");
+  });
+});
+
+describe("0.3.19: the 90-day ads history", () => {
+  const history = (days: string[]) => days.map((day) => ({ ...(adsReplies([day])[0] as object), day }));
+  const refused = (day: string) => ({ endpoint: "ads_homepage", url: "u", status: 200, capturedAt: T0, source: "replay", day, page: 1, body: { code: 10006, msg: "err:invalid param" } });
+
+  async function adsJob(ctx: ReturnType<typeof setup>) {
+    expect(await ctx.scheduler.tick()).toBe("opened");
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    return { tab, job: (ctx.tabs.sent.at(-1)?.message as { job: { days: string[]; historyDays?: string[]; budget: number } }).job };
+  }
+
+  it("plans the 90 finished days before today's, newest first, 10 a run after the regular days", async () => {
+    const ctx = setup({ readers: ["ads"] });
+    const { job } = await adsJob(ctx);
+    expect(job.days).toEqual(["2026-11-02", "2026-11-01", "2026-10-31", "2026-10-30"]);
+    expect(job.historyDays).toEqual(["2026-10-29", "2026-10-28", "2026-10-27", "2026-10-26", "2026-10-25", "2026-10-24", "2026-10-23", "2026-10-22", "2026-10-21", "2026-10-20"]);
+    const plan = (await ctx.read())?.adsHistory;
+    expect(plan).toMatchObject({ shopId: PILOT, status: "running", done: [] });
+    expect(plan?.days).toHaveLength(90);
+    expect(plan?.days[0]).toBe("2026-11-02");
+    expect(plan?.days[89]).toBe("2026-08-05");
+  });
+
+  it("is resumable: read days are done, the next run takes the next ten, a day that did not post stays", async () => {
+    const ctx = setup({ readers: ["ads"] });
+    const { tab, job } = await adsJob(ctx);
+    const readNow = (job.historyDays ?? []).filter((d) => d !== "2026-10-25");
+    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: [...adsReplies(job.days), ...history(readNow)] });
+    const after = (await ctx.read())?.adsHistory;
+    expect(after?.done).toHaveLength(4 + 9);
+    expect(after?.done).not.toContain("2026-10-25");
+    expect(after?.earliest).toBe("2026-10-20");
+    ctx.clock.now += 24 * 3_600_000;
+    const next = await adsJob(ctx);
+    expect(next.job.historyDays?.[0]).toBe("2026-10-25");
+    expect(next.job.historyDays).toHaveLength(10);
+  });
+
+  it("stays inside the backfill's part of the budget: nothing when only today's reserve is left", async () => {
+    const ctx = setup({ readers: ["ads"] });
+    ctx.storage.data.budget = { day: "2026-11-03", used: DAILY_REQUEST_BUDGET - TODAY_REQUEST_RESERVE - 2 * ADS_HISTORY_DAY_COST };
+    const { job } = await adsJob(ctx);
+    expect(job.historyDays).toHaveLength(2);
+    const spent = setup({ readers: ["ads"] });
+    spent.storage.data.budget = { day: "2026-11-03", used: DAILY_REQUEST_BUDGET - TODAY_REQUEST_RESERVE };
+    expect((await adsJob(spent)).job.historyDays).toBeUndefined();
+  });
+
+  it("the first day Shopee refuses ends it: that limit and the earliest day read are kept, older days never asked", async () => {
+    const ctx = setup({ readers: ["ads"] });
+    const { tab, job } = await adsJob(ctx);
+    const [d1, d2, d3] = job.historyDays ?? [];
+    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: [...adsReplies(job.days), ...history([d1!, d2!]), refused(d3!)] });
+    const after = (await ctx.read())?.adsHistory;
+    expect(after).toMatchObject({ status: "done", earliest: d2, limit: { day: d3, code: "code_10006" } });
+    ctx.clock.now += 24 * 3_600_000;
+    const next = await adsJob(ctx);
+    expect(next.job.historyDays).toBeUndefined();
+    expect(next.job.days).toEqual(["2026-11-03"]);
+  });
+
+  it("done for the shop once every planned day is read; a new shop starts its own", async () => {
+    const ctx = setup({ readers: ["ads"] });
+    const days = lastFinishedDays(T0, 90);
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], adsHistory: { shopId: PILOT, createdAt: "x", days, done: days.slice(0, 89), status: "running" } };
+    const { tab, job } = await adsJob(ctx);
+    expect(job.historyDays).toEqual([days[89]]);
+    await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: [...adsReplies(job.days), ...history([days[89]!])] });
+    expect((await ctx.read())?.adsHistory).toMatchObject({ status: "done", earliest: days[89] });
+    expect((await ctx.read())?.adsHistory?.limit).toBeUndefined();
   });
 });

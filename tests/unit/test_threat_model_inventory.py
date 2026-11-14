@@ -206,6 +206,8 @@ UNAUTHENTICATED_ALLOWLIST = {
     "/v1/ingest/{platform}/{dataset}",
     # Connector stop report (CAPTCHA / login wall / 429): metadata for Ops, same ingest token.
     "/v1/ingest/connector-events",
+    # Connector 0.3.19 scheduler tick (trigger, result, per-page outcomes): same ingest token.
+    "/v1/ingest/connector-ticks",
     # P97 D85.6: the Connector's fill queue, its token's shop only (list + report progress).
     "/v1/ingest/fill-jobs",
     "/v1/ingest/fill-jobs/{job_id}",
@@ -213,6 +215,9 @@ UNAUTHENTICATED_ALLOWLIST = {
     # A visitor has no session by definition; bounded by validation, a honeypot and
     # per-IP / per-e-mail / site-wide limits counted in the ops-only table.
     "/v1/trial-signups",
+    # P100 Part S: the stock e-mail's unsubscribe confirm; the HMAC-signed token is the credential
+    # (one shop, one member), writes that member's unsubscribe row under the shop's RLS scope.
+    "/v1/stock-alert/unsubscribe",
 }
 
 REGENERATION_COMMAND = (

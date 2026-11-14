@@ -9,7 +9,7 @@ const OCT1 = 1790787600;
 describe("backfill day plan", () => {
   it("asks for 30 finished days, one plan per day, in the recorded shapes", () => {
     const days = lastFinishedDays(NOW, 30);
-    const plans = days.map((day) => buildBackfillDayPlan(day, NOW, new Set()));
+    const plans = days.map((day) => buildBackfillDayPlan(day, NOW, new Set(), false));
     expect(plans).toHaveLength(30);
     for (const [index, plan] of plans.entries()) {
       const day = days[index]!;
@@ -53,10 +53,12 @@ describe("backfill day plan", () => {
   });
 
   it("skips accepted / stopped datasets; item datasets only while their readers are active", () => {
-    expect(buildBackfillDayPlan("2026-10-01", NOW, new Set(["traffic_overview"] as const)).map((p) => p.dataset)).toEqual([
+    expect(buildBackfillDayPlan("2026-10-01", NOW, new Set(["traffic_overview"] as const), false).map((p) => p.dataset)).toEqual([
       "shop_traffic",
     ]);
-    expect(backfillDatasets()).toEqual(["traffic_overview", "shop_traffic"]);
+    expect(backfillDatasets(false)).toEqual(["traffic_overview", "shop_traffic"]);
+    // 0.3.19: the item readers are on by default
+    expect(backfillDatasets()).toEqual(["traffic_overview", "item_by_source", "item_performance", "shop_traffic"]);
     const withItems = buildBackfillDayPlan("2026-10-01", NOW, new Set(), true);
     expect(withItems.filter((p) => p.dataset === "item_performance")).toHaveLength(5);
     expect(withItems.filter((p) => p.dataset === "item_by_source")).toHaveLength(5);

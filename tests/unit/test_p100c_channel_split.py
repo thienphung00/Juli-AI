@@ -244,3 +244,177 @@ async def test_picker_margin_is_the_builders_one_scope_margin(session):
     for p in out["products"]:
         one = scope_margin_pct(view.profit, (p["product_id"],))
         assert p["margin"] == (None if one is None else float(one))
+
+
+# -- P100 B.4: one order basis, ad clicks, DVHT views ---------------------------------------
+
+
+def test_p100b_dvht_rows_get_views_ctr_and_ctor_from_the_ads_report():
+    types = {
+        "ads_roas_custom": {
+            "gmv": D(9_000_000), "orders": D(70), "spend": D(2_000_000),
+            "impressions": D(40_000), "clicks": D(1_400),
+        },
+        "ads_auto_bid": {
+            "gmv": D(1_030_000), "orders": D(4), "spend": D(450_000),
+            "impressions": D(10_000), "clicks": D(100),
+        },
+        "ads_shop": {
+            "gmv": D(350_000), "orders": D(2), "spend": D(120_000),
+            "impressions": D(5_000), "clicks": D(50),
+        },
+    }  # fmt: skip
+    r = _by_key(split_rows(base_from_rows(_rows(), "s"), ad_types=types))
+    p, s = r["ads_product"], r["ads_shop"]
+    assert p["views"] == 50_000 and p["clicks"] == 1_500
+    assert p["ctr"] == 0.03 and p["ctor"] == round(74 / 1_500, 6)
+    assert s["views"] == 5_000 and s["ctr"] == 0.01 and s["ctor"] == 0.04
+    assert p["share"] is None  # still the ads-report base
+
+
+def test_p100b_a_type_without_counts_leaves_the_dvht_views_unknown():
+    types = {
+        "ads_roas_custom": {"gmv": D(9), "orders": D(7), "spend": D(2), "impressions": None,
+                            "clicks": None},
+        "ads_auto_bid": {"gmv": D(1), "orders": D(1), "spend": D(1), "impressions": D(10),
+                         "clicks": D(1)},
+    }  # fmt: skip
+    p = _by_key(split_rows(base_from_rows(_rows(), "s"), ad_types=types))["ads_product"]
+    assert p["views"] is None and p["clicks"] is None and p["ctr"] is None and p["ctor"] is None
+    assert p["orders"] == 8
+
+
+def test_p100b_the_organic_card_never_goes_below_zero():
+    """ORY: Thẻ sản phẩm (organic) −24 đơn. A derived organic cell is clamped at 0."""
+    out = []
+    for s in SOURCES:
+        if s == "the_san_pham_khac":
+            out.append(
+                SourceDay(
+                    DAY, None, s, 5000, 100, 70, D(10_880_000), D(0),
+                    ads_views=6000, ads_clicks=150, ads_orders=94, ads_gmv=D(9_933_253),
+                )
+            )  # fmt: skip
+        else:
+            out.append(SourceDay(DAY, None, s, None, None, 0, D(0), D(0)))
+    r = _by_key(split_rows(base_from_rows(FunnelRows(W, tuple(out)), "s")))
+    card = r["organic_card"]
+    assert card["orders"] == 0 and card["views"] == 0 and card["clicks"] == 0
+    assert card["gmv"] == 946_747
+    assert r["organic"]["orders"] == 0 and r["organic"]["gmv"] == 946_747
+
+
+def test_connector_shop_campaign_types_are_dvht_shop_plus():
+    from juli_backend.services.shopee_analytics.loaders import is_shop_plus
+
+    assert is_shop_plus("ads_shop") and is_shop_plus("shop_manual") and is_shop_plus("SHOP_auto")
+    assert not is_shop_plus("product_manual") and not is_shop_plus("connector")
+    assert not is_shop_plus(None)
+    types = {
+        "product_manual": {"gmv": D(9_000_000), "orders": D(70), "spend": D(2_000_000)},
+        "shop_manual": {"gmv": D(350_000), "orders": D(2), "spend": D(120_000)},
+    }
+    r = _by_key(split_rows(base_from_rows(_rows(), "s"), ad_types=types))
+    assert r["ads_product"]["gmv"] == 9_000_000 and r["ads_product"]["orders"] == 70
+    assert r["ads_shop"]["gmv"] == 350_000 and r["ads_shop"]["orders"] == 2
+
+
+# -- P100 B.4a (owner 2026-11-14): the Quảng cáo CTR on one basis -----------------------------
+
+
+def _card_day(ads_views, ads_clicks):
+    return base_from_rows(FunnelRows(W, _card_rows(ads_views, ads_clicks)), "s")
+
+
+def _card_rows(ads_views, ads_clicks):
+    out = []
+    for s in SOURCES:
+        if s == "the_san_pham_khac":
+            out.append(
+                SourceDay(
+                    DAY, None, s, 5000, 400, 70, D(10_880_000), D(0),
+                    ads_views=ads_views, ads_clicks=ads_clicks, ads_orders=61,
+                    ads_gmv=D(8_080_000), ads_spend=D(2_570_000),
+                )
+            )  # fmt: skip
+        else:
+            out.append(SourceDay(DAY, None, s, None, None, 0, D(0), D(0)))
+    return tuple(out)
+
+
+_REPORT = {
+    "product_manual": {
+        "gmv": D(9_000_000), "orders": D(70), "spend": D(2_000_000),
+        "impressions": D(30_000), "clicks": D(300),
+    },
+    "shop_manual": {
+        "gmv": D(350_000), "orders": D(2), "spend": D(120_000),
+        "impressions": D(9_000), "clicks": D(90),
+    },
+}  # fmt: skip
+
+
+def test_p100b_overlay_without_clicks_takes_views_and_clicks_from_the_ads_report():
+    r = _by_key(split_rows(_card_day(2000, None), ad_types=_REPORT))
+    ads = r["ads"]
+    # product ads only (Shop+ out): one report for both, CTR = 300 / 30.000
+    assert ads["views"] == 30_000 and ads["clicks"] == 300 and ads["ctr"] == 0.01
+    # orders / GMV stay the overlay's (confirmed basis)
+    assert ads["orders"] == 61 and ads["gmv"] == 8_080_000
+    card = r["organic_card"]
+    assert card["views"] == 5000 - 2000  # traffic base: card views - overlay views
+    assert card["clicks"] == 400 - 300  # card clicks - report clicks
+    assert card["ctr"] == round(100 / 3000, 6)
+
+
+def test_p100b_overlay_with_neither_takes_both_from_the_report_and_clamps_organic():
+    r = _by_key(split_rows(_card_day(None, None), ad_types=_REPORT))
+    assert r["ads"]["views"] == 30_000 and r["ads"]["clicks"] == 300
+    card = r["organic_card"]
+    assert card["views"] == 0  # 5000 - 30.000, clamped
+    assert card["clicks"] == 100
+
+
+def test_p100b_overlay_with_its_own_clicks_keeps_the_traffic_base():
+    r = _by_key(split_rows(_card_day(2000, 120), ad_types=_REPORT))
+    assert r["ads"]["views"] == 2000 and r["ads"]["clicks"] == 120
+    assert r["organic_card"]["views"] == 3000 and r["organic_card"]["clicks"] == 280
+
+
+def test_p100b_no_report_counts_leave_the_ads_clicks_unknown():
+    types = {"product_manual": {"gmv": D(1), "orders": D(1), "spend": D(1)}}
+    r = _by_key(split_rows(_card_day(2000, None), ad_types=types))
+    assert r["ads"]["views"] == 2000 and r["ads"]["clicks"] is None and r["ads"]["ctr"] is None
+    assert r["organic_card"]["clicks"] is None
+
+
+def test_p100b_phan_tich_and_tong_quan_show_the_same_cells_for_the_same_window():
+    """One basis on both screens: Thẻ sản phẩm (organic) and the two DVHT rows have the same
+    views, clicks, CTR and CTOR in Phân tích (metric_view) as in Tổng quan (split_rows)."""
+    from juli_backend.services.shopee_analytics import metric_view
+
+    for ads_views, ads_clicks in ((2000, None), (None, None), (2000, 120)):
+        base = _card_day(ads_views, ads_clicks)
+        rows = FunnelRows(W, _card_rows(ads_views, ads_clicks))
+        tq = _by_key(split_rows(base, ad_types=_REPORT))
+        pairs = {
+            "the_san_pham": "organic_card",
+            "ads_product": "ads_product",
+            "ads_shop": "ads_shop",
+        }
+        for metric in ("views", "ctr", "ctor"):
+            out = metric_view.assemble(
+                metric, now=rows, before=rows, shop_key="s", ad_types_now=_REPORT,
+                ad_types_before=_REPORT, item_ids=[], names={}, margin_now={}, margin_before={},
+            )  # fmt: skip
+            pt = {c["key"]: c for c in out["channels"]}
+            for pt_key, tq_key in pairs.items():
+                got, want = pt[pt_key]["now"], tq[tq_key][metric]
+                assert (got is None) == (want is None), (ads_views, ads_clicks, metric, pt_key)
+                if want is not None:
+                    assert abs(float(got) - float(want)) < 1e-6, (
+                        ads_views,
+                        ads_clicks,
+                        metric,
+                        pt_key,
+                    )

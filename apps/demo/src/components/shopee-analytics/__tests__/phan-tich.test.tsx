@@ -9,6 +9,13 @@ import { params, renderWith } from "./harness";
 const q = (href: string | null) => new URLSearchParams((href ?? "").split("?")[1] ?? "");
 
 describe("Phân tích (board B)", () => {
+  it("P100 B.5: Theo luồng and Theo sản phẩm show the last day of their data", async () => {
+    const view = metricView({ metric: "gmv", data_through: { channels: "2026-11-09", products: "2026-11-13" } });
+    renderWith(<PhanTichPageView params={params("metric=gmv")} />, fakeApi({ metricView: view }));
+    expect(await screen.findByTestId("pt-through-channels")).toHaveTextContent(/^Số liệu đến 09\/11$/);
+    expect(screen.getByTestId("pt-through-products")).toHaveTextContent(/^Số liệu đến 13\/11$/);
+  });
+
   it("leads with the number: metric, change, weakest luồng, products pulling down", async () => {
     renderWith(<PhanTichPageView params={params("metric=ctr")} />, fakeApi());
     expect(await screen.findByRole("heading", { level: 1, name: "CTR ▼ 20 % · Thẻ sản phẩm · 2 sản phẩm kéo xuống" })).toBeInTheDocument();

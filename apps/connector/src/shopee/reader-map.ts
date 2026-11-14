@@ -14,7 +14,7 @@ import { mapAffiliateJob } from "./affiliate-map";
 import { mapOrderIncome, mapOrderLines } from "./orders-map";
 import { mapProductPeriod } from "./product-period-map";
 import { mapShopTotals } from "./totals-map";
-import type { Drift, Mapped, Row } from "./map";
+import { type Drift, mapCaptured, type Mapped, type Row } from "./map";
 import {
   classify,
   findList,
@@ -923,7 +923,25 @@ export function mapReaderJob(job: ReaderJob, responses: ReaderResponse[], captur
       return [mapOrderLines(responses, capturedAt)];
     case "order_income":
       return [mapOrderIncome(responses, capturedAt)];
+    case "traffic":
+      return mapTrafficJob(responses);
     default:
       return [];
   }
+}
+
+/**
+ * The traffic reader's answers (0.3.19) through the same mapper as the page's own mydata answers:
+ * one Mapped per data answer (traffic_overview per day and order type, shop_traffic per day). An
+ * answer that is not data (a Seller Centre error code, a failed call) is left out.
+ */
+export function mapTrafficJob(responses: ReaderResponse[]): Mapped[] {
+  const out: Mapped[] = [];
+  for (const response of responses) {
+    if (response.endpoint !== "traffic_overview" && response.endpoint !== "shop_traffic") continue;
+    if (classify(response.status, response.body) !== "ok") continue;
+    const mapped = mapCaptured({ url: response.url, body: response.body, capturedAt: response.capturedAt });
+    if (mapped) out.push(mapped);
+  }
+  return out;
 }

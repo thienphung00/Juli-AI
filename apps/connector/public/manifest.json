@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Juli Connector",
-  "version": "0.3.18",
+  "version": "0.3.19",
   "description": "Gửi số liệu Seller Centre của chính shop bạn (Shopee) sang Juli để Juli phân tích và đề xuất.",
   "minimum_chrome_version": "111",
-  "permissions": ["storage", "alarms"],
+  "permissions": ["storage", "alarms", "scripting"],
   "host_permissions": ["https://banhang.shopee.vn/*", "https://shopee.vn/*", "__JULI_API_ORIGIN__/*"],
   "background": { "service_worker": "sw.js" },
   "content_scripts": [

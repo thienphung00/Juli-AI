@@ -107,4 +107,5 @@ function runListingFill(): void {
     now: () => Date.now(),
   }).catch(() => undefined);
 }
-startFill();
+// Re-injected into an already-open tab after an update (0.3.19): relay only, never a fill.
+if ((globalThis as Record<string, unknown>).__juliReinjected !== true) startFill();

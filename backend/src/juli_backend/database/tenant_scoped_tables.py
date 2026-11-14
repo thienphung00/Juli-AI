@@ -181,6 +181,11 @@ TABLE_CLASSIFICATION_MAP = {
     # P100 (migration 128): the Connector's heartbeat and the "Đối chiếu ngay" command.
     ("public", "shopee_connector_state"): "tenant_direct",
     ("public", "shopee_connector_commands"): "tenant_direct",
+    # P100 Part S (migration 129): stock history, the "Theo dõi" switch, unsubscribes, send log.
+    ("public", "shopee_stock_history"): "tenant_direct",
+    ("public", "shopee_sku_tracking"): "tenant_direct",
+    ("public", "shopee_stock_alert_unsubscribes"): "tenant_direct",
+    ("public", "shopee_stock_alert_sends"): "tenant_direct",
     # P98 / ADR-122 d.3 (migration 126): the funnel per traffic source, per day (shop and item).
     ("public", "shopee_source_metrics_daily"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
