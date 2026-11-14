@@ -446,6 +446,11 @@ async def range_plan(
     )[scope]
 
 
+def _idle(r: Mapping[str, Any], key: str, idle_goal: bool) -> Any:
+    goal = r[f"goal_{key}"]
+    return r[f"baseline_{key}"] if goal is None and idle_goal else goal
+
+
 async def month_plans(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -455,10 +460,15 @@ async def month_plans(
     mtd_view: PeriodView | None = None,
     draft_payload: Mapping[str, Any] | None = None,
     scopes: tuple[str, ...] = SCOPES,
+    idle_goal: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """The month figures of Kế hoạch for each of ``scopes``, keyed by scope: :func:`range_plans`
     over the calendar month of ``anchor`` (default: the newest data day), month to date up to
-    ``anchor``. ``mtd_view`` = a month-to-date view the caller already loaded."""
+    ``anchor``. ``mtd_view`` = a month-to-date view the caller already loaded.
+
+    ``idle_goal``: with no card counted the goal is ``None`` (Tổng quan and the exports show "—").
+    Kế hoạch's bars ask for ``idle_goal=True``: the goal is then the baseline level, so the bar
+    has something to draw before any plan runs (``cards`` still says nothing runs)."""
     if anchor is None:
         window = await service.resolve(session, shop_id)
         anchor = window.end if window is not None else plans.plan_today(now)
@@ -487,8 +497,8 @@ async def month_plans(
             "baseline_profit": r["baseline_profit"],
             "uplift_gmv": r["uplift_gmv"],
             "uplift_profit": r["uplift_profit"],
-            "goal_gmv": r["goal_gmv"],
-            "goal_profit": r["goal_profit"],
+            "goal_gmv": _idle(r, "gmv", idle_goal),
+            "goal_profit": _idle(r, "profit", idle_goal),
             "mtd_gmv": r["actual_gmv"],
             "mtd_profit": r["actual_profit"],
         }
@@ -521,7 +531,7 @@ async def plan_with_month(
     month's stored daily rows are missing)."""
     out = await plans.get_plan(session, shop_id, None, now=now, audience=audience)
     try:
-        both = await month_plans(session, shop_id, now=now, draft_payload=out)
+        both = await month_plans(session, shop_id, now=now, draft_payload=out, idle_goal=True)
         if both[SCOPE_RUNNING]["cards"] == 0:
             # No running card has a day in the data's month (e.g. the executed plan runs in the
             # next one): show the month the running cards fall in, never an empty "Đang chạy".
@@ -530,7 +540,9 @@ async def plan_with_month(
                 window = await service.resolve(session, shop_id)
                 data_end = window.end if window is not None else plans.plan_today(now)
                 month = span[0] if span[0] > data_end else span[1]
-                both = await month_plans(session, shop_id, now=now, draft_payload=out, anchor=month)
+                both = await month_plans(
+                    session, shop_id, now=now, draft_payload=out, anchor=month, idle_goal=True
+                )
         out["month"] = {"running": both[SCOPE_RUNNING], "with_draft": both[SCOPE_RUNNING_DRAFT]}
     except RowsNotMaterialized:
         out["month"] = None

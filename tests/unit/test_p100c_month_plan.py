@@ -91,6 +91,29 @@ async def test_a_confirmed_plan_does_not_run_and_no_running_card_means_no_goal(
     assert again["cards"] == 0 and again["goal_gmv"] is None
 
 
+async def test_ke_hoach_running_goal_is_the_baseline_when_no_plan_runs(session, shop, monkeypatch):
+    """Kế hoạch's bars once drew nothing ("Đang chạy — → 12,92 tr"): with no executed plan the
+    running goal is the baseline level. Tổng quan / the exports keep ``None`` (no goal to show)."""
+    seeded, _ = shop
+
+    async def spy(_session, **kw):
+        return None
+
+    monkeypatch.setattr(fill_queue_port, "enqueue_for_approval", spy)
+    await _save_and_plan(session, seeded, _voucher(date(2026, 10, 15), 10))
+    screen = await month_plan.plan_with_month(session, seeded.shop_id, now=NOW, audience="seller")
+    run = screen["month"]["running"]
+    assert run["cards"] == 0 and run["baseline_gmv"] is not None
+    assert run["goal_gmv"] == run["baseline_gmv"] and run["goal_profit"] == run["baseline_profit"]
+    assert (
+        screen["month"]["with_draft"]["goal_gmv"] > run["goal_gmv"]
+    )  # the draft still adds on top
+    plain = await month_plan.month_plan(
+        session, seeded.shop_id, scope="running", now=NOW, anchor=AS_OF
+    )
+    assert plain["goal_gmv"] is None  # Tổng quan / exports: nothing runs, no goal
+
+
 async def test_a_card_counts_only_its_days_inside_the_month():
     card = {
         "result": {
