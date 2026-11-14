@@ -14,7 +14,9 @@ is missing -- the Connector has not read it yet -- and is never filled with an o
 report's daily average.
 
 A day with none of them has no figure (``None``, "chưa có dữ liệu"): it is never 0, and never in
-a total. A day that two sources cover is counted once (the first source). The ``source`` of
+a total. A day that two sources cover is counted once (the first source), and every figure of
+that day -- spend, GMV, orders and each type's impressions / clicks -- comes from that one source: a
+Connector day (its 90-day history backfill included) always beats a file day. The ``source`` of
 each day travels with the figure, so a payload can say where each day came from.
 """
 

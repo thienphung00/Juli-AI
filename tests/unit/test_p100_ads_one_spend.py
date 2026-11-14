@@ -172,3 +172,54 @@ def test_p100b_the_ads_daily_figures_keep_impressions_and_clicks_per_ad_type():
     cell = ads_daily_of(days, Window(date(2026, 11, 1), date(2026, 11, 2))).by_type
     assert cell["product_manual"]["impressions"] is None
     assert cell["product_manual"]["clicks"] is None
+
+
+def test_p100b_connector_history_before_the_old_start_beats_the_period_files():
+    """The Connector's 90-day ads backfill reaches back before its first live day: wherever a
+    Connector day exists it answers, the period files only fill days with no daily source."""
+    from juli_backend.services.shopee_profit.ads_days import TypeFigure
+
+    def conn(spend):
+        return DayAds(
+            D(spend), D(spend * 4), D(2), SOURCE_CONNECTOR,
+            {"product_manual": TypeFigure(D(spend), D(spend * 4), D(2), D(1000), D(30))},
+        )  # fmt: skip
+
+    connector = {date(2026, 8, 20): conn(100), date(2026, 8, 21): conn(110)}
+    report = {date(2026, 8, 21): _day(999, SOURCE_DAILY_REPORT, 999)}
+    period = [AdWindow("c", date(2026, 8, 18), date(2026, 8, 22), D(5000), gmv=D(9000))]
+    days = resolve_ad_days(
+        connector,
+        report,
+        period,
+        date(2026, 8, 18),
+        date(2026, 8, 22),
+        connector_until=date(2026, 11, 12),
+    )
+    assert {d: f.source for d, f in days.items()} == {
+        date(2026, 8, 18): SOURCE_PERIOD_SPREAD,
+        date(2026, 8, 19): SOURCE_PERIOD_SPREAD,
+        date(2026, 8, 20): SOURCE_CONNECTOR,
+        date(2026, 8, 21): SOURCE_CONNECTOR,  # the file day loses every figure
+        date(2026, 8, 22): SOURCE_PERIOD_SPREAD,
+    }
+    d21 = days[date(2026, 8, 21)]
+    assert (d21.spend, d21.gmv, d21.orders) == (D(110), D(440), D(2))
+    t = d21.by_type["product_manual"]
+    assert (t.impressions, t.clicks) == (D(1000), D(30))
+
+
+def test_p100b_mixed_days_resolve_one_source_per_day():
+    connector = {date(2026, 11, 1): _day(100, SOURCE_CONNECTOR, 400)}
+    report = {
+        date(2026, 11, 1): _day(999, SOURCE_DAILY_REPORT, 999),
+        date(2026, 11, 2): _day(50, SOURCE_DAILY_REPORT, 100),
+    }
+    period = [AdWindow("c", date(2026, 11, 1), date(2026, 11, 3), D(300), gmv=D(600))]
+    days = resolve_ad_days(
+        connector, report, period, date(2026, 11, 1), date(2026, 11, 3),
+        connector_until=date(2026, 11, 1),
+    )  # fmt: skip
+    assert days[date(2026, 11, 1)].spend == D(100)
+    assert days[date(2026, 11, 2)].source == SOURCE_DAILY_REPORT  # a file day, no Connector day
+    assert date(2026, 11, 3) not in days  # after the newest Connector day: missing
