@@ -7,6 +7,7 @@ import type { BuilderApi } from "../shopee-decisions/builder-api";
 import type { RecoApi } from "../shopee-decisions/client";
 import type { KolApi } from "../shopee-kol/types";
 import type { ShopeeLinks } from "./links";
+import type { StockApi } from "./stock";
 
 /**
  * What a Shopee shop screen needs from its host: the API (seller or Ops base), the links it
@@ -26,6 +27,8 @@ export interface ShopeeHost {
   readonly builder?: BuilderApi;
   /** P91 D-9: KOL × sản phẩm × kênh (flag `NEXT_PUBLIC_P91_KOL`); absent = no KOL screens. */
   readonly kol?: KolApi;
+  /** P100 Part S: Tổng quan › Sản phẩm stock rows + "Theo dõi"; absent = not shown (Ops, reviewer). */
+  readonly stock?: StockApi;
 }
 
 const Ctx = createContext<ShopeeHost | null>(null);

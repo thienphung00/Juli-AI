@@ -13,6 +13,7 @@ import "./shopee-p91.css";
 import "./shopee-p92.css";
 import "./shopee-p92-parity.css";
 import "./auth-screen.css";
+import "./stock-alert.css";
 
 /** Quyết định's typeface (AC-10.3 artboards) and the auth screen's (P34-F,
  *  D44.1); exposed as a variable so only those screens use it — the shell

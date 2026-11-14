@@ -137,6 +137,8 @@ export interface CardSummary {
   /** 1 = the card Quyết định shows for its product, 2.. wait behind it. */
   readonly product_queue?: number | null;
   readonly product_measuring?: ProductMeasuring | null;
+  /** P100 Part S: a running card whose variations were all stopped ("Đã ngừng theo dõi"). */
+  readonly stock_untracked?: boolean;
   readonly versions?: readonly VersionBrief[];
   /** "manual" for a card made by hand (Tự tạo phương án); the engine's cards carry none. */
   readonly origin?: string | null;

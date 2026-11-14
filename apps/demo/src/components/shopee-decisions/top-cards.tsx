@@ -100,6 +100,7 @@ export function CardRow({ card, name, inPlan, canAct, busy, onPlan, onApprove }:
             </span>
             {inPlan ? <TextChip tone="pink">Trong kế hoạch nháp</TextChip> : null}
             {card.stale ? <TextChip tone="warn">Đang cập nhật</TextChip> : null}
+            {card.stock_untracked ? <TextChip tone="warn">Đã ngừng theo dõi</TextChip> : null}
             {!card.floor_ok ? <TextChip tone="down">Chạm giá sàn</TextChip> : null}
           </div>
           <h2 className="dx-card__title">

@@ -1,0 +1,67 @@
+/* P100 Part S: Tổng quan › Sản phẩm stock rows and the unsubscribe page. */
+.sa-stock__rows {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sa-stock__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--qd-line-3);
+}
+
+.sa-stock__name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sa-stock__product {
+  color: var(--qd-muted);
+  font-size: 12px;
+}
+
+.sa-stock__left {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sa-stock__left--soon {
+  color: var(--qd-pink);
+  font-weight: 600;
+}
+
+.sa-stock__switch {
+  margin-left: 0;
+  height: 32px;
+}
+
+@media (max-width: 560px) {
+  .sa-stock__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .sa-stock__left {
+    grid-column: 1;
+  }
+  .sa-stock__switch {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+.unsub-page {
+  max-width: 420px;
+  margin: 64px auto;
+  padding: 0 16px;
+  text-align: center;
+}
+
+.unsub-page h1 {
+  font-size: 20px;
+  margin: 0 0 20px;
+}

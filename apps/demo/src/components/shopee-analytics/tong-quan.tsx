@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { saveBlob, tongQuanFileName } from "../../lib/shopee-analytics/download";
@@ -12,7 +12,9 @@ import type { ShopeeLinks } from "../../lib/shopee-analytics/links";
 import type { AdBase, ChannelCells, ChannelKey, ChannelProduct, ChannelRow, ChannelSplit, PlanBar, PlanMonth, WeakestMetric } from "../../lib/shopee-analytics/types";
 import { METRIC_NAME, inMode, roiText, shift, type MetricKey, type ValueMode } from "../../lib/metrics";
 import { MetricChip, Shift } from "../metrics/metric-chip";
+import { stockFilterOf } from "../../lib/shopee-analytics/stock";
 import { PeriodBar } from "./period-bar";
+import { StockPanel } from "./stock-panel";
 import { Ini, ResourceState, initialsOf } from "./ui";
 
 /**
@@ -127,7 +129,8 @@ export function linkWindow(state: WindowState, data: { readonly from: string; re
 export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const host = useShopee();
   const state = useMemo(() => readWindow(params), [params]);
-  const [level, setLevel] = useState<Level>("shop");
+  const stockKeys = useMemo(() => stockFilterOf(params), [params]);
+  const [level, setLevel] = useState<Level>(params.get("cap") === "san-pham" ? "product" : "shop");
   const [productId, setProductId] = useState<string | null>(null);
   const [plan, setPlan] = useState(true);
   const [exportFailed, setExportFailed] = useState(false);
@@ -138,6 +141,12 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const split = useResource(() => host.api.channelSplit(state.query, pid), `${host.shopKey}|cs|${queryKey}|${pid ?? ""}`);
   const list: readonly ChannelProduct[] = products.status === "ready" ? products.data.products : [];
   const chosen = list.find((p) => p.product_id === productId) ?? null;
+  // the e-mail's "Mở Juli" link opens Sản phẩm (`cap=san-pham`): pick its first SKU's product
+  useEffect(() => {
+    if (level !== "product" || productId !== null || !list.length) return;
+    const wanted = stockKeys[0]?.split(":")[0];
+    setProductId(list.find((p) => p.product_id === wanted)?.product_id ?? list[0].product_id);
+  }, [level, productId, list, stockKeys]);
 
   const toProduct = () => {
     setLevel("product");
@@ -250,6 +259,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
           </>
         )}
       </ResourceState>
+      {level === "product" ? <StockPanel keys={stockKeys} productId={productId} /> : null}
     </div>
   );
 }
