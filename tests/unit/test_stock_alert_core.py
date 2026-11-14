@@ -89,9 +89,16 @@ def test_spike_guard_needs_fourteen_kept_days():
     first = TODAY - timedelta(days=days)
     big = next(d for d in units if not _sale(d))
     units[big] = 10.0
-    # 14 kept days: the guard runs and drops the spike, leaving 13 -> the fallback takes over
+    # 14 non-sale days: the guard runs and drops the spike; 13 remain (no fallback after the guard)
     got = fc.kept_days(units, TODAY, first_day=first)
-    assert len(got) == days and big in got
+    assert big not in got and len(got) == 13
+    # 13 non-sale days: every in-stock day counts, and the guard still drops the spike from that set
+    short = _history_with_kept(13)
+    few = {TODAY - timedelta(days=b): 1.0 for b in range(1, short + 1)}
+    spike = next(d for d in few if not _sale(d))
+    few[spike] = 10.0
+    got = fc.kept_days(few, TODAY, first_day=TODAY - timedelta(days=short))
+    assert spike not in got and any(_sale(d) for d in got)
     # one more ordinary day: 15 kept, the spike is dropped and 14 remain
     longer = _history_with_kept(15)
     units |= {TODAY - timedelta(days=b): 1.0 for b in range(days + 1, longer + 1)}

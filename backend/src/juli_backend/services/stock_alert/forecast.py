@@ -7,12 +7,11 @@ complete and is left out). The days it averages (:func:`kept_days`):
    had stock (a 0-stock day could not sell; those never count);
 2. minus the sale calendar (:data:`SALE_CALENDAR`): the monthly double day (1.1 .. 12.12), the 15th
    ("Giữa tháng siêu ưu đãi") and the 25th ("Sale lương về") of every month, and the day after each
-   (sale traffic and late deliveries run into the next day);
-3. minus the variation's own spikes: with at least :data:`MIN_KEPT_DAYS` days kept, a day whose
-   units exceed :data:`SPIKE_FACTOR` x the median of the kept days (a shop campaign or flash sale
-   that is not on the calendar);
-4. if fewer than :data:`MIN_KEPT_DAYS` days are left after 2-3, fall back to all the days of 1
-   (no sale or spike exclusion).
+   (sale traffic and late deliveries run into the next day); if fewer than :data:`MIN_KEPT_DAYS`
+   days are left, the sale days come back (all the days of 1);
+3. minus the variation's own spikes, on whichever set 2 left: with at least :data:`MIN_KEPT_DAYS`
+   days in it, a day whose units exceed :data:`SPIKE_FACTOR` x their median (a shop campaign or
+   flash sale that is not on the calendar). A spike never comes back.
 
 At least :data:`MIN_ORDERS_FOR_WEIGHTS` orders in the last 30 days: a weighted average of the kept
 days, the last 30 days weight 2, days 31-90 weight 1; fewer: their plain average.
@@ -61,7 +60,7 @@ class SaleCalendar:
 #: ưu đãi"), the 25th ("Sale lương về"), each with the day after. A stand-in until a per-shop
 #: calendar exists: swap this constant (or pass another calendar to :func:`kept_days`).
 SALE_CALENDAR = SaleCalendar(double_day=True, monthly_days=(15, 25), spill_days=1)
-#: Fewest days the base rate may average after the exclusions; below it, rule 4's fallback.
+#: Fewest non-sale days before the sale days come back (rule 2); the spike guard's minimum (rule 3).
 MIN_KEPT_DAYS = 14
 #: A day above this x the median of the kept days is the variation's own spike.
 SPIKE_FACTOR = 3.0
@@ -85,7 +84,7 @@ def kept_days(
     first_day: date | None = None,
     calendar: SaleCalendar = SALE_CALENDAR,
 ) -> list[date]:
-    """The days the base rate averages (rules 1-4 of the module docstring)."""
+    """The days the base rate averages (rules 1-3 of the module docstring)."""
     in_stock: list[date] = []
     for back in range(1, HISTORY_DAYS + 1):
         day = today - timedelta(days=back)
@@ -93,12 +92,14 @@ def kept_days(
             break
         if day not in zero_stock_days:
             in_stock.append(day)
-    kept = [d for d in in_stock if not calendar.is_sale_day(d)]
+    off_sale = [d for d in in_stock if not calendar.is_sale_day(d)]
+    # too few non-sale days: every in-stock day counts; the spike guard then runs on that set
+    kept = off_sale if len(off_sale) >= MIN_KEPT_DAYS else in_stock
     if len(kept) >= MIN_KEPT_DAYS:
         median = _median([float(daily_units.get(d, 0.0)) for d in kept])
         if median > 0:
             kept = [d for d in kept if float(daily_units.get(d, 0.0)) <= SPIKE_FACTOR * median]
-    return kept if len(kept) >= MIN_KEPT_DAYS else in_stock
+    return kept
 
 
 @dataclass(frozen=True)
