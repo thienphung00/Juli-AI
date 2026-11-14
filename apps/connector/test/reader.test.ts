@@ -259,6 +259,40 @@ describe("ads", () => {
     expect(h.sent.map((r) => r.endpoint)).toEqual(["ads_homepage"]); // no graph template -> no graph guess
   });
 
+  it("0.3.19 history: older days after the regular ones, the same calls, a refused day ends it", async () => {
+    const wide = { ...home, body: { ...(home.body as object), limit: 20 } };
+    const refusedStart = dayBounds("2026-08-10").start_time;
+    const h = harness({ ads_homepage: wide, ads_time_graph: graph }, (request) => {
+      if (request.endpoint === "ads_time_graph") return { body: adsGraph };
+      const start = JSON.parse(request.body as string).start_time as number;
+      return start === refusedStart ? { body: { code: 10006, msg: "err:invalid param" } } : { body: adsHome };
+    });
+    const outcome = await runReaderJob(
+      { id: "ads", days: ["2026-11-02"], historyDays: ["2026-08-11", "2026-08-10", "2026-08-09"] },
+      h.env,
+    );
+    expect(outcome.status).toBe("done");
+    const starts = h.sent.filter((r) => r.endpoint === "ads_homepage").map((r) => JSON.parse(r.body as string).start_time);
+    // 08/09 is never asked: Shopee refused 08/10
+    expect(starts).toEqual([dayBounds("2026-11-02").start_time, dayBounds("2026-08-11").start_time, refusedStart]);
+    expect(h.sent.every((r) => r.url.includes("/api/pas/"))).toBe(true);
+    // the refused answer is kept, tagged with its day, for the scheduler to record
+    expect(outcome.responses.find((r) => r.day === "2026-08-10")?.body).toMatchObject({ code: 10006 });
+    // a refused REGULAR day still stops the job as before
+    const strict = harness({ ads_homepage: wide }, () => ({ body: { code: 10006, msg: "err:invalid param" } }));
+    expect((await runReaderJob({ id: "ads", days: ["2026-11-02"] }, strict.env)).status).toBe("error");
+  });
+
+  it("0.3.19 history: no history day starts without budget room left", async () => {
+    const wide = { ...home, body: { ...(home.body as object), limit: 20 } };
+    const h = harness({ ads_homepage: wide, ads_time_graph: graph }, (request) => ({ body: request.endpoint === "ads_time_graph" ? adsGraph : adsHome }));
+    h.env.budget = { left: 7 };
+    const outcome = await runReaderJob({ id: "ads", days: ["2026-11-02"], historyDays: ["2026-10-01", "2026-09-30", "2026-09-29"] }, h.env);
+    expect(outcome.status).toBe("done");
+    // 2 regular + 2 for 01/10 = 4; 3 left -> 30/09 (2 more); 1 left -> stop
+    expect(h.sent).toHaveLength(6);
+  });
+
   it("a paid-orders page template is replayed as paid and flagged on the response", async () => {
     const h = harness({ ads_homepage: { ...home, body: { ...(home.body as object), limit: 20, use_paid_gmv: true } } }, () => ({ body: adsHome }));
     const outcome = await runReaderJob({ id: "ads", days: ["2026-11-02"] }, h.env);

@@ -321,6 +321,16 @@ export const READER_KICK_DELAY_MINUTES = 1;
 
 /** Ads: yesterday plus up to this many earlier finished days not read yet (one day per call). */
 export const ADS_CATCHUP_DAYS = 3;
+/**
+ * Ads history (0.3.19, owner 2026-11-14: no more Shopee ad report files): once per shop the same
+ * per-day list read goes back over the last ADS_HISTORY_DAYS finished days, newest first, a few days
+ * per daily run, inside the backfill's part of the budget (what is left above TODAY_REQUEST_RESERVE),
+ * resumable. The first day Shopee refuses ends it there (its earliest readable day is recorded).
+ */
+export const ADS_HISTORY_DAYS = 90;
+export const ADS_HISTORY_DAYS_PER_RUN = 10;
+/** Requests one history day is planned at (list page(s) + the ROAS graph). */
+export const ADS_HISTORY_DAY_COST = 3;
 export const ADS_MAX_ROWS_PER_DAY = 300;
 export const ADS_PAGE_LIMIT_DEFAULT = 20;
 /** Ads edit pages (Connector 0.3.7): at most this many ongoing / scheduled campaigns a day. */

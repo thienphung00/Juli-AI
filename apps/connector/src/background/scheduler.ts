@@ -9,6 +9,9 @@
 
 import {
   ADS_CATCHUP_DAYS,
+  ADS_HISTORY_DAY_COST,
+  ADS_HISTORY_DAYS,
+  ADS_HISTORY_DAYS_PER_RUN,
   AFFILIATE_HISTORY_WINDOWS,
   AFFILIATE_WINDOW_DAYS,
   ADS_DETAIL_MAX_CAMPAIGNS,
@@ -54,14 +57,16 @@ import { completedOrders } from "../shopee/orders-map";
 import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../shopee/reader-map";
 import type { CaptureOutcome } from "./connector";
 import { READER_PAGES, readerPageUrl } from "../shopee/endpoints";
-import { blockedPath, type ReaderJob, type ReaderResponse } from "../shopee/reader";
+import { blockedPath, classify, type ReaderJob, type ReaderResponse } from "../shopee/reader";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../shopee/time";
 import {
   type PlannedJob,
   type ReaderBlockReason,
   type ReaderRun,
   type ReaderSchedule,
+  type AdsHistory,
   addRequests,
+  backfillRequestsLeft,
   loadState,
   readerRequestsLeft,
   requestsLeft,
@@ -193,6 +198,8 @@ export function planJobs(args: {
   ordersCoveredDay?: string;
   /** The product list was read (with stock) today after 06:30 and its ids are known: not again today. */
   productsFresh?: boolean;
+  /** Older ads days of the once-per-shop history to read in this run (0.3.19), newest first. */
+  adsHistoryDays?: readonly string[];
   held?: ReadonlySet<ReaderDataset>;
   readers?: readonly ReaderId[];
 }): PlannedJob[] {
@@ -216,7 +223,10 @@ export function planJobs(args: {
       // Every day posted: the list is still opened once a day for its campaign settings, once
       // a first settings capture has been recorded (before that, an open day always exists).
       const settingsDue = args.adsSettingsDay !== undefined && args.adsSettingsDay !== gmt7Date(Math.floor(args.nowMs / 1000));
-      if (days.length > 0 || settingsDue) jobs.push({ id, days });
+      const historyDays = (args.adsHistoryDays ?? []).filter((day) => !days.includes(day));
+      if (days.length > 0 || settingsDue || historyDays.length > 0) {
+        jobs.push({ id, days, ...(historyDays.length > 0 ? { historyDays: [...historyDays] } : {}) });
+      }
     } else if (id === "item_traffic") {
       // The item ids are filled in when the job's turn comes (the product list is read first).
       const days = lastFinishedDays(args.nowMs, 1 + TRAFFIC_CATCHUP_DAYS).filter(
@@ -399,6 +409,8 @@ export class ReaderScheduler {
       return "backfill_busy";
     }
     const productsFresh = (sched.productsAt ?? 0) >= stockDueAt(today) && (sched.itemIds?.length ?? 0) > 0;
+    const adsHistory = this.adsHistoryPlan(sched, shopId as string);
+    const adsHistoryDays = this.adsHistoryToday(adsHistory, sched, backfillRequestsLeft(state, today));
     const planned = planJobs({
       shopId,
       nowMs: now,
@@ -415,6 +427,7 @@ export class ReaderScheduler {
       trafficOverviewDone: sched.trafficOverviewDone,
       ordersCoveredDay: sched.ordersCoveredDay,
       productsFresh,
+      adsHistoryDays,
       ...(this.deps.readers ? { readers: this.deps.readers } : {}),
     });
     // A same-day re-run opens pages that still have missing days. A manual
@@ -434,12 +447,75 @@ export class ReaderScheduler {
       return "nothing_to_do";
     }
     const run: ReaderRun = { day: today, startedAt: now, jobs, index: 0, outcomes: {} };
-    await this.save({ ...sched, blocked: undefined, run });
+    await this.save({ ...sched, adsHistory, blocked: undefined, run });
     await this.deps.alarms.create(READER_WATCHDOG_ALARM, {
       delayInMinutes: READER_WATCHDOG_ALARM_MINUTES,
       periodInMinutes: READER_WATCHDOG_ALARM_MINUTES,
     });
-    return this.startNext({ ...sched, blocked: undefined, run }, run);
+    return this.startNext({ ...sched, adsHistory, blocked: undefined, run }, run);
+  }
+
+  /** The shop's ads history: kept while it is this shop's, else a new 90-day plan (newest first). */
+  private adsHistoryPlan(sched: ReaderSchedule, shopId: string): AdsHistory {
+    if (sched.adsHistory?.shopId === shopId) return sched.adsHistory;
+    return {
+      shopId,
+      createdAt: this.iso(),
+      days: lastFinishedDays(this.deps.now(), ADS_HISTORY_DAYS),
+      done: [],
+      status: "running",
+    };
+  }
+
+  /** History days for today's run: not read yet, newest first, as many as the backfill's budget part allows. */
+  private adsHistoryToday(history: AdsHistory, sched: ReaderSchedule, backfillLeft: number): string[] {
+    if (history.status === "done") return [];
+    // The last few days belong to the regular ads read (ADS_CATCHUP_DAYS); they count once posted.
+    const regular = lastFinishedDays(this.deps.now(), 1 + ADS_CATCHUP_DAYS);
+    const read = new Set([...history.done, ...(sched.adsPosted ?? []), ...regular]);
+    const room = Math.min(ADS_HISTORY_DAYS_PER_RUN, Math.floor(backfillLeft / ADS_HISTORY_DAY_COST));
+    return history.days.filter((day) => !read.has(day)).slice(0, Math.max(0, room));
+  }
+
+  /**
+   * After an ads job: history days read are done; the first one Shopee refused ends the history (the
+   * earliest readable day is the oldest one read). Every planned day read = done.
+   */
+  private adsHistoryAfter(
+    history: AdsHistory | undefined,
+    job: PlannedJob,
+    posted: Record<string, string>,
+    responses: ReaderResponse[],
+    adsPosted: readonly string[],
+  ): AdsHistory | undefined {
+    if (!history || history.status === "done") return history;
+    const done = new Set(history.done);
+    for (const day of history.days) if (adsPosted.includes(day)) done.add(day);
+    let limit = history.limit;
+    for (const day of job.historyDays ?? []) {
+      if (adsDayRead(posted[`ads_campaign_daily:${day}`] as CaptureOutcome | undefined, responses, day)) {
+        done.add(day);
+        continue;
+      }
+      const refused = responses.find(
+        (r) => r.day === day && r.endpoint === "ads_homepage" && classify(r.status, r.body) === "error",
+      );
+      if (refused) {
+        const code = (refused.body as { code?: unknown } | null)?.code;
+        limit = { day, code: code !== undefined ? `code_${String(code)}` : `http_${refused.status}`, at: this.iso() };
+        break;
+      }
+    }
+    const doneDays = history.days.filter((day) => done.has(day));
+    const earliest = doneDays[doneDays.length - 1];
+    const finished = limit !== undefined || history.days.every((day) => done.has(day));
+    return {
+      ...history,
+      done: doneDays,
+      status: finished ? "done" : "running",
+      ...(earliest ? { earliest } : {}),
+      ...(limit ? { limit } : {}),
+    };
   }
 
   /** Keep the tick (newest last) and tell Juli a skip once per distinct result per day. */
@@ -747,6 +823,7 @@ export class ReaderScheduler {
             ...(job.orderSns ? { orderSns: job.orderSns } : {}),
             ...(job.history ? { history: job.history } : {}),
             ...(job.sinceDay ? { sinceDay: job.sinceDay } : {}),
+            ...(job.historyDays ? { historyDays: job.historyDays } : {}),
             // What is left of today's shared budget for this job's own requests.
             budget: Math.max(0, this.requestsLeftFor((await this.load()).state, run)),
           },
@@ -805,6 +882,7 @@ export class ReaderScheduler {
         ...(job.orderSns ? { orderSns: job.orderSns } : {}),
         ...(job.history ? { history: job.history } : {}),
         ...(job.sinceDay ? { sinceDay: job.sinceDay } : {}),
+        ...(job.historyDays ? { historyDays: job.historyDays } : {}),
       };
       const posted = await this.deps.sink.postReader(readerJob, responses);
       const skippedEntries =
@@ -823,6 +901,7 @@ export class ReaderScheduler {
               ...(job.days ?? []).filter((day) => adsDayRead(posted[`ads_campaign_daily:${day}`] as CaptureOutcome | undefined, responses, day)),
             ].slice(-ADS_DONE_KEPT)
           : sched.adsPosted;
+      const adsHistory = job.id === "ads" ? this.adsHistoryAfter(sched.adsHistory, job, posted, responses, adsPosted ?? []) : sched.adsHistory;
       const itemIds = job.id === "products" ? ids(responses, sched.itemIds) : sched.itemIds;
       const trafficDone =
         job.id === "item_traffic"
@@ -845,7 +924,7 @@ export class ReaderScheduler {
             ].slice(-TRAFFIC_OVERVIEW_DONE_KEPT)
           : sched.trafficOverviewDone;
       await this.finishJob(
-        { ...sched, adsPosted, itemIds, trafficDone, adsSettingsDay, adsCampaigns, productsAt, trafficOverviewDone, ...extra },
+        { ...sched, adsPosted, adsHistory, itemIds, trafficDone, adsSettingsDay, adsCampaigns, productsAt, trafficOverviewDone, ...extra },
         run,
         `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}`,
       );

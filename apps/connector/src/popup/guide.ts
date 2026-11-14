@@ -390,3 +390,17 @@ export function stockLine(readers: ReaderSchedule | null | undefined): string | 
   if (stock?.outcome) return `Đọc tồn kho ${gmt7Stamp(stock.at ?? "")}: ${outcomeStatus(stock.outcome).status}`;
   return "Tồn kho: đọc mỗi ngày lúc 06:30";
 }
+
+/** The once-per-shop 90-day ads history (0.3.19): how far it got, or where Shopee's history ends. */
+export function adsHistoryLine(readers: ReaderSchedule | null | undefined): string | null {
+  const history = readers?.adsHistory;
+  if (!history) return null;
+  const total = history.days.length;
+  const dm = (day: string | undefined) => (day ? `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}` : "");
+  if (history.status === "done") {
+    return history.limit
+      ? `Quảng cáo các ngày trước: đã lấy đến ${dm(history.earliest)} (Seller Centre không giữ xa hơn)`
+      : `Quảng cáo ${total} ngày trước: đã lấy đủ`;
+  }
+  return `Quảng cáo ${total} ngày trước: ${history.done.length}/${total} ngày`;
+}

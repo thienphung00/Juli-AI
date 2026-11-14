@@ -12,6 +12,7 @@ import {
   AFFILIATE_PAGE_SIZE_DEFAULT,
   AFFILIATE_WINDOW_DAYS,
   ADS_PAGE_LIMIT_DEFAULT,
+  ADS_HISTORY_DAY_COST,
   ORDER_LIST_MAX_PAGES_PER_RUN,
   ORDER_LIST_MIN_PAGES,
   ORDER_LIST_PAGE_GAP_JITTER_MS,
@@ -66,6 +67,8 @@ export interface ReaderJob {
   history?: ConversionWindow[];
   /** orders (0.3.19): read back until orders placed before this GMT+7 day. */
   sinceDay?: string;
+  /** ads (0.3.19): older days of the ads history, newest first, read after `days`. */
+  historyDays?: string[];
   /** Requests this job may still send (the shared daily budget's remainder). */
   budget?: number;
 }
@@ -445,7 +448,14 @@ export function dayBounds(day: string): { start_time: number; end_time: number }
 /** The homepage query's body when the page never made one: only keys the recon recorded. */
 const ADS_HOMEPAGE_FALLBACK: Record<string, unknown> = { filter_list: [], use_paid_gmv: false };
 
-async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse[]): Promise<void> {
+/**
+ * The ads list, one call set per finished GMT+7 day (the page's own homepage query with only the day
+ * bounds and the page changed), plus the page's ROAS graph for that day. 0.3.19: after `days`, the
+ * older `historyDays` of the once-per-shop history, newest first. A history day Shopee answers with an
+ * error is kept (the scheduler records it as the earliest day Shopee allows) and ends the history
+ * read; a history day is never started without room left in the job's budget.
+ */
+async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse[], historyDays: string[] = []): Promise<void> {
   await waitForPage(env, [], collected);
   // The page's own homepage query is the template; its graph query is optional.
   await env.waitFor(() => env.template("ads_homepage") !== undefined, READER_TEMPLATE_WAIT_MS / 2);
@@ -456,52 +466,42 @@ async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse
   const limitNumber = Number(homeBody.limit);
   const limit = Number.isInteger(limitNumber) && limitNumber > 0 ? limitNumber : ADS_PAGE_LIMIT_DEFAULT;
   const usePaidGmv = homeBody.use_paid_gmv === true;
-  if (days.length === 0) {
+  /** One day's list pages (and graph). False when its first page was not data (history only). */
+  const readDay = async (day: string | undefined, bounds: { start_time: number; end_time: number }, history: boolean): Promise<boolean> => {
+    let rows = 0;
+    for (let offset = 0; offset < ADS_MAX_ROWS_PER_DAY; offset += limit) {
+      const request = buildReaderRequest(
+        env.origin,
+        "ads_homepage",
+        home,
+        { body: { ...bounds, offset, limit, use_paid_gmv: usePaidGmv } },
+        env.session(),
+        ADS_HOMEPAGE_FALLBACK,
+      );
+      const response = await send(env, request, collected, { ...(day ? { day } : {}), page: offset / limit + 1, usePaidGmv }, history);
+      if (history && classify(response.status, response.body) !== "ok") return false;
+      const found = findList(payloadOf(response.body), isAdsEntry);
+      rows += found?.list.length ?? 0;
+      if (!found || found.list.length < limit) break;
+      const total = totalOf(response.body, found.parent);
+      if (total !== undefined && rows >= total) break;
+    }
+    if (graph && day) {
+      const request = buildReaderRequest(env.origin, "ads_time_graph", graph, { body: bounds }, env.session());
+      await send(env, request, collected, { day }, history);
+    }
+    return true;
+  };
+  if (days.length === 0 && historyDays.length === 0) {
     // Connector 0.3.11: no day left to read, but the list's settings are refreshed once a day.
     // Read with yesterday's bounds and NO day tag, so no daily post is made from it.
-    const bounds = dayBounds(gmt7Date(Math.floor(env.now() / 1000) - 86_400));
-    let rows = 0;
-    for (let offset = 0; offset < ADS_MAX_ROWS_PER_DAY; offset += limit) {
-      const request = buildReaderRequest(
-        env.origin,
-        "ads_homepage",
-        home,
-        { body: { ...bounds, offset, limit, use_paid_gmv: usePaidGmv } },
-        env.session(),
-        ADS_HOMEPAGE_FALLBACK,
-      );
-      const response = await send(env, request, collected, { page: offset / limit + 1, usePaidGmv });
-      const found = findList(payloadOf(response.body), isAdsEntry);
-      rows += found?.list.length ?? 0;
-      if (!found || found.list.length < limit) break;
-      const total = totalOf(response.body, found.parent);
-      if (total !== undefined && rows >= total) break;
-    }
+    await readDay(undefined, dayBounds(gmt7Date(Math.floor(env.now() / 1000) - 86_400)), false);
     return;
   }
-  for (const day of days) {
-    const bounds = dayBounds(day);
-    let rows = 0;
-    for (let offset = 0; offset < ADS_MAX_ROWS_PER_DAY; offset += limit) {
-      const request = buildReaderRequest(
-        env.origin,
-        "ads_homepage",
-        home,
-        { body: { ...bounds, offset, limit, use_paid_gmv: usePaidGmv } },
-        env.session(),
-        ADS_HOMEPAGE_FALLBACK,
-      );
-      const response = await send(env, request, collected, { day, page: offset / limit + 1, usePaidGmv });
-      const found = findList(payloadOf(response.body), isAdsEntry);
-      rows += found?.list.length ?? 0;
-      if (!found || found.list.length < limit) break;
-      const total = totalOf(response.body, found.parent);
-      if (total !== undefined && rows >= total) break;
-    }
-    if (graph) {
-      const request = buildReaderRequest(env.origin, "ads_time_graph", graph, { body: bounds }, env.session());
-      await send(env, request, collected, { day });
-    }
+  for (const day of days) await readDay(day, dayBounds(day), false);
+  for (const day of historyDays) {
+    if (env.budget && env.budget.left < ADS_HISTORY_DAY_COST) return;
+    if (!(await readDay(day, dayBounds(day), true))) return;
   }
 }
 
@@ -1316,7 +1316,7 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         await readItemTraffic(env, job.days ?? [], job.itemIds ?? [], collected);
         break;
       case "ads":
-        await readAds(env, job.days ?? [], collected);
+        await readAds(env, job.days ?? [], collected, job.historyDays ?? []);
         break;
       case "ads_detail":
         await readAdsDetail(env, job.campaignIds ?? [], collected);

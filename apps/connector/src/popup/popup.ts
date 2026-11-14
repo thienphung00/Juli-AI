@@ -4,7 +4,7 @@
 
 import { READER_IDS, readerActive } from "../config";
 import type { Backfill, ReaderSchedule } from "../background/state";
-import { DATASET_LABELS, type Guidance, pageRows, pageUrl, runLine, stockLine, SYNC_PAGE, syncGuidance, tickLine } from "./guide";
+import { adsHistoryLine, DATASET_LABELS, type Guidance, pageRows, pageUrl, runLine, stockLine, SYNC_PAGE, syncGuidance, tickLine } from "./guide";
 import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "./labels";
 
 interface DatasetStatus {
@@ -115,6 +115,7 @@ async function render(): Promise<void> {
     "Mỗi ngày tiện ích tự mở lần lượt các trang dưới đây trong một tab nền, đọc rồi đóng lại. Bấm tên trang để xem trên Seller Centre.";
   el("last-tick").textContent = tickLine(state.readers) ?? "";
   el("stock").textContent = stockLine(state.readers) ?? "";
+  el("ads-history").textContent = adsHistoryLine(state.readers) ?? "";
   renderPages(state);
 
   const list = el<HTMLUListElement>("datasets");

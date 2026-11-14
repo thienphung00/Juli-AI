@@ -79,6 +79,8 @@ export interface PlannedJob {
   history?: { start: string; end: string }[];
   /** orders (0.3.19): read back to orders placed on this GMT+7 day (catch-up by date). */
   sinceDay?: string;
+  /** ads (0.3.19): older days of the once-per-shop ads history, newest first, after `days`. */
+  historyDays?: string[];
 }
 
 /** One scheduled run: the pages in order, one open tab at a time (persisted: the worker may restart). */
@@ -107,6 +109,20 @@ export interface TickRecord {
   result: string;
 }
 
+/** The ads history of one shop: the planned days (fixed at its start), the days read, how it ended. */
+export interface AdsHistory {
+  shopId: string;
+  createdAt: string;
+  /** GMT+7 days, newest first. */
+  days: string[];
+  done: string[];
+  status: "running" | "done";
+  /** The oldest day read so far. */
+  earliest?: string;
+  /** Shopee refused this day (the end of what it keeps): older days are not asked for. */
+  limit?: { day: string; code: string; at: string };
+}
+
 /** The tab-opening schedule's bookkeeping. */
 export interface ReaderSchedule {
   /** 0.3.19: the last tick from rest and the last few (every skip reason is kept, newest last). */
@@ -122,6 +138,8 @@ export interface ReaderSchedule {
   ordersCoveredDay?: string;
   /** When the product list (with stock) last posted its item_snapshot (ms). */
   productsAt?: number;
+  /** The once-per-shop 90-day ads history (0.3.19), kept beside the 30-day mydata backfill. */
+  adsHistory?: AdsHistory;
   /** The 06:30 stock run: its GMT+7 day, attempts that day, and the last outcome. */
   stock?: { day: string; attempts: number; at?: string; outcome?: string };
   lastRunDay?: string;

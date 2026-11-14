@@ -7,7 +7,7 @@ import { reinjectPlan, reinjectSellerCentreTabs } from "../src/background/reinje
 import type { ReaderSchedule } from "../src/background/state";
 import { readerActive, SAMPLE_SHOP_IDS, schedulerActive } from "../src/config";
 import { GatewayClient, type IngestBody, type TokenInfo } from "../src/ingest/client";
-import { stockLine, tickLine, tickResultLabel } from "../src/popup/guide";
+import { adsHistoryLine, stockLine, tickLine, tickResultLabel } from "../src/popup/guide";
 import {
   type FetchedReaderResponse,
   pollingWaitFor,
@@ -229,6 +229,17 @@ describe("popup lines", () => {
     expect(tickLine(readers)).toBe("Lượt gần nhất 14/11 06:31 (đọc tồn kho 06:30): bắt đầu đọc tồn kho");
     expect(tickLine({ adsDone: [] })).toBeNull();
     expect(tickResultLabel("backfill_busy")).toContain("thử lại");
+  });
+
+  it("the ads history line: progress, done, or where Seller Centre's history ends", () => {
+    const days = ["2026-11-13", "2026-11-12", "2026-11-11"];
+    const base = { shopId: "s1", createdAt: "x", days };
+    expect(adsHistoryLine({ adsDone: [], adsHistory: { ...base, done: days.slice(0, 1), status: "running" } })).toBe("Quảng cáo 3 ngày trước: 1/3 ngày");
+    expect(adsHistoryLine({ adsDone: [], adsHistory: { ...base, done: days, status: "done", earliest: "2026-11-11" } })).toBe("Quảng cáo 3 ngày trước: đã lấy đủ");
+    expect(
+      adsHistoryLine({ adsDone: [], adsHistory: { ...base, done: days.slice(0, 2), status: "done", earliest: "2026-11-12", limit: { day: "2026-11-11", code: "code_10006", at: "x" } } }),
+    ).toBe("Quảng cáo các ngày trước: đã lấy đến 12/11/2026 (Seller Centre không giữ xa hơn)");
+    expect(adsHistoryLine({ adsDone: [] })).toBeNull();
   });
 
   it("the stock line: when the product list with stock was last read", () => {
