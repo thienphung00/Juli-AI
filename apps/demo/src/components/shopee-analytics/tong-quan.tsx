@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { saveBlob, tongQuanFileName } from "../../lib/shopee-analytics/download";
@@ -137,16 +137,14 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const mode: ValueMode = params.get("cach") === "tb" ? "avg" : "total";
   const queryKey = JSON.stringify(state.query);
   const products = useResource(() => host.api.channelSplitProducts(state.query), `${host.shopKey}|cs-products|${queryKey}`);
-  const pid = level === "product" ? productId : null;
-  const split = useResource(() => host.api.channelSplit(state.query, pid), `${host.shopKey}|cs|${queryKey}|${pid ?? ""}`);
   const list: readonly ChannelProduct[] = products.status === "ready" ? products.data.products : [];
-  const chosen = list.find((p) => p.product_id === productId) ?? null;
-  // the e-mail's "Mở Juli" link opens Sản phẩm (`cap=san-pham`): pick its first SKU's product
-  useEffect(() => {
-    if (level !== "product" || productId !== null || !list.length) return;
-    const wanted = stockKeys[0]?.split(":")[0];
-    setProductId(list.find((p) => p.product_id === wanted)?.product_id ?? list[0].product_id);
-  }, [level, productId, list, stockKeys]);
+  // the e-mail's "Mở Juli" link opens Sản phẩm (`cap=san-pham`): until one is picked, its first SKU's product
+  const wanted = stockKeys[0]?.split(":")[0];
+  const selectedId =
+    productId ?? (level === "product" && list.length ? (list.find((p) => p.product_id === wanted)?.product_id ?? list[0].product_id) : null);
+  const pid = level === "product" ? selectedId : null;
+  const split = useResource(() => host.api.channelSplit(state.query, pid), `${host.shopKey}|cs|${queryKey}|${pid ?? ""}`);
+  const chosen = list.find((p) => p.product_id === selectedId) ?? null;
 
   const toProduct = () => {
     setLevel("product");
@@ -210,15 +208,15 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
         {level === "product" ? (
           <>
             {chosen ? <Ini src={chosen.image_url} text={initialsOf(chosen.name)} /> : null}
-            <select aria-label="Sản phẩm" className="sa-tq__select" data-testid="sa-product-pick" onChange={(e) => setProductId(e.target.value || null)} value={productId ?? ""}>
+            <select aria-label="Sản phẩm" className="sa-tq__select" data-testid="sa-product-pick" onChange={(e) => setProductId(e.target.value || null)} value={selectedId ?? ""}>
               {list.map((p) => (
                 <option key={p.product_id} value={p.product_id}>
                   {p.name}
                 </option>
               ))}
             </select>
-            {productId ? (
-              <Link className="sa-link" data-testid="sa-product-open" href={host.links.product(productId, { from: "tong-quan" }, linkWindow(state, ready))}>
+            {selectedId ? (
+              <Link className="sa-link" data-testid="sa-product-open" href={host.links.product(selectedId, { from: "tong-quan" }, linkWindow(state, ready))}>
                 Mở sản phẩm ›
               </Link>
             ) : null}
@@ -259,7 +257,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
           </>
         )}
       </ResourceState>
-      {level === "product" ? <StockPanel keys={stockKeys} productId={productId} /> : null}
+      {level === "product" ? <StockPanel keys={stockKeys} productId={selectedId} /> : null}
     </div>
   );
 }
