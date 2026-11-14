@@ -7271,12 +7271,15 @@ h4 {
 .jp-grid--head { min-height: 0; padding-bottom: 6px; border-bottom: 1px solid #ececf0; font-size: 13px; color: #6b6b74; }
 .jp-grid--ch { grid-template-columns: 220px 120px 120px 110px minmax(0, 1fr) 150px; }
 .jp-grid--pr { grid-template-columns: minmax(0, 1fr) 110px 110px 100px 140px 150px; }
-.jp-grid--kol { grid-template-columns: minmax(0, 1fr) 110px 90px 70px 100px 100px 110px 90px 150px; }
+.jp-grid--kol { grid-template-columns: minmax(0, 1fr) 90px 90px 80px 110px 110px 120px 90px 150px; min-height: 48px; }
+.jp-grid--pr { min-height: 48px; }
 .jp-grid--on { background: #fdf5f8; }
 .jp-name { text-decoration: none; display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: #121214; cursor: pointer; text-align: left; }
 .jp-tag { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #fdeef4; color: #9d2d5c; }
 .jp-who { display: flex; align-items: center; gap: 10px; min-width: 0; color: #121214; text-decoration: none; }
 .jp-who > span:last-child { min-width: 0; }
+.jp-who__text { display: flex; flex-direction: column; }
+.jp-av { flex: none; width: 32px; height: 32px; border-radius: 999px; background: #ececf0; }
 .jp-clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jp-dim { color: #6b6b74; }
 .jp-up { color: #15803d; font-weight: 600; }

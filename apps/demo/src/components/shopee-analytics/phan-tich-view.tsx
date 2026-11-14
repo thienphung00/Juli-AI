@@ -67,7 +67,7 @@ export function PhanTichPageView({ params }: { readonly params: URLSearchParams 
   const kol = useResource<KolSectionData>(() => host.api.kolSection(state.query), `${host.shopKey}|ptk|${JSON.stringify(state.query)}`);
   const href = (patch: Record<string, string | null>) => host.links.screen("phan-tich", nextQuery(params, patch));
   return (
-    <div className="sa-page" data-testid="sa-phan-tich">
+    <div className="sa-page sa-p100" data-testid="sa-phan-tich">
       <ResourceState resource={data}>
         {(v) => (
           <>
@@ -104,17 +104,7 @@ function Head({ sel, view }: { readonly sel: MetricKey; readonly view: MetricVie
   const parts = [`${METRIC_NAME[sel]}${s ? ` ${s.text}` : ""}`];
   if (worst) parts.push(CHANNEL_LABEL[worst.key] ?? worst.key);
   if (down > 0) parts.push(`${down} sản phẩm kéo xuống`);
-  return (
-    <PageHead
-      chips={
-        <span className="sa-chip sa-chip--outline">
-          {view.days} ngày · so với {view.days} ngày trước
-        </span>
-      }
-      eyebrow="PHÂN TÍCH"
-      title={parts.join(" · ")}
-    />
-  );
+  return <PageHead eyebrow={`PHÂN TÍCH · ${view.days} NGÀY · SO VỚI ${view.days} NGÀY TRƯỚC`} title={parts.join(" · ")} />;
 }
 
 function ModeSwitch({ mode, href }: { readonly mode: ValueMode; readonly href: (patch: Record<string, string | null>) => string }) {

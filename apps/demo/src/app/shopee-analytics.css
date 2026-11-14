@@ -3003,3 +3003,57 @@ body:has(.sa-p100) {
     gap: 4px 16px;
   }
 }
+
+/* Phân tích (board PhanTich): sections 16 / 20, title 16/600, rows 44 / 48, values in ink. */
+.sa-p100 .jp-section {
+  gap: 4px;
+  padding: 16px 20px;
+}
+
+.sa-p100 .jp-section .sa-h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sa-p100 .jp-section > .sa-h2 {
+  padding-bottom: 6px;
+}
+
+.sa-p100 .jp-grid > b {
+  font-weight: 400;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .jp-grid--kol > :nth-child(3),
+.sa-p100 .jp-grid--kol > :nth-child(4),
+.sa-p100 .jp-grid--kol > :nth-child(5) {
+  color: var(--qd-ink);
+}
+
+.sa-p100 .jp-grid--pr .sa-ini {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--qd-line-3);
+  color: var(--qd-muted);
+}
+
+.sa-p100 .jp-grid--head {
+  min-height: 0;
+}
+
+.sa-p100 .jp-who__text > b {
+  font-weight: 600;
+}
+
+.sa-p100 .jp-who__text > .jp-dim {
+  font-size: 12px;
+}
+
+.sa-p100 .jp-bar {
+  justify-content: flex-start;
+}
+
+.sa-p100 .jp-chips {
+  gap: 8px;
+}
