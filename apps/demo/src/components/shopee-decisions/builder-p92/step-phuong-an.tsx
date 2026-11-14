@@ -48,6 +48,9 @@ export function StepPhuongAn(p: StepPhuongAnProps) {
   const rows = entries.map((e, i) => ({ key: e.id, i, label: String(e.version.label ?? e.kind), on: editing === i }));
   const pending = editing === null;
   const full = entries.length >= MAX_VERSIONS;
+  // the version being filled in, once evaluated, counts as one
+  const draftCounts = pending && !full && p.canAdd && state.status === "ready" && state.outcome.ok;
+  const compareCount = entries.length + (draftCounts ? 1 : 0);
   const addDisabled = !p.canAdd || state.status !== "ready" || !state.outcome.ok || (editing === null && full);
   return (
     <section className="p3" data-testid="p3-step">
@@ -111,8 +114,8 @@ export function StepPhuongAn(p: StepPhuongAnProps) {
           Đổi chiến lược
         </button>
         {p.onNext ? (
-          <button className="sa-btn sa-btn--primary" data-testid="p3-next" disabled={entries.length === 0} onClick={p.onNext} type="button">
-            So sánh {entries.length} phương án
+          <button className="sa-btn sa-btn--primary" data-testid="p3-next" disabled={compareCount === 0} onClick={p.onNext} type="button">
+            So sánh {compareCount} phương án
           </button>
         ) : null}
       </div>

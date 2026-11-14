@@ -135,7 +135,18 @@ describe("P100 step ③ Phương án", () => {
     expect(onSelect).toHaveBeenCalledWith(0);
     fireEvent.click(screen.getByRole("button", { name: "+ Thêm phương án" }));
     expect(p.onAdd).toHaveBeenCalled();
-    expect(screen.getByTestId("p3-next")).toHaveTextContent("So sánh 1 phương án");
+    // P1 saved + the evaluated P2 being filled in
+    expect(screen.getByTestId("p3-next")).toHaveTextContent("So sánh 2 phương án");
+  });
+
+  it("the evaluated version alone counts as one: compare is enabled without pressing add", () => {
+    const onNext = vi.fn();
+    renderStep3(res(150000, 0), { entries: [], index: 0, onNext });
+    const next = screen.getByTestId("p3-next");
+    expect(next).toHaveTextContent("So sánh 1 phương án");
+    expect(next).toBeEnabled();
+    fireEvent.click(next);
+    expect(onNext).toHaveBeenCalled();
   });
 });
 

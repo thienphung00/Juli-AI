@@ -319,7 +319,11 @@ function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign }: { r
           kindLabel={kindName92(kind)}
           onAdd={addEntry}
           onBack={() => setStep("chien-luoc")}
-          onNext={() => setStep("so-sanh")}
+          onNext={() => {
+            // the version being filled in, once evaluated, counts as one: P1 alone can go to step 4
+            if (editing === null && built.version && shown.status === "ready" && shown.outcome.ok && entries.length < MAX_VERSIONS) addEntry();
+            setStep("so-sanh");
+          }}
           onRemove={removeEntry}
           onReset={reset}
           onSelect={editEntry}
