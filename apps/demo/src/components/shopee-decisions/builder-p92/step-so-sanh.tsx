@@ -9,6 +9,7 @@ import { breachesOfOutcome } from "../../../lib/shopee-decisions/builder-p92";
 import type { OptionResult } from "../../../lib/shopee-decisions/option-result";
 import type { Breach } from "../../../lib/shopee-decisions/types";
 import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions";
+import { DateField } from "../../date-field";
 import { NavLink, errorText } from "../ui";
 import { BreachDialog } from "../versions";
 import { perDayText, periodLabel, resultDays, signedCount, signedMoney } from "../option-card/format";
@@ -191,7 +192,7 @@ export function StepSoSanh(p: StepSoSanhProps) {
               const loss = (x.profit ?? 0) < 0;
               return (
                 <div className="p4-bar" data-testid={`p4-bar-${x.i + 1}`} key={x.i}>
-                  <div className="p4-bar__name">
+                  <div className="p4-bar__name" title={`${x.name} · ${String(entries[x.i]?.version.label ?? "")}`}>
                     {x.name} · {String(entries[x.i]?.version.label ?? "")}
                   </div>
                   <div className="p4-bar__track">
@@ -217,14 +218,23 @@ export function StepSoSanh(p: StepSoSanhProps) {
           </div>
           <div className="sa-card p4-table-wrap">
             <table className="sa-table p4-table" data-testid="p4-table">
+              <colgroup>
+                <col className="p4-col p4-col--name" />
+                <col className="p4-col p4-col--gmv" />
+                <col className="p4-col p4-col--cost" />
+                <col className="p4-col p4-col--orders" />
+                <col className="p4-col p4-col--cpa" />
+                <col className="p4-col p4-col--roi" />
+                <col className="p4-col p4-col--verdict" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>{days ? periodLabel(days) : "Cả kỳ"}</th>
-                  <th>Δ GMV</th>
-                  <th>Chi phí</th>
-                  <th>Đơn QC</th>
-                  <th>CPA / hoà vốn</th>
-                  <th>ROI</th>
+                  <th className="p4-num">Δ GMV</th>
+                  <th className="p4-num">Chi phí</th>
+                  <th className="p4-num">Đơn QC</th>
+                  <th className="p4-num">CPA / hoà vốn</th>
+                  <th className="p4-num">ROI</th>
                   <th>Kết luận</th>
                 </tr>
               </thead>
@@ -235,14 +245,14 @@ export function StepSoSanh(p: StepSoSanhProps) {
                   return (
                     <tr data-testid={`p4-row-${x.i + 1}`} key={x.i}>
                       <th scope="row">{x.name}</th>
-                      <td data-testid={`p4-gmv-${x.i + 1}`}>
+                      <td className="p4-num" data-testid={`p4-gmv-${x.i + 1}`}>
                         {x.r && x.r.estimable ? signedMoney(x.r.delta.gmv.value) : DASH}
                         {gmvPer ? <span className="sa-hint"> {gmvPer}</span> : null}
                       </td>
-                      <td>{costText(x.r)}</td>
-                      <td>{ordersText(x.r)}</td>
-                      <td>{cpaText(x.r)}</td>
-                      <td>{x.r?.roi?.value !== null && x.r?.roi?.value !== undefined ? fmt(x.r.roi.value, 2) : DASH}</td>
+                      <td className="p4-num">{costText(x.r)}</td>
+                      <td className="p4-num">{ordersText(x.r)}</td>
+                      <td className="p4-num">{cpaText(x.r)}</td>
+                      <td className="p4-num">{x.r?.roi?.value !== null && x.r?.roi?.value !== undefined ? fmt(x.r.roi.value, 2) : DASH}</td>
                       <td>{v ? <span className={`p3-verdict p3-verdict--${v.tone}`} data-testid={`p4-verdict-${x.i + 1}`}>{v.text}</span> : DASH}</td>
                     </tr>
                   );
@@ -270,7 +280,7 @@ export function StepSoSanh(p: StepSoSanhProps) {
             </label>
             <label className="p2-field">
               <span className="sd-field__label">Bắt đầu</span>
-              <input aria-label="Ngày bắt đầu của nhóm" className="p2-text" onChange={(e) => setStartText(e.target.value)} type="date" value={startText} />
+              <DateField ariaLabel="Ngày bắt đầu của nhóm" className="p2-text" onChange={setStartText} value={startText} />
             </label>
           </div>
           <div className="sd-actions">

@@ -9,12 +9,25 @@ sheet is the same steps in reverse (before value).
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from juli_backend.services.shopee_recommendations.kinds import spec
 
 BASE_URL = "https://banhang.shopee.vn"
 SAVE_HINT = "Bấm nút Lưu / Áp dụng / Xác nhận của chính Shopee; Juli không bấm thay bạn."
+
+
+def _day_text(raw: Any) -> str | None:
+    """``2026-12-01`` -> ``01/12/2026``; anything else -> None."""
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", str(raw or "")[:10])
+    return f"{m[3]}/{m[2]}/{m[1]}" if m else None
+
+
+def _start_text(inputs: dict[str, Any]) -> str:
+    """The seller's chosen days (Tự tạo) when set, else "khi bạn bấm lưu"."""
+    start, end = _day_text(inputs.get("start")), _day_text(inputs.get("end"))
+    return f"{start} – {end}" if start and end else "khi bạn bấm lưu"
 
 
 def _tiers_text(value: Any) -> str | None:
@@ -377,7 +390,7 @@ def build_sheet(
         "page": sheet_page,
         "dependencies": [{"ref": r, "text": f"Chỉ làm sau khi {r} đã chạy xong."} for r in depends],
         "steps": steps,
-        "time_window": time_window or {"start": "khi bạn bấm lưu", "days": inputs.get("days")},
+        "time_window": time_window or {"start": _start_text(inputs), "days": inputs.get("days")},
         "changes": changes,
         "save_hint": SAVE_HINT,
         "revert_steps": reverse,

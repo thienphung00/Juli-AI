@@ -169,6 +169,11 @@ async def test_builder_inputs_reach_the_evaluator_under_the_keys_it_reads():
         "quantity": 20,
         "per_user_limit": 2,
         "days": 3,
+        # a2b894b9: the chosen dates travel as ISO days -- read by the fill queue
+        # (``fill_queue._chosen_day``) and the execution sheet (``sheet._day_text``); the voucher
+        # evaluator reads only ``days`` and ignores them
+        "start": "2026-10-10",
+        "end": "2026-10-12",
     }
 
 

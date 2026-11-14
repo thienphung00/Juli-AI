@@ -48,6 +48,9 @@ export function StepPhuongAn(p: StepPhuongAnProps) {
   const rows = entries.map((e, i) => ({ key: e.id, i, label: String(e.version.label ?? e.kind), on: editing === i }));
   const pending = editing === null;
   const full = entries.length >= MAX_VERSIONS;
+  // the version being filled in, once evaluated, counts as one
+  const draftCounts = pending && !full && p.canAdd && state.status === "ready" && state.outcome.ok;
+  const compareCount = entries.length + (draftCounts ? 1 : 0);
   const addDisabled = !p.canAdd || state.status !== "ready" || !state.outcome.ok || (editing === null && full);
   return (
     <section className="p3" data-testid="p3-step">
@@ -64,7 +67,7 @@ export function StepPhuongAn(p: StepPhuongAnProps) {
             {rows.map((r) => (
               <li key={r.key}>
                 <button aria-current={r.on ? "true" : undefined} className={`p3-version ${r.on ? "p3-version--on" : ""}`} data-testid={`p3-version-${r.i + 1}`} onClick={() => p.onSelect?.(r.i)} type="button">
-                  <b>P{r.i + 1}</b> <span>{r.label}</span>
+                  <b>P{r.i + 1}</b> <span className="p3-version__label" title={r.label}>{r.label}</span>
                 </button>
                 {p.onRemove ? (
                   <button aria-label={`Xoá P${r.i + 1}`} className="sa-link p2-linkbtn" onClick={() => p.onRemove?.(r.i)} type="button">
@@ -76,7 +79,7 @@ export function StepPhuongAn(p: StepPhuongAnProps) {
             {pending ? (
               <li>
                 <span className="p3-version p3-version--on" data-testid={`p3-version-${index + 1}`}>
-                  <b>P{index + 1}</b> <span>{outcome?.label ?? ""}</span>
+                  <b>P{index + 1}</b> <span className="p3-version__label" title={outcome?.label ?? ""}>{outcome?.label ?? ""}</span>
                 </span>
               </li>
             ) : null}
@@ -111,8 +114,8 @@ export function StepPhuongAn(p: StepPhuongAnProps) {
           Đổi chiến lược
         </button>
         {p.onNext ? (
-          <button className="sa-btn sa-btn--primary" data-testid="p3-next" disabled={entries.length === 0} onClick={p.onNext} type="button">
-            So sánh {entries.length} phương án
+          <button className="sa-btn sa-btn--primary" data-testid="p3-next" disabled={compareCount === 0} onClick={p.onNext} type="button">
+            So sánh {compareCount} phương án
           </button>
         ) : null}
       </div>

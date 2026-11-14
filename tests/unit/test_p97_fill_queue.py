@@ -390,3 +390,42 @@ async def test_a_legacy_basket_combo_is_failed_with_a_vietnamese_reason(session,
     assert job["status"] == "failed" and job["kind"] == "combo"
     assert job["error"] == "Combo kiểu cũ — tạo lại theo mức ưu đãi của Shopee"
     assert len(job["error"]) <= 64
+
+
+def _voucher_card(level="product", **inputs):
+    return {
+        "change_kind": "min_spend_voucher",
+        "title": "Voucher",
+        "inputs": {"pct": 10, "min_spend": 90_000, "quantity": 50, **inputs},
+        "scope": {"level": level, "product_ids": ["1001"]},
+    }
+
+
+async def test_a_tu_tao_product_voucher_keeps_its_product_and_the_chosen_days(session, shop):
+    seeded, _ = shop
+    card = _voucher_card(days=3, start="2999-12-01", end="2999-12-03")
+    (job,) = await _combo_jobs(session, seeded, card)
+    p = job["payload"]
+    assert job["target"] == {"product_ids": ["1001"]}
+    assert p["usecase"] == 2 and p["product_ids"] == ["1001"] and p["display"] == "private"
+    assert (p["starts_at"], p["ends_at"]) == ("00:00 01-12-2999", "23:59 03-12-2999")
+
+
+async def test_a_shop_voucher_stays_shop_wide_and_a_past_start_keeps_the_default_window(
+    session, shop
+):
+    seeded, _ = shop
+    card = _voucher_card(level="shop", days=5, start="2020-01-01", end="2020-01-05")
+    (job,) = await _combo_jobs(session, seeded, card)
+    p = job["payload"]
+    assert p["usecase"] == 1 and p["product_ids"] == []
+    assert (p["starts_at"], p["ends_at"]) == fill_queue.voucher_window(NOW, 5)
+
+
+def test_the_sheet_shows_the_chosen_days():
+    from juli_backend.services.shopee_recommendations import sheet
+
+    assert (
+        sheet._start_text({"start": "2026-12-01", "end": "2026-12-11"}) == "01/12/2026 – 11/12/2026"
+    )
+    assert sheet._start_text({}) == "khi bạn bấm lưu"

@@ -29,7 +29,7 @@ from juli_backend.models.shop_proposals import (
     STATUS_DRAFT,
     STATUS_SENT,
 )
-from juli_backend.services.shopee_recommendations import config, store
+from juli_backend.services.shopee_recommendations import config, result_store, store
 
 SELLER_STATUSES = (STATUS_SENT, STATUS_CHANGES_REQUESTED, STATUS_APPROVED)
 OPS_STATUSES = (STATUS_DRAFT, *SELLER_STATUSES)
@@ -70,10 +70,11 @@ def _at_stake(card: dict[str, Any]) -> float | None:
         return float(m["at_stake_per_month"])
     if m.get("at_stake_per_day") is not None:
         return float(m["at_stake_per_day"]) * config.DAYS_PER_MONTH
-    try:  # an opportunity card: no critical item, so the cautious-middle predicted dGMV
-        return float(card["predicted"]["money_per_month"]["total"]["p50"]["dgmv"])
-    except (KeyError, TypeError):
-        return None
+    # an opportunity card: no critical item, so its stored result's Δ GMV (one card, one number),
+    # per 30 days of its own days
+    block = result_store.version_result(card, 1)
+    gmv, days = result_store.p50(block, "gmv"), ((block or {}).get("own") or {}).get("days")
+    return None if gmv is None or not days else float(gmv) * config.DAYS_PER_MONTH / int(days)
 
 
 def _ref(

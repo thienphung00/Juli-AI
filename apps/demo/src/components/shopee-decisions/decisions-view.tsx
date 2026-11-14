@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import { DASH, fmt } from "../../lib/shopee-analytics/format";
+import { fmt } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { TABS, filterCards, metricOfParam, metricsOfCard, tabCounts, tabOfParam, xemOfParams, type DecisionTab } from "../../lib/shopee-decisions/model";
@@ -44,7 +44,7 @@ export interface Frame {
 function ShellFrame({ tab, xem, counts, planCount, title, eyebrow, children }: { readonly tab: DecisionTab; readonly xem: "the" | "ke-hoach"; readonly counts: Readonly<Record<DecisionTab, number>>; readonly planCount: number | null; readonly title: string; readonly eyebrow?: string; readonly children: ReactNode }) {
   const host = useReco();
   return (
-    <div className="sa-page" data-testid="sd-list">
+    <div className="sa-page sa-p100" data-testid="sd-list">
       <header className="sa-head">
         <div className="sa-eyebrow">{eyebrow ?? EYEBROW[tab]}</div>
         <div className="sa-head__line sq-head">
@@ -122,7 +122,7 @@ function CardsView({ cards, names, inPlan, metric, product, flash, setFlash, onC
 }
 
 /** The finding of the header: "4 thẻ cho CTR · +a – b đ lợi nhuận cả 30 ngày". */
-function findingOf(shown: readonly CardSummary[], metric: MetricKey | null): string {
+export function findingOf(shown: readonly CardSummary[], metric: MetricKey | null): string {
   if (shown.length === 0) return "Chưa có thẻ nào";
   let lo = 0;
   let hi = 0;
@@ -136,7 +136,8 @@ function findingOf(shown: readonly CardSummary[], metric: MetricKey | null): str
     }
   }
   const days = cardDays(shown[0]!);
-  return `${fmt(shown.length, 0)} thẻ${metric ? ` cho ${METRIC_NAME[metric]}` : ""} · ${ok ? rangeText({ p10: lo, p90: hi }) : DASH} lợi nhuận cả ${fmt(days, 0)} ngày`;
+  const head = `${fmt(shown.length, 0)} thẻ${metric ? ` cho ${METRIC_NAME[metric]}` : ""}`;
+  return ok ? `${head} · ${rangeText({ p10: lo, p90: hi })} lợi nhuận cả ${fmt(days, 0)} ngày` : head;
 }
 
 function ShopShell({ params }: { readonly params: URLSearchParams }) {

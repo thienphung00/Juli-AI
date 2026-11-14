@@ -35,6 +35,7 @@ from juli_backend.services.shopee_recommendations import (
     combo,
     config,
     product_queue,
+    result_store,
     store,
     targets,
     versions,
@@ -473,6 +474,7 @@ async def create_manual(
     acknowledge_breaches: bool = False,
     origin: str = ORIGIN_MANUAL,
     card_extra: Mapping[str, Any] | None = None,
+    builder_ctx: Any = None,
 ) -> dict[str, Any]:
     """Save ``variants[chosen]`` as a manual card. Never commits (the route does).
 
@@ -516,6 +518,12 @@ async def create_manual(
     card["primary"] = primary
     card.update(card_extra or {})
     card["versions"] = _version_rows(order, variants, built, chosen)
+    if window_env is not None:  # one card, one number: the engine result of each version, frozen
+        [blocks] = await result_store.compute_many(
+            session, shop_id, window_env, [result_store.Job(card)], now=now, ctx=builder_ctx
+        )
+        result_store.write_into(card, blocks)
+        result_store.rank_from_results(card)
     score = _score_of(window_env, card)
     card["rank"] = {
         "position": 1 if primary else config.MANUAL_PRIORITY,

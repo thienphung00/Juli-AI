@@ -1,5 +1,6 @@
 import type { KolBlock } from "../shopee-kol/types";
 import type { FiveNumbers } from "../shopee-analytics/types";
+import type { OptionResult } from "./option-result";
 
 /**
  * Payloads of the Shopee recommendation-card API (`/v1/demo/shopee/recommendations` for the seller,
@@ -64,6 +65,30 @@ export interface VersionBrief {
   readonly floor_ok?: boolean | null;
   readonly dprofit_month_p50?: N;
   readonly dgmv_month_p50?: N;
+  /** The version's stored result over its own days (`days`). */
+  readonly dprofit_p50?: N;
+  readonly dgmv_p50?: N;
+  readonly days?: number | null;
+  readonly estimable?: boolean;
+}
+
+/** One card, one number: the result stored on a card version (`result_store.block_of`). */
+export interface CardResultBlock {
+  readonly estimable: boolean;
+  readonly not_estimable?: boolean;
+  readonly reason?: string | null;
+  readonly message?: string | null;
+  readonly basis?: string | null;
+  readonly cost_total?: N;
+  readonly break_even_orders?: N;
+  /** Δ over the version's own days (`days`), P10 / P50 / P90; `delta` null when not estimable. */
+  readonly own?: {
+    readonly dates?: { readonly from: string; readonly to: string; readonly days: number } | null;
+    readonly days?: number | null;
+    readonly delta?: { readonly gmv: Quantiles; readonly profit: Quantiles; readonly orders: Quantiles } | null;
+    readonly cost_total?: N;
+  } | null;
+  readonly option?: OptionResult | null;
 }
 
 /** `{until: "YYYY-MM-DD", change_set}` of a product whose last change is still being measured (P91 D-1 / D-7). */
@@ -130,13 +155,31 @@ export interface CardSummary {
   readonly metric: CardMetric;
   readonly scope: CardScope;
   readonly rank: { readonly position?: number | null; readonly explore?: boolean } | null;
-  readonly certain_summary: { readonly dprofit_month: N; readonly dgmv_month: N };
+  /**
+   * One card, one number (2026-11-14): the engine result stored on the card (`result_store.summary`) — the
+   * same figures Tự tạo and Kế hoạch show, over the card's own days. `dgmv_month` / `dprofit_month` are
+   * deprecated names for `dgmv` / `dprofit`. Not estimable: nulls, `not_estimable` and the reason.
+   */
   readonly predicted_summary: {
+    readonly dgmv?: Quantiles;
+    readonly dprofit?: Quantiles;
+    readonly dorders?: Quantiles;
     readonly dgmv_month: Quantiles;
     readonly dprofit_month: Quantiles;
     readonly label: string;
-    readonly effect_days: number;
+    readonly effect_days: number | null;
+    readonly dates?: { readonly from: string; readonly to: string; readonly days: number } | null;
+    readonly estimable?: boolean;
+    readonly not_estimable?: boolean;
+    readonly reason?: string | null;
+    readonly message?: string | null;
+    readonly basis?: string | null;
+    readonly roi?: { readonly value: N; readonly text: string | null } | null;
+    readonly margin?: { readonly before_pct: N; readonly after_pct: N; readonly shift_pts: N } | null;
+    readonly break_even_orders?: N;
   };
+  /** The stored result block of the chosen version; `option` is the builder's `OptionResult` wire. */
+  readonly result?: CardResultBlock | null;
   readonly floor_ok: boolean;
   /** What the card costs over its effect days; the list shows "Chi phí" only when this is above 0. */
   readonly cost?: number | null;
@@ -397,6 +440,8 @@ export interface CardVersion {
   /** Inputs that differ from V1 without changing the result, named ("Giới hạn 20 lượt không đổi kết quả: …"). */
   readonly same_as_default_notes?: readonly string[];
   readonly freshness?: Freshness;
+  /** One card, one number: the version's stored engine result (what every screen shows). */
+  readonly result?: CardResultBlock | null;
 }
 
 /** A floor or spend-cap breach, as the backend lists it (`versions.breaches_of`, `manual.breaches_of`). */
@@ -416,6 +461,8 @@ export interface Card {
   readonly id?: string;
   readonly code?: string | null;
   readonly product_queue?: number | null;
+  /** One card, one number: version 1's stored engine result. */
+  readonly result?: CardResultBlock | null;
   readonly versions?: readonly CardVersion[];
   /** The version the top-level evaluation fields are (1 when omitted). */
   readonly version?: number;

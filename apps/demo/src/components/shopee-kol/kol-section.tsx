@@ -70,8 +70,11 @@ export function KolSection({
         return (
           <div className="jp-grid jp-grid--kol" data-testid={`pt-kol-${r.kol_key}-${r.item_id}`} key={`${r.kol_key}|${r.item_id}|${r.channel}`}>
             <span className="jp-who">
-              <b>{r.handle}</b>
-              <span className="jp-dim jp-clip">{r.product_name}</span>
+              <span aria-hidden="true" className="jp-av" />
+              <span className="jp-who__text">
+                <b>{r.handle}</b>
+                <span className="jp-dim jp-clip">{r.product_name}</span>
+              </span>
             </span>
             <span>{r.channel_label ?? r.channel}</span>
             <span>{count(r.clicks)}</span>
@@ -79,7 +82,7 @@ export function KolSection({
             <span>{sum(r.gmv)}</span>
             <span>{sum(r.commission)}</span>
             <span className={good ? "jp-up" : "jp-down"}>{signedMoney(inMode(r.profit, data.days, mode))}</span>
-            <Shift pct={r.change} />
+            <span className="jp-shift-cell"><Shift pct={r.change} /></span>
             {r.cards > 0 ? (
               <Link className="jp-cta jp-cta--on" href={decisionsHref(r)}>
                 Đề xuất ({r.cards}) ›

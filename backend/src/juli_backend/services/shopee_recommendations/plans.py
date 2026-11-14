@@ -57,6 +57,7 @@ from juli_backend.services.card_events import keys
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
 from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
+from juli_backend.services.shopee_builder import keyword_coverage as kwc
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     codes,
@@ -68,6 +69,7 @@ from juli_backend.services.shopee_recommendations import (
     plan_groups,
     plan_steps,
     product_queue,
+    result_store,
     service,
     store,
     versions,
@@ -246,7 +248,13 @@ async def _aggregate(
     default_start: date | None = None,
 ) -> tuple[dict[str, Any], list[Any]]:
     """``aggregate`` with the variations of the cards' products: the option results (P98 / ADR-122
-    d.2) rebuild a price lever's builder spec from them."""
+    d.2) rebuild a price lever's builder spec from them.
+
+    One card, one number: a card whose chosen version holds a fresh stored result (same inputs
+    hash on this env, no what-if inputs moved in the plan) is counted with exactly that result;
+    a missing or stale one is recomputed here the same way (the builder's context) and used,
+    never saved (the refresh job stores it)."""
+    stored = await stored_results(session, shop_id, env, entries, now=now)
     items = list(
         dict.fromkeys(
             i for e in entries for i in (e.base.get("scope") or {}).get("product_ids", [])
@@ -257,6 +265,25 @@ async def _aggregate(
         from juli_backend.services.shopee_builder.service import variation_rows_for
 
         variations = await variation_rows_for(session, shop_id, env, items)
+    # a title / first-line lift is measured against the product's keyword volumes (4f64e2e5):
+    # load them once per product whose saved version the plan evaluates
+    kw_items = list(
+        dict.fromkeys(
+            i
+            for e in entries
+            if e.base.get("change_kind") in kwc.KEYWORD_KINDS
+            for i in (e.base.get("scope") or {}).get("product_ids", [])
+        )
+    )
+    weights: dict[str, dict[str, float]] = {}
+    if kw_items:
+        from juli_backend.services.shopee_builder.context import BuilderContext
+        from juli_backend.services.shopee_builder.service import _load_keyword_weights
+
+        kctx = BuilderContext(env=env)
+        for item in kw_items:
+            await _load_keyword_weights(session, shop_id, kctx, item)
+        weights = kctx.keyword_weights
     return aggregate(
         env,
         entries,
@@ -265,7 +292,32 @@ async def _aggregate(
         variations=variations,
         today=today,
         default_start=default_start,
+        keyword_weights=weights,
+        stored=stored,
     )
+
+
+async def stored_results(
+    session: AsyncSession, shop_id: uuid.UUID, env: Any, entries: list[Entry], *, now: datetime
+) -> dict[str, dict[str, Any]]:
+    """Entry id -> the result block of its chosen version: the stored one when fresh on ``env``,
+    else recomputed now (in memory). Entries with what-if inputs are left to the plan."""
+    out: dict[str, dict[str, Any]] = {}
+    todo: list[tuple[Entry, result_store.Job]] = []
+    for e in entries:
+        if e.overrides:
+            continue
+        block = result_store.version_result(e.base, e.version)
+        if block is not None and result_store.is_fresh(block, env, e.base):
+            out[e.card_id] = block
+        else:
+            todo.append((e, result_store.Job(dict(e.base), wanted=[e.version])))
+    if todo:
+        got = await result_store.compute_many(session, shop_id, env, [j for _, j in todo], now=now)
+        for (e, _), blocks in zip(todo, got, strict=True):
+            if blocks.get(e.version) is not None:
+                out[e.card_id] = blocks[e.version]
+    return out
 
 
 def missing_aggregate(exc: RowsNotMaterialized, today: date, n_cards: int) -> dict[str, Any]:
@@ -940,6 +992,8 @@ async def whatif(
     ev = evaluate_entry(env, entry, now=now)
     if ev is None:
         raise ProposalError(service.ERROR_BAD_INPUT, 422, "these inputs cannot be evaluated")
+    job = result_store.Job(ev.card, wanted=[int(row.chosen_version)])
+    [blocks] = await result_store.compute_many(session, shop_id, env, [job], now=now)
     vlist = versions.versions_of({**payload, "code": p.code})
     row.inputs = merged
     plan.updated_at = now
@@ -957,7 +1011,7 @@ async def whatif(
             "version": row.chosen_version,
             "inputs": inputs,
             "before_inputs": vlist[row.chosen_version - 1].get("inputs") or payload["inputs"],
-            "dprofit_month_p50": ev.card["rank_inputs"]["dprofit_p50"],
+            "dprofit_month_p50": result_store.p50(blocks.get(int(row.chosen_version)), "profit"),
             "floor_ok": ev.card["floor"]["ok"],
         },
         family=payload["family"],
@@ -1292,6 +1346,7 @@ async def _approve(
             **({"group": group, "groups": groups} if groups else {}),
         },
     )
+    await result_store.freeze_at_approval(session, shop_id, p.id, payload, chosen)
 
 
 # ------------------------------------------------------------------------------- groups

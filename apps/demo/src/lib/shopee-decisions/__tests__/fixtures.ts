@@ -1,5 +1,6 @@
 import { five } from "../../shopee-analytics/__tests__/fixtures";
 import type { RecoApi } from "../client";
+import type { FunnelColumn, OptionResult } from "../option-result";
 import type {
   ExecutionStates,
   MeasurementStates,
@@ -7,6 +8,7 @@ import type {
   CardByCode,
   CardDetail,
   CardList,
+  CardResultBlock,
   CardSummary,
   CardVersion,
   CompareResult,
@@ -50,6 +52,55 @@ export const OPERATING_BREACH: FloorBreach = { sku: "BEP-S5-CB", kind: "operatin
 export const ABSOLUTE_BREACH: FloorBreach = { sku: "BEP-S5-CB", kind: "absolute", floor: 121176, min_unit_price: 110000, lines: 12 };
 
 const at = (dgmv: number, dorders: number | null, dprofit: number | null): MoneyAt => ({ dgmv, dorders, dprofit });
+
+// ── One card, one number: the engine result stored on a card version ──────────────
+
+const fcol = (gmv: number, profit: number, orders: number): FunnelColumn => ({ views: 10000, ctr: 3, ctor: 1, orders, aov: gmv / orders, gmv, profit, by_source: {} });
+
+/** A stored `OptionResult` (wire) of `days` days: Δ lợi nhuận, Δ GMV, Δ đơn, Chi phí, hoà vốn, biên before → after. */
+export function optionResultOf(o: { readonly profit: number; readonly low: number; readonly high: number; readonly gmv: number; readonly orders: number; readonly cost: number; readonly breakEven: number | null; readonly marginBefore: number; readonly marginAfter: number; readonly days?: number }): OptionResult {
+  const days = o.days ?? 30;
+  return {
+    kind: "min_spend_voucher",
+    label: "Voucher",
+    days,
+    horizon: "duration",
+    drivers: ["aov"],
+    estimable: true,
+    basis: "shop",
+    basis_weak: false,
+    delta: { profit: { value: o.profit, pct: null, low: o.low, high: o.high }, gmv: { value: o.gmv, pct: null }, orders: { value: o.orders, pct: null, note: null } },
+    build_up: [],
+    drivers_pct: [],
+    cost: { total: o.cost, break_even_orders: o.breakEven, break_even_aov: null, text: "" },
+    after: { days, label: `Sau ${days} ngày`, gmv_before: 7_230_000, gmv_after: 7_230_000 + o.gmv, profit_before: 1_345_000, profit_after: 1_345_000 + o.profit },
+    per_30d: { profit: null, gmv: null, orders: null },
+    roi: { value: o.cost > 0 ? o.gmv / o.cost : null, text: null },
+    margin: { before_pct: o.marginBefore, after_pct: o.marginAfter, shift_pts: o.marginAfter - o.marginBefore },
+    detail: { before: fcol(7_230_000, 1_345_000, 30), low: null, likely: fcol(7_230_000 + o.gmv, 1_345_000 + o.profit, 30 + o.orders), high: null },
+    notes: [],
+  };
+}
+
+export function resultBlockOf(r: OptionResult): CardResultBlock {
+  const p = r.delta.profit;
+  return {
+    estimable: r.estimable,
+    not_estimable: !r.estimable,
+    reason: null,
+    message: null,
+    basis: r.basis,
+    cost_total: r.cost.total,
+    break_even_orders: r.cost.break_even_orders,
+    own: { days: r.days, dates: null, cost_total: r.cost.total, delta: { profit: { p10: p?.low ?? null, p50: p?.value ?? null, p90: p?.high ?? null }, gmv: { p10: null, p50: r.delta.gmv.value, p90: null }, orders: { p10: null, p50: r.delta.orders.value, p90: null } } },
+    option: r,
+  };
+}
+
+/** Voucher A's stored result: +57.000đ (−43.000đ … +237.000đ), Δ GMV +600.000đ, Chi phí 63.000đ, hoà vốn 3 đơn. */
+export const RESULT_A = resultBlockOf(optionResultOf({ profit: 57000, low: -43000, high: 237000, gmv: 600000, orders: 2, cost: 63000, breakEven: 3, marginBefore: 26.9, marginAfter: 25.6 }));
+/** Voucher B's: +20.000đ, Δ GMV +500.000đ, Chi phí 155.000đ, hoà vốn 7 đơn, biên 26,9% → 23,4%. */
+export const RESULT_B = resultBlockOf(optionResultOf({ profit: 20000, low: -90000, high: 150000, gmv: 500000, orders: 1, cost: 155000, breakEven: 7, marginBefore: 26.9, marginAfter: 23.4 }));
 
 export function voucherCard(p: Partial<Card> = {}): Card {
   return {
@@ -113,6 +164,7 @@ export function voucherCard(p: Partial<Card> = {}): Card {
     measurement_plan: { metric: "aov", planned_days: 14, label: "Kết quả sau 14 ngày" },
     execution_sheet: SHEET_VOUCHER,
     bundle: false,
+    result: RESULT_A,
     ...p,
   };
 }
@@ -129,6 +181,7 @@ export function voucherCardB(): Card {
       extra_revenue_per_extra_spend: { extra_revenue: null, extra_spend: 155000, per_vnd: null, pct: null, status: "needs_volume", below_one: false },
     }),
     certain: { ...voucherCard().certain, extra_cost: 155000, break_even_extra_orders: 7 },
+    result: RESULT_B,
   });
 }
 
@@ -157,13 +210,13 @@ export function summaryOf(card: Card, p: Partial<CardSummary> = {}): CardSummary
     metric: card.metric,
     scope: card.scope,
     rank: { position: 1 },
-    certain_summary: { dprofit_month: pm.certain.dprofit, dgmv_month: pm.certain.dgmv },
     predicted_summary: {
       dgmv_month: { p10: pm.predicted.p10.dgmv, p50: pm.predicted.p50.dgmv, p90: pm.predicted.p90.dgmv },
       dprofit_month: { p10: pm.total.p10.dprofit, p50: pm.total.p50.dprofit, p90: pm.total.p90.dprofit },
       label: "Dự kiến",
       effect_days: 30,
     },
+    result: card.result ?? null,
     floor_ok: card.floor.ok,
     plan: card.measurement_plan.label,
     stale: false,
@@ -202,6 +255,7 @@ export function versionOf(card: Card, n: number, label: string, over: Partial<Ca
     measurement_plan: card.measurement_plan,
     execution_sheet: card.execution_sheet,
     notes: card.notes,
+    result: card.result ?? null,
     ...over,
   };
 }

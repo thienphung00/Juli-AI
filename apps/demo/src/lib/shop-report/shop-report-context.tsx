@@ -12,6 +12,7 @@ import {
 
 import { fetchShopAnalysis } from "../shop-analysis/api-client";
 import type { ShopAnalysisEnvelope } from "../shop-analysis/types";
+import { probeShopPlatform } from "../shopee-analytics/platform";
 import { readActiveShop } from "../shop-session";
 import { ensureFreshSession } from "../auth-refresh";
 
@@ -113,7 +114,12 @@ export function ShopReportProvider({
       }
       const shop: ActingShop = { id: active.id, name: active.name };
       setState({ status: "loading", token, shop });
-      loadAnalysis({ token, shopId: shop.id })
+      // Ask which marketplace this is BEFORE any TikTok-only read: a Shopee shop never calls
+      // /v1/demo/analysis (it has no such report: "empty", as the 404 used to say) and the shell
+      // knows the platform (cached here) by the time it leaves "loading".
+      probeShopPlatform(token, shop.id)
+        .catch(() => null)
+        .then((platform) => (platform === "shopee" ? null : loadAnalysis({ token, shopId: shop.id })))
         .then((envelope) => {
           if (cancelled) return;
           setState(

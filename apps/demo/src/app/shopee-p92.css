@@ -434,6 +434,28 @@ button.p2-prow:hover {
   background: repeating-linear-gradient(135deg, #f3eef1, #f3eef1 8px, #faf7f9 8px, #faf7f9 16px);
 }
 
+.p2-cover__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
+
+.p2-cover__img + .p2-cover__text {
+  position: relative;
+}
+
+.p2-prow__img {
+  width: 32px;
+  height: 32px;
+  max-width: none;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .p2-cover__photo {
   position: absolute;
   top: 6px;
@@ -1062,7 +1084,7 @@ button.p2-tab {
 .p3-rows td { padding: 6px 0; border-top: 1px solid var(--qd-line, #ececf0); font-size: 13px; }
 .p3-rows td:last-child { text-align: right; font-weight: 600; }
 .p4-bars__title { font-size: 12px; color: var(--qd-muted, #71717a); margin-bottom: 8px; }
-.p4-bar { display: grid; grid-template-columns: 180px 1fr 140px; gap: 12px; align-items: center; margin: 6px 0; }
+.p4-bar { display: grid; grid-template-columns: 200px minmax(0, 1fr) 140px; gap: 12px; align-items: center; margin: 6px 0; }
 .p4-bar__track { position: relative; height: 24px; }
 .p4-bar__zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #a1a1aa; }
 .p4-bar__fill { position: absolute; top: 0; height: 24px; }
@@ -1072,4 +1094,421 @@ button.p2-tab {
 .p4-main { display: grid; gap: 4px; }
 .p4-save { display: grid; gap: 10px; }
 .p4-table-wrap { overflow-x: auto; }
+.p4-table { table-layout: fixed; width: 100%; min-width: 760px; }
+.p4-table th, .p4-table td { text-align: left; vertical-align: middle; }
+.p4-table .p4-num { text-align: right; font-variant-numeric: tabular-nums; }
+.p4-col--name { width: 64px; }
+.p4-col--gmv { width: 16%; }
+.p4-col--cost { width: 17%; }
+.p4-col--orders { width: 11%; }
+.p4-col--cpa { width: 14%; }
+.p4-col--roi { width: 8%; }
+.p4-bar__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) { .p4-bar { grid-template-columns: 1fr; } .p3-tiles { grid-template-columns: 1fr; } }
+
+.p3-version__label, .p2-cmp__vlabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p3-version { min-width: 0; }
+
+/* ── P100 board polish: Tự tạo steps 1-3 (boards Flow1, Flow2, Flow3). Step 4 is not scoped here. ──
+   Neutral set: ink #121214, body #4a4a52, muted #6b6b74, card hairline #e4e4ea, control border #d9d9df,
+   selected = 2px primary (#f86ba5) on #fef5f6, one solid ink button per step. */
+
+body:has(.p2--flow) {
+  background: #f6f6f8;
+}
+
+.p2--flow {
+  --qd-ink: #121214;
+  --qd-ink-2: #4a4a52;
+  --qd-muted: #6b6b74;
+  --qd-border: #e4e4ea;
+  --qd-border-2: #d9d9df;
+  --qd-line: #ececf0;
+  --qd-line-2: #ececf0;
+  --qd-line-3: #ececf0;
+  --p100-selected-bg: #fef5f6;
+  gap: 20px;
+}
+
+/* Stepper: hairline #ececf0, 10 / 14 tabs at 15px, 3px primary underline, done = body colour. */
+.p2--flow .p2-tabs {
+  flex-wrap: nowrap;
+  gap: 8px;
+  border-bottom-color: var(--qd-line);
+}
+
+.p2--flow .p2-tab {
+  padding: 10px 14px;
+  color: var(--qd-muted);
+  font-size: 15px;
+}
+
+.p2--flow button.p2-tab {
+  color: var(--qd-ink-2);
+}
+
+.p2--flow .p2-tab--on {
+  border-bottom-color: var(--juli-primary);
+  color: var(--qd-ink);
+  font-weight: 600;
+}
+
+/* Title block: eyebrow 12/600 .06em, h1 28/34/600, gap 6. */
+.p2--flow .p2-title,
+.p2--flow .p3-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.p2--flow .sa-eyebrow {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.p2--flow .sa-h1,
+.p2--flow .p3-head .sa-h2 {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.p2--flow .p2-title + .p2-step1,
+.p2--flow .p2-step1 {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Step 1: search 44px, cards 16 / radius 16, selected 2px primary. */
+.p2--flow .p2-find {
+  gap: 12px;
+}
+
+.p2--flow .p2-find .p2-text {
+  height: 44px;
+  padding: 0 14px;
+  border-color: var(--qd-border-2);
+}
+
+.p2--flow .p2-find .sa-btn,
+.p2--flow .p2-foot .sa-btn,
+.p2--flow .p3-foot .sa-btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.p2--flow .p2-find .sa-btn--primary,
+.p2--flow .p2-foot .sa-btn--primary,
+.p2--flow .p3-foot .sa-btn--primary {
+  border-color: var(--qd-ink);
+  background: var(--qd-ink);
+  color: var(--qd-surface);
+}
+
+.p2--flow .p2-foot .sa-btn--primary,
+.p2--flow .p3-foot .sa-btn--primary {
+  padding: 0 22px;
+}
+
+.p2--flow .p2-foot .sa-btn--primary:disabled,
+.p2--flow .p3-foot .sa-btn--primary:disabled,
+.p2--flow .p2-find .sa-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.p2--flow .p2-pcard {
+  padding: 16px;
+}
+
+.p2--flow .p2-pcard--on,
+.p2--flow .p2-kind--on {
+  border: 2px solid var(--juli-primary);
+  background: var(--p100-selected-bg);
+}
+
+.p2--flow .p2-pcard--on {
+  padding: 15px;
+}
+
+.p2--flow .p2-pcard__img {
+  background: var(--qd-line);
+}
+
+.p2--flow .p2-pcard__gap {
+  border-top-color: var(--qd-line);
+  color: var(--qd-ink-2);
+}
+
+.p2--flow .p2-foot,
+.p2--flow .p3-foot {
+  margin-top: auto;
+}
+
+.p2--flow .p2-foot .sa-link,
+.p2--flow .p3-foot .sa-link {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Step 2: group cards 20 / radius 16 / gap 12, title 18/600, strategy buttons 44px / radius 8 / hairline #ececf0. */
+.p2--flow .p2-group .sa-h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.p2--flow .p2-kind {
+  gap: 4px;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid var(--qd-line);
+  border-radius: 8px;
+}
+
+.p2--flow .p2-kind--on {
+  padding: 11px 13px;
+}
+
+.p2--flow .p2-kind:hover {
+  border-color: var(--qd-border-2);
+}
+
+.p2--flow .p2-kind--on:hover {
+  border-color: var(--juli-primary);
+}
+
+.p2--flow .p2-kind > :first-child {
+  color: var(--qd-ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.p2--flow .p2-kind span {
+  font-size: 13px;
+}
+
+.p2--flow .p2-groups {
+  gap: 16px;
+}
+
+/* Step 3: two cards of 20, controls 40-44px with #d9d9df, versions as rows, result tiles 28/700. */
+.p2--flow .p3 {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.p2--flow .p2-split {
+  align-items: stretch;
+  gap: 20px;
+}
+
+.p2--flow .p2-split > .sa-card {
+  gap: 16px;
+  padding: 20px;
+}
+
+.p2--flow .p2-split > .p2-result {
+  gap: 14px;
+}
+
+.p2--flow .p2-num input,
+.p2--flow .p2-text,
+.p2--flow .p2-select {
+  min-height: 40px;
+  border-color: var(--qd-border-2);
+  color: var(--qd-ink);
+}
+
+.p2--flow .p2-select {
+  min-height: 44px;
+}
+
+.p2--flow .sd-field__label {
+  color: var(--qd-muted);
+  font-size: 13px;
+}
+
+.p2--flow .sb-pills .sb-pill,
+.p2--flow .sb-chips .sb-pill {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--qd-border-2);
+  color: var(--qd-ink-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.p2--flow .sb-chips .sb-pill--on {
+  border-color: var(--qd-ink);
+  background: var(--qd-ink);
+  color: var(--qd-surface);
+}
+
+.p2--flow .p3-versions {
+  gap: 10px;
+  margin: 0;
+}
+
+.p2--flow .p3-version {
+  padding: 10px 12px;
+  border: 1px solid var(--qd-line);
+  border-radius: 8px;
+}
+
+.p2--flow .p3-version--on {
+  border: 2px solid var(--juli-primary);
+  background: var(--p100-selected-bg);
+}
+
+.p2--flow .p3-version > b {
+  min-width: 36px;
+  color: var(--qd-ink);
+}
+
+.p2--flow .p2-inputs .sd-actions .sa-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.p2--flow .p3-result__head {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.p2--flow .p3-verdict {
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+.p2--flow .p3-tiles {
+  gap: 12px;
+  margin: 0;
+}
+
+.p2--flow .p3-tile {
+  border: 1px solid var(--qd-line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.p2--flow .p3-tile__label {
+  font-size: 13px;
+  color: var(--qd-muted);
+}
+
+.p2--flow .p3-tile__value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--qd-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.p2--flow .p3-cpa {
+  margin: 0;
+}
+
+.p2--flow .p3-cpa__label {
+  font-size: 13px;
+}
+
+.p2--flow .p3-cpa__track {
+  height: 28px;
+  margin: 6px 0;
+  border-radius: 8px;
+  background: var(--qd-line);
+}
+
+.p2--flow .p3-cpa__fill {
+  border-radius: 8px;
+  background: var(--juli-chart-neutral);
+}
+
+.p2--flow .p3-cpa__fill--over {
+  background: var(--juli-destructive);
+}
+
+.p2--flow .p3-cpa__mark {
+  top: -4px;
+  bottom: -4px;
+  width: 0;
+  background: transparent;
+  border-left: 2px dashed var(--qd-ink);
+}
+
+.p2--flow .p3-cpa__legend {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.p2--flow .p3-rows {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.p2--flow .p3-rows td {
+  border-top-color: var(--qd-line);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--qd-ink);
+}
+
+.p2--flow .p3-rows td:first-child {
+  color: var(--qd-muted);
+}
+
+.p2--flow .p3-rows td:last-child {
+  font-weight: 400;
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .p2--flow .p2-split {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 720px) {
+  .p2--flow {
+    gap: 16px;
+  }
+
+  .p2--flow .p2-tabs {
+    overflow-x: auto;
+  }
+
+  .p2--flow .p2-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .p2--flow .sa-h1,
+  .p2--flow .p3-head .sa-h2 {
+    font-size: 22px;
+    line-height: 28px;
+  }
+
+  .p2--flow .p2-split > .sa-card {
+    padding: 16px;
+  }
+
+  .p2--flow .p3-tile__value {
+    font-size: 22px;
+  }
+}

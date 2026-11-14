@@ -67,7 +67,7 @@ describe("Sản phẩm: the listing header", () => {
     expect(screen.getByAltText("Bộ vệ sinh bếp 5 món set rửa chén")).toHaveAttribute("src", "https://img.example/v2.jpg");
   });
 
-  it("does not crash on backend-shaped versions (cover_url ids, no images array) and shows the no-image hint", async () => {
+  it("shows a bare Seller Centre image id (cover_url, no images array) through the Shopee CDN", async () => {
     const p = product();
     const v = (captured_at: string, first = false) => ({
       captured_at,
@@ -85,8 +85,7 @@ describe("Sản phẩm: the listing header", () => {
       header: { ...p.header, images: ["vn-11134207-81ztc-synthetic01"], versions: [v("2026-10-01T00:00:00Z", true), v("2026-10-20T00:00:00Z"), v("2026-11-03T00:00:00Z")] },
     } as ProductPage);
     const hero = await screen.findByTestId("sa-hero");
-    expect(hero).toHaveTextContent("Chưa có ảnh sản phẩm");
-    expect(hero.querySelector("img")).toBeNull();
+    expect(hero.querySelector("img")?.getAttribute("src")).toBe("https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-synthetic01");
     expect(screen.getByTestId("sa-image-stepper")).toHaveTextContent("Phiên bản 3/3");
   });
 
@@ -189,7 +188,7 @@ describe("Sản phẩm: the listing header", () => {
     // ADR-122 d.12: the realised margin (12,4%) left this table; it shows Biên ở giá bán and Biên cuối,
     // "chưa tính" when the answer has neither (product-margins.test.tsx covers the values)
     expect(cb).toHaveTextContent("Biên ở giá bán · chắc chắn");
-    expect(cb).toHaveTextContent("Biên cuối · ước tính");
+    expect(cb).toHaveTextContent("Biên cuối");
     expect(cb).toHaveTextContent("181.979đ");
     expect(within(table).getByTestId("sa-var-BEP-S5-QT")).toHaveTextContent("giá vốn giả định (1/3 giá)");
   });

@@ -9,18 +9,32 @@ import { renderReco } from "./harness";
 const slider = (name: string) => screen.getByRole("slider", { name }) as HTMLInputElement;
 
 describe("thẻ voucher · phép thử 'nếu đổi'", () => {
-  it("shows the five numbers in two layers: break-even 3 in Chắc chắn, ② only in Dự kiến", async () => {
+  it("Kết quả shows the stored result as Tự tạo does: Δ lợi nhuận cả N ngày ≈/ngày, Δ GMV, Δ đơn, Chi phí, ROI, biên, hoà vốn", async () => {
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco());
-    await screen.findByTestId("sd-numbers");
-    const sure = screen.getByTestId("sd-sure-eff");
-    expect(sure).toHaveTextContent("Hoà vốn khi thêm ≥ 3 đơn");
-    expect(sure).toHaveTextContent("chi thêm 63.000đ");
-    expect(screen.getByTestId("sd-sure-bien")).toHaveTextContent("26,9%");
-    expect(screen.getByTestId("sd-sure-bien")).toHaveTextContent("25,6%");
-    expect(screen.getByTestId("sd-exp-eff")).toHaveTextContent("1,40đ – 3,20đ / 1đ chi");
-    expect(screen.getByTestId("sd-breakeven")).toHaveTextContent("Hoà vốn: chi thêm 63.000đ cần ≥ 3 đơn thêm");
+    const block = await screen.findByTestId("sd-result-card");
+    expect(screen.queryByTestId("sd-numbers")).toBeNull();
+    expect(block).not.toHaveTextContent("chắc chắn");
+    expect(block).not.toHaveTextContent("5 con số chính");
+    expect(within(block).getByTestId("p3-dprofit")).toHaveTextContent("+57.000đ");
+    expect(within(block).getByTestId("p3-dprofit")).toHaveTextContent("cả 30 ngày");
+    expect(within(block).getByTestId("p3-dprofit-perday")).toHaveTextContent("/ngày");
+    expect(within(block).getByTestId("p3-dgmv")).toHaveTextContent("+600.000đ");
+    expect(within(block).getByTestId("p3-row-orders")).toHaveTextContent("+2");
+    expect(within(block).getByTestId("p3-row-cost")).toHaveTextContent("63.000đ");
+    expect(within(block).getByTestId("p3-row-roi")).toHaveTextContent("9,5");
+    expect(within(block).getByTestId("p3-row-margin")).toHaveTextContent("26,9% → 25,6%");
+    expect(within(block).getByTestId("p3-row-breakeven")).toHaveTextContent(/Hoà vốn\s*cần ≥ 3 đơn/);
+    expect(within(block).getByTestId("p3-verdict")).toHaveTextContent("Có lãi");
     expect(screen.getByTestId("sd-floor")).toHaveTextContent("Trên giá sàn");
     expect(screen.getByTestId("sd-spend")).toHaveTextContent("trong trần 1.200.000đ/ngày");
+  });
+
+  it("a card without an estimable result says Chưa ước tính được and keeps its Chi phí", async () => {
+    const card = voucherCard({ result: { estimable: false, not_estimable: true, reason: "no_spec", message: "Chưa ước tính được", cost_total: 63000, option: null } });
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(card) }));
+    const block = await screen.findByTestId("sd-not-estimable");
+    expect(block).toHaveTextContent("Chưa ước tính được");
+    expect(block).toHaveTextContent("63.000đ");
   });
 
   it("every change recomputes through the what-if endpoint (A -> B)", async () => {
@@ -29,10 +43,10 @@ describe("thẻ voucher · phép thử 'nếu đổi'", () => {
     await screen.findByTestId("sd-whatif");
     expect(slider("Đơn tối thiểu").value).toBe("299000");
     fireEvent.change(slider("Đơn tối thiểu"), { target: { value: "200000" } });
-    await waitFor(() => expect(screen.getByTestId("sd-sure-bien")).toHaveTextContent("23,4%"));
+    await waitFor(() => expect(screen.getByTestId("p3-row-margin")).toHaveTextContent("23,4%"));
     expect(reco.calls.filter((c) => c.name === "whatif")).toHaveLength(1);
     expect(reco.calls.find((c) => c.name === "whatif")!.args).toEqual(["card-voucher", { min_spend: 200000 }, 1]);
-    expect(screen.getByTestId("sd-sure-eff")).toHaveTextContent("Hoà vốn khi thêm ≥ 7 đơn");
+    expect(screen.getByTestId("p3-row-breakeven")).toHaveTextContent(/Hoà vốn\s*cần ≥ 7 đơn/);
     expect(screen.getByText("Đã chỉnh")).toBeInTheDocument();
   });
 
@@ -222,7 +236,7 @@ describe("quyết định của seller", () => {
     await screen.findByTestId("sd-whatif");
     expect(screen.queryByRole("button", { name: /^Duyệt V1$/ })).toBeNull();
     fireEvent.change(slider("Đơn tối thiểu"), { target: { value: "200000" } });
-    await waitFor(() => expect(screen.getByTestId("sd-sure-bien")).toHaveTextContent("23,4%"));
+    await waitFor(() => expect(screen.getByTestId("p3-row-margin")).toHaveTextContent("23,4%"));
   });
 
   it("a draft in the Ops tab can be sent to the shop, or taken back", async () => {

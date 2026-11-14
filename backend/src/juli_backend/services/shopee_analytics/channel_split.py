@@ -50,6 +50,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     FunnelBase,
     SourceFunnel,
 )
+from juli_backend.services.shopee_profit import shop_profit
 
 SHOP_PLUS_KIND = "ads_shop"
 CARD, SHOP_PAGE, LIVE, VIDEO, AFFILIATE = (
@@ -133,8 +134,14 @@ def split_rows(
     *,
     ad_types: Mapping[str, Mapping[str, Decimal]] | None = None,
     ads_known: bool = True,
+    ads_fallback: Mapping[str, Decimal] | None = None,
+    affiliate_fallback: Mapping[str, Decimal] | None = None,
 ) -> list[dict[str, Any]]:
     """The channel table rows for ``base`` (the shop, or one product).
+
+    ``ads_fallback`` / ``affiliate_fallback`` (product level): ``{"gmv", "orders"?}`` taken from
+    the ads report / the order lines when the product's funnel rows carry no ad overlay or no
+    Tiếp thị liên kết source; Organic then is the total minus both, never below 0.
 
     ``ad_types``: the ads report by type (shop level only). ``ads_known`` (product level): the
     shop has ad data at all, so a product without an ad figure has 0 ads instead of "no data"."""
@@ -142,8 +149,19 @@ def split_rows(
     product_level = base.scope == "products"
     card, shop_page, aff = src.get(CARD), src.get(SHOP_PAGE), src.get(AFFILIATE)
     ads: AdShare | None = card.ads if card is not None else None
+    if (ads is None or not ads.gmv) and product_level and ads_fallback is not None:
+        ads = AdShare(None, None, ads_fallback.get("orders"), ads_fallback["gmv"], None)
     if ads is None and product_level and ads_known:
         ads = AdShare(Decimal(0), Decimal(0), None, Decimal(0), Decimal(0))
+    if (aff is None or not aff.gmv) and product_level and affiliate_fallback is not None:
+        aff = SourceFunnel(
+            "lien_ket",
+            None,
+            None,
+            affiliate_fallback.get("orders") or Decimal(0),
+            affiliate_fallback["gmv"],
+            None,
+        )
 
     def card_part(field: str) -> Decimal | None:
         """Thẻ sản phẩm + residual, before the ads overlay comes off."""
@@ -182,6 +200,19 @@ def split_rows(
 
     org_views, org_clicks = organic("views"), organic("clicks")
     org_orders, org_gmv = organic("orders"), organic("gmv")
+    if (
+        product_level
+        and not (card and card.gmv)
+        and (ads_fallback is not None or affiliate_fallback)
+    ):
+        # no source breakdown at all: Organic = the product's total - ads - affiliate (>= 0)
+        total_gmv = base.total("gmv")
+        if total_gmv is not None:
+            taken = (a.gmv if a and a.gmv is not None else Decimal(0)) + (
+                aff.gmv if aff and aff.gmv is not None else Decimal(0)
+            )
+            org_gmv = max(total_gmv - taken, Decimal(0))
+            org_card = _row("organic_card", "organic", None, None, None, org_gmv)
     rows = [_row("organic", None, org_views, org_clicks, org_orders, org_gmv), org_card]
     if not product_level or shop_page is not None:
         rows.append(org_shop)
@@ -322,6 +353,31 @@ def _affiliate_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
     return sum(known, Decimal(0)) if known else None
 
 
+def _product_ads(
+    view: PeriodView, product_id: str | None, ads_known: bool
+) -> dict[str, Decimal] | None:
+    """The product's DVHT figures of the ads report (by item id), for a product whose funnel rows
+    carry no ad overlay. ``None`` without a product, without ad data, or without a report row."""
+    if product_id is None or not ads_known:
+        return None
+    fig = view.ads.product_figures.get(product_id)
+    return None if fig is None or fig.gmv is None else {"gmv": fig.gmv}
+
+
+def _product_affiliate(view: PeriodView, product_id: str | None) -> dict[str, Decimal] | None:
+    """The product's Tiếp thị liên kết GMV and orders from the order lines (the lines
+    :func:`_affiliate_cost` reads), for a product whose funnel rows have no such source."""
+    if product_id is None:
+        return None
+    lines = [ln for ln, _ in view.pairs if ln.affiliate and ln.product_id == product_id]
+    if not lines:
+        return None
+    return {
+        "gmv": sum((ln.order_value for ln in lines), Decimal(0)),
+        "orders": Decimal(len({ln.order_id for ln in lines})),
+    }
+
+
 def _offers_cost(view: PeriodView, product_id: str | None) -> Decimal | None:
     """Ưu đãi: the voucher + Chương Trình Của Shop (khuyến mãi / flash sale) + combo / Deal Sốc
     discounts of the window's order lines -- the same three the profit computation takes off
@@ -443,8 +499,27 @@ async def _figures(
     shop_card = _by_source(funnel.base_from_rows(rows, str(shop_id))).get(CARD)
     ads_known = shop_card is not None and shop_card.ads is not None
     ad_types = view.data.ads_daily.by_type
-    body = split_rows(base, ad_types=None if product_id else ad_types, ads_known=ads_known)
+    body = split_rows(
+        base,
+        ad_types=None if product_id else ad_types,
+        ads_known=ads_known,
+        ads_fallback=_product_ads(view, product_id, ads_known),
+        affiliate_fallback=_product_affiliate(view, product_id),
+    )
     return body, _kpis(view, base, product_id)
+
+
+async def split_figures(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    view: PeriodView,
+    window: Window,
+    product_id: str | None = None,
+) -> dict[str, Any]:
+    """``{"rows", "kpis"}`` of ``channel_split`` for a view the caller already loaded (no second
+    read of the window, no previous period, no plan block): what a per-product loop needs."""
+    body_rows, kpis = await _figures(session, shop_id, view, window, product_id)
+    return {"rows": body_rows, "kpis": kpis}
 
 
 _CELLS = ("views", "clicks", "ctr", "ctor", "aov", "gmv", "orders")
@@ -556,7 +631,15 @@ async def channel_split_products(
         ads = card.ads if card is not None else None
         ads_gmv = ads.gmv if ads is not None else (Decimal(0) if ads_known else None)
         aff_gmv = aff.gmv if aff is not None else Decimal(0)
-        pp = view.profit.products.get(item)
+        if ads is None or not ads.gmv:
+            fallback = _product_ads(view, item, ads_known)
+            if fallback is not None:
+                ads_gmv = fallback["gmv"]
+        if aff is None or not aff.gmv:
+            aff_fb = _product_affiliate(view, item)
+            if aff_fb is not None:
+                aff_gmv = aff_fb["gmv"]
+        margin = shop_profit.scope_margin_pct(view.profit, (item,))
         header = snaps[item].header if item in snaps else None
         images = list(header.image_urls) if header and header.image_urls else []
         products.append(
@@ -565,9 +648,11 @@ async def channel_split_products(
                 "name": view.names.get(item) or (header.title if header else None) or item,
                 "image_url": images[0] if images else None,
                 "gmv": num(total),
-                "margin": None if pp is None or pp.margin_pct is None else float(pp.margin_pct),
+                "margin": None if margin is None else float(margin),
                 "organic_gmv": num(
-                    None if total is None or ads_gmv is None else total - aff_gmv - ads_gmv
+                    None
+                    if total is None or ads_gmv is None
+                    else max(total - aff_gmv - ads_gmv, Decimal(0))
                 ),
                 "ads_gmv": num(ads_gmv),
                 "affiliate_gmv": num(aff_gmv),

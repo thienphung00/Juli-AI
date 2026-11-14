@@ -157,6 +157,17 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
+  // The marketplace of an acting shop is still being asked: neutral state, never the TikTok chrome.
+  if (state.status === "loading") {
+    return (
+      <div className="app-shell">
+        <p className="text-muted" role="status">
+          Đang tải…
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <AppNavigation activePath={pathname} platform={platform} sampleShop={sampleShop} />

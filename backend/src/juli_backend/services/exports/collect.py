@@ -219,14 +219,13 @@ async def collect_tong_quan(
         prev_listing = await channel_split.channel_split_products(session, shop_id, **kw_prev)
         names.update({p["product_id"]: p["name"] for p in prev_listing["products"]})
 
-    async def figures(v: PeriodView | None, k: dict[str, Any], pid: str | None) -> tq.Figures:
+    async def figures(v: PeriodView | None, w: Window, pid: str | None) -> tq.Figures:
         if v is None:
             return tq.Figures()
-        split = await channel_split.channel_split(session, shop_id, product_id=pid, **k)
-        return _figures(split)
+        return _figures(await channel_split.split_figures(session, shop_id, v, w, pid))
 
-    shop_now = await figures(view, kw, None)
-    shop_prev = await figures(pview, kw_prev, None)
+    shop_now = await figures(view, cur, None)
+    shop_prev = await figures(pview, prv, None)
     shop_plan = await _plan(session, shop_id, cur, view, now, daily=product_id is None)
     shop_now = replace(shop_now, **_plan_of(shop_plan))
 
@@ -236,8 +235,8 @@ async def collect_tong_quan(
     for i in ids:
         plans_of[i] = await _plan(session, shop_id, cur, view, now, product_id=i,
                                   daily=i == product_id)  # fmt: skip
-        now_fig = replace(await figures(view, kw, i), **_plan_of(plans_of[i]))
-        rows.append(tq.ProductRow(i, names.get(i, i), now_fig, await figures(pview, kw_prev, i)))
+        now_fig = replace(await figures(view, cur, i), **_plan_of(plans_of[i]))
+        rows.append(tq.ProductRow(i, names.get(i, i), now_fig, await figures(pview, prv, i)))
     if product_id:  # the Sản phẩm level: the file's period figures are the product's
         shop_now, shop_prev = rows[0].now, rows[0].prev
     else:
@@ -483,8 +482,10 @@ async def collect_ke_hoach(
         pm = c["predicted_summary"]
         row = _card_row(c, None, kh.MEASURED if closed else kh.MEASURING, None, names)
         row.start, row.end = s.executed_on, end
-        row.gmv_mid = _f(pm["dgmv_month"]["p50"])
-        row.profit_mid = _f(pm["dprofit_month"]["p50"])
+        # one card, one number: the card's stored result (its own days), as the card shows it
+        row.gmv_mid = _f(pm["dgmv"]["p50"])
+        row.profit_mid = _f(pm["dprofit"]["p50"])
+        row.cost = _f(c.get("cost"))
         out.append(row)
     measured = {
         c["code"]: _result_text(c)

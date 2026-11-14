@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { DecisionsView } from "../decisions-view";
+import { DecisionsView, findingOf } from "../decisions-view";
 import { fakePlan } from "../../../lib/shopee-decisions/__tests__/plan-fixtures";
 import { adsCard, fakeReco, megaCard, promotionCard, summaryOf, versionedVoucher, voucherCard } from "../../../lib/shopee-decisions/__tests__/fixtures";
 import type { CardList, CardSummary } from "../../../lib/shopee-decisions/types";
@@ -21,6 +21,26 @@ function queueCards(): CardSummary[] {
 }
 
 describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
+  it("one card, one number: the range and the P50 per day come from the stored result; not estimable says so with Chi phí", async () => {
+    const ok = summaryOf(voucherCard(), {
+      cost: 63000,
+      predicted_summary: { dgmv: { p10: 100000, p50: 600000, p90: 900000 }, dprofit: { p10: -42000, p50: 60000, p90: 240000 }, dgmv_month: { p10: 100000, p50: 600000, p90: 900000 }, dprofit_month: { p10: -42000, p50: 60000, p90: 240000 }, label: "Dự kiến", effect_days: 30, not_estimable: false },
+    });
+    const none = summaryOf({ ...promotionCard(), id: "card-none", scope: { level: "item", product_ids: ["X-9"], sku_ids: [], campaign_key: null } }, {
+      id: "card-none",
+      cost: 50000,
+      predicted_summary: { dgmv: { p10: null, p50: null, p90: null }, dprofit: { p10: null, p50: null, p90: null }, dgmv_month: { p10: null, p50: null, p90: null }, dprofit_month: { p10: null, p50: null, p90: null }, label: "Dự kiến", effect_days: null, not_estimable: true, reason: "no_spec", message: "Chưa ước tính được" },
+    });
+    renderReco(<DecisionsView params={params()} />, fakeReco({ list: list([ok, none]) }));
+    const top = await screen.findByTestId("sq-card-card-voucher");
+    expect(within(top).getByTestId("dx-dprofit")).toHaveTextContent("−42.000đ – +240.000đ");
+    expect(within(top).getByTestId("dx-perday")).toHaveTextContent("≈ +2.000đ/ngày");
+    const bad = screen.getByTestId("sq-card-card-none");
+    expect(within(bad).getByTestId("dx-dprofit")).toHaveTextContent("Chưa ước tính được");
+    expect(within(bad).queryByTestId("dx-perday")).toBeNull();
+    expect(within(bad).getByTestId("dx-cost")).toHaveTextContent("50.000đ");
+  });
+
   it("one row per product's top card: group · kind, title, product, metric chips, Δ range and ≈ per day, buttons", async () => {
     renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }));
     const top = await screen.findByTestId("sq-card-card-voucher");
@@ -41,6 +61,30 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     expect(screen.getByTestId("sd-h1")).toHaveTextContent(/^2 thẻ · /);
     expect(screen.getByTestId("sq-builder-link")).toHaveAttribute("href", "/decisions?from=quyet-dinh&tu-tao=1");
     expect(document.body.textContent).not.toMatch(/Tiếp theo cho sản phẩm này|ước tính|Dự kiến/);
+  });
+
+  it("Duyệt approves a one-version card in place: same approve call as Duyệt V1, then the Thực hiện notice and a reload", async () => {
+    const reco = fakeReco({ list: list(queueCards()) });
+    renderReco(<DecisionsView params={params()} />, reco);
+    const row = await screen.findByTestId("sq-card-card-other");
+    expect(within(row).queryByRole("link", { name: "Duyệt" })).toBeNull();
+    fireEvent.click(within(row).getByTestId("sq-approve"));
+    await waitFor(() => expect(reco.calls.some((c) => c.name === "approve")).toBe(true));
+    const call = reco.calls.find((c) => c.name === "approve")!;
+    expect(call.args[0]).toBe("card-other");
+    expect(call.args[1]).toMatchObject({ chosenVersion: 1, acknowledgeBreaches: false });
+    expect(await screen.findByTestId("sq-notice")).toHaveTextContent("Đã duyệt JC-2611-0003 · chuyển sang Thực hiện");
+    await waitFor(() => expect(reco.calls.filter((c) => c.name === "list").length).toBeGreaterThan(1));
+  });
+
+  it("a card with several versions keeps Duyệt as a link to its version picker; a read-only host keeps the link too", async () => {
+    renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }));
+    const multi = await screen.findByTestId("sq-card-card-voucher");
+    expect(within(multi).queryByTestId("sq-approve")).toBeNull();
+    cleanup();
+    renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }), { readOnly: true });
+    const row = await screen.findByTestId("sq-card-card-other");
+    expect(within(row).getByRole("link", { name: "Duyệt" })).toBeInTheDocument();
   });
 
   it("asks the whole queue once (queue=all)", async () => {
@@ -154,5 +198,15 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     fireEvent.click(within(other).getByRole("button", { name: "Thêm vào kế hoạch" }));
     await waitFor(() => expect(plan.calls.some((c) => c.name === "add")).toBe(true));
     expect(plan.calls.find((c) => c.name === "add")!.args).toEqual(["card-other", null, false]);
+  });
+});
+
+describe("Đề xuất heading", () => {
+  it("drops the profit part, never a dash, when the total is unknown", () => {
+    const [top] = queueCards();
+    const unknown = { ...top!, predicted_summary: { ...top!.predicted_summary, dprofit_month: { ...top!.predicted_summary.dprofit_month, p10: null, p90: null } } } as CardSummary;
+    expect(findingOf([unknown], null)).toBe("1 thẻ");
+    expect(findingOf([top!], null)).toMatch(/^1 thẻ · .+ lợi nhuận cả \d+ ngày$/);
+    expect(findingOf([unknown], null)).not.toMatch(/—/);
   });
 });

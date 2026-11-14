@@ -432,7 +432,7 @@ async def test_listing_cards_are_generated_ranked_and_persisted_with_the_other_f
         session, sid, audience="ops", family="listing", queue="all"
     )  # P91: a KOL card may head a product queue
     assert rows["cards"] and all(c["family"] == "listing" for c in rows["cards"])
-    assert all(c["certain_summary"]["dgmv_month"] == 0 for c in rows["cards"])
+    assert all((c["cost"] or 0) == 0 for c in rows["cards"])  # a listing change costs nothing
     # P91 D-1: every card is kept; a product's cards are numbered in its queue
     queues = [c["product_queue"] for c in rows["cards"]]
     assert len(queues) == len(set(queues)) and min(queues) >= 1

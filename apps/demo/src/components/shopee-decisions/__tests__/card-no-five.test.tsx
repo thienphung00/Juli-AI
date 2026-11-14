@@ -24,7 +24,8 @@ describe("thẻ không có 5 con số (P96: in-progress listing cards crashed th
   it("renders an approved description card without the numbers table instead of crashing", async () => {
     renderReco(<CardPage from={null} id="card-desc" />, fakeReco({ detail: detailOf(listingCard()) }));
     expect(await screen.findByText("Sửa dòng đầu mô tả — Túi Bio")).toBeInTheDocument();
+    // one card, one number: no five-numbers table, the Kết quả block reads the stored result
     expect(screen.queryByTestId("sd-numbers")).toBeNull();
-    expect(screen.getByTestId("sd-no-numbers")).toHaveTextContent("không có 5 con số");
+    expect(screen.getByTestId("sd-result-card")).toHaveTextContent("Kết quả");
   });
 });

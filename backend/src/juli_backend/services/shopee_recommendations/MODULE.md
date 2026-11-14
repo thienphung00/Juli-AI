@@ -32,6 +32,7 @@ a service package behind a thin route (`api/routes/demo_shopee_recommendations.p
 | `versions` | P91 D-2: 2-4 versions per card; `ALTERNATIVES` = the one place that says which inputs per change_kind |
 | `codes` | P91 D-5: `JC-<yymm>-<seq4>`, per-shop counter, `backfill_codes` |
 | `store`, `service`, `stale` | persistence, use cases, staleness |
+| `result_store` | one card, one number (2026-11-14): each version's engine result (`integrate.evaluate`, Tự tạo's figure) stored as `result`; frozen in the payload at creation, recomputations in `action_cards.metadata_json` (`results`, `result_at_approval`) laid over by `store`; every list, page, plan, export and measurement reads it; `refresh_shop` (the refresh job, `scripts/recompute_card_results.py`) |
 
 ## Listing family (contract 8: Lượt xem / CTR)
 

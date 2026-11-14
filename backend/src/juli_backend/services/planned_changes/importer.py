@@ -48,7 +48,7 @@ from juli_backend.services.planned_changes import rows as pr
 from juli_backend.services.shop_inputs import xlsx_io
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
-from juli_backend.services.shopee_recommendations import config, manual, store
+from juli_backend.services.shopee_recommendations import config, manual, result_store, store
 from juli_backend.services.shopee_recommendations import listing as lst
 from juli_backend.services.shopee_recommendations import service as reco_service
 from juli_backend.services.shopee_recommendations.cards import build_card
@@ -352,15 +352,18 @@ def build_row_card(
 def _brief(card: dict[str, Any] | None) -> dict[str, Any] | None:
     if card is None:
         return None
-    pm = card["predicted"]["money_per_month"]["total"]
-    estimated = card["planned"]["estimated"] and pm["p50"]["dprofit"] is not None
+    # one card, one number: the row's engine result (``result_store``), never the money layer
+    band = (((card.get(result_store.KEY) or {}).get("own") or {}).get("delta") or {}).get(
+        "profit"
+    ) or {}
+    estimated = card["planned"]["estimated"] and band.get("p50") is not None
     return {
         "title": card["title"],
         "change_kind": card["change_kind"],
         "estimated": bool(estimated),
-        "dprofit_p10": pm["p10"]["dprofit"] if estimated else None,
-        "dprofit_p50": pm["p50"]["dprofit"] if estimated else None,
-        "dprofit_p90": pm["p90"]["dprofit"] if estimated else None,
+        "dprofit_p10": band.get("p10") if estimated else None,
+        "dprofit_p50": band.get("p50") if estimated else None,
+        "dprofit_p90": band.get("p90") if estimated else None,
         "note": None if estimated else "không ước tính",
         "page": card["execution_sheet"]["page"],
         "steps": card["execution_sheet"]["steps"],
@@ -405,6 +408,11 @@ async def _prepare(
                 else:
                     action = "create"
         plans.append(RowPlan(row, action, problems, warns, card, refs.get(row.ref)))
+    jobs = [result_store.Job(p.card) for p in plans if p.card is not None]
+    for job, blocks in zip(
+        jobs, await result_store.compute_many(session, shop_id, env, jobs, now=now), strict=True
+    ):
+        result_store.write_into(job.card, blocks)
     return Preview(file_hash, plans, checked.order), env
 
 

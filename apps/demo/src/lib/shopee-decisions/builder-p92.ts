@@ -296,13 +296,32 @@ const opt = (key: string, text: string): Record<string, number> => {
   return n !== null ? { [key]: n } : {};
 };
 
-function varRows(rows: readonly VarValue[], mode: "pct" | "final_price", pctKey: string): { rows: Record<string, unknown>[]; problem: string | null } {
+/** What a discount row may not go under: the price buyers already pay (a deeper running programme). */
+export function belowPaidHint(v: VariationRow | undefined): { readonly min: number | null; readonly paid: number | null } {
+  return { min: v?.min_discount_pct ?? null, paid: v?.paid_price ?? null };
+}
+
+/**
+ * The inline error of one discount row, null when it is fine, empty or the bound is unknown. "% GIẢM" must reach the
+ * variation's minimum; "Giá sau giảm" must stay under what buyers pay today.
+ */
+export function belowPaidProblem(v: VariationRow | undefined, mode: "pct" | "final_price", value: string): string | null {
+  const n = num(value);
+  if (n === null || value.trim() === "") return null;
+  const { min, paid } = belowPaidHint(v);
+  if (mode === "pct") return min !== null && n < min ? `Thấp hơn giá đang bán: nhập từ ${min} % trở lên` : null;
+  return paid !== null && n >= paid ? `Không thấp hơn giá đang bán: nhập dưới ${vnd(paid)}` : null;
+}
+
+function varRows(rows: readonly VarValue[], mode: "pct" | "final_price", pctKey: string, variations: readonly VariationRow[] = []): { rows: Record<string, unknown>[]; problem: string | null } {
   const out: Record<string, unknown>[] = [];
   for (const r of rows) {
     const n = num(r.value);
     if (n === null || r.value.trim() === "") continue;
     if (n <= 0) return { rows: [], problem: "Nhập số lớn hơn 0." };
     if (mode === "pct" && n > MAX_PCT) return { rows: [], problem: PCT_PROBLEM };
+    const under = belowPaidProblem(variations.find((x) => x.variation_id === r.variationId), mode, r.value);
+    if (under) return { rows: [], problem: under };
     out.push({ ...vid(r.variationId), [mode === "pct" ? pctKey : "final_price"]: n });
   }
   return { rows: out, problem: out.length === 0 ? "Nhập mức giảm hoặc giá cho ít nhất một phân loại." : null };
@@ -436,7 +455,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
           version: { kind: "product_discount", label: clip(name || `Giảm ${fmt(pct, Number.isInteger(pct) ? 0 : 1)}% · ${d.targets.length} sản phẩm`), targets: [...d.targets], discount_pct: pct, ...common },
         };
       }
-      const { rows, problem } = varRows(d.rows, d.mode, "discount_pct");
+      const { rows, problem } = varRows(d.rows, d.mode, "discount_pct", ctx.variations);
       if (problem) return no(problem);
       if (issue) return no(issue);
       return {
@@ -460,7 +479,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
         if (out.length === 0) return no("Nhập giá mới cho ít nhất một phân loại.");
         return { problem: null, version: { kind: "price", label: "Đổi giá niêm yết", item_id: id, variations: out } };
       }
-      const { rows, problem } = varRows(p.rows, p.mode, "discount_pct");
+      const { rows, problem } = varRows(p.rows, p.mode, "discount_pct", ctx.variations);
       if (problem) return no(problem);
       const units = num(p.units);
       if (units === null || units <= 0) return no("Nhập số lượng suất flash sale.");
@@ -512,7 +531,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       const t = f.title.text.trim();
       if (!t) return no("Nhập hoặc chọn một tiêu đề.");
       if ([...t].length > MAX_TITLE) return no(`Tiêu đề tối đa ${MAX_TITLE} ký tự.`);
-      return { problem: null, version: { kind: "title", label: "Tiêu đề mới", item_id: id, title: t, keywords: [...f.title.ticked] } };
+      return { problem: null, version: { kind: "title", label: clip(t), item_id: id, title: t, keywords: [...f.title.ticked] } };
     }
     case "cover_image": {
       const o = f.cover_image.overlay;

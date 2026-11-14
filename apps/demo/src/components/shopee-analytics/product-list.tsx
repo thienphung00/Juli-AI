@@ -41,7 +41,7 @@ function List({ matrix, state }: { readonly matrix: Matrix; readonly state: Wind
         ) : (
           matrix.products.map((p) => (
             <Link className="sa-plist" href={links.product(p.product_id, { tab: "hs", from: "san-pham" }, state)} key={p.product_id}>
-              <Ini text={initialsOf(p.name)} />
+              <Ini src={p.image_url} text={initialsOf(p.name)} />
               <span>
                 <span className="sa-mname__t">{p.name}</span>
                 <span className="sa-hint sa-block">{p.product_id}</span>
@@ -63,7 +63,7 @@ function List({ matrix, state }: { readonly matrix: Matrix; readonly state: Wind
             <summary>{matrix.idle_products!.length} sản phẩm không có đơn trong kỳ</summary>
             {matrix.idle_products!.map((p) => (
               <Link className="sa-plist" href={links.product(p.product_id, { tab: "hs", from: "san-pham" }, state)} key={p.product_id}>
-                <Ini text={initialsOf(p.name)} />
+                <Ini src={p.image_url} text={initialsOf(p.name)} />
                 <span>
                   <span className="sa-mname__t">{p.name}</span>
                   <span className="sa-hint sa-block">{p.product_id}</span>

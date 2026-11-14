@@ -256,4 +256,16 @@ describe("/ — anonymous and signed-in doors", () => {
     expect(await screen.findByText("Chưa có báo cáo")).toBeInTheDocument();
     expect(screen.queryByTestId("mock-data-notice")).toBeNull();
   });
+
+  it("a Shopee shop never calls the TikTok-only analysis read", async () => {
+    window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "token-1", tokenType: "bearer" }));
+    window.sessionStorage.setItem(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify({ id: "shop-shopee-1", name: "Shop Shopee" }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ platform: "shopee" }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    const loadAnalysis = vi.fn().mockResolvedValue(SAMPLE);
+
+    renderHome(loadAnalysis);
+
+    expect(await screen.findByText("Chưa có báo cáo")).toBeInTheDocument();
+    expect(loadAnalysis).not.toHaveBeenCalled();
+  });
 });

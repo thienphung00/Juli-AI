@@ -46,11 +46,29 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
   it("shows the two month bars (Đang chạy / Nếu áp dụng nháp) with the month's day count", async () => {
     const totals = (goal_gmv: number | null, goal_profit: number | null, cards: number) => ({ scope: "running" as const, month: "2026-11", day: 13, days_in_month: 30, cards, baseline_gmv: 10_000_000, baseline_profit: 1_000_000, uplift_gmv: 0, uplift_profit: 0, goal_gmv, goal_profit, mtd_gmv: 4_000_000, mtd_profit: 400_000 });
     open({ ...plan(), month: { running: totals(null, null, 0), with_draft: totals(12_500_000, 1_300_000, 3) } });
-    expect(await screen.findByTestId("kh-month-gmv-running")).toHaveTextContent("—");
+    // nothing runs: "Hiện tại" is the baseline level, never a dash (the bars once drew nothing)
+    expect(await screen.findByTestId("kh-month-gmv-running")).toHaveTextContent("10,00 tr đ");
     expect(screen.getByTestId("kh-month-gmv-draft")).toHaveTextContent("12,50 tr đ");
     expect(screen.getByTestId("kh-month-profit-draft")).toHaveTextContent("1,30 tr đ");
     expect(screen.getByTestId("kh-month")).toHaveTextContent("Tháng 11");
     expect(screen.getByTestId("kh-month")).toHaveTextContent("13/30 ngày");
+  });
+
+  it("draws the bars when the running goal is null: the base, plus the draft's addition as its own visible segment", async () => {
+    const totals = (goal_gmv: number | null, baseline: number | null, cards: number) => ({ scope: "running" as const, month: "2026-11", day: 13, days_in_month: 30, cards, baseline_gmv: baseline, baseline_profit: baseline, uplift_gmv: 0, uplift_profit: 0, goal_gmv, goal_profit: goal_gmv, mtd_gmv: 4_000_000, mtd_profit: 400_000 });
+    open({ ...plan(), month: { running: totals(null, 12_900_000, 0), with_draft: totals(12_920_000, 12_900_000, 3) } } as never);
+    expect(await screen.findByTestId("kh-month-gmv-running")).toHaveTextContent("12,90 tr đ");
+    expect(screen.getByTestId("kh-month-gmv")).toHaveTextContent("Hiện tại 12,90 tr đ → Nếu áp dụng nháp 12,92 tr đ");
+    const width = (id: string) => parseFloat((screen.getByTestId(id) as HTMLElement).style.width);
+    expect(width("kh-month-gmv-run-bar")).toBeGreaterThan(50);
+    expect(width("kh-month-gmv-add-bar")).toBeGreaterThanOrEqual(10);
+  });
+
+  it("with no baseline either, the draft total is the bar", async () => {
+    const totals = (goal_gmv: number | null, cards: number) => ({ scope: "running" as const, month: "2026-11", day: 13, days_in_month: 30, cards, baseline_gmv: null, baseline_profit: null, uplift_gmv: 0, uplift_profit: 0, goal_gmv, goal_profit: goal_gmv, mtd_gmv: null, mtd_profit: null });
+    open({ ...plan(), month: { running: totals(null, 0), with_draft: totals(12_920_000, 3) } } as never);
+    expect(await screen.findByTestId("kh-month-gmv-running")).toHaveTextContent("—");
+    expect(parseFloat((screen.getByTestId("kh-month-gmv-add-bar") as HTMLElement).style.width)).toBe(100);
   });
 
   it("the whole plan, today -> after: five numbers, GMV, costs against the cap, certain and predicted profit, floor", async () => {

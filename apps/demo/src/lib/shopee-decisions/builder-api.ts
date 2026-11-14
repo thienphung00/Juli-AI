@@ -1,5 +1,7 @@
 import type { OptionResult } from "./option-result";
 import { ShopeeApiError } from "../shopee-analytics/client";
+import { refreshAuthSession } from "../auth-refresh";
+import { readAuthSession } from "../supabase-auth";
 import type { PlanResponse } from "./plan-types";
 
 /**
@@ -28,6 +30,8 @@ export type ProductSort = "gmv_90d" | "orders_90d" | "orders_30d" | "name";
 export interface PickerProduct {
   readonly item_id: string;
   readonly name: string;
+  /** A URL or Seller Centre's bare image id (shown through `shopeeImageSrc`). */
+  readonly image_url?: string | null;
   readonly status?: string | null;
   readonly orders_30d: number;
   readonly orders_90d: number;
@@ -106,6 +110,10 @@ export interface VariationRow {
   readonly sku?: string | null;
   readonly list_price: N;
   readonly selling_price: N;
+  /** What the buyer pays today, a running shop programme / flash price included. */
+  readonly paid_price?: N;
+  /** The smallest whole % off the list price that goes below `paid_price` (null = unknown). */
+  readonly min_discount_pct?: number | null;
   readonly pack_count: N;
   readonly pack_source?: "set" | "name" | "single" | string | null;
   readonly pack_source_label?: string | null;
@@ -592,20 +600,40 @@ export interface BuilderClientOptions {
 }
 
 export function createBuilderApi(options: BuilderClientOptions): BuilderApi {
-  const { base, token, shopId, fetchImpl } = options;
+  const { base, shopId, fetchImpl } = options;
+  // The token the last request was accepted with: a refreshed one replaces the one captured at
+  // construction, so a long-lived client (the Tự tạo panel) never keeps sending a stale bearer.
+  let token = options.token;
+  const seller = !base.includes("/ops/");
+  /** After a 401: the stored session's token when it differs from `sent`, else a refreshed one. */
+  async function newerToken(sent: string): Promise<string | null> {
+    const stored = readAuthSession();
+    if (stored && stored.accessToken !== sent) return stored.accessToken;
+    const next = await refreshAuthSession();
+    return next && next.accessToken !== sent ? next.accessToken : null;
+  }
   async function call<T>(method: "GET" | "POST" | "PUT" | "DELETE", path: string, body?: unknown, params?: URLSearchParams): Promise<T> {
     const qs = params?.toString();
-    const response = await (fetchImpl ?? fetch)(`${base}${path}${qs ? `?${qs}` : ""}`, {
-      method,
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-        ...(shopId ? { "X-Shop-Id": shopId } : {}),
-      },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      cache: "no-store",
-    });
+    const send = (bearer: string) =>
+      (fetchImpl ?? fetch)(`${base}${path}${qs ? `?${qs}` : ""}`, {
+        method,
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${bearer}`,
+          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+          ...(shopId ? { "X-Shop-Id": shopId } : {}),
+        },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        cache: "no-store",
+      });
+    let response = await send(token);
+    if (response.status === 401 && seller) {
+      const fresh = await newerToken(token);
+      if (fresh) {
+        response = await send(fresh);
+        if (response.status !== 401) token = fresh;
+      }
+    }
     let payload: unknown = null;
     if (response.status !== 204) {
       try {

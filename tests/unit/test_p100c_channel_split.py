@@ -142,6 +142,35 @@ def test_product_level_has_no_shop_plus_row():
     assert ads["ad_base"] == "ads_report" and ads["gmv"] == 300_000
 
 
+def test_product_without_sources_takes_ads_and_affiliate_from_the_report_and_order_lines():
+    from types import SimpleNamespace
+
+    from juli_backend.services.shopee_analytics.channel_split import (
+        _product_ads,
+        _product_affiliate,
+    )
+    from juli_backend.services.shopee_profit.shop_profit import AdsFigures
+
+    # the product's funnel rows carry no source breakdown: every GMV sits in the residual
+    rows = (SourceDay(DAY, "A", "chenh_lech_nguon", None, None, 10, D(1_000_000), D(0)),)
+    base = base_from_rows(FunnelRows(W, rows), "s", item_ids=["A"])
+
+    def line(oid, aff):
+        return SimpleNamespace(order_id=oid, product_id="A", affiliate=aff, order_value=D(100_000))
+
+    view = SimpleNamespace(
+        ads=SimpleNamespace(product_figures={"A": AdsFigures(D(50_000), D(300_000), D(0))}),
+        pairs=[(line("o1", True), None), (line("o1", True), None), (line("o2", False), None)],
+    )
+    ads = _product_ads(view, "A", True)
+    aff = _product_affiliate(view, "A")
+    assert ads == {"gmv": 300_000} and aff == {"gmv": 200_000, "orders": 1}
+    r = _by_key(split_rows(base, ads_known=True, ads_fallback=ads, affiliate_fallback=aff))
+    assert r["ads"]["gmv"] == 300_000 and r["affiliate"]["gmv"] == 200_000
+    assert r["organic"]["gmv"] == 500_000
+    assert _product_ads(view, "A", False) is None  # no ad data at all stays unknown
+
+
 def test_weakest_metric_is_the_one_furthest_below_the_shop_median():
     vals = {
         "a": {"views": 100.0, "ctr": 0.05, "ctor": 0.10, "aov": 100.0},
@@ -198,3 +227,20 @@ async def test_the_ops_route_mirrors_the_seller_route(session, monkeypatch):
     app.dependency_overrides.clear()
     assert shop.status_code == 200 and picker.status_code == 200
     assert shop.json()["level"] == "shop"
+
+
+async def test_picker_margin_is_the_builders_one_scope_margin(session):
+    """Step 1's product card shows the margin the builder result calls "hôm nay"."""
+    from juli_backend.services.shopee_analytics import channel_split as cs
+    from juli_backend.services.shopee_profit.shop_profit import scope_margin_pct
+
+    seeded = await seed_shopee_shop(session, rules=True)
+    await session.commit()
+    out = await cs.channel_split_products(session, seeded.shop.id, period="7d", as_of=CUR_END)
+    _ctx, view, _w = await cs._load(
+        session, seeded.shop.id, period="7d", month=None, start=None, end=None, as_of=CUR_END
+    )
+    assert out["products"]
+    for p in out["products"]:
+        one = scope_margin_pct(view.profit, (p["product_id"],))
+        assert p["margin"] == (None if one is None else float(one))

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { fmt, vnd } from "../../../lib/shopee-analytics/format";
+import { shopeeImageSrc } from "../../../lib/shopee-analytics/image-src";
 import type { AdsCampaigns, CoverOverlay, KeywordTable } from "../../../lib/shopee-decisions/builder-api";
 import { ADS_ROAS_PRESETS, MAX_FIRST_LINE, MAX_TITLE, num, type Forms } from "../../../lib/shopee-decisions/builder-p92";
 import { LlmOff, NumIn, Pills, Seg, TextIn, useDraft, type PanelCtx } from "./shared";
@@ -190,7 +191,6 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
   const n = chars(form.text);
   const cov = coverage(form.text, form.ticked);
   const toggle = (k: string) => set({ ticked: form.ticked.includes(k) ? form.ticked.filter((x) => x !== k) : [...form.ticked, k].slice(0, 12) });
-  const missingSources = (table?.sources ?? []).filter((s) => !s.present && s.reason);
   return (
     <div className="p2-panel" data-testid="p2-panel-title">
       {tableErr ? <p className="sd-error">Chưa tải được bảng từ khoá.</p> : null}
@@ -199,7 +199,7 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
           Tiêu đề hiện tại ({table.title_chars}/{table.max_title_chars}): {table.title}
         </p>
       ) : null}
-      {table ? (
+      {table && table.keywords.length > 0 ? (
         <table className="p2-table" data-testid="p2-kw-table">
           <thead>
             <tr>
@@ -227,11 +227,11 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
           </tbody>
         </table>
       ) : null}
-      {missingSources.map((s) => (
-        <p className="sa-hint" key={s.key}>
-          {s.label}: {s.reason}
+      {table && table.keywords.length === 0 ? (
+        <p className="sa-hint" data-testid="p2-kw-empty">
+          Chưa có từ khoá
         </p>
-      ))}
+      ) : null}
       <div className="sd-actions">
         <button className="sa-btn sa-btn--primary" data-testid="p2-title-draft" disabled={form.ticked.length === 0 || draft.status === "busy"} onClick={() => write(false)} type="button">
           Viết 3 tiêu đề bằng từ khoá đã chọn
@@ -303,10 +303,11 @@ export function overlayLines(o: CoverOverlay): string[] {
   return out;
 }
 
-export function CoverPreview({ overlay }: { readonly overlay: CoverOverlay }) {
+export function CoverPreview({ overlay, image }: { readonly overlay: CoverOverlay; readonly image?: string | null }) {
+  const src = shopeeImageSrc(image);
   return (
     <div className={`p2-cover p2-cover--${overlay.layout}`} data-testid="p2-cover-preview">
-      <span className="p2-cover__photo">ảnh thật, giữ nguyên</span>
+      {src ? <img alt="" className="p2-cover__img" src={src} /> : <span className="p2-cover__photo">ảnh thật, giữ nguyên</span>}
       <span className="p2-cover__text">
         {overlayLines(overlay).map((l, i) => (
           <b key={i}>{l}</b>
@@ -348,7 +349,7 @@ export function CoverPanel({ form, set, ctx }: P<"cover_image">) {
         <ul className="p2-concepts" data-testid="p2-concepts">
           {draft.data.concepts.map((c, i) => (
             <li key={i}>
-              <CoverPreview overlay={c.overlay} />
+              <CoverPreview image={ctx.product.image_url} overlay={c.overlay} />
               <span className="sa-hint">
                 Phương án {String.fromCharCode(65 + i)}
               </span>

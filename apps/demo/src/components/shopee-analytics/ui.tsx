@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { DASH, pp, vnd, type Chip, type Tone } from "../../lib/shopee-analytics/format";
 import type { ApiRefusal } from "../../lib/shopee-analytics/client";
+import { shopeeImageSrc } from "../../lib/shopee-analytics/image-src";
 import { notMaterializedOf } from "../../lib/shopee-analytics/not-materialized";
 import type { Resource } from "../../lib/shopee-analytics/use-resource";
 
@@ -116,7 +117,16 @@ export function Bar({ pct, tone = "neutral" }: { readonly pct: number | null; re
   );
 }
 
-export function Ini({ text }: { readonly text: string }) {
+/** The product's initials tile; with a photo (`src`: a URL or Seller Centre's bare image id) the photo fills it. */
+export function Ini({ text, src }: { readonly text: string; readonly src?: string | null }) {
+  const image = shopeeImageSrc(src);
+  if (image) {
+    return (
+      <span className="sa-ini sa-ini--photo">
+        <img alt="" src={image} />
+      </span>
+    );
+  }
   return <span className="sa-ini">{text}</span>;
 }
 
@@ -227,7 +237,7 @@ export function PriceMargin({ p, margin }: { readonly p: { readonly price_min?: 
       <span className="sa-pm__margin">
         <span className="sa-fcell__label">Biên</span>
         <b>{basis === "chưa tính" || margin == null ? "chưa tính" : pp(margin, 1)}</b>
-        <span className="sa-hint">{basis}</span>
+        {basis === "ước tính" ? null : <span className="sa-hint">{basis}</span>}
       </span>
     </span>
   );

@@ -35,11 +35,17 @@ from juli_backend.services.shopee_builder import (
     picker_table,
     response,
 )
+from juli_backend.services.shopee_builder import keyword_coverage as kwc
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
 from juli_backend.services.shopee_builder.engine_families import integrate
+from juli_backend.services.shopee_builder.keywords import keyword_table
 from juli_backend.services.shopee_builder.reference import with_reference_lines
-from juli_backend.services.shopee_builder.translate import Translation, to_variant
+from juli_backend.services.shopee_builder.translate import (
+    Translation,
+    paid_price_and_min_discount,
+    to_variant,
+)
 from juli_backend.services.shopee_builder.variations import (
     economics,
     measured_rates,
@@ -194,6 +200,13 @@ async def variation_rows_for(
     return rows
 
 
+def _paid_fields(env: RecoEnv, row: Mapping[str, Any]) -> dict[str, Any]:
+    """``paid_price`` (what the buyer pays today) and ``min_discount_pct`` of one variation row."""
+    sku = row.get("sku_key")
+    paid, min_pct = paid_price_and_min_discount(env, str(sku)) if sku else (None, None)
+    return {"paid_price": None if paid is None else int(paid), "min_discount_pct": min_pct}
+
+
 async def product_variations(
     session: AsyncSession, shop_id: uuid.UUID, item_id: str, *, as_of: date | None, now: datetime
 ) -> dict[str, Any]:
@@ -204,6 +217,7 @@ async def product_variations(
     known = item_id in env.ctx.catalog.items or env.orders_of(item_id) > 0
     if not known:
         raise LookupError(item_id)
+    rows = [{**r, **_paid_fields(env, r)} for r in rows]
     out = economics(item_id, env.name(item_id), rows, vat=env.view.vat)
     # "So sánh phân loại" shows both margins (ADR-122 d.12)
     out["columns"] = [*out["columns"], "final_margin_pct"]
@@ -359,6 +373,16 @@ async def _responses(
     env.response_shop = response.shop_response(found)
 
 
+async def _load_keyword_weights(
+    session: AsyncSession, shop_id: uuid.UUID, ctx: BuilderContext, item: str
+) -> None:
+    """The product's keyword volumes (the Tiêu đề keyword table) for a title / first-line lift."""
+    li = ctx.env.listings.get(item)
+    title = (li.title if li and li.title else None) or ctx.env.name(item)
+    table = await keyword_table(session, shop_id, item, title=title, as_of=ctx.env.as_of)
+    ctx.keyword_weights[item] = kwc.weights_of_table(table)
+
+
 async def build_context(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -366,15 +390,21 @@ async def build_context(
     *,
     as_of: date | None,
     now: datetime,
+    env: RecoEnv | None = None,
 ) -> BuilderContext:
-    env = await loader.load_env(session, shop_id, as_of=as_of, now=now)
+    """``env``: an environment already loaded (the stored-result recomputation); else loaded."""
+    env = env or await loader.load_env(session, shop_id, as_of=as_of, now=now)
     if env is None:
         raise NoShopeeData(str(shop_id))
     items = list(dict.fromkeys(i for spec in specs for i in sp.items_of(spec)))
-    ctx = BuilderContext(env=env)
+    ctx = BuilderContext(env=env, source_env=env)
     ctx.variations = await variation_rows_for(session, shop_id, env, items)
     ctx.env, ctx.reference_items = with_reference_lines(env, ctx.variations, items)
     env = ctx.env
+    for item in dict.fromkeys(
+        i for spec in specs if spec.kind in kwc.KEYWORD_KINDS for i in sp.items_of(spec)
+    ):
+        await _load_keyword_weights(session, shop_id, ctx, item)
     if any(spec.kind in PRICE_SCALED for spec in specs):
         _, view90, _ = await load_view90(session, shop_id, env.as_of)
         ctx.view90 = view90
@@ -727,6 +757,7 @@ async def choose(
         now=now,
         env=ctx.env,
         acknowledge_breaches=acknowledge_breaches,
+        builder_ctx=ctx,
     )
     out["outcome"] = evaluate_version(ctx, specs[chosen], chosen, now, str(shop_id))[0]
     return out
@@ -787,6 +818,7 @@ async def run_together(
                 now=now,
                 env=ctx.env,
                 acknowledge_breaches=acknowledge_breaches,
+                builder_ctx=ctx,
             )
             card_id = uuid.UUID(out["id"])
             saved.append({"id": out["id"], "code": out["code"], "indexes": [i for i, _ in chunk]})

@@ -690,3 +690,17 @@ async def test_a_programme_price_not_below_today_is_refused_with_the_smallest_re
     )  # fmt: skip
     assert real["ok"] is True
     assert real["cost"]["amount"] > 0  # the discount is a cost (B.11 / B.14)
+
+
+async def test_the_variations_payload_names_the_price_paid_and_the_smallest_discount(session, shop):
+    """P100 UI fix: the builder shows the floor before the round trip; it is the very figure
+    the ``discount_not_below_current`` refusal names (list 100.000đ, buyers pay 90.000đ: 11%)."""
+    out = await builder.product_variations(session, shop.shop_id, "1001", as_of=AS_OF, now=NOW)
+    row = out["variations"][0]
+    assert row["paid_price"] == 90_000 and row["min_discount_pct"] == 11
+    refused = await one(
+        session, shop, kind="product_discount", item_id="1001",
+        variations=[{"variation_id": "", "discount_pct": 10}],
+    )  # fmt: skip
+    assert refused["refusal"]["code"].endswith(f":{row['min_discount_pct']}")
+    assert all("paid_price" in r and "min_discount_pct" in r for r in out["variations"])

@@ -67,7 +67,7 @@ export function PhanTichPageView({ params }: { readonly params: URLSearchParams 
   const kol = useResource<KolSectionData>(() => host.api.kolSection(state.query), `${host.shopKey}|ptk|${JSON.stringify(state.query)}`);
   const href = (patch: Record<string, string | null>) => host.links.screen("phan-tich", nextQuery(params, patch));
   return (
-    <div className="sa-page" data-testid="sa-phan-tich">
+    <div className="sa-page sa-p100" data-testid="sa-phan-tich">
       <ResourceState resource={data}>
         {(v) => (
           <>
@@ -104,17 +104,7 @@ function Head({ sel, view }: { readonly sel: MetricKey; readonly view: MetricVie
   const parts = [`${METRIC_NAME[sel]}${s ? ` ${s.text}` : ""}`];
   if (worst) parts.push(CHANNEL_LABEL[worst.key] ?? worst.key);
   if (down > 0) parts.push(`${down} sản phẩm kéo xuống`);
-  return (
-    <PageHead
-      chips={
-        <span className="sa-chip sa-chip--outline">
-          {view.days} ngày · so với {view.days} ngày trước
-        </span>
-      }
-      eyebrow="PHÂN TÍCH"
-      title={parts.join(" · ")}
-    />
-  );
+  return <PageHead eyebrow={`PHÂN TÍCH · ${view.days} NGÀY · SO VỚI ${view.days} NGÀY TRƯỚC`} title={parts.join(" · ")} />;
 }
 
 function ModeSwitch({ mode, href }: { readonly mode: ValueMode; readonly href: (patch: Record<string, string | null>) => string }) {
@@ -180,7 +170,7 @@ function ByChannel({ view, sel, mode, href, state }: { readonly state: WindowSta
           </Link>
           <b>{valueText(m, r.now, days, mode)}</b>
           <span>{valueText(m, r.prev, days, mode)}</span>
-          <Shift pct={r.change} />
+          <span className="jp-shift-cell"><Shift pct={r.change} /></span>
           <span>{impactText(r, days, mode)}</span>
           <Cta channel={r.key} metric={m} state={state} product={sel.product} row={r} />
         </div>
@@ -217,12 +207,12 @@ function ByProduct({ view, sel, mode, state }: { readonly state: WindowState; re
       {rows.map((p) => (
         <div className="jp-grid jp-grid--pr" data-testid={`pt-product-${p.product_id}`} key={p.product_id}>
           <Link className="jp-who jp-prod" href={links.product(p.product_id)}>
-            <Ini text={initialsOf(p.name)} />
+            <Ini src={p.image_url} text={initialsOf(p.name)} />
             <span className="jp-clip">{p.name}</span>
           </Link>
           <b>{valueText(m, p.now, view.days, mode)}</b>
           <span>{valueText(m, p.prev, view.days, mode)}</span>
-          <Shift pct={p.change} />
+          <span className="jp-shift-cell"><Shift pct={p.change} /></span>
           <span>{impactText(p, view.days, mode)}</span>
           <Cta channel={sel.channel} metric={m} state={state} product={p.product_id} row={p} />
         </div>

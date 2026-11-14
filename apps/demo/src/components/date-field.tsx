@@ -37,16 +37,19 @@ export function DateField({
   onChange,
   style,
   ariaLabel,
+  className,
 }: {
   readonly value: string;
   readonly onChange: (iso: string) => void;
   readonly style?: CSSProperties;
   readonly ariaLabel?: string;
+  readonly className?: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   return (
     <input
       aria-label={ariaLabel}
+      className={className}
       inputMode="numeric"
       onBlur={() => setDraft(null)}
       onChange={(e) => {

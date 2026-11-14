@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { MarketPriceMarker } from "../../shopee-analytics/market-price-marker";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { CoPurchase } from "../../../lib/shopee-decisions/builder-api";
-import { DEAL_SOC_TYPES, MAX_ADDONS, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
+import { DEAL_SOC_TYPES, MAX_ADDONS, belowPaidHint, belowPaidProblem, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
 import { NumIn, Pills, ProductSelect, Seg, TextIn, VariationSelect, setAt, type PanelCtx } from "./shared";
 import { ProductTargets } from "./targets";
 
@@ -348,13 +348,15 @@ export function pctLabel(mode: "pct" | "final_price", direction: "off" | "change
   return direction === "change" ? "Thay đổi" : "Giảm";
 }
 
-function VarRows({ ctx, rows, mode, direction, onRow, labels }: { readonly labels?: { readonly pct: string; readonly final: string }; readonly ctx: PanelCtx; readonly direction: "off" | "change"; readonly rows: readonly { readonly variationId: string; readonly value: string }[]; readonly mode: "pct" | "final_price"; readonly onRow: (id: string, value: string) => void }) {
+function VarRows({ ctx, rows, mode, direction, onRow, labels, bounded }: { readonly bounded?: boolean; readonly labels?: { readonly pct: string; readonly final: string }; readonly ctx: PanelCtx; readonly direction: "off" | "change"; readonly rows: readonly { readonly variationId: string; readonly value: string }[]; readonly mode: "pct" | "final_price"; readonly onRow: (id: string, value: string) => void }) {
   const skus = (Array.isArray(ctx.outcome?.details?.["skus"]) ? ctx.outcome!.details!["skus"] : []) as Readonly<Record<string, unknown>>[];
   return (
     <div className="p2-rows" data-testid="p2-varrows">
       {ctx.variations.map((v, i) => {
         const val = rows.find((r) => r.variationId === v.variation_id)?.value ?? "";
         const sku = skus[i];
+        const bound = bounded ? belowPaidHint(v) : null;
+        const under = bounded ? belowPaidProblem(v, mode, val) : null;
         return (
           <div className="p2-row p2-row--wrap" key={v.variation_id || "default"}>
             <span className="p2-row__name">
@@ -362,6 +364,16 @@ function VarRows({ ctx, rows, mode, direction, onRow, labels }: { readonly label
               <span className="sa-hint">giá hiện tại {vnd(v.selling_price)}</span>
             </span>
             <NumIn label={`${labels ? (mode === "pct" ? labels.pct : labels.final) : pctLabel(mode, direction)} · ${v.name}`} onChange={(x) => onRow(v.variation_id, x)} suffix={mode === "pct" ? "%" : "đ"} value={val} />
+            {bound && (mode === "pct" ? bound.min !== null : bound.paid !== null) ? (
+              <span className="sa-hint" data-testid={`p2-min-${i + 1}`}>
+                {mode === "pct" ? `Tối thiểu ${bound.min} % · đang bán ${vnd(bound.paid)}` : `Đang bán ${vnd(bound.paid)}`}
+              </span>
+            ) : null}
+            {under ? (
+              <span className="sd-error" data-testid={`p2-under-${i + 1}`} role="alert">
+                {under}
+              </span>
+            ) : null}
             {sku ? (
               <span className="sa-hint" data-testid={`p2-sku-${i + 1}`}>
                 {vnd(dn(sku, "price_before"))} → {vnd(dn(sku, "price_after"))} · biên {marginText(dn(sku, "margin_pct_before"))} → {marginText(dn(sku, "margin_pct_after"))}
@@ -402,7 +414,7 @@ export function DiscountPanel({ form, set, ctx }: P<"product_discount">) {
       ) : (
         <>
           <Seg label="Nhập giảm theo" onChange={(mode) => set({ mode })} options={[["pct", "% GIẢM"], ["final_price", "Giá sau giảm (₫)"]]} value={form.mode} />
-          <VarRows ctx={ctx} direction="off" labels={PROGRAMME_LABELS} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
+          <VarRows bounded ctx={ctx} direction="off" labels={PROGRAMME_LABELS} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
         </>
       )}
       <TimeWindow form={form} legend="Thời gian khuyến mãi" set={(patch) => set(patch)} testId="p2-discount-time" />
@@ -419,7 +431,7 @@ export function PriceFlashPanel({ form, set, ctx }: P<"price_flash">) {
     <div className="p2-panel" data-testid="p2-panel-flash">
       <Pills label="Loại thay đổi" onChange={(what) => set({ what })} options={[["price", "Đổi giá niêm yết"], ["flash_sale", "Flash sale của shop"]]} value={form.what} />
       <Seg label={form.what === "price" ? "Nhập giá theo" : "Nhập giảm theo"} onChange={(mode) => set({ mode })} options={[["pct", form.what === "price" ? "Thay đổi (%)" : "Giảm (%)"], ["final_price", form.what === "price" ? "Giá bán mới (đ)" : "Giá flash sale (đ)"]]} value={form.mode} />
-      <VarRows ctx={ctx} direction={form.what === "price" ? "change" : "off"} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
+      <VarRows bounded={form.what === "flash_sale"} ctx={ctx} direction={form.what === "price" ? "change" : "off"} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
       {form.what === "flash_sale" ? (
         <div className="p2-grid">
           <NumIn label="Số lượng (suất)" onChange={(units) => set({ units })} value={form.units} />

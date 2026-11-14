@@ -6,7 +6,7 @@ import { DASH, fmt, vnd } from "../../lib/shopee-analytics/format";
 import { kindLabel, metricsOfCard } from "../../lib/shopee-decisions/model";
 import { MetricChip } from "../metrics/metric-chip";
 import { useReco } from "../../lib/shopee-decisions/context";
-import type { CardSummary } from "../../lib/shopee-decisions/types";
+import type { CardSummary, Quantiles } from "../../lib/shopee-decisions/types";
 import { isOpen, rangeTone } from "../../lib/shopee-decisions/versions";
 import { Notice, TextChip } from "../shopee-analytics/ui";
 import { ShopeeApiError } from "../../lib/shopee-analytics/client";
@@ -65,12 +65,30 @@ export function rangeText(q: { readonly p10: number | null; readonly p90: number
 /** The card's own days (the Δ totals stand on them). */
 export const cardDays = (c: Pick<CardSummary, "predicted_summary">): number => Math.max(1, c.predicted_summary.effect_days || 30);
 
-export function CardRow({ card, name, inPlan, canAct, busy, onPlan }: { readonly card: CardSummary; readonly name?: string | null; readonly inPlan: boolean; readonly canAct: boolean; readonly busy: boolean; readonly onPlan: (c: CardSummary, add: boolean) => void }) {
+export const NOT_ESTIMABLE_TEXT = "Chưa ước tính được";
+
+/** One card, one number: the stored result's Δ bands (its own days); `null` when not estimable. */
+export function cardBands(c: Pick<CardSummary, "predicted_summary">): { readonly profit: Quantiles; readonly gmv: Quantiles } | null {
+  const s = c.predicted_summary;
+  const profit = s.dprofit ?? s.dprofit_month;
+  const gmv = s.dgmv ?? s.dgmv_month;
+  if (s.not_estimable || profit.p50 === null) return null;
+  return { profit, gmv };
+}
+
+/** "≈ +12.000đ/ngày": the result's P50 over its own days. */
+export function perDayP50(p50: number | null, days: number): string {
+  return p50 === null ? DASH : `≈ ${money(p50 / Math.max(1, days))}/ngày`;
+}
+
+/** A card with one version is approved from the list; with several the seller picks the version on the card. */
+export const approvesInPlace = (card: Pick<CardSummary, "versions">): boolean => (card.versions?.length ?? 1) <= 1;
+
+export function CardRow({ card, name, inPlan, canAct, busy, onPlan, onApprove }: { readonly card: CardSummary; readonly name?: string | null; readonly inPlan: boolean; readonly canAct: boolean; readonly busy: boolean; readonly onPlan: (c: CardSummary, add: boolean) => void; readonly onApprove?: (c: CardSummary) => void }) {
   const host = useReco();
   const days = cardDays(card);
-  const q = card.predicted_summary.dprofit_month;
-  const tone = rangeTone(q.p10, q.p90);
-  const g = card.predicted_summary.dgmv_month;
+  const bands = cardBands(card);
+  const tone = bands ? rangeTone(bands.profit.p10, bands.profit.p90) : "flat";
   const href = host.href({ the: card.id, from: "quyet-dinh" });
   return (
     <article className={`sq-card dx-card ${inPlan ? "dx-card--in" : ""}`} data-testid={`sq-card-${card.id}`}>
@@ -92,18 +110,20 @@ export function CardRow({ card, name, inPlan, canAct, busy, onPlan }: { readonly
         <div className="dx-card__delta">
           <div className="dx-card__label">Δ lợi nhuận cả {fmt(days, 0)} ngày</div>
           <div className={`dx-card__big ${tone === "up" ? "sa-tone--up" : tone === "down" ? "sa-tone--down" : ""}`} data-testid="dx-dprofit">
-            {rangeText(q)}
+            {bands ? rangeText(bands.profit) : NOT_ESTIMABLE_TEXT}
           </div>
-          <div className="dx-card__perday" data-testid="dx-perday">
-            ≈ {rangeText(q, days)}/ngày
-          </div>
+          {bands ? (
+            <div className="dx-card__perday" data-testid="dx-perday">
+              {perDayP50(bands.profit.p50, days)}
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="dx-card__chips">
         {metricsOfCard(card).map((m) => (
           <MetricChip key={m} metric={m} />
         ))}
-        <span data-testid="dx-dgmv">Δ GMV {rangeText(g)}</span>
+        {bands ? <span data-testid="dx-dgmv">Δ GMV {rangeText(bands.gmv)}</span> : null}
         {typeof card.cost === "number" && card.cost > 0 ? (
           <span data-testid="dx-cost">
             · <b>Chi phí:</b> {vnd(Math.round(card.cost))}
@@ -122,9 +142,15 @@ export function CardRow({ card, name, inPlan, canAct, busy, onPlan }: { readonly
             {inPlan ? "Bỏ khỏi kế hoạch" : "Thêm vào kế hoạch"}
           </button>
         ) : null}
-        <NavLink className="sa-btn sa-btn--s sa-btn--primary" href={href}>
-          Duyệt
-        </NavLink>
+        {onApprove && canAct && approvesInPlace(card) ? (
+          <button className="sa-btn sa-btn--s sa-btn--primary" data-testid="sq-approve" disabled={busy} onClick={() => onApprove(card)} type="button">
+            Duyệt
+          </button>
+        ) : (
+          <NavLink className="sa-btn sa-btn--s sa-btn--primary" href={href}>
+            Duyệt
+          </NavLink>
+        )}
       </div>
     </article>
   );
@@ -158,7 +184,7 @@ export function FlashNotice({ flash }: { readonly flash: Flash }) {
 export function TopCards({ cards, names, inPlan, flash, onFlash, onChanged }: { readonly cards: readonly CardSummary[]; readonly names: Readonly<Record<string, string>>; readonly inPlan: ReadonlySet<string>; readonly flash: Flash; readonly onFlash: (f: Flash) => void; readonly onChanged: () => void }) {
   const host = useReco();
   const [busy, setBusy] = useState(false);
-  const [planning, setPlanning] = useState<{ readonly card: CardSummary; readonly breaches: readonly Breach[] } | null>(null);
+  const [planning, setPlanning] = useState<{ readonly card: CardSummary; readonly breaches: readonly Breach[]; readonly mode: "plan" | "approve" } | null>(null);
   const canAct = !host.readOnly && !host.staff;
   const toggle = async (card: CardSummary, add: boolean, acknowledge: boolean) => {
     const plan = host.plan;
@@ -171,7 +197,22 @@ export function TopCards({ cards, names, inPlan, flash, onFlash, onChanged }: { 
       setPlanning(null);
       onChanged();
     } catch (e) {
-      if (e instanceof ShopeeApiError && e.code.startsWith("reco_breach") && Array.isArray(e.detail?.["breaches"])) setPlanning({ card, breaches: e.detail["breaches"] as Breach[] });
+      if (e instanceof ShopeeApiError && e.code.startsWith("reco_breach") && Array.isArray(e.detail?.["breaches"])) setPlanning({ card, breaches: e.detail["breaches"] as Breach[], mode: "plan" });
+      else onFlash({ notice: { text: errorText(e), tone: "plain" }, justUp: flash.justUp });
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Duyệt on a one-version card: the same approve call as "Duyệt V1" on the card page; the list reloads without it
+  const approve = async (card: CardSummary, acknowledge: boolean) => {
+    setBusy(true);
+    try {
+      await host.reco.approve(card.id, { chosenVersion: 1, acknowledgeBreaches: acknowledge });
+      onFlash({ notice: { text: `Đã duyệt ${card.code ?? card.title} · chuyển sang Thực hiện`, tone: "ok" }, justUp: flash.justUp });
+      setPlanning(null);
+      onChanged();
+    } catch (e) {
+      if (e instanceof ShopeeApiError && e.code.startsWith("reco_breach") && Array.isArray(e.detail?.["breaches"])) setPlanning({ card, breaches: e.detail["breaches"] as Breach[], mode: "approve" });
       else onFlash({ notice: { text: errorText(e), tone: "plain" }, justUp: flash.justUp });
     } finally {
       setBusy(false);
@@ -180,7 +221,7 @@ export function TopCards({ cards, names, inPlan, flash, onFlash, onChanged }: { 
   return (
     <>
       {cards.map((c) => (
-        <CardRow name={c.product_id ? names[c.product_id] : null} busy={busy} canAct={canAct} card={c} inPlan={inPlan.has(c.id)} key={c.id} onPlan={(x, add) => void toggle(x, add, false)} />
+        <CardRow name={c.product_id ? names[c.product_id] : null} busy={busy} canAct={canAct} card={c} inPlan={inPlan.has(c.id)} key={c.id} onApprove={(x) => void approve(x, false)} onPlan={(x, add) => void toggle(x, add, false)} />
       ))}
       <BreachDialog
         busy={busy}
@@ -188,9 +229,9 @@ export function TopCards({ cards, names, inPlan, flash, onFlash, onChanged }: { 
         goLabel="Vẫn tiếp tục"
         lines={planning ? breachWarnLines(planning.breaches) : []}
         onBack={() => setPlanning(null)}
-        onGo={() => planning && void toggle(planning.card, true, true)}
+        onGo={() => planning && void (planning.mode === "approve" ? approve(planning.card, true) : toggle(planning.card, true, true))}
         open={planning !== null}
-        title={planning ? `Thêm ${planning.card.code ?? planning.card.id} vào kế hoạch dù ${breachNoun(planning.breaches)}?` : ""}
+        title={planning ? `${planning.mode === "approve" ? "Duyệt" : "Thêm"} ${planning.card.code ?? planning.card.id}${planning.mode === "approve" ? "" : " vào kế hoạch"} dù ${breachNoun(planning.breaches)}?` : ""}
       />
     </>
   );

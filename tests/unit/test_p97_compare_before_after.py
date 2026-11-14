@@ -66,14 +66,21 @@ async def test_a_voucher_moves_aov_and_ctor_and_leaves_views_ctr_unchanged(sessi
 
 
 async def test_a_title_moves_views_only(session, shop):
+    # 4f64e2e5: a title lift is scored against the product's keyword volumes -- seed the market
+    # keywords and give the title the keywords they rank, so the version is estimable
+    from tests.unit.test_shopee_builder_drafts import _market
+
+    await _market(session, shop.shop_id)
+    await session.commit()
     v = await one(
         session,
         shop,
         kind="title",
         item_id="1001",
-        title="Găng tay tự hủy sinh học STAHAUS hộp 100 chiếc",
+        title="Găng tay tự hủy sinh học STAHAUS, găng tay dùng một lần, găng tay nitrile y tế",
         keywords=["găng tay"],
     )
+    assert v["result"]["estimable"] is True
     ba, rows = rows_of(v)
     assert ba["scope"] == "product"
     views = rows["views"]

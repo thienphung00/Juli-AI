@@ -14,10 +14,8 @@ import pytest
 
 from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_builder import specs as sp
-from juli_backend.services.shopee_builder.context import BuilderContext
 from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
 from juli_backend.services.shopee_builder.engine_families import integrate
-from juli_backend.services.shopee_builder.service import variation_rows_for
 from juli_backend.services.shopee_recommendations import plan_aggregate as pa
 from juli_backend.services.shopee_recommendations import plans
 from juli_backend.services.shopee_recommendations.loader import load_env
@@ -196,11 +194,12 @@ async def _plan_of(session, seeded, env, *variants):
 
 
 async def _period(session, seeded, env, spec):
-    """The builder's Δ over the version's own days (P99b: what Tự tạo shows) and its days."""
-    ctx = BuilderContext(
-        env=env, variations=await variation_rows_for(session, seeded.shop_id, env, ["1001"])
-    )
-    done, _ = integrate.evaluate(ctx, spec)
+    """The builder's Δ over the version's own days (P99b: what Tự tạo shows) and its days -- on
+    Tự tạo's own context (one card, one number: the stored card result is this figure)."""
+    from juli_backend.services.shopee_builder import service as builder
+
+    ctx = await builder.build_context(session, seeded.shop_id, [spec], as_of=AS_OF, now=NOW)
+    done, _ = integrate.evaluate(ctx, spec, str(seeded.shop_id))
     r = done.result_json()
     d = r["delta"]
     return {
@@ -350,3 +349,32 @@ async def _plan_of_saved(session, seeded, card_id):
         session, seeded.shop_id, card_id, actor=_actor(seeded), now=NOW, acknowledge_breaches=True
     )
     return out["aggregate"]
+
+
+TITLE_SPEC = sp.TitleSpec(
+    kind="title",
+    item_id="1001",
+    title="Găng tay tự hủy sinh học STAHAUS, găng tay dùng một lần, găng tay nitrile y tế",
+)
+
+
+async def test_a_keyword_rich_title_card_is_estimable_in_the_plan(session, shop):
+    """4f64e2e5: a title lift is scored against the product's keyword volumes, so the plan loads
+    them too -- a saved title version is not "chưa ước tính được" in Kế hoạch."""
+    from juli_backend.services.shopee_builder import service as builder
+    from juli_backend.services.shopee_recommendations import manual
+    from tests.unit.test_shopee_builder_drafts import _market
+
+    seeded, env = shop
+    await _market(session, seeded.shop_id)
+    await session.commit()
+    actor = manual.Actor("staff", seeded.user.id, seeded.user.id)
+    saved = await builder.choose(
+        session, seeded.shop_id, [TITLE_SPEC], 0, primary=False,
+        acknowledge_breaches=True, actor=actor, as_of=AS_OF, now=NOW,
+    )  # fmt: skip
+    await session.commit()
+    agg = await _plan_of_saved(session, seeded, uuid.UUID(saved["id"]))
+    card = agg["cards"][0]
+    assert card["result"]["counted"] is True, card["result"].get("reason")
+    assert agg["not_estimable_cards"] == []

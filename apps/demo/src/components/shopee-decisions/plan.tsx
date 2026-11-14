@@ -164,19 +164,26 @@ function MonthBars({ plan, api }: { readonly plan: PlanResponse; readonly api: P
   const [failed, setFailed] = useState(false);
   const m = plan.month;
   if (!m) return null;
-  const bar = (label: string, key: string, run: number | null, withDraft: number | null) => {
+  const bar = (label: string, key: string, goal: number | null, baseline: number | null, withDraft: number | null) => {
+    // nothing running: the level today is the bar (the server sends it as the goal; an older answer only has the baseline)
+    const run = goal ?? baseline;
     const top = Math.max(run ?? 0, withDraft ?? 0);
-    const runPct = top > 0 && run !== null ? Math.min(100, Math.max(0, (run / top) * 100)) : 0;
-    const addPct = top > 0 && withDraft !== null && run !== null ? Math.min(100 - runPct, Math.max(0, ((withDraft - run) / top) * 100)) : 0;
+    const added = run !== null && withDraft !== null ? Math.max(0, withDraft - run) : 0;
+    // the draft's addition is a sliver of a big base: when it would be under 15 % of the bar, the axis starts below the base so it shows
+    const span = added > 0 ? Math.min(top, added / 0.15) : top;
+    const from = top - span;
+    const pct = (v: number) => (span > 0 ? Math.min(100, Math.max(0, ((v - from) / span) * 100)) : 0);
+    const runPct = run !== null ? pct(run) : 0;
+    const addPct = run !== null ? (withDraft !== null ? Math.min(100 - runPct, pct(withDraft) - runPct) : 0) : withDraft !== null ? 100 : 0;
     return (
       <div className="dx-bar" data-testid={`kh-month-${key}`}>
         <div className="dx-bar__label">{label}</div>
         <div className="dx-bar__track">
-          <div className="dx-bar__run" style={{ width: `${runPct}%` }} />
-          <div className="dx-bar__add" style={{ left: `${runPct}%`, width: `${addPct}%` }} />
+          <div className="dx-bar__run" data-testid={`kh-month-${key}-run-bar`} style={{ width: `${runPct}%` }} />
+          <div className="dx-bar__add" data-testid={`kh-month-${key}-add-bar`} style={{ left: `${runPct}%`, width: `${Math.max(0, addPct)}%` }} />
         </div>
         <div className="dx-bar__nums">
-          <span>Đang chạy</span> <b data-testid={`kh-month-${key}-running`}>{run === null ? DASH : mil(run)}</b> → <b data-testid={`kh-month-${key}-draft`}>{withDraft === null ? DASH : mil(withDraft)}</b>
+          <span>Hiện tại</span> <b data-testid={`kh-month-${key}-running`}>{run === null ? DASH : mil(run)}</b> → <span>Nếu áp dụng nháp</span> <b data-testid={`kh-month-${key}-draft`}>{withDraft === null ? DASH : mil(withDraft)}</b>
         </div>
       </div>
     );
@@ -206,8 +213,8 @@ function MonthBars({ plan, api }: { readonly plan: PlanResponse; readonly api: P
         ) : null}
         {failed ? <span className="sd-error">Chưa tải được tệp Excel</span> : null}
       </div>
-      {bar("GMV", "gmv", m.running.goal_gmv, m.with_draft.goal_gmv)}
-      {bar("Lợi nhuận", "profit", m.running.goal_profit, m.with_draft.goal_profit)}
+      {bar("GMV", "gmv", m.running.goal_gmv, m.running.baseline_gmv, m.with_draft.goal_gmv)}
+      {bar("Lợi nhuận", "profit", m.running.goal_profit, m.running.baseline_profit, m.with_draft.goal_profit)}
       <div className="dx-month__legend">
         <span className="dx-dot dx-dot--run" />
         Đang chạy

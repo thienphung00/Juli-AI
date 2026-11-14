@@ -19,7 +19,7 @@ from juli_backend.models.platform_data import PlatformItem, PlatformPromotion
 from juli_backend.models.shopee_profit import AdsChangeLog, PlatformItemSnapshot
 from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.card_events.writer import EventSpec, insert_event
-from juli_backend.services.shopee_recommendations import change_sets, measure, store
+from juli_backend.services.shopee_recommendations import change_sets, measure, result_store, store
 from juli_backend.services.shopee_recommendations.cards import build_card
 from juli_backend.services.shopee_recommendations.loader import load_env
 from juli_backend.services.shopee_recommendations.model import Candidate
@@ -141,6 +141,28 @@ async def _executed_card(session, sid, user, *, planned_days=14, kind="flash_sal
     )
     await session.commit()
     return cid, card
+
+
+async def _store_result(session, sid, cid, card, *, gmv=(200_000, 600_000, 1_000_000)):
+    """A stored engine result on an executed card (Δ GMV P10 / P50 / P90 over 30 days, Δ đơn
+    with it)."""
+    from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
+
+    def col(g):
+        return Scenario(
+            D(10_000), D(300), D(30 + g // 100_000), D(6_000_000 + g), D(1_000_000), D(0)
+        )
+
+    r = OptionResult(
+        kind="flash_sale", label="x", days=30, horizon="duration", drivers=("ctor",),
+        estimable=True, basis="shop", before=col(0), low=col(gmv[0]), likely=col(gmv[1]),
+        high=col(gmv[2]), build_up=(), cost_total=D(0), break_even_orders=None,
+        break_even_aov=None,
+    )  # fmt: skip
+    block = result_store.block_of(
+        r, reason=None, start=None, targets=None, as_of=END, now=NOW, hash_="h"
+    )
+    await result_store.save(session, sid, cid, card, {1: block}, status="executed")
 
 
 async def test_a_finished_plan_is_read_against_its_frozen_prediction(session):
@@ -493,8 +515,12 @@ async def test_two_changes_on_one_product_on_one_day_are_one_change_set_read_joi
     executed the same day are read ONCE against the product's baseline; the joint prediction is
     calibrated, and each kind counts at the reduced weight -- never as a clean sample."""
     user, shop, sid = await _series_shop(session, uplift=UPLIFT)
-    first, _ = await _executed_card(session, sid, user)
-    second, _ = await _executed_card(session, sid, user)  # the same product, the same day
+    first, c1 = await _executed_card(session, sid, user)
+    second, c2 = await _executed_card(session, sid, user)  # the same product, the same day
+    # one card, one number: the joint prediction is the cards' stored results (Δ GMV / 30 days)
+    for cid, card in ((first, c1), (second, c2)):
+        await _store_result(session, sid, cid, card)
+    await session.commit()
     report = await reco.run_learning(session, sid, now=NOW)
     await session.commit()
     states = await store.load_calibrations(session, sid)

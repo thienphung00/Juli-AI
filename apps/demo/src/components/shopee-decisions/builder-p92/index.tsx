@@ -261,7 +261,7 @@ function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign }: { r
   const kindSet = useMemo(() => new Set<Kind92>(kinds.map((k) => k.key)), [kinds]);
 
   return (
-    <div className="sa-page sb p2" data-testid="p2-page">
+    <div className={`sa-page sb p2${step === "so-sanh" ? "" : " p2--flow"}`} data-testid="p2-page">
       <header className="sa-prodhead">
         <NavLink className="sa-link" href={back.href}>
           ‹ {back.label}
@@ -270,7 +270,7 @@ function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign }: { r
       </header>
       <Stepper onGo={(n) => setStep(STEP_OF[n])} reachable={reachable} step={stepNo} />
       {step === "san-pham" || step === "chien-luoc" ? (
-        <div>
+        <div className="p2-title">
           <div className="sa-eyebrow" data-testid="p2-eyebrow">
             {step === "san-pham" ? "TỰ TẠO PHƯƠNG ÁN" : shopWide ? "CẢ SHOP" : (product?.name ?? "").toUpperCase()}
           </div>
@@ -319,7 +319,11 @@ function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign }: { r
           kindLabel={kindName92(kind)}
           onAdd={addEntry}
           onBack={() => setStep("chien-luoc")}
-          onNext={() => setStep("so-sanh")}
+          onNext={() => {
+            // the version being filled in, once evaluated, counts as one: P1 alone can go to step 4
+            if (editing === null && built.version && shown.status === "ready" && shown.outcome.ok && entries.length < MAX_VERSIONS) addEntry();
+            setStep("so-sanh");
+          }}
           onRemove={removeEntry}
           onReset={reset}
           onSelect={editEntry}

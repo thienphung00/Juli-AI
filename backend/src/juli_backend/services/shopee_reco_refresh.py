@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services.ops.overview import list_shops
-from juli_backend.services.shopee_recommendations import stale
+from juli_backend.services.shopee_recommendations import result_store, stale
 from juli_backend.services.shopee_recommendations.loader import load_env
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,17 @@ async def refresh_shop(
         return {"backfilled": done["executed"]}
     marked = await stale.mark_stale_by_freshness(session, shop_id, env, now=moment)
     counts = await stale.rerun_stale(session, shop_id, now=moment, resend=True, env=env)
-    return {**marked, **counts, "backfilled": done["executed"]}
+    # one card, one number: every live card's stored result follows the data (approved / executed
+    # cards too; their approval-time result is kept once)
+    results = await result_store.refresh_shop(session, shop_id, env, now=moment)
+    return {
+        **marked,
+        **counts,
+        "results_updated": results.updated,
+        "results_not_estimable": results.not_estimable,
+        "results_failed": results.failed,
+        "backfilled": done["executed"],
+    }
 
 
 @dataclass(frozen=True)

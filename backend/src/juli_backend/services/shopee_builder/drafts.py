@@ -34,6 +34,8 @@ from juli_backend.services.shopee_recommendations import listing as lst
 
 MIN_DRAFTS, MAX_DRAFTS = 2, 4
 MAX_HOOK_CHARS = 40
+#: a discount under this many points is not worth a cover concept (a "-1 %" tag reads as noise)
+MIN_COVER_DISCOUNT_PCT = 5
 MAX_KEYWORDS = 12
 LAYOUTS = ("banner_top", "banner_bottom", "corner_tag")
 
@@ -113,7 +115,9 @@ class ProductFacts:
         for v in self.variations:
             sell, listed = v.get("selling_price"), v.get("list_price")
             if sell and listed and listed > sell:
-                out.add(int(round((1 - sell / listed) * 100)))
+                pct = int(round((1 - sell / listed) * 100))
+                if pct >= MIN_COVER_DISCOUNT_PCT:
+                    out.add(pct)
         return out
 
     def allowed_text(self, extra: Iterable[str] = ()) -> str:
@@ -393,8 +397,10 @@ def _build_overlay(
     if sell:
         overlay["price_vnd"] = int(round(sell))
     if sell and listed and listed > sell:
-        overlay["original_price_vnd"] = int(round(listed))
-        overlay["discount_pct"] = int(round((1 - sell / listed) * 100))
+        pct = int(round((1 - sell / listed) * 100))
+        if pct >= MIN_COVER_DISCOUNT_PCT:
+            overlay["original_price_vnd"] = int(round(listed))
+            overlay["discount_pct"] = pct
     if concept.get("use_voucher") and facts.voucher_text:
         overlay["voucher_text"] = facts.voucher_text
     pack = str(concept.get("pack_text") or "").strip()

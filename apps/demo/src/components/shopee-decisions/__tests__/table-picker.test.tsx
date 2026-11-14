@@ -63,4 +63,13 @@ describe("P97 D85.12 · TablePicker", () => {
     render(<TablePicker disabled={[P_ZIP]} mode="multi" onChange={() => {}} products={products} selected={[]} />);
     expect(screen.getByRole("checkbox", { name: /Chọn Túi zip thực phẩm D/ })).toBeDisabled();
   });
+
+  it("shows a product photo from a bare Seller Centre image id through the Shopee CDN", () => {
+    const [first, ...rest] = many();
+    const withImage: PickerProduct = { ...first!, image_url: "vn-11134207-81ztc-mkajp4qtx79kbb" };
+    const { container } = render(<Harness products={[withImage, ...rest]} />);
+    const img = container.querySelector("img.p2-prow__img");
+    expect(img?.getAttribute("src")).toBe("https://down-vn.img.susercontent.com/file/vn-11134207-81ztc-mkajp4qtx79kbb");
+    expect(container.querySelectorAll("img.p2-prow__img")).toHaveLength(1);
+  });
 });

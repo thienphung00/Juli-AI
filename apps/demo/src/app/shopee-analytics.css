@@ -371,6 +371,18 @@ body:has(.sa-page) {
   font-weight: 700;
 }
 
+.sa-ini--photo {
+  overflow: hidden;
+  background: var(--qd-border);
+}
+
+.sa-ini--photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  max-width: none;
+}
+
 .sa-pill,
 .sa-page a.sa-pill {
   display: inline-flex;
@@ -2518,4 +2530,1032 @@ body:has(.sa-page) {
   .sa-tq__row {
     grid-template-columns: minmax(110px, 1.3fr) repeat(7, minmax(0, 1fr));
   }
+}
+
+/* ── P100 UI fix: phone widths. Tables scroll sideways (first column sticky); the product list wraps. ── */
+
+.sa-tq__table {
+  overflow-x: auto;
+}
+
+@media (max-width: 720px) {
+  .sa-tq__table > .sa-tq__row {
+    grid-template-columns: 128px repeat(7, minmax(88px, 1fr));
+    min-width: 860px;
+  }
+
+  .sa-tq__table > .sa-tq__row > :first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--qd-surface, var(--background, #fff));
+  }
+
+  .sa-plist {
+    grid-template-columns: 36px minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .sa-plist > :nth-child(n + 3) {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  .sa-plist .sa-pm {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+}
+
+/* ── P100 board polish: Tổng quan + Phân tích (boards TongQuanPct, PhanTich) ──
+   The boards use the neutral grey set (ink #121214, body #4a4a52, hairline #e4e4ea, control
+   border #d9d9df), not the pink-tinted --qd-* set of the older shop screens. The tokens are
+   overridden on .sa-p100 only, so the Dữ liệu shop screens keep their own palette. ──────── */
+
+body:has(.sa-p100) {
+  background: #f6f6f8;
+}
+
+.sa-p100 {
+  --qd-ink: #121214;
+  --qd-ink-2: #4a4a52;
+  --qd-muted: #6b6b74;
+  --qd-border: #e4e4ea;
+  --qd-border-2: #d9d9df;
+  --qd-pink-line: #e4e4ea;
+  --qd-line: #ececf0;
+  --qd-line-3: #ececf0;
+  --p100-hair: #f1f1f4;
+  --p100-organic: #3f3f46;
+  --p100-affiliate: #e0a33a;
+  gap: 16px;
+}
+
+/* Header: eyebrow 12/600 .06em, title 26/32/600, meta row 13px. */
+.sa-p100 .sa-head {
+  gap: 6px;
+}
+
+.sa-p100 .sa-eyebrow {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.sa-p100 .sa-h1 {
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 600;
+}
+
+.sa-p100 .sa-chip--outline,
+.sa-p100 .sa-head__line .sa-chip {
+  border: 1px solid var(--qd-border);
+  border-radius: 999px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sa-p100 .sa-fresh {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--qd-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.sa-p100 .sa-head__line {
+  gap: 8px;
+}
+
+/* Tổng quan: the finding is the title; the shop name moves to the meta row under it. */
+.sa-p100 .sa-head:has(.sa-tq__finding) {
+  display: flex;
+}
+
+.sa-p100 .sa-head:has(.sa-tq__finding) > .sa-tq__finding {
+  order: 1;
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-head:has(.sa-tq__finding) > .sa-head__line {
+  order: 2;
+  font-size: 13px;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .sa-head:has(.sa-tq__finding) .sa-h1 {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-tq__finding:empty {
+  display: none;
+}
+
+/* Segmented controls: white pill, 1px #d9d9df, black active segment. */
+.sa-p100 .sa-seg--round {
+  border-color: var(--qd-border-2);
+  background: var(--qd-surface);
+}
+
+.sa-p100 .sa-seg--round .sa-seg__item,
+.sa-p100 .sa-seg--round a.sa-seg__item {
+  min-height: 36px;
+  padding: 0 16px;
+  color: var(--qd-ink-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sa-p100 .sa-seg--round .sa-seg__item--on,
+.sa-p100 .sa-seg--round a.sa-seg__item--on {
+  background: var(--qd-ink);
+  color: var(--qd-surface);
+}
+
+.sa-p100 [data-testid="sa-level"] .sa-seg__item {
+  padding: 0 18px;
+  font-size: 15px;
+}
+
+.sa-p100 [data-testid="sa-mode"],
+.sa-p100 .jp-mode {
+  margin-left: auto;
+}
+
+.sa-p100 .sa-period .sa-hint {
+  color: var(--qd-ink-2);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .sa-tq__switch {
+  height: 44px;
+  padding: 0 14px;
+  border-color: var(--qd-border-2);
+  font-size: 15px;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-tq__select {
+  border-color: var(--qd-border-2);
+}
+
+/* Cards: white, 1px #e4e4ea, radius 16, padding 14 / 20. */
+.sa-p100 .sa-card,
+.sa-p100 .sa-tq__table {
+  border: 1px solid var(--qd-border);
+  border-radius: 16px;
+  background: var(--qd-surface);
+  padding: 14px 20px;
+  gap: 10px;
+}
+
+.sa-p100 .sa-tq__table {
+  gap: 0;
+  padding-bottom: 10px;
+}
+
+/* Kế hoạch card: label 110px | track | value 240px. */
+.sa-p100 .sa-tq__plan-head {
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--qd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .sa-tq__plan-head > b {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-tq__goal {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 240px;
+  gap: 16px;
+  align-items: center;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .sa-tq__goal-top {
+  display: contents;
+}
+
+.sa-p100 .sa-tq__goal-top > span:first-child {
+  grid-column: 1;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-tq__goal-top > .sa-tq__goal-val {
+  grid-column: 3;
+  grid-row: 1;
+  text-align: right;
+}
+
+.sa-p100 .sa-tq__goal-val > b {
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-tq__track {
+  grid-column: 2;
+  grid-row: 1;
+  height: 12px;
+}
+
+.sa-p100 .sa-tq__fill {
+  height: 12px;
+}
+
+.sa-p100 .sa-tq__today {
+  top: -5px;
+  height: 22px;
+  background: transparent;
+  border-left: 2px solid var(--qd-ink);
+  width: 0;
+}
+
+/* KPI tiles: 4 columns, gap 14, label 13 muted, value 26/700. */
+.sa-p100 .sa-tq__tiles {
+  gap: 14px;
+}
+
+.sa-p100 .sa-tq__tiles .sa-tile,
+.sa-p100 .sa-tq__tiles a.sa-tile {
+  gap: 4px;
+  border: 1px solid var(--qd-border);
+  border-radius: 16px;
+  padding: 14px 18px;
+}
+
+.sa-p100 .sa-tq__tiles .sa-tile__label {
+  color: var(--qd-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.sa-p100 .sa-tq__tiles .sa-tile__value {
+  font-size: 26px;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .sa-tq__line {
+  gap: 8px;
+  border-top: 1px solid var(--p100-hair);
+  padding-top: 4px;
+  font-size: 13px;
+  color: var(--qd-ink-2);
+}
+
+.sa-p100 .sa-tq__line > span:nth-child(2) {
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-tq__src {
+  display: inline-block;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--jm-margin-bg);
+  color: var(--jm-margin-fg);
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* GMV composition: bar 18px / radius 6 / gap 2, legend with 12px swatches. */
+.sa-p100 .sa-tq__comp-head {
+  justify-content: space-between;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-tq__bar {
+  height: 18px;
+  gap: 2px;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.sa-p100 .sa-tq__seg--organic {
+  background: var(--p100-organic);
+}
+
+.sa-p100 .sa-tq__seg--ads {
+  background: var(--juli-primary);
+}
+
+.sa-p100 .sa-tq__seg--affiliate {
+  background: var(--p100-affiliate);
+}
+
+.sa-p100 .sa-tq__comp-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  font-size: 14px;
+}
+
+.sa-p100 .sa-page a.sa-tq__comp-item,
+.sa-p100 a.sa-tq__comp-item {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-tq__comp-item::before {
+  content: "";
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--p100-organic);
+}
+
+.sa-p100 .sa-tq__comp-item--ads::before {
+  background: var(--juli-primary);
+}
+
+.sa-p100 .sa-tq__comp-item--affiliate::before {
+  background: var(--p100-affiliate);
+}
+
+.sa-p100 .sa-tq__comp-item > span:nth-of-type(2) {
+  color: var(--qd-muted);
+}
+
+/* Channel table: 200px + 7 columns, hairlines #ececf0, group rows 14/600, children indented 14. */
+@media (min-width: 721px) {
+  .sa-p100 .sa-tq__row {
+    grid-template-columns: 200px repeat(7, minmax(0, 1fr));
+  }
+}
+
+.sa-p100 .sa-tq__row {
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--qd-line-3);
+  font-size: 14px;
+  color: var(--qd-ink-2);
+}
+
+.sa-p100 .sa-tq__row--head {
+  padding: 0 0 8px;
+  border-top: 0;
+  border-bottom: 1px solid var(--qd-line-3);
+  font-size: 13px;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .sa-tq__row--child {
+  padding: 2px 0;
+}
+
+.sa-p100 .sa-tq__row .sa-tq__name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-tq__row .sa-tq__name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sa-p100 .sa-tq__row--child .sa-tq__name {
+  padding-left: 14px;
+  font-weight: 400;
+  color: var(--qd-ink-2);
+}
+
+.sa-p100 .sa-tq__name .sa-tq__src {
+  margin-left: 0;
+}
+
+.sa-p100 a.sa-tq__cell {
+  justify-content: center;
+  min-height: 40px;
+  margin: 0 -6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: var(--qd-ink-2);
+}
+
+.sa-p100 a.sa-tq__cell > span:first-child {
+  font-size: 14px;
+}
+
+.sa-p100 a.sa-tq__cell[data-testid$="-gmv"] > span:first-child {
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .sa-tq__weak {
+  color: var(--juli-destructive);
+}
+
+.sa-p100 .jm-shift {
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .sa-p100 .sa-tq__goal {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+  }
+
+  .sa-p100 .sa-tq__goal-top > span:first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .sa-p100 .sa-tq__goal-top > .sa-tq__goal-val {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .sa-p100 .sa-tq__track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .sa-p100 .sa-card,
+  .sa-p100 .sa-tq__table {
+    padding: 14px 16px;
+  }
+
+  .sa-p100 .sa-head:has(.sa-tq__finding) > .sa-tq__finding {
+    font-size: 20px;
+    line-height: 26px;
+  }
+
+  .sa-p100 .sa-tq__comp-items {
+    gap: 4px 16px;
+  }
+}
+
+/* Phân tích (board PhanTich): sections 16 / 20, title 16/600, rows 44 / 48, values in ink. */
+.sa-p100 .jp-section {
+  gap: 4px;
+  padding: 16px 20px;
+}
+
+.sa-p100 .jp-section .sa-h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sa-p100 .jp-section > .sa-h2 {
+  padding-bottom: 6px;
+}
+
+.sa-p100 .jp-grid > b {
+  font-weight: 400;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .jp-grid--kol > :nth-child(3),
+.sa-p100 .jp-grid--kol > :nth-child(4),
+.sa-p100 .jp-grid--kol > :nth-child(5) {
+  color: var(--qd-ink);
+}
+
+.sa-p100 .jp-grid--pr .sa-ini {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--qd-line-3);
+  color: var(--qd-muted);
+}
+
+.sa-p100 .jp-grid--head {
+  min-height: 0;
+}
+
+.sa-p100 .jp-who__text > b {
+  font-weight: 600;
+}
+
+.sa-p100 .jp-who__text > .jp-dim {
+  font-size: 12px;
+}
+
+.sa-p100 .jp-bar {
+  justify-content: flex-start;
+}
+
+.sa-p100 .jp-chips {
+  gap: 8px;
+}
+
+/* ── P100 board polish: Quyết định (boards DeXuatA, DeXuatB, ThucHien, DoLuong) ──────── */
+
+.sa-p100[data-testid="sd-list"] {
+  gap: 14px;
+}
+
+/* Header: title block left, "+ Tự tạo phương án" right (44px, 8px radius, #d9d9df). */
+.sa-p100 .sq-head {
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.sa-p100 .sq-head .sa-head__right {
+  margin-left: auto;
+  color: var(--qd-muted);
+  font-size: 13px;
+}
+
+.sa-p100 .sq-head .sa-btn,
+.sa-p100 .sq-head a.sa-btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Quyết định tabs: underline tabs, 3px primary underline on the open one. */
+.sa-p100 nav.sa-tabs.sa-seg {
+  display: flex;
+  align-self: stretch;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-block: 0;
+  border: 0;
+  border-bottom: 1px solid var(--qd-border);
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.sa-p100 nav.sa-tabs.sa-seg .sa-seg__item,
+.sa-p100 nav.sa-tabs.sa-seg a.sa-seg__item {
+  min-height: 44px;
+  margin-bottom: -1px;
+  padding: 0 14px;
+  border-radius: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--qd-muted);
+  font-size: 15px;
+  font-weight: 400;
+  box-shadow: none;
+}
+
+.sa-p100 nav.sa-tabs.sa-seg .sa-seg__item--on,
+.sa-p100 nav.sa-tabs.sa-seg a.sa-seg__item--on {
+  border-bottom-color: var(--juli-primary);
+  background: transparent;
+  color: var(--qd-ink);
+  font-weight: 600;
+}
+
+/* Thẻ | Kế hoạch nháp switch: 36px segments, 15px / 18px. */
+.sa-p100 .dx-xem {
+  margin: 0;
+}
+
+.sa-p100 .dx-xem .sa-seg__item,
+.sa-p100 .dx-xem a.sa-seg__item {
+  padding: 0 18px;
+  font-size: 15px;
+}
+
+/* Filters: 40px pills, "Tất cả" outlined, product select 40px / 8px. */
+.sa-p100 .dx-filters {
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.sa-p100 .dx-filters .jm-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.sa-p100 .dx-filters .dx-all {
+  border: 1px solid var(--qd-border-2);
+  background: var(--qd-surface);
+  color: var(--qd-ink-2);
+}
+
+.sa-p100 .dx-filters .dx-all--on {
+  background: var(--qd-ink);
+  color: var(--qd-surface);
+}
+
+.sa-p100 .dx-prod {
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-prod select {
+  min-height: 40px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+}
+
+/* Card (Đề xuất › Thẻ): white, 1px #e4e4ea, radius 16, padding 14 / 18; in the plan = 2px primary. */
+.sa-p100 .sq-card {
+  gap: 10px;
+  border: 1px solid var(--qd-border);
+  border-radius: 16px;
+  background: var(--qd-surface);
+  padding: 14px 18px;
+}
+
+.sa-p100 .sq-card.dx-card--in {
+  border: 2px solid var(--juli-primary);
+}
+
+.sa-p100 .dx-card__top {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+.sa-p100 .dx-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sa-p100 .dx-card__group {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-card__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-card__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sa-p100 .dx-card__product {
+  font-size: 13px;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-card__delta {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .dx-card__label,
+.sa-p100 .dx-card__perday {
+  font-size: 12px;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-card__big {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.sa-p100 .sa-tone--up {
+  color: var(--jm-orders-fg);
+}
+
+.sa-p100 .dx-card__chips {
+  gap: 6px;
+  font-size: 13px;
+  color: var(--qd-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .dx-card__chips > span:not(.jm-chip) {
+  margin-left: 8px;
+}
+
+.sa-p100 .dx-card__chips > span[data-testid="dx-cost"] {
+  margin-left: 0;
+}
+
+.sa-p100 .dx-card__chips b {
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+/* Card actions: 40px buttons, 8px radius, #d9d9df; "Duyệt" solid ink, pushed right. */
+.sa-p100 .sd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid var(--qd-line-3);
+  padding-top: 10px;
+}
+
+.sa-p100 .sd-actions .sa-btn,
+.sa-p100 .sd-actions a.sa-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sa-p100 .sd-actions .sa-btn--primary,
+.sa-p100 .sd-actions a.sa-btn--primary {
+  margin-left: auto;
+  padding: 0 18px;
+  border-color: var(--qd-ink);
+  background: var(--qd-ink);
+  color: var(--qd-surface);
+}
+
+/* Kế hoạch nháp: month card, bars 110px | track | 260px, table 36 | 1fr | 150 | 170 | 170 | 110. */
+.sa-p100 .dx-month,
+.sa-p100 .dx-table {
+  margin: 0;
+  border: 1px solid var(--qd-border);
+  border-radius: 16px;
+  background: var(--qd-surface);
+  padding: 16px 20px;
+}
+
+.sa-p100 .dx-month {
+  gap: 12px;
+}
+
+.sa-p100 .dx-month__head {
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--qd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .dx-month__head > b {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-month__head > span {
+  margin-left: auto;
+}
+
+.sa-p100 .dx-bar {
+  grid-template-columns: 110px minmax(0, 1fr) 260px;
+  gap: 16px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .dx-bar__label {
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-bar__nums {
+  text-align: right;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-bar__nums > span {
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-bar__nums > b {
+  font-weight: 400;
+}
+
+.sa-p100 .dx-bar__nums > b:last-child {
+  font-weight: 600;
+}
+
+.sa-p100 .dx-bar__track {
+  background: var(--qd-line-3);
+}
+
+.sa-p100 .dx-month__legend {
+  gap: 6px 16px;
+  font-size: 12px;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-dot {
+  width: 12px;
+  height: 12px;
+  margin-right: 0;
+  border-radius: 3px;
+}
+
+.sa-p100 .dx-dot--add {
+  background: var(--juli-primary);
+}
+
+.sa-p100 .dx-table {
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .dx-table__row {
+  gap: 10px;
+  align-items: center;
+  min-height: 64px;
+  padding: 0;
+  border-bottom: 1px solid var(--p100-hair);
+  font-size: 14px;
+}
+
+@media (min-width: 721px) {
+  .sa-p100 .dx-table__row {
+    grid-template-columns: 36px minmax(0, 1fr) 150px 170px 170px 110px;
+  }
+}
+
+.sa-p100 .dx-table__row--head {
+  min-height: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--qd-line-3);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-table__row--total {
+  min-height: 52px;
+  border-bottom: 0;
+  font-weight: 400;
+}
+
+.sa-p100 .dx-table__row > :first-child:not(:empty) {
+  font-weight: 700;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-table__big {
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-table__row:not(.dx-table__row--total) > :nth-child(4) .dx-table__big {
+  color: var(--jm-orders-fg);
+}
+
+.sa-p100 .dx-table__row--total > :nth-child(4) {
+  font-weight: 700;
+  color: var(--jm-orders-fg);
+}
+
+.sa-p100 .dx-table__small,
+.sa-p100 .dx-table__sub {
+  font-size: 12px;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-table__act {
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* Thực hiện / Đo lường: rows and connector bar are 16px cards with the grey hairline. */
+.sa-p100 .sd-th-bar,
+.sa-p100 .sd-th-row,
+.sa-p100 .sd-dl-row {
+  border-color: var(--qd-border);
+}
+
+.sa-p100 .sd-th-row--bad {
+  border: 2px solid var(--juli-destructive);
+}
+
+.sa-p100 .sd-th-bar .sa-btn,
+.sa-p100 .sd-th-row .sa-btn,
+.sa-p100 .sd-dl-opt .sa-btn,
+.sa-p100 a.sd-th-row .sa-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sa-p100 .sd-th-row .sa-btn--primary,
+.sa-p100 .sd-dl-opt .sa-btn--primary,
+.sa-p100 .sd-dl-opt a.sa-btn--primary {
+  border-color: var(--qd-ink);
+  background: var(--qd-ink);
+  color: var(--qd-surface);
+}
+
+.sa-p100 .sd-th-row__group,
+.sa-p100 .sd-th-row__product {
+  font-weight: 600;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .sd-th-row__product {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.sa-p100 a.sd-th-row__title {
+  color: var(--qd-ink);
+  text-decoration: none;
+}
+
+.sa-p100 .sd-th-bar__dot {
+  background: var(--qd-border-2);
+}
+
+.sa-p100 .sd-th-bar__dot--on {
+  background: var(--juli-success);
+}
+
+.sa-p100 .sd-dl-opt {
+  border-top-color: var(--qd-line-3);
+}
+
+@media (min-width: 901px) {
+  .sa-p100 .sd-th-row {
+    grid-template-columns: minmax(0, 1fr) 380px 270px;
+  }
+}
+
+@media (max-width: 720px) {
+  .sa-p100 .dx-card__top {
+    flex-wrap: wrap;
+  }
+
+  .sa-p100 .dx-month,
+  .sa-p100 .dx-table {
+    padding: 14px 16px;
+  }
+
+  .sa-p100 .dx-bar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .sa-p100 .dx-bar__nums {
+    text-align: left;
+  }
+
+  .sa-p100 .sd-actions .sa-btn--primary,
+  .sa-p100 .sd-actions a.sa-btn--primary {
+    margin-left: 0;
+  }
+}
+
+/* Kế hoạch nháp footer: both buttons right, 44px. */
+.sa-p100 .kh-plan > .sd-actions {
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.sa-p100 .kh-plan > .sd-actions .sa-btn,
+.sa-p100 .kh-plan > .sd-actions a.sa-btn {
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+.sa-p100 .kh-plan > .sd-actions .sa-btn--primary {
+  margin-left: 0;
+  padding: 0 22px;
 }
