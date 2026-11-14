@@ -213,6 +213,9 @@ UNAUTHENTICATED_ALLOWLIST = {
     # A visitor has no session by definition; bounded by validation, a honeypot and
     # per-IP / per-e-mail / site-wide limits counted in the ops-only table.
     "/v1/trial-signups",
+    # P100 Part S: the stock e-mail's unsubscribe confirm; the HMAC-signed token is the credential
+    # (one shop, one member), writes that member's unsubscribe row under the shop's RLS scope.
+    "/v1/stock-alert/unsubscribe",
 }
 
 REGENERATION_COMMAND = (

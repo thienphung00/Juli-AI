@@ -7,7 +7,9 @@ Inside the shop's tenant scope; reads only. Sources:
 - ``shopee_order_lines``: units and orders per variation per day over the last 90 days
   (cancelled lines left out), resolved to the variation like the analytics engine does (stored
   variation id, else the catalogue variation with that seller SKU, else the listing's only one);
-- the catalogue (``shopee_analytics.loaders.load_context``): names and the listing status;
+- the catalogue (``shopee_analytics.loaders.load_context``): names, the listing status and the
+  seller's SKU code (``platform_items.seller_sku``: the model / parent SKU the Connector's product
+  list read posts as ``item_catalog`` beside ``item_snapshot``);
 - approved and executed recommendation cards on the product: their stored result
   (``result_store.measured_block``: Δ orders P50 / day over the result's own dates). A card naming
   variations (``inputs.variations``) adds to those; a whole-product card is split over the
@@ -304,6 +306,7 @@ def facts_of(
             zero_since=zero_since,
             effects=tuple(effects),
             card_ends=tuple(ends),
+            sku_code=_seller_sku(catalog, sku.item_id, sku.model_id) or None,
         )
         out.append(SkuState(facts, now_stock, last.read_at if last else None))
     return out

@@ -522,6 +522,8 @@ def _summary(
         "engine_version": (card.get("freshness") or {}).get("engine_version"),
         "bundle": card.get("bundle", False),
         "sent_at": None if p.sent_at is None else p.sent_at.isoformat() + "Z",
+        # P100 Part S: a running card whose variations were all stopped ("Đã ngừng theo dõi")
+        "stock_untracked": bool((meta or {}).get("stock_untracked")),
     }
 
 

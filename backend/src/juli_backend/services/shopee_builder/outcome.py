@@ -31,6 +31,7 @@ from juli_backend.services.shopee_builder.traffic import break_even_ctor, scope_
 from juli_backend.services.shopee_builder.translate import Translation
 from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.stock_alert.cards import stock_warnings
 
 METRIC_LABELS: dict[str, str] = {
     "aov": "AOV",
@@ -822,7 +823,10 @@ def shape(
         "cost": cost_on_days(_cost(numbers, tr, p50_orders), result, own_days),
         "break_even": _break_even(numbers, ctx, items, days=own_days, result=result),
         "basis": result_basis(result, basis),
-        "warnings": _warnings(numbers, tr, cost_known, missing, delta_profit),
+        "warnings": [
+            *_warnings(numbers, tr, cost_known, missing, delta_profit),
+            *stock_warnings(ctx.env.stock_stopped, items),
+        ],
         "breach": bool(card["floor"]["breaches"])
         or bool((card.get("spend") or {}).get("over_cap")),
         "details": {**card["certain"], **tr.details},

@@ -25,6 +25,7 @@ from juli_backend.services.shopee_recommendations.env import (
     VoucherSetting,
 )
 from juli_backend.services.shopee_recommendations.listing import Keyword, Listing
+from juli_backend.services.stock_alert import cards as stock_cards
 
 ADS_DAILY = "ads_campaign_daily"
 
@@ -183,6 +184,7 @@ async def load_env(
     env.vouchers = await load_voucher_settings(session, shop_id, window)
     env.usage_rate = usage_rate_of(view)
     env.locked = await store.locked_products(session, shop_id, now)
+    env.stock_stopped, _ = await stock_cards.load_stopped(session, shop_id, ctx.catalog)
     env.calibration = await store.load_calibrations(session, shop_id)
     env.acceptance = await store.load_acceptance(session, shop_id)
     env.sim = await store.load_sim(session, shop_id)

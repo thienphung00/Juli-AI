@@ -100,6 +100,8 @@ class RecoEnv:
     #: the shop's own history; empty until the builder loads it (``shopee_builder.response``).
     response_by_item: dict[str, DiscountResponse] = field(default_factory=dict)
     response_shop: DiscountResponse | None = None
+    #: P100 Part S: products whose every variation a member stopped ("Ngừng theo dõi"): no new card
+    stock_stopped: frozenset[str] = frozenset()
     _floor_cache: dict[str, dict[str, FloorResult]] = field(default_factory=dict, repr=False)
 
     # ------------------------------------------------------------------ rules / targets
