@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
 from juli_backend.services.shopee_builder import multi
@@ -20,6 +21,7 @@ from juli_backend.services.shopee_builder.context import BuilderContext, SpecRef
 from juli_backend.services.shopee_builder.engine import engine
 from juli_backend.services.shopee_recommendations import evaluate
 from juli_backend.services.shopee_recommendations import listing as lst
+from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 
 @dataclass
@@ -99,10 +101,24 @@ def _refuse_unless_below_today(
     after = evaluate.new_price(ctx.env, "product_discount", key, row)
     if current is None or after is None or after < current:
         return
-    min_pct = ""
-    if listed and listed > current:
-        min_pct = str(int((1 - current / listed) * 100) + 1)
+    min_pct = "" if not listed or listed <= current else str(min_discount_pct(current, listed))
     raise SpecRefused(f"discount_not_below_current:{item_id}:{int(current)}:{int(after)}:{min_pct}")
+
+
+def min_discount_pct(paid: Decimal, listed: Decimal) -> int:
+    """The smallest whole %GIẢM on the list price that goes below what buyers pay today."""
+    return int((1 - paid / listed) * 100) + 1
+
+
+def paid_price_and_min_discount(env: RecoEnv, sku: str) -> tuple[Decimal | None, int | None]:
+    """What buyers pay today for one unit of the variation (a running shop programme or flash
+    price included -- the figure the ``discount_not_below_current`` refusal compares with) and
+    the smallest whole %GIẢM on its list price that goes below it; ``None`` when unknown."""
+    paid = env.current_price(sku)
+    listed = env.list_price(sku)
+    if paid is None or not listed or listed <= 0 or listed < paid:
+        return paid, None
+    return paid, min_discount_pct(paid, listed)
 
 
 def _sold_sku(ctx: BuilderContext, item_id: str, variation_id: str) -> str | None:

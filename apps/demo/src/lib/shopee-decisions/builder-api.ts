@@ -108,6 +108,10 @@ export interface VariationRow {
   readonly sku?: string | null;
   readonly list_price: N;
   readonly selling_price: N;
+  /** What the buyer pays today, a running shop programme / flash price included. */
+  readonly paid_price?: N;
+  /** The smallest whole % off the list price that goes below `paid_price` (null = unknown). */
+  readonly min_discount_pct?: number | null;
   readonly pack_count: N;
   readonly pack_source?: "set" | "name" | "single" | string | null;
   readonly pack_source_label?: string | null;

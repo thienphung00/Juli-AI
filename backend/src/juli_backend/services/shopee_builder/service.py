@@ -41,7 +41,11 @@ from juli_backend.services.shopee_builder.context import BuilderContext, SpecRef
 from juli_backend.services.shopee_builder.engine_families import integrate
 from juli_backend.services.shopee_builder.keywords import keyword_table
 from juli_backend.services.shopee_builder.reference import with_reference_lines
-from juli_backend.services.shopee_builder.translate import Translation, to_variant
+from juli_backend.services.shopee_builder.translate import (
+    Translation,
+    paid_price_and_min_discount,
+    to_variant,
+)
 from juli_backend.services.shopee_builder.variations import (
     economics,
     measured_rates,
@@ -196,6 +200,13 @@ async def variation_rows_for(
     return rows
 
 
+def _paid_fields(env: RecoEnv, row: Mapping[str, Any]) -> dict[str, Any]:
+    """``paid_price`` (what the buyer pays today) and ``min_discount_pct`` of one variation row."""
+    sku = row.get("sku_key")
+    paid, min_pct = paid_price_and_min_discount(env, str(sku)) if sku else (None, None)
+    return {"paid_price": None if paid is None else int(paid), "min_discount_pct": min_pct}
+
+
 async def product_variations(
     session: AsyncSession, shop_id: uuid.UUID, item_id: str, *, as_of: date | None, now: datetime
 ) -> dict[str, Any]:
@@ -206,6 +217,7 @@ async def product_variations(
     known = item_id in env.ctx.catalog.items or env.orders_of(item_id) > 0
     if not known:
         raise LookupError(item_id)
+    rows = [{**r, **_paid_fields(env, r)} for r in rows]
     out = economics(item_id, env.name(item_id), rows, vat=env.view.vat)
     # "So sánh phân loại" shows both margins (ADR-122 d.12)
     out["columns"] = [*out["columns"], "final_margin_pct"]
