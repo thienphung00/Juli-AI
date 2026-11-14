@@ -137,8 +137,9 @@ def _ad_report(
     shop = dict(product)
     has_product = has_shop = False
     for kind, cell in ad_types.items():
-        target = shop if kind == SHOP_PLUS_KIND else product
-        if kind == SHOP_PLUS_KIND:
+        plus = loaders.is_shop_plus(kind)
+        target = shop if plus else product
+        if plus:
             has_shop = True
         else:
             has_product = True

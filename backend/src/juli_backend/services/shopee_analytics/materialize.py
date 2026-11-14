@@ -417,10 +417,6 @@ def _product_ads(view: PeriodView, item_id: str) -> AdsDay | None:
     return AdsDay(None, None, None, fig.direct_gmv if fig else None, spend)
 
 
-#: the ad type that is not a product-card ad (DVHT Shop+): its clicks are not the overlay's
-SHOP_PLUS_AD_TYPE = "ads_shop"
-
-
 def _whole_of(rows: list[Any]) -> list[Any]:
     """The day's ads total of one order type: Shopee's own ``all`` row, else its types."""
     total = [r for r in rows if r.segment == "all"]
@@ -487,7 +483,7 @@ async def _report_clicks(session: AsyncSession, shop_id: uuid.UUID, day: date) -
     )
     chosen: dict[str, Any] = {}
     for r in rows:
-        if r.segment == "all" or (r.extra or {}).get("ad_type") == SHOP_PLUS_AD_TYPE:
+        if r.segment == "all" or loaders.is_shop_plus((r.extra or {}).get("ad_type")):
             continue
         if r.segment not in chosen or r.order_type == loaders.PLACED:
             chosen[r.segment] = r

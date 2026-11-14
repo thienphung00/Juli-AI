@@ -599,6 +599,13 @@ async def _daily_report_ad_days(
     return out
 
 
+def is_shop_plus(ad_type: str | None) -> bool:
+    """DVHT Shop+: the daily file report's ``ads_shop`` segment, or a Connector campaign type
+    ``shop_*`` (``shop_manual`` ...); every other ad type is DVHT Sản phẩm."""
+    kind = (ad_type or "").strip().lower()
+    return kind == "ads_shop" or kind.startswith("shop")
+
+
 def _add_type_cell(cell: list[Decimal | None], cost: Decimal, r: Any) -> None:
     """Add one ads row to a type's ``[spend, gmv, orders, impressions, clicks]`` of a day; a row
     without impressions / clicks makes the type's day figure unknown (``None``)."""

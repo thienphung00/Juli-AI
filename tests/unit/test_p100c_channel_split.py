@@ -302,3 +302,18 @@ def test_p100b_the_organic_card_never_goes_below_zero():
     assert card["orders"] == 0 and card["views"] == 0 and card["clicks"] == 0
     assert card["gmv"] == 946_747
     assert r["organic"]["orders"] == 0 and r["organic"]["gmv"] == 946_747
+
+
+def test_connector_shop_campaign_types_are_dvht_shop_plus():
+    from juli_backend.services.shopee_analytics.loaders import is_shop_plus
+
+    assert is_shop_plus("ads_shop") and is_shop_plus("shop_manual") and is_shop_plus("SHOP_auto")
+    assert not is_shop_plus("product_manual") and not is_shop_plus("connector")
+    assert not is_shop_plus(None)
+    types = {
+        "product_manual": {"gmv": D(9_000_000), "orders": D(70), "spend": D(2_000_000)},
+        "shop_manual": {"gmv": D(350_000), "orders": D(2), "spend": D(120_000)},
+    }
+    r = _by_key(split_rows(base_from_rows(_rows(), "s"), ad_types=types))
+    assert r["ads_product"]["gmv"] == 9_000_000 and r["ads_product"]["orders"] == 70
+    assert r["ads_shop"]["gmv"] == 350_000 and r["ads_shop"]["orders"] == 2
