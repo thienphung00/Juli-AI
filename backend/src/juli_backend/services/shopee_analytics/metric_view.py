@@ -106,6 +106,10 @@ class Cell:
     orders: Decimal | None = None
     gmv: Decimal | None = None
     margin: Decimal | None = None
+    #: a DVHT row's CTR / CTOR basis (``channel_split.ad_rate_basis``); unset -> views / clicks
+    rate_views: Decimal | None = None
+    rate_clicks: Decimal | None = None
+    rate_orders: Decimal | None = None
 
 
 def _div(a: Decimal | None, b: Decimal | None) -> Decimal | None:
@@ -117,8 +121,12 @@ def value_of(cell: Cell | None, metric: str) -> Decimal | None:
     if cell is None:
         return None
     if metric == "ctr":
+        if cell.rate_views is not None:
+            return _div(cell.rate_clicks, cell.rate_views)
         return _div(cell.clicks, cell.views)
     if metric == "ctor":
+        if cell.rate_views is not None:
+            return _div(cell.rate_orders, cell.rate_clicks)
         return _div(cell.orders, cell.clicks)
     if metric == "aov":
         return _div(cell.gmv, cell.orders)
@@ -261,11 +269,15 @@ def _ad_cell(cell: Report | None) -> Cell | None:
     """A DVHT row on the ads report's basis, as Tổng quan: views = impressions, clicks."""
     if cell is None:
         return None
+    rate_views, rate_clicks, rate_orders = channel_split.ad_rate_basis(cell)
     return Cell(
         cell.get("impressions"),
         cell.get("clicks"),
         Decimal(cell["orders"] or 0),
         Decimal(cell["gmv"] or 0),
+        rate_views=rate_views,
+        rate_clicks=rate_clicks,
+        rate_orders=rate_orders,
     )
 
 

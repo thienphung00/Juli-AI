@@ -304,6 +304,32 @@ def test_p100b_the_organic_card_never_goes_below_zero():
     assert r["organic"]["orders"] == 0 and r["organic"]["gmv"] == 946_747
 
 
+def test_dvht_ctr_stands_on_the_days_that_carry_clicks():
+    """ORY 2026-11-15: a Connector day has clicks, a daily-report day only impressions. One
+    day without clicks left the window's DVHT CTR / CTOR "—"; they now use the days with both,
+    while Lượt xem keeps every day's impressions."""
+    from datetime import timedelta
+
+    from juli_backend.services.shopee_analytics.loaders import ads_daily_of
+    from juli_backend.services.shopee_profit.ads_days import DayAds, TypeFigure
+
+    d2 = DAY + timedelta(days=1)
+    days = {
+        DAY: DayAds(D(100), D(1_000), D(4), "connector", {
+            "product_manual": TypeFigure(D(100), D(1_000), D(4), D(2_000), D(80)),
+        }),
+        d2: DayAds(D(100), D(500), D(2), "daily_report", {
+            "product_manual": TypeFigure(D(100), D(500), D(2), D(3_000), None),
+        }),
+    }  # fmt: skip
+    ads = ads_daily_of(days, Window(DAY, d2))
+    cell = ads.by_type["product_manual"]
+    assert cell["impressions"] == 5_000 and cell["clicks"] is None
+    p = _by_key(split_rows(base_from_rows(_rows(), "s"), ad_types=ads.by_type))["ads_product"]
+    assert p["views"] == 5_000 and p["orders"] == 6
+    assert p["ctr"] == 0.04 and p["ctor"] == 0.05  # 80 / 2 000 and 4 / 80, the Connector day
+
+
 def test_connector_shop_campaign_types_are_dvht_shop_plus():
     from juli_backend.services.shopee_analytics.loaders import is_shop_plus
 

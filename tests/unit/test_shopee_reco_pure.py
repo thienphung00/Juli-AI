@@ -335,6 +335,17 @@ def test_cards_of_one_product_are_all_kept_and_queued_best_first():
     assert r.json()["queued_behind"] == 1
 
 
+def test_a_card_with_an_estimate_leads_its_product_queue():
+    """Sample shop 2026-11-15: a no-spec card (no stored P50) outscored the product's voucher
+    card, so the queue head always read "Chưa ước tính được". A card with an estimate leads."""
+    no_spec = _ri("cover", items=("p1",), kpi_p25={"gmv": 90_000.0}, dprofit_p50=None)
+    voucher = _ri("voucher", items=("p1",), kpi_p25={"gmv": 1_000.0}, dprofit_p50=8_000.0)
+    other = _ri("title", items=("p2",), kpi_p25={"gmv": 50_000.0}, dprofit_p50=None)
+    r = ranking.rank([no_spec, voucher, other], GAPS)
+    assert [x.id for x in r.ordered] == ["voucher", "cover", "title"]
+    assert {x.id: x.product_queue for x in r.ordered} == {"voucher": 1, "cover": 2, "title": 1}
+
+
 def test_acceptance_only_breaks_ties():
     a = _ri("a", items=("a",), kpi_p25={"gmv": 1_000.0}, acceptance=0.2)
     b = _ri("b", items=("b",), kpi_p25={"gmv": 1_000.0}, acceptance=0.9)

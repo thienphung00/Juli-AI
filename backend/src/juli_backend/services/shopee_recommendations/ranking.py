@@ -13,10 +13,10 @@ are listed): ``locked_by_plan`` (a product with an open plan / inside a mega_sal
 
 P91 D-1: ``duplicate_product`` is no longer a filter. One change per product per measurement
 window still holds, but as a queue: every card that passes the filters is kept and gets
-``product_queue`` 1..n among the cards of its product, best score first (1 = the Quyết định
-card; ``product_queue.py`` moves the next one up when it closes). Acceptance statistics break
-ties only; the "đáng thử" slot, when reserved, is the eligible card with the largest simulation
-knowledge-gradient. Pure.
+``product_queue`` 1..n among the cards of its product, cards with an estimate first, then best
+score (1 = the Quyết định card; ``product_queue.py`` moves the next one up when it closes).
+Acceptance statistics break ties only; the "đáng thử" slot, when reserved, is the eligible card
+with the largest simulation knowledge-gradient. Pure.
 """
 
 from __future__ import annotations
@@ -207,7 +207,17 @@ def rank(
             continue
         s, d = score(c, gaps)
         scored.append((c, s, d))
-    scored.sort(key=lambda t: (-t[1], -(t[0].acceptance or 0.0), -t[0].dgmv_p25, t[0].id))
+    # a card with an estimate (its stored result's P50) comes before one without: the seller
+    # (and each product's queue head) sees a card that carries a number first
+    scored.sort(
+        key=lambda t: (
+            t[0].dprofit_p50 is None,
+            -t[1],
+            -(t[0].acceptance or 0.0),
+            -t[0].dgmv_p25,
+            t[0].id,
+        )
+    )
     kept = scored
     seen: dict[str, int] = {}
     ordered: list[Ranked] = []
