@@ -20,8 +20,20 @@ declare namespace chrome {
         ) => boolean | void,
       ): void;
     };
-    const onInstalled: { addListener(callback: () => void): void };
+    const onInstalled: { addListener(callback: (details: { reason: string; previousVersion?: string }) => void): void };
     const onStartup: { addListener(callback: () => void): void };
+  }
+
+  namespace scripting {
+    interface InjectionResult<T> {
+      result?: T;
+    }
+    function executeScript<T>(injection: {
+      target: { tabId: number };
+      world?: "ISOLATED" | "MAIN";
+      files?: string[];
+      func?: () => T;
+    }): Promise<InjectionResult<T>[]>;
   }
 
   namespace storage {

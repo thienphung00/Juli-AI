@@ -21,7 +21,15 @@ import { MARKET_RUN_ALARM, MARKET_WATCHDOG_ALARM, MarketScheduler } from "./mark
 import { Connector } from "./connector";
 import { fillRequest, senderMatches } from "./fill";
 import { FillJobs } from "./fill-jobs";
-import { READER_RUN_ALARM, READER_WATCHDOG_ALARM, ReaderScheduler } from "./scheduler";
+import { markReinjected, probeHook, reinjectSellerCentreTabs } from "./reinject";
+import {
+  nextStockAt,
+  READER_KICK_ALARM,
+  READER_RUN_ALARM,
+  READER_WATCHDOG_ALARM,
+  ReaderScheduler,
+  STOCK_ALARM,
+} from "./scheduler";
 
 const ALARM = "juli-daily-sync";
 const MANIFEST_VERSION = chrome.runtime.getManifest().version;
@@ -57,6 +65,7 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
   sink: {
     postReader: (job, responses) => connector.postReader(job, responses),
     reportBlock: (event) => connector.reportBlock(event),
+    reportTick: (report) => connector.reportTick(report),
   },
   backfillBusy: async () => (await connector.backfillInFlight()) || (await market.isBusy()) || (await fillJobs.isBusy()),
   later: (ms, fn) => void setTimeout(fn, ms),
@@ -176,8 +185,55 @@ async function ensureMarketAlarm(): Promise<void> {
   });
 }
 
-chrome.runtime.onInstalled.addListener(() => void ensureAlarm().then(ensureReaderAlarm).then(ensureMarketAlarm).then(ensureFillAlarm));
-chrome.runtime.onStartup.addListener(() => void ensureAlarm().then(ensureReaderAlarm).then(ensureMarketAlarm).then(ensureFillAlarm));
+// 0.3.19: the fixed 06:30 GMT+7 stock read (the product list only). A missed time (Chrome closed)
+// is caught by `boot` below at the next start.
+async function ensureStockAlarm(): Promise<void> {
+  if (await chrome.alarms.get(STOCK_ALARM)) return;
+  await chrome.alarms.create(STOCK_ALARM, { when: nextStockAt(Date.now()), periodInMinutes: 24 * 60 });
+}
+
+async function ensureAlarms(): Promise<void> {
+  await ensureAlarm();
+  await ensureReaderAlarm();
+  await ensureMarketAlarm();
+  await ensureFillAlarm();
+  await ensureStockAlarm();
+}
+
+/**
+ * Every service-worker start (0.3.19): the alarms exist (not only after install / Chrome start),
+ * and when today's run or today's stock read is still due, a start is queued a minute later.
+ */
+async function boot(reason: string): Promise<void> {
+  await ensureAlarms().catch(() => undefined);
+  if (await chrome.alarms.get(READER_KICK_ALARM)) return;
+  if (await scheduler.due()) await scheduler.requestKick(reason);
+}
+
+/** After an update / reinstall: the relay (and, where none is left, the hook) into open Seller Centre tabs. */
+function reinject(): Promise<number> {
+  return reinjectSellerCentreTabs({
+    sellerCentreTabs: () => chrome.tabs.query({ url: `${SELLER_CENTRE_ORIGIN}/*` }),
+    probe: async (tabId) => (await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", func: probeHook }))[0]?.result,
+    injectHook: async (tabId) => {
+      await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", files: ["hook.js"] });
+    },
+    injectRelay: async (tabId) => {
+      await chrome.scripting.executeScript({ target: { tabId }, func: markReinjected });
+      await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+    },
+  });
+}
+
+chrome.runtime.onInstalled.addListener((details) => {
+  void (async () => {
+    await ensureAlarms().catch(() => undefined);
+    if (details.reason === "install" || details.reason === "update") await reinject().catch(() => 0);
+    await boot(details.reason === "update" ? "update" : "install");
+  })();
+});
+chrome.runtime.onStartup.addListener(() => void boot("chrome_start"));
+void boot("worker_start");
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === FILL_JOBS_ALARM) {
@@ -191,7 +247,14 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === READER_RUN_ALARM || alarm.name === READER_WATCHDOG_ALARM) {
     void (async () => {
       if (alarm.name === READER_RUN_ALARM) await connector.flushQueue();
-      await scheduler.tick();
+      await scheduler.tick(alarm.name === READER_RUN_ALARM ? { trigger: "daily_alarm" } : {});
+    })();
+    return;
+  }
+  if (alarm.name === READER_KICK_ALARM || alarm.name === STOCK_ALARM) {
+    void (async () => {
+      await connector.flushQueue();
+      await scheduler.tick({ trigger: alarm.name === STOCK_ALARM ? "stock_alarm" : "kick" });
     })();
     return;
   }
@@ -311,7 +374,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return undefined;
   }
   if (fromExtensionPage(sender)) {
-    if (msg.type === "pair") return respond(thenBackfill(connector.pair(String(msg.code ?? ""))));
+    if (msg.type === "pair") {
+      // 0.3.19: pairing starts the reader schedule (a minute later) instead of waiting for tomorrow.
+      return respond(
+        thenBackfill(connector.pair(String(msg.code ?? ""))).then(async (token) => {
+          await scheduler.requestKick("pair");
+          return token;
+        }),
+      );
+    }
     if (msg.type === "unpair") return respond(connector.unpair());
     if (msg.type === "state") return respond(connector.state());
     if (msg.type === "server-status") return respond(connector.serverStatus());
