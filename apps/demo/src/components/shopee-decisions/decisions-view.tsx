@@ -44,7 +44,7 @@ export interface Frame {
 function ShellFrame({ tab, xem, counts, planCount, title, eyebrow, children }: { readonly tab: DecisionTab; readonly xem: "the" | "ke-hoach"; readonly counts: Readonly<Record<DecisionTab, number>>; readonly planCount: number | null; readonly title: string; readonly eyebrow?: string; readonly children: ReactNode }) {
   const host = useReco();
   return (
-    <div className="sa-page" data-testid="sd-list">
+    <div className="sa-page sa-p100" data-testid="sd-list">
       <header className="sa-head">
         <div className="sa-eyebrow">{eyebrow ?? EYEBROW[tab]}</div>
         <div className="sa-head__line sq-head">

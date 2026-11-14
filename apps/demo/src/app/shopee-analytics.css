@@ -3057,3 +3057,493 @@ body:has(.sa-p100) {
 .sa-p100 .jp-chips {
   gap: 8px;
 }
+
+/* ── P100 board polish: Quyết định (boards DeXuatA, DeXuatB, ThucHien, DoLuong) ──────── */
+
+.sa-p100[data-testid="sd-list"] {
+  gap: 14px;
+}
+
+/* Header: title block left, "+ Tự tạo phương án" right (44px, 8px radius, #d9d9df). */
+.sa-p100 .sq-head {
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.sa-p100 .sq-head .sa-head__right {
+  margin-left: auto;
+  color: var(--qd-muted);
+  font-size: 13px;
+}
+
+.sa-p100 .sq-head .sa-btn,
+.sa-p100 .sq-head a.sa-btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Quyết định tabs: underline tabs, 3px primary underline on the open one. */
+.sa-p100 nav.sa-tabs.sa-seg {
+  display: flex;
+  align-self: stretch;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-block: 0;
+  border: 0;
+  border-bottom: 1px solid var(--qd-border);
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.sa-p100 nav.sa-tabs.sa-seg .sa-seg__item,
+.sa-p100 nav.sa-tabs.sa-seg a.sa-seg__item {
+  min-height: 44px;
+  margin-bottom: -1px;
+  padding: 0 14px;
+  border-radius: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--qd-muted);
+  font-size: 15px;
+  font-weight: 400;
+  box-shadow: none;
+}
+
+.sa-p100 nav.sa-tabs.sa-seg .sa-seg__item--on,
+.sa-p100 nav.sa-tabs.sa-seg a.sa-seg__item--on {
+  border-bottom-color: var(--juli-primary);
+  background: transparent;
+  color: var(--qd-ink);
+  font-weight: 600;
+}
+
+/* Thẻ | Kế hoạch nháp switch: 36px segments, 15px / 18px. */
+.sa-p100 .dx-xem {
+  margin: 0;
+}
+
+.sa-p100 .dx-xem .sa-seg__item,
+.sa-p100 .dx-xem a.sa-seg__item {
+  padding: 0 18px;
+  font-size: 15px;
+}
+
+/* Filters: 40px pills, "Tất cả" outlined, product select 40px / 8px. */
+.sa-p100 .dx-filters {
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.sa-p100 .dx-filters .jm-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.sa-p100 .dx-filters .dx-all {
+  border: 1px solid var(--qd-border-2);
+  background: var(--qd-surface);
+  color: var(--qd-ink-2);
+}
+
+.sa-p100 .dx-filters .dx-all--on {
+  background: var(--qd-ink);
+  color: var(--qd-surface);
+}
+
+.sa-p100 .dx-prod {
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-prod select {
+  min-height: 40px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+}
+
+/* Card (Đề xuất › Thẻ): white, 1px #e4e4ea, radius 16, padding 14 / 18; in the plan = 2px primary. */
+.sa-p100 .sq-card {
+  gap: 10px;
+  border: 1px solid var(--qd-border);
+  border-radius: 16px;
+  background: var(--qd-surface);
+  padding: 14px 18px;
+}
+
+.sa-p100 .sq-card.dx-card--in {
+  border: 2px solid var(--juli-primary);
+}
+
+.sa-p100 .dx-card__top {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+.sa-p100 .dx-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sa-p100 .dx-card__group {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-card__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-card__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sa-p100 .dx-card__product {
+  font-size: 13px;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-card__delta {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .dx-card__label,
+.sa-p100 .dx-card__perday {
+  font-size: 12px;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-card__big {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.sa-p100 .sa-tone--up {
+  color: var(--jm-orders-fg);
+}
+
+.sa-p100 .dx-card__chips {
+  gap: 6px;
+  font-size: 13px;
+  color: var(--qd-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .dx-card__chips > span:not(.jm-chip) {
+  margin-left: 8px;
+}
+
+.sa-p100 .dx-card__chips > span[data-testid="dx-cost"] {
+  margin-left: 0;
+}
+
+.sa-p100 .dx-card__chips b {
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+/* Card actions: 40px buttons, 8px radius, #d9d9df; "Duyệt" solid ink, pushed right. */
+.sa-p100 .sd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid var(--qd-line-3);
+  padding-top: 10px;
+}
+
+.sa-p100 .sd-actions .sa-btn,
+.sa-p100 .sd-actions a.sa-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sa-p100 .sd-actions .sa-btn--primary,
+.sa-p100 .sd-actions a.sa-btn--primary {
+  margin-left: auto;
+  padding: 0 18px;
+  border-color: var(--qd-ink);
+  background: var(--qd-ink);
+  color: var(--qd-surface);
+}
+
+/* Kế hoạch nháp: month card, bars 110px | track | 260px, table 36 | 1fr | 150 | 170 | 170 | 110. */
+.sa-p100 .dx-month,
+.sa-p100 .dx-table {
+  margin: 0;
+  border: 1px solid var(--qd-border);
+  border-radius: 16px;
+  background: var(--qd-surface);
+  padding: 16px 20px;
+}
+
+.sa-p100 .dx-month {
+  gap: 12px;
+}
+
+.sa-p100 .dx-month__head {
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--qd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .dx-month__head > b {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-month__head > span {
+  margin-left: auto;
+}
+
+.sa-p100 .dx-bar {
+  grid-template-columns: 110px minmax(0, 1fr) 260px;
+  gap: 16px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .dx-bar__label {
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-bar__nums {
+  text-align: right;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-bar__nums > span {
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-bar__nums > b {
+  font-weight: 400;
+}
+
+.sa-p100 .dx-bar__nums > b:last-child {
+  font-weight: 600;
+}
+
+.sa-p100 .dx-bar__track {
+  background: var(--qd-line-3);
+}
+
+.sa-p100 .dx-month__legend {
+  gap: 6px 16px;
+  font-size: 12px;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-dot {
+  width: 12px;
+  height: 12px;
+  margin-right: 0;
+  border-radius: 3px;
+}
+
+.sa-p100 .dx-dot--add {
+  background: var(--juli-primary);
+}
+
+.sa-p100 .dx-table {
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-p100 .dx-table__row {
+  gap: 10px;
+  align-items: center;
+  min-height: 64px;
+  padding: 0;
+  border-bottom: 1px solid var(--p100-hair);
+  font-size: 14px;
+}
+
+@media (min-width: 721px) {
+  .sa-p100 .dx-table__row {
+    grid-template-columns: 36px minmax(0, 1fr) 150px 170px 170px 110px;
+  }
+}
+
+.sa-p100 .dx-table__row--head {
+  min-height: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--qd-line-3);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-table__row--total {
+  min-height: 52px;
+  border-bottom: 0;
+  font-weight: 400;
+}
+
+.sa-p100 .dx-table__row > :first-child:not(:empty) {
+  font-weight: 700;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-table__big {
+  font-weight: 600;
+  color: var(--qd-ink);
+}
+
+.sa-p100 .dx-table__row:not(.dx-table__row--total) > :nth-child(4) .dx-table__big {
+  color: var(--jm-orders-fg);
+}
+
+.sa-p100 .dx-table__row--total > :nth-child(4) {
+  font-weight: 700;
+  color: var(--jm-orders-fg);
+}
+
+.sa-p100 .dx-table__small,
+.sa-p100 .dx-table__sub {
+  font-size: 12px;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .dx-table__act {
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* Thực hiện / Đo lường: rows and connector bar are 16px cards with the grey hairline. */
+.sa-p100 .sd-th-bar,
+.sa-p100 .sd-th-row,
+.sa-p100 .sd-dl-row {
+  border-color: var(--qd-border);
+}
+
+.sa-p100 .sd-th-row--bad {
+  border: 2px solid var(--juli-destructive);
+}
+
+.sa-p100 .sd-th-bar .sa-btn,
+.sa-p100 .sd-th-row .sa-btn,
+.sa-p100 .sd-dl-opt .sa-btn,
+.sa-p100 a.sd-th-row .sa-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 8px;
+  background: var(--qd-surface);
+  color: var(--qd-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sa-p100 .sd-th-row .sa-btn--primary,
+.sa-p100 .sd-dl-opt .sa-btn--primary,
+.sa-p100 .sd-dl-opt a.sa-btn--primary {
+  border-color: var(--qd-ink);
+  background: var(--qd-ink);
+  color: var(--qd-surface);
+}
+
+.sa-p100 .sd-th-row__group,
+.sa-p100 .sd-th-row__product {
+  font-weight: 600;
+  color: var(--qd-muted);
+}
+
+.sa-p100 .sd-th-row__product {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.sa-p100 a.sd-th-row__title {
+  color: var(--qd-ink);
+  text-decoration: none;
+}
+
+.sa-p100 .sd-th-bar__dot {
+  background: var(--qd-border-2);
+}
+
+.sa-p100 .sd-th-bar__dot--on {
+  background: var(--juli-success);
+}
+
+.sa-p100 .sd-dl-opt {
+  border-top-color: var(--qd-line-3);
+}
+
+@media (min-width: 901px) {
+  .sa-p100 .sd-th-row {
+    grid-template-columns: minmax(0, 1fr) 380px 270px;
+  }
+}
+
+@media (max-width: 720px) {
+  .sa-p100 .dx-card__top {
+    flex-wrap: wrap;
+  }
+
+  .sa-p100 .dx-month,
+  .sa-p100 .dx-table {
+    padding: 14px 16px;
+  }
+
+  .sa-p100 .dx-bar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .sa-p100 .dx-bar__nums {
+    text-align: left;
+  }
+
+  .sa-p100 .sd-actions .sa-btn--primary,
+  .sa-p100 .sd-actions a.sa-btn--primary {
+    margin-left: 0;
+  }
+}
+
+/* Kế hoạch nháp footer: both buttons right, 44px. */
+.sa-p100 .kh-plan > .sd-actions {
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.sa-p100 .kh-plan > .sd-actions .sa-btn,
+.sa-p100 .kh-plan > .sd-actions a.sa-btn {
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+.sa-p100 .kh-plan > .sd-actions .sa-btn--primary {
+  margin-left: 0;
+  padding: 0 22px;
+}
