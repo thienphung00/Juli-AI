@@ -26,6 +26,9 @@ class BuilderContext:
     view90: PeriodView | None = None
     #: items with no order in the window, evaluated on one reference order per variation
     reference_items: set[str] = field(default_factory=set)
+    #: item id -> {keyword: monthly search volume} of the products whose Tiêu đề / Mô tả version is
+    #: evaluated (``keyword_coverage``); an item absent / empty has no keyword data
+    keyword_weights: dict[str, dict[str, float]] = field(default_factory=dict)
 
     def rows(self, item_id: str) -> list[dict[str, Any]]:
         return self.variations.get(item_id, [])

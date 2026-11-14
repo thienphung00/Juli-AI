@@ -781,12 +781,16 @@ def test_keyword_bids_are_not_a_lever_any_more():
 
 
 async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
+    from tests.unit.test_shopee_builder_drafts import _market
+
+    await _market(session, shop.shop_id)  # the keyword volumes a title / first line is scored on
+    await session.commit()
     title = await one(
         session,
         shop,
         kind="title",
         item_id="1001",
-        title="Găng tay tự hủy sinh học STAHAUS hộp 100 chiếc",
+        title="Găng tay tự hủy sinh học STAHAUS hộp 100 chiếc, găng tay dùng một lần",
         keywords=["găng tay"],
     )
     assert title["driver"]["target_metric"] == "views"
@@ -808,12 +812,13 @@ async def test_listing_levers_have_a_range_or_say_they_cannot(session, shop):
         cover["driver"]["target_metric"] == "ctr"
         and cover["details"]["overlay"]["layout"] == "banner_bottom"
     )
+    assert cover["ok"] and cover["result"]["estimable"] is False  # measured after the run
     desc = await one(
         session,
         shop,
         kind="description_first_line",
         item_id="1001",
-        first_line="Găng tay tự hủy sinh học, đơn giá 90.000đ.",
+        first_line="Găng tay tự hủy sinh học, găng tay dùng một lần, đơn giá 90.000đ.",
     )
     assert desc["driver"]["target_metric"] == "ctor" and desc["ok"]
     display = await one(

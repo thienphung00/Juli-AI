@@ -35,9 +35,11 @@ from juli_backend.services.shopee_builder import (
     picker_table,
     response,
 )
+from juli_backend.services.shopee_builder import keyword_coverage as kwc
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
 from juli_backend.services.shopee_builder.engine_families import integrate
+from juli_backend.services.shopee_builder.keywords import keyword_table
 from juli_backend.services.shopee_builder.reference import with_reference_lines
 from juli_backend.services.shopee_builder.translate import Translation, to_variant
 from juli_backend.services.shopee_builder.variations import (
@@ -359,6 +361,16 @@ async def _responses(
     env.response_shop = response.shop_response(found)
 
 
+async def _load_keyword_weights(
+    session: AsyncSession, shop_id: uuid.UUID, ctx: BuilderContext, item: str
+) -> None:
+    """The product's keyword volumes (the Tiêu đề keyword table) for a title / first-line lift."""
+    li = ctx.env.listings.get(item)
+    title = (li.title if li and li.title else None) or ctx.env.name(item)
+    table = await keyword_table(session, shop_id, item, title=title, as_of=ctx.env.as_of)
+    ctx.keyword_weights[item] = kwc.weights_of_table(table)
+
+
 async def build_context(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -375,6 +387,10 @@ async def build_context(
     ctx.variations = await variation_rows_for(session, shop_id, env, items)
     ctx.env, ctx.reference_items = with_reference_lines(env, ctx.variations, items)
     env = ctx.env
+    for item in dict.fromkeys(
+        i for spec in specs if spec.kind in kwc.KEYWORD_KINDS for i in sp.items_of(spec)
+    ):
+        await _load_keyword_weights(session, shop_id, ctx, item)
     if any(spec.kind in PRICE_SCALED for spec in specs):
         _, view90, _ = await load_view90(session, shop_id, env.as_of)
         ctx.view90 = view90

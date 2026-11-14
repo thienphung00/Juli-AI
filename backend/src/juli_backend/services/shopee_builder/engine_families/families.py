@@ -400,6 +400,31 @@ def simple_option(spec: sp.VersionSpec, facts: SimpleFacts) -> OptionInput:
     )
 
 
+def _not_estimable_listing(spec: sp.VersionSpec, note: str) -> OptionInput:
+    """A listing lever with no figure: its lead driver is "chưa ước tính được" and the cost is 0
+    (the card is still saveable, as a combo without history is)."""
+    try:
+        change_kind, label, lead, _co = _SIMPLE[spec.kind]
+    except KeyError:
+        raise FamilyRefused("kind_not_supported") from None
+    return OptionInput(
+        kind=change_kind,
+        label=_label(spec, label),
+        drivers=(DriverEffect(lead[0], lead[1], "not_estimable", note=note),),
+        duration_days=None,
+    )
+
+
+def keyword_not_estimable_option(spec: sp.VersionSpec) -> OptionInput:
+    """Tiêu đề / dòng đầu mô tả of a product with no keyword data."""
+    return _not_estimable_listing(spec, common.NOTE_NO_KEYWORD_DATA)
+
+
+def unmeasured_listing_option(spec: sp.VersionSpec) -> OptionInput:
+    """Ảnh bìa / Hiển thị giá: measured after the run, until the banner checks exist."""
+    return _not_estimable_listing(spec, common.NOTE_MEASURE_AFTER)
+
+
 # -- ads, new campaign (d.8) ---------------------------------------------------------------------
 
 
