@@ -172,6 +172,45 @@ def _rest(a: Decimal | None, b: Decimal | None) -> Decimal | None:
     return None if a is None or b is None else max(a - b, Decimal(0))
 
 
+Quad = tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None]
+
+
+def card_total(base: FunnelBase) -> Quad:
+    """Thẻ sản phẩm + residual (views, clicks, orders, GMV), before the ads overlay comes off."""
+    src = _by_source(base)
+    parts = [x for x in (src.get(CARD), src.get(RESIDUAL)) if x is not None]
+    return (
+        _sum([x.views for x in parts]),
+        _sum([x.clicks for x in parts]),
+        _sum([x.orders for x in parts]),
+        _sum([x.gmv for x in parts]),
+    )
+
+
+def overlay_cells(
+    card: Quad, a: AdShare | None, product_ads: Mapping[str, Decimal | None] | None
+) -> tuple[Quad | None, Quad | None]:
+    """(Thẻ sản phẩm organic, Quảng cáo) cells on ONE basis (P100 B.4a, the module table):
+    without overlay clicks the Quảng cáo views AND clicks come from the ads report's product
+    ads; organic views = card - overlay views (else - report impressions), organic clicks =
+    card - the Quảng cáo clicks; every organic cell clamped at 0. Shared by Tổng quan
+    (:func:`split_rows`) and Phân tích (``metric_view``), so both show the same cells."""
+    if a is None:
+        return None, None
+    report_imp = product_ads.get("impressions") if product_ads else None
+    report_clk = product_ads.get("clicks") if product_ads else None
+    ad_views, ad_clicks = a.views, a.clicks
+    if ad_clicks is None and report_clk is not None:
+        ad_views, ad_clicks = report_imp, report_clk
+    organic = (
+        _rest(card[0], a.views if a.views is not None else report_imp),
+        _rest(card[1], ad_clicks),
+        _rest(card[2], a.orders),
+        _rest(card[3], a.gmv),
+    )
+    return organic, (ad_views, ad_clicks, a.orders, a.gmv)
+
+
 def split_rows(
     base: FunnelBase,
     *,
@@ -206,31 +245,10 @@ def split_rows(
             None,
         )
 
-    def card_part(field: str) -> Decimal | None:
-        """Thẻ sản phẩm + residual, before the ads overlay comes off."""
-        parts = [x for x in (card, src.get(RESIDUAL)) if x is not None]
-        return _sum([getattr(x, field) for x in parts])
-
     a = ads
     product_ads, shop_ads = (None, None) if product_level else _ad_report(ad_types)
-    # P100 B.4a: the Quảng cáo row's views / clicks on ONE basis. The overlay's own clicks keep
-    # the traffic-overview base; without them both come from the ads report (product ads).
-    ad_views = a.views if a else None
-    ad_clicks = a.clicks if a else None
-    report_imp = product_ads.get("impressions") if product_ads else None
-    report_clk = product_ads.get("clicks") if product_ads else None
-    from_report = a is not None and ad_clicks is None and report_clk is not None
-    if from_report:
-        ad_views, ad_clicks = report_imp, report_clk
-    org_card = _row(
-        "organic_card",
-        "organic",
-        # traffic base when the overlay has views; else the report's impressions
-        _rest(card_part("views"), a.views if a.views is not None else report_imp) if a else None,
-        _rest(card_part("clicks"), ad_clicks) if a else None,
-        _rest(card_part("orders"), a.orders) if a else None,
-        _rest(card_part("gmv"), a.gmv) if a else None,
-    )
+    org_cell, ad_cell = overlay_cells(card_total(base), a, product_ads)
+    org_card = _row("organic_card", "organic", *(org_cell or (None, None, None, None)))
 
     def child(key: str, s: SourceFunnel | None) -> dict[str, Any]:
         return _row(
@@ -279,10 +297,7 @@ def split_rows(
         _row(
             "ads",
             None,
-            ad_views,
-            ad_clicks,
-            a.orders if a else None,
-            a.gmv if a else None,
+            *(ad_cell or (None, None, None, None)),
             base_name,
         )
     )
