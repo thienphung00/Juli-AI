@@ -138,17 +138,19 @@ describe("App shell — rail, header, slot", () => {
 
   it("signed in: 'Juli đang chạy · cập nhật HH:MM' comes from the report's built_at", async () => {
     signIn();
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          as_of: "2026-10-07",
-          built_at: "2026-10-08T02:00:00+07:00",
-          ranking: "60d",
-          report: { shop_name: "Shop Thật", channels: [], windows: {} },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+    // /v1/shops/me names the marketplace first; every other read gets the TikTok report.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const body = url.endsWith("/v1/shops/me")
+        ? { platform: "tiktok" }
+        : {
+            as_of: "2026-10-07",
+            built_at: "2026-10-08T02:00:00+07:00",
+            ranking: "60d",
+            report: { shop_name: "Shop Thật", channels: [], windows: {} },
+          };
+      return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
 
     render(<DemoShell>Nội dung</DemoShell>);
     const header = screen.getByTestId("shop-header");
