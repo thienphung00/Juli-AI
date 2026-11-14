@@ -30,9 +30,15 @@ from juli_backend.api.dependencies import get_active_shop
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.database.tenant_context import with_shop_scope
-from juli_backend.services.stock_alert import cards, data, links, settings, unsubscribe
+from juli_backend.services.stock_alert import (
+    cards,
+    data,
+    eligibility,
+    links,
+    settings,
+    unsubscribe,
+)
 from juli_backend.services.stock_alert import stock_basis as sb
-from juli_backend.services.stock_alert.eligibility import evaluate, is_eligible
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +68,7 @@ def _row(
     fc = None
     out_since = None
     if state.stock is not None:
-        alert = evaluate(f, today, alert_days=10**6)
+        alert = eligibility.evaluate(f, today, alert_days=10**6)
         if alert is not None:
             fc = alert.forecast
             out_since = alert.out_since
@@ -101,7 +107,7 @@ async def stock_list(
     stored = await settings.tracking_rows(session, shop_id)
     rows = []
     for s in states:
-        eligible = s.stock is not None and is_eligible(s.facts, today)
+        eligible = s.stock is not None and eligibility.is_eligible(s.facts, today)
         tracked = settings.effective(stored.get(s.facts.key), eligible)
         rows.append(_row(s, tracked, eligible, today, conf.days))
     rows.sort(key=lambda r: (r["product_name"], r["variation_name"] or "", r["key"]))

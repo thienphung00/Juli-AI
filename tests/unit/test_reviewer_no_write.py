@@ -306,6 +306,7 @@ async def test_every_route_as_reviewer_writes_nothing(
         "number": "1",  # P91 D-13: .../planned-changes/versions/{number}
         "workflow_key": "optimize_product_2",
         "job_id": str(uuid.uuid4()),  # P97 D85.6: POST /v1/ingest/fill-jobs/{job_id}
+        "sku_key": "1001:11",  # P100 Part S: PUT /v1/demo/shopee/stock/{sku_key}/tracking
     }
     headers = {
         "Authorization": f"Bearer {rv.token(reviewer_id)}",
