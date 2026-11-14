@@ -170,7 +170,7 @@ function ByChannel({ view, sel, mode, href, state }: { readonly state: WindowSta
           </Link>
           <b>{valueText(m, r.now, days, mode)}</b>
           <span>{valueText(m, r.prev, days, mode)}</span>
-          <Shift pct={r.change} />
+          <span className="jp-shift-cell"><Shift pct={r.change} /></span>
           <span>{impactText(r, days, mode)}</span>
           <Cta channel={r.key} metric={m} state={state} product={sel.product} row={r} />
         </div>
@@ -212,7 +212,7 @@ function ByProduct({ view, sel, mode, state }: { readonly state: WindowState; re
           </Link>
           <b>{valueText(m, p.now, view.days, mode)}</b>
           <span>{valueText(m, p.prev, view.days, mode)}</span>
-          <Shift pct={p.change} />
+          <span className="jp-shift-cell"><Shift pct={p.change} /></span>
           <span>{impactText(p, view.days, mode)}</span>
           <Cta channel={sel.channel} metric={m} state={state} product={p.product_id} row={p} />
         </div>

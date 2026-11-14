@@ -82,7 +82,7 @@ export function KolSection({
             <span>{sum(r.gmv)}</span>
             <span>{sum(r.commission)}</span>
             <span className={good ? "jp-up" : "jp-down"}>{signedMoney(inMode(r.profit, data.days, mode))}</span>
-            <Shift pct={r.change} />
+            <span className="jp-shift-cell"><Shift pct={r.change} /></span>
             {r.cards > 0 ? (
               <Link className="jp-cta jp-cta--on" href={decisionsHref(r)}>
                 Đề xuất ({r.cards}) ›

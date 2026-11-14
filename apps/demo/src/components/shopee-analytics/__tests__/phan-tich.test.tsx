@@ -42,6 +42,18 @@ describe("Phân tích (board B)", () => {
     expect(screen.getByTestId("pt-channel-live")).toHaveTextContent("Tự tạo ›");
   });
 
+  it("every luồng and product row has as many cells as the header, so the CTA stays in its column (a null change once shifted it left)", async () => {
+    renderWith(<PhanTichPageView params={params("metric=ctr")} />, fakeApi());
+    await screen.findByTestId("pt-channels");
+    const head = screen.getByTestId("pt-channels").querySelector(".jp-grid--head")!;
+    const rows = screen.getAllByTestId(/^pt-channel-/).filter((e) => e.classList.contains("jp-grid"));
+    expect(rows.length).toBeGreaterThan(1);
+    expect(screen.getByTestId("pt-channel-live")).toHaveTextContent("Live——");
+    for (const row of rows) expect(row.children.length).toBe(head.children.length);
+    const pHead = screen.getByTestId("pt-products").querySelector(".jp-grid--head")!;
+    for (const row of screen.getAllByTestId(/^pt-product-/).filter((e) => e.classList.contains("jp-grid"))) expect(row.children.length).toBe(pHead.children.length);
+  });
+
   it("CTAs: Đề xuất (n) opens Quyết định filtered by metric and product; Tự tạo opens the builder with the product", async () => {
     renderWith(<PhanTichPageView params={params("metric=ctr&ky=7d")} />, fakeApi());
     const withCards = within(await screen.findByTestId("pt-product-GL-001")).getByRole("link", { name: "Đề xuất (2) ›" });
