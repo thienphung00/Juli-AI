@@ -113,6 +113,12 @@ from juli_backend.models.shopee_profit import (
     ShopHealthDaily,
 )
 from juli_backend.models.shopee_recommendations import ShopeeRecoCalibration, ShopeeSimPriorRun
+from juli_backend.models.stock_alert import (
+    ShopeeSkuTracking,
+    ShopeeStockAlertSend,
+    ShopeeStockAlertUnsubscribe,
+    ShopeeStockHistory,
+)
 from juli_backend.models.subscriptions import ShopSubscriptionPeriod
 from juli_backend.models.trial_signups import TrialSignup
 
@@ -194,6 +200,10 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopeeSourceMetricsDaily,
     ShopeeConnectorCommand,
     ShopeeConnectorState,
+    ShopeeSkuTracking,
+    ShopeeStockAlertSend,
+    ShopeeStockAlertUnsubscribe,
+    ShopeeStockHistory,
     ShopeeFillJob,
     PlannedChangeImport,
     PlannedChangeRef,
