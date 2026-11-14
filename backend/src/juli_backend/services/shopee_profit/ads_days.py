@@ -41,6 +41,9 @@ class TypeFigure:
     spend: Decimal | None = None
     gmv: Decimal = ZERO
     orders: Decimal = ZERO
+    #: P100 B.4c: the type's ad impressions / clicks of the day (None = not posted)
+    impressions: Decimal | None = None
+    clicks: Decimal | None = None
 
 
 @dataclass(frozen=True)

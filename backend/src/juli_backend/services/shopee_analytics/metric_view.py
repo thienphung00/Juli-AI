@@ -247,8 +247,10 @@ def channel_cell(base: FunnelBase, channel: str | None, *, ads_known: bool = Tru
     )
 
 
-def _ad_cell(cell: Mapping[str, Decimal] | None) -> Cell | None:
-    return None if cell is None else Cell(None, None, Decimal(cell["orders"]), Decimal(cell["gmv"]))
+def _ad_cell(cell: Mapping[str, Decimal | None] | None) -> Cell | None:
+    if cell is None:
+        return None
+    return Cell(None, None, Decimal(cell["orders"] or 0), Decimal(cell["gmv"] or 0))
 
 
 # -- cards ---------------------------------------------------------------------------------
@@ -290,8 +292,8 @@ def assemble(
     now: funnel.FunnelRows,
     before: funnel.FunnelRows,
     shop_key: str,
-    ad_types_now: Mapping[str, Mapping[str, Decimal]] | None,
-    ad_types_before: Mapping[str, Mapping[str, Decimal]] | None,
+    ad_types_now: channel_split.AdTypes | None,
+    ad_types_before: channel_split.AdTypes | None,
     item_ids: Sequence[str],
     names: Mapping[str, str],
     margin_now: Mapping[str, Decimal | None],

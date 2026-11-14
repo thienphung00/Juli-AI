@@ -9,15 +9,24 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
 - Sources (Seller Centre): Thẻ sản phẩm (``the_san_pham_khac``), Trang shop (``trang_shop``), Live,
   Video, Tiếp thị liên kết (``lien_ket``) and the residual ``chenh_lech_nguon``.
 - **Quảng cáo, traffic-overview base** = the "trong đó Quảng cáo" overlay of Thẻ sản phẩm
-  (``AdShare``: views, clicks, placed orders, GMV). It sits inside the sources, never beside them.
+  (``AdShare``: views, clicks, orders, GMV). It sits inside the sources, never beside them.
+  P100 B.4b -- **one order basis, confirmed**: the sources' đơn / GMV are ShopMetrics
+  (confirmed), so the stored overlay is too (``materialize.ads_overlay``: Shopee's confirmed ads
+  row, else the placed row times the card's own confirmed ÷ placed ratio). P100 B.4a: a day
+  whose overlay has views but no clicks takes the clicks of the daily ads report
+  (``ads_campaign_daily``, every type but Shop+), so Quảng cáo, Thẻ sản phẩm (organic) and
+  Organic get CTR / CTOR.
 - **Organic = sources - Quảng cáo - Tiếp thị liên kết.** Its four children add up to it: Thẻ sản
-  phẩm (organic) = Thẻ sản phẩm + residual - the ads overlay; Trang shop = the ``trang_shop``
-  segment; Video; Live.
+  phẩm (organic) = Thẻ sản phẩm + residual - the ads overlay, each cell clamped at 0 (P100 B.4b:
+  a derived organic cell is never negative); Trang shop = the ``trang_shop`` segment; Video;
+  Live.
 - Every row carries ``prev`` (the same cells over the previous period of the same length) and
   ``share`` (of the total GMV on the traffic-overview base; ``None`` for ads-report rows).
 - **Quảng cáo children, ads-report base** (never added to the traffic-overview figure): DVHT Sản
-  phẩm = every ad type of the ads report except ``ads_shop``; DVHT Shop+ = ``ads_shop``. The
-  report has no views / clicks, so those stay ``None``. At Sản phẩm level there is no Shop+ row
+  phẩm = every ad type of the ads report except ``ads_shop``; DVHT Shop+ = ``ads_shop``. P100
+  B.4c: Lượt xem = the report's impressions, CTR = clicks ÷ impressions, CTOR = orders ÷ clicks
+  (broad orders, the report's own basis); a type whose days lack the counts (a day covered only
+  by a period file) leaves them ``None``. At Sản phẩm level there is no Shop+ row
   and the Quảng cáo row itself is the ads-report base (per-product ad GMV and spend only).
 - Tiếp thị liên kết has no views (``None``); clicks and orders only.
 - A figure with no data is ``None``, never 0. An ad overlay that is missing at shop level makes
@@ -109,13 +118,21 @@ def _by_source(base: FunnelBase) -> dict[str, SourceFunnel]:
     return {s.source: s for s in base.sources}
 
 
+AdTypes = Mapping[str, Mapping[str, Decimal | None]]
+_COUNTS = ("impressions", "clicks")
+
+
 def _ad_report(
-    ad_types: Mapping[str, Mapping[str, Decimal]] | None,
-) -> tuple[dict[str, Decimal] | None, dict[str, Decimal] | None]:
-    """(DVHT Sản phẩm, DVHT Shop+) of the ads report: ``{"gmv", "orders", "spend"}`` each."""
+    ad_types: AdTypes | None,
+) -> tuple[dict[str, Decimal | None] | None, dict[str, Decimal | None] | None]:
+    """(DVHT Sản phẩm, DVHT Shop+) of the ads report: ``{"gmv", "orders", "spend",
+    "impressions", "clicks"}`` each. A count one of the summed types lacks is ``None``."""
     if not ad_types:
         return None, None
-    product = {"gmv": Decimal(0), "orders": Decimal(0), "spend": Decimal(0)}
+    product: dict[str, Decimal | None] = {
+        "gmv": Decimal(0), "orders": Decimal(0), "spend": Decimal(0),
+        "impressions": Decimal(0), "clicks": Decimal(0),
+    }  # fmt: skip
     shop = dict(product)
     has_product = has_shop = False
     for kind, cell in ad_types.items():
@@ -125,14 +142,23 @@ def _ad_report(
         else:
             has_product = True
         for k in target:
-            target[k] += Decimal(cell.get(k) or 0)
+            value, have = cell.get(k), target[k]
+            if k in _COUNTS:
+                target[k] = None if value is None or have is None else have + Decimal(value)
+            else:
+                target[k] = Decimal(have or 0) + Decimal(value or 0)
     return (product if has_product else None), (shop if has_shop else None)
+
+
+def _rest(a: Decimal | None, b: Decimal | None) -> Decimal | None:
+    """``a - b`` clamped at 0 (a derived organic cell is never negative); ``None`` unknown."""
+    return None if a is None or b is None else max(a - b, Decimal(0))
 
 
 def split_rows(
     base: FunnelBase,
     *,
-    ad_types: Mapping[str, Mapping[str, Decimal]] | None = None,
+    ad_types: AdTypes | None = None,
     ads_known: bool = True,
     ads_fallback: Mapping[str, Decimal] | None = None,
     affiliate_fallback: Mapping[str, Decimal] | None = None,
@@ -172,10 +198,10 @@ def split_rows(
     org_card = _row(
         "organic_card",
         "organic",
-        _minus(card_part("views"), a.views) if a else None,
-        _minus(card_part("clicks"), a.clicks) if a else None,
-        _minus(card_part("orders"), a.orders) if a else None,
-        _minus(card_part("gmv"), a.gmv) if a else None,
+        _rest(card_part("views"), a.views) if a else None,
+        _rest(card_part("clicks"), a.clicks) if a else None,
+        _rest(card_part("orders"), a.orders) if a else None,
+        _rest(card_part("gmv"), a.gmv) if a else None,
     )
 
     def child(key: str, s: SourceFunnel | None) -> dict[str, Any]:
@@ -264,14 +290,18 @@ def with_share(rows: list[dict[str, Any]], total: Decimal | None) -> list[dict[s
     return rows
 
 
-def _ad_row(key: str, cell: Mapping[str, Decimal] | None) -> dict[str, Any]:
+def _ad_row(key: str, cell: Mapping[str, Decimal | None] | None) -> dict[str, Any]:
+    """A DVHT row on the ads report's own basis: Lượt xem = impressions, CTR = clicks ÷
+    impressions, CTOR = orders ÷ clicks (broad orders, the report's basis)."""
+    if cell is None:
+        return _row(key, "ads", None, None, None, None, "ads_report")
     return _row(
         key,
         "ads",
-        None,
-        None,
-        None if cell is None else cell["orders"],
-        None if cell is None else cell["gmv"],
+        cell.get("impressions"),
+        cell.get("clicks"),
+        cell["orders"],
+        cell["gmv"],
         "ads_report",
     )
 

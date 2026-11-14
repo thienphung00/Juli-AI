@@ -519,7 +519,9 @@ class AdsDaily:
     spend: Decimal
     gmv: Decimal
     orders: Decimal
-    by_type: dict[str, dict[str, Decimal]]
+    #: per ad type: spend / gmv / orders (placed) and, P100 B.4c, impressions / clicks (None =
+    #: a covered day of the type had no count)
+    by_type: dict[str, dict[str, Decimal | None]]
     days_covered: int
     window_days: int
     #: P100 B.5: the spend per day (only the days with an ads row); the one shop profit charges
@@ -557,24 +559,13 @@ async def _connector_ad_days(
         key = (r.day, r.segment)
         if key not in chosen or r.order_type == PLACED:
             chosen[key] = r
-    per_day: dict[date, dict[str, list[Decimal]]] = {d: {} for d in covered}
+    per_day: dict[date, dict[str, list[Decimal | None]]] = {d: {} for d in covered}
     for (day, _segment), r in chosen.items():
         extra = r.extra or {}
         kind = str(extra.get("ad_type") or "connector")
-        cell = per_day[day].setdefault(kind, [ZERO, ZERO, ZERO])
-        cell[0] += _z(extra.get("cost"))
-        cell[1] += _z(r.gmv)
-        cell[2] += _z(r.orders)
-    return {
-        day: DayAds(
-            sum((c[0] for c in cells.values()), ZERO),
-            sum((c[1] for c in cells.values()), ZERO),
-            sum((c[2] for c in cells.values()), ZERO),
-            SOURCE_CONNECTOR,
-            {k: TypeFigure(c[0], c[1], c[2]) for k, c in cells.items()},
-        )
-        for day, cells in per_day.items()
-    }
+        cell = per_day[day].setdefault(kind, [ZERO, ZERO, ZERO, ZERO, ZERO])
+        _add_type_cell(cell, _z(extra.get("cost")), r)
+    return {day: _type_day(cells, SOURCE_CONNECTOR) for day, cells in per_day.items()}
 
 
 async def _daily_report_ad_days(
@@ -589,30 +580,43 @@ async def _daily_report_ad_days(
         streams=["ads"],
         order_types=[PLACED],
     )
-    per_day: dict[date, dict[str, list[Decimal]]] = defaultdict(dict)
-    totals: dict[date, list[Decimal]] = {}
+    per_day: dict[date, dict[str, list[Decimal | None]]] = defaultdict(dict)
+    totals: dict[date, dict[str, list[Decimal | None]]] = {}
     for r in rows:
         cost = _z((r.extra or {}).get("ads_expense"))
         if r.segment == "all":  # Shopee's own total of the types: only when the types are missing
-            totals[r.day] = [cost, _z(r.gmv), _z(r.orders)]
+            totals[r.day] = {"all": [ZERO, ZERO, ZERO, ZERO, ZERO]}
+            _add_type_cell(totals[r.day]["all"], cost, r)
             continue
-        cell = per_day[r.day].setdefault(r.segment, [ZERO, ZERO, ZERO])
-        cell[0] += cost
-        cell[1] += _z(r.gmv)
-        cell[2] += _z(r.orders)
-    out: dict[date, DayAds] = {}
-    for day, cells in per_day.items():
-        out[day] = DayAds(
-            sum((c[0] for c in cells.values()), ZERO),
-            sum((c[1] for c in cells.values()), ZERO),
-            sum((c[2] for c in cells.values()), ZERO),
-            SOURCE_DAILY_REPORT,
-            {k: TypeFigure(c[0], c[1], c[2]) for k, c in cells.items()},
-        )
+        cell = per_day[r.day].setdefault(r.segment, [ZERO, ZERO, ZERO, ZERO, ZERO])
+        _add_type_cell(cell, cost, r)
+    out: dict[date, DayAds] = {
+        day: _type_day(cells, SOURCE_DAILY_REPORT) for day, cells in per_day.items()
+    }
     for day, t in totals.items():
         if day not in out:
-            out[day] = DayAds(t[0], t[1], t[2], SOURCE_DAILY_REPORT, {"all": TypeFigure(*t)})
+            out[day] = _type_day(t, SOURCE_DAILY_REPORT)
     return out
+
+
+def _add_type_cell(cell: list[Decimal | None], cost: Decimal, r: Any) -> None:
+    """Add one ads row to a type's ``[spend, gmv, orders, impressions, clicks]`` of a day; a row
+    without impressions / clicks makes the type's day figure unknown (``None``)."""
+    cell[0] = _z(cell[0]) + cost
+    cell[1] = _z(cell[1]) + _z(r.gmv)
+    cell[2] = _z(cell[2]) + _z(r.orders)
+    for i, value in ((3, r.impressions), (4, r.clicks)):
+        cell[i] = None if value is None or cell[i] is None else _z(cell[i]) + value
+
+
+def _type_day(cells: Mapping[str, list[Decimal | None]], source: str) -> DayAds:
+    return DayAds(
+        sum((_z(c[0]) for c in cells.values()), ZERO),
+        sum((_z(c[1]) for c in cells.values()), ZERO),
+        sum((_z(c[2]) for c in cells.values()), ZERO),
+        source,
+        {k: TypeFigure(_z(c[0]), _z(c[1]), _z(c[2]), c[3], c[4]) for k, c in cells.items()},
+    )
 
 
 async def _period_ad_windows(
@@ -677,8 +681,8 @@ async def load_ad_days(
 def ads_daily_of(days: Mapping[date, DayAds], window: Window) -> AdsDaily:
     """The window's :class:`AdsDaily` from its per-day figures (pure)."""
     spend = gmv = orders = ZERO
-    by_type: dict[str, dict[str, Decimal]] = defaultdict(
-        lambda: {"spend": ZERO, "gmv": ZERO, "orders": ZERO}
+    by_type: dict[str, dict[str, Decimal | None]] = defaultdict(
+        lambda: {"spend": ZERO, "gmv": ZERO, "orders": ZERO, "impressions": ZERO, "clicks": ZERO}
     )
     for figure in days.values():
         spend += figure.spend
@@ -686,9 +690,13 @@ def ads_daily_of(days: Mapping[date, DayAds], window: Window) -> AdsDaily:
         orders += figure.orders
         for kind, t in figure.by_type.items():
             cell = by_type[kind]
-            cell["spend"] += t.spend or ZERO
-            cell["gmv"] += t.gmv
-            cell["orders"] += t.orders
+            cell["spend"] = _z(cell["spend"]) + (t.spend or ZERO)
+            cell["gmv"] = _z(cell["gmv"]) + t.gmv
+            cell["orders"] = _z(cell["orders"]) + t.orders
+            # P100 B.4c: one day of the type without the count makes the window's unknown
+            for key, value in (("impressions", t.impressions), ("clicks", t.clicks)):
+                have = cell[key]
+                cell[key] = None if value is None or have is None else have + value
     missing = tuple(
         d for i in range(window.days) if (d := window.start + timedelta(days=i)) not in days
     )

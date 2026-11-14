@@ -143,3 +143,32 @@ def test_p100b_the_ads_daily_figures_name_the_missing_days():
     daily = ads_daily_of(days, Window(date(2026, 11, 1), date(2026, 11, 3)))
     assert daily.days_covered == 1
     assert daily.missing_days == (date(2026, 11, 1), date(2026, 11, 3))
+
+
+def test_p100b_the_ads_daily_figures_keep_impressions_and_clicks_per_ad_type():
+    from juli_backend.services.shopee_analytics.loaders import ads_daily_of
+    from juli_backend.services.shopee_analytics.windows import Window
+    from juli_backend.services.shopee_profit.ads_days import TypeFigure
+
+    def day(imp, clk):
+        return DayAds(
+            D(10),
+            D(100),
+            D(2),
+            SOURCE_CONNECTOR,
+            {
+                "product_manual": TypeFigure(D(10), D(100), D(2), imp, clk),
+                "ads_shop": TypeFigure(D(0), D(0), D(0), D(5), D(1)),
+            },
+        )
+
+    days = {date(2026, 11, 1): day(D(1000), D(40)), date(2026, 11, 2): day(D(500), D(10))}
+    cell = ads_daily_of(days, Window(date(2026, 11, 1), date(2026, 11, 2))).by_type
+    assert cell["product_manual"]["impressions"] == D(1500)
+    assert cell["product_manual"]["clicks"] == D(50)
+    assert cell["ads_shop"]["impressions"] == D(10)
+    # one day of the type without impressions: the window's impressions are unknown
+    days[date(2026, 11, 2)] = day(None, None)
+    cell = ads_daily_of(days, Window(date(2026, 11, 1), date(2026, 11, 2))).by_type
+    assert cell["product_manual"]["impressions"] is None
+    assert cell["product_manual"]["clicks"] is None

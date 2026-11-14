@@ -244,3 +244,61 @@ async def test_picker_margin_is_the_builders_one_scope_margin(session):
     for p in out["products"]:
         one = scope_margin_pct(view.profit, (p["product_id"],))
         assert p["margin"] == (None if one is None else float(one))
+
+
+# -- P100 B.4: one order basis, ad clicks, DVHT views ---------------------------------------
+
+
+def test_p100b_dvht_rows_get_views_ctr_and_ctor_from_the_ads_report():
+    types = {
+        "ads_roas_custom": {
+            "gmv": D(9_000_000), "orders": D(70), "spend": D(2_000_000),
+            "impressions": D(40_000), "clicks": D(1_400),
+        },
+        "ads_auto_bid": {
+            "gmv": D(1_030_000), "orders": D(4), "spend": D(450_000),
+            "impressions": D(10_000), "clicks": D(100),
+        },
+        "ads_shop": {
+            "gmv": D(350_000), "orders": D(2), "spend": D(120_000),
+            "impressions": D(5_000), "clicks": D(50),
+        },
+    }  # fmt: skip
+    r = _by_key(split_rows(base_from_rows(_rows(), "s"), ad_types=types))
+    p, s = r["ads_product"], r["ads_shop"]
+    assert p["views"] == 50_000 and p["clicks"] == 1_500
+    assert p["ctr"] == 0.03 and p["ctor"] == round(74 / 1_500, 6)
+    assert s["views"] == 5_000 and s["ctr"] == 0.01 and s["ctor"] == 0.04
+    assert p["share"] is None  # still the ads-report base
+
+
+def test_p100b_a_type_without_counts_leaves_the_dvht_views_unknown():
+    types = {
+        "ads_roas_custom": {"gmv": D(9), "orders": D(7), "spend": D(2), "impressions": None,
+                            "clicks": None},
+        "ads_auto_bid": {"gmv": D(1), "orders": D(1), "spend": D(1), "impressions": D(10),
+                         "clicks": D(1)},
+    }  # fmt: skip
+    p = _by_key(split_rows(base_from_rows(_rows(), "s"), ad_types=types))["ads_product"]
+    assert p["views"] is None and p["clicks"] is None and p["ctr"] is None and p["ctor"] is None
+    assert p["orders"] == 8
+
+
+def test_p100b_the_organic_card_never_goes_below_zero():
+    """ORY: Thẻ sản phẩm (organic) −24 đơn. A derived organic cell is clamped at 0."""
+    out = []
+    for s in SOURCES:
+        if s == "the_san_pham_khac":
+            out.append(
+                SourceDay(
+                    DAY, None, s, 5000, 100, 70, D(10_880_000), D(0),
+                    ads_views=6000, ads_clicks=150, ads_orders=94, ads_gmv=D(9_933_253),
+                )
+            )  # fmt: skip
+        else:
+            out.append(SourceDay(DAY, None, s, None, None, 0, D(0), D(0)))
+    r = _by_key(split_rows(base_from_rows(FunnelRows(W, tuple(out)), "s")))
+    card = r["organic_card"]
+    assert card["orders"] == 0 and card["views"] == 0 and card["clicks"] == 0
+    assert card["gmv"] == 946_747
+    assert r["organic"]["orders"] == 0 and r["organic"]["gmv"] == 946_747
