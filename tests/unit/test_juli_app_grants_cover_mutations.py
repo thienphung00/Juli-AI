@@ -377,6 +377,23 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "cmd.status, cmd.sent_at = COMMAND_SENT, now",
         "the poll hands a pending Đối chiếu ngay command to the Connector, the ack closes it",
     ),
+    # -- P100 Part S (migration 129): the per-variation "Theo dõi" switch -------------------
+    MutationSite(
+        "public",
+        "shopee_sku_tracking",
+        "UPDATE",
+        "backend/src/juli_backend/services/stock_alert/settings.py",
+        "row.tracked = tracked",
+        "a member switches a variation's stock alert off or on again",
+    ),
+    MutationSite(
+        "public",
+        "shopee_sku_tracking",
+        "UPDATE",
+        "backend/src/juli_backend/services/stock_alert/settings.py",
+        "row.tracked = state",
+        "the daily job turns a default-off variation on once it becomes eligible",
+    ),
     # -- P90 / P91 (migrations 115-120): tenant-direct tables the Shopee recommendations write ----
     MutationSite(
         "public",

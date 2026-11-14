@@ -12,6 +12,7 @@ import { createKolApi } from "../../lib/shopee-kol/client";
 import { kolEnabled } from "../../lib/shopee-decisions/plan-client";
 import { DEMO_RECO_BASE, createRecoApi, opsRecoBase } from "../../lib/shopee-decisions/client";
 import { opsTabShopeeLinks, sellerLinks, viewAsShopeeLinks } from "../../lib/shopee-analytics/links";
+import { createStockApi } from "../../lib/shopee-analytics/stock";
 import type { ShopeeScreen } from "../../lib/shopee-analytics/params";
 import { PhanTichPageView } from "./phan-tich-view";
 import { ProductListView } from "./product-list";
@@ -43,6 +44,7 @@ function SellerHost({ children }: { readonly children: (host: ShopeeHost) => Rea
             reco: createRecoApi({ base: DEMO_RECO_BASE, token, shopId: shop.id }),
             builder: p92BuilderEnabled() ? createBuilderApi({ base: DEMO_BUILDER_BASE, token, shopId: shop.id }) : undefined,
             kol: kolEnabled() ? createKolApi({ base: DEMO_SHOPEE_BASE, token, shopId: shop.id }) : undefined,
+            stock: createStockApi({ token, shopId: shop.id }),
             links: sellerLinks,
             shopKey: shop.id,
             shopName: shop.name,

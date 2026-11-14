@@ -763,6 +763,8 @@ def generate(env: RecoEnv, critical: dict[str, Any]) -> list[Candidate]:
                 continue
             if c.item and (env.locked.get(c.item) or env.stock(c.item) == 0):
                 continue
+            if env.stock_stopped and any(i in env.stock_stopped for i in c.items):
+                continue  # P100 Part S: every variation of the product is "Ngừng theo dõi"
             if env.excluded and (
                 any(i in env.excluded for i in c.items)
                 or any(c.extra.get(k) in env.excluded for k in ("addon_item", "gift_item"))

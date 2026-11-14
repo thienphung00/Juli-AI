@@ -50,6 +50,8 @@ from juli_backend.api.routes.demo_shopee_reco_plan import router as demo_shopee_
 from juli_backend.api.routes.demo_shopee_recommendations import (
     router as demo_shopee_recommendations_router,
 )
+from juli_backend.api.routes.demo_stock_alert import public_router as stock_alert_public_router
+from juli_backend.api.routes.demo_stock_alert import router as demo_stock_alert_router
 from juli_backend.api.routes.executions import router as executions_router
 from juli_backend.api.routes.ingest import router as ingest_router
 from juli_backend.api.routes.ingest_fill import jobs_router as ingest_fill_jobs_router
@@ -168,6 +170,8 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_shop_inputs_router)
     # P90 step 7: the Shopee shop screens' read APIs (seller scope and Ops viewer).
     v1_router.include_router(demo_shopee_analytics_router)
+    v1_router.include_router(demo_stock_alert_router)
+    v1_router.include_router(stock_alert_public_router)
     # P91 D-6: the plan routes (/plan, /plans, /change-sets) go before the {card_id} routes
     v1_router.include_router(demo_shopee_reco_plan_router)
     v1_router.include_router(demo_shopee_reco_execution_router)

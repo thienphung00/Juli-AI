@@ -172,6 +172,12 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
         "which names exactly one shop; writes only under that shop's RLS scope, "
         "rate-limited per shop."
     ),
+    ("POST", "/v1/stock-alert/unsubscribe"): (
+        'P100 Part S: the stock e-mail\'s "Huỷ nhận email này" confirm. The member opens it '
+        "from their inbox without a session; the HMAC-signed token (stock_alert.links) names one "
+        "shop and one member and is the credential. Writes only that member's unsubscribe row "
+        "under that shop's RLS scope; a GET changes nothing."
+    ),
     ("POST", "/v1/trial-signups"): (
         "Fast track P33-F (D43): the public free-trial sign-up from app-juli.com/dang-ky. "
         "A visitor has no session by definition. Writes only the ops-only trial_signups "

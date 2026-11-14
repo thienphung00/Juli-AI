@@ -109,6 +109,7 @@ from juli_backend.services.ingest.writers import (
     write_shop_health,
 )
 from juli_backend.services.privacy.payload_allowlist import allowlist_payload, ingest_endpoint
+from juli_backend.services.stock_alert import history as stock_history
 
 logger = logging.getLogger(__name__)
 
@@ -691,6 +692,7 @@ async def _write(
         await write_ads_log(session, _typed(rows, ShopeeAdsChangeLogRow), body, provenance)
     elif spec.writes == WRITE_ITEM_SNAPSHOTS:
         await write_item_snapshots(session, _typed(rows, ShopeeItemSnapshotRow), body, provenance)
+        await stock_history.record(session, _typed(rows, ShopeeItemSnapshotRow), provenance)
     elif spec.writes == WRITE_SHOP_HEALTH:
         await write_shop_health(session, _typed(rows, ShopeeShopHealthDailyRow), body, provenance)
     elif spec.writes == WRITE_MARKET_SEARCH:
