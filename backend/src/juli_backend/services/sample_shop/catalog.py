@@ -96,8 +96,8 @@ PRODUCTS: tuple[Product, ...] = (
         "Khăn lau đa năng Hiên Nhà set 5 khăn",
         "HN-KLD",
         (
-            _v(2, 1, "Bộ 5 khăn xám", 79_000, 0.42, 480, "HN-KLD"),
-            _v(2, 2, "Bộ 5 khăn pastel", 79_000, 0.42, 430, "HN-KLD"),
+            _v(2, 1, "Bộ 5 khăn xám", 85_000, 0.42, 480, "HN-KLD"),
+            _v(2, 2, "Bộ 5 khăn pastel", 85_000, 0.42, 430, "HN-KLD"),
         ),
         (3, 2),
         (55, 32, 10, 3),
@@ -213,7 +213,7 @@ VOUCHER_QUANTITY = 60
 VOUCHER_START_DAYS_BEFORE_END = 15
 VOUCHER_DAYS = 7
 #: Share of the qualifying orders that collect and use the voucher.
-VOUCHER_USAGE = 0.3
+VOUCHER_USAGE = 0.15
 #: Share of the orders one unit short of the minimum that add one unit to reach it.
 VOUCHER_TOP_UP = 0.4
 

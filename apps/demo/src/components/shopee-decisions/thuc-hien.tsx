@@ -19,6 +19,12 @@ import { NavLink, RecoState } from "./ui";
  */
 
 const STEPS = ["Đã duyệt", "Connector điền", "Bạn lưu", "Khớp Seller Centre"] as const;
+/**
+ * P100 S2-D4 (owner, 2026-11-14): the reviewer's sample shop has no Juli Connector. No Connector
+ * bar, no "Mở Seller Centre" and no Connector step: the reviewer fills Seller Centre and presses
+ * "Đã làm" (an admitted sample write), as a seller without the extension would.
+ */
+const SAMPLE_STEPS = ["Đã duyệt", "Bạn điền", "Bạn lưu", "Khớp Seller Centre"] as const;
 const STATE_LABEL: Record<ExecutionState, string> = { cho_dien: "Chờ điền", da_dien: "Đã điền · chờ bạn lưu", khop: "Khớp Seller Centre", lech: "Lệch Seller Centre" };
 const STATE_TONE: Record<ExecutionState, "flat" | "warn" | "up" | "down"> = { cho_dien: "flat", da_dien: "warn", khop: "up", lech: "down" };
 const MONEY = new Set(["min_spend", "discount_amount", "max_value", "current_price", "list_price", "total_budget"]);
@@ -52,10 +58,10 @@ export function detailOf(c: ExecutionCard): string {
   return c.fields.total > 0 ? `${fmt(c.fields.filled, 0)}/${fmt(c.fields.total, 0)} đã điền` : DASH;
 }
 
-function Steps({ c }: { readonly c: ExecutionCard }) {
+function Steps({ c, sample }: { readonly c: ExecutionCard; readonly sample: boolean }) {
   return (
     <ol aria-label="Tiến độ" className="sd-th-steps" data-testid={`sd-th-steps-${c.card_id}`}>
-      {STEPS.map((label, i) => {
+      {(sample ? SAMPLE_STEPS : STEPS).map((label, i) => {
         const done = i < c.completed;
         const bad = c.bad === i;
         return (
@@ -69,7 +75,19 @@ function Steps({ c }: { readonly c: ExecutionCard }) {
   );
 }
 
-function Row({ c, name, readOnly, onDone }: { readonly c: ExecutionCard; readonly name: string | null; readonly readOnly: boolean; readonly onDone: () => void }) {
+function Row({
+  c,
+  name,
+  readOnly,
+  sample,
+  onDone,
+}: {
+  readonly c: ExecutionCard;
+  readonly name: string | null;
+  readonly readOnly: boolean;
+  readonly sample: boolean;
+  readonly onDone: () => void;
+}) {
   const host = useReco();
   const [busy, setBusy] = useState(false);
   const href = c.open_job ? fillJobHref(c.open_job) : null;
@@ -91,7 +109,7 @@ function Row({ c, name, readOnly, onDone }: { readonly c: ExecutionCard; readonl
         </NavLink>
         {name ? <span className="sd-th-row__product">{name}</span> : null}
       </div>
-      <Steps c={c} />
+      <Steps c={c} sample={sample} />
       <div className="sd-th-row__side">
         <span data-testid={`sd-th-state-${c.card_id}`}>
           <TextChip tone={STATE_TONE[c.state]}>{STATE_LABEL[c.state]}</TextChip>
@@ -115,7 +133,7 @@ function Row({ c, name, readOnly, onDone }: { readonly c: ExecutionCard; readonl
               Xem đo lường
             </NavLink>
           ) : null}
-          {c.state === "cho_dien" || c.state === "da_dien" ? (
+          {(c.state === "cho_dien" || c.state === "da_dien") && !sample ? (
             readOnly ? null : href ? (
               <a className="sa-btn sa-btn--primary" href={href} rel="noopener noreferrer" target="_blank">
                 Mở Seller Centre
@@ -126,7 +144,7 @@ function Row({ c, name, readOnly, onDone }: { readonly c: ExecutionCard; readonl
               </button>
             )
           ) : null}
-          {c.state === "da_dien" && !c.executed_at ? (
+          {(c.state === "da_dien" || (sample && c.state === "cho_dien")) && !c.executed_at ? (
             <button className="sa-btn" disabled={readOnly || busy} onClick={() => void markDone()} type="button">
               Đã làm
             </button>
@@ -140,7 +158,7 @@ function Row({ c, name, readOnly, onDone }: { readonly c: ExecutionCard; readonl
 export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => void }) {
   const host = useReco();
   const sample = useSampleShopReviewer();
-  const readOnly = !!host.readOnly || sample;
+  const readOnly = !!host.readOnly;
   const [tick, setTick] = useState(0);
   const res = useResource(() => host.reco.executionStates(), `${host.shopKey}|thuc-hien|${tick}`);
   const names = useResource(async () => new Map((await (host.products?.() ?? Promise.resolve([]))).map((p) => [p.id, p.name])), `${host.shopKey}|products`);
@@ -165,6 +183,7 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
         const k = data.connector;
         return (
           <div className="sd-th" data-testid="sd-thuc-hien">
+            {sample ? null : (
             <section aria-label="Juli Connector" className="sd-th-bar" data-testid="sd-th-bar">
               <span aria-hidden="true" className={`sd-th-bar__dot${k.connected ? " sd-th-bar__dot--on" : ""}`} />
               <b>Juli Connector{k.version ? ` ${k.version}` : ""}</b>
@@ -178,9 +197,10 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
                 </button>
               )}
             </section>
+            )}
             <ul className="sd-th-list">
               {data.cards.map((c) => (
-                <Row c={c} key={c.card_id} name={(names.status === "ready" && c.product_id ? names.data.get(c.product_id) : null) ?? null} onDone={() => setTick((t) => t + 1)} readOnly={readOnly} />
+                <Row c={c} key={c.card_id} name={(names.status === "ready" && c.product_id ? names.data.get(c.product_id) : null) ?? null} onDone={() => setTick((t) => t + 1)} readOnly={readOnly} sample={sample} />
               ))}
             </ul>
           </div>
