@@ -93,7 +93,7 @@ async def test_item_catalog_describes_items_and_variations(session):
     )
     items = {(i.item_id, i.variation_id): i for i in await _rows(session, PlatformItem, shop)}
     assert items[("1001", "")].name == "Tên mới"
-    assert items[("1001", "")].status == "1"
+    assert items[("1001", "")].status == "Đang hoạt động"  # P100 B.1: the code's label
     assert items[("1001", "")].last_seen_on == date(2026, 10, 30)
 
 

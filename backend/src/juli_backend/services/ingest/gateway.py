@@ -144,6 +144,28 @@ _PERIOD_KEY_COLUMNS = (
     "order_type",
 )
 _ITEM_KEY_COLUMNS = ("shop_id", "platform", "item_id", "variation_id")
+#: P100 B.1: the name Shopee exports for a deleted product; never stored as a name.
+DELETED_PRODUCT_NAME = "Không thể lấy thông tin sản phẩm do bị xóa"
+#: P100 B.1: the product list's raw status codes -> the label the Seller Centre files use.
+#: Only the codes known for sure; any other value is stored as read.
+_ITEM_STATUS_LABELS = {"1": "Đang hoạt động"}
+
+
+def item_status_label(status: str | None) -> str | None:
+    """A raw product-list status code as its label (an unknown value is kept as read)."""
+    if status is None:
+        return None
+    return _ITEM_STATUS_LABELS.get(status.strip(), status)
+
+
+def _real_name(name: str | None) -> str | None:
+    """``name`` unless it is empty or the deleted-product placeholder (then ``None``, so the
+    upsert's ``coalesce`` keeps the name already stored)."""
+    if name is None or not name.strip() or name.strip() == DELETED_PRODUCT_NAME:
+        return None
+    return name
+
+
 _FLAG_KEY_COLUMNS = ("shop_id", "platform", "item_id", "period_start", "period_end", "flag")
 _PROMOTION_KEY_COLUMNS = (
     "shop_id",
@@ -382,8 +404,12 @@ async def _upsert_ranked(
     await _upsert(session, model, key_columns, values)
 
 
-async def _upsert_items(session: AsyncSession, values: list[dict[str, Any]]) -> None:
-    """``platform_items``: names / SKU / status from the newest post; the seen range widens."""
+async def _upsert_items(
+    session: AsyncSession, values: list[dict[str, Any]], *, names_win: bool = False
+) -> None:
+    """``platform_items``: names / SKU / status from the newest post; the seen range widens.
+    ``names_win`` (the product list, ``item_catalog``): its names replace stored ones whatever
+    the stored row's rank."""
     if not values:
         return
     insert = _insert(session)
@@ -419,6 +445,19 @@ async def _upsert_items(session: AsyncSession, values: list[dict[str, Any]]) -> 
                 where=_stored_rank(table) <= stmt.excluded.source_rank,
             )
         )
+        if names_win:
+            # P100 B.1: the product list names the product -- its newest name replaces one a
+            # higher-ranked file wrote (the rest of the row keeps its ranking)
+            named = insert(PlatformItem).values(values[start : start + UPSERT_CHUNK])
+            await session.execute(
+                named.on_conflict_do_update(
+                    index_elements=list(_ITEM_KEY_COLUMNS),
+                    set_={
+                        column: func.coalesce(named.excluded[column], table.c[column])
+                        for column in ("name", "variation_name")
+                    },
+                )
+            )
 
 
 async def _record_status(
@@ -522,10 +561,10 @@ def _item_values(
             **provenance,
             "item_id": row.item_id,
             "variation_id": variation,
-            "name": item_name,
-            "variation_name": name,
+            "name": _real_name(item_name),
+            "variation_name": _real_name(name),
             "seller_sku": sku,
-            "status": status,
+            "status": item_status_label(status),
             "first_seen_on": body.period.start,
             "last_seen_on": body.period.end,
             "extra": {},
@@ -625,7 +664,9 @@ async def _write(
         )
         await _upsert_items(session, _item_values(rows, body, provenance))
     elif spec.writes == WRITE_ITEMS:
-        await _upsert_items(session, _item_values(rows, body, provenance))
+        await _upsert_items(
+            session, _item_values(rows, body, provenance), names_win=spec.name == "item_catalog"
+        )
     elif spec.writes == WRITE_FLAGS:
         flags = [
             {
