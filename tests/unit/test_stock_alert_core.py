@@ -18,27 +18,102 @@ def _days(n: int, units: float, *, start: int = 1) -> dict[date, float]:
 # --------------------------------------------------------------------------- forecast
 
 
+def _sale(d: date) -> bool:
+    return fc.is_sale_day(d)
+
+
 def test_plain_average_below_ten_orders():
     units = _days(30, 1.0) | _days(60, 4.0, start=31)
+    kept = [d for d in units if not _sale(d)]
     u = fc.base_rate(units, TODAY, orders_30=5)
-    assert abs(u - (30 * 1 + 60 * 4) / 90) < 1e-9
+    assert abs(u - sum(units[d] for d in kept) / len(kept)) < 1e-9
 
 
 def test_weighted_average_with_ten_orders():
     units = _days(30, 1.0) | _days(60, 4.0, start=31)
+    kept = [d for d in units if not _sale(d)]
+    w = {d: 2 if (TODAY - d).days <= 30 else 1 for d in kept}
     u = fc.base_rate(units, TODAY, orders_30=10)
-    assert abs(u - (2 * 30 * 1 + 60 * 4) / (2 * 30 + 60)) < 1e-9
+    assert abs(u - sum(w[d] * units[d] for d in kept) / sum(w.values())) < 1e-9
 
 
-def test_zero_stock_and_mega_days_are_left_out():
+def test_sale_calendar_double_day_15th_25th_and_the_day_after():
+    for d in (date(2026, 1, 1), date(2026, 9, 9), date(2026, 11, 11), date(2026, 12, 12)):
+        assert fc.is_sale_day(d) and fc.is_sale_day(d + timedelta(days=1))
+    for d in (date(2026, 3, 15), date(2026, 3, 16), date(2026, 7, 25), date(2026, 7, 26)):
+        assert fc.is_sale_day(d)
+    for d in (date(2026, 11, 13), date(2026, 3, 17), date(2026, 7, 27), date(2026, 9, 11)):
+        assert not fc.is_sale_day(d)
+    assert fc.SALE_CALENDAR.monthly_days == (15, 25) and fc.SALE_CALENDAR.spill_days == 1
+
+
+def test_sale_days_do_not_count_toward_the_base():
     units = _days(90, 2.0)
-    mega = date(2026, 11, 11)
-    units[mega] = 50.0
+    for d in list(units):
+        if _sale(d):
+            units[d] = 50.0
+    assert fc.base_rate(units, TODAY, orders_30=3) == 2.0
+
+
+def test_zero_stock_days_never_count():
+    units = _days(90, 2.0)
     zero = {TODAY - timedelta(days=2), TODAY - timedelta(days=3)}
     for d in zero:
         units[d] = 0.0
     assert fc.base_rate(units, TODAY, orders_30=3, zero_stock_days=zero) == 2.0
-    assert fc.is_mega_sale_day(mega) and not fc.is_mega_sale_day(date(2026, 11, 15))
+
+
+def test_own_spikes_above_three_times_the_median_are_dropped():
+    units = _days(90, 2.0)
+    spike = date(2026, 11, 4)  # not a calendar day
+    assert not _sale(spike)
+    units[spike] = 7.0  # > 3 x 2
+    units[date(2026, 11, 5)] = 6.0  # = 3 x 2: kept
+    kept = fc.kept_days(units, TODAY)
+    assert spike not in kept and date(2026, 11, 5) in kept
+    n = len(kept)
+    assert abs(fc.base_rate(units, TODAY, orders_30=3) - (2.0 * (n - 1) + 6.0) / n) < 1e-9
+
+
+def _history_with_kept(n: int) -> int:
+    """The shortest history (days) whose non-sale days number ``n``."""
+    days = 0
+    while sum(1 for b in range(1, days + 1) if not _sale(TODAY - timedelta(days=b))) < n:
+        days += 1
+    return days
+
+
+def test_spike_guard_needs_fourteen_kept_days():
+    days = _history_with_kept(14)
+    units = {TODAY - timedelta(days=b): 1.0 for b in range(1, days + 1)}
+    first = TODAY - timedelta(days=days)
+    big = next(d for d in units if not _sale(d))
+    units[big] = 10.0
+    # 14 non-sale days: the guard runs and drops the spike; 13 remain (no fallback after the guard)
+    got = fc.kept_days(units, TODAY, first_day=first)
+    assert big not in got and len(got) == 13
+    # 13 non-sale days: every in-stock day counts, and the guard still drops the spike from that set
+    short = _history_with_kept(13)
+    few = {TODAY - timedelta(days=b): 1.0 for b in range(1, short + 1)}
+    spike = next(d for d in few if not _sale(d))
+    few[spike] = 10.0
+    got = fc.kept_days(few, TODAY, first_day=TODAY - timedelta(days=short))
+    assert spike not in got and any(_sale(d) for d in got)
+    # one more ordinary day: 15 kept, the spike is dropped and 14 remain
+    longer = _history_with_kept(15)
+    units |= {TODAY - timedelta(days=b): 1.0 for b in range(days + 1, longer + 1)}
+    got = fc.kept_days(units, TODAY, first_day=TODAY - timedelta(days=longer))
+    assert big not in got and len(got) == 14
+
+
+def test_fallback_to_every_in_stock_day_when_exclusions_leave_too_few():
+    units = {TODAY - timedelta(days=b): 3.0 for b in range(1, 11)}  # 10 days of history
+    first = TODAY - timedelta(days=10)
+    zero = {TODAY - timedelta(days=1)}
+    got = fc.kept_days(units, TODAY, zero_stock_days=zero, first_day=first)
+    assert len(got) == 9 and TODAY - timedelta(days=1) not in got  # out-of-stock still excluded
+    assert any(_sale(d) for d in got)  # the sale days are back in
+    assert fc.base_rate(units, TODAY, orders_30=3, first_day=first, zero_stock_days=zero) == 3.0
 
 
 def test_days_before_first_day_do_not_count():
