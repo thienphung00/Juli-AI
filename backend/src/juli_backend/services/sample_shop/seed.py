@@ -227,7 +227,7 @@ async def write_title_snapshots(session: AsyncSession, shop_id: uuid.UUID, plan:
                 variation_id="",
                 captured_at=at,
                 title=title,
-                image_urls=[f"sample_{product.parent_sku.lower()}_cover"],
+                image_urls=[product.cover_url],
                 image_hashes=[],
                 category_path=[],
                 list_price=max(prices),

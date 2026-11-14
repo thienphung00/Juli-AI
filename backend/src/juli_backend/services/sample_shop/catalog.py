@@ -52,6 +52,12 @@ class Product:
     campaign: int | None
     sold_before: int
 
+    @property
+    def cover_url(self) -> str:
+        """The product's cover as Seller Centre's item row carries it: an image the app can show.
+        A synthetic SVG in ``apps/demo/public/sample-shop/`` (same origin, no outbound fetch)."""
+        return f"/sample-shop/{self.parent_sku.lower()}.svg"
+
 
 def _v(
     item: int, n: int, name: str, price: int, cost_pct: float, stock: int, code: str
