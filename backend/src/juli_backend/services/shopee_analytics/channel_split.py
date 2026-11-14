@@ -49,6 +49,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.models.ingest import IngestDatasetStatus
 from juli_backend.services.shopee_analytics import funnel, loaders, service
 from juli_backend.services.shopee_analytics.compute import PeriodView
+from juli_backend.services.shopee_analytics.data_through import ads_last_day, data_through
 from juli_backend.services.shopee_analytics.fmt import frac, num
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
@@ -597,6 +598,11 @@ async def channel_split(
         before = prev_rows.get(r["key"])
         r["prev"] = None if before is None else {k: before[k] for k in (*_CELLS, "share")}
     plan = await _plan_block(session, shop_id, view, window, product_id, plan_last)
+    through = data_through(
+        await loaders.load_freshness(session, shop_id),
+        window.end,
+        ads_last=ads_last_day(view.data.ads_daily.source_by_day),
+    )
     return {
         "level": "product" if product_id else "shop",
         "product_id": product_id,
@@ -607,6 +613,8 @@ async def channel_split(
         if span is None
         else {"from": span[0].isoformat(), "to": span[1].isoformat()},
         "updated_at": await _updated_at(session, shop_id),
+        # P100 B.5: "Số liệu đến dd/mm" per section (kpis / channels / plan)
+        "data_through": through,
         "rows": body_rows,
         "kpis": kpis,
         "kpis_prev": prev_kpis,

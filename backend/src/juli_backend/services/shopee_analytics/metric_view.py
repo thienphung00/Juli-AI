@@ -45,6 +45,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.services.shopee_analytics import channel_split, funnel, kol, loaders, service
 from juli_backend.services.shopee_analytics import kol_labels as labels
+from juli_backend.services.shopee_analytics.data_through import ads_last_day, data_through
 from juli_backend.services.shopee_analytics.fmt import frac, num
 from juli_backend.services.shopee_analytics.queries import NoShopeeData
 from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
@@ -564,7 +565,12 @@ async def metric_view(
     margins_before = _margins(prev_view) if prev_view else {}
     names = dict(now_view.names)
     refs = [r for r, _ in await open_cards(session, shop_id, audience=audience)]
-    return assemble(
+    through = data_through(
+        await loaders.load_freshness(session, shop_id),
+        window.end,
+        ads_last=ads_last_day(now_view.data.ads_daily.source_by_day),
+    )
+    body = assemble(
         metric,
         now=now_rows,
         before=prev_rows,
@@ -579,6 +585,9 @@ async def metric_view(
         channel=channel,
         product_id=product_id,
     )
+    # P100 B.5: "Số liệu đến dd/mm" per section (channels / products)
+    body["data_through"] = {k: through[k] for k in ("channels", "products")}
+    return body
 
 
 def _margins(view: Any) -> dict[str, Decimal | None]:
