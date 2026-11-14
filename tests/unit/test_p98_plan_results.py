@@ -14,10 +14,8 @@ import pytest
 
 from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_builder import specs as sp
-from juli_backend.services.shopee_builder.context import BuilderContext
 from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
 from juli_backend.services.shopee_builder.engine_families import integrate
-from juli_backend.services.shopee_builder.service import variation_rows_for
 from juli_backend.services.shopee_recommendations import plan_aggregate as pa
 from juli_backend.services.shopee_recommendations import plans
 from juli_backend.services.shopee_recommendations.loader import load_env
@@ -196,11 +194,12 @@ async def _plan_of(session, seeded, env, *variants):
 
 
 async def _period(session, seeded, env, spec):
-    """The builder's Δ over the version's own days (P99b: what Tự tạo shows) and its days."""
-    ctx = BuilderContext(
-        env=env, variations=await variation_rows_for(session, seeded.shop_id, env, ["1001"])
-    )
-    done, _ = integrate.evaluate(ctx, spec)
+    """The builder's Δ over the version's own days (P99b: what Tự tạo shows) and its days -- on
+    Tự tạo's own context (one card, one number: the stored card result is this figure)."""
+    from juli_backend.services.shopee_builder import service as builder
+
+    ctx = await builder.build_context(session, seeded.shop_id, [spec], as_of=AS_OF, now=NOW)
+    done, _ = integrate.evaluate(ctx, spec, str(seeded.shop_id))
     r = done.result_json()
     d = r["delta"]
     return {

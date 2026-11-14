@@ -390,12 +390,14 @@ async def build_context(
     *,
     as_of: date | None,
     now: datetime,
+    env: RecoEnv | None = None,
 ) -> BuilderContext:
-    env = await loader.load_env(session, shop_id, as_of=as_of, now=now)
+    """``env``: an environment already loaded (the stored-result recomputation); else loaded."""
+    env = env or await loader.load_env(session, shop_id, as_of=as_of, now=now)
     if env is None:
         raise NoShopeeData(str(shop_id))
     items = list(dict.fromkeys(i for spec in specs for i in sp.items_of(spec)))
-    ctx = BuilderContext(env=env)
+    ctx = BuilderContext(env=env, source_env=env)
     ctx.variations = await variation_rows_for(session, shop_id, env, items)
     ctx.env, ctx.reference_items = with_reference_lines(env, ctx.variations, items)
     env = ctx.env
@@ -755,6 +757,7 @@ async def choose(
         now=now,
         env=ctx.env,
         acknowledge_breaches=acknowledge_breaches,
+        builder_ctx=ctx,
     )
     out["outcome"] = evaluate_version(ctx, specs[chosen], chosen, now, str(shop_id))[0]
     return out
@@ -815,6 +818,7 @@ async def run_together(
                 now=now,
                 env=ctx.env,
                 acknowledge_breaches=acknowledge_breaches,
+                builder_ctx=ctx,
             )
             card_id = uuid.UUID(out["id"])
             saved.append({"id": out["id"], "code": out["code"], "indexes": [i for i, _ in chunk]})

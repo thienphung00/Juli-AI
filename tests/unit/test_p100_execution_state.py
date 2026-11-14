@@ -110,19 +110,31 @@ def test_verdict_bands():
 
 
 def _card(metric="ctr"):
+    """One card, one number: the measurement reads the card's stored result -- Δ lợi nhuận
+    1.000.000 / 2.000.000 / 3.000.000 over its 30 days and CTR +5 / +10 / +15 %."""
+    from decimal import Decimal as D
+
+    from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
+    from juli_backend.services.shopee_recommendations import result_store
+
+    def col(clicks, profit):
+        return Scenario(D(10_000), D(clicks), D(30), D(6_000_000), D(profit), D(0))
+
+    r = OptionResult(
+        kind="title", label="x", days=30, horizon="duration", drivers=("ctr",), estimable=True,
+        basis="shop", before=col(300, 0), low=col(315, 1_000_000),
+        likely=col(330, 2_000_000), high=col(345, 3_000_000), build_up=(),
+        cost_total=D(0), break_even_orders=None, break_even_aov=None,
+    )  # fmt: skip
+    block = result_store.block_of(
+        r, reason=None, start=None, targets=None, as_of=date(2026, 10, 1),
+        now=datetime(2026, 10, 1), hash_="h",
+    )  # fmt: skip
     return {
         "metric": {"key": metric},
         "measurement_plan": {"planned_days": 30},
-        "predicted": {
-            "lift": {"lift": {"p10": 0.05, "p50": 0.10, "p90": 0.15}},
-            "money_per_month": {
-                "days": 30,
-                "total": {
-                    q: {"dprofit": v}
-                    for q, v in (("p10", 1_000_000), ("p50", 2_000_000), ("p90", 3_000_000))
-                },
-            },
-        },
+        "predicted": {"lift": {"lift": {"p10": 0.05, "p50": 0.10, "p90": 0.15}}},
+        "result": block,
     }
 
 

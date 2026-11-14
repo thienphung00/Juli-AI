@@ -627,18 +627,56 @@ def _parts_from_spec(
     return out
 
 
+def _from_block(e: Evaluated, block: Mapping[str, Any]) -> dict[str, CardResult] | None:
+    """The card's results from its stored ``result`` (one card, one number: the figure the card
+    shows); ``None`` when the block cannot stand for every leaf (it is then computed)."""
+    from juli_backend.services.shopee_recommendations.result_store import option_of
+
+    # a spec rebuilt from the candidate has no dates of its own: it starts with the plan
+    dated = block.get("start") and block.get("spec_source") != "rebuilt"
+    start = date.fromisoformat(block["start"]) if dated else None
+
+    def one(cid: str, core: Mapping[str, Any] | None, product: str | None) -> CardResult:
+        if core is None:
+            return CardResult(cid, None, block.get("reason") or "refused", start, product)
+        res = CardResult(cid, option_of(core), start=start, product=product)
+        if not res.ok:
+            res.reason = "not_estimable"
+        return res
+
+    if e.parts:
+        targets = block.get("targets") or {}
+        out: dict[str, CardResult] = {}
+        for part in e.parts:
+            t = _part_target(part) or ""
+            if t not in targets:
+                return None
+            out[part.entry.card_id] = one(part.entry.card_id, targets[t], part.product)
+        return out
+    return {e.entry.card_id: one(e.entry.card_id, block.get("core"), e.product)}
+
+
 def card_results(
     env: RecoEnv,
     evs: Sequence[Evaluated],
     variations: Variations | None = None,
     today: date | None = None,
     keyword_weights: KeywordWeights | None = None,
+    stored: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, CardResult]:
-    """A result per leaf card (a many-target card stands for its single-target parts). Every
-    leaf is evaluated from the chosen version's stored builder spec when it has one (P99: the
-    version's own dates / days, never the candidate's defaults)."""
+    """A result per leaf card (a many-target card stands for its single-target parts). A card
+    whose chosen version holds a fresh stored result (``stored``: card id -> block) reads it --
+    the card, the list and the plan show one number. Every other leaf is evaluated from the
+    chosen version's stored builder spec when it has one (P99: the version's own dates / days,
+    never the candidate's defaults)."""
     out: dict[str, CardResult] = {}
     for e in evs:
+        block = (stored or {}).get(e.entry.card_id)
+        if block is not None:
+            got = _from_block(e, block)
+            if got is not None:
+                out.update(got)
+                continue
         if e.parts:
             from_spec = _parts_from_spec(env, e, variations, today, keyword_weights)
             if from_spec is not None:
@@ -1376,6 +1414,7 @@ def aggregate(
     today: date | None = None,
     default_start: date | None = None,
     keyword_weights: KeywordWeights | None = None,
+    stored: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], list[Evaluated]]:
     """The plan's aggregate payload and the evaluated cards (chosen version on this env).
 
@@ -1411,7 +1450,9 @@ def aggregate(
             "range_method": RANGE_METHOD,
             "result_basis": RESULT_BASIS,
         }, []
-    results = card_results(env, evs, variations, default_start or horizon.start, keyword_weights)
+    results = card_results(
+        env, evs, variations, default_start or horizon.start, keyword_weights, stored
+    )
     if default_start is not None:
         for r in results.values():
             if r.start is None:

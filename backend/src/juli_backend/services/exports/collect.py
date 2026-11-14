@@ -482,8 +482,10 @@ async def collect_ke_hoach(
         pm = c["predicted_summary"]
         row = _card_row(c, None, kh.MEASURED if closed else kh.MEASURING, None, names)
         row.start, row.end = s.executed_on, end
-        row.gmv_mid = _f(pm["dgmv_month"]["p50"])
-        row.profit_mid = _f(pm["dprofit_month"]["p50"])
+        # one card, one number: the card's stored result (its own days), as the card shows it
+        row.gmv_mid = _f(pm["dgmv"]["p50"])
+        row.profit_mid = _f(pm["dprofit"]["p50"])
+        row.cost = _f(c.get("cost"))
         out.append(row)
     measured = {
         c["code"]: _result_text(c)

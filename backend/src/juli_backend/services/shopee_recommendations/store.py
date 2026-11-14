@@ -9,6 +9,7 @@ on the caller's session under the shop's scope and never commits.
 
 from __future__ import annotations
 
+import copy
 import json
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
@@ -47,7 +48,7 @@ from juli_backend.models.shopee_recommendations import (
 )
 from juli_backend.services.card_events import keys
 from juli_backend.services.card_events.writer import EventSpec, insert_event
-from juli_backend.services.shopee_recommendations import codes, config
+from juli_backend.services.shopee_recommendations import codes, config, result_store
 from juli_backend.services.shopee_recommendations.cards import proposal_fields
 from juli_backend.services.shopee_recommendations.learning import (
     AcceptanceStats,
@@ -196,7 +197,8 @@ async def save_card(
 async def card_payload(
     session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID
 ) -> dict[str, Any] | None:
-    """The frozen ``proposed`` payload of a card."""
+    """The frozen ``proposed`` payload of a card, with its newest stored results laid over it
+    (``result_store.apply``: a recomputed result lives in the card's metadata)."""
     ev = await session.scalar(
         select(CardEvent).where(
             CardEvent.shop_id == shop_id,
@@ -204,7 +206,14 @@ async def card_payload(
             CardEvent.event_type == EVENT_PROPOSED,
         )
     )
-    return None if ev is None else dict(ev.payload)
+    if ev is None:
+        return None
+    meta = await session.scalar(
+        select(ActionCard.metadata_json).where(
+            ActionCard.id == card_id, ActionCard.shop_id == shop_id
+        )
+    )
+    return result_store.apply(copy.deepcopy(dict(ev.payload)), json.loads(meta or "{}"))
 
 
 async def list_cards(
@@ -237,7 +246,19 @@ async def list_cards(
             )
         )
     ).all()
-    by_card = {e.card_id: dict(e.payload) for e in events}
+    rows = await session.execute(
+        select(ActionCard.id, ActionCard.metadata_json).where(
+            ActionCard.id.in_([p.id for p in proposals])
+        )
+    )
+    metas: dict[uuid.UUID, str | None] = {r[0]: r[1] for r in rows.all()}
+    by_card = {
+        e.card_id: result_store.apply(
+            copy.deepcopy(dict(e.payload)),
+            json.loads((metas.get(e.card_id) if e.card_id else None) or "{}"),
+        )
+        for e in events
+    }
     return [(p, by_card[p.id]) for p in proposals if p.id in by_card]
 
 

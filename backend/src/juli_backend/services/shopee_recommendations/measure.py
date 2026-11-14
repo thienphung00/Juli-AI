@@ -11,6 +11,7 @@ the shop's own calibration rows. No row of ORY ever reaches another shop's calib
 
 from __future__ import annotations
 
+import math
 import uuid
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
@@ -47,11 +48,11 @@ from juli_backend.services.shopee_recommendations import (
     impact,
     learning,
     product_queue,
+    result_store,
     store,
 )
 from juli_backend.services.shopee_recommendations.kinds import KINDS, spec
 from juli_backend.services.shopee_recommendations.learning import Observation
-from juli_backend.services.shopee_recommendations.plan_aggregate import combine_predicted
 from juli_backend.services.shopee_recommendations.prediction import factor_from, prior_range
 
 ITEM_DAILY = ("item_traffic_sources", "item_by_source")
@@ -278,6 +279,14 @@ PRELIMINARY_DAYS = 7
 
 
 def _lift_range(card: Mapping[str, Any]) -> tuple[float, float]:
+    """The predicted range of the card's metric the reading is judged against: the stored result
+    band (one card, one number; the approval-time result when kept). A card whose result does
+    not know its metric (ads metrics, not estimable) keeps the prediction's lift."""
+    band = result_store.metric_band(
+        result_store.measured_block(card), (card.get("metric") or {}).get("key") or ""
+    )
+    if band is not None:
+        return band["p10"], band["p90"]
     lift = card["predicted"]["lift"]["lift"]
     return float(lift["p10"]), float(lift["p90"])
 
@@ -574,20 +583,29 @@ def _joint_rel_from_cards(
     t: date,
 ) -> dict[str, float]:
     """The joint prediction of a set that was not planned together (no plan aggregate): the
-    cards' own frozen certain layers added, their predicted ranges combined (root sum of squares),
-    over the scope's GMV per 30 days before the change."""
+    cards' stored results (one card, one number), each Δ GMV per 30 days, P50s added and the range
+    by the root sum of squares of the half-widths, over the scope's GMV per 30 days before."""
     pre = [treated_days[d].gmv for d in treated_days if first <= d < t]
     base = (sum(pre) / len(pre)) * config.DAYS_PER_MONTH if pre else 0.0
     if base <= 0:
         return {}
-    money = [c["predicted"]["money_per_month"] for _, c in cards]
-    combined = combine_predicted([m["predicted"] for m in money])
-    certain = sum(m["certain"]["dgmv"] for m in money)
-    return {
-        q: (certain + combined[q]["dgmv"]) / base
-        for q in ("p10", "p50", "p90")
-        if combined[q]["dgmv"] is not None
-    }
+    bands: list[dict[str, float]] = []
+    for _, c in cards:
+        block = result_store.measured_block(c)
+        own = (block or {}).get("own") or {}
+        d = (own.get("delta") or {}).get("gmv")
+        if not d or not own.get("days") or d.get("p50") is None:
+            return {}
+        k = config.DAYS_PER_MONTH / int(own["days"])
+        bands.append({q: float(v) * k for q, v in d.items() if v is not None})
+    mid = sum(b["p50"] for b in bands)
+    out = {"p50": mid / base}
+    for q, sign in (("p10", -1.0), ("p90", 1.0)):
+        if any(q not in b for b in bands):
+            continue
+        width = math.sqrt(sum((b[q] - b["p50"]) ** 2 for b in bands))
+        out[q] = (mid + sign * width) / base
+    return out
 
 
 async def _read_joint(

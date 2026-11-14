@@ -18,7 +18,7 @@ from juli_backend.models.ops import OpsAuditLog
 from juli_backend.models.shop_proposals import ShopProposal, ShopProposalApproval
 from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.card_events import verification
-from juli_backend.services.shopee_recommendations import store
+from juli_backend.services.shopee_recommendations import result_store, store
 from juli_backend.services.shopee_recommendations.cards import build_card
 from juli_backend.services.shopee_recommendations.loader import load_env
 from juli_backend.services.shopee_recommendations.model import Candidate
@@ -48,6 +48,8 @@ async def _persist(session, shop_id, env, cands, *, start=1):
         ids.append(
             await store.save_card(session, shop_id, card, cycle="2026-10", position=n, now=NOW)
         )
+    # one card, one number: the stored results, as the recompute command writes them
+    await result_store.refresh_shop(session, shop_id, env, now=NOW)
     await session.commit()
     return ids
 
@@ -159,9 +161,9 @@ async def test_filters_by_family_and_section_and_the_xep_theo_switch(session, sh
         r = await seller.get(DEMO, params={"xep_theo": xep})
         assert r.status_code == 200 and len(r.json()["cards"]) == 4
     gmv = (await seller.get(DEMO, params={"xep_theo": "gmv_per_day"})).json()["cards"]
-    vals = [
-        (c["predicted_summary"]["dgmv_month"]["p50"] + c["certain_summary"]["dgmv_month"])
-        / c["predicted_summary"]["effect_days"]
+    vals = [  # one card, one number: the stored result's Δ GMV per day of its own days
+        (c["predicted_summary"]["dgmv"]["p50"] or 0.0)
+        / (c["predicted_summary"]["effect_days"] or 1)
         for c in gmv
     ]
     assert vals == sorted(vals, reverse=True)

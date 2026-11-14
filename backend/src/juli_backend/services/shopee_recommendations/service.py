@@ -64,6 +64,7 @@ from juli_backend.services.shopee_recommendations import (
     manual,
     plan_codes,
     product_queue,
+    result_store,
     store,
     versions,
 )
@@ -279,6 +280,13 @@ async def generate_cards(
         card["versions"] = versions.build_versions(env, c, card, now=now)
         built.append((c, card))
     report.generated = len(built)
+    # one card, one number: each version's engine result is stored and ranked on
+    jobs = [result_store.Job(card) for _, card in built]
+    for job, blocks in zip(
+        jobs, await result_store.compute_many(session, shop_id, env, jobs, now=now), strict=True
+    ):
+        result_store.write_into(job.card, blocks)
+        result_store.rank_from_results(job.card)
     cards_by_id = {f"c{i}": (c, card) for i, (c, card) in enumerate(built)}
     gaps = gaps_of(env)
     inputs = [_rank_input(cid, card, env) for cid, (_, card) in cards_by_id.items()]
@@ -304,6 +312,7 @@ async def generate_cards(
         )
         if mega_card is not None:
             consumed = set(ids)
+            mega_card[result_store.KEY] = result_store.no_spec_block(mega_card, env, now)
             mega_input = _rank_input("mega", mega_card, env)
             mega_input.mega_children_items = tuple(mega_card["locked_items"])
             rest = [i for i in inputs if i.id not in consumed]
@@ -381,7 +390,7 @@ async def generate_cards(
 
 
 def _version_brief(v: Mapping[str, Any]) -> dict[str, Any]:
-    pm = ((v.get("predicted") or {}).get("money_per_month") or {}).get("total", {}).get("p50", {})
+    block = v.get(result_store.KEY)
     return {
         "version": v["version"],
         "code": v.get("code"),
@@ -390,8 +399,14 @@ def _version_brief(v: Mapping[str, Any]) -> dict[str, Any]:
         "ranked": bool(v.get("ranked")),
         "inputs": v.get("inputs"),
         "floor_ok": (v.get("floor") or {}).get("ok"),
-        "dprofit_month_p50": pm.get("dprofit"),
-        "dgmv_month_p50": pm.get("dgmv"),
+        # one card, one number: the version's stored result over its own days (the deprecated
+        # ``_month_`` names carry the same figure)
+        "dprofit_p50": result_store.p50(block, "profit"),
+        "dgmv_p50": result_store.p50(block, "gmv"),
+        "days": ((block or {}).get("own") or {}).get("days"),
+        "dprofit_month_p50": result_store.p50(block, "profit"),
+        "dgmv_month_p50": result_store.p50(block, "gmv"),
+        "estimable": bool((block or {}).get("estimable")),
     }
 
 
@@ -456,7 +471,8 @@ def _summary(
     plan_codes_: Mapping[uuid.UUID, str | None] | None = None,
     measurement: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    pm = card["predicted"]["money_per_month"]
+    chosen_n = int((meta or {}).get("chosen_version") or 1)
+    block = result_store.version_result(card, chosen_n) or result_store.version_result(card, 1)
     product = p.item_id
     stale_why = freshness.card_stale_reason(card)
     return {
@@ -493,19 +509,12 @@ def _summary(
         "metric": card["metric"],
         "scope": card["scope"],
         "rank": card.get("rank"),
-        "certain_summary": {
-            "dprofit_month": pm["certain"]["dprofit"],
-            "dgmv_month": pm["certain"]["dgmv"],
-        },
-        "predicted_summary": {
-            "dgmv_month": {q: pm["predicted"][q]["dgmv"] for q in ("p10", "p50", "p90")},
-            "dprofit_month": {q: pm["total"][q]["dprofit"] for q in ("p10", "p50", "p90")},
-            "label": "Dự kiến",
-            "effect_days": pm["days"],
-        },
+        # one card, one number: the stored engine result of the chosen version (Tự tạo's figure)
+        "predicted_summary": result_store.summary(block),
+        "result": block,
         "floor_ok": card["floor"]["ok"],
-        # P100: what the card costs over its effect days; the list shows "Chi phí" only when > 0.
-        "cost": (card.get("certain") or {}).get("extra_cost"),
+        # P100: what the card costs over its own days (the result's Chi phí); "Chi phí" when > 0.
+        "cost": (block or {}).get("cost_total"),
         "plan": card["measurement_plan"]["label"],
         "stale": bool((meta or {}).get("stale")) or stale_why is not None,
         "stale_reason": (meta or {}).get("stale_reason") or stale_why,
@@ -562,20 +571,17 @@ XEP_THEO = ("diem", "gmv_per_day", "profit_per_day", "bien", "orders", "aov")
 
 
 def _xep_key(card: dict[str, Any], xep_theo: str) -> float:
-    pm = card["predicted"]["money_per_month"]["total"]["p50"]
-    days = card["predicted"]["money_per_month"]["days"] or 30
-    five = card.get("five_numbers") or {}
+    block = result_store.version_result(card, 1)
     if xep_theo == "gmv_per_day":
-        return -(pm["dgmv"] / days)
+        return -(result_store.per_day(block, "gmv") or 0.0)
     if xep_theo == "profit_per_day":
-        return -((pm["dprofit"] or 0.0) / days)
+        return -(result_store.per_day(block, "profit") or 0.0)
     if xep_theo == "bien":
         return -(card["rank_inputs"]["kpi_p25"].get("bien", 0.0))
     if xep_theo == "orders":
-        return -(pm["dorders"] or 0.0)
+        return -(result_store.p50(block, "orders") or 0.0)
     if xep_theo == "aov":
         return -(card["rank_inputs"]["kpi_p25"].get("aov", 0.0))
-    del five
     return float((card.get("rank") or {}).get("position", 10**6))
 
 
@@ -819,6 +825,15 @@ async def recompute(
     new_card = recompute_card(env, card, inputs, now=now, version=version)
     if new_card is None:
         raise ProposalError(ERROR_BAD_INPUT, 422, "these inputs cannot be evaluated")
+    # one card, one number: the moved version's engine result (what the seller sees and ranks)
+    number = int(new_card.get("version") or version or 1)
+    [blocks] = await result_store.compute_many(
+        session, shop_id, env, [result_store.Job(new_card, wanted=[number])], now=now
+    )
+    result_store.write_into(new_card, blocks)
+    if blocks.get(number) is not None:  # the top level is the moved version
+        new_card[result_store.KEY] = blocks[number]
+    result_store.rank_from_results(new_card)
     if record:
         subject = (
             ("item", card["scope"]["product_ids"][0])
@@ -839,7 +854,7 @@ async def recompute(
                 "inputs": inputs,
                 "before_inputs": versions.versions_of(card)[(version or 1) - 1].get("inputs")
                 or card["inputs"],
-                "dprofit_month_p50": new_card["rank_inputs"]["dprofit_p50"],
+                "dprofit_month_p50": result_store.p50(blocks.get(number), "profit"),
                 "floor_ok": new_card["floor"]["ok"],
             },
             family=card["family"],
@@ -1290,6 +1305,7 @@ async def _decide(
                 **({"group": group} if group else {}),
             },
         )
+        await result_store.freeze_at_approval(session, shop_id, card_id, card, chosen_version)
         await fill_queue.enqueue_after_decision(
             session, shop_id=shop_id, proposal_id=card_id, picked=picked,
             final_card=final_card, group_name=str(group["name"]) if group else None, now=now,

@@ -29,6 +29,8 @@ class BuilderContext:
     #: item id -> {keyword: monthly search volume} of the products whose Tiêu đề / Mô tả version is
     #: evaluated (``keyword_coverage``); an item absent / empty has no keyword data
     keyword_weights: dict[str, dict[str, float]] = field(default_factory=dict)
+    #: the environment before the reference orders were added (what freshness fingerprints)
+    source_env: RecoEnv | None = None
 
     def rows(self, item_id: str) -> list[dict[str, Any]]:
         return self.variations.get(item_id, [])

@@ -45,7 +45,12 @@ from juli_backend.models.shopee_fill import (
 )
 from juli_backend.services.card_events import verification
 from juli_backend.services.ingest import status as ingest_status
-from juli_backend.services.shopee_recommendations import connector_state, service, store
+from juli_backend.services.shopee_recommendations import (
+    connector_state,
+    result_store,
+    service,
+    store,
+)
 
 STATE_WAITING = "cho_dien"
 STATE_FILLED = "da_dien"
@@ -206,16 +211,17 @@ def measurement_row(
     measured = max(0, (today - start).days)
     if days:
         measured = min(measured, int(days))
-    pm = card["predicted"]["money_per_month"]
-    period = (int(days) / pm["days"]) if days and pm.get("days") else None
-
-    def scaled(q: str) -> float | None:
-        v = pm["total"][q]["dprofit"]
-        return None if v is None or period is None else float(v) * period
-
-    lift = ((card.get("predicted") or {}).get("lift") or {}).get("lift") or {}
+    # one card, one number: the band is the stored result's (the approval-time one when kept),
+    # Δ lợi nhuận over the measured period and the card metric's relative range
+    block = result_store.measured_block(card)
+    band = result_store.profit_band(block, int(days) if days else None)
+    metric_key = (card.get("metric") or {}).get("key") or ""
+    lift = result_store.metric_band(block, metric_key) or (
+        # ads metrics the result does not model: the prediction's lift, as measure.py reads it
+        ((card.get("predicted") or {}).get("lift") or {}).get("lift") or {}
+    )
     impact = None if reading is None else reading.get("impact_pct")
-    p50, lift50 = scaled("p50"), lift.get("p50")
+    p50, lift50 = band["p50"], lift.get("p50")
     actual = None
     if impact is not None and p50 is not None and lift50:
         actual = p50 * float(impact) / float(lift50)
@@ -233,7 +239,8 @@ def measurement_row(
         "verdict": verdict,
         "impact_pct": impact,
         "lift": {q: lift.get(q) for q in ("p10", "p50", "p90")},
-        "band": {"p10": scaled("p10"), "p50": p50, "p90": scaled("p90")},
+        "band": band,
+        "estimable": bool((block or {}).get("estimable")),
         "actual": actual,
         "metrics": []
         if chip is None or impact is None
