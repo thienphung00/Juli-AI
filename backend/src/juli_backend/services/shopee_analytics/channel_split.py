@@ -148,6 +148,7 @@ def _ad_report(
     product: dict[str, Decimal | None] = {
         "gmv": Decimal(0), "orders": Decimal(0), "spend": Decimal(0),
         "impressions": Decimal(0), "clicks": Decimal(0),
+        "rate_impressions": Decimal(0), "rate_clicks": Decimal(0), "rate_orders": Decimal(0),
     }  # fmt: skip
     shop = dict(product)
     has_product = has_shop = False
@@ -332,12 +333,26 @@ def with_share(rows: list[dict[str, Any]], total: Decimal | None) -> list[dict[s
     return rows
 
 
+def ad_rate_basis(
+    cell: Mapping[str, Decimal | None],
+) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
+    """(impressions, clicks, orders) the DVHT CTR / CTOR stand on: the days that carry both
+    impressions and clicks (every day has them -> the window's own totals). No such day (or a
+    cell built without them) -> the window totals, whose ``None`` clicks leave the rates unknown."""
+    imp = cell.get("rate_impressions")
+    if imp is None or imp <= 0:
+        orders = cell.get("orders")
+        return cell.get("impressions"), cell.get("clicks"), orders
+    return imp, cell.get("rate_clicks"), cell.get("rate_orders")
+
+
 def _ad_row(key: str, cell: Mapping[str, Decimal | None] | None) -> dict[str, Any]:
     """A DVHT row on the ads report's own basis: Lượt xem = impressions, CTR = clicks ÷
-    impressions, CTOR = orders ÷ clicks (broad orders, the report's basis)."""
+    impressions, CTOR = orders ÷ clicks (broad orders, the report's basis). The rates use
+    :func:`ad_rate_basis` (days with both counts), so a day without clicks leaves them known."""
     if cell is None:
         return _row(key, "ads", None, None, None, None, "ads_report")
-    return _row(
+    row = _row(
         key,
         "ads",
         cell.get("impressions"),
@@ -346,6 +361,10 @@ def _ad_row(key: str, cell: Mapping[str, Decimal | None] | None) -> dict[str, An
         cell["gmv"],
         "ads_report",
     )
+    imp, clk, orders = ad_rate_basis(cell)
+    row["ctr"] = frac(_div(clk, imp))
+    row["ctor"] = frac(_div(orders, clk))
+    return row
 
 
 def weakest_metric(values: Mapping[str, Mapping[str, float | None]], product_id: str) -> str | None:

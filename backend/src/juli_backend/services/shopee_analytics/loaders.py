@@ -689,7 +689,16 @@ def ads_daily_of(days: Mapping[date, DayAds], window: Window) -> AdsDaily:
     """The window's :class:`AdsDaily` from its per-day figures (pure)."""
     spend = gmv = orders = ZERO
     by_type: dict[str, dict[str, Decimal | None]] = defaultdict(
-        lambda: {"spend": ZERO, "gmv": ZERO, "orders": ZERO, "impressions": ZERO, "clicks": ZERO}
+        lambda: {
+            "spend": ZERO,
+            "gmv": ZERO,
+            "orders": ZERO,
+            "impressions": ZERO,
+            "clicks": ZERO,
+            "rate_impressions": ZERO,
+            "rate_clicks": ZERO,
+            "rate_orders": ZERO,
+        }  # fmt: skip
     )
     for figure in days.values():
         spend += figure.spend
@@ -704,6 +713,12 @@ def ads_daily_of(days: Mapping[date, DayAds], window: Window) -> AdsDaily:
             for key, value in (("impressions", t.impressions), ("clicks", t.clicks)):
                 have = cell[key]
                 cell[key] = None if value is None or have is None else have + value
+            # the CTR / CTOR basis: only the days that carry both counts (a Connector day has
+            # clicks, a daily-report day may not), so one such day never blanks the rates
+            if t.impressions is not None and t.clicks is not None:
+                cell["rate_impressions"] = _z(cell["rate_impressions"]) + t.impressions
+                cell["rate_clicks"] = _z(cell["rate_clicks"]) + t.clicks
+                cell["rate_orders"] = _z(cell["rate_orders"]) + t.orders
     missing = tuple(
         d for i in range(window.days) if (d := window.start + timedelta(days=i)) not in days
     )
