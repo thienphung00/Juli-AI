@@ -26,7 +26,7 @@ from juli_backend.services.card_events import verification
 from juli_backend.services.planned_changes import importer
 from juli_backend.services.planned_changes import rows as pr
 from juli_backend.services.shop_inputs import xlsx_io
-from juli_backend.services.shopee_recommendations import manual
+from juli_backend.services.shopee_recommendations import manual, result_store
 from tests.integration.test_ingest_two_tenant import juli_app_session
 from tests.integration.test_shopee_reco_db import stub_card
 from tests.integration.two_tenant import RUNTIME_ROLE
@@ -129,6 +129,12 @@ def stand_ins(monkeypatch):
     monkeypatch.setattr(importer, "build_row_card", _fake_card)
     # the ranking score needs the shop's whole analytics view; this file tests persistence
     monkeypatch.setattr(manual, "_score_of", lambda env, card: None)
+    # the stored engine result needs the shop's builder context too; no result block here
+
+    async def no_results(session, shop_id, env, jobs, *, now, ctx=None):
+        return [{} for _ in jobs]
+
+    monkeypatch.setattr(result_store, "compute_many", no_results)
     return envs
 
 
