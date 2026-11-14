@@ -13,6 +13,7 @@ import {
   AFFILIATE_WINDOW_DAYS,
   ADS_PAGE_LIMIT_DEFAULT,
   ORDER_LIST_MAX_PAGES_PER_RUN,
+  ORDER_LIST_MIN_PAGES,
   ORDER_LIST_PAGE_GAP_JITTER_MS,
   ORDER_LIST_PAGE_GAP_MS,
   PRODUCT_MAX_PAGES,
@@ -30,6 +31,7 @@ import {
 import { isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
 import { trimOrderCards, trimOrderIndex } from "./orders-map";
 import type { Pacer } from "./runner";
+import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "./time";
 
 /** What the hook learned from the page's own call to an endpoint (kept in page memory only). */
@@ -62,6 +64,8 @@ export interface ReaderJob {
   orderSns?: string[];
   /** affiliate: older purchase windows to read once (the 6-month history), each ≤ 31 days. */
   history?: ConversionWindow[];
+  /** orders (0.3.19): read back until orders placed before this GMT+7 day. */
+  sinceDay?: string;
   /** Requests this job may still send (the shared daily budget's remainder). */
   budget?: number;
 }
@@ -609,6 +613,28 @@ async function readItemTraffic(env: ReaderEnv, days: string[], itemIds: string[]
   }
 }
 
+/**
+ * Shop traffic (0.3.19), in the scheduler's own Phân Tích Bán Hàng › Truy cập tab: for each day,
+ * the same GET reads the backfill sends (the traffic overview on both order bases, and the shop
+ * traffic dashboard by `period=day&dt=`), with the session and the mydata headers the page itself
+ * used. A Seller Centre error code on one call is kept (the mapper skips it) and the job goes on;
+ * a CAPTCHA, login wall or rate limit stops it like every reader.
+ */
+async function readTraffic(env: ReaderEnv, days: string[], collected: ReaderResponse[]): Promise<void> {
+  const modal = () => env.passwordModalVisible?.() === true;
+  const ready = await env.waitFor(() => modal() || env.hasSession(), READER_TEMPLATE_WAIT_MS);
+  if (modal()) throw new Stop(fail("blocked_login", collected, "password_modal"));
+  if (!ready) throw new Stop(fail("needs_data_page", collected, "traffic_overview"));
+  const template: Template = { query: {}, headers: env.mydataHeaders?.() };
+  for (const day of days) {
+    for (const planned of buildBackfillDayPlan(day, env.now(), new Set(), false)) {
+      if (planned.dataset !== "traffic_overview" && planned.dataset !== "shop_traffic") continue;
+      const request = buildReaderRequest(env.origin, planned.dataset, template, { query: planned.params }, env.session());
+      await send(env, request, collected, { day }, true);
+    }
+  }
+}
+
 async function readVouchers(env: ReaderEnv, collected: ReaderResponse[]): Promise<void> {
   await waitForPage(env, ["voucher_list"], collected);
   const template = env.template("voucher_list") as Template;
@@ -878,13 +904,36 @@ function orderIdsOf(body: unknown): string[] {
   return (found?.list ?? []).map((o) => String(o.order_id ?? o.order_sn));
 }
 
+/** The earliest `create_time` (unix seconds) of a card answer (raw or trimmed), or undefined. */
+export function oldestOrderTime(cardsBody: unknown): number | undefined {
+  // Through the trim: it flattens the card wrappers (order_card / order_info) to plain orders.
+  const found = findList(payloadOf(trimOrderCards(cardsBody)), (o) => "order_id" in o || "order_sn" in o);
+  let oldest: number | undefined;
+  for (const order of found?.list ?? []) {
+    const raw = Number(order.create_time);
+    if (!Number.isFinite(raw) || raw <= 0) continue;
+    const seconds = raw > 1e12 ? Math.floor(raw / 1000) : raw;
+    oldest = oldest === undefined ? seconds : Math.min(oldest, seconds);
+  }
+  return oldest;
+}
+
 /**
  * The order list: the page's OWN first answers are kept (trimmed in the page); pages 2..N are
- * replayed from the page's request templates, a pause of 20-45 s before each, at most
- * ORDER_LIST_MAX_PAGES_PER_RUN pages in all. Nothing is replayed when the page's request has no
- * recognisable page number or id list (then only what the page loaded is read).
+ * replayed from the page's request templates, a pause of 20-45 s before each. 0.3.19 catches up by
+ * date: it stops once a page's oldest order was placed before `sinceDay` (never before
+ * ORDER_LIST_MIN_PAGES pages, the 0.3.18 depth), on a short page, or at ORDER_LIST_MAX_PAGES_PER_RUN
+ * ("partial:page_cap": the next run reads further back). Nothing is replayed when the page's
+ * request has no recognisable page number or id list (then only what the page loaded is read).
  */
-async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<string | undefined> {
+async function readOrders(env: ReaderEnv, collected: ReaderResponse[], sinceDay?: string): Promise<string | undefined> {
+  const cutoff = sinceDay ? gmt7DateStart(sinceDay) : undefined;
+  const reachedSince = (page: number, cardsBody: unknown): boolean => {
+    if (cutoff === undefined) return false;
+    if (page < ORDER_LIST_MIN_PAGES) return false;
+    const oldest = oldestOrderTime(cardsBody);
+    return oldest !== undefined && oldest < cutoff;
+  };
   const answered = () => env.template("order_cards")?.lastResponse !== undefined;
   if (!(await env.waitFor(() => env.hasSession() || answered(), READER_TEMPLATE_WAIT_MS)) && !answered()) {
     throw new Stop(fail("needs_data_page", collected, "order_cards"));
@@ -912,6 +961,7 @@ async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<
   // The cards template still holds the FIRST page's ids: every later page swaps those out.
   const firstIds = orderIdsOf(search.lastResponse);
   const random = env.random ?? Math.random;
+  if (reachedSince(1, cards.lastResponse)) return undefined;
   for (let page = 2; page <= ORDER_LIST_MAX_PAGES_PER_RUN; page += 1) {
     try {
       const indexBody = withListPage(search.body, page, size);
@@ -928,6 +978,7 @@ async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<
       const answer = await send(env, cardRequest, collected, { page });
       answer.body = trimOrderCards(answer.body);
       if (ids.length < size) return undefined;
+      if (reachedSince(page, answer.body)) return undefined;
     } catch (error) {
       // A failed replay of page >= 2 keeps what was already read: the page's own answers and the
       // complete pages before it are posted; CAPTCHA / login / rate stops still stop everything.
@@ -938,7 +989,8 @@ async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<
       throw error;
     }
   }
-  return undefined;
+  // Pages left to read: a by-date job says so (the scheduler then reads further back next time).
+  return cutoff === undefined ? undefined : "partial:page_cap";
 }
 
 /** Query / body key of the page's own income call whose value is the order it opened. */
@@ -1282,7 +1334,10 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         await readShopTotals(env, job.days ?? [], collected);
         break;
       case "orders":
-        partial = await readOrders(env, collected);
+        partial = await readOrders(env, collected, job.sinceDay);
+        break;
+      case "traffic":
+        await readTraffic(env, job.days ?? [], collected);
         break;
       case "order_income":
         await readOrderIncome(env, job.orderIds ?? [], collected, job.orderSns);

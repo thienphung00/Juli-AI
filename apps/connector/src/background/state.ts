@@ -77,12 +77,16 @@ export interface PlannedJob {
   orderSns?: string[];
   /** affiliate: older purchase windows to read once (0.3.17). */
   history?: { start: string; end: string }[];
+  /** orders (0.3.19): read back to orders placed on this GMT+7 day (catch-up by date). */
+  sinceDay?: string;
 }
 
 /** One scheduled run: the pages in order, one open tab at a time (persisted: the worker may restart). */
 export interface ReaderRun {
   /** The GMT+7 day the run belongs to (one run per day). */
   day: string;
+  /** "stock" (0.3.19): the 06:30 product-list-only run; absent = the daily run. */
+  kind?: "stock";
   startedAt: number;
   jobs: PlannedJob[];
   index: number;
@@ -96,8 +100,30 @@ export interface ReaderRun {
 /** `rate_limit`: HTTP 429 / 403 or Shopee wording for "too many requests" (P97). */
 export type ReaderBlockReason = "captcha" | "login" | "rate_limit";
 
+/** One scheduler tick that started from rest: what woke it and how it ended (a skip reason or a start). */
+export interface TickRecord {
+  at: string;
+  trigger: string;
+  result: string;
+}
+
 /** The tab-opening schedule's bookkeeping. */
 export interface ReaderSchedule {
+  /** 0.3.19: the last tick from rest and the last few (every skip reason is kept, newest last). */
+  lastTick?: TickRecord;
+  tickLog?: TickRecord[];
+  /** Why the pending one-off start alarm was set (pair / boot / retry). */
+  kick?: { reason: string; at: string };
+  /** What was last told to Juli (one report per distinct result per day). */
+  tickReported?: { day: string; key: string };
+  /** Shop traffic days (traffic_overview confirmed) posted by the traffic reader (last 14). */
+  trafficOverviewDone?: string[];
+  /** Orders: the GMT+7 day of the last run that read back to its `sinceDay` (complete). */
+  ordersCoveredDay?: string;
+  /** When the product list (with stock) last posted its item_snapshot (ms). */
+  productsAt?: number;
+  /** The 06:30 stock run: its GMT+7 day, attempts that day, and the last outcome. */
+  stock?: { day: string; attempts: number; at?: string; outcome?: string };
   lastRunDay?: string;
   lastRun?: { day: string; at: string; outcomes: Record<string, string>; blocked?: ReaderBlockReason };
   run?: ReaderRun;

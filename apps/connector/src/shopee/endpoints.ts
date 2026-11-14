@@ -61,6 +61,10 @@ export const READER_ENDPOINTS = {
   // replayed for the other group campaigns with only `campaign_id` changed (a list read: isReadOnlyPasPath).
   ads_mpd_products: { method: "POST", path: "/api/pas/v1/product/mpd/list_item_product_performance/", capture: true },
   voucher_list: { method: "GET", path: "/api/marketing/v3/voucher/list/" },
+  // -- shop traffic (Connector 0.3.19): the same two GET reads the daily sync and the backfill send
+  // (ENDPOINTS above), replayed in the scheduler's own Truy cập tab for each day still missing.
+  traffic_overview: { method: "GET", path: "/api/mydata/v1/product/traffic/overview/" },
+  shop_traffic: { method: "GET", path: "/api/mydata/traffic/dashboard/overview/" },
   traffic_details: { method: "GET", path: "/api/mydata/v1/product/traffic/details/" },
   health_overview: { method: "GET", path: "/api/accounthealth/v1/sc/shops/overview" },
   health_metric_list: { method: "GET", path: "/api/accounthealth/v1/sc/shops/metric_list" },
@@ -132,6 +136,7 @@ export const READER_PAGES: Record<ReaderId, { path: string }> = {
   orders: { path: "/portal/sale/order" },
   // The prefix of every order page; readerPageUrl names the order.
   order_income: { path: "/portal/sale/order/" },
+  traffic: { path: "/datacenter/traffic/overview" },
   affiliate: { path: "/portal/web-seller-affiliate/conversion_report" },
   affiliate_kols: { path: "/portal/web-seller-affiliate/affiliate_analytics" },
   affiliate_dashboard: { path: "/portal/web-seller-affiliate/dashboard" },

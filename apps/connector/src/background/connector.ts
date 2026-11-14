@@ -10,6 +10,7 @@ import {
   BACKFILL_MAX_DAY_ATTEMPTS,
   type Dataset,
   HELD_DATASETS,
+  isSampleShop,
   MAX_ROWS_PER_POST,
   type ReaderDataset,
 } from "../config";
@@ -23,7 +24,7 @@ import { classify, type ReaderJob, type ReaderResponse } from "../shopee/reader"
 import { isDataAnswer, type RequestResult } from "../shopee/runner";
 import { buildBackfillDayPlan, buildSyncPlan } from "../shopee/sync";
 import { gmt7Date, lastFinishedDays, yesterdayRange } from "../shopee/time";
-import type { BlockEvent } from "./scheduler";
+import type { BlockEvent, TickReport } from "./scheduler";
 import {
   addRequests,
   type Backfill,
@@ -99,6 +100,8 @@ export class Connector {
 
   async pair(code: string): Promise<TokenInfo> {
     const token = await this.deps.client.pair(code.trim(), `Juli Connector ${this.deps.version}`);
+    // Juli's reviewer sample shop has no Seller Centre: the token is never kept, nothing reads for it.
+    if (isSampleShop(token.shop_id)) throw new Error("sample_shop");
     const previous = await this.state();
     await saveState(this.deps.storage, {
       token,
@@ -241,9 +244,11 @@ export class Connector {
       const key =
         job.id === "shop_totals" || job.id === "product_period"
           ? `${raw.dataset}:${raw.orderType}`
-          : perDate.has(job.id)
-            ? `${raw.dataset}:${raw.date}`
-            : raw.dataset;
+          : job.id === "traffic"
+            ? `${raw.dataset}:${raw.date}${raw.orderType ? `:${raw.orderType}` : ""}`
+            : perDate.has(job.id)
+              ? `${raw.dataset}:${raw.date}`
+              : raw.dataset;
       const mapped = await this.hashOrderIds(raw);
       outcomes[key] = mapped ? await this.submit(mapped, capturedAt) : "rejected";
     }
@@ -344,6 +349,17 @@ export class Connector {
     if (!state.token) return;
     try {
       await this.deps.client.connectorEvent(state.token.token, event, this.deps.version);
+    } catch (error) {
+      if (!(await this.onAuthError(error))) await this.onRefusal(error);
+    }
+  }
+
+  /** The scheduler's tick (0.3.19): a finished run or a skip, told to Juli. Best effort. */
+  async reportTick(report: TickReport): Promise<void> {
+    const state = await this.state();
+    if (!state.token || state.consentBlocked) return;
+    try {
+      await this.deps.client.connectorTick(state.token.token, report, this.deps.version);
     } catch (error) {
       if (!(await this.onAuthError(error))) await this.onRefusal(error);
     }

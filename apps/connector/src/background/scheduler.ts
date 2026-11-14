@@ -19,6 +19,16 @@ import {
   ORDER_INCOME_MAX_PER_DAY,
   ORDER_INCOME_QUEUE_DAYS,
   ORDER_INCOME_QUEUE_MAX,
+  ORDER_CATCHUP_FIRST_DAYS,
+  ORDER_CATCHUP_MAX_DAYS,
+  ORDER_CATCHUP_OVERLAP_DAYS,
+  ORDERS_JOB_TIMEOUT_MS,
+  READER_KICK_DELAY_MINUTES,
+  READER_KICK_RETRY_MINUTES,
+  STOCK_MAX_ATTEMPTS_PER_DAY,
+  STOCK_READ_HOUR_GMT7,
+  STOCK_READ_MINUTE,
+  TRAFFIC_OVERVIEW_CATCHUP_DAYS,
   READER_BLOCK_CAPTCHA_MS,
   READER_BLOCK_LOGIN_MS,
   READER_BLOCK_RATE_MS,
@@ -45,7 +55,7 @@ import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns 
 import type { CaptureOutcome } from "./connector";
 import { READER_PAGES, readerPageUrl } from "../shopee/endpoints";
 import { blockedPath, type ReaderJob, type ReaderResponse } from "../shopee/reader";
-import { gmt7Date, lastFinishedDays } from "../shopee/time";
+import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../shopee/time";
 import {
   type PlannedJob,
   type ReaderBlockReason,
@@ -54,7 +64,9 @@ import {
   addRequests,
   loadState,
   readerRequestsLeft,
+  requestsLeft,
   saveState,
+  type TickRecord,
   type Storage,
   stoppedFor,
   type State,
@@ -62,6 +74,46 @@ import {
 
 export const READER_RUN_ALARM = "juli-reader-run";
 export const READER_WATCHDOG_ALARM = "juli-reader-watch";
+/** 0.3.19: a one-off start (after pairing, a service-worker start, or a retry after a busy tick). */
+export const READER_KICK_ALARM = "juli-reader-kick";
+/** 0.3.19: the fixed daily 06:30 GMT+7 stock read (the product list only). */
+export const STOCK_ALARM = "juli-stock-run";
+const TICK_LOG_KEPT = 20;
+const TRAFFIC_OVERVIEW_DONE_KEPT = 14;
+
+/** 06:30 GMT+7 of a GMT+7 day, in ms. */
+export function stockDueAt(day: string): number {
+  return (gmt7DateStart(day) + STOCK_READ_HOUR_GMT7 * 3600 + STOCK_READ_MINUTE * 60) * 1000;
+}
+
+/** The next 06:30 GMT+7 strictly after `nowMs` (the stock alarm's `when`). */
+export function nextStockAt(nowMs: number): number {
+  const today = stockDueAt(gmt7Date(Math.floor(nowMs / 1000)));
+  return today > nowMs ? today : today + 86_400_000;
+}
+
+/** The GMT+7 day `n` days before `day`. */
+export function dayMinus(day: string, n: number): string {
+  return gmt7Date(gmt7DateStart(day) - n * 86_400);
+}
+
+/** The day the orders job reads back to: the first run 14 days; later the last complete read minus 3, at most 30. */
+export function ordersSinceDay(today: string, coveredDay: string | undefined): string {
+  if (!coveredDay) return dayMinus(today, ORDER_CATCHUP_FIRST_DAYS);
+  const since = dayMinus(coveredDay, ORDER_CATCHUP_OVERLAP_DAYS);
+  const floor = dayMinus(today, ORDER_CATCHUP_MAX_DAYS);
+  return since < floor ? floor : since;
+}
+
+/** What the scheduler tells Juli about a tick (0.3.19): metadata only, never a body. */
+export interface TickReport {
+  kind: "run" | "skip";
+  trigger: string;
+  result: string;
+  day: string;
+  at: string;
+  outcomes?: Record<string, string>;
+}
 /** A run older than this is a crash leftover and is dropped. */
 const RUN_MAX_AGE_MS = 3 * 3_600_000;
 const ADS_DONE_KEPT = 14;
@@ -77,7 +129,7 @@ export interface SchedulerTabs {
 }
 
 export interface SchedulerAlarms {
-  create(name: string, info: { delayInMinutes?: number; periodInMinutes?: number }): Promise<void>;
+  create(name: string, info: { when?: number; delayInMinutes?: number; periodInMinutes?: number }): Promise<void>;
   clear(name: string): Promise<unknown>;
 }
 
@@ -99,6 +151,8 @@ export interface SchedulerDeps {
     postReader(job: ReaderJob, responses: ReaderResponse[]): Promise<Record<string, string>>;
     /** A stop that halts every reader (CAPTCHA, login wall, 429 / 403): told to Juli so Ops can see it. */
     reportBlock?(event: BlockEvent): Promise<void>;
+    /** 0.3.19: a finished run, or a tick that skipped (each distinct result once a day), told to Juli. */
+    reportTick?(report: TickReport): Promise<void>;
   };
   /** The 30-day backfill has a day in flight: do not start a run on top of it. */
   backfillBusy: () => Promise<boolean>;
@@ -110,6 +164,8 @@ export interface SchedulerDeps {
   later?: (ms: number, fn: () => void) => void;
   /** The readers a run may open, in order (default READER_IDS). */
   readers?: readonly ReaderId[];
+  /** The 06:30 stock run (default on; off in tests of the daily run alone). */
+  stockRun?: boolean;
 }
 
 /** The pages to open today, in order: products, vouchers, ads (one tab, several days), health. */
@@ -131,6 +187,12 @@ export function planJobs(args: {
   incomeDay?: string;
   /** The shop whose affiliate history is posted already (0.3.17). */
   affiliateHistoryShop?: string;
+  /** Shop traffic days already posted by the traffic reader (0.3.19). */
+  trafficOverviewDone?: readonly string[];
+  /** Orders: the day of the last complete by-date read (0.3.19). */
+  ordersCoveredDay?: string;
+  /** The product list was read (with stock) today after 06:30 and its ids are known: not again today. */
+  productsFresh?: boolean;
   held?: ReadonlySet<ReaderDataset>;
   readers?: readonly ReaderId[];
 }): PlannedJob[] {
@@ -140,9 +202,16 @@ export function planJobs(args: {
   for (const id of args.readers ?? READER_IDS) {
     if (!readerActive(id, args.shopId)) continue;
     // A page is only worth opening while at least one of its datasets can be posted.
-    const postable = READER_DATASETS[id].some((dataset) => !held.has(dataset) && !args.stopped.has(dataset));
+    const postable = READER_DATASETS[id].some((dataset) => !held.has(dataset as ReaderDataset) && !args.stopped.has(dataset));
     if (!postable) continue;
-    if (id === "ads") {
+    if (id === "products") {
+      if (!args.productsFresh) jobs.push({ id });
+    } else if (id === "traffic") {
+      const days = lastFinishedDays(args.nowMs, 1 + TRAFFIC_OVERVIEW_CATCHUP_DAYS).filter(
+        (day) => !(args.trafficOverviewDone ?? []).includes(day),
+      );
+      if (days.length > 0) jobs.push({ id, days });
+    } else if (id === "ads") {
       const days = lastFinishedDays(args.nowMs, 1 + ADS_CATCHUP_DAYS).filter((day) => !args.adsDone.includes(day));
       // Every day posted: the list is still opened once a day for its campaign settings, once
       // a first settings capture has been recorded (before that, an open day always exists).
@@ -164,7 +233,7 @@ export function planJobs(args: {
       // The 30-day product table, once a day (one page open; at most PRODUCT_PERIOD_MAX_PAGES requests).
       if (args.productPeriodDay !== todayDay) jobs.push({ id });
     } else if (id === "orders") {
-      if (args.ordersDay !== todayDay) jobs.push({ id });
+      if (args.ordersDay !== todayDay) jobs.push({ id, sinceDay: ordersSinceDay(todayDay, args.ordersCoveredDay) });
     } else if (id === "order_income") {
       // Planned every day, right after "orders" (which fills the queue in the same run); its turn
       // opens nothing when no completed order is waiting.
@@ -216,6 +285,15 @@ function ids(responses: ReaderResponse[], previous: string[] | undefined): strin
   return fresh.length > 0 ? fresh : previous;
 }
 
+/** Tick results that mean "nothing started" for a reason worth telling Juli (once a day each). */
+const SKIP_RESULTS: ReadonlySet<string> = new Set([
+  "off",
+  "consent_required",
+  "blocked",
+  "backfill_busy",
+  "nothing_to_do",
+]);
+
 export class ReaderScheduler {
   private lock: Promise<unknown> = Promise.resolve();
 
@@ -261,61 +339,150 @@ export class ReaderScheduler {
   /** The alarm / watchdog / "Đồng bộ" entry point: start today's run, or advance the one running.
    * ``manual`` (the seller pressed "Đồng bộ"): after today's run, read again only the days that
    * are still missing (ads, item traffic) instead of answering ``done_today``. */
-  tick(options: { manual?: boolean } = {}): Promise<string> {
+  tick(options: { manual?: boolean; trigger?: string } = {}): Promise<string> {
     return this.exclusive(async () => {
-      const { state, sched } = await this.load();
+      const { sched } = await this.load();
       const now = this.deps.now();
       if (sched.run) {
         if (now - sched.run.startedAt >= RUN_MAX_AGE_MS) return this.finishRun(sched, sched.run, undefined, "expired");
         return this.advance(sched, sched.run);
       }
-      const shopId = state.token?.shop_id;
-      if (!state.token) return "unpaired";
-      if (!schedulerActive(shopId)) return "off";
-      if (state.consentBlocked) return "consent_required";
-      if (sched.blocked && sched.blocked.until > now) return "blocked";
-      const today = gmt7Date(Math.floor(now / 1000));
-      const rerun = sched.lastRunDay === today;
-      if (rerun && !options.manual) return "done_today";
-      if (await this.deps.backfillBusy()) return "backfill_busy";
-      const planned = planJobs({
-        shopId,
-        nowMs: now,
-        stopped: stoppedFor(state, this.deps.version),
-        adsDone: sched.adsPosted ?? [],
-        trafficDone: sched.trafficDone,
-        adsSettingsDay: sched.adsSettingsDay,
-        totalsDay: sched.totalsDay,
-        totalsBackfilled: sched.totalsBackfilledShop === shopId,
-        productPeriodDay: sched.productPeriodDay,
-        ordersDay: sched.ordersDay,
-        incomeDay: sched.incomeDay,
-        affiliateHistoryShop: sched.affiliateHistoryShop,
-        ...(this.deps.readers ? { readers: this.deps.readers } : {}),
-      });
-      // A same-day re-run opens pages that still have missing days. A manual
-      // "Đồng bộ" also reopens a page whose last outcome did not post (KOL
-      // needs_data_page), otherwise that page waits until tomorrow.
-      const retry = new Set(
-        Object.entries(sched.lastRun?.outcomes ?? {})
-          .filter(([, outcome]) => !String(outcome).startsWith("done"))
-          .map(([id]) => id),
-      );
-      const jobs = rerun
-        ? planned.filter((job) => (job.days?.length ?? 0) > 0 || (options.manual === true && retry.has(job.id)))
-        : planned;
-      if (rerun && jobs.length === 0) return "done_today";
-      if (jobs.length === 0) {
-        await this.save({ ...sched, lastRunDay: today });
-        return "nothing_to_do";
+      // From rest: what woke the scheduler is recorded with how the tick ended (0.3.19).
+      const trigger =
+        options.trigger === "kick" ? (sched.kick?.reason ?? "kick") : (options.trigger ?? (options.manual ? "manual" : "alarm"));
+      if (options.trigger === "kick" && sched.kick) await this.save({ ...sched, kick: undefined });
+      const result = await this.start(options);
+      await this.record(trigger, result);
+      return result;
+    });
+  }
+
+  /** The stock run is due: the product list has not been read since today's 06:30 GMT+7. */
+  private stockDue(sched: ReaderSchedule, shopId: string | undefined, now: number, today: string): boolean {
+    if (this.deps.stockRun === false || !readerActive("products", shopId)) return false;
+    if (this.deps.readers && !this.deps.readers.includes("products")) return false;
+    const dueAt = stockDueAt(today);
+    if (now < dueAt || (sched.productsAt ?? 0) >= dueAt) return false;
+    return !(sched.stock?.day === today && sched.stock.attempts >= STOCK_MAX_ATTEMPTS_PER_DAY);
+  }
+
+  /** A start from rest: the stock run when due, else today's run; or why nothing started. */
+  private async start(options: { manual?: boolean }): Promise<string> {
+    const { state, sched } = await this.load();
+    const now = this.deps.now();
+    const shopId = state.token?.shop_id;
+    if (!state.token) return "unpaired";
+    if (!schedulerActive(shopId)) return "off";
+    if (state.consentBlocked) return "consent_required";
+    if (sched.blocked && sched.blocked.until > now) return "blocked";
+    const today = gmt7Date(Math.floor(now / 1000));
+    if (this.stockDue(sched, shopId, now, today)) {
+      if (await this.deps.backfillBusy()) {
+        await this.setKick("retry", READER_KICK_RETRY_MINUTES);
+        return "backfill_busy";
       }
-      const run: ReaderRun = { day: today, startedAt: now, jobs, index: 0, outcomes: {} };
-      await this.save({ ...sched, blocked: undefined, run });
+      const attempts = (sched.stock?.day === today ? sched.stock.attempts : 0) + 1;
+      const run: ReaderRun = { day: today, kind: "stock", startedAt: now, jobs: [{ id: "products" }], index: 0, outcomes: {} };
+      const next = { ...sched, blocked: undefined, run, stock: { day: today, attempts, at: this.iso() } };
+      await this.save(next);
       await this.deps.alarms.create(READER_WATCHDOG_ALARM, {
         delayInMinutes: READER_WATCHDOG_ALARM_MINUTES,
         periodInMinutes: READER_WATCHDOG_ALARM_MINUTES,
       });
-      return this.startNext({ ...sched, blocked: undefined, run }, run);
+      return `stock:${await this.startNext(next, run)}`;
+    }
+    const rerun = sched.lastRunDay === today;
+    if (rerun && !options.manual) return "done_today";
+    if (await this.deps.backfillBusy()) {
+      // Before 0.3.19 this waited for tomorrow's alarm: now it tries again in a few minutes.
+      await this.setKick("retry", READER_KICK_RETRY_MINUTES);
+      return "backfill_busy";
+    }
+    const productsFresh = (sched.productsAt ?? 0) >= stockDueAt(today) && (sched.itemIds?.length ?? 0) > 0;
+    const planned = planJobs({
+      shopId,
+      nowMs: now,
+      stopped: stoppedFor(state, this.deps.version),
+      adsDone: sched.adsPosted ?? [],
+      trafficDone: sched.trafficDone,
+      adsSettingsDay: sched.adsSettingsDay,
+      totalsDay: sched.totalsDay,
+      totalsBackfilled: sched.totalsBackfilledShop === shopId,
+      productPeriodDay: sched.productPeriodDay,
+      ordersDay: sched.ordersDay,
+      incomeDay: sched.incomeDay,
+      affiliateHistoryShop: sched.affiliateHistoryShop,
+      trafficOverviewDone: sched.trafficOverviewDone,
+      ordersCoveredDay: sched.ordersCoveredDay,
+      productsFresh,
+      ...(this.deps.readers ? { readers: this.deps.readers } : {}),
+    });
+    // A same-day re-run opens pages that still have missing days. A manual
+    // "Đồng bộ" also reopens a page whose last outcome did not post (KOL
+    // needs_data_page), otherwise that page waits until tomorrow.
+    const retry = new Set(
+      Object.entries(sched.lastRun?.outcomes ?? {})
+        .filter(([, outcome]) => !String(outcome).startsWith("done"))
+        .map(([id]) => id),
+    );
+    const jobs = rerun
+      ? planned.filter((job) => (job.days?.length ?? 0) > 0 || (options.manual === true && retry.has(job.id)))
+      : planned;
+    if (rerun && jobs.length === 0) return "done_today";
+    if (jobs.length === 0) {
+      await this.save({ ...sched, lastRunDay: today });
+      return "nothing_to_do";
+    }
+    const run: ReaderRun = { day: today, startedAt: now, jobs, index: 0, outcomes: {} };
+    await this.save({ ...sched, blocked: undefined, run });
+    await this.deps.alarms.create(READER_WATCHDOG_ALARM, {
+      delayInMinutes: READER_WATCHDOG_ALARM_MINUTES,
+      periodInMinutes: READER_WATCHDOG_ALARM_MINUTES,
+    });
+    return this.startNext({ ...sched, blocked: undefined, run }, run);
+  }
+
+  /** Keep the tick (newest last) and tell Juli a skip once per distinct result per day. */
+  private async record(trigger: string, result: string): Promise<void> {
+    const { sched } = await this.load();
+    const rec: TickRecord = { at: this.iso(), trigger, result };
+    const day = gmt7Date(Math.floor(this.deps.now() / 1000));
+    const skip = SKIP_RESULTS.has(result);
+    const key = `skip:${result}`;
+    const report = skip && !(sched.tickReported?.day === day && sched.tickReported.key === key);
+    await this.save({
+      ...sched,
+      lastTick: rec,
+      tickLog: [...(sched.tickLog ?? []), rec].slice(-TICK_LOG_KEPT),
+      ...(report ? { tickReported: { day, key } } : {}),
+    });
+    if (report) {
+      await this.deps.sink.reportTick?.({ kind: "skip", trigger, result, day, at: rec.at }).catch(() => undefined);
+    }
+  }
+
+  /** Arm the one-off start alarm (kept across worker restarts) and remember why. */
+  private async setKick(reason: string, minutes: number): Promise<void> {
+    const { sched } = await this.load();
+    await this.save({ ...sched, kick: { reason, at: this.iso() } });
+    await this.deps.alarms.create(READER_KICK_ALARM, { delayInMinutes: minutes });
+  }
+
+  /** Start soon (after pairing, or a worker start that found work due). */
+  requestKick(reason: string, minutes: number = READER_KICK_DELAY_MINUTES): Promise<void> {
+    return this.exclusive(() => this.setKick(reason, minutes));
+  }
+
+  /** Paired, nothing running, and today's run or today's stock read not done yet. */
+  due(): Promise<boolean> {
+    return this.exclusive(async () => {
+      const { state, sched } = await this.load();
+      const shopId = state.token?.shop_id;
+      if (!state.token || !schedulerActive(shopId) || state.consentBlocked || sched.run) return false;
+      const now = this.deps.now();
+      if (sched.blocked && sched.blocked.until > now) return false;
+      const today = gmt7Date(Math.floor(now / 1000));
+      return sched.lastRunDay !== today || this.stockDue(sched, shopId, now, today);
     });
   }
 
@@ -323,7 +490,9 @@ export class ReaderScheduler {
     const now = this.deps.now();
     const current = run.current;
     if (current) {
-      const limit = run.jobs[run.index]?.id === "item_traffic" ? TRAFFIC_JOB_TIMEOUT_MS : READER_JOB_TIMEOUT_MS;
+      const jobId = run.jobs[run.index]?.id;
+      const limit =
+        jobId === "item_traffic" ? TRAFFIC_JOB_TIMEOUT_MS : jobId === "orders" ? ORDERS_JOB_TIMEOUT_MS : READER_JOB_TIMEOUT_MS;
       if (now - current.openedAt > limit) return this.finishJob(sched, run, "timeout");
       if (current.sentAt === undefined && now - current.openedAt > READER_LOAD_GRACE_MS) {
         const info = await this.deps.tabs.inspect(current.tabId);
@@ -392,7 +561,7 @@ export class ReaderScheduler {
     }
     // The shared daily request budget: nothing is opened once it is spent; the rest waits for tomorrow.
     const { state } = await this.load();
-    const left = readerRequestsLeft(state, run.day);
+    const left = this.requestsLeftFor(state, run);
     if (left <= READER_PAGE_LOAD_COST) return this.budgetSpent(sched, run);
     const tabId = await this.deps.tabs.open(`${this.deps.origin}${readerPageUrl(job)}`);
     if (tabId === undefined) return this.finishJob(sched, run, "open_failed", false);
@@ -400,6 +569,11 @@ export class ReaderScheduler {
     const next = { ...run, current: { tabId, openedAt: this.deps.now() } };
     await this.save({ ...sched, run: next });
     return "opened";
+  }
+
+  /** The stock run may use the whole daily budget; the daily run leaves a running backfill its share. */
+  private requestsLeftFor(state: State, run: ReaderRun): number {
+    return run.kind === "stock" ? requestsLeft(state, run.day) : readerRequestsLeft(state, run.day);
   }
 
   /**
@@ -413,7 +587,7 @@ export class ReaderScheduler {
     if (job?.id === "orders" && current && !current.reopened) {
       await this.deps.tabs.close(current.tabId).catch(() => undefined); // a discarded tab is still there
       const { state } = await this.load();
-      if (readerRequestsLeft(state, run.day) > READER_PAGE_LOAD_COST) {
+      if (this.requestsLeftFor(state, run) > READER_PAGE_LOAD_COST) {
         const tabId = await this.deps.tabs.open(`${this.deps.origin}${readerPageUrl(job)}`);
         if (tabId !== undefined) {
           await addRequests(this.deps.storage, run.day, READER_PAGE_LOAD_COST);
@@ -449,6 +623,24 @@ export class ReaderScheduler {
     outcome = "finished",
   ): Promise<string> {
     if (run.current) await this.deps.tabs.close(run.current.tabId).catch(() => undefined);
+    const result = blocked ? `blocked:${blocked}` : outcome;
+    if (run.kind === "stock") {
+      // The 06:30 stock read: its own bookkeeping; today's daily run is untouched (and starts next).
+      await this.save({
+        ...sched,
+        run: undefined,
+        stock: {
+          ...(sched.stock ?? { attempts: 1 }),
+          day: run.day,
+          at: this.iso(),
+          outcome: run.outcomes.products ?? result,
+        },
+      });
+      await this.deps.alarms.clear(READER_WATCHDOG_ALARM).catch(() => undefined);
+      await this.reportRun("stock", result, run);
+      if (!blocked && sched.lastRunDay !== run.day) await this.setKick("after_stock", READER_KICK_DELAY_MINUTES);
+      return `stock_${result}`;
+    }
     await this.save({
       ...sched,
       run: undefined,
@@ -456,7 +648,14 @@ export class ReaderScheduler {
       lastRun: { day: run.day, at: this.iso(), outcomes: run.outcomes, ...(blocked ? { blocked } : {}) },
     });
     await this.deps.alarms.clear(READER_WATCHDOG_ALARM).catch(() => undefined);
-    return blocked ? `blocked:${blocked}` : outcome;
+    await this.reportRun("daily", result, run);
+    return result;
+  }
+
+  private async reportRun(trigger: string, result: string, run: ReaderRun): Promise<void> {
+    await this.deps.sink
+      .reportTick?.({ kind: "run", trigger, result, day: run.day, at: this.iso(), outcomes: run.outcomes })
+      .catch(() => undefined);
   }
 
   /** The day's request budget is spent: this job and the rest wait for tomorrow's run. */
@@ -547,8 +746,9 @@ export class ReaderScheduler {
             ...(job.orderIds ? { orderIds: job.orderIds } : {}),
             ...(job.orderSns ? { orderSns: job.orderSns } : {}),
             ...(job.history ? { history: job.history } : {}),
+            ...(job.sinceDay ? { sinceDay: job.sinceDay } : {}),
             // What is left of today's shared budget for this job's own requests.
-            budget: Math.max(0, readerRequestsLeft((await this.load()).state, run.day)),
+            budget: Math.max(0, this.requestsLeftFor((await this.load()).state, run)),
           },
         });
       } catch {
@@ -604,6 +804,7 @@ export class ReaderScheduler {
         ...(job.orderIds ? { orderIds: job.orderIds } : {}),
         ...(job.orderSns ? { orderSns: job.orderSns } : {}),
         ...(job.history ? { history: job.history } : {}),
+        ...(job.sinceDay ? { sinceDay: job.sinceDay } : {}),
       };
       const posted = await this.deps.sink.postReader(readerJob, responses);
       const skippedEntries =
@@ -633,9 +834,18 @@ export class ReaderScheduler {
         Object.entries(posted).some(([key, outcome]) => key.startsWith("ads_campaign_settings:") && outcome === "posted");
       const adsSettingsDay = settingsPosted ? run.day : sched.adsSettingsDay;
       const adsCampaigns = job.id === "ads" && settingsPosted ? ongoingAdsCampaigns(responses) : sched.adsCampaigns;
-      const extra = this.shopReaderState(sched, run, job, posted, responses, state.token?.shop_id);
+      const extra = this.shopReaderState(sched, run, job, posted, responses, state.token?.shop_id, !note.startsWith("partial"));
+      // 0.3.19: the product list with stock landed (the 06:30 stock read counts it), the traffic days posted.
+      const productsAt = job.id === "products" && posted.item_snapshot === "posted" ? this.deps.now() : sched.productsAt;
+      const trafficOverviewDone =
+        job.id === "traffic"
+          ? [
+              ...(sched.trafficOverviewDone ?? []),
+              ...(job.days ?? []).filter((day) => posted[`traffic_overview:${day}:confirmed`] === "posted"),
+            ].slice(-TRAFFIC_OVERVIEW_DONE_KEPT)
+          : sched.trafficOverviewDone;
       await this.finishJob(
-        { ...sched, adsPosted, itemIds, trafficDone, adsSettingsDay, adsCampaigns, ...extra },
+        { ...sched, adsPosted, itemIds, trafficDone, adsSettingsDay, adsCampaigns, productsAt, trafficOverviewDone, ...extra },
         run,
         `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}`,
       );
@@ -657,6 +867,7 @@ export class ReaderScheduler {
     posted: Record<string, string>,
     responses: ReaderResponse[],
     shopId: string | undefined,
+    complete = true,
   ): Partial<ReaderSchedule> {
     if (job.id === "shop_totals") {
       // Done when the confirmed post (the one Tổng quan reads) landed; the 30-day read marks the shop backfilled.
@@ -681,6 +892,8 @@ export class ReaderScheduler {
       const queue = [...(sched.incomeQueue ?? []), ...fresh].filter((o) => o.completedAt >= horizon).slice(0, ORDER_INCOME_QUEUE_MAX);
       return {
         ordersDay: posted.order_lines === "posted" || responses.length > 0 ? run.day : sched.ordersDay,
+        // Read back to its sinceDay: the next run starts from here (minus the overlap).
+        ordersCoveredDay: posted.order_lines === "posted" && complete ? run.day : sched.ordersCoveredDay,
         incomeQueue: queue,
         incomeSince: now,
       };

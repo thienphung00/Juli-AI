@@ -28,11 +28,11 @@ export const BACKFILL_IN_FLIGHT_TIMEOUT_MS = 3 * 60_000;
 export const BACKFILL_MAX_DAY_ATTEMPTS = 3;
 
 /**
- * Item-level readers wait for the second Seller Centre recon (D31.6): the first
- * recon saw only empty item lists, so the item row schema is not pinned. Passive
- * capture still maps what it can; the ACTIVE sync does not ask for item pages yet.
+ * Item-level mydata pages (item_performance, item_by_source) in the daily sync and the backfill.
+ * Off until 0.3.18 (D31.6: the first recon saw only empty item lists); Connector 0.3.19 turns them
+ * on (P100 Part A) now that the 30-day product table and the product list have pinned the item rows.
  */
-export const ITEM_READERS_ACTIVE = false;
+export const ITEM_READERS_ACTIVE = true;
 
 /** The four `/api/mydata` datasets the page's own responses feed (passive capture + daily sync). */
 export type MydataDataset = "traffic_overview" | "item_by_source" | "item_performance" | "shop_traffic";
@@ -87,6 +87,8 @@ export type ReaderId =
   | "ads_products"
   | "orders"
   | "order_income"
+  /** Connector 0.3.19: Phân Tích Bán Hàng › Truy cập read in the scheduler's own tab (no open tab needed). */
+  | "traffic"
   | AffiliateReaderId;
 /** The affiliate ("Tăng Đơn Cùng KOL") pages, one reader per page (Connector 0.3.6, every paired shop in 0.3.7). */
 export type AffiliateReaderId =
@@ -121,6 +123,9 @@ export const READER_IDS: readonly ReaderId[] = [
   // Connector 0.3.11 (P97 T1): shop totals, order lines, per-order income. One page at a time like
   // every reader; the shared request budget below caps all of them together.
   "shop_totals",
+  // Connector 0.3.19: the shop's traffic overview (traffic_overview, shop_traffic), in the
+  // scheduler's own background tab, so the seller no longer has to keep Truy cập open.
+  "traffic",
   // Connector 0.3.12 (P97 T3, recorded 2026-11-09): the 30-day product table, once a day.
   "product_period",
   "orders",
@@ -142,6 +147,7 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
   ads_products: true,
   orders: true,
   order_income: true,
+  traffic: true,
   affiliate: true,
   affiliate_kols: true,
   affiliate_dashboard: true,
@@ -165,17 +171,32 @@ export const SCHEDULER_ACTIVE = true;
 export const ORY_SHOP_ID = "d73a240b-a00a-4306-9b3e-9fdf75d72aaf";
 export const PILOT_SHOP_IDS: readonly string[] = [ORY_SHOP_ID, "*"];
 
+/**
+ * Juli's reviewer sample shop (P100 S2): synthetic data, never a real Seller Centre. The Connector
+ * never pairs with it and never reads for it, whatever the pilot list says.
+ */
+export const SAMPLE_SHOP_IDS: readonly string[] = ["bf06da92-8988-450a-ad84-86d88367efaa"];
+
+export function isSampleShop(shopId: string | undefined): boolean {
+  return !!shopId && SAMPLE_SHOP_IDS.includes(shopId.toLowerCase());
+}
+
 export function readerActive(id: ReaderId, shopId: string | undefined): boolean {
-  if (!READERS_ACTIVE[id] || !shopId) return false;
+  if (!READERS_ACTIVE[id] || !shopId || isSampleShop(shopId)) return false;
   return PILOT_SHOP_IDS.includes("*") || PILOT_SHOP_IDS.includes(shopId);
 }
 
 export function schedulerActive(shopId: string | undefined): boolean {
-  return SCHEDULER_ACTIVE && !!shopId && (PILOT_SHOP_IDS.includes("*") || PILOT_SHOP_IDS.includes(shopId));
+  return (
+    SCHEDULER_ACTIVE &&
+    !!shopId &&
+    !isSampleShop(shopId) &&
+    (PILOT_SHOP_IDS.includes("*") || PILOT_SHOP_IDS.includes(shopId))
+  );
 }
 
 /** The datasets each reader produces. */
-export const READER_DATASETS: Record<ReaderId, readonly ReaderDataset[]> = {
+export const READER_DATASETS: Record<ReaderId, readonly Dataset[]> = {
   products: ["item_catalog", "item_snapshot"],
   item_traffic: ["item_traffic_sources"],
   vouchers: ["voucher_settings"],
@@ -187,6 +208,7 @@ export const READER_DATASETS: Record<ReaderId, readonly ReaderDataset[]> = {
   ads_products: ["ads_campaign_period"],
   orders: ["order_lines"],
   order_income: ["order_income"],
+  traffic: ["traffic_overview", "shop_traffic"],
   affiliate: ["affiliate_order_lines"],
   affiliate_kols: ["affiliate_partner_period"],
   affiliate_dashboard: ["affiliate_shop_period"],
@@ -228,18 +250,31 @@ export const READER_BLOCK_LOGIN_MS = 6 * 3_600_000;
  * the daily mydata sync and the backfill all count. Checked before every replay; when it is spent
  * the remaining jobs wait for the next day. Tunable.
  */
-export const DAILY_REQUEST_BUDGET = 400;
+export const DAILY_REQUEST_BUDGET = 800;
 /**
  * The budget is split (0.3.15): today's readers (orders, traffic, ads, affiliate, daily sync) keep
  * TODAY_REQUEST_RESERVE requests that the 30-day backfill can never touch, and while a backfill is
  * running it keeps BACKFILL_REQUEST_SHARE that the readers leave alone, so neither starves the other.
  */
-export const TODAY_REQUEST_RESERVE = 150;
-export const BACKFILL_REQUEST_SHARE = 100;
+export const TODAY_REQUEST_RESERVE = 250;
+export const BACKFILL_REQUEST_SHARE = 150;
 /** A report page makes a handful of calls of its own when it loads: each opened tab is counted as this many. */
 export const READER_PAGE_LOAD_COST = 10;
-/** Order list: at most this many list pages (each = an index call + a card call) per run. */
-export const ORDER_LIST_MAX_PAGES_PER_RUN = 5;
+/**
+ * Order list (0.3.19: by date, not a fixed 5 pages): pages are read until the oldest order on a page
+ * was placed before the job's `sinceDay`, at least ORDER_LIST_MIN_PAGES (the 0.3.18 depth, in case
+ * the list is not sorted by date) and at most ORDER_LIST_MAX_PAGES_PER_RUN (a safety cap; the daily
+ * budget still applies). Each page = an index call + a card call.
+ */
+export const ORDER_LIST_MIN_PAGES = 5;
+export const ORDER_LIST_MAX_PAGES_PER_RUN = 40;
+/** The first run reads back this many days; later runs from the last complete read minus the overlap
+ *  (orders change status for days), never more than ORDER_CATCHUP_MAX_DAYS back. */
+export const ORDER_CATCHUP_FIRST_DAYS = 14;
+export const ORDER_CATCHUP_OVERLAP_DAYS = 3;
+export const ORDER_CATCHUP_MAX_DAYS = 30;
+/** 40 pages x (20-45 s gap + 2 calls) can take ~30 min: the orders job has its own timeout. */
+export const ORDERS_JOB_TIMEOUT_MS = 45 * 60_000;
 /** Extra wait before an order-list page after the first (ms, plus jitter): 20-45 s like page gaps. */
 export const ORDER_LIST_PAGE_GAP_MS = 20_000;
 export const ORDER_LIST_PAGE_GAP_JITTER_MS = 25_000;
@@ -263,9 +298,26 @@ export const READER_BLOCK_RATE_MS = READER_BLOCK_CAPTCHA_MS;
  */
 export const PRODUCT_PERIOD_DAYS = 30;
 export const PRODUCT_PERIOD_PAGE_SIZE = 10;
-export const PRODUCT_PERIOD_MAX_PAGES = 5;
+/** 0.3.19: every row (until the answer's own total / a short page); this is only a safety cap. */
+export const PRODUCT_PERIOD_MAX_PAGES = 100;
 /** Group-campaign pages whose per-product table is read (the page opened + the others replayed). */
 export const ADS_PRODUCTS_MAX_CAMPAIGNS = 10;
+
+/** Shop traffic (0.3.19): yesterday plus up to this many earlier finished days not read yet. */
+export const TRAFFIC_OVERVIEW_CATCHUP_DAYS = 3;
+
+/**
+ * Stock (0.3.19, P100 stock alert): every day at 06:30 GMT+7 a run of ONLY the product list
+ * (item_snapshot carries each variation's stock), on its own alarm; when Chrome was closed at that
+ * time it runs at the next start. It may use the whole daily budget (not only the readers' part).
+ */
+export const STOCK_READ_HOUR_GMT7 = 6;
+export const STOCK_READ_MINUTE = 30;
+export const STOCK_MAX_ATTEMPTS_PER_DAY = 2;
+/** A tick that found the backfill busy tries again after this long (a one-off alarm). */
+export const READER_KICK_RETRY_MINUTES = 5;
+/** After pairing / a service-worker start that finds today's run not done: start after this long. */
+export const READER_KICK_DELAY_MINUTES = 1;
 
 /** Ads: yesterday plus up to this many earlier finished days not read yet (one day per call). */
 export const ADS_CATCHUP_DAYS = 3;

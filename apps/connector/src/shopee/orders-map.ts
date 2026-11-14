@@ -147,7 +147,8 @@ export function trimOrderCards(body: unknown): unknown {
 
 // -- order lines --------------------------------------------------------------------------------
 
-const MAX_LINES = 2_000;
+/** 0.3.19: the order list catches up by date (up to 40 pages of 40 orders): room for every line. */
+const MAX_LINES = 10_000;
 const MONEY_FIELDS = ["item_price", "original_price", "order_price", "deal_price", "price_before_discount"] as const;
 
 type OrderStatusName = "delivered" | "cancelled" | "in_transit" | "refunded_accepted" | "refunded_not_received";
