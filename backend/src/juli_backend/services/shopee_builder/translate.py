@@ -203,6 +203,8 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext, *, _flat: bool = False
         if spec.per_buyer_limit is not None:
             inputs["per_user_limit"] = spec.per_buyer_limit
         inputs["days"] = days
+        if spec.start and spec.end:
+            inputs["start"], inputs["end"] = spec.start.isoformat(), spec.end.isoformat()
         notes: list[str] = []
         return Translation(
             {

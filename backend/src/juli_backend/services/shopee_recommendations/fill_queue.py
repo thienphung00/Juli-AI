@@ -22,7 +22,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -149,6 +149,28 @@ def voucher_window(now: datetime, days: int) -> tuple[str, str]:
     return _shopee_time(start), _shopee_time(end)
 
 
+def _chosen_day(raw: Any) -> date | None:
+    try:
+        return date.fromisoformat(str(raw)[:10]) if raw else None
+    except ValueError:
+        return None
+
+
+def chosen_voucher_window(inputs: dict[str, Any], now: datetime) -> tuple[str, str] | None:
+    """The start / end the seller picked in Tự tạo (``inputs["start"]`` / ``["end"]``, ISO days):
+    00:00 of the start day to 23:59 of the end day, GMT+7. ``None`` unless the start is still in the
+    future (Seller Centre refuses a past start), so the caller keeps :func:`voucher_window`."""
+    start, end = _chosen_day(inputs.get("start")), _chosen_day(inputs.get("end"))
+    if start is None or end is None or end < start:
+        return None
+    local_now = (now if now.tzinfo is None else now.astimezone(UTC).replace(tzinfo=None)) + ICT
+    begins = datetime(start.year, start.month, start.day)
+    if begins <= local_now:
+        return None
+    finish = datetime(end.year, end.month, end.day, 23, 59)
+    return _shopee_time(begins), _shopee_time(finish)
+
+
 def _ids(raw: Any) -> list[str]:
     out: list[str] = []
     for v in raw or []:
@@ -172,7 +194,7 @@ def _voucher_payload(
     if pct is None and (value is None or value <= 0):
         return None
     days = int(_num(inputs.get("days")) or config.VOUCHER_DAYS)
-    starts, ends = voucher_window(now, days)
+    starts, ends = chosen_voucher_window(inputs, now) or voucher_window(now, days)
     discount: dict[str, Any]
     if pct is not None:
         mx = _num(inputs.get("max_value"))
@@ -408,7 +430,12 @@ async def build_jobs(
                 None if ok else "text_not_fillable",
             )
     elif kind == "voucher":
-        groups = [_ids(t.get("product_ids") or [t.get("item_id")]) for t in given] or [[]]
+        groups = [_ids(t.get("product_ids") or [t.get("item_id")]) for t in given]
+        if not groups:
+            # a Tự tạo card has no targets: a product-level voucher keeps its product(s); only a
+            # shop-scope voucher is shop-wide
+            level = (card.get("scope") or {}).get("level")
+            groups = [scope_items] if scope_items and level != "shop" else [[]]
         for n, vids in enumerate(groups):
             inputs = {**base_inputs, **((given[n].get("inputs") or {}) if given else {})}
             payload = _voucher_payload(card, inputs, p.code, version, now, vids)
