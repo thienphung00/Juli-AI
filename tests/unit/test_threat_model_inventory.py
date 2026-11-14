@@ -206,6 +206,8 @@ UNAUTHENTICATED_ALLOWLIST = {
     "/v1/ingest/{platform}/{dataset}",
     # Connector stop report (CAPTCHA / login wall / 429): metadata for Ops, same ingest token.
     "/v1/ingest/connector-events",
+    # Connector 0.3.19 scheduler tick (trigger, result, per-page outcomes): same ingest token.
+    "/v1/ingest/connector-ticks",
     # P97 D85.6: the Connector's fill queue, its token's shop only (list + report progress).
     "/v1/ingest/fill-jobs",
     "/v1/ingest/fill-jobs/{job_id}",
