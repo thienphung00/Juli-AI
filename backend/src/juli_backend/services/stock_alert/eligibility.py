@@ -49,6 +49,8 @@ class SkuFacts:
     effects: tuple[CardEffect, ...] = ()
     #: last day of each approved / running card on the product
     card_ends: tuple[date, ...] = ()
+    #: the seller's own Shopee SKU code (model / item SKU of the product list), when known
+    sku_code: str | None = None
 
     @property
     def key(self) -> str:
@@ -109,6 +111,18 @@ def sort_rows(rows: Iterable[AlertRow]) -> list[AlertRow]:
     return sorted(rows, key=key)
 
 
+def split_new(
+    rows: Sequence[AlertRow], previous: set[str] | None
+) -> tuple[list[AlertRow], list[AlertRow]]:
+    """``(new today, still running out)``: a row whose variation was not in yesterday's e-mail is
+    new; with no previous e-mail (``previous`` None) every row is new. Each group keeps the order of
+    ``rows``."""
+    if previous is None:
+        return list(rows), []
+    new = [r for r in rows if r.facts.key not in previous]
+    return new, [r for r in rows if r.facts.key in previous]
+
+
 def alerts(
     facts: Sequence[SkuFacts],
     today: date,
@@ -139,4 +153,5 @@ __all__ = [
     "is_eligible",
     "listing_active",
     "sort_rows",
+    "split_new",
 ]

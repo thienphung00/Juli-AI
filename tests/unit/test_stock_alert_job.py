@@ -109,7 +109,55 @@ def test_out_of_stock_empty_and_no_read_texts():
     )
     assert nr.subject == "[Juli - Báo cáo tồn kho] Juli chưa đọc được tồn kho từ 12/11"
     assert "Mở Seller Centre trên Chrome để Juli Connector đọc tồn kho." in nr.text
-    assert cp.per_day(0.5) == "0,5" and cp.per_day(12.4) == "12"
+    assert cp.per_day(1.5) == "1,5" and cp.per_day(12.4) == "12"
+
+
+def test_rate_under_one_a_day_reads_per_week():
+    assert cp.rate_text(6.0) == "Bán ~6/ngày" and cp.rate_text(1.0) == "Bán ~1/ngày"
+    assert cp.rate_text(0.3) == "Bán ~2/tuần"
+    assert cp.rate_text(0.05) == "Bán ~1/tuần"  # at least 1
+
+
+def test_sku_code_in_the_title_when_known():
+    f = _row().facts
+    with_code = AlertRow(SkuFacts(**{**f.__dict__, "sku_code": "AT-RED-M"}), _row().forecast, "x")
+    assert cp.row_title(with_code) == "Áo thun · Đỏ, M · SKU AT-RED-M"
+    assert cp.row_title(_row()) == "Áo thun · Đỏ, M"
+    bare = AlertRow(
+        SkuFacts(**{**f.__dict__, "variation_name": None, "sku_code": "AT"}), _row().forecast, "x"
+    )
+    assert cp.row_title(bare) == "Áo thun · SKU AT"
+
+
+def test_new_rows_first_under_their_own_heading():
+    f = _row().facts
+    a = AlertRow(
+        SkuFacts(**{**f.__dict__, "model_id": "a", "product_name": "A"}),
+        _row().forecast,
+        "days_left",
+    )
+    b = AlertRow(
+        SkuFacts(**{**f.__dict__, "model_id": "b", "product_name": "B"}),
+        _row().forecast,
+        "days_left",
+    )
+    c = cp.compose(
+        "alert",
+        [a, b],
+        today=TODAY,
+        alert_days=7,
+        open_url="o",
+        unsubscribe_url="u",
+        previous_keys={"1:a"},
+    )
+    text = c.text
+    assert text.index("MỚI HÔM NAY") < text.index("B · Đỏ, M") < text.index("ĐANG SẮP HẾT")
+    assert text.index("ĐANG SẮP HẾT") < text.index("A · Đỏ, M")
+    first = cp.compose(
+        "alert", [a, b], today=TODAY, alert_days=7, open_url="o", unsubscribe_url="u"
+    )
+    assert "MỚI HÔM NAY" in first.text and "ĐANG SẮP HẾT" not in first.text
+    assert "Mới hôm nay" in first.html
 
 
 def test_signed_link_round_trip_and_tamper():
@@ -169,9 +217,9 @@ def _line(shop_id, n, day: date, qty=2, model="11"):
 
 
 async def _seed_selling(session, shop_id, *, stock=10, read=READ):
-    session.add_all(
-        [_item(shop_id, "1", "", "Áo thun"), _item(shop_id, "1", "11", "Áo thun", "Đỏ")]
-    )
+    red = _item(shop_id, "1", "11", "Áo thun", "Đỏ")
+    red.seller_sku = "AT-DO"
+    session.add_all([_item(shop_id, "1", "", "Áo thun"), red])
     for n in range(30):  # 2 units a day for 30 days -> ~2/day
         session.add(_line(shop_id, n, TODAY - timedelta(days=n + 1)))
     session.add(
@@ -213,7 +261,7 @@ async def test_alert_goes_to_members_once_per_day_with_ops_bcc(session):
     assert (run.status, run.kind, run.rows, run.sent) == ("done", "alert", 1, 2)
     first = mailer.sent[0]
     assert first.subject == "[Juli - Báo cáo tồn kho] 1 SKU sắp hết hàng trên Shopee · 15/11"
-    assert "Áo thun · Đỏ" in first.text and "Còn 10 · Bán ~2/ngày" in first.text
+    assert "Áo thun · Đỏ · SKU AT-DO" in first.text and "Còn 10 · Bán ~2/ngày" in first.text
     assert "Tồn kho đọc lúc 15/11 06:31" in first.text
     assert first.bcc == ("ops@app-juli.com",) and mailer.sent[1].bcc == ()
     assert "ton_kho=1%3A11" in first.text
@@ -222,6 +270,10 @@ async def test_alert_goes_to_members_once_per_day_with_ops_bcc(session):
     assert again.status == "already_sent" and len(mailer.sent) == 2
     count = await session.scalar(select(func.count()).select_from(ShopeeStockAlertSend))
     assert count == 1
+    # the next morning the same variation is listed again, now under "Đang sắp hết"
+    next_day = await job.run_shop(session, shop.id, now=NOW + timedelta(days=1), mailer=mailer)
+    assert next_day.kind == "alert"
+    assert "ĐANG SẮP HẾT" in mailer.sent[-1].text and "MỚI HÔM NAY" not in mailer.sent[-1].text
     # the "Theo dõi" default was stored on (eligible)
     row = await session.get(ShopeeSkuTracking, (shop.id, "1", "11"))
     assert row.tracked and row.set_by == "default"

@@ -9,7 +9,9 @@
 3. the variations' facts (``data``), the "Theo dõi" defaults stored (``settings.sync_defaults``),
    the eligible tracked ones that trigger (``eligibility``) -> ``alert`` or ``empty``; no variation
    with a usable stock read -> ``no_read``.
-4. one message per recipient (each carries their own unsubscribe link).
+4. the rows not in yesterday's e-mail first ("Mới hôm nay"), then the rest ("Đang sắp hết");
+   a variation is listed every morning while it triggers.
+5. one message per recipient (each carries their own unsubscribe link).
 
 No SMTP host: the row is still written (the day is "done") and the job logs
 ``stock_alert_mail_not_configured``; nothing is sent.
@@ -21,7 +23,7 @@ import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -37,7 +39,7 @@ from juli_backend.models.stock_alert import (
 from juli_backend.services.stock_alert import data, links, recipients, settings
 from juli_backend.services.stock_alert import stock_basis as sb
 from juli_backend.services.stock_alert.compose import compose, row_line, row_title
-from juli_backend.services.stock_alert.eligibility import alerts, is_eligible
+from juli_backend.services.stock_alert.eligibility import alerts, is_eligible, split_new
 from juli_backend.services.stock_alert.mail import (
     StockMail,
     StockMailer,
@@ -78,6 +80,19 @@ async def _already_sent(session: AsyncSession, shop_id: uuid.UUID, day: date) ->
         )
     )
     return found is not None
+
+
+async def _previous_keys(session: AsyncSession, shop_id: uuid.UUID, today: date) -> set[str] | None:
+    """The variations listed in yesterday's e-mail; None when nothing went out yesterday."""
+    row = await session.scalar(
+        select(ShopeeStockAlertSend).where(
+            ShopeeStockAlertSend.shop_id == shop_id,
+            ShopeeStockAlertSend.local_date == today - timedelta(days=1),
+        )
+    )
+    if row is None:
+        return None
+    return {str(r.get("key")) for r in row.rows or [] if isinstance(r, dict) and r.get("key")}
 
 
 async def run_shop(
@@ -132,9 +147,19 @@ async def run_shop(
             if first is None or (today - first).days < recipients.OPS_BCC_DAYS
             else ()
         )
+    previous = await _previous_keys(session, shop_id, today)
+    new, ongoing = split_new(rows, previous)
+    rows = [*new, *ongoing]
+    fresh = {r.facts.key for r in new}
     keys = [r.facts.key for r in rows]
     log_rows = [
-        {"key": r.facts.key, "reason": r.reason, "title": row_title(r), "line": row_line(r)}
+        {
+            "key": r.facts.key,
+            "reason": r.reason,
+            "new": r.facts.key in fresh,
+            "title": row_title(r),
+            "line": row_line(r),
+        }
         for r in rows
     ]
     # the day's row first: a second or parallel run finds it and sends nothing
@@ -166,6 +191,7 @@ async def run_shop(
             read_at=read_at,
             deducted_orders=deducted,
             no_read_since=no_read_since,
+            previous_keys=previous,
         )
         return StockMail(to=to, subject=c.subject, text=c.text, html=c.html, bcc=extra_bcc)
 
