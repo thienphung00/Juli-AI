@@ -12,10 +12,23 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
   (``AdShare``: views, clicks, orders, GMV). It sits inside the sources, never beside them.
   P100 B.4b -- **one order basis, confirmed**: the sources' đơn / GMV are ShopMetrics
   (confirmed), so the stored overlay is too (``materialize.ads_overlay``: Shopee's confirmed ads
-  row, else the placed row times the card's own confirmed ÷ placed ratio). P100 B.4a: a day
-  whose overlay has views but no clicks takes the clicks of the daily ads report
-  (``ads_campaign_daily``, every type but Shop+), so Quảng cáo, Thẻ sản phẩm (organic) and
-  Organic get CTR / CTOR.
+  row, else the placed row times the card's own confirmed ÷ placed ratio).
+- P100 B.4a -- **which report each cell comes from** (shop level; one basis per CTR):
+
+  ===========================  ===============================  ==============================
+  cell                         overlay has clicks               overlay has no clicks
+  ===========================  ===============================  ==============================
+  Quảng cáo views / clicks     overlay (traffic overview)       ads report: impressions /
+                                                                clicks of product ads (every
+                                                                type but Shop+, ``is_shop_plus``)
+  Quảng cáo orders / GMV       overlay (confirmed basis)        overlay (confirmed basis)
+  Thẻ sản phẩm (organic) views card - overlay views            card - overlay views; card -
+                                                                report impressions when the
+                                                                overlay has no views either
+  Thẻ sản phẩm (organic) clicks card - overlay clicks           card - report clicks
+  ===========================  ===============================  ==============================
+
+  Every derived organic cell is clamped at 0. No report counts: the Quảng cáo clicks stay None.
 - **Organic = sources - Quảng cáo - Tiếp thị liên kết.** Its four children add up to it: Thẻ sản
   phẩm (organic) = Thẻ sản phẩm + residual - the ads overlay, each cell clamped at 0 (P100 B.4b:
   a derived organic cell is never negative); Trang shop = the ``trang_shop`` segment; Video;
@@ -23,7 +36,9 @@ Rules (the owner's, ORY 11/10-09/11 as the sanity shape):
 - Every row carries ``prev`` (the same cells over the previous period of the same length) and
   ``share`` (of the total GMV on the traffic-overview base; ``None`` for ads-report rows).
 - **Quảng cáo children, ads-report base** (never added to the traffic-overview figure): DVHT Sản
-  phẩm = every ad type of the ads report except ``ads_shop``; DVHT Shop+ = ``ads_shop``. P100
+  phẩm = every ad type of the ads report but Shop+; DVHT Shop+ = ``loaders.is_shop_plus`` (the
+  file's ``ads_shop``, the Connector's ``shop_*``). The ads report of a day is the Connector's
+  ``ads_campaign_daily`` wherever it has the day, else the daily file report. P100
   B.4c: Lượt xem = the report's impressions, CTR = clicks ÷ impressions, CTOR = orders ÷ clicks
   (broad orders, the report's own basis); a type whose days lack the counts (a day covered only
   by a period file) leaves them ``None``. At Sản phẩm level there is no Shop+ row
@@ -197,11 +212,22 @@ def split_rows(
         return _sum([getattr(x, field) for x in parts])
 
     a = ads
+    product_ads, shop_ads = (None, None) if product_level else _ad_report(ad_types)
+    # P100 B.4a: the Quảng cáo row's views / clicks on ONE basis. The overlay's own clicks keep
+    # the traffic-overview base; without them both come from the ads report (product ads).
+    ad_views = a.views if a else None
+    ad_clicks = a.clicks if a else None
+    report_imp = product_ads.get("impressions") if product_ads else None
+    report_clk = product_ads.get("clicks") if product_ads else None
+    from_report = a is not None and ad_clicks is None and report_clk is not None
+    if from_report:
+        ad_views, ad_clicks = report_imp, report_clk
     org_card = _row(
         "organic_card",
         "organic",
-        _rest(card_part("views"), a.views) if a else None,
-        _rest(card_part("clicks"), a.clicks) if a else None,
+        # traffic base when the overlay has views; else the report's impressions
+        _rest(card_part("views"), a.views if a.views is not None else report_imp) if a else None,
+        _rest(card_part("clicks"), ad_clicks) if a else None,
         _rest(card_part("orders"), a.orders) if a else None,
         _rest(card_part("gmv"), a.gmv) if a else None,
     )
@@ -253,15 +279,14 @@ def split_rows(
         _row(
             "ads",
             None,
-            a.views if a else None,
-            a.clicks if a else None,
+            ad_views,
+            ad_clicks,
             a.orders if a else None,
             a.gmv if a else None,
             base_name,
         )
     )
     if not product_level:
-        product_ads, shop_ads = _ad_report(ad_types)
         rows.append(_ad_row("ads_product", product_ads))
         rows.append(_ad_row("ads_shop", shop_ads))
     rows.append(
