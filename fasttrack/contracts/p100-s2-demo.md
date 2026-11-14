@@ -341,3 +341,24 @@ thị campaign and Affiliate on the loaded sample shop.
 
 After deploy: run `--reset --yes` once. The re-seed rewrites the title specs with the new
 candidates, which a plain re-load does not do.
+
+## S2-D3: prod check fixes (2026-11-13)
+
+Chrome check on prod after `fasttrack-deploy-20261113T1020Z` (51c950eb) and `--reset --yes`:
+- **Ads per product were 0.** The generator's `ads_campaign_period` rows had no "Doanh số trực
+  tiếp" (`direct_sales`, `direct_conversions`, `direct_roas`), and the loaders read a product's ad
+  GMV from `direct_sales` — so every product read "Quảng cáo 0đ" and ROAS thực tế 0,0 while Tổng
+  quan put 35 % of GMV on ads. The period rows now carry them at `DIRECT_SHARE` (0.7, as the daily
+  campaign rows already did).
+- **Every product image was broken.** The item rows and snapshots held a bare id
+  (`sample_<sku>_cover`). They now hold `Product.cover_url` = `/sample-shop/<sku>.svg`, six
+  synthetic covers in `apps/demo/public/sample-shop/` (same origin, no outbound). The content-spec
+  style profile keeps its image ids (its hash is unchanged).
+- **Real shops too:** the Connector stores Seller Centre's `cover_image` as a bare id
+  (`vn-11134207-…`), which the Tự tạo product picker used as `src`. `shopeeImageSrc` passes URLs
+  and same-origin paths through and turns an id into the Shopee VN image URL. To verify on a
+  real shop after deploy.
+- `/quyet-dinh` 404ed; `next.config` redirects it to `/decisions`.
+- UI/mobile findings went to S1 (`fasttrack/p100-ui-fix`).
+
+After deploy: `--reset --yes` once (the period ads rows and the image URLs are re-posted).

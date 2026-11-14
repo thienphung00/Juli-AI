@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
       // P96b (owner, 2026-11-06): Xếp hạng is now Phân tích's product table; the query (kpi, src,
       // sub, xep, ky…) is carried over by Next, so an old link opens the same table.
       { source: "/xep-hang", destination: "/phan-tich", permanent: false },
+      // P100 S2-D3 (prod check 2026-11-13): Quyết định's route is /decisions; a typed /quyet-dinh 404ed.
+      { source: "/quyet-dinh", destination: "/decisions", permanent: false },
     ];
   },
   // The English partner reviewer guide (Shopee ISV, P89): a static page in public/, linked
