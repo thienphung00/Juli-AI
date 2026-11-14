@@ -9,8 +9,14 @@ Three sources describe a shop's ad spend; each day takes the first one that has 
    the same pro-rata share :func:`ads_sources.resolve_ad_spend` uses (days in the range ÷ days in
    the window), taken one day at a time so a day is answered once.
 
+P100 B.3: once the Connector reads ads daily, a day after its newest read (``connector_until``)
+is missing -- the Connector has not read it yet -- and is never filled with an older period
+report's daily average.
+
 A day with none of them has no figure (``None``, "chưa có dữ liệu"): it is never 0, and never in
-a total. A day that two sources cover is counted once (the first source). The ``source`` of
+a total. A day that two sources cover is counted once (the first source), and every figure of
+that day -- spend, GMV, orders and each type's impressions / clicks -- comes from that one source: a
+Connector day (its 90-day history backfill included) always beats a file day. The ``source`` of
 each day travels with the figure, so a payload can say where each day came from.
 """
 
@@ -37,6 +43,9 @@ class TypeFigure:
     spend: Decimal | None = None
     gmv: Decimal = ZERO
     orders: Decimal = ZERO
+    #: P100 B.4c: the type's ad impressions / clicks of the day (None = not posted)
+    impressions: Decimal | None = None
+    clicks: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -56,8 +65,11 @@ def resolve_ad_days(
     windows: Iterable[AdWindow],
     start: date,
     end: date,
+    *,
+    connector_until: date | None = None,
 ) -> dict[date, DayAds]:
-    """The figure of every day of ``start..end`` that has one (see the module docstring)."""
+    """The figure of every day of ``start..end`` that has one (see the module docstring).
+    ``connector_until``: the shop's newest Connector ads day; later days take no period spread."""
     out: dict[date, DayAds] = {}
     by_campaign: dict[str, dict[tuple[date, date], list[AdWindow]]] = defaultdict(
         lambda: defaultdict(list)
@@ -70,7 +82,7 @@ def resolve_ad_days(
             out[day] = connector[day]
         elif day in daily_report:
             out[day] = daily_report[day]
-        else:
+        elif connector_until is None or day <= connector_until:
             spread = _period_day(by_campaign, day)
             if spread is not None:
                 out[day] = spread

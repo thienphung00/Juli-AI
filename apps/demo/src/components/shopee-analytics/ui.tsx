@@ -247,3 +247,15 @@ export function PriceMargin({ p, margin }: { readonly p: { readonly price_min?: 
     </span>
   );
 }
+
+/** P100 B.5: "Số liệu đến 13/11", the last complete day of a section's data; nothing without it. */
+export function DataThrough({ day, testId }: { readonly day: string | null | undefined; readonly testId: string }) {
+  if (!day) return null;
+  const [, m, d] = day.slice(0, 10).split("-");
+  if (!m || !d) return null;
+  return (
+    <span className="sa-fresh sa-through" data-testid={testId}>
+      Số liệu đến {d}/{m}
+    </span>
+  );
+}

@@ -47,9 +47,8 @@ async def test_v2_a_thin_previous_period_withholds_every_delta(session, seeded):
 
 
 async def test_v3_the_window_ends_on_the_last_day_every_live_dataset_posted(session):
-    """D85.2 (replaces V3's "newest Connector day"): the shared anchor is the last COMPLETE day.
-    A dataset a day or two behind holds the window back and is named; one more than three days
-    behind is a stale upload and no longer counts. (The raw datasets' rule: no stored rows.)"""
+    """D85.2 / P100 B.2: the shared anchor is the last day with shop_overview; a traffic dataset
+    ahead of it names shop_overview as the limit. (The raw datasets' rule: no stored rows.)"""
     seeded = await seed_shopee_shop(session, materialized=False)
     assert await loaders.default_as_of(session, seeded.shop_id) == CUR_END
     later = CUR_END + timedelta(days=2)
@@ -63,8 +62,8 @@ async def test_v3_the_window_ends_on_the_last_day_every_live_dataset_posted(sess
     session.add(_daily(seeded.shop_id, much_later, "total", "all", orders=1, gmv=1))
     await session.flush()
     anchor = await loaders.load_anchor(session, seeded.shop_id)
-    assert anchor is not None and anchor.day == much_later
-    assert anchor.stale == ("shop_overview",)
+    # P100 B.2: the anchor is the last shop_overview day; traffic far ahead does not move it
+    assert anchor is not None and anchor.day == CUR_END and anchor.newest == much_later
 
 
 def test_v5_a_sku_of_another_listing_is_not_the_header_sku():

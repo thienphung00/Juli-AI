@@ -19,7 +19,7 @@ import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { MetricChip, Shift } from "../metrics/metric-chip";
 import { KolSection } from "../shopee-kol/kol-section";
 import { PeriodBar } from "./period-bar";
-import { Empty, PageHead, ResourceState, Ini, initialsOf } from "./ui";
+import { DataThrough, Empty, PageHead, ResourceState, Ini, initialsOf } from "./ui";
 
 /**
  * Phân tích (board B): one metric at a time. Header finding, period + Tổng | Trung bình / ngày,
@@ -153,7 +153,10 @@ function ByChannel({ view, sel, mode, href, state }: { readonly state: WindowSta
   const days = view.days;
   return (
     <section aria-label="Theo luồng" className="sa-card jp-section" data-testid="pt-channels">
-      <h2 className="sa-h2">Theo luồng</h2>
+      <div className="jp-section__head">
+        <h2 className="sa-h2">Theo luồng</h2>
+        <DataThrough day={view.data_through?.channels} testId="pt-through-channels" />
+      </div>
       <div className="jp-grid jp-grid--ch jp-grid--head">
         <span>Luồng</span>
         <span>Kỳ này</span>
@@ -188,6 +191,7 @@ function ByProduct({ view, sel, mode, state }: { readonly state: WindowState; re
     <section aria-label="Theo sản phẩm" className="sa-card jp-section" data-testid="pt-products">
       <div className="jp-section__head">
         <h2 className="sa-h2">Theo sản phẩm</h2>
+        <DataThrough day={view.data_through?.products} testId="pt-through-products" />
         <label className="jp-sort">
           Xếp theo
           <select aria-label="Xếp theo" onChange={(e) => setSortBy(e.target.value as SortKey)} value={sortBy}>
