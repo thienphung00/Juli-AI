@@ -116,6 +116,11 @@ export const READER_GUIDE: Record<ReaderId, PageGuide> = {
     path: "/portal/web-seller-affiliate/validation_bill",
     pulls: "Đối soát hàng tháng: hoa hồng, thuế, chi phí, khấu trừ.",
   },
+  traffic: {
+    title: "Phân Tích Bán Hàng › Truy cập",
+    path: "/datacenter/traffic/overview",
+    pulls: "Doanh số và đơn theo nguồn, lượt xem, lượt nhấp, lượt truy cập shop theo ngày.",
+  },
   item_traffic: {
     title: "Phân Tích Bán Hàng › Sản phẩm › Truy cập",
     path: "/datacenter/product/traffic",
@@ -182,9 +187,10 @@ export function syncGuidance(result: string, day?: string): Guidance {
     case "already_synced":
       return { text: `Số liệu${of} đã đồng bộ xong. Bấm lại vào ngày mai cho ngày hôm nay.`, tone: "ok" };
     case "no_tab":
+      // 0.3.19: the traffic reader reads Truy cập in its own background tab during today's run.
       return {
-        text: `Chưa có tab Seller Centre nào đang mở. Mở trang ${SYNC_PAGE.title}, chờ trang hiện số liệu, rồi bấm “Đồng bộ hôm qua” lần nữa (hoặc để tiện ích tự chạy khi trang tải xong).`,
-        tone: "warn",
+        text: `Chưa có tab Seller Centre nào đang mở: tiện ích sẽ tự đọc trang ${SYNC_PAGE.title} trong tab nền ở lượt đọc hôm nay. Muốn lấy ngay: mở trang đó, chờ trang hiện số liệu, rồi bấm “Đồng bộ hôm qua” lần nữa.`,
+        tone: "wait",
         open: OPEN_SYNC_PAGE,
       };
     case "needs_data_page":
@@ -314,4 +320,87 @@ export function runLine(readers: ReaderSchedule | null | undefined, nowMs: numbe
   const title = job ? READER_GUIDE[job.id].title : "";
   const step = Math.min(run.index + 1, run.jobs.length);
   return `Đang đọc trang ${step}/${run.jobs.length} trong một tab nền: ${title}. Không cần làm gì, có thể tiếp tục dùng Chrome.`;
+}
+
+/** dd/mm hh:mm in GMT+7 (the seller's clock), from an ISO time or ms. */
+export function gmt7Stamp(at: string | number): string {
+  const ms = typeof at === "number" ? at : Date.parse(at);
+  if (!Number.isFinite(ms)) return "";
+  const d = new Date(ms + 7 * 3_600_000);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${two(d.getUTCDate())}/${two(d.getUTCMonth() + 1)} ${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
+}
+
+const TRIGGER_LABELS: Record<string, string> = {
+  pair: "sau khi kết nối",
+  worker_start: "khi tiện ích khởi động",
+  chrome_start: "khi mở Chrome",
+  install: "sau khi cài",
+  update: "sau khi cập nhật",
+  daily_alarm: "theo lịch hằng ngày",
+  alarm: "theo lịch hằng ngày",
+  stock_alarm: "đọc tồn kho 06:30",
+  after_stock: "sau khi đọc tồn kho",
+  retry: "thử lại",
+  kick: "thử lại",
+  manual: "bấm “Đồng bộ hôm qua”",
+};
+
+/** A scheduler tick's result (ReaderScheduler.tick) in the seller's words. */
+export function tickResultLabel(result: string): string {
+  const head = result.replace(/^stock[:_]/, "");
+  switch (head) {
+    case "opened":
+      return result.startsWith("stock") ? "bắt đầu đọc tồn kho" : "bắt đầu đọc các trang";
+    case "finished":
+      return "đã đọc xong";
+    case "done_today":
+      return "hôm nay đã đọc xong";
+    case "nothing_to_do":
+      return "không có trang nào cần đọc";
+    case "backfill_busy":
+      return "đang lấy số liệu 30 ngày trước, thử lại sau vài phút";
+    case "blocked":
+      return "đang tạm dừng (Seller Centre yêu cầu đăng nhập hoặc xác minh)";
+    case "consent_required":
+      return "shop chưa được cấp quyền đồng bộ";
+    case "off":
+      return "tiện ích không đọc cho shop này";
+    case "unpaired":
+      return "chưa kết nối với Juli";
+    case "budget_spent":
+      return "hết lượt đọc hôm nay";
+    default:
+      return head.startsWith("blocked:") ? "dừng: Seller Centre yêu cầu đăng nhập hoặc xác minh" : head;
+  }
+}
+
+/** The last tick from rest (0.3.19): when, what woke it, how it ended. Null before the first. */
+export function tickLine(readers: ReaderSchedule | null | undefined): string | null {
+  const tick = readers?.lastTick;
+  if (!tick) return null;
+  const why = TRIGGER_LABELS[tick.trigger] ?? tick.trigger;
+  return `Lượt gần nhất ${gmt7Stamp(tick.at)} (${why}): ${tickResultLabel(tick.result)}`;
+}
+
+/** The daily stock read (0.3.19): when the product list with stock was last read, or how today's try went. */
+export function stockLine(readers: ReaderSchedule | null | undefined): string | null {
+  if (readers?.productsAt) return `Tồn kho đọc lúc ${gmt7Stamp(readers.productsAt)} · mỗi ngày 06:30`;
+  const stock = readers?.stock;
+  if (stock?.outcome) return `Đọc tồn kho ${gmt7Stamp(stock.at ?? "")}: ${outcomeStatus(stock.outcome).status}`;
+  return "Tồn kho: đọc mỗi ngày lúc 06:30";
+}
+
+/** The once-per-shop 90-day ads history (0.3.19): how far it got, or where Shopee's history ends. */
+export function adsHistoryLine(readers: ReaderSchedule | null | undefined): string | null {
+  const history = readers?.adsHistory;
+  if (!history) return null;
+  const total = history.days.length;
+  const dm = (day: string | undefined) => (day ? `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}` : "");
+  if (history.status === "done") {
+    return history.limit
+      ? `Quảng cáo các ngày trước: đã lấy đến ${dm(history.earliest)} (Seller Centre không giữ xa hơn)`
+      : `Quảng cáo ${total} ngày trước: đã lấy đủ`;
+  }
+  return `Quảng cáo ${total} ngày trước: ${history.done.length}/${total} ngày`;
 }

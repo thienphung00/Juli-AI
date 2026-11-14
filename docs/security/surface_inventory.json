@@ -1065,6 +1065,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ingest/connector-ticks",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ingest/fill",
       "methods": [
         "GET"

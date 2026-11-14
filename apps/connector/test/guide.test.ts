@@ -30,8 +30,10 @@ describe("Đồng bộ hôm qua says what to do", () => {
   it("no Seller Centre tab: names the page and offers to open it", () => {
     const g = syncGuidance("no_tab");
     expect(g.text).toContain("Phân Tích Bán Hàng › Truy cập");
+    expect(g.text).toContain("tab nền");
     expect(g.open?.url).toBe("https://banhang.shopee.vn/datacenter/traffic/overview");
-    expect(g.tone).toBe("warn");
+    // 0.3.19: the traffic reader reads it in its own tab, so this is a wait, not a warning
+    expect(g.tone).toBe("wait");
   });
 
   it("a tab that loaded no data page yet: open the Truy cập page in it", () => {

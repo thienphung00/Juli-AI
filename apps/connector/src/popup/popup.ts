@@ -4,7 +4,7 @@
 
 import { READER_IDS, readerActive } from "../config";
 import type { Backfill, ReaderSchedule } from "../background/state";
-import { DATASET_LABELS, type Guidance, pageRows, pageUrl, runLine, SYNC_PAGE, syncGuidance } from "./guide";
+import { adsHistoryLine, DATASET_LABELS, type Guidance, pageRows, pageUrl, runLine, stockLine, SYNC_PAGE, syncGuidance, tickLine } from "./guide";
 import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "./labels";
 
 interface DatasetStatus {
@@ -113,6 +113,9 @@ async function render(): Promise<void> {
   el("readers").textContent =
     runLine(state.readers) ??
     "Mỗi ngày tiện ích tự mở lần lượt các trang dưới đây trong một tab nền, đọc rồi đóng lại. Bấm tên trang để xem trên Seller Centre.";
+  el("last-tick").textContent = tickLine(state.readers) ?? "";
+  el("stock").textContent = stockLine(state.readers) ?? "";
+  el("ads-history").textContent = adsHistoryLine(state.readers) ?? "";
   renderPages(state);
 
   const list = el<HTMLUListElement>("datasets");
@@ -149,9 +152,12 @@ el<HTMLFormElement>("pair-form").addEventListener("submit", (event) => {
       return render();
     })
     .catch((reason: unknown) => {
-      error.textContent = String((reason as Error)?.message ?? reason).includes("consent_required")
+      const why = String((reason as Error)?.message ?? reason);
+      error.textContent = why.includes("consent_required")
         ? CONSENT_REQUIRED_MESSAGE
-        : "Mã không đúng hoặc đã hết hạn. Tạo mã mới trong Juli.";
+        : why.includes("sample_shop")
+          ? "Đây là shop mẫu của Juli: không kết nối với Seller Centre."
+          : "Mã không đúng hoặc đã hết hạn. Tạo mã mới trong Juli.";
     });
 });
 

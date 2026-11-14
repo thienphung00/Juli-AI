@@ -12,7 +12,9 @@ import {
   AFFILIATE_PAGE_SIZE_DEFAULT,
   AFFILIATE_WINDOW_DAYS,
   ADS_PAGE_LIMIT_DEFAULT,
+  ADS_HISTORY_DAY_COST,
   ORDER_LIST_MAX_PAGES_PER_RUN,
+  ORDER_LIST_MIN_PAGES,
   ORDER_LIST_PAGE_GAP_JITTER_MS,
   ORDER_LIST_PAGE_GAP_MS,
   PRODUCT_MAX_PAGES,
@@ -30,6 +32,7 @@ import {
 import { isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
 import { trimOrderCards, trimOrderIndex } from "./orders-map";
 import type { Pacer } from "./runner";
+import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "./time";
 
 /** What the hook learned from the page's own call to an endpoint (kept in page memory only). */
@@ -62,6 +65,10 @@ export interface ReaderJob {
   orderSns?: string[];
   /** affiliate: older purchase windows to read once (the 6-month history), each ≤ 31 days. */
   history?: ConversionWindow[];
+  /** orders (0.3.19): read back until orders placed before this GMT+7 day. */
+  sinceDay?: string;
+  /** ads (0.3.19): older days of the ads history, newest first, read after `days`. */
+  historyDays?: string[];
   /** Requests this job may still send (the shared daily budget's remainder). */
   budget?: number;
 }
@@ -441,7 +448,14 @@ export function dayBounds(day: string): { start_time: number; end_time: number }
 /** The homepage query's body when the page never made one: only keys the recon recorded. */
 const ADS_HOMEPAGE_FALLBACK: Record<string, unknown> = { filter_list: [], use_paid_gmv: false };
 
-async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse[]): Promise<void> {
+/**
+ * The ads list, one call set per finished GMT+7 day (the page's own homepage query with only the day
+ * bounds and the page changed), plus the page's ROAS graph for that day. 0.3.19: after `days`, the
+ * older `historyDays` of the once-per-shop history, newest first. A history day Shopee answers with an
+ * error is kept (the scheduler records it as the earliest day Shopee allows) and ends the history
+ * read; a history day is never started without room left in the job's budget.
+ */
+async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse[], historyDays: string[] = []): Promise<void> {
   await waitForPage(env, [], collected);
   // The page's own homepage query is the template; its graph query is optional.
   await env.waitFor(() => env.template("ads_homepage") !== undefined, READER_TEMPLATE_WAIT_MS / 2);
@@ -452,52 +466,42 @@ async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse
   const limitNumber = Number(homeBody.limit);
   const limit = Number.isInteger(limitNumber) && limitNumber > 0 ? limitNumber : ADS_PAGE_LIMIT_DEFAULT;
   const usePaidGmv = homeBody.use_paid_gmv === true;
-  if (days.length === 0) {
+  /** One day's list pages (and graph). False when its first page was not data (history only). */
+  const readDay = async (day: string | undefined, bounds: { start_time: number; end_time: number }, history: boolean): Promise<boolean> => {
+    let rows = 0;
+    for (let offset = 0; offset < ADS_MAX_ROWS_PER_DAY; offset += limit) {
+      const request = buildReaderRequest(
+        env.origin,
+        "ads_homepage",
+        home,
+        { body: { ...bounds, offset, limit, use_paid_gmv: usePaidGmv } },
+        env.session(),
+        ADS_HOMEPAGE_FALLBACK,
+      );
+      const response = await send(env, request, collected, { ...(day ? { day } : {}), page: offset / limit + 1, usePaidGmv }, history);
+      if (history && classify(response.status, response.body) !== "ok") return false;
+      const found = findList(payloadOf(response.body), isAdsEntry);
+      rows += found?.list.length ?? 0;
+      if (!found || found.list.length < limit) break;
+      const total = totalOf(response.body, found.parent);
+      if (total !== undefined && rows >= total) break;
+    }
+    if (graph && day) {
+      const request = buildReaderRequest(env.origin, "ads_time_graph", graph, { body: bounds }, env.session());
+      await send(env, request, collected, { day }, history);
+    }
+    return true;
+  };
+  if (days.length === 0 && historyDays.length === 0) {
     // Connector 0.3.11: no day left to read, but the list's settings are refreshed once a day.
     // Read with yesterday's bounds and NO day tag, so no daily post is made from it.
-    const bounds = dayBounds(gmt7Date(Math.floor(env.now() / 1000) - 86_400));
-    let rows = 0;
-    for (let offset = 0; offset < ADS_MAX_ROWS_PER_DAY; offset += limit) {
-      const request = buildReaderRequest(
-        env.origin,
-        "ads_homepage",
-        home,
-        { body: { ...bounds, offset, limit, use_paid_gmv: usePaidGmv } },
-        env.session(),
-        ADS_HOMEPAGE_FALLBACK,
-      );
-      const response = await send(env, request, collected, { page: offset / limit + 1, usePaidGmv });
-      const found = findList(payloadOf(response.body), isAdsEntry);
-      rows += found?.list.length ?? 0;
-      if (!found || found.list.length < limit) break;
-      const total = totalOf(response.body, found.parent);
-      if (total !== undefined && rows >= total) break;
-    }
+    await readDay(undefined, dayBounds(gmt7Date(Math.floor(env.now() / 1000) - 86_400)), false);
     return;
   }
-  for (const day of days) {
-    const bounds = dayBounds(day);
-    let rows = 0;
-    for (let offset = 0; offset < ADS_MAX_ROWS_PER_DAY; offset += limit) {
-      const request = buildReaderRequest(
-        env.origin,
-        "ads_homepage",
-        home,
-        { body: { ...bounds, offset, limit, use_paid_gmv: usePaidGmv } },
-        env.session(),
-        ADS_HOMEPAGE_FALLBACK,
-      );
-      const response = await send(env, request, collected, { day, page: offset / limit + 1, usePaidGmv });
-      const found = findList(payloadOf(response.body), isAdsEntry);
-      rows += found?.list.length ?? 0;
-      if (!found || found.list.length < limit) break;
-      const total = totalOf(response.body, found.parent);
-      if (total !== undefined && rows >= total) break;
-    }
-    if (graph) {
-      const request = buildReaderRequest(env.origin, "ads_time_graph", graph, { body: bounds }, env.session());
-      await send(env, request, collected, { day });
-    }
+  for (const day of days) await readDay(day, dayBounds(day), false);
+  for (const day of historyDays) {
+    if (env.budget && env.budget.left < ADS_HISTORY_DAY_COST) return;
+    if (!(await readDay(day, dayBounds(day), true))) return;
   }
 }
 
@@ -605,6 +609,28 @@ async function readItemTraffic(env: ReaderEnv, days: string[], itemIds: string[]
       if (errorsInARow >= TRAFFIC_MAX_CONSECUTIVE_ERRORS) {
         throw new Stop(fail("error", collected, `traffic_details:http_${response.status}`));
       }
+    }
+  }
+}
+
+/**
+ * Shop traffic (0.3.19), in the scheduler's own Phân Tích Bán Hàng › Truy cập tab: for each day,
+ * the same GET reads the backfill sends (the traffic overview on both order bases, and the shop
+ * traffic dashboard by `period=day&dt=`), with the session and the mydata headers the page itself
+ * used. A Seller Centre error code on one call is kept (the mapper skips it) and the job goes on;
+ * a CAPTCHA, login wall or rate limit stops it like every reader.
+ */
+async function readTraffic(env: ReaderEnv, days: string[], collected: ReaderResponse[]): Promise<void> {
+  const modal = () => env.passwordModalVisible?.() === true;
+  const ready = await env.waitFor(() => modal() || env.hasSession(), READER_TEMPLATE_WAIT_MS);
+  if (modal()) throw new Stop(fail("blocked_login", collected, "password_modal"));
+  if (!ready) throw new Stop(fail("needs_data_page", collected, "traffic_overview"));
+  const template: Template = { query: {}, headers: env.mydataHeaders?.() };
+  for (const day of days) {
+    for (const planned of buildBackfillDayPlan(day, env.now(), new Set(), false)) {
+      if (planned.dataset !== "traffic_overview" && planned.dataset !== "shop_traffic") continue;
+      const request = buildReaderRequest(env.origin, planned.dataset, template, { query: planned.params }, env.session());
+      await send(env, request, collected, { day }, true);
     }
   }
 }
@@ -878,13 +904,36 @@ function orderIdsOf(body: unknown): string[] {
   return (found?.list ?? []).map((o) => String(o.order_id ?? o.order_sn));
 }
 
+/** The earliest `create_time` (unix seconds) of a card answer (raw or trimmed), or undefined. */
+export function oldestOrderTime(cardsBody: unknown): number | undefined {
+  // Through the trim: it flattens the card wrappers (order_card / order_info) to plain orders.
+  const found = findList(payloadOf(trimOrderCards(cardsBody)), (o) => "order_id" in o || "order_sn" in o);
+  let oldest: number | undefined;
+  for (const order of found?.list ?? []) {
+    const raw = Number(order.create_time);
+    if (!Number.isFinite(raw) || raw <= 0) continue;
+    const seconds = raw > 1e12 ? Math.floor(raw / 1000) : raw;
+    oldest = oldest === undefined ? seconds : Math.min(oldest, seconds);
+  }
+  return oldest;
+}
+
 /**
  * The order list: the page's OWN first answers are kept (trimmed in the page); pages 2..N are
- * replayed from the page's request templates, a pause of 20-45 s before each, at most
- * ORDER_LIST_MAX_PAGES_PER_RUN pages in all. Nothing is replayed when the page's request has no
- * recognisable page number or id list (then only what the page loaded is read).
+ * replayed from the page's request templates, a pause of 20-45 s before each. 0.3.19 catches up by
+ * date: it stops once a page's oldest order was placed before `sinceDay` (never before
+ * ORDER_LIST_MIN_PAGES pages, the 0.3.18 depth), on a short page, or at ORDER_LIST_MAX_PAGES_PER_RUN
+ * ("partial:page_cap": the next run reads further back). Nothing is replayed when the page's
+ * request has no recognisable page number or id list (then only what the page loaded is read).
  */
-async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<string | undefined> {
+async function readOrders(env: ReaderEnv, collected: ReaderResponse[], sinceDay?: string): Promise<string | undefined> {
+  const cutoff = sinceDay ? gmt7DateStart(sinceDay) : undefined;
+  const reachedSince = (page: number, cardsBody: unknown): boolean => {
+    if (cutoff === undefined) return false;
+    if (page < ORDER_LIST_MIN_PAGES) return false;
+    const oldest = oldestOrderTime(cardsBody);
+    return oldest !== undefined && oldest < cutoff;
+  };
   const answered = () => env.template("order_cards")?.lastResponse !== undefined;
   if (!(await env.waitFor(() => env.hasSession() || answered(), READER_TEMPLATE_WAIT_MS)) && !answered()) {
     throw new Stop(fail("needs_data_page", collected, "order_cards"));
@@ -912,6 +961,7 @@ async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<
   // The cards template still holds the FIRST page's ids: every later page swaps those out.
   const firstIds = orderIdsOf(search.lastResponse);
   const random = env.random ?? Math.random;
+  if (reachedSince(1, cards.lastResponse)) return undefined;
   for (let page = 2; page <= ORDER_LIST_MAX_PAGES_PER_RUN; page += 1) {
     try {
       const indexBody = withListPage(search.body, page, size);
@@ -928,6 +978,7 @@ async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<
       const answer = await send(env, cardRequest, collected, { page });
       answer.body = trimOrderCards(answer.body);
       if (ids.length < size) return undefined;
+      if (reachedSince(page, answer.body)) return undefined;
     } catch (error) {
       // A failed replay of page >= 2 keeps what was already read: the page's own answers and the
       // complete pages before it are posted; CAPTCHA / login / rate stops still stop everything.
@@ -938,7 +989,8 @@ async function readOrders(env: ReaderEnv, collected: ReaderResponse[]): Promise<
       throw error;
     }
   }
-  return undefined;
+  // Pages left to read: a by-date job says so (the scheduler then reads further back next time).
+  return cutoff === undefined ? undefined : "partial:page_cap";
 }
 
 /** Query / body key of the page's own income call whose value is the order it opened. */
@@ -1264,7 +1316,7 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         await readItemTraffic(env, job.days ?? [], job.itemIds ?? [], collected);
         break;
       case "ads":
-        await readAds(env, job.days ?? [], collected);
+        await readAds(env, job.days ?? [], collected, job.historyDays ?? []);
         break;
       case "ads_detail":
         await readAdsDetail(env, job.campaignIds ?? [], collected);
@@ -1282,7 +1334,10 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         await readShopTotals(env, job.days ?? [], collected);
         break;
       case "orders":
-        partial = await readOrders(env, collected);
+        partial = await readOrders(env, collected, job.sinceDay);
+        break;
+      case "traffic":
+        await readTraffic(env, job.days ?? [], collected);
         break;
       case "order_income":
         await readOrderIncome(env, job.orderIds ?? [], collected, job.orderSns);

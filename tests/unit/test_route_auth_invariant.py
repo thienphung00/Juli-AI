@@ -140,6 +140,11 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
         "writes metadata only (reader, page, status) to the token's own shop's audit trail, "
         "capped at 10 an hour."
     ),
+    ("POST", "/v1/ingest/connector-ticks"): (
+        "Connector 0.3.19 scheduler tick: authenticated by the ingest token "
+        "(get_ingest_principal); writes metadata only (trigger, result, per-page outcome "
+        "notes) to the token's own shop's audit trail and Connector state, capped at 30 an hour."
+    ),
     ("GET", "/v1/ingest/fill/{code}"): (
         "Connector listing fill-in (P91 D-13): authenticated by the ingest token "
         "(get_ingest_principal); read-only, returns the approved text of one card of the "
