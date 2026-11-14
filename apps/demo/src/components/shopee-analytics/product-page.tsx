@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { DASH, fmt, pp, vnd } from "../../lib/shopee-analytics/format";
+import { shopeeImageSrc } from "../../lib/shopee-analytics/image-src";
 import {
   CHILD_NAME,
   KPI_NAME,
@@ -34,9 +35,9 @@ import { readWindow } from "../../lib/shopee-analytics/params";
 
 const SELLER_CENTRE_ITEM = "https://banhang.shopee.vn/portal/product";
 
-/** Only http(s) and root-relative values may reach an <img src>; a bare Shopee image id is not a URL. */
+/** What may reach an <img src>: a URL, a root-relative path or Seller Centre's bare image id (turned into its CDN URL). */
 const displayableImages = (xs: readonly (string | null | undefined)[] | null | undefined): string[] =>
-  (xs ?? []).filter((x): x is string => typeof x === "string" && (/^https?:\/\//i.test(x) || (x.startsWith("/") && !x.startsWith("//"))));
+  (xs ?? []).map((x) => shopeeImageSrc(x)).filter((x): x is string => x !== null);
 
 const versionImages = (v: ProductVersion): string[] => displayableImages(v.images?.length ? v.images : [v.cover_url]);
 

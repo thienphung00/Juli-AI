@@ -13,7 +13,7 @@ import type { AdBase, ChannelCells, ChannelKey, ChannelProduct, ChannelRow, Chan
 import { METRIC_NAME, inMode, roiText, shift, type MetricKey, type ValueMode } from "../../lib/metrics";
 import { MetricChip, Shift } from "../metrics/metric-chip";
 import { PeriodBar } from "./period-bar";
-import { ResourceState } from "./ui";
+import { Ini, ResourceState, initialsOf } from "./ui";
 
 /**
  * Tổng quan (canvas board TongQuanPct): the shop in one screen. Header finding, Shop | Sản phẩm,
@@ -200,6 +200,7 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
         </div>
         {level === "product" ? (
           <>
+            {chosen ? <Ini src={chosen.image_url} text={initialsOf(chosen.name)} /> : null}
             <select aria-label="Sản phẩm" className="sa-tq__select" data-testid="sa-product-pick" onChange={(e) => setProductId(e.target.value || null)} value={productId ?? ""}>
               {list.map((p) => (
                 <option key={p.product_id} value={p.product_id}>

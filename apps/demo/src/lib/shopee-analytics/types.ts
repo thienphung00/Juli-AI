@@ -309,6 +309,8 @@ export interface ProductAds {
 export interface MatrixProduct {
   readonly product_id: string;
   readonly name: string;
+  /** A URL or Seller Centre's bare image id (shown through `shopeeImageSrc`). */
+  readonly image_url?: string | null;
   readonly gmv: N;
   readonly gmv_basis: string;
   readonly orders: N;
@@ -359,6 +361,7 @@ export interface CardRef {
 export interface IdleProduct {
   readonly product_id: string;
   readonly name: string;
+  readonly image_url?: string | null;
   readonly price_min?: N;
   readonly price_max?: N;
   readonly list_price?: N;
@@ -797,6 +800,7 @@ export interface MetricViewRow {
 export interface MetricViewProduct extends MetricViewRow {
   readonly product_id: string;
   readonly name: string;
+  readonly image_url?: string | null;
 }
 
 export interface MetricView {

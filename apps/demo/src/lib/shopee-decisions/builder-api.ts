@@ -30,6 +30,8 @@ export type ProductSort = "gmv_90d" | "orders_90d" | "orders_30d" | "name";
 export interface PickerProduct {
   readonly item_id: string;
   readonly name: string;
+  /** A URL or Seller Centre's bare image id (shown through `shopeeImageSrc`). */
+  readonly image_url?: string | null;
   readonly status?: string | null;
   readonly orders_30d: number;
   readonly orders_90d: number;

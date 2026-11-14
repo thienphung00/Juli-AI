@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { fmt, vnd } from "../../../lib/shopee-analytics/format";
+import { shopeeImageSrc } from "../../../lib/shopee-analytics/image-src";
 import type { AdsCampaigns, CoverOverlay, KeywordTable } from "../../../lib/shopee-decisions/builder-api";
 import { ADS_ROAS_PRESETS, MAX_FIRST_LINE, MAX_TITLE, num, type Forms } from "../../../lib/shopee-decisions/builder-p92";
 import { LlmOff, NumIn, Pills, Seg, TextIn, useDraft, type PanelCtx } from "./shared";
@@ -302,10 +303,11 @@ export function overlayLines(o: CoverOverlay): string[] {
   return out;
 }
 
-export function CoverPreview({ overlay }: { readonly overlay: CoverOverlay }) {
+export function CoverPreview({ overlay, image }: { readonly overlay: CoverOverlay; readonly image?: string | null }) {
+  const src = shopeeImageSrc(image);
   return (
     <div className={`p2-cover p2-cover--${overlay.layout}`} data-testid="p2-cover-preview">
-      <span className="p2-cover__photo">ảnh thật, giữ nguyên</span>
+      {src ? <img alt="" className="p2-cover__img" src={src} /> : <span className="p2-cover__photo">ảnh thật, giữ nguyên</span>}
       <span className="p2-cover__text">
         {overlayLines(overlay).map((l, i) => (
           <b key={i}>{l}</b>
@@ -347,7 +349,7 @@ export function CoverPanel({ form, set, ctx }: P<"cover_image">) {
         <ul className="p2-concepts" data-testid="p2-concepts">
           {draft.data.concepts.map((c, i) => (
             <li key={i}>
-              <CoverPreview overlay={c.overlay} />
+              <CoverPreview image={ctx.product.image_url} overlay={c.overlay} />
               <span className="sa-hint">
                 Phương án {String.fromCharCode(65 + i)}
               </span>

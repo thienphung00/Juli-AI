@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { shopeeImageSrc } from "../../../lib/shopee-analytics/image-src";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { PickerProduct, ProductSort } from "../../../lib/shopee-decisions/builder-api";
 import { MARGIN_BANDS, NO_FILTERS, addIds, categoriesOf, filterProducts, filtersActive, isIdle, isMissingCost, matchPasted, removeId, type MarginBand, type PickerFilters } from "../../../lib/shopee-decisions/picker-table";
@@ -40,6 +41,11 @@ export type TablePickerProps = Common &
     | { readonly mode: "single"; readonly onPick: (p: PickerProduct) => void }
     | { readonly mode: "multi"; readonly selected: readonly string[]; readonly onChange: (ids: readonly string[]) => void; readonly max?: number }
   );
+
+function ProductThumb({ src }: { readonly src: string | null | undefined }) {
+  const image = shopeeImageSrc(src);
+  return image ? <img alt="" className="p2-prow__img" src={image} /> : null;
+}
 
 const marginText = (p: PickerProduct): string => (p.margin_pct === null || p.margin_pct === undefined || !p.has_cost ? "chưa tính" : pp(p.margin_pct, 1));
 
@@ -199,6 +205,7 @@ export function TablePicker(props: TablePickerProps) {
           const body = (
             <>
               <span className="p2-prow__name">
+                <ProductThumb src={p.image_url} />
                 <b>{p.name}</b>
                 <span className="sa-hint">{p.item_id}</span>
                 {p.category ? <span className="sa-hint">{p.category}</span> : null}

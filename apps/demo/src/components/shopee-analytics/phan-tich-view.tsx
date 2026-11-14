@@ -207,7 +207,7 @@ function ByProduct({ view, sel, mode, state }: { readonly state: WindowState; re
       {rows.map((p) => (
         <div className="jp-grid jp-grid--pr" data-testid={`pt-product-${p.product_id}`} key={p.product_id}>
           <Link className="jp-who jp-prod" href={links.product(p.product_id)}>
-            <Ini text={initialsOf(p.name)} />
+            <Ini src={p.image_url} text={initialsOf(p.name)} />
             <span className="jp-clip">{p.name}</span>
           </Link>
           <b>{valueText(m, p.now, view.days, mode)}</b>
