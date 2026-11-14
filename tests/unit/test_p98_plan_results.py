@@ -350,3 +350,32 @@ async def _plan_of_saved(session, seeded, card_id):
         session, seeded.shop_id, card_id, actor=_actor(seeded), now=NOW, acknowledge_breaches=True
     )
     return out["aggregate"]
+
+
+TITLE_SPEC = sp.TitleSpec(
+    kind="title",
+    item_id="1001",
+    title="Găng tay tự hủy sinh học STAHAUS, găng tay dùng một lần, găng tay nitrile y tế",
+)
+
+
+async def test_a_keyword_rich_title_card_is_estimable_in_the_plan(session, shop):
+    """4f64e2e5: a title lift is scored against the product's keyword volumes, so the plan loads
+    them too -- a saved title version is not "chưa ước tính được" in Kế hoạch."""
+    from juli_backend.services.shopee_builder import service as builder
+    from juli_backend.services.shopee_recommendations import manual
+    from tests.unit.test_shopee_builder_drafts import _market
+
+    seeded, env = shop
+    await _market(session, seeded.shop_id)
+    await session.commit()
+    actor = manual.Actor("staff", seeded.user.id, seeded.user.id)
+    saved = await builder.choose(
+        session, seeded.shop_id, [TITLE_SPEC], 0, primary=False,
+        acknowledge_breaches=True, actor=actor, as_of=AS_OF, now=NOW,
+    )  # fmt: skip
+    await session.commit()
+    agg = await _plan_of_saved(session, seeded, uuid.UUID(saved["id"]))
+    card = agg["cards"][0]
+    assert card["result"]["counted"] is True, card["result"].get("reason")
+    assert agg["not_estimable_cards"] == []

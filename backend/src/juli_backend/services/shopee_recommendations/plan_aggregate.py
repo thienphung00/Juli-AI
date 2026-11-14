@@ -410,6 +410,12 @@ def _item_spec(kind: str, cand: Candidate) -> dict[str, Any] | None:
 
 
 Variations = Mapping[str, Sequence[Mapping[str, Any]]]
+#: item id -> {keyword: volume weight}: what a title / first-line lift is measured against
+KeywordWeights = Mapping[str, Mapping[str, float]]
+
+
+def _weights(w: KeywordWeights | None) -> dict[str, dict[str, float]]:
+    return {k: dict(v) for k, v in (w or {}).items()}
 
 
 def _variation_prices(
@@ -526,6 +532,7 @@ def card_result(
     version_row: Mapping[str, Any] | None,
     variations: Variations | None = None,
     today: date | None = None,
+    keyword_weights: KeywordWeights | None = None,
 ) -> CardResult:
     """``integrate.evaluate`` of this card's saved version on the plan's environment. A spec
     rebuilt from the candidate (no stored spec) starts ``today`` (the plan's first day)."""
@@ -541,6 +548,7 @@ def card_result(
             BuilderContext(
                 env=env,
                 variations={k: [dict(r) for r in v] for k, v in (variations or {}).items()},
+                keyword_weights=_weights(keyword_weights),
             ),
             spec,
         )
@@ -571,7 +579,11 @@ def _part_target(part: Evaluated) -> str | None:
 
 
 def _parts_from_spec(
-    env: RecoEnv, e: Evaluated, variations: Variations | None, today: date | None = None
+    env: RecoEnv,
+    e: Evaluated,
+    variations: Variations | None,
+    today: date | None = None,
+    keyword_weights: KeywordWeights | None = None,
 ) -> dict[str, CardResult] | None:
     """P99: the parts of a many-target card from the version's OWN builder spec (expanded per
     target as the builder does), so a saved version keeps its dates and days; ``None`` when the
@@ -588,7 +600,9 @@ def _parts_from_spec(
     if spec is None:
         return None
     ctx = BuilderContext(
-        env=env, variations={k: [dict(r) for r in v] for k, v in (variations or {}).items()}
+        env=env,
+        variations={k: [dict(r) for r in v] for k, v in (variations or {}).items()},
+        keyword_weights=_weights(keyword_weights),
     )
     try:
         _, targets = integrate.evaluate(ctx, spec)
@@ -618,6 +632,7 @@ def card_results(
     evs: Sequence[Evaluated],
     variations: Variations | None = None,
     today: date | None = None,
+    keyword_weights: KeywordWeights | None = None,
 ) -> dict[str, CardResult]:
     """A result per leaf card (a many-target card stands for its single-target parts). Every
     leaf is evaluated from the chosen version's stored builder spec when it has one (P99: the
@@ -625,14 +640,19 @@ def card_results(
     out: dict[str, CardResult] = {}
     for e in evs:
         if e.parts:
-            from_spec = _parts_from_spec(env, e, variations, today)
+            from_spec = _parts_from_spec(env, e, variations, today, keyword_weights)
             if from_spec is not None:
                 out.update(from_spec)
                 continue
         for leaf in e.parts or [e]:
             row = None if e.parts else _version_row(e)
             out[leaf.entry.card_id] = card_result(
-                env, leaf, version_row=row, variations=variations, today=today
+                env,
+                leaf,
+                version_row=row,
+                variations=variations,
+                today=today,
+                keyword_weights=keyword_weights,
             )
     return out
 
@@ -1355,6 +1375,7 @@ def aggregate(
     variations: Variations | None = None,
     today: date | None = None,
     default_start: date | None = None,
+    keyword_weights: KeywordWeights | None = None,
 ) -> tuple[dict[str, Any], list[Evaluated]]:
     """The plan's aggregate payload and the evaluated cards (chosen version on this env).
 
@@ -1390,7 +1411,7 @@ def aggregate(
             "range_method": RANGE_METHOD,
             "result_basis": RESULT_BASIS,
         }, []
-    results = card_results(env, evs, variations, default_start or horizon.start)
+    results = card_results(env, evs, variations, default_start or horizon.start, keyword_weights)
     if default_start is not None:
         for r in results.values():
             if r.start is None:

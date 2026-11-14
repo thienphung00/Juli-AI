@@ -57,6 +57,7 @@ from juli_backend.services.card_events import keys
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
 from juli_backend.services.shopee_analytics.stored import RowsNotMaterialized
+from juli_backend.services.shopee_builder import keyword_coverage as kwc
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     codes,
@@ -257,6 +258,25 @@ async def _aggregate(
         from juli_backend.services.shopee_builder.service import variation_rows_for
 
         variations = await variation_rows_for(session, shop_id, env, items)
+    # a title / first-line lift is measured against the product's keyword volumes (4f64e2e5):
+    # load them once per product whose saved version the plan evaluates
+    kw_items = list(
+        dict.fromkeys(
+            i
+            for e in entries
+            if e.base.get("change_kind") in kwc.KEYWORD_KINDS
+            for i in (e.base.get("scope") or {}).get("product_ids", [])
+        )
+    )
+    weights: dict[str, dict[str, float]] = {}
+    if kw_items:
+        from juli_backend.services.shopee_builder.context import BuilderContext
+        from juli_backend.services.shopee_builder.service import _load_keyword_weights
+
+        kctx = BuilderContext(env=env)
+        for item in kw_items:
+            await _load_keyword_weights(session, shop_id, kctx, item)
+        weights = kctx.keyword_weights
     return aggregate(
         env,
         entries,
@@ -265,6 +285,7 @@ async def _aggregate(
         variations=variations,
         today=today,
         default_start=default_start,
+        keyword_weights=weights,
     )
 
 
