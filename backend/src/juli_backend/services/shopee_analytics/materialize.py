@@ -265,7 +265,9 @@ def day_rows(
     traffic_spread = {i: s for i, s in spread.items() if s.traffic_period is not None}
     p = view.profit
     ad_source = view.data.ads_daily.source_by_day.get(day)
-    complete = view.data.totals.basis == "daily" and view.data.traffic.basis == "daily"
+    # P100 B.2: a day is complete when Shopee posted its daily totals (shop_overview); a day
+    # without traffic_overview keeps views / clicks None, it no longer holds the window back
+    complete = view.data.totals.basis == "daily"
     sources = {
         "gmv": "shop_totals" if view.data.totals.basis == "daily" else "order_lines",
         "orders": "shop_totals" if view.data.totals.basis == "daily" else "order_lines",

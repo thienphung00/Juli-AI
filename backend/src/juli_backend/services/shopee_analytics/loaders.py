@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 import uuid
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
@@ -1129,18 +1129,31 @@ async def load_affiliate(
     return AffiliateLoad(out, dict(pc), choice, stats)
 
 
-#: Daily datasets that say "Shopee numbers exist for this day". ``shop_overview`` comes from the
-#: Seller Centre file upload only; the Connector's daily sync writes ``traffic_overview`` and
-#: ``shop_traffic``, so anchoring on ``shop_overview`` alone pinned every window to the last file
-#: upload (02/11) while the Connector had synced to 04/11.
+#: Daily datasets that say "Shopee numbers exist for this day". P100 B.2: the last complete day
+#: is the last day with ``shop_overview`` (Shopee's own daily totals; the Connector's
+#: ``shop_totals`` reader posts it daily). ``traffic_overview`` is read only from an open
+#: Truy cập tab, so requiring it too pinned the window days behind; a day without traffic keeps
+#: its traffic figures ``None``. The traffic datasets anchor only a shop with no shop_overview.
 ANCHOR_DATASETS = (SHOP_OVERVIEW_DAILY, "traffic_overview", "shop_traffic")
+ANCHOR_FALLBACK_DATASETS = ("traffic_overview", "shop_traffic")
+
+
+def choose_shop_anchor(latest: Mapping[str, date]) -> Anchor | None:
+    """The anchor of :func:`load_anchor` from each dataset's newest day: the last
+    ``shop_overview`` day (``limited_by`` = shop_overview when another dataset is newer), else
+    the traffic datasets' :func:`choose_anchor`."""
+    if SHOP_OVERVIEW_DAILY not in latest:
+        return choose_anchor(latest, ANCHOR_FALLBACK_DATASETS)
+    seen = {d: latest[d] for d in ANCHOR_DATASETS if d in latest}
+    day, newest = latest[SHOP_OVERVIEW_DAILY], max(seen.values())
+    return Anchor(day, newest, SHOP_OVERVIEW_DAILY if day < newest else None, seen)
 
 
 async def load_anchor(session: AsyncSession, shop_id: uuid.UUID) -> Anchor | None:
-    """The shared window end (D85.2): the last day every live daily dataset has posted, else the
-    last order-line day."""
+    """The shared window end (D85.2, P100 B.2): the last day with ``shop_overview``, else the
+    traffic datasets' last common day, else the last order-line day."""
     latest = await PlatformDailyMetricsRepo(session).latest_days(shop_id)
-    found = choose_anchor(latest, ANCHOR_DATASETS)
+    found = choose_shop_anchor(latest)
     complete = await last_complete_day(session, shop_id)
     if found is not None and complete is not None:
         # the materialized rows say which day is complete (D85.2): the window ends there
