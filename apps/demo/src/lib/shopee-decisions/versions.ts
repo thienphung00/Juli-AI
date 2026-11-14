@@ -1,7 +1,7 @@
 import { DASH, fmt, vnd, type Tone } from "../shopee-analytics/format";
 import { parseServerIso } from "../vn-format";
 import { expectedRows, sureRows, vnWhen } from "./model";
-import { aovText, ordersText, perOrderNoun, sm, srange, um, unitsOf } from "./units";
+import { aovText, ordersText, srange, um, unitsOf } from "./units";
 import type { Breach, Card, CardDetail, CardSummary, CardVersion, N, ProductMeasuring, VersionBrief } from "./types";
 
 /**
@@ -66,6 +66,7 @@ export function versionsOf(card: Card): readonly CardVersion[] {
       measurement_plan: card.measurement_plan,
       execution_sheet: card.execution_sheet,
       notes: card.notes,
+      result: card.result ?? null,
     },
   ];
 }
@@ -90,6 +91,7 @@ export function cardOfVersion(card: Card, v: CardVersion): Card {
     measurement_plan: v.measurement_plan ?? card.measurement_plan,
     execution_sheet: v.execution_sheet ?? card.execution_sheet,
     notes: v.notes ?? card.notes,
+    result: v.result ?? card.result ?? null,
   };
 }
 
@@ -265,7 +267,10 @@ function rowFrom(key: string, label: string, sub: string, today: string | null, 
   return { key, label, sub, today, cells };
 }
 
-/** The versions as columns next to "Hôm nay": rows ①…⑤, Chi phí, Δ chắc chắn, Δ dự kiến, giá sàn and trần chi (or the title limit). */
+/** "Chưa ước tính được": a version without an estimable result. */
+export const NOT_ESTIMABLE = "Chưa ước tính được";
+
+/** The versions as columns next to "Hôm nay": rows ①…⑤, Chi phí and Δ lợi nhuận (the stored result), giá sàn and trần chi (or the title limit). */
 export function versionTable(card: Card, versions: readonly CardVersion[]): TableRow[] {
   const per = versions.map((v) => {
     if (isRefused(v) || !v.five_numbers) return null;
@@ -310,40 +315,31 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
     rowFrom(
       "chi",
       "Chi phí",
-      "chi marketing mỗi ngày · mỗi đơn · cả đợt",
+      "cả các ngày của phương án",
       null,
       cellOf((p) => {
-        const u = unitsOf(p.c);
-        const d = u.perDay.dchi;
-        if (!num(d)) return { v: DASH, d: "", tone: "plain", bad: false };
-        const tone = d > 0 ? "down" : d < 0 ? "up" : "plain";
-        if (Math.abs(d) < 10) return { v: "Không đổi", d: "", tone, bad: false };
-        const unit = u.perOrder && num(u.perOrder.cost) && u.perOrder.cost !== 0 ? `${um(u.perOrder.cost)}/${perOrderNoun(u)} · ` : "";
-        return { v: `${sm(d)}/ngày`, d: `${unit}${fmt(u.days, 0)} ngày: ${sm(u.period.dchi)}`, tone, bad: false };
-      }),
-    ),
-    rowFrom(
-      "sure",
-      "Δ lợi nhuận · chắc chắn",
-      "nếu khách mua như 30 ngày qua",
-      null,
-      cellOf((p) => {
-        const u = unitsOf(p.c);
-        const d = u.perDay.certain;
-        if (title || (card.family === "listing" && (!num(d) || d === 0))) return { v: "Không tốn chi phí", d: "", tone: "muted", bad: false };
-        const perOrder = u.perOrder && num(u.perOrder.certain) ? `${sm(u.perOrder.certain)}/${perOrderNoun(u)} · ` : "";
-        return { v: num(d) ? `${sm(d)}/ngày` : DASH, d: `${perOrder}${fmt(u.days, 0)} ngày: ${sm(u.period.certain)}`, tone: num(d) ? (d >= 0 ? "up" : "down") : "plain", bad: false };
+        // one card, one number: the version's stored result (Tự tạo's Chi phí), never the money layer
+        const r = p.v.result;
+        const cost = r?.cost_total;
+        const days = r?.own?.days;
+        if (!r || !num(cost)) return { v: DASH, d: "", tone: "plain", bad: false };
+        const d = num(days) ? `${fmt(days, 0)} ngày` : "";
+        if (Math.abs(cost) < 1) return { v: "Không có chi phí thêm", d, tone: "plain", bad: false };
+        return { v: cost > 0 ? vnd(Math.round(cost)) : `Giảm ${vnd(Math.round(-cost))}`, d, tone: cost > 0 ? "down" : "up", bad: false };
       }),
     ),
     rowFrom(
       "exp",
       "Δ lợi nhuận",
-      "khoảng, theo mô hình tăng đơn",
+      "kết quả mô phỏng, như Tự tạo",
       null,
       cellOf((p) => {
-        const u = unitsOf(p.c);
-        const perOrder = u.perOrder && num(u.perOrder.p50) ? `giữa khoảng ${sm(u.perOrder.p50)}/${perOrderNoun(u)} · ` : "";
-        return { v: `${srange(u.perDay.p10, u.perDay.p90)}/ngày`, d: `${perOrder}${fmt(u.days, 0)} ngày: ${srange(u.period.p10, u.period.p90)}`, tone: rangeTone(u.period.p10, u.period.p90), bad: false };
+        const r = p.v.result;
+        const q = r?.own?.delta?.profit;
+        const days = r?.own?.days;
+        if (!r || !r.estimable || !q || !num(q.p50) || !num(days)) return { v: NOT_ESTIMABLE, d: "", tone: "muted", bad: false };
+        const per = (n: N) => (num(n) ? n / days : null);
+        return { v: `${srange(per(q.p10), per(q.p90))}/ngày`, d: `${fmt(days, 0)} ngày: ${srange(q.p10, q.p90)}`, tone: rangeTone(q.p10, q.p90), bad: false };
       }),
     ),
     rowFrom(

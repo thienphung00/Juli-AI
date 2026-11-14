@@ -21,6 +21,26 @@ function queueCards(): CardSummary[] {
 }
 
 describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
+  it("one card, one number: the range and the P50 per day come from the stored result; not estimable says so with Chi phí", async () => {
+    const ok = summaryOf(voucherCard(), {
+      cost: 63000,
+      predicted_summary: { dgmv: { p10: 100000, p50: 600000, p90: 900000 }, dprofit: { p10: -42000, p50: 60000, p90: 240000 }, dgmv_month: { p10: 100000, p50: 600000, p90: 900000 }, dprofit_month: { p10: -42000, p50: 60000, p90: 240000 }, label: "Dự kiến", effect_days: 30, not_estimable: false },
+    });
+    const none = summaryOf({ ...promotionCard(), id: "card-none", scope: { level: "item", product_ids: ["X-9"], sku_ids: [], campaign_key: null } }, {
+      id: "card-none",
+      cost: 50000,
+      predicted_summary: { dgmv: { p10: null, p50: null, p90: null }, dprofit: { p10: null, p50: null, p90: null }, dgmv_month: { p10: null, p50: null, p90: null }, dprofit_month: { p10: null, p50: null, p90: null }, label: "Dự kiến", effect_days: null, not_estimable: true, reason: "no_spec", message: "Chưa ước tính được" },
+    });
+    renderReco(<DecisionsView params={params()} />, fakeReco({ list: list([ok, none]) }));
+    const top = await screen.findByTestId("sq-card-card-voucher");
+    expect(within(top).getByTestId("dx-dprofit")).toHaveTextContent("−42.000đ – +240.000đ");
+    expect(within(top).getByTestId("dx-perday")).toHaveTextContent("≈ +2.000đ/ngày");
+    const bad = screen.getByTestId("sq-card-card-none");
+    expect(within(bad).getByTestId("dx-dprofit")).toHaveTextContent("Chưa ước tính được");
+    expect(within(bad).queryByTestId("dx-perday")).toBeNull();
+    expect(within(bad).getByTestId("dx-cost")).toHaveTextContent("50.000đ");
+  });
+
   it("one row per product's top card: group · kind, title, product, metric chips, Δ range and ≈ per day, buttons", async () => {
     renderReco(<DecisionsView params={params()} />, fakeReco({ list: list(queueCards()) }));
     const top = await screen.findByTestId("sq-card-card-voucher");

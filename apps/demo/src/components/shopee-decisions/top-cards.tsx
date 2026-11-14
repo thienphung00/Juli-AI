@@ -6,7 +6,7 @@ import { DASH, fmt, vnd } from "../../lib/shopee-analytics/format";
 import { kindLabel, metricsOfCard } from "../../lib/shopee-decisions/model";
 import { MetricChip } from "../metrics/metric-chip";
 import { useReco } from "../../lib/shopee-decisions/context";
-import type { CardSummary } from "../../lib/shopee-decisions/types";
+import type { CardSummary, Quantiles } from "../../lib/shopee-decisions/types";
 import { isOpen, rangeTone } from "../../lib/shopee-decisions/versions";
 import { Notice, TextChip } from "../shopee-analytics/ui";
 import { ShopeeApiError } from "../../lib/shopee-analytics/client";
@@ -65,15 +65,30 @@ export function rangeText(q: { readonly p10: number | null; readonly p90: number
 /** The card's own days (the Δ totals stand on them). */
 export const cardDays = (c: Pick<CardSummary, "predicted_summary">): number => Math.max(1, c.predicted_summary.effect_days || 30);
 
+export const NOT_ESTIMABLE_TEXT = "Chưa ước tính được";
+
+/** One card, one number: the stored result's Δ bands (its own days); `null` when not estimable. */
+export function cardBands(c: Pick<CardSummary, "predicted_summary">): { readonly profit: Quantiles; readonly gmv: Quantiles } | null {
+  const s = c.predicted_summary;
+  const profit = s.dprofit ?? s.dprofit_month;
+  const gmv = s.dgmv ?? s.dgmv_month;
+  if (s.not_estimable || profit.p50 === null) return null;
+  return { profit, gmv };
+}
+
+/** "≈ +12.000đ/ngày": the result's P50 over its own days. */
+export function perDayP50(p50: number | null, days: number): string {
+  return p50 === null ? DASH : `≈ ${money(p50 / Math.max(1, days))}/ngày`;
+}
+
 /** A card with one version is approved from the list; with several the seller picks the version on the card. */
 export const approvesInPlace = (card: Pick<CardSummary, "versions">): boolean => (card.versions?.length ?? 1) <= 1;
 
 export function CardRow({ card, name, inPlan, canAct, busy, onPlan, onApprove }: { readonly card: CardSummary; readonly name?: string | null; readonly inPlan: boolean; readonly canAct: boolean; readonly busy: boolean; readonly onPlan: (c: CardSummary, add: boolean) => void; readonly onApprove?: (c: CardSummary) => void }) {
   const host = useReco();
   const days = cardDays(card);
-  const q = card.predicted_summary.dprofit_month;
-  const tone = rangeTone(q.p10, q.p90);
-  const g = card.predicted_summary.dgmv_month;
+  const bands = cardBands(card);
+  const tone = bands ? rangeTone(bands.profit.p10, bands.profit.p90) : "flat";
   const href = host.href({ the: card.id, from: "quyet-dinh" });
   return (
     <article className={`sq-card dx-card ${inPlan ? "dx-card--in" : ""}`} data-testid={`sq-card-${card.id}`}>
@@ -95,18 +110,20 @@ export function CardRow({ card, name, inPlan, canAct, busy, onPlan, onApprove }:
         <div className="dx-card__delta">
           <div className="dx-card__label">Δ lợi nhuận cả {fmt(days, 0)} ngày</div>
           <div className={`dx-card__big ${tone === "up" ? "sa-tone--up" : tone === "down" ? "sa-tone--down" : ""}`} data-testid="dx-dprofit">
-            {rangeText(q)}
+            {bands ? rangeText(bands.profit) : NOT_ESTIMABLE_TEXT}
           </div>
-          <div className="dx-card__perday" data-testid="dx-perday">
-            ≈ {rangeText(q, days)}/ngày
-          </div>
+          {bands ? (
+            <div className="dx-card__perday" data-testid="dx-perday">
+              {perDayP50(bands.profit.p50, days)}
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="dx-card__chips">
         {metricsOfCard(card).map((m) => (
           <MetricChip key={m} metric={m} />
         ))}
-        <span data-testid="dx-dgmv">Δ GMV {rangeText(g)}</span>
+        {bands ? <span data-testid="dx-dgmv">Δ GMV {rangeText(bands.gmv)}</span> : null}
         {typeof card.cost === "number" && card.cost > 0 ? (
           <span data-testid="dx-cost">
             · <b>Chi phí:</b> {vnd(Math.round(card.cost))}

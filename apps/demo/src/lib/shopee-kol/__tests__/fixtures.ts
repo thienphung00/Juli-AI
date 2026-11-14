@@ -180,7 +180,7 @@ export function kolCard(invite = false): Card {
 
 export function kolDetail(invite = false, over: Partial<CardDetail> = {}): CardDetail {
   const card = kolCard(invite);
-  return { id: "card-kol-1", code: card.code ?? null, product_id: "GT-A", product_queue: 9, status: "sent", family: "affiliate", family_label: "Tiếp thị liên kết", change_kind: card.change_kind, title: card.title, reason: "KOL này bán được 9 đơn Găng tay cao su A.", section: "lien_ket", metric: card.metric, scope: card.scope, rank: { position: 9 }, certain_summary: { dprofit_month: 0, dgmv_month: 0 }, predicted_summary: { dgmv_month: { p10: 0, p50: 0, p90: 0 }, dprofit_month: { p10: 0, p50: 0, p90: 0 }, label: "Dự kiến", effect_days: 30 }, floor_ok: true, plan: "Kết quả sau 14 ngày", stale: false, bundle: false, sent_at: null, card, journey: [], ...over };
+  return { id: "card-kol-1", code: card.code ?? null, product_id: "GT-A", product_queue: 9, status: "sent", family: "affiliate", family_label: "Tiếp thị liên kết", change_kind: card.change_kind, title: card.title, reason: "KOL này bán được 9 đơn Găng tay cao su A.", section: "lien_ket", metric: card.metric, scope: card.scope, rank: { position: 9 }, predicted_summary: { dgmv_month: { p10: 0, p50: 0, p90: 0 }, dprofit_month: { p10: 0, p50: 0, p90: 0 }, label: "Dự kiến", effect_days: 30 }, floor_ok: true, plan: "Kết quả sau 14 ngày", stale: false, bundle: false, sent_at: null, card, journey: [], ...over };
 }
 
 // ── Mẫu KOL sheet (the shop-inputs routes: the same workbook as the SKU sheet) ──

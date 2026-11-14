@@ -103,7 +103,7 @@ describe("the side-by-side table", () => {
   it("has the artboard's rows, one cell per version, and flags the breaching column", () => {
     const card = versionedVoucher();
     const rows = versionTable(card, card.versions!);
-    expect(rows.map((r) => r.label)).toEqual(["① Giảm giá", "② Hiệu quả chi", "③ Biên lợi nhuận", "④ Số đơn", "⑤ AOV", "Chi phí", "Δ lợi nhuận · chắc chắn", "Δ lợi nhuận", "Giá sàn", "Trần chi"]);
+    expect(rows.map((r) => r.label)).toEqual(["① Giảm giá", "② Hiệu quả chi", "③ Biên lợi nhuận", "④ Số đơn", "⑤ AOV", "Chi phí", "Δ lợi nhuận", "Giá sàn", "Trần chi"]);
     expect(rows.every((r) => r.cells.length === 3)).toBe(true);
     const floor = rows.find((r) => r.key === "floor")!;
     expect(floor.cells[0]!.v).toBe("✓ Trên giá sàn vận hành");
@@ -112,7 +112,9 @@ describe("the side-by-side table", () => {
     const exp = rows.find((r) => r.key === "exp")!;
     expect(exp.cells[0]!.v).toBe("−1.400đ – +7.900đ/ngày");
     expect(exp.cells[0]!.d).toContain("30 ngày: −43.000đ – +237.000đ");
-    expect(rows.find((r) => r.key === "sure")!.cells[0]!.v).toBe("−2.100đ/ngày");
+    // one card, one number: no "chắc chắn" row; Chi phí is the stored result's
+    expect(rows.find((r) => r.key === "sure")).toBeUndefined();
+    expect(rows.find((r) => r.key === "chi")!.cells[0]).toMatchObject({ v: "63.000đ", d: "30 ngày" });
     expect(rows.find((r) => r.key === "cap")!.cells[0]!.v).toBe("✓ Chi marketing 1.112.311đ/ngày · trong trần 1.200.000đ/ngày");
   });
 
@@ -152,11 +154,9 @@ describe("the side-by-side table", () => {
     expect(by("peruser").cells[0]!.v).toBe("1 lượt/người");
     expect(by("maxd").cells[0]!.d).toBe("chưa đơn nào chạm trần");
     // units: per day, per order, the whole period; never per month
-    expect(by("chi").cells[0]).toMatchObject({ v: "+10.000đ/ngày" });
-    expect(by("chi").cells[0]!.d).toBe("5.000đ/đơn dùng voucher · 3 ngày: +30.000đ");
-    expect(by("sure").cells[0]!.v).toBe("−10.000đ/ngày");
-    expect(by("sure").cells[0]!.d).toBe("−5.000đ/đơn dùng voucher · 3 ngày: −30.000đ");
-    expect(by("exp").cells[0]!.d).toContain("3 ngày: −30.000đ – +40.000đ");
+    // one card, one number: Chi phí and Δ lợi nhuận are the version's stored result (its own days)
+    expect(by("chi").cells[0]).toMatchObject({ v: "63.000đ", d: "30 ngày" });
+    expect(by("exp").cells[0]!.d).toContain("30 ngày: −43.000đ – +237.000đ");
     expect(by("orders").cells[0]!.v).toBe("2,0 đơn/ngày");
     expect(by("orders").cells[0]!.d).toContain("số đơn giữ nguyên");
     expect(by("aov").cells[0]).toMatchObject({ v: "103.000đ – 112.000đ", d: "AOV giữ nguyên ở lớp chắc chắn" });
@@ -171,6 +171,6 @@ describe("the side-by-side table", () => {
     const limit = rows.find((r) => r.key === "limit")!;
     expect(limit.label).toBe("Giới hạn 100 ký tự");
     expect(limit.cells[0]!.v).toMatch(/^✓ \d+\/100 ký tự · không tốn chi phí$/);
-    expect(rows.find((r) => r.key === "sure")!.cells[0]!.v).toBe("Không tốn chi phí");
+    expect(rows.find((r) => r.key === "sure")).toBeUndefined();
   });
 });

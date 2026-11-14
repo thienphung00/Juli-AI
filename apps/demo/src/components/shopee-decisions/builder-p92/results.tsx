@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderOutcome } from "../../../lib/shopee-decisions/builder-api";
@@ -263,6 +264,18 @@ function Tile({ label, total, days, testId }: { readonly label: string; readonly
 
 /** Step ③ right-hand card (artboard Flow3): verdict, Δ lợi nhuận and Δ GMV for the whole period with ≈ per day, then the rows the kind has. */
 export function VersionResult({ outcome: o, result: r, name }: { readonly outcome: BuilderOutcome; readonly result: OptionResult; readonly name: string }) {
+  return (
+    <ResultCard name={name} result={r}>
+      <WarningLines outcome={o} />
+    </ResultCard>
+  );
+}
+
+/**
+ * The result card itself, from an `OptionResult` alone: Tự tạo's step ③ and the card page's Kết quả
+ * (one card, one number: the card stores this result). `breakEven` adds "Hoà vốn cần ≥ N đơn".
+ */
+export function ResultCard({ result: r, name, breakEven = false, children }: { readonly result: OptionResult; readonly name: string; readonly breakEven?: boolean; readonly children?: ReactNode }) {
   const days = resultDays(r);
   const period = periodLabel(days);
   const v = verdictOf(r);
@@ -281,6 +294,8 @@ export function VersionResult({ outcome: o, result: r, name }: { readonly outcom
     if (r.roi?.value !== null && r.roi?.value !== undefined) rows.push({ key: "roi", label: "ROI", text: fmt(r.roi.value, 1) });
     const m = r.margin;
     if (m && m.before_pct !== null && m.after_pct !== null) rows.push({ key: "margin", label: "Biên lợi nhuận", text: `${pp(m.before_pct, 1)} → ${pp(m.after_pct, 1)}` });
+    const be = r.cost.break_even_orders;
+    if (breakEven && be !== null && be !== undefined) rows.push({ key: "breakeven", label: "Hoà vốn", text: `cần ≥ ${fmt(Math.ceil(be - 1e-6), 0)} đơn` });
   }
   const title = adsTitle(r);
   return (
@@ -307,7 +322,7 @@ export function VersionResult({ outcome: o, result: r, name }: { readonly outcom
           ))}
         </tbody>
       </table>
-      <WarningLines outcome={o} />
+      {children}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { DASH, fmt, vnd } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { WITHDRAWABLE, changedInputs, describeInputs, maxInputsFor, rankingLinkOf, stepText } from "../../lib/shopee-decisions/model";
-import type { Breach, Card, CardDetail, CardSummary, CardTarget, CardVersion, ExecutionSheet } from "../../lib/shopee-decisions/types";
+import type { Breach, Card, CardDetail, CardResultBlock as ResultBlock, CardSummary, CardTarget, CardVersion, ExecutionSheet } from "../../lib/shopee-decisions/types";
 import {
   MAX_TITLE_CHARS,
   ackOf,
@@ -35,7 +35,8 @@ import { Notice, TextChip } from "../shopee-analytics/ui";
 import { DismissDialog, RequestChangeDialog, WithdrawDialog } from "./dialogs";
 import { ExecutionPanel } from "./execution";
 import { MegaPanel } from "./mega";
-import { Checks, NumbersTable } from "./numbers";
+import { Checks } from "./numbers";
+import { ResultCard } from "./builder-p92/results";
 import { NavLink, RecoState, StatusChip, errorText } from "./ui";
 import { WhatIfPanel, type Patch } from "./whatif";
 import { KolWhatIf } from "../shopee-kol/kol-card";
@@ -557,8 +558,11 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
       ) : null}
 
       {!refused && !isKol ? (
-        <section className="sa-card" data-testid="sd-numbers-card">
-          <NumbersTable card={shown} />
+        <section className="sa-card" data-testid="sd-result-card">
+          <div className="sa-card__head">
+            <h2 className="sa-h2">Kết quả</h2>
+          </div>
+          <CardResultBlock block={v.result ?? (v.version === 1 ? (detail.card.result ?? null) : null)} name={name} />
         </section>
       ) : null}
 
@@ -617,6 +621,32 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         viewing={viewing}
       />
     </>
+  );
+}
+
+/**
+ * Kết quả (one card, one number, 2026-11-14): the card's stored engine result drawn exactly as Tự tạo's
+ * step ③ card — Δ lợi nhuận and Δ GMV for the whole period with ≈/ngày, Δ đơn, Chi phí, ROI, biên a → b,
+ * the verdict and "Hoà vốn cần ≥ N đơn". Not estimable: "Chưa ước tính được" and Chi phí.
+ */
+export function CardResultBlock({ block, name }: { readonly block: ResultBlock | null; readonly name: string }) {
+  if (block?.option && block.estimable) return <ResultCard breakEven name={name} result={block.option} />;
+  const cost = block?.cost_total;
+  return (
+    <div className="p3-result" data-testid="sd-not-estimable">
+      <div className="p3-result__head">
+        <b>{name}</b>
+        <span className="p3-verdict p3-verdict--flat">Chưa ước tính được</span>
+      </div>
+      <table className="p3-rows">
+        <tbody>
+          <tr data-testid="p3-row-cost">
+            <td>Chi phí</td>
+            <td>{typeof cost === "number" ? (cost > 0 ? vnd(Math.round(cost)) : "Không có chi phí thêm") : DASH}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }
 
