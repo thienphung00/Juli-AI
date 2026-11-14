@@ -302,7 +302,10 @@ describe("signed-out sample — content cards", () => {
     await userEvent.click(await within(video).findByRole("link", { name: "Xem tiến độ ›" }));
     const script = await screen.findByTestId("content-script");
     expect(script).toHaveTextContent("Bản 1 · bạn sửa trực tiếp được");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Juli đã soạn kịch bản video, bạn quay và đăng");
+    // the run's headline reaches the page header one render after the script (lifted through onState)
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Juli đã soạn kịch bản video, bạn quay và đăng"),
+    );
     await userEvent.click(within(script).getByRole("button", { name: "Soạn lại" }));
     await waitFor(() => expect(screen.getByTestId("content-script")).toHaveTextContent("Bản 2 · bạn sửa trực tiếp được"));
     expect(screen.getByRole("textbox", { name: "Hook (0–3 giây)" })).toHaveValue('"Mình thử mặt nạ 69k này 7 ngày liền" · cầm sản phẩm lên khung hình');
