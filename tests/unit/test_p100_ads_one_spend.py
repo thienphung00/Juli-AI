@@ -115,3 +115,31 @@ def test_bridge_adds_up_in_whole_dong_when_the_parts_are_fractions():
     b = fig.json()["bridge"]
     assert isinstance(b["product_profit"], int) and isinstance(b["ads_unattributed"], int)
     assert b["product_profit"] - b["ads_unattributed"] - b["other_marketing"] == b["profit"]
+
+
+def test_p100b_days_after_the_last_connector_read_are_missing_not_the_period_average():
+    """P100 B.3: once the Connector reads ads daily, a day after its newest read has no figure
+    (missing) -- never the older period report's daily average."""
+    connector = {date(2026, 11, 2): _day(100, SOURCE_CONNECTOR, 400)}
+    period = [AdWindow("c", date(2026, 11, 1), date(2026, 11, 5), D(500), gmv=D(1000))]
+    days = resolve_ad_days(
+        connector,
+        {},
+        period,
+        date(2026, 11, 1),
+        date(2026, 11, 5),
+        connector_until=date(2026, 11, 2),
+    )
+    assert days[date(2026, 11, 1)].source == SOURCE_PERIOD_SPREAD  # before: the file still answers
+    assert days[date(2026, 11, 2)].source == SOURCE_CONNECTOR
+    assert not {date(2026, 11, 3), date(2026, 11, 4), date(2026, 11, 5)} & set(days)
+
+
+def test_p100b_the_ads_daily_figures_name_the_missing_days():
+    from juli_backend.services.shopee_analytics.loaders import ads_daily_of
+    from juli_backend.services.shopee_analytics.windows import Window
+
+    days = {date(2026, 11, 2): _day(100, SOURCE_CONNECTOR, 400)}
+    daily = ads_daily_of(days, Window(date(2026, 11, 1), date(2026, 11, 3)))
+    assert daily.days_covered == 1
+    assert daily.missing_days == (date(2026, 11, 1), date(2026, 11, 3))

@@ -20,12 +20,14 @@ import uuid
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.repositories import (
     AdCampaignPurposesReadRepo,
     MarketKeywordMetricsReadRepo,
@@ -526,6 +528,8 @@ class AdsDaily:
     #: P100 A.5: where each day's figure came from (``ads_days.SOURCE_*``); a day with no source
     #: is absent from both maps -- "chưa có dữ liệu", never 0
     source_by_day: dict[date, str] = field(default_factory=dict)
+    #: P100 B.3: the window's days with no ad figure ("chưa có dữ liệu", never 0 or borrowed)
+    missing_days: tuple[date, ...] = ()
 
     @property
     def complete(self) -> bool:
@@ -642,22 +646,36 @@ async def _period_ad_windows(
     ]
 
 
+async def _connector_ads_until(session: AsyncSession, shop_id: uuid.UUID) -> date | None:
+    """The shop's newest Connector ads day (``ads_campaign_daily``), any window."""
+    day: date | None = await session.scalar(
+        select(func.max(PlatformDailyMetric.day)).where(
+            PlatformDailyMetric.shop_id == shop_id,
+            PlatformDailyMetric.dataset == "ads_campaign_daily",
+            PlatformDailyMetric.stream == "ads",
+        )
+    )
+    return day
+
+
 async def load_ad_days(
     session: AsyncSession, shop_id: uuid.UUID, window: Window
 ) -> dict[date, DayAds]:
     """P100 A.5: the window's ONE ad spend per day (Connector day, else the daily report, else
-    the period report spread over its days; no source = no entry, never 0)."""
+    the period report spread over its days; no source = no entry, never 0). P100 B.3: a day
+    after the newest Connector ads read is missing, not the period report's average."""
     return resolve_ad_days(
         await _connector_ad_days(session, shop_id, window),
         await _daily_report_ad_days(session, shop_id, window),
         await _period_ad_windows(session, shop_id, window),
         window.start,
         window.end,
+        connector_until=await _connector_ads_until(session, shop_id),
     )
 
 
-async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Window) -> AdsDaily:
-    days = await load_ad_days(session, shop_id, window)
+def ads_daily_of(days: Mapping[date, DayAds], window: Window) -> AdsDaily:
+    """The window's :class:`AdsDaily` from its per-day figures (pure)."""
     spend = gmv = orders = ZERO
     by_type: dict[str, dict[str, Decimal]] = defaultdict(
         lambda: {"spend": ZERO, "gmv": ZERO, "orders": ZERO}
@@ -671,6 +689,9 @@ async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Wind
             cell["spend"] += t.spend or ZERO
             cell["gmv"] += t.gmv
             cell["orders"] += t.orders
+    missing = tuple(
+        d for i in range(window.days) if (d := window.start + timedelta(days=i)) not in days
+    )
     return AdsDaily(
         spend,
         gmv,
@@ -680,7 +701,12 @@ async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Wind
         window.days,
         {d: f.spend for d, f in days.items()},
         {d: f.source for d, f in days.items()},
+        missing,
     )
+
+
+async def load_ads_daily(session: AsyncSession, shop_id: uuid.UUID, window: Window) -> AdsDaily:
+    return ads_daily_of(await load_ad_days(session, shop_id, window), window)
 
 
 # ---------------------------------------------------------------------------------------

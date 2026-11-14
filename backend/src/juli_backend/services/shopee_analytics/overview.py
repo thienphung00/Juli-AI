@@ -87,6 +87,7 @@ def data_status(view: PeriodView) -> dict[str, Any]:
         "ads_daily": {
             "days_covered": d.ads_daily.days_covered,
             "sources": _day_sources(d.ads_daily.source_by_day),
+            "missing_days": [x.isoformat() for x in d.ads_daily.missing_days],
         },
         "ads_report": d.ads_reports.campaign_choice.json(),
         "product_flows": {
