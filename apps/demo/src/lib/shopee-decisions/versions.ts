@@ -1,4 +1,4 @@
-import { DASH, fmt, vnd, type Tone } from "../shopee-analytics/format";
+import { DASH, fmt, vnCount, vnd, type Tone } from "../shopee-analytics/format";
 import { parseServerIso } from "../vn-format";
 import { expectedRows, sureRows, vnWhen } from "./model";
 import { aovText, ordersText, srange, um, unitsOf } from "./units";
@@ -409,7 +409,7 @@ function voucherRows(per: readonly (Per | { readonly v: CardVersion; readonly c:
       null,
       cellOf2(cell, (d) => {
         const u = d.usage;
-        const used = num(u.used) ? fmt(u.used, Number.isInteger(u.used) || u.used >= 10 ? 0 : 1) : DASH;
+        const used = num(u.used) ? vnCount(u.used) : DASH;
         const limit = num(u.limit) ? fmt(u.limit, 0) : "không giới hạn";
         return { v: `Dùng ${used} / ${limit} lượt`, d: num(u.limit) ? (u.capped ? "chạm giới hạn" : "chưa chạm giới hạn") : "", tone: u.capped ? "down" : "plain", bad: false };
       }),

@@ -44,6 +44,7 @@ from juli_backend.services.shopee_builder.engine.vn import (
     DRIVER_LABELS,
     SOURCE_LABELS,
     count,
+    signed_orders,
     vnd,
 )
 
@@ -334,8 +335,7 @@ def _build_up(
     def orders_text(amount: float) -> str:
         if abs(d_orders) < 1e-9:
             return ""
-        sign = "+" if d_orders > 0 else "−"
-        return f"{sign}{count(d_orders)} đơn × {vnd(amount / d_orders)}"
+        return f"{signed_orders(d_orders)} × {vnd(amount / d_orders)}"
 
     if abs(draw.orders_term) > 1e-9:
         parts["extra_orders"] = (draw.orders_term, orders_text(draw.orders_term))

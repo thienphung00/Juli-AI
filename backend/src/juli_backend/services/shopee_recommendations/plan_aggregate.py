@@ -318,8 +318,8 @@ def count_in_horizon(results: Sequence[CardResult], h: Horizon) -> dict[str, Cou
 
 
 def round_orders(x: float | None) -> float | None:
-    """Δ Đơn to the precision the cards show (``engine.wire.round_count``): one decimal under 10
-    orders, whole orders from 10 up."""
+    """Δ Đơn to the precision the cards show (``engine.wire.round_count``): whole orders from 1
+    up, kept (2 decimals) under one order so the screen can say "< 1"."""
     from juli_backend.services.shopee_builder.engine.wire import round_count
 
     return round_count(x)

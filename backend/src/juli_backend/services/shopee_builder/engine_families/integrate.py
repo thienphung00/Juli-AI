@@ -46,7 +46,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     OptionResult,
     Scenario,
 )
-from juli_backend.services.shopee_builder.engine.vn import count, vnd
+from juli_backend.services.shopee_builder.engine.vn import signed_orders, vnd
 from juli_backend.services.shopee_builder.engine_families import (
     FamilyExtras,
     FamilyRefused,
@@ -361,7 +361,7 @@ def _sum_build_up(results: Sequence[OptionResult]) -> tuple[BuildUpPart, ...]:
             continue
         amt = amounts[key]
         if key == "extra_orders" and d_orders:
-            text = f"{'+' if d_orders > 0 else '−'}{count(d_orders)} đơn × {vnd(amt / d_orders)}"
+            text = f"{signed_orders(d_orders)} × {vnd(amt / d_orders)}"
         elif key == "price":
             text = f"Lợi nhuận mỗi đơn {'cao' if amt > 0 else 'thấp'} hơn {vnd(abs(amt))}"
         elif key == "aov":

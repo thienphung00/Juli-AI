@@ -1,5 +1,5 @@
 import { parseServerIso } from "../vn-format";
-import { DASH, chipFromChange, chipPt, fmt, pp, sv, vnd, type Chip, type Tone } from "../shopee-analytics/format";
+import { DASH, chipFromChange, chipPt, fmt, pp, signedOrders, sv, vnd, type Chip, type Tone } from "../shopee-analytics/format";
 import { FIVE_LABELS } from "../shopee-analytics/model";
 import type { RankingLink } from "../shopee-analytics/links";
 import { METRIC_ORDER, type MetricKey } from "../metrics";
@@ -221,10 +221,10 @@ function rangeText(lo: N, hi: N, f: (n: number) => string): string {
   if (!num(lo) || !num(hi)) return DASH;
   const a = Math.min(lo, hi);
   const b = Math.max(lo, hi);
-  return Math.abs(a - b) < 1e-9 ? f(a) : `${f(a)} – ${f(b)}`;
+  return f(a) === f(b) ? f(a) : `${f(a)} – ${f(b)}`;
 }
 
-const dOrders = (n: number) => `${n < 0 ? "−" : "+"}${fmt(Math.abs(n), 0)} đơn`;
+const dOrders = (n: number) => `${signedOrders(n)} đơn`;
 const signedPct = (n: number) => `${n < 0 ? "−" : "+"}${fmt(Math.abs(n), 0)}%`;
 
 /** Chi thêm over the card's effect window: the voucher's `extra_cost`, else the five numbers' extra spend. */

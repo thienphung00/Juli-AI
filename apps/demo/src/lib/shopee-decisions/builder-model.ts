@@ -1,4 +1,4 @@
-import { DASH, fmt, pp, vnd } from "../shopee-analytics/format";
+import { DASH, fmt, pp, signedOrders, vnd } from "../shopee-analytics/format";
 import type { ProductChoice } from "./context";
 import type { Breach, CompareResult, DiscountType, N, VariantInput, VariantRow } from "./types";
 import { MAX_TITLE_CHARS, breachWarnLines, rangeK, roundK, svk } from "./versions";
@@ -176,7 +176,7 @@ export interface CompareRow {
 
 const num = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 const signedPts = (d: number): string => `${d >= 0 ? "+" : "−"}${fmt(Math.abs(d), 1)} điểm`;
-const signedOrders = (d: number): string => `${d >= 0 ? "+" : "−"}${fmt(Math.abs(Math.round(d)), 0)} đơn`;
+const signedOrdersText = (d: number): string => `${signedOrders(d)} đơn`;
 const arrow = (d: number): string => (Math.abs(d) < 1e-9 ? "" : d > 0 ? "▲ " : "▼ ");
 
 interface MetricDef {
@@ -235,7 +235,7 @@ const METRICS: readonly MetricDef[] = [
     good: 1,
     today: (c) => fmt(todayOf(c).orders_30d, 0),
     cell: (c, d) => fmt(Math.round(todayOf(c).orders_30d + d), 0),
-    fmtDelta: signedOrders,
+    fmtDelta: signedOrdersText,
   },
   {
     key: "gmv",

@@ -39,12 +39,12 @@ def _whole(x: Decimal | None) -> float | None:
 
 
 def round_count(x: Decimal | float | None) -> float | None:
-    """Δ Đơn at the precision the card shows (``vn.count``, P99): one decimal under 10 orders,
-    whole orders from 10 up -- so the API never carries 7,6638 đơn."""
+    """Δ Đơn at the precision the card shows (``vn.count``): whole orders from 1 up; under one
+    order the value stays (to 2 decimals) so the screen can say "< 1" instead of "0"."""
     if x is None:
         return None
     v = float(x)
-    return float(round(v)) if abs(v) >= 10 else round(v, 1)
+    return float(int(abs(v) + 0.5)) * (1 if v >= 0 else -1) if abs(v) >= 1 else round(v, 2)
 
 
 def _ratio(delta: Decimal | None, before: Decimal | None) -> float | None:

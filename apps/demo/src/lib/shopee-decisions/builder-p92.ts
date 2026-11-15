@@ -1,5 +1,5 @@
 import { summary as bannerSummary, type BannerSpec } from "./banner";
-import { DASH, fmt, pp, sv, vnCount, vnd } from "../shopee-analytics/format";
+import { DASH, fmt, pp, signedOrders, sv, vnCount, vnd } from "../shopee-analytics/format";
 import type { Band, BeforeAfterRow, BuilderOutcome, BuilderVersion, BuilderWarning, CoverOverlay, PickerProduct, VariationRow } from "./builder-api";
 
 /**
@@ -644,7 +644,7 @@ function reasonOf(text: string | null | undefined, code: string | null | undefin
 export function bandText(b: Band | null | undefined, unit: "vnd" | "orders" = "vnd"): { readonly main: string; readonly range: string } {
   if (!b || b.p50 === null) return { main: DASH, range: "không đủ dữ liệu" };
   if (unit === "orders") {
-    const o = (n: number | null) => (n === null ? DASH : `${n >= 0 ? "+" : "−"}${vnCount(Math.abs(n))}`);
+    const o = (n: number | null) => (n === null ? DASH : signedOrders(n));
     return { main: `${o(b.p50)} đơn`, range: `${o(b.low)} – ${o(b.high)}` };
   }
   return { main: sv(b.p50), range: `${sv(b.low)} – ${sv(b.high)}` };
@@ -711,7 +711,7 @@ export const BASIS_LABELS: readonly string[] = ["từ lịch sử sản phẩm",
 export function voucherUsageText(o: BuilderOutcome): string | null {
   const u = o.voucher?.usage;
   if (!u) return null;
-  const used = u.used === null ? DASH : fmt(u.used, Number.isInteger(u.used) || u.used >= 10 ? 0 : 1);
+  const used = u.used === null ? DASH : vnCount(u.used);
   const limit = u.limit === null ? "không giới hạn" : fmt(u.limit, 0);
   const state = u.limit === null ? "" : u.capped ? " · chạm giới hạn" : " · chưa chạm giới hạn";
   return `Dùng ${used} / ${limit} lượt${state}`;

@@ -90,6 +90,8 @@ describe("builder-p92 model", () => {
     expect(bandText({ low: -157_000, p50: 54_000, high: 282_000 })).toEqual({ main: "+54.000đ", range: "−157.000đ – +282.000đ" });
     expect(bandText(null)).toEqual({ main: "—", range: "không đủ dữ liệu" });
     expect(bandText({ low: 8, p50: 16, high: 25 }, "orders")).toEqual({ main: "+16 đơn", range: "+8 – +25" });
+    expect(bandText({ low: -0.3, p50: 1.4, high: 2.6 }, "orders")).toEqual({ main: "+1 đơn", range: "< 1 – +3" });
+    expect(bandText({ low: 0.1, p50: 0.4, high: 0.9 }, "orders")).toEqual({ main: "< 1 đơn", range: "< 1 – < 1" });
     expect(breakEvenText(outcome())).toBe("cần thêm ≥ 18 đơn, tức CTOR ≥ 2,71% (hôm nay 2,50%), để lợi nhuận không giảm.");
     expect(breakEvenText(outcome(0, { break_even: { applies: false, extra_orders: null, ctor_now: null, ctor_needed: null, reason: "Không có chi phí trực tiếp." } }))).toBe("Không có chi phí trực tiếp.");
   });

@@ -180,11 +180,13 @@ describe("P99 · OptionCard", () => {
     expect(screen.getByTestId("oc-orders")).not.toHaveTextContent("+0");
   });
 
-  it("Δ Đơn is shown as the backend rounded it: one decimal under 10, whole from 10", () => {
+  it("Δ Đơn is whole orders, and under one order it reads less than one", () => {
     const { rerender } = render(<OptionCard result={result({ delta: { profit: null, gmv: { value: 1, pct: 1 }, orders: { value: 7.7, pct: 8, note: null } } })} />);
-    expect(screen.getByTestId("oc-orders")).toHaveTextContent("+7,7 ·");
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("+8 ·");
     rerender(<OptionCard result={result({ delta: { profit: null, gmv: { value: 1, pct: 1 }, orders: { value: 13, pct: 8, note: null } } })} />);
     expect(screen.getByTestId("oc-orders")).toHaveTextContent("+13 ·");
+    rerender(<OptionCard result={result({ delta: { profit: null, gmv: { value: 1, pct: 1 }, orders: { value: 0.4, pct: 1, note: null } } })} />);
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("< 1 ·");
   });
 });
 

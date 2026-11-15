@@ -76,6 +76,26 @@ describe("the worked example (voucher A -> C)", () => {
     expect(rows[3]!.dv).toBe("+1 đơn – +6 đơn");
   });
 
+  it("Dự kiến: Δ orders are whole, and \"< 1 đơn\" under one order", () => {
+    const card = voucherCard();
+    const set = (lo: number, hi: number) => {
+      const c = structuredClone(card) as typeof card & { forecast?: unknown };
+      const walk = (o: unknown): void => {
+        if (!o || typeof o !== "object") return;
+        const r = o as Record<string, unknown>;
+        if (r["p10"] && typeof r["p10"] === "object" && "dorders" in (r["p10"] as object)) {
+          (r["p10"] as { dorders: number }).dorders = lo;
+          (r["p90"] as { dorders: number }).dorders = hi;
+        }
+        Object.values(r).forEach(walk);
+      };
+      walk(c);
+      return expectedRows(c)[3]!.dv;
+    };
+    expect(set(0.4, 1.4)).toBe("< 1 đơn – +1 đơn");
+    expect(set(0.2, 0.7)).toBe("< 1 đơn");
+  });
+
   it("a card that cuts spend says so instead of a ratio", () => {
     const card = voucherCard({ certain: { label: "Chắc chắn", extra_cost: -40000, break_even_extra_orders: 2 } });
     expect(sureRows(card)[1]!.after).toBe("Giảm chi 40.000đ");
