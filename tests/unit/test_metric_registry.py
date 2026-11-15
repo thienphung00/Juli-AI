@@ -283,8 +283,9 @@ def test_ratios_come_from_summed_components_not_averages() -> None:
 
 
 def test_a_helper_metric_is_refused_by_evaluate() -> None:
-    with pytest.raises(ValueError, match="kol_status"):
+    with pytest.raises(ValueError, match="kol_status") as refused:
         evaluate("kol_status", ones())
+    assert "kol_status" in str(refused.value)
 
 
 @pytest.mark.parametrize(
