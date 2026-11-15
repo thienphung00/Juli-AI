@@ -18,6 +18,7 @@ from juli_backend.core.config.runtime import is_production, require_env
 from juli_backend.core.security import (
     DEFAULT_STATE_TTL_SECONDS,
     SELLER_CONNECT_FLOW,
+    OAuthState,
     mint_oauth_state,
     verify_oauth_state,
 )
@@ -136,6 +137,7 @@ def begin_tiktok_oauth(
     user_id: uuid.UUID,
     *,
     oauth_service: TikTokOAuthInfrastructureService | None = None,
+    business_id: uuid.UUID | None = None,
 ) -> TikTokOAuthStartResult:
     """Start a seller-initiated connect for an ALREADY-AUTHENTICATED user (#1970).
 
@@ -149,9 +151,12 @@ def begin_tiktok_oauth(
     Returns the authorize URL rather than redirecting: the caller is a browser
     XHR carrying a bearer token, which cannot be attached to a top-level
     navigation.
+
+    P101 W1: ``business_id`` is the switcher's business, already checked by the caller
+    (``services.businesses.member_of``); the callback re-checks it.
     """
     service = oauth_service or build_tiktok_oauth_service()
-    state = service.issue_state(user_id)
+    state = service.issue_state(user_id, business_id=business_id)
     url = service.tiktok_auth.generate_auth_url(tiktok_redirect_uri(), state)
     logger.info(
         "tiktok_oauth_start_issued",
@@ -225,13 +230,17 @@ async def complete_tiktok_oauth_callback(
         # minted for this flow, or older than the state TTL; `resolve_seller_connect_owner`
         # then refuses to invent an owner. Between them there is no path from
         # here to `_app_review_user_id()` — deliberately (#1970).
-        owner_id = resolve_seller_connect_owner(service.verify_state(state))
+        verified = service.verify_connect_state(state)
+        owner_id = resolve_seller_connect_owner(verified.user_id)
         try:
             token_data = await service.exchange_code(code, user_id=owner_id)
         except AuthenticationError as exc:
             raise TikTokOAuthTokenExchangeFailed from exc
+        business_id = await _connect_business(session, owner_id, verified)
         facade = build_partner_oauth_facade(session, service)
-        shop = await facade.provision_shop_and_credentials(token_data, user_id=owner_id)
+        shop = await facade.provision_shop_and_credentials(
+            token_data, user_id=owner_id, business_id=business_id
+        )
         # D10 (ADR-116 §2): an owner who already accepted the Terms grants them to the
         # newly connected shop too. Never raises (logged, savepoint-isolated).
         await grant_terms_consents_if_accepted(session, owner_id, [shop.id])
@@ -269,6 +278,30 @@ async def complete_tiktok_oauth_callback(
     await session.commit()
     _after_connect_committed(shop.id)
     return result
+
+
+async def _connect_business(
+    session: AsyncSession, owner_id: uuid.UUID, verified: OAuthState
+) -> uuid.UUID | None:
+    """The business a NEW connected shop joins (P101 W1, contract §2.1).
+
+    The state's business while the owner is still an active member of it, else the owner's only
+    business; None (a first-time seller, or several businesses and no choice): the
+    ``shops_default_business`` trigger gives the shop its own business named after it. A reconnect
+    keeps the shop's business (``_claim_or_create_shop`` only uses this for a new shop).
+    """
+    from juli_backend.services import businesses
+
+    try:
+        return await businesses.chosen_business(
+            session, user_id=owner_id, requested=verified.business_id
+        )
+    except businesses.BusinessError:
+        logger.warning(
+            "tiktok_connect_business_not_member",
+            extra={"user_id": str(owner_id), "business_id": str(verified.business_id)},
+        )
+        return await businesses.chosen_business(session, user_id=owner_id, requested=None)
 
 
 def _after_connect_committed(shop_id: uuid.UUID) -> None:
@@ -310,17 +343,27 @@ class TikTokOAuthInfrastructureService:
     def app_secret(self) -> str:
         return self._app_secret
 
-    def issue_state(self, user_id: uuid.UUID) -> str:
+    def issue_state(self, user_id: uuid.UUID, *, business_id: uuid.UUID | None = None) -> str:
         """Mint the signed state for a seller-initiated connect (#1970).
 
         Signed with ``TIKTOK_APP_SECRET`` — the same secret
         :meth:`verify_state` checks against, so a state this process minted is
-        the only kind the callback will accept.
+        the only kind the callback will accept. P101 W1: ``business_id`` (the
+        switcher's business) rides in the signed payload.
         """
         return mint_oauth_state(
             user_id,
             secret=self._app_secret,
             flow=SELLER_CONNECT_FLOW,
+            business_id=business_id,
+        )
+
+    def verify_connect_state(self, state: str) -> OAuthState:
+        """Like :meth:`verify_state`, returning the whole verified payload (P101 W1)."""
+        return verify_oauth_state(
+            state,
+            secret=self._app_secret,
+            expected_flow=SELLER_CONNECT_FLOW,
         )
 
     def verify_state(self, state: str) -> uuid.UUID:

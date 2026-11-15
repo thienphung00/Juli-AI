@@ -195,6 +195,7 @@ EXPECTED_DEFERRED_FILES = {
     "074_users_placeholder_phone_cleanup.py",
     "101_write_mode_backfill.py",  # P61-F: the write_mode data step, chained under 074
     "102_shop_members_backfill.py",  # P93: member rows for existing shops, chained above 074
+    "130_businesses_backfill.py",  # P101 W1: a business per existing shop, chained above 102
 }
 
 

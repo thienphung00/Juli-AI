@@ -232,6 +232,9 @@ class _CallbackService:
     def verify_state(self, state):
         return uuid.uuid4()
 
+    def verify_connect_state(self, state):
+        return SimpleNamespace(user_id=uuid.uuid4(), business_id=None)
+
     async def exchange_code(self, code, *, user_id=None):
         return {"access_token_expire_in": 3600}
 
@@ -241,7 +244,7 @@ class _Facade:
         self.shop_id = shop_id
         self.events = events
 
-    async def provision_shop_and_credentials(self, token_data, *, user_id):
+    async def provision_shop_and_credentials(self, token_data, *, user_id, business_id=None):
         self.events.append("provision")
         return SimpleNamespace(id=self.shop_id, tiktok_shop_id="tt-new")
 
@@ -288,6 +291,11 @@ class TestOAuthCallbackEnqueuesBootstrap:
         monkeypatch.setattr(
             oauth, "build_partner_oauth_facade", lambda session, svc: _Facade(shop_id, events)
         )
+
+        async def _no_business(session, owner_id, verified):
+            return None
+
+        monkeypatch.setattr(oauth, "_connect_business", _no_business)
         set_bootstrap_dispatcher(dispatcher)
         try:
             result = await oauth.complete_tiktok_oauth_callback(
@@ -337,6 +345,11 @@ class TestOAuthCallbackEnqueuesBootstrap:
             "build_partner_oauth_facade",
             lambda session, svc: _Facade(uuid.uuid4(), []),
         )
+
+        async def _no_business(session, owner_id, verified):
+            return None
+
+        monkeypatch.setattr(oauth, "_connect_business", _no_business)
         set_bootstrap_dispatcher(None)
         caplog.set_level(logging.INFO)
         result = await oauth.complete_tiktok_oauth_callback(

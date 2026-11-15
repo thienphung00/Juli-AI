@@ -37,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.models.models import Shop, User
 from juli_backend.models.ops import OpsShopInvite
 from juli_backend.repositories._base import utc_now_naive
-from juli_backend.services import shop_team
+from juli_backend.services import businesses, shop_team
 from juli_backend.services.ops import audit
 from juli_backend.services.ops.access import is_sqlite, ops_role
 from juli_backend.services.ops.mailer import InviteMail, get_mailer
@@ -69,7 +69,7 @@ def accept_url(token: str) -> str:
     return f"{base.rstrip('/')}{ACCEPT_PATH}#{token}"
 
 
-def _clean_email(raw: Any) -> str:
+def clean_email(raw: Any) -> str:
     if not isinstance(raw, str):
         raise InviteError("invalid_email", "email is required")
     email = raw.strip().lower()
@@ -125,7 +125,7 @@ async def create_invite(
     keep_ops_access: bool,
     now: datetime | None = None,
 ) -> CreatedInvite:
-    address = _clean_email(email)
+    address = clean_email(email)
     moment = now or utc_now_naive()
     token = secrets.token_urlsafe(32)
     if await shop_team.is_active_member_email(session, shop, address):
@@ -281,6 +281,12 @@ async def accept_invite(
     if handover:
         previous_owner = await _transfer(session, row.shop_id, user.id)
         await shop_team.release_team_accounts(session, row.shop_id, now=moment)
+        # P101 W1: the person also takes the shop's business; the team account and the previous
+        # (login-less) owner leave it, so the business branch of the access rule follows suit.
+        release = [previous_owner] + [uuid.UUID(m["user_id"]) for m in members]
+        await businesses.transfer_shop_business_owner(
+            session, row.shop_id, user, release=release, now=moment
+        )
     elif members[0]["implicit"]:
         # Give a pre-backfill owner their real row before someone else joins, so the team
         # list and a later removal do not depend on the "owner without a row" fallback.

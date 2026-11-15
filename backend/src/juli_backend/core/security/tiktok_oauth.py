@@ -149,6 +149,7 @@ class TikTokOAuthService:
         *,
         user_id: uuid.UUID,
         capability: TikTokCapability | None = None,
+        business_id: uuid.UUID | None = None,
     ) -> Shop:
         """Provision under the write-time sandbox-collision guard (P61-H, D71.6a).
 
@@ -167,7 +168,7 @@ class TikTokOAuthService:
             },
         ):
             return await self._provision_shop_and_credentials(
-                token_data, user_id=user_id, capability=capability
+                token_data, user_id=user_id, capability=capability, business_id=business_id
             )
 
     async def _provision_shop_and_credentials(
@@ -176,8 +177,12 @@ class TikTokOAuthService:
         *,
         user_id: uuid.UUID,
         capability: TikTokCapability | None = None,
+        business_id: uuid.UUID | None = None,
     ) -> Shop:
         """Single write owner for ``shops`` + ``tiktok_credentials`` (Partner OAuth).
+
+        P101 W1: a NEW shop joins ``business_id`` (resolved by the services-side caller; None: the
+        ``shops_default_business`` trigger gives it its own). A reconnect keeps its business.
 
         The merchant identity is the OAuth ``open_id`` the connect flow returned (P61-G,
         D71.6: nothing configured). The capability is, in order: the one the caller asked for
@@ -208,6 +213,7 @@ class TikTokOAuthService:
                 open_id=open_id,
                 seller_name=seller_name,
                 user_id=user_id,
+                business_id=business_id,
             )
             await self._session.flush()
 
@@ -235,6 +241,7 @@ class TikTokOAuthService:
         open_id: str,
         seller_name: str,
         user_id: uuid.UUID,
+        business_id: uuid.UUID | None = None,
     ) -> Shop:
         """The connecting user's shop for ``open_id``: reconnect it, or create it.
 
@@ -258,6 +265,7 @@ class TikTokOAuthService:
                     user_id=user_id,
                     shop_name=seller_name,
                     tiktok_shop_id=open_id,
+                    business_id=business_id,
                 )
         except IntegrityError as exc:
             if "tiktok_shop_id" not in str(exc.orig):

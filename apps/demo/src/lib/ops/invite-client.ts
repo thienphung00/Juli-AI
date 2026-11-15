@@ -6,7 +6,9 @@ export interface InvitePreview {
   readonly expires_at: string;
   /** The invited person already pressed "Tham gia shop". The link still opens the shop. */
   readonly already_joined?: boolean;
-  readonly shop_id?: string;
+  readonly shop_id?: string | null;
+  /** P101 W1: set when the link is a business owner's invite (the same page reads both). */
+  readonly business_id?: string;
 }
 
 export const INVITE_ERROR_COPY: Record<string, string> = {
@@ -44,7 +46,7 @@ export function previewInvite(token: string, inviteToken: string, fetchImpl?: ty
 }
 
 export function acceptInvite(token: string, inviteToken: string, keepOpsAccess: boolean, fetchImpl?: typeof fetch) {
-  return call<{ shop_id: string; kept_ops_access: boolean }>(
+  return call<{ shop_id: string | null; kept_ops_access: boolean; business_id?: string }>(
     "/v1/shop-invites/accept",
     token,
     { method: "POST", body: JSON.stringify({ token: inviteToken, keep_ops_access: keepOpsAccess }) },

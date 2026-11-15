@@ -9,12 +9,15 @@ minted at ``/start`` is the only thing that identifies the seller there.
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security import get_current_user
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.database import User, UsersRepo, get_session
+from juli_backend.services import businesses
 from juli_backend.services.tiktok.oauth import (
     TikTokOAuthInfrastructureService,
     TikTokOAuthNotConfiguredError,
@@ -44,6 +47,7 @@ def get_tiktok_oauth_service() -> TikTokOAuthInfrastructureService:
 @router.get("/start", response_model=TikTokOAuthStartResult)
 async def tiktok_oauth_start(
     staff_access_consent: bool = Query(default=False),
+    business_id: uuid.UUID | None = Query(default=None),
     user: User = Depends(get_current_user),
     oauth_service: TikTokOAuthInfrastructureService = Depends(get_tiktok_oauth_service),
     session: AsyncSession = Depends(get_session),
@@ -60,7 +64,13 @@ async def tiktok_oauth_start(
     with its bearer token (a top-level navigation cannot carry one) and then
     navigate itself.
     """
-    result = begin_tiktok_oauth(user.id, oauth_service=oauth_service)
+    if business_id is not None:
+        # P101 W1: the switcher's business must be the caller's own.
+        if await businesses.member_of(session, business_id, user.id) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail={"code": "business_not_found"}
+            )
+    result = begin_tiktok_oauth(user.id, oauth_service=oauth_service, business_id=business_id)
     if staff_access_consent:
         # Fast track P16 (D25.6): the seller ticked "Juli staff may access my
         # shop data to support and operate the service" on the connect screen.

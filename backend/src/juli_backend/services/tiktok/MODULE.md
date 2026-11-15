@@ -76,7 +76,7 @@ The half of the TikTok handshake a signed-in seller starts. ADR-094 decision 3 n
 it as the follow-up that makes real runs on a seller's own shop possible; before it,
 ``GET /v1/auth/tiktok/start`` returned 404 in production and no seller could connect.
 
-- ``begin_tiktok_oauth(user_id, *, oauth_service=None) -> TikTokOAuthStartResult`` —
+- ``begin_tiktok_oauth(user_id, *, oauth_service=None, business_id=None) -> TikTokOAuthStartResult`` —
   starts a connect for an ALREADY-AUTHENTICATED user. Seals that user id into a
   signed, flow-scoped, TTL-bounded OAuth state and returns the Partner authorize URL
   carrying it. The id must come from the verified JWT: it is the only writable input

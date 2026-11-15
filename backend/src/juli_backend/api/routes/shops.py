@@ -92,6 +92,9 @@ class ShopeeShopRequest(BaseModel):
 
     shop_name: str = Field(min_length=1, max_length=200)
     shopee_shop_id: str | None = Field(default=None, pattern=r"^[0-9]{1,32}$")
+    #: P101 W1: the business selected in the switcher; omitted = the seller's only business, or a
+    #: new one named after the shop.
+    business_id: uuid.UUID | None = None
 
 
 class ShopeeShopResponse(BaseModel):
@@ -119,12 +122,29 @@ async def create_shopee_shop(
     """
     from sqlalchemy.exc import IntegrityError
 
+    from juli_backend.services import businesses
     from juli_backend.services.consent import grant_terms_consents_if_accepted
     from juli_backend.services.ingest import connect_shopee_shop
 
     try:
+        business_id = await businesses.business_for_new_shop(
+            session,
+            user_id=user.id,
+            user_email=user.email,
+            shop_name=body.shop_name,
+            requested=body.business_id,
+        )
+    except businesses.BusinessError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail={"code": "business_not_found"}
+        ) from None
+    try:
         shop = await connect_shopee_shop(
-            session, user_id=user.id, shop_name=body.shop_name, shopee_shop_id=body.shopee_shop_id
+            session,
+            user_id=user.id,
+            shop_name=body.shop_name,
+            shopee_shop_id=body.shopee_shop_id,
+            business_id=business_id,
         )
         await grant_terms_consents_if_accepted(session, user.id, [shop.id])
         await session.commit()

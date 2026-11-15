@@ -222,6 +222,17 @@ to run 074 copy 101 into `versions/` first. Idempotent; its downgrade is a no-op
 design (a backfilled row cannot be told from one the code stamped). Running it late
 is harmless; until it runs those runs are shown and measured as before.
 
+**Also outstanding (P101 W1): `130_businesses_backfill`** — gives every shop made before
+`130_businesses` its own business (the shop's id, named after the shop), makes `shops.user_id` its
+owner unless that person was removed from the shop, adds the shop's other active `shop_members` as
+members, marks Juli's TikTok sandbox shop `kind = 'sandbox'` (a `sandbox_write` credential, no
+`production_read` credential, no `production_write_shops` row), then sets `shops.business_id`
+NOT NULL. It is `INSERT` + `UPDATE` + `SET NOT NULL`, so it is deferred and chained above `102`
+(`130_businesses` → `101` → `074` → `102` → `130_businesses_backfill`). Idempotent; downgrade only
+drops the NOT NULL. Running it late is harmless: until it runs, a shop with no business keeps P93's
+access rule, and shops inserted after 130 already get a business from the `shops_default_business`
+trigger.
+
 **Also outstanding (NDA work, D76 / ADR-116 §4, D16): the payload clean-up command** —
 not a migration (it is an `UPDATE` of stored rows, which the gate refuses), but an
 operator command: it reduces stored `bronze.order_raw_payloads`,

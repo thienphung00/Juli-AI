@@ -7304,3 +7304,81 @@ h4 {
     padding-bottom: 168px; /* pill (48) + its offset above the bottom bar (96) + air */
   }
 }
+
+/* P101 W1: the header switcher, Doanh nghiệp ▾ → Shop ▾. */
+.business-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.business-switcher__group {
+  position: relative;
+  min-width: 0;
+}
+
+.business-switcher__button {
+  display: inline-flex;
+  max-width: 220px;
+  min-height: var(--juli-touch-target);
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  padding: 0 10px;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.business-switcher__button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.business-switcher__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.business-switcher__menu {
+  margin: 0;
+  list-style: none;
+}
+
+.business-switcher__shop {
+  gap: 8px;
+}
+
+.platform-mark {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.platform-mark--tiktok {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.platform-mark--shopee {
+  background: var(--warning);
+}
+
+@media (max-width: 480px) {
+  .business-switcher__button {
+    max-width: 150px;
+  }
+}

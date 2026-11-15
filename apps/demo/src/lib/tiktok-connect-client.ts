@@ -1,3 +1,5 @@
+import { readActiveBusiness } from "./shop-session";
+
 /**
  * `GET /v1/auth/tiktok/start` — the seller-initiated TikTok Shop connect
  * (issue #1970). Same-origin relative path, matching `shops-client.ts` and the
@@ -50,10 +52,13 @@ export class TikTokConnectError extends Error {
 export async function startTikTokConnect(
   accessToken: string,
   fetchImpl: typeof fetch = fetch,
+  businessId: string | null = readActiveBusiness(),
 ): Promise<TikTokOAuthStart> {
   // P16 (D25.6): connecting a shop accepts the staff-access notice shown under
   // the button; the API stamps the time on the seller's own user row.
-  const response = await fetchImpl(`${CONNECT_START_PATH}?${STAFF_ACCESS_CONSENT_QUERY}`, {
+  // P101 W1: the new shop joins the business selected in the header switcher.
+  const business = businessId ? `&business_id=${encodeURIComponent(businessId)}` : "";
+  const response = await fetchImpl(`${CONNECT_START_PATH}?${STAFF_ACCESS_CONSENT_QUERY}${business}`, {
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${accessToken}`,

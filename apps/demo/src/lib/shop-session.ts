@@ -61,4 +61,33 @@ export function clearActiveShop(): void {
   }
 
   removePersistent(ACTIVE_SHOP_STORAGE_KEY);
+  removePersistent(ACTIVE_BUSINESS_STORAGE_KEY);
+}
+
+/**
+ * P101 W1: the business picked in the header switcher (Business ▾ → Shop ▾). A shop the seller
+ * connects next joins it (`GET /v1/auth/tiktok/start?business_id=`); the backend re-checks that
+ * the seller is a member.
+ */
+export const ACTIVE_BUSINESS_STORAGE_KEY = "juli_demo_active_business";
+
+export function storeActiveBusiness(businessId: string | null): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (businessId) {
+    writePersistent(ACTIVE_BUSINESS_STORAGE_KEY, businessId);
+  } else {
+    removePersistent(ACTIVE_BUSINESS_STORAGE_KEY);
+  }
+}
+
+export function readActiveBusiness(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = readPersistent(ACTIVE_BUSINESS_STORAGE_KEY);
+  return raw && /^[0-9a-f-]{36}$/i.test(raw) ? raw : null;
 }

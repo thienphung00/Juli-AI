@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { INVITE_ERROR_COPY, InviteError, acceptInvite, forgetPendingInvite, previewInvite, rememberPendingInvite, type InvitePreview } from "../lib/ops/invite-client";
-import { storeActiveShop } from "../lib/shop-session";
+import { storeActiveBusiness, storeActiveShop } from "../lib/shop-session";
 import { readAuthSession } from "../lib/supabase-auth";
 
 /** /nhan-shop#token — the invited person joins the shop team (D25.7, P93). */
@@ -42,7 +42,8 @@ export function AcceptInvite({ inviteToken, fetchImpl }: { readonly inviteToken:
     if (!token || !inviteToken || !preview) return;
     try {
       const result = await acceptInvite(token, inviteToken, preview.keep_ops_access_asked && keep, fetchImpl);
-      storeActiveShop({ id: result.shop_id, name: preview.shop_name });
+      if (result.shop_id) storeActiveShop({ id: result.shop_id, name: preview.shop_name });
+      if (result.business_id) storeActiveBusiness(result.business_id);
       forgetPendingInvite();
       setDone(true);
     } catch (e) {
