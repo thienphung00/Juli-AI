@@ -118,6 +118,15 @@ describe("the side-by-side table", () => {
     expect(rows.find((r) => r.key === "cap")!.cells[0]!.v).toBe("✓ Chi marketing 1.112.311đ/ngày · trong trần 1.200.000đ/ngày");
   });
 
+  it("a change cell carries exactly one direction arrow", () => {
+    const card = versionedVoucher();
+    const rows = versionTable(card, card.versions!);
+    for (const r of rows) for (const c of r.cells) expect((c.d.match(/[▲▼]/g) ?? []).length).toBeLessThanOrEqual(1);
+    const withArrow = rows.flatMap((r) => r.cells).filter((c) => /[▲▼]/.test(c.d));
+    expect(withArrow.length).toBeGreaterThan(0);
+    expect(withArrow.every((c) => /^[▲▼] \S/.test(c.d))).toBe(true);
+  });
+
   it("a voucher shows usage against its limit, the per-buyer limit, the max discount and why versions match; flows are per day and per order", () => {
     const base = versionedVoucher();
     const detail = (used: number, limit: number | null, capped: boolean, binding = 0) => ({

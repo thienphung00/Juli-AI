@@ -40,7 +40,8 @@ describe("hosts", () => {
     const row = await screen.findByTestId("sq-card-card-voucher");
     // "Xem như shop" reads the cards as the seller gets them: no unsent drafts
     expect(seen).toContain("GET /v1/ops/shops/abc/shopee/recommendations?queue=all&audience=seller");
-    expect(seen.filter((x) => x.includes("/recommendations"))).toHaveLength(1);
+    // the Thực hiện tab count reads the execution states as well; the card list itself is read once
+    expect(seen.filter((x) => x.includes("/recommendations") && !x.includes("/execution"))).toHaveLength(1);
     expect(row.querySelector("a")).toHaveAttribute("href", "/ops/shops/abc/xem?trang=quyet-dinh&the=card-voucher&from=quyet-dinh");
   });
 });

@@ -151,6 +151,9 @@ function ShopShell({ params }: { readonly params: URLSearchParams }) {
   const list = useResource<CardList>(() => host.reco.list({ queue: "all" }), `${host.shopKey}|list|${tick}`);
   const planRes = useResource(() => (host.plan ? host.plan.api.get() : Promise.resolve(null)), `${host.shopKey}|plan-count|${tick}`);
   const prodRes = useResource(() => (host.products ? host.products() : Promise.resolve([])), `${host.shopKey}|products`);
+  // The Thực hiện tab lists the execution states, not the list queue: its heading and tab count are that row count.
+  const execRes = useResource(() => host.reco.executionStates(), `${host.shopKey}|exec-count|${tick}`);
+  const [execLive, setExecLive] = useState<number | null>(null);
   const plan = planRes.status === "ready" ? planRes.data : null;
   const names: Record<string, string> = {};
   if (prodRes.status === "ready") for (const p of prodRes.data) names[p.id] = p.name;
@@ -158,7 +161,8 @@ function ShopShell({ params }: { readonly params: URLSearchParams }) {
   const planCount = plan?.cards ? plan.cards.length : null;
   const cardsAll = list.status === "ready" ? list.data.cards : [];
   const tops = topEntries(cardsAll).map((e) => e.top);
-  const counts = { ...tabCounts(cardsAll), "de-xuat": tops.length };
+  const execCount = execLive ?? (execRes.status === "ready" && Array.isArray(execRes.data.cards) ? execRes.data.cards.length : null);
+  const counts = { ...tabCounts(cardsAll), "de-xuat": tops.length, ...(execCount === null ? {} : { "thuc-hien": execCount }) };
   const shown = filterCards(tops, metric, product);
   const title = tab === "de-xuat" ? (xem === "ke-hoach" ? "Kế hoạch nháp" : findingOf(shown, metric)) : `${fmt(counts[tab], 0)} thẻ`;
   const frame = (t: string, eyebrow: string | undefined, children: ReactNode) => (
@@ -171,7 +175,7 @@ function ShopShell({ params }: { readonly params: URLSearchParams }) {
     title,
     undefined,
     tab === "thuc-hien" ? (
-      <ThucHienView />
+      <ThucHienView onCount={setExecLive} />
     ) : tab === "do-luong" ? (
       <DoLuongView />
     ) : (

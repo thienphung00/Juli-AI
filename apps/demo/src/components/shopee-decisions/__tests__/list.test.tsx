@@ -161,6 +161,18 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     expect(await screen.findByTestId("sd-do-luong")).toBeInTheDocument();
   });
 
+  it("the Thực hiện heading and tab count are the rows that tab lists, not the list queue", async () => {
+    const row = (id: string, state: "cho_dien" | "khop") => ({
+      card_id: id, code: `JC-${id}`, title: "Tiêu đề", family: "listing" as const, family_label: "Listing · Tiêu đề", change_kind: "title", product_id: "P1", state, completed: 1, bad: null,
+      fields: { filled: 0, total: 1 }, jobs: { total: 1, filled: 0, saved: 0, failed: 0 }, noun: "tiêu đề", not_seen: false, mismatch: null, executed_at: null, verified_at: null, measure_start: null, measure_days: null, open_job: null,
+    });
+    const execution = { platform: "shopee" as const, connector: { version: null, last_check_at: null, connected: false, seller_centre_open: null }, cards: [row("a", "cho_dien"), row("b", "khop")], counts: {} };
+    renderReco(<DecisionsView params={params("tab=thuc-hien")} />, fakeReco({ list: list([]), execution }));
+    expect(await screen.findAllByTestId(/^sd-th-(a|b)$/)).toHaveLength(2);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "2 thẻ" })).toBeInTheDocument());
+    expect(within(screen.getByRole("navigation", { name: /./ })).getByRole("link", { name: "Thực hiện · 2" })).toBeInTheDocument();
+  });
+
   it("a refusal is a state of its own, not an empty list", async () => {
     const err = Object.assign(new Error("x"), { status: 409, code: "not_a_shopee_shop" });
     const { ShopeeApiError } = await import("../../../lib/shopee-analytics/client");

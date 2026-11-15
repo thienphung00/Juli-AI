@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { DASH, fmt } from "../../lib/shopee-analytics/format";
+import { shopeeImageSrc } from "../../lib/shopee-analytics/image-src";
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { READBACK_LABEL, countdownOf, readbackOf, readingsOf, stepText, vnWhen, type Readback } from "../../lib/shopee-decisions/model";
@@ -47,6 +48,28 @@ export function PageLink({ page }: { readonly page: SheetPage }) {
   );
 }
 
+const COVER_BEFORE = /^(Ảnh bìa hiện tại(?: \([^)]*\))?):\s*(.+)$/;
+
+/** The cover step's "before" names the image by its path; show the picture (or just the label), never the path. */
+function BeforeCell({ step }: { readonly step: ExecutionStep }) {
+  const text = stepText(step.before, step.unit);
+  const m = typeof step.before === "string" ? COVER_BEFORE.exec(step.before.trim()) : null;
+  if (!m) return <span className="sd-step__before">{text}</span>;
+  const src = shopeeImageSrc(m[2]);
+  return (
+    <span className="sd-step__before">
+      {m[1]}
+      {src ? (
+        <>
+          {" "}
+          {/* eslint-disable-next-line @next/next/no-img-element -- seller image URLs, not optimisable assets */}
+          <img alt="Ảnh bìa hiện tại" data-testid="sd-step-cover" src={src} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4, verticalAlign: "middle" }} />
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 function StepRow({ step }: { readonly step: ExecutionStep }) {
   return (
     <li className="sd-step" data-testid={`sd-step-${step.order}`}>
@@ -56,7 +79,7 @@ function StepRow({ step }: { readonly step: ExecutionStep }) {
         {step.page ? <PageLink page={step.page} /> : null}
         {step.starts ? <span className="sa-hint">Bật lúc {vnWhen(step.starts)}</span> : null}
       </span>
-      <span className="sd-step__before">{stepText(step.before, step.unit)}</span>
+      <BeforeCell step={step} />
       <span aria-hidden="true">→</span>
       <b className="sd-step__after">{stepText(step.after, step.unit)}</b>
       {step.copy ? <CopyButton label={step.field} text={step.copy} /> : <span />}

@@ -1,4 +1,4 @@
-import { cleanup, configure, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -141,10 +141,17 @@ describe("S2-D2 · the sample shop is the real seller app", () => {
 
   it("Quyết định lists every card on the sample shop, a running-campaign edit included", async () => {
     for (const reviewer of [SAMPLE, null]) {
-      withReviewer(reviewer, <DecisionsView params={params()} />, fakeReco({ list: list(all) }));
+      // the Thực hiện count is the number of execution rows (one for the approved card)
+      const execution = {
+        platform: "shopee" as const,
+        connector: { version: null, last_check_at: null, connected: false, seller_centre_open: null },
+        counts: {},
+        cards: [{ card_id: "c-promo", code: "JC-1", title: "Khuyến mãi", family: "promotion" as const, family_label: "Khuyến mãi", change_kind: "promotion", product_id: "P-5", state: "cho_dien" as const, completed: 1, bad: null, fields: { filled: 0, total: 1 }, jobs: { total: 1, filled: 0, saved: 0, failed: 0 }, noun: "khuyến mãi", not_seen: false, mismatch: null, executed_at: null, verified_at: null, measure_start: null, measure_days: null, open_job: null }],
+      };
+      withReviewer(reviewer, <DecisionsView params={params()} />, fakeReco({ list: list(all), execution }));
       expect(await screen.findByTestId("sq-card-c-ads")).toBeInTheDocument();
       expect(screen.getByTestId("sq-card-c-title")).toBeInTheDocument();
-      expect(tabs()).toEqual(["Đề xuất · 2", "Thực hiện · 1", "Đo lường · 0"]);
+      await waitFor(() => expect(tabs()).toEqual(["Đề xuất · 2", "Thực hiện · 1", "Đo lường · 0"]));
       cleanup();
     }
   });
