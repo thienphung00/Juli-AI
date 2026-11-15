@@ -35,8 +35,9 @@ def test_the_rule_checks_are_the_designs_step_4(case: dict[str, Any]) -> None:
 
 @pytest.mark.parametrize("case", CASES["invalid"], ids=lambda c: c["name"])
 def test_a_spec_outside_the_shapes_and_limits_is_refused(case: dict[str, Any]) -> None:
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as refused:
         bn.BannerSpec.model_validate(case["spec"])
+    assert refused.value.error_count() >= 1
 
 
 def test_every_kind_has_a_shape_with_positions_and_bottom_left_is_never_one() -> None:
