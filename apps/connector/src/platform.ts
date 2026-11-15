@@ -37,7 +37,7 @@ export interface Reader {
 
 /** The pack's texts, in the seller's own words. */
 export interface PackLabels {
-  /** The platform as the seller says it ("Shopee"). */
+  /** The platform as the seller says it (its brand name). */
   name: string;
   /** The listing fill panel's banners that name the platform. */
   panel: PanelLabels;

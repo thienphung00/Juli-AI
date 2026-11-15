@@ -55,7 +55,7 @@ export function lastFinishedDays(nowMs: number, count: number): string[] {
  * midnight:
  * - "Hôm qua": `period=yesterday`, `end_time = start_time + 86399`;
  * - a picked day ("Theo ngày"): `period=day`, `end_time = start_time + 86400` (the
- *   next midnight). `period=day` with `+ 86399` is refused by Shopee (code 10006),
+ *   next midnight). `period=day` with `+ 86399` is refused by the seller centre (code 10006),
  *   so it is not a real shape and is rejected here too.
  * The traffic dashboard sends `period` + `dt` instead (`dt=YYYYMMDD` recorded;
  * `YYYY-MM-DD` and unix seconds are still read).

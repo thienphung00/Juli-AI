@@ -398,11 +398,12 @@ export function fillActive(shopId: string | undefined): boolean {
 
 // -- fill jobs (P97 D85.6): approved cards queued by Juli, opened and filled page by page -------
 //
-// The allowlist is "this token's shop" (a paired Connector), NOT PILOT_SHOP_IDS: Juli serves jobs
+// The allowlist is "this token's shop" (a paired Connector): Juli serves jobs
 // only for the token's own shop and only while its server flag CONNECTOR_FILL_LISTING is on (the
 // kill switch). Same rules as the listing fill: the Connector types and highlights, the person
 // presses Shopee's own Lưu / Xác nhận / Gửi. A job page open costs READER_PAGE_LOAD_COST against
-// the shared daily request budget; a CAPTCHA / login wall / password prompt stops it.
+// the shared daily request budget; a CAPTCHA / login wall / password prompt stops it. The runner
+// and its constants are core's (core/jobs/fill-jobs.ts, core/config.ts); the pages are Shopee's.
 
 /** The only Seller Centre pages a job may open (path only; a query string is allowed on vouchers). */
 export const FILL_JOB_PAGES = {
