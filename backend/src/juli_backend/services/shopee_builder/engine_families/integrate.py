@@ -250,9 +250,17 @@ class Evaluated:
         return {"code": self.refusal.code, "message": self.refusal.text or self.refusal.code}
 
 
+def base_aov(base: FunnelBase) -> Decimal | None:
+    """The base's GMV ÷ orders (what an AOV lift multiplies); None without orders."""
+    orders, gmv = base.total("orders"), base.total("gmv")
+    return gmv / orders if orders and gmv is not None else None
+
+
 def extras_for(base: FunnelBase) -> FamilyExtras:
     return FamilyExtras(
-        contribution_rate=base.contribution_rate, profit_per_order=profit_per_order(base)
+        contribution_rate=base.contribution_rate,
+        profit_per_order=profit_per_order(base),
+        aov=base_aov(base),
     )
 
 
@@ -516,11 +524,7 @@ def combo_listing_result(
             price=row.price,
             profit_per_order=row.profit_per_order,
         )
-    extras = FamilyExtras(
-        pack=pack,
-        contribution_rate=base.contribution_rate,
-        profit_per_order=profit_per_order(base),
-    )
+    extras = replace(extras_for(base), pack=pack)
     ctx = BuilderContext(env=env)
     try:
         option = option_for(row, ctx, extras)
