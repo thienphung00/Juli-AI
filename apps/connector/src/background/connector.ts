@@ -70,6 +70,9 @@ export type CaptureOutcome =
   /** Juli refused the shop (403 consent_required): nothing more is sent until the seller retries. */
   | "refused";
 
+/** The backfill's provisional item pages (D31.6): an error code stops only that dataset (0.3.20). */
+const ITEM_BACKFILL_DATASETS: ReadonlySet<Dataset> = new Set<Dataset>(["item_by_source", "item_performance"]);
+
 /** After a transient Seller Centre failure, the backfill waits this long before the day again. */
 const BACKFILL_RETRY_DELAY_MS = 10 * 60_000;
 
@@ -491,9 +494,13 @@ export class Connector {
       case "unpaired":
         return !!state.token;
       case "invalid_param":
-      case "shopee_error":
-        // Like a dataset stop: a new extension version tries again.
-        return stop.version !== this.deps.version;
+      case "shopee_error": {
+        // Like a dataset stop: a new extension version tries again. 0.3.20: so does a backfill whose
+        // stopping dataset has since posted (a reader / the daily sync read it fine after the stop).
+        if (stop.version !== this.deps.version) return true;
+        const posted = stop.dataset ? state.lastPosts[stop.dataset]?.at : undefined;
+        return posted !== undefined && Date.parse(posted) > Date.parse(stop.at);
+      }
       case "session":
         return false; // resumed by pageCapture once the page loads data again
     }
@@ -623,9 +630,11 @@ export class Connector {
     });
 
     for (const result of results) {
-      const body = result.body as { code?: unknown } | null;
+      const body = result.body as { code?: unknown; error?: unknown } | null;
       const ok2xx = result.status >= 200 && result.status < 300;
-      const hasCode = typeof body === "object" && body !== null && "code" in body;
+      // 0.3.20: `{error, data}` answers carry their code as `error`.
+      const hasCode = typeof body === "object" && body !== null && ("code" in body || "error" in body);
+      const answerCode = typeof body === "object" && body !== null ? ("code" in body ? body.code : body.error) : undefined;
       if (isDataAnswer(result.status, result.body) || (ok2xx && typeof body === "object" && body !== null && !hasCode)) {
         // Data (or a reshaped answer, which handleCapture reports as drift).
         const outcome = await this.handleCapture({ url: result.url, body: result.body, capturedAt: result.capturedAt });
@@ -658,7 +667,20 @@ export class Connector {
         // Refused, or a login page instead of JSON: the Seller Centre session is gone.
         return this.stopBackfill(backfill, "session", { day, dataset: result.dataset, code: `http_${result.status}` });
       }
-      if (ok2xx && body?.code === 10006) {
+      if (ok2xx && hasCode && ITEM_BACKFILL_DATASETS.has(result.dataset) && classify(result.status, result.body) === "error") {
+        // 0.3.20: an item page (provisional, D31.6) answering with an error code stops THAT dataset
+        // for this version (like drift), not the whole 30-day backfill; the other datasets go on.
+        const current = await this.state();
+        await saveState(this.deps.storage, {
+          stopped: {
+            ...current.stopped,
+            [result.dataset]: { version: this.deps.version, at: this.iso(), unexpected: [`code=${String(answerCode).slice(0, 20)}`], missing: [] },
+          },
+          lastError: { at: this.iso(), code: `shopee_${String(answerCode).slice(0, 20)}` },
+        });
+        continue;
+      }
+      if (ok2xx && answerCode === 10006) {
         // "err:invalid param": the recorded day shape no longer works. Record, do not loop.
         await saveState(this.deps.storage, { lastError: { at: this.iso(), code: "shopee_10006" } });
         return this.stopBackfill(backfill, "invalid_param", { day, dataset: result.dataset, code: "10006" });
@@ -674,7 +696,7 @@ export class Connector {
         });
         return "retry_later";
       }
-      const code = ok2xx ? String(body?.code) : `http_${result.status}`;
+      const code = ok2xx ? String(answerCode) : `http_${result.status}`;
       return this.stopBackfill(backfill, "shopee_error", { day, dataset: result.dataset, code });
     }
 

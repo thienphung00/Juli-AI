@@ -327,3 +327,63 @@ describe("gateway refusal: 403 consent_required (PR #2199)", () => {
     expect(other.storage.data.consentBlocked).toBeUndefined();
   });
 });
+
+describe("0.3.20: what pauses the backfill, and what resumes it", () => {
+  it("an item page answering with an error code stops only that dataset; the day goes on without it", async () => {
+    const storage = new MemoryStorage();
+    const t = setup(storage);
+    expect(await t.connector.backfillStep()).toBe("requested");
+    const message = t.sent.at(-1)!;
+    const all = answer(message, t.clock.now, { item_by_source: { body: { code: 9, msg: "x" } } });
+    const cut = all.findIndex((r) => r.dataset === "item_by_source") + 1; // the hook stops there
+    expect(await t.connector.backfillResult(message.day, "done", all.slice(0, cut))).toBe("partial");
+    expect(backfillOf(storage).status).toBe("running");
+    expect((storage.data.stopped as Record<string, { version: string }>).item_by_source).toMatchObject({ version: "0.2.0" });
+    // the next step goes on with the other datasets; item_by_source waits for a new version
+    expect(await t.connector.backfillStep()).toBe("requested");
+    expect(t.sent.at(-1)!.plan.some((p) => p.dataset === "item_by_source")).toBe(false);
+  });
+
+  it("the same answer with `error` instead of `code` is an error answer too, not data and not drift", async () => {
+    const storage = new MemoryStorage();
+    const t = setup(storage);
+    await t.connector.backfillStep();
+    const message = t.sent.at(-1)!;
+    const all = answer(message, t.clock.now, { item_by_source: { body: { error: 9, message: "x" } } });
+    const cut = all.findIndex((r) => r.dataset === "item_by_source") + 1;
+    expect(await t.connector.backfillResult(message.day, "done", all.slice(0, cut))).toBe("partial");
+    expect((storage.data.stopped as Record<string, { unexpected: string[] }>).item_by_source?.unexpected).toEqual(["code=9"]);
+    expect(backfillOf(storage).status).toBe("running");
+  });
+
+  it("the new {error: 0, data} item-list envelope is accepted as data", async () => {
+    const storage = new MemoryStorage();
+    const t = setup(storage);
+    await t.connector.backfillStep();
+    const message = t.sent.at(-1)!;
+    const list = (itemList as { result: unknown }).result;
+    const results = answer(message, t.clock.now, { item_by_source: { body: { error: 0, data: list } } });
+    expect(await t.connector.backfillResult(message.day, "done", results)).toBe("accepted");
+    expect(storage.data.stopped ?? {}).not.toHaveProperty("item_by_source");
+  });
+
+  it("a stop names the page that tripped it, and lifts once that page posted again", async () => {
+    const storage = new MemoryStorage();
+    const t = setup(storage);
+    await t.connector.backfillStep();
+    const message = t.sent.at(-1)!;
+    const results = answer(message, t.clock.now, { traffic_overview: { body: { code: 4321, msg: "x" } } }).slice(0, 1);
+    expect(await t.connector.backfillResult(message.day, "done", results)).toBe("stopped:shopee_error");
+    expect(backfillLabel(backfillOf(storage))).toBe(
+      "Tạm dừng lấy số liệu 30 ngày trước (0/30 ngày): Seller Centre đã thay đổi (Doanh số theo nguồn, mã 4321)",
+    );
+    t.clock.now += 60_000;
+    expect(await t.connector.backfillStep()).toBe("stopped");
+    // the daily sync / the traffic reader reads the same page fine afterwards: the backfill resumes
+    const url = `${SC}/api/mydata/v1/product/traffic/overview/?start_time=1790787600&end_time=1790874000&period=day&order_type=confirmed`;
+    t.clock.now += 60_000;
+    expect(await t.connector.pageCapture({ url, body: overview, capturedAt: t.clock.now })).toBe("posted");
+    expect(await t.connector.backfillStep()).toBe("requested");
+    expect(t.sent.at(-1)!.day).toBe(message.day);
+  });
+});

@@ -2,7 +2,17 @@
 // controls by their visible labels → type the approved text → show the panel. It never clicks,
 // submits or navigates; a page it does not recognise gets no fill, only the copy buttons.
 
-import { FILL_CODE_PATTERN, FILL_EDIT_PATH, FILL_HASH_KEY, FILL_LABELS, FILL_POLL_MS, FILL_WAIT_MS } from "../config";
+import {
+  FILL_CODE_PATTERN,
+  FILL_EDIT_PATH,
+  FILL_HASH_KEY,
+  FILL_LABELS,
+  FILL_MAX_REWRITES,
+  FILL_POLL_MS,
+  FILL_RECHECK_MS,
+  FILL_STABLE_MS,
+  FILL_WAIT_MS,
+} from "../config";
 import { findControl } from "./locate";
 import { type PanelDeps, type PanelInput, showPanel } from "./panel";
 import type { FillField, FillKey, FillReply, FillRequest } from "./types";
@@ -56,12 +66,46 @@ async function locate(deps: RunDeps, fields: readonly FillField[]): Promise<Map<
   }
 }
 
-function fillOne(control: HTMLElement, field: FillField): boolean {
-  const current = readValue(control).replace(/\r/g, "");
-  const next = targetValue(current, field.value, field.mode);
-  if (current === next || writeValue(control, next)) {
-    highlight(control);
-    return true;
+const valueOf = (control: HTMLElement) => readValue(control).replace(/\r/g, "");
+
+/**
+ * Wait until the page has loaded the product into the control: its value unchanged for
+ * FILL_STABLE_MS and not empty (an existing product always has a title / description). Gives up
+ * waiting at `until` (the FILL_WAIT_MS cap) and writes anyway.
+ */
+async function settled(deps: RunDeps, control: HTMLElement, until: number): Promise<void> {
+  let last = valueOf(control);
+  let since = deps.now();
+  for (;;) {
+    const now = deps.now();
+    if (now >= until) return;
+    if (last.trim() !== "" && now - since >= FILL_STABLE_MS) return;
+    await deps.sleep(FILL_POLL_MS);
+    const value = valueOf(control);
+    if (value !== last) {
+      last = value;
+      since = deps.now();
+    }
+  }
+}
+
+/**
+ * Write the field the way a person typing would (native setter + input/change), then read it back
+ * after FILL_RECHECK_MS and write it again if the page put its own value back (at most
+ * FILL_MAX_REWRITES times). True only when the last read equals the target.
+ */
+async function fillOne(deps: RunDeps, control: HTMLElement, field: FillField, until: number): Promise<boolean> {
+  await settled(deps, control, until);
+  for (let attempt = 0; attempt <= FILL_MAX_REWRITES; attempt += 1) {
+    if (!deps.doc.contains(control)) return false;
+    const next = targetValue(valueOf(control), field.value, field.mode);
+    if (valueOf(control) !== next && !writeValue(control, next)) return false;
+    await deps.sleep(FILL_RECHECK_MS);
+    if (!deps.doc.contains(control)) return false;
+    if (valueOf(control) === next) {
+      highlight(control);
+      return true;
+    }
   }
   return false;
 }
@@ -84,11 +128,12 @@ export async function runFill(deps: RunDeps): Promise<RunResult> {
     showPanel(deps.doc, { outcome: "page_only", request }, deps.panel);
     return { status: "page_only" };
   }
+  const until = deps.now() + FILL_WAIT_MS;
   const controls = await locate(deps, request.fields);
   const filled: FillKey[] = [];
   for (const f of request.fields) {
     const control = controls.get(f.key);
-    if (control && deps.doc.contains(control) && fillOne(control, f)) filled.push(f.key);
+    if (control && deps.doc.contains(control) && (await fillOne(deps, control, f, until))) filled.push(f.key);
   }
   const input: PanelInput =
     filled.length === request.fields.length

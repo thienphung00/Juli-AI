@@ -47,6 +47,11 @@ export const READER_ENDPOINTS = {
   // name, address and phone never leave it); later list pages are replayed from the page's template.
   order_search: { method: "POST", path: "/api/v3/order/search_order_list_index", capture: true },
   order_cards: { method: "POST", path: "/api/v3/order/get_order_list_card_list", capture: true },
+  // -- one order (0.3.20, captured 2026-11-15): the list page loads through Shopee's DRM bundle, so
+  // the reader takes the order ids from the page's links and reads each order with this GET. Its
+  // answer carries the buyer's address: it is trimmed IN THE PAGE (trimOrderDetail, an allowlist)
+  // before it leaves the page, and is never kept as a captured answer.
+  order_detail: { method: "GET", path: "/api/v3/order/get_one_order" },
   // -- per-order income (recon 2026-11-09): one GET per completed order, captured from the order
   // page the scheduler opened, replayed for the others with only the order id changed.
   order_income_components: {
@@ -166,6 +171,11 @@ export function isReadOnlyPasPath(pathname: string): boolean {
 export function isReadOnlyOrderPath(pathname: string): boolean {
   const last = pathname.replace(/\/+$/, "").split("/").pop() ?? "";
   return pathname.startsWith("/api/v3/order/") && /^(search_|get_)[a-z_]*list/.test(last);
+}
+
+/** The one order-detail path the Connector reads (0.3.20): a GET of one order, nothing else. */
+export function isReadOnlyOrderDetailPath(pathname: string): boolean {
+  return pathname.replace(/\/+$/, "") === "/api/v3/order/get_one_order";
 }
 
 /** The page a reader job opens: the campaign's own edit page for ads_detail, else the reader's page. */

@@ -10,6 +10,7 @@ import {
   READER_PAGE_GAP_JITTER_MS,
   READER_PAGE_GAP_MS,
   ORDERS_JOB_TIMEOUT_MS,
+  ADS_JOB_TIMEOUT_MS,
   SAMPLE_SHOP_IDS,
   ADS_HISTORY_DAY_COST,
   TODAY_REQUEST_RESERVE,
@@ -137,6 +138,7 @@ function setup(options: { token?: boolean; backfillBusy?: boolean; readers?: rea
             [...(job.days ?? []), ...(job.historyDays ?? [])].map((day) => [`ads_campaign_daily:${day}`, flags.adsOutcome[day] ?? "posted"]),
           );
         }
+        if (job.id === "orders") return { order_lines: "posted" };
         return { [job.id]: "posted" };
       },
     },
@@ -1258,5 +1260,69 @@ describe("0.3.19: the 90-day ads history", () => {
     await ctx.scheduler.onResult(tab.id, { job: "ads", status: "done", responses: [...adsReplies(job.days), ...history([days[89]!])] });
     expect((await ctx.read())?.adsHistory).toMatchObject({ status: "done", earliest: days[89] });
     expect((await ctx.read())?.adsHistory?.limit).toBeUndefined();
+  });
+});
+
+describe("0.3.20: the ads page gets a longer wait and one reload", () => {
+  it("waits twice the general cap, reloads once without the history days, then gives up", async () => {
+    const ctx = setup({ readers: ["ads"] });
+    expect(await ctx.scheduler.tick()).toBe("opened");
+    const first = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(first.id, first.url);
+    const planned = (ctx.tabs.sent.at(-1)?.message as { job: { historyDays?: string[] } }).job;
+    expect(planned.historyDays?.length).toBeGreaterThan(0);
+    ctx.clock.now += READER_JOB_TIMEOUT_MS + 1;
+    expect(await ctx.scheduler.tick()).toBe("waiting"); // past the general cap: the ads page still loads
+    const usedBefore = (ctx.storage.data.budget as { used: number }).used;
+    ctx.clock.now += ADS_JOB_TIMEOUT_MS;
+    expect(await ctx.scheduler.tick()).toBe("reopened");
+    expect(ctx.tabs.closed).toContain(first.id);
+    // the first tab's unreported requests are charged (budget kept), plus the new page load
+    expect((ctx.storage.data.budget as { used: number }).used).toBeGreaterThan(usedBefore);
+    const second = ctx.tabs.current;
+    expect(second.id).not.toBe(first.id);
+    await ctx.scheduler.onTabReady(second.id, second.url);
+    const retry = (ctx.tabs.sent.at(-1)?.message as { job: { id: string; days: string[]; historyDays?: string[] } }).job;
+    expect(retry.id).toBe("ads");
+    expect(retry.days.length).toBeGreaterThan(0);
+    expect(retry.historyDays).toBeUndefined();
+    ctx.clock.now += ADS_JOB_TIMEOUT_MS + 1;
+    expect(await ctx.scheduler.tick()).toBe("finished");
+    expect((await ctx.read())?.lastRun?.outcomes.ads).toBe("timeout");
+    expect(ctx.tabs.opened).toHaveLength(2);
+  });
+
+  it("the reloaded page's answer is posted like any other", async () => {
+    const ctx = setup({ readers: ["ads"] });
+    await ctx.scheduler.tick();
+    await ctx.scheduler.onTabReady(ctx.tabs.current.id, ctx.tabs.current.url);
+    ctx.clock.now += ADS_JOB_TIMEOUT_MS + 1;
+    expect(await ctx.scheduler.tick()).toBe("reopened");
+    const second = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(second.id, second.url);
+    const retry = (ctx.tabs.sent.at(-1)?.message as { job: { days: string[] } }).job;
+    await ctx.scheduler.onResult(second.id, { job: "ads", status: "done", responses: adsReplies(retry.days) });
+    expect((await ctx.read())?.lastRun?.outcomes.ads).toMatch(/^done:/);
+  });
+});
+
+describe("0.3.20: the orders outcome is truthful", () => {
+  it("a list read that produced no order line is an error, and a page with no orders is no_orders", async () => {
+    const ctx = setup({ readers: ["orders"] });
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_lines: "ignored" });
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "orders", status: "done", responses: [] });
+    expect((await ctx.read())?.lastRun?.outcomes.orders).toBe("error:orders:0_rows:ignored");
+
+    const empty = setup({ readers: ["orders"] });
+    (empty.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_lines: "ignored" });
+    await empty.scheduler.tick();
+    const t2 = empty.tabs.current;
+    await empty.scheduler.onTabReady(t2.id, t2.url);
+    await empty.scheduler.onResult(t2.id, { job: "orders", status: "done", detail: "no_new_orders", responses: [] });
+    expect((await empty.read())?.lastRun?.outcomes.orders).toBe("no_orders");
+    expect((await empty.read())?.ordersCoveredDay).toBe("2026-11-03");
   });
 });

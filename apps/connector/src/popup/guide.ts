@@ -241,9 +241,11 @@ export function outcomeStatus(outcome: string): { status: string; tone: Tone } {
   const head = outcome.split(/[:|]/, 1)[0] ?? outcome;
   if (head === "done") {
     const failed = /=(rejected|drift|stopped|refused)/.test(outcome);
-    return failed
-      ? { status: "Đã đọc, một phần chưa gửi được (Seller Centre có thể đã đổi giao diện)", tone: "warn" }
-      : { status: "Đã đọc và gửi", tone: "ok" };
+    if (failed) return { status: "Đã đọc, một phần chưa gửi được (Seller Centre có thể đã đổi giao diện)", tone: "warn" };
+    // 0.3.20: "read and sent" only when something was sent (or held / queued to send).
+    if (/=(posted|queued|held)\b/.test(outcome)) return { status: "Đã đọc và gửi", tone: "ok" };
+    if (/=empty\b/.test(outcome) && !/=ignored\b/.test(outcome)) return { status: "Đã đọc: không có số liệu mới", tone: "muted" };
+    return { status: "Đã đọc nhưng không có số liệu để gửi: sẽ thử lại lần sau", tone: "warn" };
   }
   switch (head) {
     case "no_items":
