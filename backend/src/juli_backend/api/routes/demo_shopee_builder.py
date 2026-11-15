@@ -11,10 +11,12 @@ change. Only the seller of that shop. The logic is ``services/shopee_builder``.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, date, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api import reviewer as reviewer_gate
@@ -25,6 +27,8 @@ from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.services import shop_inputs
+from juli_backend.services.shopee_builder import banner, banner_store
+from juli_backend.services.shopee_builder import service as builder_service
 from juli_backend.services.shopee_recommendations import manual, seller_view
 
 router = APIRouter(prefix="/demo/shopee", tags=["demo-shopee"])
@@ -199,6 +203,61 @@ async def builder_cover_drafts(
         out = await common.h_cover_drafts(session, shop_id, body, client, now=_now())
     finally:
         await session.commit()  # keeps the gate's llm_call_log row
+    return out
+
+
+@router.get("/builder/products/{item_id}/banner")
+async def builder_banner(
+    item_id: common.ItemPath,
+    card_id: uuid.UUID | None = None,
+    as_of: AsOf = None,
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Ảnh bìa banner editor: the product, the shop's colours, the card's stored banner and the
+    values Juli can fill (each with its source). Reads only."""
+    try:
+        return await banner_store.banner_context(
+            session, _shopee(shop), item_id=item_id, card_id=card_id, as_of=as_of, now=_now()
+        )
+    except banner_store.BannerRefused as exc:
+        raise HTTPException(404, detail=common.detail(exc.code, exc.message)) from None
+    except builder_service.NoShopeeData:
+        raise common.no_data() from None
+    except LookupError:
+        raise common.not_found(item_id) from None
+
+
+class BannerSaveBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    item_id: common.ItemPath
+    card_id: uuid.UUID | None = None
+    spec: banner.BannerSpec
+
+
+@router.post("/builder/banner")
+async def builder_banner_save(
+    body: BannerSaveBody,
+    shop: Shop = Depends(require_writable_shop),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Save the seller's banner (a new ``card_content_specs`` row; the rule checks filled in)."""
+    try:
+        out = await banner_store.save_banner(
+            session,
+            _shopee(shop),
+            item_id=body.item_id,
+            card_id=body.card_id,
+            spec=body.spec,
+            user_id=user.id,
+            now=_now(),
+        )
+        await session.commit()
+    except banner_store.BannerRefused as exc:
+        await session.rollback()
+        status = 404 if exc.code == "card_not_found" else 422
+        raise HTTPException(status, detail=common.detail(exc.code, exc.message)) from None
     return out
 
 

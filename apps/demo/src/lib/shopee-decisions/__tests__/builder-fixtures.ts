@@ -186,6 +186,8 @@ export function fakeBuilder(
     choose: ChooseResult;
     group: GroupResult;
     channelSplitProducts: () => Promise<import("../builder-api").ChannelSplitProducts>;
+    /** P100 S2-E: the seller's banner editor routes (absent: the Ops builder, overlays only). */
+    banner: import("../builder-api").BannerContext;
   }> = {},
   failWith: Failures = {},
 ): FakeBuilder {
@@ -199,6 +201,12 @@ export function fakeBuilder(
   return {
     calls,
     ...(data.channelSplitProducts ? { channelSplitProducts: data.channelSplitProducts } : {}),
+    ...(data.banner
+      ? {
+          banner: (id: string, cardId?: string | null) => run("banner", data.banner!, id, cardId),
+          saveBanner: (b: { readonly itemId: string; readonly cardId?: string | null; readonly spec: import("../banner").BannerSpec }) => run("saveBanner", { id: "spec-1", spec: b.spec, source: "seller" }, b),
+        }
+      : {}),
     products: (...a) => run("products", data.products ?? pickerProducts(), ...a),
     variations: (id) => run("variations", data.variations ?? variationList(id), id),
     coPurchase: (id) => run("coPurchase", coPurchase(), id),
@@ -226,3 +234,18 @@ export function fakeBuilder(
     undoExclusion: (id, note) => run("undoExclusion", undefined, id, note),
   };
 }
+
+/** P100 S2-E: what the banner editor opens with (a product, the default palette, Juli's values). */
+export function bannerContext(over: Partial<import("../builder-api").BannerContext> = {}): import("../builder-api").BannerContext {
+  return {
+    item: { item_id: P_ZIP, name: "Túi zip thực phẩm D", cover_url: "/sample-shop/hn-tdr.svg", price: 59_000 },
+    palette: ["#2F6B4F", "#F4EFE6", "#E07A3F"],
+    stored: null,
+    prefill: {
+      voucher: { values: { value: 10_000, min: 200_000 }, sources: { value: { card_id: "card-v", field: "change.after.value" }, min: { card_id: "card-v", field: "change.after.min_spend" } } },
+      unit: { values: { price: 59_000 }, sources: { price: { card_id: null, field: "item.price" } } },
+    },
+    ...over,
+  };
+}
+

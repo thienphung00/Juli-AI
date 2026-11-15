@@ -657,6 +657,7 @@ async def test_the_load_seeds_the_card_content_and_every_title_passes_the_live_s
     from juli_backend.services.sample_shop.catalog import KEYWORDS, PRODUCTS
     from juli_backend.services.shopee_builder import drafts
     from juli_backend.services.shopee_builder import service as builder
+    from juli_backend.services.shopee_builder.banner import BannerSpec
     from juli_backend.services.shopee_recommendations import store
 
     factory, first = await _load(engine)
@@ -712,10 +713,13 @@ async def test_the_load_seeds_the_card_content_and_every_title_passes_the_live_s
             assert b["position"] in positions[b["shape"]] and b["colour"] in palette
             assert set(b["sources"]) == set(b["values"])
             assert all(v is not None for v in b["values"].values())
+        # S2-E: every seeded banner is one the banner editor opens and saves unchanged
+        BannerSpec.model_validate(r.spec)
         if open_cards[r.proposal_id] == "min_spend_voucher":
             (voucher,) = [b for b in r.spec["banners"] if b["kind"] == "voucher"]
+            assert voucher["shape"] == "the" and voucher["position"] == "middle_right"
             assert isinstance(voucher["values"]["value"], int)
-            assert isinstance(voucher["values"]["min_spend"], int)
+            assert isinstance(voucher["values"]["min"], int)
             assert all(s["card_id"] == str(r.proposal_id) for s in voucher["sources"].values())
 
     again = await loader.load(factory, generate(END), now=NOW)

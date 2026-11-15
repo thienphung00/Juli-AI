@@ -1,3 +1,4 @@
+import { summary as bannerSummary, type BannerSpec } from "./banner";
 import { DASH, fmt, pp, sv, vnCount, vnd } from "../shopee-analytics/format";
 import type { Band, BeforeAfterRow, BuilderOutcome, BuilderVersion, BuilderWarning, CoverOverlay, PickerProduct, VariationRow } from "./builder-api";
 
@@ -180,7 +181,8 @@ export interface Forms {
   /** Shopee's edit form (P97 D85.17): budget (≥ ₫100.000 or unlimited), ROAS (system / custom), products, dates; `campaignKeys` = many campaigns. */
   readonly ads: { lever: "budget" | "roas" | "add_product" | "remove_product"; campaignKey: string; campaignKeys: readonly string[]; dailyBudget: string; unlimited: boolean; roasMode: "system" | "custom"; roasTarget: string; itemId: string; start: string; end: string };
   readonly title: { ticked: readonly string[]; text: string };
-  readonly cover_image: { overlay: CoverOverlay | null };
+  /** P100 S2-E: the banner editor's spec; `overlay` (the P92 text concepts) stays readable. */
+  readonly cover_image: { overlay: CoverOverlay | null; banner: BannerSpec | null };
   readonly description_first_line: { text: string };
   readonly affiliate: { commission: string; campaign: string; samples: string; shipFee: string; multi: boolean; targets: readonly string[] };
   readonly price_display: { what: "price_display"; text: string; stock: string };
@@ -208,7 +210,7 @@ export function initialForms(): Forms {
     variation_set: { rows: [{ name: "", price: "", sku: "", packCount: "", stock: "" }] },
     ads: { lever: "budget", campaignKey: "", campaignKeys: [], dailyBudget: "", unlimited: false, roasMode: "custom", roasTarget: "", itemId: "", start: "", end: "" },
     title: { ticked: [], text: "" },
-    cover_image: { overlay: null },
+    cover_image: { overlay: null, banner: null },
     description_first_line: { text: "" },
     affiliate: { commission: "10", campaign: "", samples: "0", shipFee: "", multi: false, targets: [] },
     price_display: { what: "price_display", text: "", stock: "" },
@@ -534,8 +536,10 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       return { problem: null, version: { kind: "title", label: clip(t), item_id: id, title: t, keywords: [...f.title.ticked] } };
     }
     case "cover_image": {
+      const b = f.cover_image.banner;
+      if (b && b.banners.length) return { problem: null, version: { kind: "cover_image", label: clip(bannerSummary(b.banners) || "Ảnh bìa"), item_id: id, banner: b } };
       const o = f.cover_image.overlay;
-      if (!o) return no("Chọn một lớp chữ cho ảnh bìa.");
+      if (!o) return no("Thêm ít nhất một banner cho ảnh bìa.");
       return { problem: null, version: { kind: "cover_image", label: clip(o.badge_text || o.hook_text || o.pack_text || "Ảnh bìa"), item_id: id, overlay: o } };
     }
     case "description_first_line": {
@@ -941,6 +945,11 @@ export function versionFacts(v: BuilderVersion, names: VersionNames = {}): { rea
       add("text", "Dòng đầu mô tả", s_(v["first_line"]));
       return { type: "Mô tả", facts };
     case "cover_image": {
+      const b = v["banner"] as BannerSpec | undefined;
+      if (b && Array.isArray(b.banners)) {
+        add("text", "Banner", bannerSummary(b.banners));
+        return { type: "Ảnh bìa", facts };
+      }
       const o = (v["overlay"] ?? {}) as Record<string, unknown>;
       add("text", "Lớp chữ", [o["hook_text"], o["badge_text"], o["pack_text"]].map(s_).filter(Boolean).join(" · "));
       return { type: "Ảnh bìa", facts };

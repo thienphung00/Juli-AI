@@ -1784,10 +1784,10 @@ def _listing_before_after(
         if inputs.get("stock") is not None:
             relisted["stock"] = int(inputs["stock"])
         return {"status": "unlisted", "stock": x.get("current_stock")}, relisted
-    return (
-        {"cover_url": x.get("cover_url"), "text": x.get("before_text")},
-        {"text": x.get("after_text"), "line": x.get("line")},
-    )
+    cover_after: dict[str, Any] = {"text": x.get("after_text"), "line": x.get("line")}
+    if x.get("banner"):
+        cover_after["banner"] = x["banner"]  # P100 S2-E: the banner editor's design
+    return {"cover_url": x.get("cover_url"), "text": x.get("before_text")}, cover_after
 
 
 def eval_listing(

@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
-from juli_backend.services.shopee_builder import multi
+from juli_backend.services.shopee_builder import banner, multi
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
 from juli_backend.services.shopee_builder.engine import engine
@@ -745,6 +745,16 @@ def _cover(spec: sp.CoverSpec, ctx: BuilderContext, kind: str) -> Translation:
     li = ctx.env.listings.get(spec.item_id)
     if li is None or not li.cover_url:
         raise SpecRefused("no_listing")
+    design: dict[str, Any]
+    if spec.banner is not None:
+        # P100 S2-E: the banner editor's design, its rule checks filled in, rides on the card
+        checked = banner.with_checks(spec.banner).model_dump(mode="json")
+        after_text = "Banner ảnh bìa: " + banner.summary(spec.banner)
+        design = {"banner": checked}
+    else:
+        assert spec.overlay is not None  # CoverSpec needs one of the two
+        after_text = _overlay_text(spec.overlay)
+        design = {"overlay": spec.overlay.model_dump(exclude_none=True)}
     return Translation(
         {
             "label": _label(spec, "Ảnh bìa"),
@@ -755,13 +765,13 @@ def _cover(spec: sp.CoverSpec, ctx: BuilderContext, kind: str) -> Translation:
                 "cover_url": li.cover_url,
                 "image_count": li.image_count,
                 "before_text": f"Ảnh bìa hiện tại (ảnh 1 trong {li.image_count}): {li.cover_url}",
-                "after_text": _overlay_text(spec.overlay),
-                "overlay": spec.overlay.model_dump(exclude_none=True),
+                "after_text": after_text,
+                **design,
             },
         },
         kind,
         items=[spec.item_id],
-        details={"overlay": spec.overlay.model_dump(exclude_none=True)},
+        details=design,
     )
 
 

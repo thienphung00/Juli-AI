@@ -1,3 +1,4 @@
+import type { BannerSpec, Prefill } from "./banner";
 import type { OptionResult } from "./option-result";
 import { ShopeeApiError } from "../shopee-analytics/client";
 import { refreshAuthSession } from "../auth-refresh";
@@ -502,7 +503,27 @@ export interface ChannelSplitProducts {
   readonly products: readonly ChannelSplitProduct[];
 }
 
+/** P100 S2-E: what the Ảnh bìa banner editor opens with (`GET /builder/products/{id}/banner`). */
+export interface BannerContext {
+  readonly item: { readonly item_id: string; readonly name: string; readonly cover_url: string | null; readonly price: number | null };
+  /** The colours a banner may take: the shop's style profile, else the default palette. */
+  readonly palette: readonly string[];
+  /** The card's banner (latest wins), or null. */
+  readonly stored: { readonly spec: BannerSpec; readonly source: string; readonly created_at: string | null } | null;
+  /** Values Juli read from a card or the listing, per banner kind, with their sources. */
+  readonly prefill: Readonly<Record<string, Prefill>>;
+}
+
+export interface BannerSaved {
+  readonly id: string;
+  readonly spec: BannerSpec;
+  readonly source: string;
+}
+
 export interface BuilderApi {
+  /** P100 S2-E: the banner editor (seller base only; absent on Ops). */
+  banner?(itemId: string, cardId?: string | null): Promise<BannerContext>;
+  saveBanner?(body: { readonly itemId: string; readonly cardId?: string | null; readonly spec: BannerSpec }): Promise<BannerSaved>;
   /** Optional: an older client or a mock without it leaves the cards with "—". */
   channelSplitProducts?(period?: string): Promise<ChannelSplitProducts>;
   products(q?: PickerQuery): Promise<PickerResult>;
@@ -649,6 +670,13 @@ export function createBuilderApi(options: BuilderClientOptions): BuilderApi {
   // Seller: /channel-split/products; Ops: /analytics/channel-split/products.
   const splitPath = base.includes("/ops/") ? "/analytics/channel-split/products" : "/channel-split/products";
   return {
+    ...(seller
+      ? {
+          banner: (id: string, cardId?: string | null) => call<BannerContext>("GET", `/builder/products/${item(id)}/banner`, undefined, cardId ? new URLSearchParams({ card_id: cardId }) : undefined),
+          saveBanner: (b: { readonly itemId: string; readonly cardId?: string | null; readonly spec: BannerSpec }) =>
+            call<BannerSaved>("POST", "/builder/banner", { item_id: b.itemId, ...(b.cardId ? { card_id: b.cardId } : {}), spec: b.spec }),
+        }
+      : {}),
     channelSplitProducts: (period = "30d") => call<ChannelSplitProducts>("GET", splitPath, undefined, new URLSearchParams({ period })),
     products: (q = {}) => {
       const p = new URLSearchParams();

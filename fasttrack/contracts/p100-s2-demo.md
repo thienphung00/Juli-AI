@@ -387,3 +387,29 @@ the sample shop's data.
   row too. A seller's screens are unchanged.
 
 After deploy: `--reset --yes` once (new catalog price and voucher usage).
+
+## S2-E: the Ảnh bìa banner editor (owner, 2026-11-15)
+
+Owner: "Ảnh bìa is supposed to be like the artifact design and its functionality"; "you build the banner
+editor". Design https://claude.ai/artifact/4SuySBPc5VbTQFU1SMK1wx, brief D Flow v4. One component for every
+shop (the sample shop runs the same code):
+
+- **Steps** 1 Chọn mẫu (Tối giản / Nổi bật / Khung viền) → 2 Ngày thường (≤ 3) / Mega Sale (≤ 4, the strip
+  only there) → 3 Thêm banner (one per kind; positions by shape; bottom-left never; colours from the
+  shop's style profile, else the design palette) → 4 Kiểm tra (rule checks: overlap with a one-click
+  move, text over 22 / 40 / 90 characters, empty values, Mega Sale without its strip) → 5 Tải ảnh
+  (PNG 1200 × 1200 drawn in the browser over the real cover; "Tải ảnh bìa thật" for an upload) and,
+  on a card, "Lưu banner vào thẻ".
+- **Store**: the E.7 `banner` spec in `card_content_specs`; the seller's save is a `source='seller'`
+  row (latest wins, append-only). A card made in Tự tạo carries its banner in `change.after.banner`
+  until edited. Values are typed raw with their `sources`; Juli prefills Voucher (the card, else the
+  running voucher), Giá / đơn vị (listing price) and Quy cách (size in the title).
+- **Routes** `GET /v1/demo/shopee/builder/products/{item_id}/banner?card_id=` (read) and
+  `POST /v1/demo/shopee/builder/banner` (write; on the sample pin an admitted write, no LLM).
+- **Where** Tự tạo › Ảnh bìa (the seller's builder; Ops keeps the P92 text overlays) and a
+  "Banner ảnh bìa" section on cover and voucher cards.
+- **Rules twice, pinned once**: `services/shopee_builder/banner.py` and
+  `apps/demo/src/lib/shopee-decisions/banner.ts`, both tested on `tests/fixtures/banner_cases.json`.
+- **Not in S2-E**: the real app's one vision LLM check at step 4 and the style-profile vision call
+  (brief B.23); step 4 is rule-based on every shop until then.
+- Sample seed fix: the voucher banner is a Thẻ at Giữa phải with `{value, min}` (was a corner badge).

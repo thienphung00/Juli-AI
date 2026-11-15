@@ -1,0 +1,576 @@
+{
+ "_doc": "P100 S2-E Ảnh bìa banners: the display text, the rule checks and the refused specs. Read by tests/unit/test_shopee_banner.py and apps/demo/src/lib/shopee-decisions/__tests__/banner.test.ts so the Python and TypeScript rules stay the same.",
+ "text": [
+  {
+   "kind": "mega",
+   "values": {
+    "title": "11.11",
+    "sub": "Siêu Sale",
+    "dates": "11/11 – 13/11"
+   },
+   "head": "11.11 · Siêu Sale",
+   "sub": "11/11 – 13/11"
+  },
+  {
+   "kind": "mega",
+   "values": {},
+   "head": "Sale",
+   "sub": ""
+  },
+  {
+   "kind": "pct",
+   "values": {
+    "pct": 15
+   },
+   "head": "−15%",
+   "sub": ""
+  },
+  {
+   "kind": "pct",
+   "values": {
+    "pct": 7.5
+   },
+   "head": "−7,5%",
+   "sub": ""
+  },
+  {
+   "kind": "pct",
+   "values": {},
+   "head": "−…%",
+   "sub": ""
+  },
+  {
+   "kind": "genuine",
+   "values": {
+    "text": "Chính hãng · Có VAT"
+   },
+   "head": "Chính hãng · Có VAT",
+   "sub": ""
+  },
+  {
+   "kind": "genuine",
+   "values": {},
+   "head": "Chính hãng",
+   "sub": ""
+  },
+  {
+   "kind": "freeship",
+   "values": {
+    "min": 99000
+   },
+   "head": "Freeship",
+   "sub": "Đơn từ 99K"
+  },
+  {
+   "kind": "freeship",
+   "values": {},
+   "head": "Freeship",
+   "sub": ""
+  },
+  {
+   "kind": "combo",
+   "values": {
+    "q1": 2,
+    "p1": 5,
+    "q2": 3,
+    "p2": 10
+   },
+   "head": "Mua 2 giảm 5%",
+   "sub": "Mua 3 giảm 10%"
+  },
+  {
+   "kind": "combo",
+   "values": {
+    "q1": 2
+   },
+   "head": "Combo",
+   "sub": ""
+  },
+  {
+   "kind": "voucher",
+   "values": {
+    "value": 10000,
+    "min": 200000
+   },
+   "head": "Voucher giảm 10K",
+   "sub": "Đơn từ 200K"
+  },
+  {
+   "kind": "voucher",
+   "values": {
+    "value": 5500,
+    "min": 149000
+   },
+   "head": "Voucher giảm 5.500đ",
+   "sub": "Đơn từ 149K"
+  },
+  {
+   "kind": "voucher",
+   "values": {},
+   "head": "Voucher",
+   "sub": ""
+  },
+  {
+   "kind": "gift",
+   "values": {
+    "min": 149000,
+    "gift": "Khăn lau"
+   },
+   "head": "Mua từ 149K",
+   "sub": "Tặng Khăn lau"
+  },
+  {
+   "kind": "gift",
+   "values": {},
+   "head": "Quà tặng",
+   "sub": "Tặng [tên quà]"
+  },
+  {
+   "kind": "addon",
+   "values": {
+    "item": "Bình xịt",
+    "pct": 10
+   },
+   "head": "Mua kèm Bình xịt",
+   "sub": "giảm 10%"
+  },
+  {
+   "kind": "addon",
+   "values": {},
+   "head": "Mua kèm [sản phẩm]",
+   "sub": ""
+  },
+  {
+   "kind": "unit",
+   "values": {
+    "price": 165000,
+    "qty": 3,
+    "unit": "chai"
+   },
+   "head": "Chỉ 55.000đ/chai",
+   "sub": "165.000đ · 3 chai"
+  },
+  {
+   "kind": "unit",
+   "values": {
+    "price": 100000
+   },
+   "head": "Giá / đơn vị",
+   "sub": "Nhập số đơn vị trong gói"
+  },
+  {
+   "kind": "quy_cach",
+   "values": {
+    "text": "500ml"
+   },
+   "head": "500ml",
+   "sub": ""
+  },
+  {
+   "kind": "quy_cach",
+   "values": {},
+   "head": "[quy cách]",
+   "sub": ""
+  }
+ ],
+ "checks": [
+  {
+   "name": "clean",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "the",
+      "kind": "voucher",
+      "values": {
+       "value": 10000,
+       "min": 200000
+      },
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     },
+     {
+      "shape": "the",
+      "kind": "quy_cach",
+      "values": {
+       "text": "500ml"
+      },
+      "sources": {},
+      "position": "bottom_right",
+      "colour": "#EE4D2D"
+     }
+    ]
+   },
+   "checks": []
+  },
+  {
+   "name": "overlap_with_free_slot",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "the",
+      "kind": "voucher",
+      "values": {
+       "value": 10000,
+       "min": 200000
+      },
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     },
+     {
+      "shape": "the",
+      "kind": "combo",
+      "values": {
+       "q1": 2,
+       "p1": 5
+      },
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     }
+    ]
+   },
+   "checks": [
+    {
+     "code": "overlap",
+     "banner": 1,
+     "title": "Hai banner chồng nhau: Voucher + Combo"
+    }
+   ]
+  },
+  {
+   "name": "overlap_no_free_slot",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "the",
+      "kind": "voucher",
+      "values": {
+       "value": 10000
+      },
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     },
+     {
+      "shape": "the",
+      "kind": "combo",
+      "values": {
+       "q1": 2,
+       "p1": 5
+      },
+      "sources": {},
+      "position": "bottom_right",
+      "colour": "#EE4D2D"
+     },
+     {
+      "shape": "the",
+      "kind": "gift",
+      "values": {
+       "min": 149000,
+       "gift": "Khăn"
+      },
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     }
+    ]
+   },
+   "checks": [
+    {
+     "code": "overlap",
+     "banner": 2,
+     "title": "Hai banner chồng nhau: Voucher + Quà tặng"
+    }
+   ]
+  },
+  {
+   "name": "empty_and_long",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "the",
+      "kind": "gift",
+      "values": {},
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     },
+     {
+      "shape": "the",
+      "kind": "addon",
+      "values": {
+       "item": "Bình xịt vệ sinh đa năng 500ml",
+       "pct": 10
+      },
+      "sources": {},
+      "position": "bottom_right",
+      "colour": "#EE4D2D"
+     }
+    ]
+   },
+   "checks": [
+    {
+     "code": "empty_value",
+     "banner": 0,
+     "title": "Quà tặng: còn ô chưa có giá trị"
+    },
+    {
+     "code": "text_long",
+     "banner": 1,
+     "title": "Mua kèm: dòng chính dài 38 ký tự"
+    },
+    {
+     "code": "overload",
+     "banner": 1,
+     "title": "Mua kèm: quá nhiều chữ"
+    }
+   ]
+  },
+  {
+   "name": "mega_without_strip",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "mega_sale",
+    "banners": [
+     {
+      "shape": "goc",
+      "kind": "pct",
+      "values": {
+       "pct": 15
+      },
+      "sources": {},
+      "position": "top_left",
+      "colour": "#EE4D2D"
+     }
+    ]
+   },
+   "checks": [
+    {
+     "code": "missing_strip",
+     "banner": null,
+     "title": "Mega Sale chưa có dải tên sale"
+    }
+   ]
+  },
+  {
+   "name": "mega_with_strip",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "mega_sale",
+    "banners": [
+     {
+      "shape": "ngang",
+      "kind": "mega",
+      "values": {
+       "title": "11.11",
+       "sub": "Siêu Sale",
+       "dates": "11/11 – 13/11"
+      },
+      "sources": {},
+      "position": "top",
+      "colour": "#EE4D2D"
+     },
+     {
+      "shape": "goc",
+      "kind": "pct",
+      "values": {
+       "pct": 15
+      },
+      "sources": {},
+      "position": "top_left",
+      "colour": "#EE4D2D"
+     }
+    ]
+   },
+   "checks": []
+  }
+ ],
+ "invalid": [
+  {
+   "name": "wrong_shape",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "goc",
+      "kind": "voucher",
+      "values": {
+       "value": 1
+      },
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     }
+    ]
+   }
+  },
+  {
+   "name": "bottom_left",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "the",
+      "kind": "voucher",
+      "values": {},
+      "sources": {},
+      "position": "bottom_left",
+      "colour": "#EE4D2D"
+     }
+    ]
+   }
+  },
+  {
+   "name": "corner_on_card_slot",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "goc",
+      "kind": "pct",
+      "values": {},
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     }
+    ]
+   }
+  },
+  {
+   "name": "too_many_regular",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "the",
+      "kind": "voucher",
+      "values": {},
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     },
+     {
+      "shape": "the",
+      "kind": "combo",
+      "values": {},
+      "sources": {},
+      "position": "bottom_right",
+      "colour": "#EE4D2D"
+     },
+     {
+      "shape": "goc",
+      "kind": "pct",
+      "values": {},
+      "sources": {},
+      "position": "top_left",
+      "colour": "#EE4D2D"
+     },
+     {
+      "shape": "goc",
+      "kind": "genuine",
+      "values": {},
+      "sources": {},
+      "position": "top_right",
+      "colour": "#EE4D2D"
+     }
+    ]
+   }
+  },
+  {
+   "name": "mega_strip_on_regular",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "ngang",
+      "kind": "mega",
+      "values": {
+       "title": "11.11"
+      },
+      "sources": {},
+      "position": "top",
+      "colour": "#EE4D2D"
+     }
+    ]
+   }
+  },
+  {
+   "name": "same_kind_twice",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "the",
+      "kind": "voucher",
+      "values": {},
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     },
+     {
+      "shape": "the",
+      "kind": "voucher",
+      "values": {},
+      "sources": {},
+      "position": "bottom_right",
+      "colour": "#EE4D2D"
+     }
+    ]
+   }
+  },
+  {
+   "name": "text_where_money",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "the",
+      "kind": "voucher",
+      "values": {
+       "value": "10K"
+      },
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown_field",
+   "spec": {
+    "template": "toi_gian",
+    "day_mode": "ngay_thuong",
+    "banners": [
+     {
+      "shape": "the",
+      "kind": "voucher",
+      "values": {
+       "pct": 5
+      },
+      "sources": {},
+      "position": "middle_right",
+      "colour": "#EE4D2D"
+     }
+    ]
+   }
+  }
+ ]
+}

@@ -1512,3 +1512,408 @@ body:has(.p2--flow) {
     font-size: 22px;
   }
 }
+
+/* ── P100 S2-E: Ảnh bìa banner editor (design 4SuySBPc5VbTQFU1SMK1wx, brief D Flow v4) ── */
+
+.bn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bn h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.bn-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bn-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--touch-target-min);
+  padding: 0 14px 0 6px;
+  border: 1px solid #e4e4ea;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #6b6b74;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bn-step:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.bn-step--done {
+  color: #121214;
+}
+
+.bn-step--on {
+  border-color: #121214;
+  color: #121214;
+}
+
+.bn-step__n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: #f6f6f8;
+  font-size: 13px;
+}
+
+.bn-step--done .bn-step__n {
+  background: #e3f5e9;
+  color: #15803d;
+}
+
+.bn-step--on .bn-step__n {
+  background: #121214;
+  color: #ffffff;
+}
+
+.bn-body {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.bn-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.bn-cover {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #ececf0;
+  container-type: inline-size;
+}
+
+.bn-cover--frame {
+  border: 3cqw solid;
+}
+
+.bn-cover__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
+
+.bn-cover__voucher {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  height: 12%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(18, 18, 20, 0.45);
+  background: rgba(255, 255, 255, 0.55);
+  color: #4a4a52;
+  font-size: max(10px, 2.6cqw);
+}
+
+/* sizes in cqw so the preview is the PNG scaled: head 44 px, strip 64 px, sub 30 px of 1200 */
+.bn-box {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 2cqw;
+  border: 2px solid;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  line-height: 1.25;
+}
+
+.bn-box b {
+  font-size: 3.67cqw;
+  font-weight: 700;
+}
+
+.bn-box small {
+  font-size: 2.5cqw;
+  font-weight: 500;
+}
+
+.bn-box--strip b {
+  font-size: 5.33cqw;
+}
+
+.bn-summary {
+  margin: 0;
+  color: #4a4a52;
+  font-size: 13px;
+}
+
+.bn-file {
+  display: none;
+}
+
+.bn-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bn-product {
+  margin: 0;
+  color: #4a4a52;
+  font-size: 13px;
+}
+
+.bn-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bn-choices h3 {
+  grid-column: 1 / -1;
+}
+
+.bn-choices--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bn-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #d9d9df;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #121214;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bn-choice[aria-pressed="true"] {
+  border: 2px solid #121214;
+}
+
+.bn-choice span {
+  color: #4a4a52;
+}
+
+.bn-limit {
+  font-weight: 600;
+}
+
+.bn-thumb {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  background: #ececf0;
+}
+
+.bn-thumb--frame {
+  border: 6px solid;
+}
+
+.bn-thumb__box {
+  position: absolute;
+  right: 10%;
+  top: 40%;
+  width: 48%;
+  height: 22%;
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  background: #ffffff;
+}
+
+.bn-count {
+  margin-left: 6px;
+  color: #6b6b74;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.bn-add,
+.bn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.bn-row > span {
+  min-width: 56px;
+  color: #4a4a52;
+  font-size: 13px;
+}
+
+.bn-pill {
+  min-height: var(--touch-target-min);
+  padding: 0 14px;
+  border: 1px solid #d9d9df;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4a4a52;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bn-pill[aria-pressed="true"] {
+  border-color: #121214;
+  background: #121214;
+  color: #ffffff;
+}
+
+.bn-pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.bn-swatch {
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  border: 1px solid #d9d9df;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.bn-swatch[aria-pressed="true"] {
+  border: 3px solid #121214;
+}
+
+.bn-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #e4e4ea;
+  border-radius: 12px;
+}
+
+.bn-item legend {
+  padding: 0 4px;
+  font-weight: 700;
+}
+
+.bn-source {
+  margin: 0;
+  color: #6b6b74;
+  font-size: 12px;
+}
+
+.bn-remove {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+}
+
+.bn-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.bn-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #4a4a52;
+}
+
+.bn-field input {
+  min-height: var(--touch-target-min);
+  padding: 0 10px;
+  border: 1px solid #d9d9df;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.bn-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bn-issues li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid #f3d9a4;
+  border-radius: 10px;
+  background: #fff8e6;
+}
+
+.bn-issues li span {
+  color: #4a4a52;
+  font-size: 13px;
+}
+
+.bn-ok {
+  margin: 0;
+  color: #15803d;
+  font-weight: 600;
+}
+
+.bn-nav {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.bn-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bn-card__head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+@media (max-width: 760px) {
+  .bn-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bn-choices,
+  .bn-choices--two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
