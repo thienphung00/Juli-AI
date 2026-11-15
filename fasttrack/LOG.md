@@ -3847,6 +3847,14 @@ reconcile --write` re-derived the no-assert corpus figure.
   order lines marked by the paired connector's order-ref key) shipped on the earlier tag
   `fasttrack-deploy-20261106T0300Z`, which went green.
 
+## 2026-11-06 — plan for Monday 9 Nov: one product
+
+- Owner: the ISV demo (mock data) and TikTok Shop sync to the Shopee screens. P94 and P95 are
+  in the plan (`contracts/plan-2026-11-09.md`), and P95 is no longer "not scheduled". Shops are
+  dynamic: TikTok reads come from that shop's partner endpoints, Shopee from imported files plus
+  the Juli Connector. No compiled shop id. A shared field gate plus a Shopee gate and a TikTok
+  gate. The Connector fills Seller Centre for both platforms, used by a developer or a seller
+  paired to the shop. Monday locks the gates, the mock shapes, and the bug-log fields.
 ## 2026-11-06 — Kết nối dữ liệu on every shop; invite stays after Tham gia shop
 
 - Contract shops are no longer created from Ops (`POST /v1/ops/contract-shops` is 410).
