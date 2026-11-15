@@ -3,6 +3,17 @@
 A platform row that is not declared is ``Route.none`` with reason ``"not declared"``: the
 TikTok session fills the TikTok rows. Shopee today: reads come through the Connector (Seller
 Centre pages); writes are a Connector fill the seller confirms with Lưu.
+
+``promo_bmsm`` is Buy More Save More (tiered discount, Shopee "Combo khuyến mãi"); ``bundle``
+is the fixed-price Bundle Deal (Shopee "Listing combo mới"). TikTok facts verified in the
+sandbox (probe 2026-11-15); the ``Capability`` type has no constraint field, so they live here:
+
+- BMSM is only MINIMAL_ITEM_QUANTITY + PERCENTAGE_OFF, PRODUCT level, at most 2 tiers,
+  integer percent.
+- A FLASHSALE product cannot also be in a BMSM, and vice versa (exclusive). Flash sale plus a
+  direct discount or a fixed price on the same product is accepted.
+- An activity cannot be edited after deactivation.
+- Ads (``read_ads``, ``ads_campaign``) need the separate TikTok Business API OAuth.
 """
 
 from __future__ import annotations
@@ -34,6 +45,7 @@ CAPABILITIES: tuple[str, ...] = (
     "write_stock",
     "promo_discount",
     "promo_flash_sale",
+    "promo_bmsm",
     "voucher",
     "bundle",
     "affiliate_commission",
@@ -54,6 +66,7 @@ _SHOPEE: Mapping[str, Capability] = MappingProxyType(
         "write_listing": Capability(Route.connector, _FILL),
         "promo_discount": Capability(Route.connector, _FILL),
         "promo_flash_sale": Capability(Route.connector, _FILL),
+        "promo_bmsm": Capability(Route.connector, _FILL),
         "voucher": Capability(Route.connector, _FILL),
         "bundle": Capability(Route.connector, _FILL),
         "affiliate_commission": Capability(Route.connector, _FILL),
@@ -64,7 +77,34 @@ _SHOPEE: Mapping[str, Capability] = MappingProxyType(
     }
 )
 
-_ROWS: Mapping[str, Mapping[str, Capability]] = MappingProxyType({"shopee": _SHOPEE})
+_NO_BUSINESS = "Shop chưa cấp quyền TikTok Business API"
+_API = Capability(Route.api, "TikTok Shop Open API")
+
+_TIKTOK: Mapping[str, Capability] = MappingProxyType(
+    {
+        "read_orders": _API,
+        "read_shop_totals": _API,
+        "read_ads": Capability(Route.api, "TikTok Business API (OAuth riêng)"),
+        "write_price": _API,
+        "write_listing": _API,
+        "write_stock": _API,
+        "promo_discount": _API,
+        "promo_flash_sale": _API,
+        "promo_bmsm": _API,
+        "affiliate_commission": _API,
+        "voucher": Capability(Route.connector, "TikTok Shop không có API tạo voucher của shop."),
+        "bundle": Capability(Route.connector, "TikTok Shop không có API tạo Bundle Deal."),
+        "ads_campaign": Capability(Route.connector, _NO_BUSINESS),
+        "live_schedule": Capability(Route.none, "TikTok Shop chưa có API đặt lịch LIVE cho shop."),
+        "shop_tab": Capability(Route.connector, "TikTok Shop không có API chỉnh tab Shop."),
+    }
+)
+
+#: ``ads_campaign`` is ``api`` once the shop grants the Business API scope; until then the
+#: row above (connector, ``_NO_BUSINESS``) is what ``can`` returns.
+_ROWS: Mapping[str, Mapping[str, Capability]] = MappingProxyType(
+    {"shopee": _SHOPEE, "tiktok": _TIKTOK}
+)
 
 
 def can(platform: str, capability: str) -> Capability:

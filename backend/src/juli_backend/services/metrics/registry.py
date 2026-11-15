@@ -132,6 +132,8 @@ class SourceSpec:
     order_basis: OrderBasis
     field: str | None = None
     note: str = ""
+    #: platforms that have this source at all; an unavailable source is "—" (``None``), never 0
+    available_on: frozenset[Platform] = frozenset(Platform)
 
 
 @dataclass(frozen=True)
@@ -226,6 +228,38 @@ DERIVED = SourceSpec("derived", OrderBasis.none, None, "computed from its compon
 
 def _src(dataset: str, basis: OrderBasis, fld: str | None = None, note: str = "") -> SourceSpec:
     return SourceSpec(dataset, basis, fld, note)
+
+
+_SHOPEE_ONLY = frozenset({Platform.shopee})
+_BOTH = frozenset(Platform)
+
+#: Traffic sources (the funnel splits of ``views`` / ``clicks`` / ``ads_*``). TikTok has only
+#: video, LIVE and the product card (the Shopee ``the_san_pham_khac`` slot); no affiliate or ads
+#: split and no shop page / residual lines.
+TRAFFIC_SOURCES: Mapping[str, SourceSpec] = MappingProxyType(
+    {
+        "the_san_pham_khac": SourceSpec(
+            "traffic_overview", OrderBasis.none, "views", "product card", _BOTH
+        ),
+        "trang_shop": SourceSpec(
+            "traffic_overview", OrderBasis.none, "views", "shop page", _SHOPEE_ONLY
+        ),
+        "live": SourceSpec("traffic_overview", OrderBasis.none, "views", "LIVE", _BOTH),
+        "video": SourceSpec("traffic_overview", OrderBasis.none, "views", "video", _BOTH),
+        "lien_ket": SourceSpec(
+            "traffic_overview", OrderBasis.none, "views", "affiliate", _SHOPEE_ONLY
+        ),
+        "ads": SourceSpec("traffic_overview", OrderBasis.none, "ads_views", "ads", _SHOPEE_ONLY),
+        "chenh_lech_nguon": SourceSpec(
+            "traffic_overview", OrderBasis.none, "views", "source residual", _SHOPEE_ONLY
+        ),
+    }
+)
+
+
+def source_available(platform: Platform, source: str) -> bool:
+    """Is ``source`` a traffic split on ``platform``? An unknown source raises ``KeyError``."""
+    return platform in TRAFFIC_SOURCES[source].available_on
 
 
 SHOP_LEVELS = (Level.shop, Level.product, Level.sku)
