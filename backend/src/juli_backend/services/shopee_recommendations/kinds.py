@@ -11,6 +11,7 @@ Nothing here computes a number.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 FAMILIES: tuple[str, ...] = (
     "ads",
@@ -578,3 +579,42 @@ PLANNED_LISTING_KINDS: tuple[str, ...] = (
     "listing_hide",
     "listing_relist",
 )
+
+
+# ----------------------------------------------------------------------------- prior floor
+
+#: Owner rule 2026-11-15: a generic-prior uplift is at least 5 % ("generic uplift is a fall back";
+#: measured, calibrated or own-price-response lifts are used as they are). One value for the card
+#: engine (``prediction.predict_lift``) and the Tự tạo builder (``engine_families``).
+MIN_PRIOR_LIFT = Decimal("0.05")
+
+#: Kinds whose prior is never floored, each with the reason. A prior whose P50 is <= 0 is
+#: exempt as well (:func:`floor_prior_band`), whatever its kind.
+FLOOR_EXEMPT: dict[str, str] = {
+    "ads_pause": "removal action: the designed effect is a loss of ad revenue",
+    "ads_remove_product": "removal action: the designed effect is a loss of ad revenue",
+    "ads_purpose": "no volume effect is predicted (target metric none)",
+    "ads_keywords": "no preset prior: the card shows keywords and the shop's own report",
+    "ads_new_campaign": "no preset prior: extra orders are measured on / off days only",
+    "ads_roas_target": "a trade-off (volume against efficiency), not a pure uplift",
+    "voucher_cap": "limit action: the designed effect is zero or negative",
+    "review_voucher": "designed effect is small (a thank-you voucher, no minimum spend)",
+    "description_first_line": "designed effect is small (text-only edit, prior 0-4 %)",
+    "listing_hide": "removal action: hiding takes the listing's views away",
+    "listing_relist": "no preset prior: measured after the relist",
+    "variation_restructure": "no preset prior: the effect is a re-arrangement",
+    "listing_combo": "the effect is computed from the combo price, not a generic prior",
+    "affiliate_sample": "no preset prior: measured after the first send",
+    "affiliate_invite": "no preset prior: measured after the first send",
+}
+
+
+def floor_prior_band(
+    kind: str, p10: Decimal, p50: Decimal, p90: Decimal
+) -> tuple[Decimal, Decimal, Decimal]:
+    """Floor a generic-prior band: P50 := max(P50, 5 %), P90 := max(P90, P50), P10 unchanged but
+    never above P50. Exempt kinds and a band with P50 <= 0 come back as they are."""
+    if kind in FLOOR_EXEMPT or p50 <= 0:
+        return p10, p50, p90
+    new50 = max(p50, MIN_PRIOR_LIFT)
+    return min(p10, new50), new50, max(p90, new50)

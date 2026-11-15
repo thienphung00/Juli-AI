@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_recommendations import config
-from juli_backend.services.shopee_recommendations.kinds import KindSpec
+from juli_backend.services.shopee_recommendations.kinds import KindSpec, floor_prior_band
 from juli_backend.services.shopee_recommendations.model import Candidate, ProfitModel
 
 if TYPE_CHECKING:
@@ -67,6 +67,7 @@ class Lift:
     range_scale: float = 1.0
     gap_bucket: str = "unknown"
     sim: dict[str, Any] = field(default_factory=dict)
+    floored: bool = False  # the generic prior was raised to ``MIN_PRIOR_LIFT``
 
     @property
     def mid(self) -> float:
@@ -99,6 +100,7 @@ class Lift:
             "range_scale": round(self.range_scale, 4),
             "gap_bucket": self.gap_bucket,
             "sim": self.sim,
+            **({"floored": True} if self.floored else {}),
         }
 
 
@@ -211,7 +213,20 @@ def predict_lift(
         lo, hi = mid - half, mid + half
     if spec.price_scaled:  # P96: the shop's own response is held to the same limits
         lo, hi = _price_capped(lo, hi)
-    return Lift(spec.target_metric, lo, hi, factor, source, scale, bucket, sim_info)
+    floored = False
+    if source == "prior" and not sim_info["applied"]:
+        lo, hi, floored = _floor_generic(spec.key, lo, hi)
+    return Lift(spec.target_metric, lo, hi, factor, source, scale, bucket, sim_info, floored)
+
+
+def _floor_generic(kind: str, lo: float, hi: float) -> tuple[float, float, bool]:
+    """Owner rule 2026-11-15: a generic prior is at least ``MIN_PRIOR_LIFT`` at P50. The lift is a
+    normal through (P10, P90), so P10 stays and P90 moves until the middle is the floor."""
+    mid = (lo + hi) / 2
+    p10, p50, p90 = floor_prior_band(kind, Decimal(str(lo)), Decimal(str(mid)), Decimal(str(hi)))
+    if p50 == Decimal(str(mid)):
+        return lo, hi, False
+    return float(p10), float(2 * p50 - p10), True
 
 
 # ----------------------------------------------------------------------- money conversion
