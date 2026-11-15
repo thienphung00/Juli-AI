@@ -6,9 +6,11 @@ generator's and the loader's imports unchanged.
 """
 
 from juli_backend.services.sample_shop.catalog import (
+    AFFILIATE_RATE,
     CAMPAIGNS,
     ITEM_ID_BASE,
     KEYWORDS,
+    KOLS,
     NEW_TITLE,
     PRODUCTS,
     SAMPLE_SHOP_NAME,
@@ -33,6 +35,8 @@ from juli_backend.services.sample_shop.catalog import (
 )
 
 __all__ = [
+    "AFFILIATE_RATE",
+    "KOLS",
     "CAMPAIGNS",
     "ITEM_ID_BASE",
     "KEYWORDS",

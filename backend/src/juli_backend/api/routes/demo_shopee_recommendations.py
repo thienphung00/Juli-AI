@@ -42,6 +42,7 @@ from juli_backend.database import Shop, User, get_session
 from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.ops import audit
 from juli_backend.services.reviewer import simulation
+from juli_backend.services.sample_shop import readback as sample_readback
 from juli_backend.services.shop_proposals import ProposalError
 
 router = APIRouter(prefix="/demo/shopee/recommendations", tags=["demo-shopee"])
@@ -226,22 +227,31 @@ async def _decide(
 async def recommendation_executed(
     card_id: uuid.UUID,
     body: ExecutedBody,
+    request: Request,
     shop: Shop = Depends(require_writable_shop),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     shop_id = _shopee(shop)
+    context = reviewer_context(request)
+    # P100 S2-F2: the reviewer's sample shop has no Connector and no Seller Centre: a voucher gets
+    # a sample code, and the read-back is simulated so the card reaches Khớp and Đo lường.
+    sample = context is not None and context.pin is not None and context.pin.sample
+    voucher_id = body.voucher_id or (sample_readback.sample_voucher_id(card_id) if sample else None)
+    now = _now()
     try:
         out = await reco.mark_executed(
             session,
             shop_id,
             card_id,
-            now=_now(),
+            now=now,
             executed_at=body.executed_at,
             user_id=user.id,
-            voucher_id=body.voucher_id,
+            voucher_id=voucher_id,
             evidence_ref=body.evidence_ref,
         )
+        if sample:
+            await sample_readback.simulate_readback(session, shop_id, card_id, now)
         await session.commit()
     except ProposalError as exc:
         await session.rollback()

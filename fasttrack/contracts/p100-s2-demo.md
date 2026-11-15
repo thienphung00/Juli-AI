@@ -413,3 +413,25 @@ shop (the sample shop runs the same code):
 - **Not in S2-E**: the real app's one vision LLM check at step 4 and the style-profile vision call
   (brief B.23); step 4 is rule-based on every shop until then.
 - Sample seed fix: the voucher banner is a Thẻ at Giữa phải with `{value, min}` (was a corner badge).
+
+## S2-F2: Thực hiện → Đo lường and Affiliate / KOL on the sample shop (owner OK, 2026-11-15)
+
+From the Tự tạo end-to-end check (`p100-chrome-checklist.md`, Session 2 rows of 2026-11-15):
+
+- **Đã làm without a voucher code.** On the sample pin, `POST …/{card}/executed` gives a voucher
+  card a sample code (`services/sample_shop/readback.sample_voucher_id`: "93" + 11 digits from the
+  card id) when none is sent; the card page asks for no "Mã voucher trên Seller Centre" there.
+  Off the sample pin nothing changes: a voucher still needs its code. A refusal on the Thực hiện
+  row is now shown (`sd-th-error-<card>`), never silent.
+- **Simulated read-back.** With no Connector, a sample card stopped at "Đã điền · chờ bạn lưu".
+  On the sample pin, "Đã làm" also writes the `verified` event the verification job would write
+  (`verification.record_verdict`, observed = expected), so the card reaches Khớp and Đo lường
+  exactly as on a real shop.
+- **Affiliate programme in the sample data.** The affiliate-stream orders are KOL sales: each line
+  posts as `affiliate_order_lines` with one of 3 synthetic creators (`catalog.KOLS`) and a 10 %
+  commission on what the buyer paid (`catalog.AFFILIATE_RATE`); `affiliate_product_period` and
+  `affiliate_partner_period` carry the period totals. Affiliate gives an estimate (today's rate
+  is known) and the KOL tool lists the creators. The KOL is picked from the order ref, never the
+  shop's RNG, so every other number of the history is unchanged. The income export still
+  carries no affiliate commission (it would move every profit figure the S2-D4 voucher tuning
+  rests on); revisit with the registry renames.
