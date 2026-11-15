@@ -34,6 +34,7 @@ export function useVariationList(api: BuilderApi | undefined, itemId: string | n
 }
 
 export function unitText(v: VariationRow): string {
+  if (v.price_per_measure != null && v.measure_label) return `${vnd(v.price_per_measure)}/${v.measure_label}`;
   return v.price_per_unit === null ? DASH : `${vnd(v.price_per_unit)}/đơn vị`;
 }
 

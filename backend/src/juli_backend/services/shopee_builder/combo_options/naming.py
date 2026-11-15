@@ -29,8 +29,29 @@ def _var_label(m: Member) -> str:
     return "" if m.variation_name in DEFAULT_NAMES else m.variation_name
 
 
+_UNIT_WORDS = (
+    "chai", "hộp", "túi", "gói", "lọ", "tuýp", "cuộn", "lon", "hũ", "thùng", "viên", "miếng",
+    "cái", "bịch", "can", "bánh",
+)  # fmt: skip
+_UNIT_AFTER_NUMBER = re.compile(r"\d\s*(" + "|".join(_UNIT_WORDS) + r")(?![\wÀ-ỹ])", re.IGNORECASE)
+_UNIT_ANYWHERE = re.compile(
+    r"(?<![\wÀ-ỹ])(" + "|".join(_UNIT_WORDS) + r")(?![\wÀ-ỹ])", re.IGNORECASE
+)
+
+
+def unit_word(*texts: str | None) -> str:
+    """The word the product's own names use for one item ("Combo 3 chai" -> "chai"): a word
+    right after a number first, any such word second; the default word when none is there."""
+    for rx in (_UNIT_AFTER_NUMBER, _UNIT_ANYWHERE):
+        for text in texts:
+            match = rx.search(unicodedata.normalize("NFC", text or ""))
+            if match:
+                return match.group(1).lower()
+    return config.DEFAULT_UNIT
+
+
 def multi_pack_name(members: Sequence[Member], unit: str) -> str:
-    n = sum(m.quantity for m in members)
+    n = sum(m.quantity * m.pack for m in members)
     if len(members) == 1:
         label = _var_label(members[0])
         return f"{n} {unit} – {label}" if label else f"{n} {unit}"

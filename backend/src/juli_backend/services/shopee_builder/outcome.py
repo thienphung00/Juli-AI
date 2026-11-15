@@ -589,9 +589,18 @@ def _warnings(
     cost_known: bool,
     missing_cost: list[str],
     delta_profit: Mapping[str, Any],
+    result: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
-    if cost_known and delta_profit["p50"] is None and card["predicted"]["lift"]["metric"] != "none":
+    # a not-estimable result (description, price display, affiliate...) carries cost and break-even
+    # only, by design: no profit there is not a missing cost or fee
+    by_design = result is not None and not result.get("estimable")
+    if (
+        cost_known
+        and not by_design
+        and delta_profit["p50"] is None
+        and card["predicted"]["lift"]["metric"] != "none"
+    ):
         out.append(
             {
                 "type": "profit_unknown",
@@ -824,7 +833,7 @@ def shape(
         "break_even": _break_even(numbers, ctx, items, days=own_days, result=result),
         "basis": result_basis(result, basis),
         "warnings": [
-            *_warnings(numbers, tr, cost_known, missing, delta_profit),
+            *_warnings(numbers, tr, cost_known, missing, delta_profit, result),
             *stock_warnings(ctx.env.stock_stopped, items),
         ],
         "breach": bool(card["floor"]["breaches"])

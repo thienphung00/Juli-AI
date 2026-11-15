@@ -36,6 +36,7 @@ from juli_backend.services.shopee_analytics.rules_view import ProfitRules
 from juli_backend.services.shopee_profit.fees import FeeSchedule
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
 from juli_backend.services.shopee_profit.order_profit import OrderLine, SkuCost, profit_lines
+from juli_backend.services.shopee_profit.pack import price_per_measure
 from juli_backend.services.shopee_recommendations.unit_cost import UnitCost, scope_of, unit_cost
 
 NOT_COUNTED = "chưa tính"
@@ -197,6 +198,7 @@ def variation_rows(
                 item_id, key, cost, listed, selling, schedule, on
             )
         per_unit = safe_div(selling, Decimal(cost.pack_count)) if selling is not None else None
+        measured = price_per_measure(selling, cost.pack_count, name, info.name if info else None)
         rows.append(
             {
                 "variation_id": variation_id,
@@ -209,6 +211,8 @@ def variation_rows(
                 "pack_source": cost.pack_source,
                 "pack_source_label": PACK_SOURCE_LABELS[cost.pack_source],
                 "price_per_unit": num(per_unit),
+                "price_per_measure": None if measured is None else num(measured[0]),
+                "measure_label": None if measured is None else measured[1],
                 "margin_pct": pct(pct_points(margin)),
                 "profit_per_unit": num(profit_unit),
                 "margin_label": None if margin is not None else NOT_COUNTED,

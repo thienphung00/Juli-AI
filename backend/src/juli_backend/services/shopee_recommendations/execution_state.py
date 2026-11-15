@@ -223,7 +223,7 @@ def measurement_row(
     impact = None if reading is None else reading.get("impact_pct")
     p50, lift50 = band["p50"], lift.get("p50")
     actual = None
-    if impact is not None and p50 is not None and lift50:
+    if impact is not None and p50 is not None and lift50 is not None and abs(lift50) >= 1e-6:
         actual = p50 * float(impact) / float(lift50)
     done = final or window_closed
     verdict = verdict_of(impact, lift.get("p10"), lift.get("p90")) if final else VERDICT_RUNNING

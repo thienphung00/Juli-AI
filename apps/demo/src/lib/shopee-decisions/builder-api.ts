@@ -119,6 +119,8 @@ export interface VariationRow {
   readonly pack_source?: "set" | "name" | "single" | string | null;
   readonly pack_source_label?: string | null;
   readonly price_per_unit: N;
+  readonly price_per_measure?: N;
+  readonly measure_label?: string | null;
   readonly margin_pct: N;
   readonly profit_per_unit: N;
   readonly margin_label: string | null;

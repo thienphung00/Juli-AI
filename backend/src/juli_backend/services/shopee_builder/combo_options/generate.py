@@ -93,6 +93,7 @@ def _member(p: ProductIn, v: VariationIn, qty: int) -> Member:
         unit_price=v.selling_price,
         cost=v.cost,
         stock=v.stock,
+        pack=max(v.cost.pack_count, 1) if v.cost else 1,
         item_code=naming.slug(p.code or p.item_id) or "ITEM",
         var_code=naming.slug(v.sku or v.variation_id) or "DEF",
     )
@@ -157,10 +158,13 @@ def generate(
     out: list[ComboOption] = []
     taken: set[str] = set()
     for form, members in islice(_iter(products, allowed, packs, rules), max(rules.max_options, 0)):
+        unit = rules.unit or naming.unit_word(
+            *(t for m in members for t in (m.variation_name, m.product_name))
+        )
         label = (
             naming.bundle_name(members)
             if form == "bundle"
-            else naming.multi_pack_name(members, rules.unit)
+            else naming.multi_pack_name(members, unit)
         )
         short = naming.option_name(label)
         i = 1
@@ -175,7 +179,8 @@ def generate(
                 + "|".join(f"{m.item_id}/{m.variation_id}x{m.quantity}" for m in members),
                 form="bundle" if form == "bundle" else "multi_pack",
                 members=members,
-                units=sum(m.quantity for m in members),
+                units=sum(m.quantity * m.pack for m in members),
+                unit=unit,
                 name=naming.full_name(label),
                 option_name=short,
                 sku=naming.make_sku(rules.shop_code, members, form == "bundle"),
