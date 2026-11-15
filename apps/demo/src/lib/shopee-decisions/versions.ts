@@ -283,8 +283,8 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
   const fromRow = (rows: "sure" | "exp", i: number, delta: "dp" | "dv"): ((p: NonNullable<(typeof per)[number]>) => TableCell) => (p) => {
     const r = p[rows][i]!;
     const d = delta === "dp" ? r.dp : r.dv;
-    const arrow = r.tone === "up" ? "▲ " : r.tone === "down" ? "▼ " : "";
-    return { v: r.after, d: d && d !== DASH ? `${arrow}${d}` : "", tone: r.tone, bad: false };
+    // `d` already leads with the direction arrow (▲ / ▼, none for no change): never add a second one.
+    return { v: r.after, d: d && d !== DASH ? d : "", tone: r.tone, bad: false };
   };
   const rows: TableRow[] = [
     rowFrom("disc", "① Giảm giá", "% GMV niêm yết", first?.sure[0]?.before ?? null, cellOf(fromRow("sure", 0, "dp"))),

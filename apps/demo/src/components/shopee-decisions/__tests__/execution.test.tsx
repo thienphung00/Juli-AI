@@ -30,6 +30,24 @@ describe("thực hiện có hỗ trợ · bảng thao tác", () => {
     expect(sheet).toHaveTextContent("Juli không bấm thay bạn");
   });
 
+  it("a cover step shows the current image as a thumbnail, never its path", async () => {
+    const sheet = { ...SHEET_VOUCHER, steps: [{ order: 1, field: "Ảnh bìa", before: "Ảnh bìa hiện tại (ảnh 1 trong 1): /sample-shop/hn-bxv.svg", after: "Ảnh mới", unit: null, copy: null }] };
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: approved(voucherCard({ execution_sheet: sheet })) }));
+    const step = await screen.findByTestId("sd-step-1");
+    expect(within(step).getByTestId("sd-step-cover")).toHaveAttribute("src", "/sample-shop/hn-bxv.svg");
+    expect(step).toHaveTextContent("Ảnh bìa hiện tại (ảnh 1 trong 1)");
+    expect(step).not.toHaveTextContent("hn-bxv.svg");
+  });
+
+  it("a cover with no usable src keeps the label without the path", async () => {
+    const sheet = { ...SHEET_VOUCHER, steps: [{ order: 1, field: "Ảnh bìa", before: "Ảnh bìa hiện tại (ảnh 1 trong 2): not a url", after: "Ảnh mới", unit: null, copy: null }] };
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: approved(voucherCard({ execution_sheet: sheet })) }));
+    const step = await screen.findByTestId("sd-step-1");
+    expect(within(step).queryByTestId("sd-step-cover")).toBeNull();
+    expect(step).toHaveTextContent("Ảnh bìa hiện tại (ảnh 1 trong 2)");
+    expect(step).not.toHaveTextContent("not a url");
+  });
+
   it("copy buttons put the exact value on the clipboard", async () => {
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: approved() }));
     const sheet = await screen.findByTestId("sd-sheet");
