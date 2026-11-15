@@ -6,7 +6,8 @@ order lines (a product that sold but is not in the catalogue yet still appears),
 whether the listing is excluded (Cài đặt › Loại trừ sản phẩm). Excluded listings are left out
 unless ``include_excluded`` is asked for.
 
-"Active": the catalogue status is not an unlisted / banned / deleted one. A listing nobody ever
+"Active": the catalogue status is not an unlisted / banned / deleted one, and the name is not
+Shopee's deleted-listing text. A listing nobody ever
 bought and the catalogue does not know does not exist for Juli and is not listed.
 """
 
@@ -19,7 +20,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from juli_backend.services.shopee_analytics.catalog import SKU_PREFIX
+from juli_backend.services.shopee_analytics.catalog import DELETED_PRODUCT_NAME, SKU_PREFIX
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num
 from juli_backend.services.shopee_analytics.loaders import ShopContext
@@ -50,7 +51,11 @@ def fold(text: str) -> str:
     return "".join(c for c in decomposed if unicodedata.category(c) != "Mn")
 
 
-def is_active(status: str | None) -> bool:
+def is_active(status: str | None, name: str | None = None) -> bool:
+    """Not an unlisted / banned / deleted listing: by its status, or by Shopee's deleted-listing
+    name (an older catalogue row with no status still carries it)."""
+    if name is not None and fold(name) == fold(DELETED_PRODUCT_NAME):
+        return False
     if not status:
         return True
     word = fold(status).replace("_", " ")
@@ -135,7 +140,7 @@ def picker(
         info = ctx.catalog.items.get(item_id)
         status = info.status if info else None
         path = tuple(getattr(info, "category_path", ()) or ())
-        if not is_active(status):
+        if not is_active(status, getattr(info, "name", None)):
             continue
         excluded = item_id in view.excluded
         if excluded and not include_excluded:

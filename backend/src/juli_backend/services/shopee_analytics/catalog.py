@@ -15,6 +15,10 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 SKU_PREFIX = "sku:"
+#: Shopee's name for a listing it can no longer read because it was deleted (the same text as
+#: ``ingest.gateway.DELETED_PRODUCT_NAME``, which keeps it out of new syncs; older rows still
+#: carry it, so the active-listing checks drop it too).
+DELETED_PRODUCT_NAME = "Không thể lấy thông tin sản phẩm do bị xóa"
 
 
 @dataclass(frozen=True)
