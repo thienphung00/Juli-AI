@@ -215,6 +215,9 @@ def title_system(facts: ProductFacts) -> str:
         "Tuyệt đối không thêm chứng nhận, thành phần, công dụng, xuất xứ hay thương hiệu không có "
         "trong thông tin đã cho. Không hứa hẹn, không so sánh hơn nhất.",
         "Đặt từ khoá quan trọng nhất ở đầu tiêu đề.",
+        "Viết lại cả tiêu đề: không ghép từ khoá vào trước tiêu đề hiện tại.",
+        "Mỗi cụm từ chỉ xuất hiện một lần: không lặp lại tên loại sản phẩm hay một cụm hai từ.",
+        "Thứ tự gợi ý: từ khoá chính, đặc điểm, quy cách / số lượng, phân loại.",
     ]
     if facts.tone:
         lines.append(f"Giọng văn của shop: {facts.tone}")
@@ -233,6 +236,20 @@ def title_user(facts: ProductFacts, keywords: Sequence[str], n: int) -> str:
         f"Phân loại: {variations or '(không có)'}\n"
         f"Viết {n} tiêu đề khác nhau."
     )
+
+
+def repeated_phrase(title: str) -> str | None:
+    """The title's opening two-word phrase (its product type, e.g. "khăn lau") when it is said
+    again later -- the keyword glued in front of the old title ("Khăn lau bếp Khăn lau đa năng
+    ..."); None otherwise. Other repeats ("bộ màu xám và bộ màu pastel") are allowed."""
+    words = [w for w in re.findall(r"[^\W\d_]+", title.lower()) if w]
+    if len(words) < 4:
+        return None
+    head = fold(f"{words[0]} {words[1]}")
+    for a, b in zip(words[2:], words[3:], strict=False):
+        if fold(f"{a} {b}") == head:
+            return f"{words[0]} {words[1]}"
+    return None
 
 
 def screen_titles(
@@ -269,6 +286,11 @@ def screen_titles(
         problem = numbers_problem(title, facts)
         if problem:
             _drop(dropped, title, problem)
+            continue
+        repeated = repeated_phrase(title)
+        if repeated:
+            # sample shop 2026-11-15: "Khăn lau bếp Khăn lau đa năng ..." (keyword glued on)
+            _drop(dropped, title, f"lặp lại cụm từ: {repeated}")
             continue
         if fold(title) in seen:
             continue
