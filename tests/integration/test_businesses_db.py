@@ -282,3 +282,43 @@ async def test_ops_reads_the_shop_business_through_the_function(owner_engine):
         assert await service._first_shop_id(session, expected) == tenant.shop_id
         people = await businesses.members_of_shop_business(session, tenant.shop_id)
     assert [p.user_id for p in people] == [tenant.user_id]
+
+
+def test_zz_downgrade_drops_and_upgrade_restores(owner_engine):
+    """Last in the module: 130 downgrades to 129 cleanly (policies before tables), then back."""
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+
+    from juli_backend.core.config.runtime import sync_database_url
+
+    repo_root = Path(__file__).resolve().parents[2]
+    cfg = Config(str(repo_root / "alembic.ini"))
+    cfg.set_main_option(
+        "script_location", str(repo_root / "backend/src/juli_backend/database/migrations")
+    )
+    cfg.set_main_option("sqlalchemy.url", sync_database_url(os.environ["DATABASE_URL"]))
+
+    def state() -> tuple[bool, bool, bool]:
+        with owner_engine.connect() as conn:
+            tables = [
+                conn.execute(text("SELECT to_regclass(:n)"), {"n": f"public.{t}"}).scalar()
+                is not None
+                for t in ("businesses", "business_members")
+            ]
+            column = conn.execute(
+                text(
+                    "SELECT count(*) FROM information_schema.columns "
+                    "WHERE table_name = 'shops' AND column_name = 'business_id'"
+                )
+            ).scalar()
+        return tables[0], tables[1], bool(column)
+
+    assert state() == (True, True, True)
+    command.downgrade(cfg, "129_stock_alert")
+    try:
+        assert state() == (False, False, False)
+    finally:
+        command.upgrade(cfg, "head")
+    assert state() == (True, True, True)

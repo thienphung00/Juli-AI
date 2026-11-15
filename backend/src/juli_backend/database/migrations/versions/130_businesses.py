@@ -377,6 +377,12 @@ def downgrade() -> None:
     op.drop_column("shops", "kind")
     op.drop_index("ix_shops_business_id", table_name="shops")
     op.drop_column("shops", "business_id")
+    # Policies first: businesses_select_member reads business_members, so the table drop below
+    # would fail with DependentObjectsStillExist while it exists.
+    op.execute(f"DROP POLICY IF EXISTS {BUSINESSES}_select_member ON public.{BUSINESSES}")  # nosec B608
+    op.execute(f"DROP POLICY IF EXISTS {MEMBERS}_select_own ON public.{MEMBERS}")  # nosec B608
+    for table in (BUSINESSES, MEMBERS, INVITES):
+        op.execute(f"DROP POLICY IF EXISTS {table}_ops_only ON public.{table}")  # nosec B608
     op.drop_index("ix_business_members_user", table_name=MEMBERS)
     op.drop_index("uq_business_members_active", table_name=MEMBERS)
     op.drop_table(MEMBERS)
