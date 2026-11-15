@@ -805,6 +805,10 @@ async def test_the_s2_d2_strategies_evaluate_on_the_sample_shop(engine):
                 v = out["versions"][0]
                 assert v["ok"], (name, v.get("refusal"))
                 assert v["result"] is not None and v["result"]["days"] >= 1, name
+                if name == "affiliate":
+                    # S2-F2: the sample shop knows today's commission (affiliate period rows)
+                    text = json.dumps(v, ensure_ascii=False, default=str)
+                    assert "Chưa biết hoa hồng hiện tại" not in text, text[:2000]
                 # "Chọn" saves the card the reviewer then approves, like a real seller
                 async with session.begin_nested() as nested:
                     saved = await builder.choose(
@@ -910,3 +914,37 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             assert o.offers and o.offers[0].use_share.p50 == Decimal(48) / Decimal(109)
             assert s["delta"]["gmv"]["value"] == pytest.approx(791_214, rel=0.02)
             assert s["cost"]["total"] > 0 and s["delta"]["profit"]["value"] < 0
+
+
+async def test_the_affiliate_programme_has_three_kols_and_a_known_commission(engine):
+    """P100 S2-F2 (Tự tạo check 2026-11-15): Affiliate gave no estimate ("Chưa biết hoa hồng hiện
+    tại") and the KOL tool had no KOL. The affiliate-stream orders now carry their KOL and a 10 %
+    commission, and the period totals per product and per KOL are posted."""
+    from juli_backend.models.shopee_profit import ShopeeAffiliateLine
+    from juli_backend.services.sample_shop.catalog import AFFILIATE_RATE, KOLS
+    from juli_backend.services.shopee_analytics import loaders
+    from juli_backend.services.shopee_analytics.windows import Window
+
+    shop = generate(END)
+    datasets = {p.dataset for p in shop.posts}
+    assert {"affiliate_order_lines", "affiliate_product_period", "affiliate_partner_period"} <= (
+        datasets
+    )
+    factory, report = await _load(engine)
+    async with factory() as session:
+        handles = (
+            await session.execute(
+                select(ShopeeAffiliateLine.kol_handle, func.count()).group_by(
+                    ShopeeAffiliateLine.kol_handle
+                )
+            )
+        ).all()
+        assert {h for h, _ in handles} == {h for _, h in KOLS}
+        window = Window(END - timedelta(days=29), END)
+        aff = await loaders.load_affiliate(session, report.shop_id, window)
+    assert len(aff.partners) == len(KOLS)
+    assert aff.product_commission and all(v > 0 for v in aff.product_commission.values())
+    lines = [p for p in shop.posts if p.dataset == "affiliate_order_lines"]
+    rows = [r for p in lines for r in p.body["rows"]]
+    # the commission is on what the buyer paid (after the shop's combo / voucher)
+    assert rows and all(0 < r["cost"] <= round(r["order_value"] * AFFILIATE_RATE) for r in rows)

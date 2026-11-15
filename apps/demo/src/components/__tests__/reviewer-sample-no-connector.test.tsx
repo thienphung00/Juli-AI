@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ShopeeApiError } from "../../lib/shopee-analytics/client";
 import { StaticReviewerProvider } from "../../lib/reviewer/mode";
 import type { ReviewerRecord } from "../../lib/reviewer/session";
 import type { RecoApi } from "../../lib/shopee-decisions/client";
@@ -93,6 +94,25 @@ describe("S2-D4 · the sample shop has no Juli Connector", () => {
     expect(within(panel).queryAllByRole("link")).toHaveLength(0);
     expect(within(panel).getByRole("button", { name: "Đã làm" })).toBeInTheDocument();
     expect(f.mock.calls.map((c) => String((c as unknown[])[0]))).not.toEqual(expect.arrayContaining([expect.stringMatching(/fill-jobs|connector-fill/)]));
+  });
+
+  it("S2-F2: a voucher card's Đã làm asks for no Seller Centre code on the sample shop", async () => {
+    const reco = fakeReco({ detail: detailOf(voucherCard(), { status: "approved" }) });
+    asSample(<CardPage from={null} id="card-voucher" />, reco);
+    const panel = await screen.findByTestId("sd-execution");
+    expect(within(panel).queryByPlaceholderText("Ví dụ: 1234567890")).toBeNull();
+    const done = within(panel).getByRole("button", { name: "Đã làm" });
+    expect(done).toBeEnabled();
+    fireEvent.click(done);
+    await waitFor(() => expect(reco.calls.some((c) => c.name === "executed")).toBe(true));
+  });
+
+  it("S2-F2: a refused Đã làm on Thực hiện is said, not silent", async () => {
+    const reco = fakeReco({ execution: states([exec({ card_id: "v", family: "voucher", change_kind: "min_spend_voucher" })]) }, { executed: new ShopeeApiError(422, "reco_invalid", "voucher_id is required to verify a voucher") });
+    asSample(<ThucHienView />, reco);
+    const row = await screen.findByTestId("sd-th-v");
+    fireEvent.click(within(row).getByRole("button", { name: "Đã làm" }));
+    expect(await screen.findByTestId("sd-th-error-v")).toBeInTheDocument();
   });
 
   it("an empty shop's notice does not name the Connector on the sample shop", () => {

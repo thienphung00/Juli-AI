@@ -23,8 +23,10 @@ from typing import Any
 
 from juli_backend.services.ingest import order_ref as order_ref_mod
 from scripts.sample_shop.catalog import (
+    AFFILIATE_RATE,
     CAMPAIGNS,
     KEYWORDS,
+    KOLS,
     NEW_TITLE,
     PRODUCTS,
     SAMPLE_SHOPEE_SHOP_ID,
@@ -409,6 +411,7 @@ def generate(
     promo_daily: list[dict[str, Any]] = []
     line_rows: list[dict[str, Any]] = []
     income_rows: list[dict[str, Any]] = []
+    affiliate_rows: list[dict[str, Any]] = []
     period_ads: dict[tuple[int, int], dict[str, float]] = defaultdict(lambda: defaultdict(float))
     combo_totals = {"sales": 0, "orders": 0, "units": 0}
     combo_start = start + timedelta(days=COMBO_START_DAY)
@@ -483,6 +486,8 @@ def generate(
         # --- order lines / income / combo
         for o in orders:
             line_rows.extend(_line_rows(o))
+            if o.stream == "affiliate":
+                affiliate_rows.extend(_affiliate_rows(o))
             if day <= end_date - timedelta(days=INCOME_LAG_DAYS):
                 income_rows.append(_income_row(o, day))
             for ln in o.lines:
@@ -594,6 +599,19 @@ def generate(
         order_type=None,
         day_of=lambda r: date.fromisoformat(r["ordered_on"]),
     )
+    # P100 S2-F2: the affiliate programme -- each affiliate-stream order line marked with its KOL
+    # and commission, plus the period totals per product and per KOL the dashboards export
+    post(
+        "affiliate_order_lines",
+        affiliate_rows,
+        start,
+        end_date,
+        granularity="period",
+        order_type=None,
+        day_of=lambda r: date.fromisoformat(r["ordered_at"][:10]),
+    )
+    for dataset, rows in _affiliate_period_rows(affiliate_rows).items():
+        post(dataset, rows, start, end_date, granularity="period", order_type=None, day_of=None)
     post("shop_overview", shop_overview, start, end_date, order_type="confirmed")
     post("shop_traffic", shop_traffic, start, end_date, order_type=None)
     post("traffic_overview", traffic_conf, start, end_date, order_type="confirmed")
@@ -962,6 +980,82 @@ def _line_rows(o: _Order) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def _kol_of(o: _Order) -> tuple[str, str]:
+    """The KOL of an affiliate order: picked from the order ref (no draw from the shop's RNG, so
+    every other number of the history stays the same)."""
+    return KOLS[int(o.ref[:8], 16) % len(KOLS)]
+
+
+def _affiliate_rows(o: _Order) -> list[dict[str, Any]]:
+    """``affiliate_order_lines`` for one affiliate-stream order (open campaign, Shopee Video)."""
+    _, handle = _kol_of(o)
+    at = o.at.isoformat(timespec="seconds")
+    return [
+        {
+            "order_ref": o.ref,
+            "line_no": no,
+            "affiliate": True,
+            "item_id": ln.product.item_id,
+            "model_id": ln.variation.model_id,
+            "price": ln.variation.price,
+            "qty": ln.qty,
+            "order_value": ln.value,
+            "order_status": "Completed",
+            "valid": True,
+            "ordered_at": at,
+            "completed_at": (o.at + timedelta(days=3)).isoformat(timespec="seconds"),
+            "conversion_at": at,
+            "campaign_type": "5",
+            "affiliate_account": handle,
+            "channel": "Shopeevideo",
+            "cost": round(ln.buyer_paid * AFFILIATE_RATE),
+        }
+        for no, ln in enumerate(o.lines)
+    ]
+
+
+def _affiliate_period_rows(lines: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """``affiliate_product_period`` (per product) and ``affiliate_partner_period`` (per KOL)
+    totals of the affiliate lines: sales, units, orders and the estimated commission."""
+    by_item: dict[str, dict[str, Any]] = {}
+    by_kol: dict[str, dict[str, Any]] = {}
+    handle_id = {h: a for a, h in KOLS}
+    for r in lines:
+        for key, acc, base in (
+            (r["item_id"], by_item, {"item_id": r["item_id"], "price": r["price"]}),
+            (r["affiliate_account"], by_kol, {
+                "affiliate_id": handle_id[r["affiliate_account"]],
+                "account": r["affiliate_account"],
+            }),
+        ):  # fmt: skip
+            a = acc.setdefault(
+                key, {**base, "sales": 0, "units": 0, "est_commission": 0, "_o": set()}
+            )
+            a["sales"] += r["order_value"]
+            a["units"] += r["qty"]
+            a["est_commission"] += r["cost"]
+            a["_o"].add(r["order_ref"])
+    out: dict[str, list[dict[str, Any]]] = {}
+    for dataset, acc in (
+        ("affiliate_product_period", by_item),
+        ("affiliate_partner_period", by_kol),
+    ):
+        rows = []
+        for a in acc.values():
+            orders = a.pop("_o")
+            rows.append(
+                {
+                    **a,
+                    "orders": len(orders),
+                    "roi": round(a["sales"] / a["est_commission"], 2)
+                    if a["est_commission"]
+                    else None,
+                }
+            )
+        out[dataset] = rows
+    return out
 
 
 def _income_row(o: _Order, day: date) -> dict[str, Any]:

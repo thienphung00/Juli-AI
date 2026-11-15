@@ -697,6 +697,60 @@ async def test_duyet_on_the_sample_shop_is_the_real_approve(session, world, trip
     assert not tripwire.hits
 
 
+async def test_da_lam_on_the_sample_shop_needs_no_voucher_code_and_reads_back(
+    session, world, tripwire
+):
+    """P100 S2-F2 (Tự tạo check 2026-11-15): "Đã làm" on a voucher card answered 422 "voucher_id
+    is required" and, with no Connector, the card stopped before Khớp and never reached Đo lường.
+    On the sample pin the voucher gets a sample code and the read-back is simulated: the same
+    ``verified`` event the verification job writes, observing what the card expected."""
+    from juli_backend.models.card_events import EVENT_VERIFIED, CardEvent
+    from juli_backend.services.sample_shop.readback import sample_voucher_id
+
+    _seller, sample, _sandbox, reviewer_id, ids = world
+    card_id = ids["min_spend_voucher"]
+    headers = _headers(reviewer_id, sample.shop_id)
+    async with client_for(build_app(session)) as client:
+        approved = await client.post(
+            f"{REC}/{card_id}/approve",
+            json={"chosen_version": 1, "acknowledge_breaches": True},
+            headers=headers,
+        )
+        assert approved.status_code == 200, approved.text
+        done = await client.post(f"{REC}/{card_id}/executed", json={}, headers=headers)
+        assert done.status_code == 201, done.text
+        states = await client.get(f"{REC}/execution", headers=headers)
+    events = (
+        (await session.execute(select(CardEvent).where(CardEvent.card_id == card_id)))
+        .scalars()
+        .all()
+    )
+    verified = [e for e in events if e.event_type == EVENT_VERIFIED]
+    assert len(verified) == 1 and verified[0].shop_id == sample.shop_id
+    target = verified[0].payload["target"]
+    assert target["voucher_id"] == sample_voucher_id(card_id)
+    assert verified[0].payload["observed"] == verified[0].payload["expected"]
+    body = states.json()
+    row = next(c for c in body.get("data", body)["cards"] if c["card_id"] == str(card_id))
+    assert row["state"] == "khop" and row["verified_at"] is not None
+    assert not tripwire.hits
+
+
+async def test_da_lam_off_the_sample_pin_still_needs_the_voucher_code(session, world):
+    """The real path is unchanged: a seller's "Đã làm" on a voucher without its code is refused."""
+    _seller, sample, _sandbox, _reviewer_id, ids = world
+    card_id = ids["min_spend_voucher"]
+    from juli_backend.models.shop_proposals import STATUS_APPROVED, ShopProposal
+
+    p = await session.get(ShopProposal, card_id)
+    assert p is not None
+    p.status = STATUS_APPROVED
+    await session.flush()
+    with pytest.raises(Exception) as refused:
+        await reco.mark_executed(session, sample.shop_id, card_id, now=utc_now_naive())
+    assert "voucher_id is required" in str(refused.value)
+
+
 async def test_approve_takes_any_card_kind_like_a_real_seller(session, world, tripwire):
     """P100 S2-D2 (owner option B): no sample-only kind list -- a card the real app approves (here
     a product discount) is approved on the sample shop too; an unknown card is the route's 404."""
