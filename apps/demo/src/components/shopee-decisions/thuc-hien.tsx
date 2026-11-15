@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
-import type { ExecutionCard, ExecutionState } from "../../lib/shopee-decisions/types";
+import type { ExecutionCard, ExecutionState, ReaderBlock } from "../../lib/shopee-decisions/types";
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { fillJobHref } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
@@ -40,6 +40,18 @@ function hhmm(iso: string | null): string {
 }
 
 /** A Seller Centre / card value with its unit by field. */
+const SECTION_LABEL: Record<string, string> = { phan_tich_ban_hang: "Phân tích bán hàng", seller_centre: "Seller Centre" };
+
+/** Connector 0.3.22: one short line per blocked section ("Đăng nhập lại Phân tích bán hàng"). */
+export function readerBlockText(blocks: readonly ReaderBlock[] | undefined): string | null {
+  const lines = [
+    ...new Set(
+      (blocks ?? []).map((b) => `${b.reason === "captcha" ? "Xác minh lại" : "Đăng nhập lại"} ${SECTION_LABEL[b.section] ?? "Seller Centre"}`),
+    ),
+  ];
+  return lines.length > 0 ? lines.join(" · ") : null;
+}
+
 export function valueText(field: string | null, v: unknown): string {
   if (typeof v === "number") {
     if (field === "daily_budget") return `${fmt(v, 0)} đ/ngày`;
@@ -191,6 +203,7 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
     <RecoState resource={res}>
       {(data) => {
         const k = data.connector;
+        const blocked = readerBlockText(k.reader_blocks);
         return (
           <div className="sd-th" data-testid="sd-thuc-hien">
             {sample ? null : (
@@ -201,6 +214,11 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
                 {k.seller_centre_open ? "Seller Centre đang mở · " : ""}
                 {k.last_check_at ? `đối chiếu lần cuối ${hhmm(k.last_check_at)}` : "chưa đối chiếu"}
               </span>
+              {blocked ? (
+                <span className="sd-th-bar__block" data-testid="sd-th-bar-block">
+                  {blocked}
+                </span>
+              ) : null}
               {readOnly ? null : (
                 <button className="sa-btn sd-th-bar__sync" disabled={!k.connected || !!k.reconcile_pending || asking} onClick={() => void reconcile()} type="button">
                   Đối chiếu ngay

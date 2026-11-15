@@ -111,9 +111,17 @@ export const AFFILIATE_READER_IDS: readonly AffiliateReaderId[] = [
   "affiliate_content",
   "affiliate_bills",
 ];
-/** item_traffic stays last: it runs on the ids the product list just read. */
+/**
+ * The run order. 0.3.22: the order list and the per-order income run right after the product list,
+ * before every /datacenter (Phân tích bán hàng) page: a password re-confirmation there blocks only
+ * those pages, and before 0.3.22 it ended the run before orders ever ran. item_traffic stays last:
+ * it runs on the ids the product list just read.
+ */
 export const READER_IDS: readonly ReaderId[] = [
   "products",
+  // Connector 0.3.11 (P97 T1): order lines, then the per-order income of the orders just read.
+  "orders",
+  "order_income",
   "vouchers",
   "ads",
   // Connector 0.3.7: right after the list, on the ongoing campaigns the list just named.
@@ -121,16 +129,14 @@ export const READER_IDS: readonly ReaderId[] = [
   // Connector 0.3.12 (P97 T3): per-product ads of the group campaigns, right after their edit pages.
   "ads_products",
   "health",
-  // Connector 0.3.11 (P97 T1): shop totals, order lines, per-order income. One page at a time like
-  // every reader; the shared request budget below caps all of them together.
+  // /datacenter from here (one page at a time like every reader; the shared request budget caps all).
+  // Connector 0.3.11 (P97 T1): shop totals.
   "shop_totals",
   // Connector 0.3.19: the shop's traffic overview (traffic_overview, shop_traffic), in the
   // scheduler's own background tab, so the seller no longer has to keep Truy cập open.
   "traffic",
   // Connector 0.3.12 (P97 T3, recorded 2026-11-09): the 30-day product table, once a day.
   "product_period",
-  "orders",
-  "order_income",
   ...AFFILIATE_READER_IDS,
   "item_traffic",
 ];

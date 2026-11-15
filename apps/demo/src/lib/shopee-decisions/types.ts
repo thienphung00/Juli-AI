@@ -722,6 +722,15 @@ export interface ConnectorLine {
   readonly connected: boolean;
   readonly seller_centre_open: boolean | null;
   readonly reconcile_pending?: boolean;
+  /** Connector 0.3.22: Seller Centre sections the last daily run could not read. */
+  readonly reader_blocks?: readonly ReaderBlock[];
+}
+
+/** A section blocked by a login wall or CAPTCHA in the Connector's last daily run. */
+export interface ReaderBlock {
+  readonly section: "phan_tich_ban_hang" | "seller_centre" | string;
+  readonly reason: "login" | "captcha" | string;
+  readonly readers: readonly string[];
 }
 
 export interface ExecutionStates {

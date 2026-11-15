@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 #: The audit action of a Connector tick (``system_`` prefix: kind ``system``, 90-day retention).
-ACTION_CONNECTOR_TICK = "system_connector_tick"
+ACTION_CONNECTOR_TICK = connector_state.ACTION_CONNECTOR_TICK
 #: Ticks per shop per hour (a day has one run, one stock read and a few distinct skips).
 TICKS_PER_HOUR = 30
 

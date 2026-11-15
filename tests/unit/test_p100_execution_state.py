@@ -545,3 +545,73 @@ def test_a_near_zero_lift_gives_no_actual_instead_of_a_huge_number():
         final=True,
     )
     assert row["actual"] is None
+
+
+# ------------------------------------------------------------------ Connector 0.3.22 reader blocks
+
+
+def test_reader_blocks_of_a_run_report_group_pages_by_section_and_reason():
+    from juli_backend.services.shopee_recommendations import connector_state as cs
+
+    after = {
+        "kind": "run",
+        "trigger": "daily",
+        "outcomes": {
+            "products": "done:item_snapshot=posted",
+            "orders": "done:order_lines=posted",
+            "shop_totals": "blocked:login",
+            "traffic": "blocked:login",
+            "product_period": "blocked:login",
+            "health": "blocked:captcha",
+            "vouchers": "error:http_500",
+        },
+    }
+    assert cs.reader_blocks_of(after) == [
+        {
+            "section": "phan_tich_ban_hang",
+            "reason": "login",
+            "readers": ["shop_totals", "traffic", "product_period"],
+        },
+        {"section": "seller_centre", "reason": "captcha", "readers": ["health"]},
+    ]
+    # The page that stopped the whole run (session-wide logout) is Seller Centre, whatever page.
+    stopped = {"kind": "run", "outcomes": {"shop_totals": "blocked_login"}}
+    assert cs.reader_blocks_of(stopped) == [
+        {"section": "seller_centre", "reason": "login", "readers": ["shop_totals"]}
+    ]
+    assert cs.reader_blocks_of({"outcomes": {"products": "done"}}) == []
+    assert cs.reader_blocks_of(None) == []
+
+
+async def test_connector_status_carries_the_last_daily_runs_reader_blocks(session, shop):
+    from juli_backend.services.ops import audit
+    from juli_backend.services.shopee_recommendations import connector_state as cs
+
+    seeded, _ = shop
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW)
+    assert out["reader_blocks"] == []
+
+    async def tick(after, at):
+        await audit.record(
+            session, audit.SYSTEM_ACTOR, cs.ACTION_CONNECTOR_TICK, shop_id=seeded.shop_id,
+            after=after, at=at,
+        )  # fmt: skip
+        await session.flush()
+
+    blocked = {"shop_totals": "blocked:login", "traffic": "blocked:login", "orders": "done"}
+    await tick({"kind": "run", "trigger": "daily", "result": "finished", "outcomes": blocked}, NOW)
+    # A later stock read and a skip do not hide the daily run's blocks.
+    stock = {"kind": "run", "trigger": "stock", "outcomes": {"products": "done"}}
+    await tick(stock, NOW + timedelta(minutes=5))
+    await tick(
+        {"kind": "skip", "trigger": "alarm", "result": "done_today"}, NOW + timedelta(minutes=6)
+    )
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(minutes=7))
+    assert out["reader_blocks"] == [
+        {"section": "phan_tich_ban_hang", "reason": "login", "readers": ["shop_totals", "traffic"]}
+    ]
+    # The next daily run read every page: no block any more.
+    done = {"shop_totals": "done", "traffic": "done"}
+    await tick({"kind": "run", "trigger": "daily", "outcomes": done}, NOW + timedelta(hours=1))
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(hours=2))
+    assert out["reader_blocks"] == []

@@ -567,6 +567,10 @@
 .sd-th-bar__dot--on {
   background: #16a34a;
 }
+.sd-th-bar__block {
+  color: var(--qd-wait-fg);
+  font-weight: 600;
+}
 .sd-th-bar__sync {
   margin-left: auto;
 }

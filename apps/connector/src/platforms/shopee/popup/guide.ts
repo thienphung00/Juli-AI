@@ -259,6 +259,11 @@ export function outcomeStatus(outcome: string): { status: string; tone: Tone } {
       return { status: "Dừng: Seller Centre yêu cầu xác minh (CAPTCHA)", tone: "warn" };
     case "blocked_login":
       return { status: "Dừng: cần đăng nhập lại Seller Centre", tone: "warn" };
+    case "blocked":
+      // 0.3.22: "blocked:login" / "blocked:captcha": this page only; the other pages went on.
+      return outcome.startsWith("blocked:captcha")
+        ? { status: "Trang này yêu cầu xác minh (CAPTCHA)", tone: "warn" }
+        : { status: "Đăng nhập lại để đọc trang này", tone: "warn" };
     case "blocked_rate_limit":
       return { status: "Dừng: Seller Centre báo truy cập quá nhiều, thử lại sau", tone: "warn" };
     case "needs_data_page":

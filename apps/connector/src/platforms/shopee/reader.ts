@@ -406,8 +406,15 @@ function pageSizeOf(template: Template, fallback: number): number {
 }
 
 async function waitForPage(env: ReaderEnv, need: ReaderEndpoint[], collected: ReaderResponse[]): Promise<void> {
+  // 0.3.22: Phân tích bán hàng's password re-confirmation (or a CAPTCHA) means the page never makes
+  // its own calls. Before, shop_totals waited it out and reported needs_template:shop_key_metrics.
+  const modal = () => env.passwordModalVisible?.() === true;
+  const captcha = () => env.captchaVisible?.() === true;
   const ready = () => env.hasSession() && need.every((endpoint) => env.template(endpoint) !== undefined);
-  if (await env.waitFor(ready, READER_TEMPLATE_WAIT_MS)) return;
+  const settled = await env.waitFor(() => modal() || captcha() || ready(), READER_TEMPLATE_WAIT_MS);
+  if (modal()) throw new Stop(fail("blocked_login", collected, "password_modal"));
+  if (captcha()) throw new Stop(fail("blocked_captcha", collected, "page"));
+  if (settled && ready()) return;
   throw new Stop(fail(env.hasSession() ? "needs_template" : "needs_data_page", collected, need.join(",")));
 }
 

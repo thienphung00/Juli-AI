@@ -311,6 +311,8 @@ async def connector_status(
         "connected": fresh or beat["alive"],
         "seller_centre_open": beat["seller_centre_open"],
         "reconcile_pending": beat["reconcile_pending"],
+        # Connector 0.3.22: the sections the last daily run could not read (login wall / CAPTCHA).
+        "reader_blocks": await connector_state.reader_blocks(session, shop_id),
     }
 
 
