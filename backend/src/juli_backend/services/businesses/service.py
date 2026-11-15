@@ -25,13 +25,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import Business, BusinessInvite, BusinessMember, Shop, User
+from juli_backend.models.businesses import Business, BusinessInvite, BusinessMember
+from juli_backend.models.models import Shop, User
 from juli_backend.repositories._base import utc_now_naive
 from juli_backend.services.ops import audit
-from juli_backend.services.ops.access import ops_role
+from juli_backend.services.ops.access import is_sqlite, ops_role
 
 ROLE_OWNER = "owner"
 ROLE_MEMBER = "member"
@@ -383,8 +384,26 @@ def _usable(row: BusinessInvite | None, user: User, now: datetime) -> BusinessIn
     return row
 
 
-async def _first_shop_id(session: AsyncSession, business_id: uuid.UUID) -> uuid.UUID | None:
+async def _shop_business_id(session: AsyncSession, shop_id: uuid.UUID) -> uuid.UUID | None:
+    """The shop's business, read as ``juli_ops``.
+
+    ``juli_ops`` holds no grant on ``shops``: Ops reads shops only through reviewed SECURITY
+    DEFINER functions (migrations 083 / 110 / 130). SQLite (unit tests) reads the column.
+    """
+    if is_sqlite(session):
+        return (
+            await session.execute(select(Shop.business_id).where(Shop.id == shop_id))
+        ).scalar_one_or_none()
     async with ops_role(session):
+        value = (
+            await session.execute(text("SELECT public.ops_shop_business(:shop)"), {"shop": shop_id})
+        ).scalar_one_or_none()
+    return value if isinstance(value, uuid.UUID) or value is None else uuid.UUID(str(value))
+
+
+async def _first_shop_id(session: AsyncSession, business_id: uuid.UUID) -> uuid.UUID | None:
+    """The business's oldest shop (where an accepted invite lands), as ``juli_ops``."""
+    if is_sqlite(session):
         return (
             await session.execute(
                 select(Shop.id)
@@ -393,6 +412,14 @@ async def _first_shop_id(session: AsyncSession, business_id: uuid.UUID) -> uuid.
                 .limit(1)
             )
         ).scalar_one_or_none()
+    async with ops_role(session):
+        value = (
+            await session.execute(
+                text("SELECT public.ops_business_first_shop(:business)"),
+                {"business": business_id},
+            )
+        ).scalar_one_or_none()
+    return value if isinstance(value, uuid.UUID) or value is None else uuid.UUID(str(value))
 
 
 async def preview_invite(
@@ -498,10 +525,7 @@ async def members_of_shop_business(
     session: AsyncSession, shop_id: uuid.UUID
 ) -> list[BusinessMember]:
     """The active members of the shop's business (empty for a shop with no business yet)."""
-    async with ops_role(session):
-        business_id = (
-            await session.execute(select(Shop.business_id).where(Shop.id == shop_id))
-        ).scalar_one_or_none()
+    business_id = await _shop_business_id(session, shop_id)
     if business_id is None:
         return []
     return await _members(session, business_id)
@@ -515,10 +539,7 @@ async def remove_person_from_shop_business(
     Without this a business member would keep the shop through the business branch of the access
     rule. True when a row was removed. Ops access itself is unchanged.
     """
-    async with ops_role(session):
-        business_id = (
-            await session.execute(select(Shop.business_id).where(Shop.id == shop_id))
-        ).scalar_one_or_none()
+    business_id = await _shop_business_id(session, shop_id)
     if business_id is None:
         return False
     row = await member_of(session, business_id, user_id)
@@ -542,10 +563,7 @@ async def transfer_shop_business_owner(
     ``release`` are the accounts that lose the business with the handover (the Juli team account
     that connected it, a login-less contract owner). A no-op for a shop with no business yet.
     """
-    async with ops_role(session):
-        business_id = (
-            await session.execute(select(Shop.business_id).where(Shop.id == shop_id))
-        ).scalar_one_or_none()
+    business_id = await _shop_business_id(session, shop_id)
     if business_id is None:
         return
     for previous in release:

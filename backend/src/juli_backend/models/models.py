@@ -100,7 +100,7 @@ class Shop(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     #: P101 W1 (migration 130): the seller business this shop belongs to (one per shop). Access is
     #: membership of that business or a ``shop_members`` row (``services/businesses``). NULL only
-    #: for a shop made before the backfill (``deferred/130_businesses_backfill.py``) or on SQLite.
+    #: before the automatic backfill (``services/businesses/backfill.py``) reaches it, or on SQLite.
     business_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("businesses.id"), nullable=True
     )
@@ -125,75 +125,6 @@ class Shop(Base):
         CheckConstraint("platform IN ('tiktok', 'shopee')", name="ck_shops_platform"),
         CheckConstraint("kind IN ('real', 'sandbox', 'sample')", name="ck_shops_kind"),
         Index("ix_shops_business_id", "business_id"),
-    )
-
-
-class Business(Base):
-    """P101 W1 (migration 130): one seller business, holding its shops on every platform."""
-
-    __tablename__ = "businesses"
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
-
-
-class BusinessInvite(Base):
-    """P101 W1 (migration 130): a business owner's invite by e-mail (only the token's sha256)."""
-
-    __tablename__ = "business_invites"
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    business_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
-    )
-    email: Mapped[str] = mapped_column(String(320), nullable=False)
-    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    expires_at: Mapped[datetime] = mapped_column(nullable=False)
-    accepted_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    accepted_user_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
-    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
-
-
-class BusinessMember(Base):
-    """P101 W1 (migration 130): a person of a business (``owner`` or ``member``), soft-deleted."""
-
-    __tablename__ = "business_members"
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    business_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    role: Mapped[str] = mapped_column(String(16), nullable=False)
-    #: The e-mail the person signed in with, lower-cased at the time they joined.
-    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
-    added_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    added_via: Mapped[str] = mapped_column(String(16), nullable=False)
-    invite_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("business_invites.id"), nullable=True
-    )
-    removed_at: Mapped[datetime | None] = mapped_column(nullable=True)
-
-    __table_args__ = (
-        Index(
-            "uq_business_members_active",
-            "business_id",
-            "user_id",
-            unique=True,
-            postgresql_where=text("removed_at IS NULL"),
-            sqlite_where=text("removed_at IS NULL"),
-        ),
-        Index("ix_business_members_user", "user_id", "business_id"),
-        CheckConstraint("role IN ('owner', 'member')", name="ck_business_members_role"),
-        CheckConstraint(
-            "added_via IN ('owner', 'invite', 'backfill')", name="ck_business_members_added_via"
-        ),
     )
 
 

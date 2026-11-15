@@ -36,6 +36,7 @@ does not fire against a name listed in `__all__`.
 from juli_backend.workers.tasks import (
     action_card_refresh,
     agent_workflow,
+    businesses_backfill,
     card_change_verification,
     card_events_backfill,
     cdp_batch_reconcile,
@@ -63,6 +64,7 @@ from juli_backend.workers.tasks import (
 __all__ = [
     "action_card_refresh",
     "agent_workflow",
+    "businesses_backfill",
     "card_change_verification",
     "card_events_backfill",
     "cdp_batch_reconcile",

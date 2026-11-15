@@ -241,6 +241,14 @@ celery_app.conf.update(
             "task": "juli_backend.stock_alert_daily",
             "schedule": crontab(hour=0, minute=0),
         },
+        # P101 W1 (owner rule T2): give every pre-130 shop its business, then require one
+        # (services/businesses/backfill.py). Every 10 minutes and once at worker start; a run
+        # after the backfill is two cheap reads. Minutes 6, 16, ... 56: no slot above
+        # uses them. Default queue.
+        "businesses-backfill": {
+            "task": "juli_backend.businesses_backfill",
+            "schedule": crontab(minute="6-59/10"),
+        },
     },
 )
 

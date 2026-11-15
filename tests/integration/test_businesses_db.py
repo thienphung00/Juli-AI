@@ -4,19 +4,18 @@
 - ``juli_app`` reads only its own member rows, never writes the tables, never reads the invites;
 - the ``shops`` policies admit a business member to every shop of the business, a removed member
   to none, a stranger to none; ``shops.user_id`` alone admits nothing once a business exists;
-- the deferred backfill maps each pre-130 shop to its own business (owner + active members,
-  removed people left out, the sandbox shop ``kind = 'sandbox'``), is idempotent, and sets
-  ``business_id`` NOT NULL; downgrade of 130 restores 121's policies (alembic, run separately).
+- the backfill JOB maps each pre-130 shop to its own business (owner + active members, removed
+  people left out, the sandbox shop ``kind = 'sandbox'``) in batches, as juli_app -> juli_ops
+  through 130's functions, is idempotent, then adds and validates the business_id CHECK;
+- Ops' reads of a shop's business go through ``ops_shop_business`` (juli_ops has no shops grant).
 """
 
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import os
 import uuid
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 from sqlalchemy import text
@@ -35,11 +34,6 @@ pytestmark = [
     ),
     pytest.mark.migration_heavy,
 ]
-
-BACKFILL = (
-    Path(__file__).resolve().parents[2]
-    / "backend/src/juli_backend/database/migrations/deferred/130_businesses_backfill.py"
-)
 
 
 def _tenant(engine, label: str):
@@ -170,9 +164,9 @@ async def test_shops_user_id_alone_admits_nothing_once_a_business_exists(owner_e
     assert tenant.shop_id not in await _raw(tenant.user_id)
 
 
-def test_deferred_backfill_maps_pre_130_shops_and_is_idempotent(owner_engine):
-    from alembic.migration import MigrationContext
-    from alembic.operations import Operations
+def test_the_backfill_job_maps_pre_130_shops_is_idempotent_and_requires_a_business(owner_engine):
+    """The worker job (``services/businesses/backfill.py``), as the runtime role -> juli_ops."""
+    from juli_backend.services.businesses.backfill import run_backfill
 
     plain = _tenant(owner_engine, "plain")
     staffed = _tenant(owner_engine, "staffed")
@@ -229,18 +223,15 @@ def test_deferred_backfill_maps_pre_130_shops_and_is_idempotent(owner_engine):
         )
     assert asyncio.run(_visible(plain.user_id)) >= {plain.shop_id}  # P93 rule until backfill
 
-    spec = importlib.util.spec_from_file_location("backfill_130", BACKFILL)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    def run_backfill():
-        with owner_engine.begin() as conn:
-            with Operations.context(MigrationContext.configure(conn)):
-                module.upgrade()
+    def run_job():
+        return asyncio.run(run_backfill(app_session, batch_size=2))
 
     try:
-        run_backfill()
-        run_backfill()
+        first = run_job()
+        assert first.skipped is None and first.shops >= len(pre) and first.batches >= 3
+        assert first.sandbox >= 1 and first.required is True
+        again = run_job()
+        assert (again.shops, again.owners, again.members, again.required) == (0, 0, 0, True)
         for tenant in pre:
             assert _business_of(owner_engine, tenant.shop_id) == tenant.shop_id
         assert [(r.user_id, r.role) for r in _members(owner_engine, plain.shop_id)] == [
@@ -257,16 +248,37 @@ def test_deferred_backfill_maps_pre_130_shops_and_is_idempotent(owner_engine):
                     {"a": sandbox.shop_id, "b": plain.shop_id},
                 ).all()
             )
-            nullable = conn.execute(
+            validated = conn.execute(
                 text(
-                    "SELECT is_nullable FROM information_schema.columns "
-                    "WHERE table_name = 'shops' AND column_name = 'business_id'"
+                    "SELECT convalidated FROM pg_constraint "
+                    "WHERE conname = 'ck_shops_business_id_set'"
                 )
             ).scalar_one()
         assert kinds[plain.shop_id] == "real"
         assert kinds[sandbox.shop_id] == "sandbox"  # seed_tenant gives each shop a credential
-        assert nullable == "NO"
+        assert validated is True
+        with pytest.raises(Exception, match="ck_shops_business_id_set"):
+            with owner_engine.begin() as conn:
+                conn.execute(
+                    text("UPDATE public.shops SET business_id = NULL WHERE id = :s"),
+                    {"s": plain.shop_id},
+                )
     finally:
+        # Other modules simulate pre-130 shops (business_id NULL) on this database.
         with owner_engine.begin() as conn:
-            with Operations.context(MigrationContext.configure(conn)):
-                module.downgrade()
+            conn.execute(
+                text("ALTER TABLE public.shops DROP CONSTRAINT IF EXISTS ck_shops_business_id_set")
+            )
+
+
+async def test_ops_reads_the_shop_business_through_the_function(owner_engine):
+    """2026-11-15 regression: ``permission denied for table shops`` as juli_ops."""
+    from juli_backend.services.businesses import service
+
+    tenant = _tenant(owner_engine, "ops-read")
+    expected = _business_of(owner_engine, tenant.shop_id)
+    async with app_session() as session:
+        assert await service._shop_business_id(session, tenant.shop_id) == expected
+        assert await service._first_shop_id(session, expected) == tenant.shop_id
+        people = await businesses.members_of_shop_business(session, tenant.shop_id)
+    assert [p.user_id for p in people] == [tenant.user_id]

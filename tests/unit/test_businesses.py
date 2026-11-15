@@ -17,7 +17,8 @@ from sqlalchemy import select
 from juli_backend.api.routes.ops import get_ops_user
 from juli_backend.core.security import get_current_user
 from juli_backend.core.security.oauth_state import mint_oauth_state, verify_oauth_state
-from juli_backend.models.models import Business, BusinessMember, Shop, User
+from juli_backend.models.businesses import Business, BusinessMember
+from juli_backend.models.models import Shop, User
 from juli_backend.models.ops import OpsAuditLog, OpsStaff
 from juli_backend.repositories.identity import ShopsRepo
 from juli_backend.services import businesses, shop_team

@@ -20,7 +20,8 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import with_user_scope
-from juli_backend.models.models import BusinessMember, Shop, ShopMember, User
+from juli_backend.models.businesses import BusinessMember
+from juli_backend.models.models import Shop, ShopMember, User
 from juli_backend.repositories._base import SessionRepo, utc_now_naive
 
 logger = logging.getLogger(__name__)
@@ -312,9 +313,9 @@ def shops_of_user_clause(user_id: uuid.UUID) -> Any:
 
     An active member of the shop's business, or an active ``shop_members`` row (staff of one
     shop). ``shops.user_id`` with NO row of their own at all (no ``shop_members`` row for the shop,
-    no ``business_members`` row in its business) is P93's "owner without a row": a shop before
-    ``deferred/130_businesses_backfill.py`` (or on SQLite). Any row, removed included, ends that
-    branch. The ``shops`` policies of migration 130 say the same.
+    no ``business_members`` row in its business) is P93's "owner without a row": a shop the
+    automatic backfill (``services/businesses/backfill.py``) has not reached, or SQLite. Any row,
+    removed included, ends that branch. The ``shops`` policies of migration 130 say the same.
     """
     own_row = exists().where(ShopMember.shop_id == Shop.id, ShopMember.user_id == user_id)
     active = exists().where(
