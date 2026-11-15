@@ -1846,3 +1846,16 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       P94 groups brought into P97 ("Chạy cùng nhau").
   11. Combo khuyến mãi reshaped to Shopee's tiers; Listing combo mới its own kind; ads levers = Shopee's
       edit form (budget ≥ ₫100.000, ROAS), keyword bids removed.
+- **D86** — TikTok Shop parity on one product for Shopee and TikTok (owner, 2026-11-15, grill T1–T18).
+  Full record: [contracts/p101-tiktok-parity.md](contracts/p101-tiktok-parity.md). Lifts D85.1; supersedes
+  the 9 Nov plan (#2264) where they differ.
+  1. Everything dynamic and automatic: no per-shop config, no hand-run backfill, no shop id in source.
+  2. One account → many businesses → many shops on many platforms; shop gate + unified business gate.
+  3. Four layers (raw → mapper → canonical → versioned computed); `shopee_*` names renamed and dropped.
+  4. One metric registry; headline GMV = platform-reported, profit and margins on net revenue.
+  5. Capabilities per platform in code: `can(platform, capability) → api | connector | none`.
+  6. Seller approval is the only human decision (cards and Tự tạo); API writes automatic and verified;
+     Connector fills, seller clicks Lưu; groups all-or-nothing within 15 min.
+  7. On TikTok the Connector only does actions with no TikTok write endpoint (core/ + platform packs).
+  8. Pause and resume automatically on lost access; 14 days → plan expired.
+  9. Phases W0–W6 + P5; S1 owns registry/renames/Connector split, S2 sample shops, TikTok session W0–W6.

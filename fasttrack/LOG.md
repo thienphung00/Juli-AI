@@ -4107,3 +4107,13 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Open: a giá vốn save rebuilds all data days synchronously (watch latency on large shops); ads
   product table read for ≤10 group campaigns; Ops-only screens show a generic error for 409;
   confirmed plans stay frozen at confirmation.
+
+## 2026-11-15 — TikTok session (Claude Opus) — P101 grill: TikTok parity, one product (D86)
+
+Verified #2264 against optimize-product 1bdabc56: none of its build items had started (PILOT_SHOP_IDS,
+`_shopee()` 409, shell fork, field gates, TikTok Connector host); P94 groups exist for Shopee only; TikTok
+polling and the Shopee shell read two separate table sets. Grill T1–T18 closed → contract
+p101-tiktok-parity.md, D86. ORY October reconciliation (prod, read-only aggregates): GMV/đơn = Seller Centre
+shop_overview file totals; ads = daily ads report; profit = Juli calculation with 100 % giá vốn coverage and
+income-file fees for 113/131 orders; "Cả shop" −3,40 tr = whole ad spend (no ad attributed to a product).
+Handed to S1 as the registry acceptance case.
