@@ -27,8 +27,20 @@ from juli_backend.services.metrics import (
     per_day,
     shop_lines,
 )
+from juli_backend.services.metrics.components import (
+    component_available,
+    gate_source,
+    resolve_components,
+)
 from juli_backend.services.metrics.compute import raw_value
-from juli_backend.services.metrics.registry import LINEAR_OPERATORS, ops, refs
+from juli_backend.services.metrics.registry import (
+    LINEAR_OPERATORS,
+    TRAFFIC_SOURCES,
+    Platform,
+    ops,
+    refs,
+    source_available,
+)
 from juli_backend.services.shopee_profit.money import to_dong
 
 D = Decimal
@@ -483,3 +495,55 @@ def test_kol_status_samples_count_against_the_koc() -> None:
     profits = [D(p) for p in (95, 100, 105, 98, 102, 100, 97, 103, 99, 101)]
     assert kol_status(profits, D(5000), D(100)).state is KolState.not_effective
     assert kol_status(profits, D(5000), D(100)).roi == D(-4000) / D(5100)
+
+
+SHOPEE_SOURCES = (
+    "the_san_pham_khac",
+    "trang_shop",
+    "live",
+    "video",
+    "lien_ket",
+    "ads",
+    "chenh_lech_nguon",
+)
+TIKTOK_SOURCES = ("the_san_pham_khac", "live", "video")
+
+
+def test_source_availability_matrix() -> None:
+    assert set(TRAFFIC_SOURCES) == set(SHOPEE_SOURCES)
+    assert all(source_available(Platform.shopee, s) for s in SHOPEE_SOURCES)
+    on_tiktok = {s for s in SHOPEE_SOURCES if source_available(Platform.tiktok, s)}
+    assert on_tiktok == set(TIKTOK_SOURCES)
+
+
+def test_unavailable_source_is_none_never_zero() -> None:
+    comps = {"views": D(100), "clicks": D(10)}
+    gated = gate_source(Platform.tiktok, "lien_ket", comps)
+    assert gated == {"views": None, "clicks": None}
+    assert evaluate("ctr", gated).value is None
+    assert evaluate("views", gated).value is None
+    assert evaluate("views", gate_source(Platform.tiktok, "video", comps)).value == D(100)
+    assert gate_source(Platform.shopee, "lien_ket", comps) == comps
+
+
+def test_offers_fallback_to_the_seller_lump_on_tiktok() -> None:
+    assert not component_available(Platform.tiktok, "offer_promo")
+    assert component_available(Platform.tiktok, "offer_seller_total")
+    assert not component_available(Platform.shopee, "offer_seller_total")
+    comps = {"offer_seller_total": D(120_000)}
+    got = evaluate("cost_offers", resolve_components(Platform.tiktok, comps))
+    assert got.value == D(120_000)
+    assert evaluate("cost_offers", resolve_components(Platform.tiktok, {})).value is None
+
+
+def test_offers_on_shopee_are_unchanged() -> None:
+    comps = {
+        "offer_promo": D(10),
+        "offer_voucher": D(20),
+        "offer_combo": D(30),
+        "offer_seller_total": D(999),
+    }
+    assert resolve_components(Platform.shopee, comps) == comps
+    assert evaluate("cost_offers", resolve_components(Platform.shopee, comps)).value == D(60)
+    partial = {"offer_promo": D(10), "offer_seller_total": D(999)}
+    assert evaluate("cost_offers", resolve_components(Platform.shopee, partial)).value is None

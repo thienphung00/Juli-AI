@@ -178,7 +178,7 @@ export const METRIC_DEFS: Readonly<Record<MetricId, MetricDefinition>> = {
   kol_status: { id: "kol_status", label_vi: "Hiệu quả KOL", unit: "status", rounding: "none", summable: false, perDayAllowed: false },
 };
 
-export const CAPABILITY_IDS = ["read_orders", "read_shop_totals", "read_ads", "write_price", "write_listing", "write_stock", "promo_discount", "promo_flash_sale", "voucher", "bundle", "affiliate_commission", "ads_campaign", "live_schedule", "shop_tab"] as const;
+export const CAPABILITY_IDS = ["read_orders", "read_shop_totals", "read_ads", "write_price", "write_listing", "write_stock", "promo_discount", "promo_flash_sale", "promo_bmsm", "voucher", "bundle", "affiliate_commission", "ads_campaign", "live_schedule", "shop_tab"] as const;
 
 export type CapabilityId = (typeof CAPABILITY_IDS)[number];
 

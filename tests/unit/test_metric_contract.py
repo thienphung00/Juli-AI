@@ -68,3 +68,9 @@ def test_ts_capability_ids_equal_the_registry() -> None:
 
 def test_generated_header_says_do_not_edit() -> None:
     assert "do not edit" in GENERATED.read_text(encoding="utf-8").splitlines()[0]
+
+
+def test_contract_lists_bmsm_and_bundle_apart() -> None:
+    text = GENERATED.read_text(encoding="utf-8")
+    assert '"promo_bmsm"' in text and '"bundle"' in text
+    assert "promo_bmsm" in CAPABILITIES
