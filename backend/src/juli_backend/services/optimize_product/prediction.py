@@ -27,6 +27,11 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.optimize_product.tunables import (
+    GENERIC_UPLIFT_FLOOR,
+    UPLIFT_FLOOR_EXEMPT_LEVERS,
+)
+
 #: (low, high) relative lift on the lever's metric, by Quality-Score gap bucket.
 PRIOR_LIFT: Mapping[str, Mapping[str, tuple[float, float]]] = {
     "cover_image": {
@@ -132,9 +137,13 @@ class Prediction:
     lift_high: float
     factor: float
     source: str  # "shop" | "fleet" | "prior"
+    #: P50 when it differs from the band's midpoint (the generic-uplift floor lifted it).
+    lift_p50: float | None = None
 
     @property
     def lift_mid(self) -> float:
+        if self.lift_p50 is not None:
+            return self.lift_p50
         return (self.lift_low + self.lift_high) / 2
 
     def metric_range(self, current: float) -> tuple[float, float]:
@@ -160,14 +169,39 @@ def predict(
 ) -> Prediction:
     low, high = prior_lift(lever, qs_gap)
     factor, source = blended_factor(shop, fleet)
+    lift_low, lift_high, p50 = low * factor, high * factor, None
+    if source == "prior" and lever not in UPLIFT_FLOOR_EXEMPT_LEVERS:
+        mid = (lift_low + lift_high) / 2
+        # Owner rule: the generic uplift is a fall back and is at least 5 %. Only P50 is
+        # floored; P10 (the conservative tail) stays, and P90 is kept >= P50. A lever
+        # whose prior P50 is <= 0 can legitimately lose, so it is left alone.
+        if 0 < mid < GENERIC_UPLIFT_FLOOR:
+            p50 = GENERIC_UPLIFT_FLOOR
+            lift_high = max(lift_high, p50)
     return Prediction(
         lever=lever,
         gap_bucket=gap_bucket(qs_gap),
-        lift_low=low * factor,
-        lift_high=high * factor,
+        lift_low=lift_low,
+        lift_high=lift_high,
         factor=factor,
         source=source,
+        lift_p50=p50,
     )
+
+
+def gmv_range_from_lift(
+    gmv_per_day: float, lift_low: float, lift_high: float
+) -> tuple[float, float]:
+    """GMV is linear in the target metric: GMV/day × lift × 30, per bound (P10, P90).
+
+    Follows the prediction's lift band, not the KPI band: the KPI band is a measurement
+    window (1-3 noise bands) and collapses to a point on a below-shop-level card.
+    """
+    if gmv_per_day <= 0:
+        return 0.0, 0.0
+    low = gmv_per_day * max(lift_low, 0.0) * DAYS_PER_MONTH
+    high = gmv_per_day * max(lift_high, lift_low, 0.0) * DAYS_PER_MONTH
+    return low, high
 
 
 def gmv_range_per_month(
@@ -192,6 +226,7 @@ __all__ = [
     "calibration_factor",
     "fleet_stats_for",
     "gap_bucket",
+    "gmv_range_from_lift",
     "gmv_range_per_month",
     "predict",
     "prior_lift",
