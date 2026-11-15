@@ -46,6 +46,12 @@ DEPENDENT_TABLES = {
     "kpi_exclusions",
     "kpi_targets",
 }
+#: P101 W1 (migration 130): account-level tables under ``businesses`` (no shop_id anywhere in the
+#: chain). Not purge step 2: the purge deletes the account's member rows and the invites it sent
+#: (step 4, the FKs to ``users``), then its shops (step 5), whose AFTER DELETE trigger drops a
+#: business left with no shop and no active member -- these rows go with it (cascade).
+BUSINESS_TABLES = {"business_members", "business_invites"}
+BUSINESS_PARENTS = {"businesses", "business_invites"}
 
 
 @asynccontextmanager
@@ -248,7 +254,33 @@ async def test_purge_deletes_the_due_account_and_keeps_periods_and_other_tenants
         _schedule(conn, keep.user_id, datetime.now(UTC) + timedelta(days=29))
         keep_before = _rows_for_shop(conn, keep.shop_id)
         gone_before = _rows_for_shop(conn, gone.shop_id)
+        gone_business, keep_business = (
+            conn.execute(
+                text("SELECT business_id FROM public.shops WHERE id = :s"), {"s": t.shop_id}
+            ).scalar_one()
+            for t in (gone, keep)
+        )
+        # An invite each owner sent (P101 W1): the purged one's goes, the other stays.
+        for business_id, created_by in (
+            (gone_business, gone.user_id),
+            (keep_business, keep.user_id),
+        ):
+            conn.execute(
+                text(
+                    "INSERT INTO public.business_invites "
+                    "(id, business_id, email, token_hash, created_by, expires_at) "
+                    "VALUES (:id, :b, :e, :h, :u, now() + interval '7 days')"
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "b": business_id,
+                    "e": f"invitee-{uuid.uuid4().hex[:8]}@example.com",
+                    "h": uuid.uuid4().hex + uuid.uuid4().hex,
+                    "u": created_by,
+                },
+            )
     assert "orders" in gone_before and "products" in gone_before
+    assert gone_business is not None and keep_business is not None
 
     summary = await run_privacy_account_purge(app_session)
 
@@ -261,6 +293,11 @@ async def test_purge_deletes_the_due_account_and_keeps_periods_and_other_tenants
             ("public.users", "id", gone.user_id),
             ("public.shops", "id", gone.shop_id),
             ("public.action_card_approvals", "approved_by_user_id", gone.user_id),
+            # P101 W1: the purged seller's business, its people and its invites
+            ("public.businesses", "id", gone_business),
+            ("public.business_members", "user_id", gone.user_id),
+            ("public.business_invites", "business_id", gone_business),
+            ("public.business_invites", "created_by", gone.user_id),
         ):
             n = conn.execute(
                 text(f"SELECT count(*) FROM {table} WHERE {column} = :v"),  # nosec B608
@@ -275,6 +312,16 @@ async def test_purge_deletes_the_due_account_and_keeps_periods_and_other_tenants
         ).scalar_one()
         assert detached >= 1
         assert _rows_for_shop(conn, keep.shop_id) == keep_before
+        for table, column in (
+            ("public.businesses", "id"),
+            ("public.business_members", "business_id"),
+            ("public.business_invites", "business_id"),
+        ):
+            n = conn.execute(
+                text(f"SELECT count(*) FROM {table} WHERE {column} = :v"),  # nosec B608
+                {"v": keep_business},
+            ).scalar_one()
+            assert n >= 1, table
         assert (
             conn.execute(
                 text("SELECT count(*) FROM public.users WHERE id = :u"), {"u": keep.user_id}
@@ -325,11 +372,13 @@ def test_every_dependent_table_hangs_off_a_shop_scoped_table(owner_engine):
     # An actor reference (the account, or the Ops staff member) is not a shop chain.
     actors = ("users", "public.users", "ops_staff", "public.ops_staff")
     children = {child for child, parent, _ in rows if parent not in actors}
-    children.discard("shops")
-    assert children == DEPENDENT_TABLES
+    children.discard("shops")  # shops -> businesses (130): the account level, not shop data
+    assert children == DEPENDENT_TABLES | BUSINESS_TABLES
     for child, parent, parent_has_shop in rows:
         if child in DEPENDENT_TABLES and parent not in actors:
             assert parent_has_shop, (child, parent)
+        if child in BUSINESS_TABLES and parent not in actors:
+            assert parent in BUSINESS_PARENTS and not parent_has_shop, (child, parent)
 
 
 def test_the_guarded_tables_are_the_only_user_triggers_on_shop_data(owner_engine):

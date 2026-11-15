@@ -42,7 +42,9 @@ class BusinessInvite(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(nullable=False)
     accepted_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    accepted_user_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    accepted_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
     revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
@@ -64,7 +66,7 @@ class BusinessMember(Base):
     added_at: Mapped[datetime] = mapped_column(server_default=func.now())
     added_via: Mapped[str] = mapped_column(String(16), nullable=False)
     invite_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("business_invites.id"), nullable=True
+        ForeignKey("business_invites.id", ondelete="SET NULL"), nullable=True
     )
     removed_at: Mapped[datetime | None] = mapped_column(nullable=True)
 

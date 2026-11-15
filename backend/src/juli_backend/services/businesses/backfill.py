@@ -133,11 +133,18 @@ async def run_backfill(
 
 
 def main() -> int:  # pragma: no cover - break-glass CLI, the worker task is the normal path
+    import os
+
+    from juli_backend.core.config import async_database_url
     from juli_backend.database.database import ensure_worker_session_factory
-    from juli_backend.workers.tasks.database import get_async_database_url
 
     logging.basicConfig(level=logging.INFO)
-    factory = ensure_worker_session_factory(get_async_database_url())
+    raw_url = os.environ.get("DATABASE_URL", "").strip()
+    if not raw_url:
+        sys.stderr.write("DATABASE_URL is not set\n")
+        return 2
+    # services depend on database/core only (import boundaries): no workers helper here.
+    factory = ensure_worker_session_factory(async_database_url(raw_url))
     result = asyncio.run(run_backfill(factory))
     sys.stdout.write(f"{result.as_log()}\n")  # counts only, for the operator
     return 0

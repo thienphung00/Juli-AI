@@ -96,6 +96,8 @@ def test_every_ops_table_is_classified_and_rls_enabled(owner_engine):
             "market_listing_snapshots",
             # ADR-119 (migration 111): shopeeanalytics keyword metrics, public lane
             "market_keyword_metrics",
+            # P101 W1 (migration 130): a business owner's invites by e-mail (juli_ops only)
+            "business_invites",
         ]
     )
     with owner_engine.connect() as conn:

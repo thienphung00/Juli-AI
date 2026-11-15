@@ -2,7 +2,7 @@
 
 ``juli_backend.businesses_backfill`` (default queue): beat every 10 minutes, and once when a worker
 starts (``worker_ready``), so a release carrying migration 130 backfills within seconds of the
-worker restart that deploys it. ``services/businesses/backfill.run_backfill`` does the work
+worker restart that deploys it. ``services.businesses.run_backfill`` (``backfill.py``) does the work
 (idempotent, batched, advisory-locked, counts-only logs); once every shop has a business a run is
 two cheap reads. A failure is logged; the next run catches up.
 """
@@ -26,7 +26,7 @@ BUSINESSES_BACKFILL_TASK = "juli_backend.businesses_backfill"
 @celery_app.task(name=BUSINESSES_BACKFILL_TASK)
 def businesses_backfill() -> dict[str, Any]:
     from juli_backend.database.database import ensure_worker_session_factory
-    from juli_backend.services.businesses.backfill import run_backfill
+    from juli_backend.services.businesses import run_backfill
 
     factory = ensure_worker_session_factory(get_async_database_url())
     try:

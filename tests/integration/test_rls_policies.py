@@ -107,7 +107,10 @@ def test_no_table_has_force_row_level_security(postgres_engine):
 def test_no_old_app_current_user_id_policies_survive(postgres_engine, alembic_cfg):
     """No surviving policy references app.current_user_id except users/shops.
 
-    shop_members is allowed too: its own-rows policy is what the shops policies read (P93)."""
+    shop_members is allowed too: its own-rows policy is what the shops policies read (P93).
+    business_members likewise (P101 W1, migration 130): the shops policies read it, so it needs
+    its own-rows policy. businesses is NOT allowed: it reaches the user only through
+    business_members' policy."""
     command.upgrade(alembic_cfg, "head")
 
     with postgres_engine.connect() as conn:
@@ -117,13 +120,14 @@ def test_no_old_app_current_user_id_policies_survive(postgres_engine, alembic_cf
                 SELECT schemaname, tablename, policyname, qual
                 FROM pg_policies
                 WHERE qual LIKE '%current_user_id%'
-                  AND tablename NOT IN ('users', 'shops', 'shop_members')
+                  AND tablename NOT IN ('users', 'shops', 'shop_members', 'business_members')
                 ORDER BY schemaname, tablename, policyname
                 """
             )
         ).fetchall()
 
-        non_user_policies = [r for r in result if r[1] not in ("users", "shops", "shop_members")]
+        allowed = ("users", "shops", "shop_members", "business_members")
+        non_user_policies = [r for r in result if r[1] not in allowed]
         assert len(non_user_policies) == 0, (
             f"Non-user/shop tables have current_user_id policies: {non_user_policies}"
         )
