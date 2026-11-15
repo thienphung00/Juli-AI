@@ -449,6 +449,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/builder/banner",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/demo/shopee/builder/choose",
       "methods": [
         "POST"
@@ -522,6 +530,14 @@
     },
     {
       "path": "/v1/demo/shopee/builder/products",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/shopee/builder/products/{item_id}/banner",
       "methods": [
         "GET"
       ],
