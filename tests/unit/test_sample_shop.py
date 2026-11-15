@@ -857,3 +857,56 @@ async def test_every_advertised_product_shows_its_own_ads_figures(engine):
             assert v["ok"], v.get("refusal")
             warnings = [w["type"] for w in v["result"].get("warnings", [])]
             assert "profit_unknown" not in warnings, v["result"]
+
+
+async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(engine):
+    """2026-11-15 (prod S2): Combo "mua 2 giảm 5 % / mua 3 giảm 8 %" on Nước rửa chén + Túi rác gave
+    ΔGMV +4,34 tr on +1,6 đơn (every one-unit order "reached" Mua 2: a 100 % take-up), and a set
+    at 110k gave +1,07 tr whatever its price, with no cost for the buyers who switch to it."""
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.services.sample_shop.catalog import PRODUCTS
+    from juli_backend.services.shopee_builder import service as builder
+    from juli_backend.services.shopee_builder.engine_families import (
+        adapters,
+        integrate,
+        option_for,
+    )
+    from tests.unit.test_shopee_builder import S
+
+    factory, report = await _load(engine)
+    nrc, tdr = PRODUCTS[0].item_id, PRODUCTS[2].item_id
+    combo = S(
+        kind="combo",
+        item_ids=[nrc, tdr],
+        discount_type="pct",
+        tiers=[{"qty": 2, "value": 5}, {"qty": 3, "value": 8}],
+    )
+    set2 = S(
+        kind="variation_set",
+        item_id=nrc,
+        new_variations=[{"name": "Set 2 chai", "price": 110_000, "pack_count": 2}],
+    )
+    async with factory() as session:
+        async with with_shop_scope(session, report.shop_id):
+            ctx = await builder.build_context(session, report.shop_id, [combo], as_of=END, now=NOW)
+            f = adapters.combo_facts(combo, ctx.env)
+            # 65 % of the orders held 2+ units before the combo (day 10), 60 % while it ran
+            assert f.reach is not None and f.reach.p50 == 0 and f.near_share > Decimal("0.38")
+            out = await builder.evaluate_versions(
+                session, report.shop_id, [combo, set2], as_of=END, now=NOW
+            )
+            c, s = (v["result"] for v in out["versions"])
+            # combo: only the badge's CTOR prior moves orders; ΔGMV = those orders × AOV
+            assert c["delta"]["gmv"]["value"] == pytest.approx(350_716, rel=0.02)
+            assert c["delta"]["orders"]["value"] == pytest.approx(2.9, abs=0.1)
+            assert c["delta"]["profit"]["value"] < 0
+            ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
+            base = integrate.base_for(ctx.env, [nrc], "")
+            o = option_for(set2, ctx, integrate.extras_for(base))
+            # the AOV prior (5,2 %) × the set's 6,8 % off ÷ the 10 % reference
+            assert o.drivers[0].lift is not None
+            assert o.drivers[0].lift.p50 == pytest.approx(Decimal("0.03536"))
+            # 48 of the 109 orders already buy 2+ single bottles: they switch to the set
+            assert o.offers and o.offers[0].use_share.p50 == Decimal(48) / Decimal(109)
+            assert s["delta"]["gmv"]["value"] == pytest.approx(791_214, rel=0.02)
+            assert s["cost"]["total"] > 0 and s["delta"]["profit"]["value"] < 0

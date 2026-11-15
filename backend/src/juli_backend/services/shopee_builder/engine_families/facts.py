@@ -63,6 +63,10 @@ class ComboFacts:
     #: P100-C (J): Shopee's % fees are on the item total AFTER the combo, so one đồng of combo
     #: discount costs the seller (1 − fee_rate) đồng; 0 = no fee formula (the gross discount)
     fee_rate: Decimal = Decimal(0)
+    #: the funnel base's GMV ÷ orders: the AOV lift is relative to the base it moves (the
+    #: products' own GMV), not to ``aov_now`` (whole baskets, other products included); None =
+    #: ``aov_now``
+    base_aov: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -88,6 +92,8 @@ class ListingComboFacts:
     pack: PackEvidence | None = None
     #: ADR-122 d.13 E3: the shop already sells this pack size: switching only (Δ Đơn 0)
     pack_sold_today: bool = False
+    #: the funnel base's GMV ÷ orders (as ``ComboFacts.base_aov``); None = ``aov_now``
+    base_aov: Decimal | None = None
 
 
 @dataclass(frozen=True)

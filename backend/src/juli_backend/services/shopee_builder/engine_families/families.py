@@ -175,7 +175,10 @@ def combo_option(spec: sp.ComboSpec, facts: ComboFacts) -> OptionInput:
         )
     moving = (facts.reach.p10, facts.reach.p50, facts.reach.p90)
     units = facts.reach_units
-    aov = Band(*(m * units * facts.unit_price / facts.aov_now for m in moving))
+    # the lift is relative to the base it multiplies (the products' GMV ÷ orders), so ΔGMV =
+    # reaching orders × units added × đơn giá
+    denom = facts.base_aov or facts.aov_now
+    aov = Band(*(m * units * facts.unit_price / denom for m in moving))
     use = Band(*(clamp01(facts.use_share_now + m) for m in moving))
     return OptionInput(
         kind="bundle_deal",
@@ -211,7 +214,12 @@ def _listing_combo(label: str, facts: ListingComboFacts) -> OptionInput:
         gap = min(ZERO, facts.new_price - facts.value_now)
         delta = facts.switch_share * gap
         drivers.append(
-            DriverEffect("aov", ALL_SOURCES, "measured", lift=point(_rel(delta, facts.aov_now)))
+            DriverEffect(
+                "aov",
+                ALL_SOURCES,
+                "measured",
+                lift=point(_rel(delta, facts.base_aov or facts.aov_now)),
+            )
         )
     pack = facts.pack
     if facts.pack_sold_today:
