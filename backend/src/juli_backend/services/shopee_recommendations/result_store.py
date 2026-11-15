@@ -707,6 +707,10 @@ async def save(
     for n, b in blocks.items():
         results[str(n)] = dict(b)
     meta[META_RESULTS] = results
+    first = results.get("1")
+    if isinstance(first, Mapping) and "estimable" in first:
+        # the product queue reads it (``product_queue.estimated_of``): no estimate queues behind
+        meta["estimated"] = bool(first["estimable"])
     row.metadata_json = json.dumps(meta, default=str)
     return True
 

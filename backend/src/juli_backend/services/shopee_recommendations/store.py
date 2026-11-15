@@ -75,6 +75,19 @@ def workflow_key(card: Mapping[str, Any], card_id: uuid.UUID) -> str:
     return f"{WORKFLOW_PREFIX}:{card['change_kind']}:{card_id.hex[:12]}"[:64]
 
 
+def _estimated(card: Mapping[str, Any]) -> bool | None:
+    """Whether the card's stored result (version 1) is estimable; None without a result (the
+    product queue then keeps the card where its score puts it)."""
+    block = card.get("result")
+    if not isinstance(block, Mapping):
+        versions = card.get("versions") or []
+        first = versions[0] if versions and isinstance(versions[0], Mapping) else {}
+        block = first.get("result")
+    if not isinstance(block, Mapping) or "estimable" not in block:
+        return None
+    return bool(block["estimable"])
+
+
 def _subject(card: Mapping[str, Any], card_id: uuid.UUID) -> tuple[str, str]:
     items = card["scope"]["product_ids"]
     if items:
@@ -127,6 +140,7 @@ async def save_card(
         "lock_until": (card.get("lock") or {}).get("until"),
         "rank_score": (card.get("rank") or {}).get("score"),
         "code": code,
+        "estimated": _estimated(card),
     }
     session.add(
         ActionCard(

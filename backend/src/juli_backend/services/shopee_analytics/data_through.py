@@ -15,8 +15,10 @@ from typing import Any
 ADS = "ads"
 #: the datasets each section's figures come from
 SECTION_DATASETS: dict[str, tuple[str, ...]] = {
-    # GMV / đơn (shop totals), Lợi nhuận (order lines), Tổng chi phí (ads)
-    "kpis": ("shop_overview", "order_lines", ADS),
+    # GMV / đơn: Shopee's shop totals only (owner T8, 2026-11-15: a late order-line read must not
+    # date the GMV back); Lợi nhuận and Tổng chi phí need the order lines and the ads
+    "kpis": ("shop_overview",),
+    "profit": ("shop_overview", "order_lines", ADS),
     # the composition and the channel table: sources (traffic) on the shop totals, ads
     "channels": ("shop_overview", "traffic_overview", ADS),
     # Kế hoạch: GMV and Lợi nhuận against the goal
