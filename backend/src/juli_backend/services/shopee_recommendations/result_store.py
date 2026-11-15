@@ -404,6 +404,9 @@ def _metric_of(col: Mapping[str, Any] | None, metric: str) -> Decimal | None:
     return None
 
 
+_BAND_EPS = 1e-6
+
+
 def metric_band(block: Mapping[str, Any] | None, metric: str) -> dict[str, float] | None:
     """The result's relative change of ``metric`` (a fraction, like a measured ``impact_pct``):
     ``{p10, p50, p90}`` from the low / likely / high columns over the before column; ``None``
@@ -421,6 +424,8 @@ def metric_band(block: Mapping[str, Any] | None, metric: str) -> dict[str, float
             return None
         rel.append(float(v / base - 1))
     lo, hi = min(rel), max(rel)
+    if hi - lo < _BAND_EPS and max(abs(r) for r in rel) < _BAND_EPS:
+        return None  # the result keeps this metric unchanged: float noise, not a band
     return {"p10": lo, "p50": rel[1], "p90": hi}
 
 

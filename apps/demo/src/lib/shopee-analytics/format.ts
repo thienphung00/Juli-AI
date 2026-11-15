@@ -7,8 +7,11 @@
 export const DASH = "—";
 const MINUS = "−";
 
+/** Beyond this a figure is a numerical artefact (e.g. a division by ~0), never a shop amount. */
+const MAX_SHOWN = 1e12;
+
 function finite(n: number | null | undefined): n is number {
-  return typeof n === "number" && Number.isFinite(n);
+  return typeof n === "number" && Number.isFinite(n) && Math.abs(n) < MAX_SHOWN;
 }
 
 /** 1234567.891 → "1.234.568"; with `d` decimals "1.234.567,89". */
