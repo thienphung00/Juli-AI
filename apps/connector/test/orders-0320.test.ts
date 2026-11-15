@@ -165,6 +165,16 @@ describe("get_one_order: trimmed in the page", () => {
 });
 
 describe("get_one_order -> order_lines", () => {
+  it("no pay time on get_one_order: a placed order is confirmed at its creation, an unpaid one is not", () => {
+    const placed = mapOrderLines([reply(trimOrderDetail(detail(5101, "261114DDDDDDDD")))], NOW).rows[0]!;
+    expect(placed.paid_at).toBe(placed.ordered_at);
+    const unpaid = mapOrderLines(
+      [reply(trimOrderDetail(detail(5102, "261114EEEEEEEE", { status: 1, status_info: { status: "Chờ thanh toán" }, status_info_v2: { status: "Chờ thanh toán" } })))],
+      NOW,
+    ).rows[0]!;
+    expect(unpaid.paid_at).toBeUndefined();
+  });
+
   it("maps one line per item: whole dong, the order number as the hashed id, the variation SKU", () => {
     const mapped = mapOrderLines([reply(trimOrderDetail(detail(5001, "261114AAAAAAAA")))], NOW);
     expect(mapped).toMatchObject({ dataset: "order_lines", endpoint: "order/get_one_order", periodStart: "2026-11-14", date: "2026-11-14", drift: null });
@@ -182,6 +192,8 @@ describe("get_one_order -> order_lines", () => {
         variation_sku: "G600024",
         variation_name: "Xanh, M",
         extra: { item_id: "9001", model_id: "9101" },
+        // no pay time on get_one_order: a placed (not "Chờ thanh toán") order is confirmed at creation
+        paid_at: "2026-11-14T12:00:00",
       },
     ]);
     const body = ingestBody(mapped, "0.3.20", NOW);

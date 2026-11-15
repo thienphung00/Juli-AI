@@ -287,6 +287,12 @@ function linesOf(order: Record<string, unknown>): Record<string, unknown>[] {
   });
 }
 
+/** The order is still waiting for the buyer's payment (not yet a confirmed order). */
+export function awaitingPayment(order: Record<string, unknown>): boolean {
+  const t = String(order.status_text ?? (typeof order.status === "string" ? order.status : "") ?? "").toLowerCase();
+  return /chờ thanh toán|cho thanh toan|unpaid|to_pay|waiting.?payment/.test(t);
+}
+
 export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): Mapped {
   const today = gmt7Date(Math.floor(capturedAt / 1000));
   const orders = collectOrders(responses);
@@ -343,7 +349,10 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       return total > 0 ? Math.round(((amount * lineValue(item)) / total) * 100) / 100 : amount / items.length;
     };
     const completedAt = wallClock(order.complete_time ?? order.completed_time ?? order.order_complete_time);
-    const paidAt = wallClock(order.pay_time ?? order.paid_time);
+    // get_one_order has no pay time (only `payby_date`, the deadline). Juli counts a line as
+    // confirmed by `paid_at`, so an order past payment (COD included) is confirmed at its
+    // creation; one still "Chờ thanh toán" (unpaid) carries none (verified on ORY 2026-11-15).
+    const paidAt = wallClock(order.pay_time ?? order.paid_time) ?? (awaitingPayment(order) ? undefined : orderedAt);
     items.forEach((item, index) => {
       const qty = num(item.amount ?? item.quantity ?? item.qty);
       const deal = money(item.order_price ?? item.deal_price ?? item.item_price);
