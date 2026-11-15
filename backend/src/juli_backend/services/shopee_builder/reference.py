@@ -77,7 +77,9 @@ def with_reference_lines(
         pairs=pairs,
         costs=replace(env.view.costs, by_key=costs, list_price=list_price),
     )
-    return replace(env, view=view, _floor_cache={}), done
+    # the shop's phí dịch vụ is measured on its real lines: the reference lines keep it
+    service = env.service_fee_rate or Decimal(0)
+    return replace(env, view=view, _floor_cache={}, _schedule_cache={}, _service_rate=service), done
 
 
 __all__ = ["with_reference_lines", "zero_order_items"]

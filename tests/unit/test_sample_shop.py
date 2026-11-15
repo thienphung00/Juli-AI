@@ -805,6 +805,10 @@ async def test_the_s2_d2_strategies_evaluate_on_the_sample_shop(engine):
                 v = out["versions"][0]
                 assert v["ok"], (name, v.get("refusal"))
                 assert v["result"] is not None and v["result"]["days"] >= 1, name
+                if name == "affiliate":
+                    # S2-F2: the sample shop knows today's commission (affiliate period rows)
+                    text = json.dumps(v, ensure_ascii=False, default=str)
+                    assert "Chưa biết hoa hồng hiện tại" not in text, text[:2000]
                 # "Chọn" saves the card the reviewer then approves, like a real seller
                 async with session.begin_nested() as nested:
                     saved = await builder.choose(
@@ -857,3 +861,93 @@ async def test_every_advertised_product_shows_its_own_ads_figures(engine):
             assert v["ok"], v.get("refusal")
             warnings = [w["type"] for w in v["result"].get("warnings", [])]
             assert "profit_unknown" not in warnings, v["result"]
+
+
+async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(engine):
+    """2026-11-15 (prod S2): Combo "mua 2 giảm 5 % / mua 3 giảm 8 %" on Nước rửa chén + Túi rác gave
+    ΔGMV +4,34 tr on +1,6 đơn (every one-unit order "reached" Mua 2: a 100 % take-up), and a set
+    at 110k gave +1,07 tr whatever its price, with no cost for the buyers who switch to it."""
+    from juli_backend.database.tenant_context import with_shop_scope
+    from juli_backend.services.sample_shop.catalog import PRODUCTS
+    from juli_backend.services.shopee_builder import service as builder
+    from juli_backend.services.shopee_builder.engine_families import (
+        adapters,
+        integrate,
+        option_for,
+    )
+    from tests.unit.test_shopee_builder import S
+
+    factory, report = await _load(engine)
+    nrc, tdr = PRODUCTS[0].item_id, PRODUCTS[2].item_id
+    combo = S(
+        kind="combo",
+        item_ids=[nrc, tdr],
+        discount_type="pct",
+        tiers=[{"qty": 2, "value": 5}, {"qty": 3, "value": 8}],
+    )
+    set2 = S(
+        kind="variation_set",
+        item_id=nrc,
+        new_variations=[{"name": "Set 2 chai", "price": 110_000, "pack_count": 2}],
+    )
+    async with factory() as session:
+        async with with_shop_scope(session, report.shop_id):
+            ctx = await builder.build_context(session, report.shop_id, [combo], as_of=END, now=NOW)
+            f = adapters.combo_facts(combo, ctx.env)
+            # 65 % of the orders held 2+ units before the combo (day 10), 60 % while it ran
+            assert f.reach is not None and f.reach.p50 == 0 and f.near_share > Decimal("0.38")
+            out = await builder.evaluate_versions(
+                session, report.shop_id, [combo, set2], as_of=END, now=NOW
+            )
+            c, s = (v["result"] for v in out["versions"])
+            # combo: only the badge's CTOR prior moves orders; ΔGMV = those orders × AOV
+            # the engine reports the middle-PROFIT draw's orders/GMV, so the sample's KOL lines
+            # (S2-F2) and the shop's phí dịch vụ (437bea66, a cheaper net discount) move which
+            # draw is the middle one (350_716 / 2.9 before; 669_480 / 5.5 with no service fee)
+            assert c["delta"]["gmv"]["value"] == pytest.approx(450_153, rel=0.02)
+            assert c["delta"]["orders"]["value"] == pytest.approx(3.7, abs=0.1)
+            assert c["delta"]["profit"]["value"] < 0
+            ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
+            base = integrate.base_for(ctx.env, [nrc], "")
+            o = option_for(set2, ctx, integrate.extras_for(base))
+            # the AOV prior (5,2 %) × the set's 6,8 % off ÷ the 10 % reference
+            assert o.drivers[0].lift is not None
+            assert o.drivers[0].lift.p50 == pytest.approx(Decimal("0.03536"))
+            # 48 of the 109 orders already buy 2+ single bottles: they switch to the set
+            assert o.offers and o.offers[0].use_share.p50 == Decimal(48) / Decimal(109)
+            assert s["delta"]["gmv"]["value"] == pytest.approx(791_214, rel=0.02)
+            assert s["cost"]["total"] > 0 and s["delta"]["profit"]["value"] < 0
+
+
+async def test_the_affiliate_programme_has_three_kols_and_a_known_commission(engine):
+    """P100 S2-F2 (Tự tạo check 2026-11-15): Affiliate gave no estimate ("Chưa biết hoa hồng hiện
+    tại") and the KOL tool had no KOL. The affiliate-stream orders now carry their KOL and a 10 %
+    commission, and the period totals per product and per KOL are posted."""
+    from juli_backend.models.shopee_profit import ShopeeAffiliateLine
+    from juli_backend.services.sample_shop.catalog import AFFILIATE_RATE, KOLS
+    from juli_backend.services.shopee_analytics import loaders
+    from juli_backend.services.shopee_analytics.windows import Window
+
+    shop = generate(END)
+    datasets = {p.dataset for p in shop.posts}
+    assert {"affiliate_order_lines", "affiliate_product_period", "affiliate_partner_period"} <= (
+        datasets
+    )
+    factory, report = await _load(engine)
+    async with factory() as session:
+        handles = (
+            await session.execute(
+                select(ShopeeAffiliateLine.kol_handle, func.count()).group_by(
+                    ShopeeAffiliateLine.kol_handle
+                )
+            )
+        ).all()
+        assert {h for h, _ in handles} == {h for _, h in KOLS}
+        window = Window(END - timedelta(days=29), END)
+        aff = await loaders.load_affiliate(session, report.shop_id, window)
+    assert len(aff.partners) == len(KOLS)
+    assert aff.product_commission and all(v > 0 for v in aff.product_commission.values())
+    lines = [p for p in shop.posts if p.dataset == "affiliate_order_lines"]
+    rows = [r for p in lines for r in p.body["rows"]]
+    # the commission is on what the buyer paid (after the shop's combo / voucher)
+    assert rows and all(0 < r["cost"] <= round(r["order_value"] * AFFILIATE_RATE) for r in rows)

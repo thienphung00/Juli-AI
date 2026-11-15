@@ -6,6 +6,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -223,6 +224,40 @@ def combo_fee_rate(env: RecoEnv, item_ids: Sequence[str]) -> Decimal:
     return common.clamp01(sum(rates, ZERO) / len(rates)) if rates else ZERO
 
 
+def variation_set_offer(
+    env: RecoEnv,
+    item_id: str,
+    set_size: int,
+    discount_pct: Decimal,
+    pack_of_sku: Mapping[str, int],
+) -> OfferCost | None:
+    """The cannibalisation of a new set (Phân loại / set, 2026-11-15): the orders that already
+    buy ``set_size`` single units of the product (pack variations aside, ``pack_of_sku``) switch
+    to the set and pay ``discount_pct`` less on each whole set -- the set's own cost, as the
+    reco evaluator's ``discount_cost_on_existing``. Net of the % fees it saves (as the combo's).
+    ``use_share`` = those orders ÷ all the product's orders. ``None`` when no order switches."""
+    lines = env.lines_for([item_id])
+    values = order_values(lines)
+    single: dict[str, int] = defaultdict(int)
+    value: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for ln in lines:
+        if ln.product_id == item_id and pack_of_sku.get(ln.sku, 1) == 1:
+            single[ln.order_id] += ln.qty
+            value[ln.order_id] += ln.deal_price * ln.qty
+    off = discount_pct / 100
+    per: list[Decimal] = []
+    for oid, u in single.items():
+        sets = u // set_size
+        if sets > 0:
+            per.append(sets * set_size * (value[oid] / u) * off)
+    if not values or not per or off <= 0:
+        return None
+    fee = combo_fee_rate(env, [item_id])
+    share = Decimal(len(per)) / len(values)
+    per_use = sum(per, ZERO) / len(per) * (ONE - fee)
+    return OfferCost(per_use, Band(share, share, share), None, "giá set thấp hơn mua lẻ")
+
+
 def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
     """P100-C (J): the tiers apply ON TOP of the Chương Trình Của Shop price -- ``deal_price`` is
     the programme price (Giá sau giảm), so N × đơn giá is N × that price (list 100.000 →
@@ -262,9 +297,19 @@ def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
                 near.append(lowest - u)
     # P100 B.10 (owner, 2026-11-13): E2 counts every order one unit under a "mua 2" tier as
     # reaching it -- an upper bound (ORY: 45 of 46 orders, AOV +91,6 %), not a measurement. The
-    # reach is measured only once the shop's own orders show a combo discount (it has run one);
-    # before that the option is cost + break-even only ("chưa ước tính được").
-    ran_combo = any(getattr(ln, "bundle_discount", ZERO) > 0 for ln in env.lines_for(None))
+    # reach is measured only once the shop's own orders show a combo discount (it has run one):
+    # the rise in the share of these products' orders at a tier while it ran (2026-11-15: the
+    # near share stayed a 100 % take-up of every one-unit order -- sample shop ΔGMV +4,3 tr on
+    # +1,6 đơn). Before that the option is cost + break-even only ("chưa ước tính được").
+    combo_days = sorted(
+        {ln.order_date for ln in env.lines_for(None) if getattr(ln, "bundle_discount", ZERO) > 0}
+    )
+    if combo_days:
+        reach, reach_note = combo_history_reach(
+            lines, units, lowest, (combo_days[0], combo_days[-1]), Decimal(below) / n
+        )
+    else:
+        reach, reach_note = None, common.NOTE_COMBO_NO_HISTORY
     return ComboFacts(
         aov_now=sum(values.values(), ZERO) / n,
         profit_per_order=profit_per_order(env, set(values)),
@@ -275,11 +320,46 @@ def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
         use_share_now=Decimal(len(discounts)) / n,
         near_share=Decimal(len(near)) / n,
         unit_price=avg_price,
-        reach=measured_reach(len(near), n, below) if ran_combo else None,
-        reach_note=common.NOTE_COMBO_REACH if ran_combo else common.NOTE_COMBO_NO_HISTORY,
+        reach=reach,
+        reach_note=reach_note,
         reach_units=Decimal(sum(near)) / len(near) if near else ONE,
         fee_rate=combo_fee_rate(env, list(spec.item_ids)),
     )
+
+
+def combo_history_reach(
+    lines: Sequence[OrderLine],
+    units: Mapping[str, int],
+    lowest: int,
+    period: tuple[date, date],
+    below_share: Decimal,
+) -> tuple[Band | None, str | None]:
+    """P100 B.10: the share of ALL the products' orders that a combo moves up to its lowest tier,
+    measured on the shop's own combo run: the share of orders at / over ``lowest`` units on the
+    days the combo ran (``period``, first to last day with a combo discount) minus that share on
+    the other days, with a two-sample spread (z of P90), clamped to 0 .. the orders still under
+    the tier today. ``None`` (and why) with fewer than ``MIN_REACH_ORDERS`` orders on either
+    side."""
+    first, last = period
+    day: dict[str, date] = {}
+    for ln in lines:
+        day.setdefault(ln.order_id, ln.order_date)
+    sides: dict[bool, list[int]] = {True: [0, 0], False: [0, 0]}
+    for oid, d in day.items():
+        side = sides[first <= d <= last]
+        side[0] += 1
+        side[1] += 1 if units.get(oid, 0) >= lowest else 0
+    (n_on, at_on), (n_off, at_off) = sides[True], sides[False]
+    if n_on < common.MIN_REACH_ORDERS or n_off < common.MIN_REACH_ORDERS:
+        return None, common.NOTE_COMBO_REACH
+    p_on, p_off = Decimal(at_on) / n_on, Decimal(at_off) / n_off
+    lift = p_on - p_off
+    se = (p_on * (ONE - p_on) / n_on + p_off * (ONE - p_off) / n_off).sqrt()
+
+    def fit(x: Decimal) -> Decimal:
+        return min(max(x, ZERO), below_share)
+
+    return Band(fit(lift - common.Z90 * se), fit(lift), fit(lift + common.Z90 * se)), None
 
 
 def listing_combo_facts(
@@ -363,9 +443,21 @@ def price_facts_from_evaluation(
     aov_now: Decimal | None,
     contribution_rate: Decimal | None,
     ctor: LiftEvidence,
+    product_orders: int | None = None,
+    covered_orders: int | None = None,
+    product_gmv: Decimal | None = None,
 ) -> PriceFacts:
     """The price evaluator's certain layer (``certain["skus"]``: price and profit per order
-    before / after per SKU) -> orders-weighted price factor and profit per order."""
+    before / after per SKU) -> orders-weighted price factor and profit per order.
+
+    ``certain["skus"]`` holds only the variations the seller priced. Given the product's own
+    orders and GMV (``product_orders`` / ``product_gmv``) and how many of them hold a priced
+    variation (``covered_orders``), the price factor is the product's GMV change at today's
+    volume (``gmv_delta_same_volume`` ÷ its GMV) and the per-order profit change is spread over
+    every order of the product: the engine applies both to the product's whole funnel, so a
+    change on one variation no longer moves every order (prod 2026-11-15: 10 % on one variation
+    cost ~3× its own discount; +5 % on one variation added more profit than +5 % on its units).
+    ``discount_per_order`` stays the discount of one order holding a priced variation."""
     rows = [r for r in ev.certain.get("skus", []) if r.get("orders")]
     w = sum((Decimal(str(r["orders"])) for r in rows), ZERO)
 
@@ -385,20 +477,32 @@ def price_facts_from_evaluation(
     ]
     ratio_w = sum((o for o, _ in ratios), ZERO)
     factor = sum((o * x for o, x in ratios), ZERO) / ratio_w if ratio_w > 0 else ONE
+    coverage = ONE
+    if product_orders and covered_orders is not None:
+        coverage = min(ONE, Decimal(covered_orders) / Decimal(product_orders))
+    gmv_delta = ev.certain.get("gmv_delta_same_volume")
+    if product_gmv and product_gmv > 0 and gmv_delta is not None:
+        factor = ONE + Decimal(str(gmv_delta)) / product_gmv
+    else:
+        factor = ONE + (factor - ONE) * coverage
     before, after = avg("profit_per_order_before"), avg("profit_per_order_after")
     discount: Decimal | None = None
     if before is not None and after is not None:
         discount = max(ZERO, before - after)  # net of the % fees the lower price saves
     elif aov_now and factor < ONE:
-        discount = aov_now * (ONE - factor)  # profit unknown: the gross discount on a basket
+        # profit unknown: the gross discount on a basket holding a priced variation
+        discount = aov_now * (ONE - factor) / coverage if coverage > 0 else None
     return PriceFacts(
         aov_now=aov_now,
-        profit_per_order=avg("profit_per_order_before"),
-        profit_per_order_after=avg("profit_per_order_after"),
+        profit_per_order=before,
+        profit_per_order_after=(
+            None if before is None or after is None else before + (after - before) * coverage
+        ),
         price_factor=factor,
         contribution_rate=contribution_rate,
         ctor=ctor,
         discount_per_order=discount,
+        coverage=coverage,
     )
 
 

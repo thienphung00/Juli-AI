@@ -77,7 +77,7 @@ class Rules:
     sold_only: bool = True  # only variations sold in the last 30 days
     max_options: int = config.DEFAULT_MAX_OPTIONS
     shop_code: str = config.DEFAULT_SHOP_CODE
-    unit: str = config.DEFAULT_UNIT
+    unit: str | None = None  # None = the word the product's own names use (naming.unit_word)
 
 
 @dataclass(frozen=True)
@@ -92,6 +92,7 @@ class Member:
     stock: int | None
     item_code: str  # slug of the product code, for the SKU
     var_code: str  # slug of the variation SKU / id, for the SKU
+    pack: int = 1  # single items in ONE sold unit of this variation ("Combo 3 chai" = 3)
 
 
 @dataclass(frozen=True)
@@ -99,12 +100,13 @@ class ComboOption:
     key: str
     form: Form
     members: tuple[Member, ...]
-    units: int  # boxes in the option (sum of quantities)
+    units: int  # single items in the option (sum of quantity x the variation's pack)
     name: str  # full label for the table / listing title (<= title limit)
     option_name: str  # the option name inside the listing (<= Shopee option-name limit)
     sku: str
     suggested_stock: int | None
     stock_note: str = config.STOCK_NOTE
+    unit: str = config.DEFAULT_UNIT  # the word for one item: chai, hộp, túi ...
 
 
 @dataclass(frozen=True)

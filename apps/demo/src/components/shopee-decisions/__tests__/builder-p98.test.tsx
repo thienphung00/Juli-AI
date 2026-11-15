@@ -121,6 +121,17 @@ describe("P98 combo builder", () => {
     await waitFor(() => expect(calls.at(-1)!.overrides).toEqual({ a: 90_000 }));
   });
 
+  it("names the unit after the product and shows the price of every row", async () => {
+    const { api } = comboApi([row("a", { unit: "chai", form: "multi_pack" })]);
+    await openCombo(api);
+    fireEvent.click(await screen.findByTestId("combo-build"));
+    const table = await screen.findByTestId("combo-table");
+    expect(table).toHaveTextContent("Giá/chai");
+    expect(table).not.toHaveTextContent("Giá/hộp");
+    expect(screen.getByLabelText("Giá Combo a")).toHaveValue("87000");
+    expect(screen.getByRole("button", { name: "5 chai" })).toBeInTheDocument();
+  });
+
   it("copies the table as tab separated text", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });

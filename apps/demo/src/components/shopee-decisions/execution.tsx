@@ -155,10 +155,12 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
   const [error, setError] = useState<string | null>(null);
   const rb = readbackOf(detail.journey);
   const executed = detail.status === "executed";
-  const needsVoucherId = sheet.changes.some((c) => c.change_kind === "voucher");
   // P97 D85.6: after the person saves, the Connector captures the new voucher id itself.
   // P100 S2-D4: no Connector (so no fill queue, which the sample pin refuses) on the reviewer's sample shop.
   const sample = useSampleShopReviewer();
+  // P100 S2-F2: the sample shop has no Seller Centre voucher to copy a code from; the server
+  // gives the sample voucher its own code, so the field is not asked for there.
+  const needsVoucherId = !sample && sheet.changes.some((c) => c.change_kind === "voucher");
   const fillActive = !sample && detail.status === "approved" && FILL_JOB_KINDS.has(detail.change_kind);
   const fill = useFillJobs(detail.id, fillActive);
   const captured = capturedVoucherId(fill.jobs);

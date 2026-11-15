@@ -24,6 +24,8 @@ NOTE_COMBO_REACH = "chưa ước tính được — chưa đủ đơn để đo 
 NOTE_COMBO_NO_HISTORY = (
     "chưa ước tính được — shop chưa chạy combo, chưa đo được số đơn sẽ mua thêm để lên mức combo"
 )
+#: Phân loại / set: no new variation is cheaper per unit than buying single units
+NOTE_SET_NOT_CHEAPER = "chưa ước tính được — chưa có set nào rẻ hơn mua lẻ"
 NOTE_PACK_SOLD = "Shop đang bán quy cách này: khách chuyển sang listing mới, không thêm đơn."
 
 #: Priors tagged "prior" (ước tính chung) until the shop's own results calibrate them (ADR-121).

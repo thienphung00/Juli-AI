@@ -466,10 +466,12 @@ export function AffiliatePanel({ form, set, ctx }: P<"affiliate">) {
 // ── Hiển thị giá + listing ───────────────────────────────────────────────
 
 export function PriceDisplayPanel({ form, set, ctx }: P<"price_display">) {
-  const unit = ctx.variations.length === 1 && ctx.variations[0]!.price_per_unit !== null ? ctx.variations[0]!.price_per_unit : null;
+  const only = ctx.variations.length === 1 ? ctx.variations[0]! : null;
+  const measured = only !== null && only.price_per_measure != null && only.measure_label ? only : null;
+  const unit = measured ? measured.price_per_measure! : only && only.price_per_unit !== null ? only.price_per_unit : null;
   return (
     <div className="p2-panel" data-testid="p2-panel-price">
-      <p className="sa-hint">{unit !== null ? `Giá mỗi đơn vị: ${vnd(unit)}` : "Giá mỗi đơn vị: —"}</p>
+      <p className="sa-hint">{unit !== null ? `Giá mỗi ${measured ? measured.measure_label : "đơn vị"}: ${vnd(unit)}` : "Giá mỗi đơn vị: —"}</p>
       <TextIn label="Dòng hiển thị (để trống = giá mỗi đơn vị)" onChange={(text) => set({ text })} value={form.text} />
     </div>
   );

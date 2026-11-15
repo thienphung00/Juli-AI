@@ -60,6 +60,8 @@ export interface ComboRow {
   readonly option_name: string;
   readonly sku: string | null;
   readonly units: number;
+  /** The word for one item, read from the product's names: chai, hộp, túi ... */
+  readonly unit?: string;
   readonly members: readonly ComboMember[];
   readonly suggested_stock: N;
   readonly stock_note: string | null;

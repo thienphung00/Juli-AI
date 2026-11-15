@@ -516,3 +516,32 @@ async def test_reconcile_over_http_reaches_the_connector_and_reviewers_are_refus
         await cs.request_reconcile(session, seeded.shop_id, now=NOW)
     out = await es.connector_status(session, seeded.shop_id, "shopee", NOW)
     assert out["seller_centre_open"] is True
+
+
+def _flat_card():
+    """A result that keeps the card's metric (CTR) unchanged in every column; only profit moves."""
+    card = _card()
+    for col in ("low", "likely", "high"):
+        card["result"]["core"][col]["clicks"] = card["result"]["core"]["before"]["clicks"]
+    card["predicted"] = {"lift": {"lift": {"p10": -5e-17, "p50": 5e-18, "p90": 7e-17}}}
+    return card
+
+
+def test_metric_band_of_an_unchanged_metric_is_unknown_not_a_zero_width_band():
+    from juli_backend.services.shopee_recommendations import result_store
+
+    card = _flat_card()
+    assert result_store.metric_band(card["result"], "ctr") is None
+
+
+def test_a_near_zero_lift_gives_no_actual_instead_of_a_huge_number():
+    row = es.measurement_row(
+        _flat_card(),
+        started=datetime(2026, 10, 1),
+        today=date(2026, 11, 13),
+        window_days=30,
+        window_closed=True,
+        reading={"impact_pct": -0.43},
+        final=True,
+    )
+    assert row["actual"] is None

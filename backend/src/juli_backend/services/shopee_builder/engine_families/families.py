@@ -175,7 +175,10 @@ def combo_option(spec: sp.ComboSpec, facts: ComboFacts) -> OptionInput:
         )
     moving = (facts.reach.p10, facts.reach.p50, facts.reach.p90)
     units = facts.reach_units
-    aov = Band(*(m * units * facts.unit_price / facts.aov_now for m in moving))
+    # the lift is relative to the base it multiplies (the products' GMV ÷ orders), so ΔGMV =
+    # reaching orders × units added × đơn giá
+    denom = facts.base_aov or facts.aov_now
+    aov = Band(*(m * units * facts.unit_price / denom for m in moving))
     use = Band(*(clamp01(facts.use_share_now + m) for m in moving))
     return OptionInput(
         kind="bundle_deal",
@@ -211,7 +214,12 @@ def _listing_combo(label: str, facts: ListingComboFacts) -> OptionInput:
         gap = min(ZERO, facts.new_price - facts.value_now)
         delta = facts.switch_share * gap
         drivers.append(
-            DriverEffect("aov", ALL_SOURCES, "measured", lift=point(_rel(delta, facts.aov_now)))
+            DriverEffect(
+                "aov",
+                ALL_SOURCES,
+                "measured",
+                lift=point(_rel(delta, facts.base_aov or facts.aov_now)),
+            )
         )
     pack = facts.pack
     if facts.pack_sold_today:
@@ -271,23 +279,42 @@ def price_option(
 ) -> OptionInput:
     """CTOR (the orders response, product history > shop > prior) + AOV (the price factor is
     certain arithmetic). ``profit_per_order_after`` carries the price effect on profit; the engine
-    then moves GMV only through the AOV driver, so the price effect counts once."""
+    then moves GMV only through the AOV driver, so the price effect counts once.
+
+    The engine runs on the product's whole funnel, so every effect is scaled to the orders the
+    change reaches: the priced variations' buyers (``facts.coverage``; the price factor and the
+    per-order profit change are already spread over the product's orders) and, for a promotion,
+    the part of its days the promo price lasts (``_promo_reach``: Số lượng sản phẩm khuyến mãi, a
+    Flash Sale slot's hours)."""
     reach, cap_orders = _promo_reach(spec, facts)
     aov_lift = (facts.price_factor - ONE) * reach
     ctor_band = facts.ctor.band
-    if reach < ONE:
-        ctor_band = Band(ctor_band.p10 * reach, ctor_band.p50 * reach, ctor_band.p90 * reach)
+    ctor_scale = reach * facts.coverage
+    if ctor_scale < ONE:
+        ctor_band = Band(
+            ctor_band.p10 * ctor_scale, ctor_band.p50 * ctor_scale, ctor_band.p90 * ctor_scale
+        )
     ppo_after = facts.profit_per_order_after
+    if (
+        reach < ONE
+        and spec.kind != "product_discount"
+        and ppo_after is not None
+        and facts.profit_per_order is not None
+    ):
+        # a Flash Sale slot: the lower price holds for its hours only (the programme's own cost
+        # is capped through its offer below)
+        ppo_after = facts.profit_per_order + (ppo_after - facts.profit_per_order) * reach
     offers: tuple[OfferCost, ...] = ()
     cost = facts.discount_per_order
     if spec.kind == "product_discount" and cost is not None and cost > 0:
         # P100 wave 2 (B.14): the discount is a cost inside the OptionResult, like the combo's --
-        # given on every order after the change (today's buyers included, they get it too). It
-        # leaves the per-order profit so it counts once; ROI and break-even read it. The promo
-        # quantity caps the orders that get it (owner 2026-11-12).
-        offers = (OfferCost(cost, point(ONE), cap_orders, "giảm giá chương trình"),)
+        # given on every order after the change that holds a discounted variation (today's
+        # buyers included, they get it too). It leaves the per-order profit so it counts once;
+        # ROI and break-even read it. The promo quantity caps the orders that get it (owner
+        # 2026-11-12).
+        offers = (OfferCost(cost, point(facts.coverage), cap_orders, "giảm giá chương trình"),)
         if ppo_after is not None:
-            ppo_after = ppo_after + cost
+            ppo_after = ppo_after + cost * facts.coverage
     kind = {"price": "price", "product_discount": "product_discount", "flash_sale": "flash_sale"}[
         spec.kind
     ]
@@ -313,17 +340,33 @@ def price_option(
 def _promo_reach(
     spec: sp.PriceSpec | sp.ProductDiscountSpec | sp.FlashSaleSpec, facts: PriceFacts
 ) -> tuple[Decimal, Decimal | None]:
-    """P100 wave 2 (owner 2026-11-12): "Số lượng sản phẩm khuyến mãi" caps the discounted units.
-    Returns (the share of the programme the units cover, the cap in orders): the discount cost
-    stops at the cap and the lift only runs while the promo price lasts. No quantity = 1, None."""
+    """The share of the option's days the promo price lasts, and the cap in orders.
+
+    * Chương Trình Của Shop (P100 wave 2, owner 2026-11-12): "Số lượng sản phẩm khuyến mãi" caps
+      the discounted units: the discount cost stops at the cap and the lift only runs while the
+      promo price lasts. No quantity = 1, None.
+    * Flash Sale: the slot sells for its hours only (``slot_hours`` of the
+      ``ceil(hours / 24)`` days the result covers), at most its ``units`` -- the same share the
+      evaluator's ``_slot_share`` gives the money layer (prod 2026-11-15: a 2-hour slot was priced
+      as a whole day of discounted orders)."""
+    upo = facts.units_per_order if facts.units_per_order and facts.units_per_order > 0 else ONE
+    opd = facts.orders_per_day if facts.orders_per_day and facts.orders_per_day > 0 else None
+    if isinstance(spec, sp.FlashSaleSpec):
+        slot_days = _price_days(spec) or 1
+        hours = Decimal(spec.slot_hours)
+        cap = Decimal(spec.units) / upo
+        time_share = min(ONE, hours / Decimal(common.HOURS_PER_DAY * slot_days))
+        if opd is None:
+            return time_share, cap
+        slot_orders = min(opd * hours / Decimal(common.HOURS_PER_DAY), cap)
+        return min(ONE, slot_orders / (opd * Decimal(slot_days))), cap
     if not isinstance(spec, sp.ProductDiscountSpec) or spec.promo_qty is None:
         return ONE, None
-    upo = facts.units_per_order if facts.units_per_order and facts.units_per_order > 0 else ONE
     cap_orders = Decimal(spec.promo_qty) / upo
     days = spec.days
-    if not days or not facts.orders_per_day or facts.orders_per_day <= 0:
+    if not days or opd is None:
         return ONE, cap_orders
-    expected = facts.orders_per_day * Decimal(days)
+    expected = opd * Decimal(days)
     return min(ONE, cap_orders / expected), cap_orders
 
 

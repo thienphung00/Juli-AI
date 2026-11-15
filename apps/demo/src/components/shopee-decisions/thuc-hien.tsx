@@ -9,7 +9,7 @@ import type { ExecutionCard, ExecutionState } from "../../lib/shopee-decisions/t
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { fillJobHref } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
-import { NavLink, RecoState } from "./ui";
+import { errorText, NavLink, RecoState } from "./ui";
 
 /**
  * Quyết định › Thực hiện: Juli Connector fills Seller Centre, the seller saves, the Connector reads
@@ -90,12 +90,17 @@ function Row({
 }) {
   const host = useReco();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const href = c.open_job ? fillJobHref(c.open_job) : null;
   const markDone = async () => {
     setBusy(true);
+    setError(null);
     try {
       await host.reco.executed(c.card_id, {});
       onDone();
+    } catch (e) {
+      // P100 S2-F2: a refusal (e.g. a voucher needs its Seller Centre code) is said, never silent
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -150,6 +155,11 @@ function Row({
             </button>
           ) : null}
         </span>
+        {error ? (
+          <p className="sd-error" data-testid={`sd-th-error-${c.card_id}`} role="alert">
+            {error}
+          </p>
+        ) : null}
       </div>
     </li>
   );

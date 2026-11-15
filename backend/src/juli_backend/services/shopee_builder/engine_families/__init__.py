@@ -10,7 +10,13 @@ from juli_backend.services.shopee_builder import keyword_coverage as kwc
 from juli_backend.services.shopee_builder import multi, translate
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext
-from juli_backend.services.shopee_builder.engine.contract import Band, OfferCost, OptionInput
+from juli_backend.services.shopee_builder.engine.contract import (
+    ALL_SOURCES,
+    Band,
+    DriverEffect,
+    OfferCost,
+    OptionInput,
+)
 from juli_backend.services.shopee_builder.engine_families import adapters, common
 from juli_backend.services.shopee_builder.engine_families.ads_edit import ads_edit_option
 from juli_backend.services.shopee_builder.engine_families.common import FamilyRefused, scaled
@@ -63,6 +69,8 @@ class FamilyExtras:
     kol: KolFacts | None = None  # affiliate: KOL rows, before / after, sample unit cost
     contribution_rate: Decimal | None = None  # FunnelBase.contribution_rate (price AOV term)
     profit_per_order: Decimal | None = None  # the FunnelBase's profit ÷ orders (switching)
+    #: the FunnelBase's GMV ÷ orders: what an AOV lift multiplies (combo, combo listing)
+    aov: Decimal | None = None
 
 
 def _magnitude(spec: sp.VersionSpec) -> float | None:
@@ -136,9 +144,8 @@ def option_for(
     if isinstance(spec, AffiliatePlan):
         return affiliate_option(spec, ex.kol or KolFacts())
     if isinstance(spec, NewComboListing):
-        return new_listing_option(
-            spec, adapters.new_listing_facts(spec, env, ex.pack, ex.profit_per_order)
-        )
+        nf = adapters.new_listing_facts(spec, env, ex.pack, ex.profit_per_order)
+        return new_listing_option(spec, replace(nf, base_aov=ex.aov))
     if isinstance(spec, sp.AffiliateSpec) and not spec.targets:
         # P99: cost (commission × expected Liên kết GMV + samples) and break-even; the extra
         # orders are measured only (d.9), so the result is "chưa ước tính được" with its cost
@@ -157,9 +164,10 @@ def option_for(
         vf = adapters.voucher_facts(spec, env)
         return _rebased(voucher_option(spec, vf), vf.profit_per_order, ex.profit_per_order)
     if isinstance(spec, sp.ComboSpec):
-        return combo_option(spec, adapters.combo_facts(spec, env))
+        return combo_option(spec, replace(adapters.combo_facts(spec, env), base_aov=ex.aov))
     if isinstance(spec, sp.ListingComboSpec):
-        return listing_combo_option(spec, adapters.listing_combo_facts(spec, env, ex.pack))
+        lf = adapters.listing_combo_facts(spec, env, ex.pack)
+        return listing_combo_option(spec, replace(lf, base_aov=ex.aov))
     items = sp.items_of(spec)
     if isinstance(spec, sp.PriceSpec | sp.ProductDiscountSpec | sp.FlashSaleSpec):
         tr = translate.to_variant(spec, ctx)
@@ -179,11 +187,20 @@ def option_for(
         values = adapters.order_values(lines)
         aov = sum(values.values(), adapters.ZERO) / len(values) if values else None
         ctor = adapters.lift_evidence(spec.kind, items, env, _magnitude(spec))
+        # the variations the evaluator priced (the seller's choice, else every one): the change
+        # reaches only the orders holding one of them
+        priced = {str(r["sku"]) for r in ev.certain.get("skus", []) if r.get("sku")}
+        own = [ln for ln in lines if ln.product_id in items]
+        covered = [ln for ln in own if ln.sku in priced]
+        covered_orders = {ln.order_id for ln in covered}
         facts = adapters.price_facts_from_evaluation(
             ev,
             aov_now=aov,
             contribution_rate=ex.contribution_rate,
             ctor=ctor,
+            product_orders=len(values),
+            covered_orders=len(covered_orders),
+            product_gmv=sum((ln.order_value for ln in own), adapters.ZERO),
         )
         if (
             ex.profit_per_order is not None
@@ -194,18 +211,21 @@ def option_for(
             # applies ``profit_per_order_after`` against the base's (ShopMetrics) profit per order
             facts = replace(
                 facts,
+                profit_per_order=ex.profit_per_order,
                 profit_per_order_after=ex.profit_per_order
                 + facts.profit_per_order_after
                 - facts.profit_per_order,
             )
-        if values and env.window_days > 0:
-            units = sum((Decimal(ln.qty) for ln in lines if ln.product_id in items), Decimal(0))
+        if covered_orders and env.window_days > 0:
+            units = sum((Decimal(ln.qty) for ln in covered), Decimal(0))
             facts = replace(
                 facts,
-                units_per_order=units / Decimal(len(values)),
-                orders_per_day=Decimal(len(values)) / Decimal(env.window_days),
+                units_per_order=units / Decimal(len(covered_orders)),
+                orders_per_day=Decimal(len(covered_orders)) / Decimal(env.window_days),
             )
         return price_option(spec, facts)
+    if isinstance(spec, sp.VariationSetSpec):
+        return _variation_set(spec, ctx)
     if spec.kind in _SIMPLE_KINDS:
         lead = adapters.lift_evidence(spec.kind, items, env)
         keyword_note: str | None = None
@@ -233,6 +253,43 @@ def option_for(
             return replace(option, note=OFFER_COST_UNKNOWN)
         return option if keyword_note is None else replace(option, note=keyword_note)
     raise FamilyRefused("kind_not_supported")
+
+
+def _variation_set(spec: sp.VariationSetSpec, ctx: BuilderContext) -> OptionInput:
+    """Phân loại / set (ADR-122 d.10: AOV + CTOR, prior). 2026-11-15: the set's own size and
+    price reach the estimate, as in the reco evaluator: the prior lift scales with the set's
+    discount per unit against ``SET_REF_PCT`` (a set no cheaper than single units earns no lift:
+    "chưa ước tính được"), and the orders that already buy that many single units switch to the
+    set -- its discount on them is the option's cost (cannibalisation)."""
+    from juli_backend.services.shopee_recommendations import config as reco_config
+    from juli_backend.services.shopee_recommendations.prediction import size_scale
+
+    est = translate.to_variant(spec, ctx).estimate
+    if est is None:
+        return _not_estimable_set(spec)
+    size = int(est["inputs"]["set_size"])
+    pct = Decimal(str(est["inputs"]["set_discount_pct"]))
+    lead = adapters.lift_evidence(spec.kind, [spec.item_id], ctx.env)
+    k = size_scale(float(pct), reco_config.SET_REF_PCT)
+    lead = replace(lead, band=scaled(lead.band, k))
+    packs: dict[str, int] = {}
+    for r in ctx.rows(spec.item_id):
+        for key in (r.get("sku_key"), r.get("sku")):
+            if key:
+                packs[str(key)] = int(r.get("pack_count") or 1)
+    offer = adapters.variation_set_offer(ctx.env, spec.item_id, size, pct, packs)
+    return simple_option(spec, SimpleFacts(lead, offers=() if offer is None else (offer,)))
+
+
+def _not_estimable_set(spec: sp.VariationSetSpec) -> OptionInput:
+    return OptionInput(
+        kind="variation_set",
+        label=spec.label or "Bộ / quy cách nhiều món",
+        drivers=(
+            DriverEffect("aov", ALL_SOURCES, "not_estimable", note=common.NOTE_SET_NOT_CHEAPER),
+        ),
+        duration_days=None,
+    )
 
 
 __all__ = [

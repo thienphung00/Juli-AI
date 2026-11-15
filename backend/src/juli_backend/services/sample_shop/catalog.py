@@ -227,7 +227,19 @@ def in_reserved_range(shopee_shop_id: str | None) -> bool:
     )
 
 
+#: P100 S2-F2: the affiliate (Tiếp thị liên kết) programme of the sample shop. The affiliate
+#: stream's orders are KOL sales at one open-campaign commission rate, spread over three synthetic
+#: creators (public handles made up here; the ids are in a range no real affiliate uses).
+AFFILIATE_RATE = 0.10
+KOLS: tuple[tuple[str, str], ...] = (
+    ("6100000000001", "hiennha.bep"),
+    ("6100000000002", "sachse.moingay"),
+    ("6100000000003", "meo.noitro"),
+)
+
 __all__ = [
+    "AFFILIATE_RATE",
+    "KOLS",
     "CAMPAIGNS",
     "ITEM_ID_BASE",
     "KEYWORDS",

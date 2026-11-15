@@ -63,6 +63,10 @@ class ComboFacts:
     #: P100-C (J): Shopee's % fees are on the item total AFTER the combo, so one đồng of combo
     #: discount costs the seller (1 − fee_rate) đồng; 0 = no fee formula (the gross discount)
     fee_rate: Decimal = Decimal(0)
+    #: the funnel base's GMV ÷ orders: the AOV lift is relative to the base it moves (the
+    #: products' own GMV), not to ``aov_now`` (whole baskets, other products included); None =
+    #: ``aov_now``
+    base_aov: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -88,6 +92,8 @@ class ListingComboFacts:
     pack: PackEvidence | None = None
     #: ADR-122 d.13 E3: the shop already sells this pack size: switching only (Δ Đơn 0)
     pack_sold_today: bool = False
+    #: the funnel base's GMV ÷ orders (as ``ComboFacts.base_aov``); None = ``aov_now``
+    base_aov: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -122,6 +128,12 @@ class PriceFacts:
     #: so the estimate needs the products' units per order and orders per day today
     units_per_order: Decimal | None = None
     orders_per_day: Decimal | None = None
+    #: the share of the product's orders holding a variation the change prices (1 = every
+    #: variation). A change on ONE variation reaches only its buyers: the price factor and the
+    #: per-order profit change above are already spread over every order of the product; the
+    #: orders response and the programme's uses are scaled by this share. ``units_per_order`` /
+    #: ``orders_per_day`` are those orders' own.
+    coverage: Decimal = Decimal(1)
 
 
 @dataclass(frozen=True)

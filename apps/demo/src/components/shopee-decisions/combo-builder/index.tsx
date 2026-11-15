@@ -13,7 +13,7 @@ type Variations = Readonly<Record<string, readonly VariationRow[]>>;
 
 /** Text a spreadsheet pastes: header row + one line per option, tab separated. */
 export function comboTable(rows: readonly ComboRow[]): string {
-  const head = ["Tên phân loại", "SKU", "Giá", "Giá/hộp", "Tiết kiệm so với mua lẻ", "Biên ở giá bán", "Biên cuối", "Lợi nhuận/đơn", "Tồn kho gợi ý"];
+  const head = ["Tên phân loại", "SKU", "Giá", `Giá/${rows[0]?.unit ?? "hộp"}`, "Tiết kiệm so với mua lẻ", "Biên ở giá bán", "Biên cuối", "Lợi nhuận/đơn", "Tồn kho gợi ý"];
   const lines = rows.map((r) =>
     [r.option_name, r.sku ?? "", r.price ?? "", r.price_per_box ?? "", r.saving ?? "", r.margin_pct ?? "", r.final_margin_pct ?? "", r.profit_per_order ?? "", r.suggested_stock ?? ""].join("\t"),
   );
@@ -116,6 +116,7 @@ export function ComboBuilder({ api, variationsApi, products }: { readonly api: B
     void navigator.clipboard?.writeText(comboTable(data.rows));
     setCopied(true);
   };
+  const unit = data?.rows.find((r) => r.form === "multi_pack")?.unit ?? "hộp";
   const nameOf = (id: string) => products.find((p) => p.item_id === id)?.name ?? id;
 
   return (
@@ -149,10 +150,10 @@ export function ComboBuilder({ api, variationsApi, products }: { readonly api: B
         <div className="sb-pills">
           {PACKS.map((n) => (
             <button aria-pressed={packs.includes(n)} className={`sb-pill ${packs.includes(n) ? "sb-pill--on" : ""}`} key={n} onClick={() => setPacks(packs.includes(n) ? packs.filter((x) => x !== n) : [...packs, n])} type="button">
-              {n} hộp
+              {n} {unit}
             </button>
           ))}
-          <Field label="Cỡ khác (hộp)">
+          <Field label={`Cỡ khác (${unit})`}>
             <input inputMode="numeric" onChange={(e) => setCustom(e.target.value)} value={custom} />
           </Field>
         </div>
@@ -194,9 +195,9 @@ export function ComboBuilder({ api, variationsApi, products }: { readonly api: B
         </Field>
         <Field label="Cách đặt giá">
           <select onChange={(e) => setKind(e.target.value as ComboPriceRule["kind"])} value={kind}>
-            <option value="ladder">Giảm giá theo số hộp (mặc định)</option>
+            <option value="ladder">Giảm giá theo số {unit} (mặc định)</option>
             <option value="target_margin">Theo biên cuối mong muốn</option>
-            <option value="per_box">Giá cố định mỗi hộp</option>
+            <option value="per_box">Giá cố định mỗi {unit}</option>
           </select>
         </Field>
         {kind === "target_margin" ? (
@@ -205,7 +206,7 @@ export function ComboBuilder({ api, variationsApi, products }: { readonly api: B
           </Field>
         ) : null}
         {kind === "per_box" ? (
-          <Field label="Giá mỗi hộp (đ)">
+          <Field label={`Giá mỗi ${unit} (đ)`}>
             <input inputMode="numeric" onChange={(e) => setBoxPrice(e.target.value)} value={boxPrice} />
           </Field>
         ) : null}
@@ -253,7 +254,7 @@ export function ComboBuilder({ api, variationsApi, products }: { readonly api: B
                   <th>Tên phân loại</th>
                   <th>SKU</th>
                   <th>Giá</th>
-                  <th>Giá/hộp</th>
+                  <th>Giá/{unit}</th>
                   <th>Tiết kiệm so với mua lẻ</th>
                   <th>Biên ở giá bán (chắc chắn)</th>
                   <th>Biên cuối</th>
@@ -267,7 +268,7 @@ export function ComboBuilder({ api, variationsApi, products }: { readonly api: B
                     <td>{r.option_name}</td>
                     <td>{r.sku ?? ""}</td>
                     <td>
-                      <input aria-label={`Giá ${r.option_name}`} defaultValue={r.price ?? ""} inputMode="numeric" onBlur={(e) => num(e.target.value) !== r.price && setOverride(r.key, e.target.value)} />
+                      <input aria-label={`Giá ${r.option_name}`} key={`${r.key}:${r.price ?? ""}`} defaultValue={r.price ?? ""} inputMode="numeric" onBlur={(e) => num(e.target.value) !== r.price && setOverride(r.key, e.target.value)} />
                       {r.overridden ? <span className="sa-hint"> đã sửa</span> : null}
                     </td>
                     <td>{vnd(r.price_per_box)}</td>

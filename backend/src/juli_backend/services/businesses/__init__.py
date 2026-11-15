@@ -5,6 +5,7 @@ One account → many businesses → many shops on many platforms. Access to a sh
 this package manages the business side of it. Nothing commits here.
 """
 
+from juli_backend.services.businesses.backfill import BackfillResult, run_backfill
 from juli_backend.services.businesses.service import (
     ACTION_BUSINESS_INVITE_ACCEPT,
     ACTION_BUSINESS_INVITE_CREATE,
@@ -25,6 +26,7 @@ from juli_backend.services.businesses.service import (
     preview_invite,
     remove_member,
     remove_person_from_shop_business,
+    shop_business_id_expr,
     transfer_shop_business_owner,
 )
 
@@ -34,6 +36,7 @@ __all__ = [
     "ACTION_BUSINESS_MEMBER_REMOVE",
     "ROLE_MEMBER",
     "ROLE_OWNER",
+    "BackfillResult",
     "BusinessError",
     "CreatedBusinessInvite",
     "accept_invite",
@@ -48,5 +51,7 @@ __all__ = [
     "preview_invite",
     "remove_member",
     "remove_person_from_shop_business",
+    "run_backfill",
+    "shop_business_id_expr",
     "transfer_shop_business_owner",
 ]

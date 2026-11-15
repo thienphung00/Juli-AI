@@ -4,6 +4,7 @@ Synthetic numbers only."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal as D
 from types import SimpleNamespace
@@ -21,7 +22,10 @@ from juli_backend.services.shopee_builder.engine.contract import (
 )
 from juli_backend.services.shopee_builder.engine.engine import run
 from juli_backend.services.shopee_builder.engine_families import adapters
-from juli_backend.services.shopee_builder.engine_families.common import FamilyRefused
+from juli_backend.services.shopee_builder.engine_families.common import (
+    NOTE_COMBO_REACH,
+    FamilyRefused,
+)
 from juli_backend.services.shopee_builder.engine_families.facts import (
     ComboFacts,
     LiftEvidence,
@@ -432,12 +436,82 @@ def test_a_shop_that_never_ran_a_combo_gets_cost_and_break_even_only():
     assert "chưa chạy combo" in o.drivers[0].note
 
 
-def test_a_shop_with_past_combo_orders_keeps_the_measured_reach():
-    lines = _one_unit_orders(39) + [
-        OrderLine(
-            "c1", "i1-sku", "i1", date(2026, 6, 6), 2, D(100_000), D(100_000), D(0), D(20_000)
-        )
+def _orders(prefix, day, ones, twos, bundle=D(0)):
+    """``ones`` one-unit and ``twos`` two-unit orders of i1 at 100.000 on ``day`` (the two-unit
+    lines carry ``bundle`` as their combo discount)."""
+    out = [
+        OrderLine(f"{prefix}1-{i}", "i1-sku", "i1", day, 1, D(100_000), D(100_000))
+        for i in range(ones)
     ]
+    return out + [
+        OrderLine(f"{prefix}2-{i}", "i1-sku", "i1", day, 2, D(100_000), D(100_000), D(0), bundle)
+        for i in range(twos)
+    ]
+
+
+BEFORE, DURING = date(2026, 6, 1), date(2026, 6, 10)
+
+
+def test_combo_reach_is_the_rise_in_tier_share_while_the_shops_combo_ran():
+    # 2026-11-15 (sample shop: ΔGMV +4,34 tr on +1,6 đơn): the near share counted every one-unit
+    # order as buying a second unit (100 % take-up). With the shop's own combo run, the reach is
+    # the rise in the share of orders at the tier: 10/40 = 25 % before, 20/40 = 50 % during
+    lines = _orders("b", BEFORE, 30, 10) + _orders("d", DURING, 20, 20, bundle=D(20_000))
     f = adapters.combo_facts(combo("pct", [(2, 10)]), fake_env(lines))
-    assert f.reach is not None
-    assert combo_option(combo("pct", [(2, 10)]), f).drivers[0].basis == "measured"
+    assert f.reach is not None and f.reach_note is None
+    # se = sqrt(.5 × .5 / 40 + .25 × .75 / 40) = 0.104583; z90 × se = 0.134028
+    assert f.reach.p50 == D("0.25")
+    assert f.reach.p10 == pytest.approx(D("0.115972"), abs=D("0.000001"))
+    assert f.reach.p90 == pytest.approx(D("0.384028"), abs=D("0.000001"))
+    # the near share (every one-unit order, 50 of 80) is no longer the reach
+    assert f.near_share == D("0.625") and f.reach.p50 < f.near_share
+    o = combo_option(combo("pct", [(2, 10)]), f)
+    assert o.drivers[0].basis == "measured"
+
+
+def test_a_combo_run_that_moved_nobody_up_estimates_no_aov_lift():
+    # the sample shop: 65 % of orders at a tier before its combo, 60 % while it ran
+    lines = _orders("b", BEFORE, 30, 10) + _orders("d", DURING, 30, 10, bundle=D(20_000))
+    f = adapters.combo_facts(combo("pct", [(2, 10)]), fake_env(lines))
+    assert f.reach is not None and f.reach.p10 == 0 and f.reach.p50 == 0 and f.reach.p90 > 0
+    o = combo_option(combo("pct", [(2, 10)]), f)
+    assert o.drivers[0].lift.p50 == 0
+    # the cost is the discount on the orders already at the tier (25 %), not on every order
+    assert o.offers[0].use_share.p50 == D("0.25")
+
+
+def test_a_combo_that_ran_the_whole_window_cannot_measure_its_reach():
+    lines = _orders("d", DURING, 30, 10, bundle=D(20_000))
+    f = adapters.combo_facts(combo("pct", [(2, 10)]), fake_env(lines))
+    assert f.reach is None and f.reach_note == NOTE_COMBO_REACH
+    assert combo_option(combo("pct", [(2, 10)]), f).drivers[0].basis == "not_estimable"
+
+
+def test_the_combo_aov_lift_is_relative_to_the_base_it_moves():
+    # 2026-11-15: the lift was reach × units × đơn giá ÷ the whole-basket AOV (other products
+    # included) but multiplied the products' own GMV: ΔGMV per order must be reach × đơn giá
+    lines = _orders("b", BEFORE, 30, 10) + _orders("d", DURING, 20, 20, bundle=D(20_000))
+    f = replace(adapters.combo_facts(combo("pct", [(2, 10)]), fake_env(lines)), base_aov=D(80_000))
+    o = combo_option(combo("pct", [(2, 10)]), f)
+    assert o.drivers[0].lift.p50 == D("0.25") * D(100_000) / D(80_000)
+
+
+# -- Phân loại / set: the set's own price and its cannibalisation (2026-11-15) -------------------
+
+
+def test_a_set_takes_its_discount_from_the_orders_that_already_buy_that_many_single_units():
+    lines = [
+        OrderLine("a", "s1", "i1", BEFORE, 2, D(59_000), D(59_000)),  # one set
+        OrderLine("b", "s1", "i1", BEFORE, 1, D(59_000), D(59_000)),  # under the set
+        OrderLine("c", "s1", "i1", BEFORE, 3, D(59_000), D(59_000)),  # one set + one single
+        OrderLine("d", "p3", "i1", BEFORE, 2, D(165_000), D(165_000)),  # pack variation: no
+    ]
+    offer = adapters.variation_set_offer(fake_env(lines), "i1", 2, D(10), {"p3": 3})
+    assert offer is not None
+    # 2 × 59.000 × 10 % on 2 of 4 orders (no fee formula in the fake: the gross discount)
+    assert offer.per_use == D("11800.0") and offer.use_share.p50 == D("0.5")
+
+
+def test_a_set_no_order_switches_to_has_no_cannibalisation_cost():
+    lines = [OrderLine("b", "s1", "i1", BEFORE, 1, D(59_000), D(59_000))]
+    assert adapters.variation_set_offer(fake_env(lines), "i1", 2, D(10), {}) is None
