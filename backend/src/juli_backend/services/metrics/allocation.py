@@ -5,7 +5,8 @@
   ads-attributed counts as affiliate (owner 2026-11-15). The arithmetic is the registry's
   ``channel_gmv_*`` formulas, run by :mod:`.compute`.
 - :func:`shop_lines` builds the labelled "Cả shop" lines that close Σ product to the shop:
-  ads with no product stay "Quảng cáo chưa gán sản phẩm" (no hidden spread).
+  ads with no product stay "Quảng cáo chưa gán sản phẩm" (no hidden spread). What the three
+  named lines do not explain is carried by a fourth, labelled remainder line (never hidden).
 """
 
 from __future__ import annotations
@@ -48,8 +49,16 @@ class ShopLines:
     lines: tuple[ShopLine, ...]
     products_profit: Decimal | None
     shop_profit: Decimal | None
-    #: shop profit − (Σ product profit + Σ line profit); 0 when the inputs share one basis
+    #: shop profit − (Σ product profit + the three named lines); 0 when the inputs share one
+    #: basis. The same amount is the ``rounding_allocation`` line, so the lines add up exactly.
     gap: Decimal | None
+
+    @property
+    def residual(self) -> Decimal | None:
+        """Shop profit − (Σ product profit + every line); 0 whenever the inputs are known."""
+        return _minus(
+            self.shop_profit, _total([self.products_profit, *(x.profit for x in self.lines)])
+        )
 
 
 def _total(values: Sequence[Decimal | None]) -> Decimal | None:
@@ -89,9 +98,10 @@ def shop_lines(shop: Components, products: Sequence[Mapping[str, Decimal | None]
     )
     products_profit = _total([p.get("profit") for p in products])
     explained = _total([products_profit, *(line.profit for line in lines)])
+    gap = _minus(shop.get("profit"), explained)
     return ShopLines(
-        lines=lines,
+        lines=(*lines, ShopLine("rounding_allocation", "Chênh lệch làm tròn / phân bổ", gap)),
         products_profit=products_profit,
         shop_profit=shop.get("profit"),
-        gap=_minus(shop.get("profit"), explained),
+        gap=gap,
     )

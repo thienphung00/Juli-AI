@@ -383,11 +383,15 @@ def test_shop_lines_ory_october() -> None:
         "Quảng cáo chưa gán sản phẩm",
         "Chi phí marketing khác",
         "Chênh lệch cơ sở",
+        "Chênh lệch làm tròn / phân bổ",
     ]
     assert by_key["ads_unassigned"].profit == -ORY_COST_ADS
     assert by_key["other_marketing"].profit == 0
     assert (by_key["basis_gap"].gmv, by_key["basis_gap"].orders) == (D(0), D(0))
-    assert out.gap is not None and abs(out.gap) <= D(655)
+    # shop − Σ product = −3 396 362 against ads −3 397 017: the 655 đ is the labelled remainder
+    assert by_key["rounding_allocation"].profit == D(655)
+    assert out.gap == D(655)
+    assert out.residual == D(0)
 
 
 @pytest.mark.parametrize(
@@ -409,6 +413,7 @@ def test_shop_lines_ory_october() -> None:
                 "ads_unassigned": (D(-200), None, None),
                 "other_marketing": (D(-50), None, None),
                 "basis_gap": (D(0), D(100), D(1)),
+                "rounding_allocation": (D(0), None, None),
             },
         ),
         (
@@ -424,6 +429,7 @@ def test_shop_lines_ory_october() -> None:
                 "ads_unassigned": (D(0), None, None),
                 "other_marketing": (D(0), None, None),
                 "basis_gap": (D(0), D(0), D(0)),
+                "rounding_allocation": (D(-100), None, None),
             },
         ),
     ],
@@ -432,6 +438,7 @@ def test_shop_lines_add_up(shop: dict, products: list, lines: dict) -> None:
     out = shop_lines(shop, products)
     assert {ln.key: (ln.profit, ln.gmv, ln.orders) for ln in out.lines} == lines
     assert out.gap == (D(0) if products else D(-100))
+    assert out.residual == D(0)
 
 
 def test_shop_lines_missing_input_is_none() -> None:
@@ -441,6 +448,7 @@ def test_shop_lines_missing_input_is_none() -> None:
     )
     assert out.lines[0].profit is None
     assert out.gap is None
+    assert out.residual is None
 
 
 # -- kol_status (owner 2026-11-15) ------------------------------------------------------------

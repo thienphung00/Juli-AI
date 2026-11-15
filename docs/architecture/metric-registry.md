@@ -1,4 +1,4 @@
-# Metric registry and platform capabilities — design (draft 2, 2026-11-15, owner decisions in)
+# Metric registry and platform capabilities — design (draft 3, 2026-11-15, owner decisions in)
 
 Owner decisions: T5 (four layers, platform-neutral tables), T6 (one calculation everywhere),
 T8 (headline GMV = the platform's reported shop totals), T9 (capabilities per platform), from
@@ -64,6 +64,17 @@ seller voucher − combo − output VAT; 0 for an accepted refund) · `cogs` (+ 
 · `affiliate_commission` · `offer_promo`, `offer_voucher`, `offer_combo` · `other_marketing`
 · `views`, `clicks` (per source) · `samples_cost` · `stock_units`.
 
+Components the code adds (all sums over the window unless noted):
+- `net_revenue_known` — net revenue of the known-cost orders only (the profit and margin base).
+- `ads_gmv_direct` — ads GMV attributed directly (ads report), for `roas_direct`.
+- `ads_gmv_confirmed` — ads-attributed confirmed GMV (overlay / confirmed share); feeds the channel partition (§6).
+- `ads_views`, `ads_clicks`, `ads_orders` — traffic counts of ads sources, only days that have both counts (`ctr_ads`, `ctor_ads`).
+- `affiliate_gmv` — GMV of affiliate-attributed confirmed lines, scaled to shop totals (§6).
+- `kol_gmv`, `kol_commission`, `kol_net` — one KOL's order GMV, commission paid, and net profit of those orders after commission.
+- `card_delta_gmv`, `card_cost` — a card's measured ΔGMV and its cost (`card_return`).
+- `window_days` — days in the window (`units_per_day`); not summable.
+- `sale_revenue_after_vat`, `sale_fees`, `sale_cogs`, `sale_packaging` — one unit at the selling price for `margin_sale`; **per unit, not summable**.
+
 ## 5. Metric ids (Shopee source shown; TikTok column filled by the TikTok session)
 
 ### Volume
@@ -81,10 +92,15 @@ Retired: `aov_seller_centre` (screen line), five-numbers line AOV (uses `aov`), 
 ### Profit and margin (two labelled margins, ask 1)
 | id | Label | Formula |
 |---|---|---|
-| `profit` | Lợi nhuận | net_revenue − cogs − packaging − fees − shipping_net − affiliate_commission − ads_spend − other_marketing, on **known-cost orders** (today's `known_cost_profit`); `coverage` = known-cost GMV share; `partial` below 100 % |
-| `margin` | Biên lợi nhuận | profit ÷ net_revenue (same known-cost orders) |
+| `profit` | Lợi nhuận | net_revenue − cogs − packaging − fees − shipping_net − affiliate_commission − ads_spend − other_marketing, on **known-cost orders** (today's `known_cost_profit`); `coverage` = known-cost GMV share; `partial` below 100 % (a base of `net_revenue_known`, not `net_revenue`) |
+| `margin` | Biên lợi nhuận | profit ÷ net_revenue_known (same known-cost orders) |
 | `margin_sale` | Biên ở giá bán | one unit at the selling price: (revenue after VAT − fees − cogs − packaging) ÷ revenue after VAT; product/SKU only; no marketing |
 | `contribution` | Lợi nhuận trước quảng cáo | profit + ads_spend (used by break-even ROAS, KOL net) |
+| `contribution_rate` | Tỷ lệ đóng góp | (contribution + affiliate_commission) ÷ net_revenue_known — the rate channel profit uses (§6) |
+
+`cost_total` includes `cost_offers`, but offers are already netted out of net revenue (deal ×
+qty − voucher − combo), so **profit ≠ net_revenue − cost_total**: subtracting `cost_total` from
+net revenue would charge offers twice.
 
 Retired: `ShopMetrics.profit` scaled by GMV ÷ line GMV (metrics.py:315-332) and the stored
 `*_metrics_daily.profit` built from it (rebuilt as `profit` per day, T3); `profit_on_covered`
@@ -105,21 +121,21 @@ _offer_cost` (voucher + combo, skipped in-transit).
 | `roi` | ROI | profit ÷ cost_marketing (shop, product, channel) |
 | `roas` | ROAS | ads_gmv_platform ÷ cost_ads (Shopee broad, placed — labelled) |
 | `roas_direct` | ROAS trực tiếp | direct ads GMV ÷ cost_ads |
-| `roas_break_even` | ROAS hoà vốn | net_revenue ÷ contribution |
+| `roas_break_even` | ROAS hoà vốn | net_revenue_known ÷ contribution |
 | `roi_kol` | ROI KOL | (kol_net − samples_cost) ÷ (kol_commission + samples_cost) — one function (today ×3) |
 | `card_return` | ΔGMV / chi phí | a card's ΔGMV ÷ its cost — not labelled "ROI" any more |
 
 ### Funnel, channels, stock, KOL
 `views`, `clicks`, `ctr` (clicks ÷ views), `ctor` (orders ÷ clicks), `ctr_ads`, `ctor_ads`
 (days with both counts, #2294) · `channel_gmv[organic|ads|affiliate]`, `channel_share`,
-`channel_profit`, `channel_cost_pct` (§6) · `units_per_day`, `days_left`, `runs_out_on`,
+`channel_profit`, `channel_cost_pct` (§6) · `units_per_day`, `days_left` (registry formula stock ÷ units_per_day is only the no-card case; wiring uses the stock-alert forecast's value), `runs_out_on`,
 `restock_units` = units_per_day × (lead_time + cover) − stock (lead time a shop rule) — the
 stock-alert forecast is the **only** forecast; the product page reads it · `kol_gmv`,
 `kol_share` (of **shop** gmv, ask 8), `kol_commission`, `kol_net`, `kol_status`
 (owner 2026-11-15: no fixed rule — decided by the KOC's own data): the 90 % confidence
 interval of `roi_kol` from its order-level net profit after samples over the period —
 **Hiệu quả** when the lower bound > 1, **Không hiệu quả** when the upper bound < 1, else
-**Chưa đủ dữ liệu**; `kol_share` is shown beside it and does not decide it · reco/measurement
+**Chưa đủ dữ liệu** (the interval is a normal approximation, not an exact one); `kol_share` is shown beside it and does not decide it · reco/measurement
 keep their P10/P50/P90 deltas but compute them on these ids.
 
 ### Comparisons (ask 3)
@@ -135,8 +151,9 @@ on it are not % of revenue. Rule: partition **shop gmv** in this order —
 2. `ads` = ads-attributed confirmed GMV (overlay / ads report confirmed share), capped at
    gmv − affiliate;
 3. `organic` = gmv − affiliate − ads (≥ 0).
-Channel profit = channel net revenue × the shop's contribution rate − the channel's own cost
-(ads → ads channel, commission → affiliate). Traffic views/clicks stay per source for the funnel
+Channel net revenue = net_revenue_known × channel_gmv ÷ gmv. Channel profit = channel net
+revenue × `contribution_rate` − the channel's own cost (ads → ads channel, commission →
+affiliate). `channel_gmv_*` is not summable over days (the partition is computed on window totals). Traffic views/clicks stay per source for the funnel
 only. An order both affiliate- and ads-attributed counts as **affiliate** (owner 2026-11-15:
 the commission is the cost that order adds).
 
@@ -148,6 +165,8 @@ lines that add up to the shop:
 - Quảng cáo chưa gán sản phẩm (= cost_ads − Σ product ads; ORY Oct: −3 397 017)
 - Chi phí marketing khác (other_marketing)
 - Chênh lệch cơ sở (shop totals gmv − Σ product gmv from lines; orders likewise)
+- Chênh lệch làm tròn / phân bổ (`rounding_allocation`: shop profit − Σ product profit − the
+  three lines above, computed as the remainder, so the lines add up exactly and nothing hides)
 No ROI, no margin on these lines.
 
 ## 8. Capabilities (T9)
@@ -158,7 +177,9 @@ No ROI, no margin on these lines.
 `live_schedule`, `shop_tab`. Replaces `_shopee()` in routes and the frontend platform checks;
 the Tự tạo builder offers only what `can()` allows (T10). Shopee rows (today): reads =
 connector (shop_overview, order pages, ads pages), listing/price/promotions/voucher/bundle/
-ads = connector (fill, seller presses Lưu). TikTok rows: TikTok session.
+ads, and `affiliate_commission` (write) = connector (fill, seller presses Lưu). Three explicit
+`Route.none` rows with a reason: `write_stock` ("no Connector form map yet"), `live_schedule`
+("not offered on Shopee VN seller flows in Juli"), `shop_tab` ("not offered yet"). TikTok rows: TikTok session.
 
 ## 9. Fixes the registry lands first (in this order)
 
@@ -186,6 +207,18 @@ ads = connector (fill, seller presses Lưu). TikTok rows: TikTok session.
 - **Acceptance case**: ORY October 2026 (audit §5) — gmv 21 336 200, orders 123, cost_ads
   3 397 017, profit 2 838 185, coverage 1.0, "Quảng cáo chưa gán sản phẩm" −3 397 017, each with
   as_of and derivation_version.
+  *The 655 đ gap.* Shop profit 2 838 185 − Σ product profit 6 234 547 = −3 396 362, while
+  cost_ads is 3 397 017. Cause: the two profits charge ads on different bases. Product profit
+  subtracts each product's full ads-report spend (`shop_profit.py:274`, `profit=contribution -
+  spend`), and "ads chưa gán" is cost_ads − Σ product spend (`shop_profit.py:296`). Shop profit
+  (`known_cost_profit`, `shop_profit.py:486-493`) instead charges each day's spend × that day's
+  known-cost GMV share, and a day with spend but no order line (or whose orders lack costs)
+  charges nothing (`shop_profit.py:488`, "no order data that day: no charge"), so the charged
+  ads total is 655 đ below cost_ads. Whole-đồng rounding per bridge line (`shop_profit.py:512-513`)
+  adds at most a few đồng, not 655. This was derived by reading the code, not the data. The
+  registry keeps the "Cả shop" lines exact by carrying the remainder as the labelled fourth line
+  "Chênh lệch làm tròn / phân bổ" (§7), instead of a tolerance. Closing it at the source (charge
+  uncovered days' spend to a visible line) is a separate profit-code change.
 
 ## 11. Owner decisions (2026-11-15)
 
