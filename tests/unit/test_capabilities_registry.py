@@ -51,11 +51,17 @@ def test_shopee_writes_are_a_connector_fill_the_seller_saves(capability: str) ->
     assert "Lưu" in got.reason
 
 
-@pytest.mark.parametrize(
-    "capability", sorted(set(DOC_CAPABILITIES) - set(SHOPEE_READS) - set(SHOPEE_FILLS))
-)
-def test_shopee_undeclared_rows_are_none(capability: str) -> None:
-    assert can("shopee", capability) == Capability(Route.none, "not declared")
+SHOPEE_NONE = {
+    "write_stock": "no Connector form map yet",
+    "live_schedule": "not offered on Shopee VN seller flows in Juli",
+    "shop_tab": "not offered yet",
+}
+
+
+def test_shopee_none_rows_are_explicit_with_a_reason() -> None:
+    assert set(SHOPEE_NONE) == set(DOC_CAPABILITIES) - set(SHOPEE_READS) - set(SHOPEE_FILLS)
+    for capability, reason in SHOPEE_NONE.items():
+        assert can("shopee", capability) == Capability(Route.none, reason)
 
 
 @pytest.mark.parametrize("capability", DOC_CAPABILITIES)

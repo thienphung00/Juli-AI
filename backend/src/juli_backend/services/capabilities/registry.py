@@ -58,6 +58,9 @@ _SHOPEE: Mapping[str, Capability] = MappingProxyType(
         "bundle": Capability(Route.connector, _FILL),
         "affiliate_commission": Capability(Route.connector, _FILL),
         "ads_campaign": Capability(Route.connector, _FILL),
+        "write_stock": Capability(Route.none, "no Connector form map yet"),
+        "live_schedule": Capability(Route.none, "not offered on Shopee VN seller flows in Juli"),
+        "shop_tab": Capability(Route.none, "not offered yet"),
     }
 )
 

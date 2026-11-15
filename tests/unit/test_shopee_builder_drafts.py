@@ -499,3 +499,26 @@ def test_tiny_discounts_are_not_put_on_a_cover_concept():
     assert facts.discount_pcts() == set()
     overlay, _ = drafts._build_overlay(facts, real, concept, "")
     assert overlay is not None and overlay["discount_pct"] == 10
+
+
+# -- sample shop 2026-11-15: the keyword glued in front of the old title ----------------------
+
+
+def test_a_title_that_repeats_a_two_word_phrase_is_dropped():
+    facts = drafts.ProductFacts(item_id="1", title="Khăn lau đa năng Hiên Nhà set 5 khăn")
+    glued = [
+        {"title": "Khăn lau bếp Khăn lau đa năng Hiên Nhà set 5 khăn xám", "note": ""},
+        {"title": "Khăn lau bếp đa năng Hiên Nhà set 5 khăn màu xám, màu pastel", "note": ""},
+    ]
+    out, dropped = drafts.screen_titles(glued, facts, ["khăn lau bếp"])
+    assert [o["title"] for o in out] == [glued[1]["title"]]
+    assert dropped[0]["reason"] == "lặp lại cụm từ: khăn lau"
+    # only the opening product-type phrase counts: other repeats are normal in a title
+    assert drafts.repeated_phrase("Găng tay cao su, 5 hộp găng tay") == "găng tay"
+    assert drafts.repeated_phrase("Khăn lau bếp Hiên Nhà, bộ màu xám và bộ màu pastel") is None
+
+
+def test_the_title_prompt_asks_for_a_rewrite_not_a_prefix():
+    system = drafts.title_system(drafts.ProductFacts(item_id="1", title="x"))
+    assert "không ghép từ khoá vào trước tiêu đề hiện tại" in system
+    assert "không lặp lại tên loại sản phẩm" in system

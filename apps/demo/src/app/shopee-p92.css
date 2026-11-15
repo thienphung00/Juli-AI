@@ -1917,3 +1917,16 @@ body:has(.p2--flow) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* P100 S2 (owner option A): the AI titles sit beside the pre-written ones, marked */
+.p2-ai-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #121214;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: 1px;
+}

@@ -130,14 +130,15 @@ describe("Tự tạo › Ảnh bìa", () => {
 describe("the card's banner", () => {
   it("a voucher card opens the editor on itself; a host without the banner routes shows nothing", async () => {
     const card = voucherCard();
+    const id = card.id ?? "card-voucher";
     const builder = fakeBuilder({ banner: bannerContext() });
-    renderReco(<CardPage from={null} id={card.id} />, fakeReco({ detail: detailOf(card) }), { builder });
+    renderReco(<CardPage from={null} id={id} />, fakeReco({ detail: detailOf(card) }), { builder });
     const section = await screen.findByTestId("bn-card");
     fireEvent.click(within(section).getByTestId("bn-card-open"));
     await within(section).findByTestId("bn-step-1");
-    expect(calls(builder, "banner")[0].args).toEqual([card.scope.product_ids[0], card.id]);
+    expect(calls(builder, "banner")[0].args).toEqual([card.scope.product_ids[0], id]);
     cleanup();
-    renderReco(<CardPage from={null} id={card.id} />, fakeReco({ detail: detailOf(card) }), { builder: fakeBuilder() });
+    renderReco(<CardPage from={null} id={id} />, fakeReco({ detail: detailOf(card) }), { builder: fakeBuilder() });
     await screen.findByText(card.title);
     expect(screen.queryByTestId("bn-card")).toBeNull();
   });

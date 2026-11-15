@@ -439,6 +439,8 @@ export interface TitleDraft {
   readonly chars: number;
   readonly keywords?: { readonly covered: readonly string[]; readonly missing: readonly string[] };
   readonly note?: string | null;
+  /** Sample shop only: "seeded" (pre-written) or "llm" (the live AI draft), shown side by side. */
+  readonly source?: "seeded" | "llm";
 }
 
 export interface TitleDrafts {
