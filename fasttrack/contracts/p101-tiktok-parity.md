@@ -184,7 +184,7 @@ contaminated with a re-apply / keep choice; 14 days without re-auth → plan exp
 | `PILOT_SHOP_IDS`, `ORY_SHOP_ID`, `SAMPLE_SHOP_IDS` | Pairing token | S1 (#2301) |
 | `NEVER_SAMPLE_SHOP_IDS` (Fujiwa id, `reviewer/config.py:41`) | `shops.kind` | S2 |
 | `_shopee()` 409 on 13 routes | `can()` + shop gate | TikTok session (W3) |
-| `destinationsFor` / `APP_DESTINATIONS` | One shell | TikTok session (W1) |
+| `destinationsFor` / `APP_DESTINATIONS` | One shell | TikTok session (W3) |
 | `platform === "tiktok"` in 27 frontend files | API platform labels + capability flags | TikTok session (W3) |
 | `PLATFORM = "shopee"` constants, ~45 `shopee_*` modules | Neutral modules + T5 renames | S1 |
 | `shops.user_id` as access rule, Ops-only invites | Business membership | TikTok session (W1) |
@@ -209,9 +209,9 @@ contaminated with a re-apply / keep choice; 14 days without re-auth → plan exp
 | Phase | Work | Waits on | Size |
 |---|---|---|---|
 | W0 Probe | Docs research (part 1), then live sandbox probe (part 2, owner OK); TikTok capability rows on #2300; TikTok shapes, source keys, fee keys and `can(tiktok, …)` list to S2 | — | 2 |
-| W1 Identity + one shell | Migration businesses / business_members / shops.business_id / shops.kind; access by membership; self-serve invites; switcher; remove the shell fork | — | 4–5 |
+| W1 Identity | Migration `130_businesses` (businesses / business_members / shops.business_id / shops.kind); access by membership; self-serve invites; switcher | — | 4–5 |
 | W2 TikTok mapper + backfill | Raw → canonical, registry components; connect → 90-day backfill → automatic rebuilds; nightly reconcile | S1 registry module + T5 renames | 8–10 |
-| W3 Gates + analytics | `can()` on the 13 routes; frontend platform checks removed; unified-gate endpoints; "—" + hover reason | W1, W2, S1 capabilities module | 5–6 |
+| W3 Gates + analytics + one shell | `can()` on the 13 routes; shell fork (`destinationsFor`) removed in the same PR so a TikTok shop never lands on a screen that still 409s; frontend platform checks removed; unified-gate endpoints; "—" + hover reason | W1, W2, S1 capabilities module | 5–6 |
 | W4 Cards → execution → measurement | TikTok generators + Tự tạo via `can()`; API writers with read-back / retry / rollback; groups all-or-nothing; state machines, audit, kill switches; legacy action cards retired | W3 | 9–11 |
 | W5 Connector TikTok pack | `platforms/tiktok/pack.ts` form maps for connector-routed actions; second permission button | #2301 merged, W0 | 3 |
 | W6 Reviewer on the shell | Sandbox shop on the shell (pin, mask, D73); new-shop-zero-config E2E | W4, S2 TikTok sample | 3 |
