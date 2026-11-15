@@ -50,6 +50,7 @@ from juli_backend.services.shopee_builder.engine.vn import signed_orders, vnd
 from juli_backend.services.shopee_builder.engine_families import (
     FamilyExtras,
     FamilyRefused,
+    common,
     option_for,
 )
 from juli_backend.services.shopee_builder.engine_families.facts import (
@@ -223,6 +224,7 @@ def deterministic(option: OptionInput) -> bool:
 
 
 def run(base: FunnelBase, option: OptionInput, seed: int) -> OptionResult:
+    option = common.floor_prior_drivers(option)
     result = engine.run(base, option, seed=seed, n=1 if deterministic(option) else 4000)
     note = profit_coverage_note(base)
     if note is None or note in result.notes:

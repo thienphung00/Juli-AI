@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 
-from juli_backend.services.shopee_builder.engine.contract import Band
+from juli_backend.services.shopee_builder.engine.contract import Band, OptionInput
+from juli_backend.services.shopee_recommendations import kinds as reco_kinds
 
 #: Cashback / coupon affiliates (ADR-122 d.9): matched on the lower-cased handle, whole word or
 #: prefix. They get ``extra_share`` 0, are labelled below and are never suggested samples.
@@ -78,3 +80,29 @@ def scaled(b: Band, k: Decimal) -> Band:
 
 def clamp01(x: Decimal) -> Decimal:
     return min(max(x, Decimal(0)), Decimal(1))
+
+
+#: Kinds whose prior reaches the engine as a hard-coded band (not through ``predict_lift``, which
+#: floors at the source): the floor is applied to them in :func:`floor_prior_drivers`. The
+#: size-scaled lifts of the other kinds (price, listing, ...) are floored before they are scaled.
+FLOOR_AT_RUN: tuple[str, ...] = ("min_spend_voucher", "bundle_deal")
+#: The card target metric -> the builder driver that carries it ("orders" move through CTOR).
+_DRIVER_OF_TARGET = {"views": "views", "ctr": "ctr", "ctor": "ctor", "orders": "ctor", "aov": "aov"}
+
+
+def floor_prior_drivers(option: OptionInput) -> OptionInput:
+    """Owner rule 2026-11-15: the driver that carries the kind's uplift, when it is a generic
+    prior, is at least ``MIN_PRIOR_LIFT`` at P50 (same helper as the card). Measured / shop /
+    product-history / not_estimable drivers and exempt kinds are returned as they are."""
+    if option.kind not in FLOOR_AT_RUN or option.kind not in reco_kinds.KINDS:
+        return option
+    lead = _DRIVER_OF_TARGET.get(reco_kinds.spec(option.kind).target_metric)
+    drivers = []
+    for d in option.drivers:
+        if d.metric == lead and d.basis == "prior" and d.lift is not None:
+            lift = Band(
+                *reco_kinds.floor_prior_band(option.kind, d.lift.p10, d.lift.p50, d.lift.p90)
+            )
+            d = replace(d, lift=lift)
+        drivers.append(d)
+    return replace(option, drivers=tuple(drivers))
