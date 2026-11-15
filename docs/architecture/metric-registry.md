@@ -1,4 +1,4 @@
-# Metric registry and platform capabilities — design (draft 1, 2026-11-15)
+# Metric registry and platform capabilities — design (draft 2, 2026-11-15, owner decisions in)
 
 Owner decisions: T5 (four layers, platform-neutral tables), T6 (one calculation everywhere),
 T8 (headline GMV = the platform's reported shop totals), T9 (capabilities per platform), from
@@ -115,9 +115,12 @@ _offer_cost` (voucher + combo, skipped in-transit).
 `channel_profit`, `channel_cost_pct` (§6) · `units_per_day`, `days_left`, `runs_out_on`,
 `restock_units` = units_per_day × (lead_time + cover) − stock (lead time a shop rule) — the
 stock-alert forecast is the **only** forecast; the product page reads it · `kol_gmv`,
-`kol_share` (of **shop** gmv, ask 8), `kol_commission`, `kol_net`, `kol_effective` (rule:
-≥ N orders and roi_kol ≥ 1 in the period; N a shop rule) · reco/measurement keep their P10/P50/
-P90 deltas but compute them on these ids.
+`kol_share` (of **shop** gmv, ask 8), `kol_commission`, `kol_net`, `kol_status`
+(owner 2026-11-15: no fixed rule — decided by the KOC's own data): the 90 % confidence
+interval of `roi_kol` from its order-level net profit after samples over the period —
+**Hiệu quả** when the lower bound > 1, **Không hiệu quả** when the upper bound < 1, else
+**Chưa đủ dữ liệu**; `kol_share` is shown beside it and does not decide it · reco/measurement
+keep their P10/P50/P90 deltas but compute them on these ids.
 
 ### Comparisons (ask 3)
 Every KPI exposes `prev` (same-length previous window), `month_prev` (previous calendar month,
@@ -134,8 +137,8 @@ on it are not % of revenue. Rule: partition **shop gmv** in this order —
 3. `organic` = gmv − affiliate − ads (≥ 0).
 Channel profit = channel net revenue × the shop's contribution rate − the channel's own cost
 (ads → ads channel, commission → affiliate). Traffic views/clicks stay per source for the funnel
-only. **Decision needed (owner):** affiliate before ads when an order is both (proposed: yes,
-the commission is the marginal cost).
+only. An order both affiliate- and ads-attributed counts as **affiliate** (owner 2026-11-15:
+the commission is the cost that order adds).
 
 ## 7. Allocation and the "Cả shop" lines (ask 6)
 
@@ -184,11 +187,11 @@ ads = connector (fill, seller presses Lưu). TikTok rows: TikTok session.
   3 397 017, profit 2 838 185, coverage 1.0, "Quảng cáo chưa gán sản phẩm" −3 397 017, each with
   as_of and derivation_version.
 
-## 11. Open decisions (owner)
+## 11. Owner decisions (2026-11-15)
 
-1. §6: an order both affiliate and ads-attributed counts as affiliate? (proposed yes)
-2. `kol_effective` rule: N orders and roi_kol ≥ 1? (proposed N = 3)
-3. Restock `lead_time` and `cover` defaults per shop (proposed 7 + 14 days) — ties to the ORY
-   restock question sent 2026-11-14.
-4. Packaging: a default per order when no rule exists, or keep 0 with a coverage flag?
-   (proposed keep 0, show "chưa nhập chi phí đóng gói")
+1. §6: an order both affiliate- and ads-attributed counts as **affiliate**.
+2. KOC: **no fixed rule**; `kol_status` from the confidence interval of `roi_kol` (§5).
+3. Restock defaults: `lead_time` 7 + `cover` 14 days, per-shop rules (ORY's answer to the
+   2026-11-14 restock question overrides).
+4. Packaging with no rule: **keep 0**, `cost_packaging` flagged "chưa nhập chi phí đóng gói"
+   (coverage, not an estimate).

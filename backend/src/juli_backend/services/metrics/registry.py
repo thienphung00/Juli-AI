@@ -1,0 +1,781 @@
+"""The metric registry: one id, one formula, one rounding rule per number Juli shows.
+
+Design: ``docs/architecture/metric-registry.md`` (draft 2, owner decisions §11). A change to a
+formula here is a change to every screen, export and agent tool that shows the metric, so it
+bumps :data:`DERIVATION_VERSION`.
+
+Formulas are data, not Python: an expression is either a bare id (a component of
+:mod:`.components` when one exists by that id, else another metric) or a tuple whose first
+element is an operator:
+
+==============  ==================================================================
+``("sum", *e)``     Σ of the operands
+``("sub", a, *b)``  a − Σ b
+``("mul", a, b)``   a × b
+``("div", a, b)``   a ÷ b; ``None`` when b is 0 or ``None``
+``("min", a, b)``   the smaller operand
+``("clamp0", a)``   max(a, 0)
+``("const", "n")``  a decimal constant (string, so it stays exact)
+``("param", name)`` a shop rule with a registry default (:data:`PARAMS`)
+``("date_offset", a)``  ``as_of`` + ⌊a⌋ days (a date, for ``runs_out_on``)
+``("helper", name)``    not a formula: a named pure helper in :mod:`.compute` computes it
+==============  ==================================================================
+
+Every operand that is ``None`` makes the result ``None`` (missing is not zero, rule 3).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field
+from decimal import Decimal
+from enum import StrEnum
+from types import MappingProxyType
+from typing import Any
+
+DERIVATION_VERSION = "2026-11-15.1"
+
+#: an expression: a bare id, or ``(operator, *operands)``
+Expr = str | tuple[Any, ...]
+
+OPERATORS = frozenset(
+    {"sum", "sub", "mul", "div", "min", "clamp0", "const", "param", "date_offset", "helper"}
+)
+#: operators that keep a formula a sum of summable parts
+LINEAR_OPERATORS = frozenset({"sum", "sub"})
+
+
+class Unit(StrEnum):
+    vnd = "vnd"
+    items = "count"
+    ratio = "ratio"
+    pct_points = "pct_points"
+    days = "days"
+    x = "x"
+    date = "date"
+    status = "status"
+
+
+class Rounding(StrEnum):
+    """Rules of ``services/shopee_profit/money.py``: đồng half up, % 0.1, x 0.1."""
+
+    dong = "dong"
+    whole = "whole"
+    units_ceil = "units_ceil"
+    one_decimal = "one_decimal"
+    pct_0_1 = "pct_0_1"
+    x_0_1 = "x_0_1"
+    ratio_0_001 = "ratio_0_001"
+    days_floor = "days_floor"
+    none = "none"
+
+
+class Window(StrEnum):
+    #: the last complete day of the platform's shop totals, and the days before it
+    anchor_day = "anchor_day"
+    #: the same length before the window
+    previous = "previous"
+    #: the calendar month ("vs tháng trước")
+    month = "month"
+
+
+class Comparison(StrEnum):
+    """What every KPI is compared with (§5 Comparisons); not metrics."""
+
+    prev = "prev"
+    month_prev = "month_prev"
+    target = "target"
+
+
+class Level(StrEnum):
+    shop = "shop"
+    product = "product"
+    sku = "sku"
+    channel = "channel"
+    kol = "kol"
+    business = "business"
+
+
+class Basis(StrEnum):
+    platform = "platform"
+    juli = "juli"
+    estimated = "estimated"
+
+
+class NoneRule(StrEnum):
+    #: any missing operand makes the metric ``None``
+    propagate = "propagate"
+    #: as ``propagate``, and the value carries its cost coverage; ``partial`` below 100 %
+    coverage = "coverage"
+
+
+class OrderBasis(StrEnum):
+    #: has a payment time (contract 14)
+    confirmed = "confirmed"
+    #: Shopee's placed-order basis (ads reports)
+    placed = "placed"
+    #: confirmed lines whose cost is known (``known_cost_profit``)
+    known_cost = "known_cost"
+    none = "none"
+
+
+class Platform(StrEnum):
+    shopee = "shopee"
+    tiktok = "tiktok"
+
+
+@dataclass(frozen=True)
+class SourceSpec:
+    """Where a platform's number comes from: the dataset, its order basis and its field."""
+
+    dataset: str
+    order_basis: OrderBasis
+    field: str | None = None
+    note: str = ""
+
+
+@dataclass(frozen=True)
+class MetricDef:
+    id: str
+    label_vi: str
+    unit: Unit
+    rounding: Rounding
+    formula: Expr
+    components: tuple[str, ...]
+    summable: bool
+    window: Window
+    levels: tuple[Level, ...]
+    sources: Mapping[Platform, SourceSpec]
+    basis: Basis
+    none_rule: NoneRule = NoneRule.propagate
+    #: the metric whose value is this metric's ``coverage`` (cost-dependent metrics)
+    coverage: str | None = None
+    note: str = ""
+
+
+#: shop rules a formula may read, with the registry default (owner decision 3)
+PARAMS: Mapping[str, Decimal] = MappingProxyType(
+    {"lead_time_days": Decimal(7), "cover_days": Decimal(14)}
+)
+
+
+def refs(expr: Expr) -> Iterator[str]:
+    """The ids an expression reads directly (components or metrics), in order."""
+    if isinstance(expr, str):
+        yield expr
+        return
+    op, *args = expr
+    if op in ("const", "param", "helper"):
+        return
+    for arg in args:
+        yield from refs(arg)
+
+
+def ops(expr: Expr) -> Iterator[str]:
+    """Every operator an expression uses."""
+    if isinstance(expr, str):
+        return
+    op, *args = expr
+    yield op
+    if op in ("const", "param", "helper"):
+        return
+    for arg in args:
+        yield from ops(arg)
+
+
+# -- formula constructors (they only build tuples) -------------------------------------------
+
+
+def s(*e: Expr) -> Expr:
+    return ("sum", *e)
+
+
+def sub(a: Expr, *b: Expr) -> Expr:
+    return ("sub", a, *b)
+
+
+def mul(a: Expr, b: Expr) -> Expr:
+    return ("mul", a, b)
+
+
+def div(a: Expr, b: Expr) -> Expr:
+    return ("div", a, b)
+
+
+def lo(a: Expr, b: Expr) -> Expr:
+    return ("min", a, b)
+
+
+def clamp0(a: Expr) -> Expr:
+    return ("clamp0", a)
+
+
+def const(n: str) -> Expr:
+    return ("const", n)
+
+
+def param(name: str) -> Expr:
+    return ("param", name)
+
+
+# -- sources ---------------------------------------------------------------------------------
+
+_SC = OrderBasis.confirmed
+DERIVED = SourceSpec("derived", OrderBasis.none, None, "computed from its components")
+
+
+def _src(dataset: str, basis: OrderBasis, fld: str | None = None, note: str = "") -> SourceSpec:
+    return SourceSpec(dataset, basis, fld, note)
+
+
+SHOP_LEVELS = (Level.shop, Level.product, Level.sku)
+SHOP_PRODUCT = (Level.shop, Level.product)
+CHANNEL = (Level.channel,)
+
+
+@dataclass
+class _Builder:
+    defs: dict[str, MetricDef] = field(default_factory=dict)
+
+    def add(
+        self,
+        id: str,
+        label_vi: str,
+        unit: Unit,
+        rounding: Rounding,
+        formula: Expr,
+        *,
+        summable: bool,
+        levels: tuple[Level, ...] = SHOP_LEVELS,
+        shopee: SourceSpec = DERIVED,
+        basis: Basis = Basis.juli,
+        known: bool = False,
+        note: str = "",
+    ) -> None:
+        """``known``: a cost-dependent metric (on known-cost orders, carries coverage)."""
+        if id in self.defs:
+            raise ValueError(f"duplicate metric id {id}")
+        self.defs[id] = MetricDef(
+            id=id,
+            label_vi=label_vi,
+            unit=unit,
+            rounding=rounding,
+            formula=formula,
+            components=tuple(dict.fromkeys(refs(formula))),
+            summable=summable,
+            window=Window.anchor_day,
+            levels=levels,
+            sources=MappingProxyType({Platform.shopee: shopee}),
+            basis=basis,
+            none_rule=NoneRule.coverage if known else NoneRule.propagate,
+            coverage="cost_coverage" if known else None,
+            note=note,
+        )
+
+
+def _build() -> dict[str, MetricDef]:
+    b = _Builder()
+    V, C, PP, X, R = Unit.vnd, Unit.items, Unit.pct_points, Unit.x, Unit.ratio
+    D, P1, X1 = Rounding.dong, Rounding.pct_0_1, Rounding.x_0_1
+
+    # Volume (platform-reported headline, T8)
+    b.add(
+        "gmv",
+        "GMV",
+        V,
+        D,
+        "gmv",
+        summable=True,
+        basis=Basis.platform,
+        shopee=_src("shop_overview", _SC, "gmv", "Seller Centre shop totals"),
+    )
+    b.add(
+        "orders",
+        "Đơn hàng",
+        C,
+        Rounding.whole,
+        "orders",
+        summable=True,
+        basis=Basis.platform,
+        shopee=_src("shop_overview", _SC, "orders"),
+    )
+    b.add(
+        "units",
+        "Sản phẩm bán",
+        C,
+        Rounding.whole,
+        "units",
+        summable=True,
+        basis=Basis.platform,
+        shopee=_src("shop_overview", _SC, "units"),
+    )
+    b.add("aov", "AOV", V, D, div("gmv", "orders"), summable=False, basis=Basis.platform)
+    b.add(
+        "net_revenue",
+        "Doanh thu thực",
+        V,
+        D,
+        "net_revenue",
+        summable=True,
+        shopee=_src("order_lines", _SC, "buyer_paid", "deal×qty − seller voucher − combo − VAT"),
+    )
+
+    # Profit and margin (two labelled margins, ask 1)
+    b.add(
+        "cost_coverage",
+        "Độ phủ giá vốn",
+        R,
+        Rounding.ratio_0_001,
+        div("cogs_known_gmv", "line_gmv"),
+        summable=False,
+        shopee=_src("order_lines", _SC, "cogs_coverage", "known-cost GMV ÷ line GMV"),
+    )
+    b.add(
+        "profit",
+        "Lợi nhuận",
+        V,
+        D,
+        sub(
+            "net_revenue_known",
+            "cogs",
+            "packaging",
+            "fees",
+            "shipping_net",
+            "affiliate_commission",
+            "ads_spend",
+            "other_marketing",
+        ),
+        summable=True,
+        known=True,
+        shopee=_src(
+            "order_lines",
+            OrderBasis.known_cost,
+            "known_cost_profit",
+            "shared.shop_profit_of; ads and other marketing are shop-level",
+        ),
+    )
+    b.add(
+        "margin",
+        "Biên lợi nhuận",
+        PP,
+        P1,
+        div("profit", "net_revenue_known"),
+        summable=False,
+        known=True,
+    )
+    b.add(
+        "margin_sale",
+        "Biên ở giá bán",
+        PP,
+        P1,
+        div(
+            sub("sale_revenue_after_vat", "sale_fees", "sale_cogs", "sale_packaging"),
+            "sale_revenue_after_vat",
+        ),
+        summable=False,
+        levels=(Level.product, Level.sku),
+        shopee=_src("catalog", OrderBasis.none, "price_margin", "one unit at the selling price"),
+    )
+    b.add(
+        "contribution",
+        "Lợi nhuận trước quảng cáo",
+        V,
+        D,
+        s("profit", "ads_spend"),
+        summable=True,
+        known=True,
+    )
+    b.add(
+        "contribution_rate",
+        "Tỷ lệ đóng góp",
+        PP,
+        P1,
+        div(s("contribution", "affiliate_commission"), "net_revenue_known"),
+        summable=False,
+        note="before ads and commission: the rate channel profit uses (§6)",
+    )
+
+    # Costs (ask 2)
+    cost_parts = {
+        "cost_cogs": ("Giá vốn", "cogs", _src("order_lines", OrderBasis.known_cost, "cogs")),
+        "cost_packaging": (
+            "Đóng gói",
+            "packaging",
+            _src(
+                "shop_rules",
+                OrderBasis.known_cost,
+                "packaging",
+                "no rule = 0, flagged 'chưa nhập chi phí đóng gói'",
+            ),
+        ),
+        "cost_fees": (
+            "Phí sàn",
+            "fees",
+            _src("order_income", _SC, "fees", "actual fee wins, else fee_table formula"),
+        ),
+        "cost_shipping": ("Vận chuyển", "shipping_net", _src("order_income", _SC, "shipping_net")),
+        "cost_ads": (
+            "Quảng cáo",
+            "ads_spend",
+            _src("ads_report", OrderBasis.none, "expense", "one resolver: ads days"),
+        ),
+        "cost_affiliate": (
+            "Hoa hồng tiếp thị liên kết",
+            "affiliate_commission",
+            _src("affiliate_lines", _SC, "commission"),
+        ),
+        "cost_offer_promo": (
+            "Khuyến mãi",
+            "offer_promo",
+            _src("order_lines", _SC, "promo", "non-cancelled confirmed lines"),
+        ),
+        "cost_offer_voucher": (
+            "Voucher",
+            "offer_voucher",
+            _src("order_lines", _SC, "seller_voucher"),
+        ),
+        "cost_offer_combo": ("Combo", "offer_combo", _src("order_lines", _SC, "combo")),
+        "cost_other": (
+            "Chi phí marketing khác",
+            "other_marketing",
+            _src("shop_rules", OrderBasis.none, "other_marketing_costs"),
+        ),
+    }
+    for cid, (label, comp, src) in cost_parts.items():
+        b.add(cid, label, V, D, comp, summable=True, shopee=src)
+    b.add(
+        "cost_offers",
+        "Ưu đãi",
+        V,
+        D,
+        s("cost_offer_promo", "cost_offer_voucher", "cost_offer_combo"),
+        summable=True,
+    )
+    b.add(
+        "cost_marketing",
+        "Chi phí marketing",
+        V,
+        D,
+        s("cost_ads", "cost_affiliate", "cost_offers"),
+        summable=True,
+    )
+    b.add(
+        "cost_total",
+        "Tổng chi phí",
+        V,
+        D,
+        s(
+            "cost_cogs",
+            "cost_packaging",
+            "cost_fees",
+            "cost_shipping",
+            "cost_ads",
+            "cost_affiliate",
+            "cost_offers",
+            "cost_other",
+        ),
+        summable=True,
+    )
+    for cid in (
+        "cost_cogs",
+        "cost_packaging",
+        "cost_fees",
+        "cost_shipping",
+        "cost_ads",
+        "cost_affiliate",
+        "cost_offers",
+        "cost_other",
+        "cost_total",
+        "cost_marketing",
+    ):
+        label = b.defs[cid].label_vi
+        b.add(
+            f"{cid}_pct",
+            f"{label} (% doanh thu thực)",
+            PP,
+            P1,
+            div(cid, "net_revenue"),
+            summable=False,
+        )
+
+    # Returns on cost
+    b.add(
+        "roi",
+        "ROI",
+        X,
+        X1,
+        div("profit", "cost_marketing"),
+        summable=False,
+        levels=(Level.shop, Level.product, Level.channel),
+        known=True,
+    )
+    b.add(
+        "roas",
+        "ROAS",
+        X,
+        X1,
+        div("ads_gmv_platform", "cost_ads"),
+        summable=False,
+        basis=Basis.platform,
+        shopee=_src("ads_report", OrderBasis.placed, "gmv", "broad, placed — labelled"),
+    )
+    b.add(
+        "roas_direct",
+        "ROAS trực tiếp",
+        X,
+        X1,
+        div("ads_gmv_direct", "cost_ads"),
+        summable=False,
+        basis=Basis.platform,
+        shopee=_src("ads_report", OrderBasis.placed, "direct_gmv"),
+    )
+    b.add(
+        "roas_break_even",
+        "ROAS hoà vốn",
+        X,
+        X1,
+        div("net_revenue_known", "contribution"),
+        summable=False,
+        known=True,
+    )
+    b.add(
+        "roi_kol",
+        "ROI KOL",
+        X,
+        X1,
+        div(sub("kol_net", "samples_cost"), s("kol_commission", "samples_cost")),
+        summable=False,
+        levels=(Level.kol,),
+    )
+    b.add(
+        "card_return",
+        "ΔGMV / chi phí",
+        X,
+        X1,
+        div("card_delta_gmv", "card_cost"),
+        summable=False,
+        levels=SHOP_PRODUCT,
+        basis=Basis.estimated,
+        shopee=_src("measurement", OrderBasis.confirmed, "delta_gmv", "a card's ΔGMV"),
+    )
+
+    # Funnel
+    b.add(
+        "views",
+        "Lượt xem",
+        C,
+        Rounding.whole,
+        "views",
+        summable=True,
+        basis=Basis.platform,
+        shopee=_src("traffic_overview", OrderBasis.none, "views", "per source"),
+    )
+    b.add(
+        "clicks",
+        "Lượt click",
+        C,
+        Rounding.whole,
+        "clicks",
+        summable=True,
+        basis=Basis.platform,
+        shopee=_src("traffic_overview", OrderBasis.none, "product_clicks", "per source"),
+    )
+    b.add("ctr", "CTR", PP, P1, div("clicks", "views"), summable=False, basis=Basis.platform)
+    b.add("ctor", "CTOR", PP, P1, div("orders", "clicks"), summable=False, basis=Basis.platform)
+    b.add(
+        "ctr_ads",
+        "CTR quảng cáo",
+        PP,
+        P1,
+        div("ads_clicks", "ads_views"),
+        summable=False,
+        basis=Basis.platform,
+        note="days with both counts (#2294)",
+    )
+    b.add(
+        "ctor_ads",
+        "CTOR quảng cáo",
+        PP,
+        P1,
+        div("ads_orders", "ads_clicks"),
+        summable=False,
+        basis=Basis.platform,
+        note="days with both counts (#2294)",
+    )
+
+    # Channels (§6): affiliate first, ads capped at gmv − affiliate, organic the rest
+    b.add(
+        "channel_gmv_affiliate",
+        "GMV Tiếp thị liên kết",
+        V,
+        D,
+        lo("affiliate_gmv", "gmv"),
+        summable=False,
+        levels=CHANNEL,
+        basis=Basis.estimated,
+        note="a partition of the window, so not summed over days",
+    )
+    b.add(
+        "channel_gmv_ads",
+        "GMV Quảng cáo",
+        V,
+        D,
+        lo("ads_gmv_confirmed", clamp0(sub("gmv", "channel_gmv_affiliate"))),
+        summable=False,
+        levels=CHANNEL,
+        basis=Basis.estimated,
+    )
+    b.add(
+        "channel_gmv_organic",
+        "GMV Organic",
+        V,
+        D,
+        clamp0(sub("gmv", "channel_gmv_affiliate", "channel_gmv_ads")),
+        summable=False,
+        levels=CHANNEL,
+        basis=Basis.estimated,
+    )
+    own_cost = {"organic": const("0"), "ads": "ads_spend", "affiliate": "affiliate_commission"}
+    label_of = {"organic": "Organic", "ads": "Quảng cáo", "affiliate": "Tiếp thị liên kết"}
+    for ch in ("organic", "ads", "affiliate"):
+        gmv_id = f"channel_gmv_{ch}"
+        b.add(
+            f"channel_share_{ch}",
+            f"Tỷ trọng {label_of[ch]}",
+            PP,
+            P1,
+            div(gmv_id, "gmv"),
+            summable=False,
+            levels=CHANNEL,
+            basis=Basis.estimated,
+        )
+        b.add(
+            f"channel_net_revenue_{ch}",
+            f"Doanh thu thực {label_of[ch]}",
+            V,
+            D,
+            mul("net_revenue_known", div(gmv_id, "gmv")),
+            summable=False,
+            levels=CHANNEL,
+            basis=Basis.estimated,
+        )
+        net = f"channel_net_revenue_{ch}"
+        profit_expr = mul(net, "contribution_rate")
+        if ch != "organic":
+            profit_expr = sub(profit_expr, own_cost[ch])
+        b.add(
+            f"channel_profit_{ch}",
+            f"Lợi nhuận {label_of[ch]}",
+            V,
+            D,
+            profit_expr,
+            summable=False,
+            levels=CHANNEL,
+            basis=Basis.estimated,
+        )
+        b.add(
+            f"channel_cost_pct_{ch}",
+            f"Chi phí {label_of[ch]} (%)",
+            PP,
+            P1,
+            div(own_cost[ch], net),
+            summable=False,
+            levels=CHANNEL,
+            basis=Basis.estimated,
+        )
+
+    # Stock (the stock-alert forecast is the only forecast)
+    stock_src = _src("stock_history", OrderBasis.none, "stock")
+    b.add(
+        "units_per_day",
+        "Bán / ngày",
+        C,
+        Rounding.one_decimal,
+        div("units", "window_days"),
+        summable=False,
+        levels=(Level.product, Level.sku),
+    )
+    b.add(
+        "days_left",
+        "Còn bán được (ngày)",
+        Unit.days,
+        Rounding.days_floor,
+        div("stock_units", "units_per_day"),
+        summable=False,
+        levels=(Level.product, Level.sku),
+        basis=Basis.estimated,
+        shopee=stock_src,
+    )
+    b.add(
+        "runs_out_on",
+        "Hết hàng khoảng",
+        Unit.date,
+        Rounding.none,
+        ("date_offset", "days_left"),
+        summable=False,
+        levels=(Level.product, Level.sku),
+        basis=Basis.estimated,
+    )
+    b.add(
+        "restock_units",
+        "Cần nhập thêm",
+        C,
+        Rounding.units_ceil,
+        clamp0(
+            sub(
+                mul("units_per_day", s(param("lead_time_days"), param("cover_days"))), "stock_units"
+            )
+        ),
+        summable=False,
+        levels=(Level.product, Level.sku),
+        basis=Basis.estimated,
+        shopee=stock_src,
+    )
+
+    # KOL
+    kol_src = _src("affiliate_lines", _SC, None, "KOL conversion report join")
+    b.add("kol_gmv", "GMV KOL", V, D, "kol_gmv", summable=True, levels=(Level.kol,), shopee=kol_src)
+    b.add(
+        "kol_share",
+        "Tỷ trọng KOL",
+        PP,
+        P1,
+        div("kol_gmv", "gmv"),
+        summable=False,
+        levels=(Level.kol,),
+        note="of the shop GMV (ask 8)",
+    )
+    b.add(
+        "kol_commission",
+        "Hoa hồng KOL",
+        V,
+        D,
+        "kol_commission",
+        summable=True,
+        levels=(Level.kol,),
+        shopee=kol_src,
+    )
+    b.add(
+        "kol_net",
+        "Lợi nhuận ròng KOL",
+        V,
+        D,
+        "kol_net",
+        summable=True,
+        levels=(Level.kol,),
+        shopee=kol_src,
+    )
+    b.add(
+        "kol_status",
+        "Hiệu quả KOL",
+        Unit.status,
+        Rounding.none,
+        ("helper", "kol_status"),
+        summable=False,
+        levels=(Level.kol,),
+        note="90 % interval of roi_kol from order-level profits: compute.kol_status",
+    )
+    return b.defs
+
+
+METRICS: Mapping[str, MetricDef] = MappingProxyType(_build())
