@@ -265,6 +265,11 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
   const p = data.kpis_prev ?? null;
   const money = (v: number | null | undefined) => mil(inMode(v, days, mode));
   const href = (metric: MetricKey) => analysisHref(links, { metric, product, mode }, state);
+  // Lợi nhuận / Tổng chi phí stand on the order lines and the ads: their own day when it is older
+  // than the GMV's (the shop totals')
+  const throughProfit = data.data_through?.profit ?? null;
+  const lateThrough = (key: string): ReactNode =>
+    throughProfit && throughProfit !== data.data_through?.kpis ? <DataThrough day={throughProfit} testId={`sa-through-${key}`} /> : null;
   const tile = (key: string, label: string, value: string, shiftPct: number | null, metric: MetricKey, good: 1 | -1, lines?: ReactNode): ReactNode => (
     <Link className="sa-tile" data-testid={`sa-tile-${key}`} href={href(metric)} key={key}>
       <span className="sa-tile__top">
@@ -272,6 +277,7 @@ function Tiles({ data, mode, product, state }: { readonly data: ChannelSplit; re
       </span>
       <span className="sa-tile__value">{value}</span>
       <Shift good={good} pct={shiftPct} testId={`sa-shift-${key}`} />
+      {key === "profit" || key === "cost" ? lateThrough(key) : null}
       {lines}
     </Link>
   );

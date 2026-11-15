@@ -17,6 +17,14 @@ describe("Tổng quan (P100 board)", () => {
     expect(screen.getByTestId("sa-through-channels")).toHaveTextContent(/^Số liệu đến 09\/11$/);
   });
 
+  it("Lợi nhuận / Tổng chi phí carry their own older day; none when it equals the GMV's", async () => {
+    const split = channelSplit({ data_through: { kpis: "2026-11-14", profit: "2026-11-04", channels: "2026-11-13", plan: "2026-11-04" } });
+    renderWith(<TongQuanView params={params()} />, fakeApi({ split }));
+    expect(await screen.findByTestId("sa-through-kpis")).toHaveTextContent(/^Số liệu đến 14\/11$/);
+    expect(screen.getByTestId("sa-through-profit")).toHaveTextContent(/^Số liệu đến 04\/11$/);
+    expect(screen.getByTestId("sa-through-cost")).toHaveTextContent(/^Số liệu đến 04\/11$/);
+  });
+
   it("P100 B.5: no data_through, no label", async () => {
     renderWith(<TongQuanView params={params()} />, fakeApi({ split: channelSplit({ data_through: { kpis: null, channels: null, plan: null } }) }));
     await screen.findByTestId("sa-channels");
