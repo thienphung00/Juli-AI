@@ -54,6 +54,10 @@ PRICE_LIFT_MAX, PRICE_LIFT_MIN = 1.0, -0.9
 #: affiliate: commission change against +5 points.
 MAGNITUDE_SCALE_MAX = 2.0
 VOUCHER_REF_SHARE = 0.05
+#: a min-spend voucher moves only the orders within this share below its minimum; with fewer
+#: qualifying orders than ``VOUCHER_TAKEUP_MIN_ORDERS`` the shop's own take-up is not measured.
+VOUCHER_REACH_WINDOW = 0.2
+VOUCHER_TAKEUP_MIN_ORDERS = 30
 GIFT_REF_SHARE = 0.05
 ADDON_REF_PCT = 10.0
 SET_REF_PCT = 10.0
