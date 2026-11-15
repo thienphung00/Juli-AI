@@ -74,7 +74,7 @@ export type Dataset = MydataDataset | ReaderDataset;
 //
 // Each reader reads one Seller Centre report page's own endpoints (read-only; the seller's
 // own session) and posts mapped rows. Like ITEM_READERS_ACTIVE, a reader is a feature flag
-// here, and it is ON only for the pilot shops below: `readerActive(id, shopId)`.
+// here, and it runs for the shop of the paired token: `readerActive(id, shopId)`.
 
 export type ReaderId =
   | "products"
@@ -163,37 +163,17 @@ export const READERS_ACTIVE: Record<ReaderId, boolean> = {
 export const SCHEDULER_ACTIVE = true;
 
 /**
- * Juli shop ids the readers and the scheduler run for. "*" = every paired shop.
- * Connector 0.3.7: the report readers, including the eight Tăng Đơn Cùng KOL pages,
- * run for every shop that has paired. Listing fill-in and market search stay on the
- * explicit id only (`fillActive` / `marketActive` ignore "*"). An empty list turns
- * every reader off.
+ * T11 (2026-11-15): the shop comes only from the pairing token. There is no shop list in the
+ * Connector: the readers and the scheduler run for the paired shop (`shopId` = the token's
+ * `shop_id`), Juli's server decides what it accepts and serves (it never issues a code for the
+ * reviewer sample shop, and its flags gate the fill and the market search per shop).
  */
-export const ORY_SHOP_ID = "d73a240b-a00a-4306-9b3e-9fdf75d72aaf";
-export const PILOT_SHOP_IDS: readonly string[] = [ORY_SHOP_ID, "*"];
-
-/**
- * Juli's reviewer sample shop (P100 S2): synthetic data, never a real Seller Centre. The Connector
- * never pairs with it and never reads for it, whatever the pilot list says.
- */
-export const SAMPLE_SHOP_IDS: readonly string[] = ["bf06da92-8988-450a-ad84-86d88367efaa"];
-
-export function isSampleShop(shopId: string | undefined): boolean {
-  return !!shopId && SAMPLE_SHOP_IDS.includes(shopId.toLowerCase());
-}
-
 export function readerActive(id: ReaderId, shopId: string | undefined): boolean {
-  if (!READERS_ACTIVE[id] || !shopId || isSampleShop(shopId)) return false;
-  return PILOT_SHOP_IDS.includes("*") || PILOT_SHOP_IDS.includes(shopId);
+  return READERS_ACTIVE[id] && !!shopId;
 }
 
 export function schedulerActive(shopId: string | undefined): boolean {
-  return (
-    SCHEDULER_ACTIVE &&
-    !!shopId &&
-    !isSampleShop(shopId) &&
-    (PILOT_SHOP_IDS.includes("*") || PILOT_SHOP_IDS.includes(shopId))
-  );
+  return SCHEDULER_ACTIVE && !!shopId;
 }
 
 /** The datasets each reader produces. */
@@ -390,10 +370,10 @@ export const MAX_PLAUSIBLE_AD_VND = 5_000_000_000;
 // On a product's edit page the Connector can type an APPROVED card's text into the title and the
 // first line of the description, highlight the fields and say "kiểm tra rồi bấm Lưu của Shopee".
 // It NEVER clicks or submits anything (no Lưu / Cập nhật / Xác nhận / Ẩn), never navigates, and
-// reads no buyer data. It runs only when ALL of these hold: this flag is on, the paired shop is
-// on the explicit pilot list (the "*" wildcard of the readers does NOT count), the address carries
-// `#juli-fill=<card code>` (set by the Juli button "Điền bằng Connector"), and Juli's server
-// (CONNECTOR_FILL_LISTING) serves the card. An unknown layout fills nothing and shows copy buttons.
+// reads no buyer data. It runs only when ALL of these hold: this flag is on, a shop is paired, the
+// address carries `#juli-fill=<card code>` (set by the Juli button "Điền bằng Connector"), and
+// Juli's server (CONNECTOR_FILL_LISTING) serves the card for the token's shop. An unknown layout
+// fills nothing and shows copy buttons.
 
 export const FILL_LISTING_ACTIVE = true;
 
@@ -413,7 +393,7 @@ export const FILL_LABELS = {
 } as const;
 
 export function fillActive(shopId: string | undefined): boolean {
-  return FILL_LISTING_ACTIVE && !!shopId && PILOT_SHOP_IDS.includes(shopId);
+  return FILL_LISTING_ACTIVE && !!shopId;
 }
 
 // -- fill jobs (P97 D85.6): approved cards queued by Juli, opened and filled page by page -------
@@ -438,8 +418,8 @@ export const FILL_JOB_PAGES = {
 // Once a week per keyword the Connector opens the PUBLIC Shopee search page for a product's 1-3
 // main keywords (the list comes from Juli: GET /v1/ingest/market/keywords) in a background tab,
 // keeps the page's OWN search answer (page 1, relevancy) and posts the cards to the dataset
-// `market_search`. No login, no buyer data, never clicks. ORY only: `marketActive` needs the
-// explicit shop id in PILOT_SHOP_IDS (the "*" wildcard does NOT count, like fillActive).
+// `market_search`. No login, no buyer data, never clicks. For the paired shop; Juli's server
+// decides per shop whether it has keywords to read (`market.enabled`, else an empty list).
 // Everything marked "to verify" below is a recon GUESS to confirm on a real capture
 // (docs/integrations/shopee/market-search-recon.md).
 
@@ -468,5 +448,5 @@ export const MARKET_JOB_TIMEOUT_MS = 90_000;
 export const MARKET_SORT = "relevancy";
 
 export function marketActive(shopId: string | undefined): boolean {
-  return !!shopId && PILOT_SHOP_IDS.includes(shopId);
+  return !!shopId;
 }

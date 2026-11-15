@@ -10,7 +10,6 @@ import {
   BACKFILL_MAX_DAY_ATTEMPTS,
   type Dataset,
   HELD_DATASETS,
-  isSampleShop,
   MAX_ROWS_PER_POST,
   type ReaderDataset,
 } from "../config";
@@ -103,8 +102,6 @@ export class Connector {
 
   async pair(code: string): Promise<TokenInfo> {
     const token = await this.deps.client.pair(code.trim(), `Juli Connector ${this.deps.version}`);
-    // Juli's reviewer sample shop has no Seller Centre: the token is never kept, nothing reads for it.
-    if (isSampleShop(token.shop_id)) throw new Error("sample_shop");
     const previous = await this.state();
     await saveState(this.deps.storage, {
       token,

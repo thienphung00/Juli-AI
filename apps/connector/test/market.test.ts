@@ -2,7 +2,7 @@
 // (docs/integrations/shopee/market-search-recon.md): not a real capture.
 import { describe, expect, it } from "vitest";
 import { isMarketMessage } from "../src/platforms/shopee/content/messages";
-import { MARKET_CHANNEL, MARKET_ORIGIN, marketActive, PILOT_SHOP_IDS } from "../src/platforms/shopee/config";
+import { MARKET_CHANNEL, MARKET_ORIGIN, marketActive } from "../src/platforms/shopee/config";
 import { ingestBody } from "../src/platforms/shopee/ingest/client";
 import {
   classifyAnswer,
@@ -157,9 +157,9 @@ describe("page helpers", () => {
 });
 
 describe("gating and messages", () => {
-  it("ORY only: the explicit pilot id counts, the wildcard and others do not", () => {
-    expect(marketActive(PILOT_SHOP_IDS[0])).toBe(true);
-    expect(marketActive("other-shop")).toBe(false);
+  it("T11: the paired shop, whichever it is (Juli's server decides per shop which keywords to serve)", () => {
+    expect(marketActive("other-shop")).toBe(true);
+    expect(marketActive("")).toBe(false);
     expect(marketActive(undefined)).toBe(false);
   });
   it("the relay accepts only its own window, the shopee.vn origin, the market channel and kind", () => {

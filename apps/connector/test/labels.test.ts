@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isPageMessage } from "../src/platforms/shopee/content/messages";
-import { CHANNEL, SELLER_CENTRE_ORIGIN, fillActive, marketActive, ORY_SHOP_ID, PILOT_SHOP_IDS, readerActive, schedulerActive } from "../src/platforms/shopee/config";
+import { CHANNEL, SELLER_CENTRE_ORIGIN, fillActive, marketActive, readerActive, schedulerActive } from "../src/platforms/shopee/config";
 import { readersLabel } from "../src/platforms/shopee/popup/labels";
 
 const NOW = Date.UTC(2026, 10, 3, 3, 0, 0);
@@ -16,18 +16,18 @@ describe("readersLabel", () => {
 });
 
 describe("feature flags", () => {
-  it("0.3.7 runs the report readers, including KOL, for every paired shop", () => {
-    expect(PILOT_SHOP_IDS).toContain("*");
-    expect(readerActive("ads", ORY_SHOP_ID)).toBe(true);
+  it("T11: readers, scheduler, listing fill and market search follow the paired token's shop only", () => {
+    expect(readerActive("ads", "a-paired-shop")).toBe(true);
     expect(readerActive("affiliate_kols", "another-shop")).toBe(true);
     expect(readerActive("affiliate", "another-shop")).toBe(true);
     expect(schedulerActive("another-shop")).toBe(true);
     expect(readerActive("ads", undefined)).toBe(false);
+    expect(readerActive("ads", "")).toBe(false);
     expect(schedulerActive(undefined)).toBe(false);
-    expect(fillActive(ORY_SHOP_ID)).toBe(true);
-    expect(fillActive("another-shop")).toBe(false);
-    expect(marketActive(ORY_SHOP_ID)).toBe(true);
-    expect(marketActive("another-shop")).toBe(false);
+    expect(fillActive("another-shop")).toBe(true);
+    expect(fillActive(undefined)).toBe(false);
+    expect(marketActive("another-shop")).toBe(true);
+    expect(marketActive(undefined)).toBe(false);
   });
 });
 

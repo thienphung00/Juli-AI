@@ -1,4 +1,8 @@
-// The Manifest V3 service worker: wires the Connector to Chrome's APIs.
+// The Manifest V3 service worker: wires the Connector core and the registered platform packs to
+// Chrome's APIs. The registry's first pack (Shopee) runs its full runtime -- readers, daily sync,
+// backfill, market search, fill jobs -- on the legacy (unprefixed) storage scope, exactly as before
+// the core / platforms split. A pairing of any other platform gets the core fill-job runner on its
+// own scope (T11: such a pack has form maps and a saved signal only, no readers).
 
 import {
   MARKET_ORIGIN,
@@ -13,6 +17,12 @@ import {
   SYNC_PERIOD_MINUTES,
   SYNC_START_JITTER_MINUTES,
 } from "../platforms/shopee/config";
+import { FILL_HALT_MS } from "../core/config";
+import { IngestClient, type TokenInfo } from "../core/ingest/client";
+import { FillJobs as CoreFillJobs } from "../core/jobs/fill-jobs";
+import { type Pairing, Pairings, pairAcross, rotateIfDue, scopedStorage } from "../core/pairings";
+import type { PlatformPack } from "../platform";
+import { registry } from "../platforms";
 import { GatewayClient } from "../platforms/shopee/ingest/client";
 import type { Captured } from "../platforms/shopee/map";
 import { isDataAnswer, type RequestResult } from "../platforms/shopee/runner";
@@ -73,7 +83,7 @@ const scheduler: ReaderScheduler = new ReaderScheduler({
 
 const gateway = new GatewayClient();
 
-// The market search run (P92 B-10): public shopee.vn search pages, ORY only, own alarm.
+// The market search run (P92 B-10): public shopee.vn search pages, the paired shop, own alarm.
 const market: MarketScheduler = new MarketScheduler({
   storage: chrome.storage.local,
   version: MANIFEST_VERSION,
@@ -153,6 +163,90 @@ const fillJobs = new FillJobs({
   busy: async () => (await scheduler.isBusy()) || (await market.isBusy()) || (await connector.backfillInFlight()),
   halt: (reason, page, detail) => scheduler.haltFor(reason, page, detail),
 });
+
+// -- pairings of the other platforms (T11) ---------------------------------------------------
+
+const pairings = new Pairings(chrome.storage.local, registry.legacy.id);
+const otherRunners = new Map<string, CoreFillJobs>();
+
+/** A pairing outside the legacy scope and its pack (none while no such pack is registered). */
+async function otherPairings(): Promise<{ pairing: Pairing; pack: PlatformPack }[]> {
+  const live = await pairings.list().catch(() => []);
+  return live
+    .filter((p) => p.scope !== "")
+    .map((pairing) => ({ pairing, pack: registry.get(pairing.platform) }))
+    .filter((x): x is { pairing: Pairing; pack: PlatformPack } => x.pack !== undefined);
+}
+
+/** The fill-job runner of one other-platform pairing: its own scope, client and pack. */
+function runnerFor(pairing: Pairing, pack: PlatformPack): CoreFillJobs {
+  const key = `${pairing.shopId}|${pairing.platform}`;
+  const known = otherRunners.get(key);
+  if (known) return known;
+  const storage = scopedStorage(chrome.storage.local, pairing.scope);
+  const runner = new CoreFillJobs({
+    storage,
+    client: new IngestClient(pack.id),
+    pack,
+    now: () => Date.now(),
+    tabs: {
+      async openPage(url) {
+        const tab = await chrome.tabs.create({ url, active: false }).catch(() => undefined);
+        return tab?.id;
+      },
+      async inspect(tabId) {
+        try {
+          const tab = await chrome.tabs.get(tabId);
+          return { open: true, url: tab.url };
+        } catch {
+          return { open: false };
+        }
+      },
+    },
+    // One job page open at a time across every pairing.
+    busy: async () => await fillJobs.isBusy(),
+    halt: async (reason, page) => {
+      const now = Date.now();
+      await storage.set({ readers: { blocked: { at: new Date(now).toISOString(), reason, page, until: now + FILL_HALT_MS } } });
+    },
+  });
+  otherRunners.set(key, runner);
+  return runner;
+}
+
+async function pollOtherPairings(): Promise<void> {
+  for (const { pairing, pack } of await otherPairings()) await runnerFor(pairing, pack).poll().catch(() => undefined);
+}
+
+async function rotateOtherPairings(): Promise<void> {
+  for (const { pairing, pack } of await otherPairings()) {
+    await rotateIfDue(scopedStorage(chrome.storage.local, pairing.scope), new IngestClient(pack.id), Date.now()).catch(() => undefined);
+  }
+}
+
+/** The other-platform pairing whose pack owns this tab's page, if any. */
+async function otherPairingForTab(url: string | undefined): Promise<{ pairing: Pairing; pack: PlatformPack } | undefined> {
+  if (!url) return undefined;
+  const pack = registry.forUrl(url);
+  if (!pack || pack === registry.legacy) return undefined;
+  return (await otherPairings()).find((x) => x.pack === pack);
+}
+
+/** A pairing code goes to each platform in turn (the legacy pack first, as before). */
+async function pair(code: string): Promise<TokenInfo & { optionalHosts?: string[] }> {
+  const { pack, token } = await pairAcross(registry.packs, async (pack) =>
+    pack === registry.legacy ? connector.pair(code) : new IngestClient(pack.id).pair(code.trim(), `Juli Connector ${MANIFEST_VERSION}`),
+  );
+  if (pack === registry.legacy) {
+    await pairings.record(token, pack.id);
+    await connector.backfillStep();
+    // 0.3.19: pairing starts the reader schedule (a minute later) instead of waiting for tomorrow.
+    await scheduler.requestKick("pair");
+    return token;
+  }
+  await pairings.record(token, pack.id, true);
+  return { ...token, optionalHosts: [...pack.optionalHosts] };
+}
 
 async function ensureFillAlarm(): Promise<void> {
   if (await chrome.alarms.get(FILL_JOBS_ALARM)) return;
@@ -238,6 +332,7 @@ void boot("worker_start");
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === FILL_JOBS_ALARM) {
     void fillJobs.poll();
+    void pollOtherPairings();
     return;
   }
   if (alarm.name === MARKET_RUN_ALARM || alarm.name === MARKET_WATCHDOG_ALARM) {
@@ -261,6 +356,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name !== ALARM) return;
   void (async () => {
     await connector.rotateIfDue();
+    await rotateOtherPairings();
     await connector.flushQueue();
     await connector.dailySync();
     await connector.backfillStep();
@@ -321,6 +417,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (msg.type === "market-blocked") return respond(market.onBlocked(tabId, String(msg.reason ?? "")).then(() => market.tick()));
     return undefined;
   }
+  if (sender.id === chrome.runtime.id && sender.tab && !fromSellerCentreTab(sender) && !fromMarketTab(sender)) {
+    // A page of another platform's pack: only its pairing's fill jobs are served there.
+    const url = sender.tab.url;
+    if (msg.type === "fill-job-request" || msg.type === "fill-job-report" || msg.type === "fill-job-halt") {
+      return respond(
+        otherPairingForTab(url).then(async (found) => {
+          if (!found) return msg.type === "fill-job-request" ? { ok: false, reason: "inactive" } : "ignored";
+          const runner = runnerFor(found.pairing, found.pack);
+          if (msg.type === "fill-job-request") return runner.jobFor(url, String(msg.jobId ?? ""));
+          if (msg.type === "fill-job-halt") return runner.halt(String(msg.jobId ?? ""), new URL(url ?? found.pack.origin).pathname);
+          const status = String(msg.status ?? "");
+          if (!["opened", "filled", "saved", "captured", "failed"].includes(status)) return "ignored";
+          const ref = typeof msg.capturedRef === "string" && /^\d{1,20}$/.test(msg.capturedRef) ? msg.capturedRef : undefined;
+          return runner.report(String(msg.jobId ?? ""), status as "opened" | "filled" | "saved" | "captured" | "failed", {
+            ...(ref ? { capturedRef: ref } : {}),
+            ...(typeof msg.error === "string" ? { error: msg.error } : {}),
+            ...(progressOf(msg.progress) ? { progress: progressOf(msg.progress)! } : {}),
+          });
+        }),
+      );
+    }
+    return undefined;
+  }
   if (fromSellerCentreTab(sender)) {
     const tabId = sender.tab?.id;
     if (msg.type === "reader-result" && tabId !== undefined) {
@@ -374,16 +493,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return undefined;
   }
   if (fromExtensionPage(sender)) {
-    if (msg.type === "pair") {
-      // 0.3.19: pairing starts the reader schedule (a minute later) instead of waiting for tomorrow.
+    if (msg.type === "pair") return respond(pair(String(msg.code ?? "")));
+    if (msg.type === "unpair") {
+      // The popup's pairing (the legacy pack's); its index entry goes with it.
       return respond(
-        thenBackfill(connector.pair(String(msg.code ?? ""))).then(async (token) => {
-          await scheduler.requestKick("pair");
-          return token;
+        connector.state().then(async (state) => {
+          await connector.unpair();
+          if (state.token?.shop_id) await pairings.remove(state.token.shop_id);
         }),
       );
     }
-    if (msg.type === "unpair") return respond(connector.unpair());
     if (msg.type === "state") return respond(connector.state());
     if (msg.type === "server-status") return respond(connector.serverStatus());
     if (msg.type === "sync-now") {

@@ -1,5 +1,4 @@
-import { PILOT_SHOP_IDS } from "../src/platforms/shopee/config";
-const PILOT = PILOT_SHOP_IDS[0];
+const PILOT = "5b0c1d2e-3f40-4a51-8b62-7c83d94e0a15";
 import { describe, expect, it } from "vitest";
 import {
   BACKFILL_REQUEST_SHARE,
@@ -11,7 +10,6 @@ import {
   READER_PAGE_GAP_MS,
   ORDERS_JOB_TIMEOUT_MS,
   ADS_JOB_TIMEOUT_MS,
-  SAMPLE_SHOP_IDS,
   ADS_HISTORY_DAY_COST,
   TODAY_REQUEST_RESERVE,
   type ReaderDataset,
@@ -1109,12 +1107,12 @@ describe("0.3.19: ticks are recorded, retried and told to Juli", () => {
     expect((await ctx.read())?.kick).toBeUndefined();
   });
 
-  it("due(): paired and today's run not done; never for the reviewer sample shop", async () => {
+  it("due(): paired and today's run not done; never without a pairing", async () => {
     const ctx = setup();
     expect(await ctx.scheduler.due()).toBe(true);
-    ctx.storage.data.token = { ...TOKEN, shop_id: SAMPLE_SHOP_IDS[0] };
+    delete ctx.storage.data.token;
     expect(await ctx.scheduler.due()).toBe(false);
-    expect(await ctx.scheduler.tick()).toBe("off");
+    expect(await ctx.scheduler.tick()).toBe("unpaired");
     expect(ctx.tabs.opened).toHaveLength(0);
   });
 });

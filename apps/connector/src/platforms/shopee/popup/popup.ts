@@ -6,7 +6,7 @@ import { READER_IDS, readerActive } from "../config";
 import type { Backfill, ReaderSchedule } from "../background/state";
 import { adsHistoryLine, DATASET_LABELS, type Guidance, pageRows, runLine, stockLine, syncGuidance, tickLine } from "./guide";
 import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "./labels";
-import { el, fmt, openTab, send } from "../../../core/popup/shell";
+import { el, fmt, openTab, requestHosts, send } from "../../../core/popup/shell";
 
 interface DatasetStatus {
   dataset: string;
@@ -118,18 +118,18 @@ el<HTMLFormElement>("pair-form").addEventListener("submit", (event) => {
   const input = el<HTMLInputElement>("code");
   const error = el("pair-error");
   error.textContent = "";
-  send({ type: "pair", code: input.value })
-    .then(() => {
+  send<{ optionalHosts?: string[] }>({ type: "pair", code: input.value })
+    .then(async (paired) => {
       input.value = "";
+      // A platform whose site the Connector reaches only by optional permission (none for Shopee).
+      await requestHosts(paired?.optionalHosts);
       return render();
     })
     .catch((reason: unknown) => {
       const why = String((reason as Error)?.message ?? reason);
       error.textContent = why.includes("consent_required")
         ? CONSENT_REQUIRED_MESSAGE
-        : why.includes("sample_shop")
-          ? "Đây là shop mẫu của Juli: không kết nối với Seller Centre."
-          : "Mã không đúng hoặc đã hết hạn. Tạo mã mới trong Juli.";
+        : "Mã không đúng hoặc đã hết hạn. Tạo mã mới trong Juli.";
     });
 });
 

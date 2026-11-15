@@ -52,6 +52,8 @@ export const FILL_JOBS_ALARM = "juli-fill-jobs";
 export const FILL_JOBS_POLL_MINUTES = 3;
 /** Jobs with no progress after this long are given up (the tab may have been closed). */
 export const FILL_JOB_STALE_MS = 6 * 3_600_000;
+/** A password prompt on a fill page stops that pairing's pages for this long (like a login wall). */
+export const FILL_HALT_MS = 6 * 3_600_000;
 /** `#juli-fill=<job id>` -- the job's UUID. */
 export const FILL_JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Fill jobs run for the paired token's shop; the server decides whether anything is served. */

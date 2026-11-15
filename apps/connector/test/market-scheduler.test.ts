@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { Connector } from "../src/platforms/shopee/background/connector";
 import { MarketScheduler, MARKET_WATCHDOG_ALARM } from "../src/platforms/shopee/background/market";
 import { loadState, saveState } from "../src/platforms/shopee/background/state";
-import { MARKET_JOB_TIMEOUT_MS, PILOT_SHOP_IDS, READER_BLOCK_CAPTCHA_MS, READER_PAGE_GAP_JITTER_MS, READER_PAGE_GAP_MS } from "../src/platforms/shopee/config";
+import { MARKET_JOB_TIMEOUT_MS, READER_BLOCK_CAPTCHA_MS, READER_PAGE_GAP_JITTER_MS, READER_PAGE_GAP_MS } from "../src/platforms/shopee/config";
 import { GatewayClient, type IngestBody } from "../src/platforms/shopee/ingest/client";
 import type { MarketPlan } from "../src/platforms/shopee/market";
 import fixture from "./fixtures/market/search_items.json";
 
-const PILOT = PILOT_SHOP_IDS[0] as string;
+const PILOT = "5b0c1d2e-3f40-4a51-8b62-7c83d94e0a15";
 const T0 = Date.UTC(2026, 10, 5, 3, 0, 0); // 2026-11-05 10:00 GMT+7
 const GAP = READER_PAGE_GAP_MS + READER_PAGE_GAP_JITTER_MS + 1;
 const TOKEN = {
@@ -91,8 +91,8 @@ function setup(opts: { shop?: string; plan?: MarketPlan | null | Error; otherBus
 const answer = (keyword: string, extra: Record<string, unknown> = {}) => ({ keyword, status: 200, body: fixture, capturedAt: T0, ...extra });
 
 describe("MarketScheduler", () => {
-  it("is off for any shop but the explicit pilot id, and when unpaired", async () => {
-    expect(await setup({ shop: "someone-else" }).market.tick()).toBe("off");
+  it("T11: runs for the paired shop, whichever it is; nothing when unpaired", async () => {
+    expect(await setup({ shop: "someone-else" }).market.tick()).toBe("opened");
     const s = setup();
     s.storage.data.token = null;
     expect(await s.market.tick()).toBe("unpaired");
