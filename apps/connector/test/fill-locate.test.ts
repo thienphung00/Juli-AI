@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { findControl, normalizeLabel } from "../src/fill/locate";
-import { highlight, readValue, targetValue, writeValue } from "../src/fill/write";
+import { findControl, normalizeLabel } from "../src/core/fill/locate";
+import { highlight, readValue, targetValue, writeValue } from "../src/core/fill/write";
 import { loadPage } from "./fill-helpers";
 
 beforeEach(() => {

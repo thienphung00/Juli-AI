@@ -2,7 +2,7 @@
 // the ongoing / scheduled ones, so the builder can offer "Chiến dịch đang chạy" with Shopee's own
 // limits. Read-only: the detail reader replays only read endpoints of the page it opened.
 import { describe, expect, it } from "vitest";
-import { isReadOnlyPasPath, readerPageUrl } from "../src/shopee/endpoints";
+import { isReadOnlyPasPath, readerPageUrl } from "../src/platforms/shopee/endpoints";
 import {
   type FetchedReaderResponse,
   pollingWaitFor,
@@ -11,11 +11,11 @@ import {
   type ReaderResponse,
   runReaderJob,
   type Template,
-} from "../src/shopee/reader";
-import { mapAdsDetail, mapAdsSettings, mapReaderJob, ongoingAdsCampaigns } from "../src/shopee/reader-map";
-import { Pacer } from "../src/shopee/runner";
-import type { ReaderEndpoint } from "../src/shopee/endpoints";
-import { planJobs } from "../src/background/scheduler";
+} from "../src/platforms/shopee/reader";
+import { mapAdsDetail, mapAdsSettings, mapReaderJob, ongoingAdsCampaigns } from "../src/platforms/shopee/reader-map";
+import { Pacer } from "../src/platforms/shopee/runner";
+import type { ReaderEndpoint } from "../src/platforms/shopee/endpoints";
+import { planJobs } from "../src/platforms/shopee/background/scheduler";
 
 const SC = "https://banhang.shopee.vn";
 // 2026-11-06 10:00 GMT+7
@@ -291,7 +291,7 @@ describe("planning", () => {
 
 // F3 (0.3.11): which ads days count as read.
 describe("an ads day is read only when campaigns posted or Shopee answered zero campaigns", async () => {
-  const { adsDayRead } = await import("../src/background/scheduler");
+  const { adsDayRead } = await import("../src/platforms/shopee/background/scheduler");
   const DAY = "2026-11-02";
   const answer = (body: unknown) => [{ ...reply("ads_homepage", body, { day: DAY }) }];
   const shopOnly = { code: 0, data: { entry_list: [{ title: "GMV Max shop", campaign: {}, report: { cost: 1 } }] } };

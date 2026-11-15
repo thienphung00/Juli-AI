@@ -4,13 +4,13 @@
 // page's links, pages with the page's own pager, and reads each order with GET get_one_order,
 // trimmed IN THE PAGE. Field names as captured on 2026-11-15; every value here is fake.
 import { describe, expect, it } from "vitest";
-import { ORDER_LIST_MAX_PAGES_PER_RUN } from "../src/config";
-import { ingestBody } from "../src/ingest/client";
-import { jobOutcome } from "../src/background/scheduler";
-import { outcomeStatus } from "../src/popup/guide";
-import { RAW_ORDER_ID } from "../src/shopee/affiliate-map";
-import { goToNextOrderPage, orderLinksIn, orderListEmptyIn, pagerNextIn } from "../src/shopee/order-dom";
-import { completedOrders, mapOrderLines, orderStatusOf, trimOrderDetail } from "../src/shopee/orders-map";
+import { ORDER_LIST_MAX_PAGES_PER_RUN } from "../src/platforms/shopee/config";
+import { ingestBody } from "../src/platforms/shopee/ingest/client";
+import { jobOutcome } from "../src/platforms/shopee/background/scheduler";
+import { outcomeStatus } from "../src/platforms/shopee/popup/guide";
+import { RAW_ORDER_ID } from "../src/platforms/shopee/affiliate-map";
+import { goToNextOrderPage, orderLinksIn, orderListEmptyIn, pagerNextIn } from "../src/platforms/shopee/order-dom";
+import { completedOrders, mapOrderLines, orderStatusOf, trimOrderDetail } from "../src/platforms/shopee/orders-map";
 import {
   type FetchedReaderResponse,
   type OrderLink,
@@ -21,10 +21,10 @@ import {
   type ReaderResponse,
   runReaderJob,
   type Template,
-} from "../src/shopee/reader";
-import type { ReaderEndpoint } from "../src/shopee/endpoints";
-import { Pacer } from "../src/shopee/runner";
-import { gmt7DateStart } from "../src/shopee/time";
+} from "../src/platforms/shopee/reader";
+import type { ReaderEndpoint } from "../src/platforms/shopee/endpoints";
+import { Pacer } from "../src/platforms/shopee/runner";
+import { gmt7DateStart } from "../src/core/time";
 
 const SC = "https://banhang.shopee.vn";
 // 2026-11-15 10:00 GMT+7

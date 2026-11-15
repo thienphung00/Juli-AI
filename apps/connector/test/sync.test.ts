@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isPageMessage } from "../src/content/messages";
-import { buildSyncPlan, gapBefore, requestUrl } from "../src/shopee/sync";
+import { isPageMessage } from "../src/platforms/shopee/content/messages";
+import { buildSyncPlan, gapBefore, requestUrl } from "../src/platforms/shopee/sync";
 
 const NOW = Date.UTC(2026, 9, 12, 3, 0, 0);
 const Y_START = Date.UTC(2026, 9, 10, 17, 0, 0) / 1000;

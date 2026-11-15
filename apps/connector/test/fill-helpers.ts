@@ -2,8 +2,8 @@
 // build run dependencies, and watch for anything a fill must never do.
 
 import { vi } from "vitest";
-import type { RunDeps, Trigger } from "../src/fill/run";
-import type { FillReply } from "../src/fill/types";
+import type { RunDeps, Trigger } from "../src/platforms/shopee/fill/run";
+import type { FillReply } from "../src/core/fill/types";
 
 const pages = import.meta.glob("./fixtures/fill/*.html", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 

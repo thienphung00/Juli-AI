@@ -1,9 +1,9 @@
 // Connector 0.3.17: the popup says which page to open, what each page gives Juli, and where it stands.
 import { describe, expect, it } from "vitest";
-import { READER_DATASETS, READER_IDS, type ReaderId } from "../src/config";
-import type { ReaderSchedule } from "../src/background/state";
-import { DATASET_LABELS, outcomeStatus, pageRows, READER_GUIDE, runLine, SYNC_PAGE, syncGuidance } from "../src/popup/guide";
-import { READER_PAGES } from "../src/shopee/endpoints";
+import { READER_DATASETS, READER_IDS, type ReaderId } from "../src/platforms/shopee/config";
+import type { ReaderSchedule } from "../src/platforms/shopee/background/state";
+import { DATASET_LABELS, outcomeStatus, pageRows, READER_GUIDE, runLine, SYNC_PAGE, syncGuidance } from "../src/platforms/shopee/popup/guide";
+import { READER_PAGES } from "../src/platforms/shopee/endpoints";
 
 const NOW = Date.UTC(2026, 10, 13, 2, 0, 0);
 

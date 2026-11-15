@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapCaptured, toSeconds } from "../src/shopee/map";
+import { mapCaptured, toSeconds } from "../src/platforms/shopee/map";
 import itemList from "./fixtures/item_list.json";
 import performance from "./fixtures/product_performance.json";
 import shopTraffic from "./fixtures/shop_traffic.json";

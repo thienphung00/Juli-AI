@@ -1,12 +1,12 @@
 {
   "name": "@juli/connector",
-  "version": "0.3.20",
+  "version": "0.3.21",
   "private": true,
   "type": "module",
   "description": "Juli Connector: Chrome extension (Manifest V3) that sends a Shopee seller's own Seller Centre data to Juli (DECISIONS D31.4).",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "lint": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit && vitest run test/core-boundary.test.ts",
     "type-check": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

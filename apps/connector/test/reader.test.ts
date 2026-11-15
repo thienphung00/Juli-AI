@@ -14,11 +14,11 @@ import {
   runReaderJob,
   type Template,
   totalOf,
-} from "../src/shopee/reader";
-import { TRAFFIC_MAX_REQUESTS_PER_JOB } from "../src/config";
-import { gmt7DateStart } from "../src/shopee/time";
-import { Pacer } from "../src/shopee/runner";
-import type { ReaderEndpoint } from "../src/shopee/endpoints";
+} from "../src/platforms/shopee/reader";
+import { TRAFFIC_MAX_REQUESTS_PER_JOB } from "../src/platforms/shopee/config";
+import { gmt7DateStart } from "../src/core/time";
+import { Pacer } from "../src/platforms/shopee/runner";
+import type { ReaderEndpoint } from "../src/platforms/shopee/endpoints";
 import adsHome from "./fixtures/readers/ads_homepage.json";
 import adsGraph from "./fixtures/readers/ads_time_graph.json";
 import campaignInfo from "./fixtures/readers/campaign_info.json";

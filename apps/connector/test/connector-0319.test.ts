@@ -2,12 +2,12 @@
 // tick report, re-injection after an update, and the popup's last-tick / stock lines.
 
 import { describe, expect, it } from "vitest";
-import { Connector, type Tabs } from "../src/background/connector";
-import { reinjectPlan, reinjectSellerCentreTabs } from "../src/background/reinject";
-import type { ReaderSchedule } from "../src/background/state";
-import { readerActive, SAMPLE_SHOP_IDS, schedulerActive } from "../src/config";
-import { GatewayClient, type IngestBody, type TokenInfo } from "../src/ingest/client";
-import { adsHistoryLine, stockLine, tickLine, tickResultLabel } from "../src/popup/guide";
+import { Connector, type Tabs } from "../src/platforms/shopee/background/connector";
+import { reinjectPlan, reinjectSellerCentreTabs } from "../src/core/reinject";
+import type { ReaderSchedule } from "../src/platforms/shopee/background/state";
+import { readerActive, schedulerActive } from "../src/platforms/shopee/config";
+import { GatewayClient, type IngestBody, type TokenInfo } from "../src/platforms/shopee/ingest/client";
+import { adsHistoryLine, stockLine, tickLine, tickResultLabel } from "../src/platforms/shopee/popup/guide";
 import {
   type FetchedReaderResponse,
   pollingWaitFor,
@@ -15,10 +15,10 @@ import {
   type ReaderRequest,
   type ReaderResponse,
   runReaderJob,
-} from "../src/shopee/reader";
-import { mapTrafficJob } from "../src/shopee/reader-map";
-import { Pacer } from "../src/shopee/runner";
-import { gmt7DateStart } from "../src/shopee/time";
+} from "../src/platforms/shopee/reader";
+import { mapTrafficJob } from "../src/platforms/shopee/reader-map";
+import { Pacer } from "../src/platforms/shopee/runner";
+import { gmt7DateStart } from "../src/core/time";
 import shopTraffic from "./fixtures/shop_traffic.json";
 import overview from "./fixtures/traffic_overview.json";
 
@@ -155,20 +155,18 @@ describe("the traffic reader (Truy cập in the scheduler's own tab)", () => {
   });
 });
 
-describe("the reviewer sample shop", () => {
-  const sample = SAMPLE_SHOP_IDS[0]!;
-
-  it("no reader and no scheduler ever runs for it", () => {
-    expect(readerActive("products", sample)).toBe(false);
-    expect(schedulerActive(sample)).toBe(false);
-    expect(schedulerActive(sample.toUpperCase())).toBe(false);
+describe("T11: no shop list in the Connector", () => {
+  it("reads and schedules for the paired shop, whichever it is", () => {
+    expect(readerActive("products", "any-paired-shop")).toBe(true);
+    expect(schedulerActive("any-paired-shop")).toBe(true);
+    expect(schedulerActive(undefined)).toBe(false);
   });
 
-  it("pairing with it keeps no token", async () => {
+  it("keeps the token Juli issues (Juli never issues a code for the reviewer sample shop)", async () => {
     const { storage, client, connector } = connectorSetup();
-    client.pairedAs = { ...TOKEN, shop_id: sample };
-    await expect(connector.pair("ABCDE-FGHJK")).rejects.toThrow("sample_shop");
-    expect(storage.data.token).toBeUndefined();
+    client.pairedAs = { ...TOKEN, shop_id: "any-paired-shop" };
+    await connector.pair("ABCDE-FGHJK");
+    expect((storage.data.token as { shop_id: string }).shop_id).toBe("any-paired-shop");
   });
 });
 

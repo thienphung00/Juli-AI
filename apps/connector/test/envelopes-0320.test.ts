@@ -3,10 +3,10 @@
 // the answer with or without `code` / `result` and find the rows by their keys; drift only when
 // no row list exists. Fake values only.
 import { describe, expect, it } from "vitest";
-import { itemRowsIn, mapCaptured } from "../src/shopee/map";
-import { classify, trimTrafficBody, type ReaderResponse } from "../src/shopee/reader";
-import { mapItemTraffic } from "../src/shopee/reader-map";
-import { isDataAnswer } from "../src/shopee/runner";
+import { itemRowsIn, mapCaptured } from "../src/platforms/shopee/map";
+import { classify, trimTrafficBody, type ReaderResponse } from "../src/platforms/shopee/reader";
+import { mapItemTraffic } from "../src/platforms/shopee/reader-map";
+import { isDataAnswer } from "../src/platforms/shopee/runner";
 import itemList from "./fixtures/item_list.json";
 import trafficDetails from "./fixtures/readers/traffic_details.json";
 

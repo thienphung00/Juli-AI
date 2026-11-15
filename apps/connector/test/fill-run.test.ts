@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FILL_WAIT_MS } from "../src/config";
-import { PANEL_ID } from "../src/fill/locate";
-import { BANNER_FILLED, BANNER_NOT_FOUND, BANNER_PAGE_ONLY } from "../src/fill/panel";
-import { parseTrigger, runFill } from "../src/fill/run";
-import { parseFillRequest } from "../src/fill/types";
+import { FILL_WAIT_MS } from "../src/platforms/shopee/config";
+import { PANEL_ID } from "../src/core/fill/locate";
+import { BANNER_FILLED, BANNER_NOT_FOUND, BANNER_PAGE_ONLY } from "../src/platforms/shopee/fill/labels";
+import { parseTrigger, runFill } from "../src/platforms/shopee/fill/run";
+import { parseFillRequest } from "../src/core/fill/types";
 import { CODE, DESCRIPTION_FIELD, harness, ITEM, loadPage, rawRequest } from "./fill-helpers";
 
 const text = (selector: string) => document.querySelector(selector)?.textContent ?? "";

@@ -1,9 +1,9 @@
 // Connector 0.3.17: the conversion report's real channel label and the once-per-shop 6-month
 // history (30-day windows, one post each). Synthetic orders and handles only.
 import { describe, expect, it } from "vitest";
-import { AFFILIATE_HISTORY_WINDOWS, AFFILIATE_WINDOW_DAYS } from "../src/config";
-import { affiliateHistoryWindows, planJobs } from "../src/background/scheduler";
-import { mapAffiliateConversions, mapConversionWindows } from "../src/shopee/affiliate-map";
+import { AFFILIATE_HISTORY_WINDOWS, AFFILIATE_WINDOW_DAYS } from "../src/platforms/shopee/config";
+import { affiliateHistoryWindows, planJobs } from "../src/platforms/shopee/background/scheduler";
+import { mapAffiliateConversions, mapConversionWindows } from "../src/platforms/shopee/affiliate-map";
 import {
   conversionWindows,
   type FetchedReaderResponse,
@@ -13,9 +13,9 @@ import {
   type ReaderResponse,
   runReaderJob,
   trimCaptured,
-} from "../src/shopee/reader";
-import { Pacer } from "../src/shopee/runner";
-import { gmt7DateStart } from "../src/shopee/time";
+} from "../src/platforms/shopee/reader";
+import { Pacer } from "../src/platforms/shopee/runner";
+import { gmt7DateStart } from "../src/core/time";
 
 const SC = "https://banhang.shopee.vn";
 const NOW = Date.UTC(2026, 10, 13, 2, 0, 0); // 2026-11-13 09:00 GMT+7

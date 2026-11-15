@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { fillRequest, senderMatches } from "../src/background/fill";
-import { fillActive, PILOT_SHOP_IDS } from "../src/config";
-import { GatewayClient, type TokenInfo } from "../src/ingest/client";
+import { fillRequest, senderMatches } from "../src/platforms/shopee/background/fill";
+import { fillActive } from "../src/platforms/shopee/config";
+import { GatewayClient, type TokenInfo } from "../src/platforms/shopee/ingest/client";
 import { CODE, ITEM, rawRequest } from "./fill-helpers";
 
-const PILOT = PILOT_SHOP_IDS[0]!;
+const PILOT = "5b0c1d2e-3f40-4a51-8b62-7c83d94e0a15";
 const token = (shop_id: string): TokenInfo => ({
   token: "jci_x",
   token_id: "t1",
@@ -38,32 +38,25 @@ function setup(shop: string | null, answer: () => Response | Promise<Response>) 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 describe("the gate", () => {
-  it("is on only for an explicit pilot shop", () => {
+  it("T11: is on for the paired token's shop (Juli's server decides whether it serves a card)", () => {
     expect(fillActive(PILOT)).toBe(true);
-    expect(fillActive("some-other-shop")).toBe(false);
+    expect(fillActive("some-other-shop")).toBe(true);
     expect(fillActive(undefined)).toBe(false);
     expect(fillActive("")).toBe(false);
-  });
-
-  it("is not opened by the readers' wildcard", () => {
-    const ids = PILOT_SHOP_IDS as string[];
-    ids.push("*");
-    try {
-      expect(fillActive("some-other-shop")).toBe(false);
-    } finally {
-      ids.pop();
-    }
   });
 });
 
 describe("fillRequest", () => {
-  it("stays inactive and asks Juli nothing without a token or on a shop outside the pilot", async () => {
+  it("stays inactive and asks Juli nothing without a token", async () => {
     const none = setup(null, () => json(rawRequest()));
     expect(await fillRequest(none.deps, CODE, ITEM)).toEqual({ ok: false, reason: "inactive" });
     expect(none.calls).toEqual([]);
-    const other = setup("not-the-pilot-shop", () => json(rawRequest()));
-    expect(await fillRequest(other.deps, CODE, ITEM)).toEqual({ ok: false, reason: "inactive" });
-    expect(other.calls).toEqual([]);
+  });
+
+  it("asks Juli for any paired shop; Juli's refusal (flag off for the shop) comes back as disabled", async () => {
+    const other = setup("another-paired-shop", () => json({ detail: { code: "fill_disabled" } }, 403));
+    expect(await fillRequest(other.deps, CODE, ITEM)).toEqual({ ok: false, reason: "disabled" });
+    expect(other.calls).toHaveLength(1);
   });
 
   it("asks for the card with the token, by GET, and returns the validated request", async () => {

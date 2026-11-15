@@ -16,11 +16,11 @@ if (!/^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(origin) && !/^http:\/\/localhost(:\d+
 
 const entries = {
   sw: "src/background/sw.ts",
-  hook: "src/page/hook.ts",
-  content: "src/content/content.ts",
-  popup: "src/popup/popup.ts",
-  markethook: "src/page/market-hook.ts",
-  marketcontent: "src/content/market-content.ts",
+  hook: "src/platforms/shopee/page/hook.ts",
+  content: "src/platforms/shopee/content/content.ts",
+  popup: "src/platforms/shopee/popup/popup.ts",
+  markethook: "src/platforms/shopee/page/market-hook.ts",
+  marketcontent: "src/platforms/shopee/content/market-content.ts",
 };
 
 await rm(outDir, { recursive: true, force: true });

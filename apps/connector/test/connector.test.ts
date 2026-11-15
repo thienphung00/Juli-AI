@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { Connector, type Tabs } from "../src/background/connector";
-import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/ingest/client";
+import { Connector, type Tabs } from "../src/platforms/shopee/background/connector";
+import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/platforms/shopee/ingest/client";
 import overview from "./fixtures/traffic_overview.json";
 
 const NOW = Date.UTC(2026, 9, 12, 3, 0, 0);

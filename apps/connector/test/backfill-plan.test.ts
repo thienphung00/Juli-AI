@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { Pacer, runDay, type DayRequest } from "../src/shopee/runner";
-import { backfillDatasets, buildBackfillDayPlan, waitBefore } from "../src/shopee/sync";
-import { gmt7DateStart, lastFinishedDays, singleDay } from "../src/shopee/time";
+import { Pacer, runDay, type DayRequest } from "../src/platforms/shopee/runner";
+import { backfillDatasets, buildBackfillDayPlan, waitBefore } from "../src/platforms/shopee/sync";
+import { gmt7DateStart, lastFinishedDays, singleDay } from "../src/core/time";
 
 const NOW = Date.UTC(2026, 9, 26, 3, 0, 0); // 2026-10-26 10:00 GMT+7
 const OCT1 = 1790787600;

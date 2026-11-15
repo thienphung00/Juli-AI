@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { AFFILIATE_READER_IDS, AFFILIATE_WINDOW_DAYS, READER_DATASETS, READER_IDS } from "../src/config";
-import { ingestBody } from "../src/ingest/client";
-import { importOrderRefKey, orderRef } from "../src/ingest/order-ref";
+import { AFFILIATE_READER_IDS, AFFILIATE_WINDOW_DAYS, READER_DATASETS, READER_IDS } from "../src/platforms/shopee/config";
+import { ingestBody } from "../src/platforms/shopee/ingest/client";
+import { importOrderRefKey, orderRef } from "../src/platforms/shopee/ingest/order-ref";
 import {
   displayNumber,
   mapAffiliateBills,
@@ -15,8 +15,8 @@ import {
   RAW_ORDER_ID,
   scaleFromMagnitude,
   scaleFromPairs,
-} from "../src/shopee/affiliate-map";
-import { isCapturedEndpoint, READER_PAGES, readerEndpointOf, type ReaderEndpoint } from "../src/shopee/endpoints";
+} from "../src/platforms/shopee/affiliate-map";
+import { isCapturedEndpoint, READER_PAGES, readerEndpointOf, type ReaderEndpoint } from "../src/platforms/shopee/endpoints";
 import {
   type FetchedReaderResponse,
   periodOfTemplate,
@@ -27,9 +27,9 @@ import {
   runReaderJob,
   type Template,
   trimCaptured,
-} from "../src/shopee/reader";
-import { Pacer } from "../src/shopee/runner";
-import { gmt7DateStart } from "../src/shopee/time";
+} from "../src/platforms/shopee/reader";
+import { Pacer } from "../src/platforms/shopee/runner";
+import { gmt7DateStart } from "../src/core/time";
 
 const SC = "https://banhang.shopee.vn";
 // 2026-11-06 09:00 GMT+7

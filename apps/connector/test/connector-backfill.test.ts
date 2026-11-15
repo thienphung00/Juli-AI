@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { Connector, type Tabs } from "../src/background/connector";
-import type { Backfill } from "../src/background/state";
-import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/ingest/client";
-import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "../src/popup/labels";
-import type { RequestResult } from "../src/shopee/runner";
-import type { PlannedRequest } from "../src/shopee/sync";
+import { Connector, type Tabs } from "../src/platforms/shopee/background/connector";
+import type { Backfill } from "../src/platforms/shopee/background/state";
+import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/platforms/shopee/ingest/client";
+import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "../src/platforms/shopee/popup/labels";
+import type { RequestResult } from "../src/platforms/shopee/runner";
+import type { PlannedRequest } from "../src/platforms/shopee/sync";
 import shopTraffic from "./fixtures/shop_traffic.json";
 import overview from "./fixtures/traffic_overview.json";
 import itemList from "./fixtures/item_list.json";

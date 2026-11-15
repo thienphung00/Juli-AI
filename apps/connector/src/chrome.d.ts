@@ -24,6 +24,11 @@ declare namespace chrome {
     const onStartup: { addListener(callback: () => void): void };
   }
 
+  namespace permissions {
+    function request(permissions: { origins?: string[] }): Promise<boolean>;
+    function contains(permissions: { origins?: string[] }): Promise<boolean>;
+  }
+
   namespace scripting {
     interface InjectionResult<T> {
       result?: T;
