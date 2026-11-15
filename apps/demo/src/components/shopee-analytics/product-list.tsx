@@ -6,20 +6,24 @@ import { useMemo } from "react";
 import { useShopee } from "../../lib/shopee-analytics/context";
 import { fmt, vnd } from "../../lib/shopee-analytics/format";
 import { readWindow, windowParams, type WindowState } from "../../lib/shopee-analytics/params";
+import { stockFilterOf } from "../../lib/shopee-analytics/stock";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import type { Matrix } from "../../lib/shopee-analytics/types";
 import { PeriodBar } from "./period-bar";
+import { StockPanel } from "./stock-panel";
 import { Empty, Ini, PageHead, PriceMargin, ResourceState, Section, initialsOf } from "./ui";
 
 /** Sản phẩm (the nav entry): the shop's products by GMV, each opening its product page. */
 export function ProductListView({ params }: { readonly params: URLSearchParams }) {
   const host = useShopee();
   const state = useMemo(() => readWindow(params), [params]);
+  const stockKeys = useMemo(() => stockFilterOf(params), [params]);
   const key = `${host.shopKey}|pl|${JSON.stringify(state.query)}`;
   const data = useResource(() => host.api.matrix({ ...state.query, sort: "gmv" }), key);
   return (
     <div className="sa-page" data-testid="sa-product-list">
       <PageHead eyebrow="SẢN PHẨM" title="Sản phẩm của shop" />
+      {stockKeys.length ? <StockPanel keys={stockKeys} productId={null} /> : null}
       <ResourceState resource={data}>{(m) => <List matrix={m} state={state} />}</ResourceState>
     </div>
   );

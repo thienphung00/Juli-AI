@@ -156,8 +156,11 @@ def _utc(local_day: date, hour: int, minute: int = 0) -> datetime:
 NOW = _utc(TODAY, 7)
 
 
-def test_basis_prefers_sellable():
-    assert sb.basis(5, 9) == 5 and sb.basis(None, 9) == 9 and sb.basis(None, None) is None
+def test_basis_is_the_kho_hang_figure():
+    """ORY 2026-11-15: ``sellable`` (advanced / "Gói Sẵn Giao Nhanh" stock) was 0 on every
+    variation while Seller Centre's Kho hàng read 5-10, and the e-mail said "Đã hết hàng"."""
+    assert sb.basis(0, 7) == 7 and sb.basis(5, 9) == 9
+    assert sb.basis(4, None) == 4 and sb.basis(None, None) is None
 
 
 def test_fresh_read_today_after_six_is_used_as_is():

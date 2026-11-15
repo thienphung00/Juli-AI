@@ -6,6 +6,7 @@ import { fakeApi } from "../../../lib/shopee-analytics/__tests__/fixtures";
 import { ShopeeHostProvider } from "../../../lib/shopee-analytics/context";
 import { sellerLinks } from "../../../lib/shopee-analytics/links";
 import { stockFilterOf, stockText, type StockApi, type StockList, type StockRow } from "../../../lib/shopee-analytics/stock";
+import { StockPanel } from "../stock-panel";
 import { TongQuanView } from "../tong-quan";
 import { UnsubscribeConfirm } from "../unsubscribe-confirm";
 import { params } from "./harness";
@@ -42,6 +43,14 @@ function fakeStock(list: StockList): StockApi & { calls: [string, boolean][] } {
   };
 }
 
+function renderPanel(productId: string | null, keys: readonly string[], stock?: StockApi) {
+  return render(
+    <ShopeeHostProvider host={{ api: fakeApi(), links: sellerLinks, shopKey: "shop-1", shopName: "Shop", stock }}>
+      <StockPanel keys={keys} productId={productId} />
+    </ShopeeHostProvider>,
+  );
+}
+
 function renderTq(q: string, stock?: StockApi) {
   return render(
     <ShopeeHostProvider host={{ api: fakeApi(), links: sellerLinks, shopKey: "shop-1", shopName: "Shop", stock }}>
@@ -56,7 +65,7 @@ const LIST: StockList = {
   rows: [row(), row({ key: "1001:12", model_id: "12", variation_name: "Size L", sku_code: null, stock: 0, out_of_stock: true, runs_out_on: null, days_left: 0 }), row({ key: "1002", item_id: "1002", model_id: "", product_name: "Khăn giấy rút", variation_name: null, sku_code: null })],
 };
 
-describe("Tổng quan › Sản phẩm: Tồn kho (P100 Part S)", () => {
+describe("Sản phẩm: Theo dõi tồn kho (P100 Part S, owner 2026-11-15)", () => {
   it("texts: Còn n · hết khoảng dd/mm, Hết hàng, a dash without a read", () => {
     expect(stockText(row())).toBe("Còn 42 · hết khoảng 22/11");
     expect(stockText(row({ out_of_stock: true, stock: 0 }))).toBe("Hết hàng");
@@ -64,9 +73,10 @@ describe("Tổng quan › Sản phẩm: Tồn kho (P100 Part S)", () => {
     expect(stockFilterOf(params("ton_kho=1001:11,bad,1002"))).toEqual(["1001:11", "1002"]);
   });
 
-  it("the chosen product's variation rows, with the SKU code and the switch", async () => {
+  it("a product page: that product's variation rows, with the SKU code and the switch", async () => {
     const stock = fakeStock(LIST);
-    renderTq("cap=san-pham", stock);
+    renderPanel("1001", [], stock);
+    expect(await screen.findByTestId("sa-stock-alert")).toHaveTextContent("Theo dõi tồn kho");
     const first = await screen.findByTestId("sa-stock-1001:11");
     expect(first).toHaveTextContent("Size M · SKU GT-M");
     expect(screen.getByTestId("sa-stock-left-1001:11")).toHaveTextContent("Còn 42 · hết khoảng 22/11");
@@ -78,7 +88,7 @@ describe("Tổng quan › Sản phẩm: Tồn kho (P100 Part S)", () => {
   it("switching off asks first; Huỷ keeps it on, Ngừng theo dõi turns it off; on again needs no dialog", async () => {
     const user = userEvent.setup();
     const stock = fakeStock(LIST);
-    renderTq("cap=san-pham", stock);
+    renderPanel("1001", [], stock);
     const toggle = await screen.findByTestId("sa-stock-track-1001:11");
     await user.click(toggle);
     const dialog = screen.getByRole("alertdialog");
@@ -94,24 +104,28 @@ describe("Tổng quan › Sản phẩm: Tồn kho (P100 Part S)", () => {
     await waitFor(() => expect(stock.calls).toEqual([["1001:11", false], ["1001:11", true]]));
   });
 
-  it("the e-mail link lists exactly its SKUs, across products", async () => {
-    renderTq("cap=san-pham&ton_kho=1001:12,1002", fakeStock(LIST));
+  it("the Sản phẩm list from the e-mail link: exactly its SKUs, each product name opening its page", async () => {
+    renderPanel(null, stockFilterOf(params("ton_kho=1001:12,1002")), fakeStock(LIST));
     await screen.findByTestId("sa-stock-1002");
     expect(screen.getByTestId("sa-stock-1001:12")).toBeInTheDocument();
     expect(screen.queryByTestId("sa-stock-1001:11")).toBeNull();
-    expect(screen.getByTestId("sa-stock-1002")).toHaveTextContent("Khăn giấy rút");
+    const name = within(screen.getByTestId("sa-stock-1002")).getByRole("link", { name: "Khăn giấy rút" });
+    expect(name.getAttribute("href")).toContain("/san-pham/1002");
   });
 
-  it("no stock API (Ops, reviewer) or a sample shop: no Tồn kho section", async () => {
-    renderTq("cap=san-pham");
-    await screen.findByTestId("sa-channels");
-    expect(screen.queryByTestId("sa-stock")).toBeNull();
+  it("no stock API (Ops, reviewer) or a disabled list (sample shop): nothing", async () => {
+    const { unmount } = renderPanel("1001", []);
+    expect(screen.queryByTestId("sa-stock-alert")).toBeNull();
+    unmount();
+    renderPanel("1001", [], fakeStock({ enabled: false, rows: [] }));
+    await waitFor(() => expect(screen.queryByTestId("sa-stock-alert")).toBeNull());
   });
 
-  it("a disabled list shows nothing", async () => {
-    renderTq("cap=san-pham", fakeStock({ enabled: false, rows: [] }));
+  it("Tổng quan › Sản phẩm no longer carries the switch", async () => {
+    renderTq("cap=san-pham&ton_kho=1001:11", fakeStock(LIST));
     await screen.findByTestId("sa-channels");
-    expect(screen.queryByTestId("sa-stock")).toBeNull();
+    expect(screen.queryByTestId("sa-stock-alert")).toBeNull();
+    expect(screen.queryByTestId("sa-stock-track-1001:11")).toBeNull();
   });
 });
 

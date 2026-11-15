@@ -72,7 +72,7 @@ def test_alert_mail_rows_footer_and_parts():
         [_row()],
         today=TODAY,
         alert_days=7,
-        open_url="https://x/tong-quan?cap=san-pham",
+        open_url="https://x/san-pham?ton_kho=1%3A11",
         unsubscribe_url="https://x/huy-email#t",
         read_at=datetime(2026, 11, 14, 14, 10),
         deducted_orders=5,
@@ -168,7 +168,8 @@ def test_signed_link_round_trip_and_tamper():
     with pytest.raises(links.BadToken):
         links.verify(token[:-2] + ("AA" if not token.endswith("AA") else "BB"))
     assert links.unsubscribe_url(shop, user).split("#")[0].endswith("/huy-email")
-    assert "ton_kho=1%3A11" in links.open_url(["1:11"])
+    assert links.open_url(["1:11"]).endswith("/san-pham?ton_kho=1%3A11")  # Sản phẩm, not Tổng quan
+    assert links.open_url().endswith("/san-pham")
 
 
 # ---------------------------------------------------------------------------------- job

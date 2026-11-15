@@ -1,5 +1,6 @@
 /**
- * P100 Part S: the stock rows of Tổng quan › Sản phẩm and the per-variation "Theo dõi" switch
+ * P100 Part S: the stock rows of Sản phẩm (product page, and the list from the e-mail) and the
+ * per-variation "Theo dõi" switch
  * (`/v1/demo/shopee/stock`, seller only), plus the e-mail's unsubscribe confirm
  * (`/v1/stock-alert/unsubscribe`, no sign-in: the signed token is the credential).
  */

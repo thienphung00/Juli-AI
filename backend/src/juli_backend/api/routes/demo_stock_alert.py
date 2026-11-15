@@ -2,9 +2,9 @@
 
 Seller (``get_current_user`` + ``get_active_shop``, the caller's shop only):
 
-- ``GET /v1/demo/shopee/stock`` -- Tổng quan › Sản phẩm: one row per variation with its stock,
-  units / day, days left, the day it runs out and its "Theo dõi" switch. ``enabled`` false on the
-  reviewer's sample shop (no rows, no switch).
+- ``GET /v1/demo/shopee/stock`` -- Sản phẩm (list + product page): one row per variation with
+  its stock, units / day, days left, the day it runs out and its "Theo dõi" switch. ``enabled``
+  false on the reviewer's sample shop (no rows, no switch).
 - ``PUT /v1/demo/shopee/stock/{sku_key}/tracking`` -- body ``{"tracked": bool}``; any member may
   switch (who and when are kept). Off withdraws / tags the open cards that target only stopped
   variations (``stock_alert.cards``). 403 on the sample shop.

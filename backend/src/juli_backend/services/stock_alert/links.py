@@ -21,7 +21,7 @@ from urllib.parse import urlencode
 
 DEFAULT_APP_BASE = "https://demo.app-juli.com"
 UNSUBSCRIBE_PATH = "/huy-email"
-OPEN_PATH = "/tong-quan"
+OPEN_PATH = "/san-pham"
 _LABEL = b"juli-stock-alert-unsubscribe/v1:"
 
 
@@ -79,11 +79,10 @@ def unsubscribe_url(shop_id: uuid.UUID, user_id: uuid.UUID) -> str:
 
 
 def open_url(keys: Sequence[str] = ()) -> str:
-    """Tổng quan › Sản phẩm, filtered to the listed variations when there are some."""
-    params = {"cap": "san-pham"}
-    if keys:
-        params["ton_kho"] = ",".join(keys)
-    return f"{app_base()}{OPEN_PATH}?{urlencode(params)}"
+    """Dữ liệu shop › Sản phẩm (owner 2026-11-15), the listed variations' "Theo dõi" rows on top."""
+    if not keys:
+        return f"{app_base()}{OPEN_PATH}"
+    return f"{app_base()}{OPEN_PATH}?{urlencode({'ton_kho': ','.join(keys)})}"
 
 
 __all__ = ["BadToken", "Unsubscribe", "open_url", "sign", "unsubscribe_url", "verify"]
