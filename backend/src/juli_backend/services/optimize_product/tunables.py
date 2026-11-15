@@ -98,6 +98,28 @@ EB_PRIOR_SD_RANGE = (0.01, 1.0)
 EB_MIN_GROUPS_RANGE = (2, 50)
 
 
+#: Owner rule (2026-11-15): "The generic uplift should be at least 5 %; with sufficient
+#: data or a more confident prediction we use that instead. Generic uplift is a fall
+#: back." The floor on a prior-sourced P50 lift (``prediction.predict``); fleet / shop
+#: calibrated predictions are never floored.
+GENERIC_UPLIFT_FLOOR = 0.05
+
+#: Levers the floor never applies to, and why (TikTok equivalents of the Shopee list):
+#:
+#: * ``description`` -- Shopee exempts its description lever, and the TikTok one is the
+#:   same kind: a detail-page quality fix that moves only CTOR on a card already seen
+#:   (no impressions/CTR growth), whose "small" gap bucket prior is (0.00, 0.05) -- its
+#:   designed effect can be nil when the text is already adequate, so it is a
+#:   hygiene lever, not a growth lever. Followed the Shopee semantic.
+#:
+#: Price / basket levers (``product_discount``, ``flash_sale``, ``shipping_discount``,
+#: ``buy_more_save_more``) and listing levers ``cover_image`` / ``title`` have a
+#: strictly positive designed effect, so they are floored. Shopee's other exemptions
+#: (review voucher, ads pause, voucher cap, listing_hide) have no TikTok card lever.
+#: Independently, any lever whose prior P50 is <= 0 is exempt (:func:`.prediction.predict`).
+UPLIFT_FLOOR_EXEMPT_LEVERS: frozenset[str] = frozenset({"description"})
+
+
 class TunableError(ValueError):
     """An invalid tunable value."""
 

@@ -91,7 +91,7 @@ from juli_backend.services.optimize_product.prediction import (
     CalibrationStats,
     Prediction,
     fleet_stats_for,
-    gmv_range_per_month,
+    gmv_range_from_lift,
     predict,
 )
 from juli_backend.services.optimize_product.quality_score import (
@@ -1285,7 +1285,8 @@ def _plan_d29(
             )
             gmv_day = basis.gmv_per_day
             recoverable = Decimal(str(gmv_day * max(kpi.target / current - 1, 0.0)))
-            low, high = gmv_range_per_month(gmv_day, current, kpi.target_min, kpi.target_max)
+            # The estimate follows the prediction's lift band (P10 / P90), not the KPI band.
+            low, high = gmv_range_from_lift(gmv_day, prediction.lift_low, prediction.lift_high)
             lever_history = history.get(lever)
             penalty = lever_history.reason_penalty if lever_history is not None else Decimal(1)
             # D39.1: a metric-first card ranks on what its metric's fall costs.
