@@ -1,13 +1,12 @@
 // The panel of a fill job: what was filled (a checklist), what the person still does, and the
 // reminder that Juli presses nothing. Own buttons: "Đóng" only.
 
-import type { FillOutcome } from "../../platforms/shopee/fill/fillers";
-import type { FillJob } from "../../platforms/shopee/fill/job-types";
+import type { CoreJob, FillOutcome } from "./form";
 import { PANEL_ID } from "./locate";
 import { el, NEVER_NOTE, STYLE } from "./panel";
 
 export type JobPanelInput =
-  | { outcome: "filled" | "partial"; job: FillJob; result: FillOutcome }
+  | { outcome: "filled" | "partial"; job: CoreJob; result: FillOutcome }
   | { outcome: "refused"; text: string }
   | { outcome: "halted"; text: string };
 
@@ -15,12 +14,24 @@ const JOB_STYLE = `${STYLE}
 .ok-mark{color:#14532d;font-weight:700}.no-mark{color:#b91c1c;font-weight:700}
 .todo{margin:8px 0 0;padding-left:18px}`;
 
-export const BANNER_JOB_FILLED = "Juli đã điền — kiểm tra rồi bấm nút của Shopee";
-export const BANNER_JOB_PARTIAL = "Juli điền được một phần. Làm tiếp các mục còn thiếu bằng tay.";
-export const HALT_TEXT =
-  "Shopee đang hỏi lại mật khẩu. Juli dừng lại và không mở thêm trang nào; hãy tự xác nhận trong Shopee.";
+/** The job-panel texts that name the platform. */
+export interface JobLabels {
+  filled: string;
+  /** The platform asked for the password again: everything stops. */
+  halt: string;
+}
 
-export function showJobPanel(doc: Document, input: JobPanelInput): HTMLElement {
+/** `name` is the platform as the seller says it (a pack's `labels.name`). */
+export function jobLabels(name: string): JobLabels {
+  return {
+    filled: `Juli đã điền — kiểm tra rồi bấm nút của ${name}`,
+    halt: `${name} đang hỏi lại mật khẩu. Juli dừng lại và không mở thêm trang nào; hãy tự xác nhận trong ${name}.`,
+  };
+}
+
+export const BANNER_JOB_PARTIAL = "Juli điền được một phần. Làm tiếp các mục còn thiếu bằng tay.";
+
+export function showJobPanel(doc: Document, input: JobPanelInput, labels: JobLabels): HTMLElement {
   doc.getElementById(PANEL_ID)?.remove();
   const host = el(doc, "div");
   host.id = PANEL_ID;
@@ -42,7 +53,7 @@ export function showJobPanel(doc: Document, input: JobPanelInput): HTMLElement {
     box.append(
       el(doc, "div", {
         cls: input.outcome === "filled" ? "banner ok" : "banner",
-        text: input.outcome === "filled" ? BANNER_JOB_FILLED : BANNER_JOB_PARTIAL,
+        text: input.outcome === "filled" ? labels.filled : BANNER_JOB_PARTIAL,
       }),
     );
     const list = el(doc, "ul");

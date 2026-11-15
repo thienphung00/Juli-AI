@@ -15,7 +15,7 @@
 // saves anything.
 
 import { CHANNEL, FILL_HASH_KEY, READER_IDS, SELLER_CENTRE_ORIGIN } from "../config";
-import { bundleIdFrom, savedBundlePath, savedVoucherPath, voucherIdFrom } from "../fill/saved";
+import { savedSignal } from "../fill/saved";
 import {
   isCapturedEndpoint,
   READER_ENDPOINTS,
@@ -177,8 +177,8 @@ function noteSavedVoucher(rawUrl: string, method: string, body: unknown): void {
     if (method !== "POST" || !location.hash.includes(`${FILL_HASH_KEY}=`)) return;
     const url = new URL(rawUrl, location.href);
     if (url.origin !== SELLER_CENTRE_ORIGIN) return;
-    const ref = savedVoucherPath(url.pathname) ? voucherIdFrom(body) : savedBundlePath(url.pathname) ? bundleIdFrom(body) : null;
-    if (ref) window.postMessage({ channel: CHANNEL, kind: "fill-saved", ref }, SELLER_CENTRE_ORIGIN);
+    const saved = savedSignal({ method, pathname: url.pathname, body });
+    if (saved) window.postMessage({ channel: CHANNEL, kind: "fill-saved", ref: saved.ref }, SELLER_CENTRE_ORIGIN);
   } catch {
     // not ours to report
   }

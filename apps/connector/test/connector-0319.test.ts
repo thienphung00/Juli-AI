@@ -6,7 +6,7 @@ import { Connector, type Tabs } from "../src/platforms/shopee/background/connect
 import { reinjectPlan, reinjectSellerCentreTabs } from "../src/core/reinject";
 import type { ReaderSchedule } from "../src/platforms/shopee/background/state";
 import { readerActive, SAMPLE_SHOP_IDS, schedulerActive } from "../src/platforms/shopee/config";
-import { GatewayClient, type IngestBody, type TokenInfo } from "../src/core/ingest/client";
+import { GatewayClient, type IngestBody, type TokenInfo } from "../src/platforms/shopee/ingest/client";
 import { adsHistoryLine, stockLine, tickLine, tickResultLabel } from "../src/platforms/shopee/popup/guide";
 import {
   type FetchedReaderResponse,

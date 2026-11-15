@@ -24,20 +24,8 @@ import type { AdsPayload, AffiliatePayload, ComboPayload, VoucherPayload } from 
 import { normalizeLabel } from "../../../core/fill/locate";
 import { writeValue } from "../../../core/fill/write";
 
-export interface Step {
-  /** What the person sees in the checklist (Vietnamese). */
-  label: string;
-  ok: boolean;
-  /** Said when it is not ok, or when the person has something to do. */
-  note?: string;
-}
-
-export interface FillOutcome {
-  steps: Step[];
-  /** What the person still does, in order (Vietnamese). */
-  todo: string[];
-  notes: string[];
-}
+export type { FillOutcome, Step } from "../../../core/fill/form";
+import type { FillOutcome, Step } from "../../../core/fill/form";
 
 const dong = (n: number) => `${n.toLocaleString("vi-VN")} ₫`;
 

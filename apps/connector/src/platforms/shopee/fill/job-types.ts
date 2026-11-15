@@ -4,7 +4,8 @@
 
 import { FILL_JOB_ID_PATTERN, FILL_JOB_PAGES } from "../config";
 import { DATE_FORMAT } from "./controls";
-import { type FillField, type FillKey } from "./types";
+import { type FillField, type FillKey } from "../../../core/fill/types";
+import type { CoreJob, JobReply as CoreJobReply } from "../../../core/fill/form";
 
 export type JobKind = "title" | "description_first_line" | "voucher" | "ads_edit" | "affiliate_commission" | "combo";
 export type JobStatus = "queued" | "opened" | "filled" | "saved" | "captured" | "failed" | "cancelled";
@@ -55,7 +56,7 @@ export type JobPayload =
   | { kind: "affiliate_commission"; affiliate: AffiliatePayload }
   | { kind: "combo"; combo: ComboPayload };
 
-export interface FillJob {
+export interface FillJob extends CoreJob {
   id: string;
   cardId: string;
   code: string;
@@ -260,4 +261,4 @@ export function parseFillJob(raw: unknown): FillJob | null {
 }
 
 /** The reply of the service worker to the content script's job request. */
-export type JobReply = { ok: true; value: FillJob } | { ok: false; reason: "inactive" | "unpaired" | "unknown_job" | "wrong_page" | "budget" | "error" };
+export type JobReply = CoreJobReply<FillJob>;

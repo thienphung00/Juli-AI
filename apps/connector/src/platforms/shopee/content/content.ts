@@ -3,11 +3,11 @@
 // service worker's daily sync / backfill / reader-job requests → page hook. It reads no page data itself.
 
 import { CHANNEL, SELLER_CENTRE_ORIGIN } from "../config";
-import { parseJobTrigger, runFillJob } from "../../../core/fill/job-run";
+import { parseJobTrigger, runFillJob } from "../fill/job-run";
 import { isPasswordPrompt } from "../reader";
 import { runFill } from "../fill/run";
 import type { JobReply } from "../fill/job-types";
-import type { FillReply } from "../fill/types";
+import type { FillReply } from "../../../core/fill/types";
 import { isPageMessage } from "./messages";
 
 window.addEventListener("message", (event: MessageEvent) => {

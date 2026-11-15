@@ -4,7 +4,7 @@
 // chép" and "Đóng" buttons, which act when the PERSON clicks them.
 
 import { PANEL_ID } from "./locate";
-import type { FillKey, FillRefusal, FillRequest, FillStep } from "../../platforms/shopee/fill/types";
+import type { FillKey, FillRefusal, FillRequest, FillStep } from "./types";
 
 export type PanelOutcome = "filled" | "not_found" | "page_only" | "refused";
 
@@ -15,11 +15,22 @@ export interface PanelInput {
   refusal?: FillRefusal;
 }
 
-export const BANNER_FILLED = "Juli đã điền — kiểm tra rồi bấm Lưu của Shopee";
+/** The banners that name the platform (its own save button is the person's to press). */
+export interface PanelLabels {
+  filled: string;
+  pageOnly: string;
+}
+
+/** `name` is the platform as the seller says it (a pack's `labels.name`). */
+export function panelLabels(name: string): PanelLabels {
+  return {
+    filled: `Juli đã điền — kiểm tra rồi bấm Lưu của ${name}`,
+    pageOnly: `Trang đã mở. Làm theo các bước bên dưới rồi bấm nút của ${name} — Juli không bấm thay bạn.`,
+  };
+}
+
 export const BANNER_NOT_FOUND =
   "Juli chưa tìm thấy ô nhập trên trang này nên không điền gì. Dán nội dung bằng nút Sao chép.";
-export const BANNER_PAGE_ONLY =
-  "Trang đã mở. Làm theo các bước bên dưới rồi bấm nút của Shopee — Juli không bấm thay bạn.";
 export const NEVER_NOTE = "Juli không bấm Lưu, Cập nhật, Xác nhận hay Ẩn thay bạn.";
 
 export const REFUSAL_TEXT: Record<FillRefusal, string> = {
@@ -100,7 +111,7 @@ function stepList(doc: Doc, steps: readonly FillStep[], deps: PanelDeps, checkab
 }
 
 /** Draws (or redraws) the panel and returns its host element. */
-export function showPanel(doc: Doc, input: PanelInput, deps: PanelDeps): HTMLElement {
+export function showPanel(doc: Doc, input: PanelInput, deps: PanelDeps, labels: PanelLabels): HTMLElement {
   doc.getElementById(PANEL_ID)?.remove();
   const host = el(doc, "div");
   host.id = PANEL_ID;
@@ -123,11 +134,11 @@ export function showPanel(doc: Doc, input: PanelInput, deps: PanelDeps): HTMLEle
   if (input.outcome === "refused") {
     banner(REFUSAL_TEXT[input.refusal ?? "error"]);
   } else if (input.outcome === "filled") {
-    banner(BANNER_FILLED, true);
+    banner(labels.filled, true);
   } else if (input.outcome === "not_found") {
     banner(BANNER_NOT_FOUND);
   } else {
-    banner(BANNER_PAGE_ONLY);
+    banner(labels.pageOnly);
   }
   box.append(el(doc, "div", { cls: "note", text: NEVER_NOTE }));
 

@@ -4,7 +4,7 @@
 // mappers and pinned here only as far as the mappers promise.
 import { describe, expect, it } from "vitest";
 import { ORDER_LIST_MAX_PAGES_PER_RUN } from "../src/platforms/shopee/config";
-import { ingestBody } from "../src/core/ingest/client";
+import { ingestBody } from "../src/platforms/shopee/ingest/client";
 import { RAW_ORDER_ID } from "../src/platforms/shopee/affiliate-map";
 import { completedOrders, mapOrderIncome, mapOrderLines, orderStatusOf, trimOrderCards, trimOrderIndex } from "../src/platforms/shopee/orders-map";
 import { mapReaderJob } from "../src/platforms/shopee/reader-map";

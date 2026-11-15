@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FORBIDDEN_PRESS, unsafePress } from "../src/platforms/shopee/fill/controls";
-import { runFillJob } from "../src/core/fill/job-run";
+import { runFillJob } from "../src/platforms/shopee/fill/job-run";
 import { PANEL_ID } from "../src/core/fill/locate";
 import { runFill } from "../src/platforms/shopee/fill/run";
-import { parseFillRequest } from "../src/platforms/shopee/fill/types";
+import { parseFillRequest } from "../src/core/fill/types";
 import { wireEds } from "./eds-wire";
 import { adsJob, affiliateJob, comboJob, jobHarness, rawJob, voucherJob } from "./fill-job-helpers";
 import { DESCRIPTION_FIELD, harness, loadPage, rawRequest, watchForbidden } from "./fill-helpers";
@@ -105,19 +105,25 @@ describe("the source never presses anything", () => {
 
   it("covers every fill source file", () => {
     expect(files.map(([name]) => name.replace("../src/", "")).sort()).toEqual([
+      "core/fill/form.ts",
       "core/fill/job-panel.ts",
       "core/fill/job-run.ts",
       "core/fill/locate.ts",
       "core/fill/panel.ts",
+      "core/fill/settle.ts",
+      "core/fill/types.ts",
       "core/fill/write.ts",
       "core/jobs/fill-jobs.ts",
+      "platforms/shopee/background/fill-jobs.ts",
       "platforms/shopee/background/fill.ts",
       "platforms/shopee/fill/controls.ts",
       "platforms/shopee/fill/fillers.ts",
+      "platforms/shopee/fill/forms.ts",
+      "platforms/shopee/fill/job-run.ts",
       "platforms/shopee/fill/job-types.ts",
+      "platforms/shopee/fill/labels.ts",
       "platforms/shopee/fill/run.ts",
       "platforms/shopee/fill/saved.ts",
-      "platforms/shopee/fill/types.ts",
     ]);
   });
 

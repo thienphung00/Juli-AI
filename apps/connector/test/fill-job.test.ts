@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { parseJobTrigger, runFillJob } from "../src/core/fill/job-run";
+import { parseJobTrigger, runFillJob } from "../src/platforms/shopee/fill/job-run";
 import { parseFillJob } from "../src/platforms/shopee/fill/job-types";
 import { PANEL_ID } from "../src/core/fill/locate";
 import { wireEds, type Wire } from "./eds-wire";

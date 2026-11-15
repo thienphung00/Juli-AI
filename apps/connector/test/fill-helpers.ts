@@ -3,7 +3,7 @@
 
 import { vi } from "vitest";
 import type { RunDeps, Trigger } from "../src/platforms/shopee/fill/run";
-import type { FillReply } from "../src/platforms/shopee/fill/types";
+import type { FillReply } from "../src/core/fill/types";
 
 const pages = import.meta.glob("./fixtures/fill/*.html", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 

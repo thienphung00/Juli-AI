@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Connector, type Tabs } from "../src/platforms/shopee/background/connector";
 import type { Backfill } from "../src/platforms/shopee/background/state";
-import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/core/ingest/client";
+import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/platforms/shopee/ingest/client";
 import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "../src/platforms/shopee/popup/labels";
 import type { RequestResult } from "../src/platforms/shopee/runner";
 import type { PlannedRequest } from "../src/platforms/shopee/sync";

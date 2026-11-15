@@ -2,21 +2,12 @@
 // controls by their visible labels → type the approved text → show the panel. It never clicks,
 // submits or navigates; a page it does not recognise gets no fill, only the copy buttons.
 
-import {
-  FILL_CODE_PATTERN,
-  FILL_EDIT_PATH,
-  FILL_HASH_KEY,
-  FILL_LABELS,
-  FILL_MAX_REWRITES,
-  FILL_POLL_MS,
-  FILL_RECHECK_MS,
-  FILL_STABLE_MS,
-  FILL_WAIT_MS,
-} from "../config";
+import { FILL_CODE_PATTERN, FILL_EDIT_PATH, FILL_HASH_KEY, FILL_LABELS, FILL_POLL_MS, FILL_WAIT_MS } from "../config";
 import { findControl } from "../../../core/fill/locate";
 import { type PanelDeps, type PanelInput, showPanel } from "../../../core/fill/panel";
-import type { FillField, FillKey, FillReply, FillRequest } from "./types";
-import { highlight, readValue, targetValue, writeValue } from "../../../core/fill/write";
+import { fillOne } from "../../../core/fill/settle";
+import type { FillField, FillKey, FillReply, FillRequest } from "../../../core/fill/types";
+import { PANEL_LABELS } from "./labels";
 
 export interface Trigger {
   itemId: string;
@@ -66,66 +57,22 @@ async function locate(deps: RunDeps, fields: readonly FillField[]): Promise<Map<
   }
 }
 
-const valueOf = (control: HTMLElement) => readValue(control).replace(/\r/g, "");
-
-/**
- * Wait until the page has loaded the product into the control: its value unchanged for
- * FILL_STABLE_MS and not empty (an existing product always has a title / description). Gives up
- * waiting at `until` (the FILL_WAIT_MS cap) and writes anyway.
- */
-async function settled(deps: RunDeps, control: HTMLElement, until: number): Promise<void> {
-  let last = valueOf(control);
-  let since = deps.now();
-  for (;;) {
-    const now = deps.now();
-    if (now >= until) return;
-    if (last.trim() !== "" && now - since >= FILL_STABLE_MS) return;
-    await deps.sleep(FILL_POLL_MS);
-    const value = valueOf(control);
-    if (value !== last) {
-      last = value;
-      since = deps.now();
-    }
-  }
-}
-
-/**
- * Write the field the way a person typing would (native setter + input/change), then read it back
- * after FILL_RECHECK_MS and write it again if the page put its own value back (at most
- * FILL_MAX_REWRITES times). True only when the last read equals the target.
- */
-async function fillOne(deps: RunDeps, control: HTMLElement, field: FillField, until: number): Promise<boolean> {
-  await settled(deps, control, until);
-  for (let attempt = 0; attempt <= FILL_MAX_REWRITES; attempt += 1) {
-    if (!deps.doc.contains(control)) return false;
-    const next = targetValue(valueOf(control), field.value, field.mode);
-    if (valueOf(control) !== next && !writeValue(control, next)) return false;
-    await deps.sleep(FILL_RECHECK_MS);
-    if (!deps.doc.contains(control)) return false;
-    if (valueOf(control) === next) {
-      highlight(control);
-      return true;
-    }
-  }
-  return false;
-}
-
 export async function runFill(deps: RunDeps): Promise<RunResult> {
   const trigger = parseTrigger(deps.loc);
   if (!trigger) return { status: "idle" };
   const reply = await deps.ask(trigger);
   if (!reply.ok) {
     if (reply.reason === "inactive") return { status: "idle" };
-    showPanel(deps.doc, { outcome: "refused", refusal: reply.reason }, deps.panel);
+    showPanel(deps.doc, { outcome: "refused", refusal: reply.reason }, deps.panel, PANEL_LABELS);
     return { status: "refused", reason: reply.reason };
   }
   const request: FillRequest = reply.value;
   if (request.itemId !== trigger.itemId || request.code !== trigger.code) {
-    showPanel(deps.doc, { outcome: "refused", refusal: "wrong_item" }, deps.panel);
+    showPanel(deps.doc, { outcome: "refused", refusal: "wrong_item" }, deps.panel, PANEL_LABELS);
     return { status: "refused", reason: "wrong_item" };
   }
   if (request.fields.length === 0) {
-    showPanel(deps.doc, { outcome: "page_only", request }, deps.panel);
+    showPanel(deps.doc, { outcome: "page_only", request }, deps.panel, PANEL_LABELS);
     return { status: "page_only" };
   }
   const until = deps.now() + FILL_WAIT_MS;
@@ -139,6 +86,6 @@ export async function runFill(deps: RunDeps): Promise<RunResult> {
     filled.length === request.fields.length
       ? { outcome: "filled", request, filled }
       : { outcome: "not_found", request, filled };
-  showPanel(deps.doc, input, deps.panel);
+  showPanel(deps.doc, input, deps.panel, PANEL_LABELS);
   return filled.length === request.fields.length ? { status: "filled", keys: filled } : { status: "not_found" };
 }

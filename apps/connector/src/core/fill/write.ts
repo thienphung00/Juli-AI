@@ -2,7 +2,7 @@
 // the native value setter and a bubbling `input` + `change` event. Nothing else is dispatched
 // (no click, key, pointer, focus-steal or submit events) and no form is ever submitted.
 
-import type { FillMode } from "../../platforms/shopee/fill/types";
+import type { FillMode } from "./types";
 
 const BLOCKS = new Set(["DIV", "P", "LI"]);
 

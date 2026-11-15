@@ -1,8 +1,22 @@
 // The Juli ingest gateway client (runs in the service worker). The token is the
 // only credential the extension holds: no Juli password, no Juli session.
 
-import { API_ORIGIN, type Dataset } from "../../platforms/shopee/config";
-import type { Drift, Mapped } from "../../platforms/shopee/map";
+import { API_ORIGIN } from "../config";
+
+/** Fields seen / missing against the recorded shape of an answer (a platform's drift report). */
+export interface Drift {
+  unexpected: string[];
+  missing: string[];
+}
+
+/** What `ingestBody` needs of a platform's mapped answer. */
+export interface MappedPost {
+  date: string;
+  periodStart?: string;
+  granularity?: "day" | "period";
+  orderType: string | null;
+  rows: Record<string, unknown>[];
+}
 
 export interface TokenInfo {
   token: string;
@@ -35,7 +49,7 @@ export class GatewayError extends Error {
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 /** The post the gateway expects for one mapped response. */
-export function ingestBody(mapped: Mapped, version: string, capturedAt: number, shopeeShopId?: string): IngestBody {
+export function ingestBody(mapped: MappedPost, version: string, capturedAt: number, platformShopId?: string): IngestBody {
   const body: IngestBody = {
     source: "extension",
     source_version: version,
@@ -44,12 +58,17 @@ export function ingestBody(mapped: Mapped, version: string, capturedAt: number, 
     order_type: mapped.orderType,
     rows: mapped.rows,
   };
-  if (shopeeShopId) body.platform_shop_id = shopeeShopId;
+  if (platformShopId) body.platform_shop_id = platformShopId;
   return body;
 }
 
-export class GatewayClient {
+/**
+ * One platform's view of the gateway: the platform (a pack id) goes into the pairing request, the
+ * ingest path and every report. A platform pack binds its own id (platforms/<id>/ingest/client).
+ */
+export class IngestClient {
   constructor(
+    readonly platform: string,
     private readonly fetchImpl: FetchLike = (input, init) => fetch(input, init),
     private readonly origin: string = API_ORIGIN,
   ) {}
@@ -70,14 +89,14 @@ export class GatewayClient {
     return payload;
   }
 
-  pair(code: string, clientLabel: string, shopeeShopId?: string): Promise<TokenInfo> {
+  pair(code: string, clientLabel: string, platformShopId?: string): Promise<TokenInfo> {
     return this.call("/v1/ingest/pair", {
       method: "POST",
       body: JSON.stringify({
         code,
-        platform: "shopee",
+        platform: this.platform,
         client_label: clientLabel,
-        ...(shopeeShopId ? { platform_shop_id: shopeeShopId } : {}),
+        ...(platformShopId ? { platform_shop_id: platformShopId } : {}),
       }),
     }) as Promise<TokenInfo>;
   }
@@ -118,8 +137,8 @@ export class GatewayClient {
     return this.call("/v1/ingest/order-ref-key", { method: "GET" }, token);
   }
 
-  post(token: string, dataset: Dataset, body: IngestBody): Promise<unknown> {
-    return this.call(`/v1/ingest/shopee/${dataset}`, { method: "POST", body: JSON.stringify(body) }, token);
+  post(token: string, dataset: string, body: IngestBody): Promise<unknown> {
+    return this.call(`/v1/ingest/${this.platform}/${dataset}`, { method: "POST", body: JSON.stringify(body) }, token);
   }
 
   /** A stop that halts every reader (CAPTCHA, login wall, 429 / 403): reader, page, status, time. */
@@ -133,7 +152,7 @@ export class GatewayClient {
       {
         method: "POST",
         body: JSON.stringify({
-          platform: "shopee",
+          platform: this.platform,
           reader: event.reader,
           page: event.page.slice(0, 120),
           status: event.status,
@@ -165,7 +184,7 @@ export class GatewayClient {
       {
         method: "POST",
         body: JSON.stringify({
-          platform: "shopee",
+          platform: this.platform,
           kind: report.kind,
           trigger: report.trigger.slice(0, 32),
           result: report.result.slice(0, 80),
@@ -181,7 +200,7 @@ export class GatewayClient {
 
   reportDrift(
     token: string,
-    dataset: Dataset,
+    dataset: string,
     version: string,
     endpoint: string,
     drift: Drift | null,
@@ -191,7 +210,7 @@ export class GatewayClient {
       {
         method: "POST",
         body: JSON.stringify({
-          platform: "shopee",
+          platform: this.platform,
           dataset,
           state: drift ? "drift" : "ok",
           source_version: version,

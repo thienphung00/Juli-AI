@@ -16,10 +16,8 @@ export { ENDPOINTS };
 export type OrderType = "placed" | "paid" | "confirmed";
 export type Row = Record<string, unknown>;
 
-export interface Drift {
-  unexpected: string[];
-  missing: string[];
-}
+export type { Drift } from "../../core/ingest/client";
+import type { Drift } from "../../core/ingest/client";
 
 export interface Captured {
   url: string;

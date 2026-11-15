@@ -1,11 +1,12 @@
-// Fixed configuration. The API origin is baked in at build time (scripts/build.mjs
-// replaces __JULI_API_ORIGIN__); it must match the manifest's host permission.
+// The Shopee pack's fixed configuration. The platform-free part (API origin, the shared daily
+// request budget, fill-engine timing, fill-job polling) lives in core/config.ts and is re-exported
+// here, so Shopee code keeps one import.
 
-declare const __JULI_API_ORIGIN__: string;
+export * from "../../core/config";
 
+/** The pack id: the gateway's platform name and the pairing token's `platform`. */
+export const PLATFORM_ID = "shopee";
 export const SELLER_CENTRE_ORIGIN = "https://banhang.shopee.vn";
-export const API_ORIGIN: string =
-  typeof __JULI_API_ORIGIN__ === "string" ? __JULI_API_ORIGIN__ : "https://api.app-juli.com";
 
 /** The window.postMessage channel between the page hook and the content script. */
 export const CHANNEL = "juli-connector/v1";
@@ -251,21 +252,8 @@ export const READER_BLOCK_CAPTCHA_MS = 72 * 3_600_000;
 export const READER_BLOCK_LOGIN_MS = 6 * 3_600_000;
 
 // -- request budget and rate-limit stop (P97 T1, owner concern: no bot detection on the sub-account) --
-/**
- * ONE budget for every request the Connector sends to Seller Centre in a GMT+7 day: the readers,
- * the daily mydata sync and the backfill all count. Checked before every replay; when it is spent
- * the remaining jobs wait for the next day. Tunable.
- */
-export const DAILY_REQUEST_BUDGET = 800;
-/**
- * The budget is split (0.3.15): today's readers (orders, traffic, ads, affiliate, daily sync) keep
- * TODAY_REQUEST_RESERVE requests that the 30-day backfill can never touch, and while a backfill is
- * running it keeps BACKFILL_REQUEST_SHARE that the readers leave alone, so neither starves the other.
- */
-export const TODAY_REQUEST_RESERVE = 250;
-export const BACKFILL_REQUEST_SHARE = 150;
-/** A report page makes a handful of calls of its own when it loads: each opened tab is counted as this many. */
-export const READER_PAGE_LOAD_COST = 10;
+// DAILY_REQUEST_BUDGET, TODAY_REQUEST_RESERVE, BACKFILL_REQUEST_SHARE and READER_PAGE_LOAD_COST
+// (the one shared daily request budget) live in core/config.ts.
 /**
  * Order list (0.3.19: by date, not a fixed 5 pages): pages are read until the oldest order on a page
  * was placed before the job's `sinceDay`, at least ORDER_LIST_MIN_PAGES (the 0.3.18 depth, in case
@@ -409,24 +397,8 @@ export const MAX_PLAUSIBLE_AD_VND = 5_000_000_000;
 
 export const FILL_LISTING_ACTIVE = true;
 
-/** The address fragment the Juli button adds: `#juli-fill=JC-2611-0007`. Only the card's code. */
-export const FILL_HASH_KEY = "juli-fill";
-export const FILL_CODE_PATTERN = /^JC-\d{4}-\d{4,}$/;
 /** The product edit page: `/portal/product/<item id>` (list pages and the new-product form never match). */
 export const FILL_EDIT_PATH = /^\/portal\/product\/(\d{1,20})(?:\/|$)/;
-/** How long the page gets to draw its form before the Connector gives up and offers copy buttons. */
-export const FILL_WAIT_MS = 25_000;
-export const FILL_POLL_MS = 400;
-/**
- * 0.3.20: Shopee loads the product into the form AFTER the controls appear and overwrites what was
- * typed too early (product 41211587682, 2026-11-15). A control is written only once its value has
- * not changed for FILL_STABLE_MS; FILL_RECHECK_MS after a write it is read again and written once
- * more if it reverted, up to FILL_MAX_REWRITES times. A field counts as filled only if the last read
- * equals the target.
- */
-export const FILL_STABLE_MS = 800;
-export const FILL_RECHECK_MS = 1_500;
-export const FILL_MAX_REWRITES = 3;
 
 /**
  * Visible Vietnamese labels the fields are found by, as the real edit page draws them (read-only
@@ -452,13 +424,6 @@ export function fillActive(shopId: string | undefined): boolean {
 // presses Shopee's own Lưu / Xác nhận / Gửi. A job page open costs READER_PAGE_LOAD_COST against
 // the shared daily request budget; a CAPTCHA / login wall / password prompt stops it.
 
-export const FILL_JOBS_ACTIVE = true;
-export const FILL_JOBS_ALARM = "juli-fill-jobs";
-export const FILL_JOBS_POLL_MINUTES = 3;
-/** Jobs with no progress after this long are given up (the tab may have been closed). */
-export const FILL_JOB_STALE_MS = 6 * 3_600_000;
-/** `#juli-fill=<job id>` -- the job's UUID. */
-export const FILL_JOB_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** The only Seller Centre pages a job may open (path only; a query string is allowed on vouchers). */
 export const FILL_JOB_PAGES = {
   product_edit: /^\/portal\/product\/(\d{1,20})$/,
@@ -467,10 +432,6 @@ export const FILL_JOB_PAGES = {
   affiliate_open: /^\/portal\/web-seller-affiliate\/open_campaign$/,
   bundle_new: /^\/portal\/marketing\/bundle\/new$/,
 } as const;
-/** Fill jobs run for the paired token's shop; the server decides whether anything is served. */
-export function fillJobsActive(shopId: string | undefined): boolean {
-  return FILL_JOBS_ACTIVE && !!shopId;
-}
 
 // -- market search reader (P92 B-10, Connector 0.3.5) -----------------------------------------
 //

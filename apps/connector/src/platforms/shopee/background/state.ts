@@ -2,7 +2,22 @@
 // Juli password or session), per-dataset stops after drift, the last sync, and a
 // small retry queue of posts that failed on the network.
 
-import { BACKFILL_REQUEST_SHARE, DAILY_REQUEST_BUDGET, TODAY_REQUEST_RESERVE, type Dataset, type ReaderId } from "../config";
+import { BACKFILL_REQUEST_SHARE, type Dataset, type ReaderId } from "../config";
+import { requestsLeft, saveState as saveCoreState, type FillJobsState, type RequestBudget, type Storage } from "../../../core/state";
+
+// The platform-free half (storage, the shared daily request budget, fill-job bookkeeping) is core's.
+export {
+  addRequests,
+  backfillRequestsLeft,
+  type FillJobsState,
+  type RequestBudget,
+  requestsLeft,
+  type Storage,
+} from "../../../core/state";
+
+export function saveState(storage: Storage, patch: Partial<State>): Promise<void> {
+  return saveCoreState(storage, patch);
+}
 import type { IngestBody, TokenInfo } from "../../../core/ingest/client";
 
 export interface Stop {
@@ -218,33 +233,6 @@ export interface State {
   fill?: FillJobsState;
 }
 
-/** The fill-job runner's bookkeeping. At most one page is open for a job at a time. */
-export interface FillJobsState {
-  active?: { id: string; tabId?: number; openedAt: number; counted: boolean };
-  /** Jobs this browser already opened by itself (never again by the poll; the person re-opens). */
-  autoOpened: string[];
-  lastPoll?: { at: string; status: string };
-  /** The last Juli command this browser ran ("Đối chiếu ngay"), and the one still to acknowledge. */
-  lastCommand?: string;
-  doneCommand?: string;
-}
-
-/** The shared daily request budget's counter. */
-export interface RequestBudget {
-  day: string;
-  used: number;
-}
-
-/** Requests left today (the budget resets with the GMT+7 day). */
-export function requestsLeft(state: Pick<State, "budget">, day: string): number {
-  const used = state.budget?.day === day ? state.budget.used : 0;
-  return Math.max(0, DAILY_REQUEST_BUDGET - used);
-}
-
-/** What the 30-day backfill may still spend today: the budget minus the share reserved for today's readers. */
-export function backfillRequestsLeft(state: Pick<State, "budget">, day: string): number {
-  return Math.max(0, requestsLeft(state, day) - TODAY_REQUEST_RESERVE);
-}
 
 /** What today's readers may still spend: while a backfill runs, its share is left alone. */
 export function readerRequestsLeft(state: Pick<State, "budget" | "backfill">, day: string): number {
@@ -252,20 +240,7 @@ export function readerRequestsLeft(state: Pick<State, "budget" | "backfill">, da
   return Math.max(0, requestsLeft(state, day) - share);
 }
 
-/** Count `count` more requests today. Read-modify-write: sync, backfill and the scheduler never overlap. */
-export async function addRequests(storage: Storage, day: string, count: number): Promise<void> {
-  if (count <= 0) return;
-  const raw = (await storage.get(["budget"])) as Partial<State>;
-  const used = raw.budget?.day === day ? raw.budget.used : 0;
-  await saveState(storage, { budget: { day, used: used + count } });
-}
-
 export const MAX_QUEUE = 20;
-
-export interface Storage {
-  get(keys?: string | string[] | null): Promise<Record<string, unknown>>;
-  set(items: Record<string, unknown>): Promise<void>;
-}
 
 export async function loadState(storage: Storage): Promise<State> {
   const raw = (await storage.get([
@@ -298,12 +273,6 @@ export async function loadState(storage: Storage): Promise<State> {
     budget: raw.budget,
     fill: raw.fill,
   };
-}
-
-export async function saveState(storage: Storage, patch: Partial<State>): Promise<void> {
-  const clean: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(patch)) clean[key] = value ?? null;
-  await storage.set(clean);
 }
 
 /** Datasets stopped for THIS extension version (a new version tries again). */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Connector, type Tabs } from "../src/platforms/shopee/background/connector";
 import { loadState } from "../src/platforms/shopee/background/state";
-import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/core/ingest/client";
+import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/platforms/shopee/ingest/client";
 import { importOrderRefKey, orderRef } from "../src/platforms/shopee/ingest/order-ref";
 import type { ReaderResponse } from "../src/platforms/shopee/reader";
 import { gmt7DateStart } from "../src/core/time";

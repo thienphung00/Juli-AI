@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { isMarketMessage } from "../src/platforms/shopee/content/messages";
 import { MARKET_CHANNEL, MARKET_ORIGIN, marketActive, PILOT_SHOP_IDS } from "../src/platforms/shopee/config";
-import { ingestBody } from "../src/core/ingest/client";
+import { ingestBody } from "../src/platforms/shopee/ingest/client";
 import {
   classifyAnswer,
   mapMarketSearch,

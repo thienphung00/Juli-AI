@@ -3,8 +3,8 @@
 // answer. It returns plain data; it never touches a Seller Centre page.
 
 import { FILL_CODE_PATTERN, FILL_EDIT_PATH, FILL_HASH_KEY, fillActive } from "../config";
-import { GatewayError, type GatewayClient } from "../../../core/ingest/client";
-import { parseFillRequest, type FillReply, type FillRefusal } from "../fill/types";
+import { GatewayError, type GatewayClient } from "../ingest/client";
+import { parseFillRequest, type FillReply, type FillRefusal } from "../../../core/fill/types";
 import { loadState, type Storage } from "./state";
 
 export interface FillDeps {

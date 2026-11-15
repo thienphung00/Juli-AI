@@ -3,7 +3,7 @@
 // tests/unit/test_ingest_connector_contract.py posts the SAME files through the
 // gateway, so a field the extension sends and the gateway refuses fails one side.
 import { describe, expect, it } from "vitest";
-import { ingestBody } from "../src/core/ingest/client";
+import { ingestBody } from "../src/platforms/shopee/ingest/client";
 import { mapCaptured } from "../src/platforms/shopee/map";
 import adsDailyBody from "./fixtures/contract/ads_campaign_daily.body.json";
 import itemCatalogBody from "./fixtures/contract/item_catalog.body.json";

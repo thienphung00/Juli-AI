@@ -4,6 +4,8 @@
 // recon), so the path test is a pattern, not a fact; Juli also resolves the id from the voucher
 // list reader's next read (service side), so a missed answer costs nothing.
 
+import type { PageAnswer, SaveResult } from "../../../platform";
+
 /** A POST to a marketing voucher create / add / save endpoint. */
 export function savedVoucherPath(pathname: string): boolean {
   return /^\/api\/marketing\/.*voucher.*\/(create|add|save)[a-z_]*\/?$/i.test(pathname);
@@ -41,4 +43,11 @@ export function bundleIdFrom(body: unknown, depth = 0): string | null {
     if (found) return found;
   }
   return null;
+}
+
+/** The pack's saved signal: the new voucher / combo id in the page's own POST answer to the person's save. */
+export function savedSignal(page: PageAnswer): SaveResult | null {
+  if (page.method !== "POST") return null;
+  const ref = savedVoucherPath(page.pathname) ? voucherIdFrom(page.body) : savedBundlePath(page.pathname) ? bundleIdFrom(page.body) : null;
+  return ref ? { ref } : null;
 }

@@ -6,6 +6,7 @@ import { READER_IDS, readerActive } from "../config";
 import type { Backfill, ReaderSchedule } from "../background/state";
 import { adsHistoryLine, DATASET_LABELS, type Guidance, pageRows, runLine, stockLine, syncGuidance, tickLine } from "./guide";
 import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "./labels";
+import { el, fmt, openTab, send } from "../../../core/popup/shell";
 
 interface DatasetStatus {
   dataset: string;
@@ -25,26 +26,6 @@ interface PopupState {
 
 /** The answer to the last click, shown until the next render that has something newer. */
 let clicked: Guidance | null = null;
-
-function el<T extends HTMLElement>(id: string): T {
-  const found = document.getElementById(id);
-  if (!found) throw new Error(`#${id} missing`);
-  return found as T;
-}
-
-async function send<T>(message: Record<string, unknown>): Promise<T> {
-  const reply = (await chrome.runtime.sendMessage(message)) as { ok: boolean; value?: T; error?: string };
-  if (!reply?.ok) throw new Error(reply?.error ?? "Không gửi được");
-  return reply.value as T;
-}
-
-function fmt(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString("vi-VN") : "chưa có";
-}
-
-function openTab(url: string): void {
-  void chrome.tabs.create({ url, active: true });
-}
 
 function showTodo(guidance: Guidance | null): void {
   const box = el("todo");

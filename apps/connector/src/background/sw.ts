@@ -13,14 +13,14 @@ import {
   SYNC_PERIOD_MINUTES,
   SYNC_START_JITTER_MINUTES,
 } from "../platforms/shopee/config";
-import { GatewayClient } from "../core/ingest/client";
+import { GatewayClient } from "../platforms/shopee/ingest/client";
 import type { Captured } from "../platforms/shopee/map";
 import { isDataAnswer, type RequestResult } from "../platforms/shopee/runner";
 import type { MarketPlan } from "../platforms/shopee/market";
 import { MARKET_RUN_ALARM, MARKET_WATCHDOG_ALARM, MarketScheduler } from "../platforms/shopee/background/market";
 import { Connector } from "../platforms/shopee/background/connector";
 import { fillRequest, senderMatches } from "../platforms/shopee/background/fill";
-import { FillJobs } from "../core/jobs/fill-jobs";
+import { FillJobs } from "../platforms/shopee/background/fill-jobs";
 import { markReinjected, probeHook, reinjectSellerCentreTabs } from "../core/reinject";
 import {
   nextStockAt,

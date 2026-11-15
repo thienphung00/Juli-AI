@@ -14,7 +14,7 @@ import {
   MAX_ROWS_PER_POST,
   type ReaderDataset,
 } from "../config";
-import { GatewayClient, GatewayError, ingestBody, type TokenInfo } from "../../../core/ingest/client";
+import { GatewayClient, GatewayError, ingestBody, type TokenInfo } from "../ingest/client";
 import { type Captured, mapCaptured, type Mapped } from "../map";
 import { mapMarketSearch } from "../market";
 import { importOrderRefKey, orderRef } from "../ingest/order-ref";

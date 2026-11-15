@@ -1,5 +1,5 @@
 // Shared by the fill-job tests: raw jobs as Juli serves them, and run dependencies.
-import type { JobDeps } from "../src/core/fill/job-run";
+import type { JobDeps } from "../src/platforms/shopee/fill/job-run";
 import { type JobReply, parseFillJob } from "../src/platforms/shopee/fill/job-types";
 
 export const JOB_ID = "6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AFFILIATE_READER_IDS, AFFILIATE_WINDOW_DAYS, READER_DATASETS, READER_IDS } from "../src/platforms/shopee/config";
-import { ingestBody } from "../src/core/ingest/client";
+import { ingestBody } from "../src/platforms/shopee/ingest/client";
 import { importOrderRefKey, orderRef } from "../src/platforms/shopee/ingest/order-ref";
 import {
   displayNumber,

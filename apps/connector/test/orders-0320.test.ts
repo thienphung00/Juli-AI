@@ -5,7 +5,7 @@
 // trimmed IN THE PAGE. Field names as captured on 2026-11-15; every value here is fake.
 import { describe, expect, it } from "vitest";
 import { ORDER_LIST_MAX_PAGES_PER_RUN } from "../src/platforms/shopee/config";
-import { ingestBody } from "../src/core/ingest/client";
+import { ingestBody } from "../src/platforms/shopee/ingest/client";
 import { jobOutcome } from "../src/platforms/shopee/background/scheduler";
 import { outcomeStatus } from "../src/platforms/shopee/popup/guide";
 import { RAW_ORDER_ID } from "../src/platforms/shopee/affiliate-map";

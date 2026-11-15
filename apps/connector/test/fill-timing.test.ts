@@ -6,9 +6,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FILL_MAX_REWRITES, FILL_STABLE_MS } from "../src/platforms/shopee/config";
 import { PANEL_ID } from "../src/core/fill/locate";
-import { BANNER_FILLED, BANNER_NOT_FOUND } from "../src/core/fill/panel";
+import { BANNER_FILLED, BANNER_NOT_FOUND } from "../src/platforms/shopee/fill/labels";
 import { runFill } from "../src/platforms/shopee/fill/run";
-import { parseFillRequest } from "../src/platforms/shopee/fill/types";
+import { parseFillRequest } from "../src/core/fill/types";
 import { harness, loadPage, rawRequest, watchForbidden } from "./fill-helpers";
 
 const ok = () => ({ ok: true as const, value: parseFillRequest(rawRequest())! });

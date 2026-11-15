@@ -3,7 +3,7 @@ import { Connector } from "../src/platforms/shopee/background/connector";
 import { MarketScheduler, MARKET_WATCHDOG_ALARM } from "../src/platforms/shopee/background/market";
 import { loadState, saveState } from "../src/platforms/shopee/background/state";
 import { MARKET_JOB_TIMEOUT_MS, PILOT_SHOP_IDS, READER_BLOCK_CAPTCHA_MS, READER_PAGE_GAP_JITTER_MS, READER_PAGE_GAP_MS } from "../src/platforms/shopee/config";
-import { GatewayClient, type IngestBody } from "../src/core/ingest/client";
+import { GatewayClient, type IngestBody } from "../src/platforms/shopee/ingest/client";
 import type { MarketPlan } from "../src/platforms/shopee/market";
 import fixture from "./fixtures/market/search_items.json";
 

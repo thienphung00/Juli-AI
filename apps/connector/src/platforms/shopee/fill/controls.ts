@@ -12,11 +12,8 @@
 import { normalizeLabel, PANEL_ID } from "../../../core/fill/locate";
 import { writeValue } from "../../../core/fill/write";
 
-export interface Env {
-  doc: Document;
-  sleep(ms: number): Promise<void>;
-  now(): number;
-}
+export type { Env } from "../../../core/fill/form";
+import type { Env } from "../../../core/fill/form";
 
 export const WAIT_MS = 4_000;
 const POLL_MS = 150;

@@ -1,18 +1,28 @@
 // The service worker's half of the fill queue (P97 D85.6): poll Juli for the token's shop's jobs,
 // open the next queued page in a background tab (one page at a time, counted against the shared
 // daily request budget), hand the job to the content script that asks for it, and pass its
-// progress back. It decides nothing about Seller Centre pages beyond the allowlist in
-// fill/job-types, never clicks anything, and stops for the shop on a password prompt.
+// progress back. It decides nothing about the seller centre's pages beyond the platform pack's
+// job parser (its page allowlist), never clicks anything, and stops for the shop on a password
+// prompt. One instance serves one pairing: its storage is that pairing's scope.
 
-import { FILL_HASH_KEY, FILL_JOB_STALE_MS, fillJobsActive, READER_PAGE_LOAD_COST, SELLER_CENTRE_ORIGIN } from "../../platforms/shopee/config";
-import { type JobReply, parseFillJob, type FillJob } from "../../platforms/shopee/fill/job-types";
-import { GatewayError, type GatewayClient } from "../ingest/client";
+import { FILL_HASH_KEY, FILL_JOB_STALE_MS, fillJobsActive, READER_PAGE_LOAD_COST } from "../config";
+import type { CoreJob, JobReply } from "../fill/form";
+import { GatewayError, type IngestClient } from "../ingest/client";
 import { gmt7Date } from "../time";
-import { addRequests, loadState, requestsLeft, saveState, type FillJobsState, type Storage } from "../../platforms/shopee/background/state";
+import { addRequests, type FillJobsState, loadCoreState, requestsLeft, saveState, type Storage } from "../state";
 
-export interface FillJobsDeps {
+/** What the runner needs of a platform pack: where its pages are and which jobs are well formed. */
+export interface JobSource<J extends CoreJob> {
+  /** The seller centre origin the job pages open on. */
+  origin: string;
+  /** One job of the server's answer, or null when anything is off (its page is not allowed, ...). */
+  parseJob(raw: unknown): J | null;
+}
+
+export interface FillJobsDeps<J extends CoreJob = CoreJob> {
   storage: Storage;
-  client: Pick<GatewayClient, "fillJobs" | "fillJobReport">;
+  client: Pick<IngestClient, "fillJobs" | "fillJobReport">;
+  pack: JobSource<J>;
   now: () => number;
   tabs: {
     openPage(url: string): Promise<number | undefined>;
@@ -34,41 +44,41 @@ export interface FillJobsDeps {
 const FILL_JOB_BUSY_MS = 20 * 60_000;
 const EMPTY: FillJobsState = { autoOpened: [] };
 
-export function jobUrl(job: Pick<FillJob, "id" | "openPath">): string {
-  return `${SELLER_CENTRE_ORIGIN}${job.openPath}#${FILL_HASH_KEY}=${job.id}`;
+export function jobUrl(origin: string, job: Pick<CoreJob, "id" | "openPath">): string {
+  return `${origin}${job.openPath}#${FILL_HASH_KEY}=${job.id}`;
 }
 
-/** The tab really is this job's page (same path and query, the job's id in the address). */
-export function senderMatchesJob(tabUrl: string | undefined, job: Pick<FillJob, "id" | "openPath">): boolean {
+/** The tab really is this job's page (same origin, path and query, the job's id in the address). */
+export function senderMatchesJob(origin: string, tabUrl: string | undefined, job: Pick<CoreJob, "id" | "openPath">): boolean {
   if (!tabUrl) return false;
   try {
     const url = new URL(tabUrl);
-    const want = new URL(job.openPath, SELLER_CENTRE_ORIGIN);
-    return url.origin === SELLER_CENTRE_ORIGIN && url.pathname === want.pathname && url.search === want.search && url.hash === `#${FILL_HASH_KEY}=${job.id}`;
+    const want = new URL(job.openPath, origin);
+    return url.origin === origin && url.pathname === want.pathname && url.search === want.search && url.hash === `#${FILL_HASH_KEY}=${job.id}`;
   } catch {
     return false;
   }
 }
 
-export class FillJobs {
-  constructor(private readonly deps: FillJobsDeps) {}
+export class FillJobs<J extends CoreJob = CoreJob> {
+  constructor(private readonly deps: FillJobsDeps<J>) {}
 
   private today(): string {
     return gmt7Date(Math.floor(this.deps.now() / 1000));
   }
 
   private async fill(): Promise<FillJobsState> {
-    return (await loadState(this.deps.storage)).fill ?? EMPTY;
+    return (await loadCoreState(this.deps.storage)).fill ?? EMPTY;
   }
 
   private async setFill(patch: Partial<FillJobsState>): Promise<void> {
     await saveState(this.deps.storage, { fill: { ...(await this.fill()), ...patch } });
   }
 
-  private async list(token: string): Promise<{ enabled: boolean; jobs: FillJob[] } | "unpaired" | "error"> {
+  private async list(token: string): Promise<{ enabled: boolean; jobs: J[] } | "unpaired" | "error"> {
     try {
       const raw = (await this.deps.client.fillJobs(token)) as { enabled?: boolean; jobs?: unknown[] } | null;
-      const jobs = (Array.isArray(raw?.jobs) ? raw.jobs : []).map(parseFillJob).filter((j): j is FillJob => j !== null);
+      const jobs = (Array.isArray(raw?.jobs) ? raw.jobs : []).map((j) => this.deps.pack.parseJob(j)).filter((j): j is J => j !== null);
       return { enabled: raw?.enabled === true, jobs };
     } catch (error) {
       return error instanceof GatewayError && error.status === 401 ? "unpaired" : "error";
@@ -102,7 +112,7 @@ export class FillJobs {
 
   /** The alarm: open the next queued job's page, unless something says wait. */
   async poll(): Promise<string> {
-    const state = await loadState(this.deps.storage);
+    const state = await loadCoreState(this.deps.storage);
     const token = state.token;
     if (!token || !fillJobsActive(token.shop_id)) return "inactive";
     await this.beat(token.token);
@@ -124,7 +134,7 @@ export class FillJobs {
     const next = listed.jobs.find((j) => j.status === "queued" && !(fill.autoOpened ?? []).includes(j.id));
     if (!next) return this.noted("nothing_queued");
     if (requestsLeft(state, this.today()) < READER_PAGE_LOAD_COST) return this.noted("budget_spent");
-    const tabId = await this.deps.tabs.openPage(jobUrl(next));
+    const tabId = await this.deps.tabs.openPage(jobUrl(this.deps.pack.origin, next));
     if (tabId === undefined) return this.noted("no_tab");
     await addRequests(this.deps.storage, this.today(), READER_PAGE_LOAD_COST);
     await this.setFill({
@@ -140,8 +150,8 @@ export class FillJobs {
   }
 
   /** A fill page asks for its job. The page must be exactly the job's page. */
-  async jobFor(tabUrl: string | undefined, jobId: string): Promise<JobReply> {
-    const state = await loadState(this.deps.storage);
+  async jobFor(tabUrl: string | undefined, jobId: string): Promise<JobReply<J>> {
+    const state = await loadCoreState(this.deps.storage);
     const token = state.token;
     if (!token || !fillJobsActive(token.shop_id)) return { ok: false, reason: "inactive" };
     const listed = await this.list(token.token);
@@ -150,7 +160,7 @@ export class FillJobs {
     if (!listed.enabled) return { ok: false, reason: "inactive" };
     const job = listed.jobs.find((j) => j.id === jobId);
     if (!job) return { ok: false, reason: "unknown_job" };
-    if (!senderMatchesJob(tabUrl, job)) return { ok: false, reason: "wrong_page" };
+    if (!senderMatchesJob(this.deps.pack.origin, tabUrl, job)) return { ok: false, reason: "wrong_page" };
     const fill = state.fill ?? EMPTY;
     // A page the person opened with the Demo button counts like one the poll opened.
     if (fill.active?.id !== jobId || !fill.active.counted) {
@@ -163,7 +173,7 @@ export class FillJobs {
 
   /** Progress from the page (or the capture of the new id). */
   async report(jobId: string, status: "opened" | "filled" | "saved" | "captured" | "failed", extra: { capturedRef?: string; error?: string; progress?: { filled: number; total: number } } = {}): Promise<void> {
-    const token = (await loadState(this.deps.storage)).token;
+    const token = (await loadCoreState(this.deps.storage)).token;
     if (!token || !fillJobsActive(token.shop_id)) return;
     try {
       await this.deps.client.fillJobReport(token.token, jobId, {
@@ -181,7 +191,7 @@ export class FillJobs {
     }
   }
 
-  /** Shopee asked for the password again on a fill page: stop everything for the shop. */
+  /** The platform asked for the password again on a fill page: stop everything for the shop. */
   async halt(jobId: string, pathname: string): Promise<void> {
     await this.report(jobId, "failed", { error: "password_prompt" });
     await this.setFill({ active: undefined });

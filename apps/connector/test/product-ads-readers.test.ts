@@ -3,7 +3,7 @@
 // 2026-11-09 recordings (fasttrack/contracts/p97-recon-2026-11-09.md); shapes the recording did not
 // capture are marked TODO(first capture) in the mappers and pinned here only as far as they promise.
 import { describe, expect, it } from "vitest";
-import { ingestBody } from "../src/core/ingest/client";
+import { ingestBody } from "../src/platforms/shopee/ingest/client";
 import {
   ADS_PRODUCTS_MAX_CAMPAIGNS,
   PRODUCT_PERIOD_MAX_PAGES,

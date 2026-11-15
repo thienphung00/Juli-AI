@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ingestBody } from "../src/core/ingest/client";
+import { ingestBody } from "../src/platforms/shopee/ingest/client";
 import type { ReaderResponse } from "../src/platforms/shopee/reader";
 import {
   activeItemIds,

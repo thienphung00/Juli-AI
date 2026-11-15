@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Connector, type Tabs } from "../src/platforms/shopee/background/connector";
 import { loadState, saveState } from "../src/platforms/shopee/background/state";
 import { MAX_ROWS_PER_POST } from "../src/platforms/shopee/config";
-import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/core/ingest/client";
+import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/platforms/shopee/ingest/client";
 import type { ReaderResponse } from "../src/platforms/shopee/reader";
 import adsHome from "./fixtures/readers/ads_homepage.json";
 import products1 from "./fixtures/readers/product_list.json";
