@@ -16,7 +16,13 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from types import MappingProxyType
 
-from juli_backend.services.metrics.registry import OrderBasis, Platform, SourceSpec, Unit
+from juli_backend.services.metrics.registry import (
+    OrderBasis,
+    Platform,
+    SourceSpec,
+    Unit,
+    source_available,
+)
 
 #: one scope's components for one window: id -> value, ``None`` (or absent) = no data
 Components = Mapping[str, Decimal | None]
@@ -33,6 +39,8 @@ class ComponentDef:
     description: str
     sources: Mapping[Platform, SourceSpec] = field(default_factory=dict)
     summable: bool = True
+    #: the components this one stands in for on a platform that lacks them (a reported lump)
+    lump_of: tuple[str, ...] = ()
     #: in doc §4 (``False``: added by the registry for a §5 metric; see MODULE.md)
     in_doc: bool = True
 
@@ -59,6 +67,18 @@ def _c(
 
 
 V, N = Unit.vnd, Unit.items
+
+#: TikTok reports only the seller-funded discount lump, not promo / voucher / combo apart.
+_OFFER_LUMP = ComponentDef(
+    id="offer_seller_total",
+    unit=V,
+    description="seller-funded discount lump (platform gives no promo / voucher / combo split)",
+    sources=MappingProxyType(
+        {Platform.tiktok: SourceSpec("order_lines", _C, "seller_discount", "lump")}
+    ),
+    lump_of=("offer_promo", "offer_voucher", "offer_combo"),
+    in_doc=False,
+)
 
 _ALL = (
     # platform shop totals (T8)
@@ -242,4 +262,41 @@ _ALL = (
     ),
 )
 
-COMPONENTS: Mapping[str, ComponentDef] = MappingProxyType({c.id: c for c in _ALL})
+COMPONENTS: Mapping[str, ComponentDef] = MappingProxyType({c.id: c for c in (*_ALL, _OFFER_LUMP)})
+
+
+def component_available(platform: Platform, component_id: str) -> bool:
+    """Does ``platform`` have a source for this component? (No source: "—", never 0.)"""
+    return platform in COMPONENTS[component_id].sources
+
+
+def resolve_components(platform: Platform, components: Components) -> Components:
+    """The components to hand ``evaluate`` for ``platform``: a lump replaces the parts it stands in
+    for when the platform has none of them (``cost_offers`` = ``offer_seller_total`` on TikTok).
+
+    The lump is carried in the first part and the others are 0, so their sum is the lump; a
+    missing lump leaves the parts missing (``None``). Nothing changes on a platform that has the
+    parts (Shopee).
+    """
+    out = dict(components)
+    for lump in COMPONENTS.values():
+        if not lump.lump_of or not component_available(platform, lump.id):
+            continue
+        if any(component_available(platform, part) for part in lump.lump_of):
+            continue
+        total = components.get(lump.id)
+        first, *rest = lump.lump_of
+        out[first] = total
+        for part in rest:
+            out[part] = None if total is None else Decimal(0)
+    return out
+
+
+def gate_source(platform: Platform, source: str, components: Components) -> Components:
+    """One traffic source's components: all ``None`` when the platform has no such source.
+
+    ``evaluate`` over the result gives ``None`` (rendered "—"), never 0.
+    """
+    if source_available(platform, source):
+        return components
+    return {cid: None for cid in components}
