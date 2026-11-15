@@ -173,3 +173,32 @@ async def test_tong_quan_export_reads_each_window_once_not_per_product(session, 
     assert products >= 1
     # current + previous window, plus the baseline windows of the per-product plan levels
     assert len(calls) <= 4 + products
+
+
+async def test_export_lists_every_active_listing_and_the_days_own_totals(session, shop):
+    """ORY Oct export: 6 of ~28 active listings, days that only counted affiliate, a negative
+    "Cả shop". Every active listing is a row, a stored day carries its own GMV / orders, and no
+    "Cả shop" channel cell is negative."""
+    from juli_backend.services.exports import collect
+    from juli_backend.services.shopee_analytics import service as sa_service
+
+    seeded, _ = shop
+    data = await collect_tong_quan(
+        session, seeded.shop_id, shop_name="Mẫu", now=NOW, period="custom", start=FIRST, end=AS_OF
+    )
+    window = await sa_service.resolve(
+        session, seeded.shop_id, period="custom", start=FIRST, end=AS_OF
+    )
+    view, rows = await collect._view(session, seeded.shop_id, window)
+    listed = {p.product_id for p in data.products}
+    assert set(view.active_items) <= listed
+    stored = {d.day: d for d in rows.shop_days}
+    for day in data.days:
+        if day.day in stored:
+            assert day.total_gmv == float(stored[day.day].gmv)
+            assert day.total_orders == float(stored[day.day].orders)
+    rest = data.products[-1]
+    assert rest.product_id == tq.SHOP_ROW_LABEL
+    for key in tq.CHANNELS:
+        g = rest.now.channel(key).gmv
+        assert g is None or g >= 0

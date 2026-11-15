@@ -126,7 +126,9 @@ def test_product_sheet_total_equals_the_shop():
     assert sum(ws.cell(r, 15).value for r in range(4, total)) == pytest.approx(
         d.now.channel("ads").gmv
     )
-    assert ws["C4"].value == "=SUM(N4:P4)" and ws["J4"].value == '=IFERROR(N4/C4,"")'
+    # GMV = the product's own order GMV (not Σ its channels: their reports can disagree)
+    assert ws["C4"].value == d.products[0].now.gmv and ws["J4"].value == '=IFERROR(N4/C4,"")'
+    assert ws[f"C{total}"].value == f"=SUM(C{tq.P_FIRST}:C{total - 1})"
     assert ws["M4"].value == '=IFERROR(G4/Q4,"")' and ws["E4"].value == 2.0
     assert ws["D4"].value.startswith("=IFERROR(C4/") and ws["F4"].value == '=IFERROR(C4/E4,"")'
     assert all(ws.column_dimensions[x].hidden for x in "NOPQ")
@@ -266,10 +268,50 @@ def test_sku_sheet_columns_and_formulas():
         tq.SkuRow("S1", "Đỏ", "SP", 10, 8, 1000, 900, 100, 90, 5, 6),
         tq.SkuRow("S2", None, "SP", None, 3, None, 300, None, None, 2, None),
     ]
+    data.skus.append(tq.SkuRow("G500001", "Combo 10 hộp", "SP", units=2, revenue=500, combo=10))
     ws = tq.build(data)[tq.SHEET_SKU]
-    assert [c.value for c in ws[3]] == tq.SKU_HEADER and len(tq.SKU_HEADER) == 16
-    assert ws["P4"].value == '=IF(O4="","",MAX(0,O4-N4))' and ws["D6"].value == "=SUM(D4:D5)"
-    assert ws["A6"].value == "Tổng"
+    assert [c.value for c in ws[3]] == tq.SKU_HEADER and len(tq.SKU_HEADER) == 17
+    assert ws["P4"].value == '=IF(O4="","",MAX(0,O4-N4))' and ws["Q6"].value == 10
+    # the GMV gap row brings Σ Doanh thu thực tế to the overview's GMV, then the Tổng row
+    assert ws["A7"].value == tq.SKU_GAP_LABEL
+    assert ws["H7"].value == f"='{tq.SHEET_OVERVIEW}'!B{tq.OV['gmv']}-SUM(H4:H6)"
+    assert ws["A8"].value == "Tổng" and ws["H8"].value == "=SUM(H4:H7)"
+    assert ws["D8"].value == "=SUM(D4:D7)"
+
+
+def test_split_sku_takes_the_combo_factor_off_the_code():
+    from juli_backend.services.exports.collect import split_sku
+
+    assert split_sku("G500001×10") == ("G500001", 10.0)
+    assert split_sku("G700010") == ("G700010", None)
+    assert split_sku("Không có SKU") == ("Không có SKU", None)
+    assert split_sku("A×b") == ("A×b", None)
+
+
+def test_day_sheet_takes_the_days_own_gmv_and_orders():
+    """ORY Oct export: from 05/10 a day had no traffic-source rows, so GMV = Σ channels counted
+    affiliate only (5,96 tr of 21,68 tr). The day's stored order totals now fill GMV / Đơn."""
+    data = _data()
+    d0 = data.days[0]
+    data.days = [
+        tq.DayRow(d0.day, {k: None for k in tq.CHANNELS}, {k: None for k in tq.CHANNELS},
+                  total_gmv=1_200_000.0, total_orders=7.0),
+        tq.DayRow(d0.day, {"organic": 100.0, "ads": 50.0, "affiliate": 25.0},
+                  {"organic": 1.0, "ads": 1.0, "affiliate": 1.0}),
+    ]  # fmt: skip
+    ws = tq.build(data)[tq.SHEET_DAY]
+    r = tq.DAY_FIRST
+    assert ws.cell(r, 5).value == 1_200_000.0 and ws.cell(r, 6).value == 7.0
+    assert ws.cell(r, 2).value is None and ws.cell(r, 4).value is None
+    assert ws.cell(r + 1, 5).value == f"=SUM(B{r + 1}:D{r + 1})" and ws.cell(r + 1, 6).value == 3.0
+
+
+def test_residual_channel_past_the_shop_is_unknown_not_negative():
+    shop = _fig(1)
+    parts = [_fig(0.8), _fig(0.6)]  # the products' reports add up past the shop
+    rest = _residual(shop, parts)
+    assert rest.channel("organic").gmv is None and rest.channel("ads").gmv is None
+    assert rest.gmv == pytest.approx(5_500_000 * -0.4)  # the GMV residual itself is kept
 
 
 def test_result_text_is_the_actual_and_the_verdict_of_the_measurement_row():

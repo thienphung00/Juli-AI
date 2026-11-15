@@ -240,8 +240,9 @@ def build_rows(
 ) -> list[Row]:
     """The rows (one per SKU of each product, in ``product_ids`` order). ``base`` = per product the
     SKU figures of its baseline window; ``catalog_variations`` = per product its listed
-    (variation id, name, seller SKU) for the SKUs that only have stock. ``plans_full`` = the
-    products' Kế hoạch figures of the WHOLE period (``plans`` when the period is not finished):
+    (variation id, name, seller SKU): every listed variation gets a row, sold or not.
+    ``plans_full`` = the products' Kế hoạch figures of the WHOLE period (``plans`` when the period
+    is not finished):
     Cần bán đến cuối kỳ = max(0, units goal of the whole period - units sold so far), 0 when the
     period is ``finished``."""
     rows: list[Row] = []
@@ -250,7 +251,8 @@ def build_rows(
         base_figs = base.get(pid, {})
         sold = {k[2] for k in keys if k[2]}
         for vid, _vname, seller in catalog_variations.get(pid, ()):
-            if vid not in sold and (stock.of(pid, vid, only_sku=False) or 0) > 0:
+            # every listed variation: an unsold one is a 0 row (its stock still shows)
+            if vid not in sold:
                 keys.add((pid, seller or vid, vid))
         ordered = sorted(keys, key=lambda k: (-float(now[k].revenue) if k in now else 0.0, k[1]))
         rev_goal, prof_goal = _goals(plans.get(pid) or {}, ordered, base_figs)

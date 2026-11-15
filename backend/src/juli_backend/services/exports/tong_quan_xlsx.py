@@ -89,6 +89,10 @@ class DayRow:
     goal_gmv: float | None = None
     baseline_profit: float | None = None
     goal_profit: float | None = None
+    #: the day's own GMV / orders (the stored daily order totals): what the GMV / Đơn columns
+    #: show, so the days add up to the period even on a day without traffic-source rows
+    total_gmv: float | None = None
+    total_orders: float | None = None
 
 
 @dataclass
@@ -114,6 +118,8 @@ class SkuRow:
     profit: float | None = None
     stock: float | None = None
     need: float | None = None  # units still to sell until the end of the period
+    #: units per variation of a combo SKU ("G500001×10" -> sku "G500001", combo 10)
+    combo: float | None = None
 
 
 @dataclass
@@ -288,8 +294,10 @@ def _days(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, 1, d.day, DATE)
         for i, key in enumerate(CHANNELS):
             put(ws, r, 2 + i, d.gmv.get(key), MONEY)
-        put(ws, r, 5, f"=SUM(B{r}:D{r})", MONEY)
-        put(ws, r, 6, _sum(*d.orders.values()), INT)
+        gmv = d.total_gmv if d.total_gmv is not None else f"=SUM(B{r}:D{r})"
+        put(ws, r, 5, gmv, MONEY)
+        orders = d.total_orders if d.total_orders is not None else _sum(*d.orders.values())
+        put(ws, r, 6, orders, INT)
         put(ws, r, 7, _sum(d.ads_cost, d.aff_cost, d.offer_cost), MONEY)
         put(ws, r, 8, d.profit, MONEY)
         put(ws, r, 9, d.goal_gmv, MONEY)
@@ -316,8 +324,9 @@ P_HELP_HEADER = ["GMV Organic", "GMV Quảng cáo", "GMV TTLK", "Tổng chi phí
 P_FIRST = 4
 
 
-def _product_formulas(ws, r: int) -> None:
-    put(ws, r, 3, f"=SUM(N{r}:P{r})", MONEY)
+def _product_formulas(ws, r: int, gmv: float | str | None = None) -> None:
+    """GMV = the product's own order GMV when known (``gmv``), else the sum of its channels."""
+    put(ws, r, 3, gmv if gmv is not None else f"=SUM(N{r}:P{r})", MONEY)
     put(ws, r, 6, f'=IFERROR(C{r}/E{r},"")', PCT)
     put(ws, r, 9, f'=IFERROR(G{r}/H{r},"")', PCT)
     for c, h in ((10, "N"), (11, "O"), (12, "P")):
@@ -334,22 +343,25 @@ def _products(wb: Workbook, data: TongQuanData) -> None:
     for r, p in enumerate(data.products, start=P_FIRST):
         put(ws, r, 1, p.product_id)
         put(ws, r, 2, p.name)
-        put(ws, r, 4, _change_vs(f"C{r}", gmv_of(p.prev)), PCT)
+        prev_gmv = p.prev.gmv if p.prev.gmv is not None else gmv_of(p.prev)
+        put(ws, r, 4, _change_vs(f"C{r}", prev_gmv), PCT)
         put(ws, r, 5, p.now.goal_gmv, MONEY)
         put(ws, r, 7, p.now.profit, MONEY)
         put(ws, r, 8, p.now.goal_profit, MONEY)
         for c, key in zip((14, 15, 16), CHANNELS, strict=True):
             put(ws, r, c, p.now.channel(key).gmv, MONEY)
         put(ws, r, 17, cost_of(p.now), MONEY)
-        _product_formulas(ws, r)
+        _product_formulas(ws, r, p.now.gmv)
     total, last = r + 1, max(r, P_FIRST)
     put(ws, total, 1, "Tổng", bold=True)
     for c in (5, 7, 8, 14, 15, 16, 17):
         L = col(c)
         put(ws, total, c, f"=SUM({L}{P_FIRST}:{L}{last})", MONEY, bold=True)
-    prev_total = _sum(*(gmv_of(p.prev) for p in data.products))
+    prev_total = _sum(
+        *((p.prev.gmv if p.prev.gmv is not None else gmv_of(p.prev)) for p in data.products)
+    )
     put(ws, total, 4, _change_vs(f"C{total}", prev_total), PCT)
-    _product_formulas(ws, total)
+    _product_formulas(ws, total, f"=SUM(C{P_FIRST}:C{last})")
     widths(ws, {1: 16, 2: 38}, 15)
     _hide(ws, *P_HELP)
     finish(ws, "C4")
@@ -361,8 +373,11 @@ SKU_HEADER = [
     "Mã SKU", "Phân loại", "Sản phẩm", "Số lượng bán mục tiêu", "Số lượng bán thực tế", "% đạt",
     "Doanh thu mục tiêu", "Doanh thu thực tế", "% đạt", "Lợi nhuận mục tiêu",
     "Lợi nhuận thực tế", "% đạt", "Biên", "Tồn kho", "Cần bán đến cuối kỳ", "Cần nhập",
+    "Hệ số combo",
 ]  # fmt: skip
 SKU_FIRST = 4
+#: the row that brings Σ Doanh thu thực tế to the period's GMV (returns, lines without a SKU)
+SKU_GAP_LABEL = "Chênh lệch với GMV"
 
 
 def _skus(wb: Workbook, data: TongQuanData) -> None:
@@ -377,10 +392,14 @@ def _skus(wb: Workbook, data: TongQuanData) -> None:
         for c, v, fmt in (
             (4, k.units_goal, INT), (5, k.units, INT), (7, k.revenue_goal, MONEY),
             (8, k.revenue, MONEY), (10, k.profit_goal, MONEY), (11, k.profit, MONEY),
-            (14, k.stock, INT), (15, k.need, INT),
+            (14, k.stock, INT), (15, k.need, INT), (17, k.combo, INT),
         ):  # fmt: skip
             put(ws, r, c, v, fmt)
         _sku_formulas(ws, r)
+    if data.skus:
+        r += 1
+        put(ws, r, 1, SKU_GAP_LABEL)
+        put(ws, r, 8, f"='{SHEET_OVERVIEW}'!B{OV['gmv']}-SUM(H{SKU_FIRST}:H{r - 1})", MONEY)
     total, last = r + 1, max(r, SKU_FIRST)
     put(ws, total, 1, "Tổng", bold=True)
     for c, fmt in ((4, INT), (5, INT), (7, MONEY), (8, MONEY), (10, MONEY), (11, MONEY),

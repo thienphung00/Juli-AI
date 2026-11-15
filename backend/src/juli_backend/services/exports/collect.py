@@ -47,6 +47,9 @@ from juli_backend.services.shopee_recommendations import (
 from juli_backend.services.shopee_recommendations import service as reco_service
 
 _CHANNEL_FIELDS = ("views", "clicks", "orders", "gmv", "cost")
+#: order lines whose SKU matched no listing ("sku:…" product ids)
+UNMATCHED_PREFIX = "sku:"
+UNMATCHED_LABEL = "Đơn không khớp sản phẩm"
 METRIC_LABELS = {
     "views": "Lượt xem", "ctr": "CTR", "ctor": "CTOR", "aov": "AOV", "orders": "Đơn",
     "ads_gmv": "GMV quảng cáo", "roas": "ROAS",
@@ -127,12 +130,18 @@ def _residual(shop: tq.Figures, parts: list[tq.Figures]) -> tq.Figures:
     def sub(a: float | None, vals: list[float | None]) -> float | None:
         return None if a is None else a - sum(v for v in vals if v is not None)
 
+    def sub_channel(a: float | None, vals: list[float | None]) -> float | None:
+        # a channel's products can add up past the shop (the product rows and the shop row come
+        # from different reports): the "Cả shop" cell is then unknown, never a negative figure
+        got = sub(a, vals)
+        return None if got is not None and got < 0 else got
+
     channels = {}
     for key in tq.CHANNELS:
         s = shop.channel(key)
         ps = [p.channel(key) for p in parts]
         channels[key] = tq.Channel(
-            *(sub(getattr(s, n), [getattr(p, n) for p in ps]) for n in _CHANNEL_FIELDS)
+            *(sub_channel(getattr(s, n), [getattr(p, n) for p in ps]) for n in _CHANNEL_FIELDS)
         )  # fmt: skip
     return tq.Figures(
         channels=channels,
@@ -218,6 +227,13 @@ async def collect_tong_quan(
     if pview is not None:
         prev_listing = await channel_split.channel_split_products(session, shop_id, **kw_prev)
         names.update({p["product_id"]: p["name"] for p in prev_listing["products"]})
+    # every active listing (the Sản phẩm list), not only those with channel data: a product
+    # without orders in the period is a 0 row, not a missing one
+    for i, name in getattr(view, "active_items", {}).items():
+        names.setdefault(i, name)
+    for i in names:
+        if i.startswith(UNMATCHED_PREFIX):
+            names[i] = UNMATCHED_LABEL
 
     async def figures(v: PeriodView | None, w: Window, pid: str | None) -> tq.Figures:
         if v is None:
@@ -264,16 +280,22 @@ async def collect_tong_quan(
         }
         sd = prod_days.get(d) if product_id else shop_days.get(d)
         t = day_plan.get(d.isoformat(), {})
+        # no traffic-source rows that day: the channel split is unknown (not "all affiliate")
+        traffic = by["organic"]["gmv"] is not None or by["ads"]["gmv"] is not None
+        gmv_by = {key: _f(by[key]["gmv"]) if traffic else None for key in tq.CHANNELS}
+        orders_by = {key: _f(by[key]["orders"]) if traffic else None for key in tq.CHANNELS}
         days.append(
             tq.DayRow(
                 d,
-                {key: _f(by[key]["gmv"]) for key in tq.CHANNELS},
-                {key: _f(by[key]["orders"]) for key in tq.CHANNELS},
+                gmv_by,
+                orders_by,
                 _f(sd.ads_spend) if product_id and sd else None if product_id else _f(spend.get(d)),
                 _aff_cost_day(view, d, product_id),
                 _offer_cost(view, product_id, d),
                 None if sd is None else _f(sd.profit),
                 **_plan_of(t),
+                total_gmv=None if sd is None else _f(sd.gmv),
+                total_orders=None if sd is None else _f(sd.orders),
             )  # fmt: skip
         )
     skus = await _sku_rows(
@@ -335,22 +357,38 @@ async def _sku_rows(
         product_ids=product_ids, names=names, now=now_figs, base=base, plans=plans_of, stock=stock,
         catalog_variations=catalog_variations, finished=finished, plans_full=plans_full,
     )  # fmt: skip
-    return [
-        tq.SkuRow(
-            r.sku,
-            r.variation,
-            r.product_name,
-            r.units_goal,
-            r.units,
-            r.revenue_goal,
-            r.revenue,
-            r.profit_goal,
-            r.profit,
-            r.stock,
-            r.need,
+    out = []
+    for r in rows:
+        code, combo = split_sku(r.sku)
+        out.append(
+            tq.SkuRow(
+                code,
+                r.variation,
+                r.product_name,
+                r.units_goal,
+                r.units,
+                r.revenue_goal,
+                r.revenue,
+                r.profit_goal,
+                r.profit,
+                r.stock,
+                r.need,
+                combo,
+            )
         )
-        for r in rows
-    ]
+    return out
+
+
+def split_sku(label: str) -> tuple[str, float | None]:
+    """A combo cost key "G500001×10" -> ("G500001", 10.0): Seller Centre's SKU and the units per
+    variation; any other label as it is."""
+    code, sep, mult = label.partition("×")
+    if not sep:
+        return label, None
+    try:
+        return code, float(mult)
+    except ValueError:
+        return label, None
 
 
 # ----------------------------------------------------------------------------- Kế hoạch
