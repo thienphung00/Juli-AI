@@ -2,6 +2,7 @@
 // seller's on-screen vocabulary only (D31.8): no endpoint or backend terms.
 
 import type { Backfill, ReaderSchedule } from "../background/state";
+import { DATASET_LABELS } from "./guide";
 
 export const CONSENT_REQUIRED_MESSAGE =
   "Shop này chưa được cấp quyền đồng bộ dữ liệu với Juli, nên tiện ích đã tạm dừng gửi số liệu. " +
@@ -21,8 +22,13 @@ export function backfillLabel(backfill: Backfill | null | undefined): string | n
         return `Tạm dừng lấy số liệu ${total} ngày trước (${done}/${total} ngày): shop chưa được cấp quyền đồng bộ`;
       case "unpaired":
         return `Tạm dừng lấy số liệu ${total} ngày trước (${done}/${total} ngày): kết nối lại với Juli để tiếp tục`;
-      default:
-        return `Tạm dừng lấy số liệu ${total} ngày trước (${done}/${total} ngày): Seller Centre đã thay đổi`;
+      default: {
+        // 0.3.20: which page stopped it (and Shopee's code), so it can be checked.
+        const stop = backfill.stop;
+        const page = stop?.dataset ? DATASET_LABELS[stop.dataset] : undefined;
+        const why = [page, stop?.code ? `mã ${stop.code}` : undefined].filter(Boolean).join(", ");
+        return `Tạm dừng lấy số liệu ${total} ngày trước (${done}/${total} ngày): Seller Centre đã thay đổi${why ? ` (${why})` : ""}`;
+      }
     }
   }
   if (backfill.needsDataPage) {

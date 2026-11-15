@@ -110,7 +110,8 @@ describe("filling the title", () => {
       await realSleep(ms);
     };
     expect((await runFill(h.deps)).status).toBe("filled");
-    expect(calls).toBe(3);
+    // Found on the 3rd poll; 0.3.20 then waits for the value to settle and re-reads after writing.
+    expect(calls).toBeGreaterThanOrEqual(3);
   });
 });
 

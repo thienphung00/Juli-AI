@@ -35,6 +35,7 @@ import {
   type Template as ReaderTemplate,
   trimCaptured,
 } from "../shopee/reader";
+import { goToNextOrderPage, orderLinksIn, orderListEmptyIn } from "../shopee/order-dom";
 import { Pacer, runDay, type DayRequest } from "../shopee/runner";
 import { type PlannedRequest, requestUrl } from "../shopee/sync";
 import { gmt7Date } from "../shopee/time";
@@ -74,6 +75,21 @@ function remember(url: URL): void {
     else params[key] = value;
   });
   templates.set(url.pathname, { params, day: today() });
+}
+
+/**
+ * 0.3.20: the session params of ANY Seller Centre /api/ call the page makes (the order list page
+ * makes none of the calls above any more). Only the two params, kept in this page's memory.
+ */
+function noteSession(rawUrl: string): void {
+  try {
+    const url = new URL(rawUrl, location.href);
+    if (url.origin !== SELLER_CENTRE_ORIGIN || !url.pathname.startsWith("/api/")) return;
+    if (!SESSION_PARAMS.every((key) => url.searchParams.has(key))) return;
+    for (const key of SESSION_PARAMS) session[key] = url.searchParams.get(key) as string;
+  } catch {
+    // not a URL
+  }
 }
 
 function publicUrl(url: URL): string {
@@ -174,6 +190,7 @@ const originalFetch = window.fetch.bind(window);
 window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
   const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  noteSession(raw);
   const reader = readerTarget(raw, method);
   if (reader) {
     // Before the call, so a page request that fails still teaches the template.
@@ -246,6 +263,7 @@ XMLHttpRequest.prototype.open = function open(
   url: string | URL,
   ...rest: unknown[]
 ): void {
+  noteSession(String(url));
   if (method.toUpperCase() === "POST") xhrPosts.set(this, String(url));
   const target = method.toUpperCase() === "GET" ? watched(String(url)) : null;
   if (target) {
@@ -416,6 +434,10 @@ async function runReader(job: ReaderJob): Promise<void> {
     // The shared daily request budget: what the service worker granted this job.
     ...(typeof job.budget === "number" ? { budget: { left: job.budget } } : {}),
     pause: sleep,
+    // The order list page (0.3.20): its order links, its empty state and its own pager.
+    orderLinks: () => orderLinksIn(document),
+    orderListEmpty: () => orderListEmptyIn(document),
+    nextOrderPage: () => goToNextOrderPage(document),
   };
   const outcome = await runReaderJob(job, env);
   window.postMessage(

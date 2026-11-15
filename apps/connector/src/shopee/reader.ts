@@ -13,6 +13,7 @@ import {
   AFFILIATE_WINDOW_DAYS,
   ADS_PAGE_LIMIT_DEFAULT,
   ADS_HISTORY_DAY_COST,
+  ORDER_DETAIL_MAX_PER_RUN,
   ORDER_LIST_MAX_PAGES_PER_RUN,
   ORDER_LIST_MIN_PAGES,
   ORDER_LIST_PAGE_GAP_JITTER_MS,
@@ -29,8 +30,8 @@ import {
   PRODUCT_PERIOD_PAGE_SIZE,
   VOUCHER_PAGE_LIMIT_DEFAULT,
 } from "../config";
-import { isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
-import { trimOrderCards, trimOrderIndex } from "./orders-map";
+import { isReadOnlyOrderDetailPath, isReadOnlyOrderPath, isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint } from "./endpoints";
+import { trimOrderCards, trimOrderDetail, trimOrderIndex } from "./orders-map";
 import type { Pacer } from "./runner";
 import { buildBackfillDayPlan } from "./sync";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "./time";
@@ -140,6 +141,14 @@ export interface FetchedReaderResponse {
   text(): Promise<string>;
 }
 
+/** One order card of the list page (0.3.20): the id of its link, the order number of its text. */
+export interface OrderLink {
+  /** The numeric order id of `/portal/sale/order/<id>` (what get_one_order takes). */
+  id: string;
+  /** "Mã đơn hàng <sn>": the order number (its first 6 characters are the GMT+7 day, YYMMDD). */
+  sn?: string;
+}
+
 export interface ReaderEnv {
   origin: string;
   pacer: Pacer;
@@ -163,6 +172,12 @@ export interface ReaderEnv {
   /** A real wait (order-list pages are spaced 20-45 s apart); absent in tests that do not care. */
   pause?: (ms: number) => Promise<void>;
   random?: () => number;
+  /** orders (0.3.20): the order cards the list page shows now (read from its DOM). */
+  orderLinks?: () => OrderLink[];
+  /** orders (0.3.20): the list page shows its "no orders" state. */
+  orderListEmpty?: () => boolean;
+  /** orders (0.3.20): go to the next list page with the page's own pager; false when there is none. */
+  nextOrderPage?: () => boolean;
 }
 
 // -- request building ----------------------------------------------------------------------
@@ -457,8 +472,9 @@ const ADS_HOMEPAGE_FALLBACK: Record<string, unknown> = { filter_list: [], use_pa
  */
 async function readAds(env: ReaderEnv, days: string[], collected: ReaderResponse[], historyDays: string[] = []): Promise<void> {
   await waitForPage(env, [], collected);
-  // The page's own homepage query is the template; its graph query is optional.
-  await env.waitFor(() => env.template("ads_homepage") !== undefined, READER_TEMPLATE_WAIT_MS / 2);
+  // The page's own homepage query is the template; its graph query is optional. 0.3.20: the ads
+  // page loads slowly (it timed out): the full template wait, twice what it had.
+  await env.waitFor(() => env.template("ads_homepage") !== undefined, READER_TEMPLATE_WAIT_MS);
   await env.waitFor(() => env.template("ads_time_graph") !== undefined, 8_000);
   const home = env.template("ads_homepage");
   const graph = env.template("ads_time_graph");
@@ -550,16 +566,32 @@ async function readAdsDetail(env: ReaderEnv, ids: string[], collected: ReaderRes
   }
 }
 
+/**
+ * The object holding a traffic answer's source blocks (`product_card`, `live`, ...), found by that
+ * key a few levels deep whatever the envelope (`{code, result}` as recorded; 0.3.20 also
+ * `{error, data}`, `{data}`, `{result}`). Null when there is none.
+ */
+export function trafficBlocks(body: unknown, depth = 3): Record<string, unknown> | null {
+  const queue: { node: unknown; level: number }[] = [{ node: body, level: 0 }];
+  while (queue.length > 0) {
+    const { node, level } = queue.shift() as { node: unknown; level: number };
+    if (!isRecord(node)) continue;
+    if (isRecord(node.product_card)) return node;
+    if (level < depth) for (const value of Object.values(node)) if (isRecord(value)) queue.push({ node: value, level: level + 1 });
+  }
+  return null;
+}
+
 /** Only the four source blocks of a traffic-details answer are kept (the funnel / pie data are not read). */
 export function trimTrafficBody(body: unknown): unknown {
   if (!isRecord(body)) return body;
-  const result = isRecord(body.result) ? body.result : isRecord(body.data) ? body.data : null;
+  const result = trafficBlocks(body);
   if (!result) return body;
   const kept: Record<string, unknown> = {};
   for (const key of ["product_card", "live", "video", "affiliate"]) {
     if (key in result) kept[key] = result[key];
   }
-  return { code: body.code, result: kept };
+  return { code: body.code ?? body.error ?? 0, result: kept };
 }
 
 /** A finished GMT+7 day as the mydata `period=day` picker sends it (end = next midnight). */
@@ -918,15 +950,106 @@ export function oldestOrderTime(cardsBody: unknown): number | undefined {
   return oldest;
 }
 
+/** The GMT+7 day an order number names (its YYMMDD prefix), or undefined. */
+export function orderSnDay(sn: string | undefined): string | undefined {
+  const m = sn ? /^(\d{2})(\d{2})(\d{2})/.exec(sn) : null;
+  if (!m) return undefined;
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return undefined;
+  return `20${m[1]}-${m[2]}-${m[3]}`;
+}
+
 /**
- * The order list: the page's OWN first answers are kept (trimmed in the page); pages 2..N are
+ * The order list as the page shows it (0.3.20). Seller Centre's list page no longer calls the
+ * list endpoints the hook could replay (it loads through Shopee's DRM bundle), so: the order ids
+ * are read from the page's own order links, page after page with the page's own pager (spaced like
+ * the list replays, 20-45 s), until every order on a page was placed before `sinceDay` (by the
+ * order number's day) or ORDER_LIST_MAX_PAGES_PER_RUN; then each order placed since `sinceDay` is
+ * read with GET get_one_order (paced, counted against the budget) and trimmed in the page.
+ * Returns a note: "no_new_orders" when none was placed since `sinceDay`, a "partial:..." note when
+ * the read stopped early (the pager, the cap, the budget), else undefined.
+ */
+async function readOrdersFromList(env: ReaderEnv, collected: ReaderResponse[], sinceDay?: string): Promise<string | undefined> {
+  const links = () => env.orderLinks?.() ?? [];
+  const orders = new Map<string, OrderLink>();
+  const random = env.random ?? Math.random;
+  let note: string | undefined;
+  for (let page = 1; ; page += 1) {
+    const shown = links();
+    for (const link of shown) if (!orders.has(link.id)) orders.set(link.id, link);
+    if (sinceDay === undefined) break;
+    const days = shown.map((link) => orderSnDay(link.sn));
+    if (shown.length > 0 && days.every((day) => day !== undefined && day < sinceDay)) break;
+    if (page >= ORDER_LIST_MAX_PAGES_PER_RUN) {
+      note = "partial:page_cap";
+      break;
+    }
+    if (!env.nextOrderPage) break;
+    await env.pause?.(ORDER_LIST_PAGE_GAP_MS + Math.floor(random() * ORDER_LIST_PAGE_GAP_JITTER_MS));
+    if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_login", collected, "password_modal"));
+    if (env.captchaVisible?.()) throw new Stop(fail("blocked_captcha", collected, "page"));
+    const before = new Set(shown.map((link) => link.id));
+    if (!env.nextOrderPage()) break; // the last page
+    const moved = await env.waitFor(() => links().some((link) => !before.has(link.id)), READER_TEMPLATE_WAIT_MS);
+    if (!moved) {
+      note = "partial:pager";
+      break;
+    }
+  }
+  const wanted = [...orders.values()].filter((link) => {
+    const day = orderSnDay(link.sn);
+    return sinceDay === undefined || day === undefined || day >= sinceDay;
+  });
+  if (wanted.length === 0) return note ?? "no_new_orders";
+  if (!isReadOnlyOrderDetailPath(READER_ENDPOINTS.order_detail.path)) return note;
+  if (!(await env.waitFor(() => env.hasSession(), 10_000))) throw new Stop(fail("needs_data_page", collected, "order_detail"));
+  // The page's own call to the order page (when the hook saw one) gives the headers; else none.
+  const template = env.template("order_detail");
+  for (const link of wanted.slice(0, ORDER_DETAIL_MAX_PER_RUN)) {
+    if (env.budget && env.budget.left <= 0) return "partial:budget";
+    const request = buildReaderRequest(env.origin, "order_detail", template, { query: { order_id: link.id } }, env.session());
+    // One order that does not answer is skipped; CAPTCHA / login / rate still stop the job.
+    const response = await send(env, request, collected, {}, true);
+    response.body = trimOrderDetail(response.body);
+  }
+  if (wanted.length > ORDER_DETAIL_MAX_PER_RUN) return "partial:detail_cap";
+  return note;
+}
+
+/**
+ * The order list: through the page's own order links (0.3.20, readOrdersFromList) when the page
+ * shows them and the old list endpoints never answered; through those endpoints otherwise. A page
+ * that shows its "no orders" state ends the job as "no_orders".
+ */
+async function readOrders(env: ReaderEnv, collected: ReaderResponse[], sinceDay?: string): Promise<string | undefined> {
+  const answered = () => env.template("order_cards")?.lastResponse !== undefined;
+  if (env.orderLinks) {
+    // 0.3.20: the list page's own links, unless the old list endpoints answer again (then below).
+    const shown = () => (env.orderLinks?.().length ?? 0) > 0;
+    const empty = () => env.orderListEmpty?.() === true;
+    await env.waitFor(() => answered() || shown() || empty(), READER_TEMPLATE_WAIT_MS);
+    // An empty state can flash while the list loads: give the cards a moment more.
+    if (!answered() && !shown() && empty()) await env.waitFor(() => answered() || shown(), 5_000);
+    if (!answered()) {
+      if (shown()) return readOrdersFromList(env, collected, sinceDay);
+      if (empty()) return "no_orders";
+      throw new Stop(fail(env.hasSession() ? "needs_template" : "needs_data_page", collected, "order_list"));
+    }
+  }
+  return readOrdersFromApi(env, collected, sinceDay);
+}
+
+/**
+ * The order list through the list endpoints (0.3.11-0.3.19; kept for a Seller Centre that calls
+ * them again): the page's OWN first answers are kept (trimmed in the page); pages 2..N are
  * replayed from the page's request templates, a pause of 20-45 s before each. 0.3.19 catches up by
  * date: it stops once a page's oldest order was placed before `sinceDay` (never before
  * ORDER_LIST_MIN_PAGES pages, the 0.3.18 depth), on a short page, or at ORDER_LIST_MAX_PAGES_PER_RUN
  * ("partial:page_cap": the next run reads further back). Nothing is replayed when the page's
  * request has no recognisable page number or id list (then only what the page loaded is read).
  */
-async function readOrders(env: ReaderEnv, collected: ReaderResponse[], sinceDay?: string): Promise<string | undefined> {
+async function readOrdersFromApi(env: ReaderEnv, collected: ReaderResponse[], sinceDay?: string): Promise<string | undefined> {
   const cutoff = sinceDay ? gmt7DateStart(sinceDay) : undefined;
   const reachedSince = (page: number, cardsBody: unknown): boolean => {
     if (cutoff === undefined) return false;

@@ -205,13 +205,44 @@ function addExtra(extra: Row, key: string, value: unknown): void {
   extra[key] = kept;
 }
 
+/**
+ * The data part of a /api/mydata answer. Seller Centre's `{code, msg, result}` wrapper, and
+ * (0.3.20) the same answer as `{error, data}`, `{data}` or `{result}`: `error` is read as the code
+ * and `data` as the result. A non-zero code is an error answer (not data, not drift). No result
+ * at all is drift, unless the dataset finds its rows elsewhere (item_by_source, see itemRowsIn).
+ */
 function unwrap(body: unknown): { result: unknown; drift: Drift | null } | null {
   if (!isObject(body)) return null;
-  if (!("code" in body) || !("result" in body)) {
-    return { result: null, drift: { unexpected: [], missing: ["code", "result"] } };
+  const code = "code" in body ? body.code : body.error;
+  if (code !== undefined && code !== null && code !== 0 && code !== "0") return null; // an error answer is not data, and not drift
+  if ("result" in body && body.result !== undefined && body.result !== null) return { result: body.result, drift: null };
+  if ("data" in body && body.data !== undefined && body.data !== null) return { result: body.data, drift: null };
+  if ("result" in body || "data" in body) return { result: body.result ?? body.data ?? null, drift: null };
+  return { result: null, drift: { unexpected: [], missing: ["code", "result"] } };
+}
+
+const ROW_LIST_KEYS = new Set(["item", "items", "list", "item_list", "rows"]);
+
+/**
+ * The per-item rows of an item-list answer, found by their keys (an item id) rather than a fixed
+ * path, a few levels deep; an empty list under a list-like key is a real empty answer. Undefined
+ * when no row list exists anywhere (drift).
+ */
+export function itemRowsIn(root: unknown, depth = 4): unknown[] | undefined {
+  if (Array.isArray(root)) return root.length === 0 || (isObject(root[0]) && itemIdOf(root[0]) !== undefined) ? root : undefined;
+  let empty: unknown[] | undefined;
+  const queue: { node: unknown; level: number }[] = [{ node: root, level: 0 }];
+  while (queue.length > 0) {
+    const { node, level } = queue.shift() as { node: unknown; level: number };
+    if (!isObject(node)) continue;
+    for (const [key, value] of Object.entries(node)) {
+      if (!Array.isArray(value)) continue;
+      if (value.length > 0 && value.every(isObject) && itemIdOf(value[0] as Record<string, unknown>) !== undefined) return value;
+      if (value.length === 0 && ROW_LIST_KEYS.has(key) && empty === undefined) empty = value;
+    }
+    if (level < depth) for (const value of Object.values(node)) if (isObject(value)) queue.push({ node: value, level: level + 1 });
   }
-  if (body.code !== 0) return null; // an error answer is not data, and not drift
-  return { result: body.result, drift: null };
+  return empty;
 }
 
 function orderTypeOf(params: URLSearchParams): OrderType {
@@ -380,8 +411,10 @@ export function mapItemBySource(
   if (!l1Source || !(L1_SOURCES as readonly string[]).includes(l1Source)) {
     return { rows: [], drift: l1Source ? { unexpected: [`l1_source=${l1Source}`], missing: [] } : null };
   }
-  if (!isObject(result)) return { rows: [], drift: { unexpected: [], missing: ["result"] } };
-  return mapItems(result.item, "result.item", (item, id, name) => {
+  // 0.3.20: the rows are found by their keys, whatever the envelope (`result.item` as recorded).
+  const items = isObject(result) && Array.isArray(result.item) ? result.item : itemRowsIn(result);
+  if (items === undefined) return { rows: [], drift: { unexpected: [], missing: ["result.item"] } };
+  return mapItems(items, "result.item", (item, id, name) => {
     const row: Row = { date, item_id: id, source: l1Source };
     if (name) row.item_name = name;
     const extra: Row = {};
@@ -492,8 +525,11 @@ export function mapCaptured(captured: Captured): Mapped | null {
   if (unwrapped === null) return null;
   const orderType = dataset === "shop_traffic" ? null : orderTypeOf(url.searchParams);
   const base = { dataset, endpoint: ENDPOINTS[dataset], date, orderType };
-  if (unwrapped.drift) return { ...base, rows: [], drift: unwrapped.drift };
-  const result = unwrapped.result;
+  // An item list found by its row keys outside any known wrapper is data, not drift (0.3.20).
+  if (unwrapped.drift && !(dataset === "item_by_source" && itemRowsIn(captured.body) !== undefined)) {
+    return { ...base, rows: [], drift: unwrapped.drift };
+  }
+  const result = unwrapped.drift ? captured.body : unwrapped.result;
   let mapped: { rows: Row[]; drift: Drift | null };
   switch (dataset) {
     case "traffic_overview":

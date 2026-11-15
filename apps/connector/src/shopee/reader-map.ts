@@ -25,6 +25,7 @@ import {
   type ReaderJob,
   type ReaderResponse,
   totalOf,
+  trafficBlocks,
 } from "./reader";
 import { gmt7Date } from "./time";
 
@@ -360,7 +361,8 @@ export function mapItemTraffic(responses: ReaderResponse[]): Mapped[] {
       const itemId = digits(response.itemId);
       if (itemId === undefined || seen.has(itemId)) continue;
       seen.add(itemId);
-      const result = isRecord(response.body) && isRecord(response.body.result) ? response.body.result : null;
+      // The source blocks wherever the envelope keeps them (0.3.20: with or without code / result).
+      const result = trafficBlocks(response.body);
       const card = result && isRecord(result.product_card) ? result.product_card : null;
       if (!card || !isRecord(card.total)) {
         if (!issues.missing.includes("result.product_card.total")) issues.missing.push("result.product_card.total");

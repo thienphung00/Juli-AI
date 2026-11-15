@@ -11,6 +11,14 @@
 // The order id leaves the mapper only as `__order_id__`; the service worker replaces it by
 // `order_ref` (the shop's keyed hash) before posting, exactly like the affiliate reader.
 //
+// 0.3.20 (captured 2026-11-15, ORY, field names only): the list page no longer calls the two list
+// endpoints (it loads through Shopee's DRM bundle). The reader takes the order ids from the list
+// page's links and reads each order with GET /api/v3/order/get_one_order (`{code, data:{order}}`):
+// data.order_id / order_sn / status / status_info.status (Vietnamese text) / create_time /
+// complete_time, money as whole-dong strings, data.order_items[] with item_id, model_id, amount,
+// order_price, item_model{sku, name, model_id}, product{sku}, line_item_id and the combo lists
+// (bundle_deal_model / bundle_deal_product / item_list). `trimOrderDetail` is the same allowlist.
+//
 // TODO(first capture, ORY, one order list page and one order page): the card / income shapes below
 // are the recon's field NAMES arranged by the usual Seller Centre conventions, not a captured body.
 // Check: (1) the card list key and the per-card item list; (2) `status` as text or number;
@@ -79,6 +87,8 @@ const ORDER_KEEP = new Set([
   "combo_discount",
   "bank_promo_amount",
   "promotion_type",
+  // get_one_order (0.3.20): the order-level price before discount (whole dong).
+  "price_before_discount",
 ]);
 /** Line-level keys. The product name is dropped too (not needed, and not ours to keep). */
 const ITEM_KEEP = new Set([
@@ -101,8 +111,14 @@ const ITEM_KEEP = new Set([
   "price_before_discount",
   "seller_discount",
   "shopee_discount",
+  // get_one_order (0.3.20)
+  "line_item_id",
+  "add_on_deal_id",
+  "bundle_deal_id",
 ]);
-const ITEM_LISTS = ["items", "item_list", "order_items", "model_list", "order_item_list"] as const;
+const ITEM_LISTS = ["order_items", "items", "item_list", "model_list", "order_item_list"] as const;
+/** A combo line's own lines (get_one_order): empty for a plain item. */
+const SUB_ITEM_LISTS = ["bundle_deal_model", "bundle_deal_product", "item_list"] as const;
 const ORDER_NODES = ["order_card", "card", "order", "order_info", "order_ext_info"] as const;
 
 function keep(source: Record<string, unknown>, allowed: ReadonlySet<string>): Record<string, unknown> {
@@ -113,15 +129,47 @@ function keep(source: Record<string, unknown>, allowed: ReadonlySet<string>): Re
   return out;
 }
 
+/**
+ * One line with only allowlisted keys. Nested objects never pass whole: `item_model` gives its
+ * variation SKU, variation name and model id, `product` only its SKU (its name is dropped); a
+ * combo's sub-lines (one level) come along as `sub_items`, trimmed the same way.
+ */
+function trimItem(item: Record<string, unknown>, depth = 0): Record<string, unknown> {
+  const out = keep(item, ITEM_KEEP);
+  const model = isRecord(item.item_model) ? item.item_model : undefined;
+  if (model) {
+    if (typeof model.sku === "string" && out.model_sku === undefined) out.model_sku = model.sku;
+    if (typeof model.name === "string" && out.model_name === undefined) out.model_name = model.name;
+    if (out.model_id === undefined && (typeof model.model_id === "number" || typeof model.model_id === "string")) out.model_id = model.model_id;
+  }
+  const product = isRecord(item.product) ? item.product : undefined;
+  if (product && typeof product.sku === "string" && out.item_sku === undefined) out.item_sku = product.sku;
+  if (depth === 0) {
+    for (const key of SUB_ITEM_LISTS) {
+      const list = item[key];
+      if (Array.isArray(list) && list.some(isRecord)) {
+        out.sub_items = list.filter(isRecord).map((sub) => trimItem(sub, depth + 1));
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 /** One order record (flattened from its wrappers) with only allowlisted keys. */
 function trimOrder(card: Record<string, unknown>): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...card };
   for (const node of ORDER_NODES) if (isRecord(card[node])) Object.assign(merged, card[node]);
   const out = keep(merged, ORDER_KEEP);
+  // The status as Seller Centre shows it ("Đã giao cho ĐVVC"): text only, never the whole object.
+  for (const node of ["status_info", "status_info_v2"]) {
+    const info = merged[node];
+    if (isRecord(info) && typeof info.status === "string" && out.status_text === undefined) out.status_text = info.status.slice(0, 80);
+  }
   for (const listKey of ITEM_LISTS) {
     const list = merged[listKey];
     if (Array.isArray(list)) {
-      out.items = list.filter(isRecord).map((item) => keep(item, ITEM_KEEP));
+      out.items = list.filter(isRecord).map((item) => trimItem(item));
       break;
     }
   }
@@ -145,6 +193,17 @@ export function trimOrderCards(body: unknown): unknown {
   return { code: isRecord(body) ? body.code : undefined, data: { list: (found?.list ?? []).map(trimOrder) } };
 }
 
+/**
+ * One get_one_order answer (0.3.20): the order with allowlisted keys only (PII dropped in the
+ * page: no address, buyer, remark, tracking). `data` is null when the answer holds no order.
+ */
+export function trimOrderDetail(body: unknown): unknown {
+  const data = payloadOf(body);
+  const order = isRecord(data) && isOrderRecord(data) ? data : null;
+  const code = isRecord(body) ? (body.code ?? body.error) : undefined;
+  return { code, data: order ? trimOrder(order) : null };
+}
+
 // -- order lines --------------------------------------------------------------------------------
 
 /** 0.3.19: the order list catches up by date (up to 40 pages of 40 orders): room for every line. */
@@ -153,13 +212,29 @@ const MONEY_FIELDS = ["item_price", "original_price", "order_price", "deal_price
 
 type OrderStatusName = "delivered" | "cancelled" | "in_transit" | "refunded_accepted" | "refunded_not_received";
 
-/** Seller Centre's status as text or number -> the contract-10 value. Unknown = in_transit (not counted as sold). */
+/**
+ * Seller Centre's status as text or number -> the contract-10 value. Unknown = in_transit (not
+ * counted as sold). 0.3.20: the order page's Vietnamese text ("Đã giao cho ĐVVC" is handed to the
+ * carrier, not delivered; "Hoàn thành" is complete, not a refund).
+ */
 export function orderStatusOf(value: unknown): OrderStatusName {
-  const t = typeof value === "string" ? value.toLowerCase() : "";
-  if (/cancel|hủy|huy/.test(t)) return "cancelled";
-  if (/refund|return|hoàn|hoan|trả/.test(t)) return /accept|done|complete|thành công/.test(t) ? "refunded_accepted" : "refunded_not_received";
-  if (/complete|deliver|hoàn thành|đã giao/.test(t)) return "delivered";
+  const t = typeof value === "string" ? value.normalize("NFC").toLowerCase() : "";
+  if (/cancel|hủy|huỷ|huy/.test(t)) return "cancelled";
+  if (/refund|return|trả hàng|hoàn tiền|tra hang|hoan tien/.test(t)) {
+    return /accept|done|complete|thành công|đã hoàn tiền|chấp nhận/.test(t) ? "refunded_accepted" : "refunded_not_received";
+  }
+  if (/đvvc|dvvc|đang giao|chờ giao|chờ lấy|vận chuyển|shipping|shipped|transit/.test(t)) return "in_transit";
+  if (/complete|deliver|hoàn thành|đã giao|đã nhận/.test(t)) return "delivered";
   return "in_transit";
+}
+
+/** An order's status: the shown text first, then the code; a completion time means delivered. */
+function statusOfOrder(order: Record<string, unknown>): OrderStatusName {
+  const text = order.status_text ?? (typeof order.status === "string" ? order.status : order.order_status);
+  if (typeof text === "string" && text.trim() !== "") return orderStatusOf(text);
+  const completed = num(order.complete_time ?? order.completed_time ?? order.order_complete_time);
+  if (completed !== undefined && completed > 0) return "delivered";
+  return orderStatusOf(order.status ?? order.order_status);
 }
 
 function dayOf(wall: string | undefined): string | undefined {
@@ -172,36 +247,77 @@ function dayOf(wall: string | undefined): string | undefined {
  * three join on one `order_ref`), else `order_id`. `api` is the id the order page / income call uses.
  * TODO(first capture): confirm which of the two ids the cards carry.
  */
-function collectOrders(responses: ReaderResponse[]): Map<string, Record<string, unknown> & { __api?: string }> {
-  const orders = new Map<string, Record<string, unknown> & { __api?: string }>();
+type CollectedOrder = Record<string, unknown> & { __api?: string; __detail?: boolean };
+
+const ORDER_ENDPOINTS = new Set(["order_cards", "order_detail"]);
+
+function collectOrders(responses: ReaderResponse[]): Map<string, CollectedOrder> {
+  const orders = new Map<string, CollectedOrder>();
   for (const response of responses) {
-    if (response.endpoint !== "order_cards" || classify(response.status, response.body) !== "ok") continue;
-    for (const order of findList(payloadOf(response.body), isOrderRecord, 5)?.list ?? []) {
+    if (!ORDER_ENDPOINTS.has(response.endpoint) || classify(response.status, response.body) !== "ok") continue;
+    const payload = payloadOf(response.body);
+    const detail = response.endpoint === "order_detail";
+    const list = detail
+      ? isRecord(payload) && isOrderRecord(payload)
+        ? [payload]
+        : []
+      : (findList(payload, isOrderRecord, 5)?.list ?? []);
+    for (const order of list) {
       const sn = idOf(order.order_sn);
       const api = idOf(order.order_id);
       const key = sn ?? api;
-      if (key !== undefined && !orders.has(key)) orders.set(key, { ...order, ...(api !== undefined ? { __api: api } : {}) });
+      if (key !== undefined && !orders.has(key)) {
+        orders.set(key, { ...order, ...(api !== undefined ? { __api: api } : {}), ...(detail ? { __detail: true } : {}) });
+      }
     }
   }
   return orders;
 }
 
+/** The lines an order is posted as: a combo line with priced sub-lines is posted as those (0.3.20). */
+function linesOf(order: Record<string, unknown>): Record<string, unknown>[] {
+  const items = Array.isArray(order.items) ? order.items.filter(isRecord) : [];
+  return items.flatMap((item) => {
+    const subs = Array.isArray(item.sub_items) ? item.sub_items.filter(isRecord) : [];
+    const priced = (sub: Record<string, unknown>) =>
+      (sub.item_id !== undefined || sub.model_id !== undefined) &&
+      num(sub.order_price ?? sub.deal_price ?? sub.item_price) !== undefined &&
+      num(sub.amount ?? sub.quantity ?? sub.qty) !== undefined;
+    return subs.length > 0 && subs.every(priced) ? subs.map((sub) => ({ ...sub, ...(item.bundle_deal_id !== undefined ? { bundle_deal_id: item.bundle_deal_id } : {}) })) : [item];
+  });
+}
+
+/** The order is still waiting for the buyer's payment (not yet a confirmed order). */
+export function awaitingPayment(order: Record<string, unknown>): boolean {
+  const t = String(order.status_text ?? (typeof order.status === "string" ? order.status : "") ?? "").toLowerCase();
+  return /chờ thanh toán|cho thanh toan|unpaid|to_pay|waiting.?payment/.test(t);
+}
+
 export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): Mapped {
   const today = gmt7Date(Math.floor(capturedAt / 1000));
   const orders = collectOrders(responses);
-  const answered = responses.some((r) => r.endpoint === "order_cards" && classify(r.status, r.body) === "ok");
-  const base = { dataset: "order_lines" as const, endpoint: "order/get_order_list_card_list", orderType: null, granularity: "period" as const };
+  const answered = responses.some((r) => ORDER_ENDPOINTS.has(r.endpoint) && classify(r.status, r.body) === "ok");
+  const viaDetail = responses.some((r) => r.endpoint === "order_detail");
+  const base = {
+    dataset: "order_lines" as const,
+    endpoint: viaDetail ? "order/get_one_order" : "order/get_order_list_card_list",
+    orderType: null,
+    granularity: "period" as const,
+  };
   if (!answered) return { ...base, date: today, rows: [], drift: null };
   const drift: Drift = { unexpected: [], missing: [] };
   const miss = (name: string) => {
     if (!drift.missing.includes(name)) drift.missing.push(name);
   };
   // Money scale: from the size of the amounts; the card service is read as x100 000 when undecided.
+  // get_one_order answers are whole dong (scale 1, captured 2026-11-15).
   const priced: Record<string, unknown>[] = [];
   for (const order of orders.values()) {
+    if (order.__detail) continue;
     for (const item of Array.isArray(order.items) ? order.items.filter(isRecord) : []) priced.push(item);
   }
-  const divisor = scaleFromMagnitude(priced, MONEY_FIELDS) ?? 100_000;
+  const cardDivisor = scaleFromMagnitude(priced, MONEY_FIELDS) ?? 100_000;
+  let divisor = cardDivisor;
   const money = (value: unknown): number | undefined => {
     const n = num(value);
     if (n === undefined || n < 0) return undefined;
@@ -212,8 +328,9 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
   const rows: Row[] = [];
   const days: string[] = [];
   for (const [id, order] of orders) {
+    divisor = order.__detail ? 1 : cardDivisor;
     const orderedAt = wallClock(order.create_time);
-    const items = Array.isArray(order.items) ? order.items.filter(isRecord) : [];
+    const items = linesOf(order);
     if (orderedAt === undefined) {
       miss("orders[].create_time");
       continue;
@@ -222,7 +339,7 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       miss("orders[].items");
       continue;
     }
-    const status = orderStatusOf(order.status ?? order.order_status);
+    const status = statusOfOrder(order);
     const lineValue = (item: Record<string, unknown>) =>
       (money(item.order_price ?? item.deal_price ?? item.item_price) ?? 0) * (num(item.amount ?? item.quantity ?? item.qty) ?? 1);
     const total = items.reduce((sum, item) => sum + lineValue(item), 0);
@@ -232,11 +349,20 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       return total > 0 ? Math.round(((amount * lineValue(item)) / total) * 100) / 100 : amount / items.length;
     };
     const completedAt = wallClock(order.complete_time ?? order.completed_time ?? order.order_complete_time);
-    const paidAt = wallClock(order.pay_time ?? order.paid_time);
+    // get_one_order has no pay time (only `payby_date`, the deadline). Juli counts a line as
+    // confirmed by `paid_at`, so an order past payment (COD included) is confirmed at its
+    // creation; one still "Chờ thanh toán" (unpaid) carries none (verified on ORY 2026-11-15).
+    const paidAt = wallClock(order.pay_time ?? order.paid_time) ?? (awaitingPayment(order) ? undefined : orderedAt);
     items.forEach((item, index) => {
       const qty = num(item.amount ?? item.quantity ?? item.qty);
-      const original = money(item.original_price ?? item.price_before_discount ?? item.item_price);
       const deal = money(item.order_price ?? item.deal_price ?? item.item_price);
+      // get_one_order: no per-line original price; a one-line order's own price before discount
+      // gives it, else the line's paid price (no seller subsidy claimed).
+      const single = items.length === 1 && qty !== undefined && qty > 0 ? money(order.price_before_discount) : undefined;
+      const singleUnit = single !== undefined && qty ? Math.round((single / qty) * 100) / 100 : undefined;
+      const original =
+        money(item.original_price ?? item.price_before_discount ?? item.item_price) ??
+        (order.__detail ? (singleUnit !== undefined && deal !== undefined && singleUnit >= deal ? singleUnit : deal) : undefined);
       if (qty === undefined || qty < 0 || original === undefined || deal === undefined) {
         miss("orders[].items[].price_or_qty");
         return;
@@ -257,6 +383,14 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
       if (sku) row.sku = sku;
       if (variationSku) row.variation_sku = variationSku;
       if (variationName) row.variation_name = variationName;
+      const extra: Row = {};
+      const itemId = idOf(item.item_id);
+      const modelId = idOf(item.model_id);
+      if (itemId) extra.item_id = itemId;
+      if (modelId) extra.model_id = modelId;
+      if (Object.keys(extra).length > 0) row.extra = extra;
+      if ((num(item.bundle_deal_id) ?? 0) > 0) row.promo_kind = "bundle";
+      else if ((num(item.add_on_deal_id) ?? 0) > 0) row.promo_kind = "add_on";
       const returned = num(item.returned_qty);
       if (returned !== undefined && returned >= 0) row.returned_qty = returned;
       const shopVoucher = split(order.shop_voucher_amount ?? order.seller_voucher, item);
@@ -298,7 +432,9 @@ export function mapOrderLines(responses: ReaderResponse[], capturedAt: number): 
 export function completedOrders(responses: ReaderResponse[]): { id: string; sn?: string; completedAt: number }[] {
   const out: { id: string; sn?: string; completedAt: number }[] = [];
   for (const [key, order] of collectOrders(responses)) {
-    if (orderStatusOf(order.status ?? order.order_status) !== "delivered") continue;
+    const status = statusOfOrder(order);
+    // A read order page (0.3.20): any order with a completion time that was not cancelled.
+    if (order.__detail ? status === "cancelled" : status !== "delivered") continue;
     const t = num(order.complete_time ?? order.completed_time ?? order.order_complete_time);
     if (t === undefined || t <= 0) continue;
     const id = order.__api ?? key;

@@ -57,9 +57,16 @@ export interface DayRequest {
   publicUrl: string;
 }
 
-/** True when Seller Centre answered with data (HTTP 2xx and `code: 0`). */
+/**
+ * True when Seller Centre answered with data: HTTP 2xx and `code: 0`, or (0.3.20) the same answer
+ * as `{error: 0, data}` / `{data}` / `{result}` without a code.
+ */
 export function isDataAnswer(status: number, body: unknown): boolean {
-  return status >= 200 && status < 300 && typeof body === "object" && body !== null && (body as { code?: unknown }).code === 0;
+  if (status < 200 || status >= 300 || typeof body !== "object" || body === null || Array.isArray(body)) return false;
+  const b = body as { code?: unknown; error?: unknown; data?: unknown; result?: unknown };
+  if ("code" in b) return b.code === 0;
+  if ("error" in b) return b.error === 0 && (b.data != null || b.result != null);
+  return (typeof b.data === "object" && b.data !== null) || (typeof b.result === "object" && b.result !== null);
 }
 
 /**

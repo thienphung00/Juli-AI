@@ -12,6 +12,7 @@ import {
   ADS_HISTORY_DAY_COST,
   ADS_HISTORY_DAYS,
   ADS_HISTORY_DAYS_PER_RUN,
+  ADS_JOB_TIMEOUT_MS,
   AFFILIATE_HISTORY_WINDOWS,
   AFFILIATE_WINDOW_DAYS,
   ADS_DETAIL_MAX_CAMPAIGNS,
@@ -295,6 +296,20 @@ function ids(responses: ReaderResponse[], previous: string[] | undefined): strin
   return fresh.length > 0 ? fresh : previous;
 }
 
+/**
+ * A finished job's outcome string (0.3.20: truthful). The orders reader that read the list page
+ * but produced no order line is an error ("orders:0_rows"), never "read and sent"; a list page
+ * with no orders (or none since the job's day) is "no_orders".
+ */
+export function jobOutcome(id: ReaderId, posted: Record<string, string>, summary: string, note: string): string {
+  if (id === "orders") {
+    if (note === "no_orders" || note === "no_new_orders") return "no_orders";
+    const lines = posted.order_lines;
+    if (lines !== "posted" && lines !== "queued") return `error:orders:0_rows${lines ? `:${lines}` : ""}`;
+  }
+  return `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}`;
+}
+
 /** Tick results that mean "nothing started" for a reason worth telling Juli (once a day each). */
 const SKIP_RESULTS: ReadonlySet<string> = new Set([
   "off",
@@ -568,8 +583,17 @@ export class ReaderScheduler {
     if (current) {
       const jobId = run.jobs[run.index]?.id;
       const limit =
-        jobId === "item_traffic" ? TRAFFIC_JOB_TIMEOUT_MS : jobId === "orders" ? ORDERS_JOB_TIMEOUT_MS : READER_JOB_TIMEOUT_MS;
-      if (now - current.openedAt > limit) return this.finishJob(sched, run, "timeout");
+        jobId === "item_traffic"
+          ? TRAFFIC_JOB_TIMEOUT_MS
+          : jobId === "orders"
+            ? ORDERS_JOB_TIMEOUT_MS
+            : jobId === "ads"
+              ? ADS_JOB_TIMEOUT_MS
+              : READER_JOB_TIMEOUT_MS;
+      if (now - current.openedAt > limit) {
+        if (jobId === "ads" && !current.reopened) return this.retryAds(sched, run);
+        return this.finishJob(sched, run, "timeout");
+      }
       if (current.sentAt === undefined && now - current.openedAt > READER_LOAD_GRACE_MS) {
         const info = await this.deps.tabs.inspect(current.tabId);
         if (!info.open || info.discarded) return this.tabLost(sched, run);
@@ -645,6 +669,30 @@ export class ReaderScheduler {
     const next = { ...run, current: { tabId, openedAt: this.deps.now() } };
     await this.save({ ...sched, run: next });
     return "opened";
+  }
+
+  /**
+   * 0.3.20: the ads page timed out once. Its tab is closed and opened again (one reload in the run)
+   * for the catch-up days only (the history days wait for the next run). The first tab's requests
+   * never came back to be counted, so the most it could have sent is charged to today's budget.
+   */
+  private async retryAds(sched: ReaderSchedule, run: ReaderRun): Promise<string> {
+    const job = run.jobs[run.index] as PlannedJob;
+    const current = run.current as NonNullable<ReaderRun["current"]>;
+    await this.deps.tabs.close(current.tabId).catch(() => undefined);
+    const closed: ReaderRun = { ...run, current: undefined };
+    const { state } = await this.load();
+    const planned = Math.max(1, (job.days?.length ?? 0) + (job.historyDays?.length ?? 0)) * ADS_HISTORY_DAY_COST;
+    await addRequests(this.deps.storage, run.day, Math.min(planned, Math.max(0, this.requestsLeftFor(state, run))));
+    const after = (await this.load()).state;
+    if (this.requestsLeftFor(after, run) <= READER_PAGE_LOAD_COST) return this.finishJob(sched, closed, "timeout", false);
+    const { historyDays: _history, ...retry } = job;
+    const tabId = await this.deps.tabs.open(`${this.deps.origin}${readerPageUrl(retry)}`);
+    if (tabId === undefined) return this.finishJob(sched, closed, "timeout", false);
+    await addRequests(this.deps.storage, run.day, READER_PAGE_LOAD_COST);
+    const jobs = run.jobs.map((j, i) => (i === run.index ? retry : j));
+    await this.save({ ...sched, run: { ...run, jobs, current: { tabId, openedAt: this.deps.now(), reopened: true } } });
+    return "reopened";
   }
 
   /** The stock run may use the whole daily budget; the daily run leaves a running backfill its share. */
@@ -913,7 +961,7 @@ export class ReaderScheduler {
         Object.entries(posted).some(([key, outcome]) => key.startsWith("ads_campaign_settings:") && outcome === "posted");
       const adsSettingsDay = settingsPosted ? run.day : sched.adsSettingsDay;
       const adsCampaigns = job.id === "ads" && settingsPosted ? ongoingAdsCampaigns(responses) : sched.adsCampaigns;
-      const extra = this.shopReaderState(sched, run, job, posted, responses, state.token?.shop_id, !note.startsWith("partial"));
+      const extra = this.shopReaderState(sched, run, job, posted, responses, state.token?.shop_id, !note.startsWith("partial"), note);
       // 0.3.19: the product list with stock landed (the 06:30 stock read counts it), the traffic days posted.
       const productsAt = job.id === "products" && posted.item_snapshot === "posted" ? this.deps.now() : sched.productsAt;
       const trafficOverviewDone =
@@ -926,7 +974,7 @@ export class ReaderScheduler {
       await this.finishJob(
         { ...sched, adsPosted, adsHistory, itemIds, trafficDone, adsSettingsDay, adsCampaigns, productsAt, trafficOverviewDone, ...extra },
         run,
-        `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}`,
+        jobOutcome(job.id, posted, summary, note),
       );
       return true;
     });
@@ -947,6 +995,7 @@ export class ReaderScheduler {
     responses: ReaderResponse[],
     shopId: string | undefined,
     complete = true,
+    note = "",
   ): Partial<ReaderSchedule> {
     if (job.id === "shop_totals") {
       // Done when the confirmed post (the one Tổng quan reads) landed; the 30-day read marks the shop backfilled.
@@ -972,7 +1021,9 @@ export class ReaderScheduler {
       return {
         ordersDay: posted.order_lines === "posted" || responses.length > 0 ? run.day : sched.ordersDay,
         // Read back to its sinceDay: the next run starts from here (minus the overlap).
-        ordersCoveredDay: posted.order_lines === "posted" && complete ? run.day : sched.ordersCoveredDay,
+        // 0.3.20: a list with no order since sinceDay is read back to it too.
+        ordersCoveredDay:
+          (posted.order_lines === "posted" || note === "no_new_orders" || note === "no_orders") && complete ? run.day : sched.ordersCoveredDay,
         incomeQueue: queue,
         incomeSince: now,
       };

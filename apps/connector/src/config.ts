@@ -235,6 +235,12 @@ export const READER_PAGE_GAP_MS = 20_000;
 export const READER_PAGE_GAP_JITTER_MS = 25_000;
 /** A page that has not answered after this long is closed and counted as a timeout. */
 export const READER_JOB_TIMEOUT_MS = 4 * 60_000;
+/**
+ * 0.3.20: the ads page (Quảng Cáo Shopee) reads its catch-up days AND up to ten history days, and
+ * timed out at the general cap ("Trang tải quá lâu", nothing posted): twice the cap, and one reload
+ * in the same run (without the history days) before the job gives up.
+ */
+export const ADS_JOB_TIMEOUT_MS = 2 * READER_JOB_TIMEOUT_MS;
 /** A tab that has not reported its content script ready after this long is inspected. */
 export const READER_LOAD_GRACE_MS = 25_000;
 /** How long the page hook waits for the page's own first call (session, request template). */
@@ -277,6 +283,8 @@ export const ORDER_CATCHUP_MAX_DAYS = 30;
 export const ORDERS_JOB_TIMEOUT_MS = 45 * 60_000;
 /** Extra wait before an order-list page after the first (ms, plus jitter): 20-45 s like page gaps. */
 export const ORDER_LIST_PAGE_GAP_MS = 20_000;
+/** 0.3.20: at most this many orders are read one by one (get_one_order) in one run (a safety cap). */
+export const ORDER_DETAIL_MAX_PER_RUN = 300;
 export const ORDER_LIST_PAGE_GAP_JITTER_MS = 25_000;
 /** Per-order income: only orders completed since the last run, oldest first, at most this many a day. */
 export const ORDER_INCOME_MAX_PER_DAY = 100;
@@ -409,6 +417,16 @@ export const FILL_EDIT_PATH = /^\/portal\/product\/(\d{1,20})(?:\/|$)/;
 /** How long the page gets to draw its form before the Connector gives up and offers copy buttons. */
 export const FILL_WAIT_MS = 25_000;
 export const FILL_POLL_MS = 400;
+/**
+ * 0.3.20: Shopee loads the product into the form AFTER the controls appear and overwrites what was
+ * typed too early (product 41211587682, 2026-11-15). A control is written only once its value has
+ * not changed for FILL_STABLE_MS; FILL_RECHECK_MS after a write it is read again and written once
+ * more if it reverted, up to FILL_MAX_REWRITES times. A field counts as filled only if the last read
+ * equals the target.
+ */
+export const FILL_STABLE_MS = 800;
+export const FILL_RECHECK_MS = 1_500;
+export const FILL_MAX_REWRITES = 3;
 
 /**
  * Visible Vietnamese labels the fields are found by, as the real edit page draws them (read-only

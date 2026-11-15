@@ -4,7 +4,7 @@
 
 import { READER_IDS, readerActive } from "../config";
 import type { Backfill, ReaderSchedule } from "../background/state";
-import { adsHistoryLine, DATASET_LABELS, type Guidance, pageRows, pageUrl, runLine, stockLine, SYNC_PAGE, syncGuidance, tickLine } from "./guide";
+import { adsHistoryLine, DATASET_LABELS, type Guidance, pageRows, runLine, stockLine, syncGuidance, tickLine } from "./guide";
 import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "./labels";
 
 interface DatasetStatus {
@@ -131,15 +131,6 @@ async function render(): Promise<void> {
     list.append(li);
   }
 }
-
-const syncLink = el<HTMLAnchorElement>("sync-page");
-syncLink.textContent = SYNC_PAGE.title;
-syncLink.href = pageUrl(SYNC_PAGE.path as string);
-syncLink.addEventListener("click", (event) => {
-  event.preventDefault();
-  openTab(syncLink.href);
-});
-el("sync-pulls").textContent = `Lấy: ${SYNC_PAGE.pulls}`;
 
 el<HTMLFormElement>("pair-form").addEventListener("submit", (event) => {
   event.preventDefault();
