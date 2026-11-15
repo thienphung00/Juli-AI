@@ -179,11 +179,20 @@ def option_for(
         values = adapters.order_values(lines)
         aov = sum(values.values(), adapters.ZERO) / len(values) if values else None
         ctor = adapters.lift_evidence(spec.kind, items, env, _magnitude(spec))
+        # the variations the evaluator priced (the seller's choice, else every one): the change
+        # reaches only the orders holding one of them
+        priced = {str(r["sku"]) for r in ev.certain.get("skus", []) if r.get("sku")}
+        own = [ln for ln in lines if ln.product_id in items]
+        covered = [ln for ln in own if ln.sku in priced]
+        covered_orders = {ln.order_id for ln in covered}
         facts = adapters.price_facts_from_evaluation(
             ev,
             aov_now=aov,
             contribution_rate=ex.contribution_rate,
             ctor=ctor,
+            product_orders=len(values),
+            covered_orders=len(covered_orders),
+            product_gmv=sum((ln.order_value for ln in own), adapters.ZERO),
         )
         if (
             ex.profit_per_order is not None
@@ -194,16 +203,17 @@ def option_for(
             # applies ``profit_per_order_after`` against the base's (ShopMetrics) profit per order
             facts = replace(
                 facts,
+                profit_per_order=ex.profit_per_order,
                 profit_per_order_after=ex.profit_per_order
                 + facts.profit_per_order_after
                 - facts.profit_per_order,
             )
-        if values and env.window_days > 0:
-            units = sum((Decimal(ln.qty) for ln in lines if ln.product_id in items), Decimal(0))
+        if covered_orders and env.window_days > 0:
+            units = sum((Decimal(ln.qty) for ln in covered), Decimal(0))
             facts = replace(
                 facts,
-                units_per_order=units / Decimal(len(values)),
-                orders_per_day=Decimal(len(values)) / Decimal(env.window_days),
+                units_per_order=units / Decimal(len(covered_orders)),
+                orders_per_day=Decimal(len(covered_orders)) / Decimal(env.window_days),
             )
         return price_option(spec, facts)
     if spec.kind in _SIMPLE_KINDS:

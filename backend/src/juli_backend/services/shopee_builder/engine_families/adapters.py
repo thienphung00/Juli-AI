@@ -363,9 +363,21 @@ def price_facts_from_evaluation(
     aov_now: Decimal | None,
     contribution_rate: Decimal | None,
     ctor: LiftEvidence,
+    product_orders: int | None = None,
+    covered_orders: int | None = None,
+    product_gmv: Decimal | None = None,
 ) -> PriceFacts:
     """The price evaluator's certain layer (``certain["skus"]``: price and profit per order
-    before / after per SKU) -> orders-weighted price factor and profit per order."""
+    before / after per SKU) -> orders-weighted price factor and profit per order.
+
+    ``certain["skus"]`` holds only the variations the seller priced. Given the product's own
+    orders and GMV (``product_orders`` / ``product_gmv``) and how many of them hold a priced
+    variation (``covered_orders``), the price factor is the product's GMV change at today's
+    volume (``gmv_delta_same_volume`` ÷ its GMV) and the per-order profit change is spread over
+    every order of the product: the engine applies both to the product's whole funnel, so a
+    change on one variation no longer moves every order (prod 2026-11-15: 10 % on one variation
+    cost ~3× its own discount; +5 % on one variation added more profit than +5 % on its units).
+    ``discount_per_order`` stays the discount of one order holding a priced variation."""
     rows = [r for r in ev.certain.get("skus", []) if r.get("orders")]
     w = sum((Decimal(str(r["orders"])) for r in rows), ZERO)
 
@@ -385,20 +397,32 @@ def price_facts_from_evaluation(
     ]
     ratio_w = sum((o for o, _ in ratios), ZERO)
     factor = sum((o * x for o, x in ratios), ZERO) / ratio_w if ratio_w > 0 else ONE
+    coverage = ONE
+    if product_orders and covered_orders is not None:
+        coverage = min(ONE, Decimal(covered_orders) / Decimal(product_orders))
+    gmv_delta = ev.certain.get("gmv_delta_same_volume")
+    if product_gmv and product_gmv > 0 and gmv_delta is not None:
+        factor = ONE + Decimal(str(gmv_delta)) / product_gmv
+    else:
+        factor = ONE + (factor - ONE) * coverage
     before, after = avg("profit_per_order_before"), avg("profit_per_order_after")
     discount: Decimal | None = None
     if before is not None and after is not None:
         discount = max(ZERO, before - after)  # net of the % fees the lower price saves
     elif aov_now and factor < ONE:
-        discount = aov_now * (ONE - factor)  # profit unknown: the gross discount on a basket
+        # profit unknown: the gross discount on a basket holding a priced variation
+        discount = aov_now * (ONE - factor) / coverage if coverage > 0 else None
     return PriceFacts(
         aov_now=aov_now,
-        profit_per_order=avg("profit_per_order_before"),
-        profit_per_order_after=avg("profit_per_order_after"),
+        profit_per_order=before,
+        profit_per_order_after=(
+            None if before is None or after is None else before + (after - before) * coverage
+        ),
         price_factor=factor,
         contribution_rate=contribution_rate,
         ctor=ctor,
         discount_per_order=discount,
+        coverage=coverage,
     )
 
 
