@@ -64,5 +64,6 @@ def test_tiktok_rows_are_not_declared_yet(capability: str) -> None:
 
 
 def test_unknown_capability_is_an_error() -> None:
-    with pytest.raises(KeyError):
+    with pytest.raises(KeyError) as unknown:
         can("shopee", "write_everything")
+    assert "write_everything" in str(unknown.value)
