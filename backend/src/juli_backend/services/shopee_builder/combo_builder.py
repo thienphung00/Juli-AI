@@ -64,6 +64,7 @@ def _row_json(row: co.PricedRow, rates: dict[str, Rates]) -> dict[str, Any]:
         "option_name": o.option_name,
         "sku": o.sku,
         "units": o.units,
+        "unit": o.unit,
         "members": members,
         "suggested_stock": o.suggested_stock,
         "stock_note": o.stock_note,

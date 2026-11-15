@@ -42,6 +42,46 @@ def pack_count_from_name(name: str | None) -> int | None:
     return count if 1 <= count <= MAX_PACK_COUNT else None
 
 
+_MEASURE = re.compile(r"(?<![\w.,])(\d+(?:[.,]\d+)?)\s*(ml|l|lít|lit|g|gr|kg)(?![a-z])")
+_MEASURE_BASE = {
+    "ml": ("ml", Decimal(1)),
+    "l": ("ml", Decimal(1000)),
+    "lít": ("ml", Decimal(1000)),
+    "lit": ("ml", Decimal(1000)),
+    "g": ("g", Decimal(1)),
+    "gr": ("g", Decimal(1)),
+    "kg": ("g", Decimal(1000)),
+}
+
+
+def measure_from_text(*texts: str | None) -> tuple[Decimal, str] | None:
+    """The first content a name states, in ml or g ("Dầu gội 500ml" -> (500, "ml"), "1,5 kg" ->
+    (1500, "g")); ``None`` when no text has one (units such as "hộp" are counted, not measured)."""
+    for text in texts:
+        if not text:
+            continue
+        match = _MEASURE.search(unicodedata.normalize("NFC", text).casefold())
+        if match is None:
+            continue
+        base, factor = _MEASURE_BASE[match.group(2)]
+        amount = Decimal(match.group(1).replace(",", ".")) * factor
+        if amount > 0:
+            return amount, base
+    return None
+
+
+def price_per_measure(
+    price: Decimal | None, pack_count: int, *texts: str | None
+) -> tuple[Decimal, str] | None:
+    """``(price per 100 ml / 100 g, "100 ml" / "100 g")`` of one sold unit holding ``pack_count``
+    packs of the stated content; ``None`` when there is no price or no stated content."""
+    found = measure_from_text(*texts)
+    if price is None or found is None:
+        return None
+    amount, base = found
+    return price * 100 / (amount * max(pack_count, 1)), f"100 {base}"
+
+
 @dataclass(frozen=True)
 class Component:
     """One line of a bill of materials: ``qty`` of the component SKU ``sku``."""

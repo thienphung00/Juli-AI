@@ -93,7 +93,7 @@ class RulesBody(_Body):
     sold_only: bool = True
     max_options: int = Field(default=config.DEFAULT_MAX_OPTIONS, ge=1, le=MAX_OPTIONS_CAP)
     shop_code: str = Field(default=config.DEFAULT_SHOP_CODE, min_length=1, max_length=12)
-    unit: str = Field(default=config.DEFAULT_UNIT, min_length=1, max_length=20)
+    unit: str | None = Field(default=None, min_length=1, max_length=20)
 
 
 class PriceRuleBody(_Body):

@@ -783,7 +783,9 @@ def _price_display(spec: sp.PriceDisplaySpec, ctx: BuilderContext) -> Translatio
         ctx.rows(spec.item_id)[0] if ctx.rows(spec.item_id) else None
     )
     line = spec.text
-    if not line and row and row["price_per_unit"]:
+    if not line and row and row.get("price_per_measure"):
+        line = f"{lst.vnd(row['price_per_measure'])} / {row['measure_label']}"
+    elif not line and row and row["price_per_unit"]:
         line = f"{lst.vnd(row['price_per_unit'])} / đơn vị"
     return Translation(
         {
