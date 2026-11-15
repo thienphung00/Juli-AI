@@ -12,9 +12,7 @@ import type { ShopeeLinks } from "../../lib/shopee-analytics/links";
 import type { AdBase, ChannelCells, ChannelKey, ChannelProduct, ChannelRow, ChannelSplit, PlanBar, PlanMonth, WeakestMetric } from "../../lib/shopee-analytics/types";
 import { METRIC_NAME, inMode, roiText, shift, type MetricKey, type ValueMode } from "../../lib/metrics";
 import { MetricChip, Shift } from "../metrics/metric-chip";
-import { stockFilterOf } from "../../lib/shopee-analytics/stock";
 import { PeriodBar } from "./period-bar";
-import { StockPanel } from "./stock-panel";
 import { DataThrough, Ini, ResourceState, initialsOf } from "./ui";
 
 /**
@@ -129,7 +127,6 @@ export function linkWindow(state: WindowState, data: { readonly from: string; re
 export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const host = useShopee();
   const state = useMemo(() => readWindow(params), [params]);
-  const stockKeys = useMemo(() => stockFilterOf(params), [params]);
   const [level, setLevel] = useState<Level>(params.get("cap") === "san-pham" ? "product" : "shop");
   const [productId, setProductId] = useState<string | null>(null);
   const [plan, setPlan] = useState(true);
@@ -138,10 +135,8 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
   const queryKey = JSON.stringify(state.query);
   const products = useResource(() => host.api.channelSplitProducts(state.query), `${host.shopKey}|cs-products|${queryKey}`);
   const list: readonly ChannelProduct[] = products.status === "ready" ? products.data.products : [];
-  // the e-mail's "Mở Juli" link opens Sản phẩm (`cap=san-pham`): until one is picked, its first SKU's product
-  const wanted = stockKeys[0]?.split(":")[0];
-  const selectedId =
-    productId ?? (level === "product" && list.length ? (list.find((p) => p.product_id === wanted)?.product_id ?? list[0].product_id) : null);
+  // Sản phẩm level: until one is picked, the first product
+  const selectedId = productId ?? (level === "product" && list.length ? list[0].product_id : null);
   const pid = level === "product" ? selectedId : null;
   const split = useResource(() => host.api.channelSplit(state.query, pid), `${host.shopKey}|cs|${queryKey}|${pid ?? ""}`);
   const chosen = list.find((p) => p.product_id === selectedId) ?? null;
@@ -257,7 +252,6 @@ export function TongQuanView({ params }: { readonly params: URLSearchParams }) {
           </>
         )}
       </ResourceState>
-      {level === "product" ? <StockPanel keys={stockKeys} productId={selectedId} /> : null}
     </div>
   );
 }

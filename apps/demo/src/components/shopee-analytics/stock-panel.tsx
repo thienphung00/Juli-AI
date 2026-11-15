@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 
 import { useShopee } from "../../lib/shopee-analytics/context";
@@ -7,13 +8,14 @@ import { stockText, variationText, type StockList, type StockRow } from "../../l
 import { Section } from "./ui";
 
 /**
- * Tổng quan › Sản phẩm, P100 Part S: one row per variation -- the variation (· SKU code), "Còn 42 ·
- * hết khoảng 22/11" and the "Theo dõi" switch. Switching off asks first. Shown only where the host
- * has the stock API (the seller app; never Ops or the reviewer's sample shop). `keys` (the e-mail's
- * `ton_kho` link) lists exactly those variations; otherwise the chosen product's.
+ * Sản phẩm (owner 2026-11-15), P100 Part S: one row per variation -- the variation (· SKU code),
+ * "Còn 42 · hết khoảng 22/11" and the "Theo dõi" switch. Switching off asks first. Shown only where
+ * the host has the stock API (the seller app; never Ops or the reviewer's sample shop). On a product
+ * page: that product's variations. On the Sản phẩm list, `keys` (the e-mail's `ton_kho` link) lists
+ * exactly those variations, each product name opening its product page.
  */
 export function StockPanel({ productId, keys }: { readonly productId: string | null; readonly keys: readonly string[] }) {
-  const { stock } = useShopee();
+  const { stock, links } = useShopee();
   const [list, setList] = useState<StockList | null>(null);
   const [failed, setFailed] = useState(false);
   const [asking, setAsking] = useState<StockRow | null>(null);
@@ -47,12 +49,16 @@ export function StockPanel({ productId, keys }: { readonly productId: string | n
   };
 
   return (
-    <Section testId="sa-stock" title="Tồn kho">
+    <Section testId="sa-stock-alert" title="Theo dõi tồn kho">
       <ul className="sa-stock__rows">
         {rows.map((row) => (
           <li className="sa-stock__row" data-testid={`sa-stock-${row.key}`} key={row.key}>
             <span className="sa-stock__name">
-              {keys.length ? <span className="sa-stock__product">{row.product_name}</span> : null}
+              {keys.length ? (
+                <Link className="sa-stock__product sa-link" href={links.product(row.item_id, { tab: "hs", from: "san-pham" })}>
+                  {row.product_name}
+                </Link>
+              ) : null}
               <span>{variationText(row)}</span>
             </span>
             <span className={`sa-stock__left${row.out_of_stock || row.soon ? " sa-stock__left--soon" : ""}`} data-testid={`sa-stock-left-${row.key}`}>

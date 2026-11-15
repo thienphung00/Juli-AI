@@ -22,6 +22,7 @@ import type { ProductHeader, ProductPage, ProductVersion, SkuCost } from "../../
 import { MarketPriceBlock } from "./market-price-block";
 import { VariationExpand } from "../shopee-decisions/builder-p92/variations";
 import { CostTab, HistoryTab, KeywordsTab, PerformanceTab, SourcesTab } from "./product-tabs";
+import { StockPanel } from "./stock-panel";
 import { Empty, Notice, PillLink, ResourceState, Section, TextChip } from "./ui";
 import type { WindowState } from "../../lib/shopee-analytics/params";
 import { readWindow } from "../../lib/shopee-analytics/params";
@@ -41,6 +42,8 @@ const displayableImages = (xs: readonly (string | null | undefined)[] | null | u
   (xs ?? []).map((x) => shopeeImageSrc(x)).filter((x): x is string => x !== null);
 
 const versionImages = (v: ProductVersion): string[] => displayableImages(v.images?.length ? v.images : [v.cover_url]);
+
+const NO_KEYS: readonly string[] = [];
 
 export function ProductPageView({ id, params }: { readonly id: string; readonly params: URLSearchParams }) {
   const host = useShopee();
@@ -140,6 +143,8 @@ function Loaded({ id, page, params }: { readonly id: string; readonly page: Prod
       </div>
 
       <Variations h={h} skus={skus} selSku={sel?.sku ?? null} onPick={setSelSku} period={page.period.window.days} openCompare={params.get("cmp") === "1"} />
+
+      <StockPanel keys={NO_KEYS} productId={id} />
 
       {banner ? (
         <Notice tone="info" testId="sa-from-banner">

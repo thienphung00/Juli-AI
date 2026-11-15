@@ -1,6 +1,9 @@
 """Which stock figure a variation has at send time (Part S). Pure, no DB.
 
-Basis of one read: ``sellable_stock`` when the Connector read it, else ``total_available_stock``.
+Basis of one read: ``total_available_stock`` (Seller Centre's "Kho hàng"), else ``sellable_stock``.
+``sellable_stock`` is Shopee's ``advanced_stock`` figure (the "Gói Sẵn Giao Nhanh" prepared stock):
+0 for a shop that does not use it, so preferring it read ORY's whole catalogue as sold out
+(Chrome check 2026-11-15).
 
 At send time (``now``, 07:00 GMT+7):
 
@@ -33,7 +36,7 @@ def local_day(at: datetime) -> date:
 
 
 def basis(sellable: int | None, available: int | None) -> int | None:
-    return sellable if sellable is not None else available
+    return available if available is not None else sellable
 
 
 @dataclass(frozen=True)
