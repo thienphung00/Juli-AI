@@ -122,6 +122,12 @@ class PriceFacts:
     #: so the estimate needs the products' units per order and orders per day today
     units_per_order: Decimal | None = None
     orders_per_day: Decimal | None = None
+    #: the share of the product's orders holding a variation the change prices (1 = every
+    #: variation). A change on ONE variation reaches only its buyers: the price factor and the
+    #: per-order profit change above are already spread over every order of the product; the
+    #: orders response and the programme's uses are scaled by this share. ``units_per_order`` /
+    #: ``orders_per_day`` are those orders' own.
+    coverage: Decimal = Decimal(1)
 
 
 @dataclass(frozen=True)
