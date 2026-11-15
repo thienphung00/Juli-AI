@@ -222,6 +222,20 @@ to run 074 copy 101 into `versions/` first. Idempotent; its downgrade is a no-op
 design (a backfilled row cannot be told from one the code stamped). Running it late
 is harmless; until it runs those runs are shown and measured as before.
 
+**Automatic, nothing to run (P101 W1): the business backfill.** Migration `130_businesses` moves
+no row (the gate). The worker task `juli_backend.businesses_backfill` (beat every 10 minutes, and
+once at worker start) gives every shop without a business its own (the shop's id, named after the
+shop), makes `shops.user_id` its owner unless that person was removed from the shop, adds the
+shop's other active `shop_members` as members, and marks Juli's TikTok sandbox shop
+`kind = 'sandbox'` (a `sandbox_write` credential, no `production_read` credential, no
+`production_write_shops` row). Batches of 500 under an advisory lock, as `juli_ops`, through 130's
+SECURITY DEFINER functions; logs counts only (`businesses_backfill`). Once no NULL is left it adds
+and validates `ck_shops_business_id_set` (`CHECK (business_id IS NOT NULL)`, added `NOT VALID`
+then `VALIDATE`d) -- the NOT NULL the gate would refuse as `SET NOT NULL`. Until then a shop with
+no business keeps P93's access rule. Check: the worker journal shows
+`businesses_backfill ... "required": true`. Break-glass only (same function, same lock):
+`python -m juli_backend.services.businesses.backfill` with the release interpreter and env.
+
 **Also outstanding (NDA work, D76 / ADR-116 §4, D16): the payload clean-up command** —
 not a migration (it is an `UPDATE` of stored rows, which the gate refuses), but an
 operator command: it reduces stored `bronze.order_raw_payloads`,

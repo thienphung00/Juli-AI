@@ -151,10 +151,16 @@ def test_start_accepts_no_caller_supplied_user_identity() -> None:
     parameters = inspect.signature(route_module.tiktok_oauth_start).parameters
     # P16 (D25.6): `staff_access_consent` is a boolean the seller ticks and
     # `session` stores its timestamp on the caller's OWN row -- neither names a
-    # user, so neither can redirect the state.
-    assert set(parameters) == {"user", "oauth_service", "session", "staff_access_consent"}, (
-        f"unexpected inputs on the start route: {sorted(parameters)}"
-    )
+    # user, so neither can redirect the state. P101 W1: `business_id` names a BUSINESS the
+    # caller must already be an active member of (checked before the state is minted, and
+    # again at the callback); it never names a user.
+    assert set(parameters) == {
+        "user",
+        "oauth_service",
+        "session",
+        "staff_access_consent",
+        "business_id",
+    }, f"unexpected inputs on the start route: {sorted(parameters)}"
 
 
 @pytest.mark.asyncio

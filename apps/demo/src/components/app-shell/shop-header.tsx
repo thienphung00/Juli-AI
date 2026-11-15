@@ -20,6 +20,7 @@ import {
 } from "../../lib/supabase-auth";
 import { PLATFORM_LABEL, type ShopPlatform } from "../../lib/shop-platform";
 import { vnClock } from "../../lib/vn-format";
+import { BusinessSwitcher } from "./business-switcher";
 
 /**
  * The shell's header (ADR-109 decision 7): shop avatar (initials), shop name,
@@ -143,6 +144,8 @@ export function ShopHeader({
   const updatedAt = vnClock(envelope?.built_at);
   const close = () => setOpen(false);
   const activeShopId = "shop" in state ? state.shop.id : null;
+  // P101 W1: a seller's business and shop switcher (never for a partner reviewer).
+  const sellerToken = !reviewer && "token" in state && typeof state.token === "string" ? state.token : null;
   const switchTargets =
     reviewer && onSwitchShop && reviewerShops.length > 1 ? reviewerShops.filter((shop) => shop.id !== activeShopId) : [];
 
@@ -167,6 +170,7 @@ export function ShopHeader({
           </p>
           <p className="shop-header__sub">{shopSubline({ platform })}</p>
         </div>
+        {sellerToken && activeShopId ? <BusinessSwitcher activeShopId={activeShopId} token={sellerToken} /> : null}
         <div className="shop-menu" hidden={!open} id={menuId}>
           <ul className="shop-menu__list">
             {sampleShop ? null : (

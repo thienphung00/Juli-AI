@@ -318,9 +318,13 @@ def test_owner_without_a_row_keeps_access_until_the_backfill_and_the_backfill_is
     pre = _tenant(owner_engine, "pre", email=_unique("pre"))
     team = _tenant(owner_engine, "team2", email=f"ops{uuid.uuid4().hex[:5]}@app-juli.com")
     removed_owner = _tenant(owner_engine, "gone", email=_unique("gone"))
-    with owner_engine.begin() as conn:  # simulate shops made before migration 121 ran
+    with owner_engine.begin() as conn:  # simulate shops made before migrations 121 and 130 ran
         conn.execute(
             text("DELETE FROM public.shop_members WHERE shop_id IN (:a, :b)"),
+            {"a": pre.shop_id, "b": removed_owner.shop_id},
+        )
+        conn.execute(
+            text("UPDATE public.shops SET business_id = NULL WHERE id IN (:a, :b)"),
             {"a": pre.shop_id, "b": removed_owner.shop_id},
         )
         conn.execute(

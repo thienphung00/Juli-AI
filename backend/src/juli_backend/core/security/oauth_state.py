@@ -93,6 +93,9 @@ class OAuthState:
     flow: str
     nonce: str
     issued_at: int
+    #: P101 W1: the business the connected shop joins (the header switcher's choice), signed with
+    #: the rest; None when the seller made no choice. Membership is re-checked at the callback.
+    business_id: uuid.UUID | None = None
 
 
 def _sign(encoded: str, secret: str) -> str:
@@ -105,6 +108,7 @@ def mint_oauth_state(
     secret: str,
     flow: str,
     now: int | None = None,
+    business_id: uuid.UUID | None = None,
 ) -> str:
     """Return a signed state binding ``user_id`` to ``flow`` at this instant.
 
@@ -115,13 +119,16 @@ def mint_oauth_state(
     if not secret:
         raise ValueError("Refusing to sign OAuth state with an empty secret")
 
+    fields: dict[str, str | int] = {
+        "user_id": str(user_id),
+        "flow": flow,
+        "nonce": secrets.token_urlsafe(16),
+        "iat": int(time.time()) if now is None else int(now),
+    }
+    if business_id is not None:
+        fields["business_id"] = str(business_id)
     payload = json.dumps(
-        {
-            "user_id": str(user_id),
-            "flow": flow,
-            "nonce": secrets.token_urlsafe(16),
-            "iat": int(time.time()) if now is None else int(now),
-        },
+        fields,
         separators=(",", ":"),
         sort_keys=True,
     )
@@ -180,9 +187,15 @@ def verify_oauth_state(
         raise Unauthorized("OAuth state has expired")
 
     nonce = payload.get("nonce")
+    raw_business = payload.get("business_id")
+    try:
+        business_id = uuid.UUID(raw_business) if isinstance(raw_business, str) else None
+    except ValueError as exc:
+        raise Unauthorized(f"Malformed OAuth state: {exc}") from exc
     return OAuthState(
         user_id=user_id,
         flow=flow,
         nonce=nonce if isinstance(nonce, str) else "",
         issued_at=issued_at,
+        business_id=business_id,
     )

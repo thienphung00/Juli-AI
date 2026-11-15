@@ -27,8 +27,14 @@ async def connect_shopee_shop(
     user_id: uuid.UUID,
     shop_name: str,
     shopee_shop_id: str | None = None,
+    business_id: uuid.UUID | None = None,
 ) -> Shop:
-    """Create the seller's Shopee shop (``shops`` inserts are user-scoped)."""
+    """Create the seller's Shopee shop (``shops`` inserts are user-scoped).
+
+    ``business_id`` (P101 W1): the business the shop joins, already resolved by the caller
+    (``services.businesses.business_for_new_shop``). None: Postgres' ``shops_default_business``
+    trigger gives the shop a business of its own (an Ops contract shop).
+    """
     name = shop_name.strip()
     if not name or len(name) > 200:
         raise ValueError("shop_name must be 1-200 characters")
@@ -41,6 +47,7 @@ async def connect_shopee_shop(
         platform=PLATFORM_SHOPEE,
         shopee_shop_id=shopee_shop_id,
         tiktok_shop_id=None,
+        business_id=business_id,
     )
     async with with_user_scope(session, user_id):
         session.add(shop)

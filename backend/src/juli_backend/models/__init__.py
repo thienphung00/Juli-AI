@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models."""
 
+from juli_backend.models.businesses import Business, BusinessInvite, BusinessMember
 from juli_backend.models.card_content_specs import CardContentSpec
 from juli_backend.models.card_events import CardEvent
 from juli_backend.models.card_groups import CardGroup, CardGroupMember
@@ -126,6 +127,9 @@ from juli_backend.models.trial_signups import TrialSignup
 #: `shop_diagnosis_reports`, `shop_metric_rankings`, the P8-C tables, P10-A's
 #: `decision_reasons` and the P10-B tables on `Base.metadata`.
 _REGISTERED_OUTSIDE_MODELS_PY = (
+    Business,
+    BusinessInvite,
+    BusinessMember,
     ShopIngestionState,
     ShopDiagnosisReport,
     ShopMetricRanking,

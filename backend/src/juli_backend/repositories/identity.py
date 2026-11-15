@@ -20,6 +20,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import with_user_scope
+from juli_backend.models.businesses import BusinessMember
 from juli_backend.models.models import Shop, ShopMember, User
 from juli_backend.repositories._base import SessionRepo, utc_now_naive
 
@@ -308,14 +309,30 @@ class UsersRepo(SessionRepo):
 
 
 def shops_of_user_clause(user_id: uuid.UUID) -> Any:
-    """``WHERE`` clause on ``Shop``: the shops ``user_id`` may act on."""
+    """``WHERE`` clause on ``Shop``: the shops ``user_id`` may act on (THE access rule, P101 W1).
+
+    An active member of the shop's business, or an active ``shop_members`` row (staff of one
+    shop). ``shops.user_id`` with NO row of their own at all (no ``shop_members`` row for the shop,
+    no ``business_members`` row in its business) is P93's "owner without a row": a shop the
+    automatic backfill (``services/businesses/backfill.py``) has not reached, or SQLite. Any row,
+    removed included, ends that branch. The ``shops`` policies of migration 130 say the same.
+    """
     own_row = exists().where(ShopMember.shop_id == Shop.id, ShopMember.user_id == user_id)
     active = exists().where(
         ShopMember.shop_id == Shop.id,
         ShopMember.user_id == user_id,
         ShopMember.removed_at.is_(None),
     )
-    return or_(active, and_(Shop.user_id == user_id, ~own_row))
+    business = exists().where(
+        BusinessMember.business_id == Shop.business_id,
+        BusinessMember.user_id == user_id,
+        BusinessMember.removed_at.is_(None),
+    )
+    own_business_row = exists().where(
+        BusinessMember.business_id == Shop.business_id, BusinessMember.user_id == user_id
+    )
+    legacy_owner = and_(Shop.user_id == user_id, ~own_row, ~own_business_row)
+    return or_(business, active, legacy_owner)
 
 
 class ShopsRepo(SessionRepo):
@@ -473,13 +490,17 @@ class ShopsRepo(SessionRepo):
         user_id: uuid.UUID,
         shop_name: str,
         tiktok_shop_id: str | None = None,
+        *,
+        business_id: uuid.UUID | None = None,
     ) -> Shop:
+        """``business_id`` None: Postgres' ``shops_default_business`` trigger makes one (P101)."""
         return await self._add(
             Shop(
                 id=uuid.uuid4(),
                 user_id=user_id,
                 shop_name=shop_name,
                 tiktok_shop_id=tiktok_shop_id,
+                business_id=business_id,
             )
         )
 

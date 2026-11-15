@@ -21,6 +21,8 @@ which is what `docs/security/threat-model.md` already claimed.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from juli_backend.core.security.exceptions import Unauthorized
@@ -37,6 +39,10 @@ class _Service:
     def verify_state(self, state):
         self.verify_state_calls += 1
         return "user-from-state"
+
+    def verify_connect_state(self, state):
+        # P101 W1: the callback reads the whole verified payload (user + optional business).
+        return SimpleNamespace(user_id=self.verify_state(state), business_id=None)
 
     async def handle_callback(self, *a, **k):
         self.handle_callback_calls += 1

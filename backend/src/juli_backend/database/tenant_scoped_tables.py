@@ -215,6 +215,12 @@ TABLE_CLASSIFICATION_MAP = {
     # P93 (migration 121): who may act on a shop. Keyed on ``user_id`` like ``shops`` (juli_app
     # SELECT of its own rows only; ``juli_ops`` writes), read by the ``shops`` policies.
     ("public", "shop_members"): "non_tenant",
+    # P101 W1 (migration 130): seller businesses and their people. Keyed on ``user_id`` like
+    # ``shop_members`` (juli_app SELECT of its own member rows / businesses it belongs to;
+    # ``juli_ops`` writes). The invites carry no shop data and grant juli_app nothing.
+    ("public", "businesses"): "non_tenant",
+    ("public", "business_members"): "non_tenant",
+    ("public", "business_invites"): "ops_only",
     ("public", "webhook_raw_events"): "non_tenant_unprotected",
     # Fast track P20 (D28.3, migration 086): system-wide Ops settings (the OpenAI
     # system cap). No shop data: RLS on, juli_ops writes, juli_app may only read.

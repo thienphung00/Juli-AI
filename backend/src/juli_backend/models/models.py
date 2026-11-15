@@ -98,6 +98,15 @@ class Shop(Base):
     #: The Seller Centre shop id, when known (the extension reports it at pairing).
     shopee_shop_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    #: P101 W1 (migration 130): the seller business this shop belongs to (one per shop). Access is
+    #: membership of that business or a ``shop_members`` row (``services/businesses``). NULL only
+    #: before the automatic backfill (``services/businesses/backfill.py``) reaches it, or on SQLite.
+    business_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("businesses.id"), nullable=True
+    )
+    #: P101 W1 (migration 130): ``real`` | ``sandbox`` (Juli's own TikTok sandbox shop) |
+    #: ``sample`` (synthetic reviewer shop). What a shop IS, read from the row, never an id list.
+    kind: Mapped[str] = mapped_column(String(16), default="real", server_default="real")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
@@ -114,6 +123,8 @@ class Shop(Base):
             sqlite_where=text("tiktok_numeric_shop_id IS NOT NULL"),
         ),
         CheckConstraint("platform IN ('tiktok', 'shopee')", name="ck_shops_platform"),
+        CheckConstraint("kind IN ('real', 'sandbox', 'sample')", name="ck_shops_kind"),
+        Index("ix_shops_business_id", "business_id"),
     )
 
 

@@ -851,6 +851,8 @@ def test_beat_schedule_has_exactly_the_expected_entries():
         "shopee-kpi-daily",
         # P100 Part S: the 07:00 GMT+7 stock-out e-mail.
         "stock-alert-daily",
+        # P101 W1: the automatic business backfill, every 10 minutes.
+        "businesses-backfill",
     }
 
 

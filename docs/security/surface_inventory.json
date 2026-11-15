@@ -57,6 +57,30 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/businesses",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/businesses/{business_id}/invites",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/businesses/{business_id}/members/{user_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/creators",
       "methods": [
         "GET"
