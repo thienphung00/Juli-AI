@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ingestBody } from "../src/ingest/client";
-import type { ReaderResponse } from "../src/shopee/reader";
+import { ingestBody } from "../src/core/ingest/client";
+import type { ReaderResponse } from "../src/platforms/shopee/reader";
 import {
   activeItemIds,
   campaignCounts,
@@ -15,7 +15,7 @@ import {
   numberIn,
   passedOf,
   roasTarget,
-} from "../src/shopee/reader-map";
+} from "../src/platforms/shopee/reader-map";
 import adsHome from "./fixtures/readers/ads_homepage.json";
 import adsGraph from "./fixtures/readers/ads_time_graph.json";
 import campaignInfo from "./fixtures/readers/campaign_info.json";

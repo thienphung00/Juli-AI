@@ -1,13 +1,13 @@
 // Connector 0.3.11 (P97 T1) in the service worker: new datasets are hashed and posted, the daily
 // sync and the backfill share the request budget, a stop is told to Juli as a connector event.
 import { describe, expect, it } from "vitest";
-import { Connector, type Tabs } from "../src/background/connector";
-import { addRequests, loadState, requestsLeft } from "../src/background/state";
-import { DAILY_REQUEST_BUDGET, TODAY_REQUEST_RESERVE } from "../src/config";
-import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/ingest/client";
-import { importOrderRefKey, orderRef } from "../src/ingest/order-ref";
-import type { ReaderResponse } from "../src/shopee/reader";
-import { gmt7DateStart } from "../src/shopee/time";
+import { Connector, type Tabs } from "../src/platforms/shopee/background/connector";
+import { addRequests, loadState, requestsLeft } from "../src/platforms/shopee/background/state";
+import { DAILY_REQUEST_BUDGET, TODAY_REQUEST_RESERVE } from "../src/platforms/shopee/config";
+import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/core/ingest/client";
+import { importOrderRefKey, orderRef } from "../src/platforms/shopee/ingest/order-ref";
+import type { ReaderResponse } from "../src/platforms/shopee/reader";
+import { gmt7DateStart } from "../src/core/time";
 
 // 2026-11-09 10:00 GMT+7
 const NOW = Date.UTC(2026, 10, 9, 3, 0, 0);

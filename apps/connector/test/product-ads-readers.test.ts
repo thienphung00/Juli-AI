@@ -3,18 +3,18 @@
 // 2026-11-09 recordings (fasttrack/contracts/p97-recon-2026-11-09.md); shapes the recording did not
 // capture are marked TODO(first capture) in the mappers and pinned here only as far as they promise.
 import { describe, expect, it } from "vitest";
-import { ingestBody } from "../src/ingest/client";
+import { ingestBody } from "../src/core/ingest/client";
 import {
   ADS_PRODUCTS_MAX_CAMPAIGNS,
   PRODUCT_PERIOD_MAX_PAGES,
   READER_PAGE_LOAD_COST,
   READER_DATASETS,
   READERS_ACTIVE,
-} from "../src/config";
-import { isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint, readerEndpointOf, readerPageUrl, READER_PAGES } from "../src/shopee/endpoints";
-import { mapAdsProducts } from "../src/shopee/ads-products-map";
-import { mapProductPeriod } from "../src/shopee/product-period-map";
-import { campaignTitle, mapReaderJob } from "../src/shopee/reader-map";
+} from "../src/platforms/shopee/config";
+import { isReadOnlyPasPath, READER_ENDPOINTS, type ReaderEndpoint, readerEndpointOf, readerPageUrl, READER_PAGES } from "../src/platforms/shopee/endpoints";
+import { mapAdsProducts } from "../src/platforms/shopee/ads-products-map";
+import { mapProductPeriod } from "../src/platforms/shopee/product-period-map";
+import { campaignTitle, mapReaderJob } from "../src/platforms/shopee/reader-map";
 import {
   type FetchedReaderResponse,
   pollingWaitFor,
@@ -24,10 +24,10 @@ import {
   runReaderJob,
   campaignNameFromGet,
   type Template,
-} from "../src/shopee/reader";
-import { Pacer } from "../src/shopee/runner";
-import { gmt7DateStart } from "../src/shopee/time";
-import { planJobs } from "../src/background/scheduler";
+} from "../src/platforms/shopee/reader";
+import { Pacer } from "../src/platforms/shopee/runner";
+import { gmt7DateStart } from "../src/core/time";
+import { planJobs } from "../src/platforms/shopee/background/scheduler";
 
 const SC = "https://banhang.shopee.vn";
 const NOW = Date.UTC(2026, 10, 9, 3, 0, 0); // 2026-11-09 10:00 GMT+7

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { fillRequest, senderMatches } from "../src/background/fill";
-import { fillActive, PILOT_SHOP_IDS } from "../src/config";
-import { GatewayClient, type TokenInfo } from "../src/ingest/client";
+import { fillRequest, senderMatches } from "../src/platforms/shopee/background/fill";
+import { fillActive, PILOT_SHOP_IDS } from "../src/platforms/shopee/config";
+import { GatewayClient, type TokenInfo } from "../src/core/ingest/client";
 import { CODE, ITEM, rawRequest } from "./fill-helpers";
 
 const PILOT = PILOT_SHOP_IDS[0]!;

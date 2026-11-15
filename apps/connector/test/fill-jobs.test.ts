@@ -2,12 +2,12 @@
 // one queued page at a time within the shared request budget, serves the job only to the page that
 // is exactly its page, passes progress on, and stops for the shop on a password prompt.
 import { describe, expect, it } from "vitest";
-import { FillJobs, jobUrl, senderMatchesJob } from "../src/background/fill-jobs";
-import { addRequests, loadState, requestsLeft } from "../src/background/state";
-import { DAILY_REQUEST_BUDGET, READER_PAGE_LOAD_COST } from "../src/config";
-import { GatewayError } from "../src/ingest/client";
-import { bundleIdFrom, savedBundlePath, savedVoucherPath, voucherIdFrom } from "../src/fill/saved";
-import { gmt7Date } from "../src/shopee/time";
+import { FillJobs, jobUrl, senderMatchesJob } from "../src/core/jobs/fill-jobs";
+import { addRequests, loadState, requestsLeft } from "../src/platforms/shopee/background/state";
+import { DAILY_REQUEST_BUDGET, READER_PAGE_LOAD_COST } from "../src/platforms/shopee/config";
+import { GatewayError } from "../src/core/ingest/client";
+import { bundleIdFrom, savedBundlePath, savedVoucherPath, voucherIdFrom } from "../src/platforms/shopee/fill/saved";
+import { gmt7Date } from "../src/core/time";
 import { JOB_ID, voucherJob } from "./fill-job-helpers";
 
 const NOW = Date.UTC(2026, 10, 9, 3, 0, 0);

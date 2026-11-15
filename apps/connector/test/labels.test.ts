@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { isPageMessage } from "../src/content/messages";
-import { CHANNEL, SELLER_CENTRE_ORIGIN, fillActive, marketActive, ORY_SHOP_ID, PILOT_SHOP_IDS, readerActive, schedulerActive } from "../src/config";
-import { readersLabel } from "../src/popup/labels";
+import { isPageMessage } from "../src/platforms/shopee/content/messages";
+import { CHANNEL, SELLER_CENTRE_ORIGIN, fillActive, marketActive, ORY_SHOP_ID, PILOT_SHOP_IDS, readerActive, schedulerActive } from "../src/platforms/shopee/config";
+import { readersLabel } from "../src/platforms/shopee/popup/labels";
 
 const NOW = Date.UTC(2026, 10, 3, 3, 0, 0);
 

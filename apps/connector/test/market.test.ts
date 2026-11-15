@@ -1,9 +1,9 @@
 // SYNTHETIC fixture of the recon-guessed shape of the public search answer
 // (docs/integrations/shopee/market-search-recon.md): not a real capture.
 import { describe, expect, it } from "vitest";
-import { isMarketMessage } from "../src/content/messages";
-import { MARKET_CHANNEL, MARKET_ORIGIN, marketActive, PILOT_SHOP_IDS } from "../src/config";
-import { ingestBody } from "../src/ingest/client";
+import { isMarketMessage } from "../src/platforms/shopee/content/messages";
+import { MARKET_CHANNEL, MARKET_ORIGIN, marketActive, PILOT_SHOP_IDS } from "../src/platforms/shopee/config";
+import { ingestBody } from "../src/core/ingest/client";
 import {
   classifyAnswer,
   mapMarketSearch,
@@ -13,7 +13,7 @@ import {
   searchCall,
   searchPageUrl,
   trimSearchBody,
-} from "../src/shopee/market";
+} from "../src/platforms/shopee/market";
 import fixture from "./fixtures/market/search_items.json";
 
 const NOW = Date.UTC(2026, 10, 5, 3, 0, 0);

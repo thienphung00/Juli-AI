@@ -12,16 +12,16 @@ import {
   SELLER_CENTRE_ORIGIN,
   SYNC_PERIOD_MINUTES,
   SYNC_START_JITTER_MINUTES,
-} from "../config";
-import { GatewayClient } from "../ingest/client";
-import type { Captured } from "../shopee/map";
-import { isDataAnswer, type RequestResult } from "../shopee/runner";
-import type { MarketPlan } from "../shopee/market";
-import { MARKET_RUN_ALARM, MARKET_WATCHDOG_ALARM, MarketScheduler } from "./market";
-import { Connector } from "./connector";
-import { fillRequest, senderMatches } from "./fill";
-import { FillJobs } from "./fill-jobs";
-import { markReinjected, probeHook, reinjectSellerCentreTabs } from "./reinject";
+} from "../platforms/shopee/config";
+import { GatewayClient } from "../core/ingest/client";
+import type { Captured } from "../platforms/shopee/map";
+import { isDataAnswer, type RequestResult } from "../platforms/shopee/runner";
+import type { MarketPlan } from "../platforms/shopee/market";
+import { MARKET_RUN_ALARM, MARKET_WATCHDOG_ALARM, MarketScheduler } from "../platforms/shopee/background/market";
+import { Connector } from "../platforms/shopee/background/connector";
+import { fillRequest, senderMatches } from "../platforms/shopee/background/fill";
+import { FillJobs } from "../core/jobs/fill-jobs";
+import { markReinjected, probeHook, reinjectSellerCentreTabs } from "../core/reinject";
 import {
   nextStockAt,
   READER_KICK_ALARM,
@@ -29,7 +29,7 @@ import {
   READER_WATCHDOG_ALARM,
   ReaderScheduler,
   STOCK_ALARM,
-} from "./scheduler";
+} from "../platforms/shopee/background/scheduler";
 
 const ALARM = "juli-daily-sync";
 const MANIFEST_VERSION = chrome.runtime.getManifest().version;

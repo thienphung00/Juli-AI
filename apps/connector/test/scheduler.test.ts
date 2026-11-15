@@ -1,4 +1,4 @@
-import { PILOT_SHOP_IDS } from "../src/config";
+import { PILOT_SHOP_IDS } from "../src/platforms/shopee/config";
 const PILOT = PILOT_SHOP_IDS[0];
 import { describe, expect, it } from "vitest";
 import {
@@ -16,7 +16,7 @@ import {
   TODAY_REQUEST_RESERVE,
   type ReaderDataset,
   type ReaderId,
-} from "../src/config";
+} from "../src/platforms/shopee/config";
 import {
   type BlockEvent,
   nextStockAt,
@@ -29,10 +29,10 @@ import {
   planJobs,
   type SchedulerAlarms,
   type SchedulerTabs,
-} from "../src/background/scheduler";
-import { loadState, saveState } from "../src/background/state";
-import { lastFinishedDays } from "../src/shopee/time";
-import type { ReaderJob, ReaderResponse } from "../src/shopee/reader";
+} from "../src/platforms/shopee/background/scheduler";
+import { loadState, saveState } from "../src/platforms/shopee/background/state";
+import { lastFinishedDays } from "../src/core/time";
+import type { ReaderJob, ReaderResponse } from "../src/platforms/shopee/reader";
 
 const SC = "https://banhang.shopee.vn";
 /** The run sequences below were written for the Seller Centre report pages; the affiliate pages

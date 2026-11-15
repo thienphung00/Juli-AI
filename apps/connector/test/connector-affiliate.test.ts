@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { Connector, type Tabs } from "../src/background/connector";
-import { loadState } from "../src/background/state";
-import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/ingest/client";
-import { importOrderRefKey, orderRef } from "../src/ingest/order-ref";
-import type { ReaderResponse } from "../src/shopee/reader";
-import { gmt7DateStart } from "../src/shopee/time";
+import { Connector, type Tabs } from "../src/platforms/shopee/background/connector";
+import { loadState } from "../src/platforms/shopee/background/state";
+import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/core/ingest/client";
+import { importOrderRefKey, orderRef } from "../src/platforms/shopee/ingest/order-ref";
+import type { ReaderResponse } from "../src/platforms/shopee/reader";
+import { gmt7DateStart } from "../src/core/time";
 
 // 2026-11-06 09:00 GMT+7
 const NOW = Date.UTC(2026, 10, 6, 2, 0, 0);

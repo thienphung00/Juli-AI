@@ -2,12 +2,12 @@
 // tick report, re-injection after an update, and the popup's last-tick / stock lines.
 
 import { describe, expect, it } from "vitest";
-import { Connector, type Tabs } from "../src/background/connector";
-import { reinjectPlan, reinjectSellerCentreTabs } from "../src/background/reinject";
-import type { ReaderSchedule } from "../src/background/state";
-import { readerActive, SAMPLE_SHOP_IDS, schedulerActive } from "../src/config";
-import { GatewayClient, type IngestBody, type TokenInfo } from "../src/ingest/client";
-import { adsHistoryLine, stockLine, tickLine, tickResultLabel } from "../src/popup/guide";
+import { Connector, type Tabs } from "../src/platforms/shopee/background/connector";
+import { reinjectPlan, reinjectSellerCentreTabs } from "../src/core/reinject";
+import type { ReaderSchedule } from "../src/platforms/shopee/background/state";
+import { readerActive, SAMPLE_SHOP_IDS, schedulerActive } from "../src/platforms/shopee/config";
+import { GatewayClient, type IngestBody, type TokenInfo } from "../src/core/ingest/client";
+import { adsHistoryLine, stockLine, tickLine, tickResultLabel } from "../src/platforms/shopee/popup/guide";
 import {
   type FetchedReaderResponse,
   pollingWaitFor,
@@ -15,10 +15,10 @@ import {
   type ReaderRequest,
   type ReaderResponse,
   runReaderJob,
-} from "../src/shopee/reader";
-import { mapTrafficJob } from "../src/shopee/reader-map";
-import { Pacer } from "../src/shopee/runner";
-import { gmt7DateStart } from "../src/shopee/time";
+} from "../src/platforms/shopee/reader";
+import { mapTrafficJob } from "../src/platforms/shopee/reader-map";
+import { Pacer } from "../src/platforms/shopee/runner";
+import { gmt7DateStart } from "../src/core/time";
 import shopTraffic from "./fixtures/shop_traffic.json";
 import overview from "./fixtures/traffic_overview.json";
 

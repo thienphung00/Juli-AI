@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { FORBIDDEN_PRESS, unsafePress } from "../src/fill/controls";
-import { runFillJob } from "../src/fill/job-run";
-import { PANEL_ID } from "../src/fill/locate";
-import { runFill } from "../src/fill/run";
-import { parseFillRequest } from "../src/fill/types";
+import { FORBIDDEN_PRESS, unsafePress } from "../src/platforms/shopee/fill/controls";
+import { runFillJob } from "../src/core/fill/job-run";
+import { PANEL_ID } from "../src/core/fill/locate";
+import { runFill } from "../src/platforms/shopee/fill/run";
+import { parseFillRequest } from "../src/platforms/shopee/fill/types";
 import { wireEds } from "./eds-wire";
 import { adsJob, affiliateJob, comboJob, jobHarness, rawJob, voucherJob } from "./fill-job-helpers";
 import { DESCRIPTION_FIELD, harness, loadPage, rawRequest, watchForbidden } from "./fill-helpers";
@@ -95,7 +95,7 @@ describe("a job fill never presses Shopee's save / confirm / send", () => {
 });
 
 describe("the source never presses anything", () => {
-  const sources = import.meta.glob(["../src/fill/*.ts", "../src/background/fill.ts", "../src/background/fill-jobs.ts"], {
+  const sources = import.meta.glob(["../src/core/fill/*.ts", "../src/core/jobs/*.ts", "../src/platforms/shopee/fill/*.ts", "../src/platforms/shopee/background/fill*.ts"], {
     query: "?raw",
     import: "default",
     eager: true,
@@ -105,19 +105,19 @@ describe("the source never presses anything", () => {
 
   it("covers every fill source file", () => {
     expect(files.map(([name]) => name.replace("../src/", "")).sort()).toEqual([
-      "background/fill-jobs.ts",
-      "background/fill.ts",
-      "fill/controls.ts",
-      "fill/fillers.ts",
-      "fill/job-panel.ts",
-      "fill/job-run.ts",
-      "fill/job-types.ts",
-      "fill/locate.ts",
-      "fill/panel.ts",
-      "fill/run.ts",
-      "fill/saved.ts",
-      "fill/types.ts",
-      "fill/write.ts",
+      "core/fill/job-panel.ts",
+      "core/fill/job-run.ts",
+      "core/fill/locate.ts",
+      "core/fill/panel.ts",
+      "core/fill/write.ts",
+      "core/jobs/fill-jobs.ts",
+      "platforms/shopee/background/fill.ts",
+      "platforms/shopee/fill/controls.ts",
+      "platforms/shopee/fill/fillers.ts",
+      "platforms/shopee/fill/job-types.ts",
+      "platforms/shopee/fill/run.ts",
+      "platforms/shopee/fill/saved.ts",
+      "platforms/shopee/fill/types.ts",
     ]);
   });
 
@@ -125,14 +125,14 @@ describe("the source never presses anything", () => {
   // and the one that looks for labelled buttons ("Thêm mức ưu đãi", "Tìm kiếm"); press() refuses
   // the save / confirm / send texts (tested in fill-controls.test.ts).
   it("has exactly one .click() call, inside press()", () => {
-    const controls = stripComments(sources["../src/fill/controls.ts"] as string);
+    const controls = stripComments(sources["../src/platforms/shopee/fill/controls.ts"] as string);
     expect(controls.match(/\.click\s*\(/g)).toHaveLength(1);
     expect(controls).toMatch(/if \(unsafePress\(el\) !== null\) return false;\s*el\.click\(\);/);
   });
 
   it.each(files)("%s", (name, source) => {
     const code = stripComments(source);
-    const isControls = name.endsWith("fill/controls.ts");
+    const isControls = name.endsWith("shopee/fill/controls.ts");
     for (const banned of [
       ...(isControls ? [] : [/\.click\s*\(/]),
       /\.submit\s*\(/,

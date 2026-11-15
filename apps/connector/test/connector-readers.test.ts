@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { Connector, type Tabs } from "../src/background/connector";
-import { loadState, saveState } from "../src/background/state";
-import { MAX_ROWS_PER_POST } from "../src/config";
-import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/ingest/client";
-import type { ReaderResponse } from "../src/shopee/reader";
+import { Connector, type Tabs } from "../src/platforms/shopee/background/connector";
+import { loadState, saveState } from "../src/platforms/shopee/background/state";
+import { MAX_ROWS_PER_POST } from "../src/platforms/shopee/config";
+import { GatewayClient, GatewayError, type IngestBody, type TokenInfo } from "../src/core/ingest/client";
+import type { ReaderResponse } from "../src/platforms/shopee/reader";
 import adsHome from "./fixtures/readers/ads_homepage.json";
 import products1 from "./fixtures/readers/product_list.json";
 import trafficDetails from "./fixtures/readers/traffic_details.json";

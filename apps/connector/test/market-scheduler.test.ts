@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { Connector } from "../src/background/connector";
-import { MarketScheduler, MARKET_WATCHDOG_ALARM } from "../src/background/market";
-import { loadState, saveState } from "../src/background/state";
-import { MARKET_JOB_TIMEOUT_MS, PILOT_SHOP_IDS, READER_BLOCK_CAPTCHA_MS, READER_PAGE_GAP_JITTER_MS, READER_PAGE_GAP_MS } from "../src/config";
-import { GatewayClient, type IngestBody } from "../src/ingest/client";
-import type { MarketPlan } from "../src/shopee/market";
+import { Connector } from "../src/platforms/shopee/background/connector";
+import { MarketScheduler, MARKET_WATCHDOG_ALARM } from "../src/platforms/shopee/background/market";
+import { loadState, saveState } from "../src/platforms/shopee/background/state";
+import { MARKET_JOB_TIMEOUT_MS, PILOT_SHOP_IDS, READER_BLOCK_CAPTCHA_MS, READER_PAGE_GAP_JITTER_MS, READER_PAGE_GAP_MS } from "../src/platforms/shopee/config";
+import { GatewayClient, type IngestBody } from "../src/core/ingest/client";
+import type { MarketPlan } from "../src/platforms/shopee/market";
 import fixture from "./fixtures/market/search_items.json";
 
 const PILOT = PILOT_SHOP_IDS[0] as string;

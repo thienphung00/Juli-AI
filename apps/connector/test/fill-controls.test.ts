@@ -12,7 +12,7 @@ import {
   setRowText,
   setSwitch,
   unsafePress,
-} from "../src/fill/controls";
+} from "../src/platforms/shopee/fill/controls";
 import { loadPage } from "./fill-helpers";
 import { wireEds, type Wire } from "./eds-wire";
 

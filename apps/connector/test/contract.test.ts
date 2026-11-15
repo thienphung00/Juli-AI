@@ -3,8 +3,8 @@
 // tests/unit/test_ingest_connector_contract.py posts the SAME files through the
 // gateway, so a field the extension sends and the gateway refuses fails one side.
 import { describe, expect, it } from "vitest";
-import { ingestBody } from "../src/ingest/client";
-import { mapCaptured } from "../src/shopee/map";
+import { ingestBody } from "../src/core/ingest/client";
+import { mapCaptured } from "../src/platforms/shopee/map";
 import adsDailyBody from "./fixtures/contract/ads_campaign_daily.body.json";
 import itemCatalogBody from "./fixtures/contract/item_catalog.body.json";
 import itemTrafficBody from "./fixtures/contract/item_traffic_sources.body.json";
@@ -13,8 +13,8 @@ import shopHealthBody from "./fixtures/contract/shop_health_daily.body.json";
 import shopTrafficBody from "./fixtures/contract/shop_traffic.body.json";
 import overviewBody from "./fixtures/contract/traffic_overview.body.json";
 import voucherBody from "./fixtures/contract/voucher_settings.body.json";
-import type { ReaderResponse } from "../src/shopee/reader";
-import { mapAdsDaily, mapItemTraffic, mapProductList, mapShopHealth, mapVoucherList } from "../src/shopee/reader-map";
+import type { ReaderResponse } from "../src/platforms/shopee/reader";
+import { mapAdsDaily, mapItemTraffic, mapProductList, mapShopHealth, mapVoucherList } from "../src/platforms/shopee/reader-map";
 import adsHome from "./fixtures/readers/ads_homepage.json";
 import adsGraph from "./fixtures/readers/ads_time_graph.json";
 import campaignInfo from "./fixtures/readers/campaign_info.json";

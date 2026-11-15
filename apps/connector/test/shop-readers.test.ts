@@ -3,11 +3,11 @@
 // recon did not record (order cards, income components) are marked TODO(first capture) in the
 // mappers and pinned here only as far as the mappers promise.
 import { describe, expect, it } from "vitest";
-import { ORDER_LIST_MAX_PAGES_PER_RUN } from "../src/config";
-import { ingestBody } from "../src/ingest/client";
-import { RAW_ORDER_ID } from "../src/shopee/affiliate-map";
-import { completedOrders, mapOrderIncome, mapOrderLines, orderStatusOf, trimOrderCards, trimOrderIndex } from "../src/shopee/orders-map";
-import { mapReaderJob } from "../src/shopee/reader-map";
+import { ORDER_LIST_MAX_PAGES_PER_RUN } from "../src/platforms/shopee/config";
+import { ingestBody } from "../src/core/ingest/client";
+import { RAW_ORDER_ID } from "../src/platforms/shopee/affiliate-map";
+import { completedOrders, mapOrderIncome, mapOrderLines, orderStatusOf, trimOrderCards, trimOrderIndex } from "../src/platforms/shopee/orders-map";
+import { mapReaderJob } from "../src/platforms/shopee/reader-map";
 import {
   type FetchedReaderResponse,
   pollingWaitFor,
@@ -19,11 +19,11 @@ import {
   trimCaptured,
   withListPage,
   withOrderIds,
-} from "../src/shopee/reader";
-import type { ReaderEndpoint } from "../src/shopee/endpoints";
-import { Pacer } from "../src/shopee/runner";
-import { mapShopTotals } from "../src/shopee/totals-map";
-import { gmt7DateStart } from "../src/shopee/time";
+} from "../src/platforms/shopee/reader";
+import type { ReaderEndpoint } from "../src/platforms/shopee/endpoints";
+import { Pacer } from "../src/platforms/shopee/runner";
+import { mapShopTotals } from "../src/platforms/shopee/totals-map";
+import { gmt7DateStart } from "../src/core/time";
 
 const SC = "https://banhang.shopee.vn";
 // 2026-11-09 10:00 GMT+7

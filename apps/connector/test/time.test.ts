@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { mapCaptured } from "../src/shopee/map";
-import { gmt7Date, gmt7DateStart, lastFinishedDays, singleDay, yesterdayRange } from "../src/shopee/time";
+import { mapCaptured } from "../src/platforms/shopee/map";
+import { gmt7Date, gmt7DateStart, lastFinishedDays, singleDay, yesterdayRange } from "../src/core/time";
 import shopTraffic from "./fixtures/shop_traffic.json";
 
 // 2026-10-12 10:00 GMT+7
