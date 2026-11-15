@@ -258,8 +258,11 @@ export function TitlePanel({ form, set, ctx }: P<"title">) {
       {draft.status === "ready" ? (
         <ul className="p2-drafts" data-testid="p2-title-drafts">
           {draft.data.drafts.map((d, i) => (
-            <li key={i}>
-              <span>{d.title}</span>
+            <li data-source={d.source} key={i}>
+              <span>
+                {d.source === "llm" ? <b className="p2-ai-tag">AI</b> : null}
+                {d.title}
+              </span>
               <span className="sa-hint">
                 {d.chars}/{draft.data.max_chars} · phủ {d.keywords?.covered.length ?? 0}/{form.ticked.length} từ khoá
               </span>

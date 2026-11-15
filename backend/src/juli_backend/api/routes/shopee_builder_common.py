@@ -350,25 +350,20 @@ async def h_sample_title_drafts(
     except LookupError:
         raise not_found(body.item_id) from None
     kws = [k.strip() for k in body.keywords if k.strip()][: drafts.MAX_KEYWORDS]
-    stored = None if body.regenerate else await cs.latest_title(session, shop_id, body.item_id)
-    if stored is not None:
-        items = [
-            {"title": c.get("title", ""), "note": c.get("note", "")}
-            for c in (stored.spec or {}).get("candidates", [])
-        ]
-        try:
-            out = drafts.title_result(*drafts.screen_titles(items, facts, kws))
-        except drafts.NoValidDraft as exc:
-            raise no_valid_draft(exc) from None
+    seeded = await cs.latest_title(session, shop_id, body.item_id, source=cs.SOURCE_SEEDED)
+    live = await cs.latest_title(session, shop_id, body.item_id, source=cs.SOURCE_LLM)
+    if not body.regenerate and (seeded is not None or live is not None):
+        # Owner 2026-11-15 (option A): the pre-written titles stay, and the AI draft, once made,
+        # sits beside them -- a live draft never replaces the seeded set.
         used = await cs.live_titles_used(session, shop_id, body.item_id)
-        return {
-            "item_id": body.item_id,
-            "current_title": facts.title,
-            "model": (stored.spec or {}).get("model"),
-            "source": stored.source,
-            "live_left": max(0, cs.SAMPLE_LIVE_TITLES_PER_PRODUCT - used),
-            **out,
-        }
+        return _sample_titles(
+            body.item_id,
+            facts,
+            kws,
+            seeded,
+            live,
+            live_left=cs.SAMPLE_LIVE_TITLES_PER_PRODUCT - used,
+        )
     await lock_product(session, shop_id, body.item_id)
     if await cs.live_titles_used(session, shop_id, body.item_id) >= (
         cs.SAMPLE_LIVE_TITLES_PER_PRODUCT
@@ -381,25 +376,56 @@ async def h_sample_title_drafts(
         raise llm_off(exc) from None
     except drafts.NoValidDraft as exc:
         raise no_valid_draft(exc) from None
-    session.add(
-        cs.llm_title_row(
-            shop_id,
-            body.item_id,
-            current_title=facts.title,
-            keywords=kws,
-            drafts=out["drafts"],
-            model=client.model,
-            user_id=user_id,
-            now=now,
-        )
+    row = cs.llm_title_row(
+        shop_id,
+        body.item_id,
+        current_title=facts.title,
+        keywords=kws,
+        drafts=out["drafts"],
+        model=client.model,
+        user_id=user_id,
+        now=now,
     )
+    session.add(row)
     await session.flush()
+    return _sample_titles(body.item_id, facts, kws, seeded, row, live_left=0)
+
+
+def _sample_titles(
+    item_id: str,
+    facts: Any,
+    kws: list[str],
+    seeded: Any,
+    live: Any,
+    *,
+    live_left: int,
+) -> dict[str, Any]:
+    """The sample shop's titles: the seeded set, then the live AI set (each screened on its own,
+    each draft tagged with its ``source``). ``source`` of the answer is the newest set's."""
+    shown: list[dict[str, Any]] = []
+    dropped: list[dict[str, str]] = []
+    for row, tag in ((seeded, "seeded"), (live, "llm")):
+        if row is None:
+            continue
+        items = [
+            {"title": c.get("title", ""), "note": c.get("note", "")}
+            for c in ((row.spec or {}).get("candidates") or (row.spec or {}).get("drafts") or [])
+        ]
+        passed, lost = drafts.screen_titles(items, facts, kws)
+        seen = {d["title"] for d in shown}
+        shown.extend({**d, "source": tag} for d in passed if d["title"] not in seen)
+        dropped.extend(lost)
+    try:
+        out = drafts.title_result(shown, dropped)
+    except drafts.NoValidDraft as exc:
+        raise no_valid_draft(exc) from None
+    newest = live if live is not None else seeded
     return {
-        "item_id": body.item_id,
+        "item_id": item_id,
         "current_title": facts.title,
-        "model": client.model,
-        "source": "llm",
-        "live_left": 0,
+        "model": (newest.spec or {}).get("model"),
+        "source": "llm" if live is not None else "seeded",
+        "live_left": max(0, live_left),
         **out,
     }
 

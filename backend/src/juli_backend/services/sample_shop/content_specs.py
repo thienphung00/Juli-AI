@@ -299,19 +299,17 @@ async def seed_content_specs(
 
 
 async def latest_title(
-    session: AsyncSession, shop_id: uuid.UUID, item_id: str
+    session: AsyncSession, shop_id: uuid.UUID, item_id: str, *, source: str | None = None
 ) -> CardContentSpec | None:
-    """The newest title spec of a product (any source)."""
-    return await session.scalar(
-        select(CardContentSpec)
-        .where(
-            CardContentSpec.shop_id == shop_id,
-            CardContentSpec.spec_type == SPEC_TITLE,
-            CardContentSpec.item_id == item_id,
-        )
-        .order_by(CardContentSpec.created_at.desc())
-        .limit(1)
+    """The newest title spec of a product (of ``source`` when given, else any source)."""
+    stmt = select(CardContentSpec).where(
+        CardContentSpec.shop_id == shop_id,
+        CardContentSpec.spec_type == SPEC_TITLE,
+        CardContentSpec.item_id == item_id,
     )
+    if source is not None:
+        stmt = stmt.where(CardContentSpec.source == source)
+    return await session.scalar(stmt.order_by(CardContentSpec.created_at.desc()).limit(1))
 
 
 async def live_titles_used(session: AsyncSession, shop_id: uuid.UUID, item_id: str) -> int:
