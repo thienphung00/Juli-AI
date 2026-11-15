@@ -333,3 +333,74 @@ async def test_write_approval_admits_any_member_and_refuses_a_removed_one(sessio
     async with _ops_client(session, staff_user) as client:
         await client.delete(f"/v1/ops/shops/{shop_id}/members/{person_id}")
     assert not await is_shop_member(session, shop_id, person_id)
+
+
+async def test_the_members_listing_reads_shop_rows_and_business_people_in_one_statement(
+    session, fake_mailer
+):
+    """P101 W1 fix: shop rows and the shop's business people come back from ONE read (the Ops
+    settings round-trip budget); a person in both is listed once, a removed one not at all."""
+    from sqlalchemy import event
+
+    from juli_backend.models.businesses import Business, BusinessMember
+    from juli_backend.services.ops.overview import ShopListing
+
+    owner, shop = await make_tenant(session)
+    staff_user = await _staff(session, "operator")
+    invited = await _invite_and_accept(session, staff_user, shop.id, "both@gmail.com", fake_mailer)
+    colleague = await make_user(session, email="colleague@gmail.com")
+    gone = await make_user(session, email="gone@gmail.com")
+    business = Business(id=uuid.uuid4(), name="Biz")
+    session.add(business)
+    await session.flush()
+    shop.business_id = business.id
+    for person, role, removed in (
+        (owner, "owner", False),
+        (invited, "member", False),
+        (colleague, "member", False),
+        (gone, "member", True),
+    ):
+        session.add(
+            BusinessMember(
+                id=uuid.uuid4(),
+                business_id=business.id,
+                user_id=person.id,
+                role=role,
+                email=person.email,
+                added_via="invite",
+                removed_at=shop.created_at if removed else None,
+            )
+        )
+    await session.flush()
+    listing = ShopListing(
+        shop_id=shop.id,
+        shop_name=shop.shop_name,
+        tiktok_shop_id=shop.tiktok_shop_id,
+        is_active=True,
+        owner_user_id=owner.id,
+        owner_email=owner.email,
+        owner_consent_at=None,
+        platform="tiktok",
+    )
+    selects: list[str] = []
+
+    def _count(_conn, _cursor, statement, *_args):
+        if statement.lstrip().upper().startswith("SELECT"):
+            selects.append(statement)
+
+    engine = session.bind.sync_engine
+    event.listen(engine, "before_cursor_execute", _count)
+    try:
+        members = await shop_team.list_members(session, listing)
+    finally:
+        event.remove(engine, "before_cursor_execute", _count)
+
+    assert len(selects) == 1, selects
+    by_user = {m["user_id"]: m for m in members}
+    # make_tenant's owner has no e-mail (nobody signs in as them): not listed
+    assert owner.email is None
+    assert set(by_user) == {str(invited.id), str(colleague.id)}
+    assert [m["user_id"] for m in members].count(str(invited.id)) == 1
+    assert "business_role" not in by_user[str(invited.id)]  # the shop row wins
+    assert by_user[str(colleague.id)]["business_role"] == "member"
+    assert by_user[str(colleague.id)]["email"] == "colleague@gmail.com"

@@ -44,16 +44,21 @@ async def test_real_route_sets_tenant_context_via_middleware():
     from sqlalchemy.ext.asyncio import create_async_engine
 
     from juli_backend.database.database import Base
+    from juli_backend.models.businesses import Business, BusinessInvite, BusinessMember
     from juli_backend.models.models import ShopMember
     from juli_backend.models.ops import OpsShopInvite, OpsStaff
 
     # Set up a real Postgres database for this test
     engine = create_async_engine(database_url)
+    factory = async_sessionmaker_factory(engine, expire_on_commit=False)
+    user_id = uuid.uuid4()
+    shop_id = uuid.uuid4()
 
     try:
         # Create only the User and Shop tables (public schema); skip multi-schema tables.
         # get_active_shop resolves access through shop_members (P93), so that table and
-        # the two its foreign keys point at come too.
+        # the two its foreign keys point at come too, and through business_members (P101 W1):
+        # shops.business_id references businesses, business_members references business_invites.
         # Use checkfirst=True so on a shared DB with migrations already applied, this is a no-op
         async with engine.begin() as conn:
             await conn.run_sync(
@@ -61,6 +66,9 @@ async def test_real_route_sets_tenant_context_via_middleware():
                     c,
                     tables=[
                         User.__table__,
+                        Business.__table__,
+                        BusinessInvite.__table__,
+                        BusinessMember.__table__,
                         Shop.__table__,
                         OpsStaff.__table__,
                         OpsShopInvite.__table__,
@@ -71,10 +79,6 @@ async def test_real_route_sets_tenant_context_via_middleware():
             )
 
         # Create test user and shop
-        factory = async_sessionmaker_factory(engine, expire_on_commit=False)
-        user_id = uuid.uuid4()
-        shop_id = uuid.uuid4()
-
         async with factory() as session:
             user = User(id=user_id, phone="+1234567890")
             session.add(user)
@@ -104,7 +108,7 @@ async def test_real_route_sets_tenant_context_via_middleware():
         # Create a test route that checks the GUC
         from fastapi import Depends
         from httpx import ASGITransport
-        from sqlalchemy import delete, text
+        from sqlalchemy import text
 
         from juli_backend.api.dependencies import get_active_shop
 
@@ -141,9 +145,18 @@ async def test_real_route_sets_tenant_context_via_middleware():
     finally:
         # Clean up only the rows we inserted, not the tables
         # This allows the test to run against a shared DB without schema mutations
+        from sqlalchemy import delete as sa_delete
+        from sqlalchemy import select as sa_select
+
         async with factory() as session:
-            await session.execute(delete(Shop).where(Shop.id == shop_id))
-            await session.execute(delete(User).where(User.id == user_id))
+            # A migrated database's shops trigger gave the shop its own business (P101 W1).
+            business_id = (
+                await session.execute(sa_select(Shop.business_id).where(Shop.id == shop_id))
+            ).scalar_one_or_none()
+            await session.execute(sa_delete(Shop).where(Shop.id == shop_id))
+            await session.execute(sa_delete(User).where(User.id == user_id))
+            if business_id is not None:
+                await session.execute(sa_delete(Business).where(Business.id == business_id))
             await session.commit()
         await engine.dispose()
 

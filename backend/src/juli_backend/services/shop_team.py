@@ -20,9 +20,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import Select, String, cast, literal_column, null, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.businesses import BusinessMember
 from juli_backend.models.models import Shop, ShopMember
 from juli_backend.repositories.identity import shops_of_user_clause
 from juli_backend.services import businesses
@@ -64,7 +65,13 @@ async def is_member(session: AsyncSession, shop_id: uuid.UUID, user_id: uuid.UUI
     return found is not None
 
 
-def member_json(row: ShopMember) -> dict[str, Any]:
+def _uuid(value: Any) -> uuid.UUID:
+    """A raw union column: SQLite hands back the uuid's text."""
+    return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
+
+
+def member_json(row: Any) -> dict[str, Any]:
+    """A ``shop_members`` row (the ORM object, or a row of :func:`list_members`' read)."""
     return {
         "user_id": str(row.user_id),
         "email": row.email,
@@ -89,11 +96,14 @@ async def _rows(session: AsyncSession, shop_id: uuid.UUID) -> list[ShopMember]:
         )
 
 
-def _implicit_owner(listing: ShopListing, rows: list[ShopMember]) -> dict[str, Any] | None:
-    """The owner of a shop that has no row of its own for them yet (pre-backfill), if a person."""
+def _implicit_owner(listing: ShopListing, row_user_ids: set[uuid.UUID]) -> dict[str, Any] | None:
+    """The owner of a shop that has no row of its own for them yet (pre-backfill), if a person.
+
+    ``row_user_ids``: every ``shop_members`` row of the shop, removed ones included.
+    """
     if listing.owner_email is None:
         return None  # a login-less contract-shop owner: nobody signs in as them
-    if any(r.user_id == listing.owner_user_id for r in rows):
+    if listing.owner_user_id in row_user_ids:
         return None
     return {
         "user_id": str(listing.owner_user_id),
@@ -108,12 +118,41 @@ async def list_members(session: AsyncSession, listing: ShopListing) -> list[dict
     """The shop's active members (Ops view): shop rows, then the business's people (P101 W1).
 
     The pre-backfill owner is included. A business member with no e-mail (a login-less contract
-    owner) is not listed: nobody signs in as them.
+    owner) is not listed: nobody signs in as them. ONE statement for both tables (the Ops
+    settings round-trip budget, ``tests/integration/test_ops_round_trips.py``).
     """
-    rows = await _rows(session, listing.shop_id)
-    members = [member_json(r) for r in rows if r.removed_at is None]
+    shop_rows: Select[Any] = select(
+        literal_column("0").label("src"),
+        ShopMember.id,
+        ShopMember.user_id,
+        ShopMember.email,
+        ShopMember.added_at,
+        ShopMember.added_via,
+        ShopMember.removed_at,
+        cast(null(), String(16)).label("role"),
+    ).where(ShopMember.shop_id == listing.shop_id)
+    business_rows: Select[Any] = select(
+        literal_column("1").label("src"),
+        BusinessMember.id,
+        BusinessMember.user_id,
+        BusinessMember.email,
+        BusinessMember.added_at,
+        BusinessMember.added_via,
+        BusinessMember.removed_at,
+        BusinessMember.role,
+    ).where(
+        BusinessMember.business_id == businesses.shop_business_id_expr(session, listing.shop_id),
+        BusinessMember.removed_at.is_(None),
+    )
+    team = union_all(shop_rows, business_rows).subquery()
+    async with ops_role(session):
+        rows = (
+            await session.execute(select(team).order_by(team.c.src, team.c.added_at, team.c.id))
+        ).all()
+    shop_part = [r for r in rows if r.src == 0]
+    members = [member_json(r) for r in shop_part if r.removed_at is None]
     seen = {m["user_id"] for m in members}
-    for person in await businesses.members_of_shop_business(session, listing.shop_id):
+    for person in (r for r in rows if r.src == 1):
         if person.email is None or str(person.user_id) in seen:
             continue
         seen.add(str(person.user_id))
@@ -127,7 +166,7 @@ async def list_members(session: AsyncSession, listing: ShopListing) -> list[dict
                 "business_role": person.role,
             }
         )
-    implicit = _implicit_owner(listing, rows)
+    implicit = _implicit_owner(listing, {_uuid(r.user_id) for r in shop_part})
     if implicit is not None and implicit["user_id"] not in seen:
         members.insert(0, implicit)
     return members
@@ -213,7 +252,7 @@ async def remove_member(
     target = next((r for r in rows if r.user_id == user_id and r.removed_at is None), None)
     business_people = await businesses.members_of_shop_business(session, listing.shop_id)
     in_business = next((p for p in business_people if p.user_id == user_id), None)
-    implicit = _implicit_owner(listing, rows)
+    implicit = _implicit_owner(listing, {r.user_id for r in rows})
     is_implicit = implicit is not None and implicit["user_id"] == str(user_id)
     if target is None and in_business is None and not is_implicit:
         raise MemberError("not_a_member", "this person is not a member of the shop")

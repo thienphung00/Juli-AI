@@ -50,9 +50,19 @@ def test_rls_grants_and_policies():
     up, down = text.split("def downgrade")
     assert up.count("create_table(") == 3 and down.count("drop_table(") == 3
     assert "ENABLE ROW LEVEL SECURITY" in up and "app_current_user_id()" in up
-    assert "{MEMBERS}_select_own ON public.{MEMBERS}" in up and "TO {OPS_ROLE}" in up
+    assert "business_members_select_own ON public.business_members" in up
+    for table in TABLES:
+        assert f"{table}_ops_only ON public.{table} FOR ALL TO juli_ops" in up
+        assert f"DROP POLICY IF EXISTS {table}_ops_only ON public.{table}" in down
     # juli_app never writes the new tables, and never reads the invites
-    assert "GRANT SELECT ON public.{BUSINESSES}, public.{MEMBERS} TO {APP_ROLE}" in up
+    assert "GRANT SELECT ON public.businesses, public.business_members TO juli_app" in up
+    # Only business_members names the user (like shop_members, 121): the businesses policy finds
+    # the caller's rows through business_members' own-rows policy (test_rls_policies allowlist).
+    member_policy = up[up.index("CREATE POLICY businesses_select_member") :]
+    member_policy = member_policy[: member_policy.index(")\n")]
+    assert "business_members bm" in member_policy and "current_user_id" not in member_policy
+    # Literal SQL: no interpolated statement outside the shops predicate helper and the loops.
+    assert "nosec" not in text
     mod = _module(PATH, "m130p")
     assert "business_members bm" in mod._ACCESS and "shop_members m" in mod._ACCESS
     assert "AND bm.user_id = app_current_user_id()))" in mod._LEGACY_OWNER

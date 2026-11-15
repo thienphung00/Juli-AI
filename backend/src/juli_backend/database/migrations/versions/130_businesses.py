@@ -5,7 +5,7 @@ Revises: 129_stock_alert
 Create Date: 2026-11-15
 
 Contract ``fasttrack/contracts/p101-tiktok-parity.md`` §2.1 (T4). Three new tables, two new
-``shops`` columns, one trigger, two replaced ``shops`` policies, four reviewed SECURITY DEFINER
+``shops`` columns, two triggers, two replaced ``shops`` policies, four reviewed SECURITY DEFINER
 functions. No row is moved here (the additive gate refuses a data step). The backfill of existing
 shops is AUTOMATIC (owner rule T2): the worker job ``juli_backend.businesses_backfill`` (beat every
 10 min and at worker start, ``services/businesses/backfill.py``) calls
@@ -18,7 +18,12 @@ Until then nothing is lost: a shop with no business keeps P93's access rule (bel
   expiry, accept / revoke stamps. ``juli_ops`` only (the service checks the owner, then writes).
 - ``business_members`` -- (business, user, role owner|member, e-mail snapshot, added_at, added_via
   owner|invite|backfill, invite_id, removed_at). One ACTIVE row per (business, user): a partial
-  unique index. ``juli_app`` SELECTs its own rows only; ``juli_ops`` writes.
+  unique index. ``juli_app`` SELECTs its own rows only (``user_id = app_current_user_id()``, the
+  same own-rows policy as ``shop_members`` in 121: the ``shops`` policies read it); ``juli_ops``
+  writes.
+- ``businesses`` for ``juli_app``: a row with an active ``business_members`` row. The policy names
+  no user: its subquery runs under ``business_members``' own-rows policy, so it can only find the
+  caller's rows (RLS applies inside policy subqueries). ``juli_ops`` writes.
 - ``shops.business_id`` (nullable FK; CHECK NOT NULL once the job is done) and ``shops.kind``
   (real|sandbox|sample, default real, check constraint).
 - ``shops`` SELECT / UPDATE: an active member of the shop's business, or an active ``shop_members``
@@ -28,6 +33,8 @@ Until then nothing is lost: a shop with no business keeps P93's access rule (bel
   by itself, so a removal is final. INSERT keeps the owner
   predicate: a membership check there would not see the owner row the trigger below writes in the
   same statement, so the chosen business is checked in ``services/businesses`` before the insert.
+- An AFTER DELETE trigger on ``shops`` (SECURITY DEFINER) deletes a business left with no shop
+  and no active member (the account purge, 094), with its invites and removed rows (cascade).
 - A BEFORE INSERT trigger on ``shops`` (SECURITY DEFINER) gives a shop inserted without a business
   its own business named after the shop, with ``shops.user_id`` as owner -- every insert path
   (contract shops, seeds, the previous release during a deploy) keeps working with no code change.
@@ -39,7 +46,7 @@ Until then nothing is lost: a shop with no business keeps P93's access rule (bel
   its ``shops`` SELECT / INSERT / UPDATE grants are table-level (043, 058), so they cover the new
   columns.
 
-``downgrade`` drops the functions and trigger, restores migration 121's policies, drops the columns
+``downgrade`` drops the functions and triggers, restores migration 121's policies, drops the columns
 and tables.
 """
 
@@ -55,19 +62,15 @@ down_revision: str | None = "129_stock_alert"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-APP_ROLE = "juli_app"
 OPS_ROLE = "juli_ops"
 BUSINESSES = "businesses"
 INVITES = "business_invites"
 MEMBERS = "business_members"
-FN = "public.shops_default_business()"
 SHOP_BUSINESS_FN = "public.ops_shop_business(uuid)"
 FIRST_SHOP_FN = "public.ops_business_first_shop(uuid)"
 BACKFILL_FN = "public.businesses_backfill_batch(integer)"
 REQUIRE_FN = "public.businesses_require_shop_business()"
 OPS_FUNCTIONS = (SHOP_BUSINESS_FN, FIRST_SHOP_FN, BACKFILL_FN, REQUIRE_FN)
-#: Added (NOT VALID, then VALIDATE) by ``businesses_require_shop_business`` once no NULL is left.
-BUSINESS_SET_CHECK = "ck_shops_business_id_set"
 
 _SHOP_MEMBER = (
     "EXISTS (SELECT 1 FROM public.shop_members m WHERE m.shop_id = shops.id "
@@ -99,12 +102,12 @@ _P93_MEMBER = (
 
 
 def _set_shop_policies(access: str) -> None:
+    """``access`` is ``_ACCESS`` or ``_P93_MEMBER`` (module constants, never input). One predicate
+    interpolated three times keeps SELECT and UPDATE from drifting apart."""
     op.execute("DROP POLICY IF EXISTS shops_select_public ON public.shops")
     op.execute("DROP POLICY IF EXISTS shops_update_public ON public.shops")
-    op.execute(  # nosec B608 - fixed module constants
-        f"CREATE POLICY shops_select_public ON public.shops FOR SELECT USING {access}"
-    )
-    op.execute(  # nosec B608 - fixed module constants
+    op.execute(f"CREATE POLICY shops_select_public ON public.shops FOR SELECT USING {access}")
+    op.execute(
         f"CREATE POLICY shops_update_public ON public.shops FOR UPDATE "
         f"USING {access} WITH CHECK {access}"
     )
@@ -134,7 +137,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("expires_at", sa.DateTime(), nullable=False),
         sa.Column("accepted_at", sa.DateTime(), nullable=True),
-        sa.Column("accepted_user_id", sa.Uuid(), nullable=True),
+        # An FK so the account purge (094, step 4) clears it: it SET NULLs every nullable
+        # reference to the purged user.
+        sa.Column("accepted_user_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=True),
         sa.Column("revoked_at", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id", name=f"pk_{INVITES}"),
         sa.UniqueConstraint("token_hash", name="uq_business_invites_token_hash"),
@@ -156,7 +161,14 @@ def upgrade() -> None:
         sa.Column("email", sa.String(length=320), nullable=True),
         sa.Column("added_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("added_via", sa.String(length=16), nullable=False),
-        sa.Column("invite_id", sa.Uuid(), sa.ForeignKey("business_invites.id"), nullable=True),
+        # SET NULL: the purge deletes the invites its account sent (094, step 4); another
+        # member's row that came through one of them stays.
+        sa.Column(
+            "invite_id",
+            sa.Uuid(),
+            sa.ForeignKey("business_invites.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("removed_at", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id", name=f"pk_{MEMBERS}"),
         sa.CheckConstraint("role IN ('owner', 'member')", name="ck_business_members_role"),
@@ -184,42 +196,61 @@ def upgrade() -> None:
     )
     op.create_check_constraint("ck_shops_kind", "shops", "kind IN ('real', 'sandbox', 'sample')")
 
-    op.execute(f"ALTER TABLE public.{BUSINESSES} ENABLE ROW LEVEL SECURITY")  # nosec B608
-    op.execute(f"ALTER TABLE public.{MEMBERS} ENABLE ROW LEVEL SECURITY")  # nosec B608
-    op.execute(f"ALTER TABLE public.{INVITES} ENABLE ROW LEVEL SECURITY")  # nosec B608
-    op.execute(  # nosec B608 - fixed module constants
-        f"CREATE POLICY {MEMBERS}_select_own ON public.{MEMBERS} FOR SELECT "
+    op.execute("ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY")
+    op.execute("ALTER TABLE public.business_members ENABLE ROW LEVEL SECURITY")
+    op.execute("ALTER TABLE public.business_invites ENABLE ROW LEVEL SECURITY")
+    # Own rows only, like shop_members (121): the shops policies read this table as juli_app.
+    op.execute(
+        "CREATE POLICY business_members_select_own ON public.business_members FOR SELECT "
         "USING (user_id = app_current_user_id())"
     )
-    op.execute(  # nosec B608 - fixed module constants
-        f"CREATE POLICY {BUSINESSES}_select_member ON public.{BUSINESSES} FOR SELECT "
-        "USING (EXISTS (SELECT 1 FROM public.business_members bm WHERE bm.business_id = "
-        "businesses.id AND bm.user_id = app_current_user_id() AND bm.removed_at IS NULL))"
+    # No user named here: the subquery is filtered by business_members_select_own above, so it
+    # finds only the caller's own active rows.
+    op.execute(
+        "CREATE POLICY businesses_select_member ON public.businesses FOR SELECT "
+        "USING (EXISTS (SELECT 1 FROM public.business_members bm "
+        "WHERE bm.business_id = businesses.id AND bm.removed_at IS NULL))"
     )
-    for table in (BUSINESSES, MEMBERS, INVITES):
-        op.execute(  # nosec B608 - fixed module constants
-            f"CREATE POLICY {table}_ops_only ON public.{table} FOR ALL TO {OPS_ROLE} "
-            "USING (true) WITH CHECK (true)"
-        )
-        op.execute(f"REVOKE ALL ON public.{table} FROM PUBLIC")  # nosec B608
-    op.execute(f"""
+    op.execute(
+        "CREATE POLICY businesses_ops_only ON public.businesses FOR ALL TO juli_ops "
+        "USING (true) WITH CHECK (true)"
+    )
+    op.execute(
+        "CREATE POLICY business_members_ops_only ON public.business_members FOR ALL TO juli_ops "
+        "USING (true) WITH CHECK (true)"
+    )
+    op.execute(
+        "CREATE POLICY business_invites_ops_only ON public.business_invites FOR ALL TO juli_ops "
+        "USING (true) WITH CHECK (true)"
+    )
+    op.execute("REVOKE ALL ON public.businesses FROM PUBLIC")
+    op.execute("REVOKE ALL ON public.business_members FROM PUBLIC")
+    op.execute("REVOKE ALL ON public.business_invites FROM PUBLIC")
+    op.execute("""
     DO $$
     BEGIN
-        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{APP_ROLE}') THEN
-            EXECUTE 'REVOKE ALL ON public.{BUSINESSES}, public.{MEMBERS}, public.{INVITES} FROM {APP_ROLE}';
-            EXECUTE 'GRANT SELECT ON public.{BUSINESSES}, public.{MEMBERS} TO {APP_ROLE}';
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'juli_app') THEN
+            EXECUTE 'REVOKE ALL ON public.businesses, public.business_members, public.business_invites FROM juli_app';
+            EXECUTE 'GRANT SELECT ON public.businesses, public.business_members TO juli_app';
         END IF;
-        EXECUTE 'GRANT SELECT, INSERT, UPDATE ON public.{BUSINESSES}, public.{MEMBERS}, public.{INVITES} TO {OPS_ROLE}';
+        -- Supabase's default privileges give these two every new public table (107, 108).
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+            EXECUTE 'REVOKE ALL ON public.businesses, public.business_members, public.business_invites FROM anon';
+        END IF;
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+            EXECUTE 'REVOKE ALL ON public.businesses, public.business_members, public.business_invites FROM authenticated';
+        END IF;
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE ON public.businesses, public.business_members, public.business_invites TO juli_ops';
     END
     $$;
-    """)  # nosec B608 - fixed module constants
+    """)
 
     _set_shop_policies(_ACCESS)
 
     # One statement per branch (a data-modifying CTE): the business and its owner row are written
     # together, and the new id lands on the row being inserted.
-    op.execute(f"""
-    CREATE OR REPLACE FUNCTION {FN}
+    op.execute("""
+    CREATE OR REPLACE FUNCTION public.shops_default_business()
     RETURNS trigger
     LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public
     AS $fn$
@@ -243,11 +274,37 @@ def upgrade() -> None:
         RETURN NEW;
     END
     $fn$;
-    """)  # nosec B608 - fixed SQL
-    op.execute(f"REVOKE ALL ON FUNCTION {FN} FROM PUBLIC")
+    """)
+    op.execute("REVOKE ALL ON FUNCTION public.shops_default_business() FROM PUBLIC")
     op.execute(
         "CREATE TRIGGER shops_default_business BEFORE INSERT ON public.shops "
-        f"FOR EACH ROW EXECUTE FUNCTION {FN}"
+        "FOR EACH ROW EXECUTE FUNCTION public.shops_default_business()"
+    )
+    # Privacy (the P50-B account purge, 094): a business goes with its last shop once nobody is
+    # left in it -- the purge deletes the account's member rows (step 4) before its shops (step
+    # 5) -- so the business name (the shop's) and its invites (cascade) do not outlive the
+    # seller. A business someone still belongs to stays: it is theirs too.
+    op.execute("""
+    CREATE OR REPLACE FUNCTION public.shops_drop_empty_business()
+    RETURNS trigger
+    LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public
+    AS $fn$
+    BEGIN
+        IF OLD.business_id IS NOT NULL THEN
+            DELETE FROM public.businesses AS b
+             WHERE b.id = OLD.business_id
+               AND NOT EXISTS (SELECT 1 FROM public.shops AS s WHERE s.business_id = b.id)
+               AND NOT EXISTS (SELECT 1 FROM public.business_members AS bm
+                                WHERE bm.business_id = b.id AND bm.removed_at IS NULL);
+        END IF;
+        RETURN NULL;
+    END
+    $fn$;
+    """)
+    op.execute("REVOKE ALL ON FUNCTION public.shops_drop_empty_business() FROM PUBLIC")
+    op.execute(
+        "CREATE TRIGGER shops_drop_empty_business AFTER DELETE ON public.shops "
+        "FOR EACH ROW EXECUTE FUNCTION public.shops_drop_empty_business()"
     )
     _create_ops_functions()
 
@@ -334,44 +391,46 @@ def _create_ops_functions() -> None:
                (SELECT count(*) FROM members)::integer,
                (SELECT count(*) FROM moved WHERE kind = 'sandbox')::integer
     $fn$;
-    """)  # nosec B608 - fixed SQL
+    """)
     # The NOT NULL of business_id, as a CHECK the additive gate accepts: added NOT VALID (new and
     # updated rows only; the trigger fills every insert), then VALIDATEd. Only once no NULL is left,
     # so no pre-backfill row is ever refused an update. True when the check is in force.
-    op.execute(f"""
+    op.execute("""
     CREATE OR REPLACE FUNCTION public.businesses_require_shop_business()
     RETURNS boolean
     LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public
     AS $fn$
     BEGIN
-        IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '{BUSINESS_SET_CHECK}'
+        IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_shops_business_id_set'
                     AND conrelid = 'public.shops'::regclass AND convalidated) THEN
             RETURN true;
         END IF;
         IF EXISTS (SELECT 1 FROM public.shops WHERE business_id IS NULL) THEN
             RETURN false;
         END IF;
-        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '{BUSINESS_SET_CHECK}'
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_shops_business_id_set'
                         AND conrelid = 'public.shops'::regclass) THEN
-            EXECUTE 'ALTER TABLE public.shops ADD CONSTRAINT {BUSINESS_SET_CHECK} '
+            EXECUTE 'ALTER TABLE public.shops ADD CONSTRAINT ck_shops_business_id_set '
                     'CHECK (business_id IS NOT NULL) NOT VALID';
         END IF;
-        EXECUTE 'ALTER TABLE public.shops VALIDATE CONSTRAINT {BUSINESS_SET_CHECK}';
+        EXECUTE 'ALTER TABLE public.shops VALIDATE CONSTRAINT ck_shops_business_id_set';
         RETURN true;
     END
     $fn$;
-    """)  # nosec B608 - fixed module constants
+    """)
     for fn in OPS_FUNCTIONS:
-        op.execute(f"REVOKE ALL ON FUNCTION {fn} FROM PUBLIC")  # nosec B608 - fixed constant
-        op.execute(f"GRANT EXECUTE ON FUNCTION {fn} TO {OPS_ROLE}")  # nosec B608 - fixed constant
+        op.execute(f"REVOKE ALL ON FUNCTION {fn} FROM PUBLIC")
+        op.execute(f"GRANT EXECUTE ON FUNCTION {fn} TO {OPS_ROLE}")
 
 
 def downgrade() -> None:
     for fn in OPS_FUNCTIONS:
-        op.execute(f"DROP FUNCTION IF EXISTS {fn}")  # nosec B608 - fixed constant
-    op.execute(f"ALTER TABLE public.shops DROP CONSTRAINT IF EXISTS {BUSINESS_SET_CHECK}")
+        op.execute(f"DROP FUNCTION IF EXISTS {fn}")
+    op.execute("ALTER TABLE public.shops DROP CONSTRAINT IF EXISTS ck_shops_business_id_set")
+    op.execute("DROP TRIGGER IF EXISTS shops_drop_empty_business ON public.shops")
+    op.execute("DROP FUNCTION IF EXISTS public.shops_drop_empty_business()")
     op.execute("DROP TRIGGER IF EXISTS shops_default_business ON public.shops")
-    op.execute(f"DROP FUNCTION IF EXISTS {FN}")
+    op.execute("DROP FUNCTION IF EXISTS public.shops_default_business()")
     _set_shop_policies(_P93_MEMBER)
     op.drop_constraint("ck_shops_kind", "shops", type_="check")
     op.drop_column("shops", "kind")
@@ -379,10 +438,11 @@ def downgrade() -> None:
     op.drop_column("shops", "business_id")
     # Policies first: businesses_select_member reads business_members, so the table drop below
     # would fail with DependentObjectsStillExist while it exists.
-    op.execute(f"DROP POLICY IF EXISTS {BUSINESSES}_select_member ON public.{BUSINESSES}")  # nosec B608
-    op.execute(f"DROP POLICY IF EXISTS {MEMBERS}_select_own ON public.{MEMBERS}")  # nosec B608
-    for table in (BUSINESSES, MEMBERS, INVITES):
-        op.execute(f"DROP POLICY IF EXISTS {table}_ops_only ON public.{table}")  # nosec B608
+    op.execute("DROP POLICY IF EXISTS businesses_select_member ON public.businesses")
+    op.execute("DROP POLICY IF EXISTS business_members_select_own ON public.business_members")
+    op.execute("DROP POLICY IF EXISTS businesses_ops_only ON public.businesses")
+    op.execute("DROP POLICY IF EXISTS business_members_ops_only ON public.business_members")
+    op.execute("DROP POLICY IF EXISTS business_invites_ops_only ON public.business_invites")
     op.drop_index("ix_business_members_user", table_name=MEMBERS)
     op.drop_index("uq_business_members_active", table_name=MEMBERS)
     op.drop_table(MEMBERS)

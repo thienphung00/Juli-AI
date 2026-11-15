@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select, text, update
+from sqlalchemy import ColumnElement, Uuid, func, literal, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.businesses import Business, BusinessInvite, BusinessMember
@@ -384,6 +384,18 @@ def _usable(row: BusinessInvite | None, user: User, now: datetime) -> BusinessIn
     return row
 
 
+def shop_business_id_expr(session: AsyncSession, shop_id: uuid.UUID) -> ColumnElement[Any]:
+    """The shop's business id as an SQL expression, to fold into the read that needs it.
+
+    Postgres: ``public.ops_shop_business`` (``juli_ops`` holds no grant on ``shops``; the caller
+    runs the statement inside :func:`ops_role`). SQLite (unit tests): a subquery on the column.
+    One statement instead of a lookup and then the read (the Ops round-trip budget).
+    """
+    if is_sqlite(session):
+        return select(Shop.business_id).where(Shop.id == shop_id).scalar_subquery()
+    return func.public.ops_shop_business(literal(shop_id, Uuid()), type_=Uuid())
+
+
 async def _shop_business_id(session: AsyncSession, shop_id: uuid.UUID) -> uuid.UUID | None:
     """The shop's business, read as ``juli_ops``.
 
@@ -524,11 +536,25 @@ async def remove_member(
 async def members_of_shop_business(
     session: AsyncSession, shop_id: uuid.UUID
 ) -> list[BusinessMember]:
-    """The active members of the shop's business (empty for a shop with no business yet)."""
-    business_id = await _shop_business_id(session, shop_id)
-    if business_id is None:
-        return []
-    return await _members(session, business_id)
+    """The active members of the shop's business (empty for a shop with no business yet).
+
+    One statement: the shop's business is looked up inside the read.
+    """
+    async with ops_role(session):
+        return list(
+            (
+                await session.execute(
+                    select(BusinessMember)
+                    .where(
+                        BusinessMember.business_id == shop_business_id_expr(session, shop_id),
+                        BusinessMember.removed_at.is_(None),
+                    )
+                    .order_by(BusinessMember.added_at, BusinessMember.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
 
 
 async def remove_person_from_shop_business(
