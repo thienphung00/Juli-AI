@@ -69,6 +69,21 @@ class QueueCard:
     #: ISO time a person pinned the card to place 1 (a manual card made with ``primary``); the
     #: newest pin leads, the previous head moves to 2
     pinned_at: str | None = None
+    #: the card's stored result is estimable (True), not (False) or unknown (None, an older card):
+    #: a card known to carry no estimate queues behind the others of its product (2026-11-15)
+    estimated: bool | None = None
+
+
+def estimated_of(meta: Mapping[str, object]) -> bool | None:
+    """The card's ``estimated`` flag from its metadata, else its recomputed version-1 result."""
+    flag = meta.get("estimated")
+    if isinstance(flag, bool):
+        return flag
+    results = meta.get("results")
+    first = results.get("1") if isinstance(results, Mapping) else None
+    if isinstance(first, Mapping) and "estimable" in first:
+        return bool(first["estimable"])
+    return None
 
 
 def holds_place(card: QueueCard) -> bool:
@@ -89,8 +104,9 @@ def _pin_rank(c: QueueCard) -> tuple[int, float]:
 
 def assign(cards: Iterable[QueueCard]) -> dict[str, int | None]:
     """The place of every card: 1..n among the open cards of its product (seller-chosen cards
-    first, then best score; the stored place and the id break ties), None for a closed card or
-    one with no product. Pure and stable: the same cards always give the same numbers."""
+    first, then in-flight ones, then cards with an estimate ahead of those known to have none,
+    then best score; the stored place and the id break ties), None for a closed card or one with
+    no product. Pure and stable: the same cards always give the same numbers."""
     out: dict[str, int | None] = {}
     by_product: dict[str, list[QueueCard]] = {}
     for c in cards:
@@ -102,6 +118,7 @@ def assign(cards: Iterable[QueueCard]) -> dict[str, int | None]:
             key=lambda c: (
                 _pin_rank(c),
                 0 if c.status in config.QUEUE_IN_FLIGHT else 1,
+                1 if c.estimated is False else 0,
                 -c.score,
                 c.queue if c.queue is not None else _LAST,
                 c.id,
@@ -194,6 +211,7 @@ async def requeue_products(
                 pinned_at=str(meta["primary_at"])
                 if meta.get("primary") and meta.get("primary_at")
                 else None,
+                estimated=estimated_of(meta),
             )
         )
     places = assign(cards)

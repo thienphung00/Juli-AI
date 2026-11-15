@@ -45,6 +45,41 @@ def _q(id_, product="p1", status="sent", score=1.0, **kw):
     return QueueCard(id_, product, status, score, **kw)
 
 
+def test_a_card_with_an_estimate_leads_its_product_after_every_requeue():
+    """Sample shop 2026-11-15: ranking put the voucher (P50 +29k) first, but every requeue sorted
+    on rank_score alone and a no-spec review voucher took q1. Estimate first, then the score; an
+    older card without the flag (None) keeps its score order; pins and in-flight cards lead."""
+    got = assign([
+        _q("review", score=90, estimated=False),
+        _q("voucher", score=5, estimated=True),
+        _q("price", score=4, estimated=True),
+        _q("old", score=50, estimated=None),
+    ])  # fmt: skip
+    assert got == {"old": 1, "voucher": 2, "price": 3, "review": 4}
+    pinned = assign([
+        _q("review", score=90, estimated=False, pinned_at="2026-11-15T01:00:00"),
+        _q("voucher", score=5, estimated=True),
+    ])  # fmt: skip
+    assert pinned == {"review": 1, "voucher": 2}
+    flying = assign(
+        [
+            _q("cover", status="approved", score=1, estimated=False),
+            _q("voucher", score=5, estimated=True),
+        ]
+    )
+    assert flying == {"cover": 1, "voucher": 2}
+
+
+def test_estimated_of_reads_the_flag_then_the_recomputed_result():
+    from juli_backend.services.shopee_recommendations.product_queue import estimated_of
+
+    assert estimated_of({"estimated": False}) is False
+    assert estimated_of({"results": {"1": {"estimable": True}}}) is True
+    assert (
+        estimated_of({"results": {"2": {"estimable": True}}}) is None and estimated_of({}) is None
+    )
+
+
 def test_the_queue_numbers_open_cards_of_a_product_best_score_first():
     got = assign([_q("a", score=1), _q("b", score=3), _q("c", score=2), _q("z", "p2", score=0)])
     assert got == {"a": 3, "b": 1, "c": 2, "z": 1}
