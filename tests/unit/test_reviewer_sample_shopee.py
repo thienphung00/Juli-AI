@@ -946,7 +946,11 @@ async def test_one_live_draft_per_product_then_the_quota_refuses(session, world,
         live = await client.post(TITLE_URL, json=_title_body(regenerate=True), headers=headers)
         assert live.status_code == 200, live.text
         assert live.json()["source"] == "llm" and live.json()["live_left"] == 0
-        assert [d["title"] for d in live.json()["drafts"]] == titles[1:]
+        # owner option A (2026-11-15): the seeded title stays first, the AI drafts follow it
+        assert [d["title"] for d in live.json()["drafts"]] == titles
+        assert [d["source"] for d in live.json()["drafts"]] == ["seeded"] + ["llm"] * (
+            len(titles) - 1
+        )
         again = await client.post(TITLE_URL, json=_title_body(regenerate=True), headers=headers)
         assert again.status_code == 403, again.text
         assert again.headers["x-juli-reviewer-denied"] == "sample_llm_quota"
@@ -961,9 +965,10 @@ async def test_one_live_draft_per_product_then_the_quota_refuses(session, world,
     assert len(rows) == 1 and rows[0].shop_id == sid and rows[0].item_id == ITEM
     assert rows[0].created_by_user_id == reviewer_id
     assert [c["title"] for c in rows[0].spec["candidates"]] == titles[1:]
-    # The plain request now serves the newest spec (the live one) and offers no second draft.
+    # The plain request now serves both sets (seeded first) and offers no second draft.
     assert latest.status_code == 200 and latest.json()["source"] == "llm"
     assert latest.json()["live_left"] == 0
+    assert [d["title"] for d in latest.json()["drafts"]] == titles
     refused = await _audits(session, "reviewer_write_refused")
     assert [r.after["reason"] for r in refused] == ["sample_llm_quota"]
 
