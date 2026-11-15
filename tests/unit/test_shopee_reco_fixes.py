@@ -410,7 +410,7 @@ def test_bug3_5_variation_rows_take_the_sku_text_of_the_order_lines():
     )
     assert seen["100"] == {"1": "G500001", "2": "G500002"}
     info = SimpleNamespace(
-        list_price=None, current_price=None, seller_sku=None,
+        name="Nước ion", list_price=None, current_price=None, seller_sku=None,
         variations=[SimpleNamespace(variation_id="1", name="Combo 3", seller_sku=None),
                     SimpleNamespace(variation_id="2", name="Combo 5", seller_sku=None)],
     )  # fmt: skip
@@ -428,7 +428,7 @@ def test_bug3_5_variation_rows_take_the_sku_text_of_the_order_lines():
     assert all(r["has_cost"] for r in rows)
     # a single-model listing (Hae): the model has no SKU in the catalogue, its lines do
     one = SimpleNamespace(
-        list_price=None, current_price=None, seller_sku=None,
+        name="Hae", list_price=None, current_price=None, seller_sku=None,
         variations=[SimpleNamespace(variation_id="177", name=None, seller_sku=None)],
     )  # fmt: skip
     rules.sku_cost["HAE-01"] = Decimal(5_000)

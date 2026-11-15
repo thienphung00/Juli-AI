@@ -901,8 +901,11 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             )
             c, s = (v["result"] for v in out["versions"])
             # combo: only the badge's CTOR prior moves orders; ΔGMV = those orders × AOV
-            assert c["delta"]["gmv"]["value"] == pytest.approx(350_716, rel=0.02)
-            assert c["delta"]["orders"]["value"] == pytest.approx(2.9, abs=0.1)
+            # the engine reports the middle-PROFIT draw's orders/GMV, so the sample's KOL lines
+            # (S2-F2) and the shop's phí dịch vụ (437bea66, a cheaper net discount) move which
+            # draw is the middle one (350_716 / 2.9 before; 669_480 / 5.5 with no service fee)
+            assert c["delta"]["gmv"]["value"] == pytest.approx(450_153, rel=0.02)
+            assert c["delta"]["orders"]["value"] == pytest.approx(3.7, abs=0.1)
             assert c["delta"]["profit"]["value"] < 0
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")
