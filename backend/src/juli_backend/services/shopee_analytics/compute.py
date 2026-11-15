@@ -381,7 +381,9 @@ def _active_items(ctx: ShopContext) -> dict[str, str]:
     return {
         i: ctx.catalog.name(i)
         for i, info in ctx.catalog.items.items()
-        if not i.startswith("sku:") and is_active(info.status) and i not in ctx.rules.excluded
+        if not i.startswith("sku:")
+        and is_active(info.status, info.name)
+        and i not in ctx.rules.excluded
     }
 
 

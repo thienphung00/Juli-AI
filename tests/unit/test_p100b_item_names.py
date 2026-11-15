@@ -103,3 +103,34 @@ def test_status_labels():
     assert item_status_label("Đang hoạt động") == "Đang hoạt động"
     assert item_status_label("7") == "7"  # an unknown code is kept as read
     assert item_status_label(None) is None
+
+
+# -- Shopee's deleted-listing name is not an active listing (Chrome check 2026-11-15) ---------
+
+
+def test_the_deleted_listing_name_is_never_an_active_listing():
+    """ORY's Sản phẩm footer listed two "Không thể lấy thông tin sản phẩm do bị xóa" rows as
+    active listings without orders: older catalogue rows with that name and no status."""
+    from types import SimpleNamespace
+
+    from juli_backend.services.ingest import gateway
+    from juli_backend.services.shopee_analytics import catalog as sa_catalog
+    from juli_backend.services.shopee_analytics.catalog import ItemInfo
+    from juli_backend.services.shopee_analytics.compute import _active_items
+    from juli_backend.services.shopee_builder.catalogue import is_active
+
+    assert sa_catalog.DELETED_PRODUCT_NAME == gateway.DELETED_PRODUCT_NAME
+    assert not is_active(None, DELETED_PRODUCT_NAME)
+    assert not is_active("NORMAL", f"  {DELETED_PRODUCT_NAME} ")
+    assert is_active(None, "Nước rửa chén Ory 500ml") and is_active(None)
+    assert not is_active("UNLIST", "Nước rửa chén Ory 500ml")
+
+    items = {
+        "1": ItemInfo("1", name="Nước rửa chén Ory 500ml"),
+        "2": ItemInfo("2", name=DELETED_PRODUCT_NAME),
+        "3": ItemInfo("3", name=DELETED_PRODUCT_NAME, status="NORMAL"),
+        "4": ItemInfo("4", name="Túi vải đay", status="UNLIST"),
+    }
+    catalog = SimpleNamespace(items=items, name=lambda i: items[i].name or i)
+    ctx = SimpleNamespace(catalog=catalog, rules=SimpleNamespace(excluded=frozenset()))
+    assert _active_items(ctx) == {"1": "Nước rửa chén Ory 500ml"}
