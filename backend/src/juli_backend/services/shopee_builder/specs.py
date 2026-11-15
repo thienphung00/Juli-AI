@@ -15,6 +15,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from juli_backend.services.shopee_builder.banner import BannerSpec
+
 MAX_MONEY = 2_000_000_000
 MAX_VERSIONS = 4
 MIN_VERSIONS_COMPARE = 2
@@ -572,9 +574,20 @@ class CoverOverlay(BaseModel):
 
 
 class CoverSpec(_Base):
+    """A cover change: the P92 text overlay, or (P100 S2-E) the banner editor's banners."""
+
     kind: Literal["cover_image"]
     item_id: ItemId
-    overlay: CoverOverlay
+    overlay: CoverOverlay | None = None
+    banner: BannerSpec | None = None
+
+    @model_validator(mode="after")
+    def _one_design(self) -> CoverSpec:
+        if self.overlay is None and self.banner is None:
+            raise ValueError("a cover change needs an overlay or a banner")
+        if self.banner is not None and not self.banner.banners:
+            raise ValueError("a banner cover needs at least one banner")
+        return self
 
 
 class DescriptionSpec(_Base):

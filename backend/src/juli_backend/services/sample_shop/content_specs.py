@@ -178,19 +178,21 @@ def banner_spec(card_id: uuid.UUID, card: dict[str, Any], product: Product) -> d
     kind = card["change_kind"]
     banners: list[dict[str, Any]] = []
     if kind in VOUCHER_KINDS:
+        # The Voucher banner is a Thẻ (card box) on the right, as the design's catalogue has it.
         after = (card.get("change") or {}).get("after") or {}
-        values = {"value": after.get("value"), "pct": after.get("pct"),
-                  "min_spend": after.get("min_spend")}  # fmt: skip
-        values = {k: v for k, v in values.items() if v is not None}
+        fields = {"value": "value", "min": "min_spend"}
+        values = {k: after.get(f) for k, f in fields.items()}
+        values = {k: v for k, v in values.items() if isinstance(v, int | float)}
         banners.append(
             {
-                "shape": "goc",
+                "shape": "the",
                 "kind": "voucher",
                 "values": values,
                 "sources": {
-                    k: {"card_id": str(card_id), "field": f"change.after.{k}"} for k in values
+                    k: {"card_id": str(card_id), "field": f"change.after.{fields[k]}"}
+                    for k in values
                 },
-                "position": "top_right",
+                "position": "middle_right",
                 "colour": ACCENT,
                 "size": "M",
             }

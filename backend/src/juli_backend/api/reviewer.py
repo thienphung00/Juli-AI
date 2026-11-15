@@ -188,6 +188,11 @@ SAMPLE_SHOP_ROUTES: dict[tuple[str, str], tuple[Literal["read", "write"], str]] 
     # ``card_content_specs`` so the route can count it (``sample_llm_quota`` after that).
     ("POST", _R + "demo_shopee_builder:builder_title_drafts"): ("write", "Tự tạo › Tiêu đề: viết"),
     ("POST", _R + "demo_shopee_builder:builder_group"): ("write", "Tự tạo: Chạy cùng nhau"),
+    # P100 S2-E (owner, 2026-11-15): the Ảnh bìa banner editor. The GET reads; the POST appends a
+    # seller banner row to ``card_content_specs`` (no LLM: the check is rule-based here, the PNG
+    # is rendered in the browser).
+    (_GET, _R + "demo_shopee_builder:builder_banner"): ("read", "Tự tạo › Ảnh bìa"),
+    ("POST", _R + "demo_shopee_builder:builder_banner_save"): ("write", "Ảnh bìa: lưu banner"),
     ("PUT", _R + "demo_shopee_builder:add_exclusion"): ("write", "Loại trừ"),
     ("DELETE", _R + "demo_shopee_builder:undo_exclusion"): ("write", "Loại trừ: hoàn tác"),
     ("POST", _R + "demo_shopee_reco_plan:add_card"): ("write", "Kế hoạch"),

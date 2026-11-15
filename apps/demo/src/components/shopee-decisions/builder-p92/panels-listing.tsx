@@ -6,13 +6,14 @@ import { fmt, vnd } from "../../../lib/shopee-analytics/format";
 import { shopeeImageSrc } from "../../../lib/shopee-analytics/image-src";
 import type { AdsCampaigns, CoverOverlay, KeywordTable } from "../../../lib/shopee-decisions/builder-api";
 import { ADS_ROAS_PRESETS, MAX_FIRST_LINE, MAX_TITLE, num, type Forms } from "../../../lib/shopee-decisions/builder-p92";
+import { BannerEditor } from "../banner-editor";
 import { LlmOff, NumIn, Pills, Seg, TextIn, useDraft, type PanelCtx } from "./shared";
 import { ProductTargets } from "./targets";
 
 /**
  * Input panels of the listing and marketing strategies: Quảng cáo (4 levers), Tiêu đề (keyword table -> LLM
- * drafts, free edit with counter and coverage), Ảnh bìa (overlay concepts as text over the real photo; the photo
- * is never altered and nothing is generated), Mô tả, Affiliate / KOL, Hiển thị giá + listing.
+ * drafts, free edit with counter and coverage), Ảnh bìa (the seller's banner editor, P100 S2-E; Ops keeps the
+ * overlay concepts as text over the real photo; the photo is never altered and nothing is generated), Mô tả, Affiliate / KOL, Hiển thị giá + listing.
  */
 
 type P<K extends keyof Forms> = { readonly form: Forms[K]; readonly set: (patch: Partial<Forms[K]>) => void; readonly ctx: PanelCtx };
@@ -327,6 +328,14 @@ export function CoverPanel({ form, set, ctx }: P<"cover_image">) {
   const [draft, run] = useDraft(() => ctx.api.draftCover({ itemId: ctx.product.item_id, count: 3 }));
   const o = form.overlay;
   const edit = (patch: Partial<CoverOverlay>) => o && set({ overlay: { ...o, ...patch } });
+  if (ctx.api.banner) {
+    // P100 S2-E: the seller's Ảnh bìa is the banner editor (design Flow v4); Ops keeps the overlays.
+    return (
+      <div className="p2-panel" data-testid="p2-panel-cover">
+        <BannerEditor api={ctx.api} itemId={ctx.product.item_id} onChange={(banner) => set({ banner })} />
+      </div>
+    );
+  }
   return (
     <div className="p2-panel" data-testid="p2-panel-cover">
       <div className="sd-actions">

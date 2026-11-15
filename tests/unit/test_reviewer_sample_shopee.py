@@ -98,6 +98,11 @@ READ_TEMPLATES: dict[tuple[str, str], str] = {
     ("POST", f"{DEMO}/builder/evaluate"): "demo_shopee_builder:builder_evaluate",
     ("POST", f"{DEMO}/builder/compare"): "demo_shopee_builder:builder_compare",
     ("GET", f"{DEMO}/exclusions"): "demo_shopee_builder:list_exclusions",
+    # P100 S2-E: the Ảnh bìa banner editor's context (reads only)
+    (
+        "GET",
+        f"{DEMO}/builder/products/{{item_id}}/banner",
+    ): "demo_shopee_builder:builder_banner",
     # P100 S2-D2 (owner option B): the rest of the real Tự tạo -- Deal Sốc's stored pairs, the
     # market range, Combo / KOL / Dịch vụ hiển thị setups and the running campaigns to edit.
     (
@@ -127,6 +132,7 @@ WRITE_TEMPLATES: dict[tuple[str, str], str] = {
     ("POST", f"{DEMO}/builder/choose"): "demo_shopee_builder:builder_choose",
     ("POST", f"{DEMO}/builder/drafts/title"): "demo_shopee_builder:builder_title_drafts",
     ("POST", f"{DEMO}/builder/group"): "demo_shopee_builder:builder_group",
+    ("POST", f"{DEMO}/builder/banner"): "demo_shopee_builder:builder_banner_save",
     ("PUT", f"{DEMO}/exclusions/{{item_id}}"): "demo_shopee_builder:add_exclusion",
     ("DELETE", f"{DEMO}/exclusions/{{item_id}}"): "demo_shopee_builder:undo_exclusion",
     ("POST", f"{REC}/plan/cards"): "demo_shopee_reco_plan:add_card",
@@ -147,6 +153,21 @@ WRITE_TEMPLATES: dict[tuple[str, str], str] = {
     ("POST", f"{DEMO}/recommendations/change-sets/{{set_id}}/window"): (
         "demo_shopee_reco_plan:change_set_window"
     ),
+}
+#: P100 S2-E: a banner the editor saves (the default palette: the fixture shop has no profile).
+BANNER: dict[str, Any] = {
+    "template": "noi_bat",
+    "day_mode": "ngay_thuong",
+    "banners": [
+        {
+            "shape": "the",
+            "kind": "voucher",
+            "values": {"value": 10000, "min": 200000},
+            "sources": {},
+            "position": "middle_right",
+            "colour": "#EE4D2D",
+        }
+    ],
 }
 SAMPLE_TEMPLATES = {**READ_TEMPLATES, **WRITE_TEMPLATES}
 #: Reviewed and refused on the sample pin: the Connector's fill queue and the hidden screens.
@@ -625,6 +646,12 @@ async def test_every_sample_write_changes_only_the_sample_shops_rows(
         )  # fmt: skip
         assert drafted["source"] == "seeded" and drafted["live_left"] == 1
         assert [d["title"] for d in drafted["drafts"]] == titles
+        # P100 S2-E: Ảnh bìa -- save a banner on the voucher card (a seller row, rules checked)
+        saved = await send(
+            client, "POST", f"{DEMO}/builder/banner", f"{DEMO}/builder/banner",
+            {"item_id": "1002", "card_id": str(voucher), "spec": BANNER},
+        )  # fmt: skip
+        assert saved["source"] == "seller" and saved["spec"]["banners"][0]["kind"] == "voucher"
         # Loại trừ, and back
         await send(
             client, "PUT", f"{DEMO}/exclusions/{{item_id}}", f"{DEMO}/exclusions/{ITEM}",

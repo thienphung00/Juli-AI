@@ -33,6 +33,7 @@ import {
 } from "../../lib/shopee-decisions/versions";
 import { Notice, TextChip } from "../shopee-analytics/ui";
 import { DismissDialog, RequestChangeDialog, WithdrawDialog } from "./dialogs";
+import { CardBanner } from "./banner-editor";
 import { ExecutionPanel } from "./execution";
 import { MegaPanel } from "./mega";
 import { Checks } from "./numbers";
@@ -56,6 +57,9 @@ type Outcome = { readonly kind: "approved" | "planned" | "requested" | "dismisse
 const ADJUSTABLE = new Set(["draft", "sent", "changes_requested"]);
 const NO_PATCH: Patch = {};
 const BREACH_CODES = new Set(["reco_breach_unacknowledged", "reco_breach_not_acknowledged"]);
+
+/** P100 S2-E: the cards whose change can carry an Ảnh bìa banner (the cover itself, a voucher). */
+const BANNER_KINDS = new Set(["cover_image", "min_spend_voucher", "review_voucher", "voucher_cap"]);
 
 export function CardPage({ id, from, version = null }: { readonly id: string; readonly from: string | null; readonly version?: number | null }) {
   const host = useReco();
@@ -474,6 +478,8 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
       ) : null}
 
       {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”" })} sheet={final.sheet} /> : null}
+
+      {host.builder?.banner && detail.product_id && BANNER_KINDS.has(detail.change_kind) ? <CardBanner api={host.builder} cardId={detail.id} itemId={detail.product_id} readOnly={!!host.readOnly} /> : null}
 
       {!isMega ? <VersionsTable card={detail.card} locked={!adjustable} multi={multi} noToday={isKol} onPick={pick} onToggle={multi ? toggleGroup : undefined} picked={picked} rows={isKol ? kolVersionRows(versions, kolInvite) : undefined} sel={sel} subLabel={isKol ? (kolInvite ? "không có chi phí mẫu" : "so với không gửi") : undefined} todayText={todayText(shown)} versions={versions} /> : null}
 
