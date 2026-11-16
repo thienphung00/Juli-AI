@@ -74,9 +74,13 @@ def read_effect(
     post_days: int = 14,
     excluded: frozenset[date] = frozenset(),
     volume_floor_per_day: float = 0.0,
+    pre_days: int = PRE_DAYS,
 ) -> Reading:
-    """The control-adjusted relative effect of a change made on day ``t``."""
-    pre_range = [d for d in _days(t - timedelta(days=PRE_DAYS), t - timedelta(days=1))]
+    """The control-adjusted relative effect of a change made on day ``t``.
+
+    ``pre_days``: the before window (Shopee: :data:`PRE_DAYS`; F10 on TikTok: the run's own
+    length, ``services.card_measure``)."""
+    pre_range = [d for d in _days(t - timedelta(days=pre_days), t - timedelta(days=1))]
     post_range = [d for d in _days(t + timedelta(days=1), t + timedelta(days=post_days))]
     pre_used = [d for d in pre_range if d not in excluded]
     post_used = [d for d in post_range if d not in excluded]
