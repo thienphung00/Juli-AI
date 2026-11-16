@@ -35,6 +35,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
+from juli_backend.services.forecast import triggers as shared_triggers
 from juli_backend.services.optimize_product.basket import basket_threshold
 from juli_backend.services.optimize_product.cards import (
     ANGLE_ACTION,
@@ -65,6 +66,7 @@ from juli_backend.services.optimize_product.diagnosis import (
 )
 from juli_backend.services.optimize_product.eligibility import gift_reason
 from juli_backend.services.optimize_product.forecast import (
+    CARD_DAYS,
     METRIC_GMV,
     METRIC_ORDERS,
     CardForecast,
@@ -113,6 +115,13 @@ from juli_backend.services.optimize_product.shop_report import (
     STATUS_RULE,
 )
 from juli_backend.services.optimize_product.shrinkage import ShrinkageContext
+from juli_backend.services.optimize_product.trigger_adapter import (
+    LeverCandidate,
+    ProductInputs,
+    TikTokTriggerAdapter,
+    shop_median_gmv,
+    to_tiktok_metric,
+)
 from juli_backend.services.optimize_product.tunables import DiagTunables
 from juli_backend.services.optimize_product.volatility import (
     CONFIDENCE_LOW,
@@ -287,6 +296,9 @@ class CardProposal:
     #: (``{"field", "before", "after"}``), so Duyệt shows Trước / Sau before any run.
     #: Only the sandbox shop's orders-based quick cards carry one.
     listing_proposal: dict[str, str] | None = None
+    #: F11 (shared trigger mode): why the card exists -- the shared detector's trigger
+    #: (``trigger_type``, ``value``, ``value_basis``, ``reference_source``, its ``rank``).
+    card_trigger: dict | None = None
 
     @property
     def confidence(self) -> str | None:
@@ -393,6 +405,7 @@ class CardProposal:
                 if self.listing_proposal is not None
                 else {}
             ),
+            **({"card_trigger": dict(self.card_trigger)} if self.card_trigger is not None else {}),
         }
 
 
@@ -783,6 +796,93 @@ METRIC_LABELS_VI: dict[str, str] = {
 #: Why a product got no D29 proposal (the plan's ``skips``), besides the assessment's status.
 SKIP_NO_LEVER = "no_lever_for_target_metric"
 
+#: F11: the levers the shared detector may name per target metric (its
+#: ``TriggerAdapter.levers_for``), from the same metric -> stage -> angle mapping the
+#: card code gates per product (:func:`_d29_levers`). Lượt hiển thị moves through
+#: the title only; AOV through Mua nhiều giảm nhiều only.
+TRIGGER_LEVERS: dict[str, tuple[str, ...]] = {
+    "impressions": (LEVER_CODES[Angle.TIEU_DE],),
+    "ctr": tuple(LEVER_CODES[a] for a in BRANCH_ORDER[METRIC_BRANCH["ctr"]]),
+    "ctor": tuple(LEVER_CODES[a] for a in BRANCH_ORDER[METRIC_BRANCH["ctor"]]),
+    "aov": (LEVER_CODES[Angle.MUA_NHIEU_GIAM_NHIEU],),
+}
+#: F11 skips: no problem and no opportunity clearing the band; or too little data.
+SKIP_NO_TRIGGER = "f11:no_problem_no_opportunity"
+SKIP_SHARED_LOW_DATA = "f11:low_data"
+#: The order a trigger has in ``triggers.rank`` when a card carries none.
+_NO_TRIGGER_RANK = 1 << 30
+
+
+@dataclass(frozen=True)
+class _Target:
+    """One (target metric, lever subset) a product's cards are built for."""
+
+    metric: str
+    #: lever codes allowed (``None``: every lever :func:`_d29_levers` opens)
+    levers: frozenset[str] | None = None
+    below: bool = False
+    drop: MetricDrop | None = None
+    drops: MetricTrigger | None = None
+    #: F11: (rank, trigger) from the shared detector
+    shared: tuple[int, shared_triggers.Trigger] | None = None
+
+
+def trigger_json(rank: int, trigger: shared_triggers.Trigger) -> dict:
+    """The trigger recorded on the card (``card_trigger``): why it exists, for UI / Ops."""
+    detail = trigger.detail
+    if trigger.trigger_type == shared_triggers.PROBLEM:
+        source = detail.get("reference_source")
+    elif trigger.trigger_type == shared_triggers.OPPORTUNITY:
+        source = "forecast"
+    else:
+        source = trigger.rule
+    out: dict = {
+        "trigger_type": trigger.trigger_type,
+        "rank": rank,
+        "value": round(trigger.value, 2),
+        "value_basis": trigger.value_basis,
+        "reference_source": source,
+        "target_metric": to_tiktok_metric(trigger.target_metric),
+        "levers": list(trigger.levers),
+    }
+    if trigger.trigger_type == shared_triggers.PROBLEM:
+        out.update(
+            window_days=detail.get("window_days"),
+            gmv_per_day=detail.get("gmv_per_day"),
+            reference_per_day=detail.get("reference_per_day"),
+            band_half=detail.get("band_half"),
+        )
+    if trigger.trigger_type == shared_triggers.RULE:
+        out["urgency"] = trigger.urgency
+    return out
+
+
+def shared_reason(trigger: shared_triggers.Trigger, metric: str, period_days: int) -> str:
+    """F11 seller copy: the GMV gap against its reference and the metric behind it
+    (problem), or what the lever may add per month (opportunity)."""
+    detail = trigger.detail
+    inline = METRIC_NAMES_INLINE_VI[metric]
+    if trigger.trigger_type == shared_triggers.OPPORTUNITY:
+        monthly = _vnd_text(trigger.value / max(period_days, 1) * 30)
+        return f"Nếu cải thiện {inline}, doanh thu có thể tăng thêm khoảng {monthly}/tháng"
+    now = float(detail.get("gmv_per_day") or 0.0)
+    ref = float(detail.get("reference_per_day") or 0.0)
+    days = detail.get("window_days")
+    gap = _pct_text(1 - now / ref if ref > 0 else 0.0)
+    source = detail.get("reference_source")
+    if source == "shop_median":
+        head = f"GMV mỗi ngày thấp hơn mức chung của shop {gap}"
+    elif source == "category_benchmark":
+        head = f"GMV mỗi ngày thấp hơn mức chuẩn của ngành hàng {gap}"
+    else:
+        head = f"GMV mỗi ngày giảm {gap} so với {days} ngày trước"
+    contributions = detail.get("contributions") or {}
+    metric_fall = 1 - math.exp(contributions.get(trigger.target_metric, 0.0))
+    return (
+        f"{head}, vượt mức dao động bình thường; nguyên nhân chính: {METRIC_LABELS_VI[metric]} "
+        f"giảm {_pct_text(metric_fall)} so với {days} ngày trước"
+    )
+
 
 def _pct_text(value: float) -> str:
     return f"{round(value * 100)} %"
@@ -1068,6 +1168,7 @@ def _kpi_basis(
     medians: ShopMedians,
     channel_medians: Callable[[str], ShopMedians],
     benchmark: float | None,
+    gmv_fallback: float = 0.0,
 ) -> _KpiBasis:
     """D32: the KPI window, reference, confidence and GMV/day on the lever's channel.
 
@@ -1078,11 +1179,13 @@ def _kpi_basis(
     category benchmark is all-channel, so it is not used); confidence and
     stability from the channel window's clicks and impressions CV; GMV/day of
     the channel (TikTok's sales breakdown), the product's when none is stored.
+    ``gmv_fallback`` (F11): the product's GMV/day when the assessment has none (an
+    opportunity card on a product with no GMV reference).
     """
     kw = kpi_window(rows, as_of=as_of, metric=metric, lever=lever, tunables=tunables, total=total)
     window = kw.window
     current = window.value or 0.0
-    gmv_day = assessment.gmv_current or 0.0
+    gmv_day = assessment.gmv_current if assessment.gmv_current is not None else gmv_fallback
     conf: str | None = None
     if not kw.per_channel:
         used = medians
@@ -1121,6 +1224,85 @@ def _kpi_basis(
     )
 
 
+def _trigger_value_per_day(trigger: shared_triggers.Trigger, period_days: int) -> float:
+    """A trigger's value per day: a problem's is over ``triggers.VALUE_DAYS``, an
+    opportunity's over the card's period."""
+    days = (
+        shared_triggers.VALUE_DAYS
+        if trigger.trigger_type == shared_triggers.PROBLEM
+        else max(period_days, 1)
+    )
+    return trigger.value / days
+
+
+def _shared_triggers(
+    funnels: list[ProductFunnel],
+    *,
+    daily: dict[str, list[ProductDay]],
+    as_of: date,
+    today: date | None,
+    tunables: DiagTunables,
+    benchmarks: dict[str, dict[str, float]],
+    levers_of: Callable[[ProductFunnel, str], tuple[str | None, list[Angle], BmsmProposal | None]],
+    quality_of: Callable[[str, str], QualityScore],
+    predict_of: Callable[[str, str, QualityScore, BmsmProposal | None], Prediction],
+    gmv_day_of: Callable[[str], tuple[float, int]],
+) -> dict[str, list[tuple[int, shared_triggers.Trigger]]]:
+    """F11: run the shared detector over the (non-excluded) products and rank it.
+
+    The opportunity candidates are the levers the card path itself would open per
+    target metric (:func:`_d29_levers`, the same gates), each with its own
+    ``predict``. Returns product id -> [(rank, trigger)] in rank order.
+    """
+    inputs: dict[str, ProductInputs] = {}
+    for funnel in funnels:
+        pid = funnel.product_id
+        quality = quality_of(pid, funnel.title)
+        candidates: list[LeverCandidate] = []
+        for metric in TRIGGER_LEVERS:
+            status, angles, bmsm = levers_of(funnel, metric)
+            if status is None:
+                continue
+            for angle in angles:
+                lever = LEVER_CODES[angle]
+                prediction = predict_of(pid, lever, quality, bmsm)
+                candidates.append(LeverCandidate(lever, metric, prediction.lift_mid))
+        gmv_day, gmv_window = gmv_day_of(pid)
+        inputs[pid] = ProductInputs(
+            rows=tuple(daily.get(pid, [])),
+            gmv_per_day=gmv_day,
+            gmv_window_days=gmv_window,
+            candidates=tuple(candidates),
+            benchmark_gmv_per_day=(benchmarks.get(pid) or {}).get("gmv"),
+        )
+    adapter = TikTokTriggerAdapter(
+        products=inputs,
+        levers_by_metric=TRIGGER_LEVERS,
+        as_of=as_of,
+        today=today,
+        period_days=CARD_DAYS,
+        shop_median_gmv=shop_median_gmv(
+            {pid: daily.get(pid, []) for pid in inputs},
+            as_of=as_of,
+            window_days=max(tunables.windows),
+        ),
+    )
+    ranked = shared_triggers.rank(
+        shared_triggers.detect(
+            adapter.series(),
+            adapter,
+            as_of=as_of,
+            windows=tunables.windows,
+            min_events=tunables.min_events,
+        )
+    )
+    out: dict[str, list[tuple[int, shared_triggers.Trigger]]] = {}
+    for rank, trigger in enumerate(ranked, start=1):
+        if trigger.product_id is not None:
+            out.setdefault(trigger.product_id, []).append((rank, trigger))
+    return out
+
+
 def _plan_d29(
     funnels: list[ProductFunnel],
     catalog: dict[str, CatalogProduct],
@@ -1155,10 +1337,22 @@ def _plan_d29(
     cards, ``reason_code`` :data:`REASON_BELOW_SHOP_LEVEL`); the Quality-Score
     lever weight is neutral (price levers rank like listing levers); and the
     top candidates are kept per cell instead of per executor type.
+
+    F11 (``diag_trigger`` ``shared``, the default): the shared detector
+    (``services.forecast.triggers`` through :mod:`.trigger_adapter`) is the card
+    trigger. A product with a problem gets cards for the problem's target metric;
+    one without gets a card per opportunity (each its own lever and metric, only
+    beyond the F3 band); the rest are skipped (:data:`SKIP_NO_TRIGGER` /
+    :data:`SKIP_SHARED_LOW_DATA`). Cards follow ``triggers.rank`` within each status
+    group and carry the trigger (``card_trigger``). S28B is not used in this mode.
     """
     quota_mode = tunables.card_quota_mode
     metric_first = tunables.metric_first
+    # F11 (default): the shared detector picks each product's target metric (problem)
+    # or its levers (opportunity); cards follow ``triggers.rank``.
+    shared = tunables.shared_trigger
     page_levers = page_levers or {}
+    own_calibration = own_calibration or {}
     skips: list[Skip] = []
     groups: dict[str, list[CardProposal]] = {
         STATUS_CODE_RULE: [],
@@ -1175,50 +1369,29 @@ def _plan_d29(
         if metric_first and tunables.shrinkage_on
         else None
     )
-    for funnel in funnels:
-        pid = funnel.product_id
-        if pid in excluded:
-            continue
-        assessment = assess_product(pid, daily.get(pid, []), as_of=as_of, tunables=tunables)
-        below = False
-        # D39.1: metric-first (default) -- any funnel metric beyond its own band;
-        # gmv_first keeps the D29.2 gate (GMV fell beyond its band). D41.2: CTR /
-        # CTOR shrunk toward the category first (``kpi_shrinkage``, default on).
-        drops = (
-            metric_trigger(
-                daily.get(pid, []),
-                as_of=as_of,
-                tunables=tunables,
-                assessment=assessment,
-                shrinkage=shrink_context.for_product(pid) if shrink_context else None,
+    assessments: dict[str, Assessment] = {}
+
+    def assessment_of(pid: str) -> Assessment:
+        if pid not in assessments:
+            assessments[pid] = assess_product(
+                pid, daily.get(pid, []), as_of=as_of, tunables=tunables
             )
-            if metric_first
-            else None
+        return assessments[pid]
+
+    def quality_of(pid: str, title: str) -> QualityScore:
+        product = catalog.get(pid) or CatalogProduct(pid, title)
+        facts = listing_facts.get(pid) or ListingFacts(
+            title=product.title, category=product.category, tiktok_asked=pid in asked
         )
-        drop = drops.target if drops is not None else None
-        if drop is not None:
-            metric = drop.metric
-        elif not metric_first and assessment.candidate and assessment.target_metric is not None:
-            metric = assessment.target_metric
-        else:
-            s28b_metric = (
-                below_shop_metric(assessment, medians)
-                if quota_mode and assessment.status == STATUS_NO_DROP
-                else None
-            )
-            if s28b_metric is None:
-                skips.append(Skip(pid, funnel.title, _skip_reason(assessment, metric_first)))
-                continue
-            metric, below = s28b_metric, True
-        window = assessment.metrics[metric]
-        current = window.value
-        if current is None or current <= 0 or window.band_pct is None:
-            skips.append(Skip(pid, funnel.title, "d29:no_current_value"))
-            continue
-        evidence = evidence_by_id.get(pid, [])
-        status, angles, bmsm = _d29_levers(
+        return quality_score(facts, evidence_by_id.get(pid, []))
+
+    def levers_of(
+        funnel: ProductFunnel, metric: str
+    ) -> tuple[str | None, list[Angle], BmsmProposal | None]:
+        pid = funnel.product_id
+        return _d29_levers(
             metric,
-            evidence=evidence,
+            evidence=evidence_by_id.get(pid, []),
             asked=pid in asked,
             discount_cap_set=discount_cap_set,
             funnel=funnel,
@@ -1226,190 +1399,311 @@ def _plan_d29(
             levers=page_levers.get(pid, NO_LEVERS) if quota_mode else NO_LEVERS,
             bmsm_running=quota_mode and pid in active_bmsm,
         )
-        if status is None:
-            skips.append(Skip(pid, funnel.title, f"d29:{SKIP_NO_LEVER}"))
-            continue
-        product = catalog.get(pid) or CatalogProduct(pid, funnel.title)
-        facts = listing_facts.get(pid) or ListingFacts(
-            title=product.title, category=product.category, tiktok_asked=pid in asked
+
+    def predict_of(
+        pid: str, lever: str, quality: QualityScore, bmsm: BmsmProposal | None
+    ) -> Prediction:
+        return predict(
+            lever,
+            quality.gap(lever),
+            shop=calibration.get(lever),
+            fleet=fleet_stats_for(fleet_calibration, lever),
+            size=float(bmsm.percent) if bmsm is not None else None,
+            own=own_calibration.get((pid, lever)),
         )
-        quality = quality_score(facts, evidence)
-        gaps = compute_gaps(funnel, medians, config)
-        if below:
-            reason = ""
-        elif drop is not None and drops is not None:
-            reason = metric_first_reason(drop, drops)
+
+    def gmv_day_of(pid: str) -> tuple[float, int]:
+        """The product's GMV/day (the card's unit) and its F2 GMV window."""
+        assessment = assessment_of(pid)
+        window_days = assessment.window_days or max(tunables.windows)
+        if assessment.gmv_current is not None:
+            return assessment.gmv_current, window_days
+        value = window_counts(daily.get(pid, []), as_of, window_days).value("gmv")
+        return value or 0.0, window_days
+
+    shared_by_pid: dict[str, list[tuple[int, shared_triggers.Trigger]]] = {}
+    if shared:
+        shared_by_pid = _shared_triggers(
+            [f for f in funnels if f.product_id not in excluded],
+            daily=daily,
+            as_of=as_of,
+            today=today,
+            tunables=tunables,
+            benchmarks=benchmarks,
+            levers_of=levers_of,
+            quality_of=quality_of,
+            predict_of=predict_of,
+            gmv_day_of=gmv_day_of,
+        )
+
+    for funnel in funnels:
+        pid = funnel.product_id
+        if pid in excluded:
+            continue
+        assessment = assessment_of(pid)
+        targets: list[_Target] = []
+        if shared:
+            found = shared_by_pid.get(pid, [])
+            targets = [
+                _Target(
+                    metric=to_tiktok_metric(t.target_metric) or "",
+                    levers=frozenset(t.levers),
+                    shared=(rank, t),
+                )
+                for rank, t in found
+                if t.target_metric is not None
+            ]
+            if not targets:
+                reason_code = (
+                    SKIP_SHARED_LOW_DATA
+                    if assessment.status == STATUS_LOW_DATA
+                    else SKIP_NO_TRIGGER
+                )
+                skips.append(Skip(pid, funnel.title, reason_code))
+                continue
         else:
-            reason = d29_reason(assessment, metric)
-        rows = daily.get(pid, [])
-        for angle in angles:
-            lever = LEVER_CODES[angle]
-            # D32: the KPI is read on the channel the lever acts on.
-            basis = _kpi_basis(
-                rows,
-                as_of=as_of,
-                metric=metric,
-                lever=lever,
-                tunables=tunables,
-                total=window,
-                assessment=assessment,
-                medians=medians,
-                channel_medians=lambda ch: _channel_medians(
-                    ch, funnels, excluded, daily, cache=channel_medians, as_of=as_of, config=config
-                ),
-                benchmark=(benchmarks.get(pid) or {}).get(metric),
-            )
-            current = basis.window.value or 0.0
-            card_reason = reason
-            kpi_tunables = tunables
-            if below:
-                # S28B: only when the metric is clearly below the shop's level on
-                # the lever's own channel; the KPI is the minimum clamp alone.
-                channel_median = _median_of(basis.medians, metric)
-                if not _clearly_below(current, basis.window.band_pct, channel_median):
-                    continue
-                card_reason = below_shop_reason(
-                    metric, basis.channel, current, channel_median or 0.0
-                )
-                kpi_tunables = replace(tunables, kpi_max_band_mult=tunables.kpi_min_band_mult)
-            target_gap = _target_gap(
-                metric, current, basis.medians, basis.window.earlier, basis.window.low_data
-            )
-            trigger = Trigger.OWN_TREND if basis.source == "own_earlier" else Trigger.SHOP_MEDIAN
-            counts = window_counts(basis.rows, as_of, basis.window.window_days)
-            last = FunnelWindow(
-                days=counts.days,
-                impressions=Decimal(str(counts.impressions)),
-                clicks=Decimal(str(counts.clicks)),
-                sku_orders=Decimal(str(counts.orders)),
-                gmv=Decimal(str(counts.gmv)),
-            )
-            prediction = predict(
-                lever,
-                quality.gap(lever),
-                shop=calibration.get(lever),
-                fleet=fleet_stats_for(fleet_calibration, lever),
-                size=float(bmsm.percent) if bmsm is not None else None,
-                own=(own_calibration or {}).get((pid, lever)),
-            )
-            kpi = kpi_target(
-                metric=metric,
-                current=current,
-                band_pct=basis.window.band_pct or 0.0,
-                reference=basis.reference,
-                window_days=basis.window.window_days,
-                tunables=kpi_tunables,
-                volatile=basis.volatile,
-                low_data=basis.window.low_data,
-                predicted=prediction.metric_range(current),
-                channel=basis.channel,
-            )
-            gmv_day = basis.gmv_per_day
-            recoverable = Decimal(str(gmv_day * max(kpi.target / current - 1, 0.0)))
-            # The estimate follows the prediction's lift band (P10 / P90), not the KPI band.
-            low, high = gmv_range_from_lift(gmv_day, prediction.lift_low, prediction.lift_high)
-            # Forecast grill F2/F5/F8/F9: one P50 scenario; a metric within its noise
-            # band (the F3 seam) shows "—"; stale data shows no numbers.
-            gmv_window = assessment.window_days or basis.window.window_days
-            forecast = card_forecast(
-                prediction,
-                target_metric=metric,
-                data_through=as_of,
-                today=today,
-                gmv_per_day=gmv_day,
-                # All-channel AOV: orders are not stored per channel (A-33).
-                aov=assessment.metrics["aov"].value if "aov" in assessment.metrics else None,
-                histories={
-                    metric: daily_history(
-                        basis.rows,
-                        as_of=as_of,
-                        metric=metric,
-                        window_days=basis.window.window_days,
-                    ),
-                    METRIC_ORDERS: daily_history(
-                        rows, as_of=as_of, metric=METRIC_ORDERS, window_days=gmv_window
-                    ),
-                    METRIC_GMV: daily_history(
-                        rows, as_of=as_of, metric=METRIC_GMV, window_days=gmv_window
-                    ),
-                },
-                kind=lever,
-            )
-            lever_history = history.get(lever)
-            penalty = lever_history.reason_penalty if lever_history is not None else Decimal(1)
-            # D39.1: a metric-first card ranks on what its metric's fall costs.
-            ranked_on = (
-                Decimal(str(round(drop.gmv_cost_per_day, 4)))
-                if drop is not None and not below
-                else recoverable
-            )
-            ranking = (
-                ranked_on
-                * Decimal(str(prediction.factor))
-                * penalty
-                # D33 quota mode: price levers rank like listing levers.
-                * Decimal(str(1.0 if quota_mode else lever_weight(quality, lever)))
-            )
-            diag = Diagnosis(
-                product_id=pid,
-                title=funnel.title,
-                label=Label.AOV if metric == "aov" else Label.CTOR,
-                trigger=trigger,
-                branch=METRIC_BRANCH[metric],
-                angle=angle,
-                gap=target_gap,
-                gaps=gaps,
-                evidence=tuple(e for e in evidence if codes_for_angle(angle, [e.code])),
-                rank_score=target_gap.gap * funnel.gmv_28d,
-                channel_scope=funnel.channel_scope,
-                bmsm=bmsm,
-            )
-            proposal = _rule_proposal(diag, card_reason, config)
-            if status != STATUS_CODE_RULE:
-                proposal = replace(
-                    proposal,
-                    status=status,
-                    lever_confirmed=False,
-                    lever_detail=(
-                        "Giảm giá sản phẩm, sau khi shop đặt mức giảm giá tối đa"
-                        if status == STATUS_CODE_NEEDS_CAP
-                        else f"{ANGLE_ACTION[angle]}, nếu TikTok chỉ ra lỗi"
-                    ),
-                )
-            groups[status].append(
-                replace(
-                    proposal,
-                    gap=max(target_gap.gap, Decimal(0)),
-                    recoverable_gmv_per_day=recoverable,
-                    recoverable_basis={
-                        "label": RECOVERABLE_LABEL,
-                        "stage_rate": metric,
-                        "current_rate": current,
-                        "reference_rate": kpi.target,
-                        "reference": basis.source,
-                        "volume_per_day": float(_volume_per_day(metric, last)),
-                        "aov": None if last.aov is None else float(last.aov),
-                        "window_days": basis.window.window_days,
-                        "channel": basis.channel,
-                    },
-                    history=lever_history,
+            # D39.1: metric-first -- any funnel metric beyond its own band; gmv_first
+            # keeps the D29.2 gate (GMV fell beyond its band). D41.2: CTR / CTOR shrunk
+            # toward the category first (``kpi_shrinkage``, default on).
+            drops = (
+                metric_trigger(
+                    daily.get(pid, []),
+                    as_of=as_of,
+                    tunables=tunables,
                     assessment=assessment,
-                    target_metric=metric,
-                    kpi=kpi,
-                    kpi_confidence=CONFIDENCE_LOW if below else basis.confidence,
-                    reason_code=REASON_BELOW_SHOP_LEVEL if below else None,
-                    metric_trigger=drops if drop is not None and not below else None,
-                    quality=quality,
-                    prediction=prediction,
-                    gmv_estimate=None if forecast.stale else (low, high),
-                    forecast=forecast,
-                    d29_ranking_value=ranking,
+                    shrinkage=shrink_context.for_product(pid) if shrink_context else None,
                 )
+                if metric_first
+                else None
             )
+            drop = drops.target if drops is not None else None
+            if drop is not None:
+                targets = [_Target(metric=drop.metric, drop=drop, drops=drops)]
+            elif not metric_first and assessment.candidate and assessment.target_metric is not None:
+                targets = [_Target(metric=assessment.target_metric)]
+            else:
+                s28b_metric = (
+                    below_shop_metric(assessment, medians)
+                    if quota_mode and assessment.status == STATUS_NO_DROP
+                    else None
+                )
+                if s28b_metric is None:
+                    skips.append(Skip(pid, funnel.title, _skip_reason(assessment, metric_first)))
+                    continue
+                targets = [_Target(metric=s28b_metric, below=True)]
+        evidence = evidence_by_id.get(pid, [])
+        quality = quality_of(pid, funnel.title)
+        gaps = compute_gaps(funnel, medians, config)
+        rows = daily.get(pid, [])
+        for target in targets:
+            metric, below, drop, drops = target.metric, target.below, target.drop, target.drops
+            window = assessment.metrics[metric]
+            current = window.value
+            if current is None or current <= 0 or window.band_pct is None:
+                skips.append(Skip(pid, funnel.title, "d29:no_current_value"))
+                continue
+            status, angles, bmsm = levers_of(funnel, metric)
+            if target.levers is not None:
+                angles = [a for a in angles if LEVER_CODES[a] in target.levers]
+            if status is None or not angles:
+                skips.append(Skip(pid, funnel.title, f"d29:{SKIP_NO_LEVER}"))
+                continue
+            if target.shared is not None:
+                reason = shared_reason(target.shared[1], metric, CARD_DAYS)
+            elif below:
+                reason = ""
+            elif drop is not None and drops is not None:
+                reason = metric_first_reason(drop, drops)
+            else:
+                reason = d29_reason(assessment, metric)
+            for angle in angles:
+                lever = LEVER_CODES[angle]
+                # D32: the KPI is read on the channel the lever acts on.
+                basis = _kpi_basis(
+                    rows,
+                    as_of=as_of,
+                    metric=metric,
+                    lever=lever,
+                    tunables=tunables,
+                    total=window,
+                    assessment=assessment,
+                    medians=medians,
+                    channel_medians=lambda ch: _channel_medians(
+                        ch,
+                        funnels,
+                        excluded,
+                        daily,
+                        cache=channel_medians,
+                        as_of=as_of,
+                        config=config,
+                    ),
+                    benchmark=(benchmarks.get(pid) or {}).get(metric),
+                    gmv_fallback=gmv_day_of(pid)[0],
+                )
+                current = basis.window.value or 0.0
+                card_reason = reason
+                kpi_tunables = tunables
+                if below:
+                    # S28B: only when the metric is clearly below the shop's level on
+                    # the lever's own channel; the KPI is the minimum clamp alone.
+                    channel_median = _median_of(basis.medians, metric)
+                    if not _clearly_below(current, basis.window.band_pct, channel_median):
+                        continue
+                    card_reason = below_shop_reason(
+                        metric, basis.channel, current, channel_median or 0.0
+                    )
+                    kpi_tunables = replace(tunables, kpi_max_band_mult=tunables.kpi_min_band_mult)
+                target_gap = _target_gap(
+                    metric, current, basis.medians, basis.window.earlier, basis.window.low_data
+                )
+                trigger = (
+                    Trigger.OWN_TREND if basis.source == "own_earlier" else Trigger.SHOP_MEDIAN
+                )
+                counts = window_counts(basis.rows, as_of, basis.window.window_days)
+                last = FunnelWindow(
+                    days=counts.days,
+                    impressions=Decimal(str(counts.impressions)),
+                    clicks=Decimal(str(counts.clicks)),
+                    sku_orders=Decimal(str(counts.orders)),
+                    gmv=Decimal(str(counts.gmv)),
+                )
+                prediction = predict_of(pid, lever, quality, bmsm)
+                kpi = kpi_target(
+                    metric=metric,
+                    current=current,
+                    band_pct=basis.window.band_pct or 0.0,
+                    reference=basis.reference,
+                    window_days=basis.window.window_days,
+                    tunables=kpi_tunables,
+                    volatile=basis.volatile,
+                    low_data=basis.window.low_data,
+                    predicted=prediction.metric_range(current),
+                    channel=basis.channel,
+                )
+                gmv_day = basis.gmv_per_day
+                recoverable = Decimal(str(gmv_day * max(kpi.target / current - 1, 0.0)))
+                # The estimate follows the prediction's lift band (P10 / P90), not the KPI band.
+                low, high = gmv_range_from_lift(gmv_day, prediction.lift_low, prediction.lift_high)
+                # Forecast grill F2/F5/F8/F9: one P50 scenario; a metric within its noise
+                # band (the F3 seam) shows "—"; stale data shows no numbers.
+                gmv_window = assessment.window_days or basis.window.window_days
+                forecast = card_forecast(
+                    prediction,
+                    target_metric=metric,
+                    data_through=as_of,
+                    today=today,
+                    gmv_per_day=gmv_day,
+                    # All-channel AOV: orders are not stored per channel (A-33).
+                    aov=assessment.metrics["aov"].value if "aov" in assessment.metrics else None,
+                    histories={
+                        metric: daily_history(
+                            basis.rows,
+                            as_of=as_of,
+                            metric=metric,
+                            window_days=basis.window.window_days,
+                        ),
+                        METRIC_ORDERS: daily_history(
+                            rows, as_of=as_of, metric=METRIC_ORDERS, window_days=gmv_window
+                        ),
+                        METRIC_GMV: daily_history(
+                            rows, as_of=as_of, metric=METRIC_GMV, window_days=gmv_window
+                        ),
+                    },
+                    kind=lever,
+                )
+                lever_history = history.get(lever)
+                penalty = lever_history.reason_penalty if lever_history is not None else Decimal(1)
+                # D39.1: a metric-first card ranks on what its metric's fall costs.
+                # F11: a shared-trigger card ranks on its trigger's value (ΔGMV per day).
+                if target.shared is not None:
+                    ranked_on = Decimal(
+                        str(round(_trigger_value_per_day(target.shared[1], CARD_DAYS), 4))
+                    )
+                elif drop is not None and not below:
+                    ranked_on = Decimal(str(round(drop.gmv_cost_per_day, 4)))
+                else:
+                    ranked_on = recoverable
+                ranking = (
+                    ranked_on
+                    * Decimal(str(prediction.factor))
+                    * penalty
+                    # D33 quota mode: price levers rank like listing levers.
+                    * Decimal(str(1.0 if quota_mode else lever_weight(quality, lever)))
+                )
+                diag = Diagnosis(
+                    product_id=pid,
+                    title=funnel.title,
+                    label=Label.AOV if metric == "aov" else Label.CTOR,
+                    trigger=trigger,
+                    branch=METRIC_BRANCH[metric],
+                    angle=angle,
+                    gap=target_gap,
+                    gaps=gaps,
+                    evidence=tuple(e for e in evidence if codes_for_angle(angle, [e.code])),
+                    rank_score=target_gap.gap * funnel.gmv_28d,
+                    channel_scope=funnel.channel_scope,
+                    bmsm=bmsm,
+                )
+                proposal = _rule_proposal(diag, card_reason, config)
+                if status != STATUS_CODE_RULE:
+                    proposal = replace(
+                        proposal,
+                        status=status,
+                        lever_confirmed=False,
+                        lever_detail=(
+                            "Giảm giá sản phẩm, sau khi shop đặt mức giảm giá tối đa"
+                            if status == STATUS_CODE_NEEDS_CAP
+                            else f"{ANGLE_ACTION[angle]}, nếu TikTok chỉ ra lỗi"
+                        ),
+                    )
+                groups[status].append(
+                    replace(
+                        proposal,
+                        gap=max(target_gap.gap, Decimal(0)),
+                        recoverable_gmv_per_day=recoverable,
+                        recoverable_basis={
+                            "label": RECOVERABLE_LABEL,
+                            "stage_rate": metric,
+                            "current_rate": current,
+                            "reference_rate": kpi.target,
+                            "reference": basis.source,
+                            "volume_per_day": float(_volume_per_day(metric, last)),
+                            "aov": None if last.aov is None else float(last.aov),
+                            "window_days": basis.window.window_days,
+                            "channel": basis.channel,
+                        },
+                        history=lever_history,
+                        assessment=assessment,
+                        target_metric=metric,
+                        kpi=kpi,
+                        kpi_confidence=CONFIDENCE_LOW if below else basis.confidence,
+                        reason_code=REASON_BELOW_SHOP_LEVEL if below else None,
+                        metric_trigger=drops if drop is not None and not below else None,
+                        quality=quality,
+                        prediction=prediction,
+                        gmv_estimate=None if forecast.stale else (low, high),
+                        forecast=forecast,
+                        d29_ranking_value=ranking,
+                        card_trigger=(
+                            trigger_json(*target.shared) if target.shared is not None else None
+                        ),
+                    )
+                )
 
     def _key(p: CardProposal) -> tuple:
         level = p.assessment.stability if p.assessment is not None else "unknown"
         value = p.ranking_gmv_per_day
+        if shared:
+            # F11: in ``triggers.rank`` order; a trigger's own levers by their value.
+            return (
+                (p.card_trigger or {}).get("rank", _NO_TRIGGER_RANK),
+                value is None,
+                -(value or Decimal(0)),
+                STABILITY_ORDER.get(level, 9),
+                -p.rank_score,
+                p.product_id,
+                LEVER_CODES[p.lever],
+            )
         if metric_first:
             # D39.1: by the GMV the target metric's fall costs; stability breaks ties.
             return (

@@ -39,7 +39,8 @@ from juli_backend.services.optimize_product.volatility import assess_product
 
 AS_OF = date(2026, 10, 6)
 CONFIG = StageDiagnosisConfig()
-METRIC_FIRST = DiagTunables()
+#: F11 (2026-11-16) made ``shared`` the default; metric-first is the rollback value.
+METRIC_FIRST = DiagTunables(diag_trigger="metric_first")
 GMV_FIRST = DiagTunables(diag_trigger="gmv_first")
 
 #: Words the seller copy must never carry.
@@ -247,14 +248,16 @@ def test_growth_branch_is_a_seam_with_no_proposals():
 # =========================================================================== the tunable
 
 
-def test_diag_trigger_tunable_defaults_to_metric_first():
+def test_diag_trigger_tunable_keeps_metric_first_as_a_rollback():
     assert DIAG_TRIGGER in TUNABLE_KEYS
-    assert DiagTunables().diag_trigger == "metric_first"
-    assert DiagTunables().metric_first is True
+    # F11: the shared detector is the default; metric_first stays a per-shop value.
+    assert DiagTunables().diag_trigger == "shared"
+    assert DiagTunables().metric_first is False
+    assert DiagTunables.from_overrides({DIAG_TRIGGER: "metric_first"}).metric_first is True
     assert DiagTunables.from_overrides({DIAG_TRIGGER: "gmv_first"}).metric_first is False
     # An invalid stored value is ignored (defaults kept).
-    assert DiagTunables.from_overrides({DIAG_TRIGGER: "other"}).diag_trigger == "metric_first"
+    assert DiagTunables.from_overrides({DIAG_TRIGGER: "other"}).diag_trigger == "shared"
     assert validate_tunable(DIAG_TRIGGER, "gmv_first") == "gmv_first"
     with pytest.raises(TunableError):
         validate_tunable(DIAG_TRIGGER, "both")
-    assert DiagTunables().to_json()[DIAG_TRIGGER] == "metric_first"
+    assert DiagTunables().to_json()[DIAG_TRIGGER] == "shared"

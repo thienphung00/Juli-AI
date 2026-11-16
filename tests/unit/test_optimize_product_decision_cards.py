@@ -66,6 +66,14 @@ from juli_backend.services.scoring.types import (
     WorkflowRecommendation,
     WorkflowRecommendations,
 )
+from tests.support.diag_trigger import pin_diag_trigger
+
+
+@pytest.fixture(autouse=True)
+def _metric_first_rollback(monkeypatch):
+    """F11 made ``shared`` the default trigger; these fixtures test the D39.1 rollback."""
+    pin_diag_trigger(monkeypatch)
+
 
 AS_OF = date(2026, 10, 6)
 COMPUTED_AT = datetime(2026, 10, 7, 8, 0, tzinfo=UTC)

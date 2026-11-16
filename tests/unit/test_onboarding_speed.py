@@ -47,6 +47,7 @@ from juli_backend.services.onboarding.status import (
 )
 from juli_backend.services.optimize_product.funnel import FunnelWindow, ShopMedians
 from juli_backend.services.optimize_product.listing_signals import EvidenceSource
+from tests.support.diag_trigger import pin_diag_trigger
 from tests.unit.test_optimize_product_decision_cards import (
     AOV,
     CATALOG,
@@ -55,6 +56,13 @@ from tests.unit.test_optimize_product_decision_cards import (
     _score,
     _seed_shop,
 )
+
+
+@pytest.fixture(autouse=True)
+def _metric_first_rollback(monkeypatch):
+    """F11 made ``shared`` the default trigger; these fixtures test the D39.1 rollback."""
+    pin_diag_trigger(monkeypatch)
+
 
 #: The quick scan runs a few minutes after connect, the same shop day as the
 #: full diagnosis in these tests (2026-10-07 UTC+7).

@@ -54,6 +54,7 @@ from juli_backend.services.action_cards.subjects import card_product_uuid
 from juli_backend.services.demo_decisions import CardContext, build_card_block
 from juli_backend.services.optimize_product.decision_cards import LeverHistory
 from tests.support.builders import make_tenant
+from tests.support.diag_trigger import pin_diag_trigger
 from tests.unit.test_decision_emission_budget import _result
 from tests.unit.test_optimize_product_decision_cards import (
     COMPUTED_AT,
@@ -61,6 +62,13 @@ from tests.unit.test_optimize_product_decision_cards import (
     _score,
     _seed_shop,
 )
+
+
+@pytest.fixture(autouse=True)
+def _metric_first_rollback(monkeypatch):
+    """F11 made ``shared`` the default trigger; these fixtures test the D39.1 rollback."""
+    pin_diag_trigger(monkeypatch)
+
 
 #: Thursday 2026-10-15, 09:00 in Vietnam.
 START = datetime(2026, 10, 15, 2, 0, tzinfo=UTC)
