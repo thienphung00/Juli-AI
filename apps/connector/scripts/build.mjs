@@ -21,6 +21,7 @@ const entries = {
   popup: "src/platforms/shopee/popup/popup.ts",
   markethook: "src/platforms/shopee/page/market-hook.ts",
   marketcontent: "src/platforms/shopee/content/market-content.ts",
+  tiktokcontent: "src/platforms/tiktok/content/content.ts",
 };
 
 await rm(outDir, { recursive: true, force: true });

@@ -66,6 +66,11 @@ export interface PlatformPack<J extends CoreJob = CoreJob> {
   parseJob(raw: unknown): J | null;
   /** The page's own answer to the person's save of a filled form, or null when it is not one. */
   savedSignal(page: PageAnswer): SaveResult | null;
+  /**
+   * A wall in the way of a fill (a CAPTCHA, a verification page), as the error code the job fails
+   * with (e.g. "blocked_captcha"), or null. Optional: a pack without one is never stopped by it.
+   */
+  blockedOn?(doc: Document): string | null;
   labels: PackLabels;
 }
 

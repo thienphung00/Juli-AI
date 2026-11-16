@@ -4,7 +4,8 @@
 
 import { createRegistry, type PlatformPack, type PlatformRegistry } from "../platform";
 import { shopeePack } from "./shopee/pack";
+import { tiktokPack } from "./tiktok/pack";
 
-export const PACKS: readonly PlatformPack[] = [shopeePack];
+export const PACKS: readonly PlatformPack[] = [shopeePack, tiktokPack];
 
 export const registry: PlatformRegistry = createRegistry(PACKS);

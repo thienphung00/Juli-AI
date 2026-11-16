@@ -30,6 +30,29 @@ export async function requestHosts(origins: readonly string[] | undefined): Prom
   }
 }
 
+/** The origins of `origins` the browser has not granted yet (all of them, or none). Never throws. */
+export async function ungrantedHosts(origins: readonly string[] | undefined): Promise<string[]> {
+  if (!origins || origins.length === 0) return [];
+  try {
+    return (await chrome.permissions.contains({ origins: [...origins] })) ? [] : [...origins];
+  } catch {
+    return [...origins];
+  }
+}
+
+/**
+ * Shows `button` while `origins` are not granted and makes its click ask for them. The click
+ * handler's FIRST statement is the permission request (no `await` before it): Chrome only allows
+ * `permissions.request` inside the person's click, and an earlier await would lose that gesture.
+ */
+export function wireHostButton(button: HTMLButtonElement, origins: readonly string[], after: () => void): void {
+  button.hidden = origins.length === 0;
+  button.onclick = () => {
+    const asked = requestHosts(origins);
+    void asked.then(after);
+  };
+}
+
 export function openTab(url: string): void {
   void chrome.tabs.create({ url, active: true });
 }
