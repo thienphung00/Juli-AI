@@ -65,7 +65,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # (.importlinter.toml), but the depth-2 cap still applies, so reach the public
 # package root rather than `.client` / `.resources.authorization`.
 from juli_backend.core.security import (
-    BindingVerifier,
+    MultiShopBindingVerifier,
     SandboxCollisionRefused,
     VerifiedShopCipher,
     refuse_cross_shop_sandbox_collision,
@@ -124,6 +124,22 @@ def list_authorized_shops(*, app_key: str, app_secret: str, access_token: str) -
     """
     client = TikTokClient(app_key=app_key, app_secret=app_secret, access_token=access_token)
     return AuthorizationResource(client).list_all_shops()
+
+
+def resolve_authorized_shops(*, app_key: str, app_secret: str, access_token: str) -> list[dict]:
+    """Every shop this access token is authorized for (P101 W2a: one grant, several shops).
+
+    Raises `CredentialBindingError` for zero shops (nothing to bind). Each shop is bound
+    separately by the connect flow; a governed capability still refuses more than one
+    (:func:`verify_grant_shop`).
+    """
+    shops = list_authorized_shops(app_key=app_key, app_secret=app_secret, access_token=access_token)
+    if not shops:
+        raise CredentialBindingError(
+            "TikTok reports this token is authorized for zero shops -- refusing to "
+            "store a credential whose merchant cannot be established."
+        )
+    return shops
 
 
 def resolve_authorized_shop(*, app_key: str, app_secret: str, access_token: str) -> dict:
@@ -245,7 +261,83 @@ async def _verify_and_return_cipher(
     return VerifiedShopCipher(cipher, tiktok_shop_id=str(authorized_shop.get("id") or ""))
 
 
-def make_binding_verifier(*, app_key: str, app_secret: str) -> BindingVerifier:
+def _verified(shop: Mapping) -> VerifiedShopCipher:
+    cipher = str(shop.get("cipher") or "").strip()
+    if not cipher:
+        raise CredentialBindingError(
+            "TikTok returned an authorized shop with no cipher -- cannot establish which "
+            "merchant this credential belongs to."
+        )
+    return VerifiedShopCipher(
+        cipher,
+        tiktok_shop_id=str(shop.get("id") or ""),
+        shop_name=str(shop.get("name") or ""),
+    )
+
+
+async def verify_grant_shop(
+    session: AsyncSession,
+    *,
+    capability: TikTokCapability | str,
+    shop_cipher: str,
+    shops_in_grant: int,
+) -> None:
+    """The #1200 invariants for one shop of a (possibly multi-shop) grant (P101 W2a).
+
+    ``seller_connect`` is multi-shop by design. A governed capability (``production_read`` /
+    ``sandbox_write``) is a singleton binding, so a token reaching several shops is refused
+    for it, exactly as :func:`resolve_authorized_shop` refuses it.
+    """
+    if _capability_value(capability) in GOVERNED_CAPABILITIES and shops_in_grant > 1:
+        raise CredentialBindingError(
+            f"TikTok reports this token is authorized for {shops_in_grant} shops. A "
+            f"{_capability_value(capability)!r} credential binds exactly one shop -- this "
+            "module will not guess which one."
+        )
+    await verify_capability_binding(session, capability=capability, shop_cipher=shop_cipher)
+
+
+class _GrantBindingVerifier:
+    """The production :class:`MultiShopBindingVerifier` (see :func:`make_binding_verifier`)."""
+
+    def __init__(self, *, app_key: str, app_secret: str) -> None:
+        self._app_key = app_key
+        self._app_secret = app_secret
+
+    async def __call__(
+        self, session: AsyncSession, *, capability: TikTokCapability | str, access_token: str
+    ) -> str:
+        return await _verify_and_return_cipher(
+            session,
+            capability=capability,
+            access_token=access_token,
+            app_key=self._app_key,
+            app_secret=self._app_secret,
+        )
+
+    async def authorized_shops(self, *, access_token: str) -> list[VerifiedShopCipher]:
+        shops = resolve_authorized_shops(
+            app_key=self._app_key, app_secret=self._app_secret, access_token=access_token
+        )
+        verified = [_verified(shop) for shop in shops]
+        if len({str(cipher) for cipher in verified}) != len(verified):
+            raise CredentialBindingError("TikTok returned two authorized shops with one cipher")
+        return verified
+
+    async def verify_shop(
+        self,
+        session: AsyncSession,
+        *,
+        capability: TikTokCapability | str,
+        shop_cipher: str,
+        shops_in_grant: int,
+    ) -> None:
+        await verify_grant_shop(
+            session, capability=capability, shop_cipher=shop_cipher, shops_in_grant=shops_in_grant
+        )
+
+
+def make_binding_verifier(*, app_key: str, app_secret: str) -> MultiShopBindingVerifier:
     """Build the verifier `TikTokOAuthService` is constructed with.
 
     Injected rather than imported, because `TikTokOAuthService` lives in `core`
@@ -258,20 +350,11 @@ def make_binding_verifier(*, app_key: str, app_secret: str) -> BindingVerifier:
     Required at every construction site by design: a default would let a caller
     silently provision without verification, which is exactly the hole #1200
     closes.
+
+    P101 W2a: the verifier also lists every shop of the grant (``authorized_shops``) and
+    verifies each one's cipher (``verify_shop``), so one OAuth connect attaches all of them.
     """
-
-    async def _verifier(
-        session: AsyncSession, *, capability: TikTokCapability | str, access_token: str
-    ) -> str:
-        return await _verify_and_return_cipher(
-            session,
-            capability=capability,
-            access_token=access_token,
-            app_key=app_key,
-            app_secret=app_secret,
-        )
-
-    return _verifier
+    return _GrantBindingVerifier(app_key=app_key, app_secret=app_secret)
 
 
 class ShopCipherUnresolvedError(CredentialBindingError):

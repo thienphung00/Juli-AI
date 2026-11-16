@@ -248,6 +248,10 @@ class _Facade:
         self.events.append("provision")
         return SimpleNamespace(id=self.shop_id, tiktok_shop_id="tt-new")
 
+    async def provision_shops_and_credentials(self, token_data, *, user_id, business_id=None):
+        # P101 W2a: the callback attaches every shop of the grant; this fake's grant has one.
+        return [await self.provision_shop_and_credentials(token_data, user_id=user_id)]
+
 
 class _Session:
     def __init__(self, events, *, fail_commit=False):

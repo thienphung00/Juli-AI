@@ -108,6 +108,28 @@ class TikTokCredentialRepo(SessionRepo):
             missing=missing,
         )
 
+    async def get_by_shop_and_merchant(
+        self,
+        shop_id: uuid.UUID,
+        merchant_authorization_id: str,
+        capability: TikTokCapability | str,
+    ) -> TikTokCredential:
+        """Newest credential of ``shop_id`` for a merchant + capability (P101 W2a).
+
+        One grant now writes a row per authorised shop, all carrying the same merchant id, so
+        the merchant + capability pair alone no longer names one row.
+        """
+        capability_value = _capability_value(capability)
+        return await self._newest(
+            TikTokCredential.shop_id == shop_id,
+            TikTokCredential.merchant_authorization_id == merchant_authorization_id,
+            TikTokCredential.capability == capability_value,
+            missing=NotFound(
+                f"No credentials for shop {shop_id}, merchant {merchant_authorization_id} "
+                f"with capability {capability_value}"
+            ),
+        )
+
     async def get_by_shop_and_capability(
         self,
         shop_id: uuid.UUID,

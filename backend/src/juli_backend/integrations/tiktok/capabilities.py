@@ -6,6 +6,7 @@ import re
 from enum import Enum
 
 from juli_backend.integrations.tiktok.constants import (
+    AFFILIATE_ORDERS_SEARCH_PATH,
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
     ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,
@@ -18,12 +19,15 @@ from juli_backend.integrations.tiktok.constants import (
     AUTHORIZED_SHOPS_PATH,
     CANCELLATION_SEARCH_PATH,
     CREATOR_CONTENT_DETAILS_PATH,
+    EVENT_WEBHOOKS_PATH,
     FINANCE_STATEMENTS_PATH,
+    FINANCE_UNSETTLED_ORDERS_PATH,
     INVENTORY_SEARCH_PATH,
     MARKETPLACE_CREATORS_SEARCH_PATH,
     ORDER_DETAIL_PATH,
     ORDER_SEARCH_PATH,
     PRODUCT_DIAGNOSE_OPTIMIZE_PATH,
+    PRODUCT_SEARCH_202502_PATH,
     PRODUCT_SEARCH_PATH,
     PROMOTION_ACTIVITIES_SEARCH_PATH,
     PROMOTION_COUPONS_SEARCH_PATH,
@@ -61,6 +65,11 @@ PRODUCTION_READ_POST_PATHS: frozenset[str] = frozenset(
         # unverified live -- this is the attempt, run by the owner in live mode.
         PROMOTION_ACTIVITIES_SEARCH_PATH,
         PROMOTION_COUPONS_SEARCH_PATH,
+        # P101 W0 probe gaps (p101-w0-probe-docs.md §F): the newer product search (202502),
+        # and the affiliate order search the TikTok mapper reads for affiliate_commission.
+        # Both are pure searches, exact paths only.
+        PRODUCT_SEARCH_202502_PATH,
+        AFFILIATE_ORDERS_SEARCH_PATH,
     }
 )
 
@@ -84,6 +93,10 @@ PRODUCTION_READ_GET_EXACT: frozenset[str] = frozenset(
         # Get Shop Videos Performance Details 202609 (batch, GET, analytics only):
         # replaces the per-video details pattern below (changelog 2026-09-28).
         ANALYTICS_SHOP_VIDEOS_BATCH_PERFORMANCE_PATH,
+        # P101 W0 probe gaps: unsettled orders (finance, read-only) and the shop's webhook
+        # subscription list (read-only; confirms which events are registered).
+        FINANCE_UNSETTLED_ORDERS_PATH,
+        EVENT_WEBHOOKS_PATH,
     }
 )
 
@@ -125,6 +138,9 @@ PRODUCTION_READ_GET_PATTERNS: tuple[re.Pattern[str], ...] = (
     # transactions (scope seller.finance.info). Pure GETs; exact versions.
     re.compile(r"^/order/202407/orders/\d+/price_detail$"),
     re.compile(r"^/finance/202501/orders/\d+/statement_transactions$"),
+    # P101 W0 probe gap: one statement's transactions (scope seller.finance.info), the
+    # per-statement counterpart of the per-order read above. Pure GET; exact version.
+    re.compile(r"^/finance/202501/statements/\d+/statement_transactions$"),
 )
 
 # Known write path patterns — used by CI/static checks.
@@ -144,6 +160,8 @@ WRITE_PATH_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^/product/\d+/products$"),
     re.compile(r"^/promotion/\d+/activities$"),
     re.compile(r"^/promotion/\d+/activities/\d+/products$"),
+    re.compile(r"/products/\d+/partial_edit$"),
+    re.compile(r"/activities/\d+/republish$"),
 )
 
 # Layer 2 sandbox write-validation allowlist (method, path regex).
@@ -172,6 +190,10 @@ SANDBOX_ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("PUT", re.compile(r"^/promotion/\d+/activities/\d+$")),
     ("PUT", re.compile(r"^/promotion/\d+/activities/\d+/products$")),
     ("POST", re.compile(r"^/promotion/\d+/activities/\d+/deactivate$")),
+    # P101 W0 (p101-w0-probe-docs.md §A, §F): the 202509 partial listing edit and the 202607
+    # republish of an expired (< 7 days) promotion activity. Exact versions.
+    ("POST", re.compile(r"^/product/202509/products/\d+/partial_edit$")),
+    ("POST", re.compile(r"^/promotion/202607/activities/\d+/republish$")),
     # Identity read (issue #1200). A sandbox credential must be able to ask the
     # vendor which shop it actually reaches, otherwise capability binding can
     # only be verified for production-read -- and the sandbox side is precisely
@@ -211,6 +233,11 @@ PRODUCTION_WRITE_ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("GET", re.compile(r"^/product/\d+/products/suggestions$")),
     ("PUT", re.compile(r"^/product/\d+/products/\d+$")),
     ("POST", re.compile(r"^/product/\d+/images/upload$")),
+    # P101 W0: the partial listing edit is the same D13 listing write (title / description /
+    # cover) under the same D71 write flag and ADR-085 path, so it rides the existing gating.
+    # The promotion republish (202607) is deliberately NOT here: production has no promotion
+    # write at all, so it stays sandbox-only until an ADR-085 amendment opens promotions.
+    ("POST", re.compile(r"^/product/202509/products/\d+/partial_edit$")),
 )
 
 

@@ -86,6 +86,8 @@ class TikTokOAuthCallbackResult(BaseModel):
     message: str
     open_id_present: bool | None = None
     access_token_expires_in: int | None = None
+    #: P101 W2a: how many shops the grant attached (one grant can authorise several).
+    shops_connected: int | None = None
 
 
 class TikTokOAuthStartResult(BaseModel):
