@@ -15,6 +15,7 @@ import pytest
 from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
+from juli_backend.services.shopee_builder.engine.wire import round_count
 from juli_backend.services.shopee_builder.engine_families import integrate
 from juli_backend.services.shopee_recommendations import plan_aggregate as pa
 from juli_backend.services.shopee_recommendations import plans
@@ -200,13 +201,14 @@ async def _period(session, seeded, env, spec):
 
     ctx = await builder.build_context(session, seeded.shop_id, [spec], as_of=AS_OF, now=NOW)
     done, _ = integrate.evaluate(ctx, spec, str(seeded.shop_id))
-    r = done.result_json()
-    d = r["delta"]
+    # F5: a metric within normal swing is null on the wire only (Kế hoạch sums the real value),
+    # so read the result's own Δ: likely - before
+    res = done.result
     return {
-        "profit": d["profit"]["value"],
-        "gmv": d["gmv"]["value"],
-        "orders": d["orders"]["value"],
-        "days": r["days"],
+        "profit": float(round(res.likely.profit - res.before.profit)),
+        "gmv": float(round(res.likely.gmv - res.before.gmv)),
+        "orders": round_count(res.likely.orders - res.before.orders),
+        "days": res.days,
     }
 
 

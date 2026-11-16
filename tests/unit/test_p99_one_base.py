@@ -24,6 +24,7 @@ from juli_backend.services.shopee_analytics.matrix import product_row
 from juli_backend.services.shopee_builder import ads_builder, specs_p98
 from juli_backend.services.shopee_builder import service as builder
 from juli_backend.services.shopee_builder import specs as sp
+from juli_backend.services.shopee_builder.engine.wire import round_count
 from juli_backend.services.shopee_builder.engine_families import integrate
 from juli_backend.services.shopee_profit import shop_profit
 from juli_backend.services.shopee_recommendations import manual, plans, store
@@ -141,12 +142,20 @@ FAMILIES = {
 
 def _plan_view(result: dict[str, Any]) -> dict[str, Any]:
     """An OptionResult's wire block over its OWN dates (P99b: never normalised to 30 days)."""
-    d = result["delta"]
+    # F5: a metric within normal swing is null on the wire only; Kế hoạch keeps the real Δ, so read
+    # it from the result's own columns (likely - before) at the wire's rounding
+    est = result["estimable"]
+    det = result["detail"]
+
+    def own(m: str) -> float | None:
+        return None if not est else det["likely"][m] - det["before"][m]
+
+    gmv, profit = own("gmv"), own("profit")
     return {
-        "estimable": result["estimable"],
-        "dgmv": None if not result["estimable"] else d["gmv"]["value"],
-        "dorders": None if not result["estimable"] else d["orders"]["value"],
-        "dprofit": None if not result["estimable"] else (d["profit"] or {}).get("value"),
+        "estimable": est,
+        "dgmv": None if gmv is None else float(round(gmv)),
+        "dorders": None if not est else round_count(own("orders")),
+        "dprofit": None if profit is None else float(round(profit)),
         "cost_total": result["cost"]["total"],
         "days": result["days"],
     }
@@ -307,7 +316,12 @@ async def test_so_sanh_hom_nay_is_the_versions_own_scope(session, shop):
     assert today["mixed_scopes"] is False
     base = integrate.scope_today(env, integrate.base_for(env, [ITEM]))
     assert today["orders_30d"] == pytest.approx(base["orders_30d"])  # product next to product
-    assert today["orders_30d"] < env.shop_orders_30d
+    # F2: the product's base is its own adaptive window (60 days when thin), the shop's plain 30
+    # days is a different window, so "product next to product" is the check; the shop-scope base
+    # of the same adaptive rule is the bound for "smaller than the shop"
+    assert (
+        today["orders_30d"] < integrate.scope_today(env, integrate.base_for(env, []))["orders_30d"]
+    )
     for v in out["versions"]:
         assert v["today"]["orders_30d"] == pytest.approx(base["orders_30d"])
     shop_voucher = sp.VoucherSpec(
@@ -347,7 +361,8 @@ async def test_one_margin_on_luong_tu_tao_so_sanh_and_ke_hoach(session, shop):
 
 
 def test_delta_orders_round_to_the_cards_precision():
-    assert pa.round_orders(7.66) == 7.7 and pa.round_orders(-0.04) == -0.0
+    # whole orders from 1 up (b5f6f4dd), two decimals under one order
+    assert pa.round_orders(7.66) == 8.0 and pa.round_orders(-0.04) == -0.04
     assert pa.round_orders(12.4) == 12.0 and pa.round_orders(None) is None
 
 

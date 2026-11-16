@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal as D
 from types import SimpleNamespace
+from typing import Any, cast
 
 from juli_backend.services.shopee_builder.engine.contract import Band, DriverEffect, OptionInput
 from juli_backend.services.shopee_builder.engine_families import adapters, common
@@ -136,7 +137,7 @@ def test_not_estimable_stays_not_estimable_in_the_builder():
     option = OptionInput(
         kind="min_spend_voucher",
         label="x",
-        drivers=(DriverEffect("aov", ("shop",), "not_estimable", note="n"),),  # type: ignore[arg-type]
+        drivers=(DriverEffect("aov", ("shop",), cast(Any, "not_estimable"), note="n"),),
         duration_days=None,
     )
     out = common.floor_prior_drivers(option)
@@ -149,13 +150,13 @@ def test_builder_floors_the_prior_aov_driver_of_a_min_spend_voucher_but_not_a_me
         "min_spend_voucher",
         "x",
         (DriverEffect("aov", ("shop",), "prior", lift=tiny),),
-        None,  # type: ignore[arg-type]
+        cast(Any, None),
     )
     measured = OptionInput(
         "min_spend_voucher",
         "x",
         (DriverEffect("aov", ("shop",), "measured", lift=tiny),),
-        None,  # type: ignore[arg-type]
+        cast(Any, None),
     )
     assert common.floor_prior_drivers(prior).drivers[0].lift == Band(D(0), D("0.05"), D("0.05"))
     assert common.floor_prior_drivers(measured).drivers[0].lift == tiny
