@@ -18,7 +18,12 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from juli_backend.models.stock_alert import KIND_ALERT, KIND_EMPTY, KIND_NO_READ
-from juli_backend.services.stock_alert.eligibility import AlertRow, split_new
+from juli_backend.services.stock_alert.eligibility import (
+    REASON_CARD,
+    AlertRow,
+    orders_stale,
+    split_new,
+)
 from juli_backend.services.stock_alert.stock_basis import local
 
 PREFIX = "[Juli - Báo cáo tồn kho]"
@@ -78,9 +83,12 @@ def row_line(r: AlertRow) -> str:
         return f"Đã hết hàng từ {dm(r.out_since or date.today())} · {rate}"
     fc = r.forecast
     assert fc.runs_out_on is not None and fc.days_left is not None
-    return (
+    line = (
         f"Còn {r.facts.stock} · {rate} · Hết khoảng {dm(fc.runs_out_on)} (còn {fc.days_left} ngày)"
     )
+    if r.reason == REASON_CARD and r.card_end is not None:
+        line += f" · trước khi thẻ kết thúc {dm(r.card_end)}"
+    return line
 
 
 def read_line(read_at: datetime | None, deducted_orders: int) -> str | None:
@@ -109,6 +117,7 @@ def compose(
     deducted_orders: int = 0,
     no_read_since: date | None = None,
     previous_keys: set[str] | None = None,
+    orders_through: date | None = None,
 ) -> Composed:
     subj = subject(kind, len(rows), today, no_read_since=no_read_since)
     if kind == KIND_NO_READ:
@@ -124,6 +133,13 @@ def compose(
             if part:
                 groups.append((heading, [(row_title(r), row_line(r)) for r in part]))
     footer = read_line(read_at, deducted_orders) if kind != KIND_NO_READ else None
+    orders_line = (
+        f"Đơn hàng đến {dm(orders_through)}"
+        if kind != KIND_NO_READ
+        and orders_through is not None
+        and orders_stale(orders_through, today)
+        else None
+    )
 
     text_lines: list[str] = []
     text_lines += body
@@ -134,6 +150,8 @@ def compose(
     text_lines += ["", f"{BUTTON}: {open_url}", ""]
     if footer:
         text_lines.append(footer)
+    if orders_line:
+        text_lines.append(orders_line)
     text_lines.append(f"{UNSUBSCRIBE}: {unsubscribe_url}")
     text = "\n".join(text_lines).strip() + "\n"
 
@@ -162,6 +180,8 @@ def compose(
     small = 'style="margin:4px 0;color:#6e7781;font-size:12px"'
     if footer:
         parts.append(f"<p {small}>{e(footer)}</p>")
+    if orders_line:
+        parts.append(f"<p {small}>{e(orders_line)}</p>")
     parts.append(
         f'<p {small}><a href="{e(unsubscribe_url, quote=True)}" style="color:#6e7781">'
         f"{e(UNSUBSCRIBE)}</a></p>"
