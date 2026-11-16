@@ -553,20 +553,16 @@ def test_a_near_zero_lift_gives_no_actual_instead_of_a_huge_number():
 def test_reader_blocks_of_a_run_report_group_pages_by_section_and_reason():
     from juli_backend.services.shopee_recommendations import connector_state as cs
 
-    after = {
-        "kind": "run",
-        "trigger": "daily",
-        "outcomes": {
-            "products": "done:item_snapshot=posted",
-            "orders": "done:order_lines=posted",
-            "shop_totals": "blocked:login",
-            "traffic": "blocked:login",
-            "product_period": "blocked:login",
-            "health": "blocked:captcha",
-            "vouchers": "error:http_500",
-        },
+    outcomes = {
+        "products": "done:item_snapshot=posted",
+        "orders": "done:order_lines=posted",
+        "shop_totals": "blocked:login",
+        "traffic": "blocked:login",
+        "product_period": "blocked:login",
+        "health": "blocked:captcha",
+        "vouchers": "error:http_500",
     }
-    assert cs.reader_blocks_of(after) == [
+    assert cs.reader_blocks_of(outcomes) == [
         {
             "section": "phan_tich_ban_hang",
             "reason": "login",
@@ -575,43 +571,32 @@ def test_reader_blocks_of_a_run_report_group_pages_by_section_and_reason():
         {"section": "seller_centre", "reason": "captcha", "readers": ["health"]},
     ]
     # The page that stopped the whole run (session-wide logout) is Seller Centre, whatever page.
-    stopped = {"kind": "run", "outcomes": {"shop_totals": "blocked_login"}}
-    assert cs.reader_blocks_of(stopped) == [
+    assert cs.reader_blocks_of({"shop_totals": "blocked_login"}) == [
         {"section": "seller_centre", "reason": "login", "readers": ["shop_totals"]}
     ]
-    assert cs.reader_blocks_of({"outcomes": {"products": "done"}}) == []
-    assert cs.reader_blocks_of(None) == []
+    assert cs.reader_blocks_of({"products": "done"}) == []
 
 
-async def test_connector_status_carries_the_last_daily_runs_reader_blocks(session, shop):
-    from juli_backend.services.ops import audit
+async def test_connector_status_reads_the_reader_blocks_from_the_state_row(session, shop):
+    from juli_backend.models.shopee_connector import ShopeeConnectorState
     from juli_backend.services.shopee_recommendations import connector_state as cs
 
     seeded, _ = shop
     out = await es.connector_status(session, seeded.shop_id, "shopee", NOW)
     assert out["reader_blocks"] == []
 
-    async def tick(after, at):
-        await audit.record(
-            session, audit.SYSTEM_ACTOR, cs.ACTION_CONNECTOR_TICK, shop_id=seeded.shop_id,
-            after=after, at=at,
-        )  # fmt: skip
-        await session.flush()
-
     blocked = {"shop_totals": "blocked:login", "traffic": "blocked:login", "orders": "done"}
-    await tick({"kind": "run", "trigger": "daily", "result": "finished", "outcomes": blocked}, NOW)
-    # A later stock read and a skip do not hide the daily run's blocks.
-    stock = {"kind": "run", "trigger": "stock", "outcomes": {"products": "done"}}
-    await tick(stock, NOW + timedelta(minutes=5))
-    await tick(
-        {"kind": "skip", "trigger": "alarm", "result": "done_today"}, NOW + timedelta(minutes=6)
-    )
-    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(minutes=7))
-    assert out["reader_blocks"] == [
+    written = await cs.record_reader_blocks(session, seeded.shop_id, blocked, now=NOW)
+    want = [
         {"section": "phan_tich_ban_hang", "reason": "login", "readers": ["shop_totals", "traffic"]}
     ]
+    assert written == want
+    row = await session.get(ShopeeConnectorState, seeded.shop_id)
+    assert (row.reader_blocks, row.reader_blocks_at) == (want, NOW)
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(minutes=1))
+    assert out["reader_blocks"] == want
     # The next daily run read every page: no block any more.
     done = {"shop_totals": "done", "traffic": "done"}
-    await tick({"kind": "run", "trigger": "daily", "outcomes": done}, NOW + timedelta(hours=1))
-    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(hours=2))
+    assert await cs.record_reader_blocks(session, seeded.shop_id, done, now=NOW) == []
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(hours=1))
     assert out["reader_blocks"] == []

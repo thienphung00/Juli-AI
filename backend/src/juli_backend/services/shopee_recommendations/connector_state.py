@@ -10,12 +10,11 @@ Tables ``shopee_connector_state`` (one row per shop) and ``shopee_connector_comm
 
 Reviewer requests never write here (``reviewer_session_active``).
 
-Reader blocks (Connector 0.3.22): a login wall or CAPTCHA on one Seller Centre page now blocks that
-page only (outcome ``blocked:login`` / ``blocked:captcha``) and the run goes on; the run report
-(``POST /v1/ingest/connector-ticks``, audit action ``system_connector_tick``) already carries every
-page's outcome, so the last daily run's blocks are read from there (no migration). A
-session-wide stop is the page's ``blocked_login`` / ``blocked_captcha`` (run result
-``blocked:<reason>``).
+Reader blocks (Connector 0.3.22, migration 131): a login wall or CAPTCHA on one Seller Centre page
+now blocks that page only (outcome ``blocked:login`` / ``blocked:captcha``) and the run goes on. A
+daily run's report (``POST /v1/ingest/connector-ticks``) replaces ``reader_blocks`` on the state
+row; stock runs and skips leave it. A session-wide stop is the page's ``blocked_login`` /
+``blocked_captcha`` (run result ``blocked:<reason>``).
 """
 
 from __future__ import annotations
@@ -27,7 +26,6 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.ops import OpsAuditLog
 from juli_backend.models.shopee_connector import (
     COMMAND_ACKED,
     COMMAND_PENDING,
@@ -36,7 +34,6 @@ from juli_backend.models.shopee_connector import (
     ShopeeConnectorCommand,
     ShopeeConnectorState,
 )
-from juli_backend.services.ops import ops_role
 from juli_backend.services.shop_proposals.cycle import ProposalError
 
 COMMAND_ID_MAX = 64
@@ -47,8 +44,6 @@ _OPEN = (COMMAND_PENDING, COMMAND_SENT)
 
 #: The audit action of the Connector's scheduler tick (``POST /v1/ingest/connector-ticks``).
 ACTION_CONNECTOR_TICK = "system_connector_tick"
-#: Ticks looked at for the last daily run (a day has one run, one stock read, a few skips).
-_TICKS_LOOKED_AT = 12
 #: The readers on Phân tích bán hàng (Seller Centre /datacenter), which asks for the password again.
 DATACENTER_READERS = frozenset({"shop_totals", "traffic", "product_period", "item_traffic"})
 SECTION_DATACENTER = "phan_tich_ban_hang"
@@ -147,6 +142,7 @@ async def read(session: AsyncSession, shop_id: uuid.UUID, *, now: datetime) -> d
         "seller_centre_open": row.seller_centre_open if row and fresh else None,
         "connector_version": row.connector_version if row else None,
         "reconcile_pending": await _open_command(session, shop_id) is not None,
+        "reader_blocks": list(row.reader_blocks or []) if row else [],
     }
 
 
@@ -164,11 +160,8 @@ def _block_of(reader: str, outcome: object) -> tuple[str, str] | None:
     return None
 
 
-def reader_blocks_of(after: object) -> list[dict[str, Any]]:
-    """The blocked sections of one ``system_connector_tick`` run report, in page order."""
-    outcomes = after.get("outcomes") if isinstance(after, dict) else None
-    if not isinstance(outcomes, dict):
-        return []
+def reader_blocks_of(outcomes: dict[str, str]) -> list[dict[str, Any]]:
+    """The blocked sections of one run report's page outcomes, in page order."""
     blocks: dict[tuple[str, str], list[str]] = {}
     for reader, outcome in outcomes.items():
         found = _block_of(str(reader), outcome)
@@ -180,30 +173,17 @@ def reader_blocks_of(after: object) -> list[dict[str, Any]]:
     ]
 
 
-async def reader_blocks(session: AsyncSession, shop_id: uuid.UUID) -> list[dict[str, Any]]:
-    """The pages the Connector's last daily run could not read for a login wall / CAPTCHA.
-
-    Read from the run report in the audit log, this shop's own ``system_connector_tick`` rows only
-    (metadata: reader ids and short outcome notes), through ``juli_ops`` like the write."""
-    async with ops_role(session):
-        rows = (
-            (
-                await session.execute(
-                    select(OpsAuditLog.after)
-                    .where(
-                        OpsAuditLog.shop_id == shop_id,
-                        OpsAuditLog.action == ACTION_CONNECTOR_TICK,
-                    )
-                    .order_by(OpsAuditLog.at.desc())
-                    .limit(_TICKS_LOOKED_AT)
-                )
-            )
-            .scalars()
-            .all()
-        )
-    for after in rows:
-        if not isinstance(after, dict) or after.get("kind") != "run":
-            continue
-        if after.get("trigger") != "stock":
-            return reader_blocks_of(after)
-    return []
+async def record_reader_blocks(
+    session: AsyncSession, shop_id: uuid.UUID, outcomes: dict[str, str], *, now: datetime
+) -> list[dict[str, Any]]:
+    """A daily run's report: its blocked sections replace the last ones (``[]`` = none)."""
+    row = await session.get(ShopeeConnectorState, shop_id)
+    if row is None:
+        row = ShopeeConnectorState(shop_id=shop_id)
+        session.add(row)
+    blocks = reader_blocks_of(outcomes)
+    row.reader_blocks = blocks
+    row.reader_blocks_at = now
+    row.updated_at = now
+    await session.flush()
+    return blocks

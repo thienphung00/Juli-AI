@@ -47,3 +47,44 @@ def test_both_tables_are_classified_tenant_direct():
 
     for table in ("shopee_connector_state", "shopee_connector_commands"):
         assert TABLE_CLASSIFICATION_MAP[("public", table)] == "tenant_direct"
+
+
+# -- migration 131: the Connector's reader blocks (0.3.22) ----------------------------------------
+
+PATH_131 = (
+    REPO / "backend/src/juli_backend/database/migrations/versions/131_connector_reader_blocks.py"
+)
+
+
+def test_131_revision_fits_alembic_and_follows_130():
+    spec = importlib.util.spec_from_file_location("m131", PATH_131)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.revision == "131_connector_reader_blocks" and len(mod.revision) <= 32
+    assert mod.down_revision == "130_businesses"
+
+
+def test_131_is_the_head_and_additive_only():
+    import sys
+
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    script = ScriptDirectory.from_config(Config(str(REPO / "alembic.ini")))
+    assert script.get_heads() == ["131_connector_reader_blocks"]
+    sys.path.insert(0, str(REPO / "infra/scripts"))
+    from migration_additive_gate import evaluate_migration_paths
+
+    result = evaluate_migration_paths([PATH_131])
+    assert [f.render() for f in result.findings] == [] and result.accepted
+    up, down = PATH_131.read_text("utf-8").split("def downgrade")
+    assert up.count("op.add_column(") == 2 and "op.execute" not in up and "drop_" not in up
+    assert down.count("op.drop_column(") == 2
+    assert '"reader_blocks"' in up and '"reader_blocks_at"' in up
+
+
+def test_131_columns_match_the_model():
+    from juli_backend.models.shopee_connector import ShopeeConnectorState
+
+    columns = ShopeeConnectorState.__table__.columns
+    assert columns["reader_blocks"].nullable and columns["reader_blocks_at"].nullable

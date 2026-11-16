@@ -4,7 +4,8 @@ What woke the Connector's reader schedule (pairing, a Chrome start, the daily al
 stock read, a retry), how that tick ended (a run started, a run finished, or why nothing started)
 and, for a finished run, how each Seller Centre report page went. Ops reads it from the audit log
 (``system_connector_tick``, kind ``system``, 90-day retention) like the stop events next door
-(``POST /v1/ingest/connector-events``), and the shop's Connector state keeps the version.
+(``POST /v1/ingest/connector-events``), and the shop's Connector state keeps the version and,
+for a daily run, its blocked pages (migration 131, read by the Thực hiện bar).
 
 Metadata only: reader ids, short outcome notes (an endpoint and an HTTP status, never a body, an
 order or a buyer). Ingest-token auth: the token names exactly one shop. A small hourly cap keeps a
@@ -109,6 +110,11 @@ async def post_connector_tick(
             },
             at=now,
         )
+        if tick.platform == "shopee" and tick.kind == "run" and tick.trigger == "daily":
+            # Connector 0.3.22: the daily run's blocked pages (stock runs and skips leave them).
+            await connector_state.record_reader_blocks(
+                session, principal.shop_id, tick.outcomes, now=now
+            )
         if tick.platform == "shopee":
             await connector_state.record_heartbeat(
                 session,
