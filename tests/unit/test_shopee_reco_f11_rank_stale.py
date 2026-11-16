@@ -121,3 +121,13 @@ async def test_a_stale_card_carries_the_marker_and_null_shown_numbers(shop_env):
     money = card["predicted"]["money_per_month"]
     assert money["stale"] == stale
     assert money["shown"] == {"dgmv": None, "dorders": None, "dprofit": None}
+
+
+def test_the_list_summary_carries_the_data_stale_marker_beside_the_recompute_flag():
+    """The Đề xuất list reads `data_stale`; `stale` stays the recompute bool."""
+    import inspect
+
+    from juli_backend.services.shopee_recommendations import service
+
+    src = inspect.getsource(service._summary)
+    assert '"data_stale": card.get("stale")' in src and '"stale": bool(' in src

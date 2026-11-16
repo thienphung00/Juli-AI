@@ -525,6 +525,9 @@ def _summary(
         "plan": card["measurement_plan"]["label"],
         "stale": bool((meta or {}).get("stale")) or stale_why is not None,
         "stale_reason": (meta or {}).get("stale_reason") or stale_why,
+        # F2: the shop's data is too old to forecast ({dataset, through} | None); not the
+        # recompute flag above ("stale" = "Đang cập nhật")
+        "data_stale": card.get("stale"),
         "computed_at": (card.get("freshness") or {}).get("computed_at"),
         "engine_version": (card.get("freshness") or {}).get("engine_version"),
         "bundle": card.get("bundle", False),
