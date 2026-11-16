@@ -15,6 +15,10 @@ each card not imported yet:
    measurement clock starts at the execution), its change set measuring Thời gian đo days;
    a "Đề xuất" row stays a sent card the owner decides on in Đề xuất.
 
+Option B (2026-11-16): the executed / running rows also land in ONE executed Kế hoạch per file,
+"Đã làm ngoài Juli dd/mm–dd/mm" (``executed_plans``), each card at its own past start date and run
+days; Đề xuất rows stay plain sent cards, outside the plan.
+
 Idempotent on (shop, ``external_ref``): a ref already on a live card is never created twice (a
 card the board reset withdrew does not count, so a reset followed by an import brings it back).
 Each card is written in its own savepoint: a row that cannot be built is reported, the others
@@ -47,6 +51,7 @@ from juli_backend.services.shopee_recommendations import (
     board_reset,
     change_sets,
     config,
+    executed_plans,
     manual,
     result_store,
     store,
@@ -178,11 +183,25 @@ async def _approve_and_execute(
     *,
     user_id: uuid.UUID,
     now: datetime,
-) -> None:
+    plan_key: str,
+) -> uuid.UUID:
+    """Returns the id of the executed Kế hoạch the card now belongs to."""
     assert row.on is not None
     at = _when(row.on)
     p = await session.get(ShopProposal, card_id)
     assert p is not None
+    # Option B: the card joins the import's executed Kế hoạch at its own (past) start date; the
+    # past date is allowed here only (origin "external", ``allow_past``)
+    plan = await executed_plans.attach_executed(
+        session,
+        shop_id,
+        p,
+        key=plan_key,
+        on=row.on,
+        actor=manual.Actor("seller", user_id),
+        now=now,
+        allow_past=True,
+    )
     approval = await proposals.record_approval(
         session,
         p,
@@ -192,7 +211,13 @@ async def _approve_and_execute(
         now=now,
         decided_by_user_id=user_id,
         note=f"external {ref}",
-        snapshot_extra={"code": p.code, "external_ref": ref, "chosen_version": 1},
+        snapshot_extra={
+            "code": p.code,
+            "external_ref": ref,
+            "chosen_version": 1,
+            "plan_id": str(plan.id),
+            "plan_code": plan.code,
+        },
     )
     items = card["scope"]["product_ids"]
     await store.write_event(
@@ -233,6 +258,7 @@ async def _approve_and_execute(
     )
     if row.days:
         await _set_window(session, shop_id, card_id, row.days, now=now)
+    return plan.id
 
 
 async def _set_window(
@@ -269,6 +295,7 @@ async def _create(
     *,
     user_id: uuid.UUID,
     now: datetime,
+    plan_key: str,
 ) -> dict[str, Any]:
     spec = _SPEC.validate_python(plan.spec)
     day = forecast_day(row.on, now.date())
@@ -308,10 +335,12 @@ async def _create(
     await store.set_meta(
         session, shop_id, card_id, {"external_ref": plan.ref, "external": extra["external"]}
     )
+    plan_id = None
     if executed:
-        await _approve_and_execute(
-            session, shop_id, card_id, out["card"], row, plan.ref, user_id=user_id, now=now
-        )
+        plan_id = await _approve_and_execute(
+            session, shop_id, card_id, out["card"], row, plan.ref,
+            user_id=user_id, now=now, plan_key=plan_key,
+        )  # fmt: skip
     p = await session.get(ShopProposal, card_id)
     return {
         "card_id": str(card_id),
@@ -319,6 +348,7 @@ async def _create(
         "status": None if p is None else p.status,
         "executed_on": row.on.isoformat() if executed and row.on else None,
         "forecast_as_of": as_of.isoformat(),
+        "plan_id": None if plan_id is None else str(plan_id),
     }
 
 
@@ -344,6 +374,8 @@ async def commit_import(
     cards: list[dict[str, Any]] = []
     counts = {"created": 0, "exists": 0, "refused": 0, "executed": 0}
     done = set(preview.existing)
+    plan_key = f"{executed_plans.KEY_EXTERNAL}:{preview.file_hash}"
+    plan_ids: dict[str, uuid.UUID] = {}
     for rp in preview.rows:
         for plan in rp.cards:
             base = {
@@ -359,7 +391,9 @@ async def commit_import(
                 continue
             try:
                 async with session.begin_nested():
-                    got = await _create(session, shop.id, plan, rp.row, user_id=user_id, now=now)
+                    got = await _create(
+                        session, shop.id, plan, rp.row, user_id=user_id, now=now, plan_key=plan_key
+                    )
             except (ProposalError, SpecRefused, ValidationError, builder.NoShopeeData) as exc:
                 counts["refused"] += 1
                 message = getattr(exc, "detail", None) or type(exc).__name__
@@ -371,7 +405,11 @@ async def commit_import(
             counts["created"] += 1
             if got["executed_on"]:
                 counts["executed"] += 1
+            if got["plan_id"]:
+                plan_ids[got["plan_id"]] = uuid.UUID(got["plan_id"])
             cards.append({**base, "action": "created", **got})
+    for plan_id in plan_ids.values():
+        await executed_plans.refresh(session, shop.id, plan_id, now=now)
     if counts["created"]:
         await reco_service.requeue(session, shop.id, now=now)
     await session.flush()

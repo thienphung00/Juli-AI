@@ -249,6 +249,7 @@ async def recommendation_executed(
             user_id=user.id,
             voucher_id=voucher_id,
             evidence_ref=body.evidence_ref,
+            auto_plan=True,
         )
         if sample:
             await sample_readback.simulate_readback(session, shop_id, card_id, now)

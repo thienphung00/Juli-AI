@@ -1522,6 +1522,7 @@ async def mark_executed(
     voucher_id: str | None = None,
     evidence_ref: str | None = None,
     payload_extra: Mapping[str, Any] | None = None,
+    auto_plan: bool = False,
 ) -> dict[str, Any]:
     """ "Đã làm": a person saved the change in Seller Centre. Records the execution
     (ADR-118) and one `executed` event per change in the sheet, each carrying
@@ -1534,6 +1535,21 @@ async def mark_executed(
     approved = await _approved_with(session, shop_id, card_id)
     sheet = (approved or {}).get("execution_sheet") or card["execution_sheet"]
     changes = [dict(c) for c in sheet["changes"]]
+    actor_id = user_id or staff_id
+    if auto_plan and p.lever_plan_id is None and actor_id and when.date() >= now.date():
+        # Option B (2026-11-16): a card executed from Thực hiện outside any plan joins the plan of
+        # the month, so the Kế hoạch (and its Excel) lists it
+        from juli_backend.services.shopee_recommendations import executed_plans
+
+        await executed_plans.attach_executed(
+            session,
+            shop_id,
+            p,
+            key=f"{executed_plans.KEY_MONTH}:{when:%Y-%m}",
+            on=when.date(),
+            actor=manual.Actor("seller" if user_id else "staff", actor_id),
+            now=now,
+        )
     # an execution recorded after the fact (an import) has nothing "after" to read back
     readback = (payload_extra or {}).get(verification.NO_READBACK_FLAG) is not False
     for c in changes:
@@ -1601,6 +1617,12 @@ async def mark_executed(
     from juli_backend.services.shopee_recommendations import plans
 
     plan_done = await plans.on_executed(session, shop_id, p, now=now)
+    if auto_plan and p.lever_plan_id is not None and not plan_done:
+        from juli_backend.services.shopee_recommendations import executed_plans
+
+        plan_row = await session.get(plans.ShopRecoPlan, p.lever_plan_id)
+        if plan_row is not None and (plan_row.aggregate or {}).get("plan_key"):
+            await executed_plans.refresh(session, shop_id, plan_row.id, now=now)
     return {
         "id": str(card_id),
         "code": p.code,

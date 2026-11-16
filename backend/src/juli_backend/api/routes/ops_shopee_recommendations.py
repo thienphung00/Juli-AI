@@ -416,6 +416,7 @@ async def ops_executed(
                 staff_id=ctx.staff.id,
                 voucher_id=body.voucher_id,
                 evidence_ref=body.evidence_ref,
+                auto_plan=True,
             )
         await _audited(
             session,
