@@ -134,14 +134,33 @@ def _in_stock(env: RecoEnv, cand: Candidate) -> bool | None:
     return True
 
 
-def _history(env: RecoEnv, cand: Candidate) -> dict[str, Any] | None:
-    """F3: the product's own daily gmv / orders / profit in its F2 window (None = no rows)."""
+def _base(env: RecoEnv, cand: Candidate) -> Any:
     rows = env.funnel_history
     if not isinstance(rows, funnel.FunnelRows):
         rows = env.view.data.funnel
     if not isinstance(rows, funnel.FunnelRows):
         return None
-    return dict(forecast_base.adaptive_base(rows, "", item_ids=tuple(cand.items)).daily)
+    # staleness is judged against ``env.today`` (the loader's rule: now, else the explicit as_of,
+    # else today; None = no check)
+    return forecast_base.adaptive_base(rows, "", item_ids=tuple(cand.items), today=env.today)
+
+
+def _history(env: RecoEnv, cand: Candidate) -> dict[str, Any] | None:
+    """F3: the product's own daily gmv / orders / profit in its F2 window (None = no rows)."""
+    base = _base(env, cand)
+    return None if base is None else dict(base.daily)
+
+
+def stale_of(env: RecoEnv, cand: Candidate) -> dict[str, str] | None:
+    """F2: ``{dataset, through}`` when the card's newest data is older than its expected lag +
+    ``STALE_GRACE_DAYS``, else None."""
+    base = _base(env, cand)
+    marker = None if base is None else base.stale
+    return (
+        None
+        if marker is None
+        else {"dataset": marker.dataset, "through": marker.through.isoformat()}
+    )
 
 
 def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any] | None:
@@ -167,6 +186,10 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
     if rng is not None and s.family in ("voucher", "promotion", "sale"):
         ev = evaluate(env, cand, predicted=PredictedRange(rng[0], rng[1], config.MODEL_VERSION))
     money = apply_within_noise(convert(lift, ev.profit), cand.kind, _history(env, cand))
+    stale = stale_of(env, cand)
+    money["stale"] = stale
+    if stale is not None:  # F2: no numbers on stale data
+        money["shown"] = dict.fromkeys(money["shown"])
     plan = measurement_plan(s.target_metric, stats_for(env, cand.items or None, s.target_metric))
     if lift.sim.get("row_found") and cand.item:
         sim_kg = env.sim.kg_value(cand.item, s.sim_kind) if env.sim and s.sim_kind else None
@@ -251,6 +274,7 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
             "kpi_p25": deltas,  # ranking only (D83); screens show the P50 below
             "kpi_p50": shop_deltas(env, money, "p50"),
             "dgmv_p25": money["total"]["p25"]["dgmv"],
+            "dgmv_p50": money["total"]["p50"]["dgmv"],
             "dprofit_p50": dprofit_p50,
             "floor_breach": bool(ev.breaches),
             "spend_after": spend.get("shop_chi_per_day_after"),
@@ -259,6 +283,7 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
             "kg_value": sim_kg,
             "items": scope_items,
         },
+        "stale": stale,
         "bundle": False,
         "freshness": freshness.stamp(env, scope_items, now),
     }

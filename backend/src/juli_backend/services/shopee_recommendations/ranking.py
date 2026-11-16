@@ -17,6 +17,10 @@ window still holds, but as a queue: every card that passes the filters is kept a
 score (1 = the Quyết định card; ``product_queue.py`` moves the next one up when it closes).
 Acceptance statistics break ties only; the "đáng thử" slot, when reserved, is the eligible card
 with the largest simulation knowledge-gradient. Pure.
+
+F11: the FINAL order of the cards that pass the filters is ``forecast.triggers.rank``: rule cards
+by their urgency, then expected Δprofit (ΔGMV when profit is unknown), a problem ahead of an
+opportunity at a similar value. The gap-share score above only breaks ties (input order).
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ import calendar
 from dataclasses import dataclass, field
 from typing import Any
 
+from juli_backend.services.forecast import triggers as trg
 from juli_backend.services.shopee_recommendations import config
 
 FILTERS = (
@@ -52,6 +57,17 @@ class RankInput:
     acceptance: float | None = None
     kg_value: float | None = None
     mega_children_items: tuple[str, ...] = ()
+    #: F11: the card's trigger type (problem / opportunity / rule), its P50 ΔGMV and, for a rule
+    #: card, its own urgency (higher first)
+    trigger_type: str = trg.OPPORTUNITY
+    dgmv_p50: float | None = None
+    urgency: float = 0.0
+
+    def trigger_value(self) -> float:
+        """Expected Δprofit; ΔGMV when the profit is unknown (P25 when no P50 either)."""
+        if self.dprofit_p50 is not None:
+            return self.dprofit_p50
+        return self.dgmv_p50 if self.dgmv_p50 is not None else self.dgmv_p25
 
     def all_items(self) -> tuple[str, ...]:
         return tuple(dict.fromkeys((*self.items, *self.mega_children_items)))
@@ -179,6 +195,25 @@ def hard_filters(card: RankInput, locked: dict[str, str]) -> list[str]:
     return failed
 
 
+def _by_trigger_rank(
+    scored: list[tuple[RankInput, float, dict[str, Any]]],
+) -> list[tuple[RankInput, float, dict[str, Any]]]:
+    """F11: put the filtered cards in ``triggers.rank`` order; ties keep the score order."""
+    triggers = [
+        trg.Trigger(
+            trigger_type=c.trigger_type,
+            product_id=c.items[0] if c.items else None,
+            target_metric=None,
+            value=c.trigger_value(),
+            value_basis="profit" if c.dprofit_p50 is not None else "gmv",
+            urgency=c.urgency,
+            detail={"i": i},
+        )
+        for i, (c, _, _) in enumerate(scored)
+    ]
+    return [scored[int(t.detail["i"])] for t in trg.rank(triggers)]
+
+
 def rank(
     cards: list[RankInput],
     gaps: Gaps,
@@ -218,7 +253,7 @@ def rank(
             t[0].id,
         )
     )
-    kept = scored
+    kept = _by_trigger_rank(scored)
     seen: dict[str, int] = {}
     ordered: list[Ranked] = []
     for i, (c, s, d) in enumerate(kept):
