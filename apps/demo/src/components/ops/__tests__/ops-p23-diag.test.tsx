@@ -49,7 +49,7 @@ describe("Chẩn đoán & KPI (D29.11)", () => {
       "×3 dao động",
       "×1 dao động",
       "CV > 30 %",
-      "Một chỉ số giảm",
+      "Phát hiện chung",
       "Bật (kéo về mức của ngành hàng)",
     ]);
     for (const row of rows) expect(row).toHaveTextContent("Mặc định");
@@ -64,7 +64,7 @@ describe("Chẩn đoán & KPI (D29.11)", () => {
     fireEvent.click(within(bar).getByRole("button", { name: "Lưu thay đổi (1)" }));
     const dialog = screen.getByRole("dialog", { name: "Lưu 1 thay đổi cho Mỹ phẩm Thảo Nhi?" });
     expect(within(dialog).getAllByTestId("confirm-row").map((r) => r.textContent)).toEqual([
-      "Điều kiện mở thẻMột chỉ số giảm → GMV giảm (cũ)",
+      "Điều kiện mở thẻPhát hiện chung → GMV giảm (cũ)",
     ]);
     fireEvent.click(within(dialog).getByRole("button", { name: "Xác nhận lưu" }));
     await waitFor(() => expect(a.putSettings).toHaveBeenCalledWith(SHOP_ID, { diag_trigger: "gmv_first" }));

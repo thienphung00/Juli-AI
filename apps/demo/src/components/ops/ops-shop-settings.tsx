@@ -741,7 +741,7 @@ function DiagSection({
             summary={fmtSetting("diag_trigger", eff("diag_trigger"))}
             title="Điều kiện mở thẻ"
           >
-            <select aria-label="Điều kiện mở thẻ" onChange={(e) => change({ diag_trigger: e.target.value })} value={String(eff("diag_trigger") ?? "metric_first")}>
+            <select aria-label="Điều kiện mở thẻ" onChange={(e) => change({ diag_trigger: e.target.value })} value={String(eff("diag_trigger") ?? "shared")}>
               {Object.entries(TRIGGER_NAMES).map(([id, name]) => (
                 <option key={id} value={id}>
                   {name}

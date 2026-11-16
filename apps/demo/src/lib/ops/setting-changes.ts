@@ -108,7 +108,9 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
 
 /** P30 (D39.1): what opens a card, in the team's words. */
 export const TRIGGER_NAMES: Readonly<Record<string, string>> = {
-  metric_first: "Một chỉ số giảm",
+  // F11 (owner 2026-11-16): one detector for Shopee and TikTok is the default; the other two are rollbacks
+  shared: "Phát hiện chung",
+  metric_first: "Một chỉ số giảm (cũ)",
   gmv_first: "GMV giảm (cũ)",
 };
 
