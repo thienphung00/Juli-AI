@@ -72,13 +72,13 @@ describe("Shopee read API client", () => {
     const ops = createShopeeApi({ base: opsShopeeBase("a b"), exportsBase: opsExportsBase("a b"), token: "t", fetchImpl: f });
     const blob = await seller.exportTongQuan!({ period: "custom", from: "2026-10-01", to: "2026-10-20", productId: "1001" });
     await ops.exportTongQuan!({ period: "30d" });
-    await createPlanApi({ base: "/x", exportsBase: opsExportsBase("a b"), token: "t", fetchImpl: f }).exportKeHoach!("2026-11");
+    await createPlanApi({ base: "/x", exportsBase: opsExportsBase("a b"), token: "t", fetchImpl: f }).exportKeHoach!({ from: "2026-11-01", to: "2026-11-13" });
     const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][];
     expect(blob.size).toBe(2); // the workbook bytes, whatever Blob class the runtime uses
     expect(calls.map((c) => c[0])).toEqual([
       "/v1/demo/shopee/exports/tong-quan.xlsx?period=custom&from=2026-10-01&to=2026-10-20&product_id=1001",
       "/v1/ops/shops/a%20b/shopee/exports/tong-quan.xlsx?period=30d",
-      "/v1/ops/shops/a%20b/shopee/exports/ke-hoach.xlsx?month=2026-11",
+      "/v1/ops/shops/a%20b/shopee/exports/ke-hoach.xlsx?from=2026-11-01&to=2026-11-13",
     ]);
     expect(calls[0]![1].headers).toMatchObject({ Authorization: "Bearer t", "X-Shop-Id": "s1" });
   });

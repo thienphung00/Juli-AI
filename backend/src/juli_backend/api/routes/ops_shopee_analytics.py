@@ -393,13 +393,14 @@ async def ops_shopee_export_tong_quan(
 @router.get(f"{EXPORTS}/ke-hoach.xlsx")
 async def ops_shopee_export_ke_hoach(
     shop_id: uuid.UUID,
-    month: MonthQ = None,
+    start: FromQ = None,
+    end: ToQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     name = await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
-            return await export_ke_hoach(session, shop_id, name, month)
+            return await export_ke_hoach(session, shop_id, name, start, end)
     except REFUSALS as exc:
         raise refusal(exc) from None

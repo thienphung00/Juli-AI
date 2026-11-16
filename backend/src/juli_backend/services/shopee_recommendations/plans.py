@@ -401,6 +401,21 @@ def _plan_json(plan: ShopRecoPlan) -> dict[str, Any]:
     }
 
 
+async def _idle_aggregate(
+    session: AsyncSession, shop_id: uuid.UUID, now: datetime, today: date
+) -> dict[str, Any] | None:
+    """The aggregate of a shop with no draft plan: the empty aggregate carrying the shop's live
+    "today" block (GMV, lợi nhuận, ...), as an empty draft has; ``None`` while the shop has no
+    numbers or its window has days without stored rows."""
+    try:
+        env = await _env_for(session, shop_id, None, now)
+    except RowsNotMaterialized:
+        return None
+    if env is None:
+        return None
+    return aggregate(env, [], now=now, today=today)[0]
+
+
 async def get_plan(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -428,7 +443,8 @@ async def get_plan(
         return {
             "plan": None,
             "cards": [],
-            "aggregate": None,
+            # G13: no draft yet still reads the shop's current figures (the header's "today")
+            "aggregate": await _idle_aggregate(session, shop_id, now, today),
             "groups": [],
             "windows": None,
             "change_sets": [],

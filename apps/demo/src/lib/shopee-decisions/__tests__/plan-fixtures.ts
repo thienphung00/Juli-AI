@@ -261,8 +261,8 @@ export function fakePlan(first: PlanResponse = plan(), next: Next = {}): FakePla
     setGroupPeriod: (...a) => run("setGroupPeriod", ...a),
     removeGroupMember: (...a) => run("removeGroupMember", ...a),
     cancelGroup: (...a) => run("cancelGroup", ...a),
-    exportKeHoach: async (month) => {
-      calls.push({ name: "exportKeHoach", args: [month] });
+    exportKeHoach: async (range) => {
+      calls.push({ name: "exportKeHoach", args: [range] });
       return new Blob(["PK"]);
     },
     setChangeSetWindow: async (id, days) => {
