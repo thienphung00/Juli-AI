@@ -1048,7 +1048,7 @@ async def _step_3_approve_and_run(journey: Journey, monkeypatch) -> None:
 # -- step 4: a product re-read shows the seller's own edit ------------------------------------
 
 
-async def _reconcile(journey: Journey) -> Any:
+async def _reconcile(journey: Journey, *, now: datetime | None = None) -> Any:
     """The daily product reconcile (`product_history.job`) with B's own read credential."""
     shop_b = journey.shop_b
     assert shop_b is not None
@@ -1057,7 +1057,7 @@ async def _reconcile(journey: Journey) -> Any:
     )
     resources = product_history_job.build_resources(plan, app_key=APP_KEY)
     return await product_history_job.reconcile_products(
-        committing_juli_app_session, shop_b, resources, backoff_sleep=lambda _s: None
+        committing_juli_app_session, shop_b, resources, now=now, backoff_sleep=lambda _s: None
     )
 
 
@@ -1084,7 +1084,8 @@ async def _step_4_seller_edit(journey: Journey) -> None:
     journey.replay.listings[WEAK_PRODUCT_ID] = ListingWorld(
         title=SELLER_EDIT_TITLE, update_time=edited
     )
-    second = await _reconcile(journey)
+    # The re-read's detection time caps which writes can be linked: same clock, after the edit.
+    second = await _reconcile(journey, now=clock + timedelta(minutes=2))
     assert second.read == 1 and second.snapshots == 1 and second.changes == 1
 
     changes = _owner_rows(
