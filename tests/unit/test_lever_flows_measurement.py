@@ -8,7 +8,9 @@
 - day 7: rows with verdict/tone, ``within_band`` true/false, P8-C's question id;
 - day 14: each final label (dat / gan_dat / khong_dat / chua_ket_luan, both for
   thin data and for another change on the product); the per-lever calibration
-  starts at 0.5 and moves, except for chua_ket_luan; the verdict is stored once;
+  starts at 0.5 and moves (F10) only on an ADR-077 reading at tier cao / trung_binh
+  -- a lone product (no controls) is the lowest tier and leaves it -- and never for
+  chua_ket_luan; the verdict is stored once;
 - not measurable -> 409, another shop's run -> 404.
 """
 
@@ -246,18 +248,19 @@ async def test_day7_outside_the_band_links_the_revert_question(session):
 
 
 @pytest.mark.parametrize(
-    ("post", "label", "pct", "calibration"),
+    ("post", "label", "pct", "verdict"),
     [
-        ({"orders": 27, "gmv": 3_920_000}, "dat", 114, (0.5, 0.66)),
-        ({"orders": 26, "gmv": 3_897_000}, "gan_dat", 81, (0.5, 0.58)),
-        ({"orders": 24, "gmv": 3_834_000}, "khong_dat", -9, (0.5, 0.38)),
+        ({"orders": 27, "gmv": 3_920_000}, "dat", 114, "tang"),
+        ({"orders": 26, "gmv": 3_897_000}, "gan_dat", 81, "tang"),
+        # -0.2 % GMV: inside the ±1 % minimum noise band -> Không đổi.
+        ({"orders": 24, "gmv": 3_834_000}, "khong_dat", -9, "khong_doi"),
         # 100 % of the GMV but the CTOR target missed: gần đạt, not đạt.
-        ({"orders": 26, "gmv": 3_910_000}, "gan_dat", 100, (0.5, 0.63)),
+        ({"orders": 26, "gmv": 3_910_000}, "gan_dat", 100, "tang"),
     ],
 )
 @pytest.mark.asyncio
-async def test_each_conclusive_final_label_and_its_calibration(
-    session, post, label, pct, calibration
+async def test_each_conclusive_final_label_and_a_lowest_tier_reading_leaves_the_calibration(
+    session, post, label, pct, verdict
 ):
     shop, _product, run, execution = await _listing_run(session)
     await _series(session, shop.id, post=post)
@@ -269,14 +272,13 @@ async def test_each_conclusive_final_label_and_its_calibration(
     assert body["stage"] == "final"
     final = body["final"]
     assert (final["label"], final["pct_of_expected"]) == (label, pct)
-    assert final["calibration"] == {
-        "lever": "description",
-        "from": calibration[0],
-        "to": calibration[1],
-    }
     assert body["rows"][0]["verdict"] == lever_flows.LABELS_VI[label]
-    stored = (await session.execute(select(LeverCalibration))).scalar_one()
-    assert (stored.lever, stored.readings) == ("description", 1)
+    # F10: the shop's only product has no controls -> plain before/after at tier thap.
+    measurement = body["measurement"]
+    assert (measurement["confidence"], measurement["fallback"]) == ("thap", True)
+    assert (measurement["verdict"], measurement["calibrates"]) == (verdict, False)
+    assert final["calibration"] == {"lever": "description", "from": 0.5, "to": 0.5}
+    assert (await session.execute(select(LeverCalibration))).scalars().all() == []
 
 
 @pytest.mark.asyncio
@@ -320,18 +322,87 @@ async def test_another_change_on_the_product_is_chua_ket_luan(session):
     assert final["label"] == "chua_ket_luan"
 
 
+def _wave(offset: int) -> float:
+    return (100 + 20 * ((offset * 7) % 5)) / 140
+
+
+async def _controlled_series(session, shop_id, *, lift: float, controls: int = 3):
+    """The product and ``controls`` other products sharing one daily wave; after the
+    change the product's GMV is ``lift`` × its wave, the controls' stay on it."""
+    for pid, scale in [(PRODUCT_ID, 3_840_000.0)] + [
+        (f"ctrl-{k}", 1_000_000.0 * (k + 1)) for k in range(controls)
+    ]:
+        for offset in range(1, 15):
+            for day, factor in (
+                (T - timedelta(days=offset), 1.0),
+                (T + timedelta(days=offset), lift),
+            ):
+                treated = pid == PRODUCT_ID
+                session.add(
+                    AnalyticsPerformanceInterval(
+                        shop_id=shop_id,
+                        snapshot_key=f"product:{pid}:{day.isoformat()}",
+                        grain="product",
+                        start_date=day,
+                        tiktok_product_id=pid,
+                        impressions=10000,
+                        clicks=450,
+                        sku_orders=26 if treated else 10,
+                        items_sold=26 if treated else 10,
+                        gmv=round(scale * _wave(offset) * (factor if treated else 1.0)),
+                        update_time=datetime(2026, 10, 9),
+                    )
+                )
+    await session.flush()
+
+
 @pytest.mark.asyncio
-async def test_the_final_verdict_is_stored_once_and_calibrates_once(session):
+async def test_a_control_adjusted_reading_calibrates_once_by_thuc_te_over_du_kien(session):
     shop, _product, run, execution = await _listing_run(session)
-    await _series(session, shop.id, post={"orders": 26, "gmv": 3_897_000})
+    await _controlled_series(session, shop.id, lift=1.02)
     await _reading(session, run, execution, "final")
 
     first = await lever_flows.measure_run(session, shop.id, run)
     second = await lever_flows.measure_run(session, shop.id, run)
 
+    measurement = first["measurement"]
+    assert (measurement["confidence"], measurement["fallback"]) == ("cao", False)
+    assert len(measurement["controls"]) == 3
+    # +2 % is inside this product's own noise band: Không đổi, and still calibrates (tier).
+    assert measurement["band_pct"] > 2
+    assert (measurement["verdict"], measurement["calibrates"]) == ("khong_doi", True)
+    assert measurement["expected_per_day"] == 70000
+    ratio = measurement["actual_per_day"] / 70000
+    assert first["final"]["calibration"]["to"] == round(0.5 + 0.25 * (ratio - 0.5), 2)
     assert first["final"] == second["final"]
     assert len((await session.execute(select(RunMeasurementFinal))).scalars().all()) == 1
     assert (await session.execute(select(LeverCalibration))).scalar_one().readings == 1
+
+
+@pytest.mark.asyncio
+async def test_two_controls_are_the_lowest_tier_and_do_not_calibrate(session):
+    shop, _product, run, execution = await _listing_run(session)
+    await _controlled_series(session, shop.id, lift=1.02, controls=2)
+    await _reading(session, run, execution, "final")
+
+    body = await lever_flows.measure_run(session, shop.id, run)
+
+    assert (body["measurement"]["confidence"], body["measurement"]["calibrates"]) == (
+        "thap",
+        False,
+    )
+    assert (await session.execute(select(LeverCalibration))).scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_no_measurement_before_day_14(session):
+    shop, _product, run, execution = await _listing_run(session)
+    await _series(session, shop.id, post={"orders": 26, "gmv": 3_897_000}, post_days=7)
+    await _reading(session, run, execution, "preliminary")
+
+    body = await lever_flows.measure_run(session, shop.id, run)
+
+    assert (body["stage"], body["measurement"]) == ("day7", None)
 
 
 @pytest.mark.asyncio
