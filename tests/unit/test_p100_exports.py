@@ -173,17 +173,31 @@ def test_workbook_has_the_history_goal_kind_and_kol_sheets_and_no_draft_sheet():
 def test_history_row_has_status_dates_core_rows_and_a_difference_formula():
     ws = kh.build(_kh_data())[kh.SHEET_HISTORY]
     head = [c.value for c in ws[3]]
-    assert head[:5] == ["STT", "Mã thẻ", "Shop", "Nền tảng", "Trạng thái"]
+    assert head[:7] == ["STT", "Mã thẻ", "Mã gốc", "Nguồn", "Shop", "Nền tảng", "Trạng thái"]
     assert "Δ lợi nhuận dự kiến" in head and "Δ lợi nhuận chênh lệch" in head
     assert head[-1] == "Kết luận" and not any("khoảng" in str(h).lower() for h in head)
-    assert [ws.cell(r, 5).value for r in (4, 5, 6)] == ["Đang chạy", "Trong nháp", "Đã đo"]
-    assert ws["M4"].value == '=IF(OR(K4="",L4=""),"",L4-K4+1)' and ws["K4"].value == date(
+    assert [ws.cell(r, 7).value for r in (4, 5, 6)] == ["Đang chạy", "Trong nháp", "Đã đo"]
+    assert ws["O4"].value == '=IF(OR(M4="",N4=""),"",N4-M4+1)' and ws["M4"].value == date(
         2026, 11, 5
     )
-    assert ws["N4"].value == 140_000 and ws["O4"].value == 100_000  # Dự kiến, Thực tế
-    assert ws["P4"].value == '=IF(OR(N4="",O4=""),"",O4-N4)'
-    assert ws["O5"].value is None  # unread real value stays empty, never 0
-    assert ws.cell(4, 26).value == "Trong khoảng"
+    assert ws["P4"].value == 140_000 and ws["Q4"].value == 100_000  # Dự kiến, Thực tế
+    assert ws["R4"].value == '=IF(OR(P4="",Q4=""),"",Q4-P4)'
+    assert ws["Q5"].value is None  # unread real value stays empty, never 0
+    assert ws.cell(4, 28).value == "Trong khoảng"
+
+
+def test_nguon_and_ma_goc_columns_on_the_history_and_kind_sheets():
+    data = _kh_data()
+    data.cards[0].source, data.cards[0].external_ref = "Làm ngoài Juli", "VC-P1"
+    data.cards[1].source = kh.SOURCE_LABELS["engine"]
+    wb = kh.build(data)
+    assert kh.SOURCE_LABELS == {"engine": "Juli", "manual": "Tự tạo", "external": "Làm ngoài Juli"}
+    for ws in (wb[kh.SHEET_HISTORY], wb["Voucher"]):
+        head = [c.value for c in ws[3]]
+        assert head[1:4] == ["Mã thẻ", "Mã gốc", "Nguồn"]
+    ws = wb[kh.SHEET_HISTORY]
+    assert (ws["C4"].value, ws["D4"].value) == ("VC-P1", "Làm ngoài Juli")
+    assert ws["D5"].value == "Juli" and ws["C5"].value is None
 
 
 def test_goal_sheet_gives_a_business_total_only_when_every_shop_has_a_target():

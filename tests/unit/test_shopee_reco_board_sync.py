@@ -24,6 +24,7 @@ from juli_backend.services.shopee_recommendations import (
     board_reset,
     config,
     measure,
+    plans,
     store,
 )
 from juli_backend.services.shopee_recommendations import service as reco
@@ -399,3 +400,156 @@ async def test_routes_preview_commit_and_reset(session, shop):
         assert reset.status_code == 200, reset.text
         assert reset.json()["data"]["withdrawn"] == 0
     app.dependency_overrides.clear()
+
+
+# ------------------------------------------------------------- Option B: the Kế hoạch holds them
+
+
+async def _import_plans(session):
+    from juli_backend.models.shopee_plans import ShopRecoPlan, ShopRecoPlanCard
+
+    plan_rows = (await session.scalars(select(ShopRecoPlan))).all()
+    cards = (await session.scalars(select(ShopRecoPlanCard))).all()
+    return plan_rows, cards
+
+
+async def test_import_builds_one_executed_plan_with_each_card_at_its_past_start(session, shop):
+    result = await _commit(session, shop)
+    plan_rows, rows = await _import_plans(session)
+    assert len(plan_rows) == 1
+    plan = plan_rows[0]
+    assert plan.status == "executed" and plan.code
+    by_ref = {c["ref"]: c for c in result.cards}
+    executed = {r for r, c in by_ref.items() if c["status"] == "executed"}
+    assert {by_ref[r]["card_id"] for r in executed} == {str(r.proposal_id) for r in rows}
+    out = await plans.get_plan(session, shop.shop_id, plan.id, now=NOW, audience="seller")
+    assert out["plan"]["name"].startswith("Đã làm ngoài Juli 05/10–")
+    assert len(out["cards"]) == len(executed)
+    td1 = next(c for c in out["cards"] if c["external_ref"] == "TD-1")
+    assert td1["origin"] == "external" and td1["status"] == "executed"
+    for ref in ("TD-1", "VC-P1"):
+        card = next(c for c in out["cards"] if c["external_ref"] == ref)
+        block = next(b for b in out["aggregate"]["cards"] if b["card_id"] == card["card_id"])
+        assert block["result"]["own"]["dates"]["from"] == "2026-10-05"
+    p = await session.get(ShopProposal, uuid.UUID(td1["card_id"]))
+    assert p.lever_plan_id == plan.id
+    meta = await store.card_meta(session, shop.shop_id, p.id)
+    cs = await session.get(ShopRecoChangeSet, uuid.UUID(meta["change_set"]))
+    assert cs.plan_id == plan.id
+
+
+async def test_proposed_rows_stay_outside_the_plan(session, shop):
+    result = await _commit(session, shop)
+    _, rows = await _import_plans(session)
+    in_plan = {str(r.proposal_id) for r in rows}
+    sent = [c for c in result.cards if c["status"] == "sent"]
+    assert sent and all(c["card_id"] not in in_plan for c in sent)
+    p = await session.get(ShopProposal, uuid.UUID(sent[0]["card_id"]))
+    assert p.lever_plan_id is None
+
+
+async def test_reimport_reuses_the_plan_and_adds_nothing(session, shop):
+    await _commit(session, shop)
+    await session.commit()
+    plans_before, rows_before = await _import_plans(session)
+    again = await _commit(session, shop)
+    assert again.created == 0
+    plans_after, rows_after = await _import_plans(session)
+    assert [p.id for p in plans_after] == [p.id for p in plans_before]
+    assert len(rows_after) == len(rows_before)
+
+
+async def test_the_export_lists_imported_cards_with_nguon_and_ma_goc(session, shop):
+    from juli_backend.services.exports import ke_hoach_xlsx as kh
+    from juli_backend.services.exports.collect import collect_ke_hoach
+
+    await _commit(session, shop)
+    data = await collect_ke_hoach(
+        session, shop.shop_id, shop_name="Mẫu", now=NOW, start=date(2026, 10, 1),
+        end=date(2026, 10, 31),
+    )  # fmt: skip
+    ext = {c.external_ref: c for c in data.cards if c.external_ref}
+    assert {"TD-1", "VC-P1"} <= set(ext)
+    assert ext["TD-1"].source == "Làm ngoài Juli" and ext["TD-1"].start == date(2026, 10, 5)
+    assert ext["TD-1"].plan_code
+    assert "Mã gốc" in [c.value for c in kh.build(data)[kh.SHEET_HISTORY][3]]
+    assert len([c for c in data.cards if c.external_ref == "TD-1"]) == 1
+
+
+async def test_past_dates_stay_refused_in_planning_and_open_only_with_the_flag(
+    session, shop, monkeypatch
+):
+    from juli_backend.services.shopee_recommendations import executed_plans, manual
+
+    actor = manual.Actor("seller", shop.user.id)
+    # (plans.confirm's own past-date refusal: test_shopee_reco_plan, unchanged)
+    result = await _commit(session, shop)
+    sent = uuid.UUID(next(c["card_id"] for c in result.cards if c["ref"] == "TD-3"))
+    p = await session.get(ShopProposal, sent)
+    past = date(2026, 10, 1)
+    with pytest.raises(ProposalError) as excinfo:
+        await executed_plans.attach_executed(
+            session, shop.shop_id, p, key="k", on=past, actor=actor, now=NOW
+        )
+    assert excinfo.value.code == plans.ERROR_DATE
+
+    async def not_external(*_a, **_k):
+        return {"origin": "engine"}
+
+    monkeypatch.setattr(store, "card_payload", not_external)
+    with pytest.raises(ProposalError) as excinfo:  # the flag alone is not enough
+        await executed_plans.attach_executed(
+            session, shop.shop_id, p, key="k", on=past, actor=actor, now=NOW, allow_past=True
+        )
+    assert excinfo.value.code == plans.ERROR_DATE
+    monkeypatch.undo()
+    plan = await executed_plans.attach_executed(
+        session, shop.shop_id, p, key="k", on=past, actor=actor, now=NOW, allow_past=True
+    )
+    assert plan.status == "executed" and p.lever_plan_id == plan.id
+
+
+async def test_a_card_executed_without_a_plan_joins_the_plan_of_the_month(session, shop):
+    result = await _commit(session, shop)
+    sent = [uuid.UUID(c["card_id"]) for c in result.cards if c["status"] == "sent"]
+    first, second = sent[0], sent[1]
+    for cid in (first, second):
+        await reco.decide(
+            session, shop.shop_id, cid, decision="approve", user_id=shop.user.id, now=NOW
+        )
+    # the plain call (no auto_plan) leaves the card outside any plan; the route flag adds it
+    await reco.mark_executed(
+        session, shop.shop_id, second, now=NOW, user_id=shop.user.id, voucher_id="v-2"
+    )
+    assert (await session.get(ShopProposal, second)).lever_plan_id is None
+    out = await reco.mark_executed(
+        session,
+        shop.shop_id,
+        first,
+        now=NOW,
+        user_id=shop.user.id,
+        auto_plan=True,
+        voucher_id="v-1",
+    )
+    p = await session.get(ShopProposal, first)
+    assert p.lever_plan_id is not None and out["plan_code"]
+    plan = await plans.get_plan(session, shop.shop_id, p.lever_plan_id, now=NOW)
+    assert plan["plan"]["name"] == "Thẻ làm trực tiếp 10/2026"
+    assert [c["card_id"] for c in plan["cards"]] == [str(first)]
+    assert plan["aggregate"]["cards"][0]["result"]["own"]["dates"]["from"] == "2026-10-08"
+
+
+def test_an_ads_off_row_becomes_a_remove_product_card():
+    """Owner 2026-11-16: "tắt quảng cáo" = the product leaves its campaign (Xoá sản phẩm)."""
+    off = _r(14, "QC-OFF", "Quảng cáo", 1001, "[Deal Sốc] CDN/01: tắt quảng cáo", "",
+             datetime(2026, 10, 6), DONE, 7)  # fmt: skip
+    plan = _plans(_xlsx([*ROWS, off]))["QC-OFF"]
+    (card,) = plan.cards
+    assert card.kind == "ads_remove_product"
+    spec = card.spec
+    assert (spec["lever"], spec["item_id"], spec["campaign_key"]) == (
+        "remove_product",
+        "1001",
+        "cgroup1",
+    )
+    assert "roas_target" not in spec

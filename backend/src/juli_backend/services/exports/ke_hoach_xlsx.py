@@ -99,6 +99,10 @@ class CardRow:
     gmv_mid: float | None = None
     profit_mid: float | None = None
     orders_mid: float | None = None
+    #: Nguồn: where the card came from (``SOURCE_LABELS`` of its origin) and, for a card imported
+    #: from the owner's sheet, its original Mã (``external_ref``)
+    source: str = ""
+    external_ref: str | None = None
     #: Thực tế Δ lợi nhuận of the stored measurement (``None`` = not measured) and Kết luận
     actual_profit: float | None = None
     conclusion: str | None = None
@@ -224,20 +228,25 @@ def expected_cells(c: CardRow) -> dict[str, float | None]:
 # ----------------------------------------------------------------------------- Lịch sử thẻ
 
 HISTORY_LEAD = [
-    "STT", "Mã thẻ", "Shop", "Nền tảng", "Trạng thái", "Nhóm", "Phương án", "Phiên bản",
-    "Sản phẩm", "Đề xuất", "Bắt đầu", "Kết thúc", "Số ngày chạy",
+    "STT", "Mã thẻ", "Mã gốc", "Nguồn", "Shop", "Nền tảng", "Trạng thái", "Nhóm", "Phương án",
+    "Phiên bản", "Sản phẩm", "Đề xuất", "Bắt đầu", "Kết thúc", "Số ngày chạy",
 ]  # fmt: skip
-LEAD_WIDTHS = [6, 14, 22, 10, 12, 10, 28, 12, 34, 12, 12, 12, 9]
+LEAD_WIDTHS = [6, 14, 14, 14, 22, 10, 12, 10, 28, 12, 34, 12, 12, 12, 9]
+#: Nguồn of a card by its origin: the engine's ("Juli"), the seller's own ("Tự tạo") and one
+#: imported from work done outside Juli ("Làm ngoài Juli")
+SOURCE_LABELS = {"engine": "Juli", "manual": "Tự tạo", "external": "Làm ngoài Juli"}
 
 
 def _lead(ws, r: int, i: int, c: CardRow) -> None:
     put(ws, r, 1, i)
-    for k, v in enumerate((c.code, c.shop, c.platform, c.status, c.group, c.kind, c.version,
-                           c.product_name), start=2):  # fmt: skip
+    for k, v in enumerate((c.code, c.external_ref, c.source, c.shop, c.platform, c.status,
+                           c.group, c.kind, c.version, c.product_name), start=2):  # fmt: skip
         put(ws, r, k, v)
-    for k, day in ((10, c.proposed), (11, c.start), (12, c.end)):
+    first = HISTORY_LEAD.index("Đề xuất") + 1
+    for k, day in ((first, c.proposed), (first + 1, c.start), (first + 2, c.end)):
         put(ws, r, k, day, DATE)
-    put(ws, r, 13, f'=IF(OR(K{r}="",L{r}=""),"",L{r}-K{r}+1)', INT)
+    a, b = col(first + 1), col(first + 2)
+    put(ws, r, first + 3, f'=IF(OR({a}{r}="",{b}{r}=""),"",{b}{r}-{a}{r}+1)', INT)
 
 
 def _history(wb: Workbook, data: KeHoachData) -> None:

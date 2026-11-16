@@ -354,6 +354,10 @@ def _number(text: str) -> float | None:
         return None
 
 
+#: A Quảng cáo row that turns a product's ads off (matched on the folded Phương án).
+ADS_OFF = re.compile(r"\b(tat|dung|tam dung) (quang cao|qc)\b")
+
+
 def roas_target(plan: str, data: str) -> float | None:
     """The ROAS target: "ROAS mục tiêu X" / "Mục tiêu X", "ROAS X từ <day>", else the plan's first
     "ROAS X" (never a "ROAS hoà vốn" or today's reading in the data)."""
@@ -467,6 +471,21 @@ def _specs(row: SheetRow, facts: Facts, kinds: tuple[str, ...]) -> list[CardPlan
             )
             for n, (value, minimum) in enumerate(tiers, start=1)
         ]
+    if head == "ads_roas_target" and ADS_OFF.search(_key(row.plan)):
+        # owner 2026-11-16: "tắt quảng cáo" on a product = Shopee's Xoá sản phẩm khỏi chiến dịch
+        if item is None:
+            return "no_item"
+        camp = pick_campaign(row, facts.campaigns)
+        if camp is None:
+            return "no_campaign"
+        spec: dict[str, Any] = {
+            "kind": "ads",
+            "lever": "remove_product",
+            "campaign_key": camp.key,
+            "item_id": item,
+            **_window(row),
+        }
+        return [CardPlan(row.ref, "ads_remove_product", spec)]
     if head == "ads_roas_target":
         roas = roas_target(row.plan, row.data)
         if roas is None or roas <= 0:
