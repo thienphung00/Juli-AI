@@ -873,6 +873,24 @@ async def test_every_advertised_product_shows_its_own_ads_figures(engine):
             assert "profit_unknown" not in warnings, v["result"]
 
 
+def _own_delta(wire, result):
+    """The result's own Δ gmv / orders / profit (its own days). The wire shows a metric that is
+    within normal swing as null and lists it in ``within_noise``; any value it does show must be
+    the same number."""
+    out = {
+        m: float(getattr(result.likely, m) - getattr(result.before, m))
+        for m in ("gmv", "orders", "profit")
+    }
+    for m, v in out.items():
+        shown = wire["delta"][m]
+        shown = shown["value"] if isinstance(shown, dict) else shown
+        if shown is None:
+            assert m in wire["within_noise"]
+        else:
+            assert m not in wire["within_noise"] and shown == pytest.approx(v, rel=0.01, abs=0.06)
+    return out
+
+
 async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(engine):
     """2026-11-15 (prod S2): Combo "mua 2 giảm 5 % / mua 3 giảm 8 %" on Nước rửa chén + Túi rác gave
     ΔGMV +4,34 tr on +1,6 đơn (every one-unit order "reached" Mua 2: a 100 % take-up), and a set
@@ -903,6 +921,7 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
     async with factory() as session:
         async with with_shop_scope(session, report.shop_id):
             ctx = await builder.build_context(session, report.shop_id, [combo], as_of=END, now=NOW)
+            combo_done, _ = integrate.evaluate(ctx, combo)
             f = adapters.combo_facts(combo, ctx.env)
             # 65 % of the orders held 2+ units before the combo (day 10), 60 % while it ran
             assert f.reach is not None and f.reach.p50 == 0 and f.near_share > Decimal("0.38")
@@ -914,9 +933,14 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             # the engine reports the middle-PROFIT draw's orders/GMV, so the sample's KOL lines
             # (S2-F2) and the shop's phí dịch vụ (437bea66, a cheaper net discount) move which
             # draw is the middle one (350_716 / 2.9 before; 669_480 / 5.5 with no service fee)
-            assert c["delta"]["gmv"]["value"] == pytest.approx(450_153, rel=0.02)
-            assert c["delta"]["orders"]["value"] == 4  # 3,7 rounded: orders are whole from 1 up
-            assert c["delta"]["profit"]["value"] < 0
+            # F5 (owner 2026-11-16): a metric within normal swing is null ("—") on the wire, so
+            # the figures are read from the OptionResult, and a shown wire value must equal them
+            cd = _own_delta(c, combo_done.result)
+            # F2 base (14-day window) + F7 floor on the AOV lever (1,1 % basket lift on the
+            # 23,9 tr base) moved the middle-profit draw again: 475_055 / 1,65 (was 450_153 / 3,7)
+            assert cd["gmv"] == pytest.approx(475_055, rel=0.02)
+            assert round(cd["orders"]) == 2  # 1,65 rounded: orders are whole from 1 up
+            assert cd["profit"] < 0
             ctx = await builder.build_context(session, report.shop_id, [set2], as_of=END, now=NOW)
             base = integrate.base_for(ctx.env, [nrc], "")
             o = option_for(set2, ctx, integrate.extras_for(base))
@@ -925,8 +949,11 @@ async def test_combo_and_set_estimates_on_the_sample_shop_follow_its_own_orders(
             assert o.drivers[0].lift.p50 == pytest.approx(Decimal("0.03536"))
             # 48 of the 109 orders already buy 2+ single bottles: they switch to the set
             assert o.offers and o.offers[0].use_share.p50 == Decimal(48) / Decimal(109)
-            assert s["delta"]["gmv"]["value"] == pytest.approx(791_214, rel=0.02)
-            assert s["cost"]["total"] > 0 and s["delta"]["profit"]["value"] < 0
+            set_done, _ = integrate.evaluate(ctx, set2)
+            sd = _own_delta(s, set_done.result)
+            # F2: the base is the adaptive window's level (was 791_214 on the fixed 30 days)
+            assert sd["gmv"] == pytest.approx(859_189, rel=0.02)
+            assert s["cost"]["total"] > 0 and sd["profit"] < 0
 
 
 async def test_the_affiliate_programme_has_three_kols_and_a_known_commission(engine):
