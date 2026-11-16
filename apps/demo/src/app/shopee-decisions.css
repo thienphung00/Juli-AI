@@ -781,3 +781,13 @@
     text-align: left;
   }
 }
+
+/* UI grill G14: the voucher code beside Đã làm on a Thực hiện row */
+.sd-th-row__code {
+  width: 140px;
+  min-height: var(--touch-target-min, 44px);
+  padding: 0 10px;
+  border: 1px solid #d9d9df;
+  border-radius: 8px;
+  font-size: 14px;
+}

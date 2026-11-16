@@ -71,7 +71,7 @@ def test_131_is_the_head_and_additive_only():
     from alembic.script import ScriptDirectory
 
     script = ScriptDirectory.from_config(Config(str(REPO / "alembic.ini")))
-    assert script.get_heads() == ["131_connector_reader_blocks"]
+    assert script.get_heads() == ["132_credential_grant_id"]
     sys.path.insert(0, str(REPO / "infra/scripts"))
     from migration_additive_gate import evaluate_migration_paths
 

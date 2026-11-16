@@ -110,8 +110,8 @@ describe("the side-by-side table", () => {
     expect(floor.cells[2]).toMatchObject({ bad: true, tone: "down" });
     expect(floor.cells[2]!.v).toContain("✕ Khách trả 175.000đ < sàn 181.979đ (thiếu 6.979đ)");
     const exp = rows.find((r) => r.key === "exp")!;
-    expect(exp.cells[0]!.v).toBe("−1.400đ – +7.900đ/ngày");
-    expect(exp.cells[0]!.d).toContain("30 ngày: −43.000đ – +237.000đ");
+    expect(exp.cells[0]!.v).toBe("+1.900đ/ngày"); // forecast grill F4: the P50 only
+    expect(exp.cells[0]!.d).toContain("30 ngày: +57.000đ");
     // one card, one number: no "chắc chắn" row; Chi phí is the stored result's
     expect(rows.find((r) => r.key === "sure")).toBeUndefined();
     expect(rows.find((r) => r.key === "chi")!.cells[0]).toMatchObject({ v: "63.000đ", d: "30 ngày" });
@@ -165,7 +165,7 @@ describe("the side-by-side table", () => {
     // units: per day, per order, the whole period; never per month
     // one card, one number: Chi phí and Δ lợi nhuận are the version's stored result (its own days)
     expect(by("chi").cells[0]).toMatchObject({ v: "63.000đ", d: "30 ngày" });
-    expect(by("exp").cells[0]!.d).toContain("30 ngày: −43.000đ – +237.000đ");
+    expect(by("exp").cells[0]!.d).toContain("30 ngày: +57.000đ");
     expect(by("orders").cells[0]!.v).toBe("2,0 đơn/ngày");
     expect(by("orders").cells[0]!.d).toContain("số đơn giữ nguyên");
     expect(by("aov").cells[0]).toMatchObject({ v: "103.000đ – 112.000đ", d: "AOV giữ nguyên ở lớp chắc chắn" });

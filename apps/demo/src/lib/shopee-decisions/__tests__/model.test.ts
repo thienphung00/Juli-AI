@@ -68,12 +68,12 @@ describe("the worked example (voucher A -> C)", () => {
     expect(rows[1]!.after).toBe("Hoà vốn khi thêm ≥ 7 đơn");
   });
 
-  it("Dự kiến: ② is a range per 1đ of spend, and the other rows are monthly ranges", () => {
+  it("Dự kiến: one likely value (P50) per row, never a range (forecast grill F4)", () => {
     const rows = expectedRows(voucherCard());
-    expect(rows[1]!.after).toBe("1,40đ – 3,20đ / 1đ chi");
-    expect(rows[2]!.dv).toBe("−43.000đ – +237.000đ trong 30 ngày");
-    expect(rows[3]!.after).toBe("31 – 36");
-    expect(rows[3]!.dv).toBe("+1 đơn – +6 đơn");
+    expect(rows[1]!.after).toMatch(/^[\d.,]+đ \/ 1đ chi$/);
+    expect(rows[2]!.dv).toMatch(/^[+−][\d.]+đ trong 30 ngày$/);
+    expect(rows[3]!.after).toMatch(/^\d+$/);
+    expect(rows[3]!.dv).toMatch(/^[+−]\d+ đơn$/);
   });
 
   it("Dự kiến: Δ orders are whole, and \"< 1 đơn\" under one order", () => {

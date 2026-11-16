@@ -24,15 +24,17 @@ interface Setup {
   start: string;
   end: string;
 }
-const blank = (): Setup => ({ campaign: "group", items: [], budget: String(ADS_MIN_BUDGET), roasMode: "system", roas: "", start: "", end: "" });
+/** UI grill G3: the budget's default is a placeholder; a blank budget counts as Shopee's minimum. */
+const budgetOf = (s: Setup): number | null => num(s.budget.trim() === "" ? String(ADS_MIN_BUDGET) : s.budget);
+const blank = (items: readonly string[] = []): Setup => ({ campaign: items.length === 1 ? "single" : "group", items, budget: "", roasMode: "system", roas: "", start: "", end: "" });
 
 /** The problems of one setup, in Vietnamese; empty = fine. */
 export function adsProblems(s: Setup, minimum: number): string[] {
   const out: string[] = [];
   if (s.items.length === 0) out.push("Chọn ít nhất một sản phẩm.");
   if (s.campaign === "single" && s.items.length > 1) out.push("Chiến dịch đơn chỉ có một sản phẩm.");
-  const b = num(s.budget);
-  if (b === null || b < minimum) out.push(`Ngân sách mỗi ngày tối thiểu ${vnd(minimum)}.`);
+  const b = budgetOf(s);
+  if (b === null || b < minimum) out.push(`Ngân sách mỗi ngày: tối thiểu ${vnd(minimum)}.`);
   if (s.roasMode === "custom" && !(num(s.roas) && (num(s.roas) ?? 0) > 0)) out.push("Nhập ROAS mục tiêu.");
   if (!s.start) out.push("Chọn ngày bắt đầu.");
   if (s.end && s.start && s.end < s.start) out.push("Ngày kết thúc phải sau ngày bắt đầu.");
@@ -46,8 +48,8 @@ export function planDays(days: number | null): number {
 
 type Act = { readonly kind: "choose" | "plan"; readonly index: number };
 
-export function AdsBuilder({ api, products }: { readonly api: BuilderP98Api; readonly products: readonly PickerProduct[] }) {
-  const [setups, setSetups] = useState<readonly Setup[]>([blank()]);
+export function AdsBuilder({ api, products, initialItems = [] }: { readonly api: BuilderP98Api; readonly products: readonly PickerProduct[]; /** UI grill G9: the product Từng phương án was on. */ readonly initialItems?: readonly string[] }) {
+  const [setups, setSetups] = useState<readonly Setup[]>(() => [blank(initialItems)]);
   const [data, setData] = useState<AdsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -93,7 +95,7 @@ export function AdsBuilder({ api, products }: { readonly api: BuilderP98Api; rea
         setups: setups.map((s) => ({
           campaign: s.campaign,
           item_ids: s.items,
-          daily_budget: num(s.budget) ?? 0,
+          daily_budget: budgetOf(s) ?? 0,
           roas: s.roasMode === "custom" ? { mode: "custom", target: num(s.roas) ?? 0 } : { mode: "system" },
           start_date: s.start,
           ...(s.end ? { end_date: s.end } : {}),
@@ -137,7 +139,7 @@ export function AdsBuilder({ api, products }: { readonly api: BuilderP98Api; rea
               ))}
             </div>
             <Field label={`Ngân sách mỗi ngày ${i + 1} (đ)`}>
-              <input inputMode="numeric" onChange={(e) => patch(i, { budget: e.target.value })} value={s.budget} />
+              <input inputMode="numeric" onChange={(e) => patch(i, { budget: e.target.value })} placeholder={String(ADS_MIN_BUDGET)} value={s.budget} />
             </Field>
             <Field label={`ROAS ${i + 1}`}>
               <select onChange={(e) => patch(i, { roasMode: e.target.value as Setup["roasMode"] })} value={s.roasMode}>

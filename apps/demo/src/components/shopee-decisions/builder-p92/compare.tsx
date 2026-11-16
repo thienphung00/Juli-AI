@@ -75,7 +75,7 @@ const money = (o: BuilderOutcome, pick: "gmv" | "orders" | "profit"): ReactNode 
   return (
     <>
       <b>{b.main}</b>
-      <span>{pick === "orders" && o.delta?.orders_note ? o.delta.orders_note : b.range}</span>
+      {pick === "orders" && o.delta?.orders_note ? <span>{o.delta.orders_note}</span> : null}
     </>
   );
 };
@@ -124,7 +124,6 @@ function rowsFor(names: VersionNames): RowDef[] {
             return (
               <li data-testid={`p2-ba-${r.key}`} key={r.key}>
                 <span>{r.label}</span> <b className={t.unchanged ? "sd-muted" : undefined}>{t.main}</b>
-                {t.range ? <span className="p2-ba__range"> ({t.range})</span> : null}
               </li>
             );
           })}

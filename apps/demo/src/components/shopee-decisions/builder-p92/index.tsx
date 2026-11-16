@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { BuilderApi, BuilderOutcome, PickerResult, PickerProduct } from "../../../lib/shopee-decisions/builder-api";
 import { KINDS_92, MAX_VERSIONS, buildVersion, defaultVariationId, initialForms, kindName92, type Forms, type Kind92 } from "../../../lib/shopee-decisions/builder-p92";
@@ -81,26 +81,40 @@ const MODES: readonly { readonly key: Mode; readonly label: string }[] = [
 /** P98 entry points: three extra builders beside the P92 one (shown only when the P98 client is given). */
 function P98Entry({ api, data, from, productId, p98Api, kols }: { readonly api: BuilderApi; readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly p98Api?: BuilderP98Api; readonly kols: readonly KolCandidate[] }) {
   const [mode, setMode] = useState<Mode>("single");
+  // UI grill G2 (owner, 2026-11-16): a tool tab keeps its work while the seller looks at another one.
+  // A tab is mounted the first time it is opened and then only hidden, never unmounted, until the
+  // seller leaves Tự tạo (or presses its own "Đặt lại").
+  const [opened, setOpened] = useState<ReadonlySet<Mode>>(() => new Set<Mode>(["single"]));
+  const open = (m: Mode) => {
+    setMode(m);
+    setOpened((s) => (s.has(m) ? s : new Set([...s, m])));
+  };
   // P100 S2-D2 (owner option B): the sample shop gets the real Tự tạo -- every kind and tool tab.
   if (!p98Api) return <Builder data={data} from={from} productId={productId} />;
+  const pane = (m: Mode, node: ReactNode) =>
+    opened.has(m) ? (
+      <div data-testid={`p98-pane-${m}`} hidden={mode !== m} key={m}>
+        {node}
+      </div>
+    ) : null;
   return (
     <>
       <nav aria-label="Loại công cụ" className="sb-pills p98-modes" data-testid="p98-modes">
         {MODES.map((m) => (
-          <button aria-pressed={mode === m.key} className={`sb-pill ${mode === m.key ? "sb-pill--on" : ""}`} data-testid={`p98-mode-${m.key}`} key={m.key} onClick={() => setMode(m.key)} type="button">
+          <button aria-pressed={mode === m.key} className={`sb-pill ${mode === m.key ? "sb-pill--on" : ""}`} data-testid={`p98-mode-${m.key}`} key={m.key} onClick={() => open(m.key)} type="button">
             {m.label}
           </button>
         ))}
       </nav>
-      {mode === "single" ? <Builder data={data} from={from} onNewCampaign={() => setMode("ads")} productId={productId} /> : null}
-      {mode === "combo" ? <ComboBuilder api={p98Api} products={data.products} variationsApi={api} /> : null}
-      {mode === "kol" ? <KolBuilder api={p98Api} kols={kols} products={data.products} /> : null}
-      {mode === "ads" ? <AdsBuilder api={p98Api} products={data.products} /> : null}
+      {pane("single", <Builder data={data} from={from} newCampaign={(id) => <AdsBuilder api={p98Api} initialItems={[id]} products={data.products} />} onNewCampaign={() => open("ads")} productId={productId} />)}
+      {pane("combo", <ComboBuilder api={p98Api} products={data.products} variationsApi={api} />)}
+      {pane("kol", <KolBuilder api={p98Api} kols={kols} products={data.products} />)}
+      {pane("ads", <AdsBuilder api={p98Api} products={data.products} />)}
     </>
   );
 }
 
-function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign }: { readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly kinds?: typeof KINDS_92; readonly onNewCampaign?: () => void }) {
+function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign, newCampaign }: { readonly data: PickerResult; readonly from: string | null; readonly productId: string | null; readonly kinds?: typeof KINDS_92; readonly onNewCampaign?: () => void; readonly newCampaign?: (itemId: string) => ReactNode }) {
   const host = useReco();
   const api = host.builder!;
   const narrow = useNarrow();
@@ -145,7 +159,7 @@ function Builder({ data, from, productId, kinds = KINDS_92, onNewCampaign }: { r
 
   const built = useMemo(() => (kind && product ? buildVersion(kind, forms, { product, variations: chosen }) : { version: null, problem: null }), [kind, forms, product, chosen]);
   const key = built.version ? JSON.stringify(built.version) : "";
-  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, products, aov, outcome: result?.state.status === "ready" && result.key === key ? result.state.outcome : null, narrow, costLink, market: host.market ?? null, ...(onNewCampaign ? { onNewCampaign } : {}) } : null;
+  const ctx: PanelCtx | null = product ? { api, product, variations: chosen, products, aov, outcome: result?.state.status === "ready" && result.key === key ? result.state.outcome : null, narrow, costLink, market: host.market ?? null, ...(onNewCampaign ? { onNewCampaign } : {}), ...(newCampaign ? { newCampaign } : {}) } : null;
 
   useEffect(() => {
     if (step !== "phuong-an" || !built.version) return;

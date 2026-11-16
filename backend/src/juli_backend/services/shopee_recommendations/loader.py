@@ -185,7 +185,9 @@ async def load_env(
     env.funnel_history = await funnel.load_rows(
         session, shop_id, Window(anchor - timedelta(days=FUNNEL_HISTORY_DAYS - 1), anchor)
     )
-    env.today = now.date() if now is not None else date.today()
+    # F2 staleness is judged against the clock; an explicit as_of (a past date, a test) is its
+    # own "today", so a forecast read as of a past day is not stale by construction
+    env.today = now.date() if now is not None else (as_of or date.today())
     env.campaigns = await load_campaign_settings(session, shop_id, ctx, window)
     env.cancel_rate = await loaders.load_cancel_rate(session, shop_id, window)
     env.vouchers = await load_voucher_settings(session, shop_id, window)

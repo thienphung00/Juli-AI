@@ -217,13 +217,6 @@ export interface NumberRow {
 const num = (n: N | undefined): n is number => typeof n === "number" && Number.isFinite(n);
 const toneOf = (c: Chip): Tone => (c.up === false ? "down" : c.up ? "up" : "flat");
 
-function rangeText(lo: N, hi: N, f: (n: number) => string): string {
-  if (!num(lo) || !num(hi)) return DASH;
-  const a = Math.min(lo, hi);
-  const b = Math.max(lo, hi);
-  return f(a) === f(b) ? f(a) : `${f(a)} – ${f(b)}`;
-}
-
 const dOrders = (n: number) => `${signedOrders(n)} đơn`;
 const signedPct = (n: number) => `${n < 0 ? "−" : "+"}${fmt(Math.abs(n), 0)}%`;
 
@@ -299,40 +292,34 @@ export function sureRows(card: Card): NumberRow[] {
 
 const atP = (card: Card, q: "p10" | "p50" | "p90"): MoneyAt => card.predicted.money_per_month.total[q];
 
-/** "Dự kiến": ranges (P10 – P90) per month on top of the certain layer; a range, not a promise. */
+/** "Dự kiến": the likely value (P50) per month on top of the certain layer (forecast grill F4: one
+ * number per metric, no range; a value Juli does not have is "—", F5). */
 export function expectedRows(card: Card): NumberRow[] {
   if (!card.five_numbers) return [];
   const sure = sureRows(card);
   const pm = card.predicted.money_per_month;
-  const lo = atP(card, "p10");
-  const hi = atP(card, "p90");
+  // S1's `shown` (P50 over the effect period, null inside the noise band) wins over the raw P50
+  const mid = pm.shown ?? atP(card, "p50");
   const f = card.five_numbers;
   const dchi = pm.certain.dchi;
-  const net = card.certain.predicted_net;
   let eff: string;
-  if (num(net?.extra_revenue_per_extra_spend_low) && num(net?.extra_revenue_per_extra_spend_high)) {
-    eff = `${rangeText(net.extra_revenue_per_extra_spend_low, net.extra_revenue_per_extra_spend_high, (x) => `${fmt(x, 2)}đ`)} / 1đ chi`;
-  } else if (num(dchi) && dchi > 0 && num(lo.dgmv) && num(hi.dgmv)) {
-    eff = `${rangeText(lo.dgmv / dchi, hi.dgmv / dchi, (x) => `${fmt(x, 2)}đ`)} / 1đ chi`;
-  } else if (num(dchi) && dchi <= 0) {
-    eff = "giảm chi";
-  } else {
-    eff = DASH;
-  }
+  if (num(dchi) && dchi > 0 && num(mid.dgmv)) eff = `${fmt(mid.dgmv / dchi, 2)}đ / 1đ chi`;
+  else if (num(dchi) && dchi <= 0) eff = "giảm chi";
+  else eff = DASH;
   const ordersBefore = f.orders.before;
   const [disc, , bien, , aov] = sure;
   return [
     disc!,
-    { key: "eff", label: FIVE_LABELS[1], before: DASH, after: eff, dv: `${rangeText(lo.dgmv, hi.dgmv, sv)} GMV`, dp: "", tone: "flat" },
-    { ...bien!, dv: `${rangeText(lo.dprofit, hi.dprofit, sv)} trong ${fmt(pm.period?.days ?? pm.days, 0)} ngày` },
+    { key: "eff", label: FIVE_LABELS[1], before: DASH, after: eff, dv: num(mid.dgmv) ? `${sv(mid.dgmv)} GMV` : DASH, dp: "", tone: "flat" },
+    { ...bien!, dv: num(mid.dprofit) ? `${sv(mid.dprofit)} trong ${fmt(pm.period?.days ?? pm.days, 0)} ngày` : DASH },
     {
       key: "orders",
       label: FIVE_LABELS[3],
       before: num(ordersBefore) ? fmt(ordersBefore, 0) : DASH,
-      after: num(ordersBefore) && num(lo.dorders) && num(hi.dorders) ? rangeText(ordersBefore + lo.dorders, ordersBefore + hi.dorders, (x) => fmt(x, 0)) : DASH,
-      dv: rangeText(lo.dorders, hi.dorders, dOrders),
-      dp: num(ordersBefore) && ordersBefore > 0 && num(lo.dorders) && num(hi.dorders) ? rangeText((lo.dorders / ordersBefore) * 100, (hi.dorders / ordersBefore) * 100, signedPct) : DASH,
-      tone: num(lo.dorders) && lo.dorders < 0 ? "down" : "up",
+      after: num(ordersBefore) && num(mid.dorders) ? fmt(ordersBefore + mid.dorders, 0) : DASH,
+      dv: num(mid.dorders) ? dOrders(mid.dorders) : DASH,
+      dp: num(ordersBefore) && ordersBefore > 0 && num(mid.dorders) ? signedPct((mid.dorders / ordersBefore) * 100) : DASH,
+      tone: num(mid.dorders) && mid.dorders < 0 ? "down" : "up",
     },
     aov!,
   ];

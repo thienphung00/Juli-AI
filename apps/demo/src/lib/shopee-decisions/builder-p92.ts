@@ -190,10 +190,42 @@ export interface Forms {
 
 export const newTier = (qty = "2", value = ""): ComboTierRow => ({ qty, value });
 
+/**
+ * UI grill G3 (owner, 2026-11-16): a field's default is a grey placeholder, never a value already
+ * typed in (typing used to append to it: "15" + "20" -> "1520"). A field left blank counts as its
+ * default, so an untouched form evaluates exactly as before.
+ */
+export const FORM_DEFAULTS = {
+  voucherValue: "5000",
+  voucherMin: "100000",
+  addonValue: "15",
+  addonLimit: "1",
+  giftQty: "1",
+  giftMinSpend: "150000",
+  discountPct: "10",
+  flashUnits: "50",
+  flashHours: "2",
+  affiliateCommission: "10",
+  affiliateSamples: "0",
+} as const;
+/** The suggested combo tiers (Mua 2 giảm 5 %, Mua 3 giảm 8 %), shown as placeholders. */
+export const COMBO_TIER_DEFAULTS: readonly (readonly [string, string])[] = [
+  ["2", "5"],
+  ["3", "8"],
+];
+/** The value a field stands for: what was typed, else its default. */
+export const orDefault = (value: string, fallback: string | undefined): string => (value.trim() === "" && fallback !== undefined ? fallback : value);
+/** A combo tier's default (the % ones only: an amount or a special price has no sensible default). */
+export const comboTierDefault = (i: number, part: "qty" | "value", dtype: "pct" | "amount" | "special_price"): string | undefined => {
+  const d = COMBO_TIER_DEFAULTS[i];
+  if (!d) return undefined;
+  return part === "qty" ? d[0] : dtype === "pct" ? d[1] : undefined;
+};
+
 export function initialForms(): Forms {
   return {
-    voucher: { scope: "product", dtype: "amount", value: "5000", min: "100000", max: "", usage: "", perBuyer: "", start: "", end: "", items: [] },
-    combo: { name: "", items: [], dtype: "pct", tiers: [newTier("2", "5"), newTier("3", "8")], limit: "", start: "", end: "" },
+    voucher: { scope: "product", dtype: "amount", value: "", min: "", max: "", usage: "", perBuyer: "", start: "", end: "", items: [] },
+    combo: { name: "", items: [], dtype: "pct", tiers: [newTier("", ""), newTier("", "")], limit: "", start: "", end: "" },
     deal_soc: {
       type: "add_on",
       name: "",
@@ -202,17 +234,17 @@ export function initialForms(): Forms {
       startHour: "",
       endHour: "",
       addonLimit: "",
-      addons: [{ itemId: "", variationId: "", mode: "pct", value: "15", limit: "1" }],
-      gift: { source: "listing", giftItemId: "", unitCost: "", label: "", packaging: "", qty: "1", minSpend: "150000" },
+      addons: [{ itemId: "", variationId: "", mode: "pct", value: "", limit: "" }],
+      gift: { source: "listing", giftItemId: "", unitCost: "", label: "", packaging: "", qty: "", minSpend: "" },
     },
-    product_discount: { mode: "pct", rows: [], name: "", start: "", end: "", startHour: "", endHour: "", promoQty: "", perBuyer: "", multi: false, targets: [], pct: "10" },
-    price_flash: { what: "price", mode: "pct", rows: [], units: "50", slotStart: "", slotHours: "2" },
+    product_discount: { mode: "pct", rows: [], name: "", start: "", end: "", startHour: "", endHour: "", promoQty: "", perBuyer: "", multi: false, targets: [], pct: "" },
+    price_flash: { what: "price", mode: "pct", rows: [], units: "", slotStart: "", slotHours: "" },
     variation_set: { rows: [{ name: "", price: "", sku: "", packCount: "", stock: "" }] },
     ads: { lever: "budget", campaignKey: "", campaignKeys: [], dailyBudget: "", unlimited: false, roasMode: "custom", roasTarget: "", itemId: "", start: "", end: "" },
     title: { ticked: [], text: "" },
     cover_image: { overlay: null, banner: null },
     description_first_line: { text: "" },
-    affiliate: { commission: "10", campaign: "", samples: "0", shipFee: "", multi: false, targets: [] },
+    affiliate: { commission: "", campaign: "", samples: "", shipFee: "", multi: false, targets: [] },
     price_display: { what: "price_display", text: "", stock: "" },
   };
 }
@@ -334,8 +366,8 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
   switch (kind) {
     case "voucher": {
       const v = f.voucher;
-      const value = num(v.value);
-      const min = num(v.min) ?? 0;
+      const value = num(orDefault(v.value, v.dtype === "amount" ? FORM_DEFAULTS.voucherValue : undefined));
+      const min = num(orDefault(v.min, FORM_DEFAULTS.voucherMin)) ?? 0;
       if (value === null || value <= 0) return no("Nhập giá trị voucher.");
       if (v.dtype === "pct" && value > 90) return no("Voucher phần trăm tối đa 90%.");
       if (min < 0) return no("Đơn tối thiểu từ 0đ.");
@@ -371,8 +403,8 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       if ([...c.name.trim()].length > MAX_COMBO_NAME) return no(`Tên combo tối đa ${MAX_COMBO_NAME} ký tự.`);
       const tiers: { qty: number; value: number }[] = [];
       for (const [i, t] of c.tiers.entries()) {
-        const qty = num(t.qty);
-        const value = num(t.value);
+        const qty = num(orDefault(t.qty, comboTierDefault(i, "qty", c.dtype)));
+        const value = num(orDefault(t.value, comboTierDefault(i, "value", c.dtype)));
         if (qty === null || !Number.isInteger(qty) || qty < 2 || qty > 9999) return no(`Mức ${i + 1}: số sản phẩm cần mua là số nguyên từ 2 đến 9999.`);
         if (value === null || value <= 0) return no(`Mức ${i + 1}: nhập ${c.dtype === "special_price" ? "giá" : c.dtype === "pct" ? "% giảm" : "số tiền giảm"}.`);
         if (c.dtype === "pct" && value > MAX_PCT) return no(`Mức ${i + 1}: ${PCT_PROBLEM}`);
@@ -409,17 +441,17 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
         if (limit.problem) return no(limit.problem);
         const addons: Record<string, unknown>[] = [];
         for (const a of rows) {
-          const n = num(a.value);
-          if (n === null || n <= 0) return no("Nhập giá mua kèm hoặc % giảm.");
-          if (a.mode === "pct" && n > MAX_PCT) return no(PCT_PROBLEM);
-          const perOrder = intIn(a.limit.trim() === "" ? "1" : a.limit, 1, 20, "Giới hạn mỗi đơn từ 1 đến 20.");
+          const n = num(orDefault(a.value, a.mode === "pct" ? FORM_DEFAULTS.addonValue : undefined));
+          if (n === null || n <= 0) return no("Giá trị mua kèm: nhập giá mua kèm hoặc % giảm.");
+          if (a.mode === "pct" && n > MAX_PCT) return no(`Giá trị mua kèm: ${PCT_PROBLEM}`);
+          const perOrder = intIn(orDefault(a.limit, FORM_DEFAULTS.addonLimit), 1, 20, "Giới hạn mỗi đơn: từ 1 đến 20.");
           if (perOrder.problem) return no(perOrder.problem);
           addons.push({ item_id: a.itemId, ...vid(a.variationId), [a.mode === "price" ? "price" : "pct"]: n, limit_per_order: perOrder.n ?? 1 });
         }
         return { problem: null, version: { kind: "add_on", label: clip(name || `Mua kèm ${addons.length} sản phẩm`), main_item_id: id, addons, ...(limit.n !== null ? { addon_limit: limit.n } : {}), ...common } };
       }
       const g = d.gift;
-      const q = intIn(g.qty.trim() === "" ? "1" : g.qty, 1, MAX_GIFT_QTY, `Số quà tặng từ 1 đến ${MAX_GIFT_QTY} (Shopee: dưới 50).`);
+      const q = intIn(orDefault(g.qty, FORM_DEFAULTS.giftQty), 1, MAX_GIFT_QTY, `Số quà tặng từ 1 đến ${MAX_GIFT_QTY} (Shopee: dưới 50).`);
       if (q.problem) return no(q.problem);
       const qty = q.n ?? 1;
       let gift: Record<string, unknown>;
@@ -432,7 +464,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
         if (!g.label.trim()) return no("Nhập tên quà.");
         gift = { unit_cost: cost, qty, label: clip(g.label.trim()), ...opt("packaging", g.packaging) };
       }
-      const amount = num(g.minSpend);
+      const amount = num(orDefault(g.minSpend, FORM_DEFAULTS.giftMinSpend));
       if (amount === null || amount <= 0) return no("Nhập số tiền mua để nhận quà (điều kiện nhận quà).");
       return { problem: null, version: { kind: "gift", label: clip(name || `Mua ${kmoney(amount)} nhận ${qty} quà`), gift, trigger: { type: "min_spend", amount }, ...common } };
     }
@@ -446,7 +478,7 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       const issue = win.problem ?? dateProblem(d.start, d.end, null) ?? promo.problem ?? buyer.problem;
       const common = { ...(name ? { name } : {}), ...dated(d.start, d.end), ...win.fields, ...(promo.n !== null ? { promo_qty: promo.n } : {}), ...(buyer.n !== null ? { per_buyer_limit: buyer.n } : {}) };
       if (d.multi) {
-        const pct = num(d.pct);
+        const pct = num(orDefault(d.pct, FORM_DEFAULTS.discountPct));
         if (d.targets.length === 0) return no("Chọn ít nhất một sản phẩm để giảm giá.");
         if (d.targets.length > MAX_TARGETS) return no(`Chọn tối đa ${MAX_TARGETS} sản phẩm.`);
         if (pct === null || pct <= 0) return no("Nhập % GIẢM lớn hơn 0.");
@@ -483,10 +515,10 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
       }
       const { rows, problem } = varRows(p.rows, p.mode, "discount_pct", ctx.variations);
       if (problem) return no(problem);
-      const units = num(p.units);
-      if (units === null || units <= 0) return no("Nhập số lượng suất flash sale.");
-      if (!Number.isInteger(units)) return no("Số lượng suất là số nguyên.");
-      const hours = intIn(p.slotHours.trim() === "" ? "2" : p.slotHours, 1, 72, "Số giờ của khung từ 1 đến 72.");
+      const units = num(orDefault(p.units, FORM_DEFAULTS.flashUnits));
+      if (units === null || units <= 0) return no("Số lượng (suất): nhập số lớn hơn 0.");
+      if (!Number.isInteger(units)) return no("Số lượng (suất): nhập số nguyên.");
+      const hours = intIn(orDefault(p.slotHours, FORM_DEFAULTS.flashHours), 1, 72, "Số giờ của khung: từ 1 đến 72.");
       if (hours.problem) return no(hours.problem);
       return { problem: null, version: { kind: "flash_sale", label: "Flash sale", item_id: id, variations: rows, units, ...(p.slotStart ? { slot_start: p.slotStart } : {}), slot_hours: hours.n ?? 2 } };
     }
@@ -551,10 +583,10 @@ export function buildVersion(kind: Kind92, f: Forms, ctx: BuildCtx): Built92 {
     }
     case "affiliate": {
       const a = f.affiliate;
-      const pct = num(a.commission);
-      if (pct === null || pct < 0 || pct > 50) return no("Hoa hồng từ 0% đến 50%.");
-      const samples = Math.round(num(a.samples) ?? 0);
-      if (samples < 0 || samples > 50) return no("Số mẫu gửi từ 0 đến 50.");
+      const pct = num(orDefault(a.commission, FORM_DEFAULTS.affiliateCommission));
+      if (pct === null || pct < 0 || pct > 50) return no("Hoa hồng mới: từ 0% đến 50%.");
+      const samples = Math.round(num(orDefault(a.samples, FORM_DEFAULTS.affiliateSamples)) ?? 0);
+      if (samples < 0 || samples > 50) return no("Số mẫu gửi: từ 0 đến 50.");
       if (a.multi && a.targets.length === 0) return no("Chọn ít nhất một sản phẩm.");
       if (a.multi && a.targets.length > MAX_TARGETS) return no(`Chọn tối đa ${MAX_TARGETS} sản phẩm.`);
       const who = a.multi ? { targets: [...a.targets] } : { item_id: id };

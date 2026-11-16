@@ -210,7 +210,7 @@ describe("P98 ads builder", () => {
     fireEvent.change(screen.getByLabelText("Ngân sách mỗi ngày 1 (đ)"), { target: { value: "50000" } });
     fireEvent.change(screen.getByLabelText("Ngày bắt đầu 1"), { target: { value: "2026-11-10" } });
     fireEvent.click(screen.getByTestId("ads-calc"));
-    expect(screen.getByRole("alert")).toHaveTextContent("Ngân sách mỗi ngày tối thiểu 100.000");
+    expect(screen.getByRole("alert")).toHaveTextContent("Ngân sách mỗi ngày: tối thiểu 100.000");
     expect(calls).toHaveLength(0);
     fireEvent.change(screen.getByLabelText("Ngân sách mỗi ngày 1 (đ)"), { target: { value: "150000" } });
     fireEvent.change(screen.getByLabelText("Ngày kết thúc 1 (không bắt buộc)"), { target: { value: "2026-11-16" } });

@@ -9,7 +9,7 @@ import { bandText, breakEvenText, floorWarningText, marginText, metricValue, ref
 import { TextChip } from "../../shopee-analytics/ui";
 import { OptionCard } from "../option-card";
 import { perDayText, periodLabel, resultDays, signedCount, signedMoney } from "../option-card/format";
-import type { OptionResult } from "../../../lib/shopee-decisions/option-result";
+import { roiLabel, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TargetRows } from "./targets";
 
 /**
@@ -24,8 +24,23 @@ export type ResultState =
   | { readonly status: "error"; readonly message: string }
   | { readonly status: "ready"; readonly outcome: BuilderOutcome };
 
+/** UI grill G5: the profit_unknown warning's own reason (its message), the hover of a blank Δ lợi nhuận. */
+export function profitUnknownText(o: Pick<BuilderOutcome, "warnings">): string | undefined {
+  const w = (o.warnings ?? []).find((x) => x.type === "profit_unknown");
+  const t = w ? (typeof w["reason_text"] === "string" && w["reason_text"] ? w["reason_text"] : w.message) : undefined;
+  return t || undefined;
+}
+
 export function basisTone(key: string | undefined): "info" | "pink" | "warn" | "flat" {
-  return key === "product_history" ? "info" : key === "shop" ? "pink" : key === "prior" ? "warn" : "flat";
+  return key === "product_history" ? "info" : key === "shop" || key === "pooled" ? "pink" : key === "prior" ? "warn" : "flat";
+}
+
+/** Forecast grill F2: "Đơn hàng đến 12/11" when the shop's data is behind (no estimate then). */
+export function staleText(stale: { readonly dataset: "orders" | "traffic"; readonly through: string } | null | undefined): string | null {
+  if (!stale) return null;
+  const m = /^\d{4}-(\d{2})-(\d{2})/.exec(stale.through);
+  if (!m) return null;
+  return `${stale.dataset === "orders" ? "Đơn hàng" : "Lượt truy cập"} đến ${m[2]}/${m[1]}`;
 }
 
 export function BasisChip({ outcome }: { readonly outcome: BuilderOutcome }) {
@@ -81,7 +96,7 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
   if (o.result) {
     return (
       <div className="p2-result__body">
-        <OptionCard dates={o.dates} result={o.result} />
+        <OptionCard dates={o.dates} profitReason={profitUnknownText(o)} result={o.result} />
         <WarningLines outcome={o} />
       </div>
     );
@@ -99,14 +114,13 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
           <dt>Δ GMV</dt>
           <dd data-testid="p2-dgmv">
             <b>{gmv.main}</b>
-            <span>{gmv.range}</span>
           </dd>
         </div>
         <div>
           <dt>Δ đơn</dt>
           <dd data-testid="p2-dorders">
             <b>{orders.main}</b>
-            <span>{o.delta?.orders_note ?? orders.range}</span>
+            {o.delta?.orders_note ? <span>{o.delta.orders_note}</span> : null}
           </dd>
         </div>
         <div>
@@ -122,7 +136,6 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
             ) : (
               <>
                 <b>{profit.main}</b>
-                <span>{profit.range}</span>
               </>
             )}
           </dd>
@@ -250,13 +263,13 @@ export function CpaBar({ cpaNow, cpaAfter, breakEven }: { readonly cpaNow: numbe
   );
 }
 
-function Tile({ label, total, days, testId }: { readonly label: string; readonly total: number | null | undefined; readonly days: number; readonly testId: string }) {
+function Tile({ label, total, days, testId, why }: { readonly label: string; readonly total: number | null | undefined; readonly days: number; readonly testId: string; readonly why?: string }) {
   const per = perDayText(total, days);
   const tone = total === null || total === undefined ? "flat" : total < 0 ? "down" : "up";
   return (
     <div className="p3-tile" data-testid={testId}>
       <div className="p3-tile__label">{label}</div>
-      <div className={`p3-tile__value sa-tone--${tone}`}>{signedMoney(total)}</div>
+      <div className={`p3-tile__value sa-tone--${tone}`} title={total === null || total === undefined ? why : undefined}>{signedMoney(total)}</div>
       {per ? <div className="p3-tile__per" data-testid={`${testId}-perday`}>{per}</div> : null}
     </div>
   );
@@ -291,7 +304,7 @@ export function ResultCard({ result: r, name, breakEven = false, children }: { r
   } else {
     rows.push({ key: "orders", label: "Δ đơn", text: r.estimable ? signedCount(r.delta.orders.value) : "—" });
     rows.push({ key: "cost", label: "Chi phí", text: r.cost.total > 0 ? vnd(r.cost.total) : r.cost.total < 0 ? `Giảm ${vnd(-r.cost.total)}` : "Không có chi phí thêm" });
-    if (r.roi?.value !== null && r.roi?.value !== undefined) rows.push({ key: "roi", label: "ROI", text: fmt(r.roi.value, 1) });
+    if (r.roi?.value !== null && r.roi?.value !== undefined) rows.push({ key: "roi", label: roiLabel(r), text: fmt(r.roi.value, 1) });
     const m = r.margin;
     if (m && m.before_pct !== null && m.after_pct !== null) rows.push({ key: "margin", label: "Biên lợi nhuận", text: `${pp(m.before_pct, 1)} → ${pp(m.after_pct, 1)}` });
     const be = r.cost.break_even_orders;
@@ -301,6 +314,11 @@ export function ResultCard({ result: r, name, breakEven = false, children }: { r
   return (
     <div className="p3-result" data-testid="p3-result">
       {title ? <h3 className="p3-finding" data-testid="p3-finding">{title}</h3> : null}
+      {staleText(r.stale) ? (
+        <p className="sd-muted" data-testid="p3-stale">
+          {staleText(r.stale)}
+        </p>
+      ) : null}
       <div className="p3-result__head">
         <b>{name}</b>
         <span className={`p3-verdict p3-verdict--${v.tone}`} data-testid="p3-verdict">
@@ -308,8 +326,8 @@ export function ResultCard({ result: r, name, breakEven = false, children }: { r
         </span>
       </div>
       <div className="p3-tiles">
-        <Tile days={days} label={`Δ lợi nhuận ${period}`} testId="p3-dprofit" total={r.estimable ? r.delta.profit?.value : null} />
-        <Tile days={days} label={`Δ GMV ${period}`} testId="p3-dgmv" total={r.estimable ? r.delta.gmv.value : null} />
+        <Tile days={days} label={`Δ lợi nhuận ${period}`} testId="p3-dprofit" total={r.estimable ? r.delta.profit?.value : null} why={r.reason_text ?? undefined} />
+        <Tile days={days} label={`Δ GMV ${period}`} testId="p3-dgmv" total={r.estimable ? r.delta.gmv.value : null} why={r.reason_text ?? undefined} />
       </div>
       {a ? <CpaBar breakEven={a.break_even_cpa} cpaAfter={a.cpa.after} cpaNow={a.cpa.now} /> : null}
       <table className="p3-rows">

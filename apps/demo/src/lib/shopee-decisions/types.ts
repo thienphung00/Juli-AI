@@ -259,6 +259,9 @@ export interface MoneyBlock {
 
 export interface MoneyPerMonth {
   readonly days: number;
+  /** Forecast grill F4/F3: the P50 over the effect period, null when inside the noise band. Shown instead of P10/P90. */
+  readonly shown?: { readonly dgmv: N; readonly dorders: N; readonly dprofit: N };
+  readonly within_noise?: readonly ("gmv" | "orders" | "profit")[];
   readonly certain: { readonly dgmv: N; readonly dprofit: N; readonly dchi: N };
   readonly predicted: { readonly p10: MoneyAt; readonly p50: MoneyAt; readonly p90: MoneyAt };
   readonly total: { readonly p10: MoneyAt; readonly p50: MoneyAt; readonly p90: MoneyAt };
@@ -714,6 +717,8 @@ export interface ExecutionCard {
   readonly measure_start: string | null;
   readonly measure_days: number | null;
   readonly open_job: { readonly id: string; readonly open_path: string } | null;
+  /** UI grill G14: the voucher code the Connector picked up after the seller saved (pre-fills the row). */
+  readonly captured_voucher_id?: string | null;
 }
 
 export interface ConnectorLine {

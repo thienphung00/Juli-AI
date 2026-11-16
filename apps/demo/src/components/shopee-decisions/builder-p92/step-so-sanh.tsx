@@ -6,7 +6,7 @@ import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
 import { DASH, fmt, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderApi, BuilderEvaluation, BuilderOutcome, ChooseResult, GroupResult } from "../../../lib/shopee-decisions/builder-api";
 import { breachesOfOutcome } from "../../../lib/shopee-decisions/builder-p92";
-import type { OptionResult } from "../../../lib/shopee-decisions/option-result";
+import { roiLabel, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import type { Breach } from "../../../lib/shopee-decisions/types";
 import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions";
 import { DateField } from "../../date-field";
@@ -234,7 +234,7 @@ export function StepSoSanh(p: StepSoSanhProps) {
                   <th className="p4-num">Chi phí</th>
                   <th className="p4-num">Đơn QC</th>
                   <th className="p4-num">CPA / hoà vốn</th>
-                  <th className="p4-num">ROI</th>
+                  <th className="p4-num">{roiLabel(rows.find((x) => x.r?.roi)?.r ?? null)}</th>
                   <th>Kết luận</th>
                 </tr>
               </thead>
@@ -246,7 +246,7 @@ export function StepSoSanh(p: StepSoSanhProps) {
                     <tr data-testid={`p4-row-${x.i + 1}`} key={x.i}>
                       <th scope="row">{x.name}</th>
                       <td className="p4-num" data-testid={`p4-gmv-${x.i + 1}`}>
-                        {x.r && x.r.estimable ? signedMoney(x.r.delta.gmv.value) : DASH}
+                        {x.r && x.r.estimable ? signedMoney(x.r.delta.gmv.value) : <span title={x.r?.reason_text ?? undefined}>{DASH}</span>}
                         {gmvPer ? <span className="sa-hint"> {gmvPer}</span> : null}
                       </td>
                       <td className="p4-num">{costText(x.r)}</td>
