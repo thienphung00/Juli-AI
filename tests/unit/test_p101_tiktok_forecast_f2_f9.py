@@ -12,15 +12,15 @@ from decimal import Decimal
 
 import pytest
 
-from juli_backend.services.optimize_product import forecast as fc
+from juli_backend.services.forecast.noise import NON_UPLIFT_KINDS, period_band
 from juli_backend.services.optimize_product.daily_funnel import ProductDay
 from juli_backend.services.optimize_product.forecast import (
     CardForecast,
     card_forecast,
     daily_history,
+    effect_within_noise,
     is_stale,
     noise_band_for_card,
-    within_noise,
 )
 from juli_backend.services.optimize_product.prediction import (
     MIN_POOLED_RESULTS,
@@ -122,22 +122,17 @@ def test_days_after_data_through_are_never_read():
 # --------------------------------------------------------------------------- F3 seam
 
 
-def test_noise_band_seam_names_the_shared_function_and_uses_the_window_band():
-    doc = inspect.getsource(fc.noise_band_for_card)
-    assert "TODO(F3)" in doc
-    assert "return period_band(totals_by_window, window_days).band_pct" in doc
-    assert "juli_backend.services.forecast.noise.period_band(totals_by_window, window_days," in doc
-    # The seam's argument shape is S1's: (daily series with None, card length).
+def test_noise_band_seam_is_the_shared_period_band():
     params = list(inspect.signature(noise_band_for_card).parameters)
     assert params == ["totals_by_window", "window_days"]
     rows = _days(30)
     gmv = daily_history(rows, as_of=AS_OF, metric="gmv", window_days=14)
-    orders = daily_history(rows, as_of=AS_OF, metric="orders", window_days=14)
     assert len(gmv) == 14 and all(v is not None for v in gmv)
-    band = noise_band_for_card(gmv, 14)
-    assert band is not None and band >= 1.0
-    orders_band = noise_band_for_card(orders, 14)
-    assert orders_band is not None and orders_band >= 1.0
+    assert noise_band_for_card(gmv, 14) == period_band(gmv, 14).band_pct
+    orders = daily_history(rows, as_of=AS_OF, metric="orders", window_days=14)
+    assert noise_band_for_card(orders, 14) == period_band(orders, 14).band_pct
+    # Flat history: the 1 % minimum; no history: no band.
+    assert noise_band_for_card([5.0] * 14, 14) == pytest.approx(1.0)
     assert noise_band_for_card([None, None], 14) is None
 
 
@@ -165,30 +160,21 @@ def test_daily_history_marks_missing_and_unavailable_days_none():
 # --------------------------------------------------------------------------- F5 within noise
 
 
-def _fake_bands(monkeypatch):
-    """The seam reads the band (%) from the series' first value: tests set it directly."""
-    monkeypatch.setattr(
-        fc, "noise_band_for_card", lambda history, window_days=14: history[0] if history else None
-    )
+FLAT = [100.0] * 14  # band = the 1 % minimum
+NOISY = [0.0, 200.0] * 7  # band ~ 36 % of the period total
 
 
-def test_within_noise_has_s1s_shape(monkeypatch):
-    assert list(inspect.signature(within_noise).parameters) == [
-        "effect_p90",
-        "history",
-        "window_days",
-        "kind",
-    ]
-    _fake_bands(monkeypatch)
-    assert within_noise(0.04, [5.0], 14, "title") is True
-    assert within_noise(0.06, [5.0], 14, "title") is False
-    assert within_noise(0.0, [], 14, "title") is False  # no band: not within noise
-    monkeypatch.setattr(fc, "NON_UPLIFT_KINDS", frozenset({"listing_hide"}))
-    assert within_noise(0.0, [5.0], 14, "listing_hide") is False  # its own rule
+def test_effect_within_noise_uses_the_shared_rule():
+    assert effect_within_noise(0.005, FLAT, 14, "title") is True
+    assert effect_within_noise(0.04, FLAT, 14, "title") is False
+    assert effect_within_noise(0.04, NOISY, 14, "title") is True
+    assert effect_within_noise(0.0, [], 14, "title") is False  # no band: not within noise
+    # A non-uplift kind follows its own rule (shared NON_UPLIFT_KINDS).
+    assert "listing_hide" in NON_UPLIFT_KINDS
+    assert effect_within_noise(0.0, NOISY, 14, "listing_hide") is False
 
 
-def test_within_noise_metric_is_null_but_the_card_keeps_its_other_numbers(monkeypatch):
-    _fake_bands(monkeypatch)
+def test_within_noise_metric_is_null_but_the_card_keeps_its_other_numbers():
     f = card_forecast(
         _pred(0.0, 0.04, p50=0.02),
         target_metric="ctr",
@@ -196,9 +182,10 @@ def test_within_noise_metric_is_null_but_the_card_keeps_its_other_numbers(monkey
         today=date(2026, 11, 16),
         gmv_per_day=1_000_000,
         aov=100_000,
-        histories={"ctr": [3.0], "orders": [10.0], "gmv": [3.0]},
+        histories={"ctr": FLAT, "orders": NOISY, "gmv": FLAT},
+        kind="title",
     )
-    # P90 4 % >= the 3 % CTR / GMV bands: shown; orders' 10 % band: "—".
+    # P90 4 % >= the 1 % CTR / GMV bands: shown; orders' ~36 % band: "—".
     assert f.target_lift == pytest.approx(0.02)
     assert f.gmv_per_month == pytest.approx(600_000)
     assert f.orders_per_month is None
@@ -239,8 +226,7 @@ def test_prediction_records_the_rung_and_only_prior_is_floored():
 # --------------------------------------------------------------------------- F8 / F9
 
 
-def test_orders_and_gmv_come_from_one_scenario_and_add_up(monkeypatch):
-    _fake_bands(monkeypatch)
+def test_orders_and_gmv_come_from_one_scenario_and_add_up():
     f = card_forecast(
         _pred(0.02, 0.18, p50=0.10),
         target_metric="ctor",
@@ -248,15 +234,14 @@ def test_orders_and_gmv_come_from_one_scenario_and_add_up(monkeypatch):
         today=AS_OF,
         gmv_per_day=2_000_000,
         aov=250_000,
-        histories={"ctor": [1.0], "orders": [1.0], "gmv": [1.0]},
+        histories={"ctor": FLAT, "orders": FLAT, "gmv": FLAT},
     )
     assert f.gmv_per_month == pytest.approx(2_000_000 * 0.10 * 30)
     assert f.orders_per_month is not None and f.gmv_per_month is not None
     assert f.orders_per_month * 250_000 == pytest.approx(f.gmv_per_month)
 
 
-def test_aov_lever_moves_gmv_not_orders(monkeypatch):
-    _fake_bands(monkeypatch)
+def test_aov_lever_moves_gmv_not_orders():
     f = card_forecast(
         _pred(0.03, 0.10),
         target_metric="aov",
@@ -264,7 +249,7 @@ def test_aov_lever_moves_gmv_not_orders(monkeypatch):
         today=AS_OF,
         gmv_per_day=1_000_000,
         aov=200_000,
-        histories={"aov": [1.0], "orders": [1.0], "gmv": [1.0]},
+        histories={"aov": FLAT, "orders": FLAT, "gmv": FLAT},
     )
     assert f.gmv_per_month == pytest.approx(1_000_000 * 0.065 * 30)
     # Δorders 0 is within any band: "—".

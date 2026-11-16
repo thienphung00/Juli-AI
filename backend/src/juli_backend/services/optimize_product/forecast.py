@@ -9,11 +9,12 @@ One block per card (``CardForecast``), additive to the payload:
   Days after the data-through day are missing, never zero: every window ends on it.
 * **F3 noise band.** Every use of the card's noise band goes through
   :func:`noise_band_for_card` (the one seam), fed the metric's daily series
-  (:func:`daily_history`, ``None`` = missing). Today it is the window-mean band of
-  :mod:`.volatility`; S1's shared period band replaces it. The KPI target keeps the
-  window-mean band on its own.
-* **F5 within noise.** A metric whose effect P90 is below its noise band gets no number
-  (``None``, the screen shows "—"); the card itself is still proposed.
+  (:func:`daily_history`, ``None`` = missing): the shared period band
+  (``services.forecast.noise.period_band``) over the card's length. The KPI target keeps
+  volatility.py's window-mean band on its own until F10.
+* **F5 within noise.** A metric whose effect P90 is below its noise band (the shared
+  ``services.forecast.noise.within_noise``) gets no number (``None``, the screen shows
+  "—"); the card itself is still proposed.
 * **F8 one scenario.** Δorders and ΔGMV come from the same P50 lift on the card's
   target metric through the funnel identity GMV = orders × AOV: a traffic / rate lever
   (impressions, CTR, CTOR) moves orders at today's AOV; an AOV lever moves AOV at
@@ -28,13 +29,13 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
+from juli_backend.services.forecast.noise import NON_UPLIFT_KINDS, period_band, within_noise
 from juli_backend.services.optimize_product.daily_funnel import ProductDay
 from juli_backend.services.optimize_product.prediction import DAYS_PER_MONTH, Prediction
 from juli_backend.services.optimize_product.tunables import (
     FORECAST_STALE_GRACE_DAYS,
     TIKTOK_ANALYTICS_EXPECTED_LAG_DAYS,
 )
-from juli_backend.services.optimize_product.volatility import window_band_pct
 
 #: The metric a GMV-linear lift acts on through AOV rather than through orders.
 AOV_METRIC = "aov"
@@ -45,10 +46,6 @@ METRIC_GMV = "gmv"
 
 #: F3: the card's period length in days -- a TikTok card is judged at day 14 (Đo lường).
 CARD_DAYS = 14
-#: F5: kinds that follow their own rule, not the within-noise one. Every TikTok card
-#: lever is an uplift lever today. TODO(F3): use S1's ``NON_UPLIFT_KINDS`` from
-#: ``juli_backend.services.forecast.noise`` when it lands.
-NON_UPLIFT_KINDS: frozenset[str] = frozenset()
 
 
 def daily_history(
@@ -90,19 +87,26 @@ def daily_history(
 def noise_band_for_card(
     totals_by_window: Sequence[float | None], window_days: int = CARD_DAYS
 ) -> float | None:
-    """The card's noise band, in % of the metric's level (``None``: too little history).
+    """The card's noise band, in % of the metric's period total (``None``: too little
+    history). The ONE seam every card-band reader goes through: F3's shared period band
+    over the card length, fed the metric's daily series (:func:`daily_history`)."""
+    return period_band(totals_by_window, window_days).band_pct
 
-    The ONE seam every card-band reader goes through. ``totals_by_window`` is the
-    metric's daily series (:func:`daily_history`), ``window_days`` the card length.
 
-    TODO(F3): replace the body with the shared period band (S1, both platforms):
-    ``return period_band(totals_by_window, window_days).band_pct`` from
-    ``juli_backend.services.forecast.noise.period_band(totals_by_window, window_days,
-    coverage=0.8, min_pct=0.01)``. Until then: volatility.py's window-mean band of the
-    observed days (the card length does not enter it). The KPI target keeps its own
-    window-mean band either way.
-    """
-    return window_band_pct([v for v in totals_by_window if v is not None])
+def effect_within_noise(
+    effect_p90: float,
+    history: Sequence[float | None],
+    window_days: int = CARD_DAYS,
+    kind: str = "",
+) -> bool:
+    """F5 for a RELATIVE effect P90 (a lift): turned into the metric's own unit over the
+    card's period (lift × mean day × days) and judged by the shared
+    :func:`~juli_backend.services.forecast.noise.within_noise`."""
+    observed = [v for v in history if v is not None]
+    if not observed:
+        return False
+    mean_day = sum(observed) / len(observed)
+    return within_noise(effect_p90 * mean_day * window_days, history, window_days, kind)
 
 
 def stale_before(today: date) -> date:
@@ -113,26 +117,6 @@ def stale_before(today: date) -> date:
 def is_stale(data_through: date, today: date | None) -> bool:
     """F2: data-through older than the platform's lag plus grace; ``today`` None: fresh."""
     return today is not None and data_through < stale_before(today)
-
-
-def within_noise(
-    effect_p90: float,
-    history: Sequence[float | None],
-    window_days: int = CARD_DAYS,
-    kind: str | None = None,
-) -> bool:
-    """F5: the effect's P90 (relative) is below the metric's noise band.
-
-    Same shape as S1's shared ``within_noise(effect_p90, history, window_days, kind)``;
-    a kind in :data:`NON_UPLIFT_KINDS` follows its own rule (never "within noise"), and
-    no band (too little history) is not within noise.
-    """
-    if kind is not None and kind in NON_UPLIFT_KINDS:
-        return False
-    band_pct = noise_band_for_card(history, window_days)
-    if band_pct is None:
-        return False
-    return effect_p90 < band_pct / 100
 
 
 @dataclass(frozen=True)
@@ -176,7 +160,7 @@ def card_forecast(
     aov: float | None,
     histories: dict[str, list[float | None]],
     card_days: int = CARD_DAYS,
-    kind: str | None = None,
+    kind: str = "",
 ) -> CardForecast:
     """F2 / F5 / F8 / F9 for one card. ``histories``: metric -> its daily series
     (:func:`daily_history`; the target metric, ``orders`` and ``gmv``). ``aov``: the
@@ -203,7 +187,7 @@ def card_forecast(
     elif aov is not None and aov > 0:
         orders = gmv / aov
     orders_p90 = p90 if moves_orders else 0.0
-    if within_noise(orders_p90, histories.get(METRIC_ORDERS, []), card_days, kind):
+    if effect_within_noise(orders_p90, histories.get(METRIC_ORDERS, []), card_days, kind):
         orders = None
     return CardForecast(
         data_through=data_through,
@@ -211,11 +195,15 @@ def card_forecast(
         source=prediction.source,
         target_metric=target_metric,
         target_lift=(
-            None if within_noise(p90, histories.get(target_metric, []), card_days, kind) else p50
+            None
+            if effect_within_noise(p90, histories.get(target_metric, []), card_days, kind)
+            else p50
         ),
         orders_per_month=orders,
         gmv_per_month=(
-            None if within_noise(p90, histories.get(METRIC_GMV, []), card_days, kind) else gmv
+            None
+            if effect_within_noise(p90, histories.get(METRIC_GMV, []), card_days, kind)
+            else gmv
         ),
     )
 
@@ -226,8 +214,8 @@ __all__ = [
     "CardForecast",
     "card_forecast",
     "daily_history",
+    "effect_within_noise",
     "is_stale",
     "noise_band_for_card",
     "stale_before",
-    "within_noise",
 ]
