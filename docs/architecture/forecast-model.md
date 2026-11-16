@@ -22,7 +22,9 @@ One shared model with a thin adapter per platform. Triggers use the same structu
 ## 2. Base (F2)
 
 - **Window.** Per metric, the shortest of 14 / 30 / 60 days with enough events: clicks for CTR;
-  orders for CTOR, AOV and GMV. If none qualifies, the metric is "ít dữ liệu" and not used.
+  orders for CTOR, AOV and GMV. If none qualifies, the 60-day window is used anyway and the
+  wide §3 band decides through §5 (owner amendment 2026-11-16: ORY has 2 of 29 products with
+  ≥ 30 orders in 60 days). Only a metric with no event in 60 days is "ít dữ liệu".
 - **Missing days.** Days after a dataset's last data date are missing, not zero. They leave both
   the numerator and the denominator.
 - **Out-of-stock and unlisted days** are excluded from the base.
