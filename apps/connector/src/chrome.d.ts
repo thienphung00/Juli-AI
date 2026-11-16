@@ -27,12 +27,22 @@ declare namespace chrome {
   namespace permissions {
     function request(permissions: { origins?: string[] }): Promise<boolean>;
     function contains(permissions: { origins?: string[] }): Promise<boolean>;
+    const onAdded: { addListener(callback: () => void): void };
   }
 
   namespace scripting {
     interface InjectionResult<T> {
       result?: T;
     }
+    interface RegisteredContentScript {
+      id: string;
+      matches: string[];
+      js: string[];
+      runAt?: "document_start" | "document_end" | "document_idle";
+      persistAcrossSessions?: boolean;
+    }
+    function registerContentScripts(scripts: RegisteredContentScript[]): Promise<void>;
+    function getRegisteredContentScripts(filter?: { ids?: string[] }): Promise<{ id: string }[]>;
     function executeScript<T>(injection: {
       target: { tabId: number };
       world?: "ISOLATED" | "MAIN";

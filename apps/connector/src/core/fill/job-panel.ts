@@ -8,7 +8,8 @@ import { el, NEVER_NOTE, STYLE } from "./panel";
 export type JobPanelInput =
   | { outcome: "filled" | "partial"; job: CoreJob; result: FillOutcome }
   | { outcome: "refused"; text: string }
-  | { outcome: "halted"; text: string };
+  | { outcome: "halted"; text: string }
+  | { outcome: "blocked"; text: string };
 
 const JOB_STYLE = `${STYLE}
 .ok-mark{color:#14532d;font-weight:700}.no-mark{color:#b91c1c;font-weight:700}
@@ -19,6 +20,8 @@ export interface JobLabels {
   filled: string;
   /** The platform asked for the password again: everything stops. */
   halt: string;
+  /** A verification (CAPTCHA) is in the way: the job stops and the person does it by hand. */
+  blocked?: string;
 }
 
 /** `name` is the platform as the seller says it (a pack's `labels.name`). */
@@ -26,6 +29,7 @@ export function jobLabels(name: string): JobLabels {
   return {
     filled: `Juli đã điền — kiểm tra rồi bấm nút của ${name}`,
     halt: `${name} đang hỏi lại mật khẩu. Juli dừng lại và không mở thêm trang nào; hãy tự xác nhận trong ${name}.`,
+    blocked: `${name} đang yêu cầu xác minh (CAPTCHA). Juli dừng việc này và không điền gì; hãy tự xác minh rồi mở lại từ Juli.`,
   };
 }
 
@@ -47,7 +51,7 @@ export function showJobPanel(doc: Document, input: JobPanelInput, labels: JobLab
   close.addEventListener("click", () => host.remove());
   head.append(who, close);
   box.append(head);
-  if (input.outcome === "refused" || input.outcome === "halted") {
+  if (input.outcome === "refused" || input.outcome === "halted" || input.outcome === "blocked") {
     box.append(el(doc, "div", { cls: "banner", text: input.text }));
   } else {
     box.append(

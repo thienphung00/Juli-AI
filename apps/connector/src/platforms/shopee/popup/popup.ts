@@ -6,7 +6,7 @@ import { READER_IDS, readerActive } from "../config";
 import type { Backfill, ReaderSchedule } from "../background/state";
 import { adsHistoryLine, DATASET_LABELS, type Guidance, pageRows, runLine, stockLine, syncGuidance, tickLine } from "./guide";
 import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "./labels";
-import { el, fmt, openTab, requestHosts, send } from "../../../core/popup/shell";
+import { el, fmt, openTab, send, ungrantedHosts, wireHostButton } from "../../../core/popup/shell";
 
 interface DatasetStatus {
   dataset: string;
@@ -71,7 +71,19 @@ function renderPages(state: PopupState): void {
   }
 }
 
+/**
+ * Platforms whose site is reached by an optional permission (none for Shopee alone): after such a
+ * pairing the second button asks for it. Shown on every render until the permission is granted.
+ */
+async function renderHosts(): Promise<void> {
+  const wanted = await send<string[]>({ type: "optional-hosts" }).catch(() => [] as string[]);
+  const missing = await ungrantedHosts(wanted);
+  el("hosts").hidden = missing.length === 0;
+  wireHostButton(el<HTMLButtonElement>("hosts-allow"), missing, () => void render().catch(() => undefined));
+}
+
 async function render(): Promise<void> {
+  await renderHosts();
   const state = await send<PopupState>({ type: "state" });
   const paired = !!state.token;
   el("pair-form").hidden = paired;
@@ -118,11 +130,10 @@ el<HTMLFormElement>("pair-form").addEventListener("submit", (event) => {
   const input = el<HTMLInputElement>("code");
   const error = el("pair-error");
   error.textContent = "";
-  send<{ optionalHosts?: string[] }>({ type: "pair", code: input.value })
-    .then(async (paired) => {
+  send<unknown>({ type: "pair", code: input.value })
+    .then(() => {
       input.value = "";
-      // A platform whose site the Connector reaches only by optional permission (none for Shopee).
-      await requestHosts(paired?.optionalHosts);
+      // The optional permission of a platform is asked by its own button (renderHosts), from a click.
       return render();
     })
     .catch((reason: unknown) => {
