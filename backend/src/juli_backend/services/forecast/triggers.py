@@ -199,15 +199,17 @@ def _window(rows: Mapping[date, DayRow], as_of: date, length: int, offset: int =
 def _adaptive_window(
     rows: Mapping[date, DayRow], as_of: date, metric: str, windows: Sequence[int], min_events: int
 ) -> tuple[int, bool]:
-    """The shortest window with enough events (F2); the longest, low-data, when none has."""
+    """The shortest window with enough events (F2). None has: the longest anyway (owner
+    2026-11-16, F2 amendment 2: the wide F3 band decides); low-data only with no event at all."""
     ordered = sorted(windows)
     if EVENT_KIND[metric] is None:
         return ordered[0], False
+    events: float | None = None
     for length in ordered:
         events = _window(rows, as_of, length).events(metric)
         if events is not None and events >= min_events:
             return length, False
-    return ordered[-1], True
+    return ordered[-1], not events
 
 
 def decompose(now: _Window, before: _Window) -> dict[str, float]:

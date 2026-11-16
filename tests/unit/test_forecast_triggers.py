@@ -206,3 +206,16 @@ def test_shopee_opportunity_below_the_band_is_dropped(monkeypatch):
     ]
     kept, dropped = _route(monkeypatch, built)
     assert [c.kind for c, _ in kept] == ["keyword"] and dropped == {"flash_sale": 1}
+
+
+def test_a_thin_product_falls_back_to_the_longest_window_not_low_data():
+    """F2 amendment 2 (owner 2026-11-16): under min_events -> the 60-day window anyway."""
+    from juli_backend.services.forecast import triggers
+
+    as_of = date(2026, 11, 16)
+    rows = {
+        as_of - timedelta(days=i): triggers.DayRow(as_of - timedelta(days=i), 100, 10, 1, 50_000.0)
+        for i in range(0, 60, 3)  # 20 orders in 60 days: never 30
+    }
+    assert triggers._adaptive_window(rows, as_of, "ctor", (14, 30, 60), 30) == (60, False)
+    assert triggers._adaptive_window({}, as_of, "ctor", (14, 30, 60), 30) == (60, True)
