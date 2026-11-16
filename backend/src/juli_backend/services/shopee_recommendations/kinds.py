@@ -592,6 +592,10 @@ MIN_PRIOR_LIFT = Decimal("0.05")
 #: exempt as well (:func:`floor_prior_band`), whatever its kind.
 FLOOR_EXEMPT: dict[str, str] = {
     "ads_pause": "removal action: the designed effect is a loss of ad revenue",
+    "ads_roas_target": (
+        "prior is on ROAS, not volume; a raise is already above 5 %, "
+        "a lowering lowers ROAS by design"
+    ),
     "ads_remove_product": "removal action: the designed effect is a loss of ad revenue",
     "ads_purpose": "no volume effect is predicted (target metric none)",
     "ads_keywords": "no preset prior: the card shows keywords and the shop's own report",
@@ -611,8 +615,6 @@ FLOOR_EXEMPT: dict[str, str] = {
 #: Owner decision 2026-11-16: a sized kind's floor scales with the change,
 #: ``MIN_PRIOR_LIFT x min(1, size / REFERENCE_SIZE)``; ``size`` is a percent. A kind not listed
 #: here has no size and keeps the flat floor. A size of 0 (or none) gives no floor.
-#: ``ads_roas_target`` is floored only for a LOWERED target (size = the % decrease, a volume
-#: push); a raised target means fewer, cheaper orders by design and is never floored.
 REFERENCE_SIZE: dict[str, float] = {
     # price prior 0.5-2 % per 1 % cut (mid 1.25 %): a 4 % cut lands the prior on 5 %
     "product_discount": 4.0,
@@ -621,8 +623,6 @@ REFERENCE_SIZE: dict[str, float] = {
     "program_registration": 4.0,
     # the ads-budget prior (3-25 %) is stated per ``config.ADS_BUDGET_STEP_PCT`` (20 %) of budget
     "ads_budget": 20.0,
-    # the ROAS-target prior (2-15 %) is stated per 10 % change of the target (prediction.py)
-    "ads_roas_target": 10.0,
 }
 
 

@@ -224,18 +224,10 @@ def _floor_generic(
 ) -> tuple[float, float, bool]:
     """Owner rule 2026-11-15/16: a generic prior is at least ``MIN_PRIOR_LIFT`` at P50, scaled by
     the size of the change for a sized kind. The lift is a normal through (P10, P90), so P10 stays
-    and P90 moves until the middle is the floor. A lowered ROAS target is a volume push: its
-    (negative) prior band is read as the volume gain, sized by the % decrease; a raised one is
-    never floored."""
-    size = magnitude
-    band = (lo, hi)
-    if kind == "ads_roas_target":
-        if magnitude is None or magnitude >= 0:
-            return lo, hi, False
-        band, size = (-hi, -lo), -magnitude
-    mid = (band[0] + band[1]) / 2
+    and P90 moves until the middle is the floor."""
+    mid = (lo + hi) / 2
     p10, p50, _ = floor_prior_band(
-        kind, Decimal(str(band[0])), Decimal(str(mid)), Decimal(str(band[1])), size
+        kind, Decimal(str(lo)), Decimal(str(mid)), Decimal(str(hi)), magnitude
     )
     if p50 == Decimal(str(mid)):
         return lo, hi, False

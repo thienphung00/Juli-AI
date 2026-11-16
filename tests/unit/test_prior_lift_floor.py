@@ -102,13 +102,11 @@ def test_an_unsized_kind_keeps_the_flat_floor():
     assert p50 == MIN_PRIOR_LIFT
 
 
-def test_a_lowered_roas_target_is_floored_and_a_raised_one_is_not():
-    # a tiny generic band, as if the prior were weak: only the lowered target gets the floor
-    lowered = _floor_generic("ads_roas_target", -0.004, -0.001, -5.0)
-    assert lowered[2] and round((lowered[0] + lowered[1]) / 2, 6) == 0.025  # 5 % x 5 / 10
-    raised = _floor_generic("ads_roas_target", 0.001, 0.004, 5.0)
-    assert raised == (0.001, 0.004, False)
-    assert _floor_generic("ads_roas_target", 0.001, 0.004, None)[2] is False
+def test_a_lowered_and_a_raised_roas_target_both_come_back_unchanged():
+    # the prior is on ROAS, not volume: ads_roas_target is exempt whatever the direction
+    assert "ads_roas_target" in FLOOR_EXEMPT and "ads_roas_target" not in REFERENCE_SIZE
+    assert _floor_generic("ads_roas_target", -0.004, -0.001, -5.0) == (-0.004, -0.001, False)
+    assert _floor_generic("ads_roas_target", 0.001, 0.004, 5.0) == (0.001, 0.004, False)
 
 
 def test_the_ads_budget_floor_scales_with_the_step():
