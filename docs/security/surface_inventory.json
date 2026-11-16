@@ -457,6 +457,30 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/shopee/board/external-import/commit",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/board/external-import/preview",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/demo/shopee/board/reset",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/demo/shopee/builder/ads/campaigns",
       "methods": [
         "GET"

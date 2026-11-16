@@ -152,3 +152,33 @@ CUT_MIN_DAYS = 3
 #: calibration (never as a clean single-kind sample).
 MULTI_CARD_WEIGHT = 0.25
 #: A cut or short-window result is read at lower confidence: no calibration from it.
+
+# -- "Nhập thẻ đã làm ngoài Juli" (owner decision 2026-11-16) ---------------------------------
+#: The import sheet's "Hạng mục" (folded: lower case, no accents) -> the change kinds a row becomes.
+#: "Ảnh bìa + Tiêu đề" is a cover card, plus a title card when the row gives the new title.
+#: "Mua kèm deal sốc" of ONE product that "tặng" a gift is Shopee's "Mua để nhận quà" (a gift);
+#: "Tiếp thị liên kết" whose plan starts "Chiến dịch mục tiêu" is the target (KOL) campaign.
+EXTERNAL_IMPORT_KINDS: Mapping[str, tuple[str, ...]] = {
+    "tieu de san pham": ("title",),
+    "anh bia + tieu de": ("cover_image", "title"),
+    "anh bia": ("cover_image",),
+    "voucher": ("min_spend_voucher",),
+    "quang cao": ("ads_roas_target",),
+    "gia": ("price",),
+    "combo khuyen mai": ("bundle_deal",),
+    "mua kem deal soc": ("add_on", "gift"),
+    "mua qua tang kem": ("gift",),
+    "tiep thi lien ket": ("affiliate_commission", "affiliate_target_campaign"),
+}
+#: Rows with nothing to measure (research, a report, a talk with a partner, setting up a listing
+#: or a switch): listed as notes, never imported. By the row's Mã, and by the plan's opening words.
+EXTERNAL_IMPORT_SKIP_REFS: tuple[str, ...] = ("NH-1", "XM-1", "VC-R", "KOC-2")
+EXTERNAL_IMPORT_SKIP_PHRASES: tuple[str, ...] = (
+    "nghien cuu",
+    "bao cao",
+    "trao doi",
+    "tao listing",
+    "bat tinh nang",
+)
+#: Most data rows one import reads (the sheet's own summary block below the rows is not read).
+EXTERNAL_IMPORT_MAX_ROWS = 500

@@ -1045,12 +1045,21 @@ async def publish(
 
 
 #: Why Ops takes a card off the list ("Gỡ thẻ"): not fitting, a duplicate, already done outside
-#: Juli, anything else.
-WITHDRAW_REASONS: tuple[str, ...] = ("not_fit", "duplicate", "done_outside", "other")
+#: Juli, anything else; ``reset`` = the owner reset the Thực hiện board (``board_reset``).
+WITHDRAW_REASONS: tuple[str, ...] = (
+    "not_fit",
+    "duplicate",
+    "done_outside",
+    "other",
+    proposals.REASON_RESET,
+)
 
 
-async def _detach_from_plan(session: AsyncSession, p: ShopProposal, now: datetime) -> None:
-    """A planned card leaves its draft plan before it is withdrawn (a confirmed plan keeps it)."""
+async def _detach_from_plan(
+    session: AsyncSession, p: ShopProposal, now: datetime, *, force: bool = False
+) -> None:
+    """A planned card leaves its draft plan before it is withdrawn (a confirmed plan keeps it,
+    unless ``force``: the owner's board reset takes it out of any plan)."""
     row = await session.scalar(
         select(ShopRecoPlanCard).where(
             ShopRecoPlanCard.shop_id == p.shop_id,
@@ -1059,15 +1068,18 @@ async def _detach_from_plan(session: AsyncSession, p: ShopProposal, now: datetim
         )
     )
     plan = await session.get(ShopRecoPlan, row.plan_id) if row is not None else None
-    if row is None or plan is None or plan.status != PLAN_DRAFT:
+    if not force and (row is None or plan is None or plan.status != PLAN_DRAFT):
         raise ProposalError(
             "reco_card_in_confirmed_plan",
             409,
             "the card belongs to a confirmed plan: take it out of the plan first",
         )
-    row.removed_at = now
-    plan.updated_at = now
-    p.status = row.prior_status
+    if row is not None:
+        row.removed_at = now
+        if not force:
+            p.status = row.prior_status
+    if plan is not None:
+        plan.updated_at = now
     p.lever_plan_id = None
     await store.set_meta(session, p.shop_id, p.id, {"plan_id": None})
 
@@ -1083,7 +1095,9 @@ async def withdraw(
     by: str | None = None,
 ) -> None:
     """Ops takes a card off the list: it closes as ``withdrawn`` (a planned card leaves its
-    draft plan first), the reason is kept on the card, and the product's next card moves up."""
+    draft plan first), the reason is kept on the card, and the product's next card moves up.
+    ``reason_code = "reset"`` (the owner's board reset) also takes a planned card out of a
+    confirmed plan and an executed card out of its running measurement."""
     reason = reason_code or "other"
     if reason not in WITHDRAW_REASONS:
         raise ProposalError(
@@ -1091,9 +1105,13 @@ async def withdraw(
         )
     now = _naive(now)
     p, _ = await _proposal(session, shop_id, card_id)
+    reset = reason == proposals.REASON_RESET
+    executed = p.status == STATUS_EXECUTED
     if p.status == STATUS_PLANNED:
-        await _detach_from_plan(session, p, now)
-    await proposals.withdraw(session, p, now=now)
+        await _detach_from_plan(session, p, now, force=reset)
+    await proposals.withdraw(session, p, now=now, reason=reason)
+    if executed:  # a reset executed card leaves its running measurement (never calibrates)
+        await change_sets.drop_card(session, shop_id, card_id, now=now)
     await store.set_meta(
         session,
         shop_id,
@@ -1516,8 +1534,10 @@ async def mark_executed(
     approved = await _approved_with(session, shop_id, card_id)
     sheet = (approved or {}).get("execution_sheet") or card["execution_sheet"]
     changes = [dict(c) for c in sheet["changes"]]
+    # an execution recorded after the fact (an import) has nothing "after" to read back
+    readback = (payload_extra or {}).get(verification.NO_READBACK_FLAG) is not False
     for c in changes:
-        if c["change_kind"] == "voucher":
+        if c["change_kind"] == "voucher" and readback:
             voucher_id = voucher_id or await fill_queue.captured_ref_of(
                 session, shop_id, card_id, "voucher"
             )

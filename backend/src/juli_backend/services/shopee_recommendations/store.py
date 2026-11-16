@@ -37,6 +37,7 @@ from juli_backend.models.shop_proposals import (
     STATUS_EXECUTED,
     STATUS_PLANNED,
     STATUS_SENT,
+    STATUS_WITHDRAWN,
     ShopProposal,
     ShopProposalExecution,
 )
@@ -60,6 +61,8 @@ from juli_backend.services.shopee_recommendations.learning import (
 from juli_backend.services.shopee_recommendations.sim_priors import SimPriors
 
 CARD_STATUS = "shopee_reco"
+#: ``shop_proposals.cycle.REASON_RESET``: the owner's board reset withdrew the card
+RESET_REASON = "reset"
 ORIGIN_ENGINE = "engine"
 WORKFLOW_PREFIX = "shopee_reco"
 #: Proposal statuses that hold their products against a new card.
@@ -297,6 +300,25 @@ async def set_meta(
     meta = json.loads(row.metadata_json or "{}")
     meta.update(patch)
     row.metadata_json = json.dumps(meta)
+
+
+async def reset_card_ids(session: AsyncSession, shop_id: uuid.UUID) -> set[str]:
+    """Ids of the shop's cards the owner's board reset withdrew (``withdrawn.reason_code``)."""
+    rows = await session.execute(
+        select(ActionCard.id, ActionCard.metadata_json)
+        .join(ShopProposal, ShopProposal.id == ActionCard.id)
+        .where(
+            ActionCard.shop_id == shop_id,
+            ActionCard.status == CARD_STATUS,
+            ShopProposal.status == STATUS_WITHDRAWN,
+        )
+    )
+    out: set[str] = set()
+    for card_id, raw in rows.all():
+        meta = json.loads(raw or "{}")
+        if (meta.get("withdrawn") or {}).get("reason_code") == RESET_REASON:
+            out.add(str(card_id))
+    return out
 
 
 def provenance(card: Mapping[str, Any]) -> dict[str, Any]:

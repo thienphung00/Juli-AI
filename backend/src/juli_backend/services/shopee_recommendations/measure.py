@@ -265,11 +265,14 @@ async def verified_time(
     ).all()
     if not exe:
         return None, "not_executed"
+    # an execution recorded after the fact (``readback = False``: an import) is never read back,
+    # so its clock starts at the execution like a kind without a reader
     readable = [
         e
         for e in exe
         if (e.payload or {}).get("change", {}).get("change_kind")
         in ("title", "price", "images", "stock", "daily_budget", "roas_target", "voucher")
+        and (e.payload or {}).get("readback") is not False
     ]
     if readable:
         if len(ver) < len(readable):
@@ -985,6 +988,11 @@ async def read_plan_totals(
     return done
 
 
+def _from_reset(ref: str, reset: set[str]) -> bool:
+    """An observation's ref is the card id, ``cs:<set>`` or ``<set>:<card>``."""
+    return bool(reset) and any(part in reset for part in str(ref).split(":"))
+
+
 async def run_learning(
     session: AsyncSession, shop_id: uuid.UUID, *, now: datetime, include_natural: bool = True
 ) -> LearningReport:
@@ -999,7 +1007,9 @@ async def run_learning(
     natural = [o for o in old if o.source == "natural"] if include_natural else []
     prior_cards = {o.ref: o for o in old if o.source == "card"}
     merged = {**prior_cards, **{o.ref: o for o in card_obs}}
-    all_obs = [*natural, *merged.values()]
+    # a card the owner's board reset withdrew never calibrates (the shop's rows feed the pool)
+    reset = await store.reset_card_ids(session, shop_id)
+    all_obs = [*natural, *(o for o in merged.values() if not _from_reset(o.ref, reset))]
     states = learning.calibrate_all(all_obs)
     report.observations_total = len(all_obs)
     report.states = await store.save_calibrations(session, shop_id, states, all_obs, now=now)
