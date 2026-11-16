@@ -43,12 +43,13 @@ def test_the_shortest_window_with_enough_events_is_used():
     assert base.window_days == 30
 
 
-def test_a_thin_shop_widens_the_window_then_is_low_data():
+def test_a_thin_shop_widens_the_window_then_falls_back_to_60_days():
     # 1 order a day: 14 -> 14, 30 -> 30 events: 30 days qualifies
     assert dict(adaptive_base(_rows(60, 1), "s").windows)["ctor"] == 30
-    # 1 order every day over only 20 days of history: never 30 events -> ít dữ liệu
+    # owner 2026-11-16: 20 orders never reach 30 events -> the 60-day window anyway, not low data
     thin = adaptive_base(_rows(20, 1), "s")
-    assert "ctor" in thin.low_data and "aov" in thin.low_data
+    assert dict(thin.windows)["ctor"] == 60
+    assert "ctor" not in thin.low_data and "aov" not in thin.low_data
 
 
 def test_days_after_the_last_data_day_are_missing_not_zero():
