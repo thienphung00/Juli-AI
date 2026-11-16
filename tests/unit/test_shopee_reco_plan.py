@@ -470,11 +470,11 @@ async def test_cards_on_different_products_add(session, shop):
     await plans.add_card(session, sid, a, actor=_actor(seeded), now=NOW)
     agg = (await plans.add_card(session, sid, b, actor=_actor(seeded), now=NOW))["aggregate"]
     total = agg["dprofit_month"]["total"]["p50"]
-    # F2 (owner 2026-11-16): a product with too few orders for its CTOR / AOV is "ít dữ liệu" and
-    # is not estimated (1002 has under 30 orders in the fixture), so only 1001 adds to the plan
+    # F2 amendment (owner 2026-11-16): 1002 has under 30 orders, so its base is the 60-day window
+    # (not "ít dữ liệu"); both products are estimated and add to the plan
     by_product = {c["product_id"]: c for c in agg["cards"]}
     assert by_product["1001"]["result"]["estimable"] is True
-    assert by_product["1002"]["result"]["estimable"] is False
+    assert by_product["1002"]["result"]["estimable"] is True
     alone = sum(c["alone"]["dprofit"]["p50"] for c in agg["cards"] if c["result"]["estimable"])
     assert total == pytest.approx(alone, rel=0.02, abs=50)
     assert agg["stacked_products"] == [] and {p_["product_id"] for p_ in agg["products"]} == {

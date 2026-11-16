@@ -6,7 +6,8 @@ D29.1):
 
 * **Adaptive window per metric.** The shortest of :data:`WINDOWS` (14 / 30 / 60 days) holding at
   least :data:`MIN_EVENTS` events (clicks for CTR; orders for CTOR, AOV, GMV). None qualifies:
-  the metric is "ít dữ liệu" (``FunnelBase.low_data``) and no option driven by it is estimated.
+  the 60-day window is used anyway (owner 2026-11-16) and the wide F3 band decides (F5); only a
+  metric with no event in 60 days is "ít dữ liệu" (``FunnelBase.low_data``).
   Lượt xem is never low-data and reads the shortest window. The numbers are the same as
   ``DiagTunables`` defaults on TikTok (windows 14/30/60, 30 events); they are repeated here because
   a Shopee module does not read TikTok's per-shop rules row.
@@ -175,11 +176,16 @@ def adaptive_base(
             return WINDOWS[0], False
         if kind is None:
             return WINDOWS[0], False
+        events = 0
         for length in WINDOWS:
             b, _ = base_of(cap, length)
-            if _events(b, kind) >= MIN_EVENTS:
+            events = _events(b, kind)
+            if events >= MIN_EVENTS:
                 return length, False
-        return WINDOWS[-1], True
+        # Owner 2026-11-16 (F2 amendment): no window holds MIN_EVENTS -> use the 60-day window
+        # anyway; its wide F3 noise band (F5) blanks any effect that does not clear it. Only a
+        # metric with no event at all in 60 days is "ít dữ liệu".
+        return WINDOWS[-1], events == 0
 
     both = ol if tl is None else min(ol, tl)
     w_views, _ = pick(tl, None)
