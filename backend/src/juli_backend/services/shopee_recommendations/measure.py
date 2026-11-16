@@ -59,6 +59,8 @@ from juli_backend.services.shopee_recommendations.prediction import factor_from,
 ITEM_DAILY = ("item_traffic_sources", "item_by_source")
 ADS_DAILY = "ads_campaign_daily"
 STREAMS = ("product_card", "seller_live", "seller_video", "affiliate")
+#: metrics read from traffic rows (their data must be fresh too, F2)
+TRAFFIC_METRICS = ("views", "ctr", "ctor")
 MEASURABLE = ("ctr", "ctor", "views", "orders", "aov", "ads_gmv", "roas", "gmv")
 
 
@@ -438,7 +440,12 @@ async def _read_card(
             post_days=plan_days,
             excluded=excluded,
         )
-    stale = _stale_run(treated_days, data, t + timedelta(days=plan_days), uses_traffic=not campaign)
+    stale = _stale_run(
+        treated_days,
+        data,
+        t + timedelta(days=plan_days),
+        uses_traffic=metric in TRAFFIC_METRICS,
+    )
     block = result_store.measured_block(card)
     meas = verdict.measurement(
         metric=metric,
@@ -697,7 +704,7 @@ async def _read_joint(
     reading = impact.read_effect(
         series_of(treated_days, "gmv", first, last), controls, t, post_days=days, excluded=excluded
     )
-    stale = _stale_run(treated_days, data, t + timedelta(days=days), uses_traffic=True)
+    stale = _stale_run(treated_days, data, t + timedelta(days=days), uses_traffic=False)
     rel = (cs.predicted or {}).get("rel_gmv") or _joint_rel_from_cards(
         cards, treated_days, first, t
     )
