@@ -537,3 +537,19 @@ async def test_a_card_executed_without_a_plan_joins_the_plan_of_the_month(sessio
     assert plan["plan"]["name"] == "Thẻ làm trực tiếp 10/2026"
     assert [c["card_id"] for c in plan["cards"]] == [str(first)]
     assert plan["aggregate"]["cards"][0]["result"]["own"]["dates"]["from"] == "2026-10-08"
+
+
+def test_an_ads_off_row_becomes_a_remove_product_card():
+    """Owner 2026-11-16: "tắt quảng cáo" = the product leaves its campaign (Xoá sản phẩm)."""
+    off = _r(14, "QC-OFF", "Quảng cáo", 1001, "[Deal Sốc] CDN/01: tắt quảng cáo", "",
+             datetime(2026, 10, 6), DONE, 7)  # fmt: skip
+    plan = _plans(_xlsx([*ROWS, off]))["QC-OFF"]
+    (card,) = plan.cards
+    assert card.kind == "ads_remove_product"
+    spec = card.spec
+    assert (spec["lever"], spec["item_id"], spec["campaign_key"]) == (
+        "remove_product",
+        "1001",
+        "cgroup1",
+    )
+    assert "roas_target" not in spec
