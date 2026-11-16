@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from juli_backend.services.shopee_builder.combo_options import config
 from juli_backend.services.shopee_builder.combo_options.models import Member
 from juli_backend.services.shopee_builder.specs import MAX_TITLE_CHARS
+from juli_backend.services.shopee_profit.pack import pack_count_from_name
 
 DEFAULT_NAMES = ("", "Mặc định")
 
@@ -31,7 +32,7 @@ def _var_label(m: Member) -> str:
 
 _UNIT_WORDS = (
     "chai", "hộp", "túi", "gói", "lọ", "tuýp", "cuộn", "lon", "hũ", "thùng", "viên", "miếng",
-    "cái", "bịch", "can", "bánh",
+    "cái", "bịch", "can", "bánh", "khăn",
 )  # fmt: skip
 _UNIT_AFTER_NUMBER = re.compile(r"\d\s*(" + "|".join(_UNIT_WORDS) + r")(?![\wÀ-ỹ])", re.IGNORECASE)
 _UNIT_ANYWHERE = re.compile(
@@ -41,13 +42,19 @@ _UNIT_ANYWHERE = re.compile(
 
 def unit_word(*texts: str | None) -> str:
     """The word the product's own names use for one item ("Combo 3 chai" -> "chai"): a word
-    right after a number first, any such word second; the default word when none is there."""
+    right after a number first, any such word second; "sản phẩm" when none is there (G6). Pass
+    the product name first: it wins over the variation names."""
     for rx in (_UNIT_AFTER_NUMBER, _UNIT_ANYWHERE):
         for text in texts:
             match = rx.search(unicodedata.normalize("NFC", text or ""))
             if match:
                 return match.group(1).lower()
     return config.DEFAULT_UNIT
+
+
+def is_combo_variation(name: str | None) -> bool:
+    """G6: a variation already named "Combo N" / "Set N" is itself a pack: never packed again."""
+    return pack_count_from_name(name) is not None
 
 
 def multi_pack_name(members: Sequence[Member], unit: str) -> str:

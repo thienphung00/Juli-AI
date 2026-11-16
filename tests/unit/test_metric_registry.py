@@ -547,3 +547,10 @@ def test_offers_on_shopee_are_unchanged() -> None:
     assert evaluate("cost_offers", resolve_components(Platform.shopee, comps)).value == D(60)
     partial = {"offer_promo": D(10), "offer_seller_total": D(999)}
     assert evaluate("cost_offers", resolve_components(Platform.shopee, partial)).value is None
+
+
+def test_card_return_is_its_own_metric_and_roi_keeps_one_meaning() -> None:
+    from juli_backend.services.shopee_builder.engine.wire import CARD_RETURN_ID, CARD_RETURN_LABEL
+
+    assert METRICS[CARD_RETURN_ID].label_vi == CARD_RETURN_LABEL == "ΔGMV / chi phí"
+    assert METRICS["roi"].label_vi == "ROI"

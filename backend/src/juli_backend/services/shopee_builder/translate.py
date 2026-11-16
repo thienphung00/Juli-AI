@@ -782,11 +782,12 @@ def _price_display(spec: sp.PriceDisplaySpec, ctx: BuilderContext) -> Translatio
     row = ctx.variation(spec.item_id, spec.variation_id) or (
         ctx.rows(spec.item_id)[0] if ctx.rows(spec.item_id) else None
     )
-    line = spec.text
-    if not line and row and row.get("price_per_measure"):
-        line = f"{lst.vnd(row['price_per_measure'])} / {row['measure_label']}"
-    elif not line and row and row["price_per_unit"]:
-        line = f"{lst.vnd(row['price_per_unit'])} / đơn vị"
+    # G7: the default line is the price per 100 ml / 100 g from the size in the name ("500ml",
+    # "1kg"); with no size in the name the default is empty (never a guessed "/ đơn vị")
+    default_line = ""
+    if row and row.get("price_per_measure"):
+        default_line = f"{lst.vnd(row['price_per_measure'])} / {row['measure_label']}"
+    line = spec.text or default_line
     return Translation(
         {
             "label": _label(spec, "Hiển thị giá"),
@@ -799,6 +800,7 @@ def _price_display(spec: sp.PriceDisplaySpec, ctx: BuilderContext) -> Translatio
                 "before_text": f"Ảnh bìa hiện tại chưa nêu đơn giá: {li.cover_url}",
                 "after_text": f"Ghi thêm lên ảnh bìa: “{line}”." if line else "",
                 "line": line,
+                "default_line": default_line,  # G7: the grey placeholder; "" = no size known
             },
         },
         "price_display",

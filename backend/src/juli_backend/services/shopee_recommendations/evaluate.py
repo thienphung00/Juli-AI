@@ -696,6 +696,17 @@ def eval_price(
             default=None,
         ),
     }
+    if cand.kind == "flash_sale":
+        # G8: what the slot hands buyers = (today's price - flash price) x the units the slot
+        # reaches; the same slot share (its hours, capped at its units) the estimate uses
+        given = ZERO
+        for sku, new in new_prices.items():
+            paid = env.current_price(sku)
+            if paid is None or sku not in results:
+                continue
+            units = sum((ln.qty for ln in lines if ln.sku == sku and ln.product_id == item), ZERO)
+            given += max(paid - new, ZERO) * units
+        certain["discount_given"] = num(given / window * effect_days * slot)
     if predicted is not None:
         nets = [r.predicted for r in results.values() if r.predicted is not None]
         if nets:

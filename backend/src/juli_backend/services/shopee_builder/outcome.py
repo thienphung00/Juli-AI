@@ -27,6 +27,7 @@ from typing import Any
 from juli_backend.services.shopee_builder import before_after
 from juli_backend.services.shopee_builder.context import BuilderContext
 from juli_backend.services.shopee_builder.engine import wire
+from juli_backend.services.shopee_builder.reasons import profit_reason, reason_fields, text_for
 from juli_backend.services.shopee_builder.traffic import break_even_ctor, scope_traffic
 from juli_backend.services.shopee_builder.translate import Translation
 from juli_backend.services.shopee_profit import shop_profit
@@ -93,8 +94,8 @@ REASON_TEXT: dict[str, str] = {
     "no_flow_data": "Chưa có lưu lượng theo nguồn để tính CTOR cần đạt.",
     "no_clicks": "Chưa có lượt nhấp để tính CTOR cần đạt.",
     "no_extra_cost": "Không tốn thêm chi phí nên không cần thêm đơn.",
-    "profit_per_order_unknown": "Chưa biết lợi nhuận mỗi đơn (thiếu giá vốn hoặc phí).",
-    "profit_unknown": "Chưa biết lợi nhuận mỗi đơn (thiếu giá vốn hoặc phí).",
+    "profit_per_order_unknown": "Chưa biết lợi nhuận mỗi đơn nên chưa tính được hoà vốn.",
+    "profit_unknown": "Chưa biết lợi nhuận mỗi đơn của sản phẩm.",
     "profit_per_order_non_positive": (
         "Mỗi đơn đang lỗ hoặc hoà vốn, thêm đơn không bù được chi phí."
     ),
@@ -286,6 +287,32 @@ def _cost(card: Mapping[str, Any], tr: Translation, p50_orders: float | None) ->
 
 #: the money layer's month-scaled parts that do not hold for other days
 _MONTH_PARTS = ("expected_units", "expected_units_basis", "existing")
+
+
+NO_EXTRA_COST_TEXT = "Không có chi phí thêm"
+
+
+def with_discount_given(
+    result: Mapping[str, Any] | None, card: Mapping[str, Any]
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """G8: a Flash Sale slot has no fixed cost, but it hands buyers a discount. Returns the result
+    with its cost line reading "Tiền giảm cho khách ~X đ" instead of "Không có chi phí thêm"
+    (the break-even part is kept), and ``{"amount", "text"}`` for the card; ``(result, None)``
+    for any other kind or when the slot's discount is unknown."""
+    out = None if result is None else dict(result)
+    given = (card.get("certain") or {}).get("discount_given")
+    if card.get("change_kind") != "flash_sale" or given is None:
+        return out, None
+    text = "Tiền giảm cho khách ~" + wire.vnd(given).replace("đ", " đ")
+    info = {"amount": given, "text": text}
+    if out is not None and isinstance(out.get("cost"), Mapping):
+        cost = dict(out["cost"])
+        shown = str(cost.get("text") or "")
+        if shown.startswith(NO_EXTRA_COST_TEXT):
+            cost["text"] = text + shown[len(NO_EXTRA_COST_TEXT) :]
+        cost["discount_given"] = given
+        out["cost"] = cost
+    return out, info
 
 
 def _result_cost(result: Mapping[str, Any] | None) -> Mapping[str, Any]:
@@ -601,10 +628,15 @@ def _warnings(
         and delta_profit["p50"] is None
         and card["predicted"]["lift"]["metric"] != "none"
     ):
+        # G5: the real reason (costs may exist: then the window's orders lack them, or the
+        # profit after the change cannot be computed), never a canned "thiếu phí hoặc giá vốn"
+        code = profit_reason(result, cost_known=cost_known)
         out.append(
             {
                 "type": "profit_unknown",
-                "message": "Chưa tính được lợi nhuận dự kiến: thiếu phí hoặc giá vốn.",
+                "reason_code": code,
+                "reason_text": text_for(code),
+                "message": text_for(code),
             }
         )
     for b in card["floor"]["breaches"]:
@@ -747,6 +779,7 @@ def result_basis(result: Mapping[str, Any] | None, old: Mapping[str, Any]) -> di
             "label": BASIS_LABELS["insufficient"],
             "detail": "Chưa ước tính được cho phương án này.",
             "volume_estimate": False,
+            **reason_fields("no_estimate"),
         }
     key, label, detail = RESULT_BASIS[str(result.get("basis"))]
     if not result.get("estimable"):
@@ -758,6 +791,7 @@ def result_basis(result: Mapping[str, Any] | None, old: Mapping[str, Any]) -> di
         "volume_estimate": bool(result.get("estimable")),
         "weak": bool(result.get("basis_weak")),
         "previous": old.get("key"),
+        **reason_fields(None if result.get("estimable") else result.get("reason_code")),
     }
 
 
@@ -801,6 +835,7 @@ def shape(
     if not cost_known:
         rd["profit"] = dict(NULL_BAND)
     delta_profit = rd["profit"]
+    result_out, discount_given = with_discount_given(result, numbers)
     return {
         "index": index,
         "kind": kind,
@@ -811,7 +846,8 @@ def shape(
         "refusal": None,
         "title": card["title"],
         "driver": result_driver(result, driver),
-        "result": None if result is None else dict(result),
+        "result": result_out,
+        "discount_given": discount_given,
         "result_refusal": None if result_refusal is None else dict(result_refusal),
         "before_after": before_after.from_result(
             result,
