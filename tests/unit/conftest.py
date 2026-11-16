@@ -184,6 +184,23 @@ def _no_live_vendor_identity_lookup(monkeypatch):
         raising=False,
     )
 
+    def _fake_resolve_all(*, app_key: str, app_secret: str, access_token: str) -> list[dict]:
+        # P101 W2a: the multi-shop lookup answers with the single-shop one, read at call time,
+        # so a test that overrides `resolve_authorized_shop` still controls the connect.
+        from juli_backend.services.tiktok import credential_binding
+
+        return [
+            credential_binding.resolve_authorized_shop(
+                app_key=app_key, app_secret=app_secret, access_token=access_token
+            )
+        ]
+
+    monkeypatch.setattr(
+        "juli_backend.services.tiktok.credential_binding.resolve_authorized_shops",
+        _fake_resolve_all,
+        raising=False,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Tenant + API fixtures (tests/support). A module that needs a different shape

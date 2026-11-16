@@ -282,6 +282,16 @@ grill assumed it was circular — that no second merchant could connect without 
 it gates. `resolve_merchant_context` falls through to `SELLER_CONNECT` rather than raising, so a
 second merchant genuinely can connect today. The trigger fires on a real, observable event.
 
+### Amendment 2026-11-16 (P101 W2a): one more listing write path
+
+`PRODUCTION_WRITE_ALLOWED_REQUESTS` gains `POST /product/202509/products/{id}/partial_edit`
+(the docs' partial listing edit, P101 W0 probe §A/§F). It is the same D13 listing write
+(title / description / cover) behind the same D71 write flag and the same four-precondition
+resolver of decision 7 -- a path, not a new kind of mutation. The 202607 promotion republish
+was added to the sandbox allowlist only: production still has no promotion write, and opening
+one needs its own amendment here. Product detail stays on 202309 (the 202509 detail answered
+`36009004` in the W0 sandbox probe); `tests/unit/test_p101_w2a_allowlists.py` pins both.
+
 ## Rationale
 
 *Extracted during the W6→main reconcile to satisfy `check_adr`, which requires a

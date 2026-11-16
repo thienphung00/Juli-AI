@@ -23,14 +23,15 @@ from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Protocol
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
+from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import reapply_shop_scope
 from juli_backend.database.token_crypto import decrypt_token
-from juli_backend.models.models import TikTokCredential
+from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import TikTokCredentialRepo
 
 logger = logging.getLogger(__name__)
@@ -210,8 +211,62 @@ async def _fetch(session: AsyncSession, credential_id: uuid.UUID) -> TikTokCrede
     return credential
 
 
+def _lock_key(credential: TikTokCredential) -> str:
+    """The advisory-lock key: the credential's GRANT when it has one (P101 W2a).
+
+    Sibling credentials of one grant share a rotating refresh token, so two shops of one grant
+    refreshing at once must serialise exactly like two callers of one row: one vendor call, and
+    the loser finds its own row already renewed by the winner's sibling write.
+    """
+    if credential.grant_id is not None:
+        return f"tiktok_grant:{credential.grant_id}"
+    return str(credential.id)
+
+
+async def _grant_siblings(
+    session: AsyncSession, credential: TikTokCredential
+) -> list[tuple[uuid.UUID, uuid.UUID]]:
+    """``(credential id, shop id)`` of every other credential of this one's grant (P101 W2a).
+
+    Same ``grant_id``, merchant and capability, in another shop of the same owner -- never another
+    account's or merchant's row. Called under the credential's own shop scope. On PostgreSQL the
+    siblings are invisible from that scope, so migration 132's ``SECURITY DEFINER`` function
+    answers (identifiers only; it refuses a source credential outside the current shop); on
+    SQLite the same predicate runs as a plain query. No existence probe, no fallback (061).
+    """
+    if credential.grant_id is None or not credential.merchant_authorization_id:
+        return []
+    if _dialect_name(session) == "postgresql":
+        rows = await session.execute(
+            text(
+                "SELECT out_credential_id, out_shop_id "
+                "FROM public.enumerate_grant_sibling_credentials(:credential_id)"
+            ),
+            {"credential_id": credential.id},
+        )
+        return [(row[0], row[1]) for row in rows.all()]
+    other = aliased(TikTokCredential)
+    source_shop = aliased(Shop)
+    other_shop = aliased(Shop)
+    rows = await session.execute(
+        select(other.id, other.shop_id)
+        .join(source_shop, source_shop.id == credential.shop_id)
+        .join(other_shop, other_shop.id == other.shop_id)
+        .where(
+            other.grant_id == credential.grant_id,
+            other.id != credential.id,
+            other.shop_id != credential.shop_id,
+            other.merchant_authorization_id == credential.merchant_authorization_id,
+            other.capability.is_not_distinct_from(credential.capability),
+            other_shop.user_id == source_shop.user_id,
+        )
+        .order_by(other.created_at, other.id)
+    )
+    return [(row[0], row[1]) for row in rows.all()]
+
+
 async def _try_advisory_lock(
-    session: AsyncSession, credential_id: uuid.UUID
+    session: AsyncSession, credential_id: uuid.UUID | str
 ) -> tuple[bool, AsyncConnection | None]:
     """Session-level, non-transactional advisory lock (ADR-081 decision 5).
 
@@ -291,7 +346,9 @@ async def _try_advisory_lock(
     return True, conn
 
 
-async def _release_advisory_lock(conn: AsyncConnection | None, credential_id: uuid.UUID) -> None:
+async def _release_advisory_lock(
+    conn: AsyncConnection | None, credential_id: uuid.UUID | str
+) -> None:
     """Release + close the dedicated lock connection from
     :func:`_try_advisory_lock`. A no-op when ``conn`` is ``None`` (lock was
     never acquired, or dialect is not Postgres)."""
@@ -393,7 +450,8 @@ async def refresh_credential(
     if is_fresh:
         return RefreshOutcome(credential=_hydrate(credential), status=RefreshStatus.FRESH)
 
-    acquired, lock_conn = await _try_advisory_lock(session, credential_id)
+    lock_key = _lock_key(credential)
+    acquired, lock_conn = await _try_advisory_lock(session, lock_key)
 
     if not acquired:
         winner = await _poll_for_refresh(session, credential_id, baseline_expiry, shop_id)
@@ -446,10 +504,29 @@ async def refresh_credential(
             refresh_token_expires_at=new_refresh_token_expires_at,
             scopes=granted_scopes_of(token_data),
         )
+        # P101 W2a: TikTok rotated the grant's refresh token, so every sibling credential of the
+        # grant gets the new tokens in this same transaction -- each written under its own shop
+        # scope (no policy relaxed), then this shop's scope is put back before the commit.
+        siblings = await _grant_siblings(session, updated)
+        for sibling_id, sibling_shop_id in siblings:
+            await reapply_shop_scope(session, sibling_shop_id)
+            await cred_repo.mark_refreshed(
+                sibling_id,
+                new_access_token,
+                new_refresh_token,
+                new_expires_at,
+                refresh_token_expires_at=new_refresh_token_expires_at,
+                scopes=granted_scopes_of(token_data),
+            )
+        if siblings:
+            await reapply_shop_scope(session, shop_id)
         await session.commit()
         await reapply_shop_scope(session, shop_id)
 
-        logger.info("tiktok_token_refreshed", extra=_log_extra(updated))
+        logger.info(
+            "tiktok_token_refreshed",
+            extra={**_log_extra(updated), "grant_siblings_refreshed": str(len(siblings))},
+        )
         return RefreshOutcome(credential=updated, status=RefreshStatus.REFRESHED)
     finally:
-        await _release_advisory_lock(lock_conn, credential_id)
+        await _release_advisory_lock(lock_conn, lock_key)

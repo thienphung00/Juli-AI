@@ -238,19 +238,23 @@ async def complete_tiktok_oauth_callback(
             raise TikTokOAuthTokenExchangeFailed from exc
         business_id = await _connect_business(session, owner_id, verified)
         facade = build_partner_oauth_facade(session, service)
-        shop = await facade.provision_shop_and_credentials(
+        # P101 W2a (contract §2.1): one grant attaches every shop it authorises, all in the
+        # selected business.
+        shops = await facade.provision_shops_and_credentials(
             token_data, user_id=owner_id, business_id=business_id
         )
         # D10 (ADR-116 §2): an owner who already accepted the Terms grants them to the
-        # newly connected shop too. Never raises (logged, savepoint-isolated).
-        await grant_terms_consents_if_accepted(session, owner_id, [shop.id])
+        # newly connected shops too. Never raises (logged, savepoint-isolated).
+        await grant_terms_consents_if_accepted(session, owner_id, [shop.id for shop in shops])
         await session.commit()
-        _after_connect_committed(shop.id)
+        for shop in shops:
+            _after_connect_committed(shop.id)
         return TikTokOAuthCallbackResult(
             status="ok",
             message="OAuth callback accepted; shop provisioned via Auth facade",
-            open_id_present=bool(shop.tiktok_shop_id),
+            open_id_present=bool(shops[0].tiktok_shop_id),
             access_token_expires_in=token_data.get("access_token_expire_in"),
+            shops_connected=len(shops),
         )
 
     try:
@@ -274,9 +278,10 @@ async def complete_tiktok_oauth_callback(
     async with with_user_scope(session, owner_id):
         await UsersRepo(session).get_or_create(owner_id, APP_REVIEW_USER_PHONE)
     facade = build_partner_oauth_facade(session, service)
-    shop = await facade.provision_shop_and_credentials(token_data, user_id=owner_id)
+    shops = await facade.provision_shops_and_credentials(token_data, user_id=owner_id)
     await session.commit()
-    _after_connect_committed(shop.id)
+    for shop in shops:
+        _after_connect_committed(shop.id)
     return result
 
 

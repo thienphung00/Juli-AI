@@ -74,6 +74,14 @@ CREATOR_CONTENT_DETAILS_PATH = (
     f"/affiliate_seller/{AFFILIATE_CONTENT_API_VERSION}/open_collaborations/creator_content_details"
 )
 FINANCE_STATEMENTS_PATH = f"/finance/{FINANCE_API_VERSION}/statements"
+# P101 W0 probe gaps (p101-w0-probe-docs.md §F). Exact versions, read-only.
+#: Product search at the docs' newest version; PRODUCT_SEARCH_PATH (202309) stays the default
+#: until the mapper switches. Product DETAIL stays on PRODUCT_API_VERSION (202309): the
+#: 202509 detail returned 36009004 in the W0 sandbox probe.
+PRODUCT_SEARCH_202502_PATH = "/product/202502/products/search"
+FINANCE_UNSETTLED_ORDERS_PATH = "/finance/202507/orders/unsettled"
+AFFILIATE_ORDERS_SEARCH_PATH = "/affiliate_seller/202410/orders/search"
+EVENT_WEBHOOKS_PATH = "/event/202309/webhooks"
 #: Templates (rate-limit bucket keys and docs); the call uses the ``*_path`` helpers.
 ORDER_PRICE_DETAIL_PATH_TEMPLATE = (
     f"/order/{ORDER_PRICE_DETAIL_API_VERSION}/orders/{{order_id}}/price_detail"
