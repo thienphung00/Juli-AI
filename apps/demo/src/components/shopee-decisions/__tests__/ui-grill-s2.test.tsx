@@ -1,4 +1,4 @@
-import { configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { P_ZIP, fakeBuilder, type FakeBuilder } from "../../../lib/shopee-decisions/__tests__/builder-fixtures";
@@ -6,8 +6,9 @@ import { fakeReco, summaryOf, voucherCard } from "../../../lib/shopee-decisions/
 import type { BuilderP98Api } from "../../../lib/shopee-decisions/builder-p98-api";
 import type { ExecutionCard, ExecutionStates } from "../../../lib/shopee-decisions/types";
 import { DecisionsView } from "../decisions-view";
-import { ThucHienView } from "../thuc-hien";
-import { params, renderReco } from "./harness";
+import { RecoHostProvider } from "../../../lib/shopee-decisions/context";
+import { Row, ThucHienView } from "../thuc-hien";
+import { hostOf, params, renderReco } from "./harness";
 
 /**
  * UI grill 2026-11-16 (owner), S2's part: G2 tool tabs keep their work, G3 defaults are placeholders,
@@ -135,5 +136,33 @@ describe("G14 · the voucher code on a Thực hiện row", () => {
     renderReco(<ThucHienView />, fakeReco({ execution: states([row({ captured_voucher_id: "77002" }), row({ card_id: "t", change_kind: "title", family: "listing" })]) }));
     expect(await screen.findByTestId("sd-th-code-v")).toHaveValue("77002");
     expect(screen.queryByTestId("sd-th-code-t")).toBeNull();
+  });
+});
+
+describe("G14 · a code captured after the row is shown", () => {
+  it("fills the field when a later refresh brings it, and keeps what the seller typed", async () => {
+    const host = hostOf(fakeReco());
+    const at = (c: ExecutionCard) => (
+      <RecoHostProvider host={host}>
+        <Row c={c} name={null} onDone={() => undefined} readOnly={false} sample={false} />
+      </RecoHostProvider>
+    );
+    const { rerender } = render(at(row({})));
+    expect(await screen.findByTestId("sd-th-code-v")).toHaveValue("");
+    rerender(at(row({ captured_voucher_id: "77003" })));
+    expect(screen.getByTestId("sd-th-code-v")).toHaveValue("77003");
+    fireEvent.change(screen.getByTestId("sd-th-code-v"), { target: { value: "99" } });
+    rerender(at(row({ captured_voucher_id: "77004" })));
+    expect(screen.getByTestId("sd-th-code-v")).toHaveValue("99");
+  });
+});
+
+describe("F2 · a Đề xuất card on stale data", () => {
+  it("shows where the data stops instead of Δ lợi nhuận, and no per-day line", async () => {
+    const old = summaryOf(voucherCard(), { data_stale: { dataset: "orders", through: "2026-11-12" } });
+    renderReco(<DecisionsView params={params()} />, fakeReco({ list: { cards: [old], counts: {} } as never }));
+    const card = await screen.findByTestId("sq-card-card-voucher");
+    expect(within(card).getByTestId("dx-dprofit")).toHaveTextContent("Đơn hàng đến 12/11");
+    expect(within(card).queryByTestId("dx-perday")).toBeNull();
   });
 });

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+import pytest
+
 from juli_backend.services.forecast import triggers as trg
 from juli_backend.services.shopee_recommendations import trigger_adapter as ta
 from juli_backend.services.shopee_recommendations.model import Candidate
@@ -109,7 +111,8 @@ def test_opportunity_gated_on_band_and_positive_value():
     assert neg == []
     # profit unknown: the value is the ΔGMV
     (t,) = trg.detect([flat], _Adapter(forecasts=[_forecast(50_000.0, None)]), as_of=END)
-    assert t.value_basis == "gmv" and t.value == 50_000.0
+    # the card's 14-day effect on the 30-day horizon problems use
+    assert t.value_basis == "gmv" and t.value == pytest.approx(50_000.0 * 30 / 14)
 
 
 def test_product_with_a_problem_gets_no_opportunity():
@@ -219,3 +222,17 @@ def test_a_thin_product_falls_back_to_the_longest_window_not_low_data():
     }
     assert triggers._adaptive_window(rows, as_of, "ctor", (14, 30, 60), 30) == (60, False)
     assert triggers._adaptive_window({}, as_of, "ctor", (14, 30, 60), 30) == (60, True)
+
+
+def test_an_opportunity_value_is_put_on_the_problems_30_day_horizon():
+    from juli_backend.services.forecast import triggers
+
+    class A:
+        def forecasts(self, pid):
+            return [
+                triggers.LeverForecast(pid, "title", "ctr", 140_000.0, None, 14, [10_000.0] * 30)
+            ]
+
+    out = triggers.detect_opportunities("p1", A(), profit_known=False)
+    # 140k over the card's 14 days = 300k over the 30-day horizon problems use
+    assert out and out[0].value == pytest.approx(300_000.0)

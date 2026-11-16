@@ -50,6 +50,7 @@ from juli_backend.models.shop_proposals import (
 )
 from juli_backend.models.shopee_plans import PLAN_DRAFT, ShopRecoPlan, ShopRecoPlanCard
 from juli_backend.services.card_events import keys, verification
+from juli_backend.services.forecast import triggers as trg
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
 from juli_backend.services.shopee_analytics import loaders
@@ -131,6 +132,9 @@ def _rank_input(card_id: str, card: dict[str, Any], env: RecoEnv) -> RankInput:
         dgmv_p25=ri["dgmv_p25"],
         acceptance=acc,
         kg_value=ri.get("kg_value"),
+        trigger_type=card.get("trigger_type") or trg.OPPORTUNITY,
+        dgmv_p50=ri.get("dgmv_p50"),
+        urgency=float(ri.get("urgency") or 0.0),
     )
 
 
@@ -521,6 +525,9 @@ def _summary(
         "plan": card["measurement_plan"]["label"],
         "stale": bool((meta or {}).get("stale")) or stale_why is not None,
         "stale_reason": (meta or {}).get("stale_reason") or stale_why,
+        # F2: the shop's data is too old to forecast ({dataset, through} | None); not the
+        # recompute flag above ("stale" = "Đang cập nhật")
+        "data_stale": card.get("stale"),
         "computed_at": (card.get("freshness") or {}).get("computed_at"),
         "engine_version": (card.get("freshness") or {}).get("engine_version"),
         "bundle": card.get("bundle", False),
