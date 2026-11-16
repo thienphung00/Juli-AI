@@ -38,6 +38,8 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 #: The audit action of a Connector tick (``system_`` prefix: kind ``system``, 90-day retention).
 ACTION_CONNECTOR_TICK = connector_state.ACTION_CONNECTOR_TICK
+#: The Celery task that generates the shop's new cards (``workers/tasks/shopee_daily_cards``).
+DAILY_CARDS_TASK = "juli_backend.shopee_daily_cards"
 #: Ticks per shop per hour (a day has one run, one stock read and a few distinct skips).
 TICKS_PER_HOUR = 30
 
@@ -71,6 +73,20 @@ class ConnectorTick(BaseModel):
             if len(outcome) > _MAX_OUTCOME_LEN:
                 raise ValueError("outcome_too_long")
         return value
+
+
+def _enqueue_daily_cards(shop_id: Any) -> None:
+    """The daily run reported in: new cards for that shop, in a worker (never in the request).
+    A broker failure is logged and never fails the tick; the 02:03 UTC beat is the fallback."""
+    try:
+        from juli_backend.workers import celery_app
+
+        celery_app.celery_app.send_task(DAILY_CARDS_TASK, args=[str(shop_id)])
+    except Exception as exc:
+        logger.error(
+            "shopee_daily_cards_enqueue_failed",
+            extra={"shop_id": str(shop_id), "error_type": type(exc).__name__},
+        )
 
 
 @router.post("/connector-ticks", status_code=status.HTTP_202_ACCEPTED)
@@ -125,6 +141,8 @@ async def post_connector_tick(
                 version=tick.source_version,
             )
     await session.commit()
+    if tick.platform == "shopee" and tick.kind == "run" and tick.trigger == "daily":
+        _enqueue_daily_cards(principal.shop_id)
     logger.info(
         "connector_tick",
         extra={
