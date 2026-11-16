@@ -50,6 +50,7 @@ from juli_backend.services.shopee_recommendations import (
     product_queue,
     result_store,
     store,
+    verdict,
 )
 from juli_backend.services.shopee_recommendations.kinds import KINDS, spec
 from juli_backend.services.shopee_recommendations.learning import Observation
@@ -301,6 +302,7 @@ class CardReading:
     post_days: int | None = None
     skipped: str | None = None
     stacked: bool = False
+    measurement: dict[str, Any] | None = None
 
 
 async def _read_card(
@@ -338,6 +340,8 @@ async def _read_card(
         report.skip(how)
         return CardReading(skipped=how)
     t = t_at.date()
+    if not partial:  # G12: the run days are the measurement days
+        plan_days = verdict.run_days(card, plan_days) or plan_days
     final_due = today >= t + timedelta(days=plan_days + 1)
     prelim_due = (
         not partial
@@ -348,7 +352,7 @@ async def _read_card(
         report.skip("plan_not_ended")
         return CardReading(skipped="plan_not_ended")
     span = plan_days if final_due else PRELIMINARY_DAYS
-    first, last = t - timedelta(days=impact.PRE_DAYS + 1), t + timedelta(days=span)
+    first, last = t - timedelta(days=verdict.HISTORY_DAYS), t + timedelta(days=span)
     items = card["scope"]["product_ids"]
     if metric in ("ads_gmv", "roas"):
         data = await load_campaign_days(session, shop_id, first, last)
@@ -369,7 +373,9 @@ async def _read_card(
         session, shop_id, p.id, items, t, t + timedelta(days=plan_days)
     )
 
-    async def write(event_type: str, reading: impact.Reading, days: int) -> None:
+    async def write(
+        event_type: str, reading: impact.Reading, days: int, meas: dict[str, Any] | None = None
+    ) -> None:
         await store.write_event(
             session,
             shop_id,
@@ -396,6 +402,7 @@ async def _read_card(
                 "preliminary": event_type == EVENT_IMPACT_PRELIMINARY,
                 "partial": partial,
                 "change_set": change_set,
+                "measurement": meas,
             },
         )
 
@@ -418,12 +425,54 @@ async def _read_card(
         post_days=plan_days,
         excluded=excluded,
     )
-    await write(EVENT_IMPACT_FINAL, reading, plan_days)
+    campaign = metric in ("ads_gmv", "roas")
+    gmv_reading: impact.Reading | None = None
+    if metric not in verdict.GMV_METRICS and not campaign:
+        gmv_controls = {
+            k: series_of(v, "gmv", first, last) for k, v in data.items() if k not in items
+        }
+        gmv_reading = impact.read_effect(
+            series_of(treated_days, "gmv", first, last),
+            gmv_controls,
+            t,
+            post_days=plan_days,
+            excluded=excluded,
+        )
+    stale = _stale_run(treated_days, data, t + timedelta(days=plan_days), uses_traffic=not campaign)
+    block = result_store.measured_block(card)
+    meas = verdict.measurement(
+        metric=metric,
+        reading=reading,
+        gmv_reading=gmv_reading,
+        block=block,
+        days=plan_days,
+        t=t,
+        history=_history(treated_days, metric, first, t, excluded),
+        gmv_history=_history(
+            treated_days, "gmv" if not campaign else "ads_gmv", first, t, excluded
+        ),
+        stale=stale,
+        partial=partial,
+    )
+    if campaign:
+        meas["ads_rows"] = verdict.campaign_rows(
+            block,
+            _day_means(
+                treated_days, t - timedelta(days=impact.PRE_DAYS), t - timedelta(days=1), excluded
+            ),
+            _day_means(
+                treated_days, t + timedelta(days=1), t + timedelta(days=plan_days), excluded
+            ),
+            plan_days,
+        )
+    await write(EVENT_IMPACT_FINAL, reading, plan_days, meas)
     if partial:  # a cut measurement is shown ("đo được N ngày"), never calibrated
-        return CardReading(None, reading, plan_days, stacked=stacked)
+        return CardReading(None, reading, plan_days, stacked=stacked, measurement=meas)
     if reading.impact_pct is None or reading.confidence == "suppressed":
         report.skip(f"reading_{reading.reason}")
-        return CardReading(None, reading, plan_days, f"reading_{reading.reason}", stacked)
+        return CardReading(
+            None, reading, plan_days, f"reading_{reading.reason}", stacked, measurement=meas
+        )
     lo, hi = _lift_range(card)
     obs = Observation(
         card["change_kind"],
@@ -437,9 +486,13 @@ async def _read_card(
         str(p.id),
         not reading.fallback,
         str(card.get("origin") or "engine"),
+        tier=reading.confidence,
+        fresh=not stale,
     )
     report.readings += 1
-    return CardReading(obs, reading, plan_days, stacked=stacked)
+    if not meas["calibrates"]:
+        report.skip(f"not_calibrating_{meas['calibration_skip']}")
+    return CardReading(obs, reading, plan_days, stacked=stacked, measurement=meas)
 
 
 async def read_cards(
@@ -562,6 +615,7 @@ async def read_change_sets(
                 "predicted_range": [lo, hi],
                 "in_range": _in_range(got.reading.impact_pct, lo, hi),
                 "read": True,
+                "measurement": got.measurement,
                 **_reading_json(got.reading, got.post_days),
             }
             if not cut:
@@ -643,6 +697,7 @@ async def _read_joint(
     reading = impact.read_effect(
         series_of(treated_days, "gmv", first, last), controls, t, post_days=days, excluded=excluded
     )
+    stale = _stale_run(treated_days, data, t + timedelta(days=days), uses_traffic=True)
     rel = (cs.predicted or {}).get("rel_gmv") or _joint_rel_from_cards(
         cards, treated_days, first, t
     )
@@ -704,6 +759,7 @@ async def _read_joint(
         Observation(
             "joint", "gmv", float(lo), float(hi), reading.impact_pct, reading.se_rel,
             "card", cs.with_shop_wide, f"cs:{cs.id}", controlled,
+            tier=reading.confidence, fresh=not stale,
         )
     ]  # fmt: skip
     mid_j = (float(lo) + float(hi)) / 2
@@ -721,9 +777,50 @@ async def _read_joint(
                 None if reading.se_rel is None else reading.se_rel * abs(mid_k / mid_j),
                 "card", cs.with_shop_wide, f"{cs.id}:{p.id}", controlled,
                 str(card.get("origin") or "engine"), config.MULTI_CARD_WEIGHT,
+                tier=reading.confidence, fresh=not stale,
             )
         )  # fmt: skip
     return out
+
+
+def _history(
+    days: Mapping[date, DayAgg], metric: str, first: date, t: date, excluded: frozenset[date]
+) -> list[float | None]:
+    """The metric's daily values before the start (the F3 band's history); sale days and other
+    changes left out, a day without a value skipped."""
+    got = series_of(days, metric, first, t - timedelta(days=1))
+    return [v for d, v in sorted(got.items()) if d not in excluded]
+
+
+def _day_means(
+    days: Mapping[date, DayAgg], first: date, last: date, excluded: frozenset[date]
+) -> dict[str, float]:
+    """Per-day mean spend / GMV / orders of a campaign over ``first..last`` (no days = {})."""
+    used = [d for d in (first + timedelta(days=i) for i in range((last - first).days + 1))
+            if d not in excluded and d in days]  # fmt: skip
+    if not used:
+        return {}
+    return {
+        "spend": sum(days[d].spend for d in used) / len(used),
+        "gmv": sum(days[d].gmv for d in used) / len(used),
+        "orders": sum(days[d].orders for d in used) / len(used),
+    }
+
+
+def _stale_run(
+    treated: Mapping[date, DayAgg],
+    data: Mapping[str, Mapping[date, DayAgg]],
+    run_end: date,
+    *,
+    uses_traffic: bool,
+) -> bool:
+    """F2: did the shop's data stop during the run (orders / traffic older than lag + grace)?"""
+    every = [treated, *data.values()]
+    orders = [d for part in every for d, a in part.items() if a.orders or a.gmv or a.spend]
+    traffic = [d for part in every for d, a in part.items() if a.views or a.clicks]
+    return verdict.stale_run(
+        max(orders, default=None), max(traffic, default=None), run_end, uses_traffic
+    )
 
 
 def _sum_days(parts: Iterable[Mapping[date, DayAgg]]) -> dict[date, DayAgg]:
@@ -942,6 +1039,7 @@ def score_natural(
         False,
         ref,
         not reading.fallback,
+        tier=reading.confidence,
     )
     if obs.controlled:
         report.bump(report.usable, kind)

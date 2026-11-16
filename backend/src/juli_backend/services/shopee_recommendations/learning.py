@@ -27,6 +27,7 @@ from typing import Any
 from juli_backend.services.shopee_recommendations import config
 
 MIN_VARIANCE = 1e-6
+CALIBRATING_TIERS = frozenset({"cao", "trung_binh"})
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,15 @@ class Observation:
     #: weight in the pooled ratio: 1 for a clean single-card reading, ``MULTI_CARD_WEIGHT``
     #: (0.25) for a card that was one of several in a change set (P91 D-7)
     weight: float = 1.0
+    #: F10: the reading's confidence tier ("" = unknown, an observation stored before F10) and
+    #: whether the run's data was fresh (no F2 stale marker); only cao / trung_binh on fresh data
+    #: calibrate. A lower-tier result is stored and shown, never used.
+    tier: str = ""
+    fresh: bool = True
+
+    @property
+    def calibrates(self) -> bool:
+        return self.fresh and (not self.tier or self.tier in CALIBRATING_TIERS)
 
     @property
     def predicted_mid(self) -> float:
@@ -82,6 +92,8 @@ class Observation:
             "controlled": self.controlled,
             "origin": self.origin,
             "weight": self.weight,
+            "tier": self.tier,
+            "fresh": self.fresh,
         }
 
     @classmethod
@@ -99,6 +111,8 @@ class Observation:
             bool(d.get("controlled", True)),
             str(d.get("origin") or "engine"),
             float(d.get("weight", 1.0)),
+            str(d.get("tier") or ""),
+            bool(d.get("fresh", True)),
         )
 
 
@@ -154,7 +168,7 @@ def calibrate(
             groups[(o.change_kind, o.metric)].append(o)
     out: dict[tuple[str, str], CalibrationState] = {}
     for key, obs in groups.items():
-        usable = [o for o in obs if not o.bundle and o.controlled]
+        usable = [o for o in obs if not o.bundle and o.controlled and o.calibrates]
         pairs = [rv for o in usable if (rv := o.ratio_and_variance()) is not None]
         hits = sum(1 for o in usable if o.in_range)
         out[key] = CalibrationState(
@@ -171,6 +185,15 @@ def calibrate(
                 **(
                     {"uncontrolled": n}
                     if (n := sum(1 for o in obs if not o.bundle and not o.controlled))
+                    else {}
+                ),
+                **(
+                    {"gated": n}
+                    if (
+                        n := sum(
+                            1 for o in obs if not o.bundle and o.controlled and not o.calibrates
+                        )
+                    )
                     else {}
                 ),
             },
