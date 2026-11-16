@@ -36,3 +36,14 @@ describe("UI grill G5 · profit_unknown", () => {
     expect(profitUnknownText({ warnings: [] })).toBeUndefined();
   });
 });
+
+describe("forecast grill F2 · stale data on a card", () => {
+  it("Dự kiến says where the data stops in place of the numbers", () => {
+    const card = voucherCard();
+    const pm = { ...card.predicted.money_per_month, shown: { dgmv: null, dorders: null, dprofit: null }, stale: { dataset: "orders" as const, through: "2026-11-12" } };
+    const rows = expectedRows({ ...card, predicted: { ...card.predicted, money_per_month: pm } });
+    expect(rows[1]!.dv).toBe("Đơn hàng đến 12/11");
+    expect(rows[2]!.dv).toBe("Đơn hàng đến 12/11");
+    expect(rows[3]!.dv).toBe("Đơn hàng đến 12/11");
+  });
+});

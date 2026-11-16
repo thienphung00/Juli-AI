@@ -9,7 +9,7 @@ import { bandText, breakEvenText, floorWarningText, marginText, metricValue, ref
 import { TextChip } from "../../shopee-analytics/ui";
 import { OptionCard } from "../option-card";
 import { perDayText, periodLabel, resultDays, signedCount, signedMoney } from "../option-card/format";
-import { roiLabel, type OptionResult } from "../../../lib/shopee-decisions/option-result";
+import { roiLabel, staleText, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TargetRows } from "./targets";
 
 /**
@@ -35,13 +35,7 @@ export function basisTone(key: string | undefined): "info" | "pink" | "warn" | "
   return key === "product_history" ? "info" : key === "shop" || key === "pooled" ? "pink" : key === "prior" ? "warn" : "flat";
 }
 
-/** Forecast grill F2: "Đơn hàng đến 12/11" when the shop's data is behind (no estimate then). */
-export function staleText(stale: { readonly dataset: "orders" | "traffic"; readonly through: string } | null | undefined): string | null {
-  if (!stale) return null;
-  const m = /^\d{4}-(\d{2})-(\d{2})/.exec(stale.through);
-  if (!m) return null;
-  return `${stale.dataset === "orders" ? "Đơn hàng" : "Lượt truy cập"} đến ${m[2]}/${m[1]}`;
-}
+export { staleText } from "../../../lib/shopee-decisions/option-result";
 
 export function BasisChip({ outcome }: { readonly outcome: BuilderOutcome }) {
   const b = outcome.basis;

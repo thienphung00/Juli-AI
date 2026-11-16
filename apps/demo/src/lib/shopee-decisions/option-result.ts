@@ -3,6 +3,20 @@
 // Money and counts are numbers (VND / count); pct are percent numbers (3.5 = +3,5 %); null = unknown.
 
 export type Driver = "views" | "ctr" | "ctor" | "aov";
+/** Forecast grill F2: the shop's data stops at `through` (no numbers then). */
+export interface DataStale {
+  readonly dataset: "orders" | "traffic";
+  readonly through: string;
+}
+
+/** Forecast grill F2: "Đơn hàng đến 12/11" / "Lượt truy cập đến 09/11"; null without a marker. */
+export function staleText(stale: DataStale | null | undefined): string | null {
+  if (!stale) return null;
+  const m = /^\d{4}-(\d{2})-(\d{2})/.exec(stale.through);
+  if (!m) return null;
+  return `${stale.dataset === "orders" ? "Đơn hàng" : "Lượt truy cập"} đến ${m[2]}/${m[1]}`;
+}
+
 /** UI grill G4: the ΔGMV ÷ chi phí line's name, from the server (registry metric `card_return`). */
 export const roiLabel = (r: Pick<OptionResult, "roi"> | null | undefined): string => r?.roi?.label || CARD_RETURN_LABEL;
 export const CARD_RETURN_LABEL = "ΔGMV / chi phí";
@@ -57,7 +71,7 @@ export interface OptionResult {
   readonly drivers: readonly Driver[];
   readonly estimable: boolean;
   /** Forecast grill F2: the shop's data stops at `through`; not estimable then, no numbers. */
-  readonly stale?: { readonly dataset: "orders" | "traffic"; readonly through: string } | null;
+  readonly stale?: DataStale | null;
   /** Forecast grill F3: metrics whose change is inside the noise band (their delta is null, shown "—"). */
   readonly within_noise?: readonly ("gmv" | "orders" | "profit")[];
   readonly basis: Basis;
