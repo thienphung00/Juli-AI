@@ -596,7 +596,6 @@ FLOOR_EXEMPT: dict[str, str] = {
     "ads_purpose": "no volume effect is predicted (target metric none)",
     "ads_keywords": "no preset prior: the card shows keywords and the shop's own report",
     "ads_new_campaign": "no preset prior: extra orders are measured on / off days only",
-    "ads_roas_target": "a trade-off (volume against efficiency), not a pure uplift",
     "voucher_cap": "limit action: the designed effect is zero or negative",
     "review_voucher": "designed effect is small (a thank-you voucher, no minimum spend)",
     "description_first_line": "designed effect is small (text-only edit, prior 0-4 %)",
@@ -609,12 +608,37 @@ FLOOR_EXEMPT: dict[str, str] = {
 }
 
 
+#: Owner decision 2026-11-16: a sized kind's floor scales with the change,
+#: ``MIN_PRIOR_LIFT x min(1, size / REFERENCE_SIZE)``; ``size`` is a percent. A kind not listed
+#: here has no size and keeps the flat floor. A size of 0 (or none) gives no floor.
+#: ``ads_roas_target`` is floored only for a LOWERED target (size = the % decrease, a volume
+#: push); a raised target means fewer, cheaper orders by design and is never floored.
+REFERENCE_SIZE: dict[str, float] = {
+    # price prior 0.5-2 % per 1 % cut (mid 1.25 %): a 4 % cut lands the prior on 5 %
+    "product_discount": 4.0,
+    "price": 4.0,
+    "flash_sale": 4.0,
+    "program_registration": 4.0,
+    # the ads-budget prior (3-25 %) is stated per ``config.ADS_BUDGET_STEP_PCT`` (20 %) of budget
+    "ads_budget": 20.0,
+    # the ROAS-target prior (2-15 %) is stated per 10 % change of the target (prediction.py)
+    "ads_roas_target": 10.0,
+}
+
+
 def floor_prior_band(
-    kind: str, p10: Decimal, p50: Decimal, p90: Decimal
+    kind: str, p10: Decimal, p50: Decimal, p90: Decimal, size: float | None = None
 ) -> tuple[Decimal, Decimal, Decimal]:
-    """Floor a generic-prior band: P50 := max(P50, 5 %), P90 := max(P90, P50), P10 unchanged but
-    never above P50. Exempt kinds and a band with P50 <= 0 come back as they are."""
+    """Floor a generic-prior band: P50 := max(P50, floor), P90 := max(P90, P50), P10 unchanged but
+    never above P50. The floor is 5 % flat, or scaled by ``size`` for a kind in
+    :data:`REFERENCE_SIZE`. Exempt kinds, a sized kind with no size > 0 and a band with
+    P50 <= 0 come back as they are."""
     if kind in FLOOR_EXEMPT or p50 <= 0:
         return p10, p50, p90
-    new50 = max(p50, MIN_PRIOR_LIFT)
+    floor = MIN_PRIOR_LIFT
+    if kind in REFERENCE_SIZE:
+        if size is None or size <= 0:
+            return p10, p50, p90
+        floor = MIN_PRIOR_LIFT * Decimal(str(min(1.0, size / REFERENCE_SIZE[kind])))
+    new50 = max(p50, floor)
     return min(p10, new50), new50, max(p90, new50)

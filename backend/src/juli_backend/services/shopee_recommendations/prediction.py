@@ -215,15 +215,28 @@ def predict_lift(
         lo, hi = _price_capped(lo, hi)
     floored = False
     if source == "prior" and not sim_info["applied"]:
-        lo, hi, floored = _floor_generic(spec.key, lo, hi)
+        lo, hi, floored = _floor_generic(spec.key, lo, hi, magnitude)
     return Lift(spec.target_metric, lo, hi, factor, source, scale, bucket, sim_info, floored)
 
 
-def _floor_generic(kind: str, lo: float, hi: float) -> tuple[float, float, bool]:
-    """Owner rule 2026-11-15: a generic prior is at least ``MIN_PRIOR_LIFT`` at P50. The lift is a
-    normal through (P10, P90), so P10 stays and P90 moves until the middle is the floor."""
-    mid = (lo + hi) / 2
-    p10, p50, p90 = floor_prior_band(kind, Decimal(str(lo)), Decimal(str(mid)), Decimal(str(hi)))
+def _floor_generic(
+    kind: str, lo: float, hi: float, magnitude: float | None = None
+) -> tuple[float, float, bool]:
+    """Owner rule 2026-11-15/16: a generic prior is at least ``MIN_PRIOR_LIFT`` at P50, scaled by
+    the size of the change for a sized kind. The lift is a normal through (P10, P90), so P10 stays
+    and P90 moves until the middle is the floor. A lowered ROAS target is a volume push: its
+    (negative) prior band is read as the volume gain, sized by the % decrease; a raised one is
+    never floored."""
+    size = magnitude
+    band = (lo, hi)
+    if kind == "ads_roas_target":
+        if magnitude is None or magnitude >= 0:
+            return lo, hi, False
+        band, size = (-hi, -lo), -magnitude
+    mid = (band[0] + band[1]) / 2
+    p10, p50, _ = floor_prior_band(
+        kind, Decimal(str(band[0])), Decimal(str(mid)), Decimal(str(band[1])), size
+    )
     if p50 == Decimal(str(mid)):
         return lo, hi, False
     return float(p10), float(2 * p50 - p10), True
