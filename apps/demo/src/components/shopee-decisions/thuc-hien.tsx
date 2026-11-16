@@ -10,6 +10,7 @@ import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { fillJobHref } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
 import { errorText, NavLink, RecoState } from "./ui";
+import { BoardActions } from "./board-actions";
 
 /**
  * Quyết định › Thực hiện: Juli Connector fills Seller Centre, the seller saves, the Connector reads
@@ -241,6 +242,7 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
               )}
             </section>
             )}
+            {host.reco.board && !sample && !readOnly && !host.staff ? <BoardActions board={host.reco.board} onChanged={() => setTick((t) => t + 1)} /> : null}
             <ul className="sd-th-list">
               {data.cards.map((c) => (
                 <Row c={c} key={c.card_id} name={(names.status === "ready" && c.product_id ? names.data.get(c.product_id) : null) ?? null} onDone={() => setTick((t) => t + 1)} readOnly={readOnly} sample={sample} />
