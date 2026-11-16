@@ -44,7 +44,7 @@ def test_migration_127_is_additive_reversible_and_the_tail():
     assert "UPDATE" not in mod._CLAUSES and "GRANT SELECT, INSERT, UPDATE" not in src
     assert TABLE_CLASSIFICATION_MAP[("public", "card_content_specs")] == "tenant_direct"
     tail = (MIGRATIONS / "deferred/101_write_mode_backfill.py").read_text("utf-8")
-    assert 'down_revision: str | None = "132_fleet_draws_real_shops"' in tail
+    assert 'down_revision: str | None = "133_fleet_draws_real_shops"' in tail
 
 
 def test_the_model_and_the_migration_agree():

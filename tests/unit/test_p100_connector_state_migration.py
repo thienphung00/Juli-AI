@@ -71,9 +71,9 @@ def test_131_is_followed_by_132_and_additive_only():
     from alembic.script import ScriptDirectory
 
     script = ScriptDirectory.from_config(Config(str(REPO / "alembic.ini")))
-    # Forecast grill F6: 132 (pooled draws from real shops only) sits on 131.
-    assert script.get_revision("132_fleet_draws_real_shops").down_revision == (
-        "131_connector_reader_blocks"
+    # Forecast grill F6: 133 (pooled draws from real shops only) sits on W2a's 132.
+    assert script.get_revision("133_fleet_draws_real_shops").down_revision == (
+        "132_credential_grant_id"
     )
     sys.path.insert(0, str(REPO / "infra/scripts"))
     from migration_additive_gate import evaluate_migration_paths

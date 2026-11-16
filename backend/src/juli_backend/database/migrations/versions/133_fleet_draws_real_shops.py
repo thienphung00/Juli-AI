@@ -1,7 +1,7 @@
 """Pooled calibration draws come from real shops only (forecast grill F6)
 
-Revision ID: 132_fleet_draws_real_shops
-Revises: 131_connector_reader_blocks
+Revision ID: 133_fleet_draws_real_shops
+Revises: 132_credential_grant_id
 Create Date: 2026-11-16
 
 ``public.ops_fleet_calibration_draws()`` (migration 107) now also requires the contributing
@@ -19,8 +19,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "132_fleet_draws_real_shops"
-down_revision: str | None = "131_connector_reader_blocks"
+revision: str = "133_fleet_draws_real_shops"
+down_revision: str | None = "132_credential_grant_id"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
