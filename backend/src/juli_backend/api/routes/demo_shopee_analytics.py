@@ -375,13 +375,14 @@ async def shopee_export_tong_quan(
 
 @router.get("/exports/ke-hoach.xlsx")
 async def shopee_export_ke_hoach(
-    month: MonthQ = None,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    """Kế hoạch as an Excel file: the month's cards and goals."""
+    """Kế hoạch as an Excel file: the cards active in the range, the goals, the KOLs."""
     shop_id = _shopee(shop)
     try:
-        return await export_ke_hoach(session, shop_id, shop.shop_name, month)
+        return await export_ke_hoach(session, shop_id, shop.shop_name, start, end)
     except REFUSALS as exc:
         raise refusal(exc) from None

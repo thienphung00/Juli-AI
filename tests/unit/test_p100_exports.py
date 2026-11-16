@@ -10,7 +10,6 @@ import pytest
 from juli_backend.services.exports import ke_hoach_xlsx as kh
 from juli_backend.services.exports import tong_quan_xlsx as tq
 from juli_backend.services.exports.collect import _residual
-from juli_backend.services.shopee_recommendations import month_plan
 
 START = date(2026, 10, 12)
 
@@ -146,102 +145,85 @@ def test_residual_row_is_shop_minus_products_and_keeps_none():
 # ---------------------------------------------------------------------------------- Kế hoạch
 
 
-def _card(code, status, plan, start, end, gmv, profit, **kw) -> kh.CardRow:
-    return kh.CardRow(
-        code, plan, status, "Ưu đãi", "Voucher", "V1", "111", "Sản phẩm A", "AOV", start, end,
-        cost=1000.0, gmv_mid=gmv, profit_mid=profit, **kw,
+def _card(code, status, start, end, gmv, profit, **kw) -> kh.CardRow:
+    base = dict(
+        code=code, plan_code="KH-1", status=status, group="Ưu đãi", kind="Voucher", version="V1",
+        product_id="111", product_name="Sản phẩm A", metrics="AOV", start=start, end=end,
+        kind_key="min_spend_voucher", family="voucher", shop="Shop A", cost=1000.0,
+        gmv_mid=gmv, profit_mid=profit, orders_mid=3.0,
     )  # fmt: skip
+    return kh.CardRow(**{**base, **kw})
 
 
-def _kh_data() -> kh.KeHoachData:
+def _kh_data(shops=("Shop A",)) -> kh.KeHoachData:
     cards = [
-        _card(
-            "A", kh.RUNNING, "KH-1", date(2026, 11, 5), date(2026, 11, 18), 1_400_000.0, 140_000.0
-        ),
-        _card(
-            "B", kh.RUNNING, "KH-1", date(2026, 11, 25), date(2026, 12, 4), 1_000_000.0, -50_000.0
-        ),
-        _card("C", kh.DRAFT, "KH-2", date(2026, 11, 20), date(2026, 11, 24), 500_000.0, 25_000.0),
-        _card(
-            "D",
-            kh.MEASURED,
-            None,
-            date(2026, 11, 1),
-            date(2026, 11, 7),
-            777.0,
-            7.0,
-            result="+1 đ · Trong khoảng",
-        ),
-    ]
-    first = date(2026, 11, 1)
+        _card("A", kh.RUNNING, date(2026, 11, 5), date(2026, 11, 18), 1_400_000.0, 140_000.0,
+              actual_profit=100_000.0, conclusion="Trong khoảng"),
+        _card("C", kh.DRAFT, date(2026, 11, 20), date(2026, 11, 24), 500_000.0, 25_000.0),
+        _card("K", kh.MEASURED, date(2026, 11, 1), date(2026, 11, 7), 7.0, 7.0,
+              kind_key="ads_budget", family="ads", plan_code=None),
+    ]  # fmt: skip
+    goals = [kh.GoalRow(s, "Shopee", 100.0, 120.0, 90.0, 10.0, 12.0, 9.0) for s in shops]
     return kh.KeHoachData(
-        "Dữ liệu mẫu", first, date(2026, 11, 10), 57_000_000.0, 9_900_000.0,
-        {first + timedelta(days=i): 1_900_000.0 for i in range(10)},
-        {first + timedelta(days=i): 330_000.0 for i in range(10)}, cards,
+        date(2026, 11, 1), date(2026, 11, 30), list(shops), cards, goals,
+        [kh.GoalDay("Shop A", date(2026, 11, 1), 1.0, 2.0, 3.0, 4.0, 5.0, 6.0)],
+        [kh.KolRow("Shop A", "Shopee", "kol_a", 10.0, 2.0, 500.0, 50.0, 90.0, 1)],
     )  # fmt: skip
 
 
-def _card_dict(c: kh.CardRow) -> dict:
-    return {
-        "result": {"own": {
-            "dates": {"from": c.start.isoformat(), "to": c.end.isoformat()},
-            "days": (c.end - c.start).days + 1,
-            "delta": {"p50": {"dgmv": c.gmv_mid, "dprofit": c.profit_mid}},
-        }}
-    }  # fmt: skip
+def test_workbook_has_the_history_goal_kind_and_kol_sheets_and_no_draft_sheet():
+    names = kh.build(_kh_data()).sheetnames
+    assert names == [kh.SHEET_HISTORY, kh.SHEET_GOAL, "Voucher", "Quảng cáo", kh.SHEET_KOL]
+    assert "Kế hoạch nháp" not in names
 
 
-def test_month_sums_equal_month_plans_goals_for_both_scopes():
-    d = _kh_data()
-    first, last = d.month_first, date(2026, 11, 30)
-    rows = kh.daily_targets(d)
-    assert len(rows) == 30
-    for scope, cards in (("run", [c for c in d.cards if c.plan_code and c.status != kh.DRAFT]),
-                         ("draft", d.cards[:3])):  # fmt: skip
-        up_g, up_p, _ = month_plan.uplift_in_month([_card_dict(c) for c in cards], first, last)
-        goal_g = sum(r["goal_gmv" if scope == "run" else "goal_gmv_draft"] for r in rows)
-        goal_p = sum(r["goal_profit" if scope == "run" else "goal_profit_draft"] for r in rows)
-        assert goal_g == pytest.approx(d.baseline_gmv + up_g)
-        assert goal_p == pytest.approx(d.baseline_profit + up_p)
-
-
-def test_card_sheet_values_formulas_and_totals():
-    ws = kh.build(_kh_data())[kh.SHEET_CARDS]
-    assert [c.value for c in ws[3]][:14] == kh.CARD_HEADER
-    assert ws["B4"].value == "A" and ws["C6"].value == "Nháp" and ws["O7"].value is None
-    assert ws["K4"].value == 1_400_000 and ws["J4"].value == 1000
-    assert ws["M4"].value == '=IFERROR(L4/J4,"")' and ws["M4"].number_format == "0.0"
-    assert ws["K8"].value == "=SUM(K4:K7)" and ws["J8"].value == "=SUM(J4:J7)"
-    assert ws["H4"].number_format == "dd/mm/yyyy" and ws.column_dimensions["O"].hidden
-
-
-def test_goal_sheet_formulas_reference_the_card_ranges():
-    d = _kh_data()
-    ws = kh.build(d)[kh.SHEET_GOAL]
-    f = kh.DAY_HEADER_FIRST + 1
-    assert ws.cell(f, 1).value == date(2026, 11, 1) and ws.cell(f + 29, 1).value == date(
-        2026, 11, 30
+def test_history_row_has_status_dates_core_rows_and_a_difference_formula():
+    ws = kh.build(_kh_data())[kh.SHEET_HISTORY]
+    head = [c.value for c in ws[3]]
+    assert head[:5] == ["STT", "Mã thẻ", "Shop", "Nền tảng", "Trạng thái"]
+    assert "Δ lợi nhuận dự kiến" in head and "Δ lợi nhuận chênh lệch" in head
+    assert head[-1] == "Kết luận" and not any("khoảng" in str(h).lower() for h in head)
+    assert [ws.cell(r, 5).value for r in (4, 5, 6)] == ["Đang chạy", "Trong nháp", "Đã đo"]
+    assert ws["M4"].value == '=IF(OR(K4="",L4=""),"",L4-K4+1)' and ws["K4"].value == date(
+        2026, 11, 5
     )
-    assert ws.cell(f, 10).value == pytest.approx(57_000_000 / 30)  # hidden: GMV nền
-    run = ws.cell(f, 11).value
-    assert "SUMPRODUCT(" in run and "'Đề xuất'!$H$4:$H$7<=$A18" in run
-    assert "'Đề xuất'!$K$4:$K$7/('Đề xuất'!$I$4:$I$7-'Đề xuất'!$H$4:$H$7+1)" in run
-    assert '<>"Nháp"' in run and "'Đề xuất'!$O$4:$O$7" in run
-    assert '="Nháp"' in ws.cell(f, 12).value and "'Đề xuất'!$L$4:$L$7" in ws.cell(f, 14).value
-    assert ws.cell(f, 2).value == f"=J{f}+K{f}"  # GMV mục tiêu of the day
-    assert ws.cell(f, 4).value == f"=SUM(B${f}:B{f})"
-    assert ws.cell(f + 1, 5).value == f'=IF(C{f + 1}="","",SUM(C${f}:C{f + 1}))'
-    assert ws.cell(f, 3).value == 1_900_000 and ws.cell(f + 15, 3).value is None
-    assert [ws.cell(3 + i, 1).value for i in range(5)][0] == "GMV nền"
-    assert ws["B3"].value == f"=SUM(J{f}:J{f + 29})" and ws["B4"].value == f"=SUM(B{f}:B{f + 29})"
-    assert ws["B5"].value == f"=B4+SUM(L{f}:L{f + 29})"
-    assert ws["A6"].value == "GMV thực tế đến 10/11/2026"
-    assert f"MATCH(DATE(2026,11,10),$A{f}:$A{f + 29},0)" in ws["B7"].value
-    assert "INDEX(D" in ws["B7"].value and "INDEX(H" in ws["B14"].value
-    assert [c.value for c in ws[kh.DAY_HEADER_FIRST]][:9] == [
-        "Ngày", "GMV mục tiêu", "GMV thực tế", "Lũy kế mục tiêu", "Lũy kế thực tế",
-        "Lợi nhuận mục tiêu", "Lợi nhuận thực tế", "Lũy kế mục tiêu", "Lũy kế thực tế",
-    ]  # fmt: skip
+    assert ws["N4"].value == 140_000 and ws["O4"].value == 100_000  # Dự kiến, Thực tế
+    assert ws["P4"].value == '=IF(OR(N4="",O4=""),"",O4-N4)'
+    assert ws["O5"].value is None  # unread real value stays empty, never 0
+    assert ws.cell(4, 26).value == "Trong khoảng"
+
+
+def test_goal_sheet_gives_a_business_total_only_when_every_shop_has_a_target():
+    ws = kh.build(_kh_data(("Shop A", "Shop B")))[kh.SHEET_GOAL]
+    assert [ws.cell(r, 1).value for r in (4, 5, 6)] == ["Shop A", "Shop B", "Tổng"]
+    assert ws["D6"].value == 240.0 and ws["C6"].value == 200.0
+    data = _kh_data(("Shop A", "Shop B"))
+    data.goals[1].goal_gmv = None
+    ws = kh.build(data)[kh.SHEET_GOAL]
+    assert ws["D6"].value is None and ws["C6"].value == 200.0
+    assert kh.business_total([], "goal_gmv") is None
+
+
+def test_a_card_is_in_the_range_when_proposed_ran_or_was_measured_on_any_day_of_it():
+    c = _card("A", kh.RUNNING, date(2026, 11, 10), date(2026, 11, 20), 1.0, 1.0,
+              proposed=date(2026, 11, 8), measure_end=date(2026, 11, 25))  # fmt: skip
+    assert kh.active_in(c, date(2026, 11, 1), date(2026, 11, 8))  # only proposed
+    assert kh.active_in(c, date(2026, 11, 22), date(2026, 11, 30))  # only measured
+    assert kh.active_in(c, date(2026, 11, 12), date(2026, 11, 13))  # running
+    assert not kh.active_in(c, date(2026, 11, 26), date(2026, 12, 5))
+    assert not kh.active_in(c, date(2026, 10, 1), date(2026, 11, 7))
+    open_card = _card("B", kh.MEASURING, date(2026, 11, 1), None, 1.0, 1.0, measure_end=None)
+    assert kh.active_in(open_card, date(2026, 12, 1), date(2026, 12, 3))
+
+
+def test_kind_sheets_carry_their_tailored_rows_and_the_kol_sheet_one_row_per_kol():
+    wb = kh.build(_kh_data())
+    ads = [c.value for c in wb["Quảng cáo"][3]]
+    assert "CPA hoà vốn dự kiến" in ads and "Lượt nhấp thực tế" in ads
+    assert "Lượt dùng dự kiến" in [c.value for c in wb["Voucher"][3]]
+    kol = wb[kh.SHEET_KOL]
+    assert kol["C4"].value == "kol_a" and kol["I4"].value == '=IFERROR(H4/G4,"")'
+    assert kol["A5"].value is None
 
 
 def test_split_goal_sends_a_scoped_cards_uplift_only_to_its_skus():
@@ -312,17 +294,3 @@ def test_residual_channel_past_the_shop_is_unknown_not_negative():
     rest = _residual(shop, parts)
     assert rest.channel("organic").gmv is None and rest.channel("ads").gmv is None
     assert rest.gmv == pytest.approx(5_500_000 * -0.4)  # the GMV residual itself is kept
-
-
-def test_result_text_is_the_actual_and_the_verdict_of_the_measurement_row():
-    from juli_backend.services.exports.collect import _result_text
-    from juli_backend.services.shopee_recommendations import execution_state as es
-
-    assert _result_text({"actual": 320000, "verdict": es.VERDICT_INSIDE}) == (
-        "+320.000 đ · Trong khoảng"
-    )
-    assert (
-        _result_text({"actual": -1500.4, "verdict": es.VERDICT_BELOW}) == "-1.500 đ · Dưới khoảng"
-    )
-    assert _result_text({"actual": None, "verdict": es.VERDICT_RUNNING}) == "Đang đo"
-    assert _result_text({"actual": None, "verdict": es.VERDICT_NONE}) is None

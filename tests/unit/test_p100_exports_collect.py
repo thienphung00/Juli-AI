@@ -22,6 +22,7 @@ from tests.unit.test_p100c_month_plan import _executed_plan_and_draft, _voucher
 from tests.unit.test_shopee_reco_plan import _USER_IDS, NOW, _actor
 
 FIRST = date(2026, 10, 1)
+MONTH_END = date(2026, 10, 31)
 
 
 @pytest.fixture
@@ -73,7 +74,7 @@ async def test_export_goal_equals_range_plan_for_the_shop_and_a_product(session,
     _same(data.now, plan)
     for k in ("goal_gmv", "goal_profit", "baseline_gmv", "baseline_profit"):  # the days add up
         assert sum(getattr(d, k) for d in data.days) == pytest.approx(plan[k])
-    assert len(data.days) == (AS_OF - FIRST).days + 1
+    assert len(data.days) == 31
     rows_total = sum(r.now.goal_gmv or 0 for r in data.products)
     assert rows_total == pytest.approx(plan["goal_gmv"])  # the "Cả shop" row closes the column
 
@@ -105,21 +106,27 @@ async def test_no_running_card_means_no_goal_in_the_export(session, shop):
     assert all(d.goal_gmv is None for d in data.days)
 
 
-async def test_ke_hoach_export_month_equals_month_plans(session, shop, monkeypatch):
+async def test_ke_hoach_export_lists_the_cards_active_in_the_range_and_the_goal(
+    session, shop, monkeypatch
+):
     seeded, _ = shop
     await _executed_plan_and_draft(session, seeded, monkeypatch)
     sid = seeded.shop_id
-    data = await collect_ke_hoach(session, sid, shop_name="Mẫu", now=NOW, month="2026-10")
-    both = await month_plan.month_plans(session, sid, now=NOW, anchor=AS_OF)
-    run = both[month_plan.SCOPE_RUNNING]
-    assert data.month_first == FIRST and data.last_data_day == AS_OF
-    assert data.baseline_gmv == pytest.approx(run["baseline_gmv"])
-    rows = kh.daily_targets(data)
-    assert sum(r["goal_gmv"] for r in rows) == pytest.approx(run["goal_gmv"])
-    assert sum(r["goal_profit"] for r in rows) == pytest.approx(run["goal_profit"])
-    assert kh.build(data).sheetnames == [kh.SHEET_CARDS, kh.SHEET_GOAL]
+    data = await collect_ke_hoach(
+        session, sid, shop_name="Mẫu", now=NOW, start=FIRST, end=MONTH_END
+    )
+    run = await month_plan.range_plan(
+        session, sid, FIRST, MONTH_END, actual_to=AS_OF, scope=month_plan.SCOPE_RUNNING, now=NOW
+    )
+    assert data.start == FIRST and data.end == MONTH_END and data.shops == ["Mẫu"]
+    assert data.goals[0].shop == "Mẫu"
+    assert data.goals[0].baseline_gmv == pytest.approx(run["baseline_gmv"])
+    assert len(data.days) == 31
+    assert kh.DRAFT in {c.status for c in data.cards}
+    assert all(kh.active_in(c, FIRST, MONTH_END) for c in data.cards)
+    assert kh.SHEET_HISTORY in kh.build(data).sheetnames
     with pytest.raises(ValueError):
-        await collect_ke_hoach(session, sid, shop_name="Mẫu", now=NOW, month="2027-01")
+        await collect_ke_hoach(session, sid, shop_name="Mẫu", now=NOW, start=AS_OF, end=FIRST)
 
 
 async def test_sku_sheet_goals_sum_to_the_product_goal_and_actuals_to_the_product(

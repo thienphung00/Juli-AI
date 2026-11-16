@@ -31,6 +31,7 @@ from juli_backend.services.shopee_analytics import (
     channel_split,
     funnel,
     loaders,
+    metric_view,
     service,
 )
 from juli_backend.services.shopee_analytics.compute import PeriodView
@@ -396,7 +397,7 @@ def split_sku(label: str) -> tuple[str, float | None]:
 
 def _card_row(
     card: Mapping[str, Any], plan_code: str | None, status: str, ev: Mapping[str, Any] | None,
-    names: dict[str, str],
+    names: dict[str, str], *, shop: str, platform: str, proposed: date | None,
 ) -> kh.CardRow:  # fmt: skip
     kind = card.get("change_kind") or ""
     spec = kinds.KINDS.get(kind)
@@ -423,8 +424,10 @@ def _card_row(
         metrics=METRIC_LABELS.get(spec.target_metric) if spec else None,
         start=date.fromisoformat(dates["from"]) if dates.get("from") else None,
         end=date.fromisoformat(dates["to"]) if dates.get("to") else None,
+        kind_key=kind, family=card.get("family") or "", shop=shop, platform=platform,
+        proposed=proposed,
         cost=_f(own.get("cost_total")),
-        gmv_mid=q("p50", "dgmv"), profit_mid=q("p50", "dprofit"),
+        gmv_mid=q("p50", "dgmv"), profit_mid=q("p50", "dprofit"), orders_mid=q("p50", "dorders"),
     )  # fmt: skip
 
 
@@ -436,43 +439,42 @@ VERDICT_TEXT = {
 }
 
 
-def _result_text(row: Mapping[str, Any]) -> str | None:
-    """ "<Δ lợi nhuận thực tế> · <kết luận>" of one Đo lường row (``execution_state``'s own actual
-    and verdict); ``None`` when it has neither."""
-    actual, verdict_key = row.get("actual"), row.get("verdict")
+def _conclusion(row: Mapping[str, Any]) -> tuple[float | None, str | None]:
+    """(Δ lợi nhuận thực tế, kết luận) of one Đo lường row (``execution_state``'s own actual and
+    verdict). TODO(F10): the Đo lường method decides both; this is today's measured value."""
+    verdict_key = row.get("verdict")
     verdict = VERDICT_TEXT.get(verdict_key) if isinstance(verdict_key, str) else None
-    money = None if actual is None else f"{round(float(actual)):+,}".replace(",", ".") + " đ"
-    parts = [p for p in (money, verdict) if p]
-    return " · ".join(parts) or None
+    return _f(row.get("actual")), verdict
 
 
-async def collect_ke_hoach(
-    session: AsyncSession, shop_id: uuid.UUID, *, shop_name: str, now: datetime,
-    month: str | None = None, platform: str = "Shopee",
-) -> kh.KeHoachData:  # fmt: skip
-    """The Kế hoạch workbook's numbers of ``month`` (YYYY-MM; default the newest data month),
-    month to date up to the newest data day inside it."""
-    window = await service.resolve(session, shop_id)
-    if window is None:
-        raise ValueError("no data")
-    if month is None:
-        first = window.end.replace(day=1)
-    else:
-        first = date(int(month[:4]), int(month[5:7]), 1)
-    if first > window.end:
-        raise ValueError("month after the newest data day")
-    last = first.replace(day=calendar.monthrange(first.year, first.month)[1])
-    anchor = min(window.end, last)
-    both = await month_plan.month_plans(session, shop_id, now=now, anchor=anchor)
-    run = both[month_plan.SCOPE_RUNNING]
-    listing = await channel_split.channel_split_products(
-        session, shop_id, period="custom", start=first, end=anchor
-    )
-    names = {p["product_id"]: p["name"] for p in listing["products"]}
-    # actual per day of the month so far: the stored daily rows
-    view, rows = await _view(session, shop_id, Window(first, anchor))
-    actual_gmv = {d.day: float(d.gmv) for d in rows.shop_days}
-    actual_profit = {d.day: float(d.profit) for d in rows.shop_days if d.profit is not None}
+def _day(v: Any) -> date | None:
+    if v is None:
+        return None
+    return v.date() if isinstance(v, datetime) else date.fromisoformat(str(v)[:10])
+
+
+async def _cards_of(
+    session: AsyncSession, shop_id: uuid.UUID, *, shop: str, platform: str, now: datetime,
+    names: dict[str, str],
+) -> list[kh.CardRow]:  # fmt: skip
+    """Every card of the shop with a plan (executed or draft) or a measurement, whatever its dates;
+    the caller keeps the ones active in its range (``kh.active_in``)."""
+    today = now.date()
+    sets_by_card: dict[str, Any] = {}
+    for cs in await change_sets.sets_for(session, shop_id):
+        for cid in cs.card_ids or []:
+            sets_by_card[str(cid)] = cs
+
+    def measure_end(card_id: str) -> date | None:
+        s = sets_by_card.get(card_id)
+        if s is None:
+            return None
+        closed = s.status in (change_sets.SET_DONE, change_sets.SET_CUT)
+        return (
+            s.started_at.date() + timedelta(days=s.window_days)
+            if closed
+            else max(today, s.started_at.date() + timedelta(days=s.window_days))
+        )  # an open measurement is still active today
 
     out: list[kh.CardRow] = []
     seen: set[str] = set()
@@ -493,49 +495,142 @@ async def collect_ke_hoach(
                 status = kh.DRAFT
             else:
                 s = sets.get(c["card_id"])
-                end = ((ev or {}).get("result") or {}).get("own", {}) or {}
-                ended = bool(end.get("dates")) and date.fromisoformat(end["dates"]["to"]) < anchor
+                own = ((ev or {}).get("result") or {}).get("own", {}) or {}
+                ended = bool(own.get("dates")) and date.fromisoformat(own["dates"]["to"]) < today
                 status = (
                     kh.MEASURED if s and s["status"] in (change_sets.SET_DONE, change_sets.SET_CUT)
                     else kh.MEASURING if s and ended else kh.RUNNING
                 )  # fmt: skip
-            out.append(_card_row(c, payload["plan"]["code"], status, ev, names))
+            row = _card_row(c, payload["plan"]["code"], status, ev, names, shop=shop,
+                            platform=platform, proposed=_day(c.get("added_at")))  # fmt: skip
+            row.measure_end = measure_end(c["card_id"])
+            out.append(row)
             seen.add(c["card_id"])
-    # measuring / measured cards of the month that no plan holds
+    # measuring / measured cards that no plan holds
     listed = (
         await reco_service.list_cards(session, shop_id, audience="seller", queue="all", now=now)
     )["cards"]
-    sets_by_card = {}
-    for cs in await change_sets.sets_for(session, shop_id):
-        for cid in cs.card_ids or []:
-            sets_by_card[str(cid)] = cs
     for c in listed:
         s = sets_by_card.get(c["id"])
         if c["id"] in seen or c.get("plan_id") or s is None:
             continue
-        end = s.started_at.date() + timedelta(days=s.window_days)
-        if end < first or s.executed_on > anchor:
-            continue
         closed = s.status in (change_sets.SET_DONE, change_sets.SET_CUT)
         pm = c["predicted_summary"]
-        row = _card_row(c, None, kh.MEASURED if closed else kh.MEASURING, None, names)
-        row.start, row.end = s.executed_on, end
+        row = _card_row(
+            c, None, kh.MEASURED if closed else kh.MEASURING, None, names, shop=shop,
+            platform=platform, proposed=_day(c.get("created_at")),
+        )  # fmt: skip
+        row.start = s.executed_on
+        row.end = s.started_at.date() + timedelta(days=s.window_days)
+        row.measure_end = measure_end(c["id"])
         # one card, one number: the card's stored result (its own days), as the card shows it
-        row.gmv_mid = _f(pm["dgmv"]["p50"])
-        row.profit_mid = _f(pm["dprofit"]["p50"])
+        row.gmv_mid, row.profit_mid = _f(pm["dgmv"]["p50"]), _f(pm["dprofit"]["p50"])
+        row.orders_mid = _f(pm["dorders"]["p50"])
         row.cost = _f(c.get("cost"))
         out.append(row)
     measured = {
-        c["code"]: _result_text(c)
+        c["code"]: _conclusion(c)
         for c in (await execution_state.measurement_states(session, shop_id, now=now))["cards"]
     }
     for row in out:
-        row.result = measured.get(row.code)
-    return kh.KeHoachData(
-        shop_name, first, anchor,
-        float(run["baseline_gmv"] or 0), float(run["baseline_profit"] or 0),
-        actual_gmv, actual_profit, out, platform,
+        row.actual_profit, row.conclusion = measured.get(row.code, (None, None))
+    return out
+
+
+async def _kols_of(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window, *, shop: str, platform: str
+) -> list[kh.KolRow]:  # fmt: skip
+    """One row per KOL: the Phân tích KOL section's rows of the range, summed over product and
+    channel."""
+    try:
+        section = await metric_view.kol_section(
+            session, shop_id, audience="seller", period="custom", start=window.start,
+            end=window.end,
+        )  # fmt: skip
+    except RowsNotMaterialized:
+        return []
+    by: dict[str, kh.KolRow] = {}
+    for r in section["rows"]:
+        k = by.setdefault(r["kol_key"], kh.KolRow(shop, platform, r["handle"] or r["kol_key"]))
+        for attr, key in (("clicks", "clicks"), ("orders", "orders"), ("gmv", "gmv"),
+                          ("commission", "commission"), ("profit", "profit")):  # fmt: skip
+            v = _f(r.get(key))
+            if v is not None:
+                setattr(k, attr, (getattr(k, attr) or 0.0) + v)
+        k.cards += int(r.get("cards") or 0)
+    return list(by.values())
+
+
+async def collect_ke_hoach_shop(
+    session: AsyncSession, shop_id: uuid.UUID, *, shop_name: str, now: datetime, start: date,
+    end: date, platform: str = "Shopee",
+) -> tuple[list[kh.CardRow], kh.GoalRow, list[kh.GoalDay], list[kh.KolRow]]:  # fmt: skip
+    """One Shopee shop's Kế hoạch figures of ``start..end``: the cards active in the range (G22),
+    the shop's goal row and its daily rows, its KOL rows."""
+    if end < start:
+        raise ValueError("end before start")
+    window = await service.resolve(session, shop_id, period="custom", start=start, end=end)
+    if window is None:
+        raise ValueError("no data")
+    view, rows = await _view(session, shop_id, window)
+    names = {
+        p["product_id"]: p["name"]
+        for p in (
+            await channel_split.channel_split_products(
+                session, shop_id, period="custom", start=window.start, end=window.end
+            )
+        )["products"]
+    }
+    cards = [
+        c
+        for c in await _cards_of(
+            session, shop_id, shop=shop_name, platform=platform, now=now, names=names
+        )
+        if kh.active_in(c, start, end)
+    ]
+    plan = await _plan(session, shop_id, window, view, now, daily=True)
+    actual_gmv = {d.day: float(d.gmv) for d in rows.shop_days}
+    actual_profit = {d.day: float(d.profit) for d in rows.shop_days if d.profit is not None}
+    goal = kh.GoalRow(
+        shop_name, platform, _f(plan.get("baseline_gmv")), _f(plan.get("goal_gmv")),
+        sum(actual_gmv.values()) if actual_gmv else None,
+        _f(plan.get("baseline_profit")), _f(plan.get("goal_profit")),
+        sum(actual_profit.values()) if actual_profit else None,
     )  # fmt: skip
+    days = [
+        kh.GoalDay(
+            shop_name,
+            d,
+            _f(t.get("baseline_gmv")),
+            _f(t.get("goal_gmv")),
+            actual_gmv.get(d),
+            _f(t.get("baseline_profit")),
+            _f(t.get("goal_profit")),
+            actual_profit.get(d),
+        )  # fmt: skip
+        for t in plan["daily"]
+        for d in [date.fromisoformat(t["day"])]
+    ]
+    kols = await _kols_of(session, shop_id, window, shop=shop_name, platform=platform)
+    return cards, goal, days, kols
+
+
+async def collect_ke_hoach(
+    session: AsyncSession, shop_id: uuid.UUID, *, shop_name: str, now: datetime,
+    start: date | None = None, end: date | None = None, platform: str = "Shopee",
+) -> kh.KeHoachData:  # fmt: skip
+    """The Kế hoạch workbook's numbers of ``start..end`` (default: the newest data month to date).
+    Days are Asia/Ho_Chi_Minh calendar days (the stored daily rows' own days)."""
+    if start is None or end is None:
+        window = await service.resolve(session, shop_id)
+        if window is None:
+            raise ValueError("no data")
+        end = end or window.end
+        start = start or end.replace(day=1)
+    cards, goal, days, kols = await collect_ke_hoach_shop(
+        session, shop_id, shop_name=shop_name, now=now, start=start, end=end, platform=platform
+    )
+    return kh.KeHoachData(start, end, [shop_name], cards, [goal], days, kols)
 
 
 __all__ = ["collect_ke_hoach", "collect_tong_quan"]

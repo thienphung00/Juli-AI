@@ -108,12 +108,17 @@ async def export_tong_quan(session: Any, shop_id: Any, shop_name: str, **args: A
 
 
 async def export_ke_hoach(
-    session: Any, shop_id: Any, shop_name: str, month: str | None
+    session: Any,
+    shop_id: Any,
+    shop_name: str,
+    start: date | None = None,
+    end: date | None = None,
 ) -> Response:
-    """The Kế hoạch workbook of ``month`` (a pure read)."""
+    """The Kế hoạch workbook of ``start..end`` (default: the newest data month to date; a pure
+    read)."""
     from juli_backend.services.exports import collect, ke_hoach_xlsx
 
     data = await collect.collect_ke_hoach(
-        session, shop_id, shop_name=shop_name, now=datetime.now(UTC), month=month
+        session, shop_id, shop_name=shop_name, now=datetime.now(UTC), start=start, end=end
     )
     return xlsx_response(ke_hoach_xlsx.file_name(data), ke_hoach_xlsx.build_bytes(data))
