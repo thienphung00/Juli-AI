@@ -65,16 +65,18 @@ def test_the_shops_own_price_response_is_not_floored():
     assert round(lift.at("p50"), 6) == 0.02
 
 
-def test_a_one_percent_cut_floors_to_a_quarter_of_five_percent():
-    # 2026-11-16: sized kind, floor = 5 % x size / reference (4 %): 1 % -> 1.25 %
-    assert REFERENCE_SIZE["price"] == 4.0
+def test_a_one_percent_cut_floors_to_a_tenth_of_five_percent():
+    # F7 2026-11-16: sized kind, floor = 5 % x size / reference (10 %): 1 % -> 0.5 %
+    for kind in ("price", "product_discount", "flash_sale", "program_registration"):
+        assert REFERENCE_SIZE[kind] == 10.0
+    assert REFERENCE_SIZE["ads_budget"] == 20.0
     band = (D("0.001"), D("0.002"), D("0.004"))
     _, p50, p90 = floor_prior_band("price", *band, size=1.0)
-    assert p50 == D("0.0125") and p90 >= p50
+    assert p50 == D("0.005") and p90 >= p50
 
 
 def test_a_cut_at_or_above_the_reference_floors_to_five_percent():
-    for size in (4.0, 8.0):
+    for size in (10.0, 20.0):
         _, p50, _ = floor_prior_band("price", D("0.001"), D("0.002"), D("0.004"), size=size)
         assert p50 == MIN_PRIOR_LIFT
 

@@ -154,6 +154,9 @@ def result_json(r: OptionResult) -> dict[str, Any]:
     def per30(x: Decimal | None) -> float | None:
         return None if x is None else float(x * k)
 
+    hidden = set(r.within_noise)  # F5: within normal swing -> the shown value is null
+    if "profit" in hidden:
+        profit = None
     return {
         "kind": r.kind,
         "label": r.label,
@@ -163,16 +166,33 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         "estimable": r.estimable,
         "basis": r.basis,
         "basis_weak": r.basis == "prior",
+        # F5: the metrics ("gmv" | "orders" | "profit") whose delta is null (within normal swing)
+        "within_noise": list(r.within_noise),
+        # F2: the newest data is too old: {dataset, through: ISO day}; the screen says
+        # "Đơn hàng đến dd/mm" and shows no forecast numbers
+        "stale": (
+            None
+            if r.stale is None
+            else {"dataset": r.stale.dataset, "through": r.stale.through.isoformat()}
+        ),
         "delta": {
             "profit": profit,
-            "gmv": {"value": _whole(d_gmv), "pct": _ratio(d_gmv, b_gmv)},
+            "gmv": (
+                {"value": None, "pct": None}
+                if "gmv" in hidden
+                else {"value": _whole(d_gmv), "pct": _ratio(d_gmv, b_gmv)}
+            ),
             "orders": {
-                "value": round_count(d_orders),
-                "pct": _ratio(d_orders, b_orders),
+                "value": None if "orders" in hidden else round_count(d_orders),
+                "pct": None if "orders" in hidden else _ratio(d_orders, b_orders),
                 "note": note,
             },
         },
-        "build_up": [{"key": p.key, "amount": float(p.amount), "text": p.text} for p in r.build_up],
+        "build_up": (
+            []
+            if "profit" in hidden
+            else [{"key": p.key, "amount": float(p.amount), "text": p.text} for p in r.build_up]
+        ),
         "drivers_pct": list(_drivers_pct(r)),
         "cost": {
             "total": float(n_cost),
@@ -193,9 +213,9 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         # P99b: secondary only -- the primary Δ / cost (``delta`` / ``cost``) is for the version's
         # own days; this is the same Δ rescaled to 30 days (the comparison's sort key)
         "per_30d": {
-            "profit": per30(d_profit),
-            "gmv": per30(d_gmv),
-            "orders": round_count(per30(d_orders)),
+            "profit": None if "profit" in hidden else per30(d_profit),
+            "gmv": None if "gmv" in hidden else per30(d_gmv),
+            "orders": None if "orders" in hidden else round_count(per30(d_orders)),
             "secondary": True,
             "label": PER_30D_LABEL,
         },

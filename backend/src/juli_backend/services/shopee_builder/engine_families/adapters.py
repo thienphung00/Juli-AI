@@ -43,6 +43,7 @@ _BASIS: dict[str, Basis] = {
     "prior": "prior",
     "shop": "shop",
     "shop_products": "shop",
+    "pooled": "pooled",
     "product_history": "product_history",
 }
 

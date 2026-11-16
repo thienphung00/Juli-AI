@@ -1293,7 +1293,7 @@ def _card_result_json(
         "reason": "outside_horizon" if outside else None,
         "basis": max(
             (r.result.basis for r in ok if r.result is not None),
-            key=("measured", "product_history", "shop", "prior", "not_estimable").index,
+            key=("measured", "product_history", "shop", "pooled", "prior", "not_estimable").index,
         ),
         "own": {
             "dates": common["own_dates"],

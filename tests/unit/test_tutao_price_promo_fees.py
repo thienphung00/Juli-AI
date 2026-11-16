@@ -296,14 +296,15 @@ async def test_sample_shop_price_and_promotion_estimates_stay_within_their_bound
     # on its orders (+ the extra ones) it costs ~500k -- not the 1M of every order of the product
     assert one.days == 30
     assert float(one.cost_total) < 619_500
-    assert float(one.cost_total) == pytest.approx(500_433, rel=0.02)
+    # F2 (2026-11-16): the base is the adaptive window per metric, not the fixed 30 days
+    assert float(one.cost_total) == pytest.approx(482_068, rel=0.02)
 
     # 2. +5 % on 105 units × 59.000đ = 309.750đ gross: the price effect can never exceed it
     parts = {p.key: float(p.amount) for p in price.build_up}
     assert 0 < parts["price"] < 309_750
     d_profit = float(price.likely.profit or 0) - float(price.before.profit or 0)
     assert d_profit < 309_750
-    assert d_profit == pytest.approx(148_747, rel=0.02)
+    assert d_profit == pytest.approx(141_818, rel=0.02)
 
     # 3. a 2-hour slot on one day: 2/24 of the day's 3,6 orders get the −15 %
     assert flash.days == 1

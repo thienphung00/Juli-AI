@@ -13,6 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from juli_backend.services.shopee_analytics import forecast_base, funnel
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.whatif import PredictedRange
 from juli_backend.services.shopee_recommendations import config, freshness
@@ -27,6 +28,7 @@ from juli_backend.services.shopee_recommendations.model import Candidate, Evalua
 from juli_backend.services.shopee_recommendations.plan import measurement_plan, stats_for
 from juli_backend.services.shopee_recommendations.prediction import (
     Lift,
+    apply_within_noise,
     convert,
     extra_orders_range,
     magnitude_of,
@@ -132,6 +134,16 @@ def _in_stock(env: RecoEnv, cand: Candidate) -> bool | None:
     return True
 
 
+def _history(env: RecoEnv, cand: Candidate) -> dict[str, Any] | None:
+    """F3: the product's own daily gmv / orders / profit in its F2 window (None = no rows)."""
+    rows = env.funnel_history
+    if not isinstance(rows, funnel.FunnelRows):
+        rows = env.view.data.funnel
+    if not isinstance(rows, funnel.FunnelRows):
+        return None
+    return dict(forecast_base.adaptive_base(rows, "", item_ids=tuple(cand.items)).daily)
+
+
 def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any] | None:
     if cand.kind in ("affiliate_sample", "affiliate_invite"):  # P91 D-9: own model
         from juli_backend.services.shopee_recommendations.kol_cards import build_kol_card
@@ -154,7 +166,7 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
     ev: Evaluation = ev0
     if rng is not None and s.family in ("voucher", "promotion", "sale"):
         ev = evaluate(env, cand, predicted=PredictedRange(rng[0], rng[1], config.MODEL_VERSION))
-    money = convert(lift, ev.profit)
+    money = apply_within_noise(convert(lift, ev.profit), cand.kind, _history(env, cand))
     plan = measurement_plan(s.target_metric, stats_for(env, cand.items or None, s.target_metric))
     if lift.sim.get("row_found") and cand.item:
         sim_kg = env.sim.kg_value(cand.item, s.sim_kind) if env.sim and s.sim_kind else None

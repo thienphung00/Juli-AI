@@ -1,7 +1,8 @@
 """The predicted range ("dự kiến"): ``optimize_product/prediction.py`` ported to Shopee kinds.
 
 relative lift on the kind's target metric = preset prior x calibration factor (shop evidence
-shrunk toward the prior: ``MIN_SHOP_RESULTS`` = 5, ``K`` = 5; no pooling across shops, ADR-116)
+shrunk toward the prior: ``MIN_SHOP_RESULTS`` = 5, ``K`` = 5; then the same evidence pooled
+across the real Shopee shops as a third rung, F6; never across platforms)
 x coverage range scale; the simulation prior enters weighted by its per-change_kind gate
 (ADR-121 d.4) -- weight 0 leaves the no-simulation path byte-identical. The lift is then
 turned into dGMV / dprofit per month (P10 ... P90) by the GMV identity
@@ -14,11 +15,12 @@ tie-break only).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from juli_backend.services.forecast.noise import within_noise
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_recommendations import config
 from juli_backend.services.shopee_recommendations.kinds import KindSpec, floor_prior_band
@@ -45,14 +47,17 @@ def gap_bucket(gap_pct: float | None) -> str:
     return "small"
 
 
-def factor_from(pooled_ratio: float | None, results: int) -> tuple[float, str]:
+def factor_from(
+    pooled_ratio: float | None, results: int, source: str = "shop"
+) -> tuple[float, str]:
     """Shop factor shrunk to the prior (1.0): ``n / (n + K)`` of the evidence is trusted, and
-    only once the shop has ``MIN_SHOP_RESULTS`` results. Ratio clamped to the factor limits."""
+    only once there are ``MIN_SHOP_RESULTS`` results. Ratio clamped to the factor limits.
+    ``source`` names the rung the evidence is from ("shop", or "pooled" for F6)."""
     if pooled_ratio is None or results < config.MIN_SHOP_RESULTS:
         return 1.0, "prior"
     clamped = min(max(pooled_ratio, config.FACTOR_MIN), config.FACTOR_MAX)
     weight = results / (results + config.SHRINKAGE_K)
-    return 1.0 + weight * (clamped - 1.0), "shop"
+    return 1.0 + weight * (clamped - 1.0), source
 
 
 @dataclass(frozen=True)
@@ -63,7 +68,7 @@ class Lift:
     low: float  # P10
     high: float  # P90
     factor: float
-    source: str  # "prior" | "shop"
+    source: str  # F6 ladder: "product_history" (own) | "shop" | "pooled" | "prior"
     range_scale: float = 1.0
     gap_bucket: str = "unknown"
     sim: dict[str, Any] = field(default_factory=dict)
@@ -183,6 +188,13 @@ def predict_lift(
         if state is not None:
             factor, source = factor_from(state.pooled_ratio, state.n_results)
             scale = state.range_scale
+        if source == "prior":
+            # F6 rung 3: the same evidence pooled across the real Shopee shops (>= 5 results),
+            # only when the shop's own calibration is not enough
+            pooled = getattr(env, "pooled_calibration", {}).get((spec.key, spec.target_metric))
+            if pooled is not None:
+                factor, source = factor_from(pooled.pooled_ratio, pooled.n_results, "pooled")
+                scale = pooled.range_scale if source == "pooled" else 1.0
     lo, hi = lo * factor, hi * factor
     sim_info: dict[str, Any] = {"applied": False}
     if env is not None and env.sim is not None and spec.sim_kind and cand.item:
@@ -296,6 +308,34 @@ def convert(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
     _ordered(out["total"])
     out.update(_units(lift, pm))
     return out
+
+
+def apply_within_noise(
+    money: dict[str, Any], kind: str, history: Mapping[str, Sequence[float | None]] | None
+) -> dict[str, Any]:
+    """F5: judge each shown metric (dgmv, dorders, dprofit) of a card by the shared period noise
+    band (F3) on the product's own daily history (``history``: gmv / orders / profit series).
+    Adds ``within_noise`` (the metrics whose effect P90 is below their band) and ``shown`` (the
+    P50 over the effect period, ``None`` for those); the P10 / P50 / P90 blocks stay untouched.
+    A non-uplift kind and a metric with no measurable band are never judged."""
+    period = money.get("period") or {}
+    days = int(period.get("days") or money.get("days") or 0)
+    total = period.get("total") or money.get("total") or {}
+    series = {"dgmv": "gmv", "dorders": "orders", "dprofit": "profit"}
+    flagged: list[str] = []
+    shown: dict[str, float | None] = {}
+    for key, name in series.items():
+        p90 = (total.get("p90") or {}).get(key)
+        p50 = (total.get("p50") or {}).get(key)
+        hist = None if history is None else history.get(name)
+        if days > 0 and within_noise(p90, hist, days, kind):
+            flagged.append(key)
+            shown[key] = None
+        else:
+            shown[key] = p50
+    money["within_noise"] = flagged
+    money["shown"] = shown
+    return money
 
 
 def _units(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
@@ -418,6 +458,7 @@ def magnitude_of(
 
 __all__ = [
     "Lift",
+    "apply_within_noise",
     "convert",
     "extra_orders_range",
     "factor_from",

@@ -27,6 +27,7 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Literal
 
+from juli_backend.services.forecast.noise import within_noise
 from juli_backend.services.shopee_builder.engine.contract import (
     RESIDUAL,
     AddedTraffic,
@@ -50,7 +51,14 @@ from juli_backend.services.shopee_builder.engine.vn import (
 
 Z90 = 1.2815515655446004  # standard normal quantile at 0.90 (config.Z_P90)
 DEFAULT_DAYS = 30
-_BASIS_ORDER: tuple[Basis, ...] = ("measured", "product_history", "shop", "prior", "not_estimable")
+_BASIS_ORDER: tuple[Basis, ...] = (
+    "measured",
+    "product_history",
+    "shop",
+    "pooled",
+    "prior",
+    "not_estimable",
+)
 
 
 # -- band sampling -------------------------------------------------------------------------------
@@ -427,6 +435,11 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             estimable = False
             carriers.append([])
             continue
+        if d.metric in base.low_data:  # F2: no window has enough events: "ít dữ liệu"
+            estimable = False
+            carriers.append([])
+            notes.append(f"Ít dữ liệu để ước tính {DRIVER_LABELS[d.metric]}.")
+            continue
         c = _carriers(srcs, d)
         carriers.append(c)
         if not c:
@@ -468,6 +481,8 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     fixed = float(option.fixed_cost)
     ppo_be = _break_even_ppo(option, added, before_draw, srcs)
 
+    if base.stale is not None:  # F2: the newest data is too old: no forecast numbers
+        estimable = False
     if not estimable:
         mid = _neutral(len(srcs), len(option.offers))
         mid.use_shares = [float(o.use_share.p50) for o in option.offers]
@@ -493,6 +508,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             ),
             notes=tuple(notes),
             ads=option.ads,
+            stale=base.stale,
         )
 
     rng = random.Random(seed)
@@ -536,6 +552,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         if likely.profit is None or before_draw.profit is None
         else likely.profit - before_draw.profit
     )
+    flagged = _within_noise(base, option, before_draw, d90, days)
     build_up = (
         ()
         if d_profit is None
@@ -568,6 +585,25 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         ),
         notes=tuple(notes),
         ads=option.ads,
+        within_noise=flagged,
+    )
+
+
+def _within_noise(
+    base: FunnelBase, option: OptionInput, before: _Draw, d90: _Draw, days: int
+) -> tuple[str, ...]:
+    """F5: the shown metrics (gmv, orders, profit) whose effect P90 is below that metric's period
+    noise band (F3, the product's own daily history in its F2 window). The scenarios stay."""
+    history = dict(base.daily)
+    effects: dict[str, float | None] = {
+        "gmv": d90.gmv - before.gmv,
+        "orders": d90.orders - before.orders,
+        "profit": None
+        if d90.profit is None or before.profit is None
+        else d90.profit - before.profit,
+    }
+    return tuple(
+        m for m, e in effects.items() if within_noise(e, history.get(m), days, option.kind)
     )
 
 
