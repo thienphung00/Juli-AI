@@ -10,7 +10,7 @@ import { BoardActions } from "../board-actions";
 
 const preview = (over: Partial<ExternalPreview> = {}): ExternalPreview => ({
   file_hash: "h1",
-  token: "tok-12345678",
+  token: "preview-token",
   missing_columns: [],
   counts: { rows: 2, cards: 1, create: 1, exists: 0, skipped: 1 },
   rows: [{ row: 2, ref: "NG-01", category: "Voucher", items: ["P1"], shop_wide: false, status: "done", status_label: "Đã làm", started_on: "2026-11-01", run_days: 7, forecast_as_of: null, skipped: false, reason: null, reason_label: null, cards: [{ ref: "NG-01", change_kind: "title", action: "create" }] }],
@@ -66,7 +66,7 @@ describe("Thực hiện · Nhập thẻ đã làm ngoài Juli", () => {
     const b64 = (board.previewImport as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string;
     expect(b64).toBe(btoa(String.fromCharCode(80, 75, 3, 4)));
     fireEvent.click(screen.getByTestId("sd-board-commit"));
-    await waitFor(() => expect(board.commitImport).toHaveBeenCalledWith(b64, "tok-12345678"));
+    await waitFor(() => expect(board.commitImport).toHaveBeenCalledWith(b64, "preview-token"));
     expect(await screen.findByTestId("sd-board-done")).toHaveTextContent("Đã nhập 1 thẻ");
     expect(changed).toHaveBeenCalled();
   });
