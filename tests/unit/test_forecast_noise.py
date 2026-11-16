@@ -34,3 +34,23 @@ def test_missing_days_are_skipped_and_too_little_history_has_no_band():
     assert period_band([3], 7).band_pct is None
     assert period_band([], 7).band_pct is None
     assert period_band([0, 0, 0], 7).band_pct is None
+
+
+def _money(dgmv_p90: float) -> dict:
+    block = {
+        "p50": {"dgmv": dgmv_p90 / 2, "dorders": 1.0, "dprofit": None},
+        "p90": {"dgmv": dgmv_p90, "dorders": 2.0, "dprofit": None},
+    }
+    return {"days": 7, "period": {"days": 7, "total": block}, "total": block}
+
+
+def test_card_within_noise_nulls_the_shown_value_and_keeps_the_quantiles():
+    from juli_backend.services.shopee_recommendations.prediction import apply_within_noise
+
+    history = {"gmv": [0.0, 200.0] * 10, "orders": [1.0] * 20, "profit": [None] * 20}
+    out = apply_within_noise(_money(50.0), "price", history)
+    # gmv: sd 102.6 x sqrt(7) x 1.28 = 348 > 50 -> within noise; orders flat -> 1 % band of 7 = 0.07
+    assert out["within_noise"] == ["dgmv"]
+    assert out["shown"] == {"dgmv": None, "dorders": 1.0, "dprofit": None}
+    assert out["period"]["total"]["p90"]["dgmv"] == 50.0
+    assert apply_within_noise(_money(50.0), "listing_hide", history)["within_noise"] == []

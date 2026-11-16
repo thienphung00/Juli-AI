@@ -348,6 +348,7 @@ WIRE_KEYS = {
     "estimable": "bool",
     "basis": "'measured'|'product_history'|'shop'|'pooled'|'prior'|'not_estimable'",
     "basis_weak": "bool  # tag 'ước tính chung' (prior) shown",
+    "within_noise": "list['gmv'|'orders'|'profit']  # F5: those delta values are null",
     "stale": "{dataset: 'orders'|'traffic', through: 'YYYY-MM-DD'} | None  # F2: no numbers",
     "delta": {
         "profit": "{value, pct, low, high} | None (None = chưa tính / chưa ước tính được)",

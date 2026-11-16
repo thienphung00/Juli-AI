@@ -15,11 +15,12 @@ tie-break only).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from juli_backend.services.forecast.noise import within_noise
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_recommendations import config
 from juli_backend.services.shopee_recommendations.kinds import KindSpec, floor_prior_band
@@ -309,6 +310,34 @@ def convert(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
     return out
 
 
+def apply_within_noise(
+    money: dict[str, Any], kind: str, history: Mapping[str, Sequence[float | None]] | None
+) -> dict[str, Any]:
+    """F5: judge each shown metric (dgmv, dorders, dprofit) of a card by the shared period noise
+    band (F3) on the product's own daily history (``history``: gmv / orders / profit series).
+    Adds ``within_noise`` (the metrics whose effect P90 is below their band) and ``shown`` (the
+    P50 over the effect period, ``None`` for those); the P10 / P50 / P90 blocks stay untouched.
+    A non-uplift kind and a metric with no measurable band are never judged."""
+    period = money.get("period") or {}
+    days = int(period.get("days") or money.get("days") or 0)
+    total = period.get("total") or money.get("total") or {}
+    series = {"dgmv": "gmv", "dorders": "orders", "dprofit": "profit"}
+    flagged: list[str] = []
+    shown: dict[str, float | None] = {}
+    for key, name in series.items():
+        p90 = (total.get("p90") or {}).get(key)
+        p50 = (total.get("p50") or {}).get(key)
+        hist = None if history is None else history.get(name)
+        if days > 0 and within_noise(p90, hist, days, kind):
+            flagged.append(key)
+            shown[key] = None
+        else:
+            shown[key] = p50
+    money["within_noise"] = flagged
+    money["shown"] = shown
+    return money
+
+
 def _units(lift: Lift, pm: ProfitModel) -> dict[str, Any]:
     """The same money in the units the seller reads: per DAY (flows), per ORDER (unit economics)
     and the total over the change's own days (``period``, not capped at a month). Orders and AOV
@@ -429,6 +458,7 @@ def magnitude_of(
 
 __all__ = [
     "Lift",
+    "apply_within_noise",
     "convert",
     "extra_orders_range",
     "factor_from",

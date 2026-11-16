@@ -27,6 +27,7 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Literal
 
+from juli_backend.services.forecast.noise import within_noise
 from juli_backend.services.shopee_builder.engine.contract import (
     RESIDUAL,
     AddedTraffic,
@@ -551,6 +552,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         if likely.profit is None or before_draw.profit is None
         else likely.profit - before_draw.profit
     )
+    flagged = _within_noise(base, option, before_draw, d90, days)
     build_up = (
         ()
         if d_profit is None
@@ -583,6 +585,25 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
         ),
         notes=tuple(notes),
         ads=option.ads,
+        within_noise=flagged,
+    )
+
+
+def _within_noise(
+    base: FunnelBase, option: OptionInput, before: _Draw, d90: _Draw, days: int
+) -> tuple[str, ...]:
+    """F5: the shown metrics (gmv, orders, profit) whose effect P90 is below that metric's period
+    noise band (F3, the product's own daily history in its F2 window). The scenarios stay."""
+    history = dict(base.daily)
+    effects: dict[str, float | None] = {
+        "gmv": d90.gmv - before.gmv,
+        "orders": d90.orders - before.orders,
+        "profit": None
+        if d90.profit is None or before.profit is None
+        else d90.profit - before.profit,
+    }
+    return tuple(
+        m for m, e in effects.items() if within_noise(e, history.get(m), days, option.kind)
     )
 
 

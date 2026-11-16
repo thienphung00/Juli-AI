@@ -38,6 +38,11 @@ class Band:
     days: int
 
 
+#: F5: kinds that are not an uplift (a stock alert, a hide, a pause, a cap): never judged by the
+#: noise band; they follow their own rule.
+NON_UPLIFT_KINDS = frozenset({"stock_alert", "listing_hide", "ads_pause", "voucher_cap"})
+
+
 def period_band(
     totals_by_window: Sequence[float | None],
     window_days: int,
@@ -61,3 +66,20 @@ def period_band(
     half = z * statistics.stdev(clean) * math.sqrt(n)
     half = max(half, abs(mean) * min_pct)
     return Band(mean - half, mean + half, mean, half / mean * 100.0, len(clean))
+
+
+def within_noise(
+    effect_p90: float | None,
+    history: Sequence[float | None] | None,
+    window_days: int,
+    kind: str = "",
+) -> bool:
+    """F5: the effect is within normal swing when its P90 is below the metric's period noise band
+    (the half width of :func:`period_band`, in the metric's own unit over ``window_days``).
+    Never for a non-uplift kind, an unknown effect, or a metric whose band cannot be measured."""
+    if kind in NON_UPLIFT_KINDS or effect_p90 is None or not history:
+        return False
+    band = period_band(history, window_days)
+    if band.band_pct is None:
+        return False
+    return effect_p90 < (band.p90 - band.p10) / 2
