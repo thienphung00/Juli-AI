@@ -66,6 +66,9 @@ export interface ComboRow {
   readonly suggested_stock: N;
   readonly stock_note: string | null;
   readonly price: N;
+  /** UI grill G6: the pack's total (shown in Giá), and the price of one `unit`. Absent before S1's G6. */
+  readonly price_total?: N;
+  readonly price_per_unit?: N;
   readonly price_per_box: N;
   readonly separate_total: N;
   readonly saving: N;

@@ -482,10 +482,13 @@ export function PriceDisplayPanel({ form, set, ctx }: P<"price_display">) {
   const only = ctx.variations.length === 1 ? ctx.variations[0]! : null;
   const measured = only !== null && only.price_per_measure != null && only.measure_label ? only : null;
   const unit = measured ? measured.price_per_measure! : only && only.price_per_unit !== null ? only.price_per_unit : null;
+  // UI grill G7: the server's per-100 ml/g line from the name's size is the grey placeholder ("" = none)
+  const extra = ctx.outcome?.details?.["default_line"];
+  const defaultLine = typeof extra === "string" ? extra : "";
   return (
     <div className="p2-panel" data-testid="p2-panel-price">
       <p className="sa-hint">{unit !== null ? `Giá mỗi ${measured ? measured.measure_label : "đơn vị"}: ${vnd(unit)}` : "Giá mỗi đơn vị: —"}</p>
-      <TextIn label="Dòng hiển thị (để trống = giá mỗi đơn vị)" onChange={(text) => set({ text })} value={form.text} />
+      <TextIn label="Dòng hiển thị (để trống = giá mỗi đơn vị)" onChange={(text) => set({ text })} placeholder={defaultLine || undefined} value={form.text} />
     </div>
   );
 }

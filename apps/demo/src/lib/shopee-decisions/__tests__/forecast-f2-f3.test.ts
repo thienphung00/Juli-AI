@@ -27,3 +27,12 @@ describe("forecast grill F2 · F3 on screen", () => {
     expect(rows[3]!.after).toBe("—");
   });
 });
+
+describe("UI grill G5 · profit_unknown", () => {
+  it("a blank profit says the warning's own reason", async () => {
+    const { profitUnknownText } = await import("../../../components/shopee-decisions/builder-p92/results");
+    expect(profitUnknownText({ warnings: [{ type: "profit_unknown", reason_code: "no_cost", reason_text: "Chưa có giá vốn của Túi zip D", message: "x" }] })).toBe("Chưa có giá vốn của Túi zip D");
+    expect(profitUnknownText({ warnings: [{ type: "profit_unknown", message: "Chưa có giá vốn" }] })).toBe("Chưa có giá vốn");
+    expect(profitUnknownText({ warnings: [] })).toBeUndefined();
+  });
+});

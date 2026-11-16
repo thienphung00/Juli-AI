@@ -63,7 +63,7 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.queryByTestId("oc-weak")).toBeNull();
     expect(screen.queryByTestId("oc-detail")).toBeNull();
     // P100-C (B.6): Δ tổng lợi nhuận is the headline; no "Tác động", no "Quy đổi 30 ngày"
-    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ lợi nhuận cả 7 ngày", "Δ GMV cả 7 ngày", "Δ Đơn", "Phễu", "Biên lợi nhuận", "ROI", "Chi phí", "Hoà vốn"]);
+    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ lợi nhuận cả 7 ngày", "Δ GMV cả 7 ngày", "Δ Đơn", "Phễu", "Biên lợi nhuận", "ΔGMV / chi phí", "Chi phí", "Hoà vốn"]);
   });
 
   it("P100-C: one break-even line with orders or AOV; no ROI / margin without them", () => {
@@ -232,5 +232,26 @@ describe("P100 B.15 · Dịch vụ hiển thị edit on the OptionCard", () => {
   it("other kinds carry no Ads block", () => {
     render(<OptionCard result={result()} />);
     expect(screen.queryByTestId("oc-ads")).toBeNull();
+  });
+});
+
+describe("UI grill G4 · G5 · G8 on the option card", () => {
+  it("names ΔGMV / chi phí from the server, never 'ROI'", () => {
+    render(<OptionCard result={result({ roi: { value: 3.2, text: "3,2", metric_id: "card_return", label: "ΔGMV / chi phí" } })} />);
+    expect(screen.getByText("ΔGMV / chi phí")).toBeInTheDocument();
+    expect(screen.queryByText("ROI")).toBeNull();
+  });
+
+  it("a — carries the reason as its hover; the code is not shown", () => {
+    render(<OptionCard result={result({ estimable: false, reason_code: "no_history", reason_text: "Sản phẩm chưa có đơn trong 30 ngày" })} />);
+    const dash = within(screen.getByTestId("oc-profit")).getByText("—");
+    expect(dash).toHaveAttribute("title", "Sản phẩm chưa có đơn trong 30 ngày");
+    expect(document.body.textContent).not.toContain("no_history");
+  });
+
+  it("a flash sale shows the money given to buyers under Chi phí", () => {
+    const r = result();
+    render(<OptionCard result={{ ...r, cost: { ...r.cost, discount_given: { amount: 120000, text: "Tiền giảm cho khách ~120.000 đ" } } }} />);
+    expect(screen.getByTestId("oc-discount-given")).toHaveTextContent("Tiền giảm cho khách ~120.000 đ");
   });
 });
