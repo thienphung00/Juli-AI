@@ -14,8 +14,8 @@ from __future__ import annotations
 import math
 import uuid
 from collections import defaultdict
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -39,7 +39,8 @@ from juli_backend.repositories import (
     PlatformPromotionsRepo,
     ShopeeOrderLinesRepo,
 )
-from juli_backend.services.shopee_analytics import loaders
+from juli_backend.services.card_measure import reader
+from juli_backend.services.shopee_analytics import forecast_base, loaders
 from juli_backend.services.shopee_analytics.catalog import Catalog
 from juli_backend.services.shopee_recommendations import (
     ads_readback,
@@ -50,6 +51,7 @@ from juli_backend.services.shopee_recommendations import (
     product_queue,
     result_store,
     store,
+    verdict,
 )
 from juli_backend.services.shopee_recommendations.kinds import KINDS, spec
 from juli_backend.services.shopee_recommendations.learning import Observation
@@ -58,6 +60,8 @@ from juli_backend.services.shopee_recommendations.prediction import factor_from,
 ITEM_DAILY = ("item_traffic_sources", "item_by_source")
 ADS_DAILY = "ads_campaign_daily"
 STREAMS = ("product_card", "seller_live", "seller_video", "affiliate")
+#: metrics read from traffic rows (their data must be fresh too, F2)
+TRAFFIC_METRICS = ("views", "ctr", "ctor")
 MEASURABLE = ("ctr", "ctor", "views", "orders", "aov", "ads_gmv", "roas", "gmv")
 
 
@@ -301,6 +305,7 @@ class CardReading:
     post_days: int | None = None
     skipped: str | None = None
     stacked: bool = False
+    measurement: dict[str, Any] | None = None
 
 
 async def _read_card(
@@ -338,6 +343,8 @@ async def _read_card(
         report.skip(how)
         return CardReading(skipped=how)
     t = t_at.date()
+    if not partial:  # G12: the run days are the measurement days
+        plan_days = verdict.run_days(card, plan_days) or plan_days
     final_due = today >= t + timedelta(days=plan_days + 1)
     prelim_due = (
         not partial
@@ -348,28 +355,25 @@ async def _read_card(
         report.skip("plan_not_ended")
         return CardReading(skipped="plan_not_ended")
     span = plan_days if final_due else PRELIMINARY_DAYS
-    first, last = t - timedelta(days=impact.PRE_DAYS + 1), t + timedelta(days=span)
+    first = t - timedelta(days=max(verdict.pre_days_for(plan_days), impact.PRE_DAYS + 1))
+    last = t + timedelta(days=span)
     items = card["scope"]["product_ids"]
-    if metric in ("ads_gmv", "roas"):
-        data = await load_campaign_days(session, shop_id, first, last)
-        key = card["scope"].get("campaign_key")
-        treated_days = data.get(key or "")
-        controls = {k: series_of(v, metric, first, last) for k, v in data.items() if k != key}
-    else:
-        data = await load_item_days(session, shop_id, first, last)
-        treated_days = (
-            _sum_days([data.get(i, {}) for i in items]) if items else _sum_days(list(data.values()))
-        )
-        controls = {k: series_of(v, metric, first, last) for k, v in data.items() if k not in items}
-    if not treated_days:
+    campaign = metric in ("ads_gmv", "roas")
+    source = ShopeeSeries(
+        p.id, metric, list(items), card["scope"].get("campaign_key") if campaign else None
+    )
+    bundle = await source.load(session, shop_id, items, first, last)
+    if not source.treated_days:
         report.skip("no_series")
         return CardReading(skipped="no_series")
-    excluded = await executed_days_other(session, shop_id, p.id, first, last)
+    excluded = bundle.excluded
     stacked = extra_bundle or await stacked_with_other(
         session, shop_id, p.id, items, t, t + timedelta(days=plan_days)
     )
 
-    async def write(event_type: str, reading: impact.Reading, days: int) -> None:
+    async def write(
+        event_type: str, reading: impact.Reading, days: int, meas: dict[str, Any] | None = None
+    ) -> None:
         await store.write_event(
             session,
             shop_id,
@@ -396,13 +400,14 @@ async def _read_card(
                 "preliminary": event_type == EVENT_IMPACT_PRELIMINARY,
                 "partial": partial,
                 "change_set": change_set,
+                "measurement": meas,
             },
         )
 
     if prelim_due:
         early = impact.read_effect(
-            series_of(treated_days, metric, first, last),
-            controls,
+            bundle.treated,
+            bundle.controls,
             t,
             post_days=PRELIMINARY_DAYS,
             excluded=excluded,
@@ -411,19 +416,33 @@ async def _read_card(
         report.preliminary += 1
     if not final_due:
         return CardReading(reading=None, post_days=None, skipped="plan_not_ended", stacked=stacked)
-    reading = impact.read_effect(
-        series_of(treated_days, metric, first, last),
-        controls,
-        t,
-        post_days=plan_days,
-        excluded=excluded,
-    )
-    await write(EVENT_IMPACT_FINAL, reading, plan_days)
+    block = result_store.measured_block(card)
+    pre = verdict.pre_days_for(plan_days)
+    m = _measure(bundle, source, t, plan_days, today, metric, block, pre)
+    reading = m.reading
+    gmv_m: reader.Measurement | None = None
+    if metric not in verdict.GMV_METRICS and not campaign:
+        gmv_m = _measure(source.bundle_for("gmv"), source, t, plan_days, today, "gmv", block, pre)
+    meas = verdict.payload(m, gmv_m, block=block, days=plan_days, t=t, partial=partial)
+    if campaign:
+        meas["ads_rows"] = verdict.campaign_rows(
+            block,
+            _day_means(
+                source.treated_days, t - timedelta(days=pre), t - timedelta(days=1), excluded
+            ),
+            _day_means(
+                source.treated_days, t + timedelta(days=1), t + timedelta(days=plan_days), excluded
+            ),
+            plan_days,
+        )
+    await write(EVENT_IMPACT_FINAL, reading, plan_days, meas)
     if partial:  # a cut measurement is shown ("đo được N ngày"), never calibrated
-        return CardReading(None, reading, plan_days, stacked=stacked)
+        return CardReading(None, reading, plan_days, stacked=stacked, measurement=meas)
     if reading.impact_pct is None or reading.confidence == "suppressed":
         report.skip(f"reading_{reading.reason}")
-        return CardReading(None, reading, plan_days, f"reading_{reading.reason}", stacked)
+        return CardReading(
+            None, reading, plan_days, f"reading_{reading.reason}", stacked, measurement=meas
+        )
     lo, hi = _lift_range(card)
     obs = Observation(
         card["change_kind"],
@@ -437,9 +456,13 @@ async def _read_card(
         str(p.id),
         not reading.fallback,
         str(card.get("origin") or "engine"),
+        tier=reading.confidence,
+        fresh=m.fresh,
     )
     report.readings += 1
-    return CardReading(obs, reading, plan_days, stacked=stacked)
+    if not meas["calibrates"]:
+        report.skip(f"not_calibrating_{meas['calibration_skip']}")
+    return CardReading(obs, reading, plan_days, stacked=stacked, measurement=meas)
 
 
 async def read_cards(
@@ -562,6 +585,7 @@ async def read_change_sets(
                 "predicted_range": [lo, hi],
                 "in_range": _in_range(got.reading.impact_pct, lo, hi),
                 "read": True,
+                "measurement": got.measurement,
                 **_reading_json(got.reading, got.post_days),
             }
             if not cut:
@@ -625,24 +649,23 @@ async def _read_joint(
     if today < t + timedelta(days=days + 1):
         report.skip("plan_not_ended")
         return []
-    first, last = t - timedelta(days=impact.PRE_DAYS + 1), t + timedelta(days=days)
-    data = await load_item_days(session, shop_id, first, last)
+    pre = verdict.pre_days_for(days)
+    first, last = t - timedelta(days=max(pre, impact.PRE_DAYS + 1)), t + timedelta(days=days)
     pid = cs.product_id
-    if pid is not None:
-        treated_days = data.get(pid)
-        controls = {k: series_of(v, "gmv", first, last) for k, v in data.items() if k != pid}
-    else:
-        treated_days = _sum_days(list(data.values()))
-        controls = {}
+    source = ShopeeSeries(
+        cards[0][0].id, "gmv", [pid] if pid is not None else [],
+        siblings=tuple(p.id for p, _ in cards[1:]),
+    )  # fmt: skip
+    bundle = await source.load(session, shop_id, [], first, last)
+    treated_days = source.treated_days
     if not treated_days:
         report.skip("no_series")
         return []
-    excluded = await executed_days_other(
-        session, shop_id, cards[0][0].id, first, last, [p.id for p, _ in cards[1:]]
-    )
-    reading = impact.read_effect(
-        series_of(treated_days, "gmv", first, last), controls, t, post_days=days, excluded=excluded
-    )
+    if pid is None:  # a shop-wide set: no product to hold out as a control
+        bundle = replace(bundle, controls={})
+    m = _measure(bundle, source, t, days, today, "gmv", None, pre)
+    reading = m.reading
+    stale = not m.fresh
     rel = (cs.predicted or {}).get("rel_gmv") or _joint_rel_from_cards(
         cards, treated_days, first, t
     )
@@ -687,6 +710,7 @@ async def _read_joint(
         "predicted_range": None if lo is None or hi is None else [lo, hi],
         "in_range": _in_range(reading.impact_pct, lo, hi),
         "read": True,
+        "measurement": verdict.payload(m, None, block=None, days=days, t=t, partial=cut),
         **_reading_json(reading, days),
     }
     if not cut:
@@ -704,6 +728,7 @@ async def _read_joint(
         Observation(
             "joint", "gmv", float(lo), float(hi), reading.impact_pct, reading.se_rel,
             "card", cs.with_shop_wide, f"cs:{cs.id}", controlled,
+            tier=reading.confidence, fresh=not stale,
         )
     ]  # fmt: skip
     mid_j = (float(lo) + float(hi)) / 2
@@ -721,9 +746,129 @@ async def _read_joint(
                 None if reading.se_rel is None else reading.se_rel * abs(mid_k / mid_j),
                 "card", cs.with_shop_wide, f"{cs.id}:{p.id}", controlled,
                 str(card.get("origin") or "engine"), config.MULTI_CARD_WEIGHT,
+                tier=reading.confidence, fresh=not stale,
             )
         )  # fmt: skip
     return out
+
+
+def _day_means(
+    days: Mapping[date, DayAgg], first: date, last: date, excluded: frozenset[date]
+) -> dict[str, float]:
+    """Per-day mean spend / GMV / orders of a campaign over ``first..last`` (no days = {})."""
+    used = [d for d in (first + timedelta(days=i) for i in range((last - first).days + 1))
+            if d not in excluded and d in days]  # fmt: skip
+    if not used:
+        return {}
+    return {
+        "spend": sum(days[d].spend for d in used) / len(used),
+        "gmv": sum(days[d].gmv for d in used) / len(used),
+        "orders": sum(days[d].orders for d in used) / len(used),
+    }
+
+
+def _newest(parts: Iterable[Mapping[date, DayAgg]], traffic: bool = False) -> date | None:
+    """The newest day any series has data for: orders / GMV / spend, or views / clicks."""
+    return max(
+        (
+            d
+            for part in parts
+            for d, a in part.items()
+            if (a.views or a.clicks if traffic else a.orders or a.gmv or a.spend)
+        ),
+        default=None,
+    )
+
+
+@dataclass
+class ShopeeSeries:
+    """Shopee's :class:`~juli_backend.services.card_measure.reader.SeriesSource`: the card's
+    products' (or campaign's) daily series from the stored Shopee data (``load_item_days`` /
+    ``load_campaign_days``), the other products / campaigns as controls, the days of the
+    shop's other executed changes dropped, and the newest stored day for freshness."""
+
+    card_id: uuid.UUID
+    metric: str
+    items: list[str]
+    campaign_key: str | None = None
+    siblings: tuple[uuid.UUID, ...] = ()
+    #: after ``load``: the treated per-day figures and every product's / campaign's
+    treated_days: Mapping[date, DayAgg] = field(default_factory=dict)
+    data: Mapping[str, Mapping[date, DayAgg]] = field(default_factory=dict)
+    _excluded: frozenset[date] = frozenset()
+    _first: date | None = None
+    _last: date | None = None
+
+    platform = "shopee"
+
+    @property
+    def expected_lag_days(self) -> int:
+        dataset = "traffic" if self.metric in TRAFFIC_METRICS else "orders"
+        if self.metric in ("ads_gmv", "roas"):
+            dataset = "ads"
+        return forecast_base.EXPECTED_LAG_DAYS[("shopee", dataset)]
+
+    async def load(
+        self,
+        session: AsyncSession,
+        shop_id: uuid.UUID,
+        subject_ids: Sequence[str],
+        first: date,
+        last: date,
+        *,
+        run_id: uuid.UUID | None = None,
+    ) -> reader.SeriesBundle:
+        self._first, self._last = first, last
+        if self.metric in ("ads_gmv", "roas"):
+            self.data = await load_campaign_days(session, shop_id, first, last)
+            self.treated_days = self.data.get(self.campaign_key or "", {})
+        else:
+            self.data = await load_item_days(session, shop_id, first, last)
+            self.treated_days = (
+                _sum_days([self.data.get(i, {}) for i in self.items])
+                if self.items
+                else _sum_days(list(self.data.values()))
+            )
+        self._excluded = await executed_days_other(
+            session, shop_id, run_id or self.card_id, first, last, self.siblings
+        )
+        return self.bundle_for(self.metric)
+
+    def bundle_for(self, metric: str) -> reader.SeriesBundle:
+        """The loaded data as ``metric``'s series (no further I/O)."""
+        assert self._first is not None and self._last is not None
+        first, last = self._first, self._last
+        own = {self.campaign_key} if self.metric in ("ads_gmv", "roas") else set(self.items)
+        controls = {
+            k: series_of(v, metric, first, last) for k, v in self.data.items() if k not in own
+        }
+        newest = _newest([self.treated_days, *self.data.values()], metric in TRAFFIC_METRICS)
+        return reader.SeriesBundle(
+            series_of(self.treated_days, metric, first, last), controls, self._excluded, newest
+        )
+
+
+def _measure(
+    bundle: reader.SeriesBundle,
+    source: ShopeeSeries,
+    t: date,
+    days: int,
+    today: date,
+    metric: str,
+    block: Mapping[str, Any] | None,
+    pre_days: int,
+) -> reader.Measurement:
+    """F10 through the shared reader (one model for both platforms)."""
+    return reader.measure(
+        bundle,
+        t,
+        days,
+        today=today,
+        expected_lag_days=source.expected_lag_days,
+        platform=source.platform,
+        metric=metric,
+        pre_days=pre_days,
+    )
 
 
 def _sum_days(parts: Iterable[Mapping[date, DayAgg]]) -> dict[date, DayAgg]:
@@ -942,6 +1087,7 @@ def score_natural(
         False,
         ref,
         not reading.fallback,
+        tier=reading.confidence,
     )
     if obs.controlled:
         report.bump(report.usable, kind)

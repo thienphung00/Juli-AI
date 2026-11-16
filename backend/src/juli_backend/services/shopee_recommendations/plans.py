@@ -94,6 +94,7 @@ ADS_READBACK_NOT_READ: dict[str, Any] = {
     "candidates": [],
     "started_before_card": None,
     "actual": None,
+    "rows": None,
 }
 ERROR_NOT_DRAFT = "reco_plan_not_draft"
 ERROR_EMPTY = "reco_plan_empty"
