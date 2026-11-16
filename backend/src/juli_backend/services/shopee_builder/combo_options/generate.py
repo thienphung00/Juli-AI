@@ -52,7 +52,9 @@ def _allowed(
         out[p.item_id] = [
             v
             for v in p.variations
-            if v.variation_id in chosen and (v.sold_30d or not rules.sold_only)
+            if v.variation_id in chosen
+            and (v.sold_30d or not rules.sold_only)
+            and not naming.is_combo_variation(v.name)  # G6: never a pack of a "Combo N"
         ]
     return out
 
@@ -159,7 +161,8 @@ def generate(
     taken: set[str] = set()
     for form, members in islice(_iter(products, allowed, packs, rules), max(rules.max_options, 0)):
         unit = rules.unit or naming.unit_word(
-            *(t for m in members for t in (m.variation_name, m.product_name))
+            *(t for m in members for t in (m.product_name,)),
+            *(t for m in members for t in (m.variation_name,)),
         )
         label = (
             naming.bundle_name(members)

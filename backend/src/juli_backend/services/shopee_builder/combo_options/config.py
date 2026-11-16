@@ -21,7 +21,7 @@ SHOPEE_MAX_SKU_CHARS = 100  # confirm at recon: seller SKU length
 DEFAULT_MAX_OPTIONS = 50
 MIN_PACK = 2
 MAX_PACK = 100
-DEFAULT_UNIT = "hộp"
+DEFAULT_UNIT = "sản phẩm"  # G6: when the product name says no chai / túi / khăn / hộp ...
 DEFAULT_SHOP_CODE = "SHOP"
 
 DEFAULT_LADDER: dict[int, Decimal] = {3: Decimal("0.05"), 5: Decimal("0.08"), 10: Decimal("0.12")}

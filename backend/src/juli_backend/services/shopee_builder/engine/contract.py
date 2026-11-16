@@ -321,6 +321,8 @@ WIRE_KEYS = {
     "horizon": "'duration' | 'first_30_days'",
     "drivers": "list['views'|'ctr'|'ctor'|'aov']",
     "estimable": "bool",
+    "reason_code": "str | None  # G5: why there is no estimate (None when estimable)",
+    "reason_text": "str | None  # G5: the Vietnamese sentence for the code (the '—' hover text)",
     "basis": "'measured'|'product_history'|'shop'|'prior'|'not_estimable'",
     "basis_weak": "bool  # tag 'ước tính chung' (prior) shown",
     "delta": {

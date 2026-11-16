@@ -68,7 +68,9 @@ def _row_json(row: co.PricedRow, rates: dict[str, Rates]) -> dict[str, Any]:
         "members": members,
         "suggested_stock": o.suggested_stock,
         "stock_note": o.stock_note,
-        "price": _dec_num(row.price),
+        "price": _dec_num(row.price),  # G6: Giá = the pack's TOTAL price
+        "price_total": _dec_num(row.price),
+        "price_per_unit": _dec_num(row.price_per_box),  # one `unit` of the pack
         "price_per_box": _dec_num(row.price_per_box),
         "separate_total": _dec_num(row.separate_total),
         "saving": _dec_num(row.saving),

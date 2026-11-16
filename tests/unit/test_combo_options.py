@@ -126,7 +126,7 @@ def test_unpicked_product_is_skipped() -> None:
 
 def test_names_skus_lengths() -> None:
     opts = generate([GLOVE], ALL, Packs((3,)), Rules(shop_code="Cửa Hàng"))
-    assert opts[0].name == "3 hộp – Size S"
+    assert opts[0].name == "3 sản phẩm – Size S"  # G6: no unit word in the name -> "sản phẩm"
     assert opts[0].sku == "CUAHANG-GANG-SA-x3"
     long_p = ProductIn(
         "1", "Tên sản phẩm rất rất dài " * 6, (var("v", "Phân loại rất dài " * 5, 1000),)
@@ -271,3 +271,32 @@ def test_manual_override_recalculates_row() -> None:
     out = price(opts_s(), PriceRule(), ECO, overrides={base.option.key: 250_000})
     assert [r.overridden for r in out].count(True) == 1
     assert next(r for r in out if r.overridden).price == 250_000
+
+
+def test_g6_unit_comes_from_the_product_name_else_san_pham() -> None:
+    from juli_backend.services.shopee_builder.combo_options import naming
+
+    assert naming.unit_word("Nước rửa chén chai 500ml", "Size M") == "chai"
+    assert naming.unit_word("Khăn giấy bamboo", None) == "khăn"
+    assert naming.unit_word("Túi rác tự hủy") == "túi"
+    assert naming.unit_word("Găng tay", "Size M") == "sản phẩm"
+
+
+def test_g6_no_pack_is_built_from_a_combo_variation() -> None:
+    p = ProductIn(
+        "300",
+        "Nước rửa chén",
+        (var("a", "500ml", 50_000), var("b", "Combo 3 chai", 140_000), var("c", "Set 2", 90_000)),
+    )
+    picks = {"300": ["a", "b", "c"]}
+    assert count([p], picks, Packs((3,)), Rules()).total == 1
+    (o,) = generate([p], picks, Packs((3,)), Rules())
+    assert [m.variation_id for m in o.members] == ["a"]
+    assert o.unit == "sản phẩm"
+    assert naming_is_combo("Combo 3 chai") and not naming_is_combo("500ml")
+
+
+def naming_is_combo(name: str) -> bool:
+    from juli_backend.services.shopee_builder.combo_options import naming
+
+    return naming.is_combo_variation(name)

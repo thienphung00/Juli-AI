@@ -16,6 +16,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     Scenario,
 )
 from juli_backend.services.shopee_builder.engine.vn import DRIVER_LABELS, count, vnd
+from juli_backend.services.shopee_builder.reasons import code_for_note, text_for
 
 AOV_ONLY_NOTE = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
 NOT_ESTIMABLE_NOTE = "Chưa ước tính được."
@@ -148,6 +149,9 @@ def result_json(r: OptionResult) -> dict[str, Any]:
     else:
         note = None
 
+    # G5: the real reason there is no estimate; the UI shows "—" with this text on hover
+    reason_code = None if r.estimable else code_for_note(r.notes[0] if r.notes else None)
+
     n_cost = r.cost_total
     if n_cost > 0:
         parts = [f"Chi phí {vnd(n_cost)}"]
@@ -175,6 +179,8 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         "horizon": r.horizon,
         "drivers": list(r.drivers),
         "estimable": r.estimable,
+        "reason_code": reason_code,
+        "reason_text": text_for(reason_code),
         "basis": r.basis,
         "basis_weak": r.basis == "prior",
         "delta": {
