@@ -11,7 +11,7 @@
  * No fee rates are quoted (they change; the seller reads them in Seller Center).
  * Every number in a "Ví dụ giả định" is hypothetical and says so. The funnel
  * identity is derived from TikTok's definitions and presented as Juli's method
- * (docs/adr/106, docs/adr/108). Juli's scope per fasttrack/SPEC.md: analyses,
+ * (docs/adr/106, docs/adr/108). Juli's scope per fasttrack/archive/SPEC.md: analyses,
  * proposes, writes only title / description after approval, measures day 7 / 14;
  * no ads, no orders or inventory management.
  */
