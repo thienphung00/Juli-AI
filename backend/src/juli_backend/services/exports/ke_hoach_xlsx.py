@@ -170,10 +170,12 @@ class KeHoachData:
     goals: list[GoalRow] = field(default_factory=list)
     days: list[GoalDay] = field(default_factory=list)
     kols: list[KolRow] = field(default_factory=list)
+    #: built under the "Tất cả shop" gate (even when the user has a single shop)
+    all_shops: bool = False
 
     @property
     def multi(self) -> bool:
-        return len(self.shops) > 1
+        return self.all_shops or len(self.shops) > 1
 
 
 def _d(x: date) -> str:
@@ -181,7 +183,7 @@ def _d(x: date) -> str:
 
 
 def title_of(data: KeHoachData, what: str) -> str:
-    who = data.shops[0] if len(data.shops) == 1 else "Tất cả shop"
+    who = "Tất cả shop" if data.multi else data.shops[0]
     return f"{what} — {who} · {_d(data.start)}–{_d(data.end)}"
 
 
@@ -233,8 +235,8 @@ def _lead(ws, r: int, i: int, c: CardRow) -> None:
     for k, v in enumerate((c.code, c.shop, c.platform, c.status, c.group, c.kind, c.version,
                            c.product_name), start=2):  # fmt: skip
         put(ws, r, k, v)
-    for k, v in ((10, c.proposed), (11, c.start), (12, c.end)):
-        put(ws, r, k, v, DATE)
+    for k, day in ((10, c.proposed), (11, c.start), (12, c.end)):
+        put(ws, r, k, day, DATE)
     put(ws, r, 13, f'=IF(OR(K{r}="",L{r}=""),"",L{r}-K{r}+1)', INT)
 
 
@@ -366,8 +368,8 @@ def _kols(wb: Workbook, data: KeHoachData) -> None:
     put(ws, 1, 1, title_of(data, "KOL")).font = TITLE
     header(ws, 3, KOL_HEADER)
     for r, k in enumerate(data.kols, start=4):
-        for c, v in ((1, k.shop), (2, k.platform), (3, k.kol)):
-            put(ws, r, c, v)
+        for c, text in ((1, k.shop), (2, k.platform), (3, k.kol)):
+            put(ws, r, c, text)
         for c, v, fmt in ((4, k.clicks, INT), (5, k.orders, INT), (6, k.gmv, MONEY),
                           (7, k.commission, MONEY), (8, k.profit, MONEY)):  # fmt: skip
             put(ws, r, c, v, fmt)

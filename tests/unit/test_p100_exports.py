@@ -287,3 +287,27 @@ def test_residual_channel_past_the_shop_is_unknown_not_negative():
     rest = _residual(shop, parts)
     assert rest.channel("organic").gmv is None and rest.channel("ads").gmv is None
     assert rest.gmv == pytest.approx(5_500_000 * -0.4)  # the GMV residual itself is kept
+
+
+# ---------------------------------------------------------------------------------- Tất cả shop
+
+
+def test_all_shops_overview_has_a_column_per_shop_and_a_total_from_the_registry_flags():
+    a, b = _data(), _data()
+    b.shop_name, b.platform = "Shop B", "TikTok"
+    b.now = _fig(2)
+    ws = tq.build_multi([a, b])[tq.SHEET_OVERVIEW]
+    assert [c.value for c in ws[3]] == [
+        "Chỉ số", "Dữ liệu mẫu (Shopee)", "Shop B (TikTok)", "Tổng",
+    ]  # fmt: skip
+    r = tq.OV
+    # summable metrics (registry flag): the SUM of the shops
+    for key in ("gmv", "orders", "profit", "ads", "aff", "offer", "cost"):
+        assert ws.cell(r[key], 4).value == f"=SUM(B{r[key]}:C{r[key]})", key
+    # ratios: recomputed from the Tổng parts, never summed or averaged
+    assert ws.cell(r["aov"], 4).value == f'=IFERROR(D{r["gmv"]}/D{r["orders"]},"")'
+    assert ws.cell(r["roi"], 4).value == f'=IFERROR(D{r["profit"]}/D{r["cost"]},"")'
+    assert ws.cell(r["aov"], 3).value == f'=IFERROR(C{r["gmv"]}/C{r["orders"]},"")'
+    assert ws.cell(r["gmv"], 2).value == 5_500_000 and ws.cell(r["gmv"], 3).value == 11_000_000
+    assert tq.summable_row("gmv") and not tq.summable_row("aov") and not tq.summable_row("roi")
+    assert tq.file_name_multi([a, b]).startswith("Juli_TongQuan_TatCaShop_")

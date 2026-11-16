@@ -14,13 +14,14 @@ file is the figure of the screen's Kế hoạch card / Kế hoạch totals. No r
 from __future__ import annotations
 
 import uuid
-from collections.abc import Mapping
-from dataclasses import replace
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.database.tenant_context import with_tenant_scope
 from juli_backend.models.shopee_plans import PLAN_DRAFT, PLAN_EXECUTED
 from juli_backend.services.exports import ke_hoach_xlsx as kh
 from juli_backend.services.exports import sku as skumod
@@ -562,4 +563,87 @@ async def collect_ke_hoach(
     return kh.KeHoachData(start, end, [shop_name], cards, [goal], days, kols)
 
 
-__all__ = ["collect_ke_hoach", "collect_tong_quan"]
+# ----------------------------------------------------------------------------- Tất cả shop (G23)
+
+
+@dataclass(frozen=True)
+class ShopRef:
+    """One shop of the "Tất cả shop" gate: the shops the user can access (their own, and those of
+    the businesses they are an active member of: migration 130, the membership-aware ``shops``
+    policy that ``ShopsRepo.list_for_authorization`` reads)."""
+
+    id: uuid.UUID
+    name: str
+    platform: str  # "shopee" | "tiktok"
+
+
+def _platform_label(platform: str) -> str:
+    return {"shopee": "Shopee", "tiktok": "TikTok"}.get(platform, platform)
+
+
+async def collect_tong_quan_shops(
+    session: AsyncSession, shops: Sequence[ShopRef], *, user_id: uuid.UUID, now: datetime,
+    **window: Any,
+) -> list[tq.TongQuanData]:  # fmt: skip
+    """One Tổng quan data per shop, over one date range (``window``: the screen's period args).
+
+    TODO(TikTok session): a TikTok shop has no collector here yet; it is a column of "—" until its
+    Tổng quan figures are wired in (a shop with no figures also means no Tổng for the metric it
+    lacks only because SUM skips empty cells: the Tổng column is the Shopee shops' sum then)."""
+    out: list[tq.TongQuanData] = []
+    for shop in shops:
+        if shop.platform != "shopee":
+            continue
+        async with with_tenant_scope(session, shop.id, user_id):
+            out.append(
+                await collect_tong_quan(
+                    session, shop.id, shop_name=shop.name, now=now, platform="Shopee", **window
+                )
+            )
+    if not out:
+        raise ValueError("no data")
+    first = out[0]
+    merged: list[tq.TongQuanData] = []
+    done = {d.shop_name: d for d in out}
+    for shop in shops:
+        d = done.get(shop.name) if shop.platform == "shopee" else None
+        merged.append(
+            d
+            or tq.TongQuanData(
+                shop.name, first.start, first.end, first.prev_start, first.prev_end,
+                tq.Figures(), tq.Figures(), platform=_platform_label(shop.platform),
+            )
+        )  # fmt: skip
+    return merged
+
+
+async def collect_ke_hoach_shops(
+    session: AsyncSession, shops: Sequence[ShopRef], *, user_id: uuid.UUID, now: datetime,
+    start: date, end: date,
+) -> kh.KeHoachData:  # fmt: skip
+    """The Kế hoạch workbook over every shop: one date range, a Shop and Platform on every card
+    row, a goal row per shop (a shop without a plan collector has an empty goal, so the business
+    total is empty: ``kh.business_total``)."""
+    data = kh.KeHoachData(start, end, [s.name for s in shops], all_shops=True)
+    for shop in shops:
+        if shop.platform != "shopee":  # TODO(TikTok session): its card / goal collector
+            data.goals.append(kh.GoalRow(shop.name, _platform_label(shop.platform)))
+            continue
+        async with with_tenant_scope(session, shop.id, user_id):
+            cards, goal, days, kols = await collect_ke_hoach_shop(
+                session, shop.id, shop_name=shop.name, now=now, start=start, end=end
+            )
+        data.cards += cards
+        data.goals.append(goal)
+        data.days += days
+        data.kols += kols
+    return data
+
+
+__all__ = [
+    "ShopRef",
+    "collect_ke_hoach",
+    "collect_ke_hoach_shops",
+    "collect_tong_quan",
+    "collect_tong_quan_shops",
+]

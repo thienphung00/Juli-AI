@@ -122,3 +122,47 @@ async def export_ke_hoach(
         session, shop_id, shop_name=shop_name, now=datetime.now(UTC), start=start, end=end
     )
     return xlsx_response(ke_hoach_xlsx.file_name(data), ke_hoach_xlsx.build_bytes(data))
+
+
+async def shop_refs(session: Any, user_id: Any) -> list[Any]:
+    """The shops of the "Tất cả shop" gate: every shop the user can access (the membership-aware
+    read ``GET /v1/shops`` and ``get_active_shop`` use), oldest first."""
+    from juli_backend.database import ShopsRepo
+    from juli_backend.services.exports import collect
+
+    shops = await ShopsRepo(session).list_for_authorization(user_id)
+    shops.sort(key=lambda s: (s.created_at, str(s.id)))
+    return [collect.ShopRef(s.id, s.shop_name, s.platform) for s in shops]
+
+
+async def export_tong_quan_all(session: Any, user_id: Any, **args: Any) -> Response:
+    """The Tổng quan workbook of every shop the user can access: a column per shop and a Tổng."""
+    from juli_backend.services.exports import collect, tong_quan_xlsx
+
+    datas = await collect.collect_tong_quan_shops(
+        session, await shop_refs(session, user_id), user_id=user_id, now=datetime.now(UTC), **args
+    )
+    return xlsx_response(
+        tong_quan_xlsx.file_name_multi(datas), tong_quan_xlsx.build_multi_bytes(datas)
+    )
+
+
+async def export_ke_hoach_all(
+    session: Any, user_id: Any, start: date | None, end: date | None
+) -> Response:
+    """The Kế hoạch workbook of every shop the user can access (one date range)."""
+    from juli_backend.services.exports import collect, ke_hoach_xlsx
+    from juli_backend.services.shopee_analytics import service
+
+    shops = await shop_refs(session, user_id)
+    if start is None or end is None:
+        first = next((s for s in shops if s.platform == "shopee"), None)
+        window = None if first is None else await service.resolve(session, first.id)
+        if window is None:
+            raise ValueError("no data")
+        end = end or window.end
+        start = start or end.replace(day=1)
+    data = await collect.collect_ke_hoach_shops(
+        session, shops, user_id=user_id, now=datetime.now(UTC), start=start, end=end
+    )
+    return xlsx_response(ke_hoach_xlsx.file_name(data), ke_hoach_xlsx.build_bytes(data))

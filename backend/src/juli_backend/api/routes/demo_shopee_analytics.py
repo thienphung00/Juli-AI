@@ -26,10 +26,11 @@ import uuid
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.reviewer import reviewer_context
 from juli_backend.api.routes.shopee_analytics_common import (
     REFUSALS,
     DateQ,
@@ -37,11 +38,14 @@ from juli_backend.api.routes.shopee_analytics_common import (
     PeriodQ,
     PlanPeriodQ,
     export_ke_hoach,
+    export_ke_hoach_all,
     export_tong_quan,
+    export_tong_quan_all,
     refusal,
     window_args,
 )
-from juli_backend.database import Shop, get_session
+from juli_backend.core.security import get_current_user
+from juli_backend.database import Shop, User, get_session
 from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.shopee_analytics import channel_split, metric_view, queries
 
@@ -353,16 +357,27 @@ async def shopee_kol_section(
 
 @router.get("/exports/tong-quan.xlsx")
 async def shopee_export_tong_quan(
+    request: Request,
     period: PlanPeriodQ = "30d",
     month: MonthQ = None,
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     as_of: DateQ = None,
     product_id: Annotated[str | None, Query(max_length=64)] = None,
+    all_shops: Annotated[bool, Query()] = False,
     shop: Shop = Depends(get_active_shop),
+    user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    """Tổng quan as an Excel file: the period and level (shop / one product) of the screen."""
+    """Tổng quan as an Excel file: the period and level (shop / one product) of the screen.
+    ``all_shops`` (G23, "Tất cả shop"): a column per accessible shop plus a Tổng."""
+    if all_shops and reviewer_context(request) is None:
+        try:
+            return await export_tong_quan_all(
+                session, user.id, **window_args(period, month, start, end, as_of)
+            )
+        except REFUSALS as exc:
+            raise refusal(exc) from None
     shop_id = _shopee(shop)
     try:
         return await export_tong_quan(
@@ -375,12 +390,21 @@ async def shopee_export_tong_quan(
 
 @router.get("/exports/ke-hoach.xlsx")
 async def shopee_export_ke_hoach(
+    request: Request,
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
+    all_shops: Annotated[bool, Query()] = False,
     shop: Shop = Depends(get_active_shop),
+    user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    """Kế hoạch as an Excel file: the cards active in the range, the goals, the KOLs."""
+    """Kế hoạch as an Excel file: the cards active in the range, the goals, the KOLs.
+    ``all_shops`` (G23): every accessible shop, Shop and Platform columns."""
+    if all_shops and reviewer_context(request) is None:
+        try:
+            return await export_ke_hoach_all(session, user.id, start, end)
+        except REFUSALS as exc:
+            raise refusal(exc) from None
     shop_id = _shopee(shop)
     try:
         return await export_ke_hoach(session, shop_id, shop.shop_name, start, end)

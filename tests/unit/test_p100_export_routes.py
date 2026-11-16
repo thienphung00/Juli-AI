@@ -58,6 +58,26 @@ async def test_the_seller_routes_download_both_workbooks(session):
     assert bad.status_code == 422
 
 
+async def test_all_shops_exports_cover_every_accessible_shop(session):
+    seeded = await seed_shopee_shop(session, rules=True)
+    await session.commit()
+    app = build_app(session)
+    authenticate(app, user=seeded.user, shop=seeded.shop)
+    async with client_for(app) as client:
+        tq_all = await client.get(f"{DEMO}/tong-quan.xlsx", params={**PARAMS, "all_shops": "true"})
+        kh_all = await client.get(
+            f"{DEMO}/ke-hoach.xlsx",
+            params={"from": f"{CUR_END:%Y-%m}-01", "to": CUR_END.isoformat(), "all_shops": "true"},
+        )
+    app.dependency_overrides.clear()
+    assert _attachment(tq_all).startswith("Juli_TongQuan_TatCaShop_")
+    ws = load_workbook(BytesIO(tq_all.content))[tq.SHEET_OVERVIEW]
+    assert [c.value for c in ws[3]][-1] == "Tổng" and ws.max_column >= 3
+    assert _attachment(kh_all).startswith("Juli_KeHoach_TatCaShop_")
+    goal = load_workbook(BytesIO(kh_all.content))[kh.SHEET_GOAL]
+    assert goal["A4"].value == seeded.shop.shop_name and goal["B4"].value == "Shopee"
+
+
 async def test_the_seller_routes_need_a_signed_in_user(session):
     await seed_shopee_shop(session, rules=True)
     await session.commit()

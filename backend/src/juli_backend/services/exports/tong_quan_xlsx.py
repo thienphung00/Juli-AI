@@ -387,6 +387,102 @@ def _sku_formulas(ws, r: int) -> None:
     put(ws, r, 7, f'=IF(AND(F{r}<>"",E{r}<>0),F{r}/E{r},"")', PCT)
 
 
+# ----------------------------------------------------------------------------- Tất cả shop
+
+#: the overview row -> its metric id in the registry (the row is summable when the registry says so)
+ROW_METRIC = {
+    "gmv": "gmv", "orders": "orders", "profit": "profit", "ads": "cost_ads",
+    "aff": "cost_affiliate", "offer": "cost_offers", "cost": "cost_marketing", "aov": "aov",
+    "roi": "roi",
+}  # fmt: skip
+#: ratio rows: never summed or averaged; the Tổng column recomputes them from its own parts
+RATIO_ROWS = ("aov", "roi")
+MULTI_FIRST = 4  # first metric row of the all-shops sheet
+
+
+def summable_row(key: str) -> bool:
+    from juli_backend.services.metrics.registry import METRICS
+
+    return key not in RATIO_ROWS and METRICS[ROW_METRIC[key]].summable
+
+
+def title_multi(datas: list[TongQuanData]) -> str:
+    first = datas[0]
+    return f"TỔNG QUAN — Tất cả shop · {_d(first.start)}–{_d(first.end)}"
+
+
+def file_name_multi(datas: list[TongQuanData]) -> str:
+    return f"Juli_TongQuan_TatCaShop_{datas[0].start:%d%m%Y}_{datas[0].end:%d%m%Y}.xlsx"
+
+
+def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
+    """One sheet: a column per shop and a Tổng column. Tổng = the SUM of the shops for a metric the
+    registry marks summable; a ratio (AOV, ROI) is recomputed from the Tổng parts, never averaged;
+    anything else stays empty (per shop only)."""
+    ws = wb.create_sheet(SHEET_OVERVIEW)
+    put(ws, 1, 1, title_multi(datas)).font = TITLE
+    n = len(datas)
+    total_col = 2 + n
+    header(ws, 3, ["Chỉ số", *(f"{d.shop_name} ({d.platform})" for d in datas), "Tổng"])
+    labels = {
+        "gmv": ("GMV (đ)", MONEY), "orders": ("Đơn", INT), "aov": ("AOV (đ)", MONEY),
+        "profit": ("Lợi nhuận (đ)", MONEY),
+        "ads": ("Chi phí quảng cáo (Báo cáo DVHT) (đ)", MONEY),
+        "aff": ("Chi phí tiếp thị liên kết (đ)", MONEY), "offer": ("Chi phí ưu đãi (đ)", MONEY),
+        "cost": ("Tổng chi phí (đ)", MONEY), "roi": ("ROI", POINTS),
+    }  # fmt: skip
+    values = [_overview_values(d.now) for d in datas]
+    row = {k: OV[k] for k in OV}  # the single-shop layout: same rows
+    for key, (label, fmt) in labels.items():
+        r = row[key]
+        put(ws, r, 1, label)
+        for j in range(n):
+            L = col(2 + j)
+            if key == "aov":
+                v: object = f'=IFERROR({L}{row["gmv"]}/{L}{row["orders"]},"")'
+            elif key == "cost":
+                v = f"=SUM({L}{row['ads']}:{L}{row['offer']})"
+            elif key == "roi":
+                v = f'=IFERROR({L}{row["profit"]}/{L}{row["cost"]},"")'
+            else:
+                v = values[j][key]
+            put(ws, r, 2 + j, v, fmt)
+        T, first, last = col(total_col), col(2), col(1 + n)
+        if key == "aov":
+            total: object = f'=IFERROR({T}{row["gmv"]}/{T}{row["orders"]},"")'
+        elif key == "roi":
+            total = f'=IFERROR({T}{row["profit"]}/{T}{row["cost"]},"")'
+        elif summable_row(key):
+            total = f"=SUM({first}{r}:{last}{r})"
+        else:
+            total = None
+        put(ws, r, total_col, total, fmt, bold=True)
+    # GMV by channel: summable like the GMV it splits
+    for i, key in enumerate(CHANNELS):
+        r = OV["roi"] + 1 + i
+        put(ws, r, 1, f"GMV {CHANNEL_LABELS[key]} (đ)")
+        for j, d in enumerate(datas):
+            put(ws, r, 2 + j, d.now.channel(key).gmv, MONEY)
+        put(ws, r, total_col, f"=SUM({col(2)}{r}:{col(1 + n)}{r})", MONEY, bold=True)
+    widths(ws, {1: 40}, 20)
+    finish(ws, "B4")
+
+
+def build_multi(datas: list[TongQuanData]) -> Workbook:
+    wb = new_workbook()
+    _multi(wb, datas)
+    for ws in wb.worksheets:
+        for r in ws.iter_rows():
+            for c in r:
+                if c.font is None or c.font.name != "Arial":
+                    c.font = FONT
+    return wb
+
+
+def build_multi_bytes(datas: list[TongQuanData]) -> bytes:
+    return save_bytes(build_multi(datas))
+
+
 def build(data: TongQuanData) -> Workbook:
     wb = new_workbook()
     _overview(wb, data)
