@@ -83,16 +83,17 @@ describe("the worked example (voucher A -> C)", () => {
       const walk = (o: unknown): void => {
         if (!o || typeof o !== "object") return;
         const r = o as Record<string, unknown>;
-        if (r["p10"] && typeof r["p10"] === "object" && "dorders" in (r["p10"] as object)) {
+        if (r["p50"] && typeof r["p50"] === "object" && "dorders" in (r["p50"] as object)) {
           (r["p10"] as { dorders: number }).dorders = lo;
-          (r["p90"] as { dorders: number }).dorders = hi;
+          (r["p50"] as { dorders: number }).dorders = hi;
         }
         Object.values(r).forEach(walk);
       };
       walk(c);
       return expectedRows(c)[3]!.dv;
     };
-    expect(set(0.4, 1.4)).toBe("< 1 đơn – +1 đơn");
+    // F4 (owner 2026-11-16): one number, the P50; the P10 never shows
+    expect(set(0.4, 1.4)).toBe("+1 đơn");
     expect(set(0.2, 0.7)).toBe("< 1 đơn");
   });
 

@@ -280,8 +280,8 @@ async def generate_cards(
             continue
         card["versions"] = versions.build_versions(env, c, card, now=now)
         built.append((c, card))
-    built, dropped = trigger_adapter.route_cards(env, built)  # F11
-    report.skipped_refusals.update({f"below_band:{k}": n for k, n in dropped.items()})
+    built, below_band = trigger_adapter.route_cards(env, built)  # F11
+    report.skipped_refusals.update({f"below_band:{k}": n for k, n in below_band.items()})
     report.generated = len(built)
     # one card, one number: each version's engine result is stored and ranked on
     jobs = [result_store.Job(card) for _, card in built]
@@ -335,8 +335,8 @@ async def generate_cards(
     ranked = {r.id: r for r in result.ordered}
     if report.mega is not None:
         report.mega["ranked"] = "mega" in ranked
-        dropped = next((d for d in result.dropped if d["id"] == "mega"), None)
-        report.mega["dropped_by"] = None if dropped is None else dropped["reasons"]
+        mega_drop = next((d for d in result.dropped if d["id"] == "mega"), None)
+        report.mega["dropped_by"] = None if mega_drop is None else mega_drop["reasons"]
     cycle_name = cycle or f"{env.as_of:%Y-%m}"
     kept_all = result.ordered if max_cards is None else result.ordered[:max_cards]
     if persist:
