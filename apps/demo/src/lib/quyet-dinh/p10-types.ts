@@ -75,6 +75,8 @@ export interface RecommendationCardPayload {
   readonly gmv_estimate?: CardGmvEstimate | null;
   /** P23 (D29.4): other active cards of the same product + target metric. */
   readonly sibling_cards?: number | null;
+  /** Forecast grill (TikTok): one P50 number per metric; null = "—". */
+  readonly forecast?: CardForecast | null;
   /** P30 (D34.8): one plain sentence about the card's group, once its day-14 verdict exists. */
   readonly group_result?: string | null;
 }
@@ -103,6 +105,22 @@ export type CardKpiChannel = "product_card" | "video" | "live" | "total";
 export interface CardGmvEstimate {
   readonly per_month_min: number | null;
   readonly per_month_max: number | null;
+}
+
+/** Forecast grill F2/F5/F6/F8/F9 `recommendation.card.forecast` (TikTok cards). */
+export interface CardForecast {
+  readonly data_through: string;
+  /** F2: set when the data is older than TikTok's expected lag; no numbers then. */
+  readonly stale: { readonly data_through: string } | null;
+  /** F6: "own" | "shop" | "pooled" | "prior". */
+  readonly source: string;
+  readonly scenario: string;
+  readonly target_metric: string;
+  readonly target_lift: number | null;
+  readonly orders_per_month: number | null;
+  readonly gmv_per_month: number | null;
+  /** F9: null until the TikTok profit adapter exists. */
+  readonly profit_per_month: number | null;
 }
 
 /** P17 `recommendation.card.quick_scan`. */

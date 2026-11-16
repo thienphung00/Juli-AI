@@ -125,6 +125,7 @@ def channel_days(rows: Sequence[ProductDay], channel: str) -> list[ProductDay]:
                 impressions=traffic.impressions if traffic is not None else ZERO,
                 clicks=traffic.clicks if traffic is not None else ZERO,
                 gmv=(traffic.gmv or ZERO) if traffic is not None else ZERO,
+                available=row.available,
             )
         )
     return out

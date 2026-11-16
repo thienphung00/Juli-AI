@@ -55,7 +55,7 @@ def test_description_is_exempt_like_shopee():
 def test_no_floor_when_fleet_or_shop_calibrated():
     fleet = CalibrationStats(coefficient=0.25, results=50)  # factor 0.5 -> halves the lift
     p = predict("title", None, fleet=fleet)
-    assert p.source == "fleet"
+    assert p.source == "pooled"
     assert p.lift_mid < GENERIC_UPLIFT_FLOOR
     shop = CalibrationStats(coefficient=0.25, results=10)
     s = predict("cover_image", 80, shop=shop)
@@ -146,4 +146,4 @@ def test_predict_uses_sized_floor_and_leaves_fleet_alone(monkeypatch):
     assert none.lift_mid == pytest.approx(0.03)
     fleet = CalibrationStats(coefficient=0.25, results=50)
     f = predict("buy_more_save_more", None, fleet=fleet, size=20.0)
-    assert f.source == "fleet" and f.lift_mid == pytest.approx((f.lift_low + f.lift_high) / 2)
+    assert f.source == "pooled" and f.lift_mid == pytest.approx((f.lift_low + f.lift_high) / 2)

@@ -63,6 +63,10 @@ class ProductDay:
     ``channels`` (D32): A-33 content type (``PRODUCT_CARD`` / ``VIDEO`` /
     ``LIVE``) -> that channel's traffic for the day; empty when the day was
     stored without a breakdown.
+
+    ``available`` (F2): ``False`` when the product was out of stock or unlisted that
+    day, so the day is left out of the forecast base (neither a zero nor a value);
+    ``None`` = not known (kept, the default until a source stores it).
     """
 
     day: date
@@ -74,6 +78,7 @@ class ProductDay:
     add_to_cart: Decimal | None = None
     cart_clicks: Decimal | None = None
     channels: Mapping[str, ChannelTraffic] = field(default_factory=dict, hash=False)
+    available: bool | None = None
 
 
 @dataclass(frozen=True)

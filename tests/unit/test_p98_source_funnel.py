@@ -315,7 +315,7 @@ def test_migration_126_is_additive_and_reversible():
     for source in SOURCES:
         assert f"'{source}'" in src
     tail = versions.parent / "deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "132_credential_grant_id"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "133_fleet_draws_real_shops"' in tail.read_text("utf-8")
 
 
 async def test_product_sources_come_from_the_daily_item_traffic_and_sum_to_the_product_row(

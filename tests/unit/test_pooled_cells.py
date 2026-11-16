@@ -174,7 +174,7 @@ def test_the_fleet_level_falls_back_to_every_lever_then_to_nothing():
     assert [c.key for c in used] == ["all_levers"]
     stats = {k: CalibrationStats(float(c), n) for k, (c, n) in fleet.items()}
     assert fleet_stats_for(stats, "title") == stats[FLEET_ALL_LEVERS]
-    assert predict("title", 80, fleet=fleet_stats_for(stats, "title")).source == "fleet"
+    assert predict("title", 80, fleet=fleet_stats_for(stats, "title")).source == "pooled"
     # Four shops in all: no cell, no fleet level, the prior.
     assert pool_fleet_calibration(draws[:4]) == ({}, [])
     assert fleet_stats_for({}, "title") is None
