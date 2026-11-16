@@ -29,6 +29,7 @@ from typing import Any
 
 from juli_backend.services.optimize_product.tunables import (
     GENERIC_UPLIFT_FLOOR,
+    SIZED_LEVER_REFERENCE_SIZE,
     UPLIFT_FLOOR_EXEMPT_LEVERS,
 )
 
@@ -166,7 +167,9 @@ def predict(
     *,
     shop: CalibrationStats | None = None,
     fleet: CalibrationStats | None = None,
+    size: float | None = None,
 ) -> Prediction:
+    """``size``: the change's size in percent for a sized lever (discount %, BMSM tier %)."""
     low, high = prior_lift(lever, qs_gap)
     factor, source = blended_factor(shop, fleet)
     lift_low, lift_high, p50 = low * factor, high * factor, None
@@ -175,8 +178,9 @@ def predict(
         # Owner rule: the generic uplift is a fall back and is at least 5 %. Only P50 is
         # floored; P10 (the conservative tail) stays, and P90 is kept >= P50. A lever
         # whose prior P50 is <= 0 can legitimately lose, so it is left alone.
-        if 0 < mid < GENERIC_UPLIFT_FLOOR:
-            p50 = GENERIC_UPLIFT_FLOOR
+        floor = uplift_floor(lever, size)
+        if 0 < mid < floor:
+            p50 = floor
             lift_high = max(lift_high, p50)
     return Prediction(
         lever=lever,
@@ -187,6 +191,17 @@ def predict(
         source=source,
         lift_p50=p50,
     )
+
+
+def uplift_floor(lever: str, size: float | None = None) -> float:
+    """The generic floor: flat 5 %, scaled by ``min(1, size / reference)`` for a sized
+    lever whose size is known; size <= 0 gives no floor (0.0)."""
+    reference = SIZED_LEVER_REFERENCE_SIZE.get(lever)
+    if reference is None or size is None:
+        return GENERIC_UPLIFT_FLOOR
+    if size <= 0:
+        return 0.0
+    return GENERIC_UPLIFT_FLOOR * min(1.0, size / reference)
 
 
 def gmv_range_from_lift(
@@ -229,5 +244,6 @@ __all__ = [
     "gmv_range_from_lift",
     "gmv_range_per_month",
     "predict",
+    "uplift_floor",
     "prior_lift",
 ]

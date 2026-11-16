@@ -1270,6 +1270,7 @@ def _plan_d29(
                 quality.gap(lever),
                 shop=calibration.get(lever),
                 fleet=fleet_stats_for(fleet_calibration, lever),
+                size=float(bmsm.percent) if bmsm is not None else None,
             )
             kpi = kpi_target(
                 metric=metric,

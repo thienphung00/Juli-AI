@@ -119,6 +119,20 @@ GENERIC_UPLIFT_FLOOR = 0.05
 #: Independently, any lever whose prior P50 is <= 0 is exempt (:func:`.prediction.predict`).
 UPLIFT_FLOOR_EXEMPT_LEVERS: frozenset[str] = frozenset({"description"})
 
+#: Owner decision (2026-11-16): the floor scales with the size of the change,
+#: ``GENERIC_UPLIFT_FLOOR × min(1, size / reference)``. The reference is the change size,
+#: in percent, the lever's prior is defined at. The prior tables state none, so it is
+#: derived: ``StageDiagnosisConfig.bmsm_percent_default`` (10 %) is the tier the
+#: buy_more_save_more prior (0.03, 0.10) is applied to, and the discount-percent levers
+#: use the same 10 % (the typical cap a seller sets; an assumption the owner can retune).
+#: Unsized levers (title, cover_image, shipping_discount: free-shipping has no percent)
+#: keep the flat floor; a sized lever whose size is not known at forecast time does too.
+SIZED_LEVER_REFERENCE_SIZE: Mapping[str, float] = {
+    "product_discount": 10.0,
+    "flash_sale": 10.0,
+    "buy_more_save_more": 10.0,
+}
+
 
 class TunableError(ValueError):
     """An invalid tunable value."""

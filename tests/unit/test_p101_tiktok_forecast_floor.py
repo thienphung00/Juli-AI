@@ -14,9 +14,11 @@ from juli_backend.services.optimize_product.prediction import (
     gmv_range_from_lift,
     gmv_range_per_month,
     predict,
+    uplift_floor,
 )
 from juli_backend.services.optimize_product.tunables import (
     GENERIC_UPLIFT_FLOOR,
+    SIZED_LEVER_REFERENCE_SIZE,
     UPLIFT_FLOOR_EXEMPT_LEVERS,
     DiagTunables,
 )
@@ -113,3 +115,35 @@ def test_tiny_forecast_under_new_code_path():
     low, high = gmv_range_from_lift(300_000.0, p.lift_low, p.lift_high)
     assert low > 2.9 * old_low and high > low
     assert p.lift_mid >= GENERIC_UPLIFT_FLOOR
+
+
+def test_floor_scales_with_size_for_sized_levers():
+    # product_discount prior (0.05, 0.20) has mid 0.125 so use BMSM's (0.03, 0.10)
+    # with a scaled-down prior to see the floor: assert on the helper directly.
+    assert uplift_floor("product_discount", 5.0) == pytest.approx(0.025)  # half size
+    assert uplift_floor("product_discount", 10.0) == pytest.approx(0.05)  # at reference
+    assert uplift_floor("flash_sale", 30.0) == pytest.approx(0.05)  # above, capped
+    assert uplift_floor("buy_more_save_more", 5.0) == pytest.approx(0.025)
+    assert uplift_floor("buy_more_save_more", 20.0) == pytest.approx(0.05)
+    assert uplift_floor("product_discount", 0.0) == 0.0  # size 0: no floor
+    assert uplift_floor("title", 0.0) == pytest.approx(0.05)  # unsized: flat
+    assert uplift_floor("cover_image", None) == pytest.approx(0.05)
+    assert uplift_floor("buy_more_save_more", None) == pytest.approx(0.05)
+    assert {"product_discount", "flash_sale", "buy_more_save_more"} == set(
+        SIZED_LEVER_REFERENCE_SIZE
+    )
+
+
+def test_predict_uses_sized_floor_and_leaves_fleet_alone(monkeypatch):
+    import juli_backend.services.optimize_product.prediction as pred
+
+    monkeypatch.setitem(pred.PRIOR_LIFT, "buy_more_save_more", {"unknown": (0.00, 0.06)})
+    half = predict("buy_more_save_more", None, size=5.0)  # mid 0.03 -> floor 0.025: unchanged
+    assert half.lift_mid == pytest.approx(0.03)
+    tiny = predict("buy_more_save_more", None, size=20.0)  # floor 0.05 lifts 0.03
+    assert tiny.lift_mid == pytest.approx(0.05) and tiny.lift_high == pytest.approx(0.06)
+    none = predict("buy_more_save_more", None, size=0.0)
+    assert none.lift_mid == pytest.approx(0.03)
+    fleet = CalibrationStats(coefficient=0.25, results=50)
+    f = predict("buy_more_save_more", None, fleet=fleet, size=20.0)
+    assert f.source == "fleet" and f.lift_mid == pytest.approx((f.lift_low + f.lift_high) / 2)
