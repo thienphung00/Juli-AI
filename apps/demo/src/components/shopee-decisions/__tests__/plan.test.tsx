@@ -292,7 +292,7 @@ describe("Kế hoạch · nhóm chạy cùng nhau (P97 D85.14)", () => {
     const api = open({ ...groupedPlan(), month: { running: totals(null, null, 0), with_draft: totals(12_500_000, 1_300_000, 3) } });
     fireEvent.click(await screen.findByTestId("kh-export"));
     expect(screen.getByTestId("kh-export")).toHaveTextContent("Tải Excel");
-    await waitFor(() => expect(api.calls.find((c) => c.name === "exportKeHoach")?.args).toEqual(["2026-11"]));
+    await waitFor(() => expect(api.calls.find((c) => c.name === "exportKeHoach")?.args).toEqual([{ from: "2026-11-01", to: "2026-11-13" }]));
   });
 
   it("a plan with no group shows no group section", async () => {

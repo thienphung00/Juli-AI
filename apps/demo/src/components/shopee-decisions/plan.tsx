@@ -163,7 +163,11 @@ function MonthBars({ plan, api }: { readonly plan: PlanResponse; readonly api: P
   const host = useReco();
   const [failed, setFailed] = useState(false);
   const m = plan.month;
+  const first = m ? `${m.with_draft.month}-01` : "";
+  const last = m ? `${m.with_draft.month}-${String(m.with_draft.day).padStart(2, "0")}` : "";
+  const [pick, setPick] = useState<{ readonly from: string | null; readonly to: string | null }>({ from: null, to: null });
   if (!m) return null;
+  const range = { from: pick.from ?? first, to: pick.to ?? last };
   const bar = (label: string, key: string, goal: number | null, baseline: number | null, withDraft: number | null) => {
     // nothing running: the level today is the bar (the server sends it as the goal; an older answer only has the baseline)
     const run = goal ?? baseline;
@@ -196,20 +200,24 @@ function MonthBars({ plan, api }: { readonly plan: PlanResponse; readonly api: P
           {m.with_draft.day}/{m.with_draft.days_in_month} ngày
         </span>
         {api.exportKeHoach ? (
-          <button
-            className="sa-btn sa-btn--s"
-            data-testid="kh-export"
-            onClick={() => {
-              setFailed(false);
-              api.exportKeHoach!(m.with_draft.month).then(
-                (blob) => saveBlob(blob, keHoachFileName(host.shopName || "Shop", m.with_draft.month)),
-                () => setFailed(true),
-              );
-            }}
-            type="button"
-          >
-            Tải Excel
-          </button>
+          <>
+            <input aria-label="Từ ngày" data-testid="kh-export-from" max={range.to} onChange={(e) => setPick({ ...pick, from: e.target.value || null })} type="date" value={range.from} />
+            <input aria-label="Đến ngày" data-testid="kh-export-to" min={range.from} onChange={(e) => setPick({ ...pick, to: e.target.value || null })} type="date" value={range.to} />
+            <button
+              className="sa-btn sa-btn--s"
+              data-testid="kh-export"
+              onClick={() => {
+                setFailed(false);
+                api.exportKeHoach!(range).then(
+                  (blob) => saveBlob(blob, keHoachFileName(host.shopName || "Shop", range.from, range.to)),
+                  () => setFailed(true),
+                );
+              }}
+              type="button"
+            >
+              Tải Excel
+            </button>
+          </>
         ) : null}
         {failed ? <span className="sd-error">Chưa tải được tệp Excel</span> : null}
       </div>

@@ -15,6 +15,7 @@ export function tongQuanFileName(shop: string, from: string, to: string, product
   return `Juli_TongQuan_${shop.replace(/\s+/g, "")}${productId ? `_${productId}` : ""}_${day(from)}_${day(to)}.xlsx`;
 }
 
-export function keHoachFileName(shop: string, month: string): string {
-  return `Juli_KeHoach_${shop.replace(/\s+/g, "")}_Tháng ${month.slice(5, 7)}-${month.slice(0, 4)}.xlsx`;
+export function keHoachFileName(shop: string, from: string, to: string): string {
+  const day = (iso: string) => `${iso.slice(8, 10)}${iso.slice(5, 7)}${iso.slice(0, 4)}`;
+  return `Juli_KeHoach_${shop.replace(/\s+/g, "")}_${day(from)}_${day(to)}.xlsx`;
 }

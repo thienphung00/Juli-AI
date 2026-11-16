@@ -13,7 +13,6 @@ file is the figure of the screen's Kế hoạch card / Kế hoạch totals. No r
 
 from __future__ import annotations
 
-import calendar
 import uuid
 from collections.abc import Mapping
 from dataclasses import replace
@@ -162,31 +161,15 @@ def _gmv_of(listing: dict[str, Any], product_id: str) -> float:
     return 0.0
 
 
-def _residual_plan(shop: tq.Figures, parts: list[tq.Figures]) -> dict[str, Any]:
-    """The "Cả shop" row's baseline / goal: the shop's minus the products' (a product without a
-    goal takes none), so each column adds up to the shop."""
-
-    def sub(total: float | None, vals: list[float | None]) -> float | None:
-        return None if total is None else total - sum(v for v in vals if v is not None)
-
-    return {
-        k: sub(getattr(shop, k), [getattr(p, k) for p in parts])
-        for k in ("baseline_gmv", "goal_gmv", "baseline_profit", "goal_profit")
-    }
-
-
-def _plan_of(r: dict[str, Any]) -> dict[str, Any]:
-    return {k: _f(r.get(k)) for k in ("baseline_gmv", "goal_gmv", "baseline_profit", "goal_profit")}
-
-
 async def _plan(
     session: AsyncSession, shop_id: uuid.UUID, window: Window, view: PeriodView, now: datetime,
-    product_id: str | None = None, daily: bool = False,
+    daily: bool = False,
 ) -> dict[str, Any]:  # fmt: skip
-    """The running-plan figures of the period and level: exactly the Kế hoạch card's."""
+    """The running-plan figures of the period (the Kế hoạch export's Mục tiêu): exactly the
+    Kế hoạch card's."""
     return await month_plan.range_plan(
         session, shop_id, window.start, window.end, scope=month_plan.SCOPE_RUNNING, now=now,
-        view=view, product_id=product_id, daily=daily,
+        view=view, daily=daily,
     )  # fmt: skip
 
 
@@ -243,16 +226,11 @@ async def collect_tong_quan(
 
     shop_now = await figures(view, cur, None)
     shop_prev = await figures(pview, prv, None)
-    shop_plan = await _plan(session, shop_id, cur, view, now, daily=product_id is None)
-    shop_now = replace(shop_now, **_plan_of(shop_plan))
 
     rows: list[tq.ProductRow] = []
     ids = [product_id] if product_id else sorted(names, key=lambda i: -_gmv_of(listing, i))
-    plans_of: dict[str, dict[str, Any]] = {}
     for i in ids:
-        plans_of[i] = await _plan(session, shop_id, cur, view, now, product_id=i,
-                                  daily=i == product_id)  # fmt: skip
-        now_fig = replace(await figures(view, cur, i), **_plan_of(plans_of[i]))
+        now_fig = await figures(view, cur, i)
         rows.append(tq.ProductRow(i, names.get(i, i), now_fig, await figures(pview, prv, i)))
     if product_id:  # the Sản phẩm level: the file's period figures are the product's
         shop_now, shop_prev = rows[0].now, rows[0].prev
@@ -261,10 +239,8 @@ async def collect_tong_quan(
             tq.SHOP_ROW_LABEL, "", _residual(shop_now, [r.now for r in rows]),
             _residual(shop_prev, [r.prev for r in rows]),
         )  # fmt: skip
-        rest.now = replace(rest.now, **_residual_plan(shop_now, [r.now for r in rows]))
         rows.append(rest)
 
-    day_plan = {d["day"]: d for d in (plans_of[product_id] if product_id else shop_plan)["daily"]}
     shop_days = {d.day: d for d in frows.shop_days}
     prod_days = {d.day: d for d in frows.product_days if d.item_id == product_id}
     spend = view.data.ads_daily.spend_by_day
@@ -280,7 +256,6 @@ async def collect_tong_quan(
             )
         }
         sd = prod_days.get(d) if product_id else shop_days.get(d)
-        t = day_plan.get(d.isoformat(), {})
         # no traffic-source rows that day: the channel split is unknown (not "all affiliate")
         traffic = by["organic"]["gmv"] is not None or by["ads"]["gmv"] is not None
         gmv_by = {key: _f(by[key]["gmv"]) if traffic else None for key in tq.CHANNELS}
@@ -294,15 +269,11 @@ async def collect_tong_quan(
                 _aff_cost_day(view, d, product_id),
                 _offer_cost(view, product_id, d),
                 None if sd is None else _f(sd.profit),
-                **_plan_of(t),
                 total_gmv=None if sd is None else _f(sd.gmv),
                 total_orders=None if sd is None else _f(sd.orders),
             )  # fmt: skip
         )
-    skus = await _sku_rows(
-        session, shop_id, view, cur, plans_of, list(ids), names,
-        period=period, month=month, now=now,
-    )  # fmt: skip
+    skus = await _sku_rows(session, shop_id, view, cur, list(ids), names)
     return tq.TongQuanData(
         shop_name, cur.start, cur.end, prv.start, prv.end, shop_now, shop_prev, days, rows,
         platform, product_name=names.get(product_id, product_id) if product_id else None,
@@ -312,27 +283,10 @@ async def collect_tong_quan(
 
 async def _sku_rows(
     session: AsyncSession, shop_id: uuid.UUID, view: PeriodView, window: Window,
-    plans_of: dict[str, dict[str, Any]], product_ids: list[str], names: dict[str, str], *,
-    period: str, month: str | None, now: datetime,
+    product_ids: list[str], names: dict[str, str],
 ) -> list[tq.SkuRow]:  # fmt: skip
-    """The "Theo SKU" rows (``exports/sku``): actuals of the period, stock at its end, goals split
-    from each product's own Kế hoạch figures."""
+    """The "Theo SKU" rows (``exports/sku``): actuals of the period and stock at its end."""
     now_figs = await skumod.sku_figures(session, shop_id, view, window)
-    base: dict[str, dict[skumod.SkuKey, skumod.Fig]] = {}
-    cache: dict[tuple[str, str], dict[skumod.SkuKey, skumod.Fig]] = {}
-    for pid in product_ids:
-        bw = (plans_of.get(pid) or {}).get("baseline_window")
-        if not bw or (plans_of[pid].get("goal_gmv") is None):
-            continue
-        key = (bw["from"], bw["to"])
-        if key not in cache:
-            w = Window(date.fromisoformat(bw["from"]), date.fromisoformat(bw["to"]))
-            try:
-                bview, _ = await _view(session, shop_id, w)
-                cache[key] = await skumod.sku_figures(session, shop_id, bview, w)
-            except RowsNotMaterialized:
-                cache[key] = {}
-        base[pid] = {k: f for k, f in cache[key].items() if k[0] == pid}
     ctx = await loaders.load_context(session, shop_id)
     catalog_variations = {
         pid: [(v.variation_id, v.name, v.seller_sku) for v in info.variations]
@@ -340,42 +294,17 @@ async def _sku_rows(
         if (info := ctx.catalog.items.get(pid)) is not None
     }
     stock = await skumod.stock_at(session, shop_id, product_ids, window.end)
-    period_end = window.end
-    if period == "month" and month:
-        first = date(int(month[:4]), int(month[5:7]), 1)
-        period_end = first.replace(day=calendar.monthrange(first.year, first.month)[1])
-    finished = period_end <= window.end
-    plans_full = None
-    if not finished:  # the goal of the whole period (the month's end is still ahead)
-        plans_full = {
-            pid: await month_plan.range_plan(
-                session, shop_id, window.start, period_end, scope=month_plan.SCOPE_RUNNING,
-                now=now, view=view, product_id=pid, actual_to=window.end,
-            )
-            for pid in product_ids
-        }  # fmt: skip
     rows = skumod.build_rows(
-        product_ids=product_ids, names=names, now=now_figs, base=base, plans=plans_of, stock=stock,
-        catalog_variations=catalog_variations, finished=finished, plans_full=plans_full,
+        product_ids=product_ids, names=names, now=now_figs, base={}, plans={}, stock=stock,
+        catalog_variations=catalog_variations, finished=True,
     )  # fmt: skip
     out = []
     for r in rows:
         code, combo = split_sku(r.sku)
         out.append(
             tq.SkuRow(
-                code,
-                r.variation,
-                r.product_name,
-                r.units_goal,
-                r.units,
-                r.revenue_goal,
-                r.revenue,
-                r.profit_goal,
-                r.profit,
-                r.stock,
-                r.need,
-                combo,
-            )
+                code, r.variation, r.product_name, r.units, r.revenue, r.profit, r.stock, combo
+            )  # fmt: skip
         )
     return out
 
