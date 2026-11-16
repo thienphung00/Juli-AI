@@ -3,7 +3,7 @@
 // Money and counts are numbers (VND / count); pct are percent numbers (3.5 = +3,5 %); null = unknown.
 
 export type Driver = "views" | "ctr" | "ctor" | "aov";
-export type Basis = "measured" | "product_history" | "shop" | "prior" | "not_estimable";
+export type Basis = "measured" | "product_history" | "shop" | "pooled" | "prior" | "not_estimable";
 
 export interface DeltaMoney {
   readonly value: number | null;
@@ -52,6 +52,10 @@ export interface OptionResult {
   readonly horizon: "duration" | "first_30_days";
   readonly drivers: readonly Driver[];
   readonly estimable: boolean;
+  /** Forecast grill F2: the shop's data stops at `through`; not estimable then, no numbers. */
+  readonly stale?: { readonly dataset: "orders" | "traffic"; readonly through: string } | null;
+  /** Forecast grill F3: metrics whose change is inside the noise band (their delta is null, shown "—"). */
+  readonly within_noise?: readonly ("gmv" | "orders" | "profit")[];
   readonly basis: Basis;
   readonly basis_weak: boolean;
   readonly delta: {

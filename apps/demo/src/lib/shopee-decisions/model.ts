@@ -298,7 +298,8 @@ export function expectedRows(card: Card): NumberRow[] {
   if (!card.five_numbers) return [];
   const sure = sureRows(card);
   const pm = card.predicted.money_per_month;
-  const mid = atP(card, "p50");
+  // S1's `shown` (P50 over the effect period, null inside the noise band) wins over the raw P50
+  const mid = pm.shown ?? atP(card, "p50");
   const f = card.five_numbers;
   const dchi = pm.certain.dchi;
   let eff: string;

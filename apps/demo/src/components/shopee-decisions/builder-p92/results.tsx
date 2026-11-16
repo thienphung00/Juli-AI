@@ -25,7 +25,15 @@ export type ResultState =
   | { readonly status: "ready"; readonly outcome: BuilderOutcome };
 
 export function basisTone(key: string | undefined): "info" | "pink" | "warn" | "flat" {
-  return key === "product_history" ? "info" : key === "shop" ? "pink" : key === "prior" ? "warn" : "flat";
+  return key === "product_history" ? "info" : key === "shop" || key === "pooled" ? "pink" : key === "prior" ? "warn" : "flat";
+}
+
+/** Forecast grill F2: "Đơn hàng đến 12/11" when the shop's data is behind (no estimate then). */
+export function staleText(stale: { readonly dataset: "orders" | "traffic"; readonly through: string } | null | undefined): string | null {
+  if (!stale) return null;
+  const m = /^\d{4}-(\d{2})-(\d{2})/.exec(stale.through);
+  if (!m) return null;
+  return `${stale.dataset === "orders" ? "Đơn hàng" : "Lượt truy cập"} đến ${m[2]}/${m[1]}`;
 }
 
 export function BasisChip({ outcome }: { readonly outcome: BuilderOutcome }) {
@@ -299,6 +307,11 @@ export function ResultCard({ result: r, name, breakEven = false, children }: { r
   return (
     <div className="p3-result" data-testid="p3-result">
       {title ? <h3 className="p3-finding" data-testid="p3-finding">{title}</h3> : null}
+      {staleText(r.stale) ? (
+        <p className="sd-muted" data-testid="p3-stale">
+          {staleText(r.stale)}
+        </p>
+      ) : null}
       <div className="p3-result__head">
         <b>{name}</b>
         <span className={`p3-verdict p3-verdict--${v.tone}`} data-testid="p3-verdict">

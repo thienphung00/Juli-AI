@@ -259,6 +259,9 @@ export interface MoneyBlock {
 
 export interface MoneyPerMonth {
   readonly days: number;
+  /** Forecast grill F4/F3: the P50 over the effect period, null when inside the noise band. Shown instead of P10/P90. */
+  readonly shown?: { readonly dgmv: N; readonly dorders: N; readonly dprofit: N };
+  readonly within_noise?: readonly ("gmv" | "orders" | "profit")[];
   readonly certain: { readonly dgmv: N; readonly dprofit: N; readonly dchi: N };
   readonly predicted: { readonly p10: MoneyAt; readonly p50: MoneyAt; readonly p90: MoneyAt };
   readonly total: { readonly p10: MoneyAt; readonly p50: MoneyAt; readonly p90: MoneyAt };
