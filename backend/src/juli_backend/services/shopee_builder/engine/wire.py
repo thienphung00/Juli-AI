@@ -19,6 +19,9 @@ from juli_backend.services.shopee_builder.engine.vn import DRIVER_LABELS, count,
 
 AOV_ONLY_NOTE = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
 NOT_ESTIMABLE_NOTE = "Chưa ước tính được."
+#: G4: registry id + label of the card figure (kept equal to metrics.registry by a test)
+CARD_RETURN_ID = "card_return"
+CARD_RETURN_LABEL = "ΔGMV / chi phí"
 PER_30D_LABEL = "Quy đổi 30 ngày (tham khảo)"
 
 
@@ -106,9 +109,20 @@ def _margin(r: OptionResult) -> dict[str, Any]:
 def _roi(r: OptionResult, d_gmv: Decimal | None) -> dict[str, Any]:
     """P100-C (B.4): ROI = ΔGMV ÷ chi phí (incremental). None without a cost or an estimate."""
     if d_gmv is None or r.cost_total <= 0:
-        return {"value": None, "text": None}
+        return {
+            "metric_id": CARD_RETURN_ID,
+            "label": CARD_RETURN_LABEL,
+            "value": None,
+            "text": None,
+        }
     v = float(d_gmv / r.cost_total)
-    return {"value": v, "text": "ROI " + f"{v:.1f}".replace(".", ",")}
+    # G4: the metric is ``card_return`` (label "ΔGMV / chi phí"), never the shop "ROI"
+    return {
+        "metric_id": CARD_RETURN_ID,
+        "label": CARD_RETURN_LABEL,
+        "value": v,
+        "text": f"{CARD_RETURN_LABEL} " + f"{v:.1f}".replace(".", ","),
+    }
 
 
 def result_json(r: OptionResult) -> dict[str, Any]:
@@ -199,7 +213,7 @@ def result_json(r: OptionResult) -> dict[str, Any]:
             "secondary": True,
             "label": PER_30D_LABEL,
         },
-        "roi": _roi(r, d_gmv),
+        "roi": _roi(r, d_gmv),  # wire key kept; the metric is card_return (G4)
         "margin": _margin(r),
         "detail": {
             "before": _column(r.before),

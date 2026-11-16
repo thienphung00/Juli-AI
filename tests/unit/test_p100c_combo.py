@@ -274,7 +274,8 @@ def test_wire_keys_carry_roi_and_margin():
     assert set(j) == set(WIRE_KEYS)
     d_gmv = float(r.likely.gmv - r.before.gmv)
     assert j["roi"]["value"] == pytest.approx(d_gmv / float(r.cost_total))
-    assert j["roi"]["text"].startswith("ROI ")
+    assert j["roi"]["text"].startswith("ΔGMV / chi phí ")
+    assert j["roi"]["metric_id"] == "card_return"
     m = j["margin"]
     assert m["before_pct"] == pytest.approx(float(r.before.profit / r.before.gmv) * 100)
     assert m["after_pct"] == pytest.approx(float(r.likely.profit / r.likely.gmv) * 100)
