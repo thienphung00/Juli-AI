@@ -187,6 +187,8 @@ export interface CardSummary {
   readonly cost?: number | null;
   readonly plan: string;
   readonly stale: boolean;
+  /** Forecast grill F2 (not the recompute flag above): the card's data stops at `through`; no number then. */
+  readonly data_stale?: import("./option-result").DataStale | null;
   /** Why it is stale (`engine_version_changed` | `inputs_changed` | …): the card shows "đang cập nhật". */
   readonly stale_reason?: string | null;
   /** When the numbers were computed ("Cập nhật lúc …"). */
@@ -262,6 +264,8 @@ export interface MoneyPerMonth {
   /** Forecast grill F4/F3: the P50 over the effect period, null when inside the noise band. Shown instead of P10/P90. */
   readonly shown?: { readonly dgmv: N; readonly dorders: N; readonly dprofit: N };
   readonly within_noise?: readonly ("gmv" | "orders" | "profit")[];
+  /** Forecast grill F2: the shop's data is behind; `shown` is all null then. */
+  readonly stale?: import("./option-result").DataStale | null;
   readonly certain: { readonly dgmv: N; readonly dprofit: N; readonly dchi: N };
   readonly predicted: { readonly p10: MoneyAt; readonly p50: MoneyAt; readonly p90: MoneyAt };
   readonly total: { readonly p10: MoneyAt; readonly p50: MoneyAt; readonly p90: MoneyAt };

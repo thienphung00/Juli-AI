@@ -3,6 +3,7 @@ import { DASH, chipFromChange, chipPt, fmt, pp, sv, vnd, type Chip, type Tone } 
 import { FIVE_LABELS } from "../shopee-analytics/model";
 import type { RankingLink } from "../shopee-analytics/links";
 import { METRIC_ORDER, type MetricKey } from "../metrics";
+import { staleText } from "./option-result";
 import type { Card, CardStatus, CardSummary, Family, FloorBreach, JourneyEvent, MoneyAt, N, SliderRow } from "./types";
 
 /** Derivations the Shopee Quyết định screens share: sections, tabs, the two layers of numbers, floors, read-back. */
@@ -308,6 +309,17 @@ export function expectedRows(card: Card): NumberRow[] {
   else eff = DASH;
   const ordersBefore = f.orders.before;
   const [disc, , bien, , aov] = sure;
+  // forecast grill F2: data behind -> where it stops, in place of the numbers
+  const old = staleText(pm.stale);
+  if (old) {
+    return [
+      disc!,
+      { key: "eff", label: FIVE_LABELS[1], before: DASH, after: DASH, dv: old, dp: "", tone: "flat" },
+      { ...bien!, dv: old },
+      { key: "orders", label: FIVE_LABELS[3], before: num(ordersBefore) ? fmt(ordersBefore, 0) : DASH, after: DASH, dv: old, dp: DASH, tone: "flat" },
+      aov!,
+    ];
+  }
   return [
     disc!,
     { key: "eff", label: FIVE_LABELS[1], before: DASH, after: eff, dv: num(mid.dgmv) ? `${sv(mid.dgmv)} GMV` : DASH, dp: "", tone: "flat" },

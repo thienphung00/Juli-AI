@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { DASH, fmt, vnd } from "../../lib/shopee-analytics/format";
 import { METRIC_NAME } from "../../lib/metrics";
+import { staleText } from "../../lib/shopee-decisions/option-result";
 import { kindLabel, metricsOfCard } from "../../lib/shopee-decisions/model";
 import { MetricChip } from "../metrics/metric-chip";
 import { useReco } from "../../lib/shopee-decisions/context";
@@ -100,7 +101,9 @@ export const approvesInPlace = (card: Pick<CardSummary, "versions">): boolean =>
 export function CardRow({ card, name, inPlan, canAct, busy, onPlan, onApprove }: { readonly card: CardSummary; readonly name?: string | null; readonly inPlan: boolean; readonly canAct: boolean; readonly busy: boolean; readonly onPlan: (c: CardSummary, add: boolean) => void; readonly onApprove?: (c: CardSummary) => void }) {
   const host = useReco();
   const days = cardDays(card);
-  const bands = cardBands(card);
+  // forecast grill F2: data behind -> no number, where the data stops instead
+  const old = staleText(card.data_stale);
+  const bands = old ? null : cardBands(card);
   const p50 = bands?.profit.p50 ?? null;
   const tone = p50 === null || p50 === 0 ? "flat" : p50 > 0 ? "up" : "down";
   const href = host.href({ the: card.id, from: "quyet-dinh" });
@@ -126,7 +129,7 @@ export function CardRow({ card, name, inPlan, canAct, busy, onPlan, onApprove }:
         <div className="dx-card__delta">
           {bands ? <div className="dx-card__label">Δ lợi nhuận cả {fmt(days, 0)} ngày</div> : null}
           <div className={`dx-card__big ${tone === "up" ? "sa-tone--up" : tone === "down" ? "sa-tone--down" : ""}`} data-testid="dx-dprofit">
-            {bands ? p50Text(bands.profit) : targetText(card)}
+            {old ?? (bands ? p50Text(bands.profit) : targetText(card))}
           </div>
           {bands ? (
             <div className="dx-card__perday" data-testid="dx-perday">

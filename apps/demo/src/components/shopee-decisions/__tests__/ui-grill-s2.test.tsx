@@ -156,3 +156,13 @@ describe("G14 · a code captured after the row is shown", () => {
     expect(screen.getByTestId("sd-th-code-v")).toHaveValue("99");
   });
 });
+
+describe("F2 · a Đề xuất card on stale data", () => {
+  it("shows where the data stops instead of Δ lợi nhuận, and no per-day line", async () => {
+    const old = summaryOf(voucherCard(), { data_stale: { dataset: "orders", through: "2026-11-12" } });
+    renderReco(<DecisionsView params={params()} />, fakeReco({ list: { cards: [old], counts: {} } as never }));
+    const card = await screen.findByTestId("sq-card-card-voucher");
+    expect(within(card).getByTestId("dx-dprofit")).toHaveTextContent("Đơn hàng đến 12/11");
+    expect(within(card).queryByTestId("dx-perday")).toBeNull();
+  });
+});
