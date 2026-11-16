@@ -616,11 +616,11 @@ FLOOR_EXEMPT: dict[str, str] = {
 #: ``MIN_PRIOR_LIFT x min(1, size / REFERENCE_SIZE)``; ``size`` is a percent. A kind not listed
 #: here has no size and keeps the flat floor. A size of 0 (or none) gives no floor.
 REFERENCE_SIZE: dict[str, float] = {
-    # price prior 0.5-2 % per 1 % cut (mid 1.25 %): a 4 % cut lands the prior on 5 %
-    "product_discount": 4.0,
-    "price": 4.0,
-    "flash_sale": 4.0,
-    "program_registration": 4.0,
+    # owner F7 2026-11-16: a 10 % discount carries the full 5 % floor (was 4 %), as on TikTok
+    "product_discount": 10.0,
+    "price": 10.0,
+    "flash_sale": 10.0,
+    "program_registration": 10.0,
     # the ads-budget prior (3-25 %) is stated per ``config.ADS_BUDGET_STEP_PCT`` (20 %) of budget
     "ads_budget": 20.0,
 }
