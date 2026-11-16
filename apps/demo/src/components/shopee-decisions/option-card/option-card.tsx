@@ -132,7 +132,6 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
           <dt>Δ lợi nhuận {period}</dt>
           <dd data-testid="oc-profit">
             <b>{profit.main}</b>
-            {profit.range ? <span> {profit.range}</span> : null}
             {profitPerDay ? <span className="sa-hint" data-testid="oc-profit-perday">{profitPerDay}</span> : null}
             {profit.buildUp ? <span className="sa-hint" data-testid="oc-buildup">{profit.buildUp}</span> : null}
           </dd>

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { fmt, vnd } from "../../../lib/shopee-analytics/format";
 import { shopeeImageSrc } from "../../../lib/shopee-analytics/image-src";
 import type { AdsCampaigns, CoverOverlay, KeywordTable } from "../../../lib/shopee-decisions/builder-api";
-import { ADS_ROAS_PRESETS, MAX_FIRST_LINE, MAX_TITLE, num, type Forms } from "../../../lib/shopee-decisions/builder-p92";
+import { ADS_ROAS_PRESETS, FORM_DEFAULTS, MAX_FIRST_LINE, MAX_TITLE, num, type Forms } from "../../../lib/shopee-decisions/builder-p92";
 import { BannerEditor } from "../banner-editor";
 import { LlmOff, NumIn, Pills, Seg, TextIn, useDraft, type PanelCtx } from "./shared";
 import { ProductTargets } from "./targets";
@@ -45,9 +45,12 @@ export function AdsPanel({ form, set, ctx }: P<"ads">) {
   const campaigns = data?.campaigns ?? [];
   const lever = form.lever;
   const camp = campaigns.find((c) => c.campaign_key === form.campaignKey);
+  const [creating, setCreating] = useState(false);
   const selectCampaign = (key: string) => {
     if (key === NEW_CAMPAIGN) {
-      ctx.onNewCampaign?.();
+      // UI grill G9: a new campaign is set up right here, for this product
+      if (ctx.newCampaign) setCreating(true);
+      else ctx.onNewCampaign?.();
       return;
     }
     set({ campaignKey: key, campaignKeys: key ? [key] : [] });
@@ -60,6 +63,16 @@ export function AdsPanel({ form, set, ctx }: P<"ads">) {
     ads && ads.spend.now !== null ? `chi ${vnd(ads.spend.now)} / ${fmt(ads.days, 0)} ngày` : null,
     ads && ads.orders.now !== null ? `${fmt(ads.orders.now, 0)} đơn` : null,
   ].filter((x): x is string => x !== null);
+  if (creating && ctx.newCampaign) {
+    return (
+      <div className="p2-panel" data-testid="p2-panel-ads-new">
+        <button className="sa-btn sa-btn--s" onClick={() => setCreating(false)} type="button">
+          ‹ Chiến dịch đang chạy
+        </button>
+        {ctx.newCampaign(ctx.product.item_id)}
+      </div>
+    );
+  }
   return (
     <div className="p2-panel" data-testid="p2-panel-ads">
       <label className="p2-field">
@@ -71,7 +84,7 @@ export function AdsPanel({ form, set, ctx }: P<"ads">) {
               {c.name}
             </option>
           ))}
-          {ctx.onNewCampaign ? <option value={NEW_CAMPAIGN}>+ Tạo chiến dịch mới</option> : null}
+          {ctx.onNewCampaign || ctx.newCampaign ? <option value={NEW_CAMPAIGN}>+ Tạo chiến dịch mới</option> : null}
         </select>
       </label>
       {failed ? <p className="sd-error">Chưa tải được chiến dịch quảng cáo.</p> : null}
@@ -447,11 +460,11 @@ export function AffiliatePanel({ form, set, ctx }: P<"affiliate">) {
         </p>
       )}
       <div className="p2-grid">
-        <NumIn label="Hoa hồng mới" onChange={(commission) => set({ commission })} suffix="%" value={form.commission} />
+        <NumIn label="Hoa hồng mới" onChange={(commission) => set({ commission })} placeholder={FORM_DEFAULTS.affiliateCommission} suffix="%" value={form.commission} />
         <label className="p2-check" data-testid="p2-aff-target">
           <input checked={form.campaign === "1"} onChange={(e) => set({ campaign: e.target.checked ? "1" : "" })} type="checkbox" /> Áp dụng trong chiến dịch mục tiêu (Target campaign)
         </label>
-        <NumIn label="Số mẫu gửi" onChange={(samples) => set({ samples })} value={form.samples} />
+        <NumIn label="Số mẫu gửi" onChange={(samples) => set({ samples })} placeholder={FORM_DEFAULTS.affiliateSamples} value={form.samples} />
         <NumIn label="Phí ship mỗi mẫu" onChange={(shipFee) => set({ shipFee })} suffix="đ" value={form.shipFee} />
       </div>
       {sample ? (

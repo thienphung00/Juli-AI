@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { MarketPriceMarker } from "../../shopee-analytics/market-price-marker";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { CoPurchase } from "../../../lib/shopee-decisions/builder-api";
-import { DEAL_SOC_TYPES, MAX_ADDONS, belowPaidHint, belowPaidProblem, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
+import { DEAL_SOC_TYPES, FORM_DEFAULTS, MAX_ADDONS, comboTierDefault, belowPaidHint, belowPaidProblem, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
 import { NumIn, Pills, ProductSelect, Seg, TextIn, VariationSelect, setAt, type PanelCtx } from "./shared";
 import { ProductTargets } from "./targets";
 
@@ -60,8 +60,8 @@ export function VoucherPanel({ form, set, ctx }: P<"voucher">) {
       ) : null}
       <Seg label="Cách giảm" onChange={(dtype) => set({ dtype })} options={[["amount", "Số tiền (đ)"], ["pct", "Phần trăm (%)"]]} value={form.dtype} />
       <div className="p2-grid">
-        <NumIn label="Giá trị" onChange={(value) => set({ value })} suffix={form.dtype === "pct" ? "%" : "đ"} value={form.value} />
-        <NumIn label="Đơn tối thiểu" onChange={(min) => set({ min })} suffix="đ" value={form.min} />
+        <NumIn label="Giá trị" onChange={(value) => set({ value })} placeholder={form.dtype === "amount" ? FORM_DEFAULTS.voucherValue : undefined} suffix={form.dtype === "pct" ? "%" : "đ"} value={form.value} />
+        <NumIn label="Đơn tối thiểu" onChange={(min) => set({ min })} placeholder={FORM_DEFAULTS.voucherMin} suffix="đ" value={form.min} />
         {form.dtype === "pct" ? <NumIn label="Giảm tối đa (khi giảm %)" onChange={(max) => set({ max })} suffix="đ" value={form.max} /> : null}
         <NumIn label="Số lượt dùng tối đa" onChange={(usage) => set({ usage })} value={form.usage} />
         <NumIn label="Giới hạn mỗi người" onChange={(perBuyer) => set({ perBuyer })} value={form.perBuyer} />
@@ -135,9 +135,9 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
           <div className="p2-row p2-row--wrap" data-testid={`p2-tier-${i + 1}`} key={i}>
             <span className="sb-item__n">{i + 1}</span>
             <span>Mua</span>
-            <NumIn label={`Mức ${i + 1} · số sản phẩm`} onChange={(qty) => updTier(i, { qty })} value={t.qty} />
+            <NumIn label={`Mức ${i + 1} · số sản phẩm`} onChange={(qty) => updTier(i, { qty })} placeholder={comboTierDefault(i, "qty", form.dtype)} value={t.qty} />
             <span>sản phẩm để được {valueLabel.toLowerCase()}</span>
-            <NumIn label={`Mức ${i + 1} · ${valueLabel.toLowerCase()}`} onChange={(value) => updTier(i, { value })} suffix={valueSuffix} value={t.value} />
+            <NumIn label={`Mức ${i + 1} · ${valueLabel.toLowerCase()}`} onChange={(value) => updTier(i, { value })} placeholder={comboTierDefault(i, "value", form.dtype)} suffix={valueSuffix} value={t.value} />
             {tiers.length > 1 ? (
               <button aria-label={`Bỏ mức ${i + 1}`} className="sa-btn sa-btn--s" onClick={() => set({ tiers: tiers.filter((_, k) => k !== i) })} type="button">
                 ×
@@ -154,7 +154,7 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
         ))}
       </div>
       {tiers.length < MAX_COMBO_TIERS ? (
-        <button className="sa-btn sa-btn--s" data-testid="p2-add-tier" onClick={() => set({ tiers: [...tiers, newTier(String(Math.max(2, ...tiers.map((t) => num(t.qty) ?? 0)) + 1), "")] })} type="button">
+        <button className="sa-btn sa-btn--s" data-testid="p2-add-tier" onClick={() => set({ tiers: [...tiers, newTier(String(Math.max(2, ...tiers.map((t, k) => num(t.qty.trim() === "" ? (comboTierDefault(k, "qty", form.dtype) ?? "") : t.qty) ?? 0)) + 1), "")] })} type="button">
           + Thêm mức ưu đãi
         </button>
       ) : null}
@@ -253,8 +253,8 @@ function AddOnFields({ form, set, ctx }: P<"deal_soc">) {
             <ProductSelect label={`Sản phẩm mua kèm ${i + 1}`} onChange={(id) => upd(i, { itemId: id, variationId: "" })} products={ctx.products.filter((p) => p.item_id !== ctx.product.item_id)} value={a.itemId} />
             <VariationSelect api={ctx.api} itemId={a.itemId} label={`Phân loại mua kèm ${i + 1}`} onChange={(v) => upd(i, { variationId: v })} value={a.variationId} />
             <Seg label="Cách nhập giá mua kèm" onChange={(mode) => upd(i, { mode })} options={[["price", "Giá mua kèm (đ)"], ["pct", "% giảm"]]} value={a.mode} />
-            <NumIn label={`Giá trị mua kèm ${i + 1}`} onChange={(value) => upd(i, { value })} suffix={a.mode === "pct" ? "%" : "đ"} value={a.value} />
-            <NumIn label={`Giới hạn mỗi đơn ${i + 1}`} onChange={(limit) => upd(i, { limit })} value={a.limit} />
+            <NumIn label={`Giá trị mua kèm ${i + 1}`} onChange={(value) => upd(i, { value })} placeholder={a.mode === "pct" ? FORM_DEFAULTS.addonValue : undefined} suffix={a.mode === "pct" ? "%" : "đ"} value={a.value} />
+            <NumIn label={`Giới hạn mỗi đơn ${i + 1}`} onChange={(limit) => upd(i, { limit })} placeholder={FORM_DEFAULTS.addonLimit} value={a.limit} />
             {rows.length > 1 ? (
               <button aria-label={`Bỏ mua kèm ${i + 1}`} className="sa-btn sa-btn--s" onClick={() => set({ addons: rows.filter((_, k) => k !== i) })} type="button">
                 ×
@@ -297,7 +297,7 @@ function GiftFields({ form, set, ctx }: { readonly form: GiftForm; readonly set:
       </p>
       <fieldset className="p2-grid" data-testid="p2-gift-condition">
         <legend className="sa-hint">Điều kiện nhận quà</legend>
-        <NumIn label="Mua" onChange={(minSpend) => set({ minSpend })} suffix="₫" value={form.minSpend} />
+        <NumIn label="Mua" onChange={(minSpend) => set({ minSpend })} placeholder={FORM_DEFAULTS.giftMinSpend} suffix="₫" value={form.minSpend} />
         <NumIn label="Để nhận (quà tặng)" onChange={(qty) => set({ qty })} value={form.qty} />
       </fieldset>
       <Seg label="Quà tặng là" onChange={(source) => set({ source })} options={[["listing", "Sản phẩm trong danh sách"], ["unsold", "Quà không bán"]]} value={form.source} />
@@ -408,7 +408,7 @@ export function DiscountPanel({ form, set, ctx }: P<"product_discount">) {
       <Seg label="Áp dụng cho" onChange={(v) => set({ multi: v === "many", targets: v === "many" && form.targets.length === 0 ? [ctx.product.item_id] : form.targets })} options={[["one", "Sản phẩm đã chọn"], ["many", "Nhiều sản phẩm cùng một mức giảm"]]} value={form.multi ? "many" : "one"} />
       {form.multi ? (
         <>
-          <NumIn label="% GIẢM cho tất cả" onChange={(pct) => set({ pct })} suffix="%" value={form.pct} />
+          <NumIn label="% GIẢM cho tất cả" onChange={(pct) => set({ pct })} placeholder={FORM_DEFAULTS.discountPct} suffix="%" value={form.pct} />
           <ProductTargets ctx={ctx} onChange={(targets) => set({ targets })} selected={form.targets} title="Sản phẩm được giảm giá" />
         </>
       ) : (
@@ -434,8 +434,8 @@ export function PriceFlashPanel({ form, set, ctx }: P<"price_flash">) {
       <VarRows bounded={form.what === "flash_sale"} ctx={ctx} direction={form.what === "price" ? "change" : "off"} mode={form.mode} onRow={(id, v) => set({ rows: upsert(form.rows, id, v) })} rows={form.rows} />
       {form.what === "flash_sale" ? (
         <div className="p2-grid">
-          <NumIn label="Số lượng (suất)" onChange={(units) => set({ units })} value={form.units} />
-          <NumIn label="Số giờ của khung" onChange={(slotHours) => set({ slotHours })} value={form.slotHours} />
+          <NumIn label="Số lượng (suất)" onChange={(units) => set({ units })} placeholder={FORM_DEFAULTS.flashUnits} value={form.units} />
+          <NumIn label="Số giờ của khung" onChange={(slotHours) => set({ slotHours })} placeholder={FORM_DEFAULTS.flashHours} value={form.slotHours} />
           <TextIn label="Khung giờ bắt đầu" onChange={(slotStart) => set({ slotStart })} type="datetime-local" value={form.slotStart} />
         </div>
       ) : null}

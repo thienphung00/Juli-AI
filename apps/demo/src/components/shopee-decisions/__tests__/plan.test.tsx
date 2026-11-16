@@ -32,12 +32,14 @@ describe("Kế hoạch (KeHoach.dc.html)", () => {
     expect(row).toHaveTextContent("Voucher 15.000đ cho đơn ≥ 299.000đ");
     expect(row).toHaveTextContent("Găng tay cao su A");
     expect(within(row).getByTestId("kh-row-dates")).toHaveTextContent("15/11 – 14/12 · 30 ngày");
-    expect(within(row).getByTestId("kh-row-profit")).toHaveTextContent("+30.000đ – +90.000đ");
-    expect(row).toHaveTextContent(/≈ \+1\.000đ – \+3\.000đ\/ngày/);
+    // forecast grill F4: the likely value (P50) only
+    expect(within(row).getByTestId("kh-row-profit")).toHaveTextContent(/^[+−][\d.]+đ$/);
+    expect(row).toHaveTextContent(/≈ [+−][\d.]+đ\/ngày/);
+    expect(row.textContent).not.toMatch(/đ – [+−]/);
     expect(row.querySelectorAll(".jm-chip").length).toBeGreaterThan(0);
     expect(within(row).getByRole("link", { name: "Sửa" })).toHaveAttribute("href", "/decisions?the=card-voucher&from=quyet-dinh");
     expect(screen.getByTestId("kh-total")).toHaveTextContent("Cả nháp");
-    expect(screen.getByTestId("kh-total-profit")).toHaveTextContent("+180.000đ – +540.000đ");
+    expect(screen.getByTestId("kh-total-profit")).toHaveTextContent(/^[+−][\d.]+đ$/);
     expect(screen.getByRole("link", { name: "Thêm thẻ" })).toHaveAttribute("href", "/decisions");
     expect(screen.getByTestId("kh-confirm")).toHaveTextContent("Duyệt kế hoạch");
     expect(document.body.textContent).not.toMatch(/dự kiến|chưa ước tính|Chưa thực hiện gì/i);

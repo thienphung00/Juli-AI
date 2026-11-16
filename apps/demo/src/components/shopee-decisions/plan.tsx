@@ -14,7 +14,7 @@ import { Notice, TextChip } from "../shopee-analytics/ui";
 import { DataMissingNotice } from "./plan-results";
 import { mil } from "../shopee-analytics/tong-quan";
 import { PlanSteps } from "./plan-steps";
-import { rangeText } from "./top-cards";
+import { p50Text } from "./top-cards";
 import { NavLink, RecoState, errorText } from "./ui";
 
 /**
@@ -125,8 +125,8 @@ export interface DraftRow {
   readonly card: PlanResponse["cards"][number];
   readonly dates: DateSpan | null;
   readonly days: number | null;
-  readonly profit: { readonly p10: number | null; readonly p90: number | null };
-  readonly gmv: { readonly p10: number | null; readonly p90: number | null };
+  readonly profit: { readonly p10: number | null; readonly p50: number | null; readonly p90: number | null };
+  readonly gmv: { readonly p10: number | null; readonly p50: number | null; readonly p90: number | null };
 }
 
 const numOrNull = (n: unknown): number | null => (typeof n === "number" && Number.isFinite(n) ? n : null);
@@ -141,21 +141,22 @@ export function rowsOfPlan(plan: PlanResponse): DraftRow[] {
       card,
       dates,
       days,
-      profit: { p10: numOrNull(r?.delta?.p10.dprofit) ?? numOrNull(alone?.dprofit.p10), p90: numOrNull(r?.delta?.p90.dprofit) ?? numOrNull(alone?.dprofit.p90) },
-      gmv: { p10: numOrNull(r?.delta?.p10.dgmv), p90: numOrNull(r?.delta?.p90.dgmv) },
+      profit: { p10: numOrNull(r?.delta?.p10.dprofit) ?? numOrNull(alone?.dprofit.p10), p50: numOrNull(r?.delta?.p50.dprofit) ?? numOrNull(alone?.dprofit.p50), p90: numOrNull(r?.delta?.p90.dprofit) ?? numOrNull(alone?.dprofit.p90) },
+      gmv: { p10: numOrNull(r?.delta?.p10.dgmv), p50: numOrNull(r?.delta?.p50.dgmv), p90: numOrNull(r?.delta?.p90.dgmv) },
     };
   });
 }
 
-const sumRange = (rows: readonly { readonly p10: number | null; readonly p90: number | null }[]): { readonly p10: number | null; readonly p90: number | null } => {
-  if (rows.length === 0 || rows.some((r) => r.p10 === null || r.p90 === null)) return { p10: null, p90: null };
-  return { p10: rows.reduce((a, r) => a + Math.min(r.p10!, r.p90!), 0), p90: rows.reduce((a, r) => a + Math.max(r.p10!, r.p90!), 0) };
+/** Forecast grill F4: the plan adds up the cards' likely values (P50); a card without one makes the total "—" (F5). */
+const sumP50 = (rows: readonly { readonly p50: number | null }[]): { readonly p50: number | null } => {
+  if (rows.length === 0 || rows.some((r) => r.p50 === null)) return { p50: null };
+  return { p50: rows.reduce((a, r) => a + r.p50!, 0) };
 };
 
-/** The draft's total Δ lợi nhuận / Δ GMV over the cards' own days, as text ranges. */
+/** The draft's total Δ lợi nhuận / Δ GMV over the cards' own days. */
 function draftRows(plan: PlanResponse): { readonly profit: string; readonly gmv: string } {
   const rows = rowsOfPlan(plan);
-  return { profit: rangeText(sumRange(rows.map((r) => r.profit))), gmv: rangeText(sumRange(rows.map((r) => r.gmv))) };
+  return { profit: p50Text(sumP50(rows.map((r) => r.profit))), gmv: p50Text(sumP50(rows.map((r) => r.gmv))) };
 }
 
 /** Month bars: "Đang chạy" grey, the draft's addition pink (same totals as Tổng quan). */
@@ -246,9 +247,9 @@ function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, on
       : null;
   const missing = plan.aggregate?.data_missing ?? null;
   const table = rowsOfPlan(plan);
-  const total = { profit: sumRange(table.map((r) => r.profit)), gmv: sumRange(table.map((r) => r.gmv)) };
+  const total = { profit: sumP50(table.map((r) => r.profit)), gmv: sumP50(table.map((r) => r.gmv)) };
   const horizon = plan.aggregate?.horizon ?? null;
-  const perDay = (q: { readonly p10: number | null; readonly p90: number | null }, days: number | null): string | null => (days && days > 0 && q.p10 !== null && q.p90 !== null ? `≈ ${rangeText(q, days)}/ngày` : null);
+  const perDay = (q: { readonly p50: number | null }, days: number | null): string | null => (days && days > 0 && q.p50 !== null ? `≈ ${p50Text({ p50: q.p50 / days })}/ngày` : null);
   return (
     <section className="kh-plan" data-testid="kh-plan">
       <div className="kh-plan__head">
@@ -317,13 +318,13 @@ function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, on
               </div>
               <div>
                 <div className="dx-table__big" data-testid="kh-row-profit">
-                  {rangeText(r.profit)}
+                  {p50Text(r.profit)}
                 </div>
                 <div className="dx-table__small">{perDay(r.profit, r.days)}</div>
               </div>
               <div>
                 <div className="dx-table__big" data-testid="kh-row-gmv">
-                  {rangeText(r.gmv)}
+                  {p50Text(r.gmv)}
                 </div>
                 <div className="dx-table__small">{perDay(r.gmv, r.days)}</div>
               </div>
@@ -347,10 +348,10 @@ function DraftPlan({ plan, api, byId, names, busy, error, ack, notice, onAct, on
             </div>
             <div>{dmSpan(horizon)}</div>
             <div className="dx-table__big" data-testid="kh-total-profit">
-              {rangeText(total.profit)}
+              {p50Text(total.profit)}
             </div>
             <div className="dx-table__big" data-testid="kh-total-gmv">
-              {rangeText(total.gmv)}
+              {p50Text(total.gmv)}
             </div>
             <div />
           </div>

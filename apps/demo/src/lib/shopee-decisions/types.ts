@@ -714,6 +714,8 @@ export interface ExecutionCard {
   readonly measure_start: string | null;
   readonly measure_days: number | null;
   readonly open_job: { readonly id: string; readonly open_path: string } | null;
+  /** UI grill G14: the voucher code the Connector picked up after the seller saved (pre-fills the row). */
+  readonly captured_voucher_id?: string | null;
 }
 
 export interface ConnectorLine {

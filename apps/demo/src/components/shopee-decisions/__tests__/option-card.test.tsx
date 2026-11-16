@@ -43,7 +43,8 @@ function result(over: Partial<OptionResult> = {}): OptionResult {
 describe("P98 W3-I · OptionCard", () => {
   it("shows exactly the d.5 lines, formatted vi-VN", () => {
     render(<OptionCard result={result()} />);
-    expect(screen.getByTestId("oc-profit")).toHaveTextContent("+1.234.567đ · +5,5% (+500.000đ … +2.000.000đ)");
+    expect(screen.getByTestId("oc-profit")).toHaveTextContent("+1.234.567đ · +5,5%");
+    expect(screen.getByTestId("oc-profit").textContent).not.toMatch(/…/); // forecast grill F4: no range
     expect(screen.getByTestId("oc-buildup")).toHaveTextContent("+300.000đ từ đơn thêm. −50.000đ giảm giá.");
     expect(screen.getByTestId("oc-gmv")).toHaveTextContent("+2.500.000đ · +12,5%");
     // P100: Δ are the totals of the version's 7 days, the per-day figure is secondary

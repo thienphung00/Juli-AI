@@ -187,6 +187,32 @@ const BY_STATUS: Readonly<Record<number, string>> = {
   422: "Thông số chưa hợp lệ. Kiểm tra lại các ô vừa nhập.",
 };
 
+/** UI grill G3: a refused field is named. The labels of the request fields a 422 can point at. */
+const FIELD_LABELS: Readonly<Record<string, string>> = {
+  daily_budget: "Ngân sách mỗi ngày",
+  target: "ROAS mục tiêu",
+  roas: "ROAS",
+  start_date: "Ngày bắt đầu",
+  end_date: "Ngày kết thúc",
+  item_ids: "Sản phẩm",
+  campaign: "Loại chiến dịch",
+  commission_pct: "Hoa hồng",
+  samples: "Số mẫu",
+  sample_qty: "Số mẫu",
+  pack_sizes: "Cỡ gói",
+  variation_ids: "Phân loại",
+};
+
+/** "Ngân sách mỗi ngày 1: giá trị chưa hợp lệ." from a validation error list (`loc` = body, setups, 0, daily_budget). */
+export function fieldErrorText(detail: readonly unknown[]): string | null {
+  const first = detail[0] as { loc?: unknown } | undefined;
+  const loc = Array.isArray(first?.loc) ? (first!.loc as unknown[]) : [];
+  const key = [...loc].reverse().find((x): x is string => typeof x === "string" && x in FIELD_LABELS);
+  if (!key) return null;
+  const index = loc.find((x): x is number => typeof x === "number");
+  return `${FIELD_LABELS[key]}${index !== undefined ? ` ${index + 1}` : ""}: giá trị chưa hợp lệ.`;
+}
+
 export function p98ErrorText(status: number): string {
   return BY_STATUS[status] ?? `Không tính được (lỗi ${status}). Thử lại hoặc đổi thông số.`;
 }
@@ -203,6 +229,7 @@ function errorOf(status: number, payload: unknown): ShopeeApiError {
       return new ShopeeApiError(status, code, message, detail as Readonly<Record<string, unknown>>);
     }
     if (typeof detail === "string" && status !== 401 && status !== 422) message = detail;
+    if (status === 422 && Array.isArray(detail)) message = fieldErrorText(detail) ?? message;
   }
   return new ShopeeApiError(status, code, message);
 }

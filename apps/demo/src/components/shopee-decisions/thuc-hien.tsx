@@ -25,6 +25,8 @@ const STEPS = ["Đã duyệt", "Connector điền", "Bạn lưu", "Khớp Seller
  * "Đã làm" (an admitted sample write), as a seller without the extension would.
  */
 const SAMPLE_STEPS = ["Đã duyệt", "Bạn điền", "Bạn lưu", "Khớp Seller Centre"] as const;
+/** The cards whose execution is a voucher that Juli reads back by its code. */
+const VOUCHER_KINDS = new Set(["min_spend_voucher", "review_voucher", "voucher_cap", "voucher"]);
 const STATE_LABEL: Record<ExecutionState, string> = { cho_dien: "Chờ điền", da_dien: "Đã điền · chờ bạn lưu", khop: "Khớp Seller Centre", lech: "Lệch Seller Centre" };
 const STATE_TONE: Record<ExecutionState, "flat" | "warn" | "up" | "down"> = { cho_dien: "flat", da_dien: "warn", khop: "up", lech: "down" };
 const MONEY = new Set(["min_spend", "discount_amount", "max_value", "current_price", "list_price", "total_budget"]);
@@ -91,12 +93,16 @@ function Row({
   const host = useReco();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // UI grill G14: a voucher needs its Seller Centre code to be read back; the row asks for it (the
+  // sample shop has none to give: the server gives it a sample code).
+  const needsCode = !sample && VOUCHER_KINDS.has(c.change_kind);
+  const [code, setCode] = useState(c.captured_voucher_id ?? "");
   const href = c.open_job ? fillJobHref(c.open_job) : null;
   const markDone = async () => {
     setBusy(true);
     setError(null);
     try {
-      await host.reco.executed(c.card_id, {});
+      await host.reco.executed(c.card_id, needsCode ? { voucherId: code.trim() || null } : {});
       onDone();
     } catch (e) {
       // P100 S2-F2: a refusal (e.g. a voucher needs its Seller Centre code) is said, never silent
@@ -150,9 +156,14 @@ function Row({
             )
           ) : null}
           {(c.state === "da_dien" || (sample && c.state === "cho_dien")) && !c.executed_at ? (
-            <button className="sa-btn" disabled={readOnly || busy} onClick={() => void markDone()} type="button">
-              Đã làm
-            </button>
+            <>
+              {needsCode ? (
+                <input aria-label="Mã voucher" className="sd-th-row__code" data-testid={`sd-th-code-${c.card_id}`} disabled={readOnly} inputMode="numeric" onChange={(e) => setCode(e.target.value)} placeholder="Mã voucher" type="text" value={code} />
+              ) : null}
+              <button className="sa-btn" disabled={readOnly || busy || (needsCode && code.trim() === "")} onClick={() => void markDone()} type="button">
+                Đã làm
+              </button>
+            </>
           ) : null}
         </span>
         {error ? (

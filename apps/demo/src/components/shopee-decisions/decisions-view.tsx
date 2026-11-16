@@ -18,7 +18,7 @@ import type { KolCandidate } from "./kol-builder";
 import { OpsRecoList } from "./ops-list";
 import { PlanView } from "./plan";
 import { ThucHienView } from "./thuc-hien";
-import { FlashNotice, NO_FLASH, TopCards, cardDays, rangeText, topEntries, type Flash } from "./top-cards";
+import { FlashNotice, NO_FLASH, TopCards, cardDays, p50Text, topEntries, type Flash } from "./top-cards";
 import { NavLink, RecoState } from "./ui";
 
 /**
@@ -124,20 +124,17 @@ function CardsView({ cards, names, inPlan, metric, product, flash, setFlash, onC
 /** The finding of the header: "4 thẻ cho CTR · +a – b đ lợi nhuận cả 30 ngày". */
 export function findingOf(shown: readonly CardSummary[], metric: MetricKey | null): string {
   if (shown.length === 0) return "Chưa có thẻ nào";
-  let lo = 0;
-  let hi = 0;
+  // Forecast grill F4: the cards' likely values (P50) added up; one card without a value -> no total
+  let sum = 0;
   let ok = true;
   for (const c of shown) {
-    const q = c.predicted_summary.dprofit_month;
-    if (q.p10 === null || q.p90 === null) ok = false;
-    else {
-      lo += Math.min(q.p10, q.p90);
-      hi += Math.max(q.p10, q.p90);
-    }
+    const p50 = c.predicted_summary.dprofit_month.p50;
+    if (p50 === null) ok = false;
+    else sum += p50;
   }
   const days = cardDays(shown[0]!);
   const head = `${fmt(shown.length, 0)} thẻ${metric ? ` cho ${METRIC_NAME[metric]}` : ""}`;
-  return ok ? `${head} · ${rangeText({ p10: lo, p90: hi })} lợi nhuận cả ${fmt(days, 0)} ngày` : head;
+  return ok ? `${head} · ${p50Text({ p50: sum })} lợi nhuận cả ${fmt(days, 0)} ngày` : head;
 }
 
 function ShopShell({ params }: { readonly params: URLSearchParams }) {

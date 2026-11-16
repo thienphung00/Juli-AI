@@ -99,14 +99,13 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
           <dt>Δ GMV</dt>
           <dd data-testid="p2-dgmv">
             <b>{gmv.main}</b>
-            <span>{gmv.range}</span>
           </dd>
         </div>
         <div>
           <dt>Δ đơn</dt>
           <dd data-testid="p2-dorders">
             <b>{orders.main}</b>
-            <span>{o.delta?.orders_note ?? orders.range}</span>
+            {o.delta?.orders_note ? <span>{o.delta.orders_note}</span> : null}
           </dd>
         </div>
         <div>
@@ -122,7 +121,6 @@ export function OutcomeBody({ outcome: o, costLink, onUntick }: { readonly outco
             ) : (
               <>
                 <b>{profit.main}</b>
-                <span>{profit.range}</span>
               </>
             )}
           </dd>

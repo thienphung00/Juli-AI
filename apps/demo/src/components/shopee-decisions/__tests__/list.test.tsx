@@ -33,10 +33,12 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     });
     renderReco(<DecisionsView params={params()} />, fakeReco({ list: list([ok, none]) }));
     const top = await screen.findByTestId("sq-card-card-voucher");
-    expect(within(top).getByTestId("dx-dprofit")).toHaveTextContent("−42.000đ – +240.000đ");
+    // forecast grill F4: the likely value (P50) only, no range
+    expect(within(top).getByTestId("dx-dprofit")).toHaveTextContent(/^\+60\.000đ$/);
     expect(within(top).getByTestId("dx-perday")).toHaveTextContent("≈ +2.000đ/ngày");
     const bad = screen.getByTestId("sq-card-card-none");
-    expect(within(bad).getByTestId("dx-dprofit")).toHaveTextContent("Chưa ước tính được");
+    // UI grill G11: no estimate -> the metric the card moves, in the number's place
+    expect(within(bad).getByTestId("dx-dprofit")).toHaveTextContent(/^Tăng /);
     expect(within(bad).queryByTestId("dx-perday")).toBeNull();
     expect(within(bad).getByTestId("dx-cost")).toHaveTextContent("50.000đ");
   });
@@ -48,7 +50,7 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
     expect(screen.queryByTestId("sq-card-card-promo")).toBeNull();
     expect(screen.getByTestId("sq-card-card-other")).toBeInTheDocument();
     expect(within(top).getByText(/^Δ lợi nhuận cả 30 ngày$/)).toBeInTheDocument();
-    expect(within(top).getByTestId("dx-dprofit")).toHaveTextContent("−43.000đ – +237.000đ");
+    expect(within(top).getByTestId("dx-dprofit")).toHaveTextContent(/^[+−][\d.]+đ$/);
     expect(within(top).getByTestId("dx-perday")).toHaveTextContent(/^≈ .*\/ngày$/);
     expect(within(top).getByTestId("dx-dgmv")).toHaveTextContent(/^Δ GMV /);
     expect(top.querySelectorAll(".jm-chip").length).toBeGreaterThan(0);
@@ -216,7 +218,7 @@ describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
 describe("Đề xuất heading", () => {
   it("drops the profit part, never a dash, when the total is unknown", () => {
     const [top] = queueCards();
-    const unknown = { ...top!, predicted_summary: { ...top!.predicted_summary, dprofit_month: { ...top!.predicted_summary.dprofit_month, p10: null, p90: null } } } as CardSummary;
+    const unknown = { ...top!, predicted_summary: { ...top!.predicted_summary, dprofit_month: { ...top!.predicted_summary.dprofit_month, p50: null } } } as CardSummary;
     expect(findingOf([unknown], null)).toBe("1 thẻ");
     expect(findingOf([top!], null)).toMatch(/^1 thẻ · .+ lợi nhuận cả \d+ ngày$/);
     expect(findingOf([unknown], null)).not.toMatch(/—/);
