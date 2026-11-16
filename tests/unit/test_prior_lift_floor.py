@@ -11,10 +11,11 @@ from juli_backend.services.shopee_recommendations.kinds import (
     FLOOR_EXEMPT,
     KINDS,
     MIN_PRIOR_LIFT,
+    REFERENCE_SIZE,
     floor_prior_band,
 )
 from juli_backend.services.shopee_recommendations.model import Candidate
-from juli_backend.services.shopee_recommendations.prediction import predict_lift
+from juli_backend.services.shopee_recommendations.prediction import _floor_generic, predict_lift
 
 
 def _cand(kind: str) -> Candidate:
@@ -64,11 +65,54 @@ def test_the_shops_own_price_response_is_not_floored():
     assert round(lift.at("p50"), 6) == 0.02
 
 
-def test_the_generic_price_response_is_floored_but_a_zero_cut_is_not():
-    cut = predict_lift(KINDS["price"], _cand("price"), _env(), 2.0)
-    assert round(cut.at("p50"), 6) == 0.05
+def test_a_one_percent_cut_floors_to_a_quarter_of_five_percent():
+    # 2026-11-16: sized kind, floor = 5 % x size / reference (4 %): 1 % -> 1.25 %
+    assert REFERENCE_SIZE["price"] == 4.0
+    band = (D("0.001"), D("0.002"), D("0.004"))
+    _, p50, p90 = floor_prior_band("price", *band, size=1.0)
+    assert p50 == D("0.0125") and p90 >= p50
+
+
+def test_a_cut_at_or_above_the_reference_floors_to_five_percent():
+    for size in (4.0, 8.0):
+        _, p50, _ = floor_prior_band("price", D("0.001"), D("0.002"), D("0.004"), size=size)
+        assert p50 == MIN_PRIOR_LIFT
+
+
+def test_a_sized_kind_without_a_size_gets_no_floor():
+    band = (D("0.001"), D("0.002"), D("0.004"))
+    assert floor_prior_band("price", *band) == band
+    assert floor_prior_band("price", *band, size=0.0) == band
+    assert floor_prior_band("ads_budget", *band, size=-10.0) == band
+
+
+def test_the_generic_price_response_follows_the_size_on_the_card():
+    # the generic 0.5-2 % per 1 % prior already sits on the sized floor, so it is not moved
+    one = predict_lift(KINDS["price"], _cand("price"), _env(), 1.0)
+    assert round(one.at("p50"), 6) == 0.0125 and not one.floored
+    four = predict_lift(KINDS["price"], _cand("price"), _env(), 4.0)
+    assert round(four.at("p50"), 6) == 0.05
     none = predict_lift(KINDS["price"], _cand("price"), _env(), None)
     assert none.at("p50") == 0 and not none.floored
+
+
+def test_an_unsized_kind_keeps_the_flat_floor():
+    assert "gift" not in REFERENCE_SIZE
+    _, p50, _ = floor_prior_band("gift", D("0.001"), D("0.002"), D("0.004"), size=1.0)
+    assert p50 == MIN_PRIOR_LIFT
+
+
+def test_a_lowered_and_a_raised_roas_target_both_come_back_unchanged():
+    # the prior is on ROAS, not volume: ads_roas_target is exempt whatever the direction
+    assert "ads_roas_target" in FLOOR_EXEMPT and "ads_roas_target" not in REFERENCE_SIZE
+    assert _floor_generic("ads_roas_target", -0.004, -0.001, -5.0) == (-0.004, -0.001, False)
+    assert _floor_generic("ads_roas_target", 0.001, 0.004, 5.0) == (0.001, 0.004, False)
+
+
+def test_the_ads_budget_floor_scales_with_the_step():
+    _, half, _ = floor_prior_band("ads_budget", D("0.001"), D("0.002"), D("0.004"), size=10.0)
+    _, full, _ = floor_prior_band("ads_budget", D("0.001"), D("0.002"), D("0.004"), size=40.0)
+    assert half == D("0.025") and full == MIN_PRIOR_LIFT
 
 
 def test_exempt_kinds_are_never_floored():
