@@ -106,6 +106,11 @@ describe("order numbers and the list page DOM", () => {
     expect(orderListEmptyIn(document)).toBe(false);
   });
 
+  it("an order link with a trailing space still gives its id (ORY 2026-11-16)", () => {
+    page(card("248286575283352", "261114AAAAAAAA").replace(/(\/portal\/sale\/order\/\d+)(\?tab=1)?"/g, '$1 "'));
+    expect(orderLinksIn(document)).toEqual([{ id: "248286575283352", sn: "261114AAAAAAAA" }]);
+  });
+
   it("the empty state is seen only without order cards", () => {
     page(`<div class="empty">Không tìm thấy đơn hàng</div>`);
     expect(orderLinksIn(document)).toEqual([]);
