@@ -248,6 +248,26 @@ async function pair(code: string): Promise<TokenInfo & { optionalHosts?: string[
   return { ...token, optionalHosts: [...pack.optionalHosts] };
 }
 
+// A pack whose site is an optional host gets its content script registered once the seller grants
+// the host (a manifest content script cannot match an ungranted optional host).
+const OTHER_CONTENT_SCRIPTS: Record<string, string> = { tiktok: "tiktokcontent.js" };
+
+async function registerOptionalContentScripts(): Promise<void> {
+  for (const pack of registry.packs) {
+    const file = OTHER_CONTENT_SCRIPTS[pack.id];
+    if (!file || pack.optionalHosts.length === 0) continue;
+    const id = `juli-${pack.id}`;
+    try {
+      if (!(await chrome.permissions.contains({ origins: [...pack.optionalHosts] }))) continue;
+      if ((await chrome.scripting.getRegisteredContentScripts({ ids: [id] })).length > 0) continue;
+      await chrome.scripting.registerContentScripts([{ id, matches: [...pack.optionalHosts], js: [file], runAt: "document_idle", persistAcrossSessions: true }]);
+    } catch {
+      // not granted yet, or already registered: the next start / grant tries again
+    }
+  }
+}
+chrome.permissions.onAdded.addListener(() => void registerOptionalContentScripts());
+
 async function ensureFillAlarm(): Promise<void> {
   if (await chrome.alarms.get(FILL_JOBS_ALARM)) return;
   await chrome.alarms.create(FILL_JOBS_ALARM, { delayInMinutes: 1, periodInMinutes: FILL_JOBS_POLL_MINUTES });
@@ -300,6 +320,7 @@ async function ensureAlarms(): Promise<void> {
  */
 async function boot(reason: string): Promise<void> {
   await ensureAlarms().catch(() => undefined);
+  await registerOptionalContentScripts();
   if (await chrome.alarms.get(READER_KICK_ALARM)) return;
   if (await scheduler.due()) await scheduler.requestKick(reason);
 }
@@ -504,6 +525,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       );
     }
     if (msg.type === "state") return respond(connector.state());
+    // The optional hosts of the other platforms' pairings: the popup asks for them with a button.
+    if (msg.type === "optional-hosts") {
+      return respond(otherPairings().then((list) => [...new Set(list.flatMap((x) => [...x.pack.optionalHosts]))]));
+    }
     if (msg.type === "server-status") return respond(connector.serverStatus());
     if (msg.type === "sync-now") {
       return respond(
