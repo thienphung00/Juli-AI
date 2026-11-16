@@ -64,6 +64,13 @@ from juli_backend.services.optimize_product.diagnosis import (
     compute_gaps,
 )
 from juli_backend.services.optimize_product.eligibility import gift_reason
+from juli_backend.services.optimize_product.forecast import (
+    METRIC_GMV,
+    METRIC_ORDERS,
+    CardForecast,
+    card_forecast,
+    daily_history,
+)
 from juli_backend.services.optimize_product.funnel import FunnelWindow, ProductFunnel, ShopMedians
 from juli_backend.services.optimize_product.kpi_channel import (
     CHANNEL_LABELS_VI,
@@ -260,6 +267,8 @@ class CardProposal:
     prediction: Prediction | None = None
     #: D30.3: GMV range per month (min, max) from the KPI range.
     gmv_estimate: tuple[float, float] | None = None
+    #: Forecast grill F2/F5/F6/F8/F9: the card's shown numbers (``None`` = "—").
+    forecast: CardForecast | None = None
     #: D29 ranking value (recoverable × calibration × reason penalty × QS weight);
     #: replaces the D24.6 weighting when set.
     d29_ranking_value: Decimal | None = None
@@ -624,6 +633,8 @@ def plan_shop_cards(
     benchmarks: dict[str, dict[str, float]] | None = None,
     page_levers: dict[str, PageLevers] | None = None,
     active_bmsm: frozenset[str] = frozenset(),
+    own_calibration: dict[tuple[str, str], CalibrationStats] | None = None,
+    today: date | None = None,
 ) -> ShopCardPlan:
     """Score the catalog, compose the ranked proposals, keep the top ``top_k``.
 
@@ -643,6 +654,10 @@ def plan_shop_cards(
     D29.2's GMV gate), one target metric per product, one proposal per (product, lever)
     within it, stable-first ranking, KPI and Quality Score / Performance
     Prediction (D30.2–3). Without them, the ADR-106 behaviour is unchanged.
+
+    Forecast grill: ``own_calibration`` ((product id, lever code) -> the shop's
+    measured results for that lever on that product, F6 rung 1); ``today`` is the
+    wall-clock day the F2 freshness rule reads ``as_of`` against (``None``: fresh).
     """
     excluded: dict[str, str] = {}
     evidence_by_id: dict[str, list[Evidence]] = {}
@@ -686,6 +701,8 @@ def plan_shop_cards(
             benchmarks=benchmarks or {},
             page_levers=page_levers or {},
             active_bmsm=active_bmsm,
+            own_calibration=own_calibration or {},
+            today=today,
         )
     by_id = {d.product_id: d for d in diagnoses}
     funnel_by_id = {f.product_id: f for f in funnels}
@@ -1125,6 +1142,8 @@ def _plan_d29(
     benchmarks: dict[str, dict[str, float]],
     page_levers: dict[str, PageLevers] | None = None,
     active_bmsm: frozenset[str] = frozenset(),
+    own_calibration: dict[tuple[str, str], CalibrationStats] | None = None,
+    today: date | None = None,
 ) -> ShopCardPlan:
     """D29 + D30.2–3 over the catalog (see :func:`plan_shop_cards`).
 
@@ -1271,6 +1290,7 @@ def _plan_d29(
                 shop=calibration.get(lever),
                 fleet=fleet_stats_for(fleet_calibration, lever),
                 size=float(bmsm.percent) if bmsm is not None else None,
+                own=(own_calibration or {}).get((pid, lever)),
             )
             kpi = kpi_target(
                 metric=metric,
@@ -1288,6 +1308,33 @@ def _plan_d29(
             recoverable = Decimal(str(gmv_day * max(kpi.target / current - 1, 0.0)))
             # The estimate follows the prediction's lift band (P10 / P90), not the KPI band.
             low, high = gmv_range_from_lift(gmv_day, prediction.lift_low, prediction.lift_high)
+            # Forecast grill F2/F5/F8/F9: one P50 scenario; a metric within its noise
+            # band (the F3 seam) shows "—"; stale data shows no numbers.
+            gmv_window = assessment.window_days or basis.window.window_days
+            forecast = card_forecast(
+                prediction,
+                target_metric=metric,
+                data_through=as_of,
+                today=today,
+                gmv_per_day=gmv_day,
+                # All-channel AOV: orders are not stored per channel (A-33).
+                aov=assessment.metrics["aov"].value if "aov" in assessment.metrics else None,
+                histories={
+                    metric: daily_history(
+                        basis.rows,
+                        as_of=as_of,
+                        metric=metric,
+                        window_days=basis.window.window_days,
+                    ),
+                    METRIC_ORDERS: daily_history(
+                        rows, as_of=as_of, metric=METRIC_ORDERS, window_days=gmv_window
+                    ),
+                    METRIC_GMV: daily_history(
+                        rows, as_of=as_of, metric=METRIC_GMV, window_days=gmv_window
+                    ),
+                },
+                kind=lever,
+            )
             lever_history = history.get(lever)
             penalty = lever_history.reason_penalty if lever_history is not None else Decimal(1)
             # D39.1: a metric-first card ranks on what its metric's fall costs.
@@ -1354,7 +1401,8 @@ def _plan_d29(
                     metric_trigger=drops if drop is not None and not below else None,
                     quality=quality,
                     prediction=prediction,
-                    gmv_estimate=(low, high),
+                    gmv_estimate=None if forecast.stale else (low, high),
+                    forecast=forecast,
                     d29_ranking_value=ranking,
                 )
             )

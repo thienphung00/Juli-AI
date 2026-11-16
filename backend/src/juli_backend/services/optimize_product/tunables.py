@@ -104,6 +104,14 @@ EB_MIN_GROUPS_RANGE = (2, 50)
 #: calibrated predictions are never floored.
 GENERIC_UPLIFT_FLOOR = 0.05
 
+#: F2 (forecast grill 2026-11-16, sandbox probe): TikTok's daily shop analytics carry a
+#: standing lag -- on 16/11 the newest day is 14/11. "Data older than 2 days" is read
+#: against that lag, so routine lag-2 data is fresh: a card's forecast is stale (no
+#: numbers, "data through" marker) only when its data-through day is before
+#: ``today - TIKTOK_ANALYTICS_EXPECTED_LAG_DAYS - FORECAST_STALE_GRACE_DAYS``.
+TIKTOK_ANALYTICS_EXPECTED_LAG_DAYS = 2
+FORECAST_STALE_GRACE_DAYS = 2
+
 #: Levers the floor never applies to, and why (TikTok equivalents of the Shopee list):
 #:
 #: * ``description`` -- Shopee exempts its description lever, and the TikTok one is the
@@ -359,6 +367,8 @@ __all__ = [
     "TRIGGER_METRIC_FIRST",
     "TUNABLE_KEYS",
     "VOLATILE_CV",
+    "FORECAST_STALE_GRACE_DAYS",
+    "TIKTOK_ANALYTICS_EXPECTED_LAG_DAYS",
     "DiagTunables",
     "TunableError",
     "validate_tunable",

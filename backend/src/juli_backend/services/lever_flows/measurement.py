@@ -75,6 +75,7 @@ from juli_backend.models.models import (
     AnalyticsPerformanceInterval,
     ImpactReading,
     Product,
+    Shop,
     ToolExecution,
 )
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
@@ -532,8 +533,47 @@ async def shop_calibration_stats(
     return {row.lever: (Decimal(str(row.coefficient)), int(row.readings or 0)) for row in rows}
 
 
+async def own_calibration_stats(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> dict[tuple[str, str], tuple[Decimal, int]]:
+    """(TikTok product id, lever) -> (coefficient, results): the shop's own measured
+    day-14 results for that lever on that product (forecast grill F6, rung 1).
+
+    One result = one final verdict with a ratio (``pct_of_expected``), not "chưa kết
+    luận". The coefficient is the mean realised ÷ expected, clamped to [0, 2] like the
+    shop calibration's step input, so :func:`.prediction.calibration_factor` reads it
+    on the same scale.
+    """
+    rows = (
+        await session.execute(
+            select(
+                Product.tiktok_product_id,
+                RunMeasurementFinal.lever,
+                RunMeasurementFinal.pct_of_expected,
+            )
+            .join(WorkflowRunRow, WorkflowRunRow.id == RunMeasurementFinal.workflow_run_id)
+            .join(Product, Product.id == WorkflowRunRow.product_id)
+            .where(
+                RunMeasurementFinal.shop_id == shop_id,
+                Product.shop_id == shop_id,
+                RunMeasurementFinal.lever.is_not(None),
+                RunMeasurementFinal.pct_of_expected.is_not(None),
+                RunMeasurementFinal.label != LABEL_CHUA_KET_LUAN,
+            )
+        )
+    ).all()
+    sums: dict[tuple[str, str], list[Decimal]] = {}
+    for product_id, lever, pct in rows:
+        ratio = min(max(Decimal(pct) / 100, Decimal(0)), Decimal(2))
+        sums.setdefault((str(product_id), str(lever)), []).append(ratio)
+    return {key: (sum(vals, Decimal(0)) / len(vals), len(vals)) for key, vals in sums.items()}
+
+
 #: The consent scope a shop must hold for its results to join the fleet level (ADR-116 §3).
 POOLED_TRAINING_SCOPE = "pooled_training"
+#: Forecast grill F6: shops whose results never join the pooled level (``shops.kind``,
+#: migration 130); migration 132 applies the same filter inside the Postgres function.
+NON_POOLED_SHOP_KINDS: tuple[str, ...] = ("sample", "sandbox")
 
 
 @dataclass(frozen=True)
@@ -588,7 +628,9 @@ def pool_fleet_calibration(
 
 
 async def _fleet_draws(session: AsyncSession) -> list[FleetDraw]:
-    """Every consenting shop's calibration rows (migration 107). Inside ``ops_role``.
+    """Every consenting real shop's calibration rows (migrations 107, 132). Inside ``ops_role``.
+
+    Sample and sandbox shops (``shops.kind``) never contribute (forecast grill F6).
 
     Postgres: ``public.ops_fleet_calibration_draws()`` (SECURITY DEFINER, EXECUTE to
     ``juli_ops`` only), so a shop-scoped caller sees the other consenting shops' rows.
@@ -612,7 +654,13 @@ async def _fleet_draws(session: AsyncSession) -> list[FleetDraw]:
                 LeverCalibration.lever,
                 LeverCalibration.coefficient,
                 LeverCalibration.readings,
-            ).where(LeverCalibration.readings > 0, pooled)
+            )
+            .join(Shop, Shop.id == LeverCalibration.shop_id)
+            .where(
+                LeverCalibration.readings > 0,
+                pooled,
+                Shop.kind.not_in(NON_POOLED_SHOP_KINDS),
+            )
         )
     else:
         result = await session.execute(

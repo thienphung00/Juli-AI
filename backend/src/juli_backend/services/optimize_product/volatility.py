@@ -129,12 +129,20 @@ class WindowCounts:
 def window_counts(
     rows: Sequence[ProductDay], as_of: date, length: int, *, offset: int = 0
 ) -> WindowCounts:
-    """The ``length`` days ending ``offset`` days before ``as_of`` (both included)."""
+    """The ``length`` days ending ``offset`` days before ``as_of`` (both included).
+
+    F2: a day the product was out of stock or unlisted (``available is False``) is left
+    out -- not a zero day -- so ``days`` counts only the days it could sell.
+    """
     by_day = {r.day: r for r in rows}
     daily: list[tuple[float, float, float, float]] = []
     present = 0
+    excluded = 0
     for day in _days(as_of, length, offset):
         row = by_day.get(day)
+        if row is not None and row.available is False:
+            excluded += 1
+            continue
         if row is None:
             daily.append((0.0, 0.0, 0.0, 0.0))
             continue
@@ -143,7 +151,7 @@ def window_counts(
             (float(row.impressions), float(row.clicks), float(row.sku_orders), float(row.gmv))
         )
     return WindowCounts(
-        days=length,
+        days=length - excluded,
         days_with_data=present,
         impressions=sum(d[0] for d in daily),
         clicks=sum(d[1] for d in daily),

@@ -419,6 +419,7 @@ async def plan_optimize_product_cards(
     last30 = {pid: last_window(series, as_of=as_of) for pid, series in days.items()}
     history = await lever_history(session, shop_id, now=now)
     shop_stats, fleet_stats = await calibration_stats(session, shop_id)
+    own_stats = await own_calibration(session, shop_id)
     facts = (
         await price_lever_facts(session, shop_id, now=now)
         if tunables.card_quota_mode
@@ -437,6 +438,9 @@ async def plan_optimize_product_cards(
         tunables=tunables,
         calibration=shop_stats,
         fleet_calibration=fleet_stats,
+        own_calibration=own_stats,
+        # F2: freshness is read against the wall clock, not the data's own D-1.
+        today=now.date(),
         discount_cap_set=facts.discount_cap_set,
         page_levers=facts.page_levers,
         active_bmsm=facts.active_bmsm,
@@ -611,6 +615,16 @@ async def calibration_stats(
     )
 
 
+async def own_calibration(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> dict[tuple[str, str], CalibrationStats]:
+    """(TikTok product id, lever) -> the shop's measured results there (F6 rung 1)."""
+    from juli_backend.services.lever_flows.measurement import own_calibration_stats
+
+    own = await own_calibration_stats(session, shop_id)
+    return {k: CalibrationStats(float(c), n) for k, (c, n) in own.items()}
+
+
 async def lever_history(
     session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
 ) -> dict[str, LeverHistory]:
@@ -716,14 +730,19 @@ def build_card_payload(
 def d29_payload(proposal: CardProposal) -> dict[str, Any]:
     """The D29 / D30 card fields (contract P23; the frontend codes against these names).
 
-    ``target_metric``, ``confidence``, ``kpi``, ``gmv_estimate`` and
+    ``target_metric``, ``confidence``, ``kpi``, ``gmv_estimate``, ``forecast`` and
     ``sibling_cards`` are seller-facing; ``quality`` is internal (D30.5) and is
     not in the seller allowlist. Empty for a proposal built without D29.
     """
     if proposal.kpi is None or proposal.target_metric is None:
         return {}
     kpi = proposal.kpi
-    low, high = proposal.gmv_estimate or (0.0, 0.0)
+    estimate = None
+    if proposal.gmv_estimate is not None:
+        low, high = proposal.gmv_estimate
+        estimate = {"per_month_min": float(round(low)), "per_month_max": float(round(high))}
+    elif proposal.forecast is None or not proposal.forecast.stale:
+        estimate = {"per_month_min": 0.0, "per_month_max": 0.0}
     return {
         "target_metric": proposal.target_metric,
         "confidence": proposal.confidence,
@@ -741,8 +760,12 @@ def d29_payload(proposal: CardProposal) -> dict[str, Any]:
             # D32: the channel the KPI is read and measured on ("total" = all).
             "channel": kpi.channel,
         },
-        "gmv_estimate": {"per_month_min": float(round(low)), "per_month_max": float(round(high))},
+        # F2: no numbers on stale data (null), the forecast block says why.
+        "gmv_estimate": estimate,
         "sibling_cards": proposal.sibling_cards,
+        # Forecast grill (additive): one P50 scenario per metric, null = "—"; ``stale``
+        # carries the data-through day; ``source`` the F6 rung; profit null (F9).
+        **({"forecast": proposal.forecast.to_json()} if proposal.forecast is not None else {}),
         **({"quality": proposal.quality.to_json()} if proposal.quality is not None else {}),
         # D33 (S28B): set only on a "below shop level" card (quota mode).
         **({"reason_code": proposal.reason_code} if proposal.reason_code is not None else {}),

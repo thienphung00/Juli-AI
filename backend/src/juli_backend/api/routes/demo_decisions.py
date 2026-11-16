@@ -306,6 +306,7 @@ class DemoDecisionCard(BaseModel):
     kpi: DemoDecisionKpi | None = None
     gmv_estimate: DemoDecisionGmvEstimate | None = None
     sibling_cards: int | None = None
+    forecast: DemoDecisionForecast | None = None
     #: P30 (D34.8): one plain sentence about the card's group, once measured.
     group_result: str | None = None
 
@@ -333,6 +334,27 @@ class DemoDecisionGmvEstimate(BaseModel):
     per_month_max: float
 
 
+class DemoDecisionForecastStale(BaseModel):
+    data_through: str
+
+
+class DemoDecisionForecast(BaseModel):
+    """Forecast grill F2/F5/F6/F8/F9: one P50 scenario per month; null = "—"."""
+
+    data_through: str
+    #: F2: set when the data is older than TikTok's expected lag (no numbers then).
+    stale: DemoDecisionForecastStale | None = None
+    #: F6: "own" | "shop" | "pooled" | "prior".
+    source: str
+    scenario: str = "gmv_p50"
+    target_metric: str
+    target_lift: float | None = None
+    orders_per_month: float | None = None
+    gmv_per_month: float | None = None
+    #: F9: null until the TikTok profit adapter exists.
+    profit_per_month: float | None = None
+
+
 class DemoDecisionRecommendation(BaseModel):
     workflow_name: str | None = None
     priority: int | None = None
@@ -353,6 +375,8 @@ class DemoDecisionRecommendation(BaseModel):
     gmv_estimate: DemoDecisionGmvEstimate | None = None
     #: P23 (D29.4): other active cards of the same product and target metric.
     sibling_cards: int | None = None
+    #: Forecast grill: the card's P50 numbers (additive).
+    forecast: DemoDecisionForecast | None = None
 
 
 class DemoDecisionItem(BaseModel):

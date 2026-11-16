@@ -64,14 +64,17 @@ def test_131_revision_fits_alembic_and_follows_130():
     assert mod.down_revision == "130_businesses"
 
 
-def test_131_is_the_head_and_additive_only():
+def test_131_is_followed_by_132_and_additive_only():
     import sys
 
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
     script = ScriptDirectory.from_config(Config(str(REPO / "alembic.ini")))
-    assert script.get_heads() == ["131_connector_reader_blocks"]
+    # Forecast grill F6: 132 (pooled draws from real shops only) sits on 131.
+    assert script.get_revision("132_fleet_draws_real_shops").down_revision == (
+        "131_connector_reader_blocks"
+    )
     sys.path.insert(0, str(REPO / "infra/scripts"))
     from migration_additive_gate import evaluate_migration_paths
 

@@ -18,6 +18,11 @@ strong. They exist to be replaced by measurements.
 pulled toward neutral (1) by ``n / (n + K)``; the shop's own factor is used, blended
 the same way toward the fleet factor, only once the shop has ``≥ MIN_SHOP_RESULTS``
 measured results. Output: the lift range × factor, then a GMV range.
+
+F6 (forecast grill 2026-11-16): the ladder is own (this lever on this product, the
+shop's measured day-14 results) -> shop (>= 5 results) -> pooled across TikTok shops
+(>= 5 results, sample / sandbox shops excluded) -> prior + floor; the rung used is the
+prediction's ``source``.
 """
 
 from __future__ import annotations
@@ -115,19 +120,44 @@ def fleet_stats_for(fleet: Mapping[str, CalibrationStats], lever: str) -> Calibr
     return fleet.get(lever) or fleet.get(FLEET_ALL_LEVERS)
 
 
+#: F6 (forecast grill 2026-11-16): the rung a prediction's uplift came from, top first --
+#: the shop's own measured result for this lever on this product, the shop's calibration
+#: (>= MIN_SHOP_RESULTS results), the pooled calibration across TikTok shops (>=
+#: MIN_POOLED_RESULTS results; sample and sandbox shops never contribute), the generic
+#: prior (+ the 5 % floor).
+SOURCE_OWN = "own"
+SOURCE_SHOP = "shop"
+SOURCE_POOLED = "pooled"
+SOURCE_PRIOR = "prior"
+#: F6: the pooled rung needs this many measured results (on top of D14's >= 5 shops).
+MIN_POOLED_RESULTS = 5
+
+
+def _shrunk(base: float, stats: CalibrationStats) -> float:
+    """``base`` moved toward the stats' factor by ``n / (n + K)``."""
+    weight = stats.results / (stats.results + SHRINKAGE_K)
+    return base + weight * (calibration_factor(stats.coefficient) - base)
+
+
 def blended_factor(
-    shop: CalibrationStats | None, fleet: CalibrationStats | None
+    shop: CalibrationStats | None,
+    fleet: CalibrationStats | None,
+    own: CalibrationStats | None = None,
 ) -> tuple[float, str]:
-    """(factor, source): shop-level when it has enough results, else fleet, else prior."""
-    fleet_factor, source = 1.0, "prior"
-    if fleet is not None and fleet.results > 0 and fleet.coefficient is not None:
-        weight = fleet.results / (fleet.results + SHRINKAGE_K)
-        fleet_factor = 1.0 + weight * (calibration_factor(fleet.coefficient) - 1.0)
-        source = "fleet"
+    """(factor, source) down the F6 ladder: own -> shop -> pooled -> prior.
+
+    Each rung is used only when the one above is unavailable; a used rung is shrunk
+    toward the rung below it (``n / (n + K)``), so one measured result moves the factor
+    a little, not all the way.
+    """
+    factor, source = 1.0, SOURCE_PRIOR
+    if fleet is not None and fleet.coefficient is not None and fleet.results >= MIN_POOLED_RESULTS:
+        factor, source = _shrunk(factor, fleet), SOURCE_POOLED
     if shop is not None and shop.coefficient is not None and shop.results >= MIN_SHOP_RESULTS:
-        weight = shop.results / (shop.results + SHRINKAGE_K)
-        return fleet_factor + weight * (calibration_factor(shop.coefficient) - fleet_factor), "shop"
-    return fleet_factor, source
+        factor, source = _shrunk(factor, shop), SOURCE_SHOP
+    if own is not None and own.coefficient is not None and own.results >= 1:
+        factor, source = _shrunk(factor, own), SOURCE_OWN
+    return factor, source
 
 
 @dataclass(frozen=True)
@@ -137,7 +167,7 @@ class Prediction:
     lift_low: float
     lift_high: float
     factor: float
-    source: str  # "shop" | "fleet" | "prior"
+    source: str  # F6: "own" | "shop" | "pooled" | "prior"
     #: P50 when it differs from the band's midpoint (the generic-uplift floor lifted it).
     lift_p50: float | None = None
 
@@ -168,12 +198,14 @@ def predict(
     shop: CalibrationStats | None = None,
     fleet: CalibrationStats | None = None,
     size: float | None = None,
+    own: CalibrationStats | None = None,
 ) -> Prediction:
-    """``size``: the change's size in percent for a sized lever (discount %, BMSM tier %)."""
+    """``size``: the change's size in percent for a sized lever (discount %, BMSM tier %).
+    ``own``: the shop's measured results for this lever on this product (F6 rung 1)."""
     low, high = prior_lift(lever, qs_gap)
-    factor, source = blended_factor(shop, fleet)
+    factor, source = blended_factor(shop, fleet, own)
     lift_low, lift_high, p50 = low * factor, high * factor, None
-    if source == "prior" and lever not in UPLIFT_FLOOR_EXEMPT_LEVERS:
+    if source == SOURCE_PRIOR and lever not in UPLIFT_FLOOR_EXEMPT_LEVERS:
         mid = (lift_low + lift_high) / 2
         # Owner rule: the generic uplift is a fall back and is at least 5 %. Only P50 is
         # floored; P10 (the conservative tail) stays, and P90 is kept >= P50. A lever
@@ -232,8 +264,13 @@ def gmv_range_per_month(
 
 __all__ = [
     "FLEET_ALL_LEVERS",
+    "MIN_POOLED_RESULTS",
     "MIN_SHOP_RESULTS",
     "PRIOR_LIFT",
+    "SOURCE_OWN",
+    "SOURCE_POOLED",
+    "SOURCE_PRIOR",
+    "SOURCE_SHOP",
     "SHRINKAGE_K",
     "CalibrationStats",
     "Prediction",

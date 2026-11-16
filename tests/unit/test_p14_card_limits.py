@@ -620,7 +620,7 @@ async def test_calibration_and_reasons_reorder_the_ranking(session, shop_a):
     # Quality-Score weight, not the raw D24.6 factor.
     from juli_backend.services.optimize_product.quality_score import lever_weight
 
-    assert first.prediction is not None and first.prediction.source == "fleet"
+    assert first.prediction is not None and first.prediction.source == "pooled"
     assert 0.5 < first.prediction.factor < 1
     assert payload["history_adjustment"]["ranking_gmv_per_day"] == pytest.approx(
         float(first.recoverable_gmv_per_day)

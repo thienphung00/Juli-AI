@@ -65,9 +65,7 @@ def test_migration_109_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # Migration 110 (Ops shop platform) went on 109 and took the deferred tail.
     later = (MIGRATIONS / "versions/110_ops_shop_platform.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "131_connector_reader_blocks"' in BACKFILL.read_text(
-        "utf-8"
-    )
+    assert 'down_revision: str | None = "132_fleet_draws_real_shops"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_109_and_its_upgrade_only_adds():
