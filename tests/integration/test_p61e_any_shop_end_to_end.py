@@ -1077,8 +1077,12 @@ async def _step_4_seller_edit(journey: Journey) -> None:
     # that is neither Juli's proposal nor the one before it. Juli's write is stamped with the
     # database clock, so the edit is stamped "now" as well (the attribution windows are relative
     # to it; a fixed past date would put the edit BEFORE the write).
+    # The write's recorded_at is the database clock (session-local, naive): read that clock and
+    # stamp the edit one minute after it, so a non-UTC local Postgres orders them the same as prod.
+    clock = _owner_scalar(owner, "SELECT localtimestamp")
+    edited = int((clock.replace(tzinfo=UTC) + timedelta(minutes=1)).timestamp())
     journey.replay.listings[WEAK_PRODUCT_ID] = ListingWorld(
-        title=SELLER_EDIT_TITLE, update_time=int(datetime.now(UTC).timestamp())
+        title=SELLER_EDIT_TITLE, update_time=edited
     )
     second = await _reconcile(journey)
     assert second.read == 1 and second.snapshots == 1 and second.changes == 1
