@@ -335,7 +335,10 @@ def detect_opportunities(
         if not clears_band(f, profit_known):
             continue
         use_profit = profit_known and f.dprofit_p50 is not None
-        value = f.dprofit_p50 if use_profit else f.dgmv_p50
+        raw = f.dprofit_p50 if use_profit else f.dgmv_p50
+        # one horizon for rank(): a problem's value is over VALUE_DAYS, so the card period's
+        # effect is scaled to VALUE_DAYS (found by the TikTok session: 14-day cards ranked ~2x low)
+        value = None if raw is None else raw * VALUE_DAYS / max(f.period_days, 1)
         out.append(
             Trigger(
                 trigger_type=OPPORTUNITY,
