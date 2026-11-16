@@ -11,12 +11,17 @@ the `.cursor/` body. **Never fork a rule or skill body into `.claude/`.** Edit t
 
 Authority chain: [`EXECUTION.md`](EXECUTION.md) > [`agent-runtime/docs/agent-runtime.md`](agent-runtime/docs/agent-runtime.md) > skills and rules.
 
+> **Fast-track branches (`fasttrack/*`) follow [`fasttrack/PIPELINE.md`](fasttrack/PIPELINE.md).**
+> There, it overrides the git preflight / primary-checkout / `feature/*` rules below: batch
+> branches are cut from `origin/fasttrack/optimize-product`, the live shared state is
+> `fasttrack/state.py check`, and "ready" means `fasttrack/predeploy.sh` passed. Safety and the
+> code standard below still apply.
+
 ---
 
 ## Tier 1 — always on
 
-Four rules are always in force. Two are short enough to inline; read the other two when
-routing or touching git.
+Two rules are always in force; both are inlined below.
 
 ### Safety (`.cursor/rules/core-safety.mdc`)
 
@@ -44,19 +49,7 @@ routing or touching git.
 - Close each task's worktree + branch on PR merge — `python agent-runtime/scripts/git/worktree_gc.py --close <task>` verifies merged (incl. squash) + clean and prunes. Auto-close only worktrees you created that are merged **and** clean; confirm before deleting dirty, unpushed, human-created, or closed-not-merged branches. Never `main` or the helper slots.
 - Pre-commit required in every checkout: `pip install pre-commit && pre-commit install`.
 
-### Routing and MCP
-
-Read [`.cursor/rules/core-orchestration.mdc`](.cursor/rules/core-orchestration.mdc) and
-[`.cursor/rules/mcp-usage.mdc`](.cursor/rules/mcp-usage.mdc) before routing work.
-Tier-2 rules under `.cursor/rules/` load **only** when Focus selects them — never all at once.
-
 ---
-
-## Focus is the router
-
-For every non-trivial task, run the `focus` skill first and produce a **Context Plan**
-(docs / rules / skills / MCPs, with an explicit *DO NOT load* list). Ad-hoc chat stops at
-Focus — do not auto-enter review, validate, or ship pipelines unless asked.
 
 ## Code standard
 
