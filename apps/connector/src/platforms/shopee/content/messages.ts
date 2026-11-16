@@ -6,7 +6,9 @@ export interface MessageLike {
   data: unknown;
 }
 
-const KINDS = new Set(["capture", "sync-result", "backfill-result", "reader-result"]);
+// 0.3.23 (G14): "fill-saved" (the hook saw the person's save answer with the new voucher / combo
+// id) was missing here, so the content script never relayed it.
+const KINDS = new Set(["capture", "sync-result", "backfill-result", "reader-result", "fill-saved"]);
 
 /** Only messages this very window posted, from Seller Centre, on our channel. */
 export function isPageMessage(

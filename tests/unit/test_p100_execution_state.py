@@ -345,6 +345,35 @@ async def test_the_connector_progress_is_stored_and_shown(session, shop):
     assert (row["state"], row["fields"]) == (es.STATE_FILLED, {"filled": 1, "total": 2})
 
 
+async def test_the_captured_voucher_id_is_null_until_the_connector_reports_it(session, shop):
+    # G14: the Thực hiện row pre-fills "Mã voucher" from the id the Connector captured on save.
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])  # voucher card -> one voucher job
+    out = await es.execution_states(session, seeded.shop_id, now=NOW)
+    (row,) = [c for c in out["cards"] if c["card_id"] == str(ids[0])]
+    assert row["captured_voucher_id"] is None
+
+    job = (
+        await session.scalars(select(ShopeeFillJob).where(ShopeeFillJob.proposal_id == ids[0]))
+    ).one()
+    await fq.fill_queue.report(session, seeded.shop_id, job.id, status="filled")
+    await fq.fill_queue.report(
+        session, seeded.shop_id, job.id, status="captured", captured_ref="88001"
+    )
+    await session.commit()
+    out = await es.execution_states(session, seeded.shop_id, now=NOW)
+    (row,) = [c for c in out["cards"] if c["card_id"] == str(ids[0])]
+    assert row["captured_voucher_id"] == "88001"
+
+
+async def test_a_card_without_a_voucher_has_no_captured_voucher_id(session, shop):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[1])  # ads_budget -> ads_edit job
+    out = await es.execution_states(session, seeded.shop_id, now=NOW)
+    (row,) = [c for c in out["cards"] if c["card_id"] == str(ids[1])]
+    assert row["captured_voucher_id"] is None
+
+
 # ------------------------------------------------------------------ automatic Đã làm
 
 

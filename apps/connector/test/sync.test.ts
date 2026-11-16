@@ -66,4 +66,10 @@ describe("page → content-script messages", () => {
       false,
     );
   });
+
+  it("0.3.23 (G14): relays the hook's fill-saved message (the saved voucher / combo id)", () => {
+    const saved = { ...ok, data: { channel: "c", kind: "fill-saved", ref: "88001" } };
+    expect(isPageMessage(saved, self, "https://banhang.shopee.vn", "c")).toBe(true);
+    expect(isPageMessage({ ...saved, origin: "https://evil.example" }, self, "https://banhang.shopee.vn", "c")).toBe(false);
+  });
 });
