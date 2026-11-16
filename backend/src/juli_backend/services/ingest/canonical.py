@@ -83,7 +83,7 @@ lost_compensation
 seller_voucher_borne,      same
 seller_coin_borne,
 trade_in_bonus_seller
-vat_withheld, pit_withheld same                             stored as reported, NEVER in profit
+vat_withheld, pit_withheld same                             as reported; deducted (COST_TAX)
 source, source_rank,       same
 source_version,
 raw_payload_id
@@ -203,9 +203,10 @@ class OrderSettlement:
     """What the platform actually charged and paid for one order. Every cost is a POSITIVE amount
     the seller bore (a reversal is negative); ``payout`` is signed. ``None`` = not stated.
 
-    ``vat_withheld`` / ``pit_withheld`` are stored exactly as the platform reported them and are
-    NEVER used in profit (owner 2026-11-15: Juli calculates no tax); :func:`profit_order_lines`
-    leaves them out of the compute input."""
+    ``vat_withheld`` / ``pit_withheld`` are the tax the platform's own settlement data REPORTS as
+    withheld, stored exactly as reported; :func:`profit_order_lines` passes them through so profit
+    deducts them (``COST_TAX``), as on Shopee (owner 2026-11-16). Juli never declares or guesses
+    a tax rate: no reported amount, no tax."""
 
     shop_id: uuid.UUID
     platform: str
@@ -348,7 +349,7 @@ def _actual_fees(line: OrderLine) -> Decimal | None:
 
 
 def _income_order(settlement: OrderSettlement) -> IncomeOrder:
-    # vat_withheld / pit_withheld deliberately NOT passed: no tax in profit (owner 2026-11-15).
+    # The REPORTED withheld tax is deducted (owner 2026-11-16); never a declared or guessed rate.
     return IncomeOrder(
         order_ref=settlement.order_ref,
         fee_fixed=settlement.fee_fixed,
@@ -362,6 +363,8 @@ def _income_order(settlement: OrderSettlement) -> IncomeOrder:
         return_ship_failed=settlement.return_ship_failed,
         refund_amount=settlement.refund_amount,
         lost_compensation=settlement.lost_compensation,
+        vat_withheld=settlement.vat_withheld,
+        pit_withheld=settlement.pit_withheld,
         seller_coin_borne=settlement.seller_coin_borne,
         trade_in_bonus_seller=settlement.trade_in_bonus_seller,
         payout=settlement.payout,

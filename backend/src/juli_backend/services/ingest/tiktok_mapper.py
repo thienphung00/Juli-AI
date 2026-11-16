@@ -134,7 +134,7 @@ IGNORED_FEES: frozenset[str] = frozenset(
         "affiliate_commission_amount_before_pit",
     }
 )
-#: ``fee_tax_breakdown.tax`` keys -> canonical column (stored as reported, never in profit).
+#: ``fee_tax_breakdown.tax`` keys -> canonical column (reported withheld tax; profit deducts it).
 TAX_COLUMNS: dict[str, str] = {
     "vat_amount": "vat_withheld",
     "local_vat_amount": "vat_withheld",

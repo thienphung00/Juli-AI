@@ -449,9 +449,10 @@ async def test_mapped_order_writes_idempotently_and_computes_profit() -> None:
     assert first.fee_source == "income"
     # Line SYN-A (buyer paid 180000 of 270000) carries 2/3 of every settled amount:
     # fees 2/3 x (33000 + 6000 + 4000 + 4000) = 31333.34 (cent rounding) and commission 5333.33,
-    # net shipping 8000; tax is never charged.
+    # net shipping 8000; the reported withheld tax (VAT 1800 + PIT 900) is deducted, 2/3 = 1800.
     assert first.fees_total == D("31333.34")
     assert first.commission == D("5333.33")
+    assert out[0].income is not None and out[0].income.tax_withheld == D("1800.00")
     assert first.contribution == D("180000") - D("31333.34") - D("50000") - D("2000") - D(
         "5333.33"
-    ) - D("8000")
+    ) - D("8000") - D("1800")

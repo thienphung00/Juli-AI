@@ -225,7 +225,7 @@ def test_actual_fees_is_the_sum_of_stated_line_fees() -> None:
     assert out[0].order_date == date(2026, 10, 1)
 
 
-def test_settlement_split_by_buyer_paid_with_fee_other_and_no_tax() -> None:
+def test_settlement_split_by_buyer_paid_with_fee_other_and_reported_tax() -> None:
     lines = [
         _line(line_no=0, deal_price=D("60000")),
         _line(line_no=1, item_id="item-2", variation_sku="SKU-2", deal_price=D("30000")),
@@ -252,10 +252,13 @@ def test_settlement_split_by_buyer_paid_with_fee_other_and_no_tax() -> None:
         D("1000.00"),
     )
     assert sum(dict(ln.income.fees)[FEE_OTHER] for ln in out if ln.income) == D("1500")
-    assert first.tax_withheld == 0
+    # reported VAT 900 + PIT 450, 2/3 on this line (buyer paid 60000 of 90000)
+    assert first.tax_withheld == D("900.00")
+    assert sum(ln.income.tax_withheld for ln in out if ln.income) == D("1350")
     breakdown = line_profit(out[0], SkuCost(sku="SKU-1", cogs=D("20000"), packaging=D("1000")))
     # 60000 buyer paid - 9000 fees (6000+2000+1000) - 20000 COGS - 1000 packaging - 4000 shipping
-    assert breakdown.contribution == D("26000.00")
+    # - 900 reported withheld tax
+    assert breakdown.contribution == D("25100.00")
     assert breakdown.fee_source == "income"
 
 
