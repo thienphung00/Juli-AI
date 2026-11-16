@@ -44,6 +44,7 @@ export type JobResult =
   | { status: "idle" }
   | { status: "refused"; reason: string }
   | { status: "halted" }
+  | { status: "blocked"; reason: string }
   | { status: "filled" | "partial"; steps: number };
 
 const REFUSAL: Record<string, string> = {
@@ -65,6 +66,8 @@ async function fillPage<J extends CoreJob>(env: Env, job: J, forms: Readonly<Rec
 export interface JobPack<J extends CoreJob = CoreJob> {
   forms: Readonly<Record<string, FormMap<J>>>;
   labels: JobLabels;
+  /** A wall on the page (CAPTCHA ...) as the job's error code, or null: the job stops, nothing is typed. */
+  blockedOn?(doc: Document): string | null;
 }
 
 export async function runFillJob<J extends CoreJob>(deps: JobDeps<J>, pack: JobPack<J>): Promise<JobResult> {
@@ -82,6 +85,15 @@ export async function runFillJob<J extends CoreJob>(deps: JobDeps<J>, pack: JobP
     return { status: "refused", reason: reply.reason };
   }
   const job = reply.value;
+  const wall = async (): Promise<JobResult | null> => {
+    const reason = pack.blockedOn?.(deps.doc) ?? null;
+    if (!reason) return null;
+    await deps.report(job.id, "failed", reason);
+    showJobPanel(deps.doc, { outcome: "blocked", text: pack.labels.blocked ?? pack.labels.halt }, pack.labels);
+    return { status: "blocked", reason };
+  };
+  const walledBefore = await wall();
+  if (walledBefore) return walledBefore;
   await deps.report(job.id, "opened");
   const env: Env = { doc: deps.doc, sleep: deps.sleep, now: deps.now };
   const result = await fillPage(env, job, pack.forms);
@@ -91,6 +103,8 @@ export async function runFillJob<J extends CoreJob>(deps: JobDeps<J>, pack: JobP
     showJobPanel(deps.doc, { outcome: "halted", text: pack.labels.halt }, pack.labels);
     return { status: "halted" };
   }
+  const walledAfter = await wall();
+  if (walledAfter) return walledAfter;
   const all = result.steps.length > 0 && result.steps.every((s) => s.ok);
   showJobPanel(deps.doc, { outcome: all ? "filled" : "partial", job, result }, pack.labels);
   const progress: FillProgress = { filled: result.steps.filter((s) => s.ok).length, total: result.steps.length };
