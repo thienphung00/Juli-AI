@@ -6,7 +6,7 @@ import { FillJobs, jobUrl, senderMatchesJob } from "../src/platforms/shopee/back
 import { addRequests, loadState, requestsLeft } from "../src/platforms/shopee/background/state";
 import { DAILY_REQUEST_BUDGET, READER_PAGE_LOAD_COST } from "../src/platforms/shopee/config";
 import { GatewayError } from "../src/platforms/shopee/ingest/client";
-import { bundleIdFrom, savedBundlePath, savedVoucherPath, voucherIdFrom } from "../src/platforms/shopee/fill/saved";
+import { bundleIdFrom, savedBundlePath, savedSignal, savedVoucherPath, voucherIdFrom } from "../src/platforms/shopee/fill/saved";
 import { gmt7Date } from "../src/core/time";
 import { JOB_ID, voucherJob } from "./fill-job-helpers";
 
@@ -212,6 +212,13 @@ describe("noticing a saved voucher", () => {
     expect(bundleIdFrom({ bundle_id: "77" })).toBe("77");
     expect(bundleIdFrom({ bundle_id: "7 7; x" })).toBeNull();
     expect(bundleIdFrom({ data: { list: [] } })).toBeNull();
+  });
+
+  it("G14: the save answer's signal carries the new voucher id; a GET or another path gives none", () => {
+    const body = { code: 0, data: { voucher_id: 88001 } };
+    expect(savedSignal({ method: "POST", pathname: "/api/marketing/v3/voucher/create/", body })).toEqual({ ref: "88001" });
+    expect(savedSignal({ method: "GET", pathname: "/api/marketing/v3/voucher/create/", body })).toBeNull();
+    expect(savedSignal({ method: "POST", pathname: "/api/marketing/v3/voucher/list/", body })).toBeNull();
   });
 });
 
