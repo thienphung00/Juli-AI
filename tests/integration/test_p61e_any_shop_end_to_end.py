@@ -95,6 +95,7 @@ from juli_backend.workers.tasks.shop_ingestion import Enqueuers, run_bootstrap_t
 from tests.integration.test_shop_ingestion_two_tenant import committing_juli_app_session
 from tests.integration.tiktok_recorded_replay import load_sample
 from tests.integration.two_tenant import RUNTIME_ROLE, seed_tenant
+from tests.support.diag_trigger import pin_diag_trigger
 from tests.support.postgres import (
     juli_app_async_sessionmaker,
     juli_app_sync_sessionmaker,
@@ -1190,6 +1191,8 @@ JOURNEY_TIMEOUT_SECONDS = 120
 @pytest.mark.timeout(JOURNEY_TIMEOUT_SECONDS)
 @pytest.mark.asyncio
 async def test_new_shop_runs_the_whole_journey(journey: Journey, monkeypatch) -> None:
+    # F11: fixture cards fit the metric-first trigger; this tests the pipeline
+    pin_diag_trigger(monkeypatch)
     await _warm_up_shop_a(journey)
     with patch("requests.Session.request", side_effect=journey.replay.request):
         await _step_1_oauth(journey)

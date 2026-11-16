@@ -45,7 +45,9 @@ END = date(2026, 11, 10)
 NOW = datetime(2026, 11, 11, 3, 0)
 
 
-async def test_sample_shop_end_to_end_on_postgres():
+async def test_sample_shop_end_to_end_on_postgres(monkeypatch):
+    # F11: the sample cards do not clear the band; this tests the pipeline, band off
+    monkeypatch.setattr("juli_backend.services.forecast.triggers.clears_band", lambda *a: True)
     engine = create_async_engine(async_database_url(os.environ["DATABASE_URL"]))
     try:
         factory = async_sessionmaker(engine, expire_on_commit=False)
