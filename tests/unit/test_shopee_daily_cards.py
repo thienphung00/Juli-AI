@@ -15,7 +15,7 @@ from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks import shopee_daily_cards as task_module
 from tests.support.api import client_for
 from tests.support.shopee_reco import AS_OF, seed_reco_shop
-from tests.unit.test_ingest_connector_ticks import TICK, _token_headers  # noqa: F401
+from tests.unit.test_ingest_connector_ticks import TICK, _token_headers
 from tests.unit.test_ingest_gateway import _paired_client, _shopee_tenant
 
 NOW = datetime(AS_OF.year, AS_OF.month, AS_OF.day, 3, 0) + timedelta(days=1)

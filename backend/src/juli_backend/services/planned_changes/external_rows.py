@@ -287,11 +287,15 @@ def rows_from_cells(
 def read_sheet(data: bytes, today: date) -> tuple[list[SheetRow], list[str]]:
     """Open the workbook (openpyxl, read-only, values only) and read the import sheet."""
     _check_archive(data)
-    from openpyxl import load_workbook
+    import zipfile
 
+    from openpyxl import load_workbook
+    from openpyxl.utils.exceptions import InvalidFileException
+
+    unreadable = (InvalidFileException, zipfile.BadZipFile, KeyError, ValueError, OSError)
     try:
         wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-    except Exception as exc:  # noqa: BLE001 - any reader failure is "not a readable sheet"
+    except unreadable as exc:  # a reader failure is "not a readable sheet"
         raise SheetError(f"unreadable workbook ({type(exc).__name__})") from None
     try:
         ws = wb[SHEET] if SHEET in wb.sheetnames else wb.active
