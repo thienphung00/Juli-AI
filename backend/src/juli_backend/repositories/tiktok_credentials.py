@@ -70,6 +70,7 @@ class TikTokCredentialRepo(SessionRepo):
         merchant_authorization_id: str | None = None,
         capability: str | None = None,
         shop_cipher: str | None = None,
+        grant_id: uuid.UUID | None = None,
     ) -> TikTokCredential:
         credential = TikTokCredential(
             id=uuid.uuid4(),
@@ -77,6 +78,7 @@ class TikTokCredentialRepo(SessionRepo):
             merchant_authorization_id=merchant_authorization_id,
             capability=capability,
             shop_cipher=shop_cipher,
+            grant_id=grant_id,
             access_token=encrypt_token(access_token),
             refresh_token=encrypt_token(refresh_token),
             token_expires_at=token_expires_at,

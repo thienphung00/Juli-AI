@@ -272,6 +272,9 @@ class TikTokOAuthService:
         else:
             targets = [None]  # single-shop verifier: the shop is resolved after its capability
         several = len(targets) > 1
+        # P101 W2a (migration 132): one lineage for every credential this grant writes, so a
+        # refresh of any of them rotates all of them (``credential_refresh``).
+        grant_id = uuid.uuid4()
         legacy_cipher = (
             await self._legacy_shop_cipher(open_id=open_id, user_id=user_id) if several else None
         )
@@ -290,6 +293,7 @@ class TikTokOAuthService:
                     target=target,
                     shops_in_grant=len(targets),
                     legacy_cipher=legacy_cipher,
+                    grant_id=grant_id,
                 )
             except ShopClaimedByAnotherAccount:
                 if not several:
@@ -327,6 +331,7 @@ class TikTokOAuthService:
         target: VerifiedShopCipher | None,
         shops_in_grant: int,
         legacy_cipher: str | None,
+        grant_id: uuid.UUID,
     ) -> Shop:
         """One shop of the grant: claim or create it, then write its credential."""
         # A single-shop grant keeps the token's ``seller_name`` (as before); several shops each
@@ -374,6 +379,7 @@ class TikTokOAuthService:
                 capability=capability,
                 target=target,
                 shops_in_grant=shops_in_grant,
+                grant_id=grant_id,
             )
 
         if filed_under is TikTokCapability.SANDBOX_WRITE and shop.kind == "real":
@@ -559,6 +565,7 @@ class TikTokOAuthService:
         capability: TikTokCapability | None,
         target: VerifiedShopCipher | None = None,
         shops_in_grant: int = 1,
+        grant_id: uuid.UUID | None = None,
     ) -> TikTokCapability:
         """Create or refresh the shop's credential row, under the shop's scope.
 
@@ -672,6 +679,8 @@ class TikTokOAuthService:
             # authorization, or a Juli Ops disconnect) -- reconnecting resumes.
             existing_cred.status = "active"
             existing_cred.last_refresh_error = None
+            # P101 W2a: the row now holds THIS grant's tokens, so it joins this grant's lineage.
+            existing_cred.grant_id = grant_id
         except NotFound:
             await cred_repo.create(
                 shop_id=shop.id,
@@ -682,6 +691,7 @@ class TikTokOAuthService:
                 merchant_authorization_id=merchant_authorization_id,
                 capability=capability.value,
                 shop_cipher=verified_cipher,
+                grant_id=grant_id,
             )
         await self._record_numeric_shop_id(shop, numeric_shop_id)
         return capability
