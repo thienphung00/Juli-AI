@@ -186,6 +186,7 @@ async def load_env(
     env.locked = await store.locked_products(session, shop_id, now)
     env.stock_stopped, _ = await stock_cards.load_stopped(session, shop_id, ctx.catalog)
     env.calibration = await store.load_calibrations(session, shop_id)
+    env.pooled_calibration = await store.load_pooled_calibrations(session)
     env.acceptance = await store.load_acceptance(session, shop_id)
     env.sim = await store.load_sim(session, shop_id)
     env.banned_terms = tuple(await shop_rules.banned_terms(session, shop_id))

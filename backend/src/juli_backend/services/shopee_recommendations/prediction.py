@@ -1,7 +1,8 @@
 """The predicted range ("dự kiến"): ``optimize_product/prediction.py`` ported to Shopee kinds.
 
 relative lift on the kind's target metric = preset prior x calibration factor (shop evidence
-shrunk toward the prior: ``MIN_SHOP_RESULTS`` = 5, ``K`` = 5; no pooling across shops, ADR-116)
+shrunk toward the prior: ``MIN_SHOP_RESULTS`` = 5, ``K`` = 5; then the same evidence pooled
+across the real Shopee shops as a third rung, F6; never across platforms)
 x coverage range scale; the simulation prior enters weighted by its per-change_kind gate
 (ADR-121 d.4) -- weight 0 leaves the no-simulation path byte-identical. The lift is then
 turned into dGMV / dprofit per month (P10 ... P90) by the GMV identity
@@ -45,14 +46,17 @@ def gap_bucket(gap_pct: float | None) -> str:
     return "small"
 
 
-def factor_from(pooled_ratio: float | None, results: int) -> tuple[float, str]:
+def factor_from(
+    pooled_ratio: float | None, results: int, source: str = "shop"
+) -> tuple[float, str]:
     """Shop factor shrunk to the prior (1.0): ``n / (n + K)`` of the evidence is trusted, and
-    only once the shop has ``MIN_SHOP_RESULTS`` results. Ratio clamped to the factor limits."""
+    only once there are ``MIN_SHOP_RESULTS`` results. Ratio clamped to the factor limits.
+    ``source`` names the rung the evidence is from ("shop", or "pooled" for F6)."""
     if pooled_ratio is None or results < config.MIN_SHOP_RESULTS:
         return 1.0, "prior"
     clamped = min(max(pooled_ratio, config.FACTOR_MIN), config.FACTOR_MAX)
     weight = results / (results + config.SHRINKAGE_K)
-    return 1.0 + weight * (clamped - 1.0), "shop"
+    return 1.0 + weight * (clamped - 1.0), source
 
 
 @dataclass(frozen=True)
@@ -63,7 +67,7 @@ class Lift:
     low: float  # P10
     high: float  # P90
     factor: float
-    source: str  # "prior" | "shop"
+    source: str  # F6 ladder: "product_history" (own) | "shop" | "pooled" | "prior"
     range_scale: float = 1.0
     gap_bucket: str = "unknown"
     sim: dict[str, Any] = field(default_factory=dict)
@@ -183,6 +187,13 @@ def predict_lift(
         if state is not None:
             factor, source = factor_from(state.pooled_ratio, state.n_results)
             scale = state.range_scale
+        if source == "prior":
+            # F6 rung 3: the same evidence pooled across the real Shopee shops (>= 5 results),
+            # only when the shop's own calibration is not enough
+            pooled = getattr(env, "pooled_calibration", {}).get((spec.key, spec.target_metric))
+            if pooled is not None:
+                factor, source = factor_from(pooled.pooled_ratio, pooled.n_results, "pooled")
+                scale = pooled.range_scale if source == "pooled" else 1.0
     lo, hi = lo * factor, hi * factor
     sim_info: dict[str, Any] = {"applied": False}
     if env is not None and env.sim is not None and spec.sim_kind and cand.item:

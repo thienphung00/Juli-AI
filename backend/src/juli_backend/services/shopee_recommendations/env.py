@@ -95,6 +95,8 @@ class RecoEnv:
     #: usage rate u of the shop's comparable past vouchers (None = unknown -> default 1, flagged)
     usage_rate: Decimal | None = None
     calibration: Mapping[tuple[str, str], CalibrationState] = field(default_factory=dict)
+    #: F6: the calibration pooled across the real Shopee shops (rung 3 of the uplift ladder)
+    pooled_calibration: Mapping[tuple[str, str], CalibrationState] = field(default_factory=dict)
     acceptance: AcceptanceStats | None = None
     sim: SimPriors | None = None
     #: product id -> the listing as stored (newest snapshot + keyword key list + market numbers)

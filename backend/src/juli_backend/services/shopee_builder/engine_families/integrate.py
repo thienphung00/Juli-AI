@@ -75,7 +75,14 @@ from juli_backend.services.shopee_recommendations.env import RecoEnv
 ZERO = Decimal(0)
 #: Ad type of a Dịch vụ Hiển thị Sản phẩm campaign, past or new (``measure.ad_rates``).
 AD_TYPE = "product_search"
-_BASIS_ORDER: tuple[Basis, ...] = ("measured", "product_history", "shop", "prior", "not_estimable")
+_BASIS_ORDER: tuple[Basis, ...] = (
+    "measured",
+    "product_history",
+    "shop",
+    "pooled",
+    "prior",
+    "not_estimable",
+)
 
 
 # -- base ----------------------------------------------------------------------------------------

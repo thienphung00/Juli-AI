@@ -50,7 +50,14 @@ from juli_backend.services.shopee_builder.engine.vn import (
 
 Z90 = 1.2815515655446004  # standard normal quantile at 0.90 (config.Z_P90)
 DEFAULT_DAYS = 30
-_BASIS_ORDER: tuple[Basis, ...] = ("measured", "product_history", "shop", "prior", "not_estimable")
+_BASIS_ORDER: tuple[Basis, ...] = (
+    "measured",
+    "product_history",
+    "shop",
+    "pooled",
+    "prior",
+    "not_estimable",
+)
 
 
 # -- band sampling -------------------------------------------------------------------------------

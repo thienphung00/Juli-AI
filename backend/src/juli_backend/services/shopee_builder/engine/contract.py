@@ -136,7 +136,7 @@ class FunnelBase:
 # -- what an option declares ---------------------------------------------------------------------
 
 Driver = Literal["views", "ctr", "ctor", "aov"]
-Basis = Literal["measured", "product_history", "shop", "prior", "not_estimable"]
+Basis = Literal["measured", "product_history", "shop", "pooled", "prior", "not_estimable"]
 
 
 @dataclass(frozen=True)
@@ -321,7 +321,7 @@ WIRE_KEYS = {
     "horizon": "'duration' | 'first_30_days'",
     "drivers": "list['views'|'ctr'|'ctor'|'aov']",
     "estimable": "bool",
-    "basis": "'measured'|'product_history'|'shop'|'prior'|'not_estimable'",
+    "basis": "'measured'|'product_history'|'shop'|'pooled'|'prior'|'not_estimable'",
     "basis_weak": "bool  # tag 'ước tính chung' (prior) shown",
     "delta": {
         "profit": "{value, pct, low, high} | None (None = chưa tính / chưa ước tính được)",
