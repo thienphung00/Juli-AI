@@ -95,6 +95,9 @@ describe("report pages and their state", () => {
     expect(outcomeStatus("no_orders").status).toContain("Không có gì");
     expect(outcomeStatus("waiting_budget").status).toContain("ngày mai");
     expect(outcomeStatus("blocked_captcha").status).toContain("CAPTCHA");
+    // 0.3.22: a wall on one page only
+    expect(outcomeStatus("blocked:login")).toEqual({ status: "Đăng nhập lại để đọc trang này", tone: "warn" });
+    expect(outcomeStatus("blocked:captcha").status).toContain("CAPTCHA");
     expect(outcomeStatus("needs_data_page:affiliate_conversion").tone).toBe("wait");
     expect(outcomeStatus("error:boom").tone).toBe("warn");
   });

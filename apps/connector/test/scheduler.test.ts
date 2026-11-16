@@ -198,6 +198,8 @@ describe("planJobs", () => {
     const ids = planJobs({ ...base, readers: undefined }).map((j) => j.id);
     expect(ids).toEqual([
       "products",
+      "orders",
+      "order_income",
       "vouchers",
       "ads",
       "ads_detail",
@@ -206,8 +208,6 @@ describe("planJobs", () => {
       "shop_totals",
       "traffic",
       "product_period",
-      "orders",
-      "order_income",
       "affiliate",
       "affiliate_kols",
       "affiliate_dashboard",
@@ -414,7 +414,7 @@ describe("a daily run", () => {
     ]);
   });
 
-  it("item_traffic: the password re-confirmation modal stops the run with blocked: login", async () => {
+  it("item_traffic: the password re-confirmation modal, after the portal pages read, blocks item_traffic only (0.3.22)", async () => {
     const ctx = setup();
     await ctx.scheduler.tick();
     await saveState(ctx.storage, { readers: { ...(await ctx.read())!, itemIds: ["11"] } });
@@ -429,14 +429,15 @@ describe("a daily run", () => {
     const tab = ctx.tabs.current;
     expect(tab.url).toBe(`${SC}/datacenter/product/traffic`);
     await ctx.scheduler.onTabReady(tab.id, tab.url);
-    await ctx.scheduler.onResult(tab.id, { job: "item_traffic", status: "blocked_login", responses: [] });
+    await ctx.scheduler.onResult(tab.id, { job: "item_traffic", status: "blocked_login", detail: "password_modal", responses: [] });
     const state = await ctx.read();
-    expect(state?.blocked).toMatchObject({ reason: "login", page: "item_traffic" });
+    expect(state?.blocked).toBeUndefined();
     expect(state?.run).toBeUndefined();
-    expect(state?.lastRun?.blocked).toBe("login");
-    expect(state?.lastRun?.outcomes.item_traffic).toBe("blocked_login");
+    expect(state?.lastRun?.blocked).toBeUndefined();
+    expect(state?.lastRun?.outcomes.item_traffic).toBe("blocked:login");
     expect(ctx.tabs.closed).toContain(tab.id);
-    expect(await ctx.scheduler.tick()).toBe("blocked");
+    expect(ctx.events).toEqual([expect.objectContaining({ reader: "item_traffic", status: "login", code: "reader_only:password_modal" })]);
+    expect(await ctx.scheduler.tick()).toBe("done_today");
     expect(state?.trafficDone ?? []).toEqual([]);
   });
 
@@ -1322,5 +1323,121 @@ describe("0.3.20: the orders outcome is truthful", () => {
     await empty.scheduler.onResult(t2.id, { job: "orders", status: "done", detail: "no_new_orders", responses: [] });
     expect((await empty.read())?.lastRun?.outcomes.orders).toBe("no_orders");
     expect((await empty.read())?.ordersCoveredDay).toBe("2026-11-03");
+  });
+});
+
+describe("0.3.22: a login wall on one reader blocks that reader, not the run", () => {
+  /** Drive the run to its end: each page answers with `answers[id]` (default "done"). */
+  async function driveRun(ctx: ReturnType<typeof setup>, answers: Partial<Record<ReaderId, string>>): Promise<string> {
+    const ticks: TickReport[] = [];
+    (ctx.scheduler as unknown as { deps: { sink: { reportTick: unknown } } }).deps.sink.reportTick = async (report: TickReport) => {
+      ticks.push(report);
+    };
+    let result = await ctx.scheduler.tick();
+    for (let i = 0; i < 20 && (await ctx.read())?.run; i += 1) {
+      const run = (await ctx.read())?.run;
+      if (run?.current) {
+        const id = run.jobs[run.index]?.id as ReaderId;
+        const status = answers[id] ?? "done";
+        await finishPage(ctx, status);
+      }
+      ctx.clock.now += GAP;
+      result = await ctx.scheduler.tick();
+    }
+    (ctx as unknown as { ticks: TickReport[] }).ticks = ticks;
+    return result;
+  }
+  const ticksOf = (ctx: ReturnType<typeof setup>) => (ctx as unknown as { ticks: TickReport[] }).ticks;
+
+  it("a Phân tích bán hàng login wall after portal pages read: the run goes on; a second blocks the section", async () => {
+    const ctx = setup({ readers: ["products", "orders", "shop_totals", "traffic", "product_period", "health"] });
+    await driveRun(ctx, { shop_totals: "blocked_login", traffic: "blocked_login" });
+    const state = await ctx.read();
+    expect(state?.blocked).toBeUndefined();
+    expect(state?.lastRun?.blocked).toBeUndefined();
+    expect(state?.lastRun?.outcomes).toMatchObject({
+      orders: expect.stringMatching(/^done/),
+      shop_totals: "blocked:login",
+      traffic: "blocked:login",
+      product_period: "blocked:login",
+      health: expect.stringMatching(/^done/),
+    });
+    // product_period was never opened (two walls in /datacenter); health (portal) was.
+    const paths = ctx.tabs.opened.map((t) => new URL(t.url).pathname);
+    expect(paths).not.toContain("/datacenter/product/performance");
+    expect(paths).toContain("/portal/accounthealth");
+    expect(ctx.posted.map((p) => p.job.id)).toEqual(["products", "orders", "health"]);
+    // The run report Juli gets carries each blocked reader.
+    const run = ticksOf(ctx).find((t) => t.kind === "run");
+    expect(run?.result).toBe("finished");
+    expect(run?.outcomes).toMatchObject({ shop_totals: "blocked:login", traffic: "blocked:login", product_period: "blocked:login" });
+    expect(ctx.events.map((e) => [e.reader, e.status, e.code])).toEqual([
+      ["shop_totals", "login", "reader_only"],
+      ["traffic", "login", "reader_only"],
+    ]);
+  });
+
+  it("a read in the section between two walls starts its count again", async () => {
+    const ctx = setup({ readers: ["products", "shop_totals", "traffic", "product_period", "item_traffic"] });
+    await saveState(ctx.storage, { readers: { adsDone: [], trafficDone: [], itemIds: ["11"] } });
+    await driveRun(ctx, { shop_totals: "blocked_login", product_period: "blocked_login" });
+    expect((await ctx.read())?.lastRun?.outcomes).toMatchObject({
+      shop_totals: "blocked:login",
+      traffic: expect.stringMatching(/^done/),
+      product_period: "blocked:login",
+      item_traffic: expect.stringMatching(/^done/),
+    });
+  });
+
+  it("a wall on the run's first page is a session-wide logout: the run stops after one tab, as before", async () => {
+    const ctx = setup({ readers: ["products", "orders", "shop_totals", "health"] });
+    const result = await driveRun(ctx, { products: "blocked_login" });
+    expect(result).toBe("blocked");
+    const state = await ctx.read();
+    expect(state?.blocked).toMatchObject({ reason: "login", page: "products" });
+    expect(state?.lastRun?.blocked).toBe("login");
+    expect(ctx.tabs.opened).toHaveLength(1);
+    expect(ticksOf(ctx).find((t) => t.kind === "run")?.result).toBe("blocked:login");
+  });
+
+  it("walls in both sections are a session-wide logout: the rest of the run is not opened", async () => {
+    const ctx = setup({ readers: ["products", "shop_totals", "orders", "health"] });
+    await driveRun(ctx, { shop_totals: "blocked_login", orders: "blocked_login" });
+    const state = await ctx.read();
+    expect(state?.blocked).toMatchObject({ reason: "login", page: "orders" });
+    expect(state?.lastRun?.outcomes).toMatchObject({ shop_totals: "blocked:login", orders: "blocked_login" });
+    expect(state?.lastRun?.outcomes.health).toBeUndefined();
+    expect(ctx.tabs.opened).toHaveLength(3);
+  });
+
+  it("a tab sent off Seller Centre is a session-wide logout even after a page read", async () => {
+    const ctx = setup({ readers: ["products", "shop_totals", "health"] });
+    await ctx.scheduler.tick();
+    await finishPage(ctx);
+    ctx.clock.now += GAP;
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    ctx.tabs.inspection.set(tab.id, { open: true, url: undefined });
+    ctx.clock.now += READER_LOAD_GRACE_MS + 1;
+    expect(await ctx.scheduler.tick()).toBe("blocked:login");
+    expect(ctx.tabs.opened).toHaveLength(2);
+  });
+
+  it("a CAPTCHA on one Phân tích bán hàng page blocks that page only", async () => {
+    const ctx = setup({ readers: ["products", "shop_totals", "health"] });
+    await driveRun(ctx, { shop_totals: "blocked_captcha" });
+    const state = await ctx.read();
+    expect(state?.blocked).toBeUndefined();
+    expect(state?.lastRun?.outcomes).toMatchObject({ shop_totals: "blocked:captcha", health: expect.stringMatching(/^done/) });
+  });
+
+  it("job order: orders and order_income run before every /datacenter reader", () => {
+    const ids = planJobs({ shopId: PILOT, nowMs: T0, stopped: new Set<never>(), adsDone: [] }).map((j) => j.id);
+    const at = (id: ReaderId) => ids.indexOf(id);
+    expect(at("order_income")).toBe(at("orders") + 1);
+    for (const id of ["shop_totals", "traffic", "product_period", "item_traffic"] as const) {
+      expect(at("orders")).toBeLessThan(at(id));
+      expect(at("order_income")).toBeLessThan(at(id));
+    }
   });
 });

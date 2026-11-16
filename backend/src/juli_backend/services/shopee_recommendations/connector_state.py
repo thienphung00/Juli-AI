@@ -9,6 +9,12 @@ Tables ``shopee_connector_state`` (one row per shop) and ``shopee_connector_comm
   Connector (``pending`` -> ``sent``), which runs its readers now; the ack closes it (``acked``).
 
 Reviewer requests never write here (``reviewer_session_active``).
+
+Reader blocks (Connector 0.3.22, migration 131): a login wall or CAPTCHA on one Seller Centre page
+now blocks that page only (outcome ``blocked:login`` / ``blocked:captcha``) and the run goes on. A
+daily run's report (``POST /v1/ingest/connector-ticks``) replaces ``reader_blocks`` on the state
+row; stock runs and skips leave it. A session-wide stop is the page's ``blocked_login`` /
+``blocked_captcha`` (run result ``blocked:<reason>``).
 """
 
 from __future__ import annotations
@@ -35,6 +41,14 @@ COMMAND_ID_MAX = 64
 HEARTBEAT_FRESH = timedelta(minutes=10)
 ERROR_REVIEWER = "connector_command_refused"
 _OPEN = (COMMAND_PENDING, COMMAND_SENT)
+
+#: The audit action of the Connector's scheduler tick (``POST /v1/ingest/connector-ticks``).
+ACTION_CONNECTOR_TICK = "system_connector_tick"
+#: The readers on Phân tích bán hàng (Seller Centre /datacenter), which asks for the password again.
+DATACENTER_READERS = frozenset({"shop_totals", "traffic", "product_period", "item_traffic"})
+SECTION_DATACENTER = "phan_tich_ban_hang"
+SECTION_SELLER_CENTRE = "seller_centre"
+_BLOCK_REASONS = ("login", "captcha")
 
 
 def _iso(moment: datetime | None) -> str | None:
@@ -128,4 +142,48 @@ async def read(session: AsyncSession, shop_id: uuid.UUID, *, now: datetime) -> d
         "seller_centre_open": row.seller_centre_open if row and fresh else None,
         "connector_version": row.connector_version if row else None,
         "reconcile_pending": await _open_command(session, shop_id) is not None,
+        "reader_blocks": list(row.reader_blocks or []) if row else [],
     }
+
+
+def _block_of(reader: str, outcome: object) -> tuple[str, str] | None:
+    """(section, reason) of a blocked page outcome, or None. ``blocked:<reason>`` blocked this page
+    only; ``blocked_<reason>`` is the page that stopped the whole run (a session-wide logout)."""
+    if not isinstance(outcome, str):
+        return None
+    for reason in _BLOCK_REASONS:
+        if outcome == f"blocked:{reason}" or outcome.startswith(f"blocked:{reason}|"):
+            section = SECTION_DATACENTER if reader in DATACENTER_READERS else SECTION_SELLER_CENTRE
+            return section, reason
+        if outcome == f"blocked_{reason}":
+            return SECTION_SELLER_CENTRE, reason
+    return None
+
+
+def reader_blocks_of(outcomes: dict[str, str]) -> list[dict[str, Any]]:
+    """The blocked sections of one run report's page outcomes, in page order."""
+    blocks: dict[tuple[str, str], list[str]] = {}
+    for reader, outcome in outcomes.items():
+        found = _block_of(str(reader), outcome)
+        if found is not None:
+            blocks.setdefault(found, []).append(str(reader))
+    return [
+        {"section": section, "reason": reason, "readers": readers}
+        for (section, reason), readers in blocks.items()
+    ]
+
+
+async def record_reader_blocks(
+    session: AsyncSession, shop_id: uuid.UUID, outcomes: dict[str, str], *, now: datetime
+) -> list[dict[str, Any]]:
+    """A daily run's report: its blocked sections replace the last ones (``[]`` = none)."""
+    row = await session.get(ShopeeConnectorState, shop_id)
+    if row is None:
+        row = ShopeeConnectorState(shop_id=shop_id)
+        session.add(row)
+    blocks = reader_blocks_of(outcomes)
+    row.reader_blocks = blocks
+    row.reader_blocks_at = now
+    row.updated_at = now
+    await session.flush()
+    return blocks

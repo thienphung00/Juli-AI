@@ -174,6 +174,20 @@ describe("shop totals -> shop_overview", () => {
     expect(posts.map((p) => p.orderType)).toEqual(["confirmed", "placed", "paid"]);
   });
 
+  it("0.3.22: the password re-confirmation modal is a login wall, not needs_template:shop_key_metrics", async () => {
+    const h = harness({}, () => ({ body: KEY_METRICS }));
+    h.env.passwordModalVisible = () => true;
+    const outcome = await runReaderJob({ id: "shop_totals", days: DAYS }, h.env);
+    expect(outcome).toMatchObject({ status: "blocked_login", detail: "password_modal" });
+    expect(h.sent).toEqual([]);
+    // Without the modal, a page that never called key-metrics still says what it waited for.
+    const silent = harness({}, () => ({ body: KEY_METRICS }));
+    expect(await runReaderJob({ id: "shop_totals", days: DAYS }, silent.env)).toMatchObject({
+      status: "needs_template",
+      detail: "shop_key_metrics",
+    });
+  });
+
   it("an order-performance answer that fails does not lose the key metrics", async () => {
     const h = harness({ shop_key_metrics: { query: {} } }, (request) =>
       request.endpoint === "shop_key_metrics" ? { body: KEY_METRICS } : { status: 500, body: null },

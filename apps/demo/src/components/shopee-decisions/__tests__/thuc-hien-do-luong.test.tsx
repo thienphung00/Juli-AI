@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { DoLuongView, scaleOf } from "../do-luong";
-import { ThucHienView, detailOf, valueText } from "../thuc-hien";
+import { ThucHienView, detailOf, readerBlockText, valueText } from "../thuc-hien";
 import { fakeReco } from "../../../lib/shopee-decisions/__tests__/fixtures";
 import type { ExecutionCard, ExecutionStates, MeasurementCard, MeasurementStates } from "../../../lib/shopee-decisions/types";
 import { renderReco } from "./harness";
@@ -129,6 +129,23 @@ describe("Đo lường", () => {
 
 describe("Đối chiếu ngay", () => {
   const line = (over: Partial<ExecutionStates["connector"]>): ExecutionStates => ({ ...states([]), connector: { ...states([]).connector, ...over } });
+
+  it("0.3.22: a login block on Phân tích bán hàng is one short line in the bar; none, no line", async () => {
+    const blocks = [{ section: "phan_tich_ban_hang", reason: "login", readers: ["shop_totals", "traffic"] }];
+    const one = renderReco(<ThucHienView />, fakeReco({ execution: line({ reader_blocks: blocks }) }));
+    expect(await screen.findByTestId("sd-th-bar-block")).toHaveTextContent(/^Đăng nhập lại Phân tích bán hàng$/);
+    one.unmount();
+    renderReco(<ThucHienView />, fakeReco({ execution: line({ reader_blocks: [] }) }));
+    await screen.findByTestId("sd-th-bar");
+    expect(screen.queryByTestId("sd-th-bar-block")).toBeNull();
+    expect(readerBlockText(undefined)).toBeNull();
+    expect(
+      readerBlockText([
+        { section: "phan_tich_ban_hang", reason: "login", readers: ["traffic"] },
+        { section: "seller_centre", reason: "captcha", readers: ["health"] },
+      ]),
+    ).toBe("Đăng nhập lại Phân tích bán hàng · Xác minh lại Seller Centre");
+  });
 
   it("asks the Connector through the host API and reloads", async () => {
     const reco = fakeReco({ execution: line({}) });

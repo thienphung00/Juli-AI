@@ -153,6 +153,15 @@ export const READER_PAGES: Record<ReaderId, { path: string }> = {
 };
 
 /**
+ * The Seller Centre section a reader's page is in (0.3.22): "datacenter" (Phân tích bán hàng, which
+ * asks for the password again on its own) or "portal" (everything else). A login wall on one
+ * section's page, while the other section reads fine, blocks that section's readers only.
+ */
+export function readerSection(id: ReaderId): string {
+  return READER_PAGES[id].path.split("/")[1] ?? "";
+}
+
+/**
  * A /api/pas/ path the Connector may replay: its last segment must read (get / query / list).
  * The ads pages also call create / edit / update / delete / modify endpoints (the list page
  * itself calls banner/modify); none of them is ever sent by the Connector.
