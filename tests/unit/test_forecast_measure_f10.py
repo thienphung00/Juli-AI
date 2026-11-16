@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from juli_backend.services.card_measure import reader
 from juli_backend.services.shopee_recommendations import ads_readback as ar
 from juli_backend.services.shopee_recommendations import impact, verdict
 from juli_backend.services.shopee_recommendations.learning import Observation, calibrate
@@ -24,11 +25,17 @@ def _block(gmv=(1000.0, 2000.0, 3000.0), profit=(100.0, 200.0, 300.0), days=14):
     return {"estimable": True, "own": {"days": days, "delta": delta}}
 
 
-def _m(reading, block, days=14, gmv_reading=None, metric="gmv", stale=False):
-    return verdict.measurement(
-        metric=metric, reading=reading, gmv_reading=gmv_reading, block=block, days=days, t=T,
-        history=HIST, gmv_history=HIST, stale=stale,
+def _meas(reading, metric="gmv", fresh=True, band=2.0):
+    """What ``card_measure.reader.measure`` returns for this reading."""
+    return reader.Measurement(
+        "shopee", metric, 14, reading, band, reader.verdict_of(reading, band), None, None, None,
+        fresh, fresh and reading.confidence in reader.CALIBRATING_TIERS,
     )  # fmt: skip
+
+
+def _m(reading, block, days=14, gmv_reading=None, metric="gmv", stale=False):
+    gmv_m = None if gmv_reading is None else _meas(gmv_reading)
+    return verdict.payload(_meas(reading, metric, not stale), gmv_m, block=block, days=days, t=T)
 
 
 def test_window_is_the_run_days():
@@ -91,12 +98,11 @@ def test_lowest_tier_and_stale_runs_do_not_calibrate():
         assert kinds == set(state) and state[("price", "gmv")].n_results == n
 
 
-def test_stale_run_follows_lag_plus_grace():
+def test_freshness_is_the_shared_f2_rule():
     end = date(2026, 11, 15)
-    assert verdict.stale_run(end, end, end) is False
-    assert verdict.stale_run(date(2026, 11, 10), end, end) is True
-    assert verdict.stale_run(end, None, end) is True
-    assert verdict.stale_run(end, None, end, uses_traffic=False) is False
+    assert reader.is_fresh(end, end, end, 0) is True
+    assert reader.is_fresh(date(2026, 11, 10), date(2026, 11, 20), end, 0) is False
+    assert reader.is_fresh(None, end, end, 0) is False
 
 
 def test_ads_cpa_read_back_against_prediction():

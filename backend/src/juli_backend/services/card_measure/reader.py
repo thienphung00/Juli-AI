@@ -34,6 +34,7 @@ from typing import Any, Protocol
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.services.card_measure.noise import period_band_pct
+from juli_backend.services.shopee_analytics import forecast_base
 from juli_backend.services.shopee_recommendations import impact
 
 VERDICT_UP = "tang"
@@ -47,7 +48,7 @@ VERDICT_VI: Mapping[str, str] = {
 #: ADR-077 tiers that may calibrate (F10); ``thap`` and ``suppressed`` never do.
 CALIBRATING_TIERS = frozenset({"cao", "trung_binh"})
 #: F2 amendment: stale = newest data older than the expected lag + this many days.
-STALE_GRACE_DAYS = 2
+STALE_GRACE_DAYS = forecast_base.STALE_GRACE_DAYS
 METHOD = "adr077_ratio_did"
 
 
@@ -170,6 +171,7 @@ def measure(
     metric: str,
     forecast: Forecast | None = None,
     volume_floor_per_day: float = 0.0,
+    pre_days: int | None = None,
 ) -> Measurement:
     """The F10 Đo lường of one card that changed on day ``t`` and ran ``run_days`` days."""
     reading = impact.read_effect(
@@ -177,7 +179,7 @@ def measure(
         bundle.controls,
         t,
         post_days=run_days,
-        pre_days=run_days,
+        pre_days=run_days if pre_days is None else pre_days,
         excluded=bundle.excluded,
         volume_floor_per_day=volume_floor_per_day,
     )

@@ -36,11 +36,11 @@ from juli_backend.models.models import (
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.run_changes import RunWriteValue
 from juli_backend.services.card_measure.reader import Forecast, SeriesBundle
+from juli_backend.services.shopee_analytics import forecast_base
 
 #: TikTok analytics normally run 2 days behind (F2 amendment, 2026-11-16).
-#: NOTE: the F2 executor's branch may define the same tunable for the forecast core; when both
-#: land, keep one and import it here.
-TIKTOK_ANALYTICS_EXPECTED_LAG_DAYS = 2
+#: One tunable: the F2 table in ``shopee_analytics.forecast_base``.
+TIKTOK_ANALYTICS_EXPECTED_LAG_DAYS = forecast_base.EXPECTED_LAG_DAYS[("tiktok", "analytics")]
 PLATFORM = "tiktok"
 METRIC = "gmv"
 DAYS_PER_MONTH = 30

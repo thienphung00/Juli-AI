@@ -48,11 +48,13 @@ STALE_GRACE_DAYS = 2
 
 #: Days a dataset normally trails today, per (platform, dataset). Shopee's Phân tích bán hàng
 #: shows yesterday, so traffic and ads trail by 1; orders arrive the same day. TikTok's analytics
-#: trail by 2: the TikTok session keeps ``TIKTOK_ANALYTICS_EXPECTED_LAG_DAYS`` in its own code.
+#: trail by 2: ``card_measure.tiktok_series`` reads its lag from the ``("tiktok", "analytics")``
+#: entry.
 EXPECTED_LAG_DAYS: dict[tuple[str, str], int] = {
     ("shopee", "orders"): 0,
     ("shopee", "traffic"): 1,
     ("shopee", "ads"): 1,
+    ("tiktok", "analytics"): 2,
 }
 
 ZERO = Decimal(0)
