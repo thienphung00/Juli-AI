@@ -18,7 +18,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.loaders import ShopContext
@@ -95,6 +95,10 @@ class RecoEnv:
     #: usage rate u of the shop's comparable past vouchers (None = unknown -> default 1, flagged)
     usage_rate: Decimal | None = None
     calibration: Mapping[tuple[str, str], CalibrationState] = field(default_factory=dict)
+    #: F2: the stored funnel rows of the last 60 days (the adaptive window's widest), and today
+    #: (None = no staleness check); the builder's base reads them
+    funnel_history: Any = None
+    today: date | None = None
     #: F6: the calibration pooled across the real Shopee shops (rung 3 of the uplift ladder)
     pooled_calibration: Mapping[tuple[str, str], CalibrationState] = field(default_factory=dict)
     acceptance: AcceptanceStats | None = None

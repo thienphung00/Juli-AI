@@ -163,6 +163,13 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         "estimable": r.estimable,
         "basis": r.basis,
         "basis_weak": r.basis == "prior",
+        # F2: the newest data is too old: {dataset, through: ISO day}; the screen says
+        # "Đơn hàng đến dd/mm" and shows no forecast numbers
+        "stale": (
+            None
+            if r.stale is None
+            else {"dataset": r.stale.dataset, "through": r.stale.through.isoformat()}
+        ),
         "delta": {
             "profit": profit,
             "gmv": {"value": _whole(d_gmv), "pct": _ratio(d_gmv, b_gmv)},

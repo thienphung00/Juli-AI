@@ -29,7 +29,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Literal, cast
 
-from juli_backend.services.shopee_analytics import funnel
+from juli_backend.services.shopee_analytics import forecast_base, funnel
 from juli_backend.services.shopee_builder import multi
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext
@@ -102,16 +102,20 @@ def scope_items(spec: sp.VersionSpec) -> tuple[str, ...]:
 
 
 def base_for(env: RecoEnv, item_ids: Sequence[str], shop_id: str = "") -> FunnelBase:
-    """``funnel.load_funnel_base`` on the env's own window and stored rows (read once)."""
-    rows = env.view.data.funnel
+    """The F2 base on the env's stored rows: the adaptive window per metric (14 / 30 / 60 days,
+    ``env.funnel_history`` when loaded), missing days not zero, a stale marker (read once)."""
+    rows = env.funnel_history
+    if not isinstance(rows, funnel.FunnelRows):
+        rows = env.view.data.funnel
     if not isinstance(rows, funnel.FunnelRows):
         rows = funnel.FunnelRows(env.view.window)
     items = tuple(dict.fromkeys(i for i in item_ids if i))
-    return funnel.base_from_rows(
+    return forecast_base.adaptive_base(
         rows,
         shop_id,
         item_ids=items,
         contribution_rate=funnel.contribution_rate(env.view, items),
+        today=env.today,
     )
 
 

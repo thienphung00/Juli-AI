@@ -434,6 +434,11 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             estimable = False
             carriers.append([])
             continue
+        if d.metric in base.low_data:  # F2: no window has enough events: "ít dữ liệu"
+            estimable = False
+            carriers.append([])
+            notes.append(f"Ít dữ liệu để ước tính {DRIVER_LABELS[d.metric]}.")
+            continue
         c = _carriers(srcs, d)
         carriers.append(c)
         if not c:
@@ -475,6 +480,8 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
     fixed = float(option.fixed_cost)
     ppo_be = _break_even_ppo(option, added, before_draw, srcs)
 
+    if base.stale is not None:  # F2: the newest data is too old: no forecast numbers
+        estimable = False
     if not estimable:
         mid = _neutral(len(srcs), len(option.offers))
         mid.use_shares = [float(o.use_share.p50) for o in option.offers]
@@ -500,6 +507,7 @@ def run(base: FunnelBase, option: OptionInput, seed: int = 0, n: int = 4000) -> 
             ),
             notes=tuple(notes),
             ads=option.ads,
+            stale=base.stale,
         )
 
     rng = random.Random(seed)

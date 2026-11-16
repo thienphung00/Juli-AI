@@ -93,6 +93,16 @@ class SourceFunnel:
 
 
 @dataclass(frozen=True)
+class StaleMarker:
+    """F2: the newest data of ``dataset`` ("orders" | "traffic") is older than its expected lag
+    plus the grace days, so the option carries no forecast numbers; the screen says
+    "Đơn hàng đến dd/mm" with ``through``."""
+
+    dataset: str
+    through: date
+
+
+@dataclass(frozen=True)
 class FunnelBase:
     """The "before" of an option (ADR-122 d.2): one scope over the window ending at the Tổng quan
     anchor. ``contribution_rate`` is the profit of one extra đồng of GMV at today's prices (fees,
@@ -110,6 +120,16 @@ class FunnelBase:
     #: P99: days of the window with a known profit / with any row ("trên N ngày có dữ liệu chi phí")
     profit_days: int = 0
     days: int = 0
+    #: F2: the drivers whose metric has no 14 / 30 / 60-day window with enough events ("ít dữ
+    #: liệu"): an option driven by one is not estimable
+    low_data: tuple[str, ...] = ()
+    #: F2: set when the newest data is too old: no forecast numbers
+    stale: StaleMarker | None = None
+    #: F2: the window each metric was read on, e.g. (("views", 14), ("ctr", 30), ...)
+    windows: tuple[tuple[str, int], ...] = ()
+    #: F2 / F3: the product's (or shop's) own daily totals over its orders window, one value per
+    #: day up to the orders' last data day (None = unknown profit): the noise band's history
+    daily: tuple[tuple[str, tuple[float | None, ...]], ...] = ()
 
     @property
     def window_days(self) -> int:
@@ -303,6 +323,11 @@ class OptionResult:
     break_even_aov: Decimal | None
     notes: tuple[str, ...] = ()
     ads: AdsEvaluation | None = None  # P100 B.15 (Ads edits only)
+    #: F2: no forecast numbers because the data is too old (``estimable`` is False then)
+    stale: StaleMarker | None = None
+    #: F5: the metrics ("gmv" | "orders" | "profit") whose effect is within normal swing: the
+    #: wire shows them as null; the P10 / P50 / P90 scenarios stay
+    within_noise: tuple[str, ...] = ()
 
     def json(self) -> dict[str, object]:
         """The wire shape, mirrored exactly by ``apps/demo/.../option-result.ts``. Implemented in
@@ -323,6 +348,7 @@ WIRE_KEYS = {
     "estimable": "bool",
     "basis": "'measured'|'product_history'|'shop'|'pooled'|'prior'|'not_estimable'",
     "basis_weak": "bool  # tag 'ước tính chung' (prior) shown",
+    "stale": "{dataset: 'orders'|'traffic', through: 'YYYY-MM-DD'} | None  # F2: no numbers",
     "delta": {
         "profit": "{value, pct, low, high} | None (None = chưa tính / chưa ước tính được)",
         "gmv": "{value, pct}",
