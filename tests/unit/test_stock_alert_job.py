@@ -217,7 +217,7 @@ def _line(shop_id, n, day: date, qty=2, model="11"):
     )
 
 
-async def _seed_selling(session, shop_id, *, stock=10, read=READ):
+async def _seed_selling(session, shop_id, *, stock=10, read=READ, sellable=None):
     red = _item(shop_id, "1", "11", "Áo thun", "Đỏ")
     red.seller_sku = "AT-DO"
     session.add_all([_item(shop_id, "1", "", "Áo thun"), red])
@@ -229,7 +229,7 @@ async def _seed_selling(session, shop_id, *, stock=10, read=READ):
             item_id="1",
             model_id="11",
             read_at=read,
-            sellable=stock,
+            sellable=stock if sellable is None else sellable,
             available=stock,
         )
     )
@@ -360,3 +360,142 @@ def test_card_effect_split_over_variations_by_orders():
         },
     }
     assert data.card_windows([past], TODAY) == []
+
+
+# ------------------------------------------------------- ORY 16/11 fixes (Combo 3 / Combo 5 shape)
+
+NOW16 = datetime(2026, 11, 16, 0, 0)  # 07:00 GMT+7
+TODAY16 = date(2026, 11, 16)
+
+
+def test_days_after_the_newest_order_line_are_missing_not_zero_sale():
+    from juli_backend.services.shopee_analytics.catalog import Catalog
+    from juli_backend.services.stock_alert import data
+    from juli_backend.services.stock_alert import stock_basis as sb
+
+    combo3 = data.SkuData("26107129526", "31")
+    combo3.reads.append(sb.Read(datetime(2026, 11, 15, 23, 30), 7))
+    through = date(2026, 11, 4)
+    for n in range(0, 90):  # about 9 a week up to 04/11, nothing recorded after
+        day = through - timedelta(days=n)
+        combo3.units[day] = 9 / 7
+        combo3.orders[day].add(f"o{n}")
+    skus = {combo3.key: combo3}
+    full = data.facts_of(skus, Catalog(), [], TODAY16, NOW16, through)[0].facts
+    gap = data.facts_of(skus, Catalog(), [], TODAY16, NOW16)[0].facts
+    # 05/11-15/11 left out of numerator and denominator: the rate stays 9 a week
+    assert abs(full.base - 9 / 7) < 0.01
+    assert gap.base < full.base - 0.1  # the gap counted as zero sales: the old understated rate
+
+
+def test_email_says_where_the_order_data_stops_only_when_stale():
+    row = _row()
+    stale = cp.compose(
+        "alert", [row], today=TODAY16, alert_days=7, open_url="https://x/o",
+        unsubscribe_url="https://x/u", orders_through=date(2026, 11, 4),
+    )  # fmt: skip
+    fresh = cp.compose(
+        "alert", [row], today=TODAY16, alert_days=7, open_url="https://x/o",
+        unsubscribe_url="https://x/u", orders_through=date(2026, 11, 14),
+    )  # fmt: skip
+    assert "Đơn hàng đến 04/11" in stale.text and "Đơn hàng đến 04/11" in stale.html
+    assert "Đơn hàng đến" not in fresh.text
+
+
+def _card(end="2026-11-30"):
+    return {
+        "scope": {"product_ids": ["26107129526"]},
+        "result": {
+            "own": {
+                "dates": {"from": "2026-11-10", "to": end, "days": 20},
+                "days": 20,
+                "delta": {"orders": {"p50": 20}},
+            }
+        },
+    }
+
+
+async def test_a_card_still_waiting_to_be_filled_adds_no_window(monkeypatch):
+    from types import SimpleNamespace
+
+    from juli_backend.models.shop_proposals import STATUS_APPROVED, STATUS_EXECUTED
+    from juli_backend.services.shopee_recommendations import execution_state, store
+    from juli_backend.services.stock_alert import data
+
+    waiting = SimpleNamespace(id=uuid.uuid4(), status=STATUS_APPROVED)
+    running = SimpleNamespace(id=uuid.uuid4(), status=STATUS_EXECUTED)
+
+    async def fake_cards(session, shop_id, *, statuses=None, cycle=None):
+        return [(waiting, _card("2026-11-30")), (running, _card("2026-12-05"))]
+
+    async def fake_states(session, shop_id, *, now, platform="shopee"):
+        return {"cards": [{"card_id": str(waiting.id), "state": "cho_dien"}]}
+
+    monkeypatch.setattr(store, "list_cards", fake_cards)
+    monkeypatch.setattr(execution_state, "execution_states", fake_states)
+    windows = await data.load_card_windows(None, uuid.uuid4(), TODAY16, NOW16)
+    assert [w.end for w in windows] == [date(2026, 12, 5)]
+
+
+def test_card_end_row_says_which_card_end_it_is_before():
+    from juli_backend.services.stock_alert import eligibility as el
+    from juli_backend.services.stock_alert.forecast import CardEffect
+
+    f = SkuFacts(
+        item_id="1", model_id="31", product_name="Găng tay", variation_name="Combo 5",
+        listing_status=None, orders_30=12, orders_total=49, history_days=90, stock=9,
+        base=0.5, effects=(CardEffect(TODAY16, date(2026, 11, 30), 0.4),),
+        card_ends=(date(2026, 11, 30),),
+    )  # fmt: skip
+    row = el.evaluate(f, TODAY16)
+    assert row is not None and row.reason == "card_end"
+    assert row.card_end == date(2026, 11, 30)
+    assert cp.row_line(row).endswith(" · trước khi thẻ kết thúc 30/11")
+
+
+async def test_zero_sellable_with_available_stock_is_not_out_of_stock(session):
+    # Connector read 15/11 23:30: sellable (advanced stock) 0, available (Kho hàng) 7
+    owner, shop = await _shop(session)
+    session.add(ShopMember(shop_id=shop.id, user_id=owner.id, email=owner.email, added_via="owner"))
+    await _seed_selling(session, shop.id, stock=7, sellable=0)
+    mailer = FakeMailer()
+    await job.run_shop(session, shop.id, now=NOW, mailer=mailer)
+    text = mailer.sent[0].text
+    assert "Còn 7" in text
+    assert "Đã hết hàng" not in text
+
+
+async def test_same_sku_on_every_variation_shows_the_variation_name(session):
+    from juli_backend.services.stock_alert import data
+
+    _, shop = await _shop(session)
+    parent = _item(shop.id, "1", "", "Găng tay")
+    parent.seller_sku = "G500001"
+    items = [parent]
+    for model, name in (("11", "Combo 3"), ("12", "Combo 5")):
+        v = _item(shop.id, "1", model, "Găng tay", name)
+        v.seller_sku = "G500001"
+        items.append(v)
+    session.add_all(items)
+    await session.flush()
+    from juli_backend.services.shopee_analytics.loaders import load_context
+
+    catalog = (await load_context(session, shop.id)).catalog
+    skus = {}
+    for model in ("11", "12"):
+        s = data.SkuData("1", model)
+        s.reads.append(data.sb.Read(READ, 7))
+        skus[s.key] = s
+    facts = [st.facts for st in data.facts_of(skus, catalog, [], TODAY, NOW)]
+    assert [f.sku_code for f in facts] == [None, None]
+    assert [cp.row_title(AlertRow(f, Forecast(1.0, 3, TODAY), "days_left")) for f in facts] == [
+        "Găng tay · Combo 3",
+        "Găng tay · Combo 5",
+    ]
+    only = skus["1:11"]
+    parent.seller_sku = None
+    items[2].seller_sku = "G500002"
+    await session.flush()
+    catalog = (await load_context(session, shop.id)).catalog
+    unique = data.facts_of({only.key: only}, catalog, [], TODAY, NOW)[0].facts
+    assert unique.sku_code == "G500001"

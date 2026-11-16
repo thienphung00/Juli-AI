@@ -51,6 +51,8 @@ class SkuFacts:
     card_ends: tuple[date, ...] = ()
     #: the seller's own Shopee SKU code (model / item SKU of the product list), when known
     sku_code: str | None = None
+    #: day of the shop's newest order line (None: no order data)
+    orders_through: date | None = None
 
     @property
     def key(self) -> str:
@@ -63,11 +65,21 @@ class AlertRow:
     forecast: Forecast
     reason: str
     out_since: date | None = None
+    #: the end of the first card on the product the stock runs out before (reason ``card_end``)
+    card_end: date | None = None
     extra: dict[str, object] = field(default_factory=dict)
 
     @property
     def out_of_stock(self) -> bool:
         return self.reason == REASON_OUT
+
+
+#: Order data older than this many days is "stale": the e-mail says where it stops.
+ORDERS_STALE_DAYS = 2
+
+
+def orders_stale(through: date | None, today: date) -> bool:
+    return through is not None and (today - through).days > ORDERS_STALE_DAYS
 
 
 def listing_active(status: str | None) -> bool:
@@ -98,8 +110,9 @@ def evaluate(f: SkuFacts, today: date, *, alert_days: int = DEFAULT_ALERT_DAYS) 
         return None
     if fc.days_left <= alert_days:
         return AlertRow(f, fc, REASON_DAYS)
-    if any(fc.runs_out_on <= end for end in f.card_ends):
-        return AlertRow(f, fc, REASON_CARD)
+    ends = sorted(end for end in f.card_ends if fc.runs_out_on <= end)
+    if ends:
+        return AlertRow(f, fc, REASON_CARD, card_end=ends[0])
     return None
 
 
@@ -152,6 +165,7 @@ __all__ = [
     "evaluate",
     "is_eligible",
     "listing_active",
+    "orders_stale",
     "sort_rows",
     "split_new",
 ]
