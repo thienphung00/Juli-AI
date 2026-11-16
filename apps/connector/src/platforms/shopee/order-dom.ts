@@ -16,7 +16,8 @@ const ORDER_HREF = /\/portal\/sale\/order\/(\d{6,25})(?:[/?#]|$)/;
 const ORDER_SN = /Mã đơn hàng\s*:?\s*([0-9A-Z]{8,25})/i;
 
 function idOfLink(anchor: Element): string | undefined {
-  return ORDER_HREF.exec(anchor.getAttribute("href") ?? "")?.[1];
+  // ORY 2026-11-16: every order href ends with a space ("/portal/sale/order/<id> "), so trim it
+  return ORDER_HREF.exec((anchor.getAttribute("href") ?? "").trim())?.[1];
 }
 
 /** The order number shown on the card that holds `anchor` (the nearest ancestor with one order). */
