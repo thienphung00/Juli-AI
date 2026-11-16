@@ -261,3 +261,9 @@ def test_diag_trigger_tunable_keeps_metric_first_as_a_rollback():
     with pytest.raises(TunableError):
         validate_tunable(DIAG_TRIGGER, "both")
     assert DiagTunables().to_json()[DIAG_TRIGGER] == "shared"
+
+
+def test_ops_shop_settings_default_for_diag_trigger_is_shared():
+    from juli_backend.services.ops import settings as ops_settings
+
+    assert ops_settings.defaults()[DIAG_TRIGGER] == "shared"

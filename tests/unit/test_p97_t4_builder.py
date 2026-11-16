@@ -617,8 +617,13 @@ async def test_it_is_a_card_the_plan_adds_with_its_own_layer_and_no_fill_page(se
     agg = plan["aggregate"]
     assert agg["added_cards"] == [str(prop.id)]
     # P98 W4-B / ADR-122 d.2: the plan reads the option result the builder showed (per 30 days)
-    per30 = saved["outcome"]["result"]["per_30d"]
-    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(per30["gmv"], abs=1)
+    # F5: a metric within normal swing is null on the wire only; the plan keeps the real number,
+    # which is the result's own (detail) likely - before per 30 days
+    res = saved["outcome"]["result"]
+    det = res["detail"]
+    real30 = (det["likely"]["gmv"] - det["before"]["gmv"]) * 30 / res["days"]
+    assert (res["per_30d"]["gmv"] is None) == ("gmv" in res["within_noise"])
+    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(real30, abs=1)
 
 
 # P97 integration: T3's fill queue reads T4's many-target card rows (D85.13).

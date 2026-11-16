@@ -330,8 +330,12 @@ def summary(block: Mapping[str, Any] | None) -> dict[str, Any]:
     own = b.get("own") or {}
     d = own.get("delta") or {}
 
+    # F5: a metric within normal swing is null on every screen, the builder's wire included (the
+    # block's stored ``own.delta`` keeps the real value for the plan sums and the measurement)
+    hidden = set(((b.get("option") or {}).get("within_noise")) or ())
+
     def band(m: str) -> dict[str, float | None]:
-        got = d.get(m) or {}
+        got = {} if m in hidden else (d.get(m) or {})
         return {q: got.get(q) for q in ("p10", "p50", "p90")}
 
     return {

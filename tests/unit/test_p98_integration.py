@@ -233,9 +233,18 @@ def assert_one_calculation(v):
         assert v["delta"]["gmv"]["p50"] is None and rows["gmv"]["after"] is None
         return
     likely = r["detail"]["likely"]
-    assert v["delta"]["gmv"]["p50"] == r["delta"]["gmv"]["value"]
+    # F5: a Δ within normal swing is null on the result's wire only; the outcome's own Δ and the
+    # So sánh rows keep the internal value, so those two must agree and the wire equals them
+    # whenever it is shown
+    noisy = set(r["within_noise"])
+    assert (r["delta"]["gmv"]["value"] is None) == ("gmv" in noisy)
     assert v["delta"]["gmv"]["p50"] == round(rows["gmv"]["after"]["p50"] - rows["gmv"]["before"])
-    assert v["delta"]["orders"]["p50"] == pytest.approx(r["delta"]["orders"]["value"])
+    if "gmv" not in noisy:
+        assert v["delta"]["gmv"]["p50"] == r["delta"]["gmv"]["value"]
+    if "orders" not in noisy:
+        assert v["delta"]["orders"]["p50"] == pytest.approx(r["delta"]["orders"]["value"])
+    else:
+        assert r["delta"]["orders"]["value"] is None
     assert rows["orders"]["after"]["p50"] == pytest.approx(likely["orders"])
     if r["delta"]["profit"] is not None and v["cost_known"]:
         assert v["delta"]["profit"]["p50"] == r["delta"]["profit"]["value"]

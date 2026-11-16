@@ -142,7 +142,10 @@ async def test_a_daily_run_writes_its_reader_blocks_stock_runs_and_skips_leave_t
     blocked = {"orders": "done", "shop_totals": "blocked:login", "traffic": "blocked:login"}
     async with client_for(app) as ext:
         auth = await _token_headers(ext, code)
-        post = lambda body: ext.post("/v1/ingest/connector-ticks", json=body, headers=auth)  # noqa: E731
+
+        def post(body):
+            return ext.post("/v1/ingest/connector-ticks", json=body, headers=auth)
+
         assert (await post({**TICK, "outcomes": blocked})).status_code == 202
         stock = {**TICK, "trigger": "stock", "outcomes": {"products": "done"}}
         assert (await post(stock)).status_code == 202

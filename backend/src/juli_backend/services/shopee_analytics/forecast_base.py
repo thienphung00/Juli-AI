@@ -228,6 +228,11 @@ def adaptive_base(
                 orders = clicks * ctor
         elif views_rate is not None:
             views, clicks = views_rate * scale, None
+            # a source with no views and no clicks in the window (a shop without Live) has a known
+            # zero of clicks, not an unknown: an unknown would blank the shop's whole CTR / CTOR
+            sc0 = b_ctr.get(key)
+            if sc0 is not None and not sc0.views and sc0.clicks == 0:
+                clicks = Decimal(0)
         aov = so.gmv / so.orders if so.orders > 0 else None
         gmv = orders * aov if aov is not None else so.gmv * scale / max(n_o, 1)
         factor = orders / orders_rate if orders_rate > 0 else Decimal(1)
