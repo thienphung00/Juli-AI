@@ -23,7 +23,9 @@ from typing import Any
 from juli_backend.services.card_measure import reader
 from juli_backend.services.shopee_recommendations import result_store
 
-UP, FLAT, DOWN = reader.VERDICT_UP, reader.VERDICT_FLAT, reader.VERDICT_DOWN
+# literals, not reader.VERDICT_*: card_measure.reader imports shopee_recommendations (impact),
+# whose package import reaches this module while reader is still half-initialised
+UP, FLAT, DOWN = "tang", "khong_doi", "giam"
 BASIS_PROFIT, BASIS_GMV, BASIS_METRIC = "profit", "gmv", "metric"
 #: metrics whose measured change is already money (the GMV reading is the card's own)
 GMV_METRICS = frozenset({"gmv", "ads_gmv"})

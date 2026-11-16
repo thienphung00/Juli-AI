@@ -155,3 +155,14 @@ def test_running_campaign_edit_is_measured_on_spend_gmv_orders_cpa():
     assert set(by) == {"spend", "gmv", "orders", "cpa"}
     assert (by["spend"]["before"], by["spend"]["actual"]) == (350.0, 700.0)
     assert (by["cpa"]["before"], by["cpa"]["actual"]) == (50.0, 50.0)
+
+
+def test_the_shopee_verdict_codes_are_the_shared_readers():
+    from juli_backend.services.card_measure import reader
+    from juli_backend.services.shopee_recommendations import verdict
+
+    assert (verdict.UP, verdict.FLAT, verdict.DOWN) == (
+        reader.VERDICT_UP,
+        reader.VERDICT_FLAT,
+        reader.VERDICT_DOWN,
+    )

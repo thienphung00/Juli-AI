@@ -59,7 +59,8 @@ def test_unit_word_comes_from_the_products_own_names():
     assert naming.unit_word("Combo 3 chai", "Dầu gội") == "chai"
     assert naming.unit_word("Mặc định", "Nước hoa 500ml chai thuỷ tinh") == "chai"
     assert naming.unit_word("Combo 5 túi") == "túi"
-    assert naming.unit_word("Mặc định", "Sản phẩm") == "hộp"
+    # G6 (owner 2026-11-16): no unit word in the names -> "sản phẩm" (was "hộp")
+    assert naming.unit_word("Mặc định", "Sản phẩm") == "sản phẩm"
 
 
 def test_a_pack_variation_counts_its_real_items_in_combo_options():
@@ -78,6 +79,10 @@ def test_a_pack_variation_counts_its_real_items_in_combo_options():
     cost = UnitCost(D(90_000), D(0), 3, cast(Any, "name"), False, None)
     var = VariationIn("v1", "Combo 3 chai", D(150_000), cost, "SKU1", 50, True, 5)
     prod = ProductIn("1", "Dầu gội 500ml", (var,))
-    [opt] = gen.generate([prod], {"1": ["v1"]}, Packs(sizes=(3,)), Rules())
-    assert (opt.units, opt.unit) == (9, "chai")
-    assert opt.option_name.startswith("9 chai")
+    # G6 (owner 2026-11-16): never build packs of a variation already named "Combo N"
+    assert gen.generate([prod], {"1": ["v1"]}, Packs(sizes=(3,)), Rules()) == []
+    one = VariationIn("v2", "Chai 500ml", D(50_000), cost, "SKU2", 50, True, 5)
+    [opt] = gen.generate(
+        [ProductIn("1", "Dầu gội 500ml", (one,))], {"1": ["v2"]}, Packs(sizes=(3,)), Rules()
+    )
+    assert opt.unit == "chai" and opt.option_name.startswith(f"{opt.units} chai")

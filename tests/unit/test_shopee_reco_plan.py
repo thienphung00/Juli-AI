@@ -1064,3 +1064,14 @@ async def test_list_and_detail_expose_version_breach_ack_origin_plan_code_and_me
     detail = await service.card_detail(session, sid, ids[0], audience="seller")
     assert detail["status"] == "measured" and detail["execution_status"] == "executed"
     assert detail["measurement"]["state"] == "measured" and detail["chosen_version"] == 1
+
+
+async def test_no_draft_still_reads_the_shops_current_gmv_and_profit(session, shop):
+    """G13: the header of a shop with no draft plan shows today's GMV / Lợi nhuận."""
+    seeded, _ = shop
+    out = await plans.get_plan(session, seeded.shop_id, now=NOW, audience="seller")
+    agg = out["aggregate"]
+    assert out["plan"] is None and out["cards"] == []
+    assert agg["empty"] is True and agg["n_cards"] == 0 and agg["after"] is None
+    assert agg["today"]["gmv_30d"] > 0
+    assert "profit_30d" in agg["today"]
