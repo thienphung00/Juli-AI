@@ -66,6 +66,7 @@ from juli_backend.services.shopee_recommendations import (
     product_queue,
     result_store,
     store,
+    trigger_adapter,
     versions,
 )
 from juli_backend.services.shopee_recommendations import targets as multi
@@ -241,7 +242,7 @@ async def build_candidates(
     skip = await executed_days(session, shop_id, window.end - timedelta(days=399), window.end)
     if skip:
         series = {k: {d: v for d, v in s.items() if d not in skip} for k, s in series.items()}
-    critical = build_critical(env.ctx, env.view, series)
+    critical = trigger_adapter.augment_critical(env, build_critical(env.ctx, env.view, series))
     cands = generate(env, critical)
     for c in cands:
         apply_acceptance_defaults(env, c)
@@ -279,6 +280,8 @@ async def generate_cards(
             continue
         card["versions"] = versions.build_versions(env, c, card, now=now)
         built.append((c, card))
+    built, dropped = trigger_adapter.route_cards(env, built)  # F11
+    report.skipped_refusals.update({f"below_band:{k}": n for k, n in dropped.items()})
     report.generated = len(built)
     # one card, one number: each version's engine result is stored and ranked on
     jobs = [result_store.Job(card) for _, card in built]

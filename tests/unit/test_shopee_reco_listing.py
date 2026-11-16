@@ -412,8 +412,11 @@ def test_a_new_cover_is_read_back_when_the_first_image_url_changes():
 
 
 async def test_listing_cards_are_generated_ranked_and_persisted_with_the_other_families(
-    session,
+    session, monkeypatch
 ):
+    # F11: this fixture's opportunity cards do not clear the band; the test is about something else,
+    # so the band gate is switched off here
+    monkeypatch.setattr("juli_backend.services.forecast.triggers.clears_band", lambda *a: True)
     seeded = await seed_reco_shop(session)
     sid = seeded.shop_id
     session.add_all(

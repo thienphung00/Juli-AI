@@ -522,7 +522,12 @@ def test_the_keywords_the_title_audit_is_held_against_are_for_real_products(samp
     assert sample.keywords and {i for i, _ in sample.keywords} <= {p.item_id for p in PRODUCTS}
 
 
-async def test_every_decision_tab_has_a_card_after_the_load_and_a_rerun_adds_none(engine):
+async def test_every_decision_tab_has_a_card_after_the_load_and_a_rerun_adds_none(
+    engine, monkeypatch
+):
+    # F11: this fixture's opportunity cards do not clear the band; the test is about something else,
+    # so the band gate is switched off here
+    monkeypatch.setattr("juli_backend.services.forecast.triggers.clears_band", lambda *a: True)
     from juli_backend.database.tenant_context import with_shop_scope
     from juli_backend.models.card_events import EVENT_IMPACT_FINAL, CardEvent
     from juli_backend.services.shopee_recommendations import service
@@ -585,9 +590,14 @@ def test_the_backend_never_imports_scripts():
     assert offenders == []
 
 
-async def test_seeding_in_one_transaction_after_the_late_reads_makes_the_loaders_cards(engine):
+async def test_seeding_in_one_transaction_after_the_late_reads_makes_the_loaders_cards(
+    engine, monkeypatch
+):
     """``seed.seed_all`` (one session, the Connector's later reads already in) gives the cards the
     loader's step-by-step run gives: the base of a future in-app "Đặt lại dữ liệu mẫu"."""
+    # F11: this fixture's opportunity cards do not clear the band; the test is about something else,
+    # so the band gate is switched off here
+    monkeypatch.setattr("juli_backend.services.forecast.triggers.clears_band", lambda *a: True)
     from unittest import mock
 
     from juli_backend.database.tenant_context import with_shop_scope
