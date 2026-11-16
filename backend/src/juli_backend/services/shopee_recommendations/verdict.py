@@ -35,7 +35,11 @@ MIN_PRE_DAYS = 7
 
 def run_days(card: Mapping[str, Any], fallback: int | None) -> int | None:
     """G12: the card's run length = the days its frozen result is for (``own.days``), else the
-    fallback (the change set's / measurement plan's days)."""
+    fallback (the change set's / measurement plan's days). A card imported from outside Juli
+    carries its own run length (``run_days``, the sheet's Thời gian đo), which wins."""
+    own_run = card.get("run_days")
+    if isinstance(own_run, int) and not isinstance(own_run, bool) and own_run > 0:
+        return own_run
     block = result_store.measured_block(card)
     own_days = ((block or {}).get("own") or {}).get("days")
     if isinstance(own_days, int) and own_days > 0:

@@ -3,6 +3,10 @@
 ``rows`` (columns, cell parsing, the per-row checks; pure) and ``importer`` (preview / apply /
 versions on the database). See ``importer`` for the flow; the routes are
 ``demo_planned_changes.py`` and ``ops_planned_changes.py``.
+
+``external_rows`` / ``external`` (owner 2026-11-16): "Nhập thẻ đã làm ngoài Juli", cards done
+outside Juli read from the owner's own sheet (``origin = "external"``); route
+``demo_shopee_board.py``.
 """
 
 from __future__ import annotations

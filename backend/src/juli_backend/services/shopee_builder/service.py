@@ -732,8 +732,11 @@ async def choose(
     actor: manual.Actor,
     as_of: date | None,
     now: datetime,
+    origin: str = manual.ORIGIN_MANUAL,
+    card_extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """ "Chọn": save ``specs[chosen]`` as a manual card (the others are its versions)."""
+    """ "Chọn": save ``specs[chosen]`` as a manual card (the others are its versions).
+    ``origin`` / ``card_extra``: a card imported from outside Juli (``planned_changes``)."""
     ctx = await build_context(session, shop_id, specs, as_of=as_of, now=now)
     variants: list[dict[str, Any]] = []
     for i, spec in enumerate(specs):
@@ -758,6 +761,8 @@ async def choose(
         env=ctx.env,
         acknowledge_breaches=acknowledge_breaches,
         builder_ctx=ctx,
+        origin=origin,
+        card_extra=card_extra,
     )
     out["outcome"] = evaluate_version(ctx, specs[chosen], chosen, now, str(shop_id))[0]
     return out
