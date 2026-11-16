@@ -11,10 +11,14 @@
 ## 2. Goal
 One paragraph, in the owner's words where possible.
 
+## 2b. Restate before building (required first output, before any edit)
+In 3–5 bullets: what each domain term in this brief means (check `fasttrack/GLOSSARY.md`) and what is in and out of scope. Then **stop**. The coordinator checks the bullets against the glossary and the acceptance table. A term that isn't in the glossary, or a scope doubt, goes to the owner (`state.py ask`). Don't start until the coordinator confirms.
+
 ## 3. Acceptance table (approved by the owner at grill close; the verifier checks every row)
 | id | requirement | source (grill Q# / canvas board / standing rule / prompt) | verification (test id / Chrome walk on sample shop / SQL-API check) | evidence (executor fills) |
 |---|---|---|---|---|
 | A1 | | | | |
+| LIVE | after deploy, the live numbers this slice touches are right | standing rule (deploy ≠ correct) | sample shop + 1 real shop (read-only): dashboard GMV, đơn, AOV, ads, profit, both margins vs a direct read-only SQL/API query, same window; every mismatch listed with its cause | |
 
 Standing rules that always apply (from `fasttrack/UI-PRINCIPLES.md`, when the slice touches UI):
 no explanatory captions or "ước tính" badges; Shop = all products (the default); the north-star tab flow; the traffic hierarchy.

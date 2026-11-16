@@ -16,9 +16,21 @@ This page is the single operating reference. Handoffs link to it instead of rest
 | 7. PR | coordinator | `fasttrack/bin/open_pr.py` (public-repo scrub). The PR body lists what is **NOT** in this deploy. |
 | 8. Merge | **owner** | |
 | 9. Tag | **owner** | `! <worktree>/fasttrack/bin/tag-deploy.sh <sha> --session <name> --push` |
-| 10. Watch + smoke | coordinator | `fasttrack/bin/deploy_watch.py <tag>` (under Monitor); then the post-deploy smoke rows of the acceptance table on prod |
+| 10. Watch + verify live | coordinator | `fasttrack/bin/deploy_watch.py <tag>` (under Monitor), then the **LIVE** acceptance row: dashboard vs a direct read-only query on the sample shop + 1 real shop. Write `DEPLOY_REPORT.md` (each check pass/fail with evidence). "Live" is said only when every check passes. |
 
 The owner is always required for: grill approval, the acceptance table, migrations, auth, security, prod data writes, client data, PR merge, deploy tag, SSH/VPS. Everything else runs without asking.
+
+## Skills, hooks and headless runs (active from cutover)
+- **`deploy` skill:** steps 6 → 10 as one checklist, ending with `DEPLOY_REPORT.md`.
+- **`fasttrack-handoff` skill:** the hand-off for a fresh session, built from `state.py show`.
+- **`orchestrate-batch` skill:** one coordinator splits a batch into worktree tracks, gates each track and merges them in dependency order.
+- **PreToolUse hook** (`pipeline-eval/hooks/git_gate.py`), active only once `<git common dir>/fasttrack-state/V2_ACTIVE` exists:
+  - blocks `--tags` pushes;
+  - blocks a direct `git push` to `fasttrack/optimize-product` (PRs only);
+  - blocks hand-made `fasttrack-deploy-*` tags (use `tag-deploy.sh`);
+  - blocks a `git push` while `state.py check` reports BLOCKED.
+- **Restate before building:** an executor's first output is the term and scope bullets (`contracts/EXECUTOR-BRIEF.md` §2b). Terms live in `GLOSSARY.md`.
+- **Headless:** `claude -p` is for scheduled or batch work (pipeline-eval weekly job, lead-gen batches). Run `fasttrack/bin/session_preflight.sh` first. Never give `-p` runs write access to prod, tags or outreach.
 
 ## Rules that replace chat coordination
 
@@ -41,6 +53,7 @@ fasttrack/bin/tag-deploy.sh <sha> --session S [--push]          # --push = owner
 $PY fasttrack/bin/deploy_watch.py <tag>
 fasttrack/bin/pg-test.sh tests/integration/test_x.py
 echo "<command>" | $PY fasttrack/bin/cmdlint.py
+fasttrack/bin/session_preflight.sh [--no-call]                   # auth / credits / headers before long or headless runs
 ```
 
 State lives in `<git common dir>/fasttrack-state/` (shared by every worktree, never committed). `events.jsonl` there is the observability log, read by `pipeline-eval/extract.py`.

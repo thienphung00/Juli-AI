@@ -16,7 +16,7 @@ batch-1116a; measured baseline in `pipeline-eval/BASELINE-2026-11-16.md` outside
    state (deploy tip, batches, migration claims, deploy-tag results, env facts, open asks).
    This replaces reading status out of docs, memory or chat.
 3. The batch contract in `contracts/` named by your brief, and its acceptance table.
-4. `UI-PRINCIPLES.md` when the work touches UI.
+4. `GLOSSARY.md` (always) and `UI-PRINCIPLES.md` when the work touches UI.
 5. `DECISIONS.md` only when the contract seems ambiguous; the last ~5 entries of `LOG.md`.
 
 `SPEC.md`, `PROGRESS.md` and `ACCEPTANCE.md` stopped being maintained (last real updates
