@@ -77,7 +77,7 @@ function Steps({ c, sample }: { readonly c: ExecutionCard; readonly sample: bool
   );
 }
 
-function Row({
+export function Row({
   c,
   name,
   readOnly,
@@ -96,7 +96,11 @@ function Row({
   // UI grill G14: a voucher needs its Seller Centre code to be read back; the row asks for it (the
   // sample shop has none to give: the server gives it a sample code).
   const needsCode = !sample && VOUCHER_KINDS.has(c.change_kind);
-  const [code, setCode] = useState(c.captured_voucher_id ?? "");
+  // the captured code can arrive on a later refresh (after Lưu, or the Connector's next voucher read):
+  // it fills the field until the seller types their own
+  const [typed, setTyped] = useState<string | null>(null);
+  const code = typed ?? c.captured_voucher_id ?? "";
+  const setCode = (v: string) => setTyped(v);
   const href = c.open_job ? fillJobHref(c.open_job) : null;
   const markDone = async () => {
     setBusy(true);
