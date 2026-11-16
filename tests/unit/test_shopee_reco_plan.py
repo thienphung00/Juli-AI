@@ -550,6 +550,17 @@ async def test_confirm_is_never_blocked_a_breach_needs_the_acknowledgement(sessi
     assert (await plans.get_plan(session, sid, now=NOW))["plan"] is None
 
 
+async def test_no_draft_still_reads_the_shops_current_gmv_and_profit(session, shop):
+    """G13: the header of a shop with no draft plan shows today's GMV / Lợi nhuận."""
+    seeded, _ = shop
+    out = await plans.get_plan(session, seeded.shop_id, now=NOW, audience="seller")
+    agg = out["aggregate"]
+    assert out["plan"] is None and out["cards"] == []
+    assert agg["empty"] is True and agg["n_cards"] == 0 and agg["after"] is None
+    assert agg["today"]["gmv_30d"] > 0
+    assert "profit_30d" in agg["today"]
+
+
 async def test_plan_codes_count_per_shop_and_show_on_every_card_and_in_card_by_code(session, shop):
     seeded, env = shop
     sid = seeded.shop_id
