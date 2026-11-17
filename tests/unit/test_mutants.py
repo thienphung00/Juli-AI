@@ -293,3 +293,18 @@ def test_planted_defect_is_actually_detectable_in_the_written_file() -> None:
     assert not (REPO_ROOT / written["sourceImplementationArtifact"]).exists(), (
         "the dangling ref must actually dangle, or the operator plants nothing"
     )
+
+
+def test_the_clean_record_passes_the_bootstrap_pin_on_a_pr_into_a_fasttrack_branch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pull_request run into fasttrack/* sets GITHUB_BASE_REF. The fixture's pin and the
+    gate must resolve the anchor under the same CI-flow context, or the clean record
+    FAILs check_harness_bootstrap_pin (first fasttrack-pr.yml runs, 2026-11-17)."""
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_BASE_REF", "fasttrack/optimize-product")
+    with installed_fixture(SYNTHETIC_ISSUE, mutant=None) as fixture:
+        result = run_gate("check_harness_bootstrap_pin", fixture.issue)
+    assert result.verdict == "PASS", result.output
+    assert os.environ["GITHUB_BASE_REF"] == "fasttrack/optimize-product", "env restored"
