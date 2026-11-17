@@ -106,14 +106,27 @@ HAVE_XDIST=0
 if [ "${XDIST}" = 1 ] && [ "${HAVE_XDIST}" = 0 ]; then
   PRE_FAIL+=("JULI_GATE_XDIST=1 but pytest-xdist is not installed in ${PYTHON} — pip install -e './backend[dev]' -c backend/constraints.txt")
 fi
-if [[ " ${JOBS[*]} " == *" frontend "* ]] && [ ! -d "${REPO_ROOT}/node_modules" ]; then
+# frontend needs the whole workspace; unit needs packages/contracts (24 Python<->TS tests).
+if [[ " ${JOBS[*]} " == *" frontend "* || " ${JOBS[*]} " == *" unit "* ]] && [ ! -d "${REPO_ROOT}/node_modules" ]; then
   PRE_FAIL+=("no node_modules in this worktree — run pnpm install --frozen-lockfile (owner, if the sandbox blocks it)")
+fi
+# Stop before any job when check cannot get a throwaway Postgres: without one it fails
+# after ~2 h of other jobs, with 587 Postgres tests skipped (S1, batch-1117a, 2026-11-17).
+PRE_STOP=()
+if [ "${MODE}" != fast ] && [[ " ${JOBS[*]} " == *" check "* ]] && [ -z "${CHECK_DATABASE_URL:-}" ] \
+  && ! { command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; }; then
+  PRE_STOP+=("check has no throwaway Postgres: set CHECK_DATABASE_URL (e.g. postgresql://localhost/predeploy_check) or start docker")
 fi
 
 echo "predeploy: sha ${SHA:0:12} tree ${TREE:0:12} mode ${MODE} jobs ${JOBS[*]}"
 echo "           tip ${TIP:0:12} contains-tip=${CONTAINS_TIP} clean=${CLEAN} free=${FREE_GB}GB xdist=${XDIST} (workers ${WORKERS}, installed=${HAVE_XDIST})"
 for f in "${PRE_FAIL[@]+"${PRE_FAIL[@]}"}"; do echo "PREFLIGHT  ${f}"; done
+for f in "${PRE_STOP[@]+"${PRE_STOP[@]}"}"; do echo "PREFLIGHT STOP  ${f}"; done
 [ "${DRY}" = 1 ] && exit 0
+if [ "${#PRE_STOP[@]}" -gt 0 ]; then
+  echo "predeploy: not started — fix the STOP line(s), or leave check out: --jobs heads,frontend,static,unit"
+  exit 1
+fi
 
 # ---------------------------------------------------------------- jobs
 declare -a RESULTS=()
