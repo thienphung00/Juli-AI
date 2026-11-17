@@ -9,9 +9,14 @@ from juli_backend.services.shopee_analytics import funnel
 from juli_backend.services.shopee_analytics.windows import Window
 
 
-def _h(item, model, at, sellable, status="active"):
+def _h(item, model, at, sellable, status="active", available=None):
     return SimpleNamespace(
-        item_id=item, model_id=model, read_at=at, sellable=sellable, listing_status=status
+        item_id=item,
+        model_id=model,
+        read_at=at,
+        sellable=sellable,
+        available=available,
+        listing_status=status,
     )
 
 
@@ -37,3 +42,17 @@ def test_reads_outside_the_window_are_ignored():
     assert (
         funnel.unavailable_from_history(hist, Window(date(2026, 11, 14), date(2026, 11, 16))) == {}
     )
+
+
+def test_kho_hang_available_stock_wins_over_prepared_sellable():
+    # a shop without "Gói Sẵn Giao Nhanh": sellable is 0 on every read, Kho hàng holds the stock
+    at = datetime(2026, 11, 15, 2)
+    hist = [
+        _h("A", "m1", at, 0, available=7),  # in stock in Kho hàng -> available
+        _h("B", "", at, 0, available=0),  # 0 in Kho hàng -> out of stock
+        _h("C", "", at, 5, available=0),  # Kho hàng wins over a prepared figure
+        _h("D", "", at, 0),  # no Kho hàng figure -> sellable is the basis
+    ]
+    got = funnel.unavailable_from_history(hist, Window(date(2026, 11, 14), date(2026, 11, 16)))
+    day = frozenset({date(2026, 11, 15)})
+    assert got == {"B": day, "C": day, "D": day}

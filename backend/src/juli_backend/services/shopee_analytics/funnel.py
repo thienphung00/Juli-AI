@@ -146,13 +146,16 @@ class FunnelRows:
 
 def unavailable_from_history(hist: Iterable[Any], window: Window) -> dict[str, frozenset[date]]:
     """Stored stock reads (``ShopeeStockHistory`` rows, naive UTC) -> the products' unavailable
-    days inside ``window``; the day is the GMT+7 one the stock alert uses."""
+    days inside ``window``; the day is the GMT+7 one the stock alert uses, and so is the stock
+    figure (``stock_basis.basis``: Kho hàng ``available``, else ``sellable``). ``sellable`` alone
+    is the "Gói Sẵn Giao Nhanh" prepared stock, 0 for a shop that does not use it."""
     reads = []
     for h in hist:
         day = sb.local_day(h.read_at)
         if window.start <= day <= window.end:
+            stock = sb.basis(h.sellable, h.available)
             reads.append(
-                StockRead(h.item_id, h.model_id or "", day, h.read_at, h.sellable, h.listing_status)
+                StockRead(h.item_id, h.model_id or "", day, h.read_at, stock, h.listing_status)
             )
     return unavailable_by_item(reads)
 
@@ -213,7 +216,9 @@ async def load_rows(session: AsyncSession, shop_id: uuid.UUID, window: Window) -
     # naive UTC read_at: a GMT+7 day d spans d-1 17:00 .. d 17:00 UTC, so pad by one day each side
     hist = (
         await session.execute(
-            select(h.item_id, h.model_id, h.read_at, h.sellable, h.listing_status).where(
+            select(
+                h.item_id, h.model_id, h.read_at, h.sellable, h.available, h.listing_status
+            ).where(
                 h.shop_id == shop_id,
                 h.read_at >= datetime.combine(window.start - timedelta(days=1), time.min),
                 h.read_at < datetime.combine(window.end + timedelta(days=1), time.min),

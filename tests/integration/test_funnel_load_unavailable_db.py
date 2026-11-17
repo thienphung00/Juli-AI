@@ -23,11 +23,12 @@ pytestmark = [requires_postgres]
 WINDOW = Window(date(2026, 11, 14), date(2026, 11, 16))
 
 
-def _read(conn, shop_id, item, model, at, sellable, status="active") -> None:
+def _read(conn, shop_id, item, model, at, sellable, status="active", available=None) -> None:
     conn.execute(
         text(
             "INSERT INTO public.shopee_stock_history (id, shop_id, item_id, model_id, read_at, "
-            "sellable, listing_status) VALUES (:id, :shop, :item, :model, :at, :sellable, :status)"
+            "sellable, available, listing_status) "
+            "VALUES (:id, :shop, :item, :model, :at, :sellable, :available, :status)"
         ),
         {
             "id": uuid.uuid4(),
@@ -36,6 +37,7 @@ def _read(conn, shop_id, item, model, at, sellable, status="active") -> None:
             "model": model,
             "at": at,
             "sellable": sellable,
+            "available": available,
             "status": status,
         },
     )
@@ -52,6 +54,8 @@ async def test_load_rows_reads_the_unavailable_days_of_the_shop_only(owner_engin
         # in stock, and a read outside the window: neither is unavailable
         _read(conn, a.shop_id, "1003", "", datetime(2026, 11, 15, 2), 3)
         _read(conn, a.shop_id, "1004", "", datetime(2026, 10, 1, 2), 0)
+        # prepared stock 0 but Kho hàng 9 (the client-shop pattern): in stock, not out of stock
+        _read(conn, a.shop_id, "1005", "", datetime(2026, 11, 15, 2), 0, available=9)
         # the other shop's out-of-stock read must not leak
         _read(conn, b.shop_id, "2001", "", datetime(2026, 11, 15, 2), 0)
     async with juli_app_session() as session:
