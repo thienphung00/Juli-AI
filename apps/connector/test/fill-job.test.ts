@@ -125,7 +125,7 @@ describe("a voucher job", () => {
     expect(h.reports.map((r) => r[1])).toEqual(["opened", "opened"]);
     const last = h.progress[h.progress.length - 1]!;
     expect(last.filled).toBeLessThan(last.total);
-    expect(panelText()).toContain("một phần");
+    expect(panelText()).toContain("Juli điền được 9/10 mục");
   });
 });
 

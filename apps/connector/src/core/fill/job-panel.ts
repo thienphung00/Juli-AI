@@ -6,14 +6,15 @@ import { PANEL_ID } from "./locate";
 import { el, NEVER_NOTE, STYLE } from "./panel";
 
 export type JobPanelInput =
-  | { outcome: "filled" | "partial"; job: CoreJob; result: FillOutcome }
+  | { outcome: "filled" | "partial"; job: CoreJob; result: FillOutcome; periodOk?: boolean }
   | { outcome: "refused"; text: string }
   | { outcome: "halted"; text: string }
   | { outcome: "blocked"; text: string };
 
 const JOB_STYLE = `${STYLE}
 .ok-mark{color:#14532d;font-weight:700}.no-mark{color:#b91c1c;font-weight:700}
-.todo{margin:8px 0 0;padding-left:18px}`;
+.todo{margin:8px 0 0;padding-left:18px}
+.banner.stop{background:#b91c1c;color:#fff;font-size:14px}`;
 
 /** The job-panel texts that name the platform. */
 export interface JobLabels {
@@ -27,13 +28,27 @@ export interface JobLabels {
 /** `name` is the platform as the seller says it (a pack's `labels.name`). */
 export function jobLabels(name: string): JobLabels {
   return {
-    filled: `Juli đã điền — kiểm tra rồi bấm nút của ${name}`,
+    filled: `Juli đã điền đủ — kiểm tra rồi bấm nút của ${name}`,
     halt: `${name} đang hỏi lại mật khẩu. Juli dừng lại và không mở thêm trang nào; hãy tự xác nhận trong ${name}.`,
     blocked: `${name} đang yêu cầu xác minh (CAPTCHA). Juli dừng việc này và không điền gì; hãy tự xác minh rồi mở lại từ Juli.`,
   };
 }
 
-export const BANNER_JOB_PARTIAL = "Juli điền được một phần. Làm tiếp các mục còn thiếu bằng tay.";
+/** 0.3.24: the header says how many of the page's items Juli filled (each one read back). */
+export const bannerPartial = (filled: number, total: number): string =>
+  `Juli điền được ${filled}/${total} mục. Làm tiếp các mục còn thiếu bằng tay.`;
+export const BANNER_JOB_NONE = "Juli chưa điền được mục nào. Làm các mục bằng tay theo thẻ trên Juli.";
+/** A time-bound form whose period was not filled: the platform's default period is "now". */
+export const BANNER_NO_PERIOD = "Chưa điền thời gian — đừng bấm Xác nhận";
+
+/** The header of a filled / partial job: truthful about how many items were filled. */
+export function jobHeader(result: FillOutcome, labels: JobLabels): { text: string; ok: boolean } {
+  const steps = result.steps.filter((s) => !s.skipped);
+  const filled = steps.filter((s) => s.ok).length;
+  if (steps.length > 0 && filled === steps.length) return { text: labels.filled, ok: true };
+  if (filled === 0) return { text: BANNER_JOB_NONE, ok: false };
+  return { text: bannerPartial(filled, steps.length), ok: false };
+}
 
 export function showJobPanel(doc: Document, input: JobPanelInput, labels: JobLabels): HTMLElement {
   doc.getElementById(PANEL_ID)?.remove();
@@ -54,14 +69,12 @@ export function showJobPanel(doc: Document, input: JobPanelInput, labels: JobLab
   if (input.outcome === "refused" || input.outcome === "halted" || input.outcome === "blocked") {
     box.append(el(doc, "div", { cls: "banner", text: input.text }));
   } else {
-    box.append(
-      el(doc, "div", {
-        cls: input.outcome === "filled" ? "banner ok" : "banner",
-        text: input.outcome === "filled" ? labels.filled : BANNER_JOB_PARTIAL,
-      }),
-    );
+    if (input.periodOk === false) box.append(el(doc, "div", { cls: "banner stop", text: BANNER_NO_PERIOD }));
+    const header = jobHeader(input.result, labels);
+    box.append(el(doc, "div", { cls: header.ok ? "banner ok" : "banner", text: header.text }));
     const list = el(doc, "ul");
     for (const s of input.result.steps) {
+      if (s.skipped) continue;
       const li = el(doc, "li");
       li.append(el(doc, "span", { cls: s.ok ? "ok-mark" : "no-mark", text: s.ok ? "✓ " : "✗ " }), s.label);
       if (s.note) li.append(` — ${s.note}`);

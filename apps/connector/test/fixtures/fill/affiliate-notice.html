@@ -1,0 +1,26 @@
+<!-- /portal/web-seller-affiliate/open_campaign as seen live 2026-11-17, synthetic values: Shopee's
+     full-page notice "Phiên bản Chiến dịch Mở Rộng mới!" ("Khám phá Ngay") covers the page, now named
+     "Chiến dịch mở rộng"; the page's table is drawn only once the notice is closed. -->
+<div id="notice" role="dialog" class="eds-modal notice-modal">
+  <div class="eds-modal__box">
+    <i class="eds-modal__close" aria-label="close" data-dismiss="#page"></i>
+    <div class="title">Phiên bản Chiến dịch Mở Rộng mới!</div>
+    <div class="body">Quản lý hoa hồng dễ hơn.</div>
+    <button type="button" data-dismiss="#page">Khám phá Ngay</button>
+  </div>
+</div>
+<template id="page"><div id="app">
+  <h1>Chiến dịch mở rộng</h1>
+  <div class="filter"><input type="text" id="filter" placeholder="Tìm theo tên sản phẩm hoặc ID"><button type="button" data-search="#atable">Tìm kiếm</button></div>
+  <div class="bulkbar"><button type="button" data-opens="#bulkmenu" id="bulk">Chỉnh sửa hàng loạt</button>
+    <ul id="bulkmenu" hidden><li data-opens="#comm-dialog" id="item-comm">Chỉnh sửa tỉ lệ hoa hồng</li><li data-forbidden>Loại bỏ</li></ul></div>
+  <table id="atable"><tbody>
+    <tr><td><input type="checkbox"></td><td>Sản phẩm mẫu một</td><td>ID: 1001</td><td>13%</td></tr>
+    <tr><td><input type="checkbox"></td><td>Sản phẩm mẫu ba</td><td>ID: 1003</td><td>9%</td></tr>
+  </tbody></table>
+  <div id="comm-dialog" role="dialog" class="eds-modal" hidden>
+    <div class="head">Chỉnh sửa tỉ lệ hoa hồng</div>
+    <div><input type="text" id="pct" placeholder="%"></div>
+    <div class="actions"><button type="button" data-forbidden>Hủy</button><button type="button" id="comm-ok" data-forbidden>Lưu lại</button></div>
+  </div>
+</div></template>

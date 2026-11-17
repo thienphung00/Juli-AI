@@ -53,12 +53,31 @@ function editable(el: Element): boolean {
   return true;
 }
 
-function usable(el: Element): boolean {
-  return !inPanel(el) && editable(el) && !hidden(el);
+/**
+ * 0.3.24: a rich editor's helpers are never the field. The live description editor (2026-11-17)
+ * holds the real editor (`.ql-editor`) AND a hidden paste buffer (`.ql-clipboard`, 0 px wide)
+ * under one label, and two controls made the field "not found".
+ */
+const HELPER = ".ql-clipboard,[class*='clipboard']";
+
+function helper(el: Element): boolean {
+  return !!el.closest(HELPER);
 }
 
+function usable(el: Element): boolean {
+  return !inPanel(el) && editable(el) && !hidden(el) && !helper(el);
+}
+
+/** Drawn with a box (a layout engine measured it); 0 wide or 0 high is a helper, not a field. */
+function boxed(el: Element): boolean {
+  const h = el as HTMLElement;
+  return (h.offsetWidth ?? 0) > 0 && (h.offsetHeight ?? 0) > 0;
+}
+
+/** The candidates of one scope: when some are drawn with a box, the ones without are dropped. */
 function controlsIn(scope: Element): Element[] {
-  return Array.from(scope.querySelectorAll(CONTROL)).filter(usable);
+  const found = Array.from(scope.querySelectorAll(CONTROL)).filter(usable);
+  return found.some(boxed) ? found.filter(boxed) : found;
 }
 
 /** The one control a label element belongs to, or null. */

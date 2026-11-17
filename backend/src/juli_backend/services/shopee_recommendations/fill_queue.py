@@ -628,6 +628,11 @@ def job_json(j: ShopeeFillJob, code: str | None = None, title: str | None = None
         "error": j.error,
         "payload": j.payload,
         "open_path": (j.payload or {}).get("open_path"),
+        # Connector 0.3.24: each field's value before the Connector wrote it (the revert puts
+        # it back), whether a time-bound form's period holds the card's dates, the last reads
+        "before_values": (j.payload or {}).get("before_values") or {},
+        "period_ok": (j.payload or {}).get("period_ok"),
+        "fill_check": (j.payload or {}).get("fill_check") or [],
     }
 
 
@@ -715,10 +720,20 @@ async def report(
     captured_ref: str | None = None,
     error: str | None = None,
     progress: dict[str, int] | None = None,
+    before_values: dict[str, str] | None = None,
+    period_ok: bool | None = None,
+    field_checks: list[dict[str, Any]] | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """The Connector's progress on one job (own shop only). ``progress`` (``{filled, total}``,
-    Connector 0.3.18) is kept in ``payload["progress"]`` for Thực hiện's "3/4 đã điền"."""
+    Connector 0.3.18) is kept in ``payload["progress"]`` for Thực hiện's "3/4 đã điền".
+
+    Connector 0.3.24 (batch-1117b X2): ``before_values`` (``{field_key: value}``, what each field
+    held before the Connector wrote it) is merged into ``payload["before_values"]`` with the FIRST
+    capture of a key kept (a second open of the page would otherwise record Juli's own value as
+    the "before"); ``period_ok`` (False: the form's period was not filled to the card's dates) and
+    ``field_checks`` (``[{key, ok, seen}]``, the last read of every field) replace the previous
+    report's. No migration: all of it lives in the job's JSON payload."""
     j = await session.scalar(
         select(ShopeeFillJob).where(ShopeeFillJob.id == job_id, ShopeeFillJob.shop_id == shop_id)
     )
@@ -735,6 +750,18 @@ async def report(
             **(j.payload or {}),
             "progress": {"filled": progress["filled"], "total": progress["total"]},
         }
+    if before_values or period_ok is not None or field_checks is not None:
+        payload = dict(j.payload or {})
+        if before_values:
+            kept = dict(payload.get("before_values") or {})
+            for key, value in before_values.items():
+                kept.setdefault(key, value)
+            payload["before_values"] = kept
+        if period_ok is not None:
+            payload["period_ok"] = period_ok
+        if field_checks is not None:
+            payload["fill_check"] = field_checks
+        j.payload = payload
     j.status = status
     if captured_ref is not None:
         j.captured_ref = captured_ref

@@ -41,6 +41,16 @@ export const FILL_POLL_MS = 400;
 export const FILL_STABLE_MS = 800;
 export const FILL_RECHECK_MS = 1_500;
 export const FILL_MAX_REWRITES = 3;
+/**
+ * 0.3.24: a fill job waits for the page's form to be drawn (the form's probe) and then for the
+ * page to stop changing (no DOM mutation for FILL_QUIET_MS) before it types anything; after the
+ * whole form is typed every field is read again FILL_CONFIRM_MS later, and the panel keeps
+ * watching for FILL_WATCH_MS (every FILL_WATCH_POLL_MS) so a value the page puts back turns ✗.
+ */
+export const FILL_QUIET_MS = 1_200;
+export const FILL_CONFIRM_MS = 3_000;
+export const FILL_WATCH_MS = 12_000;
+export const FILL_WATCH_POLL_MS = 2_000;
 
 // -- fill jobs (P97 D85.6): approved cards queued by Juli, opened and filled page by page -------
 //

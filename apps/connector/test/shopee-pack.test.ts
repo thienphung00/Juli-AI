@@ -52,7 +52,7 @@ describe("the Shopee pack", () => {
   it("keeps the on-page texts word for word", () => {
     expect(BANNER_FILLED).toBe("Juli đã điền — kiểm tra rồi bấm Lưu của Shopee");
     expect(BANNER_PAGE_ONLY).toBe("Trang đã mở. Làm theo các bước bên dưới rồi bấm nút của Shopee — Juli không bấm thay bạn.");
-    expect(JOB_LABELS.filled).toBe("Juli đã điền — kiểm tra rồi bấm nút của Shopee");
+    expect(JOB_LABELS.filled).toBe("Juli đã điền đủ — kiểm tra rồi bấm nút của Shopee");
     expect(JOB_LABELS.halt).toBe("Shopee đang hỏi lại mật khẩu. Juli dừng lại và không mở thêm trang nào; hãy tự xác nhận trong Shopee.");
     expect(shopeePack.labels.name).toBe("Shopee");
   });

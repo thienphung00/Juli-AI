@@ -19,7 +19,7 @@ import {
 } from "../platforms/shopee/config";
 import { FILL_HALT_MS } from "../core/config";
 import { IngestClient, type TokenInfo } from "../core/ingest/client";
-import { FillJobs as CoreFillJobs } from "../core/jobs/fill-jobs";
+import { FillJobs as CoreFillJobs, reportDetailOf } from "../core/jobs/fill-jobs";
 import { type Pairing, Pairings, pairAcross, rotateIfDue, scopedStorage } from "../core/pairings";
 import type { PlatformPack } from "../platform";
 import { registry } from "../platforms";
@@ -455,6 +455,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             ...(ref ? { capturedRef: ref } : {}),
             ...(typeof msg.error === "string" ? { error: msg.error } : {}),
             ...(progressOf(msg.progress) ? { progress: progressOf(msg.progress)! } : {}),
+            ...(reportDetailOf(msg.detail) ? { detail: reportDetailOf(msg.detail)! } : {}),
           });
         }),
       );
@@ -500,6 +501,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           ...(ref ? { capturedRef: ref } : {}),
           ...(typeof msg.error === "string" ? { error: msg.error } : {}),
           ...(progressOf(msg.progress) ? { progress: progressOf(msg.progress)! } : {}),
+          ...(reportDetailOf(msg.detail) ? { detail: reportDetailOf(msg.detail)! } : {}),
         }),
       );
     }

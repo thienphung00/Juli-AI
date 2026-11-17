@@ -172,7 +172,11 @@ export class FillJobs<J extends CoreJob = CoreJob> {
   }
 
   /** Progress from the page (or the capture of the new id). */
-  async report(jobId: string, status: "opened" | "filled" | "saved" | "captured" | "failed", extra: { capturedRef?: string; error?: string; progress?: { filled: number; total: number } } = {}): Promise<void> {
+  async report(
+    jobId: string,
+    status: "opened" | "filled" | "saved" | "captured" | "failed",
+    extra: { capturedRef?: string; error?: string; progress?: { filled: number; total: number }; detail?: ReportDetail } = {},
+  ): Promise<void> {
     const token = (await loadCoreState(this.deps.storage)).token;
     if (!token || !fillJobsActive(token.shop_id)) return;
     try {
@@ -181,6 +185,7 @@ export class FillJobs<J extends CoreJob = CoreJob> {
         ...(extra.capturedRef ? { captured_ref: extra.capturedRef } : {}),
         ...(extra.error ? { error: extra.error.slice(0, 64) } : {}),
         ...(extra.progress ? { progress: extra.progress } : {}),
+        ...(extra.detail ? extra.detail : {}),
       });
     } catch {
       // Juli unreachable or the job moved on: nothing changes on the page; the checklist catches up.
@@ -197,4 +202,38 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     await this.setFill({ active: undefined });
     await this.deps.halt("login", pathname, "password_prompt");
   }
+}
+
+/**
+ * 0.3.24: what a fill saw, as Juli stores it on the job: each field's value before Juli wrote it
+ * (the revert puts it back), whether a time-bound form's period holds the card's dates, and each
+ * field's last read. Validated here: bounded keys and values, nothing else passes.
+ */
+export interface ReportDetail {
+  before_values: Record<string, string>;
+  period_ok?: boolean;
+  fields: { key: string; ok: boolean; seen: string }[];
+}
+
+const DETAIL_KEY = /^[a-z][a-z0-9_]{0,39}$/;
+const MAX_DETAIL_FIELDS = 40;
+
+export function reportDetailOf(raw: unknown): ReportDetail | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const r = raw as Record<string, unknown>;
+  const before: Record<string, string> = {};
+  const b = r.before_values;
+  if (typeof b === "object" && b !== null && !Array.isArray(b)) {
+    for (const [k, v] of Object.entries(b as Record<string, unknown>).slice(0, MAX_DETAIL_FIELDS)) {
+      if (DETAIL_KEY.test(k) && typeof v === "string") before[k] = v.slice(0, 600);
+    }
+  }
+  const fields: ReportDetail["fields"] = [];
+  for (const f of Array.isArray(r.fields) ? r.fields.slice(0, MAX_DETAIL_FIELDS) : []) {
+    const x = f as Record<string, unknown> | null;
+    if (x && typeof x.key === "string" && DETAIL_KEY.test(x.key) && typeof x.ok === "boolean") {
+      fields.push({ key: x.key, ok: x.ok, seen: typeof x.seen === "string" ? x.seen.slice(0, 120) : "" });
+    }
+  }
+  return { before_values: before, fields, ...(typeof r.period_ok === "boolean" ? { period_ok: r.period_ok } : {}) };
 }

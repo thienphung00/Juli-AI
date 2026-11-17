@@ -4,7 +4,10 @@
 
 import type { FillMode } from "./types";
 
-const BLOCKS = new Set(["DIV", "P", "LI"]);
+// 0.3.24: a rich editor (Quill: `.ql-editor`) keeps one <p> per line and may hold lists and
+// headings; each top-level block is one line, read and written alike, so changing the first line
+// never touches a list further down. The editor watches its own DOM and takes the change.
+const BLOCKS = new Set(["DIV", "P", "LI", "UL", "OL", "H1", "H2", "H3", "H4", "H5", "H6", "PRE", "BLOCKQUOTE"]);
 
 /** The lines of a rich editor that keeps one block element (div / p / li) per line, else null. */
 function blockLines(el: HTMLElement): HTMLElement[] | null {

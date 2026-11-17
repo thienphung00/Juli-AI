@@ -4,6 +4,7 @@
 // and written again if the page put its own value back (at most FILL_MAX_REWRITES times).
 
 import { FILL_MAX_REWRITES, FILL_POLL_MS, FILL_RECHECK_MS, FILL_STABLE_MS } from "../config";
+import type { FillLog } from "./log";
 import type { FillField } from "./types";
 import { highlight, readValue, targetValue, writeValue } from "./write";
 
@@ -41,8 +42,32 @@ async function settled(deps: SettleDeps, control: HTMLElement, until: number): P
  * after FILL_RECHECK_MS and write it again if the page put its own value back (at most
  * FILL_MAX_REWRITES times). True only when the last read equals the target.
  */
-export async function fillOne(deps: SettleDeps, control: HTMLElement, field: FillField, until: number): Promise<boolean> {
+export async function fillOne(
+  deps: SettleDeps,
+  control: HTMLElement,
+  field: FillField,
+  until: number,
+  log?: FillLog,
+  /** The key the write is filed under in the log (default: the field's key). */
+  logKey: string = field.key,
+): Promise<boolean> {
   await settled(deps, control, until);
+  if (log) {
+    // The value a revert puts back: the whole title, or the first line of the description
+    // (a first-line card changes only that line). An empty read means the page never loaded it.
+    const current = valueOf(control);
+    const before = field.mode === "first_line" ? (current.split("\n")[0] ?? "") : current;
+    if (current.trim() !== "") log.captureBefore(logKey, before);
+    const want = () => targetValue(valueOf(control), field.value, field.mode);
+    log.wrote({
+      key: logKey,
+      el: control,
+      want: field.value,
+      seen: () => (field.mode === "first_line" ? (valueOf(control).split("\n")[0] ?? "") : valueOf(control)),
+      ok: () => valueOf(control) === want(),
+      rewrite: () => writeValue(control, want()),
+    });
+  }
   for (let attempt = 0; attempt <= FILL_MAX_REWRITES; attempt += 1) {
     if (!deps.doc.contains(control)) return false;
     const next = targetValue(valueOf(control), field.value, field.mode);

@@ -133,7 +133,7 @@ describe("the core job run with the fake pack's form", () => {
     expect(out).toEqual({ status: "filled", steps: 1 });
     expect((document.getElementById("f") as HTMLInputElement).value).toBe("Xin chào");
     const panel = document.getElementById(PANEL_ID)?.shadowRoot?.textContent ?? "";
-    expect(panel).toContain("Juli đã điền — kiểm tra rồi bấm nút của FakePlatform");
+    expect(panel).toContain("Juli đã điền đủ — kiểm tra rồi bấm nút của FakePlatform");
     expect(panel).not.toMatch(/shopee/i);
     expect(h.reports.map((r) => r[1])).toEqual(["opened", "filled"]);
   });

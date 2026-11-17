@@ -1,4 +1,5 @@
 // Shared by the fill-job tests: raw jobs as Juli serves them, and run dependencies.
+import type { FillDetail } from "../src/core/fill/job-run";
 import type { JobDeps } from "../src/platforms/shopee/fill/job-run";
 import { type JobReply, parseFillJob } from "../src/platforms/shopee/fill/job-types";
 
@@ -70,6 +71,7 @@ export interface JobHarness {
   deps: JobDeps;
   reports: [string, string, string | undefined][];
   progress: ({ filled: number; total: number } | undefined)[];
+  details: (FillDetail | undefined)[];
   halted: string[];
   clock: { t: number };
 }
@@ -77,6 +79,7 @@ export interface JobHarness {
 export function jobHarness(raw: Record<string, unknown> | JobReply, over: { prompt?: () => boolean; hash?: string; path?: string } = {}): JobHarness {
   const reports: JobHarness["reports"] = [];
   const progress: JobHarness["progress"] = [];
+  const details: JobHarness["details"] = [];
   const halted: string[] = [];
   const clock = { t: 0 };
   const reply: JobReply = "ok" in raw ? (raw as JobReply) : (() => {
@@ -88,9 +91,10 @@ export function jobHarness(raw: Record<string, unknown> | JobReply, over: { prom
     doc: document,
     loc: { pathname: path, hash: over.hash ?? `#juli-fill=${JOB_ID}` },
     ask: async () => reply,
-    report: async (id, status, error, extra) => {
+    report: async (id, status, error, extra, detail) => {
       reports.push([id, status, error]);
       progress.push(extra);
+      details.push(detail);
     },
     halt: async (id) => {
       halted.push(id);
@@ -101,5 +105,5 @@ export function jobHarness(raw: Record<string, unknown> | JobReply, over: { prom
     },
     now: () => clock.t,
   };
-  return { deps, reports, progress, halted, clock };
+  return { deps, reports, progress, details, halted, clock };
 }
