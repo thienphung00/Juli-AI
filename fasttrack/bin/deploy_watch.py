@@ -32,7 +32,12 @@ def failing_steps(run_id: int) -> list[str]:
     for j in jobs:
         if j.get("conclusion") not in ("success", "skipped", None):
             steps = [s["name"] for s in j.get("steps", []) if s.get("conclusion") == "failure"]
-            out.append(f"{j['name']}: {' / '.join(steps) or j.get('conclusion')}")
+            trial = (
+                " [trial job, does not block the deploy]"
+                if "(trial, not gating)" in j["name"]
+                else ""
+            )
+            out.append(f"{j['name']}: {' / '.join(steps) or j.get('conclusion')}{trial}")
     return out
 
 

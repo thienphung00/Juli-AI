@@ -51,12 +51,22 @@ $PY fasttrack/gate_status.py <sha>
 $PY fasttrack/bin/open_pr.py --head B --title T --body-file F --session S [--dry-run]
 fasttrack/bin/tag-deploy.sh <sha> --session S [--push]          # --push = owner only
 $PY fasttrack/bin/deploy_watch.py <tag>
+$PY fasttrack/bin/xdist_trial.py summary <git common dir>/fasttrack-state/xdist-trial.jsonl   # gate speed-up trial status
 fasttrack/bin/pg-test.sh tests/integration/test_x.py
 echo "<command>" | $PY fasttrack/bin/cmdlint.py
 fasttrack/bin/session_preflight.sh [--no-call]                   # auth / credits / headers before long or headless runs
 ```
 
 State lives in `<git common dir>/fasttrack-state/` (shared by every worktree, never committed). `events.jsonl` there is the observability log, read by `pipeline-eval/extract.py`.
+
+## Gate speed-ups, phase 1 (owner-approved 2026-11-17; trial)
+
+- **What runs:** `predeploy.sh` runs the unit suite serially (it **gates**), then the same files with `pytest -n 4 --dist loadfile` (record only). `xdist_trial.py` compares the two per test case. In CI, `backend-unit-xdist-trial` + `xdist-trial-compare` do the same beside the 4 serial shards; both are `continue-on-error` and nothing needs them.
+- **PR checks:** `.github/workflows/fasttrack-pr.yml` runs the deploy gate's unit (4 shards), static and frontend jobs on every PR into `fasttrack/*`. A red PR is a red tag.
+- **Trial passes** after 3 consecutive batches where, on the same tree, both runs held the same test cases with the same outcomes, no test failed only under xdist, and xdist was faster. Then the owner decides whether to flip the default to `JULI_GATE_XDIST=1` (xdist gates, with a check that it ran every collected test). `check.sh` stays serial; phase 2 is decided on this data.
+- **A test that fails only under xdist** is a real finding: it shares state across files. Fix it, or mark it to run serially. Never retry it into a pass.
+- **Rollback:** `JULI_GATE_XDIST=0` (serial only, no xdist run); in CI, remove the two trial jobs.
+- One suite at a time on this machine: the two local unit runs are sequential, and `predeploy.sh` needs ≥ 10 GB free.
 
 ## A/B: executor arms (first 2 batches of v2)
 

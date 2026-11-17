@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -194,3 +195,113 @@ def test_public_pr_scrub_blocks_private_data_and_allows_noreply():
     assert {"email", "vn-phone", "scrub term"} <= kinds
     assert not any("anthropic" in h for h in hits)
     assert open_pr.scan("P100: Tổng quan header and period picker", []) == []
+
+
+def test_a_batch_registered_before_any_commit_is_not_merged(repo):
+    """2026-11-17: a batch registered at the tip was marked merged once it moved ahead."""
+    tip = _git(repo, "rev-parse", "main")
+    _git(repo, "branch", "fresh", "main")
+    b = {"head": tip, "base": tip, "status": "building"}
+    assert not state.batch_landed("fresh", b, tip)
+    _git(repo, "checkout", "-q", "fresh")
+    (repo / "work.txt").write_text("built\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "work")
+    assert not state.batch_landed("fresh", b, tip)
+    assert b["head"] == _git(repo, "rev-parse", "fresh")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "merge fresh", "fresh")
+    assert state.batch_landed("fresh", b, _git(repo, "rev-parse", "main"))
+
+
+xdist_trial = _load("xdist_trial", REPO / "fasttrack" / "bin" / "xdist_trial.py")
+
+
+def _junit(path: Path, cases: dict[str, str], seconds: float) -> Path:
+    body = {"passed": "", "failed": "<failure message='x'/>", "skipped": "<skipped/>"}
+    rows = "".join(
+        f"<testcase classname='{c.split('::')[0]}' name='{c.split('::')[1]}'>{body[o]}</testcase>"
+        for c, o in cases.items()
+    )
+    path.write_text(
+        f"<testsuites><testsuite name='pytest' tests='{len(cases)}' time='{seconds}'>"
+        f"{rows}</testsuite></testsuites>"
+    )
+    return path
+
+
+def test_xdist_trial_is_ok_only_with_same_tests_same_outcomes_and_faster(tmp_path):
+    serial = {"t.a::one": "passed", "t.a::two": "skipped", "t.b::three": "passed"}
+    s1 = _junit(tmp_path / "s1.xml", dict(list(serial.items())[:2]), 50)
+    s2 = _junit(tmp_path / "s2.xml", dict(list(serial.items())[2:]), 70)
+    good = _junit(tmp_path / "x.xml", serial, 30)
+    rec = tmp_path / "trial.jsonl"
+    args = ["compare", "--serial", str(s1), str(s2), "--record", str(rec), "--tree", "T1"]
+    assert xdist_trial.main([*args, "--xdist", str(good)]) == 0
+    r = json.loads(rec.read_text().splitlines()[-1])
+    assert r["ok"] and r["serial_seconds"] == 70 and r["serial_runner_seconds"] == 120
+
+    flaky = _junit(tmp_path / "f.xml", {**serial, "t.b::three": "failed"}, 30)
+    assert xdist_trial.main([*args, "--xdist", str(flaky), "--strict"]) == 1
+    r = json.loads(rec.read_text().splitlines()[-1])
+    assert r["xdist_only_failures"] == ["t.b::three"] and not r["ok"]
+
+    dropped = _junit(tmp_path / "d.xml", dict(list(serial.items())[:2]), 30)
+    xdist_trial.main([*args, "--xdist", str(dropped)])
+    assert json.loads(rec.read_text().splitlines()[-1])["missing_in_xdist"] == ["t.b::three"]
+
+    slower = _junit(tmp_path / "w.xml", serial, 90)
+    xdist_trial.main([*args, "--xdist", str(slower)])
+    r = json.loads(rec.read_text().splitlines()[-1])
+    assert not r["faster"] and not r["ok"]
+
+
+def test_xdist_count_catches_a_silent_drop(tmp_path):
+    x = _junit(tmp_path / "x.xml", {"t.a::one": "passed", "t.a::two": "passed"}, 1)
+    assert xdist_trial.main(["count", str(x), "--expect", "2"]) == 0
+    assert xdist_trial.main(["count", str(x), "--expect", "3"]) == 1
+
+
+def test_xdist_trial_completes_after_three_consecutive_ok_trees(tmp_path):
+    rec = tmp_path / "trial.jsonl"
+    rows = [("T1", True), ("T2", False), ("T3", True), ("T4", True)]
+    rec.write_text(
+        "".join(
+            json.dumps({"at": f"2026-11-2{i}", "where": "local", "tree": t, "ok": ok}) + "\n"
+            for i, (t, ok) in enumerate(rows)
+        )
+    )
+    assert xdist_trial.main(["summary", str(rec)]) == 1  # T2 broke the streak: 2 of 3
+    with rec.open("a") as f:
+        f.write(json.dumps({"at": "2026-11-29", "where": "local", "tree": "T5", "ok": True}) + "\n")
+    assert xdist_trial.main(["summary", str(rec)]) == 0
+
+
+def test_the_xdist_trial_never_blocks_a_deploy():
+    wf = yaml.safe_load((REPO / ".github/workflows/fasttrack-deploy.yml").read_text())
+    jobs = wf["jobs"]
+    for trial in ("backend-unit-xdist-trial", "xdist-trial-compare"):
+        assert jobs[trial]["continue-on-error"] is True, trial
+        for job in ("backup", "deploy"):
+            assert trial not in jobs[job]["needs"], (trial, job)
+
+
+def test_pr_checks_run_the_deploy_gates_commands_without_secrets():
+    text = (REPO / ".github/workflows/fasttrack-pr.yml").read_text()
+    pr = yaml.safe_load(text)
+    deploy = yaml.safe_load((REPO / ".github/workflows/fasttrack-deploy.yml").read_text())
+    assert pr[True]["pull_request"]["branches"] == ["fasttrack/**"]  # YAML 1.1 reads `on` as True
+    assert "secrets." not in text and pr["permissions"] == {"contents": "read"}
+
+    def runs(job: dict) -> list[str]:
+        return [
+            s["run"].replace(" \\\n", "\n").split("--junitxml")[0].strip()
+            for s in job["steps"]
+            if "run" in s
+        ]
+
+    for job in ("frontend", "static"):
+        assert runs(pr["jobs"][job]) == runs(deploy["jobs"][job]), job
+    pr_unit, dep_unit = runs(pr["jobs"]["backend-unit"]), runs(deploy["jobs"]["backend-unit"])
+    assert pr_unit == dep_unit
+    assert pr["jobs"]["backend-unit"]["strategy"] == deploy["jobs"]["backend-unit"]["strategy"]

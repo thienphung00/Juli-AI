@@ -52,6 +52,7 @@ def gate(tree: str, state_dir: Path) -> tuple[bool, list[tuple[str, str]]]:
         detail = (
             f"PASS {r.get('seconds')}s"
             + (f", {tests} tests" if tests is not None else "")
+            + (f", {r['runner']}" if r.get("runner") and r.get("runner") != "serial" else "")
             + f", {r.get('finished_at')}"
         )
         if problems:
@@ -59,6 +60,10 @@ def gate(tree: str, state_dir: Path) -> tuple[bool, list[tuple[str, str]]]:
             rows.append((job, "INVALID — " + "; ".join(problems)))
         else:
             rows.append((job, detail))
+    trial = state_dir / "predeploy" / tree / "xdist-trial.txt"
+    if trial.exists():
+        first = trial.read_text().splitlines()[:1]
+        rows.append(("trial", (first[0] if first else "empty") + " (not gating)"))
     return ok, rows
 
 

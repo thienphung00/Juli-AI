@@ -1,0 +1,134 @@
+name: Fast-track PR checks
+
+# Gate speed-ups phase 1 (owner-approved 2026-11-17). The deploy gate's unit, static and
+# frontend jobs, run on every PR into a fasttrack/* branch, so a red tip shows up at PR
+# time and not at tag time (2026-11-15 2234Z failed on a ratchet drift a PR run would
+# have caught). The jobs are copied from fasttrack-deploy.yml (same commands, same 4
+# shards); keep them in step. They run on the PR's merge commit with its base, which is
+# what a merge would produce. No secrets, read-only token, and nothing here deploys.
+# Not a required check until the owner adds one (repository setting).
+
+on:
+  pull_request:
+    branches: ["fasttrack/**"]
+
+concurrency:
+  group: fasttrack-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend checks (demo + landing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install the workspace (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      # `pnpm check:demo` minus `pnpm build:demo` (the build job builds the shipped
+      # artifact from the same SHA with the real Supabase env).
+      - name: Demo — eslint, tsc --noEmit, vitest
+        run: pnpm lint:demo && pnpm type-check:demo && pnpm test:demo
+      - name: packages/ui and packages/utils tests
+        run: pnpm --filter @juli/ui test && pnpm --filter @juli/utils test
+      # Not packages/theme: pr.yml's demo-frontend runs it, but 2 of its 79 tests are
+      # stale against the fast-track demo (apps/demo/src/lib/run-surface/tokens.ts
+      # is gone; auth-screen.css uses #121214). DEBT P55.
+      # `pnpm check:landing` minus `pnpm build:landing` (built in the build job).
+      - name: Landing — eslint, tsc --noEmit, vitest
+        run: pnpm lint:landing && pnpm type-check:landing && pnpm test:landing
+
+  backend-unit:
+    name: Backend unit suite (no database, shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # P96: four parallel shards of tests/unit; each test file runs in exactly one shard.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      PYTHONUNBUFFERED: "1"
+      JULI_REQUIRE_ARCHIVED_COMMITS: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Some unit tests read git history (base-anchored gates, the negative
+          # dataset's commit rows); full history keeps them on the same footing as
+          # a local clone, which is where this suite was verified green.
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # P56, D65: two negative-dataset rows cite commits a squash-merge dissolved
+      # (PR #1472). No branch or tag reaches them, so even fetch-depth 0 does not
+      # bring them; GitHub keeps them under refs/pull/1472/head. Fetch the declared
+      # archive refs into refs/archive/* so those rows resolve with their digest
+      # checked, and require that they do (JULI_REQUIRE_ARCHIVED_COMMITS above).
+      - name: Fetch archived evidence refs (negative dataset)
+        run: |
+          set -euo pipefail
+          refspecs="$(python3 -c 'from eval.negative_dataset import archive_fetch_refspecs as f; print(" ".join(f()))')"
+          echo "fetching: ${refspecs}"
+          # shellcheck disable=SC2086
+          git fetch --no-tags origin ${refspecs}
+      # Contract tests shell out to node + typescript in packages/contracts (same
+      # install as the check job and pr.yml's test job).
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install contracts dependency graph
+        run: pnpm install --frozen-lockfile --filter "./packages/contracts..."
+      - name: Install backend
+        run: |
+          pip install -e "./backend[dev]" -c backend/constraints.txt
+          pip freeze | sort
+      # No DATABASE_URL on purpose: Postgres-backed tests skip (requires_postgres),
+      # and the per-test timeout is pytest.ini's 30 s except where a test carries
+      # its own `pytest.mark.timeout`.
+      - name: pytest tests/unit -m "not live" (this shard's files)
+        run: |
+          set -euo pipefail
+          find tests/unit -type f -name 'test_*.py' | sort > /tmp/unit_files.txt
+          python fasttrack/ci_shard.py "${{ matrix.shard }}" 4 < /tmp/unit_files.txt > /tmp/shard_files.txt
+          echo "shard ${{ matrix.shard }}/4: $(wc -l < /tmp/shard_files.txt) of $(wc -l < /tmp/unit_files.txt) test files"
+          # shellcheck disable=SC2046
+          python -X faulthandler -m pytest $(cat /tmp/shard_files.txt) -m "not live" -q --tb=short -p no:cacheprovider
+
+  static:
+    name: Static analysis (mypy + bandit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install backend
+        run: |
+          pip install -e "./backend[dev]" -c backend/constraints.txt
+          pip freeze | sort
+      # Same target and flags as pr.yml's typecheck job; they are also
+      # backend/pyproject.toml's [tool.mypy], read via --config-file.
+      - name: Mypy (backend/src/juli_backend)
+        run: mypy --config-file backend/pyproject.toml backend/src/juli_backend
+      # pr.yml's bandit job: fail on medium+ severity. The constraints-pinned
+      # bandit from backend[dev] instead of an unpinned `pip install bandit`.
+      - name: Bandit (fail on medium+ severity)
+        run: bandit -r backend/src/juli_backend -ll
