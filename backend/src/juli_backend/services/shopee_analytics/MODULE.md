@@ -103,3 +103,6 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
 - `forecast_base.adaptive_base` with `item_ids` drops a day when ANY product of the scope is
   unavailable: its rows leave the sums, the day leaves every day count and the F3 `daily` series.
   A metric with no event left is `low_data`. Shop scope (no `item_ids`) is unchanged.
+- Known follow-up: the stock-history read filters on `(shop_id, read_at)` but the table only has
+  the per-SKU index `(shop_id, item_id, model_id, read_at)`; add a `(shop_id, read_at)` index (a
+  migration) if the read shows up in query timings.

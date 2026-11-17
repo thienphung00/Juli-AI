@@ -212,18 +212,14 @@ async def load_rows(session: AsyncSession, shop_id: uuid.UUID, window: Window) -
     h = ShopeeStockHistory
     # naive UTC read_at: a GMT+7 day d spans d-1 17:00 .. d 17:00 UTC, so pad by one day each side
     hist = (
-        (
-            await session.execute(
-                select(h).where(
-                    h.shop_id == shop_id,
-                    h.read_at >= datetime.combine(window.start - timedelta(days=1), time.min),
-                    h.read_at < datetime.combine(window.end + timedelta(days=1), time.min),
-                )
+        await session.execute(
+            select(h.item_id, h.model_id, h.read_at, h.sellable, h.listing_status).where(
+                h.shop_id == shop_id,
+                h.read_at >= datetime.combine(window.start - timedelta(days=1), time.min),
+                h.read_at < datetime.combine(window.end + timedelta(days=1), time.min),
             )
         )
-        .scalars()
-        .all()
-    )
+    ).all()
     return FunnelRows(
         window,
         tuple(
