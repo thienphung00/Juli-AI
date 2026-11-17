@@ -92,7 +92,8 @@ async def test_tong_quan_export_reads_each_window_once_not_per_product(session, 
     products = len([r for r in data.products if r.name])
     assert products >= 1
     # current + previous window, plus the baseline windows of the per-product plan levels
-    assert len(calls) <= 4 + products
+    # + the fixed reads of the report sheets (month before, KOC, critical metrics): none per product
+    assert len(calls) <= 4 + products + 4
 
 
 async def test_export_lists_every_active_listing_and_the_days_own_totals(session, shop):

@@ -16,7 +16,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,19 +24,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.database.tenant_context import with_tenant_scope
 from juli_backend.models.shopee_plans import PLAN_DRAFT, PLAN_EXECUTED
 from juli_backend.services.exports import ke_hoach_xlsx as kh
+from juli_backend.services.exports import report_calc as calc
+from juli_backend.services.exports import report_sheets as rs
 from juli_backend.services.exports import sku as skumod
 from juli_backend.services.exports import tong_quan_xlsx as tq
 from juli_backend.services.shopee_analytics import (
+    NoShopeeData,
     RowsNotMaterialized,
     channel_split,
     funnel,
     loaders,
     metric_view,
+    queries,
     service,
 )
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.windows import Window
-from juli_backend.services.shopee_profit.order_profit import OrderStatus
 from juli_backend.services.shopee_recommendations import (
     change_sets,
     execution_state,
@@ -46,6 +49,9 @@ from juli_backend.services.shopee_recommendations import (
     plans,
 )
 from juli_backend.services.shopee_recommendations import service as reco_service
+from juli_backend.services.stock_alert import data as stock_data
+from juli_backend.services.stock_alert import forecast as stock_forecast
+from juli_backend.services.stock_alert import stock_basis
 
 _CHANNEL_FIELDS = ("views", "clicks", "orders", "gmv", "cost")
 #: order lines whose SKU matched no listing ("sku:…" product ids)
@@ -82,14 +88,14 @@ async def _view(
 
 
 def _line_offer(pair: tuple[Any, Any]) -> float:
-    ln, bd = pair
-    if ln.status in (OrderStatus.CANCELLED, OrderStatus.IN_TRANSIT):
-        return 0.0
-    return float((bd.voucher or 0) + (bd.bundle or 0))
+    """Chi phí ưu đãi of one line: the same three terms as Tổng quan's Tổng chi phí
+    (``channel_split._offers_cost``): khuyến mãi + voucher + combo, so the days add up to it."""
+    _ln, bd = pair
+    return float((bd.promo_discount or 0) + (bd.voucher or 0) + (bd.bundle or 0))
 
 
 def _offer_cost(view: PeriodView, product: str | None = None, day: date | None = None) -> float:
-    """Chi phí ưu đãi = the shop's voucher share + combo discount of the lines (seller-funded)."""
+    """Chi phí ưu đãi = Chương Trình Của Shop + voucher + combo discount of the lines."""
     total = 0.0
     for pair in view.pairs:
         ln = pair[0]
@@ -183,6 +189,69 @@ def _day_scope(rows: funnel.FunnelRows, day: date, product: str | None) -> funne
     )  # fmt: skip
 
 
+def _ads_basis(rows: funnel.FunnelRows, shop_id: uuid.UUID, pid: str | None) -> str | None:
+    """Where a scope's Quảng cáo GMV comes from: Seller Centre's ads overlay on Thẻ sản phẩm
+    ("overlay") or the ads report ("report")."""
+    base = funnel.base_from_rows(rows, str(shop_id), item_ids=(pid,) if pid else ())
+    card = next((s for s in base.sources if s.source == channel_split.CARD), None)
+    return "overlay" if card is not None and card.ads is not None else "report"
+
+
+def partition(fig: tq.Figures) -> tq.Figures:
+    """``fig`` with its channels' GMV made to add up to its GMV (``report_calc.partition_channels``:
+    Organic = GMV - Quảng cáo - Tiếp thị liên kết)."""
+    got = calc.partition_channels(
+        fig.gmv, fig.channel("ads").gmv, fig.channel("affiliate").gmv, fig.channel("organic").gmv
+    )
+    channels = {
+        key: replace(fig.channel(key), gmv=g) for key, g in zip(tq.CHANNELS, got, strict=True)
+    }
+    return replace(fig, channels=channels)
+
+
+async def _month_rows(
+    session: AsyncSession, shop_id: uuid.UUID, cur: Window, cur_view: PeriodView,
+    others: dict[tuple[date, date], PeriodView],
+) -> list[rs.MonthRow]:  # fmt: skip
+    """ "Theo tháng": the calendar month before the period, then each month of it (clipped to the
+    period). A month that the stored days do not cover is a row of "—"."""
+    out: list[rs.MonthRow] = []
+    for first, last in calc.months_of(cur.start, cur.end):
+        label = f"{first:%m/%Y}" if (first.day, last) == (1, calc.month_end(first)) else (
+            f"{first:%d/%m}–{last:%d/%m/%Y}"
+        )  # fmt: skip
+        win = Window(first, last)
+        try:
+            if (first, last) == (cur.start, cur.end):
+                view = cur_view
+            elif (first, last) in others:
+                view = others[(first, last)]
+            else:
+                view = (await _view(session, shop_id, win))[0]
+            fig = _figures(await channel_split.split_figures(session, shop_id, view, win, None))
+        except RowsNotMaterialized:
+            out.append(rs.MonthRow(label))
+            continue
+        out.append(rs.MonthRow(label, fig.gmv, fig.orders, fig.profit, tq.cost_of(fig)))
+    return out
+
+
+async def _goal(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window, view: PeriodView, now: datetime,
+    product_id: str | None,
+) -> tuple[float | None, float | None]:  # fmt: skip
+    """Mục tiêu = the Kế hoạch's expected GMV / lợi nhuận of the period (the running plan's goal,
+    ``month_plan.range_plan``); ``None`` when the period has no plan."""
+    try:
+        plan = await month_plan.range_plan(
+            session, shop_id, window.start, window.end, scope=month_plan.SCOPE_RUNNING, now=now,
+            view=view, product_id=product_id,
+        )  # fmt: skip
+    except RowsNotMaterialized:
+        return None, None
+    return _f(plan.get("goal_gmv")), _f(plan.get("goal_profit"))
+
+
 async def collect_tong_quan(
     session: AsyncSession, shop_id: uuid.UUID, *, shop_name: str, now: datetime,
     period: str = "30d", month: str | None = None, start: date | None = None,
@@ -198,12 +267,16 @@ async def collect_tong_quan(
     )
     if window is None:
         raise ValueError("no data")
-    cur, prv = window, window.previous()
+    cur = window
+    ps, pe, prev_kind = calc.previous_period(cur.start, cur.end)
+    prv = Window(ps, pe)
     kw: dict[str, Any] = {"period": "custom", "start": cur.start, "end": cur.end}
     kw_prev: dict[str, Any] = {"period": "custom", "start": prv.start, "end": prv.end}
     view, frows = await _view(session, shop_id, cur)
+    prev_rows: funnel.FunnelRows | None = None
     try:
-        pview: PeriodView | None = (await _view(session, shop_id, prv))[0]
+        pview: PeriodView | None
+        pview, prev_rows = await _view(session, shop_id, prv)
     except RowsNotMaterialized:  # no stored days before the period: nothing to compare with
         pview = None
 
@@ -220,24 +293,29 @@ async def collect_tong_quan(
         if i.startswith(UNMATCHED_PREFIX):
             names[i] = UNMATCHED_LABEL
 
-    async def figures(v: PeriodView | None, w: Window, pid: str | None) -> tq.Figures:
-        if v is None:
+    async def figures(
+        v: PeriodView | None, w: Window, pid: str | None, rows_: funnel.FunnelRows | None
+    ) -> tq.Figures:
+        if v is None or rows_ is None:
             return tq.Figures()
-        return _figures(await channel_split.split_figures(session, shop_id, v, w, pid))
+        fig = _figures(await channel_split.split_figures(session, shop_id, v, w, pid))
+        return partition(replace(fig, ads_basis=_ads_basis(rows_, shop_id, pid)))
 
-    shop_now = await figures(view, cur, None)
-    shop_prev = await figures(pview, prv, None)
+    shop_now = await figures(view, cur, None, frows)
+    shop_prev = await figures(pview, prv, None, prev_rows)
 
     rows: list[tq.ProductRow] = []
     ids = [product_id] if product_id else sorted(names, key=lambda i: -_gmv_of(listing, i))
     for i in ids:
-        now_fig = await figures(view, cur, i)
-        rows.append(tq.ProductRow(i, names.get(i, i), now_fig, await figures(pview, prv, i)))
+        now_fig = await figures(view, cur, i, frows)
+        rows.append(
+            tq.ProductRow(i, names.get(i, i), now_fig, await figures(pview, prv, i, prev_rows))
+        )
     if product_id:  # the Sản phẩm level: the file's period figures are the product's
         shop_now, shop_prev = rows[0].now, rows[0].prev
     else:
         rest = tq.ProductRow(
-            tq.SHOP_ROW_LABEL, "", _residual(shop_now, [r.now for r in rows]),
+            tq.SHOP_ROW_LABEL, tq.SHOP_ROW_NAME, _residual(shop_now, [r.now for r in rows]),
             _residual(shop_prev, [r.prev for r in rows]),
         )  # fmt: skip
         rows.append(rest)
@@ -274,19 +352,57 @@ async def collect_tong_quan(
                 total_orders=None if sd is None else _f(sd.orders),
             )  # fmt: skip
         )
-    skus = await _sku_rows(session, shop_id, view, cur, list(ids), names)
+    skus = await _sku_rows(session, shop_id, view, cur, list(ids), names, now)
+    goal_gmv, goal_profit = await _goal(session, shop_id, cur, view, now, product_id)
+    months = await _month_rows(
+        session, shop_id, cur, view, {(prv.start, prv.end): pview} if pview else {}
+    )
+    koc, share = await _koc(session, shop_id, cur, product_id, shop_now, shop_prev)
+    analysis = await _analysis(session, shop_id, cur, product_id, names, now, shop_name, platform)
     return tq.TongQuanData(
         shop_name, cur.start, cur.end, prv.start, prv.end, shop_now, shop_prev, days, rows,
         platform, product_name=names.get(product_id, product_id) if product_id else None,
-        product_id=product_id, skus=skus,
+        product_id=product_id, skus=skus, prev_kind=prev_kind, goal_gmv=goal_gmv,
+        goal_profit=goal_profit, months=months, koc=koc, affiliate_share=share,
+        analysis=analysis,
     )  # fmt: skip
+
+
+async def _stock_facts(
+    session: AsyncSession, shop_id: uuid.UUID, now: datetime
+) -> tuple[dict[tuple[str, str], stock_data.SkuState], date]:
+    """The stock alert's own facts of every variation (``stock_alert.data.load_states``: Kho hàng
+    first, then sellable; its sell rate and its days-left walk), keyed (item id, model id)."""
+    moment = now.astimezone(UTC).replace(tzinfo=None) if now.tzinfo else now
+    today = stock_basis.local_day(moment)
+    states, _catalog = await stock_data.load_states(session, shop_id, today, moment)
+    return {(st.facts.item_id, st.facts.model_id): st for st in states}, today
+
+
+def _stock_of(
+    states: Mapping[tuple[str, str], stock_data.SkuState], today: date, product_id: str,
+    variation_id: str, only_sku: bool,
+) -> tuple[float | None, float | None, float | None]:  # fmt: skip
+    """(tồn kho, bán / ngày, còn ~ ngày) of one SKU as the stock alert has them; ``None`` = the
+    alert has no usable read / no forecast for it."""
+    st = states.get((product_id, variation_id)) or (
+        states.get((product_id, "")) if only_sku else None
+    )
+    if st is None:
+        return None, None, None
+    rate = st.facts.base
+    if st.stock is None:
+        return None, rate, None
+    left = stock_forecast.days_left(st.stock.stock, rate, today, st.facts.effects).days_left
+    return float(st.stock.stock), rate, None if left is None else float(left)
 
 
 async def _sku_rows(
     session: AsyncSession, shop_id: uuid.UUID, view: PeriodView, window: Window,
-    product_ids: list[str], names: dict[str, str],
+    product_ids: list[str], names: dict[str, str], now: datetime,
 ) -> list[tq.SkuRow]:  # fmt: skip
-    """The "Theo SKU" rows (``exports/sku``): actuals of the period and stock at its end."""
+    """The "Theo SKU" rows (``exports/sku``): actuals of the period; tồn kho, bán / ngày and còn
+    ~ ngày as the stock alert has them."""
     now_figs = await skumod.sku_figures(session, shop_id, view, window)
     ctx = await loaders.load_context(session, shop_id)
     catalog_variations = {
@@ -294,20 +410,76 @@ async def _sku_rows(
         for pid in product_ids
         if (info := ctx.catalog.items.get(pid)) is not None
     }
-    stock = await skumod.stock_at(session, shop_id, product_ids, window.end)
     rows = skumod.build_rows(
-        product_ids=product_ids, names=names, now=now_figs, base={}, plans={}, stock=stock,
-        catalog_variations=catalog_variations, finished=True,
+        product_ids=product_ids, names=names, now=now_figs, base={}, plans={},
+        stock=skumod.Stock(), catalog_variations=catalog_variations, finished=True,
     )  # fmt: skip
+    states, today = await _stock_facts(session, shop_id, now)
+    per_product: dict[str, int] = {}
+    for r in rows:
+        per_product[r.key[0]] = per_product.get(r.key[0], 0) + 1
     out = []
     for r in rows:
         code, combo = split_sku(r.sku)
+        stock, rate, left = _stock_of(states, today, r.key[0], r.key[2], per_product[r.key[0]] == 1)
         out.append(
             tq.SkuRow(
-                code, r.variation, r.product_name, r.units, r.revenue, r.profit, r.stock, combo
+                code,
+                r.variation,
+                r.product_name,
+                r.units,
+                r.revenue,
+                r.profit,
+                stock,
+                rate,
+                left,
+                combo,
             )  # fmt: skip
         )
     return out
+
+
+async def _koc(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window, product_id: str | None,
+    shop_now: tq.Figures, shop_prev: tq.Figures,
+) -> tuple[list[rs.KocRow], rs.AffiliateShare]:  # fmt: skip
+    """ "KOC": the Phân tích › KOL section's rows of the period summed per KOC (its own previous
+    period: the same number of days before), and Tiếp thị liên kết's share of the shop's GMV."""
+    share = rs.AffiliateShare(
+        shop_now.channel("affiliate").gmv, shop_now.gmv, shop_prev.channel("affiliate").gmv,
+        shop_prev.gmv,
+    )  # fmt: skip
+    try:
+        section = await metric_view.kol_section(
+            session, shop_id, audience="seller", period="custom", start=window.start,
+            end=window.end,
+        )  # fmt: skip
+    except RowsNotMaterialized:
+        return [], share
+    if product_id is not None:
+        section = {**section, "rows": [r for r in section["rows"] if r["item_id"] == product_id]}
+    return rs.koc_rows(section), share
+
+
+async def _analysis(
+    session: AsyncSession, shop_id: uuid.UUID, window: Window, product_id: str | None,
+    names: dict[str, str], now: datetime, shop_name: str, platform: str,
+) -> list[rs.AnalysisRow]:  # fmt: skip
+    """ "Phân tích & đề xuất": Phân tích's critical metrics (``queries.critical``) and the cards
+    Juli created for them (the Kế hoạch's cards, ``_cards_of``)."""
+    try:
+        crit = await queries.critical(
+            session, shop_id, period="custom", start=window.start, end=window.end
+        )
+    except (RowsNotMaterialized, NoShopeeData):
+        return []
+    items = [it for it in crit["items"] if product_id is None or it.get("product_id") == product_id]
+    if not items:
+        return []
+    cards = await _cards_of(
+        session, shop_id, shop=shop_name, platform=platform, now=now, names=names
+    )
+    return rs.analysis_rows(items, cards)
 
 
 def split_sku(label: str) -> tuple[str, float | None]:
