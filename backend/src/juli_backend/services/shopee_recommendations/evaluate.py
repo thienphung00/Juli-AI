@@ -53,6 +53,7 @@ from juli_backend.services.shopee_profit.whatif import (
     voucher_whatif,
 )
 from juli_backend.services.shopee_recommendations import config
+from juli_backend.services.shopee_recommendations.ads_cost import budget_raise_extra_per_day
 from juli_backend.services.shopee_recommendations.env import RecoEnv, voucher_takeup
 from juli_backend.services.shopee_recommendations.kinds import spec
 from juli_backend.services.shopee_recommendations.model import Candidate, Evaluation, ProfitModel
@@ -900,9 +901,11 @@ def eval_ads(
     before_view: dict[str, Any] = {}
     after_view: dict[str, Any] = {}
     target: dict[str, Any] = {
-        "campaign_id": setting.campaign_id if setting else None,
+        "campaign_id": (setting.campaign_id if setting else None) or cand.extra.get("campaign_id"),
         "campaign_key": key,
     }
+    if not target["campaign_id"] and cand.extra.get("campaign_id_missing"):
+        target["campaign_id_missing"] = True
     ads_notes: list[str] = []
     if kind == "ads_budget" and inputs.get("unlimited"):
         # P97 D85.17: no daily cap -- spend follows the ROAS target; Juli does not invent a rise
@@ -949,6 +952,13 @@ def eval_ads(
         before_view = {"purpose": setting.purpose if setting else None}
         after_view = {"purpose": inputs.get("purpose")}
     dspend = spend_after - spend_now
+    # U1 (owner 2026-11-17): a budget change costs (new budget - current budget) per day, not the
+    # drift of the actual spend (100k -> 150k is +50k a day); unknown current budget keeps dspend
+    dcost = dspend
+    if kind == "ads_budget" and not inputs.get("unlimited"):
+        raise_cost = budget_raise_extra_per_day(D(inputs["daily_budget"]), budget_before)
+        if raise_cost is not None:
+            dcost = raise_cost
     be = prof["break_even_roas"]
     roas = prof["roas_direct"]
     target_roas = roas_after if roas_after is not None else roas
@@ -1000,8 +1010,8 @@ def eval_ads(
         base_gmv_per_day=base_gmv_per_day,
         aov=None,
         profit_per_gmv=ppg,
-        extra_cost_per_day=dspend,
-        dchi_per_day=dspend,
+        extra_cost_per_day=dcost,
+        dchi_per_day=dcost,
         base_label="gmv_quang_cao_don_da_dat",
     )
     return Evaluation(
@@ -1012,7 +1022,7 @@ def eval_ads(
         before=before_view,
         after=after_view,
         target=target,
-        spend_check=_spend_check(env, dspend),
+        spend_check=_spend_check(env, dcost),
         notes=["Quảng cáo tính theo đơn đã đặt; không cộng vào tổng đơn đã xác nhận.", *ads_notes],
     )
 

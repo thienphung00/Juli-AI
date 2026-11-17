@@ -9,6 +9,7 @@ import { bandText, breakEvenText, floorWarningText, marginText, metricValue, ref
 import { TextChip } from "../../shopee-analytics/ui";
 import { OptionCard } from "../option-card";
 import { perDayText, periodLabel, resultDays, signedCount, signedMoney } from "../option-card/format";
+import { NOISE_TAG, deltaOf, hasCost, profitVerdict, reasonLine, strategyOfResult } from "../../../lib/shopee-decisions/card-rows";
 import { roiLabel, staleText, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TargetRows } from "./targets";
 
@@ -216,11 +217,9 @@ export function WarningLines({ outcome: o }: { readonly outcome: BuilderOutcome 
 
 export type VerdictTone = "up" | "down" | "flat";
 
-/** "Có lãi" when the change adds profit, "Lỗ phần thêm 150.000đ" when it loses; flat when not estimable. */
+/** "Có lãi" only when Δ lợi nhuận > 0; "Lỗ phần thêm …" when it loses; flat otherwise (one rule for header, row and badge). */
 export function verdictOf(r: OptionResult): { readonly text: string; readonly tone: VerdictTone } {
-  const v = r.delta.profit?.value;
-  if (!r.estimable || v === null || v === undefined) return { text: "—", tone: "flat" };
-  return v >= 0 ? { text: "Có lãi", tone: "up" } : { text: `Lỗ phần thêm ${vnd(Math.round(-v))}`, tone: "down" };
+  return profitVerdict(r);
 }
 
 /** A finding for the ads edit, e.g. "Chiến dịch đang có lãi: CPA 33.333đ, hoà vốn 50.000đ". */
@@ -257,13 +256,13 @@ export function CpaBar({ cpaNow, cpaAfter, breakEven }: { readonly cpaNow: numbe
   );
 }
 
-function Tile({ label, total, days, testId, why }: { readonly label: string; readonly total: number | null | undefined; readonly days: number; readonly testId: string; readonly why?: string }) {
+function Tile({ label, total, days, testId, why, noise = false }: { readonly label: string; readonly total: number | null | undefined; readonly days: number; readonly testId: string; readonly why?: string; readonly noise?: boolean }) {
   const per = perDayText(total, days);
   const tone = total === null || total === undefined ? "flat" : total < 0 ? "down" : "up";
   return (
     <div className="p3-tile" data-testid={testId}>
       <div className="p3-tile__label">{label}</div>
-      <div className={`p3-tile__value sa-tone--${tone}`} title={total === null || total === undefined ? why : undefined}>{signedMoney(total)}</div>
+      <div className={`p3-tile__value sa-tone--${tone}`} title={total === null || total === undefined ? why : undefined}>{signedMoney(total)}{noise && total !== null && total !== undefined ? ` ${NOISE_TAG}` : ""}</div>
       {per ? <div className="p3-tile__per" data-testid={`${testId}-perday`}>{per}</div> : null}
     </div>
   );
@@ -295,14 +294,25 @@ export function ResultCard({ result: r, name, breakEven = false, children }: { r
     if (a.incremental.orders_extra !== null) rows.push({ key: "lost", label: "Trong đó đơn mất thật", text: signedCount(a.incremental.orders_extra) });
     rows.push({ key: "profit", label: "Lợi nhuận sau quảng cáo", text: arrow(a.profit_after_ads.now === null ? DASH : vnd(a.profit_after_ads.now), a.profit_after_ads.after === null ? null : vnd(a.profit_after_ads.after)) });
     rows.push({ key: "roas", label: "ROAS Shopee", text: arrow(a.roas_shopee.now === null ? DASH : fmt(a.roas_shopee.now, 1), a.roas_shopee.after === null ? null : fmt(a.roas_shopee.after, 1)) });
+  } else if (!r.estimable) {
+    // one line saying why, never a wall of "Không tính được"
+    rows.push({ key: "reason", label: "Chưa ước tính được", text: reasonLine(r) });
   } else {
-    rows.push({ key: "orders", label: "Δ đơn", text: r.estimable ? signedCount(r.delta.orders.value) : "—" });
-    rows.push({ key: "cost", label: "Chi phí", text: r.cost.total > 0 ? vnd(r.cost.total) : r.cost.total < 0 ? `Giảm ${vnd(-r.cost.total)}` : "Không có chi phí thêm" });
-    if (r.roi?.value !== null && r.roi?.value !== undefined) rows.push({ key: "roi", label: roiLabel(r), text: fmt(r.roi.value, 1) });
-    const m = r.margin;
-    if (m && m.before_pct !== null && m.after_pct !== null) rows.push({ key: "margin", label: "Biên lợi nhuận", text: `${pp(m.before_pct, 1)} → ${pp(m.after_pct, 1)}` });
-    const be = r.cost.break_even_orders;
-    if (breakEven && be !== null && be !== undefined) rows.push({ key: "breakeven", label: "Hoà vốn", text: `cần ≥ ${fmt(Math.ceil(be - 1e-6), 0)} đơn` });
+    const strat = strategyOfResult(r);
+    if (strat === "listing") {
+      for (const d of r.drivers_pct) if (d.pct !== null && (d.metric === "views" || d.metric === "ctr")) rows.push({ key: d.metric, label: d.label, text: `${d.pct > 0 ? "+" : d.pct < 0 ? "−" : ""}${fmt(Math.abs(d.pct), 1)}%` });
+    } else if (strat === "affiliate") {
+      if (hasCost(r)) rows.push({ key: "cost", label: "Chi phí hoa hồng", text: vnd(r.cost.total) });
+    } else {
+      rows.push({ key: "orders", label: "Δ đơn", text: `${signedCount(deltaOf(r, "orders").value)}${deltaOf(r, "orders").noise ? ` ${NOISE_TAG}` : ""}` });
+      // the cost line only when it costs; a zero cost says nothing
+      if (hasCost(r)) rows.push({ key: "cost", label: "Chi phí", text: r.cost.total > 0 ? vnd(r.cost.total) : `Giảm ${vnd(-r.cost.total)}` });
+      if (hasCost(r) && r.roi?.value !== null && r.roi?.value !== undefined) rows.push({ key: "roi", label: roiLabel(r), text: fmt(r.roi.value, 1) });
+      const m = r.margin;
+      if (m && m.before_pct !== null && m.after_pct !== null) rows.push({ key: "margin", label: "Biên lợi nhuận", text: `${pp(m.before_pct, 1)} → ${pp(m.after_pct, 1)}` });
+      const be = r.cost.break_even_orders;
+      if (breakEven && hasCost(r) && be !== null && be !== undefined) rows.push({ key: "breakeven", label: "Hoà vốn", text: `cần ≥ ${fmt(Math.ceil(be - 1e-6), 0)} đơn` });
+    }
   }
   const title = adsTitle(r);
   return (
@@ -319,10 +329,12 @@ export function ResultCard({ result: r, name, breakEven = false, children }: { r
           {v.text}
         </span>
       </div>
-      <div className="p3-tiles">
-        <Tile days={days} label={`Δ lợi nhuận ${period}`} testId="p3-dprofit" total={r.estimable ? r.delta.profit?.value : null} why={r.reason_text ?? undefined} />
-        <Tile days={days} label={`Δ GMV ${period}`} testId="p3-dgmv" total={r.estimable ? r.delta.gmv.value : null} why={r.reason_text ?? undefined} />
-      </div>
+      {strategyOfResult(r) === "listing" ? null : (
+        <div className="p3-tiles">
+          <Tile days={days} label={`Δ lợi nhuận ${period}`} noise={deltaOf(r, "profit").noise} testId="p3-dprofit" total={r.estimable ? deltaOf(r, "profit").value : null} why={r.reason_text ?? undefined} />
+          <Tile days={days} label={`Δ GMV ${period}`} noise={deltaOf(r, "gmv").noise} testId="p3-dgmv" total={r.estimable ? deltaOf(r, "gmv").value : null} why={r.reason_text ?? undefined} />
+        </div>
+      )}
       {a ? <CpaBar breakEven={a.break_even_cpa} cpaAfter={a.cpa.after} cpaNow={a.cpa.now} /> : null}
       <table className="p3-rows">
         <tbody>

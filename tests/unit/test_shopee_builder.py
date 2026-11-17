@@ -435,6 +435,31 @@ async def test_the_basis_label_is_product_history_then_shop_then_prior_then_insu
 # ==================== the picker
 
 
+def test_one_source_for_cost_known_picker_and_result():
+    from juli_backend.services.shopee_builder.cost_known import skus_costed
+
+    class Costs:
+        def cogs_is_real(self, key):
+            return key == "real"
+
+    assert skus_costed(Costs(), ["real"]) is True
+    assert skus_costed(Costs(), ["real", "assumed"]) is False
+    assert skus_costed(Costs(), []) is None
+
+
+async def test_the_picker_says_missing_cost_when_the_result_would(session, shop, monkeypatch):
+    """U1: the picker's "có giá vốn" and the result's "Chưa có giá vốn" read the same function."""
+    from juli_backend.services.shopee_builder import catalogue
+
+    monkeypatch.setattr(catalogue, "skus_costed", lambda costs, skus: False)
+    out = await builder.products(session, shop.shop_id, as_of=AS_OF)
+    assert all(
+        p["has_cost"] is False and p["missing_cost_chip"] == "thiếu giá vốn"
+        for p in out["products"]
+        if p["orders_90d"]
+    )
+
+
 async def test_the_picker_lists_every_active_listing_by_90_day_gmv(session, shop):
     out = await builder.products(session, shop.shop_id, as_of=AS_OF)
     ids = [p["item_id"] for p in out["products"]]
@@ -912,6 +937,37 @@ async def test_an_ads_edit_can_be_chosen(session, shop):
     )
     assert out["card"]["change_kind"] == "ads_budget"
     assert out["outcome"]["ok"] and out["outcome"]["result"]["ads"]["lever"] == "budget"
+
+
+async def test_a_budget_raise_costs_the_same_extra_on_the_card_and_in_step_4(session, shop):
+    """U1: one rule -- (new - current budget) x days, never the full budget -- for the saved card
+    and for Tự tạo step 4."""
+    camps = await builder.ads_campaigns(session, shop.shop_id, as_of=AS_OF, now=NOW)
+    camp = camps["campaigns"][0]
+    now_budget = camp["daily_budget"]
+    spec = S(
+        kind="ads",
+        lever="budget",
+        campaign_key=camp["campaign_key"],
+        daily_budget=now_budget + 120_000,
+    )
+    out = await builder.choose(
+        session,
+        shop.shop_id,
+        [spec],
+        0,
+        primary=False,
+        acknowledge_breaches=True,
+        actor=manual.Actor("seller", shop.user.id),
+        as_of=AS_OF,
+        now=NOW,
+    )
+    step4 = out["outcome"]["result"]["cost"]["total"]
+    spend = out["card"]["spend"]
+    card = spend["card_dchi_per_day"] * spend["card_days"]
+    days = out["outcome"]["result"]["days"]
+    assert step4 == pytest.approx(120_000 * days)
+    assert card == pytest.approx(step4)
 
 
 async def test_an_excluded_listing_has_no_builder_entry(session, shop):

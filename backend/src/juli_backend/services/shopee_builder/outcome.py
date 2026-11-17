@@ -26,6 +26,7 @@ from typing import Any
 
 from juli_backend.services.shopee_builder import before_after
 from juli_backend.services.shopee_builder.context import BuilderContext
+from juli_backend.services.shopee_builder.cost_known import skus_costed
 from juli_backend.services.shopee_builder.engine import wire
 from juli_backend.services.shopee_builder.reasons import profit_reason, reason_fields, text_for
 from juli_backend.services.shopee_builder.traffic import break_even_ctor, scope_traffic
@@ -174,7 +175,7 @@ def items_cost_known(ctx: BuilderContext, items: Sequence[str]) -> tuple[bool, l
     missing = []
     for item in dict.fromkeys(items):
         skus = env.skus_of(item)
-        if skus and all(env.view.costs.cogs_is_real(s) for s in skus):
+        if skus_costed(env.view.costs, skus) is True:
             continue
         if not skus and all(r["has_cost"] for r in ctx.rows(item)) and ctx.rows(item):
             continue

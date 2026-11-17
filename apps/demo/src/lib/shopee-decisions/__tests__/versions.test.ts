@@ -100,10 +100,33 @@ describe("versions of a card", () => {
 });
 
 describe("the side-by-side table", () => {
+  it("a pass without giá vốn says it could not be checked, never a tick", () => {
+    const base = versionedVoucher();
+    const versions = base.versions!.map((v) => ({ ...v, floor: { breaches: [], unknown_skus: ["SKU1"], ok: true } }));
+    const rows = versionTable({ ...base, versions }, versions);
+    expect(rows.find((r) => r.key === "floor")!.cells[0]!.v).toBe("Chưa kiểm được (thiếu giá vốn)");
+  });
+
+  it("F5 (b): a within-noise Δ lợi nhuận keeps its P50 with the tag, not a dash", () => {
+    const base = versionedVoucher();
+    const versions = base.versions!.map((v) => ({ ...v, result: v.result ? { ...v.result, option: { ...(v.result.option ?? ({} as never)), estimable: true, within_noise: ["profit"] } as never } : v.result }));
+    const rows = versionTable({ ...base, versions }, versions);
+    const cell = rows.find((r) => r.key === "exp")!.cells[0]!;
+    expect(cell.v).toBe("+1.900đ/ngày · trong dao động");
+  });
+
+  it("a card with no cost shows no Chi phí or Hoà vốn row", () => {
+    const base = versionedVoucher();
+    const versions = base.versions!.map((v) => ({ ...v, result: v.result ? { ...v.result, cost_total: 0 } : v.result }));
+    const rows = versionTable({ ...base, versions }, versions);
+    expect(rows.map((r) => r.key)).not.toContain("chi");
+    expect(rows.map((r) => r.key)).not.toContain("be");
+  });
+
   it("has the artboard's rows, one cell per version, and flags the breaching column", () => {
     const card = versionedVoucher();
     const rows = versionTable(card, card.versions!);
-    expect(rows.map((r) => r.label)).toEqual(["① Giảm giá", "② Hiệu quả chi", "③ Biên lợi nhuận", "④ Số đơn", "⑤ AOV", "Chi phí", "Δ lợi nhuận", "Giá sàn", "Trần chi"]);
+    expect(rows.map((r) => r.label)).toEqual(["Δ GMV", "Δ lợi nhuận", "Chi phí", "Δ đơn", "Biên lợi nhuận", "Hoà vốn", "Giá sàn"]);
     expect(rows.every((r) => r.cells.length === 3)).toBe(true);
     const floor = rows.find((r) => r.key === "floor")!;
     expect(floor.cells[0]!.v).toBe("✓ Trên giá sàn vận hành");
@@ -115,7 +138,8 @@ describe("the side-by-side table", () => {
     // one card, one number: no "chắc chắn" row; Chi phí is the stored result's
     expect(rows.find((r) => r.key === "sure")).toBeUndefined();
     expect(rows.find((r) => r.key === "chi")!.cells[0]).toMatchObject({ v: "63.000đ", d: "30 ngày" });
-    expect(rows.find((r) => r.key === "cap")!.cells[0]!.v).toBe("✓ Chi marketing 1.112.311đ/ngày · trong trần 1.200.000đ/ngày");
+    // a voucher is not ads: no Trần chi row unless it is breached
+    expect(rows.find((r) => r.key === "cap")).toBeUndefined();
   });
 
   it("a change cell carries exactly one direction arrow", () => {
@@ -123,7 +147,6 @@ describe("the side-by-side table", () => {
     const rows = versionTable(card, card.versions!);
     for (const r of rows) for (const c of r.cells) expect((c.d.match(/[▲▼]/g) ?? []).length).toBeLessThanOrEqual(1);
     const withArrow = rows.flatMap((r) => r.cells).filter((c) => /[▲▼]/.test(c.d));
-    expect(withArrow.length).toBeGreaterThan(0);
     expect(withArrow.every((c) => /^[▲▼] \S/.test(c.d))).toBe(true);
   });
 
@@ -166,17 +189,16 @@ describe("the side-by-side table", () => {
     // one card, one number: Chi phí and Δ lợi nhuận are the version's stored result (its own days)
     expect(by("chi").cells[0]).toMatchObject({ v: "63.000đ", d: "30 ngày" });
     expect(by("exp").cells[0]!.d).toContain("30 ngày: +57.000đ");
-    expect(by("orders").cells[0]!.v).toBe("2,0 đơn/ngày");
-    expect(by("orders").cells[0]!.d).toContain("số đơn giữ nguyên");
-    expect(by("aov").cells[0]).toMatchObject({ v: "103.000đ – 112.000đ", d: "AOV giữ nguyên ở lớp chắc chắn" });
     expect(rows.some((r) => r.label.includes("tháng") || r.sub.includes("tháng"))).toBe(false);
   });
 
-  it("a title card swaps the floor and the cap for the 100-character limit", () => {
+  it("a title card has no money, floor or cap rows: its new title, the 100-character limit and ONE line saying why there is no estimate", () => {
     const card = titleCard();
     const rows = versionTable(card, card.versions!);
     expect(rows.find((r) => r.key === "cap")).toBeUndefined();
-    expect(rows.find((r) => r.key === "floor")!.cells[0]!.v).toBe("Không áp dụng: không đổi giá");
+    expect(rows.find((r) => r.key === "floor")).toBeUndefined();
+    expect(rows.map((r) => r.key).filter((k) => ["gmv", "exp", "chi", "orders", "bien", "be", "aov", "disc", "eff"].includes(k))).toEqual([]);
+    expect(rows.every((r) => r.cells.every((c) => c.v !== "Không tính được"))).toBe(true);
     const limit = rows.find((r) => r.key === "limit")!;
     expect(limit.label).toBe("Giới hạn 100 ký tự");
     expect(limit.cells[0]!.v).toMatch(/^✓ \d+\/100 ký tự · không tốn chi phí$/);

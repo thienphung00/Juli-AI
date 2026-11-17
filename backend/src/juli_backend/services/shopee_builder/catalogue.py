@@ -25,6 +25,7 @@ from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import num
 from juli_backend.services.shopee_analytics.loaders import ShopContext
 from juli_backend.services.shopee_builder import picker_table
+from juli_backend.services.shopee_builder.cost_known import skus_costed
 from juli_backend.services.shopee_builder.variations import observed_skus
 from juli_backend.services.shopee_profit.money import ZERO
 from juli_backend.services.shopee_recommendations.unit_cost import unit_cost
@@ -128,6 +129,9 @@ def picker(
     m90 = view.metrics
     m30 = view30.metrics if view30 is not None else None
     seen_skus = observed_skus(view.lines)
+    line_skus: dict[str, set[str]] = defaultdict(set)
+    for ln, _ in view.pairs:
+        line_skus[ln.product_id].add(ln.sku)
     # Order lines whose SKU matched no listing carry a placeholder id ("sku:…"): they are not a
     # product the seller can act on, so they are counted apart instead of listed.
     unmatched = {i for i in orders90 if i.startswith(SKU_PREFIX) and i not in ctx.catalog.items}
@@ -158,6 +162,10 @@ def picker(
         )
         orders90_item = s90.orders if s90 else len(orders90.get(item_id, ()))
         all_costed, with_cost, n_var = _item_has_cost(ctx, item_id, seen_skus.get(item_id))
+        # the result's own answer (profit engine) wins: one source for "có giá vốn"
+        costs = getattr(view, "costs", None)  # a bare test view carries none
+        if costs is not None and skus_costed(costs, sorted(line_skus.get(item_id, ()))) is False:
+            all_costed = False
         rows.append(
             {
                 "item_id": item_id,

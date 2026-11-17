@@ -1,7 +1,9 @@
 import { DASH, fmt, vnCount, vnd, type Tone } from "../shopee-analytics/format";
 import { parseServerIso } from "../vn-format";
-import { expectedRows, sureRows, vnWhen } from "./model";
-import { aovText, ordersText, sm, um, unitsOf } from "./units";
+import { NOISE_TAG, deltaOf, reasonLine, strategyOf } from "./card-rows";
+import { vnWhen } from "./model";
+import type { OptionResult } from "./option-result";
+import { sm, um } from "./units";
 import type { Breach, Card, CardDetail, CardSummary, CardVersion, N, ProductMeasuring, VersionBrief } from "./types";
 
 /**
@@ -217,7 +219,9 @@ export function oneLiveValue(kind: string): boolean {
     kind === "title" ||
     kind === "price" ||
     kind === "cover" ||
+    kind === "cover_image" ||
     kind === "description" ||
+    kind === "description_first_line" ||
     kind === "main_image" ||
     kind === "discount" ||
     kind.includes("budget") ||
@@ -270,128 +274,219 @@ function rowFrom(key: string, label: string, sub: string, today: string | null, 
 /** "Chưa ước tính được": a version without an estimable result. */
 export const NOT_ESTIMABLE = "Chưa ước tính được";
 
-/** The versions as columns next to "Hôm nay": rows ①…⑤, Chi phí and Δ lợi nhuận (the stored result), giá sàn and trần chi (or the title limit). */
+/** The versions as columns next to "Hôm nay". U1 (2026-11-17): the rows follow the card's kind (`card-rows.ts`): a listing change has its field and no money rows, an offer has Δ GMV · Δ lợi nhuận · Δ đơn · biên (and Chi phí / hoà vốn only when it costs), ads and affiliate their own; a row that cannot be computed is one line saying why. */
 export function versionTable(card: Card, versions: readonly CardVersion[]): TableRow[] {
   const per = versions.map((v) => {
     if (isRefused(v) || !v.five_numbers) return null;
-    const c = cardOfVersion(card, v);
-    return { v, c, sure: sureRows(c), exp: expectedRows(c) };
+    return { v, c: cardOfVersion(card, v) };
   });
-  const first = per.find((p) => p !== null) ?? null;
+  const strat = strategyOf(card.change_kind, card.family);
   const title = isTitleKind(card);
-  const cellOf = (pick: (p: NonNullable<(typeof per)[number]>) => TableCell): TableCell[] => per.map((p) => (p ? pick(p) : { v: "Không tính được", d: "", tone: "muted" as const, bad: false }));
-  const fromRow = (rows: "sure" | "exp", i: number, delta: "dp" | "dv"): ((p: NonNullable<(typeof per)[number]>) => TableCell) => (p) => {
-    const r = p[rows][i]!;
-    const d = delta === "dp" ? r.dp : r.dv;
-    // `d` already leads with the direction arrow (▲ / ▼, none for no change): never add a second one.
-    return { v: r.after, d: d && d !== DASH ? d : "", tone: r.tone, bad: false };
+  const optOf = (p: NonNullable<(typeof per)[number]>): OptionResult | null => p.v.result?.option ?? null;
+  const muted = (v: string): TableCell => ({ v, d: "", tone: "muted", bad: false });
+  const cellOf = (pick: (p: NonNullable<(typeof per)[number]>) => TableCell): TableCell[] => per.map((p) => (p ? pick(p) : muted(NOT_COMPUTED)));
+  const anyEstimable = per.some((p) => p?.v.result?.estimable === true);
+  const money = (n: N, days: N | null | undefined, noise = false): TableCell => {
+    if (!num(n)) return muted(DASH);
+    const d = num(days) && days > 0 ? `${fmt(days, 0)} ngày: ${sm(n)}` : "";
+    const v = num(days) && days > 0 ? `${sm(n / days)}/ngày` : sm(n);
+    return { v: noise ? `${v} ${NOISE_TAG}` : v, d, tone: noise ? "muted" : n > 0 ? "up" : n < 0 ? "down" : "flat", bad: false };
   };
-  const rows: TableRow[] = [
-    rowFrom("disc", "① Giảm giá", "% GMV niêm yết", first?.sure[0]?.before ?? null, cellOf(fromRow("sure", 0, "dp"))),
-    rowFrom("eff", "② Hiệu quả chi", "ΔGMV ÷ Δchi", null, cellOf((p) => ({ v: p.exp[1]!.after, d: "", tone: "plain", bad: false }))),
-    rowFrom("bien", "③ Biên lợi nhuận", "trên tiền khách trả", first?.sure[2]?.before ?? null, cellOf(fromRow("exp", 2, "dp"))),
-    rowFrom(
-      "orders",
-      "④ Số đơn",
-      "theo mô hình",
-      first?.exp[3]?.before ?? null,
-      cellOf((p) => {
-        const o = ordersText(p.c);
-        if (!o) return fromRow("exp", 3, "dv")(p);
-        return { v: o.perDay, d: `${fmt(unitsOf(p.c).days, 0)} ngày: ${o.period}${o.changes ? "" : " · số đơn giữ nguyên (đòn bẩy giỏ hàng)"}`, tone: "plain", bad: false };
-      }),
-    ),
-    rowFrom(
-      "aov",
-      "⑤ AOV",
-      "GMV ÷ số đơn",
-      first?.exp[4]?.before ?? null,
-      cellOf((p) => {
-        const a = aovText(p.c);
-        if (!a) return fromRow("exp", 4, "dv")(p);
-        return { v: a.range, d: a.certain, tone: "plain", bad: false };
-      }),
-    ),
-    rowFrom(
-      "chi",
-      "Chi phí",
-      "cả các ngày của phương án",
+  const gmvRow = rowFrom(
+    "gmv",
+    "Δ GMV",
+    "kết quả mô phỏng, như Tự tạo",
+    null,
+    cellOf((p) => {
+      const r = p.v.result;
+      if (!r || !r.estimable) return muted(NOT_ESTIMABLE);
+      const o = optOf(p);
+      return money(r.own?.delta?.gmv?.p50 ?? null, r.own?.days, Boolean(o?.estimable && o.within_noise?.includes("gmv")));
+    }),
+  );
+  const profitRow = rowFrom(
+    "exp",
+    "Δ lợi nhuận",
+    "kết quả mô phỏng, như Tự tạo",
+    null,
+    cellOf((p) => {
+      const r = p.v.result;
+      if (!r || !r.estimable) return muted(NOT_ESTIMABLE);
+      const o = optOf(p);
+      return money(r.own?.delta?.profit?.p50 ?? null, r.own?.days, Boolean(o?.estimable && o.within_noise?.includes("profit")));
+    }),
+  );
+  const costRow = rowFrom(
+    "chi",
+    strat === "affiliate" ? "Chi phí hoa hồng" : "Chi phí",
+    "cả các ngày của phương án",
+    null,
+    cellOf((p) => {
+      // one card, one number: the version's stored result (Tự tạo's Chi phí), never the money layer
+      const cost = p.v.result?.cost_total;
+      const days = p.v.result?.own?.days;
+      if (!num(cost)) return muted(DASH);
+      const d = num(days) ? `${fmt(days, 0)} ngày` : "";
+      return { v: cost > 0 ? vnd(Math.round(cost)) : cost < 0 ? `Giảm ${vnd(Math.round(-cost))}` : DASH, d, tone: cost > 0 ? "down" : cost < 0 ? "up" : "muted", bad: false };
+    }),
+  );
+  const anyCost = per.some((p) => num(p?.v.result?.cost_total) && Math.abs(p!.v.result!.cost_total as number) >= 0.5);
+  const floorRow = rowFrom(
+    "floor",
+    "Giá sàn",
+    "giỏ nhỏ nhất đủ điều kiện",
+    null,
+    cellOf((p) => {
+      const f = p.c.floor;
+      // a pass without the inputs is not a pass: say it could not be checked
+      if (f.ok && (f.unknown_skus?.length ?? 0) > 0) return { v: "Chưa kiểm được (thiếu giá vốn)", d: "", tone: "muted", bad: false };
+      if (f.ok) return { v: "✓ Trên giá sàn vận hành", d: "", tone: "plain", bad: false };
+      const b = f.breaches[0];
+      const text = b ? `✕ Khách trả ${vnd(b.min_unit_price)} < sàn ${vnd(b.floor)}${num(b.floor) && num(b.min_unit_price) ? ` (thiếu ${vnd(b.floor - b.min_unit_price)})` : ""}` : "✕ Chạm giá sàn";
+      return { v: f.breaches.length > 1 ? `${text} · +${f.breaches.length - 1} SKU` : text, d: "", tone: "down", bad: true };
+    }),
+  );
+  const capRow = (always: boolean): TableRow | null => {
+    const show = always || per.some((p) => p?.c.spend?.over_cap === true);
+    if (!show) return null;
+    return rowFrom(
+      "cap",
+      "Trần chi",
+      "chi marketing / ngày",
       null,
       cellOf((p) => {
-        // one card, one number: the version's stored result (Tự tạo's Chi phí), never the money layer
-        const r = p.v.result;
-        const cost = r?.cost_total;
-        const days = r?.own?.days;
-        if (!r || !num(cost)) return { v: DASH, d: "", tone: "plain", bad: false };
-        const d = num(days) ? `${fmt(days, 0)} ngày` : "";
-        if (Math.abs(cost) < 1) return { v: "Không có chi phí thêm", d, tone: "plain", bad: false };
-        return { v: cost > 0 ? vnd(Math.round(cost)) : `Giảm ${vnd(Math.round(-cost))}`, d, tone: cost > 0 ? "down" : "up", bad: false };
+        const s = p.c.spend;
+        if (!s || !num(s.shop_chi_per_day_after)) return muted(DASH);
+        const over = s.over_cap === true;
+        const cap = num(s.cap) ? (over ? `vượt trần ${vnd(s.cap)}/ngày` : `trong trần ${vnd(s.cap)}/ngày`) : "chưa đặt trần";
+        return { v: `${over ? "✕" : "✓"} Chi marketing ${vnd(s.shop_chi_per_day_after)}/ngày · ${cap}`, d: "", tone: over ? "down" : "plain", bad: over };
       }),
-    ),
-    rowFrom(
-      "exp",
-      "Δ lợi nhuận",
-      "kết quả mô phỏng, như Tự tạo",
-      null,
-      cellOf((p) => {
-        const r = p.v.result;
-        const q = r?.own?.delta?.profit;
-        const days = r?.own?.days;
-        if (!r || !r.estimable || !q || !num(q.p50) || !num(days)) return { v: NOT_ESTIMABLE, d: "", tone: "muted", bad: false };
-        const per = (n: N) => (num(n) ? n / days : null);
-        // forecast grill F4: the likely value (P50) only, per day and over the card's days
-        return { v: `${sm(per(q.p50))}/ngày`, d: `${fmt(days, 0)} ngày: ${sm(q.p50)}`, tone: q.p50! > 0 ? "up" : q.p50! < 0 ? "down" : "flat", bad: false };
-      }),
-    ),
-    rowFrom(
-      "floor",
-      "Giá sàn",
-      title ? "" : "giỏ nhỏ nhất đủ điều kiện",
-      null,
-      cellOf((p) => {
-        if (title) return { v: "Không áp dụng: không đổi giá", d: "", tone: "plain", bad: false };
-        const f = p.c.floor;
-        if (f.ok) return { v: "✓ Trên giá sàn vận hành", d: "", tone: "plain", bad: false };
-        const b = f.breaches[0];
-        const text = b ? `✕ Khách trả ${vnd(b.min_unit_price)} < sàn ${vnd(b.floor)}${num(b.floor) && num(b.min_unit_price) ? ` (thiếu ${vnd(b.floor - b.min_unit_price)})` : ""}` : "✕ Chạm giá sàn";
-        return { v: f.breaches.length > 1 ? `${text} · +${f.breaches.length - 1} SKU` : text, d: "", tone: "down", bad: true };
-      }),
-    ),
-  ];
-  if (title) {
+    );
+  };
+  const rows: TableRow[] = [];
+  if (strat === "listing") {
     rows.push(
       rowFrom(
-        "limit",
-        "Giới hạn 100 ký tự",
-        "mọi tiêu đề",
+        "change",
+        "Thay đổi",
+        "giá trị mới",
         null,
         cellOf((p) => {
-          const n = titleOf(p.v.inputs).length;
-          const over = n > MAX_TITLE_CHARS;
-          return { v: over ? `✕ ${n}/100 ký tự: quá giới hạn` : `✓ ${n}/100 ký tự · không tốn chi phí`, d: "", tone: over ? "down" : "plain", bad: over };
+          const after = Object.values(p.c.change?.after ?? {}).find((x): x is string => typeof x === "string" && x.length > 0);
+          return after ? { v: after.length > 120 ? `${after.slice(0, 117)}…` : after, d: "", tone: "plain", bad: false } : muted(DASH);
         }),
       ),
     );
-  } else {
+    if (title) {
+      rows.push(
+        rowFrom(
+          "limit",
+          "Giới hạn 100 ký tự",
+          "mọi tiêu đề",
+          null,
+          cellOf((p) => {
+            const n = titleOf(p.v.inputs).length;
+            const over = n > MAX_TITLE_CHARS;
+            return { v: over ? `✕ ${n}/100 ký tự: quá giới hạn` : `✓ ${n}/100 ký tự · không tốn chi phí`, d: "", tone: over ? "down" : "plain", bad: over };
+          }),
+        ),
+      );
+    }
+    if (anyEstimable) {
+      for (const m of ["views", "ctr"] as const) {
+        const label = m === "views" ? "Δ lượt xem" : "Δ CTR";
+        if (!per.some((p) => optOf(p!)?.drivers_pct.some((d) => d.metric === m && d.pct !== null))) continue;
+        rows.push(
+          rowFrom(
+            m,
+            label,
+            "kết quả mô phỏng",
+            null,
+            cellOf((p) => {
+              const d = optOf(p)?.drivers_pct.find((x) => x.metric === m)?.pct;
+              return num(d) ? { v: `${d > 0 ? "+" : d < 0 ? "−" : ""}${fmt(Math.abs(d), 1)}%`, d: "", tone: d > 0 ? "up" : d < 0 ? "down" : "flat", bad: false } : muted(DASH);
+            }),
+          ),
+        );
+      }
+    } else {
+      // one line saying why, not nine rows of "Không tính được"
+      rows.push(rowFrom("why", "Kết quả", "chưa ước tính được", null, cellOf((p) => muted(reasonLine(p.v.result?.option ?? null) || NOT_ESTIMABLE))));
+    }
+    return rows;
+  }
+  if (strat === "ads" || strat === "affiliate") {
+    rows.push(gmvRow, costRow);
+    if (strat === "ads") {
+      const adsRow = (key: string, label: string, text: (a: NonNullable<OptionResult["ads"]>) => string | null): TableRow =>
+        rowFrom(key, label, "dịch vụ hiển thị", null, cellOf((p) => {
+          const a = optOf(p)?.ads;
+          const t = a ? text(a) : null;
+          return t ? { v: t, d: "", tone: "plain", bad: false } : muted(DASH);
+        }));
+      if (per.some((p) => p && optOf(p)?.ads)) {
+        rows.push(
+          adsRow("adsorders", "Đơn quảng cáo", (a) => (a.orders.after === null ? null : `${fmt(a.orders.after, 0)}${a.orders.now === null ? "" : ` (${a.orders.after - a.orders.now >= 0 ? "+" : "−"}${fmt(Math.abs(a.orders.after - a.orders.now), 0)})`}`)),
+          adsRow("roas", "ROAS Shopee", (a) => (a.roas_shopee.after === null ? null : fmt(a.roas_shopee.after, 1))),
+          adsRow("cpa", "CPA / hoà vốn", (a) => (a.cpa.after === null || a.break_even_cpa === null ? null : `${fmt(a.cpa.after, 0)} / ${fmt(a.break_even_cpa, 0)}`)),
+        );
+      }
+    }
+    rows.push(profitRow);
+    const cap = capRow(true);
+    if (cap) rows.push(cap);
+    return rows;
+  }
+  // offers: voucher, combo, Deal Sốc, shop programme, price
+  rows.push(gmvRow, profitRow);
+  if (anyCost) rows.push(costRow);
+  rows.push(
+    rowFrom(
+      "orders",
+      "Δ đơn",
+      "theo mô hình",
+      null,
+      cellOf((p) => {
+        const o = optOf(p);
+        if (!o || !o.estimable) return muted(NOT_ESTIMABLE);
+        const { value: v, noise } = deltaOf(o, "orders");
+        return num(v) ? { v: `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmt(Math.abs(v), 1)} đơn${noise ? ` ${NOISE_TAG}` : ""}`, d: "", tone: v > 0 ? "up" : v < 0 ? "down" : "flat", bad: false } : muted(DASH);
+      }),
+    ),
+    rowFrom(
+      "bien",
+      "Biên lợi nhuận",
+      "trước → sau",
+      null,
+      cellOf((p) => {
+        const m = optOf(p)?.margin;
+        return m && num(m.before_pct) && num(m.after_pct) ? { v: `${fmt(m.before_pct, 1)}% → ${fmt(m.after_pct, 1)}%`, d: "", tone: "plain", bad: false } : muted(DASH);
+      }),
+    ),
+  );
+  if (anyCost) {
     rows.push(
       rowFrom(
-        "cap",
-        "Trần chi",
-        "chi marketing / ngày",
+        "be",
+        "Hoà vốn",
+        "số đơn thêm cần có",
         null,
         cellOf((p) => {
-          const s = p.c.spend;
-          if (!s || !num(s.shop_chi_per_day_after)) return { v: DASH, d: "", tone: "muted", bad: false };
-          const over = s.over_cap === true;
-          const cap = num(s.cap) ? (over ? `vượt trần ${vnd(s.cap)}/ngày` : `trong trần ${vnd(s.cap)}/ngày`) : "chưa đặt trần";
-          return { v: `${over ? "✕" : "✓"} Chi marketing ${vnd(s.shop_chi_per_day_after)}/ngày · ${cap}`, d: "", tone: over ? "down" : "plain", bad: over };
+          const be = optOf(p)?.cost.break_even_orders;
+          return num(be) ? { v: `≥ ${fmt(Math.ceil(be - 1e-6), 0)} đơn`, d: "", tone: "plain", bad: false } : muted(DASH);
         }),
       ),
     );
   }
+  rows.push(floorRow);
+  const cap = capRow(false);
+  if (cap) rows.push(cap);
   if (card.family === "voucher" && per.some((p) => p?.c.certain.voucher_detail)) rows.push(...voucherRows(per, versions));
   return rows;
 }
+
+/** One row for a version that could not be priced. */
+const NOT_COMPUTED = "Không tính được";
 
 type Per = { readonly v: CardVersion; readonly c: Card } | null;
 

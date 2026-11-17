@@ -20,6 +20,10 @@ NOTE_NO_GAIN = "Không thêm từ khoá nào so với hiện tại: không dự 
 NOTE_MEASURE_AFTER = "chưa ước tính được — đo sau khi chạy"
 NOTE_KOL_NOT_ESTIMABLE = "chưa ước tính được — đo sau lần gửi mẫu đầu"
 NOTE_NO_PACK_EVIDENCE = "chưa có dữ liệu cho quy cách này"
+#: Deal Sốc (Mua kèm / Quà tặng): the attach rate is read off the main product's own order lines, so
+#: it needs far fewer events than a funnel metric (``forecast_base.MIN_EVENTS``)
+MIN_ATTACH_ORDERS = 10
+NOTE_ATTACH_FEW_ORDERS = f"Sản phẩm chính chưa đủ {MIN_ATTACH_ORDERS} đơn để ước tính mua kèm."
 NOTE_FOLLOWER = "chưa biết tỉ lệ người theo dõi"
 #: P100-C (B.10): too few orders to measure who moves up to a tier -> cost and break-even only
 NOTE_COMBO_REACH = "chưa ước tính được — chưa đủ đơn để đo số đơn lên mức combo"
