@@ -14,6 +14,7 @@ import pytest
 from openpyxl import Workbook
 from sqlalchemy import select
 
+from juli_backend.models.businesses import Business, BusinessMember
 from juli_backend.models.card_events import EVENT_EXECUTED, CardEvent
 from juli_backend.models.shop_proposals import ShopProposal
 from juli_backend.models.shopee_plans import SET_DONE, ShopRecoChangeSet
@@ -304,6 +305,46 @@ async def test_import_and_reset_are_owner_only_and_never_for_the_reviewer(sessio
             session, shop.shop, user_id=shop.user.id, reviewer=True, now=NOW
         )
     assert excinfo.value.status == 403
+
+
+async def test_members_of_the_shop_business_may_import_and_reset_removed_ones_may_not(
+    session, shop
+):
+    # owner decision 2026-11-17: an active member (not only the owner) runs the board
+    business = Business(name="Shop business")
+    session.add(business)
+    await session.flush()
+    shop.shop.business_id = business.id
+    member, removed = await make_user(session), await make_user(session)
+    session.add_all(
+        [
+            BusinessMember(
+                business_id=business.id, user_id=member.id, role="member", added_via="invite"
+            ),
+            BusinessMember(
+                business_id=business.id,
+                user_id=removed.id,
+                role="member",
+                added_via="invite",
+                removed_at=datetime(2026, 11, 10),
+            ),
+        ]
+    )
+    await session.flush()
+    data = _xlsx()
+    preview = await _preview(session, shop, data, user_id=member.id)
+    imported = await external.commit_import(
+        session, shop.shop, data, token=preview.token, user_id=member.id, reviewer=False, now=NOW
+    )
+    assert imported.created > 0
+    reset = await board_reset.reset_board(
+        session, shop.shop, user_id=member.id, reviewer=False, now=NOW
+    )
+    assert reset["withdrawn"] > 0 and reset["reason_code"] == board_reset.REASON_RESET
+    for user_id in (removed.id, (await make_user(session)).id):
+        with pytest.raises(ProposalError) as excinfo:
+            await _preview(session, shop, user_id=user_id)
+        assert excinfo.value.code == board_reset.ERROR_OWNER_ONLY and excinfo.value.status == 403
 
 
 async def test_reset_withdraws_every_open_card_keeps_history_and_gates_calibration(session, shop):

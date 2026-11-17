@@ -83,7 +83,7 @@ export function boardApi(call: Call): BoardApi {
 
 /** The refusals the board answers with, in the seller's words (the code is never shown). */
 const ERROR_TEXT: Readonly<Record<string, string>> = {
-  board_owner_only: "Chỉ chủ shop làm được việc này.",
+  board_owner_only: "Chỉ chủ shop hoặc thành viên của shop làm được việc này.",
   board_reviewer_refused: "Không dùng được trên shop mẫu.",
   external_invalid_file: "File không đọc được. Chọn file .xlsx đúng mẫu.",
   external_file_changed: "File đã đổi sau khi xem trước. Chọn lại file.",
