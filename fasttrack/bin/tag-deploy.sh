@@ -9,7 +9,8 @@
 # Refuses unless:
 #   - <sha> is a full 40-char sha and is the current tip of origin/fasttrack/optimize-product
 #     (or an ancestor of it, with a warning);
-#   - the local deploy gate is complete for the sha's TREE (fasttrack/gate_status.py);
+#   - the deploy gate is complete for the sha's TREE (fasttrack/gate_status.py): a passing
+#     fasttrack-pr.yml run on GitHub, or a passing local fasttrack/predeploy.sh;
 #   - no earlier deploy tag is still running (fasttrack/state.py);
 # then makes ONE tag (never --tags), pushes it, and records it in the shared state.
 set -uo pipefail
@@ -38,8 +39,8 @@ git cat-file -e "${SHA}^{commit}" 2>/dev/null || fail "${SHA} is not a commit he
 git merge-base --is-ancestor "${SHA}" "${TIP}" || fail "${SHA:0:8} is not on origin/${DEPLOY_BRANCH} (tip ${TIP:0:8}) — merge/push it first"
 [ "${SHA}" = "${TIP}" ] || echo "WARN: ${SHA:0:8} is behind the tip ${TIP:0:8}; deploying an older commit"
 
-echo "== local deploy gate"
-"${PY}" fasttrack/gate_status.py "${SHA}" || fail "the local gate is not complete for this tree — run fasttrack/predeploy.sh on it"
+echo "== deploy gate (GitHub PR checks, or local predeploy.sh)"
+"${PY}" fasttrack/gate_status.py "${SHA}" || fail "the gate is not complete for this tree — wait for the PR checks (merge the tip into the batch branch if the base moved), or run fasttrack/predeploy.sh"
 
 echo "== shared state"
 "${PY}" fasttrack/state.py check --session "${SESSION}" >"${TMPDIR:-/tmp}/tag-deploy-check.$$" 2>&1; RC=$?

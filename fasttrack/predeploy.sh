@@ -274,7 +274,7 @@ if [ "${FAILED}" != 0 ] && [[ " ${JOBS[*]} " == *" check "* ]] && grep -qiE 'doc
   echo "  ! cd ${REPO_ROOT} && CHECK_DATABASE_URL=postgresql://localhost/predeploy_check ./fasttrack/predeploy.sh --jobs check"
 fi
 echo
-"${PYTHON}" "${REPO_ROOT}/fasttrack/gate_status.py" "${TREE}" --state-dir "${STATE_DIR}"
+"${PYTHON}" "${REPO_ROOT}/fasttrack/gate_status.py" "${TREE}" --state-dir "${STATE_DIR}" --no-ci
 GATE=$?
 [ "${#PRE_FAIL[@]}" -eq 0 ] || { echo "predeploy: FAILED preflight"; exit 1; }
 [ "${FAILED}" = 0 ] || { echo "predeploy: FAILED"; exit 1; }

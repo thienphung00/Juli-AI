@@ -51,7 +51,7 @@ copied to the VPS and `deploy.sh` runs the demo lane after the API lane via
 way (`LANDING_ARTIFACT_TARBALL`; DEBT repaid 2026-10-08):
 
 ```bash
-# checks the sha is the tip, the local gate (predeploy.sh) is VALID for its tree and no
+# checks the sha is the tip, the gate (the PR's fasttrack-pr.yml run, or predeploy.sh) is VALID for its tree and no
 # earlier tag is still running; then makes ONE tag, pushes it, records it in state.py
 fasttrack/bin/tag-deploy.sh <full-sha> --session <name> --push
 ```

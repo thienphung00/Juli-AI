@@ -12,7 +12,7 @@ This page is the single operating reference. Handoffs link to it instead of rest
 | 3. Slice + brief | coordinator | one brief per slice from `contracts/EXECUTOR-BRIEF.md`; `state.py ab-assign <batch> <slice>` picks arm A or B |
 | 4. Build | executor (Sonnet; Opus only for migration/security/integration) | the brief's `## Sources` and acceptance rows are filled in |
 | 5. Verify | **separate** verifier (arm A: `review` agent rules; arm B: read-only Sonnet verifier) | every acceptance row has evidence: test id, Chrome screenshot on the sample shop, or a SQL/API result |
-| 6. Gate | coordinator | `fasttrack/predeploy.sh` on the batch branch **after** merging the current tip. `gate_status.py` reports VALID. |
+| 6. Gate | GitHub | merge the current tip into the batch branch, push it, open the PR (step 7). `fasttrack-pr.yml` runs all five gate jobs on GitHub; `gate_status.py` reports VALID (via ci). A local `predeploy.sh` still counts, but is optional. |
 | 7. PR | coordinator | `fasttrack/bin/open_pr.py` (public-repo scrub). The PR body lists what is **NOT** in this deploy. |
 | 8. Merge | **owner** | |
 | 9. Tag | **owner** | `! <worktree>/fasttrack/bin/tag-deploy.sh <sha> --session <name> --push` |
@@ -38,7 +38,7 @@ The owner is always required for: grill approval, the acceptance table, migratio
 - **"Ready" means the gate is VALID for the tree.** Never say "ready", "all checks pass" or "live" without a `gate_status.py` VALID line, or the `deploy_watch.py` success line for "live".
 - **Owner commands:** use the wrappers (`pg-test.sh`, `tag-deploy.sh`, `open_pr.py`). Pipe any other command through `fasttrack/bin/cmdlint.py` before showing it.
 - **Open owner questions** go in with `state.py ask` and come out with `state.py answer`. Before each reply to the owner, look at `state.py show`; any open ask is answered or re-asked first, never left buried.
-- **Heavy runs are serial.** Only `predeploy.sh` runs whole suites. Executors run targeted tests and `predeploy.sh --fast`.
+- **Whole suites run on GitHub.** The deploy gate is the PR's `fasttrack-pr.yml` run, so sessions no longer queue for this machine. Locally: targeted tests and `predeploy.sh --fast`. A full local `predeploy.sh` is optional; if one runs, it runs alone (two at once took 4 h and both failed on timeouts, 2026-11-17).
 - **Coordinator sessions last one batch, or ~24 h.** Hand off when the batch merges. The next session reads `state.py show` plus the handoff.
 
 ## Commands
@@ -47,7 +47,7 @@ The owner is always required for: grill approval, the acceptance table, migratio
 PY=/Users/macos/Juli-AI-v2/juli/.venv/bin/python
 $PY fasttrack/state.py show | refresh | check --session S --branch B
 fasttrack/predeploy.sh [--fast | --jobs a,b | --dry-run]
-$PY fasttrack/gate_status.py <sha>
+$PY fasttrack/gate_status.py <sha>                               # VALID via ci (PR run) or local; --no-ci = local only
 $PY fasttrack/bin/open_pr.py --head B --title T --body-file F --session S [--dry-run]
 fasttrack/bin/tag-deploy.sh <sha> --session S [--push]          # --push = owner only
 $PY fasttrack/bin/deploy_watch.py <tag>
@@ -67,6 +67,15 @@ State lives in `<git common dir>/fasttrack-state/` (shared by every worktree, ne
 - **A test that fails only under xdist** is a real finding: it shares state across files. Fix it, or mark it to run serially. Never retry it into a pass.
 - **Rollback:** `JULI_GATE_XDIST=0` (serial only, no xdist run); in CI, remove the two trial jobs.
 - One suite at a time on this machine: the two local unit runs are sequential, and `predeploy.sh` needs ≥ 10 GB free.
+
+## Deploy gate on GitHub, phase 2 (owner, 2026-11-17)
+
+- **What runs:** `.github/workflows/fasttrack-pr.yml`, on every PR into `fasttrack/*`, on the PR's merge commit: `heads`, `frontend`, `static`, `backend-unit` (4 shards) and `check` (4 shards, each with its own throwaway Postgres service). These are the same commands as the deploy workflow; a test pins them.
+- **The record:** when all five pass, the `gate` job uploads the artifact `fasttrack-gate-<tree>` (kept 30 days). `gate_status.py` accepts it only from a successful `pull_request` run of `fasttrack-pr.yml` in this repository (forks never count), and prints `VALID for tag (via ci)`. `tag-deploy.sh` refuses a tag without it (or a passing local run).
+- **Why the tree matches:** the PR run tests the merge of the batch into the current base. If the base has not moved, the merge commit the owner creates has that same tree. If the base moved, `gate_status.py` says MISSING for the new tree: merge the tip into the batch branch and push, and the PR checks run again.
+- **Reading the result:** `gate_status.py <sha>` (curl + `gh auth token`), or the PR's checks page. On a red job, the failing step is in the run log (`deploy_watch.py`'s `failing_steps` reads the same API).
+- **A PR that edits `fasttrack-pr.yml`** runs its own version of the checks. The owner reviews workflow changes before merging (agents can't push workflow files anyway).
+- **Rollback:** go back to the local gate: `predeploy.sh` + `gate_status.py --no-ci`.
 
 ## A/B: executor arms (first 2 batches of v2)
 

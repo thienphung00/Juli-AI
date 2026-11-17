@@ -305,3 +305,87 @@ def test_pr_checks_run_the_deploy_gates_commands_without_secrets():
     pr_unit, dep_unit = runs(pr["jobs"]["backend-unit"]), runs(deploy["jobs"]["backend-unit"])
     assert pr_unit == dep_unit
     assert pr["jobs"]["backend-unit"]["strategy"] == deploy["jobs"]["backend-unit"]["strategy"]
+    # Phase 2: the database check runs here too, same commands, shards and Postgres service.
+    for key in ("strategy", "services", "env"):
+        assert pr["jobs"]["check"][key] == deploy["jobs"]["check"][key], key
+    assert runs(pr["jobs"]["check"]) == runs(deploy["jobs"]["check"])
+    check_env = pr["jobs"]["check"]["steps"][-1]["env"]
+    assert check_env["SINCE"] == "origin/main" and check_env["JULI_TEST_DATABASE_DISPOSABLE"] == "1"
+
+
+def test_the_pr_gate_record_exists_only_when_all_five_gate_jobs_pass():
+    pr = yaml.safe_load((REPO / ".github/workflows/fasttrack-pr.yml").read_text())
+    gate = pr["jobs"]["gate"]
+    assert sorted(gate["needs"]) == sorted(["heads", "frontend", "backend-unit", "static", "check"])
+    assert "if" not in gate  # implicit success(): a failed or skipped gate job means no record
+    upload = gate["steps"][-1]
+    assert upload["uses"].startswith("actions/upload-artifact@")
+    assert upload["with"]["name"] == gate_status.ARTIFACT_PREFIX + "${{ env.TREE }}"
+    record = next(s["run"] for s in gate["steps"] if s.get("name") == "Record the tested tree")
+    assert "git rev-parse 'HEAD^{tree}'" in record
+    assert "migration_heads.py heads" in pr["jobs"]["heads"]["steps"][-1]["run"]
+
+
+def _fake_github(artifacts: list[dict], runs: dict[int, dict]):
+    calls: list[str] = []
+
+    def get(path: str):
+        calls.append(path)
+        if "/actions/artifacts?" in path:
+            return {"artifacts": artifacts}
+        return runs[int(path.rsplit("/", 1)[1])]
+
+    return get, calls
+
+
+def _art(run_id: int, *, fork: bool = False, expired: bool = False) -> dict:
+    return {
+        "expired": expired,
+        "workflow_run": {"id": run_id, "repository_id": 1, "head_repository_id": 2 if fork else 1},
+    }
+
+
+def _run(run_id: int, **over) -> dict:
+    run = {
+        "id": run_id,
+        "path": gate_status.PR_WORKFLOW,
+        "event": "pull_request",
+        "conclusion": "success",
+        "pull_requests": [{"number": 7}],
+        "html_url": f"https://example.invalid/runs/{run_id}",
+        "updated_at": "2026-11-17T00:00:00Z",
+    }
+    run.update(over)
+    return run
+
+
+def test_a_passing_pr_run_for_the_tree_makes_the_gate_valid():
+    get, calls = _fake_github([_art(11)], {11: _run(11)})
+    ok, detail = gate_status.ci_gate("t" * 40, get, "o/r")
+    assert ok and "run 11" in detail and "#7" in detail
+    assert (
+        calls[0]
+        == f"/repos/o/r/actions/artifacts?name={gate_status.ARTIFACT_PREFIX}{'t' * 40}&per_page=20"
+    )
+
+
+@pytest.mark.parametrize(
+    ("art", "run", "why"),
+    [
+        (_art(12, fork=True), _run(12), "fork"),
+        (_art(13, expired=True), _run(13), "expired"),
+        (_art(14), _run(14, conclusion="failure"), "concluded failure"),
+        (_art(15), _run(15, path=".github/workflows/other.yml"), "is not"),
+        (_art(16), _run(16, event="push"), "is not"),
+    ],
+)
+def test_a_pr_run_from_a_fork_or_another_workflow_or_red_never_counts(art, run, why):
+    get, _ = _fake_github([art], {run["id"]: run})
+    ok, detail = gate_status.ci_gate("t" * 40, get, "o/r")
+    assert not ok and why in detail
+
+
+def test_no_pr_run_for_the_tree_is_missing_not_valid():
+    get, _ = _fake_github([], {})
+    ok, detail = gate_status.ci_gate("t" * 40, get, "o/r")
+    assert not ok and detail.startswith("MISSING")
