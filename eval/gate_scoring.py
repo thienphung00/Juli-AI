@@ -267,7 +267,22 @@ def _bootstrap_anchor_sha() -> str:
     """
     from harness_bootstrap_pin import resolve_bootstrap_anchor
 
-    return resolve_bootstrap_anchor(_bootstrap_anchor_spec(), REPO_ROOT)
+    # Resolve under the same CI-flow context the gate runs in (`gate_env` strips
+    # CI_FLOW_ENV_VARS). A PR into a fasttrack/* branch sets GITHUB_BASE_REF; read here
+    # it pinned merge-base(that branch) while the gate, without it, resolved
+    # merge-base(main), so check_harness_bootstrap_pin failed the clean record on every
+    # fasttrack PR run (2026-11-17, the first fasttrack-pr.yml runs).
+    with _ci_flow_env_removed():
+        return resolve_bootstrap_anchor(_bootstrap_anchor_spec(), REPO_ROOT)
+
+
+@contextmanager
+def _ci_flow_env_removed() -> Iterator[None]:
+    saved = {key: os.environ.pop(key) for key in CI_FLOW_ENV_VARS if key in os.environ}
+    try:
+        yield
+    finally:
+        os.environ.update(saved)
 
 
 def _render_template(name: str, issue: int) -> dict[str, Any]:
