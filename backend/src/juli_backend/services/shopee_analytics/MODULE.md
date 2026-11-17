@@ -91,3 +91,15 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
 - A day with orders and no costed line has a NULL profit (shop and product), never 0.
 - A product row never counts more đơn / GMV than its shop's day; rows on days without order data
   (stale pre-P99 stamps) are ignored on read and rewritten by the backfill.
+
+## Unavailable days of a product (F2, forecast grill 2026-11-16)
+
+- `unavailable_days` (pure, stdlib only, so TikTok can call it later): from stock reads, a product's
+  out-of-stock days (every read of the day sums to sellable 0; variation rows summed, item row only
+  when there are no variations; unknown sellable ignored) and unlisted days (any read
+  `listing_status == "unlisted"`). A day with no read is available; nothing is carried forward.
+- `funnel.load_rows` fills `FunnelRows.unavailable` (`{item_id: days}`, GMT+7 days via
+  `stock_alert.stock_basis.local_day`) from `shopee_stock_history`; the default is empty.
+- `forecast_base.adaptive_base` with `item_ids` drops a day when ANY product of the scope is
+  unavailable: its rows leave the sums, the day leaves every day count and the F3 `daily` series.
+  A metric with no event left is `low_data`. Shop scope (no `item_ids`) is unchanged.

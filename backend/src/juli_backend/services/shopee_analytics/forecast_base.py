@@ -18,8 +18,11 @@ D29.1):
 * **Stale.** The newest data older than its expected lag + :data:`STALE_GRACE_DAYS` days: the base
   carries a :class:`StaleMarker` (dataset, data-through day) and the engine gives no numbers.
 
-Out-of-stock and unlisted days are NOT excluded: the stored funnel rows carry no stock or listing
-history (see the report of this change).
+* **Unavailable is not zero either.** For a product scope, a day on which any product of the scope
+  was out of stock or unlisted (``rows.unavailable``, from the stock history, see
+  :mod:`unavailable_days`) leaves the base like a missing day: its rows leave every numerator, the
+  day leaves every day count and the F3 daily series. A day without a stock read counts as
+  available. The shop scope is unchanged.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from juli_backend.services.shopee_analytics import funnel
+from juli_backend.services.shopee_analytics.unavailable_days import scope_unavailable
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_builder.engine.contract import (
     RESIDUAL,
@@ -61,10 +65,12 @@ EXPECTED_LAG_DAYS: dict[tuple[str, str], int] = {
 ZERO = Decimal(0)
 
 
-def _span(start: date, end: date, floor: date) -> int:
-    """Calendar days of ``start..end`` that the rows cover (never before ``floor``)."""
+def _span(start: date, end: date, floor: date, skip: frozenset[date] = frozenset()) -> int:
+    """Calendar days of ``start..end`` that the rows cover (never before ``floor``), less the
+    ``skip`` days (unavailable days of a product scope)."""
     first = max(start, floor)
-    return max(0, (end - first).days + 1)
+    n = max(0, (end - first).days + 1)
+    return n - sum(1 for d in skip if first <= d <= end)
 
 
 @dataclass(frozen=True)
@@ -101,9 +107,14 @@ def stale_marker(last: _Last, today: date | None, platform: str = "shopee") -> S
 
 
 def _slice(
-    rows: funnel.FunnelRows, start: date, end: date, ads_end: date | None
+    rows: funnel.FunnelRows,
+    start: date,
+    end: date,
+    ads_end: date | None,
+    skip: frozenset[date] = frozenset(),
 ) -> funnel.FunnelRows:
-    """The rows of ``start..end``; ads figures after ``ads_end`` are unknown, not zero."""
+    """The rows of ``start..end`` without the ``skip`` days; ads figures after ``ads_end`` are
+    unknown, not zero."""
 
     def ads_ok(day: date) -> bool:
         return ads_end is not None and day <= ads_end
@@ -115,15 +126,15 @@ def _slice(
             r, ads_views=None, ads_clicks=None, ads_orders=None, ads_gmv=None, ads_spend=None
         )
         for r in rows.sources
-        if start <= r.day <= end
+        if start <= r.day <= end and r.day not in skip
     )
     product_days = tuple(
         d if ads_ok(d.day) else replace(d, ads_spend=None)
         for d in rows.product_days
-        if start <= d.day <= end
+        if start <= d.day <= end and d.day not in skip
     )
-    shop_days = tuple(d for d in rows.shop_days if start <= d.day <= end)
-    return funnel.FunnelRows(Window(start, end), sources, shop_days, product_days)
+    shop_days = tuple(d for d in rows.shop_days if start <= d.day <= end and d.day not in skip)
+    return funnel.FunnelRows(Window(start, end), sources, shop_days, product_days, rows.unavailable)
 
 
 def _by_source(base: FunnelBase) -> dict[str, SourceFunnel]:
@@ -161,11 +172,12 @@ def adaptive_base(
     tl = None if last.traffic is None else min(last.traffic, end)
     al = None if last.ads is None else min(last.ads, end)
     stale = stale_marker(last, today, platform)
+    skip = scope_unavailable(rows.unavailable, items)
 
     def base_of(cap: date, length: int) -> tuple[FunnelBase, int]:
         start = cap - timedelta(days=length - 1)
-        sl = _slice(rows, start, cap, al)
-        n = _span(start, cap, floor)
+        sl = _slice(rows, start, cap, al, skip)
+        n = _span(start, cap, floor, skip)
         return (
             funnel.base_from_rows(sl, shop_id, item_ids=items, contribution_rate=contribution_rate),
             n,
@@ -200,7 +212,7 @@ def adaptive_base(
     b_ctr = _by_source(bc)
     b_ctor = _by_source(bt)
     scale = Decimal(BASE_DAYS)
-    ads_days = 0 if al is None else _span(ol - timedelta(days=w_ord - 1), min(al, ol), floor)
+    ads_days = 0 if al is None else _span(ol - timedelta(days=w_ord - 1), min(al, ol), floor, skip)
 
     out: list[SourceFunnel] = []
     for so in bo.sources:
@@ -276,16 +288,23 @@ def adaptive_base(
         low_data=tuple(low),
         stale=stale,
         windows=(("views", w_views), ("ctr", w_ctr), ("ctor", w_ctor), ("aov", w_ord)),
-        daily=_daily(rows, items, ol - timedelta(days=w_ord - 1), ol, floor),
+        daily=_daily(rows, items, ol - timedelta(days=w_ord - 1), ol, floor, skip),
     )
 
 
 def _daily(
-    rows: funnel.FunnelRows, items: tuple[str, ...], start: date, end: date, floor: date
+    rows: funnel.FunnelRows,
+    items: tuple[str, ...],
+    start: date,
+    end: date,
+    floor: date,
+    skip: frozenset[date] = frozenset(),
 ) -> tuple[tuple[str, tuple[float | None, ...]], ...]:
     """Daily orders / GMV / profit of the scope from ``start`` to its newest order day."""
     first = max(start, floor)
-    days = [first + timedelta(days=i) for i in range((end - first).days + 1)]
+    days = [
+        day for i in range((end - first).days + 1) if (day := first + timedelta(days=i)) not in skip
+    ]
     orders: dict[date, float] = {}
     gmv: dict[date, float] = {}
     profit: dict[date, float | None] = {}

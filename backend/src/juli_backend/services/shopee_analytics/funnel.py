@@ -30,9 +30,9 @@ hand); :func:`flow_tables` turns the rows into the flow tables every screen read
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -45,7 +45,12 @@ from juli_backend.models.shopee_metrics import (
     ShopeeShopMetricsDaily,
     ShopeeSourceMetricsDaily,
 )
+from juli_backend.models.stock_alert import ShopeeStockHistory
 from juli_backend.services.shopee_analytics.stored import ORDER_TYPE, capped, known_profit
+from juli_backend.services.shopee_analytics.unavailable_days import (
+    StockRead,
+    unavailable_by_item,
+)
 from juli_backend.services.shopee_analytics.windows import Window, resolve_window
 from juli_backend.services.shopee_builder.engine.contract import (
     RESIDUAL,
@@ -62,6 +67,7 @@ from juli_backend.services.shopee_profit.flows import (
     FlowTable,
     FlowTables,
 )
+from juli_backend.services.stock_alert import stock_basis as sb
 
 if TYPE_CHECKING:
     from juli_backend.services.shopee_analytics.compute import PeriodView
@@ -125,6 +131,9 @@ class FunnelRows:
     sources: tuple[SourceDay, ...] = ()
     shop_days: tuple[ScopeDay, ...] = ()
     product_days: tuple[ScopeDay, ...] = ()
+    #: F2: ``{item_id: days the product was out of stock or unlisted}`` (GMT+7 days); empty when
+    #: the stock history is unknown. Product scopes of the forecast base leave these days out.
+    unavailable: Mapping[str, frozenset[date]] = field(default_factory=dict)
 
     @property
     def available(self) -> bool:
@@ -133,6 +142,19 @@ class FunnelRows:
 
     def covered_days(self) -> int:
         return len({r.day for r in self.sources if r.item_id is None})
+
+
+def unavailable_from_history(hist: Iterable[Any], window: Window) -> dict[str, frozenset[date]]:
+    """Stored stock reads (``ShopeeStockHistory`` rows, naive UTC) -> the products' unavailable
+    days inside ``window``; the day is the GMT+7 one the stock alert uses."""
+    reads = []
+    for h in hist:
+        day = sb.local_day(h.read_at)
+        if window.start <= day <= window.end:
+            reads.append(
+                StockRead(h.item_id, h.model_id or "", day, h.read_at, h.sellable, h.listing_status)
+            )
+    return unavailable_by_item(reads)
 
 
 async def load_rows(session: AsyncSession, shop_id: uuid.UUID, window: Window) -> FunnelRows:
@@ -187,6 +209,21 @@ async def load_rows(session: AsyncSession, shop_id: uuid.UUID, window: Window) -
     prod = [r for r in prod if r.day in with_data]
     # a product never out-sells its shop on a day (stale pre-P99 period stamps, A.3)
     held = {id(r): capped(r.orders or 0, r.gmv or ZERO, with_data[r.day]) for r in prod}
+    h = ShopeeStockHistory
+    # naive UTC read_at: a GMT+7 day d spans d-1 17:00 .. d 17:00 UTC, so pad by one day each side
+    hist = (
+        (
+            await session.execute(
+                select(h).where(
+                    h.shop_id == shop_id,
+                    h.read_at >= datetime.combine(window.start - timedelta(days=1), time.min),
+                    h.read_at < datetime.combine(window.end + timedelta(days=1), time.min),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     return FunnelRows(
         window,
         tuple(
@@ -230,6 +267,7 @@ async def load_rows(session: AsyncSession, shop_id: uuid.UUID, window: Window) -
             )
             for r in prod
         ),  # fmt: skip
+        unavailable_from_history(hist, window),
     )
 
 
