@@ -199,7 +199,27 @@ def build_card(env: RecoEnv, cand: Candidate, *, now: datetime) -> dict[str, Any
             if env.sim and s.sim_kind and cand.item
             else None
         )
-    sheet = build_sheet(cand.kind, ev.target, ev.before, ev.after, dict(cand.inputs))
+    sheet_items = [str(i) for i in cand.items]
+    sheet_ids = {
+        str(i)
+        for i in (
+            *sheet_items,
+            ev.target.get("item_id"),
+            ev.target.get("addon_item_id"),
+            *[a.get("item_id") for a in ev.after.get("addons") or [] if isinstance(a, dict)],
+            *[(cand.inputs or {}).get(k) for k in ("gift_item", "gift")],
+        )
+        if i
+    }
+    sheet = build_sheet(
+        cand.kind,
+        ev.target,
+        ev.before,
+        ev.after,
+        dict(cand.inputs),
+        names={i: n for i in sheet_ids if (n := env.name(i)) and n != i},
+        items=sheet_items,
+    )
     deltas = shop_deltas(env, money)
     dprofit_p50 = money["total"]["p50"]["dprofit"]
     if dprofit_p50 is None:

@@ -56,6 +56,7 @@ STATE_WAITING = "cho_dien"
 STATE_FILLED = "da_dien"
 STATE_MATCH = "khop"
 STATE_MISMATCH = "lech"
+STATE_REVERTED = "hoan_tac"
 
 VERDICT_RUNNING = "dang_do"
 VERDICT_BELOW = "duoi_khoang"
@@ -99,6 +100,16 @@ def _first_difference(expected: Mapping[str, Any], observed: Mapping[str, Any]) 
     return {"field": None, "observed": None, "expected": None}
 
 
+def _job_filled(job: Mapping[str, Any]) -> bool:
+    """A job is "filled" only when the Connector reports every field of it as filled: a status of
+    ``filled`` with fields missing (``progress.filled < progress.total``) is not "Đã điền" -- the
+    state never lights up on the Connector's word alone."""
+    if job["status"] not in (STATUS_FILLED, STATUS_SAVED, STATUS_CAPTURED):
+        return False
+    prog = job.get("progress")
+    return not prog or int(prog.get("filled") or 0) >= int(prog.get("total") or 0)
+
+
 def derive_state(
     jobs: Sequence[Mapping[str, Any]],
     events: Iterable[tuple[str, datetime, Mapping[str, Any] | None]],
@@ -110,8 +121,10 @@ def derive_state(
     """
     live = [j for j in jobs if j["status"] != STATUS_CANCELLED]
     total = len(live)
-    filled = sum(1 for j in live if j["status"] in (STATUS_FILLED, STATUS_SAVED, STATUS_CAPTURED))
-    saved = sum(1 for j in live if j["status"] in (STATUS_SAVED, STATUS_CAPTURED))
+    filled = sum(1 for j in live if _job_filled(j))
+    saved = sum(
+        1 for j in live if j["status"] in (STATUS_SAVED, STATUS_CAPTURED) and _job_filled(j)
+    )
     failed = sum(1 for j in live if j["status"] == STATUS_FAILED)
     fields = {"filled": 0, "total": 0}
     for j in live:
@@ -120,9 +133,7 @@ def derive_state(
             fields["filled"] += min(prog["filled"], prog["total"])
             fields["total"] += prog["total"]
         else:
-            fields["filled"] += (
-                1 if j["status"] in (STATUS_FILLED, STATUS_SAVED, STATUS_CAPTURED) else 0
-            )
+            fields["filled"] += 1 if _job_filled(j) else 0
             fields["total"] += 1
     ordered = sorted(
         (
@@ -344,8 +355,9 @@ async def execution_states(
         ):
             jobs.setdefault(j.proposal_id, []).append(j)
     cards: list[dict[str, Any]] = []
+    reverted = await store.reverted_card_ids(session, shop_id)
     for p, card in rows:
-        if (measured.get(str(p.id)) or {}).get("window_closed"):
+        if (measured.get(str(p.id)) or {}).get("window_closed") and str(p.id) not in reverted:
             continue
         mine = jobs.get(p.id, [])
         captured_voucher_id = _captured_voucher_id(mine)
@@ -370,10 +382,19 @@ async def execution_states(
             ),
             None,
         )
+        if str(p.id) in reverted:  # a person undid it in Seller Centre: no read-back, no clock
+            state = {
+                **state,
+                "state": STATE_REVERTED,
+                "completed": 4,
+                "bad": None,
+                "mismatch": None,
+            }
         cards.append(
             {
                 **_head(p, card),
                 **state,
+                "reverted": str(p.id) in reverted,
                 "measure_days": window,
                 "measure_start": (state["verified_at"] or "")[:10] or None,
                 # G14: the voucher id the Connector captured after the person saved (pre-fills
@@ -410,7 +431,10 @@ async def measurement_states(
         (EVENT_EXECUTED, EVENT_VERIFIED, EVENT_IMPACT_PRELIMINARY, EVENT_IMPACT_FINAL),
     )
     cards: list[dict[str, Any]] = []
+    reverted = await store.reverted_card_ids(session, shop_id)
     for p, card in rows:
+        if str(p.id) in reverted:  # a reverted card is not measured (nor learned from)
+            continue
         ev = events.get(p.id, [])
         verified = [e for e in ev if e.event_type == EVENT_VERIFIED]
         executed = [e for e in ev if e.event_type == EVENT_EXECUTED]

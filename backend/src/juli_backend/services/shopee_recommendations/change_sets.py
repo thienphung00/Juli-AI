@@ -206,14 +206,21 @@ async def _member_meta(
 # ---------------------------------------------------------------------- the board reset
 
 LABEL_RESET = "Đã gỡ khỏi bảng"
+LABEL_REVERTED = "Đã hoàn tác"
 
 
 async def drop_card(
-    session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID, *, now: datetime
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    card_id: uuid.UUID,
+    *,
+    now: datetime,
+    reverted: bool = False,
 ) -> int:
     """A card withdrawn by the owner's board reset leaves every running set it is in: its id moves
     to ``result.reset_card_ids`` (history), and a set left with no card ends as "không kết luận"
-    (``reset``), never read and never calibrated. Returns the sets touched."""
+    (``reset``), never read and never calibrated. ``reverted``: a person undid the change in
+    Seller Centre ("Đã hoàn tác"), same treatment, labelled so. Returns the sets touched."""
     cid = str(card_id)
     n = 0
     for cs in await sets_for(session, shop_id, status=[SET_MEASURING]):
@@ -228,7 +235,12 @@ async def drop_card(
             cs.cut_at = now
             cs.cut_days = max((now.date() - cs.started_at.date()).days, 0)
             result.update(
-                {"state": STATE_INCONCLUSIVE, "label": LABEL_RESET, "reset": True, "read": True}
+                {
+                    "state": STATE_INCONCLUSIVE,
+                    "label": LABEL_REVERTED if reverted else LABEL_RESET,
+                    "reset": True,
+                    "read": True,
+                }
             )
         cs.result = result
         cs.updated_at = now

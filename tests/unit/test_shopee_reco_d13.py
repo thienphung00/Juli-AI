@@ -100,7 +100,7 @@ async def test_a_description_card_fixes_one_line_and_reads_it_back_by_hand(env):
     assert "xác nhận bằng tay" in sheet["readback"]["note"]
     page = sheet["page"]
     assert page["item_deep_link"] == "https://banhang.shopee.vn/portal/product/1001"
-    assert page["item_link_verified"] is False and page["verified"] is True
+    assert page["item_link_verified"] is True and page["verified"] is True
     assert sheet["revert_steps"][0]["after"] is None  # no "before" known: nothing to copy back
 
 

@@ -10,6 +10,7 @@ shop's own tenant scope and are audited in ``ops_audit_log``.
 - ``POST .../recommendations/publish`` -- draft -> sent: the client sees them.
 - ``POST .../recommendations/{card_id}/whatif`` (Xem+) -- recompute, nothing recorded.
 - ``POST .../recommendations/{card_id}/executed`` -- "Đã làm" by staff.
+- ``POST .../recommendations/{card_id}/reverted`` -- "Đã hoàn tác" by staff.
 - ``GET  .../recommendations/code/{code}`` (Xem+) -- one card by its code (P91 D-5).
 - ``POST .../recommendations/requeue`` | ``/backfill-codes`` -- the idempotent product re-queue;
   card codes for the proposals that predate migration 116.
@@ -38,7 +39,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
 from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
-from juli_backend.api.routes.shopee_recommendations_common import ExecutedBody, WhatIfBody, refused
+from juli_backend.api.routes.shopee_recommendations_common import (
+    ExecutedBody,
+    RevertedBody,
+    WhatIfBody,
+    refused,
+)
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services import shopee_recommendations as reco
@@ -52,6 +58,7 @@ ACTION_GENERATE = "reco_generate"
 ACTION_PUBLISH = "reco_publish"
 ACTION_WITHDRAW = "reco_withdraw"
 ACTION_EXECUTED = "reco_executed"
+ACTION_REVERTED = "reco_reverted"
 ACTION_SIM_IMPORT = "reco_sim_import"
 ACTION_LEARNING = "reco_learning_run"
 ACTION_BACKFILL = "reco_backfill"
@@ -425,6 +432,27 @@ async def ops_executed(
             ACTION_EXECUTED,
             {"card_id": str(card_id), "events": out["events"]},
         )
+    except ProposalError as exc:
+        await session.rollback()
+        raise refused(exc) from None
+    return out
+
+
+@router.post(BASE + "/{card_id}/reverted", status_code=201)
+async def ops_reverted(
+    shop_id: uuid.UUID,
+    card_id: uuid.UUID,
+    body: RevertedBody,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    await _shopee_shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id):
+            out = await reco.mark_reverted(
+                session, shop_id, card_id, now=_now(), staff_id=ctx.staff.id, note=body.note
+            )
+        await _audited(session, ctx, shop_id, ACTION_REVERTED, {"card_id": str(card_id)})
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None

@@ -51,6 +51,13 @@ class ExecutedBody(BaseModel):
     evidence_ref: str | None = Field(default=None, max_length=500)
 
 
+class RevertedBody(BaseModel):
+    """ "Đã hoàn tác": the person confirms they undid the change in Seller Centre."""
+
+    model_config = ConfigDict(extra="forbid")
+    note: str | None = Field(default=None, max_length=300)
+
+
 def refused(exc: ProposalError) -> HTTPException:
     return HTTPException(
         status_code=exc.status, detail={"code": exc.code, "message": exc.detail or exc.code}

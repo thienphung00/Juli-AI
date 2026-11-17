@@ -85,6 +85,7 @@ from juli_backend.models.card_events import (
     EVENT_EXECUTED,
     EVENT_MISMATCH,
     EVENT_NOT_SEEN,
+    EVENT_REVERTED,
     EVENT_VERIFIED,
     CardEvent,
 )
@@ -507,8 +508,21 @@ async def pending_changes(
         .scalars()
         .all()
     )
+    reverted = set(
+        (
+            await session.execute(
+                select(CardEvent.card_id).where(
+                    CardEvent.shop_id == shop_id, CardEvent.event_type == EVENT_REVERTED
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     out = []
     for event in executed:
+        if event.card_id in reverted:  # the person undid it: no read-back of the old value
+            continue
         spec = (event.payload or {}).get("change")
         if not isinstance(spec, dict) or spec.get("change_kind") not in CHANGE_KINDS:
             continue

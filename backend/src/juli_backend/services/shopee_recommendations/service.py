@@ -33,6 +33,7 @@ from juli_backend.models.card_events import (
     EVENT_IMPACT_PRELIMINARY,
     EVENT_MISMATCH,
     EVENT_NOT_SEEN,
+    EVENT_REVERTED,
     EVENT_VERIFIED,
     EVENT_WHATIF_ADJUSTED,
     CardEvent,
@@ -48,6 +49,7 @@ from juli_backend.models.shop_proposals import (
     STATUS_WITHDRAWN,
     ShopProposal,
 )
+from juli_backend.models.shopee_fill import STATUS_CANCELLED, ShopeeFillJob
 from juli_backend.models.shopee_plans import PLAN_DRAFT, ShopRecoPlan, ShopRecoPlanCard
 from juli_backend.services.card_events import keys, verification
 from juli_backend.services.forecast import triggers as trg
@@ -69,6 +71,9 @@ from juli_backend.services.shopee_recommendations import (
     store,
     trigger_adapter,
     versions,
+)
+from juli_backend.services.shopee_recommendations import (
+    sheet as sheet_mod,
 )
 from juli_backend.services.shopee_recommendations import targets as multi
 from juli_backend.services.shopee_recommendations.cards import build_card
@@ -751,6 +756,26 @@ async def _proposal(
     return p, card
 
 
+async def _job_rows(
+    session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID
+) -> list[dict[str, Any]]:
+    """The newest version's fill jobs of a card as plain dicts (``before_values`` is read from the
+    job itself or its payload: the Connector adds it to the job JSON)."""
+    rows = list(
+        await session.scalars(
+            select(ShopeeFillJob)
+            .where(ShopeeFillJob.shop_id == shop_id, ShopeeFillJob.proposal_id == card_id)
+            .order_by(ShopeeFillJob.version, ShopeeFillJob.seq)
+        )
+    )
+    latest = max((j.version for j in rows), default=None)
+    return [
+        {"before_values": getattr(j, "before_values", None), "payload": j.payload or {}}
+        for j in rows
+        if j.version == latest and j.status != STATUS_CANCELLED
+    ]
+
+
 async def card_detail(
     session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID, *, audience: str
 ) -> dict[str, Any]:
@@ -772,6 +797,11 @@ async def card_detail(
     ).all()
     full = {**card, "code": p.code, "product_queue": p.product_queue}
     full["versions"] = versions.versions_of(full)
+    if full.get("execution_sheet") and p.status in (STATUS_APPROVED, STATUS_EXECUTED):
+        # the Connector's captured "before" of the fill jobs completes the sheet (X2)
+        full["execution_sheet"] = sheet_mod.with_job_before(
+            full["execution_sheet"], await _job_rows(session, shop_id, card_id)
+        )
     out = {
         **_summary(
             p,
@@ -783,6 +813,7 @@ async def card_detail(
             await plan_codes.plan_codes_for(session, shop_id, [p.lever_plan_id]),
             (await measurement_states(session, shop_id, [p.id])).get(str(p.id)),
         ),
+        "reverted": meta.get("reverted"),
         "card": seller_view(full) if audience == "seller" else full,
         "journey": [
             {
@@ -1640,6 +1671,72 @@ async def mark_executed(
 
 #: Event types that make up a card's status history for the export.
 _HISTORY_FIELDS = ("chosen_version", "chosen_version_code", "inputs", "before_inputs", "version")
+
+
+async def mark_reverted(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    card_id: uuid.UUID,
+    *,
+    now: datetime,
+    user_id: uuid.UUID | None = None,
+    staff_id: uuid.UUID | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """ "Đã hoàn tác": a person undid an executed card in Seller Centre and says so. Records one
+    ``reverted`` event (who, when), stops the card's measurement the way the board reset does
+    (``change_sets.drop_card``: its change set keeps the history, never reads, never calibrates)
+    and marks the card so ``measure.run_learning`` leaves its observations out
+    (``store.reset_card_ids``). The card stays ``executed`` (history is kept). Juli never claims
+    the revert: this is only called when the person confirms."""
+    now = _naive(now)
+    p, card = await _proposal(session, shop_id, card_id)
+    if p.status != STATUS_EXECUTED:
+        raise ProposalError(
+            "proposal_bad_state", 409, f"a {p.status} card cannot be marked as reverted"
+        )
+    meta = await store.card_meta(session, shop_id, card_id)
+    if meta.get("reverted"):
+        raise ProposalError("reco_already_reverted", 409, "the card is already marked as reverted")
+    actor = ACTOR_SELLER if user_id else ACTOR_SYSTEM
+    by = f"user:{user_id}" if user_id else f"staff:{staff_id}"
+    executed_at = meta.get("executed_at")
+    await store.write_event(
+        session,
+        shop_id,
+        card_id,
+        event_type=EVENT_REVERTED,
+        actor=actor,
+        occurred_at=now,
+        dedup_key=f"reverted:{card_id}:{executed_at or 'x'}",
+        code=p.code,
+        payload={
+            "by": by,
+            "at": now.isoformat(),
+            "note": (note or "").strip()[:300] or None,
+            "executed_at": executed_at,
+        },
+        family=card["family"],
+        card=card,
+        change_kind=card["change_kind"],
+        subject=_subject_of(card, card_id),
+    )
+    dropped = await change_sets.drop_card(session, shop_id, card_id, now=now, reverted=True)
+    await store.set_meta(
+        session,
+        shop_id,
+        card_id,
+        {"reverted": {"by": by, "at": now.isoformat(), "note": (note or "").strip()[:300] or None}},
+    )
+    await _requeue(session, p, now)
+    return {
+        "id": str(card_id),
+        "code": p.code,
+        "status": p.status,
+        "reverted": True,
+        "reverted_at": now.isoformat(),
+        "change_sets_left": dropped,
+    }
 
 
 async def card_by_code(
