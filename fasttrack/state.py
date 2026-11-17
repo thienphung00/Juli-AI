@@ -188,6 +188,41 @@ def deploy_run_for_tag(tag: str) -> dict[str, Any] | None:
     return runs[0] if runs else None
 
 
+def remote_head(branch: str) -> str | None:
+    """The sha of origin's `branch`, or None when it is not pushed (or origin is unreadable)."""
+    try:
+        out = subprocess.run(
+            ["git", "ls-remote", "origin", f"refs/heads/{branch}"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0 or not out.stdout.strip():
+        return None
+    return out.stdout.split()[0]
+
+
+def current_head(name: str, b: dict[str, Any]) -> str | None:
+    """The batch branch's head from git now; the stored head only when git has no such ref."""
+    return git("rev-parse", "--verify", "-q", f"{name}^{{commit}}", check=False) or b.get("head")
+
+
+def batch_landed(name: str, b: dict[str, Any], tip: str) -> bool:
+    """True when the batch's current head is on the tip.
+
+    A batch registered before anything was built has head == base (often == tip); that is
+    not a merge (2026-11-17: batch-1117a was marked merged 3 commits ahead of the tip).
+    """
+    head = current_head(name, b)
+    if head:
+        b["head"] = head
+    if not head or head == b.get("base"):
+        return False
+    return is_ancestor(head, tip)
+
+
 def is_ancestor(a: str, b: str) -> bool:
     return (
         subprocess.run(["git", "merge-base", "--is-ancestor", a, b], capture_output=True).returncode
@@ -217,10 +252,14 @@ def refresh(st: dict[str, Any]) -> list[str]:
             ["git", "fetch", "-q", "origin", DEPLOY_BRANCH], capture_output=True, timeout=120
         )
         for name, b in st["batches"].items():
-            head = b.get("head")
-            if head and b.get("status") not in ("merged", "abandoned") and is_ancestor(head, tip):
+            if b.get("status") in ("merged", "abandoned"):
+                continue
+            if batch_landed(name, b, tip):
                 b.update(status="merged", updated_at=now())
-                event("batch-merged", batch=name, head=head, tip=tip)
+                event("batch-merged", batch=name, head=b["head"], tip=tip)
+            else:
+                rh = remote_head(name)
+                b.update(remote_head=rh, pushed=bool(rh) and rh == b.get("head"))
     elif not warn:
         warn.append("origin tip unreadable (network?) — state may be stale")
     for t in st["tags"]:
@@ -446,29 +485,27 @@ def main(argv: list[str] | None = None) -> int:
             event("session", name=args.name, role=s["role"])
         elif args.cmd == "batch":
             b = st["batches"].setdefault(args.branch, {"notes": []})
-            head = git("rev-parse", args.branch, check=False) or b.get("head")
+            head = current_head(args.branch, b)
             tip = st["deploy_branch"].get("tip")
             base = (
                 git("merge-base", args.branch, tip, check=False)
                 if (tip and head)
                 else b.get("base")
             )
-            pushed = bool(
-                subprocess.run(
-                    ["git", "ls-remote", "--exit-code", "origin", f"refs/heads/{args.branch}"],
-                    capture_output=True,
-                ).returncode
-                == 0
-            )
+            rh = remote_head(args.branch)
             b.update(
                 session=args.session,
                 head=head,
                 base=base or b.get("base"),
-                pushed=pushed,
+                remote_head=rh,
+                pushed=bool(rh) and rh == head,
                 updated_at=now(),
             )
             if args.status:
                 b["status"] = args.status
+            elif b.get("status") == "merged" and tip and not batch_landed(args.branch, b, tip):
+                b["status"] = "building"  # the head moved past what was merged
+                event("batch-unmerged", batch=args.branch, head=head, tip=tip)
             b.setdefault("status", "building")
             if args.pr:
                 b["pr"] = args.pr
