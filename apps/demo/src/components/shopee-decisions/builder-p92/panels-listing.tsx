@@ -81,12 +81,17 @@ export function AdsPanel({ form, set, ctx }: P<"ads">) {
           <option value="">—</option>
           {campaigns.map((c) => (
             <option key={c.campaign_key} value={c.campaign_key}>
-              {c.name}
+              {[c.name, c.type_label, c.status_label].filter((x) => x).join(" · ")}
             </option>
           ))}
           {ctx.onNewCampaign || ctx.newCampaign ? <option value={NEW_CAMPAIGN}>+ Tạo chiến dịch mới</option> : null}
         </select>
       </label>
+      {camp && !camp.campaign_id ? (
+        <p className="sd-error" data-testid="p2-ads-no-id">
+          Chưa có mã chiến dịch — mở Quảng cáo Shopee để Connector đọc
+        </p>
+      ) : null}
       {failed ? <p className="sd-error">Chưa tải được chiến dịch quảng cáo.</p> : null}
       <div aria-label="Thay đổi" className="p3-tabs" role="tablist">
         {ADS_LEVERS.map(([k, text]) => (

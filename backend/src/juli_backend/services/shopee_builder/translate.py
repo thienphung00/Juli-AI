@@ -613,6 +613,13 @@ def _variation_set(spec: sp.VariationSetSpec, ctx: BuilderContext) -> Translatio
     )
 
 
+_NO_CAMPAIGN_ID = {
+    "type": "ads_campaign_id_missing",
+    "code": "ads_campaign_id_missing",
+    "message": "Chưa có mã chiến dịch — mở Quảng cáo Shopee để Connector đọc",
+}
+
+
 def _ads_warnings(spec: sp.AdsSpec, ctx: BuilderContext) -> list[dict[str, Any]]:
     """Shopee's own cautions of the edit form (recon 2026-11-09): a custom ROAS above the hint, and
     a second ROAS change within a week (that week's performance support is lost)."""
@@ -678,10 +685,24 @@ def _ads_new(spec: sp.AdsNewSpec, ctx: BuilderContext) -> Translation:
 
 def _ads(spec: sp.AdsSpec, ctx: BuilderContext) -> Translation:
     base: dict[str, Any] = {"label": _label(spec, "Quảng cáo"), "campaign_key": spec.campaign_key}
+    if spec.campaign_key:
+        # the Connector opens the campaign page by its id: it travels on the card (candidate extra
+        # -> ``change.target.campaign_id``, which ``fill_queue`` reads)
+        setting = ctx.env.setting_for(spec.campaign_key)
+        alloc = next((c for c in ctx.env.view.ads.campaigns if c.key == spec.campaign_key), None)
+        cid = ctx.campaigns.id_of(
+            alloc.name if alloc else spec.campaign_key, spec.campaign_key, setting
+        )
+        # no id yet: the Connector has not read this campaign. The flag rides on the card
+        # (``candidate_extra`` and ``change.target`` ``campaign_id_missing``) so the sheet can
+        # warn before approval, instead of a failed job after it
+        base["extra"] = {"campaign_id": cid} if cid else {"campaign_id_missing": True}
     schedule = {k: v.isoformat() for k, v in (("start", spec.start), ("end", spec.end)) if v}
     if spec.lever in ("budget", "roas") and not spec.campaign_key:
         raise SpecRefused("no_campaign_report")
     warnings = _ads_warnings(spec, ctx)
+    if spec.campaign_key and base.get("extra", {}).get("campaign_id_missing"):
+        warnings = [*warnings, _NO_CAMPAIGN_ID]
     if spec.lever == "budget":
         if spec.daily_budget is not None and spec.daily_budget < sp.ADS_MIN_BUDGET:
             raise SpecRefused("ads_budget_below_min")

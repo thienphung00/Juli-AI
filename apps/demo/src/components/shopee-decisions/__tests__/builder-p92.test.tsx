@@ -443,6 +443,16 @@ describe("P92 · các loại khác", () => {
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "description_first_line", first_line: "Chỉ 25.900đ mỗi hộp" }));
   });
 
+  it("ads: a campaign without a Shopee id is flagged under the picker before approval", async () => {
+    const builder = fakeBuilder();
+    open(builder);
+    await toKinds(builder);
+    chooseKind("ads");
+    await screen.findByRole("option", { name: "Chiến dịch chưa đọc mã" });
+    fireEvent.change(screen.getByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c2" } });
+    expect(await screen.findByTestId("p2-ads-no-id")).toHaveTextContent("Chưa có mã chiến dịch — mở Quảng cáo Shopee để Connector đọc");
+  });
+
   it("ads, affiliate, variation set and price display build their versions", async () => {
     const builder = fakeBuilder();
     open(builder);
@@ -450,8 +460,10 @@ describe("P92 · các loại khác", () => {
     chooseKind("ads");
     await screen.findByTestId("p2-panel-ads");
     await waitFor(() => expect(calls(builder, "adsCampaigns")).toHaveLength(1));
-    await screen.findByRole("option", { name: /GMV Max/ });
+    // one entry per campaign: its name, type and status
+    expect(await screen.findByRole("option", { name: "GMV Max · Túi zip · Sản phẩm · đang chạy" })).toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "Chiến dịch" }), { target: { value: "c1" } });
+    expect(screen.queryByTestId("p2-ads-no-id")).toBeNull(); // c1 has its campaign id
     fireEvent.change(screen.getByRole("textbox", { name: "Ngân sách mới mỗi ngày" }), { target: { value: "200000" } });
     await waitFor(() => expect(lastVersions(builder, "evaluate")[0]).toMatchObject({ kind: "ads", lever: "budget", campaign_key: "c1", daily_budget: 200000 }));
     fireEvent.click(screen.getByTestId("p2-add"));

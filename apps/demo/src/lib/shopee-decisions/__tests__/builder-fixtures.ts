@@ -213,7 +213,7 @@ export function fakeBuilder(
     adsCampaigns: () =>
       run("adsCampaigns", {
         daily_cap: 220_000,
-        campaigns: [{ campaign_key: "c1", name: "GMV Max · Túi zip", running: true, daily_budget: 150_000, roas_target: 6, spend_per_day: 140_000, roas_direct: 6.3, break_even_roas: 4.1, products: [{ item_id: P_ZIP, name: "Túi zip thực phẩm D", spend: 1, roas_direct: 6.3, break_even_roas: 4.1, below_break_even: false }] }],
+        campaigns: [{ campaign_key: "c1", name: "GMV Max · Túi zip", campaign_id: "7001", type_label: "Sản phẩm", status_label: "đang chạy", running: true, daily_budget: 150_000, roas_target: 6, spend_per_day: 140_000, roas_direct: 6.3, break_even_roas: 4.1, products: [{ item_id: P_ZIP, name: "Túi zip thực phẩm D", spend: 1, roas_direct: 6.3, break_even_roas: 4.1, below_break_even: false }] }, { campaign_key: "c2", name: "Chiến dịch chưa đọc mã", campaign_id: null, daily_budget: 100_000, roas_target: 5, spend_per_day: 0, roas_direct: null, break_even_roas: null, products: [] }],
       }),
     keywords: (id) => run("keywords", keywordTable(), id),
     evaluate: (v) => run("evaluate", pick(data.evaluate, v), v),
