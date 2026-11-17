@@ -63,6 +63,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import IngestDatasetStatus
 from juli_backend.services.shopee_analytics import funnel, loaders, service
+from juli_backend.services.shopee_analytics.catalog import UNMATCHED_LABEL, Catalog
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.data_through import ads_last_day, data_through
 from juli_backend.services.shopee_analytics.fmt import frac, num
@@ -166,6 +167,19 @@ def _ad_report(
             else:
                 target[k] = Decimal(have or 0) + Decimal(value or 0)
     return (product if has_product else None), (shop if has_shop else None)
+
+
+def partition_channels(
+    total: Decimal | None, ads: Decimal | None, affiliate: Decimal | None
+) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
+    """C4: ``(ads, affiliate, organic)`` that add up to ``total``: ads (a placed-order overlay) is
+    capped at the total, affiliate at what is left, organic = the rest. An unknown ads figure
+    leaves ads and organic unknown; an unknown total, everything."""
+    if total is None or ads is None:
+        return ads, affiliate, None
+    ads_part = min(max(ads, Decimal(0)), total)
+    aff_part = min(max(affiliate or Decimal(0), Decimal(0)), total - ads_part)
+    return ads_part, aff_part, total - ads_part - aff_part
 
 
 def _rest(a: Decimal | None, b: Decimal | None) -> Decimal | None:
@@ -315,7 +329,38 @@ def split_rows(
             aff.gmv if aff else None,
         )
     )
+    if product_level:
+        _partition_product_rows(rows, base.total("gmv"))
     return with_share(rows, base.total("gmv"))
+
+
+def _partition_product_rows(rows: list[dict[str, Any]], total: Decimal | None) -> None:
+    """C4: a product's Organic / Quảng cáo / Tiếp thị liên kết GMV add up to its GMV. The
+    sources are read from different bases (the ads report is placed orders), so their sum can pass
+    the GMV (prod: 105 %); Quảng cáo is capped, Tiếp thị liên kết takes what is left of the
+    cap, Organic is the rest. The raw ads figure stays on the row as ``overlay_gmv``."""
+    by = {r["key"]: r for r in rows}
+    ads, aff, org = by.get("ads"), by.get("affiliate"), by.get("organic")
+    if total is None or ads is None or aff is None or org is None or ads["gmv"] is None:
+        return
+    a_part, f_part, o_part = partition_channels(
+        total, Decimal(str(ads["gmv"])), None if aff["gmv"] is None else Decimal(str(aff["gmv"]))
+    )
+    if a_part is None or o_part is None:
+        return
+    ads["overlay_gmv"] = ads["gmv"]
+    ads["gmv"] = num(a_part)
+    if aff["gmv"] is not None:
+        aff["gmv"] = num(f_part)
+    org["gmv"] = num(o_part)
+    kids = [by[k] for k in ("organic_shop", "organic_video", "organic_live") if k in by]
+    card = by.get("organic_card")
+    if card is not None:
+        # the Thẻ sản phẩm child is the drill-down remainder of Organic
+        rest = o_part - sum(
+            (Decimal(str(k["gmv"])) for k in kids if k["gmv"] is not None), Decimal(0)
+        )
+        card["gmv"] = num(max(rest, Decimal(0)))
 
 
 def with_share(rows: list[dict[str, Any]], total: Decimal | None) -> list[dict[str, Any]]:
@@ -704,10 +749,11 @@ async def channel_split_products(
         rows = await funnel.load_rows(session, shop_id, window)
     shop_card = _by_source(funnel.base_from_rows(rows, shop_id.hex)).get(CARD)
     ads_known = shop_card is not None and shop_card.ads is not None
-    item_ids = sorted(
-        {d.item_id for d in rows.product_days if d.item_id and (d.gmv or d.orders or d.views)}
-        - set(view.excluded)
-    )
+    seen = {d.item_id for d in rows.product_days if d.item_id and (d.gmv or d.orders or d.views)}
+    seen -= set(view.excluded)
+    # C4: order lines matching no listing are not a product: no row, no selection (reported below)
+    unmatched_ids = sorted(i for i in seen if Catalog.is_unmatched(i))
+    item_ids = sorted(seen - set(unmatched_ids))
     bases = {i: funnel.base_from_rows(rows, str(shop_id), item_ids=(i,)) for i in item_ids}
     values: dict[str, dict[str, float | None]] = {}
     for item, b in bases.items():
@@ -740,6 +786,9 @@ async def channel_split_products(
         margin = shop_profit.scope_margin_pct(view.profit, (item,))
         header = snaps[item].header if item in snaps else None
         images = list(header.image_urls) if header and header.image_urls else []
+        # C4: the three channels partition the product's GMV (sum = GMV, 100 %). The ads report
+        # is a placed-order overlay, so it is capped at the GMV; the raw figure stays in ads_overlay
+        ads_part, aff_part, organic_part = partition_channels(total, ads_gmv, aff_gmv)
         products.append(
             {
                 "product_id": item,
@@ -747,19 +796,27 @@ async def channel_split_products(
                 "image_url": images[0] if images else None,
                 "gmv": num(total),
                 "margin": None if margin is None else float(margin),
-                "organic_gmv": num(
-                    None
-                    if total is None or ads_gmv is None
-                    else max(total - aff_gmv - ads_gmv, Decimal(0))
-                ),
-                "ads_gmv": num(ads_gmv),
-                "affiliate_gmv": num(aff_gmv),
+                "organic_gmv": num(organic_part),
+                "ads_gmv": num(ads_part),
+                "affiliate_gmv": num(aff_part),
+                "ads_overlay_gmv": num(ads_gmv),
                 "weakest_metric": weakest_metric(values, item),
             }
         )
     products.sort(key=lambda p: -(p["gmv"] or 0))
+    unmatched_gmv = [
+        t
+        for i in unmatched_ids
+        if (t := funnel.base_from_rows(rows, str(shop_id), item_ids=(i,)).total("gmv")) is not None
+    ]
     return {
         "from": window.start.isoformat(),
         "to": window.end.isoformat(),
         "products": products[:MAX_PRODUCTS],
+        # not a product: not selectable, shown (if at all) as a note so the totals reconcile
+        "unmatched": {
+            "label": UNMATCHED_LABEL,
+            "gmv": num(sum(unmatched_gmv, Decimal(0))) if unmatched_gmv else None,
+            "selectable": False,
+        },
     }

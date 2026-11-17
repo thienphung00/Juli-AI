@@ -672,9 +672,9 @@ async def _connector_ads_until(session: AsyncSession, shop_id: uuid.UUID) -> dat
 async def load_ad_days(
     session: AsyncSession, shop_id: uuid.UUID, window: Window
 ) -> dict[date, DayAds]:
-    """P100 A.5: the window's ONE ad spend per day (Connector day, else the daily report, else
-    the period report spread over its days; no source = no entry, never 0). P100 B.3: a day
-    after the newest Connector ads read is missing, not the period report's average."""
+    """P100 A.5 + R12: the window's ONE ad spend per day (the daily report day, else the Connector
+    day, else the period report spread over its days; no source = no entry, never 0). P100 B.3:
+    a day after the newest Connector ads read is missing, not the period report's average."""
     return resolve_ad_days(
         await _connector_ad_days(session, shop_id, window),
         await _daily_report_ad_days(session, shop_id, window),

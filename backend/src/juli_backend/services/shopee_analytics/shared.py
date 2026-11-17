@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -25,8 +26,30 @@ def shop_profit_of(view: PeriodView) -> KnownCostProfit:
     the headline GMV). Tổng quan, Sản phẩm (matrix, the Sản phẩm + luồng headline) and Kế hoạch
     (live "hôm nay" and the frozen base) read only this."""
     return known_cost_profit(
-        view.profit, view.pairs, view.metrics.gmv, view.data.ads_daily.spend_by_day
+        view.profit,
+        view.pairs,
+        view.metrics.gmv,
+        view.data.ads_daily.spend_by_day,
+        order_data_days(view),
     )
+
+
+def order_data_days(view: PeriodView) -> set[date] | None:
+    """R11: the days of the window the order data speaks for (a zero-order day included).
+    ``None`` = all of them: Shopee's daily / period totals cover the window. Else the order
+    export's span clipped to the window plus every day that has a line; a day outside never
+    arrived, so its ads are not charged to profit (missing is not zero)."""
+    if view.data.totals.basis in ("daily", "period"):
+        return None
+    lines = view.data.lines
+    days = {ln.order_date for ln, _ in view.pairs}
+    b = lines.export_bounds
+    if b is not None:
+        day, last = max(b[0], view.window.start), min(b[1], view.window.end)
+        while day <= last:
+            days.add(day)
+            day += timedelta(days=1)
+    return days
 
 
 def shop_profit_fields(view: PeriodView) -> dict[str, Any]:

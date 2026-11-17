@@ -2,8 +2,11 @@
 
 Three sources describe a shop's ad spend; each day takes the first one that has it:
 
-1. ``connector`` -- the Connector's ``ads_campaign_daily`` (finished days, one row per campaign);
-2. ``daily_report`` -- the daily CSV report (``traffic_overview`` ads stream, one row per ad type);
+1. ``daily_report`` -- the daily CSV report (``traffic_overview`` ads stream, one row per ad type):
+   Shopee's own closed-day figure (R12, 2026-11-17: it wins over the Connector, which sums the
+   campaigns it saw and ran 135k under the report in a month);
+2. ``connector`` -- the Connector's ``ads_campaign_daily`` (finished days, one row per campaign):
+   it fills only the days the report lacks (the newest days, before the file is exported);
 3. ``period_spread`` -- the CSV period reports (``ads_campaign_period``): the period's spend
    spread evenly over its days, the newer report answering a day two reports share. This is
    the same pro-rata share :func:`ads_sources.resolve_ad_spend` uses (days in the range ÷ days in
@@ -78,10 +81,10 @@ def resolve_ad_days(
         by_campaign[campaign_key(w.campaign)][(w.start, w.end)].append(w)
     day = start
     while day <= end:
-        if day in connector:
-            out[day] = connector[day]
-        elif day in daily_report:
+        if day in daily_report:
             out[day] = daily_report[day]
+        elif day in connector:
+            out[day] = connector[day]
         elif connector_until is None or day <= connector_until:
             spread = _period_day(by_campaign, day)
             if spread is not None:

@@ -45,6 +45,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.services.shopee_analytics import channel_split, funnel, kol, loaders, service
 from juli_backend.services.shopee_analytics import kol_labels as labels
+from juli_backend.services.shopee_analytics.catalog import Catalog
 from juli_backend.services.shopee_analytics.data_through import ads_last_day, data_through
 from juli_backend.services.shopee_analytics.fmt import frac, num
 from juli_backend.services.shopee_analytics.queries import NoShopeeData
@@ -591,6 +592,7 @@ async def metric_view(
     ids = {
         d.item_id for d in now_rows.product_days if d.item_id and (d.gmv or d.orders or d.views)
     } - set(now_view.excluded)
+    ids = {i for i in ids if not Catalog.is_unmatched(i)}  # C4: not a product
     margins_now = _margins(now_view)
     margins_before = _margins(prev_view) if prev_view else {}
     names = dict(now_view.names)

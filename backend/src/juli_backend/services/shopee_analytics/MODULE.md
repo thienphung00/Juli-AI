@@ -106,3 +106,22 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
 - Known follow-up: the stock-history read filters on `(shop_id, read_at)` but the table only has
   the per-SKU index `(shop_id, item_id, model_id, read_at)`; add a `(shop_id, read_at)` index (a
   migration) if the read shows up in query timings.
+
+## One calculation (batch-1117b R11, R12, C4)
+
+- **R11 profit counts all ads.** `shop_profit.known_cost_profit` charges each day's ads by that day's
+  known-cost GMV share (unchanged). A day with spend and NO counted order line is charged whole to its
+  own bridge line `ads_no_order_days` ("Quảng cáo ngày không có đơn"), and `profit` subtracts it. Partial
+  windows keep "missing is not zero": `shared.order_data_days` names the days the order data speaks for
+  (everything when Shopee's daily / period totals cover the window, else the order export's span clipped
+  to the window plus the days with lines); spend on a day outside it, and on a day whose orders all lack
+  costs, is not charged and stays in `ads_total` only. So ads charged = the spend of the days counted,
+  and the label says `charged / tổng chi QC`.
+- **R12 one ads source.** `ads_days.resolve_ad_days`: a day the daily Shopee report (CSV) has takes the
+  report; the Connector fills only days the report lacks; then the period spread. A day after the newest
+  Connector read with no report row stays missing (B.3). `day_sources` says which source each day used.
+- **C4 product channels.** `Catalog.name` never returns "unknown" (`sku:unknown` = "Đơn không khớp sản
+  phẩm"); the picker (`channel_split_products`) and Phân tích product list drop unmatched `sku:` ids
+  (picker returns them as `unmatched`, `selectable: false`). Product channel GMV partitions the product
+  GMV via `channel_split.partition_channels` (ads capped at GMV as a placed-order overlay, TTLK next,
+  Organic the rest); the raw ads figure stays as `ads_overlay_gmv` / `overlay_gmv`.
