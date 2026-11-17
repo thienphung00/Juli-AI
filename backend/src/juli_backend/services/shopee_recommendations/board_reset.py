@@ -43,12 +43,15 @@ RESET_STATUSES: tuple[str, ...] = (*service.OPEN_STATUSES, STATUS_PLANNED, STATU
 async def require_owner(
     session: AsyncSession, shop: Shop, user_id: uuid.UUID, *, reviewer: bool
 ) -> None:
-    """403 unless ``user_id`` owns the shop (or its business); always 403 for a reviewer session
-    and for the reviewer's sample shop."""
+    """403 unless ``user_id`` is the shop's owner or an active person (owner or member) of its
+    business (owner decision 2026-11-17); always 403 for a reviewer session and for the
+    reviewer's sample shop."""
     if reviewer or shop.kind == SAMPLE_KIND:
         raise ProposalError(ERROR_REVIEWER, 403, "not available in the reviewer session")
-    if not await businesses.owns_shop(session, shop, user_id):
-        raise ProposalError(ERROR_OWNER_ONLY, 403, "only the shop's owner may do this")
+    if not await businesses.in_shop_team(session, shop, user_id):
+        raise ProposalError(
+            ERROR_OWNER_ONLY, 403, "only the shop's owner or its members may do this"
+        )
 
 
 async def _final_read(session: AsyncSession, shop_id: uuid.UUID, ids: list[uuid.UUID]) -> set[str]:

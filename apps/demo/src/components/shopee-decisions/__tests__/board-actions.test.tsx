@@ -45,7 +45,7 @@ describe("Thực hiện · Xoá bảng", () => {
     render(<BoardActions board={board} onChanged={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "Xoá bảng" }));
     fireEvent.click(within(screen.getByTestId("sd-board-reset")).getByRole("button", { name: "Xoá" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Chỉ chủ shop làm được việc này.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Chỉ chủ shop hoặc thành viên của shop làm được việc này.");
     expect(document.body.textContent).not.toContain("board_owner_only");
   });
 });

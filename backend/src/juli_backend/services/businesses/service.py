@@ -113,6 +113,17 @@ async def owns_shop(session: AsyncSession, shop: Shop, user_id: uuid.UUID) -> bo
     return row is not None and row.role == ROLE_OWNER
 
 
+async def in_shop_team(session: AsyncSession, shop: Shop, user_id: uuid.UUID) -> bool:
+    """The shop's owner or any ACTIVE person (``owner`` or ``member``) of the shop's business: the
+    people who run the shop's board -- reset it and import the cards done outside Juli (owner
+    decision 2026-11-17: members may do both)."""
+    if shop.user_id == user_id:
+        return True
+    if shop.business_id is None:
+        return False
+    return await member_of(session, shop.business_id, user_id) is not None
+
+
 async def _require_owner(
     session: AsyncSession, business_id: uuid.UUID, user_id: uuid.UUID
 ) -> Business:
