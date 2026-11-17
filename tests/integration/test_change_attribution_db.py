@@ -208,6 +208,10 @@ async def _walk(owner_engine, tenant) -> dict:
     pid = _tiktok_id(owner_engine, tenant.product_id)
     cardless_pid = _tiktok_id(owner_engine, tenant.second_product_id)
     start = _now()
+    # The write's ``recorded_at`` is the database clock (``server_default now()``, session-local in
+    # a ``timestamp`` column); production runs UTC, a developer's Postgres may not, so the
+    # re-reads are dated on the database clock too.
+    clock = _rows(owner_engine, "SELECT localtimestamp AS t")[0]["t"]
 
     # Baselines: the product as it was before Juli's write.
     await _read(
@@ -234,12 +238,12 @@ async def _walk(owner_engine, tenant) -> dict:
         )
 
     # 2. Re-reads: Juli's after, then the seller's revert, then the seller's own change.
-    juli = await _read(tenant.shop_id, pid, "Mới", previous=True, at=_now() + timedelta(minutes=5))
-    revert = await _read(tenant.shop_id, pid, "Cũ", previous=True, at=_now() + timedelta(days=2))
-    change = await _read(tenant.shop_id, pid, "Khác", previous=True, at=_now() + timedelta(days=3))
+    juli = await _read(tenant.shop_id, pid, "Mới", previous=True, at=clock + timedelta(minutes=5))
+    revert = await _read(tenant.shop_id, pid, "Cũ", previous=True, at=clock + timedelta(days=2))
+    change = await _read(tenant.shop_id, pid, "Khác", previous=True, at=clock + timedelta(days=3))
     # 3. A product with no card: a natural action.
     natural = await _read(
-        tenant.shop_id, cardless_pid, "Seller viết", previous=True, at=_now() + timedelta(days=1)
+        tenant.shop_id, cardless_pid, "Seller viết", previous=True, at=clock + timedelta(days=1)
     )
     return {
         **seeded,

@@ -90,6 +90,8 @@ export interface PanelCtx {
   readonly market: MarketScope | null;
   /** Step ③ ads: "+ Tạo chiến dịch mới" in the campaign select (absent = option hidden). */
   readonly onNewCampaign?: () => void;
+  /** UI grill G9: the new-campaign setup shown right in step ③ for this product (absent = jump to the tab). */
+  readonly newCampaign?: (itemId: string) => ReactNode;
 }
 
 export function ProductSelect({ label, value, onChange, products, allowEmpty = true }: { readonly label: string; readonly value: string; readonly onChange: (id: string) => void; readonly products: readonly PickerProduct[]; readonly allowEmpty?: boolean }) {

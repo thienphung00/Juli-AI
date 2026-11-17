@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { DASH, fmt, pp, vnCount, vnd } from "../../../lib/shopee-analytics/format";
 import type { VersionDates } from "../../../lib/shopee-decisions/builder-api";
-import type { AdsEditFacts, FunnelColumn, OptionResult } from "../../../lib/shopee-decisions/option-result";
+import { roiLabel, type AdsEditFacts, type FunnelColumn, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import { TextChip } from "../../shopee-analytics/ui";
 import { countPct, moneyPct, perDayText, periodLabel, resultDays, signedMoney } from "./format";
 
@@ -97,7 +97,7 @@ function AdsBlock({ ads: a }: { readonly ads: AdsEditFacts }) {
   );
 }
 
-export function OptionCard({ result: r, title, testId = "option-card", dates }: { readonly result: OptionResult; readonly title?: string; readonly testId?: string; readonly dates?: VersionDates | null }) {
+export function OptionCard({ result: r, title, testId = "option-card", dates, profitReason }: { readonly result: OptionResult; readonly title?: string; readonly testId?: string; readonly dates?: VersionDates | null; /** G5: the profit_unknown warning's text, for a blank profit. */ readonly profitReason?: string }) {
   const profit = profitText(r);
   const orders = r.delta.orders;
   const ne = !r.estimable;
@@ -113,6 +113,9 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
   const profitPerDay = r.estimable ? perDayText(r.delta.profit?.value, days) : null;
   const gmvPerDay = r.estimable ? perDayText(r.delta.gmv.value, days) : null;
   const costNotes = r.notes.filter((n) => n.includes(COST_DAYS_NOTE));
+  // UI grill G5: a "—" says why on hover (the server's reason text; the code is never shown)
+  const why = r.reason_text ?? undefined;
+  const profitWhy = profit.main === NOT_ESTIMABLE ? (why ?? profitReason) : undefined;
   return (
     <article className="oc" data-testid={testId}>
       <header className="oc__head">
@@ -131,8 +134,7 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
         <div>
           <dt>Δ lợi nhuận {period}</dt>
           <dd data-testid="oc-profit">
-            <b>{profit.main}</b>
-            {profit.range ? <span> {profit.range}</span> : null}
+            <b title={profitWhy}>{profit.main}</b>
             {profitPerDay ? <span className="sa-hint" data-testid="oc-profit-perday">{profitPerDay}</span> : null}
             {profit.buildUp ? <span className="sa-hint" data-testid="oc-buildup">{profit.buildUp}</span> : null}
           </dd>
@@ -140,14 +142,14 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
         <div>
           <dt>Δ GMV {period}</dt>
           <dd data-testid="oc-gmv">
-            <b>{gmvText}</b>
+            <b title={gmvText === NOT_ESTIMABLE ? why : undefined}>{gmvText}</b>
             {gmvPerDay ? <span className="sa-hint" data-testid="oc-gmv-perday">{gmvPerDay}</span> : null}
           </dd>
         </div>
         <div>
           <dt>Δ Đơn</dt>
           <dd data-testid="oc-orders">
-            <b>{ordersText}</b>
+            <b title={ordersText === NOT_ESTIMABLE ? why : undefined}>{ordersText}</b>
             {orders.note ? <span className="sa-hint" data-testid="oc-note">{orders.note}</span> : null}
           </dd>
         </div>
@@ -165,7 +167,7 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
         ) : null}
         {roi ? (
           <div>
-            <dt>ROI</dt>
+            <dt>{roiLabel(r)}</dt>
             <dd data-testid="oc-roi">{roi}</dd>
           </div>
         ) : null}
@@ -173,6 +175,11 @@ export function OptionCard({ result: r, title, testId = "option-card", dates }: 
           <dt>Chi phí</dt>
           <dd data-testid="oc-cost">
             <b>{r.cost.total > 0 ? vnd(r.cost.total) : r.cost.total < 0 ? `Giảm ${vnd(-r.cost.total)}` : "Không có chi phí thêm"}</b>
+            {r.cost.discount_given?.text ? (
+              <span className="sa-hint" data-testid="oc-discount-given">
+                {r.cost.discount_given.text}
+              </span>
+            ) : null}
           </dd>
         </div>
         {beLine ? (

@@ -81,8 +81,11 @@ export function createPlanApi(options: PlanClientOptions): PlanApi {
       }),
     removeGroupMember: (groupId, m) => call<PlanResponse>("POST", `/plan/groups/${encodeURIComponent(groupId)}/members/remove`, { card_id: m.cardId, version: m.version }),
     cancelGroup: (groupId) => call<PlanResponse>("POST", `/plan/groups/${encodeURIComponent(groupId)}/cancel`, {}),
-    exportKeHoach: async (month) => {
-      const qs = month ? `?month=${encodeURIComponent(month)}` : "";
+    exportKeHoach: async (range) => {
+      const q = new URLSearchParams();
+      if (range.from) q.set("from", range.from);
+      if (range.to) q.set("to", range.to);
+      const qs = q.toString() ? `?${q.toString()}` : "";
       const response = await (fetchImpl ?? fetch)(`${options.exportsBase ?? "/v1/demo/shopee/exports"}/ke-hoach.xlsx${qs}`, {
         method: "GET",
         headers: { Authorization: `Bearer ${token}`, ...(shopId ? { "X-Shop-Id": shopId } : {}) },

@@ -85,7 +85,10 @@ async def test_a_binding_limit_scales_the_extra_orders_the_voucher_can_bring(sho
     # P96 (owner decision 2026-11-05): a binding limit scales the gain by limit / expected uses;
     # it no longer zeroes it (5 uses of an expected 5,6 used to show +0 đ)
     _, env = shop
-    tight, free = voucher(env, quantity=1), voucher(env, quantity=10_000)
+    # min spend 100.000 and 60 days: the 90-95k orders sit within 20 % below it (the voucher only
+    # moves those; at 90.000 nothing is near the minimum any more, so no gain), 1,5 expected uses
+    tight = voucher(env, quantity=1, min_spend=100_000, days=60)
+    free = voucher(env, quantity=10_000, min_spend=100_000, days=60)
     assert tight["certain"]["voucher_detail"]["usage"]["headroom"] == 0
     p50 = tight["predicted"]["money_per_month"]["predicted"]["p50"]["dgmv"]
     p50_free = free["predicted"]["money_per_month"]["predicted"]["p50"]["dgmv"]

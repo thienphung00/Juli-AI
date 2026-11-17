@@ -567,6 +567,10 @@
 .sd-th-bar__dot--on {
   background: #16a34a;
 }
+.sd-th-bar__block {
+  color: var(--qd-wait-fg);
+  font-weight: 600;
+}
 .sd-th-bar__sync {
   margin-left: auto;
 }
@@ -776,4 +780,28 @@
     align-items: flex-start;
     text-align: left;
   }
+}
+
+/* UI grill G14: the voucher code beside Đã làm on a Thực hiện row */
+.sd-th-row__code {
+  width: 140px;
+  min-height: var(--touch-target-min, 44px);
+  padding: 0 10px;
+  border: 1px solid #d9d9df;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+/* Thực hiện · board sync with work done outside Juli (owner only) */
+.sd-board { margin: 0 0 12px; }
+.sd-board__bar,
+.sd-board__pane { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sd-board__pane { margin-top: 8px; padding: 12px; border: 1px solid #e6e6eb; border-radius: 8px; }
+.sd-board__file { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.sd-board__table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.sd-board__table th,
+.sd-board__table td { padding: 6px 8px; border-bottom: 1px solid #eeeef2; text-align: left; }
+.sd-board__skipped td { color: #8a8a94; }
+@media (max-width: 640px) {
+  .sd-board__pane { overflow-x: auto; }
 }

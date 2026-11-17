@@ -187,6 +187,8 @@ export interface CardSummary {
   readonly cost?: number | null;
   readonly plan: string;
   readonly stale: boolean;
+  /** Forecast grill F2 (not the recompute flag above): the card's data stops at `through`; no number then. */
+  readonly data_stale?: import("./option-result").DataStale | null;
   /** Why it is stale (`engine_version_changed` | `inputs_changed` | …): the card shows "đang cập nhật". */
   readonly stale_reason?: string | null;
   /** When the numbers were computed ("Cập nhật lúc …"). */
@@ -259,6 +261,11 @@ export interface MoneyBlock {
 
 export interface MoneyPerMonth {
   readonly days: number;
+  /** Forecast grill F4/F3: the P50 over the effect period, null when inside the noise band. Shown instead of P10/P90. */
+  readonly shown?: { readonly dgmv: N; readonly dorders: N; readonly dprofit: N };
+  readonly within_noise?: readonly ("gmv" | "orders" | "profit")[];
+  /** Forecast grill F2: the shop's data is behind; `shown` is all null then. */
+  readonly stale?: import("./option-result").DataStale | null;
   readonly certain: { readonly dgmv: N; readonly dprofit: N; readonly dchi: N };
   readonly predicted: { readonly p10: MoneyAt; readonly p50: MoneyAt; readonly p90: MoneyAt };
   readonly total: { readonly p10: MoneyAt; readonly p50: MoneyAt; readonly p90: MoneyAt };
@@ -714,6 +721,8 @@ export interface ExecutionCard {
   readonly measure_start: string | null;
   readonly measure_days: number | null;
   readonly open_job: { readonly id: string; readonly open_path: string } | null;
+  /** UI grill G14: the voucher code the Connector picked up after the seller saved (pre-fills the row). */
+  readonly captured_voucher_id?: string | null;
 }
 
 export interface ConnectorLine {
@@ -722,6 +731,15 @@ export interface ConnectorLine {
   readonly connected: boolean;
   readonly seller_centre_open: boolean | null;
   readonly reconcile_pending?: boolean;
+  /** Connector 0.3.22: Seller Centre sections the last daily run could not read. */
+  readonly reader_blocks?: readonly ReaderBlock[];
+}
+
+/** A section blocked by a login wall or CAPTCHA in the Connector's last daily run. */
+export interface ReaderBlock {
+  readonly section: "phan_tich_ban_hang" | "seller_centre" | string;
+  readonly reason: "login" | "captcha" | string;
+  readonly readers: readonly string[];
 }
 
 export interface ExecutionStates {

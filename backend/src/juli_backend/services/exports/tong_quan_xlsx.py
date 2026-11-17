@@ -1,8 +1,8 @@
 """The Tổng quan export: a pure builder, plain dataclasses in, an openpyxl Workbook / bytes out.
 
-Sheets: "Tổng quan" (the shop's numbers, this period vs the previous, with the Kế hoạch baseline
-and goal), "Theo kênh" (Organic / Quảng cáo / Tiếp thị liên kết), "Theo ngày", "Theo sản phẩm",
-"Theo SKU".
+Sheets: "Tổng quan" (the shop's numbers, this period vs the previous), "Theo kênh" (Organic /
+Quảng cáo / Tiếp thị liên kết), "Theo ngày", "Theo sản phẩm", "Theo SKU". No Kế hoạch baseline or
+goal: those are in the Kế hoạch export (UI grill G21).
 
 Every number is an input; the ratios (AOV, CTR, CTOR, % GMV, ROI, Thay đổi, % đạt) and the
 totals are Excel formulas over the cells of the sheet, so the file recomputes when a figure is
@@ -57,8 +57,7 @@ class Channel:
 
 @dataclass
 class Figures:
-    """One scope (shop or product) over one period. ``baseline_*`` / ``goal_*`` = the Kế hoạch
-    baseline and goal (running plans) for the same days; ``None`` when no card is running."""
+    """One scope (shop or product) over one period."""
 
     channels: dict[str, Channel] = field(default_factory=dict)
     gmv: float | None = None
@@ -67,10 +66,6 @@ class Figures:
     ads_cost: float | None = None
     aff_cost: float | None = None
     offer_cost: float | None = None
-    baseline_gmv: float | None = None
-    goal_gmv: float | None = None
-    baseline_profit: float | None = None
-    goal_profit: float | None = None
 
     def channel(self, key: str) -> Channel:
         return self.channels.get(key) or Channel()
@@ -85,10 +80,6 @@ class DayRow:
     aff_cost: float | None = None
     offer_cost: float | None = None
     profit: float | None = None
-    baseline_gmv: float | None = None
-    goal_gmv: float | None = None
-    baseline_profit: float | None = None
-    goal_profit: float | None = None
     #: the day's own GMV / orders (the stored daily order totals): what the GMV / Đơn columns
     #: show, so the days add up to the period even on a day without traffic-source rows
     total_gmv: float | None = None
@@ -110,14 +101,10 @@ class SkuRow:
     sku: str
     variation: str | None
     product_name: str
-    units_goal: float | None = None
     units: float | None = None
-    revenue_goal: float | None = None
     revenue: float | None = None
-    profit_goal: float | None = None
     profit: float | None = None
     stock: float | None = None
-    need: float | None = None  # units still to sell until the end of the period
     #: units per variation of a combo SKU ("G500001×10" -> sku "G500001", combo 10)
     combo: float | None = None
 
@@ -191,7 +178,7 @@ def cost_of(fig: Figures) -> float | None:
 
 # ----------------------------------------------------------------------------- Tổng quan
 
-OVERVIEW_HEADER = ["Chỉ số", "Kỳ này", "Thay đổi", "Mục tiêu", "% đạt"]
+OVERVIEW_HEADER = ["Chỉ số", "Kỳ này", "Thay đổi"]
 OV = {  # row of each metric on the "Tổng quan" sheet
     "gmv": 4, "orders": 5, "aov": 6, "profit": 7, "ads": 8, "aff": 9, "offer": 10, "cost": 11,
     "roi": 12,
@@ -232,11 +219,7 @@ def _overview(wb: Workbook, data: TongQuanData) -> None:
             v = _overview_values(data.now)[key]
         put(ws, r, 2, v, fmt)
         put(ws, r, 3, _change_vs(f"B{r}", prev[key]), PCT)
-    for key, goal in (("gmv", data.now.goal_gmv), ("profit", data.now.goal_profit)):
-        r = OV[key]
-        put(ws, r, 4, goal, MONEY)
-        put(ws, r, 5, f'=IFERROR(B{r}/D{r},"")', PCT)
-    widths(ws, [40, 16, 12, 16, 10])
+    widths(ws, [40, 16, 12])
     finish(ws, "B4")
 
 
@@ -280,7 +263,6 @@ def _channels(wb: Workbook, data: TongQuanData) -> None:
 
 DAY_HEADER = [
     "Ngày", "GMV Organic", "GMV Quảng cáo", "GMV TTLK", "GMV", "Đơn", "Chi phí", "Lợi nhuận",
-    "GMV mục tiêu", "Lợi nhuận mục tiêu",
 ]  # fmt: skip
 DAY_FIRST = 4  # first data row
 
@@ -300,12 +282,10 @@ def _days(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, 6, orders, INT)
         put(ws, r, 7, _sum(d.ads_cost, d.aff_cost, d.offer_cost), MONEY)
         put(ws, r, 8, d.profit, MONEY)
-        put(ws, r, 9, d.goal_gmv, MONEY)
-        put(ws, r, 10, d.goal_profit, MONEY)
     total = r + 1
     put(ws, total, 1, "Tổng", bold=True)
     first, last = DAY_FIRST, max(r, DAY_FIRST)
-    for c in range(2, 11):
+    for c in range(2, 9):
         L = col(c)
         put(ws, total, c, f"=SUM({L}{first}:{L}{last})", INT if c == 6 else MONEY, bold=True)
     widths(ws, {1: 12}, 15)
@@ -315,46 +295,42 @@ def _days(wb: Workbook, data: TongQuanData) -> None:
 # ----------------------------------------------------------------------------- Theo sản phẩm
 
 P_HEADER = [
-    "Mã SP", "Sản phẩm", "GMV", "Thay đổi", "GMV mục tiêu", "% đạt", "Lợi nhuận",
-    "Lợi nhuận mục tiêu", "% đạt", "% GMV Organic", "% GMV Quảng cáo", "% GMV TTLK", "ROI",
+    "Mã SP", "Sản phẩm", "GMV", "Thay đổi", "Lợi nhuận", "% GMV Organic", "% GMV Quảng cáo",
+    "% GMV TTLK", "ROI",
 ]  # fmt: skip
 #: hidden helper columns the % GMV / ROI formulas read: GMV Organic, Quảng cáo, TTLK, Tổng chi phí
-P_HELP = ["N", "O", "P", "Q"]
+P_HELP = ["J", "K", "L", "M"]
 P_HELP_HEADER = ["GMV Organic", "GMV Quảng cáo", "GMV TTLK", "Tổng chi phí"]
 P_FIRST = 4
 
 
 def _product_formulas(ws, r: int, gmv: float | str | None = None) -> None:
     """GMV = the product's own order GMV when known (``gmv``), else the sum of its channels."""
-    put(ws, r, 3, gmv if gmv is not None else f"=SUM(N{r}:P{r})", MONEY)
-    put(ws, r, 6, f'=IFERROR(C{r}/E{r},"")', PCT)
-    put(ws, r, 9, f'=IFERROR(G{r}/H{r},"")', PCT)
-    for c, h in ((10, "N"), (11, "O"), (12, "P")):
+    put(ws, r, 3, gmv if gmv is not None else f"=SUM(J{r}:L{r})", MONEY)
+    for c, h in ((6, "J"), (7, "K"), (8, "L")):
         put(ws, r, c, f'=IFERROR({h}{r}/C{r},"")', PCT)
-    put(ws, r, 13, f'=IFERROR(G{r}/Q{r},"")', POINTS)
+    put(ws, r, 9, f'=IFERROR(E{r}/M{r},"")', POINTS)
 
 
 def _products(wb: Workbook, data: TongQuanData) -> None:
     ws = wb.create_sheet(SHEET_PRODUCT)
     put(ws, 1, 1, title_of(data)).font = TITLE
     header(ws, 3, P_HEADER)
-    header(ws, 3, P_HELP_HEADER, 14)
+    header(ws, 3, P_HELP_HEADER, 10)
     r = P_FIRST - 1
     for r, p in enumerate(data.products, start=P_FIRST):
         put(ws, r, 1, p.product_id)
         put(ws, r, 2, p.name)
         prev_gmv = p.prev.gmv if p.prev.gmv is not None else gmv_of(p.prev)
         put(ws, r, 4, _change_vs(f"C{r}", prev_gmv), PCT)
-        put(ws, r, 5, p.now.goal_gmv, MONEY)
-        put(ws, r, 7, p.now.profit, MONEY)
-        put(ws, r, 8, p.now.goal_profit, MONEY)
-        for c, key in zip((14, 15, 16), CHANNELS, strict=True):
+        put(ws, r, 5, p.now.profit, MONEY)
+        for c, key in zip((10, 11, 12), CHANNELS, strict=True):
             put(ws, r, c, p.now.channel(key).gmv, MONEY)
-        put(ws, r, 17, cost_of(p.now), MONEY)
+        put(ws, r, 13, cost_of(p.now), MONEY)
         _product_formulas(ws, r, p.now.gmv)
     total, last = r + 1, max(r, P_FIRST)
     put(ws, total, 1, "Tổng", bold=True)
-    for c in (5, 7, 8, 14, 15, 16, 17):
+    for c in (5, 10, 11, 12, 13):
         L = col(c)
         put(ws, total, c, f"=SUM({L}{P_FIRST}:{L}{last})", MONEY, bold=True)
     prev_total = _sum(
@@ -370,13 +346,11 @@ def _products(wb: Workbook, data: TongQuanData) -> None:
 # ----------------------------------------------------------------------------- Theo SKU
 
 SKU_HEADER = [
-    "Mã SKU", "Phân loại", "Sản phẩm", "Số lượng bán mục tiêu", "Số lượng bán thực tế", "% đạt",
-    "Doanh thu mục tiêu", "Doanh thu thực tế", "% đạt", "Lợi nhuận mục tiêu",
-    "Lợi nhuận thực tế", "% đạt", "Biên", "Tồn kho", "Cần bán đến cuối kỳ", "Cần nhập",
-    "Hệ số combo",
+    "Mã SKU", "Phân loại", "Sản phẩm", "Số lượng bán", "Doanh thu", "Lợi nhuận", "Biên",
+    "Tồn kho", "Hệ số combo",
 ]  # fmt: skip
 SKU_FIRST = 4
-#: the row that brings Σ Doanh thu thực tế to the period's GMV (returns, lines without a SKU)
+#: the row that brings Σ Doanh thu to the period's GMV (returns, lines without a SKU)
 SKU_GAP_LABEL = "Chênh lệch với GMV"
 
 
@@ -390,20 +364,18 @@ def _skus(wb: Workbook, data: TongQuanData) -> None:
         put(ws, r, 2, k.variation)
         put(ws, r, 3, k.product_name)
         for c, v, fmt in (
-            (4, k.units_goal, INT), (5, k.units, INT), (7, k.revenue_goal, MONEY),
-            (8, k.revenue, MONEY), (10, k.profit_goal, MONEY), (11, k.profit, MONEY),
-            (14, k.stock, INT), (15, k.need, INT), (17, k.combo, INT),
+            (4, k.units, INT), (5, k.revenue, MONEY), (6, k.profit, MONEY), (8, k.stock, INT),
+            (9, k.combo, INT),
         ):  # fmt: skip
             put(ws, r, c, v, fmt)
         _sku_formulas(ws, r)
     if data.skus:
         r += 1
         put(ws, r, 1, SKU_GAP_LABEL)
-        put(ws, r, 8, f"='{SHEET_OVERVIEW}'!B{OV['gmv']}-SUM(H{SKU_FIRST}:H{r - 1})", MONEY)
+        put(ws, r, 5, f"='{SHEET_OVERVIEW}'!B{OV['gmv']}-SUM(E{SKU_FIRST}:E{r - 1})", MONEY)
     total, last = r + 1, max(r, SKU_FIRST)
     put(ws, total, 1, "Tổng", bold=True)
-    for c, fmt in ((4, INT), (5, INT), (7, MONEY), (8, MONEY), (10, MONEY), (11, MONEY),
-                   (14, INT), (15, INT)):  # fmt: skip
+    for c, fmt in ((4, INT), (5, MONEY), (6, MONEY), (8, INT)):
         L = col(c)
         put(ws, total, c, f"=SUM({L}{SKU_FIRST}:{L}{last})", fmt, bold=True)
     _sku_formulas(ws, total)
@@ -412,10 +384,103 @@ def _skus(wb: Workbook, data: TongQuanData) -> None:
 
 
 def _sku_formulas(ws, r: int) -> None:
-    for c, a, g in ((6, "E", "D"), (9, "H", "G"), (12, "K", "J")):
-        put(ws, r, c, f'=IF(AND({g}{r}<>"",{g}{r}<>0),{a}{r}/{g}{r},"")', PCT)
-    put(ws, r, 13, f'=IF(AND(K{r}<>"",H{r}<>0),K{r}/H{r},"")', PCT)
-    put(ws, r, 16, f'=IF(O{r}="","",MAX(0,O{r}-N{r}))', INT)
+    put(ws, r, 7, f'=IF(AND(F{r}<>"",E{r}<>0),F{r}/E{r},"")', PCT)
+
+
+# ----------------------------------------------------------------------------- Tất cả shop
+
+#: the overview row -> its metric id in the registry (the row is summable when the registry says so)
+ROW_METRIC = {
+    "gmv": "gmv", "orders": "orders", "profit": "profit", "ads": "cost_ads",
+    "aff": "cost_affiliate", "offer": "cost_offers", "cost": "cost_marketing", "aov": "aov",
+    "roi": "roi",
+}  # fmt: skip
+#: ratio rows: never summed or averaged; the Tổng column recomputes them from its own parts
+RATIO_ROWS = ("aov", "roi")
+MULTI_FIRST = 4  # first metric row of the all-shops sheet
+
+
+def summable_row(key: str) -> bool:
+    from juli_backend.services.metrics.registry import METRICS
+
+    return key not in RATIO_ROWS and METRICS[ROW_METRIC[key]].summable
+
+
+def title_multi(datas: list[TongQuanData]) -> str:
+    first = datas[0]
+    return f"TỔNG QUAN — Tất cả shop · {_d(first.start)}–{_d(first.end)}"
+
+
+def file_name_multi(datas: list[TongQuanData]) -> str:
+    return f"Juli_TongQuan_TatCaShop_{datas[0].start:%d%m%Y}_{datas[0].end:%d%m%Y}.xlsx"
+
+
+def _multi(wb: Workbook, datas: list[TongQuanData]) -> None:
+    """One sheet: a column per shop and a Tổng column. Tổng = the SUM of the shops for a metric the
+    registry marks summable; a ratio (AOV, ROI) is recomputed from the Tổng parts, never averaged;
+    anything else stays empty (per shop only)."""
+    ws = wb.create_sheet(SHEET_OVERVIEW)
+    put(ws, 1, 1, title_multi(datas)).font = TITLE
+    n = len(datas)
+    total_col = 2 + n
+    header(ws, 3, ["Chỉ số", *(f"{d.shop_name} ({d.platform})" for d in datas), "Tổng"])
+    labels = {
+        "gmv": ("GMV (đ)", MONEY), "orders": ("Đơn", INT), "aov": ("AOV (đ)", MONEY),
+        "profit": ("Lợi nhuận (đ)", MONEY),
+        "ads": ("Chi phí quảng cáo (Báo cáo DVHT) (đ)", MONEY),
+        "aff": ("Chi phí tiếp thị liên kết (đ)", MONEY), "offer": ("Chi phí ưu đãi (đ)", MONEY),
+        "cost": ("Tổng chi phí (đ)", MONEY), "roi": ("ROI", POINTS),
+    }  # fmt: skip
+    values = [_overview_values(d.now) for d in datas]
+    row = {k: OV[k] for k in OV}  # the single-shop layout: same rows
+    for key, (label, fmt) in labels.items():
+        r = row[key]
+        put(ws, r, 1, label)
+        for j in range(n):
+            L = col(2 + j)
+            if key == "aov":
+                v: object = f'=IFERROR({L}{row["gmv"]}/{L}{row["orders"]},"")'
+            elif key == "cost":
+                v = f"=SUM({L}{row['ads']}:{L}{row['offer']})"
+            elif key == "roi":
+                v = f'=IFERROR({L}{row["profit"]}/{L}{row["cost"]},"")'
+            else:
+                v = values[j][key]
+            put(ws, r, 2 + j, v, fmt)
+        T, first, last = col(total_col), col(2), col(1 + n)
+        if key == "aov":
+            total: object = f'=IFERROR({T}{row["gmv"]}/{T}{row["orders"]},"")'
+        elif key == "roi":
+            total = f'=IFERROR({T}{row["profit"]}/{T}{row["cost"]},"")'
+        elif summable_row(key):
+            total = f"=SUM({first}{r}:{last}{r})"
+        else:
+            total = None
+        put(ws, r, total_col, total, fmt, bold=True)
+    # GMV by channel: summable like the GMV it splits
+    for i, key in enumerate(CHANNELS):
+        r = OV["roi"] + 1 + i
+        put(ws, r, 1, f"GMV {CHANNEL_LABELS[key]} (đ)")
+        for j, d in enumerate(datas):
+            put(ws, r, 2 + j, d.now.channel(key).gmv, MONEY)
+        put(ws, r, total_col, f"=SUM({col(2)}{r}:{col(1 + n)}{r})", MONEY, bold=True)
+    widths(ws, {1: 40}, 20)
+    finish(ws, "B4")
+
+
+def build_multi(datas: list[TongQuanData]) -> Workbook:
+    wb = new_workbook()
+    _multi(wb, datas)
+    for ws in wb.worksheets:
+        for r in ws.iter_rows():
+            for c in r:
+                if c.font is None or c.font.name != "Arial":
+                    c.font = FONT
+    return wb
+
+
+def build_multi_bytes(datas: list[TongQuanData]) -> bytes:
+    return save_bytes(build_multi(datas))
 
 
 def build(data: TongQuanData) -> Workbook:

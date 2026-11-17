@@ -66,8 +66,14 @@ async def test_tu_tao_and_the_plan_card_show_the_same_set_dates_figures(session,
     _, planned = await _save_and_plan(session, seeded, spec)
     r = planned["result"]
     own = r["own"]["delta"]["p50"]
-    assert own["dgmv"] == pytest.approx(tu_tao["delta"]["gmv"]["value"], abs=0.51)
-    assert own["dorders"] == pytest.approx(tu_tao["delta"]["orders"]["value"], abs=0.051)
+    # F5: a metric within normal swing is null on the wire only; the plan card keeps the real Δ,
+    # which is the result's own likely - before
+    det = tu_tao["detail"]
+    real = {m: det["likely"][m] - det["before"][m] for m in ("gmv", "orders")}
+    for m in ("gmv", "orders"):
+        assert (tu_tao["delta"][m]["value"] is None) == (m in tu_tao["within_noise"])
+    assert own["dgmv"] == pytest.approx(real["gmv"], abs=0.51)
+    assert own["dorders"] == pytest.approx(real["orders"], abs=0.51)
     assert r["cost_total"] == pytest.approx(tu_tao["cost"]["total"])
     # wholly inside the 30 days: the horizon counts the same figures, not ×30/14
     assert r["counted_days"] == 14 and r["delta"]["p50"]["dgmv"] == pytest.approx(own["dgmv"])

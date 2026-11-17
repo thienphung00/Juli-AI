@@ -111,8 +111,8 @@ export const SETTINGS: ShopSettingsPage = {
       kpi_max_band_mult: 3,
       guard_band_mult: 1,
       volatile_cv: 0.3,
-      // P30 (D39.1)
-      diag_trigger: "metric_first",
+      // P30 (D39.1); F11: the shared detector is the default
+      diag_trigger: "shared",
       // P31 (D41.2)
       kpi_shrinkage: "on",
     },

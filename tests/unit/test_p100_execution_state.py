@@ -345,6 +345,35 @@ async def test_the_connector_progress_is_stored_and_shown(session, shop):
     assert (row["state"], row["fields"]) == (es.STATE_FILLED, {"filled": 1, "total": 2})
 
 
+async def test_the_captured_voucher_id_is_null_until_the_connector_reports_it(session, shop):
+    # G14: the Thực hiện row pre-fills "Mã voucher" from the id the Connector captured on save.
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])  # voucher card -> one voucher job
+    out = await es.execution_states(session, seeded.shop_id, now=NOW)
+    (row,) = [c for c in out["cards"] if c["card_id"] == str(ids[0])]
+    assert row["captured_voucher_id"] is None
+
+    job = (
+        await session.scalars(select(ShopeeFillJob).where(ShopeeFillJob.proposal_id == ids[0]))
+    ).one()
+    await fq.fill_queue.report(session, seeded.shop_id, job.id, status="filled")
+    await fq.fill_queue.report(
+        session, seeded.shop_id, job.id, status="captured", captured_ref="88001"
+    )
+    await session.commit()
+    out = await es.execution_states(session, seeded.shop_id, now=NOW)
+    (row,) = [c for c in out["cards"] if c["card_id"] == str(ids[0])]
+    assert row["captured_voucher_id"] == "88001"
+
+
+async def test_a_card_without_a_voucher_has_no_captured_voucher_id(session, shop):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[1])  # ads_budget -> ads_edit job
+    out = await es.execution_states(session, seeded.shop_id, now=NOW)
+    (row,) = [c for c in out["cards"] if c["card_id"] == str(ids[1])]
+    assert row["captured_voucher_id"] is None
+
+
 # ------------------------------------------------------------------ automatic Đã làm
 
 
@@ -545,3 +574,58 @@ def test_a_near_zero_lift_gives_no_actual_instead_of_a_huge_number():
         final=True,
     )
     assert row["actual"] is None
+
+
+# ------------------------------------------------------------------ Connector 0.3.22 reader blocks
+
+
+def test_reader_blocks_of_a_run_report_group_pages_by_section_and_reason():
+    from juli_backend.services.shopee_recommendations import connector_state as cs
+
+    outcomes = {
+        "products": "done:item_snapshot=posted",
+        "orders": "done:order_lines=posted",
+        "shop_totals": "blocked:login",
+        "traffic": "blocked:login",
+        "product_period": "blocked:login",
+        "health": "blocked:captcha",
+        "vouchers": "error:http_500",
+    }
+    assert cs.reader_blocks_of(outcomes) == [
+        {
+            "section": "phan_tich_ban_hang",
+            "reason": "login",
+            "readers": ["shop_totals", "traffic", "product_period"],
+        },
+        {"section": "seller_centre", "reason": "captcha", "readers": ["health"]},
+    ]
+    # The page that stopped the whole run (session-wide logout) is Seller Centre, whatever page.
+    assert cs.reader_blocks_of({"shop_totals": "blocked_login"}) == [
+        {"section": "seller_centre", "reason": "login", "readers": ["shop_totals"]}
+    ]
+    assert cs.reader_blocks_of({"products": "done"}) == []
+
+
+async def test_connector_status_reads_the_reader_blocks_from_the_state_row(session, shop):
+    from juli_backend.models.shopee_connector import ShopeeConnectorState
+    from juli_backend.services.shopee_recommendations import connector_state as cs
+
+    seeded, _ = shop
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW)
+    assert out["reader_blocks"] == []
+
+    blocked = {"shop_totals": "blocked:login", "traffic": "blocked:login", "orders": "done"}
+    written = await cs.record_reader_blocks(session, seeded.shop_id, blocked, now=NOW)
+    want = [
+        {"section": "phan_tich_ban_hang", "reason": "login", "readers": ["shop_totals", "traffic"]}
+    ]
+    assert written == want
+    row = await session.get(ShopeeConnectorState, seeded.shop_id)
+    assert (row.reader_blocks, row.reader_blocks_at) == (want, NOW)
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(minutes=1))
+    assert out["reader_blocks"] == want
+    # The next daily run read every page: no block any more.
+    done = {"shop_totals": "done", "traffic": "done"}
+    assert await cs.record_reader_blocks(session, seeded.shop_id, done, now=NOW) == []
+    out = await es.connector_status(session, seeded.shop_id, "shopee", NOW + timedelta(hours=1))
+    assert out["reader_blocks"] == []

@@ -46,6 +46,8 @@ from juli_backend.core.security.oauth_state import (
 from juli_backend.core.security.single_flight import SingleFlight
 from juli_backend.core.security.tiktok_oauth import (
     BindingVerifier,
+    MultiShopBindingVerifier,
+    ShopClaimedByAnotherAccount,
     TikTokOAuthService,
     VerifiedShopCipher,
 )
@@ -69,6 +71,8 @@ __all__ = [
     # #1200: the verifier seam services/tiktok/credential_binding.py implements.
     # Exported here so that module can reach it at the depth-2 package root.
     "BindingVerifier",
+    "MultiShopBindingVerifier",
+    "ShopClaimedByAnotherAccount",
     "VerifiedShopCipher",
     # #1970: the signed-OAuth-`state` primitive, exported at this package root
     # rather than deep-imported. `services/tiktok/oauth.py` mints and verifies

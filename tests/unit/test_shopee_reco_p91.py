@@ -236,7 +236,7 @@ def test_migration_116_is_additive_reversible_and_takes_the_tail():
     assert 'revision: str = "116_shopee_reco_codes"' in src
     assert 'down_revision: str | None = "115_shopee_recommendations"' in src
     tail = REPO / "backend/src/juli_backend/database/migrations/deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "130_businesses"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "133_fleet_draws_real_shops"' in tail.read_text("utf-8")
 
 
 # ============================================================================ flows (SQLite)
@@ -291,7 +291,12 @@ async def _queue(session, ids):
     return [by[i] for i in ids]
 
 
-async def test_generation_keeps_every_card_numbers_each_product_and_gives_codes(session, shop):
+async def test_generation_keeps_every_card_numbers_each_product_and_gives_codes(
+    session, shop, monkeypatch
+):
+    # F11: this shop's opportunity cards are all below the band / loss-making and would be dropped;
+    # the test is about queues and codes, so the band gate is switched off here
+    monkeypatch.setattr("juli_backend.services.forecast.triggers.clears_band", lambda *a: True)
     seeded, _ = shop
     sid = seeded.shop_id
     report = await reco.generate_cards(session, sid, now=NOW, as_of=AS_OF)

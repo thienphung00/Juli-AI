@@ -107,15 +107,18 @@ def test_e2_nobody_near_a_minimum_gains_nothing():
 
 
 def test_e2_the_combo_reach_is_measured_on_orders_within_reach_of_the_tier():
-    lines = [line(f"a{i}", 1, 50_000) for i in range(20)]  # one unit under tier 2
-    # already at tier 2, under a past combo (B.10: reach is measured once the shop ran one)
+    # B.10 (8d204e57): reach = the share at the tier on the shop's own combo-run days minus the
+    # share on the other days, >= MIN_REACH_ORDERS (30) orders on each side
+    off = date(2026, 10, 1)
+    lines = [replace(line(f"a{i}", 1, 50_000), order_date=off) for i in range(40)]
     lines += [replace(line(f"b{i}", 2, 50_000), bundle_discount=D(10_000)) for i in range(10)]
-    lines += [line(f"c{i}", 1, 30_000, item="other") for i in range(5)]
+    lines += [line(f"c{i}", 1, 50_000) for i in range(20)]  # combo days, still one unit
     spec = sp.ComboSpec(
         kind="combo", item_ids=["i1"], discount_type="pct", tiers=[sp.ComboTier(qty=2, value=10)]
     )
     f = adapters.combo_facts(spec, fake_env(lines))
-    assert f.reach is not None and f.reach.p50 == D(20) / D(35) and f.reach_units == 1
+    # 10 of 30 orders at the tier on combo days, 0 of 40 on the other days
+    assert f.reach is not None and f.reach.p50 == D(10) / D(30) and f.reach_units == 1
     o = option_for(spec, cast(Any, SimpleNamespace(env=fake_env(lines))))
     aov = o.drivers[0]
     assert aov.basis == "measured" and aov.lift is not None
@@ -230,9 +233,18 @@ def assert_one_calculation(v):
         assert v["delta"]["gmv"]["p50"] is None and rows["gmv"]["after"] is None
         return
     likely = r["detail"]["likely"]
-    assert v["delta"]["gmv"]["p50"] == r["delta"]["gmv"]["value"]
+    # F5: a Δ within normal swing is null on the result's wire only; the outcome's own Δ and the
+    # So sánh rows keep the internal value, so those two must agree and the wire equals them
+    # whenever it is shown
+    noisy = set(r["within_noise"])
+    assert (r["delta"]["gmv"]["value"] is None) == ("gmv" in noisy)
     assert v["delta"]["gmv"]["p50"] == round(rows["gmv"]["after"]["p50"] - rows["gmv"]["before"])
-    assert v["delta"]["orders"]["p50"] == pytest.approx(r["delta"]["orders"]["value"])
+    if "gmv" not in noisy:
+        assert v["delta"]["gmv"]["p50"] == r["delta"]["gmv"]["value"]
+    if "orders" not in noisy:
+        assert v["delta"]["orders"]["p50"] == pytest.approx(r["delta"]["orders"]["value"])
+    else:
+        assert r["delta"]["orders"]["value"] is None
     assert rows["orders"]["after"]["p50"] == pytest.approx(likely["orders"])
     if r["delta"]["profit"] is not None and v["cost_known"]:
         assert v["delta"]["profit"]["p50"] == r["delta"]["profit"]["value"]

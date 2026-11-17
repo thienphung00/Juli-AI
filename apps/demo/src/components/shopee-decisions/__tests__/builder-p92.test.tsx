@@ -179,7 +179,8 @@ describe("P92 · voucher 5k/100k và 10k/100k", () => {
     await waitFor(() => expect(within(block).getByTestId("p2-drivers")).toHaveTextContent("CTOR2,50% → 2,69%"));
     expect(within(block).getByTestId("p2-drivers")).toHaveTextContent("AOV124.143đ → 127.364đ");
     expect(within(block).getByTestId("p2-dprofit")).toHaveTextContent("+54.000đ");
-    expect(within(block).getByTestId("p2-dprofit")).toHaveTextContent("−157.000đ – +282.000đ");
+    // forecast grill F4: no range line under the likely value
+    expect(within(block).getByTestId("p2-dprofit").textContent).not.toMatch(/ – /);
     expect(within(block).getByTestId("p2-margin")).toHaveTextContent("12,7%");
     expect(within(block).getByTestId("p2-basis")).toHaveTextContent("từ lịch sử sản phẩm");
     expect(screen.getByTestId("p2-voucher-qualify")).toHaveTextContent("90 / 210 (43%)");

@@ -39,7 +39,7 @@ from juli_backend.models.shop_proposals import (
 )
 from juli_backend.repositories import PlatformDailyMetricsRepo, PlatformPeriodMetricsRepo
 from juli_backend.services.shopee_profit.ads_sources import BASIS_PLACED, campaign_key
-from juli_backend.services.shopee_recommendations import store
+from juli_backend.services.shopee_recommendations import result_store, store, verdict
 
 KIND = "ads_new_campaign"
 ADS_DAILY = "ads_campaign_daily"
@@ -252,14 +252,14 @@ def read_actual(rows: Sequence[DayRow], first: date, last: date, yesterday: date
     }
     if stop < first:
         reasons.update(spend=NOT_STARTED, gmv=NOT_STARTED, orders=NOT_STARTED)
-        return {**base, "spend": None, "gmv": None, "orders": None, "roas": None,
+        return {**base, "spend": None, "gmv": None, "orders": None, "roas": None, "cpa": None,
                 "days_covered": 0, "days_expected": 0}  # fmt: skip
     expected = (stop - first).days + 1
     inside = [r for r in rows if first <= r.day <= stop]
     base.update(days_covered=len(inside), days_expected=expected)
     if not inside:
         reasons.update(spend=NO_DAY_ROWS, gmv=NO_DAY_ROWS, orders=NO_DAY_ROWS)
-        return {**base, "spend": None, "gmv": None, "orders": None, "roas": None}
+        return {**base, "spend": None, "gmv": None, "orders": None, "roas": None, "cpa": None}
 
     def total(attr: str, why: str) -> float | None:
         vals = [getattr(r, attr) for r in inside]
@@ -272,11 +272,15 @@ def read_actual(rows: Sequence[DayRow], first: date, last: date, yesterday: date
     gmv = total("gmv", NO_GMV)
     orders = total("orders", NO_ORDERS)
     roas = gmv / spend if gmv is not None and spend else None
+    orders_v = orders
+    cpa = spend / orders_v if spend is not None and orders_v else None
+    if cpa is None:
+        reasons["cpa"] = "Chưa có đơn để tính CPA." if orders_v == 0 else NO_ORDERS
     if roas is None and "roas" not in reasons and (spend is None or gmv is None or not spend):
         reasons["roas"] = "Chưa đủ chi phí và doanh số để tính ROAS." if spend != 0 else "Chưa chi."
     if len(inside) < expected:
         reasons["coverage"] = f"Có số liệu {len(inside)}/{expected} ngày."
-    return {**base, "spend": spend, "gmv": gmv, "orders": orders, "roas": roas}
+    return {**base, "spend": spend, "gmv": gmv, "orders": orders, "roas": roas, "cpa": cpa}
 
 
 # ------------------------------------------------------------------ DB side
@@ -330,12 +334,15 @@ async def readback_cards(
         m = matches[cid]
         entry = m.json()
         entry["actual"] = None
+        entry["rows"] = None
         start = card_start(card)
         if m.state == STATE_MATCHED and m.campaign is not None and start is not None:
             last = card_end(card) or yesterday
             entry["actual"] = read_actual(
                 _day_rows(daily, m.campaign.segment), start, last, yesterday
             )
+            # G18 / G19: the real figures against the frozen cost, CPA and CPA hoà vốn
+            entry["rows"] = verdict.ads_rows(result_store.measured_block(card), entry["actual"])
         out[cid] = entry
     return out
 

@@ -470,7 +470,12 @@ async def test_cards_on_different_products_add(session, shop):
     await plans.add_card(session, sid, a, actor=_actor(seeded), now=NOW)
     agg = (await plans.add_card(session, sid, b, actor=_actor(seeded), now=NOW))["aggregate"]
     total = agg["dprofit_month"]["total"]["p50"]
-    alone = sum(c["alone"]["dprofit"]["p50"] for c in agg["cards"])
+    # F2 amendment (owner 2026-11-16): 1002 has under 30 orders, so its base is the 60-day window
+    # (not "ít dữ liệu"); both products are estimated and add to the plan
+    by_product = {c["product_id"]: c for c in agg["cards"]}
+    assert by_product["1001"]["result"]["estimable"] is True
+    assert by_product["1002"]["result"]["estimable"] is True
+    alone = sum(c["alone"]["dprofit"]["p50"] for c in agg["cards"] if c["result"]["estimable"])
     assert total == pytest.approx(alone, rel=0.02, abs=50)
     assert agg["stacked_products"] == [] and {p_["product_id"] for p_ in agg["products"]} == {
         "1001",
@@ -835,7 +840,7 @@ def test_migration_117_is_additive_reversible_and_fits_alembic():
     assert "app_current_shop_id()" in src and "GRANT SELECT, INSERT, UPDATE" in src
     assert "planned" in mod.STATUSES and "planned" not in mod._STATUSES_116
     tail = REPO / "backend/src/juli_backend/database/migrations/deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "130_businesses"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "133_fleet_draws_real_shops"' in tail.read_text("utf-8")
 
 
 def test_the_models_match_the_migration_columns():
@@ -1059,3 +1064,14 @@ async def test_list_and_detail_expose_version_breach_ack_origin_plan_code_and_me
     detail = await service.card_detail(session, sid, ids[0], audience="seller")
     assert detail["status"] == "measured" and detail["execution_status"] == "executed"
     assert detail["measurement"]["state"] == "measured" and detail["chosen_version"] == 1
+
+
+async def test_no_draft_still_reads_the_shops_current_gmv_and_profit(session, shop):
+    """G13: the header of a shop with no draft plan shows today's GMV / Lợi nhuận."""
+    seeded, _ = shop
+    out = await plans.get_plan(session, seeded.shop_id, now=NOW, audience="seller")
+    agg = out["aggregate"]
+    assert out["plan"] is None and out["cards"] == []
+    assert agg["empty"] is True and agg["n_cards"] == 0 and agg["after"] is None
+    assert agg["today"]["gmv_30d"] > 0
+    assert "profit_30d" in agg["today"]

@@ -209,6 +209,10 @@ class TikTokCredential(Base):
     last_refresh_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     refresh_count: Mapped[int] = mapped_column(default=0, server_default="0", nullable=False)
     refresh_token_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    #: P101 W2a (migration 132): the OAuth grant this row's tokens came from. Every credential one
+    #: provision writes shares it; a refresh of any of them rotates the tokens of all (the refresh
+    #: token rotates). NULL before 132: such a row has no siblings.
+    grant_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
@@ -221,6 +225,7 @@ class TikTokCredential(Base):
             "merchant_authorization_id",
             "capability",
         ),
+        Index("ix_tiktok_credentials_grant_id", "grant_id"),
     )
 
 

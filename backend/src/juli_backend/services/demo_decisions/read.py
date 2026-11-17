@@ -57,6 +57,8 @@ _RECOMMENDATION_ALLOWLIST: tuple[str, ...] = (
     "kpi",
     "gmv_estimate",
     "sibling_cards",
+    # Forecast grill: the P50 numbers (null = "—"), stale marker, F6 rung.
+    "forecast",
 )
 
 _P23_CARD_FIELDS: tuple[str, ...] = (
@@ -65,6 +67,8 @@ _P23_CARD_FIELDS: tuple[str, ...] = (
     "kpi",
     "gmv_estimate",
     "sibling_cards",
+    # Forecast grill: the P50 numbers (null = "—"), stale marker, F6 rung.
+    "forecast",
 )
 
 _EXPECTED_IMPACT_ALLOWLIST: tuple[str, ...] = ("metric", "value", "confidence")

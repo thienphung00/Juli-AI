@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.shop_proposals import STATUS_APPROVED, STATUS_EXECUTED
@@ -38,6 +38,8 @@ from juli_backend.services.stock_alert.forecast import HISTORY_DAYS, CardEffect,
 from juli_backend.services.stock_alert.settings import sku_key
 
 CANCELLED = "cancelled"
+#: ``execution_state`` of an approved card whose page nobody has filled yet ("Chờ điền").
+STATE_WAITING = "cho_dien"
 INACTIVE_WORDS = ("deleted", "banned", "hidden", "xoá", "xóa", "khoá", "khóa", "ẩn")
 
 
@@ -197,12 +199,34 @@ def card_windows(cards: Sequence[Mapping[str, Any]], today: date) -> list[CardWi
 
 
 async def load_card_windows(
-    session: AsyncSession, shop_id: uuid.UUID, today: date
+    session: AsyncSession, shop_id: uuid.UUID, today: date, now: datetime | None = None
 ) -> list[CardWindow]:
-    from juli_backend.services.shopee_recommendations import store
+    """Windows of the cards that are running (executed) or filled; an approved card still in
+    "Chờ điền" has not started, so it adds nothing."""
+    from juli_backend.services.shopee_recommendations import execution_state, store
 
     rows = await store.list_cards(session, shop_id, statuses=[STATUS_APPROVED, STATUS_EXECUTED])
-    return card_windows([card for _, card in rows], today)
+    waiting = {
+        str(c["card_id"])
+        for c in (
+            await execution_state.execution_states(
+                session, shop_id, now=now or datetime.combine(today, datetime.min.time())
+            )
+        )["cards"]
+        if c["state"] == STATE_WAITING
+    }
+    return card_windows(
+        [card for p, card in rows if not (p.status == STATUS_APPROVED and str(p.id) in waiting)],
+        today,
+    )
+
+
+async def load_orders_through(session: AsyncSession, shop_id: uuid.UUID) -> date | None:
+    """The day of the shop's newest order line (any status); None with no order data at all."""
+    newest = await session.scalar(
+        select(func.max(ShopeeOrderLine.ordered_at)).where(ShopeeOrderLine.shop_id == shop_id)
+    )
+    return None if newest is None else newest.date()
 
 
 def _seller_sku(catalog: Catalog, item_id: str, model_id: str) -> str | None:
@@ -264,8 +288,10 @@ def facts_of(
     windows: Sequence[CardWindow],
     today: date,
     now: datetime,
+    orders_through: date | None = None,
 ) -> list[SkuState]:
-    """The facts of every variation with a usable stock read; ``stock`` None = no usable read."""
+    """The facts of every variation with a usable stock read; ``stock`` None = no usable read.
+    Days after ``orders_through`` (the shop's newest order line) are missing, not zero-sale."""
     by_item: dict[str, list[SkuData]] = defaultdict(list)
     for s in skus.values():
         by_item[s.item_id].append(s)
@@ -276,6 +302,10 @@ def facts_of(
         units_since, orders_since = sku.since(last.read_at) if last else (0, 0)
         now_stock = sb.stock_now(last, now, units_since=units_since, orders_since=orders_since)
         zeros = sb.zero_days(sku.reads, start, today - timedelta(days=1))
+        if orders_through is not None:
+            zeros |= {
+                orders_through + timedelta(days=n) for n in range(1, (today - orders_through).days)
+            }  # no order data those days: out of the rate, numerator and denominator
         orders_30 = sku.orders_between(today - timedelta(days=30), today - timedelta(days=1))
         firsts = [min(sku.units)] if sku.units else []
         if sku.reads:
@@ -290,6 +320,11 @@ def facts_of(
         if info is not None and sku.model_id:
             v = next((v for v in info.variations if v.variation_id == sku.model_id), None)
             variation = None if v is None else v.name
+        code = _seller_sku(catalog, sku.item_id, sku.model_id) or None
+        if code and variation:
+            others = [_seller_sku(catalog, o.item_id, o.model_id) for o in by_item[sku.item_id]]
+            if others.count(code) > 1 or (info is not None and info.seller_sku == code):
+                code = None  # the same code on other variations or the parent: the name tells apart
         facts = SkuFacts(
             item_id=sku.item_id,
             model_id=sku.model_id,
@@ -306,7 +341,8 @@ def facts_of(
             zero_since=zero_since,
             effects=tuple(effects),
             card_ends=tuple(ends),
-            sku_code=_seller_sku(catalog, sku.item_id, sku.model_id) or None,
+            sku_code=code,
+            orders_through=orders_through,
         )
         out.append(SkuState(facts, now_stock, last.read_at if last else None))
     return out
@@ -319,8 +355,9 @@ async def load_states(
 
     ctx = await load_context(session, shop_id)
     skus = await load_skus(session, shop_id, ctx.catalog, today)
-    windows = await load_card_windows(session, shop_id, today) if skus else []
-    return facts_of(skus, ctx.catalog, windows, today, now), ctx.catalog
+    windows = await load_card_windows(session, shop_id, today, now) if skus else []
+    through = await load_orders_through(session, shop_id)
+    return facts_of(skus, ctx.catalog, windows, today, now, through), ctx.catalog
 
 
 __all__ = [
@@ -330,6 +367,7 @@ __all__ = [
     "card_windows",
     "effects_for",
     "facts_of",
+    "load_orders_through",
     "load_skus",
     "load_states",
 ]

@@ -133,3 +133,35 @@ async def test_a_stuck_client_cannot_flood_the_audit_log(session):
         ]
     assert codes[:30] == [202] * 30
     assert codes[30:] == [429, 429]
+
+
+async def test_a_daily_run_writes_its_reader_blocks_stock_runs_and_skips_leave_them(session):
+    """Connector 0.3.22 (migration 131): the state row keeps the last daily run's blocked pages."""
+    user, shop = await _shopee_tenant(session)
+    app, code = await _paired_client(session, shop, user)
+    blocked = {"orders": "done", "shop_totals": "blocked:login", "traffic": "blocked:login"}
+    async with client_for(app) as ext:
+        auth = await _token_headers(ext, code)
+
+        def post(body):
+            return ext.post("/v1/ingest/connector-ticks", json=body, headers=auth)
+
+        assert (await post({**TICK, "outcomes": blocked})).status_code == 202
+        stock = {**TICK, "trigger": "stock", "outcomes": {"products": "done"}}
+        assert (await post(stock)).status_code == 202
+        skip = {**TICK, "kind": "skip", "trigger": "alarm", "result": "done_today", "outcomes": {}}
+        assert (await post(skip)).status_code == 202
+        row = await session.get(ShopeeConnectorState, shop.id)
+        await session.refresh(row)
+        assert row.reader_blocks == [
+            {
+                "section": "phan_tich_ban_hang",
+                "reason": "login",
+                "readers": ["shop_totals", "traffic"],
+            }
+        ]
+        assert row.reader_blocks_at is not None
+        # The next daily run with no block clears them.
+        assert (await post(TICK)).status_code == 202
+        await session.refresh(row)
+        assert row.reader_blocks == []

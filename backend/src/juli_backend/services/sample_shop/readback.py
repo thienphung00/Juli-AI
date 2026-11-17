@@ -16,6 +16,7 @@ Nothing leaves Juli. The reviewer's sample shop rows only (the caller checks the
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from datetime import datetime
 
@@ -30,7 +31,9 @@ SAMPLE_VOUCHER_PREFIX = "93"
 
 def sample_voucher_id(card_id: uuid.UUID) -> str:
     """A stable 13-digit sample voucher code for a card (same card, same code)."""
-    return SAMPLE_VOUCHER_PREFIX + f"{card_id.int % 10**11:011d}"
+    # digits from a hash of the card id, never `uuid.int % n` (guard #1972)
+    digits = int.from_bytes(hashlib.sha256(card_id.bytes).digest()[:8], "big") % 10**11
+    return SAMPLE_VOUCHER_PREFIX + f"{digits:011d}"
 
 
 async def simulate_readback(

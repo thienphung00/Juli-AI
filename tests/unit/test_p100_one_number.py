@@ -60,18 +60,25 @@ async def test_a_builder_card_shows_one_number_on_every_screen(session, shop):
     sid = seeded.shop_id
     built = await builder.evaluate_versions(session, sid, [VOUCHER], as_of=AS_OF, now=NOW)
     res = built["versions"][0]["result"]
-    want = {
-        "profit": res["delta"]["profit"]["value"],
-        "gmv": res["delta"]["gmv"]["value"],
-        "cost": res["cost"]["total"],
-    }
-    assert want["cost"] > 0 and want["gmv"] is not None and want["profit"] is not None
+    # F5: a metric within normal swing is null on every card screen (builder wire, list, page,
+    # Excel); Kế hoạch's sums keep the real value, which is the result's own likely - before
+    det = res["detail"]
+    real = {m: det["likely"][m] - det["before"][m] for m in ("profit", "gmv")}
+    noisy = set(res["within_noise"])
+    shown = {m: None if m in noisy else real[m] for m in real}
+    cost = res["cost"]["total"]
+    assert cost > 0 and noisy
+    assert (res["delta"]["profit"] is None) == ("profit" in noisy)
+    assert (res["delta"]["gmv"]["value"] is None) == ("gmv" in noisy)
     card_id = await _choose(session, seeded, VOUCHER)
 
-    def same(profit, gmv, cost, where):
-        assert profit == pytest.approx(want["profit"], abs=1), where
-        assert gmv == pytest.approx(want["gmv"], abs=1), where
-        assert cost == pytest.approx(want["cost"], abs=1), where
+    def same(profit, gmv, cost_, where, want=shown):
+        for got, m in ((profit, "profit"), (gmv, "gmv")):
+            if want[m] is None:
+                assert got is None, (where, m)
+            else:
+                assert got == pytest.approx(want[m], abs=1), (where, m)
+        assert cost_ == pytest.approx(cost, abs=1), where
 
     # the card list
     listed = await reco.list_cards(session, sid, audience="seller", queue="all", now=NOW)
@@ -85,8 +92,8 @@ async def test_a_builder_card_shows_one_number_on_every_screen(session, shop):
     ps = detail["predicted_summary"]
     same(ps["dprofit"]["p50"], ps["dgmv"]["p50"], detail["cost"], "detail")
     option = detail["result"]["option"]
-    same(option["delta"]["profit"]["value"], option["delta"]["gmv"]["value"],
-         option["cost"]["total"], "detail option")  # fmt: skip
+    same(None if option["delta"]["profit"] is None else option["delta"]["profit"]["value"],
+         option["delta"]["gmv"]["value"], option["cost"]["total"], "detail option")  # fmt: skip
     # Kế hoạch
     out = await plans.add_card(
         session, sid, card_id, actor=_actor(seeded), now=NOW, acknowledge_breaches=True
@@ -94,11 +101,20 @@ async def test_a_builder_card_shows_one_number_on_every_screen(session, shop):
     await session.commit()
     pc = next(c for c in out["aggregate"]["cards"] if c["card_id"] == str(card_id))
     own = pc["result"]["own"]
-    same(own["delta"]["p50"]["dprofit"], own["delta"]["p50"]["dgmv"], own["cost_total"], "plan")
+    same(
+        own["delta"]["p50"]["dprofit"], own["delta"]["p50"]["dgmv"], own["cost_total"], "plan", real
+    )
     # the Kế hoạch Excel rows
-    data = await collect_ke_hoach(session, sid, shop_name="Mẫu", now=NOW, month="2026-10")
+    data = await collect_ke_hoach(
+        session,
+        sid,
+        shop_name="Mẫu",
+        now=NOW,
+        start=date(2026, 10, 1),
+        end=date(2026, 10, 31),
+    )
     xr = next(r for r in data.cards if r.code == row["code"])
-    same(xr.profit_mid, xr.gmv_mid, xr.cost, "excel")
+    same(xr.profit_mid, xr.gmv_mid, xr.cost, "excel", real)  # the card is in the plan: its sums
 
 
 async def test_the_plan_reads_the_stored_result_while_it_is_fresh(session, shop, monkeypatch):

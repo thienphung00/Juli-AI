@@ -426,10 +426,10 @@ def test_prediction_shrinkage_shop_fleet_prior():
     assert blended_factor(None, None) == (1.0, "prior")
     # Fleet: 5 results at coefficient 1.0 (factor 2) -> halfway to 2.
     fleet = CalibrationStats(coefficient=1.0, results=5)
-    assert blended_factor(None, fleet) == (pytest.approx(1.5), "fleet")
+    assert blended_factor(None, fleet) == (pytest.approx(1.5), "pooled")
     # A shop under MIN_SHOP_RESULTS does not count yet.
     few = CalibrationStats(coefficient=0.125, results=MIN_SHOP_RESULTS - 1)
-    assert blended_factor(few, fleet) == (pytest.approx(1.5), "fleet")
+    assert blended_factor(few, fleet) == (pytest.approx(1.5), "pooled")
     # Enough shop results: blended from the fleet factor toward the shop's (0.25).
     shop = CalibrationStats(coefficient=0.125, results=MIN_SHOP_RESULTS)
     factor, source = blended_factor(shop, fleet)

@@ -63,7 +63,16 @@ async def one(session, shop, **version):
 
 
 def _profit(v):
-    return v["result"]["delta"]["profit"]["value"] if v["result"]["estimable"] else None
+    """The likely Δ profit. F5 (owner 2026-11-16) nulls a within-noise value on screen; the
+    internal likely column (``detail``) still carries it."""
+    if not v["result"]["estimable"]:
+        return None
+    shown = v["result"]["delta"]["profit"]
+    if shown is not None:
+        return shown["value"]
+    assert "profit" in v["result"]["within_noise"]
+    d = v["result"]["detail"]
+    return round(d["likely"]["profit"] - d["before"]["profit"])
 
 
 async def test_a_junk_title_scores_below_a_keyword_title(session, shop):

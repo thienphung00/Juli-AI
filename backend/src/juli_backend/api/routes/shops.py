@@ -174,6 +174,11 @@ async def get_current_shop_permissions(
 
     ``needs_reconnect`` drives the seller's "Kết nối lại TikTok Shop để cấp quyền
     mới" strip. Scope names only; no token is returned.
+
+    P101 W2a: also the shop's connection state -- ``connection_state`` (``active`` |
+    ``needs_reauth`` | ``not_connected``), ``reauth_reason`` (``missing_scopes`` |
+    ``authorization_expired``), ``reauth_label`` ("Cần cấp lại quyền TikTok") and the
+    capability ids a missing scope blocks. Display only: reads still allowed keep running.
     """
     from juli_backend.services import ops
 

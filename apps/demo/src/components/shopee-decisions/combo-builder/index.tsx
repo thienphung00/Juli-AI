@@ -12,10 +12,14 @@ const PACKS = [3, 5, 10] as const;
 type Variations = Readonly<Record<string, readonly VariationRow[]>>;
 
 /** Text a spreadsheet pastes: header row + one line per option, tab separated. */
+/** UI grill G6: Giá is the pack's total; Giá/{unit} is one unit's (S1's fields, older answers fall back). */
+const packPrice = (r: ComboRow): number | null => r.price_total ?? r.price ?? null;
+const unitPrice = (r: ComboRow): number | null => r.price_per_unit ?? r.price_per_box ?? null;
+
 export function comboTable(rows: readonly ComboRow[]): string {
   const head = ["Tên phân loại", "SKU", "Giá", `Giá/${rows[0]?.unit ?? "hộp"}`, "Tiết kiệm so với mua lẻ", "Biên ở giá bán", "Biên cuối", "Lợi nhuận/đơn", "Tồn kho gợi ý"];
   const lines = rows.map((r) =>
-    [r.option_name, r.sku ?? "", r.price ?? "", r.price_per_box ?? "", r.saving ?? "", r.margin_pct ?? "", r.final_margin_pct ?? "", r.profit_per_order ?? "", r.suggested_stock ?? ""].join("\t"),
+    [r.option_name, r.sku ?? "", packPrice(r) ?? "", unitPrice(r) ?? "", r.saving ?? "", r.margin_pct ?? "", r.final_margin_pct ?? "", r.profit_per_order ?? "", r.suggested_stock ?? ""].join("\t"),
   );
   return [head.join("\t"), ...lines].join("\n");
 }
@@ -268,10 +272,10 @@ export function ComboBuilder({ api, variationsApi, products }: { readonly api: B
                     <td>{r.option_name}</td>
                     <td>{r.sku ?? ""}</td>
                     <td>
-                      <input aria-label={`Giá ${r.option_name}`} key={`${r.key}:${r.price ?? ""}`} defaultValue={r.price ?? ""} inputMode="numeric" onBlur={(e) => num(e.target.value) !== r.price && setOverride(r.key, e.target.value)} />
+                      <input aria-label={`Giá ${r.option_name}`} key={`${r.key}:${packPrice(r) ?? ""}`} defaultValue={packPrice(r) ?? ""} inputMode="numeric" onBlur={(e) => num(e.target.value) !== packPrice(r) && setOverride(r.key, e.target.value)} />
                       {r.overridden ? <span className="sa-hint"> đã sửa</span> : null}
                     </td>
-                    <td>{vnd(r.price_per_box)}</td>
+                    <td>{vnd(unitPrice(r))}</td>
                     <td>
                       {vnd(r.saving)} ({pct(r.saving_pct)})
                     </td>

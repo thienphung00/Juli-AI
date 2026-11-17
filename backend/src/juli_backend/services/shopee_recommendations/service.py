@@ -50,6 +50,7 @@ from juli_backend.models.shop_proposals import (
 )
 from juli_backend.models.shopee_plans import PLAN_DRAFT, ShopRecoPlan, ShopRecoPlanCard
 from juli_backend.services.card_events import keys, verification
+from juli_backend.services.forecast import triggers as trg
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
 from juli_backend.services.shopee_analytics import loaders
@@ -66,6 +67,7 @@ from juli_backend.services.shopee_recommendations import (
     product_queue,
     result_store,
     store,
+    trigger_adapter,
     versions,
 )
 from juli_backend.services.shopee_recommendations import targets as multi
@@ -130,6 +132,9 @@ def _rank_input(card_id: str, card: dict[str, Any], env: RecoEnv) -> RankInput:
         dgmv_p25=ri["dgmv_p25"],
         acceptance=acc,
         kg_value=ri.get("kg_value"),
+        trigger_type=card.get("trigger_type") or trg.OPPORTUNITY,
+        dgmv_p50=ri.get("dgmv_p50"),
+        urgency=float(ri.get("urgency") or 0.0),
     )
 
 
@@ -241,7 +246,7 @@ async def build_candidates(
     skip = await executed_days(session, shop_id, window.end - timedelta(days=399), window.end)
     if skip:
         series = {k: {d: v for d, v in s.items() if d not in skip} for k, s in series.items()}
-    critical = build_critical(env.ctx, env.view, series)
+    critical = trigger_adapter.augment_critical(env, build_critical(env.ctx, env.view, series))
     cands = generate(env, critical)
     for c in cands:
         apply_acceptance_defaults(env, c)
@@ -279,6 +284,8 @@ async def generate_cards(
             continue
         card["versions"] = versions.build_versions(env, c, card, now=now)
         built.append((c, card))
+    built, below_band = trigger_adapter.route_cards(env, built)  # F11
+    report.skipped_refusals.update({f"below_band:{k}": n for k, n in below_band.items()})
     report.generated = len(built)
     # one card, one number: each version's engine result is stored and ranked on
     jobs = [result_store.Job(card) for _, card in built]
@@ -332,8 +339,8 @@ async def generate_cards(
     ranked = {r.id: r for r in result.ordered}
     if report.mega is not None:
         report.mega["ranked"] = "mega" in ranked
-        dropped = next((d for d in result.dropped if d["id"] == "mega"), None)
-        report.mega["dropped_by"] = None if dropped is None else dropped["reasons"]
+        mega_drop = next((d for d in result.dropped if d["id"] == "mega"), None)
+        report.mega["dropped_by"] = None if mega_drop is None else mega_drop["reasons"]
     cycle_name = cycle or f"{env.as_of:%Y-%m}"
     kept_all = result.ordered if max_cards is None else result.ordered[:max_cards]
     if persist:
@@ -518,6 +525,9 @@ def _summary(
         "plan": card["measurement_plan"]["label"],
         "stale": bool((meta or {}).get("stale")) or stale_why is not None,
         "stale_reason": (meta or {}).get("stale_reason") or stale_why,
+        # F2: the shop's data is too old to forecast ({dataset, through} | None); not the
+        # recompute flag above ("stale" = "Đang cập nhật")
+        "data_stale": card.get("stale"),
         "computed_at": (card.get("freshness") or {}).get("computed_at"),
         "engine_version": (card.get("freshness") or {}).get("engine_version"),
         "bundle": card.get("bundle", False),
@@ -1035,12 +1045,21 @@ async def publish(
 
 
 #: Why Ops takes a card off the list ("Gỡ thẻ"): not fitting, a duplicate, already done outside
-#: Juli, anything else.
-WITHDRAW_REASONS: tuple[str, ...] = ("not_fit", "duplicate", "done_outside", "other")
+#: Juli, anything else; ``reset`` = the owner reset the Thực hiện board (``board_reset``).
+WITHDRAW_REASONS: tuple[str, ...] = (
+    "not_fit",
+    "duplicate",
+    "done_outside",
+    "other",
+    proposals.REASON_RESET,
+)
 
 
-async def _detach_from_plan(session: AsyncSession, p: ShopProposal, now: datetime) -> None:
-    """A planned card leaves its draft plan before it is withdrawn (a confirmed plan keeps it)."""
+async def _detach_from_plan(
+    session: AsyncSession, p: ShopProposal, now: datetime, *, force: bool = False
+) -> None:
+    """A planned card leaves its draft plan before it is withdrawn (a confirmed plan keeps it,
+    unless ``force``: the owner's board reset takes it out of any plan)."""
     row = await session.scalar(
         select(ShopRecoPlanCard).where(
             ShopRecoPlanCard.shop_id == p.shop_id,
@@ -1049,15 +1068,18 @@ async def _detach_from_plan(session: AsyncSession, p: ShopProposal, now: datetim
         )
     )
     plan = await session.get(ShopRecoPlan, row.plan_id) if row is not None else None
-    if row is None or plan is None or plan.status != PLAN_DRAFT:
+    if not force and (row is None or plan is None or plan.status != PLAN_DRAFT):
         raise ProposalError(
             "reco_card_in_confirmed_plan",
             409,
             "the card belongs to a confirmed plan: take it out of the plan first",
         )
-    row.removed_at = now
-    plan.updated_at = now
-    p.status = row.prior_status
+    if row is not None:
+        row.removed_at = now
+        if not force:
+            p.status = row.prior_status
+    if plan is not None:
+        plan.updated_at = now
     p.lever_plan_id = None
     await store.set_meta(session, p.shop_id, p.id, {"plan_id": None})
 
@@ -1073,7 +1095,9 @@ async def withdraw(
     by: str | None = None,
 ) -> None:
     """Ops takes a card off the list: it closes as ``withdrawn`` (a planned card leaves its
-    draft plan first), the reason is kept on the card, and the product's next card moves up."""
+    draft plan first), the reason is kept on the card, and the product's next card moves up.
+    ``reason_code = "reset"`` (the owner's board reset) also takes a planned card out of a
+    confirmed plan and an executed card out of its running measurement."""
     reason = reason_code or "other"
     if reason not in WITHDRAW_REASONS:
         raise ProposalError(
@@ -1081,9 +1105,13 @@ async def withdraw(
         )
     now = _naive(now)
     p, _ = await _proposal(session, shop_id, card_id)
+    reset = reason == proposals.REASON_RESET
+    executed = p.status == STATUS_EXECUTED
     if p.status == STATUS_PLANNED:
-        await _detach_from_plan(session, p, now)
-    await proposals.withdraw(session, p, now=now)
+        await _detach_from_plan(session, p, now, force=reset)
+    await proposals.withdraw(session, p, now=now, reason=reason)
+    if executed:  # a reset executed card leaves its running measurement (never calibrates)
+        await change_sets.drop_card(session, shop_id, card_id, now=now)
     await store.set_meta(
         session,
         shop_id,
@@ -1494,6 +1522,7 @@ async def mark_executed(
     voucher_id: str | None = None,
     evidence_ref: str | None = None,
     payload_extra: Mapping[str, Any] | None = None,
+    auto_plan: bool = False,
 ) -> dict[str, Any]:
     """ "Đã làm": a person saved the change in Seller Centre. Records the execution
     (ADR-118) and one `executed` event per change in the sheet, each carrying
@@ -1506,8 +1535,25 @@ async def mark_executed(
     approved = await _approved_with(session, shop_id, card_id)
     sheet = (approved or {}).get("execution_sheet") or card["execution_sheet"]
     changes = [dict(c) for c in sheet["changes"]]
+    actor_id = user_id or staff_id
+    if auto_plan and p.lever_plan_id is None and actor_id and when.date() >= now.date():
+        # Option B (2026-11-16): a card executed from Thực hiện outside any plan joins the plan of
+        # the month, so the Kế hoạch (and its Excel) lists it
+        from juli_backend.services.shopee_recommendations import executed_plans
+
+        await executed_plans.attach_executed(
+            session,
+            shop_id,
+            p,
+            key=f"{executed_plans.KEY_MONTH}:{when:%Y-%m}",
+            on=when.date(),
+            actor=manual.Actor("seller" if user_id else "staff", actor_id),
+            now=now,
+        )
+    # an execution recorded after the fact (an import) has nothing "after" to read back
+    readback = (payload_extra or {}).get(verification.NO_READBACK_FLAG) is not False
     for c in changes:
-        if c["change_kind"] == "voucher":
+        if c["change_kind"] == "voucher" and readback:
             voucher_id = voucher_id or await fill_queue.captured_ref_of(
                 session, shop_id, card_id, "voucher"
             )
@@ -1571,6 +1617,12 @@ async def mark_executed(
     from juli_backend.services.shopee_recommendations import plans
 
     plan_done = await plans.on_executed(session, shop_id, p, now=now)
+    if auto_plan and p.lever_plan_id is not None and not plan_done:
+        from juli_backend.services.shopee_recommendations import executed_plans
+
+        plan_row = await session.get(plans.ShopRecoPlan, p.lever_plan_id)
+        if plan_row is not None and (plan_row.aggregate or {}).get("plan_key"):
+            await executed_plans.refresh(session, shop_id, plan_row.id, now=now)
     return {
         "id": str(card_id),
         "code": p.code,

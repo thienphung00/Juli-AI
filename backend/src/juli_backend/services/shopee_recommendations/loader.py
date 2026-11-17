@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.repositories import PlatformDailyMetricsRepo, PlatformPromotionsRepo
 from juli_backend.services import shop_rules
-from juli_backend.services.shopee_analytics import kol, loaders, service
+from juli_backend.services.shopee_analytics import funnel, kol, loaders, service
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_recommendations import config, store
 from juli_backend.services.shopee_recommendations.env import (
@@ -26,6 +26,8 @@ from juli_backend.services.shopee_recommendations.env import (
 )
 from juli_backend.services.shopee_recommendations.listing import Keyword, Listing
 from juli_backend.services.stock_alert import cards as stock_cards
+
+FUNNEL_HISTORY_DAYS = 60
 
 ADS_DAILY = "ads_campaign_daily"
 
@@ -179,6 +181,13 @@ async def load_env(
     # P98 / ADR-122 d.2: the cards and the builder read the stored funnel, as the screens do
     view = await service.load_view(session, shop_id, ctx, window, funnel=True)
     env = RecoEnv(ctx=ctx, view=view, as_of=anchor)
+    # F2: 60 days of stored funnel rows for the builder's adaptive base window
+    env.funnel_history = await funnel.load_rows(
+        session, shop_id, Window(anchor - timedelta(days=FUNNEL_HISTORY_DAYS - 1), anchor)
+    )
+    # F2 staleness is judged against the clock; an explicit as_of (a past date, a test) is its
+    # own "today", so a forecast read as of a past day is not stale by construction
+    env.today = now.date() if now is not None else (as_of or date.today())
     env.campaigns = await load_campaign_settings(session, shop_id, ctx, window)
     env.cancel_rate = await loaders.load_cancel_rate(session, shop_id, window)
     env.vouchers = await load_voucher_settings(session, shop_id, window)
@@ -186,6 +195,7 @@ async def load_env(
     env.locked = await store.locked_products(session, shop_id, now)
     env.stock_stopped, _ = await stock_cards.load_stopped(session, shop_id, ctx.catalog)
     env.calibration = await store.load_calibrations(session, shop_id)
+    env.pooled_calibration = await store.load_pooled_calibrations(session)
     env.acceptance = await store.load_acceptance(session, shop_id)
     env.sim = await store.load_sim(session, shop_id)
     env.banned_terms = tuple(await shop_rules.banned_terms(session, shop_id))

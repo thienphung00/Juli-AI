@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { chipFromChange, chipOf, chipPt, fmt, pc, pp, rangeText, sv, vnd } from "../format";
+import { chipFromChange, chipOf, chipPt, fmt, pc, pp, rangeText, signedOrders, sv, vnCount, vnd } from "../format";
 
 describe("Shopee screens number formats (artboards: 1.234.567đ, 3,66%)", () => {
   it("groups thousands with dots and decimals with a comma", () => {
@@ -42,5 +42,23 @@ describe("Shopee screens number formats (artboards: 1.234.567đ, 3,66%)", () => 
 
   it("writes a window as dd/mm–dd/mm", () => {
     expect(rangeText({ from: "2026-10-04", to: "2026-11-02" })).toBe("04/10–02/11");
+  });
+});
+
+describe("forecast orders are whole", () => {
+  it("vnCount: whole, '< 1' under one order, 0 for none", () => {
+    expect(vnCount(1.4)).toBe("1");
+    expect(vnCount(9.6)).toBe("10");
+    expect(vnCount(1234.2)).toBe("1.234");
+    expect(vnCount(0.4)).toBe("< 1");
+    expect(vnCount(-0.4)).toBe("< 1");
+    expect(vnCount(0)).toBe("0");
+  });
+  it("signedOrders keeps direction only from one order up", () => {
+    expect(signedOrders(1.4)).toBe("+1");
+    expect(signedOrders(-3.2)).toBe("−3");
+    expect(signedOrders(0.4)).toBe("< 1");
+    expect(signedOrders(-0.4)).toBe("< 1");
+    expect(signedOrders(0)).toBe("+0");
   });
 });

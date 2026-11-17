@@ -15,6 +15,7 @@ import pytest
 from juli_backend.services.shopee_analytics import materialize
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.engine.contract import OptionResult, Scenario
+from juli_backend.services.shopee_builder.engine.wire import round_count
 from juli_backend.services.shopee_builder.engine_families import integrate
 from juli_backend.services.shopee_recommendations import plan_aggregate as pa
 from juli_backend.services.shopee_recommendations import plans
@@ -200,13 +201,14 @@ async def _period(session, seeded, env, spec):
 
     ctx = await builder.build_context(session, seeded.shop_id, [spec], as_of=AS_OF, now=NOW)
     done, _ = integrate.evaluate(ctx, spec, str(seeded.shop_id))
-    r = done.result_json()
-    d = r["delta"]
+    # F5: a metric within normal swing is null on the wire only (Kế hoạch sums the real value),
+    # so read the result's own Δ: likely - before
+    res = done.result
     return {
-        "profit": d["profit"]["value"],
-        "gmv": d["gmv"]["value"],
-        "orders": d["orders"]["value"],
-        "days": r["days"],
+        "profit": float(round(res.likely.profit - res.before.profit)),
+        "gmv": float(round(res.likely.gmv - res.before.gmv)),
+        "orders": round_count(res.likely.orders - res.before.orders),
+        "days": res.days,
     }
 
 
@@ -242,8 +244,8 @@ async def test_the_plan_delta_is_the_sum_of_its_cards_result_delta(session, shop
         ("gmv", agg["dgmv_month"]["total"]["p50"]),
         ("orders", agg["dorders_month"]["p50"]),
     ):
-        # P99: the wire's Δ Đơn is at the card's precision (one decimal under 10 orders)
-        assert got == pytest.approx(d[key] + v[key], abs=0.11 if key == "orders" else 1)
+        # the wire's Δ Đơn is whole orders (each card rounded, so the sum is within one)
+        assert got == pytest.approx(d[key] + v[key], abs=1 if key == "orders" else 1)
     assert [c["result"]["counted"] for c in agg["cards"]] == [True, True]
     assert agg["deltas_p50"]["gmv"] == pytest.approx(agg["dgmv_month"]["total"]["p50"])
 

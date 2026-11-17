@@ -190,7 +190,7 @@ describe("P100 step ④ So sánh & lưu", () => {
     renderStep4(compareApi(three()));
     await screen.findByTestId("p4-table");
     const heads = within(screen.getByTestId("p4-table")).getAllByRole("columnheader").map((h) => h.textContent);
-    expect(heads).toEqual(["cả 30 ngày", "Δ GMV", "Chi phí", "Đơn QC", "CPA / hoà vốn", "ROI", "Kết luận"]);
+    expect(heads).toEqual(["cả 30 ngày", "Δ GMV", "Chi phí", "Đơn QC", "CPA / hoà vốn", "ΔGMV / chi phí", "Kết luận"]);
     const row = screen.getByTestId("p4-row-1");
     expect(row).toHaveTextContent("−1.170.000đ");
     expect(row).toHaveTextContent("≈ −39.000đ/ngày");

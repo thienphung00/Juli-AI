@@ -29,13 +29,17 @@ CARD_QUOTA_MAX_OPEN = "card_quota_max_open"
 
 #: The D33 quota keys (stored in the same team row as the D29 tunables).
 QUOTA_KEYS: tuple[str, ...] = (CARD_QUOTA_MODE, CARD_QUOTA_PER_CELL, CARD_QUOTA_MAX_OPEN)
-#: D39.1 (N1A): what opens a card -- any funnel metric falling beyond its own band
-#: (``metric_first``, the default since P30) or the product's GMV (``gmv_first``,
-#: D29.2, kept per shop for rollback).
+#: What opens a card. F11 (forecast grill 2026-11-16): ``shared`` (the default) -- the
+#: shared detector ``services.forecast.triggers`` (problem: GMV below its reference beyond
+#: the F3 band, target metric from the ln split; opportunity: a lever's forecast beyond
+#: the band; rules pass through). Rollback values: D39.1 (N1A) ``metric_first`` -- any
+#: funnel metric falling beyond its own band (the default from P30 to F11) -- and
+#: ``gmv_first`` (the D29.2 GMV gate).
 DIAG_TRIGGER = "diag_trigger"
+TRIGGER_SHARED = "shared"
 TRIGGER_METRIC_FIRST = "metric_first"
 TRIGGER_GMV_FIRST = "gmv_first"
-DIAG_TRIGGERS: tuple[str, ...] = (TRIGGER_METRIC_FIRST, TRIGGER_GMV_FIRST)
+DIAG_TRIGGERS: tuple[str, ...] = (TRIGGER_SHARED, TRIGGER_METRIC_FIRST, TRIGGER_GMV_FIRST)
 #: D34 / D39.3 (P30): group A/B with a randomised delayed control. Unset (``None``)
 #: follows ``card_quota_mode`` -- on only when the quota mode is on.
 CARD_GROUPS = "card_groups"
@@ -98,6 +102,50 @@ EB_PRIOR_SD_RANGE = (0.01, 1.0)
 EB_MIN_GROUPS_RANGE = (2, 50)
 
 
+#: Owner rule (2026-11-15): "The generic uplift should be at least 5 %; with sufficient
+#: data or a more confident prediction we use that instead. Generic uplift is a fall
+#: back." The floor on a prior-sourced P50 lift (``prediction.predict``); fleet / shop
+#: calibrated predictions are never floored.
+GENERIC_UPLIFT_FLOOR = 0.05
+
+#: F2 (forecast grill 2026-11-16, sandbox probe): TikTok's daily shop analytics carry a
+#: standing lag -- on 16/11 the newest day is 14/11. "Data older than 2 days" is read
+#: against that lag, so routine lag-2 data is fresh: a card's forecast is stale (no
+#: numbers, "data through" marker) only when its data-through day is before
+#: ``today - TIKTOK_ANALYTICS_EXPECTED_LAG_DAYS - FORECAST_STALE_GRACE_DAYS``.
+TIKTOK_ANALYTICS_EXPECTED_LAG_DAYS = 2
+FORECAST_STALE_GRACE_DAYS = 2
+
+#: Levers the floor never applies to, and why (TikTok equivalents of the Shopee list):
+#:
+#: * ``description`` -- Shopee exempts its description lever, and the TikTok one is the
+#:   same kind: a detail-page quality fix that moves only CTOR on a card already seen
+#:   (no impressions/CTR growth), whose "small" gap bucket prior is (0.00, 0.05) -- its
+#:   designed effect can be nil when the text is already adequate, so it is a
+#:   hygiene lever, not a growth lever. Followed the Shopee semantic.
+#:
+#: Price / basket levers (``product_discount``, ``flash_sale``, ``shipping_discount``,
+#: ``buy_more_save_more``) and listing levers ``cover_image`` / ``title`` have a
+#: strictly positive designed effect, so they are floored. Shopee's other exemptions
+#: (review voucher, ads pause, voucher cap, listing_hide) have no TikTok card lever.
+#: Independently, any lever whose prior P50 is <= 0 is exempt (:func:`.prediction.predict`).
+UPLIFT_FLOOR_EXEMPT_LEVERS: frozenset[str] = frozenset({"description"})
+
+#: Owner decision (2026-11-16): the floor scales with the size of the change,
+#: ``GENERIC_UPLIFT_FLOOR × min(1, size / reference)``. The reference is the change size,
+#: in percent, the lever's prior is defined at. The prior tables state none, so it is
+#: derived: ``StageDiagnosisConfig.bmsm_percent_default`` (10 %) is the tier the
+#: buy_more_save_more prior (0.03, 0.10) is applied to, and the discount-percent levers
+#: use the same 10 % (the typical cap a seller sets; an assumption the owner can retune).
+#: Unsized levers (title, cover_image, shipping_discount: free-shipping has no percent)
+#: keep the flat floor; a sized lever whose size is not known at forecast time does too.
+SIZED_LEVER_REFERENCE_SIZE: Mapping[str, float] = {
+    "product_discount": 10.0,
+    "flash_sale": 10.0,
+    "buy_more_save_more": 10.0,
+}
+
+
 class TunableError(ValueError):
     """An invalid tunable value."""
 
@@ -113,9 +161,10 @@ class DiagTunables:
     planner also proposes price levers from stored facts, adds the "below shop
     level" branch (S28B) and drops the Quality-Score lever weight.
 
-    D39.1 (P30): ``diag_trigger`` -- ``metric_first`` (default) opens a card when
-    any funnel metric falls beyond its own band on its channel, even when GMV
-    holds; ``gmv_first`` keeps the D29.2 GMV gate (per-shop rollback).
+    F11: ``diag_trigger`` -- ``shared`` (default) opens cards from the shared
+    trigger detector (``services.forecast.triggers``). Rollback values: D39.1 (P30)
+    ``metric_first`` opens a card when any funnel metric falls beyond its own band
+    on its channel, even when GMV holds; ``gmv_first`` keeps the D29.2 GMV gate.
 
     D41.2 (P31): ``kpi_shrinkage`` -- ``on`` (default) shrinks per-product CTR /
     CTOR toward the category rate before that comparison (detection only; the
@@ -141,8 +190,8 @@ class DiagTunables:
     card_quota_mode: bool = False
     card_quota_per_cell: int = 5
     card_quota_max_open: int = 40
-    #: D39.1: ``metric_first`` (default) or ``gmv_first`` (the D29.2 gate, rollback).
-    diag_trigger: str = TRIGGER_METRIC_FIRST
+    #: F11: ``shared`` (default); rollback ``metric_first`` (D39.1) or ``gmv_first`` (D29.2).
+    diag_trigger: str = TRIGGER_SHARED
     #: D34 / D39.3: ``None`` = follow ``card_quota_mode``; ``True`` / ``False`` = set.
     card_groups: bool | None = None
     #: D41.2: ``on`` (default) or ``off``.
@@ -162,6 +211,11 @@ class DiagTunables:
     @property
     def metric_first(self) -> bool:
         return self.diag_trigger == TRIGGER_METRIC_FIRST
+
+    @property
+    def shared_trigger(self) -> bool:
+        """F11: cards open from the shared detector (``services.forecast.triggers``)."""
+        return self.diag_trigger == TRIGGER_SHARED
 
     @property
     def groups_enabled(self) -> bool:
@@ -321,8 +375,11 @@ __all__ = [
     "SHRINKAGE_ON",
     "TRIGGER_GMV_FIRST",
     "TRIGGER_METRIC_FIRST",
+    "TRIGGER_SHARED",
     "TUNABLE_KEYS",
     "VOLATILE_CV",
+    "FORECAST_STALE_GRACE_DAYS",
+    "TIKTOK_ANALYTICS_EXPECTED_LAG_DAYS",
     "DiagTunables",
     "TunableError",
     "validate_tunable",

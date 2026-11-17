@@ -95,6 +95,7 @@ from juli_backend.workers.tasks.shop_ingestion import Enqueuers, run_bootstrap_t
 from tests.integration.test_shop_ingestion_two_tenant import committing_juli_app_session
 from tests.integration.tiktok_recorded_replay import load_sample
 from tests.integration.two_tenant import RUNTIME_ROLE, seed_tenant
+from tests.support.diag_trigger import pin_diag_trigger
 from tests.support.postgres import (
     juli_app_async_sessionmaker,
     juli_app_sync_sessionmaker,
@@ -1047,7 +1048,7 @@ async def _step_3_approve_and_run(journey: Journey, monkeypatch) -> None:
 # -- step 4: a product re-read shows the seller's own edit ------------------------------------
 
 
-async def _reconcile(journey: Journey) -> Any:
+async def _reconcile(journey: Journey, *, now: datetime | None = None) -> Any:
     """The daily product reconcile (`product_history.job`) with B's own read credential."""
     shop_b = journey.shop_b
     assert shop_b is not None
@@ -1056,7 +1057,7 @@ async def _reconcile(journey: Journey) -> Any:
     )
     resources = product_history_job.build_resources(plan, app_key=APP_KEY)
     return await product_history_job.reconcile_products(
-        committing_juli_app_session, shop_b, resources, backoff_sleep=lambda _s: None
+        committing_juli_app_session, shop_b, resources, now=now, backoff_sleep=lambda _s: None
     )
 
 
@@ -1076,10 +1077,15 @@ async def _step_4_seller_edit(journey: Journey) -> None:
     # that is neither Juli's proposal nor the one before it. Juli's write is stamped with the
     # database clock, so the edit is stamped "now" as well (the attribution windows are relative
     # to it; a fixed past date would put the edit BEFORE the write).
+    # The write's recorded_at is the database clock (session-local, naive): read that clock and
+    # stamp the edit one minute after it, so a non-UTC local Postgres orders them the same as prod.
+    clock = _owner_scalar(owner, "SELECT localtimestamp")
+    edited = int((clock.replace(tzinfo=UTC) + timedelta(minutes=1)).timestamp())
     journey.replay.listings[WEAK_PRODUCT_ID] = ListingWorld(
-        title=SELLER_EDIT_TITLE, update_time=int(datetime.now(UTC).timestamp())
+        title=SELLER_EDIT_TITLE, update_time=edited
     )
-    second = await _reconcile(journey)
+    # The re-read's detection time caps which writes can be linked: same clock, after the edit.
+    second = await _reconcile(journey, now=clock + timedelta(minutes=2))
     assert second.read == 1 and second.snapshots == 1 and second.changes == 1
 
     changes = _owner_rows(
@@ -1190,6 +1196,8 @@ JOURNEY_TIMEOUT_SECONDS = 120
 @pytest.mark.timeout(JOURNEY_TIMEOUT_SECONDS)
 @pytest.mark.asyncio
 async def test_new_shop_runs_the_whole_journey(journey: Journey, monkeypatch) -> None:
+    # F11: fixture cards fit the metric-first trigger; this tests the pipeline
+    pin_diag_trigger(monkeypatch)
     await _warm_up_shop_a(journey)
     with patch("requests.Session.request", side_effect=journey.replay.request):
         await _step_1_oauth(journey)

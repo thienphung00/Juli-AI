@@ -188,7 +188,7 @@ def test_budget_raise_on_a_capped_campaign_spends_the_new_budget():
     assert a.spend_basis == "budget_capped" and "tiêu hết ngân sách" in a.spend_text
     assert a.spend_after == D(4_500_000) and a.orders_after == pytest.approx(D(135))
     assert o.fixed_cost == pytest.approx(D(1_500_000))
-    assert r.json()["delta"]["orders"]["value"] == 22  # 22,5 shown as whole đơn
+    assert r.json()["delta"]["orders"]["value"] == 23  # 22,5 shown as whole đơn (half up)
     assert r.json()["roi"]["value"] is not None
 
 
@@ -249,7 +249,7 @@ def test_remove_product_loses_its_measured_share():
     assert a.spend_after == pytest.approx(D(1_200_000))
     assert a.orders_after == pytest.approx(D(45))
     assert a.cpa_after == pytest.approx(D(1_200_000) / 45)
-    assert r.estimable and r.json()["delta"]["orders"]["value"] == -22
+    assert r.estimable and r.json()["delta"]["orders"]["value"] == -23
 
 
 def test_add_product_uses_its_own_past_ad_rates():

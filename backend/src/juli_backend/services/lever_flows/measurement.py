@@ -39,6 +39,15 @@ description, cover image) or whose Seller Center promotion Juli verified:
   (``traffic_breakdown``), the same series its KPI was set on; GMV, the guard
   bands and the data-sufficiency checks stay all-channel (the product's GMV must
   hold). The target label names the channel ("CTR · đo trên kênh Thẻ sản phẩm").
+- **Đo lường (F10).** At day 14 the run is also read by ADR-077's reader
+  (``services.card_measure``, Shopee's ``impact.read_effect`` on TikTok series): GMV over
+  the 14 run days against the 14 before, corrected by the K = 5 most pre-correlated
+  untouched products (≥ 3, mean r ≥ 0.2), else plain before/after at tier ``thap``.
+  ``measurement`` carries its verdict (Tăng / Không đổi / Giảm, Không đổi inside the F3
+  noise band, on ΔGMV), Dự kiến vs Thực tế and the internal Đúng dự báo (P10–P90). The
+  labels and rows above stay as the progress view; the lever's calibration moves only on a
+  ``cao`` / ``trung_binh`` reading on fresh data (and a conclusive label), by Thực tế ÷ Dự
+  kiến.
 - **Strength (D31.7).** With a day-14 verdict, ``verdict.strength`` grades the
   target metric's change (post vs pre window mean, % of pre) against both
   windows' window-mean bands combined: ``clear`` / ``likely`` / ``noise``
@@ -75,11 +84,14 @@ from juli_backend.models.models import (
     AnalyticsPerformanceInterval,
     ImpactReading,
     Product,
+    Shop,
     ToolExecution,
 )
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.run_changes import RunRevertQuestion, RunWriteValue
 from juli_backend.services import shop_rules
+from juli_backend.services.card_measure import reader as card_reader
+from juli_backend.services.card_measure import tiktok_series
 from juli_backend.services.change_strength import change_strength
 from juli_backend.services.consent.pooling import CellCheck, check_cell
 from juli_backend.services.optimize_product.kpi_channel import (
@@ -123,6 +135,8 @@ CALIBRATION_STEP = Decimal("0.25")
 MIN_POST_DAYS = 10
 MIN_POST_ORDERS = 20
 MIN_PRE_DAYS = 7
+#: F10: a run is read over its 14 days after day 0 against the 14 days before.
+RUN_DAYS = 14
 PROGRESS_SHARE = Decimal("0.2")
 _DAILY_PRODUCT_GRAIN = "product"
 _SHOP_OFFSET = timedelta(hours=7)
@@ -532,8 +546,47 @@ async def shop_calibration_stats(
     return {row.lever: (Decimal(str(row.coefficient)), int(row.readings or 0)) for row in rows}
 
 
+async def own_calibration_stats(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> dict[tuple[str, str], tuple[Decimal, int]]:
+    """(TikTok product id, lever) -> (coefficient, results): the shop's own measured
+    day-14 results for that lever on that product (forecast grill F6, rung 1).
+
+    One result = one final verdict with a ratio (``pct_of_expected``), not "chưa kết
+    luận". The coefficient is the mean realised ÷ expected, clamped to [0, 2] like the
+    shop calibration's step input, so :func:`.prediction.calibration_factor` reads it
+    on the same scale.
+    """
+    rows = (
+        await session.execute(
+            select(
+                Product.tiktok_product_id,
+                RunMeasurementFinal.lever,
+                RunMeasurementFinal.pct_of_expected,
+            )
+            .join(WorkflowRunRow, WorkflowRunRow.id == RunMeasurementFinal.workflow_run_id)
+            .join(Product, Product.id == WorkflowRunRow.product_id)
+            .where(
+                RunMeasurementFinal.shop_id == shop_id,
+                Product.shop_id == shop_id,
+                RunMeasurementFinal.lever.is_not(None),
+                RunMeasurementFinal.pct_of_expected.is_not(None),
+                RunMeasurementFinal.label != LABEL_CHUA_KET_LUAN,
+            )
+        )
+    ).all()
+    sums: dict[tuple[str, str], list[Decimal]] = {}
+    for product_id, lever, pct in rows:
+        ratio = min(max(Decimal(pct) / 100, Decimal(0)), Decimal(2))
+        sums.setdefault((str(product_id), str(lever)), []).append(ratio)
+    return {key: (sum(vals, Decimal(0)) / len(vals), len(vals)) for key, vals in sums.items()}
+
+
 #: The consent scope a shop must hold for its results to join the fleet level (ADR-116 §3).
 POOLED_TRAINING_SCOPE = "pooled_training"
+#: Forecast grill F6: shops whose results never join the pooled level (``shops.kind``,
+#: migration 130); migration 132 applies the same filter inside the Postgres function.
+NON_POOLED_SHOP_KINDS: tuple[str, ...] = ("sample", "sandbox")
 
 
 @dataclass(frozen=True)
@@ -588,7 +641,9 @@ def pool_fleet_calibration(
 
 
 async def _fleet_draws(session: AsyncSession) -> list[FleetDraw]:
-    """Every consenting shop's calibration rows (migration 107). Inside ``ops_role``.
+    """Every consenting real shop's calibration rows (migrations 107, 132). Inside ``ops_role``.
+
+    Sample and sandbox shops (``shops.kind``) never contribute (forecast grill F6).
 
     Postgres: ``public.ops_fleet_calibration_draws()`` (SECURITY DEFINER, EXECUTE to
     ``juli_ops`` only), so a shop-scoped caller sees the other consenting shops' rows.
@@ -612,7 +667,13 @@ async def _fleet_draws(session: AsyncSession) -> list[FleetDraw]:
                 LeverCalibration.lever,
                 LeverCalibration.coefficient,
                 LeverCalibration.readings,
-            ).where(LeverCalibration.readings > 0, pooled)
+            )
+            .join(Shop, Shop.id == LeverCalibration.shop_id)
+            .where(
+                LeverCalibration.readings > 0,
+                pooled,
+                Shop.kind.not_in(NON_POOLED_SHOP_KINDS),
+            )
         )
     else:
         result = await session.execute(
@@ -1047,7 +1108,24 @@ async def measure_run(
     within = None if not bands or stage == STAGE_WAITING or not known else all(known)
 
     final: dict[str, Any] | None = None
+    measurement: card_reader.Measurement | None = None
     if stage == STAGE_FINAL:
+        measurement = await card_reader.measure_card(
+            session,
+            tiktok_series.TikTokGmvSource(),
+            shop_id,
+            [product.tiktok_product_id],
+            day0,
+            RUN_DAYS,
+            today=now,
+            metric=tiktok_series.METRIC,
+            forecast=tiktok_series.card_forecast(
+                card.recommendation_payload
+                if card is not None and card.shop_id == shop_id
+                else None
+            ),
+            run_id=run.id,
+        )
         final = await _final(
             session,
             shop_id=shop_id,
@@ -1061,6 +1139,7 @@ async def measure_run(
             target=target,
             target_metric=target_metric,
             confounded=confounded,
+            measurement=measurement,
         )
 
     body_rows: list[dict[str, Any]] = []
@@ -1135,6 +1214,8 @@ async def measure_run(
             "question_id": str(question) if question is not None else None,
         },
         "final": final,
+        # F10: ADR-077's reading of the run (None before day 14).
+        "measurement": measurement.to_json() if measurement is not None else None,
     }
     # D29.8 / D30.4: an external change overlapping the window (the measurement's
     # ``external_changes``, when present) marks the day-14 label.
@@ -1245,8 +1326,13 @@ async def _final(
     target: CardTarget,
     target_metric: str | None,
     confounded: bool,
+    measurement: card_reader.Measurement | None = None,
 ) -> dict[str, Any]:
-    """The stored verdict, or compute, store and calibrate it once."""
+    """The stored verdict, or compute, store and calibrate it once.
+
+    F10: the calibration moves only when ``measurement`` may calibrate (a ``cao`` /
+    ``trung_binh`` ADR-077 reading on fresh data), by its control-adjusted Thực tế ÷ Dự
+    kiến; a lowest-tier reading is shown and leaves the calibration."""
     stored = (
         await session.execute(
             select(RunMeasurementFinal).where(
@@ -1276,12 +1362,19 @@ async def _final(
         target_reached=reached, pct_of_expected=pct, inconclusive=thin or other or confounded
     )
     calibration_from = calibration_to = None
+    measured = (
+        Decimal(str(measurement.actual_per_day))
+        if measurement is not None
+        and measurement.calibrates
+        and measurement.actual_per_day is not None
+        else None
+    )
     if lever is not None:
-        if label == LABEL_CHUA_KET_LUAN or actual is None or expected is None or expected <= 0:
+        if label == LABEL_CHUA_KET_LUAN or measured is None or expected is None or expected <= 0:
             calibration_from = calibration_to = await current_calibration(session, shop_id, lever)
         else:
             calibration_from, calibration_to = await _update_calibration(
-                session, shop_id, lever, actual / expected
+                session, shop_id, lever, measured / expected
             )
     row = RunMeasurementFinal(
         shop_id=shop_id,

@@ -4,7 +4,8 @@ What woke the Connector's reader schedule (pairing, a Chrome start, the daily al
 stock read, a retry), how that tick ended (a run started, a run finished, or why nothing started)
 and, for a finished run, how each Seller Centre report page went. Ops reads it from the audit log
 (``system_connector_tick``, kind ``system``, 90-day retention) like the stop events next door
-(``POST /v1/ingest/connector-events``), and the shop's Connector state keeps the version.
+(``POST /v1/ingest/connector-events``), and the shop's Connector state keeps the version and,
+for a daily run, its blocked pages (migration 131, read by the Thực hiện bar).
 
 Metadata only: reader ids, short outcome notes (an endpoint and an HTTP status, never a body, an
 order or a buyer). Ingest-token auth: the token names exactly one shop. A small hourly cap keeps a
@@ -36,7 +37,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 #: The audit action of a Connector tick (``system_`` prefix: kind ``system``, 90-day retention).
-ACTION_CONNECTOR_TICK = "system_connector_tick"
+ACTION_CONNECTOR_TICK = connector_state.ACTION_CONNECTOR_TICK
+#: The Celery task that generates the shop's new cards (``workers/tasks/shopee_daily_cards``).
+DAILY_CARDS_TASK = "juli_backend.shopee_daily_cards"
 #: Ticks per shop per hour (a day has one run, one stock read and a few distinct skips).
 TICKS_PER_HOUR = 30
 
@@ -70,6 +73,20 @@ class ConnectorTick(BaseModel):
             if len(outcome) > _MAX_OUTCOME_LEN:
                 raise ValueError("outcome_too_long")
         return value
+
+
+def _enqueue_daily_cards(shop_id: Any) -> None:
+    """The daily run reported in: new cards for that shop, in a worker (never in the request).
+    A broker failure is logged and never fails the tick; the 02:03 UTC beat is the fallback."""
+    try:
+        from juli_backend.workers import celery_app
+
+        celery_app.celery_app.send_task(DAILY_CARDS_TASK, args=[str(shop_id)])
+    except Exception as exc:
+        logger.error(
+            "shopee_daily_cards_enqueue_failed",
+            extra={"shop_id": str(shop_id), "error_type": type(exc).__name__},
+        )
 
 
 @router.post("/connector-ticks", status_code=status.HTTP_202_ACCEPTED)
@@ -109,6 +126,11 @@ async def post_connector_tick(
             },
             at=now,
         )
+        if tick.platform == "shopee" and tick.kind == "run" and tick.trigger == "daily":
+            # Connector 0.3.22: the daily run's blocked pages (stock runs and skips leave them).
+            await connector_state.record_reader_blocks(
+                session, principal.shop_id, tick.outcomes, now=now
+            )
         if tick.platform == "shopee":
             await connector_state.record_heartbeat(
                 session,
@@ -119,6 +141,8 @@ async def post_connector_tick(
                 version=tick.source_version,
             )
     await session.commit()
+    if tick.platform == "shopee" and tick.kind == "run" and tick.trigger == "daily":
+        _enqueue_daily_cards(principal.shop_id)
     logger.info(
         "connector_tick",
         extra={

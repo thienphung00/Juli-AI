@@ -26,8 +26,18 @@ def vnd(x: Decimal | float) -> str:
 
 
 def count(x: Decimal | float) -> str:
-    """12.0 -> '12'; 0.4 -> '0,4'; 1234 -> '1.234'. One decimal under 10."""
+    """Whole orders: 12.4 -> '12'; 1234 -> '1.234'; 0 < |x| < 1 -> '< 1'; 0 -> '0'."""
     v = abs(float(x))
-    if v >= 10 or v == round(v):
-        return _group(int(round(v)))
-    return f"{v:.1f}".replace(".", ",")
+    if v < 1e-9:
+        return "0"
+    if v < 1:
+        return "< 1"
+    return _group(int(v + 0.5))
+
+
+def signed_orders(x: Decimal | float) -> str:
+    """'+12 đơn' / '−3 đơn'; '< 1 đơn' (no sign) under one order; '0 đơn' for none."""
+    n = count(x)
+    if n in ("0", "< 1"):
+        return f"{n} đơn"
+    return f"{'+' if float(x) > 0 else '−'}{n} đơn"

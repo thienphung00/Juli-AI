@@ -3,11 +3,13 @@
 import { useState } from "react";
 
 import { DASH, fmt, vnd } from "../../lib/shopee-analytics/format";
+import { METRIC_NAME } from "../../lib/metrics";
+import { staleText } from "../../lib/shopee-decisions/option-result";
 import { kindLabel, metricsOfCard } from "../../lib/shopee-decisions/model";
 import { MetricChip } from "../metrics/metric-chip";
 import { useReco } from "../../lib/shopee-decisions/context";
 import type { CardSummary, Quantiles } from "../../lib/shopee-decisions/types";
-import { isOpen, rangeTone } from "../../lib/shopee-decisions/versions";
+import { isOpen } from "../../lib/shopee-decisions/versions";
 import { Notice, TextChip } from "../shopee-analytics/ui";
 import { ShopeeApiError } from "../../lib/shopee-analytics/client";
 import type { Breach } from "../../lib/shopee-decisions/types";
@@ -76,6 +78,18 @@ export function cardBands(c: Pick<CardSummary, "predicted_summary">): { readonly
   return { profit, gmv };
 }
 
+/** Forecast grill F4 / F5 (owner, 2026-11-16): one number per metric, the likely value (P50); no range.
+ * A value Juli does not have is "—". */
+export function p50Text(q: { readonly p50: number | null }): string {
+  return q.p50 === null ? DASH : money(q.p50);
+}
+
+/** UI grill G11: a card without an estimate names the metric it moves ("Tăng CTR") in the number's place. */
+export function targetText(card: Pick<CardSummary, "family" | "change_kind" | "section" | "metric">): string {
+  const m = metricsOfCard(card)[0];
+  return m ? `Tăng ${METRIC_NAME[m]}` : DASH;
+}
+
 /** "≈ +12.000đ/ngày": the result's P50 over its own days. */
 export function perDayP50(p50: number | null, days: number): string {
   return p50 === null ? DASH : `≈ ${money(p50 / Math.max(1, days))}/ngày`;
@@ -87,8 +101,11 @@ export const approvesInPlace = (card: Pick<CardSummary, "versions">): boolean =>
 export function CardRow({ card, name, inPlan, canAct, busy, onPlan, onApprove }: { readonly card: CardSummary; readonly name?: string | null; readonly inPlan: boolean; readonly canAct: boolean; readonly busy: boolean; readonly onPlan: (c: CardSummary, add: boolean) => void; readonly onApprove?: (c: CardSummary) => void }) {
   const host = useReco();
   const days = cardDays(card);
-  const bands = cardBands(card);
-  const tone = bands ? rangeTone(bands.profit.p10, bands.profit.p90) : "flat";
+  // forecast grill F2: data behind -> no number, where the data stops instead
+  const old = staleText(card.data_stale);
+  const bands = old ? null : cardBands(card);
+  const p50 = bands?.profit.p50 ?? null;
+  const tone = p50 === null || p50 === 0 ? "flat" : p50 > 0 ? "up" : "down";
   const href = host.href({ the: card.id, from: "quyet-dinh" });
   return (
     <article className={`sq-card dx-card ${inPlan ? "dx-card--in" : ""}`} data-testid={`sq-card-${card.id}`}>
@@ -98,6 +115,7 @@ export function CardRow({ card, name, inPlan, canAct, busy, onPlan, onApprove }:
             <span>
               {[card.family_label, kindLabel(card)].filter(Boolean).join(" · ")}
             </span>
+            {card.origin === "manual" ? <TextChip tone="flat">Tự tạo</TextChip> : null}
             {inPlan ? <TextChip tone="pink">Trong kế hoạch nháp</TextChip> : null}
             {card.stale ? <TextChip tone="warn">Đang cập nhật</TextChip> : null}
             {card.stock_untracked ? <TextChip tone="warn">Đã ngừng theo dõi</TextChip> : null}
@@ -109,9 +127,9 @@ export function CardRow({ card, name, inPlan, canAct, busy, onPlan, onApprove }:
           {card.product_id ? <div className="dx-card__product">{name ?? card.product_id}</div> : null}
         </div>
         <div className="dx-card__delta">
-          <div className="dx-card__label">Δ lợi nhuận cả {fmt(days, 0)} ngày</div>
+          {bands ? <div className="dx-card__label">Δ lợi nhuận cả {fmt(days, 0)} ngày</div> : null}
           <div className={`dx-card__big ${tone === "up" ? "sa-tone--up" : tone === "down" ? "sa-tone--down" : ""}`} data-testid="dx-dprofit">
-            {bands ? rangeText(bands.profit) : NOT_ESTIMABLE_TEXT}
+            {old ?? (bands ? p50Text(bands.profit) : targetText(card))}
           </div>
           {bands ? (
             <div className="dx-card__perday" data-testid="dx-perday">
@@ -124,7 +142,7 @@ export function CardRow({ card, name, inPlan, canAct, busy, onPlan, onApprove }:
         {metricsOfCard(card).map((m) => (
           <MetricChip key={m} metric={m} />
         ))}
-        {bands ? <span data-testid="dx-dgmv">Δ GMV {rangeText(bands.gmv)}</span> : null}
+        {bands ? <span data-testid="dx-dgmv">Δ GMV {p50Text(bands.gmv)}</span> : null}
         {typeof card.cost === "number" && card.cost > 0 ? (
           <span data-testid="dx-cost">
             · <b>Chi phí:</b> {vnd(Math.round(card.cost))}

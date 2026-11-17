@@ -399,3 +399,69 @@ def test_a_price_change_counts_its_profit_effect_once():
     # orders unchanged (AOV-only), so Δ profit = orders × 3.000đ exactly, with no extra AOV term
     assert abs((r.likely.profit - r.before.profit) - r.before.orders * D(3_000)) <= D(1)
     assert r.likely.gmv > r.before.gmv  # the AOV driver still moves GMV
+
+
+# -- F5 / F8 / F2: within normal swing, the middle scenario, stale -----------------------------
+
+
+def _with_daily(base, orders, gmv, profit):
+    from dataclasses import replace
+
+    return replace(
+        base, daily=(("orders", tuple(orders)), ("gmv", tuple(gmv)), ("profit", tuple(profit)))
+    )
+
+
+def _noisy_base():
+    # 30 days: orders swing between 0 and 16 a day (mean 8): a 14-day total is far from steady
+    orders = [0.0, 16.0] * 15
+    return _with_daily(
+        simple_base(), orders, [o * 100_000 for o in orders], [o * 20_000 for o in orders]
+    )
+
+
+def test_f5_an_effect_below_the_period_noise_is_null_but_keeps_its_scenarios():
+    r = run(_noisy_base(), voucher_option(), n=800)
+    assert r.likely is not None and r.low is not None and r.high is not None
+    assert set(r.within_noise) == {"gmv", "orders", "profit"}
+    j = r.json()
+    assert j["within_noise"] == ["gmv", "orders", "profit"]
+    assert j["delta"]["gmv"]["value"] is None and j["delta"]["orders"]["value"] is None
+    assert j["delta"]["profit"] is None
+
+
+def test_f5_a_steady_history_keeps_the_numbers():
+    steady = [8.0] * 30
+    base = _with_daily(
+        simple_base(), steady, [o * 100_000 for o in steady], [o * 20_000 for o in steady]
+    )
+    r = run(base, voucher_option(), n=800)
+    assert r.within_noise == ()
+    assert r.json()["delta"]["orders"]["value"] > 0
+
+
+def test_f5_a_non_uplift_kind_is_never_judged():
+    from dataclasses import replace
+
+    r = run(_noisy_base(), replace(voucher_option(), kind="voucher_cap"), n=400)
+    assert r.within_noise == ()
+
+
+def test_f2_a_stale_base_gives_no_numbers_and_carries_the_marker():
+    from dataclasses import replace
+
+    from juli_backend.services.shopee_builder.engine.contract import StaleMarker
+
+    base = replace(simple_base(), stale=StaleMarker("orders", date(2026, 10, 25)))
+    r = run(base, voucher_option(), n=200)
+    assert not r.estimable and r.likely is None
+    assert r.json()["stale"] == {"dataset": "orders", "through": "2026-10-25"}
+    assert r.before.orders > 0  # the base stays visible
+
+
+def test_f2_a_low_data_driver_is_not_estimated():
+    from dataclasses import replace
+
+    r = run(replace(simple_base(), low_data=("aov",)), voucher_option(), n=200)
+    assert not r.estimable
+    assert any("Ít dữ liệu" in n for n in r.notes)

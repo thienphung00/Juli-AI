@@ -32,7 +32,17 @@ Matches ``__all__`` — re-exports only:
   verifier the OAuth service checks a token's real shop identity with.
   Re-exported here because services/action_cards/refresh.py consumes it and was
   reaching the credential_binding leaf module by deep import. Lazy, like the
-  entry above: that leaf imports juli_backend.core.security at its own top level
+  entry above: that leaf imports juli_backend.core.security at its own top level.
+  P101 W2a: the verifier is a ``MultiShopBindingVerifier`` -- ``authorized_shops`` lists
+  every shop of the grant and ``verify_shop`` checks each cipher, so one connect attaches
+  them all (a governed capability still refuses a multi-shop token).
+  **One grant refreshes as one unit (migration 132).** Every credential one provision writes
+  carries the same ``tiktok_credentials.grant_id``. TikTok rotates the refresh token on each
+  refresh, so ``core/security/credential_refresh.refresh_credential`` -- the one door the beat,
+  the lazy resolve and the reactive path (``integrations/tiktok/reactive_refresh.py``) all use --
+  locks on the grant (advisory key ``tiktok_grant:<id>``) and writes the new tokens to every
+  sibling (same grant, merchant, capability and owner; found via
+  ``enumerate_grant_sibling_credentials``) in the same transaction, each under its own shop scope
 
 ### OAuth callback surface (``oauth.py``, consumed by ``api/routes/auth_tiktok.py``)
 

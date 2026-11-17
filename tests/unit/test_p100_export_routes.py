@@ -41,9 +41,11 @@ async def test_the_seller_routes_download_both_workbooks(session):
         picker = await client.get("/v1/demo/shopee/channel-split/products", params=PARAMS)
         pid = picker.json()["products"][0]["product_id"]
         prod = await client.get(f"{DEMO}/tong-quan.xlsx", params={**PARAMS, "product_id": pid})
-        plan = await client.get(f"{DEMO}/ke-hoach.xlsx", params={"month": f"{CUR_END:%Y-%m}"})
-        bad = await client.get(f"{DEMO}/ke-hoach.xlsx", params={"month": "2026-13x"})
-        far = await client.get(f"{DEMO}/ke-hoach.xlsx", params={"month": "2099-01"})
+        plan = await client.get(
+            f"{DEMO}/ke-hoach.xlsx",
+            params={"from": f"{CUR_END:%Y-%m}-01", "to": CUR_END.isoformat()},
+        )
+        bad = await client.get(f"{DEMO}/ke-hoach.xlsx", params={"from": "2026-13x"})
     app.dependency_overrides.clear()
     name = _attachment(shop)
     assert name.startswith("Juli_TongQuan_") and name.endswith(".xlsx")
@@ -51,9 +53,29 @@ async def test_the_seller_routes_download_both_workbooks(session):
     assert _sheets(shop) == TQ_SHEETS
     assert pid in _attachment(prod) and _sheets(prod) == TQ_SHEETS
     plan_name = _attachment(plan)
-    assert plan_name.startswith("Juli_KeHoach_") and f"Tháng {CUR_END:%m-%Y}" in plan_name
-    assert _sheets(plan) == [kh.SHEET_CARDS, kh.SHEET_GOAL]
-    assert bad.status_code == 422 and far.status_code == 422
+    assert plan_name.startswith("Juli_KeHoach_") and f"{CUR_END:%d%m%Y}.xlsx" in plan_name
+    assert _sheets(plan)[:2] == [kh.SHEET_HISTORY, kh.SHEET_GOAL] and _sheets(plan)[-1] == "KOL"
+    assert bad.status_code == 422
+
+
+async def test_all_shops_exports_cover_every_accessible_shop(session):
+    seeded = await seed_shopee_shop(session, rules=True)
+    await session.commit()
+    app = build_app(session)
+    authenticate(app, user=seeded.user, shop=seeded.shop)
+    async with client_for(app) as client:
+        tq_all = await client.get(f"{DEMO}/tong-quan.xlsx", params={**PARAMS, "all_shops": "true"})
+        kh_all = await client.get(
+            f"{DEMO}/ke-hoach.xlsx",
+            params={"from": f"{CUR_END:%Y-%m}-01", "to": CUR_END.isoformat(), "all_shops": "true"},
+        )
+    app.dependency_overrides.clear()
+    assert _attachment(tq_all).startswith("Juli_TongQuan_TatCaShop_")
+    ws = load_workbook(BytesIO(tq_all.content))[tq.SHEET_OVERVIEW]
+    assert [c.value for c in ws[3]][-1] == "Tổng" and ws.max_column >= 3
+    assert _attachment(kh_all).startswith("Juli_KeHoach_TatCaShop_")
+    goal = load_workbook(BytesIO(kh_all.content))[kh.SHEET_GOAL]
+    assert goal["A4"].value == seeded.shop.shop_name and goal["B4"].value == "Shopee"
 
 
 async def test_the_seller_routes_need_a_signed_in_user(session):
@@ -74,8 +96,11 @@ async def test_the_ops_routes_mirror_the_seller_routes(session, monkeypatch):
     base = f"/v1/ops/shops/{seeded.shop_id}/shopee/exports"
     async with client_for(app) as client:
         shop = await client.get(f"{base}/tong-quan.xlsx", params=PARAMS)
-        plan = await client.get(f"{base}/ke-hoach.xlsx", params={"month": f"{CUR_END:%Y-%m}"})
+        plan = await client.get(
+            f"{base}/ke-hoach.xlsx",
+            params={"from": f"{CUR_END:%Y-%m}-01", "to": CUR_END.isoformat()},
+        )
     app.dependency_overrides.clear()
     assert _attachment(shop).startswith("Juli_TongQuan_") and _sheets(shop) == TQ_SHEETS
     assert _attachment(plan).startswith("Juli_KeHoach_")
-    assert _sheets(plan) == [kh.SHEET_CARDS, kh.SHEET_GOAL]
+    assert _sheets(plan)[:2] == [kh.SHEET_HISTORY, kh.SHEET_GOAL]

@@ -1,5 +1,6 @@
 import { ShopeeApiError } from "../shopee-analytics/client";
 import type { Card, CardByCode, CardDetail, CardList, CompareResult, DecideResult, ExecutedResult, ExecutionStates, GenerateReport, LearningOverview, ManualInput, ManualResult, MeasurementStates, VariantInput } from "./types";
+import { boardApi, type BoardApi } from "./board";
 
 /**
  * The one client of the Shopee recommendation cards. The SAME screens run for the seller
@@ -10,6 +11,7 @@ import type { Card, CardByCode, CardDetail, CardList, CompareResult, DecideResul
  */
 
 export const DEMO_RECO_BASE = "/v1/demo/shopee/recommendations" as const;
+export const DEMO_BOARD_BASE = "/v1/demo/shopee/board" as const;
 
 export function opsRecoBase(shopId: string): string {
   return `/v1/ops/shops/${encodeURIComponent(shopId)}/shopee/recommendations`;
@@ -85,6 +87,8 @@ export interface RecoApi {
   measurements(): Promise<MeasurementStates>;
   /** "Đối chiếu ngay": ask the Connector to read Seller Centre now (refused for reviewers). */
   reconcile(): Promise<{ readonly requested: boolean }>;
+  /** Board sync with work done outside Juli (owner, 2026-11-16); seller scope only, absent on Ops. */
+  readonly board?: BoardApi;
 }
 
 function errorOf(status: number, payload: unknown): ShopeeApiError {
@@ -117,9 +121,12 @@ export interface RecoClientOptions {
 export function createRecoApi(options: RecoClientOptions): RecoApi {
   const { base, token, shopId, fetchImpl, asSeller } = options;
   async function call<T>(method: "GET" | "POST", path: string, body?: unknown, params?: URLSearchParams): Promise<T> {
+    return callAt<T>(base, method, path, body, params);
+  }
+  async function callAt<T>(root: string, method: "GET" | "POST", path: string, body?: unknown, params?: URLSearchParams): Promise<T> {
     const doFetch = fetchImpl ?? fetch;
     const qs = params?.toString();
-    const response = await doFetch(`${base}${path}${qs ? `?${qs}` : ""}`, {
+    const response = await doFetch(`${root}${path}${qs ? `?${qs}` : ""}`, {
       method,
       headers: {
         Accept: "application/json",
@@ -193,5 +200,7 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
     executionStates: () => call<ExecutionStates>("GET", "/execution"),
     measurements: () => call<MeasurementStates>("GET", "/measurements"),
     reconcile: () => call<{ requested: boolean }>("POST", "/execution/reconcile", {}),
+    // the board routes sit beside the seller's recommendations (`/v1/demo/shopee/board`); not on Ops
+    ...(base === DEMO_RECO_BASE ? { board: boardApi((m, path, body) => callAt<{ data: never }>(DEMO_BOARD_BASE, m, path, body)) } : {}),
   };
 }

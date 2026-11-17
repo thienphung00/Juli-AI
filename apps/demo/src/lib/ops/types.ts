@@ -73,7 +73,7 @@ export type DiagKey =
   | "kpi_max_band_mult"
   | "guard_band_mult"
   | "volatile_cv"
-  /** P30 (D39.1): "metric_first" (default) | "gmv_first" (rollback). */
+  /** F11: "shared" (default, one detector for Shopee and TikTok) | "metric_first" | "gmv_first" (rollbacks). */
   | "diag_trigger"
   /** P31 (D41.2): "on" (default) | "off" -- shrink CTR / CTOR toward the category before the trigger. */
   | "kpi_shrinkage"

@@ -1,7 +1,7 @@
-import { DASH, fmt, vnd, type Tone } from "../shopee-analytics/format";
+import { DASH, fmt, vnCount, vnd, type Tone } from "../shopee-analytics/format";
 import { parseServerIso } from "../vn-format";
 import { expectedRows, sureRows, vnWhen } from "./model";
-import { aovText, ordersText, srange, um, unitsOf } from "./units";
+import { aovText, ordersText, sm, um, unitsOf } from "./units";
 import type { Breach, Card, CardDetail, CardSummary, CardVersion, N, ProductMeasuring, VersionBrief } from "./types";
 
 /**
@@ -204,7 +204,7 @@ export function firstVersionRange(card: Pick<CardSummary, "predicted_summary">):
   const q = card.predicted_summary.dprofit_month;
   const days = Math.max(1, card.predicted_summary.effect_days || 1);
   const per = (n: N) => (num(n) ? n / days : null);
-  return `${srange(per(q.p10), per(q.p90))}/ngày (trong ${fmt(days, 0)} ngày: ${rangeK(q.p10, q.p90)})`;
+  return `${sm(per(q.p50))}/ngày (trong ${fmt(days, 0)} ngày: ${sm(q.p50)})`;
 }
 
 // ── Title (D-4) ─────────────────────────────────────────────────────────────
@@ -339,7 +339,8 @@ export function versionTable(card: Card, versions: readonly CardVersion[]): Tabl
         const days = r?.own?.days;
         if (!r || !r.estimable || !q || !num(q.p50) || !num(days)) return { v: NOT_ESTIMABLE, d: "", tone: "muted", bad: false };
         const per = (n: N) => (num(n) ? n / days : null);
-        return { v: `${srange(per(q.p10), per(q.p90))}/ngày`, d: `${fmt(days, 0)} ngày: ${srange(q.p10, q.p90)}`, tone: rangeTone(q.p10, q.p90), bad: false };
+        // forecast grill F4: the likely value (P50) only, per day and over the card's days
+        return { v: `${sm(per(q.p50))}/ngày`, d: `${fmt(days, 0)} ngày: ${sm(q.p50)}`, tone: q.p50! > 0 ? "up" : q.p50! < 0 ? "down" : "flat", bad: false };
       }),
     ),
     rowFrom(
@@ -409,7 +410,7 @@ function voucherRows(per: readonly (Per | { readonly v: CardVersion; readonly c:
       null,
       cellOf2(cell, (d) => {
         const u = d.usage;
-        const used = num(u.used) ? fmt(u.used, Number.isInteger(u.used) || u.used >= 10 ? 0 : 1) : DASH;
+        const used = num(u.used) ? vnCount(u.used) : DASH;
         const limit = num(u.limit) ? fmt(u.limit, 0) : "không giới hạn";
         return { v: `Dùng ${used} / ${limit} lượt`, d: num(u.limit) ? (u.capped ? "chạm giới hạn" : "chưa chạm giới hạn") : "", tone: u.capped ? "down" : "plain", bad: false };
       }),

@@ -159,6 +159,6 @@ describe("the manifest", () => {
   it("keeps the Shopee host permissions and adds the TikTok Seller Centre only as an optional host", () => {
     expect(manifest.host_permissions).toEqual(["https://banhang.shopee.vn/*", "https://shopee.vn/*", "__JULI_API_ORIGIN__/*"]);
     expect(manifest.optional_host_permissions).toEqual(["https://seller-vn.tiktok.com/*"]);
-    expect(manifest.version).toBe("0.3.21");
+    expect(manifest.version).toBe("0.3.23");
   });
 });

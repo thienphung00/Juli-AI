@@ -133,6 +133,10 @@ async def run_shop(
         newest = max(usable, key=lambda s: s.stock.read_at if s.stock else datetime.min)
         read_at = newest.stock.read_at if newest.stock else None
         deducted = max((s.stock.deducted_orders for s in usable if s.stock), default=0)
+    orders_through = max(
+        (s.facts.orders_through for s in states if s.facts.orders_through is not None),
+        default=None,
+    )
     reads = [s.last_read_at for s in states if s.last_read_at is not None]
     no_read_since = sb.local_day(max(reads)) if reads else today
 
@@ -192,6 +196,7 @@ async def run_shop(
             deducted_orders=deducted,
             no_read_since=no_read_since,
             previous_keys=previous,
+            orders_through=orders_through,
         )
         return StockMail(to=to, subject=c.subject, text=c.text, html=c.html, bcc=extra_bcc)
 

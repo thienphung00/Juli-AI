@@ -31,7 +31,7 @@ from juli_backend.services.shopee_recommendations.bundle_tiers import (
     best_tier,
     effective_pct,
 )
-from juli_backend.services.shopee_recommendations.env import RecoEnv
+from juli_backend.services.shopee_recommendations.env import RecoEnv, voucher_takeup
 from juli_backend.services.shopee_recommendations.model import Candidate
 from juli_backend.services.shopee_recommendations.prediction import Lift, predict_lift
 
@@ -43,6 +43,7 @@ _BASIS: dict[str, Basis] = {
     "prior": "prior",
     "shop": "shop",
     "shop_products": "shop",
+    "pooled": "pooled",
     "product_history": "product_history",
 }
 
@@ -129,6 +130,8 @@ def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
         if spec.max_value is not None:
             per_use = min(per_use, Decimal(spec.max_value))
     near = [v for v in below if v >= minimum * (ONE - common.REACH_WINDOW)]
+    # the shop's own take-up (its past vouchers, else its order lines), not every order
+    _takeup = voucher_takeup(lines, minimum, env.usage_rate)
     return VoucherFacts(
         aov_now=total / n,
         profit_per_order=profit_per_order(env, set(values)),
@@ -136,7 +139,7 @@ def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
         qualifying_share=Decimal(len(qualifying)) / n,
         raise_gap_per_order=sum((minimum - v for v in below), ZERO) / n,
         below_share=Decimal(len(below)) / n,
-        usage_rate=env.usage_rate if env.usage_rate is not None else ONE,
+        usage_rate=_takeup if _takeup is not None else ONE,
         reach=measured_reach(len(near), n, len(below)),
         reach_gap=sum((minimum - v for v in near), ZERO) / len(near) if near else ZERO,
         near_share=Decimal(len(near)) / n,

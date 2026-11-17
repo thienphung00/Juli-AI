@@ -16,9 +16,13 @@ from juli_backend.services.shopee_builder.engine.contract import (
     Scenario,
 )
 from juli_backend.services.shopee_builder.engine.vn import DRIVER_LABELS, count, vnd
+from juli_backend.services.shopee_builder.reasons import code_for_note, text_for
 
 AOV_ONLY_NOTE = "Đòn bẩy này tăng giá trị mỗi đơn, không tăng số đơn."
 NOT_ESTIMABLE_NOTE = "Chưa ước tính được."
+#: G4: registry id + label of the card figure (kept equal to metrics.registry by a test)
+CARD_RETURN_ID = "card_return"
+CARD_RETURN_LABEL = "ΔGMV / chi phí"
 PER_30D_LABEL = "Quy đổi 30 ngày (tham khảo)"
 
 
@@ -39,12 +43,12 @@ def _whole(x: Decimal | None) -> float | None:
 
 
 def round_count(x: Decimal | float | None) -> float | None:
-    """Δ Đơn at the precision the card shows (``vn.count``, P99): one decimal under 10 orders,
-    whole orders from 10 up -- so the API never carries 7,6638 đơn."""
+    """Δ Đơn at the precision the card shows (``vn.count``): whole orders from 1 up; under one
+    order the value stays (to 2 decimals) so the screen can say "< 1" instead of "0"."""
     if x is None:
         return None
     v = float(x)
-    return float(round(v)) if abs(v) >= 10 else round(v, 1)
+    return float(int(abs(v) + 0.5)) * (1 if v >= 0 else -1) if abs(v) >= 1 else round(v, 2)
 
 
 def _ratio(delta: Decimal | None, before: Decimal | None) -> float | None:
@@ -106,9 +110,20 @@ def _margin(r: OptionResult) -> dict[str, Any]:
 def _roi(r: OptionResult, d_gmv: Decimal | None) -> dict[str, Any]:
     """P100-C (B.4): ROI = ΔGMV ÷ chi phí (incremental). None without a cost or an estimate."""
     if d_gmv is None or r.cost_total <= 0:
-        return {"value": None, "text": None}
+        return {
+            "metric_id": CARD_RETURN_ID,
+            "label": CARD_RETURN_LABEL,
+            "value": None,
+            "text": None,
+        }
     v = float(d_gmv / r.cost_total)
-    return {"value": v, "text": "ROI " + f"{v:.1f}".replace(".", ",")}
+    # G4: the metric is ``card_return`` (label "ΔGMV / chi phí"), never the shop "ROI"
+    return {
+        "metric_id": CARD_RETURN_ID,
+        "label": CARD_RETURN_LABEL,
+        "value": v,
+        "text": f"{CARD_RETURN_LABEL} " + f"{v:.1f}".replace(".", ","),
+    }
 
 
 def result_json(r: OptionResult) -> dict[str, Any]:
@@ -134,6 +149,9 @@ def result_json(r: OptionResult) -> dict[str, Any]:
     else:
         note = None
 
+    # G5: the real reason there is no estimate; the UI shows "—" with this text on hover
+    reason_code = None if r.estimable else code_for_note(r.notes[0] if r.notes else None)
+
     n_cost = r.cost_total
     if n_cost > 0:
         parts = [f"Chi phí {vnd(n_cost)}"]
@@ -154,6 +172,9 @@ def result_json(r: OptionResult) -> dict[str, Any]:
     def per30(x: Decimal | None) -> float | None:
         return None if x is None else float(x * k)
 
+    hidden = set(r.within_noise)  # F5: within normal swing -> the shown value is null
+    if "profit" in hidden:
+        profit = None
     return {
         "kind": r.kind,
         "label": r.label,
@@ -161,18 +182,37 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         "horizon": r.horizon,
         "drivers": list(r.drivers),
         "estimable": r.estimable,
+        "reason_code": reason_code,
+        "reason_text": text_for(reason_code),
         "basis": r.basis,
         "basis_weak": r.basis == "prior",
+        # F5: the metrics ("gmv" | "orders" | "profit") whose delta is null (within normal swing)
+        "within_noise": list(r.within_noise),
+        # F2: the newest data is too old: {dataset, through: ISO day}; the screen says
+        # "Đơn hàng đến dd/mm" and shows no forecast numbers
+        "stale": (
+            None
+            if r.stale is None
+            else {"dataset": r.stale.dataset, "through": r.stale.through.isoformat()}
+        ),
         "delta": {
             "profit": profit,
-            "gmv": {"value": _whole(d_gmv), "pct": _ratio(d_gmv, b_gmv)},
+            "gmv": (
+                {"value": None, "pct": None}
+                if "gmv" in hidden
+                else {"value": _whole(d_gmv), "pct": _ratio(d_gmv, b_gmv)}
+            ),
             "orders": {
-                "value": round_count(d_orders),
-                "pct": _ratio(d_orders, b_orders),
+                "value": None if "orders" in hidden else round_count(d_orders),
+                "pct": None if "orders" in hidden else _ratio(d_orders, b_orders),
                 "note": note,
             },
         },
-        "build_up": [{"key": p.key, "amount": float(p.amount), "text": p.text} for p in r.build_up],
+        "build_up": (
+            []
+            if "profit" in hidden
+            else [{"key": p.key, "amount": float(p.amount), "text": p.text} for p in r.build_up]
+        ),
         "drivers_pct": list(_drivers_pct(r)),
         "cost": {
             "total": float(n_cost),
@@ -193,13 +233,13 @@ def result_json(r: OptionResult) -> dict[str, Any]:
         # P99b: secondary only -- the primary Δ / cost (``delta`` / ``cost``) is for the version's
         # own days; this is the same Δ rescaled to 30 days (the comparison's sort key)
         "per_30d": {
-            "profit": per30(d_profit),
-            "gmv": per30(d_gmv),
-            "orders": round_count(per30(d_orders)),
+            "profit": None if "profit" in hidden else per30(d_profit),
+            "gmv": None if "gmv" in hidden else per30(d_gmv),
+            "orders": None if "orders" in hidden else round_count(per30(d_orders)),
             "secondary": True,
             "label": PER_30D_LABEL,
         },
-        "roi": _roi(r, d_gmv),
+        "roi": _roi(r, d_gmv),  # wire key kept; the metric is card_return (G4)
         "margin": _margin(r),
         "detail": {
             "before": _column(r.before),

@@ -134,7 +134,9 @@ describe("P100 wave 2 · Deal Sốc, one form with two types (brief C, B.14)", (
   it("Mua Để Nhận Quà: Mua ₫X để nhận N quà tặng becomes a min_spend gift; the type switch picks the server kind", () => {
     const v = buildVersion("deal_soc", giftDeal({ giftItemId: "p2", minSpend: "200000", qty: "3" }, { name: "Quà tháng 12" }), ctx).version;
     expect(v).toMatchObject({ kind: "gift", name: "Quà tháng 12", trigger: { type: "min_spend", amount: 200000 }, gift: { item_id: "p2", qty: 3 } });
-    expect(problem("deal_soc", giftDeal({ giftItemId: "p2", minSpend: "" }))).toMatch(/số tiền mua/);
+    // UI grill G3: a blank amount is the default (150.000đ); zero is refused
+    expect(problem("deal_soc", giftDeal({ giftItemId: "p2", minSpend: "0" }))).toMatch(/số tiền mua/);
+    expect(buildVersion("deal_soc", giftDeal({ giftItemId: "p2", minSpend: "" }), ctx).version).toMatchObject({ trigger: { type: "min_spend", amount: 150000 } });
     expect(buildVersion("deal_soc", deal({ type: "add_on", addons: [addon] }), ctx).version).toMatchObject({ kind: "add_on" });
   });
 

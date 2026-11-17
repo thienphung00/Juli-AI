@@ -3,7 +3,25 @@
 // Money and counts are numbers (VND / count); pct are percent numbers (3.5 = +3,5 %); null = unknown.
 
 export type Driver = "views" | "ctr" | "ctor" | "aov";
-export type Basis = "measured" | "product_history" | "shop" | "prior" | "not_estimable";
+/** Forecast grill F2: the shop's data stops at `through` (no numbers then). */
+export interface DataStale {
+  readonly dataset: "orders" | "traffic";
+  readonly through: string;
+}
+
+/** Forecast grill F2: "Đơn hàng đến 12/11" / "Lượt truy cập đến 09/11"; null without a marker. */
+export function staleText(stale: DataStale | null | undefined): string | null {
+  if (!stale) return null;
+  const m = /^\d{4}-(\d{2})-(\d{2})/.exec(stale.through);
+  if (!m) return null;
+  return `${stale.dataset === "orders" ? "Đơn hàng" : "Lượt truy cập"} đến ${m[2]}/${m[1]}`;
+}
+
+/** UI grill G4: the ΔGMV ÷ chi phí line's name, from the server (registry metric `card_return`). */
+export const roiLabel = (r: Pick<OptionResult, "roi"> | null | undefined): string => r?.roi?.label || CARD_RETURN_LABEL;
+export const CARD_RETURN_LABEL = "ΔGMV / chi phí";
+
+export type Basis = "measured" | "product_history" | "shop" | "pooled" | "prior" | "not_estimable";
 
 export interface DeltaMoney {
   readonly value: number | null;
@@ -52,6 +70,10 @@ export interface OptionResult {
   readonly horizon: "duration" | "first_30_days";
   readonly drivers: readonly Driver[];
   readonly estimable: boolean;
+  /** Forecast grill F2: the shop's data stops at `through`; not estimable then, no numbers. */
+  readonly stale?: DataStale | null;
+  /** Forecast grill F3: metrics whose change is inside the noise band (their delta is null, shown "—"). */
+  readonly within_noise?: readonly ("gmv" | "orders" | "profit")[];
   readonly basis: Basis;
   readonly basis_weak: boolean;
   readonly delta: {
@@ -66,6 +88,8 @@ export interface OptionResult {
     readonly break_even_orders: number | null;
     readonly break_even_aov: number | null;
     readonly text: string;
+    /** UI grill G8: a flash sale's money given to buyers ("Tiền giảm cho khách ~X đ"). */
+    readonly discount_given?: { readonly amount: number | null; readonly text: string } | null;
   };
   readonly after: {
     readonly days: number;
@@ -78,7 +102,10 @@ export interface OptionResult {
   /** P99b: the same Δ rescaled to 30 days. P100 B.6: no longer shown anywhere in the UI; the server still sorts by it (the comparison order), so the field stays on the wire. */
   readonly per_30d: { readonly profit: number | null; readonly gmv: number | null; readonly orders: number | null; readonly secondary?: boolean; readonly label?: string };
   /** P100-C (B.4): ROI = ΔGMV ÷ chi phí (incremental); value/text null without a cost or an estimate. Optional for results stored before P100-C. */
-  readonly roi?: { readonly value: number | null; readonly text: string | null };
+  readonly roi?: { readonly value: number | null; readonly text: string | null; readonly metric_id?: string; readonly label?: string };
+  /** UI grill G5: why the result has no estimate (null when estimable); the text is the "—" hover, the code is never shown. */
+  readonly reason_code?: string | null;
+  readonly reason_text?: string | null;
   /** P100-C (B.6): profit ÷ GMV before / after (percent numbers) and the shift in points. */
   readonly margin?: { readonly before_pct: number | null; readonly after_pct: number | null; readonly shift_pts: number | null };
   readonly detail: {

@@ -68,12 +68,33 @@ describe("the worked example (voucher A -> C)", () => {
     expect(rows[1]!.after).toBe("Hoà vốn khi thêm ≥ 7 đơn");
   });
 
-  it("Dự kiến: ② is a range per 1đ of spend, and the other rows are monthly ranges", () => {
+  it("Dự kiến: one likely value (P50) per row, never a range (forecast grill F4)", () => {
     const rows = expectedRows(voucherCard());
-    expect(rows[1]!.after).toBe("1,40đ – 3,20đ / 1đ chi");
-    expect(rows[2]!.dv).toBe("−43.000đ – +237.000đ trong 30 ngày");
-    expect(rows[3]!.after).toBe("31 – 36");
-    expect(rows[3]!.dv).toBe("+1 đơn – +6 đơn");
+    expect(rows[1]!.after).toMatch(/^[\d.,]+đ \/ 1đ chi$/);
+    expect(rows[2]!.dv).toMatch(/^[+−][\d.]+đ trong 30 ngày$/);
+    expect(rows[3]!.after).toMatch(/^\d+$/);
+    expect(rows[3]!.dv).toMatch(/^[+−]\d+ đơn$/);
+  });
+
+  it("Dự kiến: Δ orders are whole, and \"< 1 đơn\" under one order", () => {
+    const card = voucherCard();
+    const set = (lo: number, hi: number) => {
+      const c = structuredClone(card) as typeof card & { forecast?: unknown };
+      const walk = (o: unknown): void => {
+        if (!o || typeof o !== "object") return;
+        const r = o as Record<string, unknown>;
+        if (r["p50"] && typeof r["p50"] === "object" && "dorders" in (r["p50"] as object)) {
+          (r["p10"] as { dorders: number }).dorders = lo;
+          (r["p50"] as { dorders: number }).dorders = hi;
+        }
+        Object.values(r).forEach(walk);
+      };
+      walk(c);
+      return expectedRows(c)[3]!.dv;
+    };
+    // F4 (owner 2026-11-16): one number, the P50; the P10 never shows
+    expect(set(0.4, 1.4)).toBe("+1 đơn");
+    expect(set(0.2, 0.7)).toBe("< 1 đơn");
   });
 
   it("a card that cuts spend says so instead of a ratio", () => {

@@ -61,7 +61,7 @@ async def _builder_result(session, shop_id, env, spec):
         env=env, variations=await variation_rows_for(session, shop_id, env, ["1001"])
     )
     done, _ = integrate.evaluate(ctx, spec)
-    return done.result_json()
+    return done.result_json(), done.result
 
 
 async def _add(session, seeded, cid):
@@ -377,7 +377,7 @@ def test_migration_125_is_additive_and_reversible():
         for column in model.__table__.columns.keys():
             assert f'"{column}"' in src, f"{model.__tablename__}.{column}"
     tail = versions_dir.parent / "deferred/101_write_mode_backfill.py"
-    assert 'down_revision: str | None = "130_businesses"' in tail.read_text("utf-8")
+    assert 'down_revision: str | None = "133_fleet_draws_real_shops"' in tail.read_text("utf-8")
 
 
 def _ev(card_id, product, dgmv):
@@ -457,7 +457,7 @@ async def test_one_option_shows_the_same_p50_and_range_on_the_card_the_compare_a
     assert compare["vs_today"][0]["delta"].keys() >= {"aov_p50", "margin_points_p50"}
     # P98 / ADR-122 d.2: the plan reads the option RESULT (the builder's one path), not the money
     # layer: its Δ lợi nhuận is the result's per-30-day Δ of the same saved version
-    result = await _builder_result(
+    result, internal = await _builder_result(
         session,
         seeded.shop_id,
         env,
@@ -471,8 +471,17 @@ async def test_one_option_shows_the_same_p50_and_range_on_the_card_the_compare_a
     agg = out["aggregate"]
     assert agg["result_basis"] == "option_result"
     contribution = agg["cards"][0]["contribution"]
-    assert contribution["dprofit_p50"] == pytest.approx(result["per_30d"]["profit"], abs=1)
-    assert agg["dprofit_month"]["total"]["p50"] == pytest.approx(result["per_30d"]["profit"], abs=1)
-    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(result["per_30d"]["gmv"], abs=1)
-    # P99: the wire's Δ Đơn is at the card's precision (one decimal under 10 orders)
-    assert agg["dorders_month"]["p50"] == pytest.approx(result["per_30d"]["orders"], abs=0.051)
+    # F5 (owner 2026-11-16): a metric within normal swing is null ("—") on the WIRE only; the plan
+    # keeps the real number, so compare it with the result's own (unhidden) per-30-day Δ
+    k = 30 / internal.days
+    own = {
+        m: float(getattr(internal.likely, m) - getattr(internal.before, m)) * k
+        for m in ("profit", "gmv", "orders")
+    }
+    for m in ("profit", "gmv", "orders"):
+        assert (result["per_30d"][m] is None) == (m in result["within_noise"])
+    assert contribution["dprofit_p50"] == pytest.approx(own["profit"], abs=1)
+    assert agg["dprofit_month"]["total"]["p50"] == pytest.approx(own["profit"], abs=1)
+    assert agg["dgmv_month"]["total"]["p50"] == pytest.approx(own["gmv"], abs=1)
+    # P99: the plan's Δ Đơn is at the card's precision (one decimal under 10 orders)
+    assert agg["dorders_month"]["p50"] == pytest.approx(own["orders"], abs=0.051)

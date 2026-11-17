@@ -77,7 +77,9 @@ from tests.support.builders import make_tenant
 START = datetime(2026, 10, 15, 2, 0, tzinfo=UTC)
 AS_OF = date(2026, 10, 6)
 CONFIG = StageDiagnosisConfig()
-QUOTA = DiagTunables(card_quota_mode=True)
+#: F11 made ``shared`` the default trigger; S28B (below shop level) is the D39.1 rollback path.
+METRIC_FIRST = DiagTunables(diag_trigger="metric_first")
+QUOTA = DiagTunables(card_quota_mode=True, diag_trigger="metric_first")
 
 # =========================================================================== tunables
 
@@ -441,7 +443,7 @@ def test_below_shop_level_card_is_low_confidence_with_a_modest_kpi():
 
 def test_no_below_shop_level_card_when_the_mode_is_off():
     daily = _shop_with({"low": _flat(card_ctr=0.025)})
-    plan = _plan(daily, {"low": _tiktok("MAIN_IMG_DUPLICATE")}, tunables=DiagTunables())
+    plan = _plan(daily, {"low": _tiktok("MAIN_IMG_DUPLICATE")}, tunables=METRIC_FIRST)
     assert plan.proposals == []
     # D39.1 metric-first: no metric fell beyond its band either.
     assert any(s.product_id == "low" and s.reason == "d39:no_metric_drop" for s in plan.skips)
@@ -463,11 +465,11 @@ def test_off_mode_planner_is_unchanged_by_quota_inputs():
         }
     )
     evidence = {"fall": _tiktok("MAIN_IMG_DUPLICATE"), "low": _tiktok("MAIN_IMG_DUPLICATE")}
-    base = _plan(daily, evidence, tunables=DiagTunables())
+    base = _plan(daily, evidence, tunables=METRIC_FIRST)
     other = _plan(
         daily,
         evidence,
-        tunables=DiagTunables(card_quota_per_cell=9, card_quota_max_open=90),
+        tunables=replace(METRIC_FIRST, card_quota_per_cell=9, card_quota_max_open=90),
         page_levers={"conv": PageLevers(product_discount_active=True)},
         active_bmsm=frozenset({"fall"}),
     )

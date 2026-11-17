@@ -43,7 +43,8 @@ function result(over: Partial<OptionResult> = {}): OptionResult {
 describe("P98 W3-I · OptionCard", () => {
   it("shows exactly the d.5 lines, formatted vi-VN", () => {
     render(<OptionCard result={result()} />);
-    expect(screen.getByTestId("oc-profit")).toHaveTextContent("+1.234.567đ · +5,5% (+500.000đ … +2.000.000đ)");
+    expect(screen.getByTestId("oc-profit")).toHaveTextContent("+1.234.567đ · +5,5%");
+    expect(screen.getByTestId("oc-profit").textContent).not.toMatch(/…/); // forecast grill F4: no range
     expect(screen.getByTestId("oc-buildup")).toHaveTextContent("+300.000đ từ đơn thêm. −50.000đ giảm giá.");
     expect(screen.getByTestId("oc-gmv")).toHaveTextContent("+2.500.000đ · +12,5%");
     // P100: Δ are the totals of the version's 7 days, the per-day figure is secondary
@@ -62,7 +63,7 @@ describe("P98 W3-I · OptionCard", () => {
     expect(screen.queryByTestId("oc-weak")).toBeNull();
     expect(screen.queryByTestId("oc-detail")).toBeNull();
     // P100-C (B.6): Δ tổng lợi nhuận is the headline; no "Tác động", no "Quy đổi 30 ngày"
-    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ lợi nhuận cả 7 ngày", "Δ GMV cả 7 ngày", "Δ Đơn", "Phễu", "Biên lợi nhuận", "ROI", "Chi phí", "Hoà vốn"]);
+    expect(screen.getAllByRole("term").map((t) => t.textContent)).toEqual(["Δ lợi nhuận cả 7 ngày", "Δ GMV cả 7 ngày", "Δ Đơn", "Phễu", "Biên lợi nhuận", "ΔGMV / chi phí", "Chi phí", "Hoà vốn"]);
   });
 
   it("P100-C: one break-even line with orders or AOV; no ROI / margin without them", () => {
@@ -180,11 +181,13 @@ describe("P99 · OptionCard", () => {
     expect(screen.getByTestId("oc-orders")).not.toHaveTextContent("+0");
   });
 
-  it("Δ Đơn is shown as the backend rounded it: one decimal under 10, whole from 10", () => {
+  it("Δ Đơn is whole orders, and under one order it reads less than one", () => {
     const { rerender } = render(<OptionCard result={result({ delta: { profit: null, gmv: { value: 1, pct: 1 }, orders: { value: 7.7, pct: 8, note: null } } })} />);
-    expect(screen.getByTestId("oc-orders")).toHaveTextContent("+7,7 ·");
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("+8 ·");
     rerender(<OptionCard result={result({ delta: { profit: null, gmv: { value: 1, pct: 1 }, orders: { value: 13, pct: 8, note: null } } })} />);
     expect(screen.getByTestId("oc-orders")).toHaveTextContent("+13 ·");
+    rerender(<OptionCard result={result({ delta: { profit: null, gmv: { value: 1, pct: 1 }, orders: { value: 0.4, pct: 1, note: null } } })} />);
+    expect(screen.getByTestId("oc-orders")).toHaveTextContent("< 1 ·");
   });
 });
 
@@ -231,5 +234,26 @@ describe("P100 B.15 · Dịch vụ hiển thị edit on the OptionCard", () => {
   it("other kinds carry no Ads block", () => {
     render(<OptionCard result={result()} />);
     expect(screen.queryByTestId("oc-ads")).toBeNull();
+  });
+});
+
+describe("UI grill G4 · G5 · G8 on the option card", () => {
+  it("names ΔGMV / chi phí from the server, never 'ROI'", () => {
+    render(<OptionCard result={result({ roi: { value: 3.2, text: "3,2", metric_id: "card_return", label: "ΔGMV / chi phí" } })} />);
+    expect(screen.getByText("ΔGMV / chi phí")).toBeInTheDocument();
+    expect(screen.queryByText("ROI")).toBeNull();
+  });
+
+  it("a — carries the reason as its hover; the code is not shown", () => {
+    render(<OptionCard result={result({ estimable: false, reason_code: "no_history", reason_text: "Sản phẩm chưa có đơn trong 30 ngày" })} />);
+    const dash = within(screen.getByTestId("oc-profit")).getByText("—");
+    expect(dash).toHaveAttribute("title", "Sản phẩm chưa có đơn trong 30 ngày");
+    expect(document.body.textContent).not.toContain("no_history");
+  });
+
+  it("a flash sale shows the money given to buyers under Chi phí", () => {
+    const r = result();
+    render(<OptionCard result={{ ...r, cost: { ...r.cost, discount_given: { amount: 120000, text: "Tiền giảm cho khách ~120.000 đ" } } }} />);
+    expect(screen.getByTestId("oc-discount-given")).toHaveTextContent("Tiền giảm cho khách ~120.000 đ");
   });
 });

@@ -45,11 +45,21 @@ export function pp(x: number | null | undefined, d = 1): string {
   return finite(x) ? `${fmt(x, d)}%` : DASH;
 }
 
-/** The backend's `vn.count` house style for extra orders: 1 decimal under 10 (whole when it is whole), whole from 10. Values arrive already rounded; nothing more is added. */
+/** Forecast orders, unsigned: whole orders ("12"), "< 1" for anything between 0 and 1, "0" for none. Mirrors the backend's `vn.count`. */
 export function vnCount(n: number | null | undefined): string {
   if (!finite(n)) return DASH;
-  if (Math.abs(n) >= 10 || Number.isInteger(n)) return fmt(Math.round(n), 0);
-  return fmt(n, 1);
+  const v = Math.abs(n);
+  if (v < 1e-9) return "0";
+  if (v < 1) return "< 1";
+  return fmt(Math.floor(v + 0.5), 0);
+}
+
+/** Forecast orders with direction: "+12" / "−3"; "< 1" (no sign) under one order; "+0" for none. Append " đơn" at the call site. */
+export function signedOrders(n: number | null | undefined): string {
+  if (!finite(n)) return DASH;
+  const s = vnCount(n);
+  if (s === "< 1") return s;
+  return `${n < 0 && s !== "0" ? MINUS : "+"}${s}`;
 }
 
 export function count(n: number | null | undefined): string {

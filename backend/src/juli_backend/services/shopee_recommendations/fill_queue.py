@@ -798,6 +798,7 @@ async def auto_execute(
                 now=now,
                 user_id=approver,
                 payload_extra={"auto": True, "source": "connector"},
+                auto_plan=True,
             )
     except ProposalError as exc:  # already executed (bad state) or a voucher id still missing
         logger.info("fill_auto_execute_skipped", extra={"code": exc.code})

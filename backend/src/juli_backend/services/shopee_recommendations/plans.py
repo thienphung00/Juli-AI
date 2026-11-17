@@ -94,6 +94,7 @@ ADS_READBACK_NOT_READ: dict[str, Any] = {
     "candidates": [],
     "started_before_card": None,
     "actual": None,
+    "rows": None,
 }
 ERROR_NOT_DRAFT = "reco_plan_not_draft"
 ERROR_EMPTY = "reco_plan_empty"
@@ -387,6 +388,7 @@ def _plan_json(plan: ShopRecoPlan) -> dict[str, Any]:
         "id": str(plan.id),
         "status": plan.status,
         "code": plan.code,
+        "name": (plan.aggregate or {}).get("name"),
         "as_of": None if plan.as_of is None else plan.as_of.isoformat(),
         "window_days": plan.window_days,
         "product_windows": dict(plan.product_windows or {}),
@@ -399,6 +401,21 @@ def _plan_json(plan: ShopRecoPlan) -> dict[str, Any]:
         "acknowledged_breaches": plan.acknowledged_breaches,
         "measurement_cut": plan.cut_measurements or [],
     }
+
+
+async def _idle_aggregate(
+    session: AsyncSession, shop_id: uuid.UUID, now: datetime, today: date
+) -> dict[str, Any] | None:
+    """The aggregate of a shop with no draft plan: the empty aggregate carrying the shop's live
+    "today" block (GMV, lợi nhuận, ...), as an empty draft has; ``None`` while the shop has no
+    numbers or its window has days without stored rows."""
+    try:
+        env = await _env_for(session, shop_id, None, now)
+    except RowsNotMaterialized:
+        return None
+    if env is None:
+        return None
+    return aggregate(env, [], now=now, today=today)[0]
 
 
 async def get_plan(
@@ -428,7 +445,8 @@ async def get_plan(
         return {
             "plan": None,
             "cards": [],
-            "aggregate": None,
+            # G13: no draft yet still reads the shop's current figures (the header's "today")
+            "aggregate": await _idle_aggregate(session, shop_id, now, today),
             "groups": [],
             "windows": None,
             "change_sets": [],
@@ -513,6 +531,8 @@ async def get_plan(
                 "title": payload.get("title"),
                 "family": payload.get("family"),
                 "change_kind": payload.get("change_kind"),
+                "origin": payload.get("origin") or store.ORIGIN_ENGINE,
+                "external_ref": payload.get("external_ref"),
                 "chosen_version": row.chosen_version,
                 "chosen_version_code": chosen.get("code"),
                 "versions": [service._version_brief(v) for v in vlist],

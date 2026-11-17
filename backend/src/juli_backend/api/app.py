@@ -39,6 +39,7 @@ from juli_backend.api.routes.demo_run_changes import router as demo_run_changes_
 from juli_backend.api.routes.demo_run_flows import router as demo_run_flows_router
 from juli_backend.api.routes.demo_shop_inputs import router as demo_shop_inputs_router
 from juli_backend.api.routes.demo_shopee_analytics import router as demo_shopee_analytics_router
+from juli_backend.api.routes.demo_shopee_board import router as demo_shopee_board_router
 from juli_backend.api.routes.demo_shopee_builder import router as demo_shopee_builder_router
 from juli_backend.api.routes.demo_shopee_builder_p98 import router as demo_shopee_builder_p98_router
 from juli_backend.api.routes.demo_shopee_market import router as demo_shopee_market_router
@@ -184,6 +185,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_shopee_market_router)
     v1_router.include_router(demo_shopee_pages_router)
     v1_router.include_router(demo_planned_changes_router)
+    v1_router.include_router(demo_shopee_board_router)
     v1_router.include_router(demo_connector_fill_router)
     # Fast track P16 (D25): the Juli Ops console and the seller's invite accept.
     v1_router.include_router(ops_router)

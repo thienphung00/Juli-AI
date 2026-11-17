@@ -230,6 +230,12 @@ celery_app.conf.update(
             "task": "juli_backend.shopee_reco_refresh",
             "schedule": crontab(hour=19, minute=11),
         },
+        # New Shopee cards every day: fallback for the Connector-run trigger (ticks route). 02:03
+        # UTC = 09:03 GMT+7; minute 3 is free (the */5 and */30 slots are 0, 5, ...). Default queue.
+        "shopee-daily-cards": {
+            "task": "juli_backend.shopee_daily_cards",
+            "schedule": crontab(hour=2, minute=3),
+        },
         "card-change-verification": {
             "task": "juli_backend.card_change_verification",
             "schedule": crontab(hour="1,7,13,19", minute=17),

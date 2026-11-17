@@ -29,7 +29,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Literal, cast
 
-from juli_backend.services.shopee_analytics import funnel
+from juli_backend.services.shopee_analytics import forecast_base, funnel
 from juli_backend.services.shopee_builder import multi
 from juli_backend.services.shopee_builder import specs as sp
 from juli_backend.services.shopee_builder.context import BuilderContext
@@ -46,10 +46,11 @@ from juli_backend.services.shopee_builder.engine.contract import (
     OptionResult,
     Scenario,
 )
-from juli_backend.services.shopee_builder.engine.vn import count, vnd
+from juli_backend.services.shopee_builder.engine.vn import signed_orders, vnd
 from juli_backend.services.shopee_builder.engine_families import (
     FamilyExtras,
     FamilyRefused,
+    common,
     option_for,
 )
 from juli_backend.services.shopee_builder.engine_families.facts import (
@@ -74,7 +75,14 @@ from juli_backend.services.shopee_recommendations.env import RecoEnv
 ZERO = Decimal(0)
 #: Ad type of a Dịch vụ Hiển thị Sản phẩm campaign, past or new (``measure.ad_rates``).
 AD_TYPE = "product_search"
-_BASIS_ORDER: tuple[Basis, ...] = ("measured", "product_history", "shop", "prior", "not_estimable")
+_BASIS_ORDER: tuple[Basis, ...] = (
+    "measured",
+    "product_history",
+    "shop",
+    "pooled",
+    "prior",
+    "not_estimable",
+)
 
 
 # -- base ----------------------------------------------------------------------------------------
@@ -94,16 +102,20 @@ def scope_items(spec: sp.VersionSpec) -> tuple[str, ...]:
 
 
 def base_for(env: RecoEnv, item_ids: Sequence[str], shop_id: str = "") -> FunnelBase:
-    """``funnel.load_funnel_base`` on the env's own window and stored rows (read once)."""
-    rows = env.view.data.funnel
+    """The F2 base on the env's stored rows: the adaptive window per metric (14 / 30 / 60 days,
+    ``env.funnel_history`` when loaded), missing days not zero, a stale marker (read once)."""
+    rows = env.funnel_history
+    if not isinstance(rows, funnel.FunnelRows):
+        rows = env.view.data.funnel
     if not isinstance(rows, funnel.FunnelRows):
         rows = funnel.FunnelRows(env.view.window)
     items = tuple(dict.fromkeys(i for i in item_ids if i))
-    return funnel.base_from_rows(
+    return forecast_base.adaptive_base(
         rows,
         shop_id,
         item_ids=items,
         contribution_rate=funnel.contribution_rate(env.view, items),
+        today=env.today,
     )
 
 
@@ -223,6 +235,7 @@ def deterministic(option: OptionInput) -> bool:
 
 
 def run(base: FunnelBase, option: OptionInput, seed: int) -> OptionResult:
+    option = common.floor_prior_drivers(option)
     result = engine.run(base, option, seed=seed, n=1 if deterministic(option) else 4000)
     note = profit_coverage_note(base)
     if note is None or note in result.notes:
@@ -361,7 +374,7 @@ def _sum_build_up(results: Sequence[OptionResult]) -> tuple[BuildUpPart, ...]:
             continue
         amt = amounts[key]
         if key == "extra_orders" and d_orders:
-            text = f"{'+' if d_orders > 0 else '−'}{count(d_orders)} đơn × {vnd(amt / d_orders)}"
+            text = f"{signed_orders(d_orders)} × {vnd(amt / d_orders)}"
         elif key == "price":
             text = f"Lợi nhuận mỗi đơn {'cao' if amt > 0 else 'thấp'} hơn {vnd(abs(amt))}"
         elif key == "aov":

@@ -112,6 +112,10 @@ export interface ReaderRun {
   nextAt?: number;
   /** Per page id: how it ended. */
   outcomes: Record<string, string>;
+  /** 0.3.22: Seller Centre sections ("portal", "datacenter") with a page read in this run. */
+  live?: string[];
+  /** 0.3.22: per section, the login / CAPTCHA walls since its last read (two block its other pages). */
+  walls?: Record<string, { count: number; reason: ReaderBlockReason }>;
 }
 
 /** `rate_limit`: HTTP 429 / 403 or Shopee wording for "too many requests" (P97). */

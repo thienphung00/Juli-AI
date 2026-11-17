@@ -57,7 +57,14 @@ def _label(spec: sp.VersionSpec, fallback: str) -> str:
 
 
 def _weakest_basis(bases: list[Basis]) -> Basis:
-    order: tuple[Basis, ...] = ("measured", "product_history", "shop", "prior", "not_estimable")
+    order: tuple[Basis, ...] = (
+        "measured",
+        "product_history",
+        "shop",
+        "pooled",
+        "prior",
+        "not_estimable",
+    )
     return max(bases, key=order.index)
 
 

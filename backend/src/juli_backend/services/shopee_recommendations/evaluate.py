@@ -53,7 +53,7 @@ from juli_backend.services.shopee_profit.whatif import (
     voucher_whatif,
 )
 from juli_backend.services.shopee_recommendations import config
-from juli_backend.services.shopee_recommendations.env import RecoEnv
+from juli_backend.services.shopee_recommendations.env import RecoEnv, voucher_takeup
 from juli_backend.services.shopee_recommendations.kinds import spec
 from juli_backend.services.shopee_recommendations.model import Candidate, Evaluation, ProfitModel
 
@@ -189,19 +189,31 @@ def _voucher_lift_scale(
     by_order: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for ln in lines:
         by_order[ln.order_id] += ln.order_value
-    qualifying = [v for v in by_order.values() if v >= rule.min_spend]
-    if not by_order or not qualifying:
+    if not by_order:
         return ZERO, None, None
-    qual_aov = sum(qualifying, ZERO) / Decimal(len(qualifying))
+    qualifying = [v for v in by_order.values() if v >= rule.min_spend]
+    # the orders the voucher moves up: within VOUCHER_REACH_WINDOW below the minimum (the ones
+    # already over it gain no basket, they only cost the discount). None near = no reach.
+    floor = rule.min_spend * (ONE - Decimal(str(config.VOUCHER_REACH_WINDOW)))
+    near = [v for v in by_order.values() if floor <= v < rule.min_spend]
+    n = Decimal(len(by_order))
+    basis_aov = (
+        sum(qualifying, ZERO) / Decimal(len(qualifying))
+        if qualifying
+        else sum(by_order.values(), ZERO) / n
+    )
+    qual_aov = basis_aov if qualifying else None
     per_use = safe_div(c.voucher_cost_scenario, c.used_scenario) if c.used_scenario else None
     if per_use is None:
-        per_use = rule.amount if rule.amount is not None else qual_aov * (rule.pct or ZERO)
-    size = size_scale(float(per_use / qual_aov), config.VOUCHER_REF_SHARE) if qual_aov else ONE
-    share = Decimal(len(qualifying)) / Decimal(len(by_order))
+        per_use = rule.amount if rule.amount is not None else basis_aov * (rule.pct or ZERO)
+    if not near:
+        return ZERO, per_use if qualifying else None, qual_aov
+    size = size_scale(float(per_use / basis_aov), config.VOUCHER_REF_SHARE) if basis_aov else ONE
+    reach = Decimal(len(near)) / n
     cap = ONE
     if c.usage_limit is not None and expected_uses > 0:
         cap = min(ONE, Decimal(c.usage_limit) / expected_uses)
-    return size * share * cap, per_use, qual_aov
+    return size * reach * cap, per_use, qual_aov
 
 
 def _voucher_break_even_aov(
@@ -231,6 +243,7 @@ def eval_voucher(
     baseline = voucher_rule_from(base_inputs) if base_inputs else None
     present = _lines_items(lines)
     main = (cand.items or tuple(present))[0]
+    takeup = voucher_takeup(lines, rule.min_spend, env.usage_rate)
     wi = voucher_whatif(
         lines,
         env.costs,
@@ -240,7 +253,7 @@ def eval_voucher(
         floors=_floors_for(env, present),
         target_margin_rate=env.margin_target_rate,
         predicted_extra_orders=predicted,
-        usage_rate=env.usage_rate,
+        usage_rate=takeup,
         voucher_days=days,
         window_days=env.window_days,
         ad_spend=_scope_ad_spend(env, items),
@@ -683,6 +696,17 @@ def eval_price(
             default=None,
         ),
     }
+    if cand.kind == "flash_sale":
+        # G8: what the slot hands buyers = (today's price - flash price) x the units the slot
+        # reaches; the same slot share (its hours, capped at its units) the estimate uses
+        given = ZERO
+        for sku, new in new_prices.items():
+            paid = env.current_price(sku)
+            if paid is None or sku not in results:
+                continue
+            units = sum((ln.qty for ln in lines if ln.sku == sku and ln.product_id == item), ZERO)
+            given += max(paid - new, ZERO) * units
+        certain["discount_given"] = num(given / window * effect_days * slot)
     if predicted is not None:
         nets = [r.predicted for r in results.values() if r.predicted is not None]
         if nets:

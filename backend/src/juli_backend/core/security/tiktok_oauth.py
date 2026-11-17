@@ -9,7 +9,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import NoReturn, Protocol
+from collections.abc import Sequence
+from typing import NoReturn, Protocol, runtime_checkable
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -44,7 +45,14 @@ logger = logging.getLogger(__name__)
 # defined REFRESH_BUFFER (30 minutes). The single source of truth is now
 # core/security/credential_refresh.py (24 hours, ADR-081 decision 2), shared
 # with W4-3's beat scan predicate.
-__all__ = ["BindingVerifier", "REFRESH_BUFFER", "TikTokOAuthService", "VerifiedShopCipher"]
+__all__ = [
+    "BindingVerifier",
+    "MultiShopBindingVerifier",
+    "REFRESH_BUFFER",
+    "ShopClaimedByAnotherAccount",
+    "TikTokOAuthService",
+    "VerifiedShopCipher",
+]
 
 
 class VerifiedShopCipher(str):
@@ -57,10 +65,16 @@ class VerifiedShopCipher(str):
     """
 
     tiktok_shop_id: str | None
+    #: P101 W2a: the shop's name as Get Authorized Shops reports it (a multi-shop grant names
+    #: each shop; the token payload carries one ``seller_name`` only).
+    shop_name: str | None
 
-    def __new__(cls, cipher: str, *, tiktok_shop_id: str | None = None) -> VerifiedShopCipher:
+    def __new__(
+        cls, cipher: str, *, tiktok_shop_id: str | None = None, shop_name: str | None = None
+    ) -> VerifiedShopCipher:
         verified = super().__new__(cls, cipher)
         verified.tiktok_shop_id = (tiktok_shop_id or "").strip() or None
+        verified.shop_name = (shop_name or "").strip() or None
         return verified
 
 
@@ -85,6 +99,41 @@ class BindingVerifier(Protocol):
         capability: TikTokCapability | str,
         access_token: str,
     ) -> str: ...
+
+
+@runtime_checkable
+class MultiShopBindingVerifier(Protocol):
+    """A :class:`BindingVerifier` that also knows every shop one grant reaches (P101 W2a).
+
+    One TikTok authorisation can cover several shops of one merchant (contract §2.1). The
+    connect flow asks for all of them first (``authorized_shops``: the vendor's own list, each
+    a :class:`VerifiedShopCipher` with its numeric id), then, per shop and once its capability
+    is known, ``verify_shop`` applies the #1200 invariants to that shop's cipher. A verifier
+    without these methods (the single-shop callables) keeps the one-shop path.
+    """
+
+    async def __call__(
+        self,
+        session: AsyncSession,
+        *,
+        capability: TikTokCapability | str,
+        access_token: str,
+    ) -> str: ...
+
+    async def authorized_shops(self, *, access_token: str) -> Sequence[VerifiedShopCipher]: ...
+
+    async def verify_shop(
+        self,
+        session: AsyncSession,
+        *,
+        capability: TikTokCapability | str,
+        shop_cipher: str,
+        shops_in_grant: int,
+    ) -> None: ...
+
+
+class ShopClaimedByAnotherAccount(Unauthorized):
+    """The TikTok shop is already connected to another Juli account (refused, P101 keeps it)."""
 
 
 def _unwrap_for_legacy_caller(outcome: RefreshOutcome) -> TikTokCredential:
@@ -151,10 +200,24 @@ class TikTokOAuthService:
         capability: TikTokCapability | None = None,
         business_id: uuid.UUID | None = None,
     ) -> Shop:
+        """The first shop :meth:`provision_shops_and_credentials` attached (single-shop callers)."""
+        shops = await self.provision_shops_and_credentials(
+            token_data, user_id=user_id, capability=capability, business_id=business_id
+        )
+        return shops[0]
+
+    async def provision_shops_and_credentials(
+        self,
+        token_data: dict,
+        *,
+        user_id: uuid.UUID,
+        capability: TikTokCapability | None = None,
+        business_id: uuid.UUID | None = None,
+    ) -> list[Shop]:
         """Provision under the write-time sandbox-collision guard (P61-H, D71.6a).
 
-        The whole write (shop + credential) runs in a savepoint; if it would give a
-        ``sandbox_write`` credential a cross-shop collision -- another shop's non-sandbox
+        The whole write (every shop + credential of the grant) runs in a savepoint; if it would
+        give a ``sandbox_write`` credential a cross-shop collision -- another shop's non-sandbox
         credential carrying its merchant id or cipher, or a ``sandbox_write`` row reaching
         another shop's -- nothing is written and :class:`SandboxCollisionRefused` is raised.
         """
@@ -167,22 +230,27 @@ class TikTokOAuthService:
                 "capability": capability.value if capability else None,
             },
         ):
-            return await self._provision_shop_and_credentials(
+            return await self._provision_shops_and_credentials(
                 token_data, user_id=user_id, capability=capability, business_id=business_id
             )
 
-    async def _provision_shop_and_credentials(
+    async def _provision_shops_and_credentials(
         self,
         token_data: dict,
         *,
         user_id: uuid.UUID,
         capability: TikTokCapability | None = None,
         business_id: uuid.UUID | None = None,
-    ) -> Shop:
+    ) -> list[Shop]:
         """Single write owner for ``shops`` + ``tiktok_credentials`` (Partner OAuth).
 
-        P101 W1: a NEW shop joins ``business_id`` (resolved by the services-side caller; None: the
-        ``shops_default_business`` trigger gives it its own). A reconnect keeps its business.
+        P101 W2a (contract §2.1): one grant attaches EVERY shop it authorises -- each its own
+        ``Shop`` row and its own credential row carrying that shop's ``shop_cipher`` (the same
+        tokens and merchant ``open_id`` on each). New shops join ``business_id`` (resolved by the
+        services-side caller); with none, the first new shop's business (the
+        ``shops_default_business`` trigger names it after that shop) is the one the rest join.
+        A reconnect keeps its business. A shop already connected to another account is skipped
+        (logged) while the others attach; the connect is refused only when none can.
 
         The merchant identity is the OAuth ``open_id`` the connect flow returned (P61-G,
         D71.6: nothing configured). The capability is, in order: the one the caller asked for
@@ -198,7 +266,78 @@ class TikTokOAuthService:
         if not open_id or not access_token or not refresh_token:
             raise Unauthorized("Incomplete TikTok token payload")
 
-        seller_name = token_data.get("seller_name", "TikTok Shop")
+        targets: Sequence[VerifiedShopCipher | None]
+        if isinstance(self._binding_verifier, MultiShopBindingVerifier):
+            targets = list(await self._binding_verifier.authorized_shops(access_token=access_token))
+        else:
+            targets = [None]  # single-shop verifier: the shop is resolved after its capability
+        several = len(targets) > 1
+        # P101 W2a (migration 132): one lineage for every credential this grant writes, so a
+        # refresh of any of them rotates all of them (``credential_refresh``).
+        grant_id = uuid.uuid4()
+        legacy_cipher = (
+            await self._legacy_shop_cipher(open_id=open_id, user_id=user_id) if several else None
+        )
+
+        attached: list[Shop] = []
+        for target in targets:
+            try:
+                shop = await self._attach_shop(
+                    token_data,
+                    open_id=open_id,
+                    access_token=access_token,
+                    refresh_token=refresh_token,
+                    user_id=user_id,
+                    capability=capability,
+                    business_id=business_id,
+                    target=target,
+                    shops_in_grant=len(targets),
+                    legacy_cipher=legacy_cipher,
+                    grant_id=grant_id,
+                )
+            except ShopClaimedByAnotherAccount:
+                if not several:
+                    raise
+                continue  # logged by `_refuse_claimed_shop`; the grant's other shops attach
+            attached.append(shop)
+            if business_id is None and several:
+                business_id = await self._business_of(shop, user_id=user_id)
+        if not attached:
+            raise ShopClaimedByAnotherAccount(
+                "This TikTok shop is already connected to another account"
+            )
+
+        logger.info(
+            "tiktok_oauth_completed",
+            extra={
+                "user_id": str(user_id),
+                "shop_id": str(attached[0].id),
+                "shops_attached": len(attached),
+                "shops_in_grant": len(targets),
+            },
+        )
+        return attached
+
+    async def _attach_shop(
+        self,
+        token_data: dict,
+        *,
+        open_id: str,
+        access_token: str,
+        refresh_token: str,
+        user_id: uuid.UUID,
+        capability: TikTokCapability | None,
+        business_id: uuid.UUID | None,
+        target: VerifiedShopCipher | None,
+        shops_in_grant: int,
+        legacy_cipher: str | None,
+        grant_id: uuid.UUID,
+    ) -> Shop:
+        """One shop of the grant: claim or create it, then write its credential."""
+        # A single-shop grant keeps the token's ``seller_name`` (as before); several shops each
+        # take the name Get Authorized Shops gives them.
+        listed_name = target.shop_name if target is not None and shops_in_grant > 1 else None
+        seller_name = listed_name or token_data.get("seller_name", "TikTok Shop")
         shops_repo = ShopsRepo(self._session)
         cred_repo = TikTokCredentialRepo(self._session)
 
@@ -208,17 +347,29 @@ class TikTokOAuthService:
         # so the shop lookup/insert runs under THAT user's scope, and the credential rows under
         # the (new or existing) shop's scope -- the narrowest scope each table's policy keys on.
         async with with_user_scope(self._session, user_id):
-            shop = await self._claim_or_create_shop(
-                shops_repo,
-                open_id=open_id,
-                seller_name=seller_name,
-                user_id=user_id,
-                business_id=business_id,
-            )
+            if target is None:
+                shop = await self._claim_or_create_shop(
+                    shops_repo,
+                    open_id=open_id,
+                    seller_name=seller_name,
+                    user_id=user_id,
+                    business_id=business_id,
+                )
+            else:
+                shop = await self._claim_or_create_grant_shop(
+                    shops_repo,
+                    open_id=open_id,
+                    seller_name=seller_name,
+                    user_id=user_id,
+                    business_id=business_id,
+                    target=target,
+                    several=shops_in_grant > 1,
+                    legacy_cipher=legacy_cipher,
+                )
             await self._session.flush()
 
         async with with_shop_scope(self._session, shop.id):
-            await self._write_credentials(
+            filed_under = await self._write_credentials(
                 cred_repo,
                 shop,
                 token_data=token_data,
@@ -226,13 +377,55 @@ class TikTokOAuthService:
                 access_token=access_token,
                 refresh_token=refresh_token,
                 capability=capability,
+                target=target,
+                shops_in_grant=shops_in_grant,
+                grant_id=grant_id,
             )
 
-        logger.info(
-            "tiktok_oauth_completed",
-            extra={"user_id": str(user_id), "shop_id": str(shop.id)},
-        )
+        if filed_under is TikTokCapability.SANDBOX_WRITE and shop.kind == "real":
+            # P101 W2a: what a shop IS comes from the credential capability it was connected
+            # under, never from a shop id. Only real -> sandbox; a sample shop is never touched.
+            # `shops`' UPDATE policy is user-keyed, hence the owner's scope again.
+            async with with_user_scope(self._session, user_id):
+                shop.kind = "sandbox"
+                await self._session.flush()
         return shop
+
+    async def _business_of(self, shop: Shop, *, user_id: uuid.UUID) -> uuid.UUID | None:
+        """The business the first new shop got (from the Postgres trigger), for its siblings."""
+        if shop.business_id is not None:
+            return shop.business_id
+        async with with_user_scope(self._session, user_id):
+            await self._session.refresh(shop, attribute_names=["business_id"])
+        return shop.business_id
+
+    async def _legacy_shop_cipher(self, *, open_id: str, user_id: uuid.UUID) -> str | None:
+        """The cipher of this user's pre-P68 shop keyed by ``open_id`` (no numeric id yet).
+
+        A multi-shop grant can only re-claim such a row for the shop whose cipher it already
+        holds -- with several shops, ``open_id`` alone no longer says which one it is.
+        """
+        async with with_user_scope(self._session, user_id):
+            legacy = await ShopsRepo(self._session).get_by_tiktok_id(open_id)
+        if (
+            legacy is None
+            or legacy.tiktok_shop_id != open_id
+            or legacy.user_id != user_id
+            or legacy.tiktok_numeric_shop_id is not None
+        ):
+            return None
+        async with with_shop_scope(self._session, legacy.id):
+            return (
+                await self._session.execute(
+                    select(TikTokCredential.shop_cipher)
+                    .where(
+                        TikTokCredential.shop_id == legacy.id,
+                        TikTokCredential.shop_cipher.is_not(None),
+                    )
+                    .order_by(TikTokCredential.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
 
     async def _claim_or_create_shop(
         self,
@@ -258,23 +451,94 @@ class TikTokOAuthService:
             return existing
         if existing:
             self._refuse_claimed_shop(open_id, user_id)
+        return await self._create_shop(
+            shops_repo,
+            key=open_id,
+            seller_name=seller_name,
+            user_id=user_id,
+            business_id=business_id,
+        )
+
+    async def _claim_or_create_grant_shop(
+        self,
+        shops_repo: ShopsRepo,
+        *,
+        open_id: str,
+        seller_name: str,
+        user_id: uuid.UUID,
+        business_id: uuid.UUID | None,
+        target: VerifiedShopCipher,
+        several: bool,
+        legacy_cipher: str | None,
+    ) -> Shop:
+        """The user's shop for one shop of a grant, found by TikTok's numeric shop id (P101 W2a).
+
+        Order: (1) a shop already holding the numeric id (any connect key) -- reconnect it when
+        it is this user's, refuse when it is not; (2) TikTok says another, invisible account
+        holds that id (the scope-free resolver) -- refuse; (3) this user's pre-P68 row keyed by
+        ``open_id`` with no numeric id -- reconnect it (for several shops: only the one whose
+        cipher it holds; a single-shop grant reconnects it whatever its numeric id, as before);
+        (4) create. The connect key of a new shop is ``open_id`` for a
+        single-shop grant (as before), else ``{open_id}:{numeric id}`` so siblings stay unique.
+        """
+        numeric_id = target.tiktok_shop_id
+        if numeric_id:
+            existing = await shops_repo.get_by_tiktok_id(numeric_id)
+            if existing is not None:
+                if existing.user_id != user_id:
+                    self._refuse_claimed_shop(numeric_id, user_id)
+                existing.is_active = True
+                return existing
+            if await shops_repo.resolve_id_by_tiktok_key(numeric_id) is not None:
+                self._refuse_claimed_shop(numeric_id, user_id)
+        elif several:
+            raise Unauthorized("TikTok returned an authorized shop with no shop id")
+
+        legacy = await shops_repo.get_by_tiktok_id(open_id)
+        if legacy is not None and legacy.tiktok_shop_id != open_id:
+            legacy = None
+        if legacy is not None and (not several or legacy.tiktok_numeric_shop_id is None):
+            # A single-shop grant keeps the pre-P101 rule: the ``open_id`` row is this shop.
+            if legacy.user_id != user_id:
+                self._refuse_claimed_shop(open_id, user_id)
+            if not several or (legacy_cipher is not None and legacy_cipher == str(target)):
+                legacy.is_active = True
+                return legacy
+        key = open_id if legacy is None and not several else f"{open_id}:{numeric_id}"
+        return await self._create_shop(
+            shops_repo,
+            key=key,
+            seller_name=seller_name,
+            user_id=user_id,
+            business_id=business_id,
+        )
+
+    async def _create_shop(
+        self,
+        shops_repo: ShopsRepo,
+        *,
+        key: str,
+        seller_name: str,
+        user_id: uuid.UUID,
+        business_id: uuid.UUID | None,
+    ) -> Shop:
         try:
             # Savepoint: the unique violation must not poison the caller's transaction.
             async with self._session.begin_nested():
                 return await shops_repo.create(
                     user_id=user_id,
                     shop_name=seller_name,
-                    tiktok_shop_id=open_id,
+                    tiktok_shop_id=key,
                     business_id=business_id,
                 )
         except IntegrityError as exc:
             if "tiktok_shop_id" not in str(exc.orig):
                 raise
-            raced = await shops_repo.get_by_tiktok_id(open_id)
+            raced = await shops_repo.get_by_tiktok_id(key)
             if raced is not None and raced.user_id == user_id:
                 raced.is_active = True
                 return raced
-            self._refuse_claimed_shop(open_id, user_id)
+            self._refuse_claimed_shop(key, user_id)
 
     @staticmethod
     def _refuse_claimed_shop(open_id: str, user_id: uuid.UUID) -> NoReturn:
@@ -285,7 +549,9 @@ class TikTokOAuthService:
                 "user_id": str(user_id),
             },
         )
-        raise Unauthorized("This TikTok shop is already connected to another account")
+        raise ShopClaimedByAnotherAccount(
+            "This TikTok shop is already connected to another account"
+        )
 
     async def _write_credentials(
         self,
@@ -297,8 +563,14 @@ class TikTokOAuthService:
         access_token: str,
         refresh_token: str,
         capability: TikTokCapability | None,
-    ) -> None:
-        """Create or refresh the shop's credential row, under the shop's scope."""
+        target: VerifiedShopCipher | None = None,
+        shops_in_grant: int = 1,
+        grant_id: uuid.UUID | None = None,
+    ) -> TikTokCapability:
+        """Create or refresh the shop's credential row, under the shop's scope.
+
+        Returns the capability the row is filed under (the shop's ``kind`` follows it).
+        """
         expires_at = access_token_expires_at(token_data.get("access_token_expire_in"))
         merchant_authorization_id = open_id
         if capability is None:
@@ -355,9 +627,24 @@ class TikTokOAuthService:
         # verified by nothing -- a production token filed as `sandbox_write`
         # passed every guard (observed 2026-08-18). Runs BEFORE any write, so a
         # mislabelled credential is never persisted even briefly.
-        verified = await self._binding_verifier(
-            self._session, capability=capability, access_token=access_token
-        )
+        if target is None:
+            verified: str = await self._binding_verifier(
+                self._session, capability=capability, access_token=access_token
+            )
+        else:
+            # P101 W2a: the grant's shop list was read once; each shop's cipher is checked
+            # against the capability it is filed under (a governed capability reaching several
+            # shops is refused, exactly as the single-shop lookup refused it).
+            multi = self._binding_verifier
+            if not isinstance(multi, MultiShopBindingVerifier):
+                raise TypeError("a grant shop needs a multi-shop binding verifier")
+            await multi.verify_shop(
+                self._session,
+                capability=capability,
+                shop_cipher=str(target),
+                shops_in_grant=shops_in_grant,
+            )
+            verified = target
         # Stored as a plain str; the numeric shop id (P68, E11) rides on the subclass.
         verified_cipher = str(verified)
         numeric_shop_id = (
@@ -365,7 +652,9 @@ class TikTokOAuthService:
         )
 
         try:
-            existing_cred = await cred_repo.get_by_merchant(
+            # P101 W2a: keyed by shop too -- sibling shops of one grant share the merchant id.
+            existing_cred = await cred_repo.get_by_shop_and_merchant(
+                shop.id,
                 merchant_authorization_id,
                 capability,
             )
@@ -390,6 +679,8 @@ class TikTokOAuthService:
             # authorization, or a Juli Ops disconnect) -- reconnecting resumes.
             existing_cred.status = "active"
             existing_cred.last_refresh_error = None
+            # P101 W2a: the row now holds THIS grant's tokens, so it joins this grant's lineage.
+            existing_cred.grant_id = grant_id
         except NotFound:
             await cred_repo.create(
                 shop_id=shop.id,
@@ -400,8 +691,10 @@ class TikTokOAuthService:
                 merchant_authorization_id=merchant_authorization_id,
                 capability=capability.value,
                 shop_cipher=verified_cipher,
+                grant_id=grant_id,
             )
         await self._record_numeric_shop_id(shop, numeric_shop_id)
+        return capability
 
     async def _record_numeric_shop_id(self, shop: Shop, numeric_shop_id: str | None) -> None:
         """Persist TikTok's numeric shop id beside the connect identifier (P68, E11).

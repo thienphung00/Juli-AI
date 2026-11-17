@@ -1,7 +1,9 @@
 // The tab-opening schedule (ADR-120 d.14): once a day the Connector opens the Seller Centre
 // report pages itself, ONE background tab at a time, lets the page hook read each page's own
 // endpoints, closes the tab, and moves on after a gap. Read-only, the seller's own session.
-// It stops, and records `blocked`, on a CAPTCHA or a login wall; it never clicks anything.
+// It never clicks anything. A login wall or CAPTCHA on one page, while a page of the other Seller
+// Centre section read fine in this run, blocks that page only (0.3.22, "blocked:login"); a second
+// one in the same section blocks the section's other pages; anything else stops the whole run.
 //
 // An MV3 service worker can be stopped at any time, so the run is a state machine kept in
 // chrome.storage.local and advanced by events (alarm, tab ready, page result, tab closed).
@@ -57,7 +59,7 @@ import {
 import { completedOrders } from "../orders-map";
 import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../reader-map";
 import type { CaptureOutcome } from "./connector";
-import { READER_PAGES, readerPageUrl } from "../endpoints";
+import { READER_PAGES, readerPageUrl, readerSection } from "../endpoints";
 import { blockedPath, classify, type ReaderJob, type ReaderResponse } from "../reader";
 import { gmt7Date, gmt7DateStart, lastFinishedDays } from "../../../core/time";
 import {
@@ -85,6 +87,8 @@ export const READER_KICK_ALARM = "juli-reader-kick";
 /** 0.3.19: the fixed daily 06:30 GMT+7 stock read (the product list only). */
 export const STOCK_ALARM = "juli-stock-run";
 const TICK_LOG_KEPT = 20;
+/** 0.3.22: walls in a row in one section that block its remaining pages for the run. */
+export const SECTION_WALLS_BLOCK = 2;
 const TRAFFIC_OVERVIEW_DONE_KEPT = 14;
 
 /** 06:30 GMT+7 of a GMT+7 day, in ms. */
@@ -602,7 +606,7 @@ export class ReaderScheduler {
           return this.block(sched, run, "login");
         }
         const wall = blockedPath(new URL(info.url).pathname);
-        if (wall) return this.block(sched, run, wall);
+        if (wall) return this.wall(sched, run, wall);
       }
       if (current.sentAt !== undefined && run.jobs[run.index]?.id === "orders") {
         // The order list answers late: Chrome may have closed or discarded the tab meanwhile (0.3.15).
@@ -618,6 +622,12 @@ export class ReaderScheduler {
   private async startNext(sched: ReaderSchedule, run: ReaderRun): Promise<string> {
     let job = run.jobs[run.index];
     if (!job) return this.finishRun(sched, run);
+    const sectionWall = run.walls?.[readerSection(job.id)];
+    if (sectionWall && sectionWall.count >= SECTION_WALLS_BLOCK) {
+      // Two walls in a row in this section: its other pages are not opened in this run.
+      const skipped: ReaderRun = { ...run, outcomes: { ...run.outcomes, [job.id]: `blocked:${sectionWall.reason}` }, index: run.index + 1 };
+      return skipped.index >= skipped.jobs.length ? this.finishRun(sched, skipped) : this.startNext(sched, skipped);
+    }
     if (job.id === "item_traffic") {
       // The ids come from the last product-list read; with none there is nothing to open.
       const itemIds = (sched.itemIds ?? []).slice(0, TRAFFIC_MAX_ITEMS);
@@ -789,6 +799,34 @@ export class ReaderScheduler {
     return this.finishRun(sched, { ...run, outcomes }, undefined, "budget_spent");
   }
 
+  /**
+   * A login wall or CAPTCHA on the current page (0.3.22). It blocks only this page when a page of
+   * ANOTHER section read fine in this run and that section has no wall since: the session is alive,
+   * this section asks again (Phân tích bán hàng's password re-confirmation). The run goes on; the
+   * page's outcome is "blocked:<reason>", told to Juli in the run report and as a stop event. With
+   * no such proof (the first page of a run, or walls in both sections) it is a session-wide logout:
+   * the whole run stops as before, so a logged-out session gets no more tabs than before 0.3.22.
+   */
+  private async wall(sched: ReaderSchedule, run: ReaderRun, reason: "login" | "captcha", detail?: string): Promise<string> {
+    const job = run.jobs[run.index];
+    if (!job || run.kind === "stock") return this.block(sched, run, reason, detail);
+    const section = readerSection(job.id);
+    const walls = run.walls ?? {};
+    const proof = (run.live ?? []).some((s) => s !== section && !walls[s]);
+    if (!proof) return this.block(sched, run, reason, detail);
+    const count = (walls[section]?.count ?? 0) + 1;
+    await this.deps.sink
+      .reportBlock?.({
+        reader: job.id,
+        page: READER_PAGES[job.id].path,
+        status: reason,
+        code: `reader_only${detail ? `:${detail}` : ""}`.slice(0, 40),
+        at: this.iso(),
+      })
+      .catch(() => undefined);
+    return this.finishJob(sched, { ...run, walls: { ...walls, [section]: { count, reason } } }, `blocked:${reason}`);
+  }
+
   /** A stop that halts every reader: close the tab, remember why, tell Juli, open no other page. */
   private async block(sched: ReaderSchedule, run: ReaderRun, reason: ReaderBlockReason, detail?: string): Promise<string> {
     const job = run.jobs[run.index];
@@ -849,7 +887,7 @@ export class ReaderScheduler {
       })();
       const wall = blockedPath(pathname);
       if (wall) {
-        await this.block(sched, run, wall);
+        await this.wall(sched, run, wall);
         return true;
       }
       if (!pathname.startsWith(READER_PAGES[job.id].path)) {
@@ -893,12 +931,9 @@ export class ReaderScheduler {
       const job = run.jobs[run.index] as PlannedJob;
       if (message.job !== job.id) return true; // stale
       const status = String(message.status ?? "error");
-      if (status === "blocked_captcha") {
-        await this.block(sched, run, "captcha");
-        return true;
-      }
-      if (status === "blocked_login") {
-        await this.block(sched, run, "login");
+      if (status === "blocked_captcha" || status === "blocked_login") {
+        const detail = outcomeNote(message.detail).replace(/[^A-Za-z0-9_.:-]/g, "_");
+        await this.wall(sched, run, status === "blocked_captcha" ? "captcha" : "login", detail || undefined);
         return true;
       }
       if (status === "blocked_rate") {
@@ -971,9 +1006,13 @@ export class ReaderScheduler {
               ...(job.days ?? []).filter((day) => posted[`traffic_overview:${day}:confirmed`] === "posted"),
             ].slice(-TRAFFIC_OVERVIEW_DONE_KEPT)
           : sched.trafficOverviewDone;
+      // The page read: its section's session is alive (0.3.22), and its wall count starts again.
+      const section = readerSection(job.id);
+      const { [section]: _cleared, ...walls } = run.walls ?? {};
+      const read: ReaderRun = { ...run, live: [...new Set([...(run.live ?? []), section])], walls };
       await this.finishJob(
         { ...sched, adsPosted, adsHistory, itemIds, trafficDone, adsSettingsDay, adsCampaigns, productsAt, trafficOverviewDone, ...extra },
-        run,
+        read,
         jobOutcome(job.id, posted, summary, note),
       );
       return true;

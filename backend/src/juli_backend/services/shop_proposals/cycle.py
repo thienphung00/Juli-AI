@@ -11,7 +11,8 @@ Status moves only forward:
   ``withdrawn`` or ``superseded`` (:func:`revise`);
 - ``changes_requested`` → ``superseded`` (:func:`revise`) or ``withdrawn``;
 - ``approved`` → ``executed`` (:func:`record_execution`) or ``withdrawn``;
-- ``executed`` → ``measured`` (:mod:`.measurement`, once a verdict is conclusive).
+- ``executed`` → ``measured`` (:mod:`.measurement`, once a verdict is conclusive), or
+  ``withdrawn`` by the owner's board reset only (``reason = "reset"``) while still measuring.
 
 A sent proposal is never edited: :func:`revise` writes a new revision and supersedes the
 old one, so every approval points at the exact text the client saw.
@@ -39,6 +40,7 @@ from juli_backend.models.shop_proposals import (
     STATUS_CHANGES_REQUESTED,
     STATUS_DRAFT,
     STATUS_EXECUTED,
+    STATUS_PLANNED,
     STATUS_SENT,
     STATUS_SUPERSEDED,
     STATUS_WITHDRAWN,
@@ -57,6 +59,10 @@ ERROR_INVALID = "proposal_invalid"
 ERROR_UNKNOWN_ITEM = "proposal_unknown_item"
 
 _WITHDRAWABLE = frozenset({STATUS_DRAFT, STATUS_SENT, STATUS_CHANGES_REQUESTED, STATUS_APPROVED})
+#: The owner's "reset the board" (2026-11-16): the only reason that also takes a planned card or an
+#: executed card whose measurement is still open off the board.
+REASON_RESET = "reset"
+_RESETTABLE = _WITHDRAWABLE | {STATUS_PLANNED, STATUS_EXECUTED}
 _REVISABLE = frozenset({STATUS_SENT, STATUS_CHANGES_REQUESTED})
 
 
@@ -193,8 +199,12 @@ async def send(session: AsyncSession, proposal: ShopProposal, *, now: datetime) 
     return proposal
 
 
-async def withdraw(session: AsyncSession, proposal: ShopProposal, *, now: datetime) -> ShopProposal:
-    _move(proposal, _WITHDRAWABLE, STATUS_WITHDRAWN, now)
+async def withdraw(
+    session: AsyncSession, proposal: ShopProposal, *, now: datetime, reason: str | None = None
+) -> ShopProposal:
+    """An open proposal closes as ``withdrawn``; only ``reason = "reset"`` takes a planned or an
+    executed one too (the caller checks the executed one's measurement is still open)."""
+    _move(proposal, _RESETTABLE if reason == REASON_RESET else _WITHDRAWABLE, STATUS_WITHDRAWN, now)
     await session.flush()
     return proposal
 

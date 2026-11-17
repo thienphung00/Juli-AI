@@ -18,7 +18,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.loaders import ShopContext
@@ -34,6 +34,7 @@ from juli_backend.services.shopee_profit.income import FEE_SERVICE
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import OrderLine, SkuCost
 from juli_backend.services.shopee_profit.shop_profit import ProductProfit
+from juli_backend.services.shopee_recommendations import config
 from juli_backend.services.shopee_recommendations.listing import Listing
 from juli_backend.services.shopee_recommendations.model import DiscountResponse
 
@@ -94,6 +95,12 @@ class RecoEnv:
     #: usage rate u of the shop's comparable past vouchers (None = unknown -> default 1, flagged)
     usage_rate: Decimal | None = None
     calibration: Mapping[tuple[str, str], CalibrationState] = field(default_factory=dict)
+    #: F2: the stored funnel rows of the last 60 days (the adaptive window's widest), and today
+    #: (None = no staleness check); the builder's base reads them
+    funnel_history: Any = None
+    today: date | None = None
+    #: F6: the calibration pooled across the real Shopee shops (rung 3 of the uplift ladder)
+    pooled_calibration: Mapping[tuple[str, str], CalibrationState] = field(default_factory=dict)
     acceptance: AcceptanceStats | None = None
     sim: SimPriors | None = None
     #: product id -> the listing as stored (newest snapshot + keyword key list + market numbers)
@@ -362,3 +369,26 @@ class RecoEnv:
         )
         total = self.view.ads.total_spend + promo + voucher + combo + commission
         return total / Decimal(self.window_days)
+
+
+def voucher_takeup(
+    lines: Sequence[OrderLine], min_spend: Decimal, known: Decimal | None
+) -> Decimal | None:
+    """Share of qualifying orders (basket >= ``min_spend``) that use a shop voucher.
+
+    ``known`` = the usage rate of the shop's own past vouchers (when it has one it wins). Else
+    it is measured from the shop's own order lines: qualifying orders carrying a shop voucher
+    share / qualifying orders, once there are enough qualifying orders and the shop has used a
+    voucher at all. None = unknown (the caller keeps the flagged default of 1).
+    """
+    if known is not None:
+        return known
+    values: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
+    used: dict[str, bool] = {}
+    for ln in lines:
+        values[ln.order_id] += ln.order_value
+        used[ln.order_id] = used.get(ln.order_id, False) or ln.shop_voucher_share > 0
+    qualifying = [oid for oid, v in values.items() if v >= min_spend]
+    if len(qualifying) < config.VOUCHER_TAKEUP_MIN_ORDERS or not any(used.values()):
+        return None
+    return Decimal(sum(1 for oid in qualifying if used[oid])) / len(qualifying)

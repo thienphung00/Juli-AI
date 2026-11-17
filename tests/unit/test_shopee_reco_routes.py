@@ -603,7 +603,10 @@ async def test_ops_ga_the_records_reason_audit_and_bulk(session, shop, ops):
     assert bad.status_code == 422
 
 
-async def test_ops_generate_ranks_and_persists_drafts(session, shop, ops):
+async def test_ops_generate_ranks_and_persists_drafts(session, shop, ops, monkeypatch):
+    # F11: this fixture's opportunity cards do not clear the band; the test is about something else,
+    # so the band gate is switched off here
+    monkeypatch.setattr("juli_backend.services.forecast.triggers.clears_band", lambda *a: True)
     seeded, _, _ = shop
     base = f"/v1/ops/shops/{seeded.shop_id}/shopee/recommendations"
     r = await ops.post(f"{base}/generate", json={"as_of": AS_OF.isoformat(), "top_n": 5})

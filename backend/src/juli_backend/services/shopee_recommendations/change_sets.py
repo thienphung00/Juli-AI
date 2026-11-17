@@ -203,6 +203,39 @@ async def _member_meta(
         await store.set_meta(session, shop_id, uuid.UUID(str(cid)), patch)
 
 
+# ---------------------------------------------------------------------- the board reset
+
+LABEL_RESET = "Đã gỡ khỏi bảng"
+
+
+async def drop_card(
+    session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID, *, now: datetime
+) -> int:
+    """A card withdrawn by the owner's board reset leaves every running set it is in: its id moves
+    to ``result.reset_card_ids`` (history), and a set left with no card ends as "không kết luận"
+    (``reset``), never read and never calibrated. Returns the sets touched."""
+    cid = str(card_id)
+    n = 0
+    for cs in await sets_for(session, shop_id, status=[SET_MEASURING]):
+        if cid not in (cs.card_ids or []):
+            continue
+        n += 1
+        cs.card_ids = [c for c in cs.card_ids or [] if c != cid]
+        result = dict(cs.result or {})
+        result["reset_card_ids"] = [*result.get("reset_card_ids", []), cid]
+        if not cs.card_ids:
+            cs.status = SET_CUT
+            cs.cut_at = now
+            cs.cut_days = max((now.date() - cs.started_at.date()).days, 0)
+            result.update(
+                {"state": STATE_INCONCLUSIVE, "label": LABEL_RESET, "reset": True, "read": True}
+            )
+        cs.result = result
+        cs.updated_at = now
+    await session.flush()
+    return n
+
+
 # ------------------------------------------------------------------------------ cutting
 
 

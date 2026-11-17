@@ -5,11 +5,12 @@ import { useEffect, useState } from "react";
 import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
-import type { ExecutionCard, ExecutionState } from "../../lib/shopee-decisions/types";
+import type { ExecutionCard, ExecutionState, ReaderBlock } from "../../lib/shopee-decisions/types";
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { fillJobHref } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
 import { errorText, NavLink, RecoState } from "./ui";
+import { BoardActions } from "./board-actions";
 
 /**
  * Quyết định › Thực hiện: Juli Connector fills Seller Centre, the seller saves, the Connector reads
@@ -25,6 +26,8 @@ const STEPS = ["Đã duyệt", "Connector điền", "Bạn lưu", "Khớp Seller
  * "Đã làm" (an admitted sample write), as a seller without the extension would.
  */
 const SAMPLE_STEPS = ["Đã duyệt", "Bạn điền", "Bạn lưu", "Khớp Seller Centre"] as const;
+/** The cards whose execution is a voucher that Juli reads back by its code. */
+const VOUCHER_KINDS = new Set(["min_spend_voucher", "review_voucher", "voucher_cap", "voucher"]);
 const STATE_LABEL: Record<ExecutionState, string> = { cho_dien: "Chờ điền", da_dien: "Đã điền · chờ bạn lưu", khop: "Khớp Seller Centre", lech: "Lệch Seller Centre" };
 const STATE_TONE: Record<ExecutionState, "flat" | "warn" | "up" | "down"> = { cho_dien: "flat", da_dien: "warn", khop: "up", lech: "down" };
 const MONEY = new Set(["min_spend", "discount_amount", "max_value", "current_price", "list_price", "total_budget"]);
@@ -40,6 +43,18 @@ function hhmm(iso: string | null): string {
 }
 
 /** A Seller Centre / card value with its unit by field. */
+const SECTION_LABEL: Record<string, string> = { phan_tich_ban_hang: "Phân tích bán hàng", seller_centre: "Seller Centre" };
+
+/** Connector 0.3.22: one short line per blocked section ("Đăng nhập lại Phân tích bán hàng"). */
+export function readerBlockText(blocks: readonly ReaderBlock[] | undefined): string | null {
+  const lines = [
+    ...new Set(
+      (blocks ?? []).map((b) => `${b.reason === "captcha" ? "Xác minh lại" : "Đăng nhập lại"} ${SECTION_LABEL[b.section] ?? "Seller Centre"}`),
+    ),
+  ];
+  return lines.length > 0 ? lines.join(" · ") : null;
+}
+
 export function valueText(field: string | null, v: unknown): string {
   if (typeof v === "number") {
     if (field === "daily_budget") return `${fmt(v, 0)} đ/ngày`;
@@ -75,7 +90,7 @@ function Steps({ c, sample }: { readonly c: ExecutionCard; readonly sample: bool
   );
 }
 
-function Row({
+export function Row({
   c,
   name,
   readOnly,
@@ -91,12 +106,20 @@ function Row({
   const host = useReco();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // UI grill G14: a voucher needs its Seller Centre code to be read back; the row asks for it (the
+  // sample shop has none to give: the server gives it a sample code).
+  const needsCode = !sample && VOUCHER_KINDS.has(c.change_kind);
+  // the captured code can arrive on a later refresh (after Lưu, or the Connector's next voucher read):
+  // it fills the field until the seller types their own
+  const [typed, setTyped] = useState<string | null>(null);
+  const code = typed ?? c.captured_voucher_id ?? "";
+  const setCode = (v: string) => setTyped(v);
   const href = c.open_job ? fillJobHref(c.open_job) : null;
   const markDone = async () => {
     setBusy(true);
     setError(null);
     try {
-      await host.reco.executed(c.card_id, {});
+      await host.reco.executed(c.card_id, needsCode ? { voucherId: code.trim() || null } : {});
       onDone();
     } catch (e) {
       // P100 S2-F2: a refusal (e.g. a voucher needs its Seller Centre code) is said, never silent
@@ -150,9 +173,14 @@ function Row({
             )
           ) : null}
           {(c.state === "da_dien" || (sample && c.state === "cho_dien")) && !c.executed_at ? (
-            <button className="sa-btn" disabled={readOnly || busy} onClick={() => void markDone()} type="button">
-              Đã làm
-            </button>
+            <>
+              {needsCode ? (
+                <input aria-label="Mã voucher" className="sd-th-row__code" data-testid={`sd-th-code-${c.card_id}`} disabled={readOnly} inputMode="numeric" onChange={(e) => setCode(e.target.value)} placeholder="Mã voucher" type="text" value={code} />
+              ) : null}
+              <button className="sa-btn" disabled={readOnly || busy || (needsCode && code.trim() === "")} onClick={() => void markDone()} type="button">
+                Đã làm
+              </button>
+            </>
           ) : null}
         </span>
         {error ? (
@@ -191,6 +219,7 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
     <RecoState resource={res}>
       {(data) => {
         const k = data.connector;
+        const blocked = readerBlockText(k.reader_blocks);
         return (
           <div className="sd-th" data-testid="sd-thuc-hien">
             {sample ? null : (
@@ -201,6 +230,11 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
                 {k.seller_centre_open ? "Seller Centre đang mở · " : ""}
                 {k.last_check_at ? `đối chiếu lần cuối ${hhmm(k.last_check_at)}` : "chưa đối chiếu"}
               </span>
+              {blocked ? (
+                <span className="sd-th-bar__block" data-testid="sd-th-bar-block">
+                  {blocked}
+                </span>
+              ) : null}
               {readOnly ? null : (
                 <button className="sa-btn sd-th-bar__sync" disabled={!k.connected || !!k.reconcile_pending || asking} onClick={() => void reconcile()} type="button">
                   Đối chiếu ngay
@@ -208,6 +242,7 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
               )}
             </section>
             )}
+            {host.reco.board && !sample && !readOnly && !host.staff ? <BoardActions board={host.reco.board} onChanged={() => setTick((t) => t + 1)} /> : null}
             <ul className="sd-th-list">
               {data.cards.map((c) => (
                 <Row c={c} key={c.card_id} name={(names.status === "ready" && c.product_id ? names.data.get(c.product_id) : null) ?? null} onDone={() => setTick((t) => t + 1)} readOnly={readOnly} sample={sample} />

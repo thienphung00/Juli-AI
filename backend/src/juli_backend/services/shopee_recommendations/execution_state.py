@@ -286,6 +286,15 @@ def _head(p: Any, card: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _captured_voucher_id(jobs: list[ShopeeFillJob]) -> str | None:
+    """The newest voucher id the Connector captured for a card (same rule as
+    ``fill_queue.captured_ref_of``), or None."""
+    captured = [j for j in jobs if j.kind == "voucher" and j.captured_ref]
+    if not captured:
+        return None
+    return max(captured, key=lambda j: j.updated_at or datetime.min).captured_ref
+
+
 async def connector_status(
     session: AsyncSession, shop_id: uuid.UUID, platform: str, now: datetime
 ) -> dict[str, Any]:
@@ -311,6 +320,8 @@ async def connector_status(
         "connected": fresh or beat["alive"],
         "seller_centre_open": beat["seller_centre_open"],
         "reconcile_pending": beat["reconcile_pending"],
+        # Connector 0.3.22: the sections the last daily run could not read (login wall / CAPTCHA).
+        "reader_blocks": beat["reader_blocks"],
     }
 
 
@@ -337,6 +348,7 @@ async def execution_states(
         if (measured.get(str(p.id)) or {}).get("window_closed"):
             continue
         mine = jobs.get(p.id, [])
+        captured_voucher_id = _captured_voucher_id(mine)
         latest = max((j.version for j in mine), default=None)
         mine = [j for j in mine if j.version == latest]
         state = derive_state(
@@ -364,6 +376,9 @@ async def execution_states(
                 **state,
                 "measure_days": window,
                 "measure_start": (state["verified_at"] or "")[:10] or None,
+                # G14: the voucher id the Connector captured after the person saved (pre-fills
+                # the "Mã voucher" field beside Đã làm); None until captured.
+                "captured_voucher_id": captured_voucher_id,
                 "open_job": None
                 if open_job is None
                 else {"id": str(open_job.id), "open_path": open_job.payload["open_path"]},

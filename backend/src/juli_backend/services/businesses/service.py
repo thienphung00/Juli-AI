@@ -102,6 +102,17 @@ async def member_of(
         )
 
 
+async def owns_shop(session: AsyncSession, shop: Shop, user_id: uuid.UUID) -> bool:
+    """The shop's owner (``shops.user_id``) or an active ``owner`` of the shop's business: the
+    people an owner-only shop action (the board reset, the outside-Juli import) is for."""
+    if shop.user_id == user_id:
+        return True
+    if shop.business_id is None:
+        return False
+    row = await member_of(session, shop.business_id, user_id)
+    return row is not None and row.role == ROLE_OWNER
+
+
 async def _require_owner(
     session: AsyncSession, business_id: uuid.UUID, user_id: uuid.UUID
 ) -> Business:
