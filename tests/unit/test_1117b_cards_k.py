@@ -85,6 +85,8 @@ async def _assert_agree(session, seeded):
 async def test_k_rows_aggregate_and_month_agree_for_an_ungrouped_draft(session, shop):
     await _save_and_plan(session, shop, COMBO)
     await _save_and_plan(session, shop, _voucher())
+    out, _, _ = await _views(session, shop)
+    assert out["groups"] == []  # neither card was run together, so no group holds them
     await _assert_agree(session, shop)
 
 

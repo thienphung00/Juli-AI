@@ -24,7 +24,11 @@ from juli_backend.services.shopee_recommendations import (
 )
 from juli_backend.services.shopee_recommendations import service as reco
 from juli_backend.services.shopee_recommendations.learning import Observation
-from tests.unit.test_shopee_reco_board_sync import NOW, _commit, shop  # noqa: F401
+from tests.unit import test_shopee_reco_board_sync as _board
+
+NOW = _board.NOW
+_commit = _board._commit
+shop = _board.shop  # the shared fixture, re-exported for this module
 
 NAMES = {"1001": "Sản phẩm mẫu", "1002": "Cây rửa ly", "1003": "Viên giặt"}
 RAW_KEYS = ("daily_budget", "addon_item_id", "addon_price", "discount_pct", "10000000001")
@@ -235,14 +239,14 @@ def test_a_filled_job_with_fields_missing_is_not_filled():
 # ----------------------------------------------------------------------- the recorded revert (DB)
 
 
-async def _td1(session, shop) -> uuid.UUID:  # noqa: F811
+async def _td1(session, shop) -> uuid.UUID:
     result = await _commit(session, shop)
     ids = {c["ref"]: uuid.UUID(c["card_id"]) for c in result.cards if c["action"] == "created"}
     return ids["TD-1"]
 
 
 @pytest.mark.timeout(180)  # one import of the synthetic shop; slow under a loaded machine
-async def test_reverting_is_recorded_stops_measurement_and_leaves_calibration(session, shop):  # noqa: F811
+async def test_reverting_is_recorded_stops_measurement_and_leaves_calibration(session, shop):
     card_id = await _td1(session, shop)
     meta = await store.card_meta(session, shop.shop_id, card_id)
     cset = await session.get(ShopRecoChangeSet, uuid.UUID(meta["change_set"]))
