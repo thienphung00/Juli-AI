@@ -112,10 +112,12 @@ def uplift_in_month(
     """(Δ GMV, Δ lợi nhuận, cards counted) of ``cards`` inside ``first``..``last``: the P50 Δ of
     each card's own dates, per own day, x its days inside the month."""
     gmv = profit = 0.0
-    counted = 0
+    counted: set[int | str] = set()
     for c in cards:
         own = (c.get("result") or {}).get("own")
         if not own or not own.get("dates") or not own.get("days"):
+            continue
+        if not own.get("delta"):  # not estimable: no Δ, left out here as in the plan's total (K3)
             continue
         d = own["dates"]
         n = _days_in(date.fromisoformat(d["from"]), date.fromisoformat(d["to"]), first, last)
@@ -123,10 +125,12 @@ def uplift_in_month(
             continue
         p50 = (own.get("delta") or {}).get("p50") or {}
         k = n / int(own["days"])
-        counted += 1
+        # one plan card counts once however many of its versions / parts run (K2)
+        cid = c.get("card_id")
+        counted.add(id(c) if cid is None else str(cid).split("@v", 1)[0].split("#", 1)[0])
         gmv += (p50.get("dgmv") or 0.0) * k
         profit += (p50.get("dprofit") or 0.0) * k
-    return gmv, profit, counted
+    return gmv, profit, len(counted)
 
 
 async def _executed(session: AsyncSession, shop_id: uuid.UUID) -> list[ShopRecoPlan]:

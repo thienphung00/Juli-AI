@@ -522,6 +522,9 @@ def _summary(
         "floor_ok": card["floor"]["ok"],
         # P100: what the card costs over its own days (the result's Chi phí); "Chi phí" when > 0.
         "cost": (block or {}).get("cost_total"),
+        # C2: the same cost as a rate and its days (per day x days = cost)
+        "cost_days": ((block or {}).get("own") or {}).get("days"),
+        "cost_per_day": result_store.cost_per_day(block),
         "plan": card["measurement_plan"]["label"],
         "stale": bool((meta or {}).get("stale")) or stale_why is not None,
         "stale_reason": (meta or {}).get("stale_reason") or stale_why,

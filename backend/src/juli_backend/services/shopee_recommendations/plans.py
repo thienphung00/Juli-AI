@@ -79,6 +79,7 @@ from juli_backend.services.shopee_recommendations.plan_aggregate import (
     Entry,
     aggregate,
     evaluate_entry,
+    merge_groups,
 )
 
 ERROR_UNKNOWN_PLAN = "reco_plan_not_found"
@@ -309,7 +310,10 @@ async def stored_results(
         if e.overrides:
             continue
         block = result_store.version_result(e.base, e.version)
-        if block is not None and result_store.is_fresh(block, env, e.base):
+        # C3 (batch-1117b): a card in a plan is re-based on the plan's data day before it shows or
+        # adds up -- a stored result computed on an older data day (same inputs hash, one more
+        # day of orders) is recomputed here, in memory, never shown on its old base
+        if block is not None and result_store.is_fresh(block, env, e.base, same_day=True):
             out[e.card_id] = block
         else:
             todo.append((e, result_store.Job(dict(e.base), wanted=[e.version])))
@@ -494,6 +498,7 @@ async def get_plan(
                         default_start=group_periods[g.id][0],
                     )
                 )[0]  # fmt: skip
+        agg = merge_groups(env, agg, list(group_aggs.values()))  # K2/K3: the plan total, all cards
         products = [*agg.get("products", []), *_group_products(group_aggs.values())]
         names = {b["product_id"]: b.get("name") for b in products}
         cut = await change_sets.cut_preview(
@@ -559,8 +564,11 @@ async def get_plan(
             plan_groups.group_json(g, windows_of[g.id], members, aggregate=group_aggs.get(g.id))
         )
     sets = await change_sets.sets_for(session, shop_id, plan_id=plan.id)
-    n_all = int(agg.get("n_cards") or 0) + sum(
-        int((a or {}).get("n_cards") or 0) for a in group_aggs.values()
+    # a draft's aggregate already counts the cards run together (``merge_groups``)
+    n_all = int(agg.get("n_cards") or 0) + (
+        0
+        if plan.status == PLAN_DRAFT and missing is None
+        else sum(int((a or {}).get("n_cards") or 0) for a in group_aggs.values())
     )
     windows_agg = {
         **agg,
