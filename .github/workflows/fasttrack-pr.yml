@@ -1,0 +1,264 @@
+name: Fast-track PR checks
+
+# The fast-track deploy gate, on GitHub, for every PR into a fasttrack/* branch.
+# Phase 1 (owner-approved 2026-11-17) ran unit, static and frontend here; phase 2 (owner,
+# 2026-11-17: "everything can run on GitHub") adds heads and the database check, so this
+# workflow runs all five gate jobs of fasttrack/predeploy.sh: heads, frontend, static,
+# unit (4 shards) and check (4 shards, each with its own throwaway Postgres service).
+# The jobs are copied from fasttrack-deploy.yml (same commands, same shards); keep them in
+# step (test_pr_checks_run_the_deploy_gates_commands_without_secrets pins it).
+#
+# They run on the PR's merge commit with its base: the tree a merge produces while the
+# base has not moved. When every job passes, `gate` uploads an artifact named
+# fasttrack-gate-<tree>; fasttrack/gate_status.py accepts it as the deploy gate for that
+# tree, exactly like a passing local predeploy.sh. If the base moves, merge the new tip
+# into the batch branch (pipeline step 6) and this workflow runs again.
+#
+# No secrets, read-only token, and nothing here deploys. Not a required check until the
+# owner adds one (repository setting).
+
+on:
+  pull_request:
+    branches: ["fasttrack/**"]
+
+concurrency:
+  group: fasttrack-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  heads:
+    name: Exactly one alembic head
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # predeploy.sh's heads job (infra/scripts/migration_heads.py is stdlib only).
+      - name: migration_heads.py heads
+        run: |
+          set -euo pipefail
+          heads="$(python infra/scripts/migration_heads.py heads \
+            --migrations-dir backend/src/juli_backend/database/migrations/versions)"
+          echo "heads: ${heads}"
+          [ "$(printf '%s\n' "${heads}" | grep -c .)" -eq 1 ] || { echo "FAIL: expected exactly 1 alembic head"; exit 1; }
+
+  frontend:
+    name: Frontend checks (demo + landing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install the workspace (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      # `pnpm check:demo` minus `pnpm build:demo` (the build job builds the shipped
+      # artifact from the same SHA with the real Supabase env).
+      - name: Demo — eslint, tsc --noEmit, vitest
+        run: pnpm lint:demo && pnpm type-check:demo && pnpm test:demo
+      - name: packages/ui and packages/utils tests
+        run: pnpm --filter @juli/ui test && pnpm --filter @juli/utils test
+      # Not packages/theme: pr.yml's demo-frontend runs it, but 2 of its 79 tests are
+      # stale against the fast-track demo (apps/demo/src/lib/run-surface/tokens.ts
+      # is gone; auth-screen.css uses #121214). DEBT P55.
+      # `pnpm check:landing` minus `pnpm build:landing` (built in the build job).
+      - name: Landing — eslint, tsc --noEmit, vitest
+        run: pnpm lint:landing && pnpm type-check:landing && pnpm test:landing
+
+  backend-unit:
+    name: Backend unit suite (no database, shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # P96: four parallel shards of tests/unit; each test file runs in exactly one shard.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      PYTHONUNBUFFERED: "1"
+      JULI_REQUIRE_ARCHIVED_COMMITS: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Some unit tests read git history (base-anchored gates, the negative
+          # dataset's commit rows); full history keeps them on the same footing as
+          # a local clone, which is where this suite was verified green.
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # P56, D65: two negative-dataset rows cite commits a squash-merge dissolved
+      # (PR #1472). No branch or tag reaches them, so even fetch-depth 0 does not
+      # bring them; GitHub keeps them under refs/pull/1472/head. Fetch the declared
+      # archive refs into refs/archive/* so those rows resolve with their digest
+      # checked, and require that they do (JULI_REQUIRE_ARCHIVED_COMMITS above).
+      - name: Fetch archived evidence refs (negative dataset)
+        run: |
+          set -euo pipefail
+          refspecs="$(python3 -c 'from eval.negative_dataset import archive_fetch_refspecs as f; print(" ".join(f()))')"
+          echo "fetching: ${refspecs}"
+          # shellcheck disable=SC2086
+          git fetch --no-tags origin ${refspecs}
+      # Contract tests shell out to node + typescript in packages/contracts (same
+      # install as the check job and pr.yml's test job).
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install contracts dependency graph
+        run: pnpm install --frozen-lockfile --filter "./packages/contracts..."
+      - name: Install backend
+        run: |
+          pip install -e "./backend[dev]" -c backend/constraints.txt
+          pip freeze | sort
+      # No DATABASE_URL on purpose: Postgres-backed tests skip (requires_postgres),
+      # and the per-test timeout is pytest.ini's 30 s except where a test carries
+      # its own `pytest.mark.timeout`.
+      - name: pytest tests/unit -m "not live" (this shard's files)
+        run: |
+          set -euo pipefail
+          find tests/unit -type f -name 'test_*.py' | sort > /tmp/unit_files.txt
+          python fasttrack/ci_shard.py "${{ matrix.shard }}" 4 < /tmp/unit_files.txt > /tmp/shard_files.txt
+          echo "shard ${{ matrix.shard }}/4: $(wc -l < /tmp/shard_files.txt) of $(wc -l < /tmp/unit_files.txt) test files"
+          # shellcheck disable=SC2046
+          python -X faulthandler -m pytest $(cat /tmp/shard_files.txt) -m "not live" -q --tb=short -p no:cacheprovider
+
+  static:
+    name: Static analysis (mypy + bandit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install backend
+        run: |
+          pip install -e "./backend[dev]" -c backend/constraints.txt
+          pip freeze | sort
+      # Same target and flags as pr.yml's typecheck job; they are also
+      # backend/pyproject.toml's [tool.mypy], read via --config-file.
+      - name: Mypy (backend/src/juli_backend)
+        run: mypy --config-file backend/pyproject.toml backend/src/juli_backend
+      # pr.yml's bandit job: fail on medium+ severity. The constraints-pinned
+      # bandit from backend[dev] instead of an unpinned `pip install bandit`.
+      - name: Bandit (fail on medium+ severity)
+        run: bandit -r backend/src/juli_backend -ll
+
+  check:
+    name: fasttrack/check.sh (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # P96 (owner, 2026-11-06): four parallel shards, each with its own database; every selected
+    # test file runs in exactly one shard (fasttrack/ci_shard.py), isolation / gitleaks / ruff in
+    # shard 1. `needs: check` downstream waits for all four; any failed shard fails `check`.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: check_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Created for this job and destroyed with it — check.sh wipes it.
+      CHECK_DATABASE_URL: postgresql://postgres:test@localhost:5432/check_db
+      GITLEAKS_VERSION: 8.21.2
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # check.sh diffs against merge-base(--since, HEAD) and gitleaks scans that
+          # commit range, so full history is needed.
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # Contract tests in the pytest step shell out to node + typescript in
+      # packages/contracts (same reason release.yml's build job installs this).
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install contracts dependency graph
+        run: pnpm install --frozen-lockfile --filter "./packages/contracts..."
+      - name: Install backend
+        run: |
+          pip install -e "./backend[dev]" -c backend/constraints.txt
+          pip freeze | sort
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          curl -sSfL -o /tmp/gitleaks.tgz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tgz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Run check.sh
+        env:
+          SINCE: origin/main
+          # CHECK_DATABASE_URL above is this job's own postgres service, destroyed
+          # with the job. check.sh exports the same marker beside DATABASE_URL in
+          # use_db(); declaring it here too keeps the workflow-level parity that
+          # test_destructive_migration_isolation pins for every pytest workflow
+          # (P53, D62). It means nothing while DATABASE_URL is empty.
+          JULI_TEST_DATABASE_DISPOSABLE: "1"
+        run: PYTHON="$(command -v python)" ./fasttrack/check.sh --since "${SINCE}" --shard "${{ matrix.shard }}/4"
+
+  gate:
+    name: Deploy gate (all five jobs passed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [heads, frontend, backend-unit, static, check]
+    # Implicit success(): runs only when every gate job passed, so the artifact below
+    # exists only for a fully green tree. fasttrack/gate_status.py looks it up by name.
+    steps:
+      - uses: actions/checkout@v7
+      - name: Record the tested tree
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          echo "TREE=${tree}" >> "${GITHUB_ENV}"
+          mkdir -p /tmp/gate
+          printf '{"tree":"%s","merge_sha":"%s","pr":%s,"head_sha":"%s","base_ref":"%s","run_id":%s,"jobs":["heads","frontend","static","unit","check"],"finished_at":"%s"}\n' \
+            "${tree}" "${GITHUB_SHA}" "${PR_NUMBER}" "${PR_HEAD_SHA}" "${BASE_REF}" "${GITHUB_RUN_ID}" \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /tmp/gate/gate.json
+          cat /tmp/gate/gate.json
+          echo "Deploy gate PASSED for tree ${tree} (merge commit ${GITHUB_SHA})" >> "${GITHUB_STEP_SUMMARY}"
+      - name: Upload the gate record
+        uses: actions/upload-artifact@v7
+        with:
+          name: fasttrack-gate-${{ env.TREE }}
+          path: /tmp/gate/gate.json
+          retention-days: 30
