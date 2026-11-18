@@ -5,7 +5,7 @@
 import { READER_IDS, readerActive } from "../config";
 import type { Backfill, ReaderSchedule } from "../background/state";
 import { adsHistoryLine, DATASET_LABELS, type Guidance, pageRows, runLine, stockLine, syncGuidance, tickLine } from "./guide";
-import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "./labels";
+import { backfillLabel, CONSENT_REQUIRED_MESSAGE, upgradeRequiredLine } from "./labels";
 import { el, fmt, openTab, send, ungrantedHosts, wireHostButton } from "../../../core/popup/shell";
 
 interface DatasetStatus {
@@ -21,6 +21,7 @@ interface PopupState {
   lastSync?: { day: string; status: string };
   backfill?: Backfill | null;
   consentBlocked?: { at: string } | null;
+  upgradeRequired?: string | null;
   readers?: ReaderSchedule | null;
 }
 
@@ -90,6 +91,10 @@ async function render(): Promise<void> {
   el("paired").hidden = !paired;
   if (!paired) return;
   el("token-expiry").textContent = fmt(state.token?.expires_at ?? null);
+
+  const upgrade = el("upgrade");
+  upgrade.hidden = !state.upgradeRequired;
+  upgrade.textContent = state.upgradeRequired ? upgradeRequiredLine(state.upgradeRequired) : "";
 
   const consent = el("consent");
   consent.hidden = !state.consentBlocked;

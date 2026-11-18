@@ -29,6 +29,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -51,7 +52,13 @@ from juli_backend.models.shopee_profit import (
 )
 from juli_backend.services.ingest.affiliate_commission import seller_commission
 from juli_backend.services.ingest.kol_key import kol_key
-from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills, ranked_value
+from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills
+from juli_backend.services.ingest.rank_guard import (
+    excluded_payload_captured_at,
+    payload_captured_at,
+    ranked_set,
+    ranked_where,
+)
 from juli_backend.services.ingest.schemas import (
     IngestBody,
     ShopeeAdsChangeLogRow,
@@ -95,11 +102,29 @@ _LINE_KEY = ("shop_id", "platform", "order_ref", "line_no")
 _AFFILIATE_KEY = ("shop_id", "platform", "order_ref", "line_no", "item_id", "variation_id")
 
 
-def _kept(stmt: Any, table: Any, column: str) -> Any:
-    """The upsert value of ``column`` (``precedence.ranked_value``, owner 2026-11-18): a post of
-    the same or a higher rank replaces with its non-null values; a lower-ranked one (a file
-    under the Connector) only fills NULL columns and leaves the provenance to the higher one."""
-    return ranked_value(stmt, table, column, provenance=column in _PROVENANCE)
+def _ranked_set(stmt: Any, table: Any, columns: Iterable[str]) -> dict[str, Any]:
+    """The upsert SET of a line table (``rank_guard.ranked_set``, owner 2026-11-18 + R7): a higher
+    rank replaces with its non-null values, an equal rank with a newer capture too, a lower rank
+    (a file under the Connector) only fills NULL columns; the provenance follows the winner. The
+    line tables keep no capture time: both sides compare their raw payloads'."""
+    return ranked_set(
+        table,
+        stmt.excluded,
+        columns,
+        _PROVENANCE,
+        stored_captured=payload_captured_at(table),
+        incoming_captured=excluded_payload_captured_at(),
+    )
+
+
+def _ranked_where(stmt: Any, table: Any) -> Any:
+    """The upsert WHERE paired with ``_ranked_set``: an equal-rank older read is ignored."""
+    return ranked_where(
+        table,
+        stmt.excluded,
+        stored_captured=payload_captured_at(table),
+        incoming_captured=excluded_payload_captured_at(),
+    )
 
 
 def canonical_status(raw: str, *, paid: bool) -> str:
@@ -234,17 +259,19 @@ async def write_order_lines(
 async def upsert_line_values(session: AsyncSession, values: list[dict[str, Any]]) -> None:
     """The one ``order_lines`` upsert (the gateway and ``DbCanonicalWriter`` share it): a post of
     the same or a higher rank replaces with its non-null values, a lower rank only fills NULL
-    columns, a NULL never clears (``precedence.ranked_value``)."""
+    columns, a NULL never clears, an equal-rank older read is ignored (``_ranked_set``)."""
     insert = _insert(session)
     table = ShopeeOrderLine.__table__
     for part in _chunks(values):
         mutable = tuple(c for c in part[0] if c != "id" and c not in _LINE_KEY)
         await _log_fills(session, ShopeeOrderLine, _LINE_KEY, part, mutable)
         stmt = insert(ShopeeOrderLine).values(part)
-        # A NULL never erases a stored value (any source); a lower rank only fills NULLs.
-        updated: dict[str, Any] = {column: _kept(stmt, table, column) for column in mutable}
         await session.execute(
-            stmt.on_conflict_do_update(index_elements=list(_LINE_KEY), set_=updated)
+            stmt.on_conflict_do_update(
+                index_elements=list(_LINE_KEY),
+                set_=_ranked_set(stmt, table, mutable),
+                where=_ranked_where(stmt, table),
+            )
         )
 
 
@@ -426,8 +453,8 @@ async def _store_affiliate_lines(
         await session.execute(
             stmt.on_conflict_do_update(
                 index_elements=list(_AFFILIATE_KEY),
-                # A NULL never erases a stored value (any source); a lower rank only fills NULLs.
-                set_={column: _kept(stmt, table, column) for column in _AFFILIATE_MUTABLE},
+                set_=_ranked_set(stmt, table, _AFFILIATE_MUTABLE),
+                where=_ranked_where(stmt, table),
             )
         )
 

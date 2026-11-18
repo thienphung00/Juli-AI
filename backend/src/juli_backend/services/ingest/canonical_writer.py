@@ -3,11 +3,12 @@
 The DB implementation of :class:`~juli_backend.services.ingest.canonical.CanonicalWriter`. It
 writes through the SAME upserts the gateway uses (``writers.upsert_line_values``,
 ``income.upsert_settlement_values``), so the precedence is one rule everywhere
-(``precedence.ranked_value``, owner 2026-11-18): API > Connector > file; a post of the same or a
-higher rank replaces with its non-null values, a lower one only fills the stored row's NULL
-columns and leaves the provenance with the higher writer; a NULL never clears a stored value; a
-rerun is the same rows. No tax is calculated: the reported ``vat_withheld`` / ``pit_withheld`` are
-stored as given.
+(``rank_guard.ranked_set``, owner 2026-11-18 + R7): API > Connector > file; a post of a higher
+rank replaces with its non-null values, an equal rank too unless its raw payload's capture is
+older (then it is ignored), a lower one only fills the stored row's NULL columns and leaves the
+provenance with the higher writer; a NULL never clears a stored value; a rerun is the same rows
+(a row without a raw payload has no capture, which does not block an equal rank). No tax is
+calculated: the reported ``vat_withheld`` / ``pit_withheld`` are stored as given.
 
 Times: a mapper emits aware UTC; the column is ``timestamptz``, so the instant is kept. ``day`` is
 the VN calendar day of ``ordered_at`` (a 03:00 VN order is the previous UTC date but its own VN

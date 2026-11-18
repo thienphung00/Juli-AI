@@ -1,11 +1,15 @@
 """Canonical fact tables: the seven Shopee tables get platform-neutral names (T5)
 
 Revision ID: 134_canonical_tables
-Revises: 133_fleet_draws_real_shops
+Revises: 135_connector_multi_computer
 Create Date: 2026-11-18
 
 Spec: the T5 canonical map (owner Q-T5-1..4 = a, D1-D4, 2026-11-18). The
 TikTok mapper writes to the same tables Shopee does.
+
+Chain (2026-11-18): 134 follows ``135_connector_multi_computer`` (batch 1118e, deployed first; it
+revises 133). 135 touches none of the seven tables (``shopee_fill_jobs``, ``ingest_tokens`` and its
+own ``shopee_connector_token_state``), so the downgrade 134 -> 135 restores the 135 schema as is.
 
 - Tables: ``shopee_order_lines`` -> ``order_lines``, ``shopee_order_income`` ->
   ``order_settlements``, ``shopee_affiliate_lines`` -> ``affiliate_lines``,
@@ -47,7 +51,7 @@ TikTok mapper writes to the same tables Shopee does.
 
 REVERSIBLE: downgrade drops the views, the added columns, indexes and the CHECK, converts the
 times back to naive values of the same meaning, and restores the names. The status merge is not
-1:1, so a normalised status stays as it is (the 133 schema has no CHECK on it).
+1:1, so a normalised status stays as it is (the 135 schema has no CHECK on it).
 
 NOT ADDITIVE: renames, type changes and the fill UPDATEs are refused by
 ``infra/scripts/migration_additive_gate.py``. Owner decision 2026-11-18: 134 ships in a
@@ -71,7 +75,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "134_canonical_tables"
-down_revision: str | None = "133_fleet_draws_real_shops"
+down_revision: str | None = "135_connector_multi_computer"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

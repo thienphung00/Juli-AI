@@ -183,6 +183,8 @@ TABLE_CLASSIFICATION_MAP = {
     # P100 (migration 128): the Connector's heartbeat and the "Đối chiếu ngay" command.
     ("public", "shopee_connector_state"): "tenant_direct",
     ("public", "shopee_connector_commands"): "tenant_direct",
+    # R7 (migration 135): what each computer (ingest token) last told Juli.
+    ("public", "shopee_connector_token_state"): "tenant_direct",
     # P100 Part S (migration 129): stock history, the "Theo dõi" switch, unsubscribes, send log.
     ("public", "stock_history"): "tenant_direct",
     ("public", "shopee_sku_tracking"): "tenant_direct",

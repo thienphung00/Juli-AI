@@ -85,6 +85,12 @@ from juli_backend.services.ingest.mapping import (
     normalize_rows,
 )
 from juli_backend.services.ingest.precedence import count_source_conflicts, log_source_conflicts
+from juli_backend.services.ingest.rank_guard import (
+    newer_wins_where,
+    not_older,
+    ranked_set,
+    ranked_where,
+)
 from juli_backend.services.ingest.schemas import (
     DatasetRow,
     IngestBody,
@@ -354,16 +360,7 @@ async def _store_raw(
     return existing, True
 
 
-def _stored_rank(table: Any) -> Any:
-    """The rank a stored row counts at: its ``source`` decides (``effective_rank``), so a row
-    stored under older rank numbers counts at today's order (``SOURCE_RANK``)."""
-    return case(
-        *[(table.c.source == source, rank) for source, rank in SOURCE_RANK.items()],
-        else_=table.c.source_rank,
-    )
-
-
-#: Columns that describe the post itself, not the shop: they follow the row's latest writer.
+#: Columns that describe the post itself, not the shop: they follow the row's winning writer.
 _PROVENANCE_COLUMNS = frozenset(
     (
         "source",
@@ -384,29 +381,27 @@ async def _upsert(
     key_columns: tuple[str, ...],
     values: list[dict[str, Any]],
 ) -> None:
-    """Insert, or update a row of the same or lower rank on the same key (``SOURCE_RANK``:
-    API > Connector > file). A NULL in the post never clears a stored value (owner
-    2026-11-18): each column takes the post's value, else keeps the stored one."""
+    """Insert, or update the row on the same key by the composed precedence rule
+    (``rank_guard.ranked_set``, owner 2026-11-18 + R7): a higher rank (API > Connector > file)
+    replaces with its non-null values; at an equal rank the newer capture wins and an older one is
+    ignored; a lower rank only fills NULL columns. A NULL never clears a stored value, and the
+    provenance follows the winning writer."""
     if not values:
         return
     insert = _insert(session)
     table = model.__table__
     for start in range(0, len(values), UPSERT_CHUNK):
         stmt = insert(model).values(values[start : start + UPSERT_CHUNK])
-        updated = {
-            column: (
-                stmt.excluded[column]
-                if column in _PROVENANCE_COLUMNS
-                else func.coalesce(stmt.excluded[column], table.c[column])
-            )
+        mutable = [
+            column
             for column in values[0]
             if column not in key_columns and column not in ("id", "created_at")
-        }
+        ]
         await session.execute(
             stmt.on_conflict_do_update(
                 index_elements=list(key_columns),
-                set_=updated,
-                where=_stored_rank(table) <= stmt.excluded.source_rank,
+                set_=ranked_set(table, stmt.excluded, mutable, _PROVENANCE_COLUMNS),
+                where=ranked_where(table, stmt.excluded),
             )
         )
 
@@ -467,7 +462,7 @@ async def _upsert_items(
             stmt.on_conflict_do_update(
                 index_elements=list(_ITEM_KEY_COLUMNS),
                 set_=updated,
-                where=_stored_rank(table) <= stmt.excluded.source_rank,
+                where=newer_wins_where(table, stmt.excluded),
             )
         )
         if names_win:
@@ -510,11 +505,18 @@ async def _record_status(
     stmt = insert(IngestDatasetStatus).values(
         id=uuid.uuid4(), shop_id=shop_id, platform=platform, dataset=dataset, **values
     )
+    status_table = IngestDatasetStatus.__table__
+    # the last_* fields only move forward: an older capture uploaded late changes none of them
+    # (a NULL stored capture counts as older); the ingest time is always the latest ingest
+    forward = not_older(status_table.c.last_captured_at, stmt.excluded.last_captured_at)
+    set_: dict[str, Any] = {}
+    for k in values:
+        if k in ("last_ingest_at", "updated_at"):
+            set_[k] = stmt.excluded[k]
+        else:
+            set_[k] = case((forward, stmt.excluded[k]), else_=status_table.c[k])
     await session.execute(
-        stmt.on_conflict_do_update(
-            index_elements=["shop_id", "platform", "dataset"],
-            set_={k: stmt.excluded[k] for k in values},
-        )
+        stmt.on_conflict_do_update(index_elements=["shop_id", "platform", "dataset"], set_=set_)
     )
 
 

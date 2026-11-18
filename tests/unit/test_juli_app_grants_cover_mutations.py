@@ -366,8 +366,25 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "shopee_connector_state",
         "UPDATE",
         "backend/src/juli_backend/services/shopee_recommendations/connector_state.py",
-        "row.heartbeat_at = now",
+        "row.updated_at = now",
         "every Connector fill poll refreshes the shop's heartbeat and Seller Centre flag",
+    ),
+    # -- R7 (migration 135): one state row per computer (ingest token) -------------------------
+    MutationSite(
+        "public",
+        "shopee_connector_token_state",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/connector_state.py",
+        "target.heartbeat_at = now",
+        "each computer's poll refreshes its own heartbeat, version and Seller Centre flag",
+    ),
+    MutationSite(
+        "public",
+        "shopee_fill_jobs",
+        "UPDATE",
+        "backend/src/juli_backend/services/shopee_recommendations/fill_queue.py",
+        "update(ShopeeFillJob)",
+        "a Connector poll leases the open fill jobs to its token",
     ),
     MutationSite(
         "public",

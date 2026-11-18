@@ -95,7 +95,9 @@ async def test_a_later_post_with_a_value_replaces_the_stored_value(session):
     assert (row.gmv, row.orders) == (Decimal("950"), 5)
 
 
-async def test_a_lower_rank_post_is_ignored_even_where_the_stored_value_is_null(session):
+async def test_a_lower_rank_post_only_fills_where_the_stored_value_is_null(session):
+    """The composed rule (``rank_guard.ranked_set``) also runs on the metric tables: the file's
+    ``orders`` fills the Connector's NULL; its ``sales`` and its provenance do not land."""
     shop = await _shop(session)
     await _ingest(
         session,
@@ -110,7 +112,7 @@ async def test_a_lower_rank_post_is_ignored_even_where_the_stored_value_is_null(
         _post("file", "2026-10-29T10:30:00+07:00", sales=1000, orders=4),
     )
     row = await _shop_row(session, shop)
-    assert (row.gmv, row.orders, row.source) == (Decimal("900"), None, "extension")
+    assert (row.gmv, row.orders, row.source) == (Decimal("900"), 4, "extension")
 
 
 # ------------------------------------------------------------------ the order-line writer

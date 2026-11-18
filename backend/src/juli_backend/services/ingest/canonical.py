@@ -264,8 +264,8 @@ class CanonicalWriter(Protocol):
 
 def replaces(stored_rank: int, incoming_rank: int) -> bool:
     """Whether a row of ``incoming_rank`` replaces a stored row of ``stored_rank``: same or
-    higher wins (equal = latest), lower never overwrites. The SQL writers say the same with
-    ``stored_rank <= excluded.source_rank`` (``ingest/income.py``)."""
+    higher wins (equal = latest), lower never overwrites. The SQL writers apply the full rule,
+    with the equal-rank capture check this rank-only test cannot see (``rank_guard.ranked_set``)."""
     return incoming_rank >= stored_rank
 
 

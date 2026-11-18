@@ -1,10 +1,10 @@
 """File vs Connector on the same key (G-22): who wins, and how often they differ.
 
-The winner is decided by the upsert in ``gateway.py`` (rank: api > extension > file > vendor,
-owner 2026-11-18; it was file > extension under P90 D-5; a row is replaced only by the same or
-a higher rank). This module only COUNTS what that decision did, before the write, so an operator
-sees "n Connector rows kept over a file, m file rows replaced by the Connector, k of them with
-different numbers" in one ``ingest_source_conflicts`` log line.
+The winner is decided by the upsert (``rank_guard.ranked_set``; rank: api > extension > file >
+vendor, owner 2026-11-18; it was file > extension under P90 D-5; at an equal rank the newer
+capture wins, a lower rank only fills NULLs). This module only COUNTS what that decision did,
+before the write, so an operator sees "n Connector rows kept over a file, m file rows replaced
+by the Connector, k of them with different numbers" in one ``ingest_source_conflicts`` log line.
 Counts only -- never a row value.
 """
 
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import SOURCE_RANK, effective_rank
@@ -117,35 +117,9 @@ def log_source_conflicts(shop_id: Any, dataset: str, source: str, found: SourceC
     )
 
 
-# -- the line tables: a lower rank only fills gaps (owner 2026-11-18) ----------------------------
-
-
-def stored_rank(table: Any) -> Any:
-    """SQL: the rank a stored row counts at -- by its ``source`` today (``SOURCE_RANK``), by its
-    stored ``source_rank`` for an unknown source (``effective_rank``)."""
-    return case(
-        *[(table.c.source == source, rank) for source, rank in SOURCE_RANK.items()],
-        else_=table.c.source_rank,
-    )
-
-
-def ranked_value(stmt: Any, table: Any, column: str, *, provenance: bool = False) -> Any:
-    """SQL for one column of an ``ON CONFLICT DO UPDATE`` on ``order_lines``, ``affiliate_lines``
-    and ``order_settlements`` (owner 2026-11-18):
-
-    - a post of the same or a higher rank: its non-null value replaces, its NULL keeps the stored
-      value;
-    - a post of a LOWER rank (file < Connector < API): it only fills a column that is NULL in the
-      stored row, never replaces a value;
-    - ``provenance`` columns (source, rank, version, payload, updated_at) follow the post only
-      when it is of the same or a higher rank, so a gap fill leaves them with the higher writer.
-
-    A key no source wrote yet is an INSERT: the post lands in full (the file's backfill)."""
-    incoming, stored = stmt.excluded[column], table.c[column]
-    wins = stored_rank(table) <= stmt.excluded.source_rank
-    if provenance:
-        return case((wins, incoming), else_=stored)
-    return case((wins, func.coalesce(incoming, stored)), else_=func.coalesce(stored, incoming))
+# -- a lower rank only fills gaps (owner 2026-11-18) -------------------------------------------
+# The per-column rule itself is ``rank_guard.ranked_set`` / ``rank_guard.ranked_where`` (one
+# expression path for every ranked table); this module only counts what it will do.
 
 
 @dataclass(frozen=True)

@@ -81,15 +81,15 @@ def _module():
 # ------------------------------------------------------------------------ the migration (T1-T4)
 
 
-def test_revision_fits_alembic_follows_133_and_is_the_single_head():
+def test_revision_fits_alembic_follows_135_and_is_the_single_head():
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
     mod = _module()
     assert mod.revision == "134_canonical_tables" and len(mod.revision) <= 32
-    assert mod.down_revision == "133_fleet_draws_real_shops"
+    assert mod.down_revision == "135_connector_multi_computer"
     script = ScriptDirectory.from_config(Config(str(REPO / "alembic.ini")))
-    assert len(script.get_heads()) == 1
+    assert script.get_heads() == ["134_canonical_tables"]
     assert "134_canonical_tables" in {r.revision for r in script.walk_revisions()}
 
 

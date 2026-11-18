@@ -135,6 +135,7 @@ async def post_connector_tick(
                 tick.outcomes,
                 now=now,
                 daily=tick.trigger == "daily",
+                token_id=principal.token_id,
             )
         if tick.platform == "shopee":
             await connector_state.record_heartbeat(
@@ -144,6 +145,7 @@ async def post_connector_tick(
                 ack=None,
                 now=now,
                 version=tick.source_version,
+                token_id=principal.token_id,
             )
     await session.commit()
     if tick.platform == "shopee" and tick.kind == "run" and tick.trigger == "daily":

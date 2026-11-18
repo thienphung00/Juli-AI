@@ -127,6 +127,7 @@ class IngestToken(Base):
     __table_args__ = (
         UniqueConstraint("token_hash", name="uq_ingest_tokens_hash"),
         Index("ix_ingest_tokens_shop", "shop_id", "created_at"),
+        Index("ix_ingest_tokens_install", "shop_id", "platform", "install_id"),
         CheckConstraint("platform IN ('tiktok', 'shopee')", name="ck_ingest_tokens_platform"),
     )
 
@@ -145,6 +146,8 @@ class IngestToken(Base):
     superseded_at: Mapped[datetime | None] = mapped_column(nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
     revoked_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: Migration 135 (R7): the Connector's per-install random id sent at pairing (one per computer).
+    install_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class IngestRawPayload(Base):

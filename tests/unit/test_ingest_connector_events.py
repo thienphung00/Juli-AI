@@ -28,6 +28,12 @@ NOW = datetime(2026, 11, 9, 3, 0)  # naive UTC = 10:00 GMT+7
 
 
 @pytest.fixture(autouse=True)
+def no_minimum_version(monkeypatch):
+    """These tests post made-up older versions; the minimum-version gate has its own tests."""
+    monkeypatch.setenv("CONNECTOR_MIN_VERSION", "0.0.0")
+
+
+@pytest.fixture(autouse=True)
 def generous_gate():
     set_ingest_rate_gate(InMemoryRateGate())
     yield

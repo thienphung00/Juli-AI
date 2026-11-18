@@ -17,17 +17,26 @@ row; any other run (a ``reread``, a stock run) merges into it (done readers leav
 join), skips leave it, and an accepted extension ingest of a blocked reader's dataset captured
 after ``reader_blocks_at`` removes that reader. A session-wide stop is the page's
 ``blocked_login`` / ``blocked_captcha`` (run result ``blocked:<reason>``).
+
+More than one computer (batch-1118e R7, migration 135): each ingest token (one per computer) has its
+own row in ``shopee_connector_token_state``; the routes write that row and the shop row above is
+recomputed as the aggregate (``aggregate``): alive if any computer is fresh, the newest version seen
+in ``VERSION_WINDOW``, the tab open if any fresh computer says so, and the union of the blocks every
+computer reported in ``BLOCKS_WINDOW`` (a block shows while any recent computer reports it). The
+clear-on-ingest clears every computer's row. Called without a token (internal callers, tests),
+the shop row is written directly as before.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.ingest import IngestToken
 from juli_backend.models.shopee_connector import (
     COMMAND_ACKED,
     COMMAND_PENDING,
@@ -35,12 +44,20 @@ from juli_backend.models.shopee_connector import (
     COMMAND_SENT,
     ShopeeConnectorCommand,
     ShopeeConnectorState,
+    ShopeeConnectorTokenState,
 )
 from juli_backend.services.shop_proposals.cycle import ProposalError
 
 COMMAND_ID_MAX = 64
 #: The poll runs every 3 minutes; a heartbeat older than this says nothing about the tab.
 HEARTBEAT_FRESH = timedelta(minutes=10)
+#: R7 windows, kept here in one place. A fill job handed to one computer stays its own this long
+#: (the holder's poll and reports extend it); after that another computer may take it.
+FILL_LEASE = timedelta(minutes=10)
+#: The shop's version is the newest one a computer reported in this window.
+VERSION_WINDOW = timedelta(days=7)
+#: A computer's reader blocks count toward the shop's for this long after its last run report.
+BLOCKS_WINDOW = timedelta(hours=36)
 ERROR_REVIEWER = "connector_command_refused"
 _OPEN = (COMMAND_PENDING, COMMAND_SENT)
 
@@ -105,19 +122,25 @@ async def record_heartbeat(
     ack: str | None,
     now: datetime,
     version: str | None = None,
+    token_id: uuid.UUID | None = None,
 ) -> None:
     """The Connector's poll: the tab flag (None = it did not say), its version, and the command it
-    ran (an id this shop does not have, or one already closed, changes nothing)."""
-    row = await session.get(ShopeeConnectorState, shop_id)
-    if row is None:
-        row = ShopeeConnectorState(shop_id=shop_id)
-        session.add(row)
-    row.heartbeat_at = now
-    row.updated_at = now
+    ran (an id this shop does not have, or one already closed, changes nothing). With the caller's
+    ``token_id`` the computer's own row is written and the shop row recomputed from all of them."""
+    row = await _shop_row(session, shop_id)
+    target: ShopeeConnectorState | ShopeeConnectorTokenState = row
+    if token_id is not None:
+        target = await _token_row(session, shop_id, token_id)
+    target.heartbeat_at = now
+    target.updated_at = now
     if seller_centre_open is not None:
-        row.seller_centre_open = seller_centre_open
+        target.seller_centre_open = seller_centre_open
     if version:
-        row.connector_version = version[:32]
+        target.connector_version = version[:32]
+    if token_id is not None:
+        await session.flush()
+        _apply_beat(row, aggregate(await _token_rows(session, shop_id), now=now))
+        row.updated_at = now
     if ack:
         try:
             command_id = uuid.UUID(ack)
@@ -127,6 +150,105 @@ async def record_heartbeat(
         if cmd is not None and cmd.shop_id == shop_id and cmd.status in _OPEN:
             cmd.status, cmd.acked_at = COMMAND_ACKED, now
     await session.flush()
+
+
+async def _shop_row(session: AsyncSession, shop_id: uuid.UUID) -> ShopeeConnectorState:
+    row = await session.get(ShopeeConnectorState, shop_id)
+    if row is None:
+        row = ShopeeConnectorState(shop_id=shop_id)
+        session.add(row)
+    return row
+
+
+async def _token_row(
+    session: AsyncSession, shop_id: uuid.UUID, token_id: uuid.UUID
+) -> ShopeeConnectorTokenState:
+    row = await session.get(ShopeeConnectorTokenState, token_id)
+    if row is None:
+        row = ShopeeConnectorTokenState(token_id=token_id, shop_id=shop_id, reader_blocks=[])
+        session.add(row)
+    return row
+
+
+async def _token_rows(session: AsyncSession, shop_id: uuid.UUID) -> list[ShopeeConnectorTokenState]:
+    return list(
+        (
+            await session.scalars(
+                select(ShopeeConnectorTokenState).where(
+                    ShopeeConnectorTokenState.shop_id == shop_id
+                )
+            )
+        ).all()
+    )
+
+
+def _newest_version(versions: list[str]) -> str | None:
+    from juli_backend.services.ingest.status import version_key
+
+    return max(versions, key=version_key) if versions else None
+
+
+def _union_blocks(rows: list[ShopeeConnectorTokenState]) -> list[dict[str, Any]]:
+    """The blocks of ``rows`` (newest report first), one entry per (section, reason), each reader
+    once."""
+    merged: list[dict[str, Any]] = []
+    for r in rows:
+        for block in r.reader_blocks or []:
+            key = (block.get("section"), block.get("reason"))
+            target = next((m for m in merged if (m["section"], m["reason"]) == key), None)
+            if target is None:
+                target = {"section": key[0], "reason": key[1], "readers": []}
+                merged.append(target)
+            for reader in block.get("readers", []):
+                if reader not in target["readers"]:
+                    target["readers"].append(reader)
+    return [m for m in merged if m["readers"]]
+
+
+def aggregate(rows: list[ShopeeConnectorTokenState], *, now: datetime) -> dict[str, Any]:
+    """The shop's Connector state from its computers' rows (pure)."""
+    beats = [r.heartbeat_at for r in rows if r.heartbeat_at is not None]
+    fresh = [
+        r for r in rows if r.heartbeat_at is not None and now - r.heartbeat_at <= HEARTBEAT_FRESH
+    ]
+    said = [r.seller_centre_open for r in fresh if r.seller_centre_open is not None]
+    recent = [
+        r.connector_version
+        for r in rows
+        if r.connector_version
+        and r.heartbeat_at is not None
+        and now - r.heartbeat_at <= VERSION_WINDOW
+    ]
+    reported = sorted(
+        (
+            r
+            for r in rows
+            if r.reader_blocks_at is not None and now - r.reader_blocks_at <= BLOCKS_WINDOW
+        ),
+        key=lambda r: r.reader_blocks_at or datetime.min,
+        reverse=True,
+    )
+    blocks_at = [r.reader_blocks_at for r in rows if r.reader_blocks_at is not None]
+    return {
+        "heartbeat_at": max(beats, default=None),
+        "alive": bool(fresh),
+        "seller_centre_open": (True if any(said) else False) if said else None,
+        "connector_version": _newest_version(recent),
+        "reader_blocks": _union_blocks(reported),
+        "reader_blocks_at": max(blocks_at, default=None),
+    }
+
+
+def _apply_beat(row: ShopeeConnectorState, agg: dict[str, Any]) -> None:
+    row.heartbeat_at = agg["heartbeat_at"]
+    row.seller_centre_open = agg["seller_centre_open"]
+    if agg["connector_version"]:
+        row.connector_version = agg["connector_version"]
+
+
+def _apply_blocks(row: ShopeeConnectorState, agg: dict[str, Any]) -> None:
+    row.reader_blocks = agg["reader_blocks"]
+    row.reader_blocks_at = agg["reader_blocks_at"]
 
 
 async def request_reconcile(
@@ -163,7 +285,32 @@ async def commands(
 
 
 async def read(session: AsyncSession, shop_id: uuid.UUID, *, now: datetime) -> dict[str, Any]:
+    """The Thực hiện Connector line. ``reader_blocks`` comes from the computers' rows (so a stale
+    computer's blocks age out) once any computer reported a run, else from the shop row;
+    ``computers`` lists each computer that ever polled."""
     row = await session.get(ShopeeConnectorState, shop_id)
+    pairs = (
+        await session.execute(
+            select(ShopeeConnectorTokenState, IngestToken.client_label)
+            .join(IngestToken, IngestToken.id == ShopeeConnectorTokenState.token_id)
+            .where(ShopeeConnectorTokenState.shop_id == shop_id)
+            .order_by(ShopeeConnectorTokenState.heartbeat_at.desc())
+        )
+    ).all()
+    tokens = [t for t, _ in pairs]
+    if any(t.reader_blocks_at is not None for t in tokens):
+        blocks = aggregate(tokens, now=now)["reader_blocks"]
+    else:
+        blocks = list(row.reader_blocks or []) if row else []
+    computers = [
+        {
+            "label": label,
+            "version": t.connector_version,
+            "heartbeat_at": _iso(t.heartbeat_at),
+            "alive": t.heartbeat_at is not None and now - t.heartbeat_at <= HEARTBEAT_FRESH,
+        }
+        for t, label in pairs
+    ]
     beat = row.heartbeat_at if row else None
     fresh = beat is not None and now - beat <= HEARTBEAT_FRESH
     return {
@@ -172,7 +319,8 @@ async def read(session: AsyncSession, shop_id: uuid.UUID, *, now: datetime) -> d
         "seller_centre_open": row.seller_centre_open if row and fresh else None,
         "connector_version": row.connector_version if row else None,
         "reconcile_pending": await _open_command(session, shop_id) is not None,
-        "reader_blocks": list(row.reader_blocks or []) if row else [],
+        "reader_blocks": blocks,
+        "computers": computers,
     }
 
 
@@ -250,20 +398,28 @@ async def record_reader_blocks(
     *,
     now: datetime,
     daily: bool = True,
+    token_id: uuid.UUID | None = None,
 ) -> list[dict[str, Any]]:
     """A run's report. A daily run's blocked sections replace the last ones (``[]`` = none); any
-    other run (a re-read after a block cleared, a stock run) is merged into them."""
-    row = await session.get(ShopeeConnectorState, shop_id)
-    if row is None:
-        row = ShopeeConnectorState(shop_id=shop_id)
-        session.add(row)
+    other run (a re-read after a block cleared, a stock run) is merged into them. With the
+    caller's ``token_id`` that applies to the computer's own row and the shop row becomes the
+    union of every recent computer's blocks (returned)."""
+    row = await _shop_row(session, shop_id)
+    target: ShopeeConnectorState | ShopeeConnectorTokenState = row
+    if token_id is not None:
+        target = await _token_row(session, shop_id, token_id)
     if daily:
         blocks = reader_blocks_of(outcomes)
     else:
-        blocks = merge_reader_blocks(list(row.reader_blocks or []), outcomes)
-    row.reader_blocks = blocks
-    row.reader_blocks_at = now
-    row.updated_at = now
+        blocks = merge_reader_blocks(list(target.reader_blocks or []), outcomes)
+    target.reader_blocks = blocks
+    target.reader_blocks_at = now
+    target.updated_at = now
+    if token_id is not None:
+        await session.flush()
+        _apply_blocks(row, aggregate(await _token_rows(session, shop_id), now=now))
+        row.updated_at = now
+        blocks = list(row.reader_blocks or [])
     await session.flush()
     return blocks
 
@@ -275,6 +431,22 @@ async def clear_blocks_for_dataset(
     readers that post it are no longer blocked. No state row or no blocks is a no-op."""
     readers = {r for r, datasets in READER_DATASETS.items() if dataset in datasets}
     if not readers:
+        return
+    tokens = await _token_rows(session, shop_id)
+    changed = False
+    for t in tokens:
+        if not t.reader_blocks or t.reader_blocks_at is None or captured_at <= t.reader_blocks_at:
+            continue
+        kept = _without_readers(list(t.reader_blocks), readers)
+        if kept != list(t.reader_blocks):
+            t.reader_blocks = kept
+            changed = True
+    if changed:
+        await session.flush()
+        shop_row = await session.get(ShopeeConnectorState, shop_id)
+        if shop_row is not None:
+            _apply_blocks(shop_row, aggregate(tokens, now=datetime.now(UTC).replace(tzinfo=None)))
+            await session.flush()
         return
     row = await session.get(ShopeeConnectorState, shop_id)
     if row is None or not row.reader_blocks:

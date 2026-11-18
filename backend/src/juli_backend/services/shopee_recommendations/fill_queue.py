@@ -14,6 +14,13 @@ legacy) is not filled: its job is failed with a Vietnamese reason. Read-back of 
 ``executed_no_readback`` (no bundle list reader exists).
 
 Server-side kill switch: ``CONNECTOR_FILL_LISTING`` (off: nothing is queued or served).
+
+More than one computer (batch-1118e R7, migration 135): a poll claims the open jobs for its token
+(``claimed_by_token_id``, ``lease_until`` = now + ``connector_state.FILL_LEASE``) in one
+``UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED)``. A job another live token holds
+under an unexpired lease is not served, and its report is refused (409 ``fill_job_leased``). The
+holder's poll and reports extend the lease; an expired lease, or one held by a revoked, superseded
+or expired token, is free.
 """
 
 from __future__ import annotations
@@ -25,11 +32,11 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.ingest import PlatformDailyMetric
+from juli_backend.models.ingest import IngestToken, PlatformDailyMetric
 from juli_backend.models.platform_data import PlatformPromotion
 from juli_backend.models.shop_proposals import ShopProposal, ShopProposalApproval
 from juli_backend.models.shopee_fill import (
@@ -45,6 +52,7 @@ from juli_backend.models.shopee_fill import (
 )
 from juli_backend.services.shop_proposals.cycle import ProposalError
 from juli_backend.services.shopee_recommendations import codes, config, store, versions
+from juli_backend.services.shopee_recommendations.connector_state import FILL_LEASE
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +61,8 @@ _REF = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 ERROR_JOB_UNKNOWN = "fill_job_unknown"
 ERROR_JOB_STATE = "fill_job_state"
 ERROR_JOB_BAD = "fill_job_bad"
+#: R7: another computer holds the job under a live lease.
+ERROR_JOB_LEASED = "fill_job_leased"
 
 MIN_DAILY_BUDGET = 100_000
 VOUCHER_CODE_PREFIX = "ORYV"  # shown by Seller Centre as the fixed prefix of this shop's codes
@@ -677,22 +687,92 @@ async def resolve_voucher_captures(session: AsyncSession, shop_id: uuid.UUID) ->
     return done
 
 
-async def jobs_for_shop(
-    session: AsyncSession, shop_id: uuid.UUID, *, limit: int = 20
-) -> list[dict[str, Any]]:
-    """Jobs the Connector may still work on, oldest approval first (the route checks the switch)."""
-    await resolve_voucher_captures(session, shop_id)
-    await resolve_voucher_captures(session, shop_id)
-    rows = (
-        await session.execute(
-            select(ShopeeFillJob, ShopProposal.code, ShopProposal.subject_label)
-            .join(ShopProposal, ShopProposal.id == ShopeeFillJob.proposal_id)
-            .where(ShopeeFillJob.shop_id == shop_id, ShopeeFillJob.status.in_(OPEN_STATUSES))
-            .order_by(ShopeeFillJob.created_at, ShopeeFillJob.seq)
-            .limit(limit)
+def _naive_now(now: datetime | None) -> datetime:
+    return (now or datetime.now(UTC)).replace(tzinfo=None)
+
+
+def _live_tokens(shop_id: uuid.UUID, now: datetime) -> Any:
+    """The shop's tokens that can still poll (not revoked, superseded or expired)."""
+    return select(IngestToken.id).where(
+        IngestToken.shop_id == shop_id,
+        IngestToken.revoked_at.is_(None),
+        IngestToken.superseded_at.is_(None),
+        IngestToken.expires_at > now,
+    )
+
+
+async def _claim(
+    session: AsyncSession, shop_id: uuid.UUID, token_id: uuid.UUID, now: datetime, limit: int
+) -> list[uuid.UUID]:
+    """Lease the open jobs ``token_id`` may work on (its own, unclaimed, expired, or held by a
+    dead token), oldest approval first, in one statement; rows another poll is claiming right now
+    are skipped (``SKIP LOCKED``)."""
+    claimable = (
+        select(ShopeeFillJob.id)
+        .where(
+            ShopeeFillJob.shop_id == shop_id,
+            ShopeeFillJob.status.in_(OPEN_STATUSES),
+            or_(
+                ShopeeFillJob.claimed_by_token_id.is_(None),
+                ShopeeFillJob.claimed_by_token_id == token_id,
+                ShopeeFillJob.lease_until.is_(None),
+                ShopeeFillJob.lease_until <= now,
+                ShopeeFillJob.claimed_by_token_id.not_in(_live_tokens(shop_id, now)),
+            ),
         )
-    ).all()
+        .order_by(ShopeeFillJob.created_at, ShopeeFillJob.seq)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    claimed = await session.execute(
+        update(ShopeeFillJob)
+        .where(ShopeeFillJob.id.in_(claimable))
+        .values(claimed_by_token_id=token_id, lease_until=now + FILL_LEASE)
+        .returning(ShopeeFillJob.id)
+        .execution_options(synchronize_session=False)
+    )
+    return [row[0] for row in claimed.all()]
+
+
+async def jobs_for_shop(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    limit: int = 20,
+    token_id: uuid.UUID | None = None,
+    now: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Jobs the Connector may still work on, oldest approval first (the route checks the switch).
+    With the polling ``token_id`` only the jobs it now holds (claimed or extended) are served."""
+    await resolve_voucher_captures(session, shop_id)
+    await resolve_voucher_captures(session, shop_id)
+    query = (
+        select(ShopeeFillJob, ShopProposal.code, ShopProposal.subject_label)
+        .join(ShopProposal, ShopProposal.id == ShopeeFillJob.proposal_id)
+        .where(ShopeeFillJob.shop_id == shop_id, ShopeeFillJob.status.in_(OPEN_STATUSES))
+        .order_by(ShopeeFillJob.created_at, ShopeeFillJob.seq)
+        .limit(limit)
+    )
+    if token_id is not None:
+        ids = await _claim(session, shop_id, token_id, _naive_now(now), limit)
+        if not ids:
+            return []
+        query = query.where(ShopeeFillJob.id.in_(ids)).execution_options(populate_existing=True)
+    rows = (await session.execute(query)).all()
     return [job_json(j, c, t) for j, c, t in rows]
+
+
+async def _held_by_other(
+    session: AsyncSession, j: ShopeeFillJob, token_id: uuid.UUID, now: datetime
+) -> bool:
+    """Another live token holds ``j`` under an unexpired lease."""
+    holder = j.claimed_by_token_id
+    if holder is None or holder == token_id or j.lease_until is None or j.lease_until <= now:
+        return False
+    live = await session.scalar(
+        _live_tokens(j.shop_id, now).where(IngestToken.id == holder).limit(1)
+    )
+    return live is not None
 
 
 async def jobs_of_card(
@@ -724,6 +804,7 @@ async def report(
     period_ok: bool | None = None,
     field_checks: list[dict[str, Any]] | None = None,
     now: datetime | None = None,
+    token_id: uuid.UUID | None = None,
 ) -> dict[str, Any]:
     """The Connector's progress on one job (own shop only). ``progress`` (``{filled, total}``,
     Connector 0.3.18) is kept in ``payload["progress"]`` for Thực hiện's "3/4 đã điền".
@@ -733,12 +814,23 @@ async def report(
     capture of a key kept (a second open of the page would otherwise record Juli's own value as
     the "before"); ``period_ok`` (False: the form's period was not filled to the card's dates) and
     ``field_checks`` (``[{key, ok, seen}]``, the last read of every field) replace the previous
-    report's. No migration: all of it lives in the job's JSON payload."""
+    report's. No migration: all of it lives in the job's JSON payload.
+
+    R7: with the reporting ``token_id``, a job another live token holds under its lease is refused
+    (409 ``fill_job_leased``); otherwise the reporter holds it and the lease is extended."""
+    moment = _naive_now(now)
     j = await session.scalar(
-        select(ShopeeFillJob).where(ShopeeFillJob.id == job_id, ShopeeFillJob.shop_id == shop_id)
+        select(ShopeeFillJob)
+        .where(ShopeeFillJob.id == job_id, ShopeeFillJob.shop_id == shop_id)
+        .with_for_update()
     )
     if j is None:
         raise ProposalError(ERROR_JOB_UNKNOWN, 404)
+    if token_id is not None:
+        if await _held_by_other(session, j, token_id, moment):
+            raise ProposalError(ERROR_JOB_LEASED, 409)
+        j.claimed_by_token_id = token_id
+        j.lease_until = moment + FILL_LEASE
     if captured_ref is not None and not _REF.match(captured_ref):
         raise ProposalError(ERROR_JOB_BAD, 422)
     if status not in _NEXT.get(j.status, set()) and status != j.status:
@@ -767,7 +859,7 @@ async def report(
         j.captured_ref = captured_ref
     if status == STATUS_FAILED:
         j.error = (error or "failed")[:64]
-    j.updated_at = (now or datetime.now(UTC)).replace(tzinfo=None)
+    j.updated_at = moment
     await session.flush()
     if status in (STATUS_SAVED, STATUS_CAPTURED):
         await auto_execute(session, shop_id, j.proposal_id, now=j.updated_at)

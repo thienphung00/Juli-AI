@@ -18,6 +18,13 @@ from tests.support.shopee_reco import AS_OF, seed_reco_shop
 from tests.unit.test_ingest_connector_ticks import TICK, _token_headers
 from tests.unit.test_ingest_gateway import _paired_client, _shopee_tenant
 
+
+@pytest.fixture(autouse=True)
+def no_minimum_version(monkeypatch):
+    """These tests post made-up older versions; the minimum-version gate has its own tests."""
+    monkeypatch.setenv("CONNECTOR_MIN_VERSION", "0.0.0")
+
+
 NOW = datetime(AS_OF.year, AS_OF.month, AS_OF.day, 3, 0) + timedelta(days=1)
 
 

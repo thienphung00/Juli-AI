@@ -11,7 +11,7 @@
   index;
 - last, T6 + T11: rows seeded at 133 (naive Vietnam-local order times, naive UTC read times, an
   unknown status) come up converted (03:00 VN -- the previous UTC date -- stays on its VN day;
-  17:00 UTC is the next VN day), normalised and ranked; a downgrade to 133 restores the names
+  17:00 UTC is the next VN day), normalised and ranked; a downgrade to 135 restores the names
   (tables, constraints, indexes, policies), the grants, the columns and the naive times;
   ``upgrade head`` again.
 
@@ -351,12 +351,13 @@ def _restored(conn, shop_id: uuid.UUID) -> dict:
 
 
 def test_zz_rows_convert_up_and_back_down(owner_engine, two_tenants):
-    """Last in the module: 133 rows -> 134 (converted) -> 133 (restored) -> head."""
+    """Last in the module: rows at 135 (the 133 shape of the seven tables) -> 134 (converted)
+    -> 135 (restored) -> head."""
     from alembic import command
 
     shop_id = two_tenants[0].shop_id
     cfg = _cfg()
-    command.downgrade(cfg, "133_fleet_draws_real_shops")
+    command.downgrade(cfg, "135_connector_multi_computer")
     try:
         with owner_engine.begin() as conn:
             conn.execute(
@@ -373,12 +374,12 @@ def test_zz_rows_convert_up_and_back_down(owner_engine, two_tenants):
         assert up["affiliate"] == ("55", "Đã hoàn thành", date(2026, 10, 1), True, 3)  # extension
         assert up["stock"] == ("55", True, date(2026, 10, 2))
 
-        command.downgrade(cfg, "133_fleet_draws_real_shops")
+        command.downgrade(cfg, "135_connector_multi_computer")
         with owner_engine.connect() as conn:
             down = _restored(conn, shop_id)
         assert down["kinds"] == {old: "r" for old, _new, _v in M.TABLES}
         assert down["new_gone"] is True
-        # constraint / index / policy names carry the old table names again, grants as at 133
+        # constraint / index / policy names carry the old table names again, grants as at 135
         assert down["named"] is True and down["new_named"] == []
         assert down["verbs"] == {
             old: {v.strip() for v in verbs.split(",")} for old, _new, verbs in M.TABLES

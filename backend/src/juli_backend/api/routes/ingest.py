@@ -20,16 +20,19 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.models.shopee_connector import ShopeeConnectorTokenState
 from juli_backend.repositories import utc_now_naive
 from juli_backend.services import ingest as ingest_service
 
@@ -55,11 +58,32 @@ async def _rate_limited(key: str, limit: tuple[int, int]) -> None:
         )
 
 
+async def _declared_version(request: Request, header: str | None) -> str | None:
+    """The Connector's version: its header, else (POST) the body's ``source_version``."""
+    if header and header.strip():
+        return header.strip()
+    if request.method != "POST":
+        return None
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > ingest_service.MAX_BODY_BYTES:
+        return None  # the route refuses an oversize body itself
+    try:
+        body = json.loads(await request.body())
+    except (ValueError, UnicodeDecodeError):
+        return None
+    version = body.get("source_version") if isinstance(body, dict) else None
+    return version if isinstance(version, str) else None
+
+
 async def get_ingest_principal(
+    request: Request,
     authorization: str | None = Header(default=None),
+    x_connector_version: str | None = Header(default=None),
     session: AsyncSession = Depends(get_session),
 ) -> ingest_service.IngestPrincipal:
-    """The live ingest token in ``Authorization: Bearer``, or 401."""
+    """The live ingest token in ``Authorization: Bearer``, or 401. A Connector older than the
+    minimum version gets 426 ``connector_upgrade_required`` before anything is written; one that
+    names no version is let through."""
     scheme, _, token = (authorization or "").partition(" ")
     if scheme.lower() != "bearer" or not token.strip():
         raise _error(status.HTTP_401_UNAUTHORIZED, "missing_token")
@@ -68,6 +92,13 @@ async def get_ingest_principal(
         await session.rollback()
         raise _error(status.HTTP_401_UNAUTHORIZED, "invalid_token")
     await _rate_limited(f"shop:{principal.shop_id}", ingest_service.shop_limit())
+    if ingest_service.min_version.is_too_old(await _declared_version(request, x_connector_version)):
+        await session.rollback()
+        raise _error(
+            status.HTTP_426_UPGRADE_REQUIRED,
+            ingest_service.min_version.UPGRADE_CODE,
+            minimum=ingest_service.min_version.minimum(),
+        )
     return principal
 
 
@@ -96,6 +127,10 @@ def _client_key(request: Request) -> str:
     forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
     host = forwarded or (request.client.host if request.client else "unknown")
     return host[:64]
+
+
+def _iso_z(value: datetime | None) -> str | None:
+    return value.isoformat() + "Z" if value else None
 
 
 def _token_json(issued: ingest_service.IssuedToken) -> dict[str, Any]:
@@ -154,6 +189,16 @@ async def list_ingest_tokens(
 ) -> dict[str, Any]:
     """The shop's connector tokens (never the token or its hash)."""
     tokens = await ingest_service.list_tokens(session, shop.id)
+    states = {
+        s.token_id: s
+        for s in (
+            await session.execute(
+                select(ShopeeConnectorTokenState).where(
+                    ShopeeConnectorTokenState.shop_id == shop.id
+                )
+            )
+        ).scalars()
+    }
     now = utc_now_naive()
     return {
         "data": [
@@ -161,6 +206,13 @@ async def list_ingest_tokens(
                 "id": str(t.id),
                 "platform": t.platform,
                 "client_label": t.client_label,
+                "install_id": t.install_id,
+                # Per-computer state (migration 135) when this token has reported; else the
+                # token's own last use.
+                "connector_version": states[t.id].connector_version if t.id in states else None,
+                "last_seen_at": _iso_z(
+                    (states[t.id].heartbeat_at if t.id in states else None) or t.last_used_at
+                ),
                 "created_at": t.created_at.isoformat() + "Z",
                 "expires_at": t.expires_at.isoformat() + "Z",
                 "last_used_at": t.last_used_at.isoformat() + "Z" if t.last_used_at else None,
@@ -223,6 +275,7 @@ async def pair(
             platform=body.platform,
             platform_shop_id=body.platform_shop_id,
             client_label=body.client_label,
+            install_id=body.install_id,
             now=utc_now_naive(),
         )
     except ingest_service.PairingError as exc:

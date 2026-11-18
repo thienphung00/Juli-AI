@@ -128,7 +128,9 @@ async def list_fill_jobs(
         raise HTTPException(status_code=403, detail={"code": "platform_not_allowed"})
     # Connector 0.3.18: the poll is also its heartbeat (Seller Centre tab open, command ack) and
     # carries the one command Juli can give it. Only when the Connector sends them.
+    # R7: each computer (token) has its own state row and claims the jobs it is served.
     beat = sc_open is not None or ack is not None
+    now = _utc_now()
     async with with_shop_scope(session, principal.shop_id):
         if beat:
             await connector_state.record_heartbeat(
@@ -136,11 +138,14 @@ async def list_fill_jobs(
                 principal.shop_id,
                 seller_centre_open=sc_open,
                 ack=ack,
-                now=_utc_now(),
+                now=now,
+                token_id=principal.token_id,
             )
-        pending = await connector_state.commands(session, principal.shop_id, now=_utc_now())
+        pending = await connector_state.commands(session, principal.shop_id, now=now)
         jobs = (
-            await fill_queue.jobs_for_shop(session, principal.shop_id)
+            await fill_queue.jobs_for_shop(
+                session, principal.shop_id, token_id=principal.token_id, now=now
+            )
             if fill_queue.enabled()
             else []
         )
@@ -174,6 +179,8 @@ async def report_fill_job(
                 before_values=body.before_values,
                 period_ok=body.period_ok,
                 field_checks=None if body.fields is None else [f.model_dump() for f in body.fields],
+                now=_utc_now(),
+                token_id=principal.token_id,
             )
     except ProposalError as exc:
         await session.rollback()

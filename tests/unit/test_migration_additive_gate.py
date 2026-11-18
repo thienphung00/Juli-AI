@@ -491,13 +491,13 @@ def _refused_revisions(stdout: str) -> set[str]:
 
 
 def test_the_deploy_gate_refuses_134_before_the_maintenance_window():
-    """Prod still at 133 (the owner has not run the window): 134 is pending and non-additive,
-    so ``deploy_lane_api`` gets exit 3 and starts no candidate."""
+    """Prod at 135 (batch 1118e deployed, the owner has not run the window): 134 is pending and
+    non-additive, so ``deploy_lane_api`` gets exit 3 and starts no candidate."""
     result = _run_gate(
         "--alembic-ini",
         str(REPO_ROOT / "alembic.ini"),
         "--from-revision",
-        "133_fleet_draws_real_shops",
+        "135_connector_multi_computer",
     )
     assert result.returncode == GATE_EXIT_REFUSED, result.stdout + result.stderr
     assert "ADDITIVE-ONLY: REFUSED" in result.stdout

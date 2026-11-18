@@ -17,7 +17,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.shopee_profit import ShopeeOrderIncome
-from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills, ranked_value
+from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills
+from juli_backend.services.ingest.rank_guard import (
+    excluded_payload_captured_at,
+    payload_captured_at,
+    ranked_set,
+    ranked_where,
+)
 from juli_backend.services.ingest.schemas import IngestBody, ShopeeOrderIncomeRow
 
 logger = logging.getLogger(__name__)
@@ -156,18 +162,30 @@ async def upsert_settlement_values(session: AsyncSession, values: list[dict[str,
         found = await count_gap_fills(session, ShopeeOrderIncome, KEY_COLUMNS, part, STATED_COLUMNS)
         log_gap_fills(ShopeeOrderIncome.__tablename__, part[0]["shop_id"], part[0]["source"], found)
         stmt = insert(ShopeeOrderIncome).values(part)
-        # owner 2026-11-18: the same or a higher rank replaces with its stated values (a NULL
-        # keeps the stored one); a lower rank only fills NULL columns and the provenance stays
-        # with the higher writer (``precedence.ranked_value``)
-        updated: dict[str, Any] = {
-            column: ranked_value(stmt, table, column) for column in STATED_COLUMNS
-        }
-        updated.update(
-            {
-                column: ranked_value(stmt, table, column, provenance=True)
-                for column in PROVENANCE_COLUMNS
-            }
+        # owner 2026-11-18 + R7 (``rank_guard.ranked_set``): a higher rank replaces with its
+        # stated values (a NULL keeps the stored one), an equal rank too unless its capture is
+        # older (then it is ignored), a lower rank only fills NULL columns; the provenance stays
+        # with the winning writer. This table keeps no capture time: both sides compare their
+        # raw payloads'.
+        stored_captured = payload_captured_at(table)
+        incoming_captured = excluded_payload_captured_at()
+        updated = ranked_set(
+            table,
+            stmt.excluded,
+            (*STATED_COLUMNS, *PROVENANCE_COLUMNS),
+            PROVENANCE_COLUMNS,
+            stored_captured=stored_captured,
+            incoming_captured=incoming_captured,
         )
         await session.execute(
-            stmt.on_conflict_do_update(index_elements=list(KEY_COLUMNS), set_=updated)
+            stmt.on_conflict_do_update(
+                index_elements=list(KEY_COLUMNS),
+                set_=updated,
+                where=ranked_where(
+                    table,
+                    stmt.excluded,
+                    stored_captured=stored_captured,
+                    incoming_captured=incoming_captured,
+                ),
+            )
         )
