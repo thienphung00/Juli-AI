@@ -361,13 +361,30 @@ def _stored_rank(table: Any) -> Any:
     )
 
 
+#: Columns that describe the post itself, not the shop: they follow the row's latest writer.
+_PROVENANCE_COLUMNS = frozenset(
+    (
+        "source",
+        "source_rank",
+        "source_version",
+        "mapper_version",
+        "raw_payload_id",
+        "captured_at",
+        "updated_at",
+        "confidence",
+    )
+)
+
+
 async def _upsert(
     session: AsyncSession,
     model: Any,
     key_columns: tuple[str, ...],
     values: list[dict[str, Any]],
 ) -> None:
-    """Insert, or replace a row of the same or lower rank on the same key (extension > file)."""
+    """Insert, or update a row of the same or lower rank on the same key (``SOURCE_RANK``:
+    API > Connector > file). A NULL in the post never clears a stored value (owner
+    2026-11-18): each column takes the post's value, else keeps the stored one."""
     if not values:
         return
     insert = _insert(session)
@@ -375,7 +392,11 @@ async def _upsert(
     for start in range(0, len(values), UPSERT_CHUNK):
         stmt = insert(model).values(values[start : start + UPSERT_CHUNK])
         updated = {
-            column: stmt.excluded[column]
+            column: (
+                stmt.excluded[column]
+                if column in _PROVENANCE_COLUMNS
+                else func.coalesce(stmt.excluded[column], table.c[column])
+            )
             for column in values[0]
             if column not in key_columns and column not in ("id", "created_at")
         }
@@ -525,7 +546,7 @@ def _metric_values(
             )
         else:
             value["day"] = row.day
-        # Every KPI column on every row, so a later post can clear a value.
+        # Every KPI column on every row; a None keeps the stored value (``_upsert``).
         value.update({column: row.kpis.get(column) for column in KPI_COLUMNS})
         values.append(value)
     return values

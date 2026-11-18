@@ -88,6 +88,18 @@ def _rank(provenance: dict[str, Any]) -> int:
     return int(rank) if rank is not None else SOURCE_RANK.get(provenance["source"], 0)
 
 
+#: Columns that describe the post, not the order: they follow the row's latest writer.
+_PROVENANCE = frozenset(("source", "source_rank", "source_version", "raw_payload_id", "updated_at"))
+
+
+def _kept(stmt: Any, table: Any, column: str) -> Any:
+    """The upsert value of ``column``: the post's, but a NULL keeps the stored value (owner
+    2026-11-18, any source); provenance columns always take the post's."""
+    if column in _PROVENANCE:
+        return stmt.excluded[column]
+    return func.coalesce(stmt.excluded[column], table.c[column])
+
+
 def canonical_status(raw: str, *, paid: bool) -> str:
     """The order-line status to store (T5 §3, Q-T5-3): a canonical value as it is; anything
     else ``in_transit`` when the line has a payment time, else ``pending``, and logged."""
@@ -215,27 +227,16 @@ async def write_order_lines(
             }
         )
     insert = _insert(session)
-    keep = (
-        "fee_fixed",
-        "fee_service",
-        "fee_payment",
-        "completed_at",
-        "paid_at",
-        "variation_name",
-    )
+    table = ShopeeOrderLine.__table__
     for part in _chunks(values):
         stmt = insert(ShopeeOrderLine).values(part)
-        table = ShopeeOrderLine.__table__
+        # A NULL (not filled yet, or not sent by this source) never erases a stored value
+        # (owner 2026-11-18, any source): fees, times, names, prices alike.
         updated: dict[str, Any] = {
-            column: stmt.excluded[column]
+            column: _kept(stmt, table, column)
             for column in part[0]
             if column not in ("id", "shop_id", "platform", "order_ref", "line_no")
-            and column not in keep
         }
-        # A NULL (not filled yet) never erases a fee or time already stored.
-        updated.update(
-            {column: func.coalesce(stmt.excluded[column], table.c[column]) for column in keep}
-        )
         await session.execute(
             stmt.on_conflict_do_update(
                 index_elements=["shop_id", "platform", "order_ref", "line_no"], set_=updated
@@ -401,6 +402,7 @@ async def _store_affiliate_lines(
             "updated_at": provenance["updated_at"],
         }
     insert = _insert(session)
+    table = ShopeeAffiliateLine.__table__
     for part in _chunks(list(by_key.values())):
         stmt = insert(ShopeeAffiliateLine).values(part)
         await session.execute(
@@ -413,7 +415,8 @@ async def _store_affiliate_lines(
                     "item_id",
                     "variation_id",
                 ],
-                set_={column: stmt.excluded[column] for column in _AFFILIATE_MUTABLE},
+                # A NULL never erases a stored value (owner 2026-11-18, any source).
+                set_={column: _kept(stmt, table, column) for column in _AFFILIATE_MUTABLE},
             )
         )
 

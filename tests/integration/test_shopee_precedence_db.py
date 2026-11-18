@@ -114,6 +114,32 @@ async def test_a_file_row_stored_under_the_d5_rank_is_replaced_by_the_connector(
     assert got == [(400, "extension")]  # ranked by its source, not the stored number
 
 
+async def test_a_null_in_a_higher_rank_post_never_clears_a_stored_value(shopee_tenants):
+    """Owner 2026-11-18: a NULL / missing value never overwrites a stored one (any source);
+    a value replaces it; a lower-rank post is ignored."""
+    a, _ = shopee_tenants
+    kw = {"order_type": "confirmed"}
+    day = "2026-10-04"
+    sql = (
+        "SELECT gmv::int, orders::int, source FROM public.platform_daily_metrics "
+        "WHERE dataset = 'traffic_overview' AND day = '2026-10-04' AND segment = 'all'"
+    )
+    rows = [{"date": day, "source": CARD, "sales": 1000, "orders": 4}]
+    await _post(a.shop_id, "traffic_overview", _body(rows, source="file", day=day, **kw))
+    bare = _body([{"date": day, "source": CARD, "sales": 900}], source="extension", day=day, **kw)
+    bare["captured_at"] = "2026-11-04T09:30:00+07:00"
+    await _post(a.shop_id, "traffic_overview", bare)
+    assert await _query(a.shop_id, sql) == [(900, 4, "extension")]
+    rows = [{"date": day, "source": CARD, "sales": 950, "orders": 5}]
+    later = _body(rows, source="extension", day=day, **kw)
+    later["captured_at"] = "2026-11-04T10:30:00+07:00"
+    await _post(a.shop_id, "traffic_overview", later)
+    assert await _query(a.shop_id, sql) == [(950, 5, "extension")]
+    rows = [{"date": day, "source": CARD, "sales": 1100, "orders": 6}]
+    await _post(a.shop_id, "traffic_overview", _body(rows, source="file", day=day, **kw))
+    assert await _query(a.shop_id, sql) == [(950, 5, "extension")]
+
+
 async def test_item_traffic_sources_lands_through_the_runtime_role(shopee_tenants):
     a, b = shopee_tenants
     rows = [
