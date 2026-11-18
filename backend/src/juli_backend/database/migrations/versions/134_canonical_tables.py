@@ -27,10 +27,10 @@ TikTok mapper writes to the same tables Shopee does.
   meaning: the order times (``ordered_at``, ``paid_at``, ``completed_at``, ``conversion_at``) are
   Vietnam local -- every sender posts a naive GMT+7 wall clock (the Connector's ``wallClock``, the
   file parsers, the sample generator). ``ordered_at`` verified on prod 2026-11-17 (grouping by
-  ``ordered_at::date`` matched the shop totals); ``paid_at`` verified 2026-11-18 (paid_at -
-  ordered_at p05 0.00 h, p50 0.03 h, p95 0.10 h, n = 1296); ``completed_at`` / ``conversion_at``
-  assumed from the same source (their gap to ``ordered_at`` is days, so a 7 h shift cannot be
-  ruled out by reading). ``read_at`` (the post's ``captured_at`` made naive UTC by the gateway)
+  ``ordered_at::date`` matched the shop totals); ``paid_at`` verified 2026-11-18 (paid within
+  minutes of ``ordered_at`` on the same wall clock, no 7 h offset); ``completed_at`` /
+  ``conversion_at`` assumed from the same source (their gap to ``ordered_at`` is days, so a 7 h
+  shift cannot be ruled out by reading). ``read_at`` (the post's ``captured_at`` made naive UTC by the gateway)
   and the audit times (``created_at``, ``updated_at``, ``built_at``: ``now()`` / the gateway's
   naive-UTC clock) are UTC. The stock-alert tables (``shopee_sku_tracking``,
   ``shopee_stock_alert_unsubscribes``, ``shopee_stock_alert_sends``) are not T5 tables: their

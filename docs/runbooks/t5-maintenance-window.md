@@ -61,8 +61,8 @@ supervised emergency, never as part of a rollback.
    psql "$DATABASE_DIRECT_URL" -At -c "SELECT 'order_lines', count(*) FROM public.shopee_order_lines UNION ALL SELECT 'order_settlements', count(*) FROM public.shopee_order_income UNION ALL SELECT 'affiliate_lines', count(*) FROM public.shopee_affiliate_lines UNION ALL SELECT 'shop_metrics_daily', count(*) FROM public.shopee_shop_metrics_daily UNION ALL SELECT 'product_metrics_daily', count(*) FROM public.shopee_product_metrics_daily UNION ALL SELECT 'source_metrics_daily', count(*) FROM public.shopee_source_metrics_daily UNION ALL SELECT 'stock_history', count(*) FROM public.shopee_stock_history" | tee /root/t5-counts-before.txt
    ```
 
-5. Upgrade. This takes the pre-migrate dump, applies 134 in one transaction (seconds for fewer
-   than 15k rows) and compares the row counts.
+5. Upgrade. This takes the pre-migrate dump, applies 134 in one transaction (seconds for a small
+   table) and compares the row counts.
 
    ```bash
    RELEASE_DIR=/root/Juli-AI-v2 VENV_PYTHON=/root/releases/current/.venv/bin/python ALEMBIC_BIN=/root/releases/current/.venv/bin/alembic PYTHONPATH=/root/Juli-AI-v2/backend/src API_ENV_FILE=/etc/juli/api.env /root/Juli-AI-v2/infra/scripts/safe-alembic-upgrade.sh
