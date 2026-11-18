@@ -42,7 +42,12 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
-from juli_backend.services.shopee_profit.order_profit import AdsPool, OrderLine, ProfitBreakdown
+from juli_backend.services.shopee_profit.order_profit import (
+    AdsPool,
+    OrderLine,
+    ProfitBreakdown,
+    counts_in_sales,
+)
 
 GMV_WARN_RATE = Decimal("0.02")
 
@@ -208,7 +213,7 @@ class ShopProfit:
 
 
 def reconcile_gmv(pairs: Pairs, export_gmv: Decimal | None) -> GmvReconciliation:
-    line_gmv = sum((ln.order_value for ln, _ in pairs), ZERO)
+    line_gmv = sum((ln.order_value for ln, _ in pairs if counts_in_sales(ln)), ZERO)
     if export_gmv is None:
         return GmvReconciliation(line_gmv, None, None, None, False)
     gap = line_gmv - export_gmv
@@ -266,8 +271,8 @@ def product_profits(
                         missing[m] += 1
         out[product] = ProductProfit(
             product_id=product,
-            orders=len({ln.order_id for ln, _ in all_items}),
-            gmv=sum((ln.order_value for ln, _ in all_items), ZERO),
+            orders=len({ln.order_id for ln, _ in all_items if counts_in_sales(ln)}),
+            gmv=sum((ln.order_value for ln, _ in all_items if counts_in_sales(ln)), ZERO),
             buyer_paid=sum((pb.revenue for _, pb in items), ZERO),
             buyer_paid_covered=sum((pb.revenue for _, pb in covered), ZERO),
             contribution=contribution,
@@ -314,8 +319,8 @@ def shop_profit(
         margin_num = contribution - covered_ads - other_marketing_costs * share
     on_covered = contribution - total_ads - other_marketing_costs
     return ShopProfit(
-        orders=len({ln.order_id for ln, _ in pairs}),
-        gmv=sum((ln.order_value for ln, _ in pairs), ZERO),
+        orders=len({ln.order_id for ln, _ in pairs if counts_in_sales(ln)}),
+        gmv=sum((ln.order_value for ln, _ in pairs if counts_in_sales(ln)), ZERO),
         buyer_paid=sum((p.buyer_paid for p in products.values()), ZERO),
         buyer_paid_covered=sum((p.buyer_paid_covered for p in products.values()), ZERO),
         contribution=contribution,

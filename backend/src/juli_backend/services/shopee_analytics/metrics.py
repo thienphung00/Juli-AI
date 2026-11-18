@@ -42,6 +42,7 @@ from juli_backend.services.shopee_analytics.loaders import product_totals_for
 from juli_backend.services.shopee_analytics.stored import StoredWindow
 from juli_backend.services.shopee_analytics.windows import Anchor, Window
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
 if TYPE_CHECKING:
     from juli_backend.services.shopee_analytics.period_spread import SpreadDay
@@ -228,6 +229,8 @@ def _splits(
     units: dict[str, int] = defaultdict(int)
     order_ids: dict[str, set[str]] = defaultdict(set)
     for ln, _ in view.pairs:
+        if not counts_in_sales(ln):
+            continue  # a returned order is no sale (T5 D2)
         line_gmv[ln.product_id] += ln.order_value
         units[ln.product_id] += ln.qty
         order_ids[ln.product_id].add(ln.order_id)
@@ -307,8 +310,9 @@ def _aov_seller_centre(view: PeriodView) -> Decimal | None:
     orders = view.line_orders
     if not orders:
         return None
-    gmv = sum((ln.order_value for ln, _ in view.pairs), ZERO)
-    voucher = sum((ln.shop_voucher_share for ln, _ in view.pairs), ZERO)
+    sales = [ln for ln, _ in view.pairs if counts_in_sales(ln)]
+    gmv = sum((ln.order_value for ln in sales), ZERO)
+    voucher = sum((ln.shop_voucher_share for ln in sales), ZERO)
     return (gmv - voucher) / Decimal(orders)
 
 

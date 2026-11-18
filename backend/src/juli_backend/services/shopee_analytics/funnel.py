@@ -516,7 +516,7 @@ def contribution_rate(view: PeriodView, item_ids: Iterable[str] = ()) -> Decimal
         return None
     if any(not view.costs.cogs_is_real(ln.sku) or pb.contribution is None for ln, pb in lines):
         return None
-    gmv = sum((ln.order_value for ln, _ in lines), ZERO)
+    gmv = sum((ln.order_value for ln, _ in lines if ln.status.counts_in_sales), ZERO)
     if gmv <= 0:
         return None
     return sum((pb.contribution or ZERO for _, pb in lines), ZERO) / gmv

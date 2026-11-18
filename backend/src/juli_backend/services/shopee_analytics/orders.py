@@ -19,7 +19,14 @@ from juli_backend.services.shopee_profit.money import ZERO
 
 KEY_CHARS = 12
 SORTS = ("date", "gmv", "contribution")
-STATUSES = ("delivered", "refunded_accepted", "in_transit", "cancelled", "refunded_not_received")
+STATUSES = (
+    "delivered",
+    "refunded_accepted",
+    "in_transit",
+    "cancelled",
+    "refunded_not_received",
+    "returned",
+)
 MAX_LIMIT = 500
 
 
@@ -65,7 +72,10 @@ def build_orders(
                 "units": sum(ln.qty for ln, _ in items),
                 "items": sorted({ln.product_id for ln, _ in items}),
                 "levers": levers,
-                "gmv": num(sum((ln.order_value for ln, _ in items), ZERO)),
+                # a returned order is no sale: GMV 0, its fees and packaging in the profit
+                "gmv": num(
+                    sum((ln.order_value for ln, _ in items if ln.status.counts_in_sales), ZERO)
+                ),
                 "voucher": num(sum((pb.voucher for _, pb in items), ZERO)),
                 "promo_discount": num(sum((pb.promo_discount for _, pb in items), ZERO)),
                 "combo_discount": num(sum((pb.bundle for _, pb in items), ZERO)),

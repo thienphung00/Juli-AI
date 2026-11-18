@@ -377,7 +377,7 @@ def _vouchers_block(view: PeriodView, ctx: ShopContext) -> dict[str, Any]:
 
 def _affiliate_block(view: PeriodView) -> dict[str, Any]:
     a = view.data.affiliate
-    lines = [(ln, pb) for ln, pb in view.pairs if ln.affiliate]
+    lines = [(ln, pb) for ln, pb in view.pairs if ln.affiliate and ln.status.counts_in_sales]
     return {
         "basis": a.choice.json(),
         "kols": len(a.partners),

@@ -627,12 +627,12 @@ def _pool(
         aff_orders = len({t[0].line.order_id for t in aff})
         basis = "affiliate" if aff_orders >= AFFILIATE_BASIS_MIN_ORDERS else "all"
         use = aff if basis == "affiliate" else items
-        orders = len({t[0].line.order_id for t in use})
+        orders = len({t[0].line.order_id for t in use if t[0].line.status.counts_in_sales})
         known = [t for t in use if t[1] is not None]
         if orders == 0 or not known:
             continue
         units = sum(t[0].line.qty for t in use)
-        gmv = sum((t[0].line.order_value for t in use), ZERO)
+        gmv = sum((t[0].line.order_value for t in use if t[0].line.status.counts_in_sales), ZERO)
         base = sum((t[0].line.buyer_paid for t in use), ZERO)
         pre = sum(((t[1] or ZERO) + (t[2] or ZERO) for t in known), ZERO)
         known_orders = len({t[0].line.order_id for t in known})

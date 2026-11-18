@@ -391,7 +391,7 @@ def profit_pairs(
     per order from the order's own lines, whatever the category rates of its items."""
     by_order: dict[str, list[int]] = defaultdict(list)
     for i, sl in enumerate(lines):
-        if sl.line.actual_fees is None and sl.line.income is None and sl.line.status.carries_profit:
+        if sl.line.actual_fees is None and sl.line.income is None and sl.line.status.charges_fees:
             by_order[sl.line.order_id].append(i)
     shares: dict[int, Mapping[str, Decimal]] = {}
     for idxs in by_order.values():

@@ -401,7 +401,9 @@ def _cell_other(kind: str, view: PeriodView) -> M:
         a = view.data.traffic.sources.get(FlowSource.LIEN_KET)
         return M(a.gmv if a else ZERO, a.orders if a else ZERO)
     # vouchers: orders that used a shop voucher, from the order lines
-    voucher_pairs = [(ln, pb) for ln, pb in view.pairs if ln.shop_voucher_share > 0]
+    voucher_pairs = [
+        (ln, pb) for ln, pb in view.pairs if ln.shop_voucher_share > 0 and ln.status.counts_in_sales
+    ]
     return M(
         sum((ln.order_value for ln, _ in voucher_pairs), ZERO),
         Decimal(len({ln.order_id for ln, _ in voucher_pairs})),

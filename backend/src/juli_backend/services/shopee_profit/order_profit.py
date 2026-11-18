@@ -30,6 +30,10 @@ Rules:
   buyer_paid; neither -> ``missing``.
 - Order status (:class:`OrderStatus`): cancelled / undelivered / refund "not received" lines
   get no fee and no profit (``excluded_reason``); an accepted refund keeps the fee.
+- Returned (T5, owner D2 2026-11-18): the goods came back and the buyer was refunded. Revenue 0,
+  no goods cost, no commission; the settlement fees and the packaging are the seller's cost, so
+  the contribution is -(fees + packaging). The line is outside đơn / GMV / AOV
+  (:func:`counts_in_sales`) and inside profit.
 - Missing input never becomes 0: ``contribution``/``profit``/``margin`` are ``None`` and
   ``missing`` lists why.
 - ``margin_rate`` = profit / buyer_paid.
@@ -66,6 +70,8 @@ class OrderStatus(StrEnum):
       shape for the day a final refund status is carried.
     - ``in_transit`` (not yet delivered), ``cancelled``, ``refunded_not_received`` (the return
       parcel is on its way back): no fee and no profit; outside the profit and coverage base.
+    - ``returned`` (T5, owner D2): goods back with the seller, buyer refunded. No sale (outside
+      đơn / GMV / AOV) but a cost: the fees and the packaging, revenue 0, goods cost 0.
     """
 
     DELIVERED = "delivered"
@@ -73,10 +79,26 @@ class OrderStatus(StrEnum):
     IN_TRANSIT = "in_transit"
     CANCELLED = "cancelled"
     REFUNDED_NOT_RECEIVED = "refunded_not_received"
+    RETURNED = "returned"
 
     @property
     def carries_profit(self) -> bool:
         return self is OrderStatus.DELIVERED
+
+    @property
+    def charges_fees(self) -> bool:
+        """The platform's fees are a cost of this line: a sale, or a returned order."""
+        return self.carries_profit or self is OrderStatus.RETURNED
+
+    @property
+    def counts_in_sales(self) -> bool:
+        """The line is in đơn / GMV / AOV. A returned order is not (owner D2)."""
+        return self is not OrderStatus.RETURNED
+
+
+def counts_in_sales(line: OrderLine) -> bool:
+    """``line`` counts in đơn / GMV / AOV (every status but ``returned``)."""
+    return line.status.counts_in_sales
 
 
 class PromoKind(StrEnum):
@@ -196,8 +218,8 @@ class ProfitBreakdown:
     @property
     def revenue(self) -> Decimal:
         """Money actually kept from the buyer: ``buyer_paid`` less the VAT inside it, 0 for an
-        accepted refund."""
-        if self.status is OrderStatus.REFUNDED_ACCEPTED:
+        accepted refund and for a returned order."""
+        if self.status in (OrderStatus.REFUNDED_ACCEPTED, OrderStatus.RETURNED):
             return ZERO
         return self.buyer_paid - self.vat_output
 
@@ -221,8 +243,10 @@ def line_profit(
 ) -> ProfitBreakdown:
     """One line's waterfall. ``per_order_fees`` = the line's share of the order's per-order
     fees (:meth:`FeeFormula.split_per_order`); omitted, the line is treated as the whole order.
-    Orders that do not carry profit (see :class:`OrderStatus`) get no fee and no profit."""
-    if not line.status.carries_profit:
+    Orders that do not carry profit (see :class:`OrderStatus`) get no fee and no profit, except a
+    returned one: its fees and packaging are its (negative) contribution."""
+    returned = line.status is OrderStatus.RETURNED
+    if not line.status.carries_profit and not returned:
         return ProfitBreakdown(
             list_value=line.list_value,
             promo_discount=line.list_value - line.order_value,
@@ -243,7 +267,7 @@ def line_profit(
             status=line.status,
             excluded_reason="no_fee_no_profit",
         )
-    refunded = line.status is OrderStatus.REFUNDED_ACCEPTED
+    refunded = line.status is OrderStatus.REFUNDED_ACCEPTED or returned
     missing: list[str] = []
 
     fees: tuple[tuple[str, Decimal], ...] | None = None
@@ -264,7 +288,10 @@ def line_profit(
 
     if vat is None and cost is not None:
         vat = cost.vat
-    cogs = cost.cogs * line.qty if cost and cost.cogs is not None else None
+    if returned:
+        cogs: Decimal | None = ZERO  # the goods came back
+    else:
+        cogs = cost.cogs * line.qty if cost and cost.cogs is not None else None
     if cogs is None:
         missing.append("cogs")
     packaging = cost.packaging if cost else None
@@ -278,7 +305,9 @@ def line_profit(
             missing.append("ads_allocation")
 
     commission: Decimal | None = ZERO
-    if income is not None:
+    if returned:
+        commission = ZERO  # no sale, no affiliate commission
+    elif income is not None:
         commission = income.commission
     elif line.affiliate and not refunded:
         if line.commission is not None:
@@ -289,9 +318,13 @@ def line_profit(
             commission = None
             missing.append("commission")
 
-    income_costs = income.other_costs(with_refund=not refunded) if income is not None else None
-    vat_out = output_vat(line.buyer_paid, vat)
-    vat_credit = input_vat_credit(cogs, vat) if cogs is not None else ZERO
+    income_costs = (
+        income.other_costs(with_refund=not refunded)
+        if income is not None and not returned
+        else None
+    )
+    vat_out = ZERO if returned else output_vat(line.buyer_paid, vat)
+    vat_credit = input_vat_credit(cogs, vat) if cogs is not None and not returned else ZERO
     if vat_out is None or vat_credit is None:
         missing.append("vat_rate")
     vat_basis = vat.basis if vat is not None else BASIS_BEFORE
@@ -350,7 +383,7 @@ def profit_lines(
     pools = ads_pools or {}
     by_order: dict[str, list[int]] = defaultdict(list)
     for i, ln in enumerate(lines):
-        if ln.actual_fees is None and ln.status.carries_profit:
+        if ln.actual_fees is None and ln.status.charges_fees:
             by_order[ln.order_id].append(i)
     shares_by_line: dict[int, Mapping[str, Decimal]] = {}
     if schedule is not None:

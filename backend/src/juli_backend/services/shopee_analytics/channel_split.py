@@ -505,7 +505,11 @@ def _product_affiliate(view: PeriodView, product_id: str | None) -> dict[str, De
     :func:`_affiliate_cost` reads), for a product whose funnel rows have no such source."""
     if product_id is None:
         return None
-    lines = [ln for ln, _ in view.pairs if ln.affiliate and ln.product_id == product_id]
+    lines = [
+        ln
+        for ln, _ in view.pairs
+        if ln.affiliate and ln.product_id == product_id and ln.status.counts_in_sales
+    ]
     if not lines:
         return None
     return {

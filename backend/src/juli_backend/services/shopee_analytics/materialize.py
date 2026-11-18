@@ -288,7 +288,14 @@ def day_rows(
             c = [t.clicks for t in traffic_spread.values() if t.clicks is not None]
             shop_views, shop_clicks = (sum(v) if v else None), (sum(c) if c else None)
     covered = p.buyer_paid_covered
-    net_gmv = sum((ln.order_value - ln.shop_voucher_share for ln, _ in view.pairs), ZERO)
+    net_gmv = sum(
+        (
+            ln.order_value - ln.shop_voucher_share
+            for ln, _ in view.pairs
+            if ln.status.counts_in_sales
+        ),
+        ZERO,
+    )
     shop = {
         "shop_id": shop_id,
         "day": day,
