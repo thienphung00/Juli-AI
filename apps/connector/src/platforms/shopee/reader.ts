@@ -114,6 +114,8 @@ export type ReaderStatus =
   | "needs_template"
   | "blocked_captcha"
   | "blocked_login"
+  /** 0.3.25: /datacenter's "enter your Shopee password" dialog (never typed into by the Connector). */
+  | "blocked_password_recheck"
   /** HTTP 429 / 403 / a Shopee message that says "too many requests": stops every reader. */
   | "blocked_rate"
   /** The shared daily request budget is spent: the job stops, the rest waits for tomorrow. */
@@ -359,7 +361,7 @@ async function send(
   extra: Partial<ReaderResponse> = {},
   tolerateError = false,
 ): Promise<ReaderResponse> {
-  if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_login", collected, "password_modal"));
+  if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   const wall = env.captchaVisible?.() ? "captcha" : blockedPath(env.pathname?.() ?? "");
   if (wall) throw new Stop(fail(wall === "captcha" ? "blocked_captcha" : "blocked_login", collected, "page"));
   // The shared daily budget is checked before EVERY replay.
@@ -412,7 +414,7 @@ async function waitForPage(env: ReaderEnv, need: ReaderEndpoint[], collected: Re
   const captcha = () => env.captchaVisible?.() === true;
   const ready = () => env.hasSession() && need.every((endpoint) => env.template(endpoint) !== undefined);
   const settled = await env.waitFor(() => modal() || captcha() || ready(), READER_TEMPLATE_WAIT_MS);
-  if (modal()) throw new Stop(fail("blocked_login", collected, "password_modal"));
+  if (modal()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   if (captcha()) throw new Stop(fail("blocked_captcha", collected, "page"));
   if (settled && ready()) return;
   throw new Stop(fail(env.hasSession() ? "needs_template" : "needs_data_page", collected, need.join(",")));
@@ -611,7 +613,7 @@ async function readItemTraffic(env: ReaderEnv, days: string[], itemIds: string[]
   // The re-confirmation modal means the page will never load its data: stop at once.
   const modal = () => env.passwordModalVisible?.() === true;
   const ready = await env.waitFor(() => modal() || env.hasSession(), READER_TEMPLATE_WAIT_MS);
-  if (modal()) throw new Stop(fail("blocked_login", collected, "password_modal"));
+  if (modal()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   if (!ready) throw new Stop(fail("needs_data_page", collected, "traffic_details"));
   // The page's own details call (if it made one) is the template; else its other mydata headers.
   await env.waitFor(() => env.template("traffic_details") !== undefined, 8_000);
@@ -662,7 +664,7 @@ async function readItemTraffic(env: ReaderEnv, days: string[], itemIds: string[]
 async function readTraffic(env: ReaderEnv, days: string[], collected: ReaderResponse[]): Promise<void> {
   const modal = () => env.passwordModalVisible?.() === true;
   const ready = await env.waitFor(() => modal() || env.hasSession(), READER_TEMPLATE_WAIT_MS);
-  if (modal()) throw new Stop(fail("blocked_login", collected, "password_modal"));
+  if (modal()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   if (!ready) throw new Stop(fail("needs_data_page", collected, "traffic_overview"));
   const template: Template = { query: {}, headers: env.mydataHeaders?.() };
   for (const day of days) {
@@ -994,7 +996,7 @@ async function readOrdersFromList(env: ReaderEnv, collected: ReaderResponse[], s
     }
     if (!env.nextOrderPage) break;
     await env.pause?.(ORDER_LIST_PAGE_GAP_MS + Math.floor(random() * ORDER_LIST_PAGE_GAP_JITTER_MS));
-    if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_login", collected, "password_modal"));
+    if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
     if (env.captchaVisible?.()) throw new Stop(fail("blocked_captcha", collected, "page"));
     const before = new Set(shown.map((link) => link.id));
     if (!env.nextOrderPage()) break; // the last page

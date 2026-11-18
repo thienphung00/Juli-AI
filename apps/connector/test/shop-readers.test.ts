@@ -178,7 +178,7 @@ describe("shop totals -> shop_overview", () => {
     const h = harness({}, () => ({ body: KEY_METRICS }));
     h.env.passwordModalVisible = () => true;
     const outcome = await runReaderJob({ id: "shop_totals", days: DAYS }, h.env);
-    expect(outcome).toMatchObject({ status: "blocked_login", detail: "password_modal" });
+    expect(outcome).toMatchObject({ status: "blocked_password_recheck", detail: "password_modal" });
     expect(h.sent).toEqual([]);
     // Without the modal, a page that never called key-metrics still says what it waited for.
     const silent = harness({}, () => ({ body: KEY_METRICS }));

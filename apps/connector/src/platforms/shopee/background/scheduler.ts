@@ -31,6 +31,8 @@ import {
   ORDERS_JOB_TIMEOUT_MS,
   READER_KICK_DELAY_MINUTES,
   READER_KICK_RETRY_MINUTES,
+  READER_REREAD_DELAY_MINUTES,
+  READER_REREAD_MAX_PER_DAY,
   STOCK_MAX_ATTEMPTS_PER_DAY,
   STOCK_READ_HOUR_GMT7,
   STOCK_READ_MINUTE,
@@ -379,8 +381,9 @@ export class ReaderScheduler {
       // From rest: what woke the scheduler is recorded with how the tick ended (0.3.19).
       const trigger =
         options.trigger === "kick" ? (sched.kick?.reason ?? "kick") : (options.trigger ?? (options.manual ? "manual" : "alarm"));
+      const kickReason = options.trigger === "kick" ? sched.kick?.reason : undefined;
       if (options.trigger === "kick" && sched.kick) await this.save({ ...sched, kick: undefined });
-      const result = await this.start(options);
+      const result = await this.start({ ...options, ...(kickReason ? { kickReason } : {}) });
       await this.record(trigger, result);
       return result;
     });
@@ -396,7 +399,7 @@ export class ReaderScheduler {
   }
 
   /** A start from rest: the stock run when due, else today's run; or why nothing started. */
-  private async start(options: { manual?: boolean }): Promise<string> {
+  private async start(options: { manual?: boolean; kickReason?: string }): Promise<string> {
     const { state, sched } = await this.load();
     const now = this.deps.now();
     const shopId = state.token?.shop_id;
@@ -421,10 +424,12 @@ export class ReaderScheduler {
       return `stock:${await this.startNext(next, run)}`;
     }
     const rerun = sched.lastRunDay === today;
-    if (rerun && !options.manual) return "done_today";
+    // 0.3.25: pages blocked by a login / password wall earlier today, to read again (once per block clear).
+    const reread = sched.reread?.day === today ? sched.reread : undefined;
+    if (rerun && !options.manual && !reread) return "done_today";
     if (await this.deps.backfillBusy()) {
       // Before 0.3.19 this waited for tomorrow's alarm: now it tries again in a few minutes.
-      await this.setKick("retry", READER_KICK_RETRY_MINUTES);
+      await this.setKick(reread ? "reread" : "retry", READER_KICK_RETRY_MINUTES);
       return "backfill_busy";
     }
     const productsFresh = (sched.productsAt ?? 0) >= stockDueAt(today) && (sched.itemIds?.length ?? 0) > 0;
@@ -458,20 +463,30 @@ export class ReaderScheduler {
         .map(([id]) => id),
     );
     const jobs = rerun
-      ? planned.filter((job) => (job.days?.length ?? 0) > 0 || (options.manual === true && retry.has(job.id)))
+      ? reread && !options.manual
+        ? planned.filter((job) => reread.pages.includes(job.id))
+        : planned.filter((job) => (job.days?.length ?? 0) > 0 || (options.manual === true && retry.has(job.id)))
       : planned;
-    if (rerun && jobs.length === 0) return "done_today";
+    if (rerun && jobs.length === 0) {
+      if (reread) await this.save({ ...sched, reread: undefined });
+      return "done_today";
+    }
     if (jobs.length === 0) {
-      await this.save({ ...sched, lastRunDay: today });
+      await this.save({ ...sched, lastRunDay: today, reread: undefined });
       return "nothing_to_do";
     }
-    const run: ReaderRun = { day: today, startedAt: now, jobs, index: 0, outcomes: {} };
-    await this.save({ ...sched, adsHistory, blocked: undefined, run });
+    const rereadCount = reread
+      ? { day: today, n: (sched.rereadCount?.day === today ? sched.rereadCount.n : 0) + 1 }
+      : sched.rereadCount;
+    const run: ReaderRun = { day: today, startedAt: now, jobs, index: 0, outcomes: {}, ...(reread ? { trigger: "reread" } : {}) };
+    // The re-read is consumed here: if the dialog comes back it is a new block, never a loop.
+    const started: ReaderSchedule = { ...sched, adsHistory, blocked: undefined, run, reread: undefined, ...(rereadCount ? { rereadCount } : {}) };
+    await this.save(started);
     await this.deps.alarms.create(READER_WATCHDOG_ALARM, {
       delayInMinutes: READER_WATCHDOG_ALARM_MINUTES,
       periodInMinutes: READER_WATCHDOG_ALARM_MINUTES,
     });
-    return this.startNext({ ...sched, adsHistory, blocked: undefined, run }, run);
+    return this.startNext(started, run);
   }
 
   /** The shop's ads history: kept while it is this shop's, else a new 90-day plan (newest first). */
@@ -779,10 +794,16 @@ export class ReaderScheduler {
       ...sched,
       run: undefined,
       lastRunDay: run.day,
-      lastRun: { day: run.day, at: this.iso(), outcomes: run.outcomes, ...(blocked ? { blocked } : {}) },
+      // A re-read keeps the day's earlier outcomes and replaces those of the pages it read again.
+      lastRun: {
+        day: run.day,
+        at: this.iso(),
+        outcomes: run.trigger === "reread" && sched.lastRun?.day === run.day ? { ...sched.lastRun.outcomes, ...run.outcomes } : run.outcomes,
+        ...(blocked ? { blocked } : {}),
+      },
     });
     await this.deps.alarms.clear(READER_WATCHDOG_ALARM).catch(() => undefined);
-    await this.reportRun("daily", result, run);
+    await this.reportRun(run.trigger ?? "daily", result, run);
     return result;
   }
 
@@ -807,7 +828,7 @@ export class ReaderScheduler {
    * no such proof (the first page of a run, or walls in both sections) it is a session-wide logout:
    * the whole run stops as before, so a logged-out session gets no more tabs than before 0.3.22.
    */
-  private async wall(sched: ReaderSchedule, run: ReaderRun, reason: "login" | "captcha", detail?: string): Promise<string> {
+  private async wall(sched: ReaderSchedule, run: ReaderRun, reason: "login" | "captcha" | "password_recheck", detail?: string): Promise<string> {
     const job = run.jobs[run.index];
     if (!job || run.kind === "stock") return this.block(sched, run, reason, detail);
     const section = readerSection(job.id);
@@ -931,9 +952,10 @@ export class ReaderScheduler {
       const job = run.jobs[run.index] as PlannedJob;
       if (message.job !== job.id) return true; // stale
       const status = String(message.status ?? "error");
-      if (status === "blocked_captcha" || status === "blocked_login") {
+      if (status === "blocked_captcha" || status === "blocked_login" || status === "blocked_password_recheck") {
         const detail = outcomeNote(message.detail).replace(/[^A-Za-z0-9_.:-]/g, "_");
-        await this.wall(sched, run, status === "blocked_captcha" ? "captcha" : "login", detail || undefined);
+        const reason = status === "blocked_captcha" ? "captcha" : status === "blocked_password_recheck" ? "password_recheck" : "login";
+        await this.wall(sched, run, reason, detail || undefined);
         return true;
       }
       if (status === "blocked_rate") {
@@ -1089,23 +1111,61 @@ export class ReaderScheduler {
     });
   }
 
-  /** A data call succeeded in a Seller Centre tab: a login block is over (retry today). */
-  sessionSeen(): Promise<void> {
+  /**
+   * The pages today's run left blocked by a login / password wall (0.3.25): the outcome heads are
+   * "blocked:login", "blocked:password_recheck" (this page only) and "blocked_login" /
+   * "blocked_password_recheck" (the page that stopped the run).
+   */
+  private blockedPages(sched: ReaderSchedule, today: string): ReaderId[] {
+    if (sched.lastRun?.day !== today) return [];
+    return Object.entries(sched.lastRun.outcomes)
+      .filter(([, outcome]) => /^blocked[:_](login|password_recheck)/.test(String(outcome)))
+      .map(([id]) => id as ReaderId);
+  }
+
+  /**
+   * A block has cleared (a data call proved the session, or the seller pressed "Đồng bộ"): arm ONE
+   * re-read of today's blocked pages a few minutes from now (0.3.25). Not while a run is going, not
+   * when one is armed already, and at most READER_REREAD_MAX_PER_DAY starts a day.
+   */
+  private async armReread(sched: ReaderSchedule): Promise<void> {
+    const today = gmt7Date(Math.floor(this.deps.now() / 1000));
+    const pages = this.blockedPages(sched, today);
+    if (pages.length === 0 || sched.run || sched.reread?.day === today) return;
+    if (sched.rereadCount?.day === today && sched.rereadCount.n >= READER_REREAD_MAX_PER_DAY) return;
+    await this.save({ ...sched, reread: { day: today, pages }, kick: { reason: "reread", at: this.iso() } });
+    await this.deps.alarms.create(READER_KICK_ALARM, { delayInMinutes: READER_REREAD_DELAY_MINUTES });
+  }
+
+  /**
+   * A data call succeeded in a Seller Centre tab: a login block is over (retry today), and the
+   * pages today's walls blocked are read again, only those, when the call was on /datacenter
+   * (Phân tích bán hàng: its password dialog is confirmed). `section` is that tab's section.
+   */
+  sessionSeen(section?: string): Promise<void> {
     return this.exclusive(async () => {
-      const { sched } = await this.load();
-      if (sched.blocked?.reason !== "login") return;
-      await this.save({ ...sched, blocked: undefined, lastRunDay: sched.lastRun?.blocked === "login" ? undefined : sched.lastRunDay });
+      let { sched } = await this.load();
+      const lifts = sched.blocked?.reason === "login" || sched.blocked?.reason === "password_recheck";
+      if (lifts) {
+        const wasRunWide = sched.lastRun?.blocked === "login" || sched.lastRun?.blocked === "password_recheck";
+        sched = { ...sched, blocked: undefined, lastRunDay: wasRunWide ? undefined : sched.lastRunDay };
+        await this.save(sched);
+      }
+      if (lifts || section === "datacenter") await this.armReread(sched);
     });
   }
 
   /** The seller pressed "Đồng bộ": lift a block (they may have solved the CAPTCHA) and retry today. */
   clearBlock(): Promise<void> {
     return this.exclusive(async () => {
-      const { sched } = await this.load();
-      if (!sched.blocked) return;
+      let { sched } = await this.load();
       // A rate-limit stop is Shopee asking us to slow down: the button does not lift it.
-      if (sched.blocked.reason === "rate_limit" && sched.blocked.until > this.deps.now()) return;
-      await this.save({ ...sched, blocked: undefined, lastRunDay: sched.lastRun?.blocked ? undefined : sched.lastRunDay });
+      if (sched.blocked?.reason === "rate_limit" && sched.blocked.until > this.deps.now()) return;
+      if (sched.blocked) {
+        sched = { ...sched, blocked: undefined, lastRunDay: sched.lastRun?.blocked ? undefined : sched.lastRunDay };
+        await this.save(sched);
+      }
+      await this.armReread(sched);
     });
   }
 }

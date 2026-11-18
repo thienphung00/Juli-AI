@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { READER_DATASETS, READER_IDS, type ReaderId } from "../src/platforms/shopee/config";
 import type { ReaderSchedule } from "../src/platforms/shopee/background/state";
 import { DATASET_LABELS, outcomeStatus, pageRows, READER_GUIDE, runLine, SYNC_PAGE, syncGuidance } from "../src/platforms/shopee/popup/guide";
+import { readersLabel } from "../src/platforms/shopee/popup/labels";
 import { READER_PAGES } from "../src/platforms/shopee/endpoints";
 
 const NOW = Date.UTC(2026, 10, 13, 2, 0, 0);
@@ -100,5 +101,17 @@ describe("report pages and their state", () => {
     expect(outcomeStatus("blocked:captcha").status).toContain("CAPTCHA");
     expect(outcomeStatus("needs_data_page:affiliate_conversion").tone).toBe("wait");
     expect(outcomeStatus("error:boom").tone).toBe("warn");
+  });
+});
+
+describe("0.3.25: the Phân tích bán hàng password dialog", () => {
+  const LINE = "Xác nhận mật khẩu Shopee một lần trong Phân tích bán hàng";
+  it("outcomes, the run line and the stop line each say: confirm the Shopee password once", () => {
+    expect(outcomeStatus("blocked:password_recheck")).toEqual({ status: LINE, tone: "warn" });
+    expect(outcomeStatus("blocked_password_recheck")).toEqual({ status: LINE, tone: "warn" });
+    const stopped: ReaderSchedule = { adsDone: [], blocked: { at: "x", reason: "password_recheck", page: "shop_totals", until: NOW + 1 } };
+    expect(runLine(stopped, NOW)).toContain("xác nhận mật khẩu Shopee một lần");
+    expect(readersLabel(stopped, NOW)).toContain("xác nhận mật khẩu Shopee một lần");
+    expect(runLine(stopped, NOW)).not.toContain("đăng nhập lại");
   });
 });
