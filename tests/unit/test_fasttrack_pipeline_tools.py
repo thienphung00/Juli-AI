@@ -117,6 +117,39 @@ def test_claim_migration_refuses_a_number_taken_by_another_session(repo):
     assert json.loads(events[-1])["kind"] == "claim-migration"
 
 
+def test_a_claim_moves_only_from_its_holder_with_an_approval(repo):
+    claim = ["claim-migration", "134", "--name", "t5", "--branch", "b2"]
+    assert state.main([*claim, "--session", "s1"]) == 0
+    assert state.main([*claim, "--session", "s2", "--transfer-from", "s1"]) == 1  # no approval
+    assert (
+        state.main([*claim, "--session", "s2", "--transfer-from", "s3", "--approved-by", "owner"])
+        == 1  # s3 does not hold it
+    )
+    with state.locked_state(write=False) as st:
+        assert st["migrations"]["134"]["session"] == "s1"
+    assert (
+        state.main(
+            [*claim, "--session", "s2", "--transfer-from", "s1", "--approved-by", "owner #6"]
+        )
+        == 0
+    )
+    with state.locked_state(write=False) as st:
+        m = st["migrations"]["134"]
+        assert (m["session"], m["transferred_from"], m["approved_by"]) == ("s2", "s1", "owner #6")
+    last = json.loads((Path(state.state_dir()) / "events.jsonl").read_text().splitlines()[-1])
+    assert last["kind"] == "claim-migration-transfer" and last["from_session"] == "s1"
+
+
+def test_a_migration_past_claimed_never_moves(repo):
+    claim = ["claim-migration", "135", "--name", "x", "--branch", "b"]
+    assert state.main([*claim, "--session", "s1"]) == 0
+    assert state.main(["migration", "135", "--status", "live"]) == 0
+    moved = [*claim, "--session", "s2", "--transfer-from", "s1", "--approved-by", "owner"]
+    assert state.main(moved) == 1
+    with state.locked_state(write=False) as st:
+        assert st["migrations"]["135"]["session"] == "s1"
+
+
 def test_ab_assignment_is_balanced_and_stable(repo):
     st = state.empty_state()
     arms = [state.ab_assign(st, "b1", f"s{i}", "coord") for i in range(6)]
@@ -277,13 +310,13 @@ def test_xdist_trial_completes_after_three_consecutive_ok_trees(tmp_path):
     assert xdist_trial.main(["summary", str(rec)]) == 0
 
 
-def test_the_xdist_trial_never_blocks_a_deploy():
-    wf = yaml.safe_load((REPO / ".github/workflows/fasttrack-deploy.yml").read_text())
-    jobs = wf["jobs"]
-    for trial in ("backend-unit-xdist-trial", "xdist-trial-compare"):
-        assert jobs[trial]["continue-on-error"] is True, trial
-        for job in ("backup", "deploy"):
-            assert trial not in jobs[job]["needs"], (trial, job)
+def test_the_xdist_trial_is_over_xdist_gates_locally_and_ci_stays_serial():
+    # Owner 2026-11-18: trial ended. predeploy.sh gates with xdist by default; CI keeps the
+    # 4 serial shards and carries no xdist job.
+    jobs = yaml.safe_load((REPO / ".github/workflows/fasttrack-deploy.yml").read_text())["jobs"]
+    assert not [j for j in jobs if "xdist" in j]
+    predeploy = (REPO / "fasttrack" / "predeploy.sh").read_text()
+    assert 'XDIST="${JULI_GATE_XDIST:-1}"' in predeploy
 
 
 def test_pr_checks_run_the_deploy_gates_commands_without_secrets():
