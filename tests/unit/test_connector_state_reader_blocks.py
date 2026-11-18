@@ -39,13 +39,13 @@ def test_a_run_stopping_password_recheck_is_a_seller_centre_block():
 
 def test_merge_removes_done_readers_and_drops_an_empty_section():
     merged = cs.merge_reader_blocks(
-        [LOGIN], {"shop_totals": "done:shop_overview=posted", "traffic": "done"}
+        [LOGIN], {"shop_totals": "done:shop_overview=posted", "traffic": "done:shop_traffic=posted"}
     )
     assert merged == []
 
 
 def test_merge_keeps_readers_the_reread_did_not_report():
-    merged = cs.merge_reader_blocks([LOGIN], {"shop_totals": "done"})
+    merged = cs.merge_reader_blocks([LOGIN], {"shop_totals": "done:shop_overview=posted"})
     assert merged == [{**LOGIN, "readers": ["traffic"]}]
 
 
@@ -85,3 +85,11 @@ def test_reader_dataset_map_equals_the_connector_config():
     }
     assert parsed, "READER_DATASETS not found in config.ts"
     assert parsed == cs.READER_DATASETS
+
+
+def test_a_done_that_only_ignored_or_queued_leaves_the_block():
+    outcomes = {
+        "shop_totals": "done:order_lines=ignored|partial:order_cards:http_200",
+        "traffic": "done:shop_traffic:2026-11-14=ignored,traffic_overview=queued",
+    }
+    assert cs.merge_reader_blocks([LOGIN], outcomes) == [LOGIN]

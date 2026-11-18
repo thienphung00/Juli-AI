@@ -202,8 +202,9 @@ def reader_blocks_of(outcomes: dict[str, str]) -> list[dict[str, Any]]:
 
 
 def _is_done(outcome: object) -> bool:
-    """``done`` or ``done:<summary>|<note>``: the page was read and its datasets posted."""
-    return isinstance(outcome, str) and outcome.startswith("done")
+    """``done:<dataset>=posted,...``: the page was read and posted at least one dataset. A ``done``
+    that only ``=ignored`` / ``=queued`` posted nothing and proves nothing."""
+    return isinstance(outcome, str) and outcome.startswith("done") and "=posted" in outcome
 
 
 def _without_readers(blocks: list[dict[str, Any]], readers: set[str]) -> list[dict[str, Any]]:

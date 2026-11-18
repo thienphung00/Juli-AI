@@ -185,7 +185,11 @@ async def test_a_reread_tick_merges_into_the_blocks_and_a_daily_run_still_replac
             return ext.post("/v1/ingest/connector-ticks", json=body, headers=auth)
 
         assert (await post(first)).status_code == 202
-        reread = {**TICK, "trigger": "reread", "outcomes": {"shop_totals": "done"}}
+        reread = {
+            **TICK,
+            "trigger": "reread",
+            "outcomes": {"shop_totals": "done:shop_overview=posted"},
+        }
         assert (await post(reread)).status_code == 202
         row = await session.get(ShopeeConnectorState, shop.id)
         await session.refresh(row)
@@ -196,7 +200,7 @@ async def test_a_reread_tick_merges_into_the_blocks_and_a_daily_run_still_replac
                 "readers": ["product_period"],
             }
         ]
-        again = {**reread, "outcomes": {"product_period": "done"}}
+        again = {**reread, "outcomes": {"product_period": "done:product_period=posted"}}
         assert (await post(again)).status_code == 202
         await session.refresh(row)
         assert row.reader_blocks == []
