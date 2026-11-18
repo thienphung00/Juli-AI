@@ -67,8 +67,6 @@ Jobs (stable ids; `deploy` needs every one of them, P55 / D64):
 | `frontend` | demo + landing `eslint`, `tsc --noEmit`, `vitest` (what `pnpm check:demo` / `check:landing` run, minus `next build`); `packages/ui` and `utils` tests; Node from `.nvmrc` | validate |
 | `backend-unit` | the full `pytest tests/unit -m "not live"` with no database (Postgres tests skip via `requires_postgres`), after fetching the negative dataset's archived evidence refs (D65) | validate |
 | `static` | `mypy --config-file backend/pyproject.toml backend/src/juli_backend` + `bandit -r backend/src/juli_backend -ll` | validate |
-| `backend-unit-xdist-trial` | **trial, not gating** (gate speed-ups phase 1, 2026-11-17): the same unit files on one runner with `pytest -n 4 --dist loadfile`; `continue-on-error`, nothing needs it | validate |
-| `xdist-trial-compare` | **trial, not gating**: per-test diff of the 4 shards' JUnit vs the xdist run (`fasttrack/bin/xdist_trial.py`), in the run summary | backend-unit, backend-unit-xdist-trial |
 | `backup` | **only when `plan` says `backup=true` and every gate passed**: verified `pg_dump` of production on the VPS (`infra/scripts/backup-database.sh`, copied from the SHA) | plan, check, build, frontend, backend-unit, static |
 | `deploy` | `infra/scripts/deploy.sh <sha>` over SSH, then a public `/health` check. Runs when `backup` succeeded **or was skipped because none was asked for**; never after a failed backup | plan, backup, check, build, frontend, backend-unit, static |
 

@@ -30,13 +30,13 @@
 # (throwaway Postgres for check.sh; else check.sh starts docker postgres:16), NODE_OPTIONS
 # (default --no-webstorage, Node 26), JULI_FASTTRACK_STATE_DIR (see fasttrack/state.py).
 #
-# Gate speed-ups phase 1 (owner-approved 2026-11-17), JULI_GATE_XDIST:
-#   trial (default)  unit runs serially and GATES; then unit-xdist runs the same files with
-#                    pytest-xdist (record only, never fails the gate) and
-#                    fasttrack/bin/xdist_trial.py compares the two per test case. The
-#                    trial ends after 3 consecutive OK batches (`xdist_trial.py summary`).
-#   1                unit itself runs with xdist and gates; it must hold exactly as many
-#                    test cases as pytest collects serially. Set only after the trial.
+# Gate speed-ups (owner-approved 2026-11-17; trial ended by the owner 2026-11-18, since the
+# deploy gate now runs on GitHub and local runs are optional), JULI_GATE_XDIST:
+#   1 (default)      unit runs with pytest-xdist (-n WORKERS --dist loadfile) and gates; it
+#                    must hold exactly as many test cases as pytest collects serially.
+#   trial            unit runs serially and GATES; then unit-xdist runs the same files with
+#                    xdist (record only) and fasttrack/bin/xdist_trial.py compares the two
+#                    per test case. Use it to check a suspected xdist-only failure.
 #   0                rollback: serial unit only, no xdist run.
 # JULI_GATE_XDIST_WORKERS (default 4). Only one suite runs at a time: the two unit runs are
 # sequential, never parallel (memory: disk filled 2026-11-11).
@@ -60,7 +60,7 @@ done
 for j in "${JOBS[@]}"; do
   [[ " ${ALL_JOBS[*]} " == *" $j "* ]] || { echo "unknown job: $j (have: ${ALL_JOBS[*]})" >&2; exit 2; }
 done
-XDIST="${JULI_GATE_XDIST:-trial}"
+XDIST="${JULI_GATE_XDIST:-1}"
 WORKERS="${JULI_GATE_XDIST_WORKERS:-4}"
 case "${XDIST}" in 0|1|trial) ;; *) echo "JULI_GATE_XDIST must be 0, 1 or trial (got ${XDIST})" >&2; exit 2 ;; esac
 [[ "${WORKERS}" =~ ^[1-9]$ ]] || { echo "JULI_GATE_XDIST_WORKERS must be 1-9" >&2; exit 2; }

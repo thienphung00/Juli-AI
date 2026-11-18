@@ -19,7 +19,8 @@ Commands (all print a short human summary; --json for machine output):
   session S --role R [--owns a,b]        register or update a session
   batch B --session S [--status X] [--pr N] [--note TEXT]
                                          register/update a batch branch (head/base from git)
-  claim-migration N --session S --name NAME --branch B
+  claim-migration N --session S --name NAME --branch B [--transfer-from S0 --approved-by WHO]
+                                         a claim held by S0 moves to S only with both flags
   migration N --status merged|live|released
   tag-record TAG SHA --session S         record a deploy tag (tag-deploy.sh does this)
   tag-result TAG --conclusion C [--run-id ID]
@@ -419,6 +420,8 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--session", required=True)
     m.add_argument("--name", required=True)
     m.add_argument("--branch", required=True)
+    m.add_argument("--transfer-from", help="session that holds the claim now")
+    m.add_argument("--approved-by", help="who approved the transfer, e.g. 'owner, ask #6'")
     ms = sub.add_parser("migration")
     ms.add_argument("number", type=int)
     ms.add_argument("--status", required=True, choices=MIGRATION_STATUSES)
@@ -515,9 +518,27 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "claim-migration":
             key = str(args.number)
             cur = st["migrations"].get(key)
-            if cur and cur.get("session") != args.session:
+            holder = cur.get("session") if cur else None
+            transfer = bool(args.transfer_from) and holder not in (None, args.session)
+            if args.transfer_from and args.transfer_from != holder:
                 print(
-                    f"REFUSED migration {key} already claimed by {cur.get('session')} ({cur.get('name')})",
+                    f"REFUSED migration {key} is held by {holder}, not {args.transfer_from}",
+                    file=sys.stderr,
+                )
+                return 1
+            if transfer and not args.approved_by:
+                print("REFUSED a transfer needs --approved-by (owner approval)", file=sys.stderr)
+                return 1
+            if transfer and cur.get("status") != "claimed":
+                print(
+                    f"REFUSED migration {key} is {cur.get('status')}; only a claim can move",
+                    file=sys.stderr,
+                )
+                return 1
+            if holder not in (None, args.session) and not transfer:
+                print(
+                    f"REFUSED migration {key} already claimed by {holder} ({cur.get('name')}); "
+                    f"to move it: --transfer-from {holder} --approved-by <who>",
                     file=sys.stderr,
                 )
                 return 1
@@ -528,7 +549,17 @@ def main(argv: list[str] | None = None) -> int:
                 "status": "claimed",
                 "at": now(),
             }
-            event("claim-migration", number=args.number, session=args.session, name=args.name)
+            if transfer:
+                st["migrations"][key].update(transferred_from=holder, approved_by=args.approved_by)
+                event(
+                    "claim-migration-transfer",
+                    number=args.number,
+                    from_session=holder,
+                    to_session=args.session,
+                    approved_by=args.approved_by,
+                )
+            else:
+                event("claim-migration", number=args.number, session=args.session, name=args.name)
         elif args.cmd == "migration":
             st["migrations"].setdefault(str(args.number), {})["status"] = args.status
             event("migration", number=args.number, status=args.status)
