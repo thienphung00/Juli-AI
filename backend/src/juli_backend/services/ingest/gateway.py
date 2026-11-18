@@ -59,6 +59,7 @@ from juli_backend.models.platform_data import (
     PlatformProductFlag,
     PlatformPromotion,
 )
+from juli_backend.services.capabilities.registry import Route, can
 from juli_backend.services.consent import ConsentRequired, require_consent
 from juli_backend.services.ingest import market as market_search
 from juli_backend.services.ingest.income import write_order_income
@@ -865,8 +866,9 @@ async def ingest(
         raw_id=raw_id,
         now=now,
     )
-    if platform == "shopee" and body.source == SOURCE_EXTENSION:
+    if body.source == SOURCE_EXTENSION and can(platform, "read_orders").route is Route.connector:
         # The read succeeded (a duplicate too): a blocked reader of this dataset is unblocked.
+        # The platform's reads go through the Connector (Shopee today), so it has readers.
         from juli_backend.services.shopee_recommendations import connector_state
 
         await connector_state.clear_blocks_for_dataset(

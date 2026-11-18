@@ -25,6 +25,7 @@ from sqlalchemy import table as sa_table
 from sqlalchemy.exc import DBAPIError
 
 from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.models.shopee_profit import VN_TZ
 from juli_backend.services import ingest as svc
 from tests.integration.test_ingest_two_tenant import juli_app_session
 from tests.integration.two_tenant import RUNTIME_ROLE
@@ -265,7 +266,8 @@ async def test_the_gateway_writes_the_p90_datasets_as_the_runtime_role(shopee_te
     assert (float(line.fee_fixed), float(line.fee_payment)) == (4000.0, 2000.0)
     assert (float(line.seller_subsidy), float(line.buyer_shipping_fee)) == (20000.0, 5000.0)
     assert line.ad_attributed is None and line.item_id == "sku:SKU-A-1"
-    assert line.paid_at == datetime(2026, 10, 5, 10, 20)
+    # T5: a naive order time is Vietnam local, stored as timestamptz -- the same instant
+    assert line.paid_at == datetime(2026, 10, 5, 10, 20, tzinfo=VN_TZ)
 
     affiliate = {
         "order_ref": REF_A,

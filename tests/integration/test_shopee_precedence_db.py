@@ -132,7 +132,7 @@ async def test_a_null_in_a_higher_rank_post_never_clears_a_stored_value(shopee_t
     assert await _query(a.shop_id, sql) == [(900, 4, "extension")]
     rows = [{"date": day, "source": CARD, "sales": 950, "orders": 5}]
     later = _body(rows, source="extension", day=day, **kw)
-    later["captured_at"] = "2026-11-04T10:30:00+07:00"
+    later["captured_at"] = "2026-11-04T09:45:00+07:00"
     await _post(a.shop_id, "traffic_overview", later)
     assert await _query(a.shop_id, sql) == [(950, 5, "extension")]
     rows = [{"date": day, "source": CARD, "sales": 1100, "orders": 6}]

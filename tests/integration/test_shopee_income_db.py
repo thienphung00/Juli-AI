@@ -223,7 +223,7 @@ async def test_the_gateway_writes_income_rows_as_the_runtime_role(shopee_tenants
         2500.0,
     )
     assert float(row.transaction_fee_rate) == 0.06 and row.paid_on == date(2026, 10, 9)
-    assert row.source_rank == 3
+    assert row.source_rank == 2  # a file (API 4 > Connector 3 > file 2, owner 2026-11-18)
 
     # A later post replaces the row (same rank) but a field it leaves out erases nothing.
     later = _income(REF_3, payout=64_000)
