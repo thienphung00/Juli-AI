@@ -8,7 +8,7 @@ import { BANNER_NO_PERIOD, BANNER_SAVED } from "../src/core/fill/job-panel";
 import { FillLog } from "../src/core/fill/log";
 import { verifyWrites } from "../src/core/fill/verify";
 import { PANEL_ID } from "../src/core/fill/locate";
-import { ownConfirmOf, pressOwnConfirm } from "../src/platforms/shopee/fill/controls";
+import { FORBIDDEN_PRESS, ownConfirmOf, press, pressOwnConfirm } from "../src/platforms/shopee/fill/controls";
 import { SMART_MISSING } from "../src/platforms/shopee/fill/fillers";
 import { runFillJob } from "../src/platforms/shopee/fill/job-run";
 import { parseFillJob } from "../src/platforms/shopee/fill/job-types";
@@ -194,7 +194,10 @@ describe("F2.5 the affiliate open campaign (live shape)", () => {
     loadPage("affiliate-live.html");
     const posted: unknown[] = [];
     const h = jobHarness(affiliateJob({ product_ids: ["2002"], commission_pct: 12 }));
-    h.deps.postCurrent = async (rows) => void posted.push(...rows);
+    h.deps.postCurrent = async (rows) => {
+      posted.push(...rows);
+      return true;
+    };
     expect(await runFillJob(h.deps)).toMatchObject({ status: "filled" });
     expect(wire.clicks).not.toContain("Explore Now");
     expect(input("rate").value).toBe("12");
@@ -212,6 +215,35 @@ describe("F2.5 the affiliate open campaign (live shape)", () => {
     expect(await runFillJob(h.deps)).toMatchObject({ status: "partial" });
     expect(panelText()).toContain("Không thấy dòng của ID 2999");
     expect(wire.forbidden).toEqual([]);
+  });
+});
+
+describe("E46: the saved report carries the person's hand edits", () => {
+  it("Juli types, the person changes a field by hand, the save redirects: saved carries the hand-edited value", async () => {
+    loadPage("voucher-live.html");
+    const h = harnessFor(productVoucher());
+    const sleep = h.deps.sleep;
+    let step = 0;
+    h.deps.sleep = async (ms) => {
+      await sleep(ms);
+      if (step === 0 && h.reports.some((r) => r[1] === "filled")) {
+        step = 1; // the person lowers the minimum by hand (E43/E46)
+        setByPage(input("minspend"), "90000");
+        h.clock.t += 0;
+      } else if (step === 1 && h.clock.t > 200_000) {
+        step = 2; // Shopee's Xác nhận: the list replaces the form
+        loadPage("voucher-list.html");
+        h.deps.loc.pathname = "/portal/marketing/vouchers/list";
+      }
+    };
+    await runFillJob(h.deps);
+    const at = h.reports.findIndex((r) => r[1] === "saved");
+    expect(at).toBeGreaterThan(0);
+    const saved = h.details[at]!;
+    expect(saved.fields.find((f) => f.key === "min_spend")).toEqual({ key: "min_spend", ok: false, seen: "90000" });
+    expect(saved.fields.find((f) => f.key === "name")?.ok).toBe(true); // what still held the card's value
+    expect(h.progress[at]).toMatchObject({ total: expect.any(Number) });
+    expect(h.progress[at]!.filled).toBeLessThan(h.progress[at]!.total);
   });
 });
 
@@ -311,18 +343,36 @@ describe("F3.1 revert jobs (contract B)", () => {
     expect(wire.clicks).toEqual([]);
   });
 
-  it("combo_end: by name on the bundle list, Xóa highlighted, saved once the row is gone", async () => {
+  it("combo_end: by name on the bundle list, Xóa highlighted, saved once Shopee says it was deleted", async () => {
     loadPage("bundle-list.html");
     const raw = rawJob("combo_end", { mode: "revert", open_path: "/portal/marketing/bundle/list", name: "JC-2611-0009 V1" });
     const h = jobHarness(raw);
     const sleep = h.deps.sleep;
     h.deps.sleep = async (ms) => {
       await sleep(ms);
-      if (h.reports.some((r) => r[1] === "filled")) document.getElementById("crow")?.remove();
+      if (h.reports.some((r) => r[1] === "filled") && document.getElementById("crow")) {
+        document.getElementById("crow")!.remove();
+        document.body.insertAdjacentHTML("beforeend", `<div class="eds-react-toast">Xóa thành công</div>`);
+      }
     };
     await runFillJob(h.deps);
     expect(h.reports.map((r) => r[1])).toEqual(["opened", "filled", "saved"]);
     expect(wire.forbidden).toEqual([]);
+  });
+
+  it.each([
+    ["combo_end", "bundle-list.html", "crow", { open_path: "/portal/marketing/bundle/list", name: "JC-2611-0009 V1" }],
+    ["voucher_end", "voucher-list.html", "vactions", { open_path: "/portal/marketing/vouchers/list", voucher_id: "7700000000000001" }],
+  ])("%s: a row that only vanishes (another tab, filter or page) is NOT ended: the job stays filled", async (kind, page, id, payload) => {
+    loadPage(page);
+    const h = jobHarness(rawJob(kind, { mode: "revert", ...payload }));
+    const sleep = h.deps.sleep;
+    h.deps.sleep = async (ms) => {
+      await sleep(ms);
+      if (h.reports.some((r) => r[1] === "filled")) document.getElementById(id)?.closest("tr")?.remove();
+    };
+    await runFillJob(h.deps);
+    expect(h.reports.map((r) => r[1])).toEqual(["opened", "filled"]);
   });
 
   it("parses end jobs only as reverts, and refuses a revert of a kind that cannot be one", () => {
@@ -344,7 +394,10 @@ describe("F3.2 read-back of a product (contract C) and its current values (contr
     input("title").value = "Tên đã lưu của sản phẩm mẫu";
     const posted: unknown[] = [];
     const h = jobHarness(readback());
-    h.deps.postCurrent = async (rows) => void posted.push(...rows);
+    h.deps.postCurrent = async (rows) => {
+      posted.push(...rows);
+      return true;
+    };
     const before = document.body.innerHTML;
     await runFillJob(h.deps);
     expect(h.reports.map((r) => r[1])).toEqual(["opened", "captured"]);
@@ -352,6 +405,18 @@ describe("F3.2 read-back of a product (contract C) and its current values (contr
     expect(posted[0]).toEqual({ item_id: "1001", item_name: "Tên đã lưu của sản phẩm mẫu", description_first_line: "Dòng đầu cũ của mô tả" });
     expect(document.body.innerHTML).toBe(before);
     expect(wire.clicks).toEqual([]);
+  });
+
+  it("reports failed / readback_post_failed when what it read did not reach Juli", async () => {
+    loadPage("edit-eds-quill.html");
+    input("title").value = "Tên đã lưu của sản phẩm mẫu";
+    const h = jobHarness(readback());
+    h.deps.postCurrent = async () => false;
+    await runFillJob(h.deps);
+    expect(h.reports.map((r) => [r[1], r[2]])).toEqual([
+      ["opened", undefined],
+      ["failed", "readback_post_failed"],
+    ]);
   });
 
   it("parses read-backs strictly", () => {
@@ -368,7 +433,10 @@ describe("F3.2 read-back of a product (contract C) and its current values (contr
     const posted: { item_id: string; item_name?: string; description_first_line?: string }[] = [];
     const raw = rawJob("title", { open_path: "/portal/product/1001", fields: [{ key: "title", label: "Tên sản phẩm", mode: "replace", max_chars: 120, value: "Tên mới của sản phẩm mẫu" }] });
     const h = jobHarness(raw);
-    h.deps.postCurrent = async (rows) => void posted.push(...rows);
+    h.deps.postCurrent = async (rows) => {
+      posted.push(...rows);
+      return true;
+    };
     input("title").value = "Tên cũ của sản phẩm mẫu";
     await runFillJob(h.deps);
     expect(input("title").value).toBe("Tên mới của sản phẩm mẫu");
@@ -408,11 +476,23 @@ describe("t2's job shapes (2026-11-18)", () => {
     expect(parseFillJob(raw)).toMatchObject({ kind: "readback", payload: { readback: { target: { productIds: ["2002"] } } } });
     const posted: unknown[] = [];
     const h = jobHarness(raw);
-    h.deps.postCurrent = async (rows) => void posted.push(...rows);
+    h.deps.postCurrent = async (rows) => {
+      posted.push(...rows);
+      return true;
+    };
     await runFillJob(h.deps);
     expect(h.reports.map((r) => r[1])).toEqual(["opened", "captured"]);
     expect(posted).toEqual(expect.arrayContaining([{ item_id: "2002", commission_pct: 9 }]));
     expect(input("rate").value).toBe("");
+    expect(wire.forbidden).toEqual([]);
+  });
+});
+
+describe("hardening: the texts press() refuses", () => {
+  it.each(["Kết thúc", "Remove", "Khám phá ngay", "Explore Now", "OK", "Xóa", "Xoá", "End"])("refuses «%s»", (text) => {
+    expect(FORBIDDEN_PRESS.test(text.toLocaleLowerCase("vi"))).toBe(true);
+    document.body.innerHTML = `<button type="button" data-forbidden>${text}</button>`;
+    expect(press(document.querySelector("button")!)).toBe(false);
     expect(wire.forbidden).toEqual([]);
   });
 });

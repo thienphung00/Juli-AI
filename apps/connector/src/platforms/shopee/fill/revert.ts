@@ -57,9 +57,6 @@ export function endControl(row: Element): HTMLElement | null {
 
 const endTargetOf = (job: FillJob): EndTarget | null => (job.payload.kind === "voucher_end" || job.payload.kind === "combo_end" ? job.payload.end : null);
 
-/** Jobs whose row this page showed (so a row that is gone afterwards means it was deleted). */
-const seenRows = new Set<string>();
-
 async function waitFor<T>(env: Env, find: () => T | null, ms: number): Promise<T | null> {
   const until = env.now() + ms;
   for (;;) {
@@ -77,7 +74,6 @@ export async function fillEnd(env: Env, job: FillJob): Promise<FillOutcome> {
   const label = `Dòng của ${what} ${end?.code ?? end?.name ?? end?.id ?? ""}`.trim();
   const row = end ? await waitFor(env, () => listRowOf(env.doc, end), FILL_WAIT_MS) : null;
   if (!row) return { steps: [{ label, ok: false, note: END_NO_ROW }], todo: [], notes: [END_NOTE] };
-  seenRows.add(job.id);
   const control = endControl(row);
   if (!control) return { steps: [{ label, ok: ENDED.test(row.textContent ?? ""), note: END_NO_CONTROL }], todo: [], notes: [END_NOTE] };
   control.style.outline = "3px solid #db2777";
@@ -91,13 +87,23 @@ export async function fillEnd(env: Env, job: FillJob): Promise<FillOutcome> {
   };
 }
 
-/** The object is ended or gone: its row says so, or the row this page showed is no longer listed. */
+/** Shopee's success toast after the person ended / deleted it ("Xóa thành công", "Đã kết thúc chương trình"). */
+const ENDED_TOAST = /((xóa|xoá|kết thúc)[^.]{0,30}thành công|đã kết thúc chương trình|(deleted|ended) successfully)/i;
+
+/**
+ * The object is ended: its row shows an ended / deleted state (and no Kết thúc / Xóa any more), or
+ * Shopee's own success toast says so. A row that only VANISHED (another tab, a filter, another
+ * page of the list) is not ended: the job stays `filled`.
+ */
 export function endedNow(doc: Document, job: FillJob): boolean {
   const end = endTargetOf(job);
   if (!end) return false;
+  const toast = Array.from(doc.querySelectorAll<HTMLElement>('[class*="toast"],[class*="message"],[class*="notification"],[role="alert"],[role="status"]')).some(
+    (el) => !el.closest("[hidden]") && ENDED_TOAST.test(el.textContent ?? ""),
+  );
+  if (toast) return true;
   const row = listRowOf(doc, end);
-  if (row) return ENDED.test(row.textContent ?? "") && !endControl(row);
-  return seenRows.has(job.id) && listRows(doc).length > 0;
+  return !!row && ENDED.test(row.textContent ?? "") && !endControl(row);
 }
 
 // -- product page: current values (contract D) and read-back (contract C) -------------------

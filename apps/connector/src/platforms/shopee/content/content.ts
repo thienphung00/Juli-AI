@@ -93,7 +93,8 @@ function startJob(): void {
     },
     // contract D: what the page shows Shopee holds now (the service worker validates and posts)
     postCurrent: async (rows) => {
-      await send({ type: "current-values", rows });
+      const answer = await send({ type: "current-values", rows });
+      return answer?.ok === true && answer.value === "posted";
     },
     halt: async (jobId) => {
       await send({ type: "fill-job-halt", jobId });

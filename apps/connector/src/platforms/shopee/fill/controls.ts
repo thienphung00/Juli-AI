@@ -21,7 +21,7 @@ const POLL_MS = 150;
 
 /** Texts that end in Shopee saving, sending, confirming, deleting or cancelling something. */
 export const FORBIDDEN_PRESS =
-  /^(lưu|lưu lại|lưu ở dạng nháp|xác nhận|gửi|gửi đi|cập nhật|tạo|tạo mới|đăng|xóa|loại bỏ|hủy|ẩn|áp dụng|hoàn tất|đồng ý|submit|save|confirm|send|delete)$/;
+  /^(lưu|lưu lại|lưu ở dạng nháp|xác nhận|gửi|gửi đi|cập nhật|tạo|tạo mới|đăng|xóa|xoá|kết thúc|loại bỏ|hủy|ẩn|áp dụng|hoàn tất|đồng ý|khám phá ngay|submit|save|confirm|send|delete|remove|end|explore now|ok)$/;
 
 function visibleText(el: Element): string {
   return normalizeLabel((el.textContent ?? "").slice(0, 80));
