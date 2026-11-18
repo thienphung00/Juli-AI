@@ -1,8 +1,9 @@
 """``InMemoryCanonicalWriter``: the ``CanonicalWriter`` contract held in two dicts (tests only).
 
-The DB writer arrives with T5; this double applies the same rules (``canonical.replaces``,
-``merge_line`` / ``merge_settlement``, the line rank from ``SOURCE_RANK[source]``) so a test of a
-mapper or a rebuild can assert stored state without a database. Production code never imports it.
+The DB writer is ``services.ingest.canonical_writer.DbCanonicalWriter``; this double applies the
+same rules (``canonical.replaces``, ``merge_*`` for a same-or-higher rank, ``fill_*_gaps`` for a
+lower one, the line rank from ``SOURCE_RANK[source]``) so a test of a mapper or a rebuild can
+assert stored state without a database. Production code never imports it.
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ from juli_backend.services.ingest.canonical import (
     OrderLine,
     OrderSettlement,
     check_scope,
+    fill_line_gaps,
+    fill_settlement_gaps,
     merge_line,
     merge_settlement,
     replaces,
@@ -35,10 +38,14 @@ class InMemoryCanonicalWriter:
             stored = self.lines.get(line.key)
             if stored is None:
                 self.lines[line.key] = line
-            elif replaces(effective_rank(stored.source, 0), effective_rank(line.source, 0)):
-                self.lines[line.key] = merge_line(stored, line)
             else:
-                continue
+                if replaces(effective_rank(stored.source, 0), effective_rank(line.source, 0)):
+                    self.lines[line.key] = merge_line(stored, line)
+                else:
+                    filled = fill_line_gaps(stored, line)
+                    if filled == stored:
+                        continue
+                    self.lines[line.key] = filled
             written += 1
         return written
 
@@ -51,13 +58,17 @@ class InMemoryCanonicalWriter:
             stored = self.settlements.get(row.key)
             if stored is None:
                 self.settlements[row.key] = row
-            elif replaces(
-                effective_rank(stored.source, stored.source_rank),
-                effective_rank(row.source, row.source_rank),
-            ):
-                self.settlements[row.key] = merge_settlement(stored, row)
             else:
-                continue
+                if replaces(
+                    effective_rank(stored.source, stored.source_rank),
+                    effective_rank(row.source, row.source_rank),
+                ):
+                    self.settlements[row.key] = merge_settlement(stored, row)
+                else:
+                    filled = fill_settlement_gaps(stored, row)
+                    if filled == stored:
+                        continue
+                    self.settlements[row.key] = filled
             written += 1
         return written
 

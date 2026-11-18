@@ -7,14 +7,14 @@ precedence rule every writer applies, and :func:`profit_order_lines`, which turn
 into the one compute input (:class:`~juli_backend.services.shopee_profit.order_profit.OrderLine`).
 
 Pure: stdlib, ``Decimal`` and the pure ``shopee_profit`` value types. No SQLAlchemy, no session,
-no I/O (a unit test parses this file's imports and fails on any ORM import). The DB writer arrives
-with T5 (S1), when ``shopee_order_lines`` / ``shopee_order_income`` are renamed to ``order_lines`` /
-``order_settlements``; until then the canonical tables ARE the Shopee-named ones, column for column.
+no I/O (a unit test parses this file's imports and fails on any ORM import). The DB writer is
+:class:`~juli_backend.services.ingest.canonical_writer.DbCanonicalWriter`; the canonical tables
+``order_lines`` / ``order_settlements`` (migration 134, T5) hold these fields column for column.
 
-Field -> current Shopee column (T5 renames mechanically from this table; everything not listed
-under "Renamed" or "New" keeps its name):
+Field -> column (migration 134 renamed the tables and the two subsidy columns; every field is the
+column of the same name):
 
-``OrderLine`` -> ``shopee_order_lines``
+``OrderLine`` -> ``order_lines`` (was ``shopee_order_lines``)
 
 =========================  ===============================  =====================================
 canonical field            current column                   note
@@ -33,7 +33,7 @@ shop_voucher_share,        same                             line totals (x qty)
 platform_voucher_share,
 bundle_discount,
 seller_subsidy
-**platform_subsidy**       **shopee_subsidy**               Renamed
+platform_subsidy           same                             (was shopee_subsidy before 134)
 promo_kind, voucher_code,  same
 buyer_shipping_fee,
 bank_promo
@@ -47,11 +47,12 @@ affiliate_mcn
 fee_fixed, fee_service,    same                             NULL = not stated, never 0
 fee_payment, fee_other,
 payout
-source, source_version,    same                             lines carry no ``source_rank`` column:
-raw_payload_id                                              their rank is ``SOURCE_RANK[source]``
+source, source_version,    same                             a line's ``source_rank`` column is
+raw_payload_id                                              ``SOURCE_RANK[source]``; the writer also
+                                                            sets ``day`` (VN date of ``ordered_at``)
 =========================  ===============================  =====================================
 
-``OrderSettlement`` -> ``shopee_order_income``
+``OrderSettlement`` -> ``order_settlements`` (was ``shopee_order_income``)
 
 =========================  ===============================  =====================================
 canonical field            current column                   note
@@ -68,11 +69,11 @@ fee_payment, fee_piship,
 fee_nttd,
 affiliate_commission,
 transaction_fee_rate
-**fee_other**              (none)                           New: fees with no canonical column
+fee_other                  same                             Migration 134: fees with no column
                                                             (TikTok SFP, affiliate ads ...); the
                                                             per-fee split stays in the raw payload
 ship_actual_cost           same
-**ship_platform_subsidy**  **ship_shopee_subsidy**          Renamed
+ship_platform_subsidy      same                             (was ship_shopee_subsidy before 134)
 ship_buyer_paid,           same
 ship_piship_refund,
 ship_seller_support,
@@ -83,7 +84,7 @@ lost_compensation
 seller_voucher_borne,      same
 seller_coin_borne,
 trade_in_bonus_seller
-vat_withheld, pit_withheld same                             as reported; deducted (COST_TAX)
+vat_withheld, pit_withheld same                             stored as reported; never a cost
 source, source_rank,       same
 source_version,
 raw_payload_id
@@ -95,9 +96,9 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, fields, replace
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Protocol
+from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from juli_backend.services.shopee_profit.income import IncomeOrder, split_amount, split_income
@@ -110,25 +111,8 @@ DAY_ZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 #: Fee code of ``fee_other`` in a line's income fees (beside ``income.FEE_CODES``).
 FEE_OTHER = "phi_khac"
 
-#: canonical field -> current Shopee column, for the two fields T5 renames.
-LINE_RENAMES: dict[str, str] = {"platform_subsidy": "shopee_subsidy"}
-SETTLEMENT_RENAMES: dict[str, str] = {"ship_platform_subsidy": "ship_shopee_subsidy"}
-#: Canonical settlement fields with no Shopee column yet (T5 adds them).
-SETTLEMENT_NEW_FIELDS: frozenset[str] = frozenset({"fee_other"})
-
 LINE_KEY: tuple[str, ...] = ("shop_id", "platform", "order_ref", "line_no")
 SETTLEMENT_KEY: tuple[str, ...] = ("shop_id", "platform", "order_ref")
-#: Line fields a later post that leaves them NULL never erases (as ``writers.write_order_lines``).
-LINE_KEEP_WHEN_NULL: tuple[str, ...] = (
-    "fee_fixed",
-    "fee_service",
-    "fee_payment",
-    "fee_other",
-    "payout",
-    "completed_at",
-    "paid_at",
-    "variation_name",
-)
 #: The line fee fields whose sum is the compute input's ``actual_fees``.
 LINE_FEE_FIELDS: tuple[str, ...] = ("fee_fixed", "fee_service", "fee_payment", "fee_other")
 
@@ -204,9 +188,8 @@ class OrderSettlement:
     the seller bore (a reversal is negative); ``payout`` is signed. ``None`` = not stated.
 
     ``vat_withheld`` / ``pit_withheld`` are the tax the platform's own settlement data REPORTS as
-    withheld, stored exactly as reported; :func:`profit_order_lines` passes them through so profit
-    deducts them (``COST_TAX``), as on Shopee (owner 2026-11-16). Juli never declares or guesses
-    a tax rate: no reported amount, no tax."""
+    withheld, stored exactly as reported and never a cost: Juli does not calculate tax (owner
+    2026-11-15), so :func:`profit_order_lines` does not pass them to the profit compute."""
 
     shop_id: uuid.UUID
     platform: str
@@ -251,30 +234,23 @@ class OrderSettlement:
         return (self.shop_id, self.platform, self.order_ref)
 
 
-#: Settlement fields a later post that leaves them NULL never erases (as ``income.py``).
-SETTLEMENT_STATED: tuple[str, ...] = tuple(
-    f.name
-    for f in fields(OrderSettlement)
-    if f.name not in (*SETTLEMENT_KEY, "source", "source_rank", "source_version", "raw_payload_id")
-)
-
-
 class CanonicalWriter(Protocol):
-    """Writes canonical rows (layer 3). The DB implementation arrives with T5.
+    """Writes canonical rows (layer 3). The DB implementation is ``DbCanonicalWriter``.
 
     Contract, for both methods:
 
     - idempotent on the key (lines: ``LINE_KEY``; settlements: ``SETTLEMENT_KEY``): writing the
       same rows twice stores the same state and returns the same count;
-    - precedence: a row replaces the stored one when its rank is the same or higher
-      (:func:`replaces`; equal rank = the latest write wins); a lower rank never overwrites.
-      A settlement's rank is ``source_rank``; a line's is ``SOURCE_RANK[source]`` (it has no
-      rank column), the rule ``gateway._upsert`` already applies;
-    - on a replace, a field the incoming row leaves ``None`` keeps the stored value for the
-      ``*_KEEP_WHEN_NULL`` / ``SETTLEMENT_STATED`` fields (:func:`merge_line`,
-      :func:`merge_settlement`), so a later partial read never erases a stated amount;
+    - precedence (API > Connector > file, owner 2026-11-18; ``SOURCE_RANK[source]``): a row of
+      the same or a higher rank replaces the stored one with its non-null values (:func:`replaces`;
+      equal rank = the latest write wins); a LOWER rank only fills the stored row's NULL columns
+      and the provenance stays with the higher writer (:func:`fill_line_gaps`,
+      :func:`fill_settlement_gaps`);
+    - a NULL never clears a stored value, whatever the rank (:func:`merge_line`,
+      :func:`merge_settlement`);
     - every row's ``shop_id`` / ``platform`` must equal the call's (else ``ValueError``);
-    - returns the number of rows inserted or replaced (rows a higher rank kept are not counted).
+    - returns the number of rows inserted, replaced or gap-filled (a row that changed nothing is
+      not counted).
     """
 
     async def upsert_order_lines(
@@ -293,25 +269,60 @@ def replaces(stored_rank: int, incoming_rank: int) -> bool:
     return incoming_rank >= stored_rank
 
 
+def _nullable(row_type: type) -> tuple[str, ...]:
+    return tuple(f.name for f in fields(row_type) if "None" in str(f.type))
+
+
+_LINE_NULLABLE = _nullable(OrderLine)
+_SETTLEMENT_NULLABLE = _nullable(OrderSettlement)
+_LINE_PROVENANCE = ("source", "source_version", "raw_payload_id")
+_SETTLEMENT_PROVENANCE = ("source", "source_rank", "source_version", "raw_payload_id")
+
+
+def _merge(
+    stored: Any, incoming: Any, nullable: tuple[str, ...], provenance: tuple[str, ...]
+) -> Any:
+    keep = {
+        name: getattr(stored, name)
+        for name in nullable
+        if name not in provenance and getattr(incoming, name) is None
+    }
+    return replace(incoming, **keep)
+
+
+def _fill(
+    stored: Any, incoming: Any, nullable: tuple[str, ...], provenance: tuple[str, ...]
+) -> Any:
+    fills = {
+        name: getattr(incoming, name)
+        for name in nullable
+        if name not in provenance
+        and getattr(stored, name) is None
+        and getattr(incoming, name) is not None
+    }
+    return replace(stored, **fills)
+
+
 def merge_line(stored: OrderLine, incoming: OrderLine) -> OrderLine:
-    """``incoming`` over ``stored`` (same key; the caller has checked :func:`replaces`)."""
-    keep = {name: getattr(stored, name) for name in LINE_KEEP_WHEN_NULL}
-    return replace(
-        incoming,
-        **{name: value for name, value in keep.items() if getattr(incoming, name) is None},
-    )
+    """``incoming`` over ``stored`` (same key; the caller has checked :func:`replaces`): its
+    non-null values win, its NULLs keep the stored value."""
+    return _merge(stored, incoming, _LINE_NULLABLE, _LINE_PROVENANCE)
 
 
 def merge_settlement(stored: OrderSettlement, incoming: OrderSettlement) -> OrderSettlement:
-    """``incoming`` over ``stored`` (same key; the caller has checked :func:`replaces`)."""
-    return replace(
-        incoming,
-        **{
-            name: getattr(stored, name)
-            for name in SETTLEMENT_STATED
-            if getattr(incoming, name) is None
-        },
-    )
+    """As :func:`merge_line` for a settlement."""
+    return _merge(stored, incoming, _SETTLEMENT_NULLABLE, _SETTLEMENT_PROVENANCE)
+
+
+def fill_line_gaps(stored: OrderLine, incoming: OrderLine) -> OrderLine:
+    """A LOWER-ranked ``incoming``: only the stored line's NULL columns are filled; the source,
+    version and payload stay with the higher writer."""
+    return _fill(stored, incoming, _LINE_NULLABLE, _LINE_PROVENANCE)
+
+
+def fill_settlement_gaps(stored: OrderSettlement, incoming: OrderSettlement) -> OrderSettlement:
+    """As :func:`fill_line_gaps` for a settlement."""
+    return _fill(stored, incoming, _SETTLEMENT_NULLABLE, _SETTLEMENT_PROVENANCE)
 
 
 def check_scope(
@@ -327,8 +338,8 @@ def check_scope(
 
 
 def day_of(moment: datetime) -> date:
-    """The VN calendar day of a timestamp (naive = UTC, as the tables store it)."""
-    aware = moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+    """The VN calendar day of a timestamp (naive = Vietnam local, as the writers read it)."""
+    aware = moment if moment.tzinfo is not None else moment.replace(tzinfo=DAY_ZONE)
     return aware.astimezone(DAY_ZONE).date()
 
 
@@ -349,7 +360,7 @@ def _actual_fees(line: OrderLine) -> Decimal | None:
 
 
 def _income_order(settlement: OrderSettlement) -> IncomeOrder:
-    # The REPORTED withheld tax is deducted (owner 2026-11-16); never a declared or guessed rate.
+    # No tax calculation (owner 2026-11-15): the reported VAT / PIT stay stored, never a cost.
     return IncomeOrder(
         order_ref=settlement.order_ref,
         fee_fixed=settlement.fee_fixed,
@@ -363,8 +374,6 @@ def _income_order(settlement: OrderSettlement) -> IncomeOrder:
         return_ship_failed=settlement.return_ship_failed,
         refund_amount=settlement.refund_amount,
         lost_compensation=settlement.lost_compensation,
-        vat_withheld=settlement.vat_withheld,
-        pit_withheld=settlement.pit_withheld,
         seller_coin_borne=settlement.seller_coin_borne,
         trade_in_bonus_seller=settlement.trade_in_bonus_seller,
         payout=settlement.payout,
@@ -379,7 +388,8 @@ def profit_order_lines(
     - ``actual_fees`` = the sum of the line's stated ``fee_*`` fields, ``None`` when none is;
     - a settlement is split over the lines by ``buyer_paid`` (``income.split_income``, whole
       cents, shares add up) and wins over ``actual_fees`` in ``line_profit``; its ``fee_other``
-      is split the same way and charged as fee ``FEE_OTHER``; VAT / PIT are never passed;
+      is split the same way and charged as fee ``FEE_OTHER``; VAT / PIT are never passed (no tax
+      calculation, owner 2026-11-15);
     - ``order_date`` is the VN calendar day of ``ordered_at``; the cost key is the variation SKU,
       else the SKU, else the variation / item id (the analytics loader's pack and BOM keys stay
       there);

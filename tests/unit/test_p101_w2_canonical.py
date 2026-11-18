@@ -16,9 +16,6 @@ from juli_backend.models.shopee_profit import ShopeeOrderIncome, ShopeeOrderLine
 from juli_backend.services.ingest import canonical
 from juli_backend.services.ingest.canonical import (
     FEE_OTHER,
-    LINE_RENAMES,
-    SETTLEMENT_NEW_FIELDS,
-    SETTLEMENT_RENAMES,
     OrderLine,
     OrderSettlement,
     compute_status,
@@ -77,21 +74,15 @@ def _columns(model: type[ShopeeOrderLine] | type[ShopeeOrderIncome]) -> set[str]
     return {c.name for c in model.__table__.columns} - BOOKKEEPING
 
 
-def test_order_line_fields_are_the_shopee_line_columns_modulo_the_rename() -> None:
+def test_order_line_fields_are_the_order_lines_columns() -> None:
     canonical_fields = {f.name for f in fields(OrderLine)}
-    renamed = {LINE_RENAMES.get(name, name) for name in canonical_fields}
 
-    assert renamed == _columns(ShopeeOrderLine)
-    assert LINE_RENAMES == {"platform_subsidy": "shopee_subsidy"}
+    # ``day`` and ``source_rank`` are set by the DB writer, not carried by the row
+    assert canonical_fields == _columns(ShopeeOrderLine) - {"day", "source_rank"}
 
 
-def test_settlement_fields_are_the_income_columns_modulo_rename_and_fee_other() -> None:
-    canonical_fields = {f.name for f in fields(OrderSettlement)} - SETTLEMENT_NEW_FIELDS
-    renamed = {SETTLEMENT_RENAMES.get(name, name) for name in canonical_fields}
-
-    assert renamed == _columns(ShopeeOrderIncome)
-    assert SETTLEMENT_RENAMES == {"ship_platform_subsidy": "ship_shopee_subsidy"}
-    assert SETTLEMENT_NEW_FIELDS == {"fee_other"}
+def test_settlement_fields_are_the_order_settlements_columns() -> None:
+    assert {f.name for f in fields(OrderSettlement)} == _columns(ShopeeOrderIncome)
 
 
 def test_canonical_imports_no_orm_or_database_module() -> None:
@@ -148,20 +139,30 @@ async def test_writer_is_idempotent_on_the_line_key() -> None:
     assert writer.lines[(SHOP, "tiktok", "ref-a", 1)].item_id == "item-2"
 
 
-async def test_line_rank_comes_from_source_and_lower_never_overwrites() -> None:
+async def test_line_rank_comes_from_source_and_lower_only_fills_gaps() -> None:
     writer = InMemoryCanonicalWriter()
-    await writer.upsert_order_lines(SHOP, "tiktok", [_line(source="file", status="in_transit")])
+    await writer.upsert_order_lines(SHOP, "tiktok", [_line(source="api", status="in_transit")])
 
+    # a file (lower rank) changes nothing: every column it carries is already stored
     kept = await writer.upsert_order_lines(
-        SHOP, "tiktok", [_line(source="extension", status="cancelled")]
+        SHOP, "tiktok", [_line(source="file", status="cancelled")]
     )
-    replaced = await writer.upsert_order_lines(
-        SHOP, "tiktok", [_line(source="api", status="delivered")]
+    # a file that carries a column the API row lacks fills it, and only that
+    filled = await writer.upsert_order_lines(
+        SHOP, "tiktok", [_line(source="file", status="cancelled", fee_fixed=D("5"))]
     )
-
-    assert (kept, replaced) == (0, 1)
     stored = writer.lines[(SHOP, "tiktok", "ref-a", 0)]
-    assert (stored.source, stored.status) == ("api", "delivered")
+    assert (kept, filled) == (0, 1)
+    assert (stored.source, stored.status, stored.fee_fixed) == ("api", "in_transit", D("5"))
+
+    # a lower Connector row then an API row: the higher one replaces
+    writer2 = InMemoryCanonicalWriter()
+    await writer2.upsert_order_lines(SHOP, "tiktok", [_line(source="file", status="in_transit")])
+    replaced = await writer2.upsert_order_lines(
+        SHOP, "tiktok", [_line(source="extension", status="delivered")]
+    )
+    assert replaced == 1
+    assert writer2.lines[(SHOP, "tiktok", "ref-a", 0)].source == "extension"
 
 
 async def test_line_null_fee_or_time_never_erases_a_stored_one() -> None:
@@ -176,17 +177,17 @@ async def test_line_null_fee_or_time_never_erases_a_stored_one() -> None:
     assert (stored.fee_fixed, stored.paid_at) == (D("5000"), paid)
 
 
-async def test_settlement_precedence_equal_rank_latest_wins_lower_kept() -> None:
+async def test_settlement_precedence_api_over_connector_over_file() -> None:
     writer = InMemoryCanonicalWriter()
     await writer.upsert_settlements(
-        SHOP, "tiktok", [_settlement(source="file", source_rank=3, payout=D("100"))]
+        SHOP, "tiktok", [_settlement(source="extension", source_rank=3, payout=D("100"))]
     )
 
     lower = await writer.upsert_settlements(
-        SHOP, "tiktok", [_settlement(source="extension", source_rank=2, payout=D("1"))]
+        SHOP, "tiktok", [_settlement(source="file", source_rank=2, payout=D("1"))]
     )
     equal = await writer.upsert_settlements(
-        SHOP, "tiktok", [_settlement(source="file", source_rank=3, payout=D("120"))]
+        SHOP, "tiktok", [_settlement(source="extension", source_rank=3, payout=D("120"))]
     )
     higher = await writer.upsert_settlements(
         SHOP, "tiktok", [_settlement(source="api", source_rank=4, fee_fixed=D("7"))]
@@ -225,7 +226,7 @@ def test_actual_fees_is_the_sum_of_stated_line_fees() -> None:
     assert out[0].order_date == date(2026, 10, 1)
 
 
-def test_settlement_split_by_buyer_paid_with_fee_other_and_reported_tax() -> None:
+def test_settlement_split_by_buyer_paid_with_fee_other_and_no_tax_deduction() -> None:
     lines = [
         _line(line_no=0, deal_price=D("60000")),
         _line(line_no=1, item_id="item-2", variation_sku="SKU-2", deal_price=D("30000")),
@@ -252,13 +253,13 @@ def test_settlement_split_by_buyer_paid_with_fee_other_and_reported_tax() -> Non
         D("1000.00"),
     )
     assert sum(dict(ln.income.fees)[FEE_OTHER] for ln in out if ln.income) == D("1500")
-    # reported VAT 900 + PIT 450, 2/3 on this line (buyer paid 60000 of 90000)
-    assert first.tax_withheld == D("900.00")
-    assert sum(ln.income.tax_withheld for ln in out if ln.income) == D("1350")
+    # reported VAT 900 + PIT 450 stay on the settlement but are never passed to profit (M5)
+    assert first.tax_withheld == D("0")
+    assert sum(ln.income.tax_withheld for ln in out if ln.income) == D("0")
     breakdown = line_profit(out[0], SkuCost(sku="SKU-1", cogs=D("20000"), packaging=D("1000")))
     # 60000 buyer paid - 9000 fees (6000+2000+1000) - 20000 COGS - 1000 packaging - 4000 shipping
-    # - 900 reported withheld tax
-    assert breakdown.contribution == D("25100.00")
+    # (the reported withheld tax is not a cost: no tax calculation)
+    assert breakdown.contribution == D("26000.00")
     assert breakdown.fee_source == "income"
 
 
@@ -282,7 +283,8 @@ def test_order_date_is_the_vietnam_calendar_day() -> None:
     late_utc = datetime(2026, 10, 1, 18, 30, tzinfo=UTC)  # 01:30 on 2 Oct in Hanoi
 
     assert day_of(late_utc) == date(2026, 10, 2)
-    assert day_of(late_utc.replace(tzinfo=None)) == date(2026, 10, 2)
+    # a naive time is Vietnam local (T5), so 18:30 naive is still 1 Oct
+    assert day_of(late_utc.replace(tzinfo=None)) == date(2026, 10, 1)
     assert profit_order_lines([_line(ordered_at=late_utc)])[0].order_date == date(2026, 10, 2)
 
 

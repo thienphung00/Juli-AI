@@ -228,6 +228,13 @@ async def write_order_lines(
                 "updated_at": provenance["updated_at"],
             }
         )
+    await upsert_line_values(session, values)
+
+
+async def upsert_line_values(session: AsyncSession, values: list[dict[str, Any]]) -> None:
+    """The one ``order_lines`` upsert (the gateway and ``DbCanonicalWriter`` share it): a post of
+    the same or a higher rank replaces with its non-null values, a lower rank only fills NULL
+    columns, a NULL never clears (``precedence.ranked_value``)."""
     insert = _insert(session)
     table = ShopeeOrderLine.__table__
     for part in _chunks(values):

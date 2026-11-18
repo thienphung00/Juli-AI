@@ -40,15 +40,18 @@ Rules:
   line value (``original_price * qty``; ``income.split_amount``: whole cents, shares add up),
   warning ``discount_split_pro_rata``. ``payment.shipping_fee`` (order level) is split the same
   way into ``buyer_shipping_fee``, as the Shopee order export's order-level amounts are.
-- Status (Shopee's ``OrderStatus`` vocabulary): DELIVERED / COMPLETED -> ``delivered``; any
+- Status (the 9 ``order_lines`` values, T5 Q-T5-3, :func:`map_status`): UNPAID -> ``pending``;
+  AWAITING_SHIPMENT / PARTIALLY_SHIPPING / AWAITING_COLLECTION -> ``confirmed``; IN_TRANSIT /
+  SHIPPED -> ``in_transit``; DELIVERED / COMPLETED -> ``delivered``; ON_HOLD -> ``on_hold``; any
   cancellation spelling -> ``cancelled`` (also per line, from ``display_status``, for a partial
-  cancel); every other known pre-delivery status (UNPAID ... IN_TRANSIT; Shopee files
-  "chưa thanh toán" as in transit too) -> ``in_transit``. An unknown status is kept raw (lower
-  case, enum characters only) with warning ``status_unrecognised:<raw>``, never a crash;
-  ``canonical.compute_status`` keeps such a line out of profit.
+  cancel); RETURNED, or a finished return-refund -> ``returned``; a return parcel on its way back
+  -> ``refunded_not_received``; a refund window still open -> ``refunded_accepted`` (the last two
+  come from the optional ``return_status`` of the reverse-order data). An unknown status is
+  ``in_transit`` when the order has a payment time, else ``pending``, with warning
+  ``status_unrecognised:<raw>``, never a crash.
 - Money is ``Decimal`` from the payload strings; an order or statement whose currency is not
   VND is skipped (no lines, no settlement) with warning ``currency_not_vnd``.
-- Timestamps: unix seconds -> aware UTC ``datetime``.
+- Timestamps: unix seconds -> aware UTC ``datetime``; the writer stores ``day`` = the VN date.
 - Settlement: a statement with no SKU transaction or only zero amounts is UNSETTLED -> ``None``
   (missing is not zero). TikTok reports deductions negative; canonical costs are positive, so a
   fee / tax / actual shipping is stored as ``-value`` (sign convention: probe D.4). Fees with a
@@ -59,6 +62,8 @@ Rules:
   ``fee_other``; its per-key split is returned as ``fee_other_breakdown`` and stays in the raw
   payload. The Shopee-only columns (piship, nttd, voucher_xtra, infra, coin, trade-in, lost
   compensation, transaction fee rate, seller voucher borne) stay ``None``.
+- ``vat_withheld`` / ``pit_withheld`` are stored as the statement reports them and are never a
+  cost: Juli does not calculate tax (owner 2026-11-15).
 - No buyer field is read; PII never reaches a canonical row.
 """
 
@@ -97,18 +102,23 @@ WARN_NO_ID = "order_without_id"
 WARN_NO_TIME = "order_without_create_time"
 WARN_NO_LINES = "order_without_line_items"
 
-_DELIVERED = frozenset({"DELIVERED", "COMPLETED"})
-_IN_TRANSIT = frozenset(
-    {
-        "UNPAID",
-        "ON_HOLD",
-        "AWAITING_SHIPMENT",
-        "PARTIALLY_SHIPPING",
-        "AWAITING_COLLECTION",
-        "IN_TRANSIT",
-        "SHIPPED",
-    }
-)
+#: TikTok order status -> the ``order_lines`` status (cancellations are matched separately).
+_STATUS_MAP: dict[str, str] = {
+    "UNPAID": "pending",
+    "AWAITING_SHIPMENT": "confirmed",
+    "PARTIALLY_SHIPPING": "confirmed",
+    "AWAITING_COLLECTION": "confirmed",
+    "IN_TRANSIT": "in_transit",
+    "SHIPPED": "in_transit",
+    "DELIVERED": "delivered",
+    "COMPLETED": "delivered",
+    "ON_HOLD": "on_hold",
+    "RETURNED": "returned",
+}
+#: Reverse-order (return / refund) status words. Order matters: the first group that matches wins.
+_RETURN_DONE = ("COMPLETE", "SUCCESS", "REFUNDED", "RECEIVED")
+_RETURN_PARCEL_BACK = ("BUYER_SHIPPED", "SHIPPED_ITEM", "RETURN_IN_TRANSIT", "IN_TRANSIT")
+_RETURN_OPEN = ("APPLYING", "PENDING", "REQUEST", "AWAITING", "APPROVED", "PROCESSING")
 
 #: ``fee_tax_breakdown.fee`` keys -> canonical column. Anything not here and not ignored is
 #: ``fee_other``.
@@ -134,13 +144,14 @@ IGNORED_FEES: frozenset[str] = frozenset(
         "affiliate_commission_amount_before_pit",
     }
 )
-#: ``fee_tax_breakdown.tax`` keys -> canonical column (reported withheld tax; profit deducts it).
+#: ``fee_tax_breakdown.tax`` keys -> canonical column (reported withheld tax: stored, never a cost).
 TAX_COLUMNS: dict[str, str] = {
     "vat_amount": "vat_withheld",
     "local_vat_amount": "vat_withheld",
     "pit_amount": "pit_withheld",
 }
 
+_DONE = frozenset({OrderStatus.DELIVERED.value, OrderStatus.RETURNED.value})
 _ENUM_CHARS = re.compile(r"[^A-Za-z0-9_]")
 _SEPARATORS = re.compile(r"[\s\-]+")
 _ID_MAX = 64
@@ -206,17 +217,44 @@ def _currency_ok(*codes: Any) -> bool:
     return all(code == CURRENCY for code in stated)
 
 
-def map_status(raw: Any) -> tuple[str, str | None]:
-    """``(stored status, warning or None)`` for a TikTok order / line status."""
+def map_return_status(raw: Any) -> str | None:
+    """The refund status a reverse-order (return / refund) status says, ``None`` when it says
+    none (empty, rejected, cancelled by the buyer)."""
+    key = _key(raw)
+    if not key or "REJECT" in key or "CANCEL" in key:
+        return None
+    for words, status in (
+        (_RETURN_PARCEL_BACK, OrderStatus.REFUNDED_NOT_RECEIVED),
+        (_RETURN_DONE, OrderStatus.RETURNED),
+        (_RETURN_OPEN, OrderStatus.REFUNDED_ACCEPTED),
+    ):
+        if any(word in key for word in words):
+            return status.value
+    return None
+
+
+def _key(value: Any) -> str:
+    return _SEPARATORS.sub("_", str(value or "").strip()).upper()
+
+
+def map_status(
+    raw: Any, *, paid: bool = False, return_status: Any = None
+) -> tuple[str, str | None]:
+    """``(order_lines status, warning or None)`` for a TikTok order / line status.
+
+    A return / refund state (``return_status``) wins over a delivered or in-transit order, never
+    over a cancellation. An unknown status is ``in_transit`` when ``paid``, else ``pending``."""
     if is_cancelled_status(raw):
         return OrderStatus.CANCELLED.value, None
-    key = str(raw or "").strip().upper().replace(" ", "_")
-    if key in _DELIVERED:
-        return OrderStatus.DELIVERED.value, None
-    if key in _IN_TRANSIT:
-        return OrderStatus.IN_TRANSIT.value, None
-    code = _code(raw) or "unknown"
-    return code, f"{WARN_STATUS}:{code}"
+    key = _key(raw)
+    refund = map_return_status(return_status)
+    if refund is not None and key not in {"UNPAID", "ON_HOLD"}:
+        return refund, None
+    mapped = _STATUS_MAP.get(key)
+    if mapped is not None:
+        return mapped, None
+    fallback = OrderStatus.IN_TRANSIT.value if paid else "pending"
+    return fallback, f"{WARN_STATUS}:{_code(raw) or 'unknown'}"
 
 
 # -- order -> lines -------------------------------------------------------------------------
@@ -258,6 +296,7 @@ def map_order_lines(
     order_ref: str,
     raw_payload_id: uuid.UUID | None = None,
     price_detail: Mapping[str, Any] | None = None,
+    return_status: Any = None,
 ) -> tuple[list[OrderLine], list[str]]:
     """One order's canonical lines and warnings (the order's currency is checked by the caller)."""
     warnings: list[str] = []
@@ -269,10 +308,12 @@ def map_order_lines(
         return [], [WARN_NO_LINES]
     items = [it for _, it in sorted(enumerate(raw_items), key=_id_order)]
     payment = _map(order.get("payment"))
-    order_status, warning = map_status(order.get("status"))
+    paid_at = _time(order.get("paid_time"))
+    order_status, warning = map_status(
+        order.get("status"), paid=paid_at is not None, return_status=return_status
+    )
     if warning:
         warnings.append(warning)
-    paid_at = _time(order.get("paid_time"))
     delivered_at = _time(order.get("delivery_time"))
 
     originals = [
@@ -330,7 +371,7 @@ def map_order_lines(
                 ordered_at=ordered_at,
                 status=status,
                 paid_at=paid_at,
-                completed_at=delivered_at if status == OrderStatus.DELIVERED.value else None,
+                completed_at=delivered_at if status in _DONE else None,
                 item_id=_text(item.get("product_id")) or "",
                 variation_id=_text(item.get("sku_id")) or "",
                 variation_name=_text(item.get("sku_name"), 128),
@@ -477,6 +518,7 @@ def map_order(
     raw_payload_id: uuid.UUID | None = None,
     price_detail: Mapping[str, Any] | None = None,
     statement: Mapping[str, Any] | None = None,
+    return_status: Any = None,
     statement_raw_payload_id: uuid.UUID | None = None,
     statement_times: Mapping[str, Any] | None = None,
     ref_of: Callable[[str], str] | None = None,
@@ -501,6 +543,7 @@ def map_order(
         order_ref=ref,
         raw_payload_id=raw_payload_id,
         price_detail=price_detail,
+        return_status=return_status,
     )
     if statement is None:
         return MappedOrder(lines=tuple(lines), warnings=tuple(warnings))

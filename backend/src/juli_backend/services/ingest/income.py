@@ -56,7 +56,8 @@ AMOUNT_FIELDS: tuple[str, ...] = (
 #: Migration 134: a wire field whose column has a platform-neutral name.
 COLUMN_OF: dict[str, str] = {"ship_shopee_subsidy": "ship_platform_subsidy"}
 AMOUNT_COLUMNS: tuple[str, ...] = tuple(COLUMN_OF.get(name, name) for name in AMOUNT_FIELDS)
-STATED_COLUMNS: tuple[str, ...] = ("ordered_on", "paid_on", *AMOUNT_COLUMNS)
+#: ``fee_other`` has no wire field (the TikTok mapper fills it through ``DbCanonicalWriter``).
+STATED_COLUMNS: tuple[str, ...] = ("ordered_on", "paid_on", *AMOUNT_COLUMNS, "fee_other")
 #: describe the post: they stay with the highest-ranked writer
 PROVENANCE_COLUMNS = ("source", "source_rank", "source_version", "raw_payload_id", "updated_at")
 
@@ -83,6 +84,7 @@ def income_values(
             "order_ref": row.order_ref,
             "ordered_on": row.ordered_on,
             "paid_on": row.paid_on,
+            "fee_other": None,
             "source": provenance["source"],
             "source_rank": provenance["source_rank"],
             "source_version": provenance["source_version"],
@@ -141,15 +143,18 @@ async def write_order_income(
     if not rows:
         return []
     warnings = await _seller_support_warning(session, rows, provenance)
+    await upsert_settlement_values(session, income_values(rows, provenance))
+    return warnings
+
+
+async def upsert_settlement_values(session: AsyncSession, values: list[dict[str, Any]]) -> None:
+    """The one ``order_settlements`` upsert (the gateway and ``DbCanonicalWriter`` share it)."""
     insert = _insert(session)
     table = ShopeeOrderIncome.__table__
-    values = income_values(rows, provenance)
     for start in range(0, len(values), CHUNK):
         part = values[start : start + CHUNK]
         found = await count_gap_fills(session, ShopeeOrderIncome, KEY_COLUMNS, part, STATED_COLUMNS)
-        log_gap_fills(
-            ShopeeOrderIncome.__tablename__, provenance["shop_id"], provenance["source"], found
-        )
+        log_gap_fills(ShopeeOrderIncome.__tablename__, part[0]["shop_id"], part[0]["source"], found)
         stmt = insert(ShopeeOrderIncome).values(part)
         # owner 2026-11-18: the same or a higher rank replaces with its stated values (a NULL
         # keeps the stored one); a lower rank only fills NULL columns and the provenance stays
@@ -166,4 +171,3 @@ async def write_order_income(
         await session.execute(
             stmt.on_conflict_do_update(index_elements=list(KEY_COLUMNS), set_=updated)
         )
-    return warnings

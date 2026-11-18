@@ -7,12 +7,16 @@ from __future__ import annotations
 import copy
 import json
 import uuid
-from datetime import UTC, date, datetime
+from dataclasses import replace
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from juli_backend.services.ingest.canonical import profit_order_lines
+import pytest
+
+from juli_backend.models.shopee_profit import ORDER_LINE_STATUSES
+from juli_backend.services.ingest.canonical import day_of, profit_order_lines
 from juli_backend.services.ingest.tiktok_mapper import (
     WARN_PRO_RATA,
     WARN_VOUCHER,
@@ -20,7 +24,12 @@ from juli_backend.services.ingest.tiktok_mapper import (
     map_statement,
     map_status,
 )
-from juli_backend.services.shopee_profit.order_profit import SkuCost, line_profit
+from juli_backend.services.shopee_profit.order_profit import (
+    OrderStatus,
+    SkuCost,
+    counts_in_sales,
+    line_profit,
+)
 from tests.support.canonical_writer import InMemoryCanonicalWriter
 
 SHOP = uuid.UUID("00000000-0000-4000-8000-0000000000aa")
@@ -276,23 +285,77 @@ def test_partially_cancelled_line_takes_its_display_status() -> None:
 
     by_sku = {ln.variation_sku: ln.status for ln in map_order(order, shop_id=SHOP).lines}
 
-    assert by_sku == {"SYN-B": "cancelled", "SYN-A": "in_transit"}
+    assert by_sku == {"SYN-B": "cancelled", "SYN-A": "confirmed"}
 
 
-def test_status_vocabulary() -> None:
-    assert map_status("COMPLETED") == ("delivered", None)
-    assert map_status("DELIVERED") == ("delivered", None)
-    assert map_status("UNPAID") == ("in_transit", None)
-    assert map_status("ON_HOLD") == ("in_transit", None)
-    assert map_status("CANCEL") == ("cancelled", None)
+@pytest.mark.parametrize(
+    ("raw", "stored"),
+    [
+        ("UNPAID", "pending"),
+        ("AWAITING_SHIPMENT", "confirmed"),
+        ("PARTIALLY_SHIPPING", "confirmed"),
+        ("AWAITING_COLLECTION", "confirmed"),
+        ("IN_TRANSIT", "in_transit"),
+        ("SHIPPED", "in_transit"),
+        ("DELIVERED", "delivered"),
+        ("COMPLETED", "delivered"),
+        ("ON_HOLD", "on_hold"),
+        ("CANCELLED", "cancelled"),
+        ("CANCEL", "cancelled"),
+        ("canceled", "cancelled"),
+        ("RETURNED", "returned"),
+    ],
+)
+def test_status_vocabulary(raw: str, stored: str) -> None:
+    assert map_status(raw) == (stored, None)
+    assert stored in ORDER_LINE_STATUSES
 
 
-def test_unknown_status_is_kept_raw_and_flagged() -> None:
-    mapped = map_order(_order(status="AWAITING-MOON landing!"), shop_id=SHOP)
+@pytest.mark.parametrize(
+    ("order_status", "return_status", "stored"),
+    [
+        ("DELIVERED", "RETURN_OR_REFUND_REQUEST_APPLYING", "refunded_accepted"),
+        ("COMPLETED", "AWAITING_BUYER_SHIP", "refunded_accepted"),
+        ("IN_TRANSIT", "BUYER_SHIPPED_ITEM", "refunded_not_received"),
+        ("DELIVERED", "RETURN_IN_TRANSIT", "refunded_not_received"),
+        ("DELIVERED", "RETURN_OR_REFUND_REQUEST_COMPLETE", "returned"),
+        ("DELIVERED", "REFUND_COMPLETE", "returned"),
+        ("DELIVERED", "RETURN_OR_REFUND_REQUEST_REJECT", "delivered"),
+        ("DELIVERED", None, "delivered"),
+        ("CANCELLED", "RETURN_OR_REFUND_REQUEST_COMPLETE", "cancelled"),
+    ],
+)
+def test_return_status_maps_to_the_refund_statuses(
+    order_status: str, return_status: str | None, stored: str
+) -> None:
+    assert map_status(order_status, return_status=return_status) == (stored, None)
+    mapped = map_order(_order(status=order_status), shop_id=SHOP, return_status=return_status)
+    assert {ln.status for ln in mapped.lines} == {stored}
 
-    assert mapped.warnings == ("status_unrecognised:awaiting_moon_landing",)
-    assert {ln.status for ln in mapped.lines} == {"awaiting_moon_landing"}
-    assert all(ln.completed_at is None for ln in mapped.lines)
+
+def test_unknown_status_is_in_transit_if_paid_else_pending_and_flagged() -> None:
+    paid = map_order(_order(status="AWAITING-MOON landing!"), shop_id=SHOP)
+    unpaid_order = _order(status="AWAITING-MOON landing!")
+    del unpaid_order["paid_time"]
+    unpaid = map_order(unpaid_order, shop_id=SHOP)
+
+    assert paid.warnings == ("status_unrecognised:awaiting_moon_landing",)
+    assert {ln.status for ln in paid.lines} == {"in_transit"}
+    assert {ln.status for ln in unpaid.lines} == {"pending"}
+    assert unpaid.warnings == paid.warnings
+    assert all(ln.completed_at is None for ln in paid.lines)
+
+
+def test_times_are_aware_utc_and_a_03_00_vn_order_keeps_its_vn_day() -> None:
+    # 03:00 on 5 Oct in Vietnam = 20:00 UTC on 4 Oct
+    at_0300_vn = int(datetime(2026, 10, 4, 20, 0, tzinfo=UTC).timestamp())
+    mapped = map_order(_order(create_time=at_0300_vn, paid_time=at_0300_vn + 60), shop_id=SHOP)
+
+    for line in mapped.lines:
+        assert line.ordered_at.utcoffset() == timedelta(0)
+        assert line.paid_at is not None and line.paid_at.utcoffset() == timedelta(0)
+        assert line.ordered_at.date() == date(2026, 10, 4)
+        assert day_of(line.ordered_at) == date(2026, 10, 5)
 
 
 def test_non_vnd_order_is_skipped() -> None:
@@ -449,10 +512,55 @@ async def test_mapped_order_writes_idempotently_and_computes_profit() -> None:
     assert first.fee_source == "income"
     # Line SYN-A (buyer paid 180000 of 270000) carries 2/3 of every settled amount:
     # fees 2/3 x (33000 + 6000 + 4000 + 4000) = 31333.34 (cent rounding) and commission 5333.33,
-    # net shipping 8000; the reported withheld tax (VAT 1800 + PIT 900) is deducted, 2/3 = 1800.
+    # net shipping 8000; the reported withheld tax (VAT 1800 + PIT 900) is NOT a cost (M5).
     assert first.fees_total == D("31333.34")
     assert first.commission == D("5333.33")
-    assert out[0].income is not None and out[0].income.tax_withheld == D("1800.00")
+    assert out[0].income is not None and out[0].income.tax_withheld == D("0")
     assert first.contribution == D("180000") - D("31333.34") - D("50000") - D("2000") - D(
         "5333.33"
-    ) - D("8000") - D("1800")
+    ) - D("8000")
+
+
+# -- M5: no tax calculation; item 7: refunds follow the settlement ---------------------------
+
+
+def test_reported_withheld_tax_is_stored_but_never_changes_profit() -> None:
+    with_tax = map_order(_order(), shop_id=SHOP, statement=_statement())
+    without = copy.deepcopy(_statement())
+    for tx in without["sku_transactions"]:
+        tx["fee_tax_breakdown"].pop("tax", None)
+    no_tax = map_order(_order(), shop_id=SHOP, statement=without)
+    assert with_tax.settlement is not None and no_tax.settlement is not None
+    assert with_tax.settlement.vat_withheld == D("1800")  # stored as reported
+    assert no_tax.settlement.vat_withheld is None
+
+    cost = SkuCost(sku="SYN-A", cogs=D("50000"), packaging=D("2000"))
+    taxed = line_profit(profit_order_lines(list(with_tax.lines), with_tax.settlement)[0], cost)
+    plain = line_profit(profit_order_lines(list(no_tax.lines), no_tax.settlement)[0], cost)
+
+    assert taxed.contribution == plain.contribution
+    assert taxed.fees_total == plain.fees_total
+
+
+@pytest.mark.parametrize("return_status", ["REFUND_COMPLETE", "BUYER_SHIPPED_ITEM", "APPLYING"])
+def test_a_refund_line_is_no_sale_and_costs_the_settlement_deduction(
+    return_status: str,
+) -> None:
+    settled = _statement()
+    mapped = map_order(
+        _order(status="DELIVERED"),
+        shop_id=SHOP,
+        statement=settled,
+        return_status=return_status,
+    )
+    assert mapped.settlement is not None
+    refunded = replace(mapped.settlement, payout=D("-20000"))
+    lines = profit_order_lines(list(mapped.lines), refunded)
+
+    assert {ln.status for ln in lines} == {OrderStatus(mapped.lines[0].status)}
+    assert all(not counts_in_sales(ln) for ln in lines)
+    cost = SkuCost(sku="SYN-A", cogs=D("50000"), packaging=D("2000"))
+    profits = [line_profit(ln, cost) for ln in lines]
+    assert all(p.revenue == 0 and p.cogs == 0 for p in profits)
+    # the order's payout deduction 20000, split by value over the two lines
+    assert sum(p.fees_total or D(0) for p in profits) == D("20000.00")
