@@ -446,7 +446,7 @@ def test_return_shipping_coins_withheld_tax_and_compensation_move_the_contributi
     assert pb.contribution == D(46_000)
 
 
-def test_a_refund_of_a_delivered_line_is_a_cost_but_an_accepted_refund_is_not_deducted_twice():
+def test_a_refund_of_a_delivered_line_is_a_cost_and_an_open_refund_window_is_no_outcome_yet():
     income = IncomeOrder(order_ref=f"{1:032x}", fee_fixed=D(10_000), refund_amount=D(20_000))
     delivered = _profit([_raw(1)], RULES, {income.order_ref: income})[2][0][1]
     assert dict(delivered.income_costs)["hoan_tien"] == D(20_000)
@@ -454,8 +454,9 @@ def test_a_refund_of_a_delivered_line_is_a_cost_but_an_accepted_refund_is_not_de
     refunded = _profit([_raw(1, status="refunded_accepted")], RULES, {income.order_ref: income})[2][
         0
     ][1]
-    assert "hoan_tien" not in dict(refunded.income_costs)
-    assert refunded.revenue == D(0) and refunded.contribution == D(-10_000 - 30_000 - 2_000)
+    # owner 2026-11-18: refunded_accepted = the refund window is open, not a loss yet
+    assert refunded.excluded_reason == "no_fee_no_profit"
+    assert refunded.income_costs is None and refunded.contribution is None
 
 
 def test_orders_without_income_keep_the_formula_and_the_coverage_says_so():

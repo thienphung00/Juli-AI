@@ -123,3 +123,40 @@ async def test_export_lists_every_active_listing_and_the_days_own_totals(session
     for key in tq.CHANNELS:
         g = rest.now.channel(key).gmv
         assert g is None or g >= 0
+
+
+async def test_the_profit_sheet_adds_up_to_the_dashboard_profit(session, shop):
+    """Owner Q3 (2026-11-17): the "Lợi nhuận" sheet's cost lines take the revenue down to the
+    same profit and margin the Tổng quan screen shows; the product level has no such sheet."""
+    from juli_backend.services.exports import collect
+    from juli_backend.services.shopee_analytics import service as sa_service
+    from juli_backend.services.shopee_analytics.shared import shop_profit_of
+
+    seeded, _ = shop
+    data = await collect_tong_quan(
+        session, seeded.shop_id, shop_name="Mẫu", now=NOW, period="custom", start=FIRST, end=AS_OF
+    )
+    window = await sa_service.resolve(
+        session, seeded.shop_id, period="custom", start=FIRST, end=AS_OF
+    )
+    view, _rows = await collect._view(session, seeded.shop_id, window)
+    kp = shop_profit_of(view)
+    b = data.bridge
+    assert b is not None and kp.profit is not None
+    assert b.profit == float(kp.profit) and b.margin_pct == float(kp.margin_pct)
+    costs = (
+        b.fees + b.cogs + b.packaging + b.commission + b.shipping_other + b.ads
+        + b.other_marketing
+    )  # fmt: skip
+    assert b.revenue - costs == pytest.approx(b.profit, abs=1)  # whole-đồng bridge lines
+    assert b.revenue == float(kp.buyer_paid)  # the margin base
+    sheet = tq.build(data)[tq.SHEET_PROFIT]
+    labels = [sheet.cell(r, 1).value for r in range(1, sheet.max_row + 1)]
+    assert "Lợi nhuận bán hàng trên sàn" in labels
+    assert not any(isinstance(v, str) and v.startswith("Tổng chi phí") for v in labels)
+    product = data.products[0].product_id
+    one = await collect_tong_quan(
+        session, seeded.shop_id, shop_name="Mẫu", now=NOW, period="custom", start=FIRST,
+        end=AS_OF, product_id=product,
+    )  # fmt: skip
+    assert one.bridge is None and tq.SHEET_PROFIT not in tq.build(one).sheetnames

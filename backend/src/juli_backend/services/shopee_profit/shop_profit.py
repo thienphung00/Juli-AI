@@ -411,13 +411,15 @@ class KnownCostProfit:
 
     @property
     def ads_label(self) -> str:
-        """What the ads line charged (B.5): the spend of the days with known-cost orders."""
+        """What the ads line charged (B.5, R11): each day's spend -- the days with known-cost orders
+        and, whole, the days with no order -- out of all the window's ad spend."""
         charged, total = _vn_money(self.ads_charged), _vn_money(self.ads_total)
         if self.ads_basis == ADS_SHARE_DAILY:
             tail = ""
             if self.ads_no_order_days > 0:
-                tail = f"; {_vn_money(self.ads_no_order_days)}đ {NO_ORDER_DAYS_ADS_LABEL.lower()}"
-            return f"QC tính trên ngày có đơn có chi phí: {charged}đ / tổng chi QC {total}đ{tail}"
+                no_order = _vn_money(self.ads_no_order_days)
+                tail = f"; gồm {no_order}đ {NO_ORDER_DAYS_ADS_LABEL.lower()}"
+            return f"QC đã tính theo ngày: {charged}đ / tổng chi QC {total}đ{tail}"
         return f"QC tính theo tỷ lệ doanh thu đơn có chi phí: {charged}đ / tổng chi QC {total}đ"
 
     def json(self) -> dict[str, object]:

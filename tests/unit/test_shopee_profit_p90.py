@@ -490,25 +490,23 @@ def test_order_status_fee_and_profit_rules() -> None:
     pb = {ln.order_id: b for ln, b in pairs}
     # delivered: 200.000 - (30.000 + 1.650) - 103.000
     assert pb["d"].contribution == D(65350)
-    # cancelled / undelivered / not received: no fee, no profit, outside the base
-    for k in ("c", "t", "n"):
+    # cancelled / undelivered / return on its way / refund window still open (owner 2026-11-18:
+    # refunded_accepted is not an outcome yet): no fee, no profit, outside the base
+    for k in ("c", "t", "n", "r"):
         assert pb[k].fees_total is None and pb[k].contribution is None
         assert pb[k].excluded_reason == "no_fee_no_profit" and pb[k].profit is None
-    # accepted "Hoan tien ngay": fee kept, revenue 0, goods + packaging lost, no commission
-    assert pb["r"].fees_total == D(31650) and pb["r"].revenue == D(0)
-    assert pb["r"].contribution == D(-31650 - 103000)
 
     sp = shop_profit(pairs, campaigns=[], product_ad_spend={})
     # confirmed views keep every order's GMV ...
     assert sp.orders == 5 and sp.gmv == D(1000000)
-    assert sp.products["P1"].gmv == D(1000000) and sp.products["P1"].excluded_orders == 3
-    # ... the profit base is delivered + accepted refund only: revenue 200.000 + 0
+    assert sp.products["P1"].gmv == D(1000000) and sp.products["P1"].excluded_orders == 4
+    # ... the profit base is the delivered order only
     assert sp.buyer_paid == D(200000) and sp.buyer_paid_covered == D(200000)
-    assert sp.contribution == D(65350 - 134650) and sp.profit == D(-69300)
+    assert sp.contribution == D(65350) and sp.profit == D(65350)
     assert sp.cost_coverage_pct == D("100.0")
     m = build_source_matrix(pairs)
     assert_additive(m)
-    assert m.totals["P1"].orders == 5 and m.totals["P1"].orders_excluded == 3
+    assert m.totals["P1"].orders == 5 and m.totals["P1"].orders_excluded == 4
     assert m.totals["P1"].orders_missing_profit == 0
     assert m.totals["P1"].gmv == D(1000000)
     # the five numbers: GMV and orders are confirmed, the margin base is not
