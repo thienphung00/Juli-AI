@@ -170,16 +170,26 @@ class TestOrders:
         assert (await repo.get_by_tiktok_id(shop.id, "tt-shared")) is mine
         assert await repo.get_by_tiktok_id(shop.id, "tt-missing") is None
 
-    async def test_confirm_shipment_moves_awaiting_to_shipped_with_naive_utc(self, session, shop):
-        """#1138: ``update_time`` is a naive column; asyncpg rejects an aware value at flush."""
-        order = await make_order(session, shop, status="AWAITING_SHIPMENT")
+    @pytest.mark.parametrize("start", ["confirmed", "AWAITING_SHIPMENT"])
+    async def test_confirm_shipment_moves_awaiting_to_shipped_with_naive_utc(
+        self, session, shop, start
+    ):
+        """#1138: ``update_time`` is a naive column; asyncpg rejects an aware value at flush.
+
+        A mapped row is stored ``confirmed``; a raw one ``AWAITING_SHIPMENT``. Both end
+        in the stored value ``shipped``.
+        """
+        order = await make_order(session, shop, status=start)
 
         shipped = await OrdersRepo(session).confirm_shipment(shop.id, order.id)
 
-        assert shipped.status == "SHIPPED"
+        assert shipped.status == "shipped"
         assert shipped.update_time.tzinfo is None
 
-    @pytest.mark.parametrize("status", ["SHIPPED", "CANCELLED", "COMPLETED"])
+    @pytest.mark.parametrize(
+        "status",
+        ["SHIPPED", "shipped", "CANCELLED", "cancelled", "COMPLETED", "delivered", "pending"],
+    )
     async def test_confirm_shipment_refuses_any_other_status(self, session, shop, status):
         order = await make_order(session, shop, status=status)
 

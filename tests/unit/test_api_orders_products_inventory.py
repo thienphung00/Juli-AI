@@ -7,7 +7,7 @@ Test mapping from acceptance criteria:
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -62,22 +62,20 @@ async def shop(session, authenticated_user):
 
 @pytest_asyncio.fixture
 async def auth_client(app, authenticated_user, shop):
-    from juli_backend.core.security import get_current_user
     from juli_backend.api.dependencies import get_active_shop
+    from juli_backend.core.security import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 
 @pytest_asyncio.fixture
 async def seed_orders(session, shop):
     """Seed a variety of orders for filter testing."""
-    now = datetime(2026, 5, 26, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 5, 26, 12, 0, 0, tzinfo=UTC)
     orders = []
     for i, status_val in enumerate(
         ["AWAITING_SHIPMENT", "SHIPPED", "COMPLETED", "CANCELLED", "AWAITING_SHIPMENT"]
@@ -101,11 +99,9 @@ async def seed_orders(session, shop):
 @pytest_asyncio.fixture
 async def seed_products(session, shop):
     """Seed products with revenue and units_sold for ranking tests."""
-    now = datetime(2026, 5, 26, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 5, 26, 12, 0, 0, tzinfo=UTC)
     products = []
-    for i, (revenue, units) in enumerate(
-        [(5000, 50), (10000, 100), (2000, 20), (8000, 80)]
-    ):
+    for i, (revenue, units) in enumerate([(5000, 50), (10000, 100), (2000, 20), (8000, 80)]):
         p = Product(
             id=uuid.uuid4(),
             shop_id=shop.id,
@@ -140,16 +136,14 @@ class TestOrdersEndpointFilters:
         assert "next_cursor" in data
 
     async def test_filter_by_status(self, auth_client, seed_orders):
-        resp = await auth_client.get(
-            "/v1/orders", params={"status": "AWAITING_SHIPMENT"}
-        )
+        resp = await auth_client.get("/v1/orders", params={"status": "AWAITING_SHIPMENT"})
         assert resp.status_code == 200
         items = resp.json()["items"]
         assert len(items) == 2
         assert all(o["status"] == "AWAITING_SHIPMENT" for o in items)
 
     async def test_filter_by_date_range(self, auth_client, seed_orders):
-        now = datetime(2026, 5, 26, 12, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 5, 26, 12, 0, 0, tzinfo=UTC)
         date_from = (now - timedelta(days=2)).isoformat()
         date_to = (now + timedelta(hours=1)).isoformat()
         resp = await auth_client.get(
@@ -167,9 +161,7 @@ class TestOrdersEndpointFilters:
         cursor = data1["next_cursor"]
         assert cursor is not None
 
-        resp2 = await auth_client.get(
-            "/v1/orders", params={"limit": 3, "after": cursor}
-        )
+        resp2 = await auth_client.get("/v1/orders", params={"limit": 3, "after": cursor})
         assert resp2.status_code == 200
         data2 = resp2.json()
         assert len(data2["items"]) >= 1
@@ -191,7 +183,7 @@ class TestConfirmShipment:
         resp = await auth_client.post(f"/v1/orders/{awaiting.id}/confirm-shipment")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "SHIPPED"
+        assert data["status"] == "shipped"
         assert "shipped_at" in data
         assert data["shipped_at"] is not None
 
