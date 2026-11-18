@@ -8,6 +8,7 @@ import { DAILY_REQUEST_BUDGET, READER_PAGE_LOAD_COST } from "../src/platforms/sh
 import { GatewayError } from "../src/platforms/shopee/ingest/client";
 import { bundleIdFrom, savedBundlePath, savedSignal, savedVoucherPath, voucherIdFrom } from "../src/platforms/shopee/fill/saved";
 import { gmt7Date } from "../src/core/time";
+import { reportDetailOf } from "../src/core/jobs/fill-jobs";
 import { JOB_ID, voucherJob } from "./fill-job-helpers";
 
 const NOW = Date.UTC(2026, 10, 9, 3, 0, 0);
@@ -181,6 +182,31 @@ describe("progress and the password prompt", () => {
     await s.jobs.report(JOB_ID, "captured", { capturedRef: "88001" });
     expect(s.reports.map((r) => r.body)).toEqual([{ status: "opened", progress: { filled: 3, total: 4 } }, { status: "filled" }, { status: "captured", captured_ref: "88001" }]);
     expect((await loadState(s.storage)).fill?.active).toBeUndefined();
+  });
+
+  it("0.3.24: passes the before values, period_ok and the last reads on to Juli", async () => {
+    const s = setup();
+    await s.jobs.poll();
+    const detail = { before_values: { title: "Tên cũ" }, period_ok: false, fields: [{ key: "title", ok: false, seen: "Tên cũ" }] };
+    await s.jobs.report(JOB_ID, "opened", { progress: { filled: 0, total: 1 }, detail });
+    expect(s.reports.map((r) => r.body)).toEqual([{ status: "opened", progress: { filled: 0, total: 1 }, ...detail }]);
+  });
+
+  it("0.3.24: keeps only bounded, well-formed detail from the page", () => {
+    expect(reportDetailOf(null)).toBeUndefined();
+    expect(reportDetailOf([])).toBeUndefined();
+    const out = reportDetailOf({
+      before_values: { title: "x".repeat(700), "Bad Key": "v", period_start: 5, ok_key: "v" },
+      period_ok: "yes",
+      fields: [{ key: "title", ok: true, seen: "y".repeat(200) }, { key: "BAD", ok: true }, { key: "n", ok: "no" }],
+      extra: "dropped",
+    })!;
+    expect(Object.keys(out.before_values)).toEqual(["title", "ok_key"]);
+    expect(out.before_values.title).toHaveLength(600);
+    expect(out).not.toHaveProperty("period_ok");
+    expect(out).not.toHaveProperty("extra");
+    expect(out.fields).toEqual([{ key: "title", ok: true, seen: "y".repeat(120) }]);
+    expect(reportDetailOf({ before_values: {}, fields: [], period_ok: true })?.period_ok).toBe(true);
   });
 
   it("stops everything for the shop on a password prompt: job failed, shop halted, slot freed", async () => {

@@ -38,6 +38,7 @@ from juli_backend.services.shopee_builder.engine.vn import vnd
 from juli_backend.services.shopee_builder.engine_families import common, measure
 from juli_backend.services.shopee_builder.engine_families.common import point
 from juli_backend.services.shopee_builder.engine_families.facts import AdsEditFacts, ProductAdRow
+from juli_backend.services.shopee_recommendations.ads_cost import budget_raise_extra_per_day
 
 ZERO = Decimal(0)
 ONE = Decimal(1)
@@ -128,6 +129,15 @@ class _After:
     basis: str
     text: str
     max_cost: Decimal = ZERO
+
+
+def _budget_extra_cost(spec: sp.AdsSpec, f: AdsEditFacts, days: Decimal) -> Decimal | None:
+    """The extra cost of a budget raise over the option's days: the one rule shared with the card
+    (``ads_cost.budget_raise_extra_per_day``). None: keep the spend-based figure."""
+    if spec.lever != "budget" or spec.unlimited or spec.daily_budget is None:
+        return None
+    per_day = budget_raise_extra_per_day(Decimal(spec.daily_budget), f.daily_budget)
+    return None if per_day is None else per_day * days
 
 
 def _budget(spec: sp.AdsSpec, now: _Flow, state: measure.BudgetState) -> _After:
@@ -351,6 +361,9 @@ def ads_edit_option(spec: sp.AdsSpec, f: AdsEditFacts) -> OptionInput:
             cost = Decimal(spec.daily_budget) * days - (
                 ZERO if state is None else state.rate * days
             )
+        extra = _budget_extra_cost(spec, f, days)
+        if extra is not None:
+            cost = extra
         return OptionInput(
             kind=kind,
             label=label,
@@ -427,6 +440,9 @@ def ads_edit_option(spec: sp.AdsSpec, f: AdsEditFacts) -> OptionInput:
             )
         else:
             driver = DriverEffect("views", CARD_SOURCES, "measured", added=traffic)
+    extra = _budget_extra_cost(spec, f, days)
+    if extra is not None:
+        cost = extra
     return OptionInput(
         kind=kind,
         label=label,

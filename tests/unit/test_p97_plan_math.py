@@ -179,7 +179,7 @@ async def test_a_second_option_on_an_exclusive_field_moves_to_the_next_group(ses
     letters = {m["code"]: g["letter"] for g in out["groups"] for m in g["members"]}
     codes_ = {c["card_id"]: c["code"] for c in out["cards"]}
     assert letters == {codes_[str(a)]: "A", codes_[str(b)]: "B"}
-    assert out["aggregate"]["n_cards"] == 0  # both cards are in a group
+    assert out["aggregate"]["n_cards"] == 2  # K3: the plan total counts the grouped cards too
     assert [g["aggregate"]["n_cards"] for g in out["groups"]] == [1, 1]
     assert out["groups"][1]["start"] > out["groups"][0]["end"]  # B runs after A
     gone = await _remove(session, seeded, a)  # A empties out; its letter is free

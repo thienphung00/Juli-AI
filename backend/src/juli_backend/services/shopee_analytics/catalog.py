@@ -18,6 +18,9 @@ SKU_PREFIX = "sku:"
 #: Shopee's name for a listing it can no longer read because it was deleted (the same text as
 #: ``ingest.gateway.DELETED_PRODUCT_NAME``, which keeps it out of new syncs; older rows still
 #: carry it, so the active-listing checks drop it too).
+#: C4: what an order line with no matched listing is called on screen (never "unknown"); the same
+#: words as the Tổng quan export.
+UNMATCHED_LABEL = "Đơn không khớp sản phẩm"
 DELETED_PRODUCT_NAME = "Không thể lấy thông tin sản phẩm do bị xóa"
 
 
@@ -52,7 +55,15 @@ class Catalog:
         info = self.items.get(item_id)
         if info and info.name:
             return info.name
-        return item_id[len(SKU_PREFIX) :] if item_id.startswith(SKU_PREFIX) else item_id
+        if item_id.startswith(SKU_PREFIX):
+            sku = item_id[len(SKU_PREFIX) :]
+            return UNMATCHED_LABEL if sku in ("", "unknown") else sku
+        return item_id
+
+    @staticmethod
+    def is_unmatched(item_id: str) -> bool:
+        """An order line the catalogue could not match to a listing (``sku:<sku>`` item id)."""
+        return item_id.startswith(SKU_PREFIX)
 
     def resolve(self, stored_item_id: str, sku: str | None, variation_sku: str | None) -> str:
         """The platform item id of a line (the stored one when it is already a real id)."""

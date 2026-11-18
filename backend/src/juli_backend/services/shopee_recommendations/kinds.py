@@ -96,7 +96,13 @@ _EDIT = Page(
     "/portal/product/list/all",
     item_path="/portal/product/{item_id}",
 )
-_COMBO = Page("Marketing › Combo khuyến mãi", None, verified=False)
+_COMBO = Page("Marketing › Combo khuyến mãi", "/portal/marketing/bundle/new")
+#: The price lives on the product's own edit page (the Connector opens the same address).
+_PRICE_EDIT = Page(
+    "Sản phẩm › Sửa sản phẩm",
+    "/portal/product/list/all",
+    item_path="/portal/product/{item_id}",
+)
 _ADD_ON = Page("Marketing › Mua kèm deal sốc", None, verified=False)
 #: Thêm sản phẩm (a new listing): the form is not recorded yet, so no fill (P97 D85.16)
 _NEW_LISTING = Page("Sản phẩm › Thêm sản phẩm", "/portal/product/new", verified=False)
@@ -216,7 +222,7 @@ KINDS: dict[str, KindSpec] = {
         "price",
         "item",
         "ctor",
-        _PRODUCT,
+        _PRICE_EDIT,
         verify_kind="price",
         sim_kind="product_discount",
         price_scaled=True,
@@ -362,7 +368,7 @@ KINDS: dict[str, KindSpec] = {
     "affiliate_commission": KindSpec(
         "affiliate_commission",
         "affiliate",
-        "Đổi hoa hồng chiến dịch mở",
+        "Đổi hoa hồng chiến dịch mở rộng",
         "other",
         "item",
         "views",

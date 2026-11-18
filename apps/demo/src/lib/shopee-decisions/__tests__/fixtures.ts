@@ -31,7 +31,7 @@ import type {
  */
 
 export const SHEET_VOUCHER: ExecutionSheet = {
-  page: { label: "Marketing › Voucher của tôi", path: "/portal/marketing/vouchers/list", verified: true, deep_link: "https://banhang.shopee.vn/portal/marketing/vouchers/list", button: "Mở trang để sửa" },
+  page: { label: "Marketing › Voucher của tôi", path: "/portal/marketing/vouchers/list", verified: true, deep_link: "https://banhang.shopee.vn/portal/marketing/vouchers/list", button: "Mở trang" },
   steps: [
     { order: 1, field: "Giá trị giảm (VND)", before: 10000, after: 15000, unit: "VND", copy: "15000" },
     { order: 2, field: "Đơn tối thiểu", before: 200000, after: 299000, unit: "VND", copy: "299000" },
@@ -40,7 +40,7 @@ export const SHEET_VOUCHER: ExecutionSheet = {
   ],
   time_window: { start: "khi bạn bấm lưu", days: 30 },
   changes: [{ change_kind: "voucher", target: { voucher_id: null }, expected: { discount_amount: 15000, min_spend: 299000, usage_limit: 50 } }],
-  save_hint: "Bấm nút Lưu / Áp dụng / Xác nhận của chính Shopee; Juli không bấm thay bạn.",
+  save_hint: "Juli không bấm Lưu thay bạn.",
   revert_steps: [
     { order: 1, field: "Giá trị giảm (VND)", before: 15000, after: 10000, unit: "VND", copy: "10000" },
     { order: 2, field: "Đơn tối thiểu", before: 299000, after: 200000, unit: "VND", copy: "200000" },
@@ -443,6 +443,7 @@ export function fakeReco(
     requestChange: (...a) => run("requestChange", { id: detail.id, status: "changes_requested", approval_id: "ap-2" }, ...a),
     dismiss: (...a) => run("dismiss", { id: detail.id, status: "rejected", approval_id: "ap-3" }, ...a),
     executed: (...a) => run("executed", { id: detail.id, status: "executed", execution_id: "ex-1", events: 1 }, ...a),
+    reverted: (...a) => run("reverted", { id: detail.id, status: "executed", reverted: true, reverted_at: "2026-11-17T09:00:00" }, ...a),
     generate: (...a) => run("generate", { generated: 3, persisted: 3, by_family: {}, card_ids: [] }, ...a),
     publish: (...a) => run("publish", { sent: ["card-voucher"] }, ...a),
     withdraw: (...a) => run("withdraw", { id: detail.id, status: "withdrawn" }, ...a),

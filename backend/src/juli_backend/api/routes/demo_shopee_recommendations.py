@@ -12,6 +12,7 @@ in Seller Centre. Authenticated like every seller route (``get_active_shop``).
 - ``POST /recommendations/{id}/whatif`` -- recompute with other inputs (records `whatif_adjusted`).
 - ``POST /recommendations/{id}/approve`` | ``/request-change`` | ``/dismiss``
 - ``POST /recommendations/{id}/executed`` -- "Đã làm": the `executed` event with `change`.
+- ``POST /recommendations/{id}/reverted`` -- "Đã hoàn tác": the `reverted` event; measurement stops.
 
 A shop that is not on Shopee answers 409 ``not_a_shopee_shop``. The logic is
 ``services/shopee_recommendations``.
@@ -34,6 +35,7 @@ from juli_backend.api.routes.shopee_recommendations_common import (
     DismissBody,
     ExecutedBody,
     RequestChangeBody,
+    RevertedBody,
     WhatIfBody,
     refused,
 )
@@ -215,6 +217,27 @@ async def _decide(
     try:
         out = await reco.decide(
             session, shop_id, card_id, decision=decision, user_id=user.id, now=_now(), **kw
+        )
+        await session.commit()
+    except ProposalError as exc:
+        await session.rollback()
+        raise refused(exc) from None
+    return out
+
+
+@router.post("/{card_id}/reverted", status_code=201)
+async def recommendation_reverted(
+    card_id: uuid.UUID,
+    body: RevertedBody,
+    shop: Shop = Depends(require_writable_shop),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """ "Đã hoàn tác": the person undid the change in Seller Centre; measurement stops."""
+    shop_id = _shopee(shop)
+    try:
+        out = await reco.mark_reverted(
+            session, shop_id, card_id, now=_now(), user_id=user.id, note=body.note
         )
         await session.commit()
     except ProposalError as exc:

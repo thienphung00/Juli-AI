@@ -516,3 +516,43 @@ def test_a_set_takes_its_discount_from_the_orders_that_already_buy_that_many_sin
 def test_a_set_no_order_switches_to_has_no_cannibalisation_cost():
     lines = [OrderLine("b", "s1", "i1", BEFORE, 1, D(59_000), D(59_000))]
     assert adapters.variation_set_offer(fake_env(lines), "i1", 2, D(10), {}) is None
+
+
+# -- Deal Sốc (add_on, gift): attach rate needs the main product's orders, not a funnel window --
+
+
+def _deal_soc_ctx(n_orders):
+    from types import SimpleNamespace
+
+    lines = [SimpleNamespace(order_id=f"o{i}") for i in range(n_orders)]
+    return SimpleNamespace(env=SimpleNamespace(lines_for=lambda items: lines))
+
+
+def test_deal_soc_base_lifts_the_funnel_low_data_flag_with_enough_orders():
+    from dataclasses import replace
+
+    from juli_backend.services.shopee_builder.engine_families import integrate
+
+    spec = sp.AddOnSpec(kind="add_on", main_item_id="i1", addons=[sp.AddOn(item_id="j", pct=20)])
+    low = replace(base(), low_data=("aov", "ctor", "ctr"))
+    ok = integrate.deal_soc_base(_deal_soc_ctx(12), spec, low)
+    assert ok.low_data == ("ctr",)
+    few = integrate.deal_soc_base(_deal_soc_ctx(3), spec, replace(base(), low_data=()))
+    assert few.low_data == ("aov",)
+
+
+def test_deal_soc_with_few_orders_says_why_with_its_own_reason_code():
+    from dataclasses import replace
+
+    from juli_backend.services.shopee_builder.engine.wire import result_json
+    from juli_backend.services.shopee_builder.engine_families import common
+
+    spec = sp.AddOnSpec(kind="add_on", main_item_id="i1", addons=[sp.AddOn(item_id="j", pct=20)])
+    option = replace(
+        simple_option(spec, SimpleFacts(LiftEvidence(b(0.01, 0.03, 0.05), "shop"))),
+        note=common.NOTE_ATTACH_FEW_ORDERS,
+    )
+    out = result_json(run(replace(base(), low_data=("aov",)), option, n=200))
+    assert out["estimable"] is False
+    assert out["reason_code"] == "attach_few_orders"
+    assert out["reason_text"] == "Sản phẩm chính chưa đủ 10 đơn để ước tính mua kèm."

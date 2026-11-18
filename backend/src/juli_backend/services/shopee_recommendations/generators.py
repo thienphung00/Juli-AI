@@ -390,7 +390,7 @@ def gen_affiliate_commission(
             item,
             {"commission_pct": float(pct)},
             crit,
-            f"Lượt xem từ liên kết thấp: hoa hồng chiến dịch mở {pct}%.",
+            f"Lượt xem từ liên kết thấp: hoa hồng chiến dịch mở rộng {pct}%.",
             "lien_ket" if crit and crit.get("cause", {}).get("stage") == "lien_ket" else "views",
         )
         ev = evaluate(env, cand)

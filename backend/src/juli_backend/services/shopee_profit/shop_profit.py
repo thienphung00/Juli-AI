@@ -36,7 +36,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -372,6 +372,10 @@ ADS_SHARE_DAILY = "daily"  # by those orders' share of each day's buyer paid (da
 ADS_SHARE_WINDOW = "window"  # by their share of the window's buyer paid (no daily spend)
 
 
+#: R11: the bridge line for ad spend of days that have no counted order
+NO_ORDER_DAYS_ADS_LABEL = "Quảng cáo ngày không có đơn"
+
+
 @dataclass(frozen=True)
 class KnownCostProfit:
     """P100 B.5: THE shop profit -- the profit of the ORDERS whose costs are all known, with its
@@ -394,6 +398,8 @@ class KnownCostProfit:
     ads_unattributed_charged: Decimal = ZERO  # bridge: "QC không gắn sản phẩm" charged
     other_marketing_charged: Decimal = ZERO  # bridge: "chi marketing khác" charged
     ads_total: Decimal = ZERO  # all the ad spend of the window (charged or not)
+    #: R11: the spend of days with no counted order (charged whole, its own bridge line)
+    ads_no_order_days: Decimal = ZERO
 
     @property
     def label(self) -> str:
@@ -408,7 +414,10 @@ class KnownCostProfit:
         """What the ads line charged (B.5): the spend of the days with known-cost orders."""
         charged, total = _vn_money(self.ads_charged), _vn_money(self.ads_total)
         if self.ads_basis == ADS_SHARE_DAILY:
-            return f"QC tính trên ngày có đơn có chi phí: {charged}đ / tổng chi QC {total}đ"
+            tail = ""
+            if self.ads_no_order_days > 0:
+                tail = f"; {_vn_money(self.ads_no_order_days)}đ {NO_ORDER_DAYS_ADS_LABEL.lower()}"
+            return f"QC tính trên ngày có đơn có chi phí: {charged}đ / tổng chi QC {total}đ{tail}"
         return f"QC tính theo tỷ lệ doanh thu đơn có chi phí: {charged}đ / tổng chi QC {total}đ"
 
     def json(self) -> dict[str, object]:
@@ -425,6 +434,8 @@ class KnownCostProfit:
             "bridge": {
                 "product_profit": _money(self.product_profit),
                 "ads_unattributed": _money(self.ads_unattributed_charged),
+                "ads_no_order_days": _money(self.ads_no_order_days),
+                "ads_no_order_days_label": NO_ORDER_DAYS_ADS_LABEL,
                 "other_marketing": _money(self.other_marketing_charged),
                 "profit": _money(self.profit),
                 "ads_charged": _money(self.ads_charged),
@@ -447,6 +458,7 @@ def known_cost_profit(
     pairs: Pairs,
     shop_gmv: Decimal | None,
     daily_spend: Mapping[date, Decimal] | None = None,
+    order_data_days: Collection[date] | None = None,
 ) -> KnownCostProfit:
     """The one shop profit (P100 B.5), ORDER-based. An order is "có chi phí" only when every one
     of its counted lines (cancelled / undelivered ones are outside the profit base) has its
@@ -455,10 +467,18 @@ def known_cost_profit(
 
     Ads, with ``daily_spend`` (:data:`ADS_SHARE_DAILY`, the one per-day spend of
     :mod:`.ads_days`): each day's spend is charged by that day's known-cost GMV share -- a day
-    whose orders all lack costs charges nothing, and a day with no order line at all (no order
-    data) contributes no profit and no ads charge. The charged total is then split between the
-    products' report spend and the spend not tied to a product in the window's proportion, so
-    the bridge adds up. Without ``daily_spend`` each product's report spend follows the known
+    whose orders all lack costs charges nothing, and a day with no order data contributes no profit
+    and no ads charge (a zero-order day with data: see R11 below). The charged total is then
+    split between the products' report spend and the spend not tied to a product in the window's
+    proportion, so the bridge adds up.
+
+    R11: a day with spend and NO counted order line, inside ``order_data_days`` (the days the order
+    data speaks for, a zero-order day included; ``None`` = every day), is charged whole as its own
+    bridge line (:data:`NO_ORDER_DAYS_ADS_LABEL`), never dropped. A day outside ``order_data_days``
+    (its order data never arrived) and a day whose orders all lack costs stay uncharged (missing is
+    not zero), so the ads charged = the spend of the days counted.
+
+    Without ``daily_spend`` each product's report spend follows the known
     orders' share of that product's buyer paid and the rest the window share
     (:data:`ADS_SHARE_WINDOW`). Other marketing costs always follow the window share."""
     counted = [(ln, pb) for ln, pb in pairs if pb.excluded_reason is None]
@@ -475,6 +495,7 @@ def known_cost_profit(
     spend_total = sum(spend_days.values(), ZERO)
     product_total = profit.product_ad_spend
     unattributed_total = profit.unattributed_ad_spend
+    no_order_days = ZERO
     if spend_total > 0:
         basis = ADS_SHARE_DAILY
         day_all: dict[date, Decimal] = defaultdict(lambda: ZERO)
@@ -485,8 +506,12 @@ def known_cost_profit(
                 day_known[ln.order_date] += ln.order_value
         charged = ZERO
         for d, spent in spend_days.items():
+            if day_all.get(d, ZERO) <= 0:
+                if order_data_days is None or d in order_data_days:
+                    no_order_days += spent  # R11: a zero-order day still spent the ads
+                continue  # no order data that day: no charge
             day_share = safe_div(day_known.get(d, ZERO), day_all.get(d, ZERO))
-            charged += spent * (day_share or ZERO)  # no order data that day: no charge
+            charged += spent * (day_share or ZERO)
         ads_total = spend_total
         pool = product_total + unattributed_total
         ads_products = charged * product_total / pool if pool > 0 else ZERO
@@ -504,14 +529,17 @@ def known_cost_profit(
         ads_unattributed = unattributed_total * share
         ads_total = profit.total_ad_spend
     other = profit.other_marketing_costs * share
-    ads = ads_products + ads_unattributed
+    if not known_orders:
+        no_order_days = ZERO
+    ads = ads_products + ads_unattributed + no_order_days
     value = None
     product_profit = None
     if known_orders:
         # whole đồng per bridge line, so the lines add up exactly to the figure every screen shows
         product_profit = _whole(contribution - ads_products)
         ads_unattributed, other = _whole(ads_unattributed), _whole(other)
-        value = product_profit - ads_unattributed - other
+        no_order_days = _whole(no_order_days)
+        value = product_profit - ads_unattributed - other - no_order_days
     margin = None if value is None else pct_points(safe_div(value, paid_known))
     gmv_share = None
     if shop_gmv is not None and shop_gmv > 0:
@@ -529,4 +557,5 @@ def known_cost_profit(
         ads_unattributed_charged=ads_unattributed,
         other_marketing_charged=other,
         ads_total=ads_total,
+        ads_no_order_days=no_order_days,
     )

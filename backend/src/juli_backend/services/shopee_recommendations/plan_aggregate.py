@@ -1616,6 +1616,166 @@ def _sub(a: float | None, b: float | None) -> float | None:
     return None if a is None or b is None else a - b
 
 
+def _sum_range(parts: Sequence[Mapping[str, float | None]]) -> dict[str, float | None]:
+    """``{p10, p50, p90}`` of several independent sides: the P50s add, the range is the P50 -/+ the
+    root sum of squares of the sides' half-widths (the plan's range rule, ``combine_counted``). A
+    side that does not know the metric (P50 ``None``) is left out; nobody knows it: all ``None``."""
+    known = [p for p in parts if p.get("p50") is not None]
+    if not known:
+        return {"p10": None, "p50": None, "p90": None}
+    mid = sum(float(p["p50"] or 0.0) for p in known)
+    out: dict[str, float | None] = {"p10": None, "p50": mid, "p90": None}
+    for q, sign in (("p10", -1.0), ("p90", 1.0)):
+        edges = [p.get(q) for p in known]
+        if any(e is None for e in edges):
+            continue
+        width = math.sqrt(
+            sum(
+                (float(p["p50"] or 0.0) - float(e or 0.0)) ** 2
+                for p, e in zip(known, edges, strict=True)
+            )
+        )
+        out[q] = mid + sign * width
+    return out
+
+
+def _side_totals(side: Mapping[str, Any]) -> dict[str, dict[str, float | None]]:
+    """One side's (the plan's own cards or one group) {metric: {p10, p50, p90}} from its payload."""
+    dprofit = (side.get("dprofit_month") or {}).get("total") or {}
+    dgmv = (side.get("dgmv_month") or {}).get("total") or {}
+    dorders = side.get("dorders_month") or {}
+    after, today = side.get("after") or {}, side.get("today") or {}
+
+    def own(key: str) -> dict[str, float | None]:
+        a, t = after.get(key), today.get(key)
+        return {
+            "p10": None,
+            "p50": None if a is None or t is None else float(a) - float(t),
+            "p90": None,
+        }
+
+    return {
+        "dgmv": {q: dgmv.get(q) for q in ("p10", "p50", "p90")},
+        "dorders": {q: dorders.get(q) for q in ("p10", "p50", "p90")},
+        "dprofit": {q: dprofit.get(q) for q in ("p10", "p50", "p90")},
+        "dviews": own("views_30d"),
+        "dclicks": own("clicks_30d"),
+    }
+
+
+def merge_groups(
+    env: RecoEnv, agg: dict[str, Any], group_aggs: Sequence[Mapping[str, Any] | None]
+) -> dict[str, Any]:
+    """K2 / K3 (batch-1117b): the plan's total over ALL its cards. A card run together in a group
+    is evaluated in the group's aggregate (its own period, one joint lift), so the plan's own
+    aggregate alone leaves it out and reads "chưa ước tính được" while the group holds an estimable
+    card. The plan total adds the groups' totals to the plan's own by the one range rule (P50s add,
+    half-widths by root sum of squares). The plan's own ``cards`` stay as they are (each group
+    keeps its cards), so no card is listed twice.
+
+    ``n_cards`` counts the plan's cards (a card in a group once, whatever its versions)."""
+    groups = [g for g in group_aggs if g and not g.get("empty")]
+    if not groups:
+        return agg
+    sides = ([] if agg.get("empty") else [agg]) + groups
+    parent_ids = {
+        parent_id(str(c["card_id"]).split("@v", 1)[0]) for g in groups for c in g.get("cards") or []
+    }
+    own_ids = {parent_id(c["card_id"]) for c in agg.get("cards") or []}
+    out = dict(agg)
+    if agg.get("empty"):  # only grouped cards: the shape of a full aggregate, from the first group
+        for k, v in groups[0].items():
+            if k not in ("cards", "products", "n_cards", "unavailable_cards"):
+                out.setdefault(k, v)
+    out["n_cards"] = len(own_ids | parent_ids)
+    out["empty"] = False
+    out["empty_note"] = None
+    live = [s for s in sides if s.get("totals_estimable", True)]
+    totals = {m: _sum_range([_side_totals(s)[m] for s in live]) for m in RESULT_METRICS}
+    estimable = bool(live)
+    out["totals_estimable"] = estimable
+
+    def union(key: str) -> list[str]:
+        return list(dict.fromkeys(i for s in sides for i in s.get(key) or []))
+
+    for key in ("not_estimable_cards", "outside_horizon_cards", "unavailable_cards"):
+        out[key] = union(key)
+    out["cost_unknown_cards"] = union("cost_unknown_cards")
+    out["totals_partial"] = bool(out["not_estimable_cards"] or out["unavailable_cards"])
+    certain: dict[str, float | None] = {}
+    for key, name in (("dprofit_month", "dprofit"), ("dgmv_month", "dgmv")):
+        vals: list[float | None] = [(s.get(key) or {}).get("certain") for s in sides]
+        known = [v for v in vals if v is not None]
+        certain[name] = sum(known) if len(known) == len(vals) else None
+    predicted = _sum_range([(s.get("dprofit_month") or {}).get("predicted") or {} for s in live])
+    out["dprofit_month"] = {
+        "certain": certain["dprofit"],
+        "predicted": predicted,
+        "total": totals["dprofit"],
+    }
+    out["dgmv_month"] = {"certain": certain["dgmv"], "total": totals["dgmv"]}
+    out["dorders_month"] = totals["dorders"]
+    p50 = {m: totals[m]["p50"] for m in RESULT_METRICS}
+    deltas = result_deltas(env, {"p50": p50})
+    out["deltas_p50"] = deltas
+    today_block = agg.get("today") or groups[0].get("today")
+    if today_block is not None:
+        out["today"] = today_block
+        out["after"] = {
+            **_after(today_block, deltas),
+            **after_funnel(today_block, {"p50": p50}),
+            "label": "Dự kiến (P50)",
+        }
+    out["cost"] = _merge_cost(agg, groups)
+    out["totals_note"] = _merge_note(out, estimable)
+    return out
+
+
+def _merge_cost(
+    agg: Mapping[str, Any], groups: Sequence[Mapping[str, Any]]
+) -> dict[str, Any] | None:
+    sides = [s for s in (agg, *groups) if s.get("cost")]
+    if not sides:
+        return None
+    base = dict(sides[0]["cost"])
+    days = float((base.get("horizon") or {}).get("days") or config.DAYS_PER_MONTH)
+    delta_total = sum(float(s["cost"].get("horizon_spend_delta") or 0.0) for s in sides)
+    before = float(base["per_day_before"])
+    after = before + delta_total / days
+    cap = base.get("cap_per_day")
+    over = cap is not None and after > float(cap)
+    base.update(
+        per_day_after=after,
+        delta_per_day=delta_total / days,
+        per_month_after=after * days,
+        delta_per_month=sum(float(s["cost"].get("delta_per_month") or 0.0) for s in sides),
+        over_cap=bool(over),
+        over_by_per_day=float(after - float(cap)) if over and cap is not None else 0.0,
+        horizon_spend_delta=delta_total,
+        horizon_spend_after=after * days,
+        cost_unknown_cards=list(
+            dict.fromkeys(i for s in sides for i in s["cost"].get("cost_unknown_cards") or [])
+        ),
+    )
+    base["cost_complete"] = not base["cost_unknown_cards"]
+    return base
+
+
+def _merge_note(out: Mapping[str, Any], estimable: bool) -> str | None:
+    n_bad = len(out.get("not_estimable_cards") or [])
+    if not estimable:
+        return (
+            f"Chưa ước tính được: {n_bad} thẻ chưa có kết quả ước tính "
+            "(chỉ có chi phí và điểm hoà vốn)."
+        )
+    parts = []
+    if n_bad:
+        parts.append(f"{n_bad} thẻ chưa ước tính được")
+    if out.get("unavailable_cards"):
+        parts.append(f"{len(out['unavailable_cards'])} thẻ không tính lại được")
+    return "Tổng chưa gồm " + " và ".join(parts) + "." if parts else None
+
+
 __all__ = [
     "RESULT_BASIS",
     "CardResult",
@@ -1632,5 +1792,6 @@ __all__ = [
     "flatten",
     "joint",
     "joint_lifts",
+    "merge_groups",
     "total_of",
 ]

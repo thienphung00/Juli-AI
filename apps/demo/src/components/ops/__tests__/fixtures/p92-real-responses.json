@@ -376,30 +376,32 @@
    "gmv_scale": 2.401747,
    "line_gmv": 1603000,
    "line_orders": 19,
-   "margin_pct": 20.2,
+   "margin_pct": 16.3,
    "orders": 70,
-   "profit": 310822,
+   "profit": 250822,
    "profit_is_partial": true,
    "read_from": "tables",
    "shop_profit": {
     "ads_basis": "daily",
-    "ads_charged": 360000,
+    "ads_charged": 420000,
     "bridge": {
-     "ads_charged": 360000,
-     "ads_label": "QC tính trên ngày có đơn có chi phí: 360.000đ / tổng chi QC 420.000đ",
+     "ads_charged": 420000,
+     "ads_label": "QC tính trên ngày có đơn có chi phí: 420.000đ / tổng chi QC 420.000đ; 60.000đ quảng cáo ngày không có đơn",
+     "ads_no_order_days": 60000,
+     "ads_no_order_days_label": "Quảng cáo ngày không có đơn",
      "ads_total": 420000,
      "ads_unattributed": 274286,
      "other_marketing": 0,
      "product_profit": 585108,
-     "profit": 310822
+     "profit": 250822
     },
     "gmv": 1549000,
     "gmv_share_pct": 40.2,
     "label": "trên 18 đơn có chi phí, 40,2 % GMV",
-    "margin_pct": 20.2,
+    "margin_pct": 16.3,
     "net_revenue": 1539000,
     "orders": 18,
-    "profit": 310822
+    "profit": 250822
    },
    "sources": {
     "ads_spend": "daily_report",
@@ -934,30 +936,32 @@
    "gmv_scale": 1.665225,
    "line_gmv": 1156000,
    "line_orders": 13,
-   "margin_pct": 28.1,
+   "margin_pct": 25.4,
    "orders": 35,
-   "profit": 306889,
+   "profit": 276889,
    "profit_is_partial": true,
    "read_from": "tables",
    "shop_profit": {
     "ads_basis": "daily",
-    "ads_charged": 180000,
+    "ads_charged": 210000,
     "bridge": {
-     "ads_charged": 180000,
-     "ads_label": "QC tính trên ngày có đơn có chi phí: 180.000đ / tổng chi QC 210.000đ",
+     "ads_charged": 210000,
+     "ads_label": "QC tính trên ngày có đơn có chi phí: 210.000đ / tổng chi QC 210.000đ; 30.000đ quảng cáo ngày không có đơn",
+     "ads_no_order_days": 30000,
+     "ads_no_order_days_label": "Quảng cáo ngày không có đơn",
      "ads_total": 210000,
      "ads_unattributed": 94286,
      "other_marketing": 0,
      "product_profit": 401175,
-     "profit": 306889
+     "profit": 276889
     },
     "gmv": 1102000,
     "gmv_share_pct": 57.2,
     "label": "trên 12 đơn có chi phí, 57,2 % GMV",
-    "margin_pct": 28.1,
+    "margin_pct": 25.4,
     "net_revenue": 1092000,
     "orders": 12,
-    "profit": 306889
+    "profit": 276889
    },
    "sources": {
     "ads_spend": "daily_report",

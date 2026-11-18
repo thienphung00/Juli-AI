@@ -41,7 +41,7 @@ export interface Frame {
   readonly children: ReactNode;
 }
 
-function ShellFrame({ tab, xem, counts, planCount, title, eyebrow, children }: { readonly tab: DecisionTab; readonly xem: "the" | "ke-hoach"; readonly counts: Readonly<Record<DecisionTab, number>>; readonly planCount: number | null; readonly title: string; readonly eyebrow?: string; readonly children: ReactNode }) {
+function ShellFrame({ tab, xem, counts, planCount, title, eyebrow, children }: { readonly tab: DecisionTab; readonly xem: "the" | "ke-hoach"; readonly counts: Readonly<Partial<Record<DecisionTab, number>>>; readonly planCount: number | null; readonly title: string; readonly eyebrow?: string; readonly children: ReactNode }) {
   const host = useReco();
   return (
     <div className="sa-page sa-p100" data-testid="sd-list">
@@ -62,14 +62,15 @@ function ShellFrame({ tab, xem, counts, planCount, title, eyebrow, children }: {
       <nav aria-label="Quyết định" className="sa-seg sa-seg--round sa-tabs" data-testid="sd-tabs">
         {TABS.map(([key, label]) => (
           <NavLink className={`sa-seg__item ${tab === key ? "sa-seg__item--on" : ""}`} href={host.href({ tab: key })} key={key}>
-            {label} · {fmt(counts[key], 0)}
+            {label}
+            {counts[key] === undefined ? "" : ` · ${fmt(counts[key], 0)}`}
           </NavLink>
         ))}
       </nav>
       {tab === "de-xuat" ? (
         <div aria-label="Xem" className="sa-seg sa-seg--round dx-xem" data-testid="dx-xem" role="tablist">
           <NavLink className={`sa-seg__item ${xem === "the" ? "sa-seg__item--on" : ""}`} href={host.href({})} testId="dx-xem-the">
-            Thẻ · {fmt(counts["de-xuat"], 0)}
+            Thẻ{counts["de-xuat"] === undefined ? "" : ` · ${fmt(counts["de-xuat"], 0)}`}
           </NavLink>
           {host.plan ? (
             <NavLink className={`sa-seg__item ${xem === "ke-hoach" ? "sa-seg__item--on" : ""}`} href={host.href({ plan: true })} testId="sq-plan-link">
@@ -159,9 +160,15 @@ function ShopShell({ params }: { readonly params: URLSearchParams }) {
   const cardsAll = list.status === "ready" ? list.data.cards : [];
   const tops = topEntries(cardsAll).map((e) => e.top);
   const execCount = execLive ?? (execRes.status === "ready" && Array.isArray(execRes.data.cards) ? execRes.data.cards.length : null);
-  const counts = { ...tabCounts(cardsAll), "de-xuat": tops.length, ...(execCount === null ? {} : { "thuc-hien": execCount }) };
+  // while the list loads there is no count (never a false "0 thẻ")
+  const listReady = list.status === "ready";
+  const counts: Partial<Record<DecisionTab, number>> = {
+    ...(listReady ? { "de-xuat": tops.length, "do-luong": tabCounts(cardsAll)["do-luong"] } : {}),
+    ...(execCount === null ? {} : { "thuc-hien": execCount }),
+  };
   const shown = filterCards(tops, metric, product);
-  const title = tab === "de-xuat" ? (xem === "ke-hoach" ? "Kế hoạch nháp" : findingOf(shown, metric)) : `${fmt(counts[tab], 0)} thẻ`;
+  const loadingTitle = "Đang tải…";
+  const title = tab === "de-xuat" ? (xem === "ke-hoach" ? "Kế hoạch nháp" : listReady ? findingOf(shown, metric) : loadingTitle) : counts[tab] === undefined ? loadingTitle : `${fmt(counts[tab], 0)} thẻ`;
   const frame = (t: string, eyebrow: string | undefined, children: ReactNode) => (
     <ShellFrame counts={counts} eyebrow={eyebrow} planCount={planCount} tab={tab} title={t} xem={xem}>
       {children}

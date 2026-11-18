@@ -81,7 +81,6 @@ export function VoucherPanel({ form, set, ctx }: P<"voucher">) {
       {q !== null && t ? (
         <p className="sa-hint" data-testid="p2-voucher-qualify">
           Đơn đủ điều kiện (30 ngày): {fmt(q)} / {fmt(t)} ({fmt((q / t) * 100, 0)}%)
-          {dn(d, "voucher_cost_scenario") !== null ? ` · Chi phí voucher: ${vnd(dn(d, "voucher_cost_scenario"))}` : ""}
         </p>
       ) : null}
     </div>

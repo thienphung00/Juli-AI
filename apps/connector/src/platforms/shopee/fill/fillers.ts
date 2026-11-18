@@ -6,6 +6,8 @@
 
 import {
   chooseRadio,
+  type PickResult,
+  writeBox,
   chooseSelect,
   ensureCount,
   type Env,
@@ -13,6 +15,7 @@ import {
   findEditPencil,
   findPressable,
   findRow,
+  holdsId,
   pickProducts,
   press,
   setDate,
@@ -22,6 +25,7 @@ import {
 } from "./controls";
 import type { AdsPayload, AffiliatePayload, ComboPayload, VoucherPayload } from "./job-types";
 import { normalizeLabel } from "../../../core/fill/locate";
+import { keyed } from "../../../core/fill/log";
 import { writeValue } from "../../../core/fill/write";
 
 export type { FillOutcome, Step } from "../../../core/fill/form";
@@ -34,6 +38,7 @@ export const VOUCHER_LABELS = {
   code: "Mã voucher",
   period: "Thời gian sử dụng mã",
   type: "Loại Voucher",
+  /** Not on the live page any more (2026-11-17): set off only when Shopee still draws it. */
   smart: "Mã giảm giá thông minh",
   discount: "Loại giảm giá | Mức giảm",
   max: "Mức giảm tối đa",
@@ -44,48 +49,70 @@ export const VOUCHER_LABELS = {
   products: "Sản phẩm được áp dụng",
 } as const;
 
-const DISPLAY_OPTION = { multi: "Hiển thị nhiều nơi", code: "Chia sẻ thông qua mã", private: "Không công khai" } as const;
+const DISPLAY_OPTION = { multi: "Hiển thị nhiều nơi", code: "Chia sẻ thông qua mã Voucher", private: "Không công khai" } as const;
+
+/** The field keys of a fill (the job report's `before_values` and `fields` use them). */
+export const PERIOD_KEYS = ["starts_at", "ends_at"];
+export const PERIOD_NOTE = "Chọn tay thời gian theo thẻ — Shopee đang để mặc định là bây giờ.";
+
+type Add = (label: string, ok: boolean, opts?: { note?: string; keys?: string[] }) => void;
+
+function stepper(steps: Step[]): Add {
+  return (label, ok, opts = {}) =>
+    steps.push({ label, ok, ...(opts.note && !ok ? { note: opts.note } : {}), ...(opts.keys ? { keys: opts.keys } : {}) });
+}
+
+function period(env: Env, add: Add, label: string, startsAt: string, endsAt: string): void {
+  const start = setDate(keyed(env, "starts_at"), label, startsAt, 0);
+  const end = setDate(keyed(env, "ends_at"), label, endsAt, 1);
+  add(`Thời gian: ${startsAt} → ${endsAt}`, start && end, { note: PERIOD_NOTE, keys: PERIOD_KEYS });
+}
+
+function picked(add: Add, p: PickResult, total: number): void {
+  add(`Sản phẩm: ${p.ticked.length}/${total} đã tick`, p.missing.length === 0, { keys: ["product_ids"], ...(p.reason ? { note: p.reason } : {}) });
+}
 
 export async function fillVoucher(env: Env, v: VoucherPayload): Promise<FillOutcome> {
   const steps: Step[] = [];
-  const add = (label: string, ok: boolean, note?: string) => steps.push({ label, ok, ...(note ? { note } : {}) });
+  const add = stepper(steps);
   const L = VOUCHER_LABELS;
-  add(`Tên chương trình: ${v.name}`, setRowText(env, L.name, v.name));
-  add(`Mã voucher: …${v.codeSuffix}`, setRowText(env, L.code, v.codeSuffix));
-  const start = setDate(env, L.period, v.startsAt, 0);
-  const end = setDate(env, L.period, v.endsAt, 1);
-  add(`Thời gian: ${v.startsAt} → ${v.endsAt}`, start && end);
-  add("Loại voucher: Khuyến Mãi", await chooseRadio(env, L.type, "Khuyến Mãi"));
-  add("Mã giảm giá thông minh: tắt", await setSwitch(env, L.smart, false));
+  const k = (key: string) => keyed(env, key);
+  add(`Tên chương trình: ${v.name}`, setRowText(k("name"), L.name, v.name), { keys: ["name"] });
+  add(`Mã voucher: …${v.codeSuffix}`, setRowText(k("code_suffix"), L.code, v.codeSuffix), { keys: ["code_suffix"] });
+  period(env, add, L.period, v.startsAt, v.endsAt);
+  add("Loại voucher: Khuyến Mãi", await chooseRadio(k("voucher_type"), L.type, "Khuyến Mãi"), { keys: ["voucher_type"] });
+  // gone from the live page: off when drawn, otherwise not a step at all
+  if (findRow(env.doc, L.smart)) add("Mã giảm giá thông minh: tắt", await setSwitch(k("smart"), L.smart, false), { keys: ["smart"] });
   if (v.discount.type === "amount") {
-    const kind = await chooseSelect(env, L.discount, "Theo số tiền");
-    add(`Giảm ${dong(v.discount.value)}`, kind && setRowText(env, L.discount, String(v.discount.value)));
+    const kind = await chooseSelect(k("discount_type"), L.discount, "Theo số tiền");
+    add(`Giảm ${dong(v.discount.value)}`, kind && setRowText(k("discount"), L.discount, String(v.discount.value)), {
+      keys: ["discount_type", "discount"],
+    });
   } else {
-    const kind = await chooseSelect(env, L.discount, "Theo phần trăm");
-    add(`Giảm ${v.discount.value}%`, kind && setRowText(env, L.discount, String(v.discount.value)));
+    const kind = await chooseSelect(k("discount_type"), L.discount, "Theo phần trăm");
+    add(`Giảm ${v.discount.value}%`, kind && setRowText(k("discount"), L.discount, String(v.discount.value)), {
+      keys: ["discount_type", "discount"],
+    });
     if (v.discount.max.mode === "limited") {
-      const radio = await chooseRadio(env, L.max, "Giới hạn");
-      add(`Giảm tối đa ${dong(v.discount.max.value)}`, radio && setRowText(env, L.max, String(v.discount.max.value)));
+      const radio = await chooseRadio(k("max_mode"), L.max, "Giới hạn");
+      add(`Giảm tối đa ${dong(v.discount.max.value)}`, radio && setRowText(k("max_value"), L.max, String(v.discount.max.value)), {
+        keys: ["max_mode", "max_value"],
+      });
     } else {
-      add("Giảm tối đa: không giới hạn", await chooseRadio(env, L.max, "Không giới hạn"));
+      add("Giảm tối đa: không giới hạn", await chooseRadio(k("max_mode"), L.max, "Không giới hạn"), { keys: ["max_mode"] });
     }
   }
-  add(`Đơn tối thiểu ${dong(v.minSpend)}`, setRowText(env, L.minSpend, String(v.minSpend)));
-  add(`Tổng lượt dùng ${v.usageTotal}`, setRowText(env, L.usageTotal, String(v.usageTotal)));
-  add(`Mỗi người mua ${v.perBuyer} lượt`, setRowText(env, L.perBuyer, String(v.perBuyer)));
-  add(`Hiển thị: ${DISPLAY_OPTION[v.display]}`, await chooseRadio(env, L.display, DISPLAY_OPTION[v.display]));
+  add(`Đơn tối thiểu ${dong(v.minSpend)}`, setRowText(k("min_spend"), L.minSpend, String(v.minSpend)), { keys: ["min_spend"] });
+  add(`Tổng lượt dùng ${v.usageTotal}`, setRowText(k("usage_total"), L.usageTotal, String(v.usageTotal)), { keys: ["usage_total"] });
+  add(`Mỗi người mua ${v.perBuyer} lượt`, setRowText(k("per_buyer"), L.perBuyer, String(v.perBuyer)), { keys: ["per_buyer"] });
+  add(`Hiển thị: ${DISPLAY_OPTION[v.display]}`, await chooseRadio(k("display"), L.display, DISPLAY_OPTION[v.display]), { keys: ["display"] });
   const todo: string[] = [];
   if (v.productIds.length > 0) {
-    const picked = await pickProducts(env, "Thêm sản phẩm", v.productIds);
-    add(
-      `Sản phẩm: ${picked.ticked.length}/${v.productIds.length} đã tick`,
-      picked.missing.length === 0,
-      picked.missing.length ? `Không thấy ID: ${picked.missing.join(", ")}` : undefined,
-    );
+    picked(add, await pickProducts(k("product_ids"), "Thêm sản phẩm", v.productIds), v.productIds.length);
     todo.push("Bấm Xác nhận trong hộp chọn sản phẩm.");
   }
   todo.push("Kiểm tra lại các ô được tô hồng, rồi bấm Xác nhận của Shopee để tạo voucher.");
-  return { steps, todo, notes: ["Juli không bấm Xác nhận thay bạn."] };
+  return { steps, todo, notes: ["Juli không bấm Xác nhận thay bạn."], periodKeys: PERIOD_KEYS };
 }
 
 // -- combo khuyến mãi (bundle deal) ----------------------------------------------------------
@@ -107,37 +134,55 @@ const COMBO_TIER_TEXT = {
   special_price: (q: number, v: number) => `Mua ${q} chỉ với giá ${dong(v)}`,
 } as const;
 
+/**
+ * The tier rows, in order, each holding its two boxes ("Mua [N] sản phẩm để được giảm [X]"):
+ * under the "Mức ưu đãi" row when Shopee labels it, else every innermost element whose text reads
+ * "Mua … sản phẩm …" and holds exactly two boxes (the live page, 2026-11-17).
+ */
+export function tierRows(doc: Document): HTMLInputElement[][] {
+  const labelled = findRow(doc, COMBO_LABELS.tiers);
+  const scope: ParentNode = labelled ?? doc.body;
+  const rows = Array.from(scope.querySelectorAll<HTMLElement>("div,li,tr")).filter(
+    (el) => /^mua.*sản phẩm/.test(normalizeLabel((el.textContent ?? "").slice(0, 200))) && textBoxesIn(el).length === 2,
+  );
+  const inner = rows.filter((r) => !rows.some((o) => o !== r && r.contains(o)));
+  if (inner.length > 0) return inner.map((r) => textBoxesIn(r));
+  // one row element holding every tier's pair of boxes
+  if (!labelled) return [];
+  const boxes = textBoxesIn(labelled);
+  const out: HTMLInputElement[][] = [];
+  for (let i = 0; i + 1 < boxes.length; i += 2) out.push([boxes[i]!, boxes[i + 1]!]);
+  return out;
+}
+
 export async function fillCombo(env: Env, c: ComboPayload): Promise<FillOutcome> {
   const steps: Step[] = [];
-  const add = (label: string, ok: boolean, note?: string) => steps.push({ label, ok, ...(note ? { note } : {}) });
+  const add = stepper(steps);
   const L = COMBO_LABELS;
+  const k = (key: string) => keyed(env, key);
   // the type first: it decides what the tier rows ask for
-  add(`Loại combo: ${COMBO_TYPE_OPTION[c.discountType]}`, await chooseRadio(env, L.type, COMBO_TYPE_OPTION[c.discountType]));
-  add(`Tên combo: ${c.name}`, setRowText(env, L.name, c.name));
-  const start = setDate(env, L.period, c.startsAt, 0);
-  const end = setDate(env, L.period, c.endsAt, 1);
-  add(`Thời gian: ${c.startsAt} → ${c.endsAt}`, start && end);
-  // each tier row holds two boxes: "Mua [N] sản phẩm" and the percent / amount / price
-  const boxes = () => {
-    const row = findRow(env.doc, L.tiers);
-    return row ? textBoxesIn(row).length : 0;
-  };
-  const enough = await ensureCount(env, L.addTier, () => Math.floor(boxes() / 2), c.tiers.length);
+  add(`Loại combo: ${COMBO_TYPE_OPTION[c.discountType]}`, await chooseRadio(k("discount_type"), L.type, COMBO_TYPE_OPTION[c.discountType]), {
+    keys: ["discount_type"],
+  });
+  add(`Tên combo: ${c.name}`, setRowText(k("name"), L.name, c.name), { keys: ["name"] });
+  period(env, add, L.period, c.startsAt, c.endsAt);
+  const enough = await ensureCount(env, L.addTier, () => tierRows(env.doc).length, c.tiers.length);
+  const rows = tierRows(env.doc);
   for (const [i, t] of c.tiers.entries()) {
-    const ok = enough && setRowText(env, L.tiers, String(t.qty), i * 2) && setRowText(env, L.tiers, String(t.value), i * 2 + 1);
-    add(COMBO_TIER_TEXT[c.discountType](t.qty, t.value), ok);
+    const row = rows[i];
+    const keys = [`tier${i + 1}_qty`, `tier${i + 1}_value`];
+    const ok = (enough || rows.length >= c.tiers.length) && !!row && writeBox(k(keys[0]!), row[0]!, String(t.qty)) && writeBox(k(keys[1]!), row[1]!, String(t.value));
+    add(COMBO_TIER_TEXT[c.discountType](t.qty, t.value), ok, { keys, note: row ? undefined : "Không thấy dòng «Mua … sản phẩm» của mức này" });
   }
-  if (c.purchaseLimit !== undefined) add(`Giới hạn đặt hàng: ${c.purchaseLimit}`, setRowText(env, L.limit, String(c.purchaseLimit)));
-  const picked = await pickProducts(env, L.products, c.productIds);
-  add(
-    `Sản phẩm: ${picked.ticked.length}/${c.productIds.length} đã tick`,
-    picked.missing.length === 0,
-    picked.missing.length ? `Không thấy ID: ${picked.missing.join(", ")}` : undefined,
-  );
+  if (c.purchaseLimit !== undefined) {
+    add(`Giới hạn đặt hàng: ${c.purchaseLimit}`, setRowText(k("purchase_limit"), L.limit, String(c.purchaseLimit)), { keys: ["purchase_limit"] });
+  }
+  picked(add, await pickProducts(k("product_ids"), L.products, c.productIds), c.productIds.length);
   return {
     steps,
     todo: ["Bấm Xác nhận trong hộp chọn sản phẩm.", "Kiểm tra lại các ô được tô hồng, rồi bấm Xác nhận của Shopee để tạo combo."],
     notes: ["Juli không bấm Xác nhận thay bạn."],
+    periodKeys: PERIOD_KEYS,
   };
 }
 
@@ -177,12 +222,16 @@ export async function fillAds(env: Env, a: AdsPayload): Promise<FillOutcome> {
     if (!dialog) {
       steps.push({ label: "Mở cửa sổ Chỉnh sửa ngân sách", ok: false, note: "Không thấy nút bút chì của ngân sách." });
     } else if (a.budget.mode === "unlimited") {
-      steps.push({ label: "Ngân sách: Không giới hạn", ok: await chooseRadio(env, ADS_LABELS.unlimited, ADS_LABELS.unlimited, dialog) });
+      steps.push({
+        label: "Ngân sách: Không giới hạn",
+        ok: await chooseRadio(keyed(env, "budget_mode"), ADS_LABELS.unlimited, ADS_LABELS.unlimited, dialog),
+        keys: ["budget_mode"],
+      });
     } else {
-      const radio = await chooseRadio(env, ADS_LABELS.daily, ADS_LABELS.daily, dialog);
+      const radio = await chooseRadio(keyed(env, "budget_mode"), ADS_LABELS.daily, ADS_LABELS.daily, dialog);
       const typed = textBoxesIn(dialog)[0];
-      const ok = radio && !!typed && writeValue(typed, String(a.budget.value)) && typed.value === String(a.budget.value);
-      steps.push({ label: `Ngân sách hàng ngày: ${dong(a.budget.value)}`, ok });
+      const ok = radio && !!typed && writeBox(keyed(env, "daily_budget"), typed, String(a.budget.value));
+      steps.push({ label: `Ngân sách hàng ngày: ${dong(a.budget.value)}`, ok, keys: ["budget_mode", "daily_budget"] });
     }
     todo.push("Bấm Xác nhận trong cửa sổ ngân sách của Shopee.");
     if (a.roas) notes.push("Mục tiêu ROAS: làm ở lần mở trang kế tiếp (mỗi lần chỉ một cửa sổ).");
@@ -191,10 +240,10 @@ export async function fillAds(env: Env, a: AdsPayload): Promise<FillOutcome> {
     if (!dialog) {
       steps.push({ label: "Mở cửa sổ Mục tiêu ROAS", ok: false, note: "Không thấy nút bút chì của ROAS." });
     } else {
-      const radio = await chooseRadio(env, ADS_LABELS.custom, ADS_LABELS.custom, dialog);
+      const radio = await chooseRadio(keyed(env, "roas_mode"), ADS_LABELS.custom, ADS_LABELS.custom, dialog);
       const typed = textBoxesIn(dialog)[0];
-      const ok = radio && !!typed && writeValue(typed, String(a.roas.value)) && typed.value === String(a.roas.value);
-      steps.push({ label: `Mục tiêu ROAS: ${a.roas.value}`, ok });
+      const ok = radio && !!typed && writeBox(keyed(env, "roas_target"), typed, String(a.roas.value));
+      steps.push({ label: `Mục tiêu ROAS: ${a.roas.value}`, ok, keys: ["roas_mode", "roas_target"] });
     }
     if (a.roas.value > ROAS_HINT_MAX) notes.push(`Shopee gợi ý ROAS ≤ ${ROAS_HINT_MAX}; giá trị này cao hơn.`);
     notes.push("Đổi ROAS từ 2 lần trong một tuần sẽ mất hỗ trợ hiệu quả của tuần đó.");
@@ -217,11 +266,14 @@ function filterBox(env: Env): HTMLInputElement | null {
   return boxes.length === 1 ? (boxes[0] as HTMLInputElement) : null;
 }
 
+export const AFFILIATE_NO_FILTER = "Không thấy ô tìm sản phẩm theo tên / ID trên trang Chiến dịch mở rộng";
+
 export async function fillAffiliate(env: Env, a: AffiliatePayload): Promise<FillOutcome> {
   const steps: Step[] = [];
   const ticked: string[] = [];
-  const box = filterBox(env);
+  const box = await waitFor(env, () => filterBox(env));
   for (const id of a.productIds) {
+    // a search box, not a field of the card: typed but not recorded
     if (!box || !writeValue(box, id)) continue;
     const go = findPressable(env, "Tìm kiếm") ?? findPressable(env, "Tìm");
     if (go) press(go);
@@ -229,7 +281,7 @@ export async function fillAffiliate(env: Env, a: AffiliatePayload): Promise<Fill
     let done = false;
     while (!done && env.now() < until) {
       const rows = Array.from(env.doc.querySelectorAll<HTMLElement>("tr,[role='row'],li")).filter(
-        (r) => normalizeLabel(r.textContent ?? "").includes(id) && r.querySelector('input[type="checkbox"],[role="checkbox"]'),
+        (r) => holdsId(r, id) && r.querySelector('input[type="checkbox"],[role="checkbox"]'),
       );
       const inner = rows.filter((h) => !rows.some((o) => o !== h && h.contains(o)));
       if (inner.length === 1) {
@@ -242,12 +294,14 @@ export async function fillAffiliate(env: Env, a: AffiliatePayload): Promise<Fill
       } else await env.sleep(150);
     }
   }
+  const notTicked = a.productIds.filter((i) => !ticked.includes(i));
   steps.push({
     label: `Chọn sản phẩm: ${ticked.length}/${a.productIds.length}`,
-    ok: ticked.length === a.productIds.length,
-    ...(ticked.length < a.productIds.length ? { note: `Không tick được: ${a.productIds.filter((i) => !ticked.includes(i)).join(", ")}` } : {}),
+    ok: notTicked.length === 0,
+    ...(notTicked.length > 0 ? { note: box ? `Không thấy dòng của ID: ${notTicked.join(", ")}` : AFFILIATE_NO_FILTER } : {}),
   });
   let dialogOk = false;
+  let why = "";
   if (ticked.length === a.productIds.length) {
     const bulk = findPressable(env, AFFILIATE_LABELS.bulk);
     if (bulk && press(bulk)) {
@@ -255,17 +309,27 @@ export async function fillAffiliate(env: Env, a: AffiliatePayload): Promise<Fill
       if (item && press(item)) {
         const dialog = await waitDialog(env, AFFILIATE_LABELS.commission);
         const field = dialog ? textBoxesIn(dialog)[0] : undefined;
-        const value = String(a.commissionPct);
-        dialogOk = !!field && writeValue(field, value) && field.value === value;
-      }
-    }
-  }
-  steps.push({ label: `Tỉ lệ hoa hồng: ${a.commissionPct}%`, ok: dialogOk });
+        dialogOk = !!field && writeBox(keyed(env, "commission_pct"), field, String(a.commissionPct));
+        if (!dialogOk) why = "Không thấy ô tỉ lệ trong hộp thoại";
+      } else why = "Không thấy mục «Chỉnh sửa tỉ lệ hoa hồng»";
+    } else why = "Không thấy nút «Chỉnh sửa hàng loạt»";
+  } else why = "Chưa chọn được sản phẩm nên Juli không mở hộp sửa hoa hồng";
+  steps.push({ label: `Tỉ lệ hoa hồng: ${a.commissionPct}%`, ok: dialogOk, keys: ["commission_pct"], ...(dialogOk ? {} : { note: why }) });
   return {
     steps,
     todo: ["Kiểm tra tỉ lệ trong hộp thoại, rồi bấm Lưu lại của Shopee."],
     notes: ["Juli không bấm Lưu lại thay bạn."],
   };
+}
+
+async function waitFor<T>(env: Env, find: () => T | null | undefined, ms = 4_000): Promise<T | null> {
+  const until = env.now() + ms;
+  for (;;) {
+    const found = find();
+    if (found) return found;
+    if (env.now() >= until) return null;
+    await env.sleep(150);
+  }
 }
 
 async function waitPressable(env: Env, text: string): Promise<HTMLElement | null> {

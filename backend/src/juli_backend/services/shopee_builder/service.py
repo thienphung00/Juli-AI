@@ -37,6 +37,13 @@ from juli_backend.services.shopee_builder import (
 )
 from juli_backend.services.shopee_builder import keyword_coverage as kwc
 from juli_backend.services.shopee_builder import specs as sp
+from juli_backend.services.shopee_builder.ads_campaigns import (
+    RealCampaigns,
+    ads_campaign_settings,
+    campaign_name_key,
+    dedupe_campaigns,
+    real_campaigns,
+)
 from juli_backend.services.shopee_builder.context import BuilderContext, SpecRefused
 from juli_backend.services.shopee_builder.engine_families import integrate
 from juli_backend.services.shopee_builder.keywords import keyword_table
@@ -248,17 +255,24 @@ async def co_purchase(
 async def ads_campaigns(
     session: AsyncSession, shop_id: uuid.UUID, *, as_of: date | None, now: datetime
 ) -> dict[str, Any]:
-    """The campaigns a levers form can pick: live settings, spend, ROAS and break-even ROAS."""
+    """The campaigns a levers form can pick: one entry per real campaign (the Connector's campaign
+    id), with its type, status, live settings, spend, ROAS and break-even ROAS, the biggest recent
+    spender first. Product-level ad rows of the report are not campaigns and are left out."""
     from juli_backend.services.shopee_analytics.fmt import num, ratio
     from juli_backend.services.shopee_recommendations.evaluate import campaign_profile
 
     env = await loader.load_env(session, shop_id, as_of=as_of, now=now)
     if env is None:
         raise NoShopeeData(str(shop_id))
-    rows = []
+    snapshots = await ads_campaign_settings(session, shop_id)
+    real = real_campaigns(env, snapshots)
+    rows: list[dict[str, Any]] = []
     for alloc in env.view.ads.campaigns:
-        prof = campaign_profile(env, alloc.key)
         setting = env.setting_for(alloc.key)
+        info = real.match(alloc.name, alloc.key, setting)
+        if info is None and real.known:
+            continue
+        prof = campaign_profile(env, alloc.key)
         products = []
         for item, spend in sorted(alloc.products.items(), key=lambda kv: -kv[1]):
             pp = env.product(item)
@@ -278,7 +292,9 @@ async def ads_campaigns(
             {
                 "campaign_key": alloc.key,
                 "name": alloc.name,
-                "running": alloc.running,
+                "campaign_id": real.id_of(alloc.name, alloc.key, setting),
+                **real.labels(info),
+                "running": alloc.running if info is None else real.running(info, alloc.running),
                 "daily_budget": num(setting.daily_budget) if setting else None,
                 "roas_target": num(setting.roas_target) if setting else None,
                 "spend_per_day": num(prof["spend_per_day"]) if prof else None,
@@ -287,11 +303,8 @@ async def ads_campaigns(
                 "products": products,
             }
         )
-    rows.extend(
-        _stored_campaigns(
-            env, {str(r["campaign_key"]) for r in rows}, {str(r["name"]) for r in rows}
-        )
-    )
+    rows.extend(_stored_campaigns(env, real, rows))
+    rows = dedupe_campaigns(rows, excluded_names=set() if real.known else _product_names(env))
     return {
         "window": env.view.window.json(),
         "daily_cap": num(env.daily_cap),
@@ -300,25 +313,48 @@ async def ads_campaigns(
     }
 
 
-def _stored_campaigns(env: RecoEnv, keys: set[str], names: set[str]) -> list[dict[str, Any]]:
+def _product_names(env: RecoEnv) -> set[str]:
+    """Names of products in the ads report: a "campaign" named like a product is a product row."""
+    names: set[str] = set()
+    for alloc in env.view.ads.campaigns:
+        names |= {campaign_name_key(env.name(item)) for item in alloc.products}
+    for row in env.view.data.ads_reports.campaign_rows:
+        if row.item_id:
+            names.add(campaign_name_key(env.name(row.item_id)))
+    names.discard("")
+    return names
+
+
+def _stored_campaigns(
+    env: RecoEnv, real: RealCampaigns, rows: Sequence[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
     """Real campaigns the allocation did not list: the Connector's per-campaign daily rows
-    (``env.campaigns``: budget, ROAS target) and the ads files' campaign rows. The allocation can
-    reduce a shop to one pseudo campaign ("Tổng chi quảng cáo"); the levers form still needs the
-    shop's own campaigns to pick from."""
+    (``env.campaigns``: budget, ROAS target), its settings snapshots, and the ads files' campaign
+    rows. The allocation can reduce a shop to one pseudo campaign ("Tổng chi quảng cáo"); the
+    levers form still needs the shop's own campaigns to pick from."""
     from juli_backend.services.shopee_analytics.fmt import num
 
     out: list[dict[str, Any]] = []
-    seen = set(keys) | set(names)
+    seen = {str(r["campaign_key"]) for r in rows} | {
+        campaign_name_key(str(r["name"])) for r in rows
+    }
 
-    def add(key: str, name: str, budget: Any, roas: Any, running: bool | None) -> None:
-        if key in seen or name in seen:
+    def add(
+        key: str, name: str, budget: Any, roas: Any, running: bool | None, setting: Any = None
+    ) -> None:
+        if key in seen or campaign_name_key(name) in seen:
             return
-        seen.update({key, name})
+        info = real.match(name, key, setting)
+        if info is None and real.known:
+            return
+        seen.update({key, campaign_name_key(name)})
         out.append(
             {
                 "campaign_key": key,
                 "name": name,
-                "running": running,
+                "campaign_id": real.id_of(name, key, setting),
+                **real.labels(info),
+                "running": running if info is None else real.running(info, running),
                 "daily_budget": num(budget) if budget is not None else None,
                 "roas_target": num(roas) if roas is not None else None,
                 "spend_per_day": None,
@@ -329,7 +365,7 @@ def _stored_campaigns(env: RecoEnv, keys: set[str], names: set[str]) -> list[dic
         )
 
     for setting in dict.fromkeys(env.campaigns.values()):
-        add(setting.key, setting.name, setting.daily_budget, setting.roas_target, None)
+        add(setting.key, setting.name, setting.daily_budget, setting.roas_target, None, setting)
     for row in env.view.data.ads_reports.campaign_rows:
         add(row.key, row.campaign or row.key, None, None, row.running)
     return out
@@ -405,6 +441,8 @@ async def build_context(
         i for spec in specs if spec.kind in kwc.KEYWORD_KINDS for i in sp.items_of(spec)
     ):
         await _load_keyword_weights(session, shop_id, ctx, item)
+    if any(spec.kind == "ads" for spec in specs):
+        ctx.campaigns = real_campaigns(env, await ads_campaign_settings(session, shop_id))
     if any(spec.kind in PRICE_SCALED for spec in specs):
         _, view90, _ = await load_view90(session, shop_id, env.as_of)
         ctx.view90 = view90

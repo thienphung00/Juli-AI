@@ -1,0 +1,37 @@
+<!-- Shape of the live /portal/marketing/vouchers/new?usecase=1 (labels from the read-only capture
+     2026-11-17), synthetic values: eds-form items (label element beside the control element),
+     no "Mã giảm giá thông minh" row any more, the period as two picker inputs. -->
+<form class="eds-form voucher-form" onsubmit="return false">
+  <div class="eds-form-item"><label class="eds-form-item__label">Loại mã</label>
+    <div class="eds-form-item__control"><div class="type-card active"><span>Voucher toàn Shop</span></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Tên chương trình giảm giá</label>
+    <div class="eds-form-item__control"><div class="eds-input"><input class="eds-input__input" type="text" id="name" placeholder="Nhập vào"><span class="eds-input__suffix">0/100</span></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Mã voucher</label>
+    <div class="eds-form-item__control"><div class="eds-input"><span class="eds-input__prefix">SHOPV</span><input class="eds-input__input" type="text" id="code"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Thời gian sử dụng mã</label>
+    <div class="eds-form-item__control"><div class="eds-date-picker">
+      <input class="eds-input__input" type="text" id="start" placeholder="Chọn ngày giờ bắt đầu" value="15:43 17-11-2026"> —
+      <input class="eds-input__input" type="text" id="end" placeholder="Chọn ngày giờ kết thúc" value="16:43 17-11-2026"></div>
+      <label class="eds-checkbox"><input type="checkbox" id="early"><span>Cho phép lưu mã trước Thời gian sử dụng</span></label></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Loại Voucher</label>
+    <div class="eds-form-item__control">
+      <label class="eds-radio"><input type="radio" name="vtype" value="promo" checked><span>Khuyến Mãi</span></label>
+      <label class="eds-radio"><input type="radio" name="vtype" value="coin"><span>Hoàn Xu</span></label></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Loại giảm giá | Mức giảm</label>
+    <div class="eds-form-item__control">
+      <div class="eds-selector" id="dtype" data-options="Theo số tiền|Theo phần trăm"><span class="eds-selector__inner">Theo số tiền</span></div>
+      <div class="eds-input"><input class="eds-input__input" type="text" id="dvalue"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Giá trị đơn hàng tối thiểu</label>
+    <div class="eds-form-item__control"><div class="eds-input"><input class="eds-input__input" type="text" id="minspend"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Tổng lượt sử dụng tối đa</label>
+    <div class="eds-form-item__control"><div class="eds-input"><input class="eds-input__input" type="text" id="total"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Lượt sử dụng tối đa/Người mua</label>
+    <div class="eds-form-item__control"><div class="eds-input"><input class="eds-input__input" type="text" id="perbuyer" value="1"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Thiết lập hiển thị</label>
+    <div class="eds-form-item__control">
+      <label class="eds-radio"><input type="radio" name="disp" value="multi" checked><span>Hiển thị nhiều nơi</span></label>
+      <label class="eds-radio"><input type="radio" name="disp" value="code"><span>Chia sẻ thông qua mã Voucher</span></label></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Sản phẩm được áp dụng</label>
+    <div class="eds-form-item__control"><span>Tất cả sản phẩm</span></div></div>
+  <div class="actions"><button type="button" id="cancel" data-forbidden>Hủy</button><button type="button" id="submit" data-forbidden>Xác nhận</button></div>
+</form>

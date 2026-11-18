@@ -541,10 +541,12 @@ async def test_bug6_hide_and_relist_need_no_orders(shop):
 
 
 async def test_bug8_real_campaigns_are_listed_beside_the_pseudo_one(shop):
+    from juli_backend.services.shopee_builder.ads_campaigns import RealCampaigns
     from juli_backend.services.shopee_builder.service import _stored_campaigns
 
     _, env = shop
-    out = _stored_campaigns(env, {"daily"}, {"Tổng chi quảng cáo"})
+    rows = [{"campaign_key": "daily", "name": "Tổng chi quảng cáo"}]
+    out = _stored_campaigns(env, RealCampaigns(), rows)
     names = {c["name"] for c in out}
     assert names and "Tổng chi quảng cáo" not in names
     assert all(c["campaign_key"] not in {"daily"} for c in out)

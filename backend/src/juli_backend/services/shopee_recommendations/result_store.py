@@ -66,6 +66,8 @@ META_RESULTS = "results"
 AT_APPROVAL = "result_at_approval"
 RESULT_SCHEMA = "card-result/1"
 NOT_ESTIMABLE_TEXT = "Chưa ước tính được"
+#: C1: estimable, but the expected change is smaller than the metric's normal swing (F5)
+WITHIN_NOISE_TEXT = "Trong biên dao động"
 NOT_COMPUTED = "not_computed"
 #: Statuses whose cards keep a live result (``recompute_card_results`` and the refresh job).
 NON_TERMINAL = (
@@ -296,9 +298,35 @@ def apply(card: dict[str, Any], meta: Mapping[str, Any] | None) -> dict[str, Any
             got = stored.get(str(v.get("version")))
             if got is not None:
                 v[KEY] = got
+                align_spend(v, got)
     if stored.get("1") is not None:
         card[KEY] = stored["1"]
+        align_spend(card, stored["1"])
     return card
+
+
+def align_spend(row: dict[str, Any], block: Mapping[str, Any] | None) -> None:
+    """C2 (batch-1117b): ONE cost per card. The certain layer's ``spend.card_dchi_per_day`` was
+    the old window's orders x the discount, while the result's ``cost_total`` is the engine's
+    expected cost over the card's own days (the figure every list, page and plan shows); two
+    formulas gave two costs (voucher 119,769 vs 2,833 x 30). The spend line now reads the result:
+    ``card_dchi_per_day`` = ``cost_total`` / its days, with ``card_days`` and ``card_cost_total``
+    beside it, so per day x days IS the cost. A block with no cost leaves the line as it was."""
+    spend = row.get("spend")
+    cost = None if block is None else block.get("cost_total")
+    days = ((block or {}).get("own") or {}).get("days")
+    if not isinstance(spend, dict) or cost is None or not days:
+        return
+    per_day = float(cost) / int(days)
+    spend["card_dchi_per_day"] = per_day
+    spend["card_days"] = int(days)
+    spend["card_cost_total"] = float(cost)
+    now = spend.get("shop_chi_per_day_now")
+    if now is not None:
+        after = float(now) + per_day
+        spend["shop_chi_per_day_after"] = after
+        cap = spend.get("cap")
+        spend["over_cap"] = None if cap is None else after > float(cap)
 
 
 def version_result(card: Mapping[str, Any], version: int | None = None) -> dict[str, Any] | None:
@@ -323,6 +351,13 @@ def per_day(block: Mapping[str, Any] | None, metric: str) -> float | None:
     return None if v is None or not days else v / int(days)
 
 
+def cost_per_day(block: Mapping[str, Any] | None) -> float | None:
+    """The card's cost per day of its own days (``cost_total`` / days): one cost, two readings."""
+    cost = (block or {}).get("cost_total")
+    days = ((block or {}).get("own") or {}).get("days")
+    return None if cost is None or not days else float(cost) / int(days)
+
+
 def summary(block: Mapping[str, Any] | None) -> dict[str, Any]:
     """``predicted_summary`` of the card list / page: the result's own-days band, or nulls with
     ``not_estimable`` and the reason."""
@@ -333,6 +368,10 @@ def summary(block: Mapping[str, Any] | None) -> dict[str, Any]:
     # F5: a metric within normal swing is null on every screen, the builder's wire included (the
     # block's stored ``own.delta`` keeps the real value for the plan sums and the measurement)
     hidden = set(((b.get("option") or {}).get("within_noise")) or ())
+    estimable = bool(b.get("estimable"))
+    # C1: an estimable card whose every shown metric is within normal swing carries no amount; it
+    # says so (the screen reads ``no_amount_reason``), never a bare blank under "Tăng GMV"
+    blank = estimable and {"gmv", "profit", "orders"} <= hidden
 
     def band(m: str) -> dict[str, float | None]:
         got = {} if m in hidden else (d.get(m) or {})
@@ -348,8 +387,10 @@ def summary(block: Mapping[str, Any] | None) -> dict[str, Any]:
         "label": "Dự kiến",
         "effect_days": own.get("days"),
         "dates": own.get("dates"),
-        "estimable": bool(b.get("estimable")),
-        "not_estimable": not b.get("estimable"),
+        "estimable": estimable,
+        "not_estimable": not estimable,
+        "within_noise": sorted(hidden),
+        "no_amount_reason": WITHIN_NOISE_TEXT if blank else None,
         "reason": b.get("reason"),
         "message": b.get("message"),
         "basis": b.get("basis"),
@@ -359,9 +400,19 @@ def summary(block: Mapping[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def is_fresh(block: Mapping[str, Any] | None, env: RecoEnv, card: Mapping[str, Any]) -> bool:
-    """The stored block still answers on ``env``: same engine, same inputs on its own day."""
+def is_fresh(
+    block: Mapping[str, Any] | None,
+    env: RecoEnv,
+    card: Mapping[str, Any],
+    *,
+    same_day: bool = False,
+) -> bool:
+    """The stored block still answers on ``env``: same engine, same inputs on its own day.
+    ``same_day``: also computed on ``env``'s own data day (a planned card, C3: a plan never shows
+    a card on an older base)."""
     if not block or block.get("engine_version") != engine_version() or not block.get("as_of"):
+        return False
+    if same_day and block["as_of"] != env.as_of.isoformat():
         return False
     try:
         as_of = date.fromisoformat(str(block["as_of"]))
@@ -633,10 +684,12 @@ def write_into(card: dict[str, Any], blocks: Mapping[int, Mapping[str, Any]]) ->
             got = blocks.get(int(v.get("version") or 0))
             if got is not None:
                 v[KEY] = dict(got)
+                align_spend(v, got)
                 if isinstance(v.get("metrics"), dict):  # the side-by-side reads the result too
                     v["metrics"].update(metrics_of_block(got))
     if blocks.get(1) is not None:
         card[KEY] = dict(blocks[1])
+        align_spend(card, blocks[1])
     return card
 
 
@@ -797,7 +850,10 @@ async def refresh_shop(
             continue
         counts.cards += 1
         live = _version_numbers(card, None)
-        if not force and all(is_fresh(version_result(card, n), env, card) for n in live):
+        same_day = p.status == STATUS_PLANNED  # C3: a card in a plan is re-based daily
+        if not force and all(
+            is_fresh(version_result(card, n), env, card, same_day=same_day) for n in live
+        ):
             counts.fresh += 1
             continue
         todo.append((p, card))

@@ -44,7 +44,7 @@ SRC_NONE = "none"
 SOURCE_LABELS = {
     SRC_REPORT: "Hoa hồng thực tế trong báo cáo đơn liên kết",
     SRC_TARGETED: "Mức hoa hồng chiến dịch chỉ định của sản phẩm",
-    SRC_OPEN: "Mức hoa hồng chiến dịch mở của sản phẩm",
+    SRC_OPEN: "Mức hoa hồng chiến dịch mở rộng của sản phẩm",
     SRC_NONE: "Chưa biết mức hoa hồng",
 }
 _OPEN_WORDS = ("mở rộng", "mo rong", "open")

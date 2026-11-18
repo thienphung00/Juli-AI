@@ -709,3 +709,49 @@ async def test_the_variations_payload_names_the_price_paid_and_the_smallest_disc
     )  # fmt: skip
     assert refused["refusal"]["code"].endswith(f":{row['min_discount_pct']}")
     assert all("paid_price" in r and "min_discount_pct" in r for r in out["variations"])
+
+
+async def test_the_campaign_id_rides_on_the_ads_card_where_the_fill_queue_reads_it(session, shop):
+    """The fill job opens ``/portal/marketing/pas/product/<manual|manual-mpd>/<campaign_id>``: the
+    id of the picked campaign is on ``change.target`` of the card (what ``fill_queue`` reads),
+    even when the per-campaign daily rows carry no id."""
+    from juli_backend.services.shopee_builder.ads_campaigns import campaign_name_key
+    from juli_backend.services.shopee_recommendations.evaluate import evaluate
+
+    camps = await builder.ads_campaigns(session, shop.shop_id, as_of=AS_OF, now=NOW)
+    assert len({c["name"] for c in camps["campaigns"]}) == len(camps["campaigns"])
+    picked = camps["campaigns"][0]
+    spec = S(kind="ads", lever="budget", campaign_key=picked["campaign_key"], daily_budget=150_000)
+    ctx = await builder.build_context(session, shop.shop_id, [spec], as_of=AS_OF, now=NOW)
+    info = {"campaign_id": "424242", "campaign_name": picked["name"]}
+    ctx.campaigns.by_id["424242"] = info
+    ctx.campaigns.by_name[campaign_name_key(picked["name"])] = info
+    variant = to_variant(spec, ctx).variant
+    assert variant["extra"] == {"campaign_id": "424242"}
+    ev = evaluate(ctx.env, manual.candidate_of(variant))
+    assert ev.target["campaign_id"] == "424242"
+    # the same card shape the fill queue reads: change.target.campaign_id
+    card = {"scope": {"campaign_key": picked["campaign_key"]}, "change": {"target": ev.target}}
+    assert (card["change"]["target"] or {}).get("campaign_id") == "424242"
+
+
+async def test_a_campaign_without_an_id_is_flagged_on_the_card_before_approval(
+    session, shop, monkeypatch
+):
+    """No Shopee campaign id known: the version warns (``ads_campaign_id_missing``) and the card
+    carries ``candidate_extra.campaign_id_missing`` / ``change.target.campaign_id_missing``."""
+    from juli_backend.services.shopee_builder.ads_campaigns import RealCampaigns
+    from juli_backend.services.shopee_recommendations.env import RecoEnv
+    from juli_backend.services.shopee_recommendations.evaluate import evaluate
+
+    camps = await builder.ads_campaigns(session, shop.shop_id, as_of=AS_OF, now=NOW)
+    key = camps["campaigns"][0]["campaign_key"]
+    spec = S(kind="ads", lever="budget", campaign_key=key, daily_budget=150_000)
+    ctx = await builder.build_context(session, shop.shop_id, [spec], as_of=AS_OF, now=NOW)
+    ctx.campaigns = RealCampaigns()
+    monkeypatch.setattr(RecoEnv, "setting_for", lambda self, campaign_key: None)
+    tr = to_variant(spec, ctx)
+    assert tr.variant["extra"] == {"campaign_id_missing": True}
+    assert "ads_campaign_id_missing" in [w["code"] for w in tr.warnings]
+    ev = evaluate(ctx.env, manual.candidate_of(tr.variant))
+    assert ev.target["campaign_id"] is None and ev.target["campaign_id_missing"] is True

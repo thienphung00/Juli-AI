@@ -163,7 +163,10 @@ export interface AdsCampaigns {
   readonly campaigns: readonly {
     readonly campaign_key: string;
     readonly name: string;
-    readonly running?: boolean;
+    readonly campaign_id?: string | null;
+    readonly type_label?: string | null;
+    readonly status_label?: string | null;
+    readonly running?: boolean | null;
     readonly daily_budget: N;
     readonly roas_target: N;
     readonly spend_per_day: N;

@@ -28,8 +28,8 @@ const STEPS = ["Đã duyệt", "Connector điền", "Bạn lưu", "Khớp Seller
 const SAMPLE_STEPS = ["Đã duyệt", "Bạn điền", "Bạn lưu", "Khớp Seller Centre"] as const;
 /** The cards whose execution is a voucher that Juli reads back by its code. */
 const VOUCHER_KINDS = new Set(["min_spend_voucher", "review_voucher", "voucher_cap", "voucher"]);
-const STATE_LABEL: Record<ExecutionState, string> = { cho_dien: "Chờ điền", da_dien: "Đã điền · chờ bạn lưu", khop: "Khớp Seller Centre", lech: "Lệch Seller Centre" };
-const STATE_TONE: Record<ExecutionState, "flat" | "warn" | "up" | "down"> = { cho_dien: "flat", da_dien: "warn", khop: "up", lech: "down" };
+const STATE_LABEL: Record<ExecutionState, string> = { cho_dien: "Chờ điền", da_dien: "Đã điền · chờ bạn lưu", khop: "Khớp Seller Centre", lech: "Lệch Seller Centre", hoan_tac: "Đã hoàn tác" };
+const STATE_TONE: Record<ExecutionState, "flat" | "warn" | "up" | "down"> = { cho_dien: "flat", da_dien: "warn", khop: "up", lech: "down", hoan_tac: "flat" };
 const MONEY = new Set(["min_spend", "discount_amount", "max_value", "current_price", "list_price", "total_budget"]);
 
 function dm(iso: string | null): string {
@@ -67,6 +67,7 @@ export function valueText(field: string | null, v: unknown): string {
 }
 
 export function detailOf(c: ExecutionCard): string {
+  if (c.state === "hoan_tac") return "Đã dừng đo lường";
   if (c.state === "khop") return `Đo từ ${dm(c.measure_start)}${c.measure_days ? ` · ${fmt(c.measure_days, 0)} ngày` : ""}`;
   if (c.state === "lech" && c.mismatch) return `Seller Centre ${valueText(c.mismatch.field, c.mismatch.observed)} · thẻ ${valueText(c.mismatch.field, c.mismatch.expected)}`;
   if (c.state === "da_dien" && c.not_seen) return "Chưa thấy thay đổi";
@@ -137,7 +138,7 @@ export function Row({
         </NavLink>
         {name ? <span className="sd-th-row__product">{name}</span> : null}
       </div>
-      <Steps c={c} sample={sample} />
+      {c.state === "hoan_tac" ? <span /> : <Steps c={c} sample={sample} />}
       <div className="sd-th-row__side">
         <span data-testid={`sd-th-state-${c.card_id}`}>
           <TextChip tone={STATE_TONE[c.state]}>{STATE_LABEL[c.state]}</TextChip>

@@ -2,6 +2,7 @@
 
 import { fmt, vnd } from "../../lib/shopee-analytics/format";
 import { breachLine, spendLine } from "../../lib/shopee-decisions/model";
+import { strategyOf } from "../../lib/shopee-decisions/card-rows";
 import type { Card } from "../../lib/shopee-decisions/types";
 
 /**
@@ -18,10 +19,12 @@ export function Checks({ card }: { readonly card: Card }) {
   const be = c.break_even_extra_orders;
   return (
     <div className="sd-checks" data-testid="sd-checks">
-      <div className={`sd-check ${floor.ok ? "sd-check--ok" : "sd-check--bad"}`} data-testid="sd-floor">
-        <b aria-hidden="true">{floor.ok ? "✓" : "✕"}</b>
+      <div className={`sd-check ${floor.ok ? (floor.unknown_skus.length > 0 ? "sd-check--neutral" : "sd-check--ok") : "sd-check--bad"}`} data-testid="sd-floor">
+        <b aria-hidden="true">{floor.ok ? (floor.unknown_skus.length > 0 ? "?" : "✓") : "✕"}</b>
         <span>
-          {floor.ok ? (
+          {floor.ok && floor.unknown_skus.length > 0 ? (
+            <>Chưa kiểm được giá sàn (thiếu giá vốn).</>
+          ) : floor.ok ? (
             <>Trên giá sàn vận hành: mọi SKU trong phạm vi đều giữ giá khách trả cao hơn giá sàn.</>
           ) : (
             <>
@@ -36,7 +39,7 @@ export function Checks({ card }: { readonly card: Card }) {
           {floor.unknown_skus.length > 0 ? <span className="sd-check__line">Chưa có giá vốn để tính giá sàn: {floor.unknown_skus.join(", ")}.</span> : null}
         </span>
       </div>
-      {c.ad_margin_below_target !== undefined ? (
+      {c.ad_margin_below_target !== undefined && strategyOf(card.change_kind, card.family) === "ads" ? (
         <div className={`sd-check ${c.ad_margin_below_target ? "sd-check--warn" : "sd-check--ok"}`} data-testid="sd-ad-margin">
           <b aria-hidden="true">{c.ad_margin_below_target ? "!" : "✓"}</b>
           <span>
@@ -51,7 +54,7 @@ export function Checks({ card }: { readonly card: Card }) {
           <span>{spend.text}</span>
         </div>
       ) : null}
-      {typeof be === "number" && c.extra_cost !== undefined ? (
+      {typeof be === "number" && c.extra_cost !== undefined && !(c.extra_cost === 0 && be === 0) ? (
         <div className="sd-check sd-check--neutral" data-testid="sd-breakeven">
           <b aria-hidden="true">⇄</b>
           <span>

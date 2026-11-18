@@ -302,8 +302,21 @@ async def set_meta(
     row.metadata_json = json.dumps(meta)
 
 
+async def reverted_card_ids(session: AsyncSession, shop_id: uuid.UUID) -> set[str]:
+    """Ids of the shop's executed cards a person marked "Đã hoàn tác" (``reverted`` meta)."""
+    rows = await session.execute(
+        select(ActionCard.id, ActionCard.metadata_json).where(
+            ActionCard.shop_id == shop_id,
+            ActionCard.status == CARD_STATUS,
+            ActionCard.metadata_json.like('%"reverted"%'),
+        )
+    )
+    return {str(card_id) for card_id, raw in rows.all() if json.loads(raw or "{}").get("reverted")}
+
+
 async def reset_card_ids(session: AsyncSession, shop_id: uuid.UUID) -> set[str]:
-    """Ids of the shop's cards the owner's board reset withdrew (``withdrawn.reason_code``)."""
+    """Ids of the cards that never calibrate: the owner's board reset withdrew them
+    (``withdrawn.reason_code``) or a person reverted them (``reverted`` meta)."""
     rows = await session.execute(
         select(ActionCard.id, ActionCard.metadata_json)
         .join(ShopProposal, ShopProposal.id == ActionCard.id)
@@ -318,7 +331,7 @@ async def reset_card_ids(session: AsyncSession, shop_id: uuid.UUID) -> set[str]:
         meta = json.loads(raw or "{}")
         if (meta.get("withdrawn") or {}).get("reason_code") == RESET_REASON:
             out.add(str(card_id))
-    return out
+    return out | await reverted_card_ids(session, shop_id)
 
 
 def provenance(card: Mapping[str, Any]) -> dict[str, Any]:

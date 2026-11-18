@@ -44,6 +44,15 @@ describe("Thực hiện", () => {
     await waitFor(() => expect(onCount).toHaveBeenCalledWith(4));
   });
 
+  it("a reverted card says Đã hoàn tác, with no progress steps and nothing left to do", async () => {
+    renderReco(<ThucHienView />, fakeReco({ execution: states([exec({ card_id: "r", state: "hoan_tac", completed: 4, reverted: true, executed_at: "2026-11-14T03:00:00Z" })]) }));
+    expect(await screen.findByTestId("sd-th-state-r")).toHaveTextContent("Đã hoàn tác");
+    expect(screen.getByTestId("sd-th-detail-r")).toHaveTextContent("Đã dừng đo lường");
+    expect(screen.queryByTestId("sd-th-steps-r")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Đã làm" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Mở Seller Centre" })).toBeNull();
+  });
+
   it("opens Seller Centre from the fill job, and keeps the endpoints that do not exist disabled", async () => {
     renderReco(<ThucHienView />, fakeReco({ execution: states([exec({ card_id: "a" }), exec({ card_id: "d", state: "lech", completed: 3, bad: 3, mismatch: { field: "daily_budget", observed: 1, expected: 2 } })]) }));
     const a = await screen.findByTestId("sd-th-a");

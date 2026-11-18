@@ -16,11 +16,10 @@ import { TextChip } from "../shopee-analytics/ui";
  * Shopee's own Save.
  */
 
-/** Change kinds the Connector opens a page for (it types only the title and the first description line). */
+/** Change kinds the Connector opens a page for (it types only the title and the first description line; no filler exists for covers). */
 export const CONNECTOR_KINDS: ReadonlySet<string> = new Set([
   "title",
   "description_first_line",
-  "cover_image",
   "variation_restructure",
   "listing_hide",
   "listing_relist",
@@ -68,19 +67,15 @@ export function useConnectorFillFlag(active: boolean, fetchImpl?: typeof fetch):
   return enabled;
 }
 
-export function ListingSheetExtras({ detail, sheet, fetchImpl }: { readonly detail: DetailWithCode; readonly sheet: ExecutionSheet; readonly fetchImpl?: typeof fetch }) {
-  const kind = detail.change_kind;
-  // P100 S2-D4: the reviewer's sample shop has no Juli Connector and synthetic item ids, so no
-  // "Điền bằng Connector" and no Seller Centre page link there.
+export function ListingSheetExtras({ detail, sheet }: { readonly detail: DetailWithCode; readonly sheet: ExecutionSheet }) {
+  const host = useReco();
   const sample = useSampleShopReviewer();
-  const itemLink = sample ? null : (sheet.page.item_deep_link ?? null);
-  const code = detail.code ?? null;
   const planned = (detail.card as { readonly planned?: Planned }).planned;
-  const eligible = CONNECTOR_KINDS.has(kind) && !!itemLink && !!code && detail.status === "approved";
-  const fill = useConnectorFillFlag(eligible, fetchImpl);
   const dependencies = sheet.dependencies ?? [];
   const downloads = (sheet.downloads ?? []).filter((d) => d.url);
-  if (!itemLink && dependencies.length === 0 && downloads.length === 0 && !planned) return null;
+  // the cover's new image is drawn in the banner editor (in the browser), so the sheet links back to it
+  const banner = detail.change_kind === "cover_image" && !sample && !host.readOnly && detail.product_id ? host.href({ builder: true, from: "quyet-dinh", productId: detail.product_id }) : null;
+  if (dependencies.length === 0 && downloads.length === 0 && !planned && !banner) return null;
   return (
     <div className="sd-listing" data-testid="sd-listing-extras">
       {planned ? (
@@ -98,27 +93,16 @@ export function ListingSheetExtras({ detail, sheet, fetchImpl }: { readonly deta
           {d.code ? ` (${d.code})` : ""}
         </p>
       ))}
-      {itemLink ? (
-        <span className="sd-page" data-testid="sd-item-page">
-          <a className="sa-btn sa-btn--s" href={itemLink} rel="noopener noreferrer" target="_blank">
-            Mở trang sửa sản phẩm
-          </a>
-          {sheet.page.item_link_verified === false ? <TextChip tone="warn">đường dẫn chưa kiểm</TextChip> : null}
-          {fill && code ? (
-            <a className="sa-btn sa-btn--primary sa-btn--s" data-testid="sd-connector-fill" href={connectorFillHref(itemLink, code)} rel="noopener noreferrer" target="_blank">
-              Điền bằng Connector
-            </a>
-          ) : null}
-        </span>
-      ) : null}
-      {fill ? (
-        <p className="sa-hint">Connector điền sẵn nội dung đã duyệt; bạn kiểm tra rồi bấm Lưu của chính Shopee. Juli không bấm Lưu thay bạn.</p>
-      ) : null}
       {downloads.map((d) => (
         <a className="sa-btn sa-btn--s" data-testid="sd-download" download href={d.url as string} key={d.ref} rel="noopener noreferrer" target="_blank">
           {d.label}
         </a>
       ))}
+      {banner ? (
+        <a className="sa-btn sa-btn--s" data-testid="sd-banner-download" href={banner}>
+          Tải ảnh bìa mới
+        </a>
+      ) : null}
     </div>
   );
 }
@@ -159,14 +143,14 @@ const KIND_LABEL: Record<string, string> = {
   description_first_line: "Dòng đầu của mô tả",
   voucher: "Tạo voucher",
   ads_edit: "Sửa quảng cáo",
-  affiliate_commission: "Hoa hồng chiến dịch mở",
+  affiliate_commission: "Hoa hồng chiến dịch mở rộng",
   combo: "Tạo Combo Khuyến Mãi",
 };
 
 export const FILL_STATUS_LABEL: Record<FillJobStatus, string> = {
   queued: "Chờ mở trang",
-  opened: "Đã mở trang",
-  filled: "Đã điền, chờ bạn lưu",
+  opened: "Đang mở trang",
+  filled: "Đã điền · chờ bạn lưu",
   saved: "Đã lưu",
   captured: "Xong",
   failed: "Lỗi",
@@ -189,8 +173,8 @@ const ERROR_TEXT: Record<string, string> = {
 export function fillJobTitle(job: FillJobRow): string {
   const base = KIND_LABEL[job.kind] ?? job.kind;
   const ids = (job.target.product_ids as readonly string[] | undefined) ?? (job.target.item_id ? [String(job.target.item_id)] : []);
-  const campaign = job.target.campaign_id ? ` · chiến dịch ${String(job.target.campaign_id)}` : "";
-  const items = ids.length > 0 ? ` · ${ids.length === 1 ? `sản phẩm ${ids[0]}` : `${ids.length} sản phẩm`}` : "";
+  const campaign = "";
+  const items = ids.length > 1 ? ` · ${ids.length} sản phẩm` : "";
   const group = job.group_code ? ` · Nhóm ${job.group_code}` : "";
   return `${base}${items}${campaign}${group}${job.version > 1 ? ` · V${job.version}` : ""}`;
 }
@@ -241,44 +225,29 @@ export function capturedVoucherId(jobs: readonly FillJobRow[]): string | null {
 }
 
 /**
- * The checklist of an approved card's fill jobs: one row per page, its status, a button that opens
- * the page for the Connector, and the id it captured. Juli never saves: the person presses Shopee's
- * own Lưu / Xác nhận on each page.
+ * The Connector's fill jobs of an approved card: one line per page with its status, the id it
+ * captured and, when it failed, why. The page button is the sheet's own ("Mở và điền"); Juli never
+ * saves: the person presses Shopee's own Lưu / Xác nhận.
  */
 export function FillJobsChecklist({ jobs, enabled }: { readonly jobs: readonly FillJobRow[]; readonly enabled: boolean }) {
   if (!enabled || jobs.length === 0) return null;
-  const done = jobs.filter((j) => j.status === "captured" || j.status === "saved").length;
   return (
-    <div className="sd-fill" data-testid="sd-fill-jobs">
-      <h3 className="sa-h3">Connector điền sẵn</h3>
-      <p className="sa-hint" data-testid="sd-fill-count">
-        {done}/{jobs.length} trang đã xong. Connector mở và điền từng trang một; bạn kiểm tra rồi bấm Lưu / Xác nhận của chính Shopee. Juli không bấm thay bạn.
-      </p>
-      <ul className="sd-fill__list">
-        {jobs.map((job) => {
-          const href = job.status === "queued" || job.status === "opened" || job.status === "filled" ? fillJobHref(job) : null;
-          return (
-            <li data-testid={`sd-fill-job-${job.id}`} data-status={job.status} key={job.id}>
-              <span>{fillJobTitle(job)}</span> <TextChip tone={job.status === "failed" ? "warn" : job.status === "captured" ? "pink" : "info"}>{FILL_STATUS_LABEL[job.status]}</TextChip>
-              {href ? (
-                <a className="sa-btn sa-btn--s" data-testid="sd-fill-open" href={href} rel="noopener noreferrer" target="_blank">
-                  Mở trang để điền
-                </a>
-              ) : null}
-              {job.captured_ref ? (
-                <span className="sa-hint" data-testid="sd-fill-captured">
-                  {job.kind === "voucher" ? "Mã voucher" : "Mã"}: {job.captured_ref}
-                </span>
-              ) : null}
-              {job.error ? (
-                <span className="sd-error" data-testid="sd-fill-error">
-                  {ERROR_TEXT[job.error] ?? "Connector không điền được trang này; làm theo bảng thao tác."}
-                </span>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+    <ul className="sd-fill__list" data-testid="sd-fill-jobs">
+      {jobs.map((job) => (
+        <li data-status={job.status} data-testid={`sd-fill-job-${job.id}`} key={job.id}>
+          <span>{fillJobTitle(job)}</span> <TextChip tone={job.status === "failed" ? "warn" : job.status === "captured" ? "pink" : "info"}>{FILL_STATUS_LABEL[job.status]}</TextChip>
+          {job.captured_ref ? (
+            <span className="sa-hint" data-testid="sd-fill-captured">
+              {job.kind === "voucher" ? "Mã voucher" : "Mã"}: {job.captured_ref}
+            </span>
+          ) : null}
+          {job.error ? (
+            <span className="sd-error" data-testid="sd-fill-error">
+              {ERROR_TEXT[job.error] ?? "Connector không điền được trang này; làm theo bảng thao tác."}
+            </span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }

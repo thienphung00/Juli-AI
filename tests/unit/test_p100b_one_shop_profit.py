@@ -221,7 +221,8 @@ def test_a_partly_unknown_order_is_out_of_profit_base_and_ads_share():
 
 def test_daily_spend_is_charged_by_each_days_known_orders():
     """Day 4: only orders without giá vốn -> its spend is not charged (never order profit);
-    day 5: all known -> charged whole; day 6: spend, no order line (no order data) -> no charge."""
+    day 5: all known -> charged whole; day 6: spend, no order line -> R11 charges it whole to the
+    "Quảng cáo ngày không có đơn" line (its order data is inside ``order_data_days``)."""
     pairs = [
         (_line("o1", "A", 100_000, day=4), _pb(100_000, None)),
         (_line("o2", "A", 100_000, day=5), _pb(100_000, 40_000)),
@@ -234,8 +235,13 @@ def test_daily_spend_is_charged_by_each_days_known_orders():
     }
     fig = known_cost_profit(sp, pairs, Decimal(200_000), daily)
     assert fig.ads_basis == "daily"
-    assert fig.ads_charged == Decimal(10_000)
-    assert fig.profit == Decimal(30_000)
+    assert fig.ads_charged == Decimal(20_000) and fig.ads_no_order_days == Decimal(10_000)
+    assert fig.profit == Decimal(20_000)
+    # day 6's order data never arrived: not charged (missing is not zero)
+    fig = known_cost_profit(
+        sp, pairs, Decimal(200_000), daily, {date(2026, 11, 4), date(2026, 11, 5)}
+    )
+    assert fig.ads_charged == Decimal(10_000) and fig.profit == Decimal(30_000)
     assert fig.ads_total == Decimal(30_000)
 
 

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from juli_backend.services.shopee_analytics.compute import PeriodView
+from juli_backend.services.shopee_builder.ads_campaigns import RealCampaigns
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 
@@ -31,6 +32,8 @@ class BuilderContext:
     keyword_weights: dict[str, dict[str, float]] = field(default_factory=dict)
     #: the environment before the reference orders were added (what freshness fingerprints)
     source_env: RecoEnv | None = None
+    #: the shop's campaigns with their Shopee ids (for the ads levers' cards)
+    campaigns: RealCampaigns = field(default_factory=RealCampaigns)
 
     def rows(self, item_id: str) -> list[dict[str, Any]]:
         return self.variations.get(item_id, [])

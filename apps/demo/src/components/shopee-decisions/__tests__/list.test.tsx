@@ -21,6 +21,16 @@ function queueCards(): CardSummary[] {
 }
 
 describe("Quyết định · Shopee · Đề xuất › Thẻ (P100)", () => {
+  it("while the board loads no tab shows a count and the heading is not '0 thẻ'", async () => {
+    const reco = fakeReco();
+    const never = new Promise<CardList>(() => undefined);
+    renderReco(<DecisionsView params={params("tab=thuc-hien")} />, { ...reco, list: () => never, executionStates: () => new Promise(() => undefined) });
+    const tabs = await screen.findByTestId("sd-tabs");
+    expect(tabs).not.toHaveTextContent(/\d/);
+    expect(screen.getByTestId("sd-h1")).toHaveTextContent("Đang tải");
+    expect(screen.getByTestId("sd-h1")).not.toHaveTextContent("0 thẻ");
+  });
+
   it("one card, one number: the range and the P50 per day come from the stored result; not estimable says so with Chi phí", async () => {
     const ok = summaryOf(voucherCard(), {
       cost: 63000,

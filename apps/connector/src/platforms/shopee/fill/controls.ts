@@ -11,6 +11,7 @@
 
 import { normalizeLabel, PANEL_ID } from "../../../core/fill/locate";
 import { writeValue } from "../../../core/fill/write";
+import { MAX_BEFORE_CHARS } from "../../../core/fill/log";
 
 export type { Env } from "../../../core/fill/form";
 import type { Env } from "../../../core/fill/form";
@@ -117,12 +118,34 @@ export function textBoxesIn(row: Element): HTMLInputElement[] {
 
 // -- text and numbers ---------------------------------------------------------------------
 
+/**
+ * Types `value` into a text box the way a person would (core writeValue: native setter + input /
+ * change), keeping the value it held before (for the revert) and recording the write so the job
+ * runner reads it again later. True when it reads back equal right now.
+ */
+export function writeBox(env: Env, box: HTMLInputElement, value: string): boolean {
+  const key = env.log?.keyOf(env);
+  if (env.log && key) {
+    env.log.captureBefore(key, box.value);
+    env.log.wrote({ key, el: box, want: value, seen: () => box.value, ok: () => box.value === value, rewrite: () => writeValue(box, value) });
+  }
+  return writeValue(box, value) && box.value === value && mark(box);
+}
+
 /** Types into the `index`-th text box of the labelled row; true when it reads back equal. */
 export function setRowText(env: Env, label: string, value: string, index = 0, within?: Element): boolean {
   const row = findRow(env.doc, label, within);
   const box = row ? textBoxesIn(row)[index] : undefined;
   if (!box) return false;
-  return writeValue(box, value) && box.value === value && mark(box);
+  return writeBox(env, box, value);
+}
+
+/** Records a pressed choice (radio / select / switch) for the re-read; never pressed again. */
+function recordChoice(env: Env, el: HTMLElement, want: string, before: string, seen: () => string, ok: () => boolean): void {
+  const key = env.log?.keyOf(env);
+  if (!env.log || !key) return;
+  env.log.captureBefore(key, before.slice(0, MAX_BEFORE_CHARS));
+  env.log.wrote({ key, el, want, seen, ok });
 }
 
 function mark(el: HTMLElement): true {
@@ -152,6 +175,13 @@ function optionIn(row: Element, option: string): HTMLElement | null {
   return hits.find((h) => !hits.some((o) => o !== h && h.contains(o))) ?? null;
 }
 
+/** The text of the checked option of a radio group ("" when none is checked). */
+function checkedText(row: Element): string {
+  const holders = Array.from(row.querySelectorAll<HTMLElement>("label,[role='radio']")).filter((h) => usable(h) && isChecked(h));
+  const inner = holders.filter((h) => !holders.some((o) => o !== h && h.contains(o)));
+  return inner.length === 1 ? (inner[0]!.textContent ?? "").trim() : "";
+}
+
 /** Chooses the radio `option` in the group labelled `label`; verifies it reads back checked. */
 export async function chooseRadio(env: Env, label: string, option: string, within?: Element): Promise<boolean> {
   const row = findRow(env.doc, label, within);
@@ -159,6 +189,8 @@ export async function chooseRadio(env: Env, label: string, option: string, withi
   const target = optionIn(row, option);
   if (!target) return false;
   const holder = target.closest("label") ?? target;
+  const chosen = () => checkedText(row);
+  recordChoice(env, holder as HTMLElement, option, chosen(), chosen, () => isChecked(holder));
   if (!isChecked(holder) && !press(holder as HTMLElement)) return false;
   const ok = await waitFor(env, () => (isChecked(holder) ? true : null), 1_000);
   if (ok) mark(holder as HTMLElement);
@@ -176,6 +208,7 @@ export async function chooseSelect(env: Env, label: string, option: string, inde
   if (native) {
     const hit = Array.from(native.options).find((o) => normalizeLabel(o.text) === wanted);
     if (!hit) return false;
+    recordChoice(env, native, option, native.selectedOptions[0]?.text ?? "", () => native.selectedOptions[0]?.text ?? "", () => native.value === hit.value);
     const win = env.doc.defaultView!;
     const setter = Object.getOwnPropertyDescriptor(win.HTMLSelectElement.prototype, "value")?.set;
     if (setter) setter.call(native, hit.value);
@@ -188,6 +221,7 @@ export async function chooseSelect(env: Env, label: string, option: string, inde
     .filter(usable)
     .filter((el) => !el.parentElement?.closest('[class*="eds-selector"],[role="combobox"]'))[index];
   if (!selector) return false;
+  recordChoice(env, selector, option, (selector.textContent ?? "").trim(), () => (selector.textContent ?? "").trim(), () => visibleText(selector).includes(wanted));
   if (visibleText(selector) === wanted) return mark(selector);
   if (!press(selector)) return false;
   const choice = await waitFor(env, () => {
@@ -215,7 +249,7 @@ export function setDate(env: Env, label: string, value: string, index: number, w
   const inputs = textBoxesIn(row).filter((i) => /\d{2}:\d{2}|DD|MM|YYYY|Chọn|ngày|thời gian/i.test(`${i.placeholder} ${i.value}`) || i.closest('[class*="date"],[class*="picker"]'));
   const box = inputs[index];
   if (!box) return false;
-  return writeValue(box, value) && box.value === value && mark(box);
+  return writeBox(env, box, value);
 }
 
 // -- switch ---------------------------------------------------------------------------------
@@ -225,6 +259,8 @@ export async function setSwitch(env: Env, label: string, on: boolean): Promise<b
   const sw = row ? Array.from(row.querySelectorAll<HTMLElement>('[role="switch"],[class*="eds-switch"],input[type="checkbox"]')).find(usable) : undefined;
   if (!sw) return false;
   const state = () => (sw.matches("input") ? (sw as HTMLInputElement).checked : sw.getAttribute("aria-checked") === "true" || /(open|checked|on)\b/.test(sw.className.toString()));
+  const shown = () => (state() ? "bật" : "tắt");
+  recordChoice(env, sw, on ? "bật" : "tắt", shown(), shown, () => state() === on);
   if (state() !== on && !press(sw)) return false;
   return !!(await waitFor(env, () => (state() === on ? true : null), 1_000)) && mark(sw);
 }
@@ -271,43 +307,127 @@ export function pickerModal(env: Env): HTMLElement | null {
 export interface PickResult {
   ticked: string[];
   missing: string[];
+  /** Why nothing could be ticked (Vietnamese, for the panel), when the picker itself failed. */
+  reason?: string;
 }
+
+export const PICK_NO_OPENER = "Không thấy nút «Thêm sản phẩm» trên trang";
+export const PICK_NO_MODAL = "Hộp chọn sản phẩm không mở";
+export const PICK_NO_SEARCH = "Hộp chọn sản phẩm không có ô tìm";
+export const pickNotFound = (ids: readonly string[]) => `Tìm theo ID không ra đúng một dòng: ${ids.join(", ")}`;
+
+/** A leaf of the row shows this item id as a whole number ("ID: 1001", not "10012"). */
+export function holdsId(row: Element, id: string): boolean {
+  const re = new RegExp(`(^|\\D)${id}(\\D|$)`);
+  return [row, ...Array.from(row.querySelectorAll("*"))].some((el) => el.children.length === 0 && re.test(el.textContent ?? ""));
+}
+
+const CHECKBOX = 'input[type="checkbox"],[role="checkbox"],[class*="eds-checkbox"]';
 
 /**
  * Opens "Thêm sản phẩm", searches each product by ID and ticks its row. It does NOT press the
- * dialog's own Xác nhận: the person confirms the selection, then Shopee's save.
+ * dialog's own Xác nhận: the person confirms the selection, then Shopee's save. Every tick is
+ * recorded under the env's field key (re-read later: a row that lost its tick turns the step ✗).
  */
 export async function pickProducts(env: Env, opener: string, ids: readonly string[]): Promise<PickResult> {
   const out: PickResult = { ticked: [], missing: [...ids] };
   if (!pickerModal(env)) {
-    const open = findPressable(env, opener);
-    if (!open || !press(open)) return out;
+    const open = await waitFor(env, () => findPressable(env, opener));
+    if (!open || !press(open)) return { ...out, reason: PICK_NO_OPENER };
   }
   const modal = await waitFor(env, () => pickerModal(env));
-  if (!modal) return out;
+  if (!modal) return { ...out, reason: PICK_NO_MODAL };
+  const checks: HTMLElement[] = [];
   for (const id of ids) {
     const search = textBoxesIn(modal)[0];
-    if (!search || !writeValue(search, id)) continue;
+    if (!search) return { ...out, reason: PICK_NO_SEARCH };
+    if (!writeValue(search, id)) continue;
     const go = findPressable(env, "Tìm kiếm", modal) ?? findPressable(env, "Tìm", modal);
     if (go) press(go);
     const box = await waitFor(env, () => {
       const rows = Array.from(modal.querySelectorAll<HTMLElement>("tr,li,[class*='row'],[role='row']")).filter(
-        (r) => usable(r) && (r.textContent ?? "").includes(id) && r.querySelector('input[type="checkbox"],[role="checkbox"],[class*="eds-checkbox"]'),
+        (r) => usable(r) && holdsId(r, id) && r.querySelector(CHECKBOX),
       );
       const inner = rows.filter((h) => !rows.some((o) => o !== h && h.contains(o)));
       return inner.length === 1 ? (inner[0] as HTMLElement) : null;
     });
     if (!box) continue;
-    const check = box.querySelector<HTMLElement>('input[type="checkbox"],[role="checkbox"],[class*="eds-checkbox"]')!;
-    const on = () => (check.matches("input") ? (check as HTMLInputElement).checked : check.getAttribute("aria-checked") === "true");
-    if (!on() && !press(check)) continue;
-    if (await waitFor(env, () => (on() ? true : null), 1_000)) {
+    const check = box.querySelector<HTMLElement>(CHECKBOX)!;
+    if (!ticked(check) && !press(check)) continue;
+    if (await waitFor(env, () => (ticked(check) ? true : null), 1_000)) {
       out.ticked.push(id);
       out.missing = out.missing.filter((m) => m !== id);
+      checks.push(check);
       mark(box);
     }
   }
+  const key = env.log?.keyOf(env);
+  if (env.log && key && checks.length > 0) {
+    env.log.wrote({
+      key,
+      el: modal,
+      want: `${checks.length} sản phẩm`,
+      seen: () => `${checks.filter(ticked).length} sản phẩm đã tick`,
+      ok: () => checks.every((c) => env.doc.contains(c) && ticked(c)),
+    });
+  }
+  if (out.missing.length > 0 && !out.reason) out.reason = pickNotFound(out.missing);
   return out;
+}
+
+function ticked(check: HTMLElement): boolean {
+  if (check.matches("input")) return (check as HTMLInputElement).checked;
+  const aria = check.getAttribute("aria-checked");
+  if (aria !== null) return aria === "true";
+  const input = check.querySelector<HTMLInputElement>('input[type="checkbox"]');
+  if (input) return input.checked;
+  return /(checked|selected)/.test(check.className.toString()) && !/unchecked/.test(check.className.toString());
+}
+
+// -- notices that cover the page ------------------------------------------------------------
+
+/**
+ * Shopee's own announcements that cover a page (live 2026-11-17: "Phiên bản Chiến dịch Mở Rộng
+ * mới!" over the affiliate page). Only a dialog whose text matches one of these AND that holds no
+ * text box (not a form) is closed: its close icon first, else a button that only dismisses.
+ * Nothing that saves or confirms is ever pressed (press() still refuses those).
+ */
+export const KNOWN_NOTICES: readonly RegExp[] = [/phiên bản .{0,60}mới/, /tính năng mới/, /chiến dịch mở rộng mới/];
+const DISMISS_TEXTS = ["để sau", "bỏ qua", "đã hiểu", "tôi đã hiểu", "đóng", "khám phá ngay"];
+const CLOSE_ICON = '[aria-label*="close" i],[aria-label*="đóng" i],[class*="close"]';
+
+function noticeDialogs(env: Env): HTMLElement[] {
+  const all = Array.from(env.doc.querySelectorAll<HTMLElement>('[role="dialog"],[class*="eds-modal"],[class*="modal"]')).filter(usable);
+  const hits = all.filter((d) => KNOWN_NOTICES.some((re) => re.test(normalizeLabel(d.textContent ?? ""))) && textBoxesIn(d).length === 0);
+  // the outermost dialog of a notice (its close icon sits on the frame)
+  return hits.filter((h) => !hits.some((o) => o !== h && o.contains(h)));
+}
+
+/** Closes Shopee's known notices; the notes say which (for the panel). */
+export async function dismissNotices(env: Env): Promise<string[]> {
+  const notes: string[] = [];
+  for (const dialog of noticeDialogs(env)) {
+    const title = (dialog.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 50);
+    const icons = Array.from(dialog.querySelectorAll<HTMLElement>(CLOSE_ICON)).filter(usable);
+    const icon = icons.find((i) => !icons.some((o) => o !== i && i.contains(o)));
+    let pressed = !!icon && press(icon);
+    if (!pressed) {
+      for (const text of DISMISS_TEXTS) {
+        const button = findPressable(env, text, dialog);
+        if (button && press(button)) {
+          pressed = true;
+          break;
+        }
+      }
+    }
+    if (!pressed) {
+      notes.push(`Thông báo của Shopee «${title}» đang che trang; hãy tự đóng rồi mở lại từ Juli.`);
+      continue;
+    }
+    const gone = await waitFor(env, () => (!env.doc.contains(dialog) || hidden(dialog) ? true : null), 2_000);
+    notes.push(gone ? `Juli đã đóng thông báo của Shopee «${title}» (không bấm gì khác).` : `Thông báo của Shopee «${title}» chưa đóng được.`);
+  }
+  return notes;
 }
 
 // -- dialogs ---------------------------------------------------------------------------------

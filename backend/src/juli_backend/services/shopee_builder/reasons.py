@@ -32,6 +32,7 @@ REASON_TEXT: dict[str, str] = {
     "ads_no_cpa": "Chưa đo được CPA của chiến dịch hoặc sản phẩm này.",
     "ads_no_incremental": "Chưa đủ ngày có và không có quảng cáo để đo số đơn tăng thêm.",
     "ads_roas_system": "Shopee tự đặt mục tiêu ROAS nên Juli không ước tính mức chi mới.",
+    "attach_few_orders": "Sản phẩm chính chưa đủ 10 đơn để ước tính mua kèm.",
     "no_driver_data": "Chưa có dữ liệu của nguồn lưu lượng này để ước tính.",
     "no_estimate": "Chưa đủ số liệu của shop để ước tính phương án này.",
     # -- profit is "—" while the rest has a figure --
@@ -47,6 +48,7 @@ REASON_TEXT: dict[str, str] = {
 _NOTE_RULES: tuple[tuple[re.Pattern[str], str], ...] = tuple(
     (re.compile(p), c)
     for p, c in (
+        (r"chưa đủ \d+ đơn để ước tính mua kèm", "attach_few_orders"),
         (r"không thêm từ khoá", "no_keyword_gain"),
         (r"từ khoá", "no_keyword_data"),
         (r"cần chạy thử", "needs_trial_run"),

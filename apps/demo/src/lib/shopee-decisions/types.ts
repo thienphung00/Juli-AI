@@ -367,6 +367,12 @@ export interface ExecutionStep {
   readonly child_card_id?: string | null;
   readonly page?: SheetPage | null;
   readonly starts?: string | null;
+  /** Stable field key (title, first_line, daily_budget, price:<sku>, ...) the Connector's captured before is matched on. */
+  readonly key?: string | null;
+  /** Where the "before" came from: the card's own stored value, the Connector's capture, or unknown (null). */
+  readonly before_source?: "card" | "connector" | null;
+  /** Revert of a NEW object (voucher, combo, deal sốc, shop programme): one sentence instead of before -> after. */
+  readonly action?: string | null;
 }
 
 export interface SheetPage {
@@ -390,6 +396,10 @@ export interface ExecutionSheet {
   readonly dependencies?: readonly { readonly ref: string; readonly code?: string | null; readonly text: string }[];
   readonly downloads?: readonly { readonly label: string; readonly ref: string; readonly url: string | null }[];
   readonly revert_steps: readonly ExecutionStep[];
+  /** The card creates a new Seller Centre object ("voucher", "combo", ...): the revert deletes / ends it. */
+  readonly new_object?: string;
+  /** Revert fields whose before value is known neither to the card nor to the Connector. */
+  readonly unknown_before?: readonly string[];
   readonly readback: { readonly kinds: readonly string[]; readonly deadline_hours: number; readonly note: string };
 }
 
@@ -539,6 +549,8 @@ export interface CardDetail extends CardSummary {
    * values; when the API does not send it the screen recomputes it from `inputs`.
    */
   readonly approved_with?: { readonly inputs: Readonly<Record<string, unknown>>; readonly execution_sheet?: ExecutionSheet };
+  /** "Đã hoàn tác": who confirmed the revert in Seller Centre and when (null: not reverted). */
+  readonly reverted?: { readonly by: string; readonly at: string; readonly note?: string | null } | null;
 }
 
 export interface DecideResult {
@@ -548,6 +560,13 @@ export interface DecideResult {
   readonly approval_id: string;
   readonly chosen_version?: number;
   readonly reason_code?: string;
+}
+
+export interface RevertedResult {
+  readonly id: string;
+  readonly status: CardStatus;
+  readonly reverted: boolean;
+  readonly reverted_at: string;
 }
 
 export interface ExecutedResult {
@@ -696,7 +715,7 @@ export interface CardByCode {
 
 // ── Thực hiện / Đo lường (P100 redesign; `execution_state.py`) ────────────────
 
-export type ExecutionState = "cho_dien" | "da_dien" | "khop" | "lech";
+export type ExecutionState = "cho_dien" | "da_dien" | "khop" | "lech" | "hoan_tac";
 
 export interface ExecutionCard {
   readonly card_id: string;
@@ -723,6 +742,8 @@ export interface ExecutionCard {
   readonly open_job: { readonly id: string; readonly open_path: string } | null;
   /** UI grill G14: the voucher code the Connector picked up after the seller saved (pre-fills the row). */
   readonly captured_voucher_id?: string | null;
+  /** The person confirmed the change was undone in Seller Centre (state `hoan_tac`). */
+  readonly reverted?: boolean;
 }
 
 export interface ConnectorLine {

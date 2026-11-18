@@ -299,6 +299,8 @@ async def test_an_add_on_costs_its_discount_on_the_attaches_it_brings(session, s
 
 
 async def test_an_add_on_gain_follows_its_price_and_its_own_margin(session, shop):
+    await add_baskets(session, shop, 12)  # Deal Sốc needs >= 10 main-product orders to estimate
+
     def addon(pct):
         return one(
             session,

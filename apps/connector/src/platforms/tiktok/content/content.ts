@@ -19,8 +19,8 @@ void runFillJob(
       const answer = await send({ type: "fill-job-request", jobId });
       return answer?.ok && answer.value ? (answer.value as JobReply) : { ok: false, reason: "error" };
     },
-    report: async (jobId, status, error, progress) => {
-      await send({ type: "fill-job-report", jobId, status, ...(error ? { error } : {}), ...(progress ? { progress } : {}) });
+    report: async (jobId, status, error, progress, detail) => {
+      await send({ type: "fill-job-report", jobId, status, ...(error ? { error } : {}), ...(progress ? { progress } : {}), ...(detail ? { detail } : {}) });
     },
     halt: async (jobId) => {
       await send({ type: "fill-job-halt", jobId });

@@ -206,6 +206,93 @@ async def test_the_connector_gets_its_shops_open_jobs_and_moves_them_forward(ses
     assert bad.status_code in (409, 422)
 
 
+async def test_the_report_keeps_the_first_before_values_and_the_period_flag(session, shop, ext):
+    """Connector 0.3.24 (batch-1117b X2): ``before_values`` is stored on the job's payload, the
+    first capture of a key wins (a second open of the page must not record Juli's own value), and
+    ``period_ok`` / the last reads are exposed through ``job_json`` for the sheet and the revert."""
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    job = (await ext.get(JOBS)).json()["jobs"][0]
+    url = f"{JOBS}/{job['id']}"
+    first = await ext.post(
+        url,
+        json={
+            "status": "opened",
+            "progress": {"filled": 8, "total": 9},
+            "before_values": {"name": "", "starts_at": "15:43 17-11-2026"},
+            "period_ok": False,
+            "fields": [{"key": "starts_at", "ok": False, "seen": "15:43 17-11-2026"}],
+        },
+    )
+    assert first.status_code == 200
+    body = first.json()
+    assert body["before_values"] == {"name": "", "starts_at": "15:43 17-11-2026"}
+    assert body["period_ok"] is False
+    assert body["fill_check"] == [{"key": "starts_at", "ok": False, "seen": "15:43 17-11-2026"}]
+    second = await ext.post(
+        url,
+        json={
+            "status": "filled",
+            "before_values": {"name": "JC-2611-0007 V1", "per_buyer": "1"},
+            "period_ok": True,
+            "fields": [{"key": "starts_at", "ok": True, "seen": "12:00 09-11-2026"}],
+        },
+    )
+    assert second.status_code == 200
+    out = second.json()
+    assert out["before_values"] == {"name": "", "starts_at": "15:43 17-11-2026", "per_buyer": "1"}
+    assert out["period_ok"] is True and out["fill_check"][0]["ok"] is True
+    assert out["payload"]["progress"] == {"filled": 8, "total": 9}
+    assert out["payload"]["code_suffix"] == job["payload"]["code_suffix"]  # the form values stay
+    (row,) = await _jobs(session, seeded)
+    assert row.payload["before_values"]["starts_at"] == "15:43 17-11-2026"
+
+
+async def test_title_and_first_line_before_values_reach_job_json_under_the_sheet_keys(
+    session, shop, ext
+):
+    """The sheet / revert reads ``job["before_values"]`` (and ``payload["before_values"]``) by its
+    step keys: ``title`` and ``first_line`` for the listing text (the store is kind-agnostic)."""
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    job = (await ext.get(JOBS)).json()["jobs"][0]
+    before = {"title": "Tên cũ của sản phẩm mẫu", "first_line": "Dòng đầu cũ"}
+    r = await ext.post(f"{JOBS}/{job['id']}", json={"status": "opened", "before_values": before})
+    assert r.status_code == 200
+    listed = (await ext.get(JOBS)).json()["jobs"][0]
+    assert listed["before_values"] == before
+    assert listed["payload"]["before_values"] == before
+    (row,) = await _jobs(session, seeded)
+    assert fill_queue.job_json(row)["before_values"] == before
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"before_values": {"Bad Key": "x"}},
+        {"before_values": {"title": "x" * 601}},
+        {"before_values": {f"k{i}": "x" for i in range(41)}},
+        {"fields": [{"key": "title", "ok": "maybe"}]},
+        {"fields": [{"key": "title", "ok": True, "seen": "y" * 121}]},
+    ],
+)
+async def test_a_malformed_report_detail_is_refused(session, shop, ext, extra):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    job = (await ext.get(JOBS)).json()["jobs"][0]
+    r = await ext.post(f"{JOBS}/{job['id']}", json={"status": "opened", **extra})
+    assert r.status_code == 422
+
+
+async def test_a_report_without_detail_leaves_the_job_json_empty(session, shop, ext):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    job = (await ext.get(JOBS)).json()["jobs"][0]
+    assert job["before_values"] == {} and job["period_ok"] is None and job["fill_check"] == []
+    out = (await ext.post(f"{JOBS}/{job['id']}", json={"status": "opened"})).json()
+    assert "before_values" not in out["payload"]
+
+
 async def test_a_token_never_sees_or_moves_another_shops_jobs(session, shop, ext):
     seeded, ids = shop
     await _approve(session, seeded, ids[0])

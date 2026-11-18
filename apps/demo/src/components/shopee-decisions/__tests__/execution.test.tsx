@@ -27,7 +27,7 @@ describe("thực hiện có hỗ trợ · bảng thao tác", () => {
     expect(step1).toHaveTextContent("15.000đ");
     expect(within(sheet).getByTestId("sd-step-2")).toHaveTextContent("299.000đ");
     expect(within(sheet).getByTestId("sd-time-window")).toHaveTextContent("khi bạn bấm lưu · chạy 30 ngày");
-    expect(sheet).toHaveTextContent("Juli không bấm thay bạn");
+    expect(sheet).toHaveTextContent("Juli không bấm Lưu thay bạn");
   });
 
   it("a cover step shows the current image as a thumbnail, never its path", async () => {
@@ -58,24 +58,26 @@ describe("thực hiện có hỗ trợ · bảng thao tác", () => {
     expect(writeText).toHaveBeenLastCalledWith("15000");
   });
 
-  it("opens the Seller Centre page in a new tab; an unverified link is marked", async () => {
+  it("opens the Seller Centre page in a new tab with ONE button, and never says the link is unchecked", async () => {
     const sheet = { ...SHEET_VOUCHER, page: { ...SHEET_VOUCHER.page, verified: false } };
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: approved(voucherCard({ execution_sheet: sheet })) }));
-    const link = await screen.findByRole("link", { name: "Mở trang để sửa" });
+    const link = await screen.findByRole("link", { name: "Mở trang" });
     expect(link).toHaveAttribute("href", "https://banhang.shopee.vn/portal/marketing/vouchers/list");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
-    expect(screen.getByText("đường dẫn chưa kiểm")).toBeInTheDocument();
+    expect(screen.queryByText("đường dẫn chưa kiểm")).toBeNull();
+    expect(within(screen.getByTestId("sd-sheet")).getAllByRole("link")).toHaveLength(1);
   });
 
-  it("a verified link carries no warning; a page with no link says where to go", async () => {
+  it("the save line shows once and a page with no link names the page only", async () => {
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: approved() }));
     await screen.findByTestId("sd-sheet");
-    expect(screen.queryByText("đường dẫn chưa kiểm")).toBeNull();
+    expect(screen.getAllByText(/Juli không bấm Lưu thay bạn/)).toHaveLength(1);
     const none = { ...SHEET_VOUCHER, page: { ...SHEET_VOUCHER.page, verified: false, deep_link: null, path: null } };
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: approved(voucherCard({ execution_sheet: none })) }));
     await waitFor(() => expect(screen.getAllByTestId("sd-sheet")).toHaveLength(2));
-    expect(screen.getByText(/Chưa có đường dẫn trực tiếp/)).toBeInTheDocument();
+    expect(screen.queryByText(/Chưa có đường dẫn/)).toBeNull();
+    expect(screen.getAllByRole("link", { name: "Mở trang" })).toHaveLength(1);
   });
 
   it("'Đã làm' needs the voucher id of a voucher, then calls the executed endpoint", async () => {
@@ -120,14 +122,66 @@ describe("thực hiện có hỗ trợ · bảng thao tác", () => {
     expect(reco.calls.find((c) => c.name === "whatif")!.args).toEqual(["card-voucher", { min_spend: 250000 }, 1]);
   });
 
-  it("'Hoàn tác' shows the reverse sheet", async () => {
-    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: executed(JOURNEY_VERIFIED) }));
+  it("'Hoàn tác' shows the reverse sheet and does not claim the revert by itself", async () => {
+    const reco = fakeReco({ detail: executed(JOURNEY_VERIFIED) });
+    renderReco(<CardPage from={null} id="card-voucher" />, reco);
     fireEvent.click(await screen.findByRole("button", { name: "Hoàn tác" }));
     const reverse = await screen.findByTestId("sd-revert-sheet");
     expect(within(reverse).getByTestId("sd-step-1")).toHaveTextContent("15.000đ");
     expect(within(reverse).getByTestId("sd-step-1")).toHaveTextContent("10.000đ");
     fireEvent.click(within(reverse).getAllByRole("button", { name: /Sao chép/ })[0]!);
     expect(writeText).toHaveBeenCalledWith("10000");
+    expect(reco.calls.some((c) => c.name === "reverted")).toBe(false);
+  });
+
+  it("'Đã hoàn tác' records the revert only when the person presses it", async () => {
+    const reco = fakeReco({ detail: executed(JOURNEY_VERIFIED) });
+    renderReco(<CardPage from={null} id="card-voucher" />, reco);
+    fireEvent.click(await screen.findByRole("button", { name: "Hoàn tác" }));
+    fireEvent.click(await screen.findByTestId("sd-reverted-confirm"));
+    await waitFor(() => expect(reco.calls.find((c) => c.name === "reverted")?.args).toEqual(["card-voucher"]));
+  });
+
+  it("a reverted card shows 'Đã hoàn tác' with the time and no measurement", async () => {
+    const detail = { ...executed(JOURNEY_VERIFIED), reverted: { by: "user:u1", at: "2026-11-17T09:30:00" } };
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail }));
+    const done = await screen.findByTestId("sd-reverted");
+    expect(done).toHaveTextContent("Đã hoàn tác");
+    expect(screen.queryByTestId("sd-countdown")).toBeNull();
+    expect(screen.queryByTestId("sd-readback")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hoàn tác" })).toBeNull();
+  });
+
+  it("a revert step with no known before names the field and offers the Connector's value when it has one", async () => {
+    const sheet = {
+      ...SHEET_VOUCHER,
+      unknown_before: ["Ngân sách mỗi ngày"],
+      steps: [{ order: 1, field: "Ngân sách mỗi ngày", before: null, after: 150000, unit: "VND", copy: "150000" }],
+      revert_steps: [
+        { order: 1, field: "Ngân sách mỗi ngày", before: 150000, after: null, unit: "VND", copy: null },
+        { order: 2, field: "ROAS mục tiêu", before: 6, after: 5, unit: null, copy: "5", before_source: "connector" as const },
+      ],
+    };
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(voucherCard({ execution_sheet: sheet }), { status: "executed", journey: JOURNEY_VERIFIED }) }));
+    fireEvent.click(await screen.findByRole("button", { name: "Hoàn tác" }));
+    const reverse = await screen.findByTestId("sd-revert-sheet");
+    expect(within(reverse).getByTestId("sd-step-unknown-1")).toHaveTextContent("Chưa có giá trị cũ");
+    expect(within(reverse).getByTestId("sd-revert-unknown")).toHaveTextContent("Ngân sách mỗi ngày");
+    expect(within(reverse).getByTestId("sd-step-2")).toHaveTextContent("Connector đã đọc");
+  });
+
+  it("revert of a new object is one sentence, not a field list", async () => {
+    const sheet = {
+      ...SHEET_VOUCHER,
+      new_object: "voucher",
+      revert_steps: [{ order: 1, field: 'Xoá hoặc kết thúc voucher "JULI TEST"', before: null, after: null, unit: null, copy: null, action: "Trên Seller Centre, xoá hoặc kết thúc voucher này." }],
+    };
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(voucherCard({ execution_sheet: sheet }), { status: "executed", journey: JOURNEY_VERIFIED }) }));
+    fireEvent.click(await screen.findByRole("button", { name: "Hoàn tác" }));
+    const reverse = await screen.findByTestId("sd-revert-sheet");
+    expect(within(reverse).getByTestId("sd-step-1")).toHaveTextContent('Xoá hoặc kết thúc voucher "JULI TEST"');
+    expect(within(reverse).getByTestId("sd-step-1")).toHaveTextContent("xoá hoặc kết thúc voucher này");
+    expect(within(reverse).queryByTestId("sd-step-unknown-1")).toBeNull();
   });
 });
 
@@ -181,6 +235,6 @@ describe("xác minh và đo lường", () => {
     renderReco(<CardPage from={null} id="card-mega" />, fakeReco({ detail: detailOf(megaCard(), { status: "approved" }) }));
     const sheet = await screen.findByTestId("sd-sheet");
     expect(within(sheet).getByTestId("sd-step-3")).toHaveTextContent("Marketing › Quảng cáo Shopee");
-    expect(within(sheet).getByTestId("sd-step-3")).toHaveTextContent("đường dẫn chưa kiểm");
+    expect(within(sheet).getByTestId("sd-step-3")).not.toHaveTextContent("đường dẫn chưa kiểm");
   });
 });

@@ -1,0 +1,29 @@
+<!-- Shape of the live product edit page (read-only capture 2026-11-17), synthetic text only:
+     eds-form rows whose label sits in a SIBLING element of the control, the title an
+     `input.eds-input__input` with a counter, the description a Quill editor: under
+     `div.edit-row.description-wrap` there are TWO contenteditables, the real `div.ql-editor`
+     (one <p> per line) and Quill's hidden paste buffer `div.ql-clipboard`, plus a hidden file input. -->
+<section class="product-edit__section">
+  <div class="edit-row title-wrap">
+    <div class="edit-label edit-title"><span class="mandatory">*</span><span>Tên sản phẩm</span></div>
+    <div class="edit-main">
+      <div class="eds-input"><div class="eds-input__inner">
+        <input type="text" class="eds-input__input" id="title" placeholder="Tên thương hiệu + Loại sản phẩm" value="">
+        <div class="eds-input__suffix"><span>0/120</span></div>
+      </div></div>
+    </div>
+  </div>
+  <div class="product-description-panel">
+    <div class="edit-row description-wrap">
+      <div class="edit-label edit-title"><span>Mô tả sản phẩm</span></div>
+      <div class="edit-main">
+        <div class="eds-upload"><input type="file" id="upload" style="display:none"></div>
+        <div class="ql-container ql-snow">
+          <div class="ql-editor" id="editor" contenteditable="true" data-gramm="false"><p>Dòng đầu cũ của mô tả</p><p>Dòng hai giữ nguyên</p><ul><li>Ý một</li><li>Ý hai</li></ul></div>
+          <div class="ql-clipboard" id="clipboard" contenteditable="true" tabindex="-1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="actions"><button type="button" id="cancel" data-forbidden>Hủy</button><button type="button" id="update" data-forbidden>Cập nhật</button></div>
+</section>

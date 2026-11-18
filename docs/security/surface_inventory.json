@@ -1081,6 +1081,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/demo/shopee/recommendations/{card_id}/reverted",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/demo/shopee/recommendations/{card_id}/whatif",
       "methods": [
         "POST"
@@ -2442,6 +2450,14 @@
     },
     {
       "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/{card_id}/executed",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/shopee/recommendations/{card_id}/reverted",
       "methods": [
         "POST"
       ],

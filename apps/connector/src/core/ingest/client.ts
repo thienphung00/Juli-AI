@@ -123,7 +123,19 @@ export class IngestClient {
   }
 
   /** How far one fill job got: opened / filled / saved / captured (with the new id) / failed. */
-  fillJobReport(token: string, jobId: string, body: { status: string; captured_ref?: string; error?: string; progress?: { filled: number; total: number } }): Promise<unknown> {
+  fillJobReport(
+    token: string,
+    jobId: string,
+    body: {
+      status: string;
+      captured_ref?: string;
+      error?: string;
+      progress?: { filled: number; total: number };
+      before_values?: Record<string, string>;
+      period_ok?: boolean;
+      fields?: { key: string; ok: boolean; seen: string }[];
+    },
+  ): Promise<unknown> {
     return this.call(`/v1/ingest/fill-jobs/${encodeURIComponent(jobId)}`, { method: "POST", body: JSON.stringify(body) }, token);
   }
 

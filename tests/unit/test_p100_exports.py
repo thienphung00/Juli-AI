@@ -61,31 +61,37 @@ def test_overview_cells_and_formulas():
     assert ws["A1"].value == (
         "TỔNG QUAN — Dữ liệu mẫu (Shopee) · 12/10/2026–10/11/2026 · so với 12/09/2026–11/10/2026"
     )
-    assert [c.value for c in ws[3]][:3] == ["Chỉ số", "Kỳ này", "Thay đổi"]
-    assert ws.max_column == 3 and ws["A8"].value == "Chi phí quảng cáo (Báo cáo DVHT) (đ)"
+    assert [c.value for c in ws[3]][:3] == ["Chỉ số", "Kỳ này", "% doanh thu"]
+    assert ws.max_column == 7 and ws["A8"].value == "Chi phí quảng cáo (Báo cáo DVHT) (đ)"
     assert ws["B4"].value == 5_500_000
-    assert ws["B6"].value == '=IFERROR(B4/B5,"")'
+    assert ws["B6"].value == '=IFERROR(B4/B5,"—")'
     assert ws["B11"].value == "=SUM(B8:B10)"
-    assert ws["B12"].value == '=IFERROR(B7/B11,"")' and ws["B12"].number_format == "0.0"
-    assert ws["C4"].value == '=IFERROR(B4/4950000.0-1,"")' and ws["C4"].number_format == "0.0%"
-    assert tq.OVERVIEW_HEADER == ["Chỉ số", "Kỳ này", "Thay đổi"]  # no Kế hoạch goal (G21)
+    assert ws["B12"].value == '=IFERROR(B7/B11,"—")' and ws["B12"].number_format == "0.0"
+    assert ws["A12"].value == "Lợi nhuận / chi phí (lần)"  # not "ROI"
+    assert ws["D4"].value == 4_950_000 and ws["E4"].number_format == "0.0%"
+    assert ws["E4"].value.startswith("=IF(AND(ISNUMBER(B4),ISNUMBER(D4)),IFERROR(B4/D4-1")
+    assert ws["D3"].value == "Kỳ trước (12/09/2026–11/10/2026)"
     assert wb.calculation.fullCalcOnLoad is True
     assert ws["A4"].font.name == "Arial" and ws["A3"].font.bold
 
 
 def test_channel_sheet_rows_columns_and_totals():
     ws = tq.build(_data())[tq.SHEET_CHANNEL]
-    assert [c.value for c in ws[3]] == tq.CH_HEADER
+    assert [c.value for c in ws[3]] == tq.CH_HEADER and tq.CH_HEADER[7] == "Lợi nhuận / chi phí"
     assert [ws.cell(r, 1).value for r in range(4, 9)] == [
-        "Organic", "Quảng cáo (Lưu lượng / Báo cáo DVHT)", "Tiếp thị liên kết", "Ưu đãi", "Tổng",
-    ]  # fmt: skip
-    assert ws["G7"].value == 30_000 and all(ws.cell(7, c).value is None for c in (2, 3, 5, 6, 8))
+        "Organic",
+        "Quảng cáo (Lưu lượng / Báo cáo DVHT)",
+        "Tiếp thị liên kết",
+        "Ưu đãi (chi phí, không phải kênh)",
+        "Tổng",
+    ]
+    assert ws["G7"].value == 30_000 and all(ws.cell(7, c).value in (None, "—") for c in (2, 5, 8))
     assert ws["B5"].value == 2_000_000 and ws["G5"].value == 400_000 and ws["E6"].value == 2
-    assert ws["C4"].value == '=IFERROR(B4/B$8,"")' and ws["F4"].value == '=IFERROR(B4/E4,"")'
+    assert ws["C4"].value == '=IFERROR(B4/B$8,"—")' and ws["F4"].value == '=IFERROR(B4/E4,"—")'
     assert ws["B8"].value == "=SUM(B4:B7)" and ws["G8"].value == "=SUM(G4:G7)"
-    assert ws["D5"].value == '=IFERROR(B5/1800000.0-1,"")'  # the previous value is in the formula
-    assert ws["D8"].value == '=IFERROR(B8/4950000.0-1,"")'
-    assert ws["H8"].value == "='Tổng quan'!B12" and ws["H4"].value is None
+    assert ws["D5"].value == '=IFERROR(B5/1800000.0-1,"—")'  # the previous value is in the formula
+    assert ws["D8"].value == '=IFERROR(B8/4950000.0-1,"—")'
+    assert ws["H8"].value == "='Tổng quan'!B12" and ws["H4"].value == "—"
 
 
 def test_day_totals_equal_the_channel_sheet():
@@ -109,21 +115,21 @@ def test_day_totals_equal_the_channel_sheet():
 def test_product_sheet_total_equals_the_shop():
     d = _data()
     ws = tq.build(d)[tq.SHEET_PRODUCT]
-    assert [c.value for c in ws[3]][:9] == tq.P_HEADER
+    assert [c.value for c in ws[3]][:13] == tq.P_HEADER
     total = tq.P_FIRST + 3
     assert ws.cell(tq.P_FIRST + 2, 1).value == "Cả shop" and ws.cell(total, 1).value == "Tổng"
-    for letter in "JKLME":
+    for letter in "OPQRE":
         assert ws[f"{letter}{total}"].value == f"=SUM({letter}{tq.P_FIRST}:{letter}{total - 1})"
-    assert ws["J4"].value == d.products[0].now.channel("organic").gmv
-    assert sum(ws.cell(r, 11).value for r in range(4, total)) == pytest.approx(
+    assert ws["O4"].value == d.products[0].now.channel("organic").gmv
+    assert sum(ws.cell(r, 16).value for r in range(4, total)) == pytest.approx(
         d.now.channel("ads").gmv
     )
     # GMV = the product's own order GMV (not Σ its channels: their reports can disagree)
-    assert ws["C4"].value == d.products[0].now.gmv and ws["F4"].value == '=IFERROR(J4/C4,"")'
+    assert ws["C4"].value == d.products[0].now.gmv and ws["F4"].value == '=IFERROR(O4/C4,"—")'
     assert ws[f"C{total}"].value == f"=SUM(C{tq.P_FIRST}:C{total - 1})"
-    assert ws["I4"].value == '=IFERROR(E4/M4,"")' and "mục tiêu" not in " ".join(tq.P_HEADER)
+    assert ws["I4"].value == '=IFERROR(E4/R4,"—")' and "mục tiêu" not in " ".join(tq.P_HEADER)
     assert ws["D4"].value.startswith("=IFERROR(C4/")
-    assert all(ws.column_dimensions[x].hidden for x in "JKLM")
+    assert all(ws.column_dimensions[x].hidden for x in "OPQR")
 
 
 def test_residual_row_is_shop_minus_products_and_keeps_none():
@@ -259,7 +265,7 @@ def test_sku_sheet_columns_and_formulas():
     ]
     data.skus.append(tq.SkuRow("G500001", "Combo 10 hộp", "SP", units=2, revenue=500, combo=10))
     ws = tq.build(data)[tq.SHEET_SKU]
-    assert [c.value for c in ws[3]] == tq.SKU_HEADER and len(tq.SKU_HEADER) == 9
+    assert [c.value for c in ws[3]] == tq.SKU_HEADER and len(tq.SKU_HEADER) == 12
     assert ws["G4"].value == '=IF(AND(F4<>"",E4<>0),F4/E4,"")' and ws["I6"].value == 10
     # the GMV gap row brings Σ Doanh thu thực tế to the overview's GMV, then the Tổng row
     assert ws["A7"].value == tq.SKU_GAP_LABEL
@@ -291,7 +297,7 @@ def test_day_sheet_takes_the_days_own_gmv_and_orders():
     ws = tq.build(data)[tq.SHEET_DAY]
     r = tq.DAY_FIRST
     assert ws.cell(r, 5).value == 1_200_000.0 and ws.cell(r, 6).value == 7.0
-    assert ws.cell(r, 2).value is None and ws.cell(r, 4).value is None
+    assert ws.cell(r, 2).value == "—" and ws.cell(r, 4).value == "—"
     assert ws.cell(r + 1, 5).value == f"=SUM(B{r + 1}:D{r + 1})" and ws.cell(r + 1, 6).value == 3.0
 
 

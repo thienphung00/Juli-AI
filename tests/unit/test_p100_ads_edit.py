@@ -174,7 +174,8 @@ def test_budget_cut_below_what_an_uncapped_campaign_spends():
 
 def test_budget_raise_on_an_uncapped_campaign_does_not_raise_spend():
     o, r = evaluate(spec(lever="budget", daily_budget=300_000), facts())
-    assert o.ads.spend_after == o.ads.spend_now and o.fixed_cost == 0
+    # the spend does not rise, but the raise is still the extra budget: ONE cost rule everywhere
+    assert o.ads.spend_after == o.ads.spend_now and o.fixed_cost == D(150_000) * 30
     assert "không làm tăng chi tiêu" in o.ads.spend_text
     assert r.json()["delta"]["orders"]["value"] == 0
 
@@ -322,3 +323,32 @@ def test_cancel_rate_from_placed_vs_confirmed_overview_days():
     rows = [day(1, "placed", 100), day(1, "confirmed", 90), day(2, "placed", 50)]
     assert cancel_rate_of(rows) == D("0.1")  # day 2 has no confirmed row: left out
     assert cancel_rate_of([day(1, "confirmed", 90)]) is None
+
+
+# -- U1 (owner 2026-11-17): a budget change costs the EXTRA budget x days --------------------------
+
+
+def test_budget_raise_costs_the_extra_budget_never_the_full_budget():
+    """100.000 -> 150.000/day for 30 days = 1.500.000đ extra; not 4.500.000 (150.000 x 30) and not
+    the drift of the actual spend."""
+    c = camp(budget=100_000)
+    s = spec(lever="budget", daily_budget=150_000)
+    o, r = evaluate(s, facts(c, budget=D(100_000)))
+    assert o.fixed_cost == D(1_500_000)
+    assert r.cost_total == D(1_500_000)
+
+
+def test_the_budget_raise_cost_rule_is_the_shared_helper_for_capped_and_uncapped():
+    from juli_backend.services.shopee_recommendations.ads_cost import budget_raise_extra_per_day
+
+    assert budget_raise_extra_per_day(D(150_000), D(100_000)) == D(50_000)
+    assert budget_raise_extra_per_day(D(80_000), D(100_000)) is None  # a cut keeps the spend figure
+    assert budget_raise_extra_per_day(D(150_000), None) is None
+    capped_o, _ = evaluate(
+        spec(lever="budget", daily_budget=150_000), facts(camp(budget=100_000), budget=D(100_000))
+    )
+    open_o, _ = evaluate(
+        spec(lever="budget", daily_budget=250_000), facts()
+    )  # uncapped, budget 150.000
+    assert capped_o.fixed_cost == budget_raise_extra_per_day(D(150_000), D(100_000)) * 30
+    assert open_o.fixed_cost == budget_raise_extra_per_day(D(250_000), D(150_000)) * 30

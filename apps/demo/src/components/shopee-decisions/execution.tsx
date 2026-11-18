@@ -8,7 +8,7 @@ import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { READBACK_LABEL, countdownOf, readbackOf, readingsOf, stepText, vnWhen, type Readback } from "../../lib/shopee-decisions/model";
 import type { CardDetail, ExecutionSheet, ExecutionStep, SheetPage } from "../../lib/shopee-decisions/types";
-import { capturedVoucherId, FILL_JOB_KINDS, FillJobsChecklist, ListingSheetExtras, useFillJobs } from "../planned-changes/listing-extras";
+import { capturedVoucherId, FILL_JOB_KINDS, FillJobsChecklist, fillJobHref, ListingSheetExtras, useFillJobs } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
 import { CopyButton, errorText } from "./ui";
 
@@ -18,32 +18,27 @@ import { CopyButton, errorText } from "./ui";
  * buttons) and the time window - and a link to open the page. A person saves it with Shopee's own
  * button, then marks "Đã làm"; the Connector's next readings say Chờ xác minh / Đã xác minh /
  * Không khớp / Chưa thấy, and the 14 / 28-day measurement starts when the change is verified.
- * "Hoàn tác" shows the same steps in reverse.
+ * "Hoàn tác" (executed cards) shows the same steps in reverse; "Đã hoàn tác" records the revert.
  */
 
 export const READ_ONLY_TITLE = "Chế độ xem: không thể thao tác thay seller";
 
-export function PageLink({ page }: { readonly page: SheetPage }) {
+/**
+ * The page of a sheet: its name and ONE button. "Mở và điền" when the Connector has a fill job
+ * (`fillHref` carries the job), else "Mở trang". A page with no known address shows only its name.
+ */
+export function PageLink({ page, fillHref }: { readonly page: SheetPage; readonly fillHref?: string | null }) {
   // P100 S2-D4: the sample shop is not in Seller Centre, so its sheet names the page without a link.
   const sample = useSampleShopReviewer();
-  if (sample) {
-    return (
-      <span className="sd-page" data-testid="sd-page">
-        <b>{page.label}</b>
-      </span>
-    );
-  }
+  const href = sample ? null : (fillHref ?? page.deep_link);
   return (
     <span className="sd-page" data-testid="sd-page">
       <b>{page.label}</b>
-      {page.deep_link ? (
-        <a className="sa-btn sa-btn--primary sa-btn--s" href={page.deep_link} rel="noopener noreferrer" target="_blank">
-          {page.button || "Mở trang để sửa"}
+      {href ? (
+        <a className="sa-btn sa-btn--primary sa-btn--s" data-testid="sd-page-open" href={href} rel="noopener noreferrer" target="_blank">
+          {fillHref ? "Mở và điền" : "Mở trang"}
         </a>
-      ) : (
-        <span className="sa-hint">Chưa có đường dẫn trực tiếp: vào menu &ldquo;{page.label}&rdquo; trong Seller Centre.</span>
-      )}
-      {page.verified ? null : <TextChip tone="warn">đường dẫn chưa kiểm</TextChip>}
+      ) : null}
     </span>
   );
 }
@@ -70,7 +65,22 @@ function BeforeCell({ step }: { readonly step: ExecutionStep }) {
   );
 }
 
-function StepRow({ step }: { readonly step: ExecutionStep }) {
+/** A revert step whose original value is known to nobody: say which field. */
+export const NO_BEFORE = "Chưa có giá trị cũ";
+
+function StepRow({ step, reverse }: { readonly step: ExecutionStep; readonly reverse: boolean }) {
+  if (step.action) {
+    return (
+      <li className="sd-step" data-testid={`sd-step-${step.order}`}>
+        <span className="sd-step__n">{step.order}</span>
+        <span className="sd-step__field">
+          <b>{step.field}</b>
+        </span>
+        <span className="sd-step__after">{step.action}</span>
+      </li>
+    );
+  }
+  const unknown = reverse && (step.after === null || step.after === undefined || step.after === "");
   return (
     <li className="sd-step" data-testid={`sd-step-${step.order}`}>
       <span className="sd-step__n">{step.order}</span>
@@ -81,28 +91,55 @@ function StepRow({ step }: { readonly step: ExecutionStep }) {
       </span>
       <BeforeCell step={step} />
       <span aria-hidden="true">→</span>
-      <b className="sd-step__after">{stepText(step.after, step.unit)}</b>
+      {unknown ? (
+        <b className="sd-step__after sd-step__after--unknown" data-testid={`sd-step-unknown-${step.order}`}>
+          {NO_BEFORE}
+        </b>
+      ) : (
+        <b className="sd-step__after">
+          {stepText(step.after, step.unit)}
+          {reverse && step.before_source === "connector" ? <TextChip tone="info">Connector đã đọc</TextChip> : null}
+        </b>
+      )}
       {step.copy ? <CopyButton label={step.field} text={step.copy} /> : <span />}
     </li>
   );
 }
 
-export function SheetView({ sheet, reverse = false }: { readonly sheet: ExecutionSheet; readonly reverse?: boolean }) {
+/** The revert's own warning: the fields whose original value is known to nobody (never a silent "—"). */
+export function UnknownBefore({ sheet }: { readonly sheet: ExecutionSheet }) {
+  const missing = sheet.unknown_before ?? [];
+  if (missing.length === 0) return null;
+  return (
+    <p className="sd-error" data-testid="sd-revert-unknown" role="note">
+      Chưa có giá trị cũ của: {missing.join(", ")}. Nhập lại giá trị cũ bạn biết, Juli không đoán.
+    </p>
+  );
+}
+
+export function SheetView({ sheet, reverse = false, fillHref = null }: { readonly sheet: ExecutionSheet; readonly reverse?: boolean; readonly fillHref?: string | null }) {
   const steps = reverse ? sheet.revert_steps : sheet.steps;
   const w = sheet.time_window;
   return (
     <div className="sd-sheet" data-testid={reverse ? "sd-revert-sheet" : "sd-sheet"}>
-      <PageLink page={sheet.page} />
+      <PageLink fillHref={fillHref} page={sheet.page} />
       <ol className="sd-steps">
         {steps.map((s) => (
-          <StepRow key={s.order} step={s} />
+          <StepRow key={s.order} reverse={reverse} step={s} />
         ))}
       </ol>
-      <p className="sa-hint" data-testid="sd-time-window">
-        Thời gian: {w.start ?? DASH}
-        {typeof w.days === "number" ? ` · chạy ${fmt(w.days, 0)} ngày` : ""}
-      </p>
-      <p className="sa-hint">{sheet.save_hint}</p>
+      {reverse ? <UnknownBefore sheet={sheet} /> : null}
+      {reverse ? null : (
+        <p className="sa-hint" data-testid="sd-time-window">
+          Thời gian: {w.start ?? DASH}
+          {typeof w.days === "number" ? ` · chạy ${fmt(w.days, 0)} ngày` : ""}
+        </p>
+      )}
+      {reverse ? null : (
+        <p className="sa-hint" data-testid="sd-save-hint">
+          {sheet.save_hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -147,14 +184,70 @@ function Measurement({ detail, rb }: { readonly detail: CardDetail; readonly rb:
   );
 }
 
+/**
+ * "Hoàn tác" of an executed card: the steps in reverse and ONE confirmation. Juli never claims the
+ * revert: the person undoes it in Seller Centre, then presses "Đã hoàn tác", which records who and
+ * when, stops the card's measurement and keeps it out of what Juli learns.
+ */
+function RevertBlock({ detail, sheet, onChanged }: { readonly detail: CardDetail; readonly sheet: ExecutionSheet; readonly onChanged: () => void }) {
+  const host = useReco();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const reverted = detail.reverted ?? null;
+  const confirm = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await host.reco.reverted(detail.id);
+      onChanged();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (reverted) {
+    return (
+      <div className="sd-revert" data-testid="sd-reverted">
+        <TextChip tone="flat">Đã hoàn tác</TextChip> <span>lúc {vnWhen(reverted.at)}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="sd-revert" data-testid="sd-revert">
+      <div className="sd-actions">
+        <button aria-expanded={open} className="sa-btn" data-testid="sd-revert-toggle" onClick={() => setOpen((v) => !v)} type="button">
+          Hoàn tác
+        </button>
+      </div>
+      {open ? (
+        <>
+          <SheetView reverse sheet={sheet} />
+          <div className="sd-actions">
+            <button className="sa-btn sa-btn--primary" data-testid="sd-reverted-confirm" disabled={!!host.readOnly || busy} onClick={() => void confirm()} title={host.readOnly ? READ_ONLY_TITLE : undefined} type="button">
+              Đã hoàn tác
+            </button>
+          </div>
+        </>
+      ) : null}
+      {error ? (
+        <p className="sd-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail: CardDetail; readonly sheet: ExecutionSheet; readonly onExecuted: () => void }) {
   const host = useReco();
-  const [revert, setRevert] = useState(false);
   const [voucherId, setVoucherId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const rb = readbackOf(detail.journey);
   const executed = detail.status === "executed";
+  const reverted = !!detail.reverted;
   // P97 D85.6: after the person saves, the Connector captures the new voucher id itself.
   // P100 S2-D4: no Connector (so no fill queue, which the sample pin refuses) on the reviewer's sample shop.
   const sample = useSampleShopReviewer();
@@ -165,6 +258,9 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
   const fill = useFillJobs(detail.id, fillActive);
   const captured = capturedVoucherId(fill.jobs);
   const blocked = !!host.readOnly || busy || (needsVoucherId && voucherId.trim() === "" && !captured);
+  // ONE page button: "Mở và điền" opens the Connector's job, else the page itself
+  const openJob = fill.enabled ? fill.jobs.find((j) => j.status === "queued" || j.status === "opened" || j.status === "filled") : undefined;
+  const fillHref = openJob ? fillJobHref(openJob) : null;
 
   const markDone = async () => {
     setBusy(true);
@@ -186,25 +282,26 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
       </div>
       {executed ? (
         <>
-          <ReadbackBlock deadline={sheet.readback.deadline_hours} rb={rb} />
-          <Measurement detail={detail} rb={rb} />
+          {reverted ? null : <ReadbackBlock deadline={sheet.readback.deadline_hours} rb={rb} />}
+          {reverted ? null : <Measurement detail={detail} rb={rb} />}
           <details className="sd-exec__sheet">
             <summary>Xem lại bảng thao tác</summary>
             <SheetView sheet={sheet} />
           </details>
+          <RevertBlock detail={detail} onChanged={onExecuted} sheet={sheet} />
         </>
       ) : (
         <>
-          <SheetView sheet={sheet} />
+          <SheetView fillHref={fillHref} sheet={sheet} />
           <ListingSheetExtras detail={detail} sheet={sheet} />
           <FillJobsChecklist enabled={fill.enabled} jobs={fill.jobs} />
           {needsVoucherId && captured ? (
             <p className="sa-hint" data-testid="sd-voucher-captured">
-              Connector đã lấy mã voucher {captured} sau khi bạn lưu, nên không cần nhập; Juli dùng mã này để đọc lại và xác minh.
+              Connector đã lấy mã voucher {captured}.
             </p>
           ) : needsVoucherId ? (
             <label className="sd-voucher-id">
-              Mã voucher trên Seller Centre (sau khi tạo)
+              Mã voucher trên Seller Centre
               <input
                 disabled={!!host.readOnly}
                 onChange={(event) => setVoucherId(event.target.value)}
@@ -212,7 +309,6 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
                 type="text"
                 value={voucherId}
               />
-              <span className="sa-hint">Cần mã này để Juli đọc lại voucher và xác minh.</span>
             </label>
           ) : null}
           <div className="sd-actions">
@@ -227,13 +323,6 @@ export function ExecutionPanel({ detail, sheet, onExecuted }: { readonly detail:
           {error}
         </p>
       ) : null}
-      <div className="sd-actions">
-        <button aria-expanded={revert} className="sa-btn" onClick={() => setRevert((v) => !v)} type="button">
-          Hoàn tác
-        </button>
-        <span className="sa-hint">Hoàn tác là sửa lại trên Seller Centre theo các bước ngược, rồi báo cho đội Juli để ghi lại.</span>
-      </div>
-      {revert ? <SheetView reverse sheet={sheet} /> : null}
     </section>
   );
 }

@@ -308,11 +308,31 @@ def _one(
         )
     if isinstance(spec, sp.AdsSpec):  # P100 B.15: an edit of a running campaign
         return ads_edit_result(ctx, spec, shop_id)
+    deal_soc = isinstance(spec, sp.AddOnSpec | sp.GiftSpec)
+    if deal_soc:
+        base = deal_soc_base(ctx, spec, base)
     try:
         option = option_for(spec, ctx, extras_for(base))
     except FamilyRefused as exc:
         return Evaluated(base, None, exc)
+    if deal_soc and "aov" in base.low_data:
+        # fewer than MIN_ATTACH_ORDERS main orders: say exactly that, not the generic "ít dữ liệu"
+        note = common.NOTE_ATTACH_FEW_ORDERS
+        option = replace(option, note=f"{note} {option.note}" if option.note else note)
     return Evaluated(base, run(base, option, seed_of(spec.model_dump(mode="json"))))
+
+
+def deal_soc_base(ctx: BuilderContext, spec: sp.VersionSpec, base: FunnelBase) -> FunnelBase:
+    """Deal Sốc (add_on, gift): today's attach rate comes from the main product's own order lines,
+    not from a funnel window, so the funnel's "ít dữ liệu" flag on AOV / CTOR does not block it.
+    With fewer than ``MIN_ATTACH_ORDERS`` orders the flag stays and the result says why."""
+    items = scope_items(spec)
+    orders = {ln.order_id for ln in ctx.env.lines_for(list(items) or None)}
+    if len(orders) < common.MIN_ATTACH_ORDERS:
+        return replace(
+            base, low_data=(*base.low_data, "aov") if "aov" not in base.low_data else base.low_data
+        )
+    return replace(base, low_data=tuple(m for m in base.low_data if m not in ("aov", "ctor")))
 
 
 # -- several targets: the column-wise sum ---------------------------------------------------------

@@ -275,16 +275,16 @@ describe("the client", () => {
 const ITEM_LINK = "https://banhang.shopee.vn/portal/product/1001";
 const listingSheet = (over: Partial<ExecutionSheet> = {}): ExecutionSheet => ({
   ...SHEET_VOUCHER,
-  page: { label: "Sản phẩm › Sửa sản phẩm", path: "/portal/product/list/all", verified: true, deep_link: "https://banhang.shopee.vn/portal/product/list/all", button: "Mở trang để sửa", item_deep_link: ITEM_LINK, item_link_verified: false },
+  page: { label: "Sản phẩm › Sửa sản phẩm", path: "/portal/product/list/all", verified: true, deep_link: "https://banhang.shopee.vn/portal/product/list/all", button: "Mở trang để sửa", item_deep_link: ITEM_LINK, item_link_verified: true },
   ...over,
 });
 const listingDetail = (kind = "title", p: Partial<CardDetail> & { code?: string } = {}): CardDetail & { code: string } =>
   ({ ...detailOf(voucherCard({ change_kind: kind, family: "listing", family_label: "Tên, từ khoá, ảnh bìa" }), { status: "approved" }), code: "JC-2611-0007", ...p }) as CardDetail & { code: string };
 
-function renderExtras(detail: CardDetail, sheet: ExecutionSheet, fetchImpl: typeof fetch, shopKey = "shop-1") {
+function renderExtras(detail: CardDetail, sheet: ExecutionSheet, _fetchImpl: typeof fetch, shopKey = "shop-1") {
   return render(
     <RecoHostProvider host={hostOf(fakeReco({ detail }), { shopKey })}>
-      <ListingSheetExtras detail={detail} fetchImpl={fetchImpl} sheet={sheet} />
+      <ListingSheetExtras detail={detail} sheet={sheet} />
     </RecoHostProvider>,
   );
 }
@@ -304,78 +304,31 @@ describe("listing extras of the execution sheet", () => {
   });
   afterEach(() => window.localStorage.clear());
 
-  it("opens the product's own edit page, marks the unverified link and shows what must run first", () => {
+  it("shows what must run first and the cover download, with no second page link", () => {
     const sheet = listingSheet({
       dependencies: [{ ref: "CB3", code: "JC-2611-0003", text: "Chỉ làm sau khi CB3 đã chạy xong." }],
       downloads: [{ label: "Tải ảnh bìa mới", ref: "https://img.example/c.jpg", url: "https://img.example/c.jpg" }],
     });
     renderExtras(listingDetail("cover_image"), sheet, flag(false));
-    const page = screen.getByTestId("sd-item-page");
-    expect(within(page).getByRole("link", { name: "Mở trang sửa sản phẩm" })).toHaveAttribute("href", ITEM_LINK);
-    expect(within(page).getByText("đường dẫn chưa kiểm")).toBeInTheDocument();
     expect(screen.getByTestId("sd-dependency")).toHaveTextContent("Chỉ làm sau khi CB3 đã chạy xong. (JC-2611-0003)");
     expect(screen.getByTestId("sd-download")).toHaveAttribute("href", "https://img.example/c.jpg");
-  });
-
-  it("shows 'Điền bằng Connector' only when the server flag is on, with only the card's code in the address", async () => {
-    const on = flag(true);
-    renderExtras(listingDetail("title"), listingSheet(), on);
-    const button = await screen.findByTestId("sd-connector-fill");
-    expect(button).toHaveTextContent("Điền bằng Connector");
-    expect(button).toHaveAttribute("href", `${ITEM_LINK}#juli-fill=JC-2611-0007`);
-    expect(button).toHaveAttribute("target", "_blank");
-    expect(screen.getByText(/Juli không bấm Lưu thay bạn/)).toBeInTheDocument();
-    expect(on).toHaveBeenCalledWith("/v1/demo/connector-fill", expect.objectContaining({ headers: expect.objectContaining({ "X-Shop-Id": "shop-1", Authorization: "Bearer t" }) }));
-  });
-
-  it("is absent with the flag off, on a refused flag call and when the server cannot be reached", async () => {
-    const off = flag(false);
-    renderExtras(listingDetail("title"), listingSheet(), off);
-    await waitFor(() => expect(off).toHaveBeenCalled());
+    // the page button lives in the sheet (one button), never here
+    expect(screen.queryByTestId("sd-item-page")).toBeNull();
+    expect(screen.queryByText("đường dẫn chưa kiểm")).toBeNull();
     expect(screen.queryByTestId("sd-connector-fill")).toBeNull();
-    expect(screen.getByRole("link", { name: "Mở trang sửa sản phẩm" })).toBeInTheDocument();
-    const denied = vi.fn(async () => new Response("{}", { status: 403 })) as unknown as typeof fetch;
-    renderExtras(listingDetail("title"), listingSheet(), denied);
-    const down = vi.fn(async () => Promise.reject(new Error("offline"))) as unknown as typeof fetch;
-    renderExtras(listingDetail("title"), listingSheet(), down);
-    await waitFor(() => expect(down).toHaveBeenCalled());
-    expect(screen.queryByTestId("sd-connector-fill")).toBeNull();
-  });
-
-  it("asks nothing for a card the Connector cannot help: not approved, not a listing change, no code or no page", async () => {
-    for (const [detail, sheet] of [
-      [listingDetail("title", { status: "sent" }), listingSheet()],
-      [listingDetail("min_spend_voucher"), listingSheet()],
-      [listingDetail("title", { code: undefined }), listingSheet()],
-      [listingDetail("title"), listingSheet({ page: { ...listingSheet().page, item_deep_link: null } })],
-    ] as const) {
-      const f = flag(true);
-      const { unmount } = renderExtras(detail as CardDetail, sheet, f);
-      await Promise.resolve();
-      expect(f).not.toHaveBeenCalled();
-      expect(screen.queryByTestId("sd-connector-fill")).toBeNull();
-      unmount();
-    }
-  });
-
-  it("uses the Ops flag route in Ops and sends no shop header", async () => {
-    const on = flag(true);
-    renderExtras(listingDetail("description_first_line"), listingSheet(), on, "ops-tab:s-1");
-    await screen.findByTestId("sd-connector-fill");
-    expect(on).toHaveBeenCalledWith("/v1/ops/connector-fill", expect.objectContaining({ headers: expect.not.objectContaining({ "X-Shop-Id": expect.anything() }) }));
   });
 
   it("shows where an imported card came from, and renders nothing for an old card", () => {
     const detail = listingDetail("title");
     (detail.card as unknown as Record<string, unknown>).planned = { ref: "TD1", cost: 1200000, window_days: 14, decision_label: "đồng ý", status_label: "đang" };
-    renderExtras(detail, listingSheet({ page: { ...listingSheet().page, item_deep_link: null } }), flag(false));
+    renderExtras(detail, listingSheet(), flag(false));
     expect(screen.getByTestId("sd-planned")).toHaveTextContent("Từ tệp kế hoạch · mã TD1 · chi phí 1.200.000đ · đo 14 ngày · đồng ý · đang");
     const none = renderExtras(listingDetail("min_spend_voucher"), SHEET_VOUCHER, flag(false));
     expect(none.container.querySelectorAll('[data-testid="sd-listing-extras"]')).toHaveLength(0);
   });
 
-  it("covers the six listing kinds and builds the address from the code alone", () => {
-    expect([...CONNECTOR_KINDS].sort()).toEqual(["cover_image", "description_first_line", "listing_hide", "listing_relist", "title", "variation_restructure"]);
+  it("covers the five kinds the Connector fills and builds the address from the code alone", () => {
+    expect([...CONNECTOR_KINDS].sort()).toEqual(["description_first_line", "listing_hide", "listing_relist", "title", "variation_restructure"]);
     expect(connectorFillHref("https://banhang.shopee.vn/portal/product/9", "JC-2611-0001")).toBe("https://banhang.shopee.vn/portal/product/9#juli-fill=JC-2611-0001");
   });
 });

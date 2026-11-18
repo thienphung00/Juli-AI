@@ -9,12 +9,13 @@ the Connector's calls; shop-scoped; read-only. See ``services.shopee_recommendat
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
@@ -75,11 +76,40 @@ class JobProgress(BaseModel):
     total: int = Field(ge=1, le=999)
 
 
+_FIELD_KEY = r"^[a-z][a-z0-9_]{0,39}$"
+MAX_REPORT_FIELDS = 40
+MAX_BEFORE_CHARS = 600
+
+
+class FieldCheck(BaseModel):
+    """Connector 0.3.24: one field's last read after the fill."""
+
+    key: str = Field(pattern=_FIELD_KEY)
+    ok: bool
+    seen: str = Field(default="", max_length=120)
+
+
 class JobReport(BaseModel):
     progress: JobProgress | None = None
     status: str = Field(pattern="^(opened|filled|saved|captured|failed)$")
     captured_ref: str | None = Field(default=None, max_length=64)
     error: str | None = Field(default=None, max_length=64)
+    # Connector 0.3.24 (batch-1117b X2): value of each field before the Connector wrote it
+    before_values: dict[str, str] | None = None
+    period_ok: bool | None = None
+    fields: list[FieldCheck] | None = Field(default=None, max_length=MAX_REPORT_FIELDS)
+
+    @field_validator("before_values")
+    @classmethod
+    def _bounded_before(cls, value: dict[str, str] | None) -> dict[str, str] | None:
+        if value is None:
+            return None
+        if len(value) > MAX_REPORT_FIELDS:
+            raise ValueError("too many fields")
+        for key, text in value.items():
+            if not re.match(_FIELD_KEY, key) or len(text) > MAX_BEFORE_CHARS:
+                raise ValueError("bad before value")
+        return value
 
 
 @jobs_router.get("")
@@ -138,6 +168,9 @@ async def report_fill_job(
                 captured_ref=body.captured_ref,
                 error=body.error,
                 progress=None if body.progress is None else body.progress.model_dump(),
+                before_values=body.before_values,
+                period_ok=body.period_ok,
+                field_checks=None if body.fields is None else [f.model_dump() for f in body.fields],
             )
     except ProposalError as exc:
         await session.rollback()

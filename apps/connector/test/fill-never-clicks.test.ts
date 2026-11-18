@@ -71,6 +71,10 @@ describe("a job fill never presses Shopee's save / confirm / send", () => {
     ["a combo on a page that is not the form", comboJob(), "edit-unknown.html"],
     ["a title", titleJob, "edit-ory-recon.html"],
     ["a page that is not the expected form", voucherJob(), "edit-unknown.html"],
+    ["a title on the live eds layout", titleJob, "edit-eds-quill.html"],
+    ["a voucher on the live eds layout", voucherJob(), "voucher-eds.html"],
+    ["a combo on the live eds layout", comboJob(), "combo-eds.html"],
+    ["an affiliate commission under Shopee's new-version notice", affiliateJob(), "affiliate-notice.html"],
   ])("%s", async (_name, raw, page) => {
     loadPage(page);
     const wire = wireEds(document);
@@ -109,9 +113,11 @@ describe("the source never presses anything", () => {
       "core/fill/job-panel.ts",
       "core/fill/job-run.ts",
       "core/fill/locate.ts",
+      "core/fill/log.ts",
       "core/fill/panel.ts",
       "core/fill/settle.ts",
       "core/fill/types.ts",
+      "core/fill/verify.ts",
       "core/fill/write.ts",
       "core/jobs/fill-jobs.ts",
       "platforms/shopee/background/fill-jobs.ts",

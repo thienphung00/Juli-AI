@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ShopeeApiError } from "../../../lib/shopee-analytics/client";
-import { DASH, fmt, vnd } from "../../../lib/shopee-analytics/format";
+import { DASH, fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { BuilderApi, BuilderEvaluation, BuilderOutcome, ChooseResult, GroupResult } from "../../../lib/shopee-decisions/builder-api";
-import { breachesOfOutcome } from "../../../lib/shopee-decisions/builder-p92";
+import { breachesOfOutcome, refusalText } from "../../../lib/shopee-decisions/builder-p92";
+import { NOISE_TAG, deltaOf, hasCost, metricsFor, strategyOfResult, reasonLine, type Metric } from "../../../lib/shopee-decisions/card-rows";
 import { roiLabel, type OptionResult } from "../../../lib/shopee-decisions/option-result";
 import type { Breach } from "../../../lib/shopee-decisions/types";
 import { ackText, breachWarnLines } from "../../../lib/shopee-decisions/versions";
@@ -49,7 +50,8 @@ interface Row {
   readonly profit: number | null;
 }
 
-const profitOf = (r: OptionResult | null): number | null => (r && r.estimable ? (r.delta.profit?.value ?? null) : null);
+const profitOf = (r: OptionResult | null): number | null => (r && r.estimable ? deltaOf(r, "profit").value : null);
+const tagged = (text: string, noise: boolean): string => (noise ? `${text} ${NOISE_TAG}` : text);
 
 /** Bar geometry: the zero line is at 50 %, the longest bar reaches an edge. */
 export function barWidth(value: number, max: number): number {
@@ -71,9 +73,60 @@ function ordersText(r: OptionResult | null): string {
 
 function costText(r: OptionResult | null): string {
   if (!r) return DASH;
-  const a = r.ads;
-  if (a && a.spend.after !== null && a.spend.now !== null) return `${vnd(a.spend.after)} (${signedMoney(a.spend.after - a.spend.now)})`;
-  return r.cost.total > 0 ? vnd(r.cost.total) : r.cost.total < 0 ? `Giảm ${vnd(-r.cost.total)}` : "0đ";
+  // one source for the cost: the result's own (an ads budget change = the EXTRA budget × days)
+  if (!hasCost(r)) return DASH;
+  return r.cost.total > 0 ? vnd(r.cost.total) : `Giảm ${vnd(-r.cost.total)}`;
+}
+
+const HEAD: Readonly<Record<Metric, string>> = {
+  views: "Δ lượt xem",
+  ctr: "Δ CTR",
+  gmv: "Δ GMV",
+  profit: "Δ lợi nhuận",
+  cost: "Chi phí",
+  orders: "Δ đơn",
+  margin: "Biên lợi nhuận",
+  breakeven: "Hoà vốn",
+  ads_orders: "Đơn QC",
+  cpa: "CPA / hoà vốn",
+  roas: "ROAS Shopee",
+  roi: "ΔGMV / chi phí",
+};
+
+const pctText = (r: OptionResult, m: "views" | "ctr"): string => {
+  const d = r.drivers_pct.find((x) => x.metric === m)?.pct;
+  return d === null || d === undefined ? DASH : `${d > 0 ? "+" : d < 0 ? "−" : ""}${fmt(Math.abs(d), 1)}%`;
+};
+
+/** One cell of the table for a metric (only metrics that apply to the kind are columns at all). */
+function cellText(m: Metric, r: OptionResult): string {
+  switch (m) {
+    case "views":
+    case "ctr":
+      return pctText(r, m);
+    case "gmv":
+      return tagged(signedMoney(deltaOf(r, "gmv").value), deltaOf(r, "gmv").noise);
+    case "profit":
+      return tagged(signedMoney(deltaOf(r, "profit").value), deltaOf(r, "profit").noise);
+    case "cost":
+      return costText(r);
+    case "orders":
+      return tagged(signedCount(deltaOf(r, "orders").value), deltaOf(r, "orders").noise);
+    case "margin":
+      return r.margin && r.margin.before_pct !== null && r.margin.after_pct !== null ? `${pp(r.margin.before_pct, 1)} → ${pp(r.margin.after_pct, 1)}` : DASH;
+    case "breakeven":
+      return r.cost.break_even_orders === null || r.cost.break_even_orders === undefined ? DASH : `≥ ${fmt(Math.ceil(r.cost.break_even_orders - 1e-6), 0)} đơn`;
+    case "ads_orders":
+      return ordersText(r);
+    case "cpa":
+      return cpaText(r);
+    case "roas": {
+      const a = r.ads?.roas_shopee;
+      return a && a.after !== null ? fmt(a.after, 1) : DASH;
+    }
+    case "roi":
+      return r.roi?.value !== null && r.roi?.value !== undefined ? fmt(r.roi.value, 2) : DASH;
+  }
 }
 
 export function StepSoSanh(p: StepSoSanhProps) {
@@ -113,6 +166,8 @@ export function StepSoSanh(p: StepSoSanhProps) {
     const r = o?.ok && o.result ? o.result : null;
     return { i, name: `P${i + 1}`, outcome: o, r, profit: profitOf(r) };
   });
+  const metrics = metricsFor(rows.map((x) => x.r));
+  const allListing = rows.length > 0 && rows.every((x) => x.r !== null && strategyOfResult(x.r) === "listing");
   const days = rows.find((x) => x.r)?.r ? resultDays(rows.find((x) => x.r)!.r!) : null;
   const best = rows.reduce<Row | null>((b, x) => (x.profit !== null && (b === null || x.profit > (b.profit ?? -Infinity)) ? x : b), null);
   const mainIndex = main !== null && main < entries.length ? main : (best?.i ?? 0);
@@ -185,6 +240,7 @@ export function StepSoSanh(p: StepSoSanhProps) {
       ) : null}
       {current?.status === "ready" ? (
         <>
+          {!allListing ? (
           <div className="sa-card p4-bars" data-testid="p4-bars">
             <div className="p4-bars__title">Δ lợi nhuận {days ? periodLabel(days) : "cả kỳ"}</div>
             {rows.map((x) => {
@@ -216,43 +272,39 @@ export function StepSoSanh(p: StepSoSanhProps) {
               );
             })}
           </div>
+          ) : null}
           <div className="sa-card p4-table-wrap">
             <table className="sa-table p4-table" data-testid="p4-table">
-              <colgroup>
-                <col className="p4-col p4-col--name" />
-                <col className="p4-col p4-col--gmv" />
-                <col className="p4-col p4-col--cost" />
-                <col className="p4-col p4-col--orders" />
-                <col className="p4-col p4-col--cpa" />
-                <col className="p4-col p4-col--roi" />
-                <col className="p4-col p4-col--verdict" />
-              </colgroup>
               <thead>
                 <tr>
                   <th>{days ? periodLabel(days) : "Cả kỳ"}</th>
-                  <th className="p4-num">Δ GMV</th>
-                  <th className="p4-num">Chi phí</th>
-                  <th className="p4-num">Đơn QC</th>
-                  <th className="p4-num">CPA / hoà vốn</th>
-                  <th className="p4-num">{roiLabel(rows.find((x) => x.r?.roi)?.r ?? null)}</th>
+                  {metrics.map((m) => (
+                    <th className="p4-num" key={m}>
+                      {m === "roi" ? roiLabel(rows.find((x) => x.r?.roi)?.r ?? null) : HEAD[m]}
+                    </th>
+                  ))}
                   <th>Kết luận</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((x) => {
                   const v = x.r ? verdictOf(x.r) : null;
-                  const gmvPer = x.r && x.r.estimable ? perDayText(x.r.delta.gmv.value, resultDays(x.r)) : null;
+                  const gmvPer = x.r && x.r.estimable ? perDayText(deltaOf(x.r, "gmv").value, resultDays(x.r)) : null;
                   return (
                     <tr data-testid={`p4-row-${x.i + 1}`} key={x.i}>
                       <th scope="row">{x.name}</th>
-                      <td className="p4-num" data-testid={`p4-gmv-${x.i + 1}`}>
-                        {x.r && x.r.estimable ? signedMoney(x.r.delta.gmv.value) : <span title={x.r?.reason_text ?? undefined}>{DASH}</span>}
-                        {gmvPer ? <span className="sa-hint"> {gmvPer}</span> : null}
-                      </td>
-                      <td className="p4-num">{costText(x.r)}</td>
-                      <td className="p4-num">{ordersText(x.r)}</td>
-                      <td className="p4-num">{cpaText(x.r)}</td>
-                      <td className="p4-num">{x.r?.roi?.value !== null && x.r?.roi?.value !== undefined ? fmt(x.r.roi.value, 2) : DASH}</td>
+                      {!x.r || !x.r.estimable ? (
+                        <td className="p4-reason" colSpan={Math.max(1, metrics.length)} data-testid={`p4-reason-${x.i + 1}`}>
+                          {x.r ? reasonLine(x.r) : (x.outcome ? refusalText(x.outcome) : DASH)}
+                        </td>
+                      ) : (
+                        metrics.map((m) => (
+                          <td className="p4-num" data-testid={m === "gmv" ? `p4-gmv-${x.i + 1}` : undefined} key={m}>
+                            {cellText(m, x.r!)}
+                            {m === "gmv" && gmvPer ? <span className="sa-hint"> {gmvPer}</span> : null}
+                          </td>
+                        ))
+                      )}
                       <td>{v ? <span className={`p3-verdict p3-verdict--${v.tone}`} data-testid={`p4-verdict-${x.i + 1}`}>{v.text}</span> : DASH}</td>
                     </tr>
                   );

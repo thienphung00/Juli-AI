@@ -41,6 +41,14 @@ export function wireEds(doc: Document): Wire {
       }
       doc.body.append(list);
     }
+    const dismiss = target.closest<HTMLElement>("[data-dismiss]");
+    if (dismiss) {
+      // a notice's close: the notice goes, the page under it shows
+      dismiss.closest('[role="dialog"]')?.remove();
+      const under = doc.querySelector(dismiss.dataset.dismiss!);
+      if (under instanceof HTMLTemplateElement) doc.body.append(under.content.cloneNode(true));
+      else under?.removeAttribute("hidden");
+    }
     const opens = target.closest<HTMLElement>("[data-opens]");
     if (opens) doc.querySelector(opens.dataset.opens!)?.removeAttribute("hidden");
     const add = target.closest<HTMLElement>("[data-add-row]");

@@ -40,15 +40,18 @@ describe("Connector điền sẵn · danh sách trang", () => {
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: approved() }));
     const list = await screen.findByTestId("sd-fill-jobs");
     expect(f).toHaveBeenCalledWith("/v1/demo/shopee/fill-jobs?card_id=card-voucher", expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer t" }) }));
-    expect(within(list).getByTestId("sd-fill-count")).toHaveTextContent("0/2 trang đã xong");
     const first = within(list).getByTestId("sd-fill-job-6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
     expect(first).toHaveTextContent("Tạo voucher");
     expect(first).toHaveTextContent("Chờ mở trang");
-    expect(within(first).getByTestId("sd-fill-open")).toHaveAttribute("href", "https://banhang.shopee.vn/portal/marketing/vouchers/new?usecase=1#juli-fill=6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
-    expect(within(first).getByTestId("sd-fill-open")).toHaveAttribute("target", "_blank");
+    // ONE page button, "Mở và điền": it opens the first open job for the Connector (only the job id in the address)
+    const open = screen.getByTestId("sd-page-open");
+    expect(open).toHaveTextContent("Mở và điền");
+    expect(open).toHaveAttribute("href", "https://banhang.shopee.vn/portal/marketing/vouchers/new?usecase=1#juli-fill=6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
+    expect(open).toHaveAttribute("target", "_blank");
+    expect(screen.queryByTestId("sd-fill-open")).toBeNull();
     const second = within(list).getByTestId("sd-fill-job-7f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
-    expect(second).toHaveTextContent("Sửa quảng cáo · chiến dịch 160675212 · Nhóm A");
-    expect(list).toHaveTextContent("Juli không bấm thay bạn");
+    expect(second).toHaveTextContent("Sửa quảng cáo · Nhóm A");
+    expect(screen.getAllByText(/Juli không bấm Lưu thay bạn/)).toHaveLength(1);
   });
 
   it("a finished job has no open button and shows what the Connector captured; the voucher id need not be typed", async () => {
@@ -59,9 +62,9 @@ describe("Connector điền sẵn · danh sách trang", () => {
     expect(row).toHaveTextContent("Xong");
     expect(within(row).getByTestId("sd-fill-captured")).toHaveTextContent("Mã voucher: 88001");
     expect(within(row).queryByTestId("sd-fill-open")).toBeNull();
-    expect(screen.getByTestId("sd-fill-count")).toHaveTextContent("1/1 trang đã xong");
     expect(screen.getByTestId("sd-voucher-captured")).toHaveTextContent("88001");
     expect(screen.queryByLabelText(/Mã voucher trên Seller Centre/)).toBeNull();
+    expect(screen.queryByTestId("sd-page-open")?.textContent).toBe("Mở trang");
     const done = screen.getByRole("button", { name: "Đã làm" });
     expect(done).toBeEnabled();
     fireEvent.click(done);
@@ -74,7 +77,7 @@ describe("Connector điền sẵn · danh sách trang", () => {
     await screen.findByTestId("sd-fill-jobs");
     expect(screen.getByRole("button", { name: "Đã làm" })).toBeDisabled();
     expect(screen.getByLabelText(/Mã voucher trên Seller Centre/)).toBeInTheDocument();
-    expect(screen.getByTestId("sd-fill-job-6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f")).toHaveTextContent("Đã điền, chờ bạn lưu");
+    expect(screen.getByTestId("sd-fill-job-6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f")).toHaveTextContent("Đã điền · chờ bạn lưu");
   });
 
   it("says why a job failed, in words", async () => {
@@ -114,7 +117,7 @@ describe("Connector điền sẵn · danh sách trang", () => {
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(voucherCard({ change_kind: "bundle_deal", family: "combo" }), { status: "approved" }) }));
     const first = await screen.findByTestId("sd-fill-job-6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
     expect(first).toHaveTextContent("Tạo Combo Khuyến Mãi · 2 sản phẩm");
-    expect(within(first).getByTestId("sd-fill-open")).toHaveAttribute("href", "https://banhang.shopee.vn/portal/marketing/bundle/new#juli-fill=6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
+    expect(screen.getByTestId("sd-page-open")).toHaveAttribute("href", "https://banhang.shopee.vn/portal/marketing/bundle/new#juli-fill=6f1c9a3e-1d2b-4c5d-8e7f-0a1b2c3d4e5f");
     expect(within(screen.getByTestId(`sd-fill-job-${id}`)).getByTestId("sd-fill-error")).toHaveTextContent("Combo kiểu cũ");
   });
 });

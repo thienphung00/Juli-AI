@@ -41,9 +41,10 @@ def test_each_day_takes_the_first_source_that_has_it_and_is_counted_once():
     }
     period = [AdWindow("c", date(2026, 11, 1), date(2026, 11, 4), D(400), gmv=D(800))]
     days = resolve_ad_days(connector, report, period, date(2026, 11, 1), date(2026, 11, 5))
+    # R12: the Shopee report wins a closed day it has; the Connector would fill only a day it lacks
     assert (
-        days[date(2026, 11, 1)].spend == D(100)
-        and days[date(2026, 11, 1)].source == SOURCE_CONNECTOR
+        days[date(2026, 11, 1)].spend == D(999)
+        and days[date(2026, 11, 1)].source == SOURCE_DAILY_REPORT
     )
     assert (
         days[date(2026, 11, 2)].spend == D(50)
@@ -52,11 +53,7 @@ def test_each_day_takes_the_first_source_that_has_it_and_is_counted_once():
     spread = days[date(2026, 11, 3)]
     assert spread.source == SOURCE_PERIOD_SPREAD and spread.spend == D(100) and spread.gmv == D(200)
     assert date(2026, 11, 5) not in days  # no source: no figure, never 0
-    assert source_counts(days) == {
-        SOURCE_CONNECTOR: 1,
-        SOURCE_DAILY_REPORT: 1,
-        SOURCE_PERIOD_SPREAD: 2,
-    }
+    assert source_counts(days) == {SOURCE_DAILY_REPORT: 2, SOURCE_PERIOD_SPREAD: 2}
 
 
 def test_the_period_spread_is_the_resolvers_pro_rata_share():
@@ -98,12 +95,17 @@ def test_week_with_orders_on_two_days_charges_only_those_days_and_the_bridge_add
     daily = {date(2026, 11, d): D(10_000) for d in range(3, 10)}
     fig = known_cost_profit(sp, pairs, D(500_000), daily)
     # day 4: 10k x 100/400; day 5: 10k x 100/100; the five other days have no order data
-    assert fig.ads_charged == D(2_500) + D(10_000)
+    # R11: the five days with no order line (3, 6, 7, 8, 9) now charge their 10k each
+    assert fig.ads_no_order_days == D(50_000)
+    assert fig.ads_charged == D(2_500) + D(10_000) + D(50_000)
     assert fig.ads_total == D(70_000)
     b = fig.json()["bridge"]
-    assert b["product_profit"] - b["ads_unattributed"] - b["other_marketing"] == b["profit"]
-    assert fig.profit == b["profit"] == D(70_000) - D(12_500)
-    assert "12.500đ / tổng chi QC 70.000đ" in b["ads_label"]
+    assert (
+        b["product_profit"] - b["ads_unattributed"] - b["other_marketing"] - b["ads_no_order_days"]
+        == b["profit"]
+    )
+    assert fig.profit == b["profit"] == D(70_000) - D(62_500)
+    assert "62.500đ / tổng chi QC 70.000đ" in b["ads_label"]
 
 
 def test_bridge_adds_up_in_whole_dong_when_the_parts_are_fractions():
@@ -114,7 +116,11 @@ def test_bridge_adds_up_in_whole_dong_when_the_parts_are_fractions():
     )
     b = fig.json()["bridge"]
     assert isinstance(b["product_profit"], int) and isinstance(b["ads_unattributed"], int)
-    assert b["product_profit"] - b["ads_unattributed"] - b["other_marketing"] == b["profit"]
+    assert isinstance(b["ads_no_order_days"], int)  # day 5: spend, no order line (R11)
+    assert (
+        b["product_profit"] - b["ads_unattributed"] - b["other_marketing"] - b["ads_no_order_days"]
+        == b["profit"]
+    )
 
 
 def test_p100b_days_after_the_last_connector_read_are_missing_not_the_period_average():
@@ -175,8 +181,8 @@ def test_p100b_the_ads_daily_figures_keep_impressions_and_clicks_per_ad_type():
 
 
 def test_p100b_connector_history_before_the_old_start_beats_the_period_files():
-    """The Connector's 90-day ads backfill reaches back before its first live day: wherever a
-    Connector day exists it answers, the period files only fill days with no daily source."""
+    """The Connector's 90-day ads backfill reaches back before its first live day: a Connector day
+    beats the period files; a daily-report day (R12) beats the Connector day."""
     from juli_backend.services.shopee_profit.ads_days import TypeFigure
 
     def conn(spend):
@@ -200,12 +206,14 @@ def test_p100b_connector_history_before_the_old_start_beats_the_period_files():
         date(2026, 8, 18): SOURCE_PERIOD_SPREAD,
         date(2026, 8, 19): SOURCE_PERIOD_SPREAD,
         date(2026, 8, 20): SOURCE_CONNECTOR,
-        date(2026, 8, 21): SOURCE_CONNECTOR,  # the file day loses every figure
+        date(2026, 8, 21): SOURCE_DAILY_REPORT,  # R12: the report day wins every figure
         date(2026, 8, 22): SOURCE_PERIOD_SPREAD,
     }
     d21 = days[date(2026, 8, 21)]
-    assert (d21.spend, d21.gmv, d21.orders) == (D(110), D(440), D(2))
-    t = d21.by_type["product_manual"]
+    assert (d21.spend, d21.gmv) == (D(999), D(999))
+    d20 = days[date(2026, 8, 20)]
+    assert (d20.spend, d20.gmv, d20.orders) == (D(100), D(400), D(2))
+    t = d20.by_type["product_manual"]
     assert (t.impressions, t.clicks) == (D(1000), D(30))
 
 
@@ -220,6 +228,6 @@ def test_p100b_mixed_days_resolve_one_source_per_day():
         connector, report, period, date(2026, 11, 1), date(2026, 11, 3),
         connector_until=date(2026, 11, 1),
     )  # fmt: skip
-    assert days[date(2026, 11, 1)].spend == D(100)
+    assert days[date(2026, 11, 1)].spend == D(999)  # R12: the report day beats the Connector day
     assert days[date(2026, 11, 2)].source == SOURCE_DAILY_REPORT  # a file day, no Connector day
     assert date(2026, 11, 3) not in days  # after the newest Connector day: missing

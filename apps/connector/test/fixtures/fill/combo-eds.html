@@ -1,0 +1,34 @@
+<!-- Shape of the live /portal/marketing/bundle/new (labels from the read-only capture 2026-11-17),
+     synthetic values: the tier rows read "Mua [n] sản phẩm để được giảm [x] %GIẢM" with NO
+     "Mức ưu đãi" label, the product list opened by "Thêm sản phẩm". -->
+<div class="bundle-form">
+  <div class="eds-form-item"><label class="eds-form-item__label">Tên Combo Khuyến Mãi</label>
+    <div class="eds-form-item__control"><div class="eds-input"><input class="eds-input__input" type="text" id="name"><span>0/25</span></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Thời gian chạy Combo</label>
+    <div class="eds-form-item__control"><div class="eds-date-picker">
+      <input class="eds-input__input" type="text" id="start" value="17:00 17-11-2026"> — <input class="eds-input__input" type="text" id="end" value="18:00 17-11-2026"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Loại Combo</label>
+    <div class="eds-form-item__control">
+      <label class="eds-radio"><input type="radio" name="ctype" value="pct" checked><span>Giảm giá theo %</span></label>
+      <label class="eds-radio"><input type="radio" name="ctype" value="amount"><span>Giảm giá theo số tiền</span></label>
+      <label class="eds-radio"><input type="radio" name="ctype" value="special"><span>Giảm giá đặc biệt</span></label></div></div>
+  <div class="eds-form-item">
+    <div class="eds-form-item__control">
+      <div id="tiers"><div class="tier-row"><span>Mua</span><div class="eds-input"><input class="eds-input__input" type="text" class="n"></div><span>sản phẩm để được giảm</span><div class="eds-input"><input class="eds-input__input" type="text" class="x"></div><span>%GIẢM</span></div></div>
+      <button type="button" data-add-row="#tiers">Thêm mức ưu đãi</button></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Giới hạn đặt hàng</label>
+    <div class="eds-form-item__control"><div class="eds-input"><input class="eds-input__input" type="text" id="limit"></div></div></div>
+  <div class="eds-form-item"><label class="eds-form-item__label">Sản phẩm của Combo</label>
+    <div class="eds-form-item__control"><button type="button" data-opens="#picker">Thêm sản phẩm</button></div></div>
+  <div class="actions"><button type="button" id="cancel" data-forbidden>Hủy</button><button type="button" data-forbidden id="save">Xác nhận</button></div>
+  <div id="picker" role="dialog" class="eds-modal" hidden>
+    <div class="head">Chọn sản phẩm</div>
+    <div><input type="text" id="psearch" placeholder="Tìm theo Tên sản phẩm hoặc ID"><button type="button" data-search="#ptable">Tìm kiếm</button></div>
+    <table id="ptable"><tbody>
+      <tr><td><input type="checkbox"></td><td>Sản phẩm mẫu một</td><td>ID: 1001</td><td>12</td></tr>
+      <tr><td><input type="checkbox"></td><td>Sản phẩm mẫu hai</td><td>ID: 10011</td><td>3</td></tr>
+      <tr><td><input type="checkbox"></td><td>Sản phẩm mẫu ba</td><td>ID: 1003</td><td>5</td></tr>
+    </tbody></table>
+    <div class="actions"><button type="button" data-forbidden id="pconfirm">Xác nhận</button></div>
+  </div>
+</div>
