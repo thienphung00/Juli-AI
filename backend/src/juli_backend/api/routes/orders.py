@@ -84,7 +84,7 @@ async def confirm_shipment(
 
 
 def _order_to_response(order: Order) -> OrderResponse:
-    shipped_at = order.update_time if order.status == "SHIPPED" else None
+    shipped_at = order.update_time if (order.status or "").lower() == "shipped" else None
     return OrderResponse(
         id=order.id,
         tiktok_order_id=order.tiktok_order_id,
