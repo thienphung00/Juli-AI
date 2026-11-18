@@ -495,7 +495,10 @@ def known_cost_profit(
     paid_all = sum((pb.revenue for _, pb in counted), ZERO)
     paid_known = sum((pb.revenue for _, pb in known), ZERO)
     contribution = sum((pb.contribution or ZERO for _, pb in known), ZERO)
-    gmv = sum((ln.order_value for ln, _ in known), ZERO)
+    # the coverage ("trên N đơn có chi phí, X % GMV") measures sales: a refund line in the profit
+    # base (its settlement cost) is no sale (owner 2026-11-18), so it adds to neither N nor GMV
+    known_sales = [(ln, pb) for ln, pb in known if counts_in_sales(ln)]
+    gmv = sum((ln.order_value for ln, _ in known_sales), ZERO)
     share = safe_div(paid_known, paid_all) or ZERO
 
     spend_days = {d: s for d, s in (daily_spend or {}).items() if s > 0}
@@ -554,7 +557,7 @@ def known_cost_profit(
     return KnownCostProfit(
         profit=value,
         margin_pct=None if margin is None else margin.quantize(Decimal("0.1")),
-        orders=len(known_orders),
+        orders=len({ln.order_id for ln, _ in known_sales}),
         gmv=gmv,
         gmv_share_pct=gmv_share,
         buyer_paid=paid_known,

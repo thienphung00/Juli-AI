@@ -6,6 +6,7 @@ statistics, the profit bridge. No refund status (``refunded_accepted``, ``refund
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
@@ -117,8 +118,6 @@ async def test_the_profit_bridge_adds_up_to_the_headline_without_a_second_refund
     not subtract them again: GMV - cancelled - in transit = the delivered orders' GMV. On
     Shopee's own total (which still holds them) the refund row is subtracted once. (The seed's
     lines do not cover Shopee's total, so the exact sum is checked on the sale-line headline.)"""
-    from dataclasses import replace
-
     from juli_backend.services.exports.profit_bridge import profit_bridge
     from juli_backend.services.shopee_analytics import loaders, service
     from juli_backend.services.shopee_analytics.compute import compute_view
@@ -152,3 +151,26 @@ async def test_the_profit_bridge_adds_up_to_the_headline_without_a_second_refund
     assert b.gmv - b.lost_gmv - b.pending_gmv == pytest.approx(float(delivered))
     # on Shopee's own total (which still holds them) the bridge subtracts the refund row once
     assert view.gmv_from_totals and profit_bridge(view).refunds_in_gmv
+
+
+def test_the_cost_coverage_counts_sale_orders_and_gmv_only_and_keeps_the_refund_cost():
+    """``known_cost_profit``: 10 delivered orders at 90.000 plus one refunded_accepted order with
+    a settlement row (payout -20.000) on a sale-line headline: "trên 10 đơn có chi phí, 100 %
+    GMV" (never over 100 %), and the profit still carries the refund's 20.000 cost."""
+    from juli_backend.services.shopee_profit.shop_profit import known_cost_profit, shop_profit
+
+    sold = [_line(f"d{n}", OrderStatus.DELIVERED) for n in range(10)]
+    refund = _line(
+        "r1", OrderStatus.REFUNDED_ACCEPTED, income=replace(SETTLED, payout=Decimal(-20_000))
+    )
+    costs = {"S1": COST}
+    pairs = profit_lines([*sold, refund], costs)
+    sales_only = profit_lines(sold, costs)
+    headline = Decimal(10 * 90_000)  # the sale lines: the refund is not in it
+    sp = shop_profit(pairs, campaigns=[], product_ad_spend={})
+    fig = known_cost_profit(sp, pairs, headline)
+    base = known_cost_profit(
+        shop_profit(sales_only, campaigns=[], product_ad_spend={}), sales_only, headline
+    )
+    assert (fig.orders, fig.gmv, fig.gmv_share_pct) == (10, headline, Decimal("100.0"))
+    assert fig.profit == base.profit - Decimal(20_000)
