@@ -481,7 +481,7 @@ def unit_price(title: str, price: Decimal | None) -> UnitPrice | None:
 # ------------------------------------------------------------------ planned changes (p91 D-13)
 
 #: Longest first line of a product description a card carries / the Connector fills.
-MAX_DESCRIPTION_LINE_CHARS = 500
+MAX_DESCRIPTION_LINE_CHARS = config.MAX_DESCRIPTION_FIRST_LINE_CHARS
 #: Most variations a restructure card lists, and the longest name / SKU of one.
 MAX_VARIATIONS = 50
 MAX_VARIATION_NAME_CHARS = 60

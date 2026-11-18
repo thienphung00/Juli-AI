@@ -712,21 +712,23 @@ _BEFORE_ALIASES: dict[str, tuple[str, ...]] = {
 
 
 def job_before_values(jobs: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """The Connector's captured ``before_values`` of a card's fill jobs, merged (newest wins).
-    Accepts ``{key: value}`` or ``[{key, value}]`` per job; read from the job's own
-    ``before_values`` or its payload."""
+    """The Connector's captured ``before_values`` of a card's fill jobs, merged: the FIRST job
+    holding a key wins (it saw the value before Juli wrote). Accepts ``{key: value}`` or
+    ``[{key, value}]`` per job; read from the job's own ``before_values`` or its payload."""
     out: dict[str, Any] = {}
     for job in jobs:
         raw = job.get("before_values")
         if raw is None:
             raw = (job.get("payload") or {}).get("before_values")
         if isinstance(raw, Mapping):
-            out.update({str(k): v for k, v in raw.items() if v is not None})
+            for k, v in raw.items():
+                if v is not None:
+                    out.setdefault(str(k), v)
         elif isinstance(raw, list):
             for row in raw:
                 if isinstance(row, Mapping) and row.get("key") is not None:
                     if row.get("value") is not None:
-                        out[str(row["key"])] = row["value"]
+                        out.setdefault(str(row["key"]), row["value"])
     return out
 
 

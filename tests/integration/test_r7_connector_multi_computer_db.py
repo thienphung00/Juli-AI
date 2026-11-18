@@ -73,9 +73,9 @@ def _job(conn, shop_id: uuid.UUID) -> uuid.UUID:
     conn.execute(
         text(
             "INSERT INTO public.shop_proposals (id, shop_id, platform, cycle, kind, "
-            "subject_type, subject_label, change_before, change_after, reason) "
+            "subject_type, subject_label, change_before, change_after, reason, status) "
             "VALUES (:id, :shop, 'shopee', '2026-11 Đợt 1', 'voucher', 'shop', 'Mẫu', "
-            "'{}'::jsonb, CAST(:after AS jsonb), 'synthetic')"
+            "'{}'::jsonb, CAST(:after AS jsonb), 'synthetic', 'approved')"
         ),
         {"id": proposal_id, "shop": shop_id, "after": json.dumps({"v": 1})},
     )

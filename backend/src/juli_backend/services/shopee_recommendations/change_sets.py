@@ -319,6 +319,20 @@ async def _shop_wide_flag(
     return False
 
 
+def _reopen(cs: ShopRecoChangeSet, card_id: str, *, executed_at: datetime, now: datetime) -> None:
+    """Back to measuring with the new card: the clock restarts at its ``executed_at``; the cut
+    marks and the cut result go, the ids of the cards that were reset / reverted stay as history
+    (``result.reset_card_ids``) so a reverted card never comes back into the measurement."""
+    kept = {k: v for k, v in (cs.result or {}).items() if k == "reset_card_ids"}
+    cs.status = SET_MEASURING
+    cs.cut_at = None
+    cs.cut_days = None
+    cs.started_at = executed_at
+    cs.card_ids = [*(cs.card_ids or []), card_id]
+    cs.result = kept or None
+    cs.updated_at = now
+
+
 async def attach_execution(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -338,15 +352,23 @@ async def attach_execution(
     if proposal.lever_plan_id is not None:
         plan_row = await session.get(ShopRecoPlan, proposal.lever_plan_id)
         aggregate = None if plan_row is None else plan_row.aggregate
-    existing = [
+    same_day = [
         cs
         for cs in await sets_for(session, shop_id, product_id=product, scope=scope)
-        if cs.executed_on == day and cs.status == SET_MEASURING
+        if cs.executed_on == day
+    ]
+    # one set per (product, day) (unique index): a measuring set takes the card in; a CUT set (the
+    # day's only card was undone, or another execution cut it) is re-opened for it (F1.1).
+    existing = [cs for cs in same_day if cs.status == SET_MEASURING] or [
+        cs for cs in same_day if cs.status == SET_CUT
     ]
     cid = str(proposal.id)
     if existing:
         cs = existing[0]
-        if cid not in (cs.card_ids or []):
+        if cs.status == SET_CUT:
+            _reopen(cs, cid, executed_at=executed_at, now=now)
+            await _member_meta(session, shop_id, cs.card_ids, {"measure_cut_at": None})
+        elif cid not in (cs.card_ids or []):
             cs.card_ids = [*(cs.card_ids or []), cid]
             cs.updated_at = now
     else:

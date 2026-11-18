@@ -48,7 +48,7 @@ FIELDS: dict[str, dict[str, Any]] = {
         "key": "description_first_line",
         "label": "Mô tả sản phẩm",
         "mode": "first_line",
-        "max_chars": 500,
+        "max_chars": config.MAX_DESCRIPTION_FIRST_LINE_CHARS,
     },
 }
 _HTTPS = re.compile(r"^https://[^\s]+$", re.IGNORECASE)

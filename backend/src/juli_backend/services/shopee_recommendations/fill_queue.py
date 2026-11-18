@@ -38,7 +38,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import IngestToken, PlatformDailyMetric
 from juli_backend.models.platform_data import PlatformPromotion
-from juli_backend.models.shop_proposals import ShopProposal, ShopProposalApproval
+from juli_backend.models.shop_proposals import (
+    STATUS_APPROVED,
+    STATUS_PLANNED,
+    ShopProposal,
+    ShopProposalApproval,
+)
 from juli_backend.models.shopee_fill import (
     OPEN_STATUSES,
     STATUS_CANCELLED,
@@ -102,7 +107,7 @@ _TEXT_FIELDS = {
         "key": "description_first_line",
         "label": "Mô tả sản phẩm",
         "mode": "first_line",
-        "max_chars": 500,
+        "max_chars": config.MAX_DESCRIPTION_FIRST_LINE_CHARS,
         "expected": "first_line",
     },
 }
@@ -701,6 +706,40 @@ def _live_tokens(shop_id: uuid.UUID, now: datetime) -> Any:
     )
 
 
+#: The card statuses whose fill jobs the Connector may be served. ONE place: F3 adds the revert
+#: jobs of executed cards here (batch-1118f F1.2).
+SERVABLE_CARD_STATUSES: tuple[str, ...] = (STATUS_APPROVED, STATUS_PLANNED)
+
+
+def _servable_card_jobs() -> Any:
+    """SQL condition: the job's card is still approved / planned (withdrawn, reverted, superseded
+    or executed cards are never served)."""
+    return ShopeeFillJob.proposal_id.in_(
+        select(ShopProposal.id).where(ShopProposal.status.in_(SERVABLE_CARD_STATUSES))
+    )
+
+
+async def cancel_open_jobs(
+    session: AsyncSession, shop_id: uuid.UUID, proposal_id: uuid.UUID, *, now: datetime
+) -> int:
+    """Cancel the card's open fill jobs (queued / opened / filled / saved). A withdrawn, reverted
+    or superseded card must not be worked on any more. Returns the number cancelled."""
+    n = 0
+    rows = await session.scalars(
+        select(ShopeeFillJob).where(
+            ShopeeFillJob.shop_id == shop_id,
+            ShopeeFillJob.proposal_id == proposal_id,
+            ShopeeFillJob.status.in_(OPEN_STATUSES),
+        )
+    )
+    for j in rows:
+        j.status = STATUS_CANCELLED
+        j.updated_at = _naive_now(now)
+        n += 1
+    await session.flush()
+    return n
+
+
 async def _claim(
     session: AsyncSession, shop_id: uuid.UUID, token_id: uuid.UUID, now: datetime, limit: int
 ) -> list[uuid.UUID]:
@@ -712,6 +751,7 @@ async def _claim(
         .where(
             ShopeeFillJob.shop_id == shop_id,
             ShopeeFillJob.status.in_(OPEN_STATUSES),
+            _servable_card_jobs(),
             or_(
                 ShopeeFillJob.claimed_by_token_id.is_(None),
                 ShopeeFillJob.claimed_by_token_id == token_id,
@@ -749,7 +789,11 @@ async def jobs_for_shop(
     query = (
         select(ShopeeFillJob, ShopProposal.code, ShopProposal.subject_label)
         .join(ShopProposal, ShopProposal.id == ShopeeFillJob.proposal_id)
-        .where(ShopeeFillJob.shop_id == shop_id, ShopeeFillJob.status.in_(OPEN_STATUSES))
+        .where(
+            ShopeeFillJob.shop_id == shop_id,
+            ShopeeFillJob.status.in_(OPEN_STATUSES),
+            _servable_card_jobs(),
+        )
         .order_by(ShopeeFillJob.created_at, ShopeeFillJob.seq)
         .limit(limit)
     )
