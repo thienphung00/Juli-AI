@@ -496,7 +496,7 @@ async def test_a_tu_tao_product_voucher_keeps_its_product_and_the_chosen_days(se
     (job,) = await _combo_jobs(session, seeded, card)
     p = job["payload"]
     assert job["target"] == {"product_ids": ["1001"]}
-    assert p["usecase"] == 2 and p["product_ids"] == ["1001"] and p["display"] == "private"
+    assert p["usecase"] == 2 and p["product_ids"] == ["1001"] and p["display"] == "code"
     assert (p["starts_at"], p["ends_at"]) == ("00:00 01-12-2999", "23:59 03-12-2999")
 
 

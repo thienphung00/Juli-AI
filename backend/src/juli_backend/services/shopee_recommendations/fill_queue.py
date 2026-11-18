@@ -234,7 +234,7 @@ def _voucher_payload(
         "min_spend": int(_num(inputs.get("min_spend")) or 0),
         "usage_total": usage,
         "per_buyer": int(_num(inputs.get("per_user_limit")) or 1),
-        "display": "private" if product_ids else "multi",
+        "display": "code" if product_ids else "multi",  # = the sheet: "Chia sẻ qua mã voucher"
         "product_ids": product_ids,
     }
 
