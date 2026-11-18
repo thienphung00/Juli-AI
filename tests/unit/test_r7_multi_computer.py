@@ -43,6 +43,12 @@ LOGIN = {"section": "seller_centre", "reason": "login", "readers": ["orders"]}
 
 
 @pytest.fixture(autouse=True)
+def no_minimum_version(monkeypatch):
+    """These tests post made-up older versions; the minimum-version gate has its own tests."""
+    monkeypatch.setenv("CONNECTOR_MIN_VERSION", "0.0.0")
+
+
+@pytest.fixture(autouse=True)
 def _flag_on(monkeypatch):
     monkeypatch.setenv("CONNECTOR_FILL_LISTING", "1")
     set_ingest_rate_gate(InMemoryRateGate())
