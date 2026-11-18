@@ -110,6 +110,7 @@ export function CardPage({ id, from, version = null }: { readonly id: string; re
               setOutcome(o);
               setTick((t) => t + 1);
             }}
+            onRefresh={() => setTick((t) => t + 1)}
           />
         )}
       </RecoState>
@@ -187,7 +188,7 @@ function todayText(card: Card): string {
   return "trước khi đổi";
 }
 
-function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail; readonly initial: number | null; readonly onChanged: (o: Outcome) => void }) {
+function CardBody({ detail, initial, onChanged, onRefresh }: { readonly detail: CardDetail; readonly initial: number | null; readonly onChanged: (o: Outcome) => void; readonly onRefresh?: () => void }) {
   const host = useReco();
   const queue = useQueue(detail);
   const { next, open } = nextCard(detail, queue);
@@ -483,7 +484,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
         </p>
       ) : null}
 
-      {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”" })} onReverted={() => onChanged({ kind: "reverted", text: "Đã ghi nhận hoàn tác" })} sheet={final.sheet} /> : null}
+      {detail.status === "approved" || detail.status === "executed" ? <ExecutionPanel detail={detail} onExecuted={() => onChanged({ kind: "executed", text: "Đã ghi nhận “Đã làm”" })} onRefresh={onRefresh} onReverted={() => onChanged({ kind: "reverted", text: "Đã ghi nhận hoàn tác" })} sheet={final.sheet} /> : null}
 
       {host.builder?.banner && detail.product_id && BANNER_KINDS.has(detail.change_kind) ? <CardBanner api={host.builder} cardId={detail.id} itemId={detail.product_id} readOnly={!!host.readOnly} /> : null}
 

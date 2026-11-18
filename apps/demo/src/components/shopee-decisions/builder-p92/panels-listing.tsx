@@ -408,8 +408,14 @@ export function CoverPanel({ form, set, ctx }: P<"cover_image">) {
 export function DescPanel({ form, set, ctx }: P<"description_first_line">) {
   const [draft, run] = useDraft(() => ctx.api.draftDescription({ itemId: ctx.product.item_id, count: 3 }));
   const n = chars(form.text);
+  const current = (ctx.product.current_first_line ?? "").trim();
   return (
     <div className="p2-panel" data-testid="p2-panel-desc">
+      {current ? (
+        <p className="sa-hint" data-testid="p2-desc-current">
+          Hiện tại: {current}
+        </p>
+      ) : null}
       <div className="sd-actions">
         <button className="sa-btn sa-btn--primary" data-testid="p2-desc-draft" disabled={draft.status === "busy"} onClick={run} type="button">
           Viết 3 dòng đầu mô tả
@@ -464,6 +470,11 @@ export function AffiliatePanel({ form, set, ctx }: P<"affiliate">) {
           Sản phẩm: <b>{ctx.product.name}</b>
         </p>
       )}
+      {ctx.product.current_commission_pct != null ? (
+        <p className="sa-hint" data-testid="p2-aff-current">
+          Hiện tại: {ctx.product.current_commission_pct}%
+        </p>
+      ) : null}
       <div className="p2-grid">
         <NumIn label="Hoa hồng mới" onChange={(commission) => set({ commission })} placeholder={FORM_DEFAULTS.affiliateCommission} suffix="%" value={form.commission} />
         <label className="p2-check" data-testid="p2-aff-target">
