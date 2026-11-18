@@ -3,9 +3,13 @@
 
 Two blocks:
 
-- **Doanh thu** -- GMV (Shopee's shop totals), the cancelled / refunded orders, the buyer paid of
-  the successful orders, the shop's offers (already deducted from what the buyer paid, so never a
-  cost again) and the payout Shopee transferred (orders with an income-export row).
+- **Doanh thu** -- GMV (the dashboard's headline: Shopee's shop totals, else the window's sale
+  lines), the cancelled orders, the orders in transit, the refund orders (only when the headline
+  is Shopee's total, which still holds them: the sale lines leave them out, owner 2026-11-18),
+  the buyer paid of the successful orders, the shop's offers (already deducted from what the
+  buyer paid, so never a cost again) and the payout Shopee transferred (orders with an
+  income-export row). GMV - lost - pending - refunds (when held) = the GMV of the delivered
+  orders, whose buyer paid is that GMV less the offers.
 - **Lợi nhuận bán hàng trên sàn** -- over exactly the orders the dashboard profit counts
   (:func:`known_cost_profit`: every counted line of the order has its costs): revenue after
   output VAT, then each cost on its own line, then the profit and its margin over that revenue.
@@ -25,12 +29,15 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
-from juli_backend.services.shopee_profit.order_profit import OrderStatus
+from juli_backend.services.shopee_profit.order_profit import REFUND_STATUSES, OrderStatus
 
-#: statuses whose GMV is lost before the profit (cancelled; the return parcel on its way back)
-LOST_STATUSES = frozenset({OrderStatus.CANCELLED, OrderStatus.REFUNDED_NOT_RECEIVED})
-#: not an outcome yet (owner 2026-11-18): in transit, or the refund window still open
-PENDING_STATUSES = frozenset({OrderStatus.IN_TRANSIT, OrderStatus.REFUNDED_ACCEPTED})
+#: statuses whose GMV is lost before the profit (cancelled)
+LOST_STATUSES = frozenset({OrderStatus.CANCELLED})
+#: not an outcome yet: in transit
+PENDING_STATUSES = frozenset({OrderStatus.IN_TRANSIT})
+#: the refund statuses (refund window open, return parcel on its way, returned): no sale, so
+#: outside the sale-line GMV (owner 2026-11-18); subtracted only from Shopee's own total
+REFUND_BRIDGE_STATUSES = REFUND_STATUSES
 #: where a line's Shopee fee came from: the shop's own figures (the rest is the fee formula)
 REAL_FEE_SOURCES = frozenset({"income", "actual"})
 
@@ -44,8 +51,13 @@ class ProfitBridge:
     orders: int | None
     lost_gmv: float
     lost_orders: int
-    pending_gmv: float  # in transit / refund window open: no outcome yet, outside the profit
+    pending_gmv: float  # in transit: no outcome yet, outside the profit
     pending_orders: int
+    refund_gmv: float  # the refund orders (REFUND_STATUSES): no sale
+    refund_orders: int
+    #: the headline GMV still holds the refund orders (Shopee's shop total), so the bridge
+    #: subtracts them; False = the headline is the sale lines, which already leave them out
+    refunds_in_gmv: bool
     paid_success: float  # buyer paid (VAT included) of the delivered orders
     success_orders: int
     offers: float  # khuyến mãi + voucher + combo of the counted lines: inside the buyer paid
@@ -86,6 +98,7 @@ def profit_bridge(view: Any) -> ProfitBridge:
     kp = shop_profit_of(view)
     lost = [(ln, pb) for ln, pb in pairs if ln.status in LOST_STATUSES]
     pending = [(ln, pb) for ln, pb in pairs if ln.status in PENDING_STATUSES]
+    refunds = [(ln, pb) for ln, pb in pairs if ln.status in REFUND_BRIDGE_STATUSES]
     success = [(ln, pb) for ln, pb in pairs if ln.status is OrderStatus.DELIVERED]
     counted = [(ln, pb) for ln, pb in pairs if pb.excluded_reason is None]
     unknown = {ln.order_id for ln, pb in counted if pb.contribution is None}
@@ -109,6 +122,9 @@ def profit_bridge(view: Any) -> ProfitBridge:
         lost_orders=len({ln.order_id for ln, _ in lost}),
         pending_gmv=float(sum((ln.order_value for ln, _ in pending), ZERO)),
         pending_orders=len({ln.order_id for ln, _ in pending}),
+        refund_gmv=float(sum((ln.order_value for ln, _ in refunds), ZERO)),
+        refund_orders=len({ln.order_id for ln, _ in refunds}),
+        refunds_in_gmv=bool(getattr(view, "gmv_from_totals", False)),
         paid_success=float(sum((pb.buyer_paid for _, pb in success), ZERO)),
         success_orders=len({ln.order_id for ln, _ in success}),
         offers=float(sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in counted), ZERO)),

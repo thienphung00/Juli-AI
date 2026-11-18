@@ -3,6 +3,7 @@ formulas point at the right ranges (synthetic numbers only)."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, timedelta
 
 import pytest
@@ -338,7 +339,8 @@ def test_the_profit_sheet_lists_each_cost_once_and_sums_to_the_profit():
     from juli_backend.services.exports.profit_bridge import ProfitBridge
 
     b = ProfitBridge(
-        gmv=1_000_000, orders=10, lost_gmv=100_000, lost_orders=1, pending_gmv=0, pending_orders=0,
+        gmv=1_000_000, orders=10, lost_gmv=60_000, lost_orders=1, pending_gmv=0, pending_orders=0,
+        refund_gmv=40_000, refund_orders=1, refunds_in_gmv=True,
         paid_success=850_000,
         success_orders=9, offers=50_000, payout=600_000, payout_orders=9, known_orders=9,
         known_gmv_share_pct=90.0, revenue=800_000, vat_output=50_000, fees=200_000,
@@ -366,5 +368,14 @@ def test_the_profit_sheet_lists_each_cost_once_and_sums_to_the_profit():
     assert ws.cell(rows["− Giá vốn (đã trừ VAT đầu vào)"], 5).value.startswith("Thật 50,0 %")
     ads = next(k for k in rows if k.startswith("− Quảng cáo"))
     assert ws.cell(rows[ads], 5).value.endswith("gồm 15.000đ ngày không có đơn")
+    # Shopee's total still holds the refund order: the bridge subtracts it once, beside the
+    # cancelled one, and the in-transit row stays
+    assert ws.cell(rows["− Đơn hoàn tiền / trả hàng"], 2).value == -40_000
+    assert ws.cell(rows["− Đơn hủy"], 2).value == -60_000 and "− Đơn đang giao" in rows
     margin = rows["Biên lợi nhuận (% doanh thu tính lợi nhuận)"]
     assert ws.cell(margin, 2).value == f'=IFERROR(B{profit}/B{base},"—")'
+    # the headline from the sale lines already leaves the refund orders out: no refund row
+    data.bridge = replace(b, refunds_in_gmv=False)
+    lines_ws = tq.build(data)[tq.SHEET_PROFIT]
+    labels = {lines_ws.cell(r, 1).value for r in range(1, lines_ws.max_row + 1)}
+    assert "− Đơn hoàn tiền / trả hàng" not in labels and "− Đơn hủy" in labels

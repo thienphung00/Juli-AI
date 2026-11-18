@@ -34,8 +34,8 @@ Rules:
   ``returned``): revenue 0, no goods cost, no commission; the cost is the settlement deduction
   ``max(0, -payout)`` as soon as a settlement row exists (no row = no cost yet; a
   ``refunded_*`` line then stays outside the profit base), never the sum of the fee / shipping
-  columns. A ``returned`` line also costs its packaging and is outside đơn / GMV / AOV
-  (:func:`counts_in_sales`).
+  columns. A ``returned`` line also costs its packaging. None of the three is a sale: all are
+  outside đơn / GMV / AOV (:func:`counts_in_sales`).
 - Missing input never becomes 0: ``contribution``/``profit``/``margin`` are ``None`` and
   ``missing`` lists why.
 - ``margin_rate`` = profit / buyer_paid.
@@ -76,7 +76,7 @@ class OrderStatus(StrEnum):
       soon as a settlement row exists whatever the status says; no settlement row = no cost yet.
       The fee / shipping / return-shipping columns are never summed for them (the payout already
       nets them). A ``returned`` line also costs its packaging (it shipped); the other two do not.
-      ``returned`` is outside đơn / GMV / AOV (``counts_in_sales``).
+      None of the three is a sale: all are outside đơn / GMV / AOV (``counts_in_sales``).
     """
 
     DELIVERED = "delivered"
@@ -103,8 +103,9 @@ class OrderStatus(StrEnum):
 
     @property
     def counts_in_sales(self) -> bool:
-        """The line is in đơn / GMV / AOV. A returned order is not (owner D2)."""
-        return self is not OrderStatus.RETURNED
+        """The line is in đơn / GMV / AOV. No refund status is (owner 2026-11-18: returned,
+        refunded_accepted and refunded_not_received are not sales)."""
+        return self not in REFUND_STATUSES
 
 
 #: The statuses whose cost is the settlement deduction (owner 2026-11-18).
@@ -128,10 +129,11 @@ def settlement_deduction(line: OrderLine) -> Decimal | None:
 
 
 def counts_in_sales(line: OrderLine) -> bool:
-    """``line`` counts in đơn / GMV / AOV (every status but ``returned``). A line-like object
-    without a status (a what-if or synthetic line) counts."""
+    """``line`` counts in đơn / GMV / AOV: every status but the refund statuses
+    (``REFUND_STATUSES``, owner 2026-11-18). A line-like object without a status (a what-if or
+    synthetic line) counts."""
     status = getattr(line, "status", None)
-    return status is None or status is not OrderStatus.RETURNED
+    return status is None or status not in REFUND_STATUSES
 
 
 class PromoKind(StrEnum):

@@ -326,6 +326,9 @@ class PeriodView:
     flow_totals_source: str
     shop_gmv: Decimal | None
     shop_orders: int | None
+    #: ``shop_gmv`` is Shopee's own shop total (else the window's sale lines). Shopee's total
+    #: still holds the refund orders the lines leave out (``counts_in_sales``).
+    gmv_from_totals: bool = False
     names: dict[str, str] = field(default_factory=dict)
     #: item id -> exclusion reason (P92 B-1). Excluded listings stay in every shop total and leave
     #: the product lists, rankings and Phân tích flags.
@@ -487,6 +490,7 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
         flow_totals_source=totals_source,
         shop_gmv=shop_gmv,
         shop_orders=shop_orders,
+        gmv_from_totals=use_totals,
         names={i: ctx.catalog.name(i) for i in item_ids},
         excluded=dict(ctx.rules.excluded),
         item_prices={

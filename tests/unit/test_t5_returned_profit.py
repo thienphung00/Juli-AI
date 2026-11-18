@@ -5,7 +5,7 @@ parcel on its way back), ``returned`` (goods back, buyer refunded): revenue 0, n
 commission. Its cost is what the settlement deducted, ``max(0, -payout)`` of the order's
 settlement row, as soon as a row exists whatever the status says; no row = no cost yet. The fee
 and shipping columns are never summed for it (the payout nets them). A ``returned`` line also
-costs its packaging and is not counted in đơn / GMV / AOV. Synthetic amounts only.
+costs its packaging. None of the three is counted in đơn / GMV / AOV. Synthetic amounts only.
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def _line(order: str, status: OrderStatus, **over) -> OrderLine:
     return OrderLine(**values)
 
 
-def test_the_refund_statuses_settle_by_payout_and_only_returned_leaves_sales():
+def test_the_refund_statuses_settle_by_payout_and_none_is_a_sale():
     returned = OrderStatus("returned")
     assert returned is OrderStatus.RETURNED
     assert REFUND_STATUSES == {
@@ -88,8 +88,8 @@ def test_the_refund_statuses_settle_by_payout_and_only_returned_leaves_sales():
     }
     assert all(s.settles_by_payout for s in REFUND_STATUSES)
     assert not any(s.carries_profit or s.charges_fees for s in REFUND_STATUSES)
-    assert returned.counts_in_sales is False
-    assert all(s.counts_in_sales for s in OrderStatus if s is not OrderStatus.RETURNED)
+    assert not any(s.counts_in_sales for s in REFUND_STATUSES)
+    assert all(s.counts_in_sales for s in OrderStatus if s not in REFUND_STATUSES)
     assert OrderStatus.DELIVERED.charges_fees and not OrderStatus.CANCELLED.charges_fees
 
 
@@ -141,7 +141,8 @@ def test_refunded_accepted_with_a_settlement_is_counted_in_the_profit():
     line = _line("r7", OrderStatus.REFUNDED_ACCEPTED, income=_income(-DEDUCTED))
     shop = shop_profit(profit_lines([line], {"S1": COST}), campaigns=[], product_ad_spend={})
     assert shop.contribution == -DEDUCTED
-    assert counts_in_sales(line)  # the sales count is unchanged for this status
+    assert not counts_in_sales(line)  # no sale (owner 2026-11-18), yet its cost counts
+    assert (shop.orders, shop.gmv) == (0, 0)
 
 
 def test_a_delivered_line_is_unchanged():
