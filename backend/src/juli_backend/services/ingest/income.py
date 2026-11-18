@@ -12,11 +12,15 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.ingest import SOURCE_RANK
 from juli_backend.models.shopee_profit import ShopeeOrderIncome
+from juli_backend.services.ingest.rank_guard import (
+    incoming_capture,
+    newer_wins_where,
+    payload_captured_at,
+)
 from juli_backend.services.ingest.schemas import IngestBody, ShopeeOrderIncomeRow
 
 logger = logging.getLogger(__name__)
@@ -63,13 +67,6 @@ def _insert(session: AsyncSession) -> Any:
     from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
     return sqlite_insert
-
-
-def _stored_rank(table: Any) -> Any:
-    return case(
-        *[(table.c.source == source, rank) for source, rank in SOURCE_RANK.items()],
-        else_=table.c.source_rank,
-    )
 
 
 def income_values(
@@ -145,6 +142,9 @@ async def write_order_income(
     insert = _insert(session)
     table = ShopeeOrderIncome.__table__
     values = income_values(rows, provenance)
+    incoming = incoming_capture(provenance)
+    if incoming is None:
+        raise ValueError("order income needs a capture time or a raw payload id")
     for start in range(0, len(values), CHUNK):
         stmt = insert(ShopeeOrderIncome).values(values[start : start + CHUNK])
         updated: dict[str, Any] = {
@@ -162,7 +162,13 @@ async def write_order_income(
             stmt.on_conflict_do_update(
                 index_elements=list(KEY_COLUMNS),
                 set_=updated,
-                where=_stored_rank(table) <= stmt.excluded.source_rank,
+                # this table keeps no capture time: the stored one is its raw payload's
+                where=newer_wins_where(
+                    table,
+                    stmt.excluded,
+                    stored_captured=payload_captured_at(table),
+                    incoming_captured=incoming,
+                ),
             )
         )
     return warnings
