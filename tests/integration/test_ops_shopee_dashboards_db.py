@@ -20,7 +20,7 @@ from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from juli_backend.api.routes import ops_shopee_dashboards as routes
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.models.platform_data import (
@@ -36,6 +36,8 @@ from tests.integration.two_tenant import RUNTIME_ROLE
 from tests.support.postgres import requires_postgres
 
 pytestmark = [requires_postgres]
+
+_shopee_shop = require_ops_capability("read_shop_totals")
 
 NOW = datetime.now(UTC).replace(tzinfo=None)
 DAY0 = date(2026, 10, 1)
@@ -307,7 +309,7 @@ async def test_an_empty_shop_answers_empty_states_and_a_tiktok_shop_is_refused(t
             assert (await dash.promotions(session, shop_id, window))["has_data"] is False
             assert await dash.latest_day(session, shop_id, "traffic_overview") is None
             await session.commit()
-        await routes._shopee_shop(session, shop_id)  # a Shopee shop passes
+        await _shopee_shop(shop_id, session)  # a Shopee shop passes
         with pytest.raises(HTTPException) as refused:
-            await routes._shopee_shop(session, two_tenants[0].shop_id)
+            await _shopee_shop(two_tenants[0].shop_id, session)
         assert refused.value.status_code == 409
