@@ -300,6 +300,10 @@ export const STOCK_MAX_ATTEMPTS_PER_DAY = 2;
 export const READER_KICK_RETRY_MINUTES = 5;
 /** After pairing / a service-worker start that finds today's run not done: start after this long. */
 export const READER_KICK_DELAY_MINUTES = 1;
+/** 0.3.25: pages blocked by a login / password wall are read again this long after a data call proves the session. */
+export const READER_REREAD_DELAY_MINUTES = 2;
+/** 0.3.25: at most this many re-read starts a day (a dialog that keeps coming back cannot loop). */
+export const READER_REREAD_MAX_PER_DAY = 3;
 
 /** Ads: yesterday plus up to this many earlier finished days not read yet (one day per call). */
 export const ADS_CATCHUP_DAYS = 3;

@@ -80,6 +80,19 @@ export function isConsentRefusal(error: unknown): boolean {
   return error instanceof GatewayError && error.status === 403 && error.code === "consent_required";
 }
 
+/** Outcome heads of a reader page that was read (or had nothing to read): anything else is not "read". */
+const READ_OUTCOMES: ReadonlySet<string> = new Set(["done", "no_items", "no_campaigns", "no_group_campaigns", "no_orders"]);
+
+/**
+ * 0.3.25: yesterday's numbers are "synced" only when every page of today's reader run was read: a
+ * blocked / failed / waiting page keeps "Đồng bộ hôm qua" from answering already_synced. Without a
+ * run of today (or with an old state that has no outcomes) nothing is known to be missing.
+ */
+export function todaysPagesAllRead(readers: State["readers"], today: string): boolean {
+  if (readers?.lastRun?.day !== today) return true;
+  return Object.values(readers.lastRun.outcomes).every((outcome) => READ_OUTCOMES.has(String(outcome).split(/[:|]/, 1)[0] ?? ""));
+}
+
 export class Connector {
   private lock: Promise<unknown> = Promise.resolve();
 
@@ -374,7 +387,7 @@ export class Connector {
     if (!state.token) return "unpaired";
     if (state.consentBlocked) return "consent_required";
     const day = yesterdayRange(this.deps.now()).date;
-    if (state.lastSync?.day === day && state.lastSync.status === "done") return "already_synced";
+    if (state.lastSync?.day === day && state.lastSync.status === "done" && todaysPagesAllRead(state.readers, this.today())) return "already_synced";
     if (await this.halted(state)) return "blocked";
     if (await this.deps.busy?.()) {
       // A scheduled reader run holds the Seller Centre pace budget: try again when a tab reports ready.

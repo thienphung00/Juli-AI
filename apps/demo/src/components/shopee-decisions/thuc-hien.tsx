@@ -45,11 +45,13 @@ function hhmm(iso: string | null): string {
 /** A Seller Centre / card value with its unit by field. */
 const SECTION_LABEL: Record<string, string> = { phan_tich_ban_hang: "Phân tích bán hàng", seller_centre: "Seller Centre" };
 
+const BLOCK_VERB: Record<string, string> = { captcha: "Xác minh lại", password_recheck: "Xác nhận mật khẩu" };
+
 /** Connector 0.3.22: one short line per blocked section ("Đăng nhập lại Phân tích bán hàng"). */
 export function readerBlockText(blocks: readonly ReaderBlock[] | undefined): string | null {
   const lines = [
     ...new Set(
-      (blocks ?? []).map((b) => `${b.reason === "captcha" ? "Xác minh lại" : "Đăng nhập lại"} ${SECTION_LABEL[b.section] ?? "Seller Centre"}`),
+      (blocks ?? []).map((b) => `${BLOCK_VERB[b.reason] ?? "Đăng nhập lại"} ${SECTION_LABEL[b.section] ?? "Seller Centre"}`),
     ),
   ];
   return lines.length > 0 ? lines.join(" · ") : null;

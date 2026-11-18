@@ -126,10 +126,15 @@ async def post_connector_tick(
             },
             at=now,
         )
-        if tick.platform == "shopee" and tick.kind == "run" and tick.trigger == "daily":
-            # Connector 0.3.22: the daily run's blocked pages (stock runs and skips leave them).
+        if tick.platform == "shopee" and tick.kind == "run":
+            # Connector 0.3.22: the daily run's blocked pages replace the last ones; any other
+            # run (a re-read, a stock run) merges into them. Skips leave them.
             await connector_state.record_reader_blocks(
-                session, principal.shop_id, tick.outcomes, now=now
+                session,
+                principal.shop_id,
+                tick.outcomes,
+                now=now,
+                daily=tick.trigger == "daily",
             )
         if tick.platform == "shopee":
             await connector_state.record_heartbeat(
