@@ -75,7 +75,9 @@ def test_no_plan_means_the_goal_cells_are_a_dash():
     assert ws["F4"].value == DASH and ws["F7"].value == DASH and ws["F13"].value == DASH
 
 
-def test_the_ratio_of_profit_to_cost_is_not_called_roi_anywhere():
+def test_every_roi_label_states_its_base_qc_plus_aff():
+    """Owner 2026-11-18 (replaces the earlier "never call it ROI"): the ratio is named ROI and
+    always says what it divides by, so no bare "ROI" can be read as return over all costs."""
     wb = tq.build(_data())
     labels = {
         str(c.value)
@@ -84,8 +86,9 @@ def test_the_ratio_of_profit_to_cost_is_not_called_roi_anywhere():
         for c in row
         if isinstance(c.value, str)
     }
-    assert not any(v.strip().upper().startswith("ROI") for v in labels)
-    assert "Lợi nhuận / chi phí" in {c.value for c in wb[tq.SHEET_CHANNEL][3]}
+    rois = [v for v in labels if v.strip().upper().startswith("ROI")]
+    assert rois and all(v.startswith(tq.ROI_LABEL) for v in rois)
+    assert tq.ROI_LABEL in {c.value for c in wb[tq.SHEET_CHANNEL][3]}
 
 
 # ------------------------------------------------------------------------------ R3 Theo tháng
@@ -130,7 +133,7 @@ def test_the_same_basis_keeps_the_change():
 def test_channel_sheet_has_cost_to_revenue_profit_and_ratio_per_channel():
     ws = tq.build(_data())[tq.SHEET_CHANNEL]
     assert [c.value for c in ws[3]][7:] == [
-        "Lợi nhuận / chi phí", "Chi phí / doanh thu", "Lợi nhuận kênh (đ)",
+        tq.ROI_LABEL, "Chi phí / doanh thu", "Lợi nhuận kênh (đ)",
     ]  # fmt: skip
     assert ws["I5"].value == "=IFERROR(G5/'Tổng quan'!$B$4,\"—\")"
     assert ws["H5"].value == '=IF(ISNUMBER(G5),IFERROR(J5/G5,"—"),"—")'

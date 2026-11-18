@@ -49,7 +49,8 @@ SHOP_ROW_LABEL = "Cả shop"
 #: what the "Cả shop" row holds: the shop's figures minus the products' (ads and costs that no
 #: product owns, order lines without a product)
 SHOP_ROW_NAME = "Cả shop — quảng cáo và chi phí chưa gán sản phẩm"
-ROI_LABEL = "Lợi nhuận / chi phí"
+#: owner 2026-11-18: the ROI is named and states its base (Tổng chi phí = QC + AFF)
+ROI_LABEL = "ROI (lợi nhuận ÷ chi phí QC + AFF)"
 
 SHEET_OVERVIEW = "Tổng quan"
 SHEET_CHANNEL = "Theo kênh"

@@ -68,7 +68,7 @@ def test_overview_cells_and_formulas():
     assert ws["B11"].value == "=SUM(B8:B9)"  # QC + TTLK: ưu đãi is already out of revenue
     assert ws["A10"].value == tq.OFFER_LABEL
     assert ws["B12"].value == '=IFERROR(B7/B11,"—")' and ws["B12"].number_format == "0.0"
-    assert ws["A12"].value == "Lợi nhuận / chi phí (lần)"  # not "ROI"
+    assert ws["A12"].value == "ROI (lợi nhuận ÷ chi phí QC + AFF) (lần)"
     assert ws["D4"].value == 4_950_000 and ws["E4"].number_format == "0.0%"
     assert ws["E4"].value.startswith("=IF(AND(ISNUMBER(B4),ISNUMBER(D4)),IFERROR(B4/D4-1")
     assert ws["D3"].value == "Kỳ trước (12/09/2026–11/10/2026)"
@@ -78,7 +78,7 @@ def test_overview_cells_and_formulas():
 
 def test_channel_sheet_rows_columns_and_totals():
     ws = tq.build(_data())[tq.SHEET_CHANNEL]
-    assert [c.value for c in ws[3]] == tq.CH_HEADER and tq.CH_HEADER[7] == "Lợi nhuận / chi phí"
+    assert [c.value for c in ws[3]] == tq.CH_HEADER and tq.CH_HEADER[7] == tq.ROI_LABEL
     assert [ws.cell(r, 1).value for r in range(4, 9)] == [
         "Organic",
         "Quảng cáo (Lưu lượng / Báo cáo DVHT)",
