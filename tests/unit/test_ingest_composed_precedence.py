@@ -267,3 +267,29 @@ def test_the_line_tables_name_the_renamed_table_and_excluded_in_the_capture_subq
     assert "FROM ingest_raw_payloads, " not in sql
     # the data column coalesces both ways; the provenance column does not
     assert sql.count("coalesce(") == 2
+
+
+def test_the_metric_upsert_compiles_one_guarded_path_on_postgres():
+    """``platform_daily_metrics`` on the Postgres dialect: the WHERE drops only an equal-rank
+    older read, and each SET column chooses winner / gap-fill on the same rank-and-capture test
+    (AND binds tighter than OR, so the equal-rank branch carries the capture check)."""
+    from sqlalchemy.dialects.postgresql import insert
+
+    table = PlatformDailyMetric.__table__
+    stmt = insert(PlatformDailyMetric).values(id=uuid.uuid4(), gmv=1, source="file", source_rank=2)
+    upsert = stmt.on_conflict_do_update(
+        index_elements=["shop_id"],
+        set_=ranked_set(table, stmt.excluded, ["gmv", "source"], ["source"]),
+        where=ranked_where(table, stmt.excluded),
+    )
+    sql = str(upsert.compile(dialect=postgresql.dialect()))
+    _, update = sql.split(" DO UPDATE SET ")
+    _, where = update.split(" WHERE ")
+    capture = (
+        "platform_daily_metrics.captured_at IS NULL OR excluded.captured_at IS NULL OR "
+        "platform_daily_metrics.captured_at <= excluded.captured_at"
+    )
+    assert where.endswith(f"END != excluded.source_rank OR {capture}")
+    assert f"END = excluded.source_rank AND ({capture})) THEN coalesce(" in update
+    assert "ELSE coalesce(platform_daily_metrics.gmv, excluded.gmv) END" in update
+    assert "THEN excluded.source ELSE platform_daily_metrics.source END" in update
