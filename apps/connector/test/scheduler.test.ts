@@ -174,6 +174,19 @@ async function finishPage(
   expect(await ctx.scheduler.onResult(tab.id, { job: job?.id, status, responses: answers })).toBe(true);
 }
 
+/** An income answer with its final amount ("Số tiền cuối cùng"), as the income reader keeps it. */
+function incomeAnswer(orderId: string): ReaderResponse {
+  return {
+    endpoint: "order_income_components",
+    url: "u",
+    status: 200,
+    body: { code: 0, data: { items: [{ name: "Số tiền cuối cùng", amount: 90_000 }] } },
+    capturedAt: T0,
+    source: "page",
+    orderId,
+  };
+}
+
 /** A product_list answer with the given item ids (a normal status), optionally unlisted. */
 function productList(ids: string[], page: number, tag?: "unlist") {
   return {
@@ -781,7 +794,7 @@ describe("P97: the day's flow, income queue and bookkeeping", () => {
     const tab = ctx.tabs.current;
     await ctx.scheduler.onTabReady(tab.id, tab.url);
     expect(ctx.tabs.sent.at(-1)?.message).toMatchObject({ type: "reader-job", job: { id: "order_income", orderIds: ["2611010AAA"] } });
-    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses: [] });
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses: [incomeAnswer("2611010AAA")] });
     expect((await ctx.read())?.incomeQueue).toEqual([]);
     expect((await ctx.read())?.incomeDay).toBe("2026-11-03");
   });
@@ -1328,6 +1341,45 @@ describe("0.3.20: the orders outcome is truthful", () => {
     expect((await empty.read())?.ordersCoveredDay).toBe("2026-11-03");
   });
 
+  it("0.3.26: an income read that failed keeps its order for tomorrow, once a day, and drops it after 3 failed days", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    ctx.storage.data.readers = {
+      adsDone: [],
+      trafficDone: [],
+      incomeQueue: [
+        { id: "26110001", completedAt: T0 - 3000 },
+        { id: "26110002", completedAt: T0 - 2000 },
+        { id: "26110003", completedAt: T0 - 1000, failedDays: 2, failedDay: "2026-11-02" },
+      ],
+    };
+    const refused: ReaderResponse = { endpoint: "order_income_components", url: "u", status: 200, body: { code: 7 }, capturedAt: T0, source: "replay", orderId: "26110002" };
+    const run = async (responses: ReaderResponse[]) => {
+      await ctx.scheduler.tick();
+      const tab = ctx.tabs.current;
+      await ctx.scheduler.onTabReady(tab.id, tab.url);
+      await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses });
+    };
+    // read: 0001; refused: 0002 (first failed day); no answer: 0003 (third failed day: dropped)
+    await run([incomeAnswer("26110001"), refused]);
+    expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110002", completedAt: T0 - 2000, failedDays: 1, failedDay: "2026-11-03" }]);
+    // a second run the same day (a manual sync) does not count another failed day
+    ctx.storage.data.readers = { ...(await ctx.read())!, incomeDay: undefined, lastRunDay: undefined, run: undefined };
+    await run([]);
+    expect(ctx.posted.filter((p) => p.job.id === "order_income")).toHaveLength(2);
+    expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110002", completedAt: T0 - 2000, failedDays: 1, failedDay: "2026-11-03" }]);
+  });
+
+  it("0.3.26: a post that did not land keeps every sent order queued", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_income: "rejected" });
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: [{ id: "26110001", completedAt: T0 - 3000 }] };
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses: [incomeAnswer("26110001")] });
+    expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110001", completedAt: T0 - 3000, failedDays: 1, failedDay: "2026-11-03" }]);
+  });
+
   it("0.3.26: an income page without the Tài chính right is blocked:no_permission; the run goes on, the queue is kept", async () => {
     const ctx = setup({ readers: ["order_income", "vouchers"] });
     const queue = [{ id: "26110777", completedAt: T0 - 1000 }];
@@ -1342,6 +1394,9 @@ describe("0.3.20: the orders outcome is truthful", () => {
     expect(after?.blocked).toBeUndefined();
     expect(after?.incomeQueue).toEqual(queue);
     expect(after?.incomeDay).toBeUndefined();
+    expect(ctx.events).toEqual([
+      { reader: "order_income", page: "/portal/sale/order/", status: "no_permission", code: "reader_only:http_403_code_10013", at: expect.any(String) },
+    ]);
   });
 });
 

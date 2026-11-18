@@ -23,6 +23,7 @@ import {
   HELD_DATASETS,
   ORDER_INCOME_FIRST_RUN_DAYS,
   ORDER_INCOME_MAX_PER_DAY,
+  ORDER_INCOME_MAX_FAILED_DAYS,
   ORDER_INCOME_QUEUE_DAYS,
   ORDER_INCOME_QUEUE_MAX,
   ORDER_CATCHUP_FIRST_DAYS,
@@ -58,7 +59,7 @@ import {
   TRAFFIC_JOB_TIMEOUT_MS,
   TRAFFIC_MAX_ITEMS,
 } from "../config";
-import { completedOrders, zeroRowsStep } from "../orders-map";
+import { completedOrders, incomeReadIds, zeroRowsStep } from "../orders-map";
 import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../reader-map";
 import type { CaptureOutcome } from "./connector";
 import { READER_PAGES, readerPageUrl, readerSection } from "../endpoints";
@@ -149,7 +150,8 @@ export interface SchedulerAlarms {
 export interface BlockEvent {
   reader: string;
   page: string;
-  status: ReaderBlockReason;
+  /** 0.3.26: "no_permission" blocks one page (never the run), so it is not a ReaderBlockReason. */
+  status: ReaderBlockReason | "no_permission";
   code?: string;
   at: string;
 }
@@ -994,8 +996,18 @@ export class ReaderScheduler {
       if (status === "blocked_no_permission") {
         // 0.3.26: the account may not open this page (Tài chính): this page only, the run goes on.
         // Told to Juli in the run report ("blocked:no_permission" -> Thực hiện's block line).
+        // The queue is kept whole (shopReaderState does not run) and the page is tried again tomorrow.
         await this.countRequests(run.day, message.responses);
         const detail = outcomeNote(message.detail).replace(/[^A-Za-z0-9_.:-]/g, "_");
+        await this.deps.sink
+          .reportBlock?.({
+            reader: job.id,
+            page: READER_PAGES[job.id].path,
+            status: "no_permission",
+            code: `reader_only${detail ? `:${detail}` : ""}`.slice(0, 40),
+            at: this.iso(),
+          })
+          .catch(() => undefined);
         await this.finishJob(sched, run, `blocked:no_permission${detail ? `|${detail}` : ""}`);
         return true;
       }
@@ -1126,8 +1138,20 @@ export class ReaderScheduler {
       };
     }
     if (job.id === "order_income") {
+      // 0.3.26: only orders whose income was read (and posted / queued to post) leave the queue; a
+      // failed one stays for tomorrow, counted once per day, and is dropped after
+      // ORDER_INCOME_MAX_FAILED_DAYS failed days.
       const sent = new Set(job.orderIds ?? []);
-      return { incomeDay: run.day, incomeQueue: (sched.incomeQueue ?? []).filter((o) => !sent.has(o.id)) };
+      const landed = posted.order_income === "posted" || posted.order_income === "queued";
+      const read = landed ? incomeReadIds(responses) : new Set<string>();
+      const incomeQueue = (sched.incomeQueue ?? []).flatMap((o) => {
+        if (!sent.has(o.id)) return [o];
+        if (read.has(o.id)) return [];
+        if (o.failedDay === run.day) return [o];
+        const failedDays = (o.failedDays ?? 0) + 1;
+        return failedDays >= ORDER_INCOME_MAX_FAILED_DAYS ? [] : [{ ...o, failedDays, failedDay: run.day }];
+      });
+      return { incomeDay: run.day, incomeQueue };
     }
     if (job.id === "affiliate" && job.history && shopId) {
       // The history is done once every window posted (or Shopee answered it empty); a failed

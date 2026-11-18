@@ -524,6 +524,19 @@ function pairs(root: unknown, depth = 8): { label: string; amount: number }[] {
   return out;
 }
 
+/**
+ * 0.3.26: the order ids (the id the income call takes) whose income answer was read: an ok answer
+ * with the final amount ("Số tiền cuối cùng"). Any other sent order is retried by the scheduler.
+ */
+export function incomeReadIds(responses: ReaderResponse[]): Set<string> {
+  const out = new Set<string>();
+  for (const r of responses) {
+    if (r.endpoint !== "order_income_components" || !r.orderId || classify(r.status, r.body) !== "ok") continue;
+    if (pairs(payloadOf(r.body)).some((p) => /^so tien cuoi cung/.test(plain(p.label)))) out.add(r.orderId);
+  }
+  return out;
+}
+
 export function mapOrderIncome(responses: ReaderResponse[], capturedAt: number): Mapped {
   const today = gmt7Date(Math.floor(capturedAt / 1000));
   const base = { dataset: "order_income" as const, endpoint: "seller_income/get_order_income_components", orderType: null, granularity: "period" as const };
