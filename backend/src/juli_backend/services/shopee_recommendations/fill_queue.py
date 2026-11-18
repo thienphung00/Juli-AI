@@ -451,7 +451,10 @@ async def build_jobs(
             # a Tự tạo card has no targets: a product-level voucher keeps its product(s); only a
             # shop-scope voucher is shop-wide
             level = (card.get("scope") or {}).get("level")
-            groups = [scope_items] if scope_items and level != "shop" else [[]]
+            # F2.2 / E40: a Tự tạo "Voucher sản phẩm" is a product voucher (usecase 2 with the
+            # card's products) although the kind's default scope level is "shop"
+            product_voucher = (card.get("candidate_extra") or {}).get("voucher_scope") == "product"
+            groups = [scope_items] if scope_items and (level != "shop" or product_voucher) else [[]]
         for n, vids in enumerate(groups):
             inputs = {**base_inputs, **((given[n].get("inputs") or {}) if given else {})}
             payload = _voucher_payload(card, inputs, p.code, version, now, vids)
@@ -1010,6 +1013,36 @@ async def cancel(session: AsyncSession, shop_id: uuid.UUID, job_id: uuid.UUID) -
     j.status = STATUS_CANCELLED
     await session.flush()
     return job_json(j)
+
+
+#: the voucher form's fill_check keys -> the fields the read-back compares (verification)
+_SEEN_FIELD = {"min_spend": "min_spend", "usage_total": "usage_limit"}
+
+
+async def seen_voucher_values(
+    session: AsyncSession, shop_id: uuid.UUID, proposal_id: uuid.UUID
+) -> dict[str, int]:
+    """F2.3 / E46: what the Connector last read on the SAVED voucher form where it differs from
+    what Juli filled (the person changed it by hand): ``{expected field: number}``. Empty when
+    every field matches or the Connector read nothing."""
+    j = await session.scalar(
+        select(ShopeeFillJob)
+        .where(
+            ShopeeFillJob.shop_id == shop_id,
+            ShopeeFillJob.proposal_id == proposal_id,
+            ShopeeFillJob.kind == "voucher",
+            ~ShopeeFillJob.target_key.like(f"{REVERT_PREFIX}%"),
+        )
+        .order_by(ShopeeFillJob.updated_at.desc())
+        .limit(1)
+    )
+    out: dict[str, int] = {}
+    for check in ((j.payload or {}).get("fill_check") or []) if j else []:
+        name = _SEEN_FIELD.get(str(check.get("key")))
+        digits = re.sub(r"\D", "", str(check.get("seen") or ""))
+        if name and check.get("ok") is False and digits:
+            out[name] = int(digits)
+    return out
 
 
 async def captured_ref_of(

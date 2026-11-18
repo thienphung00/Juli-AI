@@ -11,6 +11,7 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import select
 
+from juli_backend.models.shop_proposals import ShopProposal
 from juli_backend.models.shopee_fill import (
     STATUS_CAPTURED,
     STATUS_FAILED,
@@ -18,9 +19,10 @@ from juli_backend.models.shopee_fill import (
     STATUS_SAVED,
     ShopeeFillJob,
 )
+from juli_backend.services import ingest as ingest_service
 from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.shop_proposals import ProposalError
-from juli_backend.services.shopee_recommendations import fill_queue, revert_fill
+from juli_backend.services.shopee_recommendations import fill_queue, revert_fill, store
 from tests.unit import test_p97_fill_queue as _p97
 
 NOW = _p97.NOW
@@ -28,6 +30,7 @@ _approve = _p97._approve
 _jobs = _p97._jobs
 shop = _p97.shop
 _flag_on = _p97._flag_on
+JOBS = _p97.JOBS
 
 
 async def _executed(session, seeded, card_id, voucher_id=None):
@@ -274,3 +277,133 @@ async def test_the_picker_and_a_new_description_card_carry_the_current_values(
     )
     got = to_variant(spec, ctx).variant["extra"]
     assert got["current_first_line"] == "Dòng đầu hiện tại"
+
+
+# ------------------------------------------------------------- read-back ingest, E32, reconcile
+
+from juli_backend.models.card_events import CardEvent  # noqa: E402
+from juli_backend.models.shopee_connector import ShopeeConnectorTokenState  # noqa: E402
+from juli_backend.services.shopee_recommendations import connector_state  # noqa: E402
+from tests.support.consent import grant_service_consent  # noqa: E402
+
+ext = _p97.ext
+
+
+async def test_a_voucher_readback_ingest_verifies_the_card_at_once(session, shop, generous_gate):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    await _executed(session, seeded, ids[0], voucher_id="555")
+    ev = (
+        await session.scalars(
+            select(CardEvent).where(CardEvent.card_id == ids[0], CardEvent.event_type == "executed")
+        )
+    ).one()
+    expected = ev.payload["change"]["expected"]
+    stamp = (_p97.NOW + timedelta(hours=2)).isoformat() + "+00:00"
+    body = _post(
+        [
+            {
+                "voucher_id": "555",
+                "program_name": "Voucher thử",
+                "starts_at": "2026-10-01T00:00:00",
+                "ends_at": "2026-12-31T23:59:59",
+                **expected,
+            }
+        ],
+        _p97.NOW.date().isoformat(),
+        "period",
+        captured_at=stamp,
+    )
+    assert await _verification_events(session, ids[0]) == []
+    await grant_service_consent(session, seeded.shop_id)
+    await ingest_service.ingest(
+        session,
+        shop_id=seeded.shop_id,
+        platform="shopee",
+        dataset="voucher_settings",
+        body=ingest_service.IngestBody.model_validate(body),
+        token_id=None,
+        now=_p97.NOW + timedelta(hours=3),
+    )
+    assert await _verification_events(session, ids[0]) == ["verified"]  # not at 01:17Z
+
+
+async def _verification_events(session, card_id):
+    rows = await session.scalars(
+        select(CardEvent.event_type).where(
+            CardEvent.card_id == card_id,
+            CardEvent.event_type.in_(("verified", "mismatch", "not_seen")),
+        )
+    )
+    return list(rows)
+
+
+async def test_reconcile_queues_a_readback_for_every_pending_executed_card(session, shop):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    await _executed(session, seeded, ids[0], voucher_id="555")
+    (rb,) = [j for j in await _jobs(session, seeded) if j.kind == "readback"]
+    rb.status = STATUS_CAPTURED  # an earlier read-back is finished, the card is still pending
+    await session.commit()
+    out = await connector_state.request_reconcile(session, seeded.shop_id, now=NOW)
+    await session.commit()
+    assert out["requested"] is True and out["readbacks"] == 1
+    (rb,) = [j for j in await _jobs(session, seeded) if j.kind == "readback"]
+    await session.refresh(rb)
+    assert rb.status == STATUS_QUEUED
+
+
+async def test_the_poll_stores_the_connector_version_per_computer(session, shop, ext):
+    seeded, _ = shop
+    r = await ext.get(JOBS, params={"sc_open": "true"}, headers={"X-Connector-Version": "0.3.27"})
+    assert r.status_code == 200
+    rows = await session.scalars(
+        select(ShopeeConnectorTokenState).where(ShopeeConnectorTokenState.shop_id == seeded.shop_id)
+    )
+    assert [r.connector_version for r in rows] == ["0.3.27"]
+
+
+# ----------------------------------------------------------------------------- F2.2 / E40
+
+
+async def test_a_manual_product_voucher_queues_usecase_two_with_the_cards_products(session, shop):
+    seeded, ids = shop
+    p = await session.get(ShopProposal, ids[0])
+    card = await store.card_payload(session, seeded.shop_id, ids[0])
+    card["scope"] = {"level": "shop", "product_ids": ["1002", "1003"]}  # the kind's default level
+    card["candidate_extra"] = {"voucher_scope": "product"}
+    (job,) = await fill_queue.build_jobs(session, seeded.shop_id, p, card, 1, None, NOW)
+    assert job["payload"]["usecase"] == 2 and job["payload"]["product_ids"] == ["1002", "1003"]
+    assert job["payload"]["open_path"].endswith("usecase=2")
+    card["candidate_extra"] = {"voucher_scope": "shop"}  # a shop voucher stays shop-wide
+    (job,) = await fill_queue.build_jobs(session, seeded.shop_id, p, card, 1, None, NOW)
+    assert job["payload"]["usecase"] == 1 and job["payload"]["product_ids"] == []
+
+
+# ------------------------------------------------------------------------------ F2.3 / E46
+
+
+async def test_executed_expects_the_saved_forms_values_and_keeps_the_cards(session, shop):
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    (job,) = await _jobs(session, seeded)
+    job.payload = {
+        **job.payload,
+        "fill_check": [
+            {"key": "min_spend", "ok": False, "seen": "100.000"},
+            {"key": "usage_total", "ok": True, "seen": "50"},
+        ],
+    }
+    job.captured_ref = "555"
+    await session.commit()
+    await reco.mark_executed(session, seeded.shop_id, ids[0], now=NOW, user_id=seeded.user.id)
+    await session.commit()  # no typed voucher id: the captured one is used
+    ev = (
+        await session.scalars(
+            select(CardEvent).where(CardEvent.card_id == ids[0], CardEvent.event_type == "executed")
+        )
+    ).one()
+    change = ev.payload["change"]
+    assert change["target"]["voucher_id"] == "555"
+    assert change["expected"]["min_spend"] == 100_000 and change["expected"]["usage_limit"] == 50
+    assert change["card_expected"] == {"min_spend": 90_000}

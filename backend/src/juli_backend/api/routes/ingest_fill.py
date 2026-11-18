@@ -14,7 +14,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -119,6 +119,9 @@ class JobReport(BaseModel):
 async def list_fill_jobs(
     sc_open: bool | None = Query(default=None),
     ack: str | None = Query(default=None, max_length=64),
+    connector_version: str | None = Header(
+        default=None, alias="X-Connector-Version", max_length=32
+    ),
     principal: ingest_service.IngestPrincipal = Depends(get_ingest_principal),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -139,6 +142,7 @@ async def list_fill_jobs(
                 seller_centre_open=sc_open,
                 ack=ack,
                 now=now,
+                version=connector_version,  # E32: kept per computer on every heartbeat
                 token_id=principal.token_id,
             )
         pending = await connector_state.commands(session, principal.shop_id, now=now)

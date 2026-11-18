@@ -267,7 +267,11 @@ async def request_reconcile(
         )  # fmt: skip
         session.add(cmd)
         await session.flush()
-    return {"requested": True, "command_id": str(cmd.id)}
+    # F3.2: also ask for the read-back of every executed card still waiting for its verdict
+    from juli_backend.services.shopee_recommendations import revert_fill
+
+    queued = await revert_fill.queue_pending_readbacks(session, shop_id, now=now)
+    return {"requested": True, "command_id": str(cmd.id), "readbacks": queued}
 
 
 async def commands(

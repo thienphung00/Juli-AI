@@ -603,6 +603,7 @@ def _item_values(
 async def _verify_now(
     session: AsyncSession,
     shop_id: uuid.UUID,
+    now: datetime,
     *,
     item_ids: list[str] | None = None,
     voucher_ids: list[str] | None = None,
@@ -616,7 +617,7 @@ async def _verify_now(
             await verification.verify_objects(
                 session,
                 shop_id,
-                datetime.now(UTC),
+                now,
                 item_ids=item_ids or (),
                 voucher_ids=voucher_ids or (),
             )
@@ -756,7 +757,12 @@ async def _write(
         )
         if spec.name == "item_catalog":
             await _merge_current_values(session, rows, body, provenance)
-            await _verify_now(session, provenance["shop_id"], item_ids=[r.item_id for r in rows])
+            await _verify_now(
+                session,
+                provenance["shop_id"],
+                body.captured_at.astimezone(UTC),
+                item_ids=[r.item_id for r in rows if isinstance(r, ShopeeItemCatalogRow)],
+            )
     elif spec.writes == WRITE_FLAGS:
         flags = [
             {
@@ -802,6 +808,7 @@ async def _write(
         await _verify_now(
             session,
             provenance["shop_id"],
+            body.captured_at.astimezone(UTC),
             voucher_ids=[str(r.voucher_id) for r in rows if isinstance(r, ShopeeVoucherSettingRow)],
         )
     elif spec.writes == WRITE_ORDER_LINES:

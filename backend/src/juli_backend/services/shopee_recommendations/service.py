@@ -1598,6 +1598,13 @@ async def mark_executed(
                     ERROR_BAD_INPUT, 422, "voucher_id is required to verify a voucher"
                 )
             c["target"] = {**c["target"], "voucher_id": voucher_id}
+            # F2.3 / E46: the person changed the form by hand: the saved form's values are what
+            # the read-back must find; the card's own are kept beside them
+            seen = await fill_queue.seen_voucher_values(session, shop_id, card_id)
+            seen = {k: v for k, v in seen.items() if k in c["expected"] and c["expected"][k] != v}
+            if seen:
+                c["card_expected"] = {k: c["expected"][k] for k in seen}
+                c["expected"] = {**c["expected"], **seen}
     role = "client_representative" if user_id is not None else "juli_operator"
     execution = await proposals.record_execution(
         session,

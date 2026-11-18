@@ -161,3 +161,8 @@ the client's text is never edited; approved: kept and left flagged for a person)
 goal_profit, baseline_*, uplift_*, mtd_*, day, days_in_month) for scope `running` (executed plans) or
 `running+draft`. Tổng quan's month card (`channel_split._plan_block`, scope running) and the Kế hoạch screen
 (`GET /plan` answer's `month`, both scopes) read only this. Rules are in the module docstring.
+
+## batch-1118g F3 (revert-fill, read-back)
+
+- `revert_fill`: `revert_fill()` queues the undo of an EXECUTED card (`target_key` `revert:<kind>:<id>`, `payload.mode = "revert"`; text kinds keep their kind, `voucher_end` / `combo_end` only highlight Kết thúc / Xóa, affiliate puts the before commission back; no before value = `failed` `revert_value_unknown`). `queue_readback_after_executed` / `_after_revert` queue `readback:` jobs (`payload.mode = "readback"`, datasets `item_catalog` / `voucher_list`; a combo has no reader). `revert_state` is `card_detail.revert` `{jobs, ready}`; `mark_reverted` refuses 409 `revert_not_confirmed` while `ready` is false unless `manual`. `fill_queue._servable_card_jobs` is the one serving rule (executed cards serve only `revert:` / `readback:` jobs); `auto_execute` ignores both.
+- The read-back ingest (`item_catalog`, `voucher_settings`) calls `verification.verify_objects` at once; `connector_state.request_reconcile` also queues read-backs of every pending executed card. `item_catalog` rows may carry `description_first_line` / `commission_pct` -> `platform_items.extra` (`description_first_line`, `affiliate_commission_pct` + `_at`), shown as `current_first_line` / `current_commission_pct` on the builder picker (`GET .../builder/products`) and used as the card's before.
