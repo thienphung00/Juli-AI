@@ -29,6 +29,14 @@ Every term here was misread by an agent at least once and then corrected by the 
 | **ROI** | Lợi nhuận ÷ (ads + affiliate + ưu đãi cost), shown in points ("5,4"), **never as %** |
 | **Tax** | Juli doesn't calculate withheld VAT or PIT. Don't add tax settings or "trước thuế" labels. |
 
+## Order statuses (owner 2026-11-18, D2; Shopee and TikTok the same)
+| Term | Means | Not |
+|---|---|---|
+| **returned** | the goods are back with the seller and the buyer is refunded. Revenue 0, no goods cost; the settlement fees and the packaging are the seller's cost, so the order's profit is −(fees + packaging). Not counted in đơn / GMV / AOV. | an open refund |
+| **refunded_accepted** | the refund window is still open (the buyer may still get a refund) | a finished return |
+| **refunded_not_received** | the return parcel is on its way back to the seller | goods already back (that is `returned`) |
+| **Canonical order tables** | `order_lines`, `order_settlements`, `affiliate_lines`, `stock_history` and the `*_metrics_daily` tables (migration 134, T5): one table per fact for every platform; `day` is the GMT+7 day of the order | Shopee-only tables (`shopee_*` names stay as views for one release) |
+
 ## Flow and surfaces
 | Term | Means |
 |---|---|
