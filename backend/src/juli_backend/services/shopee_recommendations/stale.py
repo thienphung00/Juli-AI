@@ -163,7 +163,13 @@ async def rerun_stale(
 
     now = now.replace(tzinfo=None)
     ids = await stale_cards(session, shop_id)
-    counts = {"stale": len(ids), "replaced": 0, "revised": 0, "kept_approved": 0, "dropped": 0}
+    counts = {
+        "stale": len(ids),
+        "replaced": 0,
+        "revised": 0,
+        "kept_approved": 0,
+        "dropped": 0,
+    }
     if not ids:
         return counts
     env = env or await load_env(session, shop_id, now=now)
@@ -175,6 +181,9 @@ async def rerun_stale(
         if p is None or card is None:
             continue
         if p.status == STATUS_APPROVED:
+            # an approved card (a manual "Tự tạo" one too) is the person's decision: never
+            # re-issued, and an approval never carries to a new revision. A manual card that is
+            # still draft / sent is refreshed like any other, keeping its variants (F1.3).
             counts["kept_approved"] += 1
             continue
         new = service.refresh_card(env, card, now=now)

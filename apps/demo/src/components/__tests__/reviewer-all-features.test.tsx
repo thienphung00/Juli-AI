@@ -284,7 +284,7 @@ describe("P32-E — every feature simulated for the reviewer in the sample shop"
     const requests = spyNetwork();
     render(
       <StaticReviewerProvider reviewer={null}>
-        <RulesEditor onDelete={vi.fn()} onSave={vi.fn()} rules={await reviewerSampleClients().fetchRules({ token: "", shopId: "" })} />
+        <RulesEditor platform="tiktok" onDelete={vi.fn()} onSave={vi.fn()} rules={await reviewerSampleClients().fetchRules({ token: "", shopId: "" })} />
       </StaticReviewerProvider>,
     );
     expect(screen.queryByTestId("simulated-label")).toBeNull();
@@ -302,6 +302,20 @@ describe("P32-E — every feature simulated for the reviewer in the sample shop"
     expect(screen.queryByTestId("reviewer-banner")).toBeNull();
     expect(screen.queryByRole("button", { name: REVIEWER_RESET_LABEL })).toBeNull();
     expect(requests).toEqual([]);
+  });
+
+  it("the Shopee reviewer's sample rules settings never say TikTok", async () => {
+    spyNetwork();
+    storeAuthSession(SESSION);
+    storeReviewerRecord({ platform: "shopee", expiresAt: EXPIRES, sample: true });
+    render(
+      <Shell>
+        <SettingsPageClient />
+      </Shell>,
+    );
+    const editor = await screen.findByTestId("rules-editor");
+    expect(editor.textContent).not.toMatch(/TikTok/);
+    expect(editor.textContent).not.toMatch(/GMV Max/);
   });
 
   it("a reviewer pinned to a real shop stays read-only (P32-A unchanged)", async () => {

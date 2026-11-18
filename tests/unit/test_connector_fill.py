@@ -92,7 +92,7 @@ async def test_an_approved_title_card_returns_the_text_and_the_page(session, sho
             "key": "title",
             "label": "Tên sản phẩm",
             "mode": "replace",
-            "max_chars": 100,
+            "max_chars": 120,
             "value": "Găng tay tự hủy loại mới",
         }
     ]

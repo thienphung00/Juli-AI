@@ -55,7 +55,7 @@ describe("builder-p92 model", () => {
     const v = buildVersion("combo", ok, ctx).version as unknown as Record<string, unknown>;
     expect(v).toMatchObject({ start: "2026-11-11", end: "2026-11-12", start_hour: 10, end_hour: 22 });
     expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, startHour: "", endHour: "" } }, ctx).version).not.toHaveProperty("start_hour");
-    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, startHour: "24" } }, ctx).problem).toMatch(/0 đến 23/);
+    expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, startHour: "24" } }, ctx).problem).toMatch(/giờ tròn/);
     expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, end: "2026-11-11", startHour: "10", endHour: "9" } }, ctx).problem).toMatch(/Giờ kết thúc/);
     expect(buildVersion("combo", { ...ok, combo: { ...ok.combo, start: "", startHour: "10" } }, ctx).problem).toMatch(/Chọn ngày/);
     const down = (dtype: "pct" | "amount" | "special_price", tiers: { qty: string; value: string }[]) => buildVersion("combo", { ...ok, combo: { ...ok.combo, dtype, tiers } }, ctx).problem;
@@ -74,7 +74,7 @@ describe("builder-p92 model", () => {
 
   it("title and first line keep their limits", () => {
     const f = initialForms();
-    expect(buildVersion("title", { ...f, title: { ticked: [], text: "x".repeat(101) } }, ctx).problem).toMatch(/100/);
+    expect(buildVersion("title", { ...f, title: { ticked: [], text: "x".repeat(121) } }, ctx).problem).toMatch(/120/);
     expect(buildVersion("title", { ...f, title: { ticked: ["a"], text: "Túi zip" } }, ctx).version).toMatchObject({ kind: "title", title: "Túi zip", keywords: ["a"] });
     expect(buildVersion("description_first_line", { ...f, description_first_line: { text: "a\nb" } }, ctx).problem).toMatch(/xuống dòng/);
   });

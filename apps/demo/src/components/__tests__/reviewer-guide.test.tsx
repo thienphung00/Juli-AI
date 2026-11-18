@@ -373,7 +373,7 @@ function qdClients(over: Partial<QdClients> = {}): QdClients {
 function qd(reviewer: ReviewerRecord, tab: "de-xuat" | "do-luong", clients: QdClients, extra?: { simulate?: boolean }) {
   return app(
     reviewer,
-    <SignedInQuyetDinh
+    <SignedInQuyetDinh platform="tiktok"
       clients={clients}
       onNavigate={vi.fn()}
       query={{ tab, run: null, rulesOpen: false }}

@@ -28,7 +28,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.shop_proposals import ShopProposal
+from juli_backend.models.shop_proposals import STATUS_EXECUTED, ShopProposal
 from juli_backend.models.shopee_plans import (
     SCOPE_PRODUCT,
     SCOPE_SHOP,
@@ -319,6 +319,40 @@ async def _shop_wide_flag(
     return False
 
 
+async def _live_members(session: AsyncSession, cs: ShopRecoChangeSet, *, exclude: str) -> list[str]:
+    """The set's cards that may be measured again: still executed and not reset / reverted."""
+    reset = set((cs.result or {}).get("reset_card_ids", []))
+    keep: list[str] = []
+    for member in cs.card_ids or []:
+        if member == exclude or member in reset:
+            continue
+        p = await session.get(ShopProposal, uuid.UUID(str(member)))
+        if p is not None and p.status == STATUS_EXECUTED:
+            keep.append(str(member))
+    return keep
+
+
+def _reopen(
+    cs: ShopRecoChangeSet,
+    card_id: str,
+    members: list[str],
+    *,
+    executed_at: datetime,
+    now: datetime,
+) -> None:
+    """Back to measuring with the live members and the new card: the clock restarts at its
+    ``executed_at``; the cut / read marks and the previous result go, the ids of the reset or
+    reverted cards stay as history (``result.reset_card_ids``) so they never come back."""
+    kept = {k: v for k, v in (cs.result or {}).items() if k == "reset_card_ids"}
+    cs.status = SET_MEASURING
+    cs.cut_at = None
+    cs.cut_days = None
+    cs.started_at = executed_at
+    cs.card_ids = [*members, card_id]
+    cs.result = kept or None
+    cs.updated_at = now
+
+
 async def attach_execution(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -338,15 +372,23 @@ async def attach_execution(
     if proposal.lever_plan_id is not None:
         plan_row = await session.get(ShopRecoPlan, proposal.lever_plan_id)
         aggregate = None if plan_row is None else plan_row.aggregate
-    existing = [
+    same_day = [
         cs
         for cs in await sets_for(session, shop_id, product_id=product, scope=scope)
-        if cs.executed_on == day and cs.status == SET_MEASURING
+        if cs.executed_on == day
     ]
+    # one set per (product, day) (unique index): a measuring set takes the card in; a set in ANY
+    # other status (cut: the day's only card was undone; done: its window closed) is re-opened for
+    # it, so no path inserts a second row (F1.1).
+    existing = sorted(same_day, key=lambda c: c.status != SET_MEASURING)
     cid = str(proposal.id)
     if existing:
         cs = existing[0]
-        if cid not in (cs.card_ids or []):
+        if cs.status != SET_MEASURING:
+            members = await _live_members(session, cs, exclude=cid)
+            _reopen(cs, cid, members, executed_at=executed_at, now=now)
+            await _member_meta(session, shop_id, cs.card_ids, {"measure_cut_at": None})
+        elif cid not in (cs.card_ids or []):
             cs.card_ids = [*(cs.card_ids or []), cid]
             cs.updated_at = now
     else:

@@ -378,7 +378,7 @@ describe("P23 hold thresholds (D29.9)", () => {
     const onSave = vi.fn(async () => undefined);
     const r = { ...unsetBands(), stability_band_defaults: { ctr: 8.5, aov: 4 } };
     expect(bandDefault(r, "ctr")).toBe(8.5);
-    render(<RulesEditor onDelete={vi.fn()} onSave={onSave} rules={r} />);
+    render(<RulesEditor platform="tiktok" onDelete={vi.fn()} onSave={onSave} rules={r} />);
     const ctr = within(screen.getByTestId("rule-stability_band-ctr")).getByRole("textbox");
     expect(ctr).toHaveValue("8,5");
     expect(within(screen.getByTestId("rule-stability_band-aov")).getByRole("textbox")).toHaveValue("4");
@@ -397,7 +397,7 @@ describe("P23 hold thresholds (D29.9)", () => {
   it("without defaults: empty inputs and no suggestion (V8: no fixed ±3 %)", () => {
     const r = unsetBands();
     expect(bandDefault(r, "ctr")).toBeNull();
-    render(<RulesEditor onDelete={vi.fn()} onSave={vi.fn()} rules={r} />);
+    render(<RulesEditor platform="tiktok" onDelete={vi.fn()} onSave={vi.fn()} rules={r} />);
     const ctr = within(screen.getByTestId("rule-stability_band-ctr")).getByRole("textbox");
     expect(ctr).toHaveValue("");
     expect(ctr).toHaveAttribute("placeholder", "—");

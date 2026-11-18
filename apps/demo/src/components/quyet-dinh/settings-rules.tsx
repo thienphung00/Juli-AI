@@ -11,6 +11,8 @@ import {
 } from "../../lib/quyet-dinh/api-client";
 import { SAMPLE_SHOP, SAMPLE_TOKEN } from "../../lib/quyet-dinh/sample-data";
 import type { ShopRules } from "../../lib/quyet-dinh/types";
+import { reviewerRulesPlatform, type RulesPlatform } from "../../lib/quyet-dinh/off-api-rules";
+import { DEMO_BUILDER_BASE, createBuilderApi } from "../../lib/shopee-decisions/builder-api";
 import { useReviewer } from "../../lib/reviewer/mode";
 import { reviewerSampleClients, reviewerSampleEpoch, subscribeReviewerSample } from "../../lib/reviewer/sample-store";
 import { probeShopPlatform } from "../../lib/shopee-analytics/platform";
@@ -38,13 +40,15 @@ export function SettingsPageClient() {
   const [auth, setAuth] = useState<SettingsAuth | null | undefined>(undefined);
   const [tab, setTab] = useState<SettingsTab>("rules");
   // P96: the Juli Connector tab is Shopee-only (the extension reads Shopee Seller Centre).
-  const [shopee, setShopee] = useState(false);
+  // The rules editor names the shop's marketplace, so it waits for the answer (null = not known yet).
+  const [platform, setPlatform] = useState<RulesPlatform | null>(null);
+  const shopee = platform === "shopee";
   useEffect(() => {
     if (!auth?.shop) return;
     let live = true;
     probeShopPlatform(auth.token, auth.shop.shopId)
-      .then((p) => live && setShopee(p === "shopee"))
-      .catch(() => undefined);
+      .then((p) => live && setPlatform(p === "shopee" || p === "tiktok" ? p : "unknown"))
+      .catch(() => live && setPlatform("unknown"));
     return () => {
       live = false;
     };
@@ -69,13 +73,18 @@ export function SettingsPageClient() {
   // P50 (D68.6): Quyền riêng tư is the seller's own; a partner trial account keeps the rules only.
   if (reviewer) {
     return auth.shop ? (
-      <SignedInRulesSettings auth={{ token: auth.token, shopId: auth.shop.shopId }} shopName={auth.shop.shopName} />
+      platform === null ? (
+        <p className="demo-kicker">Đang tải…</p>
+      ) : (
+        <SignedInRulesSettings auth={{ token: auth.token, shopId: auth.shop.shopId }} platform={platform} shopName={auth.shop.shopName} />
+      )
     ) : (
       <SettingsView />
     );
   }
   // Signed in without a shop yet: no rules to edit, but the account's privacy rights still apply.
   if (!auth.shop) return <PrivacySettings token={auth.token} />;
+  if (platform === null) return <p className="demo-kicker">Đang tải…</p>;
 
   const choose = (next: SettingsTab) => {
     setTab(next);
@@ -123,6 +132,7 @@ export function SettingsPageClient() {
   ) : (
     <SignedInRulesSettings
       auth={{ token: auth.token, shopId: auth.shop.shopId }}
+      platform={platform}
       shopName={auth.shop.shopName}
       tabs={tabs}
     />
@@ -211,6 +221,9 @@ export function SettingsTabs({
 const SAMPLE_AUTH: AuthedOptions = { token: SAMPLE_TOKEN, shopId: SAMPLE_SHOP.id };
 
 function ReviewerSampleRulesSettings() {
+  const reviewer = useReviewer();
+  // the sample shop is the reviewer's own marketplace; when it is not stated the copy names neither
+  const platform: RulesPlatform = reviewerRulesPlatform(reviewer?.platform);
   const epoch = useSyncExternalStore(subscribeReviewerSample, reviewerSampleEpoch, reviewerSampleEpoch);
   const store = reviewerSampleClients();
   const io = useMemo(() => {
@@ -226,10 +239,50 @@ function ReviewerSampleRulesSettings() {
       deleteRule={io.deleteRule}
       fetchRules={io.fetchRules}
       key={epoch}
+      platform={platform}
+      readNames={false}
       putRule={io.putRule}
       shopName={SAMPLE_SHOP.name}
     />
   );
+}
+
+/**
+ * A Shopee shop's cost rows are keyed `item_id` / `item_id:model_id`; the catalogue gives the product
+ * (and variation) name to show instead. Empty while loading, on another platform, or when the read fails.
+ */
+function useScopeNames(platform: RulesPlatform, options: AuthedOptions, rules: ShopRules | "loading" | "error"): Readonly<Record<string, string>> {
+  const [names, setNames] = useState<Readonly<Record<string, string>>>({});
+  const refs = useMemo(() => {
+    if (platform !== "shopee" || typeof rules === "string") return [] as string[];
+    const all = [...Object.keys(rules.sku_cost ?? {}), ...Object.keys(rules.product_cost ?? {}), ...Object.keys(rules.max_discount_pct ?? {})];
+    return [...new Set(all)].sort();
+  }, [platform, rules]);
+  const key = refs.join("|");
+  useEffect(() => {
+    if (refs.length === 0) return;
+    let live = true;
+    const api = createBuilderApi({ base: DEMO_BUILDER_BASE, token: options.token, shopId: options.shopId, fetchImpl: options.fetchImpl });
+    const items = [...new Set(refs.map((r) => r.split(":")[0]!))];
+    void (async () => {
+      const out: Record<string, string> = {};
+      for (const item of items) {
+        try {
+          const list = await api.variations(item);
+          out[item] = list.name;
+          for (const v of list.variations) out[`${item}:${v.variation_id}`] = v.name && v.name !== list.name ? `${list.name} · ${v.name}` : list.name;
+        } catch {
+          // unknown product: the row keeps its code
+        }
+      }
+      if (live) setNames(out);
+    })();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands for `refs`; `options` is stable per shop
+  }, [key, options.token, options.shopId]);
+  return names;
 }
 
 export function SignedInRulesSettings({
@@ -239,8 +292,13 @@ export function SignedInRulesSettings({
   putRule = putShopRule,
   deleteRule = deleteShopRule,
   tabs,
+  platform,
+  readNames = true,
 }: {
   readonly auth: AuthedOptions;
+  readonly platform: RulesPlatform;
+  /** The sample shop has no catalogue to read: its cost rows keep their codes and nothing is requested. */
+  readonly readNames?: boolean;
   readonly shopName: string;
   /** The settings tablist (signed-in sellers), under the page header. */
   readonly tabs?: ReactNode;
@@ -260,6 +318,8 @@ export function SignedInRulesSettings({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const names = useScopeNames(readNames ? platform : "unknown", options, rules);
 
   const onSave: RulesEditorProps["onSave"] = async (ruleKey, value, setBy, scopeRef) => {
     await putRule(options, ruleKey, value, setBy, scopeRef);
@@ -291,7 +351,7 @@ export function SignedInRulesSettings({
           Không tải được quy tắc của shop. Vui lòng thử lại.
         </p>
       ) : (
-        <RulesEditor headingLevel={2} onDelete={onDelete} onSave={onSave} rules={rules} />
+        <RulesEditor headingLevel={2} onDelete={onDelete} onSave={onSave} platform={platform} rules={rules} scopeNames={names} />
       )}
     </section>
   );

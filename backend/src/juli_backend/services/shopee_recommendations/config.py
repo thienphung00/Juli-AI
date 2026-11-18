@@ -97,9 +97,14 @@ STOCK_SHARE_CAP = 0.5
 MIN_PRODUCT_ORDERS = 3
 
 # -- listing family (title / keyword / cover_image / price_display) ---------------------------
-#: Longest product name a card proposes or accepts (owner, P91 D-4: 100, was 120). A title is cut to
-#: it at a word boundary (``listing.cut_title``) and refused above it (what-if: 422).
-MAX_TITLE_CHARS = 100
+#: Longest product name a card proposes or accepts: Shopee's own limit ("/120" in Seller Centre; the
+#: owner's P91 D-4 100 is withdrawn, batch-1118f E7). ONE constant: the builder specs, the manual
+#: card and the fill payload read it. A title is cut to it at a word boundary
+#: (``listing.cut_title``) and refused above it (what-if: 422).
+MAX_TITLE_CHARS = 120
+#: Longest first line of a product description (the builder's MAX_FIRST_LINE; the fill payload and
+#: the Connector's check use the same number).
+MAX_DESCRIPTION_FIRST_LINE_CHARS = 300
 #: Characters of a title the search result shows (the product page counts keywords against it);
 #: never above the longest title.
 TITLE_VISIBLE_CHARS = min(100, MAX_TITLE_CHARS)

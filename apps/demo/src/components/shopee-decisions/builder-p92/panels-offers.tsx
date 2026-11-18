@@ -6,7 +6,7 @@ import { MarketPriceMarker } from "../../shopee-analytics/market-price-marker";
 import { fmt, pp, vnd } from "../../../lib/shopee-analytics/format";
 import type { CoPurchase } from "../../../lib/shopee-decisions/builder-api";
 import { DEAL_SOC_TYPES, FORM_DEFAULTS, MAX_ADDONS, comboTierDefault, belowPaidHint, belowPaidProblem, MAX_COMBO_NAME, MAX_COMBO_TIERS, MAX_PROGRAMME_NAME, MAX_TITLE, kmoney, marginText, newTier, num, voucherChips, type AddonRow, type ComboTierRow, type Forms, type GiftForm, type NewVariation } from "../../../lib/shopee-decisions/builder-p92";
-import { NumIn, Pills, ProductSelect, Seg, TextIn, VariationSelect, setAt, type PanelCtx } from "./shared";
+import { HourIn, NumIn, Pills, ProductSelect, Seg, TextIn, VariationSelect, setAt, type PanelCtx } from "./shared";
 import { ProductTargets } from "./targets";
 
 /**
@@ -163,9 +163,9 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
       <fieldset className="p2-grid" data-testid="p2-combo-time">
         <legend className="sa-hint">Thời gian chạy Combo</legend>
         <TextIn label="Bắt đầu" onChange={(start) => set({ start })} type="date" value={form.start} />
-        <NumIn label="Giờ bắt đầu" onChange={(startHour) => set({ startHour })} value={form.startHour ?? ""} />
+        <HourIn label="Giờ bắt đầu" onChange={(startHour) => set({ startHour })} value={form.startHour ?? ""} />
         <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
-        <NumIn label="Giờ kết thúc" onChange={(endHour) => set({ endHour })} value={form.endHour ?? ""} />
+        <HourIn label="Giờ kết thúc" onChange={(endHour) => set({ endHour })} value={form.endHour ?? ""} />
       </fieldset>
       {dn(d, "avg_unit_price") !== null ? (
         <Calc
@@ -209,9 +209,9 @@ function TimeWindow({ legend, testId, form, set }: { readonly legend: string; re
     <fieldset className="p2-grid" data-testid={testId}>
       <legend className="sa-hint">{legend}</legend>
       <TextIn label="Bắt đầu" onChange={(start) => set({ start })} type="date" value={form.start} />
-      <NumIn label="Giờ bắt đầu" onChange={(startHour) => set({ startHour })} value={form.startHour} />
+      <HourIn label="Giờ bắt đầu" onChange={(startHour) => set({ startHour })} value={form.startHour} />
       <TextIn label="Kết thúc" onChange={(end) => set({ end })} type="date" value={form.end} />
-      <NumIn label="Giờ kết thúc" onChange={(endHour) => set({ endHour })} value={form.endHour} />
+      <HourIn label="Giờ kết thúc" onChange={(endHour) => set({ endHour })} value={form.endHour} />
     </fieldset>
   );
 }
@@ -450,6 +450,12 @@ export function SetPanel({ form, set, ctx }: P<"variation_set">) {
   const upd = (i: number, patch: Partial<NewVariation>) => set({ rows: setAt(rows, i, patch) });
   return (
     <div className="p2-panel" data-testid="p2-panel-set">
+      {ctx.variations.length > 0 ? (
+        <div className="p3-today" data-testid="p2-set-current">
+          Hiện tại:{" "}
+          {ctx.variations.map((v) => `${v.name} · ${vnd(v.selling_price ?? v.list_price)}${v.stock !== null && v.stock !== undefined ? ` · tồn ${fmt(v.stock, 0)}` : ""}`).join(" | ")}
+        </div>
+      ) : null}
       <div className="p2-rows">
         {rows.map((r, i) => (
           <div className="p2-row p2-row--wrap" data-testid={`p2-set-${i + 1}`} key={i}>

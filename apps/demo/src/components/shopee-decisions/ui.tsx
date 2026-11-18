@@ -47,7 +47,8 @@ export function CopyButton({ text, label }: { readonly text: string; readonly la
   );
 }
 
-export function StatusChip({ status }: { readonly status: CardStatus }) {
+export function StatusChip({ status, reverted = false }: { readonly status: CardStatus; readonly reverted?: boolean }) {
+  if (reverted) return <TextChip tone="flat">Đã hoàn tác</TextChip>;
   const tone = status === "sent" || status === "changes_requested" ? "warn" : status === "approved" ? "info" : status === "executed" ? "info" : status === "draft" ? "pink" : "flat";
   return <TextChip tone={tone}>{statusLabel(status)}</TextChip>;
 }

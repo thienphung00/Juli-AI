@@ -92,15 +92,15 @@ describe("Tự tạo phương án · So sánh phương án", () => {
     expect(reco.calls.filter((c) => c.name === "compare")).toHaveLength(before);
   });
 
-  it("Quảng cáo and Tiêu đề are compared in their card; the title counts to 100", async () => {
+  it("Quảng cáo and Tiêu đề are compared in their card; the title counts to 120", async () => {
     open();
     await screen.findByTestId("sb-table");
     fireEvent.click(screen.getByRole("button", { name: "Dịch vụ hiển thị" }));
     expect(screen.getByTestId("sb-ads")).toHaveTextContent("Loại này so sánh theo phiên bản ngay trong thẻ (−20% / +20% / +50%)");
     fireEvent.click(screen.getByRole("button", { name: "Tiêu đề" }));
-    const box = screen.getByRole("textbox", { name: /Tiêu đề \(tối đa 100 ký tự\)/ });
-    fireEvent.change(box, { target: { value: "x".repeat(104) } });
-    expect(screen.getByText("104/100")).toBeInTheDocument();
+    const box = screen.getByRole("textbox", { name: /Tiêu đề \(tối đa 120 ký tự\)/ });
+    fireEvent.change(box, { target: { value: "x".repeat(124) } });
+    expect(screen.getByText("124/120")).toBeInTheDocument();
     expect(screen.getByText("Quá 4 ký tự: không lưu được.")).toBeInTheDocument();
   });
 

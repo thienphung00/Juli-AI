@@ -170,7 +170,7 @@ describe("mode switch", () => {
     const c = qdClients();
     render(
       <StaticReviewerProvider reviewer={SANDBOX}>
-        <SignedInQuyetDinh
+        <SignedInQuyetDinh platform="tiktok"
           clients={c}
           onNavigate={onNavigate}
           query={{ tab: "de-xuat", run: null, rulesOpen: false }}
@@ -197,7 +197,7 @@ describe("mode switch", () => {
     const c = qdClients({ fetchRules: vi.fn().mockResolvedValue(noBands()) });
     render(
       <StaticReviewerProvider reviewer={SANDBOX}>
-        <SignedInQuyetDinh
+        <SignedInQuyetDinh platform="tiktok"
           clients={c}
           onNavigate={vi.fn()}
           query={{ tab: "de-xuat", run: null, rulesOpen: false }}

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import type { BuilderApi, BuilderOutcome, PickerProduct, VariationRow } from "../../../lib/shopee-decisions/builder-api";
 import type { MarketScope } from "../../../lib/shopee-analytics/market-price";
+import { hourProblem } from "../../../lib/shopee-decisions/builder-p92";
 import { useVariationList } from "./variations";
 
 /** Small form pieces of the P92 builder (classes in `app/shopee-p92.css`). */
@@ -26,6 +27,16 @@ export function NumIn({ label, value, onChange, suffix, placeholder, hint, wide 
         <input aria-label={label} inputMode="decimal" onChange={(e) => onChange(e.target.value)} placeholder={placeholder} type="text" value={value} />
         {suffix ? <span className="p2-num__suffix">{suffix}</span> : null}
       </span>
+    </Field>
+  );
+}
+
+/** An hour of the day as "HH:mm" (or a bare hour); the error sits next to the field. */
+export function HourIn({ label, value, onChange }: { readonly label: string; readonly value: string; readonly onChange: (v: string) => void }) {
+  const problem = hourProblem(value);
+  return (
+    <Field hint={problem ? <span className="sd-error" role="alert">{problem}</span> : undefined} label={label}>
+      <input aria-invalid={problem ? true : undefined} aria-label={label} className="p2-text" inputMode="numeric" onChange={(e) => onChange(e.target.value)} placeholder="HH:mm" type="text" value={value} />
     </Field>
   );
 }

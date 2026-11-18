@@ -547,3 +547,20 @@ export function stepText(v: unknown, unit?: string | null): string {
 
 /** Statuses Ops can take a card off the list from ("Gỡ thẻ"); a planned card leaves its draft plan first. */
 export const WITHDRAWABLE: readonly string[] = ["draft", "sent", "changes_requested", "approved", "planned"];
+
+/**
+ * The change kinds the Juli Connector fills (the keys of the backend's `fill_queue._KIND_OF`; a
+ * parity test on the backend side keeps the two equal). A card of any other kind is done by hand
+ * from its sheet.
+ */
+export const FILLABLE_CHANGE_KINDS: readonly string[] = [
+  "title",
+  "description_first_line",
+  "min_spend_voucher",
+  "review_voucher",
+  "ads_budget",
+  "ads_roas_target",
+  "affiliate_commission",
+  "bundle_deal",
+  "combo_multi",
+];

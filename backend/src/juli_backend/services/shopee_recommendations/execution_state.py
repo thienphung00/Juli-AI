@@ -57,7 +57,6 @@ STATE_WAITING = "cho_dien"
 STATE_FILLED = "da_dien"
 STATE_MATCH = "khop"
 STATE_MISMATCH = "lech"
-STATE_REVERTED = "hoan_tac"
 
 VERDICT_RUNNING = "dang_do"
 VERDICT_BELOW = "duoi_khoang"
@@ -361,7 +360,9 @@ async def execution_states(
     cards: list[dict[str, Any]] = []
     reverted = await store.reverted_card_ids(session, shop_id)
     for p, card in rows:
-        if (measured.get(str(p.id)) or {}).get("window_closed") and str(p.id) not in reverted:
+        if str(p.id) in reverted:  # "Đã hoàn tác": the card leaves Thực hiện (F1.4)
+            continue
+        if (measured.get(str(p.id)) or {}).get("window_closed"):
             continue
         mine = jobs.get(p.id, [])
         captured_voucher_id = _captured_voucher_id(mine)
@@ -386,19 +387,11 @@ async def execution_states(
             ),
             None,
         )
-        if str(p.id) in reverted:  # a person undid it in Seller Centre: no read-back, no clock
-            state = {
-                **state,
-                "state": STATE_REVERTED,
-                "completed": 4,
-                "bad": None,
-                "mismatch": None,
-            }
         cards.append(
             {
                 **_head(p, card),
                 **state,
-                "reverted": str(p.id) in reverted,
+                "reverted": False,
                 "measure_days": window,
                 "measure_start": (state["verified_at"] or "")[:10] or None,
                 # G14: the voucher id the Connector captured after the person saved (pre-fills

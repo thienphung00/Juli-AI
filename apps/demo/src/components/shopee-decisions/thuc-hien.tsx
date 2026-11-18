@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import { useResource } from "../../lib/shopee-analytics/use-resource";
 import { useReco } from "../../lib/shopee-decisions/context";
+import { FILLABLE_CHANGE_KINDS } from "../../lib/shopee-decisions/model";
 import type { ExecutionCard, ExecutionState, ReaderBlock } from "../../lib/shopee-decisions/types";
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { fillJobHref } from "../planned-changes/listing-extras";
@@ -30,6 +31,11 @@ const SAMPLE_STEPS = ["Đã duyệt", "Bạn điền", "Bạn lưu", "Khớp Sel
 const VOUCHER_KINDS = new Set(["min_spend_voucher", "review_voucher", "voucher_cap", "voucher"]);
 const STATE_LABEL: Record<ExecutionState, string> = { cho_dien: "Chờ điền", da_dien: "Đã điền · chờ bạn lưu", khop: "Khớp Seller Centre", lech: "Lệch Seller Centre", hoan_tac: "Đã hoàn tác" };
 const STATE_TONE: Record<ExecutionState, "flat" | "warn" | "up" | "down"> = { cho_dien: "flat", da_dien: "warn", khop: "up", lech: "down", hoan_tac: "flat" };
+/** The chip of a card: once the seller pressed "Đã làm" (the "Bạn lưu" step is done) it waits for Seller Centre's read-back. */
+export function stateLabel(c: ExecutionCard): string {
+  if (c.state === "da_dien" && (c.executed_at || c.completed >= 3)) return "Đã lưu · chờ xác minh";
+  return STATE_LABEL[c.state];
+}
 const MONEY = new Set(["min_spend", "discount_amount", "max_value", "current_price", "list_price", "total_budget"]);
 
 function dm(iso: string | null): string {
@@ -97,6 +103,27 @@ function Steps({ c, sample }: { readonly c: ExecutionCard; readonly sample: bool
   );
 }
 
+/** A kind the Connector does not fill: the status line and the sheet's own Seller Centre page. */
+function ManualPage({ cardId }: { readonly cardId: string }) {
+  const host = useReco();
+  const res = useResource(() => host.reco.detail(cardId), `${host.shopKey}|th-page|${cardId}`);
+  const link = res.status === "ready" ? (res.data.card.execution_sheet?.page?.deep_link ?? null) : null;
+  return (
+    <span className="sd-th-row__manual" data-testid={`sd-th-manual-${cardId}`}>
+      <span>Connector chưa điền loại thẻ này — làm theo bảng thao tác</span>
+      {link ? (
+        <a className="sa-btn sa-btn--primary" href={link} rel="noopener noreferrer" target="_blank">
+          Mở trang
+        </a>
+      ) : (
+        <NavLink className="sa-btn" href={host.href({ the: cardId })}>
+          Mở trang
+        </NavLink>
+      )}
+    </span>
+  );
+}
+
 export function Row({
   c,
   name,
@@ -147,7 +174,7 @@ export function Row({
       {c.state === "hoan_tac" ? <span /> : <Steps c={c} sample={sample} />}
       <div className="sd-th-row__side">
         <span data-testid={`sd-th-state-${c.card_id}`}>
-          <TextChip tone={STATE_TONE[c.state]}>{STATE_LABEL[c.state]}</TextChip>
+          <TextChip tone={STATE_TONE[c.state]}>{stateLabel(c)}</TextChip>
         </span>
         <span className="sd-th-row__detail" data-testid={`sd-th-detail-${c.card_id}`}>
           {detailOf(c)}
@@ -173,8 +200,10 @@ export function Row({
               <a className="sa-btn sa-btn--primary" href={href} rel="noopener noreferrer" target="_blank">
                 Mở Seller Centre
               </a>
+            ) : !FILLABLE_CHANGE_KINDS.includes(c.change_kind) ? (
+              <ManualPage cardId={c.card_id} />
             ) : (
-              <button className="sa-btn sa-btn--primary" disabled type="button">
+              <button className="sa-btn sd-btn--off" disabled type="button">
                 Mở Seller Centre
               </button>
             )

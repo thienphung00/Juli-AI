@@ -49,7 +49,7 @@ from juli_backend.models.shop_proposals import (
     STATUS_WITHDRAWN,
     ShopProposal,
 )
-from juli_backend.models.shopee_fill import STATUS_CANCELLED, ShopeeFillJob
+from juli_backend.models.shopee_fill import ShopeeFillJob
 from juli_backend.models.shopee_plans import PLAN_DRAFT, ShopRecoPlan, ShopRecoPlanCard
 from juli_backend.services.card_events import keys, verification
 from juli_backend.services.forecast import triggers as trg
@@ -759,8 +759,9 @@ async def _proposal(
 async def _job_rows(
     session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID
 ) -> list[dict[str, Any]]:
-    """The newest version's fill jobs of a card as plain dicts (``before_values`` is read from the
-    job itself or its payload: the Connector adds it to the job JSON)."""
+    """The card's fill jobs as plain dicts, oldest first (``before_values`` is read from the job
+    itself or its payload: the Connector adds it to the job JSON). Every version and status is
+    kept: what the Connector captured before the first write stays true after a cancel (F1.8)."""
     rows = list(
         await session.scalars(
             select(ShopeeFillJob)
@@ -768,11 +769,9 @@ async def _job_rows(
             .order_by(ShopeeFillJob.version, ShopeeFillJob.seq)
         )
     )
-    latest = max((j.version for j in rows), default=None)
     return [
         {"before_values": getattr(j, "before_values", None), "payload": j.payload or {}}
         for j in rows
-        if j.version == latest and j.status != STATUS_CANCELLED
     ]
 
 
@@ -912,7 +911,7 @@ async def recompute(
 
 
 def check_title_input(card: Mapping[str, Any], inputs: Mapping[str, Any]) -> None:
-    """A title input is refused above ``MAX_TITLE_CHARS`` (P91 D-4: 100) with a 422."""
+    """A title input is refused above ``MAX_TITLE_CHARS`` with a 422."""
     if card.get("change_kind") != "title" or "title" not in inputs:
         return
     n = len(str(inputs["title"] or "").strip())
@@ -1144,6 +1143,7 @@ async def withdraw(
     if p.status == STATUS_PLANNED:
         await _detach_from_plan(session, p, now, force=reset)
     await proposals.withdraw(session, p, now=now, reason=reason)
+    await fill_queue.cancel_open_jobs(session, shop_id, card_id, now=now)  # F1.2
     if executed:  # a reset executed card leaves its running measurement (never calibrates)
         await change_sets.drop_card(session, shop_id, card_id, now=now)
     await store.set_meta(
@@ -1722,6 +1722,7 @@ async def mark_reverted(
         subject=_subject_of(card, card_id),
     )
     dropped = await change_sets.drop_card(session, shop_id, card_id, now=now, reverted=True)
+    await fill_queue.cancel_open_jobs(session, shop_id, card_id, now=now)  # F1.2
     await store.set_meta(
         session,
         shop_id,

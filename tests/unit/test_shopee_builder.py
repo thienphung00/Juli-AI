@@ -184,7 +184,7 @@ def test_every_kind_has_a_model_and_unknown_keys_are_refused():
         },
         {"kind": "product_discount", "item_id": "1", "variations": [{"change_pct": 10}]},
         {"kind": "price", "item_id": "1", "variations": [{"discount_pct": 10}]},
-        {"kind": "title", "item_id": "1", "title": "x" * 101},
+        {"kind": "title", "item_id": "1", "title": "x" * 121},
         {"kind": "ads", "lever": "budget"},
         {"kind": "ads", "lever": "keywords", "keywords": []},
     ],

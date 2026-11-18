@@ -229,7 +229,7 @@ export function TitleBox({ current, value, disabled, onChange, name }: { readonl
       <textarea aria-describedby="sv-title-count" className={`sv-title__box ${c.over ? "sv-title__box--over" : ""}`} disabled={disabled} id="sv-title-box" onChange={(event) => onChange(event.target.value)} rows={2} value={value} />
       <div className="sv-title__meta">
         <span className={`sa-chip sa-chip--${c.tone === "up" ? "up" : c.tone === "warn" ? "warn" : "down"}`} data-testid="sv-title-count" id="sv-title-count">
-          {c.n}/100
+          {c.n}/{MAX_TITLE_CHARS}
         </span>
         <span className={c.over ? "sv-title__over" : "sa-hint"}>{c.note}</span>
       </div>

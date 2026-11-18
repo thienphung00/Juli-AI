@@ -1,5 +1,6 @@
 "use client";
 
+import { reviewerRulesPlatform } from "../../lib/quyet-dinh/off-api-rules";
 import { useState, useSyncExternalStore } from "react";
 
 import type { SampleQdClients } from "../../lib/quyet-dinh/sample-clients";
@@ -59,6 +60,7 @@ export function SampleQuyetDinh({
         onNavigate={onNavigate}
         onSimulateApprove={reviewer ? (cardIds, proceed) => setSimulating({ cardId: cardIds[0], proceed }) : undefined}
         onSimulateMeasure={simulated ? (stage) => store.simulateMeasurement(stage) : undefined}
+        platform={reviewer ? reviewerRulesPlatform(reviewer.platform) : "tiktok"}
         query={query}
         sample
         shop={SAMPLE_SHOP}

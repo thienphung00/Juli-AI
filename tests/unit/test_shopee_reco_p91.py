@@ -185,24 +185,26 @@ def test_a_voucher_scales_its_value_and_its_min_spend_together():
 # ================================================================================== titles
 
 
-def test_the_title_limit_is_100_and_the_visible_limit_never_exceeds_it():
-    assert config.MAX_TITLE_CHARS == 100
+def test_the_title_limit_is_120_and_the_visible_limit_never_exceeds_it():
+    assert config.MAX_TITLE_CHARS == 120
     assert config.TITLE_VISIBLE_CHARS <= config.MAX_TITLE_CHARS
 
 
 def test_cut_title_cuts_at_a_word_boundary_and_never_above_the_limit():
     text = " ".join(f"từ{n:02d}" for n in range(1, 60))
     out = lst.cut_title(text)
-    assert len(out) <= 100 and text.startswith(out) and not out.endswith(" ")
+    assert len(out) <= config.MAX_TITLE_CHARS and text.startswith(out) and not out.endswith(" ")
     assert text[len(out)] == " "  # cut between words
     assert lst.cut_title("ngắn gọn") == "ngắn gọn"
-    assert len(lst.cut_title("x" * 250)) == 100  # one word longer than the limit: cut hard
+    assert (
+        len(lst.cut_title("x" * 250)) == config.MAX_TITLE_CHARS
+    )  # one word longer than the limit: cut hard
 
 
-def test_a_title_input_above_100_characters_is_refused_with_422():
+def test_a_title_input_above_the_limit_is_refused_with_422():
     card = {"change_kind": "title"}
-    service.check_title_input(card, {"title": "a" * 100})
-    for bad in ("a" * 101, "   "):
+    service.check_title_input(card, {"title": "a" * config.MAX_TITLE_CHARS})
+    for bad in ("a" * (config.MAX_TITLE_CHARS + 1), "   "):
         with pytest.raises(ProposalError) as err:
             service.check_title_input(card, {"title": bad})
         assert err.value.status == 422
@@ -456,7 +458,7 @@ async def test_whatif_on_a_version_changes_only_that_version(session, shop):
     assert base["version"] == 1 and base["versions"][0]["inputs"]["discount_pct"] == 12
 
 
-async def test_a_title_whatif_above_100_characters_is_422(session, shop):
+async def test_a_title_whatif_above_the_limit_is_422(session, shop):
     seeded, env = shop
     sid = seeded.shop_id
     cand = Candidate(
@@ -470,7 +472,9 @@ async def test_a_title_whatif_above_100_characters_is_422(session, shop):
         pytest.skip("no listing for the synthetic shop")
     cid = await store.save_card(session, sid, card, cycle="c", position=1, now=NOW)
     with pytest.raises(ProposalError) as err:
-        await service.recompute(session, sid, cid, {"title": "x" * 101}, now=NOW)
+        await service.recompute(
+            session, sid, cid, {"title": "x" * (config.MAX_TITLE_CHARS + 1)}, now=NOW
+        )
     assert err.value.status == 422
 
 

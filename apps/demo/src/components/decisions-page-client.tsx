@@ -130,6 +130,7 @@ export function DecisionsPageClient() {
         <SignedInQuyetDinh
           cardsRefresh={cardsRefresh}
           onNavigate={onNavigate}
+          platform={platform ?? "tiktok"}
           query={query}
           shop={shop}
           token={session.accessToken}

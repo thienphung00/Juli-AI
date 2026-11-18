@@ -11,6 +11,7 @@
  * it renders `SampleQuyetDinh` over the same view.
  */
 
+import type { RulesPlatform } from "../../lib/quyet-dinh/off-api-rules";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -98,7 +99,9 @@ export function SignedInQuyetDinh({
   onNavigate,
   clients = REAL_QD_CLIENTS,
   cardsRefresh,
+  platform,
 }: {
+  readonly platform: RulesPlatform;
   readonly token: string;
   readonly shop: { readonly id: string; readonly name: string } | null;
   readonly query: QdQuery;
@@ -135,6 +138,7 @@ export function SignedInQuyetDinh({
     return (
       <SellerViewProvider readOnly readOnlyTitle={REVIEWER_SANDBOX_READ_ONLY_TITLE} rulesActions runActions>
         <QuyetDinhView
+          platform={platform}
           cardsRefresh={cardsRefresh}
           clients={clients}
           onNavigate={onNavigate}
@@ -152,6 +156,7 @@ export function SignedInQuyetDinh({
     return (
       <SellerViewProvider readOnly readOnlyTitle={REVIEWER_READ_ONLY_TITLE} simulateApprove>
         <QuyetDinhView
+          platform={platform}
           cardsRefresh={cardsRefresh}
           clients={reviewerClients}
           onNavigate={onNavigate}
@@ -173,6 +178,7 @@ export function SignedInQuyetDinh({
   }
   return (
     <QuyetDinhView
+          platform={platform}
       cardsRefresh={cardsRefresh}
       clients={clients}
       onNavigate={onNavigate}

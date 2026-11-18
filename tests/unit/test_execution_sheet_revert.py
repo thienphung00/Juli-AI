@@ -311,8 +311,7 @@ async def test_reverting_is_recorded_stops_measurement_and_leaves_calibration(se
     detail = await reco.card_detail(session, shop.shop_id, card_id, audience="seller")
     assert detail["reverted"]["by"] == f"user:{shop.user.id}"
     states = await execution_state.execution_states(session, shop.shop_id, now=NOW)
-    row = next(c for c in states["cards"] if c["card_id"] == str(card_id))
-    assert row["state"] == execution_state.STATE_REVERTED and row["reverted"] is True
+    assert str(card_id) not in {c["card_id"] for c in states["cards"]}  # F1.4: leaves Thực hiện
     measured = await execution_state.measurement_states(session, shop.shop_id, now=NOW)
     assert str(card_id) not in {c["card_id"] for c in measured["cards"]}
     # confirmed once only

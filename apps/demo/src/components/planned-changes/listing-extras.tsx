@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { useReco } from "../../lib/shopee-decisions/context";
+import { FILLABLE_CHANGE_KINDS } from "../../lib/shopee-decisions/model";
 import type { CardDetail, ExecutionSheet } from "../../lib/shopee-decisions/types";
 import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { readAuthSession } from "../../lib/supabase-auth";
@@ -126,17 +127,7 @@ export interface FillJobRow {
 }
 
 /** Kinds the queue fills (migration 124); other cards have no checklist. */
-export const FILL_JOB_KINDS: ReadonlySet<string> = new Set([
-  "title",
-  "description_first_line",
-  "min_spend_voucher",
-  "review_voucher",
-  "ads_budget",
-  "ads_roas_target",
-  "affiliate_commission",
-  "bundle_deal",
-  "combo_multi",
-]);
+export const FILL_JOB_KINDS: ReadonlySet<string> = new Set(FILLABLE_CHANGE_KINDS);
 
 const KIND_LABEL: Record<string, string> = {
   title: "Tên sản phẩm",
