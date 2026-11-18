@@ -40,6 +40,11 @@ from juli_backend.models.shopee_profit import (
 )
 from juli_backend.services.ingest.affiliate_commission import seller_commission
 from juli_backend.services.ingest.kol_key import kol_key
+from juli_backend.services.ingest.rank_guard import (
+    incoming_capture,
+    not_older,
+    payload_captured_at,
+)
 from juli_backend.services.ingest.schemas import (
     IngestBody,
     ShopeeAdsChangeLogRow,
@@ -205,9 +210,21 @@ async def write_order_lines(
         )
         await session.execute(
             stmt.on_conflict_do_update(
-                index_elements=["shop_id", "platform", "order_ref", "line_no"], set_=updated
+                index_elements=["shop_id", "platform", "order_ref", "line_no"],
+                set_=updated,
+                where=_not_older_where(table, provenance),
             )
         )
+
+
+def _not_older_where(table: Any, provenance: dict[str, Any]) -> Any:
+    """R7: a line re-read on another computer replaces the stored one only when its capture is
+    not older (no rank: the stored capture is its raw payload's; NULL counts as older). ``None``
+    (no guard) when the caller gave no capture time."""
+    incoming = incoming_capture(provenance)
+    if incoming is None:
+        return None
+    return not_older(payload_captured_at(table), incoming)
 
 
 # -- affiliate order lines ---------------------------------------------------------------
@@ -377,6 +394,7 @@ async def _store_affiliate_lines(
                     "model_id",
                 ],
                 set_={column: stmt.excluded[column] for column in _AFFILIATE_MUTABLE},
+                where=_not_older_where(ShopeeAffiliateLine.__table__, provenance),
             )
         )
 

@@ -46,6 +46,36 @@ export class GatewayError extends Error {
   }
 }
 
+/**
+ * Who this install is, for every call: the version it sends in `X-Connector-Version` (Juli refuses
+ * a version below its minimum with 426 `connector_upgrade_required`), its random per-install id
+ * (sent at pairing: a re-pair from the same install supersedes the older token) and what to do when
+ * Juli asks for an upgrade. Set once by the service worker; unset (tests) sends neither.
+ */
+export interface ClientIdentity {
+  version?: string;
+  installId?: () => Promise<string>;
+  onUpgradeRequired?: (minimum: string) => void;
+}
+let identity: ClientIdentity = {};
+export function configureClientIdentity(next: ClientIdentity): void {
+  identity = next;
+}
+
+/** The per-install id: random, created once, kept in storage. */
+export async function loadInstallId(storage: {
+  get(keys: string[]): Promise<Record<string, unknown>>;
+  set(items: Record<string, unknown>): Promise<void>;
+}): Promise<string> {
+  const stored = (await storage.get([INSTALL_ID_KEY]))[INSTALL_ID_KEY];
+  if (typeof stored === "string" && stored.length >= 8) return stored;
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  const id = `i_${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+  await storage.set({ [INSTALL_ID_KEY]: id });
+  return id;
+}
+export const INSTALL_ID_KEY = "installId";
+
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 /** The post the gateway expects for one mapped response. */
@@ -76,6 +106,7 @@ export class IngestClient {
   private async call(path: string, init: RequestInit, token?: string): Promise<unknown> {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers.Authorization = `Bearer ${token}`;
+    if (identity.version) headers["X-Connector-Version"] = identity.version;
     const response = await this.fetchImpl(`${this.origin}${path}`, {
       ...init,
       headers,
@@ -83,19 +114,24 @@ export class IngestClient {
     });
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      const detail = (payload as { detail?: { code?: string } } | null)?.detail;
+      const detail = (payload as { detail?: { code?: string; minimum?: string } } | null)?.detail;
+      if (response.status === 426 && detail?.code === "connector_upgrade_required" && detail.minimum) {
+        identity.onUpgradeRequired?.(detail.minimum);
+      }
       throw new GatewayError(response.status, detail?.code ?? "http_error");
     }
     return payload;
   }
 
-  pair(code: string, clientLabel: string, platformShopId?: string): Promise<TokenInfo> {
+  async pair(code: string, clientLabel: string, platformShopId?: string): Promise<TokenInfo> {
+    const installId = await identity.installId?.().catch(() => undefined);
     return this.call("/v1/ingest/pair", {
       method: "POST",
       body: JSON.stringify({
         code,
         platform: this.platform,
         client_label: clientLabel,
+        ...(installId ? { install_id: installId } : {}),
         ...(platformShopId ? { platform_shop_id: platformShopId } : {}),
       }),
     }) as Promise<TokenInfo>;

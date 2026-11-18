@@ -12,6 +12,7 @@
 - ``shops`` -- a Shopee shop for a Juli user (no Shopee OAuth yet).
 """
 
+from juli_backend.services.ingest import min_version
 from juli_backend.services.ingest.gateway import IngestRejected, IngestResult, ingest
 from juli_backend.services.ingest.mapping import (
     DATASETS,
@@ -54,6 +55,7 @@ from juli_backend.services.ingest.shops import connect_shopee_shop
 from juli_backend.services.ingest.status import dataset_status, record_connector_event, report_drift
 
 __all__ = [
+    "min_version",
     "DATASETS",
     "MAX_BODY_BYTES",
     "OVERLAY_STREAMS",

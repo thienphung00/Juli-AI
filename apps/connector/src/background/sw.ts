@@ -18,7 +18,8 @@ import {
   SYNC_START_JITTER_MINUTES,
 } from "../platforms/shopee/config";
 import { FILL_HALT_MS } from "../core/config";
-import { IngestClient, type TokenInfo } from "../core/ingest/client";
+import { configureClientIdentity, IngestClient, loadInstallId, type TokenInfo } from "../core/ingest/client";
+import { noteUpgradeRequired, pendingUpgrade } from "../core/min-version";
 import { FillJobs as CoreFillJobs, reportDetailOf } from "../core/jobs/fill-jobs";
 import { type Pairing, Pairings, pairAcross, rotateIfDue, scopedStorage } from "../core/pairings";
 import type { PlatformPack } from "../platform";
@@ -43,6 +44,12 @@ import {
 
 const ALARM = "juli-daily-sync";
 const MANIFEST_VERSION = chrome.runtime.getManifest().version;
+// Every call to Juli names this version; pairing names this install (R7).
+configureClientIdentity({
+  version: MANIFEST_VERSION,
+  installId: () => loadInstallId(chrome.storage.local),
+  onUpgradeRequired: (minimum) => void noteUpgradeRequired(chrome.storage.local, MANIFEST_VERSION, minimum).catch(() => undefined),
+});
 
 const scheduler: ReaderScheduler = new ReaderScheduler({
   storage: chrome.storage.local,
@@ -537,7 +544,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }),
       );
     }
-    if (msg.type === "state") return respond(connector.state());
+    if (msg.type === "state") {
+      return respond(
+        Promise.all([connector.state(), pendingUpgrade(chrome.storage.local, MANIFEST_VERSION).catch(() => null)]).then(([state, upgrade]) => ({
+          ...state,
+          upgradeRequired: upgrade,
+        })),
+      );
+    }
     // The optional hosts of the other platforms' pairings: the popup asks for them with a button.
     if (msg.type === "optional-hosts") {
       return respond(otherPairings().then((list) => [...new Set(list.flatMap((x) => [...x.pack.optionalHosts]))]));

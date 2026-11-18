@@ -42,6 +42,25 @@ class ShopeeConnectorState(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class ShopeeConnectorTokenState(Base):
+    """Migration 135 (R7): what ONE computer (ingest token) last said. ``shopee_connector_state``
+    is the shop's aggregate of these rows."""
+
+    __tablename__ = "shopee_connector_token_state"
+    __table_args__ = (Index("ix_shopee_connector_token_state_shop", "shop_id"),)
+
+    token_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ingest_tokens.id"), primary_key=True)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    connector_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    seller_centre_open: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    reader_blocks: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), default=list, server_default=text("'[]'")
+    )
+    reader_blocks_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class ShopeeConnectorCommand(Base):
     __tablename__ = "shopee_connector_commands"
     __table_args__ = (

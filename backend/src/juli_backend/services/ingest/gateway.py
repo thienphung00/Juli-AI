@@ -83,6 +83,7 @@ from juli_backend.services.ingest.mapping import (
     normalize_rows,
 )
 from juli_backend.services.ingest.precedence import count_source_conflicts, log_source_conflicts
+from juli_backend.services.ingest.rank_guard import newer_wins_where, not_older
 from juli_backend.services.ingest.schemas import (
     DatasetRow,
     IngestBody,
@@ -352,22 +353,14 @@ async def _store_raw(
     return existing, True
 
 
-def _stored_rank(table: Any) -> Any:
-    """The rank a stored row counts at: its ``source`` decides (``effective_rank``), so a row
-    written before D-5 (file = extension = 2) is still outranked by a file post."""
-    return case(
-        *[(table.c.source == source, rank) for source, rank in SOURCE_RANK.items()],
-        else_=table.c.source_rank,
-    )
-
-
 async def _upsert(
     session: AsyncSession,
     model: Any,
     key_columns: tuple[str, ...],
     values: list[dict[str, Any]],
 ) -> None:
-    """Insert, or replace a row of the same or lower rank on the same key (file > extension)."""
+    """Insert, or replace a row of lower rank, or of the same rank and not newer capture, on the
+    same key (file > extension; at an equal rank the newer read wins)."""
     if not values:
         return
     insert = _insert(session)
@@ -383,7 +376,7 @@ async def _upsert(
             stmt.on_conflict_do_update(
                 index_elements=list(key_columns),
                 set_=updated,
-                where=_stored_rank(table) <= stmt.excluded.source_rank,
+                where=newer_wins_where(table, stmt.excluded),
             )
         )
 
@@ -444,7 +437,7 @@ async def _upsert_items(
             stmt.on_conflict_do_update(
                 index_elements=list(_ITEM_KEY_COLUMNS),
                 set_=updated,
-                where=_stored_rank(table) <= stmt.excluded.source_rank,
+                where=newer_wins_where(table, stmt.excluded),
             )
         )
         if names_win:
@@ -487,11 +480,18 @@ async def _record_status(
     stmt = insert(IngestDatasetStatus).values(
         id=uuid.uuid4(), shop_id=shop_id, platform=platform, dataset=dataset, **values
     )
+    status_table = IngestDatasetStatus.__table__
+    # the last_* fields only move forward: an older capture uploaded late changes none of them
+    # (a NULL stored capture counts as older); the ingest time is always the latest ingest
+    forward = not_older(status_table.c.last_captured_at, stmt.excluded.last_captured_at)
+    set_: dict[str, Any] = {}
+    for k in values:
+        if k in ("last_ingest_at", "updated_at"):
+            set_[k] = stmt.excluded[k]
+        else:
+            set_[k] = case((forward, stmt.excluded[k]), else_=status_table.c[k])
     await session.execute(
-        stmt.on_conflict_do_update(
-            index_elements=["shop_id", "platform", "dataset"],
-            set_={k: stmt.excluded[k] for k in values},
-        )
+        stmt.on_conflict_do_update(index_elements=["shop_id", "platform", "dataset"], set_=set_)
     )
 
 

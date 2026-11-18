@@ -4,6 +4,9 @@
 import type { Backfill, ReaderSchedule } from "../background/state";
 import { DATASET_LABELS, PASSWORD_RECHECK_LOWER } from "./guide";
 
+/** Juli refused this version (below its minimum): the one line the popup shows. */
+export const upgradeRequiredLine = (minimum: string): string => `Cập nhật Juli Connector lên ${minimum}`;
+
 export const CONSENT_REQUIRED_MESSAGE =
   "Shop này chưa được cấp quyền đồng bộ dữ liệu với Juli, nên tiện ích đã tạm dừng gửi số liệu. " +
   "Liên hệ Juli để bật quyền, rồi bấm “Đồng bộ hôm qua”.";
