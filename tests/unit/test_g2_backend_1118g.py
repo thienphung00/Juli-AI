@@ -23,6 +23,7 @@ from juli_backend.services import ingest as ingest_service
 from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.shop_proposals import ProposalError
 from juli_backend.services.shopee_recommendations import fill_queue, revert_fill, store
+from tests.support.shopee_analytics import voucher_rows
 from tests.unit import test_p97_fill_queue as _p97
 
 NOW = _p97.NOW
@@ -178,7 +179,15 @@ async def test_a_saved_revert_queues_a_readback_and_ready_needs_the_object_ended
     )
     await session.commit()
     state = await revert_fill.revert_state(session, seeded.shop_id, ids[0])
-    assert state["ready"] is True  # the voucher is gone from the list read-back
+    assert state["ready"] is False  # a read-back job alone proves nothing: no voucher data at all
+    other = voucher_rows(seeded.shop_id)[0]
+    other.program_name = "Voucher khác"
+    other.extra = {"voucher_id": "999"}  # another voucher, from a list captured after the save
+    other.captured_at = later + timedelta(minutes=2)
+    session.add(other)
+    await session.commit()
+    state = await revert_fill.revert_state(session, seeded.shop_id, ids[0])
+    assert state["ready"] is True  # that list lacks voucher 555
     out = await reco.mark_reverted(session, seeded.shop_id, ids[0], now=NOW, user_id=seeded.user.id)
     assert out["reverted"] is True
 
@@ -407,3 +416,108 @@ async def test_executed_expects_the_saved_forms_values_and_keeps_the_cards(sessi
     assert change["target"]["voucher_id"] == "555"
     assert change["expected"]["min_spend"] == 100_000 and change["expected"]["usage_limit"] == 50
     assert change["card_expected"] == {"min_spend": 90_000}
+
+
+# ----------------------------------------------------------------------- verifier follow-ups
+
+
+async def test_an_ended_or_listed_voucher_is_judged_on_a_list_read_after_the_save(session, shop):
+    seeded, _ = shop
+    since = _p97.NOW + timedelta(minutes=5)
+    assert await revert_fill._voucher_ended(session, seeded.shop_id, "555", since) is False
+    live = voucher_rows(seeded.shop_id)[0]
+    live.program_name = "Voucher sống"
+    live.extra = {"voucher_id": "555"}
+    live.status = "ongoing"
+    live.captured_at = since + timedelta(minutes=1)
+    old = voucher_rows(seeded.shop_id)[1]
+    old.program_name = "Voucher cũ"
+    old.extra = {"voucher_id": "999"}
+    old.captured_at = since - timedelta(minutes=30)  # before the save: does not count
+    session.add_all([live, old])
+    await session.commit()
+    assert await revert_fill._voucher_ended(session, seeded.shop_id, "555", since) is False
+    live.status = "ended"
+    await session.commit()
+    assert await revert_fill._voucher_ended(session, seeded.shop_id, "555", since) is True
+
+
+async def test_an_affiliate_commission_read_before_the_save_does_not_confirm(session, shop):
+    from sqlalchemy import update
+
+    seeded, _ = shop
+    job = _fake("affiliate_commission", {"product_ids": ["1001"], "commission_pct": 5.0})
+    since = _p97.NOW
+    for at, ok in (((since - timedelta(hours=1)), False), ((since + timedelta(hours=1)), True)):
+        await session.execute(
+            update(PlatformItem)
+            .where(PlatformItem.shop_id == seeded.shop_id, PlatformItem.item_id == "1001")
+            .values(
+                extra={
+                    "affiliate_commission_pct": 5.0,
+                    "affiliate_commission_pct_at": at.isoformat(),
+                }
+            )
+        )
+        await session.commit()
+        got = await revert_fill._affiliate_matches(session, seeded.shop_id, job, since)
+        assert got is ok
+
+
+async def test_a_queued_or_failed_readback_is_no_step_and_never_fails_the_card(session, shop):
+    from juli_backend.services.shopee_recommendations import execution_state
+
+    seeded, ids = shop
+    await _approve(session, seeded, ids[0])
+    await _executed(session, seeded, ids[0], voucher_id="555")
+    (rb,) = [j for j in await _jobs(session, seeded) if j.kind == "readback"]
+
+    def card_of(out):
+        return next(c for c in out["cards"] if c["card_id"] == str(ids[0]))
+
+    before = card_of(await execution_state.execution_states(session, seeded.shop_id, now=NOW))
+    rb.status, rb.error = STATUS_FAILED, "readback_unsupported"
+    await session.commit()
+    after = card_of(await execution_state.execution_states(session, seeded.shop_id, now=NOW))
+    assert after["state"] == before["state"] != "failed"
+    assert after["jobs"] == before["jobs"] and after["jobs"]["failed"] == 0
+    assert after["fields"] == before["fields"]
+
+
+async def test_a_verification_bug_never_fails_the_ingest(session, shop, generous_gate, monkeypatch):
+    from juli_backend.services.card_events import verification
+
+    seeded, ids = shop
+    await grant_service_consent(session, seeded.shop_id)
+
+    async def boom(*args, **kwargs):
+        raise TypeError("evaluator bug")
+
+    monkeypatch.setattr(verification, "verify_objects", boom)
+    stamp = (_p97.NOW + timedelta(hours=2)).isoformat() + "+00:00"
+    body = _post(
+        [{"item_id": "1001", "item_name": "Găng tay"}],
+        _p97.NOW.date().isoformat(),
+        "period",
+        captured_at=stamp,
+    )
+    await ingest_service.ingest(
+        session,
+        shop_id=seeded.shop_id,
+        platform="shopee",
+        dataset="item_catalog",
+        body=ingest_service.IngestBody.model_validate(body),
+        token_id=None,
+        now=_p97.NOW + timedelta(hours=3),
+    )  # no exception
+
+
+async def test_the_voucher_payload_carries_the_smart_flag_default_off(session, shop):
+    seeded, ids = shop
+    p = await session.get(ShopProposal, ids[0])
+    card = await store.card_payload(session, seeded.shop_id, ids[0])
+    (job,) = await fill_queue.build_jobs(session, seeded.shop_id, p, card, 1, None, NOW)
+    assert job["payload"]["smart"] is False
+    card["smart"] = True
+    (job,) = await fill_queue.build_jobs(session, seeded.shop_id, p, card, 1, None, NOW)
+    assert job["payload"]["smart"] is True
