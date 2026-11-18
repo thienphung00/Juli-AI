@@ -20,7 +20,7 @@
  * (rules editor open).
  */
 
-import type { ShopPlatform } from "../../lib/shop-platform";
+import type { RulesPlatform } from "../../lib/quyet-dinh/off-api-rules";
 import type { DemoDecisionItem } from "@juli/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -159,7 +159,7 @@ export function QuyetDinhView({
 }: {
   readonly token: string;
   /** The shop's marketplace: the rules panel names it. */
-  readonly platform: ShopPlatform;
+  readonly platform: RulesPlatform;
   readonly shop: { readonly id: string; readonly name: string };
   readonly query: QdQuery;
   readonly onNavigate: (href: string) => void;

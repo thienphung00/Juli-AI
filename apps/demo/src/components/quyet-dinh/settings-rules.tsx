@@ -11,7 +11,7 @@ import {
 } from "../../lib/quyet-dinh/api-client";
 import { SAMPLE_SHOP, SAMPLE_TOKEN } from "../../lib/quyet-dinh/sample-data";
 import type { ShopRules } from "../../lib/quyet-dinh/types";
-import type { ShopPlatform } from "../../lib/shop-platform";
+import { reviewerRulesPlatform, type RulesPlatform } from "../../lib/quyet-dinh/off-api-rules";
 import { DEMO_BUILDER_BASE, createBuilderApi } from "../../lib/shopee-decisions/builder-api";
 import { useReviewer } from "../../lib/reviewer/mode";
 import { reviewerSampleClients, reviewerSampleEpoch, subscribeReviewerSample } from "../../lib/reviewer/sample-store";
@@ -41,14 +41,14 @@ export function SettingsPageClient() {
   const [tab, setTab] = useState<SettingsTab>("rules");
   // P96: the Juli Connector tab is Shopee-only (the extension reads Shopee Seller Centre).
   // The rules editor names the shop's marketplace, so it waits for the answer (null = not known yet).
-  const [platform, setPlatform] = useState<ShopPlatform | null>(null);
+  const [platform, setPlatform] = useState<RulesPlatform | null>(null);
   const shopee = platform === "shopee";
   useEffect(() => {
     if (!auth?.shop) return;
     let live = true;
     probeShopPlatform(auth.token, auth.shop.shopId)
-      .then((p) => live && setPlatform(p === "shopee" ? "shopee" : "tiktok"))
-      .catch(() => live && setPlatform("tiktok"));
+      .then((p) => live && setPlatform(p === "shopee" || p === "tiktok" ? p : "unknown"))
+      .catch(() => live && setPlatform("unknown"));
     return () => {
       live = false;
     };
@@ -221,6 +221,9 @@ export function SettingsTabs({
 const SAMPLE_AUTH: AuthedOptions = { token: SAMPLE_TOKEN, shopId: SAMPLE_SHOP.id };
 
 function ReviewerSampleRulesSettings() {
+  const reviewer = useReviewer();
+  // the sample shop is the reviewer's own marketplace; when it is not stated the copy names neither
+  const platform: RulesPlatform = reviewerRulesPlatform(reviewer?.platform);
   const epoch = useSyncExternalStore(subscribeReviewerSample, reviewerSampleEpoch, reviewerSampleEpoch);
   const store = reviewerSampleClients();
   const io = useMemo(() => {
@@ -236,7 +239,8 @@ function ReviewerSampleRulesSettings() {
       deleteRule={io.deleteRule}
       fetchRules={io.fetchRules}
       key={epoch}
-      platform="tiktok"
+      platform={platform}
+      readNames={false}
       putRule={io.putRule}
       shopName={SAMPLE_SHOP.name}
     />
@@ -247,7 +251,7 @@ function ReviewerSampleRulesSettings() {
  * A Shopee shop's cost rows are keyed `item_id` / `item_id:model_id`; the catalogue gives the product
  * (and variation) name to show instead. Empty while loading, on another platform, or when the read fails.
  */
-function useScopeNames(platform: ShopPlatform, options: AuthedOptions, rules: ShopRules | "loading" | "error"): Readonly<Record<string, string>> {
+function useScopeNames(platform: RulesPlatform, options: AuthedOptions, rules: ShopRules | "loading" | "error"): Readonly<Record<string, string>> {
   const [names, setNames] = useState<Readonly<Record<string, string>>>({});
   const refs = useMemo(() => {
     if (platform !== "shopee" || typeof rules === "string") return [] as string[];
@@ -289,9 +293,12 @@ export function SignedInRulesSettings({
   deleteRule = deleteShopRule,
   tabs,
   platform,
+  readNames = true,
 }: {
   readonly auth: AuthedOptions;
-  readonly platform: ShopPlatform;
+  readonly platform: RulesPlatform;
+  /** The sample shop has no catalogue to read: its cost rows keep their codes and nothing is requested. */
+  readonly readNames?: boolean;
   readonly shopName: string;
   /** The settings tablist (signed-in sellers), under the page header. */
   readonly tabs?: ReactNode;
@@ -312,7 +319,7 @@ export function SignedInRulesSettings({
     void load();
   }, [load]);
 
-  const names = useScopeNames(platform, options, rules);
+  const names = useScopeNames(readNames ? platform : "unknown", options, rules);
 
   const onSave: RulesEditorProps["onSave"] = async (ruleKey, value, setBy, scopeRef) => {
     await putRule(options, ruleKey, value, setBy, scopeRef);

@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { reviewerSampleClients } from "../../lib/reviewer/sample-store";
 import type { ShopRules } from "../../lib/quyet-dinh/types";
+import { QuyetDinhView } from "../quyet-dinh/quyet-dinh-view";
 import { RulesEditor } from "../quyet-dinh/rules-editor";
 import { SignedInRulesSettings } from "../quyet-dinh/settings-rules";
 
@@ -23,6 +25,20 @@ describe("F1.6 · a Shopee shop's rules never say TikTok", () => {
     const { container } = render(<RulesEditor onDelete={vi.fn()} onSave={vi.fn()} platform="shopee" rules={rules({ sku_cost: { "1001:2002": seller(65125.13) } })} />);
     expect(container.textContent).not.toMatch(/TikTok/);
     expect(container.textContent).not.toMatch(/GMV Max/);
+  });
+
+  it("an unknown platform names neither marketplace", () => {
+    const { container } = render(<RulesEditor onDelete={vi.fn()} onSave={vi.fn()} platform="unknown" rules={rules()} />);
+    expect(container.textContent).not.toMatch(/TikTok/);
+    expect(container.textContent).not.toMatch(/Shopee/);
+  });
+
+  it("the Quyết định rules panel of a Shopee shop has no TikTok text", async () => {
+    const clients = reviewerSampleClients();
+    const { container } = render(<QuyetDinhView clients={clients} onNavigate={vi.fn()} platform="shopee" query={{ tab: "de-xuat", run: null, rulesOpen: true }} shop={{ id: "s", name: "Shop thử" }} token="t" />);
+    const editor = await screen.findByTestId("rules-editor");
+    expect(editor.textContent).not.toMatch(/TikTok/);
+    expect(container.querySelector('[data-testid="rules-editor"]')).toBe(editor);
   });
 
   it("cost rows show the product and variation name with VN money", () => {

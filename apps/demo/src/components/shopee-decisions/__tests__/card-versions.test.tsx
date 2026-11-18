@@ -144,22 +144,22 @@ describe("CardVersions · nhiều phiên bản của một thay đổi", () => {
   });
 });
 
-describe("tiêu đề · giới hạn 100 ký tự", () => {
+describe("tiêu đề · giới hạn 120 ký tự", () => {
   const title = (n: number) => "G".repeat(n);
 
-  it("counts as the person types, recomputes up to 100 and sends nothing above", async () => {
+  it("counts as the person types, recomputes up to 120 and sends nothing above", async () => {
     const reco = fakeReco({ detail: detailOf(titleCard(), { code: "JC-2611-0011", product_queue: 4 }), whatif: titleCard() });
     renderReco(<CardPage from={null} id="card-title" />, reco);
     const box = (await screen.findByRole("textbox", { name: /Tiêu đề trên Shopee/ })) as HTMLTextAreaElement;
-    expect(screen.getByTestId("sv-title-count")).toHaveTextContent("97/100");
+    expect(screen.getByTestId("sv-title-count")).toHaveTextContent("97/120");
     fireEvent.change(box, { target: { value: title(90) } });
     await waitFor(() => expect(reco.calls.some((c) => c.name === "whatif")).toBe(true));
     expect(reco.calls.find((c) => c.name === "whatif")!.args).toEqual(["card-title", { title: title(90) }, 1]);
-    expect(screen.getByTestId("sv-title-count")).toHaveTextContent("90/100");
-    expect(screen.getByText("Còn 10 ký tự.")).toBeInTheDocument();
+    expect(screen.getByTestId("sv-title-count")).toHaveTextContent("90/120");
+    expect(screen.getByText("Còn 30 ký tự.")).toBeInTheDocument();
     const before = reco.calls.filter((c) => c.name === "whatif").length;
-    fireEvent.change(box, { target: { value: title(104) } });
-    expect(screen.getByTestId("sv-title-count")).toHaveTextContent("104/100");
+    fireEvent.change(box, { target: { value: title(124) } });
+    expect(screen.getByTestId("sv-title-count")).toHaveTextContent("124/120");
     expect(screen.getByText("Quá 4 ký tự. Phần vượt không được lưu và Duyệt bị khoá.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Duyệt V1" })).toBeDisabled();
     expect(screen.getByTestId("sd-approve-hint")).toHaveTextContent("Rút bớt 4 ký tự để duyệt.");

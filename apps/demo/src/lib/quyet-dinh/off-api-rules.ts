@@ -83,9 +83,20 @@ export const OFF_API_FIELDS: ReadonlyArray<{ readonly key: OffApiRuleKey; readon
 export const GMV_MAX_OFF_API_KEYS: ReadonlySet<OffApiRuleKey> = new Set<OffApiRuleKey>(["target_roas", "gmv_max_daily_budget"]);
 
 /** The off-API copy for the shop's platform: "TikTok …" stays as is; a Shopee shop reads "Shopee …". */
-export function forPlatform(text: string, platform: ShopPlatform): string {
-  return platform === "tiktok" ? text : text.replaceAll("TikTok", PLATFORM_NAME[platform]);
+export function forPlatform(text: string, platform: RulesPlatform): string {
+  if (platform === "tiktok") return text;
+  if (platform === "unknown") return text.replaceAll("TikTok", "sàn").replace(/^sàn/, "Sàn");
+  return text.replaceAll("TikTok", PLATFORM_NAME[platform]);
 }
+
+/** The reviewer's marketplace for the sample shop's copy; unstated means neither is named. */
+export function reviewerRulesPlatform(value: string | null | undefined): RulesPlatform {
+  const v = (value ?? "").toLowerCase();
+  return v === "shopee" || v === "tiktok" ? v : "unknown";
+}
+
+/** The shop's marketplace, or "unknown" when it could not be read: the copy then names neither platform. */
+export type RulesPlatform = ShopPlatform | "unknown";
 
 export const OFF_API_LABELS: Readonly<Record<OffApiRuleKey, string>> = Object.freeze(
   Object.fromEntries(OFF_API_FIELDS.map((field) => [field.key, field.label])) as Record<OffApiRuleKey, string>,

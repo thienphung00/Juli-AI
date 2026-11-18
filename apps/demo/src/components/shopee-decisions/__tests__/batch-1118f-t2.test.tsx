@@ -61,13 +61,22 @@ describe("F1.5 · non-fillable kinds", () => {
   it("a fillable card keeps its button/link", async () => {
     renderReco(<ThucHienView />, fakeReco({ execution: states([exec({ card_id: "f", change_kind: "title" })]) }));
     const row = await screen.findByTestId("sd-th-f");
-    expect(within(row).getByRole("button", { name: "Mở Seller Centre" })).toBeDisabled();
+    const btn = within(row).getByRole("button", { name: "Mở Seller Centre" });
+    expect(btn).toBeDisabled();
+    expect(btn.className).toContain("sd-btn--off");
+    expect(btn.className).not.toContain("sa-btn--primary");
     expect(screen.queryByTestId("sd-th-manual-f")).toBeNull();
   });
 });
 
 describe("F1.9 · dates and errors", () => {
-  it("the header date is the card's own time in VN (a card made 18/11 at 22:55Z shows 19/11)", async () => {
+  it("a card computed at 17:30Z on 18/11 crosses midnight in VN and shows 19/11/2026", async () => {
+    const detail = detailOf(voucherCard(), { computed_at: "2026-11-18T17:30:00Z" });
+    renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail }));
+    expect(await screen.findByTestId("sd-queue-line")).toHaveTextContent("cập nhật 19/11/2026");
+  });
+
+  it("the header date is the card's own time in VN (08:55Z on 18/11 stays 18/11)", async () => {
     const detail = detailOf(voucherCard(), { computed_at: "2026-11-18T08:55:00Z" });
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail }));
     expect(await screen.findByTestId("sd-queue-line")).toHaveTextContent("cập nhật 18/11/2026");

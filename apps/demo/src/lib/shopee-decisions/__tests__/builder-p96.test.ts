@@ -143,7 +143,7 @@ describe("P100 wave 2 · Deal Sốc, one form with two types (brief C, B.14)", (
   it("the window needs an end after the start (≥ 1 hour), hours 0-23 and a date for each hour; the name is ≤ 150 characters", () => {
     expect(problem("deal_soc", deal({ addons: [addon], start: "2026-12-01", end: "2026-12-01", startHour: "10", endHour: "10" }))).toMatch(/tối thiểu 1 giờ/);
     expect(problem("deal_soc", deal({ addons: [addon], start: "2026-12-02", end: "2026-12-01" }))).toMatch(/kết thúc/);
-    expect(problem("deal_soc", deal({ addons: [addon], startHour: "24", start: "2026-12-01" }))).toMatch(/0 đến 23/);
+    expect(problem("deal_soc", deal({ addons: [addon], startHour: "24", start: "2026-12-01" }))).toMatch(/giờ tròn/);
     expect(problem("deal_soc", deal({ addons: [addon], startHour: "9" }))).toMatch(/Chọn ngày/);
     expect(problem("deal_soc", deal({ addons: [addon], name: "x".repeat(151) }))).toMatch(/150/);
   });

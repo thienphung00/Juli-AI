@@ -286,7 +286,7 @@ function CardBody({ detail, initial, onChanged }: { readonly detail: CardDetail;
   const count = titleCount(titleText);
   const onTitle = (text: string) => {
     setTitleDraft((d) => ({ ...d, [sel]: text }));
-    // Above 100 characters nothing is sent (D-4); the counter and the locked button say why.
+    // Above the title limit nothing is sent (D-4); the counter and the locked button say why.
     if (text.length > 0 && text.length <= MAX_TITLE_CHARS) change({ ...patch, title: text });
     else {
       setPatches((p) => ({ ...p, [sel]: { ...patch, title: text } }));

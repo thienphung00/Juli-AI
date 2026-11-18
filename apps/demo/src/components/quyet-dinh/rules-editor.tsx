@@ -19,11 +19,11 @@ import {
   liveSlots,
   parseLiveSchedule,
   type OffApiRuleKey,
+  type RulesPlatform,
 } from "../../lib/quyet-dinh/off-api-rules";
 import { vnDate } from "../../lib/quyet-dinh/timeline";
 import { bandDefault, type RuleKey, type RuleValueItem, type SetBy, type ShopRules } from "../../lib/quyet-dinh/types";
 import { REVIEWER_SIMULATED_SETTINGS_NOTE } from "../../lib/reviewer/copy";
-import type { ShopPlatform } from "../../lib/shop-platform";
 import { SimulatedLabel } from "../app-shell/simulated-label";
 import { useRulesControl } from "../seller-view-context";
 
@@ -50,7 +50,7 @@ export interface RulesEditorProps {
   /** Juli Ops (D25.14): every value is written as the team's; no toggle. */
   readonly fixedSetBy?: SetBy;
   /** The shop's marketplace (required: a Shopee shop names Shopee and is not asked GMV Max fields). */
-  readonly platform: ShopPlatform;
+  readonly platform: RulesPlatform;
   /** Display names by scope ref (`item_id` or `item_id:model_id`) for the cost rows, when known. */
   readonly scopeNames?: Readonly<Record<string, string>>;
 }
@@ -344,7 +344,7 @@ function ClearButton({
   );
 }
 
-function CampaignOptIn({ rules, setBy, onSave, onDelete, platform }: FieldProps & { readonly platform: ShopPlatform }) {
+function CampaignOptIn({ rules, setBy, onSave, onDelete, platform }: FieldProps & { readonly platform: RulesPlatform }) {
   const write = useRulesControl();
   const item = rules.joins_platform_campaigns;
   const selectId = useId();
@@ -532,7 +532,7 @@ function ContentVoiceFields({ rules, setBy, onSave, onDelete }: FieldProps) {
   );
 }
 
-function OffApiFields({ rules, setBy, onSave, onDelete, platform, scopeNames }: FieldProps & { readonly platform: ShopPlatform; readonly scopeNames?: Readonly<Record<string, string>> }) {
+function OffApiFields({ rules, setBy, onSave, onDelete, platform, scopeNames }: FieldProps & { readonly platform: RulesPlatform; readonly scopeNames?: Readonly<Record<string, string>> }) {
   const number = (
     ruleKey: "default_gross_margin_pct" | "default_max_discount_pct" | "program_fee_pct" | "target_roas" | "gmv_max_daily_budget",
     suffix: string,
