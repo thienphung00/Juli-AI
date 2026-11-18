@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, case, literal_column, or_, select
+from sqlalchemy import ColumnClause, and_, case, literal_column, or_, select
 
 from juli_backend.models.ingest import SOURCE_RANK, IngestRawPayload
 
@@ -31,7 +31,7 @@ def payload_captured_at(table: Any) -> Any:
     a subquery to the insert target: a bound ``table.c.raw_payload_id`` would add the table to
     the subquery's FROM (a cross join returning many rows). The stored row is referenced by
     name instead, which Postgres resolves to the conflicting row."""
-    stored_raw_id = literal_column(f"{table.name}.raw_payload_id")
+    stored_raw_id: ColumnClause[Any] = literal_column(f"{table.name}.raw_payload_id")
     return (
         select(IngestRawPayload.captured_at)
         .where(IngestRawPayload.id == stored_raw_id)
