@@ -32,7 +32,12 @@ from juli_backend.services.shopee_profit.fees import (
 from juli_backend.services.shopee_profit.floor import FloorInputs, FloorResult, compute_floor
 from juli_backend.services.shopee_profit.income import FEE_SERVICE
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
-from juli_backend.services.shopee_profit.order_profit import OrderLine, SkuCost
+from juli_backend.services.shopee_profit.order_profit import (
+    OrderLine,
+    ProfitBreakdown,
+    SkuCost,
+    counts_in_sales,
+)
 from juli_backend.services.shopee_profit.shop_profit import ProductProfit
 from juli_backend.services.shopee_recommendations import config
 from juli_backend.services.shopee_recommendations.listing import Listing
@@ -118,6 +123,10 @@ class RecoEnv:
     _floor_cache: dict[str, dict[str, FloorResult]] = field(default_factory=dict, repr=False)
     _schedule_cache: dict[str, FeeSchedule] = field(default_factory=dict, repr=False)
     _service_rate: Decimal | None = field(default=None, repr=False)
+    #: not an init field, so ``dataclasses.replace`` (a copy with other pairs) starts it afresh
+    _sales_pairs: list[tuple[OrderLine, ProfitBreakdown]] | None = field(
+        default=None, init=False, repr=False
+    )
 
     # ------------------------------------------------------------------ rules / targets
     @property
@@ -143,6 +152,15 @@ class RecoEnv:
 
     # ----------------------------------------------------------------------- products
     @property
+    def sales_pairs(self) -> list[tuple[OrderLine, ProfitBreakdown]]:
+        """The window's pairs that count in đơn / GMV / AOV (``counts_in_sales``: a returned
+        order is no sale, owner D2). Every sales signal reads these; the profit baseline
+        (``lines_for``, floors, fee rates) keeps every line, so a return's fees stay a cost."""
+        if self._sales_pairs is None:
+            self._sales_pairs = [(ln, pb) for ln, pb in self.view.pairs if counts_in_sales(ln)]
+        return self._sales_pairs
+
+    @property
     def excluded(self) -> dict[str, str]:
         """P92 B-1: item id -> reason, listings that get no card and no builder entry."""
         return self.view.excluded
@@ -151,7 +169,7 @@ class RecoEnv:
         """Products with confirmed order lines in the window, by GMV descending (excluded
         listings left out)."""
         gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
-        for ln, _ in self.view.pairs:
+        for ln, _ in self.sales_pairs:
             if ln.product_id not in self.excluded:
                 gmv[ln.product_id] += ln.order_value
         return [i for i, _ in sorted(gmv.items(), key=lambda kv: (-kv[1], kv[0]))]
@@ -161,7 +179,7 @@ class RecoEnv:
         window, from the order lines or from Shopee's own product totals (a product with views
         but few order lines is exactly the one a better title helps), by GMV descending."""
         gmv: dict[str, Decimal] = defaultdict(lambda: ZERO)
-        for ln, _ in self.view.pairs:
+        for ln, _ in self.sales_pairs:
             if ln.product_id not in self.excluded:
                 gmv[ln.product_id] += ln.order_value
         for item, (total, _orders) in self.view.data.product_flows.totals.items():
@@ -180,7 +198,7 @@ class RecoEnv:
         return self.view.profit.products.get(item_id)
 
     def orders_of(self, item_id: str) -> int:
-        return len({ln.order_id for ln, _ in self.view.pairs if ln.product_id == item_id})
+        return len({ln.order_id for ln, _ in self.sales_pairs if ln.product_id == item_id})
 
     def skus_of(self, item_id: str) -> list[str]:
         return sorted({ln.sku for ln, _ in self.view.pairs if ln.product_id == item_id})
@@ -359,8 +377,8 @@ class RecoEnv:
 
     def shop_chi_per_day(self) -> Decimal:
         """Marketing spend per day in the window: ads + voucher + khuyen mai + combo + commission
-        (the same chi as the five numbers)."""
-        pairs = self.view.pairs
+        (the same chi as the five numbers: a returned order's discounts are no spend)."""
+        pairs = self.sales_pairs
         promo = sum((pb.promo_discount for _, pb in pairs), ZERO)
         voucher = sum((pb.voucher for _, pb in pairs), ZERO)
         combo = sum((pb.bundle for _, pb in pairs), ZERO)
@@ -386,6 +404,8 @@ def voucher_takeup(
     values: dict[str, Decimal] = defaultdict(lambda: Decimal(0))
     used: dict[str, bool] = {}
     for ln in lines:
+        if not counts_in_sales(ln):
+            continue  # a returned order is no sale (owner D2)
         values[ln.order_id] += ln.order_value
         used[ln.order_id] = used.get(ln.order_id, False) or ln.shop_voucher_share > 0
     qualifying = [oid for oid, v in values.items() if v >= min_spend]

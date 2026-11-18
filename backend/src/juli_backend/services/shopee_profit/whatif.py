@@ -48,6 +48,7 @@ from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
     ProfitBreakdown,
     SkuCost,
+    counts_in_sales,
     profit_lines,
 )
 
@@ -457,7 +458,7 @@ def voucher_whatif(
         )
 
     certain = VoucherCertain(
-        total_orders=len({ln.order_id for ln in lines}),
+        total_orders=len({ln.order_id for ln in lines if counts_in_sales(ln)}),
         qualifying_orders=n_q,
         qualifying_value=qualifying_value,
         discount_pct_of_qualifying=pct_points(safe_div(plan.hist_cost, qualifying_value)),
@@ -660,7 +661,8 @@ def ads_whatif(
         )
         if p[0].sku == sku and p[0].ad_attributed
     ]
-    revenue = sum((pb.buyer_paid for _, pb in pairs), ZERO)
+    # a returned order (owner D2) is no ad sale: outside the ad revenue and the ad orders
+    revenue = sum((pb.buyer_paid for ln, pb in pairs if counts_in_sales(ln)), ZERO)
     reason: str | None = None
     before_ads: Decimal | None = None
     if not pairs:
@@ -684,7 +686,7 @@ def ads_whatif(
             predicted_ad_revenue.source,
         )
     certain = AdsCertain(
-        ad_orders=len({ln.order_id for ln in ad_lines}),
+        ad_orders=len({ln.order_id for ln in ad_lines if counts_in_sales(ln)}),
         current_ad_cost=pool.sku_ad_cost,
         ad_revenue=revenue,
         current_roas=safe_div(revenue, pool.sku_ad_cost),

@@ -183,7 +183,7 @@ def option_for(
         ev = evaluate(env, cand)
         if ev.refusal:
             raise FamilyRefused(ev.refusal)
-        lines = env.lines_for(items)
+        lines = adapters.sales_lines(env, items)  # a returned order is no sale (owner D2)
         values = adapters.order_values(lines)
         aov = sum(values.values(), adapters.ZERO) / len(values) if values else None
         ctor = adapters.lift_evidence(spec.kind, items, env, _magnitude(spec))

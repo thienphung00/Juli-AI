@@ -185,7 +185,7 @@ def stats_for(env: RecoEnv, items: tuple[str, ...] | list[str] | None, metric: s
     wanted = set(items) if items else None
     per_order: dict[str, Decimal] = defaultdict(lambda: ZERO)
     per_day_orders: dict[Any, set[str]] = defaultdict(set)
-    for ln, _ in env.view.pairs:
+    for ln, _ in env.sales_pairs:
         if wanted is not None and ln.product_id not in wanted:
             continue
         per_order[ln.order_id] += ln.order_value

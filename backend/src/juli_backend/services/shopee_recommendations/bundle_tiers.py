@@ -31,7 +31,11 @@ from typing import Any
 
 from juli_backend.services.shopee_analytics.fmt import num, pct
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div, to_dong
-from juli_backend.services.shopee_profit.order_profit import OrderLine, profit_lines
+from juli_backend.services.shopee_profit.order_profit import (
+    OrderLine,
+    counts_in_sales,
+    profit_lines,
+)
 from juli_backend.services.shopee_recommendations import config
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 from juli_backend.services.shopee_recommendations.evaluate import (
@@ -132,7 +136,9 @@ def eval_bundle_tiers(
         return _refuse("combo_tiers_invalid")
     wanted = set(items)
     lines = env.lines_for(items)
-    listed = [ln for ln in lines if ln.product_id in wanted]
+    # the sales of the listed products (a returned order is no sale, owner D2); the five numbers
+    # below still price every line of the orders, so a return's fees stay a cost
+    listed = [ln for ln in lines if ln.product_id in wanted and counts_in_sales(ln)]
     if not listed:
         return _refuse("no_order_lines")
     units_total = sum(ln.qty for ln in listed)
