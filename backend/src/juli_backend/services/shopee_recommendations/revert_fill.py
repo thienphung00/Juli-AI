@@ -138,7 +138,6 @@ def _revert_spec(
         }
     if j.kind == "voucher":
         vid = str(j.captured_ref or executed_ref or "")
-        code = f"{fill_queue.VOUCHER_CODE_PREFIX}{payload.get('code_suffix') or ''}"
         return {
             "kind": KIND_VOUCHER_END,
             "target": {"voucher_id": vid},
@@ -147,7 +146,7 @@ def _revert_spec(
                 "mode": MODE_REVERT,
                 "open_path": VOUCHER_LIST_PATH,
                 "voucher_id": vid,
-                "code": code,
+                "code_suffix": payload.get("code_suffix"),
                 "name": payload.get("name"),
             },
             "error": None if vid else ERROR_TARGET_UNKNOWN,

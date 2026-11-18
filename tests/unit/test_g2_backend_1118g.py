@@ -79,7 +79,7 @@ def test_voucher_and_combo_revert_jobs_only_name_the_object_to_end():
         "mode": "revert",
         "open_path": "/portal/marketing/vouchers/list",
         "voucher_id": "777",
-        "code": "ORYVAB12C",
+        "code_suffix": "AB12C",
         "name": "Voucher X",
     }
     c = revert_fill._revert_spec(_fake("combo", {"name": "Combo A"}), {})

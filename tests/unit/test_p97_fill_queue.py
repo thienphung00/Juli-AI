@@ -364,7 +364,7 @@ async def test_the_voucher_list_reader_resolves_the_id_when_the_page_answer_was_
     suffix = job.payload["code_suffix"]
     row = voucher_rows(seeded.shop_id)[0]
     row.program_name = "Voucher mới của Juli"
-    row.extra = {"voucher_id": "70011", "voucher_code": f"ORYV{suffix}"}
+    row.extra = {"voucher_id": "70011", "voucher_code": f"SHPV{suffix}"}
     session.add(row)
     await session.commit()
     got = (await ext.get(JOBS)).json()["jobs"]

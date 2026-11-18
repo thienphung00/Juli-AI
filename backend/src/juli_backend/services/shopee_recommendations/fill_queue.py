@@ -71,7 +71,6 @@ ERROR_JOB_BAD = "fill_job_bad"
 ERROR_JOB_LEASED = "fill_job_leased"
 
 MIN_DAILY_BUDGET = 100_000
-VOUCHER_CODE_PREFIX = "ORYV"  # shown by Seller Centre as the fixed prefix of this shop's codes
 MAX_PRODUCTS = 100
 MAX_VOUCHER_NAME = 100
 ICT = timedelta(hours=7)
@@ -657,7 +656,7 @@ def job_json(j: ShopeeFillJob, code: str | None = None, title: str | None = None
 
 async def resolve_voucher_captures(session: AsyncSession, shop_id: uuid.UUID) -> int:
     """Fallback capture (D85.6): the Connector's voucher list reader has posted the new voucher
-    (``extra.voucher_code`` = Seller Centre's fixed prefix + our code suffix): its ``voucher_id``
+    (``extra.voucher_code`` ENDS WITH our code suffix): its ``voucher_id``
     becomes the filled / saved job's ``captured_ref``. Nothing is typed by the person."""
     pending = (
         await session.scalars(
@@ -678,15 +677,17 @@ async def resolve_voucher_captures(session: AsyncSession, shop_id: uuid.UUID) ->
             .limit(400)
         )
     ).all()
-    by_suffix: dict[str, str] = {}
+    codes: list[tuple[str, str]] = []  # (full code, voucher id), newest capture first
     for r in rows:
         extra = r.extra or {}
         vid, vcode = extra.get("voucher_id"), str(extra.get("voucher_code") or "").upper()
-        if vid is not None and len(vcode) > len(VOUCHER_CODE_PREFIX):
-            by_suffix.setdefault(vcode[len(VOUCHER_CODE_PREFIX) :], str(vid))
+        if vid is not None and vcode:
+            codes.append((vcode, str(vid)))
     done = 0
     for j in pending:
-        found = by_suffix.get(str((j.payload or {}).get("code_suffix") or "").upper())
+        # Seller Centre prefixes the code with a shop-specific prefix: match by the suffix typed
+        suffix = str((j.payload or {}).get("code_suffix") or "").upper()
+        found = next((vid for code, vid in codes if suffix and code.endswith(suffix)), None)
         if found and _REF.match(found):
             j.captured_ref, j.status = found, STATUS_CAPTURED
             j.updated_at = datetime.now(UTC).replace(tzinfo=None)
