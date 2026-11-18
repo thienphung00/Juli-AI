@@ -61,7 +61,7 @@ def test_overview_has_percent_of_revenue_margin_prior_period_and_goal():
         assert ws.cell(r, 3).value == f'=IF(ISNUMBER(B{r}),IFERROR(B{r}/B$4,"—"),"—")'
         assert ws.cell(r, 3).number_format == "0.0%"
     r = tq.OV["margin"]
-    assert ws.cell(r, 1).value == "Biên lợi nhuận (% doanh thu)"
+    assert ws.cell(r, 1).value == "Biên lợi nhuận (% GMV)"
     assert ws.cell(r, 2).value == '=IF(ISNUMBER(B7),IFERROR(B7/B4,"—"),"—")'
     assert ws["D4"].value == 4_950_000 and ws["D7"].value == 810_000  # kỳ trước, as values
     assert ws["F4"].value == 6_000_000.0 and ws["F7"].value == 1_000_000.0
@@ -136,8 +136,9 @@ def test_channel_sheet_has_cost_to_revenue_profit_and_ratio_per_channel():
     assert ws["H5"].value == '=IF(ISNUMBER(G5),IFERROR(J5/G5,"—"),"—")'
     assert ws["H4"].value == DASH  # Organic has no cost
     assert ws["J5"].value.endswith('-N(G5),"—"),"—")')
-    assert ws["J7"].value == '=IF(ISNUMBER(G7),-G7,"—")'  # ưu đãi is a cost, not a channel
-    assert ws["J8"].value == "=SUM(J4:J7)"  # the channels add up to the shop's profit
+    assert ws["J7"].value == DASH  # ưu đãi is inside the revenue: shown, never a cost again
+    assert ws["J8"].value == "=SUM(J4:J6)"  # the channels add up to the shop's profit
+    assert ws["G8"].value == "=SUM(G4:G6)"
     assert "biên lợi nhuận" in ws["A10"].value
 
 
@@ -338,7 +339,7 @@ def test_day_sheet_never_leaves_a_channel_cell_blank_and_names_its_cost_column()
         for i in range(6)
     ]  # fmt: skip
     ws = tq.build(d)[tq.SHEET_DAY]
-    assert ws.cell(3, 7).value == "Chi phí (quảng cáo + tiếp thị liên kết + ưu đãi)"
+    assert ws.cell(3, 7).value == "Chi phí (quảng cáo + tiếp thị liên kết)"
     for r in range(tq.DAY_FIRST, tq.DAY_FIRST + 6):
         assert [ws.cell(r, c).value for c in (2, 3, 4, 7, 8)] == [DASH] * 5
 
