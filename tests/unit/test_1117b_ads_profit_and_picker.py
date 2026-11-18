@@ -7,6 +7,8 @@ from decimal import Decimal as D
 
 from juli_backend.services.shopee_analytics.catalog import UNMATCHED_LABEL, Catalog
 from juli_backend.services.shopee_analytics.channel_split import partition_channels
+from juli_backend.services.shopee_analytics.loaders import load_ad_days
+from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.ads_days import (
     SOURCE_CONNECTOR,
     SOURCE_DAILY_REPORT,
@@ -19,6 +21,8 @@ from juli_backend.services.shopee_profit.shop_profit import (
     known_cost_profit,
     shop_profit,
 )
+from tests.support.builders import make_shop, make_user
+from tests.support.shopee_analytics import _daily
 from tests.unit.test_p100b_one_shop_profit import _line, _pb
 
 # ---- R11 --------------------------------------------------------------------------------
@@ -122,3 +126,51 @@ def test_c4_builder_step1_case_ads_report_above_confirmed_gmv():
     ads, aff, org = partition_channels(D(1_460_018), D(3_907_290), D(100_000))
     assert (ads, aff, org) == (D(1_460_018), D(0), D(0))
     assert ads + aff + org == D(1_460_018)
+
+
+async def test_r12_a_report_day_without_any_cost_leaves_the_day_to_the_connector(session):
+    """An export that holds only the "all" count row for a day (no ``ads_expense``) has no figure
+    for it: the Connector's spend answers, never a 0 from the report (2026-11-18)."""
+
+    shop = await make_shop(session, await make_user(session), platform="shopee")
+    priced, empty = date(2026, 11, 2), date(2026, 11, 3)
+    session.add_all(
+        [
+            _daily(
+                shop.id,
+                priced,
+                "ads",
+                "ads_shop",
+                impressions=40,
+                order_type="placed",
+                extra={"ads_expense": 4000},
+            ),
+            _daily(
+                shop.id, priced, "ads", "all", order_type="placed", extra={"l2_breakdown_count": 1}
+            ),
+            _daily(
+                shop.id, empty, "ads", "all", order_type="placed", extra={"l2_breakdown_count": 0}
+            ),
+            *[
+                _daily(
+                    shop.id,
+                    d,
+                    "ads",
+                    seg,
+                    impressions=10,
+                    clicks=1,
+                    dataset="ads_campaign_daily",
+                    order_type="placed",
+                    extra={"cost": 9000} if seg != "all" else {},
+                )
+                for d in (priced, empty)
+                for seg in ("all", "c1")
+            ],
+        ]
+    )
+    await session.commit()
+
+    days = await load_ad_days(session, shop.id, Window(priced, empty))
+
+    assert (days[priced].source, days[priced].spend) == (SOURCE_DAILY_REPORT, D(4000))
+    assert (days[empty].source, days[empty].spend) == (SOURCE_CONNECTOR, D(9000))
