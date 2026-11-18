@@ -1359,14 +1359,31 @@ describe("0.3.20: the orders outcome is truthful", () => {
       await ctx.scheduler.onTabReady(tab.id, tab.url);
       await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", responses });
     };
-    // read: 0001; refused: 0002 (first failed day); no answer: 0003 (third failed day: dropped)
-    await run([incomeAnswer("26110001"), refused]);
+    // read: 0001; refused: 0002 (first failed day) and 0003 (third failed day: dropped)
+    await run([incomeAnswer("26110001"), refused, { ...refused, orderId: "26110003" }]);
     expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110002", completedAt: T0 - 2000, failedDays: 1, failedDay: "2026-11-03" }]);
     // a second run the same day (a manual sync) does not count another failed day
     ctx.storage.data.readers = { ...(await ctx.read())!, incomeDay: undefined, lastRunDay: undefined, run: undefined };
     await run([]);
     expect(ctx.posted.filter((p) => p.job.id === "order_income")).toHaveLength(2);
     expect((await ctx.read())?.incomeQueue).toEqual([{ id: "26110002", completedAt: T0 - 2000, failedDays: 1, failedDay: "2026-11-03" }]);
+  });
+
+  it("0.3.26: an order never requested (no order key on the page) stays queued unchanged", async () => {
+    const ctx = setup({ readers: ["order_income"] });
+    const queue = [
+      { id: "26110001", completedAt: T0 - 3000 },
+      { id: "26110002", completedAt: T0 - 2000, failedDays: 2, failedDay: "2026-11-02" },
+    ];
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: queue };
+    // no answer, no row: what the Connector's postReader gives for an income read with nothing in it
+    (ctx.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_income: "ignored" });
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "done", detail: "no_order_key", responses: [] });
+    expect((await ctx.read())?.incomeQueue).toEqual(queue);
+    expect((await ctx.read())?.lastRun?.outcomes.order_income).toBe("error:order_income:0_rows:no_order_key");
   });
 
   it("0.3.26: a post that did not land keeps every sent order queued", async () => {

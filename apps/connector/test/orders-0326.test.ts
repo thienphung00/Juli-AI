@@ -246,6 +246,18 @@ describe("O4: an account without the Tài chính right is blocked:no_permission,
     expect(isPermissionRefusal(200, { code: 0, message: "permission" })).toBe(false);
   });
 
+  it("no order key in the page's own income call: nothing replayed, said as no_order_key / partial:no_order_key", async () => {
+    const keyless = env({ templates: { order_income_components: { query: { x: "1" }, lastStatus: 500 } } });
+    const none = await runReaderJob({ id: "order_income", orderIds: ["8001", "8002"] }, keyless.env);
+    expect(none).toMatchObject({ status: "done", detail: "no_order_key" });
+    expect(keyless.sent).toHaveLength(0);
+    expect(jobOutcome("order_income", { order_income: "ignored" }, "", none.detail ?? "", none.responses)).toBe("error:order_income:0_rows:no_order_key");
+    const opened = env({ templates: { order_income_components: { query: { x: "1" }, lastResponse: INCOME } } });
+    const some = await runReaderJob({ id: "order_income", orderIds: ["8001", "8002"] }, opened.env);
+    expect(some).toMatchObject({ status: "done", detail: "partial:no_order_key" });
+    expect(opened.sent).toHaveLength(0);
+  });
+
   it("the popup line", () => {
     expect(outcomeStatus("blocked:no_permission|http_403")).toEqual({ status: NO_PERMISSION_LINE, tone: "warn" });
     expect(NO_PERMISSION_LINE).toBe("Cần quyền Tài chính Seller Centre");

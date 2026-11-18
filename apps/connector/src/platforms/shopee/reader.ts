@@ -1203,7 +1203,7 @@ function orderKeyIn(template: Template, orderId: string): { where: "query" | "bo
  * every other id the same GET is replayed with only the order id changed (one request each, at the
  * normal pace). A call whose template shows no order id is never replayed.
  */
-async function readOrderIncome(env: ReaderEnv, ids: string[], collected: ReaderResponse[], sns: string[] = []): Promise<void> {
+async function readOrderIncome(env: ReaderEnv, ids: string[], collected: ReaderResponse[], sns: string[] = []): Promise<string | undefined> {
   const snOf = (index: number) => (sns[index] ? { orderSn: sns[index] } : {});
   // 0.3.26: an account without the Tài chính right sees a permission page (the income call is
   // never made) or the page's own income call is refused: "blocked_no_permission", never silent.
@@ -1237,7 +1237,12 @@ async function readOrderIncome(env: ReaderEnv, ids: string[], collected: ReaderR
     });
   }
   const where = opened ? orderKeyIn(template, opened) : null;
-  if (!where) return;
+  // 0.3.26: no order key in the page's own call: the other orders cannot be requested. Said, not
+  // silent ("no_order_key" when not one order was read; else the rest is left for the next run).
+  if (!where) {
+    if (ids.length <= 1) return undefined;
+    return collected.some((r) => r.endpoint === "order_income_components") ? "partial:no_order_key" : "no_order_key";
+  }
   for (const [offset, id] of ids.slice(1).entries()) {
     const overrides = where.where === "query" ? { query: { [where.key]: id } } : { body: { [where.key]: id } };
     const request = buildReaderRequest(env.origin, "order_income_components", template, overrides, env.session());
@@ -1552,7 +1557,7 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         await readTraffic(env, job.days ?? [], collected);
         break;
       case "order_income":
-        await readOrderIncome(env, job.orderIds ?? [], collected, job.orderSns);
+        partial = await readOrderIncome(env, job.orderIds ?? [], collected, job.orderSns);
         break;
       case "health":
         await readHealth(env, collected);

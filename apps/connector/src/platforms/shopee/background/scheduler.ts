@@ -305,7 +305,7 @@ function ids(responses: ReaderResponse[], previous: string[] | undefined): strin
 }
 
 /** Reader notes that already name the step a 0-row orders run stopped at (0.3.26). */
-const ZERO_ROW_NOTES: ReadonlySet<string> = new Set(["no_ids_from_page"]);
+const ZERO_ROW_NOTES: ReadonlySet<string> = new Set(["no_ids_from_page", "no_order_key"]);
 
 /**
  * "error:<job>:0_rows:<step>[|<note>]" (0.3.26): WHY a run mapped 0 rows, metadata only. The step is
@@ -1138,14 +1138,18 @@ export class ReaderScheduler {
       };
     }
     if (job.id === "order_income") {
-      // 0.3.26: only orders whose income was read (and posted / queued to post) leave the queue; a
-      // failed one stays for tomorrow, counted once per day, and is dropped after
-      // ORDER_INCOME_MAX_FAILED_DAYS failed days.
+      // 0.3.26: only orders whose income was read (and posted / queued to post) leave the queue; an
+      // order whose own request was answered with a refusal / no final amount stays for tomorrow,
+      // counted once per day, and is dropped after ORDER_INCOME_MAX_FAILED_DAYS failed days. An
+      // order never requested (no order key on the page, a stop before its turn) is left unchanged.
       const sent = new Set(job.orderIds ?? []);
+      const answered = new Set(
+        responses.filter((r) => r.endpoint === "order_income_components" && r.orderId).map((r) => r.orderId as string),
+      );
       const landed = posted.order_income === "posted" || posted.order_income === "queued";
       const read = landed ? incomeReadIds(responses) : new Set<string>();
       const incomeQueue = (sched.incomeQueue ?? []).flatMap((o) => {
-        if (!sent.has(o.id)) return [o];
+        if (!sent.has(o.id) || !answered.has(o.id)) return [o];
         if (read.has(o.id)) return [];
         if (o.failedDay === run.day) return [o];
         const failedDays = (o.failedDays ?? 0) + 1;
