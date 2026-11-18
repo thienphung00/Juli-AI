@@ -112,6 +112,15 @@ async def test_an_event_is_validated_and_scoped_to_the_token(session):
     assert other_platform.status_code == 403
 
 
+@pytest.mark.parametrize("status", ["password_recheck", "no_permission"])
+def test_page_only_block_statuses_are_accepted(status):
+    event = svc.ConnectorEvent.model_validate(
+        {**EVENT, "reader": "order_income", "status": status, "code": "reader_only:http_403"}
+    )
+    assert event.status == status
+    assert event.reader == "order_income"
+
+
 async def test_a_stuck_client_cannot_flood_the_audit_log(session):
     user, shop = await _shopee_tenant(session)
     app, code = await _paired_client(session, shop, user)

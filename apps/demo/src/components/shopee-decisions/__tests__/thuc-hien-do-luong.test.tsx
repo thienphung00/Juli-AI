@@ -178,6 +178,12 @@ describe("Đối chiếu ngay", () => {
     ).toBe("Đăng nhập lại Phân tích bán hàng · Xác minh lại Phân tích bán hàng");
   });
 
+  it("no_permission (Connector 0.3.26) reads \"Cần quyền Tài chính Seller Centre\"", async () => {
+    const blocks = [{ section: "seller_centre", reason: "no_permission", readers: ["order_income"] }];
+    renderReco(<ThucHienView />, fakeReco({ execution: line({ reader_blocks: blocks }) }));
+    expect(await screen.findByTestId("sd-th-bar-block")).toHaveTextContent(/^Cần quyền Tài chính Seller Centre$/);
+  });
+
   it("asks the Connector through the host API and reloads", async () => {
     const reco = fakeReco({ execution: line({}) });
     renderReco(<ThucHienView />, reco);

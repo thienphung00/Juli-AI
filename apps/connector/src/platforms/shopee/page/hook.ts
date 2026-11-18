@@ -34,6 +34,7 @@ import {
   runReaderJob,
   type Template as ReaderTemplate,
   trimCaptured,
+  answerCode,
 } from "../reader";
 import { goToNextOrderPage, orderLinksIn, orderListEmptyIn } from "../order-dom";
 import { Pacer, runDay, type DayRequest } from "../runner";
@@ -155,7 +156,21 @@ function keepResponse(endpoint: ReaderEndpoint, body: unknown): void {
   // campaign query and the affiliate pages' own reports. Trimmed to what a mapper may read.
   if (!isCapturedEndpoint(endpoint)) return;
   const template = readerTemplates.get(endpoint);
-  if (template) template.lastResponse = trimCaptured(endpoint, body);
+  if (template) {
+    template.lastResponse = trimCaptured(endpoint, body);
+    delete template.lastStatus;
+    delete template.lastCode;
+  }
+}
+
+/** 0.3.26: a captured endpoint the page called was refused (e.g. 403 on Tài chính): its status and code only. */
+function keepRefusal(endpoint: ReaderEndpoint, status: number, body: unknown): void {
+  if (!isCapturedEndpoint(endpoint)) return;
+  const template = readerTemplates.get(endpoint);
+  if (!template || template.lastResponse !== undefined) return;
+  template.lastStatus = status;
+  const code = answerCode(body);
+  if (code) template.lastCode = code;
 }
 
 function readerTarget(rawUrl: string, method: string): { endpoint: ReaderEndpoint; url: URL } | null {
@@ -219,6 +234,14 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
       .json()
       .then((body: unknown) => keepResponse(reader.endpoint, body))
       .catch(() => undefined);
+  }
+  if (reader && !response.ok) {
+    const status = response.status;
+    response
+      .clone()
+      .json()
+      .then((body: unknown) => keepRefusal(reader.endpoint, status, body))
+      .catch(() => keepRefusal(reader.endpoint, status, undefined));
   }
   const url = method === "GET" ? watched(raw) : null;
   if (url && response.ok) {
@@ -298,7 +321,16 @@ XMLHttpRequest.prototype.send = function send(
   if (reader) {
     learn(reader.endpoint, reader.url, parseJson(body), reader.headers);
     this.addEventListener("load", () => {
-      if (this.status < 200 || this.status >= 300) return;
+      if (this.status < 200 || this.status >= 300) {
+        let refusal: unknown;
+        try {
+          refusal = this.responseType === "json" ? this.response : JSON.parse(typeof this.response === "string" ? this.response : this.responseText);
+        } catch {
+          refusal = undefined;
+        }
+        keepRefusal(reader.endpoint, this.status, refusal);
+        return;
+      }
       try {
         keepResponse(
           reader.endpoint,
@@ -404,6 +436,15 @@ function passwordModalVisible(): boolean {
   return isPasswordPrompt(document.body?.innerText ?? "");
 }
 
+/**
+ * 0.3.26: Seller Centre's "no permission" page or message (a sub-account without the right to a
+ * section, e.g. Tài chính). Read only. TODO(live check): the wording on a real sub-account.
+ */
+function permissionDeniedVisible(): boolean {
+  if (/\/(no[-_]?permission|forbidden|403)(\/|$)/i.test(location.pathname)) return true;
+  return /bạn không có quyền|không có quyền truy cập|no permission to (access|view)/i.test(document.body?.innerText ?? "");
+}
+
 function captchaVisible(): boolean {
   return !!document.querySelector("iframe[src*='captcha' i], [id*='captcha' i], [class*='captcha' i]");
 }
@@ -429,6 +470,7 @@ async function runReader(job: ReaderJob): Promise<void> {
       }),
     captchaVisible,
     passwordModalVisible,
+    permissionDeniedVisible,
     mydataHeaders: () => mydataHeaders,
     pathname: () => location.pathname,
     // The shared daily request budget: what the service worker granted this job.

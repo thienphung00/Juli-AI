@@ -46,6 +46,10 @@ export interface Template {
   headers?: Record<string, string>;
   /** The page's last response body (kept only for `campaign_info`, whose request is not replayed). */
   lastResponse?: unknown;
+  /** 0.3.26: the HTTP status of the page's own last call when it was not 2xx (captured endpoints only). */
+  lastStatus?: number;
+  /** 0.3.26: the Shopee error code of that refused answer, when it had one (metadata only). */
+  lastCode?: string;
 }
 
 export interface ReaderJob {
@@ -120,6 +124,8 @@ export type ReaderStatus =
   | "blocked_rate"
   /** The shared daily request budget is spent: the job stops, the rest waits for tomorrow. */
   | "budget_spent"
+  /** 0.3.26: the account may not open this page (Tài chính / income): this page only, never retried today. */
+  | "blocked_no_permission"
   | "error";
 
 export interface ReaderOutcome {
@@ -180,6 +186,8 @@ export interface ReaderEnv {
   orderListEmpty?: () => boolean;
   /** orders (0.3.20): go to the next list page with the page's own pager; false when there is none. */
   nextOrderPage?: () => boolean;
+  /** 0.3.26: the page shows Seller Centre's "no permission" page or message (a sub-account without the right). */
+  permissionDeniedVisible?: () => boolean;
 }
 
 // -- request building ----------------------------------------------------------------------
@@ -279,6 +287,31 @@ export function classify(status: number, body: unknown): Verdict {
   return LOGIN_WORDS.test(text) ? "login" : "error";
 }
 
+/** Shopee wording that means "this account may not open this" (a sub-account without the right). */
+const PERMISSION_WORDS = /permission|không có quyền|khong co quyen|quyền truy cập|quyen truy cap|forbidden/i;
+
+/** The Shopee error code of an answer, as a short metadata token (no message text), or "". */
+export function answerCode(body: unknown): string {
+  if (!isRecord(body)) return "";
+  const code = body.code ?? body.error;
+  if (code === undefined || code === null || code === 0 || code === "0" || code === "") return "";
+  return String(code).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 16);
+}
+
+/**
+ * 0.3.26: an answer to one of OUR requests that says the account has no permission: a refusal
+ * (HTTP 403 that is not the anti-fraud verification, or a Shopee error code) whose message says
+ * "permission" / "không có quyền". A bare 403 to a replay stays classify's rate stop (P97: every
+ * reader stops on a refusal); a 403 on the page's OWN income call is handled in readOrderIncome.
+ * Only the income reader asks (Tài chính).
+ */
+export function isPermissionRefusal(status: number, body: unknown): boolean {
+  if (status === 401 || status === 429 || !isRecord(body)) return false;
+  if (status === 403 && Number(body.error ?? body.code) === ANTI_FRAUD_CODE) return false;
+  if (status !== 403 && answerCode(body) === "") return false;
+  return PERMISSION_WORDS.test(`${String(body.msg ?? "")} ${String(body.message ?? "")} ${String(body.error_msg ?? "")}`);
+}
+
 /** First array of objects (breadth-first, a few levels deep) whose first element passes `fits`. */
 export function findList(
   root: unknown,
@@ -360,6 +393,7 @@ async function send(
   collected: ReaderResponse[],
   extra: Partial<ReaderResponse> = {},
   tolerateError = false,
+  permissionAware = false,
 ): Promise<ReaderResponse> {
   if (env.passwordModalVisible?.()) throw new Stop(fail("blocked_password_recheck", collected, "password_modal"));
   const wall = env.captchaVisible?.() ? "captcha" : blockedPath(env.pathname?.() ?? "");
@@ -393,6 +427,10 @@ async function send(
     ...extra,
   };
   collected.push(result);
+  if (permissionAware && isPermissionRefusal(status, body)) {
+    const code = answerCode(body);
+    throw new Stop(fail("blocked_no_permission", collected, `http_${status}${code ? `_code_${code}` : ""}`));
+  }
   const verdict = classify(status, body);
   if (verdict === "captcha") throw new Stop(fail("blocked_captcha", collected, `http_${status}`));
   if (verdict === "login") throw new Stop(fail("blocked_login", collected, `http_${status}`));
@@ -1013,8 +1051,9 @@ async function readOrdersFromList(env: ReaderEnv, collected: ReaderResponse[], s
   if (wanted.length === 0) return note ?? "no_new_orders";
   if (!isReadOnlyOrderDetailPath(READER_ENDPOINTS.order_detail.path)) return note;
   if (!(await env.waitFor(() => env.hasSession(), 10_000))) throw new Stop(fail("needs_data_page", collected, "order_detail"));
-  // The page's own call to the order page (when the hook saw one) gives the headers; else none.
-  const template = env.template("order_detail");
+  // The page's own call to the order page (when the hook saw one) gives the headers; else the
+  // headers of the list page's own order-service call (0.3.26); never invented ones.
+  const template = env.template("order_detail") ?? orderServiceHeaders(env);
   for (const link of wanted.slice(0, ORDER_DETAIL_MAX_PER_RUN)) {
     if (env.budget && env.budget.left <= 0) return "partial:budget";
     const request = buildReaderRequest(env.origin, "order_detail", template, { query: { order_id: link.id } }, env.session());
@@ -1027,14 +1066,38 @@ async function readOrdersFromList(env: ReaderEnv, collected: ReaderResponse[], s
 }
 
 /**
- * The order list: through the page's own order links (0.3.20, readOrdersFromList) when the page
- * shows them and the old list endpoints never answered; through those endpoints otherwise. A page
- * that shows its "no orders" state ends the job as "no_orders".
+ * Headers for a get_one_order read from the list page (0.3.26): the list page never calls it, so
+ * the headers of the page's own order-service call (the cards / index request the hook saw) are
+ * used; none when the page made no such call. Only the headers: never that call's query or body.
+ */
+function orderServiceHeaders(env: ReaderEnv): Template | undefined {
+  for (const endpoint of ["order_cards", "order_search"] as const) {
+    const headers = env.template(endpoint)?.headers;
+    if (!headers) continue;
+    const kept = Object.fromEntries(Object.entries(headers).filter(([name]) => name.toLowerCase() !== "content-type"));
+    if (Object.keys(kept).length > 0) return { query: {}, headers: kept };
+  }
+  return undefined;
+}
+
+/** The page's own card answer holds at least one order (not only that the hook kept an answer). */
+export function cardsHoldOrders(lastResponse: unknown): boolean {
+  if (lastResponse === undefined) return false;
+  const trimmed = trimOrderCards(lastResponse) as { data?: { list?: unknown[] } };
+  return (trimmed.data?.list?.length ?? 0) > 0;
+}
+
+/**
+ * The order list: through the old list endpoints when the page's own card answer holds orders;
+ * else through the page's own order links (0.3.20, readOrdersFromList). 0.3.26: a card answer the
+ * hook kept but that holds no order (Shopee's DRM bundle) no longer wins over the links: before,
+ * that answer mapped to 0 orders, silently ("orders:0_rows:ignored", 15-17/11). A page that shows
+ * its "no orders" state ends the job as "no_orders"; a card answer without orders on a page that
+ * shows no order link ends it as "no_ids_from_page".
  */
 async function readOrders(env: ReaderEnv, collected: ReaderResponse[], sinceDay?: string): Promise<string | undefined> {
-  const answered = () => env.template("order_cards")?.lastResponse !== undefined;
+  const answered = () => cardsHoldOrders(env.template("order_cards")?.lastResponse);
   if (env.orderLinks) {
-    // 0.3.20: the list page's own links, unless the old list endpoints answer again (then below).
     const shown = () => (env.orderLinks?.().length ?? 0) > 0;
     const empty = () => env.orderListEmpty?.() === true;
     await env.waitFor(() => answered() || shown() || empty(), READER_TEMPLATE_WAIT_MS);
@@ -1043,6 +1106,7 @@ async function readOrders(env: ReaderEnv, collected: ReaderResponse[], sinceDay?
     if (!answered()) {
       if (shown()) return readOrdersFromList(env, collected, sinceDay);
       if (empty()) return "no_orders";
+      if (env.template("order_cards")?.lastResponse !== undefined) return "no_ids_from_page";
       throw new Stop(fail(env.hasSession() ? "needs_template" : "needs_data_page", collected, "order_list"));
     }
   }
@@ -1139,10 +1203,26 @@ function orderKeyIn(template: Template, orderId: string): { where: "query" | "bo
  * every other id the same GET is replayed with only the order id changed (one request each, at the
  * normal pace). A call whose template shows no order id is never replayed.
  */
-async function readOrderIncome(env: ReaderEnv, ids: string[], collected: ReaderResponse[], sns: string[] = []): Promise<void> {
+async function readOrderIncome(env: ReaderEnv, ids: string[], collected: ReaderResponse[], sns: string[] = []): Promise<string | undefined> {
   const snOf = (index: number) => (sns[index] ? { orderSn: sns[index] } : {});
+  // 0.3.26: an account without the Tài chính right sees a permission page (the income call is
+  // never made) or the page's own income call is refused: "blocked_no_permission", never silent.
+  const denied = () => env.permissionDeniedVisible?.() === true;
+  const own = () => env.template("order_income_components");
+  const refused = () => {
+    const t = own();
+    return t !== undefined && t.lastResponse === undefined && t.lastStatus === 403 && Number(t.lastCode) !== ANTI_FRAUD_CODE;
+  };
+  const walled = () => env.captchaVisible?.() === true || env.passwordModalVisible?.() === true;
+  const settled = () => own()?.lastStatus !== undefined || (env.hasSession() && own()?.lastResponse !== undefined);
+  await env.waitFor(() => denied() || walled() || settled(), READER_TEMPLATE_WAIT_MS);
+  if (denied()) throw new Stop(fail("blocked_no_permission", collected, "page"));
+  if (refused()) throw new Stop(fail("blocked_no_permission", collected, `http_403${own()?.lastCode ? `_code_${own()?.lastCode}` : ""}`));
   await waitForPage(env, ["order_income_components"], collected);
   const template = env.template("order_income_components") as Template;
+  if (template.lastResponse !== undefined && isPermissionRefusal(200, template.lastResponse)) {
+    throw new Stop(fail("blocked_no_permission", collected, `http_200_code_${answerCode(template.lastResponse)}`));
+  }
   const opened = ids[0];
   if (opened && template.lastResponse !== undefined) {
     collected.push({
@@ -1157,12 +1237,17 @@ async function readOrderIncome(env: ReaderEnv, ids: string[], collected: ReaderR
     });
   }
   const where = opened ? orderKeyIn(template, opened) : null;
-  if (!where) return;
+  // 0.3.26: no order key in the page's own call: the other orders cannot be requested. Said, not
+  // silent ("no_order_key" when not one order was read; else the rest is left for the next run).
+  if (!where) {
+    if (ids.length <= 1) return undefined;
+    return collected.some((r) => r.endpoint === "order_income_components") ? "partial:no_order_key" : "no_order_key";
+  }
   for (const [offset, id] of ids.slice(1).entries()) {
     const overrides = where.where === "query" ? { query: { [where.key]: id } } : { body: { [where.key]: id } };
     const request = buildReaderRequest(env.origin, "order_income_components", template, overrides, env.session());
     // An income answer that is not data (a refused order) is skipped; a rate stop still stops all.
-    await send(env, request, collected, { orderId: id, ...snOf(offset + 1) }, true);
+    await send(env, request, collected, { orderId: id, ...snOf(offset + 1) }, true, true);
   }
 }
 
@@ -1472,7 +1557,7 @@ export async function runReaderJob(job: ReaderJob, env: ReaderEnv): Promise<Read
         await readTraffic(env, job.days ?? [], collected);
         break;
       case "order_income":
-        await readOrderIncome(env, job.orderIds ?? [], collected, job.orderSns);
+        partial = await readOrderIncome(env, job.orderIds ?? [], collected, job.orderSns);
         break;
       case "health":
         await readHealth(env, collected);

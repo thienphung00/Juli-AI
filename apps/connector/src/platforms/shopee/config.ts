@@ -267,6 +267,8 @@ export const ORDER_INCOME_FIRST_RUN_DAYS = 3;
 /** Completed orders waiting for their income read are kept at most this long / this many. */
 export const ORDER_INCOME_QUEUE_MAX = 300;
 export const ORDER_INCOME_QUEUE_DAYS = 14;
+/** 0.3.26: an order whose income read failed on this many days is dropped from the queue. */
+export const ORDER_INCOME_MAX_FAILED_DAYS = 3;
 /** Shop totals: the 30 days after pairing, then the last 7 each day (placed / paid settle late). */
 export const SHOP_TOTALS_BACKFILL_DAYS = 30;
 export const SHOP_TOTALS_REFRESH_DAYS = 7;

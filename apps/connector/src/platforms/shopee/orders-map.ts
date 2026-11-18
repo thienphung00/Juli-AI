@@ -443,6 +443,39 @@ export function completedOrders(responses: ReaderResponse[]): { id: string; sn?:
   return out;
 }
 
+// -- why a run mapped 0 rows (0.3.26) -----------------------------------------------------------
+
+/** The order-list / order-detail endpoints and the income endpoint, per job. */
+const ZERO_ROW_ENDPOINTS = {
+  orders: new Set(["order_search", "order_cards", "order_detail"]),
+  order_income: new Set(["order_income_components"]),
+} as const;
+
+/** `http_<status>` plus `_code_<code>` when Shopee gave one: metadata only, never a message or an id. */
+function failureKey(response: ReaderResponse): string {
+  const body = response.body;
+  const raw = isRecord(body) ? (body.code ?? body.error) : undefined;
+  const code = raw === undefined || raw === null || raw === 0 || raw === "0" ? "" : String(raw).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 16);
+  return `http_${response.status}${code ? `_code_${code}` : ""}`;
+}
+
+/**
+ * The step at which a run that mapped 0 rows came up empty, from the job's own answers (status
+ * and Shopee code only): "no_list_answer" / "no_income_answer" (nothing was read),
+ * "detail_failed:<http|code>x<N>" (every answer was refused; the commonest refusal and how many
+ * answers were refused), else "no_mappable_order" (answers came back but held no usable order).
+ */
+export function zeroRowsStep(job: keyof typeof ZERO_ROW_ENDPOINTS, responses: ReaderResponse[]): string {
+  const answers = responses.filter((r) => ZERO_ROW_ENDPOINTS[job].has(r.endpoint));
+  if (answers.length === 0) return job === "orders" ? "no_list_answer" : "no_income_answer";
+  const failed = answers.filter((r) => classify(r.status, r.body) !== "ok");
+  if (failed.length < answers.length) return "no_mappable_order";
+  const counts = new Map<string, number>();
+  for (const r of failed) counts.set(failureKey(r), (counts.get(failureKey(r)) ?? 0) + 1);
+  const [top] = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  return `detail_failed:${top![0]}x${failed.length}`;
+}
+
 // -- per-order income ---------------------------------------------------------------------------
 
 /** Vietnamese labels (diacritics stripped, lower case) -> the order_income field they fill. */
@@ -488,6 +521,19 @@ function pairs(root: unknown, depth = 8): { label: string; amount: number }[] {
     for (const value of Object.values(node)) if (typeof value === "object" && value !== null) walk(value, level + 1);
   };
   walk(root, 0);
+  return out;
+}
+
+/**
+ * 0.3.26: the order ids (the id the income call takes) whose income answer was read: an ok answer
+ * with the final amount ("Số tiền cuối cùng"). Any other sent order is retried by the scheduler.
+ */
+export function incomeReadIds(responses: ReaderResponse[]): Set<string> {
+  const out = new Set<string>();
+  for (const r of responses) {
+    if (r.endpoint !== "order_income_components" || !r.orderId || classify(r.status, r.body) !== "ok") continue;
+    if (pairs(payloadOf(r.body)).some((p) => /^so tien cuoi cung/.test(plain(p.label)))) out.add(r.orderId);
+  }
   return out;
 }
 

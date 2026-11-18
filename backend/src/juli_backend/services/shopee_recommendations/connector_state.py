@@ -67,7 +67,9 @@ ACTION_CONNECTOR_TICK = "system_connector_tick"
 DATACENTER_READERS = frozenset({"shop_totals", "traffic", "product_period", "item_traffic"})
 SECTION_DATACENTER = "phan_tich_ban_hang"
 SECTION_SELLER_CENTRE = "seller_centre"
-_BLOCK_REASONS = ("login", "captcha", "password_recheck")
+#: ``no_permission`` (Connector 0.3.26): the sub-account may not open Tài chính (the income page);
+#: page-only, a Seller Centre section block.
+_BLOCK_REASONS = ("login", "captcha", "password_recheck", "no_permission")
 
 #: Reader -> the datasets it posts; kept equal to ``READER_DATASETS`` in
 #: ``apps/connector/src/platforms/shopee/config.ts`` (a test reads that file). An accepted

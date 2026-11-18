@@ -940,7 +940,8 @@ class ConnectorEvent(BaseModel):
     platform: Literal["shopee", "tiktok"]
     reader: Annotated[str, StringConstraints(pattern=r"^[a-z_]{1,48}$")]
     page: Annotated[str, StringConstraints(max_length=120)] = ""
-    status: Literal["captcha", "login", "rate_limit"]
+    #: ``password_recheck`` (0.3.25) and ``no_permission`` (0.3.26) block one page, not the run.
+    status: Literal["captcha", "login", "rate_limit", "password_recheck", "no_permission"]
     code: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_.:\-]{1,40}$")] | None = None
     occurred_at: datetime | None = None
     source_version: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9._+\-]{1,64}$")]
