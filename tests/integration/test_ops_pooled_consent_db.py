@@ -290,6 +290,51 @@ def test_the_fleet_function_has_the_definer_shape_and_juli_ops_only(owner_engine
     assert (ops_exec, app_exec, public_exec) == (True, False, False)
 
 
+def test_the_fleet_function_draws_real_shops_only_not_sample_or_sandbox(owner_engine):
+    """Migration 133: a consenting, calibrated shop is drawn only when ``shops.kind`` is
+    ``'real'``; the sample-shop loader tags its shop ``'sample'`` so it never lends to the fleet.
+    One transaction, rolled back, on a lever no other test reads."""
+    from tests.integration.two_tenant import seed_tenant
+
+    lever = "probe_kind_133"
+    shops = {
+        kind: seed_tenant(owner_engine, label=f"kind-{kind}")
+        for kind in ("real", "sample", "sandbox")
+    }
+    with owner_engine.connect() as conn:
+        for kind, tenant in shops.items():
+            conn.execute(
+                text("UPDATE public.shops SET kind = :k WHERE id = :s"),
+                {"k": kind, "s": tenant.shop_id},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO public.lever_calibrations (id, shop_id, lever, coefficient, "
+                    "readings, updated_at) VALUES (:id, :s, :lever, 0.5, 10, now())"
+                ),
+                {"id": uuid.uuid4(), "s": tenant.shop_id, "lever": lever},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO public.data_use_consents (id, shop_id, scope, method, "
+                    "terms_version, evidence_ref, granted_by, granted_at) VALUES "
+                    "(:id, :s, 'pooled_training', 'contract_paper', 'synthetic', "
+                    "'synthetic/contract.pdf', 'Synthetic Director', now() - interval '1 day')"
+                ),
+                {"id": uuid.uuid4(), "s": tenant.shop_id},
+            )
+        conn.execute(text(f"SET LOCAL ROLE {OPS_ROLE}"))
+        drawn = {
+            str(r[0])
+            for r in conn.execute(
+                text(f"SELECT out_shop_id FROM {FLEET_FUNCTION} WHERE out_lever = :lever"),  # nosec B608
+                {"lever": lever},
+            )
+        }
+        conn.rollback()
+    assert drawn == {str(shops["real"].shop_id)}
+
+
 @pytest.mark.asyncio
 async def test_a_single_consenting_shop_opens_no_fleet_cell_and_records_nothing(owner_engine):
     """Production today: one development shop consents, the others do not (D14)."""
