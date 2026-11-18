@@ -33,7 +33,7 @@ from juli_backend.models.shopee_profit import PlatformItemSnapshot
 from juli_backend.repositories import ShopeeOrderLinesRepo
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.windows import Window
-from juli_backend.services.shopee_profit.order_profit import OrderStatus
+from juli_backend.services.shopee_profit.order_profit import OrderStatus, counts_in_sales
 
 NO_SKU = "Không có SKU"
 SkuKey = tuple[str, str, str]  # (product id, cost key, variation id)
@@ -81,9 +81,10 @@ async def sku_figures(
         fig.variation = fig.variation or r.variation_name
         if ln.status is OrderStatus.CANCELLED:
             continue
-        net = max(ln.qty - returned.get((r.order_ref, r.line_no), 0), 0)
-        fig.units += net
-        fig.revenue += ln.deal_price * net
+        if counts_in_sales(ln):  # a refund (owner 2026-11-18) is no sale; its cost stays below
+            net = max(ln.qty - returned.get((r.order_ref, r.line_no), 0), 0)
+            fig.units += net
+            fig.revenue += ln.deal_price * net
         if pb.excluded_reason is None:
             included[ln.product_id] += pb.list_value
             fig.list_value += pb.list_value

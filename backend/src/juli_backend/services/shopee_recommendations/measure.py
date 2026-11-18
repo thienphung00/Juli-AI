@@ -42,6 +42,7 @@ from juli_backend.repositories import (
 from juli_backend.services.card_measure import reader
 from juli_backend.services.shopee_analytics import forecast_base, loaders
 from juli_backend.services.shopee_analytics.catalog import Catalog
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_recommendations import (
     ads_readback,
     change_sets,
@@ -139,8 +140,8 @@ async def load_item_days(
     lines = await ShopeeOrderLinesRepo(session).in_window(shop_id, first, last)
     seen: dict[tuple[str, date], set[str]] = defaultdict(set)
     for ln in lines:
-        if ln.paid_at is None:
-            continue
+        if ln.paid_at is None or not counts_in_sales(ln):
+            continue  # unpaid, or a refund (owner 2026-11-18: no sale)
         item = catalog.resolve(ln.item_id, ln.sku, ln.variation_sku)
         if not item or item.startswith("sku:"):
             continue

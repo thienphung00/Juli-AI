@@ -128,10 +128,11 @@ def settlement_deduction(line: OrderLine) -> Decimal | None:
     return max(ZERO, -income.payout)
 
 
-def counts_in_sales(line: OrderLine) -> bool:
+def counts_in_sales(line: object) -> bool:
     """``line`` counts in đơn / GMV / AOV: every status but the refund statuses
-    (``REFUND_STATUSES``, owner 2026-11-18). A line-like object without a status (a what-if or
-    synthetic line) counts."""
+    (``REFUND_STATUSES``, owner 2026-11-18). Any line-like object: an :class:`OrderLine`, or a
+    stored order-line row whose ``status`` is the canonical string. Without a status (a what-if
+    or synthetic line) it counts."""
     status = getattr(line, "status", None)
     return status is None or status not in REFUND_STATUSES
 
