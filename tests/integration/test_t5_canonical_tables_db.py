@@ -10,8 +10,9 @@
 - T6 / T10: the time columns are ``timestamptz``; ``stock_history`` has its (shop_id, read_at)
   index;
 - last, T6 + T11: rows seeded at 133 (naive Vietnam-local order times, naive UTC read times, an
-  unknown status) come up converted (23:30 VN stays on its day; 17:00 UTC is the next VN day),
-  normalised and ranked; a downgrade to 133 restores the names, the columns and the naive times;
+  unknown status) come up converted (03:00 VN -- the previous UTC date -- stays on its VN day;
+  17:00 UTC is the next VN day), normalised and ranked; a downgrade to 133 restores the names
+  (tables, constraints, indexes, policies), the grants, the columns and the naive times;
   ``upgrade head`` again.
 
 Synthetic tenants only.
@@ -228,7 +229,7 @@ def _seed_at_133(conn, shop_id: uuid.UUID) -> None:
                 "INSERT INTO public.shopee_order_lines (id, shop_id, platform, order_ref, "
                 "line_no, ordered_at, paid_at, status, item_id, qty, original_price, deal_price, "
                 "shopee_subsidy, source, source_version) VALUES (:id, :shop, 'shopee', :ref, 0, "
-                "'2026-10-01 23:30:00', :paid, :status, '1001', 1, 100000, 90000, 5000, 'file', "
+                "'2026-10-01 03:00:00', :paid, :status, '1001', 1, 100000, 90000, 5000, 'file', "
                 "'t5')"
             ),
             {
@@ -236,7 +237,7 @@ def _seed_at_133(conn, shop_id: uuid.UUID) -> None:
                 "shop": shop_id,
                 "ref": ref,
                 "status": status,
-                "paid": datetime(2026, 10, 1, 23, 32) if paid else None,
+                "paid": datetime(2026, 10, 1, 3, 2) if paid else None,
             },
         )
     conn.execute(
@@ -244,7 +245,7 @@ def _seed_at_133(conn, shop_id: uuid.UUID) -> None:
             "INSERT INTO public.shopee_affiliate_lines (id, shop_id, platform, order_ref, line_no, "
             "item_id, model_id, order_status, ordered_at, source, source_version) VALUES "
             "(:id, :shop, 'shopee', :ref, 0, '1001', '55', 'Đã hoàn thành', "
-            "'2026-10-01 23:30:00', 'extension', 't5')"
+            "'2026-10-01 03:00:00', 'extension', 't5')"
         ),
         {"id": uuid.uuid4(), "shop": shop_id, "ref": "3" * 32},
     )
@@ -260,7 +261,7 @@ def _seed_at_133(conn, shop_id: uuid.UUID) -> None:
 def _converted(conn, shop_id: uuid.UUID) -> dict:
     lines = conn.execute(
         text(
-            "SELECT order_ref, ordered_at = TIMESTAMPTZ '2026-10-01 16:30:00+00', day, status, "
+            "SELECT order_ref, ordered_at = TIMESTAMPTZ '2026-09-30 20:00:00+00', day, status, "
             "platform_subsidy, source_rank FROM public.order_lines WHERE shop_id = :s "
             "ORDER BY order_ref"
         ),
@@ -268,7 +269,7 @@ def _converted(conn, shop_id: uuid.UUID) -> dict:
     ).all()
     affiliate = conn.execute(
         text(
-            "SELECT variation_id, status, day, ordered_at = TIMESTAMPTZ '2026-10-01 16:30:00+00', "
+            "SELECT variation_id, status, day, ordered_at = TIMESTAMPTZ '2026-09-30 20:00:00+00', "
             "source_rank FROM public.affiliate_lines WHERE shop_id = :s"
         ),
         {"s": shop_id},
@@ -286,6 +287,21 @@ def _converted(conn, shop_id: uuid.UUID) -> dict:
         "affiliate": tuple(affiliate),
         "stock": tuple(stock),
     }
+
+
+def _object_names(conn, table: str) -> list[str]:
+    """The constraint, index and policy names of ``public.<table>``."""
+    return list(
+        conn.execute(
+            text(
+                "SELECT conname FROM pg_constraint WHERE conrelid = CAST(:t AS regclass) "
+                "UNION ALL SELECT indexname FROM pg_indexes "
+                "WHERE schemaname = 'public' AND tablename = :n "
+                "UNION ALL SELECT polname FROM pg_policy WHERE polrelid = CAST(:t AS regclass)"
+            ),
+            {"t": f"public.{table}", "n": table},
+        ).scalars()
+    )
 
 
 def _restored(conn, shop_id: uuid.UUID) -> dict:
@@ -323,6 +339,14 @@ def _restored(conn, shop_id: uuid.UUID) -> dict:
         "kinds": kinds,
         "types": types,
         "new_gone": all(_relkind(conn, new) is None for _old, new, _v in M.TABLES),
+        "new_named": [
+            name
+            for old, new, _v in M.TABLES
+            for name in _object_names(conn, old)
+            if new in name and old not in name
+        ],
+        "named": all(_object_names(conn, old) for old, _new, _v in M.TABLES),
+        "verbs": {old: _verbs(conn, old) for old, _new, _v in M.TABLES},
     }
 
 
@@ -354,12 +378,17 @@ def test_zz_rows_convert_up_and_back_down(owner_engine, two_tenants):
             down = _restored(conn, shop_id)
         assert down["kinds"] == {old: "r" for old, _new, _v in M.TABLES}
         assert down["new_gone"] is True
+        # constraint / index / policy names carry the old table names again, grants as at 133
+        assert down["named"] is True and down["new_named"] == []
+        assert down["verbs"] == {
+            old: {v.strip() for v in verbs.split(",")} for old, _new, verbs in M.TABLES
+        }
         assert down["types"] == {"timestamp without time zone"}
         assert down["lines"] == [
-            ("1" * 32, datetime(2026, 10, 1, 23, 30), 5000),
-            ("2" * 32, datetime(2026, 10, 1, 23, 30), 5000),
+            ("1" * 32, datetime(2026, 10, 1, 3, 0), 5000),
+            ("2" * 32, datetime(2026, 10, 1, 3, 0), 5000),
         ]
-        assert down["affiliate"] == ("55", "Đã hoàn thành", datetime(2026, 10, 1, 23, 30))
+        assert down["affiliate"] == ("55", "Đã hoàn thành", datetime(2026, 10, 1, 3, 0))
         assert down["stock"] == ("55", datetime(2026, 10, 1, 17, 0))
     finally:
         command.upgrade(cfg, "head")

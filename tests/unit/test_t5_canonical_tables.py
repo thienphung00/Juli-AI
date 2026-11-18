@@ -66,6 +66,8 @@ DAY = date(2026, 10, 1)
 LATE = datetime(2026, 10, 1, 23, 30)
 #: 00:30 Vietnam local the next day: 17:30 UTC on DAY, but DAY + 1 in GMT+7
 EARLY_NEXT = datetime(2026, 10, 2, 0, 30)
+#: 03:00 Vietnam local on DAY: 20:00 UTC the day BEFORE, so a UTC-computed day would be wrong
+EARLY_SAME = datetime(2026, 10, 1, 3, 0)
 
 
 def _module():
@@ -110,6 +112,14 @@ def test_the_seven_tables_map_old_to_new_with_unchanged_verbs():
     for old, new in pairs.items():
         assert TABLE_CLASSIFICATION_MAP[("public", new)] == "tenant_direct"
         assert ("public", old) not in TABLE_CLASSIFICATION_MAP  # a view, not a table
+
+
+def test_upgrade_and_downgrade_set_a_transaction_local_lock_timeout():
+    source = PATH.read_text()
+    up = source.split("def upgrade")[1].split("def downgrade")[0]
+    down = source.split("def downgrade")[1]
+    assert "SET LOCAL lock_timeout" in source and _module().LOCK_TIMEOUT == "10s"
+    assert "_fail_fast()" in up and "_fail_fast()" in down
 
 
 def test_compat_views_are_security_invoker_and_granted():
@@ -282,6 +292,7 @@ async def test_order_line_writer_reads_naive_times_as_vietnam_local(session):
         _order_row(1, LATE),
         _order_row(2, datetime(2026, 10, 1, 17, 30, tzinfo=gmt0)),  # aware: 00:30 VN on Oct 2
         _order_row(3, LATE, status="UNPAID_SOMETHING", paid_at=None),
+        _order_row(4, EARLY_SAME),  # 03:00 VN: the previous date in UTC, still DAY in GMT+7
     ]
     await write_order_lines(session, rows, None, _provenance(shop.id))
     stored = {r.order_ref: r for r in (await session.execute(select(ShopeeOrderLine))).scalars()}
@@ -294,6 +305,9 @@ async def test_order_line_writer_reads_naive_times_as_vietnam_local(session):
     assert second.ordered_at == datetime(2026, 10, 1, 17, 30, tzinfo=UTC)
     assert second.day == DAY + timedelta(days=1)
     assert stored[f"{3:032x}"].status == "pending"
+    fourth = stored[f"{4:032x}"]
+    assert fourth.ordered_at == datetime(2026, 9, 30, 20, 0, tzinfo=UTC)
+    assert fourth.day == DAY
 
 
 async def test_affiliate_writer_stamps_day_variation_and_status(session):

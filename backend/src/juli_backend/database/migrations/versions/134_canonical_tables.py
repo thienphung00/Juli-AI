@@ -32,7 +32,9 @@ TikTok mapper writes to the same tables Shopee does.
   assumed from the same source (their gap to ``ordered_at`` is days, so a 7 h shift cannot be
   ruled out by reading). ``read_at`` (the post's ``captured_at`` made naive UTC by the gateway)
   and the audit times (``created_at``, ``updated_at``, ``built_at``: ``now()`` / the gateway's
-  naive-UTC clock) are UTC.
+  naive-UTC clock) are UTC. The stock-alert tables (``shopee_sku_tracking``,
+  ``shopee_stock_alert_unsubscribes``, ``shopee_stock_alert_sends``) are not T5 tables: their
+  times stay naive UTC.
 - Order statuses (Q-T5-3, D2): ``order_lines.status`` is one of ``pending``, ``confirmed``,
   ``in_transit``, ``delivered``, ``cancelled``, ``refunded_accepted``, ``refunded_not_received``,
   ``returned``, ``on_hold`` (CHECK). A stored value outside the set becomes ``in_transit`` when the
@@ -54,6 +56,10 @@ separate step (workers and Connector sync paused), then the deploy tag runs with
 so the gate passes. Runbook: ``docs/runbooks/t5-maintenance-window.md``. Forward fix only: after
 the window the downgrade is for tests and emergencies, never part of a rollback.
 
+``lock_timeout`` (``LOCK_TIMEOUT``, transaction-local): every rename / type change takes an
+ACCESS EXCLUSIVE lock on a fact table; if a straggling worker or Connector post still holds
+one, the migration fails fast and can be re-run instead of queueing every later query behind it.
+
 ``source_rank`` is filled with the ranks of the owner's 2026-11-18 order (API > Connector > file
 > vendor: api 4, extension 3, file 2, vendor 1), as ``models.ingest.SOURCE_RANK`` now holds them.
 """
@@ -72,6 +78,8 @@ depends_on: str | Sequence[str] | None = None
 APP_ROLE = "juli_app"
 VN = "Asia/Ho_Chi_Minh"
 UTC = "UTC"
+#: fail fast on a held lock (see the module doc)
+LOCK_TIMEOUT = "10s"
 UPSERT_VERBS = "SELECT, INSERT, UPDATE"
 APPEND_ONLY_VERBS = "SELECT, INSERT"
 
@@ -192,9 +200,14 @@ def _grant(relation: str, verbs: str) -> None:
     """)  # nosec B608 - fixed module constants
 
 
+def _fail_fast() -> None:
+    op.execute(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'")  # nosec B608 - module constant
+
+
 def upgrade() -> None:
     if op.get_bind().dialect.name != "postgresql":
         return
+    _fail_fast()
     for old, new, _verbs in TABLES:
         op.execute(f"ALTER TABLE public.{old} RENAME TO {new}")  # nosec B608
         _rename_objects(new, old, new)
@@ -243,6 +256,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     if op.get_bind().dialect.name != "postgresql":
         return
+    _fail_fast()
     for old, _new, _verbs in TABLES:
         op.execute(f"DROP VIEW IF EXISTS public.{old}")  # nosec B608
     for index, _table, _columns in INDEXES:
