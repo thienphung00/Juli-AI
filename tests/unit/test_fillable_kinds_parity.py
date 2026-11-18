@@ -14,7 +14,9 @@ MODEL_TS = Path(__file__).resolve().parents[2] / "apps/demo/src/lib/shopee-decis
 def test_fillable_change_kinds_equal_the_fill_queue_kinds():
     text = MODEL_TS.read_text(encoding="utf-8")
     assert "FILLABLE_CHANGE_KINDS" in text, "FILLABLE_CHANGE_KINDS not found in model.ts"
-    body = text.split("FILLABLE_CHANGE_KINDS", 1)[1].split("]", 1)[0]
-    parsed = set(re.findall(r'"([a-z_]+)"', body))
+    # the array literal after "=" (the type annotation `readonly string[]` has brackets too)
+    match = re.search(r"FILLABLE_CHANGE_KINDS[^=]*=\s*\[(.*?)\]", text, re.S)
+    assert match, "FILLABLE_CHANGE_KINDS has no array literal"
+    parsed = set(re.findall(r'"([a-z_]+)"', match.group(1)))
     assert parsed, "FILLABLE_CHANGE_KINDS has no kinds"
     assert parsed == set(fill_queue._KIND_OF.keys())
