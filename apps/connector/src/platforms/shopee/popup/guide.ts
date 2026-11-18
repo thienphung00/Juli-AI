@@ -265,8 +265,6 @@ export function outcomeStatus(outcome: string): { status: string; tone: Tone } {
       return { status: "Dừng: Seller Centre yêu cầu xác minh (CAPTCHA)", tone: "warn" };
     case "blocked_login":
       return { status: "Dừng: cần đăng nhập lại Seller Centre", tone: "warn" };
-    case "blocked_password_recheck":
-      return { status: PASSWORD_RECHECK_LINE, tone: "warn" };
     case "blocked":
       // 0.3.22: "blocked:login" / "blocked:captcha": this page only; the other pages went on.
       if (outcome.startsWith("blocked:password_recheck")) return { status: PASSWORD_RECHECK_LINE, tone: "warn" };
@@ -389,7 +387,7 @@ export function tickResultLabel(result: string): string {
     case "budget_spent":
       return "hết lượt đọc hôm nay";
     default:
-      return head.startsWith("blocked:password_recheck") || head === "blocked_password_recheck"
+      return head.startsWith("blocked:password_recheck")
         ? PASSWORD_RECHECK_LOWER
         : head.startsWith("blocked:")
           ? "dừng: Seller Centre yêu cầu đăng nhập hoặc xác minh"

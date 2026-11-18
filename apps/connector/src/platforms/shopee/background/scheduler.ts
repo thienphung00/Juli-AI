@@ -830,10 +830,12 @@ export class ReaderScheduler {
    */
   private async wall(sched: ReaderSchedule, run: ReaderRun, reason: "login" | "captcha" | "password_recheck", detail?: string): Promise<string> {
     const job = run.jobs[run.index];
-    if (!job || run.kind === "stock") return this.block(sched, run, reason, detail);
+    if (!job || (run.kind === "stock" && reason !== "password_recheck")) return this.block(sched, run, reason, detail);
     const section = readerSection(job.id);
     const walls = run.walls ?? {};
-    const proof = (run.live ?? []).some((s) => s !== section && !walls[s]);
+    // The password dialog itself proves the session is logged in: it is always this page only
+    // (0.3.25), in any run, even on its first page; no run-wide stop, no cool-down.
+    const proof = reason === "password_recheck" || (run.live ?? []).some((s) => s !== section && !walls[s]);
     if (!proof) return this.block(sched, run, reason, detail);
     const count = (walls[section]?.count ?? 0) + 1;
     await this.deps.sink
@@ -1113,13 +1115,13 @@ export class ReaderScheduler {
 
   /**
    * The pages today's run left blocked by a login / password wall (0.3.25): the outcome heads are
-   * "blocked:login", "blocked:password_recheck" (this page only) and "blocked_login" /
-   * "blocked_password_recheck" (the page that stopped the run).
+   * "blocked:login", "blocked:password_recheck" (this page only) and "blocked_login" (the page
+   * that stopped the run; the password dialog never stops a run).
    */
   private blockedPages(sched: ReaderSchedule, today: string): ReaderId[] {
     if (sched.lastRun?.day !== today) return [];
     return Object.entries(sched.lastRun.outcomes)
-      .filter(([, outcome]) => /^blocked[:_](login|password_recheck)/.test(String(outcome)))
+      .filter(([, outcome]) => /^(blocked[:_]login|blocked:password_recheck)/.test(String(outcome)))
       .map(([id]) => id as ReaderId);
   }
 
@@ -1145,9 +1147,9 @@ export class ReaderScheduler {
   sessionSeen(section?: string): Promise<void> {
     return this.exclusive(async () => {
       let { sched } = await this.load();
-      const lifts = sched.blocked?.reason === "login" || sched.blocked?.reason === "password_recheck";
+      const lifts = sched.blocked?.reason === "login";
       if (lifts) {
-        const wasRunWide = sched.lastRun?.blocked === "login" || sched.lastRun?.blocked === "password_recheck";
+        const wasRunWide = sched.lastRun?.blocked === "login";
         sched = { ...sched, blocked: undefined, lastRunDay: wasRunWide ? undefined : sched.lastRunDay };
         await this.save(sched);
       }

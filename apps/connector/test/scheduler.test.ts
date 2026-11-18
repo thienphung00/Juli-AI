@@ -1472,16 +1472,15 @@ describe("0.3.25: the password re-check dialog is its own block reason, and its 
     expect(ctx.events.map((e) => [e.reader, e.status])).toEqual([["shop_totals", "password_recheck"]]);
   });
 
-  it("C1/C2: where the run stops (first page), it is blocked_password_recheck with the login cool-down", async () => {
+  it("C1/C2: the dialog is always this page only, even on the run's first page: no run-wide stop, no cool-down", async () => {
     const ctx = setup({ readers: READERS });
-    const result = await driveRun(ctx, { products: "blocked_password_recheck" });
-    expect(result).toBe("blocked");
+    await driveRun(ctx, { products: "blocked_password_recheck" });
     const state = await ctx.read();
-    expect(state?.blocked).toMatchObject({ reason: "password_recheck", page: "products" });
-    expect(state?.blocked && state.blocked.until - ctx.clock.now).toBeGreaterThan(READER_BLOCK_LOGIN_MS - 2 * GAP);
-    expect(state?.lastRun?.blocked).toBe("password_recheck");
-    expect(state?.lastRun?.outcomes.products).toBe("blocked_password_recheck");
-    expect(ticksOf(ctx).find((t) => t.kind === "run")?.result).toBe("blocked:password_recheck");
+    expect(state?.blocked).toBeUndefined();
+    expect(state?.lastRun?.blocked).toBeUndefined();
+    expect(state?.lastRun?.outcomes.products).toBe("blocked:password_recheck");
+    expect(state?.lastRun?.outcomes.orders).toMatch(/^done/);
+    expect(ticksOf(ctx).find((t) => t.kind === "run")?.result).toBe("finished");
     expect(ctx.events.map((e) => e.status)).toEqual(["password_recheck"]);
   });
 
@@ -1531,9 +1530,28 @@ describe("0.3.25: the password re-check dialog is its own block reason, and its 
     expect((await ctx.read())?.rereadCount?.n).toBe(3);
   });
 
-  it("C4: a run-wide stop lifted by a data call starts again soon, reported as reread", async () => {
+  it("C4: a reread run whose only page hits the dialog is blocked:password_recheck, no block; a later datacenter call re-arms within the cap", async () => {
     const ctx = setup({ readers: READERS });
-    await driveRun(ctx, { products: "blocked_password_recheck" });
+    await driveRun(ctx, { shop_totals: "blocked_password_recheck" });
+    await ctx.scheduler.sessionSeen("datacenter");
+    ctx.clock.now += 2 * 60_000;
+    expect(await kick(ctx)).toBe("opened");
+    expect((await ctx.read())?.run?.jobs.map((j) => j.id)).toEqual(["shop_totals"]);
+    await finishPage(ctx, "blocked_password_recheck"); // still up: the only page of the run
+    const state = await ctx.read();
+    expect(state?.lastRun?.outcomes.shop_totals).toBe("blocked:password_recheck");
+    expect(state?.blocked).toBeUndefined();
+    expect(state?.lastRun?.blocked).toBeUndefined();
+    expect(ticksOf(ctx).filter((t) => t.kind === "run").at(-1)).toMatchObject({ trigger: "reread", result: "finished" });
+    await ctx.scheduler.sessionSeen("datacenter");
+    expect((await ctx.read())?.reread?.pages).toEqual(["shop_totals"]);
+    expect(ctx.alarms.active.has(READER_KICK_ALARM)).toBe(true);
+  });
+
+  it("C4: a login stop lifted by a data call starts again soon, reported as reread", async () => {
+    const ctx = setup({ readers: READERS });
+    await driveRun(ctx, { products: "blocked_login" });
+    expect((await ctx.read())?.blocked).toMatchObject({ reason: "login" });
     await ctx.scheduler.sessionSeen("datacenter");
     expect((await ctx.read())?.blocked).toBeUndefined();
     ctx.clock.now += 2 * 60_000;
