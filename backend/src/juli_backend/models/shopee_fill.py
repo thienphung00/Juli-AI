@@ -84,5 +84,9 @@ class ShopeeFillJob(Base):
     #: The id Shopee gave the saved thing (voucher_id, ...), posted by the Connector.
     captured_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: Migration 135 (R7): the ingest token a poll handed the job to, and until when (UTC naive).
+    #: Another live token's poll skips the job while ``lease_until`` is ahead.
+    claimed_by_token_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())

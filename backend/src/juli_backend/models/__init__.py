@@ -86,7 +86,11 @@ from juli_backend.models.shop_proposals import (
     ShopProposalExecution,
     ShopProposalResult,
 )
-from juli_backend.models.shopee_connector import ShopeeConnectorCommand, ShopeeConnectorState
+from juli_backend.models.shopee_connector import (
+    ShopeeConnectorCommand,
+    ShopeeConnectorState,
+    ShopeeConnectorTokenState,
+)
 from juli_backend.models.shopee_fill import ShopeeFillJob
 from juli_backend.models.shopee_metrics import (
     ShopeePlanBaseSnapshot,
@@ -204,6 +208,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopeeSourceMetricsDaily,
     ShopeeConnectorCommand,
     ShopeeConnectorState,
+    ShopeeConnectorTokenState,
     ShopeeSkuTracking,
     ShopeeStockAlertSend,
     ShopeeStockAlertUnsubscribe,
