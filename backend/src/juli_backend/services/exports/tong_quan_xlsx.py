@@ -355,7 +355,9 @@ def _profit(wb: Workbook, data: TongQuanData, b: ProfitBridge) -> None:
     put(ws, r, 1, "DOANH THU", bold=True)
     top = (
         ("GMV (giá trị đơn đặt)", b.gmv, b.orders, "Shopee"),
-        ("− Đơn hủy / hoàn tiền", -b.lost_gmv, b.lost_orders, "file đơn hàng"),
+        ("− Đơn hủy / đang hoàn hàng về", -b.lost_gmv, b.lost_orders, "file đơn hàng"),
+        ("− Đơn chưa có kết quả (đang giao, trong thời hạn hoàn tiền)", -b.pending_gmv,
+         b.pending_orders, "file đơn hàng"),
         ("Doanh thu đơn thành công (khách trả, gồm VAT)", b.paid_success, b.success_orders,
          "file đơn hàng"),
         # the same figure as the Tổng quan sheet's ưu đãi row (every order line of the window)
@@ -410,7 +412,7 @@ def _profit(wb: Workbook, data: TongQuanData, b: ProfitBridge) -> None:
     notes = (
         "Lợi nhuận bán hàng trên sàn = doanh thu − các chi phí trên; bằng lợi nhuận trên màn hình "
         "Tổng quan. Lợi nhuận ròng (chi phí ngoài sàn) do shop tự quản lý.",
-        "Chỉ tính các đơn có đủ chi phí; đơn hủy / hoàn và đơn chưa đủ dữ liệu "
+        "Chỉ tính đơn đã giao có đủ chi phí; đơn hủy, đơn đang hoàn và đơn chưa có kết quả "
         "không vào lợi nhuận.",
         "Giá bán và giá vốn đã gồm VAT: doanh thu trừ VAT đầu ra, giá vốn trừ VAT đầu vào.",
     )

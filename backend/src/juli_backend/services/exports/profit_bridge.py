@@ -27,10 +27,10 @@ from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
 from juli_backend.services.shopee_profit.order_profit import OrderStatus
 
-#: statuses whose GMV is lost before the profit (cancelled, undelivered, refunded)
-LOST_STATUSES = frozenset(
-    {OrderStatus.CANCELLED, OrderStatus.REFUNDED_NOT_RECEIVED, OrderStatus.REFUNDED_ACCEPTED}
-)
+#: statuses whose GMV is lost before the profit (cancelled; the return parcel on its way back)
+LOST_STATUSES = frozenset({OrderStatus.CANCELLED, OrderStatus.REFUNDED_NOT_RECEIVED})
+#: not an outcome yet (owner 2026-11-18): in transit, or the refund window still open
+PENDING_STATUSES = frozenset({OrderStatus.IN_TRANSIT, OrderStatus.REFUNDED_ACCEPTED})
 #: where a line's Shopee fee came from: the shop's own figures (the rest is the fee formula)
 REAL_FEE_SOURCES = frozenset({"income", "actual"})
 
@@ -44,6 +44,8 @@ class ProfitBridge:
     orders: int | None
     lost_gmv: float
     lost_orders: int
+    pending_gmv: float  # in transit / refund window open: no outcome yet, outside the profit
+    pending_orders: int
     paid_success: float  # buyer paid (VAT included) of the delivered orders
     success_orders: int
     offers: float  # khuyến mãi + voucher + combo of the counted lines: inside the buyer paid
@@ -83,6 +85,7 @@ def profit_bridge(view: Any) -> ProfitBridge:
     pairs = list(view.pairs)
     kp = shop_profit_of(view)
     lost = [(ln, pb) for ln, pb in pairs if ln.status in LOST_STATUSES]
+    pending = [(ln, pb) for ln, pb in pairs if ln.status in PENDING_STATUSES]
     success = [(ln, pb) for ln, pb in pairs if ln.status is OrderStatus.DELIVERED]
     counted = [(ln, pb) for ln, pb in pairs if pb.excluded_reason is None]
     unknown = {ln.order_id for ln, pb in counted if pb.contribution is None}
@@ -104,6 +107,8 @@ def profit_bridge(view: Any) -> ProfitBridge:
         orders=view.metrics.orders,
         lost_gmv=float(sum((ln.order_value for ln, _ in lost), ZERO)),
         lost_orders=len({ln.order_id for ln, _ in lost}),
+        pending_gmv=float(sum((ln.order_value for ln, _ in pending), ZERO)),
+        pending_orders=len({ln.order_id for ln, _ in pending}),
         paid_success=float(sum((pb.buyer_paid for _, pb in success), ZERO)),
         success_orders=len({ln.order_id for ln, _ in success}),
         offers=float(sum((pb.promo_discount + pb.voucher + pb.bundle for _, pb in counted), ZERO)),

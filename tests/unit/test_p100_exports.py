@@ -338,7 +338,8 @@ def test_the_profit_sheet_lists_each_cost_once_and_sums_to_the_profit():
     from juli_backend.services.exports.profit_bridge import ProfitBridge
 
     b = ProfitBridge(
-        gmv=1_000_000, orders=10, lost_gmv=100_000, lost_orders=1, paid_success=850_000,
+        gmv=1_000_000, orders=10, lost_gmv=100_000, lost_orders=1, pending_gmv=0, pending_orders=0,
+        paid_success=850_000,
         success_orders=9, offers=50_000, payout=600_000, payout_orders=9, known_orders=9,
         known_gmv_share_pct=90.0, revenue=800_000, vat_output=50_000, fees=200_000,
         fees_real_pct=100.0, cogs=300_000, cogs_real_pct=50.0, packaging=0, packaging_real_pct=0.0,

@@ -60,10 +60,12 @@ class OrderStatus(StrEnum):
     (GMV counts in confirmed views); only some carry fees and profit.
 
     - ``delivered``: fees and profit.
-    - ``refunded_accepted``: "Hoan tien ngay" accepted -- the fee is kept, revenue is 0, goods and
-      packaging are lost, no affiliate commission.
-    - ``in_transit`` (not yet delivered), ``cancelled``, ``refunded_not_received`` ("Chua nhan
-      duoc hang"): no fee and no profit; the order is outside the profit and coverage base.
+    - ``refunded_accepted``: the refund window is still open (owner, 2026-11-18; Shopee = TikTok):
+      not an outcome yet, so -- like an order in transit -- no fee and no profit until it ends
+      delivered (a sale) or returned. The waterfall below still knows the "revenue 0, fee kept"
+      shape for the day a final refund status is carried.
+    - ``in_transit`` (not yet delivered), ``cancelled``, ``refunded_not_received`` (the return
+      parcel is on its way back): no fee and no profit; outside the profit and coverage base.
     """
 
     DELIVERED = "delivered"
@@ -74,7 +76,7 @@ class OrderStatus(StrEnum):
 
     @property
     def carries_profit(self) -> bool:
-        return self in (OrderStatus.DELIVERED, OrderStatus.REFUNDED_ACCEPTED)
+        return self is OrderStatus.DELIVERED
 
 
 class PromoKind(StrEnum):
