@@ -133,6 +133,24 @@ describe("daily sync", () => {
     expect(await open.connector.dailySync()).toBe("already_synced");
   });
 
+  it("0.3.25: a day whose reader run had blocked or failed pages is not already_synced; an old state without outcomes still is", async () => {
+    const day = new Date(NOW).toISOString();
+    const synced = async (outcomes: Record<string, string> | undefined) => {
+      const open = setup([7]);
+      open.storage.data.token = TOKEN;
+      await open.connector.dailySync();
+      await open.connector.syncResult("done");
+      const today = new Date(NOW + 7 * 3600_000).toISOString().slice(0, 10);
+      if (outcomes) open.storage.data.readers = { adsDone: [], lastRun: { day: today, at: day, outcomes } };
+      return open.connector.dailySync();
+    };
+    expect(await synced(undefined)).toBe("already_synced");
+    expect(await synced({ products: "done:a=posted", orders: "no_orders", item_traffic: "no_items" })).toBe("already_synced");
+    expect(await synced({ products: "done", shop_totals: "blocked:password_recheck" })).not.toBe("already_synced");
+    expect(await synced({ products: "blocked_login" })).not.toBe("already_synced");
+    expect(await synced({ health: "timeout" })).not.toBe("already_synced");
+  });
+
   it("rotates the token once it is due", async () => {
     const { connector, storage } = setup();
     storage.data.token = { ...TOKEN, rotate_after: "2026-10-01T00:00:00Z" };
