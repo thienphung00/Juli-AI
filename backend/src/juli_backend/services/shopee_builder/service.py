@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.platform_data import PlatformItem
 from juli_backend.models.shop_proposals import (
     STATUS_CHANGES_REQUESTED,
     STATUS_SENT,
@@ -108,6 +109,26 @@ async def _items_with_proposals(session: AsyncSession, shop_id: uuid.UUID) -> se
     return {str(i) for i in rows}
 
 
+async def current_values(
+    session: AsyncSession, shop_id: uuid.UUID, items: Sequence[str] | None = None
+) -> dict[str, dict[str, Any]]:
+    """item id -> the Connector's last read of the edit page / open-campaign page
+    (``platform_items.extra``: ``description_first_line``, ``affiliate_commission_pct``)."""
+    query = select(PlatformItem.item_id, PlatformItem.extra).where(
+        PlatformItem.shop_id == shop_id,
+        PlatformItem.platform == "shopee",
+        PlatformItem.variation_id == "",
+    )
+    if items is not None:
+        query = query.where(PlatformItem.item_id.in_(list(items)))
+    keys = ("description_first_line", "affiliate_commission_pct")
+    return {
+        str(item_id): {k: extra[k] for k in keys if extra.get(k) is not None}
+        for item_id, extra in (await session.execute(query)).all()
+        if extra and any(extra.get(k) is not None for k in keys)
+    }
+
+
 async def products(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -143,6 +164,7 @@ async def products(
         anchor,
         view30=view30,
         extra=picker_table.extras(view30, prev30, proposal_items=waiting),
+        current=await current_values(session, shop_id),
         query=query,
         include_excluded=include_excluded,
         sort=sort,
@@ -435,6 +457,7 @@ async def build_context(
     items = list(dict.fromkeys(i for spec in specs for i in sp.items_of(spec)))
     ctx = BuilderContext(env=env, source_env=env)
     ctx.variations = await variation_rows_for(session, shop_id, env, items)
+    ctx.current = await current_values(session, shop_id, items)
     ctx.env, ctx.reference_items = with_reference_lines(env, ctx.variations, items)
     env = ctx.env
     for item in dict.fromkeys(

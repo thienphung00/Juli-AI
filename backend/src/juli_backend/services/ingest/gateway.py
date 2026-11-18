@@ -40,6 +40,7 @@ from typing import Any, TypeVar
 
 from pydantic import ValidationError
 from sqlalchemy import case, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import (
@@ -599,6 +600,65 @@ def _item_values(
     return list(items.values())
 
 
+async def _verify_now(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    item_ids: list[str] | None = None,
+    voucher_ids: list[str] | None = None,
+) -> None:
+    """Contract C: verify the executions that target what was just read back (a failure here
+    never rejects the post: the scheduled verification still runs)."""
+    from juli_backend.services.card_events import verification
+
+    try:
+        async with session.begin_nested():
+            await verification.verify_objects(
+                session,
+                shop_id,
+                datetime.now(UTC),
+                item_ids=item_ids or (),
+                voucher_ids=voucher_ids or (),
+            )
+    except (SQLAlchemyError, KeyError, ValueError):
+        logger.exception("readback_verify_failed", extra={"shop_id": str(shop_id)})
+
+
+async def _merge_current_values(
+    session: AsyncSession, rows: list[DatasetRow], body: IngestBody, provenance: dict[str, Any]
+) -> None:
+    """Contract D (batch-1118g): the product edit page's description first line and the
+    open-campaign page's commission % land in ``platform_items.extra`` with their capture time
+    (``description_first_line`` / ``affiliate_commission_pct`` + ``_at``). A row that carries
+    neither changes nothing; a value another post did not send is never blanked."""
+    found: dict[str, dict[str, Any]] = {}
+    at = body.captured_at.astimezone(UTC).replace(tzinfo=None).isoformat()
+    for row in rows:
+        if not isinstance(row, ShopeeItemCatalogRow) or row.variation_id:
+            continue
+        update = found.setdefault(row.item_id, {})
+        if row.description_first_line:
+            update["description_first_line"] = row.description_first_line
+            update["description_first_line_at"] = at
+        if row.commission_pct is not None:
+            update["affiliate_commission_pct"] = float(row.commission_pct)
+            update["affiliate_commission_pct_at"] = at
+    found = {k: v for k, v in found.items() if v}
+    if not found:
+        return
+    stored = await session.scalars(
+        select(PlatformItem).where(
+            PlatformItem.shop_id == provenance["shop_id"],
+            PlatformItem.platform == provenance["platform"],
+            PlatformItem.variation_id == "",
+            PlatformItem.item_id.in_(list(found)),
+        )
+    )
+    for item in stored:
+        item.extra = {**(item.extra or {}), **found[item.item_id]}
+    await session.flush()
+
+
 def _promotion_extra(row: ShopeePromotionRow) -> dict[str, Any]:
     extra: dict[str, Any] = dict(row.extra)
     if row.sales_per_buyer is not None:
@@ -694,6 +754,9 @@ async def _write(
         await _upsert_items(
             session, _item_values(rows, body, provenance), names_win=spec.name == "item_catalog"
         )
+        if spec.name == "item_catalog":
+            await _merge_current_values(session, rows, body, provenance)
+            await _verify_now(session, provenance["shop_id"], item_ids=[r.item_id for r in rows])
     elif spec.writes == WRITE_FLAGS:
         flags = [
             {
@@ -736,6 +799,11 @@ async def _write(
             [row for row in rows if isinstance(row, ShopeeVoucherSettingRow)], body, provenance
         )
         await _upsert(session, PlatformPromotion, _PROMOTION_KEY_COLUMNS, promotions)
+        await _verify_now(
+            session,
+            provenance["shop_id"],
+            voucher_ids=[str(r.voucher_id) for r in rows if isinstance(r, ShopeeVoucherSettingRow)],
+        )
     elif spec.writes == WRITE_ORDER_LINES:
         await write_order_lines(session, _typed(rows, ShopeeOrderLineRow), body, provenance)
     elif spec.writes == WRITE_ORDER_INCOME:

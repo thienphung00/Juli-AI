@@ -46,6 +46,7 @@ from juli_backend.services.ops import audit
 from juli_backend.services.reviewer import simulation
 from juli_backend.services.sample_shop import readback as sample_readback
 from juli_backend.services.shop_proposals import ProposalError
+from juli_backend.services.shopee_recommendations import revert_fill
 
 router = APIRouter(prefix="/demo/shopee/recommendations", tags=["demo-shopee"])
 
@@ -240,8 +241,31 @@ async def recommendation_reverted(
     shop_id = shop.id
     try:
         out = await reco.mark_reverted(
-            session, shop_id, card_id, now=_now(), user_id=user.id, note=body.note
+            session,
+            shop_id,
+            card_id,
+            now=_now(),
+            user_id=user.id,
+            note=body.note,
+            manual=body.manual,
         )
+        await session.commit()
+    except ProposalError as exc:
+        await session.rollback()
+        raise refused(exc) from None
+    return out
+
+
+@router.post("/{card_id}/revert-fill", status_code=201)
+async def recommendation_revert_fill(
+    card_id: uuid.UUID,
+    shop: Shop = Depends(_gate_w),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """F3.1: queue the undo of an executed card for the Connector (fills the old value back or
+    highlights Kết thúc / Xóa; the person presses). Returns ``{card_id, jobs, ready}``."""
+    try:
+        out = await revert_fill.revert_fill(session, shop.id, card_id, now=_now())
         await session.commit()
     except ProposalError as exc:
         await session.rollback()

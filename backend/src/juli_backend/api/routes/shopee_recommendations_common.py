@@ -56,6 +56,8 @@ class RevertedBody(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     note: str | None = Field(default=None, max_length=300)
+    #: F3.1: the owner's fallback when the Connector is off (skips the read-back check)
+    manual: bool = False
 
 
 def refused(exc: ProposalError) -> HTTPException:

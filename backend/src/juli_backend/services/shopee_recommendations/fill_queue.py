@@ -32,7 +32,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +40,7 @@ from juli_backend.models.ingest import IngestToken, PlatformDailyMetric
 from juli_backend.models.platform_data import PlatformPromotion
 from juli_backend.models.shop_proposals import (
     STATUS_APPROVED,
+    STATUS_EXECUTED,
     STATUS_PLANNED,
     ShopProposal,
     ShopProposalApproval,
@@ -709,13 +710,26 @@ def _live_tokens(shop_id: uuid.UUID, now: datetime) -> Any:
 #: The card statuses whose fill jobs the Connector may be served. ONE place: F3 adds the revert
 #: jobs of executed cards here (batch-1118f F1.2).
 SERVABLE_CARD_STATUSES: tuple[str, ...] = (STATUS_APPROVED, STATUS_PLANNED)
+REVERT_PREFIX = "revert:"
+READBACK_PREFIX = "readback:"
 
 
 def _servable_card_jobs() -> Any:
-    """SQL condition: the job's card is still approved / planned (withdrawn, reverted, superseded
-    or executed cards are never served)."""
-    return ShopeeFillJob.proposal_id.in_(
-        select(ShopProposal.id).where(ShopProposal.status.in_(SERVABLE_CARD_STATUSES))
+    """SQL condition: the job may be served. An approved / planned card serves its forward jobs
+    (and read-backs); an EXECUTED card serves only its revert and read-back jobs (batch-1118g
+    F3: ``target_key`` prefixes ``revert:`` / ``readback:``); withdrawn, reverted or superseded
+    cards serve nothing."""
+    key = ShopeeFillJob.target_key
+
+    def card(*statuses: str) -> Any:
+        return ShopeeFillJob.proposal_id.in_(
+            select(ShopProposal.id).where(ShopProposal.status.in_(statuses))
+        )
+
+    revert, readback = key.like(f"{REVERT_PREFIX}%"), key.like(f"{READBACK_PREFIX}%")
+    return or_(
+        and_(card(*SERVABLE_CARD_STATUSES), ~revert),
+        and_(card(STATUS_EXECUTED), or_(revert, readback)),
     )
 
 
@@ -877,7 +891,10 @@ async def report(
         j.lease_until = moment + FILL_LEASE
     if captured_ref is not None and not _REF.match(captured_ref):
         raise ProposalError(ERROR_JOB_BAD, 422)
-    if status not in _NEXT.get(j.status, set()) and status != j.status:
+    allowed = set(_NEXT.get(j.status, set()))
+    if j.kind == "readback" and j.status in (STATUS_QUEUED, STATUS_OPENED):
+        allowed.add(STATUS_CAPTURED)  # a read-back posts its dataset and is done
+    if status not in allowed and status != j.status:
         raise ProposalError(ERROR_JOB_STATE, 409, f"{j.status} -> {status}")
     if progress is not None:
         if progress["filled"] > progress["total"]:
@@ -905,6 +922,14 @@ async def report(
         j.error = (error or "failed")[:64]
     j.updated_at = moment
     await session.flush()
+    if j.target_key.startswith(READBACK_PREFIX):
+        return job_json(j)
+    if j.target_key.startswith(REVERT_PREFIX):
+        if status in (STATUS_SAVED, STATUS_CAPTURED):  # F3.2: read the object back again
+            from juli_backend.services.shopee_recommendations import revert_fill
+
+            await revert_fill.queue_readback_after_revert(session, shop_id, j, now=j.updated_at)
+        return job_json(j)
     if status in (STATUS_SAVED, STATUS_CAPTURED):
         await auto_execute(session, shop_id, j.proposal_id, now=j.updated_at)
     return job_json(j)
@@ -924,7 +949,10 @@ async def auto_execute(
 
     latest = await session.scalar(
         select(func.max(ShopeeFillJob.version)).where(
-            ShopeeFillJob.shop_id == shop_id, ShopeeFillJob.proposal_id == proposal_id
+            ShopeeFillJob.shop_id == shop_id,
+            ShopeeFillJob.proposal_id == proposal_id,
+            ~ShopeeFillJob.target_key.like(f"{REVERT_PREFIX}%"),
+            ~ShopeeFillJob.target_key.like(f"{READBACK_PREFIX}%"),
         )
     )
     jobs = (
@@ -934,6 +962,8 @@ async def auto_execute(
                 ShopeeFillJob.proposal_id == proposal_id,
                 ShopeeFillJob.version == latest,
                 ShopeeFillJob.status != STATUS_CANCELLED,
+                ~ShopeeFillJob.target_key.like(f"{REVERT_PREFIX}%"),
+                ~ShopeeFillJob.target_key.like(f"{READBACK_PREFIX}%"),
             )
         )
     ).all()

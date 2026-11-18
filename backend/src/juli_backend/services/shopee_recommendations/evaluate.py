@@ -1629,6 +1629,8 @@ def eval_affiliate(
         return _refuse("no_order_lines")
     new_rate = D(inputs["commission_pct"]) / 100
     cur = current_commission_pct(env, item)
+    if cand.extra.get("current_commission_pct") is not None:  # E50: the page's own rate wins
+        cur = D(cand.extra["current_commission_pct"])
     schedule = env.schedule(item)
     window = Decimal(env.window_days)
     aff_lines = [ln for ln in lines if ln.product_id == item and ln.affiliate]

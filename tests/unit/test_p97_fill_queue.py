@@ -201,7 +201,9 @@ async def test_the_connector_gets_its_shops_open_jobs_and_moves_them_forward(ses
     assert back.status_code == 409  # never backwards
     done = await ext.post(url, json={"status": "captured", "captured_ref": "1234567890"})
     assert done.status_code == 200 and done.json()["captured_ref"] == "1234567890"
-    assert (await ext.get(JOBS)).json()["jobs"] == []  # a captured job is finished
+    # a captured job is finished; the executed card now serves only its read-back (batch-1118g)
+    left = (await ext.get(JOBS)).json()["jobs"]
+    assert [j["kind"] for j in left] == ["readback"]
     bad = await ext.post(url, json={"status": "captured", "captured_ref": "x y"})
     assert bad.status_code in (409, 422)
 
