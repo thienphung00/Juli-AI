@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import re
 
-DEFAULT_MIN_VERSION = "0.3.25"
+DEFAULT_MIN_VERSION = "0.3.24"
 ENV_MIN_VERSION = "CONNECTOR_MIN_VERSION"
 UPGRADE_CODE = "connector_upgrade_required"
 

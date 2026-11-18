@@ -72,16 +72,17 @@ async def test_a_pairing_without_an_install_id_supersedes_nothing(session):
 
 def test_minimum_version_compares_numerically_and_lets_unnamed_versions_through(monkeypatch):
     monkeypatch.delenv(min_version.ENV_MIN_VERSION, raising=False)
-    assert min_version.minimum() == "0.3.25"
-    assert min_version.is_too_old("0.3.24")
+    assert min_version.minimum() == "0.3.24"
+    assert min_version.is_too_old("0.3.23")
     assert min_version.is_too_old("0.2.99")
+    assert not min_version.is_too_old("0.3.24")
     assert not min_version.is_too_old("0.3.25")
     assert not min_version.is_too_old("0.3.100")
     assert not min_version.is_too_old("0.10.0")
     assert not min_version.is_too_old(None)
     assert not min_version.is_too_old("")
     monkeypatch.setenv(min_version.ENV_MIN_VERSION, "not a version")
-    assert min_version.minimum() == "0.3.25"
+    assert min_version.minimum() == "0.3.24"
     monkeypatch.setenv(min_version.ENV_MIN_VERSION, "0.4.0")
     assert min_version.is_too_old("0.3.25")
 
@@ -103,11 +104,11 @@ async def test_an_old_connector_gets_upgrade_required_and_nothing_is_written(ses
     user, shop = await _shop(session)
     app, auth = await _token(session, shop, user)
     async with client_for(app) as ext:
-        old = await ext.get("/v1/ingest/status", headers={**auth, "X-Connector-Version": "0.3.24"})
+        old = await ext.get("/v1/ingest/status", headers={**auth, "X-Connector-Version": "0.3.23"})
         assert old.status_code == 426
         assert old.json()["detail"] == {
             "code": "connector_upgrade_required",
-            "minimum": "0.3.25",
+            "minimum": "0.3.24",
         }
         body = {
             "period_start": "2026-11-17",
@@ -122,7 +123,7 @@ async def test_an_old_connector_gets_upgrade_required_and_nothing_is_written(ses
             "/v1/ingest/fill-jobs", headers={**auth, "X-Connector-Version": "0.3.1"}
         )
         assert poll.status_code == 426
-        ok = await ext.get("/v1/ingest/status", headers={**auth, "X-Connector-Version": "0.3.25"})
+        ok = await ext.get("/v1/ingest/status", headers={**auth, "X-Connector-Version": "0.3.24"})
         assert ok.status_code == 200
         unnamed = await ext.get("/v1/ingest/status", headers=auth)
         assert unnamed.status_code == 200
