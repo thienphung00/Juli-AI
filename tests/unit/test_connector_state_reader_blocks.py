@@ -30,10 +30,18 @@ def test_password_recheck_is_a_block_reason_for_datacenter_readers():
     ]
 
 
-def test_a_run_stopping_password_recheck_is_a_seller_centre_block():
+def test_a_run_stopping_password_recheck_is_a_datacenter_block():
     blocks = cs.reader_blocks_of({"traffic": "blocked_password_recheck"})
     assert blocks == [
-        {"section": "seller_centre", "reason": "password_recheck", "readers": ["traffic"]}
+        {"section": "phan_tich_ban_hang", "reason": "password_recheck", "readers": ["traffic"]}
+    ]
+
+
+def test_a_run_stopping_login_or_captcha_stays_a_seller_centre_block():
+    blocks = cs.reader_blocks_of({"traffic": "blocked_login", "orders": "blocked_captcha"})
+    assert blocks == [
+        {"section": "seller_centre", "reason": "login", "readers": ["traffic"]},
+        {"section": "seller_centre", "reason": "captcha", "readers": ["orders"]},
     ]
 
 
