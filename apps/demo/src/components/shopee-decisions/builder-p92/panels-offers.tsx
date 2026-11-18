@@ -127,7 +127,7 @@ export function ComboPanel({ form, set, ctx }: P<"combo">) {
   return (
     <div className="p2-panel" data-testid="p2-panel-combo">
       <TextIn hint={`${[...form.name].length}/${MAX_COMBO_NAME} ký tự`} label="Tên Combo Khuyến Mãi" onChange={(name) => set({ name })} value={form.name} />
-      <ProductTargets ctx={ctx} onChange={(items) => set({ items })} selected={form.items} title="Sản phẩm của Combo" />
+      <ProductTargets ctx={ctx} onChange={(items) => set({ items })} selected={form.items} title="Sản phẩm của Combo" warnNoStock />
       <Pills label="Loại Combo" onChange={(dtype) => set({ dtype })} options={COMBO_TYPE_OPTIONS} value={form.dtype} />
       <div className="p2-rows" data-testid="p2-combo-tiers">
         {tiers.map((t, i) => (

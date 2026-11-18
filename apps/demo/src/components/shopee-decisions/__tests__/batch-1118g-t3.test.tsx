@@ -9,6 +9,7 @@ import type { CardDetail } from "../../../lib/shopee-decisions/types";
 import { AUTH_SESSION_STORAGE_KEY } from "../../../lib/supabase-auth";
 import type { FillJobRow } from "../../planned-changes/listing-extras";
 import { AffiliatePanel, DescPanel } from "../builder-p92/panels-listing";
+import { ProductTargets } from "../builder-p92/targets";
 import { CardPage } from "../card-page";
 import { renderReco } from "./harness";
 
@@ -131,5 +132,16 @@ describe("F2.3 · mã voucher đã lấy", () => {
     renderReco(<CardPage from={null} id="card-voucher" />, fakeReco({ detail: detailOf(voucherCard(), { status: "approved" }) }));
     await screen.findByLabelText(/Mã voucher trên Seller Centre/);
     expect(screen.getByRole("button", { name: "Đã làm" })).toBeDisabled();
+  });
+});
+
+describe("F2.4 · combo: hết hàng", () => {
+  it("warns on a selected product with stock 0, not on stock 5", () => {
+    const mk = (id: string, stock: number) => ({ item_id: id, name: `SP ${id}`, stock, orders_30d: 0, orders_90d: 0, gmv_30d: null, gmv_90d: null, price: null, variation_count: 1, has_cost: true, missing_cost_chip: null, excluded: false, exclude_reason: null }) as unknown as PickerProduct;
+    const products = [mk("1", 0), mk("2", 5)];
+    const ctx = { product: products[0], products, variations: [], api: {}, outcome: null } as never;
+    render(<ProductTargets ctx={ctx} onChange={() => undefined} selected={["1", "2"]} title="Sản phẩm của Combo" warnNoStock />);
+    expect(screen.getByTestId("p2-nostock-1")).toHaveTextContent("Hết hàng — Shopee có thể không cho thêm vào combo");
+    expect(screen.queryByTestId("p2-nostock-2")).toBeNull();
   });
 });

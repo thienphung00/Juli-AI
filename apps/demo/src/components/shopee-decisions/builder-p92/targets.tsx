@@ -12,10 +12,16 @@ import { TablePicker } from "./table-picker";
  * own figures and floor breaches, and a checkbox to untick a target (the card is then evaluated again).
  */
 
-export function ProductTargets({ ctx, selected, onChange, title, hint, max = MAX_TARGETS }: { readonly ctx: PanelCtx; readonly selected: readonly string[]; readonly onChange: (ids: readonly string[]) => void; readonly title: string; readonly hint?: string; readonly max?: number }) {
+export function ProductTargets({ ctx, selected, onChange, title, hint, max = MAX_TARGETS, warnNoStock = false }: { readonly ctx: PanelCtx; readonly selected: readonly string[]; readonly onChange: (ids: readonly string[]) => void; readonly title: string; readonly hint?: string; readonly max?: number; readonly warnNoStock?: boolean }) {
+  const empty = warnNoStock ? ctx.products.filter((p) => selected.includes(p.item_id) && p.stock === 0) : [];
   return (
     <div className="p2-targets" data-testid="p2-targets">
       <TablePicker max={max} mode="multi" onChange={onChange} products={ctx.products} selected={selected} title={title} />
+      {empty.map((p) => (
+        <p className="sd-check sd-check--bad" data-testid={`p2-nostock-${p.item_id}`} key={p.item_id} role="alert">
+          <b>{p.name}</b>: Hết hàng — Shopee có thể không cho thêm vào combo
+        </p>
+      ))}
     </div>
   );
 }
