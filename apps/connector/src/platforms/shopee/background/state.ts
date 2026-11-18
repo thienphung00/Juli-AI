@@ -27,6 +27,19 @@ export interface Stop {
   missing: string[];
 }
 
+/**
+ * A completed order waiting for its income read. 0.3.26: an order whose income answer failed
+ * (refused, not 2xx, no final amount yet) stays queued; `failedDays` counts the days it failed
+ * (`failedDay` the last one), and it is dropped after ORDER_INCOME_MAX_FAILED_DAYS.
+ */
+export interface IncomeQueued {
+  id: string;
+  sn?: string;
+  completedAt: number;
+  failedDays?: number;
+  failedDay?: string;
+}
+
 export interface Queued {
   dataset: Dataset;
   body: IngestBody;
@@ -196,7 +209,7 @@ export interface ReaderSchedule {
    * Per-order income (0.3.11): completed orders waiting for their income read, oldest first. The raw
    * order ids stay in this browser (chrome.storage.local) -- only hashed refs are ever posted.
    */
-  incomeQueue?: { id: string; sn?: string; completedAt: number }[];
+  incomeQueue?: IncomeQueued[];
   /** Orders completing before this time (ms) were queued already: only later ones are added. */
   incomeSince?: number;
   incomeDay?: string;

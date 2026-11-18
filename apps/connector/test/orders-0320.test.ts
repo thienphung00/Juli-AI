@@ -386,11 +386,12 @@ describe("the orders reader on the list page (0.3.20)", () => {
 
 describe("truthful status (0.3.20)", () => {
   it("an orders job that produced no order line is an error, never 'Đã đọc và gửi'", () => {
-    expect(jobOutcome("orders", { order_lines: "ignored" }, "order_lines=ignored", "")).toBe("error:orders:0_rows:ignored");
-    expect(jobOutcome("orders", {}, "", "")).toBe("error:orders:0_rows");
+    // 0.3.26: the step is named (orders-0326.test.ts); a day with no order is read and empty
+    expect(jobOutcome("orders", { order_lines: "ignored" }, "order_lines=ignored", "")).toBe("error:orders:0_rows:no_list_answer");
+    expect(jobOutcome("orders", {}, "", "")).toBe("error:orders:0_rows:no_list_answer");
     expect(jobOutcome("orders", { order_lines: "drift" }, "order_lines=drift", "")).toBe("error:orders:0_rows:drift");
-    expect(jobOutcome("orders", {}, "", "no_orders")).toBe("no_orders");
-    expect(jobOutcome("orders", { order_lines: "ignored" }, "order_lines=ignored", "no_new_orders")).toBe("no_orders");
+    expect(jobOutcome("orders", {}, "", "no_orders")).toBe("done:order_lines=empty");
+    expect(jobOutcome("orders", { order_lines: "ignored" }, "order_lines=ignored", "no_new_orders")).toBe("done:order_lines=empty");
     expect(jobOutcome("orders", { order_lines: "posted" }, "order_lines=posted", "partial:budget")).toBe("done:order_lines=posted|partial:budget");
     expect(outcomeStatus(jobOutcome("orders", { order_lines: "ignored" }, "order_lines=ignored", "")).status).not.toBe("Đã đọc và gửi");
     expect(outcomeStatus("no_orders").status).toContain("Không có gì");

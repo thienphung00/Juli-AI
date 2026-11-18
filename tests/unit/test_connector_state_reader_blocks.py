@@ -45,6 +45,15 @@ def test_a_run_stopping_login_or_captcha_stays_a_seller_centre_block():
     ]
 
 
+def test_no_permission_is_a_seller_centre_block_of_the_income_page():
+    blocks = cs.reader_blocks_of(
+        {"order_income": "blocked:no_permission|http_403_code_10013", "orders": "done"}
+    )
+    assert blocks == [
+        {"section": "seller_centre", "reason": "no_permission", "readers": ["order_income"]}
+    ]
+
+
 def test_merge_removes_done_readers_and_drops_an_empty_section():
     merged = cs.merge_reader_blocks(
         [LOGIN], {"shop_totals": "done:shop_overview=posted", "traffic": "done:shop_traffic=posted"}
