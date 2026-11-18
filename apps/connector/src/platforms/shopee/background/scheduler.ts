@@ -23,6 +23,7 @@ import {
   HELD_DATASETS,
   ORDER_INCOME_FIRST_RUN_DAYS,
   ORDER_INCOME_MAX_PER_DAY,
+  ORDER_INCOME_MAX_FAILED_DAYS,
   ORDER_INCOME_QUEUE_DAYS,
   ORDER_INCOME_QUEUE_MAX,
   ORDER_CATCHUP_FIRST_DAYS,
@@ -58,7 +59,7 @@ import {
   TRAFFIC_JOB_TIMEOUT_MS,
   TRAFFIC_MAX_ITEMS,
 } from "../config";
-import { completedOrders } from "../orders-map";
+import { completedOrders, incomeReadIds, zeroRowsStep } from "../orders-map";
 import { activeItemIds, adsDayAnswer, completedTrafficDays, ongoingAdsCampaigns } from "../reader-map";
 import type { CaptureOutcome } from "./connector";
 import { READER_PAGES, readerPageUrl, readerSection } from "../endpoints";
@@ -149,7 +150,8 @@ export interface SchedulerAlarms {
 export interface BlockEvent {
   reader: string;
   page: string;
-  status: ReaderBlockReason;
+  /** 0.3.26: "no_permission" blocks one page (never the run), so it is not a ReaderBlockReason. */
+  status: ReaderBlockReason | "no_permission";
   code?: string;
   at: string;
 }
@@ -302,16 +304,42 @@ function ids(responses: ReaderResponse[], previous: string[] | undefined): strin
   return fresh.length > 0 ? fresh : previous;
 }
 
+/** Reader notes that already name the step a 0-row orders run stopped at (0.3.26). */
+const ZERO_ROW_NOTES: ReadonlySet<string> = new Set(["no_ids_from_page", "no_order_key"]);
+
+/**
+ * "error:<job>:0_rows:<step>[|<note>]" (0.3.26): WHY a run mapped 0 rows, metadata only. The step is
+ * the dataset's own outcome when it was not plain "ignored" (drift, rejected, ...), else the
+ * reader's step note, else what the answers show (zeroRowsStep); the reader's note is kept.
+ */
+function zeroRows(job: "orders" | "order_income", outcome: string | undefined, note: string, responses: ReaderResponse[]): string {
+  const step =
+    outcome && outcome !== "ignored"
+      ? outcome
+      : ZERO_ROW_NOTES.has(note)
+        ? note
+        : note && !responses.some((r) => r.endpoint.startsWith("order"))
+          ? note
+          : zeroRowsStep(job, responses);
+  return `error:${job}:0_rows:${step}${note && note !== step ? `|${note}` : ""}`.slice(0, 120);
+}
+
 /**
  * A finished job's outcome string (0.3.20: truthful). The orders reader that read the list page
- * but produced no order line is an error ("orders:0_rows"), never "read and sent"; a list page
- * with no orders (or none since the job's day) is "no_orders".
+ * but produced no order line is an error ("orders:0_rows:<step>", 0.3.26 says which step), never
+ * "read and sent"; a list page with no orders (or none since the job's day) was read and had
+ * nothing to send: "done:order_lines=empty" (0.3.26; "no_orders" stays the income page's "no
+ * completed order to read"). An income read that posted nothing is "order_income:0_rows:<step>".
  */
-export function jobOutcome(id: ReaderId, posted: Record<string, string>, summary: string, note: string): string {
+export function jobOutcome(id: ReaderId, posted: Record<string, string>, summary: string, note: string, responses: ReaderResponse[] = []): string {
   if (id === "orders") {
-    if (note === "no_orders" || note === "no_new_orders") return "no_orders";
+    if (note === "no_orders" || note === "no_new_orders") return "done:order_lines=empty";
     const lines = posted.order_lines;
-    if (lines !== "posted" && lines !== "queued") return `error:orders:0_rows${lines ? `:${lines}` : ""}`;
+    if (lines !== "posted" && lines !== "queued") return zeroRows("orders", lines, note, responses);
+  }
+  if (id === "order_income") {
+    const income = posted.order_income;
+    if (income !== "posted" && income !== "queued") return zeroRows("order_income", income, note, responses);
   }
   return `${summary ? `done:${summary}` : "done"}${note ? `|${note}` : ""}`;
 }
@@ -965,6 +993,24 @@ export class ReaderScheduler {
         await this.block(sched, run, "rate_limit", String((message as { detail?: unknown }).detail ?? ""));
         return true;
       }
+      if (status === "blocked_no_permission") {
+        // 0.3.26: the account may not open this page (Tài chính): this page only, the run goes on.
+        // Told to Juli in the run report ("blocked:no_permission" -> Thực hiện's block line).
+        // The queue is kept whole (shopReaderState does not run) and the page is tried again tomorrow.
+        await this.countRequests(run.day, message.responses);
+        const detail = outcomeNote(message.detail).replace(/[^A-Za-z0-9_.:-]/g, "_");
+        await this.deps.sink
+          .reportBlock?.({
+            reader: job.id,
+            page: READER_PAGES[job.id].path,
+            status: "no_permission",
+            code: `reader_only${detail ? `:${detail}` : ""}`.slice(0, 40),
+            at: this.iso(),
+          })
+          .catch(() => undefined);
+        await this.finishJob(sched, run, `blocked:no_permission${detail ? `|${detail}` : ""}`);
+        return true;
+      }
       if (status === "budget_spent") {
         await this.countRequests(run.day, message.responses);
         if (run.current) await this.deps.tabs.close(run.current.tabId).catch(() => undefined);
@@ -1037,7 +1083,7 @@ export class ReaderScheduler {
       await this.finishJob(
         { ...sched, adsPosted, adsHistory, itemIds, trafficDone, adsSettingsDay, adsCampaigns, productsAt, trafficOverviewDone, ...extra },
         read,
-        jobOutcome(job.id, posted, summary, note),
+        jobOutcome(job.id, posted, summary, note, responses),
       );
       return true;
     });
@@ -1092,8 +1138,24 @@ export class ReaderScheduler {
       };
     }
     if (job.id === "order_income") {
+      // 0.3.26: only orders whose income was read (and posted / queued to post) leave the queue; an
+      // order whose own request was answered with a refusal / no final amount stays for tomorrow,
+      // counted once per day, and is dropped after ORDER_INCOME_MAX_FAILED_DAYS failed days. An
+      // order never requested (no order key on the page, a stop before its turn) is left unchanged.
       const sent = new Set(job.orderIds ?? []);
-      return { incomeDay: run.day, incomeQueue: (sched.incomeQueue ?? []).filter((o) => !sent.has(o.id)) };
+      const answered = new Set(
+        responses.filter((r) => r.endpoint === "order_income_components" && r.orderId).map((r) => r.orderId as string),
+      );
+      const landed = posted.order_income === "posted" || posted.order_income === "queued";
+      const read = landed ? incomeReadIds(responses) : new Set<string>();
+      const incomeQueue = (sched.incomeQueue ?? []).flatMap((o) => {
+        if (!sent.has(o.id) || !answered.has(o.id)) return [o];
+        if (read.has(o.id)) return [];
+        if (o.failedDay === run.day) return [o];
+        const failedDays = (o.failedDays ?? 0) + 1;
+        return failedDays >= ORDER_INCOME_MAX_FAILED_DAYS ? [] : [{ ...o, failedDays, failedDay: run.day }];
+      });
+      return { incomeDay: run.day, incomeQueue };
     }
     if (job.id === "affiliate" && job.history && shopId) {
       // The history is done once every window posted (or Shopee answered it empty); a failed

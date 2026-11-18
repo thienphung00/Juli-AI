@@ -1,9 +1,10 @@
-"""File vs Connector on the same key (P90 D-5, G-22): who wins, and how often they differ.
+"""File vs Connector on the same key (G-22): who wins, and how often they differ.
 
-The winner is decided by the upsert in ``gateway.py`` (rank: api > file > extension > vendor, a
-row is replaced only by the same or a higher rank). This module only COUNTS what that decision
-did, before the write, so an operator sees "n file rows kept over the Connector, m Connector rows
-replaced by a file, k of them with different numbers" in one ``ingest_source_conflicts`` log line.
+The winner is decided by the upsert in ``gateway.py`` (rank: api > extension > file > vendor,
+owner 2026-11-18; it was file > extension under P90 D-5; a row is replaced only by the same or
+a higher rank). This module only COUNTS what that decision did, before the write, so an operator
+sees "n Connector rows kept over a file, m file rows replaced by the Connector, k of them with
+different numbers" in one ``ingest_source_conflicts`` log line.
 Counts only -- never a row value.
 """
 
@@ -14,7 +15,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import SOURCE_RANK, effective_rank
@@ -30,9 +31,9 @@ TOLERANCE = Decimal("0.0001")
 class SourceConflicts:
     """What an incoming post meets on keys another source already wrote."""
 
-    #: The stored row outranks the post (a Connector post over a file row): the post is dropped.
+    #: The stored row outranks the post (a file post over a Connector row): the post is dropped.
     kept_existing: int = 0
-    #: The post outranks the stored row (a file post over a Connector row): it is replaced.
+    #: The post outranks the stored row (a Connector post over a file row): it is replaced.
     replaced_existing: int = 0
     #: Same rank, other source (cannot happen with today's ranks; counted if it does).
     same_rank: int = 0
@@ -112,5 +113,96 @@ def log_source_conflicts(shop_id: Any, dataset: str, source: str, found: SourceC
             "replaced_existing": found.replaced_existing,
             "same_rank": found.same_rank,
             "differing": found.differing,
+        },
+    )
+
+
+# -- the line tables: a lower rank only fills gaps (owner 2026-11-18) ----------------------------
+
+
+def stored_rank(table: Any) -> Any:
+    """SQL: the rank a stored row counts at -- by its ``source`` today (``SOURCE_RANK``), by its
+    stored ``source_rank`` for an unknown source (``effective_rank``)."""
+    return case(
+        *[(table.c.source == source, rank) for source, rank in SOURCE_RANK.items()],
+        else_=table.c.source_rank,
+    )
+
+
+def ranked_value(stmt: Any, table: Any, column: str, *, provenance: bool = False) -> Any:
+    """SQL for one column of an ``ON CONFLICT DO UPDATE`` on ``order_lines``, ``affiliate_lines``
+    and ``order_settlements`` (owner 2026-11-18):
+
+    - a post of the same or a higher rank: its non-null value replaces, its NULL keeps the stored
+      value;
+    - a post of a LOWER rank (file < Connector < API): it only fills a column that is NULL in the
+      stored row, never replaces a value;
+    - ``provenance`` columns (source, rank, version, payload, updated_at) follow the post only
+      when it is of the same or a higher rank, so a gap fill leaves them with the higher writer.
+
+    A key no source wrote yet is an INSERT: the post lands in full (the file's backfill)."""
+    incoming, stored = stmt.excluded[column], table.c[column]
+    wins = stored_rank(table) <= stmt.excluded.source_rank
+    if provenance:
+        return case((wins, incoming), else_=stored)
+    return case((wins, func.coalesce(incoming, stored)), else_=func.coalesce(stored, incoming))
+
+
+@dataclass(frozen=True)
+class GapFills:
+    """A lower-ranked post on keys a higher source holds: the rows and the NULL columns it fills."""
+
+    rows: int = 0
+    columns: int = 0
+
+
+async def count_gap_fills(
+    session: AsyncSession,
+    model: Any,
+    key_columns: tuple[str, ...],
+    values: list[dict[str, Any]],
+    columns: tuple[str, ...],
+) -> GapFills:
+    """Before the upsert: the stored rows of a HIGHER rank that ``values`` meet, and how many of
+    their NULL columns ``values`` fill. Reads only (one query on the posted ``order_ref``s);
+    counts, never a value."""
+    if not values:
+        return GapFills()
+    table = model.__table__
+    first = values[0]
+    incoming_rank = int(first["source_rank"])
+    refs = sorted({v["order_ref"] for v in values})
+    stored = (
+        await session.execute(
+            select(model).where(
+                table.c.shop_id == first["shop_id"],
+                table.c.platform == first["platform"],
+                table.c.order_ref.in_(refs),
+            )
+        )
+    ).scalars()
+    by_key = {tuple(getattr(row, c) for c in key_columns): row for row in stored}
+    rows = filled = 0
+    for value in values:
+        row = by_key.get(tuple(value[c] for c in key_columns))
+        if row is None or effective_rank(row.source, row.source_rank) <= incoming_rank:
+            continue
+        gaps = sum(1 for c in columns if getattr(row, c) is None and value.get(c) is not None)
+        rows += 1
+        filled += gaps
+    return GapFills(rows, filled)
+
+
+def log_gap_fills(table: str, shop_id: Any, source: str, found: GapFills) -> None:
+    if not found.rows:
+        return
+    logger.info(
+        "ingest_gap_fill",
+        extra={
+            "table": table,
+            "shop_id": str(shop_id),
+            "source": source,
+            "rows": found.rows,
+            "columns_filled": found.columns,
         },
     )

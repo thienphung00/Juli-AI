@@ -1,5 +1,5 @@
 """F2 on real Postgres: ``funnel.load_rows`` fills ``FunnelRows.unavailable`` from
-``shopee_stock_history`` as the runtime role, under the shop's scope (the other shop's reads stay
+``stock_history`` as the runtime role, under the shop's scope (the other shop's reads stay
 out), using the GMT+7 day and the window bounds.
 
 Synthetic tenants only.
@@ -26,7 +26,7 @@ WINDOW = Window(date(2026, 11, 14), date(2026, 11, 16))
 def _read(conn, shop_id, item, model, at, sellable, status="active", available=None) -> None:
     conn.execute(
         text(
-            "INSERT INTO public.shopee_stock_history (id, shop_id, item_id, model_id, read_at, "
+            "INSERT INTO public.stock_history (id, shop_id, item_id, variation_id, read_at, "
             "sellable, available, listing_status) "
             "VALUES (:id, :shop, :item, :model, :at, :sellable, :available, :status)"
         ),

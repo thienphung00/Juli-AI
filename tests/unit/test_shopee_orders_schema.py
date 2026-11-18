@@ -29,6 +29,7 @@ from juli_backend.database.tenant_scoped_tables import (
 )
 from juli_backend.models import shopee_profit as models
 from juli_backend.models.shopee_profit import AdsChangeLog, ShopeeOrderLine, ShopHealthDaily
+from tests.support.shopee_analytics import pre_t5_columns
 from tests.unit.test_shopee_file_datasets import _ingest, _rows, _shop
 
 REPO = Path(__file__).resolve().parents[2]
@@ -73,7 +74,7 @@ def test_migration_113_fits_alembic_and_the_deferred_tail_moved_onto_it():
     assert mig.revision == "113_shopee_orders_and_logs" and len(mig.revision) <= 32
     assert mig.down_revision == "112_shopee_profit_and_history"
     # P90 step 6's 114 went on 113 and took the deferred tail.
-    assert 'down_revision: str | None = "133_fleet_draws_real_shops"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "134_canonical_tables"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_113():
@@ -105,8 +106,9 @@ def test_every_model_column_is_created_by_the_migration():
         block = source.split(f"def _create_{'health' if 'health' in name else 'log'}")[1]
         block = block.split("\ndef ")[0]
         assert set(model.__table__.columns.keys()) == _created_columns(block), name
+    # migration 134 (T5) renamed shopee_subsidy to platform_subsidy
     for column in NEW_LINE_COLUMNS:
-        assert column in ShopeeOrderLine.__table__.columns
+        assert column in pre_t5_columns(ShopeeOrderLine)
 
 
 def test_migration_vocabularies_match_the_models():

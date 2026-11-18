@@ -149,6 +149,7 @@ def test_product_without_sources_takes_ads_and_affiliate_from_the_report_and_ord
         _product_ads,
         _product_affiliate,
     )
+    from juli_backend.services.shopee_profit.order_profit import OrderStatus
     from juli_backend.services.shopee_profit.shop_profit import AdsFigures
 
     # the product's funnel rows carry no source breakdown: every GMV sits in the residual
@@ -156,7 +157,13 @@ def test_product_without_sources_takes_ads_and_affiliate_from_the_report_and_ord
     base = base_from_rows(FunnelRows(W, rows), "s", item_ids=["A"])
 
     def line(oid, aff):
-        return SimpleNamespace(order_id=oid, product_id="A", affiliate=aff, order_value=D(100_000))
+        return SimpleNamespace(
+            order_id=oid,
+            product_id="A",
+            affiliate=aff,
+            order_value=D(100_000),
+            status=OrderStatus.DELIVERED,  # T5: a returned line would be no sale
+        )
 
     view = SimpleNamespace(
         ads=SimpleNamespace(product_figures={"A": AdsFigures(D(50_000), D(300_000), D(0))}),

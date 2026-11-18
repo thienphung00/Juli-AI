@@ -42,7 +42,7 @@ APPEND_ONLY = (
     "shop_rule_versions",
     "ad_campaign_purposes",
 )
-TENANT_TABLES = (*APPEND_ONLY, "shopee_order_lines")
+TENANT_TABLES = (*APPEND_ONLY, "order_lines")
 FORMULAS = "platform_fee_formulas"
 
 
@@ -76,12 +76,13 @@ def _insert(conn, table: str, shop_id: uuid.UUID, tag: str) -> None:
             "INSERT INTO public.product_image_assets (id, shop_id, image_hash, storage_path, "
             "first_seen_at) VALUES (:id, :shop, :tag, 'p/x.jpg', :now)"
         )
-    elif table == "shopee_order_lines":
+    elif table == "order_lines":
         sql = (
-            "INSERT INTO public.shopee_order_lines (id, shop_id, platform, order_ref, line_no, "
-            "ordered_at, status, item_id, qty, original_price, deal_price, source, "
-            "source_version) VALUES (:id, :shop, 'shopee', :tag, 1, :now, 'completed', '1', 1, "
-            "200000, 190000, 'upload', 't1')"
+            "INSERT INTO public.order_lines (id, shop_id, platform, order_ref, line_no, "
+            "ordered_at, day, status, item_id, qty, original_price, deal_price, source, "
+            "source_version) VALUES (:id, :shop, 'shopee', :tag, 1, :now, "
+            "(CAST(:now AS timestamptz) AT TIME ZONE 'Asia/Ho_Chi_Minh')::date, 'delivered', "
+            "'1', 1, 200000, 190000, 'upload', 't1')"
         )
     elif table == "shop_rule_versions":
         sql = (
@@ -120,7 +121,7 @@ def test_grants_follow_the_lanes(owner_engine):
     with owner_engine.connect() as conn:
         for table in APPEND_ONLY:
             assert _verbs(conn, RUNTIME_ROLE, table) == {"SELECT", "INSERT"}, table
-        assert _verbs(conn, RUNTIME_ROLE, "shopee_order_lines") == {"SELECT", "INSERT", "UPDATE"}
+        assert _verbs(conn, RUNTIME_ROLE, "order_lines") == {"SELECT", "INSERT", "UPDATE"}
         assert _verbs(conn, RUNTIME_ROLE, FORMULAS) == {"SELECT"}
         if _role_exists(conn, "juli_ops"):
             assert _verbs(conn, "juli_ops", FORMULAS) == {"SELECT", "INSERT", "UPDATE"}

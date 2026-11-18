@@ -240,6 +240,9 @@ export interface PageRow {
 /** 0.3.25: the Phân tích bán hàng password dialog; the seller confirms it once (the Connector never types it). */
 export const PASSWORD_RECHECK_LINE = "Xác nhận mật khẩu Shopee một lần trong Phân tích bán hàng";
 
+/** 0.3.26: the sub-account may not open Tài chính (income); the shop owner grants the right. */
+export const NO_PERMISSION_LINE = "Cần quyền Tài chính Seller Centre";
+
 /** The same line inside a sentence. */
 export const PASSWORD_RECHECK_LOWER = PASSWORD_RECHECK_LINE.charAt(0).toLowerCase() + PASSWORD_RECHECK_LINE.slice(1);
 
@@ -268,6 +271,7 @@ export function outcomeStatus(outcome: string): { status: string; tone: Tone } {
     case "blocked":
       // 0.3.22: "blocked:login" / "blocked:captcha": this page only; the other pages went on.
       if (outcome.startsWith("blocked:password_recheck")) return { status: PASSWORD_RECHECK_LINE, tone: "warn" };
+      if (outcome.startsWith("blocked:no_permission")) return { status: NO_PERMISSION_LINE, tone: "warn" };
       return outcome.startsWith("blocked:captcha")
         ? { status: "Trang này yêu cầu xác minh (CAPTCHA)", tone: "warn" }
         : { status: "Đăng nhập lại để đọc trang này", tone: "warn" };
@@ -278,6 +282,12 @@ export function outcomeStatus(outcome: string): { status: string; tone: Tone } {
       return { status: "Trang mở nhưng chưa tải số liệu: sẽ thử lại lần sau", tone: "wait" };
     case "timeout":
       return { status: "Trang tải quá lâu: sẽ thử lại lần sau", tone: "wait" };
+    case "error": {
+      // 0.3.26: "error:orders:0_rows:<step>": the page was read but no order came out; the step says where.
+      const zero = /^error:(orders|order_income):0_rows:([^|]+)/.exec(outcome);
+      if (zero) return { status: `Chưa đọc được đơn nào (${zero[2]}): sẽ thử lại lần sau`, tone: "warn" };
+      return { status: "Lỗi khi đọc: sẽ thử lại lần sau", tone: "warn" };
+    }
     case "redirected":
       return { status: "Seller Centre chuyển sang trang khác (có thể cần đăng nhập)", tone: "warn" };
     case "closed":

@@ -11,7 +11,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from juli_backend.services.shopee_profit.order_profit import OrderLine
+from juli_backend.services.shopee_profit.order_profit import OrderLine, counts_in_sales
 
 MIN_TOGETHER = 2
 MAX_SUGGESTIONS = 10
@@ -27,8 +27,8 @@ def _name(names: Mapping[str, str], item: str) -> str:
 def order_sets(lines: Iterable[OrderLine], skip: Mapping[str, Any] | None = None) -> list[set[str]]:
     by_order: dict[str, set[str]] = defaultdict(set)
     for ln in lines:
-        if skip and ln.product_id in skip:
-            continue
+        if (skip and ln.product_id in skip) or not counts_in_sales(ln):
+            continue  # a returned order is no basket (owner D2)
         by_order[ln.order_id].add(ln.product_id)
     return list(by_order.values())
 

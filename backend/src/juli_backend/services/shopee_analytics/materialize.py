@@ -66,6 +66,7 @@ from juli_backend.services.shopee_analytics.stored import ORDER_TYPE
 from juli_backend.services.shopee_analytics.windows import Window
 from juli_backend.services.shopee_profit.flows import FLOW_ORDER, RESIDUAL_KEY, FlowTable
 from juli_backend.services.shopee_profit.money import ZERO
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +289,10 @@ def day_rows(
             c = [t.clicks for t in traffic_spread.values() if t.clicks is not None]
             shop_views, shop_clicks = (sum(v) if v else None), (sum(c) if c else None)
     covered = p.buyer_paid_covered
-    net_gmv = sum((ln.order_value - ln.shop_voucher_share for ln, _ in view.pairs), ZERO)
+    net_gmv = sum(
+        (ln.order_value - ln.shop_voucher_share for ln, _ in view.pairs if counts_in_sales(ln)),
+        ZERO,
+    )
     shop = {
         "shop_id": shop_id,
         "day": day,
@@ -656,9 +660,9 @@ async def data_days(session: AsyncSession, shop_id: uuid.UUID) -> list[date]:
     )
     out.update(built.scalars().all())
     lines = await session.execute(
-        select(ShopeeOrderLine.ordered_at).where(ShopeeOrderLine.shop_id == shop_id)
+        select(ShopeeOrderLine.day).where(ShopeeOrderLine.shop_id == shop_id).distinct()
     )
-    out.update(v.date() for v in lines.scalars().all())
+    out.update(lines.scalars().all())
     daily = await session.execute(
         select(PlatformDailyMetric.day)
         .where(

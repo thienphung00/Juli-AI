@@ -1,18 +1,22 @@
 """Materialized Shopee metrics and the frozen plan base (P97 D85.2 / D85.4, migration 123).
 
+Migration 134 (T5) gives the three daily tables platform-neutral names (``shop_metrics_daily``,
+``product_metrics_daily``, ``source_metrics_daily``; the ``shopee_*`` names stay as views for one
+release) and ``built_at`` becomes ``timestamptz``.
+
 Three tenant-direct tables (``shop_id``, RLS by ``app_current_shop_id()``; ``juli_app`` SELECT,
 INSERT, UPDATE -- rows are rebuilt by upsert, never deleted):
 
-- ``shopee_shop_metrics_daily`` -- one row per (shop, GMT+7 day, order type): the headline GMV /
+- ``shop_metrics_daily`` -- one row per (shop, GMT+7 day, order type): the headline GMV /
   đơn / AOV, the funnel, ads, profit, with a source tag per column and a ``complete`` flag (the
   day's shop totals came from Shopee's own daily numbers, not from order lines standing in).
-- ``shopee_product_metrics_daily`` -- the day's product rows: order lines scaled to the shop row.
+- ``product_metrics_daily`` -- the day's product rows: order lines scaled to the shop row.
   The product rows of a day, plus the ``__residual__`` row, add up to the shop row; the residual
   (the part of the shop GMV no order line explains) is stored, never hidden.
 - ``shopee_plan_base_snapshots`` -- the base a draft plan was evaluated on (``as_of`` and the
   aggregates the plan math shows), versioned: "Cập nhật số" writes the next version, the highest
   version is the active one.
-- ``shopee_source_metrics_daily`` (P98 / ADR-122 d.3, migration 126) -- the funnel per traffic
+- ``source_metrics_daily`` (P98 / ADR-122 d.3, migration 126) -- the funnel per traffic
   source: one row per (shop, day, item or NULL = the shop, source). Lượt xem / lượt nhấp from the
   traffic tables; đơn / GMV / lợi nhuận are ShopMetrics allocated over the sources, so the six
   sources of a scope add up to its shop (or product) row exactly; ``chenh_lech_nguon`` holds what
@@ -45,6 +49,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from juli_backend.models.ingest import JSONBType
+from juli_backend.models.shopee_profit import UTC_TIME
 from juli_backend.orm_base import Base
 
 ORDER_TYPES: tuple[str, ...] = ("placed", "paid", "confirmed")
@@ -67,13 +72,13 @@ def _in(values: tuple[str, ...]) -> str:
 
 
 class ShopeeShopMetricsDaily(Base):
-    __tablename__ = "shopee_shop_metrics_daily"
+    __tablename__ = "shop_metrics_daily"
     __table_args__ = (
-        UniqueConstraint("shop_id", "day", "order_type", name="uq_shopee_shop_metrics_daily"),
+        UniqueConstraint("shop_id", "day", "order_type", name="uq_shop_metrics_daily"),
         CheckConstraint(
-            f"order_type IN ({_in(ORDER_TYPES)})", name="ck_shopee_shop_metrics_daily_order_type"
+            f"order_type IN ({_in(ORDER_TYPES)})", name="ck_shop_metrics_daily_order_type"
         ),
-        Index("ix_shopee_shop_metrics_daily_complete", "shop_id", "complete", "day"),
+        Index("ix_shop_metrics_daily_complete", "shop_id", "complete", "day"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -103,20 +108,20 @@ class ShopeeShopMetricsDaily(Base):
     #: partial-profit flag
     detail: Mapped[dict[str, Any]] = mapped_column(JSONBType, default=dict)
     complete: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
-    built_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    built_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
 
 
 class ShopeeProductMetricsDaily(Base):
-    __tablename__ = "shopee_product_metrics_daily"
+    __tablename__ = "product_metrics_daily"
     __table_args__ = (
         UniqueConstraint(
-            "shop_id", "day", "order_type", "item_id", name="uq_shopee_product_metrics_daily"
+            "shop_id", "day", "order_type", "item_id", name="uq_product_metrics_daily"
         ),
         CheckConstraint(
             f"order_type IN ({_in(ORDER_TYPES)})",
-            name="ck_shopee_product_metrics_daily_order_type",
+            name="ck_product_metrics_daily_order_type",
         ),
-        Index("ix_shopee_product_metrics_daily_item", "shop_id", "item_id", "day"),
+        Index("ix_product_metrics_daily_item", "shop_id", "item_id", "day"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -137,7 +142,7 @@ class ShopeeProductMetricsDaily(Base):
     line_orders: Mapped[int] = mapped_column(Integer, default=0)
     source: Mapped[str] = mapped_column(String(16))
     scaled_to_totals: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
-    built_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    built_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
 
 
 class ShopeePlanBaseSnapshot(Base):
@@ -165,13 +170,13 @@ class ShopeeSourceMetricsDaily(Base):
     natural key is (shop, day, item, source), enforced by two partial unique indexes because a
     NULL never collides in a plain unique constraint."""
 
-    __tablename__ = "shopee_source_metrics_daily"
+    __tablename__ = "source_metrics_daily"
     __table_args__ = (
         CheckConstraint(
-            f"source IN ({_in(FUNNEL_SOURCES)})", name="ck_shopee_source_metrics_daily_source"
+            f"source IN ({_in(FUNNEL_SOURCES)})", name="ck_source_metrics_daily_source"
         ),
         Index(
-            "uq_shopee_source_metrics_daily_shop",
+            "uq_source_metrics_daily_shop",
             "shop_id",
             "day",
             "source",
@@ -180,7 +185,7 @@ class ShopeeSourceMetricsDaily(Base):
             sqlite_where=text("item_id IS NULL"),
         ),
         Index(
-            "uq_shopee_source_metrics_daily_item",
+            "uq_source_metrics_daily_item",
             "shop_id",
             "day",
             "item_id",
@@ -189,7 +194,7 @@ class ShopeeSourceMetricsDaily(Base):
             postgresql_where=text("item_id IS NOT NULL"),
             sqlite_where=text("item_id IS NOT NULL"),
         ),
-        Index("ix_shopee_source_metrics_daily_item", "shop_id", "item_id", "day"),
+        Index("ix_source_metrics_daily_item", "shop_id", "item_id", "day"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -212,4 +217,4 @@ class ShopeeSourceMetricsDaily(Base):
     ads_spend: Mapped[Decimal | None] = mapped_column(_MONEY, nullable=True)
     #: the traffic tables' own đơn / GMV for this source were scaled to the ShopMetrics totals
     scaled_to_totals: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
-    built_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    built_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())

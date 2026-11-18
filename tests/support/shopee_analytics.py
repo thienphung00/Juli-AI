@@ -504,3 +504,27 @@ def keyword(shop_id: uuid.UUID, text: str, role: str, item_id: str = "1001") -> 
         item_scope=item_id,
         enabled=True,
     )
+
+
+#: Migration 134 (T5): (table, column before 134, column since 134), and the columns it added.
+T5_RENAMED: tuple[tuple[str, str, str], ...] = (
+    ("order_lines", "shopee_subsidy", "platform_subsidy"),
+    ("order_settlements", "ship_shopee_subsidy", "ship_platform_subsidy"),
+    ("affiliate_lines", "order_status", "status"),
+    ("affiliate_lines", "model_id", "variation_id"),
+    ("stock_history", "model_id", "variation_id"),
+)
+T5_ADDED: dict[str, frozenset[str]] = {
+    "order_lines": frozenset({"day", "source_rank"}),
+    "affiliate_lines": frozenset({"day", "source_rank"}),
+    "order_settlements": frozenset({"fee_other"}),
+}
+
+
+def pre_t5_columns(model: Any) -> set[str]:
+    """A model's columns under their names before migration 134, without the columns 134 added:
+    what the migration that created the table (and its later additive ones) must name."""
+    table = model.__tablename__
+    back = {new: old for t, old, new in T5_RENAMED if t == table}
+    added = T5_ADDED.get(table, frozenset())
+    return {back.get(c, c) for c in model.__table__.columns.keys() if c not in added}

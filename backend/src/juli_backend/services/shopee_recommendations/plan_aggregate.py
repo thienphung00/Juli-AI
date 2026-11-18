@@ -54,6 +54,7 @@ from pydantic import ValidationError
 
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.money import ZERO
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_recommendations import (
     config,
     plan,
@@ -1345,7 +1346,7 @@ def _after_of(
 
 def _product_block(env: RecoEnv, pid: str, evs: Sequence[Evaluated], memo: _Memo) -> dict[str, Any]:
     j = memo.of([e.entry.card_id for e in evs])
-    base = float(sum((ln.order_value for ln in env.lines_for([pid])), ZERO))
+    base = float(sum((ln.order_value for ln in env.lines_for([pid]) if counts_in_sales(ln)), ZERO))
     t = j.total
     rel: dict[str, float | None] = {}
     for q in ("p10", "p50", "p90"):

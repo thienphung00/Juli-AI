@@ -1,7 +1,8 @@
-"""Writer of the ``order_income`` dataset: ``shopee_order_income`` (migration 119, P91 D-12).
+"""Writer of the ``order_income`` dataset: ``order_settlements`` (migration 119, P91 D-12; named
+``shopee_order_income`` until migration 134).
 
 One row per (shop, platform, order). A later post of the same order replaces the row when its
-source ranks the same or higher (file over extension, as ``gateway._upsert``); a column the
+source ranks the same or higher (extension over file, as ``gateway._upsert``); a column the
 later post does not state (NULL) never erases one already stored.
 """
 
@@ -12,18 +13,18 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import case, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.ingest import SOURCE_RANK
 from juli_backend.models.shopee_profit import ShopeeOrderIncome
+from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills, ranked_value
 from juli_backend.services.ingest.schemas import IngestBody, ShopeeOrderIncomeRow
 
 logger = logging.getLogger(__name__)
 
 CHUNK = 400
 KEY_COLUMNS = ("shop_id", "platform", "order_ref")
-#: Row fields copied to same-named columns.
+#: Row fields copied to the column of the same name (or of :data:`COLUMN_OF`'s name).
 AMOUNT_FIELDS: tuple[str, ...] = (
     "payout",
     "product_price",
@@ -52,7 +53,13 @@ AMOUNT_FIELDS: tuple[str, ...] = (
     "trade_in_bonus_seller",
     "transaction_fee_rate",
 )
-STATED_COLUMNS: tuple[str, ...] = ("ordered_on", "paid_on", *AMOUNT_FIELDS)
+#: Migration 134: a wire field whose column has a platform-neutral name.
+COLUMN_OF: dict[str, str] = {"ship_shopee_subsidy": "ship_platform_subsidy"}
+AMOUNT_COLUMNS: tuple[str, ...] = tuple(COLUMN_OF.get(name, name) for name in AMOUNT_FIELDS)
+#: ``fee_other`` has no wire field (the TikTok mapper fills it through ``DbCanonicalWriter``).
+STATED_COLUMNS: tuple[str, ...] = ("ordered_on", "paid_on", *AMOUNT_COLUMNS, "fee_other")
+#: describe the post: they stay with the highest-ranked writer
+PROVENANCE_COLUMNS = ("source", "source_rank", "source_version", "raw_payload_id", "updated_at")
 
 
 def _insert(session: AsyncSession) -> Any:
@@ -63,13 +70,6 @@ def _insert(session: AsyncSession) -> Any:
     from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
     return sqlite_insert
-
-
-def _stored_rank(table: Any) -> Any:
-    return case(
-        *[(table.c.source == source, rank) for source, rank in SOURCE_RANK.items()],
-        else_=table.c.source_rank,
-    )
 
 
 def income_values(
@@ -84,6 +84,7 @@ def income_values(
             "order_ref": row.order_ref,
             "ordered_on": row.ordered_on,
             "paid_on": row.paid_on,
+            "fee_other": None,
             "source": provenance["source"],
             "source_rank": provenance["source_rank"],
             "source_version": provenance["source_version"],
@@ -92,7 +93,7 @@ def income_values(
         }
         for name in AMOUNT_FIELDS:
             amount: Decimal | None = getattr(row, name)
-            value[name] = amount
+            value[COLUMN_OF.get(name, name)] = amount
         out.append(value)
     return out
 
@@ -142,27 +143,31 @@ async def write_order_income(
     if not rows:
         return []
     warnings = await _seller_support_warning(session, rows, provenance)
+    await upsert_settlement_values(session, income_values(rows, provenance))
+    return warnings
+
+
+async def upsert_settlement_values(session: AsyncSession, values: list[dict[str, Any]]) -> None:
+    """The one ``order_settlements`` upsert (the gateway and ``DbCanonicalWriter`` share it)."""
     insert = _insert(session)
     table = ShopeeOrderIncome.__table__
-    values = income_values(rows, provenance)
     for start in range(0, len(values), CHUNK):
-        stmt = insert(ShopeeOrderIncome).values(values[start : start + CHUNK])
+        part = values[start : start + CHUNK]
+        found = await count_gap_fills(session, ShopeeOrderIncome, KEY_COLUMNS, part, STATED_COLUMNS)
+        log_gap_fills(ShopeeOrderIncome.__tablename__, part[0]["shop_id"], part[0]["source"], found)
+        stmt = insert(ShopeeOrderIncome).values(part)
+        # owner 2026-11-18: the same or a higher rank replaces with its stated values (a NULL
+        # keeps the stored one); a lower rank only fills NULL columns and the provenance stays
+        # with the higher writer (``precedence.ranked_value``)
         updated: dict[str, Any] = {
-            column: func.coalesce(stmt.excluded[column], table.c[column])
-            for column in STATED_COLUMNS
+            column: ranked_value(stmt, table, column) for column in STATED_COLUMNS
         }
         updated.update(
             {
-                column: stmt.excluded[column]
-                for column in ("source", "source_rank", "source_version", "raw_payload_id")
+                column: ranked_value(stmt, table, column, provenance=True)
+                for column in PROVENANCE_COLUMNS
             }
         )
-        updated["updated_at"] = stmt.excluded["updated_at"]
         await session.execute(
-            stmt.on_conflict_do_update(
-                index_elements=list(KEY_COLUMNS),
-                set_=updated,
-                where=_stored_rank(table) <= stmt.excluded.source_rank,
-            )
+            stmt.on_conflict_do_update(index_elements=list(KEY_COLUMNS), set_=updated)
         )
-    return warnings

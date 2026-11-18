@@ -34,6 +34,7 @@ from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
     ProfitBreakdown,
     PromoKind,
+    counts_in_sales,
 )
 
 
@@ -102,15 +103,17 @@ def price_lever(promo_kinds: Iterable[PromoKind], voucher: Decimal, bundle: Deci
 def _cell(pairs: list[tuple[OrderLine, ProfitBreakdown]]) -> CellStats:
     elig = [(ln, pb) for ln, pb in pairs if pb.excluded_reason is None]
     known = bool(elig) and all(pb.profit is not None for _, pb in elig)
+    # a refund (owner 2026-11-18) is no sale: no đơn, GMV or buyer paid; its cost stays in profit
+    sales = [(ln, pb) for ln, pb in pairs if counts_in_sales(ln)]
     return CellStats(
-        orders=1,
-        gmv=sum((ln.order_value for ln, _ in pairs), ZERO),
-        buyer_paid=sum((pb.buyer_paid for _, pb in pairs), ZERO),
+        orders=1 if sales else 0,
+        gmv=sum((ln.order_value for ln, _ in sales), ZERO),
+        buyer_paid=sum((pb.buyer_paid for _, pb in sales), ZERO),
         buyer_paid_known=sum((pb.revenue for _, pb in elig), ZERO) if known else ZERO,
         profit=sum((pb.profit or ZERO for _, pb in elig), ZERO) if known else ZERO,
         contribution=sum((pb.contribution or ZERO for _, pb in elig), ZERO) if known else ZERO,
         orders_missing_profit=0 if known or not elig else 1,
-        orders_excluded=0 if elig else 1,
+        orders_excluded=0 if elig or not sales else 1,
     )
 
 

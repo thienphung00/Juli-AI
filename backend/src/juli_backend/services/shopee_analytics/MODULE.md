@@ -76,8 +76,9 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
   (Seller Centre AOV a labelled second line), views / CTR / CTOR, ads, profit, biên, and the product
   splits (order lines scaled to the totals, whole đồng, residual kept). `view.metrics` is what every
   screen reads: the stored daily rows when every day of the window is complete, else the raw tables.
-- `stored.py` (read), `materialize.py` (build) -- `shopee_shop_metrics_daily` /
-  `shopee_product_metrics_daily` (migration 123). `after_ingest` is the gateway hook;
+- `stored.py` (read), `materialize.py` (build) -- `shop_metrics_daily` /
+  `product_metrics_daily` (migration 123; the `shopee_*` names until 134). `after_ingest` is the
+  gateway hook;
   `scripts/backfill_shopee_metrics.py` backfills a shop.
 - `windows.choose_anchor` / `loaders.load_anchor` -- the one window end: the last day every live daily
   dataset posted (or the last complete materialized day); the payload names it.
@@ -85,7 +86,7 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
 ## Missing days and unknown costs (P100-A, B.17)
 
 - A day whose order data never arrived (`shop_overview` without đơn, or all-zero with no visitor
-  and no click: `loaders.order_day`) is NULL in `shopee_shop_metrics_daily`, never 0. Window sums
+  and no click: `loaders.order_day`) is NULL in `shop_metrics_daily`, never 0. Window sums
   (`stored.load_stored`), the funnel base (`funnel.load_rows`) and the spread series leave it out;
   `ShopMetrics.coverage()` says "N/30 ngày có dữ liệu" on Tổng quan, Sản phẩm and Luồng.
 - A day with orders and no costed line has a NULL profit (shop and product), never 0.
@@ -99,13 +100,26 @@ carries the same facts for the KOL cards. Entry points `queries.kol_table` / `qu
   when there are no variations; unknown sellable ignored) and unlisted days (any read
   `listing_status == "unlisted"`). A day with no read is available; nothing is carried forward.
 - `funnel.load_rows` fills `FunnelRows.unavailable` (`{item_id: days}`, GMT+7 days via
-  `stock_alert.stock_basis.local_day`) from `shopee_stock_history`; the default is empty.
+  `stock_alert.stock_basis.local_day`) from `stock_history`; the default is empty.
 - `forecast_base.adaptive_base` with `item_ids` drops a day when ANY product of the scope is
   unavailable: its rows leave the sums, the day leaves every day count and the F3 `daily` series.
   A metric with no event left is `low_data`. Shop scope (no `item_ids`) is unchanged.
-- Known follow-up: the stock-history read filters on `(shop_id, read_at)` but the table only has
-  the per-SKU index `(shop_id, item_id, model_id, read_at)`; add a `(shop_id, read_at)` index (a
-  migration) if the read shows up in query timings.
+- The stock-history read filters on `(shop_id, read_at)`: index `ix_stock_history_read`
+  (migration 134).
+
+## Canonical tables and the order day (T5, migration 134)
+
+- The fact tables are platform-neutral: `order_lines`, `order_settlements`, `affiliate_lines`,
+  `stock_history`, `shop_metrics_daily`, `product_metrics_daily`, `source_metrics_daily` (the ORM
+  classes keep their `Shopee*` names; the old table names are `security_invoker` views for one
+  release). Renamed columns: `platform_subsidy`, `ship_platform_subsidy`, affiliate `status` and
+  `variation_id`, stock `variation_id`.
+- Times are `timestamptz` (`models.shopee_profit.CanonicalTime`): order times come back aware in
+  GMT+7, `read_at` aware UTC. Every per-day reader groups and windows by the stored `day` (the
+  GMT+7 day of `ordered_at`), never by `ordered_at.date()` / `func.date(ordered_at)`; a line built
+  in memory falls back to `RawLine.order_day`.
+- Order-line statuses are `models.shopee_profit.ORDER_LINE_STATUSES` (CHECK on the table); the
+  writer stores an unknown value as `in_transit` when paid, else `pending`.
 
 ## One calculation (batch-1117b R11, R12, C4)
 

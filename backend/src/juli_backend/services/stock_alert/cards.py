@@ -62,15 +62,15 @@ async def variation_keys(
     out: dict[str, set[str]] = {}
     hist = (
         await session.execute(
-            select(ShopeeStockHistory.item_id, ShopeeStockHistory.model_id)
+            select(ShopeeStockHistory.item_id, ShopeeStockHistory.variation_id)
             .where(ShopeeStockHistory.shop_id == shop_id)
             .distinct()
         )
     ).all()
-    with_models = {h.item_id for h in hist if h.model_id}
+    with_models = {h.item_id for h in hist if h.variation_id}
     for h in hist:
-        if h.model_id or h.item_id not in with_models:
-            out.setdefault(h.item_id, set()).add(sku_key(h.item_id, h.model_id))
+        if h.variation_id or h.item_id not in with_models:
+            out.setdefault(h.item_id, set()).add(sku_key(h.item_id, h.variation_id))
     for t in (
         await session.execute(
             select(ShopeeSkuTracking.item_id, ShopeeSkuTracking.model_id).where(

@@ -19,7 +19,8 @@ One call = one POST of one dataset for one shop. In order:
    ``platform_product_flags`` or ``platform_promotions`` -- or, for the P90 step 2 datasets, the
    tables of ``writers.py`` (order lines, ad change log, shop health, item snapshots) -- a row
    of the metric tables is only replaced by a source of the same or higher rank
-   (vendor < extension < file < api; P90 D-5), and every row records the ``mapper_version``
+   (vendor < file < extension < api; owner 2026-11-18), and every row records the
+   ``mapper_version``
    that produced it;
 5. ``ingest_dataset_status`` records the last ingest; one ``ingest_accepted``
    log line is the audit record.
@@ -58,6 +59,7 @@ from juli_backend.models.platform_data import (
     PlatformProductFlag,
     PlatformPromotion,
 )
+from juli_backend.services.capabilities.registry import Route, can
 from juli_backend.services.consent import ConsentRequired, require_consent
 from juli_backend.services.ingest import market as market_search
 from juli_backend.services.ingest.income import write_order_income
@@ -354,11 +356,26 @@ async def _store_raw(
 
 def _stored_rank(table: Any) -> Any:
     """The rank a stored row counts at: its ``source`` decides (``effective_rank``), so a row
-    written before D-5 (file = extension = 2) is still outranked by a file post."""
+    stored under older rank numbers counts at today's order (``SOURCE_RANK``)."""
     return case(
         *[(table.c.source == source, rank) for source, rank in SOURCE_RANK.items()],
         else_=table.c.source_rank,
     )
+
+
+#: Columns that describe the post itself, not the shop: they follow the row's latest writer.
+_PROVENANCE_COLUMNS = frozenset(
+    (
+        "source",
+        "source_rank",
+        "source_version",
+        "mapper_version",
+        "raw_payload_id",
+        "captured_at",
+        "updated_at",
+        "confidence",
+    )
+)
 
 
 async def _upsert(
@@ -367,7 +384,9 @@ async def _upsert(
     key_columns: tuple[str, ...],
     values: list[dict[str, Any]],
 ) -> None:
-    """Insert, or replace a row of the same or lower rank on the same key (file > extension)."""
+    """Insert, or update a row of the same or lower rank on the same key (``SOURCE_RANK``:
+    API > Connector > file). A NULL in the post never clears a stored value (owner
+    2026-11-18): each column takes the post's value, else keeps the stored one."""
     if not values:
         return
     insert = _insert(session)
@@ -375,7 +394,11 @@ async def _upsert(
     for start in range(0, len(values), UPSERT_CHUNK):
         stmt = insert(model).values(values[start : start + UPSERT_CHUNK])
         updated = {
-            column: stmt.excluded[column]
+            column: (
+                stmt.excluded[column]
+                if column in _PROVENANCE_COLUMNS
+                else func.coalesce(stmt.excluded[column], table.c[column])
+            )
             for column in values[0]
             if column not in key_columns and column not in ("id", "created_at")
         }
@@ -399,7 +422,7 @@ async def _upsert_ranked(
     values: list[dict[str, Any]],
 ) -> None:
     """``_upsert`` for the metric tables, after counting the keys another source already holds
-    (P90 D-5: a file outranks the Connector; the counts go to one log line)."""
+    (the Connector outranks a file, ``SOURCE_RANK``; the counts go to one log line)."""
     if values:
         found = await count_source_conflicts(session, model, key_columns, values)
         log_source_conflicts(values[0]["shop_id"], values[0]["dataset"], values[0]["source"], found)
@@ -525,7 +548,7 @@ def _metric_values(
             )
         else:
             value["day"] = row.day
-        # Every KPI column on every row, so a later post can clear a value.
+        # Every KPI column on every row; a None keeps the stored value (``_upsert``).
         value.update({column: row.kpis.get(column) for column in KPI_COLUMNS})
         values.append(value)
     return values
@@ -843,8 +866,9 @@ async def ingest(
         raw_id=raw_id,
         now=now,
     )
-    if platform == "shopee" and body.source == SOURCE_EXTENSION:
+    if body.source == SOURCE_EXTENSION and can(platform, "read_orders").route is Route.connector:
         # The read succeeded (a duplicate too): a blocked reader of this dataset is unblocked.
+        # The platform's reads go through the Connector (Shopee today), so it has readers.
         from juli_backend.services.shopee_recommendations import connector_state
 
         await connector_state.clear_blocks_for_dataset(

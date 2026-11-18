@@ -1,4 +1,4 @@
-"""P96, migration 122 on real Postgres: ``shopee_affiliate_lines`` -- RLS, grants, the gateway as
+"""P96, migration 122 on real Postgres: ``affiliate_lines`` -- RLS, grants, the gateway as
 ``juli_app``, the KOL loader under each shop's scope, up / down.
 
 - row-level security is on; ``juli_app`` has SELECT, INSERT, UPDATE (a later report moves a line),
@@ -36,7 +36,7 @@ pytestmark = [requires_postgres]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
 NOW = datetime(2026, 11, 6, 3, 0)
-TABLE = "shopee_affiliate_lines"
+TABLE = "affiliate_lines"
 REF_A = "c" * 32
 REF_B = "d" * 32
 
@@ -61,11 +61,11 @@ def _role_exists(conn, role: str) -> bool:
 def _insert(conn, shop_id: uuid.UUID, ref: str) -> None:
     conn.execute(
         text(
-            "INSERT INTO public.shopee_affiliate_lines (id, shop_id, platform, order_ref, line_no, "
-            "item_id, ordered_at, source, source_version) "
-            "VALUES (:id, :shop, 'shopee', :ref, 0, '1001', :now, 'extension', '0.3.6')"
+            "INSERT INTO public.affiliate_lines (id, shop_id, platform, order_ref, line_no, "
+            "item_id, ordered_at, day, source, source_version) "
+            "VALUES (:id, :shop, 'shopee', :ref, 0, '1001', :now, :day, 'extension', '0.3.6')"
         ),
-        {"id": uuid.uuid4(), "shop": shop_id, "ref": ref, "now": NOW},
+        {"id": uuid.uuid4(), "shop": shop_id, "ref": ref, "now": NOW, "day": NOW.date()},
     )
 
 
@@ -100,9 +100,7 @@ def test_a_shop_sees_and_writes_only_its_own_lines(owner_engine, two_tenants):
         _insert(conn, b.shop_id, "b" * 32)
     with owner_engine.connect() as conn:
         _scope(conn, a.shop_id)
-        shops = set(
-            conn.execute(text("SELECT shop_id FROM public.shopee_affiliate_lines")).scalars()
-        )
+        shops = set(conn.execute(text("SELECT shop_id FROM public.affiliate_lines")).scalars())
         assert shops == {a.shop_id}
         _insert(conn, a.shop_id, "e" * 32)
         with pytest.raises(DBAPIError):
@@ -206,7 +204,11 @@ def test_zz_downgrade_drops_and_upgrade_restores(owner_engine):
 
     def exists() -> bool:
         with owner_engine.connect() as conn:
-            found = conn.execute(text("SELECT to_regclass(:n)"), {"n": f"public.{TABLE}"}).scalar()
+            # the table under its 134 name, or its pre-134 name below 134
+            found = conn.execute(
+                text("SELECT coalesce(to_regclass(:n), to_regclass(:o))"),
+                {"n": f"public.{TABLE}", "o": "public.shopee_affiliate_lines"},
+            ).scalar()
             return found is not None
 
     assert exists()

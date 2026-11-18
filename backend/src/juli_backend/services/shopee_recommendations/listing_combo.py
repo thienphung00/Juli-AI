@@ -71,7 +71,7 @@ def eval_listing_combo(
         return _refuse("combo_price_too_low")
     # the baskets of the window that hold every member: ``k`` combos each = the smallest quantity
     by_order: dict[str, dict[str, list[OrderLine]]] = defaultdict(lambda: defaultdict(list))
-    for ln, _ in env.view.pairs:
+    for ln, _ in env.sales_pairs:
         if ln.product_id in members:
             by_order[ln.order_id][ln.product_id].append(ln)
     baskets: list[int] = []
@@ -152,7 +152,7 @@ def eval_listing_combo(
         {
             "item_id": m,
             "name": env.name(m),
-            "orders_30d": len({ln.order_id for ln, _ in env.view.pairs if ln.product_id == m}),
+            "orders_30d": env.orders_of(m),
             "price": num(next((ln.deal_price for ln in lines if ln.product_id == m), None)),
         }
         for m in members
@@ -176,7 +176,7 @@ def eval_listing_combo(
         "magnitude_pct": float(ratio),
         "aov_now": num(
             safe_div(
-                sum((ln.order_value for ln, _ in env.view.pairs), ZERO),
+                sum((ln.order_value for ln, _ in env.sales_pairs), ZERO),
                 Decimal(max(env.shop_orders_30d, 1)),
             )
         ),

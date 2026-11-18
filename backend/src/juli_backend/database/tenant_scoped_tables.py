@@ -158,7 +158,9 @@ TABLE_CLASSIFICATION_MAP = {
     # append-only rule versions and ad-campaign purposes.
     ("public", "platform_item_snapshots"): "tenant_direct",
     ("public", "product_image_assets"): "tenant_direct",
-    ("public", "shopee_order_lines"): "tenant_direct",
+    # T5 (migration 134) renamed the seven Shopee fact tables to canonical names; the
+    # ``shopee_*`` compat views under the old names are views, not tables, so they are not here.
+    ("public", "order_lines"): "tenant_direct",
     ("public", "shop_rule_versions"): "tenant_direct",
     ("public", "ad_campaign_purposes"): "tenant_direct",
     # P90 step 2 (migration 113): account-health readings and the ad change log, both
@@ -167,14 +169,14 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "ads_change_log"): "tenant_direct",
     # P91 D-12 (migration 119): what Shopee actually charged and paid per order (the income
     # export), keyed by the same hashed order ref as the order lines.
-    ("public", "shopee_order_income"): "tenant_direct",
+    ("public", "order_settlements"): "tenant_direct",
     # P96 (migration 122): affiliate order lines of the conversion report, stored on their own
     # (the KOL tab no longer needs the order export); same hashed order ref, KOL handle only.
-    ("public", "shopee_affiliate_lines"): "tenant_direct",
+    ("public", "affiliate_lines"): "tenant_direct",
     # P97 D85.2 / D85.4 (migration 123): the materialized shop and product metrics per day and
     # the frozen base of a draft plan.
-    ("public", "shopee_shop_metrics_daily"): "tenant_direct",
-    ("public", "shopee_product_metrics_daily"): "tenant_direct",
+    ("public", "shop_metrics_daily"): "tenant_direct",
+    ("public", "product_metrics_daily"): "tenant_direct",
     ("public", "shopee_plan_base_snapshots"): "tenant_direct",
     # P97 D85.6 (migration 124): the fill queue the Connector works through after an approval.
     ("public", "shopee_fill_jobs"): "tenant_direct",
@@ -182,12 +184,12 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shopee_connector_state"): "tenant_direct",
     ("public", "shopee_connector_commands"): "tenant_direct",
     # P100 Part S (migration 129): stock history, the "Theo dõi" switch, unsubscribes, send log.
-    ("public", "shopee_stock_history"): "tenant_direct",
+    ("public", "stock_history"): "tenant_direct",
     ("public", "shopee_sku_tracking"): "tenant_direct",
     ("public", "shopee_stock_alert_unsubscribes"): "tenant_direct",
     ("public", "shopee_stock_alert_sends"): "tenant_direct",
     # P98 / ADR-122 d.3 (migration 126): the funnel per traffic source, per day (shop and item).
-    ("public", "shopee_source_metrics_daily"): "tenant_direct",
+    ("public", "source_metrics_daily"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",

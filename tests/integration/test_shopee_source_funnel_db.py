@@ -1,4 +1,4 @@
-"""P98, migration 126 on real Postgres: ``shopee_source_metrics_daily`` -- RLS, grants, the natural
+"""P98, migration 126 on real Postgres: ``source_metrics_daily`` -- RLS, grants, the natural
 key with a NULL item, up / down.
 
 - row-level security is on; ``juli_app`` has SELECT, INSERT, UPDATE, ``juli_ops`` nothing;
@@ -29,7 +29,7 @@ pytestmark = [requires_postgres]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
-TABLE = "shopee_source_metrics_daily"
+TABLE = "source_metrics_daily"
 DAY = date(2026, 11, 5)
 
 
@@ -53,7 +53,7 @@ def _role_exists(conn, role: str) -> bool:
 def _insert(conn, shop_id: uuid.UUID, *, item: str | None = None, source: str = "video") -> None:
     conn.execute(
         text(
-            "INSERT INTO public.shopee_source_metrics_daily (id, shop_id, day, item_id, source, "
+            "INSERT INTO public.source_metrics_daily (id, shop_id, day, item_id, source, "
             "views, clicks, orders, gmv) VALUES (:id, :shop, :day, :item, :source, 10, 2, 1, 50000)"
         ),
         {"id": uuid.uuid4(), "shop": shop_id, "day": DAY, "item": item, "source": source},
@@ -152,7 +152,11 @@ def test_zz_downgrade_drops_and_upgrade_restores(owner_engine):
 
     def exists() -> bool:
         with owner_engine.connect() as conn:
-            found = conn.execute(text("SELECT to_regclass(:n)"), {"n": f"public.{TABLE}"}).scalar()
+            # the table under its 134 name, or its pre-134 name below 134
+            found = conn.execute(
+                text("SELECT coalesce(to_regclass(:n), to_regclass(:o))"),
+                {"n": f"public.{TABLE}", "o": "public.shopee_source_metrics_daily"},
+            ).scalar()
             return found is not None
 
     assert exists()

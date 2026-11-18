@@ -45,7 +45,11 @@ function hhmm(iso: string | null): string {
 /** A Seller Centre / card value with its unit by field. */
 const SECTION_LABEL: Record<string, string> = { phan_tich_ban_hang: "Phân tích bán hàng", seller_centre: "Seller Centre" };
 
-const BLOCK_VERB: Record<string, string> = { captcha: "Xác minh lại", password_recheck: "Xác nhận mật khẩu" };
+const BLOCK_VERB: Record<string, string> = {
+  captcha: "Xác minh lại",
+  password_recheck: "Xác nhận mật khẩu",
+  no_permission: "Cần quyền Tài chính",
+};
 
 /** Connector 0.3.22: one short line per blocked section ("Đăng nhập lại Phân tích bán hàng"). */
 export function readerBlockText(blocks: readonly ReaderBlock[] | undefined): string | null {

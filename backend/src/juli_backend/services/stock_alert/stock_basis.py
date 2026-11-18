@@ -12,23 +12,31 @@ At send time (``now``, 07:00 GMT+7):
   after ``read_at``), never below 0, remembering "đã trừ n đơn";
 - else no usable read: the shop gets the "chưa đọc được tồn kho" e-mail.
 
-Times are naive UTC (as the database stores them); the local day is GMT+7.
+Times are naive UTC (as the stock-alert tables store them); the local day is GMT+7. The canonical
+tables (``stock_history.read_at``, ``order_lines.ordered_at``, migration 134) are ``timestamptz``
+and come back aware: :func:`naive_utc` turns them into naive UTC where they enter this package, so
+an aware and a naive time never meet here.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 LOCAL_OFFSET = timedelta(hours=7)
 FRESH_AFTER = time(6, 0)
 MAX_AGE = timedelta(hours=48)
 
 
+def naive_utc(at: datetime) -> datetime:
+    """The stock alert's time form: an aware time as naive UTC; a naive one is already UTC."""
+    return at.astimezone(UTC).replace(tzinfo=None) if at.tzinfo is not None else at
+
+
 def local(at: datetime) -> datetime:
-    """Naive UTC -> naive GMT+7."""
-    return at + LOCAL_OFFSET
+    """Naive UTC (or aware) -> naive GMT+7."""
+    return naive_utc(at) + LOCAL_OFFSET
 
 
 def local_day(at: datetime) -> date:

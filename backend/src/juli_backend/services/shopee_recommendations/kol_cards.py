@@ -348,7 +348,7 @@ def evaluation_of(env: RecoEnv, cand: Candidate, inputs: dict[str, Any]) -> Eval
     for sku in env.floors(f.item_id):
         mine = [
             (ln, pb)
-            for ln, pb in env.view.pairs
+            for ln, pb in env.sales_pairs
             if ln.sku == sku and ln.product_id == f.item_id and pb.excluded_reason is None
         ]
         units = sum(ln.qty for ln, _ in mine)

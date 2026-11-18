@@ -354,11 +354,18 @@ def _profit(wb: Workbook, data: TongQuanData, b: ProfitBridge) -> None:
     header(ws, 3, PROFIT_HEADER)
     r = 4
     put(ws, r, 1, "DOANH THU", bold=True)
+    # GMV - cancelled - in transit - refunds (only while the headline is Shopee's own total,
+    # which still holds them; the sale lines leave them out) = the delivered orders' GMV
+    refunds = (
+        (("− Đơn hoàn tiền / trả hàng", -b.refund_gmv, b.refund_orders, "file đơn hàng"),)
+        if b.refunds_in_gmv
+        else ()
+    )
     top = (
         ("GMV (giá trị đơn đặt)", b.gmv, b.orders, "Shopee"),
-        ("− Đơn hủy / đang hoàn hàng về", -b.lost_gmv, b.lost_orders, "file đơn hàng"),
-        ("− Đơn chưa có kết quả (đang giao, trong thời hạn hoàn tiền)", -b.pending_gmv,
-         b.pending_orders, "file đơn hàng"),
+        ("− Đơn hủy", -b.lost_gmv, b.lost_orders, "file đơn hàng"),
+        ("− Đơn đang giao", -b.pending_gmv, b.pending_orders, "file đơn hàng"),
+        *refunds,
         ("Doanh thu đơn thành công (khách trả, gồm VAT)", b.paid_success, b.success_orders,
          "file đơn hàng"),
         # the same figure as the Tổng quan sheet's ưu đãi row (every order line of the window)

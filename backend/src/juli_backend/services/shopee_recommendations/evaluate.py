@@ -42,6 +42,7 @@ from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
     ProfitBreakdown,
     PromoKind,
+    counts_in_sales,
     profit_lines,
 )
 from juli_backend.services.shopee_profit.whatif import (
@@ -97,10 +98,17 @@ def _lines_items(lines: Sequence[OrderLine]) -> list[str]:
     return list(seen)
 
 
+def _item_gmv(lines: Sequence[OrderLine], item: str) -> Decimal:
+    """GMV of ``item`` on ``lines``: a returned order is no sale (owner D2)."""
+    return sum(
+        (ln.order_value for ln in lines if ln.product_id == item and counts_in_sales(ln)), ZERO
+    )
+
+
 def _scope_gmv_per_day(env: RecoEnv, items: Sequence[str] | None) -> Decimal:
     wanted = None if not items else set(items)
     gmv = sum(
-        (ln.order_value for ln, _ in env.view.pairs if wanted is None or ln.product_id in wanted),
+        (ln.order_value for ln, _ in env.sales_pairs if wanted is None or ln.product_id in wanted),
         ZERO,
     )
     return gmv / Decimal(env.window_days)
@@ -109,7 +117,7 @@ def _scope_gmv_per_day(env: RecoEnv, items: Sequence[str] | None) -> Decimal:
 def _scope_orders(env: RecoEnv, items: Sequence[str] | None) -> int:
     wanted = None if not items else set(items)
     return len(
-        {ln.order_id for ln, _ in env.view.pairs if wanted is None or ln.product_id in wanted}
+        {ln.order_id for ln, _ in env.sales_pairs if wanted is None or ln.product_id in wanted}
     )
 
 
@@ -189,7 +197,8 @@ def _voucher_lift_scale(
 
     by_order: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for ln in lines:
-        by_order[ln.order_id] += ln.order_value
+        if counts_in_sales(ln):  # a returned order is no sale (owner D2)
+            by_order[ln.order_id] += ln.order_value
     if not by_order:
         return ZERO, None, None
     qualifying = [v for v in by_order.values() if v >= rule.min_spend]
@@ -517,7 +526,14 @@ def eval_price(
     schedule = env.schedule(item)
     window = Decimal(env.window_days)
     orders_by_sku = {
-        s: len({ln.order_id for ln in lines if ln.sku == s and ln.product_id == item}) for s in skus
+        s: len(
+            {
+                ln.order_id
+                for ln in lines
+                if ln.sku == s and ln.product_id == item and counts_in_sales(ln)
+            }
+        )
+        for s in skus
     }
     total_orders = sum(orders_by_sku.values()) or 1
     results: dict[str, Any] = {}
@@ -579,8 +595,8 @@ def eval_price(
         if pb_after and sum(o for o, _ in pb_after)
         else None
     )
-    gmv_before = sum((ln.order_value for ln in lines if ln.product_id == item), ZERO)
-    gmv_after = sum((ln.order_value for ln in after_lines if ln.product_id == item), ZERO)
+    gmv_before = _item_gmv(lines, item)
+    gmv_after = _item_gmv(after_lines, item)
     orders_item = _scope_orders(env, [item])
     aov = safe_div(gmv_after, Decimal(orders_item)) if orders_item else None
     effect_days = (
@@ -705,7 +721,14 @@ def eval_price(
             paid = env.current_price(sku)
             if paid is None or sku not in results:
                 continue
-            units = sum((ln.qty for ln in lines if ln.sku == sku and ln.product_id == item), ZERO)
+            units = sum(
+                (
+                    ln.qty
+                    for ln in lines
+                    if ln.sku == sku and ln.product_id == item and counts_in_sales(ln)
+                ),
+                ZERO,
+            )
             given += max(paid - new, ZERO) * units
         certain["discount_given"] = num(given / window * effect_days * slot)
     if predicted is not None:
@@ -1069,7 +1092,8 @@ def eval_bundle(
         return _refuse("no_tier")
     schedule = env.schedule(item)
     window = Decimal(env.window_days)
-    sku = max(skus, key=lambda s: sum((ln.order_value for ln in lines if ln.sku == s), ZERO))
+    sales = [ln for ln in lines if counts_in_sales(ln)]
+    sku = max(skus, key=lambda s: sum((ln.order_value for ln in sales if ln.sku == s), ZERO))
     ref = max(
         (ln for ln in lines if ln.sku == sku and ln.product_id == item),
         key=lambda ln: ln.order_date,
@@ -1121,7 +1145,7 @@ def eval_bundle(
         )
     extra_cost = sum((D(r["discount_cost_on_existing"] or 0) for r in tier_rows), ZERO)
     biggest = tier_rows[-1]
-    gmv_item = sum((ln.order_value for ln in lines if ln.product_id == item), ZERO)
+    gmv_item = _item_gmv(lines, item)
     orders_item = _scope_orders(env, [item])
     aov = safe_div(gmv_item, Decimal(orders_item)) if orders_item else None
     contrib = D(biggest["bundle_profit"]) if biggest["bundle_profit"] is not None else None
@@ -1168,7 +1192,7 @@ def eval_bundle(
         else None,
         "units_per_order_now": num(
             safe_div(
-                Decimal(sum(ln.qty for ln in lines if ln.product_id == item)), Decimal(orders_item)
+                Decimal(sum(ln.qty for ln in sales if ln.product_id == item)), Decimal(orders_item)
             )
         ),
         "aov_now": num(aov),
@@ -1218,7 +1242,9 @@ def eval_add_on(
     ):
         return _refuse("addon_duplicate")
     window = Decimal(env.window_days)
-    main_orders = {ln.order_id for ln in env.lines_for([main]) if ln.product_id == main}
+    main_orders = {
+        ln.order_id for ln in env.lines_for([main]) if ln.product_id == main and counts_in_sales(ln)
+    }
     n_main = len(main_orders)
     rows: list[dict[str, Any]] = []
     breaches: list[dict[str, Any]] = []
@@ -1236,7 +1262,11 @@ def eval_add_on(
         sku = spec_in.get("sku")
         if sku is None:
             sku = max(
-                skus, key=lambda x: sum((ln.order_value for ln in a_lines if ln.sku == x), ZERO)
+                skus,
+                key=lambda x: sum(
+                    (ln.order_value for ln in a_lines if ln.sku == x and counts_in_sales(ln)),
+                    ZERO,
+                ),
             )
         elif sku not in skus:
             return _refuse(f"sku_unknown:{sku}")
@@ -1280,7 +1310,9 @@ def eval_add_on(
                     "lines": 1,
                 }
             )
-        both = main_orders & {ln.order_id for ln in a_lines if ln.product_id == addon}
+        both = main_orders & {
+            ln.order_id for ln in a_lines if ln.product_id == addon and counts_in_sales(ln)
+        }
         discount_each = ref.deal_price - price_after
         limit = int(spec_in.get("limit") or 1)
         units_in: dict[str, int] = defaultdict(int)
@@ -1460,13 +1492,15 @@ def eval_gift(
     by_order: dict[str, Decimal] = defaultdict(lambda: ZERO)
     after_offers: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for ln in lines:
+        if not counts_in_sales(ln):
+            continue  # a returned order is no sale and gets no gift (owner D2)
         by_order[ln.order_id] += ln.order_value
         # P100 (B.11): the minimum spend is met on the basket after the programme price
         # (``deal_price``) and the combo discount; Shopee's own rule for a gift is not
         # confirmed in Seller Centre yet (brief J verified the combo, not the gift)
         after_offers[ln.order_id] += ln.order_value - ln.bundle_discount
     if trigger.get("type") == "buy_item":
-        item_orders = {ln.order_id for ln in lines if ln.product_id == main}
+        item_orders = {ln.order_id for ln in lines if ln.product_id == main and counts_in_sales(ln)}
         qualifying = [o for o in by_order if o in item_orders]
     else:
         min_spend = D(trigger.get("amount", 0))
@@ -1615,7 +1649,11 @@ def eval_affiliate(
     breaches: list[dict[str, Any]] = []
     unit_rows = []
     for sku, fl in floors_raw.items():
-        mine = [(ln, pb) for ln, pb in after_pairs if ln.sku == sku and pb.excluded_reason is None]
+        mine = [
+            (ln, pb)
+            for ln, pb in after_pairs
+            if ln.sku == sku and pb.excluded_reason is None and counts_in_sales(ln)
+        ]
         units = sum(ln.qty for ln, _ in mine)
         if not units:
             continue
@@ -1635,9 +1673,9 @@ def eval_affiliate(
         unit_rows.append(
             {"sku": sku, "unit_net_revenue": num(unit_paid), "floor_with_commission": num(floor_px)}
         )
-    aff_orders = len({ln.order_id for ln in aff_lines})
+    aff_orders = len({ln.order_id for ln in aff_lines if counts_in_sales(ln)})
     lien_ket_gmv = _flow_gmv(env, item, "lien_ket")
-    gmv_item = sum((ln.order_value for ln in lines if ln.product_id == item), ZERO)
+    gmv_item = _item_gmv(lines, item)
     n_orders = _scope_orders(env, [item])
     aov = safe_div(gmv_item, Decimal(n_orders)) if n_orders else None
     contrib_after = sum(
@@ -1873,7 +1911,7 @@ def eval_listing(
     pp = env.product(item)
     ppg = safe_div(pp.contribution, pp.buyer_paid_covered) if pp else None
     n_orders = _scope_orders(env, [item])
-    gmv_item = sum((ln.order_value for ln, _ in env.view.pairs if ln.product_id == item), ZERO)
+    gmv_item = sum((ln.order_value for ln, _ in env.sales_pairs if ln.product_id == item), ZERO)
     window = Decimal(env.window_days)
     lost_gmv = lost_profit = ZERO
     if kind == "listing_hide":
