@@ -203,7 +203,7 @@ export function Row({
             ) : !FILLABLE_CHANGE_KINDS.includes(c.change_kind) ? (
               <ManualPage cardId={c.card_id} />
             ) : (
-              <button className="sa-btn sa-btn--primary" disabled type="button">
+              <button className="sa-btn sd-btn--off" disabled type="button">
                 Mở Seller Centre
               </button>
             )

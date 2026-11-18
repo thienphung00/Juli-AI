@@ -11,7 +11,7 @@
  * it renders `SampleQuyetDinh` over the same view.
  */
 
-import type { ShopPlatform } from "../../lib/shop-platform";
+import type { RulesPlatform } from "../../lib/quyet-dinh/off-api-rules";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -101,7 +101,7 @@ export function SignedInQuyetDinh({
   cardsRefresh,
   platform,
 }: {
-  readonly platform: ShopPlatform;
+  readonly platform: RulesPlatform;
   readonly token: string;
   readonly shop: { readonly id: string; readonly name: string } | null;
   readonly query: QdQuery;

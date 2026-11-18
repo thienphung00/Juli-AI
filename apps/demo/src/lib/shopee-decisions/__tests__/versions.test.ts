@@ -57,10 +57,10 @@ describe("breaches never block, they are named", () => {
 });
 
 describe("title limit (D-4)", () => {
-  it("counts to 100 and says what is over", () => {
-    expect(titleCount("a".repeat(97))).toMatchObject({ n: 97, over: false, tone: "warn", note: "Còn 3 ký tự." });
-    expect(titleCount("a".repeat(100)).over).toBe(false);
-    expect(titleCount("a".repeat(104))).toMatchObject({ over: true, tone: "down", note: "Quá 4 ký tự. Phần vượt không được lưu và Duyệt bị khoá." });
+  it("counts to 120 and says what is over", () => {
+    expect(titleCount("a".repeat(117))).toMatchObject({ n: 117, over: false, tone: "warn", note: "Còn 3 ký tự." });
+    expect(titleCount("a".repeat(120)).over).toBe(false);
+    expect(titleCount("a".repeat(124))).toMatchObject({ over: true, tone: "down", note: "Quá 4 ký tự. Phần vượt không được lưu và Duyệt bị khoá." });
     expect(titleCount("a".repeat(50)).tone).toBe("up");
   });
 });

@@ -305,6 +305,14 @@
   cursor: not-allowed;
 }
 
+.sa-btn.sd-btn--off,
+.sa-btn.sd-btn--off:disabled {
+  border-color: var(--qd-pink-disabled);
+  background: var(--qd-grey);
+  color: var(--qd-muted);
+  cursor: not-allowed;
+}
+
 .sd-error {
   margin: 0;
   color: #a3222f;

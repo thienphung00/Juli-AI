@@ -1,5 +1,6 @@
 import { summary as bannerSummary, type BannerSpec } from "./banner";
 import { DASH, fmt, pp, signedOrders, sv, vnCount, vnd } from "../shopee-analytics/format";
+import { MAX_TITLE_CHARS } from "./versions";
 import type { Band, BeforeAfterRow, BuilderOutcome, BuilderVersion, BuilderWarning, CoverOverlay, PickerProduct, VariationRow } from "./builder-api";
 
 /**
@@ -23,8 +24,8 @@ export type Kind92 =
   | "price_display";
 
 export const MAX_VERSIONS = 4;
-/** Shopee's own title limit (its field shows n/120). */
-export const MAX_TITLE = 120;
+/** Shopee's own title limit (its field shows n/120): the one constant, shared with the card page. */
+export const MAX_TITLE = MAX_TITLE_CHARS;
 /** The server's limits (`services/shopee_builder/specs.py`), checked here so a refusal reads in Vietnamese. */
 export const MAX_PCT = 90;
 export const MAX_VOUCHER_DAYS = 90;
@@ -291,14 +292,14 @@ function comboTiersIncrease(dtype: "pct" | "amount" | "special_price", tiers: re
  * precision (0–23) in Seller Centre; "" = the whole day. `maxDays` = the programme's longest run (180 for
  * Chương Trình Của Shop); null = no limit.
  */
-export const HOUR_PROBLEM = "Giờ từ 00:00 đến 23:59 (ví dụ 08:00).";
-/** "8", "08" or "08:30" → the hour (Seller Centre's programme forms run on whole hours); null when it is not a time of day. */
+export const HOUR_PROBLEM = "Chỉ chọn giờ tròn (0–23)";
+/** "8", "08" or "08:00" → the hour (Seller Centre's programme forms run on whole hours); null for anything else, minutes included. */
 export function parseHour(text: string): number | null {
   const m = /^(\d{1,2})(?::(\d{2}))?$/.exec(text.trim());
   if (!m) return null;
   const h = Number(m[1]);
   const min = m[2] === undefined ? 0 : Number(m[2]);
-  return h <= 23 && min <= 59 ? h : null;
+  return h <= 23 && min === 0 ? h : null;
 }
 /** The error to show next to an hour field ("" = the whole day, no error). */
 export function hourProblem(text: string): string | null {

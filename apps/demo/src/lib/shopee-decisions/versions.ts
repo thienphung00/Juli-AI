@@ -13,7 +13,8 @@ import type { Breach, Card, CardDetail, CardSummary, CardVersion, N, ProductMeas
  * "Sản phẩm đang đo" countdown. Field names are the backend's (`versions.py`, `service._summary`).
  */
 
-export const MAX_TITLE_CHARS = 100;
+/** Shopee's own title limit (its field shows n/120); `builder-p92`'s MAX_TITLE is this same value. */
+export const MAX_TITLE_CHARS = 120;
 export const MIN_MEASURE_DAYS = 3;
 
 const num = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
@@ -249,7 +250,7 @@ export function titleCount(text: string): TitleCount {
   return {
     n,
     over,
-    tone: over ? "down" : n > 90 ? "warn" : "up",
+    tone: over ? "down" : n > MAX_TITLE_CHARS - 10 ? "warn" : "up",
     note: over ? `Quá ${n - MAX_TITLE_CHARS} ký tự. Phần vượt không được lưu và Duyệt bị khoá.` : `Còn ${MAX_TITLE_CHARS - n} ký tự.`,
   };
 }
