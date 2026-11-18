@@ -74,7 +74,7 @@ describe("builder-p92 model", () => {
 
   it("title and first line keep their limits", () => {
     const f = initialForms();
-    expect(buildVersion("title", { ...f, title: { ticked: [], text: "x".repeat(101) } }, ctx).problem).toMatch(/100/);
+    expect(buildVersion("title", { ...f, title: { ticked: [], text: "x".repeat(121) } }, ctx).problem).toMatch(/120/);
     expect(buildVersion("title", { ...f, title: { ticked: ["a"], text: "Túi zip" } }, ctx).version).toMatchObject({ kind: "title", title: "Túi zip", keywords: ["a"] });
     expect(buildVersion("description_first_line", { ...f, description_first_line: { text: "a\nb" } }, ctx).problem).toMatch(/xuống dòng/);
   });
