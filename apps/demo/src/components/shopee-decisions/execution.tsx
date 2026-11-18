@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { DASH, fmt } from "../../lib/shopee-analytics/format";
 import { shopeeImageSrc } from "../../lib/shopee-analytics/image-src";
@@ -8,7 +8,7 @@ import { useSampleShopReviewer } from "../../lib/reviewer/mode";
 import { useReco } from "../../lib/shopee-decisions/context";
 import { READBACK_LABEL, countdownOf, readbackOf, readingsOf, stepText, vnWhen, type Readback } from "../../lib/shopee-decisions/model";
 import type { CardDetail, ExecutionSheet, ExecutionStep, SheetPage } from "../../lib/shopee-decisions/types";
-import { capturedVoucherId, FILL_JOB_KINDS, FillJobsChecklist, fillJobHref, ListingSheetExtras, useFillJobs } from "../planned-changes/listing-extras";
+import { capturedVoucherId, FILL_JOB_KINDS, FillJobsChecklist, fillJobHref, isForwardJob, isRevertJob, ListingSheetExtras, useFillJobs, type FillJobRow } from "../planned-changes/listing-extras";
 import { TextChip } from "../shopee-analytics/ui";
 import { CopyButton, errorText } from "./ui";
 
@@ -189,18 +189,36 @@ function Measurement({ detail, rb }: { readonly detail: CardDetail; readonly rb:
  * revert: the person undoes it in Seller Centre, then presses "Đã hoàn tác", which records who and
  * when, stops the card's measurement and keeps it out of what Juli learns.
  */
-function RevertBlock({ detail, sheet, onChanged }: { readonly detail: CardDetail; readonly sheet: ExecutionSheet; readonly onChanged: () => void }) {
+function RevertBlock({ detail, sheet, onChanged, revertJobs, onQueued }: { readonly detail: CardDetail; readonly sheet: ExecutionSheet; readonly onChanged: () => void; readonly revertJobs: readonly FillJobRow[]; readonly onQueued: () => void }) {
   const host = useReco();
-  const [open, setOpen] = useState(false);
+  const sample = useSampleShopReviewer();
+  const jobs = revertJobs.length > 0 ? revertJobs : (detail.revert?.jobs ?? []);
+  const [open, setOpen] = useState(jobs.length > 0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reverted = detail.reverted ?? null;
-  const confirm = async () => {
+  const ready = detail.revert?.ready === true;
+  const canFill = !sample && !!host.reco.revertFill;
+  const confirm = async (manual: boolean) => {
     setBusy(true);
     setError(null);
     try {
-      await host.reco.reverted(detail.id);
+      await (manual ? host.reco.reverted(detail.id, { manual: true }) : host.reco.reverted(detail.id));
       onChanged();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const queueFill = async () => {
+    if (!host.reco.revertFill) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await host.reco.revertFill(detail.id);
+      setOpen(true);
+      onQueued();
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -214,6 +232,9 @@ function RevertBlock({ detail, sheet, onChanged }: { readonly detail: CardDetail
       </div>
     );
   }
+  const openJob = jobs.find((j) => j.status === "queued" || j.status === "opened" || j.status === "filled");
+  const href = openJob ? fillJobHref(openJob) : null;
+  const blockedTitle = host.readOnly ? READ_ONLY_TITLE : undefined;
   return (
     <div className="sd-revert" data-testid="sd-revert">
       <div className="sd-actions">
@@ -223,11 +244,30 @@ function RevertBlock({ detail, sheet, onChanged }: { readonly detail: CardDetail
       </div>
       {open ? (
         <>
+          {canFill ? (
+            <div className="sd-actions">
+              {href ? (
+                <a className="sa-btn sa-btn--primary" data-testid="sd-revert-open" href={href} rel="noopener noreferrer" target="_blank">
+                  Mở và điền
+                </a>
+              ) : (
+                <button className="sa-btn sa-btn--primary" data-testid="sd-revert-fill" disabled={!!host.readOnly || busy} onClick={() => void queueFill()} title={blockedTitle} type="button">
+                  Mở và điền
+                </button>
+              )}
+            </div>
+          ) : null}
+          <FillJobsChecklist enabled jobs={jobs} />
           <SheetView reverse sheet={sheet} />
           <div className="sd-actions">
-            <button className="sa-btn sa-btn--primary" data-testid="sd-reverted-confirm" disabled={!!host.readOnly || busy} onClick={() => void confirm()} title={host.readOnly ? READ_ONLY_TITLE : undefined} type="button">
+            <button className="sa-btn sa-btn--primary" data-testid="sd-reverted-confirm" disabled={!!host.readOnly || busy || (canFill && !ready)} onClick={() => void confirm(false)} title={blockedTitle} type="button">
               Đã hoàn tác
             </button>
+            {canFill ? (
+              <button className="sa-btn" data-testid="sd-reverted-manual" disabled={!!host.readOnly || busy} onClick={() => void confirm(true)} title={blockedTitle} type="button">
+                Đã hoàn tác thủ công
+              </button>
+            ) : null}
           </div>
         </>
       ) : null}
@@ -240,7 +280,7 @@ function RevertBlock({ detail, sheet, onChanged }: { readonly detail: CardDetail
   );
 }
 
-export function ExecutionPanel({ detail, sheet, onExecuted, onReverted }: { readonly detail: CardDetail; readonly sheet: ExecutionSheet; readonly onExecuted: () => void; readonly onReverted?: () => void }) {
+export function ExecutionPanel({ detail, sheet, onExecuted, onReverted, onRefresh }: { readonly detail: CardDetail; readonly sheet: ExecutionSheet; readonly onExecuted: () => void; readonly onReverted?: () => void; readonly onRefresh?: () => void }) {
   const host = useReco();
   const [voucherId, setVoucherId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -255,11 +295,22 @@ export function ExecutionPanel({ detail, sheet, onExecuted, onReverted }: { read
   // gives the sample voucher its own code, so the field is not asked for there.
   const needsVoucherId = !sample && sheet.changes.some((c) => c.change_kind === "voucher");
   const fillActive = !sample && detail.status === "approved" && FILL_JOB_KINDS.has(detail.change_kind);
-  const fill = useFillJobs(detail.id, fillActive);
+  // F3: an executed card also lists its revert and read-back jobs (the server sends them whatever the card's status)
+  const fill = useFillJobs(detail.id, fillActive || (!sample && executed));
+  const forwardJobs = fill.jobs.filter(isForwardJob);
+  const revertJobs = fill.jobs.filter(isRevertJob);
   const captured = capturedVoucherId(fill.jobs);
+  // F3.2: when a read-back / revert job moves, the card is re-read so Khớp / Không khớp and "ready" show without a reload
+  const sig = executed ? fill.jobs.map((j) => `${j.id}:${j.status}`).join("|") : "";
+  const prevSig = useRef("");
+  useEffect(() => {
+    if (prevSig.current !== "" && sig !== prevSig.current) onRefresh?.();
+    prevSig.current = sig;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig]);
   const blocked = !!host.readOnly || busy || (needsVoucherId && voucherId.trim() === "" && !captured);
   // ONE page button: "Mở và điền" opens the Connector's job, else the page itself
-  const openJob = fill.enabled ? fill.jobs.find((j) => j.status === "queued" || j.status === "opened" || j.status === "filled") : undefined;
+  const openJob = fill.enabled && !executed ? forwardJobs.find((j) => j.status === "queued" || j.status === "opened" || j.status === "filled") : undefined;
   const fillHref = openJob ? fillJobHref(openJob) : null;
 
   const markDone = async () => {
@@ -288,13 +339,13 @@ export function ExecutionPanel({ detail, sheet, onExecuted, onReverted }: { read
             <summary>Xem lại bảng thao tác</summary>
             <SheetView sheet={sheet} />
           </details>
-          <RevertBlock detail={detail} onChanged={onReverted ?? onExecuted} sheet={sheet} />
+          <RevertBlock detail={detail} onChanged={onReverted ?? onExecuted} onQueued={fill.reload} revertJobs={revertJobs} sheet={sheet} />
         </>
       ) : (
         <>
           <SheetView fillHref={fillHref} sheet={sheet} />
           <ListingSheetExtras detail={detail} sheet={sheet} />
-          <FillJobsChecklist enabled={fill.enabled} jobs={fill.jobs} />
+          <FillJobsChecklist enabled={fill.enabled} jobs={forwardJobs} />
           {needsVoucherId && captured ? (
             <p className="sa-hint" data-testid="sd-voucher-captured">
               Connector đã lấy mã voucher {captured}.

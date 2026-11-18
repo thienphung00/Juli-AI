@@ -1,3 +1,4 @@
+import type { FillJobRow } from "../../components/planned-changes/listing-extras";
 import type { KolBlock } from "../shopee-kol/types";
 import type { FiveNumbers } from "../shopee-analytics/types";
 import type { OptionResult } from "./option-result";
@@ -551,6 +552,14 @@ export interface CardDetail extends CardSummary {
   readonly approved_with?: { readonly inputs: Readonly<Record<string, unknown>>; readonly execution_sheet?: ExecutionSheet };
   /** "Đã hoàn tác": who confirmed the revert in Seller Centre and when (null: not reverted). */
   readonly reverted?: { readonly by: string; readonly at: string; readonly note?: string | null } | null;
+  /** F3.1: the Connector's revert jobs of an executed card; `ready` once the read-back shows the original value (null: no revert job yet). */
+  readonly revert?: { readonly jobs: readonly FillJobRow[]; readonly ready: boolean } | null;
+}
+
+export interface RevertFillResult {
+  readonly card_id: string;
+  readonly jobs: readonly FillJobRow[];
+  readonly ready: boolean;
 }
 
 export interface DecideResult {

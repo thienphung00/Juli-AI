@@ -246,6 +246,13 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
       setAsking(false);
     }
   };
+  // F3.2: a card saved and waiting for its read-back turns Khớp / Lệch as soon as the API says so (15 s poll)
+  const waiting = res.status === "ready" && !sample && res.data.cards.some((c) => c.state === "da_dien" && (c.executed_at || c.completed >= 3));
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(() => setTick((t) => t + 1), 15_000);
+    return () => clearTimeout(timer);
+  }, [waiting, tick]);
   const count = res.status === "ready" ? res.data.cards.length : null;
   useEffect(() => {
     if (count !== null) onCount?.(count);
