@@ -25,8 +25,14 @@ TikTok mapper writes to the same tables Shopee does.
   their names (Q-T5-2).
 - Times are ``timestamptz`` (Q-T5-4). The stored naive values are converted by their known
   meaning: the order times (``ordered_at``, ``paid_at``, ``completed_at``, ``conversion_at``) are
-  Vietnam local (prod read 2026-11-17: grouping by ``ordered_at::date`` matched the shop totals);
-  ``read_at`` and the audit times (``created_at``, ``updated_at``, ``built_at``) are UTC.
+  Vietnam local -- every sender posts a naive GMT+7 wall clock (the Connector's ``wallClock``, the
+  file parsers, the sample generator). ``ordered_at`` verified on prod 2026-11-17 (grouping by
+  ``ordered_at::date`` matched the shop totals); ``paid_at`` verified 2026-11-18 (paid_at -
+  ordered_at p05 0.00 h, p50 0.03 h, p95 0.10 h, n = 1296); ``completed_at`` / ``conversion_at``
+  assumed from the same source (their gap to ``ordered_at`` is days, so a 7 h shift cannot be
+  ruled out by reading). ``read_at`` (the post's ``captured_at`` made naive UTC by the gateway)
+  and the audit times (``created_at``, ``updated_at``, ``built_at``: ``now()`` / the gateway's
+  naive-UTC clock) are UTC.
 - Order statuses (Q-T5-3, D2): ``order_lines.status`` is one of ``pending``, ``confirmed``,
   ``in_transit``, ``delivered``, ``cancelled``, ``refunded_accepted``, ``refunded_not_received``,
   ``returned``, ``on_hold`` (CHECK). A stored value outside the set becomes ``in_transit`` when the
@@ -42,8 +48,14 @@ times back to naive values of the same meaning, and restores the names. The stat
 1:1, so a normalised status stays as it is (the 133 schema has no CHECK on it).
 
 NOT ADDITIVE: renames, type changes and the fill UPDATEs are refused by
-``infra/scripts/migration_additive_gate.py``; this revision is applied as a separately-operated
-step before the deploy that carries it.
+``infra/scripts/migration_additive_gate.py``. Owner decision 2026-11-18: 134 ships in a
+maintenance window. The owner runs ``alembic upgrade 134_canonical_tables`` on the VPS as a
+separate step (workers and Connector sync paused), then the deploy tag runs with nothing pending,
+so the gate passes. Runbook: ``docs/runbooks/t5-maintenance-window.md``. Forward fix only: after
+the window the downgrade is for tests and emergencies, never part of a rollback.
+
+``source_rank`` is filled with the ranks of the owner's 2026-11-18 order (API > Connector > file
+> vendor: api 4, extension 3, file 2, vendor 1), as ``models.ingest.SOURCE_RANK`` now holds them.
 """
 
 from __future__ import annotations
@@ -121,9 +133,9 @@ STATUSES = (
     "'pending', 'confirmed', 'in_transit', 'delivered', 'cancelled', 'refunded_accepted', "
     "'refunded_not_received', 'returned', 'on_hold'"
 )
-#: ``models.ingest.SOURCE_RANK`` at this revision (api 4, file 3, extension 2, vendor 1)
+#: ``models.ingest.SOURCE_RANK`` at this revision (api 4, extension 3, file 2, vendor 1)
 RANK_CASE = (
-    "CASE source WHEN 'api' THEN 4 WHEN 'file' THEN 3 WHEN 'extension' THEN 2 "
+    "CASE source WHEN 'api' THEN 4 WHEN 'extension' THEN 3 WHEN 'file' THEN 2 "
     "WHEN 'vendor' THEN 1 ELSE 0 END"
 )
 

@@ -343,10 +343,10 @@ def test_zz_rows_convert_up_and_back_down(owner_engine, two_tenants):
         with owner_engine.connect() as conn:
             up = _converted(conn, shop_id)
         assert up["lines"] == [
-            ("1" * 32, True, date(2026, 10, 1), "in_transit", 5000, 3),
-            ("2" * 32, True, date(2026, 10, 1), "pending", 5000, 3),
+            ("1" * 32, True, date(2026, 10, 1), "in_transit", 5000, 2),  # file
+            ("2" * 32, True, date(2026, 10, 1), "pending", 5000, 2),
         ]
-        assert up["affiliate"] == ("55", "Đã hoàn thành", date(2026, 10, 1), True, 2)
+        assert up["affiliate"] == ("55", "Đã hoàn thành", date(2026, 10, 1), True, 3)  # extension
         assert up["stock"] == ("55", True, date(2026, 10, 2))
 
         command.downgrade(cfg, "133_fleet_draws_real_shops")

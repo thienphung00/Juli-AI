@@ -1,9 +1,10 @@
-"""File vs Connector on the same key (P90 D-5, G-22): who wins, and how often they differ.
+"""File vs Connector on the same key (G-22): who wins, and how often they differ.
 
-The winner is decided by the upsert in ``gateway.py`` (rank: api > file > extension > vendor, a
-row is replaced only by the same or a higher rank). This module only COUNTS what that decision
-did, before the write, so an operator sees "n file rows kept over the Connector, m Connector rows
-replaced by a file, k of them with different numbers" in one ``ingest_source_conflicts`` log line.
+The winner is decided by the upsert in ``gateway.py`` (rank: api > extension > file > vendor,
+owner 2026-11-18; it was file > extension under P90 D-5; a row is replaced only by the same or
+a higher rank). This module only COUNTS what that decision did, before the write, so an operator
+sees "n Connector rows kept over a file, m file rows replaced by the Connector, k of them with
+different numbers" in one ``ingest_source_conflicts`` log line.
 Counts only -- never a row value.
 """
 
@@ -30,9 +31,9 @@ TOLERANCE = Decimal("0.0001")
 class SourceConflicts:
     """What an incoming post meets on keys another source already wrote."""
 
-    #: The stored row outranks the post (a Connector post over a file row): the post is dropped.
+    #: The stored row outranks the post (a file post over a Connector row): the post is dropped.
     kept_existing: int = 0
-    #: The post outranks the stored row (a file post over a Connector row): it is replaced.
+    #: The post outranks the stored row (a Connector post over a file row): it is replaced.
     replaced_existing: int = 0
     #: Same rank, other source (cannot happen with today's ranks; counted if it does).
     same_rank: int = 0

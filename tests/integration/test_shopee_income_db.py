@@ -5,7 +5,7 @@ reading the stored rows, up / down.
   DELETE) and ``juli_ops`` nothing; the purge sweep finds it; ``variation_name`` is nullable;
 - two tenants: a shop sees and writes only its own rows;
 - the gateway, as the runtime role under each shop's scope, writes the income rows (a later post
-  replaces, a Connector post does not outrank a file, a missing field erases nothing) and the
+  replaces, a Connector post outranks a file, a missing field erases nothing) and the
   order lines' variation name picks the right one of three variations sharing a SKU;
 - the analytics engine reads them: combo costs by pack, the income order charged its actuals, the
   other order the formula, the Income coverage between the two;
@@ -239,7 +239,7 @@ async def test_the_gateway_writes_income_rows_as_the_runtime_role(shopee_tenants
     )
     assert (float(row.payout), float(row.fee_infra)) == (64000.0, 3000.0)
 
-    # A Connector post (rank 2) never replaces the file row.
+    # A Connector post (rank 3) replaces the file row (API > Connector > file).
     await _post(
         a.shop_id,
         "order_income",
@@ -254,7 +254,7 @@ async def test_the_gateway_writes_income_rows_as_the_runtime_role(shopee_tenants
         a.shop_id,
         f"SELECT payout, source FROM public.order_settlements WHERE order_ref = '{REF_3}'",
     )
-    assert (float(row.payout), row.source) == (64000.0, "file")
+    assert (float(row.payout), row.source) == (1.0, "extension")
 
     # Shop B sees none of it.
     assert not await _rows(

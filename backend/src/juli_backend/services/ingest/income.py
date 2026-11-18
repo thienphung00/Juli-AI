@@ -2,7 +2,7 @@
 ``shopee_order_income`` until migration 134).
 
 One row per (shop, platform, order). A later post of the same order replaces the row when its
-source ranks the same or higher (file over extension, as ``gateway._upsert``); a column the
+source ranks the same or higher (extension over file, as ``gateway._upsert``); a column the
 later post does not state (NULL) never erases one already stored.
 """
 

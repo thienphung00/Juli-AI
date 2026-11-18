@@ -172,6 +172,17 @@ def test_orm_names_follow_the_new_tables():
     assert [c.name for c in read_index.columns] == ["shop_id", "read_at"]
 
 
+def test_the_migration_fills_source_rank_with_todays_ranks():
+    import re
+
+    from juli_backend.models.ingest import SOURCE_RANK
+
+    mod = _module()
+    filled = {s: int(r) for s, r in re.findall(r"WHEN '(\w+)' THEN (\d)", mod.RANK_CASE)}
+    assert filled == SOURCE_RANK
+    assert SOURCE_RANK["api"] > SOURCE_RANK["extension"] > SOURCE_RANK["file"]
+
+
 def test_the_migration_status_vocabulary_is_the_models_and_the_wires():
     mod = _module()
     assert ORDER_LINE_STATUSES == schemas.ORDER_STATUSES
@@ -241,7 +252,7 @@ def _provenance(shop_id) -> dict:
         "shop_id": shop_id,
         "platform": "shopee",
         "source": "file",
-        "source_rank": 3,
+        "source_rank": 2,
         "source_version": "t5",
         "raw_payload_id": None,
         "updated_at": datetime(2026, 10, 3, 1, 0),
@@ -278,7 +289,7 @@ async def test_order_line_writer_reads_naive_times_as_vietnam_local(session):
     assert first.ordered_at == datetime(2026, 10, 1, 16, 30, tzinfo=UTC)
     assert first.day == DAY and first.ordered_at.tzinfo is not None
     assert first.paid_at == datetime(2026, 10, 1, 16, 32, tzinfo=UTC)
-    assert first.platform_subsidy == Decimal(5_000) and first.source_rank == 3
+    assert first.platform_subsidy == Decimal(5_000) and first.source_rank == 2
     second = stored[f"{2:032x}"]
     assert second.ordered_at == datetime(2026, 10, 1, 17, 30, tzinfo=UTC)
     assert second.day == DAY + timedelta(days=1)
@@ -304,7 +315,7 @@ async def test_affiliate_writer_stamps_day_variation_and_status(session):
     stored = (await session.execute(select(ShopeeAffiliateLine))).scalar_one()
     assert (stored.variation_id, stored.status, stored.day) == ("55", "Đã hoàn thành", DAY)
     assert stored.ordered_at == datetime(2026, 10, 1, 16, 30, tzinfo=UTC)
-    assert stored.source_rank == 3  # SOURCE_RANK["file"]
+    assert stored.source_rank == 2  # SOURCE_RANK["file"] (API > Connector > file)
 
 
 async def test_stock_history_writer_keeps_read_at_as_utc(session):

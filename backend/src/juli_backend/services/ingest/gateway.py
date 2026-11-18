@@ -19,7 +19,8 @@ One call = one POST of one dataset for one shop. In order:
    ``platform_product_flags`` or ``platform_promotions`` -- or, for the P90 step 2 datasets, the
    tables of ``writers.py`` (order lines, ad change log, shop health, item snapshots) -- a row
    of the metric tables is only replaced by a source of the same or higher rank
-   (vendor < extension < file < api; P90 D-5), and every row records the ``mapper_version``
+   (vendor < file < extension < api; owner 2026-11-18), and every row records the
+   ``mapper_version``
    that produced it;
 5. ``ingest_dataset_status`` records the last ingest; one ``ingest_accepted``
    log line is the audit record.
@@ -353,7 +354,7 @@ async def _store_raw(
 
 def _stored_rank(table: Any) -> Any:
     """The rank a stored row counts at: its ``source`` decides (``effective_rank``), so a row
-    written before D-5 (file = extension = 2) is still outranked by a file post."""
+    stored under older rank numbers counts at today's order (``SOURCE_RANK``)."""
     return case(
         *[(table.c.source == source, rank) for source, rank in SOURCE_RANK.items()],
         else_=table.c.source_rank,
@@ -366,7 +367,7 @@ async def _upsert(
     key_columns: tuple[str, ...],
     values: list[dict[str, Any]],
 ) -> None:
-    """Insert, or replace a row of the same or lower rank on the same key (file > extension)."""
+    """Insert, or replace a row of the same or lower rank on the same key (extension > file)."""
     if not values:
         return
     insert = _insert(session)
@@ -398,7 +399,7 @@ async def _upsert_ranked(
     values: list[dict[str, Any]],
 ) -> None:
     """``_upsert`` for the metric tables, after counting the keys another source already holds
-    (P90 D-5: a file outranks the Connector; the counts go to one log line)."""
+    (the Connector outranks a file, ``SOURCE_RANK``; the counts go to one log line)."""
     if values:
         found = await count_source_conflicts(session, model, key_columns, values)
         log_source_conflicts(values[0]["shop_id"], values[0]["dataset"], values[0]["source"], found)
