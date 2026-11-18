@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { FORBIDDEN_PRESS, unsafePress } from "../src/platforms/shopee/fill/controls";
+import { FORBIDDEN_PRESS, ownConfirmOf, unsafePress } from "../src/platforms/shopee/fill/controls";
 import { runFillJob } from "../src/platforms/shopee/fill/job-run";
 import { PANEL_ID } from "../src/core/fill/locate";
 import { runFill } from "../src/platforms/shopee/fill/run";
@@ -75,9 +75,15 @@ describe("a job fill never presses Shopee's save / confirm / send", () => {
     ["a voucher on the live eds layout", voucherJob(), "voucher-eds.html"],
     ["a combo on the live eds layout", comboJob(), "combo-eds.html"],
     ["an affiliate commission under Shopee's new-version notice", affiliateJob(), "affiliate-notice.html"],
+    // 0.3.27 live shapes: the date-time picker and the product picker confirm themselves, nothing else does
+    ["a product voucher on the live picker shapes", voucherJob({ usecase: 2, product_ids: ["1001"], smart: true, display: "code", starts_at: "00:00 01-03-2027", ends_at: "23:59 02-03-2027", open_path: "/portal/marketing/vouchers/new?usecase=2" }), "voucher-live.html"],
+    ["a combo on the live tier table", comboJob({ starts_at: "00:00 01-03-2027", ends_at: "23:59 02-03-2027", product_ids: ["1001"] }), "combo-live.html"],
+    ["an affiliate rate on the live open campaign", affiliateJob({ product_ids: ["2002"] }), "affiliate-live.html"],
+    ["a voucher's undo on the list", rawJob("voucher_end", { mode: "revert", open_path: "/portal/marketing/vouchers/list", code: "SHOPVGBB48" }), "voucher-list.html"],
+    ["a combo's undo on the list", rawJob("combo_end", { mode: "revert", open_path: "/portal/marketing/bundle/list", name: "JC-2611-0009 V1" }), "bundle-list.html"],
   ])("%s", async (_name, raw, page) => {
     loadPage(page);
-    const wire = wireEds(document);
+    const wire = wireEds(document, { datePicker: true });
     const hrefBefore = window.location.href;
     watch = watchForbidden();
     await runFillJob(jobHarness(raw).deps);
@@ -87,11 +93,13 @@ describe("a job fill never presses Shopee's save / confirm / send", () => {
     for (const type of watch.seen) expect(type).toBe("click"); // no mouse / pointer / key / submit event
     for (const type of watch.dispatched) expect(["input", "change"]).toContain(type);
     for (const target of watch.click.mock.contexts as HTMLElement[]) {
+      // the one exception (owner, 2026-11-18): a picker's OWN confirm
+      if (ownConfirmOf(target, "date_picker") || ownConfirmOf(target, "product_picker")) continue;
       expect(unsafePress(target), target.outerHTML.slice(0, 80)).toBeNull();
       expect(FORBIDDEN_PRESS.test((target.textContent ?? "").trim().toLocaleLowerCase("vi"))).toBe(false);
     }
     expect(window.location.href).toBe(hrefBefore);
-    for (const id of ["submit", "cancel", "budget-ok", "roas-ok", "comm-ok", "pconfirm", "save"]) {
+    for (const id of ["submit", "cancel", "budget-ok", "roas-ok", "comm-ok", "pconfirm", "save", "vend", "cdel"]) {
       expect(document.getElementById(id)?.getAttribute("data-juli-filled") ?? null).toBeNull();
     }
     wire.stop();
@@ -128,18 +136,20 @@ describe("the source never presses anything", () => {
       "platforms/shopee/fill/job-run.ts",
       "platforms/shopee/fill/job-types.ts",
       "platforms/shopee/fill/labels.ts",
+      "platforms/shopee/fill/revert.ts",
       "platforms/shopee/fill/run.ts",
       "platforms/shopee/fill/saved.ts",
     ]);
   });
 
-  // controls.ts is the one file that presses, through press() only (one `.click()` in the source),
-  // and the one that looks for labelled buttons ("Thêm mức ưu đãi", "Tìm kiếm"); press() refuses
-  // the save / confirm / send texts (tested in fill-controls.test.ts).
-  it("has exactly one .click() call, inside press()", () => {
+  // controls.ts is the one file that presses: through press(), which refuses the save / confirm /
+  // send texts, and (0.3.27, owner 2026-11-18) pressOwnConfirm(), which presses ONLY the date
+  // picker's and the product picker's own Xác nhận. Two `.click()` in the source, each behind its guard.
+  it("has exactly two .click() calls, inside press() and pressOwnConfirm()", () => {
     const controls = stripComments(sources["../src/platforms/shopee/fill/controls.ts"] as string);
-    expect(controls.match(/\.click\s*\(/g)).toHaveLength(1);
+    expect(controls.match(/\.click\s*\(/g)).toHaveLength(2);
     expect(controls).toMatch(/if \(unsafePress\(el\) !== null\) return false;\s*el\.click\(\);/);
+    expect(controls).toMatch(/if \(!ownConfirmOf\(el, kind\)\) return false;\s*\(el\.closest\("button"\) \?\? el\)\.click\(\);/);
   });
 
   it.each(files)("%s", (name, source) => {

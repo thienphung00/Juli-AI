@@ -23,13 +23,13 @@ import {
   setSwitch,
   textBoxesIn,
 } from "./controls";
-import type { AdsPayload, AffiliatePayload, ComboPayload, VoucherPayload } from "./job-types";
+import type { AdsPayload, AffiliatePayload, ComboPayload, FillJob, VoucherPayload } from "./job-types";
 import { normalizeLabel } from "../../../core/fill/locate";
 import { keyed } from "../../../core/fill/log";
 import { writeValue } from "../../../core/fill/write";
 
 export type { FillOutcome, Step } from "../../../core/fill/form";
-import type { FillOutcome, Step } from "../../../core/fill/form";
+import type { CurrentRow, FillOutcome, Step } from "../../../core/fill/form";
 
 const dong = (n: number) => `${n.toLocaleString("vi-VN")} ₫`;
 
@@ -50,6 +50,13 @@ export const VOUCHER_LABELS = {
 } as const;
 
 const DISPLAY_OPTION = { multi: "Hiển thị nhiều nơi", code: "Chia sẻ thông qua mã Voucher", private: "Không công khai" } as const;
+/** Every spelling of a display option seen on Seller Centre (and on Juli's card: "Chia sẻ qua mã voucher"). */
+const DISPLAY_ALIASES = {
+  multi: ["Hiển thị nhiều nơi"],
+  code: ["Chia sẻ thông qua mã Voucher", "Chia sẻ qua mã voucher"],
+  private: ["Không công khai"],
+} as const;
+export const SMART_MISSING = "Trang không có ô «Mã giảm giá thông minh»; bật tay nếu cần";
 
 /** The field keys of a fill (the job report's `before_values` and `fields` use them). */
 export const PERIOD_KEYS = ["starts_at", "ends_at"];
@@ -62,14 +69,19 @@ function stepper(steps: Step[]): Add {
     steps.push({ label, ok, ...(opts.note && !ok ? { note: opts.note } : {}), ...(opts.keys ? { keys: opts.keys } : {}) });
 }
 
-function period(env: Env, add: Add, label: string, startsAt: string, endsAt: string): void {
-  const start = setDate(keyed(env, "starts_at"), label, startsAt, 0);
-  const end = setDate(keyed(env, "ends_at"), label, endsAt, 1);
+async function period(env: Env, add: Add, label: string, startsAt: string, endsAt: string): Promise<void> {
+  // the end first would be refused while the start is still "now" + 1 h: start, then end
+  const start = await setDate(keyed(env, "starts_at"), label, startsAt, 0);
+  const end = await setDate(keyed(env, "ends_at"), label, endsAt, 1);
   add(`Thời gian: ${startsAt} → ${endsAt}`, start && end, { note: PERIOD_NOTE, keys: PERIOD_KEYS });
 }
 
 function picked(add: Add, p: PickResult, total: number): void {
-  add(`Sản phẩm: ${p.ticked.length}/${total} đã tick`, p.missing.length === 0, { keys: ["product_ids"], ...(p.reason ? { note: p.reason } : {}) });
+  // a picker whose own Xác nhận could not be pressed is not done (0.3.27)
+  add(`Sản phẩm: ${p.ticked.length}/${total} ${p.confirmed ? "đã chọn" : "đã tick"}`, p.missing.length === 0 && p.confirmed !== false, {
+    keys: ["product_ids"],
+    ...(p.reason ? { note: p.reason } : {}),
+  });
 }
 
 export async function fillVoucher(env: Env, v: VoucherPayload): Promise<FillOutcome> {
@@ -79,10 +91,11 @@ export async function fillVoucher(env: Env, v: VoucherPayload): Promise<FillOutc
   const k = (key: string) => keyed(env, key);
   add(`Tên chương trình: ${v.name}`, setRowText(k("name"), L.name, v.name), { keys: ["name"] });
   add(`Mã voucher: …${v.codeSuffix}`, setRowText(k("code_suffix"), L.code, v.codeSuffix), { keys: ["code_suffix"] });
-  period(env, add, L.period, v.startsAt, v.endsAt);
+  await period(env, add, L.period, v.startsAt, v.endsAt);
   add("Loại voucher: Khuyến Mãi", await chooseRadio(k("voucher_type"), L.type, "Khuyến Mãi"), { keys: ["voucher_type"] });
-  // gone from the live page: off when drawn, otherwise not a step at all
-  if (findRow(env.doc, L.smart)) add("Mã giảm giá thông minh: tắt", await setSwitch(k("smart"), L.smart, false), { keys: ["smart"] });
+  // 0.3.27: set to the card's value when Shopee draws it; a card that wants it on and a page without it is ✗
+  if (findRow(env.doc, L.smart)) add(`Mã giảm giá thông minh: ${v.smart ? "bật" : "tắt"}`, await setSwitch(k("smart"), L.smart, v.smart), { keys: ["smart"] });
+  else if (v.smart) add("Mã giảm giá thông minh: bật", false, { note: SMART_MISSING });
   if (v.discount.type === "amount") {
     const kind = await chooseSelect(k("discount_type"), L.discount, "Theo số tiền");
     add(`Giảm ${dong(v.discount.value)}`, kind && setRowText(k("discount"), L.discount, String(v.discount.value)), {
@@ -105,11 +118,12 @@ export async function fillVoucher(env: Env, v: VoucherPayload): Promise<FillOutc
   add(`Đơn tối thiểu ${dong(v.minSpend)}`, setRowText(k("min_spend"), L.minSpend, String(v.minSpend)), { keys: ["min_spend"] });
   add(`Tổng lượt dùng ${v.usageTotal}`, setRowText(k("usage_total"), L.usageTotal, String(v.usageTotal)), { keys: ["usage_total"] });
   add(`Mỗi người mua ${v.perBuyer} lượt`, setRowText(k("per_buyer"), L.perBuyer, String(v.perBuyer)), { keys: ["per_buyer"] });
-  add(`Hiển thị: ${DISPLAY_OPTION[v.display]}`, await chooseRadio(k("display"), L.display, DISPLAY_OPTION[v.display]), { keys: ["display"] });
+  add(`Hiển thị: ${DISPLAY_OPTION[v.display]}`, await chooseRadio(k("display"), L.display, DISPLAY_ALIASES[v.display]), { keys: ["display"] });
   const todo: string[] = [];
   if (v.productIds.length > 0) {
-    picked(add, await pickProducts(k("product_ids"), "Thêm sản phẩm", v.productIds), v.productIds.length);
-    todo.push("Bấm Xác nhận trong hộp chọn sản phẩm.");
+    const p = await pickProducts(k("product_ids"), "Thêm sản phẩm", v.productIds, { confirm: true });
+    picked(add, p, v.productIds.length);
+    if (!p.confirmed) todo.push("Bấm Xác nhận trong hộp chọn sản phẩm.");
   }
   todo.push("Kiểm tra lại các ô được tô hồng, rồi bấm Xác nhận của Shopee để tạo voucher.");
   return { steps, todo, notes: ["Juli không bấm Xác nhận thay bạn."], periodKeys: PERIOD_KEYS };
@@ -140,6 +154,13 @@ const COMBO_TIER_TEXT = {
  * "Mua … sản phẩm …" and holds exactly two boxes (the live page, 2026-11-17).
  */
 export function tierRows(doc: Document): HTMLInputElement[][] {
+  // live 2026-11-18: one table row per tier, the text split around the boxes; the boxes carry the
+  // CSS-module names minAmount (N) and discountValue / discountInput (X)
+  const live = Array.from(doc.querySelectorAll<HTMLElement>("tr,[class*='table-row']"))
+    .map((r) => [r.querySelector<HTMLInputElement>('[class*="minAmount"] input'), r.querySelector<HTMLInputElement>('[class*="discountValue"] input,[class*="discountInput"] input')] as const)
+    .filter((pair): pair is readonly [HTMLInputElement, HTMLInputElement] => !!pair[0] && !!pair[1] && textBoxesIn(pair[0].parentElement!).length > 0 && textBoxesIn(pair[1].parentElement!).length > 0);
+  const uniq = live.filter((pair, i) => live.findIndex((o) => o[0] === pair[0]) === i);
+  if (uniq.length > 0) return uniq.map((pair) => [pair[0], pair[1]]);
   const labelled = findRow(doc, COMBO_LABELS.tiers);
   const scope: ParentNode = labelled ?? doc.body;
   const rows = Array.from(scope.querySelectorAll<HTMLElement>("div,li,tr")).filter(
@@ -165,25 +186,40 @@ export async function fillCombo(env: Env, c: ComboPayload): Promise<FillOutcome>
     keys: ["discount_type"],
   });
   add(`Tên combo: ${c.name}`, setRowText(k("name"), L.name, c.name), { keys: ["name"] });
-  period(env, add, L.period, c.startsAt, c.endsAt);
-  const enough = await ensureCount(env, L.addTier, () => tierRows(env.doc).length, c.tiers.length);
-  const rows = tierRows(env.doc);
+  await period(env, add, L.period, c.startsAt, c.endsAt);
+  // 0.3.27 (E48): tier by tier: Shopee enables "Thêm mức ưu đãi" only once the tier above is valid
   for (const [i, t] of c.tiers.entries()) {
-    const row = rows[i];
     const keys = [`tier${i + 1}_qty`, `tier${i + 1}_value`];
-    const ok = (enough || rows.length >= c.tiers.length) && !!row && writeBox(k(keys[0]!), row[0]!, String(t.qty)) && writeBox(k(keys[1]!), row[1]!, String(t.value));
-    add(COMBO_TIER_TEXT[c.discountType](t.qty, t.value), ok, { keys, note: row ? undefined : "Không thấy dòng «Mua … sản phẩm» của mức này" });
+    if (tierRows(env.doc).length < i + 1) await addTier(env, i + 1);
+    const row = tierRows(env.doc)[i];
+    const ok = !!row && writeBox(k(keys[0]!), row[0]!, String(t.qty)) && writeBox(k(keys[1]!), row[1]!, String(t.value));
+    add(COMBO_TIER_TEXT[c.discountType](t.qty, t.value), ok, { keys, note: row ? undefined : TIER_MISSING });
   }
   if (c.purchaseLimit !== undefined) {
     add(`Giới hạn đặt hàng: ${c.purchaseLimit}`, setRowText(k("purchase_limit"), L.limit, String(c.purchaseLimit)), { keys: ["purchase_limit"] });
   }
-  picked(add, await pickProducts(k("product_ids"), L.products, c.productIds), c.productIds.length);
+  const p = await pickProducts(k("product_ids"), L.products, c.productIds, { confirm: true });
+  picked(add, p, c.productIds.length);
   return {
     steps,
-    todo: ["Bấm Xác nhận trong hộp chọn sản phẩm.", "Kiểm tra lại các ô được tô hồng, rồi bấm Xác nhận của Shopee để tạo combo."],
+    todo: [...(p.confirmed ? [] : ["Bấm Xác nhận trong hộp chọn sản phẩm."]), "Kiểm tra lại các ô được tô hồng, rồi bấm Xác nhận của Shopee để tạo combo."],
     notes: ["Juli không bấm Xác nhận thay bạn."],
     periodKeys: PERIOD_KEYS,
   };
+}
+
+export const TIER_MISSING = "Không thấy dòng «Mua … sản phẩm» của mức này";
+
+/** Presses "Thêm mức ưu đãi" once it is enabled (Shopee marks it with a `disabled` class), then waits for row `n`. */
+async function addTier(env: Env, n: number): Promise<boolean> {
+  const enabled = () => {
+    const add = findPressable(env, COMBO_LABELS.addTier);
+    const holder = add?.closest("button") ?? add;
+    return add && holder && !/\bdisabled\b/.test(holder.className.toString()) && !(holder as HTMLButtonElement).disabled ? add : null;
+  };
+  const add = await waitFor(env, enabled, 2_000);
+  if (!add || !press(add)) return false;
+  return !!(await waitFor(env, () => (tierRows(env.doc).length >= n ? true : null), 1_500));
 }
 
 // -- ads edit ------------------------------------------------------------------------------
@@ -252,73 +288,214 @@ export async function fillAds(env: Env, a: AdsPayload): Promise<FillOutcome> {
   return { steps, todo, notes };
 }
 
-// -- affiliate: open campaign, bulk commission ------------------------------------------
+// -- affiliate: open campaign (Chiến dịch mở rộng) commission ----------------------------------
+//
+// 0.3.27 (E51): the page opens under Shopee's "new version" notice (closed by the runner, never via
+// "Khám phá Ngay"), lists 100+ products over several pages, and rendered in Vietnamese or English
+// (2026-11-18). The product's row is found by its id (the page's search, else page by page); its
+// own rate control is opened and the rate typed; Shopee's Lưu / Lưu lại stays with the person.
+// The rate it showed is kept as the before value (the revert puts it back).
 
 export const AFFILIATE_LABELS = {
-  bulk: "Chỉnh sửa hàng loạt",
-  commission: "Chỉnh sửa tỉ lệ hoa hồng",
+  bulk: ["Chỉnh sửa hàng loạt", "Batch Edit"],
+  commission: ["Chỉnh sửa tỉ lệ hoa hồng", "Edit Commission Rate", "Edit Commission"],
+  search: ["Tìm kiếm", "Tìm", "Search"],
 } as const;
+export const AFFILIATE_NO_FILTER = "Không thấy ô tìm sản phẩm theo tên / ID trên trang Chiến dịch mở rộng";
+export const AFFILIATE_NO_ROW = (ids: readonly string[]) => `Không thấy dòng của ID ${ids.join(", ")} (đã tìm và xem các trang)`;
+export const AFFILIATE_NO_EDITOR = "Không mở được ô sửa tỉ lệ của dòng này";
+const MAX_PAGES = 15;
+
+function pressableOf(env: Env, texts: readonly string[], within?: Element): HTMLElement | null {
+  for (const t of texts) {
+    const hit = findPressable(env, t, within);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** The list's product rows (not the table's measure row). */
+function campaignRows(doc: Document): HTMLElement[] {
+  return Array.from(doc.querySelectorAll<HTMLElement>("tbody tr,[role='row']")).filter(
+    (r) => !/measure-row/.test(r.className.toString()) && !r.closest('[role="dialog"],[class*="modal"]') && !r.closest("[hidden]"),
+  );
+}
+
+/** The row showing this product id, or null (none, or more than one). */
+export function affiliateRowOf(doc: Document, id: string): HTMLElement | null {
+  const rows = campaignRows(doc).filter((r) => holdsId(r, id));
+  const inner = rows.filter((h) => !rows.some((o) => o !== h && h.contains(o)));
+  return inner.length === 1 ? (inner[0] as HTMLElement) : null;
+}
+
+const RATE = /^(\d{1,2}(?:[.,]\d{1,2})?)\s*%$/;
+
+/** The rate cell of a row ("13%") and its value, or null. */
+export function rateOf(row: Element): { cell: HTMLElement; pct: number } | null {
+  for (const el of Array.from(row.querySelectorAll<HTMLElement>("*"))) {
+    const m = el.children.length === 0 ? RATE.exec((el.textContent ?? "").trim()) : null;
+    if (m) return { cell: (el.closest("td") ?? el.parentElement ?? el) as HTMLElement, pct: Number(m[1]!.replace(",", ".")) };
+  }
+  return null;
+}
+
+const ROW_ID = /(?:product id|id sản phẩm|mã sản phẩm|\bid)\s*:?\s*(\d{3,20})/i;
+
+/** Contract D (E50): the products the page shows with their commission (read only). */
+export function affiliateRates(doc: Document): CurrentRow[] {
+  const out: CurrentRow[] = [];
+  for (const row of campaignRows(doc)) {
+    const id = ROW_ID.exec((row.textContent ?? "").replace(/\s+/g, " "))?.[1];
+    const rate = rateOf(row);
+    if (id && rate && rate.pct >= 0 && rate.pct <= 100 && !out.some((o) => o.item_id === id)) out.push({ item_id: id, commission_pct: rate.pct });
+  }
+  return out;
+}
 
 function filterBox(env: Env): HTMLInputElement | null {
   const boxes = Array.from(env.doc.querySelectorAll<HTMLInputElement>('input:not([type]),input[type="text"],input[type="search"]')).filter(
-    (i) => !i.closest('[role="dialog"]') && /(tìm|tên sản phẩm|id)/i.test(i.placeholder),
+    (i) => !i.closest('[role="dialog"],[class*="modal"]') && !i.readOnly && /(tìm|tên sản phẩm|id|search|product)/i.test(i.placeholder),
   );
   return boxes.length === 1 ? (boxes[0] as HTMLInputElement) : null;
 }
 
-export const AFFILIATE_NO_FILTER = "Không thấy ô tìm sản phẩm theo tên / ID trên trang Chiến dịch mở rộng";
+const PAGER_NEXT = [
+  '[class*="pagination"] [class*="next"]',
+  '[class*="pager"] [class*="next"]',
+  '[aria-label*="next" i]',
+  '[aria-label*="trang sau" i]',
+];
+
+function nextPage(env: Env): HTMLElement | null {
+  for (const sel of PAGER_NEXT) {
+    const hit = Array.from(env.doc.querySelectorAll<HTMLElement>(sel)).find(
+      (el) => !/\bdisabled\b/.test(el.className.toString()) && !(el as HTMLButtonElement).disabled && el.getAttribute("aria-disabled") !== "true" && !el.closest("[hidden]"),
+    );
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** Finds the product's row: on the page, through the page's search box, then page by page. */
+async function findCampaignRow(env: Env, id: string): Promise<{ row: HTMLElement | null; searched: boolean }> {
+  const here = await waitFor(env, () => affiliateRowOf(env.doc, id), 3_000);
+  if (here) return { row: here, searched: false };
+  const box = filterBox(env);
+  if (box && writeValue(box, id)) {
+    const go = pressableOf(env, AFFILIATE_LABELS.search);
+    if (go) press(go);
+    const found = await waitFor(env, () => affiliateRowOf(env.doc, id), 4_000);
+    if (found) return { row: found, searched: true };
+  }
+  let paged = false;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const next = nextPage(env);
+    if (!next) break;
+    paged = true;
+    const before = campaignRows(env.doc).map((r) => r.textContent).join("|");
+    if (!press(next)) break;
+    if (!(await waitFor(env, () => (campaignRows(env.doc).map((r) => r.textContent).join("|") !== before ? true : null), 4_000))) break;
+    const found = affiliateRowOf(env.doc, id);
+    if (found) return { row: found, searched: true };
+  }
+  return { row: null, searched: !!box || paged };
+}
+
+/** The row's own rate control: marked edit, else the one icon next to the rate. */
+function rateEditor(cell: HTMLElement): HTMLElement | null {
+  const marked = Array.from(cell.querySelectorAll<HTMLElement>('[aria-label*="edit" i],[aria-label*="chỉnh sửa" i],[title*="chỉnh sửa" i],[title*="edit" i],[class*="edit"]'));
+  if (marked.length === 1) return marked[0] as HTMLElement;
+  const icons = Array.from(cell.querySelectorAll("svg")).map((svg) => svg.parentElement).filter((el): el is HTMLElement => !!el && el !== cell);
+  return icons.length === 1 ? (icons[0] as HTMLElement) : null;
+}
+
+/** The dialog / popover with a text box that opened for the rate. */
+function rateBox(env: Env): HTMLInputElement | null {
+  const holders = Array.from(env.doc.querySelectorAll<HTMLElement>('[role="dialog"],[class*="modal"],[class*="popover"],[class*="popper"]')).filter(
+    (d) => !d.hidden && !d.closest("[hidden]") && textBoxesIn(d).length > 0,
+  );
+  const inner = holders.filter((h) => !holders.some((o) => o !== h && h.contains(o)));
+  return inner.length === 1 ? (textBoxesIn(inner[0]!)[0] ?? null) : null;
+}
 
 export async function fillAffiliate(env: Env, a: AffiliatePayload): Promise<FillOutcome> {
   const steps: Step[] = [];
-  const ticked: string[] = [];
-  const box = await waitFor(env, () => filterBox(env));
+  const current = affiliateRates(env.doc);
+  const rows: HTMLElement[] = [];
+  const missing: string[] = [];
+  let searched = false;
   for (const id of a.productIds) {
-    // a search box, not a field of the card: typed but not recorded
-    if (!box || !writeValue(box, id)) continue;
-    const go = findPressable(env, "Tìm kiếm") ?? findPressable(env, "Tìm");
-    if (go) press(go);
-    const until = env.now() + 4_000;
-    let done = false;
-    while (!done && env.now() < until) {
-      const rows = Array.from(env.doc.querySelectorAll<HTMLElement>("tr,[role='row'],li")).filter(
-        (r) => holdsId(r, id) && r.querySelector('input[type="checkbox"],[role="checkbox"]'),
-      );
-      const inner = rows.filter((h) => !rows.some((o) => o !== h && h.contains(o)));
-      if (inner.length === 1) {
-        const check = (inner[0] as HTMLElement).querySelector<HTMLElement>('input[type="checkbox"],[role="checkbox"]')!;
-        const on = () => (check.matches("input") ? (check as HTMLInputElement).checked : check.getAttribute("aria-checked") === "true");
-        if (on() || press(check)) {
-          ticked.push(id);
-          done = true;
-        } else break;
-      } else await env.sleep(150);
-    }
+    const found = await findCampaignRow(env, id);
+    searched = searched || found.searched;
+    if (found.row) rows.push(found.row);
+    else missing.push(id);
   }
-  const notTicked = a.productIds.filter((i) => !ticked.includes(i));
+  for (const r of affiliateRates(env.doc)) if (!current.some((c) => c.item_id === r.item_id)) current.push(r);
   steps.push({
-    label: `Chọn sản phẩm: ${ticked.length}/${a.productIds.length}`,
-    ok: notTicked.length === 0,
-    ...(notTicked.length > 0 ? { note: box ? `Không thấy dòng của ID: ${notTicked.join(", ")}` : AFFILIATE_NO_FILTER } : {}),
+    label: `Tìm sản phẩm: ${rows.length}/${a.productIds.length}`,
+    ok: missing.length === 0,
+    ...(missing.length > 0 ? { note: searched ? AFFILIATE_NO_ROW(missing) : `${AFFILIATE_NO_ROW(missing)} — ${AFFILIATE_NO_FILTER}` } : {}),
   });
   let dialogOk = false;
-  let why = "";
-  if (ticked.length === a.productIds.length) {
-    const bulk = findPressable(env, AFFILIATE_LABELS.bulk);
+  let why = "Chưa tìm được sản phẩm nên Juli không mở ô sửa hoa hồng";
+  const before = rows.length === 1 ? rateOf(rows[0]!) : null;
+  if (before) env.log?.captureBefore("commission_pct", String(before.pct));
+  if (missing.length === 0 && rows.length === 1 && before) {
+    // the row's own control
+    const editor = rateEditor(before.cell);
+    if (editor && press(editor)) {
+      const box = await waitFor(env, () => rateBox(env), 3_000);
+      dialogOk = !!box && writeBox(keyed(env, "commission_pct"), box, String(a.commissionPct));
+      why = box ? "Shopee chưa nhận tỉ lệ" : AFFILIATE_NO_EDITOR;
+    } else why = AFFILIATE_NO_EDITOR;
+  }
+  if (!dialogOk && missing.length === 0 && rows.length > 0) {
+    // several products, or no control of its own: tick the rows, then the bulk edit
+    const ticked = rows.every((r) => {
+      const check = r.querySelector<HTMLElement>('input[type="checkbox"],[role="checkbox"]');
+      if (!check) return false;
+      const on = () => (check.matches("input") ? (check as HTMLInputElement).checked : check.getAttribute("aria-checked") === "true");
+      return on() || press(check);
+    });
+    const bulk = ticked ? pressableOf(env, AFFILIATE_LABELS.bulk) : null;
     if (bulk && press(bulk)) {
-      const item = await waitPressable(env, AFFILIATE_LABELS.commission);
+      const item = await waitFor(env, () => pressableOf(env, AFFILIATE_LABELS.commission), 3_000);
       if (item && press(item)) {
-        const dialog = await waitDialog(env, AFFILIATE_LABELS.commission);
-        const field = dialog ? textBoxesIn(dialog)[0] : undefined;
-        dialogOk = !!field && writeBox(keyed(env, "commission_pct"), field, String(a.commissionPct));
+        const box = await waitFor(env, () => rateBox(env), 3_000);
+        dialogOk = !!box && writeBox(keyed(env, "commission_pct"), box, String(a.commissionPct));
         if (!dialogOk) why = "Không thấy ô tỉ lệ trong hộp thoại";
       } else why = "Không thấy mục «Chỉnh sửa tỉ lệ hoa hồng»";
-    } else why = "Không thấy nút «Chỉnh sửa hàng loạt»";
-  } else why = "Chưa chọn được sản phẩm nên Juli không mở hộp sửa hoa hồng";
+    } else if (!dialogOk && why === "Chưa tìm được sản phẩm nên Juli không mở ô sửa hoa hồng") why = "Không thấy nút «Chỉnh sửa hàng loạt»";
+  }
   steps.push({ label: `Tỉ lệ hoa hồng: ${a.commissionPct}%`, ok: dialogOk, keys: ["commission_pct"], ...(dialogOk ? {} : { note: why }) });
   return {
     steps,
-    todo: ["Kiểm tra tỉ lệ trong hộp thoại, rồi bấm Lưu lại của Shopee."],
-    notes: ["Juli không bấm Lưu lại thay bạn."],
+    todo: ["Kiểm tra tỉ lệ trong hộp thoại, rồi bấm Lưu / Lưu lại của Shopee."],
+    notes: ["Juli không bấm Lưu thay bạn."],
+    ...(current.length > 0 ? { current } : {}),
+  };
+}
+
+/**
+ * F3.2 (contract C) on the open campaign: find each product's row (search, else page by page),
+ * read the rates the page shows and report captured. Nothing is opened, typed or ticked.
+ */
+export async function readAffiliate(env: Env, job: FillJob): Promise<FillOutcome> {
+  const ids = job.payload.kind === "readback" ? (job.payload.readback.target.productIds ?? []) : [];
+  const current = affiliateRates(env.doc);
+  const missing: string[] = [];
+  for (const id of ids) {
+    const found = await findCampaignRow(env, id);
+    if (!found.row) missing.push(id);
+    for (const r of affiliateRates(env.doc)) if (!current.some((c) => c.item_id === r.item_id)) current.push(r);
+  }
+  const read = ids.length > 0 && missing.length === 0;
+  return {
+    steps: [{ label: `Đọc lại hoa hồng: ${ids.length - missing.length}/${ids.length}`, ok: read, ...(read ? {} : { note: AFFILIATE_NO_ROW(missing) }) }],
+    todo: [],
+    notes: ["Juli chỉ đọc trang này."],
+    ...(current.length > 0 ? { current } : {}),
+    ...(read ? { report: "captured" as const } : {}),
   };
 }
 

@@ -48,6 +48,7 @@ from juli_backend.services.ingest import min_version
 from juli_backend.services.ingest import status as ingest_status
 from juli_backend.services.shopee_recommendations import (
     connector_state,
+    fill_queue,
     result_store,
     service,
     store,
@@ -364,7 +365,7 @@ async def execution_states(
             continue
         if (measured.get(str(p.id)) or {}).get("window_closed"):
             continue
-        mine = jobs.get(p.id, [])
+        mine = [j for j in jobs.get(p.id, []) if not fill_queue.is_aux(j)]  # F3: forward only
         captured_voucher_id = _captured_voucher_id(mine)
         latest = max((j.version for j in mine), default=None)
         mine = [j for j in mine if j.version == latest]

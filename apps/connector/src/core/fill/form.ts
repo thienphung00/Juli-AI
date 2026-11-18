@@ -33,6 +33,21 @@ export interface FillOutcome {
   notes: string[];
   /** The keys of the period (start / end) fields of a time-bound form: unfilled ⇒ "do not save". */
   periodKeys?: string[];
+  /**
+   * 0.3.27 (contract D): what the page shows the platform holds now (before Juli typed), as catalog rows
+   * the Connector posts (item_id + description_first_line / item_name / commission_pct).
+   */
+  current?: CurrentRow[];
+  /** 0.3.27 (contract C): a read-back reports `captured` once it read the page; nothing is typed. */
+  report?: "captured";
+}
+
+/** One item's current values as a page shows them (contract D). */
+export interface CurrentRow {
+  item_id: string;
+  item_name?: string;
+  description_first_line?: string;
+  commission_pct?: number;
 }
 
 /** The fields of a fill job every platform has (a pack's job type extends it). */

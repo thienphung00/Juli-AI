@@ -51,6 +51,13 @@ export const FILL_QUIET_MS = 1_200;
 export const FILL_CONFIRM_MS = 3_000;
 export const FILL_WATCH_MS = 12_000;
 export const FILL_WATCH_POLL_MS = 2_000;
+/**
+ * 0.3.27 (E10, E42, F2.6): after the panel is up the page is followed for FILL_FOLLOW_MS: every
+ * FILL_WATCH_POLL_MS the fields are read again (a step the person fixed by hand turns ✓, one the
+ * page changed back turns ✗; a change counts once it reads the same on two turns in a row), and
+ * the person's save (the redirect to the list, the platform's success toast) is seen.
+ */
+export const FILL_FOLLOW_MS = 30 * 60_000;
 
 // -- fill jobs (P97 D85.6): approved cards queued by Juli, opened and filled page by page -------
 //

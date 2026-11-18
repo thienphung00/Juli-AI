@@ -9,6 +9,7 @@ import {
   MARKET_RUN_START_JITTER_MINUTES,
   MARKET_RUN_START_MIN_MINUTES,
   READER_RUN_PERIOD_MINUTES,
+  type ReaderId,
   READER_RUN_START_JITTER_MINUTES,
   READER_RUN_START_MIN_MINUTES,
   FILL_JOBS_ALARM,
@@ -31,7 +32,7 @@ import type { MarketPlan } from "../platforms/shopee/market";
 import { MARKET_RUN_ALARM, MARKET_WATCHDOG_ALARM, MarketScheduler } from "../platforms/shopee/background/market";
 import { Connector } from "../platforms/shopee/background/connector";
 import { fillRequest, senderMatches } from "../platforms/shopee/background/fill";
-import { FillJobs } from "../platforms/shopee/background/fill-jobs";
+import { FillJobs, readbackPages } from "../platforms/shopee/background/fill-jobs";
 import { markReinjected, probeHook, reinjectSellerCentreTabs } from "../core/reinject";
 import {
   nextStockAt,
@@ -157,6 +158,15 @@ const fillJobs = new FillJobs({
         return { open: false };
       }
     },
+    close: async (tabId) => {
+      await chrome.tabs.remove(tabId).catch(() => undefined);
+    },
+  },
+  // contract C: list read-backs go to the readers (their own background tab, the usual ingest path)
+  readback: {
+    pages: readbackPages,
+    start: (pages) => scheduler.readNow(pages as ReaderId[]).then(() => void scheduler.tick({ trigger: "kick" })),
+    readSince: (pages, since) => scheduler.readSince(pages as ReaderId[], since),
   },
   heartbeat: {
     sellerCentreOpen: async () => (await chrome.tabs.query({ url: `${SELLER_CENTRE_ORIGIN}/*` })).length > 0,
@@ -525,6 +535,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     if (msg.type === "fill-job-halt") {
       return respond(fillJobs.halt(String(msg.jobId ?? ""), new URL(sender.tab?.url ?? SELLER_CENTRE_ORIGIN).pathname));
+    }
+    if (msg.type === "current-values") {
+      // contract D: the rows a fill / read-back page showed (validated again in postCurrent)
+      return respond(connector.postCurrent(msg.rows));
     }
     if (msg.type === "sync-result") return respond(connector.syncResult(String(msg.status), Number(msg.sent) || 0));
     if (msg.type === "backfill-result") {

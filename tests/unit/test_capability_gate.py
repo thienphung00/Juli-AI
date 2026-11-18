@@ -26,8 +26,11 @@ from juli_backend.database import get_session
 from juli_backend.services.capabilities import CAPABILITIES, Route, can
 
 BODY = {"code": "not_a_shopee_shop", "message": "this shop is not on Shopee"}
-SELLER_GATED = 88
-OPS_GATED = 93
+# batch-1118g F3.1: +1 each for the revert-fill routes: seller
+# POST /demo/shopee/recommendations/{id}/revert-fill (`_gate_w`) and ops
+# POST /ops/shops/{shop_id}/shopee/recommendations/{card_id}/revert-fill (`require_ops_capability`)
+SELLER_GATED = 89
+OPS_GATED = 94
 
 
 def _refusal(platform: str, capability: str | None, **kw: Any) -> HTTPException | None:

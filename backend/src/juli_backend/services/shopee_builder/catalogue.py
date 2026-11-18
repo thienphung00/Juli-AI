@@ -110,6 +110,7 @@ def picker(
     offset: int = 0,
     view30: PeriodView | None = None,
     extra: Mapping[str, Mapping[str, Any]] | None = None,
+    current: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The picker payload for a 90-day ``view`` ending on ``anchor``. Both GMV columns are the
     ShopMetrics splits (order lines scaled to the shop totals of their own window, D85.2); pass
@@ -189,6 +190,14 @@ def picker(
                 "exclude_reason": view.excluded.get(item_id),
                 "category": path[-1] if path else None,
                 "category_path": " › ".join(path) if path else None,
+                # contract D (batch-1118g): what the Connector last read on the product's edit page
+                # / the open-campaign page (platform_items.extra); None when it never did
+                "current_first_line": ((current or {}).get(item_id) or {}).get(
+                    "description_first_line"
+                ),
+                "current_commission_pct": ((current or {}).get(item_id) or {}).get(
+                    "affiliate_commission_pct"
+                ),
                 **(extra or {}).get(item_id, picker_table.blank()),
             }
         )

@@ -80,8 +80,21 @@ function startJob(): void {
       const answer = await send({ type: "fill-job-request", jobId });
       return answer?.ok && answer.value ? (answer.value as JobReply) : { ok: false, reason: "error" };
     },
-    report: async (jobId, status, error, progress, detail) => {
-      await send({ type: "fill-job-report", jobId, status, ...(error ? { error } : {}), ...(progress ? { progress } : {}), ...(detail ? { detail } : {}) });
+    report: async (jobId, status, error, progress, detail, ref) => {
+      await send({
+        type: "fill-job-report",
+        jobId,
+        status,
+        ...(error ? { error } : {}),
+        ...(progress ? { progress } : {}),
+        ...(detail ? { detail } : {}),
+        ...(ref ? { capturedRef: ref } : {}),
+      });
+    },
+    // contract D: what the page shows Shopee holds now (the service worker validates and posts)
+    postCurrent: async (rows) => {
+      const answer = await send({ type: "current-values", rows });
+      return answer?.ok === true && answer.value === "posted";
     },
     halt: async (jobId) => {
       await send({ type: "fill-job-halt", jobId });

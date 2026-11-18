@@ -353,6 +353,9 @@ const SKIP_RESULTS: ReadonlySet<string> = new Set([
   "nothing_to_do",
 ]);
 
+/** A read-back's pages start this soon (minutes; Chrome rounds alarms up to its own minimum). */
+const READBACK_KICK_MINUTES = 0.1;
+
 export class ReaderScheduler {
   private lock: Promise<unknown> = Promise.resolve();
 
@@ -436,6 +439,23 @@ export class ReaderScheduler {
     if (state.consentBlocked) return "consent_required";
     if (sched.blocked && sched.blocked.until > now) return "blocked";
     const today = gmt7Date(Math.floor(now / 1000));
+    // 0.3.27 (contract C): a read-back's pages first, in a run of their own (the day's run is untouched)
+    const asked = (sched.readback?.pages ?? []).filter((id) => readerActive(id, shopId));
+    if (asked.length > 0) {
+      if (await this.deps.backfillBusy()) {
+        await this.setKick("readback", READER_KICK_RETRY_MINUTES);
+        return "backfill_busy";
+      }
+      const run: ReaderRun = { day: today, startedAt: now, jobs: asked.map((id) => ({ id })), index: 0, outcomes: {}, trigger: "readback" };
+      const next: ReaderSchedule = { ...sched, blocked: undefined, run, readback: undefined };
+      await this.save(next);
+      await this.deps.alarms.create(READER_WATCHDOG_ALARM, {
+        delayInMinutes: READER_WATCHDOG_ALARM_MINUTES,
+        periodInMinutes: READER_WATCHDOG_ALARM_MINUTES,
+      });
+      return `readback:${await this.startNext(next, run)}`;
+    }
+    if (sched.readback) await this.save({ ...sched, readback: undefined });
     if (this.stockDue(sched, shopId, now, today)) {
       if (await this.deps.backfillBusy()) {
         await this.setKick("retry", READER_KICK_RETRY_MINUTES);
@@ -604,6 +624,27 @@ export class ReaderScheduler {
     const { sched } = await this.load();
     await this.save({ ...sched, kick: { reason, at: this.iso() } });
     await this.deps.alarms.create(READER_KICK_ALARM, { delayInMinutes: minutes });
+  }
+
+  /**
+   * 0.3.27 (contract C): a read-back job asked for these pages: they are read in a run of their own
+   * as soon as the readers are free (a kick in a few seconds). Idempotent: asking again while
+   * pending changes nothing but the kick.
+   */
+  readNow(pages: readonly ReaderId[]): Promise<void> {
+    return this.exclusive(async () => {
+      const { sched } = await this.load();
+      const have = sched.readback?.pages ?? [];
+      const merged = [...new Set([...have, ...pages])];
+      await this.save({ ...sched, readback: { pages: merged, at: sched.readback?.at ?? this.iso() }, kick: { reason: "readback", at: this.iso() } });
+      await this.deps.alarms.create(READER_KICK_ALARM, { delayInMinutes: READBACK_KICK_MINUTES });
+    });
+  }
+
+  /** Every page read and posted at or after `sinceMs`. */
+  async readSince(pages: readonly ReaderId[], sinceMs: number): Promise<boolean> {
+    const { sched } = await this.load();
+    return pages.every((id) => (sched.readAt?.[id] ?? 0) >= sinceMs);
   }
 
   /** Start soon (after pairing, or a worker start that found work due). */
@@ -780,6 +821,8 @@ export class ReaderScheduler {
     const job = run.jobs[run.index];
     if (close && run.current) await this.deps.tabs.close(run.current.tabId).catch(() => undefined);
     const outcomes = { ...run.outcomes, ...(job ? { [job.id]: outcome } : {}) };
+    // 0.3.27: when each page last read and posted (a read-back's captured waits for it)
+    if (job && outcome.startsWith("done")) sched = { ...sched, readAt: { ...sched.readAt, [job.id]: this.deps.now() } };
     const next: ReaderRun = {
       ...run,
       outcomes,
@@ -817,6 +860,13 @@ export class ReaderScheduler {
       await this.reportRun("stock", result, run);
       if (!blocked && sched.lastRunDay !== run.day) await this.setKick("after_stock", READER_KICK_DELAY_MINUTES);
       return `stock_${result}`;
+    }
+    if (run.trigger === "readback") {
+      // a read-back's own run: the day's run and its outcomes are untouched
+      await this.save({ ...sched, run: undefined });
+      await this.deps.alarms.clear(READER_WATCHDOG_ALARM).catch(() => undefined);
+      await this.reportRun("readback", result, run);
+      return result;
     }
     await this.save({
       ...sched,

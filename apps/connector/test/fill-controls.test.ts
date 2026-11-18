@@ -109,24 +109,24 @@ describe("radio, select, switch", () => {
 });
 
 describe("date picker", () => {
-  it("types HH:mm DD-MM-YYYY with the native setter and verifies the displayed value", () => {
+  it("types HH:mm DD-MM-YYYY with the native setter on a page that draws no picker, and verifies the displayed value", async () => {
     loadPage("voucher-new.html");
     const events: string[] = [];
     const start = document.getElementById("start") as HTMLInputElement;
     start.addEventListener("input", () => events.push("input"));
     start.addEventListener("change", () => events.push("change"));
-    expect(setDate(env(), "Thời gian sử dụng mã", "12:00 09-11-2026", 0)).toBe(true);
-    expect(setDate(env(), "Thời gian sử dụng mã", "11:59 23-11-2026", 1)).toBe(true);
+    expect(await setDate(env(), "Thời gian sử dụng mã", "12:00 09-11-2026", 0)).toBe(true);
+    expect(await setDate(env(), "Thời gian sử dụng mã", "11:59 23-11-2026", 1)).toBe(true);
     expect(start.value).toBe("12:00 09-11-2026");
     expect((document.getElementById("end") as HTMLInputElement).value).toBe("11:59 23-11-2026");
     expect(events).toEqual(["input", "change"]);
   });
 
-  it("refuses a date in another format and a missing picker", () => {
+  it("refuses a date in another format and a missing picker", async () => {
     loadPage("voucher-new.html");
-    expect(setDate(env(), "Thời gian sử dụng mã", "2026-11-09 12:00", 0)).toBe(false);
-    expect(setDate(env(), "Thời gian sử dụng mã", "25:00 09-11-2026", 0)).toBe(false);
-    expect(setDate(env(), "Thời gian sử dụng mã", "12:00 09-11-2026", 5)).toBe(false);
+    expect(await setDate(env(), "Thời gian sử dụng mã", "2026-11-09 12:00", 0)).toBe(false);
+    expect(await setDate(env(), "Thời gian sử dụng mã", "25:00 09-11-2026", 0)).toBe(false);
+    expect(await setDate(env(), "Thời gian sử dụng mã", "12:00 09-11-2026", 5)).toBe(false);
   });
 });
 

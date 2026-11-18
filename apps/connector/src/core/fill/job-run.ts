@@ -4,9 +4,10 @@
 // prompt, fill the page with the pack's form for the job's action, show the checklist, tell Juli how
 // far it got. It never presses a save / confirm button; the person does.
 
-import { FILL_HASH_KEY, FILL_JOB_ID_PATTERN, FILL_WATCH_MS, FILL_WATCH_POLL_MS } from "../config";
-import type { CoreJob, Env, FillOutcome, FormMap, JobReply } from "./form";
+import { FILL_FOLLOW_MS, FILL_HASH_KEY, FILL_JOB_ID_PATTERN, FILL_WATCH_MS, FILL_WATCH_POLL_MS } from "../config";
+import type { CoreJob, CurrentRow, Env, FillOutcome, FormMap, JobReply } from "./form";
 import { type JobLabels, showJobPanel } from "./job-panel";
+import { PANEL_ID } from "./locate";
 import { type FieldCheck, FillLog } from "./log";
 import { applyChecks, periodOk, seenNote, verifyWrites, waitForForm } from "./verify";
 
@@ -42,8 +43,18 @@ export interface JobDeps<J extends CoreJob = CoreJob> {
   doc: Document;
   loc: { pathname: string; hash: string };
   ask(jobId: string): Promise<JobReply<J>>;
-  /** Progress to Juli through the service worker. */
-  report(jobId: string, status: "opened" | "filled" | "failed", error?: string, progress?: FillProgress, detail?: FillDetail): Promise<void>;
+  /** Progress to Juli through the service worker (`ref`: the id of what the person's save created). */
+  report(
+    jobId: string,
+    status: "opened" | "filled" | "saved" | "captured" | "failed",
+    error?: string,
+    progress?: FillProgress,
+    detail?: FillDetail,
+    ref?: string,
+  ): Promise<void>;
+  /** 0.3.27 (contract D): posts what the page shows the platform holds now (absent: nothing is
+   * posted); true when Juli took it. A read-back whose post failed is reported failed. */
+  postCurrent?(rows: CurrentRow[]): Promise<boolean>;
   /** The platform asked for the password again: the service worker stops everything for the shop. */
   halt(jobId: string): Promise<void>;
   /** The password prompt text is on the page (never typed into). */
@@ -68,6 +79,9 @@ const REFUSAL: Record<string, string> = {
   error: "Juli chưa lấy được nội dung việc này. Thử lại sau.",
 };
 
+/** A read-back whose rows did not reach Juli (contract C). */
+export const READBACK_POST_FAILED = "readback_post_failed";
+
 const NOT_LOADED = "Trang chưa hiện biểu mẫu sau 25 giây; Juli vẫn thử điền.";
 
 /**
@@ -81,7 +95,8 @@ async function fillPage<J extends CoreJob>(env: Env, job: J, pack: JobPack<J>): 
   const filled = await form.fill(env, job);
   const checks = await verifyWrites(env, env.log!);
   const result = applyChecks(filled, checks);
-  const notes = [...waited.notes, ...(waited.ready ? [] : [NOT_LOADED]), ...result.notes];
+  // each notice once, however many turns it was seen on (E21)
+  const notes = [...new Set([...waited.notes, ...(waited.ready ? [] : [NOT_LOADED]), ...result.notes])];
   return { result: { ...result, notes }, checks };
 }
 
@@ -119,6 +134,14 @@ async function watch(env: Env, log: FillLog, result: FillOutcome, redraw: (r: Fi
   return current;
 }
 
+/** 0.3.27 (E10, E44, F2.3, F3.1): how a pack sees the person's save of a job's page. */
+export interface SaveWatch<J extends CoreJob = CoreJob> {
+  /** The save landed (a redirect to the list, the platform's "thành công" toast, the ended row). */
+  detect(doc: Document, loc: { pathname: string; hash: string }, job: J): boolean;
+  /** The id of what the save created, read from the page it landed on, or null (not drawn yet). */
+  capture?(doc: Document, job: J): string | null;
+}
+
 /** What the platform pack brings to a job run: its form per action and its panel texts. */
 export interface JobPack<J extends CoreJob = CoreJob> {
   forms: Readonly<Record<string, FormMap<J>>>;
@@ -127,7 +150,40 @@ export interface JobPack<J extends CoreJob = CoreJob> {
   blockedOn?(doc: Document): string | null;
   /** Closes a known notice of the platform that covers the page (never a save); notes for the panel. */
   dismiss?(env: Env): Promise<string[]>;
+  /** 0.3.27: the person's save, watched after the panel is up. */
+  saved?: SaveWatch<J>;
 }
+
+type Reads = Map<string, { ok: boolean; seen: string }>;
+
+/** Every write read now (a control no longer on the page reads "" and is not ok). */
+function readAll(env: Env, log: FillLog): Reads {
+  const reads: Reads = new Map();
+  for (const e of log.entries.values()) {
+    const there = env.doc.contains(e.el);
+    const seen = there ? safe(() => e.seen(), "") : "";
+    reads.set(e.key, { ok: there && safe(() => e.ok(), false) && seen.trim() !== "", seen: seen.slice(0, 120) });
+  }
+  return reads;
+}
+
+/** The steps re-read from the log: ✓ when every write of the step reads the card's value, ✗ with what the page shows. */
+export function recheck(env: Env, log: FillLog, result: FillOutcome): FillOutcome {
+  return withReads(result, readAll(env, log));
+}
+
+function withReads(result: FillOutcome, reads: Reads): FillOutcome {
+  const steps = result.steps.map((s) => {
+    const keyed = (s.keys ?? []).filter((k) => reads.has(k));
+    if (s.skipped || keyed.length === 0 || keyed.length !== (s.keys ?? []).length) return s;
+    const bad = keyed.find((k) => !reads.get(k)!.ok);
+    if (bad === undefined) return s.ok ? s : { ...s, ok: true, note: undefined };
+    return s.ok || s.note !== seenNote(reads.get(bad)!.seen) ? { ...s, ok: false, note: seenNote(reads.get(bad)!.seen) } : s;
+  });
+  return { ...result, steps };
+}
+
+const signature = (r: FillOutcome) => r.steps.map((s) => `${s.ok ? 1 : 0}${s.note ?? ""}`).join("|");
 
 export async function runFillJob<J extends CoreJob>(deps: JobDeps<J>, pack: JobPack<J>): Promise<JobResult> {
   const trigger = parseJobTrigger(deps.loc);
@@ -170,22 +226,146 @@ export async function runFillJob<J extends CoreJob>(deps: JobDeps<J>, pack: JobP
   const allOk = (r: FillOutcome) => counted(r).length > 0 && counted(r).every((s) => s.ok);
   const draw = (r: FillOutcome) =>
     showJobPanel(deps.doc, { outcome: allOk(r) ? "filled" : "partial", job, result: r, ...(periodOk(r) === false ? { periodOk: false } : {}) }, pack.labels);
+  const posted = result.current && result.current.length > 0 && deps.postCurrent ? await deps.postCurrent(result.current).catch(() => false) : undefined;
   draw(result);
+  if (result.report === "captured") {
+    // a read-back is captured only once what it read reached Juli
+    if (posted !== true) {
+      await deps.report(job.id, "failed", READBACK_POST_FAILED);
+      return { status: "partial", steps: counted(result).length };
+    }
+    await deps.report(job.id, "captured");
+    return { status: "filled", steps: counted(result).length };
+  }
   if (log.entries.size > 0) result = await watch(env, log, result, draw);
+  // E46: the LAST read of each control while it was on the page (a save redirect takes the form
+  // away: the saved report carries the person's hand edits, never an older read)
+  const latest: Reads = new Map(filled.checks.map((c) => [c.key, { ok: c.ok && c.seen.trim() !== "", seen: c.seen }]));
+  /** Reads every control once; keeps the reads of those still on the page. */
+  const refresh = (): Reads => {
+    const reads = readAll(env, log);
+    for (const [key, read] of reads) if (log.entries.get(key) && deps.doc.contains(log.entries.get(key)!.el)) latest.set(key, read);
+    return reads;
+  };
+  const progressOf = (r: FillOutcome): FillProgress => ({ filled: counted(r).filter((s) => s.ok).length, total: counted(r).length });
+  const detailOf = (r: FillOutcome, fresh = true): FillDetail => {
+    if (fresh) refresh();
+    const period = periodOk(r);
+    // 0.3.27 (E45): an empty read is never ok
+    const fields = [...log.entries.keys()].map((key) => ({ key, ok: latest.get(key)?.ok ?? false, seen: latest.get(key)?.seen ?? "" }));
+    return { before_values: { ...log.before }, fields, ...(period !== undefined ? { period_ok: period } : {}) };
+  };
+  /** One turn of the follow: the steps as read now (the reads are kept, see `latest`). */
+  const turnOf = (r: FillOutcome): FillOutcome => (log.entries.size > 0 ? withReads(r, refresh()) : r);
+  /** The steps and fields as last read while the form was there (the save took it away). */
+  const finalOf = (r: FillOutcome): FillOutcome => (log.entries.size > 0 ? withReads(r, latest) : r);
+  const tell = async (r: FillOutcome) => {
+    if (allOk(r)) await deps.report(job.id, "filled", undefined, progressOf(r), detailOf(r));
+    else if (progressOf(r).total > 0) await deps.report(job.id, "opened", undefined, progressOf(r), detailOf(r));
+  };
+  await tell(result);
   const all = allOk(result);
-  const progress: FillProgress = { filled: counted(result).filter((s) => s.ok).length, total: counted(result).length };
-  const period = periodOk(result);
-  const lastRead = new Map(filled.checks.map((c) => [c.key, c]));
-  const fields = [...log.entries.values()].map((e) => {
-    const okNow = deps.doc.contains(e.el) && safe(() => e.ok(), false);
-    return { key: e.key, ok: okNow, seen: (deps.doc.contains(e.el) ? safe(() => e.seen(), "") : lastRead.get(e.key)?.seen ?? "").slice(0, 120) };
-  });
-  const detail: FillDetail = { before_values: { ...log.before }, fields, ...(period !== undefined ? { period_ok: period } : {}) };
-  if (all) await deps.report(job.id, "filled", undefined, progress, detail);
-  else if (progress.total > 0) await deps.report(job.id, "opened", undefined, progress, detail);
-  return { status: all ? "filled" : "partial", steps: counted(result).length };
+  const steps = counted(result).length;
+  if (pack.saved || log.entries.size > 0) await follow(deps, log, job, pack, result, { draw, tell, progressOf, detailOf, turnOf, finalOf });
+  return { status: all ? "filled" : "partial", steps };
 }
 
+/**
+ * 0.3.27 (F2.6): after the report, follow the page. A changed read is drawn and told to Juli once
+ * it reads the same on two turns in a row (the person may be typing); the save, once seen, turns
+ * the panel to "Đã lưu — bấm Đã làm trong Juli", is told as `saved`, and the created id (when the
+ * pack can read it from the page the save landed on) as `captured`. Never writes, never presses.
+ */
+async function follow<J extends CoreJob>(
+  deps: JobDeps<J>,
+  log: FillLog,
+  job: J,
+  pack: JobPack<J>,
+  start: FillOutcome,
+  f: {
+    draw: (r: FillOutcome) => void;
+    tell: (r: FillOutcome) => Promise<void>;
+    progressOf: (r: FillOutcome) => FillProgress;
+    detailOf: (r: FillOutcome, fresh?: boolean) => FillDetail;
+    turnOf: (r: FillOutcome) => FillOutcome;
+    finalOf: (r: FillOutcome) => FillOutcome;
+  },
+): Promise<void> {
+  let shown = start;
+  let pending: string | null = null;
+  let next = start;
+  // the form is read again when it changed (the person typed, the page redrew), else every
+  // FILL_FOLLOW_FULL_EVERY turns
+  let dirty = true;
+  const touched = () => {
+    dirty = true;
+  };
+  const win = deps.doc.defaultView;
+  const observer =
+    win && typeof win.MutationObserver === "function"
+      ? new win.MutationObserver((records) => {
+          if (records.some((r) => !isPanel(r.target))) dirty = true;
+        })
+      : null;
+  observer?.observe(deps.doc.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+  deps.doc.addEventListener("input", touched, true);
+  deps.doc.addEventListener("change", touched, true);
+  const turns = Math.ceil(FILL_FOLLOW_MS / FILL_WATCH_POLL_MS);
+  try {
+    for (let turn = 0; turn < turns; turn += 1) {
+      // this turn's reads (kept while the controls are on the page), then the wait
+      if (dirty || turn % FILL_FOLLOW_FULL_EVERY === 0) {
+        dirty = false;
+        next = f.turnOf(shown);
+      }
+      await deps.sleep(FILL_WATCH_POLL_MS);
+      if (pack.saved && safe(() => pack.saved!.detect(deps.doc, deps.loc, job), false)) {
+        // E46: the steps and fields as last read before the save took the form away, never older
+        shown = f.finalOf(shown);
+        await deps.report(job.id, "saved", undefined, f.progressOf(shown), f.detailOf(shown, false));
+        showJobPanel(deps.doc, { outcome: "saved", job, result: shown }, pack.labels);
+        const capture = pack.saved.capture;
+        if (!capture) return;
+        for (let wait = 0; wait < 30; wait += 1) {
+          const ref = safe(() => capture(deps.doc, job), null);
+          if (ref) {
+            await deps.report(job.id, "captured", undefined, undefined, undefined, ref);
+            return;
+          }
+          await deps.sleep(1_000);
+        }
+        return;
+      }
+      if (log.entries.size === 0) continue;
+      const sig = signature(next);
+      if (sig === signature(shown)) {
+        pending = null;
+        continue;
+      }
+      if (pending !== sig) {
+        pending = sig;
+        continue;
+      }
+      pending = null;
+      shown = next;
+      f.draw(shown);
+      await f.tell(shown);
+    }
+  } finally {
+    observer?.disconnect();
+    deps.doc.removeEventListener("input", touched, true);
+    deps.doc.removeEventListener("change", touched, true);
+  }
+}
+
+/** A change inside Juli's own panel is not a change of the form. */
+function isPanel(node: Node): boolean {
+  const el = node.nodeType === 1 ? (node as Element) : node.parentElement;
+  return !!el?.closest(`#${PANEL_ID}`) || (el as Element | null)?.id === PANEL_ID;
+}
+
+/** Without a change, the form is still read in full every this many turns (30 s). */
+const FILL_FOLLOW_FULL_EVERY = 15;
 
 function safe<T>(read: () => T, fallback: T): T {
   try {

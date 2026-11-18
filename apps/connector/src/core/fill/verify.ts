@@ -64,8 +64,9 @@ function check(env: Env, log: FillLog): FieldCheck[] {
     let ok = false;
     let seen = "";
     try {
-      ok = there && e.ok();
       seen = there ? e.seen() : "";
+      // 0.3.27 (E45): a control whose value cannot be read ("") never counts as holding the card's value
+      ok = there && e.ok() && seen.trim() !== "";
     } catch {
       ok = false;
     }

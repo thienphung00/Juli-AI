@@ -1,5 +1,5 @@
 import { ShopeeApiError } from "../shopee-analytics/client";
-import type { Card, CardByCode, CardDetail, CardList, CompareResult, DecideResult, ExecutedResult, ExecutionStates, GenerateReport, LearningOverview, ManualInput, ManualResult, MeasurementStates, RevertedResult, VariantInput } from "./types";
+import type { Card, CardByCode, CardDetail, CardList, CompareResult, DecideResult, ExecutedResult, ExecutionStates, GenerateReport, LearningOverview, ManualInput, ManualResult, MeasurementStates, RevertFillResult, RevertedResult, VariantInput } from "./types";
 import { boardApi, type BoardApi } from "./board";
 
 /**
@@ -72,7 +72,9 @@ export interface RecoApi {
   dismiss(id: string, body: { readonly reasonCode?: string | null; readonly note?: string | null }): Promise<DecideResult>;
   executed(id: string, body?: ExecutedInput): Promise<ExecutedResult>;
   /** "Đã hoàn tác": the person confirms they undid the executed change in Seller Centre; stops its measurement. */
-  reverted(id: string, body?: { readonly note?: string | null }): Promise<RevertedResult>;
+  reverted(id: string, body?: { readonly note?: string | null; readonly manual?: boolean }): Promise<RevertedResult>;
+  /** F3.1: queue the Connector's undo of an executed card (it fills and highlights; the person presses Lưu / Kết thúc). */
+  revertFill?(id: string): Promise<RevertFillResult>;
   // Juli Ops only
   generate(body: { readonly topN?: number; readonly mega?: { readonly start: string; readonly end: string; readonly budgetCapPerDay?: number | null } | null }): Promise<GenerateReport>;
   publish(cardIds?: readonly string[] | null): Promise<{ readonly sent: readonly string[] }>;
@@ -188,7 +190,8 @@ export function createRecoApi(options: RecoClientOptions): RecoApi {
         voucher_id: body.voucherId ?? null,
         evidence_ref: body.evidenceRef ?? null,
       }),
-    reverted: (cardId, body = {}) => call<RevertedResult>("POST", `${id(cardId)}/reverted`, { note: body.note ?? null }),
+    reverted: (cardId, body = {}) => call<RevertedResult>("POST", `${id(cardId)}/reverted`, { note: body.note ?? null, ...(body.manual ? { manual: true } : {}) }),
+    revertFill: (cardId) => call<RevertFillResult>("POST", `${id(cardId)}/revert-fill`, {}),
     generate: (body) =>
       call<GenerateReport>("POST", "/generate", {
         top_n: body.topN ?? 10,

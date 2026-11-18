@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useReco } from "../../lib/shopee-decisions/context";
 import { FILLABLE_CHANGE_KINDS } from "../../lib/shopee-decisions/model";
@@ -124,7 +124,14 @@ export interface FillJobRow {
   readonly captured_ref: string | null;
   readonly error: string | null;
   readonly open_path: string | null;
+  /** F3: `mode` is "revert" for an undo job and "readback" for a read-back job; absent on forward jobs. */
+  readonly payload?: { readonly mode?: string } | null;
 }
+
+export const isRevertJob = (j: FillJobRow): boolean => j.payload?.mode === "revert";
+export const isReadbackJob = (j: FillJobRow): boolean => j.kind === "readback" || j.payload?.mode === "readback";
+export const isForwardJob = (j: FillJobRow): boolean => !isRevertJob(j) && !isReadbackJob(j);
+export const isOpenJob = (j: FillJobRow): boolean => j.status === "queued" || j.status === "opened" || j.status === "filled" || j.status === "saved";
 
 /** Kinds the queue fills (migration 124); other cards have no checklist. */
 export const FILL_JOB_KINDS: ReadonlySet<string> = new Set(FILLABLE_CHANGE_KINDS);
@@ -136,6 +143,9 @@ const KIND_LABEL: Record<string, string> = {
   ads_edit: "Sửa quảng cáo",
   affiliate_commission: "Hoa hồng chiến dịch mở rộng",
   combo: "Tạo Combo Khuyến Mãi",
+  voucher_end: "Kết thúc voucher",
+  combo_end: "Kết thúc Combo",
+  readback: "Đọc lại Seller Centre",
 };
 
 export const FILL_STATUS_LABEL: Record<FillJobStatus, string> = {
@@ -162,7 +172,7 @@ const ERROR_TEXT: Record<string, string> = {
 };
 
 export function fillJobTitle(job: FillJobRow): string {
-  const base = KIND_LABEL[job.kind] ?? job.kind;
+  const base = `${isRevertJob(job) ? "Hoàn tác · " : ""}${KIND_LABEL[job.kind] ?? job.kind}`;
   const ids = (job.target.product_ids as readonly string[] | undefined) ?? (job.target.item_id ? [String(job.target.item_id)] : []);
   const campaign = "";
   const items = ids.length > 1 ? ` · ${ids.length} sản phẩm` : "";
@@ -176,9 +186,11 @@ export function fillJobHref(job: Pick<FillJobRow, "id" | "open_path">): string |
 }
 
 /** The fill jobs of an approved card, refreshed while one is still open. Seller view only. */
-export function useFillJobs(cardId: string, active: boolean, fetchImpl?: typeof fetch): { jobs: readonly FillJobRow[]; enabled: boolean } {
+export function useFillJobs(cardId: string, active: boolean, fetchImpl?: typeof fetch): { jobs: readonly FillJobRow[]; enabled: boolean; reload: () => void } {
   const { shopKey } = useReco();
   const [state, setState] = useState<{ jobs: readonly FillJobRow[]; enabled: boolean }>({ jobs: [], enabled: false });
+  const [nonce, setNonce] = useState(0);
+  const reload = useCallback(() => setNonce((n) => n + 1), []);
   useEffect(() => {
     if (!active || shopKey.startsWith("ops")) return;
     const token = readAuthSession()?.accessToken;
@@ -196,7 +208,7 @@ export function useFillJobs(cardId: string, active: boolean, fetchImpl?: typeof 
           if (!live) return;
           const jobs = Array.isArray(body?.data?.jobs) ? body.data.jobs : [];
           setState({ jobs, enabled: body?.data?.enabled === true });
-          if (jobs.some((j) => j.status === "queued" || j.status === "opened" || j.status === "filled" || j.status === "saved")) {
+          if (jobs.some(isOpenJob)) {
             timer = setTimeout(load, 15_000);
           }
         })
@@ -206,13 +218,13 @@ export function useFillJobs(cardId: string, active: boolean, fetchImpl?: typeof 
       live = false;
       if (timer) clearTimeout(timer);
     };
-  }, [active, cardId, shopKey, fetchImpl]);
-  return state;
+  }, [active, cardId, shopKey, fetchImpl, nonce]);
+  return { ...state, reload };
 }
 
 /** The voucher id the Connector captured after the person saved, so nothing has to be typed. */
 export function capturedVoucherId(jobs: readonly FillJobRow[]): string | null {
-  return jobs.find((j) => j.kind === "voucher" && j.captured_ref)?.captured_ref ?? null;
+  return jobs.find((j) => j.kind === "voucher" && isForwardJob(j) && j.captured_ref)?.captured_ref ?? null;
 }
 
 /**

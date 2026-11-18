@@ -1,0 +1,35 @@
+<!-- Connector 0.3.27: /portal/web-seller-affiliate/open_campaign as captured read-only 2026-11-18
+     (structure only; synthetic ids and rates): the body rendered in ENGLISH, the tutorial modal
+     (close span.eds-react-modal__close[aria-label=close], "Explore Now" never pressed), product rows
+     with " Product id :" and the rate cell "<n>%" + an icon. NOT captured (bot check): what the
+     icon opens and the pager — both follow the closest Shopee eds shapes and are unproven live. -->
+<div class="eds-react-modal OpenCampaign-Modal-UserTutorialModal--x9" id="notice">
+  <div class="eds-react-modal__box">
+    <span class="eds-react-icon eds-react-icon-close eds-react-modal__close" aria-label="close" data-dismiss="#page"></span>
+    <div class="eds-react-modal__title">New Open Campaign Version!</div>
+    <button type="button" class="eds-react-button--primary" data-forbidden>Explore Now</button>
+  </div>
+</div>
+<template id="page"><div id="app">
+  <div class="breadcrumb">Chiến dịch mở rộng</div>
+  <h1>Open Campaign</h1>
+  <div class="bulkbar"><button type="button" id="bulk"><span>Batch Edit</span></button></div>
+  <table><tbody class="eds-react-table-tbody page-body">
+    <tr class="eds-react-table-measure-row"><td></td></tr>
+    <tr class="eds-react-table-row eds-react-table-row-level-0"><td class="eds-react-table-selection-column"><label class="eds-react-checkbox"><input class="eds-react-checkbox__input" type="checkbox"></label></td>
+      <td><span class="ellipse">Sample product one</span><div> Product id :<span class="ellipse">2001</span></div></td><td><span class="eds-react-tag eds-react-tag__information">Ongoing</span></td>
+      <td><span>13%</span><span data-opens="#rate-pop"><svg><use></use></svg></span></td><td>00:00 01-11-2026 - No limit</td>
+      <td class="eds-react-table-cell-fix-right"><span>View Performance</span> <span data-forbidden>Remove</span></td></tr>
+  </tbody>
+  <tbody class="eds-react-table-tbody page-body" hidden>
+    <tr class="eds-react-table-row eds-react-table-row-level-0"><td class="eds-react-table-selection-column"><label class="eds-react-checkbox"><input class="eds-react-checkbox__input" type="checkbox"></label></td>
+      <td><span class="ellipse">Sample product two</span><div> Product id :<span class="ellipse">2002</span></div></td><td><span class="eds-react-tag eds-react-tag__information">Ongoing</span></td>
+      <td><span>9%</span><span data-opens="#rate-pop"><svg><use></use></svg></span></td><td>00:00 01-11-2026 - No limit</td>
+      <td class="eds-react-table-cell-fix-right"><span>View Performance</span> <span data-forbidden>Remove</span></td></tr>
+  </tbody></table>
+  <div class="eds-react-pagination"><span class="eds-react-pagination-prev disabled"></span><span class="eds-react-pagination-next" data-next-page=".page-body"></span></div>
+  <div id="rate-pop" class="eds-react-popover" hidden>
+    <div class="eds-react-input"><input type="text" id="rate"></div>
+    <button type="button" data-forbidden>Save</button><button type="button" data-forbidden>Cancel</button>
+  </div>
+</div></template>

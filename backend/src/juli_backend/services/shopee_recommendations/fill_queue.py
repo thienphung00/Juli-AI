@@ -32,7 +32,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +40,7 @@ from juli_backend.models.ingest import IngestToken, PlatformDailyMetric
 from juli_backend.models.platform_data import PlatformPromotion
 from juli_backend.models.shop_proposals import (
     STATUS_APPROVED,
+    STATUS_EXECUTED,
     STATUS_PLANNED,
     ShopProposal,
     ShopProposalApproval,
@@ -70,7 +71,6 @@ ERROR_JOB_BAD = "fill_job_bad"
 ERROR_JOB_LEASED = "fill_job_leased"
 
 MIN_DAILY_BUDGET = 100_000
-VOUCHER_CODE_PREFIX = "ORYV"  # shown by Seller Centre as the fixed prefix of this shop's codes
 MAX_PRODUCTS = 100
 MAX_VOUCHER_NAME = 100
 ICT = timedelta(hours=7)
@@ -234,8 +234,10 @@ def _voucher_payload(
         "min_spend": int(_num(inputs.get("min_spend")) or 0),
         "usage_total": usage,
         "per_buyer": int(_num(inputs.get("per_user_limit")) or 1),
-        "display": "private" if product_ids else "multi",
+        "display": "code" if product_ids else "multi",  # = the sheet: "Chia sẻ qua mã voucher"
         "product_ids": product_ids,
+        # Mã giảm giá thông minh: off unless the card says so
+        "smart": bool(inputs.get("smart") or card.get("smart")),
     }
 
 
@@ -450,7 +452,10 @@ async def build_jobs(
             # a Tự tạo card has no targets: a product-level voucher keeps its product(s); only a
             # shop-scope voucher is shop-wide
             level = (card.get("scope") or {}).get("level")
-            groups = [scope_items] if scope_items and level != "shop" else [[]]
+            # F2.2 / E40: a Tự tạo "Voucher sản phẩm" is a product voucher (usecase 2 with the
+            # card's products) although the kind's default scope level is "shop"
+            product_voucher = (card.get("candidate_extra") or {}).get("voucher_scope") == "product"
+            groups = [scope_items] if scope_items and (level != "shop" or product_voucher) else [[]]
         for n, vids in enumerate(groups):
             inputs = {**base_inputs, **((given[n].get("inputs") or {}) if given else {})}
             payload = _voucher_payload(card, inputs, p.code, version, now, vids)
@@ -653,7 +658,7 @@ def job_json(j: ShopeeFillJob, code: str | None = None, title: str | None = None
 
 async def resolve_voucher_captures(session: AsyncSession, shop_id: uuid.UUID) -> int:
     """Fallback capture (D85.6): the Connector's voucher list reader has posted the new voucher
-    (``extra.voucher_code`` = Seller Centre's fixed prefix + our code suffix): its ``voucher_id``
+    (``extra.voucher_code`` ENDS WITH our code suffix): its ``voucher_id``
     becomes the filled / saved job's ``captured_ref``. Nothing is typed by the person."""
     pending = (
         await session.scalars(
@@ -674,15 +679,17 @@ async def resolve_voucher_captures(session: AsyncSession, shop_id: uuid.UUID) ->
             .limit(400)
         )
     ).all()
-    by_suffix: dict[str, str] = {}
+    codes: list[tuple[str, str]] = []  # (full code, voucher id), newest capture first
     for r in rows:
         extra = r.extra or {}
         vid, vcode = extra.get("voucher_id"), str(extra.get("voucher_code") or "").upper()
-        if vid is not None and len(vcode) > len(VOUCHER_CODE_PREFIX):
-            by_suffix.setdefault(vcode[len(VOUCHER_CODE_PREFIX) :], str(vid))
+        if vid is not None and vcode:
+            codes.append((vcode, str(vid)))
     done = 0
     for j in pending:
-        found = by_suffix.get(str((j.payload or {}).get("code_suffix") or "").upper())
+        # Seller Centre prefixes the code with a shop-specific prefix: match by the suffix typed
+        suffix = str((j.payload or {}).get("code_suffix") or "").upper()
+        found = next((vid for code, vid in codes if suffix and code.endswith(suffix)), None)
         if found and _REF.match(found):
             j.captured_ref, j.status = found, STATUS_CAPTURED
             j.updated_at = datetime.now(UTC).replace(tzinfo=None)
@@ -709,13 +716,31 @@ def _live_tokens(shop_id: uuid.UUID, now: datetime) -> Any:
 #: The card statuses whose fill jobs the Connector may be served. ONE place: F3 adds the revert
 #: jobs of executed cards here (batch-1118f F1.2).
 SERVABLE_CARD_STATUSES: tuple[str, ...] = (STATUS_APPROVED, STATUS_PLANNED)
+REVERT_PREFIX = "revert:"
+READBACK_PREFIX = "readback:"
+
+
+def is_aux(j: ShopeeFillJob) -> bool:
+    """A revert or read-back job: never part of the forward checklist, progress or state."""
+    return j.target_key.startswith((REVERT_PREFIX, READBACK_PREFIX))
 
 
 def _servable_card_jobs() -> Any:
-    """SQL condition: the job's card is still approved / planned (withdrawn, reverted, superseded
-    or executed cards are never served)."""
-    return ShopeeFillJob.proposal_id.in_(
-        select(ShopProposal.id).where(ShopProposal.status.in_(SERVABLE_CARD_STATUSES))
+    """SQL condition: the job may be served. An approved / planned card serves its forward jobs
+    (and read-backs); an EXECUTED card serves only its revert and read-back jobs (batch-1118g
+    F3: ``target_key`` prefixes ``revert:`` / ``readback:``); withdrawn, reverted or superseded
+    cards serve nothing."""
+    key = ShopeeFillJob.target_key
+
+    def card(*statuses: str) -> Any:
+        return ShopeeFillJob.proposal_id.in_(
+            select(ShopProposal.id).where(ShopProposal.status.in_(statuses))
+        )
+
+    revert, readback = key.like(f"{REVERT_PREFIX}%"), key.like(f"{READBACK_PREFIX}%")
+    return or_(
+        and_(card(*SERVABLE_CARD_STATUSES), ~revert),
+        and_(card(STATUS_EXECUTED), or_(revert, readback)),
     )
 
 
@@ -877,7 +902,10 @@ async def report(
         j.lease_until = moment + FILL_LEASE
     if captured_ref is not None and not _REF.match(captured_ref):
         raise ProposalError(ERROR_JOB_BAD, 422)
-    if status not in _NEXT.get(j.status, set()) and status != j.status:
+    allowed = set(_NEXT.get(j.status, set()))
+    if j.kind == "readback" and j.status in (STATUS_QUEUED, STATUS_OPENED):
+        allowed.add(STATUS_CAPTURED)  # a read-back posts its dataset and is done
+    if status not in allowed and status != j.status:
         raise ProposalError(ERROR_JOB_STATE, 409, f"{j.status} -> {status}")
     if progress is not None:
         if progress["filled"] > progress["total"]:
@@ -905,6 +933,14 @@ async def report(
         j.error = (error or "failed")[:64]
     j.updated_at = moment
     await session.flush()
+    if j.target_key.startswith(READBACK_PREFIX):
+        return job_json(j)
+    if j.target_key.startswith(REVERT_PREFIX):
+        if status in (STATUS_SAVED, STATUS_CAPTURED):  # F3.2: read the object back again
+            from juli_backend.services.shopee_recommendations import revert_fill
+
+            await revert_fill.queue_readback_after_revert(session, shop_id, j, now=j.updated_at)
+        return job_json(j)
     if status in (STATUS_SAVED, STATUS_CAPTURED):
         await auto_execute(session, shop_id, j.proposal_id, now=j.updated_at)
     return job_json(j)
@@ -924,7 +960,10 @@ async def auto_execute(
 
     latest = await session.scalar(
         select(func.max(ShopeeFillJob.version)).where(
-            ShopeeFillJob.shop_id == shop_id, ShopeeFillJob.proposal_id == proposal_id
+            ShopeeFillJob.shop_id == shop_id,
+            ShopeeFillJob.proposal_id == proposal_id,
+            ~ShopeeFillJob.target_key.like(f"{REVERT_PREFIX}%"),
+            ~ShopeeFillJob.target_key.like(f"{READBACK_PREFIX}%"),
         )
     )
     jobs = (
@@ -934,6 +973,8 @@ async def auto_execute(
                 ShopeeFillJob.proposal_id == proposal_id,
                 ShopeeFillJob.version == latest,
                 ShopeeFillJob.status != STATUS_CANCELLED,
+                ~ShopeeFillJob.target_key.like(f"{REVERT_PREFIX}%"),
+                ~ShopeeFillJob.target_key.like(f"{READBACK_PREFIX}%"),
             )
         )
     ).all()
@@ -980,6 +1021,36 @@ async def cancel(session: AsyncSession, shop_id: uuid.UUID, job_id: uuid.UUID) -
     j.status = STATUS_CANCELLED
     await session.flush()
     return job_json(j)
+
+
+#: the voucher form's fill_check keys -> the fields the read-back compares (verification)
+_SEEN_FIELD = {"min_spend": "min_spend", "usage_total": "usage_limit"}
+
+
+async def seen_voucher_values(
+    session: AsyncSession, shop_id: uuid.UUID, proposal_id: uuid.UUID
+) -> dict[str, int]:
+    """F2.3 / E46: what the Connector last read on the SAVED voucher form where it differs from
+    what Juli filled (the person changed it by hand): ``{expected field: number}``. Empty when
+    every field matches or the Connector read nothing."""
+    j = await session.scalar(
+        select(ShopeeFillJob)
+        .where(
+            ShopeeFillJob.shop_id == shop_id,
+            ShopeeFillJob.proposal_id == proposal_id,
+            ShopeeFillJob.kind == "voucher",
+            ~ShopeeFillJob.target_key.like(f"{REVERT_PREFIX}%"),
+        )
+        .order_by(ShopeeFillJob.updated_at.desc())
+        .limit(1)
+    )
+    out: dict[str, int] = {}
+    for check in ((j.payload or {}).get("fill_check") or []) if j else []:
+        name = _SEEN_FIELD.get(str(check.get("key")))
+        digits = re.sub(r"\D", "", str(check.get("seen") or ""))
+        if name and check.get("ok") is False and digits:
+            out[name] = int(digits)
+    return out
 
 
 async def captured_ref_of(

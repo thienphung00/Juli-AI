@@ -57,6 +57,9 @@ export interface PickerProduct {
   readonly has_proposal?: boolean;
   readonly in_ads?: boolean;
   readonly in_kol?: boolean;
+  /** E20 / E50: what Seller Centre shows now (read by the Connector); absent or null = not read yet. */
+  readonly current_first_line?: string | null;
+  readonly current_commission_pct?: number | null;
 }
 
 export interface PickerResult {

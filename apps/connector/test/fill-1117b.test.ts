@@ -227,11 +227,16 @@ describe("X1 Shopee's 'new version' notice", () => {
     expect(h.details.at(-1)?.before_values).toEqual({ commission_pct: "" });
   });
 
-  it("uses the notice's own dismiss button when it has no close icon", async () => {
+  // 0.3.27 (owner, 2026-11-18): "Khám phá Ngay" navigates to the new campaign page; it is never a dismiss
+  it("never presses 'Khám phá Ngay': a notice without a close icon is left and the panel says so", async () => {
     loadPage("affiliate-notice.html");
     document.querySelector(".eds-modal__close")?.remove();
     const h = jobHarness(affiliateJob());
-    expect(await runFillJob(h.deps)).toMatchObject({ status: "filled" });
+    expect(await runFillJob(h.deps)).toMatchObject({ status: "partial" });
+    expect(wire.clicks).not.toContain("Khám phá Ngay");
+    expect(document.getElementById("notice")).not.toBeNull();
+    expect(panelText()).toContain("đang che trang; hãy tự đóng rồi mở lại từ Juli");
+    expect(panelText().match(/đang che trang/g)).toHaveLength(1); // once (E21)
     expect(wire.forbidden).toEqual([]);
   });
 

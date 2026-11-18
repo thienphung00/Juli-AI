@@ -5,7 +5,7 @@
 // job parser (its page allowlist), never clicks anything, and stops for the shop on a password
 // prompt. One instance serves one pairing: its storage is that pairing's scope.
 
-import { FILL_HASH_KEY, FILL_JOB_STALE_MS, fillJobsActive, READER_PAGE_LOAD_COST } from "../config";
+import { FILL_HALT_MS, FILL_HASH_KEY, FILL_JOB_STALE_MS, fillJobsActive, READER_PAGE_LOAD_COST } from "../config";
 import type { CoreJob, JobReply } from "../fill/form";
 import { GatewayError, type IngestClient } from "../ingest/client";
 import { gmt7Date } from "../time";
@@ -17,6 +17,24 @@ export interface JobSource<J extends CoreJob> {
   origin: string;
   /** One job of the server's answer, or null when anything is off (its page is not allowed, ...). */
   parseJob(raw: unknown): J | null;
+  /** 0.3.27: the job tab landed on the platform's anti-bot page: the error code to report, else null. */
+  blockedUrl?(url: string | undefined): string | null;
+  /** 0.3.27: a job whose page is only read (a read-back): its tab is closed once it reported captured. */
+  closeWhenDone?(job: J): boolean;
+}
+
+/**
+ * 0.3.27 (contract C): read-backs the platform's daily readers do (a list page read in the readers'
+ * own background tab and posted through the usual ingest path). `pages` says which reader pages a
+ * job needs, `"unsupported"` (no reader can read it: the job fails), or null (not a reader
+ * read-back: the job's own page is opened like any job).
+ */
+export interface ReadbackRunner<J extends CoreJob> {
+  pages(job: J): string[] | "unsupported" | null;
+  /** Ask the readers to read these pages now (idempotent; called again on every poll until read). */
+  start(pages: string[]): Promise<void>;
+  /** Every page posted since `sinceMs`. */
+  readSince(pages: string[], sinceMs: number): Promise<boolean>;
 }
 
 export interface FillJobsDeps<J extends CoreJob = CoreJob> {
@@ -27,7 +45,10 @@ export interface FillJobsDeps<J extends CoreJob = CoreJob> {
   tabs: {
     openPage(url: string): Promise<number | undefined>;
     inspect(tabId: number): Promise<{ open: boolean; url?: string }>;
+    /** Closes a tab the runner opened (a read-back's); absent: the tab stays. */
+    close?(tabId: number): Promise<void>;
   };
+  readback?: ReadbackRunner<J>;
   /** Connector 0.3.18: what the poll tells Juli (a Seller Centre tab is open) and the one command it
    * can receive ("Đối chiếu ngay": run the readers now). Absent: no heartbeat, no command. */
   heartbeat?: {
@@ -119,10 +140,22 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     const now = this.deps.now();
     if ((state.readers?.blocked?.until ?? 0) > now) return this.noted("blocked");
     if (state.consentBlocked) return this.noted("consent_required");
-    const fill = state.fill ?? EMPTY;
+    let fill = state.fill ?? EMPTY;
+    if ((fill.pausedUntil ?? 0) > now) return this.noted("paused");
+    if (this.deps.readback) {
+      await this.readbacks(token.token);
+      fill = await this.fill();
+    }
     if (fill.active) {
       const age = now - fill.active.openedAt;
       const info = fill.active.tabId === undefined ? { open: false } : await this.deps.tabs.inspect(fill.active.tabId);
+      // the platform's anti-bot page: stop this job and open no job page for a while; never work around it
+      const wall = info.open ? (this.deps.pack.blockedUrl?.(info.url) ?? null) : null;
+      if (wall) {
+        await this.report(fill.active.id, "failed", { error: wall });
+        await this.setFill({ active: undefined, pausedUntil: now + FILL_HALT_MS });
+        return this.noted(wall);
+      }
       // One page at a time: wait for the person to finish with it (or for the tab to go away).
       if (info.open && age < FILL_JOB_STALE_MS) return this.noted("job_open");
       await this.setFill({ active: undefined });
@@ -131,17 +164,54 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     const listed = await this.list(token.token);
     if (listed === "unpaired" || listed === "error") return this.noted(listed);
     if (!listed.enabled) return this.noted("disabled");
-    const next = listed.jobs.find((j) => j.status === "queued" && !(fill.autoOpened ?? []).includes(j.id));
+    const handled = (j: J) => this.deps.readback?.pages(j) !== null && this.deps.readback?.pages(j) !== undefined;
+    const next = listed.jobs.find((j) => j.status === "queued" && !(fill.autoOpened ?? []).includes(j.id) && !handled(j));
     if (!next) return this.noted("nothing_queued");
     if (requestsLeft(state, this.today()) < READER_PAGE_LOAD_COST) return this.noted("budget_spent");
     const tabId = await this.deps.tabs.openPage(jobUrl(this.deps.pack.origin, next));
     if (tabId === undefined) return this.noted("no_tab");
     await addRequests(this.deps.storage, this.today(), READER_PAGE_LOAD_COST);
     await this.setFill({
-      active: { id: next.id, tabId, openedAt: now, counted: true },
+      active: { id: next.id, tabId, openedAt: now, counted: true, ...(this.deps.pack.closeWhenDone?.(next) ? { closeWhenDone: true } : {}) },
       autoOpened: [...(fill.autoOpened ?? []), next.id].slice(-50),
     });
     return this.noted("opened");
+  }
+
+  /**
+   * Contract C: each served read-back the readers do is handed to them once (and again on each poll
+   * until read: the call is idempotent), reported `opened`, then `captured` once every page posted
+   * after the hand-over. One no reader can do is reported `failed` (`readback_unsupported`).
+   */
+  private async readbacks(token: string): Promise<void> {
+    const rb = this.deps.readback!;
+    const listed = await this.list(token);
+    if (listed === "unpaired" || listed === "error" || !listed.enabled) return;
+    const pending = { ...((await this.fill()).readbacks ?? {}) };
+    const live = new Set<string>();
+    for (const job of listed.jobs) {
+      if (job.status !== "queued" && job.status !== "opened") continue;
+      const pages = rb.pages(job);
+      if (pages === null) continue;
+      live.add(job.id);
+      if (pages === "unsupported") {
+        await this.report(job.id, "failed", { error: "readback_unsupported" });
+        continue;
+      }
+      const since = pending[job.id];
+      if (since !== undefined && (await rb.readSince(pages, since))) {
+        await this.report(job.id, "captured");
+        delete pending[job.id];
+        continue;
+      }
+      if (since === undefined) {
+        pending[job.id] = this.deps.now();
+        await this.report(job.id, "opened");
+      }
+      await rb.start(pages);
+    }
+    for (const id of Object.keys(pending)) if (!live.has(id)) delete pending[id];
+    await this.setFill({ readbacks: pending });
   }
 
   private async noted(status: string): Promise<string> {
@@ -192,7 +262,12 @@ export class FillJobs<J extends CoreJob = CoreJob> {
     }
     if (status === "captured" || status === "failed") {
       const fill = await this.fill();
-      if (fill.active?.id === jobId) await this.setFill({ active: undefined });
+      if (fill.active?.id === jobId) {
+        await this.setFill({ active: undefined });
+        // a read-back's page was only read: its tab goes (never the person's own tab of a fill)
+        const tabId = fill.active.tabId;
+        if (status === "captured" && tabId !== undefined && fill.active.closeWhenDone && this.deps.tabs.close) await this.deps.tabs.close(tabId).catch(() => undefined);
+      }
     }
   }
 
