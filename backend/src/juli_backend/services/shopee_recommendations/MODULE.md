@@ -22,7 +22,7 @@ a service package behind a thin route (`api/routes/demo_shopee_recommendations.p
 | `plan` | ADR-107 measurement plan: MDE (alpha 5 %, power 80 %) -> 14 / 28 days / "khó kết luận" |
 | `sheet` | execution sheet and the `change = {change_kind, target, expected}` the `executed` event carries (`card_events/verification.py`) |
 | `cards` | one card = the frozen proposal payload |
-| `listing` | the listing family's pure core: title audit (missing / late / > 100 chars), deterministic title rewrite from the shop's own words + core keywords, keyword promotion within five "Chính", unit price |
+| `listing` | the listing family's pure core: title audit (missing / late / > MAX_TITLE_CHARS), deterministic title rewrite from the shop's own words + core keywords, keyword promotion within five "Chính", unit price |
 | `refs` | `attach_card_refs`: `card {id, family, title, at_stake_per_month}` on the analytics payloads (seller: published cards; Ops: drafts too) |
 | `ranking` | contract 11: hard filters, gap-share score at P25, fallback dGMV/tháng, "đáng thử" slot |
 | `learning`, `impact`, `measure` | calibration, coverage, acceptance statistics; ADR-077 ratio-form DiD; readings at the plan end and the natural-experiment backfill |

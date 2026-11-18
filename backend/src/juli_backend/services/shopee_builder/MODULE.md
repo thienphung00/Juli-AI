@@ -41,7 +41,7 @@ estimate basis, warnings).
 - Estimate basis: `product_history` (this product's days with / without a cut) > `shop` (the other
   products' median, or the shop's measured calibration) > `prior` > `insufficient` (no volume could be
   predicted: bands are `null`, not 0).
-- The LLM writes words only. Cover numbers come from the product's own prices; a title is <= 100
+- The LLM writes words only. Cover numbers come from the product's own prices; a title is <= MAX_TITLE_CHARS (120)
   characters, holds every ticked keyword, has no banned term and no certification / ingredient /
   price / percent the facts do not state. Off (switch, key or consent) = 503 `llm_off` "LLM tắt".
 

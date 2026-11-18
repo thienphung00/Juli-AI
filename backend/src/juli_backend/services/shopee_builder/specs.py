@@ -16,13 +16,14 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from juli_backend.services.shopee_builder.banner import BannerSpec
+from juli_backend.services.shopee_recommendations import config
 
 MAX_MONEY = 2_000_000_000
 MAX_VERSIONS = 4
 MIN_VERSIONS_COMPARE = 2
 MAX_ADDONS = 5
 MAX_VOUCHER_DAYS = 90
-MAX_TITLE_CHARS = 100
+MAX_TITLE_CHARS = config.MAX_TITLE_CHARS  # one constant (shopee_recommendations.config)
 MAX_KEYWORDS = 30
 MAX_TARGETS = 100
 

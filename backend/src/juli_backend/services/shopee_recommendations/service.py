@@ -911,7 +911,7 @@ async def recompute(
 
 
 def check_title_input(card: Mapping[str, Any], inputs: Mapping[str, Any]) -> None:
-    """A title input is refused above ``MAX_TITLE_CHARS`` (P91 D-4: 100) with a 422."""
+    """A title input is refused above ``MAX_TITLE_CHARS`` with a 422."""
     if card.get("change_kind") != "title" or "title" not in inputs:
         return
     n = len(str(inputs["title"] or "").strip())
