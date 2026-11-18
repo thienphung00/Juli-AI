@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.api.routes.ops import _shop
 from juli_backend.database import Shop, get_session
-from juli_backend.services.capabilities.registry import Route, can
+from juli_backend.services.capabilities import Route, can
 
 #: The platforms whose data the guarded routes read today.
 DEFAULT_DATA_PLATFORMS: tuple[str, ...] = ("shopee",)

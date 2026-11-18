@@ -23,7 +23,7 @@ from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.api.routes.ops import get_ops_context
 from juli_backend.core.security import get_current_user
 from juli_backend.database import get_session
-from juli_backend.services.capabilities.registry import CAPABILITIES, Route, can
+from juli_backend.services.capabilities import CAPABILITIES, Route, can
 
 BODY = {"code": "not_a_shopee_shop", "message": "this shop is not on Shopee"}
 SELLER_GATED = 88
