@@ -17,7 +17,8 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
 from juli_backend.api.app import create_app
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.capability_gate import require_capability
+from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.api.routes.ops import get_ops_user
 from juli_backend.core.security import get_current_user
 from juli_backend.services.agent.composition import build_product_tool_registry
@@ -57,7 +58,8 @@ def _depends_transitively(dependant, targets) -> bool:
 def _is_tenant_scoped(route: APIRoute) -> bool:
     """Check if a route is tenant-scoped via X-Shop-Id header.
 
-    Detects Depends(get_active_shop) in the route's endpoint signature.
+    Detects Depends(get_active_shop) in the route's endpoint signature, or anywhere in its
+    resolved dependency tree (``require_writable_shop`` and the capability gate wrap it).
     """
     if not route.endpoint:
         return False
@@ -66,7 +68,7 @@ def _is_tenant_scoped(route: APIRoute) -> bool:
     for param in sig.parameters.values():
         if hasattr(param.default, "dependency") and param.default.dependency is get_active_shop:
             return True
-    return False
+    return _depends_transitively(route.dependant, (get_active_shop,))
 
 
 def generate_surface_inventory(app=None) -> dict:
@@ -552,3 +554,48 @@ def _verify_reference(file_path: str, symbol_name: str) -> None:
 
     if not hasattr(module, symbol):
         raise AttributeError(f"Module {module_name} has no attribute {symbol}")
+
+
+class TestTenantScopedDetector:
+    """``tenant_scoped`` means the route resolves ``get_active_shop``, however deeply nested."""
+
+    @staticmethod
+    def _routes() -> dict[str, APIRoute]:
+        from fastapi import Depends
+
+        app = FastAPI()
+        direct = Depends(get_active_shop)
+        writable = Depends(require_writable_shop)  # one level: writable -> active shop
+        gated = Depends(require_capability("read_orders"))  # one level: gate -> active shop
+        gated_writable = Depends(
+            require_capability("read_orders", shop_dependency=require_writable_shop)
+        )  # two levels: gate -> writable -> active shop
+
+        @app.get("/direct")
+        async def _direct(shop=direct) -> dict:
+            return {}
+
+        @app.get("/writable")
+        async def _writable(shop=writable) -> dict:
+            return {}
+
+        @app.get("/gated")
+        async def _gated(shop=gated) -> dict:
+            return {}
+
+        @app.get("/gated-writable")
+        async def _gated_writable(shop=gated_writable) -> dict:
+            return {}
+
+        @app.get("/open")
+        async def _open() -> dict:
+            return {}
+
+        return {r.path: r for r in app.routes if isinstance(r, APIRoute)}
+
+    @pytest.mark.parametrize("path", ["/direct", "/writable", "/gated", "/gated-writable"])
+    def test_a_route_with_get_active_shop_at_any_depth_is_tenant_scoped(self, path):
+        assert _is_tenant_scoped(self._routes()[path]) is True
+
+    def test_a_route_without_a_shop_dependency_is_not_tenant_scoped(self):
+        assert _is_tenant_scoped(self._routes()["/open"]) is False
