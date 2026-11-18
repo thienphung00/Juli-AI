@@ -42,6 +42,7 @@ from juli_backend.services.shopee_analytics.matrix import margin_basis, price_bl
 from juli_backend.services.shopee_analytics.shared import shop_profit_of
 from juli_backend.services.shopee_profit.flows import Flow, FlowSource
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_profit.sources import CellStats
 
 KINDS = ("products", "campaigns", "kols", "vouchers", "keywords")
@@ -402,7 +403,7 @@ def _cell_other(kind: str, view: PeriodView) -> M:
         return M(a.gmv if a else ZERO, a.orders if a else ZERO)
     # vouchers: orders that used a shop voucher, from the order lines
     voucher_pairs = [
-        (ln, pb) for ln, pb in view.pairs if ln.shop_voucher_share > 0 and ln.status.counts_in_sales
+        (ln, pb) for ln, pb in view.pairs if ln.shop_voucher_share > 0 and counts_in_sales(ln)
     ]
     return M(
         sum((ln.order_value for ln, _ in voucher_pairs), ZERO),

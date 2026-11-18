@@ -77,6 +77,7 @@ from juli_backend.services.shopee_builder.engine.contract import (
     SourceFunnel,
 )
 from juli_backend.services.shopee_profit import shop_profit
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
 SHOP_PLUS_KIND = "ads_shop"
 CARD, SHOP_PAGE, LIVE, VIDEO, AFFILIATE = (
@@ -508,7 +509,7 @@ def _product_affiliate(view: PeriodView, product_id: str | None) -> dict[str, De
     lines = [
         ln
         for ln, _ in view.pairs
-        if ln.affiliate and ln.product_id == product_id and ln.status.counts_in_sales
+        if ln.affiliate and ln.product_id == product_id and counts_in_sales(ln)
     ]
     if not lines:
         return None

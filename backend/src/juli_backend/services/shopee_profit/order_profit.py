@@ -97,8 +97,10 @@ class OrderStatus(StrEnum):
 
 
 def counts_in_sales(line: OrderLine) -> bool:
-    """``line`` counts in đơn / GMV / AOV (every status but ``returned``)."""
-    return line.status.counts_in_sales
+    """``line`` counts in đơn / GMV / AOV (every status but ``returned``). A line-like object
+    without a status (a what-if or synthetic line) counts."""
+    status = getattr(line, "status", None)
+    return status is None or status is not OrderStatus.RETURNED
 
 
 class PromoKind(StrEnum):

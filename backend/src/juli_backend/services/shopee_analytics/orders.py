@@ -16,6 +16,7 @@ from typing import Any
 from juli_backend.services.shopee_analytics.compute import PeriodView
 from juli_backend.services.shopee_analytics.fmt import ORDER_BASIS, num
 from juli_backend.services.shopee_profit.money import ZERO
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
 KEY_CHARS = 12
 SORTS = ("date", "gmv", "contribution")
@@ -73,9 +74,7 @@ def build_orders(
                 "items": sorted({ln.product_id for ln, _ in items}),
                 "levers": levers,
                 # a returned order is no sale: GMV 0, its fees and packaging in the profit
-                "gmv": num(
-                    sum((ln.order_value for ln, _ in items if ln.status.counts_in_sales), ZERO)
-                ),
+                "gmv": num(sum((ln.order_value for ln, _ in items if counts_in_sales(ln)), ZERO)),
                 "voucher": num(sum((pb.voucher for _, pb in items), ZERO)),
                 "promo_discount": num(sum((pb.promo_discount for _, pb in items), ZERO)),
                 "combo_discount": num(sum((pb.bundle for _, pb in items), ZERO)),

@@ -67,6 +67,7 @@ from juli_backend.services.shopee_profit.flows import (
     FlowTable,
     FlowTables,
 )
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.stock_alert import stock_basis as sb
 
 if TYPE_CHECKING:
@@ -516,7 +517,7 @@ def contribution_rate(view: PeriodView, item_ids: Iterable[str] = ()) -> Decimal
         return None
     if any(not view.costs.cogs_is_real(ln.sku) or pb.contribution is None for ln, pb in lines):
         return None
-    gmv = sum((ln.order_value for ln, _ in lines if ln.status.counts_in_sales), ZERO)
+    gmv = sum((ln.order_value for ln, _ in lines if counts_in_sales(ln)), ZERO)
     if gmv <= 0:
         return None
     return sum((pb.contribution or ZERO for _, pb in lines), ZERO) / gmv
