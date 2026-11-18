@@ -582,19 +582,27 @@ async def _daily_report_ad_days(
     )
     per_day: dict[date, dict[str, list[Decimal | None]]] = defaultdict(dict)
     totals: dict[date, dict[str, list[Decimal | None]]] = {}
+    priced: set[date] = set()  # days with at least one ads cost figure in the report
     for r in rows:
-        cost = _z((r.extra or {}).get("ads_expense"))
+        raw = (r.extra or {}).get("ads_expense")
+        if raw is not None:
+            priced.add(r.day)
+        cost = _z(raw)
         if r.segment == "all":  # Shopee's own total of the types: only when the types are missing
             totals[r.day] = {"all": [ZERO, ZERO, ZERO, ZERO, ZERO]}
             _add_type_cell(totals[r.day]["all"], cost, r)
             continue
         cell = per_day[r.day].setdefault(r.segment, [ZERO, ZERO, ZERO, ZERO, ZERO])
         _add_type_cell(cell, cost, r)
+    # A day whose rows carry no cost at all (an export with only the "all" count row) has no
+    # figure: it is not a 0 that outranks the Connector's day (2026-11-18, 03/11-16/11 read as 0).
     out: dict[date, DayAds] = {
-        day: _type_day(cells, SOURCE_DAILY_REPORT) for day, cells in per_day.items()
+        day: _type_day(cells, SOURCE_DAILY_REPORT)
+        for day, cells in per_day.items()
+        if day in priced
     }
     for day, t in totals.items():
-        if day not in out:
+        if day not in out and day in priced:
             out[day] = _type_day(t, SOURCE_DAILY_REPORT)
     return out
 
