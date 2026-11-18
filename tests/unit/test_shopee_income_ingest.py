@@ -161,6 +161,23 @@ async def test_a_connector_post_replaces_a_file_row(session, tmp_path):
     assert (a.source, a.fee_fixed) == ("extension", Decimal(1))
 
 
+async def test_a_connector_income_row_carries_its_raw_payload_id(session, tmp_path):
+    """An unknown capture never blocks an equal rank (rank_guard). A Connector post through the
+    gateway always stores its raw payload id, so that rule never applies to a Connector row."""
+    shop = await _shop(session)
+    body = {
+        "source": "extension",
+        "source_version": "connector-1",
+        "captured_at": "2026-10-30T09:30:00+07:00",
+        "period": {"start": "2026-10-01", "end": "2026-10-28", "granularity": "period"},
+        "rows": [{"order_ref": REF_A, "payout": 1, "fee_fixed": 1}],
+    }
+    result = await _ingest(session, shop, "order_income", body)
+    (a,) = await _rows(session, ShopeeOrderIncome, shop)
+    assert a.raw_payload_id is not None
+    assert a.raw_payload_id == result.raw_payload_id
+
+
 async def test_a_file_post_never_replaces_a_connector_value_and_only_fills_its_gaps(
     session, tmp_path
 ):
