@@ -12,6 +12,7 @@ import pytest
 from juli_backend.models.market import MarketKeywordMetric, MarketListingSnapshot
 from juli_backend.services.shopee_builder import drafts, keywords, llm
 from juli_backend.services.shopee_builder import service as builder
+from juli_backend.services.shopee_recommendations import config
 from tests.support.shopee_analytics import CUR_END, CUR_START, keyword, period_row
 from tests.support.shopee_reco import AS_OF, seed_reco_shop
 
@@ -66,7 +67,7 @@ FACTS = drafts.ProductFacts(
 # ======================================================================================= titles
 
 
-async def test_titles_keep_every_ticked_keyword_and_stay_within_100_characters():
+async def test_titles_keep_every_ticked_keyword_and_stay_within_the_title_limit():
     client = FakeLLM(
         {
             "drafts": [
@@ -90,13 +91,16 @@ async def test_titles_keep_every_ticked_keyword_and_stay_within_100_characters()
         "Găng tay tự hủy sinh học STAHAUS hộp 100 chiếc dùng một lần",
         "STAHAUS găng tay tự hủy sinh học bền, sạch",
     ]
-    assert all(d["chars"] <= 100 and d["keywords"]["missing"] == [] for d in out["drafts"])
+    assert all(
+        d["chars"] <= config.MAX_TITLE_CHARS and d["keywords"]["missing"] == []
+        for d in out["drafts"]
+    )
     reasons = {d["reason"].split(":")[0] for d in out["dropped"]}
     assert any(r.startswith("dài") for r in reasons) and "thiếu từ khoá" in reasons
-    assert out["max_chars"] == 100 and out["warnings"] == []
-    # the ticked keywords and the 100-character limit are in the prompt
+    assert out["max_chars"] == config.MAX_TITLE_CHARS and out["warnings"] == []
+    # the ticked keywords and the title limit are in the prompt
     assert (
-        "100" in client.calls[0]["system"]
+        str(config.MAX_TITLE_CHARS) in client.calls[0]["system"]
         and "găng tay, tự hủy sinh học" in client.calls[0]["user"]
     )
 

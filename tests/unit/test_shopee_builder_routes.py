@@ -11,6 +11,7 @@ from sqlalchemy import select
 from juli_backend.api.routes import shopee_builder_common as common
 from juli_backend.models.ops import OpsAuditLog
 from juli_backend.models.shop_proposals import ShopProposal
+from juli_backend.services.shopee_recommendations import config
 from tests.support.api import authenticate, build_app, client_for
 from tests.support.shopee_analytics import CUR_END, _line
 from tests.support.shopee_reco import AS_OF, seed_reco_shop
@@ -362,7 +363,7 @@ def fake_llm(monkeypatch):
     return client
 
 
-async def test_title_drafts_use_the_ticked_keywords_and_the_100_character_rule(seller, fake_llm):
+async def test_title_drafts_use_the_ticked_keywords_and_the_title_limit_rule(seller, fake_llm):
     fake_llm.answers.append(
         {
             "drafts": [
@@ -385,7 +386,9 @@ async def test_title_drafts_use_the_ticked_keywords_and_the_100_character_rule(s
     assert (
         out["current_title"] == "Găng tay tự hủy sinh học STAHAUS" and out["model"] == "fake-model"
     )
-    assert out["dropped"][0]["reason"].startswith("dài") and out["max_chars"] == 100
+    assert (
+        out["dropped"][0]["reason"].startswith("dài") and out["max_chars"] == config.MAX_TITLE_CHARS
+    )
     too_many = await seller.post(f"{B}/drafts/title", json={"item_id": "1001", "count": 9})
     assert too_many.status_code == 422
     unknown = await seller.post(f"{B}/drafts/title", json={"item_id": "nope"})

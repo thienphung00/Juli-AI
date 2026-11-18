@@ -160,7 +160,6 @@ async def rerun_stale(
     as a draft Ops must send again, so the seller never loses it."""
     from juli_backend.services.shopee_recommendations import service
     from juli_backend.services.shopee_recommendations.loader import load_env
-    from juli_backend.services.shopee_recommendations.manual import ORIGIN_MANUAL
 
     now = now.replace(tzinfo=None)
     ids = await stale_cards(session, shop_id)
@@ -169,7 +168,6 @@ async def rerun_stale(
         "replaced": 0,
         "revised": 0,
         "kept_approved": 0,
-        "kept_manual": 0,
         "dropped": 0,
     }
     if not ids:
@@ -182,13 +180,10 @@ async def rerun_stale(
         card = await store.card_payload(session, shop_id, cid)
         if p is None or card is None:
             continue
-        if (await store.card_meta(session, shop_id, cid)).get("origin") == ORIGIN_MANUAL:
-            # a "Tự tạo" card is the person's own: never re-issued by a recompute (F1.3)
-            counts["kept_manual"] += 1
-            continue
         if p.status == STATUS_APPROVED:
-            # an approval belongs to the text the person approved: it is never carried to a new
-            # revision (a changed card is a new draft / sent card that needs its own decision)
+            # an approved card (a manual "Tự tạo" one too) is the person's decision: never
+            # re-issued, and an approval never carries to a new revision. A manual card that is
+            # still draft / sent is refreshed like any other, keeping its variants (F1.3).
             counts["kept_approved"] += 1
             continue
         new = service.refresh_card(env, card, now=now)
