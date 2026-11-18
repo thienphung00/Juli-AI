@@ -80,7 +80,9 @@ class IncomeOrder:
 
     @property
     def tax_withheld(self) -> Decimal:
-        return (self.vat_withheld or ZERO) + (self.pit_withheld or ZERO)
+        """Always 0: Juli does not calculate tax (owner 2026-11-15). ``vat_withheld`` and
+        ``pit_withheld`` stay stored as reported but are never a cost, on any platform."""
+        return ZERO
 
 
 @dataclass(frozen=True)

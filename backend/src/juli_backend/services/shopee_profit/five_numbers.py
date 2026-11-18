@@ -26,7 +26,11 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from juli_backend.services.shopee_profit.money import ONE, ZERO, pct_points, safe_div
-from juli_backend.services.shopee_profit.order_profit import OrderLine, ProfitBreakdown
+from juli_backend.services.shopee_profit.order_profit import (
+    OrderLine,
+    ProfitBreakdown,
+    counts_in_sales,
+)
 
 
 @dataclass(frozen=True)
@@ -99,16 +103,19 @@ def snapshot_from_orders(
     ad_spend_covered: Decimal | None = None,
 ) -> Snapshot:
     """Snapshot from whole orders, each with a weight (1 = counted once; what-if mixes use
-    fractions). A group is ALL lines of one order."""
+    fractions). A group is ALL lines of one order. A returned line (owner D2) adds nothing to
+    the orders, GMV or discounts, but its fees stay in the contribution (a cost)."""
     acc: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for w, group in weighted_orders:
-        acc["orders"] += w
+        if any(counts_in_sales(ln) for ln, _ in group):
+            acc["orders"] += w
         for ln, pb in group:
-            acc["list_value"] += w * pb.list_value
-            acc["gmv"] += w * ln.order_value
-            acc["promo"] += w * pb.promo_discount
-            acc["voucher"] += w * pb.voucher
-            acc["combo"] += w * pb.bundle
+            if counts_in_sales(ln):  # a returned order is no sale (owner D2): not in đơn / GMV
+                acc["list_value"] += w * pb.list_value
+                acc["gmv"] += w * ln.order_value
+                acc["promo"] += w * pb.promo_discount
+                acc["voucher"] += w * pb.voucher
+                acc["combo"] += w * pb.bundle
             if pb.excluded_reason is not None:
                 continue  # confirmed GMV / discounts count; no fee, no profit, outside the base
             acc["buyer_paid"] += w * pb.revenue

@@ -964,16 +964,21 @@ Text64 = Annotated[str, StringConstraints(max_length=64)]
 Text120 = Annotated[str, StringConstraints(max_length=120)]
 
 
+#: The canonical order-line statuses (migration 134, T5 §3): the writer stores one of these; any
+#: other value a sender posts becomes ``in_transit`` when the line was paid, else ``pending``
+#: (``writers.canonical_status``, logged).
+#: The same tuple as ``models.shopee_profit.ORDER_LINE_STATUSES`` (a unit test keeps them equal).
 ORDER_STATUSES: tuple[str, ...] = (
+    "pending",
+    "confirmed",
+    "in_transit",
     "delivered",
     "cancelled",
-    "in_transit",
     "refunded_accepted",
     "refunded_not_received",
+    "returned",
+    "on_hold",
 )
-OrderStatusName = Literal[
-    "delivered", "cancelled", "in_transit", "refunded_accepted", "refunded_not_received"
-]
 PROMO_KIND_NAMES = Literal["none", "voucher", "discount", "flash_sale", "bundle", "add_on"]
 
 
@@ -983,7 +988,9 @@ class ShopeeOrderLineRow(PeriodRowBase):
     a tracking id, a comment or a note, and the raw order id never arrives: ``order_ref`` is a
     keyed hash.
 
-    Money is VND. ``status`` is the contract-10 ``OrderStatus`` value. Order-level amounts
+    Money is VND. ``status`` is an :data:`ORDER_STATUSES` value (another value is stored as
+    ``in_transit`` when paid, else ``pending``; the wire keeps ``shopee_subsidy``, stored as
+    ``order_lines.platform_subsidy``). Naive times are Vietnam local. Order-level amounts
     (shop voucher, Shopee voucher, combo, buyer shipping, bank promotion, actual fees) are
     already SPLIT across the order's lines by line value (``Σ`` of the lines is the order's
     amount); fees are None when the export left them unfilled (never 0). The item is known
@@ -994,7 +1001,7 @@ class ShopeeOrderLineRow(PeriodRowBase):
     #: Place of the line in its order after a canonical sort (stable across downloads).
     line_no: Annotated[int, Field(ge=0, le=999)] = 0
     ordered_at: datetime
-    status: OrderStatusName
+    status: Text64
     sku: Text120 | None = None
     variation_sku: Text120 | None = None
     #: "Tên phân loại hàng": the variation's NAME (a product attribute, not buyer data).
@@ -1132,8 +1139,9 @@ class ShopeeAffiliateContentPeriodRow(PeriodRowBase):
 
 class ShopeeAffiliateOrderLineRow(PeriodRowBase):
     """``affiliate_order_lines``: one affiliate-attributed order line. It marks the matching
-    ``shopee_order_lines`` row (``affiliate`` true, ``commission`` from ``cost``) and never
-    creates one: the order export owns the line."""
+    ``order_lines`` row (``affiliate`` true, ``commission`` from ``cost``) and never creates one:
+    the order export owns the line. Stored in ``affiliate_lines`` (``model_id`` ->
+    ``variation_id``, ``order_status`` -> ``status``); naive times are Vietnam local."""
 
     #: Keyed hash of the order id (HMAC-SHA256, 32 hex): the same function the browser-side
     #: order strip uses, so the two lanes agree on an order.

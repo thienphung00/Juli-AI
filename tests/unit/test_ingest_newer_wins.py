@@ -49,16 +49,17 @@ async def test_a_newer_capture_overwrites_an_older_one(session):
 
 
 async def test_a_higher_rank_row_is_kept_whatever_the_capture_time(session):
+    # owner 2026-11-18: the Connector (extension) outranks a file
     shop = await _shop(session)
-    await _ingest(session, shop, "traffic_overview", _at("file", 1000, OLDER))
-    await _ingest(session, shop, "traffic_overview", _at("extension", 900, NEWER))
+    await _ingest(session, shop, "traffic_overview", _at("extension", 1000, OLDER))
+    await _ingest(session, shop, "traffic_overview", _at("file", 900, NEWER))
     assert await _gmv(session, shop) == [Decimal("1000")]
 
 
 async def test_a_higher_rank_replaces_a_lower_one_even_when_older(session):
     shop = await _shop(session)
-    await _ingest(session, shop, "traffic_overview", _at("extension", 900, NEWER))
-    await _ingest(session, shop, "traffic_overview", _at("file", 1000, OLDER))
+    await _ingest(session, shop, "traffic_overview", _at("file", 900, NEWER))
+    await _ingest(session, shop, "traffic_overview", _at("extension", 1000, OLDER))
     assert await _gmv(session, shop) == [Decimal("1000")]
 
 

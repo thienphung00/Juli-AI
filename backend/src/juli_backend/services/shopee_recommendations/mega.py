@@ -32,6 +32,7 @@ from juli_backend.services.shopee_profit.money import ONE, ZERO, pct_points, saf
 from juli_backend.services.shopee_profit.order_profit import (
     OrderLine,
     ProfitBreakdown,
+    counts_in_sales,
     profit_lines,
 )
 from juli_backend.services.shopee_recommendations import config, freshness
@@ -360,12 +361,12 @@ def evaluate_mega(
             (
                 ln.order_value
                 for ln in base_lines
-                if not scope_items or ln.product_id in scope_items
+                if (not scope_items or ln.product_id in scope_items) and counts_in_sales(ln)
             ),
             ZERO,
         )
         / Decimal(env.window_days),
-        base_orders_per_day=Decimal(len({ln.order_id for ln in base_lines}))
+        base_orders_per_day=Decimal(len({ln.order_id for ln in base_lines if counts_in_sales(ln)}))
         / Decimal(env.window_days),
         aov=safe_div(snap_after.gmv, orders_after) if orders_after else None,
         profit_per_gmv=safe_div(contrib_after, paid_after) if paid_after > 0 else None,

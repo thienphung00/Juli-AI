@@ -18,8 +18,8 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.api.routes.shopee_reco_manual_common import (
     CompareBody,
     ManualBody,
@@ -33,6 +33,8 @@ from juli_backend.services.shop_proposals import ProposalError
 from juli_backend.services.shopee_recommendations import loader, manual
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
+
+_gate = require_ops_capability(None)
 BASE = "/shops/{shop_id}/shopee/recommendations"
 ACTION_MANUAL = "reco_manual_create"
 
@@ -47,8 +49,8 @@ async def ops_compare(
     body: CompareBody,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     now = _now()
     try:
         async with with_shop_scope(session, shop_id):
@@ -66,8 +68,8 @@ async def ops_create_manual(
     body: ManualBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             out = await manual.create_manual(

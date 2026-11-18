@@ -1,4 +1,10 @@
-"""Shopee profit and history tables (ADR-120), migration 112.
+"""Shopee profit and history tables (ADR-120), migration 112; canonical names since migration 134.
+
+Migration 134 (T5) renames the order fact tables to platform-neutral names, so the TikTok mapper
+writes where Shopee does: ``order_lines`` (was ``shopee_order_lines``), ``order_settlements``
+(``shopee_order_income``), ``affiliate_lines`` (``shopee_affiliate_lines``). Their times are
+``timestamptz`` (:class:`CanonicalTime`): a naive order time is Vietnam local, a naive audit time
+UTC; ``day`` is the stored GMT+7 calendar day of ``ordered_at`` and every reader groups by it.
 
 Migration 119 (P91 D-12) adds ``shopee_order_income`` (the income export, per order) and
 ``shopee_order_lines.variation_name``.
@@ -32,13 +38,14 @@ Reference (no ``shop_id``):
   Classified ``non_tenant`` (as ``ops_system_settings``), because the seller-side profit
   calculation reads it.
 
-Timestamps naive UTC; dates are the platform's calendar day (Shopee VN: GMT+7).
+Timestamps of the tables outside T5 are naive UTC; dates are the platform's calendar day
+(Shopee VN: GMT+7).
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone, tzinfo
 from decimal import Decimal
 from typing import Any
 
@@ -46,6 +53,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Date,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -59,7 +67,9 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 
 from juli_backend.models.ingest import JSONBType
 from juli_backend.orm_base import Base
@@ -75,8 +85,81 @@ PURPOSE_LAUNCH = "ra_mat"
 SET_BY: tuple[str, ...] = ("team", "seller")
 
 
+#: Shopee VN / TikTok VN calendar: GMT+7, no daylight saving (as ``sample_shop.seed.GMT7``).
+VN_TZ = timezone(timedelta(hours=7))
+
+#: The order-line status vocabulary across platforms (migration 134, T5 §3 + owner D2):
+#: ``returned`` = goods back with the seller, buyer refunded; ``refunded_accepted`` = the refund
+#: window is still open; ``refunded_not_received`` = the return parcel is on its way back.
+ORDER_LINE_STATUSES: tuple[str, ...] = (
+    "pending",
+    "confirmed",
+    "in_transit",
+    "delivered",
+    "cancelled",
+    "refunded_accepted",
+    "refunded_not_received",
+    "returned",
+    "on_hold",
+)
+
+
 def _in(values: tuple[str, ...]) -> str:
     return ", ".join(f"'{v}'" for v in values)
+
+
+class CanonicalTime(TypeDecorator[datetime]):
+    """``timestamptz`` with one rule for naive values (migration 134, Q-T5-4).
+
+    A naive value is read in ``naive_as`` (Vietnam local for order times, as the Connector and the
+    file exports send them; UTC for read / audit times); an aware value is kept. Results come
+    back aware, in ``naive_as``'s zone, so ``.date()`` of an order time is its GMT+7 day.
+    SQLite (unit tests) stores the UTC wall clock, so both dialects compare the same instants."""
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def __init__(self, naive_as: tzinfo = UTC) -> None:
+        super().__init__()
+        self.naive_as = naive_as
+
+    def process_bind_param(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=self.naive_as)
+        return value.astimezone(UTC)
+
+    def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.astimezone(self.naive_as)
+
+
+def as_vn(value: datetime | None) -> datetime | None:
+    """An order time as the writers store it: naive = Vietnam local, aware kept."""
+    if value is None:
+        return None
+    return value.replace(tzinfo=VN_TZ) if value.tzinfo is None else value
+
+
+def vn_day(value: datetime) -> date:
+    """The GMT+7 calendar day of an order time (naive = Vietnam local)."""
+    aware = as_vn(value)
+    assert aware is not None
+    return aware.astimezone(VN_TZ).date()
+
+
+def _day_default(context: Any) -> date:
+    """``day`` of an ORM / Core insert that did not state it: the GMT+7 day of ``ordered_at``."""
+    return vn_day(context.get_current_parameters()["ordered_at"])
+
+
+#: Order times (naive = Vietnam local) and audit times (naive = UTC).
+ORDER_TIME = CanonicalTime(VN_TZ)
+UTC_TIME = CanonicalTime(UTC)
 
 
 class PlatformItemSnapshot(Base):
@@ -150,22 +233,21 @@ class ProductImageAsset(Base):
 
 
 class ShopeeOrderLine(Base):
-    """One order line. No buyer name / contact number / address column exists, by design."""
+    """One order line (``order_lines``, any platform). No buyer name / contact number / address
+    column exists, by design."""
 
-    __tablename__ = "shopee_order_lines"
+    __tablename__ = "order_lines"
     __table_args__ = (
-        UniqueConstraint(
-            "shop_id", "platform", "order_ref", "line_no", name="uq_shopee_order_lines_key"
-        ),
-        CheckConstraint(f"platform IN ({_in(PLATFORMS)})", name="ck_shopee_order_lines_platform"),
-        CheckConstraint(
-            f"promo_kind IN ({_in(PROMO_KINDS)})", name="ck_shopee_order_lines_promo_kind"
-        ),
-        CheckConstraint("qty >= 0", name="ck_shopee_order_lines_qty"),
-        Index("ix_shopee_order_lines_item_time", "shop_id", "item_id", "ordered_at"),
-        Index("ix_shopee_order_lines_time", "shop_id", "ordered_at"),
+        UniqueConstraint("shop_id", "platform", "order_ref", "line_no", name="uq_order_lines_key"),
+        CheckConstraint(f"platform IN ({_in(PLATFORMS)})", name="ck_order_lines_platform"),
+        CheckConstraint(f"promo_kind IN ({_in(PROMO_KINDS)})", name="ck_order_lines_promo_kind"),
+        CheckConstraint(f"status IN ({_in(ORDER_LINE_STATUSES)})", name="ck_order_lines_status"),
+        CheckConstraint("qty >= 0", name="ck_order_lines_qty"),
+        Index("ix_order_lines_item_time", "shop_id", "item_id", "ordered_at"),
+        Index("ix_order_lines_time", "shop_id", "ordered_at"),
+        Index("ix_order_lines_day", "shop_id", "day"),
         Index(
-            "ix_shopee_order_lines_kol",
+            "ix_order_lines_kol",
             "shop_id",
             "kol_key",
             "ordered_at",
@@ -179,7 +261,10 @@ class ShopeeOrderLine(Base):
     #: A keyed hash of the platform's order id, made in the browser. Never the raw id.
     order_ref: Mapped[str] = mapped_column(String(128))
     line_no: Mapped[int] = mapped_column(SmallInteger)
-    ordered_at: Mapped[datetime] = mapped_column()
+    ordered_at: Mapped[datetime] = mapped_column(ORDER_TIME)
+    #: The GMT+7 calendar day of ``ordered_at``; every per-day reader groups by it.
+    day: Mapped[date] = mapped_column(Date, default=_day_default)
+    #: One of :data:`ORDER_LINE_STATUSES`.
     status: Mapped[str] = mapped_column(String(64))
     item_id: Mapped[str] = mapped_column(String(64))
     variation_id: Mapped[str] = mapped_column(
@@ -209,12 +294,15 @@ class ShopeeOrderLine(Base):
     fee_other: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     payout: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     source: Mapped[str] = mapped_column(String(16))
+    #: Migration 134: the writer's precedence (``models.ingest.SOURCE_RANK``), as on
+    #: ``order_settlements`` and ``platform_*``.
+    source_rank: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
     source_version: Mapped[str] = mapped_column(String(64))
     raw_payload_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("ingest_raw_payloads.id"), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
     # Migration 113 (order export): order-level amounts split across the order's lines by line
     # value, the seller / Shopee split of the line promotion, returns and the two settlement
     # times. ``ad_attributed`` has no source yet (G-04): NULL = unknown, never False.
@@ -224,12 +312,13 @@ class ShopeeOrderLine(Base):
     seller_subsidy: Mapped[Decimal] = mapped_column(
         Numeric(18, 2), default=Decimal(0), server_default="0"
     )
-    shopee_subsidy: Mapped[Decimal] = mapped_column(
+    #: Migration 134: was ``shopee_subsidy`` -- the platform-funded discount on the line.
+    platform_subsidy: Mapped[Decimal] = mapped_column(
         Numeric(18, 2), default=Decimal(0), server_default="0"
     )
     returned_qty: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    paid_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(ORDER_TIME, nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(ORDER_TIME, nullable=True)
     #: The export names the product by SKU only; the gateway fills ``item_id`` from the
     #: catalogue when it knows the SKU (else ``item_id`` is ``sku:<sku>``).
     sku: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -255,7 +344,7 @@ class ShopeeAffiliateLine(Base):
     the same order (``order_ref`` is the same keyed hash), its line supplies the real fees and the
     two are never counted twice. Only the creator's PUBLIC handle is kept, never a buyer."""
 
-    __tablename__ = "shopee_affiliate_lines"
+    __tablename__ = "affiliate_lines"
     __table_args__ = (
         UniqueConstraint(
             "shop_id",
@@ -263,15 +352,14 @@ class ShopeeAffiliateLine(Base):
             "order_ref",
             "line_no",
             "item_id",
-            "model_id",
-            name="uq_shopee_affiliate_lines_line",
+            "variation_id",
+            name="uq_affiliate_lines_line",
         ),
-        CheckConstraint(
-            f"platform IN ({_in(PLATFORMS)})", name="ck_shopee_affiliate_lines_platform"
-        ),
-        Index("ix_shopee_affiliate_lines_time", "shop_id", "platform", "ordered_at"),
+        CheckConstraint(f"platform IN ({_in(PLATFORMS)})", name="ck_affiliate_lines_platform"),
+        Index("ix_affiliate_lines_time", "shop_id", "platform", "ordered_at"),
+        Index("ix_affiliate_lines_day", "shop_id", "platform", "day"),
         Index(
-            "ix_shopee_affiliate_lines_kol",
+            "ix_affiliate_lines_kol",
             "shop_id",
             "kol_key",
             "ordered_at",
@@ -285,36 +373,44 @@ class ShopeeAffiliateLine(Base):
     order_ref: Mapped[str] = mapped_column(String(128))
     line_no: Mapped[int] = mapped_column(SmallInteger)
     item_id: Mapped[str] = mapped_column(String(64))
-    model_id: Mapped[str] = mapped_column(String(32), default="", server_default="")
+    #: Migration 134: was ``model_id`` (the Connector's wire field keeps that name).
+    variation_id: Mapped[str] = mapped_column(String(32), default="", server_default="")
     price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     qty: Mapped[int | None] = mapped_column(Integer, nullable=True)
     order_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     refund_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     commission: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     valid: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    order_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    ordered_at: Mapped[datetime] = mapped_column()
-    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    conversion_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    #: Migration 134: was ``order_status``. The report's own status text (a TikTok writer may
+    #: store an :data:`ORDER_LINE_STATUSES` value); ``kol_affiliate.status_of`` reads both.
+    status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ordered_at: Mapped[datetime] = mapped_column(ORDER_TIME)
+    #: The GMT+7 calendar day of ``ordered_at``.
+    day: Mapped[date] = mapped_column(Date, default=_day_default)
+    completed_at: Mapped[datetime | None] = mapped_column(ORDER_TIME, nullable=True)
+    conversion_at: Mapped[datetime | None] = mapped_column(ORDER_TIME, nullable=True)
     kol_key: Mapped[str | None] = mapped_column(String(16), nullable=True)
     kol_handle: Mapped[str | None] = mapped_column(String(120), nullable=True)
     affiliate_channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
     affiliate_campaign_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     affiliate_mcn: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     source: Mapped[str] = mapped_column(String(16))
+    #: Migration 134: the writer's precedence (``models.ingest.SOURCE_RANK``).
+    source_rank: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
     source_version: Mapped[str] = mapped_column(String(64))
     raw_payload_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("ingest_raw_payloads.id"), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
 
 
 class ShopeeOrderIncome(Base):
-    """What Shopee ACTUALLY charged and paid for one order (the income export, migration 119).
+    """What the platform ACTUALLY charged and paid for one order (``order_settlements``; the
+    Shopee income export, migration 119).
 
     One row per (shop, platform, ``order_ref``); ``order_ref`` is the same keyed hash as on
-    ``shopee_order_lines``, so the two join on it. Every cost column is a POSITIVE amount the
+    ``order_lines``, so the two join on it. Every cost column is a POSITIVE amount the
     seller bore (a reversal is negative); ``payout`` is signed; ``net_shipping_cost`` is the
     shipping actually charged minus what Shopee, the buyer and PiShip paid back. NULL = the
     source did not state it (never 0). A per-order table, not columns on the lines: an income row
@@ -322,11 +418,11 @@ class ShopeeOrderIncome(Base):
     lines by value only when the engine reads them.
     """
 
-    __tablename__ = "shopee_order_income"
+    __tablename__ = "order_settlements"
     __table_args__ = (
-        UniqueConstraint("shop_id", "platform", "order_ref", name="uq_shopee_order_income_key"),
-        CheckConstraint(f"platform IN ({_in(PLATFORMS)})", name="ck_shopee_order_income_platform"),
-        Index("ix_shopee_order_income_paid", "shop_id", "paid_on"),
+        UniqueConstraint("shop_id", "platform", "order_ref", name="uq_order_settlements_key"),
+        CheckConstraint(f"platform IN ({_in(PLATFORMS)})", name="ck_order_settlements_platform"),
+        Index("ix_order_settlements_paid", "shop_id", "paid_on"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -346,9 +442,12 @@ class ShopeeOrderIncome(Base):
     fee_payment: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     fee_piship: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     fee_nttd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    #: Migration 134: a settlement fee no named column holds (the TikTok mapper's other fees).
+    fee_other: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     affiliate_commission: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     ship_actual_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
-    ship_shopee_subsidy: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    #: Migration 134: was ``ship_shopee_subsidy``.
+    ship_platform_subsidy: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     ship_buyer_paid: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     ship_piship_refund: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     #: A reference value of the export, not part of the payout.
@@ -370,8 +469,8 @@ class ShopeeOrderIncome(Base):
     raw_payload_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("ingest_raw_payloads.id"), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
 
 
 class PlatformFeeFormula(Base):
@@ -537,12 +636,21 @@ __all__ = [
     "AD_PURPOSES",
     "FEE_COMPONENT_KINDS",
     "ITEM_LEVEL_VARIATION",
+    "ORDER_LINE_STATUSES",
+    "ORDER_TIME",
     "PROMO_KINDS",
+    "UTC_TIME",
+    "VN_TZ",
     "AdCampaignPurpose",
     "AdsChangeLog",
+    "CanonicalTime",
     "PlatformFeeFormula",
     "PlatformItemSnapshot",
     "ProductImageAsset",
     "ShopHealthDaily",
+    "ShopeeAffiliateLine",
+    "ShopeeOrderIncome",
     "ShopeeOrderLine",
+    "as_vn",
+    "vn_day",
 ]

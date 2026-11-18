@@ -61,6 +61,7 @@ from juli_backend.services.shopee_analytics.kol_rates import (
 )
 from juli_backend.services.shopee_analytics.loaders import AffiliatePartner, ShopContext
 from juli_backend.services.shopee_profit.money import ZERO
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 
 #: D-11: fewer than this many orders for a KOL x product pair = "Ít dữ liệu".
 ORDERS_THRESHOLD = 10
@@ -110,6 +111,9 @@ class KolLine:
     contribution: Decimal | None
     mcn: bool | None
     campaign_type: str | None
+    #: the line counts in đơn / GMV / units (``counts_in_sales``: a refund is no sale, owner
+    #: 2026-11-18); a refund line still carries its cost into the KOL profit
+    sale: bool = True
 
 
 def patched_lines(view: PeriodView, data: KolData) -> list[ShopLine]:
@@ -184,6 +188,7 @@ def collect(view: PeriodView, data: KolData) -> Lines:
                 contribution=pb.contribution if carries else None,
                 mcn=sl.kol.mcn,
                 campaign_type=sl.kol.campaign_type,
+                sale=counts_in_sales(ln),
             )
         )
     return Lines(tagged, untagged, missing, all_pairs)
@@ -469,14 +474,15 @@ def compute(view: PeriodView, ctx: ShopContext, data: KolData) -> KolModel:
             row = rows[key] = KolRow(
                 kl.kol_key, kl.handle, kl.channel, kl.item_id, view.names.get(kl.item_id, "")
             )
-        row.units += kl.qty
-        row.gmv += kl.gmv
-        row.base += kl.base
         row.sources[kl.commission_source] += 1
         row.mcn = kl.mcn if row.mcn is None else row.mcn
         row.campaign_type = row.campaign_type or kl.campaign_type
-        row.order_ids.add(kl.order_id)
-        pair_orders[(kl.kol_key, kl.item_id)].add(kl.order_id)
+        if kl.sale:  # đơn / GMV / units, and through them ROI and payback
+            row.units += kl.qty
+            row.gmv += kl.gmv
+            row.base += kl.base
+            row.order_ids.add(kl.order_id)
+            pair_orders[(kl.kol_key, kl.item_id)].add(kl.order_id)
         if kl.carries_profit:
             profit_sets[key].add(kl.order_id)
             row.commission += kl.commission or ZERO
@@ -561,12 +567,14 @@ def _pool(
     all_aff: set[str] = set()
     for kl in found.tagged:
         acc = pair_acc[(kl.kol_key, kl.item_id)]
-        acc[0].add(kl.order_id)
-        acc[1] += kl.qty
-        acc[2] += kl.gmv
         if kl.carries_profit:
             acc[3] += kl.contribution or ZERO
             acc[4] += kl.commission or ZERO
+        if not kl.sale:
+            continue  # a refund is no sale: no order, unit or GMV of the pair or its channel
+        acc[0].add(kl.order_id)
+        acc[1] += kl.qty
+        acc[2] += kl.gmv
         chan_orders[kl.channel].add(kl.order_id)
         item_chan[(kl.item_id, kl.channel)].add(kl.order_id)
         item_aff[kl.item_id].add(kl.order_id)
@@ -624,16 +632,17 @@ def _pool(
             by_item[sl.line.product_id].append((sl, contribution, commission))
     for item, items in by_item.items():
         aff = [t for t in items if t[0].line.affiliate]
-        aff_orders = len({t[0].line.order_id for t in aff})
+        aff_orders = len({t[0].line.order_id for t in aff if counts_in_sales(t[0].line)})
         basis = "affiliate" if aff_orders >= AFFILIATE_BASIS_MIN_ORDERS else "all"
         use = aff if basis == "affiliate" else items
-        orders = len({t[0].line.order_id for t in use})
+        sold = [t for t in use if counts_in_sales(t[0].line)]  # a refund is no sale
+        orders = len({t[0].line.order_id for t in sold})
         known = [t for t in use if t[1] is not None]
         if orders == 0 or not known:
             continue
-        units = sum(t[0].line.qty for t in use)
-        gmv = sum((t[0].line.order_value for t in use), ZERO)
-        base = sum((t[0].line.buyer_paid for t in use), ZERO)
+        units = sum(t[0].line.qty for t in sold)
+        gmv = sum((t[0].line.order_value for t in sold), ZERO)
+        base = sum((t[0].line.buyer_paid for t in sold), ZERO)
         pre = sum(((t[1] or ZERO) + (t[2] or ZERO) for t in known), ZERO)
         known_orders = len({t[0].line.order_id for t in known})
         rate, source = data.book.current(item)
@@ -824,9 +833,9 @@ async def pair_daily(
     out: dict[date, dict[str, Any]] = {}
     orders: dict[date, set[str]] = defaultdict(set)
     for r in rows:
-        if r.paid_at is None:
-            continue
-        day = r.ordered_at.date()
+        if r.paid_at is None or not counts_in_sales(r):
+            continue  # unpaid, or a refund (owner 2026-11-18: no sale)
+        day = r.day
         cell = out.setdefault(day, {"orders": 0, "units": 0, "gmv": ZERO})
         cell["units"] += r.qty
         cell["gmv"] += r.deal_price * r.qty

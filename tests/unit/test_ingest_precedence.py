@@ -1,4 +1,5 @@
-"""P90 Step 6 on SQLite: file vs Connector on the same key (D-5, G-22), ads order basis (D-2),
+"""P90 Step 6 on SQLite: file vs Connector on the same key (G-22; API > Connector > file since
+the owner's 2026-11-18 decision, file > Connector under D-5 before), ads order basis (D-2),
 and the `item_traffic_sources` dataset. One test per conflict pair, each asserting which value
 wins. Values are synthetic."""
 
@@ -44,30 +45,43 @@ async def _gmv(session, shop) -> list[Decimal]:
     return [m.gmv for m in stored if m.segment == "all"]
 
 
-def test_ranks_put_a_file_above_the_connector_and_the_api_above_both():
-    assert SOURCE_RANK["vendor"] < SOURCE_RANK["extension"] < SOURCE_RANK["file"]
-    assert SOURCE_RANK["file"] < SOURCE_RANK["api"]
-    # a row stored before D-5 (file = extension = 2) is ranked by its source
-    assert effective_rank("file", 2) == SOURCE_RANK["file"]
+def test_ranks_put_the_api_above_the_connector_above_a_file():
+    """Owner 2026-11-18 (T5 canonical map): API > Connector > file > vendor (it was file above
+    the Connector under P90 D-5)."""
+    assert SOURCE_RANK["vendor"] < SOURCE_RANK["file"] < SOURCE_RANK["extension"]
+    assert SOURCE_RANK["extension"] < SOURCE_RANK["api"]
+    # a row stored under older rank numbers is ranked by its source
+    assert effective_rank("file", 3) == SOURCE_RANK["file"]
     assert effective_rank("extension", 2) == SOURCE_RANK["extension"]
 
 
-async def test_file_then_connector_the_file_row_stays(session):
+async def test_an_api_row_beats_a_connector_row(session):
+    shop = await _shop(session)
+    await _ingest(session, shop, "traffic_overview", _from("api", [_traffic(1100)]))
+    await _ingest(session, shop, "traffic_overview", _from("extension", [_traffic(900)]))
+    assert await _gmv(session, shop) == [Decimal("1100")]
+    (row,) = await _rows(session, PlatformDailyMetric, shop)
+    assert row.source == "api"
+    await _ingest(session, shop, "traffic_overview", _from("api", [_traffic(1200)]))
+    assert await _gmv(session, shop) == [Decimal("1200")]
+
+
+async def test_connector_then_file_the_connector_row_stays(session):
+    shop = await _shop(session)
+    await _ingest(session, shop, "traffic_overview", _from("extension", [_traffic(900)]))
+    await _ingest(session, shop, "traffic_overview", _from("file", [_traffic(1000)]))
+    assert await _gmv(session, shop) == [Decimal("900")]
+    (row,) = await _rows(session, PlatformDailyMetric, shop)
+    assert row.source == "extension"
+
+
+async def test_file_then_connector_the_connector_row_replaces_it(session):
     shop = await _shop(session)
     await _ingest(session, shop, "traffic_overview", _from("file", [_traffic(1000)]))
     await _ingest(session, shop, "traffic_overview", _from("extension", [_traffic(900)]))
-    assert await _gmv(session, shop) == [Decimal("1000")]
+    assert await _gmv(session, shop) == [Decimal("900")]
     (row,) = await _rows(session, PlatformDailyMetric, shop)
-    assert row.source == "file"
-
-
-async def test_connector_then_file_the_file_row_replaces_it(session):
-    shop = await _shop(session)
-    await _ingest(session, shop, "traffic_overview", _from("extension", [_traffic(900)]))
-    await _ingest(session, shop, "traffic_overview", _from("file", [_traffic(1000)]))
-    assert await _gmv(session, shop) == [Decimal("1000")]
-    (row,) = await _rows(session, PlatformDailyMetric, shop)
-    assert row.source == "file" and row.source_rank == SOURCE_RANK["file"]
+    assert row.source == "extension" and row.source_rank == SOURCE_RANK["extension"]
 
 
 async def test_connector_then_connector_the_later_post_wins(session):
@@ -79,12 +93,12 @@ async def test_connector_then_connector_the_later_post_wins(session):
     assert await _gmv(session, shop) == [Decimal("950")]
 
 
-async def test_a_row_stored_before_d5_at_rank_two_is_not_overwritten_by_the_connector(session):
+async def test_a_file_row_stored_under_the_d5_numbers_is_replaced_by_the_connector(session):
     shop = await _shop(session)
     await _ingest(session, shop, "traffic_overview", _from("file", [_traffic(1000)]))
-    await session.execute(update(PlatformDailyMetric).values(source_rank=2))  # as stored by 108
+    await session.execute(update(PlatformDailyMetric).values(source_rank=3))  # as D-5 stored it
     await _ingest(session, shop, "traffic_overview", _from("extension", [_traffic(900)]))
-    assert await _gmv(session, shop) == [Decimal("1000")]
+    assert await _gmv(session, shop) == [Decimal("900")]
 
 
 async def test_the_connector_fills_a_day_no_file_covers(session):
@@ -107,7 +121,7 @@ async def test_a_difference_between_the_two_sources_is_counted_not_hidden(sessio
     with caplog.at_level(logging.INFO, logger="juli_backend.services.ingest.precedence"):
         await _ingest(session, shop, "traffic_overview", _from("extension", [_traffic(900)]))
     (record,) = [r for r in caplog.records if r.message == "ingest_source_conflicts"]
-    assert (record.kept_existing, record.replaced_existing, record.differing) == (1, 0, 1)
+    assert (record.kept_existing, record.replaced_existing, record.differing) == (0, 1, 1)
 
     # the same numbers from both sources are a conflict by key but not a difference
     other = await _shop(session)
@@ -133,7 +147,7 @@ async def test_a_difference_between_the_two_sources_is_counted_not_hidden(sessio
         ("shop_id", "platform", "dataset", "day", "item_id", "stream", "segment", "order_type"),
         values,
     )
-    assert (found.kept_existing, found.differing) == (1, 0)
+    assert (found.replaced_existing, found.differing) == (1, 0)
 
 
 # -- D-2: ads are placed / paid, never confirmed -----------------------------------------

@@ -9,8 +9,8 @@ SELECT p.order_type,
        p.orders  AS product_orders, s.orders AS shop_orders,
        p.gmv     AS product_gmv,    s.gmv    AS shop_gmv,
        p.source, p.scaled_to_totals
-FROM shopee_product_metrics_daily p
-LEFT JOIN shopee_shop_metrics_daily s
+FROM product_metrics_daily p
+LEFT JOIN shop_metrics_daily s
        ON s.shop_id = p.shop_id AND s.day = p.day AND s.order_type = p.order_type
 WHERE p.shop_id = (SELECT shop_id FROM params)
   AND p.day >= current_date - 90
@@ -22,8 +22,8 @@ SELECT p.order_type,
        (p.day < DATE '2026-10-12') AS before_12_10,
        count(*) AS product_days_over_shop,
        count(DISTINCT p.day) AS days
-FROM shopee_product_metrics_daily p
-LEFT JOIN shopee_shop_metrics_daily s
+FROM product_metrics_daily p
+LEFT JOIN shop_metrics_daily s
        ON s.shop_id = p.shop_id AND s.day = p.day AND s.order_type = p.order_type
 WHERE p.shop_id = (SELECT shop_id FROM params)
   AND p.day >= current_date - 90
@@ -34,8 +34,8 @@ ORDER BY 1, 2
   '1c product sum vs shop per day (confirmed), last 90 days', (SELECT coalesce(jsonb_agg(t), '[]'::jsonb) FROM (
 SELECT s.day, s.orders AS shop_orders, sum(p.orders) AS sum_product_orders,
        s.gmv AS shop_gmv, sum(p.gmv) AS sum_product_gmv, s.complete
-FROM shopee_shop_metrics_daily s
-LEFT JOIN shopee_product_metrics_daily p
+FROM shop_metrics_daily s
+LEFT JOIN product_metrics_daily p
        ON p.shop_id = s.shop_id AND p.day = s.day AND p.order_type = s.order_type
 WHERE s.shop_id = (SELECT shop_id FROM params) AND s.order_type = 'confirmed'
   AND s.day >= current_date - 90
@@ -80,7 +80,7 @@ SELECT d.day,
        s.cogs_coverage, s.complete,
        s.sources
 FROM days d
-LEFT JOIN shopee_shop_metrics_daily s
+LEFT JOIN shop_metrics_daily s
        ON s.shop_id = (SELECT shop_id FROM params) AND s.day = d.day AND s.order_type = 'confirmed'
 ORDER BY d.day
 ) t),
@@ -88,7 +88,7 @@ ORDER BY d.day
 SELECT order_type, count(*) AS days,
        sum(ads_spend) AS ads_spend, sum(ads_gmv) AS ads_gmv,
        round(sum(ads_gmv) / nullif(sum(ads_spend), 0), 2) AS roas
-FROM shopee_shop_metrics_daily
+FROM shop_metrics_daily
 WHERE shop_id = (SELECT shop_id FROM params) AND day >= current_date - 30
 GROUP BY order_type ORDER BY order_type
 ) t),
@@ -128,12 +128,12 @@ GROUP BY 1, 2, 3 ORDER BY 1, 2, 3
   '3e per-source and per-product materialized ads, last 30 days', (SELECT coalesce(jsonb_agg(t), '[]'::jsonb) FROM (
 SELECT 'source:' || source AS row_kind, sum(ads_spend) AS ads_spend, sum(ads_gmv) AS ads_gmv,
        sum(ads_orders) AS ads_orders
-FROM shopee_source_metrics_daily
+FROM source_metrics_daily
 WHERE shop_id = (SELECT shop_id FROM params) AND day >= current_date - 30
 GROUP BY source
 UNION ALL
 SELECT 'product (' || order_type || ')', sum(ads_spend), NULL, count(*) FILTER (WHERE ads_spend > 0)
-FROM shopee_product_metrics_daily
+FROM product_metrics_daily
 WHERE shop_id = (SELECT shop_id FROM params) AND day >= current_date - 30
 GROUP BY order_type
 ORDER BY 1

@@ -10,14 +10,16 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes import shopee_builder_common as common
 from juli_backend.api.routes import shopee_market_common as market
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
+
+_gate = require_ops_capability("read_shop_totals")
 BASE = "/shops/{shop_id}/shopee"
 AsOf = Annotated[date | None, Query()]
 
@@ -36,7 +38,6 @@ async def _read(
     as_of: date | None,
     closest: bool,
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await market.h_market_price(
             session,
@@ -59,6 +60,7 @@ async def ops_market_price(
     as_of: AsOf = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _read(
         session, shop_id, item_id, variation_id=variation_id, price=price, as_of=as_of, closest=True
@@ -74,6 +76,7 @@ async def ops_market_range(
     as_of: AsOf = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _read(
         session,

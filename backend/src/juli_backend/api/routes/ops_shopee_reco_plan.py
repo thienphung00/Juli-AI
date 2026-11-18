@@ -20,8 +20,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.api.routes.shopee_reco_plan_common import (
     AddCardBody,
     ChangeSetStatus,
@@ -44,6 +44,8 @@ from juli_backend.services.shop_proposals import ProposalError
 from juli_backend.services.shopee_recommendations import change_sets, manual, month_plan, plans
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
+
+_gate = require_ops_capability(None)
 BASE = "/shops/{shop_id}/shopee/recommendations"
 
 ACTION_ADD = "reco_plan_add_card"
@@ -72,7 +74,6 @@ def _actor(ctx: OpsContext) -> manual.Actor:
 async def _read(
     session: AsyncSession, shop_id: uuid.UUID, call: Any, *args: Any, **kwargs: Any
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             body: dict[str, Any] = await call(session, shop_id, *args, **kwargs)
@@ -91,7 +92,6 @@ async def _write(
     *args: Any,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             out: dict[str, Any] = await call(session, shop_id, *args, **kwargs)
@@ -111,6 +111,7 @@ async def ops_get_plan(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _read(session, shop_id, month_plan.plan_with_month, now=_now(), audience="ops")
 
@@ -120,6 +121,7 @@ async def ops_get_aggregate(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     out = await _read(session, shop_id, plans.get_plan, now=_now(), audience="ops")
     return {"plan": out["plan"], "aggregate": out["aggregate"], "windows": out["windows"]}
@@ -130,6 +132,7 @@ async def ops_list_plans(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     async def call(s: AsyncSession, sid: uuid.UUID) -> dict[str, Any]:
         return {"plans": await plans.list_plans(s, sid)}
@@ -143,6 +146,7 @@ async def ops_plan_by_code(
     code: str,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _read(session, shop_id, plans.plan_by_code, code, now=_now(), audience="ops")
 
@@ -153,6 +157,7 @@ async def ops_get_plan_by_id(
     plan_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _read(session, shop_id, plans.get_plan, plan_id, now=_now(), audience="ops")
 
@@ -164,6 +169,7 @@ async def ops_list_change_sets(
     status: ChangeSetStatus = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     now = _now()
 
@@ -182,6 +188,7 @@ async def ops_add_card(
     body: AddCardBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_ADD,
@@ -199,6 +206,7 @@ async def ops_move_card(
     body: MoveCardBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_MOVE,
@@ -212,6 +220,7 @@ async def ops_refresh_base(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_REFRESH, {},
@@ -225,6 +234,7 @@ async def ops_remove_card(
     card_id: uuid.UUID,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_REMOVE, {"card_id": str(card_id)},
@@ -239,6 +249,7 @@ async def ops_switch_version(
     body: SwitchVersionBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_VERSION,
@@ -254,6 +265,7 @@ async def ops_plan_whatif(
     body: PlanWhatIfBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_WHATIF,
@@ -268,6 +280,7 @@ async def ops_create_group(
     body: CreateGroupBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_GROUP,
@@ -285,6 +298,7 @@ async def ops_group_period(
     body: GroupPeriodBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_GROUP_PERIOD,
@@ -301,6 +315,7 @@ async def ops_group_remove_member(
     body: GroupMemberBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_GROUP_REMOVE,
@@ -315,6 +330,7 @@ async def ops_group_cancel(
     group_id: uuid.UUID,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_GROUP_CANCEL, {"group_id": str(group_id)},
@@ -327,8 +343,8 @@ async def ops_export_plan(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> Response:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id):
             name, data = await plans.export_workbook(session, shop_id, None, now=_now())
@@ -347,6 +363,7 @@ async def ops_confirm_plan(
     body: ConfirmBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_CONFIRM,
@@ -366,6 +383,7 @@ async def ops_plan_window(
     body: WindowBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     return await _write(
         session, ctx, shop_id, ACTION_WINDOW,
@@ -381,6 +399,7 @@ async def ops_change_set_window(
     body: SetWindowBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     now = _now()
 

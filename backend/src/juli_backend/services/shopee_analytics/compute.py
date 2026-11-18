@@ -49,7 +49,11 @@ from juli_backend.services.shopee_profit.flows import (
     build_flow_tables,
 )
 from juli_backend.services.shopee_profit.money import ZERO
-from juli_backend.services.shopee_profit.order_profit import OrderLine, ProfitBreakdown
+from juli_backend.services.shopee_profit.order_profit import (
+    OrderLine,
+    ProfitBreakdown,
+    counts_in_sales,
+)
 from juli_backend.services.shopee_profit.shop_profit import (
     AdCampaign,
     AdsFigures,
@@ -322,6 +326,9 @@ class PeriodView:
     flow_totals_source: str
     shop_gmv: Decimal | None
     shop_orders: int | None
+    #: ``shop_gmv`` is Shopee's own shop total (else the window's sale lines). Shopee's total
+    #: still holds the refund orders the lines leave out (``counts_in_sales``).
+    gmv_from_totals: bool = False
     names: dict[str, str] = field(default_factory=dict)
     #: item id -> exclusion reason (P92 B-1). Excluded listings stay in every shop total and leave
     #: the product lists, rankings and Phân tích flags.
@@ -347,11 +354,11 @@ class PeriodView:
 
     @property
     def line_gmv(self) -> Decimal:
-        return sum((ln.order_value for ln, _ in self.pairs), ZERO)
+        return sum((ln.order_value for ln, _ in self.pairs if counts_in_sales(ln)), ZERO)
 
     @property
     def line_orders(self) -> int:
-        return len({ln.order_id for ln, _ in self.pairs})
+        return len({ln.order_id for ln, _ in self.pairs if counts_in_sales(ln)})
 
     @property
     def comparable_as_previous(self) -> bool:
@@ -416,6 +423,7 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
     item_ids = sorted({sl.product_id for sl in lines} | set(data.product_flows.totals))
     fees = build_fee_context(item_ids, ctx.catalog, ctx.db_schedules(item_ids))
     pairs = profit_pairs(lines, costs, fees)
+    sales = [(ln, pb) for ln, pb in pairs if counts_in_sales(ln)]  # a returned order is no sale
     ads = allocate_ads(data.window, data.ads_daily, data.ads_reports, data.ad_spend)
     profit = shop_profit(
         pairs,
@@ -435,12 +443,12 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
     shop_gmv = (
         data.totals.gmv
         if use_totals
-        else (sum((ln.order_value for ln, _ in pairs), ZERO) if pairs else None)
+        else (sum((ln.order_value for ln, _ in sales), ZERO) if pairs else None)
     )
     shop_orders = (
         data.totals.orders
         if data.totals.orders is not None and not lines_stand_in
-        else (len({ln.order_id for ln, _ in pairs}) if pairs else None)
+        else (len({ln.order_id for ln, _ in sales}) if pairs else None)
     )
     flow_rows = shop_flow_rows(data.traffic) + data.product_flows.rows
     tables: FlowTables | None = None
@@ -482,6 +490,7 @@ def compute_view(ctx: ShopContext, data: PeriodData) -> PeriodView:
         flow_totals_source=totals_source,
         shop_gmv=shop_gmv,
         shop_orders=shop_orders,
+        gmv_from_totals=use_totals,
         names={i: ctx.catalog.name(i) for i in item_ids},
         excluded=dict(ctx.rules.excluded),
         item_prices={

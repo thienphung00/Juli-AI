@@ -24,7 +24,7 @@ from juli_backend.services.shopee_builder.engine_families.facts import (
     PriceFacts,
     VoucherFacts,
 )
-from juli_backend.services.shopee_profit.order_profit import OrderLine
+from juli_backend.services.shopee_profit.order_profit import OrderLine, counts_in_sales
 from juli_backend.services.shopee_recommendations import kinds as reco_kinds
 from juli_backend.services.shopee_recommendations.bundle_tiers import (
     Tier,
@@ -66,10 +66,18 @@ def lift_evidence(
 # -- order statistics ---------------------------------------------------------------------------
 
 
+def sales_lines(env: RecoEnv, items: Sequence[str] | None) -> list[OrderLine]:
+    """``env.lines_for(items)`` without the lines that are no sale (``counts_in_sales``: a
+    returned order, owner D2): every statistic here is an order count, a value or a basket."""
+    return [ln for ln in env.lines_for(items) if counts_in_sales(ln)]
+
+
 def order_values(lines: Sequence[OrderLine]) -> dict[str, Decimal]:
+    """Order id -> its value, over the lines that count in đơn / GMV / AOV."""
     out: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for ln in lines:
-        out[ln.order_id] += ln.order_value
+        if counts_in_sales(ln):
+            out[ln.order_id] += ln.order_value
     return dict(out)
 
 
@@ -105,7 +113,7 @@ def qualifying_share(env: RecoEnv, minimum: Decimal) -> Decimal:
     counted after the programme price and the combo discount (P100 B.11; the gift's own rule is
     not confirmed in Seller Centre yet)."""
     values: dict[str, Decimal] = defaultdict(lambda: ZERO)
-    for ln in env.lines_for(None):
+    for ln in sales_lines(env, None):
         values[ln.order_id] += ln.order_value - getattr(ln, "bundle_discount", ZERO)
     if not values:
         return ZERO
@@ -113,7 +121,7 @@ def qualifying_share(env: RecoEnv, minimum: Decimal) -> Decimal:
 
 
 def voucher_facts(spec: sp.VoucherSpec, env: RecoEnv) -> VoucherFacts:
-    lines = env.lines_for(spec.item_ids or None)
+    lines = sales_lines(env, spec.item_ids or None)
     values = order_values(lines)
     n = len(values)
     minimum = Decimal(spec.min_spend)
@@ -239,7 +247,7 @@ def variation_set_offer(
     to the set and pay ``discount_pct`` less on each whole set -- the set's own cost, as the
     reco evaluator's ``discount_cost_on_existing``. Net of the % fees it saves (as the combo's).
     ``use_share`` = those orders ÷ all the product's orders. ``None`` when no order switches."""
-    lines = env.lines_for([item_id])
+    lines = sales_lines(env, [item_id])
     values = order_values(lines)
     single: dict[str, int] = defaultdict(int)
     value: dict[str, Decimal] = defaultdict(lambda: ZERO)
@@ -266,7 +274,7 @@ def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
     the programme price (Giá sau giảm), so N × đơn giá is N × that price (list 100.000 →
     programme 78.100 → −20 % for 2 = 124.960)."""
     wanted = set(spec.item_ids)
-    lines = env.lines_for(list(wanted))
+    lines = sales_lines(env, list(wanted))
     values = order_values(lines)
     units: dict[str, int] = defaultdict(int)
     unit_value = ZERO
@@ -305,7 +313,7 @@ def combo_facts(spec: sp.ComboSpec, env: RecoEnv) -> ComboFacts:
     # near share stayed a 100 % take-up of every one-unit order -- sample shop ΔGMV +4,3 tr on
     # +1,6 đơn). Before that the option is cost + break-even only ("chưa ước tính được").
     combo_days = sorted(
-        {ln.order_date for ln in env.lines_for(None) if getattr(ln, "bundle_discount", ZERO) > 0}
+        {ln.order_date for ln in sales_lines(env, None) if getattr(ln, "bundle_discount", ZERO) > 0}
     )
     if combo_days:
         reach, reach_note = combo_history_reach(
@@ -370,7 +378,7 @@ def listing_combo_facts(
 ) -> ListingComboFacts:
     """Orders that already hold every member product switch to the new listing."""
     members = set(spec.member_ids)
-    lines = env.lines_for(list(members))
+    lines = sales_lines(env, list(members))
     values = order_values(lines)
     held: dict[str, set[str]] = defaultdict(set)
     member_value: dict[str, Decimal] = defaultdict(lambda: ZERO)
@@ -404,7 +412,7 @@ def new_listing_facts(
     switching is the base's (``base_profit_per_order``, the funnel's) plus the switching share x
     (the row's profit per order - those orders' profit per order today) (E3)."""
     wanted = {i for i, _, _ in row.members}
-    lines = env.lines_for(sorted(wanted))
+    lines = sales_lines(env, sorted(wanted))
     values = order_values(lines)
     held: dict[str, dict[tuple[str, str], int]] = defaultdict(lambda: defaultdict(int))
     price: dict[tuple[str, str], Decimal] = {}
@@ -514,7 +522,7 @@ def affiliate_rate_facts(
 ) -> AffiliateRateFacts:
     """P99: the product's Liên kết GMV of the window (its affiliate order lines)."""
     item = spec.item_id or ""
-    lines = env.lines_for([item])
+    lines = sales_lines(env, [item])
     gmv = sum((ln.order_value for ln in lines if ln.product_id == item and ln.affiliate), ZERO)
     return AffiliateRateFacts(
         item_id=item,

@@ -29,6 +29,16 @@ Every term here was misread by an agent at least once and then corrected by the 
 | **ROI** | "ROI (lợi nhuận ÷ chi phí QC + AFF)": profit ÷ (ads + affiliate), shown in points ("5,4"), **never as %**. Ưu đãi is deducted from revenue, never a cost (owner 2026-11-18, option A). |
 | **Tax** | Juli doesn't calculate withheld VAT or PIT. Don't add tax settings or "trước thuế" labels. |
 
+## Order statuses (owner 2026-11-18, D2; Shopee and TikTok the same)
+| Term | Means | Not |
+|---|---|---|
+| **returned** | the goods are back with the seller and the buyer is refunded. Revenue 0, no goods cost; the cost is the refund cost below plus the packaging. Not counted in đơn / GMV / AOV. | an open refund |
+| **refunded_accepted** | the refund window is still open (the buyer may still get a refund). Revenue 0, cost = the refund cost below. Not counted in đơn / GMV / AOV (owner 2026-11-18). | a finished return |
+| **refunded_not_received** | the return parcel is on its way back to the seller. Revenue 0, cost = the refund cost below. Not counted in đơn / GMV / AOV (owner 2026-11-18). | goods already back (that is `returned`) |
+| **Refund cost** (owner 2026-11-18) | for `refunded_accepted`, `refunded_not_received` and `returned`: what the settlement deducted from the seller, max(0, −payout) of the order's settlement row, counted as soon as a settlement row exists whatever the status says; no settlement row = no cost yet. Revenue 0. | the sum of the fee / shipping / return-shipping columns (the payout already nets them; summing double counts) |
+| **Canonical order tables** | `order_lines`, `order_settlements`, `affiliate_lines`, `stock_history` and the `*_metrics_daily` tables (migration 134, T5): one table per fact for every platform; `day` is the GMT+7 day of the order | Shopee-only tables (`shopee_*` names stay as views for one release) |
+| **Source precedence** (owner 2026-11-18) | API > Connector > file. On `order_lines`, `affiliate_lines` and `order_settlements`: a post of the same or a higher rank replaces with its non-null values (a NULL never clears a stored value); a lower-ranked post (a file under the Connector) only fills columns that are NULL in the stored row, and the row's source / rank / version / payload stay with the higher writer (each fill is counted in one `ingest_gap_fill` log line). An order no higher source wrote comes from the file in full (history backfill). | a file overwriting what the Connector read |
+
 ## Flow and surfaces
 | Term | Means |
 |---|---|

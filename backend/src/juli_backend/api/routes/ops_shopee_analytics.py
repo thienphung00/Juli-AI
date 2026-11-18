@@ -27,8 +27,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Path, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.api.routes.shopee_analytics_common import (
     REFUSALS,
     DateQ,
@@ -47,6 +47,8 @@ from juli_backend.services.shopee_analytics import channel_split, metric_view, q
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 
+_gate = require_ops_capability("read_shop_totals")
+
 BASE = "/shops/{shop_id}/shopee/analytics"
 FromQ = Annotated[date | None, Query(alias="from")]
 ToQ = Annotated[date | None, Query(alias="to")]
@@ -62,8 +64,8 @@ async def ops_shopee_overview(
     as_of: DateQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             return await queries.overview(
@@ -85,8 +87,8 @@ async def ops_shopee_matrix(
     limit: Annotated[int | None, Query(ge=1, le=500)] = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             body = await queries.matrix(
@@ -111,8 +113,8 @@ async def ops_shopee_critical(
     as_of: DateQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             body = await queries.critical(
@@ -139,8 +141,8 @@ async def ops_shopee_ranking(
     as_of: DateQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             body = await queries.ranking(
@@ -165,8 +167,8 @@ async def ops_shopee_product(
     as_of: DateQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             body = await queries.product_page(session, shop_id, item_id, period=period, as_of=as_of)
@@ -193,9 +195,9 @@ async def ops_shopee_kols(
     limit: Annotated[int | None, Query(ge=1, le=1000)] = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """Phân tích › KOL (P91 D-9)."""
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             body = await queries.kol_table(
@@ -227,10 +229,10 @@ async def ops_shopee_kols_compare(
     as_of: DateQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """Phân tích › KOL › So sánh: by kênh / loại chiến dịch / KOL, and Affiliate vs Ads vs
     the shop's own flows (P100)."""
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             return await queries.kol_compare(
@@ -251,9 +253,9 @@ async def ops_shopee_product_kols(
     as_of: DateQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """Sản phẩm › Tiếp thị liên kết (P91 D-9)."""
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             body = await queries.kol_product_tab(
@@ -275,8 +277,8 @@ async def ops_shopee_channel_split(
     product_id: Annotated[str | None, Query(max_length=64)] = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             return await channel_split.channel_split(
@@ -299,8 +301,8 @@ async def ops_shopee_channel_split_products(
     as_of: DateQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             return await channel_split.channel_split_products(
@@ -326,8 +328,8 @@ async def ops_shopee_metric_view(
     product_id: Annotated[str | None, Query(max_length=64)] = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             return await metric_view.metric_view(
@@ -353,8 +355,8 @@ async def ops_shopee_kol_section(
     as_of: DateQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             return await metric_view.kol_section(
@@ -378,8 +380,8 @@ async def ops_shopee_export_tong_quan(
     product_id: Annotated[str | None, Query(max_length=64)] = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    name: str = Depends(_gate),
 ) -> Response:
-    name = await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             return await export_tong_quan(
@@ -397,8 +399,8 @@ async def ops_shopee_export_ke_hoach(
     end: ToQ = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    name: str = Depends(_gate),
 ) -> Response:
-    name = await _shopee_shop(session, shop_id)
     try:
         async with with_shop_scope(session, shop_id, transaction_ends_after=True):
             return await export_ke_hoach(session, shop_id, name, start, end)

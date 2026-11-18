@@ -2,9 +2,9 @@
 
 Inside the shop's tenant scope; reads only. Sources:
 
-- ``shopee_stock_history`` (``history``): the reads of the last 90 days + the newest before them;
+- ``stock_history`` (``history``): the reads of the last 90 days + the newest before them;
   a listing with variations is its model rows, one without is its item row;
-- ``shopee_order_lines``: units and orders per variation per day over the last 90 days
+- ``order_lines``: units and orders per variation per (stored GMT+7) day over the last 90 days
   (cancelled lines left out), resolved to the variation like the analytics engine does (stored
   variation id, else the catalogue variation with that seller SKU, else the listing's only one);
 - the catalogue (``shopee_analytics.loaders.load_context``): names, the listing status and the
@@ -14,6 +14,10 @@ Inside the shop's tenant scope; reads only. Sources:
   (``result_store.measured_block``: Δ orders P50 / day over the result's own dates). A card naming
   variations (``inputs.variations``) adds to those; a whole-product card is split over the
   product's variations by their share of its orders. Units per order = the variation's own.
+
+Times: ``read_at`` and ``ordered_at`` come back aware (``timestamptz``, migration 134) and are
+turned into naive UTC as they are read (``stock_basis.naive_utc``), so "units since the read"
+compares two UTC instants (an order at 08:00 VN is 01:00 UTC).
 """
 
 from __future__ import annotations
@@ -51,7 +55,7 @@ class SkuData:
     listing_status: str | None = None
     units: dict[date, float] = field(default_factory=lambda: defaultdict(float))
     orders: dict[date, set[str]] = field(default_factory=lambda: defaultdict(set))
-    #: (ordered_at, order_ref, qty) of every line, for "units since the read"
+    #: (ordered_at as naive UTC, order_ref, qty) of every line, for "units since the read"
     lines: list[tuple[datetime, str, int]] = field(default_factory=list)
 
     @property
@@ -74,7 +78,7 @@ class SkuData:
         return sum(self.units.values()) / n if n else 1.0
 
     def since(self, read_at: datetime) -> tuple[int, int]:
-        """(units, orders) placed after ``read_at``."""
+        """(units, orders) placed after ``read_at`` (both naive UTC)."""
         mine = [(ref, q) for at, ref, q in self.lines if at > read_at]
         return sum(q for _, q in mine), len({ref for ref, _ in mine})
 
@@ -114,16 +118,17 @@ async def load_skus(
         .scalars()
         .all()
     )
-    with_models = {h.item_id for h in hist if h.model_id}
+    with_models = {h.item_id for h in hist if h.variation_id}
     skus: dict[str, SkuData] = {}
     for h in hist:
-        if not h.model_id and h.item_id in with_models:
+        if not h.variation_id and h.item_id in with_models:
             continue  # the item row of a listing with variations is not a SKU of its own
-        if sb.local_day(h.read_at) < start - timedelta(days=HISTORY_DAYS):
+        read_at = sb.naive_utc(h.read_at)
+        if sb.local_day(read_at) < start - timedelta(days=HISTORY_DAYS):
             continue
-        key = sku_key(h.item_id, h.model_id)
-        sku = skus.setdefault(key, SkuData(h.item_id, h.model_id))
-        sku.reads.append(sb.Read(h.read_at, sb.basis(h.sellable, h.available)))
+        key = sku_key(h.item_id, h.variation_id)
+        sku = skus.setdefault(key, SkuData(h.item_id, h.variation_id))
+        sku.reads.append(sb.Read(read_at, sb.basis(h.sellable, h.available)))
         sku.listing_status = h.listing_status
     for key, sku in skus.items():
         info = catalog.items.get(sku.item_id)
@@ -138,7 +143,7 @@ async def load_skus(
             await session.execute(
                 select(ShopeeOrderLine).where(
                     ShopeeOrderLine.shop_id == shop_id,
-                    ShopeeOrderLine.ordered_at >= datetime.combine(start, datetime.min.time()),
+                    ShopeeOrderLine.day >= start,
                 )
             )
         )
@@ -153,10 +158,10 @@ async def load_skus(
         target = skus.get(sku_key(item, model)) or skus.get(item)  # a listing without variations
         if target is None:
             continue
-        day = ln.ordered_at.date()
+        day = ln.day
         target.units[day] += ln.qty
         target.orders[day].add(ln.order_ref)
-        target.lines.append((ln.ordered_at, ln.order_ref, int(ln.qty)))
+        target.lines.append((sb.naive_utc(ln.ordered_at), ln.order_ref, int(ln.qty)))
     return skus
 
 
@@ -222,11 +227,11 @@ async def load_card_windows(
 
 
 async def load_orders_through(session: AsyncSession, shop_id: uuid.UUID) -> date | None:
-    """The day of the shop's newest order line (any status); None with no order data at all."""
-    newest = await session.scalar(
-        select(func.max(ShopeeOrderLine.ordered_at)).where(ShopeeOrderLine.shop_id == shop_id)
+    """The (GMT+7) day of the shop's newest order line (any status); None with no order data."""
+    newest: date | None = await session.scalar(
+        select(func.max(ShopeeOrderLine.day)).where(ShopeeOrderLine.shop_id == shop_id)
     )
-    return None if newest is None else newest.date()
+    return newest
 
 
 def _seller_sku(catalog: Catalog, item_id: str, model_id: str) -> str | None:

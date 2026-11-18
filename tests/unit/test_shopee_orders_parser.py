@@ -28,7 +28,7 @@ from xml.sax.saxutils import escape
 
 import pytest
 
-from juli_backend.models.shopee_profit import ShopeeOrderLine
+from juli_backend.models.shopee_profit import VN_TZ, ShopeeOrderLine
 from juli_backend.services.ingest.gateway import validate_rows
 from juli_backend.services.ingest.mapping import dataset_spec
 from juli_backend.services.ingest.schemas import IngestBody
@@ -669,7 +669,8 @@ async def test_order_lines_land_in_the_table_and_a_reload_moves_status_without_e
     )
     assert (one.sku, one.variation_sku, one.item_id) == ("SKU-A", "SKU-A-1", "sku:SKU-A-1")
     assert one.ad_attributed is None and one.affiliate is False
-    assert one.paid_at == datetime(2026, 10, 5, 10, 20)
+    # timestamptz since migration 134: the export's naive time is Vietnam local
+    assert one.paid_at == datetime(2026, 10, 5, 10, 20, tzinfo=VN_TZ)
 
     # A later export of the same orders: the status moved, the fee columns were not filled.
     later_lines = [
@@ -694,7 +695,7 @@ async def test_order_lines_land_in_the_table_and_a_reload_moves_status_without_e
     one = next(s for s in stored if s.order_ref == parse.order_ref(ORDER_A, KEY))
     assert one.status == "refunded_accepted"
     assert one.fee_fixed == Decimal(4000)  # a NULL fee in the later export erased nothing
-    assert one.completed_at == datetime(2026, 10, 9, 12, 0)
+    assert one.completed_at == datetime(2026, 10, 9, 12, 0, tzinfo=VN_TZ)
 
 
 async def test_the_catalogue_resolves_the_item_by_sku(session, tmp_path):

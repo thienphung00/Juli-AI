@@ -70,6 +70,7 @@ from juli_backend.services.shopee_builder.engine_families.measure import (
     KolRates,
 )
 from juli_backend.services.shopee_profit import shop_profit
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_recommendations.env import RecoEnv
 
 ZERO = Decimal(0)
@@ -327,7 +328,11 @@ def deal_soc_base(ctx: BuilderContext, spec: sp.VersionSpec, base: FunnelBase) -
     not from a funnel window, so the funnel's "ít dữ liệu" flag on AOV / CTOR does not block it.
     With fewer than ``MIN_ATTACH_ORDERS`` orders the flag stays and the result says why."""
     items = scope_items(spec)
-    orders = {ln.order_id for ln in ctx.env.lines_for(list(items) or None)}
+    orders = {
+        ln.order_id
+        for ln in ctx.env.lines_for(list(items) or None)
+        if counts_in_sales(ln)  # a returned order is no sale (owner D2)
+    }
     if len(orders) < common.MIN_ATTACH_ORDERS:
         return replace(
             base, low_data=(*base.low_data, "aov") if "aov" not in base.low_data else base.low_data

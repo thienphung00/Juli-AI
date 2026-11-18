@@ -448,9 +448,11 @@ def test_additive_gate_accepts_the_real_repo_at_the_promoted_063_revision():
     on top of it (`064_users_phone_nullable`) failed this test for a reason
     that has nothing to do with the resolution defect it exists to catch. The
     empty list was a side effect of the fixture, not the property. What must
-    hold is that 063 resolves and the gate ACCEPTS; the pending set is whatever
-    has legitimately landed since, and every entry in it has been judged
-    additive by the same run.
+    hold is that 063 resolves and the gate reaches a verdict; the pending set is
+    whatever has legitimately landed since. Every entry is judged additive by the
+    same run, except a reviewed maintenance-window migration
+    (``MAINTENANCE_WINDOW``): from 063 that one is pending, so the gate refuses
+    it -- and nothing else.
     """
     result = _run_gate(
         "--alembic-ini",
@@ -458,11 +460,63 @@ def test_additive_gate_accepts_the_real_repo_at_the_promoted_063_revision():
         "--from-revision",
         "063_workflow_subject_contract",
     )
-    assert result.returncode == GATE_EXIT_ACCEPTED, result.stdout + result.stderr
-    assert "ADDITIVE-ONLY: ACCEPTED" in result.stdout
+    assert result.returncode in (GATE_EXIT_ACCEPTED, GATE_EXIT_REFUSED), (
+        result.stdout + result.stderr
+    )
     assert "ADDITIVE-ONLY: ERROR" not in result.stdout
     assert "No such revision or branch" not in (result.stdout + result.stderr), (
         "the gate could not resolve 063 -- that is the defect this test exists "
         "to catch, and it aborts the release before any candidate starts"
     )
     assert "pending revisions inspected:" in result.stdout
+    # the only refusals are the reviewed maintenance-window migrations
+    assert _refused_revisions(result.stdout) <= MAINTENANCE_WINDOW, result.stdout
+
+
+#: Non-additive migrations the owner applies by hand in a maintenance window BEFORE the deploy
+#: (runbook per entry). deploy.sh passes prod's current revision as --from-revision, so once the
+#: window has run the revision is no longer pending and the gate accepts; before it, the gate
+#: refuses and the deploy aborts. The gate itself has no exception for them.
+MAINTENANCE_WINDOW = frozenset({"134_canonical_tables"})  # docs/runbooks/t5-maintenance-window.md
+
+
+def _refused_revisions(stdout: str) -> set[str]:
+    """The revisions the gate's findings name (``  [kind] <revision>:<line> ...``)."""
+    out: set[str] = set()
+    for line in stdout.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and "] " in stripped:
+            out.add(stripped.split("] ", 1)[1].split(":", 1)[0])
+    return out
+
+
+def test_the_deploy_gate_refuses_134_before_the_maintenance_window():
+    """Prod at 135 (batch 1118e deployed, the owner has not run the window): 134 is pending and
+    non-additive, so ``deploy_lane_api`` gets exit 3 and starts no candidate."""
+    result = _run_gate(
+        "--alembic-ini",
+        str(REPO_ROOT / "alembic.ini"),
+        "--from-revision",
+        "135_connector_multi_computer",
+    )
+    assert result.returncode == GATE_EXIT_REFUSED, result.stdout + result.stderr
+    assert "ADDITIVE-ONLY: REFUSED" in result.stdout
+    assert "134_canonical_tables" in _refused_revisions(result.stdout)
+
+
+def test_the_deploy_gate_no_longer_sees_134_after_the_maintenance_window():
+    """Prod at 134 (the owner applied it in the window): 134 is not pending, the gate never
+    inspects it, and with nothing else non-additive on top the deploy passes."""
+    result = _run_gate(
+        "--alembic-ini",
+        str(REPO_ROOT / "alembic.ini"),
+        "--from-revision",
+        "134_canonical_tables",
+    )
+    assert "ADDITIVE-ONLY: ERROR" not in result.stdout, result.stdout + result.stderr
+    inspected = next(
+        ln for ln in result.stdout.splitlines() if "pending revisions inspected:" in ln
+    )
+    assert "134_canonical_tables" not in inspected
+    assert "134_canonical_tables" not in _refused_revisions(result.stdout)
+    assert result.returncode == GATE_EXIT_ACCEPTED, result.stdout

@@ -22,8 +22,9 @@ from juli_backend.database.tenant_scoped_tables import (
 )
 from juli_backend.models import shopee_profit as models
 from juli_backend.models.shopee_profit import ShopeeOrderIncome, ShopeeOrderLine
-from juli_backend.services.ingest.income import AMOUNT_FIELDS
+from juli_backend.services.ingest.income import AMOUNT_FIELDS, COLUMN_OF
 from juli_backend.services.ingest.schemas import ShopeeOrderIncomeRow
+from tests.support.shopee_analytics import pre_t5_columns
 
 REPO = Path(__file__).resolve().parents[2]
 MIGRATIONS = REPO / "backend/src/juli_backend/database/migrations"
@@ -91,7 +92,7 @@ def test_every_model_column_is_created_by_the_migration():
         "created_at",
         "updated_at",
     }
-    assert set(ShopeeOrderIncome.__table__.columns.keys()) == created
+    assert pre_t5_columns(ShopeeOrderIncome) == created  # T5 (134) renamed / added since
     assert "variation_name" in ShopeeOrderLine.__table__.columns
     assert ShopeeOrderLine.__table__.columns["variation_name"].nullable is True
 
@@ -105,7 +106,9 @@ def test_the_ingest_row_the_writer_and_the_table_name_the_same_amounts():
     }
     table_columns = set(ShopeeOrderIncome.__table__.columns.keys())
     assert row_fields == set(AMOUNT_FIELDS)
-    assert row_fields <= table_columns
+    # the wire keeps ship_shopee_subsidy; migration 134 named its column ship_platform_subsidy
+    assert {COLUMN_OF.get(f, f) for f in row_fields} <= table_columns
+    assert COLUMN_OF == {"ship_shopee_subsidy": "ship_platform_subsidy"}
 
 
 def test_migration_vocabularies_match_the_models():
@@ -114,8 +117,9 @@ def test_migration_vocabularies_match_the_models():
 
 def test_the_table_is_tenant_direct_and_the_runtime_role_may_not_delete():
     tenant = {table for _schema, table in get_tenant_scoped_tables()}
-    assert TABLE_CLASSIFICATION_MAP[("public", "shopee_order_income")] == "tenant_direct"
-    assert "shopee_order_income" in tenant and "shop_id" in ShopeeOrderIncome.__table__.columns
+    # migration 134 (T5) renamed the table
+    assert TABLE_CLASSIFICATION_MAP[("public", "order_settlements")] == "tenant_direct"
+    assert "order_settlements" in tenant and "shop_id" in ShopeeOrderIncome.__table__.columns
     source = MIGRATION.read_text("utf-8")
     assert (
         "GRANT SELECT, INSERT, UPDATE ON" in source

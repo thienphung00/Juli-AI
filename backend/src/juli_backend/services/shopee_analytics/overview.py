@@ -49,6 +49,7 @@ from juli_backend.services.shopee_profit.flows import (
     FlowMetrics,
 )
 from juli_backend.services.shopee_profit.money import ZERO, safe_div
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_profit.sources import CellStats, PriceLever
 
 LEVER_LABELS: dict[str, str] = {
@@ -377,7 +378,7 @@ def _vouchers_block(view: PeriodView, ctx: ShopContext) -> dict[str, Any]:
 
 def _affiliate_block(view: PeriodView) -> dict[str, Any]:
     a = view.data.affiliate
-    lines = [(ln, pb) for ln, pb in view.pairs if ln.affiliate]
+    lines = [(ln, pb) for ln, pb in view.pairs if ln.affiliate and counts_in_sales(ln)]
     return {
         "basis": a.choice.json(),
         "kols": len(a.partners),

@@ -68,36 +68,37 @@ GMV = (
 )
 
 
-async def test_a_file_post_replaces_a_connector_row_and_a_connector_post_never_replaces_a_file(
+async def test_a_connector_post_replaces_a_file_row_and_a_file_post_never_replaces_a_connector(
     shopee_tenants,
 ):
+    """API > Connector > file (owner 2026-11-18; file > Connector under P90 D-5 before)."""
     a, b = shopee_tenants
     kw = {"order_type": "confirmed"}
-    # connector first, then the file: the file wins
+    # connector first, then the file: the connector row stays
     await _post(a.shop_id, "traffic_overview", _body(_traffic(900), source="extension", **kw))
     assert await _query(a.shop_id, GMV) == [(900, "extension")]
     await _post(a.shop_id, "traffic_overview", _body(_traffic(1000), source="file", **kw))
-    assert await _query(a.shop_id, GMV) == [(1000, "file")]
-    # the file first, then the connector: the file stays
+    assert await _query(a.shop_id, GMV) == [(900, "extension")]
+    # the file first, then the connector: the connector replaces it
     await _post(b.shop_id, "traffic_overview", _body(_traffic(1000), source="file", **kw))
-    later = _body(_traffic(900), source="extension", **kw)
+    later = _body(_traffic(950), source="extension", **kw)
     later["captured_at"] = "2026-11-04T09:30:00+07:00"
     await _post(b.shop_id, "traffic_overview", later)
-    assert await _query(b.shop_id, GMV) == [(1000, "file")]
+    assert await _query(b.shop_id, GMV) == [(950, "extension")]
     # and the first shop never saw the second's rows
-    assert await _query(a.shop_id, GMV) == [(1000, "file")]
+    assert await _query(a.shop_id, GMV) == [(900, "extension")]
 
 
-async def test_a_row_stored_at_the_old_equal_rank_is_still_outranked_by_a_file(shopee_tenants):
+async def test_a_file_row_stored_under_the_d5_rank_is_replaced_by_the_connector(shopee_tenants):
     _, b = shopee_tenants
     kw = {"order_type": "confirmed"}
     day = "2026-10-02"
     rows = [{"date": day, "source": CARD, "sales": 500, "orders": 1}]
     await _post(b.shop_id, "traffic_overview", _body(rows, source="file", day=day, **kw))
-    async with juli_app_session() as session:  # make it look like a row written before D-5
+    async with juli_app_session() as session:  # make it look like a row written under D-5
         async with with_shop_scope(session, b.shop_id):
             await session.execute(
-                text("UPDATE public.platform_daily_metrics SET source_rank = 2 WHERE day = :d"),
+                text("UPDATE public.platform_daily_metrics SET source_rank = 3 WHERE day = :d"),
                 {"d": date(2026, 10, 2)},
             )
         await session.commit()
@@ -110,7 +111,33 @@ async def test_a_row_stored_at_the_old_equal_rank_is_still_outranked_by_a_file(s
         "SELECT gmv::int, source FROM public.platform_daily_metrics "
         "WHERE dataset = 'traffic_overview' AND day = '2026-10-02'",
     )
-    assert got == [(500, "file")]
+    assert got == [(400, "extension")]  # ranked by its source, not the stored number
+
+
+async def test_a_null_in_a_higher_rank_post_never_clears_a_stored_value(shopee_tenants):
+    """Owner 2026-11-18: a NULL / missing value never overwrites a stored one (any source);
+    a value replaces it; a lower-rank post is ignored."""
+    a, _ = shopee_tenants
+    kw = {"order_type": "confirmed"}
+    day = "2026-10-04"
+    sql = (
+        "SELECT gmv::int, orders::int, source FROM public.platform_daily_metrics "
+        "WHERE dataset = 'traffic_overview' AND day = '2026-10-04' AND segment = 'all'"
+    )
+    rows = [{"date": day, "source": CARD, "sales": 1000, "orders": 4}]
+    await _post(a.shop_id, "traffic_overview", _body(rows, source="file", day=day, **kw))
+    bare = _body([{"date": day, "source": CARD, "sales": 900}], source="extension", day=day, **kw)
+    bare["captured_at"] = "2026-11-04T09:30:00+07:00"
+    await _post(a.shop_id, "traffic_overview", bare)
+    assert await _query(a.shop_id, sql) == [(900, 4, "extension")]
+    rows = [{"date": day, "source": CARD, "sales": 950, "orders": 5}]
+    later = _body(rows, source="extension", day=day, **kw)
+    later["captured_at"] = "2026-11-04T09:45:00+07:00"
+    await _post(a.shop_id, "traffic_overview", later)
+    assert await _query(a.shop_id, sql) == [(950, 5, "extension")]
+    rows = [{"date": day, "source": CARD, "sales": 1100, "orders": 6}]
+    await _post(a.shop_id, "traffic_overview", _body(rows, source="file", day=day, **kw))
+    assert await _query(a.shop_id, sql) == [(950, 5, "extension")]
 
 
 async def test_item_traffic_sources_lands_through_the_runtime_role(shopee_tenants):
@@ -377,3 +404,77 @@ def test_zz_migration_114_up_and_down(owner_engine, shopee_tenants):
     finally:
         command.upgrade(cfg, "head")
     insert("not_seen")
+
+
+def _order_line(ref: str, **over):
+    from juli_backend.services.ingest.schemas import ShopeeOrderLineRow
+
+    values = {
+        "order_ref": ref,
+        "ordered_at": datetime(2026, 10, 5, 10, 0),
+        "status": "delivered",
+        "sku": "G1",
+        "qty": 1,
+        "original_price": 100_000,
+        "deal_price": 90_000,
+        **over,
+    }
+    return ShopeeOrderLineRow.model_validate(values)
+
+
+async def _write_lines(shop_id, source, rows):
+    from juli_backend.models.ingest import SOURCE_RANK
+    from juli_backend.services.ingest.writers import write_order_lines
+
+    provenance = {
+        "shop_id": shop_id,
+        "platform": "shopee",
+        "source": source,
+        "source_rank": SOURCE_RANK[source],
+        "source_version": f"{source}-1",
+        "raw_payload_id": None,
+        "updated_at": NOW,
+    }
+    async with juli_app_session() as session:
+        async with with_shop_scope(session, shop_id):
+            await write_order_lines(session, rows, None, provenance)
+        await session.commit()
+
+
+async def test_a_file_line_only_fills_the_gaps_of_a_connector_line(shopee_tenants):
+    """Owner 2026-11-18 on order_lines, as juli_app: (a) a file never replaces a Connector fee;
+    (b) it fills one the Connector left NULL and the source stays the Connector; (c) a file-only
+    order lands in full; (d) the Connector replaces a file line."""
+    a, _ = shopee_tenants
+    kept, filled, alone, replaced = "a" * 32, "b" * 32, "c" * 32, "d" * 32
+    await _write_lines(
+        a.shop_id, "extension", [_order_line(kept, fee_fixed=1_000), _order_line(filled)]
+    )
+    await _write_lines(
+        a.shop_id, "file", [_order_line(replaced, fee_fixed=2_000, status="in_transit")]
+    )
+    await _write_lines(
+        a.shop_id,
+        "file",
+        [
+            _order_line(kept, fee_fixed=2_000, status="cancelled"),
+            _order_line(filled, fee_fixed=2_000),
+            _order_line(alone, fee_fixed=2_000),
+        ],
+    )
+    await _write_lines(a.shop_id, "extension", [_order_line(replaced, fee_fixed=1_000)])
+    got = await _query(
+        a.shop_id,
+        "SELECT order_ref, fee_fixed::int, status, source, source_rank, source_version "
+        "FROM public.order_lines WHERE order_ref IN (:k, :f, :a, :r) ORDER BY order_ref",
+        k=kept,
+        f=filled,
+        a=alone,
+        r=replaced,
+    )
+    assert got == [
+        (kept, 1_000, "delivered", "extension", 3, "extension-1"),  # (a)
+        (filled, 2_000, "delivered", "extension", 3, "extension-1"),  # (b)
+        (alone, 2_000, "delivered", "file", 2, "file-1"),  # (c)
+        (replaced, 1_000, "delivered", "extension", 3, "extension-1"),  # (d)
+    ]

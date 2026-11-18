@@ -497,21 +497,21 @@ def test_order_status_fee_and_profit_rules() -> None:
         assert pb[k].excluded_reason == "no_fee_no_profit" and pb[k].profit is None
 
     sp = shop_profit(pairs, campaigns=[], product_ad_spend={})
-    # confirmed views keep every order's GMV ...
-    assert sp.orders == 5 and sp.gmv == D(1000000)
-    assert sp.products["P1"].gmv == D(1000000) and sp.products["P1"].excluded_orders == 4
+    # confirmed views keep the GMV of every order but the refunds (owner 2026-11-18: no sale) ...
+    assert sp.orders == 3 and sp.gmv == D(600000)
+    assert sp.products["P1"].gmv == D(600000) and sp.products["P1"].excluded_orders == 4
     # ... the profit base is the delivered order only
     assert sp.buyer_paid == D(200000) and sp.buyer_paid_covered == D(200000)
     assert sp.contribution == D(65350) and sp.profit == D(65350)
     assert sp.cost_coverage_pct == D("100.0")
     m = build_source_matrix(pairs)
     assert_additive(m)
-    assert m.totals["P1"].orders == 5 and m.totals["P1"].orders_excluded == 4
+    assert m.totals["P1"].orders == 3 and m.totals["P1"].orders_excluded == 2
     assert m.totals["P1"].orders_missing_profit == 0
-    assert m.totals["P1"].gmv == D(1000000)
+    assert m.totals["P1"].gmv == D(600000)
     # the five numbers: GMV and orders are confirmed, the margin base is not
     snap = snapshot_from(pairs, D(0))
-    assert snap.gmv == D(1000000) and snap.orders == 5 and snap.buyer_paid == D(200000)
+    assert snap.gmv == D(600000) and snap.orders == 3 and snap.buyer_paid == D(200000)
 
 
 def test_roas_broad_and_direct_per_product_and_campaign() -> None:

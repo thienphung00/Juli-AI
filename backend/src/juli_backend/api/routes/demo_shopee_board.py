@@ -22,10 +22,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_capability
 from juli_backend.api.dependencies import require_writable_shop
 from juli_backend.api.reviewer import reviewer_context
 from juli_backend.api.routes import planned_changes_common as common
-from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.services.planned_changes import external
@@ -35,6 +35,8 @@ from juli_backend.services.shopee_recommendations import board_reset
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/demo/shopee/board", tags=["demo-shopee"])
+
+_gate_w = require_capability("read_shop_totals", shop_dependency=require_writable_shop)
 
 
 class ResetBody(BaseModel):
@@ -67,11 +69,11 @@ def _refused(exc: ProposalError) -> HTTPException:
 async def reset_board(
     body: ResetBody,
     request: Request,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    _shopee(shop)
+    shop.id
     try:
         out = await board_reset.reset_board(
             session,
@@ -96,11 +98,11 @@ async def reset_board(
 async def preview_external(
     body: PreviewBody,
     request: Request,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    _shopee(shop)
+    shop.id
     data = common.decode_file(body.file_b64)
     try:
         preview = await external.preview_import(
@@ -120,11 +122,11 @@ async def preview_external(
 async def commit_external(
     body: CommitBody,
     request: Request,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    _shopee(shop)
+    shop.id
     data = common.decode_file(body.file_b64)
     try:
         result = await external.commit_import(

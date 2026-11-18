@@ -31,7 +31,10 @@ from juli_backend.models.order_status import CANCELLED, UNKNOWN_ORDER_STATUS, is
 from juli_backend.repositories._base import ShopScopedRepo, utc_now_naive
 
 AWAITING_SHIPMENT = "AWAITING_SHIPMENT"
-SHIPPED = "SHIPPED"
+#: Silver stores the mapped values (``models.order_status``): a paid order not yet
+#: shipped is ``confirmed``, a shipped one ``shipped``.
+CONFIRMED = "confirmed"
+SHIPPED = "shipped"
 
 #: Amount columns where a stored 0 is ``OrdersRepo._insert_defaults``' placeholder.
 _ZERO_IS_GAP: frozenset[str] = frozenset({"total_amount", "order_value"})
@@ -123,13 +126,13 @@ class OrdersRepo(ShopScopedRepo[Order]):
         return existing
 
     async def confirm_shipment(self, shop_id: uuid.UUID, order_id: uuid.UUID) -> Order:
-        """Move an ``AWAITING_SHIPMENT`` order to ``SHIPPED``.
+        """Move a ``confirmed`` (raw ``AWAITING_SHIPMENT``) order to ``shipped``.
 
         Raises :class:`NotFound` for a missing or foreign order and ``ValueError``
         for any other starting status; the state machine has exactly one edge.
         """
         order = await self.get(shop_id, order_id)
-        if order.status != AWAITING_SHIPMENT:
+        if order.status not in (CONFIRMED, AWAITING_SHIPMENT):
             raise ValueError(f"Cannot ship order in status '{order.status}'")
         order.status = SHIPPED
         order.update_time = utc_now_naive()

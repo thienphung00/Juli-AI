@@ -19,13 +19,14 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.capability_gate import require_capability
 from juli_backend.api.routes import shopee_builder_common as common
 from juli_backend.api.routes import shopee_market_common as market
-from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.database import Shop, get_session
 
 router = APIRouter(prefix="/demo/shopee", tags=["demo-shopee"])
+
+_gate_r = require_capability("read_shop_totals")
 AsOf = Annotated[date | None, Query()]
 
 
@@ -39,12 +40,12 @@ async def product_market_price(
     variation_id: market.VariationQuery = None,
     price: market.PriceQuery = None,
     as_of: AsOf = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await market.h_market_price(
         session,
-        _shopee(shop),
+        shop.id,
         item_id,
         variation_id=variation_id,
         price=price,
@@ -61,12 +62,12 @@ async def builder_market_range(
     variation_id: market.VariationQuery = None,
     price: market.PriceQuery = None,
     as_of: AsOf = None,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return await market.h_market_price(
         session,
-        _shopee(shop),
+        shop.id,
         item_id,
         variation_id=variation_id,
         price=price,

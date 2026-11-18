@@ -26,7 +26,7 @@ from juli_backend.services.shopee_recommendations.unit_cost import unit_cost
 
 
 def zero_order_items(env: RecoEnv, items: Iterable[str]) -> list[str]:
-    have = {ln.product_id for ln, _ in env.view.pairs}
+    have = {ln.product_id for ln, _ in env.sales_pairs}
     return [i for i in dict.fromkeys(items) if i and i not in have and i not in env.excluded]
 
 

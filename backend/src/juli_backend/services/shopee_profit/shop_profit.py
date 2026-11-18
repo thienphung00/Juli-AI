@@ -42,7 +42,12 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
-from juli_backend.services.shopee_profit.order_profit import AdsPool, OrderLine, ProfitBreakdown
+from juli_backend.services.shopee_profit.order_profit import (
+    AdsPool,
+    OrderLine,
+    ProfitBreakdown,
+    counts_in_sales,
+)
 
 GMV_WARN_RATE = Decimal("0.02")
 
@@ -208,7 +213,7 @@ class ShopProfit:
 
 
 def reconcile_gmv(pairs: Pairs, export_gmv: Decimal | None) -> GmvReconciliation:
-    line_gmv = sum((ln.order_value for ln, _ in pairs), ZERO)
+    line_gmv = sum((ln.order_value for ln, _ in pairs if counts_in_sales(ln)), ZERO)
     if export_gmv is None:
         return GmvReconciliation(line_gmv, None, None, None, False)
     gap = line_gmv - export_gmv
@@ -266,8 +271,8 @@ def product_profits(
                         missing[m] += 1
         out[product] = ProductProfit(
             product_id=product,
-            orders=len({ln.order_id for ln, _ in all_items}),
-            gmv=sum((ln.order_value for ln, _ in all_items), ZERO),
+            orders=len({ln.order_id for ln, _ in all_items if counts_in_sales(ln)}),
+            gmv=sum((ln.order_value for ln, _ in all_items if counts_in_sales(ln)), ZERO),
             buyer_paid=sum((pb.revenue for _, pb in items), ZERO),
             buyer_paid_covered=sum((pb.revenue for _, pb in covered), ZERO),
             contribution=contribution,
@@ -314,8 +319,8 @@ def shop_profit(
         margin_num = contribution - covered_ads - other_marketing_costs * share
     on_covered = contribution - total_ads - other_marketing_costs
     return ShopProfit(
-        orders=len({ln.order_id for ln, _ in pairs}),
-        gmv=sum((ln.order_value for ln, _ in pairs), ZERO),
+        orders=len({ln.order_id for ln, _ in pairs if counts_in_sales(ln)}),
+        gmv=sum((ln.order_value for ln, _ in pairs if counts_in_sales(ln)), ZERO),
         buyer_paid=sum((p.buyer_paid for p in products.values()), ZERO),
         buyer_paid_covered=sum((p.buyer_paid_covered for p in products.values()), ZERO),
         contribution=contribution,
@@ -490,7 +495,10 @@ def known_cost_profit(
     paid_all = sum((pb.revenue for _, pb in counted), ZERO)
     paid_known = sum((pb.revenue for _, pb in known), ZERO)
     contribution = sum((pb.contribution or ZERO for _, pb in known), ZERO)
-    gmv = sum((ln.order_value for ln, _ in known), ZERO)
+    # the coverage ("trên N đơn có chi phí, X % GMV") measures sales: a refund line in the profit
+    # base (its settlement cost) is no sale (owner 2026-11-18), so it adds to neither N nor GMV
+    known_sales = [(ln, pb) for ln, pb in known if counts_in_sales(ln)]
+    gmv = sum((ln.order_value for ln, _ in known_sales), ZERO)
     share = safe_div(paid_known, paid_all) or ZERO
 
     spend_days = {d: s for d, s in (daily_spend or {}).items() if s > 0}
@@ -549,7 +557,7 @@ def known_cost_profit(
     return KnownCostProfit(
         profit=value,
         margin_pct=None if margin is None else margin.quantize(Decimal("0.1")),
-        orders=len(known_orders),
+        orders=len({ln.order_id for ln, _ in known_sales}),
         gmv=gmv,
         gmv_share_pct=gmv_share,
         buyer_paid=paid_known,

@@ -28,6 +28,7 @@ from juli_backend.services.shopee_builder import picker_table
 from juli_backend.services.shopee_builder.cost_known import skus_costed
 from juli_backend.services.shopee_builder.variations import observed_skus
 from juli_backend.services.shopee_profit.money import ZERO
+from juli_backend.services.shopee_profit.order_profit import counts_in_sales
 from juli_backend.services.shopee_recommendations.unit_cost import unit_cost
 
 RECENT_DAYS = 30
@@ -121,6 +122,8 @@ def picker(
     gmv90: dict[str, Decimal] = defaultdict(lambda: ZERO)
     gmv30: dict[str, Decimal] = defaultdict(lambda: ZERO)
     for ln, _ in view.pairs:
+        if not counts_in_sales(ln):
+            continue  # a returned order is no sale (owner D2)
         orders90[ln.product_id].add(ln.order_id)
         gmv90[ln.product_id] += ln.order_value
         if ln.order_date >= recent_from:

@@ -24,6 +24,7 @@ from juli_backend.ai.forecasting.forecaster import (
     ForecastResult,
     LowStockRisk,
     VelocityChange,
+    _daily_units_series,
     compute_reorder_quantity,
     get_forecast,
     get_low_stock_risks,
@@ -64,12 +65,13 @@ def _make_order(
     *,
     tiktok_order_id: str,
     created_at: datetime,
+    status: str = "COMPLETED",
 ) -> Order:
     return Order(
         id=uuid.uuid4(),
         shop_id=shop_id,
         tiktok_order_id=tiktok_order_id,
-        status="COMPLETED",
+        status=status,
         total_amount=Decimal("100.00"),
         currency="VND",
         update_time=created_at,
@@ -108,6 +110,36 @@ async def _seed_constant_daily_orders(
             )
     session.add_all(orders)
     await session.flush()
+
+
+class TestUnitsSeriesReadsStoredStatuses:
+    """B3: silver stores COMPLETED as ``delivered``; the per-SKU units must count it."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("status", "counted"),
+        [
+            ("delivered", True),
+            ("DELIVERED", True),
+            ("COMPLETED", True),
+            ("pending", False),
+            ("cancelled", False),
+            ("confirmed", False),
+        ],
+    )
+    async def test_only_delivered_or_completed_orders_count(
+        self, session: AsyncSession, status: str, counted: bool
+    ):
+        shop_id = await _seed_shop(session)
+        session.add(_make_inventory(shop_id, quantity=70))
+        created = datetime.now(UTC) - timedelta(days=2)
+        session.add(_make_order(shop_id, tiktok_order_id="o1", created_at=created, status=status))
+        await session.flush()
+
+        series = await _daily_units_series(session, shop_id)
+
+        total = sum(sum(days) for days in series.values())
+        assert (total > 0) is counted
 
 
 # ===================================================================

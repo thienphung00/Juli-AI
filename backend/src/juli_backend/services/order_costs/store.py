@@ -43,9 +43,12 @@ MAX_ATTEMPTS = 5
 FINANCE_RECHECK = timedelta(hours=24)
 
 #: Order statuses whose price detail is worth reading (an unpaid or cancelled
-#: order costs the seller nothing).
-_PRICE_SKIP_STATUSES = ("UNPAID", "CANCELLED")
-#: Settlement follows delivery; earlier orders have no finance transactions.
+#: order costs the seller nothing). Compared upper-cased: the stored silver values
+#: are ``pending`` (TikTok UNPAID) and ``cancelled``; the raw TikTok spellings are
+#: kept so an unmapped row still matches. ``confirmed`` (paid, not shipped) is read.
+_PRICE_SKIP_STATUSES = ("PENDING", "UNPAID", "CANCELLED", "CANCELED", "CANCEL")
+#: Settlement follows delivery; earlier orders have no finance transactions. The
+#: stored value is ``delivered`` (COMPLETED is mapped to it); COMPLETED stays for raw rows.
 _FINANCE_STATUSES = ("DELIVERED", "COMPLETED")
 
 

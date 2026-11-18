@@ -3,17 +3,18 @@
 Every class here is a :class:`ShopScopedRepo` (or, for the public fee table, a
 :class:`SessionRepo`) used for reading only: the writers of these tables are the ingest
 gateway (``services/ingest``, one-writer rule) and the settings import. Queries take the
-window as plain dates; a ``datetime`` bound is naive UTC like every persistence-edge time.
+window as plain dates. Order lines are windowed by their stored GMT+7 ``day`` (migration 134),
+never by the date of ``ordered_at`` (a ``timestamptz``).
 
-The order-line repo returns the PII-free ``shopee_order_lines`` columns only (the table has
-no buyer column); ``order_ref`` is a keyed hash and never leaves the service layer.
+The order-line repo returns the PII-free ``order_lines`` columns only (the table has no buyer
+column); ``order_ref`` is a keyed hash and never leaves the service layer.
 """
 
 from __future__ import annotations
 
 import uuid
 from collections.abc import Collection, Sequence
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from sqlalchemy import func, select
 
@@ -43,14 +44,12 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
 
     async def in_window(self, shop_id: uuid.UUID, start: date, end: date) -> list[ShopeeOrderLine]:
         """Lines whose order was placed on a day in ``[start, end]`` (platform calendar day)."""
-        lo = datetime.combine(start, datetime.min.time())
-        hi = datetime.combine(end + timedelta(days=1), datetime.min.time())
         return await self._all(
             self._scoped(
                 shop_id,
                 ShopeeOrderLine.platform == PLATFORM_SHOPEE,
-                ShopeeOrderLine.ordered_at >= lo,
-                ShopeeOrderLine.ordered_at < hi,
+                ShopeeOrderLine.day >= start,
+                ShopeeOrderLine.day <= end,
             ).order_by(
                 ShopeeOrderLine.ordered_at, ShopeeOrderLine.order_ref, ShopeeOrderLine.line_no
             )
@@ -58,40 +57,36 @@ class ShopeeOrderLinesRepo(ShopScopedRepo[ShopeeOrderLine]):
 
     async def day_bounds(self, shop_id: uuid.UUID) -> tuple[date, date] | None:
         stmt = self._scoped(shop_id, ShopeeOrderLine.platform == PLATFORM_SHOPEE).with_only_columns(
-            func.min(ShopeeOrderLine.ordered_at), func.max(ShopeeOrderLine.ordered_at)
+            func.min(ShopeeOrderLine.day), func.max(ShopeeOrderLine.day)
         )
         first, last = (await self._session.execute(stmt)).one()
         if first is None:
             return None
-        return first.date(), last.date()
+        return first, last
 
     async def kol_pair_lines(
         self, shop_id: uuid.UUID, kol_key: str, item_id: str, start: date, end: date
     ) -> list[ShopeeOrderLine]:
         """P91 D-9: the affiliate-marked lines of one KOL x product on days in ``[start, end]``."""
-        lo = datetime.combine(start, datetime.min.time())
-        hi = datetime.combine(end + timedelta(days=1), datetime.min.time())
         return await self._all(
             self._scoped(
                 shop_id,
                 ShopeeOrderLine.platform == PLATFORM_SHOPEE,
                 ShopeeOrderLine.kol_key == kol_key,
                 ShopeeOrderLine.item_id == item_id,
-                ShopeeOrderLine.ordered_at >= lo,
-                ShopeeOrderLine.ordered_at < hi,
+                ShopeeOrderLine.day >= start,
+                ShopeeOrderLine.day <= end,
             ).order_by(ShopeeOrderLine.ordered_at, ShopeeOrderLine.order_ref)
         )
 
     async def days_with_lines(self, shop_id: uuid.UUID, start: date, end: date) -> set[date]:
-        """Calendar days in the window that have at least one order line."""
-        lo = datetime.combine(start, datetime.min.time())
-        hi = datetime.combine(end + timedelta(days=1), datetime.min.time())
+        """Calendar (GMT+7) days in the window that have at least one order line."""
         stmt = self._scoped(
             shop_id,
             ShopeeOrderLine.platform == PLATFORM_SHOPEE,
-            ShopeeOrderLine.ordered_at >= lo,
-            ShopeeOrderLine.ordered_at < hi,
-        ).with_only_columns(func.date(ShopeeOrderLine.ordered_at).distinct())
+            ShopeeOrderLine.day >= start,
+            ShopeeOrderLine.day <= end,
+        ).with_only_columns(ShopeeOrderLine.day.distinct())
         return {r[0] for r in (await self._session.execute(stmt)).all()}
 
 

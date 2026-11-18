@@ -414,7 +414,7 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
     # -- P90 / P91 (migrations 115-120): tenant-direct tables the Shopee recommendations write ----
     MutationSite(
         "public",
-        "shopee_order_lines",
+        "order_lines",
         "UPDATE",
         "backend/src/juli_backend/services/ingest/writers.py",
         "update(ShopeeOrderLine)",
@@ -423,7 +423,7 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
     ),
     MutationSite(
         "public",
-        "shopee_affiliate_lines",
+        "affiliate_lines",
         "UPDATE",
         "backend/src/juli_backend/services/ingest/writers.py",
         "stmt.on_conflict_do_update(",
@@ -432,7 +432,7 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
     ),
     MutationSite(
         "public",
-        "shopee_order_income",
+        "order_settlements",
         "UPDATE",
         "backend/src/juli_backend/services/ingest/income.py",
         "stmt.on_conflict_do_update(",

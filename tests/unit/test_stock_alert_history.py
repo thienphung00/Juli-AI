@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -47,7 +47,7 @@ async def test_each_variation_read_is_stored_once(session):
         .scalars()
         .all()
     )
-    by_key = {(r.item_id, r.model_id): r for r in rows}
+    by_key = {(r.item_id, r.variation_id): r for r in rows}  # model_id until migration 134
     assert set(by_key) == {
         ("1001", ""),
         ("1001", "5001"),
@@ -58,7 +58,7 @@ async def test_each_variation_read_is_stored_once(session):
     m = by_key[("1001", "5001")]
     assert (m.sellable, m.available, m.listing_status) == (8, 10, "active")
     assert by_key[("1002", "")].listing_status == "unlisted"
-    assert m.read_at == datetime(2026, 11, 3, 3, 0)
+    assert m.read_at == datetime(2026, 11, 3, 3, 0, tzinfo=UTC)  # timestamptz since 134
 
     # the same read posted again adds nothing
     await svc.ingest(

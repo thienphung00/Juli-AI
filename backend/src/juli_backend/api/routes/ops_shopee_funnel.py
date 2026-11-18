@@ -17,13 +17,15 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services.ops import shopee_funnel_ops as svc
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
+
+_gate = require_ops_capability("read_shop_totals")
 
 DEFAULT_DAYS = 14
 
@@ -35,8 +37,8 @@ async def ops_funnel_check(
     as_of: Annotated[date | None, Query()] = None,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     end = as_of or datetime.now(UTC).date()
     async with with_shop_scope(session, shop_id):
         return await svc.funnel_check_report(session, shop_id, days=days, as_of=end)
@@ -47,7 +49,7 @@ async def ops_prediction_coverage(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await svc.prediction_coverage(session, shop_id)

@@ -199,13 +199,14 @@ def _item(shop_id, item_id, variation_id, name, var_name=None):
     )
 
 
-def _line(shop_id, n, day: date, qty=2, model="11"):
+def _line(shop_id, n, day: date, qty=2, model="11", hour=3):
+    """An order line at ``hour`` Vietnam local on ``day`` (order times are VN local, T5)."""
     return ShopeeOrderLine(
         shop_id=shop_id,
         platform="shopee",
         order_ref=f"ref{n}",
         line_no=1,
-        ordered_at=datetime.combine(day, datetime.min.time()) + timedelta(hours=3),
+        ordered_at=datetime.combine(day, datetime.min.time()) + timedelta(hours=hour),
         status="delivered",
         item_id="1",
         variation_id=model,
@@ -227,7 +228,7 @@ async def _seed_selling(session, shop_id, *, stock=10, read=READ, sellable=None)
         ShopeeStockHistory(
             shop_id=shop_id,
             item_id="1",
-            model_id="11",
+            variation_id="11",
             read_at=read,
             sellable=stock if sellable is None else sellable,
             available=stock,
@@ -299,13 +300,17 @@ async def test_unsubscribed_member_and_untracked_variation(session):
 async def test_old_read_subtracts_orders_and_stale_read_is_no_read(session):
     owner, shop = await _shop(session)
     session.add(ShopMember(shop_id=shop.id, user_id=owner.id, email=owner.email, added_via="owner"))
+    # the read: 02:00 UTC = 09:00 VN on 14/11
     await _seed_selling(session, shop.id, stock=18, read=datetime(2026, 11, 14, 2, 0))
-    session.add(_line(shop.id, 99, date(2026, 11, 14), qty=5))  # after the read (03:00 UTC)
+    # 10:00 VN = 03:00 UTC, after the read; the seeded 14/11 line at 03:00 VN (13/11 20:00 UTC)
+    # is BEFORE it. Until T5 the naive VN order time was compared with the naive UTC read time,
+    # so that earlier line was subtracted too ("Còn 11", "đã trừ 2 đơn").
+    session.add(_line(shop.id, 99, date(2026, 11, 14), qty=5, hour=10))
     await session.flush()
     mailer = FakeMailer()
     await job.run_shop(session, shop.id, now=NOW, mailer=mailer)
-    assert "Còn 11" in mailer.sent[0].text  # 18 - 2 (the 14/11 line) - 5
-    assert "đã trừ 2 đơn từ lúc đó" in mailer.sent[0].text
+    assert "Còn 13" in mailer.sent[0].text  # 18 - 5
+    assert "đã trừ 1 đơn từ lúc đó" in mailer.sent[0].text
 
     _, shop2 = await _shop(session)
     session.add(

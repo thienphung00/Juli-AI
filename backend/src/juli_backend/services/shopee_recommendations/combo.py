@@ -35,6 +35,7 @@ from juli_backend.services.shopee_profit.order_profit import (
     OrderStatus,
     PromoKind,
     SkuCost,
+    counts_in_sales,
     profit_lines,
 )
 from juli_backend.services.shopee_profit.whatif import VoucherRule
@@ -308,7 +309,11 @@ def combo_lines(env: RecoEnv, spec_lines: Sequence[Mapping[str, Any]]) -> list[O
         sku = entry.get("sku")
         if sku is None:
             sku = max(
-                skus, key=lambda s: sum((ln.order_value for ln in history if ln.sku == s), ZERO)
+                skus,
+                key=lambda s: sum(
+                    (ln.order_value for ln in history if ln.sku == s and counts_in_sales(ln)),
+                    ZERO,
+                ),
             )
         elif sku not in skus:
             raise ComboRefusal(f"sku_unknown:{sku}")
@@ -393,7 +398,7 @@ def eval_combo(
     cost_per_order: Decimal = priced.pop("_cost_per_order")
     window = Decimal(env.window_days)
     order_sets: dict[str, set[str]] = {}
-    for ln, _ in env.view.pairs:
+    for ln, _ in env.sales_pairs:
         order_sets.setdefault(ln.order_id, set()).add(ln.product_id)
     existing = sum(1 for s in order_sets.values() if set(items) <= s)
     be, be_reason = break_even_extra_orders(existing, cost_per_order, contribution)

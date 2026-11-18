@@ -282,7 +282,9 @@ async def test_ops_shopee_screens_still_open_after_the_owner_is_removed(owner_en
     409 ``not_a_shopee_shop``: the platform was read under the removed owner's scope."""
     from fastapi import HTTPException
 
-    from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
+    from juli_backend.api.capability_gate import require_ops_capability
+
+    _shopee_shop = require_ops_capability("read_shop_totals")
 
     shop = _tenant(owner_engine, "shopee", email=_unique("shopee"))
     with owner_engine.begin() as conn:
@@ -298,12 +300,12 @@ async def test_ops_shopee_screens_still_open_after_the_owner_is_removed(owner_en
         await session.commit()
     assert await _raw_shop_ids(shop.user_id) == []
     async with app_session() as session:
-        await _shopee_shop(session, shop.shop_id)  # no 409
+        await _shopee_shop(shop.shop_id, session)  # no 409
     # a TikTok shop is still refused
     other = _tenant(owner_engine, "tiktok", email=_unique("tiktok"))
     async with app_session() as session:
         with pytest.raises(HTTPException) as refused:
-            await _shopee_shop(session, other.shop_id)
+            await _shopee_shop(other.shop_id, session)
     assert refused.value.status_code == 409
 
 

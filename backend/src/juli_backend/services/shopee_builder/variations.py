@@ -35,7 +35,12 @@ from juli_backend.services.shopee_analytics.margins import Rates, final_margin, 
 from juli_backend.services.shopee_analytics.rules_view import ProfitRules
 from juli_backend.services.shopee_profit.fees import FeeSchedule
 from juli_backend.services.shopee_profit.money import ZERO, pct_points, safe_div
-from juli_backend.services.shopee_profit.order_profit import OrderLine, SkuCost, profit_lines
+from juli_backend.services.shopee_profit.order_profit import (
+    OrderLine,
+    SkuCost,
+    counts_in_sales,
+    profit_lines,
+)
 from juli_backend.services.shopee_profit.pack import price_per_measure
 from juli_backend.services.shopee_recommendations.unit_cost import UnitCost, scope_of, unit_cost
 
@@ -232,7 +237,7 @@ def with_orders(
     """P96: each row's ``orders_30d`` (orders in the window holding its SKU; a listing with one row
     counts every order of the item) and the rows ordered best seller first, then in stock, then
     unknown stock, sold out last -- so the builder's default is a variation that sells."""
-    mine = [ln for ln in lines if ln.product_id == item_id]
+    mine = [ln for ln in lines if ln.product_id == item_id and counts_in_sales(ln)]
     single = len(rows) == 1
     out = []
     for row in rows:

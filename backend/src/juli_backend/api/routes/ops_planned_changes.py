@@ -21,9 +21,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.capability_gate import require_ops_capability
 from juli_backend.api.routes import planned_changes_common as common
 from juli_backend.api.routes.ops import MaskedRoute, OpsContext, operator, viewer
-from juli_backend.api.routes.ops_shopee_dashboards import _shopee_shop
 from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services import planned_changes as pc
@@ -32,6 +32,8 @@ from juli_backend.services.ops import audit
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
+
+_gate = require_ops_capability(None)
 BASE = "/shops/{shop_id}/planned-changes"
 ACTION_APPLY = "planned_changes_apply"
 
@@ -41,8 +43,8 @@ async def ops_overview(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     return common.overview()
 
 
@@ -51,8 +53,8 @@ async def ops_template(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> Response:
-    await _shopee_shop(session, shop_id)
     return common.template_response()
 
 
@@ -62,8 +64,8 @@ async def ops_preview(
     body: common.ImportBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.run_preview(session, shop_id, body)
 
@@ -74,9 +76,9 @@ async def ops_apply(
     body: common.ApplyBody,
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
     """The cards, the version and the audit row commit together."""
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         result = await common.run_apply(
             session, shop_id, body, actor=pc.Actor("staff", staff_id=ctx.staff.id)
@@ -113,8 +115,8 @@ async def ops_versions(
     shop_id: uuid.UUID,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.read_versions(session, shop_id)
 
@@ -125,7 +127,7 @@ async def ops_version(
     number: int,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
 ) -> dict[str, Any]:
-    await _shopee_shop(session, shop_id)
     async with with_shop_scope(session, shop_id):
         return await common.read_version(session, shop_id, number)

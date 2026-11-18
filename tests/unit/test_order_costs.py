@@ -340,6 +340,22 @@ async def test_work_lists_window_status_and_change_detection(session):
     assert [r.tiktok_order_id for r in price] == ["1", "2"]
 
 
+@pytest.mark.asyncio
+async def test_work_lists_read_the_stored_silver_vocabulary(session):
+    """Rows written through the status mapper: ``pending`` is skipped, ``confirmed`` is not."""
+    shop = await _shop(session, "v")
+    await _order(session, shop, "1", status="delivered")
+    await _order(session, shop, "2", status="confirmed")
+    await _order(session, shop, "3", status="cancelled")
+    await _order(session, shop, "4", status="pending")
+    await _order(session, shop, "5", status="shipped")
+
+    price = await order_costs.orders_needing_price(session, shop.id, now=NAIVE_NOW, limit=10)
+    assert sorted(r.tiktok_order_id for r in price) == ["1", "2", "5"]
+    finance = await order_costs.orders_needing_finance(session, shop.id, now=NAIVE_NOW, limit=10)
+    assert [r.tiktok_order_id for r in finance] == ["1"]
+
+
 # -- the poll step --------------------------------------------------------------------------
 
 

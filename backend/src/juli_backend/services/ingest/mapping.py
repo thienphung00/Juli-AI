@@ -47,11 +47,11 @@ tell a mapping change from a data change):
   ``item_catalog`` lands in ``platform_items`` only.
 - P90 step 2 (migration 113): five datasets with tables of their own (``writers.py``):
   ``order_lines`` (the order export, PII-stripped by the sender) and ``affiliate_order_lines``
-  land in ``shopee_order_lines`` (the second only marks lines the first created);
+  land in ``order_lines`` (migration 134 name; the second only marks lines the first created);
   ``ads_change_log`` and ``shop_health_daily`` are append-only logs; ``item_snapshot`` writes
   ``platform_item_snapshots`` only when a tracked field changed.
 - P91 D-12 (migration 119): ``order_income`` (the income export, Tài chính › Doanh thu) lands in
-  ``shopee_order_income``, one row per order keyed by the same hashed ``order_ref`` as the order
+  ``order_settlements``, one row per order keyed by the same hashed ``order_ref`` as the order
   lines; the actual fees and payout, which win over the order export's fee columns.
 """
 
@@ -695,9 +695,9 @@ WRITE_PERIOD = "period"  # platform_period_metrics (+ platform_items for item ro
 WRITE_FLAGS = "flags"  # platform_product_flags
 WRITE_PROMOTIONS = "promotions"  # platform_promotions
 WRITE_ITEMS = "items"  # platform_items only
-WRITE_ORDER_LINES = "order_lines"  # shopee_order_lines (upsert)
-WRITE_AFFILIATE_LINES = "affiliate_lines"  # marks existing shopee_order_lines
-WRITE_ORDER_INCOME = "order_income"  # shopee_order_income (upsert by rank)
+WRITE_ORDER_LINES = "order_lines"  # order_lines (upsert)
+WRITE_AFFILIATE_LINES = "affiliate_lines"  # marks existing order_lines
+WRITE_ORDER_INCOME = "order_income"  # order_settlements (upsert by rank)
 WRITE_ADS_LOG = "ads_log"  # ads_change_log (append-only)
 WRITE_ITEM_SNAPSHOTS = "item_snapshots"  # platform_item_snapshots (insert on change)
 WRITE_SHOP_HEALTH = "shop_health"  # shop_health_daily (append-only)

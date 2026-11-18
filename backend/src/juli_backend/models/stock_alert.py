@@ -1,8 +1,12 @@
 """Stock alert tables (Part S, migration 129). All tenant-direct (RLS by ``app_current_shop_id()``).
 
-- ``shopee_stock_history``: one row per variation per Connector read of the product list
-  (``item_snapshot``): ``sellable`` / ``available`` stock and the listing status at that read.
-  Insert only; a repeated post of the same read is a no-op (unique on the read time).
+- ``stock_history`` (``shopee_stock_history`` until migration 134, T5; the old name is a view for
+  one release): one row per variation per Connector read of the product list (``item_snapshot``):
+  ``sellable`` / ``available`` stock and the listing status at that read. Insert only; a repeated
+  post of the same read is a no-op (unique on the read time). ``variation_id`` was ``model_id``
+  (the Connector's wire field keeps that name); ``read_at`` is ``timestamptz`` (a naive value is
+  UTC) and comes back aware UTC: the stock-alert code turns it into naive UTC at its boundary
+  (``stock_basis.naive_utc``), as its own tables stay naive UTC.
 - ``shopee_sku_tracking``: the "Theo dõi" switch per variation. ``set_by`` is ``default`` (Juli
   set it from eligibility) or the user id of the member who switched it; ``set_at`` when.
 - ``shopee_stock_alert_unsubscribes``: a member who unsubscribed from this shop's stock e-mail.
@@ -30,6 +34,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from juli_backend.models.ingest import JSONBType
+from juli_backend.models.shopee_profit import UTC_TIME
 from juli_backend.orm_base import Base
 
 SET_BY_DEFAULT = "default"
@@ -40,24 +45,25 @@ SEND_KINDS = (KIND_ALERT, KIND_EMPTY, KIND_NO_READ)
 
 
 class ShopeeStockHistory(Base):
-    __tablename__ = "shopee_stock_history"
+    __tablename__ = "stock_history"
     __table_args__ = (
         UniqueConstraint(
-            "shop_id", "item_id", "model_id", "read_at", name="uq_shopee_stock_history_read"
+            "shop_id", "item_id", "variation_id", "read_at", name="uq_stock_history_read"
         ),
-        Index("ix_shopee_stock_history_sku", "shop_id", "item_id", "model_id", "read_at"),
+        Index("ix_stock_history_sku", "shop_id", "item_id", "variation_id", "read_at"),
+        Index("ix_stock_history_read", "shop_id", "read_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
     item_id: Mapped[str] = mapped_column(String(64))
     #: "" for a listing without variations (the item row is its only SKU)
-    model_id: Mapped[str] = mapped_column(String(64), default="", server_default="")
-    read_at: Mapped[datetime] = mapped_column()
+    variation_id: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    read_at: Mapped[datetime] = mapped_column(UTC_TIME)
     sellable: Mapped[int | None] = mapped_column(Integer, nullable=True)
     available: Mapped[int | None] = mapped_column(Integer, nullable=True)
     listing_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(UTC_TIME, server_default=func.now())
 
 
 class ShopeeSkuTracking(Base):

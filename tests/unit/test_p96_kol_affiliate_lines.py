@@ -27,7 +27,7 @@ from juli_backend.services.ingest.kol_key import kol_key
 from juli_backend.services.ingest.schemas import ShopeeAffiliateOrderLineRow
 from juli_backend.services.ingest.writers import write_affiliate_lines
 from juli_backend.services.shopee_analytics import kol_affiliate, queries
-from tests.support.shopee_analytics import CUR_START, _line, _ref
+from tests.support.shopee_analytics import CUR_START, _line, _ref, pre_t5_columns
 from tests.support.shopee_reco import AS_OF, seed_reco_shop
 
 REPO = Path(__file__).resolve().parents[2]
@@ -103,9 +103,7 @@ def test_migration_122_fits_alembic_and_123_follows_it():
     # P97 T2's 123_shopee_metrics_tables sits on 122 and took the deferred tail.
     nxt = (MIGRATION.parent / "123_shopee_metrics_tables.py").read_text("utf-8")
     assert 'down_revision: str | None = "122_shopee_affiliate_lines"' in nxt
-    assert 'down_revision: str | None = "135_connector_multi_computer"' in BACKFILL.read_text(
-        "utf-8"
-    )
+    assert 'down_revision: str | None = "134_canonical_tables"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_122():
@@ -119,15 +117,16 @@ def test_the_additive_gate_accepts_migration_122():
 
 def test_the_table_is_tenant_direct_with_upsert_grants_and_every_model_column():
     mig = _module()
-    assert TABLE_CLASSIFICATION_MAP[("public", "shopee_affiliate_lines")] == "tenant_direct"
-    assert ("public", "shopee_affiliate_lines") in set(get_tenant_scoped_tables())
+    # migration 134 (T5) renamed the table and two columns, and added day / source_rank
+    assert TABLE_CLASSIFICATION_MAP[("public", "affiliate_lines")] == "tenant_direct"
+    assert ("public", "affiliate_lines") in set(get_tenant_scoped_tables())
     assert mig.TENANT_VERBS == {"shopee_affiliate_lines": "SELECT, INSERT, UPDATE"}
     source = MIGRATION.read_text("utf-8")
     up = source.split("def upgrade")[1].split("def downgrade")[0]
     for verb in ("op.drop_", "op.alter_column", "UPDATE public", "DELETE FROM"):
         assert verb not in up, verb
     created = set(__import__("re").findall(r'sa\.Column\(\s*"(\w+)"', source))
-    assert set(ShopeeAffiliateLine.__table__.columns.keys()) == created
+    assert pre_t5_columns(ShopeeAffiliateLine) == created
 
 
 def test_no_column_can_hold_a_buyer():

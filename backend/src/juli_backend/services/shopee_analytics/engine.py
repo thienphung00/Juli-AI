@@ -31,6 +31,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from decimal import Decimal
 
+from juli_backend.models.shopee_profit import vn_day
 from juli_backend.services.shopee_analytics.catalog import Catalog
 from juli_backend.services.shopee_analytics.fee_table import (
     DEFAULT_FIXED_FEE_RATE,
@@ -73,7 +74,7 @@ _STATUS = {s.value: s for s in OrderStatus}
 
 @dataclass(frozen=True)
 class RawLine:
-    """A ``shopee_order_lines`` row, detached from the ORM (no buyer column exists)."""
+    """An ``order_lines`` row, detached from the ORM (no buyer column exists)."""
 
     order_ref: str
     line_no: int
@@ -108,6 +109,13 @@ class RawLine:
     #: Migration 119. The stored variation (``''`` = item level) and the export's variation name.
     variation_id: str = ""
     variation_name: str | None = None
+    #: Migration 134: the stored GMT+7 day of ``ordered_at``; None (a line built in memory) ->
+    #: the GMT+7 day of ``ordered_at`` (naive = Vietnam local).
+    day: date | None = None
+
+    @property
+    def order_day(self) -> date:
+        return self.day if self.day is not None else vn_day(self.ordered_at)
 
 
 @dataclass(frozen=True)
@@ -218,7 +226,7 @@ def to_shop_lines(
                     order_id=r.order_ref,
                     sku=key,
                     product_id=item_id,
-                    order_date=r.ordered_at.date(),
+                    order_date=r.order_day,
                     qty=r.qty,
                     original_price=r.original_price,
                     deal_price=r.deal_price,
@@ -231,9 +239,11 @@ def to_shop_lines(
                     actual_fees=sum(fees, ZERO) if fees else None,
                     buyer_shipping_fee=r.buyer_shipping_fee,
                     bank_promo=r.bank_promo,
-                    status=_STATUS.get(r.status, OrderStatus.DELIVERED),
+                    # T5 vocabulary: a status the profit engine has no member for (pending,
+                    # confirmed, on_hold) is an order not delivered yet: no fee, no profit
+                    status=_STATUS.get(r.status, OrderStatus.IN_TRANSIT),
                 ),
-                ordered_on=r.ordered_at.date(),
+                ordered_on=r.order_day,
                 cost_key=key,
                 voucher_code=r.voucher_code,
                 kol=(
@@ -381,7 +391,7 @@ def profit_pairs(
     per order from the order's own lines, whatever the category rates of its items."""
     by_order: dict[str, list[int]] = defaultdict(list)
     for i, sl in enumerate(lines):
-        if sl.line.actual_fees is None and sl.line.income is None and sl.line.status.carries_profit:
+        if sl.line.actual_fees is None and sl.line.income is None and sl.line.status.charges_fees:
             by_order[sl.line.order_id].append(i)
     shares: dict[int, Mapping[str, Decimal]] = {}
     for idxs in by_order.values():

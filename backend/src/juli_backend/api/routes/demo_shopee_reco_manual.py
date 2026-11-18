@@ -18,8 +18,8 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop, require_writable_shop
-from juli_backend.api.routes.demo_shopee_analytics import _shopee
+from juli_backend.api.capability_gate import require_capability
+from juli_backend.api.dependencies import require_writable_shop
 from juli_backend.api.routes.shopee_reco_manual_common import (
     CompareBody,
     ManualBody,
@@ -32,6 +32,9 @@ from juli_backend.services.shop_proposals import ProposalError
 from juli_backend.services.shopee_recommendations import loader, manual, seller_view
 
 router = APIRouter(prefix="/demo/shopee/recommendations", tags=["demo-shopee"])
+
+_gate_r = require_capability(None)
+_gate_w = require_capability(None, shop_dependency=require_writable_shop)
 
 _SELLER_HIDDEN_VERSION = ("card",)
 
@@ -51,10 +54,10 @@ def _seller_versions(versions: list[dict[str, Any]]) -> list[dict[str, Any]]:
 @router.post("/compare")
 async def compare_variants(
     body: CompareBody,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     now = _now()
     try:
         env = await loader.load_env(session, shop_id, as_of=body.as_of, now=now)
@@ -72,11 +75,11 @@ async def compare_variants(
 @router.post("/manual", status_code=201)
 async def create_manual_card(
     body: ManualBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         out = await manual.create_manual(
             session,

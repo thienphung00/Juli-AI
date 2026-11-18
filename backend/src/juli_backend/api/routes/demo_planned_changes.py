@@ -24,9 +24,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop, require_writable_shop
+from juli_backend.api.capability_gate import require_capability
+from juli_backend.api.dependencies import require_writable_shop
 from juli_backend.api.routes import planned_changes_common as common
-from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.services import planned_changes as pc
@@ -35,36 +35,39 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/demo/shop-inputs/planned-changes", tags=["demo"])
 
+_gate_r = require_capability(None)
+_gate_w = require_capability(None, shop_dependency=require_writable_shop)
+
 
 @router.get("")
-async def get_overview(shop: Shop = Depends(get_active_shop)) -> dict[str, Any]:
-    _shopee(shop)
+async def get_overview(shop: Shop = Depends(_gate_r)) -> dict[str, Any]:
+    shop.id
     return common.overview()
 
 
 @router.get("/template")
-async def download_template(shop: Shop = Depends(get_active_shop)) -> Response:
-    _shopee(shop)
+async def download_template(shop: Shop = Depends(_gate_r)) -> Response:
+    shop.id
     return common.template_response()
 
 
 @router.post("/preview")
 async def preview(
     body: common.ImportBody,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    return await common.run_preview(session, _shopee(shop), body)
+    return await common.run_preview(session, shop.id, body)
 
 
 @router.post("/apply")
 async def apply(
     body: common.ApplyBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     result = await common.run_apply(
         session, shop_id, body, actor=pc.Actor("seller", user_id=user.id)
     )
@@ -84,15 +87,15 @@ async def apply(
 
 @router.get("/versions")
 async def list_versions(
-    shop: Shop = Depends(get_active_shop), session: AsyncSession = Depends(get_session)
+    shop: Shop = Depends(_gate_r), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
-    return await common.read_versions(session, _shopee(shop))
+    return await common.read_versions(session, shop.id)
 
 
 @router.get("/versions/{number}")
 async def get_version(
     number: int,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    return await common.read_version(session, _shopee(shop), number)
+    return await common.read_version(session, shop.id, number)

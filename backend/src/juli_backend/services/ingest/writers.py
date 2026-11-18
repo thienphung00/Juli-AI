@@ -2,48 +2,62 @@
 
 Called by ``gateway._write`` inside the shop's tenant scope; nothing here commits.
 
-- ``order_lines`` -> ``shopee_order_lines``: upsert on (shop, platform, order_ref, line_no). A
-  later export of the same order moves its status and fills fees; a NULL fee or time never
-  erases a value already stored. The export names a product by SKU only, so ``item_id`` is
-  resolved from ``platform_items.seller_sku`` when the catalogue knows it, else it is
-  ``sku:<sku>``.
-- ``affiliate_order_lines`` -> ``shopee_affiliate_lines`` (migration 122, P96): every report line
-  is upserted there on (shop, platform, order_ref, line_no, item_id, model_id), so the KOL tab
-  fills without the order export. It also MARKS the order export's matching ``shopee_order_lines``
+- ``order_lines`` -> ``order_lines`` (``shopee_order_lines`` until migration 134): upsert on
+  (shop, platform, order_ref, line_no). A later export of the same order moves its status and
+  fills fees; a NULL fee or time never erases a value already stored. The export names a product
+  by SKU only, so ``item_id`` is resolved from ``platform_items.seller_sku`` when the catalogue
+  knows it, else it is ``sku:<sku>``. The status is stored in the canonical vocabulary
+  (:func:`canonical_status`).
+- ``affiliate_order_lines`` -> ``affiliate_lines`` (migration 122, P96; renamed by 134): every
+  report line is upserted there on (shop, platform, order_ref, line_no, item_id, variation_id),
+  so the KOL tab fills without the order export. It also MARKS the order export's matching
+  ``order_lines``
   row (``affiliate``, ``commission`` from ``Chi phí(₫)`` (``affiliate_commission``), the KOL
   columns of migration 118, ``traffic_source``) and never creates one there: the export owns that
   line. A line the export does not hold yet is counted unmatched, and is still stored.
 - ``ads_change_log`` and ``shop_health_daily``: append-only, ``ON CONFLICT DO NOTHING``.
 - ``item_snapshot`` -> ``platform_item_snapshots``: a row is inserted only when a tracked field
   changed since the item's latest snapshot (the 112 rule lives here; SQL cannot express it).
+
+Times (migration 134, Q-T5-4): the canonical tables are ``timestamptz``. An order time the
+Connector or a file sends naive is Vietnam local (:func:`models.shopee_profit.as_vn`), an aware
+one is kept, and ``day`` is its GMT+7 day. The tables outside T5 keep naive UTC (``_naive``).
 """
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.ingest import SOURCE_RANK
 from juli_backend.models.platform_data import ITEM_LEVEL_VARIATION, PlatformItem
 from juli_backend.models.shopee_profit import (
+    ORDER_LINE_STATUSES,
     AdsChangeLog,
     PlatformItemSnapshot,
     ShopeeAffiliateLine,
     ShopeeOrderLine,
     ShopHealthDaily,
+    as_vn,
+    vn_day,
 )
 from juli_backend.services.ingest.affiliate_commission import seller_commission
 from juli_backend.services.ingest.kol_key import kol_key
+from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills
 from juli_backend.services.ingest.rank_guard import (
-    incoming_capture,
-    not_older,
+    excluded_payload_captured_at,
     payload_captured_at,
+    ranked_set,
+    ranked_where,
 )
 from juli_backend.services.ingest.schemas import (
     IngestBody,
@@ -53,6 +67,8 @@ from juli_backend.services.ingest.schemas import (
     ShopeeOrderLineRow,
     ShopeeShopHealthDailyRow,
 )
+
+logger = logging.getLogger(__name__)
 
 CHUNK = 400
 #: ``item_id`` of an order line whose SKU the catalogue does not know yet.
@@ -68,9 +84,58 @@ class AffiliateMatch:
 
 
 def _naive(value: datetime | None) -> datetime | None:
+    """Naive UTC, for the tables outside T5 (ads log, snapshots); never an order time."""
     if value is None:
         return None
     return value.astimezone(UTC).replace(tzinfo=None) if value.tzinfo else value
+
+
+def _rank(provenance: dict[str, Any]) -> int:
+    """The writer's precedence (``SOURCE_RANK``): the gateway's, else the source's own."""
+    rank = provenance.get("source_rank")
+    return int(rank) if rank is not None else SOURCE_RANK.get(provenance["source"], 0)
+
+
+#: Columns that describe the post, not the order: they follow the row's highest-ranked writer.
+_PROVENANCE = frozenset(("source", "source_rank", "source_version", "raw_payload_id", "updated_at"))
+_LINE_KEY = ("shop_id", "platform", "order_ref", "line_no")
+_AFFILIATE_KEY = ("shop_id", "platform", "order_ref", "line_no", "item_id", "variation_id")
+
+
+def _ranked_set(stmt: Any, table: Any, columns: Iterable[str]) -> dict[str, Any]:
+    """The upsert SET of a line table (``rank_guard.ranked_set``, owner 2026-11-18 + R7): a higher
+    rank replaces with its non-null values, an equal rank with a newer capture too, a lower rank
+    (a file under the Connector) only fills NULL columns; the provenance follows the winner. The
+    line tables keep no capture time: both sides compare their raw payloads'."""
+    return ranked_set(
+        table,
+        stmt.excluded,
+        columns,
+        _PROVENANCE,
+        stored_captured=payload_captured_at(table),
+        incoming_captured=excluded_payload_captured_at(),
+    )
+
+
+def _ranked_where(stmt: Any, table: Any) -> Any:
+    """The upsert WHERE paired with ``_ranked_set``: an equal-rank older read is ignored."""
+    return ranked_where(
+        table,
+        stmt.excluded,
+        stored_captured=payload_captured_at(table),
+        incoming_captured=excluded_payload_captured_at(),
+    )
+
+
+def canonical_status(raw: str, *, paid: bool) -> str:
+    """The order-line status to store (T5 §3, Q-T5-3): a canonical value as it is; anything
+    else ``in_transit`` when the line has a payment time, else ``pending``, and logged."""
+    value = raw.strip().lower()
+    if value in ORDER_LINE_STATUSES:
+        return value
+    fallback = "in_transit" if paid else "pending"
+    logger.warning("order_line_status_unknown", extra={"status": raw[:64], "stored_as": fallback})
+    return fallback
 
 
 def _insert(session: AsyncSession) -> Any:
@@ -156,8 +221,9 @@ async def write_order_lines(
                 "platform": platform,
                 "order_ref": row.order_ref,
                 "line_no": row.line_no,
-                "ordered_at": _naive(row.ordered_at),
-                "status": row.status,
+                "ordered_at": as_vn(row.ordered_at),
+                "day": vn_day(row.ordered_at),
+                "status": canonical_status(row.status, paid=row.paid_at is not None),
                 "item_id": item_id,
                 "variation_id": variation_id,
                 "sku": row.sku,
@@ -168,7 +234,7 @@ async def write_order_lines(
                 "original_price": row.original_price,
                 "deal_price": row.deal_price,
                 "seller_subsidy": row.seller_subsidy,
-                "shopee_subsidy": row.shopee_subsidy,
+                "platform_subsidy": row.shopee_subsidy,
                 "shop_voucher_share": row.shop_voucher_share,
                 "platform_voucher_share": row.platform_voucher_share,
                 "bundle_discount": row.bundle_discount,
@@ -178,53 +244,48 @@ async def write_order_lines(
                 "fee_fixed": row.fee_fixed,
                 "fee_service": row.fee_service,
                 "fee_payment": row.fee_payment,
-                "completed_at": _naive(row.completed_at),
-                "paid_at": _naive(row.paid_at),
+                "completed_at": as_vn(row.completed_at),
+                "paid_at": as_vn(row.paid_at),
                 "source": provenance["source"],
+                "source_rank": _rank(provenance),
                 "source_version": provenance["source_version"],
                 "raw_payload_id": provenance["raw_payload_id"],
                 "updated_at": provenance["updated_at"],
             }
         )
+    await upsert_line_values(session, values)
+
+
+async def upsert_line_values(session: AsyncSession, values: list[dict[str, Any]]) -> None:
+    """The one ``order_lines`` upsert (the gateway and ``DbCanonicalWriter`` share it): a post of
+    the same or a higher rank replaces with its non-null values, a lower rank only fills NULL
+    columns, a NULL never clears, an equal-rank older read is ignored (``_ranked_set``)."""
     insert = _insert(session)
-    keep = (
-        "fee_fixed",
-        "fee_service",
-        "fee_payment",
-        "completed_at",
-        "paid_at",
-        "variation_name",
-    )
+    table = ShopeeOrderLine.__table__
     for part in _chunks(values):
+        mutable = tuple(c for c in part[0] if c != "id" and c not in _LINE_KEY)
+        await _log_fills(session, ShopeeOrderLine, _LINE_KEY, part, mutable)
         stmt = insert(ShopeeOrderLine).values(part)
-        table = ShopeeOrderLine.__table__
-        updated: dict[str, Any] = {
-            column: stmt.excluded[column]
-            for column in part[0]
-            if column not in ("id", "shop_id", "platform", "order_ref", "line_no")
-            and column not in keep
-        }
-        # A NULL (not filled yet) never erases a fee or time already stored.
-        updated.update(
-            {column: func.coalesce(stmt.excluded[column], table.c[column]) for column in keep}
-        )
         await session.execute(
             stmt.on_conflict_do_update(
-                index_elements=["shop_id", "platform", "order_ref", "line_no"],
-                set_=updated,
-                where=_not_older_where(table, provenance),
+                index_elements=list(_LINE_KEY),
+                set_=_ranked_set(stmt, table, mutable),
+                where=_ranked_where(stmt, table),
             )
         )
 
 
-def _not_older_where(table: Any, provenance: dict[str, Any]) -> Any:
-    """R7: a line re-read on another computer replaces the stored one only when its capture is
-    not older (no rank: the stored capture is its raw payload's; NULL counts as older). ``None``
-    (no guard) when the caller gave no capture time."""
-    incoming = incoming_capture(provenance)
-    if incoming is None:
-        return None
-    return not_older(payload_captured_at(table), incoming)
+async def _log_fills(
+    session: AsyncSession,
+    model: Any,
+    key: tuple[str, ...],
+    part: list[dict[str, Any]],
+    mutable: tuple[str, ...],
+) -> None:
+    """One ``ingest_gap_fill`` log line (counts only) when a lower-ranked post fills gaps."""
+    fillable = tuple(c for c in mutable if c not in _PROVENANCE)
+    found = await count_gap_fills(session, model, key, part, fillable)
+    log_gap_fills(model.__tablename__, part[0]["shop_id"], part[0]["source"], found)
 
 
 # -- affiliate order lines ---------------------------------------------------------------
@@ -325,8 +386,9 @@ _AFFILIATE_MUTABLE = (
     "refund_amount",
     "commission",
     "valid",
-    "order_status",
+    "status",
     "ordered_at",
+    "day",
     "completed_at",
     "conversion_at",
     "kol_key",
@@ -335,6 +397,7 @@ _AFFILIATE_MUTABLE = (
     "affiliate_campaign_type",
     "affiliate_mcn",
     "source",
+    "source_rank",
     "source_version",
     "raw_payload_id",
     "updated_at",
@@ -358,17 +421,18 @@ async def _store_affiliate_lines(
             "order_ref": row.order_ref,
             "line_no": row.line_no,
             "item_id": row.item_id,
-            "model_id": row.model_id or "",
+            "variation_id": row.model_id or "",
             "price": row.price,
             "qty": None if row.qty is None else int(row.qty),
             "order_value": row.order_value,
             "refund_amount": row.refund_amount,
             "commission": seller_commission(row),
             "valid": row.valid,
-            "order_status": row.order_status,
-            "ordered_at": _naive(row.ordered_at),
-            "completed_at": _naive(row.completed_at),
-            "conversion_at": _naive(row.conversion_at),
+            "status": row.order_status,
+            "ordered_at": as_vn(row.ordered_at),
+            "day": vn_day(row.ordered_at),
+            "completed_at": as_vn(row.completed_at),
+            "conversion_at": as_vn(row.conversion_at),
             "kol_key": None,
             "kol_handle": None,
             "affiliate_channel": None,
@@ -376,25 +440,21 @@ async def _store_affiliate_lines(
             "affiliate_mcn": None,
             **_kol_columns(row),
             "source": provenance["source"],
+            "source_rank": _rank(provenance),
             "source_version": provenance["source_version"],
             "raw_payload_id": provenance["raw_payload_id"],
             "updated_at": provenance["updated_at"],
         }
     insert = _insert(session)
+    table = ShopeeAffiliateLine.__table__
     for part in _chunks(list(by_key.values())):
+        await _log_fills(session, ShopeeAffiliateLine, _AFFILIATE_KEY, part, _AFFILIATE_MUTABLE)
         stmt = insert(ShopeeAffiliateLine).values(part)
         await session.execute(
             stmt.on_conflict_do_update(
-                index_elements=[
-                    "shop_id",
-                    "platform",
-                    "order_ref",
-                    "line_no",
-                    "item_id",
-                    "model_id",
-                ],
-                set_={column: stmt.excluded[column] for column in _AFFILIATE_MUTABLE},
-                where=_not_older_where(ShopeeAffiliateLine.__table__, provenance),
+                index_elements=list(_AFFILIATE_KEY),
+                set_=_ranked_set(stmt, table, _AFFILIATE_MUTABLE),
+                where=_ranked_where(stmt, table),
             )
         )
 

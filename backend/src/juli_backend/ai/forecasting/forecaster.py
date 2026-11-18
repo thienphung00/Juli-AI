@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import InventoryItem, Order
@@ -135,7 +135,8 @@ async def _daily_units_series(
     cutoff = now - timedelta(days=lookback_days)
     stmt = select(Order).where(
         Order.shop_id == shop_id,
-        Order.status == "COMPLETED",
+        # Silver stores COMPLETED as ``delivered``; raw COMPLETED still matches.
+        func.upper(Order.status).in_(("DELIVERED", "COMPLETED")),
         Order.created_at >= cutoff,
     )
     result = await session.execute(stmt)

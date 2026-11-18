@@ -1,7 +1,8 @@
-"""Writer of the ``order_income`` dataset: ``shopee_order_income`` (migration 119, P91 D-12).
+"""Writer of the ``order_income`` dataset: ``order_settlements`` (migration 119, P91 D-12; named
+``shopee_order_income`` until migration 134).
 
 One row per (shop, platform, order). A later post of the same order replaces the row when its
-source ranks the same or higher (file over extension, as ``gateway._upsert``); a column the
+source ranks the same or higher (extension over file, as ``gateway._upsert``); a column the
 later post does not state (NULL) never erases one already stored.
 """
 
@@ -12,14 +13,16 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.shopee_profit import ShopeeOrderIncome
+from juli_backend.services.ingest.precedence import count_gap_fills, log_gap_fills
 from juli_backend.services.ingest.rank_guard import (
-    incoming_capture,
-    newer_wins_where,
+    excluded_payload_captured_at,
     payload_captured_at,
+    ranked_set,
+    ranked_where,
 )
 from juli_backend.services.ingest.schemas import IngestBody, ShopeeOrderIncomeRow
 
@@ -27,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 CHUNK = 400
 KEY_COLUMNS = ("shop_id", "platform", "order_ref")
-#: Row fields copied to same-named columns.
+#: Row fields copied to the column of the same name (or of :data:`COLUMN_OF`'s name).
 AMOUNT_FIELDS: tuple[str, ...] = (
     "payout",
     "product_price",
@@ -56,7 +59,13 @@ AMOUNT_FIELDS: tuple[str, ...] = (
     "trade_in_bonus_seller",
     "transaction_fee_rate",
 )
-STATED_COLUMNS: tuple[str, ...] = ("ordered_on", "paid_on", *AMOUNT_FIELDS)
+#: Migration 134: a wire field whose column has a platform-neutral name.
+COLUMN_OF: dict[str, str] = {"ship_shopee_subsidy": "ship_platform_subsidy"}
+AMOUNT_COLUMNS: tuple[str, ...] = tuple(COLUMN_OF.get(name, name) for name in AMOUNT_FIELDS)
+#: ``fee_other`` has no wire field (the TikTok mapper fills it through ``DbCanonicalWriter``).
+STATED_COLUMNS: tuple[str, ...] = ("ordered_on", "paid_on", *AMOUNT_COLUMNS, "fee_other")
+#: describe the post: they stay with the highest-ranked writer
+PROVENANCE_COLUMNS = ("source", "source_rank", "source_version", "raw_payload_id", "updated_at")
 
 
 def _insert(session: AsyncSession) -> Any:
@@ -81,6 +90,7 @@ def income_values(
             "order_ref": row.order_ref,
             "ordered_on": row.ordered_on,
             "paid_on": row.paid_on,
+            "fee_other": None,
             "source": provenance["source"],
             "source_rank": provenance["source_rank"],
             "source_version": provenance["source_version"],
@@ -89,7 +99,7 @@ def income_values(
         }
         for name in AMOUNT_FIELDS:
             amount: Decimal | None = getattr(row, name)
-            value[name] = amount
+            value[COLUMN_OF.get(name, name)] = amount
         out.append(value)
     return out
 
@@ -139,36 +149,43 @@ async def write_order_income(
     if not rows:
         return []
     warnings = await _seller_support_warning(session, rows, provenance)
+    await upsert_settlement_values(session, income_values(rows, provenance))
+    return warnings
+
+
+async def upsert_settlement_values(session: AsyncSession, values: list[dict[str, Any]]) -> None:
+    """The one ``order_settlements`` upsert (the gateway and ``DbCanonicalWriter`` share it)."""
     insert = _insert(session)
     table = ShopeeOrderIncome.__table__
-    values = income_values(rows, provenance)
-    incoming = incoming_capture(provenance)
-    if incoming is None:
-        raise ValueError("order income needs a capture time or a raw payload id")
     for start in range(0, len(values), CHUNK):
-        stmt = insert(ShopeeOrderIncome).values(values[start : start + CHUNK])
-        updated: dict[str, Any] = {
-            column: func.coalesce(stmt.excluded[column], table.c[column])
-            for column in STATED_COLUMNS
-        }
-        updated.update(
-            {
-                column: stmt.excluded[column]
-                for column in ("source", "source_rank", "source_version", "raw_payload_id")
-            }
+        part = values[start : start + CHUNK]
+        found = await count_gap_fills(session, ShopeeOrderIncome, KEY_COLUMNS, part, STATED_COLUMNS)
+        log_gap_fills(ShopeeOrderIncome.__tablename__, part[0]["shop_id"], part[0]["source"], found)
+        stmt = insert(ShopeeOrderIncome).values(part)
+        # owner 2026-11-18 + R7 (``rank_guard.ranked_set``): a higher rank replaces with its
+        # stated values (a NULL keeps the stored one), an equal rank too unless its capture is
+        # older (then it is ignored), a lower rank only fills NULL columns; the provenance stays
+        # with the winning writer. This table keeps no capture time: both sides compare their
+        # raw payloads'.
+        stored_captured = payload_captured_at(table)
+        incoming_captured = excluded_payload_captured_at()
+        updated = ranked_set(
+            table,
+            stmt.excluded,
+            (*STATED_COLUMNS, *PROVENANCE_COLUMNS),
+            PROVENANCE_COLUMNS,
+            stored_captured=stored_captured,
+            incoming_captured=incoming_captured,
         )
-        updated["updated_at"] = stmt.excluded["updated_at"]
         await session.execute(
             stmt.on_conflict_do_update(
                 index_elements=list(KEY_COLUMNS),
                 set_=updated,
-                # this table keeps no capture time: the stored one is its raw payload's
-                where=newer_wins_where(
+                where=ranked_where(
                     table,
                     stmt.excluded,
-                    stored_captured=payload_captured_at(table),
-                    incoming_captured=incoming,
+                    stored_captured=stored_captured,
+                    incoming_captured=incoming_captured,
                 ),
             )
         )
-    return warnings

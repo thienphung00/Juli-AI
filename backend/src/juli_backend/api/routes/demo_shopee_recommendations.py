@@ -27,9 +27,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop, require_writable_shop
+from juli_backend.api.capability_gate import require_capability
+from juli_backend.api.dependencies import require_writable_shop
 from juli_backend.api.reviewer import deny, reviewer_context
-from juli_backend.api.routes.demo_shopee_analytics import _shopee
 from juli_backend.api.routes.shopee_recommendations_common import (
     ApproveBody,
     DismissBody,
@@ -49,6 +49,9 @@ from juli_backend.services.shop_proposals import ProposalError
 
 router = APIRouter(prefix="/demo/shopee/recommendations", tags=["demo-shopee"])
 
+_gate_r = require_capability(None)
+_gate_w = require_capability(None, shop_dependency=require_writable_shop)
+
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
@@ -65,10 +68,10 @@ async def list_recommendations(
     xep_theo: Annotated[str, Query(max_length=24)] = "diem",
     product_id: Annotated[str | None, Query(max_length=64)] = None,
     queue: Annotated[str, Query(pattern="^(top|all)$")] = "top",
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         return await reco.list_cards(
             session,
@@ -88,10 +91,10 @@ async def list_recommendations(
 @router.get("/{card_id}")
 async def recommendation_detail(
     card_id: uuid.UUID,
-    shop: Shop = Depends(get_active_shop),
+    shop: Shop = Depends(_gate_r),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         return await reco.card_detail(session, shop_id, card_id, audience="seller")
     except ProposalError as exc:
@@ -102,10 +105,10 @@ async def recommendation_detail(
 async def recommendation_whatif(
     card_id: uuid.UUID,
     body: WhatIfBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         card = await reco.recompute(
             session, shop_id, card_id, body.inputs, now=_now(), version=body.version
@@ -122,7 +125,7 @@ async def approve_recommendation(
     card_id: uuid.UUID,
     body: ApproveBody,
     request: Request,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -153,7 +156,7 @@ async def approve_recommendation(
 async def request_change(
     card_id: uuid.UUID,
     body: RequestChangeBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -164,7 +167,7 @@ async def request_change(
 async def dismiss_recommendation(
     card_id: uuid.UUID,
     body: DismissBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -183,7 +186,7 @@ async def _simulated_approve(
     context = reviewer_context(request)
     if context is None or context.pin is None or context.pin.sample or context.pin.sandbox:
         raise deny("read_only")  # fail closed
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         detail = await reco.card_detail(session, shop_id, card_id, audience="seller")
     except ProposalError as exc:
@@ -213,7 +216,7 @@ async def _simulated_approve(
 async def _decide(
     session: AsyncSession, shop: Shop, card_id: uuid.UUID, user: User, decision: str, **kw: Any
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         out = await reco.decide(
             session, shop_id, card_id, decision=decision, user_id=user.id, now=_now(), **kw
@@ -229,12 +232,12 @@ async def _decide(
 async def recommendation_reverted(
     card_id: uuid.UUID,
     body: RevertedBody,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """ "Đã hoàn tác": the person undid the change in Seller Centre; measurement stops."""
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     try:
         out = await reco.mark_reverted(
             session, shop_id, card_id, now=_now(), user_id=user.id, note=body.note
@@ -251,11 +254,11 @@ async def recommendation_executed(
     card_id: uuid.UUID,
     body: ExecutedBody,
     request: Request,
-    shop: Shop = Depends(require_writable_shop),
+    shop: Shop = Depends(_gate_w),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    shop_id = _shopee(shop)
+    shop_id = shop.id
     context = reviewer_context(request)
     # P100 S2-F2: the reviewer's sample shop has no Connector and no Seller Centre: a voucher gets
     # a sample code, and the read-back is simulated so the card reaches Khớp and Đo lường.
