@@ -34,6 +34,9 @@ class BuilderContext:
     source_env: RecoEnv | None = None
     #: the shop's campaigns with their Shopee ids (for the ads levers' cards)
     campaigns: RealCampaigns = field(default_factory=RealCampaigns)
+    #: item id -> what the Connector last read on its pages (``platform_items.extra``:
+    #: ``description_first_line``, ``affiliate_commission_pct``); contract D
+    current: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def rows(self, item_id: str) -> list[dict[str, Any]]:
         return self.variations.get(item_id, [])

@@ -50,6 +50,7 @@ from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.services import shopee_recommendations as reco
 from juli_backend.services.ops import audit
 from juli_backend.services.shop_proposals import ProposalError
+from juli_backend.services.shopee_recommendations import revert_fill
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 
@@ -61,6 +62,7 @@ ACTION_PUBLISH = "reco_publish"
 ACTION_WITHDRAW = "reco_withdraw"
 ACTION_EXECUTED = "reco_executed"
 ACTION_REVERTED = "reco_reverted"
+ACTION_REVERT_FILL = "reco_revert_fill"
 ACTION_SIM_IMPORT = "reco_sim_import"
 ACTION_LEARNING = "reco_learning_run"
 ACTION_BACKFILL = "reco_backfill"
@@ -452,9 +454,33 @@ async def ops_reverted(
     try:
         async with with_shop_scope(session, shop_id):
             out = await reco.mark_reverted(
-                session, shop_id, card_id, now=_now(), staff_id=ctx.staff.id, note=body.note
+                session,
+                shop_id,
+                card_id,
+                now=_now(),
+                staff_id=ctx.staff.id,
+                note=body.note,
+                manual=body.manual,
             )
         await _audited(session, ctx, shop_id, ACTION_REVERTED, {"card_id": str(card_id)})
+    except ProposalError as exc:
+        await session.rollback()
+        raise refused(exc) from None
+    return out
+
+
+@router.post(BASE + "/{card_id}/revert-fill", status_code=201)
+async def ops_revert_fill(
+    shop_id: uuid.UUID,
+    card_id: uuid.UUID,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+    _shop_name: str = Depends(_gate),
+) -> dict[str, Any]:
+    try:
+        async with with_shop_scope(session, shop_id):
+            out = await revert_fill.revert_fill(session, shop_id, card_id, now=_now())
+        await _audited(session, ctx, shop_id, ACTION_REVERT_FILL, {"card_id": str(card_id)})
     except ProposalError as exc:
         await session.rollback()
         raise refused(exc) from None

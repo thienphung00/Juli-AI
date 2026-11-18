@@ -652,6 +652,10 @@ class ShopeeItemCatalogRow(PeriodRowBase):
     variation_name: Annotated[str, StringConstraints(max_length=255)] | None = None
     seller_sku: Annotated[str, StringConstraints(max_length=100)] | None = None
     status: Annotated[str, StringConstraints(max_length=64)] | None = None
+    #: batch-1118g contract D: what the product edit page holds now (first line of the
+    #: description) / what the open-campaign page shows (commission %). Optional, item level.
+    description_first_line: Annotated[str, StringConstraints(max_length=600)] | None = None
+    commission_pct: Percent | None = None
 
     def key(self) -> tuple[Any, ...]:
         return (self.item_id, self.variation_id)

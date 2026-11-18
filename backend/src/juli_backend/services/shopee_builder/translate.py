@@ -423,7 +423,11 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext, *, _flat: bool = False
                 "change_kind": "description_first_line",
                 "items": [spec.item_id],
                 "inputs": {"first_line": spec.first_line},
-                "extra": {"current_first_line": None},
+                "extra": {
+                    "current_first_line": ctx.current.get(spec.item_id, {}).get(
+                        "description_first_line"
+                    )
+                },
             },
             "description_first_line",
             items=[spec.item_id],
@@ -443,6 +447,11 @@ def to_variant(spec: sp.VersionSpec, ctx: BuilderContext, *, _flat: bool = False
                 "change_kind": kind,
                 "items": [item],
                 "inputs": aff_inputs,
+                "extra": {
+                    "current_commission_pct": ctx.current.get(item, {}).get(
+                        "affiliate_commission_pct"
+                    )
+                },
             },
             kind,
             items=[item],

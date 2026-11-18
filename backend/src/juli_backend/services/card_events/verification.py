@@ -71,7 +71,7 @@ from __future__ import annotations
 
 import unicodedata
 import uuid
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -114,8 +114,8 @@ CHANGE_KINDS = (
     "variations",
     "description_first_line",
 )
-#: False until a Connector reader posts the description's first line (p91 D-13 recon).
-DESCRIPTION_READBACK_ACTIVE = False
+#: batch-1118g contract D: the Connector posts the description's first line from the edit page.
+DESCRIPTION_READBACK_ACTIVE = True
 #: Executions an importer backdated carry ``payload.readback = False``: their history is the
 #: baseline, the Connector has nothing "after" to read.
 NO_READBACK_FLAG = "readback"
@@ -574,6 +574,38 @@ async def verify_shop(
             await record_verdict(session, change, verdict, now=now)
         except (KeyError, ValueError):
             tally["failed"] += 1  # a malformed target: counted, never stops the rest
+            continue
+        tally[verdict.outcome or "pending"] += 1
+    return VerificationCounts(**tally)
+
+
+async def verify_objects(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    now: datetime,
+    *,
+    item_ids: Collection[str] = (),
+    voucher_ids: Collection[str] = (),
+) -> VerificationCounts:
+    """Contract C (batch-1118g): a read-back just posted these items / vouchers -- verify the
+    pending executions that target them NOW, not at the next 01:17 / 07:17 / 13:17 / 19:17Z run
+    (no commit). Same verdicts as ``verify_shop``; other pending executions are left alone."""
+    wanted_items, wanted_vouchers = {str(i) for i in item_ids}, {str(v) for v in voucher_ids}
+    tally = {"checked": 0, "verified": 0, "mismatch": 0, "not_seen": 0, "pending": 0, "failed": 0}
+    if not wanted_items and not wanted_vouchers:
+        return VerificationCounts()
+    for change in await pending_changes(session, shop_id, now):
+        target = change.target
+        if str(target.get("item_id", "")) not in wanted_items and (
+            str(target.get("voucher_id", "")) not in wanted_vouchers
+        ):
+            continue
+        tally["checked"] += 1
+        try:
+            verdict = evaluate(change, await observations_for(session, change), now)
+            await record_verdict(session, change, verdict, now=now)
+        except (KeyError, ValueError):
+            tally["failed"] += 1
             continue
         tally[verdict.outcome or "pending"] += 1
     return VerificationCounts(**tally)

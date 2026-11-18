@@ -68,6 +68,7 @@ from juli_backend.services.shopee_recommendations import (
     plan_codes,
     product_queue,
     result_store,
+    revert_fill,
     store,
     trigger_adapter,
     versions,
@@ -813,6 +814,7 @@ async def card_detail(
             (await measurement_states(session, shop_id, [p.id])).get(str(p.id)),
         ),
         "reverted": meta.get("reverted"),
+        "revert": await revert_fill.revert_state(session, shop_id, card_id),
         "card": seller_view(full) if audience == "seller" else full,
         "journey": [
             {
@@ -1596,6 +1598,13 @@ async def mark_executed(
                     ERROR_BAD_INPUT, 422, "voucher_id is required to verify a voucher"
                 )
             c["target"] = {**c["target"], "voucher_id": voucher_id}
+            # F2.3 / E46: the person changed the form by hand: the saved form's values are what
+            # the read-back must find; the card's own are kept beside them
+            seen = await fill_queue.seen_voucher_values(session, shop_id, card_id)
+            seen = {k: v for k, v in seen.items() if k in c["expected"] and c["expected"][k] != v}
+            if seen:
+                c["card_expected"] = {k: c["expected"][k] for k in seen}
+                c["expected"] = {**c["expected"], **seen}
     role = "client_representative" if user_id is not None else "juli_operator"
     execution = await proposals.record_execution(
         session,
@@ -1647,6 +1656,7 @@ async def mark_executed(
             subject=subject,
         )
     await store.set_meta(session, shop_id, card_id, {"executed_at": when.isoformat()})
+    await revert_fill.queue_readback_after_executed(session, shop_id, card_id, now=now)  # F3.2
     await _requeue(session, p, now)  # executed closes the card for the queue at once
     from juli_backend.services.shopee_recommendations import plans
 
@@ -1682,6 +1692,7 @@ async def mark_reverted(
     user_id: uuid.UUID | None = None,
     staff_id: uuid.UUID | None = None,
     note: str | None = None,
+    manual: bool = False,
 ) -> dict[str, Any]:
     """ "Đã hoàn tác": a person undid an executed card in Seller Centre and says so. Records one
     ``reverted`` event (who, when), stops the card's measurement the way the board reset does
@@ -1698,6 +1709,11 @@ async def mark_reverted(
     meta = await store.card_meta(session, shop_id, card_id)
     if meta.get("reverted"):
         raise ProposalError("reco_already_reverted", 409, "the card is already marked as reverted")
+    # F3.1: with revert jobs the Connector's read-back must show the original first; the owner's
+    # fallback ``manual`` keeps today's flow (Connector off)
+    state = await revert_fill.revert_state(session, shop_id, card_id)
+    if state is not None and not state["ready"] and not manual:
+        raise ProposalError(revert_fill.ERROR_NOT_CONFIRMED, 409, "revert not confirmed")
     actor = ACTOR_SELLER if user_id else ACTOR_SYSTEM
     by = f"user:{user_id}" if user_id else f"staff:{staff_id}"
     executed_at = meta.get("executed_at")
