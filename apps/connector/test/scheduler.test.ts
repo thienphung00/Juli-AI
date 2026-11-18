@@ -1314,7 +1314,8 @@ describe("0.3.20: the orders outcome is truthful", () => {
     const tab = ctx.tabs.current;
     await ctx.scheduler.onTabReady(tab.id, tab.url);
     await ctx.scheduler.onResult(tab.id, { job: "orders", status: "done", responses: [] });
-    expect((await ctx.read())?.lastRun?.outcomes.orders).toBe("error:orders:0_rows:ignored");
+    // 0.3.26: the step is named (nothing came back from the list page)
+    expect((await ctx.read())?.lastRun?.outcomes.orders).toBe("error:orders:0_rows:no_list_answer");
 
     const empty = setup({ readers: ["orders"] });
     (empty.scheduler as unknown as { deps: { sink: { postReader: unknown } } }).deps.sink.postReader = async () => ({ order_lines: "ignored" });
@@ -1322,8 +1323,25 @@ describe("0.3.20: the orders outcome is truthful", () => {
     const t2 = empty.tabs.current;
     await empty.scheduler.onTabReady(t2.id, t2.url);
     await empty.scheduler.onResult(t2.id, { job: "orders", status: "done", detail: "no_new_orders", responses: [] });
-    expect((await empty.read())?.lastRun?.outcomes.orders).toBe("no_orders");
+    // 0.3.26: a day with no order is read and empty ("no_orders" stays the income page's outcome)
+    expect((await empty.read())?.lastRun?.outcomes.orders).toBe("done:order_lines=empty");
     expect((await empty.read())?.ordersCoveredDay).toBe("2026-11-03");
+  });
+
+  it("0.3.26: an income page without the Tài chính right is blocked:no_permission; the run goes on, the queue is kept", async () => {
+    const ctx = setup({ readers: ["order_income", "vouchers"] });
+    const queue = [{ id: "26110777", completedAt: T0 - 1000 }];
+    ctx.storage.data.readers = { adsDone: [], trafficDone: [], incomeQueue: queue };
+    await ctx.scheduler.tick();
+    const tab = ctx.tabs.current;
+    await ctx.scheduler.onTabReady(tab.id, tab.url);
+    await ctx.scheduler.onResult(tab.id, { job: "order_income", status: "blocked_no_permission", detail: "http_403_code_10013", responses: [] });
+    const after = await ctx.read();
+    expect(after?.run?.outcomes.order_income).toBe("blocked:no_permission|http_403_code_10013");
+    expect(after?.run?.index).toBe(1);
+    expect(after?.blocked).toBeUndefined();
+    expect(after?.incomeQueue).toEqual(queue);
+    expect(after?.incomeDay).toBeUndefined();
   });
 });
 

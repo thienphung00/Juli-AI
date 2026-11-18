@@ -759,7 +759,7 @@ export interface ConnectorLine {
 /** A section blocked by a login wall or CAPTCHA in the Connector's last daily run. */
 export interface ReaderBlock {
   readonly section: "phan_tich_ban_hang" | "seller_centre" | string;
-  readonly reason: "login" | "captcha" | "password_recheck" | string;
+  readonly reason: "login" | "captcha" | "password_recheck" | "no_permission" | string;
   readonly readers: readonly string[];
 }
 
