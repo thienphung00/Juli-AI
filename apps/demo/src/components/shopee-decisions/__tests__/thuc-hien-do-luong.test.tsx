@@ -139,6 +139,15 @@ describe("Đo lường", () => {
 describe("Đối chiếu ngay", () => {
   const line = (over: Partial<ExecutionStates["connector"]>): ExecutionStates => ({ ...states([]), connector: { ...states([]).connector, ...over } });
 
+  it("R7: one update line when the newest Connector is below Juli's minimum; none otherwise", async () => {
+    const old = renderReco(<ThucHienView />, fakeReco({ execution: line({ upgrade_required: true, min_version: "0.3.25" }) }));
+    expect(await screen.findByTestId("sd-th-bar-upgrade")).toHaveTextContent(/^Cập nhật Juli Connector lên 0.3.25$/);
+    old.unmount();
+    renderReco(<ThucHienView />, fakeReco({ execution: line({ upgrade_required: false, min_version: "0.3.25" }) }));
+    await screen.findByTestId("sd-th-bar");
+    expect(screen.queryByTestId("sd-th-bar-upgrade")).toBeNull();
+  });
+
   it("0.3.22: a login block on Phân tích bán hàng is one short line in the bar; none, no line", async () => {
     const blocks = [{ section: "phan_tich_ban_hang", reason: "login", readers: ["shop_totals", "traffic"] }];
     const one = renderReco(<ThucHienView />, fakeReco({ execution: line({ reader_blocks: blocks }) }));

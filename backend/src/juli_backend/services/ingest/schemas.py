@@ -953,6 +953,8 @@ class PairRequest(BaseModel):
     platform: Literal["shopee", "tiktok"] = "shopee"
     platform_shop_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,32}$")] | None = None
     client_label: Annotated[str, StringConstraints(max_length=120)] | None = None
+    #: The Connector's random per-install id (R7): a re-pair from the same install supersedes.
+    install_id: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_\-]{8,64}$")] | None = None
 
 
 # -- order lines, ad change log, item snapshots, shop health (P90 step 2, migration 113) --

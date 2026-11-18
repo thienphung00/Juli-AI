@@ -71,7 +71,7 @@ export function ConnectorSettings({
     }
   };
 
-  const active = tokens.filter((t) => t.active);
+  const active = tokens.filter((t) => t.active).sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
   return (
     <section aria-labelledby="connector-title" className="qd-page">
       <AppPageHeader
@@ -107,21 +107,25 @@ export function ConnectorSettings({
           </p>
         ) : null}
         {received ? <ReceivedData received={received} /> : null}
-        <h2 style={{ margin: "8px 0 0", fontSize: 16 }}>Trình duyệt đã kết nối</h2>
+        <h2 style={{ margin: "8px 0 0", fontSize: 16 }}>Máy đã kết nối</h2>
         {active.length ? (
           <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
-            {active.map((t) => (
-              <li key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
-                <span>{t.client_label ?? "Trình duyệt không tên"}</span>
-                <span className="sa-hint">dùng lần cuối: {t.last_used_at ? new Date(t.last_used_at).toLocaleString("vi-VN") : "chưa"}</span>
+            {active.map((t, i) => {
+              const seen = t.last_seen_at ?? t.last_used_at;
+              return (
+              <li data-testid="connector-machine" key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
+                <span>{machineLabel(t.client_label, i)}</span>
+                {t.connector_version ? <span className="sa-hint">{t.connector_version}</span> : null}
+                <span className="sa-hint">{seen ? new Date(seen).toLocaleString("vi-VN") : "chưa"}</span>
                 <button className="juli-btn juli-btn--default" onClick={() => void revoke(t.id)} style={{ marginLeft: "auto" }} type="button">
-                  Ngắt kết nối
+                  Gỡ
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : (
-          <p style={{ margin: 0, fontSize: 14 }}>Chưa có trình duyệt nào kết nối.</p>
+          <p style={{ margin: 0, fontSize: 14 }}>Chưa có máy nào kết nối.</p>
         )}
         {error ? (
           <p role="alert" style={{ margin: 0 }}>
@@ -132,6 +136,10 @@ export function ConnectorSettings({
     </section>
   );
 }
+
+/** The label the seller (or the Connector's own default "Juli Connector <version>") gave; else "Máy <n>". */
+const machineLabel = (label: string | null, index: number): string =>
+  label && !label.startsWith("Juli Connector") ? label : `Máy ${index + 1}`;
 
 const day = (iso: string | null): string | null => (iso ? new Date(iso).toLocaleDateString("vi-VN") : null);
 

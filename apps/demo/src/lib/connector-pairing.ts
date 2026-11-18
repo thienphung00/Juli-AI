@@ -15,6 +15,10 @@ export interface SellerIngestToken {
   readonly client_label: string | null;
   readonly last_used_at: string | null;
   readonly active: boolean;
+  readonly created_at?: string;
+  /** From the computer's own state (migration 135); null until it has reported. */
+  readonly connector_version?: string | null;
+  readonly last_seen_at?: string | null;
 }
 
 export class PairingRequestError extends Error {

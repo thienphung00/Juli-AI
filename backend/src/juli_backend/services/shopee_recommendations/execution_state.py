@@ -44,6 +44,7 @@ from juli_backend.models.shopee_fill import (
     ShopeeFillJob,
 )
 from juli_backend.services.card_events import verification
+from juli_backend.services.ingest import min_version
 from juli_backend.services.ingest import status as ingest_status
 from juli_backend.services.shopee_recommendations import (
     connector_state,
@@ -333,6 +334,9 @@ async def connector_status(
         "reconcile_pending": beat["reconcile_pending"],
         # Connector 0.3.22: the sections the last daily run could not read (login wall / CAPTCHA).
         "reader_blocks": beat["reader_blocks"],
+        # R7: the Connector minimum; the screen shows one update line when the newest is older.
+        "min_version": min_version.minimum(),
+        "upgrade_required": min_version.is_too_old(newest),
     }
 
 
