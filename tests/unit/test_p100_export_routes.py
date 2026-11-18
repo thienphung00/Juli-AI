@@ -16,10 +16,12 @@ from tests.support.shopee_analytics import CUR_END, seed_shopee_shop
 DEMO = "/v1/demo/shopee/exports"
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PARAMS = {"period": "7d", "as_of": CUR_END.isoformat()}
-TQ_SHEETS = [
+#: the product level has no "Lợi nhuận" sheet (the bridge is the shop's)
+TQ_PRODUCT_SHEETS = [
     tq.SHEET_OVERVIEW, tq.SHEET_CHANNEL, tq.SHEET_DAY, tq.SHEET_PRODUCT, tq.SHEET_SKU,
     "Theo tháng", "KOC", "Phân tích & đề xuất",
 ]  # fmt: skip
+TQ_SHEETS = [TQ_PRODUCT_SHEETS[0], tq.SHEET_PROFIT, *TQ_PRODUCT_SHEETS[1:]]
 
 
 def _attachment(response) -> str:
@@ -54,7 +56,7 @@ async def test_the_seller_routes_download_both_workbooks(session):
     assert name.startswith("Juli_TongQuan_") and name.endswith(".xlsx")
     assert f"{CUR_END:%d%m%Y}.xlsx" in name
     assert _sheets(shop) == TQ_SHEETS
-    assert pid in _attachment(prod) and _sheets(prod) == TQ_SHEETS
+    assert pid in _attachment(prod) and _sheets(prod) == TQ_PRODUCT_SHEETS
     plan_name = _attachment(plan)
     assert plan_name.startswith("Juli_KeHoach_") and f"{CUR_END:%d%m%Y}.xlsx" in plan_name
     assert _sheets(plan)[:2] == [kh.SHEET_HISTORY, kh.SHEET_GOAL] and _sheets(plan)[-1] == "KOL"

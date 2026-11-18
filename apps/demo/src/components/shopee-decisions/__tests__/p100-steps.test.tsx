@@ -175,7 +175,8 @@ const three = (): BuilderOutcome[] => [outcome(0, res(150000, -1170000)), outcom
 describe("P100 step ④ So sánh & lưu", () => {
   it("names the best version in the title with the period total; bars: gain grey on the right, loss red on the left; per-day lines", async () => {
     renderStep4(compareApi(three()));
-    expect(await screen.findByTestId("p4-title")).toHaveTextContent("P3 lãi thêm nhiều nhất: +200.000đ trong 30 ngày");
+    // the title shows the product name until the three results arrive: wait for the comparison
+    await waitFor(() => expect(screen.getByTestId("p4-title")).toHaveTextContent("P3 lãi thêm nhiều nhất: +200.000đ trong 30 ngày"));
     expect(screen.getByTestId("p4-bar-fill-1")).toHaveAttribute("data-sign", "gain");
     expect(screen.getByTestId("p4-bar-fill-2")).toHaveAttribute("data-sign", "loss");
     expect(screen.getByTestId("p4-bar-fill-3").style.width).toBe("50%");

@@ -28,6 +28,7 @@ from juli_backend.services.exports import report_calc as calc
 from juli_backend.services.exports import report_sheets as rs
 from juli_backend.services.exports import sku as skumod
 from juli_backend.services.exports import tong_quan_xlsx as tq
+from juli_backend.services.exports.profit_bridge import profit_bridge
 from juli_backend.services.shopee_analytics import (
     NoShopeeData,
     RowsNotMaterialized,
@@ -364,7 +365,7 @@ async def collect_tong_quan(
         platform, product_name=names.get(product_id, product_id) if product_id else None,
         product_id=product_id, skus=skus, prev_kind=prev_kind, goal_gmv=goal_gmv,
         goal_profit=goal_profit, months=months, koc=koc, affiliate_share=share,
-        analysis=analysis,
+        analysis=analysis, bridge=None if product_id else profit_bridge(view),
     )  # fmt: skip
 
 
