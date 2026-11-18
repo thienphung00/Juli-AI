@@ -7,11 +7,15 @@ from __future__ import annotations
 
 import uuid
 from datetime import timedelta
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import select
 
+from juli_backend.models.card_events import CardEvent
+from juli_backend.models.platform_data import PlatformItem
 from juli_backend.models.shop_proposals import ShopProposal
+from juli_backend.models.shopee_connector import ShopeeConnectorTokenState
 from juli_backend.models.shopee_fill import (
     STATUS_CAPTURED,
     STATUS_FAILED,
@@ -21,16 +25,28 @@ from juli_backend.models.shopee_fill import (
 )
 from juli_backend.services import ingest as ingest_service
 from juli_backend.services import shopee_recommendations as reco
+from juli_backend.services.ingest.rate_limit import InMemoryRateGate, set_ingest_rate_gate
 from juli_backend.services.shop_proposals import ProposalError
-from juli_backend.services.shopee_recommendations import fill_queue, revert_fill, store
+from juli_backend.services.shopee_recommendations import (
+    connector_state,
+    fill_queue,
+    revert_fill,
+    store,
+)
+from tests.support.consent import grant_service_consent
 from tests.support.shopee_analytics import voucher_rows
 from tests.unit import test_p97_fill_queue as _p97
+from tests.unit import test_shopee_builder as _builder
+from tests.unit.test_shopee_file_datasets import _ingest, _rows, _shop
+from tests.unit.test_shopee_reader_datasets import _post
 
 NOW = _p97.NOW
 _approve = _p97._approve
 _jobs = _p97._jobs
 shop = _p97.shop
 _flag_on = _p97._flag_on
+builder_shop = _builder.shop
+BUILDER_AS_OF = _builder.AS_OF
 JOBS = _p97.JOBS
 
 
@@ -210,16 +226,6 @@ async def test_a_readback_job_never_auto_executes_or_fails_the_card(session, sho
 
 # ------------------------------------------------------------------- contract D (E20 / E50)
 
-from juli_backend.models.platform_data import PlatformItem  # noqa: E402
-from juli_backend.services.ingest.rate_limit import (  # noqa: E402
-    InMemoryRateGate,
-    set_ingest_rate_gate,
-)
-from tests.unit.test_shopee_builder import AS_OF as BUILDER_AS_OF  # noqa: E402
-from tests.unit.test_shopee_builder import shop as builder_shop  # noqa: E402,F401
-from tests.unit.test_shopee_file_datasets import _ingest, _rows, _shop  # noqa: E402
-from tests.unit.test_shopee_reader_datasets import _post  # noqa: E402
-
 
 @pytest.fixture
 def generous_gate():
@@ -255,7 +261,7 @@ async def test_a_partial_catalog_row_merges_without_blanking_the_name(session, g
 
 async def test_the_picker_and_a_new_description_card_carry_the_current_values(
     session,
-    builder_shop,  # noqa: F811
+    builder_shop,
 ):
     from sqlalchemy import update
 
@@ -290,10 +296,6 @@ async def test_the_picker_and_a_new_description_card_carry_the_current_values(
 
 # ------------------------------------------------------------- read-back ingest, E32, reconcile
 
-from juli_backend.models.card_events import CardEvent  # noqa: E402
-from juli_backend.models.shopee_connector import ShopeeConnectorTokenState  # noqa: E402
-from juli_backend.services.shopee_recommendations import connector_state  # noqa: E402
-from tests.support.consent import grant_service_consent  # noqa: E402
 
 ext = _p97.ext
 
@@ -509,7 +511,10 @@ async def test_a_verification_bug_never_fails_the_ingest(session, shop, generous
         body=ingest_service.IngestBody.model_validate(body),
         token_id=None,
         now=_p97.NOW + timedelta(hours=3),
-    )  # no exception
+    )
+    items = await _rows(session, PlatformItem, SimpleNamespace(id=seeded.shop_id))
+    assert {i.name for i in items if i.item_id == "1001"} == {"Găng tay"}
+    # the post was stored although the verification raised
 
 
 async def test_the_voucher_payload_carries_the_smart_flag_default_off(session, shop):

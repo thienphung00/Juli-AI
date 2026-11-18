@@ -302,11 +302,8 @@ async def test_a_variation_restructure_reads_the_variations_still_in_the_list(se
     assert (counts.checked, counts.verified) == (1, 1)
 
 
-async def test_imported_executions_and_the_description_are_not_read_back(session):
+async def test_imported_executions_are_not_read_back(session):
     shop = await _shop(session)
-    await _executed(
-        session, shop, "description_first_line", {"item_id": "1001"}, {"first_line": "x"}
-    )
     card = await _executed(
         session, shop, "listing_status", {"item_id": "1001"}, {"status": "unlisted"}
     )
@@ -319,4 +316,14 @@ async def test_imported_executions_and_the_description_are_not_read_back(session
     await session.flush()
     pending = await vf.pending_changes(session, shop.id, T0 + timedelta(days=1))
     assert pending == []  # no false "không thấy" for a field no reader posts
-    assert vf.DESCRIPTION_READBACK_ACTIVE is False
+
+
+async def test_the_description_first_line_is_read_back(session):
+    # batch-1118g F3.2: the Connector now posts the first line from the product edit page
+    shop = await _shop(session)
+    await _executed(
+        session, shop, "description_first_line", {"item_id": "1001"}, {"first_line": "x"}
+    )
+    pending = await vf.pending_changes(session, shop.id, T0 + timedelta(days=1))
+    assert [c.change_kind for c in pending] == ["description_first_line"]
+    assert vf.DESCRIPTION_READBACK_ACTIVE is True

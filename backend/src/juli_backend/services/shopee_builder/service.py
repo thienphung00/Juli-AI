@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.ingest import PLATFORM_SHOPEE
 from juli_backend.models.platform_data import PlatformItem
 from juli_backend.models.shop_proposals import (
     STATUS_CHANGES_REQUESTED,
@@ -116,7 +117,7 @@ async def current_values(
     (``platform_items.extra``: ``description_first_line``, ``affiliate_commission_pct``)."""
     query = select(PlatformItem.item_id, PlatformItem.extra).where(
         PlatformItem.shop_id == shop_id,
-        PlatformItem.platform == "shopee",
+        PlatformItem.platform == PLATFORM_SHOPEE,
         PlatformItem.variation_id == "",
     )
     if items is not None:
