@@ -325,8 +325,9 @@ class TestTheMigrationMatchesTheModel:
         # P98 `126_shopee_source_funnel`; P100 E.7 `127_card_content_specs`;
         # P100 Thực hiện `128_connector_state`; P100 stock alert `129_stock_alert`;
         # P101 W1 `130_businesses`; Connector 0.3.22 `131_connector_reader_blocks`;
-        # forecast grill F6 `133_fleet_draws_real_shops` (on W2a 132).
-        assert heads == ["133_fleet_draws_real_shops"], heads
+        # forecast grill F6 `133_fleet_draws_real_shops` (on W2a 132);
+        # Connector R7 `135_connector_multi_computer` (on 133; 134 ships separately).
+        assert heads == ["135_connector_multi_computer"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema
