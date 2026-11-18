@@ -405,11 +405,11 @@ describe("item_traffic", () => {
     expect(h.sent[0]!.headers).toEqual({ "x-mydata": "1" });
   });
 
-  it("the password re-confirmation modal stops with blocked_login before any request", async () => {
+  it("the password re-confirmation modal stops with blocked_password_recheck (not blocked_login) before any request", async () => {
     const h = harness({}, ok, { session: false });
     h.env.passwordModalVisible = () => true;
     const outcome = await runReaderJob(job, h.env);
-    expect(outcome).toMatchObject({ status: "blocked_login", detail: "password_modal" });
+    expect(outcome).toMatchObject({ status: "blocked_password_recheck", detail: "password_modal" });
     expect(h.sent).toEqual([]);
   });
 
@@ -418,7 +418,7 @@ describe("item_traffic", () => {
     let n = 0;
     h.env.passwordModalVisible = () => h.sent.length >= 2 && ++n > 0;
     const outcome = await runReaderJob(job, h.env);
-    expect(outcome.status).toBe("blocked_login");
+    expect(outcome.status).toBe("blocked_password_recheck");
     expect(h.sent).toHaveLength(2);
   });
 

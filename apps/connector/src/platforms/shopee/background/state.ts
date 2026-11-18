@@ -114,12 +114,14 @@ export interface ReaderRun {
   outcomes: Record<string, string>;
   /** 0.3.22: Seller Centre sections ("portal", "datacenter") with a page read in this run. */
   live?: string[];
+  /** 0.3.25: "reread" for a run started after a block cleared (reported to Juli as that trigger). */
+  trigger?: string;
   /** 0.3.22: per section, the login / CAPTCHA walls since its last read (two block its other pages). */
   walls?: Record<string, { count: number; reason: ReaderBlockReason }>;
 }
 
 /** `rate_limit`: HTTP 429 / 403 or Shopee wording for "too many requests" (P97). */
-export type ReaderBlockReason = "captcha" | "login" | "rate_limit";
+export type ReaderBlockReason = "captcha" | "login" | "password_recheck" | "rate_limit";
 
 /** One scheduler tick that started from rest: what woke it and how it ended (a skip reason or a start). */
 export interface TickRecord {
@@ -164,6 +166,10 @@ export interface ReaderSchedule {
   lastRunDay?: string;
   lastRun?: { day: string; at: string; outcomes: Record<string, string>; blocked?: ReaderBlockReason };
   run?: ReaderRun;
+  /** 0.3.25: pages blocked today by a login / password wall, to read again once the block clears (once per clear). */
+  reread?: { day: string; pages: ReaderId[] };
+  /** 0.3.25: re-read starts today (capped, so a dialog that keeps coming back cannot loop). */
+  rereadCount?: { day: string; n: number };
   /** A CAPTCHA / login wall stopped the readers: nothing is opened before `until` (ms since epoch). */
   blocked?: { at: string; reason: ReaderBlockReason; page: ReaderId; until: number };
   /** Legacy (≤ 0.3.5): days marked read whether or not their upload landed. No longer read. */

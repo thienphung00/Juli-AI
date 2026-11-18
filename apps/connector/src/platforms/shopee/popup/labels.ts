@@ -2,7 +2,7 @@
 // seller's on-screen vocabulary only (D31.8): no endpoint or backend terms.
 
 import type { Backfill, ReaderSchedule } from "../background/state";
-import { DATASET_LABELS } from "./guide";
+import { DATASET_LABELS, PASSWORD_RECHECK_LOWER } from "./guide";
 
 export const CONSENT_REQUIRED_MESSAGE =
   "Shop này chưa được cấp quyền đồng bộ dữ liệu với Juli, nên tiện ích đã tạm dừng gửi số liệu. " +
@@ -44,6 +44,7 @@ export function backfillLabel(backfill: Backfill | null | undefined): string | n
 export function readersLabel(readers: ReaderSchedule | null | undefined, nowMs: number = Date.now()): string | null {
   if (!readers) return null;
   if (readers.blocked && readers.blocked.until > nowMs) {
+    if (readers.blocked.reason === "password_recheck") return `Tạm dừng đọc các trang báo cáo: ${PASSWORD_RECHECK_LOWER}.`;
     return readers.blocked.reason === "captcha"
       ? "Tạm dừng đọc các trang báo cáo: Seller Centre yêu cầu xác minh (CAPTCHA). Mở Seller Centre, xác minh, rồi bấm “Đồng bộ hôm qua”."
       : "Tạm dừng đọc các trang báo cáo: đăng nhập lại Seller Centre để tiếp tục.";

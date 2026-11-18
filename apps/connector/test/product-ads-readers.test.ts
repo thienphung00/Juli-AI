@@ -237,7 +237,7 @@ describe("the product table reader", () => {
     const h = harness({ product_performance: template }, () => ({ body: page([]) }));
     h.env.passwordModalVisible = () => true;
     const outcome = await runReaderJob({ id: "product_period" }, h.env);
-    expect(outcome).toMatchObject({ status: "blocked_login", detail: "password_modal" });
+    expect(outcome).toMatchObject({ status: "blocked_password_recheck", detail: "password_modal" });
     expect(h.sent).toEqual([]);
   });
 
@@ -357,7 +357,7 @@ describe("group campaigns' products -> ads_campaign_period", () => {
     const h = harness({ ads_mpd_products: { query: {}, body: pageBody(1), lastResponse: mpd([]) } }, () => ({ body: mpd([]) }), "/portal/marketing/pas/product/manual-mpd/1");
     h.env.passwordModalVisible = () => true;
     const outcome = await runReaderJob({ id: "ads_products", campaignIds: ["1", "2"], campaignNames: ["A", "B"] }, h.env);
-    expect(outcome).toMatchObject({ status: "blocked_login", detail: "password_modal" });
+    expect(outcome).toMatchObject({ status: "blocked_password_recheck", detail: "password_modal" });
     expect(h.sent).toEqual([]);
   });
 

@@ -166,6 +166,15 @@ const fillJobs = new FillJobs({
 
 // -- pairings of the other platforms (T11) ---------------------------------------------------
 
+/** The first path segment of a Seller Centre tab's URL ("datacenter", "portal"), or undefined. */
+function sectionOfTabUrl(url: string | undefined): string | undefined {
+  try {
+    return new URL(url ?? "").pathname.split("/")[1] || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const pairings = new Pairings(chrome.storage.local, registry.legacy.id);
 const otherRunners = new Map<string, CoreFillJobs>();
 
@@ -477,7 +486,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // A data answer proves the seller's session: a login block on the readers is over.
       return respond(
         thenBackfill(connector.pageCapture(msg as unknown as Captured)).then(async (outcome) => {
-          if (isDataAnswer(200, (msg as unknown as Captured).body)) await scheduler.sessionSeen();
+          // The tab's Seller Centre section ("datacenter" = Phân tích bán hàng): a call that answered
+          // there means its password dialog is confirmed, so the pages it blocked are read again.
+          if (isDataAnswer(200, (msg as unknown as Captured).body)) await scheduler.sessionSeen(sectionOfTabUrl(sender.tab?.url));
           return outcome;
         }),
       );

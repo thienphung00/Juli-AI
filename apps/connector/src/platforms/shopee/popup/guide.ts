@@ -237,6 +237,12 @@ export interface PageRow {
 }
 
 /** A finished job's outcome (scheduler finishJob) in the seller's words. */
+/** 0.3.25: the Phân tích bán hàng password dialog; the seller confirms it once (the Connector never types it). */
+export const PASSWORD_RECHECK_LINE = "Xác nhận mật khẩu Shopee một lần trong Phân tích bán hàng";
+
+/** The same line inside a sentence. */
+export const PASSWORD_RECHECK_LOWER = PASSWORD_RECHECK_LINE.charAt(0).toLowerCase() + PASSWORD_RECHECK_LINE.slice(1);
+
 export function outcomeStatus(outcome: string): { status: string; tone: Tone } {
   const head = outcome.split(/[:|]/, 1)[0] ?? outcome;
   if (head === "done") {
@@ -259,8 +265,11 @@ export function outcomeStatus(outcome: string): { status: string; tone: Tone } {
       return { status: "Dừng: Seller Centre yêu cầu xác minh (CAPTCHA)", tone: "warn" };
     case "blocked_login":
       return { status: "Dừng: cần đăng nhập lại Seller Centre", tone: "warn" };
+    case "blocked_password_recheck":
+      return { status: PASSWORD_RECHECK_LINE, tone: "warn" };
     case "blocked":
       // 0.3.22: "blocked:login" / "blocked:captcha": this page only; the other pages went on.
+      if (outcome.startsWith("blocked:password_recheck")) return { status: PASSWORD_RECHECK_LINE, tone: "warn" };
       return outcome.startsWith("blocked:captcha")
         ? { status: "Trang này yêu cầu xác minh (CAPTCHA)", tone: "warn" }
         : { status: "Đăng nhập lại để đọc trang này", tone: "warn" };
@@ -315,6 +324,7 @@ export function pageRows(readers: ReaderSchedule | null | undefined, ids: readon
 export function runLine(readers: ReaderSchedule | null | undefined, nowMs: number = Date.now()): string | null {
   if (readers?.blocked && readers.blocked.until > nowMs) {
     const page = READER_GUIDE[readers.blocked.page]?.title ?? "Seller Centre";
+    if (readers.blocked.reason === "password_recheck") return `Tạm dừng: ${PASSWORD_RECHECK_LOWER} (trang ${page}).`;
     return readers.blocked.reason === "captcha"
       ? `Tạm dừng: Seller Centre yêu cầu xác minh (CAPTCHA) ở trang ${page}. Mở Seller Centre, xác minh, rồi bấm “Đồng bộ hôm qua”.`
       : readers.blocked.reason === "login"
@@ -349,6 +359,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   stock_alarm: "đọc tồn kho 06:30",
   after_stock: "sau khi đọc tồn kho",
   retry: "thử lại",
+  reread: "đọc lại các trang bị chặn",
   kick: "thử lại",
   manual: "bấm “Đồng bộ hôm qua”",
 };
@@ -378,7 +389,11 @@ export function tickResultLabel(result: string): string {
     case "budget_spent":
       return "hết lượt đọc hôm nay";
     default:
-      return head.startsWith("blocked:") ? "dừng: Seller Centre yêu cầu đăng nhập hoặc xác minh" : head;
+      return head.startsWith("blocked:password_recheck") || head === "blocked_password_recheck"
+        ? PASSWORD_RECHECK_LOWER
+        : head.startsWith("blocked:")
+          ? "dừng: Seller Centre yêu cầu đăng nhập hoặc xác minh"
+          : head;
   }
 }
 
