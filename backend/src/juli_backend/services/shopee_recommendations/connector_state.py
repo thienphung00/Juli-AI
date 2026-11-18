@@ -184,7 +184,11 @@ def _block_of(reader: str, outcome: object) -> tuple[str, str] | None:
             section = SECTION_DATACENTER if reader in DATACENTER_READERS else SECTION_SELLER_CENTRE
             return section, reason
         if outcome == f"blocked_{reason}":
-            return SECTION_SELLER_CENTRE, reason
+            # The password dialog only exists on /datacenter; a login wall or CAPTCHA stops the
+            # whole Seller Centre session.
+            return (
+                SECTION_DATACENTER if reason == "password_recheck" else SECTION_SELLER_CENTRE
+            ), reason
     return None
 
 
