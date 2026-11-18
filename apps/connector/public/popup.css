@@ -10,7 +10,7 @@ p { margin: 4px 0; }
 #pair-error { color: #b42318; min-height: 1em; margin: 6px 0 0; }
 .hint { color: #57606a; font-size: 12px; }
 .meta { color: #57606a; font-size: 12px; }
-#consent { color: #b42318; }
+#consent, #upgrade { color: #b42318; }
 .card { border: 1px solid #f0c36d; background: #fff8e6; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
 .card.ok { border-color: #a7d8b5; background: #effaf2; }
 .card.busy { border-color: #b6d4fe; background: #eef5ff; }

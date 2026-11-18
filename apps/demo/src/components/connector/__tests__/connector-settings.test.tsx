@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SettingsTabs } from "../../quyet-dinh/settings-rules";
@@ -49,13 +49,28 @@ describe("Cài đặt › Juli Connector", () => {
 
   it("lists connected browsers and revokes one", async () => {
     const fetchImpl = fakeFetch([
-      { id: "tk1", client_label: "Chrome · máy văn phòng", last_used_at: "2026-11-06T03:00:00Z", active: true },
+      { id: "tk1", client_label: "Chrome · máy văn phòng", last_used_at: "2026-11-06T03:00:00Z", active: true, created_at: "2026-11-01T00:00:00Z" },
       { id: "tk2", client_label: "cũ", last_used_at: null, active: false },
+      {
+        id: "tk3",
+        client_label: "Juli Connector 0.3.25",
+        last_used_at: "2026-11-06T03:00:00Z",
+        last_seen_at: "2026-11-18T05:00:00Z",
+        connector_version: "0.3.25",
+        active: true,
+        created_at: "2026-11-02T00:00:00Z",
+      },
     ]);
     render(<ConnectorSettings auth={{ token: "t", shopId: "s1", fetchImpl: fetchImpl as unknown as typeof fetch }} shopName="ORY" />);
     expect(await screen.findByText("Chrome · máy văn phòng")).toBeInTheDocument();
     expect(screen.queryByText("cũ")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Ngắt kết nối" }));
+    expect(screen.getByRole("heading", { name: "Máy đã kết nối" })).toBeInTheDocument();
+    const rows = screen.getAllByTestId("connector-machine");
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toHaveTextContent("Máy 2"); // the Connector's own default label becomes "Máy <n>"
+    expect(rows[1]).toHaveTextContent("0.3.25");
+    expect(screen.queryByText("Ngắt kết nối")).toBeNull();
+    fireEvent.click(within(rows[0]!).getByRole("button", { name: "Gỡ" }));
     await waitFor(() =>
       expect((fetchImpl.mock.calls as unknown as [string, RequestInit][]).some(([u, i]) => u === "/v1/ingest/tokens/tk1" && i?.method === "DELETE")).toBe(true),
     );

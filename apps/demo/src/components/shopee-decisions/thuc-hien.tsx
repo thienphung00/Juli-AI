@@ -233,6 +233,11 @@ export function ThucHienView({ onCount }: { readonly onCount?: (n: number) => vo
                 {k.seller_centre_open ? "Seller Centre đang mở · " : ""}
                 {k.last_check_at ? `đối chiếu lần cuối ${hhmm(k.last_check_at)}` : "chưa đối chiếu"}
               </span>
+              {k.upgrade_required && k.min_version ? (
+                <span className="sd-th-bar__block" data-testid="sd-th-bar-upgrade">
+                  Cập nhật Juli Connector lên {k.min_version}
+                </span>
+              ) : null}
               {blocked ? (
                 <span className="sd-th-bar__block" data-testid="sd-th-bar-block">
                   {blocked}

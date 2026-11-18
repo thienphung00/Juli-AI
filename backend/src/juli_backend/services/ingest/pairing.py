@@ -233,6 +233,7 @@ async def _issue(
     client_label: str | None,
     now: datetime,
     rotated_from: uuid.UUID | None = None,
+    install_id: str | None = None,
 ) -> IssuedToken:
     token = _new_token(shop_id)
     row = IngestToken(
@@ -242,6 +243,7 @@ async def _issue(
         platform=platform,
         platform_shop_id=platform_shop_id,
         client_label=client_label,
+        install_id=install_id,
         created_at=now,
         expires_at=now + TOKEN_TTL,
         rotated_from_id=rotated_from,
@@ -255,6 +257,31 @@ async def _issue(
         platform=platform,
         expires_at=row.expires_at,
         rotate_after=now + ROTATE_AFTER,
+    )
+
+
+async def _supersede_install(
+    session: AsyncSession,
+    *,
+    shop_id: uuid.UUID,
+    platform: str,
+    install_id: str,
+    keep: uuid.UUID,
+    now: datetime,
+) -> None:
+    """A re-pair from the same install (same shop + platform + install id) retires that install's
+    older live tokens, with the rotation grace so a lost response does not strand the browser."""
+    await session.execute(
+        update(IngestToken)
+        .where(
+            IngestToken.shop_id == shop_id,
+            IngestToken.platform == platform,
+            IngestToken.install_id == install_id,
+            IngestToken.id != keep,
+            IngestToken.revoked_at.is_(None),
+            IngestToken.superseded_at.is_(None),
+        )
+        .values(superseded_at=now)
     )
 
 
@@ -283,6 +310,7 @@ async def redeem_pairing_code(
     platform_shop_id: str | None,
     client_label: str | None,
     now: datetime,
+    install_id: str | None = None,
 ) -> IssuedToken:
     """Exchange a live code for an ingest token. Every refusal is ``invalid_code``
     except a platform / shop mismatch, which the seller must be told about."""
@@ -327,7 +355,17 @@ async def redeem_pairing_code(
             platform_shop_id=platform_shop_id or shop.shopee_shop_id,
             client_label=client_label,
             now=now,
+            install_id=install_id,
         )
+        if install_id:
+            await _supersede_install(
+                session,
+                shop_id=shop_id,
+                platform=platform,
+                install_id=install_id,
+                keep=issued.token_id,
+                now=now,
+            )
         await session.execute(
             update(IngestPairingCode)
             .where(IngestPairingCode.id == row.id)

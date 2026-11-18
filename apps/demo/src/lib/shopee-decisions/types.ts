@@ -752,6 +752,9 @@ export interface ConnectorLine {
   readonly connected: boolean;
   readonly seller_centre_open: boolean | null;
   readonly reconcile_pending?: boolean;
+  /** R7: the shop's newest Connector is below Juli's minimum; `min_version` is what to update to. */
+  readonly upgrade_required?: boolean;
+  readonly min_version?: string;
   /** Connector 0.3.22: Seller Centre sections the last daily run could not read. */
   readonly reader_blocks?: readonly ReaderBlock[];
 }
